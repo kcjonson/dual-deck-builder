@@ -46,16 +46,15 @@ export class Renderer {
     this.canvas.height = window.innerHeight;
     this.gl.viewport(0, 0, this.canvas.width, this.canvas.height);
     
-    // Update projection matrix
-    const aspectRatio = this.canvas.width / this.canvas.height;
+    // Update projection matrix - use pixel coordinates directly
     mat4.ortho(
       this.projectionMatrix,
-      -aspectRatio, // left
-      aspectRatio,  // right
-      -1.0,         // bottom
-      1.0,          // top
-      -1.0,         // near
-      1.0           // far
+      0,                   // left
+      this.canvas.width,   // right
+      this.canvas.height,  // bottom (flipped for screen coordinates)
+      0,                   // top
+      -1.0,                // near
+      1.0                  // far
     );
   }
 
@@ -65,6 +64,7 @@ export class Renderer {
   public clear(): void {
     console.log('Renderer: Clearing canvas');
     this.gl.clear(this.gl.COLOR_BUFFER_BIT);
+    this.clear2DCanvas(); // Also clear the 2D canvas used for text
   }
 
   /**
@@ -96,15 +96,20 @@ export class Renderer {
       return;
     }
 
+    // Center the rectangle at the correct position
+    // In pixel coordinates, we want the x,y to be the top-left corner
+    const centerX = x + width / 2;
+    const centerY = y + height / 2;
+
     // Create a model matrix for this rectangle
     const modelMatrix = mat4.create();
-    mat4.translate(modelMatrix, modelMatrix, [x, y, 0]);
+    mat4.translate(modelMatrix, modelMatrix, [centerX, centerY, 0]);
     mat4.scale(modelMatrix, modelMatrix, [width / 2, height / 2, 1]);
 
     this.currentShader.setMatrix4('uModelMatrix', modelMatrix);
     this.currentShader.setVector4('uColor', color);
 
-    // Create rectangle vertices
+    // Create rectangle vertices (1x1 quad from -1 to 1 in NDC)
     const vertices = new Float32Array([
       -1.0, -1.0,  // Bottom left
        1.0, -1.0,  // Bottom right
@@ -168,9 +173,10 @@ export class Renderer {
 
     // Create model matrix for the line
     const modelMatrix = mat4.create();
+    // For lines, use the actual coordinates without centering adjustments
     mat4.translate(modelMatrix, modelMatrix, [startX, startY, 0]);
     mat4.rotateZ(modelMatrix, modelMatrix, angle);
-    mat4.scale(modelMatrix, modelMatrix, [length / 2, lineWidth / 2, 1]);
+    mat4.scale(modelMatrix, modelMatrix, [length, lineWidth / 2, 1]);
 
     this.currentShader.setMatrix4('uModelMatrix', modelMatrix);
     this.currentShader.setVector4('uColor', color);
@@ -216,7 +222,7 @@ export class Renderer {
   }
 
   /**
-   * Draw text on the screen (basic implementation - for complex text, you'd use texture fonts)
+   * Draw text on the screen using HTML Canvas API as a fallback
    */
   public drawText(
     text: string, 
@@ -225,51 +231,56 @@ export class Renderer {
     color: [number, number, number, number] = [1, 1, 1, 1],
     fontSize: number = 16
   ): void {
-    // For now, use HTML Canvas API to draw text
-    const ctx = document.createElement('canvas').getContext('2d');
-    if (!ctx) return;
+    // Create a 2D context if we don't already have one
+    if (!this.ctx2d) {
+      // Create a 2D canvas overlay for text rendering
+      const canvas2d = document.createElement('canvas');
+      canvas2d.style.position = 'absolute';
+      canvas2d.style.left = '0';
+      canvas2d.style.top = '0';
+      canvas2d.style.pointerEvents = 'none'; // Make it non-interactive
+      canvas2d.width = window.innerWidth;
+      canvas2d.height = window.innerHeight;
+      
+      // Get the WebGL canvas and insert our 2D canvas right after it
+      const webglCanvas = this.canvas;
+      if (webglCanvas.parentNode) {
+        webglCanvas.parentNode.insertBefore(canvas2d, webglCanvas.nextSibling);
+      } else {
+        document.body.appendChild(canvas2d);
+      }
+      
+      // Store the context
+      this.ctx2d = canvas2d.getContext('2d');
+      
+      // Resize the 2D canvas when window resizes
+      window.addEventListener('resize', () => {
+        if (this.ctx2d) {
+          const canvas = this.ctx2d.canvas;
+          canvas.width = window.innerWidth;
+          canvas.height = window.innerHeight;
+        }
+      });
+    }
     
-    ctx.font = `${fontSize}px Arial`;
-    const textWidth = ctx.measureText(text).width;
+    if (!this.ctx2d) return;
     
-    // Create a texture from the text
-    const textCanvas = document.createElement('canvas');
-    textCanvas.width = textWidth;
-    textCanvas.height = fontSize * 1.5;
+    // Set up the text styling
+    this.ctx2d.font = `${fontSize}px Arial`;
+    this.ctx2d.fillStyle = `rgba(${color[0] * 255}, ${color[1] * 255}, ${color[2] * 255}, ${color[3]})`;
     
-    const textCtx = textCanvas.getContext('2d');
-    if (!textCtx) return;
-    
-    textCtx.font = `${fontSize}px Arial`;
-    textCtx.fillStyle = `rgba(${color[0] * 255}, ${color[1] * 255}, ${color[2] * 255}, ${color[3]})`;
-    textCtx.fillText(text, 0, fontSize);
-    
-    // Create texture from the canvas
-    const texture = this.gl.createTexture();
-    this.gl.bindTexture(this.gl.TEXTURE_2D, texture);
-    this.gl.texImage2D(
-      this.gl.TEXTURE_2D,
-      0,
-      this.gl.RGBA,
-      this.gl.RGBA,
-      this.gl.UNSIGNED_BYTE,
-      textCanvas
-    );
-    
-    // Set texture parameters
-    this.gl.texParameteri(this.gl.TEXTURE_2D, this.gl.TEXTURE_WRAP_S, this.gl.CLAMP_TO_EDGE);
-    this.gl.texParameteri(this.gl.TEXTURE_2D, this.gl.TEXTURE_WRAP_T, this.gl.CLAMP_TO_EDGE);
-    this.gl.texParameteri(this.gl.TEXTURE_2D, this.gl.TEXTURE_MIN_FILTER, this.gl.LINEAR);
-    this.gl.texParameteri(this.gl.TEXTURE_2D, this.gl.TEXTURE_MAG_FILTER, this.gl.LINEAR);
-    
-    // Draw as a textured rectangle
-    // Implementation would use a textured quad shader
-    // For now, this is a placeholder - you would need to implement a textured shader
-    console.log('Text rendering not fully implemented');
-    
-    // Clean up
-    this.gl.bindTexture(this.gl.TEXTURE_2D, null);
-    this.gl.deleteTexture(texture);
+    // Draw the text
+    this.ctx2d.fillText(text, x, y + fontSize); // Add fontSize to y to align properly
+  }
+  
+  /**
+   * Clear the 2D canvas used for text rendering
+   * This should be called at the beginning of each frame
+   */
+  private clear2DCanvas(): void {
+    if (this.ctx2d) {
+      this.ctx2d.clearRect(0, 0, this.ctx2d.canvas.width, this.ctx2d.canvas.height);
+    }
   }
 
   /**

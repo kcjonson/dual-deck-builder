@@ -1,4 +1,5 @@
 import { Component } from './Component';
+import { RendererContext } from '../rendering/RendererContext';
 
 /**
  * Layer component for grouping and organizing other components
@@ -36,11 +37,13 @@ export class Layer extends Component {
   public render(): void {
     if (!this.visible) return;
 
-    // If this layer has a renderer attached (via the game instance)
-    // and a background color, render the background
+    // If the layer has a background color, render the background
     if (this.backgroundColor && this.width > 0 && this.height > 0) {
-      // This would use the renderer to draw the background
-      // To be implemented when connecting with the renderer
+      // Get the renderer instance
+      const renderer = RendererContext.getInstance().getRenderer();
+      
+      // Draw the background rectangle
+      renderer.drawRectangle(this.x, this.y, this.width, this.height, this.backgroundColor);
     }
 
     // Render all children

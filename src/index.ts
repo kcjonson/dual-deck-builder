@@ -1,6 +1,7 @@
 import { Renderer } from './renderer/engine/rendering/Renderer';
 import { Shader } from './renderer/engine/rendering/Shader';
 import { Game } from './renderer/game/Game';
+import { RendererContext } from './renderer/engine/rendering/RendererContext';
 import vertexShaderSource from './assets/shaders/vertex.glsl';
 import fragmentShaderSource from './assets/shaders/fragment.glsl';
 
@@ -29,6 +30,9 @@ class Application {
 
       // Create the WebGL renderer
       this.renderer = new Renderer('game-canvas');
+      
+      // Set up the global renderer context
+      RendererContext.getInstance().setRenderer(this.renderer);
       
       // Create default shader
       const shader = new Shader(

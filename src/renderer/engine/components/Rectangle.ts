@@ -1,4 +1,5 @@
 import { Component } from './Component';
+import { RendererContext } from '../rendering/RendererContext';
 
 /**
  * Rectangle component for rendering rectangles
@@ -59,11 +60,34 @@ export class Rectangle extends Component {
   public render(): void {
     if (!this.visible) return;
 
-    // Will be implemented when connected with the renderer
-    // Would use renderer.drawRectangle(this.x, this.y, this.width, this.height, this.fillColor);
+    // Get the renderer instance
+    const renderer = RendererContext.getInstance().getRenderer();
     
-    // If there is a border, draw it
-    // Would check for border and draw it
+    // Debug output to verify positions and dimensions
+    console.log(`Drawing rectangle ${this.id}: x=${this.x}, y=${this.y}, width=${this.width}, height=${this.height}, color=${this.fillColor}`);
+    
+    // Draw the rectangle fill
+    renderer.drawRectangle(this.x, this.y, this.width, this.height, this.fillColor);
+    
+    // If there is a border, draw it as four lines
+    if (this.borderColor && this.borderWidth > 0) {
+      const x = this.x;
+      const y = this.y;
+      const w = this.width;
+      const h = this.height;
+      
+      // Draw top border
+      renderer.drawLine(x, y, x + w, y, this.borderColor, this.borderWidth);
+      
+      // Draw right border
+      renderer.drawLine(x + w, y, x + w, y + h, this.borderColor, this.borderWidth);
+      
+      // Draw bottom border
+      renderer.drawLine(x + w, y + h, x, y + h, this.borderColor, this.borderWidth);
+      
+      // Draw left border
+      renderer.drawLine(x, y + h, x, y, this.borderColor, this.borderWidth);
+    }
     
     // Render children
     for (const child of this.children) {

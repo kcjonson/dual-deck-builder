@@ -1,4 +1,5 @@
 import { Component } from './Component';
+import { RendererContext } from '../rendering/RendererContext';
 
 /**
  * Text component for rendering text
@@ -88,8 +89,11 @@ export class Text extends Component {
   public render(): void {
     if (!this.visible) return;
 
-    // Will be implemented when connected with the renderer
-    // Would use renderer.drawText(this.text, this.x, this.y, this.color, this.fontSize);
+    // Get the renderer instance
+    const renderer = RendererContext.getInstance().getRenderer();
+    
+    // Draw the text
+    renderer.drawText(this.text, this.x, this.y, this.color, this.fontSize);
     
     // Render children
     for (const child of this.children) {
