@@ -1,0 +1,85 @@
+{
+  "name": "dual-deck-builder",
+  "version": "1.0.0",
+  "description": "A roguelike deckbuilder game with WebGL rendering for web and desktop",
+  "main": "dist/electron/main.js",
+  "scripts": {
+    "start": "webpack serve --config webpack/webpack.web.js",
+    "build:web": "webpack --config webpack/webpack.web.js",
+    "build:electron": "webpack --config webpack/webpack.electron.js",
+    "start:electron": "electron .",
+    "package": "electron-builder build --publish never",
+    "package:win": "electron-builder build --win --publish never",
+    "package:mac": "electron-builder build --mac --publish never",
+    "lint": "eslint . --ext .ts",
+    "lint:fix": "eslint . --ext .ts --fix",
+    "format": "prettier --write \"src/**/*.ts\"",
+    "test": "jest",
+    "deploy": "gh-pages -d dist/web"
+  },
+  "keywords": [
+    "game",
+    "deckbuilder",
+    "roguelike",
+    "webgl",
+    "typescript",
+    "electron"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "electron-updater": "^5.3.0",
+    "gl-matrix": "^3.4.3"
+  },
+  "devDependencies": {
+    "@types/jest": "^29.5.1",
+    "@types/node": "^20.2.1",
+    "@typescript-eslint/eslint-plugin": "^5.59.7",
+    "@typescript-eslint/parser": "^5.59.7",
+    "concurrently": "^8.0.1",
+    "copy-webpack-plugin": "^11.0.0",
+    "cross-env": "^7.0.3",
+    "electron": "^25.0.1",
+    "electron-builder": "^24.2.0",
+    "eslint": "^8.41.0",
+    "eslint-config-prettier": "^8.8.0",
+    "eslint-plugin-prettier": "^4.2.1",
+    "gh-pages": "^5.0.0",
+    "html-webpack-plugin": "^5.5.1",
+    "jest": "^29.5.0",
+    "prettier": "^2.8.8",
+    "raw-loader": "^4.0.2",
+    "rimraf": "^5.0.1",
+    "ts-jest": "^29.1.0",
+    "ts-loader": "^9.4.3",
+    "typescript": "^5.0.4",
+    "webpack": "^5.84.0",
+    "webpack-cli": "^5.1.1",
+    "webpack-dev-server": "^4.15.0",
+    "webpack-merge": "^5.9.0"
+  },
+  "build": {
+    "appId": "com.dualdeckbuilder.app",
+    "productName": "Dual Deckbuilder",
+    "files": [
+      "dist/**/*",
+      "package.json"
+    ],
+    "directories": {
+      "output": "release"
+    },
+    "mac": {
+      "category": "public.app-category.games",
+      "target": "dmg",
+      "icon": "electron/icons/icon.icns"
+    },
+    "win": {
+      "target": "nsis",
+      "icon": "electron/icons/icon.ico"
+    },
+    "publish": {
+      "provider": "github",
+      "releaseType": "release"
+    }
+  }
+}
