@@ -1,4 +1,4 @@
-import { app, BrowserWindow, Menu } from 'electron';
+import { app, BrowserWindow, Menu, ipcMain } from 'electron';
 import * as path from 'path';
 import { autoUpdater } from 'electron-updater';
 
@@ -6,6 +6,9 @@ import { autoUpdater } from 'electron-updater';
 if (require('electron-squirrel-startup')) {
   app.quit();
 }
+
+// Enable source map support for better debugging
+require('source-map-support').install();
 
 let mainWindow: BrowserWindow | null = null;
 
@@ -18,6 +21,8 @@ const createWindow = () => {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
       nodeIntegration: false,
+      // Enable debugging
+      devTools: true,
     },
   });
 
@@ -27,8 +32,22 @@ const createWindow = () => {
   } else {
     // In development, load from the dev server
     mainWindow.loadURL('http://localhost:9000');
+    
+    // Enable remote debugging for VS Code to attach
+    mainWindow.webContents.debugger.attach('1.3');
+    
+    // Open DevTools by default in development mode
     mainWindow.webContents.openDevTools();
+    
+    // Log startup for output monitoring
+    console.log('Electron application starting in development mode');
   }
+  
+  // Log errors for output monitoring
+  mainWindow.webContents.on('console-message', (event, level, message, line, sourceId) => {
+    const levels = ['log', 'warning', 'error', 'info', 'debug'];
+    console.log(`[Renderer] [${levels[level]}]: ${message}`);
+  });
 
   // Set native menu
   const template = [

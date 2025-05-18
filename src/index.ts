@@ -2,6 +2,7 @@ import { Renderer } from './renderer/engine/rendering/Renderer';
 import { Shader } from './renderer/engine/rendering/Shader';
 import { Game } from './renderer/game/Game';
 import { RendererContext } from './renderer/engine/rendering/RendererContext';
+import { InputSystem } from './renderer/engine/input/InputSystem';
 import vertexShaderSource from './assets/shaders/vertex.glsl';
 import fragmentShaderSource from './assets/shaders/fragment.glsl';
 
@@ -34,6 +35,10 @@ class Application {
       // Set up the global renderer context
       RendererContext.getInstance().setRenderer(this.renderer);
       
+      // Initialize the input system with the canvas
+      const canvas = document.getElementById('game-canvas') as HTMLCanvasElement;
+      InputSystem.getInstance().setup(canvas);
+      
       // Create default shader
       const shader = new Shader(
         this.renderer.getContext(),
@@ -54,6 +59,17 @@ class Application {
     } catch (error) {
       console.error('Failed to initialize application:', error);
     }
+  }
+
+  /**
+   * Clean up resources before app shutdown
+   */
+  public cleanup(): void {
+    // Clean up the input system to remove event listeners
+    InputSystem.getInstance().cleanup();
+    
+    // Additional cleanup as needed
+    console.log('Application resources cleaned up');
   }
 
   /**

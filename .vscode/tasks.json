@@ -1,0 +1,123 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Start Web Dev Server",
+      "type": "npm",
+      "script": "start",
+      "group": {
+        "kind": "build",
+        "isDefault": true
+      },
+      "isBackground": true,
+      "problemMatcher": {
+        "owner": "webpack",
+        "severity": "error",
+        "fileLocation": "absolute",
+        "pattern": [
+          {
+            "regexp": "ERROR in (.*)",
+            "message": 1
+          },
+          {
+            "regexp": "\\s+(.*):(\\d+):(\\d+)",
+            "file": 1,
+            "line": 2,
+            "column": 3
+          }
+        ],
+        "background": {
+          "activeOnStart": true,
+          "beginsPattern": "webpack [\\d.]+ compiled",
+          "endsPattern": "webpack [\\d.]+ compiled"
+        }
+      }
+    },
+    {
+      "label": "Build Web",
+      "type": "npm",
+      "script": "build:web",
+      "group": "build",
+      "problemMatcher": [
+        "$tsc",
+        "$eslint-stylish"
+      ]
+    },
+    {
+      "label": "Build Electron",
+      "type": "npm",
+      "script": "build:electron",
+      "group": "build",
+      "problemMatcher": [
+        "$tsc",
+        "$eslint-stylish"
+      ]
+    },
+    {
+      "label": "Start Electron",
+      "type": "npm",
+      "script": "start:electron",
+      "dependsOn": "Build Electron",
+      "group": {
+        "kind": "test",
+        "isDefault": true
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "Lint",
+      "type": "npm",
+      "script": "lint",
+      "problemMatcher": [
+        "$eslint-stylish"
+      ]
+    },
+    {
+      "label": "Lint & Fix",
+      "type": "npm",
+      "script": "lint:fix",
+      "problemMatcher": [
+        "$eslint-stylish"
+      ]
+    },
+    {
+      "label": "Run Tests",
+      "type": "npm",
+      "script": "test",
+      "group": "test",
+      "problemMatcher": [
+        "$jest"
+      ]
+    },
+    {
+      "label": "Build & Package (All)",
+      "type": "npm",
+      "script": "package",
+      "dependsOn": "Build Electron",
+      "group": "build",
+      "problemMatcher": [
+        "$tsc"
+      ]
+    },
+    {
+      "label": "Build & Package (Windows)",
+      "type": "npm",
+      "script": "package:win",
+      "dependsOn": "Build Electron",
+      "group": "build",
+      "problemMatcher": [
+        "$tsc"
+      ]
+    },
+    {
+      "label": "Build & Package (Mac)",
+      "type": "npm",
+      "script": "package:mac",
+      "dependsOn": "Build Electron",
+      "group": "build",
+      "problemMatcher": [
+        "$tsc"
+      ]
+    }
+  ]
+}

@@ -147,6 +147,18 @@ export abstract class Component {
   }
 
   /**
+   * Clean up resources and event handlers
+   * This should be called when a component is permanently removed
+   * Override in subclasses to implement specific cleanup behavior
+   */
+  public cleanup(): void {
+    // Clean up children
+    for (const child of this.children) {
+      child.cleanup();
+    }
+  }
+
+  /**
    * Render method to draw the component
    * This should be implemented by each subclass
    */

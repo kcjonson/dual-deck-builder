@@ -92,8 +92,23 @@ export class Text extends Component {
     // Get the renderer instance
     const renderer = RendererContext.getInstance().getRenderer();
     
+    // Calculate position based on alignment and bounding box
+    let xPos = this.x;
+    if (this.align === 'center' && this.width > 0) {
+      xPos = this.x + (this.width / 2);
+    } else if (this.align === 'right' && this.width > 0) {
+      xPos = this.x + this.width;
+    }
+    
+    let yPos = this.y;
+    if (this.baseline === 'middle' && this.height > 0) {
+      yPos = this.y + (this.height / 2);
+    } else if (this.baseline === 'bottom' && this.height > 0) {
+      yPos = this.y + this.height;
+    }
+    
     // Draw the text
-    renderer.drawText(this.text, this.x, this.y, this.color, this.fontSize);
+    renderer.drawText(this.text, xPos, yPos, this.color, this.fontSize, this.align, this.baseline);
     
     // Render children
     for (const child of this.children) {

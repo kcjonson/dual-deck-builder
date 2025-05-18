@@ -229,7 +229,9 @@ export class Renderer {
     x: number, 
     y: number, 
     color: [number, number, number, number] = [1, 1, 1, 1],
-    fontSize: number = 16
+    fontSize: number = 16,
+    align: 'left' | 'center' | 'right' = 'left',
+    baseline: 'top' | 'middle' | 'bottom' = 'top'
   ): void {
     // Create a 2D context if we don't already have one
     if (!this.ctx2d) {
@@ -268,9 +270,11 @@ export class Renderer {
     // Set up the text styling
     this.ctx2d.font = `${fontSize}px Arial`;
     this.ctx2d.fillStyle = `rgba(${color[0] * 255}, ${color[1] * 255}, ${color[2] * 255}, ${color[3]})`;
+    this.ctx2d.textAlign = align;
+    this.ctx2d.textBaseline = baseline;
     
-    // Draw the text
-    this.ctx2d.fillText(text, x, y + fontSize); // Add fontSize to y to align properly
+    // Draw the text with proper alignment
+    this.ctx2d.fillText(text, x, y);
   }
   
   /**
