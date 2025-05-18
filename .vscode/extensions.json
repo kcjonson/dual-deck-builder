@@ -1,23 +1,12 @@
 {
-  "recommendations": [
-    "dbaeumer.vscode-eslint",
-    "esbenp.prettier-vscode",
-    "ms-vscode.vscode-typescript-next",
-    "firefox-devtools.vscode-firefox-debug",
-    "ms-vscode.js-debug-nightly",
-    "ms-vscode.vscode-js-profile-flame",
-    "ms-vscode.vscode-js-profile-table",
-    "orta.vscode-jest",
-    "grapecity.gc-excelviewer",
-    "ms-vsliveshare.vsliveshare",
-    "visualstudioexptteam.vscodeintellicode",
-    "rebornix.project-snippets",
-    "streetsidesoftware.code-spell-checker",
-    "oderwat.indent-rainbow",
-    "wayou.vscode-todo-highlight",
-    "gruntfuggly.todo-tree",
-    "yzhang.markdown-all-in-one",
-    "bierner.markdown-preview-github-styles",
-    "xabikos.javascriptsnippets"
-  ]
+	"recommendations": [
+		"dbaeumer.vscode-eslint",
+		"esbenp.prettier-vscode",
+		"ms-vscode.vscode-typescript-next",
+		"ms-vscode.js-debug-nightly",
+		"ms-vscode.vscode-js-profile-flame",
+		"ms-vscode.vscode-js-profile-table",
+		"orta.vscode-jest",
+		"visualstudioexptteam.vscodeintellicode"
+	]
 }

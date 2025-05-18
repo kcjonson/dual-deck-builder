@@ -1,79 +1,67 @@
 {
-  "version": "0.2.0",
-  "configurations": [
-    {
-      "name": "Debug Web",
-      "type": "chrome",
-      "request": "launch",
-      "url": "http://localhost:8080",
-      "webRoot": "${workspaceFolder}/dist/web",
-      "sourceMapPathOverrides": {
-        "webpack:///./~/*": "${workspaceFolder}/node_modules/*",
-        "webpack:///./*": "${workspaceFolder}/*"
-      },
-      "preLaunchTask": "Start Web Dev Server"
-    },
-    {
-      "name": "Debug Electron Main",
-      "type": "node",
-      "request": "launch",
-      "cwd": "${workspaceFolder}",
-      "runtimeExecutable": "${workspaceFolder}/node_modules/.bin/electron",
-      "windows": {
-        "runtimeExecutable": "${workspaceFolder}/node_modules/.bin/electron.cmd"
-      },
-      "args": [
-        "${workspaceFolder}/dist/electron/main.js"
-      ],
-      "outputCapture": "std",
-      "console": "integratedTerminal",
-      "sourceMaps": true,
-      "outFiles": [
-        "${workspaceFolder}/dist/electron/main.js"
-      ],
-      "preLaunchTask": "Build Electron",
-      "resolveSourceMapLocations": [
-        "${workspaceFolder}/**",
-        "!**/node_modules/**"
-      ],
-      "env": {
-        "NODE_ENV": "development"
-      }
-    },
-    {
-      "name": "Debug Electron Renderer",
-      "type": "chrome",
-      "request": "attach",
-      "port": 9222,
-      "webRoot": "${workspaceFolder}/dist/electron",
-      "timeout": 30000,
-      "sourceMaps": true,
-      "sourceMapPathOverrides": {
-        "webpack:///./~/*": "${workspaceFolder}/node_modules/*",
-        "webpack:///./*": "${workspaceFolder}/*"
-      }
-    },
-    {
-      "name": "Debug Tests",
-      "type": "node",
-      "request": "launch",
-      "program": "${workspaceFolder}/node_modules/jest/bin/jest.js",
-      "args": [
-        "--runInBand"
-      ],
-      "console": "integratedTerminal",
-      "internalConsoleOptions": "neverOpen",
-      "sourceMaps": true,
-      "disableOptimisticBPs": true
-    }
-  ],
-  "compounds": [
-    {
-      "name": "Debug Electron (Main + Renderer)",
-      "configurations": [
-        "Debug Electron Main",
-        "Debug Electron Renderer"
-      ]
-    }
-  ]
+	"version": "0.2.0",
+	"configurations": [
+		{
+			"name": "Debug Web",
+			"type": "chrome",
+			"request": "launch",
+			"url": "http://localhost:8080",
+			"webRoot": "${workspaceFolder}/dist/web",
+			"sourceMapPathOverrides": {
+				"webpack:///./~/*": "${workspaceFolder}/node_modules/*",
+				"webpack:///./*": "${workspaceFolder}/*"
+			},
+			"preLaunchTask": "Start Web Dev Server"
+		},
+		{
+			"name": "Debug Electron Main",
+			"type": "node",
+			"request": "launch",
+			"cwd": "${workspaceFolder}",
+			"runtimeExecutable": "${workspaceFolder}/node_modules/.bin/electron",
+			"windows": {
+				"runtimeExecutable": "${workspaceFolder}/node_modules/.bin/electron.cmd"
+			},
+			"args": ["${workspaceFolder}/dist/electron/main.js"],
+			"outputCapture": "std",
+			"console": "integratedTerminal",
+			"sourceMaps": true,
+			"outFiles": ["${workspaceFolder}/dist/electron/main.js"],
+			"preLaunchTask": "Build Electron",
+			"resolveSourceMapLocations": ["${workspaceFolder}/**", "!**/node_modules/**"],
+			"env": {
+				"NODE_ENV": "development"
+			}
+		},
+		{
+			"name": "Debug Electron Renderer",
+			"type": "chrome",
+			"request": "attach",
+			"port": 9222,
+			"webRoot": "${workspaceFolder}/dist/electron",
+			"timeout": 30000,
+			"sourceMaps": true,
+			"sourceMapPathOverrides": {
+				"webpack:///./~/*": "${workspaceFolder}/node_modules/*",
+				"webpack:///./*": "${workspaceFolder}/*"
+			}
+		},
+		{
+			"name": "Debug Tests",
+			"type": "node",
+			"request": "launch",
+			"program": "${workspaceFolder}/node_modules/jest/bin/jest.js",
+			"args": ["--runInBand"],
+			"console": "integratedTerminal",
+			"internalConsoleOptions": "neverOpen",
+			"sourceMaps": true,
+			"disableOptimisticBPs": true
+		}
+	],
+	"compounds": [
+		{
+			"name": "Debug Electron (Main + Renderer)",
+			"configurations": ["Debug Electron Main", "Debug Electron Renderer"]
+		}
+	]
 }

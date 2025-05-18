@@ -10,7 +10,7 @@
  * @returns Interpolated value
  */
 export function lerp(a: number, b: number, t: number): number {
-  return a + (b - a) * t;
+	return a + (b - a) * t;
 }
 
 /**
@@ -21,7 +21,7 @@ export function lerp(a: number, b: number, t: number): number {
  * @returns Clamped value
  */
 export function clamp(value: number, min: number, max: number): number {
-  return Math.max(min, Math.min(max, value));
+	return Math.max(min, Math.min(max, value));
 }
 
 /**
@@ -34,13 +34,13 @@ export function clamp(value: number, min: number, max: number): number {
  * @returns Mapped value
  */
 export function map(
-  value: number,
-  fromMin: number,
-  fromMax: number,
-  toMin: number,
-  toMax: number
+	value: number,
+	fromMin: number,
+	fromMax: number,
+	toMin: number,
+	toMax: number,
 ): number {
-  return toMin + ((value - fromMin) * (toMax - toMin)) / (fromMax - fromMin);
+	return toMin + ((value - fromMin) * (toMax - toMin)) / (fromMax - fromMin);
 }
 
 /**
@@ -50,7 +50,7 @@ export function map(
  * @returns Random number
  */
 export function random(min: number, max: number): number {
-  return min + Math.random() * (max - min);
+	return min + Math.random() * (max - min);
 }
 
 /**
@@ -60,9 +60,9 @@ export function random(min: number, max: number): number {
  * @returns Random integer
  */
 export function randomInt(min: number, max: number): number {
-  min = Math.ceil(min);
-  max = Math.floor(max);
-  return Math.floor(Math.random() * (max - min + 1)) + min;
+	min = Math.ceil(min);
+	max = Math.floor(max);
+	return Math.floor(Math.random() * (max - min + 1)) + min;
 }
 
 /**
@@ -71,7 +71,7 @@ export function randomInt(min: number, max: number): number {
  * @returns Angle in radians
  */
 export function radians(degrees: number): number {
-  return (degrees * Math.PI) / 180;
+	return (degrees * Math.PI) / 180;
 }
 
 /**
@@ -80,7 +80,7 @@ export function radians(degrees: number): number {
  * @returns Angle in degrees
  */
 export function degrees(radians: number): number {
-  return (radians * 180) / Math.PI;
+	return (radians * 180) / Math.PI;
 }
 
 /**
@@ -92,9 +92,9 @@ export function degrees(radians: number): number {
  * @returns Distance between points
  */
 export function distance(x1: number, y1: number, x2: number, y2: number): number {
-  const dx = x2 - x1;
-  const dy = y2 - y1;
-  return Math.sqrt(dx * dx + dy * dy);
+	const dx = x2 - x1;
+	const dy = y2 - y1;
+	return Math.sqrt(dx * dx + dy * dy);
 }
 
 /**
@@ -110,14 +110,14 @@ export function distance(x1: number, y1: number, x2: number, y2: number): number
  * @returns Whether the rectangles intersect
  */
 export function rectIntersect(
-  x1: number,
-  y1: number,
-  w1: number,
-  h1: number,
-  x2: number,
-  y2: number,
-  w2: number,
-  h2: number
+	x1: number,
+	y1: number,
+	w1: number,
+	h1: number,
+	x2: number,
+	y2: number,
+	w2: number,
+	h2: number,
 ): boolean {
-  return !(x1 > x2 + w2 || x1 + w1 < x2 || y1 > y2 + h2 || y1 + h1 < y2);
+	return !(x1 > x2 + w2 || x1 + w1 < x2 || y1 > y2 + h2 || y1 + h1 < y2);
 }

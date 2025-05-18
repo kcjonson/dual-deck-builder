@@ -1,5 +1,22 @@
 /**
- * Types of events that can be dispatched
+ * Types of events that can/**
+ * StateValue can be any valid JSON value
+ */
+export type StateValue = 
+    | string 
+    | number 
+    | boolean 
+    | null 
+    | StateValue[] 
+    | { [key: string]: StateValue };
+
+/**
+ * State management class
+ */
+export class State {
+	private state: Record<string, StateValue> = {};
+	private previousState: Record<string, StateValue> = {};
+	private listeners: Map<EventType, EventHandler[]> = new Map();patched
  */
 export enum EventType {
 	STATE_CHANGED = 'state_changed',
@@ -12,28 +29,22 @@ export enum EventType {
 }
 
 /**
- * StateValue can be any valid JSON value
- */
-export type StateValue =
-	| string
-	| number
-	| boolean
-	| null
-	| StateValue[]
-	| { [key: string]: StateValue };
-
-/**
  * Event interface
  */
 export interface GameEvent {
 	type: EventType;
-	payload?: StateValue;
+	payload?: unknown;
 }
 
 /**
  * Event handler type
  */
 export type EventHandler = (event: GameEvent) => void;
+
+/**
+ * StateValue can be any valid JSON value
+ */
+export type StateValue = string | number | boolean | null | StateValue[] | { [key: string]: StateValue };
 
 /**
  * State management class
@@ -47,7 +58,7 @@ export class State {
 	 * Initialize the state with default values
 	 * @param initialState Initial state values
 	 */
-	constructor(initialState: Record<string, StateValue> = {}) {
+	constructor(initialState: Record<string, any> = {}) {
 		this.state = { ...initialState };
 		this.previousState = { ...this.state };
 	}
@@ -56,7 +67,7 @@ export class State {
 	 * Get current state
 	 * @returns Current state object
 	 */
-	public getState(): Record<string, StateValue> {
+	public getState(): Record<string, any> {
 		return { ...this.state };
 	}
 
@@ -64,7 +75,7 @@ export class State {
 	 * Get previous state
 	 * @returns Previous state object
 	 */
-	public getPreviousState(): Record<string, StateValue> {
+	public getPreviousState(): Record<string, any> {
 		return { ...this.previousState };
 	}
 
@@ -100,7 +111,7 @@ export class State {
 	 * Update multiple state values at once
 	 * @param newState Partial state object to merge
 	 */
-	public update(newState: Record<string, StateValue>): void {
+	public update(newState: Record<string, any>): void {
 		// Save previous state
 		this.previousState = { ...this.state };
 
@@ -147,7 +158,7 @@ export class State {
 	 * Reset the state to initial values
 	 * @param initialState Initial state values
 	 */
-	public reset(initialState: Record<string, StateValue> = {}): void {
+	public reset(initialState: Record<string, any> = {}): void {
 		// Save previous state
 		this.previousState = { ...this.state };
 

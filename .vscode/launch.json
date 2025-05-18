@@ -1,69 +1,62 @@
 {
-  "version": "0.2.0",
-  "configurations": [
-    {
-      "name": "Debug Web",
-      "type": "chrome",
-      "request": "launch",
-      "url": "http://localhost:8080",
-      "webRoot": "${workspaceFolder}/dist/web",
-      "sourceMapPathOverrides": {
-        "webpack:///./~/*": "${workspaceFolder}/node_modules/*",
-        "webpack:///./*": "${workspaceFolder}/*"
-      },
-      "preLaunchTask": "Start Web Dev Server"
-    },
-    {
-      "name": "Debug Electron Main",
-      "type": "node",
-      "request": "launch",
-      "cwd": "${workspaceFolder}",
-      "runtimeExecutable": "${workspaceFolder}/node_modules/.bin/electron",
-      "runtimeArgs": [
-        "."
-      ],
-      "outputCapture": "std",
-      "protocol": "inspector",
-      "preLaunchTask": "Build Electron",
-      "windows": {
-        "runtimeExecutable": "${workspaceFolder}/node_modules/.bin/electron.cmd"
-      },
-      "env": {
-        "NODE_ENV": "development"
-      }
-    },
-    {
-      "name": "Debug Electron Renderer",
-      "type": "chrome",
-      "request": "attach",
-      "port": 9222,
-      "webRoot": "${workspaceFolder}/dist/electron",
-      "timeout": 30000,
-      "urlFilter": "app://*",
-      "sourceMapPathOverrides": {
-        "webpack:///./~/*": "${workspaceFolder}/node_modules/*",
-        "webpack:///./*": "${workspaceFolder}/*"
-      }
-    },
-    {
-      "name": "Debug Tests",
-      "type": "node",
-      "request": "launch",
-      "program": "${workspaceFolder}/node_modules/jest/bin/jest.js",
-      "args": [
-        "--runInBand"
-      ],
-      "console": "integratedTerminal",
-      "internalConsoleOptions": "neverOpen"
-    }
-  ],
-  "compounds": [
-    {
-      "name": "Debug Electron (Main + Renderer)",
-      "configurations": [
-        "Debug Electron Main",
-        "Debug Electron Renderer"
-      ]
-    }
-  ]
+	"version": "0.2.0",
+	"configurations": [
+		{
+			"name": "Debug Web",
+			"type": "chrome",
+			"request": "launch",
+			"url": "http://localhost:9000",
+			"webRoot": "${workspaceFolder}/dist/web",
+			"sourceMapPathOverrides": {
+				"webpack:///./~/*": "${workspaceFolder}/node_modules/*",
+				"webpack:///./*": "${workspaceFolder}/*"
+			},
+			"preLaunchTask": "Start Web Dev Server"
+		},
+		{
+			"name": "Debug Electron Main",
+			"type": "node",
+			"request": "launch",
+			"cwd": "${workspaceFolder}",
+			"runtimeExecutable": "${workspaceFolder}/node_modules/.bin/electron",
+			"runtimeArgs": ["."],
+			"outputCapture": "std",
+			"protocol": "inspector",
+			"preLaunchTask": "Build Electron",
+			"windows": {
+				"runtimeExecutable": "${workspaceFolder}/node_modules/.bin/electron.cmd"
+			},
+			"env": {
+				"NODE_ENV": "development"
+			}
+		},
+		{
+			"name": "Debug Electron Renderer",
+			"type": "chrome",
+			"request": "attach",
+			"port": 9222,
+			"webRoot": "${workspaceFolder}/dist/electron",
+			"timeout": 30000,
+			"urlFilter": "app://*",
+			"sourceMapPathOverrides": {
+				"webpack:///./~/*": "${workspaceFolder}/node_modules/*",
+				"webpack:///./*": "${workspaceFolder}/*"
+			}
+		},
+		{
+			"name": "Debug Tests",
+			"type": "node",
+			"request": "launch",
+			"program": "${workspaceFolder}/node_modules/jest/bin/jest.js",
+			"args": ["--runInBand"],
+			"console": "integratedTerminal",
+			"internalConsoleOptions": "neverOpen"
+		}
+	],
+	"compounds": [
+		{
+			"name": "Debug Electron (Main + Renderer)",
+			"configurations": ["Debug Electron Main", "Debug Electron Renderer"]
+		}
+	]
 }

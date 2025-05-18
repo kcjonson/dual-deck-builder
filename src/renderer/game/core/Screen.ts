@@ -5,137 +5,137 @@ import { Renderer } from '../../engine/rendering/Renderer';
  * Base class for game screens
  */
 export abstract class Screen {
-  protected id: string;
-  protected renderer: Renderer;
-  protected rootLayer: Layer;
-  protected isActive: boolean = false;
+	protected id: string;
+	protected renderer: Renderer;
+	protected rootLayer: Layer;
+	protected isActive = false;
 
-  /**
-   * Create a new screen
-   * @param id Screen identifier
-   * @param renderer WebGL renderer
-   */
-  constructor(id: string, renderer: Renderer) {
-    this.id = id;
-    this.renderer = renderer;
-    this.rootLayer = new Layer(`${id}_rootLayer`);
-    
-    // Set the root layer to cover the entire screen
-    this.rootLayer.setPosition(0, 0);
-    this.rootLayer.setSize(window.innerWidth, window.innerHeight);
-    
-    // Listen for resize events
-    window.addEventListener('resize', () => this.handleResize());
-  }
+	/**
+	 * Create a new screen
+	 * @param id Screen identifier
+	 * @param renderer WebGL renderer
+	 */
+	constructor(id: string, renderer: Renderer) {
+		this.id = id;
+		this.renderer = renderer;
+		this.rootLayer = new Layer(`${id}_rootLayer`);
 
-  /**
-   * Get the screen's identifier
-   */
-  public getId(): string {
-    return this.id;
-  }
+		// Set the root layer to cover the entire screen
+		this.rootLayer.setPosition(0, 0);
+		this.rootLayer.setSize(window.innerWidth, window.innerHeight);
 
-  /**
-   * Handle screen activation
-   */
-  public activate(): void {
-    this.isActive = true;
-    this.onActivate();
-  }
+		// Listen for resize events
+		window.addEventListener('resize', () => this.handleResize());
+	}
 
-  /**
-   * Handle screen deactivation
-   */
-  public deactivate(): void {
-    this.isActive = false;
-    this.onDeactivate();
-  }
+	/**
+	 * Get the screen's identifier
+	 */
+	public getId(): string {
+		return this.id;
+	}
 
-  /**
-   * Check if the screen is currently active
-   */
-  public isScreenActive(): boolean {
-    return this.isActive;
-  }
+	/**
+	 * Handle screen activation
+	 */
+	public activate(): void {
+		this.isActive = true;
+		this.onActivate();
+	}
 
-  /**
-   * Handle window resize events
-   */
-  private handleResize(): void {
-    // Update the root layer size
-    this.rootLayer.setSize(window.innerWidth, window.innerHeight);
-    
-    // Call the screen-specific resize handler
-    this.onResized();
-  }
+	/**
+	 * Handle screen deactivation
+	 */
+	public deactivate(): void {
+		this.isActive = false;
+		this.onDeactivate();
+	}
 
-  /**
-   * Hook called when the screen is activated
-   * Override in subclasses to handle activation logic
-   */
-  protected onActivate(): void {
-    // Override in subclasses
-  }
+	/**
+	 * Check if the screen is currently active
+	 */
+	public isScreenActive(): boolean {
+		return this.isActive;
+	}
 
-  /**
-   * Hook called when the screen is deactivated
-   * Override in subclasses to handle deactivation logic
-   */
-  protected onDeactivate(): void {
-    // Override in subclasses
-  }
+	/**
+	 * Handle window resize events
+	 */
+	private handleResize(): void {
+		// Update the root layer size
+		this.rootLayer.setSize(window.innerWidth, window.innerHeight);
 
-  /**
-   * Hook called when the window is resized
-   * Override in subclasses to handle resize logic
-   */
-  protected onResized(): void {
-    // Override in subclasses
-  }
+		// Call the screen-specific resize handler
+		this.onResized();
+	}
 
-  /**
-   * Update the screen
-   * @param dt Time elapsed since last frame in seconds
-   */
-  public update(dt: number): void {
-    if (!this.isActive) return;
-    
-    // Update the root layer (which updates all children)
-    this.rootLayer.update(dt);
-    
-    // Call the screen-specific update handler
-    this.onUpdate(dt);
-  }
+	/**
+	 * Hook called when the screen is activated
+	 * Override in subclasses to handle activation logic
+	 */
+	protected onActivate(): void {
+		// Override in subclasses
+	}
 
-  /**
-   * Hook called every frame to update the screen
-   * Override in subclasses to handle screen-specific update logic
-   * @param dt Time elapsed since last frame in seconds
-   */
-  protected onUpdate(dt: number): void {
-    // Override in subclasses
-  }
+	/**
+	 * Hook called when the screen is deactivated
+	 * Override in subclasses to handle deactivation logic
+	 */
+	protected onDeactivate(): void {
+		// Override in subclasses
+	}
 
-  /**
-   * Render the screen
-   */
-  public render(): void {
-    if (!this.isActive) return;
-    
-    console.log(`Screen ${this.id}: Rendering (active: ${this.isActive})`);
-    
-    // Render the root layer (which renders all children)
-    this.rootLayer.render();
-    
-    // Call the screen-specific render handler
-    this.onRender();
-  }
+	/**
+	 * Hook called when the window is resized
+	 * Override in subclasses to handle resize logic
+	 */
+	protected onResized(): void {
+		// Override in subclasses
+	}
 
-  /**
-   * Hook called every frame to render the screen
-   * Override in subclasses to handle screen-specific render logic
-   */
-  protected onRender(): void {
-    // Override in subclasses
-  }
+	/**
+	 * Update the screen
+	 * @param dt Time elapsed since last frame in seconds
+	 */
+	public update(dt: number): void {
+		if (!this.isActive) return;
+
+		// Update the root layer (which updates all children)
+		this.rootLayer.update(dt);
+
+		// Call the screen-specific update handler
+		this.onUpdate(dt);
+	}
+
+	/**
+	 * Hook called every frame to update the screen
+	 * Override in subclasses to handle screen-specific update logic
+	 * @param _dt Time elapsed since last frame in seconds
+	 */
+	protected onUpdate(_dt: number): void {
+		// Override in subclasses
+	}
+
+	/**
+	 * Render the screen
+	 */
+	public render(): void {
+		if (!this.isActive) return;
+
+		console.log(`Screen ${this.id}: Rendering (active: ${this.isActive})`);
+
+		// Render the root layer (which renders all children)
+		this.rootLayer.render();
+
+		// Call the screen-specific render handler
+		this.onRender();
+	}
+
+	/**
+	 * Hook called every frame to render the screen
+	 * Override in subclasses to handle screen-specific render logic
+	 */
+	protected onRender(): void {
+		// Override in subclasses
+	}
 }

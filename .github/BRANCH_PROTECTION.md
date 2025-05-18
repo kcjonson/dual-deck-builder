@@ -21,6 +21,7 @@ This file provides instructions on how to set up branch protection rules for thi
 8. Click "Create" or "Save changes".
 
 These settings ensure that:
+
 - All PRs must pass tests and linting before they can be merged
 - The code must successfully build for both web and desktop platforms
 - The PR must be up to date with the target branch before merging
@@ -28,6 +29,7 @@ These settings ensure that:
 ## Additional CI/CD Settings
 
 The CI/CD workflow now includes:
+
 - Automated testing with Jest
 - Code linting
 - Test coverage reporting

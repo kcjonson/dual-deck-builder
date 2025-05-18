@@ -86,6 +86,7 @@ This project uses GitHub Actions for Continuous Integration and Deployment:
 - **Electron Build**: Builds and packages the desktop version for Windows and macOS
 
 Branch protection rules are set up to ensure that PRs can only be merged if:
+
 - All tests pass
 - Code passes linting
 - Builds succeed for all target platforms

@@ -1,34 +1,33 @@
 {
-  "editor.formatOnSave": true,
-  "editor.codeActionsOnSave": {
-    "source.fixAll.eslint": true
-  },
-  "typescript.updateImportsOnFileMove.enabled": "always",
-  "typescript.tsdk": "node_modules/typescript/lib",
-  "eslint.validate": [
-    "typescript"
-  ],
-  "search.exclude": {
-    "**/node_modules": true,
-    "**/dist": true,
-    "**/release": true
-  },
-  "files.exclude": {
-    "**/node_modules": false,
-    "**/dist": false
-  },
-  "task.problemMatchers.neverPrompt": {
-    "$tsc": true,
-    "$eslint-stylish": true,
-    "$jest": true
-  },
-  "javascript.preferences.quoteStyle": "single",
-  "typescript.preferences.quoteStyle": "single",
-  "debug.javascript.autoAttachFilter": "smart",
-  "debug.javascript.terminalOptions": {
-    "skipFiles": [
-      "<node_internals>/**"
-    ]
-  },
-  "js/ts.implicitProjectConfig.checkJs": false
+	"editor.formatOnSave": true,
+	"editor.defaultFormatter": "esbenp.prettier-vscode",
+	"editor.codeActionsOnSave": {
+		"source.fixAll.eslint": "explicit"
+	},
+	"prettier.requireConfig": true,
+	"eslint.format.enable": false,
+	"typescript.updateImportsOnFileMove.enabled": "always",
+	"typescript.tsdk": "node_modules/typescript/lib",
+	"eslint.validate": ["typescript"],
+	"search.exclude": {
+		"**/node_modules": true,
+		"**/dist": true,
+		"**/release": true
+	},
+	"files.exclude": {
+		"**/node_modules": false,
+		"**/dist": false
+	},
+	"task.problemMatchers.neverPrompt": {
+		"$tsc": true,
+		"$eslint-stylish": true,
+		"$jest": true
+	},
+	"javascript.preferences.quoteStyle": "single",
+	"typescript.preferences.quoteStyle": "single",
+	"debug.javascript.autoAttachFilter": "smart",
+	"debug.javascript.terminalOptions": {
+		"skipFiles": ["<node_internals>/**"]
+	},
+	"js/ts.implicitProjectConfig.checkJs": false
 }
