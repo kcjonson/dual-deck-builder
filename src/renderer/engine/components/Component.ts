@@ -1,7 +1,9 @@
+import { Interactive } from '../input/InputSystem';
+
 /**
  * Base Component class that all components will inherit from
  */
-export abstract class Component {
+export abstract class Component implements Interactive {
 	protected id: string;
 	protected x = 0;
 	protected y = 0;

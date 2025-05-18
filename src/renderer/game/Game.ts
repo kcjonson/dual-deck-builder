@@ -4,12 +4,22 @@ import { MainMenuScreen } from './screens/MainMenuScreen';
 import { DeveloperScreen } from './screens/DeveloperScreen';
 
 /**
+ * Interface for game screens
+ */
+export interface GameScreen {
+	activate(): void;
+	deactivate(): void;
+	update(dt: number): void;
+	render(): void;
+}
+
+/**
  * Main game class responsible for managing game state, screens, and resources
  */
 export class Game {
 	private renderer: Renderer;
 	private currentScreen: string | null = null;
-	private screens: Map<string, unknown> = new Map();
+	private screens: Map<string, GameScreen> = new Map();
 	private isElectron = false;
 	private isInitialized = false;
 
@@ -27,8 +37,8 @@ export class Game {
 				[key: string]: unknown;
 			};
 		}
-		this.isElectron =
-			!!(window as ElectronWindow).electron && (window as ElectronWindow).electron.isElectron;
+		const electronWindow = window as ElectronWindow;
+		this.isElectron = electronWindow.electron?.isElectron === true;
 
 		console.log(`Running in ${this.isElectron ? 'Electron' : 'Browser'} mode`);
 	}

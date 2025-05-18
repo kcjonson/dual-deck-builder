@@ -102,7 +102,8 @@ export class MainMenuScreen extends Screen {
 				[key: string]: unknown;
 			};
 		}
-		if ((window as ElectronWindow).electron && (window as ElectronWindow).electron.isElectron) {
+		const electronWindow = window as ElectronWindow;
+		if (electronWindow.electron && electronWindow.electron.isElectron === true) {
 			this.rootLayer.addChild(exitButton);
 		}
 	}

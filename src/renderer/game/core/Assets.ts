@@ -19,6 +19,7 @@ export enum AssetType {
  */
 export type AssetData =
 	| HTMLImageElement
+	| HTMLAudioElement
 	| ArrayBuffer
 	| string
 	| AudioBuffer

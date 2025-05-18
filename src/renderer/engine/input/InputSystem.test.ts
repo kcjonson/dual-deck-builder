@@ -1,65 +1,115 @@
+/**
+ * @jest-environment jsdom
+ */
 import { InputSystem } from './InputSystem';
 import { Rectangle } from '../components/Rectangle';
 
-/**
- * Simple test functions to verify InputSystem functionality
- * This file can be imported and run in the developer screen or test environment
- */
-export class InputSystemTest {
-	/**
-	 * Test basic InputSystem functionality with a simple rectangle
-	 * @param canvas Canvas element to use for the test
-	 * @returns The test rectangle that was created
-	 */
-	public static runBasicTest(canvas: HTMLCanvasElement): Rectangle {
-		console.log('Running InputSystem basic test...');
+describe('InputSystem', () => {
+	let mockCanvas: HTMLCanvasElement;
+	let inputSystem: InputSystem;
+	let testRect: Rectangle;
 
-		// Initialize input system with canvas
-		InputSystem.getInstance().setup(canvas);
+	beforeEach(() => {
+		// Create a mock canvas element
+		mockCanvas = document.createElement('canvas');
+		mockCanvas.width = 800;
+		mockCanvas.height = 600;
+		document.body.appendChild(mockCanvas);
 
-		// Create a test rectangle that changes color on hover and click
-		const testRect = new Rectangle('test_rect');
+		// Get InputSystem instance and set it up
+		inputSystem = InputSystem.getInstance();
+		inputSystem.setup(mockCanvas);
+
+		// Create test rectangle
+		testRect = new Rectangle('test_rect');
 		testRect.setPosition(100, 100);
 		testRect.setSize(200, 100);
 		testRect.setFillColor([0.2, 0.2, 0.8, 1.0]);
+	});
+
+	afterEach(() => {
+		// Clean up
+		InputSystem.unregisterComponent(testRect);
+		inputSystem.cleanup();
+		document.body.removeChild(mockCanvas);
+	});
+
+	test('should register component for mouse events', () => {
+		// Create spy functions for event handlers
+		const onMouseOver = jest.fn();
+		const onMouseOut = jest.fn();
+		const onMouseDown = jest.fn();
+		const onMouseUp = jest.fn();
 
 		// Register event handlers
-		InputSystem.registerMouseOver(testRect, () => {
-			console.log('Mouse over rectangle');
-			testRect.setFillColor([0.3, 0.3, 0.9, 1.0]);
+		InputSystem.registerMouseOver(testRect, onMouseOver);
+		InputSystem.registerMouseOut(testRect, onMouseOut);
+		InputSystem.registerMouseDown(testRect, onMouseDown);
+		InputSystem.registerMouseUp(testRect, onMouseUp);
+
+		// Simulate mouse events
+
+		// Mouse over test rectangle
+		const mouseOverEvent = new MouseEvent('mousemove', {
+			clientX: 150, // Inside rectangle
+			clientY: 150, // Inside rectangle
+			bubbles: true,
 		});
+		mockCanvas.dispatchEvent(mouseOverEvent);
 
-		InputSystem.registerMouseOut(testRect, () => {
-			console.log('Mouse out rectangle');
-			testRect.setFillColor([0.2, 0.2, 0.8, 1.0]);
+		// Mouse down on test rectangle
+		const mouseDownEvent = new MouseEvent('mousedown', {
+			clientX: 150,
+			clientY: 150,
+			bubbles: true,
 		});
+		mockCanvas.dispatchEvent(mouseDownEvent);
 
-		InputSystem.registerMouseDown(testRect, () => {
-			console.log('Mouse down on rectangle');
-			testRect.setFillColor([0.1, 0.1, 0.7, 1.0]);
+		// Mouse up on test rectangle
+		const mouseUpEvent = new MouseEvent('mouseup', {
+			clientX: 150,
+			clientY: 150,
+			bubbles: true,
 		});
+		mockCanvas.dispatchEvent(mouseUpEvent);
 
-		InputSystem.registerMouseUp(testRect, () => {
-			console.log('Mouse up on rectangle');
-			testRect.setFillColor([0.3, 0.3, 0.9, 1.0]);
-			alert('Rectangle clicked!');
+		// Mouse out of test rectangle
+		const mouseOutEvent = new MouseEvent('mousemove', {
+			clientX: 50, // Outside rectangle
+			clientY: 50, // Outside rectangle
+			bubbles: true,
 		});
+		mockCanvas.dispatchEvent(mouseOutEvent);
 
-		// Report success
-		console.log('InputSystem test setup complete. Hover and click the blue rectangle to test.');
+		// Check that all event handlers were called
+		expect(onMouseOver).toHaveBeenCalled();
+		expect(onMouseDown).toHaveBeenCalled();
+		expect(onMouseUp).toHaveBeenCalled();
+		expect(onMouseOut).toHaveBeenCalled();
+	});
 
-		// Return the test rectangle so it can be added to the scene
-		return testRect;
-	}
+	test('should unregister component', () => {
+		// Create spy functions for event handlers
+		const onMouseOver = jest.fn();
+		const onMouseDown = jest.fn();
 
-	/**
-	 * Clean up test resources
-	 * @param testRect The test rectangle created by runBasicTest
-	 */
-	public static cleanupTest(testRect: Rectangle): void {
-		if (testRect) {
-			InputSystem.unregisterComponent(testRect);
-		}
-		console.log('InputSystem test cleaned up');
-	}
-}
+		// Register event handlers
+		InputSystem.registerMouseOver(testRect, onMouseOver);
+		InputSystem.registerMouseDown(testRect, onMouseDown);
+
+		// Unregister component
+		InputSystem.unregisterComponent(testRect);
+
+		// Simulate mouse events
+		const mouseEvent = new MouseEvent('mousemove', {
+			clientX: 150, // Inside rectangle
+			clientY: 150, // Inside rectangle
+			bubbles: true,
+		});
+		mockCanvas.dispatchEvent(mouseEvent);
+
+		// Check that event handlers were not called
+		expect(onMouseOver).not.toHaveBeenCalled();
+		expect(onMouseDown).not.toHaveBeenCalled();
+	});
+});

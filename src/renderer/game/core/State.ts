@@ -73,7 +73,7 @@ export class State {
 	 * @param key State key
 	 * @returns Value for the key
 	 */
-	public get<T>(key: string): T {
+	public get<T extends StateValue>(key: string): T {
 		return this.state[key] as T;
 	}
 
@@ -82,7 +82,7 @@ export class State {
 	 * @param key State key
 	 * @param value New value
 	 */
-	public set<T>(key: string, value: T): void {
+	public set<T extends StateValue>(key: string, value: T): void {
 		// Save previous state
 		this.previousState = { ...this.state };
 
@@ -131,6 +131,7 @@ export class State {
 		if (this.has(key)) {
 			// Save previous state
 			this.previousState = { ...this.state };
+			const previousValue = this.previousState[key];
 
 			// Remove key
 			delete this.state[key];
@@ -138,7 +139,7 @@ export class State {
 			// Dispatch state change event
 			this.dispatch({
 				type: EventType.STATE_CHANGED,
-				payload: { key, value: undefined, previousValue: this.previousState[key] },
+				payload: { key, previousValue },
 			});
 		}
 	}
