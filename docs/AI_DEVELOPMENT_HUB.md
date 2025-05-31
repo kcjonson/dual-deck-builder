@@ -8,8 +8,16 @@ This document is a place for multiple AI workers (such as Claude and Claude Code
 
 Wasteland Wheels is a roguelike deckbuilder game with vehicular combat in a post-apocalyptic setting. Core mechanic: "Symbiotic Driver System" where players control two drivers/vehicles simultaneously.
 
-Tech Stack: TypeScript, WebGL, Electron, Jest
-Current State: Basic menu system and rendering engine implemented
+**Tech Stack**: TypeScript, WebGL, Electron, Jest
+**Current State**: Basic menu system and rendering engine implemented
+**Target Audience**: Fans of Slay the Spire, Monster Train, and roguelike deckbuilders
+
+## Key Game Features
+
+- **Genre**: Deckbuilder roguelike with vehicular combat
+- **Setting**: Post-apocalyptic wasteland (Mad Max/Carmageddon inspired)
+- **Core Mechanic**: Symbiotic Driver System - control two drivers/vehicles with synergistic abilities
+- **Features**: Turn-based card combat, vehicle customization, couch co-op support
 
 ## Design Documents
 
@@ -68,24 +76,50 @@ Current State: Basic menu system and rendering engine implemented
    - Combat system implementation details
    - Run culmination and defeat scenarios
 
+## Key Design Decisions
+
+### Symbiotic Driver System
+- Two drivers with separate but synergistic decks
+- Cards have enhanced effects based on partner actions
+- Shared resource pool (Adrenaline) for playing cards
+- Both drivers must survive for optimal gameplay
+
+### Combat System
+- Turn-based card combat
+- Positioning matters (flanking, range, cover)
+- Target specific vehicles or components
+- Environmental hazards and interactions
+
+### Visual Style
+- Gritty post-apocalyptic aesthetic
+- Vehicle customization visible in combat
+- Clear UI inspired by successful deckbuilders
+- Performance over visual complexity
+
 ## Implementation Priority Order
 
 ### Phase 1: Core Systems (Current)
 
-1. **Card Configuration Loader**
+1. **Combat System Foundation**
+   - Implement the dual-driver turn system
+   - Create synergy mechanics between drivers
+   - Build enemy AI system
 
+2. **Card System**
    - Create `src/renderer/game/data/cards.json` with card definitions
    - Implement `CardLoader` class to parse JSON into Card objects
    - Create interfaces matching the card structure in design doc
+   - Implement card effects system
+   - Create starter decks for different driver archetypes
+   - Build card reward and upgrade systems
 
-2. **Driver Selection Screen**
-
+3. **Driver Selection Screen**
    - Follow section 1.2 of Game Flow & UI Spec
    - Create `DriverSelectionScreen` extending `Screen` class
    - Implement driver data structure and loading
    - Two-panel layout with synergy preview
 
-3. **Basic Combat Screen**
+4. **Basic Combat Screen**
    - Follow section 2 of Game Flow & UI Spec
    - Create `CombatScreen` with enemy display, battlefield, hand, resources
    - Implement card dragging and targeting system
@@ -93,17 +127,28 @@ Current State: Basic menu system and rendering engine implemented
 
 ### Phase 2: Content & Polish
 
-- Implement all 4 starting driver decks
-- Add 20-30 common pool cards
-- Build garage/shop screen
-- Implement map navigation
+1. **Map Navigation**
+   - Implement node-based map generation
+   - Create different encounter types
+   - Build event system
+
+2. **Vehicle Customization**
+   - Implement vehicle stats and modifications
+   - Create visual representation system
+   - Build upgrade mechanics
+   - Build garage/shop screen
+
+3. **Content Implementation**
+   - Implement all 4 starting driver decks
+   - Add 20-30 common pool cards
+   - Create multiple enemy types
 
 ### Phase 3: AI & Balance
 
-- Basic AI that can play cards
+- Advanced AI that can play cards strategically
 - Intent system
-- Multiple enemy types
 - Difficulty scaling
+- Balance testing and adjustments
 
 ## Technical Decisions
 
@@ -191,7 +236,49 @@ class Card extends GameObject {
 4. Begin with Card Configuration Loader as it's foundational
 5. Update this document with progress and any blockers
 
-## Implementation Status
+## Current Development Todos
+
+### High Priority (Foundation - UI System & Demo Environment)
+- [ ] **Task 1**: Create test/demo environment for drawing API
+  - [ ] Build developer/demo screen to showcase all UI components
+  - [ ] Add interactive examples and real-time component testing
+  - [ ] Include visual style guide and color palette testing
+- [ ] **Task 2**: Expand drawing/rendering API with comprehensive UI primitives
+  - [ ] Add primitive shapes: Circle, Triangle, Polygon
+  - [ ] Implement visual effects: Gradients, patterns, shadows via shaders
+  - [ ] Create higher-level UI components: Card, ProgressBar, Slider
+  - [ ] Build geometric icon system for common UI symbols
+- [ ] **Task 3**: Implement core UI primitives for game interface
+  - [ ] Dialog/Popup component for game modals and menus
+  - [ ] ScrollContainer for lists (cards, inventory, settings)
+  - [ ] Enhanced Layer management system for z-ordering
+  - [ ] Window/Panel system for complex interfaces
+
+### Medium Priority (Game Foundation)
+- [ ] **Task 4**: Create Card system foundation - JSON config and CardLoader class
+- [ ] **Task 5**: Implement Driver data structures and archetypes
+- [ ] **Task 6**: Create Driver Selection Screen with two-panel layout
+- [ ] **Task 7**: Build basic Combat Screen layout and UI components
+- [ ] **Task 8**: Implement turn-based combat system foundation
+
+### Medium Priority (Core Mechanics)
+- [ ] **Task 6**: Create Vehicle and Driver entity classes with stats
+- [ ] **Task 7**: Implement card dragging and targeting system
+- [ ] **Task 8**: Build initiative/velocity system for turn order
+- [ ] **Task 9**: Create positioning system (Front/Back/Flanking)
+- [ ] **Task 10**: Implement shared Adrenaline resource pool
+- [ ] **Task 11**: Add hit calculation system with gunnery vs evade
+- [ ] **Task 12**: Create damage flow system (armor then structure)
+
+### Low Priority (Advanced Features)
+- [ ] **Task 13**: Implement basic enemy AI
+- [ ] **Task 14**: Build Map/Node navigation screen
+- [ ] **Task 15**: Create Shop/Garage screen for upgrades
+- [ ] **Task 16**: Add synergy mechanics between drivers
+- [ ] **Task 17**: Implement card upgrade system
+- [ ] **Task 18**: Create save/load functionality
+
+## Legacy Implementation Status (Archived)
 
 - [ ] Card Configuration Loader
   - [ ] Create cards.json with initial card set

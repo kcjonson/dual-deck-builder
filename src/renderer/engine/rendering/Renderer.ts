@@ -62,7 +62,6 @@ export class Renderer {
 	 * Clear the canvas with the current clear color
 	 */
 	public clear(): void {
-		console.log('Renderer: Clearing canvas');
 		this.gl.clear(this.gl.COLOR_BUFFER_BIT);
 		this.clear2DCanvas(); // Also clear the 2D canvas used for text
 	}

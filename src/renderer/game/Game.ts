@@ -74,13 +74,13 @@ export class Game {
 		// Create main menu screen
 		const mainMenuScreen = new MainMenuScreen(this.renderer);
 		mainMenuScreen.setOnStartGame(() => {
-			console.log('Start game clicked (not implemented yet)');
+			// Start game action (not implemented yet)
 		});
 		mainMenuScreen.setOnOpenSettings(() => {
-			console.log('Settings clicked (not implemented yet)');
+			// Settings action (not implemented yet)
 		});
 		mainMenuScreen.setOnOpenCredits(() => {
-			console.log('Credits clicked (not implemented yet)');
+			// Credits action (not implemented yet)
 		});
 		mainMenuScreen.setOnOpenDeveloper(() => {
 			// Show developer screen
@@ -89,7 +89,6 @@ export class Game {
 		mainMenuScreen.setOnExitGame(() => {
 			if (this.isElectron) {
 				// In Electron mode, request to close the app
-				console.log('Exit game clicked');
 				// Would use electron API to quit
 			}
 		});

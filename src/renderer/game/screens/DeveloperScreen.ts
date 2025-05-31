@@ -97,14 +97,14 @@ export class DeveloperScreen extends Screen {
 		// Add example buttons
 		const button1 = new Button('exampleButton1', 'Standard Button');
 		button1.setSize(200, 50);
-		button1.onClick(() => console.log('Standard button clicked'));
+		// Example button with no action
 		buttonsPanel.addChild(button1);
 
 		const button2 = new Button('exampleButton2', 'Custom Style');
 		button2.setSize(200, 50);
 		button2.setFillColor([0.8, 0.2, 0.2, 1]);
 		button2.setTextColor([1, 1, 1, 1]);
-		button2.onClick(() => console.log('Custom button clicked'));
+		// Custom styled button with no action
 		buttonsPanel.addChild(button2);
 
 		const button3 = new Button('exampleButton3', 'Disabled');

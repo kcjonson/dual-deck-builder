@@ -63,11 +63,6 @@ export class Rectangle extends Component {
 		// Get the renderer instance
 		const renderer = RendererContext.getInstance().getRenderer();
 
-		// Debug output to verify positions and dimensions
-		console.log(
-			`Drawing rectangle ${this.id}: x=${this.x}, y=${this.y}, width=${this.width}, height=${this.height}, color=${this.fillColor}`,
-		);
-
 		// Draw the rectangle fill
 		renderer.drawRectangle(this.x, this.y, this.width, this.height, this.fillColor);
 

@@ -122,8 +122,6 @@ export abstract class Screen {
 	public render(): void {
 		if (!this.isActive) return;
 
-		console.log(`Screen ${this.id}: Rendering (active: ${this.isActive})`);
-
 		// Render the root layer (which renders all children)
 		this.rootLayer.render();
 
