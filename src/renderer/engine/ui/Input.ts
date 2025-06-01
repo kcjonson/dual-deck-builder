@@ -1,6 +1,6 @@
 import { Rectangle } from '../components/Rectangle';
 import { Text } from '../components/Text';
-import { ComponentOptions } from '../types/Style';
+import { ComponentOptions } from '../components/Component';
 
 /**
  * Input UI component for text input
@@ -36,8 +36,8 @@ export class Input extends Rectangle {
 			style: {
 				color: '#ffffff',
 				textAlign: 'left',
-				verticalAlign: 'middle'
-			}
+				verticalAlign: 'middle',
+			},
 		});
 
 		// Create placeholder text
@@ -45,8 +45,8 @@ export class Input extends Rectangle {
 			style: {
 				color: '#808080',
 				textAlign: 'left',
-				verticalAlign: 'middle'
-			}
+				verticalAlign: 'middle',
+			},
 		});
 		this.placeholderText = placeholder;
 
@@ -175,9 +175,9 @@ export class Input extends Rectangle {
 	 * Update the text positions within the input
 	 */
 	private updateTextPositions(): void {
-		const padding = 10; // Padding from the left edge
-		this.text.setPosition(this.x + padding, this.y + this.height / 2);
-		this.placeholder.setPosition(this.x + padding, this.y + this.height / 2);
+		const textOffset = 10; // Offset from the left edge for text
+		this.text.setPosition(this.x + textOffset, this.y + this.height / 2);
+		this.placeholder.setPosition(this.x + textOffset, this.y + this.height / 2);
 	}
 
 	/**

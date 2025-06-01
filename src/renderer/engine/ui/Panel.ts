@@ -1,47 +1,78 @@
+import { Layer, LayerOptions } from '../components/Layer';
 import { Rectangle } from '../components/Rectangle';
-import { ComponentOptions } from '../types/Style';
+
+/**
+ * Panel creation options
+ */
+export interface PanelOptions extends LayerOptions {
+	// Additional panel-specific options can be added here
+}
 
 /**
  * Panel UI component for creating UI containers with backgrounds
+ * Panels are non-interactive containers that provide visual grouping
  */
-export class Panel extends Rectangle {
+export class Panel extends Layer {
+	private background: Rectangle;
+
 	/**
 	 * Create a new panel
 	 * @param options Optional configuration including style
 	 */
-	constructor(options?: ComponentOptions) {
+	constructor(options?: PanelOptions) {
 		super(options);
 		this.componentType = 'Panel';
 
-		// Set default appearance if no style provided
-		if (!options?.style?.backgroundColor) {
-			this.setFillColor('#333333cc');  // cc = 80% alpha
-		}
-		if (!options?.style?.borderColor && !options?.style?.border) {
-			this.setBorderColor('#4d4d4d');
-			this.setBorderWidth(1);
-		}
-		if (!options?.style?.borderRadius) {
-			this.setCornerRadius(5);
-		}
+		// Create background rectangle as first child
+		this.background = new Rectangle({
+			x: this.x,
+			y: this.y,
+			width: this.width || 200,
+			height: this.height || 100,
+			style: {
+				backgroundColor: options?.style?.backgroundColor || '#333333cc',
+				borderColor: options?.style?.borderColor || '#4d4d4d',
+				borderWidth: options?.style?.borderWidth || 1,
+				borderRadius: options?.style?.borderRadius || 5,
+				border: options?.style?.border,
+			},
+		});
+		this.addChild(this.background);
 	}
 
 	/**
-	 * Add padding to all child components
-	 * @param _padding Padding amount in pixels
+	 * Override setPosition to update background position
 	 */
-	public setPadding(_padding: number): this {
-		// This could be implemented by adjusting the positions of children
-		// For now, it's just stored as a property
+	public setPosition(x: number, y: number): this {
+		super.setPosition(x, y);
+		if (this.background) {
+			this.background.setPosition(x, y);
+		}
 		return this;
 	}
 
 	/**
-	 * Render the panel and all its children
+	 * Override setSize to update background size
 	 */
-	public render(): void {
-		super.render();
+	public setSize(width: number, height: number): this {
+		super.setSize(width, height);
+		if (this.background) {
+			this.background.setSize(width, height);
+		}
+		return this;
+	}
 
-		// Panel-specific rendering logic could be added here if needed
+	/**
+	 * Layout method to position background and children
+	 */
+	public layout(): void {
+		// Ensure background matches panel position and size
+		if (this.background) {
+			this.background.setPosition(this.x, this.y);
+			this.background.setSize(this.width, this.height);
+		}
+		
+		// Call parent layout for children
+		super.layout();
 	}
 }

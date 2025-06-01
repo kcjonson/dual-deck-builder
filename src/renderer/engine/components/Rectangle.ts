@@ -1,6 +1,6 @@
-import { Component } from './Component';
+import { Component, ComponentOptions } from './Component';
 import { RendererContext } from '../rendering/RendererContext';
-import { Style, ComponentOptions, StyleParser } from '../types/Style';
+import { Style, StyleParser } from '../types/Style';
 
 /**
  * Rectangle component for rendering rectangles
@@ -18,12 +18,12 @@ export class Rectangle extends Component {
 	constructor(options?: ComponentOptions) {
 		super(options);
 		this.componentType = 'Rectangle';
-		
+
 		if (options?.style) {
 			this.applyRectangleStyle(options.style);
 		}
 	}
-	
+
 	/**
 	 * Apply rectangle-specific style properties
 	 */
@@ -40,13 +40,13 @@ export class Rectangle extends Component {
 		if (style.borderRadius !== undefined) {
 			this.cornerRadius = this.parseSize(style.borderRadius);
 		}
-		
+
 		// Handle shorthand border property
 		if (style.border !== undefined) {
 			this.parseBorderShorthand(style.border);
 		}
 	}
-	
+
 	/**
 	 * Parse border shorthand (e.g., "2px solid #ffffff")
 	 */

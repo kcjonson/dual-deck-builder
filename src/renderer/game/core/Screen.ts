@@ -18,11 +18,12 @@ export abstract class Screen {
 	constructor(id: string, renderer: Renderer) {
 		this.id = id;
 		this.renderer = renderer;
-		this.rootLayer = new Layer();
-
-		// Set the root layer to cover the entire screen
-		this.rootLayer.setPosition(0, 0);
-		this.rootLayer.setSize(window.innerWidth, window.innerHeight);
+		this.rootLayer = new Layer({
+			x: 0,
+			y: 0,
+			width: window.innerWidth,
+			height: window.innerHeight
+		});
 
 		// Listen for resize events
 		window.addEventListener('resize', () => this.handleResize());

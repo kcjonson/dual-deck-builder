@@ -1,8 +1,7 @@
-import { Component } from '../components/Component';
+import { Component, ComponentOptions } from '../components/Component';
 import { Rectangle } from '../components/Rectangle';
 import { Text } from '../components/Text';
 import { InputSystem } from '../input/InputSystem';
-import { ComponentOptions, Style } from '../types/Style';
 
 /**
  * Button UI component
@@ -35,8 +34,8 @@ export class Button extends Component {
 			style: {
 				backgroundColor: this.normalColor,
 				border: '2px solid #1a1a1a',
-				borderRadius: '5px'
-			}
+				borderRadius: '5px',
+			},
 		});
 		this.addChild(this.background);
 
@@ -45,8 +44,8 @@ export class Button extends Component {
 			style: {
 				color: '#ffffff',
 				textAlign: 'center',
-				verticalAlign: 'middle'
-			}
+				verticalAlign: 'middle',
+			},
 		});
 		this.text.setColor([1, 1, 1, 1]);
 		this.text.setAlign('center');

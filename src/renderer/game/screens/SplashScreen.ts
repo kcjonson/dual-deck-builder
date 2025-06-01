@@ -28,24 +28,24 @@ export class SplashScreen extends Screen {
 
 		// Set up the background
 		const background = new Rectangle({
+			x: 0,
+			y: 0,
+			width: window.innerWidth,
+			height: window.innerHeight,
 			style: {
-				left: 0,
-				top: 0,
-				width: window.innerWidth,
-				height: window.innerHeight,
-				backgroundColor: '#0d0d1a'
-			}
+				backgroundColor: '#0d0d1a',
+			},
 		});
 		this.rootLayer.addChild(background);
 
 		// Create logo
 		this.logo = new Rectangle({
+			width: 300,
+			height: 300,
 			style: {
-				width: 300,
-				height: 300,
 				backgroundColor: '#3366cc',
-				borderRadius: 20
-			}
+				borderRadius: 20,
+			},
 		});
 		this.rootLayer.addChild(this.logo);
 
@@ -53,8 +53,8 @@ export class SplashScreen extends Screen {
 		this.title = new Text('Dual Deckbuilder', {
 			style: {
 				fontSize: 48,
-				color: '#ffffff'
-			}
+				color: '#ffffff',
+			},
 		});
 		this.rootLayer.addChild(this.title);
 
@@ -62,8 +62,8 @@ export class SplashScreen extends Screen {
 		this.subtitle = new Text('A Roguelike Card Game', {
 			style: {
 				fontSize: 24,
-				color: '#cccccc'
-			}
+				color: '#cccccc',
+			},
 		});
 		this.rootLayer.addChild(this.subtitle);
 
@@ -115,22 +115,23 @@ export class SplashScreen extends Screen {
 		this.currentTime += dt;
 
 		// Calculate opacity based on current phase
-		let opacity = 0;
+		// TODO: Implement fade in/out animations when opacity support is added to components
+		// let opacity = 0;
 
 		if (this.currentTime < this.fadeInTime) {
 			// Fade in phase
-			opacity = this.currentTime / this.fadeInTime;
+			// opacity = this.currentTime / this.fadeInTime;
 		} else if (this.currentTime < this.fadeInTime + this.displayTime) {
 			// Display phase
-			opacity = 1;
+			// opacity = 1;
 		} else if (this.currentTime < this.totalTime) {
 			// Fade out phase
-			const fadeOutProgress =
-				(this.currentTime - this.fadeInTime - this.displayTime) / this.fadeOutTime;
-			opacity = 1 - fadeOutProgress;
+			// const fadeOutProgress =
+			//	(this.currentTime - this.fadeInTime - this.displayTime) / this.fadeOutTime;
+			// opacity = 1 - fadeOutProgress;
 		} else {
 			// Complete
-			opacity = 0;
+			// opacity = 0; // Animation complete
 
 			// Call the completion callback if defined
 			if (this.onComplete) {

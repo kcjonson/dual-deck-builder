@@ -24,13 +24,13 @@ export class MainMenuScreen extends Screen {
 
 		// Create background
 		const background = new Rectangle({
+			x: 0,
+			y: 0,
+			width: window.innerWidth,
+			height: window.innerHeight,
 			style: {
-				left: 0,
-				top: 0,
-				width: window.innerWidth,
-				height: window.innerHeight,
-				backgroundColor: '#1a1a33'
-			}
+				backgroundColor: '#1a1a33',
+			},
 		});
 		this.rootLayer.addChild(background);
 
@@ -38,8 +38,8 @@ export class MainMenuScreen extends Screen {
 		this.title = new Text('Dual Deckbuilder', {
 			style: {
 				fontSize: 64,
-				color: '#ffffff'
-			}
+				color: '#ffffff',
+			},
 		});
 		this.rootLayer.addChild(this.title);
 
@@ -61,11 +61,11 @@ export class MainMenuScreen extends Screen {
 
 		// Start Game button
 		const startButton = new Button('Start Game', {
+			width: buttonWidth,
+			height: buttonHeight,
 			style: {
-				width: buttonWidth,
-				height: buttonHeight,
-				fontSize: 24
-			}
+				fontSize: 24,
+			},
 		});
 		startButton.onClick(() => {
 			if (this.onStartGame) this.onStartGame();
@@ -74,11 +74,11 @@ export class MainMenuScreen extends Screen {
 
 		// Settings button
 		const settingsButton = new Button('Settings', {
+			width: buttonWidth,
+			height: buttonHeight,
 			style: {
-				width: buttonWidth,
-				height: buttonHeight,
-				fontSize: 24
-			}
+				fontSize: 24,
+			},
 		});
 		settingsButton.onClick(() => {
 			if (this.onOpenSettings) this.onOpenSettings();
@@ -87,11 +87,11 @@ export class MainMenuScreen extends Screen {
 
 		// Credits button
 		const creditsButton = new Button('Credits', {
+			width: buttonWidth,
+			height: buttonHeight,
 			style: {
-				width: buttonWidth,
-				height: buttonHeight,
-				fontSize: 24
-			}
+				fontSize: 24,
+			},
 		});
 		creditsButton.onClick(() => {
 			if (this.onOpenCredits) this.onOpenCredits();
@@ -100,11 +100,11 @@ export class MainMenuScreen extends Screen {
 
 		// Developer button
 		const devButton = new Button('Developer Tools', {
+			width: buttonWidth,
+			height: buttonHeight,
 			style: {
-				width: buttonWidth,
-				height: buttonHeight,
-				fontSize: 24
-			}
+				fontSize: 24,
+			},
 		});
 		devButton.onClick(() => {
 			if (this.onOpenDeveloper) this.onOpenDeveloper();
@@ -113,11 +113,11 @@ export class MainMenuScreen extends Screen {
 
 		// Exit button (only for desktop)
 		const exitButton = new Button('Exit Game', {
+			width: buttonWidth,
+			height: buttonHeight,
 			style: {
-				width: buttonWidth,
-				height: buttonHeight,
-				fontSize: 24
-			}
+				fontSize: 24,
+			},
 		});
 		exitButton.onClick(() => {
 			if (this.onExitGame) this.onExitGame();

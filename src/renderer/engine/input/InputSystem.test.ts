@@ -22,13 +22,13 @@ describe('InputSystem', () => {
 
 		// Create test rectangle
 		testRect = new Rectangle({
+			x: 100,
+			y: 100,
+			width: 200,
+			height: 100,
 			style: {
-				left: 100,
-				top: 100,
-				width: 200,
-				height: 100,
-				backgroundColor: '#3333cc'
-			}
+				backgroundColor: '#3333cc',
+			},
 		});
 	});
 

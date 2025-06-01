@@ -1,6 +1,13 @@
-import { Component } from './Component';
+import { Component, ComponentOptions } from './Component';
 import { RendererContext } from '../rendering/RendererContext';
-import { Style, TextOptions, StyleParser } from '../types/Style';
+import { Style, StyleParser } from '../types/Style';
+
+/**
+ * Text-specific options
+ */
+export interface TextOptions extends ComponentOptions {
+	// Additional text-specific options can be added here
+}
 
 /**
  * Text component for rendering text
@@ -22,12 +29,12 @@ export class Text extends Component {
 		super(options);
 		this.text = text;
 		this.componentType = 'Text';
-		
+
 		if (options?.style) {
 			this.applyTextStyle(options.style);
 		}
 	}
-	
+
 	/**
 	 * Apply text-specific style properties
 	 */
@@ -108,6 +115,28 @@ export class Text extends Component {
 	public setBaseline(baseline: 'top' | 'middle' | 'bottom'): this {
 		this.baseline = baseline;
 		return this;
+	}
+
+	/**
+	 * Get the font size
+	 */
+	public getFontSize(): number {
+		return this.fontSize;
+	}
+
+	/**
+	 * Layout method to calculate text dimensions
+	 */
+	public layout(): void {
+		// Estimate text dimensions based on font size
+		const charWidth = this.fontSize * 0.6; // Approximate character width
+		const estimatedWidth = this.text.length * charWidth;
+		const estimatedHeight = this.fontSize * 1.2; // Line height factor
+		
+		this.setSize(estimatedWidth, estimatedHeight);
+		
+		// Call parent layout for children
+		super.layout();
 	}
 
 	/**
