@@ -18,7 +18,7 @@ export abstract class Screen {
 	constructor(id: string, renderer: Renderer) {
 		this.id = id;
 		this.renderer = renderer;
-		this.rootLayer = new Layer(`${id}_rootLayer`);
+		this.rootLayer = new Layer();
 
 		// Set the root layer to cover the entire screen
 		this.rootLayer.setPosition(0, 0);

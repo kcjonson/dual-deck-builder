@@ -27,29 +27,44 @@ export class SplashScreen extends Screen {
 		this.totalTime = this.fadeInTime + this.displayTime + this.fadeOutTime;
 
 		// Set up the background
-		const background = new Rectangle('splashBackground');
-		background.setPosition(0, 0);
-		background.setSize(window.innerWidth, window.innerHeight);
-		background.setFillColor([0.05, 0.05, 0.1, 1]);
+		const background = new Rectangle({
+			style: {
+				left: 0,
+				top: 0,
+				width: window.innerWidth,
+				height: window.innerHeight,
+				backgroundColor: '#0d0d1a'
+			}
+		});
 		this.rootLayer.addChild(background);
 
 		// Create logo
-		this.logo = new Rectangle('splashLogo');
-		this.logo.setSize(300, 300);
-		this.logo.setFillColor([0.2, 0.4, 0.8, 0]); // Start transparent
-		this.logo.setCornerRadius(20);
+		this.logo = new Rectangle({
+			style: {
+				width: 300,
+				height: 300,
+				backgroundColor: '#3366cc',
+				borderRadius: 20
+			}
+		});
 		this.rootLayer.addChild(this.logo);
 
 		// Create title text
-		this.title = new Text('splashTitle', 'Dual Deckbuilder');
-		this.title.setFontSize(48);
-		this.title.setColor([1, 1, 1, 0]); // Start transparent
+		this.title = new Text('Dual Deckbuilder', {
+			style: {
+				fontSize: 48,
+				color: '#ffffff'
+			}
+		});
 		this.rootLayer.addChild(this.title);
 
 		// Create subtitle text
-		this.subtitle = new Text('splashSubtitle', 'A Roguelike Card Game');
-		this.subtitle.setFontSize(24);
-		this.subtitle.setColor([0.8, 0.8, 0.8, 0]); // Start transparent
+		this.subtitle = new Text('A Roguelike Card Game', {
+			style: {
+				fontSize: 24,
+				color: '#cccccc'
+			}
+		});
 		this.rootLayer.addChild(this.subtitle);
 
 		// Position elements
@@ -124,9 +139,9 @@ export class SplashScreen extends Screen {
 			}
 		}
 
-		// Update opacities
-		this.logo.setFillColor([0.2, 0.4, 0.8, opacity]);
-		this.title.setColor([1, 1, 1, opacity]);
-		this.subtitle.setColor([0.8, 0.8, 0.8, opacity]);
+		// Update colors (keeping them solid for simplicity)
+		this.logo.setFillColor('#3366cc');
+		this.title.setColor('#ffffff');
+		this.subtitle.setColor('#cccccc');
 	}
 }

@@ -1,10 +1,10 @@
 import { Interactive } from '../input/InputSystem';
+import { Style, ComponentOptions } from '../types/Style';
 
 /**
  * Base Component class that all components will inherit from
  */
 export abstract class Component implements Interactive {
-	protected id: string;
 	protected x = 0;
 	protected y = 0;
 	protected width = 0;
@@ -12,20 +12,53 @@ export abstract class Component implements Interactive {
 	protected visible = true;
 	protected parent: Component | null = null;
 	protected children: Component[] = [];
+	protected componentType: string = 'Component';
 
 	/**
 	 * Create a new component
-	 * @param id Unique identifier for this component
+	 * @param options Optional configuration options
 	 */
-	constructor(id: string) {
-		this.id = id;
+	constructor(options?: ComponentOptions) {
+		if (options?.style) {
+			this.applyStyle(options.style);
+		}
 	}
 
 	/**
-	 * Get the component's unique ID
+	 * Apply style properties to the component
 	 */
-	public getId(): string {
-		return this.id;
+	protected applyStyle(style: Style): void {
+		// Position and size
+		if (style.left !== undefined) this.x = this.parseSize(style.left);
+		if (style.top !== undefined) this.y = this.parseSize(style.top);
+		if (style.width !== undefined) this.width = this.parseSize(style.width);
+		if (style.height !== undefined) this.height = this.parseSize(style.height);
+		
+		// Visibility
+		if (style.visibility !== undefined) {
+			this.visible = style.visibility === 'visible';
+		}
+		if (style.display !== undefined) {
+			this.visible = style.display !== 'none';
+		}
+	}
+	
+	/**
+	 * Helper to parse size values
+	 */
+	protected parseSize(size: string | number): number {
+		if (typeof size === 'number') return size;
+		if (typeof size === 'string' && size.endsWith('px')) {
+			return parseFloat(size.slice(0, -2));
+		}
+		return parseFloat(size as string) || 0;
+	}
+	
+	/**
+	 * Get the component type (for filtering/identification)
+	 */
+	public getComponentType(): string {
+		return this.componentType;
 	}
 
 	/**

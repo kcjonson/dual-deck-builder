@@ -1,5 +1,6 @@
 import { Component } from './Component';
 import { RendererContext } from '../rendering/RendererContext';
+import { Style, TextOptions, StyleParser } from '../types/Style';
 
 /**
  * Text component for rendering text
@@ -14,12 +15,38 @@ export class Text extends Component {
 
 	/**
 	 * Create a new text component
-	 * @param id Unique identifier for this component
-	 * @param text Initial text content
+	 * @param text Text content
+	 * @param options Optional configuration including style
 	 */
-	constructor(id: string, text = '') {
-		super(id);
+	constructor(text = '', options?: TextOptions) {
+		super(options);
 		this.text = text;
+		this.componentType = 'Text';
+		
+		if (options?.style) {
+			this.applyTextStyle(options.style);
+		}
+	}
+	
+	/**
+	 * Apply text-specific style properties
+	 */
+	private applyTextStyle(style: Style): void {
+		if (style.fontSize !== undefined) {
+			this.fontSize = this.parseSize(style.fontSize);
+		}
+		if (style.fontFamily !== undefined) {
+			this.fontFamily = style.fontFamily;
+		}
+		if (style.color !== undefined) {
+			this.color = StyleParser.parseColor(style.color);
+		}
+		if (style.textAlign !== undefined) {
+			this.align = style.textAlign;
+		}
+		if (style.verticalAlign !== undefined) {
+			this.baseline = style.verticalAlign;
+		}
 	}
 
 	/**
@@ -58,10 +85,10 @@ export class Text extends Component {
 
 	/**
 	 * Set the text color
-	 * @param color RGBA color array [r, g, b, a] with values from 0-1
+	 * @param color Color value (hex string or RGBA array)
 	 */
-	public setColor(color: [number, number, number, number]): this {
-		this.color = color;
+	public setColor(color: string | [number, number, number, number]): this {
+		this.color = StyleParser.parseColor(color);
 		return this;
 	}
 

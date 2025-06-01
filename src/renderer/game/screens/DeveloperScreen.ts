@@ -4,6 +4,8 @@ import { Button } from '../../engine/ui/Button';
 import { Text } from '../../engine/components/Text';
 import { Rectangle } from '../../engine/components/Rectangle';
 import { Panel } from '../../engine/ui/Panel';
+import { Input } from '../../engine/ui/Input';
+import { Layer } from '../../engine/components/Layer';
 
 /**
  * Developer screen for testing UI components and rendering
@@ -12,6 +14,22 @@ export class DeveloperScreen extends Screen {
 	private title: Text;
 	private backButton: Button;
 	private onBack: (() => void) | null = null;
+	
+	// Performance monitoring
+	// private fpsCounter: Text;
+	// private lastFrameTime = 0;
+	// private frameCount = 0;
+	// private fps = 0;
+	
+	// Interactive controls
+	// private controlsPanel: Panel;
+	// private colorSliders: { r: Input; g: Input; b: Input; a: Input };
+	// private sizeControls: { width: Input; height: Input };
+	// private demoRectangle: Rectangle;
+	// private demoText: Text;
+	
+	// Style guide elements
+	// private styleGuidePanel: Panel;
 
 	/**
 	 * Create a new developer screen
@@ -21,26 +39,47 @@ export class DeveloperScreen extends Screen {
 		super('developerScreen', renderer);
 
 		// Create background
-		const background = new Rectangle('devBackground');
-		background.setPosition(0, 0);
-		background.setSize(window.innerWidth, window.innerHeight);
-		background.setFillColor([0.15, 0.15, 0.15, 1]);
+		const background = new Rectangle({
+			style: {
+				left: 0,
+				top: 0,
+				width: window.innerWidth,
+				height: window.innerHeight,
+				backgroundColor: '#262626'
+			}
+		});
 		this.rootLayer.addChild(background);
 
 		// Create title text
-		this.title = new Text('devTitle', 'Developer Tools');
-		this.title.setFontSize(48);
-		this.title.setColor([1, 1, 1, 1]);
+		this.title = new Text('Developer Tools', {
+			style: {
+				fontSize: 48,
+				color: '#ffffff'
+			}
+		});
 		this.rootLayer.addChild(this.title);
 
 		// Create back button
-		this.backButton = new Button('backButton', 'Back to Menu');
-		this.backButton.setSize(200, 50);
-		this.backButton.setFontSize(20);
+		this.backButton = new Button('Back to Menu', {
+			style: {
+				width: 200,
+				height: 50,
+				fontSize: 20
+			}
+		});
 		this.backButton.onClick(() => {
 			if (this.onBack) this.onBack();
 		});
 		this.rootLayer.addChild(this.backButton);
+
+		// Create FPS counter
+		// this.createFpsCounter();
+		
+		// Create interactive controls
+		// this.createInteractiveControls();
+		
+		// Create style guide
+		// this.createStyleGuide();
 
 		// Create UI component examples
 		this.createExamples();
@@ -54,90 +93,141 @@ export class DeveloperScreen extends Screen {
 	 */
 	private createExamples(): void {
 		// Create a panel for rectangles
-		const rectanglesPanel = new Panel('rectanglesPanel');
-		rectanglesPanel.setSize(400, 300);
-		rectanglesPanel.setFillColor([0.2, 0.2, 0.2, 0.9]);
+		const rectanglesPanel = new Panel({
+			style: {
+				width: 400,
+				height: 300,
+				backgroundColor: '#333333e6'  // e6 = 90% alpha
+			}
+		});
 
-		const rectanglesTitle = new Text('rectanglesTitle', 'Rectangles');
-		rectanglesTitle.setFontSize(24);
-		rectanglesTitle.setColor([1, 1, 1, 1]);
+		const rectanglesTitle = new Text('Rectangles', {
+			style: {
+				fontSize: 24,
+				color: '#ffffff'
+			}
+		});
 		rectanglesPanel.addChild(rectanglesTitle);
 
 		// Add example rectangles
-		const rect1 = new Rectangle('rect1');
-		rect1.setSize(80, 80);
-		rect1.setFillColor([1, 0, 0, 1]);
+		const rect1 = new Rectangle({
+			style: {
+				width: 80,
+				height: 80,
+				backgroundColor: '#ff0000'
+			}
+		});
 		rectanglesPanel.addChild(rect1);
 
-		const rect2 = new Rectangle('rect2');
-		rect2.setSize(80, 80);
-		rect2.setFillColor([0, 1, 0, 1]);
-		rect2.setCornerRadius(20);
+		const rect2 = new Rectangle({
+			style: {
+				width: 80,
+				height: 80,
+				backgroundColor: '#00ff00',
+				borderRadius: 20
+			}
+		});
 		rectanglesPanel.addChild(rect2);
 
-		const rect3 = new Rectangle('rect3');
-		rect3.setSize(80, 80);
-		rect3.setFillColor([0, 0, 1, 1]);
-		rect3.setBorderColor([1, 1, 1, 1]);
-		rect3.setBorderWidth(4);
+		const rect3 = new Rectangle({
+			style: {
+				width: 80,
+				height: 80,
+				backgroundColor: '#0000ff',
+				border: '4px solid #ffffff'
+			}
+		});
 		rectanglesPanel.addChild(rect3);
 
 		this.rootLayer.addChild(rectanglesPanel);
 
 		// Create a panel for buttons
-		const buttonsPanel = new Panel('buttonsPanel');
-		buttonsPanel.setSize(400, 300);
-		buttonsPanel.setFillColor([0.2, 0.2, 0.2, 0.9]);
+		const buttonsPanel = new Panel({
+			style: {
+				width: 400,
+				height: 300,
+				backgroundColor: '#333333e6'  // e6 = 90% alpha
+			}
+		});
 
-		const buttonsTitle = new Text('buttonsTitle', 'Buttons');
-		buttonsTitle.setFontSize(24);
-		buttonsTitle.setColor([1, 1, 1, 1]);
+		const buttonsTitle = new Text('Buttons', {
+			style: {
+				fontSize: 24,
+				color: '#ffffff'
+			}
+		});
 		buttonsPanel.addChild(buttonsTitle);
 
 		// Add example buttons
-		const button1 = new Button('exampleButton1', 'Standard Button');
-		button1.setSize(200, 50);
-		// Example button with no action
+		const button1 = new Button('Standard Button', {
+			style: {
+				width: 200,
+				height: 50
+			}
+		});
 		buttonsPanel.addChild(button1);
 
-		const button2 = new Button('exampleButton2', 'Custom Style');
-		button2.setSize(200, 50);
-		button2.setFillColor([0.8, 0.2, 0.2, 1]);
-		button2.setTextColor([1, 1, 1, 1]);
-		// Custom styled button with no action
+		const button2 = new Button('Custom Style', {
+			style: {
+				width: 200,
+				height: 50
+			}
+		});
+		button2.setFillColor('#cc3333');
+		button2.setTextColor('#ffffff');
 		buttonsPanel.addChild(button2);
 
-		const button3 = new Button('exampleButton3', 'Disabled');
-		button3.setSize(200, 50);
+		const button3 = new Button('Disabled', {
+			style: {
+				width: 200,
+				height: 50
+			}
+		});
 		button3.setEnabled(false);
 		buttonsPanel.addChild(button3);
 
 		this.rootLayer.addChild(buttonsPanel);
 
 		// Create a panel for text examples
-		const textPanel = new Panel('textPanel');
-		textPanel.setSize(400, 300);
-		textPanel.setFillColor([0.2, 0.2, 0.2, 0.9]);
+		const textPanel = new Panel({
+			style: {
+				width: 400,
+				height: 300,
+				backgroundColor: '#333333e6'  // e6 = 90% alpha
+			}
+		});
 
-		const textTitle = new Text('textTitle', 'Text');
-		textTitle.setFontSize(24);
-		textTitle.setColor([1, 1, 1, 1]);
+		const textTitle = new Text('Text', {
+			style: {
+				fontSize: 24,
+				color: '#ffffff'
+			}
+		});
 		textPanel.addChild(textTitle);
 
 		// Add example texts
-		const text1 = new Text('exampleText1', 'Standard Text');
-		text1.setFontSize(20);
-		text1.setColor([1, 1, 1, 1]);
+		const text1 = new Text('Standard Text', {
+			style: {
+				fontSize: 20,
+				color: '#ffffff'
+			}
+		});
 		textPanel.addChild(text1);
 
-		const text2 = new Text('exampleText2', 'Colored Text');
-		text2.setFontSize(20);
-		text2.setColor([1, 0.5, 0, 1]);
+		const text2 = new Text('Colored Text', {
+			style: {
+				fontSize: 20,
+				color: '#ff8000'
+			}
+		});
 		textPanel.addChild(text2);
 
-		const text3 = new Text('exampleText3', 'Large Text');
-		text3.setFontSize(32);
-		text3.setColor([0.5, 0.8, 1, 1]);
+		const text3 = new Text('Large Text', {
+			style: {
+				fontSize: 32,
+				color: '#80ccff'
+			}
+		});
 		textPanel.addChild(text3);
 
 		this.rootLayer.addChild(textPanel);
@@ -157,7 +247,7 @@ export class DeveloperScreen extends Screen {
 		this.backButton.setPosition(centerX - this.backButton.getWidth() / 2, window.innerHeight - 70);
 
 		// Position the example panels
-		const panels = this.rootLayer.getChildren().filter((child) => child.getId().includes('Panel'));
+		const panels = this.rootLayer.getChildren().filter((child) => child.getComponentType() === 'Panel');
 
 		const panelWidth = 400;
 		const panelSpacing = 50;

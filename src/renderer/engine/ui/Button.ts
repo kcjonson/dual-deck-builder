@@ -2,6 +2,7 @@ import { Component } from '../components/Component';
 import { Rectangle } from '../components/Rectangle';
 import { Text } from '../components/Text';
 import { InputSystem } from '../input/InputSystem';
+import { ComponentOptions, Style } from '../types/Style';
 
 /**
  * Button UI component
@@ -15,29 +16,38 @@ export class Button extends Component {
 	private clickHandler: (() => void) | null = null;
 
 	// Button appearance states
-	private normalColor: [number, number, number, number] = [0.2, 0.2, 0.8, 1.0];
-	private hoverColor: [number, number, number, number] = [0.3, 0.3, 0.9, 1.0];
-	private pressedColor: [number, number, number, number] = [0.1, 0.1, 0.7, 1.0];
-	private disabledColor: [number, number, number, number] = [0.5, 0.5, 0.5, 1.0];
+	private normalColor = '#3333cc';
+	private hoverColor = '#4d4de6';
+	private pressedColor = '#1a1ab3';
+	private disabledColor = '#808080';
 
 	/**
 	 * Create a new button
-	 * @param id Unique identifier for this component
 	 * @param label Text to display on the button
+	 * @param options Optional configuration including style
 	 */
-	constructor(id: string, label = '') {
-		super(id);
+	constructor(label = '', options?: ComponentOptions) {
+		super(options);
+		this.componentType = 'Button';
 
 		// Create background rectangle
-		this.background = new Rectangle(`${id}_bg`);
-		this.background.setFillColor(this.normalColor);
-		this.background.setBorderColor([0.1, 0.1, 0.1, 1]);
-		this.background.setBorderWidth(2);
-		this.background.setCornerRadius(5);
+		this.background = new Rectangle({
+			style: {
+				backgroundColor: this.normalColor,
+				border: '2px solid #1a1a1a',
+				borderRadius: '5px'
+			}
+		});
 		this.addChild(this.background);
 
 		// Create text child component for the label
-		this.text = new Text(`${id}_text`, label);
+		this.text = new Text(label, {
+			style: {
+				color: '#ffffff',
+				textAlign: 'center',
+				verticalAlign: 'middle'
+			}
+		});
 		this.text.setColor([1, 1, 1, 1]);
 		this.text.setAlign('center');
 		this.text.setBaseline('middle');
@@ -77,9 +87,9 @@ export class Button extends Component {
 
 	/**
 	 * Set the text color
-	 * @param color RGBA color array [r, g, b, a] with values from 0-1
+	 * @param color Color value (hex string or RGBA array)
 	 */
-	public setTextColor(color: [number, number, number, number]): this {
+	public setTextColor(color: string | [number, number, number, number]): this {
 		this.text.setColor(color);
 		return this;
 	}
@@ -205,18 +215,18 @@ export class Button extends Component {
 
 	/**
 	 * Set the fill color of the button background
-	 * @param color RGBA color array [r, g, b, a] with values from 0-1
+	 * @param color Color value (hex string or RGBA array)
 	 */
-	public setFillColor(color: [number, number, number, number]): this {
+	public setFillColor(color: string | [number, number, number, number]): this {
 		this.background.setFillColor(color);
 		return this;
 	}
 
 	/**
 	 * Set the border color of the button background
-	 * @param color RGBA color array [r, g, b, a] with values from 0-1
+	 * @param color Color value (hex string or RGBA array)
 	 */
-	public setBorderColor(color: [number, number, number, number]): this {
+	public setBorderColor(color: string | [number, number, number, number]): this {
 		this.background.setBorderColor(color);
 		return this;
 	}

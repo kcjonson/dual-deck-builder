@@ -9,10 +9,10 @@ export class Layer extends Component {
 
 	/**
 	 * Create a new layer
-	 * @param id Unique identifier for this component
 	 */
-	constructor(id: string) {
-		super(id);
+	constructor() {
+		super();
+		this.componentType = 'Layer';
 	}
 
 	/**

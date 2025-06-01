@@ -1,4 +1,5 @@
 import { Rectangle } from '../components/Rectangle';
+import { ComponentOptions } from '../types/Style';
 
 /**
  * Panel UI component for creating UI containers with backgrounds
@@ -6,16 +7,23 @@ import { Rectangle } from '../components/Rectangle';
 export class Panel extends Rectangle {
 	/**
 	 * Create a new panel
-	 * @param id Unique identifier for this component
+	 * @param options Optional configuration including style
 	 */
-	constructor(id: string) {
-		super(id);
+	constructor(options?: ComponentOptions) {
+		super(options);
+		this.componentType = 'Panel';
 
-		// Set default appearance
-		this.setFillColor([0.2, 0.2, 0.2, 0.8]);
-		this.setBorderColor([0.3, 0.3, 0.3, 1]);
-		this.setBorderWidth(1);
-		this.setCornerRadius(5);
+		// Set default appearance if no style provided
+		if (!options?.style?.backgroundColor) {
+			this.setFillColor('#333333cc');  // cc = 80% alpha
+		}
+		if (!options?.style?.borderColor && !options?.style?.border) {
+			this.setBorderColor('#4d4d4d');
+			this.setBorderWidth(1);
+		}
+		if (!options?.style?.borderRadius) {
+			this.setCornerRadius(5);
+		}
 	}
 
 	/**

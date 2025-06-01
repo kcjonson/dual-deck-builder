@@ -1,5 +1,6 @@
 import { Rectangle } from '../components/Rectangle';
 import { Text } from '../components/Text';
+import { ComponentOptions } from '../types/Style';
 
 /**
  * Input UI component for text input
@@ -23,23 +24,30 @@ export class Input extends Rectangle {
 
 	/**
 	 * Create a new input field
-	 * @param id Unique identifier for this component
 	 * @param placeholder Placeholder text to show when input is empty
+	 * @param options Optional configuration including style
 	 */
-	constructor(id: string, placeholder = '') {
-		super(id);
+	constructor(placeholder = '', options?: ComponentOptions) {
+		super(options);
+		this.componentType = 'Input';
 
 		// Create text child component for the input value
-		this.text = new Text(`${id}_text`, '');
-		this.text.setColor([1, 1, 1, 1]);
-		this.text.setAlign('left');
-		this.text.setBaseline('middle');
+		this.text = new Text('', {
+			style: {
+				color: '#ffffff',
+				textAlign: 'left',
+				verticalAlign: 'middle'
+			}
+		});
 
 		// Create placeholder text
-		this.placeholder = new Text(`${id}_placeholder`, placeholder);
-		this.placeholder.setColor([0.5, 0.5, 0.5, 1]);
-		this.placeholder.setAlign('left');
-		this.placeholder.setBaseline('middle');
+		this.placeholder = new Text(placeholder, {
+			style: {
+				color: '#808080',
+				textAlign: 'left',
+				verticalAlign: 'middle'
+			}
+		});
 		this.placeholderText = placeholder;
 
 		// Add the text components as children

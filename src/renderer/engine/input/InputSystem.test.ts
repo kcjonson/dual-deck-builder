@@ -21,10 +21,15 @@ describe('InputSystem', () => {
 		inputSystem.setup(mockCanvas);
 
 		// Create test rectangle
-		testRect = new Rectangle('test_rect');
-		testRect.setPosition(100, 100);
-		testRect.setSize(200, 100);
-		testRect.setFillColor([0.2, 0.2, 0.8, 1.0]);
+		testRect = new Rectangle({
+			style: {
+				left: 100,
+				top: 100,
+				width: 200,
+				height: 100,
+				backgroundColor: '#3333cc'
+			}
+		});
 	});
 
 	afterEach(() => {

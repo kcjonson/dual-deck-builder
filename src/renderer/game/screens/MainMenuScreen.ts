@@ -23,16 +23,24 @@ export class MainMenuScreen extends Screen {
 		super('mainMenuScreen', renderer);
 
 		// Create background
-		const background = new Rectangle('menuBackground');
-		background.setPosition(0, 0);
-		background.setSize(window.innerWidth, window.innerHeight);
-		background.setFillColor([0.1, 0.1, 0.2, 1]);
+		const background = new Rectangle({
+			style: {
+				left: 0,
+				top: 0,
+				width: window.innerWidth,
+				height: window.innerHeight,
+				backgroundColor: '#1a1a33'
+			}
+		});
 		this.rootLayer.addChild(background);
 
 		// Create title text
-		this.title = new Text('menuTitle', 'Dual Deckbuilder');
-		this.title.setFontSize(64);
-		this.title.setColor([1, 1, 1, 1]);
+		this.title = new Text('Dual Deckbuilder', {
+			style: {
+				fontSize: 64,
+				color: '#ffffff'
+			}
+		});
 		this.rootLayer.addChild(this.title);
 
 		// Create buttons
@@ -52,45 +60,65 @@ export class MainMenuScreen extends Screen {
 		// const buttonSpacing = 20;
 
 		// Start Game button
-		const startButton = new Button('startButton', 'Start Game');
-		startButton.setSize(buttonWidth, buttonHeight);
-		startButton.setFontSize(24);
+		const startButton = new Button('Start Game', {
+			style: {
+				width: buttonWidth,
+				height: buttonHeight,
+				fontSize: 24
+			}
+		});
 		startButton.onClick(() => {
 			if (this.onStartGame) this.onStartGame();
 		});
 		this.rootLayer.addChild(startButton);
 
 		// Settings button
-		const settingsButton = new Button('settingsButton', 'Settings');
-		settingsButton.setSize(buttonWidth, buttonHeight);
-		settingsButton.setFontSize(24);
+		const settingsButton = new Button('Settings', {
+			style: {
+				width: buttonWidth,
+				height: buttonHeight,
+				fontSize: 24
+			}
+		});
 		settingsButton.onClick(() => {
 			if (this.onOpenSettings) this.onOpenSettings();
 		});
 		this.rootLayer.addChild(settingsButton);
 
 		// Credits button
-		const creditsButton = new Button('creditsButton', 'Credits');
-		creditsButton.setSize(buttonWidth, buttonHeight);
-		creditsButton.setFontSize(24);
+		const creditsButton = new Button('Credits', {
+			style: {
+				width: buttonWidth,
+				height: buttonHeight,
+				fontSize: 24
+			}
+		});
 		creditsButton.onClick(() => {
 			if (this.onOpenCredits) this.onOpenCredits();
 		});
 		this.rootLayer.addChild(creditsButton);
 
 		// Developer button
-		const devButton = new Button('developerButton', 'Developer Tools');
-		devButton.setSize(buttonWidth, buttonHeight);
-		devButton.setFontSize(24);
+		const devButton = new Button('Developer Tools', {
+			style: {
+				width: buttonWidth,
+				height: buttonHeight,
+				fontSize: 24
+			}
+		});
 		devButton.onClick(() => {
 			if (this.onOpenDeveloper) this.onOpenDeveloper();
 		});
 		this.rootLayer.addChild(devButton);
 
 		// Exit button (only for desktop)
-		const exitButton = new Button('exitButton', 'Exit Game');
-		exitButton.setSize(buttonWidth, buttonHeight);
-		exitButton.setFontSize(24);
+		const exitButton = new Button('Exit Game', {
+			style: {
+				width: buttonWidth,
+				height: buttonHeight,
+				fontSize: 24
+			}
+		});
 		exitButton.onClick(() => {
 			if (this.onExitGame) this.onExitGame();
 		});
@@ -127,7 +155,7 @@ export class MainMenuScreen extends Screen {
 		// Get all buttons
 		const buttons = this.rootLayer
 			.getChildren()
-			.filter((child) => child.getId().includes('Button'));
+			.filter((child) => child.getComponentType() === 'Button');
 
 		// Position each button
 		buttons.forEach((button, index) => {
