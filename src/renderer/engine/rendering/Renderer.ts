@@ -491,4 +491,30 @@ export class Renderer {
 	public getContext(): WebGLRenderingContext {
 		return this.gl;
 	}
+
+	/**
+	 * Enable scissor testing and set the scissor rectangle
+	 * @param x Left edge of the scissor box (in pixels from bottom-left)
+	 * @param y Bottom edge of the scissor box (in pixels from bottom-left)
+	 * @param width Width of the scissor box
+	 * @param height Height of the scissor box
+	 */
+	public enableScissor(x: number, y: number, width: number, height: number): void {
+		this.gl.enable(this.gl.SCISSOR_TEST);
+		this.gl.scissor(x, y, width, height);
+	}
+
+	/**
+	 * Disable scissor testing
+	 */
+	public disableScissor(): void {
+		this.gl.disable(this.gl.SCISSOR_TEST);
+	}
+
+	/**
+	 * Check if scissor testing is currently enabled
+	 */
+	public isScissorEnabled(): boolean {
+		return this.gl.isEnabled(this.gl.SCISSOR_TEST);
+	}
 }

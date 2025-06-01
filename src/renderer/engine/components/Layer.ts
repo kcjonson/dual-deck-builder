@@ -12,6 +12,7 @@ export interface LayerOptions {
 	height?: number;
 	visible?: boolean;
 	style?: Style;
+	overflow?: 'visible' | 'hidden'; // Only valid when width and height are set
 }
 
 /**
@@ -28,6 +29,7 @@ export class Layer {
 	protected componentType = 'Layer';
 	protected parent: Layer | null = null;
 	private backgroundColor: [number, number, number, number] | null = null;
+	private overflow: 'visible' | 'hidden' = 'visible';
 
 	/**
 	 * Create a new layer
@@ -41,6 +43,15 @@ export class Layer {
 			if (options.width !== undefined) this.width = options.width;
 			if (options.height !== undefined) this.height = options.height;
 			if (options.visible !== undefined) this.visible = options.visible;
+			
+			// Handle overflow property with validation
+			if (options.overflow !== undefined) {
+				if (this.width <= 0 || this.height <= 0) {
+					console.warn('Layer: overflow property requires both width and height to be set');
+				} else {
+					this.overflow = options.overflow;
+				}
+			}
 		}
 
 		// Apply style properties
@@ -171,6 +182,26 @@ export class Layer {
 	 */
 	public isVisible(): boolean {
 		return this.visible;
+	}
+
+	/**
+	 * Set the overflow behavior
+	 * @param overflow 'visible' or 'hidden' - requires width and height to be set
+	 */
+	public setOverflow(overflow: 'visible' | 'hidden'): this {
+		if (this.width <= 0 || this.height <= 0) {
+			console.warn('Layer: overflow property requires both width and height to be set');
+			return this;
+		}
+		this.overflow = overflow;
+		return this;
+	}
+
+	/**
+	 * Get the overflow behavior
+	 */
+	public getOverflow(): 'visible' | 'hidden' {
+		return this.overflow;
 	}
 
 	/**
@@ -345,6 +376,29 @@ export class Layer {
 			renderer.drawRectangle(screenX, screenY, this.width, this.height, this.backgroundColor);
 		}
 
+		// Handle overflow clipping with scissor testing
+		const renderer = RendererContext.getInstance().getRenderer();
+		let wasScissorEnabled = false;
+		let previousScissorBox: Int32Array | null = null;
+
+		if (this.overflow === 'hidden' && this.width > 0 && this.height > 0) {
+			// Save current scissor state
+			wasScissorEnabled = renderer.isScissorEnabled();
+			if (wasScissorEnabled) {
+				previousScissorBox = renderer.getContext().getParameter(renderer.getContext().SCISSOR_BOX);
+			}
+
+			// Convert from top-left UI coordinates to bottom-left WebGL coordinates
+			const canvas = renderer.getContext().canvas as HTMLCanvasElement;
+			const webglX = Math.floor(screenX);
+			const webglY = Math.floor(canvas.height - screenY - this.height);
+			const webglWidth = Math.floor(this.width);
+			const webglHeight = Math.floor(this.height);
+
+			// Enable scissor testing for this layer
+			renderer.enableScissor(webglX, webglY, webglWidth, webglHeight);
+		}
+
 		// Create child context with our position added
 		const childContext: RenderContext = {
 			offsetX: screenX,
@@ -355,6 +409,22 @@ export class Layer {
 		for (const child of this.children) {
 			if (child.isVisible()) {
 				child.render(childContext);
+			}
+		}
+
+		// Restore previous scissor state
+		if (this.overflow === 'hidden' && this.width > 0 && this.height > 0) {
+			if (wasScissorEnabled && previousScissorBox) {
+				// Restore previous scissor box
+				renderer.enableScissor(
+					previousScissorBox[0],
+					previousScissorBox[1], 
+					previousScissorBox[2],
+					previousScissorBox[3]
+				);
+			} else {
+				// Disable scissor testing
+				renderer.disableScissor();
 			}
 		}
 	}

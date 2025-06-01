@@ -2,6 +2,7 @@ import { Layer, LayerOptions } from '../components/Layer';
 import { Rectangle } from '../components/Rectangle';
 import { Interactive, InputSystem } from '../input/InputSystem';
 import { RenderContext, DEFAULT_RENDER_CONTEXT } from '../rendering/RenderContext';
+import { RendererContext } from '../rendering/RendererContext';
 
 /**
  * Panel creation options
@@ -233,9 +234,48 @@ export class Panel extends Layer implements Interactive {
 			offsetY: screenY - this.scrollOffsetY,
 		};
 
-		// Render content layer with scrolled context
+		// Apply overflow clipping specifically for the content layer if overflow is hidden
+		const renderer = this.contentLayer ? RendererContext.getInstance().getRenderer() : null;
+		let wasScissorEnabled = false;
+		let previousScissorBox: Int32Array | null = null;
+
+		if (this.getOverflow() === 'hidden' && this.width > 0 && this.height > 0 && renderer) {
+			// Save current scissor state
+			wasScissorEnabled = renderer.isScissorEnabled();
+			if (wasScissorEnabled) {
+				previousScissorBox = renderer.getContext().getParameter(renderer.getContext().SCISSOR_BOX);
+			}
+
+			// Convert from top-left UI coordinates to bottom-left WebGL coordinates
+			const canvas = renderer.getContext().canvas as HTMLCanvasElement;
+			const webglX = Math.floor(screenX);
+			const webglY = Math.floor(canvas.height - screenY - this.height);
+			const webglWidth = Math.floor(this.width);
+			const webglHeight = Math.floor(this.height);
+
+			// Enable scissor testing for the content area
+			renderer.enableScissor(webglX, webglY, webglWidth, webglHeight);
+		}
+
+		// Render content layer with scrolled context (and clipping if enabled)
 		if (this.contentLayer) {
 			this.contentLayer.render(contentContext);
+		}
+
+		// Restore previous scissor state
+		if (this.getOverflow() === 'hidden' && this.width > 0 && this.height > 0 && renderer) {
+			if (wasScissorEnabled && previousScissorBox) {
+				// Restore previous scissor box
+				renderer.enableScissor(
+					previousScissorBox[0],
+					previousScissorBox[1], 
+					previousScissorBox[2],
+					previousScissorBox[3]
+				);
+			} else {
+				// Disable scissor testing
+				renderer.disableScissor();
+			}
 		}
 
 		// TODO: Render scrollbars here (they don't scroll)
