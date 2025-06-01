@@ -215,11 +215,6 @@ export class Layer {
 			localPoint.y >= 0 &&
 			localPoint.y <= this.height;
 
-		if (this.componentType === 'Panel' || this.componentType === 'Input') {
-			console.log(
-				`[${this.componentType}] containsPoint(${x}, ${y}) - local: (${localPoint.x}, ${localPoint.y}) - bounds: (0, 0, ${this.width}, ${this.height}) - contains: ${contains}`,
-			);
-		}
 
 		return contains;
 	}

@@ -142,26 +142,17 @@ export class Panel extends Layer implements Interactive {
 	public scroll(deltaX: number, deltaY: number): this {
 		if (!this.scrollable) return this;
 
-		console.log(
-			`[Panel] Scroll called: deltaX=${deltaX}, deltaY=${deltaY}, contentSize=(${this.contentWidth}, ${this.contentHeight}), panelSize=(${this.width}, ${this.height})`,
-		);
 
 		if (this.scrollDirection === 'vertical' || this.scrollDirection === 'both') {
 			const maxScrollY = this.contentHeight - this.height;
 			const newScrollY = this.scrollOffsetY + deltaY;
 			const clampedY = Math.max(0, Math.min(maxScrollY, newScrollY));
-			console.log(
-				`[Panel] Vertical scroll: maxScrollY=${maxScrollY}, newScrollY=${newScrollY}, clamped=${clampedY}`,
-			);
 			this.scrollOffsetY = clampedY;
 		}
 		if (this.scrollDirection === 'horizontal' || this.scrollDirection === 'both') {
 			const maxScrollX = this.contentWidth - this.width;
 			const newScrollX = this.scrollOffsetX + deltaX;
 			const clampedX = Math.max(0, Math.min(maxScrollX, newScrollX));
-			console.log(
-				`[Panel] Horizontal scroll: maxScrollX=${maxScrollX}, newScrollX=${newScrollX}, clamped=${clampedX}`,
-			);
 			this.scrollOffsetX = clampedX;
 		}
 
@@ -180,9 +171,6 @@ export class Panel extends Layer implements Interactive {
 		if (height !== undefined) {
 			this.contentHeight = height;
 		}
-		console.log(
-			`[Panel] Content size set: width=${this.contentWidth}, height=${this.contentHeight}, panel size=(${this.width}, ${this.height})`,
-		);
 		return this;
 	}
 
@@ -268,15 +256,9 @@ export class Panel extends Layer implements Interactive {
 
 	public onWheel(deltaX: number, deltaY: number): void {
 		if (this.scrollable) {
-			console.log(
-				`[Panel] Wheel event: deltaX=${deltaX}, deltaY=${deltaY}, current offset: (${this.scrollOffsetX}, ${this.scrollOffsetY})`,
-			);
 			// Convert wheel delta to scroll amount
 			const scrollAmount = 30; // pixels per wheel notch
 			this.scroll(deltaX * scrollAmount, deltaY * scrollAmount);
-			console.log(
-				`[Panel] After scroll, new offset: (${this.scrollOffsetX}, ${this.scrollOffsetY})`,
-			);
 		}
 	}
 

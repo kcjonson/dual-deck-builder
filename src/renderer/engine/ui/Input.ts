@@ -92,7 +92,6 @@ export class Input extends Component {
 	 */
 	private setupEvents(): void {
 		// Register mouse down handler for focusing
-		console.log(`[Input] Registering input component for mouse events`);
 		InputSystem.registerMouseDown(this, () => this.onMouseDown());
 
 		// TODO: We need a way to handle keyboard input and detect clicks outside
@@ -257,12 +256,10 @@ export class Input extends Component {
 	 * Handle mouse down event
 	 */
 	private onMouseDown(): void {
-		console.log(`[Input] Mouse down event received, enabled: ${this.enabled}`);
 		if (this.enabled) {
 			this.focused = true;
 			this.background.setFillColor(this.focusedColor);
 			this.background.setBorderColor([0.4, 0.4, 0.8, 1]);
-			console.log(`[Input] Input focused`);
 
 			// Call onFocus callback if defined
 			if (this.onFocusCallback) {

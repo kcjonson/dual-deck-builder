@@ -15,7 +15,7 @@ export interface Interactive {
  */
 export class InputSystem {
 	private static instance: InputSystem;
-	private static DEBUG = true; // Add debug flag
+	private static DEBUG = false; // Add debug flag
 
 	// Mouse position tracking
 	private mouseX = 0;

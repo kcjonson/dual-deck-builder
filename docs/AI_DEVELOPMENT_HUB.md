@@ -301,6 +301,29 @@ class Card extends GameObject {
 
 ## Development Progress
 
+### Recently Completed (2025-06-01)
+
+#### Coordinate System Implementation and Initial Scrolling
+- **Implemented comprehensive coordinate transformation system**:
+  - Added RenderContext interface for passing coordinate transforms through render hierarchy
+  - Updated all render methods (Layer, Component, Rectangle, Text, Button, Panel) to use RenderContext
+  - Implemented parent tracking in Layer for proper coordinate calculations
+  - Added globalToLocal and localToGlobal methods for coordinate conversion
+  
+- **Added wheel event support and scrolling**:
+  - Extended InputSystem to handle wheel events for scrolling
+  - Updated Panel class to register for wheel events when scrollable
+  - Implemented setContentSize method for proper scroll bounds
+  - Basic scrolling now working but needs refinement
+  
+- **Component architecture improvements**:
+  - Refactored Input to extend Component instead of Rectangle (proper composition)
+  - Added Circle and Triangle primitive components
+  - Fixed Button and Input to use local coordinates for child positioning
+  - Updated DeveloperScreen with comprehensive scrollable examples container
+
+- **Current state**: Coordinate system implemented, basic scrolling works, but content bounds calculation needs improvement
+
 ### Recently Completed (2025-05-31)
 
 #### Major Architecture Refactoring: Component Hierarchy
@@ -367,9 +390,18 @@ class Card extends GameObject {
   - [ ] Add text baseline and alignment debugging tools
   - [ ] Implement visual effects: Gradients, patterns, shadows via shaders
 - [ ] **Task 2**: Expand drawing/rendering API with comprehensive UI primitives ⚠️ IN PROGRESS
-  - [ ] Add primitive shapes: Circle, Triangle, Polygon
+  - [x] Add primitive shapes: Circle, Triangle ✅ COMPLETED
+  - [ ] Add remaining shapes: Polygon
   - [ ] Create higher-level UI components: Card, ProgressBar, Slider
   - [ ] Build geometric icon system for common UI symbols
+- [ ] **Task 2.1**: Fix coordinate system and scrolling issues ⚠️ URGENT
+  - [x] Implement RenderContext for coordinate transformation ✅ COMPLETED
+  - [x] Add wheel event support to InputSystem ✅ COMPLETED
+  - [x] Update Panel to support scrolling with setContentSize ✅ COMPLETED
+  - [ ] Fix content bounds calculation - not all content scrolls together properly
+  - [ ] Implement keyboard input support for text fields
+  - [ ] Remove workaround containsPoint overrides and implement proper hit testing
+  - [ ] Improve coordinate transformation performance and accuracy
 - [ ] **Task 3**: Implement core UI primitives for game interface
   - [ ] Dialog/Popup component for game modals and menus
   - [ ] ScrollContainer for lists (cards, inventory, settings)
