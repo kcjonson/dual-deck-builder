@@ -329,6 +329,27 @@ class Card extends GameObject {
 - ✅ Visual style guide with Wasteland Wheels color palette
 - ✅ Input component showcase with various states
 - ✅ Fixed window resize handling with proper layout cascade
+- ✅ Implemented array-based component positioning to avoid direct children access
+- ✅ Added proper text centering with setAlign() for consistent positioning
+
+#### Recent Architecture Improvements (2025-05-31 - Latest)
+- **Completed proper layout() cascade system**:
+  - Text components now calculate dimensions in layout() method
+  - Panel backgrounds update through layout() during window resize
+  - Improved resize order: layout() first, then positioning
+  - Fixed font example spacing to use consistent font-size calculations
+  
+- **Enhanced positioning robustness**:
+  - Array-based approach for example panel components
+  - Proper text alignment with setAlign('center') for titles
+  - Separate positioning logic for text vs non-text elements
+  - Improved panel sizing on window resize
+
+#### Known Issues
+- **Text layout positioning**: Still needs refinement during window resize
+  - Some text components may not center properly in all scenarios
+  - Text dimensions and positioning interaction needs improvement
+  - Consider implementing precise text measurement system
 
 ## Current Development Todos
 
@@ -337,9 +358,16 @@ class Card extends GameObject {
   - [x] Build developer/demo screen to showcase all UI components
   - [x] Add interactive examples and real-time component testing
   - [x] Include visual style guide and color palette testing
-- [ ] **Task 2**: Expand drawing/rendering API with comprehensive UI primitives
-  - [ ] Add primitive shapes: Circle, Triangle, Polygon
+  - [x] Implement proper component hierarchy and positioning system
+  - [x] Add array-based layout approach for better encapsulation
+- [ ] **Task 1.1**: Polish text layout and visual effects (DEFERRED)
+  - [ ] Implement precise text measurement system using canvas.measureText()
+  - [ ] Fix text centering and positioning during window resize
+  - [ ] Ensure consistent text alignment across all components
+  - [ ] Add text baseline and alignment debugging tools
   - [ ] Implement visual effects: Gradients, patterns, shadows via shaders
+- [ ] **Task 2**: Expand drawing/rendering API with comprehensive UI primitives ⚠️ IN PROGRESS
+  - [ ] Add primitive shapes: Circle, Triangle, Polygon
   - [ ] Create higher-level UI components: Card, ProgressBar, Slider
   - [ ] Build geometric icon system for common UI symbols
 - [ ] **Task 3**: Implement core UI primitives for game interface

@@ -1,4 +1,5 @@
 import { RendererContext } from '../rendering/RendererContext';
+import { RenderContext, DEFAULT_RENDER_CONTEXT } from '../rendering/RenderContext';
 import { Style } from '../types/Style';
 
 /**
@@ -25,6 +26,7 @@ export class Layer {
 	protected visible = true;
 	protected children: Layer[] = [];
 	protected componentType = 'Layer';
+	protected parent: Layer | null = null;
 	private backgroundColor: [number, number, number, number] | null = null;
 
 	/**
@@ -40,7 +42,7 @@ export class Layer {
 			if (options.height !== undefined) this.height = options.height;
 			if (options.visible !== undefined) this.visible = options.visible;
 		}
-		
+
 		// Apply style properties
 		if (options?.style) {
 			this.applyStyle(options.style);
@@ -175,6 +177,7 @@ export class Layer {
 	 * Add a child layer
 	 */
 	public addChild(child: Layer): this {
+		child.parent = this;
 		this.children.push(child);
 		return this;
 	}
@@ -185,6 +188,7 @@ export class Layer {
 	public removeChild(child: Layer): boolean {
 		const index = this.children.indexOf(child);
 		if (index !== -1) {
+			child.parent = null;
 			this.children.splice(index, 1);
 			return true;
 		}
@@ -200,9 +204,77 @@ export class Layer {
 
 	/**
 	 * Check if a point is inside this layer
+	 * This method now properly handles coordinate transformation hierarchy
 	 */
 	public containsPoint(x: number, y: number): boolean {
-		return x >= this.x && x <= this.x + this.width && y >= this.y && y <= this.y + this.height;
+		// Convert global coordinates to local coordinates
+		const localPoint = this.globalToLocal(x, y);
+		const contains =
+			localPoint.x >= 0 &&
+			localPoint.x <= this.width &&
+			localPoint.y >= 0 &&
+			localPoint.y <= this.height;
+
+		if (this.componentType === 'Panel' || this.componentType === 'Input') {
+			console.log(
+				`[${this.componentType}] containsPoint(${x}, ${y}) - local: (${localPoint.x}, ${localPoint.y}) - bounds: (0, 0, ${this.width}, ${this.height}) - contains: ${contains}`,
+			);
+		}
+
+		return contains;
+	}
+
+	/**
+	 * Convert global screen coordinates to local coordinates relative to this layer
+	 */
+	public globalToLocal(globalX: number, globalY: number): { x: number; y: number } {
+		return this.calculateLocalCoordinates(globalX, globalY);
+	}
+
+	/**
+	 * Convert local coordinates to global screen coordinates
+	 */
+	public localToGlobal(localX: number, localY: number): { x: number; y: number } {
+		return this.calculateGlobalCoordinates(localX, localY);
+	}
+
+	/**
+	 * Calculate local coordinates by walking up the parent chain
+	 */
+	private calculateLocalCoordinates(globalX: number, globalY: number): { x: number; y: number } {
+		// Start with global coordinates
+		let localX = globalX;
+		let localY = globalY;
+
+		// Subtract this layer's offset
+		localX -= this.x;
+		localY -= this.y;
+
+		// Recursively subtract parent offsets
+		if (this.parent) {
+			const parentLocal = this.parent.globalToLocal(globalX, globalY);
+			return { x: parentLocal.x - this.x, y: parentLocal.y - this.y };
+		}
+
+		return { x: localX, y: localY };
+	}
+
+	/**
+	 * Calculate global coordinates by walking up the parent chain
+	 */
+	private calculateGlobalCoordinates(localX: number, localY: number): { x: number; y: number } {
+		// Start with local coordinates plus this layer's offset
+		let globalX = localX + this.x;
+		let globalY = localY + this.y;
+
+		// Add parent's global position
+		if (this.parent) {
+			const parentGlobal = this.parent.localToGlobal(0, 0);
+			globalX += parentGlobal.x;
+			globalY += parentGlobal.y;
+		}
+
+		return { x: globalX, y: globalY };
 	}
 
 	/**
@@ -257,23 +329,37 @@ export class Layer {
 
 	/**
 	 * Render the layer and all its children
+	 * @param context Optional render context with coordinate transforms
 	 */
-	public render(): void {
+	public render(context?: RenderContext): void {
 		if (!this.visible) return;
+
+		// Use default context if none provided (root level)
+		const ctx = context || DEFAULT_RENDER_CONTEXT;
+
+		// Calculate screen position by adding local position to context offset
+		const screenX = ctx.offsetX + this.x;
+		const screenY = ctx.offsetY + this.y;
 
 		// If the layer has a background color, render the background
 		if (this.backgroundColor && this.width > 0 && this.height > 0) {
 			// Get the renderer instance
 			const renderer = RendererContext.getInstance().getRenderer();
 
-			// Draw the background rectangle
-			renderer.drawRectangle(this.x, this.y, this.width, this.height, this.backgroundColor);
+			// Draw the background rectangle at screen position
+			renderer.drawRectangle(screenX, screenY, this.width, this.height, this.backgroundColor);
 		}
 
-		// Render all children
+		// Create child context with our position added
+		const childContext: RenderContext = {
+			offsetX: screenX,
+			offsetY: screenY,
+		};
+
+		// Render all children with transformed context
 		for (const child of this.children) {
 			if (child.isVisible()) {
-				child.render();
+				child.render(childContext);
 			}
 		}
 	}

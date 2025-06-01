@@ -1,13 +1,13 @@
-import { Component } from '../components/Component';
-
 // Define types for event handlers
 type MouseHandler = () => void;
+type WheelHandler = (deltaX: number, deltaY: number) => void;
 // Uncomment if needed:
 // type MouseMoveHandler = (x: number, y: number) => void;
 
 // Interface for components that can receive input events
 export interface Interactive {
 	containsPoint(x: number, y: number): boolean;
+	onWheel?(deltaX: number, deltaY: number): void;
 }
 
 /**
@@ -15,6 +15,7 @@ export interface Interactive {
  */
 export class InputSystem {
 	private static instance: InputSystem;
+	private static DEBUG = true; // Add debug flag
 
 	// Mouse position tracking
 	private mouseX = 0;
@@ -22,13 +23,14 @@ export class InputSystem {
 	private mouseDown = false;
 
 	// Registered components and their handlers
-	private mouseOverComponents: Map<Component, MouseHandler> = new Map();
-	private mouseOutComponents: Map<Component, MouseHandler> = new Map();
-	private mouseDownComponents: Map<Component, MouseHandler> = new Map();
-	private mouseUpComponents: Map<Component, MouseHandler> = new Map();
+	private mouseOverComponents: Map<Interactive, MouseHandler> = new Map();
+	private mouseOutComponents: Map<Interactive, MouseHandler> = new Map();
+	private mouseDownComponents: Map<Interactive, MouseHandler> = new Map();
+	private mouseUpComponents: Map<Interactive, MouseHandler> = new Map();
+	private wheelComponents: Map<Interactive, WheelHandler> = new Map();
 
 	// Currently hovered components
-	private hoveredComponents: Set<Component> = new Set();
+	private hoveredComponents: Set<Interactive> = new Set();
 
 	// Canvas element for event handling
 	private canvas: HTMLCanvasElement | null = null;
@@ -66,6 +68,7 @@ export class InputSystem {
 		canvas.addEventListener('mousemove', this.handleMouseMove.bind(this));
 		canvas.addEventListener('mousedown', this.handleMouseDown.bind(this));
 		canvas.addEventListener('mouseup', this.handleMouseUp.bind(this));
+		canvas.addEventListener('wheel', this.handleWheel.bind(this));
 
 		// Handle mouse leaving the canvas
 		canvas.addEventListener('mouseleave', this.handleMouseLeave.bind(this));
@@ -79,6 +82,7 @@ export class InputSystem {
 			this.canvas.removeEventListener('mousemove', this.handleMouseMove.bind(this));
 			this.canvas.removeEventListener('mousedown', this.handleMouseDown.bind(this));
 			this.canvas.removeEventListener('mouseup', this.handleMouseUp.bind(this));
+			this.canvas.removeEventListener('wheel', this.handleWheel.bind(this));
 			this.canvas.removeEventListener('mouseleave', this.handleMouseLeave.bind(this));
 			this.canvas = null;
 		}
@@ -88,6 +92,7 @@ export class InputSystem {
 		this.mouseOutComponents.clear();
 		this.mouseDownComponents.clear();
 		this.mouseUpComponents.clear();
+		this.wheelComponents.clear();
 		this.hoveredComponents.clear();
 	}
 
@@ -104,6 +109,10 @@ export class InputSystem {
 			// Process mouse over/out events
 			this.processMouseOverOut();
 		}
+
+		if (InputSystem.DEBUG) {
+			console.log(`Mouse Move: (${this.mouseX}, ${this.mouseY})`);
+		}
 	}
 
 	/**
@@ -112,10 +121,23 @@ export class InputSystem {
 	private handleMouseDown(_event: MouseEvent): void {
 		this.mouseDown = true;
 
+		if (InputSystem.DEBUG) {
+			console.log(
+				`[InputSystem] Mouse down at (${this.mouseX}, ${this.mouseY}), hovered components:`,
+				this.hoveredComponents.size,
+			);
+		}
+
 		// Trigger mouseDown handlers for hovered components
 		for (const component of this.hoveredComponents) {
 			const handler = this.mouseDownComponents.get(component);
 			if (handler) {
+				if (InputSystem.DEBUG) {
+					console.log(
+						`[InputSystem] Triggering mouseDown for component:`,
+						component.constructor.name,
+					);
+				}
 				handler();
 			}
 		}
@@ -134,6 +156,10 @@ export class InputSystem {
 				handler();
 			}
 		}
+
+		if (InputSystem.DEBUG) {
+			console.log(`Mouse Up at (${this.mouseX}, ${this.mouseY})`);
+		}
 	}
 
 	/**
@@ -150,6 +176,47 @@ export class InputSystem {
 
 		// Clear the set of hovered components
 		this.hoveredComponents.clear();
+
+		if (InputSystem.DEBUG) {
+			console.log('Mouse Leave');
+		}
+	}
+
+	/**
+	 * Handle wheel events
+	 */
+	private handleWheel(event: WheelEvent): void {
+		// Prevent default scrolling behavior
+		event.preventDefault();
+
+		// Normalize wheel delta values
+		const deltaX = event.deltaX;
+		const deltaY = event.deltaY;
+
+		if (InputSystem.DEBUG) {
+			console.log(
+				`[InputSystem] Wheel event at (${this.mouseX}, ${this.mouseY}), deltaX: ${deltaX}, deltaY: ${deltaY}, registered components: ${this.wheelComponents.size}`,
+			);
+		}
+
+		// Find components under mouse that can handle wheel events
+		let foundComponent = false;
+		for (const [component, handler] of this.wheelComponents) {
+			if (component.containsPoint(this.mouseX, this.mouseY)) {
+				if (InputSystem.DEBUG) {
+					console.log(
+						`[InputSystem] Wheel event handled by component:`,
+						component.constructor.name,
+					);
+				}
+				handler(deltaX, deltaY);
+				foundComponent = true;
+			}
+		}
+
+		if (InputSystem.DEBUG && !foundComponent) {
+			console.log(`[InputSystem] No component found to handle wheel event`);
+		}
 	}
 
 	/**
@@ -157,7 +224,7 @@ export class InputSystem {
 	 */
 	private processMouseOverOut(): void {
 		// Check which components the mouse is currently over
-		const currentlyHovered = new Set<Component>();
+		const currentlyHovered = new Set<Interactive>();
 
 		// Check all components with mouseOver handlers
 		for (const [component] of this.mouseOverComponents) {
@@ -169,6 +236,10 @@ export class InputSystem {
 					const handler = this.mouseOverComponents.get(component);
 					if (handler) {
 						handler();
+					}
+
+					if (InputSystem.DEBUG) {
+						console.log(`Mouse Over: ${component}`);
 					}
 				}
 			}
@@ -182,6 +253,10 @@ export class InputSystem {
 				if (handler) {
 					handler();
 				}
+
+				if (InputSystem.DEBUG) {
+					console.log(`Mouse Out: ${component}`);
+				}
 			}
 		}
 
@@ -192,40 +267,48 @@ export class InputSystem {
 	/**
 	 * Register a component for mouse over events
 	 */
-	public static registerMouseOver(component: Component, handler: MouseHandler): void {
+	public static registerMouseOver(component: Interactive, handler: MouseHandler): void {
 		InputSystem.getInstance().mouseOverComponents.set(component, handler);
 	}
 
 	/**
 	 * Register a component for mouse out events
 	 */
-	public static registerMouseOut(component: Component, handler: MouseHandler): void {
+	public static registerMouseOut(component: Interactive, handler: MouseHandler): void {
 		InputSystem.getInstance().mouseOutComponents.set(component, handler);
 	}
 
 	/**
 	 * Register a component for mouse down events
 	 */
-	public static registerMouseDown(component: Component, handler: MouseHandler): void {
+	public static registerMouseDown(component: Interactive, handler: MouseHandler): void {
 		InputSystem.getInstance().mouseDownComponents.set(component, handler);
 	}
 
 	/**
 	 * Register a component for mouse up events
 	 */
-	public static registerMouseUp(component: Component, handler: MouseHandler): void {
+	public static registerMouseUp(component: Interactive, handler: MouseHandler): void {
 		InputSystem.getInstance().mouseUpComponents.set(component, handler);
+	}
+
+	/**
+	 * Register a component for wheel events
+	 */
+	public static registerWheel(component: Interactive, handler: WheelHandler): void {
+		InputSystem.getInstance().wheelComponents.set(component, handler);
 	}
 
 	/**
 	 * Unregister a component from all mouse events
 	 */
-	public static unregisterComponent(component: Component): void {
+	public static unregisterComponent(component: Interactive): void {
 		const instance = InputSystem.getInstance();
 		instance.mouseOverComponents.delete(component);
 		instance.mouseOutComponents.delete(component);
 		instance.mouseDownComponents.delete(component);
 		instance.mouseUpComponents.delete(component);
+		instance.wheelComponents.delete(component);
 		instance.hoveredComponents.delete(component);
 	}
 }

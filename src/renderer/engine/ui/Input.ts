@@ -1,11 +1,14 @@
+import { Component, ComponentOptions } from '../components/Component';
 import { Rectangle } from '../components/Rectangle';
 import { Text } from '../components/Text';
-import { ComponentOptions } from '../components/Component';
+import { RenderContext, DEFAULT_RENDER_CONTEXT } from '../rendering/RenderContext';
+import { InputSystem } from '../input/InputSystem';
 
 /**
  * Input UI component for text input
  */
-export class Input extends Rectangle {
+export class Input extends Component {
+	private background: Rectangle;
 	private text: Text;
 	private placeholder: Text;
 	private value = '';
@@ -31,34 +34,54 @@ export class Input extends Rectangle {
 		super(options);
 		this.componentType = 'Input';
 
-		// Create text child component for the input value
+		// Create background rectangle at local origin
+		this.background = new Rectangle({
+			x: 0,
+			y: 0,
+			width: this.width || 200,
+			height: this.height || 40,
+			style: {
+				backgroundColor: this.normalColor,
+				borderColor: '#4d4d4d',
+				borderWidth: 2,
+				borderRadius: 3,
+			},
+		});
+		this.addChild(this.background);
+
+		// Create text child component for the input value at local origin
+		const textOffset = 10; // Padding from left edge
 		this.text = new Text('', {
+			x: textOffset,
+			y: 0,
+			width: this.width - textOffset * 2,
+			height: this.height,
 			style: {
 				color: '#ffffff',
 				textAlign: 'left',
 				verticalAlign: 'middle',
 			},
 		});
+		this.text.setAlign('left');
+		this.text.setBaseline('middle');
+		this.addChild(this.text);
 
-		// Create placeholder text
+		// Create placeholder text at same position
 		this.placeholder = new Text(placeholder, {
+			x: textOffset,
+			y: 0,
+			width: this.width - textOffset * 2,
+			height: this.height,
 			style: {
 				color: '#808080',
 				textAlign: 'left',
 				verticalAlign: 'middle',
 			},
 		});
+		this.placeholder.setAlign('left');
+		this.placeholder.setBaseline('middle');
 		this.placeholderText = placeholder;
-
-		// Add the text components as children
-		this.addChild(this.text);
 		this.addChild(this.placeholder);
-
-		// Set default appearance
-		this.setFillColor(this.normalColor);
-		this.setBorderColor([0.3, 0.3, 0.3, 1]);
-		this.setBorderWidth(2);
-		this.setCornerRadius(3);
 
 		// Setup event handling (this would be connected to the input system)
 		this.setupEvents();
@@ -66,13 +89,14 @@ export class Input extends Rectangle {
 
 	/**
 	 * Setup input event handling for the input field
-	 * This is a placeholder that would be implemented when connected to the input system
 	 */
 	private setupEvents(): void {
-		// This would register event handlers with a global input system
-		// For example:
-		// InputSystem.registerMouseDown(this, () => this.onMouseDown());
-		// InputSystem.registerKeyPress(this, (key) => this.onKeyPress(key));
+		// Register mouse down handler for focusing
+		console.log(`[Input] Registering input component for mouse events`);
+		InputSystem.registerMouseDown(this, () => this.onMouseDown());
+
+		// TODO: We need a way to handle keyboard input and detect clicks outside
+		// For now, we'll need to add keyboard event handling to InputSystem
 	}
 
 	/**
@@ -154,30 +178,26 @@ export class Input extends Rectangle {
 	}
 
 	/**
-	 * Set the input's size and update the text positions
+	 * Set the input's size and update child sizes
 	 */
 	public setSize(width: number, height: number): this {
 		super.setSize(width, height);
-		this.updateTextPositions();
-		return this;
-	}
 
-	/**
-	 * Set the input's position and update the text positions
-	 */
-	public setPosition(x: number, y: number): this {
-		super.setPosition(x, y);
-		this.updateTextPositions();
-		return this;
-	}
+		// Update background size
+		if (this.background) {
+			this.background.setSize(width, height);
+		}
 
-	/**
-	 * Update the text positions within the input
-	 */
-	private updateTextPositions(): void {
-		const textOffset = 10; // Offset from the left edge for text
-		this.text.setPosition(this.x + textOffset, this.y + this.height / 2);
-		this.placeholder.setPosition(this.x + textOffset, this.y + this.height / 2);
+		// Update text sizes
+		const textOffset = 10;
+		if (this.text) {
+			this.text.setSize(width - textOffset * 2, height);
+		}
+		if (this.placeholder) {
+			this.placeholder.setSize(width - textOffset * 2, height);
+		}
+
+		return this;
 	}
 
 	/**
@@ -198,9 +218,9 @@ export class Input extends Rectangle {
 		this.text.setVisible(enabled);
 
 		if (!this.enabled) {
-			this.setFillColor(this.disabledColor);
+			this.background.setFillColor(this.disabledColor);
 		} else {
-			this.setFillColor(this.focused ? this.focusedColor : this.normalColor);
+			this.background.setFillColor(this.focused ? this.focusedColor : this.normalColor);
 		}
 
 		return this;
@@ -237,10 +257,12 @@ export class Input extends Rectangle {
 	 * Handle mouse down event
 	 */
 	private onMouseDown(): void {
+		console.log(`[Input] Mouse down event received, enabled: ${this.enabled}`);
 		if (this.enabled) {
 			this.focused = true;
-			this.setFillColor(this.focusedColor);
-			this.setBorderColor([0.4, 0.4, 0.8, 1]);
+			this.background.setFillColor(this.focusedColor);
+			this.background.setBorderColor([0.4, 0.4, 0.8, 1]);
+			console.log(`[Input] Input focused`);
 
 			// Call onFocus callback if defined
 			if (this.onFocusCallback) {
@@ -255,8 +277,8 @@ export class Input extends Rectangle {
 	private onMouseDownOutside(): void {
 		if (this.focused) {
 			this.focused = false;
-			this.setFillColor(this.normalColor);
-			this.setBorderColor([0.3, 0.3, 0.3, 1]);
+			this.background.setFillColor(this.normalColor);
+			this.background.setBorderColor([0.3, 0.3, 0.3, 1]);
 
 			// Call onBlur callback if defined
 			if (this.onBlurCallback) {
@@ -286,5 +308,80 @@ export class Input extends Rectangle {
 				this.setValue(this.value + key);
 			}
 		}
+	}
+
+	/**
+	 * Render this component
+	 * @param context Render context with coordinate transforms
+	 */
+	public render(context?: RenderContext): void {
+		if (!this.visible) return;
+
+		// Use default context if none provided
+		const ctx = context || DEFAULT_RENDER_CONTEXT;
+
+		// Calculate screen position
+		const screenX = ctx.offsetX + this.x;
+		const screenY = ctx.offsetY + this.y;
+
+		// Create child context with our position added
+		const childContext: RenderContext = {
+			offsetX: screenX,
+			offsetY: screenY,
+		};
+
+		// Render children with transformed context
+		for (const child of this.children) {
+			if (child.isVisible()) {
+				child.render(childContext);
+			}
+		}
+	}
+
+	/**
+	 * Set the fill color of the input background
+	 * @param color Color value (hex string or RGBA array)
+	 */
+	public setFillColor(color: string | [number, number, number, number]): this {
+		this.background.setFillColor(color);
+		return this;
+	}
+
+	/**
+	 * Set the border color of the input background
+	 * @param color Color value (hex string or RGBA array)
+	 */
+	public setBorderColor(color: string | [number, number, number, number]): this {
+		this.background.setBorderColor(color);
+		return this;
+	}
+
+	/**
+	 * Set the border width of the input background
+	 * @param width Border width in pixels
+	 */
+	public setBorderWidth(width: number): this {
+		this.background.setBorderWidth(width);
+		return this;
+	}
+
+	/**
+	 * Set the corner radius of the input background
+	 * @param radius Corner radius in pixels
+	 */
+	public setCornerRadius(radius: number): this {
+		this.background.setCornerRadius(radius);
+		return this;
+	}
+
+	/**
+	 * Clean up resources and event handlers
+	 */
+	public cleanup(): void {
+		// Unregister from input system
+		InputSystem.unregisterComponent(this);
+
+		// Call parent cleanup
+		super.cleanup();
 	}
 }

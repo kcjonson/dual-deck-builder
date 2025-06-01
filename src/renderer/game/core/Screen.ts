@@ -22,7 +22,7 @@ export abstract class Screen {
 			x: 0,
 			y: 0,
 			width: window.innerWidth,
-			height: window.innerHeight
+			height: window.innerHeight,
 		});
 
 		// Listen for resize events

@@ -1,5 +1,6 @@
 import { Component, ComponentOptions } from './Component';
 import { RendererContext } from '../rendering/RendererContext';
+import { RenderContext, DEFAULT_RENDER_CONTEXT } from '../rendering/RenderContext';
 import { Style, StyleParser } from '../types/Style';
 
 /**
@@ -99,20 +100,28 @@ export class Rectangle extends Component {
 
 	/**
 	 * Render the rectangle
+	 * @param context Render context with coordinate transforms
 	 */
-	public render(): void {
+	public render(context?: RenderContext): void {
 		if (!this.visible) return;
+
+		// Use default context if none provided
+		const ctx = context || DEFAULT_RENDER_CONTEXT;
+
+		// Calculate screen position
+		const screenX = ctx.offsetX + this.x;
+		const screenY = ctx.offsetY + this.y;
 
 		// Get the renderer instance
 		const renderer = RendererContext.getInstance().getRenderer();
 
-		// Draw the rectangle fill
-		renderer.drawRectangle(this.x, this.y, this.width, this.height, this.fillColor);
+		// Draw the rectangle fill at screen position
+		renderer.drawRectangle(screenX, screenY, this.width, this.height, this.fillColor);
 
 		// If there is a border, draw it as four lines
 		if (this.borderColor && this.borderWidth > 0) {
-			const x = this.x;
-			const y = this.y;
+			const x = screenX;
+			const y = screenY;
 			const w = this.width;
 			const h = this.height;
 
@@ -129,10 +138,16 @@ export class Rectangle extends Component {
 			renderer.drawLine(x, y + h, x, y, this.borderColor, this.borderWidth);
 		}
 
-		// Render children
+		// Create child context with our position added
+		const childContext: RenderContext = {
+			offsetX: screenX,
+			offsetY: screenY,
+		};
+
+		// Render children with transformed context
 		for (const child of this.children) {
 			if (child.isVisible()) {
-				child.render();
+				child.render(childContext);
 			}
 		}
 	}

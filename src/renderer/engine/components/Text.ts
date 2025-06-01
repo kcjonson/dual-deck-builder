@@ -1,13 +1,12 @@
 import { Component, ComponentOptions } from './Component';
 import { RendererContext } from '../rendering/RendererContext';
+import { RenderContext, DEFAULT_RENDER_CONTEXT } from '../rendering/RenderContext';
 import { Style, StyleParser } from '../types/Style';
 
 /**
  * Text-specific options
  */
-export interface TextOptions extends ComponentOptions {
-	// Additional text-specific options can be added here
-}
+export type TextOptions = ComponentOptions;
 
 /**
  * Text component for rendering text
@@ -132,44 +131,58 @@ export class Text extends Component {
 		const charWidth = this.fontSize * 0.6; // Approximate character width
 		const estimatedWidth = this.text.length * charWidth;
 		const estimatedHeight = this.fontSize * 1.2; // Line height factor
-		
+
 		this.setSize(estimatedWidth, estimatedHeight);
-		
+
 		// Call parent layout for children
 		super.layout();
 	}
 
 	/**
 	 * Render the text
+	 * @param context Render context with coordinate transforms
 	 */
-	public render(): void {
+	public render(context?: RenderContext): void {
 		if (!this.visible) return;
+
+		// Use default context if none provided
+		const ctx = context || DEFAULT_RENDER_CONTEXT;
 
 		// Get the renderer instance
 		const renderer = RendererContext.getInstance().getRenderer();
 
+		// Calculate screen position
+		const screenX = ctx.offsetX + this.x;
+		const screenY = ctx.offsetY + this.y;
+
 		// Calculate position based on alignment and bounding box
-		let xPos = this.x;
+		let xPos = screenX;
 		if (this.align === 'center' && this.width > 0) {
-			xPos = this.x + this.width / 2;
+			xPos = screenX + this.width / 2;
 		} else if (this.align === 'right' && this.width > 0) {
-			xPos = this.x + this.width;
+			xPos = screenX + this.width;
 		}
 
-		let yPos = this.y;
+		let yPos = screenY;
 		if (this.baseline === 'middle' && this.height > 0) {
-			yPos = this.y + this.height / 2;
+			yPos = screenY + this.height / 2;
 		} else if (this.baseline === 'bottom' && this.height > 0) {
-			yPos = this.y + this.height;
+			yPos = screenY + this.height;
 		}
 
-		// Draw the text
+		// Draw the text at screen position
 		renderer.drawText(this.text, xPos, yPos, this.color, this.fontSize, this.align, this.baseline);
 
-		// Render children
+		// Create child context with our position added
+		const childContext: RenderContext = {
+			offsetX: screenX,
+			offsetY: screenY,
+		};
+
+		// Render children with transformed context
 		for (const child of this.children) {
 			if (child.isVisible()) {
-				child.render();
+				child.render(childContext);
 			}
 		}
 	}

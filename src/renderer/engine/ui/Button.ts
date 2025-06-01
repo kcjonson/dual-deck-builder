@@ -2,6 +2,7 @@ import { Component, ComponentOptions } from '../components/Component';
 import { Rectangle } from '../components/Rectangle';
 import { Text } from '../components/Text';
 import { InputSystem } from '../input/InputSystem';
+import { RenderContext, DEFAULT_RENDER_CONTEXT } from '../rendering/RenderContext';
 
 /**
  * Button UI component
@@ -29,8 +30,12 @@ export class Button extends Component {
 		super(options);
 		this.componentType = 'Button';
 
-		// Create background rectangle
+		// Create background rectangle at local origin
 		this.background = new Rectangle({
+			x: 0,
+			y: 0,
+			width: this.width,
+			height: this.height,
 			style: {
 				backgroundColor: this.normalColor,
 				border: '2px solid #1a1a1a',
@@ -39,8 +44,12 @@ export class Button extends Component {
 		});
 		this.addChild(this.background);
 
-		// Create text child component for the label
+		// Create text child component for the label at local origin
 		this.text = new Text(label, {
+			x: 0,
+			y: 0,
+			width: this.width,
+			height: this.height,
 			style: {
 				color: '#ffffff',
 				textAlign: 'center',
@@ -130,12 +139,13 @@ export class Button extends Component {
 	 * Update the positions of all child components
 	 */
 	private updateTextPosition(): void {
-		// Update background position and size
-		this.background.setPosition(this.x, this.y);
+		// Children should be positioned relative to button's local origin (0,0)
+		// Background at button origin
+		this.background.setPosition(0, 0);
 		this.background.setSize(this.width, this.height);
 
-		// Update text position and size to match button
-		this.text.setPosition(this.x, this.y);
+		// Text centered within button (also at local origin since text centers itself)
+		this.text.setPosition(0, 0);
 		this.text.setSize(this.width, this.height);
 	}
 
@@ -251,13 +261,28 @@ export class Button extends Component {
 	/**
 	 * Render this component
 	 * This is required by the Component abstract class
+	 * @param context Render context with coordinate transforms
 	 */
-	public render(): void {
-		// The rendering will be handled by child components
-		// No need to implement any rendering logic here
+	public render(context?: RenderContext): void {
+		if (!this.visible) return;
+
+		// Use default context if none provided
+		const ctx = context || DEFAULT_RENDER_CONTEXT;
+
+		// Calculate screen position
+		const screenX = ctx.offsetX + this.x;
+		const screenY = ctx.offsetY + this.y;
+
+		// Create child context with our position added
+		const childContext: RenderContext = {
+			offsetX: screenX,
+			offsetY: screenY,
+		};
+
+		// Render children with transformed context
 		for (const child of this.children) {
 			if (child.isVisible()) {
-				child.render();
+				child.render(childContext);
 			}
 		}
 	}

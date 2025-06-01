@@ -311,6 +311,181 @@ export class Renderer {
 	}
 
 	/**
+	 * Draw a circle on the screen using polygon approximation
+	 */
+	public drawCircle(
+		x: number,
+		y: number,
+		radius: number,
+		fillColor: [number, number, number, number] = [1, 1, 1, 1],
+		strokeColor: [number, number, number, number] = [0, 0, 0, 1],
+		strokeWidth = 0,
+	): void {
+		if (!this.currentShader) {
+			console.error('No shader selected');
+			return;
+		}
+
+		const segments = 32; // Number of segments to approximate the circle
+		const angleStep = (2 * Math.PI) / segments;
+
+		// Generate vertices for the circle
+		const vertices: number[] = [0, 0]; // Center vertex
+		for (let i = 0; i <= segments; i++) {
+			const angle = i * angleStep;
+			const vx = Math.cos(angle);
+			const vy = Math.sin(angle);
+			vertices.push(vx, vy);
+		}
+
+		// Generate indices for triangular fan
+		const indices: number[] = [];
+		for (let i = 1; i <= segments; i++) {
+			indices.push(0, i, i + 1);
+		}
+		// Close the circle
+		indices[indices.length - 1] = 1;
+
+		// Create a model matrix for this circle
+		const modelMatrix = mat4.create();
+		mat4.translate(modelMatrix, modelMatrix, [x, y, 0]);
+		mat4.scale(modelMatrix, modelMatrix, [radius, radius, 1]);
+
+		this.currentShader.setMatrix4('uModelMatrix', modelMatrix);
+		this.currentShader.setVector4('uColor', fillColor);
+
+		// Create and bind vertex buffer
+		const vertexBuffer = this.gl.createBuffer();
+		this.gl.bindBuffer(this.gl.ARRAY_BUFFER, vertexBuffer);
+		this.gl.bufferData(this.gl.ARRAY_BUFFER, new Float32Array(vertices), this.gl.STATIC_DRAW);
+
+		// Create and bind index buffer
+		const indexBuffer = this.gl.createBuffer();
+		this.gl.bindBuffer(this.gl.ELEMENT_ARRAY_BUFFER, indexBuffer);
+		this.gl.bufferData(this.gl.ELEMENT_ARRAY_BUFFER, new Uint16Array(indices), this.gl.STATIC_DRAW);
+
+		// Set up vertex attributes
+		const positionAttribLocation = this.gl.getAttribLocation(
+			this.currentShader.getProgram(),
+			'aPosition',
+		);
+		this.gl.enableVertexAttribArray(positionAttribLocation);
+		this.gl.vertexAttribPointer(positionAttribLocation, 2, this.gl.FLOAT, false, 0, 0);
+
+		// Draw the filled circle
+		this.gl.drawElements(this.gl.TRIANGLES, indices.length, this.gl.UNSIGNED_SHORT, 0);
+
+		// Draw stroke if needed
+		if (strokeWidth > 0) {
+			// Generate vertices for circle outline
+			const outlineVertices: number[] = [];
+			for (let i = 0; i <= segments; i++) {
+				const angle = i * angleStep;
+				const vx = Math.cos(angle);
+				const vy = Math.sin(angle);
+				outlineVertices.push(vx, vy);
+			}
+
+			// Update vertex buffer with outline vertices
+			this.gl.bufferData(
+				this.gl.ARRAY_BUFFER,
+				new Float32Array(outlineVertices),
+				this.gl.STATIC_DRAW,
+			);
+
+			// Set stroke color and draw as line strip
+			this.currentShader.setVector4('uColor', strokeColor);
+			this.gl.lineWidth(strokeWidth);
+			this.gl.drawArrays(this.gl.LINE_STRIP, 0, outlineVertices.length / 2);
+		}
+
+		// Clean up
+		this.gl.disableVertexAttribArray(positionAttribLocation);
+		this.gl.bindBuffer(this.gl.ARRAY_BUFFER, null);
+		this.gl.bindBuffer(this.gl.ELEMENT_ARRAY_BUFFER, null);
+		this.gl.deleteBuffer(vertexBuffer);
+		this.gl.deleteBuffer(indexBuffer);
+	}
+
+	/**
+	 * Draw a triangle on the screen
+	 */
+	public drawTriangle(
+		x: number,
+		y: number,
+		width: number,
+		height: number,
+		fillColor: [number, number, number, number] = [1, 1, 1, 1],
+		strokeColor: [number, number, number, number] = [0, 0, 0, 1],
+		strokeWidth = 0,
+	): void {
+		if (!this.currentShader) {
+			console.error('No shader selected');
+			return;
+		}
+
+		// Create triangle vertices (equilateral triangle pointing up)
+		const vertices = new Float32Array([
+			0.0,
+			1.0, // Top vertex
+			-1.0,
+			-1.0, // Bottom left
+			1.0,
+			-1.0, // Bottom right
+		]);
+
+		// Create indices for drawing as triangles
+		const indices = new Uint16Array([0, 1, 2]);
+
+		// Calculate center position
+		const centerX = x + width / 2;
+		const centerY = y + height / 2;
+
+		// Create a model matrix for this triangle
+		const modelMatrix = mat4.create();
+		mat4.translate(modelMatrix, modelMatrix, [centerX, centerY, 0]);
+		mat4.scale(modelMatrix, modelMatrix, [width / 2, height / 2, 1]);
+
+		this.currentShader.setMatrix4('uModelMatrix', modelMatrix);
+		this.currentShader.setVector4('uColor', fillColor);
+
+		// Create and bind vertex buffer
+		const vertexBuffer = this.gl.createBuffer();
+		this.gl.bindBuffer(this.gl.ARRAY_BUFFER, vertexBuffer);
+		this.gl.bufferData(this.gl.ARRAY_BUFFER, vertices, this.gl.STATIC_DRAW);
+
+		// Create and bind index buffer
+		const indexBuffer = this.gl.createBuffer();
+		this.gl.bindBuffer(this.gl.ELEMENT_ARRAY_BUFFER, indexBuffer);
+		this.gl.bufferData(this.gl.ELEMENT_ARRAY_BUFFER, indices, this.gl.STATIC_DRAW);
+
+		// Set up vertex attributes
+		const positionAttribLocation = this.gl.getAttribLocation(
+			this.currentShader.getProgram(),
+			'aPosition',
+		);
+		this.gl.enableVertexAttribArray(positionAttribLocation);
+		this.gl.vertexAttribPointer(positionAttribLocation, 2, this.gl.FLOAT, false, 0, 0);
+
+		// Draw the filled triangle
+		this.gl.drawElements(this.gl.TRIANGLES, 3, this.gl.UNSIGNED_SHORT, 0);
+
+		// Draw stroke if needed
+		if (strokeWidth > 0) {
+			this.currentShader.setVector4('uColor', strokeColor);
+			this.gl.lineWidth(strokeWidth);
+			this.gl.drawArrays(this.gl.LINE_LOOP, 0, 3);
+		}
+
+		// Clean up
+		this.gl.disableVertexAttribArray(positionAttribLocation);
+		this.gl.bindBuffer(this.gl.ARRAY_BUFFER, null);
+		this.gl.bindBuffer(this.gl.ELEMENT_ARRAY_BUFFER, null);
+		this.gl.deleteBuffer(vertexBuffer);
+		this.gl.deleteBuffer(indexBuffer);
+	}
+
+	/**
 	 * Get the WebGL rendering context
 	 */
 	public getContext(): WebGLRenderingContext {
