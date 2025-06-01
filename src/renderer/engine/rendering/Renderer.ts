@@ -1,5 +1,6 @@
 import { mat4 } from 'gl-matrix';
 import { Shader } from './Shader';
+import { FontAtlas } from './FontAtlas';
 
 /**
  * Main WebGL renderer class that abstracts WebGL operations
@@ -10,7 +11,7 @@ export class Renderer {
 	private currentShader: Shader | null = null;
 	private projectionMatrix: mat4;
 	private viewMatrix: mat4;
-	private ctx2d: CanvasRenderingContext2D | null = null;
+	private fontAtlas: FontAtlas | null = null;
 
 	constructor(canvasId: string) {
 		this.canvas = document.getElementById(canvasId) as HTMLCanvasElement;
@@ -36,6 +37,9 @@ export class Renderer {
 		this.gl.enable(this.gl.BLEND);
 		this.gl.blendFunc(this.gl.SRC_ALPHA, this.gl.ONE_MINUS_SRC_ALPHA);
 		this.gl.clearColor(0.0, 0.0, 0.0, 1.0);
+
+		// Initialize font atlas
+		this.fontAtlas = new FontAtlas(this.gl);
 	}
 
 	/**
@@ -63,7 +67,6 @@ export class Renderer {
 	 */
 	public clear(): void {
 		this.gl.clear(this.gl.COLOR_BUFFER_BIT);
-		this.clear2DCanvas(); // Also clear the 2D canvas used for text
 	}
 
 	/**
@@ -81,26 +84,28 @@ export class Renderer {
 	}
 
 	/**
-	 * Draw a rectangle on the screen
+	 * Helper method to draw a textured or colored quad
 	 */
-	public drawRectangle(
+	private drawQuad(
 		x: number,
 		y: number,
 		width: number,
 		height: number,
-		color: [number, number, number, number] = [1, 1, 1, 1],
+		color: [number, number, number, number],
+		texture?: WebGLTexture,
+		texCoords?: number[]
 	): void {
 		if (!this.currentShader) {
 			console.error('No shader selected');
 			return;
 		}
 
-		// Center the rectangle at the correct position
-		// In pixel coordinates, we want the x,y to be the top-left corner
+
+		// Center the quad at the correct position
 		const centerX = x + width / 2;
 		const centerY = y + height / 2;
 
-		// Create a model matrix for this rectangle
+		// Create a model matrix
 		const modelMatrix = mat4.create();
 		mat4.translate(modelMatrix, modelMatrix, [centerX, centerY, 0]);
 		mat4.scale(modelMatrix, modelMatrix, [width / 2, height / 2, 1]);
@@ -108,26 +113,30 @@ export class Renderer {
 		this.currentShader.setMatrix4('uModelMatrix', modelMatrix);
 		this.currentShader.setVector4('uColor', color);
 
-		// Create rectangle vertices (1x1 quad from -1 to 1 in NDC)
+		// Set texture usage
+		if (texture && texCoords) {
+			this.currentShader.setBool('uUseTexture', true);
+			this.gl.activeTexture(this.gl.TEXTURE0);
+			this.gl.bindTexture(this.gl.TEXTURE_2D, texture);
+			this.currentShader.setInt('uTexture', 0);
+		} else {
+			this.currentShader.setBool('uUseTexture', false);
+		}
+
+		// Create vertices with position and texture coordinates
+		// Order: bottom-left, bottom-right, top-right, top-left (matching indices)
 		const vertices = new Float32Array([
-			-1.0,
-			-1.0, // Bottom left
-			1.0,
-			-1.0, // Bottom right
-			1.0,
-			1.0, // Top right
-			-1.0,
-			1.0, // Top left
+			// Position    // TexCoord
+			-1.0, -1.0,    texCoords?.[0] ?? 0.0, texCoords?.[1] ?? 0.0, // Bottom left
+			 1.0, -1.0,    texCoords?.[2] ?? 1.0, texCoords?.[3] ?? 0.0, // Bottom right
+			 1.0,  1.0,    texCoords?.[4] ?? 1.0, texCoords?.[5] ?? 1.0, // Top right
+			-1.0,  1.0,    texCoords?.[6] ?? 0.0, texCoords?.[7] ?? 1.0, // Top left
 		]);
 
-		// Create indices for drawing as triangles
+		// Create indices
 		const indices = new Uint16Array([
-			0,
-			1,
-			2, // First triangle
-			0,
-			2,
-			3, // Second triangle
+			0, 1, 2, // First triangle
+			0, 2, 3, // Second triangle
 		]);
 
 		// Create and bind vertex buffer
@@ -141,22 +150,52 @@ export class Renderer {
 		this.gl.bufferData(this.gl.ELEMENT_ARRAY_BUFFER, indices, this.gl.STATIC_DRAW);
 
 		// Set up vertex attributes
-		const positionAttribLocation = this.gl.getAttribLocation(
-			this.currentShader.getProgram(),
-			'aPosition',
-		);
-		this.gl.enableVertexAttribArray(positionAttribLocation);
-		this.gl.vertexAttribPointer(positionAttribLocation, 2, this.gl.FLOAT, false, 0, 0);
+		const positionAttribLocation = this.gl.getAttribLocation(this.currentShader.getProgram(), 'aPosition');
+		const texCoordAttribLocation = this.gl.getAttribLocation(this.currentShader.getProgram(), 'aTexCoord');
 
-		// Draw the rectangle
+		// Position attribute (2 floats starting at offset 0)
+		if (positionAttribLocation >= 0) {
+			this.gl.enableVertexAttribArray(positionAttribLocation);
+			this.gl.vertexAttribPointer(positionAttribLocation, 2, this.gl.FLOAT, false, 16, 0);
+		}
+
+		// Texture coordinate attribute (2 floats starting at offset 8 bytes)
+		if (texCoordAttribLocation >= 0) {
+			this.gl.enableVertexAttribArray(texCoordAttribLocation);
+			this.gl.vertexAttribPointer(texCoordAttribLocation, 2, this.gl.FLOAT, false, 16, 8);
+		}
+
+		// Draw the quad
 		this.gl.drawElements(this.gl.TRIANGLES, 6, this.gl.UNSIGNED_SHORT, 0);
 
 		// Clean up
-		this.gl.disableVertexAttribArray(positionAttribLocation);
+		if (positionAttribLocation >= 0) {
+			this.gl.disableVertexAttribArray(positionAttribLocation);
+		}
+		if (texCoordAttribLocation >= 0) {
+			this.gl.disableVertexAttribArray(texCoordAttribLocation);
+		}
 		this.gl.bindBuffer(this.gl.ARRAY_BUFFER, null);
 		this.gl.bindBuffer(this.gl.ELEMENT_ARRAY_BUFFER, null);
 		this.gl.deleteBuffer(vertexBuffer);
 		this.gl.deleteBuffer(indexBuffer);
+
+		if (texture) {
+			this.gl.bindTexture(this.gl.TEXTURE_2D, null);
+		}
+	}
+
+	/**
+	 * Draw a rectangle on the screen
+	 */
+	public drawRectangle(
+		x: number,
+		y: number,
+		width: number,
+		height: number,
+		color: [number, number, number, number] = [1, 1, 1, 1],
+	): void {
+		this.drawQuad(x, y, width, height, color);
 	}
 
 	/**
@@ -243,7 +282,7 @@ export class Renderer {
 	}
 
 	/**
-	 * Draw text on the screen using HTML Canvas API as a fallback
+	 * Draw text on the screen using WebGL and font atlas
 	 */
 	public drawText(
 		text: string,
@@ -254,59 +293,88 @@ export class Renderer {
 		align: 'left' | 'center' | 'right' = 'left',
 		baseline: 'top' | 'middle' | 'bottom' = 'top',
 	): void {
-		// Create a 2D context if we don't already have one
-		if (!this.ctx2d) {
-			// Create a 2D canvas overlay for text rendering
-			const canvas2d = document.createElement('canvas');
-			canvas2d.style.position = 'absolute';
-			canvas2d.style.left = '0';
-			canvas2d.style.top = '0';
-			canvas2d.style.pointerEvents = 'none'; // Make it non-interactive
-			canvas2d.width = window.innerWidth;
-			canvas2d.height = window.innerHeight;
-
-			// Get the WebGL canvas and insert our 2D canvas right after it
-			const webglCanvas = this.canvas;
-			if (webglCanvas.parentNode) {
-				webglCanvas.parentNode.insertBefore(canvas2d, webglCanvas.nextSibling);
-			} else {
-				document.body.appendChild(canvas2d);
-			}
-
-			// Store the context
-			this.ctx2d = canvas2d.getContext('2d');
-
-			// Resize the 2D canvas when window resizes
-			window.addEventListener('resize', () => {
-				if (this.ctx2d) {
-					const canvas = this.ctx2d.canvas;
-					canvas.width = window.innerWidth;
-					canvas.height = window.innerHeight;
-				}
-			});
+		if (!this.fontAtlas) {
+			console.warn('FontAtlas not initialized');
+			return;
 		}
 
-		if (!this.ctx2d) return;
+		// Calculate scale factor for font size
+		const scale = fontSize / this.fontAtlas.getFontSize();
+		
+		// Measure text for alignment
+		const textMetrics = this.fontAtlas.measureText(text);
+		const scaledWidth = textMetrics.width * scale;
+		const scaledHeight = textMetrics.height * scale;
 
-		// Set up the text styling
-		this.ctx2d.font = `${fontSize}px Arial`;
-		this.ctx2d.fillStyle = `rgba(${color[0] * 255}, ${color[1] * 255}, ${color[2] * 255}, ${
-			color[3]
-		})`;
-		this.ctx2d.textAlign = align;
-		this.ctx2d.textBaseline = baseline;
+		// Calculate starting position based on alignment
+		let startX = x;
+		if (align === 'center') {
+			startX = x - scaledWidth / 2;
+		} else if (align === 'right') {
+			startX = x - scaledWidth;
+		}
 
-		// Draw the text with proper alignment
-		this.ctx2d.fillText(text, x, y);
-	}
+		// Calculate vertical position based on baseline
+		let startY = y;
+		if (baseline === 'middle') {
+			startY = y - scaledHeight / 2;
+		} else if (baseline === 'bottom') {
+			startY = y - scaledHeight;
+		}
 
-	/**
-	 * Clear the 2D canvas used for text rendering
-	 * This should be called at the beginning of each frame
-	 */
-	private clear2DCanvas(): void {
-		if (this.ctx2d) {
-			this.ctx2d.clearRect(0, 0, this.ctx2d.canvas.width, this.ctx2d.canvas.height);
+		// Get font atlas texture
+		const texture = this.fontAtlas.getTexture();
+		if (!texture) {
+			console.warn('Font atlas texture not available');
+			return;
+		}
+
+		// Render each character
+		let currentX = startX;
+		for (let i = 0; i < text.length; i++) {
+			const char = text[i];
+			const charInfo = this.fontAtlas.getCharacter(char);
+			
+			if (!charInfo) {
+				// Skip unknown characters
+				continue;
+			}
+
+			// Calculate character dimensions using atlas dimensions
+			const atlasSize = this.fontAtlas.getAtlasSize();
+			const charPixelWidth = charInfo.width * atlasSize;
+			const charPixelHeight = charInfo.height * atlasSize;
+			const charWidth = charPixelWidth * scale;
+			const charHeight = charPixelHeight * scale;
+
+			// Texture coordinates from font atlas (normalized 0-1)
+			const u1 = charInfo.x;
+			const v1 = charInfo.y;
+			const u2 = charInfo.x + charInfo.width;
+			const v2 = charInfo.y + charInfo.height;
+			
+			
+			// Map atlas coordinates to quad vertices - flip Y to fix upside down
+			const texCoords = [
+				u1, v1, // Bottom left vertex (was v2, now v1 to flip)
+				u2, v1, // Bottom right vertex (was v2, now v1 to flip)
+				u2, v2, // Top right vertex (was v1, now v2 to flip)
+				u1, v2, // Top left vertex (was v1, now v2 to flip)
+			];
+
+			// Draw the character quad
+			this.drawQuad(
+				currentX + charInfo.offsetX * scale,
+				startY + charInfo.offsetY * scale,
+				charWidth,
+				charHeight,
+				color,
+				texture,
+				texCoords
+			);
+
+			// Advance to next character position
+			currentX += charInfo.advance * scale;
 		}
 	}
 

@@ -108,6 +108,14 @@ export class Shader {
 	}
 
 	/**
+	 * Set a uniform bool value
+	 */
+	public setBool(name: string, value: boolean): void {
+		const location = this.gl.getUniformLocation(this.program, name);
+		this.gl.uniform1i(location, value ? 1 : 0);
+	}
+
+	/**
 	 * Set a uniform vec2 value
 	 */
 	public setVector2(name: string, x: number, y: number): void {

@@ -127,7 +127,11 @@ export class Text extends Component {
 	 * Layout method to calculate text dimensions
 	 */
 	public layout(): void {
-		// Estimate text dimensions based on font size
+		// Get the renderer to access font atlas for accurate measurements
+		const renderer = RendererContext.getInstance().getRenderer();
+		
+		// Use FontAtlas for accurate text measurement if available
+		// For now, fallback to estimation if FontAtlas isn't accessible
 		const charWidth = this.fontSize * 0.6; // Approximate character width
 		const estimatedWidth = this.text.length * charWidth;
 		const estimatedHeight = this.fontSize * 1.2; // Line height factor
