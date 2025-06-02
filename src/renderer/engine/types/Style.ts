@@ -19,6 +19,9 @@ export interface Style {
 	fontWeight?: 'normal' | 'bold' | number;
 	textAlign?: 'left' | 'center' | 'right';
 	verticalAlign?: 'top' | 'middle' | 'bottom';
+	lineHeight?: number;
+	whiteSpace?: 'normal' | 'nowrap';
+	textOverflow?: 'visible' | 'hidden' | 'ellipsis';
 
 	// Display and Visibility
 	display?: 'block' | 'none';

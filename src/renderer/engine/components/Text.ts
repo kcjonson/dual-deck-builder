@@ -18,6 +18,10 @@ export class Text extends Component {
 	private color: [number, number, number, number] = [1, 1, 1, 1];
 	private align: 'left' | 'center' | 'right' = 'left';
 	private baseline: 'top' | 'middle' | 'bottom' = 'top';
+	private lineHeight = 1.2;
+	private whiteSpace: 'normal' | 'nowrap' = 'normal';
+	private textOverflow: 'visible' | 'hidden' | 'ellipsis' = 'visible';
+	private wrappedText: string = '';
 
 	/**
 	 * Create a new text component
@@ -32,6 +36,9 @@ export class Text extends Component {
 		if (options?.style) {
 			this.applyTextStyle(options.style);
 		}
+
+		// Initialize wrapped text after dimensions and styles are set
+		this.updateWrappedText();
 	}
 
 	/**
@@ -53,6 +60,15 @@ export class Text extends Component {
 		if (style.verticalAlign !== undefined) {
 			this.baseline = style.verticalAlign;
 		}
+		if (style.lineHeight !== undefined) {
+			this.lineHeight = style.lineHeight;
+		}
+		if (style.whiteSpace !== undefined) {
+			this.whiteSpace = style.whiteSpace;
+		}
+		if (style.textOverflow !== undefined) {
+			this.textOverflow = style.textOverflow;
+		}
 	}
 
 	/**
@@ -61,6 +77,7 @@ export class Text extends Component {
 	 */
 	public setText(text: string): this {
 		this.text = text;
+		this.updateWrappedText();
 		return this;
 	}
 
@@ -124,19 +141,80 @@ export class Text extends Component {
 	}
 
 	/**
+	 * Update wrapped text based on current settings
+	 */
+	private updateWrappedText(): void {
+		// Default to original text if no wrapping needed
+		if (this.whiteSpace === 'nowrap' || this.width <= 0) {
+			this.wrappedText = this.text;
+			return;
+		}
+
+		// Estimate character width for wrapping (more conservative estimate)
+		const charWidth = this.fontSize * 0.5; // Reduced from 0.6 to be more aggressive with wrapping
+		const maxCharsPerLine = Math.floor(this.width / charWidth);
+		
+		// If width is too small, just use original text
+		if (maxCharsPerLine <= 5) {
+			this.wrappedText = this.text;
+			return;
+		}
+
+		const words = this.text.split(' ');
+		const lines: string[] = [];
+		let currentLine = '';
+
+		for (const word of words) {
+			const testLine = currentLine ? `${currentLine} ${word}` : word;
+			
+			if (testLine.length <= maxCharsPerLine) {
+				currentLine = testLine;
+			} else {
+				if (currentLine) {
+					lines.push(currentLine);
+				}
+				// Handle very long words by just adding them
+				currentLine = word;
+			}
+		}
+
+		if (currentLine) {
+			lines.push(currentLine);
+		}
+
+		// Handle text overflow with ellipsis
+		if (this.textOverflow === 'ellipsis' && this.height > 0) {
+			const maxLines = Math.floor(this.height / (this.fontSize * this.lineHeight));
+			if (lines.length > maxLines && maxLines > 0) {
+				lines.splice(maxLines);
+				if (lines.length > 0) {
+					lines[lines.length - 1] += '...';
+				}
+			}
+		}
+
+		this.wrappedText = lines.join('\n');
+	}
+
+	/**
 	 * Layout method to calculate text dimensions
 	 */
 	public layout(): void {
-		// Get the renderer to access font atlas for accurate measurements
-		const renderer = RendererContext.getInstance().getRenderer();
-		
-		// Use FontAtlas for accurate text measurement if available
-		// For now, fallback to estimation if FontAtlas isn't accessible
-		const charWidth = this.fontSize * 0.6; // Approximate character width
-		const estimatedWidth = this.text.length * charWidth;
-		const estimatedHeight = this.fontSize * 1.2; // Line height factor
+		// For existing text without explicit dimensions, calculate based on original text first
+		if (this.width === 0 || this.height === 0) {
+			const charWidth = this.fontSize * 0.6;
+			const lines = this.text.split('\n');
+			const maxLineLength = Math.max(...lines.map(line => line.length));
+			
+			const estimatedWidth = maxLineLength * charWidth;
+			const estimatedHeight = lines.length * this.fontSize * this.lineHeight;
 
-		this.setSize(estimatedWidth, estimatedHeight);
+			if (this.width === 0) this.setWidth(estimatedWidth);
+			if (this.height === 0) this.setHeight(estimatedHeight);
+		}
+
+		// Now update wrapped text based on final dimensions
+		this.updateWrappedText();
 
 		// Call parent layout for children
 		super.layout();
@@ -174,8 +252,16 @@ export class Text extends Component {
 			yPos = screenY + this.height;
 		}
 
-		// Draw the text at screen position
-		renderer.drawText(this.text, xPos, yPos, this.color, this.fontSize, this.align, this.baseline);
+		// Handle multi-line text rendering
+		const textToRender = this.wrappedText || this.text;
+		const lines = textToRender.split('\n');
+		const lineHeight = this.fontSize * this.lineHeight;
+		
+		// Render each line separately
+		for (let i = 0; i < lines.length; i++) {
+			const lineY = yPos + (i * lineHeight);
+			renderer.drawText(lines[i], xPos, lineY, this.color, this.fontSize, this.align, this.baseline);
+		}
 
 		// Create child context with our position added
 		const childContext: RenderContext = {

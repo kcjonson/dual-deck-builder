@@ -178,8 +178,16 @@ For a complete log of recently completed tasks, see: [AI Development Log](./AI_D
 
 ### Medium Priority (Game Foundation)
 
-- [ ] **Task 4**: Create a new screen to showcase all the cards that are configured/loaded
-- [ ] **Task 4**: Create Card system foundation - JSON config and CardLoader class
+- [x] **Task 4**: Create a new screen to showcase all the cards that are configured/loaded ✅ COMPLETED
+  - [x] Implemented CardShowcaseScreen with scrollable grid layout
+  - [x] Added "Card Showcase" button to main menu
+  - [x] Organized cards by rarity with proper navigation
+- [x] **Task 4**: Create Card system foundation - JSON config and CardLoader class ✅ COMPLETED
+  - [x] Built flexible Card data architecture with variable substitution
+  - [x] Implemented CardLoader singleton with validation
+  - [x] Created Visual Card UI component extending Component
+  - [x] Added CSS-like text wrapping with whiteSpace and textOverflow
+  - [x] Fixed JSON loading from public directory
 - [ ] **Task 5**: Implement Driver data structures and archetypes
 - [ ] **Task 6**: Create Driver Selection Screen with two-panel layout
 - [ ] **Task 7**: Build basic Combat Screen layout and UI components

@@ -364,7 +364,7 @@ export class Battle {
 			switch (effect.type) {
 				case 'damage':
 					// Apply damage to target
-					const damage = effect.value;
+					const damage = effect.value || 0;
 					target.health -= Math.max(0, damage - target.block);
 					target.block = Math.max(0, target.block - damage);
 					console.log(`${card.getName()} deals ${damage} damage to ${target.name}`);
@@ -372,34 +372,39 @@ export class Battle {
 
 				case 'block':
 					// Add block to player
-					this.player.block += effect.value;
-					console.log(`${card.getName()} gives ${effect.value} block`);
+					const blockValue = effect.value || 0;
+					this.player.block += blockValue;
+					console.log(`${card.getName()} gives ${blockValue} block`);
 					break;
 
 				case 'heal':
 					// Heal target
-					target.health = Math.min(target.health + effect.value, target.maxHealth);
-					console.log(`${card.getName()} heals ${effect.value} health`);
+					const healValue = effect.value || 0;
+					target.health = Math.min(target.health + healValue, target.maxHealth);
+					console.log(`${card.getName()} heals ${healValue} health`);
 					break;
 
 				case 'draw':
 					// Draw cards
-					this.drawPlayerHand(effect.value);
-					console.log(`${card.getName()} draws ${effect.value} cards`);
+					const drawValue = effect.value || 0;
+					this.drawPlayerHand(drawValue);
+					console.log(`${card.getName()} draws ${drawValue} cards`);
 					break;
 
 				case 'energy':
 					// Gain energy
-					this.player.energy += effect.value;
-					console.log(`${card.getName()} gives ${effect.value} energy`);
+					const energyValue = effect.value || 0;
+					this.player.energy += energyValue;
+					console.log(`${card.getName()} gives ${energyValue} energy`);
 					break;
 
 				case 'status':
 					// Apply status effect
-					const statusName = effect.description.toLowerCase();
+					const statusName = (effect.description || 'unknown').toLowerCase();
+					const statusValue = effect.value || 0;
 					const currentValue = target.effects.get(statusName) || 0;
-					target.effects.set(statusName, currentValue + effect.value);
-					console.log(`${card.getName()} applies ${effect.value} ${statusName} to ${target.name}`);
+					target.effects.set(statusName, currentValue + statusValue);
+					console.log(`${card.getName()} applies ${statusValue} ${statusName} to ${target.name}`);
 					break;
 
 				// Add more effect types as needed

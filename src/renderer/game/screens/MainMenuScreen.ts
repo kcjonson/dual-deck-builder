@@ -13,6 +13,7 @@ export class MainMenuScreen extends Screen {
 	private onOpenSettings: (() => void) | null = null;
 	private onOpenCredits: (() => void) | null = null;
 	private onOpenDeveloper: (() => void) | null = null;
+	private onOpenCardShowcase: (() => void) | null = null;
 	private onExitGame: (() => void) | null = null;
 
 	/**
@@ -97,6 +98,19 @@ export class MainMenuScreen extends Screen {
 			if (this.onOpenCredits) this.onOpenCredits();
 		});
 		this.rootLayer.addChild(creditsButton);
+
+		// Card showcase button
+		const cardShowcaseButton = new Button('Card Showcase', {
+			width: buttonWidth,
+			height: buttonHeight,
+			style: {
+				fontSize: 24,
+			},
+		});
+		cardShowcaseButton.onClick(() => {
+			if (this.onOpenCardShowcase) this.onOpenCardShowcase();
+		});
+		this.rootLayer.addChild(cardShowcaseButton);
 
 		// Developer button
 		const devButton = new Button('Developer Tools', {
@@ -185,6 +199,13 @@ export class MainMenuScreen extends Screen {
 	 */
 	public setOnOpenCredits(callback: () => void): void {
 		this.onOpenCredits = callback;
+	}
+
+	/**
+	 * Set callback for when Card Showcase is clicked
+	 */
+	public setOnOpenCardShowcase(callback: () => void): void {
+		this.onOpenCardShowcase = callback;
 	}
 
 	/**

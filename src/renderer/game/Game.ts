@@ -2,6 +2,7 @@ import { Renderer } from '../engine/rendering/Renderer';
 import { SplashScreen } from './screens/SplashScreen';
 import { MainMenuScreen } from './screens/MainMenuScreen';
 import { DeveloperScreen } from './screens/DeveloperScreen';
+import { CardShowcaseScreen } from './screens/CardShowcaseScreen';
 
 /**
  * Interface for game screens
@@ -82,6 +83,10 @@ export class Game {
 		mainMenuScreen.setOnOpenCredits(() => {
 			// Credits action (not implemented yet)
 		});
+		mainMenuScreen.setOnOpenCardShowcase(() => {
+			// Show card showcase screen
+			this.showScreen('cardShowcaseScreen');
+		});
 		mainMenuScreen.setOnOpenDeveloper(() => {
 			// Show developer screen
 			this.showScreen('developerScreen');
@@ -101,6 +106,14 @@ export class Game {
 			this.showScreen('mainMenuScreen');
 		});
 		this.screens.set('developerScreen', developerScreen);
+
+		// Create card showcase screen
+		const cardShowcaseScreen = new CardShowcaseScreen(this.renderer);
+		cardShowcaseScreen.setOnBack(() => {
+			// Go back to main menu
+			this.showScreen('mainMenuScreen');
+		});
+		this.screens.set('cardShowcaseScreen', cardShowcaseScreen);
 	}
 
 	/**

@@ -1,77 +1,73 @@
 /**
- * Enum for card types
+ * Card rarities following spec requirements
  */
-export enum CardType {
-	ATTACK = 'attack',
-	DEFENSE = 'defense',
-	SKILL = 'skill',
-	POWER = 'power',
-	STATUS = 'status',
-	CURSE = 'curse',
-}
+export type CardRarity = 'starter' | 'common' | 'uncommon' | 'rare' | 'legendary';
 
 /**
- * Enum for card rarities
+ * Card target types for effect resolution
  */
-export enum CardRarity {
-	COMMON = 'common',
-	UNCOMMON = 'uncommon',
-	RARE = 'rare',
-	LEGENDARY = 'legendary',
-}
+export type TargetType = 'enemy_single' | 'enemy_all' | 'self' | 'ally' | 'both_drivers' | 'any';
 
 /**
- * Interface for card effects
+ * Scaling types for variable effects
+ */
+export type ScalingType = 'ramming' | 'gunnery' | 'evade' | 'vehicle_weight' | 'armor' | 'speed';
+
+/**
+ * Flexible card effect interface - supports nested and conditional effects
  */
 export interface CardEffect {
 	type: string;
-	value: number;
+	value?: number;
+	scaling?: ScalingType;
+	target?: string;
+	condition?: string;
+	status?: string;
+	resource?: string;
+	distance?: number;
+	effect?: CardEffect;
+	description?: string;
+	[key: string]: any; // Allow additional properties for future expansion
+}
+
+/**
+ * Upgrade data structure for card improvements
+ */
+export interface UpgradeData {
+	[key: string]: number | string | CardEffect[];
+}
+
+/**
+ * Complete card data structure loaded from JSON
+ */
+export interface CardData {
+	id: string;
+	name: string;
 	description: string;
+	driverRestriction?: string | null;
+	rarity: CardRarity;
+	cost: number;
+	targetType: TargetType;
+	effects: CardEffect[];
+	upgrades?: UpgradeData;
+	tags: string[];
+	image?: string;
+	variables?: { [key: string]: { base: number; upgraded?: number; scaling?: ScalingType } };
 }
 
 /**
  * Card class representing a playable card in the game
+ * Built for maximum configurability and future expansion
  */
 export class Card {
-	private id: string;
-	private name: string;
-	private description: string;
-	private type: CardType;
-	private rarity: CardRarity;
-	private cost: number;
-	private effects: CardEffect[];
-	private imagePath: string | null;
-	private upgraded: boolean;
+	private data: CardData;
+	private upgraded: boolean = false;
 
 	/**
-	 * Create a new card
-	 * @param id Unique card identifier
-	 * @param name Card name
-	 * @param description Card description
-	 * @param type Card type
-	 * @param rarity Card rarity
-	 * @param cost Energy cost to play
-	 * @param effects Array of card effects
-	 * @param imagePath Path to card image (optional)
+	 * Create a new card from data configuration
 	 */
-	constructor(
-		id: string,
-		name: string,
-		description: string,
-		type: CardType,
-		rarity: CardRarity,
-		cost: number,
-		effects: CardEffect[],
-		imagePath: string | null = null,
-	) {
-		this.id = id;
-		this.name = name;
-		this.description = description;
-		this.type = type;
-		this.rarity = rarity;
-		this.cost = cost;
-		this.effects = [...effects];
-		this.imagePath = imagePath;
+	constructor({ data }: { data: CardData }) {
+		this.data = { ...data, effects: [...data.effects] };
 		this.upgraded = false;
 	}
 
@@ -79,56 +75,82 @@ export class Card {
 	 * Get the card's unique ID
 	 */
 	public getId(): string {
-		return this.id;
+		return this.data.id;
 	}
 
 	/**
-	 * Get the card's name
+	 * Get the card's name (with upgrade indicator)
 	 */
 	public getName(): string {
-		return this.upgraded ? `${this.name}+` : this.name;
+		return this.upgraded ? `${this.data.name}+` : this.data.name;
 	}
 
 	/**
-	 * Get the card's description
+	 * Get the card's description with variable substitution
 	 */
 	public getDescription(): string {
-		return this.description;
-	}
-
-	/**
-	 * Get the card's type
-	 */
-	public getType(): CardType {
-		return this.type;
+		let description = this.data.description;
+		
+		// Substitute variables in description (e.g., {damage})
+		if (this.data.variables) {
+			for (const [key, variable] of Object.entries(this.data.variables)) {
+				const value = this.upgraded && variable.upgraded !== undefined 
+					? variable.upgraded 
+					: variable.base;
+				description = description.replace(new RegExp(`{${key}}`, 'g'), value.toString());
+			}
+		}
+		
+		return description;
 	}
 
 	/**
 	 * Get the card's rarity
 	 */
 	public getRarity(): CardRarity {
-		return this.rarity;
+		return this.data.rarity;
 	}
 
 	/**
-	 * Get the card's energy cost
+	 * Get the card's adrenaline cost
 	 */
 	public getCost(): number {
-		return this.cost;
+		return this.data.cost;
+	}
+
+	/**
+	 * Get the card's target type
+	 */
+	public getTargetType(): TargetType {
+		return this.data.targetType;
 	}
 
 	/**
 	 * Get the card's effects
 	 */
 	public getEffects(): CardEffect[] {
-		return [...this.effects];
+		return [...this.data.effects];
+	}
+
+	/**
+	 * Get the card's tags
+	 */
+	public getTags(): string[] {
+		return [...this.data.tags];
 	}
 
 	/**
 	 * Get the card's image path
 	 */
-	public getImagePath(): string | null {
-		return this.imagePath;
+	public getImagePath(): string | undefined {
+		return this.data.image;
+	}
+
+	/**
+	 * Get the driver restriction (if any)
+	 */
+	public getDriverRestriction(): string | null | undefined {
+		return this.data.driverRestriction;
 	}
 
 	/**
@@ -139,58 +161,58 @@ export class Card {
 	}
 
 	/**
-	 * Upgrade the card
-	 * @returns This card instance for chaining
+	 * Get the raw card data
+	 */
+	public getData(): CardData {
+		return { ...this.data };
+	}
+
+	/**
+	 * Upgrade the card using configured upgrade data
 	 */
 	public upgrade(): Card {
-		if (!this.upgraded) {
+		if (!this.upgraded && this.data.upgrades) {
 			this.upgraded = true;
-
-			// Apply upgrade effects (example: reduce cost)
-			if (this.cost > 0) {
-				this.cost -= 1;
+			
+			// Apply configured upgrades
+			for (const [key, value] of Object.entries(this.data.upgrades)) {
+				if (key === 'cost' && typeof value === 'number') {
+					this.data.cost = value;
+				} else if (key === 'effects' && Array.isArray(value)) {
+					this.data.effects = [...value as CardEffect[]];
+				}
+				// Additional upgrade types can be easily added here
 			}
-
-			// Improve effects (example: increase values)
-			this.effects = this.effects.map((effect) => ({
-				...effect,
-				value: Math.floor(effect.value * 1.5),
-			}));
-
-			// Update description to show upgraded values
-			this.updateDescription();
 		}
 
 		return this;
 	}
 
 	/**
-	 * Update the card's description
-	 * @returns This card instance for chaining
+	 * Get a variable's current value (base or upgraded)
 	 */
-	private updateDescription(): Card {
-		// This would dynamically update the description based on effects
-		// For now, it's just a placeholder
+	public getVariableValue(variableName: string): number | undefined {
+		const variable = this.data.variables?.[variableName];
+		if (!variable) return undefined;
+		
+		return this.upgraded && variable.upgraded !== undefined 
+			? variable.upgraded 
+			: variable.base;
+	}
 
-		return this;
+	/**
+	 * Check if card has a specific tag
+	 */
+	public hasTag(tag: string): boolean {
+		return this.data.tags.includes(tag);
 	}
 
 	/**
 	 * Create a copy of this card
-	 * @returns New card instance with the same properties
 	 */
 	public copy(): Card {
-		const newCard = new Card(
-			this.id,
-			this.name,
-			this.description,
-			this.type,
-			this.rarity,
-			this.cost,
-			this.effects,
-			this.imagePath,
-		);
-
+		const newCard = new Card({ data: JSON.parse(JSON.stringify(this.data)) });
+		
 		if (this.upgraded) {
 			newCard.upgrade();
 		}
