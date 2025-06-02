@@ -76,99 +76,18 @@ Wasteland Wheels is a roguelike deckbuilder game with vehicular combat in a post
    - Combat system implementation details
    - Run culmination and defeat scenarios
 
-## Key Design Decisions
-
-### UI Component API Design (CSS-in-JS Style)
-**Decision**: Adopt a React/CSS-in-JS inspired API for UI components
-**Rationale**: 
-- Developer has 15 years of web development experience with React and CSS
-- Familiar CSS nomenclature reduces cognitive load
-- Style objects separate concerns cleanly
-- Optional IDs eliminate unnecessary verbosity when direct references exist
-
-**Implementation**:
-```typescript
-// New API Design (Implemented)
-const text = new Text('Hello World', {
-  style: {
-    fontSize: 20,      // Number or string with 'px'
-    color: '#ffffff',  // Hex colors only
-    textAlign: 'center',
-    left: 150,         // Always absolute positioning
-    top: 25
-  }
-});
-
-const rect = new Rectangle({
-  style: {
-    width: 100,
-    height: 100,
-    backgroundColor: '#ff3333',
-    borderRadius: 8,
-    border: '2px solid #ffffff'
-  }
-});
-
-const button = new Button('Click Me', {
-  style: {
-    width: 200,
-    height: 50,
-    fontSize: 16
-  }
-});
-
-// Components no longer require IDs
-const layer = new Layer();  // No ID needed
-const panel = new Panel({   // Style is optional
-  style: {
-    backgroundColor: '#333333cc'  // Hex with alpha
-  }
-});
-```
-
-**Benefits**:
-- Familiar syntax for web developers
-- Single object for all styling concerns
-- No IDs required - components are just object references
-- CSS property names match web standards (camelCase)
-- Hex colors only for consistency
-- Always absolute positioning (no layout engine complexity)
-- Optional style objects with sensible defaults
-
-**Key Differences from Web CSS**:
-- No relative positioning or layout engine
-- Colors must be hex strings (e.g., '#ffffff', '#333333cc')
-- No units required for numeric values (assumed pixels)
-- Limited CSS properties (only what's implemented)
-
-### Symbiotic Driver System
-- Two drivers with separate but synergistic decks
-- Cards have enhanced effects based on partner actions
-- Shared resource pool (Adrenaline) for playing cards
-- Both drivers must survive for optimal gameplay
-
-### Combat System
-- Turn-based card combat
-- Positioning matters (flanking, range, cover)
-- Target specific vehicles or components
-- Environmental hazards and interactions
-
-### Visual Style
-- Gritty post-apocalyptic aesthetic
-- Vehicle customization visible in combat
-- Clear UI inspired by successful deckbuilders
-- Performance over visual complexity
-
 ## Implementation Priority Order
 
 ### Phase 1: Core Systems (Current)
 
 1. **Combat System Foundation**
+
    - Implement the dual-driver turn system
    - Create synergy mechanics between drivers
    - Build enemy AI system
 
 2. **Card System**
+
    - Create `src/renderer/game/data/cards.json` with card definitions
    - Implement `CardLoader` class to parse JSON into Card objects
    - Create interfaces matching the card structure in design doc
@@ -177,6 +96,7 @@ const panel = new Panel({   // Style is optional
    - Build card reward and upgrade systems
 
 3. **Driver Selection Screen**
+
    - Follow section 1.2 of Game Flow & UI Spec
    - Create `DriverSelectionScreen` extending `Screen` class
    - Implement driver data structure and loading
@@ -191,11 +111,13 @@ const panel = new Panel({   // Style is optional
 ### Phase 2: Content & Polish
 
 1. **Map Navigation**
+
    - Implement node-based map generation
    - Create different encounter types
    - Build event system
 
 2. **Vehicle Customization**
+
    - Implement vehicle stats and modifications
    - Create visual representation system
    - Build upgrade mechanics
@@ -213,92 +135,6 @@ const panel = new Panel({   // Style is optional
 - Difficulty scaling
 - Balance testing and adjustments
 
-## Technical Decisions
-
-### Card System Architecture
-
-```typescript
-// Card data loaded from JSON
-interface CardData {
-	id: string;
-	name: string;
-	description: string;
-	driverRestriction: string | null;
-	rarity: CardRarity;
-	cost: number;
-	targetType: TargetType;
-	effects: CardEffect[];
-	upgrades?: UpgradeData;
-	tags: string[];
-	image: string;
-}
-
-// Runtime card instance
-class Card extends GameObject {
-	private data: CardData;
-	private upgraded: boolean = false;
-	// ... implementation
-}
-```
-
-### Screen Management
-
-- Use existing Screen base class from `src/renderer/game/core/Screen.ts`
-- Each major game screen extends Screen
-- Game class manages screen transitions
-
-### Component Usage
-
-- Leverage existing components: Rectangle, Text, Button, Layer
-- Create new UI components as needed (e.g., CardComponent, VehicleDisplay)
-- Use InputSystem for mouse/touch interactions
-
-## Open Questions for Implementation
-
-1. **Card Rendering**: Should cards be rendered as composite components (Rectangle + Text + Image) or custom WebGL shapes?
-
-   - Recommendation: Start with composite components for faster iteration
-
-2. **Animation System**: Current codebase lacks animation support. How to handle card movement, damage numbers?
-
-   - Recommendation: Create simple Animation class using requestAnimationFrame
-
-3. **Save System**: When to implement save/load functionality?
-
-   - Recommendation: Defer to Phase 2, focus on core gameplay first
-
-4. **Resource Loading**: How to handle card images and other assets?
-   - Recommendation: Extend existing AssetLoader to support card images
-
-## Current Codebase Notes
-
-### Existing Systems to Leverage
-
-- `Screen` base class for game screens
-- `Component` system for UI elements
-- `InputSystem` for mouse interactions
-- `AssetLoader` for resource management
-- `State` class for game state management
-
-### Systems Needing Creation
-
-- Card system (data, deck, hand management)
-- Combat system (turn management, targeting)
-- Driver/Vehicle system
-- Map/node system for progression
-- Shop/upgrade system
-
-## Next Steps for Claude Code
-
-1. Read all three design documents linked above
-2. Review current codebase structure, particularly:
-   - `src/renderer/game/screens/` for screen examples
-   - `src/renderer/engine/components/` for UI components
-   - `src/renderer/game/mechanics/` for existing Card/Deck classes
-3. Create implementation plan for Phase 1 items
-4. Begin with Card Configuration Loader as it's foundational
-5. Update this document with progress and any blockers
-
 ## Development Progress
 
 For a complete log of recently completed tasks, see: [AI Development Log](./AI_DEVELOPMENT_LOG.md)
@@ -306,6 +142,7 @@ For a complete log of recently completed tasks, see: [AI Development Log](./AI_D
 ## Current Development Todos
 
 ### High Priority (Foundation - UI System & Demo Environment)
+
 - [x] **Task 1**: Create test/demo environment for drawing API ✅ COMPLETED
   - [x] Build developer/demo screen to showcase all UI components
   - [x] Add interactive examples and real-time component testing
@@ -333,13 +170,15 @@ For a complete log of recently completed tasks, see: [AI Development Log](./AI_D
   - [x] Implement keyboard input support for text fields ✅ COMPLETED
   - [x] Implement proper hit testing with coordinate transforms ✅ COMPLETED
   - [x] Add focus management for keyboard input ✅ COMPLETED
-- [ ] **Task 3**: Implement core UI primitives for game interface
+- [ ] **Task 3**: Implement core UI primitives for game interface (DEFERRED)
   - [ ] Dialog/Popup component for game modals and menus
   - [ ] ScrollContainer for lists (cards, inventory, settings)
   - [ ] Enhanced Layer management system for z-ordering
   - [ ] Window/Panel system for complex interfaces
 
 ### Medium Priority (Game Foundation)
+
+- [ ] **Task 4**: Create a new screen to showcase all the cards that are configured/loaded
 - [ ] **Task 4**: Create Card system foundation - JSON config and CardLoader class
 - [ ] **Task 5**: Implement Driver data structures and archetypes
 - [ ] **Task 6**: Create Driver Selection Screen with two-panel layout
@@ -347,6 +186,7 @@ For a complete log of recently completed tasks, see: [AI Development Log](./AI_D
 - [ ] **Task 8**: Implement turn-based combat system foundation
 
 ### Medium Priority (Core Mechanics)
+
 - [ ] **Task 6**: Create Vehicle and Driver entity classes with stats
 - [ ] **Task 7**: Implement card dragging and targeting system
 - [ ] **Task 8**: Build initiative/velocity system for turn order
@@ -356,33 +196,13 @@ For a complete log of recently completed tasks, see: [AI Development Log](./AI_D
 - [ ] **Task 12**: Create damage flow system (armor then structure)
 
 ### Low Priority (Advanced Features)
+
 - [ ] **Task 13**: Implement basic enemy AI
 - [ ] **Task 14**: Build Map/Node navigation screen
 - [ ] **Task 15**: Create Shop/Garage screen for upgrades
 - [ ] **Task 16**: Add synergy mechanics between drivers
 - [ ] **Task 17**: Implement card upgrade system
 - [ ] **Task 18**: Create save/load functionality
-
-## Legacy Implementation Status (Archived)
-
-- [ ] Card Configuration Loader
-  - [ ] Create cards.json with initial card set
-  - [ ] Implement CardLoader class
-  - [ ] Add card loading to game initialization
-- [ ] Driver Selection Screen
-  - [ ] Create DriverSelectionScreen class
-  - [ ] Implement two-panel layout
-  - [ ] Add driver data and loading
-  - [ ] Implement synergy preview
-- [ ] Basic Combat Screen
-  - [ ] Create CombatScreen class
-  - [ ] Implement battlefield layout
-  - [ ] Add card hand display
-  - [ ] Implement card dragging
-  - [ ] Basic turn management
-- [ ] Integration
-  - [ ] Connect screens with proper transitions
-  - [ ] Implement basic game flow
 
 ## Code Style Guidelines
 
