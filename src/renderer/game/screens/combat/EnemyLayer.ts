@@ -1,6 +1,7 @@
 import { Layer } from '../../../engine/components/Layer';
 import { Text } from '../../../engine/components/Text';
 import { Rectangle } from '../../../engine/components/Rectangle';
+import { InputSystem } from '../../../engine/input/InputSystem';
 
 /**
  * Enemy data structure for combat
@@ -43,6 +44,12 @@ export class EnemyLayer extends Layer {
 		intentText: Text;
 		nameText: Text;
 	}> = new Map();
+	
+	// Highlighting state for targeting
+	private highlightedEnemyId: string | null = null;
+	
+	// Target callback
+	private onTargetCallback: ((enemy: EnemyVehicle) => void) | null = null;
 
 	/**
 	 * Create enemy layer
@@ -61,6 +68,9 @@ export class EnemyLayer extends Layer {
 			},
 		});
 		this.addChild(background);
+
+		// Set up click handling for targeting
+		this.setupTargeting();
 	}
 
 	/**
@@ -350,5 +360,76 @@ export class EnemyLayer extends Layer {
 		}
 		
 		return null;
+	}
+
+	/**
+	 * Highlight an enemy for targeting
+	 */
+	public highlightEnemy(enemyId: string | null): void {
+		// Clear previous highlight
+		if (this.highlightedEnemyId) {
+			const prevElements = this.enemyElements.get(this.highlightedEnemyId);
+			if (prevElements) {
+				prevElements.portrait.setBorderColor('#6a5a5a');
+				prevElements.portrait.setBorderWidth(2);
+			}
+		}
+
+		this.highlightedEnemyId = enemyId;
+
+		// Apply new highlight
+		if (enemyId) {
+			const elements = this.enemyElements.get(enemyId);
+			if (elements) {
+				elements.portrait.setBorderColor('#ff4444'); // Red highlight for enemies
+				elements.portrait.setBorderWidth(3);
+			}
+		}
+	}
+
+	/**
+	 * Clear all highlights
+	 */
+	public clearHighlights(): void {
+		this.highlightEnemy(null);
+	}
+
+	/**
+	 * Get the center position of an enemy for arrow targeting
+	 */
+	public getEnemyCenterPosition(enemyId: string): { x: number; y: number } | null {
+		const elements = this.enemyElements.get(enemyId);
+		if (!elements) return null;
+
+		const container = elements.container;
+		const globalPos = this.localToGlobal(
+			container.getX() + container.getWidth() / 2,
+			container.getY() + container.getHeight() / 2
+		);
+
+		return globalPos;
+	}
+
+	/**
+	 * Set targeting callback
+	 */
+	public setOnTarget(callback: ((enemy: EnemyVehicle) => void) | null): void {
+		this.onTargetCallback = callback;
+	}
+
+	/**
+	 * Set up targeting click handling
+	 */
+	private setupTargeting(): void {
+		InputSystem.registerMouseDown(this, () => {
+			if (!this.onTargetCallback) return;
+
+			const mousePos = InputSystem.getMousePosition();
+			const targetedEnemy = this.getEnemyAtPosition(mousePos.x, mousePos.y);
+			
+			if (targetedEnemy) {
+				this.onTargetCallback(targetedEnemy);
+			}
+		});
 	}
 }

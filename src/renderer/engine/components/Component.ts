@@ -44,8 +44,14 @@ export abstract class Component extends Layer implements Interactive {
 	 */
 	public setHovered(hovered: boolean): void {
 		if (this.hovered !== hovered) {
+			const wasHovered = this.hovered;
 			this.hovered = hovered;
-			this.onHoverChanged(hovered);
+			
+			if (hovered && !wasHovered) {
+				this.onHover();
+			} else if (!hovered && wasHovered) {
+				this.onUnhover();
+			}
 		}
 	}
 
@@ -61,8 +67,14 @@ export abstract class Component extends Layer implements Interactive {
 	 */
 	public setFocused(focused: boolean): void {
 		if (this.focused !== focused) {
+			const wasFocused = this.focused;
 			this.focused = focused;
-			this.onFocusChanged(focused);
+			
+			if (focused && !wasFocused) {
+				this.onFocus();
+			} else if (!focused && wasFocused) {
+				this.onBlur();
+			}
 		}
 	}
 
@@ -78,29 +90,152 @@ export abstract class Component extends Layer implements Interactive {
 	 */
 	public setEnabled(enabled: boolean): void {
 		if (this.enabled !== enabled) {
+			const wasEnabled = this.enabled;
 			this.enabled = enabled;
+			
 			if (!enabled) {
 				// Clear interaction states when disabled
 				this.setHovered(false);
 				this.setFocused(false);
 			}
-			this.onEnabledChanged(enabled);
+			
+			if (enabled && !wasEnabled) {
+				this.onEnabled();
+			} else if (!enabled && wasEnabled) {
+				this.onDisabled();
+			}
 		}
 	}
 
 	/**
-	 * Override these methods in subclasses to respond to state changes
+	 * Lifecycle methods - override these in subclasses to respond to state changes
 	 */
-	protected onHoverChanged(hovered: boolean): void {
+	protected onHover(): void {
 		// Override in subclasses
 	}
 
-	protected onFocusChanged(focused: boolean): void {
+	protected onUnhover(): void {
 		// Override in subclasses
 	}
 
-	protected onEnabledChanged(enabled: boolean): void {
+	protected onFocus(): void {
 		// Override in subclasses
+	}
+
+	protected onBlur(): void {
+		// Override in subclasses
+	}
+
+	protected onEnabled(): void {
+		// Override in subclasses
+	}
+
+	protected onDisabled(): void {
+		// Override in subclasses
+	}
+
+	/**
+	 * Semantic event methods - these represent high-level user intentions
+	 * Override these in subclasses for component-specific behavior
+	 */
+	
+	/**
+	 * Called when the component is selected (could be click, keyboard, controller)
+	 */
+	protected onSelect(): void {
+		// Override in subclasses
+	}
+
+	/**
+	 * Called when the component is deselected
+	 */
+	protected onDeselect(): void {
+		// Override in subclasses
+	}
+
+	/**
+	 * Called when the component is activated/confirmed (double-click, enter, A button)
+	 */
+	protected onActivate(): void {
+		// Override in subclasses
+	}
+
+	/**
+	 * Called when the component becomes a target for another action
+	 */
+	protected onTarget(): void {
+		// Override in subclasses
+	}
+
+	/**
+	 * Called when the component is no longer a target
+	 */
+	protected onUntarget(): void {
+		// Override in subclasses
+	}
+
+	/**
+	 * Called when the component action is cancelled
+	 */
+	protected onCancel(): void {
+		// Override in subclasses
+	}
+
+	/**
+	 * Public methods to trigger semantic events
+	 * These can be called by input systems or other components
+	 */
+	
+	/**
+	 * Trigger select event
+	 */
+	public select(): void {
+		if (this.enabled) {
+			this.onSelect();
+		}
+	}
+
+	/**
+	 * Trigger deselect event
+	 */
+	public deselect(): void {
+		if (this.enabled) {
+			this.onDeselect();
+		}
+	}
+
+	/**
+	 * Trigger activate event
+	 */
+	public activate(): void {
+		if (this.enabled) {
+			this.onActivate();
+		}
+	}
+
+	/**
+	 * Trigger target event
+	 */
+	public target(): void {
+		if (this.enabled) {
+			this.onTarget();
+		}
+	}
+
+	/**
+	 * Trigger untarget event
+	 */
+	public untarget(): void {
+		if (this.enabled) {
+			this.onUntarget();
+		}
+	}
+
+	/**
+	 * Trigger cancel event
+	 */
+	public cancel(): void {
+		this.onCancel();
 	}
 
 	/**

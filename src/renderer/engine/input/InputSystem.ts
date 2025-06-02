@@ -402,6 +402,14 @@ export class InputSystem {
 	}
 
 	/**
+	 * Get the current mouse position
+	 */
+	public static getMousePosition(): { x: number; y: number } {
+		const instance = InputSystem.getInstance();
+		return { x: instance.mouseX, y: instance.mouseY };
+	}
+
+	/**
 	 * Unregister a component from all mouse events
 	 */
 	public static unregisterComponent(component: Interactive): void {

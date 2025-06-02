@@ -2,6 +2,7 @@ import { Layer } from '../../../engine/components/Layer';
 import { Text } from '../../../engine/components/Text';
 import { Rectangle } from '../../../engine/components/Rectangle';
 import { Driver } from '../../mechanics/Driver';
+import { InputSystem } from '../../../engine/input/InputSystem';
 
 /**
  * Player vehicle data for combat display
@@ -44,6 +45,9 @@ export class BattlefieldLayer extends Layer {
 		driverPortrait: Rectangle;
 		statusContainer: Layer;
 	}> = new Map();
+	
+	// Target callback
+	private onTargetCallback: ((vehicle: PlayerVehicle) => void) | null = null;
 
 	/**
 	 * Create battlefield layer
@@ -74,6 +78,9 @@ export class BattlefieldLayer extends Layer {
 		});
 		atmosphereText.setPosition(Math.floor(this.getWidth() / 2), 20);
 		this.addChild(atmosphereText);
+
+		// Set up targeting
+		this.setupTargeting();
 	}
 
 	/**
@@ -395,5 +402,28 @@ export class BattlefieldLayer extends Layer {
 			elements.portrait.setBorderColor('#7a6a5a');
 			elements.portrait.setBorderWidth(3);
 		}
+	}
+
+	/**
+	 * Set targeting callback
+	 */
+	public setOnTarget(callback: ((vehicle: PlayerVehicle) => void) | null): void {
+		this.onTargetCallback = callback;
+	}
+
+	/**
+	 * Set up targeting click handling
+	 */
+	private setupTargeting(): void {
+		InputSystem.registerMouseDown(this, () => {
+			if (!this.onTargetCallback) return;
+
+			const mousePos = InputSystem.getMousePosition();
+			const targetedVehicle = this.getVehicleAtPosition(mousePos.x, mousePos.y);
+			
+			if (targetedVehicle) {
+				this.onTargetCallback(targetedVehicle);
+			}
+		});
 	}
 }

@@ -21,6 +21,11 @@ export class PlayerHandLayer extends Layer {
 	// Callbacks
 	private onCardHover: ((card: Card | null) => void) | null = null;
 	private onCardClick: ((card: Card) => void) | null = null;
+	private onCardSelect: ((card: Card) => void) | null = null;
+	
+	// Selection state
+	private selectedCard: Card | null = null; // The card player has selected to play (waiting for target)
+	private targetingMode: boolean = false;
 
 	/**
 	 * Create player hand layer
@@ -87,10 +92,49 @@ export class PlayerHandLayer extends Layer {
 	}
 
 	/**
-	 * Set card click callback
+	 * Set card click callback (legacy)
 	 */
 	public setOnCardClick(callback: (card: Card) => void): void {
 		this.onCardClick = callback;
+	}
+
+	/**
+	 * Set card select callback (semantic)
+	 */
+	public setOnCardSelect(callback: (card: Card) => void): void {
+		this.onCardSelect = callback;
+	}
+
+	/**
+	 * Set card selection state
+	 */
+	public setCardSelected(card: Card | null): void {
+		this.selectedCard = card;
+		this.updateCardSelectionVisuals();
+	}
+
+	/**
+	 * Get selected card
+	 */
+	public getSelectedCard(): Card | null {
+		return this.selectedCard;
+	}
+
+	/**
+	 * Set targeting mode
+	 */
+	public setTargetingMode(targeting: boolean): void {
+		this.targetingMode = targeting;
+		this.updateCardSelectionVisuals();
+	}
+
+	/**
+	 * Clear card selection
+	 */
+	public clearCardSelection(): void {
+		this.selectedCard = null;
+		this.targetingMode = false;
+		this.updateCardSelectionVisuals();
 	}
 
 	/**
@@ -142,10 +186,17 @@ export class PlayerHandLayer extends Layer {
 	 * Set up mouse interactivity for a card
 	 */
 	private setupCardInteractivity(cardElement: UICard, card: Card): void {
-		// Set up click handler
+		// Set up legacy click handler
 		cardElement.setOnClick((cardData) => {
 			if (this.canPlayCard(card) && this.onCardClick) {
 				this.onCardClick(card);
+			}
+		});
+
+		// Set up semantic select handler
+		cardElement.setOnSelect((cardData) => {
+			if (this.canPlayCard(card) && this.onCardSelect) {
+				this.onCardSelect(card);
 			}
 		});
 		
@@ -168,9 +219,33 @@ export class PlayerHandLayer extends Layer {
 		this.cardElements.forEach((cardElement, index) => {
 			const card = this.handCards[index];
 			const playable = this.canPlayCard(card);
+			cardElement.setEnabled(playable);
+		});
+	}
+
+	/**
+	 * Update card selection visuals based on current state
+	 */
+	private updateCardSelectionVisuals(): void {
+		this.cardElements.forEach((cardElement, index) => {
+			const card = this.handCards[index];
 			
-			// TODO: Implement card dimming for unplayable cards
-			// Need to add setStyle method to Card component
+			if (this.targetingMode) {
+				// During targeting mode
+				if (this.selectedCard && card.getId() === this.selectedCard.getId()) {
+					// Selected card - show as selected
+					cardElement.setSelected(true);
+					cardElement.setEnabled(true);
+				} else {
+					// Other cards - disable during targeting
+					cardElement.setSelected(false);
+					cardElement.setEnabled(false);
+				}
+			} else {
+				// Normal mode - clear selection, show normal playability
+				cardElement.setSelected(false);
+				cardElement.setEnabled(this.canPlayCard(card));
+			}
 		});
 	}
 
@@ -223,5 +298,16 @@ export class PlayerHandLayer extends Layer {
 	 */
 	public getHandCards(): Card[] {
 		return [...this.handCards];
+	}
+
+	/**
+	 * Get the UI card element for a given card
+	 */
+	public getCardElementByCard(card: Card): UICard | null {
+		const cardIndex = this.handCards.findIndex(c => c.getId() === card.getId());
+		if (cardIndex >= 0 && cardIndex < this.cardElements.length) {
+			return this.cardElements[cardIndex];
+		}
+		return null;
 	}
 }

@@ -200,8 +200,27 @@ For a complete log of recently completed tasks, see: [AI Development Log](./AI_D
   - [x] Added starting deck preview with mini-cards
   - [x] Connected to main menu navigation
   - [x] ROUGH LAYOUT - functional but needs major visual overhaul later
-- [ ] **Task 7**: Build basic Combat Screen layout and UI components
-- [ ] **Task 8**: Implement turn-based combat system foundation
+- [x] **Task 7**: Build basic Combat Screen layout and UI components ✅ COMPLETED
+  - [x] Created EnemyLayer for top 25% with enemy health, armor, intent indicators
+  - [x] Built BattlefieldLayer for middle 40% with player vehicle display
+  - [x] Implemented PlayerHandLayer for bottom 20% with card hand
+  - [x] Added ResourceBarLayer for bottom 5% with adrenaline, resources, End Turn button
+  - [x] Connected CombatScreen to driver selection flow
+  - [x] Implemented click-to-play card system (not drag-and-drop)
+  - [x] Added proper hover effects and visual feedback
+  - [x] Fixed screen navigation and event handler cleanup issues
+  - [x] Reorganized screens folder structure (each screen has own subfolder)
+  - [x] Refactored screen lifecycle (activate/deactivate → mount/unmount)
+  - [x] Added proper state reset for screens on unmount
+- [ ] **Task 8**: Implement turn-based combat system foundation (IN PROGRESS)
+  - [x] Basic card playing mechanics with adrenaline cost
+  - [x] Target selection system (click card, then click target)
+  - [x] Enemy intent system with visual indicators
+  - [x] End turn functionality
+  - [ ] Card drawing from combined driver decks
+  - [ ] Proper damage calculation with armor
+  - [ ] Status effect system
+  - [ ] Enemy AI actions
 
 ### Phase Three (Core Mechanics)
 

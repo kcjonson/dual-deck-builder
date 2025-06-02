@@ -19,8 +19,14 @@ export class Card extends Component {
 	private cardBorder: Rectangle;
 	private cardBackground: Rectangle;
 
-	// Event callback
+	// Event callbacks
 	private clickHandler: ((card: CardData) => void) | null = null;
+	private selectHandler: ((card: CardData) => void) | null = null;
+	private activateHandler: ((card: CardData) => void) | null = null;
+	private targetHandler: ((card: CardData) => void) | null = null;
+	
+	// Selection state
+	private selected: boolean = false;
 
 	private static readonly WIDTH = 240;
 	private static readonly HEIGHT = 340;
@@ -195,49 +201,126 @@ export class Card extends Component {
 	}
 
 	/**
-	 * Handle click event
+	 * Handle click event - maps to semantic events
 	 */
 	private onClick(): void {
+		// Legacy click handler for backwards compatibility
 		if (this.clickHandler) {
 			this.clickHandler(this.data);
 		}
+		
+		// Primary semantic event: select the card
+		this.select();
 	}
 
 	/**
-	 * Set click handler
+	 * Set click handler (legacy - prefer semantic handlers)
 	 */
 	public setOnClick(handler: (card: CardData) => void): void {
 		this.clickHandler = handler;
 	}
 
 	/**
-	 * Override hover change to update visuals
+	 * Set semantic event handlers
 	 */
-	protected onHoverChanged(hovered: boolean): void {
-		if (hovered && this.enabled) {
-			// Add glow or lift effect
+	public setOnSelect(handler: (card: CardData) => void): void {
+		this.selectHandler = handler;
+	}
+
+	public setOnActivate(handler: (card: CardData) => void): void {
+		this.activateHandler = handler;
+	}
+
+	public setOnTarget(handler: (card: CardData) => void): void {
+		this.targetHandler = handler;
+	}
+
+	/**
+	 * Set selected state
+	 */
+	public setSelected(selected: boolean): void {
+		this.selected = selected;
+		this.updateVisuals();
+	}
+
+	/**
+	 * Get selected state
+	 */
+	public isSelected(): boolean {
+		return this.selected;
+	}
+
+	/**
+	 * Override hover lifecycle methods to update visuals
+	 */
+	protected onHover(): void {
+		this.updateVisuals();
+	}
+
+	protected onUnhover(): void {
+		this.updateVisuals();
+	}
+
+	/**
+	 * Update card visuals based on current state
+	 */
+	private updateVisuals(): void {
+		// Reset position first
+		if (this.getY() % 10 !== 0) { // Simple check if lifted
+			this.setY(this.getY() + 5);
+		}
+
+		if (this.selected) {
+			// Selected state - blue glow and lift
+			this.cardBorder.setBorderWidth(3);
+			this.cardBorder.setBorderColor('#00aaff');
+			this.setY(this.getY() - 5);
+		} else if (this.hovered && this.enabled) {
+			// Hovered state - white glow and lift
 			this.cardBorder.setBorderWidth(3);
 			this.cardBorder.setBorderColor('#ffffff');
-			// Slight lift effect
 			this.setY(this.getY() - 5);
 		} else {
+			// Normal state
 			this.cardBorder.setBorderWidth(0);
-			// Reset position if it was lifted
-			if (this.getY() % 10 !== 0) { // Simple check if lifted
-				this.setY(this.getY() + 5);
-			}
 		}
 	}
 
 	/**
-	 * Override enabled change to update visuals
+	 * Override enabled lifecycle methods to update visuals
 	 */
-	protected onEnabledChanged(enabled: boolean): void {
-		if (!enabled) {
-			// Dim the card when disabled
-			this.cardBackground.setFillColor('#1a1a2a');
-		} else {
-			this.cardBackground.setFillColor('#2a2a3a');
+	protected onEnabled(): void {
+		this.cardBackground.setFillColor('#2a2a3a');
+	}
+
+	protected onDisabled(): void {
+		// Dim the card when disabled
+		this.cardBackground.setFillColor('#1a1a2a');
+	}
+
+	/**
+	 * Semantic event implementations
+	 */
+	protected onSelect(): void {
+		this.setSelected(true);
+		if (this.selectHandler) {
+			this.selectHandler(this.data);
+		}
+	}
+
+	protected onDeselect(): void {
+		this.setSelected(false);
+	}
+
+	protected onActivate(): void {
+		if (this.activateHandler) {
+			this.activateHandler(this.data);
+		}
+	}
+
+	protected onTarget(): void {
+		if (this.targetHandler) {
+			this.targetHandler(this.data);
 		}
 	}
 

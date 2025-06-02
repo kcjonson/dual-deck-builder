@@ -275,7 +275,7 @@ export class Input extends Component {
 	 * Set the onFocus callback
 	 * @param callback Function to call when the input gains focus
 	 */
-	public onFocus(callback: () => void): this {
+	public setOnFocus(callback: () => void): this {
 		this.onFocusCallback = callback;
 		return this;
 	}
@@ -284,9 +284,26 @@ export class Input extends Component {
 	 * Set the onBlur callback
 	 * @param callback Function to call when the input loses focus
 	 */
-	public onBlur(callback: () => void): this {
+	public setOnBlur(callback: () => void): this {
 		this.onBlurCallback = callback;
 		return this;
+	}
+
+	/**
+	 * Override lifecycle methods to trigger callbacks
+	 */
+	protected onFocus(): void {
+		super.onFocus();
+		if (this.onFocusCallback) {
+			this.onFocusCallback();
+		}
+	}
+
+	protected onBlur(): void {
+		super.onBlur();
+		if (this.onBlurCallback) {
+			this.onBlurCallback();
+		}
 	}
 
 	/**

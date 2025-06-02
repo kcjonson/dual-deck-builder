@@ -1,6 +1,7 @@
 import { Screen } from '../../core/Screen';
 import { Renderer } from '../../../engine/rendering/Renderer';
 import { Rectangle } from '../../../engine/components/Rectangle';
+import { Arrow } from '../../../engine/components/Arrow';
 import { EnemyLayer, EnemyVehicle } from './EnemyLayer';
 import { BattlefieldLayer, PlayerVehicle } from './BattlefieldLayer';
 import { PlayerHandLayer } from './PlayerHandLayer';
@@ -8,6 +9,7 @@ import { ResourceBarLayer } from './ResourceBarLayer';
 import { Driver } from '../../mechanics/Driver';
 import { Card } from '../../mechanics/Card';
 import { CardLoader } from '../../core/CardLoader';
+import { InputSystem } from '../../../engine/input/InputSystem';
 
 /**
  * Combat Screen implementing Game Flow Spec section 2
@@ -34,6 +36,10 @@ export class CombatScreen extends Screen {
 	// Interaction state
 	private selectedCard: Card | null = null;
 	private isTargeting: boolean = false;
+	private hoveredTarget: EnemyVehicle | PlayerVehicle | null = null;
+	
+	// Targeting visual components
+	private targetingArrow: Arrow;
 	
 	// Callbacks
 	private onEndCombat: ((victory: boolean) => void) | null = null;
@@ -44,6 +50,14 @@ export class CombatScreen extends Screen {
 	 */
 	constructor(renderer: Renderer) {
 		super('combatScreen', renderer);
+		
+		// Create targeting arrow (hidden initially)
+		this.targetingArrow = new Arrow({
+			color: '#00aaff',
+			lineWidth: 3,
+			arrowHeadSize: 12,
+		});
+		this.targetingArrow.hide();
 		
 		// Build UI once during construction
 		this.createBackground();
@@ -128,14 +142,52 @@ export class CombatScreen extends Screen {
 			// TODO: Implement card detail popup
 		});
 
-		this.handLayer.setOnCardClick((card) => {
-			this.onCardClicked(card);
+		// Use semantic events for card interactions
+		this.handLayer.setOnCardSelect((card) => {
+			this.onCardSelected(card);
 		});
 
 		// Resource layer interactions
 		this.resourceLayer.setOnEndTurn(() => {
 			this.endPlayerTurn();
 		});
+
+		// Add targeting arrow to screen (on top of everything)
+		this.rootLayer.addChild(this.targetingArrow);
+
+		// Set up keyboard handler for ESC key during targeting
+		InputSystem.registerKeyDown(this.rootLayer, (key: string) => {
+			if (key === 'Escape' && this.isTargeting) {
+				this.cancelCardSelection();
+			}
+		});
+
+		// Set up global click handler for targeting cancellation
+		InputSystem.registerMouseDown(this.rootLayer, () => {
+			if (this.isTargeting && this.selectedCard) {
+				// If we're targeting and click somewhere that doesn't handle targeting,
+				// cancel the targeting mode
+				setTimeout(() => {
+					if (this.isTargeting) {
+						console.log('Cancelled targeting - clicked empty space');
+						this.cancelCardSelection();
+					}
+				}, 10); // Small delay to let target handlers run first
+			}
+		});
+	}
+
+	/**
+	 * Handle screen updates
+	 */
+	protected onUpdate(dt: number): void {
+		super.onUpdate(dt);
+
+		// Handle targeting arrow updates during mouse movement
+		if (this.isTargeting && this.selectedCard) {
+			const mousePos = InputSystem.getMousePosition();
+			this.updateTargetingArrow(mousePos.x, mousePos.y);
+		}
 	}
 
 	/**
@@ -210,9 +262,9 @@ export class CombatScreen extends Screen {
 	}
 
 	/**
-	 * Handle card click
+	 * Handle card selection
 	 */
-	private onCardClicked(card: Card): void {
+	private onCardSelected(card: Card): void {
 		// Check if player has enough adrenaline
 		if (this.currentAdrenaline < card.getCost()) {
 			console.log('Not enough adrenaline to play card');
@@ -234,52 +286,147 @@ export class CombatScreen extends Screen {
 			this.selectedCard = card;
 			this.isTargeting = true;
 			
+			// Update hand layer to show selection state
+			this.handLayer.setCardSelected(card);
+			this.handLayer.setTargetingMode(true);
+			
+			// Set up target handlers
+			this.setupTargetHandlers(card);
+			
 			// Highlight valid targets
 			this.highlightValidTargets(card);
-			
-			// Set up click handlers for targets
-			this.setupTargetingHandlers();
 			
 			console.log(`Select target for ${card.getName()}`);
 		}
 	}
 
 	/**
-	 * Set up mouse handlers for target selection
+	 * Set up target handlers for the current card
 	 */
-	private setupTargetingHandlers(): void {
-		// Register click handlers on enemy and battlefield layers
-		// TODO: Add visual indicator that we're in targeting mode
+	private setupTargetHandlers(card: Card): void {
+		const targetType = card.getTargetType();
 		
-		// For now, use a simple document click handler
-		const handleClick = (event: MouseEvent) => {
-			if (!this.isTargeting || !this.selectedCard) return;
-			
-			const targetX = event.clientX;
-			const targetY = event.clientY;
-			
-			// Check what was clicked
-			const targetedEnemy = this.enemyLayer.getEnemyAtPosition(targetX, targetY);
-			const targetedVehicle = this.battlefieldLayer.getVehicleAtPosition(targetX, targetY);
-			
-			if (this.isValidTarget(this.selectedCard, targetedEnemy, targetedVehicle)) {
-				// Valid target - play the card
-				this.playCard(this.selectedCard, targetedEnemy, targetedVehicle);
-				this.cancelCardSelection();
+		// Set up enemy targeting
+		if (targetType === 'enemy_single' || targetType === 'any') {
+			this.enemyLayer.setOnTarget((enemy) => {
+				this.onEnemyTargeted(card, enemy);
+			});
+		}
+		
+		// Set up vehicle targeting
+		if (targetType === 'self' || targetType === 'ally' || targetType === 'any') {
+			this.battlefieldLayer.setOnTarget((vehicle) => {
+				this.onVehicleTargeted(card, vehicle);
+			});
+		}
+	}
+
+	/**
+	 * Handle enemy being targeted
+	 */
+	private onEnemyTargeted(card: Card, enemy: EnemyVehicle): void {
+		if (this.isTargeting && this.selectedCard === card) {
+			this.playCard(card, enemy, null);
+			this.cancelCardSelection();
+		}
+	}
+
+	/**
+	 * Handle vehicle being targeted
+	 */
+	private onVehicleTargeted(card: Card, vehicle: PlayerVehicle): void {
+		if (this.isTargeting && this.selectedCard === card) {
+			this.playCard(card, null, vehicle);
+			this.cancelCardSelection();
+		}
+	}
+
+	/**
+	 * Handle targeting arrow updates during mouse movement
+	 */
+	private updateTargetingArrow(mouseX: number, mouseY: number): void {
+		if (!this.selectedCard || !this.isTargeting) {
+			this.targetingArrow.hide();
+			return;
+		}
+
+		// Get the center position of the selected card in the hand
+		const selectedCardElement = this.handLayer.getCardElementByCard(this.selectedCard);
+		if (!selectedCardElement) {
+			this.targetingArrow.hide();
+			return;
+		}
+
+		// Get global position of selected card center
+		const cardGlobalPos = this.handLayer.localToGlobal(
+			selectedCardElement.getX() + selectedCardElement.getWidth() / 2,
+			selectedCardElement.getY() + selectedCardElement.getHeight() / 2
+		);
+
+		// Check for valid targets under mouse
+		const targetedEnemy = this.enemyLayer.getEnemyAtPosition(mouseX, mouseY);
+		const targetedVehicle = this.battlefieldLayer.getVehicleAtPosition(mouseX, mouseY);
+
+		// Update hovered target and highlighting
+		this.updateHoveredTarget(targetedEnemy, targetedVehicle);
+
+		// Set arrow color based on target validity
+		const isValidTarget = this.isValidTarget(this.selectedCard, targetedEnemy, targetedVehicle);
+		this.targetingArrow.setColor(isValidTarget ? '#00ff00' : '#ff6666');
+
+		// Draw arrow from card to mouse position
+		this.targetingArrow.setPoints(cardGlobalPos.x, cardGlobalPos.y, mouseX, mouseY);
+	}
+
+	/**
+	 * Update the currently hovered target and highlighting
+	 */
+	private updateHoveredTarget(enemy: EnemyVehicle | null, vehicle: PlayerVehicle | null): void {
+		// Clear previous highlights
+		if (this.hoveredTarget) {
+			if ('intent' in this.hoveredTarget) {
+				// It's an enemy
+				this.enemyLayer.highlightEnemy(null);
 			} else {
-				// Invalid target or clicked elsewhere - cancel selection
-				console.log('Invalid target or cancelled');
-				this.cancelCardSelection();
+				// It's a player vehicle - clear all highlights
+				this.battlefieldLayer.clearHighlights();
 			}
-			
-			// Remove this handler
-			document.removeEventListener('click', handleClick);
-		};
-		
-		// Add handler after a small delay to avoid immediate trigger
-		setTimeout(() => {
-			document.addEventListener('click', handleClick);
-		}, 100);
+		}
+
+		// Set new hovered target
+		this.hoveredTarget = enemy || vehicle || null;
+
+		// Apply new highlights
+		if (this.hoveredTarget) {
+			if ('intent' in this.hoveredTarget) {
+				// Highlight enemy
+				this.enemyLayer.highlightEnemy(this.hoveredTarget.id);
+			} else {
+				// Highlight player vehicle
+				this.battlefieldLayer.highlightVehicle(this.hoveredTarget.driver.getId(), '#44aa44');
+			}
+		}
+	}
+
+	/**
+	 * Handle click during targeting mode
+	 */
+	public handleTargetClick(mouseX: number, mouseY: number): void {
+		if (!this.isTargeting || !this.selectedCard) return;
+
+		// Check what was clicked
+		const targetedEnemy = this.enemyLayer.getEnemyAtPosition(mouseX, mouseY);
+		const targetedVehicle = this.battlefieldLayer.getVehicleAtPosition(mouseX, mouseY);
+
+		if (this.isValidTarget(this.selectedCard, targetedEnemy, targetedVehicle)) {
+			// Valid target - play the card
+			this.playCard(this.selectedCard, targetedEnemy, targetedVehicle);
+		} else {
+			// Invalid target or clicked elsewhere - cancel selection
+			console.log('Invalid target or cancelled targeting');
+		}
+
+		this.cancelCardSelection();
 	}
 
 	/**
@@ -288,6 +435,19 @@ export class CombatScreen extends Screen {
 	private cancelCardSelection(): void {
 		this.selectedCard = null;
 		this.isTargeting = false;
+		this.hoveredTarget = null;
+
+		// Hide targeting arrow
+		this.targetingArrow.hide();
+
+		// Clear hand selection state
+		this.handLayer.clearCardSelection();
+
+		// Clear target callbacks
+		this.enemyLayer.setOnTarget(null);
+		this.battlefieldLayer.setOnTarget(null);
+
+		// Clear all highlights
 		this.clearTargetHighlights();
 	}
 
@@ -300,20 +460,23 @@ export class CombatScreen extends Screen {
 		switch (targetType) {
 			case 'enemy_single':
 			case 'enemy_all':
-				// Highlight enemies
-				// TODO: Add highlighting to enemy layer
+				// Visual cue that enemies are targetable (no pre-highlighting)
+				// Highlighting will happen on hover via updateHoveredTarget
 				break;
 			case 'self':
 			case 'ally':
 			case 'both_drivers':
-				// Highlight player vehicles
+				// Pre-highlight valid friendly vehicles
 				this.playerVehicles.forEach(vehicle => {
 					this.battlefieldLayer.highlightVehicle(vehicle.driver.getId(), '#44aa44');
 				});
 				break;
 			case 'any':
-				// Highlight all valid targets
-				// TODO: Highlight both enemies and player vehicles
+				// Pre-highlight all valid targets
+				this.playerVehicles.forEach(vehicle => {
+					this.battlefieldLayer.highlightVehicle(vehicle.driver.getId(), '#44aa44');
+				});
+				// Enemies will be highlighted on hover
 				break;
 		}
 	}
@@ -323,7 +486,7 @@ export class CombatScreen extends Screen {
 	 */
 	private clearTargetHighlights(): void {
 		this.battlefieldLayer.clearHighlights();
-		// TODO: Clear enemy highlights when implemented
+		this.enemyLayer.clearHighlights();
 	}
 
 	/**
@@ -644,6 +807,11 @@ export class CombatScreen extends Screen {
 		const background = this.rootLayer.getChildren()[0] as Rectangle;
 		if (background) {
 			background.setSize(screenWidth, screenHeight);
+		}
+		
+		// Only update layers if they exist (screen is fully initialized)
+		if (!this.enemyLayer || !this.battlefieldLayer || !this.handLayer || !this.resourceLayer) {
+			return;
 		}
 		
 		// Update layer sizes and positions

@@ -4,6 +4,35 @@ This document contains the chronological log of completed development tasks for 
 
 =========================================
 
+## Combat Screen Implementation & Project Reorganization (2025-01-06)
+
+### Tasks Completed
+- **Task 7**: Built basic Combat Screen layout and UI components
+- **Project Structure**: Reorganized screens folder structure
+- **UI System**: Refactored interaction system and screen lifecycle
+
+### What Changed
+- **Combat Screen Architecture**: Implemented layered UI following Game Flow spec
+  - EnemyLayer (25%): Enemy vehicles with health bars, armor, and intent indicators
+  - BattlefieldLayer (40%): Player vehicles with status effect positions
+  - PlayerHandLayer (20%): Card hand with hover effects
+  - ResourceBarLayer (5%): Adrenaline, piles, resources, End Turn button
+- **Click-to-Play Cards**: Changed from drag-and-drop to click-to-play with target selection
+- **Screens Organization**: Each screen now has own subfolder with related components
+  - /combat, /driver-selection, /developer, /card-showcase, /main-menu, /splash
+- **Screen Lifecycle**: Replaced activate/deactivate with mount/unmount terminology
+- **State Management**: Added proper state reset on unmount for all screens
+- **Component Base Class**: Added standardized hover/focus/enabled states
+- **Event Cleanup**: Fixed interaction issues when switching between screens
+
+### Technical Details
+- Fixed TypeScript compilation errors with Rectangle setter methods
+- Updated all import paths after folder reorganization
+- Added proper cleanup() method to Component base class
+- Implemented onMount/onUnmount hooks for screen state management
+
+=========================================
+
 ## Driver Selection Screen Implementation (2025-01-02)
 
 ### Tasks Completed
