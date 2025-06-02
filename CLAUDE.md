@@ -86,25 +86,32 @@ src/
 
 ## Important Notes for Claude
 
-1. **Always update `/docs/AI_DEVELOPMENT_HUB.md`** with:
+1. **IMPORTANT: Documentation Organization**
+   - **Always update `/docs/AI_DEVELOPMENT_HUB.md`** with current work and active TODOs
+   - **Always add completed tasks to `/docs/AI_DEVELOPMENT_LOG.md`** with the current date at the TOP
+   - **Always create technical decision docs in `/docs/AI_TECHNICAL_DECISIONS/`** for major architectural choices
+   
+2. **What to document in each location:**
+   - **AI_DEVELOPMENT_HUB.md**: Current state, active TODOs, brief notes, implementation status
+   - **AI_DEVELOPMENT_LOG.md**: Completed tasks (date, what changed, brief how)
+   - **AI_TECHNICAL_DECISIONS/**: Detailed technical decisions with:
+     - Descriptive filename (e.g., `scrollable-panel-architecture.md`)
+     - Context and problem statement
+     - Options considered
+     - Decision made and rationale
+     - Trade-offs and consequences
 
-   - Changes made
-   - Design decisions
-   - Implementation notes
-   - Future considerations
-   - Current TODOS
+3. **Todo Management**: When asked to update todos or create new task lists, always write them to the AI Development Hub document, not just the internal todo system
 
-2. **Todo Management**: When asked to update todos or create new task lists, always write them to the AI Development Hub document, not just the internal todo system
+4. **Follow existing patterns** in the codebase rather than introducing new paradigms
 
-3. **Follow existing patterns** in the codebase rather than introducing new paradigms
+5. **Test your changes** - ensure the game still builds and runs
 
-4. **Test your changes** - ensure the game still builds and runs
+6. **Consider both platforms** - web and Electron (mac and windows) versions should work seamlessly
 
-5. **Consider both platforms** - web and Electron (mac and windows) versions should work seamlessly
+7. **Performance first** - this is a game that needs smooth performance
 
-6. **Performance first** - this is a game that needs smooth performance
-
-7. **Keep the vision** - refer to the game design documents for guidance
+8. **Keep the vision** - refer to the game design documents for guidance
 
 ## Quick Start Commands
 

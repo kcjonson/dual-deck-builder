@@ -1,0 +1,104 @@
+# AI Development Log
+
+This document contains the chronological log of completed development tasks for Wasteland Wheels. Most recent entries are at the top.
+
+=========================================
+
+## Recently Completed (2025-06-02)
+
+### Interactive Elements and Input System Improvements
+- **Fixed interactive elements not working inside scrollable panels**:
+  - Created ScrollableContentLayer that properly transforms coordinates for hit testing
+  - Buttons and inputs inside scrollable panels now receive mouse events correctly
+  - Resolved coordinate transformation issues that prevented interaction with scrolled content
+  
+- **Enhanced InputSystem to support all interactive components**:
+  - Updated InputSystem to check ALL components with mouse handlers, not just those with mouseOver
+  - Components with only mouseDown handlers (like inputs) now properly receive events
+  - Improved hit testing logic to work with transformed coordinates
+  
+- **Implemented full keyboard input support**:
+  - Added keyboard event handling to InputSystem with keydown, keyup, and keypress events
+  - Implemented focus management system for keyboard input routing
+  - Added focus() and blur() methods to Component base class
+  - Keyboard events now properly route to focused components
+  
+- **Made text inputs fully functional**:
+  - Added cursor display and positioning to Input components
+  - Implemented proper focus/blur behavior with visual feedback
+  - Text inputs now support typing, backspace, and cursor positioning
+  - Added blue outline for focused inputs matching design system
+  - Cursor blinks when input is focused and disappears when blurred
+
+## Recently Completed (2025-06-01)
+
+### Coordinate System Implementation and Initial Scrolling
+- **Implemented comprehensive coordinate transformation system**:
+  - Added RenderContext interface for passing coordinate transforms through render hierarchy
+  - Updated all render methods (Layer, Component, Rectangle, Text, Button, Panel) to use RenderContext
+  - Implemented parent tracking in Layer for proper coordinate calculations
+  - Added globalToLocal and localToGlobal methods for coordinate conversion
+  
+- **Added wheel event support and scrolling**:
+  - Extended InputSystem to handle wheel events for scrolling
+  - Updated Panel class to register for wheel events when scrollable
+  - Implemented setContentSize method for proper scroll bounds
+  - Basic scrolling now working but needs refinement
+  
+- **Component architecture improvements**:
+  - Refactored Input to extend Component instead of Rectangle (proper composition)
+  - Added Circle and Triangle primitive components
+  - Fixed Button and Input to use local coordinates for child positioning
+  - Updated DeveloperScreen with comprehensive scrollable examples container
+
+- **Current state**: Coordinate system fully implemented with proper hit testing, scrolling works with interactive elements, keyboard input system complete
+
+## Recently Completed (2025-05-31)
+
+### Major Architecture Refactoring: Component Hierarchy
+- **Implemented proper class hierarchy**: Layer → Component → UI elements
+  - Layer is now the base class with positioning, sizing, and child management
+  - Component extends Layer and adds Interactive behavior
+  - Panel extends Layer directly (non-interactive container)
+  - Removed all parent references (no circular dependencies)
+  
+- **Refactored positioning and sizing system**:
+  - Removed position/size from Style interface (not CSS-like properties)
+  - Added x, y, width, height as direct properties on LayerOptions
+  - Individual setters: setX(), setY(), setWidth(), setHeight()
+  - Convenience methods: setPosition(x, y), setSize(width, height)
+  - All components now use direct properties for positioning
+  
+- **Fixed absolute positioning throughout codebase**:
+  - DeveloperScreen: Fixed all panel positioning to use absolute coordinates
+  - Panel: Now extends Layer with a Rectangle child for background
+  - Window resize properly cascades layout() calls
+  
+### Developer Tools Enhancement
+- ✅ Created comprehensive test/demo environment
+- ✅ Added FPS counter for performance monitoring
+- ✅ Interactive controls panel with live color/size manipulation
+- ✅ Visual style guide with Wasteland Wheels color palette
+- ✅ Input component showcase with various states
+- ✅ Fixed window resize handling with proper layout cascade
+- ✅ Implemented array-based component positioning to avoid direct children access
+- ✅ Added proper text centering with setAlign() for consistent positioning
+
+### Recent Architecture Improvements (2025-05-31 - Latest)
+- **Completed proper layout() cascade system**:
+  - Text components now calculate dimensions in layout() method
+  - Panel backgrounds update through layout() during window resize
+  - Improved resize order: layout() first, then positioning
+  - Fixed font example spacing to use consistent font-size calculations
+  
+- **Enhanced positioning robustness**:
+  - Array-based approach for example panel components
+  - Proper text alignment with setAlign('center') for titles
+  - Separate positioning logic for text vs non-text elements
+  - Improved panel sizing on window resize
+
+### Known Issues
+- **Text layout positioning**: Still needs refinement during window resize
+  - Some text components may not center properly in all scenarios
+  - Text dimensions and positioning interaction needs improvement
+  - Consider implementing precise text measurement system
