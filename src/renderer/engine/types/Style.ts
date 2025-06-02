@@ -53,6 +53,11 @@ export class StyleParser {
 			return color;
 		}
 
+		// Handle transparent keyword
+		if (color.toLowerCase() === 'transparent') {
+			return [0, 0, 0, 0];
+		}
+
 		// Handle hex colors
 		if (color.startsWith('#')) {
 			const hex = color.slice(1);

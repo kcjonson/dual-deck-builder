@@ -80,9 +80,7 @@ src/
 
 ### Shader Development
 
-- Vertex shaders in `src/assets/shaders/vertex.glsl`
-- Fragment shaders in `src/assets/shaders/fragment.glsl`
-- Use the `Shader` class for compilation and usage
+- We perfer a single super shader approach to multiple small shaders
 
 ## Important Notes for Claude
 
@@ -90,8 +88,8 @@ src/
    - **Always update `/docs/AI_DEVELOPMENT_HUB.md`** with current work and active TODOs
    - **Always add completed tasks to `/docs/AI_DEVELOPMENT_LOG.md`** with the current date at the TOP
    - **Always create technical decision docs in `/docs/AI_TECHNICAL_DECISIONS/`** for major architectural choices
-   
 2. **What to document in each location:**
+
    - **AI_DEVELOPMENT_HUB.md**: Current state, active TODOs, brief notes, implementation status
    - **AI_DEVELOPMENT_LOG.md**: Completed tasks (date, what changed, brief how)
    - **AI_TECHNICAL_DECISIONS/**: Detailed technical decisions with:

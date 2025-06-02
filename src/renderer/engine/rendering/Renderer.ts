@@ -569,6 +569,98 @@ export class Renderer {
 	}
 
 	/**
+	 * Draw a polygon on the screen
+	 */
+	public drawPolygon(
+		x: number,
+		y: number,
+		width: number,
+		height: number,
+		points: [number, number][],
+		fillColor: [number, number, number, number] = [1, 1, 1, 1],
+		strokeColor: [number, number, number, number] = [0, 0, 0, 1],
+		strokeWidth = 0,
+	): void {
+		if (!this.currentShader || points.length < 3) {
+			console.error('Invalid polygon parameters');
+			return;
+		}
+
+		// Convert normalized points to vertex array
+		const vertices: number[] = [];
+		for (const [px, py] of points) {
+			vertices.push(px, py);
+		}
+
+		// Triangulate the polygon using ear clipping algorithm
+		const indices = this.triangulatePolygon(points);
+
+		// Calculate center position
+		const centerX = x + width / 2;
+		const centerY = y + height / 2;
+
+		// Create a model matrix for this polygon
+		const modelMatrix = mat4.create();
+		mat4.translate(modelMatrix, modelMatrix, [centerX, centerY, 0]);
+		mat4.scale(modelMatrix, modelMatrix, [width / 2, height / 2, 1]);
+
+		this.currentShader.setMatrix4('uModelMatrix', modelMatrix);
+		this.currentShader.setVector4('uColor', fillColor);
+		this.currentShader.setBool('uUseTexture', false);
+
+		// Create and bind vertex buffer
+		const vertexBuffer = this.gl.createBuffer();
+		this.gl.bindBuffer(this.gl.ARRAY_BUFFER, vertexBuffer);
+		this.gl.bufferData(this.gl.ARRAY_BUFFER, new Float32Array(vertices), this.gl.STATIC_DRAW);
+
+		// Create and bind index buffer
+		const indexBuffer = this.gl.createBuffer();
+		this.gl.bindBuffer(this.gl.ELEMENT_ARRAY_BUFFER, indexBuffer);
+		this.gl.bufferData(this.gl.ELEMENT_ARRAY_BUFFER, new Uint16Array(indices), this.gl.STATIC_DRAW);
+
+		// Set up vertex attributes
+		const positionAttribLocation = this.gl.getAttribLocation(
+			this.currentShader.getProgram(),
+			'aPosition',
+		);
+		this.gl.enableVertexAttribArray(positionAttribLocation);
+		this.gl.vertexAttribPointer(positionAttribLocation, 2, this.gl.FLOAT, false, 0, 0);
+
+		// Draw the filled polygon
+		this.gl.drawElements(this.gl.TRIANGLES, indices.length, this.gl.UNSIGNED_SHORT, 0);
+
+		// Draw stroke if needed
+		if (strokeWidth > 0) {
+			this.currentShader.setVector4('uColor', strokeColor);
+			this.currentShader.setBool('uUseTexture', false);
+			this.gl.lineWidth(strokeWidth);
+			this.gl.drawArrays(this.gl.LINE_LOOP, 0, points.length);
+		}
+
+		// Clean up
+		this.gl.disableVertexAttribArray(positionAttribLocation);
+		this.gl.bindBuffer(this.gl.ARRAY_BUFFER, null);
+		this.gl.bindBuffer(this.gl.ELEMENT_ARRAY_BUFFER, null);
+		this.gl.deleteBuffer(vertexBuffer);
+		this.gl.deleteBuffer(indexBuffer);
+	}
+
+	/**
+	 * Simple ear clipping triangulation for convex polygons
+	 */
+	private triangulatePolygon(points: [number, number][]): number[] {
+		const indices: number[] = [];
+		const n = points.length;
+
+		// For convex polygons, we can use a simple fan triangulation
+		for (let i = 1; i < n - 1; i++) {
+			indices.push(0, i, i + 1);
+		}
+
+		return indices;
+	}
+
+	/**
 	 * Get the WebGL rendering context
 	 */
 	public getContext(): WebGLRenderingContext {
