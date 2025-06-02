@@ -3,6 +3,7 @@ import { SplashScreen } from './screens/SplashScreen';
 import { MainMenuScreen } from './screens/MainMenuScreen';
 import { DeveloperScreen } from './screens/DeveloperScreen';
 import { CardShowcaseScreen } from './screens/CardShowcaseScreen';
+import { DriverSelectionScreen } from './screens/DriverSelectionScreen';
 
 /**
  * Interface for game screens
@@ -75,7 +76,8 @@ export class Game {
 		// Create main menu screen
 		const mainMenuScreen = new MainMenuScreen(this.renderer);
 		mainMenuScreen.setOnStartGame(() => {
-			// Start game action (not implemented yet)
+			// Go to driver selection screen
+			this.showScreen('driverSelectionScreen');
 		});
 		mainMenuScreen.setOnOpenSettings(() => {
 			// Settings action (not implemented yet)
@@ -114,6 +116,19 @@ export class Game {
 			this.showScreen('mainMenuScreen');
 		});
 		this.screens.set('cardShowcaseScreen', cardShowcaseScreen);
+
+		// Create driver selection screen
+		const driverSelectionScreen = new DriverSelectionScreen(this.renderer);
+		driverSelectionScreen.setOnBack(() => {
+			// Go back to main menu
+			this.showScreen('mainMenuScreen');
+		});
+		driverSelectionScreen.setOnStartRun((driver1, driver2) => {
+			// Start the run with selected drivers
+			console.log(`Starting run with ${driver1.getName()} and ${driver2.getName()}`);
+			// TODO: Go to combat screen or map screen
+		});
+		this.screens.set('driverSelectionScreen', driverSelectionScreen);
 	}
 
 	/**

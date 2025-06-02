@@ -168,6 +168,19 @@ export class CardLoader {
 	}
 
 	/**
+	 * Get all loaded cards as a map by ID
+	 * @returns Map of card ID to Card instance
+	 */
+	public getAllCardsAsMap(): Map<string, Card> {
+		const cardsMap = new Map<string, Card>();
+		for (const id of this.cardsData.keys()) {
+			const card = this.createCard(id);
+			if (card) cardsMap.set(id, card);
+		}
+		return cardsMap;
+	}
+
+	/**
 	 * Get starting deck for a driver archetype
 	 */
 	public getStartingDeck(archetypeId: string): Card[] {

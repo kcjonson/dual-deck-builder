@@ -141,7 +141,7 @@ For a complete log of recently completed tasks, see: [AI Development Log](./AI_D
 
 ## Current Development Todos
 
-### High Priority (Foundation - UI System & Demo Environment)
+### Phase One (Foundation - UI System & Demo Environment)
 
 - [x] **Task 1**: Create test/demo environment for drawing API ✅ COMPLETED
   - [x] Build developer/demo screen to showcase all UI components
@@ -176,7 +176,7 @@ For a complete log of recently completed tasks, see: [AI Development Log](./AI_D
   - [ ] Enhanced Layer management system for z-ordering
   - [ ] Window/Panel system for complex interfaces
 
-### Medium Priority (Game Foundation)
+### Phase Two (Game Foundation)
 
 - [x] **Task 4**: Create a new screen to showcase all the cards that are configured/loaded ✅ COMPLETED
   - [x] Implemented CardShowcaseScreen with scrollable grid layout
@@ -188,12 +188,22 @@ For a complete log of recently completed tasks, see: [AI Development Log](./AI_D
   - [x] Created Visual Card UI component extending Component
   - [x] Added CSS-like text wrapping with whiteSpace and textOverflow
   - [x] Fixed JSON loading from public directory
-- [ ] **Task 5**: Implement Driver data structures and archetypes
-- [ ] **Task 6**: Create Driver Selection Screen with two-panel layout
+- [x] **Task 5**: Implement Driver data structures and archetypes ✅ COMPLETED
+  - [x] Created Driver class with complete metadata and vehicle stats
+  - [x] Implemented DriverLoader for managing driver instances
+  - [x] Built DriverSynergy system for dynamic driver analysis
+  - [x] Configured 4 driver archetypes with proper starting decks
+- [x] **Task 6**: Create Driver Selection Screen with two-panel layout ✅ COMPLETED
+  - [x] Built DriverPanel component extending Layer for driver display
+  - [x] Created SynergyPreviewPanel for dynamic synergy analysis
+  - [x] Implemented sequential driver selection (left panel activates first)
+  - [x] Added starting deck preview with mini-cards
+  - [x] Connected to main menu navigation
+  - [x] ROUGH LAYOUT - functional but needs major visual overhaul later
 - [ ] **Task 7**: Build basic Combat Screen layout and UI components
 - [ ] **Task 8**: Implement turn-based combat system foundation
 
-### Medium Priority (Core Mechanics)
+### Phase Three (Core Mechanics)
 
 - [ ] **Task 6**: Create Vehicle and Driver entity classes with stats
 - [ ] **Task 7**: Implement card dragging and targeting system
@@ -203,14 +213,91 @@ For a complete log of recently completed tasks, see: [AI Development Log](./AI_D
 - [ ] **Task 11**: Add hit calculation system with gunnery vs evade
 - [ ] **Task 12**: Create damage flow system (armor then structure)
 
-### Low Priority (Advanced Features)
+### Phase Four (Game Flow Spec Implementation)
 
-- [ ] **Task 13**: Implement basic enemy AI
-- [ ] **Task 14**: Build Map/Node navigation screen
-- [ ] **Task 15**: Create Shop/Garage screen for upgrades
-- [ ] **Task 16**: Add synergy mechanics between drivers
-- [ ] **Task 17**: Implement card upgrade system
-- [ ] **Task 18**: Create save/load functionality
+- [ ] **Task 5**: Driver Selection Screen (Game Flow Spec 1.2)
+
+  - [ ] Create two-panel layout with driver portraits and vehicle artwork
+  - [ ] Add starting deck preview with mini-card visuals
+  - [ ] Implement synergy preview panel between drivers
+  - [ ] Add driver browsing carousel/dropdown system
+
+- [ ] **Task 6**: Combat Screen Layout (Game Flow Spec 2)
+
+  - [ ] Enemy area (top 25%) with vehicle portraits and intent indicators
+  - [ ] Battlefield center (40%) with player vehicle displays
+  - [ ] Player interface (35%) with hand and resource management
+  - [ ] Resource bar with adrenaline, fuel, scrap indicators
+
+- [ ] **Task 7**: Card Targeting System (Game Flow Spec 2.3)
+
+  - [ ] Drag-and-drop card targeting with visual feedback
+  - [ ] Target highlighting (red enemies, green allies)
+  - [ ] Damage preview on hover
+  - [ ] Card animation to discard pile
+
+- [ ] **Task 8**: Turn Flow Experience (Game Flow Spec 2.4)
+  - [ ] Adrenaline refill animation at turn start
+  - [ ] Card draw with swooping animations
+  - [ ] End turn confirmation and enemy turn display
+
+### Phase Five (Core Systems)
+
+- [ ] **Task 9**: Enemy Intent System (Game Flow Spec 2.1)
+
+  - [ ] Intent indicators above enemies (crosshair, shield, wrench icons)
+  - [ ] Animated next-action previews
+  - [ ] Multi-action intent display
+
+- [ ] **Task 10**: Vehicle Health & Armor Display (Game Flow Spec 2.2)
+
+  - [ ] Health bars with numerical values
+  - [ ] Visual armor plating that depletes
+  - [ ] Status effect orbital indicators
+  - [ ] Damage animations
+
+- [ ] **Task 11**: Map Navigation Screen (Game Flow Spec 3)
+
+  - [ ] Vertical progression map with branching paths
+  - [ ] Node type indicators (combat, elite, garage, scavenge, events)
+  - [ ] Path highlighting and risk/reward visualization
+
+- [ ] **Task 12**: Garage/Shop Screen (Game Flow Spec 4)
+  - [ ] Three-panel layout (deck management, new cards, vehicle mods)
+  - [ ] Scrap currency system
+  - [ ] Card removal and purchasing mechanics
+
+### Phase Six (Advanced Features)
+
+- [ ] **Task 13**: Event Screen System (Game Flow Spec 5)
+
+  - [ ] Narrative presentation with choice cards
+  - [ ] Risk/reward indicators for choices
+  - [ ] Event artwork and atmospheric presentation
+
+- [ ] **Task 14**: Victory & Defeat Screens (Game Flow Spec 6)
+
+  - [ ] Statistics display and unlock ceremonies
+  - [ ] Learning opportunities on defeat
+  - [ ] Run progress recognition
+
+- [ ] **Task 15**: Accessibility Features (Game Flow Spec 7.3)
+
+  - [ ] Colorblind support with icon supplements
+  - [ ] Keyboard navigation system
+  - [ ] Simplified card text mode
+  - [ ] Turn history log
+
+- [ ] **Task 16**: Platform Adaptations (Game Flow Spec 8)
+
+  - [ ] Controller support for console/Steam Deck
+  - [ ] Touch controls and trackpad utilization
+  - [ ] Platform-specific UI scaling
+
+- [ ] **Task 17**: Implement basic enemy AI
+- [ ] **Task 18**: Add synergy mechanics between drivers
+- [ ] **Task 19**: Implement card upgrade system
+- [ ] **Task 20**: Create save/load functionality
 
 ## Code Style Guidelines
 
