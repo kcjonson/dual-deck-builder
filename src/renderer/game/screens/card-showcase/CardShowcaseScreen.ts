@@ -1,11 +1,11 @@
-import { Screen } from '../core/Screen';
-import { Renderer } from '../../engine/rendering/Renderer';
-import { Button } from '../../engine/ui/Button';
-import { Text } from '../../engine/components/Text';
-import { Rectangle } from '../../engine/components/Rectangle';
-import { Panel } from '../../engine/ui/Panel';
-import { Card } from '../../engine/ui/Card';
-import { CardLoader } from '../core/CardLoader';
+import { Screen } from '../../core/Screen';
+import { Renderer } from '../../../engine/rendering/Renderer';
+import { Button } from '../../../engine/ui/Button';
+import { Text } from '../../../engine/components/Text';
+import { Rectangle } from '../../../engine/components/Rectangle';
+import { Panel } from '../../../engine/ui/Panel';
+import { Card } from '../../../engine/ui/Card';
+import { CardLoader } from '../../core/CardLoader';
 
 /**
  * Screen for showcasing all available cards
@@ -259,19 +259,18 @@ export class CardShowcaseScreen extends Screen {
 	}
 
 	/**
-	 * Handle screen activation
+	 * Handle screen mount
 	 */
-	public onActivate(): void {
-		super.onActivate();
-		// Reload cards when screen is activated in case they changed
+	protected onMount(): void {
+		// Reload cards when screen is mounted in case they changed
 		this.loadCards();
 	}
 
 	/**
-	 * Handle screen deactivation
+	 * Handle screen unmount
 	 */
-	public onDeactivate(): void {
-		super.onDeactivate();
+	protected onUnmount(): void {
+		// Nothing to clean up
 	}
 
 	/**

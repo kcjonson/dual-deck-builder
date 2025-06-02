@@ -37,19 +37,22 @@ export abstract class Screen {
 	}
 
 	/**
-	 * Handle screen activation
+	 * Mount the screen (make it active)
 	 */
-	public activate(): void {
+	public mount(): void {
 		this.isActive = true;
-		this.onActivate();
+		this.onMount();
 	}
 
 	/**
-	 * Handle screen deactivation
+	 * Unmount the screen (make it inactive)
 	 */
-	public deactivate(): void {
+	public unmount(): void {
 		this.isActive = false;
-		this.onDeactivate();
+		this.onUnmount();
+		
+		// Don't cleanup here - screens can manage their own cleanup if needed
+		// This allows screens to persist their UI between mount/unmount cycles
 	}
 
 	/**
@@ -71,18 +74,18 @@ export abstract class Screen {
 	}
 
 	/**
-	 * Hook called when the screen is activated
-	 * Override in subclasses to handle activation logic
+	 * Hook called when the screen is mounted
+	 * Override in subclasses to handle mount logic
 	 */
-	protected onActivate(): void {
+	protected onMount(): void {
 		// Override in subclasses
 	}
 
 	/**
-	 * Hook called when the screen is deactivated
-	 * Override in subclasses to handle deactivation logic
+	 * Hook called when the screen is unmounted
+	 * Override in subclasses to handle unmount logic
 	 */
-	protected onDeactivate(): void {
+	protected onUnmount(): void {
 		// Override in subclasses
 	}
 

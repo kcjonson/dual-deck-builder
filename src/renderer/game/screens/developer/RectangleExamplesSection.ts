@@ -1,6 +1,6 @@
-import { Panel } from '../../engine/ui/Panel';
-import { Text } from '../../engine/components/Text';
-import { Rectangle } from '../../engine/components/Rectangle';
+import { Panel } from '../../../engine/ui/Panel';
+import { Text } from '../../../engine/components/Text';
+import { Rectangle } from '../../../engine/components/Rectangle';
 
 /**
  * Rectangle examples section for the developer screen

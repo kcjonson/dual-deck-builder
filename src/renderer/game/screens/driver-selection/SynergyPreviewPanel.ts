@@ -1,8 +1,8 @@
-import { Layer } from '../../engine/components/Layer';
-import { Text } from '../../engine/components/Text';
-import { Rectangle } from '../../engine/components/Rectangle';
-import { Driver } from '../mechanics/Driver';
-import { DriverSynergy, SynergyAnalysis } from '../mechanics/DriverSynergy';
+import { Layer } from '../../../engine/components/Layer';
+import { Text } from '../../../engine/components/Text';
+import { Rectangle } from '../../../engine/components/Rectangle';
+import { Driver } from '../../mechanics/Driver';
+import { DriverSynergy, SynergyAnalysis } from '../../mechanics/DriverSynergy';
 
 /**
  * Synergy preview panel for the Driver Selection Screen

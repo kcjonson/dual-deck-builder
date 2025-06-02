@@ -1,6 +1,6 @@
-import { Panel } from '../../engine/ui/Panel';
-import { Text } from '../../engine/components/Text';
-import { Button } from '../../engine/ui/Button';
+import { Panel } from '../../../engine/ui/Panel';
+import { Text } from '../../../engine/components/Text';
+import { Button } from '../../../engine/ui/Button';
 
 /**
  * Button examples section for the developer screen

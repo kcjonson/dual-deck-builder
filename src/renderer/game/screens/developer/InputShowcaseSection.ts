@@ -1,6 +1,6 @@
-import { Panel } from '../../engine/ui/Panel';
-import { Text } from '../../engine/components/Text';
-import { Input } from '../../engine/ui/Input';
+import { Panel } from '../../../engine/ui/Panel';
+import { Text } from '../../../engine/components/Text';
+import { Input } from '../../../engine/ui/Input';
 
 /**
  * Input showcase section for the developer screen

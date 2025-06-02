@@ -1,5 +1,5 @@
-import { Panel } from '../../engine/ui/Panel';
-import { Text } from '../../engine/components/Text';
+import { Panel } from '../../../engine/ui/Panel';
+import { Text } from '../../../engine/components/Text';
 
 /**
  * Text examples section for the developer screen

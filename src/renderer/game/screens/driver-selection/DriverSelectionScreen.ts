@@ -1,12 +1,12 @@
-import { Screen } from '../core/Screen';
-import { Renderer } from '../../engine/rendering/Renderer';
-import { Button } from '../../engine/ui/Button';
-import { Text } from '../../engine/components/Text';
-import { Rectangle } from '../../engine/components/Rectangle';
-import { Driver } from '../mechanics/Driver';
-import { DriverLoader } from '../core/DriverLoader';
-import { DriverPanel } from '../ui/DriverPanel';
-import { SynergyPreviewPanel } from '../ui/SynergyPreviewPanel';
+import { Screen } from '../../core/Screen';
+import { Renderer } from '../../../engine/rendering/Renderer';
+import { Button } from '../../../engine/ui/Button';
+import { Text } from '../../../engine/components/Text';
+import { Rectangle } from '../../../engine/components/Rectangle';
+import { Driver } from '../../mechanics/Driver';
+import { DriverLoader } from '../../core/DriverLoader';
+import { DriverPanel } from './DriverPanel';
+import { SynergyPreviewPanel } from './SynergyPreviewPanel';
 
 /**
  * Driver Selection Screen implementing Game Flow Spec section 1.2
@@ -340,5 +340,33 @@ export class DriverSelectionScreen extends Screen {
 		this.updateSynergyDisplay();
 		this.updateConfirmationText();
 		this.updateStartButton();
+	}
+
+	/**
+	 * Handle screen unmount - reset state
+	 */
+	protected onUnmount(): void {
+		// Reset driver selections
+		this.selectedDriver1 = null;
+		this.selectedDriver2 = null;
+		
+		// Reset both panels to initial state
+		this.leftDriverPanel.reset();
+		this.rightDriverPanel.reset();
+		
+		// Clear synergy display
+		this.synergyPanel.updateSynergy(null, null);
+		
+		// Reset UI elements
+		this.updateConfirmationText();
+		this.updateStartButton();
+	}
+
+	/**
+	 * Handle screen mount - reload drivers
+	 */
+	protected onMount(): void {
+		// Reload drivers when screen is mounted
+		this.loadDrivers();
 	}
 }

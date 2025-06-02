@@ -10,9 +10,7 @@ import { RenderContext, DEFAULT_RENDER_CONTEXT } from '../rendering/RenderContex
 export class Button extends Component {
 	private background: Rectangle;
 	private text: Text;
-	private hovered = false;
 	private pressed = false;
-	private enabled = true;
 	private clickHandler: (() => void) | null = null;
 
 	// Button appearance states
@@ -154,7 +152,7 @@ export class Button extends Component {
 	 * @param enabled Enabled state
 	 */
 	public setEnabled(enabled: boolean): this {
-		this.enabled = enabled;
+		super.setEnabled(enabled);
 
 		// Update appearance based on enabled state
 		if (!this.enabled) {
@@ -180,7 +178,7 @@ export class Button extends Component {
 	 */
 	private onMouseOver(): void {
 		if (this.enabled) {
-			this.hovered = true;
+			this.setHovered(true);
 			this.background.setFillColor(this.hoverColor);
 		}
 	}
@@ -190,7 +188,7 @@ export class Button extends Component {
 	 */
 	private onMouseOut(): void {
 		if (this.enabled) {
-			this.hovered = false;
+			this.setHovered(false);
 			this.pressed = false;
 			this.background.setFillColor(this.normalColor);
 		}

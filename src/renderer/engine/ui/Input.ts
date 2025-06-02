@@ -15,8 +15,6 @@ export class Input extends Component {
 	private cursor: Rectangle;
 	private value = '';
 	private placeholderText = '';
-	private focused = false;
-	private enabled = true;
 	private maxLength = 100;
 	private onChangeCallback: ((value: string) => void) | null = null;
 	private onFocusCallback: (() => void) | null = null;
@@ -250,7 +248,7 @@ export class Input extends Component {
 	 * @param enabled Enabled state
 	 */
 	public setEnabled(enabled: boolean): this {
-		this.enabled = enabled;
+		super.setEnabled(enabled);
 
 		// Update appearance based on enabled state
 		this.text.setVisible(enabled);
@@ -302,7 +300,7 @@ export class Input extends Component {
 				(currentFocus as any).onMouseDownOutside();
 			}
 			
-			this.focused = true;
+			this.setFocused(true);
 			InputSystem.setFocus(this);
 			this.background.setFillColor(this.focusedColor);
 			this.background.setBorderColor([0.4, 0.4, 0.8, 1]);
@@ -321,7 +319,7 @@ export class Input extends Component {
 	 */
 	private onMouseDownOutside(): void {
 		if (this.focused) {
-			this.focused = false;
+			this.setFocused(false);
 			InputSystem.setFocus(null);
 			this.background.setFillColor(this.normalColor);
 			this.background.setBorderColor([0.3, 0.3, 0.3, 1]);

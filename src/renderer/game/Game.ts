@@ -1,16 +1,18 @@
 import { Renderer } from '../engine/rendering/Renderer';
-import { SplashScreen } from './screens/SplashScreen';
-import { MainMenuScreen } from './screens/MainMenuScreen';
-import { DeveloperScreen } from './screens/DeveloperScreen';
-import { CardShowcaseScreen } from './screens/CardShowcaseScreen';
-import { DriverSelectionScreen } from './screens/DriverSelectionScreen';
+import { SplashScreen } from './screens/splash/SplashScreen';
+import { MainMenuScreen } from './screens/main-menu/MainMenuScreen';
+import { DeveloperScreen } from './screens/developer/DeveloperScreen';
+import { CardShowcaseScreen } from './screens/card-showcase/CardShowcaseScreen';
+import { DriverSelectionScreen } from './screens/driver-selection/DriverSelectionScreen';
+import { CombatScreen } from './screens/combat/CombatScreen';
+import { EnemyVehicle } from './screens/combat/EnemyLayer';
 
 /**
  * Interface for game screens
  */
 export interface GameScreen {
-	activate(): void;
-	deactivate(): void;
+	mount(): void;
+	unmount(): void;
 	update(dt: number): void;
 	render(): void;
 }
@@ -126,9 +128,27 @@ export class Game {
 		driverSelectionScreen.setOnStartRun((driver1, driver2) => {
 			// Start the run with selected drivers
 			console.log(`Starting run with ${driver1.getName()} and ${driver2.getName()}`);
-			// TODO: Go to combat screen or map screen
+			this.startCombatWithDrivers([driver1, driver2]);
 		});
 		this.screens.set('driverSelectionScreen', driverSelectionScreen);
+
+		// Create combat screen
+		const combatScreen = new CombatScreen(this.renderer);
+		combatScreen.setOnEndCombat((victory) => {
+			if (victory) {
+				console.log('Combat victory! Returning to main menu...');
+				// TODO: Go to reward screen or map
+				this.showScreen('mainMenuScreen');
+			} else {
+				console.log('Combat defeat! Returning to main menu...');
+				// TODO: Go to defeat screen
+				this.showScreen('mainMenuScreen');
+			}
+		});
+		combatScreen.setOnBack(() => {
+			this.showScreen('mainMenuScreen');
+		});
+		this.screens.set('combatScreen', combatScreen);
 	}
 
 	/**
@@ -148,7 +168,12 @@ export class Game {
 			}
 
 			// Example: Press Escape to go back to main menu
-			if (event.key === 'Escape' && this.currentScreen !== 'mainMenuScreen') {
+			if (event.key === 'Escape' && this.currentScreen !== 'mainMenuScreen' && this.currentScreen !== 'splashScreen') {
+				// Don't interfere with combat targeting
+				if (this.currentScreen === 'combatScreen') {
+					// Let combat screen handle Escape for canceling targeting
+					return;
+				}
 				this.showScreen('mainMenuScreen');
 			}
 		});
@@ -159,18 +184,18 @@ export class Game {
 	 * @param screenId ID of the screen to show
 	 */
 	public showScreen(screenId: string): void {
-		// Deactivate the current screen if there is one
+		// Unmount the current screen if there is one
 		if (this.currentScreen) {
 			const currentScreen = this.screens.get(this.currentScreen);
 			if (currentScreen) {
-				currentScreen.deactivate();
+				currentScreen.unmount();
 			}
 		}
 
-		// Activate the new screen
+		// Mount the new screen
 		const nextScreen = this.screens.get(screenId);
 		if (nextScreen) {
-			nextScreen.activate();
+			nextScreen.mount();
 			this.currentScreen = screenId;
 		} else {
 			console.error(`Screen not found: ${screenId}`);
@@ -205,6 +230,45 @@ export class Game {
 			if (screen) {
 				screen.render();
 			}
+		}
+	}
+
+	/**
+	 * Start combat with selected drivers
+	 */
+	private async startCombatWithDrivers(drivers: any[]): Promise<void> {
+		// Create some test enemies
+		const testEnemies: EnemyVehicle[] = [
+			{
+				id: 'raider1',
+				name: 'Wasteland Raider',
+				maxHealth: 30,
+				currentHealth: 30,
+				armor: 5,
+				intent: {
+					type: 'attack',
+					value: 8,
+					description: 'Preparing to attack'
+				}
+			},
+			{
+				id: 'buggy1',
+				name: 'Scout Buggy',
+				maxHealth: 20,
+				currentHealth: 20,
+				armor: 2,
+				intent: {
+					type: 'repair',
+					description: 'Preparing to repair'
+				}
+			}
+		];
+
+		// Get combat screen and initialize it
+		const combatScreen = this.screens.get('combatScreen') as CombatScreen;
+		if (combatScreen) {
+			await combatScreen.initializeCombat(drivers, testEnemies);
+			this.showScreen('combatScreen');
 		}
 	}
 }

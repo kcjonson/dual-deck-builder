@@ -1,7 +1,7 @@
-import { Panel } from '../../engine/ui/Panel';
-import { Text } from '../../engine/components/Text';
-import { Rectangle } from '../../engine/components/Rectangle';
-import { Button } from '../../engine/ui/Button';
+import { Panel } from '../../../engine/ui/Panel';
+import { Text } from '../../../engine/components/Text';
+import { Rectangle } from '../../../engine/components/Rectangle';
+import { Button } from '../../../engine/ui/Button';
 
 /**
  * Nested panels section for the developer screen

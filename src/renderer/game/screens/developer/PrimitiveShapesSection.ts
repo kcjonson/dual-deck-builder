@@ -1,8 +1,8 @@
-import { Panel } from '../../engine/ui/Panel';
-import { Text } from '../../engine/components/Text';
-import { Circle } from '../../engine/components/Circle';
-import { Triangle } from '../../engine/components/Triangle';
-import { Polygon } from '../../engine/components/Polygon';
+import { Panel } from '../../../engine/ui/Panel';
+import { Text } from '../../../engine/components/Text';
+import { Circle } from '../../../engine/components/Circle';
+import { Triangle } from '../../../engine/components/Triangle';
+import { Polygon } from '../../../engine/components/Polygon';
 
 /**
  * Primitive shapes section for the developer screen

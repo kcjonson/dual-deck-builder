@@ -1,10 +1,10 @@
-import { Layer } from '../../engine/components/Layer';
-import { Text } from '../../engine/components/Text';
-import { Rectangle } from '../../engine/components/Rectangle';
-import { Button } from '../../engine/ui/Button';
-import { Driver } from '../mechanics/Driver';
-import { Card as UICard } from '../../engine/ui/Card';
-import { CardLoader } from '../core/CardLoader';
+import { Layer } from '../../../engine/components/Layer';
+import { Text } from '../../../engine/components/Text';
+import { Rectangle } from '../../../engine/components/Rectangle';
+import { Button } from '../../../engine/ui/Button';
+import { Driver } from '../../mechanics/Driver';
+import { Card as UICard } from '../../../engine/ui/Card';
+import { CardLoader } from '../../core/CardLoader';
 
 /**
  * Driver selection panel for the Driver Selection Screen
@@ -147,7 +147,7 @@ export class DriverPanel extends Layer {
 	/**
 	 * Clear panel contents except background
 	 */
-	private clearPanelContents(): void {
+	public clearPanelContents(): void {
 		const children = [...this.getChildren()];
 		children.forEach(child => {
 			if (child !== this.background) {
@@ -155,6 +155,27 @@ export class DriverPanel extends Layer {
 			}
 		});
 		this.miniCards = [];
+	}
+
+	/**
+	 * Reset panel to initial state
+	 */
+	public reset(): void {
+		this.selectedDriver = null;
+		this.currentDriverIndex = 0;
+		this.isEmpty = true;
+		this.clearPanelContents();
+		
+		// Re-add empty panel text
+		const emptyText = new Text(this.panelSide === 'left' ? 'Select First Driver' : 'Select Second Driver', {
+			style: {
+				fontSize: 24,
+				color: '#666666',
+				textAlign: 'center',
+			},
+		});
+		emptyText.setPosition(this.getWidth() / 2, this.getHeight() / 2);
+		this.addChild(emptyText);
 	}
 
 	/**

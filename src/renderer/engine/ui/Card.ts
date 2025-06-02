@@ -3,6 +3,7 @@ import { Layer } from '../components/Layer';
 import { Text } from '../components/Text';
 import { Rectangle } from '../components/Rectangle';
 import { RenderContext } from '../rendering/RenderContext';
+import { InputSystem } from '../input/InputSystem';
 import { Card as CardData } from '../../game/mechanics/Card';
 
 /**
@@ -15,6 +16,11 @@ export class Card extends Component {
 	private description: Text;
 	private rarity: Text;
 	private tags: Text;
+	private cardBorder: Rectangle;
+	private cardBackground: Rectangle;
+
+	// Event callback
+	private clickHandler: ((card: CardData) => void) | null = null;
 
 	private static readonly WIDTH = 240;
 	private static readonly HEIGHT = 340;
@@ -30,7 +36,7 @@ export class Card extends Component {
 		this.data = data;
 
 		// Create card border with rarity color
-		const cardBorder = new Rectangle({
+		this.cardBorder = new Rectangle({
 			x: 0,
 			y: 0,
 			width: Card.WIDTH,
@@ -40,10 +46,10 @@ export class Card extends Component {
 				borderRadius: 8,
 			},
 		});
-		this.addChild(cardBorder);
+		this.addChild(this.cardBorder);
 
 		// Create card background
-		const cardBackground = new Rectangle({
+		this.cardBackground = new Rectangle({
 			x: 4,
 			y: 4,
 			width: Card.WIDTH - 8,
@@ -53,7 +59,7 @@ export class Card extends Component {
 				borderRadius: 6,
 			},
 		});
-		this.addChild(cardBackground);
+		this.addChild(this.cardBackground);
 
 		// Card name
 		this.name = new Text(data.getName(), {
@@ -135,6 +141,119 @@ export class Card extends Component {
 			},
 		});
 		this.addChild(targetText);
+
+		// Setup event handling
+		this.setupEvents();
+	}
+
+	/**
+	 * Setup mouse event handling
+	 */
+	private setupEvents(): void {
+		// Register event handlers with the global input system
+		InputSystem.registerMouseOver(this, () => this.handleMouseOver());
+		InputSystem.registerMouseOut(this, () => this.handleMouseOut());
+		InputSystem.registerMouseDown(this, () => this.handleMouseDown());
+		InputSystem.registerMouseUp(this, () => this.handleMouseUp());
+	}
+
+	/**
+	 * Handle mouse over
+	 */
+	private handleMouseOver(): void {
+		if (!this.enabled) return;
+		this.setHovered(true);
+	}
+
+	/**
+	 * Handle mouse out
+	 */
+	private handleMouseOut(): void {
+		this.setHovered(false);
+	}
+
+	/**
+	 * Handle mouse down
+	 */
+	private handleMouseDown(): void {
+		if (!this.enabled) return;
+		// Visual feedback for press
+		this.cardBorder.setFillColor(this.adjustBrightness(Card.getRarityColor(this.data.getRarity()), -20));
+	}
+
+	/**
+	 * Handle mouse up
+	 */
+	private handleMouseUp(): void {
+		if (!this.enabled) return;
+		
+		// Reset visual
+		this.cardBorder.setFillColor(Card.getRarityColor(this.data.getRarity()));
+		
+		// Trigger click (InputSystem already verified mouse is over component)
+		this.onClick();
+	}
+
+	/**
+	 * Handle click event
+	 */
+	private onClick(): void {
+		if (this.clickHandler) {
+			this.clickHandler(this.data);
+		}
+	}
+
+	/**
+	 * Set click handler
+	 */
+	public setOnClick(handler: (card: CardData) => void): void {
+		this.clickHandler = handler;
+	}
+
+	/**
+	 * Override hover change to update visuals
+	 */
+	protected onHoverChanged(hovered: boolean): void {
+		if (hovered && this.enabled) {
+			// Add glow or lift effect
+			this.cardBorder.setBorderWidth(3);
+			this.cardBorder.setBorderColor('#ffffff');
+			// Slight lift effect
+			this.setY(this.getY() - 5);
+		} else {
+			this.cardBorder.setBorderWidth(0);
+			// Reset position if it was lifted
+			if (this.getY() % 10 !== 0) { // Simple check if lifted
+				this.setY(this.getY() + 5);
+			}
+		}
+	}
+
+	/**
+	 * Override enabled change to update visuals
+	 */
+	protected onEnabledChanged(enabled: boolean): void {
+		if (!enabled) {
+			// Dim the card when disabled
+			this.cardBackground.setFillColor('#1a1a2a');
+		} else {
+			this.cardBackground.setFillColor('#2a2a3a');
+		}
+	}
+
+	/**
+	 * Adjust color brightness
+	 */
+	private adjustBrightness(color: string, amount: number): string {
+		// Simple brightness adjustment for hex colors
+		if (color.startsWith('#')) {
+			const hex = color.slice(1);
+			const r = Math.max(0, Math.min(255, parseInt(hex.slice(0, 2), 16) + amount));
+			const g = Math.max(0, Math.min(255, parseInt(hex.slice(2, 4), 16) + amount));
+			const b = Math.max(0, Math.min(255, parseInt(hex.slice(4, 6), 16) + amount));
+			return `#${r.toString(16).padStart(2, '0')}${g.toString(16).padStart(2, '0')}${b.toString(16).padStart(2, '0')}`;
+		}
+		return color;
 	}
 
 	/**

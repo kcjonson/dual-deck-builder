@@ -1,8 +1,8 @@
-import { Screen } from '../core/Screen';
-import { Renderer } from '../../engine/rendering/Renderer';
-import { Button } from '../../engine/ui/Button';
-import { Text } from '../../engine/components/Text';
-import { Rectangle } from '../../engine/components/Rectangle';
+import { Screen } from '../../core/Screen';
+import { Renderer } from '../../../engine/rendering/Renderer';
+import { Button } from '../../../engine/ui/Button';
+import { Text } from '../../../engine/components/Text';
+import { Rectangle } from '../../../engine/components/Rectangle';
 
 /**
  * Main menu screen with game options

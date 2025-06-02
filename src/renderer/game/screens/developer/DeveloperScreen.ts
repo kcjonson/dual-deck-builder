@@ -1,9 +1,10 @@
-import { Screen } from '../core/Screen';
-import { Renderer } from '../../engine/rendering/Renderer';
-import { Button } from '../../engine/ui/Button';
-import { Text } from '../../engine/components/Text';
-import { Panel } from '../../engine/ui/Panel';
-import { Rectangle } from '../../engine/components/Rectangle';
+import { Screen } from '../../core/Screen';
+import { Renderer } from '../../../engine/rendering/Renderer';
+import { Button } from '../../../engine/ui/Button';
+import { Text } from '../../../engine/components/Text';
+import { Panel } from '../../../engine/ui/Panel';
+import { Rectangle } from '../../../engine/components/Rectangle';
+import { InputSystem } from '../../../engine/input/InputSystem';
 
 // Import all section components
 import { InteractiveControlsSection } from './InteractiveControlsSection';
@@ -217,5 +218,24 @@ export class DeveloperScreen extends Screen {
 
 		// Then reposition all elements (now that dimensions are correct)
 		this.positionFixedElements();
+	}
+
+	/**
+	 * Handle screen unmount
+	 */
+	protected onUnmount(): void {
+		// Clear any focus from input fields
+		if (InputSystem.getFocus()) {
+			InputSystem.setFocus(null);
+		}
+		
+		// Find and reset scroll position of the main panel
+		const children = this.rootLayer.getChildren();
+		for (const child of children) {
+			if (child instanceof Panel && child.getY() === 80) { // The main scroll container
+				child.setScrollOffset(0, 0); // Reset both x and y scroll
+				break;
+			}
+		}
 	}
 }

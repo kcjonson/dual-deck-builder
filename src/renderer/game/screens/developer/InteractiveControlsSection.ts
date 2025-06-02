@@ -1,8 +1,8 @@
-import { Panel } from '../../engine/ui/Panel';
-import { Text } from '../../engine/components/Text';
-import { Rectangle } from '../../engine/components/Rectangle';
-import { Input } from '../../engine/ui/Input';
-import { Button } from '../../engine/ui/Button';
+import { Panel } from '../../../engine/ui/Panel';
+import { Text } from '../../../engine/components/Text';
+import { Rectangle } from '../../../engine/components/Rectangle';
+import { Input } from '../../../engine/ui/Input';
+import { Button } from '../../../engine/ui/Button';
 
 /**
  * Interactive controls section for the developer screen
