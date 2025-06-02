@@ -1,6 +1,7 @@
 // Define types for event handlers
 type MouseHandler = () => void;
 type WheelHandler = (deltaX: number, deltaY: number) => void;
+type KeyboardHandler = (key: string) => void;
 // Uncomment if needed:
 // type MouseMoveHandler = (x: number, y: number) => void;
 
@@ -28,9 +29,14 @@ export class InputSystem {
 	private mouseDownComponents: Map<Interactive, MouseHandler> = new Map();
 	private mouseUpComponents: Map<Interactive, MouseHandler> = new Map();
 	private wheelComponents: Map<Interactive, WheelHandler> = new Map();
+	private keyDownComponents: Map<Interactive, KeyboardHandler> = new Map();
+	private keyUpComponents: Map<Interactive, KeyboardHandler> = new Map();
 
 	// Currently hovered components
 	private hoveredComponents: Set<Interactive> = new Set();
+	
+	// Currently focused component for keyboard input
+	private focusedComponent: Interactive | null = null;
 
 	// Canvas element for event handling
 	private canvas: HTMLCanvasElement | null = null;
@@ -72,6 +78,10 @@ export class InputSystem {
 
 		// Handle mouse leaving the canvas
 		canvas.addEventListener('mouseleave', this.handleMouseLeave.bind(this));
+		
+		// Set up keyboard event listeners on window (to capture all keyboard input)
+		window.addEventListener('keydown', this.handleKeyDown.bind(this));
+		window.addEventListener('keyup', this.handleKeyUp.bind(this));
 	}
 
 	/**
@@ -86,6 +96,11 @@ export class InputSystem {
 			this.canvas.removeEventListener('mouseleave', this.handleMouseLeave.bind(this));
 			this.canvas = null;
 		}
+		
+		
+		// Remove keyboard listeners
+		window.removeEventListener('keydown', this.handleKeyDown.bind(this));
+		window.removeEventListener('keyup', this.handleKeyUp.bind(this));
 
 		// Clear all registered handlers
 		this.mouseOverComponents.clear();
@@ -93,7 +108,10 @@ export class InputSystem {
 		this.mouseDownComponents.clear();
 		this.mouseUpComponents.clear();
 		this.wheelComponents.clear();
+		this.keyDownComponents.clear();
+		this.keyUpComponents.clear();
 		this.hoveredComponents.clear();
+		this.focusedComponent = null;
 	}
 
 	/**
@@ -128,6 +146,14 @@ export class InputSystem {
 			);
 		}
 
+		// Check if we clicked outside of the currently focused component
+		if (this.focusedComponent && !this.hoveredComponents.has(this.focusedComponent)) {
+			// Clicked outside the focused component - need to blur it
+			if ('onMouseDownOutside' in this.focusedComponent) {
+				(this.focusedComponent as any).onMouseDownOutside();
+			}
+		}
+		
 		// Trigger mouseDown handlers for hovered components
 		for (const component of this.hoveredComponents) {
 			const handler = this.mouseDownComponents.get(component);
@@ -218,6 +244,42 @@ export class InputSystem {
 			console.log(`[InputSystem] No component found to handle wheel event`);
 		}
 	}
+	
+	/**
+	 * Handle keyboard down events
+	 */
+	private handleKeyDown(event: KeyboardEvent): void {
+		// Send to focused component if any
+		if (this.focusedComponent) {
+			const handler = this.keyDownComponents.get(this.focusedComponent);
+			if (handler) {
+				handler(event.key);
+				// Prevent default behavior for handled keys
+				event.preventDefault();
+			}
+		}
+		
+		if (InputSystem.DEBUG) {
+			console.log(`Key Down: ${event.key}, focused component:`, this.focusedComponent?.constructor.name);
+		}
+	}
+	
+	/**
+	 * Handle keyboard up events
+	 */
+	private handleKeyUp(event: KeyboardEvent): void {
+		// Send to focused component if any
+		if (this.focusedComponent) {
+			const handler = this.keyUpComponents.get(this.focusedComponent);
+			if (handler) {
+				handler(event.key);
+			}
+		}
+		
+		if (InputSystem.DEBUG) {
+			console.log(`Key Up: ${event.key}`);
+		}
+	}
 
 	/**
 	 * Process mouse over and out events based on current mouse position
@@ -226,12 +288,20 @@ export class InputSystem {
 		// Check which components the mouse is currently over
 		const currentlyHovered = new Set<Interactive>();
 
-		// Check all components with mouseOver handlers
-		for (const [component] of this.mouseOverComponents) {
+		// We need to check ALL components that have any mouse handlers, not just mouseOver
+		const allInteractiveComponents = new Set<Interactive>();
+		
+		// Collect all components that have any mouse handlers
+		for (const [component] of this.mouseOverComponents) allInteractiveComponents.add(component);
+		for (const [component] of this.mouseDownComponents) allInteractiveComponents.add(component);
+		for (const [component] of this.mouseUpComponents) allInteractiveComponents.add(component);
+		
+		// Check all interactive components
+		for (const component of allInteractiveComponents) {
 			if (component.containsPoint(this.mouseX, this.mouseY)) {
 				currentlyHovered.add(component);
 
-				// If this is a new hover, trigger the mouseOver handler
+				// If this is a new hover and has mouseOver handler, trigger it
 				if (!this.hoveredComponents.has(component)) {
 					const handler = this.mouseOverComponents.get(component);
 					if (handler) {
@@ -298,6 +368,38 @@ export class InputSystem {
 	public static registerWheel(component: Interactive, handler: WheelHandler): void {
 		InputSystem.getInstance().wheelComponents.set(component, handler);
 	}
+	
+	/**
+	 * Register a component for keyboard down events
+	 */
+	public static registerKeyDown(component: Interactive, handler: KeyboardHandler): void {
+		InputSystem.getInstance().keyDownComponents.set(component, handler);
+	}
+	
+	/**
+	 * Register a component for keyboard up events
+	 */
+	public static registerKeyUp(component: Interactive, handler: KeyboardHandler): void {
+		InputSystem.getInstance().keyUpComponents.set(component, handler);
+	}
+	
+	/**
+	 * Set the focused component for keyboard input
+	 */
+	public static setFocus(component: Interactive | null): void {
+		InputSystem.getInstance().focusedComponent = component;
+		
+		if (InputSystem.DEBUG) {
+			console.log(`[InputSystem] Focus set to:`, component?.constructor.name || 'null');
+		}
+	}
+	
+	/**
+	 * Get the currently focused component
+	 */
+	public static getFocus(): Interactive | null {
+		return InputSystem.getInstance().focusedComponent;
+	}
 
 	/**
 	 * Unregister a component from all mouse events
@@ -309,6 +411,13 @@ export class InputSystem {
 		instance.mouseDownComponents.delete(component);
 		instance.mouseUpComponents.delete(component);
 		instance.wheelComponents.delete(component);
+		instance.keyDownComponents.delete(component);
+		instance.keyUpComponents.delete(component);
 		instance.hoveredComponents.delete(component);
+		
+		// If this was the focused component, clear focus
+		if (instance.focusedComponent === component) {
+			instance.focusedComponent = null;
+		}
 	}
 }

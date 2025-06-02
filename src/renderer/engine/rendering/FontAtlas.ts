@@ -36,16 +36,20 @@ export class FontAtlas {
 		this.fontSize = fontSize;
 		this.atlasSize = atlasSize;
 
-		// Create canvas for rendering characters
+		// Create high-DPI canvas for rendering characters
+		const devicePixelRatio = window.devicePixelRatio || 1;
 		this.canvas = document.createElement('canvas');
-		this.canvas.width = atlasSize;
-		this.canvas.height = atlasSize;
+		this.canvas.width = atlasSize * devicePixelRatio;
+		this.canvas.height = atlasSize * devicePixelRatio;
 		this.context = this.canvas.getContext('2d')!;
+		this.context.scale(devicePixelRatio, devicePixelRatio);
 
-		// Configure text rendering
+		// Configure text rendering with anti-aliasing for smooth edges
 		this.context.font = `${fontSize}px ${fontFamily}`;
 		this.context.textBaseline = 'top';
 		this.context.fillStyle = 'white';
+		this.context.imageSmoothingEnabled = true;
+		this.context.imageSmoothingQuality = 'high';
 
 		// Calculate line height
 		const metrics = this.context.measureText('Mg');
@@ -129,7 +133,7 @@ export class FontAtlas {
 			this.canvas
 		);
 
-		// Set texture parameters for text rendering
+		// Set texture parameters for smooth anti-aliased text rendering
 		this.gl.texParameteri(this.gl.TEXTURE_2D, this.gl.TEXTURE_MIN_FILTER, this.gl.LINEAR);
 		this.gl.texParameteri(this.gl.TEXTURE_2D, this.gl.TEXTURE_MAG_FILTER, this.gl.LINEAR);
 		this.gl.texParameteri(this.gl.TEXTURE_2D, this.gl.TEXTURE_WRAP_S, this.gl.CLAMP_TO_EDGE);

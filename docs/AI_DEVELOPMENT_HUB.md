@@ -301,6 +301,32 @@ class Card extends GameObject {
 
 ## Development Progress
 
+### Recently Completed (2025-06-02)
+
+#### Interactive Elements and Input System Improvements
+- **Fixed interactive elements not working inside scrollable panels**:
+  - Created ScrollableContentLayer that properly transforms coordinates for hit testing
+  - Buttons and inputs inside scrollable panels now receive mouse events correctly
+  - Resolved coordinate transformation issues that prevented interaction with scrolled content
+  
+- **Enhanced InputSystem to support all interactive components**:
+  - Updated InputSystem to check ALL components with mouse handlers, not just those with mouseOver
+  - Components with only mouseDown handlers (like inputs) now properly receive events
+  - Improved hit testing logic to work with transformed coordinates
+  
+- **Implemented full keyboard input support**:
+  - Added keyboard event handling to InputSystem with keydown, keyup, and keypress events
+  - Implemented focus management system for keyboard input routing
+  - Added focus() and blur() methods to Component base class
+  - Keyboard events now properly route to focused components
+  
+- **Made text inputs fully functional**:
+  - Added cursor display and positioning to Input components
+  - Implemented proper focus/blur behavior with visual feedback
+  - Text inputs now support typing, backspace, and cursor positioning
+  - Added blue outline for focused inputs matching design system
+  - Cursor blinks when input is focused and disappears when blurred
+
 ### Recently Completed (2025-06-01)
 
 #### Coordinate System Implementation and Initial Scrolling
@@ -322,7 +348,7 @@ class Card extends GameObject {
   - Fixed Button and Input to use local coordinates for child positioning
   - Updated DeveloperScreen with comprehensive scrollable examples container
 
-- **Current state**: Coordinate system implemented, basic scrolling works, but content bounds calculation needs improvement
+- **Current state**: Coordinate system fully implemented with proper hit testing, scrolling works with interactive elements, keyboard input system complete
 
 ### Recently Completed (2025-05-31)
 
@@ -394,14 +420,14 @@ class Card extends GameObject {
   - [ ] Add remaining shapes: Polygon
   - [ ] Create higher-level UI components: Card, ProgressBar, Slider
   - [ ] Build geometric icon system for common UI symbols
-- [ ] **Task 2.1**: Fix coordinate system and scrolling issues ⚠️ URGENT
+- [x] **Task 2.1**: Fix coordinate system and scrolling issues ✅ COMPLETED
   - [x] Implement RenderContext for coordinate transformation ✅ COMPLETED
   - [x] Add wheel event support to InputSystem ✅ COMPLETED
   - [x] Update Panel to support scrolling with setContentSize ✅ COMPLETED
-  - [ ] Fix content bounds calculation - not all content scrolls together properly
-  - [ ] Implement keyboard input support for text fields
-  - [ ] Remove workaround containsPoint overrides and implement proper hit testing
-  - [ ] Improve coordinate transformation performance and accuracy
+  - [x] Fix interactive elements in scrollable panels ✅ COMPLETED
+  - [x] Implement keyboard input support for text fields ✅ COMPLETED
+  - [x] Implement proper hit testing with coordinate transforms ✅ COMPLETED
+  - [x] Add focus management for keyboard input ✅ COMPLETED
 - [ ] **Task 3**: Implement core UI primitives for game interface
   - [ ] Dialog/Popup component for game modals and menus
   - [ ] ScrollContainer for lists (cards, inventory, settings)

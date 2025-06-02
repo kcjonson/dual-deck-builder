@@ -3,6 +3,7 @@ import { Rectangle } from '../components/Rectangle';
 import { Text } from '../components/Text';
 import { RenderContext, DEFAULT_RENDER_CONTEXT } from '../rendering/RenderContext';
 import { InputSystem } from '../input/InputSystem';
+import { RendererContext } from '../rendering/RendererContext';
 
 /**
  * Input UI component for text input
@@ -11,6 +12,7 @@ export class Input extends Component {
 	private background: Rectangle;
 	private text: Text;
 	private placeholder: Text;
+	private cursor: Rectangle;
 	private value = '';
 	private placeholderText = '';
 	private focused = false;
@@ -19,6 +21,7 @@ export class Input extends Component {
 	private onChangeCallback: ((value: string) => void) | null = null;
 	private onFocusCallback: (() => void) | null = null;
 	private onBlurCallback: (() => void) | null = null;
+	private cursorBlinkTimer = 0;
 
 	// Input appearance states
 	private normalColor: [number, number, number, number] = [0.1, 0.1, 0.1, 1.0];
@@ -82,6 +85,19 @@ export class Input extends Component {
 		this.placeholder.setBaseline('middle');
 		this.placeholderText = placeholder;
 		this.addChild(this.placeholder);
+		
+		// Create cursor (initially hidden)
+		this.cursor = new Rectangle({
+			x: textOffset,
+			y: this.height * 0.2,
+			width: 2,
+			height: this.height * 0.6,
+			style: {
+				backgroundColor: '#ffffff',
+			},
+		});
+		this.cursor.setVisible(false);
+		this.addChild(this.cursor);
 
 		// Setup event handling (this would be connected to the input system)
 		this.setupEvents();
@@ -93,9 +109,9 @@ export class Input extends Component {
 	private setupEvents(): void {
 		// Register mouse down handler for focusing
 		InputSystem.registerMouseDown(this, () => this.onMouseDown());
-
-		// TODO: We need a way to handle keyboard input and detect clicks outside
-		// For now, we'll need to add keyboard event handling to InputSystem
+		
+		// Register keyboard handler
+		InputSystem.registerKeyDown(this, (key: string) => this.onKeyPress(key));
 	}
 
 	/**
@@ -106,6 +122,7 @@ export class Input extends Component {
 		this.value = value.substring(0, this.maxLength);
 		this.text.setText(this.value);
 		this.updatePlaceholderVisibility();
+		this.updateCursorPosition();
 
 		// Call onChange callback if defined
 		if (this.onChangeCallback) {
@@ -205,6 +222,28 @@ export class Input extends Component {
 	private updatePlaceholderVisibility(): void {
 		this.placeholder.setVisible(this.value.length === 0);
 	}
+	
+	/**
+	 * Update the cursor position based on text width
+	 */
+	private updateCursorPosition(): void {
+		if (!this.text || !this.cursor) return;
+		
+		// Get the renderer from the global context
+		const renderer = RendererContext.getInstance().getRenderer();
+		if (!renderer) return;
+		
+		// Get the font atlas to measure text
+		const fontAtlas = renderer.getFontAtlas();
+		if (!fontAtlas) return;
+		
+		// Measure the text width
+		const measurement = fontAtlas.measureText(this.value);
+		
+		// Position cursor after the text with the same offset as the text
+		const textOffset = 10; // Same as text offset
+		this.cursor.setX(textOffset + measurement.width);
+	}
 
 	/**
 	 * Set whether the input is enabled
@@ -257,9 +296,18 @@ export class Input extends Component {
 	 */
 	private onMouseDown(): void {
 		if (this.enabled) {
+			// First check if we need to blur another input
+			const currentFocus = InputSystem.getFocus();
+			if (currentFocus && currentFocus !== this && 'onMouseDownOutside' in currentFocus) {
+				(currentFocus as any).onMouseDownOutside();
+			}
+			
 			this.focused = true;
+			InputSystem.setFocus(this);
 			this.background.setFillColor(this.focusedColor);
 			this.background.setBorderColor([0.4, 0.4, 0.8, 1]);
+			this.cursor.setVisible(true);
+			this.cursorBlinkTimer = 0;
 
 			// Call onFocus callback if defined
 			if (this.onFocusCallback) {
@@ -274,8 +322,10 @@ export class Input extends Component {
 	private onMouseDownOutside(): void {
 		if (this.focused) {
 			this.focused = false;
+			InputSystem.setFocus(null);
 			this.background.setFillColor(this.normalColor);
 			this.background.setBorderColor([0.3, 0.3, 0.3, 1]);
+			this.cursor.setVisible(false);
 
 			// Call onBlur callback if defined
 			if (this.onBlurCallback) {
@@ -307,6 +357,24 @@ export class Input extends Component {
 		}
 	}
 
+	/**
+	 * Update the input component (for cursor blinking)
+	 * @param dt Delta time since last update
+	 */
+	public update(dt: number): void {
+		super.update(dt);
+		
+		// Handle cursor blinking when focused
+		if (this.focused && this.cursor) {
+			this.cursorBlinkTimer += dt;
+			
+			// Blink every 500ms
+			const blinkInterval = 0.5;
+			const visible = Math.floor(this.cursorBlinkTimer / blinkInterval) % 2 === 0;
+			this.cursor.setVisible(visible);
+		}
+	}
+	
 	/**
 	 * Render this component
 	 * @param context Render context with coordinate transforms

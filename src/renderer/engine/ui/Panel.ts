@@ -5,6 +5,33 @@ import { RenderContext, DEFAULT_RENDER_CONTEXT } from '../rendering/RenderContex
 import { RendererContext } from '../rendering/RendererContext';
 
 /**
+ * Custom content layer that handles scroll offset for child hit testing
+ */
+class ScrollableContentLayer extends Layer {
+	private panel: Panel;
+
+	constructor(panel: Panel, options?: LayerOptions) {
+		super(options);
+		this.panel = panel;
+	}
+
+	/**
+	 * Override globalToLocal to account for panel's scroll offset
+	 */
+	public globalToLocal(globalX: number, globalY: number): { x: number; y: number } {
+		// Get the local coordinates from parent's perspective
+		const localCoords = super.globalToLocal(globalX, globalY);
+		
+		// Add the scroll offset to account for scrolled content
+		const scrollOffset = this.panel.getScrollOffset();
+		return {
+			x: localCoords.x + scrollOffset.x,
+			y: localCoords.y + scrollOffset.y
+		};
+	}
+}
+
+/**
  * Panel creation options
  */
 export interface PanelOptions extends LayerOptions {
@@ -59,7 +86,7 @@ export class Panel extends Layer implements Interactive {
 		super.addChild(this.background);
 
 		// Create content layer for user-added children (at local origin)
-		this.contentLayer = new Layer({
+		this.contentLayer = new ScrollableContentLayer(this, {
 			x: 0,
 			y: 0,
 			width: this.width || 200,
@@ -280,6 +307,7 @@ export class Panel extends Layer implements Interactive {
 
 		// TODO: Render scrollbars here (they don't scroll)
 	}
+
 
 	// Interactive interface implementation
 	public onMouseDown(_x: number, _y: number): void {

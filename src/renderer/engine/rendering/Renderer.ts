@@ -122,6 +122,8 @@ export class Renderer {
 		} else {
 			this.currentShader.setBool('uUseTexture', false);
 		}
+		
+		// Don't set uIsText for non-text rendering to avoid shader errors
 
 		// Create vertices with position and texture coordinates
 		// Order: bottom-left, bottom-right, top-right, top-left (matching indices)
@@ -322,12 +324,19 @@ export class Renderer {
 			startY = y - scaledHeight;
 		}
 
+		if (!this.currentShader) {
+			console.error('No shader selected for text rendering');
+			return;
+		}
+
 		// Get font atlas texture
 		const texture = this.fontAtlas.getTexture();
 		if (!texture) {
 			console.warn('Font atlas texture not available');
 			return;
 		}
+		
+		// Text rendering uses same shader as other textured rendering
 
 		// Render each character
 		let currentX = startX;
@@ -362,10 +371,12 @@ export class Renderer {
 				u1, v2, // Top left vertex (was v1, now v2 to flip)
 			];
 
-			// Draw the character quad
+			// Draw the character quad with pixel snapping for crisp rendering
+			const pixelX = Math.round(currentX + charInfo.offsetX * scale);
+			const pixelY = Math.round(startY + charInfo.offsetY * scale);
 			this.drawQuad(
-				currentX + charInfo.offsetX * scale,
-				startY + charInfo.offsetY * scale,
+				pixelX,
+				pixelY,
 				charWidth,
 				charHeight,
 				color,
@@ -421,6 +432,7 @@ export class Renderer {
 
 		this.currentShader.setMatrix4('uModelMatrix', modelMatrix);
 		this.currentShader.setVector4('uColor', fillColor);
+		this.currentShader.setBool('uUseTexture', false);
 
 		// Create and bind vertex buffer
 		const vertexBuffer = this.gl.createBuffer();
@@ -463,6 +475,7 @@ export class Renderer {
 
 			// Set stroke color and draw as line strip
 			this.currentShader.setVector4('uColor', strokeColor);
+			this.currentShader.setBool('uUseTexture', false);
 			this.gl.lineWidth(strokeWidth);
 			this.gl.drawArrays(this.gl.LINE_STRIP, 0, outlineVertices.length / 2);
 		}
@@ -516,6 +529,7 @@ export class Renderer {
 
 		this.currentShader.setMatrix4('uModelMatrix', modelMatrix);
 		this.currentShader.setVector4('uColor', fillColor);
+		this.currentShader.setBool('uUseTexture', false);
 
 		// Create and bind vertex buffer
 		const vertexBuffer = this.gl.createBuffer();
@@ -541,6 +555,7 @@ export class Renderer {
 		// Draw stroke if needed
 		if (strokeWidth > 0) {
 			this.currentShader.setVector4('uColor', strokeColor);
+			this.currentShader.setBool('uUseTexture', false);
 			this.gl.lineWidth(strokeWidth);
 			this.gl.drawArrays(this.gl.LINE_LOOP, 0, 3);
 		}
@@ -558,6 +573,13 @@ export class Renderer {
 	 */
 	public getContext(): WebGLRenderingContext {
 		return this.gl;
+	}
+	
+	/**
+	 * Get the font atlas for text measurement
+	 */
+	public getFontAtlas(): FontAtlas | null {
+		return this.fontAtlas;
 	}
 
 	/**
