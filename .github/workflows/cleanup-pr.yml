@@ -1,0 +1,31 @@
+name: Cleanup PR Deployment
+
+on:
+  pull_request:
+    types: [closed]
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+    if: contains(github.event.pull_request.labels.*.name, 'playtest')
+    
+    steps:
+    - name: Cleanup SFTP Directory
+      uses: appleboy/ssh-action@v1.0.0
+      with:
+        host: ${{ secrets.SFTP_SERVER }}
+        username: ${{ secrets.SFTP_USERNAME }}
+        password: ${{ secrets.SFTP_PASSWORD }}
+        script: |
+          rm -rf /playtest/dual-deckbuilder/${{ github.head_ref }}
+    
+    - name: Comment PR with cleanup confirmation
+      uses: actions/github-script@v6
+      with:
+        script: |
+          github.rest.issues.createComment({
+            issue_number: context.issue.number,
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            body: '🧹 **Playtest deployment cleaned up**\n\nThe deployment for branch `${{ github.head_ref }}` has been removed from the server.'
+          })

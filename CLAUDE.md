@@ -127,7 +127,10 @@ npm run build:web     # Build for web
 npm run build:electron # Build for Electron
 
 # Deployment
-npm run deploy        # Deploy to GitHub Pages
+# Web builds deploy automatically via GitHub Actions:
+# - main branch: bearcavinteractive.com/playtest/dual-deckbuilder/
+# - PR branches with "playtest" label: bearcavinteractive.com/playtest/dual-deckbuilder/BRANCH_NAME/
+# Requires SFTP secrets: SFTP_SERVER, SFTP_USERNAME, SFTP_PASSWORD
 ```
 
 ## References

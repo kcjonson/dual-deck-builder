@@ -1,0 +1,46 @@
+name: Deploy PR Playtest
+
+on:
+  pull_request:
+    types: [opened, synchronize, labeled, unlabeled]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    if: contains(github.event.pull_request.labels.*.name, 'playtest')
+    
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Setup Node.js
+      uses: actions/setup-node@v3
+      with:
+        node-version: '18'
+        cache: 'npm'
+    
+    - name: Install Dependencies
+      run: npm ci
+    
+    - name: Build Web
+      run: npm run build:web
+    
+    - name: Deploy to SFTP
+      uses: SamKirkland/FTP-Deploy-Action@v4.3.4
+      with:
+        server: ${{ secrets.SFTP_SERVER }}
+        username: ${{ secrets.SFTP_USERNAME }}
+        password: ${{ secrets.SFTP_PASSWORD }}
+        local-dir: dist/web/
+        server-dir: /playtest/dual-deckbuilder/${{ github.head_ref }}/
+        protocol: sftp
+    
+    - name: Comment PR with playtest URL
+      uses: actions/github-script@v6
+      with:
+        script: |
+          github.rest.issues.createComment({
+            issue_number: context.issue.number,
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            body: '🎮 **Playtest deployment ready!**\n\nTest this branch at: https://bearcavinteractive.com/playtest/dual-deckbuilder/${{ github.head_ref }}/'
+          })
