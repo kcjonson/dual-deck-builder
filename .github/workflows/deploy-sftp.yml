@@ -25,11 +25,11 @@ jobs:
       run: npm run build:web
     
     - name: Deploy to SFTP
-      uses: SamKirkland/FTP-Deploy-Action@v4.3.4
+      uses: wlixcc/SFTP-Deploy-Action@v1.2.4
       with:
         server: ${{ secrets.SFTP_SERVER }}
         username: ${{ secrets.SFTP_USERNAME }}
         password: ${{ secrets.SFTP_PASSWORD }}
-        local-dir: dist/web/
-        server-dir: /playtest/dual-deckbuilder/
-        protocol: sftp
+        local_path: './dist/web/*'
+        remote_path: '/bearcavinteractive.com/playtest/dual-deckbuilder/'
+        sftp_only: true

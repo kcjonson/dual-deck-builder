@@ -17,7 +17,7 @@ jobs:
         username: ${{ secrets.SFTP_USERNAME }}
         password: ${{ secrets.SFTP_PASSWORD }}
         script: |
-          rm -rf /playtest/dual-deckbuilder/${{ github.head_ref }}
+          rm -rf bearcavinteractive.com/playtest/dual-deckbuilder/${{ github.head_ref }}
     
     - name: Comment PR with cleanup confirmation
       uses: actions/github-script@v6
