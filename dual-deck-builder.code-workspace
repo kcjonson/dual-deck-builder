@@ -5,7 +5,6 @@
     }
   ],
   "settings": {
-    "editor.defaultFormatter": "esbenp.prettier-vscode",
     "editor.insertSpaces": false
   }
 }
