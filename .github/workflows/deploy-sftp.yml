@@ -29,7 +29,19 @@ jobs:
         # Install sshpass for password authentication
         sudo apt-get update && sudo apt-get install -y sshpass rsync
         
+        echo "Starting deployment..."
+        echo "Target: ${{ secrets.SFTP_USERNAME }}@${{ secrets.SFTP_SERVER }}:/bearcavinteractive.com/playtest/dual-deckbuilder/"
+        
+        # Test SSH connection first
+        echo "Testing SSH connection..."
+        timeout 30 sshpass -p "${{ secrets.SFTP_PASSWORD }}" ssh -p 22 -o StrictHostKeyChecking=no -o ConnectTimeout=10 \
+          ${{ secrets.SFTP_USERNAME }}@${{ secrets.SFTP_SERVER }} "echo 'SSH connection successful'"
+        
         # Deploy with rsync over SSH, creating directories as needed
-        sshpass -p "${{ secrets.SFTP_PASSWORD }}" rsync -avz --mkpath -e "ssh -p 22 -o StrictHostKeyChecking=no" \
+        echo "Starting rsync deployment..."
+        timeout 300 sshpass -p "${{ secrets.SFTP_PASSWORD }}" rsync -avz --progress --mkpath \
+          -e "ssh -p 22 -o StrictHostKeyChecking=no -o ConnectTimeout=10" \
           dist/web/ \
           ${{ secrets.SFTP_USERNAME }}@${{ secrets.SFTP_SERVER }}:/bearcavinteractive.com/playtest/dual-deckbuilder/
+        
+        echo "Deployment completed successfully!"
