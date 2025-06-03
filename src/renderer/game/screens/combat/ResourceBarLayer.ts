@@ -21,12 +21,12 @@ export class ResourceBarLayer extends Layer {
 	private endTurnButton: Button | null = null;
 
 	// Current resource values
-	private currentAdrenaline: number = 0;
-	private maxAdrenaline: number = 3;
-	private drawPileCount: number = 0;
-	private discardPileCount: number = 0;
-	private fuelAmount: number = 0;
-	private scrapAmount: number = 0;
+	private currentAdrenaline = 0;
+	private maxAdrenaline = 3;
+	private drawPileCount = 0;
+	private discardPileCount = 0;
+	private fuelAmount = 0;
+	private scrapAmount = 0;
 
 	// Callbacks
 	private onEndTurn: (() => void) | null = null;
@@ -34,7 +34,7 @@ export class ResourceBarLayer extends Layer {
 	/**
 	 * Create resource bar layer
 	 */
-	constructor(options: any) {
+	constructor(options: { x: number; y: number; width: number; height: number }) {
 		super(options);
 		
 		// Background bar
@@ -99,7 +99,7 @@ export class ResourceBarLayer extends Layer {
 		);
 
 		// Scrap
-		currentX = this.createResourceDisplay(
+		this.createResourceDisplay(
 			currentX, iconSize, spacing,
 			'#8a6a4a', 'SCRAP', '⚙',
 			(icon, text) => {
@@ -118,7 +118,7 @@ export class ResourceBarLayer extends Layer {
 	/**
 	 * Create adrenaline lightning bolt display
 	 */
-	private createAdrenalineDisplay(startX: number, iconSize: number, spacing: number): number {
+	private createAdrenalineDisplay(startX: number, iconSize: number, _spacing: number): number {
 		let currentX = startX;
 
 		// Create lightning bolt icons

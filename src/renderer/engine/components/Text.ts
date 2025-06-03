@@ -21,7 +21,7 @@ export class Text extends Component {
 	private lineHeight = 1.2;
 	private whiteSpace: 'normal' | 'nowrap' = 'normal';
 	private textOverflow: 'visible' | 'hidden' | 'ellipsis' = 'visible';
-	private wrappedText: string = '';
+	private wrappedText = '';
 
 	/**
 	 * Create a new text component

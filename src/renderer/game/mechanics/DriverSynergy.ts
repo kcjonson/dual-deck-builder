@@ -38,8 +38,8 @@ export class DriverSynergy {
 	 * @returns Synergy analysis result
 	 */
 	public static analyzeSynergy(driver1: Driver, driver2: Driver): SynergyAnalysis {
-		const stats1 = driver1.getVehicleStats();
-		const stats2 = driver2.getVehicleStats();
+		// const stats1 = driver1.getVehicleStats(); // For future use
+		// const stats2 = driver2.getVehicleStats(); // For future use
 		
 		const compat1 = this.calculateStatCompatibility(driver1);
 		const compat2 = this.calculateStatCompatibility(driver2);
@@ -221,10 +221,10 @@ export class DriverSynergy {
 	private static synthesizeSynergyResult(
 		driver1: Driver, 
 		driver2: Driver,
-		offensive: any,
-		defensive: any,
-		speed: any,
-		utility: any
+		offensive: { score: number; description: string },
+		defensive: { score: number; description: string; warning?: string },
+		speed: { score: number; description: string },
+		utility: { score: number; description: string }
 	): SynergyAnalysis {
 		const avgScore = (offensive.score + defensive.score + speed.score + utility.score) / 4;
 		

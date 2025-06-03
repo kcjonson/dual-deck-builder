@@ -41,7 +41,11 @@ export class FontAtlas {
 		this.canvas = document.createElement('canvas');
 		this.canvas.width = atlasSize * devicePixelRatio;
 		this.canvas.height = atlasSize * devicePixelRatio;
-		this.context = this.canvas.getContext('2d')!;
+		const context = this.canvas.getContext('2d');
+		if (!context) {
+			throw new Error('Failed to get 2D context for font atlas');
+		}
+		this.context = context;
 		this.context.scale(devicePixelRatio, devicePixelRatio);
 
 		// Configure text rendering with anti-aliasing for smooth edges
@@ -52,7 +56,7 @@ export class FontAtlas {
 		this.context.imageSmoothingQuality = 'high';
 
 		// Calculate line height
-		const metrics = this.context.measureText('Mg');
+		// const metrics = this.context.measureText('Mg'); // For future use with actual metrics
 		this.lineHeight = fontSize * 1.2; // Standard line height
 
 		this.generateAtlas();

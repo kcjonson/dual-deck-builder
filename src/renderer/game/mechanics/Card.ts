@@ -27,7 +27,7 @@ export interface CardEffect {
 	distance?: number;
 	effect?: CardEffect;
 	description?: string;
-	[key: string]: any; // Allow additional properties for future expansion
+	[key: string]: string | number | CardEffect | undefined; // Allow additional properties for future expansion
 }
 
 /**
@@ -61,7 +61,7 @@ export interface CardData {
  */
 export class Card {
 	private data: CardData;
-	private upgraded: boolean = false;
+	private upgraded = false;
 
 	/**
 	 * Create a new card from data configuration

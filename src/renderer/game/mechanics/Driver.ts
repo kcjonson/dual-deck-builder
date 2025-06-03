@@ -1,6 +1,5 @@
 import { Card } from './Card';
 import { Deck } from './Deck';
-import { Vehicle } from './Vehicle';
 
 /**
  * Driver archetype defining playstyle and starting deck

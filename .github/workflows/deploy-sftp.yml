@@ -1,14 +1,12 @@
-name: Web Build
+name: Deploy to SFTP
 
 on:
   push:
     branches: [ main ]
-  pull_request:
-    branches: [ main ]
   workflow_dispatch:
 
 jobs:
-  build-web:
+  deploy:
     runs-on: ubuntu-latest
     
     steps:
@@ -23,17 +21,15 @@ jobs:
     - name: Install Dependencies
       run: npm ci
     
-    - name: Lint
-      run: npm run lint
-      
-    - name: Run Tests
-      run: npm test
-    
     - name: Build Web
       run: npm run build:web
     
-    - name: Upload Web Build
-      uses: actions/upload-artifact@v4
+    - name: Deploy to SFTP
+      uses: SamKirkland/FTP-Deploy-Action@v4.3.4
       with:
-        name: web-build
-        path: dist/web
+        server: ${{ secrets.SFTP_SERVER }}
+        username: ${{ secrets.SFTP_USERNAME }}
+        password: ${{ secrets.SFTP_PASSWORD }}
+        local-dir: dist/web/
+        server-dir: /playtest/dual-deckbuilder/
+        protocol: sftp

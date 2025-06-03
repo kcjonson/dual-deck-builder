@@ -20,14 +20,14 @@ export interface ArrowOptions {
 export class Arrow extends Component {
 	private line: Polygon;
 	private arrowHead: Polygon;
-	private startX: number = 0;
-	private startY: number = 0;
-	private endX: number = 0;
-	private endY: number = 0;
-	private lineWidth: number = 2;
-	private arrowHeadSize: number = 8;
-	private color: string = '#ffffff';
-	private hidden: boolean = true;
+	private startX = 0;
+	private startY = 0;
+	private endX = 0;
+	private endY = 0;
+	private lineWidth = 2;
+	private arrowHeadSize = 8;
+	private color = '#ffffff';
+	private hidden = true;
 
 	/**
 	 * Create a new arrow component

@@ -8,12 +8,14 @@ import { CardLoader } from './CardLoader';
 export class DriverLoader {
 	private static instance: DriverLoader;
 	private drivers: Map<DriverArchetype, Driver> = new Map();
-	private loaded: boolean = false;
+	private loaded = false;
 
 	/**
 	 * Private constructor for singleton pattern
 	 */
-	private constructor() {}
+	private constructor() {
+		// Private constructor for singleton pattern
+	}
 
 	/**
 	 * Get the singleton instance

@@ -149,8 +149,8 @@ export class InputSystem {
 		// Check if we clicked outside of the currently focused component
 		if (this.focusedComponent && !this.hoveredComponents.has(this.focusedComponent)) {
 			// Clicked outside the focused component - need to blur it
-			if ('onMouseDownOutside' in this.focusedComponent) {
-				(this.focusedComponent as any).onMouseDownOutside();
+			if ('onMouseDownOutside' in this.focusedComponent && typeof (this.focusedComponent as { onMouseDownOutside?: () => void }).onMouseDownOutside === 'function') {
+				(this.focusedComponent as { onMouseDownOutside: () => void }).onMouseDownOutside();
 			}
 		}
 		

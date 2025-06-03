@@ -36,7 +36,7 @@ export class Vehicle {
 	private passenger: Driver | null = null;
 	private position: VehiclePosition = VehiclePosition.BACK;
 	private statusEffects: Map<string, VehicleStatusEffect> = new Map();
-	private velocity: number = 0; // Calculated each turn
+	private velocity = 0; // Calculated each turn
 
 	/**
 	 * Create a new vehicle

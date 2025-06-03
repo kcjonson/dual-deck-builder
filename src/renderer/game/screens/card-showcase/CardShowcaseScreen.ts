@@ -6,6 +6,7 @@ import { Rectangle } from '../../../engine/components/Rectangle';
 import { Panel } from '../../../engine/ui/Panel';
 import { Card } from '../../../engine/ui/Card';
 import { CardLoader } from '../../core/CardLoader';
+import { Card as GameCard } from '../../mechanics/Card';
 
 /**
  * Screen for showcasing all available cards
@@ -116,7 +117,7 @@ export class CardShowcaseScreen extends Screen {
 	/**
 	 * Display cards in a grid layout
 	 */
-	private displayCards(cards: any[]): void {
+	private displayCards(cards: GameCard[]): void {
 		const cardDimensions = Card.getDimensions();
 		const margin = 20;
 		const cardSpacing = 20;
@@ -141,11 +142,11 @@ export class CardShowcaseScreen extends Screen {
 		currentY += 40;
 
 		// Display each card
-		for (const cardData of cards) {
+		for (const gameCard of cards) {
 			const cardComponent = new Card({
 				x: currentX,
 				y: currentY,
-				data: cardData,
+				data: gameCard,
 			});
 
 			this.cardsPanel.addChild(cardComponent);
@@ -176,7 +177,7 @@ export class CardShowcaseScreen extends Screen {
 	/**
 	 * Display cards organized by rarity
 	 */
-	private displayCardsByRarity(cards: any[], startY: number): void {
+	private displayCardsByRarity(cards: GameCard[], startY: number): void {
 		const rarities = ['starter', 'common', 'uncommon', 'rare', 'legendary'];
 		const cardDimensions = Card.getDimensions();
 		const margin = 20;
@@ -208,11 +209,11 @@ export class CardShowcaseScreen extends Screen {
 			let currentX = margin;
 			let cardsInCurrentRow = 0;
 
-			for (const cardData of rarityCards) {
+			for (const gameCard of rarityCards) {
 				const cardComponent = new Card({
 					x: currentX,
 					y: currentY,
-					data: cardData,
+					data: gameCard,
 				});
 
 				this.cardsPanel.addChild(cardComponent);
@@ -276,7 +277,7 @@ export class CardShowcaseScreen extends Screen {
 	/**
 	 * Update the screen
 	 */
-	public onUpdate(dt: number): void {
+	public onUpdate(_dt: number): void {
 		// Handle any updates
 	}
 

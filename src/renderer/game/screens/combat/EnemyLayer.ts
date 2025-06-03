@@ -54,7 +54,7 @@ export class EnemyLayer extends Layer {
 	/**
 	 * Create enemy layer
 	 */
-	constructor(options: any) {
+	constructor(options: { x: number; y: number; width: number; height: number }) {
 		super(options);
 		
 		// Background for enemy area
