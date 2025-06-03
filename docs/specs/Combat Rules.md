@@ -1,7 +1,16 @@
 ## Entity Types
 
-- Vehicle
+- Team
+- Vehicle  
 - Driver
+
+### Team
+
+- Properties
+  - Type: Player or Enemy
+  - Vehicles: Array of vehicles (Player teams have exactly 2, Enemy teams variable)
+- Derived States
+  - Defeated = All drivers dead
 
 ### Vehicle
 
@@ -9,33 +18,44 @@
   - Armor: 0 - infinite
   - Structure: 0 - infinite
   - Speed: 1-5
-  - Driver: driver
-  - Passenger: driver
+  - Driver: driver (required)
+  - Passenger: driver (optional)
 - Derived States
   - Alive = Structure > 0
 
 ### Driver
 
 - Properties
-  - Hitpoints 0 - infinite
-  - Speed 1-5
-  - Adrenaline 0 - infinite
+  - Hitpoints: 0 - infinite
+  - Speed: 1-5
+  - Individual Adrenaline Pool: 0 - infinite (refills each turn)
+  - Individual Hand of Cards: drawn from their personal deck
+  - Individual Discard Pile: their played cards
+  - Role: Active (driving) or Passenger
   - Skills 0 - 10
     - Ramming
     - Gunnery
     - Evade
+- Derived States
+  - Alive = Hitpoints > 0
+  - Can Play Attack Cards = Role is Active (passengers cannot play attack cards)
 
 ## Game State
 
-- Entities can be in any of 3 positions, Front, Back, Flanking.
-- Flanking - True if an entity is faster than another and they cast a card with Flanking
-- Game over - All drivers on a side are dead
-- Driver death - The vehicle they are driving is removed from the board
-- Vehicle death - Driver jumps to a remaining vehicle as a passenger
+- Vehicles can be in any of 3 positions, Front, Back, Flanking.
+- Flanking - True if a vehicle is faster than another and they cast a card with Flanking
+- Game over - All drivers on a team are dead
+- Driver death - If driver dies, vehicle becomes unmanned (if no passenger) or passenger becomes driver
+- Vehicle death - Driver jumps to a remaining team vehicle as a passenger (if space available)
 
 ## Combat sequence
 
-- Roll initiative for each driver(1-3). Add their speed and the vehicle speed to it. This is their velocity for the turn
+- Players always go first (initiative system to be determined later)
+- Each driver draws 5 cards from their personal deck into their individual hand
+- Each driver's adrenaline pool refills to maximum
+- Players can play cards from either driver's hand (single player) or their own driver's hand (co-op)
+- Cards cost adrenaline from the specific driver who plays them
+- Passengers can play support/utility cards but NOT attack cards
 
 ## Cards
 

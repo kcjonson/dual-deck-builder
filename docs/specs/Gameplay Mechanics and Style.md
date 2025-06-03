@@ -42,10 +42,15 @@ The game will follow a run-based roguelike structure. Players embark on perilous
 The game will feature a seamless drop-in/drop-out couch co-op mode where two players can team up, each controlling one of the drivers in the Symbiotic Driver System.
 
 - **Shared Screen Experience:** Both players will view and interact with the game on a single screen.
-- **Turn Structure:** During combat, players might take turns controlling their respective drivers, or a more integrated system where both players can play cards from their hand during a shared turn phase (using a common Adrenaline pool or individual pools that can be shared/transferred). Decisions on card plays can be discussed, but each player ultimately controls their character's actions.
+- **Turn Structure:** During combat, each player has their own individual Adrenaline pool that refills at the start of each turn. Players can play cards from their driver's deck as long as they have sufficient adrenaline. This ensures both players stay engaged even if one vehicle is destroyed - the surviving driver becomes a passenger but can still play non-attack cards from their deck using their own adrenaline pool.
 - **Decision Making:** Map navigation choices, event decisions, and shop purchases will ideally be made collaboratively. A simple confirmation system (e.g., both players must agree or one player initiates and the other confirms) could be implemented for key decisions.
 - **Resource Sharing:** Scrap and other collected resources will be shared. Decisions on how to spend them will be part_of the co-op strategy.
 - **Revival Mechanic (Co-op Specific):** If one player's vehicle is destroyed, the other player might have a limited opportunity (e.g., within a few turns, or by reaching a specific objective in the fight) to perform a risky maneuver or use a rare item to revive their partner, albeit with penalties (e.g., reduced health, discarded hand).
+- **Passenger Limitations:** When a driver becomes a passenger (due to vehicle destruction), they can still play cards from their deck using their own adrenaline pool, but with restrictions:
+  - **Cannot play attack cards** (ranged attacks, ramming, etc.)
+  - **Can play support cards** (repairs, buffs, defensive abilities)
+  - **Can play utility cards** (card draw, adrenaline generation, etc.)
+  - This keeps both players engaged while maintaining thematic consistency.
 
 ## 7\. Art Style and Presentation
 

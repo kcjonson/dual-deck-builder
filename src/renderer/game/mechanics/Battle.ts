@@ -1,57 +1,39 @@
+import { Team, TeamType } from './Team';
+import { Driver } from './Driver';
+import { Vehicle } from './Vehicle';
 import { Card } from './Card';
-import { Deck } from './Deck';
 
 /**
- * Battle participant type (player or enemy)
- */
-export enum BattleEntityType {
-	PLAYER = 'player',
-	ENEMY = 'enemy',
-}
-
-/**
- * Battle entity interface representing a participant in battle
- */
-export interface BattleEntity {
-	id: string;
-	type: BattleEntityType;
-	name: string;
-	health: number;
-	maxHealth: number;
-	energy: number;
-	maxEnergy: number;
-	block: number;
-	deck?: Deck;
-	hand?: Card[];
-	discard?: Card[];
-	effects: Map<string, number>; // Effect name -> effect duration/stacks
-}
-
-/**
- * Battle class representing a card battle
+ * Battle class representing vehicular combat using the Team system
+ * Implements the Symbiotic Driver System with individual driver hands and adrenaline pools
  */
 export class Battle {
-	private player: BattleEntity;
-	private enemies: BattleEntity[];
+	private playerTeam: Team;
+	private enemyTeam: Team;
 	private turn = 1;
-	private currentEntityIndex = 0; // 0 for player, 1+ for enemies
 	private isPlayerTurn = true;
 	private battleOver = false;
 	private battleWon = false;
 
 	/**
 	 * Create a new battle
-	 * @param player Player entity
-	 * @param enemies Enemy entities
 	 */
-	constructor(player: BattleEntity, enemies: BattleEntity[]) {
-		this.player = player;
-		this.enemies = [...enemies];
+	constructor({
+		playerTeam,
+		enemyTeam
+	}: {
+		playerTeam: Team;
+		enemyTeam: Team;
+	}) {
+		this.playerTeam = playerTeam;
+		this.enemyTeam = enemyTeam;
 
-		// Initialize player hand and discard pile if they have a deck
-		if (this.player.deck) {
-			this.player.hand = [];
-			this.player.discard = [];
+		// Validate team types
+		if (playerTeam.getType() !== TeamType.PLAYER) {
+			throw new Error('Player team must have type PLAYER');
+		}
+		if (enemyTeam.getType() !== TeamType.ENEMY) {
+			throw new Error('Enemy team must have type ENEMY');
 		}
 	}
 
@@ -59,32 +41,33 @@ export class Battle {
 	 * Start the battle
 	 */
 	public start(): void {
-		// Shuffle player deck
-		if (this.player.deck) {
-			this.player.deck.shuffle();
-		}
+		// Set initiative (players always go first)
+		this.playerTeam.setInitiative();
+		this.enemyTeam.setInitiative();
 
-		// Draw initial hand
-		this.drawPlayerHand(5);
+		// Draw initial hands for all drivers
+		this.playerTeam.drawCardsForAllDrivers(5);
+		this.enemyTeam.drawCardsForAllDrivers(5);
 
-		// Reset energy
-		this.player.energy = this.player.maxEnergy;
+		// Refill adrenaline for all drivers
+		this.playerTeam.refillAdrenaline();
+		this.enemyTeam.refillAdrenaline();
 
 		console.log('Battle started!');
 	}
 
 	/**
-	 * Get the current player entity
+	 * Get the player team
 	 */
-	public getPlayer(): BattleEntity {
-		return this.player;
+	public getPlayerTeam(): Team {
+		return this.playerTeam;
 	}
 
 	/**
-	 * Get all enemy entities
+	 * Get the enemy team
 	 */
-	public getEnemies(): BattleEntity[] {
-		return [...this.enemies];
+	public getEnemyTeam(): Team {
+		return this.enemyTeam;
 	}
 
 	/**
@@ -116,53 +99,45 @@ export class Battle {
 	}
 
 	/**
-	 * Play a card from the player's hand
-	 * @param cardIndex Index of the card in the player's hand
-	 * @param targetIndex Index of the target entity (0 for player, 1+ for enemies)
-	 * @returns Whether the card was played successfully
+	 * Play a card from a specific driver's hand
 	 */
-	public playCard(cardIndex: number, targetIndex: number): boolean {
+	public playCard({
+		driver,
+		cardIndex,
+		targetVehicle
+	}: {
+		driver: Driver;
+		cardIndex: number;
+		targetVehicle?: Vehicle;
+	}): boolean {
 		if (!this.isPlayerTurn) {
 			console.warn("Cannot play card: not player's turn");
 			return false;
 		}
 
-		if (!this.player.hand || cardIndex < 0 || cardIndex >= this.player.hand.length) {
-			console.warn('Invalid card index');
+		// Validate the driver belongs to the player team
+		const playerDrivers = this.playerTeam.getAllDrivers();
+		if (!playerDrivers.includes(driver)) {
+			console.warn('Driver does not belong to player team');
 			return false;
 		}
 
-		const card = this.player.hand[cardIndex];
-
-		// Check if player has enough energy
-		if (this.player.energy < card.getCost()) {
-			console.warn('Not enough energy to play this card');
+		// Attempt to play the card with cost validation
+		const result = driver.playCardWithCost(cardIndex);
+		
+		if (!result.success) {
+			console.warn(`Cannot play card: ${result.reason}`);
 			return false;
 		}
 
-		// Validate target
-		let target: BattleEntity | undefined;
-		if (targetIndex === 0) {
-			target = this.player;
-		} else if (targetIndex > 0 && targetIndex <= this.enemies.length) {
-			target = this.enemies[targetIndex - 1];
-		}
-
-		if (!target) {
-			console.warn('Invalid target');
-			return false;
-		}
+		const card = result.card!;
 
 		// Apply card effects
-		this.applyCardEffects(card, target);
-
-		// Spend energy
-		this.player.energy -= card.getCost();
-
-		// Move card to discard pile
-		if (this.player.hand && this.player.discard) {
-			this.player.hand.splice(cardIndex, 1);
-			this.player.discard.push(card);
+		if (targetVehicle) {
+			this.applyCardEffects(card, targetVehicle, driver);
+		} else {
+			// Self-targeting or no target needed
+			this.applyCardEffects(card, null, driver);
 		}
 
 		// Check if battle is over
@@ -179,15 +154,11 @@ export class Battle {
 			return;
 		}
 
-		// Discard hand
-		if (this.player.hand && this.player.discard) {
-			this.player.discard.push(...this.player.hand);
-			this.player.hand = [];
-		}
+		// Discard hands for all player drivers
+		this.playerTeam.discardAllHands();
 
 		// Start enemy turn
 		this.isPlayerTurn = false;
-		this.currentEntityIndex = 1; // First enemy
 
 		// Process enemy turns
 		this.processEnemyTurns();
@@ -197,22 +168,21 @@ export class Battle {
 	 * Process enemy turns
 	 */
 	private processEnemyTurns(): void {
-		// Check if battle is over
 		if (this.battleOver) {
 			return;
 		}
 
-		// Process each enemy's turn
-		for (let i = 0; i < this.enemies.length; i++) {
-			const enemy = this.enemies[i];
-
-			// Skip dead enemies
-			if (enemy.health <= 0) {
+		// Execute AI actions for each enemy driver
+		const enemyDrivers = this.enemyTeam.getAliveDrivers();
+		
+		for (const enemyDriver of enemyDrivers) {
+			// Skip if driver can't act (passenger restrictions, etc.)
+			if (!enemyDriver.canPlayAttackCards() && this.hasOnlyAttackCards(enemyDriver)) {
 				continue;
 			}
 
 			// Execute enemy AI action
-			this.executeEnemyAction(enemy);
+			this.executeEnemyAction(enemyDriver);
 
 			// Check if battle is over after enemy action
 			this.checkBattleStatus();
@@ -226,19 +196,51 @@ export class Battle {
 	}
 
 	/**
-	 * Execute an enemy's action
-	 * @param enemy Enemy entity
+	 * Check if driver only has attack cards
 	 */
-	private executeEnemyAction(enemy: BattleEntity): void {
-		// This would contain the enemy AI logic
-		// For example, the enemy might attack, defend, or use special abilities
+	private hasOnlyAttackCards(driver: Driver): boolean {
+		const hand = driver.getHand();
+		return hand.length > 0 && hand.every(card => this.isAttackCard(card));
+	}
 
-		// Example: Simple attack action
-		const damage = 5; // This would be determined by the enemy's stats and logic
-		this.player.health -= Math.max(0, damage - this.player.block);
-		this.player.block = Math.max(0, this.player.block - damage);
+	/**
+	 * Check if a card is an attack card
+	 */
+	private isAttackCard(card: Card): boolean {
+		const effects = card.getEffects();
+		return effects.some(effect => 
+			effect.type === 'damage' || 
+			effect.type === 'ram' ||
+			card.getName().toLowerCase().includes('attack') ||
+			card.getName().toLowerCase().includes('shot') ||
+			card.getName().toLowerCase().includes('ram')
+		);
+	}
 
-		console.log(`${enemy.name} attacks for ${damage} damage!`);
+	/**
+	 * Execute an enemy's action (AI)
+	 */
+	private executeEnemyAction(enemyDriver: Driver): void {
+		const hand = enemyDriver.getHand();
+		if (hand.length === 0) return;
+
+		// Simple AI: play first affordable card
+		for (let i = 0; i < hand.length; i++) {
+			const card = hand[i];
+			
+			if (enemyDriver.canPlayCard(card)) {
+				// Choose target (for now, target first alive player vehicle)
+				const playerVehicles = this.playerTeam.getAliveVehicles();
+				const target = playerVehicles.length > 0 ? playerVehicles[0] : null;
+
+				const result = enemyDriver.playCardWithCost(i);
+				if (result.success && result.card) {
+					this.applyCardEffects(result.card, target, enemyDriver);
+					console.log(`${enemyDriver.getName()} plays ${result.card.getName()}`);
+				}
+				break;
+			}
+		}
 	}
 
 	/**
@@ -248,163 +250,89 @@ export class Battle {
 		// Increment turn counter
 		this.turn++;
 
-		// Reset player energy
-		this.player.energy = this.player.maxEnergy;
+		// Process status effects for all vehicles
+		this.playerTeam.processStatusEffects();
+		this.enemyTeam.processStatusEffects();
 
-		// Draw new hand
-		this.drawPlayerHand(5);
+		// Refill adrenaline for all drivers
+		this.playerTeam.refillAdrenaline();
+		this.enemyTeam.refillAdrenaline();
+
+		// Draw new hands for all drivers
+		this.playerTeam.drawCardsForAllDrivers(5);
+		this.enemyTeam.drawCardsForAllDrivers(5);
 
 		// Set turn state
 		this.isPlayerTurn = true;
-		this.currentEntityIndex = 0;
-
-		// Apply ongoing effects (like poison, regeneration, etc.)
-		this.applyStatusEffects();
 
 		console.log(`Player turn ${this.turn} started`);
 	}
 
 	/**
-	 * Draw cards for the player's hand
-	 * @param count Number of cards to draw
-	 */
-	private drawPlayerHand(count: number): void {
-		if (!this.player.deck || !this.player.hand || !this.player.discard) {
-			return;
-		}
-
-		for (let i = 0; i < count; i++) {
-			// Try to draw from deck
-			const card = this.player.deck.draw();
-
-			if (card) {
-				// Successfully drew a card
-				this.player.hand.push(card);
-			} else {
-				// Deck is empty, shuffle discard pile into deck
-				if (this.player.discard.length > 0) {
-					const discardedCards = [...this.player.discard];
-					this.player.discard = [];
-
-					// Add cards back to deck and shuffle
-					for (const discardedCard of discardedCards) {
-						this.player.deck.addCard(discardedCard);
-					}
-					this.player.deck.shuffle();
-
-					// Try drawing again
-					const reshuffledCard = this.player.deck.draw();
-					if (reshuffledCard) {
-						this.player.hand.push(reshuffledCard);
-					}
-				} else {
-					// Both deck and discard are empty, can't draw more cards
-					break;
-				}
-			}
-		}
-	}
-
-	/**
-	 * Apply status effects at the start of the turn
-	 */
-	private applyStatusEffects(): void {
-		// Apply effects for player
-		this.applyEntityStatusEffects(this.player);
-
-		// Apply effects for enemies
-		for (const enemy of this.enemies) {
-			this.applyEntityStatusEffects(enemy);
-		}
-	}
-
-	/**
-	 * Apply status effects to an entity
-	 * @param entity The entity to apply effects to
-	 */
-	private applyEntityStatusEffects(entity: BattleEntity): void {
-		// Process each effect
-		entity.effects.forEach((value, effectName) => {
-			switch (effectName) {
-				case 'poison':
-					// Apply poison damage
-					entity.health -= value;
-					// Reduce poison by 1
-					entity.effects.set(effectName, value - 1);
-					console.log(`${entity.name} takes ${value} poison damage`);
-					break;
-
-				case 'regeneration':
-					// Apply healing
-					entity.health = Math.min(entity.health + value, entity.maxHealth);
-					// Reduce regeneration by 1
-					entity.effects.set(effectName, value - 1);
-					console.log(`${entity.name} regenerates ${value} health`);
-					break;
-
-				// Add more effects as needed
-			}
-
-			// Remove effect if duration is over
-			const effectDuration = entity.effects.get(effectName);
-			if (effectDuration !== undefined && effectDuration <= 0) {
-				entity.effects.delete(effectName);
-			}
-		});
-	}
-
-	/**
 	 * Apply card effects to a target
-	 * @param card The card being played
-	 * @param target The target entity
 	 */
-	private applyCardEffects(card: Card, target: BattleEntity): void {
+	private applyCardEffects(card: Card, targetVehicle: Vehicle | null, caster: Driver): void {
 		// Process each effect on the card
 		for (const effect of card.getEffects()) {
 			switch (effect.type) {
 				case 'damage':
-					// Apply damage to target
-					const damage = effect.value || 0;
-					target.health -= Math.max(0, damage - target.block);
-					target.block = Math.max(0, target.block - damage);
-					console.log(`${card.getName()} deals ${damage} damage to ${target.name}`);
-					break;
-
-				case 'block':
-					// Add block to player
-					const blockValue = effect.value || 0;
-					this.player.block += blockValue;
-					console.log(`${card.getName()} gives ${blockValue} block`);
+					if (targetVehicle) {
+						const damage = effect.value || 0;
+						targetVehicle.takeDamage(damage);
+						console.log(`${card.getName()} deals ${damage} damage to ${targetVehicle.getName()}`);
+						
+						// Handle vehicle destruction
+						if (!targetVehicle.isAlive()) {
+							const owningTeam = this.getTeamForVehicle(targetVehicle);
+							if (owningTeam) {
+								owningTeam.handleVehicleDestruction(targetVehicle);
+							}
+						}
+					}
 					break;
 
 				case 'heal':
-					// Heal target
-					const healValue = effect.value || 0;
-					target.health = Math.min(target.health + healValue, target.maxHealth);
-					console.log(`${card.getName()} heals ${healValue} health`);
+					if (targetVehicle) {
+						const healValue = effect.value || 0;
+						targetVehicle.repair(healValue);
+						console.log(`${card.getName()} repairs ${healValue} structure on ${targetVehicle.getName()}`);
+					}
+					break;
+
+				case 'armor':
+					if (targetVehicle) {
+						const armorValue = effect.value || 0;
+						targetVehicle.addArmor(armorValue);
+						console.log(`${card.getName()} adds ${armorValue} armor to ${targetVehicle.getName()}`);
+					}
 					break;
 
 				case 'draw':
-					// Draw cards
 					const drawValue = effect.value || 0;
-					this.drawPlayerHand(drawValue);
-					console.log(`${card.getName()} draws ${drawValue} cards`);
+					caster.drawCards(drawValue);
+					console.log(`${card.getName()} draws ${drawValue} cards for ${caster.getName()}`);
 					break;
 
-				case 'energy':
-					// Gain energy
-					const energyValue = effect.value || 0;
-					this.player.energy += energyValue;
-					console.log(`${card.getName()} gives ${energyValue} energy`);
+				case 'adrenaline':
+					const adrenalineValue = effect.value || 0;
+					caster.gainAdrenaline(adrenalineValue);
+					console.log(`${card.getName()} gives ${adrenalineValue} adrenaline to ${caster.getName()}`);
 					break;
 
 				case 'status':
-					// Apply status effect
-					const statusName = (effect.description || 'unknown').toLowerCase();
-					const statusValue = effect.value || 0;
-					const currentValue = target.effects.get(statusName) || 0;
-					target.effects.set(statusName, currentValue + statusValue);
-					console.log(`${card.getName()} applies ${statusValue} ${statusName} to ${target.name}`);
+					if (targetVehicle) {
+						const statusName = (effect.description || 'unknown').toLowerCase();
+						const statusValue = effect.value || 0;
+						const duration = effect.duration || 1;
+						
+						targetVehicle.applyStatusEffect({
+							name: statusName,
+							duration: duration,
+							value: statusValue,
+							description: effect.description
+						});
+						console.log(`${card.getName()} applies ${statusName} to ${targetVehicle.getName()}`);
+					}
 					break;
 
 				// Add more effect types as needed
@@ -413,24 +341,57 @@ export class Battle {
 	}
 
 	/**
+	 * Get the team that owns a specific vehicle
+	 */
+	private getTeamForVehicle(vehicle: Vehicle): Team | null {
+		if (this.playerTeam.getVehicles().includes(vehicle)) {
+			return this.playerTeam;
+		}
+		if (this.enemyTeam.getVehicles().includes(vehicle)) {
+			return this.enemyTeam;
+		}
+		return null;
+	}
+
+	/**
 	 * Check if the battle is over
 	 */
 	private checkBattleStatus(): void {
-		// Check if player is defeated
-		if (this.player.health <= 0) {
+		// Check if player team is defeated
+		if (this.playerTeam.isDefeated()) {
 			this.battleOver = true;
 			this.battleWon = false;
-			console.log('Battle lost: Player defeated');
+			console.log('Battle lost: All player drivers defeated');
 			return;
 		}
 
-		// Check if all enemies are defeated
-		const allEnemiesDefeated = this.enemies.every((enemy) => enemy.health <= 0);
-		if (allEnemiesDefeated) {
+		// Check if enemy team is defeated
+		if (this.enemyTeam.isDefeated()) {
 			this.battleOver = true;
 			this.battleWon = true;
-			console.log('Battle won: All enemies defeated');
+			console.log('Battle won: All enemy drivers defeated');
 			return;
 		}
+	}
+
+	/**
+	 * Get battle statistics for display
+	 */
+	public getBattleStats(): {
+		turn: number;
+		isPlayerTurn: boolean;
+		battleOver: boolean;
+		battleWon: boolean;
+		playerTeam: ReturnType<Team['getCombatStats']>;
+		enemyTeam: ReturnType<Team['getCombatStats']>;
+	} {
+		return {
+			turn: this.turn,
+			isPlayerTurn: this.isPlayerTurn,
+			battleOver: this.battleOver,
+			battleWon: this.battleWon,
+			playerTeam: this.playerTeam.getCombatStats(),
+			enemyTeam: this.enemyTeam.getCombatStats()
+		};
 	}
 }

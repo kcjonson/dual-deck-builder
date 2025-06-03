@@ -4,6 +4,51 @@ This document contains the chronological log of completed development tasks for 
 
 =========================================
 
+## Dual Driver/Vehicle System Architecture Implementation (2025-01-06)
+
+### Tasks Completed
+- **Major System Redesign**: Implemented proper Symbiotic Driver System architecture
+
+### Key Changes Made
+1. **Created Vehicle Class** (`src/renderer/game/mechanics/Vehicle.ts`)
+   - Separate entity with armor, structure, speed, and status effects
+   - Handles damage flow (armor → structure + occupants)
+   - Supports driver + optional passenger
+
+2. **Enhanced Driver Class** (`src/renderer/game/mechanics/Driver.ts`)
+   - Individual adrenaline pools (essential for co-op gameplay)
+   - Personal hands of cards drawn from individual decks
+   - Combat skills (ramming, gunnery, evade)
+   - Role system: Active drivers vs Passengers with card restrictions
+
+3. **Created Team System** (`src/renderer/game/mechanics/Team.ts`)
+   - Player teams: exactly 2 vehicles
+   - Enemy teams: variable number of vehicles
+   - Manages vehicle destruction and driver reassignment
+
+4. **Redesigned Battle System** (`src/renderer/game/mechanics/Battle.ts`)
+   - Team-based combat instead of single BattleEntity approach
+   - Supports individual driver hands and adrenaline management
+   - Handles passenger restrictions (no attack cards)
+
+5. **Updated Documentation**
+   - Combat Rules spec updated to reflect new architecture
+   - Gameplay Mechanics spec clarified individual adrenaline pools
+   - Simplified initiative system (players always go first)
+
+### Technical Decisions
+- **Individual Driver Hands**: Each driver manages their own deck/hand/discard
+- **Co-op Support**: Separate adrenaline pools keep both players engaged
+- **Passenger System**: Maintains gameplay after vehicle destruction
+- **Team Architecture**: Clean separation between player/enemy sides
+
+### Next Steps
+- Update CombatScreen to use new Team/Driver architecture
+- Implement vehicle creation from driver configurations
+- Add proper UI for dual driver resource management
+
+=========================================
+
 ## Combat Screen Implementation & Project Reorganization (2025-01-06)
 
 ### Tasks Completed

@@ -212,15 +212,15 @@ For a complete log of recently completed tasks, see: [AI Development Log](./AI_D
   - [x] Reorganized screens folder structure (each screen has own subfolder)
   - [x] Refactored screen lifecycle (activate/deactivate → mount/unmount)
   - [x] Added proper state reset for screens on unmount
-- [ ] **Task 8**: Implement turn-based combat system foundation (IN PROGRESS)
-  - [x] Basic card playing mechanics with adrenaline cost
-  - [x] Target selection system (click card, then click target)
-  - [x] Enemy intent system with visual indicators
-  - [x] End turn functionality
-  - [ ] Card drawing from combined driver decks
-  - [ ] Proper damage calculation with armor
-  - [ ] Status effect system
-  - [ ] Enemy AI actions
+- [x] **Task 8**: Implement dual driver/vehicle system foundation ✅ COMPLETED
+  - [x] Created Vehicle class with combat stats (armor, structure, speed)
+  - [x] Updated Driver class with individual adrenaline pools and hands
+  - [x] Implemented Team-based architecture (Player team: 2 vehicles, Enemy team: variable)
+  - [x] Redesigned Battle system to use Teams instead of single BattleEntity
+  - [x] Added driver role system (Active vs Passenger with card restrictions)
+  - [x] Updated Combat Rules documentation to reflect new system
+  - [x] Simplified initiative system (players always go first)
+  - [ ] Update CombatScreen to use new Team/Driver architecture
 
 ### Phase Three (Core Mechanics)
 
@@ -228,7 +228,7 @@ For a complete log of recently completed tasks, see: [AI Development Log](./AI_D
 - [ ] **Task 7**: Implement card dragging and targeting system
 - [ ] **Task 8**: Build initiative/velocity system for turn order
 - [ ] **Task 9**: Create positioning system (Front/Back/Flanking)
-- [ ] **Task 10**: Implement shared Adrenaline resource pool
+- [ ] **Task 10**: Implement individual Adrenaline pools per driver (for co-op support)
 - [ ] **Task 11**: Add hit calculation system with gunnery vs evade
 - [ ] **Task 12**: Create damage flow system (armor then structure)
 

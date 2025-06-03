@@ -1,10 +1,20 @@
 import { Card } from './Card';
 import { Deck } from './Deck';
+import { Vehicle } from './Vehicle';
 
 /**
  * Driver archetype defining playstyle and starting deck
  */
 export type DriverArchetype = 'road_warrior' | 'interceptor' | 'mechanic' | 'raider';
+
+/**
+ * Driver combat skills based on Combat Rules specification
+ */
+export interface DriverSkills {
+	ramming: number; // 0-10, affects ramming attack accuracy
+	gunnery: number; // 0-10, affects ranged attack accuracy  
+	evade: number; // 0-10, affects defensive capabilities
+}
 
 /**
  * Vehicle stats that affect combat mechanics
@@ -45,22 +55,52 @@ export interface StartingDeckConfig {
 export interface DriverConfig {
 	id: DriverArchetype;
 	metadata: DriverMetadata;
+	skills: DriverSkills;
 	vehicleStats: VehicleStats;
 	startingDeck: StartingDeckConfig;
 }
 
 /**
- * Driver class representing a character/vehicle combination
+ * Driver role in combat (affects card restrictions)
+ */
+export enum DriverRole {
+	ACTIVE = 'active', // Driver controlling their own vehicle
+	PASSENGER = 'passenger' // Driver whose vehicle was destroyed, now in another vehicle
+}
+
+/**
+ * Driver class representing a character with combat skills and individual adrenaline pool
  */
 export class Driver {
 	private config: DriverConfig;
 	private deck: Deck | null = null;
+	private hand: Card[] = [];
+	private discard: Card[] = [];
+	private hitpoints: number;
+	private maxHitpoints: number;
+	private speed: number;
+	private adrenaline: number;
+	private maxAdrenaline: number;
+	private role: DriverRole = DriverRole.ACTIVE;
 
 	/**
 	 * Create a new driver from configuration
 	 */
-	constructor({ config }: { config: DriverConfig }) {
+	constructor({ 
+		config,
+		hitpoints = 30,
+		adrenaline = 3
+	}: { 
+		config: DriverConfig;
+		hitpoints?: number;
+		adrenaline?: number;
+	}) {
 		this.config = { ...config };
+		this.hitpoints = hitpoints;
+		this.maxHitpoints = hitpoints;
+		this.speed = config.skills?.ramming || 1; // Driver speed based on ramming skill
+		this.adrenaline = adrenaline;
+		this.maxAdrenaline = adrenaline;
 	}
 
 	/**
@@ -190,10 +230,284 @@ export class Driver {
 	}
 
 	/**
+	 * Get driver's current hitpoints
+	 */
+	public getHitpoints(): number {
+		return this.hitpoints;
+	}
+
+	/**
+	 * Get driver's maximum hitpoints
+	 */
+	public getMaxHitpoints(): number {
+		return this.maxHitpoints;
+	}
+
+	/**
+	 * Check if driver is alive
+	 */
+	public isAlive(): boolean {
+		return this.hitpoints > 0;
+	}
+
+	/**
+	 * Take damage
+	 */
+	public takeDamage(damage: number): void {
+		this.hitpoints = Math.max(0, this.hitpoints - damage);
+	}
+
+	/**
+	 * Heal hitpoints
+	 */
+	public heal(amount: number): void {
+		this.hitpoints = Math.min(this.maxHitpoints, this.hitpoints + amount);
+	}
+
+	/**
+	 * Get driver's speed
+	 */
+	public getSpeed(): number {
+		return this.speed;
+	}
+
+	/**
+	 * Get driver's combat skills
+	 */
+	public getSkills(): DriverSkills {
+		return { ...this.config.skills };
+	}
+
+	/**
+	 * Get current adrenaline
+	 */
+	public getAdrenaline(): number {
+		return this.adrenaline;
+	}
+
+	/**
+	 * Get maximum adrenaline
+	 */
+	public getMaxAdrenaline(): number {
+		return this.maxAdrenaline;
+	}
+
+	/**
+	 * Spend adrenaline (returns true if successful)
+	 */
+	public spendAdrenaline(amount: number): boolean {
+		if (this.adrenaline >= amount) {
+			this.adrenaline -= amount;
+			return true;
+		}
+		return false;
+	}
+
+	/**
+	 * Gain adrenaline
+	 */
+	public gainAdrenaline(amount: number): void {
+		this.adrenaline = Math.min(this.maxAdrenaline, this.adrenaline + amount);
+	}
+
+	/**
+	 * Refill adrenaline to maximum
+	 */
+	public refillAdrenaline(): void {
+		this.adrenaline = this.maxAdrenaline;
+	}
+
+	/**
+	 * Get driver's current role
+	 */
+	public getRole(): DriverRole {
+		return this.role;
+	}
+
+	/**
+	 * Set driver's role
+	 */
+	public setRole(role: DriverRole): void {
+		this.role = role;
+	}
+
+	/**
+	 * Check if driver can play attack cards
+	 */
+	public canPlayAttackCards(): boolean {
+		return this.role === DriverRole.ACTIVE;
+	}
+
+	/**
+	 * Get driver's hand
+	 */
+	public getHand(): Card[] {
+		return [...this.hand];
+	}
+
+	/**
+	 * Get driver's discard pile
+	 */
+	public getDiscardPile(): Card[] {
+		return [...this.discard];
+	}
+
+	/**
+	 * Add card to hand
+	 */
+	public addToHand(card: Card): void {
+		this.hand.push(card);
+	}
+
+	/**
+	 * Remove card from hand and add to discard pile
+	 */
+	public playCard(cardIndex: number): Card | null {
+		if (cardIndex < 0 || cardIndex >= this.hand.length) {
+			return null;
+		}
+
+		const card = this.hand.splice(cardIndex, 1)[0];
+		this.discard.push(card);
+		return card;
+	}
+
+	/**
+	 * Play a card with adrenaline cost validation and restrictions
+	 */
+	public playCardWithCost(cardIndex: number): { success: boolean; card: Card | null; reason?: string } {
+		const card = this.hand[cardIndex];
+		
+		if (!card) {
+			return { success: false, card: null, reason: 'Invalid card index' };
+		}
+
+		// Check if driver can afford the card
+		if (this.adrenaline < card.getCost()) {
+			return { success: false, card: null, reason: 'Not enough adrenaline' };
+		}
+
+		// Check card restrictions for passengers
+		if (!this.canPlayAttackCards() && this.isAttackCard(card)) {
+			return { success: false, card: null, reason: 'Passengers cannot play attack cards' };
+		}
+
+		// Spend adrenaline and play card
+		if (this.spendAdrenaline(card.getCost())) {
+			const playedCard = this.playCard(cardIndex);
+			return { success: true, card: playedCard };
+		}
+
+		return { success: false, card: null, reason: 'Failed to spend adrenaline' };
+	}
+
+	/**
+	 * Check if a card is an attack card
+	 */
+	private isAttackCard(card: Card): boolean {
+		const effects = card.getEffects();
+		return effects.some(effect => 
+			effect.type === 'damage' || 
+			effect.type === 'ram' ||
+			card.getName().toLowerCase().includes('attack') ||
+			card.getName().toLowerCase().includes('shot') ||
+			card.getName().toLowerCase().includes('ram')
+		);
+	}
+
+	/**
+	 * Draw cards from driver's deck into their hand
+	 */
+	public drawCards(count: number): void {
+		if (!this.deck) return;
+
+		for (let i = 0; i < count; i++) {
+			const card = this.deck.draw();
+			
+			if (card) {
+				this.addToHand(card);
+			} else {
+				// Deck is empty, try to reshuffle discard pile
+				if (this.discard.length > 0) {
+					this.reshuffleDiscardIntoDeck();
+					const reshuffledCard = this.deck.draw();
+					if (reshuffledCard) {
+						this.addToHand(reshuffledCard);
+					}
+				}
+				// If still no cards available, break
+				if (!this.deck.draw()) {
+					break;
+				}
+			}
+		}
+	}
+
+	/**
+	 * Discard entire hand
+	 */
+	public discardHand(): void {
+		this.discard.push(...this.hand);
+		this.hand = [];
+	}
+
+	/**
+	 * Reshuffle discard pile back into deck
+	 */
+	private reshuffleDiscardIntoDeck(): void {
+		if (!this.deck) return;
+
+		const discardedCards = [...this.discard];
+		this.discard = [];
+		
+		for (const card of discardedCards) {
+			this.deck.addCard(card);
+		}
+		
+		this.deck.shuffle();
+	}
+
+	/**
+	 * Check if driver can afford a specific card
+	 */
+	public canAffordCard(card: Card): boolean {
+		return this.adrenaline >= card.getCost();
+	}
+
+	/**
+	 * Check if driver can play a specific card (cost + restrictions)
+	 */
+	public canPlayCard(card: Card): boolean {
+		if (!this.canAffordCard(card)) {
+			return false;
+		}
+
+		// Check passenger restrictions
+		if (!this.canPlayAttackCards() && this.isAttackCard(card)) {
+			return false;
+		}
+
+		return true;
+	}
+
+	/**
 	 * Create a copy of this driver
 	 */
 	public copy(): Driver {
-		const newDriver = new Driver({ config: JSON.parse(JSON.stringify(this.config)) });
+		const newDriver = new Driver({ 
+			config: JSON.parse(JSON.stringify(this.config)),
+			hitpoints: this.maxHitpoints,
+			adrenaline: this.maxAdrenaline
+		});
+		
+		// Copy current state
+		newDriver.hitpoints = this.hitpoints;
+		newDriver.adrenaline = this.adrenaline;
+		newDriver.role = this.role;
+		
+		// Copy hand and discard
+		newDriver.hand = this.hand.map(card => card.copy());
+		newDriver.discard = this.discard.map(card => card.copy());
 		
 		if (this.deck) {
 			newDriver.setDeck(this.deck.copy());
@@ -217,6 +531,11 @@ export const DRIVER_CONFIGS: Record<DriverArchetype, DriverConfig> = {
 			portraitImage: 'drivers/road_warrior_portrait.png',
 			vehicleImage: 'vehicles/apocalypse_rig.png',
 			unlocked: true
+		},
+		skills: {
+			ramming: 8,
+			gunnery: 4,
+			evade: 3
 		},
 		vehicleStats: {
 			maxHealth: 80,
@@ -249,6 +568,11 @@ export const DRIVER_CONFIGS: Record<DriverArchetype, DriverConfig> = {
 			vehicleImage: 'vehicles/lightning_bike.png',
 			unlocked: true
 		},
+		skills: {
+			ramming: 3,
+			gunnery: 9,
+			evade: 8
+		},
 		vehicleStats: {
 			maxHealth: 50,
 			weight: 1,
@@ -280,6 +604,11 @@ export const DRIVER_CONFIGS: Record<DriverArchetype, DriverConfig> = {
 			vehicleImage: 'vehicles/mobile_workshop.png',
 			unlocked: true
 		},
+		skills: {
+			ramming: 4,
+			gunnery: 6,
+			evade: 5
+		},
 		vehicleStats: {
 			maxHealth: 60,
 			weight: 3,
@@ -310,6 +639,11 @@ export const DRIVER_CONFIGS: Record<DriverArchetype, DriverConfig> = {
 			vehicleImage: 'vehicles/spike_buggy.png',
 			unlocked: false,
 			unlockCondition: 'Complete a run with any driver'
+		},
+		skills: {
+			ramming: 7,
+			gunnery: 6,
+			evade: 4
 		},
 		vehicleStats: {
 			maxHealth: 65,
