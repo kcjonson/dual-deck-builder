@@ -3,7 +3,7 @@ import { Renderer } from '../../../engine/rendering/Renderer';
 import { Rectangle } from '../../../engine/components/Rectangle';
 import { Arrow } from '../../../engine/components/Arrow';
 import { EnemyLayer, EnemyVehicle } from './EnemyLayer';
-import { BattlefieldLayer, PlayerVehicle } from './BattlefieldLayer';
+import { BattlefieldLayer, PlayerVehicle, StatusEffect } from './BattlefieldLayer';
 import { PlayerHandLayer } from './PlayerHandLayer';
 import { ResourceBarLayer } from './ResourceBarLayer';
 import { Driver } from '../../mechanics/Driver';
@@ -13,6 +13,7 @@ import { Battle } from '../../mechanics/Battle';
 import { Card } from '../../mechanics/Card';
 import { CardLoader } from '../../core/CardLoader';
 import { InputSystem } from '../../../engine/input/InputSystem';
+import { Button } from '../../../engine/ui/Button';
 
 /**
  * Combat Screen implementing Game Flow Spec section 2
@@ -29,7 +30,6 @@ export class CombatScreen extends Screen {
 	private battle: Battle | null = null;
 	private playerTeam: Team | null = null;
 	private enemyTeam: Team | null = null;
-	private currentPlayerDriver: Driver | null = null; // For single player mode
 	private fuel: number = 5;
 	private scrap: number = 150;
 	
@@ -69,14 +69,23 @@ export class CombatScreen extends Screen {
 	/**
 	 * Initialize combat with driver teams and vehicles
 	 */
-	public initializeCombat(drivers: Driver[]): void {
+	public async initializeCombat(drivers: Driver[]): Promise<void> {
 		if (drivers.length !== 2) {
 			throw new Error('Combat requires exactly 2 drivers');
 		}
 
 		try {
+			// Ensure cards are loaded
+			const cardLoader = CardLoader.getInstance();
+			await cardLoader.loadCards();
+			const availableCards = cardLoader.getAllCards();
+
 			// Create vehicles from driver configurations
 			const [driver1, driver2] = drivers;
+			
+			// Create starting decks for drivers
+			driver1.createStartingDeck(cardLoader.getAllCardsAsMap());
+			driver2.createStartingDeck(cardLoader.getAllCardsAsMap());
 			
 			// Create vehicles based on driver configs
 			const vehicle1 = this.createVehicleFromDriver(driver1);
@@ -101,9 +110,6 @@ export class CombatScreen extends Screen {
 				playerTeam: this.playerTeam,
 				enemyTeam: this.enemyTeam
 			});
-
-			// Set current driver for single player mode (first driver by default)
-			this.currentPlayerDriver = driver1;
 
 			// Start the battle
 			this.battle.start();
@@ -140,7 +146,7 @@ export class CombatScreen extends Screen {
 		// Create enemy drivers with basic configs
 		const enemyDriver1 = new Driver({
 			config: {
-				id: 'raider',
+				id: 'raider' as any, // Using 'raider' for enemy
 				metadata: {
 					name: 'Wasteland Raider',
 					vehicleName: 'Rust Buggy',
@@ -170,6 +176,10 @@ export class CombatScreen extends Screen {
 			}
 		});
 
+		// Create starting deck for enemy
+		const cardLoader = CardLoader.getInstance();
+		enemyDriver1.createStartingDeck(cardLoader.getAllCardsAsMap());
+
 		const enemyVehicle1 = new Vehicle({
 			id: 'enemy_vehicle_1',
 			name: 'Rust Buggy',
@@ -195,28 +205,73 @@ export class CombatScreen extends Screen {
 
 		const battleStats = this.battle.getBattleStats();
 		
-		// Update resource layer with current driver's stats
-		if (this.currentPlayerDriver) {
+		// Get both drivers
+		const drivers = this.playerTeam.getAllDrivers();
+		if (drivers.length >= 2) {
+			const [driver1, driver2] = drivers;
+			
+			// Show combined hand from both drivers
+			const combinedHand: Card[] = [...driver1.getHand(), ...driver2.getHand()];
+			this.handLayer.setHand(combinedHand);
+			
+			// Set adrenaline for hand layer (using combined adrenaline for now)
+			// TODO: Track which driver owns which card for proper adrenaline checking
+			const totalAdrenaline = driver1.getAdrenaline() + driver2.getAdrenaline();
+			this.handLayer.setAdrenaline(totalAdrenaline);
+			
+			// For now, show the first driver's stats in resource bar
+			// TODO: Update resource bar to show both drivers' adrenaline
 			this.resourceLayer.setAdrenaline(
-				this.currentPlayerDriver.getAdrenaline(),
-				this.currentPlayerDriver.getMaxAdrenaline()
+				driver1.getAdrenaline(),
+				driver1.getMaxAdrenaline()
 			);
 			this.resourceLayer.setFuel(this.fuel);
 			this.resourceLayer.setScrap(this.scrap);
 			
-			const deck = this.currentPlayerDriver.getDeck();
-			this.resourceLayer.setDrawPileCount(deck ? deck.getCards().length : 0);
-			this.resourceLayer.setDiscardPileCount(this.currentPlayerDriver.getDiscardPile().length);
+			// Show combined deck/discard counts
+			const deck1 = driver1.getDeck();
+			const deck2 = driver2.getDeck();
+			const totalDeckCount = (deck1 ? deck1.getCards().length : 0) + (deck2 ? deck2.getCards().length : 0);
+			const totalDiscardCount = driver1.getDiscardPile().length + driver2.getDiscardPile().length;
+			
+			this.resourceLayer.setDrawPileCount(totalDeckCount);
+			this.resourceLayer.setDiscardPileCount(totalDiscardCount);
 		}
 
-		// Update hand layer with current driver's hand
-		if (this.currentPlayerDriver) {
-			this.handLayer.setHand(this.currentPlayerDriver.getHand());
-			this.handLayer.setAdrenaline(this.currentPlayerDriver.getAdrenaline());
+		// Update enemy layer with enemy vehicles
+		if (this.enemyTeam) {
+			const enemyVehicles = this.enemyTeam.getVehicles();
+			const enemyData: EnemyVehicle[] = enemyVehicles.map(vehicle => ({
+				id: vehicle.getId(),
+				name: vehicle.getName(),
+				maxHealth: vehicle.getMaxStructure(),
+				currentHealth: vehicle.getStructure(),
+				armor: vehicle.getArmor(),
+				intent: {
+					type: 'attack' as const,
+					value: 5,
+					description: 'Preparing to attack'
+				}
+			}));
+			this.enemyLayer.setEnemies(enemyData);
 		}
 
-		// Update battlefield and enemy layers would go here
-		// For now, keeping existing update logic
+		// Update battlefield layer with player vehicles
+		if (this.playerTeam) {
+			const playerVehicles = this.playerTeam.getVehicles();
+			const playerData: PlayerVehicle[] = playerVehicles.map(vehicle => {
+				const driver = vehicle.getDriver();
+				return {
+					driver: driver!,
+					currentHealth: vehicle.getStructure(),
+					maxHealth: vehicle.getMaxStructure(),
+					armor: vehicle.getArmor(),
+					statusEffects: [],
+					position: 'front' as const
+				};
+			});
+			this.battlefieldLayer.setPlayerVehicles(playerData);
+		}
 	}
 
 	/**
@@ -234,6 +289,7 @@ export class CombatScreen extends Screen {
 		});
 		this.rootLayer.addChild(background);
 	}
+
 
 	/**
 	 * Create all UI layers with proper positioning
@@ -344,34 +400,37 @@ export class CombatScreen extends Screen {
 		}
 	}
 
-	/**
-	 * Switch to a different driver (for single player mode)
-	 */
-	public switchToDriver(driver: Driver): void {
-		if (!this.playerTeam) return;
-		
-		const playerDrivers = this.playerTeam.getAllDrivers();
-		if (playerDrivers.includes(driver)) {
-			this.currentPlayerDriver = driver;
-			this.updateUIFromBattle();
-			console.log(`Switched to ${driver.getName()}`);
-		}
-	}
 
 	/**
 	 * Handle card selection using new Team system
 	 */
 	private onCardSelected(card: Card): void {
-		if (!this.battle || !this.currentPlayerDriver) {
-			console.warn('No battle or driver selected');
+		if (!this.battle || !this.playerTeam) {
+			console.warn('No battle or player team');
 			return;
 		}
 
-		// Check if current driver can afford and play this card
-		if (!this.currentPlayerDriver.canPlayCard(card)) {
-			const reason = !this.currentPlayerDriver.canAffordCard(card) 
-				? 'Not enough adrenaline'
-				: 'Cannot play this card type as passenger';
+		// Find which driver owns this card
+		const drivers = this.playerTeam.getAllDrivers();
+		let owningDriver: Driver | null = null;
+		
+		for (const driver of drivers) {
+			if (driver.getHand().includes(card)) {
+				owningDriver = driver;
+				break;
+			}
+		}
+		
+		if (!owningDriver) {
+			console.warn('Could not find driver who owns this card');
+			return;
+		}
+
+		// Check if driver can afford and play this card
+		if (!owningDriver.canPlayCard(card)) {
+			const reason = !owningDriver.canAffordCard(card) 
+				? `${owningDriver.getName()}: Not enough adrenaline`
+				: `${owningDriver.getName()}: Cannot play this card type as passenger`;
 			console.log(reason);
 			return;
 		}
@@ -383,7 +442,7 @@ export class CombatScreen extends Screen {
 
 		// Store the driver who will play this card
 		this.selectedCard = card;
-		this.selectedCardDriver = this.currentPlayerDriver;
+		this.selectedCardDriver = owningDriver;
 
 		// Check if card needs a target
 		const targetType = card.getTargetType();
@@ -491,9 +550,12 @@ export class CombatScreen extends Screen {
 	 * Handle enemy being targeted
 	 */
 	private onEnemyTargeted(card: Card, enemy: EnemyVehicle): void {
-		if (this.isTargeting && this.selectedCard === card) {
-			this.playCard(card, enemy, null);
-			this.cancelCardSelection();
+		if (this.isTargeting && this.selectedCard === card && this.enemyTeam) {
+			// Find the actual Vehicle object from the enemy team
+			const targetVehicle = this.enemyTeam.getVehicles().find(v => v.getId() === enemy.id);
+			if (targetVehicle) {
+				this.playCardWithTarget(card, targetVehicle);
+			}
 		}
 	}
 
@@ -501,9 +563,12 @@ export class CombatScreen extends Screen {
 	 * Handle vehicle being targeted
 	 */
 	private onVehicleTargeted(card: Card, vehicle: PlayerVehicle): void {
-		if (this.isTargeting && this.selectedCard === card) {
-			this.playCard(card, null, vehicle);
-			this.cancelCardSelection();
+		if (this.isTargeting && this.selectedCard === card && this.playerTeam) {
+			// Find the actual Vehicle object from the player team
+			const targetVehicle = this.playerTeam.getVehicles().find(v => v.getDriver()?.getId() === vehicle.driver.getId());
+			if (targetVehicle) {
+				this.playCardWithTarget(card, targetVehicle);
+			}
 		}
 	}
 

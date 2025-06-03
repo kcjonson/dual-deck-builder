@@ -7,15 +7,34 @@ import { InputSystem } from '../input/InputSystem';
 import { Card as CardData } from '../../game/mechanics/Card';
 
 /**
+ * Card size variants for different UI contexts
+ */
+export enum CardSize {
+	MINI = 'mini',       // For deck previews, small displays
+	NORMAL = 'normal',   // Standard card size for hand and battlefield
+	LARGE = 'large'      // For detailed view/inspection
+}
+
+/**
+ * Card dimensions for each size variant
+ */
+const CARD_DIMENSIONS = {
+	[CardSize.MINI]: { width: 50, height: 70 },
+	[CardSize.NORMAL]: { width: 160, height: 224 },
+	[CardSize.LARGE]: { width: 240, height: 336 }
+} as const;
+
+/**
  * Visual component for displaying a card
  */
 export class Card extends Component {
 	private data: CardData;
+	private size: CardSize;
 	private name: Text;
 	private cost: Text;
-	private description: Text;
-	private rarity: Text;
-	private tags: Text;
+	private description: Text | null = null;
+	private rarity: Text | null = null;
+	private tags: Text | null = null;
 	private cardBorder: Rectangle;
 	private cardBackground: Rectangle;
 
@@ -28,52 +47,56 @@ export class Card extends Component {
 	// Selection state
 	private selected: boolean = false;
 
-	private static readonly WIDTH = 240;
-	private static readonly HEIGHT = 340;
-
-	constructor({ x, y, data }: { x: number; y: number; data: CardData }) {
+	constructor({ x, y, data, size = CardSize.NORMAL }: { x: number; y: number; data: CardData; size?: CardSize }) {
+		const dimensions = CARD_DIMENSIONS[size];
 		super({
 			x,
 			y,
-			width: Card.WIDTH,
-			height: Card.HEIGHT,
+			width: dimensions.width,
+			height: dimensions.height,
 		});
 
 		this.data = data;
+		this.size = size;
 
 		// Create card border with rarity color
 		this.cardBorder = new Rectangle({
 			x: 0,
 			y: 0,
-			width: Card.WIDTH,
-			height: Card.HEIGHT,
+			width: dimensions.width,
+			height: dimensions.height,
 			style: {
 				backgroundColor: Card.getRarityColor(data.getRarity()),
-				borderRadius: 8,
+				borderRadius: size === CardSize.MINI ? 4 : 8,
 			},
 		});
 		this.addChild(this.cardBorder);
 
 		// Create card background
+		const borderWidth = size === CardSize.MINI ? 2 : 4;
 		this.cardBackground = new Rectangle({
-			x: 4,
-			y: 4,
-			width: Card.WIDTH - 8,
-			height: Card.HEIGHT - 8,
+			x: borderWidth,
+			y: borderWidth,
+			width: dimensions.width - borderWidth * 2,
+			height: dimensions.height - borderWidth * 2,
 			style: {
 				backgroundColor: '#2a2a3a',
-				borderRadius: 6,
+				borderRadius: size === CardSize.MINI ? 3 : 6,
 			},
 		});
 		this.addChild(this.cardBackground);
 
+		// Scale factors for different card sizes
+		const scaleFactor = size === CardSize.MINI ? 0.35 : size === CardSize.LARGE ? 1.2 : 1;
+		const padding = Math.floor(12 * scaleFactor);
+		
 		// Card name
 		this.name = new Text(data.getName(), {
-			x: 12,
-			y: 20,
-			width: Card.WIDTH - 60,
+			x: padding,
+			y: Math.floor(20 * scaleFactor),
+			width: dimensions.width - Math.floor(60 * scaleFactor),
 			style: {
-				fontSize: 18,
+				fontSize: Math.floor(18 * scaleFactor),
 				color: '#ffffff',
 				fontWeight: 'bold',
 				whiteSpace: 'nowrap',
@@ -84,10 +107,10 @@ export class Card extends Component {
 
 		// Cost
 		this.cost = new Text(`${data.getCost()}`, {
-			x: Card.WIDTH - 30,
-			y: 20,
+			x: dimensions.width - Math.floor(30 * scaleFactor),
+			y: Math.floor(20 * scaleFactor),
 			style: {
-				fontSize: 24,
+				fontSize: Math.floor(24 * scaleFactor),
 				color: '#ffaa00',
 				fontWeight: 'bold',
 				textAlign: 'center',
@@ -96,57 +119,62 @@ export class Card extends Component {
 		this.addChild(this.cost);
 
 		// Description with automatic text wrapping
-		this.description = new Text(data.getDescription(), {
-			x: 12,
-			y: 60,
-			width: Card.WIDTH - 24,
-			height: 140,
-			style: {
-				fontSize: 14,
-				color: '#cccccc',
-				lineHeight: 1.4,
-				textOverflow: 'ellipsis',
-			},
-		});
-		this.addChild(this.description);
+		// Skip description for mini cards
+		if (size !== CardSize.MINI) {
+			this.description = new Text(data.getDescription(), {
+				x: padding,
+				y: Math.floor(60 * scaleFactor),
+				width: dimensions.width - padding * 2,
+				height: Math.floor(140 * scaleFactor),
+				style: {
+					fontSize: Math.floor(14 * scaleFactor),
+					color: '#cccccc',
+					lineHeight: 1.4,
+					textOverflow: 'ellipsis',
+				},
+			});
+			this.addChild(this.description);
+		}
 
-		// Rarity
-		this.rarity = new Text(data.getRarity().toUpperCase(), {
-			x: 12,
-			y: Card.HEIGHT - 60,
-			style: {
-				fontSize: 12,
-				color: Card.getRarityColor(data.getRarity()),
-				fontWeight: 'bold',
-			},
-		});
-		this.addChild(this.rarity);
+		// Rarity - only show on normal and large cards
+		if (size !== CardSize.MINI) {
+			this.rarity = new Text(data.getRarity().toUpperCase(), {
+				x: padding,
+				y: dimensions.height - Math.floor(60 * scaleFactor),
+				style: {
+					fontSize: Math.floor(12 * scaleFactor),
+					color: Card.getRarityColor(data.getRarity()),
+					fontWeight: 'bold',
+				},
+			});
+			this.addChild(this.rarity);
 
-		// Tags
-		const tagsStr = data.getTags().join(', ');
-		this.tags = new Text(tagsStr, {
-			x: 12,
-			y: Card.HEIGHT - 35,
-			width: Card.WIDTH - 24,
-			style: {
-				fontSize: 10,
-				color: '#888888',
-				textOverflow: 'ellipsis',
-				whiteSpace: 'nowrap',
-			},
-		});
-		this.addChild(this.tags);
+			// Tags
+			const tagsStr = data.getTags().join(', ');
+			this.tags = new Text(tagsStr, {
+				x: padding,
+				y: dimensions.height - Math.floor(35 * scaleFactor),
+				width: dimensions.width - padding * 2,
+				style: {
+					fontSize: Math.floor(10 * scaleFactor),
+					color: '#888888',
+					textOverflow: 'ellipsis',
+					whiteSpace: 'nowrap',
+				},
+			});
+			this.addChild(this.tags);
 
-		// Target type
-		const targetText = new Text(data.getTargetType(), {
-			x: 12,
-			y: Card.HEIGHT - 20,
-			style: {
-				fontSize: 10,
-				color: '#666666',
-			},
-		});
-		this.addChild(targetText);
+			// Target type
+			const targetText = new Text(data.getTargetType(), {
+				x: padding,
+				y: dimensions.height - Math.floor(20 * scaleFactor),
+				style: {
+					fontSize: Math.floor(10 * scaleFactor),
+					color: '#666666',
+				},
+			});
+			this.addChild(targetText);
+		}
 
 		// Setup event handling
 		this.setupEvents();
@@ -375,12 +403,16 @@ export class Card extends Component {
 	}
 
 	/**
-	 * Get standard card dimensions
+	 * Get card dimensions for a specific size
 	 */
-	public static getDimensions(): { width: number; height: number } {
-		return {
-			width: Card.WIDTH,
-			height: Card.HEIGHT,
-		};
+	public static getDimensions(size: CardSize = CardSize.NORMAL): { width: number; height: number } {
+		return CARD_DIMENSIONS[size];
+	}
+	
+	/**
+	 * Get the current size of this card
+	 */
+	public getSize(): CardSize {
+		return this.size;
 	}
 }

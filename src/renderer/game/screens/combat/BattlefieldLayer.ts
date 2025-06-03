@@ -122,13 +122,18 @@ export class BattlefieldLayer extends Layer {
 		const layerWidth = this.getWidth();
 		const layerHeight = this.getHeight();
 		
-		// Player vehicles are larger and positioned in lower portion of battlefield
-		const vehicleWidth = Math.floor(layerWidth * 0.35); // 35% width each
+		// Player vehicles are fixed size cards - slightly larger than enemy cards
+		const vehicleWidth = 200; // Fixed width for player vehicle cards
 		const vehicleHeight = Math.floor(layerHeight * 0.6); // 60% of layer height
 		const startY = Math.floor(layerHeight * 0.3); // Start at 30% down
 		
+		// Calculate spacing between vehicles
+		const cardSpacing = 30; // More spacing for player vehicles
+		const totalWidth = this.playerVehicles.length * vehicleWidth + (this.playerVehicles.length - 1) * cardSpacing;
+		const startX = Math.floor((layerWidth - totalWidth) / 2);
+		
 		this.playerVehicles.forEach((vehicle, index) => {
-			const x = Math.floor(layerWidth * 0.1) + index * Math.floor(layerWidth * 0.45); // 10% margin, 45% spacing
+			const x = startX + index * (vehicleWidth + cardSpacing);
 			
 			const elements = this.createSingleVehicleElement(vehicle, x, startY, vehicleWidth, vehicleHeight);
 			this.vehicleElements.set(vehicle.driver.getId(), elements);

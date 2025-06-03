@@ -4,6 +4,40 @@ This document contains the chronological log of completed development tasks for 
 
 =========================================
 
+## Combat Screen Integration & Card Sizing System (2025-01-06)
+
+### Tasks Completed
+- **Task 8 (continued)**: Integrated CombatScreen with new Team/Driver architecture
+- **Task 9**: Implemented proper card sizing system
+
+### Key Changes Made
+1. **CombatScreen Integration**
+   - Updated to use new Team-based battle system
+   - Shows combined hand from both drivers in single player mode
+   - Fixed compilation errors with CardLoader method names
+   - Properly maps UI interactions to Vehicle objects
+
+2. **Card Sizing System**
+   - Created CardSize enum with three variants:
+     - MINI (50x70) - For deck previews
+     - NORMAL (160x224) - Standard gameplay size
+     - LARGE (240x336) - For detailed inspection
+   - Fixed card stretching issue - all cards now use fixed dimensions
+   - Updated all card usage throughout the game
+
+3. **Fixed Card Interactivity**
+   - Added adrenaline tracking to PlayerHandLayer
+   - Cards properly enable/disable based on available adrenaline
+   - Combined both drivers' adrenaline pools for single player mode
+
+### Technical Implementation
+- Enemy vehicles: Fixed 160px width
+- Player vehicles: Fixed 200px width  
+- Cards maintain aspect ratio and consistent sizing across all screens
+- Mini cards scale text and UI elements appropriately
+
+=========================================
+
 ## Dual Driver/Vehicle System Architecture Implementation (2025-01-06)
 
 ### Tasks Completed

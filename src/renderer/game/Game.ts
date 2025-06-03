@@ -240,7 +240,7 @@ export class Game {
 		// Get combat screen and initialize it with the new Team-based system
 		const combatScreen = this.screens.get('combatScreen') as CombatScreen;
 		if (combatScreen) {
-			combatScreen.initializeCombat(drivers);
+			await combatScreen.initializeCombat(drivers);
 			this.showScreen('combatScreen');
 		}
 	}

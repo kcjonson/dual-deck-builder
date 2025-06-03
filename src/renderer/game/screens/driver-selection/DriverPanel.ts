@@ -3,7 +3,7 @@ import { Text } from '../../../engine/components/Text';
 import { Rectangle } from '../../../engine/components/Rectangle';
 import { Button } from '../../../engine/ui/Button';
 import { Driver } from '../../mechanics/Driver';
-import { Card as UICard } from '../../../engine/ui/Card';
+import { Card as UICard, CardSize } from '../../../engine/ui/Card';
 import { CardLoader } from '../../core/CardLoader';
 
 /**
@@ -343,12 +343,11 @@ export class DriverPanel extends Layer {
 		const startingDeckConfig = this.selectedDriver.getStartingDeckConfig();
 		const availableCards = cardLoader.getAllCardsAsMap();
 		
-		const cardWidth = 60;
-		const cardHeight = 40;
-		const cardSpacing = 5;
+		const cardDimensions = UICard.getDimensions(CardSize.MINI);
+		const cardSpacing = 10;
 		const cardsPerRow = 2;
 		const containerWidth = this.startingDeckContainer.getWidth();
-		const startX = Math.floor((containerWidth - (cardsPerRow * cardWidth + (cardsPerRow - 1) * cardSpacing)) / 2);
+		const startX = Math.floor((containerWidth - (cardsPerRow * cardDimensions.width + (cardsPerRow - 1) * cardSpacing)) / 2);
 		
 		let cardIndex = 0;
 		for (const cardConfig of startingDeckConfig.cards) {
@@ -358,33 +357,21 @@ export class DriverPanel extends Layer {
 			const row = Math.floor(cardIndex / cardsPerRow);
 			const col = cardIndex % cardsPerRow;
 			
-			const x = startX + col * (cardWidth + cardSpacing);
-			const y = 30 + row * (cardHeight + cardSpacing);
+			const x = startX + col * (cardDimensions.width + cardSpacing);
+			const y = 40 + row * (cardDimensions.height + cardSpacing);
 			
-			// Create simple mini-card rectangle
-			const miniCard = new Rectangle({
+			// Create proper mini card using Card component
+			const miniCard = new UICard({
 				x,
 				y,
-				width: cardWidth,
-				height: cardHeight,
-				style: {
-					backgroundColor: '#4a4a6a',
-					borderColor: '#6a6a8a',
-					borderWidth: 1,
-				},
+				data: cardData,
+				size: CardSize.MINI,
 			});
-			this.startingDeckContainer.addChild(miniCard);
 			
-			// Card name (simplified)
-			const cardName = new Text(cardData.getName(), {
-				style: {
-					fontSize: 8,
-					color: '#ffffff',
-					textAlign: 'center',
-				},
-			});
-			cardName.setPosition(x + cardWidth / 2, y + cardHeight / 2);
-			this.startingDeckContainer.addChild(cardName);
+			// Disable interaction for display purposes
+			miniCard.setEnabled(false);
+			
+			this.startingDeckContainer.addChild(miniCard);
 			
 			// Quantity indicator if > 1
 			if (cardConfig.quantity > 1) {
@@ -395,7 +382,7 @@ export class DriverPanel extends Layer {
 						fontWeight: 'bold',
 					},
 				});
-				quantityText.setPosition(x + cardWidth - 5, y + 5);
+				quantityText.setPosition(x + cardDimensions.width - 10, y + 5);
 				this.startingDeckContainer.addChild(quantityText);
 			}
 			

@@ -220,7 +220,13 @@ For a complete log of recently completed tasks, see: [AI Development Log](./AI_D
   - [x] Added driver role system (Active vs Passenger with card restrictions)
   - [x] Updated Combat Rules documentation to reflect new system
   - [x] Simplified initiative system (players always go first)
-  - [ ] Update CombatScreen to use new Team/Driver architecture
+  - [x] Update CombatScreen to use new Team/Driver architecture ✅ COMPLETED
+- [x] **Task 9**: Implement proper card sizing system ✅ COMPLETED
+  - [x] Created CardSize enum (MINI, NORMAL, LARGE) for consistent card dimensions
+  - [x] Fixed vehicle card stretching - all cards now use fixed dimensions
+  - [x] Updated PlayerHandLayer to use proper card sizing
+  - [x] Updated DriverPanel to use Card components with MINI size
+  - [x] Fixed card interactivity issues in combat screen
 
 ### Phase Three (Core Mechanics)
 

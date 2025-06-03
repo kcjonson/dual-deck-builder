@@ -114,9 +114,15 @@ export class EnemyLayer extends Layer {
 
 		const layerWidth = this.getWidth();
 		const layerHeight = this.getHeight();
-		const enemyWidth = Math.floor(layerWidth / Math.max(this.enemies.length, 1)) - 20;
+		
+		// Enemy cards are fixed size - same as normal playing cards
+		const enemyWidth = 160; // Fixed width for enemy vehicle cards
 		const enemyHeight = Math.floor(layerHeight * 0.8); // 80% of layer height
-		const startX = Math.floor((layerWidth - (this.enemies.length * enemyWidth + (this.enemies.length - 1) * 20)) / 2);
+		
+		// Calculate spacing between cards
+		const cardSpacing = 20;
+		const totalWidth = this.enemies.length * enemyWidth + (this.enemies.length - 1) * cardSpacing;
+		const startX = Math.floor((layerWidth - totalWidth) / 2);
 
 		this.enemies.forEach((enemy, index) => {
 			const x = startX + index * (enemyWidth + 20);

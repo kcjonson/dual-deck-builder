@@ -1,6 +1,6 @@
 import { Layer } from '../../../engine/components/Layer';
 import { Rectangle } from '../../../engine/components/Rectangle';
-import { Card as UICard } from '../../../engine/ui/Card';
+import { Card as UICard, CardSize } from '../../../engine/ui/Card';
 import { Card } from '../../mechanics/Card';
 
 /**
@@ -13,8 +13,8 @@ export class PlayerHandLayer extends Layer {
 	private currentAdrenaline: number = 0;
 	
 	// Card layout settings
-	private readonly CARD_WIDTH = 120;
-	private readonly CARD_HEIGHT = 160;
+	private readonly CARD_SIZE = CardSize.NORMAL;
+	private readonly CARD_DIMENSIONS = UICard.getDimensions(CardSize.NORMAL);
 	private readonly CARD_SPACING = 10;
 	private readonly HOVER_LIFT = 20;
 	
@@ -159,17 +159,18 @@ export class PlayerHandLayer extends Layer {
 		const layerHeight = this.getHeight();
 		
 		// Calculate card positioning
-		const totalCardWidth = this.handCards.length * this.CARD_WIDTH + (this.handCards.length - 1) * this.CARD_SPACING;
+		const totalCardWidth = this.handCards.length * this.CARD_DIMENSIONS.width + (this.handCards.length - 1) * this.CARD_SPACING;
 		const startX = Math.floor((layerWidth - totalCardWidth) / 2);
-		const cardY = Math.floor((layerHeight - this.CARD_HEIGHT) / 2);
+		const cardY = Math.floor((layerHeight - this.CARD_DIMENSIONS.height) / 2);
 
 		this.handCards.forEach((card, index) => {
-			const x = startX + index * (this.CARD_WIDTH + this.CARD_SPACING);
+			const x = startX + index * (this.CARD_DIMENSIONS.width + this.CARD_SPACING);
 			
 			const cardElement = new UICard({
 				x,
 				y: cardY,
 				data: card,
+				size: this.CARD_SIZE,
 			});
 
 			// Set up card interactivity
@@ -209,6 +210,8 @@ export class PlayerHandLayer extends Layer {
 	 * Check if a card can be played with current adrenaline
 	 */
 	private canPlayCard(card: Card): boolean {
+		// In single player mode with combined hand, we use combined adrenaline
+		// TODO: In the future, track which driver owns which card
 		return this.currentAdrenaline >= card.getCost();
 	}
 
