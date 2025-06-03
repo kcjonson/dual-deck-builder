@@ -21,7 +21,7 @@ export class SynergyPreviewPanel extends Layer {
 	/**
 	 * Create a new synergy preview panel
 	 */
-	constructor(options: any) {
+	constructor(options: { x: number; y: number; width: number; height: number }) {
 		super(options);
 		
 		// Create background

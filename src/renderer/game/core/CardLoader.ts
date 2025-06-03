@@ -8,9 +8,11 @@ export class CardLoader {
 	private static instance: CardLoader;
 	private cardsData: Map<string, CardData> = new Map();
 	private startingDecks: Map<string, string[]> = new Map();
-	private loaded: boolean = false;
+	private loaded = false;
 
-	private constructor() {}
+	private constructor() {
+		// Private constructor for singleton pattern
+	}
 
 	public static getInstance(): CardLoader {
 		if (!CardLoader.instance) {
@@ -22,7 +24,7 @@ export class CardLoader {
 	/**
 	 * Load cards from JSON file
 	 */
-	public async loadCards(jsonPath: string = '/cards.json'): Promise<void> {
+	public async loadCards(jsonPath = '/cards.json'): Promise<void> {
 		try {
 			const response = await fetch(jsonPath);
 			if (!response.ok) {
@@ -41,7 +43,7 @@ export class CardLoader {
 	/**
 	 * Parse and validate card data from JSON
 	 */
-	private parseCardData(data: any): void {
+	private parseCardData(data: { cards: CardData[]; startingDecks?: Record<string, { cards: Array<{ id: string; quantity: number }> }> }): void {
 		if (!data.cards || !Array.isArray(data.cards)) {
 			throw new Error('Invalid card data format: expected cards array');
 		}
@@ -72,7 +74,7 @@ export class CardLoader {
 	/**
 	 * Validate card data structure
 	 */
-	private validateCardData(cardData: any): void {
+	private validateCardData(cardData: CardData): void {
 		const required = ['id', 'name', 'description', 'rarity', 'cost', 'targetType', 'effects', 'tags'];
 		
 		for (const field of required) {

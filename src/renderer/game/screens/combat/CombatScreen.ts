@@ -3,7 +3,7 @@ import { Renderer } from '../../../engine/rendering/Renderer';
 import { Rectangle } from '../../../engine/components/Rectangle';
 import { Arrow } from '../../../engine/components/Arrow';
 import { EnemyLayer, EnemyVehicle } from './EnemyLayer';
-import { BattlefieldLayer, PlayerVehicle, StatusEffect } from './BattlefieldLayer';
+import { BattlefieldLayer, PlayerVehicle } from './BattlefieldLayer';
 import { PlayerHandLayer } from './PlayerHandLayer';
 import { ResourceBarLayer } from './ResourceBarLayer';
 import { Driver } from '../../mechanics/Driver';
@@ -13,7 +13,6 @@ import { Battle } from '../../mechanics/Battle';
 import { Card } from '../../mechanics/Card';
 import { CardLoader } from '../../core/CardLoader';
 import { InputSystem } from '../../../engine/input/InputSystem';
-import { Button } from '../../../engine/ui/Button';
 
 /**
  * Combat Screen implementing Game Flow Spec section 2
@@ -30,13 +29,13 @@ export class CombatScreen extends Screen {
 	private battle: Battle | null = null;
 	private playerTeam: Team | null = null;
 	private enemyTeam: Team | null = null;
-	private fuel: number = 5;
-	private scrap: number = 150;
+	private fuel = 5;
+	private scrap = 150;
 	
 	// Interaction state
 	private selectedCard: Card | null = null;
 	private selectedCardDriver: Driver | null = null; // Which driver is playing the card
-	private isTargeting: boolean = false;
+	private isTargeting = false;
 	private hoveredTarget: Vehicle | null = null;
 	
 	// Targeting visual components
@@ -78,7 +77,7 @@ export class CombatScreen extends Screen {
 			// Ensure cards are loaded
 			const cardLoader = CardLoader.getInstance();
 			await cardLoader.loadCards();
-			const availableCards = cardLoader.getAllCards();
+			// const availableCards = cardLoader.getAllCards(); // For future use
 
 			// Create vehicles from driver configurations
 			const [driver1, driver2] = drivers;
@@ -146,7 +145,7 @@ export class CombatScreen extends Screen {
 		// Create enemy drivers with basic configs
 		const enemyDriver1 = new Driver({
 			config: {
-				id: 'raider' as any, // Using 'raider' for enemy
+				id: 'raider', // Using 'raider' for enemy
 				metadata: {
 					name: 'Wasteland Raider',
 					vehicleName: 'Rust Buggy',
@@ -203,7 +202,7 @@ export class CombatScreen extends Screen {
 	private updateUIFromBattle(): void {
 		if (!this.battle || !this.playerTeam || !this.enemyTeam) return;
 
-		const battleStats = this.battle.getBattleStats();
+		// const battleStats = this.battle.getBattleStats(); // For future use
 		
 		// Get both drivers
 		const drivers = this.playerTeam.getAllDrivers();
@@ -261,15 +260,19 @@ export class CombatScreen extends Screen {
 			const playerVehicles = this.playerTeam.getVehicles();
 			const playerData: PlayerVehicle[] = playerVehicles.map(vehicle => {
 				const driver = vehicle.getDriver();
+				if (!driver) {
+					console.warn('Vehicle has no driver:', vehicle.getId());
+					return null;
+				}
 				return {
-					driver: driver!,
+					driver: driver,
 					currentHealth: vehicle.getStructure(),
 					maxHealth: vehicle.getMaxStructure(),
 					armor: vehicle.getArmor(),
 					statusEffects: [],
 					position: 'front' as const
 				};
-			});
+			}).filter((data): data is PlayerVehicle => data !== null);
 			this.battlefieldLayer.setPlayerVehicles(playerData);
 		}
 	}
@@ -347,7 +350,7 @@ export class CombatScreen extends Screen {
 	 */
 	private setupInteractions(): void {
 		// Hand layer interactions
-		this.handLayer.setOnCardHover((card) => {
+		this.handLayer.setOnCardHover((_card) => {
 			// Show card details on hover
 			// TODO: Implement card detail popup
 		});
@@ -613,7 +616,7 @@ export class CombatScreen extends Screen {
 	 * Update the currently hovered target and highlighting
 	 * TODO: Update to work with new Vehicle class
 	 */
-	private updateHoveredTarget(enemy: any, vehicle: any): void {
+	private updateHoveredTarget(_enemy: EnemyVehicle | null, _vehicle: PlayerVehicle | null): void {
 		// Temporarily disabled - needs update for new Vehicle system
 		return;
 	}
@@ -665,8 +668,8 @@ export class CombatScreen extends Screen {
 	/**
 	 * Highlight valid targets for a card
 	 */
-	private highlightValidTargets(card: Card): void {
-		const targetType = card.getTargetType();
+	private highlightValidTargets(_card: Card): void {
+		// const targetType = card.getTargetType(); // For future use
 		
 		// TODO: Update to work with new Team/Vehicle system
 		// For now, basic highlighting disabled until UI layers are updated
@@ -705,7 +708,7 @@ export class CombatScreen extends Screen {
 	/**
 	 * Play a card with the given target
 	 */
-	private playCard(card: Card, targetEnemy: any, targetVehicle: any): void {
+	private playCard(_card: Card, _targetEnemy: EnemyVehicle | null, _targetVehicle: PlayerVehicle | null): void {
 		// TODO: Remove - replaced by playCardWithTarget
 		return;
 	}
@@ -713,7 +716,7 @@ export class CombatScreen extends Screen {
 	/**
 	 * Apply card effects to targets
 	 */
-	private applyCardEffects(card: Card, targetEnemy: any, targetVehicle: any): void {
+	private applyCardEffects(_card: Card, _targetEnemy: EnemyVehicle | null, _targetVehicle: PlayerVehicle | null): void {
 		// TODO: Remove - replaced by Battle system
 		return;
 	}
@@ -721,7 +724,7 @@ export class CombatScreen extends Screen {
 	/**
 	 * Damage an enemy
 	 */
-	private damageEnemy(enemy: any, damage: number): void {
+	private damageEnemy(_enemy: EnemyVehicle, _damage: number): void {
 		// TODO: Remove - replaced by Battle system
 		return;
 	}
@@ -729,7 +732,7 @@ export class CombatScreen extends Screen {
 	/**
 	 * Heal a player vehicle
 	 */
-	private healVehicle(vehicle: any, healing: number): void {
+	private healVehicle(_vehicle: PlayerVehicle, _healing: number): void {
 		// TODO: Remove - replaced by Battle system
 		return;
 	}
@@ -737,7 +740,7 @@ export class CombatScreen extends Screen {
 	/**
 	 * Add armor to a player vehicle
 	 */
-	private addArmor(vehicle: any, armor: number): void {
+	private addArmor(_vehicle: PlayerVehicle, _armor: number): void {
 		// TODO: Remove - replaced by Battle system
 		return;
 	}
@@ -776,7 +779,7 @@ export class CombatScreen extends Screen {
 	 * Execute an enemy's intent
 	 * TODO: Remove - replaced by Battle system
 	 */
-	private executeEnemyIntent(enemy: any): void {
+	private executeEnemyIntent(_enemy: EnemyVehicle): void {
 		return;
 	}
 
@@ -784,7 +787,7 @@ export class CombatScreen extends Screen {
 	 * Damage a player vehicle
 	 * TODO: Remove - replaced by Battle system
 	 */
-	private damagePlayerVehicle(vehicle: any, damage: number): void {
+	private damagePlayerVehicle(_vehicle: PlayerVehicle, _damage: number): void {
 		return;
 	}
 

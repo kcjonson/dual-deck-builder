@@ -10,7 +10,7 @@ import { Card } from '../../mechanics/Card';
 export class PlayerHandLayer extends Layer {
 	private handCards: Card[] = [];
 	private cardElements: UICard[] = [];
-	private currentAdrenaline: number = 0;
+	private currentAdrenaline = 0;
 	
 	// Card layout settings
 	private readonly CARD_SIZE = CardSize.NORMAL;
@@ -25,12 +25,12 @@ export class PlayerHandLayer extends Layer {
 	
 	// Selection state
 	private selectedCard: Card | null = null; // The card player has selected to play (waiting for target)
-	private targetingMode: boolean = false;
+	private targetingMode = false;
 
 	/**
 	 * Create player hand layer
 	 */
-	constructor(options: any) {
+	constructor(options: { x: number; y: number; width: number; height: number }) {
 		super(options);
 		
 		// Hand background
@@ -188,14 +188,14 @@ export class PlayerHandLayer extends Layer {
 	 */
 	private setupCardInteractivity(cardElement: UICard, card: Card): void {
 		// Set up legacy click handler
-		cardElement.setOnClick((cardData) => {
+		cardElement.setOnClick((_cardData) => {
 			if (this.canPlayCard(card) && this.onCardClick) {
 				this.onCardClick(card);
 			}
 		});
 
 		// Set up semantic select handler
-		cardElement.setOnSelect((cardData) => {
+		cardElement.setOnSelect((_cardData) => {
 			if (this.canPlayCard(card) && this.onCardSelect) {
 				this.onCardSelect(card);
 			}
@@ -275,10 +275,10 @@ export class PlayerHandLayer extends Layer {
 	/**
 	 * Animate card to discard pile
 	 */
-	public animateCardToDiscard(card: Card, discardX: number, discardY: number): void {
+	public animateCardToDiscard(card: Card, _discardX: number, _discardY: number): void {
 		const cardIndex = this.handCards.findIndex(c => c.getId() === card.getId());
 		if (cardIndex >= 0) {
-			const cardElement = this.cardElements[cardIndex];
+			// const cardElement = this.cardElements[cardIndex]; // For future animation use
 			
 			// TODO: Add tween animation to move card to discard pile
 			// For now, just remove it

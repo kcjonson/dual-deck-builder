@@ -31,7 +31,7 @@ export class RectangleExamplesSection extends Panel {
 		sectionTitle.setPosition(0, 0);
 		this.addChild(sectionTitle);
 
-		let currentY = 50;
+		const currentY = 50;
 
 		// Rectangle showcase
 		const rectY = currentY;

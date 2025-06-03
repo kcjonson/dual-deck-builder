@@ -45,7 +45,7 @@ export class Card extends Component {
 	private targetHandler: ((card: CardData) => void) | null = null;
 	
 	// Selection state
-	private selected: boolean = false;
+	private selected = false;
 
 	constructor({ x, y, data, size = CardSize.NORMAL }: { x: number; y: number; data: CardData; size?: CardSize }) {
 		const dimensions = CARD_DIMENSIONS[size];

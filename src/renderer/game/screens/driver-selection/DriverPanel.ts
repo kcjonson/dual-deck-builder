@@ -12,10 +12,10 @@ import { CardLoader } from '../../core/CardLoader';
  */
 export class DriverPanel extends Layer {
 	private panelSide: 'left' | 'right';
-	private isEmpty: boolean = true;
+	private isEmpty = true;
 	private selectedDriver: Driver | null = null;
 	private availableDrivers: Driver[] = [];
-	private currentDriverIndex: number = 0;
+	private currentDriverIndex = 0;
 	
 	// UI elements
 	private background: Rectangle;
@@ -35,7 +35,7 @@ export class DriverPanel extends Layer {
 	/**
 	 * Create a new driver panel
 	 */
-	constructor(side: 'left' | 'right', options: any) {
+	constructor(side: 'left' | 'right', options: { x: number; y: number; width: number; height: number }) {
 		super(options);
 		
 		this.panelSide = side;
@@ -318,7 +318,11 @@ export class DriverPanel extends Layer {
 		
 		// Clear existing contents
 		const children = [...this.startingDeckContainer.getChildren()];
-		children.forEach(child => this.startingDeckContainer!.removeChild(child));
+		children.forEach(child => {
+			if (this.startingDeckContainer) {
+				this.startingDeckContainer.removeChild(child);
+			}
+		});
 		this.miniCards = [];
 		
 		// Add "Starting Deck:" title

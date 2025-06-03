@@ -6,6 +6,7 @@ import { Rectangle } from '../../../engine/components/Rectangle';
 import { Panel } from '../../../engine/ui/Panel';
 import { Card } from '../../../engine/ui/Card';
 import { CardLoader } from '../../core/CardLoader';
+import { CardData } from '../../mechanics/Card';
 
 /**
  * Screen for showcasing all available cards
@@ -116,7 +117,7 @@ export class CardShowcaseScreen extends Screen {
 	/**
 	 * Display cards in a grid layout
 	 */
-	private displayCards(cards: any[]): void {
+	private displayCards(cards: CardData[]): void {
 		const cardDimensions = Card.getDimensions();
 		const margin = 20;
 		const cardSpacing = 20;
@@ -176,7 +177,7 @@ export class CardShowcaseScreen extends Screen {
 	/**
 	 * Display cards organized by rarity
 	 */
-	private displayCardsByRarity(cards: any[], startY: number): void {
+	private displayCardsByRarity(cards: CardData[], startY: number): void {
 		const rarities = ['starter', 'common', 'uncommon', 'rare', 'legendary'];
 		const cardDimensions = Card.getDimensions();
 		const margin = 20;
@@ -276,7 +277,7 @@ export class CardShowcaseScreen extends Screen {
 	/**
 	 * Update the screen
 	 */
-	public onUpdate(dt: number): void {
+	public onUpdate(_dt: number): void {
 		// Handle any updates
 	}
 

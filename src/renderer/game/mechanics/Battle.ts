@@ -130,7 +130,11 @@ export class Battle {
 			return false;
 		}
 
-		const card = result.card!;
+		const card = result.card;
+		if (!card) {
+			console.error('Card play succeeded but no card returned');
+			return false;
+		}
 
 		// Apply card effects
 		if (targetVehicle) {

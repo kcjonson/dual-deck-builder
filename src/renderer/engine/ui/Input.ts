@@ -313,8 +313,8 @@ export class Input extends Component {
 		if (this.enabled) {
 			// First check if we need to blur another input
 			const currentFocus = InputSystem.getFocus();
-			if (currentFocus && currentFocus !== this && 'onMouseDownOutside' in currentFocus) {
-				(currentFocus as any).onMouseDownOutside();
+			if (currentFocus && currentFocus !== this && 'onMouseDownOutside' in currentFocus && typeof (currentFocus as { onMouseDownOutside?: () => void }).onMouseDownOutside === 'function') {
+				(currentFocus as { onMouseDownOutside: () => void }).onMouseDownOutside();
 			}
 			
 			this.setFocused(true);

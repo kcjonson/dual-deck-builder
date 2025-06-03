@@ -52,7 +52,7 @@ export class BattlefieldLayer extends Layer {
 	/**
 	 * Create battlefield layer
 	 */
-	constructor(options: any) {
+	constructor(options: { x: number; y: number; width: number; height: number }) {
 		super(options);
 		
 		// Battlefield background
