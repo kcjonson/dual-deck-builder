@@ -7,6 +7,9 @@ import { BattlefieldLayer, PlayerVehicle } from './BattlefieldLayer';
 import { PlayerHandLayer } from './PlayerHandLayer';
 import { ResourceBarLayer } from './ResourceBarLayer';
 import { Driver } from '../../mechanics/Driver';
+import { Vehicle } from '../../mechanics/Vehicle';
+import { Team, TeamType } from '../../mechanics/Team';
+import { Battle } from '../../mechanics/Battle';
 import { Card } from '../../mechanics/Card';
 import { CardLoader } from '../../core/CardLoader';
 import { InputSystem } from '../../../engine/input/InputSystem';
@@ -22,21 +25,19 @@ export class CombatScreen extends Screen {
 	private handLayer!: PlayerHandLayer;
 	private resourceLayer!: ResourceBarLayer;
 	
-	// Game state
-	private playerDrivers: Driver[] = [];
-	private playerVehicles: PlayerVehicle[] = [];
-	private enemies: EnemyVehicle[] = [];
-	private currentAdrenaline: number = 3;
-	private maxAdrenaline: number = 3;
-	private drawPileCount: number = 10;
-	private discardPileCount: number = 0;
+	// Game state using new Team architecture
+	private battle: Battle | null = null;
+	private playerTeam: Team | null = null;
+	private enemyTeam: Team | null = null;
+	private currentPlayerDriver: Driver | null = null; // For single player mode
 	private fuel: number = 5;
 	private scrap: number = 150;
 	
 	// Interaction state
 	private selectedCard: Card | null = null;
+	private selectedCardDriver: Driver | null = null; // Which driver is playing the card
 	private isTargeting: boolean = false;
-	private hoveredTarget: EnemyVehicle | PlayerVehicle | null = null;
+	private hoveredTarget: Vehicle | null = null;
 	
 	// Targeting visual components
 	private targetingArrow: Arrow;
@@ -63,6 +64,159 @@ export class CombatScreen extends Screen {
 		this.createBackground();
 		this.createLayers();
 		this.setupInteractions();
+	}
+
+	/**
+	 * Initialize combat with driver teams and vehicles
+	 */
+	public initializeCombat(drivers: Driver[]): void {
+		if (drivers.length !== 2) {
+			throw new Error('Combat requires exactly 2 drivers');
+		}
+
+		try {
+			// Create vehicles from driver configurations
+			const [driver1, driver2] = drivers;
+			
+			// Create vehicles based on driver configs
+			const vehicle1 = this.createVehicleFromDriver(driver1);
+			const vehicle2 = this.createVehicleFromDriver(driver2);
+			
+			// Assign drivers to their vehicles
+			vehicle1.setDriver(driver1);
+			vehicle2.setDriver(driver2);
+
+			// Create player team
+			this.playerTeam = new Team({
+				id: 'player_team',
+				type: TeamType.PLAYER,
+				vehicles: [vehicle1, vehicle2]
+			});
+
+			// Create simple enemy team for testing
+			this.enemyTeam = this.createTestEnemyTeam();
+
+			// Create battle instance
+			this.battle = new Battle({
+				playerTeam: this.playerTeam,
+				enemyTeam: this.enemyTeam
+			});
+
+			// Set current driver for single player mode (first driver by default)
+			this.currentPlayerDriver = driver1;
+
+			// Start the battle
+			this.battle.start();
+
+			// Update UI with new data
+			this.updateUIFromBattle();
+
+			console.log('Combat initialized with Team system');
+		} catch (error) {
+			console.error('Failed to initialize combat:', error);
+		}
+	}
+
+	/**
+	 * Create a vehicle from a driver configuration
+	 */
+	private createVehicleFromDriver(driver: Driver): Vehicle {
+		const config = driver.getConfig();
+		const vehicleStats = config.vehicleStats;
+		
+		return new Vehicle({
+			id: `${config.id}_vehicle`,
+			name: config.metadata.vehicleName,
+			armor: vehicleStats.armor,
+			structure: vehicleStats.maxHealth,
+			speed: vehicleStats.speed
+		});
+	}
+
+	/**
+	 * Create a test enemy team
+	 */
+	private createTestEnemyTeam(): Team {
+		// Create enemy drivers with basic configs
+		const enemyDriver1 = new Driver({
+			config: {
+				id: 'raider',
+				metadata: {
+					name: 'Wasteland Raider',
+					vehicleName: 'Rust Buggy',
+					specialty: 'AGGRESSIVE',
+					flavorText: 'A dangerous raider',
+					unlocked: true
+				},
+				skills: {
+					ramming: 5,
+					gunnery: 6,
+					evade: 4
+				},
+				vehicleStats: {
+					maxHealth: 30,
+					weight: 2,
+					armor: 5,
+					speed: 3,
+					gunnery: 6,
+					evade: 4
+				},
+				startingDeck: {
+					cards: [
+						{ id: 'ramming_speed', quantity: 2 },
+						{ id: 'precision_shot', quantity: 3 }
+					]
+				}
+			}
+		});
+
+		const enemyVehicle1 = new Vehicle({
+			id: 'enemy_vehicle_1',
+			name: 'Rust Buggy',
+			armor: 5,
+			structure: 30,
+			speed: 3
+		});
+
+		enemyVehicle1.setDriver(enemyDriver1);
+
+		return new Team({
+			id: 'enemy_team',
+			type: TeamType.ENEMY,
+			vehicles: [enemyVehicle1]
+		});
+	}
+
+	/**
+	 * Update UI layers with current battle state
+	 */
+	private updateUIFromBattle(): void {
+		if (!this.battle || !this.playerTeam || !this.enemyTeam) return;
+
+		const battleStats = this.battle.getBattleStats();
+		
+		// Update resource layer with current driver's stats
+		if (this.currentPlayerDriver) {
+			this.resourceLayer.setAdrenaline(
+				this.currentPlayerDriver.getAdrenaline(),
+				this.currentPlayerDriver.getMaxAdrenaline()
+			);
+			this.resourceLayer.setFuel(this.fuel);
+			this.resourceLayer.setScrap(this.scrap);
+			
+			const deck = this.currentPlayerDriver.getDeck();
+			this.resourceLayer.setDrawPileCount(deck ? deck.getCards().length : 0);
+			this.resourceLayer.setDiscardPileCount(this.currentPlayerDriver.getDiscardPile().length);
+		}
+
+		// Update hand layer with current driver's hand
+		if (this.currentPlayerDriver) {
+			this.handLayer.setHand(this.currentPlayerDriver.getHand());
+			this.handLayer.setAdrenaline(this.currentPlayerDriver.getAdrenaline());
+		}
+
+		// Update battlefield and enemy layers would go here
+		// For now, keeping existing update logic
 	}
 
 	/**
@@ -191,83 +345,34 @@ export class CombatScreen extends Screen {
 	}
 
 	/**
-	 * Initialize combat with drivers and enemies
+	 * Switch to a different driver (for single player mode)
 	 */
-	public async initializeCombat(drivers: Driver[], enemies: EnemyVehicle[]): Promise<void> {
-		this.playerDrivers = drivers;
-		this.enemies = enemies;
+	public switchToDriver(driver: Driver): void {
+		if (!this.playerTeam) return;
 		
-		// Ensure CardLoader is initialized
-		const cardLoader = CardLoader.getInstance();
-		try {
-			await cardLoader.loadCards();
-		} catch (error) {
-			console.warn('Cards already loaded or error loading:', error);
+		const playerDrivers = this.playerTeam.getAllDrivers();
+		if (playerDrivers.includes(driver)) {
+			this.currentPlayerDriver = driver;
+			this.updateUIFromBattle();
+			console.log(`Switched to ${driver.getName()}`);
 		}
-		
-		// Create player vehicles from drivers
-		this.playerVehicles = drivers.map(driver => ({
-			driver,
-			currentHealth: driver.getVehicleStats().maxHealth,
-			maxHealth: driver.getVehicleStats().maxHealth,
-			armor: driver.getVehicleStats().armor,
-			statusEffects: [],
-			position: 'front' as const,
-		}));
-
-		// Set up layers with initial data
-		this.enemyLayer.setEnemies(enemies);
-		this.battlefieldLayer.setPlayerVehicles(this.playerVehicles);
-		
-		// Initialize hand with starting cards
-		this.initializePlayerHand();
-		
-		// Set initial resource values
-		this.updateResourceDisplay();
-
-		console.log('Combat initialized with', drivers.length, 'drivers and', enemies.length, 'enemies');
 	}
 
 	/**
-	 * Initialize player hand with cards from both drivers
-	 */
-	private initializePlayerHand(): void {
-		const handCards: Card[] = [];
-		const cardLoader = CardLoader.getInstance();
-		
-		// Draw initial hand from combined decks
-		// For now, show some cards from each driver
-		for (const driver of this.playerDrivers) {
-			const startingDeckConfig = driver.getStartingDeckConfig();
-			
-			// Add first 2-3 cards from each driver's deck as initial hand
-			let cardCount = 0;
-			const maxCardsPerDriver = Math.floor(5 / this.playerDrivers.length) + 1;
-			
-			for (const cardConfig of startingDeckConfig.cards) {
-				if (cardCount >= maxCardsPerDriver) break;
-				if (handCards.length >= 5) break; // Max initial hand of 5 cards
-				
-				const cardInstance = cardLoader.createCard(cardConfig.id);
-				if (cardInstance) {
-					handCards.push(cardInstance);
-					cardCount++;
-				}
-			}
-		}
-
-		console.log(`Initialized hand with ${handCards.length} cards:`, handCards.map(c => c.getName()));
-		this.handLayer.setHand(handCards);
-		this.handLayer.setAdrenaline(this.currentAdrenaline);
-	}
-
-	/**
-	 * Handle card selection
+	 * Handle card selection using new Team system
 	 */
 	private onCardSelected(card: Card): void {
-		// Check if player has enough adrenaline
-		if (this.currentAdrenaline < card.getCost()) {
-			console.log('Not enough adrenaline to play card');
+		if (!this.battle || !this.currentPlayerDriver) {
+			console.warn('No battle or driver selected');
+			return;
+		}
+
+		// Check if current driver can afford and play this card
+		if (!this.currentPlayerDriver.canPlayCard(card)) {
+			const reason = !this.currentPlayerDriver.canAffordCard(card) 
+				? 'Not enough adrenaline'
+				: 'Cannot play this card type as passenger';
+			console.log(reason);
 			return;
 		}
 
@@ -276,14 +381,17 @@ export class CombatScreen extends Screen {
 			this.cancelCardSelection();
 		}
 
+		// Store the driver who will play this card
+		this.selectedCard = card;
+		this.selectedCardDriver = this.currentPlayerDriver;
+
 		// Check if card needs a target
 		const targetType = card.getTargetType();
 		if (targetType === 'enemy_all' || targetType === 'self' || targetType === 'both_drivers') {
 			// No specific target needed, play immediately
-			this.playCard(card, null, null);
+			this.playCardWithTarget(card, undefined);
 		} else {
 			// Enter targeting mode
-			this.selectedCard = card;
 			this.isTargeting = true;
 			
 			// Update hand layer to show selection state
@@ -297,6 +405,64 @@ export class CombatScreen extends Screen {
 			this.highlightValidTargets(card);
 			
 			console.log(`Select target for ${card.getName()}`);
+		}
+	}
+
+	/**
+	 * Play a card with the specified target using the new Battle system
+	 */
+	private playCardWithTarget(card: Card, targetVehicle: Vehicle | undefined): void {
+		if (!this.battle || !this.selectedCardDriver) {
+			console.warn('Cannot play card: no battle or driver');
+			return;
+		}
+
+		// Find the card index in the driver's hand
+		const hand = this.selectedCardDriver.getHand();
+		const cardIndex = hand.findIndex(c => c === card);
+		
+		if (cardIndex === -1) {
+			console.warn('Card not found in driver hand');
+			return;
+		}
+
+		// Play the card through the battle system
+		const success = this.battle.playCard({
+			driver: this.selectedCardDriver,
+			cardIndex: cardIndex,
+			targetVehicle: targetVehicle
+		});
+
+		if (success) {
+			console.log(`${this.selectedCardDriver.getName()} played ${card.getName()}`);
+			
+			// Update UI to reflect new state
+			this.updateUIFromBattle();
+			
+			// Check for battle end conditions
+			if (this.battle.isBattleOver()) {
+				this.handleBattleEnd();
+			}
+		} else {
+			console.warn('Failed to play card');
+		}
+
+		// Clear selection state
+		this.cancelCardSelection();
+	}
+
+	/**
+	 * Handle battle end
+	 */
+	private handleBattleEnd(): void {
+		if (!this.battle) return;
+
+		const victory = this.battle.isBattleWon();
+		console.log(victory ? 'Victory!' : 'Defeat!');
+		
+		// Call the end combat callback
+		if (this.onEndCombat) {
+			this.onEndCombat(victory);
 		}
 	}
 
@@ -380,32 +546,11 @@ export class CombatScreen extends Screen {
 
 	/**
 	 * Update the currently hovered target and highlighting
+	 * TODO: Update to work with new Vehicle class
 	 */
-	private updateHoveredTarget(enemy: EnemyVehicle | null, vehicle: PlayerVehicle | null): void {
-		// Clear previous highlights
-		if (this.hoveredTarget) {
-			if ('intent' in this.hoveredTarget) {
-				// It's an enemy
-				this.enemyLayer.highlightEnemy(null);
-			} else {
-				// It's a player vehicle - clear all highlights
-				this.battlefieldLayer.clearHighlights();
-			}
-		}
-
-		// Set new hovered target
-		this.hoveredTarget = enemy || vehicle || null;
-
-		// Apply new highlights
-		if (this.hoveredTarget) {
-			if ('intent' in this.hoveredTarget) {
-				// Highlight enemy
-				this.enemyLayer.highlightEnemy(this.hoveredTarget.id);
-			} else {
-				// Highlight player vehicle
-				this.battlefieldLayer.highlightVehicle(this.hoveredTarget.driver.getId(), '#44aa44');
-			}
-		}
+	private updateHoveredTarget(enemy: any, vehicle: any): void {
+		// Temporarily disabled - needs update for new Vehicle system
+		return;
 	}
 
 	/**
@@ -434,6 +579,7 @@ export class CombatScreen extends Screen {
 	 */
 	private cancelCardSelection(): void {
 		this.selectedCard = null;
+		this.selectedCardDriver = null;
 		this.isTargeting = false;
 		this.hoveredTarget = null;
 
@@ -457,28 +603,8 @@ export class CombatScreen extends Screen {
 	private highlightValidTargets(card: Card): void {
 		const targetType = card.getTargetType();
 		
-		switch (targetType) {
-			case 'enemy_single':
-			case 'enemy_all':
-				// Visual cue that enemies are targetable (no pre-highlighting)
-				// Highlighting will happen on hover via updateHoveredTarget
-				break;
-			case 'self':
-			case 'ally':
-			case 'both_drivers':
-				// Pre-highlight valid friendly vehicles
-				this.playerVehicles.forEach(vehicle => {
-					this.battlefieldLayer.highlightVehicle(vehicle.driver.getId(), '#44aa44');
-				});
-				break;
-			case 'any':
-				// Pre-highlight all valid targets
-				this.playerVehicles.forEach(vehicle => {
-					this.battlefieldLayer.highlightVehicle(vehicle.driver.getId(), '#44aa44');
-				});
-				// Enemies will be highlighted on hover
-				break;
-		}
+		// TODO: Update to work with new Team/Vehicle system
+		// For now, basic highlighting disabled until UI layers are updated
 	}
 
 	/**
@@ -514,117 +640,59 @@ export class CombatScreen extends Screen {
 	/**
 	 * Play a card with the given target
 	 */
-	private playCard(card: Card, targetEnemy: EnemyVehicle | null, targetVehicle: PlayerVehicle | null): void {
-		// Check if player has enough adrenaline
-		if (this.currentAdrenaline < card.getCost()) {
-			console.log('Not enough adrenaline to play card');
-			return;
-		}
-
-		// Spend adrenaline
-		this.currentAdrenaline -= card.getCost();
-		
-		// Remove card from hand
-		this.handLayer.removeCard(card);
-		
-		// Apply card effects
-		this.applyCardEffects(card, targetEnemy, targetVehicle);
-		
-		// Animate card to discard
-		this.discardPileCount++;
-		this.handLayer.animateCardToDiscard(card, window.innerWidth - 100, window.innerHeight - 50);
-		
-		// Update displays
-		this.updateResourceDisplay();
-		
-		console.log(`Played card: ${card.getName()}`);
+	private playCard(card: Card, targetEnemy: any, targetVehicle: any): void {
+		// TODO: Remove - replaced by playCardWithTarget
+		return;
 	}
 
 	/**
 	 * Apply card effects to targets
 	 */
-	private applyCardEffects(card: Card, targetEnemy: EnemyVehicle | null, targetVehicle: PlayerVehicle | null): void {
-		const effects = card.getEffects();
-		
-		for (const effect of effects) {
-			switch (effect.type) {
-				case 'damage':
-					if (targetEnemy && effect.value) {
-						this.damageEnemy(targetEnemy, effect.value);
-					}
-					break;
-				case 'heal':
-					if (targetVehicle && effect.value) {
-						this.healVehicle(targetVehicle, effect.value);
-					}
-					break;
-				case 'gain_armor':
-					if (targetVehicle && effect.value) {
-						this.addArmor(targetVehicle, effect.value);
-					}
-					break;
-				// TODO: Implement more effect types
-			}
-		}
+	private applyCardEffects(card: Card, targetEnemy: any, targetVehicle: any): void {
+		// TODO: Remove - replaced by Battle system
+		return;
 	}
 
 	/**
 	 * Damage an enemy
 	 */
-	private damageEnemy(enemy: EnemyVehicle, damage: number): void {
-		// Apply damage through armor first
-		let remainingDamage = damage;
-		
-		if (enemy.armor > 0) {
-			const armorDamage = Math.min(enemy.armor, remainingDamage);
-			enemy.armor -= armorDamage;
-			remainingDamage -= armorDamage;
-		}
-		
-		if (remainingDamage > 0) {
-			enemy.currentHealth = Math.max(0, enemy.currentHealth - remainingDamage);
-		}
-		
-		// Update enemy display
-		this.enemyLayer.updateEnemy(enemy.id, enemy);
-		
-		// Check if enemy is defeated
-		if (enemy.currentHealth <= 0) {
-			console.log(`Enemy ${enemy.name} defeated!`);
-			this.checkVictoryCondition();
-		}
+	private damageEnemy(enemy: any, damage: number): void {
+		// TODO: Remove - replaced by Battle system
+		return;
 	}
 
 	/**
 	 * Heal a player vehicle
 	 */
-	private healVehicle(vehicle: PlayerVehicle, healing: number): void {
-		vehicle.currentHealth = Math.min(vehicle.maxHealth, vehicle.currentHealth + healing);
-		this.battlefieldLayer.updatePlayerVehicle(vehicle.driver.getId(), vehicle);
+	private healVehicle(vehicle: any, healing: number): void {
+		// TODO: Remove - replaced by Battle system
+		return;
 	}
 
 	/**
 	 * Add armor to a player vehicle
 	 */
-	private addArmor(vehicle: PlayerVehicle, armor: number): void {
-		vehicle.armor += armor;
-		this.battlefieldLayer.updatePlayerVehicle(vehicle.driver.getId(), vehicle);
+	private addArmor(vehicle: any, armor: number): void {
+		// TODO: Remove - replaced by Battle system
+		return;
 	}
 
 	/**
 	 * End player turn
 	 */
 	private endPlayerTurn(): void {
+		if (!this.battle) {
+			console.warn('Cannot end turn: no battle active');
+			return;
+		}
+
 		console.log('Ending player turn...');
 		
-		// Refill adrenaline
-		this.currentAdrenaline = this.maxAdrenaline;
+		// End turn through the battle system
+		this.battle.endPlayerTurn();
 		
-		// Draw new cards
-		// TODO: Implement proper card drawing
-		
-		// Process enemy turn
-		this.processEnemyTurn();
+		// Update UI to reflect new state
+		this.updateUIFromBattle();
 		
 		// Update displays
 		this.updateResourceDisplay();
@@ -634,74 +702,25 @@ export class CombatScreen extends Screen {
 	 * Process enemy turn
 	 */
 	private processEnemyTurn(): void {
-		console.log('Processing enemy turn...');
-		
-		// TODO: Implement enemy AI and actions
-		// For now, just apply some basic enemy actions
-		
-		for (const enemy of this.enemies) {
-			if (enemy.currentHealth <= 0) continue;
-			
-			// Execute enemy intent
-			this.executeEnemyIntent(enemy);
-		}
-		
-		// Check defeat condition
-		this.checkDefeatCondition();
+		// Enemy turn is now handled by the Battle system
+		// This method is no longer needed with the new architecture
+		return;
 	}
 
 	/**
 	 * Execute an enemy's intent
+	 * TODO: Remove - replaced by Battle system
 	 */
-	private executeEnemyIntent(enemy: EnemyVehicle): void {
-		switch (enemy.intent.type) {
-			case 'attack':
-				if (enemy.intent.value) {
-					// Attack random player vehicle
-					const alivePlayers = this.playerVehicles.filter(v => v.currentHealth > 0);
-					if (alivePlayers.length > 0) {
-						const target = alivePlayers[Math.floor(Math.random() * alivePlayers.length)];
-						this.damagePlayerVehicle(target, enemy.intent.value);
-					}
-				}
-				break;
-			case 'defend':
-				// Add armor to self
-				enemy.armor += 5;
-				this.enemyLayer.updateEnemy(enemy.id, enemy);
-				break;
-			case 'repair':
-				// Heal self
-				enemy.currentHealth = Math.min(enemy.maxHealth, enemy.currentHealth + 10);
-				this.enemyLayer.updateEnemy(enemy.id, enemy);
-				break;
-		}
-		
-		// Generate new intent for next turn
-		enemy.intent = this.generateRandomIntent();
-		this.enemyLayer.updateEnemy(enemy.id, enemy);
+	private executeEnemyIntent(enemy: any): void {
+		return;
 	}
 
 	/**
 	 * Damage a player vehicle
+	 * TODO: Remove - replaced by Battle system
 	 */
-	private damagePlayerVehicle(vehicle: PlayerVehicle, damage: number): void {
-		let remainingDamage = damage;
-		
-		// Apply damage through armor first
-		if (vehicle.armor > 0) {
-			const armorDamage = Math.min(vehicle.armor, remainingDamage);
-			vehicle.armor -= armorDamage;
-			remainingDamage -= armorDamage;
-		}
-		
-		if (remainingDamage > 0) {
-			vehicle.currentHealth = Math.max(0, vehicle.currentHealth - remainingDamage);
-		}
-		
-		this.battlefieldLayer.updatePlayerVehicle(vehicle.driver.getId(), vehicle);
-		
-		console.log(`${vehicle.driver.getName()} takes ${damage} damage`);
+	private damagePlayerVehicle(vehicle: any, damage: number): void {
+		return;
 	}
 
 	/**
@@ -720,39 +739,24 @@ export class CombatScreen extends Screen {
 	 * Check victory condition
 	 */
 	private checkVictoryCondition(): void {
-		const aliveEnemies = this.enemies.filter(enemy => enemy.currentHealth > 0);
-		if (aliveEnemies.length === 0) {
-			console.log('Victory! All enemies defeated!');
-			if (this.onEndCombat) {
-				this.onEndCombat(true);
-			}
-		}
+		// TODO: Update for new Battle system
+		return;
 	}
 
 	/**
 	 * Check defeat condition
 	 */
 	private checkDefeatCondition(): void {
-		const alivePlayers = this.playerVehicles.filter(vehicle => vehicle.currentHealth > 0);
-		if (alivePlayers.length === 0) {
-			console.log('Defeat! All vehicles destroyed!');
-			if (this.onEndCombat) {
-				this.onEndCombat(false);
-			}
-		}
+		// TODO: Update for new Battle system
+		return;
 	}
 
 	/**
 	 * Update resource display
 	 */
 	private updateResourceDisplay(): void {
-		this.resourceLayer.setAdrenaline(this.currentAdrenaline, this.maxAdrenaline);
-		this.resourceLayer.setDrawPileCount(this.drawPileCount);
-		this.resourceLayer.setDiscardPileCount(this.discardPileCount);
-		this.resourceLayer.setFuel(this.fuel);
-		this.resourceLayer.setScrap(this.scrap);
-		
-		this.handLayer.setAdrenaline(this.currentAdrenaline);
+		// Now handled by updateUIFromBattle
+		this.updateUIFromBattle();
 	}
 
 	/**
@@ -773,16 +777,10 @@ export class CombatScreen extends Screen {
 	 * Handle screen mount
 	 */
 	protected onMount(): void {
-		// Restore state if we have data
-		if (this.enemies.length > 0) {
-			this.enemyLayer.setEnemies(this.enemies);
+		// Update UI from battle state if we have an active battle
+		if (this.battle) {
+			this.updateUIFromBattle();
 		}
-		if (this.playerVehicles.length > 0) {
-			this.battlefieldLayer.setPlayerVehicles(this.playerVehicles);
-			this.initializePlayerHand();
-		}
-		
-		this.updateResourceDisplay();
 	}
 
 	/**
@@ -834,14 +832,9 @@ export class CombatScreen extends Screen {
 		this.resourceLayer.setPosition(0, resourceLayerY);
 		this.resourceLayer.setSize(screenWidth, resourceLayerHeight);
 		
-		// Refresh displays
-		if (this.enemies.length > 0) {
-			this.enemyLayer.setEnemies(this.enemies);
+		// Refresh displays from battle state
+		if (this.battle) {
+			this.updateUIFromBattle();
 		}
-		if (this.playerVehicles.length > 0) {
-			this.battlefieldLayer.setPlayerVehicles(this.playerVehicles);
-			this.initializePlayerHand();
-		}
-		this.updateResourceDisplay();
 	}
 }

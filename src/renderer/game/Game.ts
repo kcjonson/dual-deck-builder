@@ -5,7 +5,7 @@ import { DeveloperScreen } from './screens/developer/DeveloperScreen';
 import { CardShowcaseScreen } from './screens/card-showcase/CardShowcaseScreen';
 import { DriverSelectionScreen } from './screens/driver-selection/DriverSelectionScreen';
 import { CombatScreen } from './screens/combat/CombatScreen';
-import { EnemyVehicle } from './screens/combat/EnemyLayer';
+import { Driver } from './mechanics/Driver';
 
 /**
  * Interface for game screens
@@ -234,40 +234,13 @@ export class Game {
 	}
 
 	/**
-	 * Start combat with selected drivers
+	 * Start combat with selected drivers using new Team system
 	 */
-	private async startCombatWithDrivers(drivers: any[]): Promise<void> {
-		// Create some test enemies
-		const testEnemies: EnemyVehicle[] = [
-			{
-				id: 'raider1',
-				name: 'Wasteland Raider',
-				maxHealth: 30,
-				currentHealth: 30,
-				armor: 5,
-				intent: {
-					type: 'attack',
-					value: 8,
-					description: 'Preparing to attack'
-				}
-			},
-			{
-				id: 'buggy1',
-				name: 'Scout Buggy',
-				maxHealth: 20,
-				currentHealth: 20,
-				armor: 2,
-				intent: {
-					type: 'repair',
-					description: 'Preparing to repair'
-				}
-			}
-		];
-
-		// Get combat screen and initialize it
+	private async startCombatWithDrivers(drivers: Driver[]): Promise<void> {
+		// Get combat screen and initialize it with the new Team-based system
 		const combatScreen = this.screens.get('combatScreen') as CombatScreen;
 		if (combatScreen) {
-			await combatScreen.initializeCombat(drivers, testEnemies);
+			combatScreen.initializeCombat(drivers);
 			this.showScreen('combatScreen');
 		}
 	}
