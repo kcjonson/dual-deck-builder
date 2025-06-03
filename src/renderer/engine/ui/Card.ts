@@ -4,7 +4,7 @@ import { Text } from '../components/Text';
 import { Rectangle } from '../components/Rectangle';
 import { RenderContext } from '../rendering/RenderContext';
 import { InputSystem } from '../input/InputSystem';
-import { Card as CardData } from '../../game/mechanics/Card';
+import { Card as GameCard } from '../../game/mechanics/Card';
 
 /**
  * Card size variants for different UI contexts
@@ -28,7 +28,7 @@ const CARD_DIMENSIONS = {
  * Visual component for displaying a card
  */
 export class Card extends Component {
-	private data: CardData;
+	private data: GameCard;
 	private size: CardSize;
 	private name: Text;
 	private cost: Text;
@@ -39,15 +39,15 @@ export class Card extends Component {
 	private cardBackground: Rectangle;
 
 	// Event callbacks
-	private clickHandler: ((card: CardData) => void) | null = null;
-	private selectHandler: ((card: CardData) => void) | null = null;
-	private activateHandler: ((card: CardData) => void) | null = null;
-	private targetHandler: ((card: CardData) => void) | null = null;
+	private clickHandler: ((card: GameCard) => void) | null = null;
+	private selectHandler: ((card: GameCard) => void) | null = null;
+	private activateHandler: ((card: GameCard) => void) | null = null;
+	private targetHandler: ((card: GameCard) => void) | null = null;
 	
 	// Selection state
 	private selected = false;
 
-	constructor({ x, y, data, size = CardSize.NORMAL }: { x: number; y: number; data: CardData; size?: CardSize }) {
+	constructor({ x, y, data, size = CardSize.NORMAL }: { x: number; y: number; data: GameCard; size?: CardSize }) {
 		const dimensions = CARD_DIMENSIONS[size];
 		super({
 			x,
@@ -244,22 +244,22 @@ export class Card extends Component {
 	/**
 	 * Set click handler (legacy - prefer semantic handlers)
 	 */
-	public setOnClick(handler: (card: CardData) => void): void {
+	public setOnClick(handler: (card: GameCard) => void): void {
 		this.clickHandler = handler;
 	}
 
 	/**
 	 * Set semantic event handlers
 	 */
-	public setOnSelect(handler: (card: CardData) => void): void {
+	public setOnSelect(handler: (card: GameCard) => void): void {
 		this.selectHandler = handler;
 	}
 
-	public setOnActivate(handler: (card: CardData) => void): void {
+	public setOnActivate(handler: (card: GameCard) => void): void {
 		this.activateHandler = handler;
 	}
 
-	public setOnTarget(handler: (card: CardData) => void): void {
+	public setOnTarget(handler: (card: GameCard) => void): void {
 		this.targetHandler = handler;
 	}
 
@@ -390,7 +390,7 @@ export class Card extends Component {
 	/**
 	 * Get the card data
 	 */
-	public getData(): CardData {
+	public getData(): GameCard {
 		return this.data;
 	}
 

@@ -43,7 +43,7 @@ export class CardLoader {
 	/**
 	 * Parse and validate card data from JSON
 	 */
-	private parseCardData(data: { cards: CardData[]; startingDecks?: Record<string, { cards: Array<{ id: string; quantity: number }> }> }): void {
+	private parseCardData(data: { cards: CardData[]; startingDecks?: Record<string, { name: string; description: string; cards: string[] }> }): void {
 		if (!data.cards || !Array.isArray(data.cards)) {
 			throw new Error('Invalid card data format: expected cards array');
 		}
@@ -61,9 +61,8 @@ export class CardLoader {
 		// Load starting deck configurations
 		if (data.startingDecks) {
 			for (const [deckId, deckData] of Object.entries(data.startingDecks)) {
-				if (typeof deckData === 'object' && deckData !== null && 'cards' in deckData) {
-					const deck = deckData as { cards: string[] };
-					this.startingDecks.set(deckId, deck.cards);
+				if (typeof deckData === 'object' && deckData !== null && 'cards' in deckData && Array.isArray(deckData.cards)) {
+					this.startingDecks.set(deckId, deckData.cards);
 				}
 			}
 		}

@@ -271,7 +271,7 @@ export class CombatScreen extends Screen {
 					armor: vehicle.getArmor(),
 					statusEffects: [],
 					position: 'front' as const
-				};
+				} as PlayerVehicle;
 			}).filter((data): data is PlayerVehicle => data !== null);
 			this.battlefieldLayer.setPlayerVehicles(playerData);
 		}

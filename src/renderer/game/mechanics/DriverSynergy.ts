@@ -222,7 +222,7 @@ export class DriverSynergy {
 		driver1: Driver, 
 		driver2: Driver,
 		offensive: { score: number; description: string },
-		defensive: { score: number; description: string },
+		defensive: { score: number; description: string; warning?: string },
 		speed: { score: number; description: string },
 		utility: { score: number; description: string }
 	): SynergyAnalysis {

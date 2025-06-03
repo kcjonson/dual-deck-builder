@@ -281,7 +281,7 @@ export class Battle {
 			switch (effect.type) {
 				case 'damage':
 					if (targetVehicle) {
-						const damage = effect.value || 0;
+						const damage = typeof effect.value === 'number' ? effect.value : 0;
 						targetVehicle.takeDamage(damage);
 						console.log(`${card.getName()} deals ${damage} damage to ${targetVehicle.getName()}`);
 						
@@ -297,7 +297,7 @@ export class Battle {
 
 				case 'heal':
 					if (targetVehicle) {
-						const healValue = effect.value || 0;
+						const healValue = typeof effect.value === 'number' ? effect.value : 0;
 						targetVehicle.repair(healValue);
 						console.log(`${card.getName()} repairs ${healValue} structure on ${targetVehicle.getName()}`);
 					}
@@ -305,20 +305,20 @@ export class Battle {
 
 				case 'armor':
 					if (targetVehicle) {
-						const armorValue = effect.value || 0;
+						const armorValue = typeof effect.value === 'number' ? effect.value : 0;
 						targetVehicle.addArmor(armorValue);
 						console.log(`${card.getName()} adds ${armorValue} armor to ${targetVehicle.getName()}`);
 					}
 					break;
 
 				case 'draw':
-					const drawValue = effect.value || 0;
+					const drawValue = typeof effect.value === 'number' ? effect.value : 0;
 					caster.drawCards(drawValue);
 					console.log(`${card.getName()} draws ${drawValue} cards for ${caster.getName()}`);
 					break;
 
 				case 'adrenaline':
-					const adrenalineValue = effect.value || 0;
+					const adrenalineValue = typeof effect.value === 'number' ? effect.value : 0;
 					caster.gainAdrenaline(adrenalineValue);
 					console.log(`${card.getName()} gives ${adrenalineValue} adrenaline to ${caster.getName()}`);
 					break;
@@ -326,8 +326,8 @@ export class Battle {
 				case 'status':
 					if (targetVehicle) {
 						const statusName = (effect.description || 'unknown').toLowerCase();
-						const statusValue = effect.value || 0;
-						const duration = effect.duration || 1;
+						const statusValue = typeof effect.value === 'number' ? effect.value : 0;
+						const duration = typeof effect.duration === 'number' ? effect.duration : 1;
 						
 						targetVehicle.applyStatusEffect({
 							name: statusName,
