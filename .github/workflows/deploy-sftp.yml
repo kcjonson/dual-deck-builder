@@ -30,6 +30,6 @@ jobs:
         sudo apt-get update && sudo apt-get install -y sshpass rsync
         
         # Deploy with rsync over SSH, creating directories as needed
-        sshpass -p "${{ secrets.SFTP_PASSWORD }}" rsync -avz --mkpath -e "ssh -o StrictHostKeyChecking=no" \
+        sshpass -p "${{ secrets.SFTP_PASSWORD }}" rsync -avz --mkpath -e "ssh -p 22 -o StrictHostKeyChecking=no" \
           dist/web/ \
           ${{ secrets.SFTP_USERNAME }}@${{ secrets.SFTP_SERVER }}:/bearcavinteractive.com/playtest/dual-deckbuilder/
