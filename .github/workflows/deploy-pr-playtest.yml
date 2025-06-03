@@ -33,7 +33,7 @@ jobs:
         local_path: './dist/web/*'
         remote_path: '/bearcavinteractive.com/playtest/dual-deckbuilder/${{ github.head_ref }}/'
         rsyncArgs: '--mkpath --exclude=node_modules --exclude=.git --exclude=*.log'
-        sftp_only: true
+        port: 22
     
     - name: Comment PR with playtest URL
       uses: actions/github-script@v6

@@ -33,4 +33,4 @@ jobs:
         local_path: './dist/web/*'
         remote_path: '/bearcavinteractive.com/playtest/dual-deckbuilder/'
         rsyncArgs: '--mkpath --exclude=node_modules --exclude=.git --exclude=*.log'
-        sftp_only: true
+        port: 22
