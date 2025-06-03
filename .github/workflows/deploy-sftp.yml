@@ -25,12 +25,11 @@ jobs:
       run: npm run build:web
     
     - name: Deploy to SFTP
-      uses: wlixcc/SFTP-Deploy-Action@v1.2.6
-      with:
-        server: ${{ secrets.SFTP_SERVER }}
-        username: ${{ secrets.SFTP_USERNAME }}
-        password: ${{ secrets.SFTP_PASSWORD }}
-        local_path: './dist/web/*'
-        remote_path: '/bearcavinteractive.com/playtest/dual-deckbuilder/'
-        rsyncArgs: '--mkpath --exclude=node_modules --exclude=.git --exclude=*.log'
-        port: 22
+      run: |
+        # Install sshpass for password authentication
+        sudo apt-get update && sudo apt-get install -y sshpass rsync
+        
+        # Deploy with rsync over SSH, creating directories as needed
+        sshpass -p "${{ secrets.SFTP_PASSWORD }}" rsync -avz --mkpath -e "ssh -o StrictHostKeyChecking=no" \
+          dist/web/ \
+          ${{ secrets.SFTP_USERNAME }}@${{ secrets.SFTP_SERVER }}:/bearcavinteractive.com/playtest/dual-deckbuilder/
