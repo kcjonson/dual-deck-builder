@@ -30,7 +30,7 @@ jobs:
         sudo apt-get update && sudo apt-get install -y sshpass rsync
         
         echo "Starting deployment..."
-        echo "Target: ${{ secrets.SFTP_USERNAME }}@${{ secrets.SFTP_SERVER }}:/bearcavinteractive.com/playtest/dual-deckbuilder/"
+        echo "Target: ${{ secrets.SFTP_USERNAME }}@${{ secrets.SFTP_SERVER }}:bearcavinteractive.com/playtest/dual-deckbuilder/"
         
         # Test SSH connection first
         echo "Testing SSH connection..."
@@ -42,6 +42,6 @@ jobs:
         timeout 300 sshpass -p "${{ secrets.SFTP_PASSWORD }}" rsync -avz --progress --mkpath \
           -e "ssh -p 22 -o StrictHostKeyChecking=no -o ConnectTimeout=10" \
           dist/web/ \
-          ${{ secrets.SFTP_USERNAME }}@${{ secrets.SFTP_SERVER }}:/bearcavinteractive.com/playtest/dual-deckbuilder/
+          ${{ secrets.SFTP_USERNAME }}@${{ secrets.SFTP_SERVER }}:bearcavinteractive.com/playtest/dual-deckbuilder/
         
         echo "Deployment completed successfully!"
