@@ -155,20 +155,10 @@ export class PlayerHandLayer extends Layer {
 		
 		if (this.handCards.length === 0) return;
 
-		const layerWidth = this.getWidth();
-		const layerHeight = this.getHeight();
-		
-		// Calculate card positioning
-		const totalCardWidth = this.handCards.length * this.CARD_DIMENSIONS.width + (this.handCards.length - 1) * this.CARD_SPACING;
-		const startX = Math.floor((layerWidth - totalCardWidth) / 2);
-		const cardY = Math.floor((layerHeight - this.CARD_DIMENSIONS.height) / 2);
-
 		this.handCards.forEach((card, index) => {
-			const x = startX + index * (this.CARD_DIMENSIONS.width + this.CARD_SPACING);
-			
 			const cardElement = new UICard({
-				x,
-				y: cardY,
+				x: 0, // Will be positioned by layoutCardElements
+				y: 0,
 				data: card,
 				size: this.CARD_SIZE,
 			});
@@ -179,6 +169,9 @@ export class PlayerHandLayer extends Layer {
 			this.cardElements.push(cardElement);
 			this.addChild(cardElement);
 		});
+		
+		// Layout the newly created cards
+		this.layoutCardElements();
 
 		this.updateCardPlayability();
 	}
@@ -312,5 +305,42 @@ export class PlayerHandLayer extends Layer {
 			return this.cardElements[cardIndex];
 		}
 		return null;
+	}
+	
+	/**
+	 * Handle layer resize
+	 */
+	protected onResized(): void {
+		// Update background size
+		const background = this.children[0] as Rectangle;
+		if (background) {
+			background.setWidth(this.getWidth());
+			background.setHeight(this.getHeight());
+		}
+		
+		// Re-layout existing cards without recreating them
+		this.layoutCardElements();
+	}
+
+	/**
+	 * Layout existing card elements without recreating them
+	 */
+	private layoutCardElements(): void {
+		if (this.cardElements.length === 0) return;
+		
+		const layerWidth = this.getWidth();
+		const layerHeight = this.getHeight();
+		
+		// Calculate card positioning
+		const totalCardWidth = this.cardElements.length * this.CARD_DIMENSIONS.width + 
+			(this.cardElements.length - 1) * this.CARD_SPACING;
+		const startX = Math.floor((layerWidth - totalCardWidth) / 2);
+		const cardY = Math.floor((layerHeight - this.CARD_DIMENSIONS.height) / 2);
+
+		// Layout each card
+		this.cardElements.forEach((cardElement, index) => {
+			const x = startX + index * (this.CARD_DIMENSIONS.width + this.CARD_SPACING);
+			cardElement.setPosition(x, cardY);
+		});
 	}
 }

@@ -8,6 +8,7 @@ import { Rectangle } from '../../../engine/components/Rectangle';
  * Main menu screen with game options
  */
 export class MainMenuScreen extends Screen {
+	private background: Rectangle;
 	private title: Text;
 	private onStartGame: (() => void) | null = null;
 	private onOpenSettings: (() => void) | null = null;
@@ -24,7 +25,7 @@ export class MainMenuScreen extends Screen {
 		super('mainMenuScreen', renderer);
 
 		// Create background
-		const background = new Rectangle({
+		this.background = new Rectangle({
 			x: 0,
 			y: 0,
 			width: window.innerWidth,
@@ -33,7 +34,7 @@ export class MainMenuScreen extends Screen {
 				backgroundColor: '#1a1a33',
 			},
 		});
-		this.rootLayer.addChild(background);
+		this.rootLayer.addChild(this.background);
 
 		// Create title text
 		this.title = new Text('Dual Deckbuilder', {
@@ -226,6 +227,10 @@ export class MainMenuScreen extends Screen {
 	 * Handle window resize
 	 */
 	protected onResized(): void {
+		// Update background size
+		this.background.setWidth(window.innerWidth);
+		this.background.setHeight(window.innerHeight);
+		
 		this.positionElements();
 	}
 }

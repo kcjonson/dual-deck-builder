@@ -4,6 +4,24 @@ This document contains the chronological log of completed development tasks for 
 
 =========================================
 
+## Window Resize Scaling Fixes (2025-01-06)
+
+### Fixed Window Resize Scaling Issues
+
+**What Changed:**
+- Fixed UI elements not scaling correctly when window resizes
+- Updated Renderer to properly update shader projection matrix on resize
+- Added onResized support to Layer base class that triggers when setSize is called
+- Updated MainMenuScreen to resize background on window resize
+- Added onResized handlers to all combat screen layers (EnemyLayer, BattlefieldLayer, PlayerHandLayer, ResourceBarLayer)
+- Fixed scrollable panel behavior in DeveloperScreen by storing reference and updating on resize
+
+**How:**
+- Root cause: Projection matrix was only sent to shader on initial load, not on resize
+- Components were storing fixed dimensions from initialization time
+- Scrollable panels weren't being resized when window resized
+- Solution: Update shader projection matrix in resize handler, add onResized callbacks to update child component dimensions, and properly resize scrollable containers
+
 ## Combat Screen Integration & Card Sizing System (2025-01-06)
 
 ### Tasks Completed

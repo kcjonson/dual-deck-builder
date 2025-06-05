@@ -431,4 +431,18 @@ export class BattlefieldLayer extends Layer {
 			}
 		});
 	}
+	
+	/**
+	 * Handle layer resize
+	 */
+	protected onResized(): void {
+		// Update background size
+		const background = this.children[0] as Rectangle;
+		if (background) {
+			background.setWidth(this.getWidth());
+			background.setHeight(this.getHeight());
+		}
+		
+		// Vehicle elements will be re-positioned on next updateVehicles call
+	}
 }

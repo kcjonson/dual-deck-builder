@@ -284,8 +284,8 @@ export class CombatScreen extends Screen {
 		const background = new Rectangle({
 			x: 0,
 			y: 0,
-			width: window.innerWidth,
-			height: window.innerHeight,
+			width: this.rootLayer.getWidth(),
+			height: this.rootLayer.getHeight(),
 			style: {
 				backgroundColor: '#1a1a1a', // Dark combat background
 			},
@@ -298,8 +298,8 @@ export class CombatScreen extends Screen {
 	 * Create all UI layers with proper positioning
 	 */
 	private createLayers(): void {
-		const screenWidth = window.innerWidth;
-		const screenHeight = window.innerHeight;
+		const screenWidth = this.rootLayer.getWidth();
+		const screenHeight = this.rootLayer.getHeight();
 		
 		// Enemy Layer - Top 25%
 		const enemyLayerHeight = Math.floor(screenHeight * 0.25);
@@ -866,8 +866,8 @@ export class CombatScreen extends Screen {
 	 */
 	protected onResized(): void {
 		// Update layer positions and sizes
-		const screenWidth = window.innerWidth;
-		const screenHeight = window.innerHeight;
+		const screenWidth = this.rootLayer.getWidth();
+		const screenHeight = this.rootLayer.getHeight();
 		
 		// Update background
 		const background = this.rootLayer.getChildren()[0] as Rectangle;
@@ -900,9 +900,6 @@ export class CombatScreen extends Screen {
 		this.resourceLayer.setPosition(0, resourceLayerY);
 		this.resourceLayer.setSize(screenWidth, resourceLayerHeight);
 		
-		// Refresh displays from battle state
-		if (this.battle) {
-			this.updateUIFromBattle();
-		}
+		// Don't recreate all UI elements on resize - they'll be repositioned by their own resize handlers
 	}
 }

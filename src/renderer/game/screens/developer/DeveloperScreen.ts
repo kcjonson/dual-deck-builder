@@ -20,8 +20,10 @@ import { NestedPanelsSection } from './NestedPanelsSection';
  * Developer screen for testing UI components and rendering
  */
 export class DeveloperScreen extends Screen {
+	private background: Rectangle;
 	private title: Text;
 	private backButton: Button;
+	private mainScrollContainer!: Panel;
 	private onBack: (() => void) | null = null;
 
 	// Performance monitoring
@@ -38,16 +40,16 @@ export class DeveloperScreen extends Screen {
 		super('developerScreen', renderer);
 
 		// Create background
-		const background = new Rectangle({
+		this.background = new Rectangle({
 			x: 0,
 			y: 0,
-			width: window.innerWidth,
-			height: window.innerHeight,
+			width: this.rootLayer.getWidth(),
+			height: this.rootLayer.getHeight(),
 			style: {
 				backgroundColor: '#262626',
 			},
 		});
-		this.rootLayer.addChild(background);
+		this.rootLayer.addChild(this.background);
 
 		// Create title text
 		this.title = new Text('Developer Tools', {
@@ -85,17 +87,17 @@ export class DeveloperScreen extends Screen {
 	 * Position fixed elements that don't scroll
 	 */
 	private positionFixedElements(): void {
-		const centerX = window.innerWidth / 2;
+		const centerX = this.rootLayer.getWidth() / 2;
 
 		// Position title (centered)
 		this.title.setAlign('center');
 		this.title.setPosition(centerX, 30);
 
 		// Position back button (bottom center)
-		this.backButton.setPosition(centerX - this.backButton.getWidth() / 2, window.innerHeight - 70);
+		this.backButton.setPosition(centerX - this.backButton.getWidth() / 2, this.rootLayer.getHeight() - 70);
 
 		// Position FPS counter
-		this.fpsCounter.setPosition(window.innerWidth - 100, 20);
+		this.fpsCounter.setPosition(this.rootLayer.getWidth() - 100, 20);
 	}
 
 	/**
@@ -103,9 +105,9 @@ export class DeveloperScreen extends Screen {
 	 */
 	private createMainScrollableContent(): void {
 		// Create a full-window scrollable container that holds all content
-		const mainScrollContainer = new Panel({
-			width: window.innerWidth,
-			height: window.innerHeight - 160, // Leave space for title (80) and back button (80)
+		this.mainScrollContainer = new Panel({
+			width: this.rootLayer.getWidth(),
+			height: this.rootLayer.getHeight() - 160, // Leave space for title (80) and back button (80)
 			scrollable: true,
 			scrollDirection: 'vertical',
 			overflow: 'hidden',
@@ -113,58 +115,58 @@ export class DeveloperScreen extends Screen {
 				backgroundColor: '#262626', // Match the background
 			},
 		});
-		mainScrollContainer.setPosition(0, 80); // Position below title
+		this.mainScrollContainer.setPosition(0, 80); // Position below title
 
-		this.rootLayer.addChild(mainScrollContainer);
+		this.rootLayer.addChild(this.mainScrollContainer);
 
 		// Layout parameters for full-width vertical sections
 		let currentY = 40;
 		const sectionSpacing = 80;
 		const margin = 40;
-		const contentWidth = window.innerWidth - margin * 2;
+		const contentWidth = this.rootLayer.getWidth() - margin * 2;
 
 		// === INTERACTIVE CONTROLS SECTION ===
 		const interactiveSection = new InteractiveControlsSection(margin, currentY, contentWidth);
-		mainScrollContainer.addChild(interactiveSection);
+		this.mainScrollContainer.addChild(interactiveSection);
 		currentY += interactiveSection.getHeight() + sectionSpacing;
 
 		// === STYLE GUIDE SECTION ===
 		const styleGuideSection = new StyleGuideSection(margin, currentY, contentWidth);
-		mainScrollContainer.addChild(styleGuideSection);
+		this.mainScrollContainer.addChild(styleGuideSection);
 		currentY += styleGuideSection.getHeight() + sectionSpacing;
 
 		// === INPUT SHOWCASE SECTION ===
 		const inputSection = new InputShowcaseSection(margin, currentY, contentWidth);
-		mainScrollContainer.addChild(inputSection);
+		this.mainScrollContainer.addChild(inputSection);
 		currentY += inputSection.getHeight() + sectionSpacing;
 
 		// === RECTANGLES SECTION ===
 		const rectangleSection = new RectangleExamplesSection(margin, currentY, contentWidth);
-		mainScrollContainer.addChild(rectangleSection);
+		this.mainScrollContainer.addChild(rectangleSection);
 		currentY += rectangleSection.getHeight() + sectionSpacing;
 
 		// === BUTTONS SECTION ===
 		const buttonSection = new ButtonExamplesSection(margin, currentY, contentWidth);
-		mainScrollContainer.addChild(buttonSection);
+		this.mainScrollContainer.addChild(buttonSection);
 		currentY += buttonSection.getHeight() + sectionSpacing;
 
 		// === TEXT SECTION ===
 		const textSection = new TextExamplesSection(margin, currentY, contentWidth);
-		mainScrollContainer.addChild(textSection);
+		this.mainScrollContainer.addChild(textSection);
 		currentY += textSection.getHeight() + sectionSpacing;
 
 		// === PRIMITIVE SHAPES SECTION ===
 		const shapesSection = new PrimitiveShapesSection(margin, currentY, contentWidth);
-		mainScrollContainer.addChild(shapesSection);
+		this.mainScrollContainer.addChild(shapesSection);
 		currentY += shapesSection.getHeight() + sectionSpacing;
 
 		// === NESTED PANELS SECTION ===
 		const nestedSection = new NestedPanelsSection(margin, currentY, contentWidth);
-		mainScrollContainer.addChild(nestedSection);
+		this.mainScrollContainer.addChild(nestedSection);
 		currentY += nestedSection.getHeight() + sectionSpacing;
 
 		// Update the content size based on actual content height
-		mainScrollContainer.setContentSize(window.innerWidth, currentY + 100);
+		this.mainScrollContainer.setContentSize(this.rootLayer.getWidth(), currentY + 100);
 	}
 
 	/**
@@ -210,14 +212,25 @@ export class DeveloperScreen extends Screen {
 	 */
 	protected onResized(): void {
 		// Update background size
-		const background = this.rootLayer.getChildren()[0] as Rectangle;
-		background.setSize(window.innerWidth, window.innerHeight);
+		if (this.background) {
+			this.background.setSize(this.rootLayer.getWidth(), this.rootLayer.getHeight());
+		}
 
 		// Force layout update on all children FIRST (so text dimensions are calculated)
 		this.rootLayer.layout();
 
 		// Then reposition all elements (now that dimensions are correct)
 		this.positionFixedElements();
+		
+		// Update scroll container size
+		if (this.mainScrollContainer) {
+			this.mainScrollContainer.setSize(
+				this.rootLayer.getWidth(),
+				this.rootLayer.getHeight() - 160 // Leave space for title (80) and back button (80)
+			);
+			
+			// Note: Content height is preserved automatically, we don't need to update it
+		}
 	}
 
 	/**

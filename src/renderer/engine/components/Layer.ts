@@ -136,9 +136,26 @@ export class Layer {
 	 * Set both width and height (convenience method)
 	 */
 	public setSize(width: number, height: number): this {
+		const oldWidth = this.width;
+		const oldHeight = this.height;
 		this.width = width;
 		this.height = height;
+		
+		// Call onResized if dimensions actually changed
+		if (oldWidth !== width || oldHeight !== height) {
+			this.onResized();
+		}
+		
 		return this;
+	}
+	
+	/**
+	 * Called when the layer is resized
+	 * Override this in subclasses to handle resize events
+	 */
+	protected onResized(): void {
+		// Default implementation does nothing
+		// Subclasses can override to update child components
 	}
 
 	/**

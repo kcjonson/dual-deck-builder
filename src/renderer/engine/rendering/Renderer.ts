@@ -12,6 +12,7 @@ export class Renderer {
 	private projectionMatrix: mat4;
 	private viewMatrix: mat4;
 	private fontAtlas: FontAtlas | null = null;
+	private handleResize: () => void;
 
 	constructor(canvasId: string) {
 		this.canvas = document.getElementById(canvasId) as HTMLCanvasElement;
@@ -31,7 +32,10 @@ export class Renderer {
 
 		// Now that matrices are initialized, we can resize
 		this.resize();
-		window.addEventListener('resize', () => this.resize());
+		
+		// Bind resize handler - use bind to ensure consistent context
+		this.handleResize = this.resize.bind(this);
+		window.addEventListener('resize', this.handleResize);
 
 		// Set default WebGL state
 		this.gl.enable(this.gl.BLEND);
@@ -46,20 +50,42 @@ export class Renderer {
 	 * Resize canvas and viewport when window size changes
 	 */
 	private resize(): void {
-		this.canvas.width = window.innerWidth;
-		this.canvas.height = window.innerHeight;
+		// Get the device pixel ratio (typically 1 on standard displays, 2 on retina)
+		const dpr = window.devicePixelRatio || 1;
+		
+		// Get the display size (CSS pixels)
+		const displayWidth = window.innerWidth;
+		const displayHeight = window.innerHeight;
+		
+		// Set the internal size to include the device pixel ratio
+		this.canvas.width = displayWidth * dpr;
+		this.canvas.height = displayHeight * dpr;
+		
+		// Set the display size (CSS pixels)
+		this.canvas.style.width = displayWidth + 'px';
+		this.canvas.style.height = displayHeight + 'px';
+		
+		// Set the viewport to match the internal size
 		this.gl.viewport(0, 0, this.canvas.width, this.canvas.height);
 
-		// Update projection matrix - use pixel coordinates directly
+		// Update projection matrix - use display size for coordinate system
+		// This ensures our coordinate system matches CSS pixels, not physical pixels
 		mat4.ortho(
 			this.projectionMatrix,
 			0, // left
-			this.canvas.width, // right
-			this.canvas.height, // bottom (flipped for screen coordinates)
+			displayWidth, // right (use display size, not canvas size)
+			displayHeight, // bottom (flipped for screen coordinates)
 			0, // top
 			-1.0, // near
 			1.0, // far
 		);
+		
+		// Update the projection matrix in the current shader if one is active
+		// This ensures the shader uses the new dimensions after resize
+		if (this.currentShader) {
+			this.currentShader.setMatrix4('uProjectionMatrix', this.projectionMatrix);
+		}
+		
 	}
 
 	/**

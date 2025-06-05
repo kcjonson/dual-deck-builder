@@ -4,6 +4,9 @@ This document is a place for multiple AI workers (such as Claude and Claude Code
 
 =========================================
 
+## Active Issues
+
+
 ## Project Overview
 
 Wasteland Wheels is a roguelike deckbuilder game with vehicular combat in a post-apocalyptic setting. Core mechanic: "Symbiotic Driver System" where players control two drivers/vehicles simultaneously.

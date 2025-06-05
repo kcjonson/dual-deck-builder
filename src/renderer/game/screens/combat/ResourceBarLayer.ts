@@ -418,4 +418,42 @@ export class ResourceBarLayer extends Layer {
 			scrap: this.scrapAmount,
 		};
 	}
+	
+	/**
+	 * Handle layer resize
+	 */
+	protected onResized(): void {
+		// Update background size
+		const background = this.children[0] as Rectangle;
+		if (background) {
+			background.setWidth(this.getWidth());
+			background.setHeight(this.getHeight());
+		}
+		
+		// Don't recreate elements here - let the parent screen handle it via updateUIFromBattle
+		// to avoid duplicate elements during resize
+	}
+	
+	/**
+	 * Clear all elements except background
+	 */
+	private clearElements(): void {
+		// Remove all children except the first (background)
+		while (this.children.length > 1) {
+			this.removeChild(this.children[1]);
+		}
+		
+		// Clear element references
+		this.adrenalineIcons = [];
+		this.adrenalineText = null;
+		this.drawPileIcon = null;
+		this.drawPileText = null;
+		this.discardPileIcon = null;
+		this.discardPileText = null;
+		this.fuelIcon = null;
+		this.fuelText = null;
+		this.scrapIcon = null;
+		this.scrapText = null;
+		this.endTurnButton = null;
+	}
 }

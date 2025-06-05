@@ -438,4 +438,18 @@ export class EnemyLayer extends Layer {
 			}
 		});
 	}
+	
+	/**
+	 * Handle layer resize
+	 */
+	protected onResized(): void {
+		// Update background size
+		const background = this.children[0] as Rectangle;
+		if (background) {
+			background.setWidth(this.getWidth());
+			background.setHeight(this.getHeight());
+		}
+		
+		// Enemy elements will be re-positioned on next updateEnemies call
+	}
 }

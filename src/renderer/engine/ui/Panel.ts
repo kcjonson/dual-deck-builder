@@ -275,10 +275,13 @@ export class Panel extends Layer implements Interactive {
 
 			// Convert from top-left UI coordinates to bottom-left WebGL coordinates
 			const canvas = renderer.getContext().canvas as HTMLCanvasElement;
-			const webglX = Math.floor(screenX);
-			const webglY = Math.floor(canvas.height - screenY - this.height);
-			const webglWidth = Math.floor(this.width);
-			const webglHeight = Math.floor(this.height);
+			const dpr = window.devicePixelRatio || 1;
+			
+			// Apply device pixel ratio to get actual pixel coordinates
+			const webglX = Math.floor(screenX * dpr);
+			const webglY = Math.floor((canvas.height / dpr - screenY - this.height) * dpr);
+			const webglWidth = Math.floor(this.width * dpr);
+			const webglHeight = Math.floor(this.height * dpr);
 
 			// Enable scissor testing for the content area
 			renderer.enableScissor(webglX, webglY, webglWidth, webglHeight);

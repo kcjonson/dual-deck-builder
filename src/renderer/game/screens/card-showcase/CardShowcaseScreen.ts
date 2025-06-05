@@ -27,8 +27,8 @@ export class CardShowcaseScreen extends Screen {
 		const background = new Rectangle({
 			x: 0,
 			y: 0,
-			width: window.innerWidth,
-			height: window.innerHeight,
+			width: this.rootLayer.getWidth(),
+			height: this.rootLayer.getHeight(),
 			style: {
 				backgroundColor: '#1a1a33',
 			},
@@ -50,7 +50,7 @@ export class CardShowcaseScreen extends Screen {
 		// Create back button
 		this.backButton = new Button('Back to Main Menu', {
 			x: 50,
-			y: window.innerHeight - 80,
+			y: this.rootLayer.getHeight() - 80,
 			width: 200,
 			height: 50,
 			style: {
@@ -67,8 +67,8 @@ export class CardShowcaseScreen extends Screen {
 
 		// Create main scrollable container that holds all content
 		this.cardsPanel = new Panel({
-			width: window.innerWidth,
-			height: window.innerHeight - 160, // Leave space for title (80) and back button (80)
+			width: this.rootLayer.getWidth(),
+			height: this.rootLayer.getHeight() - 160, // Leave space for title (80) and back button (80)
 			scrollable: true,
 			scrollDirection: 'vertical',
 			overflow: 'hidden',
@@ -171,7 +171,7 @@ export class CardShowcaseScreen extends Screen {
 
 		// Set content size for scrolling
 		const contentHeight = currentY + (cardDimensions.height * 5) + 100; // Rough estimate
-		this.cardsPanel.setContentSize(this.cardsPanel.getWidth(), contentHeight);
+		this.cardsPanel.setContentSize(this.rootLayer.getWidth(), contentHeight);
 	}
 
 	/**
@@ -286,5 +286,32 @@ export class CardShowcaseScreen extends Screen {
 	 */
 	public onRender(): void {
 		this.rootLayer.render();
+	}
+
+	/**
+	 * Handle window resize
+	 */
+	protected onResized(): void {
+		// Update background size if needed
+		const background = this.rootLayer.getChildren()[0];
+		if (background instanceof Rectangle) {
+			background.setSize(this.rootLayer.getWidth(), this.rootLayer.getHeight());
+		}
+
+		// Force layout update on all children
+		this.rootLayer.layout();
+
+		// Update panel size
+		if (this.cardsPanel) {
+			this.cardsPanel.setSize(
+				this.rootLayer.getWidth(),
+				this.rootLayer.getHeight() - 160
+			);
+		}
+
+		// Reposition fixed elements
+		if (this.backButton) {
+			this.backButton.setPosition(50, this.rootLayer.getHeight() - 80);
+		}
 	}
 }
