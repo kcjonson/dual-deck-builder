@@ -6,6 +6,12 @@ This document is a place for multiple AI workers (such as Claude and Claude Code
 
 ## Active Issues
 
+### Critical Performance Problems
+- **500+ draw calls per frame** on simple UI screens
+- **Text rendering**: Each character is a separate draw call (200+ characters = 200+ draw calls)
+- **No performance monitoring**: Can't measure optimization impact
+- See [Performance Optimization Plan](./AI_TECHNICAL_DECISIONS/PERFORMANCE_OPTIMIZATION_PLAN.md) for solution strategy
+
 
 ## Project Overview
 
@@ -143,6 +149,18 @@ Wasteland Wheels is a roguelike deckbuilder game with vehicular combat in a post
 For a complete log of recently completed tasks, see: [AI Development Log](./AI_DEVELOPMENT_LOG.md)
 
 ## Current Development Todos
+
+### Performance Optimization (HIGHEST PRIORITY)
+- [x] **Performance Task 1**: Add PerformanceMonitor with real-time metrics ✅ COMPLETED
+  - [x] Track draw calls, vertices, text characters per frame
+  - [x] Calculate and display FPS and frame times
+  - [x] Add developer overlay (F5 to toggle)
+  - [x] Hook into Renderer to count actual GL calls
+- [ ] **Performance Task 2**: Implement TextBatchRenderer for single-draw-call text rendering
+  - [ ] Create TextBatchRenderer class with pre-allocated vertex buffer
+  - [ ] Modify Text component to use batch renderer instead of immediate mode
+  - [ ] Integrate with existing Renderer class
+  - [ ] Test on DeveloperScreen (highest text density)
 
 ### Phase One (Foundation - UI System & Demo Environment)
 

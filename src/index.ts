@@ -3,6 +3,7 @@ import { Shader } from './renderer/engine/rendering/Shader';
 import { Game } from './renderer/game/Game';
 import { RendererContext } from './renderer/engine/rendering/RendererContext';
 import { InputSystem } from './renderer/engine/input/InputSystem';
+import { PerformanceMonitor } from './renderer/engine/rendering/PerformanceMonitor';
 import vertexShaderSource from './assets/shaders/vertex.glsl';
 import fragmentShaderSource from './assets/shaders/fragment.glsl';
 
@@ -12,6 +13,7 @@ import fragmentShaderSource from './assets/shaders/fragment.glsl';
 class Application {
 	private renderer!: Renderer;
 	private game!: Game;
+	private performanceMonitor!: PerformanceMonitor;
 	private lastTime = 0;
 
 	/**
@@ -29,8 +31,11 @@ class Application {
 				}
 			});
 
+			// Initialize performance monitoring
+			this.performanceMonitor = new PerformanceMonitor();
+
 			// Create the WebGL renderer
-			this.renderer = new Renderer('game-canvas');
+			this.renderer = new Renderer('game-canvas', this.performanceMonitor);
 
 			// Set up the global renderer context
 			RendererContext.getInstance().setRenderer(this.renderer);
@@ -48,7 +53,7 @@ class Application {
 			this.renderer.useShader(shader);
 
 			// Create and initialize the game
-			this.game = new Game(this.renderer);
+			this.game = new Game(this.renderer, this.performanceMonitor);
 			await this.game.init();
 
 			// Start the main loop
@@ -76,6 +81,9 @@ class Application {
 	 * Main game loop
 	 */
 	private loop = (): void => {
+		// Start performance tracking for this frame
+		this.performanceMonitor.beginFrame();
+		
 		const currentTime = performance.now();
 		const deltaTime = (currentTime - this.lastTime) / 1000; // Convert to seconds
 		this.lastTime = currentTime;
@@ -88,6 +96,9 @@ class Application {
 
 		// Render the game
 		this.game.render();
+		
+		// End performance tracking for this frame
+		this.performanceMonitor.endFrame();
 
 		// Queue the next frame
 		requestAnimationFrame(this.loop);

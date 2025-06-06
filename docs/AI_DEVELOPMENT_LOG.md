@@ -4,6 +4,49 @@ This document contains the chronological log of completed development tasks for 
 
 =========================================
 
+## Performance Monitoring System Implementation (2025-01-06)
+
+### Added Developer Performance Overlay
+
+**What Changed:**
+- Created PerformanceMonitor class to track rendering metrics
+- Added DeveloperOverlay UI component (toggle with F5) showing real-time stats
+- Integrated draw call tracking into all Renderer drawing operations
+- Fixed frame timing to properly display metrics from completed frames
+
+**How:**
+- PerformanceMonitor tracks draw calls, vertices, text characters per frame
+- Renderer passes monitor through constructor and records metrics on every GL draw
+- DeveloperOverlay renders performance stats in top-right corner
+- Fixed timing issue where metrics were reset before being displayed
+
+**Impact:**
+- Can now see exact draw call counts (500+ on text-heavy screens!)
+- Visibility into performance bottlenecks for optimization
+- Text rendering clearly shown as the biggest issue (1 draw call per character)
+
+=========================================
+
+## Performance Analysis and Optimization Planning (2025-01-06)
+
+### Analyzed Critical Performance Issues
+
+**What Changed:**
+- Identified 500+ draw calls per frame on simple UI screens
+- Found text rendering making one draw call per character (massive bottleneck)
+- Discovered no batching, excessive state changes, and missing culling systems
+- Created focused performance optimization plan
+
+**How:**
+- Profiled rendering pipeline and game loop
+- Analyzed shader usage and state management
+- Examined text rendering path finding character-by-character drawing
+- Created [Performance Optimization Plan](./AI_TECHNICAL_DECISIONS/PERFORMANCE_OPTIMIZATION_PLAN.md) focusing on:
+  - Text batching system to reduce text draw calls by 95%+
+  - Performance monitor for real-time metrics visibility
+
+=========================================
+
 ## Window Resize Scaling Fixes (2025-01-06)
 
 ### Fixed Window Resize Scaling Issues

@@ -1,6 +1,7 @@
 import { mat4 } from 'gl-matrix';
 import { Shader } from './Shader';
 import { FontAtlas } from './FontAtlas';
+import { PerformanceMonitor } from './PerformanceMonitor';
 
 /**
  * Main WebGL renderer class that abstracts WebGL operations
@@ -12,6 +13,7 @@ export class Renderer {
 	private projectionMatrix: mat4;
 	private viewMatrix: mat4;
 	private fontAtlas: FontAtlas | null = null;
+	private performanceMonitor: PerformanceMonitor;
 	private handleResize: () => void;
 	
 	// Reusable buffers for performance
@@ -21,7 +23,8 @@ export class Renderer {
 	private dynamicIndexBuffer: WebGLBuffer | null = null;
 	private maxDynamicVertices = 1024; // Support up to 1024 vertices
 
-	constructor(canvasId: string) {
+	constructor(canvasId: string, performanceMonitor: PerformanceMonitor) {
+		this.performanceMonitor = performanceMonitor;
 		this.canvas = document.getElementById(canvasId) as HTMLCanvasElement;
 		if (!this.canvas) {
 			throw new Error(`Canvas element with id ${canvasId} not found`);
@@ -263,6 +266,7 @@ export class Renderer {
 
 		// Draw the quad
 		this.gl.drawElements(this.gl.TRIANGLES, 6, this.gl.UNSIGNED_SHORT, 0);
+		this.performanceMonitor.recordDrawCall(4); // 4 vertices for a quad
 
 		// Clean up vertex arrays
 		if (positionAttribLocation >= 0) {
@@ -404,6 +408,9 @@ export class Renderer {
 		
 		// Text rendering uses same shader as other textured rendering
 
+		// Track text characters for performance monitoring
+		this.performanceMonitor.recordTextCharacters(text.length);
+
 		// Render each character
 		let currentX = startX;
 		for (let i = 0; i < text.length; i++) {
@@ -517,6 +524,7 @@ export class Renderer {
 
 		// Draw the filled circle
 		this.gl.drawElements(this.gl.TRIANGLES, indices.length, this.gl.UNSIGNED_SHORT, 0);
+		this.performanceMonitor.recordDrawCall(vertices.length / 2); // Each vertex has 2 components (x,y)
 
 		// Draw stroke if needed
 		if (strokeWidth > 0) {
@@ -541,6 +549,7 @@ export class Renderer {
 			this.currentShader.setBool('uUseTexture', false);
 			this.gl.lineWidth(strokeWidth);
 			this.gl.drawArrays(this.gl.LINE_STRIP, 0, outlineVertices.length / 2);
+			this.performanceMonitor.recordDrawCall(outlineVertices.length / 2);
 		}
 
 		// Clean up vertex arrays only
@@ -608,6 +617,7 @@ export class Renderer {
 
 		// Draw the filled triangle
 		this.gl.drawElements(this.gl.TRIANGLES, 3, this.gl.UNSIGNED_SHORT, 0);
+		this.performanceMonitor.recordDrawCall(3); // Triangle has 3 vertices
 
 		// Draw stroke if needed
 		if (strokeWidth > 0) {
@@ -615,6 +625,7 @@ export class Renderer {
 			this.currentShader.setBool('uUseTexture', false);
 			this.gl.lineWidth(strokeWidth);
 			this.gl.drawArrays(this.gl.LINE_LOOP, 0, 3);
+			this.performanceMonitor.recordDrawCall(3);
 		}
 
 		// Clean up vertex arrays only
@@ -678,6 +689,7 @@ export class Renderer {
 
 		// Draw the filled polygon
 		this.gl.drawElements(this.gl.TRIANGLES, indices.length, this.gl.UNSIGNED_SHORT, 0);
+		this.performanceMonitor.recordDrawCall(points.length); // Polygon vertices
 
 		// Draw stroke if needed
 		if (strokeWidth > 0) {
@@ -685,6 +697,7 @@ export class Renderer {
 			this.currentShader.setBool('uUseTexture', false);
 			this.gl.lineWidth(strokeWidth);
 			this.gl.drawArrays(this.gl.LINE_LOOP, 0, points.length);
+			this.performanceMonitor.recordDrawCall(points.length);
 		}
 
 		// Clean up vertex arrays only

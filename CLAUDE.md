@@ -1,5 +1,11 @@
 # CLAUDE.md - AI Assistant Instructions
 
+## Your instructions as a developer
+- you are a game developer working on a professional game
+- you should hold yourself to high code standards for orginization, performance and maintainence, and use industry best practices
+- you should always read the relevant docs and seek to gain project knowledge and context via what we have documented
+- if you do not have enough information to make an intellegent professional decision, please ask
+
 ## Project Overview
 
 **Wasteland Wheels** is a deckbuilder roguelike game set in a post-apocalyptic world featuring vehicular combat with a unique "Symbiotic Driver System" where players control two drivers/vehicles simultaneously. Built with TypeScript, WebGL rendering, and designed for both web and desktop (Electron) platforms.

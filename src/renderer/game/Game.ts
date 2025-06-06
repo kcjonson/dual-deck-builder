@@ -1,4 +1,6 @@
 import { Renderer } from '../engine/rendering/Renderer';
+import { PerformanceMonitor } from '../engine/rendering/PerformanceMonitor';
+import { DeveloperOverlay } from '../engine/ui/DeveloperOverlay';
 import { SplashScreen } from './screens/splash/SplashScreen';
 import { MainMenuScreen } from './screens/main-menu/MainMenuScreen';
 import { DeveloperScreen } from './screens/developer/DeveloperScreen';
@@ -22,6 +24,8 @@ export interface GameScreen {
  */
 export class Game {
 	private renderer: Renderer;
+	private performanceMonitor: PerformanceMonitor;
+	private developerOverlay: DeveloperOverlay;
 	private currentScreen: string | null = null;
 	private screens: Map<string, GameScreen> = new Map();
 	private isElectron = false;
@@ -30,9 +34,11 @@ export class Game {
 	/**
 	 * Create a new Game instance
 	 * @param renderer WebGL renderer
+	 * @param performanceMonitor Performance tracking system
 	 */
-	constructor(renderer: Renderer) {
+	constructor(renderer: Renderer, performanceMonitor: PerformanceMonitor) {
 		this.renderer = renderer;
+		this.performanceMonitor = performanceMonitor;
 
 		// Check if running in Electron
 		interface ElectronWindow extends Window {
@@ -45,6 +51,9 @@ export class Game {
 		this.isElectron = electronWindow.electron?.isElectron === true;
 
 		console.log(`Running in ${this.isElectron ? 'Electron' : 'Browser'} mode`);
+		
+		// Create developer overlay
+		this.developerOverlay = new DeveloperOverlay(this.performanceMonitor);
 	}
 
 	/**
@@ -167,6 +176,12 @@ export class Game {
 				}
 			}
 
+			// Toggle developer overlay with F5
+			if (event.key === 'F5') {
+				event.preventDefault();
+				this.developerOverlay.toggle();
+			}
+			
 			// Example: Press Escape to go back to main menu
 			if (event.key === 'Escape' && this.currentScreen !== 'mainMenuScreen' && this.currentScreen !== 'splashScreen') {
 				// Don't interfere with combat targeting
@@ -216,6 +231,9 @@ export class Game {
 				screen.update(dt);
 			}
 		}
+		
+		// Update developer overlay
+		this.developerOverlay.update();
 	}
 
 	/**
@@ -231,6 +249,9 @@ export class Game {
 				screen.render();
 			}
 		}
+		
+		// Render developer overlay on top
+		this.developerOverlay.render();
 	}
 
 	/**
