@@ -10,10 +10,6 @@ export abstract class Screen {
 	protected rootLayer: Layer;
 	protected isActive = false;
 	
-	// Debounced update system
-	private updatePending = false;
-	private updateAnimationFrame: number | null = null;
-	
 	// Resize handler reference for cleanup
 	private resizeHandler: (() => void) | null = null;
 
@@ -66,9 +62,6 @@ export abstract class Screen {
 			window.removeEventListener('resize', this.resizeHandler);
 			this.resizeHandler = null;
 		}
-		
-		// Cancel any pending updates
-		this.cancelPendingUpdate();
 		
 		this.onUnmount();
 		
@@ -160,48 +153,5 @@ export abstract class Screen {
 	 */
 	protected onRender(): void {
 		// Override in subclasses
-	}
-	
-	/**
-	 * Request a debounced update - batches multiple update requests into one
-	 * Use this when responding to model change events to avoid performance issues
-	 */
-	protected requestUpdate(): void {
-		if (this.updatePending || !this.isActive) return;
-		
-		this.updatePending = true;
-		
-		// Cancel any pending animation frame
-		if (this.updateAnimationFrame !== null) {
-			cancelAnimationFrame(this.updateAnimationFrame);
-		}
-		
-		// Schedule update for next animation frame
-		this.updateAnimationFrame = requestAnimationFrame(() => {
-			this.updateAnimationFrame = null;
-			this.updatePending = false;
-			
-			// Call the screen's update implementation
-			this.performUpdate();
-		});
-	}
-	
-	/**
-	 * Cancel any pending update requests
-	 */
-	protected cancelPendingUpdate(): void {
-		this.updatePending = false;
-		if (this.updateAnimationFrame !== null) {
-			cancelAnimationFrame(this.updateAnimationFrame);
-			this.updateAnimationFrame = null;
-		}
-	}
-	
-	/**
-	 * Perform the actual update - override this in subclasses
-	 * This is called at most once per frame when updates are requested
-	 */
-	protected performUpdate(): void {
-		// Override in subclasses to implement the actual update logic
 	}
 }
