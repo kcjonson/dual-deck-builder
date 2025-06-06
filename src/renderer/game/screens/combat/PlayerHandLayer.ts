@@ -77,7 +77,7 @@ export class PlayerHandLayer extends Layer {
 	 * Remove a card from the hand
 	 */
 	public removeCard(card: Card): void {
-		const index = this.handCards.findIndex(c => c.getId() === card.getId());
+		const index = this.handCards.findIndex(c => c.id === card.id);
 		if (index >= 0) {
 			this.handCards.splice(index, 1);
 			this.createCardElements();
@@ -205,7 +205,7 @@ export class PlayerHandLayer extends Layer {
 	private canPlayCard(card: Card): boolean {
 		// In single player mode with combined hand, we use combined adrenaline
 		// TODO: In the future, track which driver owns which card
-		return this.currentAdrenaline >= card.getCost();
+		return this.currentAdrenaline >= card.cost;
 	}
 
 	/**
@@ -228,7 +228,7 @@ export class PlayerHandLayer extends Layer {
 			
 			if (this.targetingMode) {
 				// During targeting mode
-				if (this.selectedCard && card.getId() === this.selectedCard.getId()) {
+				if (this.selectedCard && card.id === this.selectedCard.id) {
 					// Selected card - show as selected
 					cardElement.setSelected(true);
 					cardElement.setEnabled(true);
@@ -269,7 +269,7 @@ export class PlayerHandLayer extends Layer {
 	 * Animate card to discard pile
 	 */
 	public animateCardToDiscard(card: Card, _discardX: number, _discardY: number): void {
-		const cardIndex = this.handCards.findIndex(c => c.getId() === card.getId());
+		const cardIndex = this.handCards.findIndex(c => c.id === card.id);
 		if (cardIndex >= 0) {
 			// const cardElement = this.cardElements[cardIndex]; // For future animation use
 			
@@ -300,7 +300,7 @@ export class PlayerHandLayer extends Layer {
 	 * Get the UI card element for a given card
 	 */
 	public getCardElementByCard(card: Card): UICard | null {
-		const cardIndex = this.handCards.findIndex(c => c.getId() === card.getId());
+		const cardIndex = this.handCards.findIndex(c => c.id === card.id);
 		if (cardIndex >= 0 && cardIndex < this.cardElements.length) {
 			return this.cardElements[cardIndex];
 		}

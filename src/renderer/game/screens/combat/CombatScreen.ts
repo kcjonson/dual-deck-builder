@@ -6,10 +6,10 @@ import { EnemyLayer, EnemyVehicle } from './EnemyLayer';
 import { BattlefieldLayer, PlayerVehicle } from './BattlefieldLayer';
 import { PlayerHandLayer } from './PlayerHandLayer';
 import { ResourceBarLayer } from './ResourceBarLayer';
-import { Driver } from '../../mechanics/Driver';
-import { Vehicle } from '../../mechanics/Vehicle';
+import { Driver, DriverRole } from '../../mechanics/Driver';
+import { Vehicle, VehiclePosition } from '../../mechanics/Vehicle';
 import { Team, TeamType } from '../../mechanics/Team';
-import { Battle } from '../../mechanics/Battle';
+import { Battle, BattleState } from '../../mechanics/Battle';
 import { Card } from '../../mechanics/Card';
 import { CardLoader } from '../../core/CardLoader';
 import { InputSystem } from '../../../engine/input/InputSystem';
@@ -44,6 +44,9 @@ export class CombatScreen extends Screen {
 	// Callbacks
 	private onEndCombat: ((victory: boolean) => void) | null = null;
 	private onBack: (() => void) | null = null;
+	
+	// Event unsubscribe functions
+	private unsubscribers: (() => void)[] = [];
 
 	/**
 	 * Create combat screen
@@ -91,12 +94,11 @@ export class CombatScreen extends Screen {
 			const vehicle2 = this.createVehicleFromDriver(driver2);
 			
 			// Assign drivers to their vehicles
-			vehicle1.setDriver(driver1);
-			vehicle2.setDriver(driver2);
+			vehicle1.driver = driver1;
+			vehicle2.driver = driver2;
 
 			// Create player team
 			this.playerTeam = new Team({
-				id: 'player_team',
 				type: TeamType.PLAYER,
 				vehicles: [vehicle1, vehicle2]
 			});
@@ -113,8 +115,10 @@ export class CombatScreen extends Screen {
 			// Start the battle
 			this.battle.start();
 
-			// Update UI with new data
-			this.updateUIFromBattle();
+			// Subscribe to battle events
+			this.subscribeToBattleEvents();
+
+			// Initial UI update is handled by battleStarted event
 
 			console.log('Combat initialized with Team system');
 		} catch (error) {
@@ -123,18 +127,82 @@ export class CombatScreen extends Screen {
 	}
 
 	/**
+	 * Subscribe to battle and model events
+	 */
+	private subscribeToBattleEvents(): void {
+		if (!this.battle) return;
+
+		// Clear any existing subscriptions
+		this.unsubscribeAll();
+
+		// Subscribe to battle events
+		this.unsubscribers.push(
+			this.battle.on('stateChanged', (state: BattleState) => {
+				this.updateUIFromBattle();
+			})
+		);
+
+		this.unsubscribers.push(
+			this.battle.on('battleEnded', (event: { won: boolean }) => {
+				if (this.onEndCombat) {
+					this.onEndCombat(event.won);
+				}
+			})
+		);
+
+		this.unsubscribers.push(
+			this.battle.on('cardPlayed', (event: { card: Card }) => {
+				// Could add animations or effects here
+				console.log(`Card played: ${event.card.displayName}`);
+			})
+		);
+
+		// Subscribe to player team changes
+		if (this.playerTeam) {
+			this.unsubscribers.push(
+				this.playerTeam.on('change', () => {
+					this.updateUIFromBattle();
+				})
+			);
+		}
+
+		// Subscribe to enemy team changes
+		if (this.enemyTeam) {
+			this.unsubscribers.push(
+				this.enemyTeam.on('change', () => {
+					this.updateUIFromBattle();
+				})
+			);
+		}
+	}
+
+	/**
+	 * Unsubscribe from all events
+	 */
+	private unsubscribeAll(): void {
+		this.unsubscribers.forEach(unsubscribe => unsubscribe());
+		this.unsubscribers = [];
+	}
+
+	/**
 	 * Create a vehicle from a driver configuration
 	 */
 	private createVehicleFromDriver(driver: Driver): Vehicle {
-		const config = driver.getConfig();
-		const vehicleStats = config.vehicleStats;
+		const vehicleStats = driver.vehicleStats;
 		
 		return new Vehicle({
-			id: `${config.id}_vehicle`,
-			name: config.metadata.vehicleName,
+			name: driver.metadata.vehicleName,
 			armor: vehicleStats.armor,
+			maxArmor: vehicleStats.armor,
 			structure: vehicleStats.maxHealth,
-			speed: vehicleStats.speed
+			maxStructure: vehicleStats.maxHealth,
+			speed: vehicleStats.speed,
+			baseSpeed: vehicleStats.speed,
+			position: VehiclePosition.BACK,
+			velocity: 0,
+			driver: null,
+			passenger: null,
+			statusEffects: []
 		});
 	}
 
@@ -144,35 +212,41 @@ export class CombatScreen extends Screen {
 	private createTestEnemyTeam(): Team {
 		// Create enemy drivers with basic configs
 		const enemyDriver1 = new Driver({
-			config: {
-				id: 'raider', // Using 'raider' for enemy
-				metadata: {
-					name: 'Wasteland Raider',
-					vehicleName: 'Rust Buggy',
-					specialty: 'AGGRESSIVE',
-					flavorText: 'A dangerous raider',
-					unlocked: true
-				},
-				skills: {
-					ramming: 5,
-					gunnery: 6,
-					evade: 4
-				},
-				vehicleStats: {
-					maxHealth: 30,
-					weight: 2,
-					armor: 5,
-					speed: 3,
-					gunnery: 6,
-					evade: 4
-				},
-				startingDeck: {
-					cards: [
-						{ id: 'ramming_speed', quantity: 2 },
-						{ id: 'precision_shot', quantity: 3 }
-					]
-				}
-			}
+			archetype: 'raider' as any, // Using 'raider' for enemy
+			metadata: {
+				name: 'Wasteland Raider',
+				vehicleName: 'Rust Buggy',
+				specialty: 'AGGRESSIVE',
+				flavorText: 'A dangerous raider',
+				unlocked: true
+			},
+			skills: {
+				ramming: 5,
+				gunnery: 6,
+				evade: 4
+			},
+			vehicleStats: {
+				maxHealth: 30,
+				weight: 2,
+				armor: 5,
+				speed: 3,
+				gunnery: 6,
+				evade: 4
+			},
+			startingDeck: {
+				cards: [
+					{ type: 'ramming_speed', quantity: 2 },
+					{ type: 'precision_shot', quantity: 3 }
+				]
+			},
+			hitpoints: 30,
+			maxHitpoints: 30,
+			adrenaline: 3,
+			maxAdrenaline: 10,
+			role: DriverRole.ACTIVE,
+			hand: [],
+			discard: [],
+			deck: null
 		});
 
 		// Create starting deck for enemy
@@ -180,17 +254,21 @@ export class CombatScreen extends Screen {
 		enemyDriver1.createStartingDeck(cardLoader.getAllCardsAsMap());
 
 		const enemyVehicle1 = new Vehicle({
-			id: 'enemy_vehicle_1',
 			name: 'Rust Buggy',
 			armor: 5,
+			maxArmor: 5,
 			structure: 30,
-			speed: 3
+			maxStructure: 30,
+			speed: 3,
+			baseSpeed: 3,
+			position: VehiclePosition.FRONT,
+			velocity: 0,
+			driver: enemyDriver1,
+			passenger: null,
+			statusEffects: []
 		});
 
-		enemyVehicle1.setDriver(enemyDriver1);
-
 		return new Team({
-			id: 'enemy_team',
 			type: TeamType.ENEMY,
 			vehicles: [enemyVehicle1]
 		});
@@ -210,28 +288,28 @@ export class CombatScreen extends Screen {
 			const [driver1, driver2] = drivers;
 			
 			// Show combined hand from both drivers
-			const combinedHand: Card[] = [...driver1.getHand(), ...driver2.getHand()];
+			const combinedHand: Card[] = [...driver1.hand, ...driver2.hand];
 			this.handLayer.setHand(combinedHand);
 			
 			// Set adrenaline for hand layer (using combined adrenaline for now)
 			// TODO: Track which driver owns which card for proper adrenaline checking
-			const totalAdrenaline = driver1.getAdrenaline() + driver2.getAdrenaline();
+			const totalAdrenaline = driver1.adrenaline + driver2.adrenaline;
 			this.handLayer.setAdrenaline(totalAdrenaline);
 			
 			// For now, show the first driver's stats in resource bar
 			// TODO: Update resource bar to show both drivers' adrenaline
 			this.resourceLayer.setAdrenaline(
-				driver1.getAdrenaline(),
-				driver1.getMaxAdrenaline()
+				driver1.adrenaline,
+				driver1.maxAdrenaline
 			);
 			this.resourceLayer.setFuel(this.fuel);
 			this.resourceLayer.setScrap(this.scrap);
 			
 			// Show combined deck/discard counts
-			const deck1 = driver1.getDeck();
-			const deck2 = driver2.getDeck();
-			const totalDeckCount = (deck1 ? deck1.getCards().length : 0) + (deck2 ? deck2.getCards().length : 0);
-			const totalDiscardCount = driver1.getDiscardPile().length + driver2.getDiscardPile().length;
+			const deck1 = driver1.deck;
+			const deck2 = driver2.deck;
+			const totalDeckCount = (deck1 ? deck1.cards.length : 0) + (deck2 ? deck2.cards.length : 0);
+			const totalDiscardCount = driver1.discard.length + driver2.discard.length;
 			
 			this.resourceLayer.setDrawPileCount(totalDeckCount);
 			this.resourceLayer.setDiscardPileCount(totalDiscardCount);
@@ -239,13 +317,13 @@ export class CombatScreen extends Screen {
 
 		// Update enemy layer with enemy vehicles
 		if (this.enemyTeam) {
-			const enemyVehicles = this.enemyTeam.getVehicles();
+			const enemyVehicles = this.enemyTeam.vehicles;
 			const enemyData: EnemyVehicle[] = enemyVehicles.map(vehicle => ({
-				id: vehicle.getId(),
-				name: vehicle.getName(),
-				maxHealth: vehicle.getMaxStructure(),
-				currentHealth: vehicle.getStructure(),
-				armor: vehicle.getArmor(),
+				id: vehicle.id,
+				name: vehicle.name,
+				maxHealth: vehicle.maxStructure,
+				currentHealth: vehicle.structure,
+				armor: vehicle.armor,
 				intent: {
 					type: 'attack' as const,
 					value: 5,
@@ -257,18 +335,18 @@ export class CombatScreen extends Screen {
 
 		// Update battlefield layer with player vehicles
 		if (this.playerTeam) {
-			const playerVehicles = this.playerTeam.getVehicles();
+			const playerVehicles = this.playerTeam.vehicles;
 			const playerData: PlayerVehicle[] = playerVehicles.map(vehicle => {
-				const driver = vehicle.getDriver();
+				const driver = vehicle.driver;
 				if (!driver) {
-					console.warn('Vehicle has no driver:', vehicle.getId());
+					console.warn('Vehicle has no driver:', vehicle.id);
 					return null;
 				}
 				return {
 					driver: driver,
-					currentHealth: vehicle.getStructure(),
-					maxHealth: vehicle.getMaxStructure(),
-					armor: vehicle.getArmor(),
+					currentHealth: vehicle.structure,
+					maxHealth: vehicle.maxStructure,
+					armor: vehicle.armor,
 					statusEffects: [],
 					position: 'front' as const
 				} as PlayerVehicle;
@@ -418,7 +496,7 @@ export class CombatScreen extends Screen {
 		let owningDriver: Driver | null = null;
 		
 		for (const driver of drivers) {
-			if (driver.getHand().includes(card)) {
+			if (driver.hand.includes(card)) {
 				owningDriver = driver;
 				break;
 			}
@@ -432,8 +510,8 @@ export class CombatScreen extends Screen {
 		// Check if driver can afford and play this card
 		if (!owningDriver.canPlayCard(card)) {
 			const reason = !owningDriver.canAffordCard(card) 
-				? `${owningDriver.getName()}: Not enough adrenaline`
-				: `${owningDriver.getName()}: Cannot play this card type as passenger`;
+				? `${owningDriver.metadata.name}: Not enough adrenaline`
+				: `${owningDriver.metadata.name}: Cannot play this card type as passenger`;
 			console.log(reason);
 			return;
 		}
@@ -448,7 +526,7 @@ export class CombatScreen extends Screen {
 		this.selectedCardDriver = owningDriver;
 
 		// Check if card needs a target
-		const targetType = card.getTargetType();
+		const targetType = card.targetType;
 		if (targetType === 'enemy_all' || targetType === 'self' || targetType === 'both_drivers') {
 			// No specific target needed, play immediately
 			this.playCardWithTarget(card, undefined);
@@ -466,7 +544,7 @@ export class CombatScreen extends Screen {
 			// Highlight valid targets
 			this.highlightValidTargets(card);
 			
-			console.log(`Select target for ${card.getName()}`);
+			console.log(`Select target for ${card.displayName}`);
 		}
 	}
 
@@ -480,7 +558,7 @@ export class CombatScreen extends Screen {
 		}
 
 		// Find the card index in the driver's hand
-		const hand = this.selectedCardDriver.getHand();
+		const hand = this.selectedCardDriver.hand;
 		const cardIndex = hand.findIndex(c => c === card);
 		
 		if (cardIndex === -1) {
@@ -496,7 +574,7 @@ export class CombatScreen extends Screen {
 		});
 
 		if (success) {
-			console.log(`${this.selectedCardDriver.getName()} played ${card.getName()}`);
+			console.log(`${this.selectedCardDriver.metadata.name} played ${card.displayName}`);
 			
 			// Update UI to reflect new state
 			this.updateUIFromBattle();
@@ -532,7 +610,7 @@ export class CombatScreen extends Screen {
 	 * Set up target handlers for the current card
 	 */
 	private setupTargetHandlers(card: Card): void {
-		const targetType = card.getTargetType();
+		const targetType = card.targetType;
 		
 		// Set up enemy targeting
 		if (targetType === 'enemy_single' || targetType === 'any') {
@@ -555,7 +633,7 @@ export class CombatScreen extends Screen {
 	private onEnemyTargeted(card: Card, enemy: EnemyVehicle): void {
 		if (this.isTargeting && this.selectedCard === card && this.enemyTeam) {
 			// Find the actual Vehicle object from the enemy team
-			const targetVehicle = this.enemyTeam.getVehicles().find(v => v.getId() === enemy.id);
+			const targetVehicle = this.enemyTeam.vehicles.find(v => v.id === enemy.id);
 			if (targetVehicle) {
 				this.playCardWithTarget(card, targetVehicle);
 			}
@@ -568,7 +646,7 @@ export class CombatScreen extends Screen {
 	private onVehicleTargeted(card: Card, vehicle: PlayerVehicle): void {
 		if (this.isTargeting && this.selectedCard === card && this.playerTeam) {
 			// Find the actual Vehicle object from the player team
-			const targetVehicle = this.playerTeam.getVehicles().find(v => v.getDriver()?.getId() === vehicle.driver.getId());
+			const targetVehicle = this.playerTeam.vehicles.find(v => v.driver?.id === vehicle.driver.id);
 			if (targetVehicle) {
 				this.playCardWithTarget(card, targetVehicle);
 			}
@@ -669,7 +747,7 @@ export class CombatScreen extends Screen {
 	 * Highlight valid targets for a card
 	 */
 	private highlightValidTargets(_card: Card): void {
-		// const targetType = card.getTargetType(); // For future use
+		// const targetType = card.targetType; // For future use
 		
 		// TODO: Update to work with new Team/Vehicle system
 		// For now, basic highlighting disabled until UI layers are updated
@@ -687,7 +765,7 @@ export class CombatScreen extends Screen {
 	 * Check if target is valid for card
 	 */
 	private isValidTarget(card: Card, enemy: EnemyVehicle | null, vehicle: PlayerVehicle | null): boolean {
-		const targetType = card.getTargetType();
+		const targetType = card.targetType;
 		
 		switch (targetType) {
 			case 'enemy_single':

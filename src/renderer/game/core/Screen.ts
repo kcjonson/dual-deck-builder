@@ -9,6 +9,13 @@ export abstract class Screen {
 	protected renderer: Renderer;
 	protected rootLayer: Layer;
 	protected isActive = false;
+	
+	// Debounced update system
+	private updatePending = false;
+	private updateAnimationFrame: number | null = null;
+	
+	// Resize handler reference for cleanup
+	private resizeHandler: (() => void) | null = null;
 
 	/**
 	 * Create a new screen
@@ -25,8 +32,7 @@ export abstract class Screen {
 			height: window.innerHeight,
 		});
 
-		// Listen for resize events
-		window.addEventListener('resize', () => this.handleResize());
+		// Don't add resize listener in constructor - let mount/unmount handle it
 	}
 
 	/**
@@ -41,6 +47,11 @@ export abstract class Screen {
 	 */
 	public mount(): void {
 		this.isActive = true;
+		
+		// Create and add resize listener
+		this.resizeHandler = this.handleResize.bind(this);
+		window.addEventListener('resize', this.resizeHandler);
+		
 		this.onMount();
 	}
 
@@ -49,6 +60,16 @@ export abstract class Screen {
 	 */
 	public unmount(): void {
 		this.isActive = false;
+		
+		// Remove resize listener
+		if (this.resizeHandler) {
+			window.removeEventListener('resize', this.resizeHandler);
+			this.resizeHandler = null;
+		}
+		
+		// Cancel any pending updates
+		this.cancelPendingUpdate();
+		
 		this.onUnmount();
 		
 		// Don't cleanup here - screens can manage their own cleanup if needed
@@ -139,5 +160,48 @@ export abstract class Screen {
 	 */
 	protected onRender(): void {
 		// Override in subclasses
+	}
+	
+	/**
+	 * Request a debounced update - batches multiple update requests into one
+	 * Use this when responding to model change events to avoid performance issues
+	 */
+	protected requestUpdate(): void {
+		if (this.updatePending || !this.isActive) return;
+		
+		this.updatePending = true;
+		
+		// Cancel any pending animation frame
+		if (this.updateAnimationFrame !== null) {
+			cancelAnimationFrame(this.updateAnimationFrame);
+		}
+		
+		// Schedule update for next animation frame
+		this.updateAnimationFrame = requestAnimationFrame(() => {
+			this.updateAnimationFrame = null;
+			this.updatePending = false;
+			
+			// Call the screen's update implementation
+			this.performUpdate();
+		});
+	}
+	
+	/**
+	 * Cancel any pending update requests
+	 */
+	protected cancelPendingUpdate(): void {
+		this.updatePending = false;
+		if (this.updateAnimationFrame !== null) {
+			cancelAnimationFrame(this.updateAnimationFrame);
+			this.updateAnimationFrame = null;
+		}
+	}
+	
+	/**
+	 * Perform the actual update - override this in subclasses
+	 * This is called at most once per frame when updates are requested
+	 */
+	protected performUpdate(): void {
+		// Override in subclasses to implement the actual update logic
 	}
 }

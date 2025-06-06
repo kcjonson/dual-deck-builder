@@ -38,8 +38,8 @@ export class DriverSynergy {
 	 * @returns Synergy analysis result
 	 */
 	public static analyzeSynergy(driver1: Driver, driver2: Driver): SynergyAnalysis {
-		// const stats1 = driver1.getVehicleStats(); // For future use
-		// const stats2 = driver2.getVehicleStats(); // For future use
+		// const stats1 = driver1.vehicleStats; // For future use
+		// const stats2 = driver2.vehicleStats; // For future use
 		
 		const compat1 = this.calculateStatCompatibility(driver1);
 		const compat2 = this.calculateStatCompatibility(driver2);
@@ -61,7 +61,7 @@ export class DriverSynergy {
 	 * Calculate stat compatibility scores for a driver
 	 */
 	private static calculateStatCompatibility(driver: Driver): StatCompatibility {
-		const stats = driver.getVehicleStats();
+		const stats = driver.vehicleStats;
 		
 		return {
 			offensive: stats.gunnery + (stats.weight * 0.5), // Gunnery + ramming potential
@@ -75,7 +75,7 @@ export class DriverSynergy {
 	 * Calculate utility score based on driver archetype
 	 */
 	private static calculateUtilityScore(driver: Driver): number {
-		const archetype = driver.getId();
+		const archetype = driver.archetype;
 		
 		// Base utility scores by archetype (could be made configurable)
 		const utilityMap: Record<DriverArchetype, number> = {
@@ -85,7 +85,7 @@ export class DriverSynergy {
 			interceptor: 5   // Medium-high utility
 		};
 		
-		return utilityMap[archetype] || 3;
+		return utilityMap[archetype];
 	}
 
 	/**
@@ -286,7 +286,7 @@ export class DriverSynergy {
 		if (scores.offensive <= 4) tags.push('defensive');
 		
 		// Add archetype-specific tags
-		const archetypes = [driver1.getId(), driver2.getId()];
+		const archetypes = [driver1.archetype, driver2.archetype];
 		if (archetypes.includes('mechanic')) tags.push('utility');
 		if (archetypes.includes('raider')) tags.push('berserker');
 		if (archetypes.includes('road_warrior')) tags.push('fortress');
@@ -304,8 +304,8 @@ export class DriverSynergy {
 		descriptions: string[],
 		type: SynergyType
 	): string {
-		const name1 = driver1.getName();
-		const name2 = driver2.getName();
+		const name1 = driver1.metadata.name;
+		const name2 = driver2.metadata.name;
 		
 		// Pick the most relevant descriptions based on synergy type
 		const primaryDesc = descriptions[0]; // Offensive is usually most important

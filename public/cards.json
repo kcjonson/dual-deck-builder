@@ -1,7 +1,7 @@
 {
   "cards": [
     {
-      "id": "ramming_speed",
+      "type": "ramming_speed",
       "name": "Ramming Speed",
       "description": "Deal {damage} damage. If target has Vulnerable, gain {adrenaline} Adrenaline.",
       "driverRestriction": null,
@@ -38,7 +38,7 @@
       "image": "cards/ramming_speed.png"
     },
     {
-      "id": "precision_shot",
+      "type": "precision_shot",
       "name": "Precision Shot",
       "description": "Deal {damage} damage. +{bonus} damage if you have Speed+.",
       "driverRestriction": "interceptor",
@@ -71,7 +71,7 @@
       "image": "cards/precision_shot.png"
     },
     {
-      "id": "armor_plating",
+      "type": "armor_plating",
       "name": "Armor Plating",
       "description": "Gain {armor} Armor.",
       "rarity": "common",
@@ -91,7 +91,7 @@
       "image": "cards/armor_plating.png"
     },
     {
-      "id": "nitro_boost",
+      "type": "nitro_boost",
       "name": "Nitro Boost",
       "description": "Gain Speed+. Draw {cards} card(s).",
       "rarity": "common",
@@ -117,7 +117,7 @@
       "image": "cards/nitro_boost.png"
     },
     {
-      "id": "coordinated_strike",
+      "type": "coordinated_strike",
       "name": "Coordinated Strike",
       "description": "Deal {damage} damage. If partner played an Attack this turn, deal {damage} again.",
       "rarity": "uncommon",
@@ -147,7 +147,7 @@
       "image": "cards/coordinated_strike.png"
     },
     {
-      "id": "emp_blast",
+      "type": "emp_blast",
       "name": "EMP Blast",
       "description": "All enemies skip their next turn.",
       "driverRestriction": "mechanic",
@@ -166,7 +166,7 @@
       "image": "cards/emp_blast.png"
     },
     {
-      "id": "blood_for_chrome",
+      "type": "blood_for_chrome",
       "name": "Blood for Chrome",
       "description": "Take {self_damage} damage. Gain {adrenaline} Adrenaline.",
       "driverRestriction": "raider",
@@ -194,7 +194,7 @@
       "image": "cards/blood_for_chrome.png"
     },
     {
-      "id": "repair_kit",
+      "type": "repair_kit",
       "name": "Repair Kit",
       "description": "Restore {healing} Structure. Exhaust.",
       "rarity": "common",
@@ -217,7 +217,7 @@
       "image": "cards/repair_kit.png"
     },
     {
-      "id": "witness_me",
+      "type": "witness_me",
       "name": "Witness Me!",
       "description": "Triple all damage this turn. Die at end of turn.",
       "rarity": "legendary",
@@ -241,7 +241,7 @@
       "image": "cards/witness_me.png"
     },
     {
-      "id": "flanking_maneuver",
+      "type": "flanking_maneuver",
       "name": "Flanking Maneuver",
       "description": "Move to Flanking position. Next attack deals +{bonus}% damage.",
       "rarity": "uncommon",

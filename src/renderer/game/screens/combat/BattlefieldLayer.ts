@@ -96,7 +96,7 @@ export class BattlefieldLayer extends Layer {
 	 * Update a player vehicle's data
 	 */
 	public updatePlayerVehicle(driverId: string, updates: Partial<PlayerVehicle>): void {
-		const vehicle = this.playerVehicles.find(v => v.driver.getId() === driverId);
+		const vehicle = this.playerVehicles.find(v => v.driver.id === driverId);
 		if (!vehicle) return;
 
 		Object.assign(vehicle, updates);
@@ -136,7 +136,7 @@ export class BattlefieldLayer extends Layer {
 			const x = startX + index * (vehicleWidth + cardSpacing);
 			
 			const elements = this.createSingleVehicleElement(vehicle, x, startY, vehicleWidth, vehicleHeight);
-			this.vehicleElements.set(vehicle.driver.getId(), elements);
+			this.vehicleElements.set(vehicle.driver.id, elements);
 			this.addChild(elements.container);
 		});
 	}
@@ -189,7 +189,7 @@ export class BattlefieldLayer extends Layer {
 		container.addChild(driverPortrait);
 
 		// Vehicle name
-		const nameText = new Text(`${vehicle.driver.getName()}'s ${vehicle.driver.getVehicleName()}`, {
+		const nameText = new Text(`${vehicle.driver.metadata.name}'s ${vehicle.driver.metadata.vehicleName}`, {
 			width: Math.floor(width * 0.9),
 			style: {
 				fontSize: 14,
@@ -295,7 +295,7 @@ export class BattlefieldLayer extends Layer {
 	 * Update visual elements for a specific vehicle
 	 */
 	private updateVehicleVisuals(vehicle: PlayerVehicle): void {
-		const elements = this.vehicleElements.get(vehicle.driver.getId());
+		const elements = this.vehicleElements.get(vehicle.driver.id);
 		if (!elements) return;
 
 		// Update health bar
@@ -379,7 +379,7 @@ export class BattlefieldLayer extends Layer {
 				localPos.x <= container.getX() + container.getWidth() &&
 				localPos.y >= container.getY() && 
 				localPos.y <= container.getY() + container.getHeight()) {
-				return this.playerVehicles.find(v => v.driver.getId() === driverId) || null;
+				return this.playerVehicles.find(v => v.driver.id === driverId) || null;
 			}
 		}
 		

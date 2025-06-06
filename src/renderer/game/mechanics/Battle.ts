@@ -2,18 +2,44 @@ import { Team, TeamType } from './Team';
 import { Driver } from './Driver';
 import { Vehicle } from './Vehicle';
 import { Card } from './Card';
+import { Model } from '../core/Model';
+
+/**
+ * Battle data interface - all properties of a battle
+ */
+export interface BattleData {
+	playerTeam: Team;
+	enemyTeam: Team;
+	turn: number;
+	isPlayerTurn: boolean;
+	battleOver: boolean;
+	battleWon: boolean;
+}
+
+/**
+ * Battle state for UI consumption (same as BattleData)
+ */
+export type BattleState = BattleData;
+
+/**
+ * Battle interface that merges with the class
+ */
+export interface Battle extends BattleData {}
 
 /**
  * Battle class representing vehicular combat using the Team system
  * Implements the Symbiotic Driver System with individual driver hands and adrenaline pools
  */
-export class Battle {
-	private playerTeam: Team;
-	private enemyTeam: Team;
-	private turn = 1;
-	private isPlayerTurn = true;
-	private battleOver = false;
-	private battleWon = false;
+export class Battle extends Model<BattleData> {
+	// Runtime property list - MUST match BattleData interface
+	static properties = new Set<keyof BattleData>([
+		'playerTeam',
+		'enemyTeam',
+		'turn',
+		'isPlayerTurn',
+		'battleOver',
+		'battleWon'
+	]);
 
 	/**
 	 * Create a new battle
@@ -25,14 +51,20 @@ export class Battle {
 		playerTeam: Team;
 		enemyTeam: Team;
 	}) {
-		this.playerTeam = playerTeam;
-		this.enemyTeam = enemyTeam;
+		super({
+			playerTeam,
+			enemyTeam,
+			turn: 1,
+			isPlayerTurn: true,
+			battleOver: false,
+			battleWon: false
+		});
 
 		// Validate team types
-		if (playerTeam.getType() !== TeamType.PLAYER) {
+		if (playerTeam.type !== TeamType.PLAYER) {
 			throw new Error('Player team must have type PLAYER');
 		}
-		if (enemyTeam.getType() !== TeamType.ENEMY) {
+		if (enemyTeam.type !== TeamType.ENEMY) {
 			throw new Error('Enemy team must have type ENEMY');
 		}
 	}
@@ -54,35 +86,13 @@ export class Battle {
 		this.enemyTeam.refillAdrenaline();
 
 		console.log('Battle started!');
+		
+		// Emit battle started event
+		this.emit('battleStarted', this.getState());
 	}
 
-	/**
-	 * Get the player team
-	 */
-	public getPlayerTeam(): Team {
-		return this.playerTeam;
-	}
-
-	/**
-	 * Get the enemy team
-	 */
-	public getEnemyTeam(): Team {
-		return this.enemyTeam;
-	}
-
-	/**
-	 * Get the current turn number
-	 */
-	public getTurn(): number {
-		return this.turn;
-	}
-
-	/**
-	 * Check if it's the player's turn
-	 */
-	public isPlayersTurn(): boolean {
-		return this.isPlayerTurn;
-	}
+	// Model properties are automatically available as:
+	// this.playerTeam, this.enemyTeam, this.turn, this.isPlayerTurn, etc.
 
 	/**
 	 * Check if the battle is over
@@ -144,8 +154,18 @@ export class Battle {
 			this.applyCardEffects(card, null, driver);
 		}
 
+		// Emit card played event
+		this.emit('cardPlayed', Object.freeze({
+			driver,
+			card,
+			targetVehicle
+		}));
+
 		// Check if battle is over
 		this.checkBattleStatus();
+
+		// Emit state change
+		this.emit('stateChanged', this.getState());
 
 		return true;
 	}
@@ -163,6 +183,9 @@ export class Battle {
 
 		// Start enemy turn
 		this.isPlayerTurn = false;
+
+		// Emit turn ended event
+		this.emit('turnEnded', Object.freeze({ team: 'player' }));
 
 		// Process enemy turns
 		this.processEnemyTurns();
@@ -203,7 +226,7 @@ export class Battle {
 	 * Check if driver only has attack cards
 	 */
 	private hasOnlyAttackCards(driver: Driver): boolean {
-		const hand = driver.getHand();
+		const hand = driver.hand;
 		return hand.length > 0 && hand.every(card => this.isAttackCard(card));
 	}
 
@@ -211,13 +234,13 @@ export class Battle {
 	 * Check if a card is an attack card
 	 */
 	private isAttackCard(card: Card): boolean {
-		const effects = card.getEffects();
+		const effects = card.effects;
 		return effects.some(effect => 
 			effect.type === 'damage' || 
 			effect.type === 'ram' ||
-			card.getName().toLowerCase().includes('attack') ||
-			card.getName().toLowerCase().includes('shot') ||
-			card.getName().toLowerCase().includes('ram')
+			card.name.toLowerCase().includes('attack') ||
+			card.name.toLowerCase().includes('shot') ||
+			card.name.toLowerCase().includes('ram')
 		);
 	}
 
@@ -225,7 +248,7 @@ export class Battle {
 	 * Execute an enemy's action (AI)
 	 */
 	private executeEnemyAction(enemyDriver: Driver): void {
-		const hand = enemyDriver.getHand();
+		const hand = enemyDriver.hand;
 		if (hand.length === 0) return;
 
 		// Simple AI: play first affordable card
@@ -240,7 +263,7 @@ export class Battle {
 				const result = enemyDriver.playCardWithCost(i);
 				if (result.success && result.card) {
 					this.applyCardEffects(result.card, target, enemyDriver);
-					console.log(`${enemyDriver.getName()} plays ${result.card.getName()}`);
+					console.log(`${enemyDriver.metadata.name} plays ${result.card.displayName}`);
 				}
 				break;
 			}
@@ -277,13 +300,13 @@ export class Battle {
 	 */
 	private applyCardEffects(card: Card, targetVehicle: Vehicle | null, caster: Driver): void {
 		// Process each effect on the card
-		for (const effect of card.getEffects()) {
+		for (const effect of card.effects) {
 			switch (effect.type) {
 				case 'damage':
 					if (targetVehicle) {
 						const damage = typeof effect.value === 'number' ? effect.value : 0;
 						targetVehicle.takeDamage(damage);
-						console.log(`${card.getName()} deals ${damage} damage to ${targetVehicle.getName()}`);
+						console.log(`${card.displayName} deals ${damage} damage to ${targetVehicle.name}`);
 						
 						// Handle vehicle destruction
 						if (!targetVehicle.isAlive()) {
@@ -299,7 +322,7 @@ export class Battle {
 					if (targetVehicle) {
 						const healValue = typeof effect.value === 'number' ? effect.value : 0;
 						targetVehicle.repair(healValue);
-						console.log(`${card.getName()} repairs ${healValue} structure on ${targetVehicle.getName()}`);
+						console.log(`${card.displayName} repairs ${healValue} structure on ${targetVehicle.name}`);
 					}
 					break;
 
@@ -307,20 +330,20 @@ export class Battle {
 					if (targetVehicle) {
 						const armorValue = typeof effect.value === 'number' ? effect.value : 0;
 						targetVehicle.addArmor(armorValue);
-						console.log(`${card.getName()} adds ${armorValue} armor to ${targetVehicle.getName()}`);
+						console.log(`${card.displayName} adds ${armorValue} armor to ${targetVehicle.name}`);
 					}
 					break;
 
 				case 'draw':
 					const drawValue = typeof effect.value === 'number' ? effect.value : 0;
 					caster.drawCards(drawValue);
-					console.log(`${card.getName()} draws ${drawValue} cards for ${caster.getName()}`);
+					console.log(`${card.displayName} draws ${drawValue} cards for ${caster.metadata.name}`);
 					break;
 
 				case 'adrenaline':
 					const adrenalineValue = typeof effect.value === 'number' ? effect.value : 0;
 					caster.gainAdrenaline(adrenalineValue);
-					console.log(`${card.getName()} gives ${adrenalineValue} adrenaline to ${caster.getName()}`);
+					console.log(`${card.displayName} gives ${adrenalineValue} adrenaline to ${caster.metadata.name}`);
 					break;
 
 				case 'status':
@@ -335,7 +358,7 @@ export class Battle {
 							value: statusValue,
 							description: effect.description
 						});
-						console.log(`${card.getName()} applies ${statusName} to ${targetVehicle.getName()}`);
+						console.log(`${card.displayName} applies ${statusName} to ${targetVehicle.name}`);
 					}
 					break;
 
@@ -348,10 +371,10 @@ export class Battle {
 	 * Get the team that owns a specific vehicle
 	 */
 	private getTeamForVehicle(vehicle: Vehicle): Team | null {
-		if (this.playerTeam.getVehicles().includes(vehicle)) {
+		if (this.playerTeam.vehicles.includes(vehicle)) {
 			return this.playerTeam;
 		}
-		if (this.enemyTeam.getVehicles().includes(vehicle)) {
+		if (this.enemyTeam.vehicles.includes(vehicle)) {
 			return this.enemyTeam;
 		}
 		return null;
@@ -366,6 +389,8 @@ export class Battle {
 			this.battleOver = true;
 			this.battleWon = false;
 			console.log('Battle lost: All player drivers defeated');
+			this.emit('battleEnded', Object.freeze({ won: false }));
+			this.emit('stateChanged', this.getState());
 			return;
 		}
 
@@ -374,12 +399,14 @@ export class Battle {
 			this.battleOver = true;
 			this.battleWon = true;
 			console.log('Battle won: All enemy drivers defeated');
+			this.emit('battleEnded', Object.freeze({ won: true }));
+			this.emit('stateChanged', this.getState());
 			return;
 		}
 	}
 
 	/**
-	 * Get battle statistics for display
+	 * Get battle statistics for display with formatted team data
 	 */
 	public getBattleStats(): {
 		turn: number;
@@ -398,4 +425,6 @@ export class Battle {
 			enemyTeam: this.enemyTeam.getCombatStats()
 		};
 	}
+
+	// getState() is provided by Model base class
 }

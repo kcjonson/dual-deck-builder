@@ -55,7 +55,7 @@ export class CardLoader {
 		// Load individual cards
 		for (const cardData of data.cards) {
 			this.validateCardData(cardData);
-			this.cardsData.set(cardData.id, cardData);
+			this.cardsData.set(cardData.type, cardData);
 		}
 
 		// Load starting deck configurations
@@ -74,32 +74,32 @@ export class CardLoader {
 	 * Validate card data structure
 	 */
 	private validateCardData(cardData: CardData): void {
-		const required = ['id', 'name', 'description', 'rarity', 'cost', 'targetType', 'effects', 'tags'];
+		const required = ['type', 'name', 'description', 'rarity', 'cost', 'targetType', 'effects', 'tags'];
 		
 		for (const field of required) {
 			if (!(field in cardData)) {
-				throw new Error(`Card ${cardData.id || 'unknown'} missing required field: ${field}`);
+				throw new Error(`Card ${cardData.type || 'unknown'} missing required field: ${field}`);
 			}
 		}
 
 		if (!Array.isArray(cardData.effects)) {
-			throw new Error(`Card ${cardData.id} effects must be an array`);
+			throw new Error(`Card ${cardData.type} effects must be an array`);
 		}
 
 		if (!Array.isArray(cardData.tags)) {
-			throw new Error(`Card ${cardData.id} tags must be an array`);
+			throw new Error(`Card ${cardData.type} tags must be an array`);
 		}
 
 		// Validate rarity
 		const validRarities = ['starter', 'common', 'uncommon', 'rare', 'legendary'];
 		if (!validRarities.includes(cardData.rarity)) {
-			throw new Error(`Card ${cardData.id} has invalid rarity: ${cardData.rarity}`);
+			throw new Error(`Card ${cardData.type} has invalid rarity: ${cardData.rarity}`);
 		}
 
 		// Validate target type
 		const validTargets = ['enemy_single', 'enemy_all', 'self', 'ally', 'both_drivers', 'any'];
 		if (!validTargets.includes(cardData.targetType)) {
-			throw new Error(`Card ${cardData.id} has invalid target type: ${cardData.targetType}`);
+			throw new Error(`Card ${cardData.type} has invalid target type: ${cardData.targetType}`);
 		}
 	}
 
@@ -118,7 +118,7 @@ export class CardLoader {
 			return null;
 		}
 
-		return new Card({ data: cardData });
+		return new Card(cardData);
 	}
 
 	/**

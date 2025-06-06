@@ -1,4 +1,4 @@
-import { Driver, DriverArchetype, DriverConfig, DRIVER_CONFIGS } from '../mechanics/Driver';
+import { Driver, DriverArchetype, DriverConfig, DRIVER_CONFIGS, DriverRole } from '../mechanics/Driver';
 import { CardLoader } from './CardLoader';
 
 /**
@@ -41,7 +41,23 @@ export class DriverLoader {
 
 			// Create driver instances from configurations
 			for (const [archetype, config] of Object.entries(DRIVER_CONFIGS)) {
-				const driver = new Driver({ config: config as DriverConfig });
+				const driverConfig = config as DriverConfig;
+				const driver = new Driver({
+					archetype: driverConfig.id,
+					metadata: driverConfig.metadata,
+					skills: driverConfig.skills,
+					vehicleStats: driverConfig.vehicleStats,
+					startingDeck: driverConfig.startingDeck,
+					// Default runtime values
+					hitpoints: driverConfig.vehicleStats.maxHealth,
+					maxHitpoints: driverConfig.vehicleStats.maxHealth,
+					adrenaline: 3, // Default starting adrenaline
+					maxAdrenaline: 10, // Default max adrenaline
+					role: DriverRole.ACTIVE,
+					hand: [],
+					discard: [],
+					deck: null
+				});
 				this.drivers.set(archetype as DriverArchetype, driver);
 			}
 
@@ -86,7 +102,7 @@ export class DriverLoader {
 	 * @returns Array of unlocked driver instances
 	 */
 	public getUnlockedDrivers(): Driver[] {
-		return this.getAllDrivers().filter(driver => driver.isUnlocked());
+		return this.getAllDrivers().filter(driver => driver.metadata.unlocked);
 	}
 
 	/**
@@ -94,7 +110,7 @@ export class DriverLoader {
 	 * @returns Array of locked driver instances
 	 */
 	public getLockedDrivers(): Driver[] {
-		return this.getAllDrivers().filter(driver => !driver.isUnlocked());
+		return this.getAllDrivers().filter(driver => !driver.metadata.unlocked);
 	}
 
 	/**
@@ -154,7 +170,7 @@ export class DriverLoader {
 			return false;
 		}
 
-		if (driver.isUnlocked()) {
+		if (driver.metadata.unlocked) {
 			console.log(`Driver ${archetype} is already unlocked`);
 			return true;
 		}
@@ -164,7 +180,22 @@ export class DriverLoader {
 		config.metadata.unlocked = true;
 		
 		// Create new driver instance with unlocked status
-		const unlockedDriver = new Driver({ config });
+		const unlockedDriver = new Driver({
+			archetype: config.id,
+			metadata: config.metadata,
+			skills: config.skills,
+			vehicleStats: config.vehicleStats,
+			startingDeck: config.startingDeck,
+			// Default runtime values
+			hitpoints: config.vehicleStats.maxHealth,
+			maxHitpoints: config.vehicleStats.maxHealth,
+			adrenaline: 3,
+			maxAdrenaline: 10,
+			role: DriverRole.ACTIVE,
+			hand: [],
+			discard: [],
+			deck: null
+		});
 		this.drivers.set(archetype, unlockedDriver);
 
 		console.log(`Driver ${archetype} unlocked!`);

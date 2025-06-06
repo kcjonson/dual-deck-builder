@@ -188,7 +188,7 @@ export class CardShowcaseScreen extends Screen {
 		let currentY = startY;
 
 		for (const rarity of rarities) {
-			const rarityCards = cards.filter(card => card.getRarity() === rarity);
+			const rarityCards = cards.filter(card => card.rarity === rarity);
 			
 			if (rarityCards.length === 0) continue;
 

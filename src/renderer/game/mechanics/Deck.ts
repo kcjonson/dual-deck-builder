@@ -1,77 +1,57 @@
 import { Card } from './Card';
+import { Model } from '../core/Model';
+
+/**
+ * Deck data interface
+ */
+export interface DeckData {
+	type: string; // The deck type identifier
+	name: string;
+	cards: Card[];
+	maxSize: number | null;
+}
+
+/**
+ * Deck interface that merges with the class
+ */
+export interface Deck extends DeckData {}
 
 /**
  * Deck class representing a collection of cards
  */
-export class Deck {
-	private id: string;
-	private name: string;
-	private cards: Card[];
-	private maxSize: number | null = null;
+export class Deck extends Model<DeckData> {
+	// Runtime property list - MUST match DeckData interface
+	static properties = new Set<keyof DeckData>([
+		'type',
+		'name',
+		'cards',
+		'maxSize'
+	]);
 
 	/**
 	 * Create a new deck
-	 * @param id Unique deck identifier
+	 * @param type Deck type identifier
 	 * @param name Deck name
 	 * @param cards Initial cards (optional)
 	 * @param maxSize Maximum number of cards (optional)
 	 */
-	constructor(id: string, name: string, cards: Card[] = [], maxSize: number | null = null) {
-		this.id = id;
-		this.name = name;
-		this.cards = [...cards];
-		this.maxSize = maxSize;
+	constructor(type: string, name: string, cards: Card[] = [], maxSize: number | null = null) {
+		super({
+			type,
+			name,
+			cards: [...cards],
+			maxSize
+		});
 	}
 
-	/**
-	 * Get the deck's unique ID
-	 */
-	public getId(): string {
-		return this.id;
-	}
-
-	/**
-	 * Get the deck's name
-	 */
-	public getName(): string {
-		return this.name;
-	}
-
-	/**
-	 * Set the deck's name
-	 * @param name New deck name
-	 */
-	public setName(name: string): void {
-		this.name = name;
-	}
-
-	/**
-	 * Get all cards in the deck
-	 */
-	public getCards(): Card[] {
-		return [...this.cards];
-	}
+	// Model properties are automatically available as:
+	// this.id, this.name, this.cards, this.maxSize
 
 	/**
 	 * Get the number of cards in the deck
 	 */
-	public getSize(): number {
+	get size(): number {
 		return this.cards.length;
-	}
-
-	/**
-	 * Get the maximum size of the deck
-	 */
-	public getMaxSize(): number | null {
-		return this.maxSize;
-	}
-
-	/**
-	 * Set the maximum size of the deck
-	 * @param size Maximum number of cards
-	 */
-	public setMaxSize(size: number | null): void {
-		this.maxSize = size;
 	}
 
 	/**
@@ -92,7 +72,8 @@ export class Deck {
 			return false;
 		}
 
-		this.cards.push(card);
+		// Create new array to trigger change event
+		this.cards = [...this.cards, card];
 		return true;
 	}
 
@@ -127,7 +108,9 @@ export class Deck {
 			return null;
 		}
 
-		const [removedCard] = this.cards.splice(index, 1);
+		const removedCard = this.cards[index];
+		// Create new array to trigger change event
+		this.cards = this.cards.filter((_, i) => i !== index);
 		return removedCard;
 	}
 
@@ -137,14 +120,15 @@ export class Deck {
 	 * @returns Whether the card was removed successfully
 	 */
 	public removeCard(card: Card): boolean {
-		const index = this.cards.findIndex((c) => c.getId() === card.getId());
+		const index = this.cards.findIndex((c) => c.id === card.id);
 
 		if (index === -1) {
-			console.warn(`Card not found in deck: ${card.getId()}`);
+			console.warn(`Card not found in deck: ${card.id}`);
 			return false;
 		}
 
-		this.cards.splice(index, 1);
+		// Create new array to trigger change event
+		this.cards = this.cards.filter((_, i) => i !== index);
 		return true;
 	}
 
@@ -159,10 +143,12 @@ export class Deck {
 	 * Shuffle the deck using Fisher-Yates algorithm
 	 */
 	public shuffle(): void {
-		for (let i = this.cards.length - 1; i > 0; i--) {
+		const shuffled = [...this.cards];
+		for (let i = shuffled.length - 1; i > 0; i--) {
 			const j = Math.floor(Math.random() * (i + 1));
-			[this.cards[i], this.cards[j]] = [this.cards[j], this.cards[i]];
+			[shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
 		}
+		this.cards = shuffled;
 	}
 
 	/**
@@ -175,7 +161,10 @@ export class Deck {
 			return null;
 		}
 
-		return this.cards.pop() || null;
+		const drawnCard = this.cards[this.cards.length - 1];
+		// Create new array to trigger change event
+		this.cards = this.cards.slice(0, -1);
+		return drawnCard;
 	}
 
 	/**
@@ -205,6 +194,6 @@ export class Deck {
 	 */
 	public copy(): Deck {
 		const cardCopies = this.cards.map((card) => card.copy());
-		return new Deck(this.id, this.name, cardCopies, this.maxSize);
+		return new Deck(this.type, this.name, cardCopies, this.maxSize);
 	}
 }

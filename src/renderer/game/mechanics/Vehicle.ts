@@ -1,4 +1,5 @@
 import { Driver } from './Driver';
+import { Model } from '../core/Model';
 
 /**
  * Vehicle position in combat
@@ -20,119 +21,64 @@ export interface VehicleStatusEffect {
 }
 
 /**
+ * Vehicle data interface - used throughout the app
+ */
+export interface VehicleData {
+	name: string;
+	armor: number;
+	maxArmor: number;
+	structure: number;
+	maxStructure: number;
+	speed: number;
+	baseSpeed: number;
+	position: VehiclePosition;
+	velocity: number;
+	driver: Driver | null;
+	passenger: Driver | null;
+	statusEffects: VehicleStatusEffect[];
+}
+
+// VehicleState is now the same as VehicleData
+export type VehicleState = VehicleData;
+
+/**
+ * Vehicle interface that merges with the class
+ */
+export interface Vehicle extends VehicleData {}
+
+/**
  * Vehicle class representing a combat vehicle
  * Based on Combat Rules specification
  */
-export class Vehicle {
-	private id: string;
-	private name: string;
-	private armor: number;
-	private maxArmor: number;
-	private structure: number;
-	private maxStructure: number;
-	private speed: number;
-	private baseSpeed: number;
-	private driver: Driver | null = null;
-	private passenger: Driver | null = null;
-	private position: VehiclePosition = VehiclePosition.BACK;
-	private statusEffects: Map<string, VehicleStatusEffect> = new Map();
-	private velocity = 0; // Calculated each turn
+export class Vehicle extends Model<VehicleData> {
+	// Runtime property list - MUST match VehicleData interface
+	static properties = new Set<keyof VehicleData>([
+		'name',
+		'armor',
+		'maxArmor',
+		'structure',
+		'maxStructure',
+		'speed',
+		'baseSpeed',
+		'position',
+		'velocity',
+		'driver',
+		'passenger',
+		'statusEffects'
+	]);
+
+	// All properties are now model properties!
 
 	/**
 	 * Create a new vehicle
 	 */
-	constructor({
-		id,
-		name,
-		armor,
-		structure,
-		speed
-	}: {
-		id: string;
-		name: string;
-		armor: number;
-		structure: number;
-		speed: number;
-	}) {
-		this.id = id;
-		this.name = name;
-		this.armor = armor;
-		this.maxArmor = armor;
-		this.structure = structure;
-		this.maxStructure = structure;
-		this.speed = speed;
-		this.baseSpeed = speed;
+	constructor(initialData: VehicleData) {
+		super(initialData);
 	}
 
-	/**
-	 * Get vehicle ID
-	 */
-	public getId(): string {
-		return this.id;
-	}
-
-	/**
-	 * Get vehicle name
-	 */
-	public getName(): string {
-		return this.name;
-	}
-
-	/**
-	 * Get current armor
-	 */
-	public getArmor(): number {
-		return this.armor;
-	}
-
-	/**
-	 * Get maximum armor
-	 */
-	public getMaxArmor(): number {
-		return this.maxArmor;
-	}
-
-	/**
-	 * Get current structure (health)
-	 */
-	public getStructure(): number {
-		return this.structure;
-	}
-
-	/**
-	 * Get maximum structure
-	 */
-	public getMaxStructure(): number {
-		return this.maxStructure;
-	}
-
-	/**
-	 * Get current speed (may be modified by effects)
-	 */
-	public getSpeed(): number {
-		return this.speed;
-	}
-
-	/**
-	 * Get base speed (unmodified)
-	 */
-	public getBaseSpeed(): number {
-		return this.baseSpeed;
-	}
-
-	/**
-	 * Get current velocity (calculated for turn order)
-	 */
-	public getVelocity(): number {
-		return this.velocity;
-	}
-
-	/**
-	 * Set velocity for this turn
-	 */
-	public setVelocity(velocity: number): void {
-		this.velocity = velocity;
-	}
+	// Model properties are automatically available as:
+	// this.name, this.armor, this.structure, etc.
+	// They emit 'change' events when modified
 
 	/**
 	 * Check if vehicle is alive (structure > 0)
@@ -141,47 +87,8 @@ export class Vehicle {
 		return this.structure > 0;
 	}
 
-	/**
-	 * Get the driver of this vehicle
-	 */
-	public getDriver(): Driver | null {
-		return this.driver;
-	}
-
-	/**
-	 * Get the passenger of this vehicle
-	 */
-	public getPassenger(): Driver | null {
-		return this.passenger;
-	}
-
-	/**
-	 * Set the driver of this vehicle
-	 */
-	public setDriver(driver: Driver | null): void {
-		this.driver = driver;
-	}
-
-	/**
-	 * Set the passenger of this vehicle
-	 */
-	public setPassenger(passenger: Driver | null): void {
-		this.passenger = passenger;
-	}
-
-	/**
-	 * Get vehicle position
-	 */
-	public getPosition(): VehiclePosition {
-		return this.position;
-	}
-
-	/**
-	 * Set vehicle position
-	 */
-	public setPosition(position: VehiclePosition): void {
-		this.position = position;
-	}
+	// Model properties are automatically available as:
+	// this.driver, this.passenger, this.position, etc.
 
 	/**
 	 * Take damage to the vehicle
@@ -229,7 +136,10 @@ export class Vehicle {
 	 * Apply a status effect
 	 */
 	public applyStatusEffect(effect: VehicleStatusEffect): void {
-		this.statusEffects.set(effect.name, { ...effect });
+		// Remove existing effect with same name
+		this.statusEffects = this.statusEffects.filter(e => e.name !== effect.name);
+		// Add new effect
+		this.statusEffects = [...this.statusEffects, { ...effect }];
 		this.updateSpeedFromEffects();
 	}
 
@@ -237,29 +147,24 @@ export class Vehicle {
 	 * Remove a status effect
 	 */
 	public removeStatusEffect(effectName: string): void {
-		this.statusEffects.delete(effectName);
+		this.statusEffects = this.statusEffects.filter(e => e.name !== effectName);
 		this.updateSpeedFromEffects();
 	}
 
-	/**
-	 * Get all status effects
-	 */
-	public getStatusEffects(): Map<string, VehicleStatusEffect> {
-		return new Map(this.statusEffects);
-	}
+	// statusEffects is a model property - access it directly with this.statusEffects
 
 	/**
 	 * Process status effects at turn start
 	 */
 	public processStatusEffects(): void {
-		const effectsToRemove: string[] = [];
+		const updatedEffects: VehicleStatusEffect[] = [];
 
-		this.statusEffects.forEach((effect, name) => {
+		this.statusEffects.forEach(effect => {
 			// Reduce duration
 			effect.duration--;
 			
 			// Apply any ongoing effects
-			switch (name) {
+			switch (effect.name) {
 				case 'oil_slick':
 					// Speed reduction already applied in updateSpeedFromEffects
 					break;
@@ -272,14 +177,15 @@ export class Vehicle {
 					break;
 			}
 			
-			// Mark for removal if expired
-			if (effect.duration <= 0) {
-				effectsToRemove.push(name);
+			// Keep if not expired
+			if (effect.duration > 0) {
+				updatedEffects.push(effect);
 			}
 		});
 
-		// Remove expired effects
-		effectsToRemove.forEach(name => this.removeStatusEffect(name));
+		// Update effects array
+		this.statusEffects = updatedEffects;
+		this.updateSpeedFromEffects();
 	}
 
 	/**
@@ -316,54 +222,23 @@ export class Vehicle {
 	 */
 	public copy(): Vehicle {
 		const newVehicle = new Vehicle({
-			id: this.id,
 			name: this.name,
-			armor: this.maxArmor,
-			structure: this.maxStructure,
-			speed: this.baseSpeed
-		});
-		
-		// Copy current state
-		newVehicle.armor = this.armor;
-		newVehicle.structure = this.structure;
-		newVehicle.speed = this.speed;
-		newVehicle.position = this.position;
-		newVehicle.velocity = this.velocity;
-		
-		// Copy status effects
-		this.statusEffects.forEach((effect, name) => {
-			newVehicle.statusEffects.set(name, { ...effect });
-		});
-		
-		return newVehicle;
-	}
-
-	/**
-	 * Get vehicle stats for display
-	 */
-	public getDisplayStats(): {
-		armor: number;
-		maxArmor: number;
-		structure: number;
-		maxStructure: number;
-		speed: number;
-		velocity: number;
-		position: VehiclePosition;
-		driver: string | null;
-		passenger: string | null;
-		statusEffects: VehicleStatusEffect[];
-	} {
-		return {
 			armor: this.armor,
 			maxArmor: this.maxArmor,
 			structure: this.structure,
 			maxStructure: this.maxStructure,
 			speed: this.speed,
-			velocity: this.velocity,
+			baseSpeed: this.baseSpeed,
 			position: this.position,
-			driver: this.driver?.getName() || null,
-			passenger: this.passenger?.getName() || null,
-			statusEffects: Array.from(this.statusEffects.values())
-		};
+			velocity: this.velocity,
+			driver: null,
+			passenger: null,
+			statusEffects: this.statusEffects.map(effect => ({ ...effect }))
+		});
+		
+		return newVehicle;
 	}
+
+	// All properties are directly accessible:
+	// this.armor, this.maxArmor, this.structure, this.position, etc.
 }

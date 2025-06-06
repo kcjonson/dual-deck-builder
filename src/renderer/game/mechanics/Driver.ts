@@ -1,5 +1,6 @@
 import { Card } from './Card';
 import { Deck } from './Deck';
+import { Model } from '../core/Model';
 
 /**
  * Driver archetype defining playstyle and starting deck
@@ -45,7 +46,7 @@ export interface DriverMetadata {
  * Starting deck configuration for a driver
  */
 export interface StartingDeckConfig {
-	cards: { id: string; quantity: number }[];
+	cards: { type: string; quantity: number }[];
 }
 
 /**
@@ -68,130 +69,65 @@ export enum DriverRole {
 }
 
 /**
+ * Driver data interface - used throughout the app
+ */
+export interface DriverData {
+	// From DriverConfig
+	archetype: DriverArchetype;
+	metadata: DriverMetadata;
+	skills: DriverSkills;
+	vehicleStats: VehicleStats;
+	startingDeck: StartingDeckConfig;
+	
+	// Runtime state
+	hitpoints: number;
+	maxHitpoints: number;
+	adrenaline: number;
+	maxAdrenaline: number;
+	role: DriverRole;
+	hand: Card[];
+	discard: Card[];
+	deck: Deck | null;
+}
+
+/**
+ * Driver interface that merges with the class
+ */
+export interface Driver extends DriverData {}
+
+/**
  * Driver class representing a character with combat skills and individual adrenaline pool
  */
-export class Driver {
-	private config: DriverConfig;
-	private deck: Deck | null = null;
-	private hand: Card[] = [];
-	private discard: Card[] = [];
-	private hitpoints: number;
-	private maxHitpoints: number;
-	private speed: number;
-	private adrenaline: number;
-	private maxAdrenaline: number;
-	private role: DriverRole = DriverRole.ACTIVE;
+export class Driver extends Model<DriverData> {
+	// Runtime property list - MUST match DriverData interface
+	static properties = new Set<keyof DriverData>([
+		'archetype',
+		'metadata',
+		'skills',
+		'vehicleStats',
+		'startingDeck',
+		'hitpoints',
+		'maxHitpoints',
+		'adrenaline',
+		'maxAdrenaline',
+		'role',
+		'hand',
+		'discard',
+		'deck'
+	]);
 
 	/**
 	 * Create a new driver from configuration
 	 */
-	constructor({ 
-		config,
-		hitpoints = 30,
-		adrenaline = 3
-	}: { 
-		config: DriverConfig;
-		hitpoints?: number;
-		adrenaline?: number;
-	}) {
-		this.config = { ...config };
-		this.hitpoints = hitpoints;
-		this.maxHitpoints = hitpoints;
-		this.speed = config.skills?.ramming || 1; // Driver speed based on ramming skill
-		this.adrenaline = adrenaline;
-		this.maxAdrenaline = adrenaline;
+	constructor(initialData: DriverData) {
+		super(initialData);
 	}
 
-	/**
-	 * Get the driver's unique ID
-	 */
-	public getId(): DriverArchetype {
-		return this.config.id;
-	}
 
-	/**
-	 * Get the driver's display name
-	 */
-	public getName(): string {
-		return this.config.metadata.name;
-	}
-
-	/**
-	 * Get the vehicle name
-	 */
-	public getVehicleName(): string {
-		return this.config.metadata.vehicleName;
-	}
-
-	/**
-	 * Get the driver's specialty description
-	 */
-	public getSpecialty(): string {
-		return this.config.metadata.specialty;
-	}
-
-	/**
-	 * Get the driver's flavor text
-	 */
-	public getFlavorText(): string {
-		return this.config.metadata.flavorText;
-	}
-
-	/**
-	 * Get the driver's portrait image path
-	 */
-	public getPortraitImage(): string | undefined {
-		return this.config.metadata.portraitImage;
-	}
-
-	/**
-	 * Get the vehicle artwork image path
-	 */
-	public getVehicleImage(): string | undefined {
-		return this.config.metadata.vehicleImage;
-	}
-
-	/**
-	 * Check if this driver is unlocked
-	 */
-	public isUnlocked(): boolean {
-		return this.config.metadata.unlocked;
-	}
-
-	/**
-	 * Get the unlock condition description
-	 */
-	public getUnlockCondition(): string | undefined {
-		return this.config.metadata.unlockCondition;
-	}
-
-	/**
-	 * Get the vehicle stats
-	 */
-	public getVehicleStats(): VehicleStats {
-		return { ...this.config.vehicleStats };
-	}
-
-	/**
-	 * Get the starting deck configuration
-	 */
-	public getStartingDeckConfig(): StartingDeckConfig {
-		return { ...this.config.startingDeck };
-	}
-
-	/**
-	 * Set the driver's deck
-	 */
-	public setDeck(deck: Deck): void {
-		this.deck = deck;
-	}
-
-	/**
-	 * Get the driver's current deck
-	 */
-	public getDeck(): Deck | null {
-		return this.deck;
-	}
+	// Model properties are automatically available as:
+	// this.metadata.name, this.metadata.vehicleName, etc.
+	// this.deck, this.hand, this.discard, etc.
+	// They emit 'change' events when modified
 
 	/**
 	 * Create a starting deck for this driver using provided cards
@@ -200,20 +136,20 @@ export class Driver {
 	 */
 	public createStartingDeck(availableCards: Map<string, Card>): Deck {
 		const startingDeck = new Deck(
-			`${this.config.id}_starting_deck`,
-			`${this.getName()}'s Starting Deck`
+			`${this.archetype}_starting_deck`,
+			`${this.metadata.name}'s Starting Deck`
 		);
 
 		// Add cards based on starting deck configuration
-		for (const cardConfig of this.config.startingDeck.cards) {
-			const cardTemplate = availableCards.get(cardConfig.id);
+		for (const cardConfig of this.startingDeck.cards) {
+			const cardTemplate = availableCards.get(cardConfig.type);
 			if (cardTemplate) {
 				// Add the specified quantity of this card
 				for (let i = 0; i < cardConfig.quantity; i++) {
 					startingDeck.addCard(cardTemplate.copy());
 				}
 			} else {
-				console.warn(`Starting card not found: ${cardConfig.id} for driver ${this.config.id}`);
+				console.warn(`Starting card not found: ${cardConfig.type} for driver ${this.archetype}`);
 			}
 		}
 
@@ -225,21 +161,13 @@ export class Driver {
 	 * Get the complete driver configuration
 	 */
 	public getConfig(): DriverConfig {
-		return { ...this.config };
-	}
-
-	/**
-	 * Get driver's current hitpoints
-	 */
-	public getHitpoints(): number {
-		return this.hitpoints;
-	}
-
-	/**
-	 * Get driver's maximum hitpoints
-	 */
-	public getMaxHitpoints(): number {
-		return this.maxHitpoints;
+		return {
+			id: this.archetype,
+			metadata: this.metadata,
+			skills: this.skills,
+			vehicleStats: this.vehicleStats,
+			startingDeck: this.startingDeck
+		};
 	}
 
 	/**
@@ -261,34 +189,6 @@ export class Driver {
 	 */
 	public heal(amount: number): void {
 		this.hitpoints = Math.min(this.maxHitpoints, this.hitpoints + amount);
-	}
-
-	/**
-	 * Get driver's speed
-	 */
-	public getSpeed(): number {
-		return this.speed;
-	}
-
-	/**
-	 * Get driver's combat skills
-	 */
-	public getSkills(): DriverSkills {
-		return { ...this.config.skills };
-	}
-
-	/**
-	 * Get current adrenaline
-	 */
-	public getAdrenaline(): number {
-		return this.adrenaline;
-	}
-
-	/**
-	 * Get maximum adrenaline
-	 */
-	public getMaxAdrenaline(): number {
-		return this.maxAdrenaline;
 	}
 
 	/**
@@ -316,19 +216,8 @@ export class Driver {
 		this.adrenaline = this.maxAdrenaline;
 	}
 
-	/**
-	 * Get driver's current role
-	 */
-	public getRole(): DriverRole {
-		return this.role;
-	}
-
-	/**
-	 * Set driver's role
-	 */
-	public setRole(role: DriverRole): void {
-		this.role = role;
-	}
+	// Role is a model property - access it directly:
+	// driver.role
 
 	/**
 	 * Check if driver can play attack cards
@@ -337,19 +226,8 @@ export class Driver {
 		return this.role === DriverRole.ACTIVE;
 	}
 
-	/**
-	 * Get driver's hand
-	 */
-	public getHand(): Card[] {
-		return [...this.hand];
-	}
-
-	/**
-	 * Get driver's discard pile
-	 */
-	public getDiscardPile(): Card[] {
-		return [...this.discard];
-	}
+	// Hand and discard are model properties - access them directly:
+	// driver.hand, driver.discard
 
 	/**
 	 * Add card to hand
@@ -382,7 +260,7 @@ export class Driver {
 		}
 
 		// Check if driver can afford the card
-		if (this.adrenaline < card.getCost()) {
+		if (this.adrenaline < card.cost) {
 			return { success: false, card: null, reason: 'Not enough adrenaline' };
 		}
 
@@ -392,7 +270,7 @@ export class Driver {
 		}
 
 		// Spend adrenaline and play card
-		if (this.spendAdrenaline(card.getCost())) {
+		if (this.spendAdrenaline(card.cost)) {
 			const playedCard = this.playCard(cardIndex);
 			return { success: true, card: playedCard };
 		}
@@ -404,13 +282,13 @@ export class Driver {
 	 * Check if a card is an attack card
 	 */
 	private isAttackCard(card: Card): boolean {
-		const effects = card.getEffects();
+		const effects = card.effects;
 		return effects.some(effect => 
 			effect.type === 'damage' || 
 			effect.type === 'ram' ||
-			card.getName().toLowerCase().includes('attack') ||
-			card.getName().toLowerCase().includes('shot') ||
-			card.getName().toLowerCase().includes('ram')
+			card.name.toLowerCase().includes('attack') ||
+			card.name.toLowerCase().includes('shot') ||
+			card.name.toLowerCase().includes('ram')
 		);
 	}
 
@@ -470,7 +348,7 @@ export class Driver {
 	 * Check if driver can afford a specific card
 	 */
 	public canAffordCard(card: Card): boolean {
-		return this.adrenaline >= card.getCost();
+		return this.adrenaline >= card.cost;
 	}
 
 	/**
@@ -493,24 +371,21 @@ export class Driver {
 	 * Create a copy of this driver
 	 */
 	public copy(): Driver {
-		const newDriver = new Driver({ 
-			config: JSON.parse(JSON.stringify(this.config)),
-			hitpoints: this.maxHitpoints,
-			adrenaline: this.maxAdrenaline
+		const newDriver = new Driver({
+			archetype: this.archetype,
+			metadata: { ...this.metadata },
+			skills: { ...this.skills },
+			vehicleStats: { ...this.vehicleStats },
+			startingDeck: { cards: [...this.startingDeck.cards] },
+			hitpoints: this.hitpoints,
+			maxHitpoints: this.maxHitpoints,
+			adrenaline: this.adrenaline,
+			maxAdrenaline: this.maxAdrenaline,
+			role: this.role,
+			hand: this.hand.map(card => card.copy()),
+			discard: this.discard.map(card => card.copy()),
+			deck: this.deck ? this.deck.copy() : null
 		});
-		
-		// Copy current state
-		newDriver.hitpoints = this.hitpoints;
-		newDriver.adrenaline = this.adrenaline;
-		newDriver.role = this.role;
-		
-		// Copy hand and discard
-		newDriver.hand = this.hand.map(card => card.copy());
-		newDriver.discard = this.discard.map(card => card.copy());
-		
-		if (this.deck) {
-			newDriver.setDeck(this.deck.copy());
-		}
 
 		return newDriver;
 	}
@@ -546,12 +421,12 @@ export const DRIVER_CONFIGS: Record<DriverArchetype, DriverConfig> = {
 		},
 		startingDeck: {
 			cards: [
-				{ id: 'ramming_speed', quantity: 2 },
-				{ id: 'armor_plating', quantity: 3 },
-				{ id: 'repair_kit', quantity: 2 },
-				{ id: 'nitro_boost', quantity: 1 },
-				{ id: 'coordinated_strike', quantity: 1 },
-				{ id: 'flanking_maneuver', quantity: 1 }
+				{ type: 'ramming_speed', quantity: 2 },
+				{ type: 'armor_plating', quantity: 3 },
+				{ type: 'repair_kit', quantity: 2 },
+				{ type: 'nitro_boost', quantity: 1 },
+				{ type: 'coordinated_strike', quantity: 1 },
+				{ type: 'flanking_maneuver', quantity: 1 }
 			]
 		}
 	},
@@ -582,12 +457,12 @@ export const DRIVER_CONFIGS: Record<DriverArchetype, DriverConfig> = {
 		},
 		startingDeck: {
 			cards: [
-				{ id: 'precision_shot', quantity: 3 },
-				{ id: 'nitro_boost', quantity: 2 },
-				{ id: 'flanking_maneuver', quantity: 2 },
-				{ id: 'armor_plating', quantity: 1 },
-				{ id: 'repair_kit', quantity: 1 },
-				{ id: 'coordinated_strike', quantity: 1 }
+				{ type: 'precision_shot', quantity: 3 },
+				{ type: 'nitro_boost', quantity: 2 },
+				{ type: 'flanking_maneuver', quantity: 2 },
+				{ type: 'armor_plating', quantity: 1 },
+				{ type: 'repair_kit', quantity: 1 },
+				{ type: 'coordinated_strike', quantity: 1 }
 			]
 		}
 	},
@@ -618,11 +493,11 @@ export const DRIVER_CONFIGS: Record<DriverArchetype, DriverConfig> = {
 		},
 		startingDeck: {
 			cards: [
-				{ id: 'emp_blast', quantity: 1 },
-				{ id: 'repair_kit', quantity: 3 },
-				{ id: 'nitro_boost', quantity: 2 },
-				{ id: 'armor_plating', quantity: 2 },
-				{ id: 'coordinated_strike', quantity: 2 }
+				{ type: 'emp_blast', quantity: 1 },
+				{ type: 'repair_kit', quantity: 3 },
+				{ type: 'nitro_boost', quantity: 2 },
+				{ type: 'armor_plating', quantity: 2 },
+				{ type: 'coordinated_strike', quantity: 2 }
 			]
 		}
 	},
@@ -654,13 +529,13 @@ export const DRIVER_CONFIGS: Record<DriverArchetype, DriverConfig> = {
 		},
 		startingDeck: {
 			cards: [
-				{ id: 'blood_for_chrome', quantity: 3 },
-				{ id: 'ramming_speed', quantity: 2 },
-				{ id: 'coordinated_strike', quantity: 1 },
-				{ id: 'flanking_maneuver', quantity: 1 },
-				{ id: 'repair_kit', quantity: 1 },
-				{ id: 'armor_plating', quantity: 1 },
-				{ id: 'nitro_boost', quantity: 1 }
+				{ type: 'blood_for_chrome', quantity: 3 },
+				{ type: 'ramming_speed', quantity: 2 },
+				{ type: 'coordinated_strike', quantity: 1 },
+				{ type: 'flanking_maneuver', quantity: 1 },
+				{ type: 'repair_kit', quantity: 1 },
+				{ type: 'armor_plating', quantity: 1 },
+				{ type: 'nitro_boost', quantity: 1 }
 			]
 		}
 	}

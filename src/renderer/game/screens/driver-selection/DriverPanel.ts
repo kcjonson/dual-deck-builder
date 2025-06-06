@@ -281,22 +281,22 @@ export class DriverPanel extends Layer {
 		
 		// Update driver name
 		if (this.driverName) {
-			this.driverName.setText(this.selectedDriver.getName());
+			this.driverName.setText(this.selectedDriver.metadata.name);
 		}
 		
 		// Update vehicle name
 		if (this.vehicleName) {
-			this.vehicleName.setText(`Vehicle: ${this.selectedDriver.getVehicleName()}`);
+			this.vehicleName.setText(`Vehicle: ${this.selectedDriver.metadata.vehicleName}`);
 		}
 		
 		// Update specialty tag
 		if (this.specialtyTag) {
-			this.specialtyTag.setText(this.selectedDriver.getSpecialty());
+			this.specialtyTag.setText(this.selectedDriver.metadata.specialty);
 		}
 		
 		// Update flavor text
 		if (this.flavorText) {
-			this.flavorText.setText(this.selectedDriver.getFlavorText());
+			this.flavorText.setText(this.selectedDriver.metadata.flavorText);
 		}
 		
 		// Update starting deck display
@@ -305,7 +305,7 @@ export class DriverPanel extends Layer {
 		// Update selector button text
 		if (this.driverSelector) {
 			this.driverSelector.setLabel(
-				`${this.selectedDriver.getName()} (${this.currentDriverIndex + 1}/${this.availableDrivers.length})`
+				`${this.selectedDriver.metadata.name} (${this.currentDriverIndex + 1}/${this.availableDrivers.length})`
 			);
 		}
 	}
@@ -344,7 +344,7 @@ export class DriverPanel extends Layer {
 		}
 		
 		// Create mini-cards for starting deck
-		const startingDeckConfig = this.selectedDriver.getStartingDeckConfig();
+		const startingDeckConfig = this.selectedDriver.startingDeck;
 		const availableCards = cardLoader.getAllCardsAsMap();
 		
 		const cardDimensions = UICard.getDimensions(CardSize.MINI);
@@ -355,7 +355,7 @@ export class DriverPanel extends Layer {
 		
 		let cardIndex = 0;
 		for (const cardConfig of startingDeckConfig.cards) {
-			const cardData = availableCards.get(cardConfig.id);
+			const cardData = availableCards.get(cardConfig.type);
 			if (!cardData) continue;
 			
 			const row = Math.floor(cardIndex / cardsPerRow);

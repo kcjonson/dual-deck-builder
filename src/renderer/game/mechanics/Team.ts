@@ -1,5 +1,6 @@
 import { Driver, DriverRole } from './Driver';
 import { Vehicle } from './Vehicle';
+import { Model } from '../core/Model';
 
 /**
  * Team type (player or AI controlled)
@@ -10,57 +11,44 @@ export enum TeamType {
 }
 
 /**
+ * Team data interface - used throughout the app
+ */
+export interface TeamData {
+	type: TeamType;
+	vehicles: Vehicle[];
+}
+
+/**
+ * Team interface that merges with the class
+ */
+export interface Team extends TeamData {}
+
+/**
  * Team class representing a side in battle
  * Player teams have exactly 2 vehicles, enemy teams can have variable amounts
  * Drivers manage their own hands/cards individually
  */
-export class Team {
-	private id: string;
-	private type: TeamType;
-	private vehicles: Vehicle[] = [];
+export class Team extends Model<TeamData> {
+	// Runtime property list - MUST match TeamData interface
+	static properties = new Set<keyof TeamData>([
+		'type',
+		'vehicles'
+	]);
 
 	/**
 	 * Create a new team
 	 */
-	constructor({
-		id,
-		type,
-		vehicles = []
-	}: {
-		id: string;
-		type: TeamType;
-		vehicles?: Vehicle[];
-	}) {
-		this.id = id;
-		this.type = type;
-		this.vehicles = [...vehicles];
+	constructor(initialData: TeamData) {
+		super(initialData);
 
 		// Validate player team has exactly 2 vehicles
-		if (type === TeamType.PLAYER && vehicles.length !== 2) {
+		if (initialData.type === TeamType.PLAYER && initialData.vehicles.length !== 2) {
 			throw new Error('Player teams must have exactly 2 vehicles');
 		}
 	}
 
-	/**
-	 * Get team ID
-	 */
-	public getId(): string {
-		return this.id;
-	}
-
-	/**
-	 * Get team type
-	 */
-	public getType(): TeamType {
-		return this.type;
-	}
-
-	/**
-	 * Get all vehicles
-	 */
-	public getVehicles(): Vehicle[] {
-		return [...this.vehicles];
-	}
+	// Model properties are automatically available as:
+	// team.type, team.vehicles
 
 	/**
 	 * Get all alive vehicles
@@ -76,8 +64,8 @@ export class Team {
 		const drivers: Driver[] = [];
 		
 		this.vehicles.forEach(vehicle => {
-			const driver = vehicle.getDriver();
-			const passenger = vehicle.getPassenger();
+			const driver = vehicle.driver;
+			const passenger = vehicle.passenger;
 			
 			if (driver) drivers.push(driver);
 			if (passenger) drivers.push(passenger);
@@ -109,53 +97,56 @@ export class Team {
 			throw new Error('Player teams cannot have more than 2 vehicles');
 		}
 		
-		this.vehicles.push(vehicle);
+		// Create new array to trigger change event
+		this.vehicles = [...this.vehicles, vehicle];
 	}
 
 	/**
 	 * Remove vehicle from team
 	 */
-	public removeVehicle(vehicleId: string): Vehicle | null {
-		const index = this.vehicles.findIndex(v => v.getId() === vehicleId);
+	public removeVehicle(vehicle: Vehicle): boolean {
+		const index = this.vehicles.indexOf(vehicle);
 		if (index !== -1) {
-			return this.vehicles.splice(index, 1)[0];
+			// Create new array to trigger change event
+			this.vehicles = this.vehicles.filter(v => v !== vehicle);
+			return true;
 		}
-		return null;
+		return false;
 	}
 
 	/**
 	 * Handle vehicle destruction - driver becomes passenger in another vehicle
 	 */
 	public handleVehicleDestruction(destroyedVehicle: Vehicle): void {
-		const destroyedDriver = destroyedVehicle.getDriver();
-		const destroyedPassenger = destroyedVehicle.getPassenger();
-		const survivingVehicles = this.getAliveVehicles().filter(v => v.getId() !== destroyedVehicle.getId());
+		const destroyedDriver = destroyedVehicle.driver;
+		const destroyedPassenger = destroyedVehicle.passenger;
+		const survivingVehicles = this.getAliveVehicles().filter(v => v !== destroyedVehicle);
 
 		// Handle the driver
 		if (destroyedDriver && destroyedDriver.isAlive() && survivingVehicles.length > 0) {
 			// Find a vehicle without a passenger
-			const targetVehicle = survivingVehicles.find(v => !v.getPassenger());
+			const targetVehicle = survivingVehicles.find(v => !v.passenger);
 			
 			if (targetVehicle) {
-				targetVehicle.setPassenger(destroyedDriver);
-				destroyedDriver.setRole(DriverRole.PASSENGER);
+				targetVehicle.passenger = destroyedDriver;
+				destroyedDriver.role = DriverRole.PASSENGER;
 			}
 		}
 
 		// Handle the passenger (if there was one)
 		if (destroyedPassenger && destroyedPassenger.isAlive() && survivingVehicles.length > 0) {
 			// Find another vehicle without a passenger
-			const targetVehicle = survivingVehicles.find(v => !v.getPassenger() && v.getDriver() !== destroyedDriver);
+			const targetVehicle = survivingVehicles.find(v => !v.passenger && v.driver !== destroyedDriver);
 			
 			if (targetVehicle) {
-				targetVehicle.setPassenger(destroyedPassenger);
-				destroyedPassenger.setRole(DriverRole.PASSENGER);
+				targetVehicle.passenger = destroyedPassenger;
+				destroyedPassenger.role = DriverRole.PASSENGER;
 			}
 		}
 
 		// Clear the destroyed vehicle's occupants
-		destroyedVehicle.setDriver(null);
-		destroyedVehicle.setPassenger(null);
+		destroyedVehicle.driver = null;
+		destroyedVehicle.passenger = null;
 		destroyedVehicle.destroy();
 	}
 
@@ -188,7 +179,7 @@ export class Team {
 		if (aliveVehicles.length === 0) return 0;
 
 		// Use the fastest vehicle's velocity for turn order
-		return Math.max(...aliveVehicles.map(vehicle => vehicle.getVelocity()));
+		return Math.max(...aliveVehicles.map(vehicle => vehicle.velocity));
 	}
 
 	/**
@@ -200,7 +191,7 @@ export class Team {
 		this.vehicles.forEach(vehicle => {
 			if (vehicle.isAlive()) {
 				// Players always go first, enemies go second
-				vehicle.setVelocity(baseInitiative);
+				vehicle.velocity = baseInitiative;
 			}
 		});
 	}
@@ -216,10 +207,8 @@ export class Team {
 	 * Get team combat statistics for display
 	 */
 	public getCombatStats(): {
-		teamId: string;
 		type: TeamType;
 		vehicles: Array<{
-			id: string;
 			name: string;
 			armor: number;
 			maxArmor: number;
@@ -254,43 +243,41 @@ export class Team {
 		isDefeated: boolean;
 	} {
 		return {
-			teamId: this.id,
 			type: this.type,
 			vehicles: this.vehicles.map(vehicle => {
-				const driver = vehicle.getDriver();
-				const passenger = vehicle.getPassenger();
+				const driver = vehicle.driver;
+				const passenger = vehicle.passenger;
 				
 				return {
-					id: vehicle.getId(),
-					name: vehicle.getName(),
-					armor: vehicle.getArmor(),
-					maxArmor: vehicle.getMaxArmor(),
-					structure: vehicle.getStructure(),
-					maxStructure: vehicle.getMaxStructure(),
-					speed: vehicle.getSpeed(),
-					velocity: vehicle.getVelocity(),
+					name: vehicle.name,
+					armor: vehicle.armor,
+					maxArmor: vehicle.maxArmor,
+					structure: vehicle.structure,
+					maxStructure: vehicle.maxStructure,
+					speed: vehicle.speed,
+					velocity: vehicle.velocity,
 					alive: vehicle.isAlive(),
 					driver: driver ? {
-						name: driver.getName(),
-						hitpoints: driver.getHitpoints(),
-						maxHitpoints: driver.getMaxHitpoints(),
-						adrenaline: driver.getAdrenaline(),
-						maxAdrenaline: driver.getMaxAdrenaline(),
-						role: driver.getRole(),
+						name: driver.metadata.name,
+						hitpoints: driver.hitpoints,
+						maxHitpoints: driver.maxHitpoints,
+						adrenaline: driver.adrenaline,
+						maxAdrenaline: driver.maxAdrenaline,
+						role: driver.role,
 						alive: driver.isAlive(),
-						handSize: driver.getHand().length,
-						discardSize: driver.getDiscardPile().length
+						handSize: driver.hand.length,
+						discardSize: driver.discard.length
 					} : null,
 					passenger: passenger ? {
-						name: passenger.getName(),
-						hitpoints: passenger.getHitpoints(),
-						maxHitpoints: passenger.getMaxHitpoints(),
-						adrenaline: passenger.getAdrenaline(),
-						maxAdrenaline: passenger.getMaxAdrenaline(),
-						role: passenger.getRole(),
+						name: passenger.metadata.name,
+						hitpoints: passenger.hitpoints,
+						maxHitpoints: passenger.maxHitpoints,
+						adrenaline: passenger.adrenaline,
+						maxAdrenaline: passenger.maxAdrenaline,
+						role: passenger.role,
 						alive: passenger.isAlive(),
-						handSize: passenger.getHand().length,
-						discardSize: passenger.getDiscardPile().length
+						handSize: passenger.hand.length,
+						discardSize: passenger.discard.length
 					} : null
 				};
 			}),

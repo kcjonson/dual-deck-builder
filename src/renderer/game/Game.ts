@@ -127,7 +127,7 @@ export class Game {
 		});
 		driverSelectionScreen.setOnStartRun((driver1, driver2) => {
 			// Start the run with selected drivers
-			console.log(`Starting run with ${driver1.getName()} and ${driver2.getName()}`);
+			console.log(`Starting run with ${driver1.metadata.name} and ${driver2.metadata.name}`);
 			this.startCombatWithDrivers([driver1, driver2]);
 		});
 		this.screens.set('driverSelectionScreen', driverSelectionScreen);

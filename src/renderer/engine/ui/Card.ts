@@ -66,7 +66,7 @@ export class Card extends Component {
 			width: dimensions.width,
 			height: dimensions.height,
 			style: {
-				backgroundColor: Card.getRarityColor(data.getRarity()),
+				backgroundColor: Card.getRarityColor(data.rarity),
 				borderRadius: size === CardSize.MINI ? 4 : 8,
 			},
 		});
@@ -91,7 +91,7 @@ export class Card extends Component {
 		const padding = Math.floor(12 * scaleFactor);
 		
 		// Card name
-		this.name = new Text(data.getName(), {
+		this.name = new Text(data.displayName, {
 			x: padding,
 			y: Math.floor(20 * scaleFactor),
 			width: dimensions.width - Math.floor(60 * scaleFactor),
@@ -106,7 +106,7 @@ export class Card extends Component {
 		this.addChild(this.name);
 
 		// Cost
-		this.cost = new Text(`${data.getCost()}`, {
+		this.cost = new Text(`${data.cost}`, {
 			x: dimensions.width - Math.floor(30 * scaleFactor),
 			y: Math.floor(20 * scaleFactor),
 			style: {
@@ -138,19 +138,19 @@ export class Card extends Component {
 
 		// Rarity - only show on normal and large cards
 		if (size !== CardSize.MINI) {
-			this.rarity = new Text(data.getRarity().toUpperCase(), {
+			this.rarity = new Text(data.rarity.toUpperCase(), {
 				x: padding,
 				y: dimensions.height - Math.floor(60 * scaleFactor),
 				style: {
 					fontSize: Math.floor(12 * scaleFactor),
-					color: Card.getRarityColor(data.getRarity()),
+					color: Card.getRarityColor(data.rarity),
 					fontWeight: 'bold',
 				},
 			});
 			this.addChild(this.rarity);
 
 			// Tags
-			const tagsStr = data.getTags().join(', ');
+			const tagsStr = data.tags.join(', ');
 			this.tags = new Text(tagsStr, {
 				x: padding,
 				y: dimensions.height - Math.floor(35 * scaleFactor),
@@ -165,7 +165,7 @@ export class Card extends Component {
 			this.addChild(this.tags);
 
 			// Target type
-			const targetText = new Text(data.getTargetType(), {
+			const targetText = new Text(data.targetType, {
 				x: padding,
 				y: dimensions.height - Math.floor(20 * scaleFactor),
 				style: {
@@ -212,7 +212,7 @@ export class Card extends Component {
 	private handleMouseDown(): void {
 		if (!this.enabled) return;
 		// Visual feedback for press
-		this.cardBorder.setFillColor(this.adjustBrightness(Card.getRarityColor(this.data.getRarity()), -20));
+		this.cardBorder.setFillColor(this.adjustBrightness(Card.getRarityColor(this.data.rarity), -20));
 	}
 
 	/**
@@ -222,7 +222,7 @@ export class Card extends Component {
 		if (!this.enabled) return;
 		
 		// Reset visual
-		this.cardBorder.setFillColor(Card.getRarityColor(this.data.getRarity()));
+		this.cardBorder.setFillColor(Card.getRarityColor(this.data.rarity));
 		
 		// Trigger click (InputSystem already verified mouse is over component)
 		this.onClick();

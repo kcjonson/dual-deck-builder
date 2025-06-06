@@ -256,7 +256,7 @@ export class DriverSelectionScreen extends Screen {
 		
 		// Show confirmation text only when both drivers are selected
 		if (this.selectedDriver1 && this.selectedDriver2) {
-			const confirmationMessage = `Ready to enter the wasteland with ${this.selectedDriver1.getName()} and ${this.selectedDriver2.getName()}`;
+			const confirmationMessage = `Ready to enter the wasteland with ${this.selectedDriver1.metadata.name} and ${this.selectedDriver2.metadata.name}`;
 			
 			this.confirmationText = new Text(confirmationMessage, {
 				style: {
