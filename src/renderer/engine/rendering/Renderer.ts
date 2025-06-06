@@ -13,6 +13,13 @@ export class Renderer {
 	private viewMatrix: mat4;
 	private fontAtlas: FontAtlas | null = null;
 	private handleResize: () => void;
+	
+	// Reusable buffers for performance
+	private quadVertexBuffer: WebGLBuffer | null = null;
+	private quadIndexBuffer: WebGLBuffer | null = null;
+	private dynamicVertexBuffer: WebGLBuffer | null = null;
+	private dynamicIndexBuffer: WebGLBuffer | null = null;
+	private maxDynamicVertices = 1024; // Support up to 1024 vertices
 
 	constructor(canvasId: string) {
 		this.canvas = document.getElementById(canvasId) as HTMLCanvasElement;
@@ -44,6 +51,55 @@ export class Renderer {
 
 		// Initialize font atlas
 		this.fontAtlas = new FontAtlas(this.gl);
+		
+		// Initialize reusable buffers
+		this.initializeBuffers();
+	}
+	
+	/**
+	 * Initialize reusable buffers for performance
+	 */
+	private initializeBuffers(): void {
+		// Create quad buffers (used for rectangles)
+		this.quadVertexBuffer = this.gl.createBuffer();
+		this.quadIndexBuffer = this.gl.createBuffer();
+		
+		// Standard quad vertices with texture coordinates
+		const quadVertices = new Float32Array([
+			// Position    // TexCoord
+			-1.0, -1.0,    0.0, 0.0,  // Bottom left
+			 1.0, -1.0,    1.0, 0.0,  // Bottom right
+			 1.0,  1.0,    1.0, 1.0,  // Top right
+			-1.0,  1.0,    0.0, 1.0   // Top left
+		]);
+		
+		// Standard quad indices
+		const quadIndices = new Uint16Array([
+			0, 1, 2,  // First triangle
+			0, 2, 3   // Second triangle
+		]);
+		
+		// Upload quad data
+		this.gl.bindBuffer(this.gl.ARRAY_BUFFER, this.quadVertexBuffer);
+		this.gl.bufferData(this.gl.ARRAY_BUFFER, quadVertices, this.gl.STATIC_DRAW);
+		
+		this.gl.bindBuffer(this.gl.ELEMENT_ARRAY_BUFFER, this.quadIndexBuffer);
+		this.gl.bufferData(this.gl.ELEMENT_ARRAY_BUFFER, quadIndices, this.gl.STATIC_DRAW);
+		
+		// Create dynamic buffers for shapes with varying vertex counts
+		this.dynamicVertexBuffer = this.gl.createBuffer();
+		this.dynamicIndexBuffer = this.gl.createBuffer();
+		
+		// Pre-allocate space for dynamic buffers
+		this.gl.bindBuffer(this.gl.ARRAY_BUFFER, this.dynamicVertexBuffer);
+		this.gl.bufferData(this.gl.ARRAY_BUFFER, this.maxDynamicVertices * 2 * 4, this.gl.DYNAMIC_DRAW);
+		
+		this.gl.bindBuffer(this.gl.ELEMENT_ARRAY_BUFFER, this.dynamicIndexBuffer);
+		this.gl.bufferData(this.gl.ELEMENT_ARRAY_BUFFER, this.maxDynamicVertices * 2, this.gl.DYNAMIC_DRAW);
+		
+		// Unbind buffers
+		this.gl.bindBuffer(this.gl.ARRAY_BUFFER, null);
+		this.gl.bindBuffer(this.gl.ELEMENT_ARRAY_BUFFER, null);
 	}
 
 	/**
@@ -119,7 +175,9 @@ export class Renderer {
 		height: number,
 		color: [number, number, number, number],
 		texture?: WebGLTexture,
-		texCoords?: number[]
+		texCoords?: number[],
+		strokeColor?: [number, number, number, number],
+		strokeWidth?: number
 	): void {
 		if (!this.currentShader) {
 			console.error('No shader selected');
@@ -139,6 +197,15 @@ export class Renderer {
 		this.currentShader.setMatrix4('uModelMatrix', modelMatrix);
 		this.currentShader.setVector4('uColor', color);
 
+		// Set stroke parameters
+		if (strokeWidth && strokeWidth > 0) {
+			this.currentShader.setVector4('uStrokeColor', strokeColor || [0, 0, 0, 1]);
+			this.currentShader.setFloat('uStrokeWidth', strokeWidth);
+			this.currentShader.setVector2('uShapeSize', width, height);
+		} else {
+			this.currentShader.setFloat('uStrokeWidth', 0);
+		}
+
 		// Set texture usage
 		if (texture && texCoords) {
 			this.currentShader.setBool('uUseTexture', true);
@@ -151,63 +218,62 @@ export class Renderer {
 		
 		// Don't set uIsText for non-text rendering to avoid shader errors
 
-		// Create vertices with position and texture coordinates
-		// Order: bottom-left, bottom-right, top-right, top-left (matching indices)
-		const vertices = new Float32Array([
-			// Position    // TexCoord
-			-1.0, -1.0,    texCoords?.[0] ?? 0.0, texCoords?.[1] ?? 0.0, // Bottom left
-			 1.0, -1.0,    texCoords?.[2] ?? 1.0, texCoords?.[3] ?? 0.0, // Bottom right
-			 1.0,  1.0,    texCoords?.[4] ?? 1.0, texCoords?.[5] ?? 1.0, // Top right
-			-1.0,  1.0,    texCoords?.[6] ?? 0.0, texCoords?.[7] ?? 1.0, // Top left
-		]);
-
-		// Create indices
-		const indices = new Uint16Array([
-			0, 1, 2, // First triangle
-			0, 2, 3, // Second triangle
-		]);
-
-		// Create and bind vertex buffer
-		const vertexBuffer = this.gl.createBuffer();
-		this.gl.bindBuffer(this.gl.ARRAY_BUFFER, vertexBuffer);
-		this.gl.bufferData(this.gl.ARRAY_BUFFER, vertices, this.gl.STATIC_DRAW);
-
-		// Create and bind index buffer
-		const indexBuffer = this.gl.createBuffer();
-		this.gl.bindBuffer(this.gl.ELEMENT_ARRAY_BUFFER, indexBuffer);
-		this.gl.bufferData(this.gl.ELEMENT_ARRAY_BUFFER, indices, this.gl.STATIC_DRAW);
+		// Always use the pre-allocated quad buffers since they now include texture coords
+		this.gl.bindBuffer(this.gl.ARRAY_BUFFER, this.quadVertexBuffer);
+		this.gl.bindBuffer(this.gl.ELEMENT_ARRAY_BUFFER, this.quadIndexBuffer);
+		
+		// If custom texture coordinates are provided, we need to use dynamic buffer
+		if (texCoords && !(texCoords[0] === 0 && texCoords[1] === 0 && 
+			texCoords[2] === 1 && texCoords[3] === 0 &&
+			texCoords[4] === 1 && texCoords[5] === 1 &&
+			texCoords[6] === 0 && texCoords[7] === 1)) {
+			
+			// For custom texture coordinates, update the dynamic buffer
+			const vertices = new Float32Array([
+				// Position    // TexCoord
+				-1.0, -1.0,    texCoords[0], texCoords[1], // Bottom left
+				 1.0, -1.0,    texCoords[2], texCoords[3], // Bottom right
+				 1.0,  1.0,    texCoords[4], texCoords[5], // Top right
+				-1.0,  1.0,    texCoords[6], texCoords[7], // Top left
+			]);
+			
+			// Use dynamic buffer for custom texture coords
+			this.gl.bindBuffer(this.gl.ARRAY_BUFFER, this.dynamicVertexBuffer);
+			this.gl.bufferSubData(this.gl.ARRAY_BUFFER, 0, vertices);
+		}
 
 		// Set up vertex attributes
 		const positionAttribLocation = this.gl.getAttribLocation(this.currentShader.getProgram(), 'aPosition');
 		const texCoordAttribLocation = this.gl.getAttribLocation(this.currentShader.getProgram(), 'aTexCoord');
 
+		// Always use stride of 16 since we always have texture coordinates now
+		const stride = 16; // 4 floats (x,y,u,v)
+
 		// Position attribute (2 floats starting at offset 0)
 		if (positionAttribLocation >= 0) {
 			this.gl.enableVertexAttribArray(positionAttribLocation);
-			this.gl.vertexAttribPointer(positionAttribLocation, 2, this.gl.FLOAT, false, 16, 0);
+			this.gl.vertexAttribPointer(positionAttribLocation, 2, this.gl.FLOAT, false, stride, 0);
 		}
 
 		// Texture coordinate attribute (2 floats starting at offset 8 bytes)
 		if (texCoordAttribLocation >= 0) {
 			this.gl.enableVertexAttribArray(texCoordAttribLocation);
-			this.gl.vertexAttribPointer(texCoordAttribLocation, 2, this.gl.FLOAT, false, 16, 8);
+			this.gl.vertexAttribPointer(texCoordAttribLocation, 2, this.gl.FLOAT, false, stride, 8);
 		}
 
 		// Draw the quad
 		this.gl.drawElements(this.gl.TRIANGLES, 6, this.gl.UNSIGNED_SHORT, 0);
 
-		// Clean up
+		// Clean up vertex arrays
 		if (positionAttribLocation >= 0) {
 			this.gl.disableVertexAttribArray(positionAttribLocation);
 		}
 		if (texCoordAttribLocation >= 0) {
 			this.gl.disableVertexAttribArray(texCoordAttribLocation);
 		}
-		this.gl.bindBuffer(this.gl.ARRAY_BUFFER, null);
-		this.gl.bindBuffer(this.gl.ELEMENT_ARRAY_BUFFER, null);
-		this.gl.deleteBuffer(vertexBuffer);
-		this.gl.deleteBuffer(indexBuffer);
-
+		
+		// Don't unbind buffers - keep them bound for next draw call
+		// Only unbind texture if one was used
 		if (texture) {
 			this.gl.bindTexture(this.gl.TEXTURE_2D, null);
 		}
@@ -222,8 +288,10 @@ export class Renderer {
 		width: number,
 		height: number,
 		color: [number, number, number, number] = [1, 1, 1, 1],
+		strokeColor?: [number, number, number, number],
+		strokeWidth?: number
 	): void {
-		this.drawQuad(x, y, width, height, color);
+		this.drawQuad(x, y, width, height, color, undefined, undefined, strokeColor, strokeWidth);
 	}
 
 	/**
@@ -258,55 +326,27 @@ export class Renderer {
 		this.currentShader.setMatrix4('uModelMatrix', modelMatrix);
 		this.currentShader.setVector4('uColor', color);
 
-		// Create line vertices as a rectangle
-		const vertices = new Float32Array([
-			0.0,
-			-1.0, // Bottom left
-			1.0,
-			-1.0, // Bottom right
-			1.0,
-			1.0, // Top right
-			0.0,
-			1.0, // Top left
-		]);
-
-		// Create indices
-		const indices = new Uint16Array([
-			0,
-			1,
-			2, // First triangle
-			0,
-			2,
-			3, // Second triangle
-		]);
-
-		// Create and bind vertex buffer
-		const vertexBuffer = this.gl.createBuffer();
-		this.gl.bindBuffer(this.gl.ARRAY_BUFFER, vertexBuffer);
-		this.gl.bufferData(this.gl.ARRAY_BUFFER, vertices, this.gl.STATIC_DRAW);
-
-		// Create and bind index buffer
-		const indexBuffer = this.gl.createBuffer();
-		this.gl.bindBuffer(this.gl.ELEMENT_ARRAY_BUFFER, indexBuffer);
-		this.gl.bufferData(this.gl.ELEMENT_ARRAY_BUFFER, indices, this.gl.STATIC_DRAW);
+		// Use the pre-allocated quad buffers for lines (they're just thin rectangles)
+		this.gl.bindBuffer(this.gl.ARRAY_BUFFER, this.quadVertexBuffer);
+		this.gl.bindBuffer(this.gl.ELEMENT_ARRAY_BUFFER, this.quadIndexBuffer);
 
 		// Set up vertex attributes
 		const positionAttribLocation = this.gl.getAttribLocation(
 			this.currentShader.getProgram(),
 			'aPosition',
 		);
-		this.gl.enableVertexAttribArray(positionAttribLocation);
-		this.gl.vertexAttribPointer(positionAttribLocation, 2, this.gl.FLOAT, false, 0, 0);
+		if (positionAttribLocation >= 0) {
+			this.gl.enableVertexAttribArray(positionAttribLocation);
+			this.gl.vertexAttribPointer(positionAttribLocation, 2, this.gl.FLOAT, false, 8, 0);
+		}
 
 		// Draw the line
 		this.gl.drawElements(this.gl.TRIANGLES, 6, this.gl.UNSIGNED_SHORT, 0);
 
-		// Clean up
-		this.gl.disableVertexAttribArray(positionAttribLocation);
-		this.gl.bindBuffer(this.gl.ARRAY_BUFFER, null);
-		this.gl.bindBuffer(this.gl.ELEMENT_ARRAY_BUFFER, null);
-		this.gl.deleteBuffer(vertexBuffer);
-		this.gl.deleteBuffer(indexBuffer);
+		// Clean up vertex arrays only
+		if (positionAttribLocation >= 0) {
+			this.gl.disableVertexAttribArray(positionAttribLocation);
+		}
 	}
 
 	/**
@@ -460,15 +500,12 @@ export class Renderer {
 		this.currentShader.setVector4('uColor', fillColor);
 		this.currentShader.setBool('uUseTexture', false);
 
-		// Create and bind vertex buffer
-		const vertexBuffer = this.gl.createBuffer();
-		this.gl.bindBuffer(this.gl.ARRAY_BUFFER, vertexBuffer);
-		this.gl.bufferData(this.gl.ARRAY_BUFFER, new Float32Array(vertices), this.gl.STATIC_DRAW);
+		// Use dynamic buffers for circle
+		this.gl.bindBuffer(this.gl.ARRAY_BUFFER, this.dynamicVertexBuffer);
+		this.gl.bufferSubData(this.gl.ARRAY_BUFFER, 0, new Float32Array(vertices));
 
-		// Create and bind index buffer
-		const indexBuffer = this.gl.createBuffer();
-		this.gl.bindBuffer(this.gl.ELEMENT_ARRAY_BUFFER, indexBuffer);
-		this.gl.bufferData(this.gl.ELEMENT_ARRAY_BUFFER, new Uint16Array(indices), this.gl.STATIC_DRAW);
+		this.gl.bindBuffer(this.gl.ELEMENT_ARRAY_BUFFER, this.dynamicIndexBuffer);
+		this.gl.bufferSubData(this.gl.ELEMENT_ARRAY_BUFFER, 0, new Uint16Array(indices));
 
 		// Set up vertex attributes
 		const positionAttribLocation = this.gl.getAttribLocation(
@@ -506,12 +543,8 @@ export class Renderer {
 			this.gl.drawArrays(this.gl.LINE_STRIP, 0, outlineVertices.length / 2);
 		}
 
-		// Clean up
+		// Clean up vertex arrays only
 		this.gl.disableVertexAttribArray(positionAttribLocation);
-		this.gl.bindBuffer(this.gl.ARRAY_BUFFER, null);
-		this.gl.bindBuffer(this.gl.ELEMENT_ARRAY_BUFFER, null);
-		this.gl.deleteBuffer(vertexBuffer);
-		this.gl.deleteBuffer(indexBuffer);
 	}
 
 	/**
@@ -557,15 +590,13 @@ export class Renderer {
 		this.currentShader.setVector4('uColor', fillColor);
 		this.currentShader.setBool('uUseTexture', false);
 
-		// Create and bind vertex buffer
-		const vertexBuffer = this.gl.createBuffer();
-		this.gl.bindBuffer(this.gl.ARRAY_BUFFER, vertexBuffer);
-		this.gl.bufferData(this.gl.ARRAY_BUFFER, vertices, this.gl.STATIC_DRAW);
+		// Use dynamic buffers for triangle
+		this.gl.bindBuffer(this.gl.ARRAY_BUFFER, this.dynamicVertexBuffer);
+		this.gl.bufferSubData(this.gl.ARRAY_BUFFER, 0, vertices);
 
-		// Create and bind index buffer
-		const indexBuffer = this.gl.createBuffer();
-		this.gl.bindBuffer(this.gl.ELEMENT_ARRAY_BUFFER, indexBuffer);
-		this.gl.bufferData(this.gl.ELEMENT_ARRAY_BUFFER, indices, this.gl.STATIC_DRAW);
+		// Bind index buffer
+		this.gl.bindBuffer(this.gl.ELEMENT_ARRAY_BUFFER, this.dynamicIndexBuffer);
+		this.gl.bufferSubData(this.gl.ELEMENT_ARRAY_BUFFER, 0, indices);
 
 		// Set up vertex attributes
 		const positionAttribLocation = this.gl.getAttribLocation(
@@ -586,12 +617,8 @@ export class Renderer {
 			this.gl.drawArrays(this.gl.LINE_LOOP, 0, 3);
 		}
 
-		// Clean up
+		// Clean up vertex arrays only
 		this.gl.disableVertexAttribArray(positionAttribLocation);
-		this.gl.bindBuffer(this.gl.ARRAY_BUFFER, null);
-		this.gl.bindBuffer(this.gl.ELEMENT_ARRAY_BUFFER, null);
-		this.gl.deleteBuffer(vertexBuffer);
-		this.gl.deleteBuffer(indexBuffer);
 	}
 
 	/**
@@ -634,15 +661,12 @@ export class Renderer {
 		this.currentShader.setVector4('uColor', fillColor);
 		this.currentShader.setBool('uUseTexture', false);
 
-		// Create and bind vertex buffer
-		const vertexBuffer = this.gl.createBuffer();
-		this.gl.bindBuffer(this.gl.ARRAY_BUFFER, vertexBuffer);
-		this.gl.bufferData(this.gl.ARRAY_BUFFER, new Float32Array(vertices), this.gl.STATIC_DRAW);
+		// Use dynamic buffers for circle
+		this.gl.bindBuffer(this.gl.ARRAY_BUFFER, this.dynamicVertexBuffer);
+		this.gl.bufferSubData(this.gl.ARRAY_BUFFER, 0, new Float32Array(vertices));
 
-		// Create and bind index buffer
-		const indexBuffer = this.gl.createBuffer();
-		this.gl.bindBuffer(this.gl.ELEMENT_ARRAY_BUFFER, indexBuffer);
-		this.gl.bufferData(this.gl.ELEMENT_ARRAY_BUFFER, new Uint16Array(indices), this.gl.STATIC_DRAW);
+		this.gl.bindBuffer(this.gl.ELEMENT_ARRAY_BUFFER, this.dynamicIndexBuffer);
+		this.gl.bufferSubData(this.gl.ELEMENT_ARRAY_BUFFER, 0, new Uint16Array(indices));
 
 		// Set up vertex attributes
 		const positionAttribLocation = this.gl.getAttribLocation(
@@ -663,12 +687,8 @@ export class Renderer {
 			this.gl.drawArrays(this.gl.LINE_LOOP, 0, points.length);
 		}
 
-		// Clean up
+		// Clean up vertex arrays only
 		this.gl.disableVertexAttribArray(positionAttribLocation);
-		this.gl.bindBuffer(this.gl.ARRAY_BUFFER, null);
-		this.gl.bindBuffer(this.gl.ELEMENT_ARRAY_BUFFER, null);
-		this.gl.deleteBuffer(vertexBuffer);
-		this.gl.deleteBuffer(indexBuffer);
 	}
 
 	/**
@@ -724,5 +744,36 @@ export class Renderer {
 	 */
 	public isScissorEnabled(): boolean {
 		return this.gl.isEnabled(this.gl.SCISSOR_TEST);
+	}
+	
+	/**
+	 * Clean up WebGL resources
+	 */
+	public destroy(): void {
+		// Remove resize listener
+		window.removeEventListener('resize', this.handleResize);
+		
+		// Delete reusable buffers
+		if (this.quadVertexBuffer) {
+			this.gl.deleteBuffer(this.quadVertexBuffer);
+			this.quadVertexBuffer = null;
+		}
+		if (this.quadIndexBuffer) {
+			this.gl.deleteBuffer(this.quadIndexBuffer);
+			this.quadIndexBuffer = null;
+		}
+		if (this.dynamicVertexBuffer) {
+			this.gl.deleteBuffer(this.dynamicVertexBuffer);
+			this.dynamicVertexBuffer = null;
+		}
+		if (this.dynamicIndexBuffer) {
+			this.gl.deleteBuffer(this.dynamicIndexBuffer);
+			this.dynamicIndexBuffer = null;
+		}
+		
+		// Clean up font atlas
+		if (this.fontAtlas) {
+			this.fontAtlas = null;
+		}
 	}
 }

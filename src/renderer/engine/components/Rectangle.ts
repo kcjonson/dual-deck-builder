@@ -115,28 +115,16 @@ export class Rectangle extends Component {
 		// Get the renderer instance
 		const renderer = RendererContext.getInstance().getRenderer();
 
-		// Draw the rectangle fill at screen position
-		renderer.drawRectangle(screenX, screenY, this.width, this.height, this.fillColor);
-
-		// If there is a border, draw it as four lines
-		if (this.borderColor && this.borderWidth > 0) {
-			const x = screenX;
-			const y = screenY;
-			const w = this.width;
-			const h = this.height;
-
-			// Draw top border
-			renderer.drawLine(x, y, x + w, y, this.borderColor, this.borderWidth);
-
-			// Draw right border
-			renderer.drawLine(x + w, y, x + w, y + h, this.borderColor, this.borderWidth);
-
-			// Draw bottom border
-			renderer.drawLine(x + w, y + h, x, y + h, this.borderColor, this.borderWidth);
-
-			// Draw left border
-			renderer.drawLine(x, y + h, x, y, this.borderColor, this.borderWidth);
-		}
+		// Draw the rectangle with fill and stroke in a single call
+		renderer.drawRectangle(
+			screenX, 
+			screenY, 
+			this.width, 
+			this.height, 
+			this.fillColor, 
+			this.borderColor || undefined, 
+			this.borderWidth
+		);
 
 		// Create child context with our position added
 		const childContext: RenderContext = {
