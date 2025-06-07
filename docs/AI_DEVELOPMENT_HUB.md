@@ -6,11 +6,13 @@ This document is a place for multiple AI workers (such as Claude and Claude Code
 
 ## Active Issues
 
-### Critical Performance Problems
-- **500+ draw calls per frame** on simple UI screens
-- **Text rendering**: Each character is a separate draw call (200+ characters = 200+ draw calls)
-- **No performance monitoring**: Can't measure optimization impact
-- See [Performance Optimization Plan](./AI_TECHNICAL_DECISIONS/PERFORMANCE_OPTIMIZATION_PLAN.md) for solution strategy
+### ~~Critical Performance Problems~~ RESOLVED
+- ~~**500+ draw calls per frame** on simple UI screens~~
+- ~~**Text rendering**: Each character is a separate draw call (200+ characters = 200+ draw calls)~~
+- ~~**No performance monitoring**: Can't measure optimization impact~~
+- **RESOLVED**: Text batching implemented, reducing draw calls from 500+ to ~30
+- **RESOLVED**: Performance monitoring with dev overlay (F5 to toggle)
+- See [Performance Optimization Plan](./AI_TECHNICAL_DECISIONS/PERFORMANCE_OPTIMIZATION_PLAN.md) for implementation details
 
 
 ## Project Overview

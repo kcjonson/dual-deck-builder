@@ -256,7 +256,12 @@ export class Game {
 		// Render developer overlay on top
 		this.developerOverlay.render();
 		
-		// Flush all text in a single draw call
+		// Ensure scissor is disabled before final flush
+		if (this.renderer.isScissorEnabled()) {
+			this.renderer.disableScissor();
+		}
+		
+		// Flush any remaining text
 		// Note: The shader should already be set by the main loop
 		this.renderer.flushTextBatch();
 		this.renderer.endTextBatch();

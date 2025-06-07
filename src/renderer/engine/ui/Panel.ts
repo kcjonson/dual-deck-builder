@@ -29,6 +29,58 @@ class ScrollableContentLayer extends Layer {
 			y: localCoords.y + scrollOffset.y
 		};
 	}
+
+	/**
+	 * Override render to implement CPU-side culling
+	 */
+	public render(context?: RenderContext): void {
+		if (!this.visible) return;
+
+		const ctx = context || DEFAULT_RENDER_CONTEXT;
+		const screenX = ctx.offsetX + this.x;
+		const screenY = ctx.offsetY + this.y;
+
+		// Create child context
+		const childContext: RenderContext = {
+			offsetX: screenX,
+			offsetY: screenY,
+		};
+
+		// Only do CPU culling if parent panel has overflow hidden and is scrollable
+		if (this.panel.getOverflow() === 'hidden' && this.panel.scrollable) {
+			// Get scroll offset and viewport bounds
+			const scrollOffset = this.panel.getScrollOffset();
+			const viewportLeft = scrollOffset.x;
+			const viewportTop = scrollOffset.y;
+			const viewportRight = viewportLeft + this.panel.width;
+			const viewportBottom = viewportTop + this.panel.height;
+
+			// Render only visible children (CPU-side culling)
+			for (const child of this.children) {
+				if (!child.isVisible()) continue;
+
+				// Calculate child bounds in content space
+				const childLeft = child.x;
+				const childTop = child.y;
+				const childRight = childLeft + child.width;
+				const childBottom = childTop + child.height;
+
+				// Skip children that are completely outside the viewport
+				if (childRight < viewportLeft || 
+					childLeft > viewportRight ||
+					childBottom < viewportTop ||
+					childTop > viewportBottom) {
+					continue;
+				}
+
+				// Render children that are at least partially visible
+				child.render(childContext);
+			}
+		} else {
+			// Normal rendering without culling
+			super.render(context);
+		}
+	}
 }
 
 /**
@@ -46,7 +98,7 @@ export interface PanelOptions extends LayerOptions {
 export class Panel extends Layer implements Interactive {
 	private background: Rectangle;
 	private contentLayer: Layer;
-	private scrollable = false;
+	public scrollable = false;
 	private scrollDirection: 'vertical' | 'horizontal' | 'both' = 'vertical';
 	private scrollOffsetX = 0;
 	private scrollOffsetY = 0;
@@ -64,6 +116,10 @@ export class Panel extends Layer implements Interactive {
 		// Set scroll properties
 		if (options?.scrollable !== undefined) {
 			this.scrollable = options.scrollable;
+			// Automatically set overflow to hidden for scrollable panels
+			if (this.scrollable) {
+				this.setOverflow('hidden');
+			}
 		}
 		if (options?.scrollDirection !== undefined) {
 			this.scrollDirection = options.scrollDirection;
@@ -261,15 +317,13 @@ export class Panel extends Layer implements Interactive {
 			offsetY: screenY - this.scrollOffsetY,
 		};
 
-		// Apply overflow clipping specifically for the content layer if overflow is hidden
+		// Apply overflow clipping specifically for the content layer if panel is scrollable
 		const renderer = this.contentLayer ? RendererContext.getInstance().getRenderer() : null;
 		let wasScissorEnabled = false;
 		let previousScissorBox: Int32Array | null = null;
 
-		if (this.getOverflow() === 'hidden' && this.width > 0 && this.height > 0 && renderer) {
-			// Flush any pending text before changing scissor state
-			renderer.flushTextBatch();
-			
+		// Apply scissor test for scrollable panels or panels with overflow hidden
+		if ((this.scrollable || this.getOverflow() === 'hidden') && this.width > 0 && this.height > 0 && renderer) {
 			// Save current scissor state
 			wasScissorEnabled = renderer.isScissorEnabled();
 			if (wasScissorEnabled) {
@@ -282,26 +336,24 @@ export class Panel extends Layer implements Interactive {
 			
 			// Apply device pixel ratio to get actual pixel coordinates
 			const webglX = Math.floor(screenX * dpr);
-			const webglY = Math.floor((canvas.height / dpr - screenY - this.height) * dpr);
+			const canvasHeight = canvas.height / dpr;
+			const webglY = Math.floor((canvasHeight - screenY - this.height) * dpr);
 			const webglWidth = Math.floor(this.width * dpr);
 			const webglHeight = Math.floor(this.height * dpr);
 
-			// Enable scissor testing for the content area
+			// Enable scissor testing for the content area (auto-flushes text if needed)
 			renderer.enableScissor(webglX, webglY, webglWidth, webglHeight);
 		}
 
-		// Render content layer with scrolled context (and clipping if enabled)
+		// Render content layer with scrolled context (CPU culling happens inside)
 		if (this.contentLayer) {
 			this.contentLayer.render(contentContext);
 		}
 
 		// Restore previous scissor state
-		if (this.getOverflow() === 'hidden' && this.width > 0 && this.height > 0 && renderer) {
-			// Flush any pending text before changing scissor state
-			renderer.flushTextBatch();
-			
+		if ((this.scrollable || this.getOverflow() === 'hidden') && this.width > 0 && this.height > 0 && renderer) {
 			if (wasScissorEnabled && previousScissorBox) {
-				// Restore previous scissor box
+				// Restore previous scissor box (auto-flushes text if needed)
 				renderer.enableScissor(
 					previousScissorBox[0],
 					previousScissorBox[1], 
@@ -309,7 +361,7 @@ export class Panel extends Layer implements Interactive {
 					previousScissorBox[3]
 				);
 			} else {
-				// Disable scissor testing
+				// Disable scissor testing (auto-flushes text if needed)
 				renderer.disableScissor();
 			}
 		}

@@ -26,11 +26,6 @@ export class DeveloperScreen extends Screen {
 	private mainScrollContainer!: Panel;
 	private onBack: (() => void) | null = null;
 
-	// Performance monitoring
-	private fpsCounter!: Text;
-	private lastFrameTime = 0;
-	private frameCount = 0;
-	private fps = 0;
 
 	/**
 	 * Create a new developer screen
@@ -73,8 +68,6 @@ export class DeveloperScreen extends Screen {
 		});
 		this.rootLayer.addChild(this.backButton);
 
-		// Create FPS counter (stays fixed, not scrollable)
-		this.createFpsCounter();
 
 		// Create single main scrollable container for everything
 		this.createMainScrollableContent();
@@ -96,8 +89,6 @@ export class DeveloperScreen extends Screen {
 		// Position back button (bottom center)
 		this.backButton.setPosition(centerX - this.backButton.getWidth() / 2, this.rootLayer.getHeight() - 70);
 
-		// Position FPS counter
-		this.fpsCounter.setPosition(this.rootLayer.getWidth() - 100, 20);
 	}
 
 	/**
@@ -169,18 +160,6 @@ export class DeveloperScreen extends Screen {
 		this.mainScrollContainer.setContentSize(this.rootLayer.getWidth(), currentY + 100);
 	}
 
-	/**
-	 * Create FPS counter for performance monitoring
-	 */
-	private createFpsCounter(): void {
-		this.fpsCounter = new Text('FPS: 0', {
-			style: {
-				fontSize: 16,
-				color: '#00ff00',
-			},
-		});
-		this.rootLayer.addChild(this.fpsCounter);
-	}
 
 	/**
 	 * Set callback for when Back button is clicked
@@ -190,21 +169,10 @@ export class DeveloperScreen extends Screen {
 	}
 
 	/**
-	 * Update FPS counter
+	 * Update - removed FPS counter as it's now in dev overlay
 	 */
 	public onUpdate(deltaTime: number): void {
 		super.onUpdate(deltaTime);
-
-		// Update FPS
-		const now = performance.now();
-		this.frameCount++;
-
-		if (now - this.lastFrameTime >= 1000) {
-			this.fps = Math.round((this.frameCount * 1000) / (now - this.lastFrameTime));
-			this.fpsCounter.setText(`FPS: ${this.fps}`);
-			this.frameCount = 0;
-			this.lastFrameTime = now;
-		}
 	}
 
 	/**

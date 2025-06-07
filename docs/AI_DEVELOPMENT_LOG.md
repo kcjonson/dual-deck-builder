@@ -4,6 +4,29 @@ This document contains the chronological log of completed development tasks for 
 
 =========================================
 
+## Scissor Clipping Fix and UI Cleanup (2025-01-07)
+
+### Fixed Scissor Rectangle Calculation for Scrollable Panels
+
+**What Changed:**
+- Fixed scissor test clipping issue where text was showing outside scrollable containers
+- Corrected canvas height calculation in Panel.ts for proper WebGL coordinate conversion
+- Removed FPS counter from DeveloperScreen as it's now in the developer overlay
+- Cleaned up all debug console.log statements related to scissor testing
+
+**How:**
+- Fixed the calculation in Panel.ts by extracting `canvasHeight = canvas.height / dpr` before using it
+- The issue was that `canvas.height` is already in device pixels, so the math was incorrect
+- Removed redundant FPS display from DeveloperScreen.ts since overlay provides better monitoring
+
+**Impact:**
+- Scrollable panels now properly clip their content
+- No more text rendering outside of panel boundaries
+- Cleaner console output without debug statements
+- Single source of truth for performance metrics (developer overlay)
+
+=========================================
+
 ## Text Batching and Performance Optimization (2025-01-06)
 
 ### Implemented Text Batching System

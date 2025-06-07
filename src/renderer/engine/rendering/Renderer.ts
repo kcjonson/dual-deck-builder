@@ -689,15 +689,35 @@ export class Renderer {
 	 * @param height Height of the scissor box
 	 */
 	public enableScissor(x: number, y: number, width: number, height: number): void {
+		// Always flush text before changing scissor state
+		if (this.textRenderer && this.textRenderer.hasTextToFlush()) {
+			this.flushTextBatch();
+		}
+		
 		this.gl.enable(this.gl.SCISSOR_TEST);
 		this.gl.scissor(x, y, width, height);
+		
+		// Notify text renderer of new state
+		if (this.textRenderer) {
+			this.textRenderer.notifyScissorStateChange(true, x, y, width, height);
+		}
 	}
 
 	/**
 	 * Disable scissor testing
 	 */
 	public disableScissor(): void {
+		// Always flush text before changing scissor state
+		if (this.textRenderer && this.textRenderer.hasTextToFlush()) {
+			this.flushTextBatch();
+		}
+		
 		this.gl.disable(this.gl.SCISSOR_TEST);
+		
+		// Notify text renderer of new state
+		if (this.textRenderer) {
+			this.textRenderer.notifyScissorStateChange(false);
+		}
 	}
 
 	/**
@@ -769,5 +789,12 @@ export class Renderer {
 				this.projectionMatrix
 			);
 		}
+	}
+
+	/**
+	 * Check if there's any text queued to be flushed
+	 */
+	public hasTextToFlush(): boolean {
+		return this.textRenderer ? this.textRenderer.hasTextToFlush() : false;
 	}
 }

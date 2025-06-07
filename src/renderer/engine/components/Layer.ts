@@ -20,10 +20,10 @@ export interface LayerOptions {
  * This is the base class for all visual elements
  */
 export class Layer {
-	protected x = 0;
-	protected y = 0;
-	protected width = 0;
-	protected height = 0;
+	public x = 0;
+	public y = 0;
+	public width = 0;
+	public height = 0;
 	protected visible = true;
 	protected children: Layer[] = [];
 	protected componentType = 'Layer';
@@ -407,15 +407,15 @@ export class Layer {
 
 			// Convert from top-left UI coordinates to bottom-left WebGL coordinates
 			const canvas = renderer.getContext().canvas as HTMLCanvasElement;
-			const webglX = Math.floor(screenX);
-			const webglY = Math.floor(canvas.height - screenY - this.height);
-			const webglWidth = Math.floor(this.width);
-			const webglHeight = Math.floor(this.height);
-
-			// Flush any pending text before changing scissor state
-			renderer.flushTextBatch();
+			const dpr = window.devicePixelRatio || 1;
 			
-			// Enable scissor testing for this layer
+			// Apply device pixel ratio to get actual pixel coordinates
+			const webglX = Math.floor(screenX * dpr);
+			const webglY = Math.floor((canvas.height / dpr - screenY - this.height) * dpr);
+			const webglWidth = Math.floor(this.width * dpr);
+			const webglHeight = Math.floor(this.height * dpr);
+
+			// Enable scissor testing for this layer (auto-flushes text if needed)
 			renderer.enableScissor(webglX, webglY, webglWidth, webglHeight);
 		}
 
@@ -434,11 +434,8 @@ export class Layer {
 
 		// Restore previous scissor state
 		if (this.overflow === 'hidden' && this.width > 0 && this.height > 0) {
-			// Flush any pending text before changing scissor state
-			renderer.flushTextBatch();
-			
 			if (wasScissorEnabled && previousScissorBox) {
-				// Restore previous scissor box
+				// Restore previous scissor box (auto-flushes text if needed)
 				renderer.enableScissor(
 					previousScissorBox[0],
 					previousScissorBox[1], 
@@ -446,7 +443,7 @@ export class Layer {
 					previousScissorBox[3]
 				);
 			} else {
-				// Disable scissor testing
+				// Disable scissor testing (auto-flushes text if needed)
 				renderer.disableScissor();
 			}
 		}
