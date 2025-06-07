@@ -267,6 +267,9 @@ export class Panel extends Layer implements Interactive {
 		let previousScissorBox: Int32Array | null = null;
 
 		if (this.getOverflow() === 'hidden' && this.width > 0 && this.height > 0 && renderer) {
+			// Flush any pending text before changing scissor state
+			renderer.flushTextBatch();
+			
 			// Save current scissor state
 			wasScissorEnabled = renderer.isScissorEnabled();
 			if (wasScissorEnabled) {
@@ -294,6 +297,9 @@ export class Panel extends Layer implements Interactive {
 
 		// Restore previous scissor state
 		if (this.getOverflow() === 'hidden' && this.width > 0 && this.height > 0 && renderer) {
+			// Flush any pending text before changing scissor state
+			renderer.flushTextBatch();
+			
 			if (wasScissorEnabled && previousScissorBox) {
 				// Restore previous scissor box
 				renderer.enableScissor(

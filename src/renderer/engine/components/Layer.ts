@@ -412,6 +412,9 @@ export class Layer {
 			const webglWidth = Math.floor(this.width);
 			const webglHeight = Math.floor(this.height);
 
+			// Flush any pending text before changing scissor state
+			renderer.flushTextBatch();
+			
 			// Enable scissor testing for this layer
 			renderer.enableScissor(webglX, webglY, webglWidth, webglHeight);
 		}
@@ -431,6 +434,9 @@ export class Layer {
 
 		// Restore previous scissor state
 		if (this.overflow === 'hidden' && this.width > 0 && this.height > 0) {
+			// Flush any pending text before changing scissor state
+			renderer.flushTextBatch();
+			
 			if (wasScissorEnabled && previousScissorBox) {
 				// Restore previous scissor box
 				renderer.enableScissor(

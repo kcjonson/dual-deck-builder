@@ -2,6 +2,7 @@ import { mat4 } from 'gl-matrix';
 import { Shader } from './Shader';
 import { FontAtlas } from './FontAtlas';
 import { PerformanceMonitor } from './PerformanceMonitor';
+import { TextRenderer } from './TextRenderer';
 
 /**
  * Main WebGL renderer class that abstracts WebGL operations
@@ -14,6 +15,7 @@ export class Renderer {
 	private viewMatrix: mat4;
 	private fontAtlas: FontAtlas | null = null;
 	private performanceMonitor: PerformanceMonitor;
+	private textRenderer: TextRenderer | null = null;
 	private handleResize: () => void;
 	
 	// Reusable buffers for performance
@@ -52,8 +54,8 @@ export class Renderer {
 		this.gl.blendFunc(this.gl.SRC_ALPHA, this.gl.ONE_MINUS_SRC_ALPHA);
 		this.gl.clearColor(0.0, 0.0, 0.0, 1.0);
 
-		// Initialize font atlas
-		this.fontAtlas = new FontAtlas(this.gl);
+		// Initialize font atlas with larger default size
+		this.fontAtlas = new FontAtlas(this.gl, 'Arial', 32);
 		
 		// Initialize reusable buffers
 		this.initializeBuffers();
@@ -369,6 +371,11 @@ export class Renderer {
 			console.warn('FontAtlas not initialized');
 			return;
 		}
+		
+		// Initialize text renderer if needed
+		if (!this.textRenderer) {
+			this.textRenderer = new TextRenderer(this.gl, this.fontAtlas, this.performanceMonitor);
+		}
 
 		// Calculate scale factor for font size
 		const scale = fontSize / this.fontAtlas.getFontSize();
@@ -398,68 +405,9 @@ export class Renderer {
 			console.error('No shader selected for text rendering');
 			return;
 		}
-
-		// Get font atlas texture
-		const texture = this.fontAtlas.getTexture();
-		if (!texture) {
-			console.warn('Font atlas texture not available');
-			return;
-		}
 		
-		// Text rendering uses same shader as other textured rendering
-
-		// Track text characters for performance monitoring
-		this.performanceMonitor.recordTextCharacters(text.length);
-
-		// Render each character
-		let currentX = startX;
-		for (let i = 0; i < text.length; i++) {
-			const char = text[i];
-			const charInfo = this.fontAtlas.getCharacter(char);
-			
-			if (!charInfo) {
-				// Skip unknown characters
-				continue;
-			}
-
-			// Calculate character dimensions using atlas dimensions
-			const atlasSize = this.fontAtlas.getAtlasSize();
-			const charPixelWidth = charInfo.width * atlasSize;
-			const charPixelHeight = charInfo.height * atlasSize;
-			const charWidth = charPixelWidth * scale;
-			const charHeight = charPixelHeight * scale;
-
-			// Texture coordinates from font atlas (normalized 0-1)
-			const u1 = charInfo.x;
-			const v1 = charInfo.y;
-			const u2 = charInfo.x + charInfo.width;
-			const v2 = charInfo.y + charInfo.height;
-			
-			
-			// Map atlas coordinates to quad vertices - flip Y to fix upside down
-			const texCoords = [
-				u1, v1, // Bottom left vertex (was v2, now v1 to flip)
-				u2, v1, // Bottom right vertex (was v2, now v1 to flip)
-				u2, v2, // Top right vertex (was v1, now v2 to flip)
-				u1, v2, // Top left vertex (was v1, now v2 to flip)
-			];
-
-			// Draw the character quad with pixel snapping for crisp rendering
-			const pixelX = Math.round(currentX + charInfo.offsetX * scale);
-			const pixelY = Math.round(startY + charInfo.offsetY * scale);
-			this.drawQuad(
-				pixelX,
-				pixelY,
-				charWidth,
-				charHeight,
-				color,
-				texture,
-				texCoords
-			);
-
-			// Advance to next character position
-			currentX += charInfo.advance * scale;
-		}
+		// Use TextRenderer to draw text
+		this.textRenderer.drawText(this.currentShader, text, startX, startY, color, fontSize);
 	}
 
 	/**
@@ -787,6 +735,39 @@ export class Renderer {
 		// Clean up font atlas
 		if (this.fontAtlas) {
 			this.fontAtlas = null;
+		}
+	}
+	
+	/**
+	 * Enable text batching mode
+	 * All text drawn after this will be batched until flushTextBatch() is called
+	 */
+	public beginTextBatch(): void {
+		if (this.textRenderer) {
+			this.textRenderer.beginBatch();
+		}
+	}
+	
+	/**
+	 * Disable text batching mode
+	 */
+	public endTextBatch(): void {
+		if (this.textRenderer) {
+			this.textRenderer.endBatch();
+		}
+	}
+	
+	/**
+	 * Flush all batched text in a single draw call
+	 */
+	public flushTextBatch(): void {
+		if (this.textRenderer && this.currentShader) {
+			this.textRenderer.flush(
+				this.currentShader,
+				mat4.create(), // Identity matrix for model
+				this.viewMatrix,
+				this.projectionMatrix
+			);
 		}
 	}
 }

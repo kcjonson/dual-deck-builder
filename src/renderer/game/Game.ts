@@ -242,6 +242,9 @@ export class Game {
 	public render(): void {
 		if (!this.isInitialized) return;
 
+		// Enable text batching for the entire frame
+		this.renderer.beginTextBatch();
+
 		// Render the current screen
 		if (this.currentScreen) {
 			const screen = this.screens.get(this.currentScreen);
@@ -252,6 +255,11 @@ export class Game {
 		
 		// Render developer overlay on top
 		this.developerOverlay.render();
+		
+		// Flush all text in a single draw call
+		// Note: The shader should already be set by the main loop
+		this.renderer.flushTextBatch();
+		this.renderer.endTextBatch();
 	}
 
 	/**
