@@ -14,6 +14,7 @@ export class PerformanceMonitor {
 	
 	// Frame timing
 	private frameStartTime = 0;
+	private lastFrameStartTime = 0;
 	private frameTimes: number[] = [];
 	private maxFrameHistory = 60; // Keep last 60 frames for averaging
 	
@@ -30,6 +31,7 @@ export class PerformanceMonitor {
 	 * Start timing a new frame
 	 */
 	public beginFrame(): void {
+		this.lastFrameStartTime = this.frameStartTime;
 		this.frameStartTime = performance.now();
 		this.drawCallsThisFrame = 0;
 		this.verticesThisFrame = 0;
@@ -40,7 +42,10 @@ export class PerformanceMonitor {
 	 * End the current frame and record timing
 	 */
 	public endFrame(): void {
-		const frameTime = performance.now() - this.frameStartTime;
+		// Measure actual time between frames, not just render time
+		const frameTime = this.lastFrameStartTime > 0 
+			? this.frameStartTime - this.lastFrameStartTime
+			: 16.67; // Default to 60 FPS for first frame
 		
 		// Record frame time
 		this.frameTimes.push(frameTime);

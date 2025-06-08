@@ -99,7 +99,7 @@ class Application {
 		
 		// End performance tracking for this frame
 		this.performanceMonitor.endFrame();
-
+		
 		// Queue the next frame
 		requestAnimationFrame(this.loop);
 	};

@@ -102,8 +102,10 @@ export class DeveloperOverlay extends Layer {
 		
 		// Format the stats text
 		const text = [
-			`FPS: ${stats.fps} (${stats.avgFrameTime}ms avg)`,
-			`Frame: ${stats.minFrameTime}-${stats.maxFrameTime}ms`,
+			`FPS: ${stats.fps} (Target: 60)`,
+			`Frame Time: ${stats.avgFrameTime}ms avg`,
+			`  Min: ${stats.minFrameTime}ms`,
+			`  Max: ${stats.maxFrameTime}ms`,
 			`Draw Calls: ${stats.currentDrawCalls} (${stats.drawCallsPerFrame} avg)`,
 			`Vertices: ${stats.currentVertices}`,
 			`Text: ${stats.currentTextCharacters} chars`,
