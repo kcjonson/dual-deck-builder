@@ -6,7 +6,10 @@ import { EnemyLayer, EnemyVehicle } from './EnemyLayer';
 import { BattlefieldLayer, PlayerVehicle } from './BattlefieldLayer';
 import { PlayerHandLayer } from './PlayerHandLayer';
 import { ResourceBarLayer } from './ResourceBarLayer';
+import { CombatLogLayer } from './CombatLogLayer';
+import { TurnPhaseDisplay, CombatPhase } from './TurnPhaseDisplay';
 import { Driver, DriverRole } from '../../mechanics/Driver';
+import { CombatLog, CombatLogType } from '../../mechanics/CombatLog';
 import { Vehicle, VehiclePosition } from '../../mechanics/Vehicle';
 import { Team, TeamType } from '../../mechanics/Team';
 import { Battle, BattleState } from '../../mechanics/Battle';
@@ -24,11 +27,14 @@ export class CombatScreen extends Screen {
 	private battlefieldLayer!: BattlefieldLayer;
 	private handLayer!: PlayerHandLayer;
 	private resourceLayer!: ResourceBarLayer;
+	private combatLogLayer!: CombatLogLayer;
+	private turnPhaseDisplay!: TurnPhaseDisplay;
 	
 	// Game state using new Team architecture
 	private battle: Battle | null = null;
 	private playerTeam: Team | null = null;
 	private enemyTeam: Team | null = null;
+	private combatLog: CombatLog;
 	private fuel = 5;
 	private scrap = 150;
 	
@@ -37,6 +43,7 @@ export class CombatScreen extends Screen {
 	private selectedCardDriver: Driver | null = null; // Which driver is playing the card
 	private isTargeting = false;
 	private hoveredTarget: Vehicle | null = null;
+	private cardDriverMap: Map<string, 1 | 2> = new Map();
 	
 	// Targeting visual components
 	private targetingArrow: Arrow;
@@ -53,6 +60,9 @@ export class CombatScreen extends Screen {
 	 */
 	constructor(renderer: Renderer) {
 		super('combatScreen', renderer);
+		
+		// Create combat log model
+		this.combatLog = new CombatLog(10); // Keep last 10 entries
 		
 		// Create targeting arrow (hidden initially)
 		this.targetingArrow = new Arrow({
@@ -119,6 +129,16 @@ export class CombatScreen extends Screen {
 			this.subscribeToBattleEvents();
 
 			// Initial UI update is handled by battleStarted event
+			
+			// Set initial turn phase
+			if (this.turnPhaseDisplay) {
+				this.turnPhaseDisplay.turn = this.battle.turn;
+				this.turnPhaseDisplay.phase = CombatPhase.COMBAT_START;
+			}
+			
+			// Log combat start
+			this.combatLog.addEntry('Combat Started!', CombatLogType.INFO);
+			this.combatLog.addEntry(`${driver1.metadata.name} and ${driver2.metadata.name} vs ${this.enemyTeam.vehicles[0].name}`, CombatLogType.INFO);
 
 			console.log('Combat initialized with Team system');
 		} catch (error) {
@@ -138,12 +158,33 @@ export class CombatScreen extends Screen {
 		// Subscribe to battle events
 		this.unsubscribers.push(
 			this.battle.on('stateChanged', (state: BattleState) => {
+				const previousTurn = this.turnPhaseDisplay?.turn || 1;
 				this.updateUIFromBattle();
+				
+				// Update turn phase display
+				if (this.battle && this.turnPhaseDisplay) {
+					this.turnPhaseDisplay.turn = this.battle.turn;
+					this.turnPhaseDisplay.phase = state.isPlayerTurn ? 
+						CombatPhase.PLAYER_TURN : 
+						!state.isPlayerTurn && !state.battleOver ? CombatPhase.ENEMY_TURN :
+						state.battleOver ? CombatPhase.COMBAT_END :
+						CombatPhase.COMBAT_START;
+					
+					// Log turn changes
+					if (state.turn > previousTurn && state.isPlayerTurn) {
+						this.combatLog.addEntry(`Turn ${state.turn} - Player turn started`, CombatLogType.TURN);
+					}
+				}
 			})
 		);
 
 		this.unsubscribers.push(
 			this.battle.on('battleEnded', (event: { won: boolean }) => {
+				// Log battle end
+				this.combatLog.addEntry(
+					event.won ? 'Victory! All enemies defeated!' : 'Defeat! Your vehicles were destroyed!',
+					CombatLogType.INFO
+				);
 				if (this.onEndCombat) {
 					this.onEndCombat(event.won);
 				}
@@ -151,12 +192,41 @@ export class CombatScreen extends Screen {
 		);
 
 		this.unsubscribers.push(
-			this.battle.on('cardPlayed', (event: { card: Card }) => {
-				// Could add animations or effects here
+			this.battle.on('cardPlayed', (event: { driver: Driver; card: Card; targetVehicle?: Vehicle }) => {
+				// Log card play with driver info
+				const driverNumber = this.playerTeam?.getAllDrivers().indexOf(event.driver);
+				if (driverNumber !== undefined && driverNumber >= 0) {
+					let message = `played ${event.card.displayName}`;
+					if (event.targetVehicle) {
+						message += ` targeting ${event.targetVehicle.name}`;
+					}
+					this.combatLog.addEntry({
+						driver: (driverNumber + 1) as 1 | 2,
+						message,
+						type: CombatLogType.ACTION
+					});
+				} else {
+					// Enemy card play
+					let message = `${event.driver.metadata.name} played ${event.card.displayName}`;
+					if (event.targetVehicle) {
+						message += ` targeting ${event.targetVehicle.name}`;
+					}
+					this.combatLog.addEntry(message, CombatLogType.ACTION);
+				}
 				console.log(`Card played: ${event.card.displayName}`);
 			})
 		);
 
+		// Subscribe to turn events
+		this.unsubscribers.push(
+			this.battle.on('turnEnded', (event: { team: string }) => {
+				if (event.team === 'player') {
+					this.combatLog.addEntry('Player turn ended', CombatLogType.TURN);
+					this.combatLog.addEntry('Enemy turn started', CombatLogType.TURN);
+				}
+			})
+		);
+		
 		// Subscribe to player team changes
 		if (this.playerTeam) {
 			this.unsubscribers.push(
@@ -287,32 +357,45 @@ export class CombatScreen extends Screen {
 		if (drivers.length >= 2) {
 			const [driver1, driver2] = drivers;
 			
-			// Show combined hand from both drivers
-			const combinedHand: Card[] = [...driver1.hand, ...driver2.hand];
+			// Show combined hand from both drivers with ownership tracking
+			const driver1Cards = driver1.hand.map(card => ({ card, driverNumber: 1 as const }));
+			const driver2Cards = driver2.hand.map(card => ({ card, driverNumber: 2 as const }));
+			const combinedHandData = [...driver1Cards, ...driver2Cards];
+			
+			// For now, still pass just the cards array (will update PlayerHandLayer next)
+			const combinedHand: Card[] = combinedHandData.map(data => data.card);
 			this.handLayer.setHand(combinedHand);
+			
+			// Store the driver mapping and pass to hand layer
+			this.cardDriverMap = new Map(combinedHandData.map(data => [data.card.id, data.driverNumber]));
+			this.handLayer.setCardDriverMap(this.cardDriverMap);
 			
 			// Set adrenaline for hand layer (using combined adrenaline for now)
 			// TODO: Track which driver owns which card for proper adrenaline checking
 			const totalAdrenaline = driver1.adrenaline + driver2.adrenaline;
 			this.handLayer.setAdrenaline(totalAdrenaline);
 			
-			// For now, show the first driver's stats in resource bar
-			// TODO: Update resource bar to show both drivers' adrenaline
-			this.resourceLayer.setAdrenaline(
-				driver1.adrenaline,
-				driver1.maxAdrenaline
-			);
-			this.resourceLayer.setFuel(this.fuel);
+			// Update both drivers' resource displays
+			this.resourceLayer.setDriverData(1, {
+				name: driver1.metadata.name,
+				adrenaline: driver1.adrenaline,
+				maxAdrenaline: driver1.maxAdrenaline,
+				drawPileCount: driver1.deck ? driver1.deck.cards.length : 0,
+				discardPileCount: driver1.discard.length,
+				fuel: this.fuel // TODO: Track fuel per driver when implemented
+			});
+			
+			this.resourceLayer.setDriverData(2, {
+				name: driver2.metadata.name,
+				adrenaline: driver2.adrenaline,
+				maxAdrenaline: driver2.maxAdrenaline,
+				drawPileCount: driver2.deck ? driver2.deck.cards.length : 0,
+				discardPileCount: driver2.discard.length,
+				fuel: 0 // TODO: Track fuel per driver when implemented
+			});
+			
+			// Update shared resources
 			this.resourceLayer.setScrap(this.scrap);
-			
-			// Show combined deck/discard counts
-			const deck1 = driver1.deck;
-			const deck2 = driver2.deck;
-			const totalDeckCount = (deck1 ? deck1.cards.length : 0) + (deck2 ? deck2.cards.length : 0);
-			const totalDiscardCount = driver1.discard.length + driver2.discard.length;
-			
-			this.resourceLayer.setDrawPileCount(totalDeckCount);
-			this.resourceLayer.setDiscardPileCount(totalDiscardCount);
 		}
 
 		// Update enemy layer with enemy vehicles
@@ -421,6 +504,27 @@ export class CombatScreen extends Screen {
 			height: resourceLayerHeight,
 		});
 		this.rootLayer.addChild(this.resourceLayer);
+		
+		// Turn Phase Display - Top left corner
+		this.turnPhaseDisplay = new TurnPhaseDisplay({
+			x: 10,
+			y: 10,
+			width: 200,
+			height: 40
+		});
+		this.rootLayer.addChild(this.turnPhaseDisplay);
+		
+		// Combat Log - Top right corner
+		const combatLogWidth = 300; // Fixed width
+		const combatLogHeight = 250; // Enough for ~10 entries
+		this.combatLogLayer = new CombatLogLayer({
+			x: screenWidth - combatLogWidth - 10,
+			y: 10,
+			width: combatLogWidth,
+			height: combatLogHeight,
+			combatLog: this.combatLog
+		});
+		this.rootLayer.addChild(this.combatLogLayer);
 	}
 
 	/**
@@ -491,14 +595,20 @@ export class CombatScreen extends Screen {
 			return;
 		}
 
-		// Find which driver owns this card
+		// Find which driver owns this card using our map
 		const drivers = this.playerTeam.getAllDrivers();
+		const driverNumber = this.cardDriverMap.get(card.id);
 		let owningDriver: Driver | null = null;
 		
-		for (const driver of drivers) {
-			if (driver.hand.includes(card)) {
-				owningDriver = driver;
-				break;
+		if (driverNumber && drivers.length >= driverNumber) {
+			owningDriver = drivers[driverNumber - 1];
+		} else {
+			// Fallback to searching in hands if map is not set
+			for (const driver of drivers) {
+				if (driver.hand.includes(card)) {
+					owningDriver = driver;
+					break;
+				}
 			}
 		}
 		
@@ -937,6 +1047,14 @@ export class CombatScreen extends Screen {
 		if (this.isTargeting) {
 			this.cancelCardSelection();
 		}
+		
+		// Clean up combat log subscriptions
+		if (this.combatLogLayer) {
+			this.combatLogLayer.cleanup();
+		}
+		
+		// Unsubscribe from all events
+		this.unsubscribeAll();
 	}
 
 	/**
@@ -977,6 +1095,17 @@ export class CombatScreen extends Screen {
 		const resourceLayerY = handLayerY + handLayerHeight;
 		this.resourceLayer.setPosition(0, resourceLayerY);
 		this.resourceLayer.setSize(screenWidth, resourceLayerHeight);
+		
+		// Update turn phase display position
+		if (this.turnPhaseDisplay) {
+			this.turnPhaseDisplay.setPosition(10, 10);
+		}
+		
+		// Update combat log position
+		if (this.combatLogLayer) {
+			const combatLogWidth = 300;
+			this.combatLogLayer.setPosition(screenWidth - combatLogWidth - 10, 10);
+		}
 		
 		// Don't recreate all UI elements on resize - they'll be repositioned by their own resize handlers
 	}

@@ -4,6 +4,62 @@ This document contains the chronological log of completed development tasks for 
 
 =========================================
 
+## Combat Log System Implementation (2025-06-08)
+
+### Implemented Combat Log with Event-Driven Updates
+
+**What Changed:**
+- Created CombatLog model with efficient event system
+- Built CombatLogLayer UI component for displaying entries
+- Integrated combat log into CombatScreen layout
+- Added logging for all major combat events
+
+**How:**
+- Implemented CombatLog as a Model subclass with rolling buffer of entries
+- Single `change` event with arrays of added/removed entries for batch updates
+- Structured entry format supporting both simple strings and driver-specific messages
+- CombatLogLayer efficiently reuses Text components instead of recreating
+- Combat log positioned in top-right corner (300x250px)
+- Turn phase display positioned in top-left corner
+- Added event subscriptions for:
+  - Card plays (with driver identification)
+  - Turn changes (start/end)
+  - Battle end (victory/defeat)
+  - Combat initialization
+
+**Technical Details:**
+- Model stores `nextId` in data structure to respect immutability
+- Automatic `[D1]`/`[D2]` prefixes for driver-specific actions
+- Color-coded entries by type (action, damage, heal, status, turn, info)
+- Driver-specific colors (blue for D1, green for D2) for action entries
+- Non-scrollable implementation for performance
+- Efficient rendering with component reuse
+
+## Combat UI Functionality Improvements (2025-01-07)
+
+### Enhanced Combat Screen for Dual-Driver Gameplay
+
+**What Changed:**
+- Implemented split resource display showing both drivers' individual resources
+- Added card ownership indicators to show which driver owns each card
+- Created turn/phase display system for combat flow clarity
+- Verified health/armor number displays were already implemented
+
+**How:**
+- Created reusable `DriverStatsDisplay` component that shows all stats for a single driver
+- Refactored `ResourceBarLayer` to use two `DriverStatsDisplay` instances side by side
+- Modified `Card` UI component to accept driver number and display "D1"/"D2" badges
+- Created `TurnPhaseDisplay` component with ES6 property accessors for clean API
+- Each driver display shows: name, adrenaline pool (with visual icons), deck count, discard count, and fuel
+- Used color coding throughout: blue for Driver 1, green for Driver 2
+- Turn display shows current turn number, phase, and changes color based on game state
+
+**Technical Details:**
+- Used composition pattern with `DriverStatsDisplay` extending Layer for reusability
+- Implemented helper method `createStatDisplay` in DriverStatsDisplay for consistent stat rendering
+- Card-driver mapping tracked via Map<cardId, driverNumber> for efficient ownership lookup
+- Turn phase display integrated with Battle state changes for real-time updates
+
 ## Scissor Clipping Fix and UI Cleanup (2025-01-07)
 
 ### Fixed Scissor Rectangle Calculation for Scrollable Panels

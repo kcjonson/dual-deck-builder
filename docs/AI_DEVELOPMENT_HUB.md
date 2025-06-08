@@ -253,15 +253,71 @@ For a complete log of recently completed tasks, see: [AI Development Log](./AI_D
   - [x] Updated DriverPanel to use Card components with MINI size
   - [x] Fixed card interactivity issues in combat screen
 
-### Phase Three (Core Mechanics)
+### Phase Three (Combat Functionality - ACTIVE PRIORITY)
 
-- [ ] **Task 6**: Create Vehicle and Driver entity classes with stats
-- [ ] **Task 7**: Implement card dragging and targeting system
-- [ ] **Task 8**: Build initiative/velocity system for turn order
-- [ ] **Task 9**: Create positioning system (Front/Back/Flanking)
-- [ ] **Task 10**: Implement individual Adrenaline pools per driver (for co-op support)
-- [ ] **Task 11**: Add hit calculation system with gunnery vs evade
-- [ ] **Task 12**: Create damage flow system (armor then structure)
+#### Critical Gameplay Clarity (HIGHEST PRIORITY)
+- [x] **Task 10**: Split resource display for dual drivers ✅ COMPLETED
+  - [x] Show both drivers' adrenaline pools separately in resource bar
+  - [x] Add driver names next to their resources
+  - [x] Display current/max adrenaline for each driver
+  - [x] Created reusable DriverStatsDisplay component
+  - [x] Show draw pile, discard pile, and fuel per driver
+- [x] **Task 11**: Add card ownership indicators ✅ COMPLETED
+  - [x] Add driver identifier (D1/D2) overlay on cards in hand
+  - [x] Use different background tint per driver (blue/green)
+  - [x] Make it clear which driver owns which card
+- [x] **Task 12**: Implement turn/phase display ✅ COMPLETED
+  - [x] Add clear "Player Turn" / "Enemy Turn" indicator
+  - [x] Show turn counter
+  - [x] Display current phase with color coding
+  - [x] Created TurnPhaseDisplay component
+
+#### Combat Feedback (HIGH PRIORITY)
+- [x] **Task 13**: Add damage/health number displays ✅ COMPLETED
+  - [x] Show current/max values on all health bars (already implemented)
+  - [x] Display armor values clearly (already showing numeric values)
+  - [x] Numbers update in real-time via Model system
+- [x] **Task 14**: Implement combat log ✅ COMPLETED
+  - [x] Created CombatLog model with event-driven updates
+  - [x] Built CombatLogLayer with efficient rendering
+  - [x] Logs card plays, turn changes, and battle events
+  - [x] Driver-specific formatting with [D1]/[D2] prefixes
+  - [x] Color-coded by entry type
+- [ ] **Task 15**: Add enemy intent display
+  - [ ] Show what enemy will do next turn (e.g. "Attack: 8 damage")
+  - [ ] Display which vehicle enemy is targeting
+  - [ ] Simple text-based display
+
+#### Missing Mechanics (MEDIUM PRIORITY)
+- [ ] **Task 16**: Implement status effects display
+  - [ ] Show active effects on vehicles (e.g. "Burning (2)")
+  - [ ] List effects under health bars
+  - [ ] Track duration/stacks properly
+- [ ] **Task 17**: Add card effect previews
+  - [ ] Show expected damage/effect on hover
+  - [ ] Account for modifiers and status effects
+  - [ ] Help players make informed decisions
+- [ ] **Task 18**: Fix end turn functionality
+  - [ ] Ensure End Turn button works properly
+  - [ ] Draw cards for next turn
+  - [ ] Reset adrenaline pools
+
+#### Game Flow (MEDIUM PRIORITY)
+- [ ] **Task 19**: Handle victory/defeat properly
+  - [ ] Clear message when battle ends
+  - [ ] Add "Continue" button to exit combat
+  - [ ] Return to appropriate screen
+- [ ] **Task 20**: Improve enemy AI
+  - [ ] Make enemies use variety of cards
+  - [ ] Target damaged vehicles strategically
+  - [ ] Use defensive cards when appropriate
+
+### Phase Four (Future Polish - DEFERRED)
+- [ ] Card dragging and smooth animations
+- [ ] Initiative/velocity system for turn order
+- [ ] Positioning system (Front/Back/Flanking)
+- [ ] Hit calculation with gunnery vs evade
+- [ ] Visual effects and juice
 
 ### Phase Four (Game Flow Spec Implementation)
 

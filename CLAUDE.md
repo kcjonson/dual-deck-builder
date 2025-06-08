@@ -149,5 +149,7 @@ npm run build:electron # Build for Electron
 - Always use descriptive variable names
 - Do not try and preserve legacy/deprecated code or documention that is no longer correct. Prefer deletion and removal to keep the codebase clean.
 - When creating new classes, we perfer to use named params like `new Foo({a: 'a', b: 'b'})` over direct function style arguments like `new Foo('a', 'b')`
+- Use perfer to use ES6 style getters and setters for accessing and setting properties on a class over functions like getFoo and setFoo should be like `get foo()`
+- this project uses tabs for indentation, not spaces
 
 Remember: This is a game about synergy, both in its mechanics and in how we develop it. Keep the code clean, the documentation updated, and the vision clear!

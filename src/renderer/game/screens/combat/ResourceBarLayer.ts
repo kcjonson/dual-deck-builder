@@ -2,30 +2,23 @@ import { Layer } from '../../../engine/components/Layer';
 import { Text } from '../../../engine/components/Text';
 import { Rectangle } from '../../../engine/components/Rectangle';
 import { Button } from '../../../engine/ui/Button';
+import { DriverStatsDisplay, DriverResourceData } from './DriverStatsDisplay';
 
 /**
  * Resource bar layer for the bottom 5% of combat screen
- * Shows adrenaline, draw pile, discard pile, fuel, scrap, and end turn button
+ * Shows both drivers' stats, shared scrap, and end turn button
  */
 export class ResourceBarLayer extends Layer {
-	private adrenalineIcons: Rectangle[] = [];
-	private adrenalineText: Text | null = null;
-	private drawPileIcon: Rectangle | null = null;
-	private drawPileText: Text | null = null;
-	private discardPileIcon: Rectangle | null = null;
-	private discardPileText: Text | null = null;
-	private fuelIcon: Rectangle | null = null;
-	private fuelText: Text | null = null;
+	// Driver displays
+	private driver1Display: DriverStatsDisplay | null = null;
+	private driver2Display: DriverStatsDisplay | null = null;
+	
+	// Shared UI elements
 	private scrapIcon: Rectangle | null = null;
 	private scrapText: Text | null = null;
 	private endTurnButton: Button | null = null;
 
-	// Current resource values
-	private currentAdrenaline = 0;
-	private maxAdrenaline = 3;
-	private drawPileCount = 0;
-	private discardPileCount = 0;
-	private fuelAmount = 0;
+	// Shared resource values
 	private scrapAmount = 0;
 
 	// Callbacks
@@ -65,40 +58,31 @@ export class ResourceBarLayer extends Layer {
 		
 		let currentX = spacing;
 
-		// Adrenaline display
-		currentX = this.createAdrenalineDisplay(currentX, iconSize, spacing);
+		// Driver 1 display
+		const driver1Width = DriverStatsDisplay.getRequiredWidth();
+		this.driver1Display = new DriverStatsDisplay({
+			x: currentX,
+			y: 0,
+			width: driver1Width,
+			height: layerHeight,
+			driverNumber: 1
+		});
+		this.addChild(this.driver1Display);
+		currentX += driver1Width + spacing * 2;
 		
-		// Draw pile
-		currentX = this.createPileDisplay(
-			currentX, iconSize, spacing,
-			'#4a4a6a', 'DRAW', 
-			(icon, text) => {
-				this.drawPileIcon = icon;
-				this.drawPileText = text;
-			}
-		);
+		// Driver 2 display
+		const driver2Width = DriverStatsDisplay.getRequiredWidth();
+		this.driver2Display = new DriverStatsDisplay({
+			x: currentX,
+			y: 0,
+			width: driver2Width,
+			height: layerHeight,
+			driverNumber: 2
+		});
+		this.addChild(this.driver2Display);
+		currentX += driver2Width + spacing * 2;
 
-		// Discard pile
-		currentX = this.createPileDisplay(
-			currentX, iconSize, spacing,
-			'#6a4a4a', 'DISCARD',
-			(icon, text) => {
-				this.discardPileIcon = icon;
-				this.discardPileText = text;
-			}
-		);
-
-		// Fuel
-		currentX = this.createResourceDisplay(
-			currentX, iconSize, spacing,
-			'#6a6a4a', 'FUEL', '⛽',
-			(icon, text) => {
-				this.fuelIcon = icon;
-				this.fuelText = text;
-			}
-		);
-
-		// Scrap
+		// Scrap (shared resource)
 		this.createResourceDisplay(
 			currentX, iconSize, spacing,
 			'#8a6a4a', 'SCRAP', '⚙',
@@ -113,97 +97,6 @@ export class ResourceBarLayer extends Layer {
 
 		// Update displays with initial values
 		this.updateAllDisplays();
-	}
-
-	/**
-	 * Create adrenaline lightning bolt display
-	 */
-	private createAdrenalineDisplay(startX: number, iconSize: number, _spacing: number): number {
-		let currentX = startX;
-
-		// Create lightning bolt icons
-		for (let i = 0; i < this.maxAdrenaline; i++) {
-			const boltIcon = new Rectangle({
-				x: currentX,
-				y: Math.floor((this.getHeight() - iconSize) / 2),
-				width: iconSize,
-				height: iconSize,
-				style: {
-					backgroundColor: '#6a6aaa',
-					borderColor: '#8a8acc',
-					borderWidth: 1,
-				},
-			});
-			this.addChild(boltIcon);
-			this.adrenalineIcons.push(boltIcon);
-			
-			currentX += iconSize + 2;
-		}
-
-		// Adrenaline text
-		this.adrenalineText = new Text('0/3', {
-			style: {
-				fontSize: 12,
-				color: '#ffffff',
-				textAlign: 'center',
-			},
-		});
-		this.adrenalineText.setPosition(currentX + 15, Math.floor(this.getHeight() / 2));
-		this.addChild(this.adrenalineText);
-
-		return currentX + 50;
-	}
-
-	/**
-	 * Create pile display (draw/discard)
-	 */
-	private createPileDisplay(
-		startX: number, 
-		iconSize: number, 
-		spacing: number,
-		color: string,
-		label: string,
-		callback: (icon: Rectangle, text: Text) => void
-	): number {
-		// Pile icon
-		const pileIcon = new Rectangle({
-			x: startX,
-			y: Math.floor((this.getHeight() - iconSize) / 2),
-			width: iconSize,
-			height: iconSize,
-			style: {
-				backgroundColor: color,
-				borderColor: '#ffffff',
-				borderWidth: 1,
-			},
-		});
-		this.addChild(pileIcon);
-
-		// Pile count text
-		const pileText = new Text('0', {
-			style: {
-				fontSize: 10,
-				color: '#ffffff',
-				textAlign: 'center',
-				fontWeight: 'bold',
-			},
-		});
-		pileText.setPosition(startX + iconSize / 2, Math.floor(this.getHeight() / 2));
-		this.addChild(pileText);
-
-		// Label
-		const labelText = new Text(label, {
-			style: {
-				fontSize: 8,
-				color: '#cccccc',
-				textAlign: 'center',
-			},
-		});
-		labelText.setPosition(startX + iconSize / 2, Math.floor(this.getHeight() * 0.8));
-		this.addChild(labelText);
-
-		callback(pileIcon, pileText);
-		return startX + iconSize + spacing;
 	}
 
 	/**
@@ -302,62 +195,29 @@ export class ResourceBarLayer extends Layer {
 	}
 
 	/**
-	 * Update adrenaline display
+	 * Set driver data
 	 */
-	public setAdrenaline(current: number, max: number = this.maxAdrenaline): void {
-		this.currentAdrenaline = current;
-		this.maxAdrenaline = max;
-		
-		// Ensure we have the right number of icons
-		if (this.adrenalineIcons.length !== max) {
-			// Recreate adrenaline display if max changed
-			this.adrenalineIcons.forEach(icon => this.removeChild(icon));
-			this.adrenalineIcons = [];
-			// Would need to recreate the whole layout - for now just update existing
+	public setDriverData(driverNumber: 1 | 2, data: Partial<DriverResourceData>): void {
+		const display = driverNumber === 1 ? this.driver1Display : this.driver2Display;
+		if (display) {
+			display.setData(data);
 		}
-		
-		// Update icon colors based on current adrenaline
-		this.adrenalineIcons.forEach((icon, index) => {
-			const filled = index < current;
-			icon.setFillColor(filled ? '#8a8aff' : '#4a4a6a');
-			icon.setBorderColor(filled ? '#aaaaff' : '#6a6a8a');
-			icon.setBorderWidth(1);
-		});
-
-		// Update text
-		if (this.adrenalineText) {
-			this.adrenalineText.setText(`${current}/${max}`);
-		}
+	}
+	
+	/**
+	 * Get driver data
+	 */
+	public getDriverData(driverNumber: 1 | 2): DriverResourceData | null {
+		const display = driverNumber === 1 ? this.driver1Display : this.driver2Display;
+		return display ? display.getData() : null;
 	}
 
 	/**
-	 * Update draw pile count
-	 */
-	public setDrawPileCount(count: number): void {
-		this.drawPileCount = count;
-		if (this.drawPileText) {
-			this.drawPileText.setText(count.toString());
-		}
-	}
-
-	/**
-	 * Update discard pile count
-	 */
-	public setDiscardPileCount(count: number): void {
-		this.discardPileCount = count;
-		if (this.discardPileText) {
-			this.discardPileText.setText(count.toString());
-		}
-	}
-
-	/**
-	 * Update fuel amount
+	 * Update fuel amount (deprecated - use setDriverData)
 	 */
 	public setFuel(amount: number): void {
-		this.fuelAmount = amount;
-		if (this.fuelText) {
-			this.fuelText.setText(amount.toString());
-		}
+		// Legacy method - no longer used
+		// Fuel is now tracked per driver
 	}
 
 	/**
@@ -391,30 +251,17 @@ export class ResourceBarLayer extends Layer {
 	 * Update all displays with current values
 	 */
 	private updateAllDisplays(): void {
-		this.setAdrenaline(this.currentAdrenaline, this.maxAdrenaline);
-		this.setDrawPileCount(this.drawPileCount);
-		this.setDiscardPileCount(this.discardPileCount);
-		this.setFuel(this.fuelAmount);
+		// Displays will show their default values
 		this.setScrap(this.scrapAmount);
 	}
 
 	/**
-	 * Get current resource values
+	 * Get all resource values
 	 */
-	public getResources(): {
-		adrenaline: number;
-		maxAdrenaline: number;
-		drawPile: number;
-		discardPile: number;
-		fuel: number;
-		scrap: number;
-	} {
+	public get resources() {
 		return {
-			adrenaline: this.currentAdrenaline,
-			maxAdrenaline: this.maxAdrenaline,
-			drawPile: this.drawPileCount,
-			discardPile: this.discardPileCount,
-			fuel: this.fuelAmount,
+			driver1: this.driver1Display ? this.driver1Display.getData() : null,
+			driver2: this.driver2Display ? this.driver2Display.getData() : null,
 			scrap: this.scrapAmount,
 		};
 	}
@@ -444,14 +291,8 @@ export class ResourceBarLayer extends Layer {
 		}
 		
 		// Clear element references
-		this.adrenalineIcons = [];
-		this.adrenalineText = null;
-		this.drawPileIcon = null;
-		this.drawPileText = null;
-		this.discardPileIcon = null;
-		this.discardPileText = null;
-		this.fuelIcon = null;
-		this.fuelText = null;
+		this.driver1Display = null;
+		this.driver2Display = null;
 		this.scrapIcon = null;
 		this.scrapText = null;
 		this.endTurnButton = null;

@@ -37,6 +37,8 @@ export class Card extends Component {
 	private tags: Text | null = null;
 	private cardBorder: Rectangle;
 	private cardBackground: Rectangle;
+	private driverIndicator: Text | null = null;
+	private driverNumber: 1 | 2 | null = null;
 
 	// Event callbacks
 	private clickHandler: ((card: GameCard) => void) | null = null;
@@ -47,7 +49,13 @@ export class Card extends Component {
 	// Selection state
 	private selected = false;
 
-	constructor({ x, y, data, size = CardSize.NORMAL }: { x: number; y: number; data: GameCard; size?: CardSize }) {
+	constructor({ x, y, data, size = CardSize.NORMAL, driverNumber }: { 
+		x: number; 
+		y: number; 
+		data: GameCard; 
+		size?: CardSize;
+		driverNumber?: 1 | 2 | null;
+	}) {
 		const dimensions = CARD_DIMENSIONS[size];
 		super({
 			x,
@@ -58,6 +66,7 @@ export class Card extends Component {
 
 		this.data = data;
 		this.size = size;
+		this.driverNumber = driverNumber || null;
 
 		// Create card border with rarity color
 		this.cardBorder = new Rectangle({
@@ -174,6 +183,35 @@ export class Card extends Component {
 				},
 			});
 			this.addChild(targetText);
+		}
+
+		// Driver indicator (if specified)
+		if (this.driverNumber && size !== CardSize.MINI) {
+			const indicatorBg = new Rectangle({
+				x: Math.floor(10 * scaleFactor),
+				y: Math.floor(10 * scaleFactor),
+				width: Math.floor(25 * scaleFactor),
+				height: Math.floor(25 * scaleFactor),
+				style: {
+					backgroundColor: this.driverNumber === 1 ? '#4a4a8a' : '#4a8a4a',
+					borderRadius: Math.floor(12.5 * scaleFactor),
+					borderColor: this.driverNumber === 1 ? '#6a6aaa' : '#6aaa6a',
+					borderWidth: 2,
+				},
+			});
+			this.addChild(indicatorBg);
+			
+			this.driverIndicator = new Text(`D${this.driverNumber}`, {
+				x: Math.floor(22.5 * scaleFactor),
+				y: Math.floor(22.5 * scaleFactor),
+				style: {
+					fontSize: Math.floor(12 * scaleFactor),
+					color: '#ffffff',
+					textAlign: 'center',
+					fontWeight: 'bold',
+				},
+			});
+			this.addChild(this.driverIndicator);
 		}
 
 		// Setup event handling
@@ -414,5 +452,26 @@ export class Card extends Component {
 	 */
 	public getSize(): CardSize {
 		return this.size;
+	}
+	
+	/**
+	 * Set driver number and update indicator
+	 */
+	public setDriverNumber(driverNumber: 1 | 2 | null): void {
+		if (this.driverNumber === driverNumber) return;
+		
+		this.driverNumber = driverNumber;
+		
+		// Update visual indicator if needed
+		if (this.driverIndicator) {
+			this.driverIndicator.setText(driverNumber ? `D${driverNumber}` : '');
+		}
+	}
+	
+	/**
+	 * Get driver number
+	 */
+	public get driver(): 1 | 2 | null {
+		return this.driverNumber;
 	}
 }

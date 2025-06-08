@@ -26,6 +26,7 @@ export class PlayerHandLayer extends Layer {
 	// Selection state
 	private selectedCard: Card | null = null; // The card player has selected to play (waiting for target)
 	private targetingMode = false;
+	private cardDriverMap: Map<string, 1 | 2> = new Map();
 
 	/**
 	 * Create player hand layer
@@ -136,6 +137,17 @@ export class PlayerHandLayer extends Layer {
 		this.targetingMode = false;
 		this.updateCardSelectionVisuals();
 	}
+	
+	/**
+	 * Set card driver mapping
+	 */
+	public setCardDriverMap(map: Map<string, 1 | 2>): void {
+		this.cardDriverMap = map;
+		// Re-create card elements to update driver indicators
+		if (this.handCards.length > 0) {
+			this.createCardElements();
+		}
+	}
 
 	/**
 	 * Clear all card visual elements
@@ -156,11 +168,13 @@ export class PlayerHandLayer extends Layer {
 		if (this.handCards.length === 0) return;
 
 		this.handCards.forEach((card, index) => {
+			const driverNumber = this.cardDriverMap.get(card.id) || null;
 			const cardElement = new UICard({
 				x: 0, // Will be positioned by layoutCardElements
 				y: 0,
 				data: card,
 				size: this.CARD_SIZE,
+				driverNumber: driverNumber,
 			});
 
 			// Set up card interactivity
