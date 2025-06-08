@@ -31,6 +31,10 @@ export class InputSystem {
 	private wheelComponents: Map<Interactive, WheelHandler> = new Map();
 	private keyDownComponents: Map<Interactive, KeyboardHandler> = new Map();
 	private keyUpComponents: Map<Interactive, KeyboardHandler> = new Map();
+	
+	// Global keyboard handlers (work without focus)
+	private globalKeyDownHandlers: Map<string, KeyboardHandler> = new Map();
+	private globalKeyUpHandlers: Map<string, KeyboardHandler> = new Map();
 
 	// Currently hovered components
 	private hoveredComponents: Set<Interactive> = new Set();
@@ -110,6 +114,8 @@ export class InputSystem {
 		this.wheelComponents.clear();
 		this.keyDownComponents.clear();
 		this.keyUpComponents.clear();
+		this.globalKeyDownHandlers.clear();
+		this.globalKeyUpHandlers.clear();
 		this.hoveredComponents.clear();
 		this.focusedComponent = null;
 	}
@@ -249,6 +255,14 @@ export class InputSystem {
 	 * Handle keyboard down events
 	 */
 	private handleKeyDown(event: KeyboardEvent): void {
+		// Check global handlers first
+		const globalHandler = this.globalKeyDownHandlers.get(event.key);
+		if (globalHandler) {
+			globalHandler(event.key);
+			event.preventDefault();
+			return;
+		}
+		
 		// Send to focused component if any
 		if (this.focusedComponent) {
 			const handler = this.keyDownComponents.get(this.focusedComponent);
@@ -268,6 +282,13 @@ export class InputSystem {
 	 * Handle keyboard up events
 	 */
 	private handleKeyUp(event: KeyboardEvent): void {
+		// Check global handlers first
+		const globalHandler = this.globalKeyUpHandlers.get(event.key);
+		if (globalHandler) {
+			globalHandler(event.key);
+			return;
+		}
+		
 		// Send to focused component if any
 		if (this.focusedComponent) {
 			const handler = this.keyUpComponents.get(this.focusedComponent);
@@ -381,6 +402,34 @@ export class InputSystem {
 	 */
 	public static registerKeyUp(component: Interactive, handler: KeyboardHandler): void {
 		InputSystem.getInstance().keyUpComponents.set(component, handler);
+	}
+	
+	/**
+	 * Register a global keyboard down handler for a specific key
+	 */
+	public static registerGlobalKeyDown(key: string, handler: KeyboardHandler): void {
+		InputSystem.getInstance().globalKeyDownHandlers.set(key, handler);
+	}
+	
+	/**
+	 * Register a global keyboard up handler for a specific key
+	 */
+	public static registerGlobalKeyUp(key: string, handler: KeyboardHandler): void {
+		InputSystem.getInstance().globalKeyUpHandlers.set(key, handler);
+	}
+	
+	/**
+	 * Unregister a global keyboard down handler
+	 */
+	public static unregisterGlobalKeyDown(key: string): void {
+		InputSystem.getInstance().globalKeyDownHandlers.delete(key);
+	}
+	
+	/**
+	 * Unregister a global keyboard up handler
+	 */
+	public static unregisterGlobalKeyUp(key: string): void {
+		InputSystem.getInstance().globalKeyUpHandlers.delete(key);
 	}
 	
 	/**

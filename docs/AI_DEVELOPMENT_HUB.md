@@ -253,9 +253,21 @@ For a complete log of recently completed tasks, see: [AI Development Log](./AI_D
   - [x] Updated DriverPanel to use Card components with MINI size
   - [x] Fixed card interactivity issues in combat screen
 
-### Phase Three (Combat Functionality - ACTIVE PRIORITY)
+### Phase Three (Combat Functionality)
 
-#### Critical Gameplay Clarity (HIGHEST PRIORITY)
+#### Vehicle Positioning System (IN PROGRESS)
+- [ ] **Task 15**: Implement vehicle positioning mechanics
+  - [x] Create visual lanes for Flanking/Back/Front positions (left to right) ✅ COMPLETED
+  - [x] Support up to 3 vehicles per position with smart stacking ✅ COMPLETED
+  - [ ] Implement position-based targeting restrictions
+  - [ ] Add movement cards and mechanics
+  - [ ] Calculate range for attacks based on positions
+  - [x] Show position clearly in UI ✅ COMPLETED
+  - [ ] Add wave system for spawning enemies (max 6 on screen)
+  - See [Vehicle Positioning and Wave System Design](./AI_TECHNICAL_DECISIONS/VEHICLE_POSITIONING_AND_WAVE_SYSTEM.md)
+  - **CURRENT WORK**: Refactored vehicle display with event-driven architecture
+
+#### Critical Gameplay Clarity (HIGH PRIORITY)
 - [x] **Task 10**: Split resource display for dual drivers ✅ COMPLETED
   - [x] Show both drivers' adrenaline pools separately in resource bar
   - [x] Add driver names next to their resources
@@ -283,7 +295,7 @@ For a complete log of recently completed tasks, see: [AI Development Log](./AI_D
   - [x] Logs card plays, turn changes, and battle events
   - [x] Driver-specific formatting with [D1]/[D2] prefixes
   - [x] Color-coded by entry type
-- [ ] **Task 15**: Add enemy intent display
+- [ ] **Task 16**: Add enemy intent display
   - [ ] Show what enemy will do next turn (e.g. "Attack: 8 damage")
   - [ ] Display which vehicle enemy is targeting
   - [ ] Simple text-based display

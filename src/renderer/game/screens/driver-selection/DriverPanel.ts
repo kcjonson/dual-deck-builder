@@ -3,7 +3,7 @@ import { Text } from '../../../engine/components/Text';
 import { Rectangle } from '../../../engine/components/Rectangle';
 import { Button } from '../../../engine/ui/Button';
 import { Driver } from '../../mechanics/Driver';
-import { Card as UICard, CardSize } from '../../../engine/ui/Card';
+import { Card as UICard, CardSize } from '../../ui/Card';
 import { CardLoader } from '../../core/CardLoader';
 
 /**
@@ -373,7 +373,7 @@ export class DriverPanel extends Layer {
 			});
 			
 			// Disable interaction for display purposes
-			miniCard.setEnabled(false);
+			miniCard.enabled = false;
 			
 			this.startingDeckContainer.addChild(miniCard);
 			

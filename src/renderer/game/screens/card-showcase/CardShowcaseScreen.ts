@@ -4,7 +4,7 @@ import { Button } from '../../../engine/ui/Button';
 import { Text } from '../../../engine/components/Text';
 import { Rectangle } from '../../../engine/components/Rectangle';
 import { Panel } from '../../../engine/ui/Panel';
-import { Card } from '../../../engine/ui/Card';
+import { Card } from '../../ui/Card';
 import { CardLoader } from '../../core/CardLoader';
 import { Card as GameCard } from '../../mechanics/Card';
 

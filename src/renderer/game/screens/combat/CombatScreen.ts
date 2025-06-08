@@ -2,12 +2,13 @@ import { Screen } from '../../core/Screen';
 import { Renderer } from '../../../engine/rendering/Renderer';
 import { Rectangle } from '../../../engine/components/Rectangle';
 import { Arrow } from '../../../engine/components/Arrow';
-import { EnemyLayer, EnemyVehicle } from './EnemyLayer';
-import { BattlefieldLayer, PlayerVehicle } from './BattlefieldLayer';
+import { EnemyBattlefieldLayer, EnemyIntent } from './EnemyBattlefieldLayer';
+import { PlayerBattlefieldLayer } from './PlayerBattlefieldLayer';
 import { PlayerHandLayer } from './PlayerHandLayer';
 import { ResourceBarLayer } from './ResourceBarLayer';
 import { CombatLogLayer } from './CombatLogLayer';
 import { TurnPhaseDisplay, CombatPhase } from './TurnPhaseDisplay';
+import { CombatModel } from './CombatModel';
 import { Driver, DriverRole } from '../../mechanics/Driver';
 import { CombatLog, CombatLogType } from '../../mechanics/CombatLog';
 import { Vehicle, VehiclePosition } from '../../mechanics/Vehicle';
@@ -23,12 +24,15 @@ import { InputSystem } from '../../../engine/input/InputSystem';
  */
 export class CombatScreen extends Screen {
 	// Layer components
-	private enemyLayer!: EnemyLayer;
-	private battlefieldLayer!: BattlefieldLayer;
+	private enemyLayer!: EnemyBattlefieldLayer;
+	private battlefieldLayer!: PlayerBattlefieldLayer;
 	private handLayer!: PlayerHandLayer;
 	private resourceLayer!: ResourceBarLayer;
 	private combatLogLayer!: CombatLogLayer;
 	private turnPhaseDisplay!: TurnPhaseDisplay;
+	
+	// Combat UI model
+	private combatModel: CombatModel;
 	
 	// Game state using new Team architecture
 	private battle: Battle | null = null;
@@ -38,12 +42,11 @@ export class CombatScreen extends Screen {
 	private fuel = 5;
 	private scrap = 150;
 	
-	// Interaction state
-	private selectedCard: Card | null = null;
-	private selectedCardDriver: Driver | null = null; // Which driver is playing the card
-	private isTargeting = false;
-	private hoveredTarget: Vehicle | null = null;
+	// Driver-card mapping
 	private cardDriverMap: Map<string, 1 | 2> = new Map();
+	
+	// UI state
+	private combatLogVisible = false;
 	
 	// Targeting visual components
 	private targetingArrow: Arrow;
@@ -61,8 +64,9 @@ export class CombatScreen extends Screen {
 	constructor(renderer: Renderer) {
 		super('combatScreen', renderer);
 		
-		// Create combat log model
+		// Create models
 		this.combatLog = new CombatLog(10); // Keep last 10 entries
+		this.combatModel = new CombatModel();
 		
 		// Create targeting arrow (hidden initially)
 		this.targetingArrow = new Arrow({
@@ -76,6 +80,7 @@ export class CombatScreen extends Screen {
 		this.createBackground();
 		this.createLayers();
 		this.setupInteractions();
+		this.setupModelListeners();
 	}
 
 	/**
@@ -268,7 +273,7 @@ export class CombatScreen extends Screen {
 			maxStructure: vehicleStats.maxHealth,
 			speed: vehicleStats.speed,
 			baseSpeed: vehicleStats.speed,
-			position: VehiclePosition.BACK,
+			position: VehiclePosition.FRONT,
 			velocity: 0,
 			driver: null,
 			passenger: null,
@@ -400,41 +405,24 @@ export class CombatScreen extends Screen {
 
 		// Update enemy layer with enemy vehicles
 		if (this.enemyTeam) {
-			const enemyVehicles = this.enemyTeam.vehicles;
-			const enemyData: EnemyVehicle[] = enemyVehicles.map(vehicle => ({
-				id: vehicle.id,
-				name: vehicle.name,
-				maxHealth: vehicle.maxStructure,
-				currentHealth: vehicle.structure,
-				armor: vehicle.armor,
-				intent: {
-					type: 'attack' as const,
+			// Pass the Vehicle[] directly
+			this.enemyLayer.setVehicles(this.enemyTeam.vehicles);
+			
+			// Set intents for enemy vehicles (temporary placeholder)
+			this.enemyTeam.vehicles.forEach(vehicle => {
+				const intent: EnemyIntent = {
+					type: 'attack',
 					value: 5,
 					description: 'Preparing to attack'
-				}
-			}));
-			this.enemyLayer.setEnemies(enemyData);
+				};
+				this.enemyLayer.setVehicleIntent(vehicle.id, intent);
+			});
 		}
 
 		// Update battlefield layer with player vehicles
 		if (this.playerTeam) {
-			const playerVehicles = this.playerTeam.vehicles;
-			const playerData: PlayerVehicle[] = playerVehicles.map(vehicle => {
-				const driver = vehicle.driver;
-				if (!driver) {
-					console.warn('Vehicle has no driver:', vehicle.id);
-					return null;
-				}
-				return {
-					driver: driver,
-					currentHealth: vehicle.structure,
-					maxHealth: vehicle.maxStructure,
-					armor: vehicle.armor,
-					statusEffects: [],
-					position: 'front' as const
-				} as PlayerVehicle;
-			}).filter((data): data is PlayerVehicle => data !== null);
-			this.battlefieldLayer.setPlayerVehicles(playerData);
+			// Pass the Vehicle[] directly
+			this.battlefieldLayer.setVehicles(this.playerTeam.vehicles);
 		}
 	}
 
@@ -464,22 +452,24 @@ export class CombatScreen extends Screen {
 		
 		// Enemy Layer - Top 25%
 		const enemyLayerHeight = Math.floor(screenHeight * 0.25);
-		this.enemyLayer = new EnemyLayer({
+		this.enemyLayer = new EnemyBattlefieldLayer({
 			x: 0,
 			y: 0,
 			width: screenWidth,
 			height: enemyLayerHeight,
+			combatData: this.combatModel,
 		});
 		this.rootLayer.addChild(this.enemyLayer);
 
 		// Battlefield Layer - Middle 40%
 		const battlefieldLayerHeight = Math.floor(screenHeight * 0.4);
 		const battlefieldLayerY = enemyLayerHeight;
-		this.battlefieldLayer = new BattlefieldLayer({
+		this.battlefieldLayer = new PlayerBattlefieldLayer({
 			x: 0,
 			y: battlefieldLayerY,
 			width: screenWidth,
 			height: battlefieldLayerHeight,
+			combatData: this.combatModel,
 		});
 		this.rootLayer.addChild(this.battlefieldLayer);
 
@@ -525,6 +515,9 @@ export class CombatScreen extends Screen {
 			combatLog: this.combatLog
 		});
 		this.rootLayer.addChild(this.combatLogLayer);
+		
+		// Start with combat log hidden
+		this.combatLogLayer.setVisible(this.combatLogVisible);
 	}
 
 	/**
@@ -552,22 +545,41 @@ export class CombatScreen extends Screen {
 
 		// Set up keyboard handler for ESC key during targeting
 		InputSystem.registerKeyDown(this.rootLayer, (key: string) => {
-			if (key === 'Escape' && this.isTargeting) {
-				this.cancelCardSelection();
+			if (key === 'Escape' && this.combatModel.isTargeting) {
+				this.combatModel.cancelSelection();
+				this.handLayer.clearCardSelection();
 			}
+		});
+		
+		// Register global F6 handler for combat log toggle
+		InputSystem.registerGlobalKeyDown('F6', () => {
+			this.toggleCombatLog();
 		});
 
 		// Set up global click handler for targeting cancellation
 		InputSystem.registerMouseDown(this.rootLayer, () => {
-			if (this.isTargeting && this.selectedCard) {
+			if (this.combatModel.isTargeting && this.combatModel.selectedCard) {
 				// If we're targeting and click somewhere that doesn't handle targeting,
 				// cancel the targeting mode
 				setTimeout(() => {
-					if (this.isTargeting) {
+					if (this.combatModel.isTargeting) {
 						console.log('Cancelled targeting - clicked empty space');
-						this.cancelCardSelection();
+						this.combatModel.cancelSelection();
+						this.handLayer.clearCardSelection();
 					}
 				}, 10); // Small delay to let target handlers run first
+			}
+		});
+	}
+	
+	/**
+	 * Set up combat model listeners
+	 */
+	private setupModelListeners(): void {
+		// Listen for when a vehicle is targeted
+		this.combatModel.on('targetedVehicle', (vehicle: Vehicle | null) => {
+			if (vehicle && this.combatModel.selectedCard && this.combatModel.selectedDriver) {
+				this.playCardWithTarget(this.combatModel.selectedCard, vehicle);
 			}
 		});
 	}
@@ -579,7 +591,7 @@ export class CombatScreen extends Screen {
 		super.onUpdate(dt);
 
 		// Handle targeting arrow updates during mouse movement
-		if (this.isTargeting && this.selectedCard) {
+		if (this.combatModel.isTargeting && this.combatModel.selectedCard) {
 			const mousePos = InputSystem.getMousePosition();
 			this.updateTargetingArrow(mousePos.x, mousePos.y);
 		}
@@ -626,14 +638,8 @@ export class CombatScreen extends Screen {
 			return;
 		}
 
-		// If already targeting, cancel previous selection
-		if (this.isTargeting && this.selectedCard) {
-			this.cancelCardSelection();
-		}
-
-		// Store the driver who will play this card
-		this.selectedCard = card;
-		this.selectedCardDriver = owningDriver;
+		// Use combat model to handle selection
+		this.combatModel.selectCard(card, owningDriver);
 
 		// Check if card needs a target
 		const targetType = card.targetType;
@@ -641,18 +647,13 @@ export class CombatScreen extends Screen {
 			// No specific target needed, play immediately
 			this.playCardWithTarget(card, undefined);
 		} else {
-			// Enter targeting mode
-			this.isTargeting = true;
-			
-			// Update hand layer to show selection state
+			// Update UI for targeting mode
 			this.handLayer.setCardSelected(card);
 			this.handLayer.setTargetingMode(true);
 			
-			// Set up target handlers
-			this.setupTargetHandlers(card);
-			
-			// Highlight valid targets
-			this.highlightValidTargets(card);
+			// Determine valid targets
+			const targetableIds = this.determineTargetableVehicles(card);
+			this.combatModel.targetableVehicleIds = targetableIds;
 			
 			console.log(`Select target for ${card.displayName}`);
 		}
@@ -662,13 +663,14 @@ export class CombatScreen extends Screen {
 	 * Play a card with the specified target using the new Battle system
 	 */
 	private playCardWithTarget(card: Card, targetVehicle: Vehicle | undefined): void {
-		if (!this.battle || !this.selectedCardDriver) {
+		if (!this.battle || !this.combatModel.selectedDriver) {
 			console.warn('Cannot play card: no battle or driver');
 			return;
 		}
 
 		// Find the card index in the driver's hand
-		const hand = this.selectedCardDriver.hand;
+		const driver = this.combatModel.selectedDriver;
+		const hand = driver.hand;
 		const cardIndex = hand.findIndex(c => c === card);
 		
 		if (cardIndex === -1) {
@@ -678,13 +680,13 @@ export class CombatScreen extends Screen {
 
 		// Play the card through the battle system
 		const success = this.battle.playCard({
-			driver: this.selectedCardDriver,
+			driver: driver,
 			cardIndex: cardIndex,
 			targetVehicle: targetVehicle
 		});
 
 		if (success) {
-			console.log(`${this.selectedCardDriver.metadata.name} played ${card.displayName}`);
+			console.log(`${driver.metadata.name} played ${card.displayName}`);
 			
 			// Update UI to reflect new state
 			this.updateUIFromBattle();
@@ -698,7 +700,40 @@ export class CombatScreen extends Screen {
 		}
 
 		// Clear selection state
-		this.cancelCardSelection();
+		this.combatModel.cancelSelection();
+		this.handLayer.clearCardSelection();
+	}
+	
+	/**
+	 * Determine which vehicles can be targeted by a card
+	 */
+	private determineTargetableVehicles(card: Card): string[] {
+		if (!this.playerTeam || !this.enemyTeam) return [];
+		
+		const targetType = card.targetType;
+		const allVehicles: Vehicle[] = [];
+		
+		switch (targetType) {
+			case 'enemy_single':
+				return this.enemyTeam.vehicles.map(v => v.id);
+				
+			case 'self':
+				// Only the vehicle with the driver playing the card
+				if (this.combatModel.selectedDriver) {
+					const driverVehicle = this.playerTeam.vehicles.find(v => v.driver === this.combatModel.selectedDriver);
+					return driverVehicle ? [driverVehicle.id] : [];
+				}
+				return [];
+				
+			case 'ally':
+				return this.playerTeam.vehicles.map(v => v.id);
+				
+			case 'any':
+				return [...this.playerTeam.vehicles, ...this.enemyTeam.vehicles].map(v => v.id);
+				
+			default:
+				return [];
+		}
 	}
 
 	/**
@@ -716,64 +751,18 @@ export class CombatScreen extends Screen {
 		}
 	}
 
-	/**
-	 * Set up target handlers for the current card
-	 */
-	private setupTargetHandlers(card: Card): void {
-		const targetType = card.targetType;
-		
-		// Set up enemy targeting
-		if (targetType === 'enemy_single' || targetType === 'any') {
-			this.enemyLayer.setOnTarget((enemy) => {
-				this.onEnemyTargeted(card, enemy);
-			});
-		}
-		
-		// Set up vehicle targeting
-		if (targetType === 'self' || targetType === 'ally' || targetType === 'any') {
-			this.battlefieldLayer.setOnTarget((vehicle) => {
-				this.onVehicleTargeted(card, vehicle);
-			});
-		}
-	}
-
-	/**
-	 * Handle enemy being targeted
-	 */
-	private onEnemyTargeted(card: Card, enemy: EnemyVehicle): void {
-		if (this.isTargeting && this.selectedCard === card && this.enemyTeam) {
-			// Find the actual Vehicle object from the enemy team
-			const targetVehicle = this.enemyTeam.vehicles.find(v => v.id === enemy.id);
-			if (targetVehicle) {
-				this.playCardWithTarget(card, targetVehicle);
-			}
-		}
-	}
-
-	/**
-	 * Handle vehicle being targeted
-	 */
-	private onVehicleTargeted(card: Card, vehicle: PlayerVehicle): void {
-		if (this.isTargeting && this.selectedCard === card && this.playerTeam) {
-			// Find the actual Vehicle object from the player team
-			const targetVehicle = this.playerTeam.vehicles.find(v => v.driver?.id === vehicle.driver.id);
-			if (targetVehicle) {
-				this.playCardWithTarget(card, targetVehicle);
-			}
-		}
-	}
 
 	/**
 	 * Handle targeting arrow updates during mouse movement
 	 */
 	private updateTargetingArrow(mouseX: number, mouseY: number): void {
-		if (!this.selectedCard || !this.isTargeting) {
+		if (!this.combatModel.selectedCard || !this.combatModel.isTargeting) {
 			this.targetingArrow.hide();
 			return;
 		}
 
 		// Get the center position of the selected card in the hand
-		const selectedCardElement = this.handLayer.getCardElementByCard(this.selectedCard);
+		const selectedCardElement = this.handLayer.getCardElementByCard(this.combatModel.selectedCard);
 		if (!selectedCardElement) {
 			this.targetingArrow.hide();
 			return;
@@ -785,153 +774,24 @@ export class CombatScreen extends Screen {
 			selectedCardElement.getY() + selectedCardElement.getHeight() / 2
 		);
 
-		// Check for valid targets under mouse
-		const targetedEnemy = this.enemyLayer.getEnemyAtPosition(mouseX, mouseY);
-		const targetedVehicle = this.battlefieldLayer.getVehicleAtPosition(mouseX, mouseY);
-
-		// Update hovered target and highlighting
-		this.updateHoveredTarget(targetedEnemy, targetedVehicle);
-
-		// Set arrow color based on target validity
-		const isValidTarget = this.isValidTarget(this.selectedCard, targetedEnemy, targetedVehicle);
+		// Arrow will automatically show when points are set
+		
+		// Set arrow color based on whether we have a focused (valid) target
+		const isValidTarget = this.combatModel.focusedVehicleId && 
+			this.combatModel.isVehicleTargetable(this.combatModel.focusedVehicleId);
 		this.targetingArrow.setColor(isValidTarget ? '#00ff00' : '#ff6666');
 
 		// Draw arrow from card to mouse position
 		this.targetingArrow.setPoints(cardGlobalPos.x, cardGlobalPos.y, mouseX, mouseY);
 	}
 
-	/**
-	 * Update the currently hovered target and highlighting
-	 * TODO: Update to work with new Vehicle class
-	 */
-	private updateHoveredTarget(_enemy: EnemyVehicle | null, _vehicle: PlayerVehicle | null): void {
-		// Temporarily disabled - needs update for new Vehicle system
-		return;
-	}
 
-	/**
-	 * Handle click during targeting mode
-	 */
-	public handleTargetClick(mouseX: number, mouseY: number): void {
-		if (!this.isTargeting || !this.selectedCard) return;
 
-		// Check what was clicked
-		const targetedEnemy = this.enemyLayer.getEnemyAtPosition(mouseX, mouseY);
-		const targetedVehicle = this.battlefieldLayer.getVehicleAtPosition(mouseX, mouseY);
 
-		if (this.isValidTarget(this.selectedCard, targetedEnemy, targetedVehicle)) {
-			// Valid target - play the card
-			this.playCard(this.selectedCard, targetedEnemy, targetedVehicle);
-		} else {
-			// Invalid target or clicked elsewhere - cancel selection
-			console.log('Invalid target or cancelled targeting');
-		}
 
-		this.cancelCardSelection();
-	}
 
-	/**
-	 * Cancel card selection and targeting mode
-	 */
-	private cancelCardSelection(): void {
-		this.selectedCard = null;
-		this.selectedCardDriver = null;
-		this.isTargeting = false;
-		this.hoveredTarget = null;
 
-		// Hide targeting arrow
-		this.targetingArrow.hide();
-
-		// Clear hand selection state
-		this.handLayer.clearCardSelection();
-
-		// Clear target callbacks
-		this.enemyLayer.setOnTarget(null);
-		this.battlefieldLayer.setOnTarget(null);
-
-		// Clear all highlights
-		this.clearTargetHighlights();
-	}
-
-	/**
-	 * Highlight valid targets for a card
-	 */
-	private highlightValidTargets(_card: Card): void {
-		// const targetType = card.targetType; // For future use
-		
-		// TODO: Update to work with new Team/Vehicle system
-		// For now, basic highlighting disabled until UI layers are updated
-	}
-
-	/**
-	 * Clear all target highlights
-	 */
-	private clearTargetHighlights(): void {
-		this.battlefieldLayer.clearHighlights();
-		this.enemyLayer.clearHighlights();
-	}
-
-	/**
-	 * Check if target is valid for card
-	 */
-	private isValidTarget(card: Card, enemy: EnemyVehicle | null, vehicle: PlayerVehicle | null): boolean {
-		const targetType = card.targetType;
-		
-		switch (targetType) {
-			case 'enemy_single':
-				return enemy !== null;
-			case 'enemy_all':
-				return true; // Area effect, no specific target needed
-			case 'self':
-			case 'ally':
-			case 'both_drivers':
-				return vehicle !== null;
-			case 'any':
-				return enemy !== null || vehicle !== null;
-			default:
-				return false;
-		}
-	}
-
-	/**
-	 * Play a card with the given target
-	 */
-	private playCard(_card: Card, _targetEnemy: EnemyVehicle | null, _targetVehicle: PlayerVehicle | null): void {
-		// TODO: Remove - replaced by playCardWithTarget
-		return;
-	}
-
-	/**
-	 * Apply card effects to targets
-	 */
-	private applyCardEffects(_card: Card, _targetEnemy: EnemyVehicle | null, _targetVehicle: PlayerVehicle | null): void {
-		// TODO: Remove - replaced by Battle system
-		return;
-	}
-
-	/**
-	 * Damage an enemy
-	 */
-	private damageEnemy(_enemy: EnemyVehicle, _damage: number): void {
-		// TODO: Remove - replaced by Battle system
-		return;
-	}
-
-	/**
-	 * Heal a player vehicle
-	 */
-	private healVehicle(_vehicle: PlayerVehicle, _healing: number): void {
-		// TODO: Remove - replaced by Battle system
-		return;
-	}
-
-	/**
-	 * Add armor to a player vehicle
-	 */
-	private addArmor(_vehicle: PlayerVehicle, _armor: number): void {
-		// TODO: Remove - replaced by Battle system
-		return;
-	}
+	// Removed deprecated methods - now handled by Battle system
 
 	/**
 	 * End player turn
@@ -963,21 +823,7 @@ export class CombatScreen extends Screen {
 		return;
 	}
 
-	/**
-	 * Execute an enemy's intent
-	 * TODO: Remove - replaced by Battle system
-	 */
-	private executeEnemyIntent(_enemy: EnemyVehicle): void {
-		return;
-	}
 
-	/**
-	 * Damage a player vehicle
-	 * TODO: Remove - replaced by Battle system
-	 */
-	private damagePlayerVehicle(_vehicle: PlayerVehicle, _damage: number): void {
-		return;
-	}
 
 	/**
 	 * Generate random enemy intent
@@ -1014,6 +860,14 @@ export class CombatScreen extends Screen {
 		// Now handled by updateUIFromBattle
 		this.updateUIFromBattle();
 	}
+	
+	/**
+	 * Toggle combat log visibility
+	 */
+	private toggleCombatLog(): void {
+		this.combatLogVisible = !this.combatLogVisible;
+		this.combatLogLayer.setVisible(this.combatLogVisible);
+	}
 
 	/**
 	 * Set combat end callback
@@ -1044,14 +898,18 @@ export class CombatScreen extends Screen {
 	 */
 	protected onUnmount(): void {
 		// Cancel any active targeting
-		if (this.isTargeting) {
-			this.cancelCardSelection();
+		if (this.combatModel.isTargeting) {
+			this.combatModel.cancelSelection();
+			this.handLayer.clearCardSelection();
 		}
 		
 		// Clean up combat log subscriptions
 		if (this.combatLogLayer) {
 			this.combatLogLayer.cleanup();
 		}
+		
+		// Unregister global keyboard handler
+		InputSystem.unregisterGlobalKeyDown('F6');
 		
 		// Unsubscribe from all events
 		this.unsubscribeAll();

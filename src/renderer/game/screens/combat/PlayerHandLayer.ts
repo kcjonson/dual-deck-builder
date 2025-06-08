@@ -1,6 +1,6 @@
 import { Layer } from '../../../engine/components/Layer';
 import { Rectangle } from '../../../engine/components/Rectangle';
-import { Card as UICard, CardSize } from '../../../engine/ui/Card';
+import { Card as UICard, CardSize } from '../../ui/Card';
 import { Card } from '../../mechanics/Card';
 
 /**
@@ -209,7 +209,7 @@ export class PlayerHandLayer extends Layer {
 		});
 		
 		// Update enabled state based on playability
-		cardElement.setEnabled(this.canPlayCard(card));
+		cardElement.enabled = this.canPlayCard(card);
 	}
 
 
@@ -229,7 +229,7 @@ export class PlayerHandLayer extends Layer {
 		this.cardElements.forEach((cardElement, index) => {
 			const card = this.handCards[index];
 			const playable = this.canPlayCard(card);
-			cardElement.setEnabled(playable);
+			cardElement.enabled = playable;
 		});
 	}
 
@@ -245,16 +245,16 @@ export class PlayerHandLayer extends Layer {
 				if (this.selectedCard && card.id === this.selectedCard.id) {
 					// Selected card - show as selected
 					cardElement.setSelected(true);
-					cardElement.setEnabled(true);
+					cardElement.enabled = true;
 				} else {
 					// Other cards - disable during targeting
 					cardElement.setSelected(false);
-					cardElement.setEnabled(false);
+					cardElement.enabled = false;
 				}
 			} else {
 				// Normal mode - clear selection, show normal playability
 				cardElement.setSelected(false);
-				cardElement.setEnabled(this.canPlayCard(card));
+				cardElement.enabled = this.canPlayCard(card);
 			}
 		});
 	}

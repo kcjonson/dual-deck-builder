@@ -4,6 +4,67 @@ This document contains the chronological log of completed development tasks for 
 
 =========================================
 
+## Vehicle UI Architecture Refactor and Combat Log Toggle (2025-01-08)
+
+### Completed Major Vehicle Display System Refactor
+
+**What Changed:**
+- Refactored vehicle display and targeting system with event-driven architecture
+- Created `/game/ui/Vehicle.ts` component that handles its own click/hover events
+- Implemented `CombatModel` to manage UI state (selected cards, targeting, focused vehicles)
+- Refactored `BattlefieldLayer` hierarchy to pass full Vehicle models instead of just IDs
+- Renamed `EnemyLayer` → `EnemyBattlefieldLayer` for consistency
+- Moved `/engine/ui/Card.ts` → `/game/ui/Card.ts` for better organization
+- Added F6 key to toggle combat log visibility (hidden by default)
+- Enhanced InputSystem with global keyboard handler support
+
+**How:**
+- Vehicle components now handle their own input events instead of parent layers checking coordinates
+- CombatModel uses our Model base class with automatic getters/setters for state management
+- Vehicles listen to CombatModel for state changes and update their visual appearance
+- Implemented ES6-style property accessors (get/set) throughout
+- Used dimmed colors instead of transparency for non-targetable vehicles
+- Added global keyboard handlers to InputSystem that work regardless of focus
+- Combat log toggle uses new `InputSystem.registerGlobalKeyDown('F6', handler)`
+
+**Key Architecture Decisions:**
+- Event-driven UI where components manage their own interactions
+- Clear separation between game state (Battle, Vehicle models) and UI state (CombatModel)
+- Components receive full model objects, not just IDs, even if they don't use all properties
+- Input abstraction using "focused" instead of "hovered" for future controller support
+- Global keyboard handlers checked before component-specific handlers
+
+**Technical Details:**
+- `combatModel.targetedVehicle` property automatically emits change events when set
+- Vehicle onClick handlers simply set `combatData.targetedVehicle = vehicle`
+- CombatScreen listens for 'targetedVehicle' changes to handle card plays
+- InputSystem stores global handlers in separate Maps from component handlers
+- Proper cleanup of global handlers on screen unmount
+
+=========================================
+
+## FPS Limiting Investigation and Fix (2025-06-08)
+
+### Fixed Frame Rate Measurement and Removed Broken Frame Limiting
+
+**What Changed:**
+- Fixed PerformanceMonitor to measure actual frame-to-frame time instead of just render time
+- Removed broken frame limiting logic that was causing 25 FPS instead of 60 FPS
+- Enhanced developer overlay with more detailed timing information
+
+**How:**
+- Modified PerformanceMonitor to track time between consecutive frame starts
+- Removed manual frame rate limiting as requestAnimationFrame naturally syncs with display refresh rate
+- Added min/max frame time display to developer overlay for better performance debugging
+
+**Technical Details:**
+- Previous FPS counter was measuring only render execution time, showing thousands of FPS
+- Frame limiting logic had a bug where it would skip multiple frames incorrectly
+- requestAnimationFrame already provides efficient frame scheduling aligned with display refresh
+- Manual frame limiting is only needed when targeting lower than display refresh rate
+
+=========================================
+
 ## Combat Log System Implementation (2025-06-08)
 
 ### Implemented Combat Log with Event-Driven Updates

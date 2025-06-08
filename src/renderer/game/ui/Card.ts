@@ -1,10 +1,10 @@
-import { Component } from '../components/Component';
-import { Layer } from '../components/Layer';
-import { Text } from '../components/Text';
-import { Rectangle } from '../components/Rectangle';
-import { RenderContext } from '../rendering/RenderContext';
-import { InputSystem } from '../input/InputSystem';
-import { Card as GameCard } from '../../game/mechanics/Card';
+import { Component } from '../../engine/components/Component';
+import { Layer } from '../../engine/components/Layer';
+import { Text } from '../../engine/components/Text';
+import { Rectangle } from '../../engine/components/Rectangle';
+import { RenderContext } from '../../engine/rendering/RenderContext';
+import { InputSystem } from '../../engine/input/InputSystem';
+import { Card as GameCard } from '../mechanics/Card';
 
 /**
  * Card size variants for different UI contexts
@@ -27,7 +27,7 @@ const CARD_DIMENSIONS = {
 /**
  * Visual component for displaying a card
  */
-export class Card extends Component {
+export class Card extends Layer {
 	private data: GameCard;
 	private size: CardSize;
 	private name: Text;
@@ -46,8 +46,10 @@ export class Card extends Component {
 	private activateHandler: ((card: GameCard) => void) | null = null;
 	private targetHandler: ((card: GameCard) => void) | null = null;
 	
-	// Selection state
+	// State
 	private selected = false;
+	private hovered = false;
+	private _enabled = true;
 
 	constructor({ x, y, data, size = CardSize.NORMAL, driverNumber }: { 
 		x: number; 
@@ -234,14 +236,16 @@ export class Card extends Component {
 	 */
 	private handleMouseOver(): void {
 		if (!this.enabled) return;
-		this.setHovered(true);
+		this.hovered = true;
+		this.updateVisuals();
 	}
 
 	/**
 	 * Handle mouse out
 	 */
 	private handleMouseOut(): void {
-		this.setHovered(false);
+		this.hovered = false;
+		this.updateVisuals();
 	}
 
 	/**
@@ -276,7 +280,9 @@ export class Card extends Component {
 		}
 		
 		// Primary semantic event: select the card
-		this.select();
+		if (this.selectHandler) {
+			this.selectHandler(this.data);
+		}
 	}
 
 	/**
@@ -314,6 +320,26 @@ export class Card extends Component {
 	 */
 	public isSelected(): boolean {
 		return this.selected;
+	}
+	
+	/**
+	 * Set enabled state
+	 */
+	public set enabled(value: boolean) {
+		this._enabled = value;
+		this.updateVisuals();
+		if (value) {
+			this.onEnabled();
+		} else {
+			this.onDisabled();
+		}
+	}
+	
+	/**
+	 * Get enabled state
+	 */
+	public get enabled(): boolean {
+		return this._enabled;
 	}
 
 	/**
