@@ -215,7 +215,7 @@ export class ResourceBarLayer extends Layer {
 	/**
 	 * Update fuel amount (deprecated - use setDriverData)
 	 */
-	public setFuel(amount: number): void {
+	public setFuel(_amount: number): void {
 		// Legacy method - no longer used
 		// Fuel is now tracked per driver
 	}

@@ -287,7 +287,7 @@ export class CombatScreen extends Screen {
 	private createTestEnemyTeam(): Team {
 		// Create enemy drivers with basic configs
 		const enemyDriver1 = new Driver({
-			archetype: 'raider' as any, // Using 'raider' for enemy
+			archetype: 'mechanic', // Using mechanic archetype for enemy
 			metadata: {
 				name: 'Wasteland Raider',
 				vehicleName: 'Rust Buggy',
@@ -711,7 +711,6 @@ export class CombatScreen extends Screen {
 		if (!this.playerTeam || !this.enemyTeam) return [];
 		
 		const targetType = card.targetType;
-		const allVehicles: Vehicle[] = [];
 		
 		switch (targetType) {
 			case 'enemy_single':

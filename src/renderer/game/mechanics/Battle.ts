@@ -22,8 +22,9 @@ export interface BattleData {
 export type BattleState = BattleData;
 
 /**
- * Battle interface that merges with the class
+ * Battle interface for the class
  */
+// eslint-disable-next-line @typescript-eslint/no-empty-interface
 export interface Battle extends BattleData {}
 
 /**

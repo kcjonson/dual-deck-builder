@@ -1,6 +1,4 @@
 import { Layer } from '../../../engine/components/Layer';
-import { Rectangle } from '../../../engine/components/Rectangle';
-import { Text } from '../../../engine/components/Text';
 import { Vehicle, VehiclePosition } from '../../mechanics/Vehicle';
 import { CombatModel } from './CombatModel';
 
@@ -98,7 +96,10 @@ export abstract class BattlefieldLayer extends Layer {
 				this.addChild(card);
 			} else {
 				// Update existing card with latest vehicle data
-				this.updateVehicleCard(vehicle, this.vehicleCards.get(vehicle.id)!);
+				const existingCard = this.vehicleCards.get(vehicle.id);
+				if (existingCard) {
+					this.updateVehicleCard(vehicle, existingCard);
+				}
 			}
 		}
 	}

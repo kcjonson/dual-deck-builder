@@ -148,7 +148,7 @@ export class CombatLogLayer extends Layer {
 	/**
 	 * Create visual representation for an entry
 	 */
-	private createEntryVisual(entry: CombatLogEntry, index: number): void {
+	private createEntryVisual(entry: CombatLogEntry, _index: number): void {
 		// Get color based on type and driver
 		const color = this.getColorForEntry(entry);
 		

@@ -42,8 +42,9 @@ export interface VehicleData {
 export type VehicleState = VehicleData;
 
 /**
- * Vehicle interface that merges with the class
+ * Vehicle interface for the class
  */
+// eslint-disable-next-line @typescript-eslint/no-empty-interface
 export interface Vehicle extends VehicleData {}
 
 /**

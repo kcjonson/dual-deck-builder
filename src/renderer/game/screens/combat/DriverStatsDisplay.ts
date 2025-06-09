@@ -266,7 +266,7 @@ export class DriverStatsDisplay extends Layer {
 	/**
 	 * Get the width needed for this display
 	 */
-	public static getRequiredWidth(maxAdrenaline: number = 3): number {
+	public static getRequiredWidth(maxAdrenaline = 3): number {
 		// Rough calculation: name + adrenaline icons + text + 3 stats
 		const iconSize = 30;
 		const smallIconSize = 21;

@@ -150,7 +150,10 @@ export class TextRenderer {
 			if (!this.entriesByColor.has(colorKey)) {
 				this.entriesByColor.set(colorKey, []);
 			}
-			this.entriesByColor.get(colorKey)!.push({ text, x, y, color, fontSize });
+			const entries = this.entriesByColor.get(colorKey);
+			if (entries) {
+				entries.push({ text, x, y, color, fontSize });
+			}
 			this.characterCount += text.length;
 			} else {
 			// Immediate mode - render each character now
@@ -270,10 +273,10 @@ export class TextRenderer {
 		]);
 		
 		// Create separate buffers for immediate mode if needed
-		let immediateVertexBuffer = this.gl.createBuffer();
+		const immediateVertexBuffer = this.gl.createBuffer();
 		if (!immediateVertexBuffer) throw new Error('Failed to create immediate vertex buffer');
 		
-		let immediateIndexBuffer = this.gl.createBuffer();
+		const immediateIndexBuffer = this.gl.createBuffer();
 		if (!immediateIndexBuffer) throw new Error('Failed to create immediate index buffer');
 		
 		// Upload indices once

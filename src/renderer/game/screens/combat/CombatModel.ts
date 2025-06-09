@@ -23,8 +23,9 @@ export interface CombatModelData {
 }
 
 /**
- * Interface that merges with the class
+ * Combat model interface for the class
  */
+// eslint-disable-next-line @typescript-eslint/no-empty-interface
 export interface CombatModel extends CombatModelData {}
 
 /**
@@ -123,7 +124,7 @@ export class CombatModel extends Model<CombatModelData> {
 	 * Determine which vehicles can be targeted by a card
 	 * This will be expanded based on actual game rules
 	 */
-	private determineTargetableVehicles(card: Card): string[] {
+	private determineTargetableVehicles(_card: Card): string[] {
 		// TODO: Implement based on card.targetType and game state
 		// For now, return empty array (no targeting needed)
 		return [];

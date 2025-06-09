@@ -19,8 +19,9 @@ export interface TeamData {
 }
 
 /**
- * Team interface that merges with the class
+ * Team interface for the class
  */
+// eslint-disable-next-line @typescript-eslint/no-empty-interface
 export interface Team extends TeamData {}
 
 /**

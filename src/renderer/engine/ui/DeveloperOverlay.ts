@@ -2,6 +2,7 @@ import { Layer } from '../components/Layer';
 import { Rectangle } from '../components/Rectangle';
 import { Text } from '../components/Text';
 import { PerformanceMonitor } from '../rendering/PerformanceMonitor';
+import { RenderContext } from '../rendering/RenderContext';
 
 /**
  * Developer overlay that displays debug information and performance metrics
@@ -117,7 +118,7 @@ export class DeveloperOverlay extends Layer {
 	/**
 	 * Render the overlay if visible
 	 */
-	public render(context?: any): void {
+	public render(context?: RenderContext): void {
 		if (!this.overlayVisible) return;
 		super.render(context);
 	}

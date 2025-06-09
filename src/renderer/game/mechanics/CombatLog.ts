@@ -33,8 +33,9 @@ export interface CombatLogData {
 }
 
 /**
- * Combat log interface that merges with the class
+ * Combat log interface for the class
  */
+// eslint-disable-next-line @typescript-eslint/no-empty-interface
 export interface CombatLog extends CombatLogData {}
 
 /**
@@ -52,7 +53,7 @@ export class CombatLog extends Model<CombatLogData> {
 	/**
 	 * Create a new combat log
 	 */
-	constructor(maxEntries: number = 10) {
+	constructor(maxEntries = 10) {
 		super({
 			entries: [],
 			maxEntries,

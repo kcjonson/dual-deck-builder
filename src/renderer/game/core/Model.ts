@@ -30,7 +30,7 @@ export abstract class Model<T> extends EventEmitter {
 				get() {
 					return this.__data[property];
 				},
-				set(value: any) {
+				set(value: unknown) {
 					const oldValue = this.__data[property];
 					if (oldValue !== value) {
 						this.__data[property] = value;
@@ -60,8 +60,8 @@ export abstract class Model<T> extends EventEmitter {
 		// Update all properties without emitting
 		Object.entries(data).forEach(([key, value]) => {
 			if (properties.has(key)) {
-				if ((this.__data as any)[key] !== value) {
-					(this.__data as any)[key] = value;
+				if ((this.__data as Record<string, unknown>)[key] !== value) {
+					(this.__data as Record<string, unknown>)[key] = value;
 					hasChanges = true;
 				}
 			} else {

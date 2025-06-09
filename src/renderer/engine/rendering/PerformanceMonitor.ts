@@ -22,10 +22,6 @@ export class PerformanceMonitor {
 	private totalDrawCalls = 0;
 	private totalFrames = 0;
 	
-	/**
-	 * Constructor
-	 */
-	constructor() {}
 	
 	/**
 	 * Start timing a new frame

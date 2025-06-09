@@ -167,7 +167,7 @@ export class PlayerHandLayer extends Layer {
 		
 		if (this.handCards.length === 0) return;
 
-		this.handCards.forEach((card, index) => {
+		this.handCards.forEach((card, _index) => {
 			const driverNumber = this.cardDriverMap.get(card.id) || null;
 			const cardElement = new UICard({
 				x: 0, // Will be positioned by layoutCardElements

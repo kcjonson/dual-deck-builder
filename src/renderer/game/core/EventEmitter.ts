@@ -2,8 +2,10 @@
  * Simple EventEmitter base class for change tracking
  * Provides event emission capabilities to game mechanics classes
  */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export class EventEmitter {
-	private listeners: Map<string, Set<Function>> = new Map();
+	// eslint-disable-next-line @typescript-eslint/no-explicit-any
+	private listeners: Map<string, Set<(...args: any[]) => void>> = new Map();
 
 	/**
 	 * Subscribe to an event
@@ -11,12 +13,16 @@ export class EventEmitter {
 	 * @param listener Callback function
 	 * @returns Unsubscribe function
 	 */
-	public on(event: string, listener: Function): () => void {
+	// eslint-disable-next-line @typescript-eslint/no-explicit-any
+	public on(event: string, listener: (...args: any[]) => void): () => void {
 		if (!this.listeners.has(event)) {
 			this.listeners.set(event, new Set());
 		}
 		
-		this.listeners.get(event)!.add(listener);
+		const eventListeners = this.listeners.get(event);
+		if (eventListeners) {
+			eventListeners.add(listener);
+		}
 		
 		// Return unsubscribe function
 		return () => {
@@ -32,7 +38,9 @@ export class EventEmitter {
 	 * @param event Event name
 	 * @param listener Callback function
 	 */
-	public once(event: string, listener: Function): void {
+	// eslint-disable-next-line @typescript-eslint/no-explicit-any
+	public once(event: string, listener: (...args: any[]) => void): void {
+		// eslint-disable-next-line @typescript-eslint/no-explicit-any
 		const unsubscribe = this.on(event, (...args: any[]) => {
 			unsubscribe();
 			listener(...args);
@@ -44,6 +52,7 @@ export class EventEmitter {
 	 * @param event Event name
 	 * @param args Arguments to pass to listeners
 	 */
+	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	protected emit(event: string, ...args: any[]): void {
 		const eventListeners = this.listeners.get(event);
 		if (eventListeners) {

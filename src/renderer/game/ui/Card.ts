@@ -1,4 +1,3 @@
-import { Component } from '../../engine/components/Component';
 import { Layer } from '../../engine/components/Layer';
 import { Text } from '../../engine/components/Text';
 import { Rectangle } from '../../engine/components/Rectangle';

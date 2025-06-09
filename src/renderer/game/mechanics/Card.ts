@@ -59,8 +59,9 @@ export interface CardData {
 }
 
 /**
- * Card interface that merges with the class
+ * Card interface for the class
  */
+// eslint-disable-next-line @typescript-eslint/no-empty-interface
 export interface Card extends CardData {}
 
 /**

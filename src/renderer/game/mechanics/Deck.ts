@@ -12,8 +12,9 @@ export interface DeckData {
 }
 
 /**
- * Deck interface that merges with the class
+ * Deck interface for the class
  */
+// eslint-disable-next-line @typescript-eslint/no-empty-interface
 export interface Deck extends DeckData {}
 
 /**

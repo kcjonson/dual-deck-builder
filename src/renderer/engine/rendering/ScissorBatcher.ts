@@ -41,7 +41,10 @@ export class ScissorBatcher {
 		if (!this.regions.has(key)) {
 			this.regions.set(key, { region, items: [] });
 		}
-		this.regions.get(key)!.items.push(item);
+		const regionData = this.regions.get(key);
+		if (regionData) {
+			regionData.items.push(item);
+		}
 	}
 	
 	/**
@@ -67,7 +70,7 @@ export class ScissorBatcher {
 		}
 		
 		// Then render items grouped by scissor region
-		for (const [_, { region, items }] of this.regions) {
+		for (const { region, items } of this.regions.values()) {
 			// Only flush text if there's text to flush
 			if (renderer.hasTextToFlush()) {
 				renderer.flushTextBatch();
@@ -122,7 +125,7 @@ export class ScissorBatcher {
 	 */
 	public getItemCount(): number {
 		let count = this.noScissorItems.length;
-		for (const [_, { items }] of this.regions) {
+		for (const { items } of this.regions.values()) {
 			count += items.length;
 		}
 		return count;
