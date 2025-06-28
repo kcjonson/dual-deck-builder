@@ -29,7 +29,7 @@ export interface CardEffect {
 	distance?: number;
 	effect?: CardEffect;
 	description?: string;
-	[key: string]: string | number | CardEffect | undefined; // Allow additional properties for future expansion
+	[key: string]: string | number | boolean | CardEffect | undefined; // Allow additional properties for future expansion
 }
 
 /**

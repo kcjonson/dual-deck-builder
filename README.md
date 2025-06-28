@@ -144,4 +144,4 @@ This project is configured for optimal development experience in Visual Studio C
 
 ## License
 
-MIT
+Copyright 2025, all rights reserved

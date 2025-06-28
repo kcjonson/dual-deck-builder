@@ -205,6 +205,23 @@ export class Team extends Model<TeamData> {
 	}
 
 	/**
+	 * Handle driver escaping from destroyed vehicle
+	 * Returns true if driver found a new vehicle, false otherwise
+	 */
+	public handleDriverEscape(driver: Driver): boolean {
+		// Find an alive vehicle with space for a passenger
+		const availableVehicle = this.vehicles.find(v => 
+			v.isAlive() && v.canAddPassenger()
+		);
+		
+		if (availableVehicle) {
+			return availableVehicle.addPassenger(driver);
+		}
+		
+		return false;
+	}
+
+	/**
 	 * Get team combat statistics for display
 	 */
 	public getCombatStats(): {

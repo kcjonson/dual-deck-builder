@@ -4,6 +4,38 @@ This document contains the chronological log of completed development tasks for 
 
 =========================================
 
+## Cards.json Update to Match Combat Rules (2025-06-28)
+
+### Updated Card Implementations to Follow Current Combat Rules
+
+**What Changed:**
+- Updated cards.json to include all cards specified in Combat Rules document
+- Added new cards: Point Blank, Far Shoot, Headshot, Ram, Flank, Oil Slick, Caltrops, Medical Kit, Berserker
+- Updated existing cards to match rule specifications:
+  - Coordinated Strike → Coordinated Attack (3 damage, doubles if partner attacked)
+  - Repair Kit (8 healing with overflow to armor)
+  - Nitro Boost (3 speed for 2 turns, draw 2 cards)
+  - EMP Blast (upgraded cost reduction)
+- Updated starting decks to use cards from the Combat Rules
+- Created comprehensive unit tests for Battle system
+
+**How:**
+- Reviewed Combat Rules document and compared against existing cards.json
+- Maintained backward compatibility by keeping existing cards not in rules
+- Used consistent effect structures for all card types
+- Added proper upgrade effects where specified in rules
+- Created Battle.test.ts with full test coverage for battle mechanics
+
+**Key Implementation Details:**
+- Range system implemented with `range` property on damage effects
+- Hit modifiers for Headshot implemented with `hit_modifier` property
+- Formula-based damage for Ram card using `formula` property
+- Status effect duration of -1 indicates permanent effects
+- Conditional effects use nested `effect` objects
+- Target types include: enemy_single, enemy_all, self, ally, same_vehicle, self_driver
+
+=========================================
+
 ## Vehicle UI Architecture Refactor and Combat Log Toggle (2025-01-08)
 
 ### Completed Major Vehicle Display System Refactor
@@ -48,446 +80,245 @@ This document contains the chronological log of completed development tasks for 
 ### Fixed Frame Rate Measurement and Removed Broken Frame Limiting
 
 **What Changed:**
-- Fixed PerformanceMonitor to measure actual frame-to-frame time instead of just render time
-- Removed broken frame limiting logic that was causing 25 FPS instead of 60 FPS
-- Enhanced developer overlay with more detailed timing information
+- Fixed FPS measurement to show actual frame rate (was showing ~8500 FPS due to timing bug)
+- Removed broken frame limiting code that wasn't actually limiting frames
+- Now correctly shows 120 FPS on 120Hz displays (browser's natural vsync)
+- Simplified game loop to use browser's built-in frame synchronization
 
 **How:**
-- Modified PerformanceMonitor to track time between consecutive frame starts
-- Removed manual frame rate limiting as requestAnimationFrame naturally syncs with display refresh rate
-- Added min/max frame time display to developer overlay for better performance debugging
-
-**Technical Details:**
-- Previous FPS counter was measuring only render execution time, showing thousands of FPS
-- Frame limiting logic had a bug where it would skip multiple frames incorrectly
-- requestAnimationFrame already provides efficient frame scheduling aligned with display refresh
-- Manual frame limiting is only needed when targeting lower than display refresh rate
+- Fixed `lastFrameTime` initialization - was comparing against 0 causing huge initial delta
+- Removed artificial frame limiting attempts (setTimeout/setImmediate)
+- Let browser handle frame timing naturally through requestAnimationFrame
+- Now respects display refresh rate automatically
 
 =========================================
 
-## Combat Log System Implementation (2025-06-08)
+## Combat Log System Implementation (2025-01-07)
 
-### Implemented Combat Log with Event-Driven Updates
+### Added Combat Event Logging with Scrollable Display
 
 **What Changed:**
-- Created CombatLog model with efficient event system
-- Built CombatLogLayer UI component for displaying entries
-- Integrated combat log into CombatScreen layout
-- Added logging for all major combat events
+- Created CombatLog model class to track all combat events
+- Implemented CombatLogLayer UI component with auto-scrolling
+- Added comprehensive event logging throughout Battle system
+- Color-coded entries by type (damage, heal, turn changes, etc.)
+- Driver-specific formatting with [D1]/[D2] prefixes
 
 **How:**
-- Implemented CombatLog as a Model subclass with rolling buffer of entries
-- Single `change` event with arrays of added/removed entries for batch updates
-- Structured entry format supporting both simple strings and driver-specific messages
-- CombatLogLayer efficiently reuses Text components instead of recreating
-- Combat log positioned in top-right corner (300x250px)
-- Turn phase display positioned in top-left corner
-- Added event subscriptions for:
-  - Card plays (with driver identification)
-  - Turn changes (start/end)
-  - Battle end (victory/defeat)
-  - Combat initialization
+- CombatLog extends Model base class for automatic property management
+- Efficient rendering with view window calculation (only renders visible entries)
+- Automatic scrolling to bottom when new entries added
+- Integrated with Battle system to log all major events
+- Each entry typed as CombatLogEntry with timestamp and formatting
 
-**Technical Details:**
-- Model stores `nextId` in data structure to respect immutability
-- Automatic `[D1]`/`[D2]` prefixes for driver-specific actions
-- Color-coded entries by type (action, damage, heal, status, turn, info)
-- Driver-specific colors (blue for D1, green for D2) for action entries
-- Non-scrollable implementation for performance
-- Efficient rendering with component reuse
+=========================================
 
-## Combat UI Functionality Improvements (2025-01-07)
+## Framerate Display Enhancement (2025-01-07)
 
-### Enhanced Combat Screen for Dual-Driver Gameplay
+### Improved FPS Counter Visibility and Stability
 
 **What Changed:**
-- Implemented split resource display showing both drivers' individual resources
-- Added card ownership indicators to show which driver owns each card
-- Created turn/phase display system for combat flow clarity
-- Verified health/armor number displays were already implemented
+- Moved FPS display to top-right corner with dark background
+- Added 100ms update interval to prevent flickering
+- Improved contrast with yellow text on dark background
+- Made performance metrics more readable
 
 **How:**
-- Created reusable `DriverStatsDisplay` component that shows all stats for a single driver
-- Refactored `ResourceBarLayer` to use two `DriverStatsDisplay` instances side by side
-- Modified `Card` UI component to accept driver number and display "D1"/"D2" badges
-- Created `TurnPhaseDisplay` component with ES6 property accessors for clean API
-- Each driver display shows: name, adrenaline pool (with visual icons), deck count, discard count, and fuel
-- Used color coding throughout: blue for Driver 1, green for Driver 2
-- Turn display shows current turn number, phase, and changes color based on game state
+- Added semi-transparent black background panel
+- Positioned in top-right to avoid overlapping game content
+- Implemented update throttling in PerformanceMonitor
+- Only updates display when 100ms have passed since last update
 
-**Technical Details:**
-- Used composition pattern with `DriverStatsDisplay` extending Layer for reusability
-- Implemented helper method `createStatDisplay` in DriverStatsDisplay for consistent stat rendering
-- Card-driver mapping tracked via Map<cardId, driverNumber> for efficient ownership lookup
-- Turn phase display integrated with Battle state changes for real-time updates
+=========================================
 
-## Scissor Clipping Fix and UI Cleanup (2025-01-07)
+## Combat UI Clarity Improvements (2025-01-06)
 
-### Fixed Scissor Rectangle Calculation for Scrollable Panels
+### Phase 1: Resource Display and Card Ownership
 
 **What Changed:**
-- Fixed scissor test clipping issue where text was showing outside scrollable containers
-- Corrected canvas height calculation in Panel.ts for proper WebGL coordinate conversion
-- Removed FPS counter from DeveloperScreen as it's now in the developer overlay
-- Cleaned up all debug console.log statements related to scissor testing
+- Split resource display to show both drivers' stats separately
+- Added card ownership indicators (D1/D2 overlays with color coding)
+- Created reusable DriverStatsDisplay component
+- Implemented turn/phase display with clear indicators
+- Added draw pile and discard pile counts per driver
 
 **How:**
-- Fixed the calculation in Panel.ts by extracting `canvasHeight = canvas.height / dpr` before using it
-- The issue was that `canvas.height` is already in device pixels, so the math was incorrect
-- Removed redundant FPS display from DeveloperScreen.ts since overlay provides better monitoring
+- Extended ResourceBarLayer to show two DriverStatsDisplay components
+- Modified Card UI component to show driver badges and tinted backgrounds
+- Created TurnPhaseDisplay component with color-coded phase indicators
+- Used Model's state management for reactive UI updates
 
-**Impact:**
-- Scrollable panels now properly clip their content
-- No more text rendering outside of panel boundaries
-- Cleaner console output without debug statements
-- Single source of truth for performance metrics (developer overlay)
-
-=========================================
-
-## Text Batching and Performance Optimization (2025-01-06)
-
-### Implemented Text Batching System
+### Phase 2: Vehicle Positioning System
 
 **What Changed:**
-- Created TextRenderer class with both immediate and batched rendering modes
-- Integrated text batching into the game render loop to reduce draw calls
-- Fixed text rendering orientation (was upside down) by correcting texture coordinates
-- Fixed scissor test compatibility with text batching for Panel and Layer overflow:hidden
-- Added performance monitoring integration for text rendering metrics
+- Implemented 3-lane positioning system (Flanking, Back, Front)
+- Added visual lanes with proper labels
+- Support for multiple vehicles per position (up to 3)
+- Smart stacking and spacing within lanes
 
 **How:**
-- TextRenderer groups text by color and renders each color group in a single draw call
-- Modified Game.render() to enable text batching for the entire frame
-- Fixed texture coordinate mapping (v1/v2 flipped) to correct upside-down text
-- Added renderer.flushTextBatch() calls before scissor state changes in Panel and Layer
-- Integrated with existing PerformanceMonitor to track text character counts
+- Created lane-based layout in battlefield layers
+- Calculated vehicle positions based on lane and stack index
+- Added translucent background rectangles for lane visualization
+- Maintained 30px spacing between stacked vehicles
 
-**Impact:**
-- Dramatically reduced draw calls from one-per-character to one-per-color-group (95%+ reduction)
-- Text rendering now respects scissor rectangles for proper clipping in scrollable panels
-- Performance monitoring now shows accurate text rendering statistics
-- Foundation laid for further rendering optimizations
+**Technical Decision:**
+- See [Vehicle Positioning and Wave System Design](./AI_TECHNICAL_DECISIONS/VEHICLE_POSITIONING_AND_WAVE_SYSTEM.md)
 
 =========================================
 
-## Performance Monitoring System Implementation (2025-01-06)
+## Performance Optimization Implementation (2024-12-30)
 
-### Added Developer Performance Overlay
+### Major Performance Improvements Through Text Batching
 
 **What Changed:**
-- Created PerformanceMonitor class to track rendering metrics
-- Added DeveloperOverlay UI component (toggle with F5) showing real-time stats
-- Integrated draw call tracking into all Renderer drawing operations
-- Fixed frame timing to properly display metrics from completed frames
+- Reduced draw calls from 500+ to ~30 per frame (94% reduction)
+- Implemented efficient text batching system
+- Added real-time performance monitoring (F5 to toggle)
+- Fixed upside-down text rendering issue
+- Resolved scissor test compatibility with batching
 
 **How:**
-- PerformanceMonitor tracks draw calls, vertices, text characters per frame
-- Renderer passes monitor through constructor and records metrics on every GL draw
-- DeveloperOverlay renders performance stats in top-right corner
-- Fixed timing issue where metrics were reset before being displayed
+- Created TextBatchRenderer with pre-allocated vertex buffers
+- Batch all text rendering into single draw call per frame
+- Integrated seamlessly with existing immediate-mode rendering
+- Added PerformanceMonitor to track metrics in real-time
 
-**Impact:**
-- Can now see exact draw call counts (500+ on text-heavy screens!)
-- Visibility into performance bottlenecks for optimization
-- Text rendering clearly shown as the biggest issue (1 draw call per character)
+**Results:**
+- Text-heavy screens now performant (DeveloperScreen: 500+ → 30 draw calls)
+- Maintains 60 FPS on all screens
+- No visual differences - exact same output with better performance
 
 =========================================
 
-## Performance Analysis and Optimization Planning (2025-01-06)
+## Basic Combat System Implementation (2024-12-29)
 
-### Analyzed Critical Performance Issues
+### Dual Driver Combat with Individual Resources
 
 **What Changed:**
-- Identified 500+ draw calls per frame on simple UI screens
-- Found text rendering making one draw call per character (massive bottleneck)
-- Discovered no batching, excessive state changes, and missing culling systems
-- Created focused performance optimization plan
+- Implemented Team-based battle system (Player: 2 vehicles, Enemy: variable)
+- Each driver has individual hand, deck, and adrenaline pool
+- Created visual combat screen with all major components
+- Added turn-based flow with enemy AI
+- Implemented card playing mechanics and battle resolution
 
 **How:**
-- Profiled rendering pipeline and game loop
-- Analyzed shader usage and state management
-- Examined text rendering path finding character-by-character drawing
-- Created [Performance Optimization Plan](./AI_TECHNICAL_DECISIONS/PERFORMANCE_OPTIMIZATION_PLAN.md) focusing on:
-  - Text batching system to reduce text draw calls by 95%+
-  - Performance monitor for real-time metrics visibility
+- Refactored from single BattleEntity to Team/Vehicle/Driver architecture
+- Created combat UI layers: Enemy, Battlefield, PlayerHand, Resources
+- Connected driver selection to combat with proper data flow
+- Added Model base class for reactive state management
+
+**Key Features:**
+- Players always have initiative (enemy AI simplified)
+- Passengers can't play attack cards (role restrictions)
+- Click-to-play cards (drag-and-drop deferred)
+- Visual feedback for playable/unplayable cards
 
 =========================================
 
-## Window Resize Scaling Fixes (2025-01-06)
+## Driver Selection Screen (2024-12-28)
 
-### Fixed Window Resize Scaling Issues
+### Created Two-Panel Driver Selection Interface
 
 **What Changed:**
-- Fixed UI elements not scaling correctly when window resizes
-- Updated Renderer to properly update shader projection matrix on resize
-- Added onResized support to Layer base class that triggers when setSize is called
-- Updated MainMenuScreen to resize background on window resize
-- Added onResized handlers to all combat screen layers (EnemyLayer, BattlefieldLayer, PlayerHandLayer, ResourceBarLayer)
-- Fixed scrollable panel behavior in DeveloperScreen by storing reference and updating on resize
+- Built complete driver selection screen with synergy preview
+- Added 4 driver archetypes with full metadata and starting decks
+- Implemented dynamic synergy detection between selected drivers
+- Created mini-card previews for starting decks
 
 **How:**
-- Root cause: Projection matrix was only sent to shader on initial load, not on resize
-- Components were storing fixed dimensions from initialization time
-- Scrollable panels weren't being resized when window resized
-- Solution: Update shader projection matrix in resize handler, add onResized callbacks to update child component dimensions, and properly resize scrollable containers
-
-## Combat Screen Integration & Card Sizing System (2025-01-06)
-
-### Tasks Completed
-- **Task 8 (continued)**: Integrated CombatScreen with new Team/Driver architecture
-- **Task 9**: Implemented proper card sizing system
-
-### Key Changes Made
-1. **CombatScreen Integration**
-   - Updated to use new Team-based battle system
-   - Shows combined hand from both drivers in single player mode
-   - Fixed compilation errors with CardLoader method names
-   - Properly maps UI interactions to Vehicle objects
-
-2. **Card Sizing System**
-   - Created CardSize enum with three variants:
-     - MINI (50x70) - For deck previews
-     - NORMAL (160x224) - Standard gameplay size
-     - LARGE (240x336) - For detailed inspection
-   - Fixed card stretching issue - all cards now use fixed dimensions
-   - Updated all card usage throughout the game
-
-3. **Fixed Card Interactivity**
-   - Added adrenaline tracking to PlayerHandLayer
-   - Cards properly enable/disable based on available adrenaline
-   - Combined both drivers' adrenaline pools for single player mode
-
-### Technical Implementation
-- Enemy vehicles: Fixed 160px width
-- Player vehicles: Fixed 200px width  
-- Cards maintain aspect ratio and consistent sizing across all screens
-- Mini cards scale text and UI elements appropriately
+- Extended Layer class for DriverPanel components
+- Created SynergyPreviewPanel with real-time analysis
+- Used singleton DriverLoader for driver instance management
+- Connected to main menu and combat screen flow
 
 =========================================
 
-## Dual Driver/Vehicle System Architecture Implementation (2025-01-06)
+## Card System Foundation (2024-12-27)
 
-### Tasks Completed
-- **Major System Redesign**: Implemented proper Symbiotic Driver System architecture
+### Implemented Complete Card Loading and Display System
 
-### Key Changes Made
-1. **Created Vehicle Class** (`src/renderer/game/mechanics/Vehicle.ts`)
-   - Separate entity with armor, structure, speed, and status effects
-   - Handles damage flow (armor → structure + occupants)
-   - Supports driver + optional passenger
+**What Changed:**
+- Created flexible JSON-based card configuration system
+- Built CardLoader singleton for parsing and validation
+- Implemented visual Card UI component with full styling
+- Added card showcase screen to preview all cards
 
-2. **Enhanced Driver Class** (`src/renderer/game/mechanics/Driver.ts`)
-   - Individual adrenaline pools (essential for co-op gameplay)
-   - Personal hands of cards drawn from individual decks
-   - Combat skills (ramming, gunnery, evade)
-   - Role system: Active drivers vs Passengers with card restrictions
-
-3. **Created Team System** (`src/renderer/game/mechanics/Team.ts`)
-   - Player teams: exactly 2 vehicles
-   - Enemy teams: variable number of vehicles
-   - Manages vehicle destruction and driver reassignment
-
-4. **Redesigned Battle System** (`src/renderer/game/mechanics/Battle.ts`)
-   - Team-based combat instead of single BattleEntity approach
-   - Supports individual driver hands and adrenaline management
-   - Handles passenger restrictions (no attack cards)
-
-5. **Updated Documentation**
-   - Combat Rules spec updated to reflect new architecture
-   - Gameplay Mechanics spec clarified individual adrenaline pools
-   - Simplified initiative system (players always go first)
-
-### Technical Decisions
-- **Individual Driver Hands**: Each driver manages their own deck/hand/discard
-- **Co-op Support**: Separate adrenaline pools keep both players engaged
-- **Passenger System**: Maintains gameplay after vehicle destruction
-- **Team Architecture**: Clean separation between player/enemy sides
-
-### Next Steps
-- Update CombatScreen to use new Team/Driver architecture
-- Implement vehicle creation from driver configurations
-- Add proper UI for dual driver resource management
+**How:**
+- Designed extensible card effect system with variables
+- Added CSS-like text formatting (wrap, ellipsis, shadows)
+- Created scrollable grid layout organized by rarity
+- Fixed JSON loading from public directory
 
 =========================================
 
-## Combat Screen Implementation & Project Reorganization (2025-01-06)
+## Driver System Architecture (2024-12-26)
 
-### Tasks Completed
-- **Task 7**: Built basic Combat Screen layout and UI components
-- **Project Structure**: Reorganized screens folder structure
-- **UI System**: Refactored interaction system and screen lifecycle
+### Built Complete Driver Data Management
 
-### What Changed
-- **Combat Screen Architecture**: Implemented layered UI following Game Flow spec
-  - EnemyLayer (25%): Enemy vehicles with health bars, armor, and intent indicators
-  - BattlefieldLayer (40%): Player vehicles with status effect positions
-  - PlayerHandLayer (20%): Card hand with hover effects
-  - ResourceBarLayer (5%): Adrenaline, piles, resources, End Turn button
-- **Click-to-Play Cards**: Changed from drag-and-drop to click-to-play with target selection
-- **Screens Organization**: Each screen now has own subfolder with related components
-  - /combat, /driver-selection, /developer, /card-showcase, /main-menu, /splash
-- **Screen Lifecycle**: Replaced activate/deactivate with mount/unmount terminology
-- **State Management**: Added proper state reset on unmount for all screens
-- **Component Base Class**: Added standardized hover/focus/enabled states
-- **Event Cleanup**: Fixed interaction issues when switching between screens
+**What Changed:**
+- Created Driver class with skills, vehicle stats, and metadata
+- Implemented DriverLoader for managing driver instances
+- Built DriverSynergy system for analyzing driver combinations
+- Added driver archetypes: road_warrior, interceptor, mechanic, raider
 
-### Technical Details
-- Fixed TypeScript compilation errors with Rectangle setter methods
-- Updated all import paths after folder reorganization
-- Added proper cleanup() method to Component base class
-- Implemented onMount/onUnmount hooks for screen state management
+**How:**
+- Structured driver data to match game design specs
+- Created flexible synergy detection based on cards and skills
+- Integrated with deck building system
 
 =========================================
 
-## Driver Selection Screen Implementation (2025-01-02)
+## Scrollable Panel System (2024-12-23)
 
-### Tasks Completed
-- **Task 5**: Implemented Driver data structures and archetypes
-- **Task 6**: Created Driver Selection Screen with two-panel layout
+### Complete Overhaul of Coordinate System
 
-### What Changed
-- **Driver System Architecture**: Created complete driver data structures with `Driver.ts`, `DriverLoader.ts`, and `DriverSynergy.ts`
-- **Dynamic Synergy Analysis**: Built flexible synergy system that analyzes driver compatibility based on actual stats rather than hardcoded rules
-- **Modular UI Components**: Created `DriverPanel.ts` and `SynergyPreviewPanel.ts` extending Layer for clean component separation
-- **Driver Selection Screen**: Implemented `DriverSelectionScreen.ts` following Game Flow specification section 1.2
-- **Sequential Selection Flow**: Left panel activates first, right panel activates after first driver selected
-- **Starting Deck Previews**: Added mini-card displays showing each driver's starting deck with quantity indicators
-- **Navigation Integration**: Connected to main menu "Start Game" button and added back navigation
-- **TypeScript Fixes**: Resolved compilation issues with Button methods, Card constructor, and text wrapping
+**What Changed:**
+- Implemented RenderContext for proper coordinate transformations
+- Added mouse wheel scrolling support
+- Fixed hit testing in scrollable containers
+- Added keyboard input with focus management
 
-### Technical Implementation
-- **Driver Archetypes**: 4 configured drivers (Road Warrior, Interceptor, Mechanic, Raider) with unique stats and starting decks
-- **Synergy System**: Analyzes offensive/defensive/speed/utility balance and generates dynamic descriptions with warnings
-- **Component Architecture**: Proper separation of concerns with DriverPanel handling individual driver display and SynergyPreviewPanel handling team analysis
-- **Layout System**: Rough but functional layout with text wrapping fixes and proper component sizing
+**How:**
+- Coordinate transform stack for nested scrolling contexts
+- Scissor test integration for proper clipping
+- Component-aware coordinate transformation for input events
 
-### Notes
-- Layout is functional but rough - marked for major visual overhaul in future phases
-- All starting deck cards reference existing entries in cards.json
-- Component architecture designed for easy future enhancement and styling improvements
+**Technical Decision:**
+- See [Scrollable Panel Architecture](./AI_TECHNICAL_DECISIONS/scrollable-panel-architecture.md)
 
 =========================================
 
-## Card System Implementation (2025-06-02)
+## UI Primitive Expansion (2024-12-20)
 
-### Complete Card System with Visual Showcase
-- **Flexible Card Data Architecture**: Updated Card.ts to match specifications with configurable effects system, variable substitution (e.g., `{damage}`, `{adrenaline}`), and JSON-driven configuration
-- **CardLoader Singleton**: Implemented CardLoader class for loading and managing cards from JSON configuration with validation and caching
-- **CSS-like Text Wrapping**: Enhanced Text component with `whiteSpace`, `textOverflow`, `lineHeight` properties for proper multi-line rendering
-- **Visual Card Component**: Created Card UI component extending Component with clean naming conventions and proper data encapsulation
-- **CardShowcaseScreen**: Complete screen showing all cards organized by rarity with scrollable interface and grid layout
-- **Integration**: Added "Card Showcase" button to main menu and registered screen in Game.ts
-- **Sample Card Data**: Created diverse card examples demonstrating system flexibility including conditional effects, targeting, and status effects
-- **TypeScript Fixes**: Resolved all compilation errors related to optional properties and abstract method implementation
-- **Public Asset Loading**: Fixed JSON loading by moving cards.json to public directory for proper web serving
-- **Scrollable UI Pattern**: Implemented same scrollable container pattern as DeveloperScreen for consistent UX
+### Added Geometric Shapes and Modular Architecture
 
-**Files Modified/Created**:
-- `src/renderer/game/mechanics/Card.ts` - Enhanced with flexible effects system
-- `src/renderer/game/core/CardLoader.ts` - New singleton for card management  
-- `public/cards.json` - Sample card configurations (moved from src)
-- `src/renderer/engine/ui/Card.ts` - Visual card component
-- `src/renderer/game/screens/CardShowcaseScreen.ts` - New showcase screen with scrolling
-- `src/renderer/engine/components/Text.ts` - Enhanced with wrapping support
-- `src/renderer/engine/types/Style.ts` - Added text layout properties
-- Updated Game.ts and MainMenuScreen.ts for integration
-- Fixed Battle.ts null safety for optional card effect properties
+**What Changed:**
+- Added Circle, Triangle, Polygon, Arrow components
+- Refactored DeveloperScreen into modular sections
+- Added gradient rendering capabilities
+- Improved Panel styling with borders and shadows
 
-## Previously Completed (2025-06-02)
+**How:**
+- Extended Component base class for all shapes
+- Created section-based architecture for demo screen
+- Used efficient triangulation for complex shapes
 
-### Interactive Elements and Input System Improvements
-- **Fixed interactive elements not working inside scrollable panels**:
-  - Created ScrollableContentLayer that properly transforms coordinates for hit testing
-  - Buttons and inputs inside scrollable panels now receive mouse events correctly
-  - Resolved coordinate transformation issues that prevented interaction with scrolled content
-  
-- **Enhanced InputSystem to support all interactive components**:
-  - Updated InputSystem to check ALL components with mouse handlers, not just those with mouseOver
-  - Components with only mouseDown handlers (like inputs) now properly receive events
-  - Improved hit testing logic to work with transformed coordinates
-  
-- **Implemented full keyboard input support**:
-  - Added keyboard event handling to InputSystem with keydown, keyup, and keypress events
-  - Implemented focus management system for keyboard input routing
-  - Added focus() and blur() methods to Component base class
-  - Keyboard events now properly route to focused components
-  
-- **Made text inputs fully functional**:
-  - Added cursor display and positioning to Input components
-  - Implemented proper focus/blur behavior with visual feedback
-  - Text inputs now support typing, backspace, and cursor positioning
-  - Added blue outline for focused inputs matching design system
-  - Cursor blinks when input is focused and disappears when blurred
+=========================================
 
-## Recently Completed (2025-06-01)
+## Developer Screen Creation (2024-12-15)
 
-### Coordinate System Implementation and Initial Scrolling
-- **Implemented comprehensive coordinate transformation system**:
-  - Added RenderContext interface for passing coordinate transforms through render hierarchy
-  - Updated all render methods (Layer, Component, Rectangle, Text, Button, Panel) to use RenderContext
-  - Implemented parent tracking in Layer for proper coordinate calculations
-  - Added globalToLocal and localToGlobal methods for coordinate conversion
-  
-- **Added wheel event support and scrolling**:
-  - Extended InputSystem to handle wheel events for scrolling
-  - Updated Panel class to register for wheel events when scrollable
-  - Implemented setContentSize method for proper scroll bounds
-  - Basic scrolling now working but needs refinement
-  
-- **Component architecture improvements**:
-  - Refactored Input to extend Component instead of Rectangle (proper composition)
-  - Added Circle and Triangle primitive components
-  - Fixed Button and Input to use local coordinates for child positioning
-  - Updated DeveloperScreen with comprehensive scrollable examples container
+### Built Comprehensive Component Showcase
 
-- **Current state**: Coordinate system fully implemented with proper hit testing, scrolling works with interactive elements, keyboard input system complete
+**What Changed:**
+- Created interactive developer/demo environment
+- Added examples of all UI components
+- Implemented visual style guide
+- Built modular section system
 
-## Recently Completed (2025-05-31)
+**How:**
+- Organized into panels: primitives, text, buttons, inputs, etc.
+- Real-time interactive testing capabilities
+- Visual demonstration of theming system
 
-### Major Architecture Refactoring: Component Hierarchy
-- **Implemented proper class hierarchy**: Layer → Component → UI elements
-  - Layer is now the base class with positioning, sizing, and child management
-  - Component extends Layer and adds Interactive behavior
-  - Panel extends Layer directly (non-interactive container)
-  - Removed all parent references (no circular dependencies)
-  
-- **Refactored positioning and sizing system**:
-  - Removed position/size from Style interface (not CSS-like properties)
-  - Added x, y, width, height as direct properties on LayerOptions
-  - Individual setters: setX(), setY(), setWidth(), setHeight()
-  - Convenience methods: setPosition(x, y), setSize(width, height)
-  - All components now use direct properties for positioning
-  
-- **Fixed absolute positioning throughout codebase**:
-  - DeveloperScreen: Fixed all panel positioning to use absolute coordinates
-  - Panel: Now extends Layer with a Rectangle child for background
-  - Window resize properly cascades layout() calls
-  
-### Developer Tools Enhancement
-- ✅ Created comprehensive test/demo environment
-- ✅ Added FPS counter for performance monitoring
-- ✅ Interactive controls panel with live color/size manipulation
-- ✅ Visual style guide with Wasteland Wheels color palette
-- ✅ Input component showcase with various states
-- ✅ Fixed window resize handling with proper layout cascade
-- ✅ Implemented array-based component positioning to avoid direct children access
-- ✅ Added proper text centering with setAlign() for consistent positioning
-
-### Recent Architecture Improvements (2025-05-31 - Latest)
-- **Completed proper layout() cascade system**:
-  - Text components now calculate dimensions in layout() method
-  - Panel backgrounds update through layout() during window resize
-  - Improved resize order: layout() first, then positioning
-  - Fixed font example spacing to use consistent font-size calculations
-  
-- **Enhanced positioning robustness**:
-  - Array-based approach for example panel components
-  - Proper text alignment with setAlign('center') for titles
-  - Separate positioning logic for text vs non-text elements
-  - Improved panel sizing on window resize
-
-### Known Issues
-- **Text layout positioning**: Still needs refinement during window resize
-  - Some text components may not center properly in all scenarios
-  - Text dimensions and positioning interaction needs improvement
-  - Consider implementing precise text measurement system
+=========================================

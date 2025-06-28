@@ -1,6 +1,6 @@
 import { Team, TeamType } from './Team';
 import { Driver } from './Driver';
-import { Vehicle } from './Vehicle';
+import { Vehicle, VehiclePosition } from './Vehicle';
 import { Card } from './Card';
 import { Model } from '../core/Model';
 
@@ -147,12 +147,22 @@ export class Battle extends Model<BattleData> {
 			return false;
 		}
 
+		// Validate target
+		if (!this.validateTarget(card, driver, targetVehicle)) {
+			console.warn('Invalid target for card');
+			// Return card to hand and refund cost
+			driver.hand.push(card);
+			driver.gainAdrenaline(card.cost);
+			return false;
+		}
+
 		// Apply card effects
 		if (targetVehicle) {
 			this.applyCardEffects(card, targetVehicle, driver);
 		} else {
 			// Self-targeting or no target needed
-			this.applyCardEffects(card, null, driver);
+			const driverVehicle = this.getVehicleForDriver(driver);
+			this.applyCardEffects(card, driverVehicle, driver);
 		}
 
 		// Emit card played event
@@ -304,10 +314,49 @@ export class Battle extends Model<BattleData> {
 		for (const effect of card.effects) {
 			switch (effect.type) {
 				case 'damage':
-					if (targetVehicle) {
-						const damage = typeof effect.value === 'number' ? effect.value : 0;
-						targetVehicle.takeDamage(damage);
-						console.log(`${card.displayName} deals ${damage} damage to ${targetVehicle.name}`);
+					if (targetVehicle && targetVehicle.driver) {
+						let damage = typeof effect.value === 'number' ? effect.value : 0;
+						
+						// Check if attack hits (unless always_hits is true)
+						if (!effect.always_hits) {
+							const attackType = (typeof effect.attack_type === 'string' ? effect.attack_type : null) || 
+								(effect.scaling === 'ramming' ? 'ramming' : 'ranged');
+							const hitModifier = typeof effect.hit_modifier === 'number' ? effect.hit_modifier : 0;
+							
+							if (!this.checkHit(caster, targetVehicle.driver, attackType, hitModifier)) {
+								console.log(`${card.displayName} misses ${targetVehicle.name}`);
+								break;
+							}
+						}
+						
+						// Calculate formula-based damage
+						if (effect.formula && typeof effect.formula === 'string') {
+							const casterVehicle = this.getVehicleForDriver(caster);
+							if (casterVehicle) {
+								damage = this.calculateFormulaDamage(effect.formula, casterVehicle, targetVehicle);
+							}
+						}
+						
+						// Apply damage modifiers
+						const casterVehicle = this.getVehicleForDriver(caster);
+						if (casterVehicle) {
+							damage = this.calculateDamage(damage, casterVehicle, targetVehicle);
+						}
+						
+						// Apply damage to specific target
+						if (effect.target === 'driver' && targetVehicle.driver) {
+							// Direct driver damage (e.g., Headshot)
+							targetVehicle.driver.takeDamage(damage);
+							console.log(`${card.displayName} deals ${damage} damage to ${targetVehicle.driver.metadata.name}`);
+						} else if (effect.target === 'self_driver') {
+							// Self damage (e.g., Berserker)
+							caster.takeDamage(damage);
+							console.log(`${card.displayName} deals ${damage} damage to ${caster.metadata.name}`);
+						} else {
+							// Normal vehicle damage
+							targetVehicle.takeDamage(damage);
+							console.log(`${card.displayName} deals ${damage} damage to ${targetVehicle.name}`);
+						}
 						
 						// Handle vehicle destruction
 						if (!targetVehicle.isAlive()) {
@@ -322,8 +371,25 @@ export class Battle extends Model<BattleData> {
 				case 'heal':
 					if (targetVehicle) {
 						const healValue = typeof effect.value === 'number' ? effect.value : 0;
-						targetVehicle.repair(healValue);
+						const overflowToArmor = effect.overflow_to_armor === true;
+						targetVehicle.repair(healValue, overflowToArmor);
 						console.log(`${card.displayName} repairs ${healValue} structure on ${targetVehicle.name}`);
+					}
+					break;
+					
+				case 'heal_driver':
+					if (effect.target === 'same_vehicle' && targetVehicle) {
+						const casterVehicle = this.getVehicleForDriver(caster);
+						if (casterVehicle !== targetVehicle) {
+							console.warn('Medical kit can only heal drivers in same vehicle');
+							break;
+						}
+					}
+					
+					const healValue = typeof effect.value === 'number' ? effect.value : 0;
+					if (targetVehicle && targetVehicle.driver) {
+						targetVehicle.driver.heal(healValue);
+						console.log(`${card.displayName} heals ${healValue} hit points on ${targetVehicle.driver.metadata.name}`);
 					}
 					break;
 
@@ -348,8 +414,22 @@ export class Battle extends Model<BattleData> {
 					break;
 
 				case 'status':
+				case 'apply_status':
 					if (targetVehicle) {
-						const statusName = (effect.description || 'unknown').toLowerCase();
+						// Check condition
+						if (effect.condition === 'target_flanking' && targetVehicle.position !== VehiclePosition.FLANKING) {
+							break;
+						}
+						
+						// Check if always hits or needs hit check
+						if (!effect.always_hits && targetVehicle.driver) {
+							if (!this.checkHit(caster, targetVehicle.driver)) {
+								console.log(`${card.displayName} misses ${targetVehicle.name}`);
+								break;
+							}
+						}
+						
+						const statusName = effect.status || (effect.description || 'unknown').toLowerCase();
 						const statusValue = typeof effect.value === 'number' ? effect.value : 0;
 						const duration = typeof effect.duration === 'number' ? effect.duration : 1;
 						
@@ -362,8 +442,75 @@ export class Battle extends Model<BattleData> {
 						console.log(`${card.displayName} applies ${statusName} to ${targetVehicle.name}`);
 					}
 					break;
+					
+				case 'change_position':
+					const casterVehicle = this.getVehicleForDriver(caster);
+					if (casterVehicle && effect.position) {
+						// Check speed condition for flanking
+						if (effect.condition === 'speed_higher' && effect.position === 'flanking') {
+							// Need to check against all enemy vehicles
+							const casterTeam = this.getTeamForVehicle(casterVehicle);
+							const enemyTeam = casterTeam === this.playerTeam ? this.enemyTeam : this.playerTeam;
+							const fasterThanAll = enemyTeam.vehicles.every(v => 
+								!v.isAlive() || casterVehicle.canFlank(v)
+							);
+							
+							if (!fasterThanAll) {
+								console.warn('Cannot flank - not faster than all enemies');
+								break;
+							}
+						}
+						
+						casterVehicle.changePosition(effect.position as VehiclePosition);
+						console.log(`${casterVehicle.name} moves to ${effect.position} position`);
+					}
+					break;
+					
+				case 'gain_armor':
+					if (targetVehicle) {
+						const armorValue = typeof effect.value === 'number' ? effect.value : 0;
+						targetVehicle.addArmor(armorValue);
+						console.log(`${card.displayName} adds ${armorValue} armor to ${targetVehicle.name}`);
+					}
+					break;
+					
+				case 'draw_cards': {
+					const drawCardsValue = typeof effect.value === 'number' ? effect.value : 0;
+					caster.drawCards(drawCardsValue);
+					console.log(`${card.displayName} draws ${drawCardsValue} cards for ${caster.metadata.name}`);
+					break;
+				}
+					
+				case 'gain_resource':
+					if (effect.resource === 'adrenaline') {
+						const adrenalineValue = typeof effect.value === 'number' ? effect.value : 0;
+						caster.gainAdrenaline(adrenalineValue);
+						console.log(`${card.displayName} gives ${adrenalineValue} adrenaline to ${caster.metadata.name}`);
+					}
+					break;
 
-				// Add more effect types as needed
+				// Legacy effect names for compatibility
+				case 'armor':
+					if (targetVehicle) {
+						const armorValue = typeof effect.value === 'number' ? effect.value : 0;
+						targetVehicle.addArmor(armorValue);
+						console.log(`${card.displayName} adds ${armorValue} armor to ${targetVehicle.name}`);
+					}
+					break;
+					
+				case 'draw': {
+					const legacyDrawValue = typeof effect.value === 'number' ? effect.value : 0;
+					caster.drawCards(legacyDrawValue);
+					console.log(`${card.displayName} draws ${legacyDrawValue} cards for ${caster.metadata.name}`);
+					break;
+				}
+					
+				case 'adrenaline': {
+					const legacyAdrenalineValue = typeof effect.value === 'number' ? effect.value : 0;
+					caster.gainAdrenaline(legacyAdrenalineValue);
+					console.log(`${card.displayName} gives ${legacyAdrenalineValue} adrenaline to ${caster.metadata.name}`);
+					break;
+				}
 			}
 		}
 	}
@@ -428,4 +575,195 @@ export class Battle extends Model<BattleData> {
 	}
 
 	// getState() is provided by Model base class
+
+	/**
+	 * Calculate range between two vehicles based on positions
+	 */
+	public calculateRange(attacker: Vehicle, target: Vehicle): number {
+		// Same team vehicles can't attack each other
+		const attackerTeam = this.getTeamForVehicle(attacker);
+		const targetTeam = this.getTeamForVehicle(target);
+		if (attackerTeam === targetTeam) {
+			return 99; // Out of range
+		}
+
+		// Flanking to Back is range 1
+		if ((attacker.position === VehiclePosition.FLANKING && target.position === VehiclePosition.BACK) ||
+			(attacker.position === VehiclePosition.BACK && target.position === VehiclePosition.FLANKING)) {
+			return 1;
+		}
+
+		// Flanking to Front is range 2
+		if ((attacker.position === VehiclePosition.FLANKING && target.position === VehiclePosition.FRONT) ||
+			(attacker.position === VehiclePosition.FRONT && target.position === VehiclePosition.FLANKING)) {
+			return 2;
+		}
+
+		// Front to Front is range 1
+		if (attacker.position === VehiclePosition.FRONT && 
+			target.position === VehiclePosition.FRONT) {
+			return 1;
+		}
+
+		// All other combinations (Front to Back, Back to Front, Back to Back) are range 2
+		return 2;
+	}
+
+	/**
+	 * Check if an attack hits based on skills
+	 */
+	public checkHit(attacker: Driver, defender: Driver, attackType = 'ranged', modifier = 0): boolean {
+		if (attackType === 'ramming') {
+			// Ram: attacker ramming >= defender evade
+			return attacker.skills.ramming >= defender.skills.evade;
+		} else {
+			// Ranged: attacker gunnery > defender evade + modifier
+			return attacker.skills.gunnery > (defender.skills.evade + modifier);
+		}
+	}
+
+	/**
+	 * Calculate damage with modifiers
+	 */
+	public calculateDamage(baseDamage: number, attacker: Vehicle, target: Vehicle, attackType = 'normal'): number {
+		let damage = baseDamage;
+
+		// Apply flanking bonus
+		if (attacker.position === VehiclePosition.FLANKING) {
+			damage = Math.floor(damage * 1.5); // 50% bonus
+		}
+
+		// Apply vulnerable status
+		if (target.hasStatusEffect('vulnerable')) {
+			damage = Math.floor(damage * 1.5); // 50% bonus
+		}
+
+		return damage;
+	}
+
+	/**
+	 * Calculate formula-based damage (e.g., Ram)
+	 */
+	private calculateFormulaDamage(formula: string, attacker: Vehicle, target: Vehicle): number {
+		// Parse formula like "armor/10 + (speed_diff)"
+		let damage = 0;
+		
+		// Calculate speed difference
+		const speedDiff = attacker.getTotalSpeed() - target.getTotalSpeed();
+		
+		// Simple formula parser for Ram
+		if (formula.includes('armor/10')) {
+			damage += Math.floor(attacker.armor / 10);
+		}
+		if (formula.includes('armor/7')) {
+			damage += Math.floor(attacker.armor / 7);
+		}
+		if (formula.includes('speed_diff * 2')) {
+			damage += speedDiff * 2;
+		} else if (formula.includes('speed_diff')) {
+			damage += speedDiff;
+		}
+		
+		return Math.max(0, damage);
+	}
+
+	/**
+	 * Validate if a target is valid for a card
+	 */
+	private validateTarget(card: Card, caster: Driver, target: Vehicle | undefined): boolean {
+		// Check if card needs a target
+		if (card.targetType === 'self' || card.targetType === 'both_drivers') {
+			return true; // No external target needed
+		}
+
+		if (!target) {
+			return false; // Card needs a target but none provided
+		}
+
+		// Check range for ranged attacks
+		const hasRangeEffect = card.effects.some(e => e.range !== undefined);
+		if (hasRangeEffect) {
+			const casterVehicle = this.getVehicleForDriver(caster);
+			if (!casterVehicle) return false;
+
+			const range = this.calculateRange(casterVehicle, target);
+			const ranges = card.effects
+				.filter(e => typeof e.range === 'number')
+				.map(e => e.range as number);
+			const maxRange = ranges.length > 0 ? Math.max(...ranges) : 2;
+			
+			if (range > maxRange) {
+				console.warn(`Target out of range: ${range} > ${maxRange}`);
+				return false;
+			}
+		}
+
+		// Check position restrictions
+		for (const effect of card.effects) {
+			if (effect.condition === 'target_flanking' && target.position !== VehiclePosition.FLANKING) {
+				console.warn('Target must be flanking');
+				return false;
+			}
+			
+			// Check same_vehicle restriction for heal_driver
+			if (effect.type === 'heal_driver' && effect.target === 'same_vehicle') {
+				const casterVehicle = this.getVehicleForDriver(caster);
+				if (casterVehicle !== target) {
+					console.warn('Can only heal drivers in same vehicle');
+					return false;
+				}
+			}
+		}
+
+		// Check team restrictions
+		const casterTeam = this.getTeamForDriver(caster);
+		const targetTeam = this.getTeamForVehicle(target);
+
+		switch (card.targetType) {
+			case 'enemy_single':
+				return targetTeam !== casterTeam;
+			case 'ally':
+				return targetTeam === casterTeam;
+			default:
+				// For other target types like 'self', 'both_drivers', 'any', etc.
+				return true;
+		}
+	}
+
+	/**
+	 * Get the vehicle that a driver is in
+	 */
+	private getVehicleForDriver(driver: Driver): Vehicle | null {
+		const allVehicles = [...this.playerTeam.vehicles, ...this.enemyTeam.vehicles];
+		return allVehicles.find(v => v.driver === driver || v.passenger === driver) || null;
+	}
+
+	/**
+	 * Get the team that owns a driver
+	 */
+	private getTeamForDriver(driver: Driver): Team | null {
+		if (this.playerTeam.getAllDrivers().includes(driver)) {
+			return this.playerTeam;
+		}
+		if (this.enemyTeam.getAllDrivers().includes(driver)) {
+			return this.enemyTeam;
+		}
+		return null;
+	}
+
+	/**
+	 * End combat and process post-combat effects
+	 */
+	public endCombat(): void {
+		// Check flanking vehicles that lost speed
+		const allVehicles = [...this.playerTeam.vehicles, ...this.enemyTeam.vehicles];
+		allVehicles.forEach(vehicle => {
+			if (vehicle.shouldLoseFlanking()) {
+				vehicle.changePosition(VehiclePosition.BACK);
+				console.log(`${vehicle.name} loses flanking position due to low speed`);
+			}
+		});
+
+		this.emit('combatEnded', this.getState());
+	}
 }
