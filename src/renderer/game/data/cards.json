@@ -1,6 +1,387 @@
 {
   "cards": [
     {
+      "id": "point_blank",
+      "name": "Point Blank",
+      "description": "Deal {damage} damage. Range 1.",
+      "rarity": "common",
+      "cost": 1,
+      "targetType": "enemy_single",
+      "effects": [
+        {
+          "type": "damage",
+          "value": 3,
+          "range": 1,
+          "target": "target"
+        }
+      ],
+      "variables": {
+        "damage": { "base": 3, "upgraded": 5 }
+      },
+      "tags": ["attack", "ranged"],
+      "image": "cards/point_blank.png"
+    },
+    {
+      "id": "far_shoot",
+      "name": "Far Shoot",
+      "description": "Deal {damage} damage. Range 2.",
+      "rarity": "common",
+      "cost": 1,
+      "targetType": "enemy_single",
+      "effects": [
+        {
+          "type": "damage",
+          "value": 1,
+          "range": 2,
+          "target": "target"
+        }
+      ],
+      "variables": {
+        "damage": { "base": 1, "upgraded": 2 }
+      },
+      "tags": ["attack", "ranged"],
+      "image": "cards/far_shoot.png"
+    },
+    {
+      "id": "headshot",
+      "name": "Headshot",
+      "description": "Deal {damage} damage to target driver. No structure damage. Harder to hit (+2 to defender's evade).",
+      "rarity": "rare",
+      "cost": 2,
+      "targetType": "enemy_single",
+      "effects": [
+        {
+          "type": "damage",
+          "value": 2,
+          "target": "driver",
+          "hit_modifier": -2
+        }
+      ],
+      "variables": {
+        "damage": { "base": 2, "upgraded": 2 },
+        "hit_modifier": { "base": -2, "upgraded": -1 }
+      },
+      "upgrades": {
+        "effects": [
+          {
+            "type": "damage",
+            "value": 2,
+            "target": "driver",
+            "hit_modifier": -1
+          }
+        ]
+      },
+      "tags": ["attack", "ranged", "precision"],
+      "image": "cards/headshot.png"
+    },
+    {
+      "id": "ram",
+      "name": "Ram",
+      "description": "Deal damage equal to your armor/10 + (your speed - target speed).",
+      "rarity": "common",
+      "cost": 2,
+      "targetType": "enemy_single",
+      "effects": [
+        {
+          "type": "damage",
+          "value": 0,
+          "formula": "armor/10 + (speed_diff)",
+          "attack_type": "ramming",
+          "target": "target"
+        }
+      ],
+      "upgrades": {
+        "effects": [
+          {
+            "type": "damage",
+            "value": 0,
+            "formula": "armor/7 + (speed_diff * 2)",
+            "attack_type": "ramming",
+            "target": "target"
+          }
+        ]
+      },
+      "tags": ["attack", "physical"],
+      "image": "cards/ram.png"
+    },
+    {
+      "id": "flank",
+      "name": "Flank",
+      "description": "Move to flanking position if your speed is higher. Attack cards do 50% more damage.",
+      "rarity": "common",
+      "cost": 2,
+      "targetType": "self",
+      "effects": [
+        {
+          "type": "change_position",
+          "position": "flanking",
+          "condition": "speed_higher",
+          "target": "self"
+        },
+        {
+          "type": "apply_status",
+          "status": "flanking_damage",
+          "value": 50,
+          "duration": -1,
+          "target": "self"
+        }
+      ],
+      "upgrades": {
+        "cost": 1
+      },
+      "tags": ["utility", "positioning"],
+      "image": "cards/flank.png"
+    },
+    {
+      "id": "oil_slick",
+      "name": "Oil Slick",
+      "description": "Target flanking vehicle loses 4 speed for 2 turns and becomes Vulnerable. Always hits.",
+      "rarity": "uncommon",
+      "cost": 1,
+      "targetType": "enemy_single",
+      "effects": [
+        {
+          "type": "apply_status",
+          "status": "speed_reduction",
+          "value": -4,
+          "duration": 2,
+          "target": "target",
+          "condition": "target_flanking",
+          "always_hits": true
+        },
+        {
+          "type": "apply_status",
+          "status": "vulnerable",
+          "duration": 2,
+          "target": "target",
+          "condition": "target_flanking",
+          "always_hits": true
+        }
+      ],
+      "tags": ["attack", "ranged", "control"],
+      "image": "cards/oil_slick.png"
+    },
+    {
+      "id": "caltrops",
+      "name": "Caltrops",
+      "description": "Target flanking vehicle takes {damage} structure damage and loses 2 speed permanently. Always hits.",
+      "rarity": "rare",
+      "cost": 2,
+      "targetType": "enemy_single",
+      "effects": [
+        {
+          "type": "damage",
+          "value": 2,
+          "target": "target",
+          "condition": "target_flanking",
+          "always_hits": true
+        },
+        {
+          "type": "apply_status",
+          "status": "speed_reduction",
+          "value": -2,
+          "duration": -1,
+          "target": "target",
+          "condition": "target_flanking",
+          "always_hits": true
+        }
+      ],
+      "variables": {
+        "damage": { "base": 2, "upgraded": 2 }
+      },
+      "tags": ["attack", "ranged", "control"],
+      "image": "cards/caltrops.png"
+    },
+    {
+      "id": "repair_kit",
+      "name": "Repair Kit",
+      "description": "Restore {healing} Structure to your vehicle. Excess healing converts to armor.",
+      "rarity": "common",
+      "cost": 1,
+      "targetType": "self",
+      "effects": [
+        {
+          "type": "heal",
+          "value": 8,
+          "overflow_to_armor": true,
+          "target": "self"
+        }
+      ],
+      "variables": {
+        "healing": { "base": 8, "upgraded": 12 }
+      },
+      "tags": ["utility", "heal"],
+      "image": "cards/repair_kit.png"
+    },
+    {
+      "id": "medical_kit",
+      "name": "Medical Kit",
+      "description": "Restore {healing} hit points to yourself or a passenger in your vehicle.",
+      "rarity": "uncommon",
+      "cost": 2,
+      "targetType": "ally",
+      "effects": [
+        {
+          "type": "heal_driver",
+          "value": 4,
+          "target": "same_vehicle"
+        }
+      ],
+      "variables": {
+        "healing": { "base": 4, "upgraded": 6 }
+      },
+      "tags": ["utility", "heal"],
+      "image": "cards/medical_kit.png"
+    },
+    {
+      "id": "nitro_boost",
+      "name": "Nitro Boost",
+      "description": "Gain 3 speed for 2 turns. Draw {cards} cards.",
+      "rarity": "uncommon",
+      "cost": 1,
+      "targetType": "self",
+      "effects": [
+        {
+          "type": "apply_status",
+          "status": "speed_boost",
+          "value": 3,
+          "duration": 2,
+          "target": "self"
+        },
+        {
+          "type": "draw_cards",
+          "value": 2,
+          "target": "self"
+        }
+      ],
+      "variables": {
+        "cards": { "base": 2, "upgraded": 3 }
+      },
+      "tags": ["utility", "status", "draw"],
+      "image": "cards/nitro_boost.png"
+    },
+    {
+      "id": "coordinated_attack",
+      "name": "Coordinated Attack",
+      "description": "Deal {damage} damage. If partner attacked this turn, double the damage.",
+      "rarity": "uncommon",
+      "cost": 3,
+      "targetType": "enemy_single",
+      "effects": [
+        {
+          "type": "damage",
+          "value": 3,
+          "target": "target"
+        },
+        {
+          "type": "conditional",
+          "condition": "partner_attacked",
+          "effect": {
+            "type": "damage",
+            "value": 3,
+            "target": "target"
+          }
+        }
+      ],
+      "variables": {
+        "damage": { "base": 3, "upgraded": 5 }
+      },
+      "upgrades": {
+        "effects": [
+          {
+            "type": "damage",
+            "value": 5,
+            "target": "target"
+          },
+          {
+            "type": "conditional",
+            "condition": "partner_attacked",
+            "effect": {
+              "type": "damage",
+              "value": 5,
+              "target": "target"
+            }
+          }
+        ]
+      },
+      "tags": ["attack", "synergy", "conditional"],
+      "image": "cards/coordinated_attack.png"
+    },
+    {
+      "id": "emp_blast",
+      "name": "EMP Blast",
+      "description": "All enemies skip their next turn.",
+      "rarity": "rare",
+      "cost": 3,
+      "targetType": "enemy_all",
+      "effects": [
+        {
+          "type": "apply_status",
+          "status": "stunned",
+          "duration": 1,
+          "target": "enemy_all"
+        }
+      ],
+      "upgrades": {
+        "cost": 2
+      },
+      "tags": ["utility", "control", "status"],
+      "image": "cards/emp_blast.png"
+    },
+    {
+      "id": "berserker",
+      "name": "Berserker",
+      "description": "Take {damage} damage. Gain {adrenaline} Adrenaline. Your vehicle becomes Vulnerable.",
+      "rarity": "common",
+      "cost": 1,
+      "targetType": "self",
+      "effects": [
+        {
+          "type": "damage",
+          "value": 3,
+          "target": "self_driver"
+        },
+        {
+          "type": "gain_resource",
+          "resource": "adrenaline",
+          "value": 3,
+          "target": "self"
+        },
+        {
+          "type": "apply_status",
+          "status": "vulnerable",
+          "duration": -1,
+          "target": "self"
+        }
+      ],
+      "variables": {
+        "damage": { "base": 3, "upgraded": 2 },
+        "adrenaline": { "base": 3, "upgraded": 4 }
+      },
+      "tags": ["utility", "resource", "self_harm"],
+      "image": "cards/berserker.png"
+    },
+    {
+      "id": "armor_plating",
+      "name": "Armor Plating",
+      "description": "Gain {armor} Armor.",
+      "rarity": "common",
+      "cost": 1,
+      "targetType": "self",
+      "effects": [
+        {
+          "type": "gain_armor",
+          "value": 8,
+          "target": "self"
+        }
+      ],
+      "variables": {
+        "armor": { "base": 8, "upgraded": 12 }
+      },
+      "tags": ["defense", "armor"],
+      "image": "cards/armor_plating.png"
+    },
+    {
       "id": "ramming_speed",
       "name": "Ramming Speed",
       "description": "Deal {damage} damage. If target has Vulnerable, gain {adrenaline} Adrenaline.",
@@ -71,152 +452,6 @@
       "image": "cards/precision_shot.png"
     },
     {
-      "id": "armor_plating",
-      "name": "Armor Plating",
-      "description": "Gain {armor} Armor.",
-      "rarity": "common",
-      "cost": 1,
-      "targetType": "self",
-      "effects": [
-        {
-          "type": "gain_armor",
-          "value": 8,
-          "target": "self"
-        }
-      ],
-      "variables": {
-        "armor": { "base": 8, "upgraded": 12 }
-      },
-      "tags": ["defense", "armor"],
-      "image": "cards/armor_plating.png"
-    },
-    {
-      "id": "nitro_boost",
-      "name": "Nitro Boost",
-      "description": "Gain Speed+. Draw {cards} card(s).",
-      "rarity": "common",
-      "cost": 1,
-      "targetType": "self",
-      "effects": [
-        {
-          "type": "apply_status",
-          "status": "speed_plus",
-          "duration": 3,
-          "target": "self"
-        },
-        {
-          "type": "draw_cards",
-          "value": 2,
-          "target": "self"
-        }
-      ],
-      "variables": {
-        "cards": { "base": 2, "upgraded": 3 }
-      },
-      "tags": ["utility", "status", "draw"],
-      "image": "cards/nitro_boost.png"
-    },
-    {
-      "id": "coordinated_strike",
-      "name": "Coordinated Strike",
-      "description": "Deal {damage} damage. If partner played an Attack this turn, deal {damage} again.",
-      "rarity": "uncommon",
-      "cost": 2,
-      "targetType": "enemy_single",
-      "effects": [
-        {
-          "type": "damage",
-          "value": 8,
-          "target": "target"
-        },
-        {
-          "type": "conditional",
-          "condition": "partner_played_tag",
-          "tag": "attack",
-          "effect": {
-            "type": "damage",
-            "value": 8,
-            "target": "target"
-          }
-        }
-      ],
-      "variables": {
-        "damage": { "base": 8, "upgraded": 12 }
-      },
-      "tags": ["attack", "synergy", "conditional"],
-      "image": "cards/coordinated_strike.png"
-    },
-    {
-      "id": "emp_blast",
-      "name": "EMP Blast",
-      "description": "All enemies skip their next turn.",
-      "driverRestriction": "mechanic",
-      "rarity": "rare",
-      "cost": 3,
-      "targetType": "enemy_all",
-      "effects": [
-        {
-          "type": "apply_status",
-          "status": "stunned",
-          "duration": 1,
-          "target": "enemy_all"
-        }
-      ],
-      "tags": ["utility", "control", "status"],
-      "image": "cards/emp_blast.png"
-    },
-    {
-      "id": "blood_for_chrome",
-      "name": "Blood for Chrome",
-      "description": "Take {self_damage} damage. Gain {adrenaline} Adrenaline.",
-      "driverRestriction": "raider",
-      "rarity": "common",
-      "cost": 1,
-      "targetType": "self",
-      "effects": [
-        {
-          "type": "damage",
-          "value": 3,
-          "target": "self"
-        },
-        {
-          "type": "gain_resource",
-          "resource": "adrenaline",
-          "value": 3,
-          "target": "self"
-        }
-      ],
-      "variables": {
-        "self_damage": { "base": 3, "upgraded": 2 },
-        "adrenaline": { "base": 3, "upgraded": 4 }
-      },
-      "tags": ["utility", "resource", "self_harm"],
-      "image": "cards/blood_for_chrome.png"
-    },
-    {
-      "id": "repair_kit",
-      "name": "Repair Kit",
-      "description": "Restore {healing} Structure. Exhaust.",
-      "rarity": "common",
-      "cost": 1,
-      "targetType": "self",
-      "effects": [
-        {
-          "type": "heal",
-          "value": 8,
-          "target": "self"
-        },
-        {
-          "type": "exhaust"
-        }
-      ],
-      "variables": {
-        "healing": { "base": 8, "upgraded": 12 }
-      },
-      "tags": ["utility", "heal", "exhaust"],
-      "image": "cards/repair_kit.png"
-    },
-    {
       "id": "witness_me",
       "name": "Witness Me!",
       "description": "Triple all damage this turn. Die at end of turn.",
@@ -273,16 +508,16 @@
       "name": "Road Warrior",
       "description": "Aggressive tank specialist with ramming attacks",
       "cards": [
-        "ramming_speed",
-        "ramming_speed",
+        "ram",
+        "ram",
         "armor_plating",
         "armor_plating",
         "armor_plating",
         "repair_kit",
         "repair_kit",
-        "nitro_boost",
-        "coordinated_strike",
-        "flanking_maneuver"
+        "point_blank",
+        "coordinated_attack",
+        "flank"
       ]
     },
     "interceptor": {
@@ -291,14 +526,14 @@
       "cards": [
         "precision_shot",
         "precision_shot",
-        "precision_shot",
+        "point_blank",
+        "far_shoot",
         "nitro_boost",
         "nitro_boost",
-        "flanking_maneuver",
-        "flanking_maneuver",
-        "armor_plating",
+        "flank",
+        "flank",
         "repair_kit",
-        "coordinated_strike"
+        "coordinated_attack"
       ]
     },
     "mechanic": {
@@ -308,28 +543,28 @@
         "emp_blast",
         "repair_kit",
         "repair_kit",
-        "repair_kit",
-        "nitro_boost",
+        "medical_kit",
+        "medical_kit",
         "nitro_boost",
         "armor_plating",
         "armor_plating",
-        "coordinated_strike",
-        "coordinated_strike"
+        "coordinated_attack",
+        "point_blank"
       ]
     },
     "raider": {
       "name": "Raider",
       "description": "High-risk, high-reward berserker style",
       "cards": [
-        "blood_for_chrome",
-        "blood_for_chrome",
-        "blood_for_chrome",
-        "ramming_speed",
-        "ramming_speed",
-        "coordinated_strike",
-        "flanking_maneuver",
+        "berserker",
+        "berserker",
+        "berserker",
+        "ram",
+        "ram",
+        "coordinated_attack",
+        "flank",
         "repair_kit",
-        "armor_plating",
+        "point_blank",
         "nitro_boost"
       ]
     }
