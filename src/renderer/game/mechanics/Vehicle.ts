@@ -129,7 +129,7 @@ export class Vehicle extends Model<VehicleData> {
 	/**
 	 * Repair vehicle structure
 	 */
-	public repair(amount: number, overflowToArmor: boolean = false): void {
+	public repair(amount: number, overflowToArmor = false): void {
 		const oldStructure = this.structure;
 		this.structure = Math.min(this.maxStructure, this.structure + amount);
 		
@@ -297,7 +297,7 @@ export class Vehicle extends Model<VehicleData> {
 	/**
 	 * Check if vehicle should lose flanking position
 	 */
-	public shouldLoseFlanking(minFlankingSpeed: number = 3): boolean {
+	public shouldLoseFlanking(minFlankingSpeed = 3): boolean {
 		return this.position === VehiclePosition.FLANKING && 
 			   this.getTotalSpeed() < minFlankingSpeed;
 	}
