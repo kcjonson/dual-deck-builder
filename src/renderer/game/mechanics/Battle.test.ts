@@ -722,7 +722,6 @@ describe('Battle', () => {
 			// Make sure driver has enough HP to survive self damage
 			playerDriver1.hitpoints = 10;
 			playerDriver1.maxHitpoints = 10;
-			const initialHP = playerDriver1.hitpoints;
 			const enemyInitialStructure = enemyVehicle.structure;
 			
 			const logSpy = jest.spyOn(console, 'log').mockImplementation();

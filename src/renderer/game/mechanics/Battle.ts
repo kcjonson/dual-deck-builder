@@ -625,7 +625,7 @@ export class Battle extends Model<BattleData> {
 	/**
 	 * Calculate damage with modifiers
 	 */
-	public calculateDamage(baseDamage: number, attacker: Vehicle, target: Vehicle, attackType = 'normal'): number {
+	public calculateDamage(baseDamage: number, attacker: Vehicle, target: Vehicle): number {
 		let damage = baseDamage;
 
 		// Apply flanking bonus
