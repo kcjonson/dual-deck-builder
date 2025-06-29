@@ -2,7 +2,6 @@ import { Battle } from '../mechanics/Battle';
 import { Team } from '../mechanics/Team';
 import { Vehicle } from '../mechanics/Vehicle';
 import { Driver } from '../mechanics/Driver';
-import { Card } from '../mechanics/Card';
 import { AIPlayer } from './AIPlayer';
 import { RandomAI } from './RandomAI';
 import { AIDecision } from './types';
