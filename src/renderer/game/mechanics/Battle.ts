@@ -324,8 +324,20 @@ export class Battle extends Model<BattleData> {
 				
 				if (!decision || decision.type === 'endTurn') {
 					continuePlayingCards = false;
-				} else {
-					await this.aiController.executeAIDecision(decision, false);
+				} else if (decision.type === 'playCard' && decision.card && decision.driver) {
+					// Execute the AI decision directly here
+					const cardIndex = decision.driver.hand.indexOf(decision.card);
+					if (cardIndex !== -1) {
+						const result = decision.driver.playCardWithCost(cardIndex);
+						if (result.success && result.card) {
+							let targetVehicle: Vehicle | null = null;
+							if (decision.target && 'structure' in decision.target) {
+								targetVehicle = decision.target as Vehicle;
+							}
+							this.applyCardEffects(result.card, targetVehicle, decision.driver);
+							console.log(`${decision.driver.metadata.name} plays ${result.card.displayName}`);
+						}
+					}
 					
 					// Check if battle ended after the action
 					if (this.battleOver) {

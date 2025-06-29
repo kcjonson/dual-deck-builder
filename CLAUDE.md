@@ -128,6 +128,9 @@ npm run start:electron # Start Electron version
 npm test              # Run tests
 npm run test:watch    # Run tests in watch mode
 
+# Linting
+npm run lint          # Check for linting errors
+
 # Building
 npm run build:web     # Build for web
 npm run build:electron # Build for Electron
@@ -138,6 +141,20 @@ npm run build:electron # Build for Electron
 # - PR branches with "playtest" label: bearcavinteractive.com/playtest/dual-deckbuilder/BRANCH_NAME/
 # Requires SFTP secrets: SFTP_SERVER, SFTP_USERNAME, SFTP_PASSWORD
 ```
+
+## Creating Pull Requests
+
+**IMPORTANT**: Before creating a pull request, ALWAYS:
+1. Run `npm test` to ensure all tests pass
+2. Run `npm run lint` to check for any linting errors
+3. Fix any failures before proceeding with the PR
+
+When creating a PR:
+1. Create a new branch with a descriptive name (e.g., `feat/ai-system`, `fix/battle-logic`)
+2. Make your changes and commit them with clear, descriptive messages
+3. Run tests and lint checks
+4. Push your branch and create the PR with a comprehensive description
+5. Include a summary of changes, test plan, and any breaking changes
 
 ## References
 

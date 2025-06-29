@@ -1,6 +1,7 @@
 import { Battle } from '../../mechanics/Battle';
 import { Team, TeamType } from '../../mechanics/Team';
 import { Driver } from '../../mechanics/Driver';
+import { Vehicle } from '../../mechanics/Vehicle';
 import { RandomAI } from '../RandomAI';
 import { createTestDriver, createTestVehicle, createTestCard } from './test-helpers';
 
@@ -161,10 +162,10 @@ describe('AI Player System', () => {
 			expect(controller.isEnemyControlledByAI()).toBe(false);
 		});
 
-		it('should execute AI decisions correctly', async () => {
+		it('should execute AI decisions correctly for player team', async () => {
 			const controller = battle.aiController;
 			
-			// Setup card for enemy
+			// Setup card for player
 			const attackCard = createTestCard({
 				type: 'ai_attack',
 				name: 'AI Attack',
@@ -173,25 +174,25 @@ describe('AI Player System', () => {
 				effects: [{ type: 'damage', value: 3 }]
 			});
 			
-			enemyDriver1.hand = [attackCard];
-			enemyDriver1.adrenaline = 3;
+			playerDriver1.hand = [attackCard];
+			playerDriver1.adrenaline = 3;
 			
 			// Track if card was played
-			const initialHandSize = enemyDriver1.hand.length;
-			const initialAdrenaline = enemyDriver1.adrenaline;
+			const initialHandSize = playerDriver1.hand.length;
+			const initialAdrenaline = playerDriver1.adrenaline;
 			
 			const decision = {
 				type: 'playCard' as const,
 				card: attackCard,
-				driver: enemyDriver1,
-				target: playerTeam.vehicles[0]
+				driver: playerDriver1,
+				target: enemyTeam.vehicles[0]
 			};
 
-			await controller.executeAIDecision(decision, false);
+			await controller.executeAIDecision(decision, true);
 			
 			// Should have played the card
-			expect(enemyDriver1.hand.length).toBeLessThan(initialHandSize);
-			expect(enemyDriver1.adrenaline).toBeLessThan(initialAdrenaline);
+			expect(playerDriver1.hand.length).toBeLessThan(initialHandSize);
+			expect(playerDriver1.adrenaline).toBeLessThan(initialAdrenaline);
 		});
 
 		it('should handle endTurn decisions', async () => {
@@ -228,18 +229,16 @@ describe('AI Player System', () => {
 			enemyDriver2.hand = [card];
 			enemyDriver2.adrenaline = 5;
 			
-			// Mock the AI decision execution
-			const executeAISpy = jest.spyOn(battle.aiController, 'executeAIDecision').mockImplementation(async () => {
-			// Mock implementation
-		});
+			// Mock the AI decision getter
+			const getEnemyDecisionSpy = jest.spyOn(battle.aiController, 'getEnemyDecision');
 			
 			// End player turn to trigger enemy AI
 			await battle.endPlayerTurn();
 			
-			// Should have called AI execution
-			expect(executeAISpy).toHaveBeenCalled();
+			// Should have called AI to get decisions
+			expect(getEnemyDecisionSpy).toHaveBeenCalled();
 			
-			executeAISpy.mockRestore();
+			getEnemyDecisionSpy.mockRestore();
 		});
 
 		it('should fall back to simple AI when no AI controller configured', async () => {

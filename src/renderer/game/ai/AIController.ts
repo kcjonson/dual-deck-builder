@@ -84,22 +84,9 @@ export class AIController {
 				return;
 			}
 
-			// For enemy AI, we need to use the internal card playing mechanism
-			if (!isPlayerTeam) {
-				const result = decision.driver.playCardWithCost(cardIndex);
-				if (result.success && result.card) {
-					let targetVehicle: Vehicle | null = null;
-					if (decision.target && 'structure' in decision.target) {
-						targetVehicle = decision.target as Vehicle;
-					}
-					
-					// Use the battle's applyCardEffects method
-					(this.battle as Battle & { applyCardEffects: (card: Card, target: Vehicle | null, caster: Driver) => void }).applyCardEffects(result.card, targetVehicle, decision.driver);
-					console.log(`${decision.driver.metadata.name} plays ${result.card.displayName}`);
-				}
-			} else {
+			if (isPlayerTeam) {
 				// For player AI, use the public playCard method
-				let targetVehicle: Vehicle | null = null;
+				let targetVehicle: Vehicle | undefined;
 				if (decision.target && 'structure' in decision.target) {
 					targetVehicle = decision.target as Vehicle;
 				}
@@ -110,6 +97,7 @@ export class AIController {
 					targetVehicle
 				});
 			}
+			// For enemy AI, the Battle.executeEnemyAction will handle it directly
 		}
 	}
 
