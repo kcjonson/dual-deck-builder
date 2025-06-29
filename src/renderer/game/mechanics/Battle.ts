@@ -3,6 +3,7 @@ import { Driver } from './Driver';
 import { Vehicle, VehiclePosition } from './Vehicle';
 import { Card } from './Card';
 import { Model } from '../core/Model';
+import { AIController } from '../ai/AIController';
 
 /**
  * Battle data interface - all properties of a battle
@@ -14,6 +15,8 @@ export interface BattleData {
 	isPlayerTurn: boolean;
 	battleOver: boolean;
 	battleWon: boolean;
+	maxTurns?: number;
+	battleTied?: boolean;
 }
 
 /**
@@ -39,18 +42,25 @@ export class Battle extends Model<BattleData> {
 		'turn',
 		'isPlayerTurn',
 		'battleOver',
-		'battleWon'
+		'battleWon',
+		'maxTurns',
+		'battleTied'
 	]);
+
+	// AI controller for managing computer players (stored separately due to Model freezing)
+	private static aiControllers = new WeakMap<Battle, AIController>();
 
 	/**
 	 * Create a new battle
 	 */
 	constructor({
 		playerTeam,
-		enemyTeam
+		enemyTeam,
+		maxTurns
 	}: {
 		playerTeam: Team;
 		enemyTeam: Team;
+		maxTurns?: number;
 	}) {
 		super({
 			playerTeam,
@@ -58,7 +68,9 @@ export class Battle extends Model<BattleData> {
 			turn: 1,
 			isPlayerTurn: true,
 			battleOver: false,
-			battleWon: false
+			battleWon: false,
+			maxTurns,
+			battleTied: false
 		});
 
 		// Validate team types
@@ -68,6 +80,20 @@ export class Battle extends Model<BattleData> {
 		if (enemyTeam.type !== TeamType.ENEMY) {
 			throw new Error('Enemy team must have type ENEMY');
 		}
+
+		// Initialize AI controller (stored in WeakMap to avoid Model freezing issues)
+		Battle.aiControllers.set(this, new AIController(this));
+	}
+
+	/**
+	 * Get the AI controller for this battle
+	 */
+	public get aiController(): AIController {
+		const controller = Battle.aiControllers.get(this);
+		if (!controller) {
+			throw new Error('AI controller not initialized');
+		}
+		return controller;
 	}
 
 	/**
@@ -107,6 +133,13 @@ export class Battle extends Model<BattleData> {
 	 */
 	public isBattleWon(): boolean {
 		return this.battleOver && this.battleWon;
+	}
+
+	/**
+	 * Check if the battle ended in a tie
+	 */
+	public isBattleTied(): boolean {
+		return this.battleOver && (this.battleTied || false);
 	}
 
 	/**
@@ -184,7 +217,7 @@ export class Battle extends Model<BattleData> {
 	/**
 	 * End the player's turn
 	 */
-	public endPlayerTurn(): void {
+	public async endPlayerTurn(): Promise<void> {
 		if (!this.isPlayerTurn || this.battleOver) {
 			return;
 		}
@@ -195,17 +228,27 @@ export class Battle extends Model<BattleData> {
 		// Start enemy turn
 		this.isPlayerTurn = false;
 
+		console.log('Ending player turn');
+
+		// Log leftover adrenaline for player drivers
+		const playerDrivers = this.playerTeam.getAllDrivers();
+		for (const driver of playerDrivers) {
+			if (driver.isAlive() && driver.adrenaline > 0) {
+				console.log(`${driver.metadata.name} ended turn with ${driver.adrenaline} adrenaline remaining`);
+			}
+		}
+
 		// Emit turn ended event
 		this.emit('turnEnded', Object.freeze({ team: 'player' }));
 
 		// Process enemy turns
-		this.processEnemyTurns();
+		await this.processEnemyTurns();
 	}
 
 	/**
 	 * Process enemy turns
 	 */
-	private processEnemyTurns(): void {
+	private async processEnemyTurns(): Promise<void> {
 		if (this.battleOver) {
 			return;
 		}
@@ -220,12 +263,22 @@ export class Battle extends Model<BattleData> {
 			}
 
 			// Execute enemy AI action
-			this.executeEnemyAction(enemyDriver);
+			await this.executeEnemyAction(enemyDriver);
 
 			// Check if battle is over after enemy action
 			this.checkBattleStatus();
 			if (this.battleOver) {
 				return;
+			}
+		}
+
+		console.log('Ending enemy turn');
+
+		// Log leftover adrenaline for enemy drivers
+		const aliveEnemyDrivers = this.enemyTeam.getAllDrivers();
+		for (const driver of aliveEnemyDrivers) {
+			if (driver.isAlive() && driver.adrenaline > 0) {
+				console.log(`${driver.metadata.name} ended turn with ${driver.adrenaline} adrenaline remaining`);
 			}
 		}
 
@@ -258,25 +311,64 @@ export class Battle extends Model<BattleData> {
 	/**
 	 * Execute an enemy's action (AI)
 	 */
-	private executeEnemyAction(enemyDriver: Driver): void {
+	private async executeEnemyAction(enemyDriver: Driver): Promise<void> {
 		const hand = enemyDriver.hand;
 		if (hand.length === 0) return;
 
-		// Simple AI: play first affordable card
-		for (let i = 0; i < hand.length; i++) {
-			const card = hand[i];
-			
-			if (enemyDriver.canPlayCard(card)) {
-				// Choose target (for now, target first alive player vehicle)
-				const playerVehicles = this.playerTeam.getAliveVehicles();
-				const target = playerVehicles.length > 0 ? playerVehicles[0] : null;
-
-				const result = enemyDriver.playCardWithCost(i);
-				if (result.success && result.card) {
-					this.applyCardEffects(result.card, target, enemyDriver);
-					console.log(`${enemyDriver.metadata.name} plays ${result.card.displayName}`);
+		// Use AI controller if available
+		if (this.aiController.isEnemyControlledByAI()) {
+			// Keep playing cards until AI decides to end turn or can't play any more
+			let continuePlayingCards = true;
+			while (continuePlayingCards) {
+				const decision = await this.aiController.getEnemyDecision();
+				
+				if (!decision || decision.type === 'endTurn') {
+					continuePlayingCards = false;
+				} else if (decision.type === 'playCard' && decision.card && decision.driver) {
+					// Execute the AI decision directly here
+					const cardIndex = decision.driver.hand.indexOf(decision.card);
+					if (cardIndex !== -1) {
+						const result = decision.driver.playCardWithCost(cardIndex);
+						if (result.success && result.card) {
+							let targetVehicle: Vehicle | null = null;
+							if (decision.target && 'structure' in decision.target) {
+								targetVehicle = decision.target as Vehicle;
+							}
+							this.applyCardEffects(result.card, targetVehicle, decision.driver);
+							console.log(`${decision.driver.metadata.name} plays ${result.card.displayName}`);
+						}
+					}
+					
+					// Check if battle ended after the action
+					if (this.battleOver) {
+						return;
+					}
 				}
-				break;
+			}
+			return;
+		}
+
+		// Fallback to simple AI: play all affordable cards
+		let playedCard = true;
+		while (playedCard && !this.battleOver) {
+			playedCard = false;
+			
+			for (let i = 0; i < enemyDriver.hand.length; i++) {
+				const card = enemyDriver.hand[i];
+				
+				if (enemyDriver.canPlayCard(card)) {
+					// Choose target (for now, target first alive player vehicle)
+					const playerVehicles = this.playerTeam.getAliveVehicles();
+					const target = playerVehicles.length > 0 ? playerVehicles[0] : null;
+
+					const result = enemyDriver.playCardWithCost(i);
+					if (result.success && result.card) {
+						this.applyCardEffects(result.card, target, enemyDriver);
+						console.log(`${enemyDriver.metadata.name} plays ${result.card.displayName}`);
+						playedCard = true;
+						break; // Start from beginning since hand indices changed
+					}
+				}
 			}
 		}
 	}
@@ -287,6 +379,15 @@ export class Battle extends Model<BattleData> {
 	private startPlayerTurn(): void {
 		// Increment turn counter
 		this.turn++;
+
+		// Check if max turns exceeded
+		if (this.maxTurns && this.turn > this.maxTurns) {
+			this.battleOver = true;
+			this.battleTied = true;
+			console.log('Battle ended in a tie: Maximum turns exceeded');
+			this.emit('battleEnded', Object.freeze({ winner: 'tie', reason: 'maxTurns' }));
+			return;
+		}
 
 		// Process status effects for all vehicles
 		this.playerTeam.processStatusEffects();

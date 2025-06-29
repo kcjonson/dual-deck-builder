@@ -300,23 +300,17 @@ export class Driver extends Model<DriverData> {
 		if (!this.deck) return;
 
 		for (let i = 0; i < count; i++) {
-			const card = this.deck.draw();
+			// Check if deck is empty before drawing
+			if (this.deck.size === 0 && this.discard.length > 0) {
+				this.reshuffleDiscardIntoDeck();
+			}
 			
+			const card = this.deck.draw();
 			if (card) {
 				this.addToHand(card);
 			} else {
-				// Deck is empty, try to reshuffle discard pile
-				if (this.discard.length > 0) {
-					this.reshuffleDiscardIntoDeck();
-					const reshuffledCard = this.deck.draw();
-					if (reshuffledCard) {
-						this.addToHand(reshuffledCard);
-					}
-				}
-				// If still no cards available, break
-				if (!this.deck.draw()) {
-					break;
-				}
+				// No cards available in deck or discard
+				break;
 			}
 		}
 	}

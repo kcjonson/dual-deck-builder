@@ -4,6 +4,29 @@ This document contains the chronological log of completed development tasks for 
 
 =========================================
 
+## AI Player System Implementation (2025-06-29)
+
+### Created Computer-Run Player System
+
+**What Changed:**
+- Created AI player system architecture with swappable implementations
+- Implemented core AI components:
+  - `AIPlayer` abstract base class for all AI implementations
+  - `AIController` for managing AI players for both teams
+  - `AIDecision` interface for representing AI actions
+  - `GameStateEvaluation` for analyzing current battle state
+- Implemented `RandomAI` as baseline strategy
+- Integrated AI system with Battle class using WeakMap pattern (to work with frozen Model instances)
+- Modified battle system to support async AI decisions
+- Created comprehensive unit tests covering all AI functionality
+
+**Technical Details:**
+- Used strategy pattern for different AI personalities
+- Support for AI controlling either player or enemy teams
+- Fallback to simple AI when no AI configured
+- Clean integration without UI changes
+- Test coverage includes AI vs AI battles
+
 ## Cards.json Update to Match Combat Rules (2025-06-28)
 
 ### Updated Card Implementations to Follow Current Combat Rules
