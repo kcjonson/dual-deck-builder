@@ -72,7 +72,7 @@ export function createTestCard(options: {
 		description: `Test card: ${options.name}`,
 		rarity: 'common',
 		cost: options.cost,
-		targetType: options.targetType as any,
+		targetType: options.targetType as Card['targetType'],
 		effects: options.effects,
 		tags: ['test']
 	});

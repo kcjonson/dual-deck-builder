@@ -1,5 +1,8 @@
 import { Battle } from '../mechanics/Battle';
 import { Team } from '../mechanics/Team';
+import { Vehicle } from '../mechanics/Vehicle';
+import { Driver } from '../mechanics/Driver';
+import { Card } from '../mechanics/Card';
 import { AIPlayer } from './AIPlayer';
 import { RandomAI } from './RandomAI';
 import { AIDecision } from './types';
@@ -85,20 +88,20 @@ export class AIController {
 			if (!isPlayerTeam) {
 				const result = decision.driver.playCardWithCost(cardIndex);
 				if (result.success && result.card) {
-					let targetVehicle: any = null;
+					let targetVehicle: Vehicle | null = null;
 					if (decision.target && 'structure' in decision.target) {
-						targetVehicle = decision.target;
+						targetVehicle = decision.target as Vehicle;
 					}
 					
 					// Use the battle's applyCardEffects method
-					(this.battle as any).applyCardEffects(result.card, targetVehicle, decision.driver);
+					(this.battle as Battle & { applyCardEffects: (card: Card, target: Vehicle | null, caster: Driver) => void }).applyCardEffects(result.card, targetVehicle, decision.driver);
 					console.log(`${decision.driver.metadata.name} plays ${result.card.displayName}`);
 				}
 			} else {
 				// For player AI, use the public playCard method
-				let targetVehicle: any = null;
+				let targetVehicle: Vehicle | null = null;
 				if (decision.target && 'structure' in decision.target) {
-					targetVehicle = decision.target;
+					targetVehicle = decision.target as Vehicle;
 				}
 				
 				this.battle.playCard({
@@ -110,7 +113,7 @@ export class AIController {
 		}
 	}
 
-	private findVehicleByDriver(driver: any): any {
+	private findVehicleByDriver(driver: Driver): Vehicle | undefined {
 		const allVehicles = [...this.battle.playerTeam.vehicles, ...this.battle.enemyTeam.vehicles];
 		return allVehicles.find(v => v.driver === driver);
 	}

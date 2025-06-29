@@ -1,12 +1,14 @@
 import { AIPlayer } from './AIPlayer';
 import { AIDecision, AIStrategy, GameStateEvaluation } from './types';
+import { Team } from '../mechanics/Team';
+import { Battle } from '../mechanics/Battle';
 
 export class RandomAIStrategy implements AIStrategy {
 	name = 'Random AI';
 
 	chooseBestAction(
 		possibleActions: AIDecision[],
-		gameState: GameStateEvaluation
+		_gameState: GameStateEvaluation
 	): AIDecision {
 		if (possibleActions.length === 0) {
 			return { type: 'endTurn' };
@@ -20,7 +22,7 @@ export class RandomAIStrategy implements AIStrategy {
 export class RandomAI extends AIPlayer {
 	private strategy: RandomAIStrategy;
 
-	constructor(team: any, battle: any) {
+	constructor(team: Team, battle: Battle) {
 		super(team, battle);
 		this.strategy = new RandomAIStrategy();
 	}

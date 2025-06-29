@@ -66,7 +66,7 @@ describe('Deck Reshuffling', () => {
 		// Draw all cards from deck
 		driver.drawCards(10);
 		expect(driver.hand.length).toBe(10);
-		expect(driver.deck!.size).toBe(0);
+		expect(driver.deck?.size).toBe(0);
 		
 		// Discard all cards
 		driver.discardHand();
@@ -76,7 +76,7 @@ describe('Deck Reshuffling', () => {
 		// Draw again - should automatically reshuffle
 		driver.drawCards(5);
 		expect(driver.hand.length).toBe(5);
-		expect(driver.deck!.size).toBe(5);
+		expect(driver.deck?.size).toBe(5);
 		expect(driver.discard.length).toBe(0);
 	});
 
@@ -93,7 +93,7 @@ describe('Deck Reshuffling', () => {
 		// Third cycle - should still work
 		driver.drawCards(7);
 		expect(driver.hand.length).toBe(7);
-		expect(driver.deck!.size).toBe(3);
+		expect(driver.deck?.size).toBe(3);
 	});
 
 	test('should not draw more cards than available even with reshuffling', () => {
@@ -117,12 +117,12 @@ describe('Deck Reshuffling', () => {
 		}
 		expect(driver.hand.length).toBe(3);
 		expect(driver.discard.length).toBe(5);
-		expect(driver.deck!.size).toBe(2);
+		expect(driver.deck?.size).toBe(2);
 		
 		// Try to draw 5 cards - should draw 2 from deck, reshuffle, then draw 3 more
 		driver.drawCards(5);
 		expect(driver.hand.length).toBe(8); // 3 + 5
-		expect(driver.deck!.size).toBe(2); // 5 reshuffled - 3 drawn
+		expect(driver.deck?.size).toBe(2); // 5 reshuffled - 3 drawn
 		expect(driver.discard.length).toBe(0);
 	});
 

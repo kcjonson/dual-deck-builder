@@ -1,7 +1,6 @@
 import { Card } from '../mechanics/Card';
 import { Driver } from '../mechanics/Driver';
 import { Vehicle } from '../mechanics/Vehicle';
-import { Team } from '../mechanics/Team';
 
 export interface AIDecision {
 	type: 'playCard' | 'endTurn';

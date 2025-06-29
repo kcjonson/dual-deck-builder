@@ -116,7 +116,7 @@ describe('AI Player System', () => {
 			enemyDriver1.hand = [attackCard];
 			enemyDriver1.adrenaline = 3;
 
-			const decisions: any[] = [];
+			const decisions: (Vehicle | Driver)[] = [];
 			// Run multiple times to check randomness
 			for (let i = 0; i < 10; i++) {
 				const decision = await ai.makeDecision();
@@ -229,7 +229,9 @@ describe('AI Player System', () => {
 			enemyDriver2.adrenaline = 5;
 			
 			// Mock the AI decision execution
-			const executeAISpy = jest.spyOn(battle.aiController, 'executeAIDecision').mockImplementation(async () => {});
+			const executeAISpy = jest.spyOn(battle.aiController, 'executeAIDecision').mockImplementation(async () => {
+			// Mock implementation
+		});
 			
 			// End player turn to trigger enemy AI
 			await battle.endPlayerTurn();

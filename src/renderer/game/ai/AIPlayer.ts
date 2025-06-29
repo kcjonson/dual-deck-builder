@@ -44,7 +44,7 @@ export abstract class AIPlayer {
 
 		return {
 			vehicle,
-			driver: driver!,
+			driver: driver || ({} as Driver), // Provide empty object as fallback
 			healthPercent: (vehicle.structure || 0) / maxStructure,
 			armorPercent: maxArmor > 0 ? (vehicle.armor || 0) / maxArmor : 0,
 			adrenaline: driver?.adrenaline || 0,
