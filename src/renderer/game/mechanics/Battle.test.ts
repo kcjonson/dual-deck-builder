@@ -512,19 +512,19 @@ describe('Battle', () => {
 			battle.start();
 		});
 
-		test('should not allow ending turn during enemy turn', () => {
+		test('should not allow ending turn during enemy turn', async () => {
 			// Force enemy turn
 			battle.isPlayerTurn = false;
 			
 			const initialTurn = battle.turn;
-			battle.endPlayerTurn();
+			await battle.endPlayerTurn();
 			
 			// Turn should not advance when trying to end turn during enemy turn
 			expect(battle.turn).toBe(initialTurn);
 			expect(battle.isPlayerTurn).toBe(false);
 		});
 
-		test('should process full enemy turn with AI actions', () => {
+		test('should process full enemy turn with AI actions', async () => {
 			// Set enemy to have low enough skills to ensure a hit
 			playerDriver1.skills.evade = 1;
 			enemyDriver.skills.gunnery = 5;
@@ -549,7 +549,7 @@ describe('Battle', () => {
 			const playerInitialArmor = playerVehicle1.armor;
 			
 			// End player turn to trigger enemy AI
-			battle.endPlayerTurn();
+			await battle.endPlayerTurn();
 			
 			// Enemy should have played a card
 			// Turn should advance back to player
@@ -563,7 +563,7 @@ describe('Battle', () => {
 			expect(totalDamage).toBeGreaterThan(0);
 		});
 
-		test('should handle enemy passenger drivers who cannot play attack cards', () => {
+		test('should handle enemy passenger drivers who cannot play attack cards', async () => {
 			// Create a passenger driver for enemy
 			const enemyPassenger = new Driver({
 				archetype: 'raider',
@@ -626,14 +626,14 @@ describe('Battle', () => {
 			const playerInitialStructure = playerVehicle1.structure;
 			
 			// End player turn to trigger enemy AI
-			battle.endPlayerTurn();
+			await battle.endPlayerTurn();
 			
 			// Passenger should not have played attack cards (they can't as passenger)
 			// The processEnemyTurns should skip passengers who only have attack cards
 			expect(playerVehicle1.structure).toBe(playerInitialStructure);
 		});
 
-		test('should process status effects at start of new turn', () => {
+		test('should process status effects at start of new turn', async () => {
 			// Apply a status effect to player vehicle
 			playerVehicle1.applyStatusEffect({
 				name: 'oil_slick',
@@ -651,7 +651,7 @@ describe('Battle', () => {
 			}
 			
 			// End player turn and let enemy turn complete
-			battle.endPlayerTurn();
+			await battle.endPlayerTurn();
 			
 			// Status effect duration should have been processed at start of new player turn
 			expect(playerVehicle1.statusEffects[0].duration).toBe(initialDuration - 1);

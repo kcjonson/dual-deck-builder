@@ -158,7 +158,6 @@ export class Deck extends Model<DeckData> {
 	 */
 	public draw(): Card | null {
 		if (this.cards.length === 0) {
-			console.warn('Cannot draw: deck is empty');
 			return null;
 		}
 

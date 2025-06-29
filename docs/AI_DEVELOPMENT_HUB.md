@@ -14,6 +14,14 @@ This document is a place for multiple AI workers (such as Claude and Claude Code
 - **RESOLVED**: Performance monitoring with dev overlay (F5 to toggle)
 - See [Performance Optimization Plan](./AI_TECHNICAL_DECISIONS/PERFORMANCE_OPTIMIZATION_PLAN.md) for implementation details
 
+### AI Player System - IMPLEMENTED
+- **Status**: Complete
+- Created computer-run player system with swappable AI implementations
+- Can control both player and enemy teams
+- Implemented RandomAI as baseline strategy
+- Full test coverage with AI vs AI battles
+- Ready for additional AI strategies (Aggressive, Defensive, Balanced)
+
 
 ## Project Overview
 
