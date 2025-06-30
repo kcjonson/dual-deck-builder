@@ -4,6 +4,7 @@ import { Vehicle } from '../mechanics/Vehicle';
 import { Driver } from '../mechanics/Driver';
 import { AIPlayer } from './AIPlayer';
 import { RandomAI } from './RandomAI';
+import { AggressiveFlankerAI } from './AggressiveFlankerAI';
 import { AIDecision } from './types';
 
 export type AIType = 'random' | 'aggressive' | 'defensive' | 'balanced';
@@ -40,6 +41,7 @@ export class AIController {
 			case 'random':
 				return new RandomAI(team, this.battle);
 			case 'aggressive':
+				return new AggressiveFlankerAI(team, this.battle);
 			case 'defensive':
 			case 'balanced':
 				console.warn(`AI type '${type}' not yet implemented, using RandomAI`);

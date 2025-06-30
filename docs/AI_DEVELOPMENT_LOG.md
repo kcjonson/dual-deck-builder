@@ -4,6 +4,110 @@ This document contains the chronological log of completed development tasks for 
 
 =========================================
 
+## AI Battle Simulator Web Page (2025-06-29)
+
+### Created Web-Based Battle Simulator
+
+**What Changed:**
+- Created `/battle` webpage for running AI vs AI battles
+- Built interactive UI for selecting AI strategies and drivers for both teams
+- Implemented BattleSimulator class that runs battles headlessly
+- Added battle result display with team stats and complete battle log
+- Modified webpack config to support multiple entry points
+- Integrated with existing AI system (Random AI, Aggressive Flanker AI)
+
+**Technical Details:**
+- Created `public/battle.html` with team setup forms and result display
+- Implemented `src/battle-simulator.ts` as separate webpack entry point
+- Modified webpack configs to build both main game and battle simulator
+- Battle simulator runs complete battles using AI decisions
+- Displays color-coded battle log with all events
+- Shows final team stats (vehicle health, driver HP)
+- Max 50 turns to prevent infinite loops
+
+**Features:**
+- Select AI strategy for player team (Random, Aggressive Flanker)
+- Select AI strategy for enemy team (Simple default, Random, Aggressive Flanker)
+- Choose drivers for each vehicle (Road Warrior, Interceptor, Mechanic, Raider)
+- Run battles and see winner/loser/tie
+- View complete battle log with turn-by-turn events
+- See final vehicle and driver health stats
+
+**Usage:**
+- Navigate to http://localhost:9000/battle.html when dev server is running
+- Select AI and drivers for both teams
+- Click "Run Battle" to simulate
+- Results and battle log display immediately
+
+**Fixes Applied:**
+- Fixed cards.json to use `type` instead of `id` for card identifiers
+- Updated battle simulator to use `createDriverWithStartingDeck` instead of `getDriver`
+- Fixed mismatched card references (coordinated_strike → coordinated_attack)
+- Ensured all drivers have properly initialized decks with valid card types
+
+=========================================
+
+## Battle Event Logging System (2025-06-29)
+
+### Implemented Battle Message Logging
+
+**What Changed:**
+- Added comprehensive battle event logging system to Battle.ts
+- Created `BattleMessage` interface with type, message, timestamp, turn, and metadata
+- Added `BattleMessageType` enum for categorizing messages (damage_dealt, heal_applied, etc.)
+- Replaced all 30 console.log and 9 console.warn calls with internal log() method
+- Implemented public methods for message retrieval:
+  - `getMessages()`: Get all battle messages
+  - `getMessagesByType(type)`: Get messages of specific type
+  - `clearMessages()`: Clear all messages
+- Messages stored in WeakMap to work with frozen Model instances
+- Each log entry emits 'battleMessage' event for real-time updates
+
+**Technical Details:**
+- Messages include metadata for structured data (driver names, card names, damage values)
+- Maintains console.log output in non-test environments for debugging
+- Updated all Battle.test.ts tests to check battle messages instead of mocking console
+- All 39 Battle tests now pass with the new logging system
+
+**Purpose:**
+- Provides structured logging for combat UI to display battle events
+- Enables filtering and searching through battle history
+- Supports future features like combat replay and analytics
+- Removes direct console dependencies from production code
+
+=========================================
+
+## Aggressive Flanker AI Strategy (2025-06-29)
+
+### Implemented Advanced AI Strategy
+
+**What Changed:**
+- Created `AggressiveFlankerAI` - first advanced AI strategy
+- Strategy focuses on maximizing damage through flanking position (50% bonus)
+- Implemented intelligent decision scoring system:
+  - Prioritizes movement to flanking position when not already there
+  - Values speed-boosting cards when below flanking threshold (60 total speed)
+  - Scores damage cards higher when in flanking position
+  - Targets low-health enemies for elimination
+  - Considers vulnerable status effects for additional damage
+- Added card effect analysis to understand:
+  - Damage potential
+  - Position change capabilities
+  - Speed modifications
+  - Healing and armor effects
+- Implemented resource management:
+  - Cost efficiency calculations
+  - Avoids spending all adrenaline early
+- **Critical health healing**: Prioritizes healing when below 30% health
+
+**Technical Details:**
+- Extended `AIPlayer` base class with `AggressiveFlankerStrategy`
+- Score-based decision making (evaluates all possible actions)
+- Factors in position bonuses, target health, and kill potential
+- Modular design allows easy creation of additional AI strategies
+- Integrated into AIController as the 'aggressive' AI type
+- Full test coverage (6/6 tests passing) with edge case handling
+
 ## AI Player System Implementation (2025-06-29)
 
 ### Created Computer-Run Player System

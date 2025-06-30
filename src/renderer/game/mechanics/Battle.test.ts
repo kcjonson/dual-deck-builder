@@ -724,7 +724,8 @@ describe('Battle', () => {
 			playerDriver1.maxHitpoints = 10;
 			const enemyInitialStructure = enemyVehicle.structure;
 			
-			const logSpy = jest.spyOn(console, 'log').mockImplementation();
+			// Clear messages before playing card
+			battle.clearMessages();
 			
 			battle.playCard({
 				driver: playerDriver1,
@@ -740,10 +741,13 @@ describe('Battle', () => {
 			// This is a known limitation - self damage isn't currently working
 			// TODO: Fix Battle.ts to handle self_driver effects independently
 			
-			// For now, just verify the primary effect worked
-			expect(logSpy).toHaveBeenCalledWith('Berserker Rage deals 10 damage to Enemy Vehicle 1');
-			
-			logSpy.mockRestore();
+			// Check battle messages instead of console.log
+			const messages = battle.getMessages();
+			const damageMessage = messages.find(m => 
+				m.type === 'damage_dealt' && 
+				m.message.includes('Berserker Rage deals 10 damage to Enemy Vehicle 1')
+			);
+			expect(damageMessage).toBeDefined();
 		});
 
 		test('should handle vehicle destruction and driver escape', () => {
@@ -825,7 +829,8 @@ describe('Battle', () => {
 			
 			playerDriver1.hand = [medicalKit];
 			
-			const logSpy = jest.spyOn(console, 'log').mockImplementation();
+			// Clear messages before test
+			battle.clearMessages();
 			
 			// Try to heal driver in same vehicle (should work)
 			const result1 = battle.playCard({
@@ -837,7 +842,14 @@ describe('Battle', () => {
 			expect(result1).toBe(true);
 			// The heal_driver effect heals the driver of the target vehicle
 			expect(playerDriver1.hitpoints).toBe(8); // 5 + 3
-			expect(logSpy).toHaveBeenCalledWith(expect.stringContaining('heals 3 hit points'));
+			
+			// Check battle messages for heal message
+			const messages = battle.getMessages();
+			const healMessage = messages.find(m => 
+				m.type === 'heal_applied' && 
+				m.message.includes('heals 3 hit points')
+			);
+			expect(healMessage).toBeDefined();
 			
 			// Try to heal driver in different vehicle (should fail)
 			playerDriver2.hitpoints = 5; // Damage driver 2
@@ -845,8 +857,8 @@ describe('Battle', () => {
 			playerDriver1.hand = [medicalKit];
 			playerDriver1.adrenaline = 3;
 			
-			// Console warn spy to check for warning
-			const warnSpy = jest.spyOn(console, 'warn').mockImplementation();
+			// Clear messages before second attempt
+			battle.clearMessages();
 			
 			battle.playCard({
 				driver: playerDriver1,
@@ -854,11 +866,13 @@ describe('Battle', () => {
 				targetVehicle: playerVehicle2
 			});
 			
-			expect(warnSpy).toHaveBeenCalledWith('Can only heal drivers in same vehicle');
+			// Check for warning message
+			const warningMessage = battle.getMessages().find(m => 
+				m.type === 'general' && 
+				m.message.includes('Can only heal drivers in same vehicle')
+			);
+			expect(warningMessage).toBeDefined();
 			expect(playerDriver2.hitpoints).toBe(5); // Should not heal
-			
-			warnSpy.mockRestore();
-			logSpy.mockRestore();
 		});
 
 		test('should apply armor effect to vehicles', () => {
@@ -951,7 +965,8 @@ describe('Battle', () => {
 			
 			playerDriver1.hand = [statusCard];
 			
-			const logSpy = jest.spyOn(console, 'log').mockImplementation();
+			// Clear messages before test
+			battle.clearMessages();
 			
 			battle.playCard({
 				driver: playerDriver1,
@@ -960,10 +975,12 @@ describe('Battle', () => {
 			});
 			
 			// Should miss and not apply status
-			expect(logSpy).toHaveBeenCalledWith(expect.stringContaining('misses'));
+			const missMessage = battle.getMessages().find(m => 
+				m.type === 'miss' && 
+				m.message.includes('misses')
+			);
+			expect(missMessage).toBeDefined();
 			expect(enemyVehicle.statusEffects.length).toBe(0);
-			
-			logSpy.mockRestore();
 		});
 
 		test('should apply status with always_hits', () => {
@@ -1034,17 +1051,21 @@ describe('Battle', () => {
 			
 			playerDriver1.hand = [flankCard];
 			
-			const warnSpy = jest.spyOn(console, 'warn').mockImplementation();
+			// Clear messages before test
+			battle.clearMessages();
 			
 			battle.playCard({
 				driver: playerDriver1,
 				cardIndex: 0
 			});
 			
-			expect(warnSpy).toHaveBeenCalledWith('Cannot flank - not faster than all enemies');
+			// Check for flanking prevention message
+			const warningMessage = battle.getMessages().find(m => 
+				m.type === 'general' && 
+				m.message.includes('Cannot flank - not faster than all enemies')
+			);
+			expect(warningMessage).toBeDefined();
 			expect(playerVehicle1.position).not.toBe(VehiclePosition.FLANKING);
-			
-			warnSpy.mockRestore();
 		});
 
 		test('should allow flanking when faster than all enemies', () => {
@@ -1128,7 +1149,8 @@ describe('Battle', () => {
 			
 			playerDriver1.hand = [damageCard];
 			
-			const warnSpy = jest.spyOn(console, 'warn').mockImplementation();
+			// Clear messages before test
+			battle.clearMessages();
 			
 			// Try to target friendly vehicle
 			const result = battle.playCard({
@@ -1138,9 +1160,12 @@ describe('Battle', () => {
 			});
 			
 			expect(result).toBe(false);
-			expect(warnSpy).toHaveBeenCalledWith('Invalid target for card');
-			
-			warnSpy.mockRestore();
+			// Check for invalid target message
+			const invalidMessage = battle.getMessages().find(m => 
+				m.type === 'general' && 
+				m.message.includes('Invalid target for card')
+			);
+			expect(invalidMessage).toBeDefined();
 		});
 
 		test('should enforce explicit range limits', () => {
@@ -1167,7 +1192,8 @@ describe('Battle', () => {
 			
 			playerDriver1.hand = [shortRangeCard];
 			
-			const warnSpy = jest.spyOn(console, 'warn').mockImplementation();
+			// Clear messages before test
+			battle.clearMessages();
 			
 			const result = battle.playCard({
 				driver: playerDriver1,
@@ -1176,9 +1202,12 @@ describe('Battle', () => {
 			});
 			
 			expect(result).toBe(false);
-			expect(warnSpy).toHaveBeenCalledWith('Target out of range: 2 > 1');
-			
-			warnSpy.mockRestore();
+			// Check for out of range message
+			const rangeMessage = battle.getMessages().find(m => 
+				m.type === 'general' && 
+				m.message.includes('Target out of range: 2 > 1')
+			);
+			expect(rangeMessage).toBeDefined();
 		});
 	});
 
@@ -1234,17 +1263,20 @@ describe('Battle', () => {
 				description: 'Heavily damaged'
 			});
 			
-			const logSpy = jest.spyOn(console, 'log').mockImplementation();
+			// Clear messages before test
+			battle.clearMessages();
 			
 			battle.endCombat();
 			
 			// Vehicle should lose flanking due to low speed
 			expect(playerVehicle1.position).toBe(VehiclePosition.BACK);
-			expect(logSpy).toHaveBeenCalledWith(
-				`${playerVehicle1.name} loses flanking position due to low speed`
-			);
 			
-			logSpy.mockRestore();
+			// Check for flanking loss message
+			const flankingMessage = battle.getMessages().find(m => 
+				m.type === 'general' && 
+				m.message.includes(`${playerVehicle1.name} loses flanking position due to low speed`)
+			);
+			expect(flankingMessage).toBeDefined();
 		});
 
 		test('should emit combatEnded event', () => {
@@ -1283,8 +1315,8 @@ describe('Battle', () => {
 			// but might cause issues if the deck state is corrupted
 			playerDriver1.hand = [];
 			
-			const errorSpy = jest.spyOn(console, 'error').mockImplementation();
-			const warnSpy = jest.spyOn(console, 'warn').mockImplementation();
+			// Clear messages before test
+			battle.clearMessages();
 			
 			const result = battle.playCard({
 				driver: playerDriver1,
@@ -1293,11 +1325,12 @@ describe('Battle', () => {
 			});
 			
 			expect(result).toBe(false);
-			// Should get invalid card index warning
-			expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('Cannot play card:'));
-			
-			errorSpy.mockRestore();
-			warnSpy.mockRestore();
+			// Should get invalid card index message
+			const errorMessage = battle.getMessages().find(m => 
+				m.type === 'general' && 
+				m.message.includes('Cannot play card:')
+			);
+			expect(errorMessage).toBeDefined();
 		});
 	});
 

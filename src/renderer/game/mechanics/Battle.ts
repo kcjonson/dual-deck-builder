@@ -6,6 +6,40 @@ import { Model } from '../core/Model';
 import { AIController } from '../ai/AIController';
 
 /**
+ * Battle log message types
+ */
+export type BattleMessageType = 
+	| 'battle_start'
+	| 'turn_start'
+	| 'turn_end'
+	| 'card_played'
+	| 'damage_dealt'
+	| 'heal_applied'
+	| 'armor_gained'
+	| 'status_applied'
+	| 'miss'
+	| 'battle_end'
+	| 'adrenaline_remaining'
+	| 'general';
+
+/**
+ * Battle log message
+ */
+export interface BattleMessage {
+	type: BattleMessageType;
+	message: string;
+	timestamp: number;
+	turn: number;
+	metadata?: {
+		driver?: string;
+		card?: string;
+		target?: string;
+		value?: number;
+		[key: string]: string | number | undefined;
+	};
+}
+
+/**
  * Battle data interface - all properties of a battle
  */
 export interface BattleData {
@@ -49,6 +83,9 @@ export class Battle extends Model<BattleData> {
 
 	// AI controller for managing computer players (stored separately due to Model freezing)
 	private static aiControllers = new WeakMap<Battle, AIController>();
+	
+	// Battle message log (stored separately due to Model freezing)
+	private static messageLogs = new WeakMap<Battle, BattleMessage[]>();
 
 	/**
 	 * Create a new battle
@@ -83,6 +120,9 @@ export class Battle extends Model<BattleData> {
 
 		// Initialize AI controller (stored in WeakMap to avoid Model freezing issues)
 		Battle.aiControllers.set(this, new AIController(this));
+		
+		// Initialize message log
+		Battle.messageLogs.set(this, []);
 	}
 
 	/**
@@ -94,6 +134,62 @@ export class Battle extends Model<BattleData> {
 			throw new Error('AI controller not initialized');
 		}
 		return controller;
+	}
+
+	/**
+	 * Log a battle message
+	 */
+	private log(type: BattleMessageType, message: string, metadata?: BattleMessage['metadata']): void {
+		const messageLog = Battle.messageLogs.get(this);
+		if (!messageLog) {
+			throw new Error('Message log not initialized');
+		}
+
+		const logEntry: BattleMessage = {
+			type,
+			message,
+			timestamp: Date.now(),
+			turn: this.turn,
+			metadata
+		};
+
+		messageLog.push(logEntry);
+
+		// Emit the message as an event
+		this.emit('battleMessage', Object.freeze(logEntry));
+
+		// Also log to console in development
+		if (process.env.NODE_ENV !== 'test') {
+			console.log(message);
+		}
+	}
+
+	/**
+	 * Get all battle messages
+	 */
+	public getMessages(): readonly BattleMessage[] {
+		const messageLog = Battle.messageLogs.get(this);
+		if (!messageLog) {
+			return [];
+		}
+		return [...messageLog]; // Return a copy
+	}
+
+	/**
+	 * Get messages of a specific type
+	 */
+	public getMessagesByType(type: BattleMessageType): readonly BattleMessage[] {
+		return this.getMessages().filter(msg => msg.type === type);
+	}
+
+	/**
+	 * Clear all battle messages
+	 */
+	public clearMessages(): void {
+		const messageLog = Battle.messageLogs.get(this);
+		if (messageLog) {
+			messageLog.length = 0;
+		}
 	}
 
 	/**
@@ -112,7 +208,7 @@ export class Battle extends Model<BattleData> {
 		this.playerTeam.refillAdrenaline();
 		this.enemyTeam.refillAdrenaline();
 
-		console.log('Battle started!');
+		this.log('battle_start', 'Battle started!');
 		
 		// Emit battle started event
 		this.emit('battleStarted', this.getState());
@@ -155,14 +251,14 @@ export class Battle extends Model<BattleData> {
 		targetVehicle?: Vehicle;
 	}): boolean {
 		if (!this.isPlayerTurn) {
-			console.warn("Cannot play card: not player's turn");
+			this.log('general', "Cannot play card: not player's turn");
 			return false;
 		}
 
 		// Validate the driver belongs to the player team
 		const playerDrivers = this.playerTeam.getAllDrivers();
 		if (!playerDrivers.includes(driver)) {
-			console.warn('Driver does not belong to player team');
+			this.log('general', 'Driver does not belong to player team');
 			return false;
 		}
 
@@ -170,7 +266,7 @@ export class Battle extends Model<BattleData> {
 		const result = driver.playCardWithCost(cardIndex);
 		
 		if (!result.success) {
-			console.warn(`Cannot play card: ${result.reason}`);
+			this.log('general', `Cannot play card: ${result.reason}`);
 			return false;
 		}
 
@@ -182,7 +278,7 @@ export class Battle extends Model<BattleData> {
 
 		// Validate target
 		if (!this.validateTarget(card, driver, targetVehicle)) {
-			console.warn('Invalid target for card');
+			this.log('general', 'Invalid target for card');
 			// Return card to hand and refund cost
 			driver.hand.push(card);
 			driver.gainAdrenaline(card.cost);
@@ -228,13 +324,16 @@ export class Battle extends Model<BattleData> {
 		// Start enemy turn
 		this.isPlayerTurn = false;
 
-		console.log('Ending player turn');
+		this.log('turn_end', 'Ending player turn');
 
 		// Log leftover adrenaline for player drivers
 		const playerDrivers = this.playerTeam.getAllDrivers();
 		for (const driver of playerDrivers) {
 			if (driver.isAlive() && driver.adrenaline > 0) {
-				console.log(`${driver.metadata.name} ended turn with ${driver.adrenaline} adrenaline remaining`);
+				this.log('adrenaline_remaining', 
+					`${driver.metadata.name} ended turn with ${driver.adrenaline} adrenaline remaining`,
+					{ driver: driver.metadata.name, value: driver.adrenaline }
+				);
 			}
 		}
 
@@ -272,13 +371,16 @@ export class Battle extends Model<BattleData> {
 			}
 		}
 
-		console.log('Ending enemy turn');
+		this.log('turn_end', 'Ending enemy turn');
 
 		// Log leftover adrenaline for enemy drivers
 		const aliveEnemyDrivers = this.enemyTeam.getAllDrivers();
 		for (const driver of aliveEnemyDrivers) {
 			if (driver.isAlive() && driver.adrenaline > 0) {
-				console.log(`${driver.metadata.name} ended turn with ${driver.adrenaline} adrenaline remaining`);
+				this.log('adrenaline_remaining', 
+					`${driver.metadata.name} ended turn with ${driver.adrenaline} adrenaline remaining`,
+					{ driver: driver.metadata.name, value: driver.adrenaline }
+				);
 			}
 		}
 
@@ -335,7 +437,10 @@ export class Battle extends Model<BattleData> {
 								targetVehicle = decision.target as Vehicle;
 							}
 							this.applyCardEffects(result.card, targetVehicle, decision.driver);
-							console.log(`${decision.driver.metadata.name} plays ${result.card.displayName}`);
+							this.log('card_played', 
+								`${decision.driver.metadata.name} plays ${result.card.displayName}`,
+								{ driver: decision.driver.metadata.name, card: result.card.displayName }
+							);
 						}
 					}
 					
@@ -364,7 +469,10 @@ export class Battle extends Model<BattleData> {
 					const result = enemyDriver.playCardWithCost(i);
 					if (result.success && result.card) {
 						this.applyCardEffects(result.card, target, enemyDriver);
-						console.log(`${enemyDriver.metadata.name} plays ${result.card.displayName}`);
+						this.log('card_played',
+							`${enemyDriver.metadata.name} plays ${result.card.displayName}`,
+							{ driver: enemyDriver.metadata.name, card: result.card.displayName }
+						);
 						playedCard = true;
 						break; // Start from beginning since hand indices changed
 					}
@@ -384,7 +492,7 @@ export class Battle extends Model<BattleData> {
 		if (this.maxTurns && this.turn > this.maxTurns) {
 			this.battleOver = true;
 			this.battleTied = true;
-			console.log('Battle ended in a tie: Maximum turns exceeded');
+			this.log('battle_end', 'Battle ended in a tie: Maximum turns exceeded');
 			this.emit('battleEnded', Object.freeze({ winner: 'tie', reason: 'maxTurns' }));
 			return;
 		}
@@ -404,7 +512,7 @@ export class Battle extends Model<BattleData> {
 		// Set turn state
 		this.isPlayerTurn = true;
 
-		console.log(`Player turn ${this.turn} started`);
+		this.log('turn_start', `Player turn ${this.turn} started`, { turn: this.turn });
 	}
 
 	/**
@@ -425,7 +533,10 @@ export class Battle extends Model<BattleData> {
 							const hitModifier = typeof effect.hit_modifier === 'number' ? effect.hit_modifier : 0;
 							
 							if (!this.checkHit(caster, targetVehicle.driver, attackType, hitModifier)) {
-								console.log(`${card.displayName} misses ${targetVehicle.name}`);
+								this.log('miss',
+									`${card.displayName} misses ${targetVehicle.name}`,
+									{ card: card.displayName, target: targetVehicle.name }
+								);
 								break;
 							}
 						}
@@ -448,15 +559,24 @@ export class Battle extends Model<BattleData> {
 						if (effect.target === 'driver' && targetVehicle.driver) {
 							// Direct driver damage (e.g., Headshot)
 							targetVehicle.driver.takeDamage(damage);
-							console.log(`${card.displayName} deals ${damage} damage to ${targetVehicle.driver.metadata.name}`);
+							this.log('damage_dealt',
+								`${card.displayName} deals ${damage} damage to ${targetVehicle.driver.metadata.name}`,
+								{ card: card.displayName, target: targetVehicle.driver.metadata.name, value: damage }
+							);
 						} else if (effect.target === 'self_driver') {
 							// Self damage (e.g., Berserker)
 							caster.takeDamage(damage);
-							console.log(`${card.displayName} deals ${damage} damage to ${caster.metadata.name}`);
+							this.log('damage_dealt',
+								`${card.displayName} deals ${damage} damage to ${caster.metadata.name}`,
+								{ card: card.displayName, target: caster.metadata.name, value: damage }
+							);
 						} else {
 							// Normal vehicle damage
 							targetVehicle.takeDamage(damage);
-							console.log(`${card.displayName} deals ${damage} damage to ${targetVehicle.name}`);
+							this.log('damage_dealt',
+								`${card.displayName} deals ${damage} damage to ${targetVehicle.name}`,
+								{ card: card.displayName, target: targetVehicle.name, value: damage }
+							);
 						}
 						
 						// Handle vehicle destruction
@@ -474,7 +594,10 @@ export class Battle extends Model<BattleData> {
 						const healValue = typeof effect.value === 'number' ? effect.value : 0;
 						const overflowToArmor = effect.overflow_to_armor === true;
 						targetVehicle.repair(healValue, overflowToArmor);
-						console.log(`${card.displayName} repairs ${healValue} structure on ${targetVehicle.name}`);
+						this.log('heal_applied',
+							`${card.displayName} repairs ${healValue} structure on ${targetVehicle.name}`,
+							{ card: card.displayName, target: targetVehicle.name, value: healValue }
+						);
 					}
 					break;
 					
@@ -482,7 +605,7 @@ export class Battle extends Model<BattleData> {
 					if (effect.target === 'same_vehicle' && targetVehicle) {
 						const casterVehicle = this.getVehicleForDriver(caster);
 						if (casterVehicle !== targetVehicle) {
-							console.warn('Medical kit can only heal drivers in same vehicle');
+							this.log('general', 'Medical kit can only heal drivers in same vehicle');
 							break;
 						}
 					}
@@ -490,7 +613,10 @@ export class Battle extends Model<BattleData> {
 					const healValue = typeof effect.value === 'number' ? effect.value : 0;
 					if (targetVehicle && targetVehicle.driver) {
 						targetVehicle.driver.heal(healValue);
-						console.log(`${card.displayName} heals ${healValue} hit points on ${targetVehicle.driver.metadata.name}`);
+						this.log('heal_applied',
+							`${card.displayName} heals ${healValue} hit points on ${targetVehicle.driver.metadata.name}`,
+							{ card: card.displayName, target: targetVehicle.driver.metadata.name, value: healValue }
+						);
 					}
 					break;
 
@@ -498,20 +624,29 @@ export class Battle extends Model<BattleData> {
 					if (targetVehicle) {
 						const armorValue = typeof effect.value === 'number' ? effect.value : 0;
 						targetVehicle.addArmor(armorValue);
-						console.log(`${card.displayName} adds ${armorValue} armor to ${targetVehicle.name}`);
+						this.log('armor_gained',
+							`${card.displayName} adds ${armorValue} armor to ${targetVehicle.name}`,
+							{ card: card.displayName, target: targetVehicle.name, value: armorValue }
+						);
 					}
 					break;
 
 				case 'draw':
 					const drawValue = typeof effect.value === 'number' ? effect.value : 0;
 					caster.drawCards(drawValue);
-					console.log(`${card.displayName} draws ${drawValue} cards for ${caster.metadata.name}`);
+					this.log('general',
+						`${card.displayName} draws ${drawValue} cards for ${caster.metadata.name}`,
+						{ card: card.displayName, driver: caster.metadata.name, value: drawValue }
+					);
 					break;
 
 				case 'adrenaline':
 					const adrenalineValue = typeof effect.value === 'number' ? effect.value : 0;
 					caster.gainAdrenaline(adrenalineValue);
-					console.log(`${card.displayName} gives ${adrenalineValue} adrenaline to ${caster.metadata.name}`);
+					this.log('general',
+						`${card.displayName} gives ${adrenalineValue} adrenaline to ${caster.metadata.name}`,
+						{ card: card.displayName, driver: caster.metadata.name, value: adrenalineValue }
+					);
 					break;
 
 				case 'status':
@@ -525,7 +660,10 @@ export class Battle extends Model<BattleData> {
 						// Check if always hits or needs hit check
 						if (!effect.always_hits && targetVehicle.driver) {
 							if (!this.checkHit(caster, targetVehicle.driver)) {
-								console.log(`${card.displayName} misses ${targetVehicle.name}`);
+								this.log('miss',
+									`${card.displayName} misses ${targetVehicle.name}`,
+									{ card: card.displayName, target: targetVehicle.name }
+								);
 								break;
 							}
 						}
@@ -540,7 +678,10 @@ export class Battle extends Model<BattleData> {
 							value: statusValue,
 							description: effect.description
 						});
-						console.log(`${card.displayName} applies ${statusName} to ${targetVehicle.name}`);
+						this.log('status_applied',
+							`${card.displayName} applies ${statusName} to ${targetVehicle.name}`,
+							{ card: card.displayName, target: targetVehicle.name, status: statusName }
+						);
 					}
 					break;
 					
@@ -557,13 +698,16 @@ export class Battle extends Model<BattleData> {
 							);
 							
 							if (!fasterThanAll) {
-								console.warn('Cannot flank - not faster than all enemies');
+								this.log('general', 'Cannot flank - not faster than all enemies');
 								break;
 							}
 						}
 						
 						casterVehicle.changePosition(effect.position as VehiclePosition);
-						console.log(`${casterVehicle.name} moves to ${effect.position} position`);
+						this.log('general',
+							`${casterVehicle.name} moves to ${effect.position} position`,
+							{ vehicle: casterVehicle.name, position: String(effect.position) }
+						);
 					}
 					break;
 					
@@ -571,14 +715,20 @@ export class Battle extends Model<BattleData> {
 					if (targetVehicle) {
 						const armorValue = typeof effect.value === 'number' ? effect.value : 0;
 						targetVehicle.addArmor(armorValue);
-						console.log(`${card.displayName} adds ${armorValue} armor to ${targetVehicle.name}`);
+						this.log('armor_gained',
+							`${card.displayName} adds ${armorValue} armor to ${targetVehicle.name}`,
+							{ card: card.displayName, target: targetVehicle.name, value: armorValue }
+						);
 					}
 					break;
 					
 				case 'draw_cards': {
 					const drawCardsValue = typeof effect.value === 'number' ? effect.value : 0;
 					caster.drawCards(drawCardsValue);
-					console.log(`${card.displayName} draws ${drawCardsValue} cards for ${caster.metadata.name}`);
+					this.log('general',
+						`${card.displayName} draws ${drawCardsValue} cards for ${caster.metadata.name}`,
+						{ card: card.displayName, driver: caster.metadata.name, value: drawCardsValue }
+					);
 					break;
 				}
 					
@@ -586,7 +736,10 @@ export class Battle extends Model<BattleData> {
 					if (effect.resource === 'adrenaline') {
 						const adrenalineValue = typeof effect.value === 'number' ? effect.value : 0;
 						caster.gainAdrenaline(adrenalineValue);
-						console.log(`${card.displayName} gives ${adrenalineValue} adrenaline to ${caster.metadata.name}`);
+						this.log('general',
+						`${card.displayName} gives ${adrenalineValue} adrenaline to ${caster.metadata.name}`,
+						{ card: card.displayName, driver: caster.metadata.name, value: adrenalineValue }
+					);
 					}
 					break;
 
@@ -595,21 +748,30 @@ export class Battle extends Model<BattleData> {
 					if (targetVehicle) {
 						const armorValue = typeof effect.value === 'number' ? effect.value : 0;
 						targetVehicle.addArmor(armorValue);
-						console.log(`${card.displayName} adds ${armorValue} armor to ${targetVehicle.name}`);
+						this.log('armor_gained',
+							`${card.displayName} adds ${armorValue} armor to ${targetVehicle.name}`,
+							{ card: card.displayName, target: targetVehicle.name, value: armorValue }
+						);
 					}
 					break;
 					
 				case 'draw': {
 					const legacyDrawValue = typeof effect.value === 'number' ? effect.value : 0;
 					caster.drawCards(legacyDrawValue);
-					console.log(`${card.displayName} draws ${legacyDrawValue} cards for ${caster.metadata.name}`);
+					this.log('general',
+						`${card.displayName} draws ${legacyDrawValue} cards for ${caster.metadata.name}`,
+						{ card: card.displayName, driver: caster.metadata.name, value: legacyDrawValue }
+					);
 					break;
 				}
 					
 				case 'adrenaline': {
 					const legacyAdrenalineValue = typeof effect.value === 'number' ? effect.value : 0;
 					caster.gainAdrenaline(legacyAdrenalineValue);
-					console.log(`${card.displayName} gives ${legacyAdrenalineValue} adrenaline to ${caster.metadata.name}`);
+					this.log('general',
+						`${card.displayName} gives ${legacyAdrenalineValue} adrenaline to ${caster.metadata.name}`,
+						{ card: card.displayName, driver: caster.metadata.name, value: legacyAdrenalineValue }
+					);
 					break;
 				}
 			}
@@ -637,7 +799,7 @@ export class Battle extends Model<BattleData> {
 		if (this.playerTeam.isDefeated()) {
 			this.battleOver = true;
 			this.battleWon = false;
-			console.log('Battle lost: All player drivers defeated');
+			this.log('battle_end', 'Battle lost: All player drivers defeated');
 			this.emit('battleEnded', Object.freeze({ won: false }));
 			this.emit('stateChanged', this.getState());
 			return;
@@ -647,7 +809,7 @@ export class Battle extends Model<BattleData> {
 		if (this.enemyTeam.isDefeated()) {
 			this.battleOver = true;
 			this.battleWon = true;
-			console.log('Battle won: All enemy drivers defeated');
+			this.log('battle_end', 'Battle won: All enemy drivers defeated');
 			this.emit('battleEnded', Object.freeze({ won: true }));
 			this.emit('stateChanged', this.getState());
 			return;
@@ -794,7 +956,7 @@ export class Battle extends Model<BattleData> {
 			const maxRange = ranges.length > 0 ? Math.max(...ranges) : 2;
 			
 			if (range > maxRange) {
-				console.warn(`Target out of range: ${range} > ${maxRange}`);
+				this.log('general', `Target out of range: ${range} > ${maxRange}`);
 				return false;
 			}
 		}
@@ -802,7 +964,7 @@ export class Battle extends Model<BattleData> {
 		// Check position restrictions
 		for (const effect of card.effects) {
 			if (effect.condition === 'target_flanking' && target.position !== VehiclePosition.FLANKING) {
-				console.warn('Target must be flanking');
+				this.log('general', 'Target must be flanking');
 				return false;
 			}
 			
@@ -810,7 +972,7 @@ export class Battle extends Model<BattleData> {
 			if (effect.type === 'heal_driver' && effect.target === 'same_vehicle') {
 				const casterVehicle = this.getVehicleForDriver(caster);
 				if (casterVehicle !== target) {
-					console.warn('Can only heal drivers in same vehicle');
+					this.log('general', 'Can only heal drivers in same vehicle');
 					return false;
 				}
 			}
@@ -861,7 +1023,10 @@ export class Battle extends Model<BattleData> {
 		allVehicles.forEach(vehicle => {
 			if (vehicle.shouldLoseFlanking()) {
 				vehicle.changePosition(VehiclePosition.BACK);
-				console.log(`${vehicle.name} loses flanking position due to low speed`);
+				this.log('general',
+					`${vehicle.name} loses flanking position due to low speed`,
+					{ vehicle: vehicle.name }
+				);
 			}
 		});
 

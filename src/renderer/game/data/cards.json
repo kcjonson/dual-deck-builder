@@ -1,7 +1,7 @@
 {
   "cards": [
     {
-      "id": "point_blank",
+      "type": "point_blank",
       "name": "Point Blank",
       "description": "Deal {damage} damage. Range 1.",
       "rarity": "common",
@@ -22,7 +22,7 @@
       "image": "cards/point_blank.png"
     },
     {
-      "id": "far_shoot",
+      "type": "far_shoot",
       "name": "Far Shoot",
       "description": "Deal {damage} damage. Range 2.",
       "rarity": "common",
@@ -43,7 +43,7 @@
       "image": "cards/far_shoot.png"
     },
     {
-      "id": "headshot",
+      "type": "headshot",
       "name": "Headshot",
       "description": "Deal {damage} damage to target driver. No structure damage. Harder to hit (+2 to defender's evade).",
       "rarity": "rare",
@@ -75,7 +75,7 @@
       "image": "cards/headshot.png"
     },
     {
-      "id": "ram",
+      "type": "ram",
       "name": "Ram",
       "description": "Deal damage equal to your armor/10 + (your speed - target speed).",
       "rarity": "common",
@@ -105,7 +105,7 @@
       "image": "cards/ram.png"
     },
     {
-      "id": "flank",
+      "type": "flank",
       "name": "Flank",
       "description": "Move to flanking position if your speed is higher. Attack cards do 50% more damage.",
       "rarity": "common",
@@ -133,7 +133,7 @@
       "image": "cards/flank.png"
     },
     {
-      "id": "oil_slick",
+      "type": "oil_slick",
       "name": "Oil Slick",
       "description": "Target flanking vehicle loses 4 speed for 2 turns and becomes Vulnerable. Always hits.",
       "rarity": "uncommon",
@@ -162,7 +162,7 @@
       "image": "cards/oil_slick.png"
     },
     {
-      "id": "caltrops",
+      "type": "caltrops",
       "name": "Caltrops",
       "description": "Target flanking vehicle takes {damage} structure damage and loses 2 speed permanently. Always hits.",
       "rarity": "rare",
@@ -193,7 +193,7 @@
       "image": "cards/caltrops.png"
     },
     {
-      "id": "repair_kit",
+      "type": "repair_kit",
       "name": "Repair Kit",
       "description": "Restore {healing} Structure to your vehicle. Excess healing converts to armor.",
       "rarity": "common",
@@ -214,7 +214,7 @@
       "image": "cards/repair_kit.png"
     },
     {
-      "id": "medical_kit",
+      "type": "medical_kit",
       "name": "Medical Kit",
       "description": "Restore {healing} hit points to yourself or a passenger in your vehicle.",
       "rarity": "uncommon",
@@ -234,7 +234,7 @@
       "image": "cards/medical_kit.png"
     },
     {
-      "id": "nitro_boost",
+      "type": "nitro_boost",
       "name": "Nitro Boost",
       "description": "Gain 3 speed for 2 turns. Draw {cards} cards.",
       "rarity": "uncommon",
@@ -261,7 +261,7 @@
       "image": "cards/nitro_boost.png"
     },
     {
-      "id": "coordinated_attack",
+      "type": "coordinated_attack",
       "name": "Coordinated Attack",
       "description": "Deal {damage} damage. If partner attacked this turn, double the damage.",
       "rarity": "uncommon",
@@ -308,7 +308,7 @@
       "image": "cards/coordinated_attack.png"
     },
     {
-      "id": "emp_blast",
+      "type": "emp_blast",
       "name": "EMP Blast",
       "description": "All enemies skip their next turn.",
       "rarity": "rare",
@@ -329,7 +329,7 @@
       "image": "cards/emp_blast.png"
     },
     {
-      "id": "berserker",
+      "type": "berserker",
       "name": "Berserker",
       "description": "Take {damage} damage. Gain {adrenaline} Adrenaline. Your vehicle becomes Vulnerable.",
       "rarity": "common",
@@ -362,7 +362,7 @@
       "image": "cards/berserker.png"
     },
     {
-      "id": "armor_plating",
+      "type": "armor_plating",
       "name": "Armor Plating",
       "description": "Gain {armor} Armor.",
       "rarity": "common",
@@ -382,7 +382,7 @@
       "image": "cards/armor_plating.png"
     },
     {
-      "id": "ramming_speed",
+      "type": "ramming_speed",
       "name": "Ramming Speed",
       "description": "Deal {damage} damage. If target has Vulnerable, gain {adrenaline} Adrenaline.",
       "driverRestriction": null,
@@ -419,7 +419,7 @@
       "image": "cards/ramming_speed.png"
     },
     {
-      "id": "precision_shot",
+      "type": "precision_shot",
       "name": "Precision Shot",
       "description": "Deal {damage} damage. +{bonus} damage if you have Speed+.",
       "driverRestriction": "interceptor",
@@ -452,7 +452,7 @@
       "image": "cards/precision_shot.png"
     },
     {
-      "id": "witness_me",
+      "type": "witness_me",
       "name": "Witness Me!",
       "description": "Triple all damage this turn. Die at end of turn.",
       "rarity": "legendary",
@@ -476,7 +476,7 @@
       "image": "cards/witness_me.png"
     },
     {
-      "id": "flanking_maneuver",
+      "type": "flanking_maneuver",
       "name": "Flanking Maneuver",
       "description": "Move to Flanking position. Next attack deals +{bonus}% damage.",
       "rarity": "uncommon",

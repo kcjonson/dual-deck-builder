@@ -6,7 +6,7 @@ module.exports = merge(common, {
 	mode: process.env.NODE_ENV === 'production' ? 'production' : 'development',
 	devtool: process.env.NODE_ENV === 'production' ? 'source-map' : 'eval-source-map',
 	output: {
-		filename: 'bundle.[contenthash].js',
+		filename: '[name].[contenthash].js',
 		path: path.resolve(__dirname, '../dist/web'),
 		clean: true,
 	},
