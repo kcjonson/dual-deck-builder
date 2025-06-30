@@ -182,36 +182,6 @@ export class CardLoader {
 	}
 
 	/**
-	 * Get starting deck for a driver archetype
-	 */
-	public getStartingDeck(archetypeId: string): Card[] {
-		const cardIds = this.startingDecks.get(archetypeId);
-		if (!cardIds) {
-			console.warn(`CardLoader: Starting deck not found: ${archetypeId}`);
-			return [];
-		}
-
-		const cards: Card[] = [];
-		for (const cardId of cardIds) {
-			const card = this.createCard(cardId);
-			if (card) {
-				cards.push(card);
-			} else {
-				console.warn(`CardLoader: Card in starting deck not found: ${cardId}`);
-			}
-		}
-
-		return cards;
-	}
-
-	/**
-	 * Get available starting deck archetypes
-	 */
-	public getStartingDeckIds(): string[] {
-		return Array.from(this.startingDecks.keys());
-	}
-
-	/**
 	 * Check if cards are loaded
 	 */
 	public isLoaded(): boolean {

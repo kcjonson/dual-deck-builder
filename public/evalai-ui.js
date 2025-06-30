@@ -57,6 +57,7 @@ async function runEvaluation() {
 	if (document.getElementById('ai-random').checked) aiTypes.push('random');
 	if (document.getElementById('ai-aggressive').checked) aiTypes.push('aggressive');
 	if (document.getElementById('ai-mcts').checked) aiTypes.push('mcts');
+	if (document.getElementById('ai-salvage').checked) aiTypes.push('salvage');
 	
 	console.log('Selected AI types:', aiTypes);
 	
@@ -69,9 +70,7 @@ async function runEvaluation() {
 	const gamesPerMatchup = parseInt(document.getElementById('games-per-matchup').value) || 10;
 	const randomizeDrivers = document.getElementById('randomize-drivers').checked;
 	
-	// Show spinner
-	const spinner = document.getElementById('spinner');
-	spinner.classList.add('show');
+	// Show progress bar instead of spinner
 	
 	// Disable run button
 	const runButton = document.getElementById('run-evaluation');
@@ -87,18 +86,23 @@ async function runEvaluation() {
 		aiTypes: aiTypes,
 		gamesPerMatchup: gamesPerMatchup,
 		randomizeDrivers: randomizeDrivers,
-		verbose: true
+		verbose: true,
+		onProgress: (current, total, message) => {
+			const percentage = Math.round((current / total) * 100);
+			console.log(`Progress: ${current}/${total} (${percentage}%) - ${message}`);
+			updateProgress(percentage, `${message} (${current}/${total} games)`);
+		}
 	};
 	
-	// Use setTimeout to allow the browser to render the spinner
+	// Use setTimeout to allow UI to update before starting
 	setTimeout(async () => {
 		try {
 			// Calculate total games for progress tracking
 			const totalMatchups = (aiTypes.length * (aiTypes.length - 1)) / 2;
 			const totalGames = totalMatchups * gamesPerMatchup * 2; // *2 because we run both permutations
 			
-			// Update progress
-			updateProgress(0, `Running ${totalGames} total games (each matchup played with swapped positions)...`);
+			// Update initial progress
+			updateProgress(0, `Starting evaluation of ${totalGames} total games...`);
 			
 			console.log('Starting evaluation with config:', config);
 			
@@ -112,12 +116,17 @@ async function runEvaluation() {
 			// Store results
 			currentEvaluation = results;
 			
+			// Complete the progress bar
+			updateProgress(100, `Evaluation complete! Processed all games in ${duration}s`);
+			
 			// Display results
 			displayResults(results, duration);
 			
-			// Hide progress, show results
-			document.getElementById('progress').classList.remove('show');
-			document.getElementById('results').classList.add('show');
+			// Hide progress and show results after a short delay
+			setTimeout(() => {
+				document.getElementById('progress').classList.remove('show');
+				document.getElementById('results').classList.add('show');
+			}, 1000);
 			
 		} catch (error) {
 			console.error('Evaluation error:', error);
@@ -127,19 +136,24 @@ async function runEvaluation() {
 			// Hide progress on error
 			document.getElementById('progress').classList.remove('show');
 		} finally {
-			// Hide spinner
-			spinner.classList.remove('show');
-			
 			// Re-enable run button
 			runButton.disabled = false;
 			runButton.textContent = 'Run AI Evaluation';
 		}
-	}, 10); // Small delay to allow DOM to update
+	}, 50); // Small delay to ensure UI updates
 }
 
 function updateProgress(percentage, text) {
-	document.getElementById('progress-text').textContent = text;
-	document.getElementById('progress-fill').style.width = percentage + '%';
+	const progressText = document.getElementById('progress-text');
+	const progressFill = document.getElementById('progress-fill');
+	
+	if (progressText && progressFill) {
+		progressText.textContent = text;
+		progressFill.style.width = percentage + '%';
+		
+		// Force a reflow to ensure the browser updates
+		progressFill.offsetHeight;
+	}
 }
 
 function displayResults(results, duration) {
@@ -168,6 +182,7 @@ function displayResults(results, duration) {
 			<span>Record: ${result.wins}W-${result.losses}L-${result.draws}D</span>
 			<span>Avg Turns: ${result.avgTurnsPerGame.toFixed(1)}</span>
 			<span>Avg Score: ${result.avgScorePerGame.toFixed(0)}</span>
+			<span>Structure Looted: <strong>${result.totalStructureLooted || 0}</strong></span>
 		`;
 		
 		rankingItem.appendChild(nameSection);

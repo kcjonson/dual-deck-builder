@@ -86,7 +86,7 @@ describe('Battle', () => {
 				evade: 5
 			},
 			vehicleStats: {
-				maxHealth: 30,
+				maxStructure: 30,
 				weight: 5,
 				armor: 0,
 				speed: 5,
@@ -121,7 +121,7 @@ describe('Battle', () => {
 				evade: 5
 			},
 			vehicleStats: {
-				maxHealth: 30,
+				maxStructure: 30,
 				weight: 5,
 				armor: 0,
 				speed: 5,
@@ -157,7 +157,7 @@ describe('Battle', () => {
 				evade: 5
 			},
 			vehicleStats: {
-				maxHealth: 20,
+				maxStructure: 20,
 				weight: 4,
 				armor: 0,
 				speed: 4,
@@ -580,7 +580,7 @@ describe('Battle', () => {
 					evade: 5
 				},
 				vehicleStats: {
-					maxHealth: 20,
+					maxStructure: 20,
 					weight: 4,
 					armor: 0,
 					speed: 4,

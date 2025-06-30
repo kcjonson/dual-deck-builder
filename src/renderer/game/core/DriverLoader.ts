@@ -49,8 +49,8 @@ export class DriverLoader {
 					vehicleStats: driverConfig.vehicleStats,
 					startingDeck: driverConfig.startingDeck,
 					// Default runtime values
-					hitpoints: driverConfig.vehicleStats.maxHealth,
-					maxHitpoints: driverConfig.vehicleStats.maxHealth,
+					hitpoints: driverConfig.maxHitpoints,
+					maxHitpoints: driverConfig.maxHitpoints,
 					adrenaline: 3, // Default starting adrenaline
 					maxAdrenaline: 10, // Default max adrenaline
 					role: DriverRole.ACTIVE,
@@ -187,8 +187,8 @@ export class DriverLoader {
 			vehicleStats: config.vehicleStats,
 			startingDeck: config.startingDeck,
 			// Default runtime values
-			hitpoints: config.vehicleStats.maxHealth,
-			maxHitpoints: config.vehicleStats.maxHealth,
+			hitpoints: config.maxHitpoints,
+			maxHitpoints: config.maxHitpoints,
 			adrenaline: 3,
 			maxAdrenaline: 10,
 			role: DriverRole.ACTIVE,

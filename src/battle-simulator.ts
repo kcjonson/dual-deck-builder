@@ -22,6 +22,8 @@ interface BattleResult {
 			name: string;
 			structure: number;
 			maxStructure: number;
+			armor: number;
+			maxArmor: number;
 			driver: {
 				name: string;
 				hitpoints: number;
@@ -34,6 +36,8 @@ interface BattleResult {
 			name: string;
 			structure: number;
 			maxStructure: number;
+			armor: number;
+			maxArmor: number;
 			driver: {
 				name: string;
 				hitpoints: number;
@@ -83,9 +87,9 @@ class BattleSimulator {
 			
 			const vehicle = new Vehicle({
 				name: `Player Vehicle ${i + 1}`,
-				structure: driver.vehicleStats.maxHealth,
-				maxStructure: driver.vehicleStats.maxHealth,
-				armor: driver.vehicleStats.armor,
+				structure: driver.vehicleStats.maxStructure,
+				maxStructure: driver.vehicleStats.maxStructure,
+				armor: 10, // Start with full armor
 				maxArmor: 10,
 				speed: driver.vehicleStats.speed,
 				baseSpeed: driver.vehicleStats.speed,
@@ -112,9 +116,9 @@ class BattleSimulator {
 			
 			const vehicle = new Vehicle({
 				name: `Enemy Vehicle ${i + 1}`,
-				structure: driver.vehicleStats.maxHealth,
-				maxStructure: driver.vehicleStats.maxHealth,
-				armor: driver.vehicleStats.armor,
+				structure: driver.vehicleStats.maxStructure,
+				maxStructure: driver.vehicleStats.maxStructure,
+				armor: 10, // Start with full armor
 				maxArmor: 10,
 				speed: driver.vehicleStats.speed,
 				baseSpeed: driver.vehicleStats.speed,
@@ -209,6 +213,8 @@ class BattleSimulator {
 					name: v.name,
 					structure: v.structure,
 					maxStructure: v.maxStructure,
+					armor: v.armor,
+					maxArmor: v.maxArmor,
 					driver: v.driver ? {
 						name: v.driver.metadata.name,
 						hitpoints: v.driver.hitpoints,
@@ -221,6 +227,8 @@ class BattleSimulator {
 					name: v.name,
 					structure: v.structure,
 					maxStructure: v.maxStructure,
+					armor: v.armor,
+					maxArmor: v.maxArmor,
 					driver: v.driver ? {
 						name: v.driver.metadata.name,
 						hitpoints: v.driver.hitpoints,

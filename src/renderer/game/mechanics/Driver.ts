@@ -20,7 +20,7 @@ export interface DriverSkills {
  * Vehicle stats that affect combat mechanics
  */
 export interface VehicleStats {
-	maxHealth: number;
+	maxStructure: number; // Vehicle's maximum structure points
 	weight: number; // Affects ramming damage
 	armor: number; // Starting armor
 	speed: number; // Affects turn order and evasion
@@ -58,6 +58,7 @@ export interface DriverConfig {
 	skills: DriverSkills;
 	vehicleStats: VehicleStats;
 	startingDeck: StartingDeckConfig;
+	maxHitpoints: number; // Driver's personal health
 }
 
 /**
@@ -167,7 +168,8 @@ export class Driver extends Model<DriverData> {
 			metadata: this.metadata,
 			skills: this.skills,
 			vehicleStats: this.vehicleStats,
-			startingDeck: this.startingDeck
+			startingDeck: this.startingDeck,
+			maxHitpoints: this.maxHitpoints
 		};
 	}
 
@@ -407,7 +409,7 @@ export const DRIVER_CONFIGS: Record<DriverArchetype, DriverConfig> = {
 			evade: 3
 		},
 		vehicleStats: {
-			maxHealth: 80,
+			maxStructure: 80,
 			weight: 5,
 			armor: 10,
 			speed: 1,
@@ -420,10 +422,10 @@ export const DRIVER_CONFIGS: Record<DriverArchetype, DriverConfig> = {
 				{ type: 'armor_plating', quantity: 3 },
 				{ type: 'repair_kit', quantity: 2 },
 				{ type: 'nitro_boost', quantity: 1 },
-				{ type: 'coordinated_attack', quantity: 1 },
-				{ type: 'flanking_maneuver', quantity: 1 }
+				{ type: 'flanking_maneuver', quantity: 1 },
 			]
-		}
+		},
+		maxHitpoints: 40 // Tough veteran driver
 	},
 
 	interceptor: {
@@ -443,7 +445,7 @@ export const DRIVER_CONFIGS: Record<DriverArchetype, DriverConfig> = {
 			evade: 8
 		},
 		vehicleStats: {
-			maxHealth: 50,
+			maxStructure: 50,
 			weight: 1,
 			armor: 0,
 			speed: 5,
@@ -457,9 +459,10 @@ export const DRIVER_CONFIGS: Record<DriverArchetype, DriverConfig> = {
 				{ type: 'flanking_maneuver', quantity: 2 },
 				{ type: 'armor_plating', quantity: 1 },
 				{ type: 'repair_kit', quantity: 1 },
-				{ type: 'coordinated_attack', quantity: 1 }
+				{ type: 'headshot', quantity: 2 }
 			]
-		}
+		},
+		maxHitpoints: 25 // Agile but fragile
 	},
 
 	mechanic: {
@@ -479,7 +482,7 @@ export const DRIVER_CONFIGS: Record<DriverArchetype, DriverConfig> = {
 			evade: 5
 		},
 		vehicleStats: {
-			maxHealth: 60,
+			maxStructure: 60,
 			weight: 3,
 			armor: 5,
 			speed: 2,
@@ -492,9 +495,9 @@ export const DRIVER_CONFIGS: Record<DriverArchetype, DriverConfig> = {
 				{ type: 'repair_kit', quantity: 3 },
 				{ type: 'nitro_boost', quantity: 2 },
 				{ type: 'armor_plating', quantity: 2 },
-				{ type: 'coordinated_attack', quantity: 2 }
 			]
-		}
+		},
+		maxHitpoints: 30 // Balanced survivability
 	},
 
 	raider: {
@@ -515,7 +518,7 @@ export const DRIVER_CONFIGS: Record<DriverArchetype, DriverConfig> = {
 			evade: 4
 		},
 		vehicleStats: {
-			maxHealth: 65,
+			maxStructure: 65,
 			weight: 2,
 			armor: 2,
 			speed: 3,
@@ -526,12 +529,12 @@ export const DRIVER_CONFIGS: Record<DriverArchetype, DriverConfig> = {
 			cards: [
 				{ type: 'berserker', quantity: 3 },
 				{ type: 'ramming_speed', quantity: 2 },
-				{ type: 'coordinated_attack', quantity: 1 },
 				{ type: 'flanking_maneuver', quantity: 1 },
 				{ type: 'repair_kit', quantity: 1 },
 				{ type: 'armor_plating', quantity: 1 },
 				{ type: 'nitro_boost', quantity: 1 }
 			]
-		}
+		},
+		maxHitpoints: 33 // Reckless but resilient
 	}
 };
