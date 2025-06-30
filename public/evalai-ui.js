@@ -74,9 +74,14 @@ async function runEvaluation() {
 	const gamesPerMatchup = parseInt(document.getElementById('games-per-matchup').value) || 10;
 	const randomizeDrivers = document.getElementById('randomize-drivers').checked;
 	
+	// Show spinner
+	const spinner = document.getElementById('spinner');
+	spinner.classList.add('show');
+	
 	// Disable run button
 	const runButton = document.getElementById('run-evaluation');
 	runButton.disabled = true;
+	runButton.textContent = 'Running...';
 	
 	// Show progress
 	document.getElementById('progress').classList.add('show');
@@ -126,8 +131,12 @@ async function runEvaluation() {
 		// Hide progress on error
 		document.getElementById('progress').classList.remove('show');
 	} finally {
+		// Hide spinner
+		spinner.classList.remove('show');
+		
 		// Re-enable run button
 		runButton.disabled = false;
+		runButton.textContent = 'Run AI Evaluation';
 	}
 }
 
