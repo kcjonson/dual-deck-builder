@@ -95,7 +95,7 @@ export abstract class AIPlayer {
 		return actions;
 	}
 
-	protected getValidTargets(card: Card, sourceVehicle: Vehicle): (Vehicle | Driver)[] {
+	protected getValidTargets(card: Card, _sourceVehicle: Vehicle): (Vehicle | Driver)[] {
 		const targets: (Vehicle | Driver)[] = [];
 
 		switch (card.targetType) {
@@ -105,20 +105,32 @@ export abstract class AIPlayer {
 				targets.push(...enemyTeam.vehicles.filter(v => v.isAlive()));
 				break;
 			
+			case 'enemy_all':
+				// Enemy all cards don't need specific targets - handled by battle system
+				break;
+			
 			case 'ally':
 				targets.push(...this.team.vehicles.filter(v => v.isAlive()));
 				break;
 			
 			case 'self':
-				targets.push(sourceVehicle);
+				// Self-targeting cards don't need an explicit target
+				// The battle system will handle this automatically
 				break;
 			
 			case 'both_drivers':
-				for (const vehicle of this.team.vehicles) {
-					if (vehicle.isAlive() && vehicle.driver) {
-						targets.push(vehicle.driver);
-					}
-				}
+				// Both drivers cards don't need an explicit target
+				// The battle system will handle this automatically
+				break;
+				
+			case 'any':
+				// 'Any' target type means it can target any vehicle
+				const allVehicles = [
+					...this.team.vehicles.filter(v => v.isAlive()),
+					...(this.team === this.battle.playerTeam ? 
+						this.battle.enemyTeam : this.battle.playerTeam).vehicles.filter(v => v.isAlive())
+				];
+				targets.push(...allVehicles);
 				break;
 		}
 
@@ -126,6 +138,8 @@ export abstract class AIPlayer {
 	}
 
 	protected cardRequiresTarget(card: Card): boolean {
-		return ['enemy_single', 'ally', 'self', 'both_drivers'].includes(card.targetType || '');
+		// Only enemy_single, ally and any cards require explicit targets
+		// self, both_drivers, and enemy_all are handled automatically by the battle system
+		return ['enemy_single', 'ally', 'any'].includes(card.targetType || '');
 	}
 }

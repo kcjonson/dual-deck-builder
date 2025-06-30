@@ -91,8 +91,13 @@ export class AIController {
 			if (isPlayerTeam) {
 				// For player AI, use the public playCard method
 				let targetVehicle: Vehicle | undefined;
-				if (decision.target && 'structure' in decision.target) {
-					targetVehicle = decision.target as Vehicle;
+				
+				// Only pass target for cards that need external targets
+				// Self-targeting cards should not have a target passed
+				if (decision.card.targetType !== 'self' && decision.card.targetType !== 'both_drivers') {
+					if (decision.target && 'structure' in decision.target) {
+						targetVehicle = decision.target as Vehicle;
+					}
 				}
 				
 				this.battle.playCard({

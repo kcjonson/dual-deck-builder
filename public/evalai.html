@@ -1,0 +1,393 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+	<title>AI Evaluation System - Wasteland Wheels</title>
+	<style>
+		body {
+			margin: 0;
+			padding: 20px;
+			font-family: Arial, sans-serif;
+			background-color: #1a1a1a;
+			color: #f0f0f0;
+		}
+		
+		.container {
+			max-width: 1400px;
+			margin: 0 auto;
+		}
+		
+		h1 {
+			text-align: center;
+			color: #ff6b6b;
+			text-shadow: 2px 2px 4px rgba(0,0,0,0.5);
+		}
+		
+		.config-section {
+			background-color: #2a2a2a;
+			padding: 20px;
+			border-radius: 8px;
+			margin-bottom: 30px;
+			box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+		}
+		
+		.config-section h2 {
+			margin-top: 0;
+			color: #4dabf7;
+		}
+		
+		.form-row {
+			display: flex;
+			gap: 20px;
+			align-items: center;
+			margin-bottom: 15px;
+			flex-wrap: wrap;
+		}
+		
+		.form-group {
+			flex: 1;
+			min-width: 200px;
+		}
+		
+		label {
+			display: block;
+			margin-bottom: 5px;
+			font-weight: bold;
+		}
+		
+		input[type="number"] {
+			padding: 8px;
+			background-color: #3a3a3a;
+			color: #f0f0f0;
+			border: 1px solid #555;
+			border-radius: 4px;
+			font-size: 14px;
+			width: 100px;
+		}
+		
+		.checkbox-group {
+			display: flex;
+			gap: 20px;
+			flex-wrap: wrap;
+		}
+		
+		.checkbox-item {
+			display: flex;
+			align-items: center;
+			gap: 8px;
+		}
+		
+		input[type="checkbox"] {
+			width: 18px;
+			height: 18px;
+			cursor: pointer;
+		}
+		
+		button {
+			padding: 12px 24px;
+			font-size: 18px;
+			font-weight: bold;
+			background-color: #ff6b6b;
+			color: white;
+			border: none;
+			border-radius: 4px;
+			cursor: pointer;
+			transition: background-color 0.3s;
+		}
+		
+		button:hover {
+			background-color: #ff5252;
+		}
+		
+		button:disabled {
+			background-color: #666;
+			cursor: not-allowed;
+		}
+		
+		.run-controls {
+			text-align: center;
+			margin-bottom: 30px;
+		}
+		
+		.run-controls button {
+			padding: 12px 48px;
+		}
+		
+		.progress {
+			background-color: #2a2a2a;
+			padding: 20px;
+			border-radius: 8px;
+			margin-bottom: 20px;
+			display: none;
+			text-align: center;
+		}
+		
+		.progress.show {
+			display: block;
+		}
+		
+		.progress h3 {
+			margin-top: 0;
+			color: #ffd43b;
+		}
+		
+		.progress-bar {
+			width: 100%;
+			height: 30px;
+			background-color: #1a1a1a;
+			border-radius: 15px;
+			overflow: hidden;
+			margin-top: 10px;
+		}
+		
+		.progress-fill {
+			height: 100%;
+			background-color: #69db7c;
+			transition: width 0.3s;
+			width: 0%;
+		}
+		
+		.results {
+			background-color: #2a2a2a;
+			padding: 20px;
+			border-radius: 8px;
+			margin-bottom: 20px;
+			display: none;
+		}
+		
+		.results.show {
+			display: block;
+		}
+		
+		.results h2 {
+			margin-top: 0;
+			color: #69db7c;
+		}
+		
+		.rankings {
+			margin-bottom: 30px;
+		}
+		
+		.ranking-item {
+			background-color: #1a1a1a;
+			padding: 15px;
+			margin-bottom: 10px;
+			border-radius: 4px;
+			display: flex;
+			justify-content: space-between;
+			align-items: center;
+		}
+		
+		.ranking-item.winner {
+			background-color: #2b8a3e;
+			font-size: 20px;
+			font-weight: bold;
+		}
+		
+		.ranking-details {
+			display: flex;
+			gap: 20px;
+			font-size: 14px;
+			color: #aaa;
+		}
+		
+		.matchup-grid {
+			display: grid;
+			grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+			gap: 20px;
+			margin-top: 20px;
+		}
+		
+		.matchup-card {
+			background-color: #1a1a1a;
+			padding: 15px;
+			border-radius: 4px;
+		}
+		
+		.matchup-card h4 {
+			margin-top: 0;
+			color: #9472fc;
+		}
+		
+		.matchup-stats {
+			font-size: 14px;
+			line-height: 1.6;
+		}
+		
+		.win-rate {
+			font-weight: bold;
+			color: #69db7c;
+		}
+		
+		.loss-rate {
+			color: #ff6b6b;
+		}
+		
+		.detailed-results {
+			background-color: #1a1a1a;
+			padding: 20px;
+			border-radius: 8px;
+			max-height: 500px;
+			overflow-y: auto;
+			margin-top: 20px;
+		}
+		
+		.detailed-results h3 {
+			margin-top: 0;
+			color: #ffd43b;
+		}
+		
+		.match-entry {
+			margin-bottom: 15px;
+			padding: 10px;
+			background-color: #2a2a2a;
+			border-radius: 4px;
+			font-size: 14px;
+		}
+		
+		.match-header {
+			font-weight: bold;
+			margin-bottom: 5px;
+		}
+		
+		.match-details {
+			color: #aaa;
+		}
+		
+		.toggle-details {
+			margin-top: 20px;
+			text-align: center;
+		}
+		
+		.toggle-details button {
+			padding: 8px 20px;
+			font-size: 14px;
+			background-color: #4dabf7;
+		}
+		
+		.toggle-details button:hover {
+			background-color: #339af0;
+		}
+	</style>
+</head>
+<body>
+	<div class="container">
+		<h1>Wasteland Wheels - AI Evaluation System</h1>
+		
+		<div class="config-section">
+			<h2>Evaluation Configuration</h2>
+			
+			<div class="form-row">
+				<div class="form-group">
+					<label>AI Types to Test:</label>
+					<div class="checkbox-group">
+						<div class="checkbox-item">
+							<input type="checkbox" id="ai-random" value="random" checked>
+							<label for="ai-random">Random AI</label>
+						</div>
+						<div class="checkbox-item">
+							<input type="checkbox" id="ai-aggressive" value="aggressive" checked>
+							<label for="ai-aggressive">Aggressive Flanker AI</label>
+						</div>
+						<div class="checkbox-item">
+							<input type="checkbox" id="ai-mcts" value="mcts" checked>
+							<label for="ai-mcts">Monte Carlo Tree Search AI</label>
+						</div>
+					</div>
+				</div>
+			</div>
+			
+			<div class="form-row">
+				<div class="form-group">
+					<label for="games-per-matchup">Games per Matchup:</label>
+					<input type="number" id="games-per-matchup" value="10" min="1" max="100">
+				</div>
+				
+				<div class="form-group">
+					<label>Driver Selection:</label>
+					<div class="checkbox-group">
+						<div class="checkbox-item">
+							<input type="checkbox" id="randomize-drivers" checked>
+							<label for="randomize-drivers">Randomize Drivers Each Game</label>
+						</div>
+					</div>
+				</div>
+			</div>
+		</div>
+		
+		<div class="run-controls">
+			<button id="run-evaluation">Run AI Evaluation</button>
+		</div>
+		
+		<div id="progress" class="progress">
+			<h3>Running Evaluation...</h3>
+			<p id="progress-text">Initializing...</p>
+			<div class="progress-bar">
+				<div id="progress-fill" class="progress-fill"></div>
+			</div>
+		</div>
+		
+		<div id="results" class="results">
+			<h2>Evaluation Results</h2>
+			
+			<div class="rankings">
+				<h3>AI Rankings</h3>
+				<div id="rankings-container"></div>
+			</div>
+			
+			<div class="matchups">
+				<h3>Head-to-Head Results</h3>
+				<div id="matchups-container" class="matchup-grid"></div>
+			</div>
+			
+			<div class="toggle-details">
+				<button id="toggle-details-btn">Show Detailed Match Results</button>
+			</div>
+			
+			<div id="detailed-results" class="detailed-results" style="display: none;">
+				<h3>Detailed Match Results</h3>
+				<div id="detailed-container"></div>
+			</div>
+		</div>
+	</div>
+	
+	<script>
+		// Wait for all scripts to load
+		window.addEventListener('load', async function() {
+			console.log('Page fully loaded, checking for AIEvaluator...');
+			
+			// Check if AIEvaluator is available
+			if (window.AIEvaluator) {
+				console.log('AIEvaluator found');
+				
+				// Initialize if available
+				if (window.initializeAIEvaluator) {
+					console.log('Initializing AI Evaluator...');
+					await window.initializeAIEvaluator();
+				}
+				
+				// Load the UI script
+				const script = document.createElement('script');
+				script.src = 'evalai-ui.js';
+				script.onload = function() {
+					console.log('evalai-ui.js loaded');
+					
+					// Set up button click handler
+					const runButton = document.getElementById('run-evaluation');
+					if (runButton && window.runEvaluation) {
+						runButton.onclick = window.runEvaluation;
+						console.log('Button click handler set');
+					} else {
+						console.error('Button or runEvaluation function not found');
+					}
+				};
+				document.body.appendChild(script);
+			} else {
+				console.error('AIEvaluator not found on window object');
+				console.log('Available window properties:', Object.keys(window));
+			}
+		});
+	</script>
+</body>
+</html>

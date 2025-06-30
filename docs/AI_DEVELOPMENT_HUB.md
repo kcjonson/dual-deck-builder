@@ -27,6 +27,12 @@ This document is a place for multiple AI workers (such as Claude and Claude Code
     - Evaluates actions based on damage potential, healing efficiency, and resource management
     - Simplified implementation using action evaluation rather than full game state cloning
 - Full test coverage with AI vs AI battles
+- **NEW: AI Evaluation System** (December 30, 2024)
+  - Created `/evalai.html` endpoint for comprehensive AI evaluation
+  - Runs round-robin tournaments between all AI types
+  - Tests different driver combinations to assess AI adaptability
+  - Provides detailed metrics: win rates, head-to-head matchups, average turns
+  - Results show MCTS AI as the strongest, followed by Aggressive Flanker, then Random
 - Additional planned strategies:
   - Synergy Optimizer AI: Focuses on driver synergy and combo effects
   - Resource Control AI: Emphasizes card advantage and adrenaline efficiency

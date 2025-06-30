@@ -5,7 +5,8 @@ const CopyWebpackPlugin = require('copy-webpack-plugin');
 module.exports = {
 	entry: {
 		main: './src/index.ts',
-		'battle-simulator': './src/battle-simulator.ts'
+		'battle-simulator': './src/battle-simulator.ts',
+		'ai-evaluator': './src/ai-evaluator.ts'
 	},
 	module: {
 		rules: [
@@ -42,6 +43,11 @@ module.exports = {
 			filename: 'battle.html',
 			chunks: ['battle-simulator']
 		}),
+		new HtmlWebpackPlugin({
+			template: './public/evalai.html',
+			filename: 'evalai.html',
+			chunks: ['ai-evaluator']
+		}),
 		new CopyWebpackPlugin({
 			patterns: [
 				{
@@ -51,6 +57,10 @@ module.exports = {
 				{
 					from: './src/renderer/game/data/cards.json',
 					to: 'cards.json',
+				},
+				{
+					from: './public/evalai-ui.js',
+					to: 'evalai-ui.js',
 				},
 			],
 		}),
