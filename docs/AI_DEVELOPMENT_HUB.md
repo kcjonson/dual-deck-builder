@@ -26,6 +26,13 @@ This document is a place for multiple AI workers (such as Claude and Claude Code
     - Configurable iterations (default 1000) and exploration constant
     - Evaluates actions based on damage potential, healing efficiency, and resource management
     - Simplified implementation using action evaluation rather than full game state cloning
+  - **SalvageAI**: (NEW - December 30, 2024) Smart AI that wins while minimizing vehicle damage
+    - Balances between winning the game and preserving enemy vehicles for salvage
+    - Game state aware: switches strategies based on health ratios and card advantage
+    - Prioritizes flanking position for 50% damage bonus when safe
+    - Values card draw to find headshot cards faster
+    - Uses adaptive strategy: aggressive when losing, selective when winning
+    - Still prefers headshots but will use regular damage when necessary
 - Full test coverage with AI vs AI battles
 - **NEW: AI Evaluation System** (December 30, 2024)
   - Created `/evalai.html` endpoint for comprehensive AI evaluation

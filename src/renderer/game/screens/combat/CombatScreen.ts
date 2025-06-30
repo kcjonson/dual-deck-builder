@@ -269,8 +269,8 @@ export class CombatScreen extends Screen {
 			name: driver.metadata.vehicleName,
 			armor: vehicleStats.armor,
 			maxArmor: vehicleStats.armor,
-			structure: vehicleStats.maxHealth,
-			maxStructure: vehicleStats.maxHealth,
+			structure: vehicleStats.maxStructure,
+			maxStructure: vehicleStats.maxStructure,
 			speed: vehicleStats.speed,
 			baseSpeed: vehicleStats.speed,
 			position: VehiclePosition.FRONT,
@@ -301,7 +301,7 @@ export class CombatScreen extends Screen {
 				evade: 4
 			},
 			vehicleStats: {
-				maxHealth: 30,
+				maxStructure: 30,
 				weight: 2,
 				armor: 5,
 				speed: 3,

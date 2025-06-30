@@ -213,6 +213,9 @@ export class Battle extends Model<BattleData> {
 
 		this.log('battle_start', 'Battle started!');
 		
+		// Log initial team status
+		this.logTeamStatus();
+		
 		// Emit battle started event
 		this.emit('battleStarted', this.getState());
 	}
@@ -265,6 +268,9 @@ export class Battle extends Model<BattleData> {
 			return false;
 		}
 
+		// Store adrenaline before playing card
+		const adrenalineBefore = driver.adrenaline;
+		
 		// Attempt to play the card with cost validation
 		const result = driver.playCardWithCost(cardIndex);
 		
@@ -287,6 +293,12 @@ export class Battle extends Model<BattleData> {
 			driver.gainAdrenaline(card.cost);
 			return false;
 		}
+
+		// Log card play with adrenaline info
+		this.log('card_played', 
+			`${driver.metadata.name} plays ${card.displayName} (Adrenaline: ${adrenalineBefore} -> ${driver.adrenaline})`,
+			{ driver: driver.metadata.name, card: card.displayName, adrenalineBefore, adrenalineAfter: driver.adrenaline }
+		);
 
 		// Apply card effects
 		if (targetVehicle) {
@@ -439,10 +451,11 @@ export class Battle extends Model<BattleData> {
 							if (decision.target && 'structure' in decision.target) {
 								targetVehicle = decision.target as Vehicle;
 							}
+							const adrenalineBefore = decision.driver.adrenaline + result.card.cost; // Add back cost since it was already spent
 							this.applyCardEffects(result.card, targetVehicle, decision.driver);
 							this.log('card_played', 
-								`${decision.driver.metadata.name} plays ${result.card.displayName}`,
-								{ driver: decision.driver.metadata.name, card: result.card.displayName }
+								`${decision.driver.metadata.name} plays ${result.card.displayName} (Adrenaline: ${adrenalineBefore} -> ${decision.driver.adrenaline})`,
+								{ driver: decision.driver.metadata.name, card: result.card.displayName, adrenalineBefore, adrenalineAfter: decision.driver.adrenaline }
 							);
 						}
 					}
@@ -469,12 +482,13 @@ export class Battle extends Model<BattleData> {
 					const playerVehicles = this.playerTeam.getAliveVehicles();
 					const target = playerVehicles.length > 0 ? playerVehicles[0] : null;
 
+					const adrenalineBefore = enemyDriver.adrenaline;
 					const result = enemyDriver.playCardWithCost(i);
 					if (result.success && result.card) {
 						this.applyCardEffects(result.card, target, enemyDriver);
 						this.log('card_played',
-							`${enemyDriver.metadata.name} plays ${result.card.displayName}`,
-							{ driver: enemyDriver.metadata.name, card: result.card.displayName }
+							`${enemyDriver.metadata.name} plays ${result.card.displayName} (Adrenaline: ${adrenalineBefore} -> ${enemyDriver.adrenaline})`,
+							{ driver: enemyDriver.metadata.name, card: result.card.displayName, adrenalineBefore, adrenalineAfter: enemyDriver.adrenaline }
 						);
 						playedCard = true;
 						break; // Start from beginning since hand indices changed
@@ -516,6 +530,9 @@ export class Battle extends Model<BattleData> {
 		this.isPlayerTurn = true;
 
 		this.log('turn_start', `Player turn ${this.turn} started`, { turn: this.turn });
+		
+		// Log team status at turn start
+		this.logTeamStatus();
 	}
 
 	/**
@@ -575,9 +592,42 @@ export class Battle extends Model<BattleData> {
 							);
 						} else {
 							// Normal vehicle damage
+							const beforeStructure = targetVehicle.structure;
+							const beforeArmor = targetVehicle.armor;
+							
+							// Store driver health before damage
+							const beforeDriverHealth = targetVehicle.driver ? targetVehicle.driver.hitpoints : 0;
+							const beforePassengerHealth = targetVehicle.passenger ? targetVehicle.passenger.hitpoints : 0;
+							
 							targetVehicle.takeDamage(damage);
+							
+							// Calculate damage distribution
+							const armorDamage = beforeArmor - targetVehicle.armor;
+							const structureDamage = beforeStructure - targetVehicle.structure;
+							const driverDamage = targetVehicle.driver ? beforeDriverHealth - targetVehicle.driver.hitpoints : 0;
+							const passengerDamage = targetVehicle.passenger ? beforePassengerHealth - targetVehicle.passenger.hitpoints : 0;
+							
+							// Build damage breakdown message
+							let damageBreakdown = `${damage} total`;
+							if (armorDamage > 0) {
+								damageBreakdown += ` (${armorDamage} to armor`;
+								if (structureDamage > 0 || driverDamage > 0 || passengerDamage > 0) {
+									damageBreakdown += `, ${structureDamage} to structure`;
+									if (driverDamage > 0 || passengerDamage > 0) {
+										damageBreakdown += `, ${driverDamage + passengerDamage} to occupants`;
+									}
+								}
+								damageBreakdown += ')';
+							} else if (structureDamage > 0 || driverDamage > 0 || passengerDamage > 0) {
+								damageBreakdown += ` (${structureDamage} to structure, ${driverDamage + passengerDamage} to occupants)`;
+							}
+							
+							// Show before and after state
+							const structureText = `${beforeStructure}/${targetVehicle.maxStructure} -> ${targetVehicle.structure}/${targetVehicle.maxStructure}`;
+							const armorText = `${beforeArmor}/${targetVehicle.maxArmor} -> ${targetVehicle.armor}/${targetVehicle.maxArmor}`;
+							
 							this.log('damage_dealt',
-								`${card.displayName} deals ${damage} damage to ${targetVehicle.name}`,
+								`${card.displayName} deals ${damageBreakdown} damage to ${targetVehicle.name} (Structure: ${structureText}, Armor: ${armorText})`,
 								{ card: card.displayName, target: targetVehicle.name, value: damage }
 							);
 						}
@@ -596,9 +646,23 @@ export class Battle extends Model<BattleData> {
 					if (targetVehicle) {
 						const healValue = typeof effect.value === 'number' ? effect.value : 0;
 						const overflowToArmor = effect.overflow_to_armor === true;
+						
+						// Store before values
+						const beforeStructure = targetVehicle.structure;
+						const beforeArmor = targetVehicle.armor;
+						
 						targetVehicle.repair(healValue, overflowToArmor);
+						
+						// Calculate actual healing applied
+						const structureHealed = targetVehicle.structure - beforeStructure;
+						const armorHealed = targetVehicle.armor - beforeArmor;
+						
+						// Create detailed message showing before and after
+						const structureText = `${beforeStructure}/${targetVehicle.maxStructure} -> ${targetVehicle.structure}/${targetVehicle.maxStructure}`;
+						const armorText = `${beforeArmor}/${targetVehicle.maxArmor} -> ${targetVehicle.armor}/${targetVehicle.maxArmor}`;
+						
 						this.log('heal_applied',
-							`${card.displayName} repairs ${healValue} structure on ${targetVehicle.name}`,
+							`${card.displayName} repairs ${structureHealed} structure and ${armorHealed} armor on ${targetVehicle.name} (Structure: ${structureText}, Armor: ${armorText})`,
 							{ card: card.displayName, target: targetVehicle.name, value: healValue }
 						);
 					}
@@ -626,9 +690,18 @@ export class Battle extends Model<BattleData> {
 				case 'armor':
 					if (targetVehicle) {
 						const armorValue = typeof effect.value === 'number' ? effect.value : 0;
+						const beforeArmor = targetVehicle.armor;
+						
 						targetVehicle.addArmor(armorValue);
+						
+						// Calculate actual armor gained
+						const armorGained = targetVehicle.armor - beforeArmor;
+						
+						// Show before and after armor state
+						const armorText = `${beforeArmor}/${targetVehicle.maxArmor} -> ${targetVehicle.armor}/${targetVehicle.maxArmor}`;
+						
 						this.log('armor_gained',
-							`${card.displayName} adds ${armorValue} armor to ${targetVehicle.name}`,
+							`${card.displayName} adds ${armorGained} armor to ${targetVehicle.name} (Armor: ${armorText})`,
 							{ card: card.displayName, target: targetVehicle.name, value: armorValue }
 						);
 					}
@@ -675,14 +748,31 @@ export class Battle extends Model<BattleData> {
 						const statusValue = typeof effect.value === 'number' ? effect.value : 0;
 						const duration = typeof effect.duration === 'number' ? effect.duration : 1;
 						
+						// Get speed before applying status for speed-related effects
+						const speedBefore = targetVehicle.getTotalSpeed();
+						
 						targetVehicle.applyStatusEffect({
 							name: statusName,
 							duration: duration,
 							value: statusValue,
 							description: effect.description
 						});
+						
+						// Get speed after applying status
+						const speedAfter = targetVehicle.getTotalSpeed();
+						
+						// Create appropriate log message based on status type
+						let logMessage = `${card.displayName} applies ${statusName} to ${targetVehicle.name}`;
+						
+						// Add speed information for speed-related statuses
+						if (statusName === 'speed_boost' || statusName === 'nitro_boost' || 
+						    statusName === 'speed_reduction' || statusName === 'oil_slick' || 
+						    statusName === 'caltrops') {
+							logMessage += ` (Speed: ${speedBefore} -> ${speedAfter})`;
+						}
+						
 						this.log('status_applied',
-							`${card.displayName} applies ${statusName} to ${targetVehicle.name}`,
+							logMessage,
 							{ card: card.displayName, target: targetVehicle.name, status: statusName }
 						);
 					}
@@ -717,9 +807,18 @@ export class Battle extends Model<BattleData> {
 				case 'gain_armor':
 					if (targetVehicle) {
 						const armorValue = typeof effect.value === 'number' ? effect.value : 0;
+						const beforeArmor = targetVehicle.armor;
+						
 						targetVehicle.addArmor(armorValue);
+						
+						// Calculate actual armor gained
+						const armorGained = targetVehicle.armor - beforeArmor;
+						
+						// Show before and after armor state
+						const armorText = `${beforeArmor}/${targetVehicle.maxArmor} -> ${targetVehicle.armor}/${targetVehicle.maxArmor}`;
+						
 						this.log('armor_gained',
-							`${card.displayName} adds ${armorValue} armor to ${targetVehicle.name}`,
+							`${card.displayName} adds ${armorGained} armor to ${targetVehicle.name} (Armor: ${armorText})`,
 							{ card: card.displayName, target: targetVehicle.name, value: armorValue }
 						);
 					}
@@ -750,9 +849,18 @@ export class Battle extends Model<BattleData> {
 				case 'armor':
 					if (targetVehicle) {
 						const armorValue = typeof effect.value === 'number' ? effect.value : 0;
+						const beforeArmor = targetVehicle.armor;
+						
 						targetVehicle.addArmor(armorValue);
+						
+						// Calculate actual armor gained
+						const armorGained = targetVehicle.armor - beforeArmor;
+						
+						// Show before and after armor state
+						const armorText = `${beforeArmor}/${targetVehicle.maxArmor} -> ${targetVehicle.armor}/${targetVehicle.maxArmor}`;
+						
 						this.log('armor_gained',
-							`${card.displayName} adds ${armorValue} armor to ${targetVehicle.name}`,
+							`${card.displayName} adds ${armorGained} armor to ${targetVehicle.name} (Armor: ${armorText})`,
 							{ card: card.displayName, target: targetVehicle.name, value: armorValue }
 						);
 					}
@@ -1034,5 +1142,48 @@ export class Battle extends Model<BattleData> {
 		});
 
 		this.emit('combatEnded', this.getState());
+	}
+
+	/**
+	 * Log the status of all vehicles and drivers
+	 */
+	private logTeamStatus(): void {
+		// Log player team status
+		this.log('general', '=== PLAYER TEAM STATUS ===');
+		this.playerTeam.vehicles.forEach((vehicle, index) => {
+			const structureText = `${vehicle.structure}/${vehicle.maxStructure}`;
+			const armorText = `${vehicle.armor}/${vehicle.maxArmor}`;
+			let driverInfo = '';
+			
+			if (vehicle.driver) {
+				driverInfo += ` | Driver: ${vehicle.driver.metadata.name} (${vehicle.driver.hitpoints}/${vehicle.driver.maxHitpoints} HP)`;
+			}
+			if (vehicle.passenger) {
+				driverInfo += ` | Passenger: ${vehicle.passenger.metadata.name} (${vehicle.passenger.hitpoints}/${vehicle.passenger.maxHitpoints} HP)`;
+			}
+			
+			this.log('general', 
+				`  Vehicle ${index + 1}: Structure ${structureText}, Armor ${armorText}${driverInfo}`
+			);
+		});
+		
+		// Log enemy team status
+		this.log('general', '=== ENEMY TEAM STATUS ===');
+		this.enemyTeam.vehicles.forEach((vehicle, index) => {
+			const structureText = `${vehicle.structure}/${vehicle.maxStructure}`;
+			const armorText = `${vehicle.armor}/${vehicle.maxArmor}`;
+			let driverInfo = '';
+			
+			if (vehicle.driver) {
+				driverInfo += ` | Driver: ${vehicle.driver.metadata.name} (${vehicle.driver.hitpoints}/${vehicle.driver.maxHitpoints} HP)`;
+			}
+			if (vehicle.passenger) {
+				driverInfo += ` | Passenger: ${vehicle.passenger.metadata.name} (${vehicle.passenger.hitpoints}/${vehicle.passenger.maxHitpoints} HP)`;
+			}
+			
+			this.log('general', 
+				`  Vehicle ${index + 1}: Structure ${structureText}, Armor ${armorText}${driverInfo}`
+			);
+		});
 	}
 }

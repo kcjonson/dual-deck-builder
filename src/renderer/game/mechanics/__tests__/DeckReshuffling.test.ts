@@ -41,7 +41,7 @@ describe('Deck Reshuffling', () => {
 				evade: 5
 			},
 			vehicleStats: {
-				maxHealth: 10,
+				maxStructure: 10,
 				weight: 100,
 				armor: 5,
 				speed: 50,

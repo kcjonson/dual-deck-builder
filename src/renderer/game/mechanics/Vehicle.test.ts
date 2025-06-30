@@ -27,7 +27,7 @@ describe('Vehicle', () => {
 				evade: 5
 			},
 			vehicleStats: {
-				maxHealth: 30,
+				maxStructure: 30,
 				weight: 5,
 				armor: 0,
 				speed: 3, // Driver speed

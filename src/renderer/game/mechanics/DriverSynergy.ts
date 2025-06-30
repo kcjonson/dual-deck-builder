@@ -65,7 +65,7 @@ export class DriverSynergy {
 		
 		return {
 			offensive: stats.gunnery + (stats.weight * 0.5), // Gunnery + ramming potential
-			defensive: stats.armor + (stats.maxHealth * 0.1) + stats.evade,
+			defensive: stats.armor + (stats.maxStructure * 0.1) + stats.evade,
 			utility: this.calculateUtilityScore(driver),
 			speed: stats.speed + stats.evade
 		};

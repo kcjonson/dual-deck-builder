@@ -16,6 +16,7 @@ export interface AIMatchResult {
 	player1Drivers: string[];
 	player2Drivers: string[];
 	battleLog: string[];
+	structureLooted: number; // Structure remaining in losing team's vehicles
 }
 
 export interface AIEvaluationResult {
@@ -27,6 +28,7 @@ export interface AIEvaluationResult {
 	winRate: number;
 	avgTurnsPerGame: number;
 	avgScorePerGame: number;
+	totalStructureLooted: number; // Total structure salvaged from defeated enemies
 	matchResults: AIMatchResult[];
 }
 
@@ -36,6 +38,7 @@ export interface EvaluationConfig {
 	driverSets?: string[][];  // Optional specific driver sets to test
 	randomizeDrivers?: boolean;
 	verbose?: boolean;
+	onProgress?: (current: number, total: number, message: string) => void;
 }
 
 export class AIEvaluator {
@@ -43,6 +46,13 @@ export class AIEvaluator {
 	
 	constructor() {
 		// Drivers will be loaded externally via DriverLoader
+	}
+	
+	/**
+	 * Yield control back to the browser to allow UI updates
+	 */
+	private async yieldToUI(): Promise<void> {
+		return new Promise(resolve => setTimeout(resolve, 10));
 	}
 	
 	/**
@@ -66,8 +76,20 @@ export class AIEvaluator {
 				winRate: 0,
 				avgTurnsPerGame: 0,
 				avgScorePerGame: 0,
+				totalStructureLooted: 0,
 				matchResults: []
 			});
+		}
+		
+		// Calculate total number of games for progress tracking
+		const totalMatchups = (config.aiTypes.length * (config.aiTypes.length - 1)) / 2;
+		const totalGames = totalMatchups * config.gamesPerMatchup * 2; // *2 for both permutations
+		let gamesCompleted = 0;
+		
+		// Report initial progress
+		if (config.onProgress) {
+			config.onProgress(0, totalGames, 'Starting evaluation...');
+			await this.yieldToUI();
 		}
 		
 		// Run matches between each pair of AI types
@@ -88,9 +110,25 @@ export class AIEvaluator {
 					// Run both permutations (AI1 as player, AI2 as enemy and vice versa)
 					const result1 = await this.runSingleMatch(ai1, ai2, driverSets[0], driverSets[1]);
 					this.updateResults(results, ai1, ai2, result1);
+					gamesCompleted++;
+					
+					// Report progress and yield to UI
+					if (config.onProgress) {
+						config.onProgress(gamesCompleted, totalGames, 
+							`Completed ${ai1} vs ${ai2} (game ${game + 1}/${config.gamesPerMatchup}, round 1)`);
+						await this.yieldToUI();
+					}
 					
 					const result2 = await this.runSingleMatch(ai2, ai1, driverSets[0], driverSets[1]);
 					this.updateResults(results, ai2, ai1, result2);
+					gamesCompleted++;
+					
+					// Report progress and yield to UI
+					if (config.onProgress) {
+						config.onProgress(gamesCompleted, totalGames, 
+							`Completed ${ai2} vs ${ai1} (game ${game + 1}/${config.gamesPerMatchup}, round 2)`);
+						await this.yieldToUI();
+					}
 				}
 			}
 		}
@@ -134,8 +172,8 @@ export class AIEvaluator {
 				name: driver.metadata.vehicleName,
 				armor: driver.vehicleStats.armor,
 				maxArmor: driver.vehicleStats.armor,
-				structure: driver.vehicleStats.maxHealth,
-				maxStructure: driver.vehicleStats.maxHealth,
+				structure: driver.vehicleStats.maxStructure,
+				maxStructure: driver.vehicleStats.maxStructure,
 				speed: driver.vehicleStats.speed,
 				baseSpeed: driver.vehicleStats.speed,
 				position: index === 0 ? VehiclePosition.FRONT : VehiclePosition.BACK,
@@ -156,8 +194,8 @@ export class AIEvaluator {
 				name: driver.metadata.vehicleName,
 				armor: driver.vehicleStats.armor,
 				maxArmor: driver.vehicleStats.armor,
-				structure: driver.vehicleStats.maxHealth,
-				maxStructure: driver.vehicleStats.maxHealth,
+				structure: driver.vehicleStats.maxStructure,
+				maxStructure: driver.vehicleStats.maxStructure,
 				speed: driver.vehicleStats.speed,
 				baseSpeed: driver.vehicleStats.speed,
 				position: index === 0 ? VehiclePosition.FRONT : VehiclePosition.BACK,
@@ -268,6 +306,17 @@ export class AIEvaluator {
 		const player1Score = this.calculateTeamScore(playerTeam);
 		const player2Score = this.calculateTeamScore(enemyTeam);
 		
+		// Calculate structure looted (structure remaining in losing team)
+		let structureLooted = 0;
+		if (winner === 'player1') {
+			// Player 1 won, so they loot enemy team's remaining structure
+			structureLooted = this.calculateRemainingStructure(enemyTeam);
+		} else if (winner === 'player2') {
+			// Player 2 won, so they loot player team's remaining structure
+			structureLooted = this.calculateRemainingStructure(playerTeam);
+		}
+		// No looting on draws
+		
 		return {
 			player1AI,
 			player2AI,
@@ -277,7 +326,8 @@ export class AIEvaluator {
 			turnsPlayed,
 			player1Drivers: player1Drivers.map(d => d.metadata.name),
 			player2Drivers: player2Drivers.map(d => d.metadata.name),
-			battleLog: formattedBattleLog
+			battleLog: formattedBattleLog,
+			structureLooted
 		};
 	}
 	
@@ -328,12 +378,17 @@ export class AIEvaluator {
 		if (match.winner === 'player1') {
 			result1.wins++;
 			result2.losses++;
+			// AI1 won, so they get the looted structure
+			result1.totalStructureLooted += match.structureLooted;
 		} else if (match.winner === 'player2') {
 			result1.losses++;
 			result2.wins++;
+			// AI2 won, so they get the looted structure
+			result2.totalStructureLooted += match.structureLooted;
 		} else {
 			result1.draws++;
 			result2.draws++;
+			// No looting on draws
 		}
 	}
 	
@@ -355,6 +410,18 @@ export class AIEvaluator {
 			}
 		}
 		return score;
+	}
+	
+	/**
+	 * Calculate remaining structure in a team's vehicles (for salvage)
+	 */
+	private calculateRemainingStructure(team: Team): number {
+		let totalStructure = 0;
+		for (const vehicle of team.vehicles) {
+			// Count structure from all vehicles, even destroyed ones
+			totalStructure += vehicle.structure;
+		}
+		return totalStructure;
 	}
 	
 	/**

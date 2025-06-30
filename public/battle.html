@@ -241,6 +241,7 @@
 						<option value="random">Random AI</option>
 						<option value="aggressive" selected>Aggressive Flanker AI</option>
 						<option value="mcts">Monte Carlo Tree Search AI</option>
+						<option value="salvage">Salvage AI</option>
 					</select>
 				</div>
 				
@@ -280,6 +281,7 @@
 						<option value="random" selected>Random AI</option>
 						<option value="aggressive">Aggressive Flanker AI</option>
 						<option value="mcts">Monte Carlo Tree Search AI</option>
+						<option value="salvage">Salvage AI</option>
 					</select>
 				</div>
 				
@@ -288,9 +290,9 @@
 					<div class="form-group driver-select">
 						<label for="enemy-driver-1">Driver:</label>
 						<select id="enemy-driver-1">
-							<option value="road_warrior">Road Warrior</option>
+							<option value="road_warrior" selected>Road Warrior</option>
 							<option value="interceptor">Interceptor</option>
-							<option value="mechanic" selected>Mechanic</option>
+							<option value="mechanic">Mechanic</option>
 							<option value="raider">Raider</option>
 						</select>
 					</div>
@@ -302,9 +304,9 @@
 						<label for="enemy-driver-2">Driver:</label>
 						<select id="enemy-driver-2">
 							<option value="road_warrior">Road Warrior</option>
-							<option value="interceptor">Interceptor</option>
+							<option value="interceptor" selected>Interceptor</option>
 							<option value="mechanic">Mechanic</option>
-							<option value="raider" selected>Raider</option>
+							<option value="raider">Raider</option>
 						</select>
 					</div>
 				</div>
@@ -341,6 +343,26 @@
 		Running battle simulation...
 	</div>
 	
+	<script>
+		// Sync enemy drivers with player drivers
+		function syncEnemyDrivers() {
+			const playerDriver1 = document.getElementById('player-driver-1').value;
+			const playerDriver2 = document.getElementById('player-driver-2').value;
+			
+			document.getElementById('enemy-driver-1').value = playerDriver1;
+			document.getElementById('enemy-driver-2').value = playerDriver2;
+		}
+		
+		// Add event listeners to player driver selects
+		document.addEventListener('DOMContentLoaded', function() {
+			// Initial sync
+			syncEnemyDrivers();
+			
+			// Sync when player selections change
+			document.getElementById('player-driver-1').addEventListener('change', syncEnemyDrivers);
+			document.getElementById('player-driver-2').addEventListener('change', syncEnemyDrivers);
+		});
+	</script>
 	<script src="battle-simulator.js"></script>
 </body>
 </html>

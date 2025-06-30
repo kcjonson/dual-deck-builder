@@ -112,9 +112,13 @@ function formatTeamStats(teamStats) {
 		const structurePercent = Math.round((vehicle.structure / vehicle.maxStructure) * 100);
 		const structureColor = structurePercent > 50 ? '#69db7c' : (structurePercent > 25 ? '#ffd43b' : '#ff6b6b');
 		
+		const armorPercent = vehicle.maxArmor > 0 ? Math.round((vehicle.armor / vehicle.maxArmor) * 100) : 0;
+		const armorColor = armorPercent > 50 ? '#4dabf7' : (armorPercent > 25 ? '#ffd43b' : '#ff6b6b');
+		
 		html += `<div style="margin-bottom: 15px;">`;
 		html += `<strong>${vehicle.name}</strong><br>`;
 		html += `Structure: <span style="color: ${structureColor}">${vehicle.structure}/${vehicle.maxStructure} (${structurePercent}%)</span><br>`;
+		html += `Armor: <span style="color: ${armorColor}">${vehicle.armor}/${vehicle.maxArmor} (${armorPercent}%)</span><br>`;
 		
 		if (vehicle.driver) {
 			const hpPercent = Math.round((vehicle.driver.hitpoints / vehicle.driver.maxHitpoints) * 100);

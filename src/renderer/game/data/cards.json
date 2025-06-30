@@ -52,13 +52,13 @@
       "effects": [
         {
           "type": "damage",
-          "value": 2,
+          "value": 5,
           "target": "driver",
           "hit_modifier": -2
         }
       ],
       "variables": {
-        "damage": { "base": 2, "upgraded": 2 },
+        "damage": { "base": 5, "upgraded": 10 },
         "hit_modifier": { "base": -2, "upgraded": -1 }
       },
       "upgrades": {
@@ -502,71 +502,5 @@
       "tags": ["utility", "positioning", "buff"],
       "image": "cards/flanking_maneuver.png"
     }
-  ],
-  "startingDecks": {
-    "road_warrior": {
-      "name": "Road Warrior",
-      "description": "Aggressive tank specialist with ramming attacks",
-      "cards": [
-        "ram",
-        "ram",
-        "armor_plating",
-        "armor_plating",
-        "armor_plating",
-        "repair_kit",
-        "repair_kit",
-        "point_blank",
-        "coordinated_attack",
-        "flank"
-      ]
-    },
-    "interceptor": {
-      "name": "Interceptor",
-      "description": "High-speed precision combat specialist",
-      "cards": [
-        "precision_shot",
-        "precision_shot",
-        "point_blank",
-        "far_shoot",
-        "nitro_boost",
-        "nitro_boost",
-        "flank",
-        "flank",
-        "repair_kit",
-        "coordinated_attack"
-      ]
-    },
-    "mechanic": {
-      "name": "Mechanic",
-      "description": "Support specialist with utility and control",
-      "cards": [
-        "emp_blast",
-        "repair_kit",
-        "repair_kit",
-        "medical_kit",
-        "medical_kit",
-        "nitro_boost",
-        "armor_plating",
-        "armor_plating",
-        "coordinated_attack",
-        "point_blank"
-      ]
-    },
-    "raider": {
-      "name": "Raider",
-      "description": "High-risk, high-reward berserker style",
-      "cards": [
-        "berserker",
-        "berserker",
-        "berserker",
-        "ram",
-        "ram",
-        "coordinated_attack",
-        "flank",
-        "repair_kit",
-        "point_blank",
-        "nitro_boost"
-      ]
-    }
-  }
+  ]
 }

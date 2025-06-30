@@ -4,6 +4,29 @@ This document contains the chronological log of completed development tasks for 
 
 =========================================
 
+## Salvage AI Implementation (2024-12-30)
+
+### Created AI Strategy for Vehicle Salvage
+
+**What Changed:**
+- Implemented SalvageAI strategy that minimizes vehicle damage for salvage opportunities
+- Added 'salvage' as a new AI type in AIController
+- Updated AI Development Hub documentation with new strategy
+- **Major revision**: Redesigned AI to be competitive while maintaining salvage focus
+
+**Technical Details:**
+- Initial implementation was too passive and lost to RandomAI
+- Redesigned with game state awareness:
+  - Evaluates health ratios to determine if in danger or winning
+  - Switches strategies based on game state (survival mode when losing)
+  - Prioritizes flanking position for 50% damage bonus (+150 score)
+  - Values card draw to find headshots faster (+80 score)
+  - Focuses fire on damaged vehicles for efficiency
+- Headshot priority reduced from +1000 to +500 for better balance
+- Structure damage penalty reduced from -10 to -5 per damage
+- Added team detection to properly evaluate game state
+- Demonstrates strategic depth while maintaining salvage theme
+
 ## AI Evaluation System (2024-12-30)
 
 ### Created Comprehensive AI Evaluation System
