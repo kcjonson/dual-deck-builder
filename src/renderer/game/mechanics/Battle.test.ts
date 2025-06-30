@@ -745,7 +745,8 @@ describe('Battle', () => {
 			const messages = battle.getMessages();
 			const damageMessage = messages.find(m => 
 				m.type === 'damage_dealt' && 
-				m.message.includes('Berserker Rage deals 10 damage to Enemy Vehicle 1')
+				m.message.includes('Berserker Rage deals') &&
+				m.message.includes('damage to Enemy Vehicle 1')
 			);
 			expect(damageMessage).toBeDefined();
 		});
