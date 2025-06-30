@@ -86,6 +86,9 @@ export class Battle extends Model<BattleData> {
 	
 	// Battle message log (stored separately due to Model freezing)
 	private static messageLogs = new WeakMap<Battle, BattleMessage[]>();
+	
+	// Static flag to control console logging
+	public static suppressConsoleLog = false;
 
 	/**
 	 * Create a new battle
@@ -158,8 +161,8 @@ export class Battle extends Model<BattleData> {
 		// Emit the message as an event
 		this.emit('battleMessage', Object.freeze(logEntry));
 
-		// Also log to console in development
-		if (process.env.NODE_ENV !== 'test') {
+		// Also log to console in development (but not during AI evaluation)
+		if (process.env.NODE_ENV !== 'test' && !Battle.suppressConsoleLog) {
 			console.log(message);
 		}
 	}

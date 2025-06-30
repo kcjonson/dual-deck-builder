@@ -457,7 +457,7 @@ export const DRIVER_CONFIGS: Record<DriverArchetype, DriverConfig> = {
 				{ type: 'flanking_maneuver', quantity: 2 },
 				{ type: 'armor_plating', quantity: 1 },
 				{ type: 'repair_kit', quantity: 1 },
-				{ type: 'coordinated_strike', quantity: 1 }
+				{ type: 'coordinated_attack', quantity: 1 }
 			]
 		}
 	},
@@ -492,7 +492,7 @@ export const DRIVER_CONFIGS: Record<DriverArchetype, DriverConfig> = {
 				{ type: 'repair_kit', quantity: 3 },
 				{ type: 'nitro_boost', quantity: 2 },
 				{ type: 'armor_plating', quantity: 2 },
-				{ type: 'coordinated_strike', quantity: 2 }
+				{ type: 'coordinated_attack', quantity: 2 }
 			]
 		}
 	},
@@ -524,7 +524,7 @@ export const DRIVER_CONFIGS: Record<DriverArchetype, DriverConfig> = {
 		},
 		startingDeck: {
 			cards: [
-				{ type: 'blood_for_chrome', quantity: 3 },
+				{ type: 'berserker', quantity: 3 },
 				{ type: 'ramming_speed', quantity: 2 },
 				{ type: 'coordinated_attack', quantity: 1 },
 				{ type: 'flanking_maneuver', quantity: 1 },

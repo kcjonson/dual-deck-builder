@@ -49,6 +49,10 @@ export class AIEvaluator {
 	 * Evaluate all AI types against each other
 	 */
 	async evaluateAllAI(config: EvaluationConfig): Promise<Map<AIType, AIEvaluationResult>> {
+		// Suppress console logging during evaluation by default
+		const originalSuppressLog = Battle.suppressConsoleLog;
+		Battle.suppressConsoleLog = true;
+		
 		const results = new Map<AIType, AIEvaluationResult>();
 		
 		// Initialize results for each AI type
@@ -101,6 +105,9 @@ export class AIEvaluator {
 				? result.matchResults.reduce((sum, m) => sum + (m.player1AI === result.aiType ? m.player1Score : m.player2Score), 0) / result.matchResults.length
 				: 0;
 		}
+		
+		// Restore original console log setting
+		Battle.suppressConsoleLog = originalSuppressLog;
 		
 		return results;
 	}
@@ -185,7 +192,6 @@ export class AIEvaluator {
 		battle.start();
 		
 		// Run the battle
-		const battleLog: string[] = [];
 		let turnsPlayed = 0;
 		const maxTurns = 100; // Prevent infinite loops
 		
@@ -200,7 +206,6 @@ export class AIEvaluator {
 					if (!decision || decision.type === 'endTurn') {
 						continuePlayingCards = false;
 					} else if (decision.type === 'playCard' && decision.card && decision.driver) {
-						battleLog.push(`Turn ${battle.turn}: player - ${this.formatDecision(decision)}`);
 						await battle.aiController.executeAIDecision(decision, true);
 					}
 				}
@@ -215,14 +220,34 @@ export class AIEvaluator {
 			turnsPlayed++;
 		}
 		
+		// Get battle messages from the battle system
+		const battleMessages = battle.getMessages();
+		
+		// Add header to show which AI had first-turn advantage
+		const battleHeader = [`=== ${player1AI.toUpperCase()} (Player/First) vs ${player2AI.toUpperCase()} (Enemy/Second) ===`];
+		
+		const formattedBattleLog = battleHeader.concat(
+			battleMessages.map(msg => {
+				const turnPrefix = `Turn ${msg.turn}:`;
+				let formattedMessage = msg.message;
+				
+				// Add metadata if available
+				if (msg.metadata) {
+					if (msg.metadata.driver) {
+						formattedMessage = `[${msg.metadata.driver}] ${formattedMessage}`;
+					}
+				}
+				
+				return `${turnPrefix} ${formattedMessage}`;
+			})
+		);
+		
 		// Determine winner and scores
 		const player1Alive = playerTeam.getAliveVehicles().length;
 		const player2Alive = enemyTeam.getAliveVehicles().length;
 		
-		// Debug logging
-		console.log(`Battle ended - Turn ${battle.turn}, Turns played: ${turnsPlayed}`);
-		console.log(`Player1 vehicles alive: ${player1Alive}, Player2 vehicles alive: ${player2Alive}`);
-		console.log(`Battle over: ${battle.battleOver}, Battle won: ${battle.battleWon}, Battle tied: ${battle.battleTied}`);
+		// Debug logging (reduced)
+		// Note: verbose logging is controlled by Battle.suppressConsoleLog
 		
 		let winner: 'player1' | 'player2' | 'draw';
 		if (battle.isBattleWon()) {
@@ -252,7 +277,7 @@ export class AIEvaluator {
 			turnsPlayed,
 			player1Drivers: player1Drivers.map(d => d.metadata.name),
 			player2Drivers: player2Drivers.map(d => d.metadata.name),
-			battleLog
+			battleLog: formattedBattleLog
 		};
 	}
 	

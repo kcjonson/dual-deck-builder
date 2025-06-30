@@ -16,23 +16,25 @@ export class MCTSAI extends AIPlayer {
 	private readonly iterations: number;
 	private readonly explorationConstant: number;
 	
-	// Strategic weights
-	private readonly ELIMINATION_SCORE = 10.0;
-	private readonly DAMAGE_WEIGHT = 1.0;
-	private readonly FLANKING_BONUS = 1.5;
-	private readonly LOW_HEALTH_BONUS = 2.0;
-	private readonly HEAL_WEIGHT = 0.8;
-	private readonly ARMOR_WEIGHT = 0.6;
-	private readonly CARD_DRAW_WEIGHT = 1.5;
-	private readonly ADRENALINE_WEIGHT = 2.0;
-	private readonly POSITION_CHANGE_WEIGHT = 3.0;
-	private readonly SPEED_BOOST_WEIGHT = 2.5;
+	// Strategic weights - optimized for winning
+	private readonly ELIMINATION_SCORE = 20.0; // Doubled - eliminating enemies is key
+	private readonly DAMAGE_WEIGHT = 1.5; // Increased - aggression wins games
+	private readonly FLANKING_BONUS = 2.0; // Increased - flanking is very powerful
+	private readonly LOW_HEALTH_BONUS = 3.0; // Increased - finish off weak enemies
+	private readonly HEAL_WEIGHT = 0.5; // Decreased - offense > defense
+	private readonly ARMOR_WEIGHT = 0.4; // Decreased - offense > defense
+	private readonly CARD_DRAW_WEIGHT = 2.0; // Increased - card advantage is crucial
+	private readonly ADRENALINE_WEIGHT = 2.5; // Increased - enables more plays
+	private readonly POSITION_CHANGE_WEIGHT = 4.0; // Increased - flanking wins games
+	private readonly SPEED_BOOST_WEIGHT = 3.5; // Increased - enables flanking
+	private readonly FOCUS_FIRE_BONUS = 2.5; // New - concentrate attacks
+	private readonly TEMPO_BONUS = 1.5; // New - reward playing multiple cards
 	
 	constructor({
 		team,
 		battle,
-		iterations = 2000, // Increased iterations for better decision making
-		explorationConstant = 1.4 // Slightly lower for more exploitation
+		iterations = 3000, // Further increased for better decision making
+		explorationConstant = 1.2 // Lower for more exploitation of good moves
 	}: {
 		team: Team;
 		battle: Battle;
@@ -90,21 +92,27 @@ export class MCTSAI extends AIPlayer {
 		let bestAction = possibleActions[0];
 		let bestScore = -Infinity;
 		
-		// Also consider ending turn if we've already played good cards
-		let hasPlayedHighValueCards = false;
+		// Track card plays for aggressive strategy
+		let cardPlaysAvailable = 0;
+		let bestCardScore = -Infinity;
+		let bestCardAction: AIDecision | null = null;
 		
 		for (const [action, stats] of actionScores) {
 			if (stats.visits > 0) {
 				const avgScore = stats.totalScore / stats.visits;
 				
-				// Log scores for debugging (remove in production)
+				// Track card plays separately
 				if (action.type === 'playCard' && action.card) {
-					if (avgScore > 5) hasPlayedHighValueCards = true;
+					cardPlaysAvailable++;
+					if (avgScore > bestCardScore) {
+						bestCardScore = avgScore;
+						bestCardAction = action;
+					}
 				}
 				
 				// Prefer actions with both high score and reasonable visits
-				const confidence = Math.min(stats.visits / 50, 1); // Confidence factor
-				const finalScore = avgScore * (0.7 + 0.3 * confidence);
+				const confidence = Math.min(stats.visits / 100, 1); // Confidence factor
+				const finalScore = avgScore * (0.8 + 0.2 * confidence);
 				
 				if (finalScore > bestScore) {
 					bestScore = finalScore;
@@ -113,17 +121,15 @@ export class MCTSAI extends AIPlayer {
 			}
 		}
 		
-		// If best action is end turn but we haven't played high value cards, 
-		// try to find a card to play
-		if (bestAction.type === 'endTurn' && !hasPlayedHighValueCards) {
-			for (const [action, stats] of actionScores) {
-				if (action.type === 'playCard' && stats.visits > 0) {
-					const avgScore = stats.totalScore / stats.visits;
-					if (avgScore > 1) {
-						return action;
-					}
-				}
-			}
+		// Aggressive strategy: Always prefer playing cards if they have positive value
+		if (bestAction.type === 'endTurn' && bestCardAction && bestCardScore > 0.5) {
+			// Only end turn if no cards have any value
+			return bestCardAction;
+		}
+		
+		// Extra aggressive: If we have high-damage cards available, play them
+		if (cardPlaysAvailable > 0 && bestCardScore > 3.0) {
+			return bestCardAction;
 		}
 		
 		return bestAction;
@@ -171,7 +177,7 @@ export class MCTSAI extends AIPlayer {
 			// End turn only if we can't play valuable cards
 			const remainingActions = this.countRemainingValuableActions();
 			if (remainingActions > 0) {
-				return -2.0; // Penalty for ending turn with good plays available
+				return -5.0; // Stronger penalty for ending turn with good plays available
 			}
 			return 0.1; // Small positive if we truly have nothing good to play
 		}
@@ -194,16 +200,32 @@ export class MCTSAI extends AIPlayer {
 				}
 			}
 			
+			// Special bonus for area damage cards when multiple enemies exist
+			if (card.targetType === 'enemy_all') {
+				const aliveEnemies = this.getEnemyTeam().getAliveVehicles().length;
+				if (aliveEnemies > 1) {
+					score *= 1.5; // 50% bonus for hitting multiple targets
+				}
+			}
+			
 			// Consider card synergies and combos
 			score += this.evaluateCardSynergy(card, driver, ourVehicle);
 			
-			// Resource efficiency - don't divide by cost, use subtraction
-			const costPenalty = card.cost * 0.2; // Small penalty for expensive cards
+			// Resource efficiency - reduced penalty for aggressive play
+			const costPenalty = card.cost * 0.1; // Reduced penalty
 			score -= costPenalty;
 			
 			// Bonus for using adrenaline efficiently
 			if (driver.adrenaline - card.cost <= 1) {
-				score += 0.5; // Bonus for using up adrenaline
+				score += 1.0; // Increased bonus for using up adrenaline
+			}
+			
+			// Apply tempo bonus for playing multiple cards
+			score += this.calculateTempoBonus(driver, gameState);
+			
+			// Bonus for offensive cards
+			if (card.effects && card.effects.some(e => e.type === 'damage')) {
+				score += 2.0; // Flat bonus for damage cards
 			}
 			
 			return Math.max(0, score);
@@ -223,11 +245,14 @@ export class MCTSAI extends AIPlayer {
 			
 			for (const card of driver.hand) {
 				if (driver.adrenaline >= card.cost) {
-					// Simple check if card has valuable effects
+					// More comprehensive check for valuable cards
 					if (card.effects && card.effects.some(e => 
-						e.type === 'damage' && (e.value || 0) >= 5 ||
-						e.type === 'heal' && (e.value || 0) >= 5 ||
-						e.type === 'position_change'
+						e.type === 'damage' && (e.value || 0) >= 3 || // Lowered threshold
+						e.type === 'heal' && (e.value || 0) >= 3 ||
+						e.type === 'position_change' ||
+						e.type === 'speed' ||
+						e.type === 'draw' ||
+						e.type === 'adrenaline'
 					)) {
 						count++;
 					}
@@ -263,13 +288,13 @@ export class MCTSAI extends AIPlayer {
 		effect: { type: string; value?: number }, 
 		target: Vehicle | Driver | undefined,
 		ourVehicle: Vehicle,
-		_gameState: GameStateEvaluation
+		gameState: GameStateEvaluation
 	): number {
 		let score = 0;
 		
 		switch (effect.type) {
 			case 'damage':
-				score += this.evaluateDamageWithContext(effect.value || 0, target, ourVehicle);
+				score += this.evaluateDamageWithContext(effect.value || 0, target, ourVehicle, gameState);
 				break;
 			case 'heal':
 				score += this.evaluateHealWithContext(effect.value || 0, target, ourVehicle);
@@ -299,7 +324,7 @@ export class MCTSAI extends AIPlayer {
 	/**
 	 * Evaluate damage with flanking bonus and target priority
 	 */
-	private evaluateDamageWithContext(damage: number, target: Vehicle | Driver | undefined, ourVehicle: Vehicle): number {
+	private evaluateDamageWithContext(damage: number, target: Vehicle | Driver | undefined, ourVehicle: Vehicle, gameState: GameStateEvaluation): number {
 		if (!target || !(target instanceof Vehicle)) {
 			return damage * 0.1; // Small score for untargeted damage
 		}
@@ -315,7 +340,7 @@ export class MCTSAI extends AIPlayer {
 		
 		// Huge bonus for elimination
 		if (damage >= currentHealth) {
-			return this.ELIMINATION_SCORE;
+			return this.ELIMINATION_SCORE * 2; // Double bonus for guaranteed kills
 		}
 		
 		// Bonus for attacking low health targets
@@ -324,11 +349,24 @@ export class MCTSAI extends AIPlayer {
 			score *= this.LOW_HEALTH_BONUS;
 		}
 		
+		// Extra bonus if this puts them in elimination range for next attack
+		if (targetVehicle.structure - damage <= 5) {
+			score += this.ELIMINATION_SCORE * 0.5;
+		}
+		
+		// Prioritize targets in front position (easier to hit)
+		if (targetVehicle.position === 'front') {
+			score *= 1.2;
+		}
+		
 		// Consider armor (armor reduces damage effectiveness)
 		if (targetVehicle.armor > 0) {
 			const armorReduction = Math.min(targetVehicle.armor / damage, 0.5);
 			score *= (1 - armorReduction);
 		}
+		
+		// Apply focus fire bonus if others are also targeting this vehicle
+		score += this.calculateFocusFireBonus(targetVehicle, gameState);
 		
 		return score;
 	}
@@ -450,5 +488,46 @@ export class MCTSAI extends AIPlayer {
 		}
 		
 		return synergyScore;
+	}
+	
+	/**
+	 * Calculate focus fire bonus - reward concentrating attacks on one target
+	 */
+	private calculateFocusFireBonus(targetVehicle: Vehicle, _gameState: GameStateEvaluation): number {
+		let bonus = 0;
+		
+		// Check if this target is already damaged
+		const healthPercent = targetVehicle.structure / targetVehicle.maxStructure;
+		if (healthPercent < 0.7) {
+			// Give bonus for attacking already damaged targets
+			bonus += this.FOCUS_FIRE_BONUS * (1 - healthPercent);
+			
+			// Extra bonus if we can eliminate the target
+			if (targetVehicle.structure <= 10) {
+				bonus += this.FOCUS_FIRE_BONUS;
+			}
+		}
+		
+		return bonus;
+	}
+	
+	/**
+	 * Calculate tempo bonus - reward playing multiple cards in a turn
+	 */
+	private calculateTempoBonus(driver: Driver, _gameState: GameStateEvaluation): number {
+		// Check how many cards we can still play
+		let playableCards = 0;
+		for (const card of driver.hand) {
+			if (driver.adrenaline >= card.cost) {
+				playableCards++;
+			}
+		}
+		
+		// Give bonus if we can play more cards (tempo advantage)
+		if (playableCards > 1) {
+			return this.TEMPO_BONUS * Math.min(playableCards - 1, 2);
+		}
+		
+		return 0;
 	}
 }
