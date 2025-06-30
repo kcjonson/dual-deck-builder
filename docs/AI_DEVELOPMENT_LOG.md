@@ -4,6 +4,39 @@ This document contains the chronological log of completed development tasks for 
 
 =========================================
 
+## Monte Carlo Tree Search AI Implementation (2025-06-30)
+
+### Implemented MCTS AI Player
+
+**What Changed:**
+- Created MCTSNode class for tree structure with UCB1 selection
+- Implemented MCTSAI player using Monte Carlo Tree Search algorithm
+- Added MCTS to AIController as a selectable AI type
+- Created comprehensive test suite for MCTS functionality
+- Updated battle simulator to support MCTS AI selection
+- **Improved MCTS to be competitive**: Fixed evaluation issues that made it lose to Random AI
+
+**Technical Details:**
+- Uses UCB1 (Upper Confidence Bound) for balancing exploration vs exploitation
+- Simplified implementation using action evaluation rather than full game state cloning
+- Improved parameters: iterations (2000), exploration constant (1.4)
+- Enhanced evaluation with strategic weights:
+  - ELIMINATION_SCORE = 10.0 (huge bonus for finishing enemies)
+  - FLANKING_BONUS = 1.5 (50% damage bonus consideration)
+  - Position changes and speed boosts for flanking strategy
+  - Better resource management (penalizes ending turn with good plays available)
+- Context-aware evaluation:
+  - Considers target health, armor, and position
+  - Evaluates card synergies with driver skills
+  - Prioritizes low-health target elimination
+  - Values self-preservation when critical
+
+**Performance Improvements:**
+- No longer loses to Random AI consistently
+- Makes strategic decisions similar to Aggressive Flanker AI
+- Better adrenaline usage (doesn't waste turns)
+- Smarter target prioritization
+
 ## AI Battle Simulator Web Page (2025-06-29)
 
 ### Created Web-Based Battle Simulator
