@@ -308,6 +308,40 @@
 			0% { transform: rotate(0deg); }
 			100% { transform: rotate(360deg); }
 		}
+		
+		/* Battle log styles */
+		.battle-log-link {
+			color: #4dabf7;
+			cursor: pointer;
+			text-decoration: underline;
+			font-size: 12px;
+			margin-left: 10px;
+		}
+		
+		.battle-log-link:hover {
+			color: #339af0;
+		}
+		
+		.battle-log-container {
+			display: none;
+			margin-top: 10px;
+			padding: 10px;
+			background-color: #1a1a1a;
+			border-radius: 4px;
+			max-height: 200px;
+			overflow-y: auto;
+			font-size: 12px;
+			font-family: monospace;
+		}
+		
+		.battle-log-container.show {
+			display: block;
+		}
+		
+		.battle-log-entry {
+			margin-bottom: 4px;
+			color: #aaa;
+		}
 	</style>
 </head>
 <body>
@@ -419,15 +453,7 @@
 				script.src = 'evalai-ui.js';
 				script.onload = function() {
 					console.log('evalai-ui.js loaded');
-					
-					// Set up button click handler
-					const runButton = document.getElementById('run-evaluation');
-					if (runButton && window.runEvaluation) {
-						runButton.onclick = window.runEvaluation;
-						console.log('Button click handler set');
-					} else {
-						console.error('Button or runEvaluation function not found');
-					}
+					// Note: Event handlers are set up within evalai-ui.js
 				};
 				document.body.appendChild(script);
 			} else {

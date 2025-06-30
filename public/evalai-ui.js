@@ -5,8 +5,6 @@ let currentEvaluation = null;
 
 // Initialize function that can be called immediately
 function initializeEvaluator() {
-	console.log('initializeEvaluator called, window.AIEvaluator:', window.AIEvaluator);
-	
 	// Wait for AIEvaluator to be available from the webpack bundle
 	if (window.AIEvaluator) {
 		try {
@@ -19,13 +17,11 @@ function initializeEvaluator() {
 		
 		// Set up event listeners
 		const runButton = document.getElementById('run-evaluation');
-		console.log('Run button element:', runButton);
+
 		if (runButton) {
 			runButton.addEventListener('click', function(e) {
-				console.log('Run button clicked!');
 				runEvaluation();
 			});
-			console.log('Run button click handler attached');
 		} else {
 			console.error('Run button not found');
 		}
@@ -33,7 +29,6 @@ function initializeEvaluator() {
 		const toggleButton = document.getElementById('toggle-details-btn');
 		if (toggleButton) {
 			toggleButton.addEventListener('click', toggleDetailedResults);
-			console.log('Toggle button click handler attached');
 		} else {
 			console.error('Toggle button not found');
 		}
@@ -95,49 +90,51 @@ async function runEvaluation() {
 		verbose: true
 	};
 	
-	try {
-		// Calculate total games for progress tracking
-		const totalMatchups = (aiTypes.length * (aiTypes.length - 1)) / 2;
-		const totalGames = totalMatchups * gamesPerMatchup * 2; // *2 because we run both permutations
-		let gamesCompleted = 0;
-		
-		// Update progress
-		updateProgress(0, `Running ${totalGames} total games...`);
-		
-		console.log('Starting evaluation with config:', config);
-		
-		// Run evaluation with progress tracking
-		const startTime = Date.now();
-		const results = await evaluator.evaluateAllAI(config);
-		const duration = ((Date.now() - startTime) / 1000).toFixed(1);
-		
-		console.log('Evaluation completed, results:', results);
-		
-		// Store results
-		currentEvaluation = results;
-		
-		// Display results
-		displayResults(results, duration);
-		
-		// Hide progress, show results
-		document.getElementById('progress').classList.remove('show');
-		document.getElementById('results').classList.add('show');
-		
-	} catch (error) {
-		console.error('Evaluation error:', error);
-		console.error('Error stack:', error.stack);
-		alert(`Error running evaluation: ${error.message}`);
-		
-		// Hide progress on error
-		document.getElementById('progress').classList.remove('show');
-	} finally {
-		// Hide spinner
-		spinner.classList.remove('show');
-		
-		// Re-enable run button
-		runButton.disabled = false;
-		runButton.textContent = 'Run AI Evaluation';
-	}
+	// Use setTimeout to allow the browser to render the spinner
+	setTimeout(async () => {
+		try {
+			// Calculate total games for progress tracking
+			const totalMatchups = (aiTypes.length * (aiTypes.length - 1)) / 2;
+			const totalGames = totalMatchups * gamesPerMatchup * 2; // *2 because we run both permutations
+			
+			// Update progress
+			updateProgress(0, `Running ${totalGames} total games (each matchup played with swapped positions)...`);
+			
+			console.log('Starting evaluation with config:', config);
+			
+			// Run evaluation with progress tracking
+			const startTime = Date.now();
+			const results = await evaluator.evaluateAllAI(config);
+			const duration = ((Date.now() - startTime) / 1000).toFixed(1);
+			
+			console.log('Evaluation completed, results:', results);
+			
+			// Store results
+			currentEvaluation = results;
+			
+			// Display results
+			displayResults(results, duration);
+			
+			// Hide progress, show results
+			document.getElementById('progress').classList.remove('show');
+			document.getElementById('results').classList.add('show');
+			
+		} catch (error) {
+			console.error('Evaluation error:', error);
+			console.error('Error stack:', error.stack);
+			alert(`Error running evaluation: ${error.message}`);
+			
+			// Hide progress on error
+			document.getElementById('progress').classList.remove('show');
+		} finally {
+			// Hide spinner
+			spinner.classList.remove('show');
+			
+			// Re-enable run button
+			runButton.disabled = false;
+			runButton.textContent = 'Run AI Evaluation';
+		}
+	}, 10); // Small delay to allow DOM to update
 }
 
 function updateProgress(percentage, text) {
@@ -268,15 +265,23 @@ function prepareDetailedResults(results) {
 					? '#69db7c' 
 					: '#ff6b6b';
 			
+			const matchId = `match-${matchIndex}`;
+			const player1Label = `${formatAIName(match.player1AI)} <span style="color: #69db7c; font-size: 12px;">(First)</span>`;
+			const player2Label = `${formatAIName(match.player2AI)} <span style="color: #ff6b6b; font-size: 12px;">(Second)</span>`;
+			
 			matchEntry.innerHTML = `
 				<div class="match-header">
-					Match ${matchIndex}: ${formatAIName(match.player1AI)} vs ${formatAIName(match.player2AI)}
+					Match ${matchIndex}: ${player1Label} vs ${player2Label}
 				</div>
 				<div class="match-details">
 					Winner: <span style="color: ${winnerColor}; font-weight: bold;">${winnerText}</span> | 
 					Turns: ${match.turnsPlayed} | 
 					Scores: ${match.player1Score} vs ${match.player2Score} | 
 					Drivers: ${match.player1Drivers.join(', ')}
+					<span class="battle-log-link" onclick="toggleBattleLog('${matchId}')">Show Battle Log</span>
+				</div>
+				<div id="${matchId}-log" class="battle-log-container">
+					${formatBattleLog(match.battleLog)}
 				</div>
 			`;
 			
@@ -307,7 +312,33 @@ function toggleDetailedResults() {
 	}
 }
 
+// Helper function to format battle log
+function formatBattleLog(battleLog) {
+	if (!battleLog || battleLog.length === 0) {
+		return '<div class="battle-log-entry">No battle log available</div>';
+	}
+	
+	return battleLog.map(entry => 
+		`<div class="battle-log-entry">${entry}</div>`
+	).join('');
+}
+
+// Helper function to toggle battle log visibility
+function toggleBattleLog(matchId) {
+	const logContainer = document.getElementById(`${matchId}-log`);
+	const link = event.target;
+	
+	if (logContainer.classList.contains('show')) {
+		logContainer.classList.remove('show');
+		link.textContent = 'Show Battle Log';
+	} else {
+		logContainer.classList.add('show');
+		link.textContent = 'Hide Battle Log';
+	}
+}
+
 // Make functions available globally for onclick handlers
 window.runEvaluation = runEvaluation;
 window.toggleDetailedResults = toggleDetailedResults;
+window.toggleBattleLog = toggleBattleLog;
 

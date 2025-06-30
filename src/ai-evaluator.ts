@@ -13,7 +13,6 @@ declare global {
 
 // Make AIEvaluator available globally immediately
 window.AIEvaluator = AIEvaluator;
-console.log('AIEvaluator class exposed on window');
 
 // Initialize the loaders
 async function initialize(): Promise<boolean> {
