@@ -212,4 +212,25 @@ export class DriverLoader {
 		// Reload drivers with default unlock states
 		this.loadDrivers();
 	}
+
+	/**
+	 * Static method to load drivers
+	 */
+	public static async loadDrivers(): Promise<void> {
+		const instance = DriverLoader.getInstance();
+		await instance.loadDrivers();
+	}
+
+	/**
+	 * Static method to get all driver archetypes as Driver instances
+	 */
+	public static getAllDriverArchetypes(): Driver[] {
+		const instance = DriverLoader.getInstance();
+		// Ensure drivers are loaded
+		if (!instance.isLoaded()) {
+			console.warn('Drivers not loaded yet, returning empty array');
+			return [];
+		}
+		return instance.getAllDrivers();
+	}
 }

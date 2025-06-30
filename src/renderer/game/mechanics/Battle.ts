@@ -278,7 +278,7 @@ export class Battle extends Model<BattleData> {
 
 		// Validate target
 		if (!this.validateTarget(card, driver, targetVehicle)) {
-			this.log('general', 'Invalid target for card');
+			this.log('general', `Invalid target for card "${card.name}" (type: ${card.targetType}). Driver: ${driver.metadata.name}, Target: ${targetVehicle ? targetVehicle.name : 'undefined'}`);
 			// Return card to hand and refund cost
 			driver.hand.push(card);
 			driver.gainAdrenaline(card.cost);
@@ -935,7 +935,7 @@ export class Battle extends Model<BattleData> {
 	 */
 	private validateTarget(card: Card, caster: Driver, target: Vehicle | undefined): boolean {
 		// Check if card needs a target
-		if (card.targetType === 'self' || card.targetType === 'both_drivers') {
+		if (card.targetType === 'self' || card.targetType === 'both_drivers' || card.targetType === 'enemy_all') {
 			return true; // No external target needed
 		}
 
