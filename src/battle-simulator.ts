@@ -4,7 +4,7 @@ import { Vehicle, VehiclePosition } from './renderer/game/mechanics/Vehicle';
 import { DriverArchetype } from './renderer/game/mechanics/Driver';
 import { DriverLoader } from './renderer/game/core/DriverLoader';
 import { CardLoader } from './renderer/game/core/CardLoader';
-import { AIController, AIType } from './renderer/game/ai/AIController';
+import { AIType } from './renderer/game/ai/AIController';
 
 // Types for the battle simulator
 interface BattleSetup {
@@ -52,7 +52,7 @@ interface BattleResult {
 class BattleSimulator {
 	private driverLoader: DriverLoader;
 	private cardLoader: CardLoader;
-	private isInitialized: boolean = false;
+	private isInitialized = false;
 
 	constructor() {
 		this.driverLoader = DriverLoader.getInstance();
@@ -241,4 +241,8 @@ class BattleSimulator {
 }
 
 // Export for browser usage
-(window as any).BattleSimulator = BattleSimulator;
+interface WindowWithBattleSimulator extends Window {
+	BattleSimulator: typeof BattleSimulator;
+}
+
+(window as WindowWithBattleSimulator).BattleSimulator = BattleSimulator;
