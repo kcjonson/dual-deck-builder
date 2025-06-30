@@ -15,12 +15,17 @@ This document is a place for multiple AI workers (such as Claude and Claude Code
 - See [Performance Optimization Plan](./AI_TECHNICAL_DECISIONS/PERFORMANCE_OPTIMIZATION_PLAN.md) for implementation details
 
 ### AI Player System - IMPLEMENTED WITH NEW STRATEGIES
-- **Status**: Complete with advanced AI strategies
+- **Status**: Complete with advanced AI strategies including MCTS
 - Created computer-run player system with swappable AI implementations
 - Can control both player and enemy teams
 - Implemented AI strategies:
   - RandomAI: Baseline strategy that randomly selects from valid actions
   - AggressiveFlankerAI: Prioritizes flanking position for 50% damage bonus, focuses on high-damage attacks
+  - **MCTSAI**: Monte Carlo Tree Search algorithm that simulates games to find effective moves
+    - Uses UCB1 for balancing exploration vs exploitation
+    - Configurable iterations (default 1000) and exploration constant
+    - Evaluates actions based on damage potential, healing efficiency, and resource management
+    - Simplified implementation using action evaluation rather than full game state cloning
 - Full test coverage with AI vs AI battles
 - Additional planned strategies:
   - Synergy Optimizer AI: Focuses on driver synergy and combo effects
