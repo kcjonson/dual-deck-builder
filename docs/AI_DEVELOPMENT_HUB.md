@@ -14,13 +14,20 @@ This document is a place for multiple AI workers (such as Claude and Claude Code
 - **RESOLVED**: Performance monitoring with dev overlay (F5 to toggle)
 - See [Performance Optimization Plan](./AI_TECHNICAL_DECISIONS/PERFORMANCE_OPTIMIZATION_PLAN.md) for implementation details
 
-### AI Player System - IMPLEMENTED
-- **Status**: Complete
+### AI Player System - IMPLEMENTED WITH NEW STRATEGIES
+- **Status**: Complete with advanced AI strategies
 - Created computer-run player system with swappable AI implementations
 - Can control both player and enemy teams
-- Implemented RandomAI as baseline strategy
+- Implemented AI strategies:
+  - RandomAI: Baseline strategy that randomly selects from valid actions
+  - AggressiveFlankerAI: Prioritizes flanking position for 50% damage bonus, focuses on high-damage attacks
 - Full test coverage with AI vs AI battles
-- Ready for additional AI strategies (Aggressive, Defensive, Balanced)
+- Additional planned strategies:
+  - Synergy Optimizer AI: Focuses on driver synergy and combo effects
+  - Resource Control AI: Emphasizes card advantage and adrenaline efficiency
+  - Tactical Positioning AI: Dynamic position changes based on game state
+  - Focus Fire AI: Concentrates attacks to eliminate vehicles quickly
+  - Adaptive Strategy AI: Analyzes opponent patterns and counters them
 
 
 ## Project Overview

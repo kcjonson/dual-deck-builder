@@ -420,7 +420,7 @@ export const DRIVER_CONFIGS: Record<DriverArchetype, DriverConfig> = {
 				{ type: 'armor_plating', quantity: 3 },
 				{ type: 'repair_kit', quantity: 2 },
 				{ type: 'nitro_boost', quantity: 1 },
-				{ type: 'coordinated_strike', quantity: 1 },
+				{ type: 'coordinated_attack', quantity: 1 },
 				{ type: 'flanking_maneuver', quantity: 1 }
 			]
 		}
@@ -526,7 +526,7 @@ export const DRIVER_CONFIGS: Record<DriverArchetype, DriverConfig> = {
 			cards: [
 				{ type: 'blood_for_chrome', quantity: 3 },
 				{ type: 'ramming_speed', quantity: 2 },
-				{ type: 'coordinated_strike', quantity: 1 },
+				{ type: 'coordinated_attack', quantity: 1 },
 				{ type: 'flanking_maneuver', quantity: 1 },
 				{ type: 'repair_kit', quantity: 1 },
 				{ type: 'armor_plating', quantity: 1 },
