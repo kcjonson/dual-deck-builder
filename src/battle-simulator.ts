@@ -241,8 +241,10 @@ class BattleSimulator {
 }
 
 // Export for browser usage
-interface WindowWithBattleSimulator extends Window {
-	BattleSimulator: typeof BattleSimulator;
+declare global {
+	interface Window {
+		BattleSimulator: typeof BattleSimulator;
+	}
 }
 
-(window as WindowWithBattleSimulator).BattleSimulator = BattleSimulator;
+window.BattleSimulator = BattleSimulator;
