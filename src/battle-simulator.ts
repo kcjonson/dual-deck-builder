@@ -1,10 +1,11 @@
-import { Battle } from './renderer/game/mechanics/Battle';
+import { Battle, BattleMessage } from './renderer/game/mechanics/Battle';
 import { Team, TeamType } from './renderer/game/mechanics/Team';
 import { Vehicle, VehiclePosition } from './renderer/game/mechanics/Vehicle';
 import { DriverArchetype } from './renderer/game/mechanics/Driver';
 import { DriverLoader } from './renderer/game/core/DriverLoader';
 import { CardLoader } from './renderer/game/core/CardLoader';
 import { AIType } from './renderer/game/ai/AIController';
+import { HumanPlayerInterface } from './human-player-interface';
 
 // Types for the battle simulator
 interface BattleSetup {
@@ -57,6 +58,8 @@ class BattleSimulator {
 	private driverLoader: DriverLoader;
 	private cardLoader: CardLoader;
 	private isInitialized = false;
+	private humanInterface: HumanPlayerInterface | null = null;
+	private currentBattle: Battle | null = null;
 
 	constructor() {
 		this.driverLoader = DriverLoader.getInstance();
@@ -143,6 +146,14 @@ class BattleSimulator {
 			enemyTeam,
 			maxTurns: 50
 		});
+		
+		// Store current battle
+		this.currentBattle = battle;
+		
+		// Create human interface if player is not AI-controlled
+		if (!setup.playerAI || setup.playerAI === 'human') {
+			this.humanInterface = new HumanPlayerInterface(battle);
+		}
 
 		// Configure AI for both teams
 		const aiController = battle.aiController;
@@ -155,14 +166,59 @@ class BattleSimulator {
 			aiController.setEnemyAI(setup.enemyAI as AIType);
 		}
 
+		// If human player, set up battle message forwarding
+		if (this.humanInterface) {
+			// Forward battle messages to window events
+			battle.on('battleMessage', (message: BattleMessage) => {
+				const event = new CustomEvent('battleMessage', {
+					detail: message
+				});
+				window.dispatchEvent(event);
+			});
+		}
+		
 		// Start the battle
 		battle.start();
+		
+		// If human player, trigger initial UI update
+		if (this.humanInterface) {
+			// Give the UI a moment to initialize
+			setTimeout(() => {
+				const event = new CustomEvent('playerTurnStart', {
+					detail: {
+						playerTeam: battle.playerTeam,
+						enemyTeam: battle.enemyTeam
+					}
+				});
+				window.dispatchEvent(event);
+			}, 50);
+		}
 
 		// Run the battle to completion
 		while (!battle.isBattleOver()) {
 			if (battle.isPlayerTurn) {
-				// Player turn - AI makes decisions
-				if (aiController.isPlayerControlledByAI()) {
+				// Player turn
+				if (this.humanInterface) {
+					// Human player - wait for decisions
+					let continuePlayingCards = true;
+					while (continuePlayingCards && !battle.isBattleOver()) {
+						const decision = await this.humanInterface.requestDecision();
+						
+						if (!decision || decision.type === 'endTurn') {
+							continuePlayingCards = false;
+						} else if (decision.type === 'playCard' && decision.card && decision.driver) {
+							const cardIndex = decision.driver.hand.indexOf(decision.card);
+							if (cardIndex !== -1) {
+								battle.playCard({
+									driver: decision.driver,
+									cardIndex,
+									targetVehicle: decision.target
+								});
+							}
+						}
+					}
+				} else if (aiController.isPlayerControlledByAI()) {
+					// AI player - automatic decisions
 					let continuePlayingCards = true;
 					while (continuePlayingCards && !battle.isBattleOver()) {
 						const decision = await aiController.getPlayerDecision();
@@ -245,6 +301,20 @@ class BattleSimulator {
 		};
 
 		return result;
+	}
+	
+	/**
+	 * Get the human interface for the current battle
+	 */
+	public getHumanInterface(): HumanPlayerInterface | null {
+		return this.humanInterface;
+	}
+	
+	/**
+	 * Get the current battle instance
+	 */
+	public getCurrentBattle(): Battle | null {
+		return this.currentBattle;
 	}
 }
 

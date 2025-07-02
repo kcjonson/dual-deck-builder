@@ -4,6 +4,22 @@ This document is a place for multiple AI workers (such as Claude and Claude Code
 
 =========================================
 
+## Recent Updates
+
+### Adrenaline System Configuration (January 2, 2025)
+- Changed default max adrenaline from 10 to 5 for all drivers
+- Added `maxAdrenaline` to `DriverConfig` interface
+- Now configurable per driver archetype (currently all set to 5)
+- Makes gameplay more tactical with limited energy pool
+
+### Battle Log Display for Human Player (January 2, 2025)
+- Added real-time battle log pane to human player interface
+- Displays on right side, expanding to fill available space
+- Color-coded messages by type (damage, healing, turns, etc.)
+- Auto-scrolls to show newest entries
+- Clears when starting a new battle
+- Driver names include team prefixes (Player1/2, Enemy1/2)
+
 ## Active Issues
 
 ### ~~Critical Performance Problems~~ RESOLVED
@@ -47,6 +63,15 @@ This document is a place for multiple AI workers (such as Claude and Claude Code
   - Tests different driver combinations to assess AI adaptability
   - Provides detailed metrics: win rates, head-to-head matchups, average turns
   - Results show MCTS AI as the strongest, followed by Aggressive Flanker, then Random
+- **Human Player Support** (January 2, 2025)
+  - Added human player option to battle simulator
+  - Created interactive UI for card selection and target choosing
+  - Players can see both teams' vehicle status and positions
+  - Each driver's hand shows cards with costs and effects
+  - Cards that can't be played (insufficient adrenaline) are grayed out
+  - Target selection highlights valid targets when needed
+  - End turn button allows passing control to enemy AI
+  - Maintains ability to run AI vs AI battles
 - Additional planned strategies:
   - Synergy Optimizer AI: Focuses on driver synergy and combo effects
   - Resource Control AI: Emphasizes card advantage and adrenaline efficiency
