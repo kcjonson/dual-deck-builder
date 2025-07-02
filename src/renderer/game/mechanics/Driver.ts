@@ -59,6 +59,7 @@ export interface DriverConfig {
 	vehicleStats: VehicleStats;
 	startingDeck: StartingDeckConfig;
 	maxHitpoints: number; // Driver's personal health
+	maxAdrenaline: number; // Maximum adrenaline (energy) capacity
 }
 
 /**
@@ -169,7 +170,8 @@ export class Driver extends Model<DriverData> {
 			skills: this.skills,
 			vehicleStats: this.vehicleStats,
 			startingDeck: this.startingDeck,
-			maxHitpoints: this.maxHitpoints
+			maxHitpoints: this.maxHitpoints,
+			maxAdrenaline: this.maxAdrenaline
 		};
 	}
 
@@ -306,8 +308,9 @@ export class Driver extends Model<DriverData> {
 		
 		for (const card of cards) {
 			const key = `${card.name}(${card.cost})`;
-			if (cardCounts.has(key)) {
-				cardCounts.get(key)!.count++;
+			const existing = cardCounts.get(key);
+			if (existing) {
+				existing.count++;
 			} else {
 				cardCounts.set(key, { card, count: 1 });
 			}
@@ -463,7 +466,8 @@ export const DRIVER_CONFIGS: Record<DriverArchetype, DriverConfig> = {
 				{ type: 'nitro_boost', quantity: 2 }
 			]
 		},
-		maxHitpoints: 40 // Tough veteran driver
+		maxHitpoints: 40, // Tough veteran driver
+		maxAdrenaline: 5 // Default energy capacity
 	},
 
 	interceptor: {
@@ -500,7 +504,8 @@ export const DRIVER_CONFIGS: Record<DriverArchetype, DriverConfig> = {
 				{ type: 'headshot', quantity: 2 }
 			]
 		},
-		maxHitpoints: 25 // Agile but fragile
+		maxHitpoints: 25, // Agile but fragile
+		maxAdrenaline: 5 // Default energy capacity
 	},
 
 	mechanic: {
@@ -535,7 +540,8 @@ export const DRIVER_CONFIGS: Record<DriverArchetype, DriverConfig> = {
 				{ type: 'armor_plating', quantity: 2 },
 			]
 		},
-		maxHitpoints: 30 // Balanced survivability
+		maxHitpoints: 30, // Balanced survivability
+		maxAdrenaline: 5 // Default energy capacity
 	},
 
 	raider: {
@@ -573,6 +579,7 @@ export const DRIVER_CONFIGS: Record<DriverArchetype, DriverConfig> = {
 				{ type: 'nitro_boost', quantity: 1 }
 			]
 		},
-		maxHitpoints: 33 // Reckless but resilient
+		maxHitpoints: 33, // Reckless but resilient
+		maxAdrenaline: 5 // Default energy capacity
 	}
 };

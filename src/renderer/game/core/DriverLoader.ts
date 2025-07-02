@@ -52,7 +52,7 @@ export class DriverLoader {
 					hitpoints: driverConfig.maxHitpoints,
 					maxHitpoints: driverConfig.maxHitpoints,
 					adrenaline: 3, // Default starting adrenaline
-					maxAdrenaline: 10, // Default max adrenaline
+					maxAdrenaline: driverConfig.maxAdrenaline, // Use configured max adrenaline
 					role: DriverRole.ACTIVE,
 					hand: [],
 					discard: [],
@@ -190,7 +190,7 @@ export class DriverLoader {
 			hitpoints: config.maxHitpoints,
 			maxHitpoints: config.maxHitpoints,
 			adrenaline: 3,
-			maxAdrenaline: 10,
+			maxAdrenaline: config.maxAdrenaline,
 			role: DriverRole.ACTIVE,
 			hand: [],
 			discard: [],

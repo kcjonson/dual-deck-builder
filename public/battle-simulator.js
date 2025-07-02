@@ -1,6 +1,11 @@
 // This file provides the interface between the HTML page and the TypeScript battle simulator
 
 let battleSimulator = null;
+let humanInterface = null;
+let currentBattle = null;
+let selectedDriver = null;
+let selectedCard = null;
+let selectingTarget = false;
 
 async function initializeSimulator() {
 	// Wait for the BattleSimulator to be available
@@ -33,8 +38,9 @@ async function runBattle() {
 		}
 		
 		// Get setup from form
+		const playerAI = document.getElementById('player-ai').value;
 		const setup = {
-			playerAI: document.getElementById('player-ai').value,
+			playerAI: playerAI === 'human' ? '' : playerAI,
 			enemyAI: document.getElementById('enemy-ai').value,
 			playerDrivers: [
 				document.getElementById('player-driver-1').value,
@@ -48,7 +54,58 @@ async function runBattle() {
 		
 		console.log('Running battle with setup:', setup);
 		
-		// Run the battle
+		// Check if this is a human player battle
+		if (playerAI === 'human') {
+			// Show human player UI
+			document.getElementById('human-player-ui').classList.add('active');
+			loadingDiv.style.display = 'none';
+			runButton.disabled = false;
+			
+			// Clear previous battle log
+			clearBattleLog();
+			
+			// Set up event listeners for human player
+			setupHumanPlayerEventListeners();
+			
+			// Get human interface and current battle BEFORE running
+			setTimeout(() => {
+				humanInterface = battleSimulator.getHumanInterface();
+				currentBattle = battleSimulator.getCurrentBattle();
+				
+				if (!humanInterface || !currentBattle) {
+					console.error('Failed to initialize human interface or battle');
+					return;
+				}
+				
+				console.log('Human interface initialized, starting battle');
+				
+				// Initialize the UI with the starting state
+				const initialState = humanInterface.getGameState();
+				updateHumanPlayerUI(initialState);
+			}, 100);
+			
+			// Run the battle in the background
+			battleSimulator.runBattle(setup).then(result => {
+				console.log('Battle result:', result);
+				
+				// Hide human player UI
+				document.getElementById('human-player-ui').classList.remove('active');
+				
+				// Display results
+				displayResults(result);
+				
+				// Display battle log
+				displayBattleLog(result.messages);
+			}).catch(error => {
+				console.error('Error running battle:', error);
+				alert('Error running battle: ' + error.message);
+				document.getElementById('human-player-ui').classList.remove('active');
+			});
+			
+			return; // Exit early for human player
+		}
+		
+		// Run the battle (AI vs AI)
 		const result = await battleSimulator.runBattle(setup);
 		
 		console.log('Battle result:', result);

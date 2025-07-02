@@ -287,7 +287,7 @@ export class Battle extends Model<BattleData> {
 
 		// Validate target
 		if (!this.validateTarget(card, driver, targetVehicle)) {
-			this.log('general', `Invalid target for card "${card.name}" (type: ${card.targetType}). Driver: ${driver.metadata.name}, Target: ${targetVehicle ? targetVehicle.name : 'undefined'}`);
+			this.log('general', `Invalid target for card "${card.name}" (type: ${card.targetType}). Driver: ${this.getDriverDisplayName(driver)}, Target: ${targetVehicle ? targetVehicle.name : 'undefined'}`);
 			// Return card to hand and refund cost
 			driver.hand.push(card);
 			driver.gainAdrenaline(card.cost);
@@ -296,7 +296,7 @@ export class Battle extends Model<BattleData> {
 
 		// Log card play with adrenaline info
 		this.log('card_played', 
-			`${driver.metadata.name} plays ${card.displayName} (Adrenaline: ${adrenalineBefore} -> ${driver.adrenaline})`,
+			`${this.getDriverDisplayName(driver)} plays ${card.displayName} (Adrenaline: ${adrenalineBefore} -> ${driver.adrenaline})`,
 			{ driver: driver.metadata.name, card: card.displayName, adrenalineBefore, adrenalineAfter: driver.adrenaline }
 		);
 
@@ -338,7 +338,7 @@ export class Battle extends Model<BattleData> {
 		this.playerTeam.getAllDrivers().forEach(driver => {
 			if (driver.isAlive()) {
 				const handCards = this.formatHandWithCounts(driver.hand);
-				this.log('general', `  ${driver.metadata.name}: ${handCards}`);
+				this.log('general', `  ${this.getDriverDisplayName(driver)}: ${handCards}`);
 			}
 		});
 
@@ -355,7 +355,7 @@ export class Battle extends Model<BattleData> {
 		for (const driver of playerDrivers) {
 			if (driver.isAlive() && driver.adrenaline > 0) {
 				this.log('adrenaline_remaining', 
-					`${driver.metadata.name} ended turn with ${driver.adrenaline} adrenaline remaining`,
+					`${this.getDriverDisplayName(driver)} ended turn with ${driver.adrenaline} adrenaline remaining`,
 					{ driver: driver.metadata.name, value: driver.adrenaline }
 				);
 			}
@@ -400,7 +400,7 @@ export class Battle extends Model<BattleData> {
 		this.enemyTeam.getAllDrivers().forEach(driver => {
 			if (driver.isAlive()) {
 				const handCards = this.formatHandWithCounts(driver.hand);
-				this.log('general', `  ${driver.metadata.name}: ${handCards}`);
+				this.log('general', `  ${this.getDriverDisplayName(driver)}: ${handCards}`);
 			}
 		});
 
@@ -411,7 +411,7 @@ export class Battle extends Model<BattleData> {
 		for (const driver of aliveEnemyDrivers) {
 			if (driver.isAlive() && driver.adrenaline > 0) {
 				this.log('adrenaline_remaining', 
-					`${driver.metadata.name} ended turn with ${driver.adrenaline} adrenaline remaining`,
+					`${this.getDriverDisplayName(driver)} ended turn with ${driver.adrenaline} adrenaline remaining`,
 					{ driver: driver.metadata.name, value: driver.adrenaline }
 				);
 			}
@@ -472,7 +472,7 @@ export class Battle extends Model<BattleData> {
 							const adrenalineBefore = decision.driver.adrenaline + result.card.cost; // Add back cost since it was already spent
 							this.applyCardEffects(result.card, targetVehicle, decision.driver);
 							this.log('card_played', 
-								`${decision.driver.metadata.name} plays ${result.card.displayName} (Adrenaline: ${adrenalineBefore} -> ${decision.driver.adrenaline})`,
+								`${this.getDriverDisplayName(decision.driver)} plays ${result.card.displayName} (Adrenaline: ${adrenalineBefore} -> ${decision.driver.adrenaline})`,
 								{ driver: decision.driver.metadata.name, card: result.card.displayName, adrenalineBefore, adrenalineAfter: decision.driver.adrenaline }
 							);
 						}
@@ -601,14 +601,14 @@ export class Battle extends Model<BattleData> {
 							// Direct driver damage (e.g., Headshot)
 							targetVehicle.driver.takeDamage(damage);
 							this.log('damage_dealt',
-								`${card.displayName} deals ${damage} damage to ${targetVehicle.driver.metadata.name}`,
+								`${card.displayName} deals ${damage} damage to ${this.getDriverDisplayName(targetVehicle.driver)}`,
 								{ card: card.displayName, target: targetVehicle.driver.metadata.name, value: damage }
 							);
 						} else if (effect.target === 'self_driver') {
 							// Self damage (e.g., Berserker)
 							caster.takeDamage(damage);
 							this.log('damage_dealt',
-								`${card.displayName} deals ${damage} damage to ${caster.metadata.name}`,
+								`${card.displayName} deals ${damage} damage to ${this.getDriverDisplayName(caster)}`,
 								{ card: card.displayName, target: caster.metadata.name, value: damage }
 							);
 						} else {
@@ -710,7 +710,7 @@ export class Battle extends Model<BattleData> {
 						const hpText = `${beforeHP}/${maxHP} -> ${afterHP}/${maxHP}`;
 						
 						this.log('heal_applied',
-							`${card.displayName} heals ${actualHealed} hit points on ${targetVehicle.driver.metadata.name} (HP: ${hpText})`,
+							`${card.displayName} heals ${actualHealed} hit points on ${this.getDriverDisplayName(targetVehicle.driver)} (HP: ${hpText})`,
 							{ card: card.displayName, target: targetVehicle.driver.metadata.name, value: healValue }
 						);
 					}
@@ -740,7 +740,7 @@ export class Battle extends Model<BattleData> {
 					const drawValue = typeof effect.value === 'number' ? effect.value : 0;
 					caster.drawCards(drawValue);
 					this.log('general',
-						`${card.displayName} draws ${drawValue} cards for ${caster.metadata.name}`,
+						`${card.displayName} draws ${drawValue} cards for ${this.getDriverDisplayName(caster)}`,
 						{ card: card.displayName, driver: caster.metadata.name, value: drawValue }
 					);
 					break;
@@ -865,7 +865,7 @@ export class Battle extends Model<BattleData> {
 					const drawCardsValue = typeof effect.value === 'number' ? effect.value : 0;
 					caster.drawCards(drawCardsValue);
 					this.log('general',
-						`${card.displayName} draws ${drawCardsValue} cards for ${caster.metadata.name}`,
+						`${card.displayName} draws ${drawCardsValue} cards for ${this.getDriverDisplayName(caster)}`,
 						{ card: card.displayName, driver: caster.metadata.name, value: drawCardsValue }
 					);
 					break;
@@ -915,7 +915,7 @@ export class Battle extends Model<BattleData> {
 					const legacyDrawValue = typeof effect.value === 'number' ? effect.value : 0;
 					caster.drawCards(legacyDrawValue);
 					this.log('general',
-						`${card.displayName} draws ${legacyDrawValue} cards for ${caster.metadata.name}`,
+						`${card.displayName} draws ${legacyDrawValue} cards for ${this.getDriverDisplayName(caster)}`,
 						{ card: card.displayName, driver: caster.metadata.name, value: legacyDrawValue }
 					);
 					break;
@@ -1212,6 +1212,20 @@ export class Battle extends Model<BattleData> {
 		}
 		return null;
 	}
+	
+	/**
+	 * Get driver display name with team prefix (e.g., "Player1 Road Warrior")
+	 */
+	private getDriverDisplayName(driver: Driver): string {
+		const team = this.getTeamForDriver(driver);
+		if (!team) return driver.metadata.name;
+		
+		const teamDrivers = team.getAllDrivers();
+		const driverIndex = teamDrivers.indexOf(driver) + 1;
+		const teamPrefix = team.type === TeamType.PLAYER ? `Player${driverIndex}` : `Enemy${driverIndex}`;
+		
+		return `${teamPrefix} ${driver.metadata.name}`;
+	}
 
 	/**
 	 * End combat and process post-combat effects
@@ -1243,8 +1257,9 @@ export class Battle extends Model<BattleData> {
 		
 		for (const card of cards) {
 			const key = `${card.name}(${card.cost})`;
-			if (cardCounts.has(key)) {
-				cardCounts.get(key)!.count++;
+			const existing = cardCounts.get(key);
+			if (existing) {
+				existing.count++;
 			} else {
 				cardCounts.set(key, { card, count: 1 });
 			}
@@ -1275,10 +1290,10 @@ export class Battle extends Model<BattleData> {
 			let driverInfo = '';
 			
 			if (vehicle.driver) {
-				driverInfo += ` | Driver: ${vehicle.driver.metadata.name} (${vehicle.driver.hitpoints}/${vehicle.driver.maxHitpoints} HP)`;
+				driverInfo += ` | Driver: ${this.getDriverDisplayName(vehicle.driver)} (${vehicle.driver.hitpoints}/${vehicle.driver.maxHitpoints} HP)`;
 			}
 			if (vehicle.passenger) {
-				driverInfo += ` | Passenger: ${vehicle.passenger.metadata.name} (${vehicle.passenger.hitpoints}/${vehicle.passenger.maxHitpoints} HP)`;
+				driverInfo += ` | Passenger: ${this.getDriverDisplayName(vehicle.passenger)} (${vehicle.passenger.hitpoints}/${vehicle.passenger.maxHitpoints} HP)`;
 			}
 			
 			this.log('general', 
@@ -1294,10 +1309,10 @@ export class Battle extends Model<BattleData> {
 			let driverInfo = '';
 			
 			if (vehicle.driver) {
-				driverInfo += ` | Driver: ${vehicle.driver.metadata.name} (${vehicle.driver.hitpoints}/${vehicle.driver.maxHitpoints} HP)`;
+				driverInfo += ` | Driver: ${this.getDriverDisplayName(vehicle.driver)} (${vehicle.driver.hitpoints}/${vehicle.driver.maxHitpoints} HP)`;
 			}
 			if (vehicle.passenger) {
-				driverInfo += ` | Passenger: ${vehicle.passenger.metadata.name} (${vehicle.passenger.hitpoints}/${vehicle.passenger.maxHitpoints} HP)`;
+				driverInfo += ` | Passenger: ${this.getDriverDisplayName(vehicle.passenger)} (${vehicle.passenger.hitpoints}/${vehicle.passenger.maxHitpoints} HP)`;
 			}
 			
 			this.log('general', 
@@ -1315,7 +1330,7 @@ export class Battle extends Model<BattleData> {
 		this.playerTeam.getAllDrivers().forEach(driver => {
 			if (driver.isAlive()) {
 				const handCards = this.formatHandWithCounts(driver.hand);
-				this.log('general', `  ${driver.metadata.name}: ${handCards}`);
+				this.log('general', `  ${this.getDriverDisplayName(driver)}: ${handCards}`);
 			}
 		});
 		
@@ -1324,7 +1339,7 @@ export class Battle extends Model<BattleData> {
 		this.enemyTeam.getAllDrivers().forEach(driver => {
 			if (driver.isAlive()) {
 				const handCards = this.formatHandWithCounts(driver.hand);
-				this.log('general', `  ${driver.metadata.name}: ${handCards}`);
+				this.log('general', `  ${this.getDriverDisplayName(driver)}: ${handCards}`);
 			}
 		});
 	}

@@ -4,6 +4,85 @@ This document contains the chronological log of completed development tasks for 
 
 =========================================
 
+## Battle Log Display for Human Player Interface (2025-01-02)
+
+### Added Real-time Battle Log to Human Player UI
+
+**What Changed:**
+- Added a scrollable battle log pane on the right side of the human player interface
+- Battle messages are displayed in real-time as the game progresses
+- Each message type has its own color coding for better readability
+- Log automatically scrolls to show the newest entries
+- **Driver names now include team prefixes** (Player1/Player2 or Enemy1/Enemy2) for clarity
+
+**Technical Details:**
+- Modified HTML structure to use a flex layout with game board on left and log on right
+- Battle log pane is 400px wide with scrollable content area
+- Forwarded battle message events from Battle instance to window events
+- Added event listener to capture and display battle messages
+- Color-coded message types:
+  - Damage dealt: Red
+  - Healing: Green
+  - Turn start/end: Blue
+  - Card played: Purple
+  - Miss: Gray (italic)
+  - Battle start/end: Yellow
+- Messages include turn numbers for context
+- Log clears when starting a new battle
+- Added `getDriverDisplayName()` helper method to Battle class that prefixes driver names with:
+  - Player1/Player2 for player team drivers
+  - Enemy1/Enemy2 for enemy team drivers
+- Updated all battle log messages to use the new display names
+
+=========================================
+
+## Adrenaline System Configuration Update (2025-01-02)
+
+### Changed Default Max Adrenaline from 10 to 5
+
+**What Changed:**
+- Added `maxAdrenaline` property to the `DriverConfig` interface
+- Updated all driver configurations to include `maxAdrenaline: 5`
+- Modified `DriverLoader` to use the configured max adrenaline value instead of hardcoded 10
+- Fixed `getConfig()` method to include maxAdrenaline in returned configuration
+
+**Technical Details:**
+- `maxAdrenaline` is now exposed alongside `maxHitpoints` in driver configurations
+- All four driver archetypes (road_warrior, interceptor, mechanic, raider) now have 5 max adrenaline
+- Starting adrenaline remains at 3
+- This change makes the game more tactical by limiting the energy pool for playing cards
+- Players must be more strategic about card usage with the reduced adrenaline capacity
+
+=========================================
+
+## Human Player Interface for Battle Simulator (2025-01-02)
+
+### Added Human Player Support to Battle System
+
+**What Changed:**
+- Implemented human player option in battle.html, allowing manual card play instead of AI-only battles
+- Created HumanPlayerInterface class to manage player decisions and UI interactions
+- Modified BattleSimulator to support human input through promise-based decision system
+- Added comprehensive interactive UI overlay for human players
+
+**Technical Details:**
+- Created event-driven architecture using custom events for UI updates
+- UI Components:
+  - Team displays showing vehicle status (structure, armor, position, drivers)
+  - Driver sections with hand display showing cards with costs and effects
+  - Visual feedback for playable vs unplayable cards (based on adrenaline)
+  - Target selection interface that highlights valid targets
+  - End turn button for passing control to enemy AI
+- Card selection flow:
+  1. Player clicks card → Card is highlighted
+  2. If card needs target → Valid targets are highlighted
+  3. Player clicks target → Card is played
+  4. UI updates to show new game state
+- Maintained full compatibility with existing AI vs AI battles
+- Fixed TypeScript issues with TargetType enum values and Team method names
+
+=========================================
+
 ## Ramming AI Implementation (2024-12-30)
 
 ### Created Ramming-Focused AI Strategy

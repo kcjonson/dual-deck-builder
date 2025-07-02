@@ -225,6 +225,268 @@
 			margin-top: 0;
 			color: #ffd43b;
 		}
+		
+		/* Human player interface styles */
+		.human-player-ui {
+			display: none;
+			position: fixed;
+			top: 0;
+			left: 0;
+			right: 0;
+			bottom: 0;
+			background-color: rgba(0, 0, 0, 0.9);
+			z-index: 1000;
+			padding: 20px;
+			overflow-y: auto;
+		}
+		
+		.human-player-ui.active {
+			display: block;
+		}
+		
+		.game-layout {
+			display: flex;
+			gap: 20px;
+			height: 100vh;
+			padding: 20px;
+			box-sizing: border-box;
+		}
+		
+		.game-board {
+			flex: 0 0 auto;
+			width: 1000px;
+			max-width: 60%;
+			overflow-y: auto;
+		}
+		
+		.battle-log-pane {
+			flex: 1;
+			min-width: 300px;
+			background-color: #2a2a2a;
+			border-radius: 8px;
+			padding: 20px;
+			display: flex;
+			flex-direction: column;
+			overflow: hidden;
+		}
+		
+		.battle-log-pane h3 {
+			margin-top: 0;
+			margin-bottom: 15px;
+			color: #ffd43b;
+			text-align: center;
+			font-size: 20px;
+		}
+		
+		.battle-log-content {
+			flex: 1;
+			overflow-y: auto;
+			background-color: #1a1a1a;
+			border-radius: 4px;
+			padding: 15px;
+			font-family: monospace;
+			font-size: 14px;
+			line-height: 1.6;
+		}
+		
+		.battle-log-entry {
+			margin-bottom: 8px;
+			padding: 4px 8px;
+			border-radius: 4px;
+		}
+		
+		.battle-log-entry.damage_dealt {
+			background-color: rgba(255, 107, 107, 0.2);
+			color: #ff6b6b;
+		}
+		
+		.battle-log-entry.heal_applied {
+			background-color: rgba(105, 219, 124, 0.2);
+			color: #69db7c;
+		}
+		
+		.battle-log-entry.turn_start,
+		.battle-log-entry.turn_end {
+			background-color: rgba(77, 171, 247, 0.2);
+			color: #4dabf7;
+			font-weight: bold;
+		}
+		
+		.battle-log-entry.card_played {
+			background-color: rgba(148, 114, 252, 0.2);
+			color: #9472fc;
+		}
+		
+		.battle-log-entry.miss {
+			background-color: rgba(134, 142, 150, 0.2);
+			color: #868e96;
+			font-style: italic;
+		}
+		
+		.battle-log-entry.battle_start,
+		.battle-log-entry.battle_end {
+			background-color: rgba(255, 213, 59, 0.2);
+			color: #ffd43b;
+			font-weight: bold;
+			text-align: center;
+		}
+		
+		.battle-log-entry.adrenaline_remaining {
+			color: #aaa;
+			font-size: 12px;
+		}
+		
+		.teams-display {
+			display: flex;
+			gap: 20px;
+			margin-bottom: 20px;
+		}
+		
+		.team-display {
+			flex: 1;
+			background-color: #2a2a2a;
+			padding: 15px;
+			border-radius: 8px;
+		}
+		
+		.vehicle-display {
+			background-color: #1a1a1a;
+			padding: 10px;
+			margin-bottom: 10px;
+			border-radius: 4px;
+			position: relative;
+		}
+		
+		.vehicle-display.targetable {
+			border: 2px solid #ff6b6b;
+			cursor: pointer;
+		}
+		
+		.vehicle-display.targetable:hover {
+			background-color: #3a3a3a;
+		}
+		
+		.driver-info {
+			font-size: 14px;
+			margin-top: 5px;
+		}
+		
+		.player-controls {
+			background-color: #2a2a2a;
+			padding: 20px;
+			border-radius: 8px;
+		}
+		
+		.drivers-section {
+			display: flex;
+			gap: 20px;
+			margin-bottom: 20px;
+		}
+		
+		.driver-section {
+			flex: 1;
+			background-color: #1a1a1a;
+			padding: 15px;
+			border-radius: 4px;
+		}
+		
+		.driver-section h4 {
+			margin-top: 0;
+			color: #4dabf7;
+		}
+		
+		.adrenaline-display {
+			color: #ffd43b;
+			font-weight: bold;
+			margin-bottom: 10px;
+		}
+		
+		.cards-hand {
+			display: flex;
+			gap: 10px;
+			flex-wrap: wrap;
+			margin-bottom: 15px;
+		}
+		
+		.card {
+			background-color: #3a3a3a;
+			padding: 10px;
+			border-radius: 4px;
+			cursor: pointer;
+			min-width: 150px;
+			transition: transform 0.2s;
+			border: 2px solid transparent;
+		}
+		
+		.card:hover {
+			transform: translateY(-5px);
+			border-color: #4dabf7;
+		}
+		
+		.card.selected {
+			border-color: #69db7c;
+			background-color: #2b8a3e;
+		}
+		
+		.card.unplayable {
+			opacity: 0.5;
+			cursor: not-allowed;
+		}
+		
+		.card.unplayable:hover {
+			transform: none;
+			border-color: transparent;
+		}
+		
+		.card-name {
+			font-weight: bold;
+			color: #f0f0f0;
+			margin-bottom: 5px;
+		}
+		
+		.card-cost {
+			color: #ffd43b;
+			font-size: 12px;
+			margin-bottom: 5px;
+		}
+		
+		.card-effect {
+			font-size: 12px;
+			color: #aaa;
+		}
+		
+		.control-buttons {
+			text-align: center;
+			margin-top: 20px;
+		}
+		
+		.end-turn-button {
+			padding: 12px 48px;
+			font-size: 18px;
+			background-color: #ff6b6b;
+			color: white;
+			border: none;
+			border-radius: 4px;
+			cursor: pointer;
+			transition: background-color 0.3s;
+		}
+		
+		.end-turn-button:hover {
+			background-color: #ff5252;
+		}
+		
+		.target-selection-info {
+			text-align: center;
+			color: #ff6b6b;
+			font-size: 20px;
+			font-weight: bold;
+			margin-bottom: 20px;
+			display: none;
+		}
+		
+		.target-selection-info.active {
+			display: block;
+		}
 	</style>
 </head>
 <body>
@@ -237,7 +499,7 @@
 				<div class="form-group">
 					<label for="player-ai">AI Strategy:</label>
 					<select id="player-ai">
-						<option value="">Human Player (Not Available)</option>
+						<option value="human">Human Player</option>
 						<option value="random">Random AI</option>
 						<option value="aggressive" selected>Aggressive Flanker AI</option>
 						<option value="mcts">Monte Carlo Tree Search AI</option>
@@ -345,6 +607,47 @@
 		Running battle simulation...
 	</div>
 	
+	<!-- Human Player Interface -->
+	<div id="human-player-ui" class="human-player-ui">
+		<div class="game-layout">
+			<div class="game-board">
+				<h2 style="text-align: center; color: #ff6b6b;">Your Turn</h2>
+				
+				<div class="target-selection-info" id="target-selection-info">
+					Select a target for <span id="selected-card-name"></span>
+				</div>
+				
+				<!-- Teams Display -->
+				<div class="teams-display">
+					<div class="team-display">
+						<h3>Your Team</h3>
+						<div id="player-vehicles"></div>
+					</div>
+					<div class="team-display">
+						<h3>Enemy Team</h3>
+						<div id="enemy-vehicles"></div>
+					</div>
+				</div>
+				
+				<!-- Player Controls -->
+				<div class="player-controls">
+					<h3>Your Drivers</h3>
+					<div class="drivers-section" id="drivers-section"></div>
+					
+					<div class="control-buttons">
+						<button class="end-turn-button" onclick="endPlayerTurn()">End Turn</button>
+					</div>
+				</div>
+			</div>
+			
+			<!-- Battle Log Pane -->
+			<div class="battle-log-pane">
+				<h3>Battle Log</h3>
+				<div id="human-battle-log" class="battle-log-content"></div>
+			</div>
+		</div>
+	</div>
+	
 	<script>
 		// Sync enemy drivers with player drivers
 		function syncEnemyDrivers() {
@@ -366,5 +669,249 @@
 		});
 	</script>
 	<script src="battle-simulator.js"></script>
+	<script>
+	// Human player interface functions
+	function setupHumanPlayerEventListeners() {
+		// Listen for player turn start
+		window.addEventListener('playerTurnStart', (event) => {
+			updateHumanPlayerUI(event.detail);
+		});
+		
+		// Listen for target selection
+		window.addEventListener('showTargetSelection', (event) => {
+			showTargetSelection(event.detail);
+		});
+		
+		// Listen for battle messages
+		window.addEventListener('battleMessage', (event) => {
+			addBattleLogEntry(event.detail);
+		});
+	}
+	
+	function updateHumanPlayerUI(gameState) {
+		// Update vehicle displays
+		updateVehicleDisplay('player-vehicles', gameState.playerTeam.vehicles);
+		updateVehicleDisplay('enemy-vehicles', gameState.enemyTeam.vehicles);
+		
+		// Update driver sections
+		updateDriverSections(gameState.playerTeam);
+	}
+	
+	function updateVehicleDisplay(elementId, vehicles) {
+		const container = document.getElementById(elementId);
+		container.innerHTML = '';
+		
+		vehicles.forEach((vehicle, index) => {
+			const vehicleDiv = document.createElement('div');
+			vehicleDiv.className = 'vehicle-display';
+			vehicleDiv.dataset.vehicleIndex = index;
+			
+			const structurePercent = Math.round((vehicle.structure / vehicle.maxStructure) * 100);
+			const armorPercent = vehicle.maxArmor > 0 ? Math.round((vehicle.armor / vehicle.maxArmor) * 100) : 0;
+			
+			vehicleDiv.innerHTML = `
+				<strong>${vehicle.name}</strong><br>
+				<div>Structure: ${vehicle.structure}/${vehicle.maxStructure} (${structurePercent}%)</div>
+				<div>Armor: ${vehicle.armor}/${vehicle.maxArmor} (${armorPercent}%)</div>
+				<div>Position: ${vehicle.position}</div>
+				${vehicle.driver ? `
+					<div class="driver-info">
+						Driver: ${vehicle.driver.metadata.name}
+						HP: ${vehicle.driver.hitpoints}/${vehicle.driver.maxHitpoints}
+					</div>
+				` : '<div class="driver-info">No Driver</div>'}
+			`;
+			
+			container.appendChild(vehicleDiv);
+		});
+	}
+	
+	function updateDriverSections(playerTeam) {
+		const container = document.getElementById('drivers-section');
+		container.innerHTML = '';
+		
+		playerTeam.vehicles.forEach((vehicle, index) => {
+			if (!vehicle.driver) return;
+			
+			const driver = vehicle.driver;
+			const driverSection = document.createElement('div');
+			driverSection.className = 'driver-section';
+			
+			driverSection.innerHTML = `
+				<h4>${driver.metadata.name} (${vehicle.name})</h4>
+				<div class="adrenaline-display">Adrenaline: ${driver.adrenaline}/${driver.maxAdrenaline}</div>
+				<div class="cards-hand" id="driver-${index}-cards"></div>
+			`;
+			
+			container.appendChild(driverSection);
+			
+			// Add cards
+			const cardsContainer = document.getElementById(`driver-${index}-cards`);
+			driver.hand.forEach((card, cardIndex) => {
+				const cardDiv = document.createElement('div');
+				cardDiv.className = 'card';
+				if (card.cost > driver.adrenaline) {
+					cardDiv.className += ' unplayable';
+				}
+				
+				cardDiv.innerHTML = `
+					<div class="card-name">${card.displayName}</div>
+					<div class="card-cost">Cost: ${card.cost}</div>
+					<div class="card-effect">${getCardEffectDescription(card)}</div>
+				`;
+				
+				if (card.cost <= driver.adrenaline) {
+					cardDiv.onclick = () => selectCard(driver, cardIndex);
+				}
+				
+				cardsContainer.appendChild(cardDiv);
+			});
+		});
+	}
+	
+	function getCardEffectDescription(card) {
+		let description = '';
+		
+		card.effects.forEach(effect => {
+			switch (effect.type) {
+				case 'damage':
+					description += `Deal ${effect.value} damage. `;
+					break;
+				case 'heal':
+					description += `Heal ${effect.value} HP. `;
+					break;
+				case 'armor':
+					description += `Gain ${effect.value} armor. `;
+					break;
+				case 'draw':
+					description += `Draw ${effect.value} cards. `;
+					break;
+				default:
+					description += `${effect.type}: ${effect.value}. `;
+			}
+		});
+		
+		return description || 'No effect';
+	}
+	
+	function selectCard(driver, cardIndex) {
+		if (!humanInterface) {
+			console.error('Human interface not initialized');
+			return;
+		}
+		
+		console.log('Selecting card:', driver.hand[cardIndex].displayName, 'from driver:', driver.metadata.name);
+		
+		// Remove previous selection
+		document.querySelectorAll('.card.selected').forEach(card => {
+			card.classList.remove('selected');
+		});
+		
+		// Mark card as selected
+		const cardElements = document.querySelectorAll('.card');
+		let cardElementIndex = 0;
+		currentBattle.playerTeam.vehicles.forEach((vehicle, vIndex) => {
+			if (vehicle.driver) {
+				vehicle.driver.hand.forEach((card, cIndex) => {
+					if (vehicle.driver === driver && cIndex === cardIndex) {
+						cardElements[cardElementIndex].classList.add('selected');
+					}
+					cardElementIndex++;
+				});
+			}
+		});
+		
+		selectedDriver = driver;
+		selectedCard = driver.hand[cardIndex];
+		
+		// Play the card through human interface
+		humanInterface.selectCard(driver, cardIndex);
+	}
+	
+	function showTargetSelection(details) {
+		const { driver, card, validTargets } = details;
+		
+		selectingTarget = true;
+		
+		// Show target selection info
+		document.getElementById('target-selection-info').classList.add('active');
+		document.getElementById('selected-card-name').textContent = card.displayName;
+		
+		// Mark valid targets
+		validTargets.forEach(target => {
+			const isPlayerVehicle = currentBattle.playerTeam.vehicles.includes(target);
+			const vehicleIndex = isPlayerVehicle ? 
+				currentBattle.playerTeam.vehicles.indexOf(target) : 
+				currentBattle.enemyTeam.vehicles.indexOf(target);
+			
+			const containerId = isPlayerVehicle ? 'player-vehicles' : 'enemy-vehicles';
+			const vehicleElements = document.getElementById(containerId).querySelectorAll('.vehicle-display');
+			
+			if (vehicleElements[vehicleIndex]) {
+				vehicleElements[vehicleIndex].classList.add('targetable');
+				vehicleElements[vehicleIndex].onclick = () => selectTarget(driver, card, target);
+			}
+		});
+	}
+	
+	function selectTarget(driver, card, target) {
+		if (!humanInterface) return;
+		
+		// Remove target selection UI
+		document.getElementById('target-selection-info').classList.remove('active');
+		document.querySelectorAll('.vehicle-display.targetable').forEach(vehicle => {
+			vehicle.classList.remove('targetable');
+			vehicle.onclick = null;
+		});
+		
+		selectingTarget = false;
+		
+		// Play the card with target
+		humanInterface.selectTarget(driver, card, target);
+		
+		// Refresh UI after a short delay to show the action
+		setTimeout(() => {
+			if (currentBattle && humanInterface) {
+				const gameState = humanInterface.getGameState();
+				updateHumanPlayerUI(gameState);
+			}
+		}, 500);
+	}
+	
+	function endPlayerTurn() {
+		if (!humanInterface) return;
+		
+		// Clear any selection
+		document.querySelectorAll('.card.selected').forEach(card => {
+			card.classList.remove('selected');
+		});
+		
+		humanInterface.endTurn();
+	}
+	
+	function addBattleLogEntry(message) {
+		const logContainer = document.getElementById('human-battle-log');
+		if (!logContainer) return;
+		
+		const entry = document.createElement('div');
+		entry.className = 'battle-log-entry ' + (message.type || 'general');
+		
+		// Format the message with turn number
+		const turnPrefix = message.turn ? `[Turn ${message.turn}] ` : '';
+		entry.textContent = turnPrefix + message.message;
+		
+		logContainer.appendChild(entry);
+		
+		// Auto-scroll to bottom
+		logContainer.scrollTop = logContainer.scrollHeight;
+	}
+	
+	function clearBattleLog() {
+		const logContainer = document.getElementById('human-battle-log');
+		if (logContainer) {
+			logContainer.innerHTML = '';
+		}
+	}
+	</script>
 </body>
 </html>
