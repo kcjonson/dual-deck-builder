@@ -41,7 +41,8 @@ module.exports = {
 		new HtmlWebpackPlugin({
 			template: './public/battle.html',
 			filename: 'battle.html',
-			chunks: ['battle-simulator']
+			chunks: ['battle-simulator'],
+			inject: 'body'
 		}),
 		new HtmlWebpackPlugin({
 			template: './public/evalai.html',
@@ -61,6 +62,10 @@ module.exports = {
 				{
 					from: './public/evalai-ui.js',
 					to: 'evalai-ui.js',
+				},
+				{
+					from: './public/battle-simulator.js',
+					to: 'battle-simulator.js',
 				},
 			],
 		}),

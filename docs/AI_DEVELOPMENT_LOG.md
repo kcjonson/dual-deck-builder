@@ -4,6 +4,30 @@ This document contains the chronological log of completed development tasks for 
 
 =========================================
 
+## Ramming AI Implementation (2024-12-30)
+
+### Created Ramming-Focused AI Strategy
+
+**What Changed:**
+- Implemented RammingAI strategy that prioritizes vehicle collision attacks
+- Added 'ramming' as a new AI type in AIController
+- Created comprehensive test suite for RammingAI behavior
+- Updated AI Development Hub documentation with new strategy details
+
+**Technical Details:**
+- Strategy prioritizes ramming attacks with highest score (+300)
+- Speed boosts are high priority (+250) to enable effective ramming
+- Armor is valued (+200) for protection during collisions
+- Detects ramming cards by:
+  - Card type/description containing 'ram'
+  - Effects with scaling: 'ramming'
+  - Formula-based damage (e.g., 'armor/10 + speed_diff')
+- Estimates ram damage based on armor, speed difference, and driver skills
+- Prefers front position for optimal ramming range
+- Targets low-health enemies for kill bonuses
+- Still maintains survival instincts (healing at <30% health)
+- Full test coverage validates all strategic priorities
+
 ## Salvage AI Implementation (2024-12-30)
 
 ### Created AI Strategy for Vehicle Salvage

@@ -296,11 +296,43 @@ export class Driver extends Model<DriverData> {
 	}
 
 	/**
+	 * Format a hand of cards with counts for duplicates
+	 */
+	private formatHandWithCounts(cards: Card[]): string {
+		if (cards.length === 0) return 'No cards';
+		
+		// Count occurrences of each card
+		const cardCounts = new Map<string, { card: Card, count: number }>();
+		
+		for (const card of cards) {
+			const key = `${card.name}(${card.cost})`;
+			if (cardCounts.has(key)) {
+				cardCounts.get(key)!.count++;
+			} else {
+				cardCounts.set(key, { card, count: 1 });
+			}
+		}
+		
+		// Format the output
+		const formattedCards: string[] = [];
+		for (const { card, count } of cardCounts.values()) {
+			if (count > 1) {
+				formattedCards.push(`${card.name} (${card.cost}) x${count}`);
+			} else {
+				formattedCards.push(`${card.name} (${card.cost})`);
+			}
+		}
+		
+		return formattedCards.join(', ');
+	}
+
+	/**
 	 * Draw cards from driver's deck into their hand
 	 */
 	public drawCards(count: number): void {
 		if (!this.deck) return;
 
+		const drawnCards: Card[] = [];
 		for (let i = 0; i < count; i++) {
 			// Check if deck is empty before drawing
 			if (this.deck.size === 0 && this.discard.length > 0) {
@@ -310,10 +342,17 @@ export class Driver extends Model<DriverData> {
 			const card = this.deck.draw();
 			if (card) {
 				this.addToHand(card);
+				drawnCards.push(card);
 			} else {
 				// No cards available in deck or discard
 				break;
 			}
+		}
+		
+		// Log the new hand after drawing
+		if (drawnCards.length > 0) {
+			const handCards = this.formatHandWithCounts(this.hand);
+			console.log(`${this.metadata.name} drew ${drawnCards.length} cards. New hand: ${handCards}`);
 		}
 	}
 
@@ -418,11 +457,10 @@ export const DRIVER_CONFIGS: Record<DriverArchetype, DriverConfig> = {
 		},
 		startingDeck: {
 			cards: [
-				{ type: 'ramming_speed', quantity: 2 },
+				{ type: 'ramming_speed', quantity: 5 },
 				{ type: 'armor_plating', quantity: 3 },
 				{ type: 'repair_kit', quantity: 2 },
-				{ type: 'nitro_boost', quantity: 1 },
-				{ type: 'flanking_maneuver', quantity: 1 },
+				{ type: 'nitro_boost', quantity: 2 }
 			]
 		},
 		maxHitpoints: 40 // Tough veteran driver

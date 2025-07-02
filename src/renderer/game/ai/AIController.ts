@@ -7,9 +7,10 @@ import { RandomAI } from './RandomAI';
 import { AggressiveFlankerAI } from './AggressiveFlankerAI';
 import { MCTSAI } from './MCTSAI';
 import { SalvageAI } from './SalvageAI';
+import { RammingAI } from './RammingAI';
 import { AIDecision } from './types';
 
-export type AIType = 'random' | 'aggressive' | 'defensive' | 'balanced' | 'mcts' | 'salvage';
+export type AIType = 'random' | 'aggressive' | 'defensive' | 'balanced' | 'mcts' | 'salvage' | 'ramming';
 
 export class AIController {
 	private battle: Battle;
@@ -48,6 +49,8 @@ export class AIController {
 				return new MCTSAI({ team, battle: this.battle });
 			case 'salvage':
 				return new SalvageAI(team, this.battle);
+			case 'ramming':
+				return new RammingAI(team, this.battle);
 			case 'defensive':
 			case 'balanced':
 				console.warn(`AI type '${type}' not yet implemented, using RandomAI`);

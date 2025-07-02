@@ -333,6 +333,15 @@ export class Battle extends Model<BattleData> {
 			return;
 		}
 
+		// Log player hands before discarding
+		this.log('general', '=== PLAYER FINAL HANDS ===');
+		this.playerTeam.getAllDrivers().forEach(driver => {
+			if (driver.isAlive()) {
+				const handCards = this.formatHandWithCounts(driver.hand);
+				this.log('general', `  ${driver.metadata.name}: ${handCards}`);
+			}
+		});
+
 		// Discard hands for all player drivers
 		this.playerTeam.discardAllHands();
 
@@ -385,6 +394,15 @@ export class Battle extends Model<BattleData> {
 				return;
 			}
 		}
+
+		// Log enemy hands before ending turn
+		this.log('general', '=== ENEMY FINAL HANDS ===');
+		this.enemyTeam.getAllDrivers().forEach(driver => {
+			if (driver.isAlive()) {
+				const handCards = this.formatHandWithCounts(driver.hand);
+				this.log('general', `  ${driver.metadata.name}: ${handCards}`);
+			}
+		});
 
 		this.log('turn_end', 'Ending enemy turn');
 
@@ -530,6 +548,9 @@ export class Battle extends Model<BattleData> {
 		this.isPlayerTurn = true;
 
 		this.log('turn_start', `Player turn ${this.turn} started`, { turn: this.turn });
+		
+		// Log hands for all drivers
+		this.logAllHands();
 		
 		// Log team status at turn start
 		this.logTeamStatus();
@@ -679,9 +700,17 @@ export class Battle extends Model<BattleData> {
 					
 					const healValue = typeof effect.value === 'number' ? effect.value : 0;
 					if (targetVehicle && targetVehicle.driver) {
+						const beforeHP = targetVehicle.driver.hitpoints;
+						const maxHP = targetVehicle.driver.maxHitpoints;
+						
 						targetVehicle.driver.heal(healValue);
+						
+						const afterHP = targetVehicle.driver.hitpoints;
+						const actualHealed = afterHP - beforeHP;
+						const hpText = `${beforeHP}/${maxHP} -> ${afterHP}/${maxHP}`;
+						
 						this.log('heal_applied',
-							`${card.displayName} heals ${healValue} hit points on ${targetVehicle.driver.metadata.name}`,
+							`${card.displayName} heals ${actualHealed} hit points on ${targetVehicle.driver.metadata.name} (HP: ${hpText})`,
 							{ card: card.displayName, target: targetVehicle.driver.metadata.name, value: healValue }
 						);
 					}
@@ -718,9 +747,17 @@ export class Battle extends Model<BattleData> {
 
 				case 'adrenaline':
 					const adrenalineValue = typeof effect.value === 'number' ? effect.value : 0;
+					const beforeAdrenaline = caster.adrenaline;
+					const maxAdrenaline = caster.maxAdrenaline;
+					
 					caster.gainAdrenaline(adrenalineValue);
+					
+					const afterAdrenaline = caster.adrenaline;
+					const actualGained = afterAdrenaline - beforeAdrenaline;
+					const adrenalineText = `${beforeAdrenaline}/${maxAdrenaline} -> ${afterAdrenaline}/${maxAdrenaline}`;
+					
 					this.log('general',
-						`${card.displayName} gives ${adrenalineValue} adrenaline to ${caster.metadata.name}`,
+						`${card.displayName} gives ${actualGained} adrenaline to ${caster.metadata.name} (Adrenaline: ${adrenalineText})`,
 						{ card: card.displayName, driver: caster.metadata.name, value: adrenalineValue }
 					);
 					break;
@@ -837,11 +874,19 @@ export class Battle extends Model<BattleData> {
 				case 'gain_resource':
 					if (effect.resource === 'adrenaline') {
 						const adrenalineValue = typeof effect.value === 'number' ? effect.value : 0;
+						const beforeAdrenaline = caster.adrenaline;
+						const maxAdrenaline = caster.maxAdrenaline;
+						
 						caster.gainAdrenaline(adrenalineValue);
+						
+						const afterAdrenaline = caster.adrenaline;
+						const actualGained = afterAdrenaline - beforeAdrenaline;
+						const adrenalineText = `${beforeAdrenaline}/${maxAdrenaline} -> ${afterAdrenaline}/${maxAdrenaline}`;
+						
 						this.log('general',
-						`${card.displayName} gives ${adrenalineValue} adrenaline to ${caster.metadata.name}`,
-						{ card: card.displayName, driver: caster.metadata.name, value: adrenalineValue }
-					);
+							`${card.displayName} gives ${actualGained} adrenaline to ${caster.metadata.name} (Adrenaline: ${adrenalineText})`,
+							{ card: card.displayName, driver: caster.metadata.name, value: adrenalineValue }
+						);
 					}
 					break;
 
@@ -878,9 +923,17 @@ export class Battle extends Model<BattleData> {
 					
 				case 'adrenaline': {
 					const legacyAdrenalineValue = typeof effect.value === 'number' ? effect.value : 0;
+					const beforeAdrenaline = caster.adrenaline;
+					const maxAdrenaline = caster.maxAdrenaline;
+					
 					caster.gainAdrenaline(legacyAdrenalineValue);
+					
+					const afterAdrenaline = caster.adrenaline;
+					const actualGained = afterAdrenaline - beforeAdrenaline;
+					const adrenalineText = `${beforeAdrenaline}/${maxAdrenaline} -> ${afterAdrenaline}/${maxAdrenaline}`;
+					
 					this.log('general',
-						`${card.displayName} gives ${legacyAdrenalineValue} adrenaline to ${caster.metadata.name}`,
+						`${card.displayName} gives ${actualGained} adrenaline to ${caster.metadata.name} (Adrenaline: ${adrenalineText})`,
 						{ card: card.displayName, driver: caster.metadata.name, value: legacyAdrenalineValue }
 					);
 					break;
@@ -961,6 +1014,41 @@ export class Battle extends Model<BattleData> {
 			return 99; // Out of range
 		}
 
+		// Check if target team has only one vehicle
+		const targetTeamVehicleCount = targetTeam ? targetTeam.getAliveVehicles().length : 0;
+		
+		if (targetTeamVehicleCount === 1) {
+			// When target team has only one vehicle, treat it as occupying the "front" position
+			// This makes flanking attacks against a single vehicle require range 2
+			if (target.position === VehiclePosition.FRONT) {
+				// Single vehicle in front position
+				if (attacker.position === VehiclePosition.FRONT) {
+					return 1; // Front to Front is adjacent
+				} else if (attacker.position === VehiclePosition.FLANKING) {
+					return 2; // Flanking to Front requires range 2
+				} else {
+					return 2; // Back to Front is range 2
+				}
+			} else if (target.position === VehiclePosition.FLANKING) {
+				// Single vehicle in flanking position (less common but possible)
+				if (attacker.position === VehiclePosition.FLANKING) {
+					return 1; // Flanking to Flanking is adjacent
+				} else {
+					return 2; // Any other position to Flanking is range 2
+				}
+			} else {
+				// Single vehicle in back position (shouldn't happen normally but handle it)
+				if (attacker.position === VehiclePosition.BACK) {
+					return 1; // Back to Back is adjacent
+				} else if (attacker.position === VehiclePosition.FLANKING) {
+					return 1; // Flanking to Back is adjacent
+				} else {
+					return 2; // Front to Back is range 2
+				}
+			}
+		}
+
+		// Normal multi-vehicle logic
 		// Flanking to Back is range 1
 		if ((attacker.position === VehiclePosition.FLANKING && target.position === VehiclePosition.BACK) ||
 			(attacker.position === VehiclePosition.BACK && target.position === VehiclePosition.FLANKING)) {
@@ -1145,6 +1233,37 @@ export class Battle extends Model<BattleData> {
 	}
 
 	/**
+	 * Format a hand of cards with counts for duplicates
+	 */
+	private formatHandWithCounts(cards: Card[]): string {
+		if (cards.length === 0) return 'No cards';
+		
+		// Count occurrences of each card
+		const cardCounts = new Map<string, { card: Card, count: number }>();
+		
+		for (const card of cards) {
+			const key = `${card.name}(${card.cost})`;
+			if (cardCounts.has(key)) {
+				cardCounts.get(key)!.count++;
+			} else {
+				cardCounts.set(key, { card, count: 1 });
+			}
+		}
+		
+		// Format the output
+		const formattedCards: string[] = [];
+		for (const { card, count } of cardCounts.values()) {
+			if (count > 1) {
+				formattedCards.push(`${card.name} (${card.cost}) x${count}`);
+			} else {
+				formattedCards.push(`${card.name} (${card.cost})`);
+			}
+		}
+		
+		return formattedCards.join(', ');
+	}
+
+	/**
 	 * Log the status of all vehicles and drivers
 	 */
 	private logTeamStatus(): void {
@@ -1184,6 +1303,29 @@ export class Battle extends Model<BattleData> {
 			this.log('general', 
 				`  Vehicle ${index + 1}: Structure ${structureText}, Armor ${armorText}${driverInfo}`
 			);
+		});
+	}
+
+	/**
+	 * Log all drivers' hands for debugging
+	 */
+	private logAllHands(): void {
+		// Log player team hands
+		this.log('general', '=== PLAYER TEAM HANDS ===');
+		this.playerTeam.getAllDrivers().forEach(driver => {
+			if (driver.isAlive()) {
+				const handCards = this.formatHandWithCounts(driver.hand);
+				this.log('general', `  ${driver.metadata.name}: ${handCards}`);
+			}
+		});
+		
+		// Log enemy team hands
+		this.log('general', '=== ENEMY TEAM HANDS ===');
+		this.enemyTeam.getAllDrivers().forEach(driver => {
+			if (driver.isAlive()) {
+				const handCards = this.formatHandWithCounts(driver.hand);
+				this.log('general', `  ${driver.metadata.name}: ${handCards}`);
+			}
 		});
 	}
 }
