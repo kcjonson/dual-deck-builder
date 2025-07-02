@@ -4,6 +4,7 @@ import { Team } from '../mechanics/Team';
 import { Battle } from '../mechanics/Battle';
 import { Vehicle } from '../mechanics/Vehicle';
 import { Card } from '../mechanics/Card';
+import { CardEffectValidator } from './CardEffectValidator';
 
 /**
  * Aggressive Flanker AI Strategy
@@ -11,6 +12,11 @@ import { Card } from '../mechanics/Card';
  */
 export class AggressiveFlankerStrategy implements AIStrategy {
 	name = 'Aggressive Flanker AI';
+	private battle: Battle;
+
+	constructor(battle: Battle) {
+		this.battle = battle;
+	}
 
 	private readonly FLANKING_BONUS = 1.5;
 	private readonly VULNERABLE_BONUS = 1.5;
@@ -57,6 +63,12 @@ export class AggressiveFlankerStrategy implements AIStrategy {
 		// Find the vehicle for this driver
 		const ourVehicle = this.getVehicleForDriver(driver, gameState);
 		if (!ourVehicle) return -1000;
+
+		// Check if the card will have any beneficial effect
+		const targetVehicle = action.target as Vehicle || ourVehicle.vehicle;
+		if (!CardEffectValidator.willCardHaveEffect(card, driver, targetVehicle, this.battle)) {
+			return -500; // Strong negative score for cards with no effect
+		}
 
 		// Get card effects
 		const cardEffects = this.analyzeCardEffects(card);
@@ -251,7 +263,7 @@ export class AggressiveFlankerAI extends AIPlayer {
 
 	constructor(team: Team, battle: Battle) {
 		super(team, battle);
-		this.strategy = new AggressiveFlankerStrategy();
+		this.strategy = new AggressiveFlankerStrategy(battle);
 	}
 
 	async makeDecision(): Promise<AIDecision | null> {

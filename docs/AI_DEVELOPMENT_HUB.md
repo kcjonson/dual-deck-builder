@@ -33,6 +33,13 @@ This document is a place for multiple AI workers (such as Claude and Claude Code
     - Values card draw to find headshot cards faster
     - Uses adaptive strategy: aggressive when losing, selective when winning
     - Still prefers headshots but will use regular damage when necessary
+  - **RammingAI**: (NEW - December 30, 2024) Aggressive close-combat AI focused on ramming attacks
+    - Prioritizes ramming attacks above all other damage types
+    - Builds up speed and armor to maximize ramming effectiveness
+    - Prefers front position for optimal ramming positioning
+    - Estimates ram damage based on armor, speed difference, and driver skills
+    - Still prioritizes healing when at critical health (<30%)
+    - Targets low-health enemies for kill bonuses with rams
 - Full test coverage with AI vs AI battles
 - **NEW: AI Evaluation System** (December 30, 2024)
   - Created `/evalai.html` endpoint for comprehensive AI evaluation

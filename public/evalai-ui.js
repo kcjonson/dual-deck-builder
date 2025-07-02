@@ -58,6 +58,7 @@ async function runEvaluation() {
 	if (document.getElementById('ai-aggressive').checked) aiTypes.push('aggressive');
 	if (document.getElementById('ai-mcts').checked) aiTypes.push('mcts');
 	if (document.getElementById('ai-salvage').checked) aiTypes.push('salvage');
+	if (document.getElementById('ai-ramming').checked) aiTypes.push('ramming');
 	
 	console.log('Selected AI types:', aiTypes);
 	
@@ -177,12 +178,13 @@ function displayResults(results, duration) {
 		
 		const detailsSection = document.createElement('div');
 		detailsSection.className = 'ranking-details';
+		const avgStructureLooted = result.wins > 0 ? (result.totalStructureLooted / result.wins).toFixed(1) : '0.0';
 		detailsSection.innerHTML = `
 			<span>Win Rate: <strong>${(result.winRate * 100).toFixed(1)}%</strong></span>
 			<span>Record: ${result.wins}W-${result.losses}L-${result.draws}D</span>
 			<span>Avg Turns: ${result.avgTurnsPerGame.toFixed(1)}</span>
 			<span>Avg Score: ${result.avgScorePerGame.toFixed(0)}</span>
-			<span>Structure Looted: <strong>${result.totalStructureLooted || 0}</strong></span>
+			<span>Avg Structure Looted: <strong>${avgStructureLooted}</strong></span>
 		`;
 		
 		rankingItem.appendChild(nameSection);
