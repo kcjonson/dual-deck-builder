@@ -2,7 +2,6 @@ import { Layer } from '../../../engine/components/Layer';
 import { Rectangle } from '../../../engine/components/Rectangle';
 import { Text } from '../../../engine/components/Text';
 import { CombatLog, CombatLogEntry, CombatLogType } from '../../mechanics/CombatLog';
-import { InputSystem } from '../../../engine/input/InputSystem';
 import { Panel } from '../../../engine/ui/Panel';
 
 /**
@@ -137,7 +136,7 @@ export class CombatLogLayer extends Layer {
 	/**
 	 * Create visual representation of a log entry
 	 */
-	private createEntryVisual(entry: CombatLogEntry, index: number): void {
+	private createEntryVisual(entry: CombatLogEntry, _index: number): void {
 		// Skip if entry already exists
 		if (this.entryVisuals.has(entry.id)) {
 			return;
@@ -204,21 +203,42 @@ export class CombatLogLayer extends Layer {
 				return '#cccc88';
 			case CombatLogType.STATUS:
 				return '#8888cc';
+			case CombatLogType.MISS:
+				return '#cc88cc';
+			case CombatLogType.ARMOR:
+				return '#88cc88';
+			case CombatLogType.RESOURCE:
+				return '#ccaa88';
+			case CombatLogType.POSITION:
+				return '#88ccaa';
+			case CombatLogType.BATTLE_START:
+				return '#88ff88';
+			case CombatLogType.BATTLE_END:
+				return '#ff8888';
 			default:
 				return '#aaaaaa';
 		}
 	}
 	
 	/**
-	 * Get prefix for entry based on driver
+	 * Get prefix for entry based on driver and turn
 	 */
 	private getPrefixForEntry(entry: CombatLogEntry): string {
-		if (entry.driver === 1) {
-			return '[Driver 1] ';
-		} else if (entry.driver === 2) {
-			return '[Driver 2] ';
+		let prefix = '';
+		
+		// Add turn number if available
+		if (entry.turn !== undefined) {
+			prefix += `[Turn ${entry.turn}] `;
 		}
-		return '';
+		
+		// Add driver identifier if available
+		if (entry.driver === 1) {
+			prefix += '[Driver 1] ';
+		} else if (entry.driver === 2) {
+			prefix += '[Driver 2] ';
+		}
+		
+		return prefix;
 	}
 	
 	/**

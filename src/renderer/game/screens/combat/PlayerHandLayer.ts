@@ -164,6 +164,8 @@ export class PlayerHandLayer extends Layer {
 	 */
 	private clearCardElements(): void {
 		this.cardElements.forEach(cardElement => {
+			// Clean up the card to unregister from InputSystem
+			cardElement.cleanup();
 			this.removeChild(cardElement);
 		});
 		this.cardElements = [];

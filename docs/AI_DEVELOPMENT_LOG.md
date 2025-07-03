@@ -4,6 +4,35 @@ This document contains the chronological log of completed development tasks for 
 
 =========================================
 
+## AI Integration and Combat Enhancements (2025-01-03)
+
+### Integrated AI System into Main Game
+
+**What Changed:**
+- Enabled AI controller in CombatScreen - enemies now use AggressiveFlankerAI
+- Removed placeholder enemy turn logic
+- Enhanced combat logging to match battle simulator's comprehensive output
+- Fixed card click routing bug causing navigation to wrong screens
+
+**Technical Details:**
+- **AI Integration**: 
+  - Added `battle.aiController.setEnemyAI('aggressive')` in CombatScreen.initializeCombat()
+  - Battle system already handles AI turns automatically via executeEnemyAction()
+  - Same AI strategies from battle simulator now work in main game
+- **Enhanced Logging**:
+  - Added 6 new CombatLogType entries: MISS, ARMOR, RESOURCE, POSITION, BATTLE_START, BATTLE_END
+  - CombatLog.addBattleMessage() method maps Battle message types to log types
+  - Added turn numbers to log entries with `[Turn X]` prefix
+  - Enhanced color coding for all message types
+- **Card Click Bug Fix**:
+  - Root cause: Cards not unregistered from InputSystem when screens unmount
+  - Solution: Added cleanup() calls in screen unmount methods
+  - CardShowcaseScreen tracks and cleans up card components
+  - CombatScreen calls cleanup() on all layers
+  - Leveraged existing Layer/Component cleanup() architecture
+
+=========================================
+
 ## Combat Targeting System Fix (2025-01-03)
 
 ### Fixed Card Targeting Not Working

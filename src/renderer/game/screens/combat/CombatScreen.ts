@@ -12,7 +12,7 @@ import { Driver, DriverRole } from '../../mechanics/Driver';
 import { CombatLog, CombatLogType } from '../../mechanics/CombatLog';
 import { Vehicle, VehiclePosition } from '../../mechanics/Vehicle';
 import { Team, TeamType } from '../../mechanics/Team';
-import { Battle, BattleState } from '../../mechanics/Battle';
+import { Battle, BattleState, BattleMessage } from '../../mechanics/Battle';
 import { Card } from '../../mechanics/Card';
 import { CardLoader } from '../../core/CardLoader';
 import { InputSystem } from '../../../engine/input/InputSystem';
@@ -114,6 +114,10 @@ export class CombatScreen extends Screen {
 				playerTeam: this.playerTeam,
 				enemyTeam: this.enemyTeam
 			});
+
+			// Enable AI for enemy team - using aggressive AI as default
+			// Other options: 'random', 'mcts', 'salvage', 'ramming'
+			this.battle.aiController.setEnemyAI('aggressive');
 
 			// Start the battle
 			this.battle.start();
@@ -217,6 +221,14 @@ export class CombatScreen extends Screen {
 					this.combatLog.addEntry('Player turn ended', CombatLogType.TURN);
 					this.combatLog.addEntry('Enemy turn started', CombatLogType.TURN);
 				}
+			})
+		);
+
+		// Subscribe to detailed battle messages for comprehensive logging
+		this.unsubscribers.push(
+			this.battle.on('battleMessage', (message: BattleMessage) => {
+				// Pass battle messages directly to the combat log
+				this.combatLog.addBattleMessage(message);
 			})
 		);
 		
@@ -749,44 +761,6 @@ export class CombatScreen extends Screen {
 		this.updateResourceDisplay();
 	}
 
-	/**
-	 * Process enemy turn
-	 */
-	private processEnemyTurn(): void {
-		// Enemy turn is now handled by the Battle system
-		// This method is no longer needed with the new architecture
-		return;
-	}
-
-
-
-	/**
-	 * Generate random enemy intent
-	 */
-	private generateRandomIntent() {
-		const intents = [
-			{ type: 'attack' as const, value: Math.floor(Math.random() * 15) + 5, description: 'Attack' },
-			{ type: 'defend' as const, description: 'Defend' },
-			{ type: 'repair' as const, description: 'Repair' },
-		];
-		return intents[Math.floor(Math.random() * intents.length)];
-	}
-
-	/**
-	 * Check victory condition
-	 */
-	private checkVictoryCondition(): void {
-		// TODO: Update for new Battle system
-		return;
-	}
-
-	/**
-	 * Check defeat condition
-	 */
-	private checkDefeatCondition(): void {
-		// TODO: Update for new Battle system
-		return;
-	}
 
 	/**
 	 * Update resource display
@@ -845,10 +819,12 @@ export class CombatScreen extends Screen {
 			this.handLayer.clearCardSelection();
 		}
 		
-		// Clean up combat log subscriptions
-		if (this.combatLogLayer) {
-			this.combatLogLayer.cleanup();
-		}
+		// Clean up all layers (this will clean up cards too)
+		this.handLayer.cleanup();
+		this.enemyLayer.cleanup();
+		this.battlefieldLayer.cleanup();
+		this.resourceLayer.cleanup();
+		this.combatLogLayer.cleanup();
 		
 		// Unregister global keyboard handler
 		InputSystem.unregisterGlobalKeyDown('F6');

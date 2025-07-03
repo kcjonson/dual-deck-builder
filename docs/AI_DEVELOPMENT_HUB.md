@@ -19,10 +19,21 @@ This document is a place for multiple AI workers (such as Claude and Claude Code
 - Modified screen system to support data passing between screens
 - Ready for AI integration once remaining polish items are complete
   
-### AI Integration Planning (January 3, 2025)
-- Created comprehensive [AI Integration Plan](./AI_TECHNICAL_DECISIONS/AI_INTEGRATION_PLAN.md)
-- Plan to integrate battle simulator work into main game
-- Decided to fix existing interface bugs first before AI integration
+### AI Integration Complete (January 3, 2025)
+- Fixed all critical combat interface bugs first
+- Enabled AI controller in CombatScreen - enemy team now uses AggressiveFlankerAI
+- Removed placeholder enemy turn logic (now handled by Battle system)
+- AI integration is working! The same AI from battle simulator now controls enemies in main game
+- Enhanced combat logging to match battle simulator's comprehensive output:
+  - Added 6 new log types: MISS, ARMOR, RESOURCE, POSITION, BATTLE_START, BATTLE_END
+  - Combat log now displays turn numbers for all messages
+  - Improved color coding for different message types
+  - CombatScreen passes battle messages directly to CombatLog for processing
+  - Players now see detailed combat information including damage breakdowns, healing amounts, status effects, and more
+- Fixed card click routing bug:
+  - Cards were not being unregistered from InputSystem when screens unmounted
+  - Added proper cleanup calls to CardShowcaseScreen and CombatScreen
+  - Leveraged existing Layer/Component cleanup() architecture
 
 ### Adrenaline System Configuration (January 2, 2025)
 - Changed default max adrenaline from 10 to 5 for all drivers

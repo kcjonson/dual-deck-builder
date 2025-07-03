@@ -17,6 +17,7 @@ export class CardShowcaseScreen extends Screen {
 	private onBack: (() => void) | null = null;
 	private cardsPanel: Panel;
 	private cardLoader: CardLoader;
+	private cardComponents: Card[] = [];
 
 	constructor(renderer: Renderer) {
 		super('cardShowcaseScreen', renderer);
@@ -150,6 +151,7 @@ export class CardShowcaseScreen extends Screen {
 			});
 
 			this.cardsPanel.addChild(cardComponent);
+			this.cardComponents.push(cardComponent);
 
 			// Move to next position
 			currentX += cardDimensions.width + cardSpacing;
@@ -217,6 +219,7 @@ export class CardShowcaseScreen extends Screen {
 				});
 
 				this.cardsPanel.addChild(cardComponent);
+			this.cardComponents.push(cardComponent);
 
 				// Move to next position
 				currentX += cardDimensions.width + cardSpacing;
@@ -271,7 +274,14 @@ export class CardShowcaseScreen extends Screen {
 	 * Handle screen unmount
 	 */
 	protected onUnmount(): void {
-		// Nothing to clean up
+		// Clean up all card components to unregister from InputSystem
+		this.cardComponents.forEach(card => {
+			card.cleanup();
+		});
+		this.cardComponents = [];
+		
+		// Clean up button
+		this.backButton.cleanup();
 	}
 
 	/**
