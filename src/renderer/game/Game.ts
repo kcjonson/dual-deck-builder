@@ -7,6 +7,7 @@ import { DeveloperScreen } from './screens/developer/DeveloperScreen';
 import { CardShowcaseScreen } from './screens/card-showcase/CardShowcaseScreen';
 import { DriverSelectionScreen } from './screens/driver-selection/DriverSelectionScreen';
 import { CombatScreen } from './screens/combat/CombatScreen';
+import { BattleResultScreen, BattleResultData } from './screens/battleResult/BattleResultScreen';
 import { Driver } from './mechanics/Driver';
 
 /**
@@ -144,13 +145,16 @@ export class Game {
 		// Create combat screen
 		const combatScreen = new CombatScreen(this.renderer);
 		combatScreen.setOnEndCombat((victory) => {
-			if (victory) {
-				console.log('Combat victory! Returning to main menu...');
-				// TODO: Go to reward screen or map
-				this.showScreen('mainMenuScreen');
+			// Get the battle state from the combat screen
+			const battleState = combatScreen.getBattleState();
+			if (battleState) {
+				const resultData: BattleResultData = {
+					victory,
+					battleState
+				};
+				this.showScreen('battleResultScreen', resultData);
 			} else {
-				console.log('Combat defeat! Returning to main menu...');
-				// TODO: Go to defeat screen
+				console.error('No battle state available');
 				this.showScreen('mainMenuScreen');
 			}
 		});
@@ -158,6 +162,14 @@ export class Game {
 			this.showScreen('mainMenuScreen');
 		});
 		this.screens.set('combatScreen', combatScreen);
+		
+		// Create battle result screen
+		const battleResultScreen = new BattleResultScreen(this.renderer);
+		battleResultScreen.setOnContinue(() => {
+			// TODO: Go to reward screen or map for victory, or retry options for defeat
+			this.showScreen('mainMenuScreen');
+		});
+		this.screens.set('battleResultScreen', battleResultScreen);
 	}
 
 	/**
@@ -197,8 +209,9 @@ export class Game {
 	/**
 	 * Show a specific screen
 	 * @param screenId ID of the screen to show
+	 * @param data Optional data to pass to the screen
 	 */
-	public showScreen(screenId: string): void {
+	public showScreen(screenId: string, data?: unknown): void {
 		// Unmount the current screen if there is one
 		if (this.currentScreen) {
 			const currentScreen = this.screens.get(this.currentScreen);
@@ -207,10 +220,10 @@ export class Game {
 			}
 		}
 
-		// Mount the new screen
+		// Mount the new screen with optional data
 		const nextScreen = this.screens.get(screenId);
 		if (nextScreen) {
-			nextScreen.mount();
+			nextScreen.mount(data);
 			this.currentScreen = screenId;
 		} else {
 			console.error(`Screen not found: ${screenId}`);

@@ -11,6 +11,7 @@ export class PlayerHandLayer extends Layer {
 	private handCards: Card[] = [];
 	private cardElements: UICard[] = [];
 	private currentAdrenaline = 0;
+	private driverAdrenaline: Map<number, number> = new Map([[1, 0], [2, 0]]);
 	
 	// Card layout settings
 	private readonly CARD_SIZE = CardSize.NORMAL;
@@ -60,9 +61,18 @@ export class PlayerHandLayer extends Layer {
 
 	/**
 	 * Set current adrenaline for card playability
+	 * @deprecated Use setDriverAdrenaline instead for dual-driver support
 	 */
 	public setAdrenaline(adrenaline: number): void {
 		this.currentAdrenaline = adrenaline;
+		this.updateCardPlayability();
+	}
+	
+	/**
+	 * Set adrenaline for a specific driver
+	 */
+	public setDriverAdrenaline(driverNumber: 1 | 2, adrenaline: number): void {
+		this.driverAdrenaline.set(driverNumber, adrenaline);
 		this.updateCardPlayability();
 	}
 
@@ -217,9 +227,16 @@ export class PlayerHandLayer extends Layer {
 	 * Check if a card can be played with current adrenaline
 	 */
 	private canPlayCard(card: Card): boolean {
-		// In single player mode with combined hand, we use combined adrenaline
-		// TODO: In the future, track which driver owns which card
-		return this.currentAdrenaline >= card.cost;
+		// Check which driver owns this card
+		const driverNumber = this.cardDriverMap.get(card.id);
+		if (!driverNumber) {
+			// Fallback to old behavior if no driver mapping
+			return this.currentAdrenaline >= card.cost;
+		}
+		
+		// Check the specific driver's adrenaline
+		const driverAdrenaline = this.driverAdrenaline.get(driverNumber) || 0;
+		return driverAdrenaline >= card.cost;
 	}
 
 	/**

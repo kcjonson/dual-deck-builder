@@ -40,15 +40,16 @@ export abstract class Screen {
 
 	/**
 	 * Mount the screen (make it active)
+	 * @param data Optional data to pass to the screen
 	 */
-	public mount(): void {
+	public mount(data?: unknown): void {
 		this.isActive = true;
 		
 		// Create and add resize listener
 		this.resizeHandler = this.handleResize.bind(this);
 		window.addEventListener('resize', this.resizeHandler);
 		
-		this.onMount();
+		this.onMount(data);
 	}
 
 	/**
@@ -90,8 +91,9 @@ export abstract class Screen {
 	/**
 	 * Hook called when the screen is mounted
 	 * Override in subclasses to handle mount logic
+	 * @param data Optional data passed when mounting the screen
 	 */
-	protected onMount(): void {
+	protected onMount(_data?: unknown): void {
 		// Override in subclasses
 	}
 

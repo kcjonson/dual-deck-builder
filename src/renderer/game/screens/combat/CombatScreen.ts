@@ -375,10 +375,10 @@ export class CombatScreen extends Screen {
 			this.cardDriverMap = new Map(combinedHandData.map(data => [data.card.id, data.driverNumber]));
 			this.handLayer.setCardDriverMap(this.cardDriverMap);
 			
-			// Set adrenaline for hand layer (using combined adrenaline for now)
-			// TODO: Track which driver owns which card for proper adrenaline checking
-			const totalAdrenaline = driver1.adrenaline + driver2.adrenaline;
-			this.handLayer.setAdrenaline(totalAdrenaline);
+			// Pass individual driver adrenaline to hand layer
+			// The hand layer will use the cardDriverMap to check affordability per driver
+			this.handLayer.setDriverAdrenaline(1, driver1.adrenaline);
+			this.handLayer.setDriverAdrenaline(2, driver2.adrenaline);
 			
 			// Update both drivers' resource displays
 			this.resourceLayer.setDriverData(1, {
@@ -688,7 +688,14 @@ export class CombatScreen extends Screen {
 		if (success) {
 			console.log(`${driver.metadata.name} played ${card.displayName}`);
 			
-			// Update UI to reflect new state
+			// Clear selection state immediately after successful play
+			this.combatModel.cancelSelection();
+			this.handLayer.clearCardSelection();
+			
+			// Hide targeting arrow
+			this.targetingArrow.hide();
+			
+			// Update UI to reflect new state (this will refresh the hand)
 			this.updateUIFromBattle();
 			
 			// Check for battle end conditions
@@ -697,11 +704,11 @@ export class CombatScreen extends Screen {
 			}
 		} else {
 			console.warn('Failed to play card');
+			// Still clear selection state on failure
+			this.combatModel.cancelSelection();
+			this.handLayer.clearCardSelection();
+			this.targetingArrow.hide();
 		}
-
-		// Clear selection state
-		this.combatModel.cancelSelection();
-		this.handLayer.clearCardSelection();
 	}
 	
 	/**
@@ -773,8 +780,6 @@ export class CombatScreen extends Screen {
 			selectedCardElement.getY() + selectedCardElement.getHeight() / 2
 		);
 
-		// Arrow will automatically show when points are set
-		
 		// Set arrow color based on whether we have a focused (valid) target
 		const isValidTarget = this.combatModel.focusedVehicleId && 
 			this.combatModel.isVehicleTargetable(this.combatModel.focusedVehicleId);
@@ -782,6 +787,9 @@ export class CombatScreen extends Screen {
 
 		// Draw arrow from card to mouse position
 		this.targetingArrow.setPoints(cardGlobalPos.x, cardGlobalPos.y, mouseX, mouseY);
+		
+		// Make sure arrow is visible
+		this.targetingArrow.show();
 	}
 
 
@@ -880,6 +888,13 @@ export class CombatScreen extends Screen {
 	 */
 	public setOnBack(callback: () => void): void {
 		this.onBack = callback;
+	}
+	
+	/**
+	 * Get the current battle state
+	 */
+	public getBattleState(): BattleState | null {
+		return this.battle ? this.battle.getState() : null;
 	}
 
 	/**

@@ -535,6 +535,10 @@ export class Battle extends Model<BattleData> {
 		// Process status effects for all vehicles
 		this.playerTeam.processStatusEffects();
 		this.enemyTeam.processStatusEffects();
+		
+		// Discard remaining cards before drawing new ones
+		this.playerTeam.discardAllHands();
+		this.enemyTeam.discardAllHands();
 
 		// Refill adrenaline for all drivers
 		this.playerTeam.refillAdrenaline();
@@ -554,6 +558,9 @@ export class Battle extends Model<BattleData> {
 		
 		// Log team status at turn start
 		this.logTeamStatus();
+		
+		// Emit state change so UI updates
+		this.emit('stateChanged', this.getState());
 	}
 
 	/**

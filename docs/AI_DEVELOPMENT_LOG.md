@@ -4,6 +4,35 @@ This document contains the chronological log of completed development tasks for 
 
 =========================================
 
+## Combat Interface Bug Fixes (2025-01-03)
+
+### Fixed High-Priority Combat UI Issues
+
+**What Changed:**
+- Fixed card targeting system - arrow now properly displays during targeting mode
+- Fixed card removal from hand after playing
+- Fixed end turn functionality to properly draw new cards
+- Fixed resource display updates with per-driver adrenaline tracking
+- Added victory/defeat screen with proper data passing
+
+**Technical Details:**
+- **Card Targeting**: Added `show()` call to targeting arrow in updateTargetingArrow method
+- **Card Playing**: Cards properly removed via Driver.playCard() method, UI updates after
+- **End Turn**: 
+  - Added `emit('stateChanged')` in startPlayerTurn for UI updates
+  - Fixed card discard order - hands now discarded before drawing
+- **Resource Display**: 
+  - Modified PlayerHandLayer to track per-driver adrenaline Map
+  - Added setDriverAdrenaline() method replacing single pool
+  - canPlayCard() now checks correct driver's adrenaline via cardDriverMap
+- **Victory/Defeat Screen**:
+  - Enhanced Screen base class with mount(data?: unknown) support
+  - Updated Game.showScreen() to accept optional data parameter  
+  - Created BattleResultScreen with DRY layoutUI() method
+  - Integrated with CombatScreen via getBattleState() method
+
+=========================================
+
 ## Battle Log Display for Human Player Interface (2025-01-02)
 
 ### Added Real-time Battle Log to Human Player UI

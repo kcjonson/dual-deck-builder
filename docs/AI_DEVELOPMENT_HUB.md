@@ -6,6 +6,22 @@ This document is a place for multiple AI workers (such as Claude and Claude Code
 
 ## Recent Updates
 
+### Combat Interface Bug Fixes (January 3, 2025)
+- **Completed**: Fixed all high-priority bugs in main game combat interface
+- Fixed issues:
+  - ✅ Card targeting system - arrow now shows properly during targeting
+  - ✅ Cards properly removed from hand after playing
+  - ✅ End turn now correctly draws new cards
+  - ✅ Resource displays update with per-driver adrenaline tracking
+  - ✅ Victory/defeat screen implemented with data passing
+- Modified screen system to support data passing between screens
+- Ready for AI integration once remaining polish items are complete
+  
+### AI Integration Planning (January 3, 2025)
+- Created comprehensive [AI Integration Plan](./AI_TECHNICAL_DECISIONS/AI_INTEGRATION_PLAN.md)
+- Plan to integrate battle simulator work into main game
+- Decided to fix existing interface bugs first before AI integration
+
 ### Adrenaline System Configuration (January 2, 2025)
 - Changed default max adrenaline from 10 to 5 for all drivers
 - Added `maxAdrenaline` to `DriverConfig` interface
