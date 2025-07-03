@@ -4,19 +4,34 @@ This document contains the chronological log of completed development tasks for 
 
 =========================================
 
+## Combat Targeting System Fix (2025-01-03)
+
+### Fixed Card Targeting Not Working
+
+**What Changed:**
+- Removed arrow visualization that was causing complexity
+- Fixed CombatModel to properly emit 'targetedVehicle' event
+- Fixed CombatLogLayer to handle Model change events correctly
+- Removed global click handler that was interfering with vehicle clicks
+
+**Technical Details:**
+- **Root Cause**: Model base class only emits generic 'change' events, but CombatScreen was listening for specific 'targetedVehicle' event
+- **Solution**: Added manual emit of 'targetedVehicle' event in CombatModel.targetVehicle()
+- **CombatLog Fix**: Updated to handle Model's state-based change events instead of expecting added/removed arrays
+
 ## Combat Interface Bug Fixes (2025-01-03)
 
 ### Fixed High-Priority Combat UI Issues
 
 **What Changed:**
-- Fixed card targeting system - arrow now properly displays during targeting mode
+- Fixed card targeting system - removed arrow, simplified to click-based targeting
 - Fixed card removal from hand after playing
 - Fixed end turn functionality to properly draw new cards
 - Fixed resource display updates with per-driver adrenaline tracking
 - Added victory/defeat screen with proper data passing
 
 **Technical Details:**
-- **Card Targeting**: Added `show()` call to targeting arrow in updateTargetingArrow method
+- **Card Targeting**: Simplified system - select card, then click enemy vehicle
 - **Card Playing**: Cards properly removed via Driver.playCard() method, UI updates after
 - **End Turn**: 
   - Added `emit('stateChanged')` in startPlayerTurn for UI updates

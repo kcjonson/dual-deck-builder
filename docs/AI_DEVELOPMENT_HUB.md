@@ -9,11 +9,13 @@ This document is a place for multiple AI workers (such as Claude and Claude Code
 ### Combat Interface Bug Fixes (January 3, 2025)
 - **Completed**: Fixed all high-priority bugs in main game combat interface
 - Fixed issues:
-  - ✅ Card targeting system - arrow now shows properly during targeting
+  - ✅ Card targeting system - removed arrow visualization, fixed click targeting
   - ✅ Cards properly removed from hand after playing
   - ✅ End turn now correctly draws new cards
   - ✅ Resource displays update with per-driver adrenaline tracking
   - ✅ Victory/defeat screen implemented with data passing
+  - ✅ Fixed CombatLogLayer to handle Model change events correctly
+  - ✅ Fixed targeting by emitting proper events from CombatModel
 - Modified screen system to support data passing between screens
 - Ready for AI integration once remaining polish items are complete
   

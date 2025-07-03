@@ -14,7 +14,7 @@ import { Driver } from './mechanics/Driver';
  * Interface for game screens
  */
 export interface GameScreen {
-	mount(): void;
+	mount(data?: unknown): void;
 	unmount(): void;
 	update(dt: number): void;
 	render(): void;

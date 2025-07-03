@@ -69,10 +69,12 @@ export class CombatModel extends Model<CombatModelData> {
 		this.selectedDriver = driver;
 		
 		if (card) {
-			// Determine which vehicles are targetable based on card
-			const targetableIds = this.determineTargetableVehicles(card);
-			this.targetableVehicleIds = targetableIds;
-			this.isTargeting = targetableIds.length > 0;
+			// Check if the card needs targeting
+			const needsTarget = card.targetType !== 'self' && 
+			                   card.targetType !== 'both_drivers' && 
+			                   card.targetType !== 'enemy_all';
+			this.isTargeting = needsTarget;
+			// targetableVehicleIds will be set by CombatScreen
 		} else {
 			this.cancelSelection();
 		}
@@ -104,13 +106,26 @@ export class CombatModel extends Model<CombatModelData> {
 	 * Target a vehicle (validates and sets targetedVehicle)
 	 */
 	public targetVehicle(vehicle: Vehicle): void {
+		console.log(`targetVehicle called:`, { 
+			vehicleId: vehicle.id, 
+			vehicleName: vehicle.name,
+			isTargeting: this.isTargeting,
+			isTargetable: this.isVehicleTargetable(vehicle.id),
+			targetableIds: this.targetableVehicleIds
+		});
+		
 		// Only allow targeting if we're in targeting mode and the vehicle is targetable
 		if (!this.isTargeting || !this.isVehicleTargetable(vehicle.id)) {
+			console.log('Target validation failed');
 			return;
 		}
 		
 		// Set using the auto-generated setter - this will emit the change event
 		this.targetedVehicle = vehicle;
+		console.log('Vehicle targeted successfully');
+		
+		// Manually emit the targetedVehicle event that CombatScreen is listening for
+		this.emit('targetedVehicle', vehicle);
 	}
 	
 	/**

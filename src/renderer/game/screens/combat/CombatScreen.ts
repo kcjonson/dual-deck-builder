@@ -1,7 +1,6 @@
 import { Screen } from '../../core/Screen';
 import { Renderer } from '../../../engine/rendering/Renderer';
 import { Rectangle } from '../../../engine/components/Rectangle';
-import { Arrow } from '../../../engine/components/Arrow';
 import { EnemyBattlefieldLayer, EnemyIntent } from './EnemyBattlefieldLayer';
 import { PlayerBattlefieldLayer } from './PlayerBattlefieldLayer';
 import { PlayerHandLayer } from './PlayerHandLayer';
@@ -48,9 +47,6 @@ export class CombatScreen extends Screen {
 	// UI state
 	private combatLogVisible = false;
 	
-	// Targeting visual components
-	private targetingArrow: Arrow;
-	
 	// Callbacks
 	private onEndCombat: ((victory: boolean) => void) | null = null;
 	private onBack: (() => void) | null = null;
@@ -67,14 +63,6 @@ export class CombatScreen extends Screen {
 		// Create models
 		this.combatLog = new CombatLog(10); // Keep last 10 entries
 		this.combatModel = new CombatModel();
-		
-		// Create targeting arrow (hidden initially)
-		this.targetingArrow = new Arrow({
-			color: '#00aaff',
-			lineWidth: 3,
-			arrowHeadSize: 12,
-		});
-		this.targetingArrow.hide();
 		
 		// Build UI once during construction
 		this.createBackground();
@@ -540,9 +528,6 @@ export class CombatScreen extends Screen {
 			this.endPlayerTurn();
 		});
 
-		// Add targeting arrow to screen (on top of everything)
-		this.rootLayer.addChild(this.targetingArrow);
-
 		// Set up keyboard handler for ESC key during targeting
 		InputSystem.registerKeyDown(this.rootLayer, (key: string) => {
 			if (key === 'Escape' && this.combatModel.isTargeting) {
@@ -556,20 +541,7 @@ export class CombatScreen extends Screen {
 			this.toggleCombatLog();
 		});
 
-		// Set up global click handler for targeting cancellation
-		InputSystem.registerMouseDown(this.rootLayer, () => {
-			if (this.combatModel.isTargeting && this.combatModel.selectedCard) {
-				// If we're targeting and click somewhere that doesn't handle targeting,
-				// cancel the targeting mode
-				setTimeout(() => {
-					if (this.combatModel.isTargeting) {
-						console.log('Cancelled targeting - clicked empty space');
-						this.combatModel.cancelSelection();
-						this.handLayer.clearCardSelection();
-					}
-				}, 10); // Small delay to let target handlers run first
-			}
-		});
+		// Removed global click handler - it was interfering with vehicle targeting
 	}
 	
 	/**
@@ -589,12 +561,6 @@ export class CombatScreen extends Screen {
 	 */
 	protected onUpdate(dt: number): void {
 		super.onUpdate(dt);
-
-		// Handle targeting arrow updates during mouse movement
-		if (this.combatModel.isTargeting && this.combatModel.selectedCard) {
-			const mousePos = InputSystem.getMousePosition();
-			this.updateTargetingArrow(mousePos.x, mousePos.y);
-		}
 	}
 
 
@@ -655,7 +621,10 @@ export class CombatScreen extends Screen {
 			const targetableIds = this.determineTargetableVehicles(card);
 			this.combatModel.targetableVehicleIds = targetableIds;
 			
-			console.log(`Select target for ${card.displayName}`);
+			console.log(`Select target for ${card.displayName}, targetType: ${card.targetType}`);
+			console.log(`Targetable vehicle IDs:`, targetableIds);
+			console.log(`Is targeting mode active:`, this.combatModel.isTargeting);
+			console.log(`Enemy vehicles:`, this.enemyTeam?.vehicles.map(v => ({ id: v.id, name: v.name })));
 		}
 	}
 
@@ -692,9 +661,6 @@ export class CombatScreen extends Screen {
 			this.combatModel.cancelSelection();
 			this.handLayer.clearCardSelection();
 			
-			// Hide targeting arrow
-			this.targetingArrow.hide();
-			
 			// Update UI to reflect new state (this will refresh the hand)
 			this.updateUIFromBattle();
 			
@@ -707,7 +673,6 @@ export class CombatScreen extends Screen {
 			// Still clear selection state on failure
 			this.combatModel.cancelSelection();
 			this.handLayer.clearCardSelection();
-			this.targetingArrow.hide();
 		}
 	}
 	
@@ -756,43 +721,6 @@ export class CombatScreen extends Screen {
 			this.onEndCombat(victory);
 		}
 	}
-
-
-	/**
-	 * Handle targeting arrow updates during mouse movement
-	 */
-	private updateTargetingArrow(mouseX: number, mouseY: number): void {
-		if (!this.combatModel.selectedCard || !this.combatModel.isTargeting) {
-			this.targetingArrow.hide();
-			return;
-		}
-
-		// Get the center position of the selected card in the hand
-		const selectedCardElement = this.handLayer.getCardElementByCard(this.combatModel.selectedCard);
-		if (!selectedCardElement) {
-			this.targetingArrow.hide();
-			return;
-		}
-
-		// Get global position of selected card center
-		const cardGlobalPos = this.handLayer.localToGlobal(
-			selectedCardElement.getX() + selectedCardElement.getWidth() / 2,
-			selectedCardElement.getY() + selectedCardElement.getHeight() / 2
-		);
-
-		// Set arrow color based on whether we have a focused (valid) target
-		const isValidTarget = this.combatModel.focusedVehicleId && 
-			this.combatModel.isVehicleTargetable(this.combatModel.focusedVehicleId);
-		this.targetingArrow.setColor(isValidTarget ? '#00ff00' : '#ff6666');
-
-		// Draw arrow from card to mouse position
-		this.targetingArrow.setPoints(cardGlobalPos.x, cardGlobalPos.y, mouseX, mouseY);
-		
-		// Make sure arrow is visible
-		this.targetingArrow.show();
-	}
-
-
 
 
 
@@ -900,7 +828,7 @@ export class CombatScreen extends Screen {
 	/**
 	 * Handle screen mount
 	 */
-	protected onMount(): void {
+	protected onMount(_data?: unknown): void {
 		// Update UI from battle state if we have an active battle
 		if (this.battle) {
 			this.updateUIFromBattle();

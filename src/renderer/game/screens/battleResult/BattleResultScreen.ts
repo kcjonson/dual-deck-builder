@@ -1,9 +1,10 @@
 import { Screen } from '../../core/Screen';
 import { Renderer } from '../../../engine/rendering/Renderer';
 import { Rectangle } from '../../../engine/components/Rectangle';
-import { Text, TextStyle } from '../../../engine/components/Text';
+import { Text } from '../../../engine/components/Text';
 import { Button } from '../../../engine/ui/Button';
 import { BattleState } from '../../mechanics/Battle';
+import { Style } from '../../../engine/types/Style';
 
 /**
  * Data passed to the battle result screen
@@ -67,7 +68,7 @@ export class BattleResultScreen extends Screen {
 		this.rootLayer.addChild(this.panel);
 		
 		// Title (will be updated based on victory/defeat)
-		const titleStyle: TextStyle = {
+		const titleStyle: Style = {
 			fontSize: 48,
 			color: '#ffffff',
 			textAlign: 'center',
@@ -80,7 +81,7 @@ export class BattleResultScreen extends Screen {
 		this.rootLayer.addChild(this.titleText);
 		
 		// Subtitle
-		const subtitleStyle: TextStyle = {
+		const subtitleStyle: Style = {
 			fontSize: 20,
 			color: '#aaaaaa',
 			textAlign: 'center',
@@ -98,39 +99,19 @@ export class BattleResultScreen extends Screen {
 		// - Salvage earned (for victory)
 		
 		// Continue button
-		this.continueButton = new Button({
+		this.continueButton = new Button('Continue', {
 			x: 0,
 			y: 0,
 			width: 200,
 			height: 50,
-			text: 'Continue',
 			style: {
-				normal: {
-					backgroundColor: '#4a4a5a',
-					borderColor: '#6a6a7a',
-					borderWidth: 2,
-				},
-				hover: {
-					backgroundColor: '#5a5a6a',
-					borderColor: '#7a7a8a',
-				},
-				active: {
-					backgroundColor: '#3a3a4a',
-					borderColor: '#5a5a6a',
-				},
-				disabled: {
-					backgroundColor: '#2a2a3a',
-					borderColor: '#3a3a4a',
-				},
-			},
-			textStyle: {
-				fontSize: 20,
-				color: '#ffffff',
-				textAlign: 'center',
+				backgroundColor: '#4a4a5a',
+				borderColor: '#6a6a7a',
+				borderWidth: 2,
 			},
 		});
 		
-		this.continueButton.setOnClick(() => {
+		this.continueButton.onClick(() => {
 			if (this.onContinue) {
 				this.onContinue();
 			}
@@ -194,10 +175,7 @@ export class BattleResultScreen extends Screen {
 		
 		// Update title
 		this.titleText.setText(this.resultData.victory ? 'VICTORY!' : 'DEFEAT!');
-		this.titleText.setStyle({
-			...this.titleText.getStyle(),
-			color: this.resultData.victory ? '#6aca6a' : '#ca6a6a',
-		});
+		this.titleText.setColor(this.resultData.victory ? '#6aca6a' : '#ca6a6a');
 		
 		// Update subtitle
 		this.subtitleText.setText(
@@ -207,10 +185,7 @@ export class BattleResultScreen extends Screen {
 		);
 		
 		// Update panel border color
-		this.panel.setStyle({
-			...this.panel.getStyle(),
-			borderColor: this.resultData.victory ? '#4a8a4a' : '#8a4a4a',
-		});
+		this.panel.setBorderColor(this.resultData.victory ? '#4a8a4a' : '#8a4a4a');
 		
 		// TODO: Display battle statistics from battleState
 		// const { turn, playerTeam, enemyTeam } = this.resultData.battleState;
