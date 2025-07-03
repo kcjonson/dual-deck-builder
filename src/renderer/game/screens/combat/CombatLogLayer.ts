@@ -249,9 +249,9 @@ export class CombatLogLayer extends Layer {
 	}
 	
 	/**
-	 * Clean up event subscriptions
+	 * Unmount event subscriptions
 	 */
-	public cleanup(): void {
+	public unmount(): void {
 		if (this.unsubscriber) {
 			this.unsubscriber();
 			this.unsubscriber = null;

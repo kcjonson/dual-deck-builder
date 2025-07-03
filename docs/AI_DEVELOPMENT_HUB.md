@@ -6,6 +6,19 @@ This document is a place for multiple AI workers (such as Claude and Claude Code
 
 ## Recent Updates
 
+### Combat UI Enhancement - Driver Information Display (January 3, 2025)
+- **Completed**: Major UI redesign to show all driver information in combat
+- Implemented changes:
+  - ✅ Moved resource bar to top of screen (7% height) with per-driver adrenaline display
+  - ✅ Adjusted all layer heights: Resource 7%, Enemy 23%, Battlefield 40%, Hand 18%
+  - ✅ Enhanced Vehicle UI to show driver name, HP, and portrait on each vehicle card
+  - ✅ Reduced font sizes globally for space efficiency (cards, vehicle info, resources)
+  - ✅ Reduced card dimensions from 160×224 to 150×210 for better layout
+  - ✅ Added visual driver grouping in hand layer with divider and labels
+  - ✅ Repositioned turn phase display and combat log below resource bar
+- All missing driver information from HTML AI test UI is now displayed
+- Combat screen now clearly shows the dual-driver system in action
+
 ### Combat Interface Bug Fixes (January 3, 2025)
 - **Completed**: Fixed all high-priority bugs in main game combat interface
 - Fixed issues:
@@ -32,8 +45,22 @@ This document is a place for multiple AI workers (such as Claude and Claude Code
   - Players now see detailed combat information including damage breakdowns, healing amounts, status effects, and more
 - Fixed card click routing bug:
   - Cards were not being unregistered from InputSystem when screens unmounted
-  - Added proper cleanup calls to CardShowcaseScreen and CombatScreen
-  - Leveraged existing Layer/Component cleanup() architecture
+  - Added proper unmount calls to CardShowcaseScreen and CombatScreen
+  - Leveraged existing Layer/Component unmount() architecture
+
+### UI Component Lifecycle Standardization (January 3, 2025)
+- **Completed**: Standardized all component lifecycle terminology to use mount/unmount
+- Fixed ghost click bug where main menu buttons remained active after screen transition:
+  - Screen base class now calls unmount() on root layer when unmounting
+  - This recursively unmounts all child components, properly cleaning up event handlers
+- Renamed all lifecycle methods for consistency:
+  - `cleanup()` → `unmount()` in Component, Layer, Panel, Input classes
+  - `destroy()` → `unmount()` in Vehicle UI component  
+  - `dispose()` → `unmount()` in FontAtlas class
+- All UI components now follow consistent lifecycle pattern:
+  - `mount()` for initialization (where applicable)
+  - `unmount()` for cleanup and resource disposal
+- Updated all references throughout codebase and documentation
 
 ### Adrenaline System Configuration (January 2, 2025)
 - Changed default max adrenaline from 10 to 5 for all drivers
@@ -65,7 +92,7 @@ This document is a place for multiple AI workers (such as Claude and Claude Code
   - Combat screen now properly initializes when receiving driver data
   - Added fallback for development - creates default drivers if none provided
   - Fixed UI update timing - ensures UI refreshes after async combat initialization
-- All screens now properly cleanup when navigating away
+- All screens now properly unmount when navigating away
 
 ## Active Issues
 
@@ -73,7 +100,7 @@ This document is a place for multiple AI workers (such as Claude and Claude Code
 - **Problem**: All screens created at startup causing input handler conflicts
 - **Symptoms**: Clicking cards can navigate to unexpected screens (DevScreen, CardShowcase)
 - **Root Cause**: Screens create interactive components in constructors that register global input handlers
-- **Solution**: Implemented ScreenManager with lazy screen creation and proper cleanup
+- **Solution**: Implemented ScreenManager with lazy screen creation and proper unmount
 - **Technical Decision**: [Screen Manager Architecture](./AI_TECHNICAL_DECISIONS/screen-manager-architecture.md)
 - **Status**: COMPLETED - ScreenManager implemented, all screens refactored
 
@@ -353,7 +380,7 @@ For a complete log of recently completed tasks, see: [AI Development Log](./AI_D
   - [x] Connected CombatScreen to driver selection flow
   - [x] Implemented click-to-play card system (not drag-and-drop)
   - [x] Added proper hover effects and visual feedback
-  - [x] Fixed screen navigation and event handler cleanup issues
+  - [x] Fixed screen navigation and event handler unmount issues
   - [x] Reorganized screens folder structure (each screen has own subfolder)
   - [x] Refactored screen lifecycle (activate/deactivate → mount/unmount)
   - [x] Added proper state reset for screens on unmount
@@ -379,14 +406,14 @@ For a complete log of recently completed tasks, see: [AI Development Log](./AI_D
 - [x] **Task 21**: Implement ScreenManager system ✅ COMPLETED
   - [x] Create ScreenManager class in core/ ✅
   - [x] Define ScreenName type with all screen identifiers ✅
-  - [x] Implement navigate() method with proper cleanup ✅
+  - [x] Implement navigate() method with proper unmount ✅
   - [x] Add createScreen() factory method ✅
   - [x] See [Screen Manager Architecture](./AI_TECHNICAL_DECISIONS/screen-manager-architecture.md)
 - [x] **Task 22**: Update Screen base class ✅ COMPLETED
   - [x] ~~Add screenManager reference~~ Not needed with static class approach ✅
   - [x] ~~Add protected navigate() helper~~ Using static ScreenManager.navigate() instead ✅
   - [x] Document that screens should not create UI in constructors ✅
-  - [x] Ensure all screens have proper cleanup in unmount() ✅
+  - [x] Ensure all screens have proper unmount in unmount() ✅
 - [x] **Task 23**: Refactor screens to lazy-load UI ✅ COMPLETED
   - [x] CardShowcaseScreen: Move loadCards() from constructor to onMount() ✅
   - [x] DeveloperScreen: Already loads UI properly ✅

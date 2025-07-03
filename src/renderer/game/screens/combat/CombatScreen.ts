@@ -456,11 +456,22 @@ export class CombatScreen extends Screen {
 		const screenWidth = this.rootLayer.getWidth();
 		const screenHeight = this.rootLayer.getHeight();
 		
-		// Enemy Layer - Top 25%
-		const enemyLayerHeight = Math.floor(screenHeight * 0.25);
-		this.enemyLayer = new EnemyBattlefieldLayer({
+		// Resource Layer - Top 7%
+		const resourceLayerHeight = Math.floor(screenHeight * 0.07);
+		this.resourceLayer = new ResourceBarLayer({
 			x: 0,
 			y: 0,
+			width: screenWidth,
+			height: resourceLayerHeight,
+		});
+		this.rootLayer.addChild(this.resourceLayer);
+		
+		// Enemy Layer - 23%
+		const enemyLayerHeight = Math.floor(screenHeight * 0.23);
+		const enemyLayerY = resourceLayerHeight;
+		this.enemyLayer = new EnemyBattlefieldLayer({
+			x: 0,
+			y: enemyLayerY,
 			width: screenWidth,
 			height: enemyLayerHeight,
 			combatData: this.combatModel,
@@ -469,7 +480,7 @@ export class CombatScreen extends Screen {
 
 		// Battlefield Layer - Middle 40%
 		const battlefieldLayerHeight = Math.floor(screenHeight * 0.4);
-		const battlefieldLayerY = enemyLayerHeight;
+		const battlefieldLayerY = enemyLayerY + enemyLayerHeight;
 		this.battlefieldLayer = new PlayerBattlefieldLayer({
 			x: 0,
 			y: battlefieldLayerY,
@@ -479,8 +490,8 @@ export class CombatScreen extends Screen {
 		});
 		this.rootLayer.addChild(this.battlefieldLayer);
 
-		// Hand Layer - Bottom 20%
-		const handLayerHeight = Math.floor(screenHeight * 0.2);
+		// Hand Layer - Bottom 18%
+		const handLayerHeight = Math.floor(screenHeight * 0.18);
 		const handLayerY = battlefieldLayerY + battlefieldLayerHeight;
 		this.handLayer = new PlayerHandLayer({
 			x: 0,
@@ -489,33 +500,22 @@ export class CombatScreen extends Screen {
 			height: handLayerHeight,
 		});
 		this.rootLayer.addChild(this.handLayer);
-
-		// Resource Layer - Bottom 5%
-		const resourceLayerHeight = Math.floor(screenHeight * 0.05);
-		const resourceLayerY = handLayerY + handLayerHeight;
-		this.resourceLayer = new ResourceBarLayer({
-			x: 0,
-			y: resourceLayerY,
-			width: screenWidth,
-			height: resourceLayerHeight,
-		});
-		this.rootLayer.addChild(this.resourceLayer);
 		
-		// Turn Phase Display - Top left corner
+		// Turn Phase Display - Below resource bar, left side
 		this.turnPhaseDisplay = new TurnPhaseDisplay({
 			x: 10,
-			y: 10,
+			y: resourceLayerHeight + 10,
 			width: 200,
 			height: 40
 		});
 		this.rootLayer.addChild(this.turnPhaseDisplay);
 		
-		// Combat Log - Top right corner
-		const combatLogWidth = 300; // Fixed width
-		const combatLogHeight = 250; // Enough for ~10 entries
+		// Combat Log - Below resource bar, right side
+		const combatLogWidth = 240; // Reduced width
+		const combatLogHeight = 200; // Reduced height
 		this.combatLogLayer = new CombatLogLayer({
 			x: screenWidth - combatLogWidth - 10,
-			y: 10,
+			y: resourceLayerHeight + 10,
 			width: combatLogWidth,
 			height: combatLogHeight,
 			combatLog: this.combatLog
@@ -842,12 +842,12 @@ export class CombatScreen extends Screen {
 			this.handLayer.clearCardSelection();
 		}
 		
-		// Clean up all layers (this will clean up cards too)
-		this.handLayer.cleanup();
-		this.enemyLayer.cleanup();
-		this.battlefieldLayer.cleanup();
-		this.resourceLayer.cleanup();
-		this.combatLogLayer.cleanup();
+		// Unmount all layers (this will unmount cards too)
+		this.handLayer.unmount();
+		this.enemyLayer.unmount();
+		this.battlefieldLayer.unmount();
+		this.resourceLayer.unmount();
+		this.combatLogLayer.unmount();
 		
 		// Unregister global keyboard handler
 		InputSystem.unregisterGlobalKeyDown('F6');

@@ -455,13 +455,13 @@ export class Input extends Component {
 	}
 
 	/**
-	 * Clean up resources and event handlers
+	 * Unmount resources and event handlers
 	 */
-	public cleanup(): void {
+	public unmount(): void {
 		// Unregister from input system
 		InputSystem.unregisterComponent(this);
 
-		// Call parent cleanup
-		super.cleanup();
+		// Call parent unmount
+		super.unmount();
 	}
 }

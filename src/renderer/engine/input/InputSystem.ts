@@ -69,7 +69,7 @@ export class InputSystem {
 	public setup(canvas: HTMLCanvasElement): void {
 		if (this.canvas) {
 			// Remove any existing event listeners before setting up new ones
-			this.cleanup();
+			this.unmount();
 		}
 
 		this.canvas = canvas;
@@ -89,9 +89,9 @@ export class InputSystem {
 	}
 
 	/**
-	 * Clean up the input system, removing all event listeners
+	 * Unmount the input system, removing all event listeners
 	 */
-	public cleanup(): void {
+	public unmount(): void {
 		if (this.canvas) {
 			this.canvas.removeEventListener('mousemove', this.handleMouseMove.bind(this));
 			this.canvas.removeEventListener('mousedown', this.handleMouseDown.bind(this));

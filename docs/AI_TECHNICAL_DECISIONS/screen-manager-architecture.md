@@ -15,7 +15,7 @@ Additionally, the Game class has too many responsibilities, handling screen mana
 
 ## Decision
 
-Implement a dedicated `ScreenManager` class that handles screen lifecycle and navigation, with lazy screen creation and proper cleanup.
+Implement a dedicated `ScreenManager` class that handles screen lifecycle and navigation, with lazy screen creation and proper unmount.
 
 ## Detailed Design
 
@@ -162,7 +162,7 @@ export class Game {
 ### Phase 2: Update Screen Base Class
 1. Add `setScreenManager()` method to Screen
 2. Add protected `navigate()` helper method
-3. Ensure all screens properly cleanup in `unmount()`
+3. Ensure all screens properly unmount in `unmount()`
 4. Document that screens should not create UI in constructors
 
 ### Phase 3: Refactor Individual Screens
@@ -184,7 +184,7 @@ export class Game {
 1. Test all screen transitions
 2. Verify no input handling issues
 3. Check memory usage (screens should be garbage collected)
-4. Ensure all screens properly cleanup
+4. Ensure all screens properly unmount
 
 ## Consequences
 
@@ -206,7 +206,7 @@ export class Game {
 
 ## Alternatives Considered
 
-1. **Keep eager creation, fix cleanup**: Less refactoring but doesn't address memory usage
+1. **Keep eager creation, fix unmount**: Less refactoring but doesn't address memory usage
 2. **Screen-aware InputSystem**: Complex and doesn't fix architectural issues
 3. **Move UI creation to onMount only**: Simpler but keeps architectural problems
 

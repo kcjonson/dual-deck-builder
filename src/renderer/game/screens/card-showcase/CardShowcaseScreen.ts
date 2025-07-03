@@ -270,9 +270,9 @@ export class CardShowcaseScreen extends Screen {
 	 * Handle screen unmount
 	 */
 	protected onUnmount(): void {
-		// Clean up all card components to unregister from InputSystem
+		// Unmount all card components to unregister from InputSystem
 		this.cardComponents.forEach(card => {
-			card.cleanup();
+			card.unmount();
 		});
 		this.cardComponents = [];
 		
@@ -281,8 +281,8 @@ export class CardShowcaseScreen extends Screen {
 		children.forEach(child => this.cardsPanel.removeChild(child));
 		this.cardsLoaded = false;
 		
-		// Clean up button
-		this.backButton.cleanup();
+		// Unmount button
+		this.backButton.unmount();
 		
 		super.onUnmount();
 	}

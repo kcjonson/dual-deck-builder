@@ -178,7 +178,7 @@ export class ResourceBarLayer extends Layer {
 			width: buttonWidth,
 			height: buttonHeight,
 			style: {
-				fontSize: 14,
+				fontSize: 12,
 				fontWeight: 'bold',
 			},
 		});

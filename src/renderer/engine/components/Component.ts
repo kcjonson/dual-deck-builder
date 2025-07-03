@@ -239,13 +239,13 @@ export abstract class Component extends Layer implements Interactive {
 	}
 
 	/**
-	 * Clean up the component and unregister from InputSystem
+	 * Unmount the component and unregister from InputSystem
 	 */
-	public cleanup(): void {
+	public unmount(): void {
 		// Unregister from input system
 		InputSystem.unregisterComponent(this);
 		
-		// Call parent cleanup
-		super.cleanup();
+		// Call parent unmount
+		super.unmount();
 	}
 }

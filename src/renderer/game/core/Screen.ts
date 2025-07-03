@@ -10,7 +10,7 @@ export abstract class Screen {
 	protected rootLayer: Layer;
 	protected isActive = false;
 	
-	// Resize handler reference for cleanup
+	// Resize handler reference for unmount
 	private resizeHandler: (() => void) | null = null;
 
 	/**
@@ -77,8 +77,8 @@ export abstract class Screen {
 		
 		this.onUnmount();
 		
-		// Don't cleanup here - screens can manage their own cleanup if needed
-		// This allows screens to persist their UI between mount/unmount cycles
+		// Unmount all child components to prevent input system leaks
+		this.rootLayer.unmount();
 	}
 
 	/**

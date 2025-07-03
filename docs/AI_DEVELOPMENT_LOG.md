@@ -4,6 +4,29 @@ This document contains the chronological log of completed development tasks for 
 
 =========================================
 
+## UI Component Lifecycle Standardization (2025-01-03)
+
+### Fixed Ghost Click Bug and Standardized Component Lifecycle
+
+**What Changed:**
+- Fixed bug where main menu buttons remained clickable after navigating to combat screen
+- Standardized all component lifecycle methods to use mount/unmount terminology
+- Screen base class now properly unmounts all child components when unmounting
+
+**Technical Details:**
+- **Screen.unmount()**: Now calls `rootLayer.unmount()` to recursively clean up all children
+- **Component Renames**: 
+  - `cleanup()` → `unmount()` in Component, Layer, Panel, Input classes
+  - `destroy()` → `unmount()` in Vehicle UI component
+  - `dispose()` → `unmount()` in FontAtlas class
+- **Button Fix**: Buttons now properly unregister from InputSystem via unmount chain
+
+**Benefits:**
+- No more ghost clicks from previous screens
+- Consistent lifecycle terminology across entire codebase
+- Proper memory cleanup and event handler removal
+- Clear component lifecycle: mount (if applicable) → unmount
+
 ## Screen Manager Architecture Implementation (2025-01-03)
 
 ### Implemented ScreenManager with Lazy Loading
@@ -78,10 +101,10 @@ This document contains the chronological log of completed development tasks for 
   - Enhanced color coding for all message types
 - **Card Click Bug Fix**:
   - Root cause: Cards not unregistered from InputSystem when screens unmount
-  - Solution: Added cleanup() calls in screen unmount methods
+  - Solution: Added unmount() calls in screen unmount methods
   - CardShowcaseScreen tracks and cleans up card components
-  - CombatScreen calls cleanup() on all layers
-  - Leveraged existing Layer/Component cleanup() architecture
+  - CombatScreen calls unmount() on all layers
+  - Leveraged existing Layer/Component unmount() architecture
 
 =========================================
 
@@ -506,7 +529,7 @@ This document contains the chronological log of completed development tasks for 
 - Vehicle onClick handlers simply set `combatData.targetedVehicle = vehicle`
 - CombatScreen listens for 'targetedVehicle' changes to handle card plays
 - InputSystem stores global handlers in separate Maps from component handlers
-- Proper cleanup of global handlers on screen unmount
+- Proper unmount of global handlers on screen unmount
 
 =========================================
 

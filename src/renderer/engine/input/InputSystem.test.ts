@@ -33,9 +33,9 @@ describe('InputSystem', () => {
 	});
 
 	afterEach(() => {
-		// Clean up
+		// Unmount
 		InputSystem.unregisterComponent(testRect);
-		inputSystem.cleanup();
+		inputSystem.unmount();
 		document.body.removeChild(mockCanvas);
 	});
 

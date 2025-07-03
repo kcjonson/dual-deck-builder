@@ -15,12 +15,15 @@ export class Vehicle extends Layer {
 	// UI elements
 	protected portrait!: Rectangle;
 	protected nameText!: Text;
+	protected driverNameText!: Text;
+	protected driverHpText!: Text;
 	protected healthBar!: Rectangle;
 	protected healthBarFill!: Rectangle;
 	protected healthText!: Text;
 	protected armorDisplay!: Rectangle;
 	protected armorText!: Text;
 	protected driverPortrait: Rectangle | null = null;
+	protected statusContainer: Layer | null = null;
 	
 	// References
 	private combatData: CombatModel | null = null;
@@ -94,38 +97,60 @@ export class Vehicle extends Layer {
 			this.driverPortrait = new Rectangle({
 				x: Math.floor(width * 0.05),
 				y: Math.floor(height * 0.05),
-				width: Math.min(40, Math.floor(width * 0.25)),
-				height: Math.min(40, Math.floor(width * 0.25)),
+				width: Math.min(20, Math.floor(width * 0.15)),
+				height: Math.min(20, Math.floor(width * 0.15)),
 				style: {
 					backgroundColor: '#6a5a4a',
 					borderColor: '#8a7a6a',
-					borderWidth: 2,
-					borderRadius: 20,
+					borderWidth: 1,
+					borderRadius: 10,
 				},
 			});
 			this.addChild(this.driverPortrait);
+			
+			// Driver name text
+			this.driverNameText = new Text('', {
+				style: {
+					fontSize: 9,
+					color: '#cccccc',
+					textAlign: 'left',
+				},
+			});
+			this.driverNameText.setPosition(Math.floor(width * 0.05), Math.floor(height * 0.30));
+			this.addChild(this.driverNameText);
+			
+			// Driver HP text
+			this.driverHpText = new Text('', {
+				style: {
+					fontSize: 8,
+					color: '#aaaaaa',
+					textAlign: 'left',
+				},
+			});
+			this.driverHpText.setPosition(Math.floor(width * 0.05), Math.floor(height * 0.42));
+			this.addChild(this.driverHpText);
 		}
 		
 		// Vehicle name
 		this.nameText = new Text('', {
 			width: Math.floor(width * 0.9),
 			style: {
-				fontSize: this.getNameFontSize(),
+				fontSize: 10,
 				color: '#ffffff',
 				textAlign: 'center',
 				fontWeight: 'bold',
 				whiteSpace: 'normal',
 			},
 		});
-		this.nameText.setPosition(Math.floor(width * 0.05), Math.floor(height * 0.68));
+		this.nameText.setPosition(Math.floor(width * 0.05), Math.floor(height * 0.55));
 		this.addChild(this.nameText);
 		
 		// Health bar background
 		this.healthBar = new Rectangle({
 			x: Math.floor(width * 0.1),
-			y: Math.floor(height * 0.78),
+			y: Math.floor(height * 0.68),
 			width: Math.floor(width * 0.8),
-			height: 12,
+			height: 10,
 			style: {
 				backgroundColor: '#333333',
 				borderColor: '#555555',
@@ -137,9 +162,9 @@ export class Vehicle extends Layer {
 		// Health bar fill
 		this.healthBarFill = new Rectangle({
 			x: Math.floor(width * 0.1),
-			y: Math.floor(height * 0.78),
+			y: Math.floor(height * 0.68),
 			width: 0,
-			height: 12,
+			height: 10,
 			style: {
 				backgroundColor: '#4a8a4a',
 			},
@@ -149,21 +174,21 @@ export class Vehicle extends Layer {
 		// Health text
 		this.healthText = new Text('', {
 			style: {
-				fontSize: 12,
+				fontSize: 9,
 				color: '#ffffff',
 				textAlign: 'center',
 				fontWeight: 'bold',
 			},
 		});
-		this.healthText.setPosition(Math.floor(width / 2), Math.floor(height * 0.84));
+		this.healthText.setPosition(Math.floor(width / 2), Math.floor(height * 0.73));
 		this.addChild(this.healthText);
 		
-		// Armor display
+		// Armor display and status container on same line
 		this.armorDisplay = new Rectangle({
 			x: Math.floor(width * 0.1),
-			y: Math.floor(height * 0.88),
-			width: Math.floor(width * 0.3),
-			height: 20,
+			y: Math.floor(height * 0.82),
+			width: Math.floor(width * 0.25),
+			height: 16,
 			style: {
 				backgroundColor: '#4a4a4a',
 				borderColor: '#8a8aaa',
@@ -174,42 +199,57 @@ export class Vehicle extends Layer {
 		
 		this.armorText = new Text('', {
 			style: {
-				fontSize: 10,
+				fontSize: 8,
 				color: '#ffffff',
 				textAlign: 'center',
 			},
 		});
-		this.armorText.setPosition(Math.floor(width * 0.25), Math.floor(height * 0.90));
+		this.armorText.setPosition(Math.floor(width * 0.225), Math.floor(height * 0.84));
 		this.addChild(this.armorText);
+		
+		// Status effect container (for future use)
+		this.statusContainer = new Layer({
+			x: Math.floor(width * 0.4),
+			y: Math.floor(height * 0.82),
+			width: Math.floor(width * 0.5),
+			height: 16,
+		});
+		this.addChild(this.statusContainer);
 	}
 	
 	/**
 	 * Update visual elements with current vehicle data
 	 */
 	protected updateVisuals(): void {
-		// Update name
-		const displayName = this.getDisplayName();
-		this.nameText.setText(displayName);
+		// Update vehicle name (just the vehicle name, not driver's)
+		this.nameText.setText(this.vehicleData.name);
+		
+		// Update driver info if present
+		if (this.vehicleData.driver) {
+			if (this.driverNameText) {
+				this.driverNameText.setText(`Driver: ${this.vehicleData.driver.metadata.name}`);
+			}
+			if (this.driverHpText) {
+				this.driverHpText.setText(`HP: ${this.vehicleData.driver.hitpoints}/${this.vehicleData.driver.maxHitpoints}`);
+			}
+		}
 		
 		// Update health
 		const healthPercentage = this.vehicleData.structure / this.vehicleData.maxStructure;
 		const healthBarWidth = Math.floor(this.healthBar.getWidth() * healthPercentage);
 		this.healthBarFill.setWidth(healthBarWidth);
 		this.healthBarFill.setFillColor(this.getHealthColor(healthPercentage));
-		this.healthText.setText(`${this.vehicleData.structure}/${this.vehicleData.maxStructure} HP`);
+		this.healthText.setText(`${this.vehicleData.structure}/${this.vehicleData.maxStructure}`);
 		
 		// Update armor
 		this.armorDisplay.setFillColor(this.vehicleData.armor > 0 ? '#6a6aaa' : '#4a4a4a');
-		this.armorText.setText(`${this.vehicleData.armor} Armor`);
+		this.armorText.setText(`${this.vehicleData.armor}⛡`);
 	}
 	
 	/**
 	 * Get display name - can be overridden
 	 */
 	protected getDisplayName(): string {
-		if (this.vehicleData.driver) {
-			return `${this.vehicleData.driver.metadata.name}'s ${this.vehicleData.name}`;
-		}
 		return this.vehicleData.name;
 	}
 	
@@ -240,7 +280,7 @@ export class Vehicle extends Layer {
 	 * Get name font size - can be overridden for different sizes
 	 */
 	protected getNameFontSize(): number {
-		return 14;
+		return 10;
 	}
 	
 	/**
@@ -388,13 +428,17 @@ export class Vehicle extends Layer {
 	}
 	
 	/**
-	 * Clean up event listeners
+	 * Unmount the vehicle and clean up event listeners
 	 */
-	public destroy(): void {
+	public unmount(): void {
 		// Unsubscribe from model
 		this.modelUnsubscribers.forEach(unsubscribe => unsubscribe());
 		this.modelUnsubscribers = [];
 		
-		// TODO: Unregister input handlers when Layer supports it
+		// Unregister from input system
+		InputSystem.unregisterComponent(this);
+		
+		// Call parent unmount to handle children
+		super.unmount();
 	}
 }
