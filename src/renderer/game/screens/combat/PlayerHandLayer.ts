@@ -35,6 +35,9 @@ export class PlayerHandLayer extends Layer {
 	constructor(options: { x: number; y: number; width: number; height: number }) {
 		super(options);
 		
+		// Set overflow hidden to clip cards that extend beyond layer bounds
+		this.setOverflow('hidden');
+		
 		// Hand background
 		const background = new Rectangle({
 			x: 0,
@@ -368,7 +371,11 @@ export class PlayerHandLayer extends Layer {
 		const totalCardWidth = this.cardElements.length * this.CARD_DIMENSIONS.width + 
 			(this.cardElements.length - 1) * this.CARD_SPACING;
 		const startX = Math.floor((layerWidth - totalCardWidth) / 2);
-		const cardY = Math.floor((layerHeight - this.CARD_DIMENSIONS.height) / 2);
+		
+		// Ensure cards don't extend beyond layer bounds by adding padding
+		const verticalPadding = 10;
+		const maxCardY = layerHeight - this.CARD_DIMENSIONS.height - verticalPadding;
+		const cardY = Math.max(verticalPadding, Math.min(maxCardY, Math.floor((layerHeight - this.CARD_DIMENSIONS.height) / 2)));
 
 		// Layout each card
 		this.cardElements.forEach((cardElement, index) => {

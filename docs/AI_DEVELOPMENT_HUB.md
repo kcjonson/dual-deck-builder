@@ -49,7 +49,33 @@ This document is a place for multiple AI workers (such as Claude and Claude Code
 - Clears when starting a new battle
 - Driver names include team prefixes (Player1/2, Enemy1/2)
 
+### Layer Stacking and Overflow Fixes (January 3, 2025)
+- Fixed issue where card text was visible through the bottom resource bar
+- Added `overflow: 'hidden'` to all combat screen layers:
+  - PlayerHandLayer - prevents cards from extending beyond layer bounds
+  - ResourceBarLayer - ensures clean boundaries
+  - BattlefieldLayer (base class) - consistent clipping for all battlefield content
+- Improved card positioning in hand layer with vertical padding to ensure cards stay within bounds
+- Cards now properly clip at layer boundaries on all screen sizes
+
+### Screen Manager Implementation and Combat Initialization Fix (January 3, 2025)
+- Implemented ScreenManager with lazy screen creation to fix input handling bugs
+- Fixed combat screen initialization issues:
+  - Added proper async handling for onMount in Screen base class
+  - Combat screen now properly initializes when receiving driver data
+  - Added fallback for development - creates default drivers if none provided
+  - Fixed UI update timing - ensures UI refreshes after async combat initialization
+- All screens now properly cleanup when navigating away
+
 ## Active Issues
+
+### ~~Screen Management Architecture Refactor~~ COMPLETED
+- **Problem**: All screens created at startup causing input handler conflicts
+- **Symptoms**: Clicking cards can navigate to unexpected screens (DevScreen, CardShowcase)
+- **Root Cause**: Screens create interactive components in constructors that register global input handlers
+- **Solution**: Implemented ScreenManager with lazy screen creation and proper cleanup
+- **Technical Decision**: [Screen Manager Architecture](./AI_TECHNICAL_DECISIONS/screen-manager-architecture.md)
+- **Status**: COMPLETED - ScreenManager implemented, all screens refactored
 
 ### ~~Critical Performance Problems~~ RESOLVED
 - ~~**500+ draw calls per frame** on simple UI screens~~
@@ -348,6 +374,33 @@ For a complete log of recently completed tasks, see: [AI Development Log](./AI_D
   - [x] Fixed card interactivity issues in combat screen
 
 ### Phase Three (Combat Functionality)
+
+#### Screen Manager Architecture Refactor ✅ COMPLETED
+- [x] **Task 21**: Implement ScreenManager system ✅ COMPLETED
+  - [x] Create ScreenManager class in core/ ✅
+  - [x] Define ScreenName type with all screen identifiers ✅
+  - [x] Implement navigate() method with proper cleanup ✅
+  - [x] Add createScreen() factory method ✅
+  - [x] See [Screen Manager Architecture](./AI_TECHNICAL_DECISIONS/screen-manager-architecture.md)
+- [x] **Task 22**: Update Screen base class ✅ COMPLETED
+  - [x] ~~Add screenManager reference~~ Not needed with static class approach ✅
+  - [x] ~~Add protected navigate() helper~~ Using static ScreenManager.navigate() instead ✅
+  - [x] Document that screens should not create UI in constructors ✅
+  - [x] Ensure all screens have proper cleanup in unmount() ✅
+- [x] **Task 23**: Refactor screens to lazy-load UI ✅ COMPLETED
+  - [x] CardShowcaseScreen: Move loadCards() from constructor to onMount() ✅
+  - [x] DeveloperScreen: Already loads UI properly ✅
+  - [x] Audit all other screens for constructor UI creation ✅
+  - [x] Ensure all components are destroyed in onUnmount() ✅
+- [x] **Task 24**: Update navigation pattern ✅ COMPLETED
+  - [x] Remove all setOnX() callback methods from screens ✅
+  - [x] Replace with direct navigate() calls ✅
+  - [x] Update all screen transitions to use new pattern ✅
+- [x] **Task 25**: Simplify Game class ✅ COMPLETED
+  - [x] Remove screen creation and storage ✅
+  - [x] Remove showScreen() method ✅
+  - [x] Create and delegate to ScreenManager ✅
+  - [x] Focus Game class on high-level game state ✅
 
 #### Vehicle Positioning System (IN PROGRESS)
 - [ ] **Task 15**: Implement vehicle positioning mechanics

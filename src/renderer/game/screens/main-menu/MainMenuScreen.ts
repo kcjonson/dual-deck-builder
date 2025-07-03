@@ -1,4 +1,5 @@
 import { Screen } from '../../core/Screen';
+import { ScreenManager } from '../../core/ScreenManager';
 import { Renderer } from '../../../engine/rendering/Renderer';
 import { Button } from '../../../engine/ui/Button';
 import { Text } from '../../../engine/components/Text';
@@ -10,12 +11,7 @@ import { Rectangle } from '../../../engine/components/Rectangle';
 export class MainMenuScreen extends Screen {
 	private background: Rectangle;
 	private title: Text;
-	private onStartGame: (() => void) | null = null;
-	private onOpenSettings: (() => void) | null = null;
-	private onOpenCredits: (() => void) | null = null;
-	private onOpenDeveloper: (() => void) | null = null;
-	private onOpenCardShowcase: (() => void) | null = null;
-	private onExitGame: (() => void) | null = null;
+	private isElectron = false;
 
 	/**
 	 * Create a new main menu screen
@@ -23,6 +19,16 @@ export class MainMenuScreen extends Screen {
 	 */
 	constructor(renderer: Renderer) {
 		super('mainMenuScreen', renderer);
+		
+		// Check if running in Electron
+		interface ElectronWindow extends Window {
+			electron?: {
+				isElectron: boolean;
+				[key: string]: unknown;
+			};
+		}
+		const electronWindow = window as ElectronWindow;
+		this.isElectron = electronWindow.electron?.isElectron === true;
 
 		// Create background
 		this.background = new Rectangle({
@@ -70,7 +76,7 @@ export class MainMenuScreen extends Screen {
 			},
 		});
 		startButton.onClick(() => {
-			if (this.onStartGame) this.onStartGame();
+			ScreenManager.navigate('driverSelectionScreen');
 		});
 		this.rootLayer.addChild(startButton);
 
@@ -83,7 +89,8 @@ export class MainMenuScreen extends Screen {
 			},
 		});
 		settingsButton.onClick(() => {
-			if (this.onOpenSettings) this.onOpenSettings();
+			// Settings not implemented yet
+			console.log('Settings not implemented');
 		});
 		this.rootLayer.addChild(settingsButton);
 
@@ -96,7 +103,8 @@ export class MainMenuScreen extends Screen {
 			},
 		});
 		creditsButton.onClick(() => {
-			if (this.onOpenCredits) this.onOpenCredits();
+			// Credits not implemented yet
+			console.log('Credits not implemented');
 		});
 		this.rootLayer.addChild(creditsButton);
 
@@ -109,7 +117,7 @@ export class MainMenuScreen extends Screen {
 			},
 		});
 		cardShowcaseButton.onClick(() => {
-			if (this.onOpenCardShowcase) this.onOpenCardShowcase();
+			ScreenManager.navigate('cardShowcaseScreen');
 		});
 		this.rootLayer.addChild(cardShowcaseButton);
 
@@ -122,7 +130,7 @@ export class MainMenuScreen extends Screen {
 			},
 		});
 		devButton.onClick(() => {
-			if (this.onOpenDeveloper) this.onOpenDeveloper();
+			ScreenManager.navigate('developerScreen');
 		});
 		this.rootLayer.addChild(devButton);
 
@@ -135,7 +143,11 @@ export class MainMenuScreen extends Screen {
 			},
 		});
 		exitButton.onClick(() => {
-			if (this.onExitGame) this.onExitGame();
+			if (this.isElectron) {
+				// In Electron mode, request to close the app
+				// Would use electron API to quit
+				console.log('Exit requested in Electron mode');
+			}
 		});
 
 		// Only show exit button in desktop mode
@@ -181,47 +193,6 @@ export class MainMenuScreen extends Screen {
 		});
 	}
 
-	/**
-	 * Set callback for when Start Game is clicked
-	 */
-	public setOnStartGame(callback: () => void): void {
-		this.onStartGame = callback;
-	}
-
-	/**
-	 * Set callback for when Settings is clicked
-	 */
-	public setOnOpenSettings(callback: () => void): void {
-		this.onOpenSettings = callback;
-	}
-
-	/**
-	 * Set callback for when Credits is clicked
-	 */
-	public setOnOpenCredits(callback: () => void): void {
-		this.onOpenCredits = callback;
-	}
-
-	/**
-	 * Set callback for when Card Showcase is clicked
-	 */
-	public setOnOpenCardShowcase(callback: () => void): void {
-		this.onOpenCardShowcase = callback;
-	}
-
-	/**
-	 * Set callback for when Developer Tools is clicked
-	 */
-	public setOnOpenDeveloper(callback: () => void): void {
-		this.onOpenDeveloper = callback;
-	}
-
-	/**
-	 * Set callback for when Exit Game is clicked
-	 */
-	public setOnExitGame(callback: () => void): void {
-		this.onExitGame = callback;
-	}
 
 	/**
 	 * Handle window resize

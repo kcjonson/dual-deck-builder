@@ -4,6 +4,58 @@ This document contains the chronological log of completed development tasks for 
 
 =========================================
 
+## Screen Manager Architecture Implementation (2025-01-03)
+
+### Implemented ScreenManager with Lazy Loading
+
+**What Changed:**
+- Created ScreenManager as a static class for global screen navigation
+- Removed all screen creation from Game.createScreens() 
+- Screens now created on-demand when navigated to
+- Removed callback-based navigation in favor of direct ScreenManager.navigate() calls
+- Fixed CardShowcaseScreen creating cards in constructor
+
+**Technical Details:**
+- **ScreenManager**: Static class with `navigate()`, `update()`, `render()` methods
+- **Screen Creation**: Map of screen names to constructors, screens created fresh on each navigation
+- **Navigation Pattern**: Screens call `ScreenManager.navigate('screenName', data)` directly
+- **Memory Management**: Screens fully destroyed when navigating away (no caching)
+- **Data Passing**: Combat screen receives drivers via navigation data in `onMount()`
+
+**Benefits:**
+- Fixes input handler bug where inactive screens intercepted clicks
+- Reduces memory usage - only active screen exists
+- Cleaner architecture with separation of concerns
+- Simpler navigation without callback spaghetti
+
+### Fixed Combat Screen Initialization Issues
+
+**What Changed:**
+- Fixed async initialization timing issues in combat screen
+- Added proper promise handling in Screen base class for async onMount
+- Combat screen now properly updates UI after async initialization completes
+- Added development fallback for direct navigation to combat
+
+**Technical Details:**
+- Screen base class now properly handles async onMount methods
+- Added explicit `updateUIFromBattle()` call after combat initialization
+- Development mode: If no drivers provided, loads default drivers automatically
+- Fixed timing issue where UI was rendering before battle data was ready
+
+## Layer Rendering and Overflow Fixes (2025-01-03)
+
+### Fixed Layer Stacking Issues in Combat Screen
+
+**What Changed:**
+- Fixed card text showing through bottom resource bar
+- Added overflow clipping to all combat layers
+- Improved card positioning with vertical padding
+
+**Technical Details:**
+- Added `setOverflow('hidden')` to PlayerHandLayer, ResourceBarLayer, and BattlefieldLayer base class
+- Modified card layout logic to ensure cards stay within layer bounds with 10px vertical padding
+- Prevents UI elements from bleeding across layer boundaries
+
 ## AI Integration and Combat Enhancements (2025-01-03)
 
 ### Integrated AI System into Main Game

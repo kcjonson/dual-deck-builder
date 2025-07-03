@@ -30,6 +30,9 @@ export class ResourceBarLayer extends Layer {
 	constructor(options: { x: number; y: number; width: number; height: number }) {
 		super(options);
 		
+		// Set overflow hidden to ensure proper layer boundaries
+		this.setOverflow('hidden');
+		
 		// Background bar
 		const background = new Rectangle({
 			x: 0,

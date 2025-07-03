@@ -49,7 +49,18 @@ export abstract class Screen {
 		this.resizeHandler = this.handleResize.bind(this);
 		window.addEventListener('resize', this.resizeHandler);
 		
-		this.onMount(data);
+		// Call onMount - handle both sync and async versions
+		try {
+			const mountResult = this.onMount(data);
+			// Check if it's a promise
+			if (mountResult && typeof mountResult === 'object' && 'then' in mountResult) {
+				(mountResult as Promise<void>).catch(err => {
+					console.error(`Error in onMount for screen ${this.id}:`, err);
+				});
+			}
+		} catch (err) {
+			console.error(`Error in onMount for screen ${this.id}:`, err);
+		}
 	}
 
 	/**
@@ -76,6 +87,19 @@ export abstract class Screen {
 	public isScreenActive(): boolean {
 		return this.isActive;
 	}
+	
+	/**
+	 * Handle external resize events
+	 * @param width New window width
+	 * @param height New window height
+	 */
+	public resize(width: number, height: number): void {
+		// Update the root layer size
+		this.rootLayer.setSize(width, height);
+		
+		// Call the screen-specific resize handler
+		this.onResized();
+	}
 
 	/**
 	 * Handle window resize events
@@ -93,7 +117,7 @@ export abstract class Screen {
 	 * Override in subclasses to handle mount logic
 	 * @param data Optional data passed when mounting the screen
 	 */
-	protected onMount(_data?: unknown): void {
+	protected onMount(_data?: unknown): void | Promise<void> {
 		// Override in subclasses
 	}
 

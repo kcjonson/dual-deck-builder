@@ -31,6 +31,9 @@ export abstract class BattlefieldLayer extends Layer {
 		super(options);
 		this.combatData = options.combatData || null;
 		
+		// Set overflow hidden to ensure content stays within layer bounds
+		this.setOverflow('hidden');
+		
 		// Initialize lane positions
 		this.initializeLanes();
 	}

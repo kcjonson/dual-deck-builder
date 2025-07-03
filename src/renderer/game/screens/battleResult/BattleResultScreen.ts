@@ -1,4 +1,5 @@
 import { Screen } from '../../core/Screen';
+import { ScreenManager } from '../../core/ScreenManager';
 import { Renderer } from '../../../engine/rendering/Renderer';
 import { Rectangle } from '../../../engine/components/Rectangle';
 import { Text } from '../../../engine/components/Text';
@@ -25,7 +26,6 @@ export class BattleResultScreen extends Screen {
 	private subtitleText!: Text;
 	private background!: Rectangle;
 	private panel!: Rectangle;
-	private onContinue: (() => void) | null = null;
 	
 	// UI constants
 	private readonly PANEL_WIDTH = 600;
@@ -112,9 +112,8 @@ export class BattleResultScreen extends Screen {
 		});
 		
 		this.continueButton.onClick(() => {
-			if (this.onContinue) {
-				this.onContinue();
-			}
+			// TODO: Navigate to reward screen or map for victory, or retry options for defeat
+			ScreenManager.navigate('mainMenuScreen');
 		});
 		
 		this.rootLayer.addChild(this.continueButton);
@@ -148,12 +147,6 @@ export class BattleResultScreen extends Screen {
 		);
 	}
 	
-	/**
-	 * Set the continue callback
-	 */
-	public setOnContinue(callback: () => void): void {
-		this.onContinue = callback;
-	}
 	
 	/**
 	 * Handle screen mount with data

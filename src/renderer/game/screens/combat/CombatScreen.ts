@@ -1,4 +1,5 @@
 import { Screen } from '../../core/Screen';
+import { ScreenManager } from '../../core/ScreenManager';
 import { Renderer } from '../../../engine/rendering/Renderer';
 import { Rectangle } from '../../../engine/components/Rectangle';
 import { EnemyBattlefieldLayer, EnemyIntent } from './EnemyBattlefieldLayer';
@@ -15,7 +16,9 @@ import { Team, TeamType } from '../../mechanics/Team';
 import { Battle, BattleState, BattleMessage } from '../../mechanics/Battle';
 import { Card } from '../../mechanics/Card';
 import { CardLoader } from '../../core/CardLoader';
+import { DriverLoader } from '../../core/DriverLoader';
 import { InputSystem } from '../../../engine/input/InputSystem';
+import { BattleResultData } from '../battleResult/BattleResultScreen';
 
 /**
  * Combat Screen implementing Game Flow Spec section 2
@@ -47,9 +50,6 @@ export class CombatScreen extends Screen {
 	// UI state
 	private combatLogVisible = false;
 	
-	// Callbacks
-	private onEndCombat: ((victory: boolean) => void) | null = null;
-	private onBack: (() => void) | null = null;
 	
 	// Event unsubscribe functions
 	private unsubscribers: (() => void)[] = [];
@@ -137,7 +137,8 @@ export class CombatScreen extends Screen {
 			this.combatLog.addEntry('Combat Started!', CombatLogType.INFO);
 			this.combatLog.addEntry(`${driver1.metadata.name} and ${driver2.metadata.name} vs ${this.enemyTeam.vehicles[0].name}`, CombatLogType.INFO);
 
-			console.log('Combat initialized with Team system');
+			// Force UI update after initialization
+			this.updateUIFromBattle();
 		} catch (error) {
 			console.error('Failed to initialize combat:', error);
 		}
@@ -182,8 +183,13 @@ export class CombatScreen extends Screen {
 					event.won ? 'Victory! All enemies defeated!' : 'Defeat! Your vehicles were destroyed!',
 					CombatLogType.INFO
 				);
-				if (this.onEndCombat) {
-					this.onEndCombat(event.won);
+				// Navigate to battle result screen
+				if (this.battle) {
+					const resultData: BattleResultData = {
+						victory: event.won,
+						battleState: this.battle.getState()
+					};
+					ScreenManager.navigate('battleResultScreen', resultData);
 				}
 			})
 		);
@@ -728,9 +734,13 @@ export class CombatScreen extends Screen {
 		const victory = this.battle.isBattleWon();
 		console.log(victory ? 'Victory!' : 'Defeat!');
 		
-		// Call the end combat callback
-		if (this.onEndCombat) {
-			this.onEndCombat(victory);
+		// Navigate to battle result screen
+		if (this.battle) {
+			const resultData: BattleResultData = {
+				victory,
+				battleState: this.battle.getState()
+			};
+			ScreenManager.navigate('battleResultScreen', resultData);
 		}
 	}
 
@@ -778,19 +788,6 @@ export class CombatScreen extends Screen {
 		this.combatLogLayer.setVisible(this.combatLogVisible);
 	}
 
-	/**
-	 * Set combat end callback
-	 */
-	public setOnEndCombat(callback: (victory: boolean) => void): void {
-		this.onEndCombat = callback;
-	}
-
-	/**
-	 * Set back callback
-	 */
-	public setOnBack(callback: () => void): void {
-		this.onBack = callback;
-	}
 	
 	/**
 	 * Get the current battle state
@@ -802,10 +799,36 @@ export class CombatScreen extends Screen {
 	/**
 	 * Handle screen mount
 	 */
-	protected onMount(_data?: unknown): void {
-		// Update UI from battle state if we have an active battle
-		if (this.battle) {
+	protected async onMount(data?: unknown): Promise<void> {
+		super.onMount(data);
+		
+		// Check if we have driver data
+		if (data && typeof data === 'object' && 'drivers' in data) {
+			const combatData = data as { drivers: Driver[] };
+			try {
+				await this.initializeCombat(combatData.drivers);
+				// Force another UI update after async initialization completes
+				this.updateUIFromBattle();
+			} catch (error) {
+				console.error('Failed to initialize combat:', error);
+			}
+		} else if (this.battle) {
+			// Update UI from existing battle state
 			this.updateUIFromBattle();
+		} else {
+			// For development - create default drivers if none provided
+			try {
+				const driverLoader = DriverLoader.getInstance();
+				await driverLoader.loadDrivers();
+				const drivers = driverLoader.getUnlockedDrivers();
+				if (drivers.length >= 2) {
+					await this.initializeCombat([drivers[0], drivers[1]]);
+				} else {
+					console.error('Not enough drivers available for default combat');
+				}
+			} catch (error) {
+				console.error('Failed to create default combat:', error);
+			}
 		}
 	}
 
