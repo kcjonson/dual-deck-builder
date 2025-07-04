@@ -18,6 +18,7 @@ export type BattleMessageType =
 	| 'armor_gained'
 	| 'status_applied'
 	| 'miss'
+	| 'out_of_range'
 	| 'battle_end'
 	| 'adrenaline_remaining'
 	| 'general';
@@ -496,14 +497,46 @@ export class Battle extends Model<BattleData> {
 				const card = enemyDriver.hand[i];
 				
 				if (enemyDriver.canPlayCard(card)) {
-					// Choose target (for now, target first alive player vehicle)
+					// Find a valid target considering range
+					const enemyVehicle = this.getVehicleForDriver(enemyDriver);
+					if (!enemyVehicle) continue;
+					
 					const playerVehicles = this.playerTeam.getAliveVehicles();
-					const target = playerVehicles.length > 0 ? playerVehicles[0] : null;
+					let validTarget: Vehicle | null = null;
+					
+					// Check if card needs a target
+					if (card.targetType === 'enemy_single' || card.targetType === 'enemy_all') {
+						// Find first target in range
+						for (const target of playerVehicles) {
+							let inRange = true;
+							
+							// Check if card has range requirements
+							for (const effect of card.effects) {
+								if (effect.type === 'damage' && typeof effect.range === 'number') {
+									const range = this.calculateRange(enemyVehicle, target);
+									if (range > effect.range) {
+										inRange = false;
+										break;
+									}
+								}
+							}
+							
+							if (inRange) {
+								validTarget = target;
+								break;
+							}
+						}
+						
+						// Skip this card if no valid targets in range
+						if (!validTarget && card.targetType === 'enemy_single') {
+							continue;
+						}
+					}
 
 					const adrenalineBefore = enemyDriver.adrenaline;
 					const result = enemyDriver.playCardWithCost(i);
 					if (result.success && result.card) {
-						this.applyCardEffects(result.card, target, enemyDriver);
+						this.applyCardEffects(result.card, validTarget, enemyDriver);
 						this.log('card_played',
 							`${enemyDriver.metadata.name} plays ${result.card.displayName} (Adrenaline: ${adrenalineBefore} -> ${enemyDriver.adrenaline})`,
 							{ driver: enemyDriver.metadata.name, card: result.card.displayName, adrenalineBefore, adrenalineAfter: enemyDriver.adrenaline }
@@ -573,6 +606,21 @@ export class Battle extends Model<BattleData> {
 				case 'damage':
 					if (targetVehicle && targetVehicle.driver) {
 						let damage = typeof effect.value === 'number' ? effect.value : 0;
+						
+						// Check range if specified
+						if (typeof effect.range === 'number') {
+							const casterVehicle = this.getVehicleForDriver(caster);
+							if (casterVehicle) {
+								const range = this.calculateRange(casterVehicle, targetVehicle);
+								if (range > effect.range) {
+									this.log('out_of_range',
+										`${card.displayName} cannot reach ${targetVehicle.name} - requires range ${effect.range}, but target is at range ${range}`,
+										{ card: card.displayName, target: targetVehicle.name, requiredRange: effect.range, actualRange: range }
+									);
+									break;
+								}
+							}
+						}
 						
 						// Check if attack hits (unless always_hits is true)
 						if (!effect.always_hits) {

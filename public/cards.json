@@ -13,6 +13,7 @@
           "type": "damage",
           "value": 12,
           "scaling": "ramming",
+          "range": 1,
           "target": "target"
         },
         {

@@ -137,7 +137,7 @@ export class HumanPlayerInterface {
 	 * Show target selection UI
 	 */
 	private showTargetSelection(driver: Driver, card: Card): void {
-		const validTargets = this.getValidTargets(card);
+		const validTargets = this.getValidTargets(card, driver);
 		
 		const event = new CustomEvent('showTargetSelection', {
 			detail: {
@@ -152,26 +152,67 @@ export class HumanPlayerInterface {
 	/**
 	 * Get valid targets for a card
 	 */
-	private getValidTargets(card: Card): Vehicle[] {
+	private getValidTargets(card: Card, driver: Driver): Vehicle[] {
 		const validTargets: Vehicle[] = [];
+		
+		// Get the caster's vehicle
+		const casterVehicle = this.getVehicleForDriver(driver);
+		if (!casterVehicle) return validTargets;
+		
+		// Get potential targets based on target type
+		let potentialTargets: Vehicle[] = [];
 		
 		switch (card.targetType) {
 			case 'enemy_single':
 			case 'enemy_all':
-				validTargets.push(...this.battle.enemyTeam.getAliveVehicles());
+				potentialTargets = this.battle.enemyTeam.getAliveVehicles();
 				break;
 			case 'ally':
-				validTargets.push(...this.battle.playerTeam.getAliveVehicles());
+				potentialTargets = this.battle.playerTeam.getAliveVehicles();
 				break;
 			case 'any':
-				validTargets.push(
+				potentialTargets = [
 					...this.battle.playerTeam.getAliveVehicles(),
 					...this.battle.enemyTeam.getAliveVehicles()
-				);
+				];
 				break;
 		}
 		
+		// Filter by range if any damage effects have range requirements
+		for (const target of potentialTargets) {
+			let inRange = true;
+			
+			// Check if card has any damage effects with range requirements
+			for (const effect of card.effects) {
+				if (effect.type === 'damage' && typeof effect.range === 'number') {
+					const range = this.battle.calculateRange(casterVehicle, target);
+					if (range > effect.range) {
+						inRange = false;
+						break;
+					}
+				}
+			}
+			
+			if (inRange) {
+				validTargets.push(target);
+			}
+		}
+		
 		return validTargets;
+	}
+	
+	/**
+	 * Get the vehicle containing a driver
+	 */
+	private getVehicleForDriver(driver: Driver | null): Vehicle | null {
+		if (!driver) return null;
+		
+		const allVehicles = [
+			...this.battle.playerTeam.getAliveVehicles(),
+			...this.battle.enemyTeam.getAliveVehicles()
+		];
+		
+		return allVehicles.find(v => v.driver === driver || v.passenger === driver) || null;
 	}
 	
 	/**
