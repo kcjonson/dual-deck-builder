@@ -286,11 +286,14 @@ export class Button extends Component {
 	}
 
 	/**
-	 * Clean up resources and event handlers
+	 * Unmount the button and clean up resources and event handlers
 	 * Should be called when the button is removed
 	 */
-	public cleanup(): void {
+	public unmount(): void {
 		// Unregister from input system to prevent memory leaks
 		InputSystem.unregisterComponent(this);
+		
+		// Call parent unmount to handle children
+		super.unmount();
 	}
 }

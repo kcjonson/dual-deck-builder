@@ -10,7 +10,7 @@ export abstract class Screen {
 	protected rootLayer: Layer;
 	protected isActive = false;
 	
-	// Resize handler reference for cleanup
+	// Resize handler reference for unmount
 	private resizeHandler: (() => void) | null = null;
 
 	/**
@@ -40,15 +40,27 @@ export abstract class Screen {
 
 	/**
 	 * Mount the screen (make it active)
+	 * @param data Optional data to pass to the screen
 	 */
-	public mount(): void {
+	public mount(data?: unknown): void {
 		this.isActive = true;
 		
 		// Create and add resize listener
 		this.resizeHandler = this.handleResize.bind(this);
 		window.addEventListener('resize', this.resizeHandler);
 		
-		this.onMount();
+		// Call onMount - handle both sync and async versions
+		try {
+			const mountResult = this.onMount(data);
+			// Check if it's a promise
+			if (mountResult && typeof mountResult === 'object' && 'then' in mountResult) {
+				(mountResult as Promise<void>).catch(err => {
+					console.error(`Error in onMount for screen ${this.id}:`, err);
+				});
+			}
+		} catch (err) {
+			console.error(`Error in onMount for screen ${this.id}:`, err);
+		}
 	}
 
 	/**
@@ -65,8 +77,8 @@ export abstract class Screen {
 		
 		this.onUnmount();
 		
-		// Don't cleanup here - screens can manage their own cleanup if needed
-		// This allows screens to persist their UI between mount/unmount cycles
+		// Unmount all child components to prevent input system leaks
+		this.rootLayer.unmount();
 	}
 
 	/**
@@ -74,6 +86,19 @@ export abstract class Screen {
 	 */
 	public isScreenActive(): boolean {
 		return this.isActive;
+	}
+	
+	/**
+	 * Handle external resize events
+	 * @param width New window width
+	 * @param height New window height
+	 */
+	public resize(width: number, height: number): void {
+		// Update the root layer size
+		this.rootLayer.setSize(width, height);
+		
+		// Call the screen-specific resize handler
+		this.onResized();
 	}
 
 	/**
@@ -90,8 +115,9 @@ export abstract class Screen {
 	/**
 	 * Hook called when the screen is mounted
 	 * Override in subclasses to handle mount logic
+	 * @param data Optional data passed when mounting the screen
 	 */
-	protected onMount(): void {
+	protected onMount(_data?: unknown): void | Promise<void> {
 		// Override in subclasses
 	}
 

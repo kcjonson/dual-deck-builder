@@ -343,14 +343,14 @@ export class Layer {
 	}
 
 	/**
-	 * Clean up resources and event handlers
+	 * Unmount the layer and clean up resources and event handlers
 	 * This should be called when a layer is permanently removed
-	 * Override in subclasses to implement specific cleanup behavior
+	 * Override in subclasses to implement specific unmount behavior
 	 */
-	public cleanup(): void {
-		// Clean up children
+	public unmount(): void {
+		// Unmount children
 		for (const child of this.children) {
-			child.cleanup();
+			child.unmount();
 		}
 	}
 

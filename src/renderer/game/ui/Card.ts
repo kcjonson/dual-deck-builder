@@ -19,7 +19,7 @@ export enum CardSize {
  */
 const CARD_DIMENSIONS = {
 	[CardSize.MINI]: { width: 50, height: 70 },
-	[CardSize.NORMAL]: { width: 160, height: 224 },
+	[CardSize.NORMAL]: { width: 150, height: 210 },
 	[CardSize.LARGE]: { width: 240, height: 336 }
 } as const;
 
@@ -106,7 +106,7 @@ export class Card extends Layer {
 			y: Math.floor(20 * scaleFactor),
 			width: dimensions.width - Math.floor(60 * scaleFactor),
 			style: {
-				fontSize: Math.floor(18 * scaleFactor),
+				fontSize: Math.floor(14 * scaleFactor),
 				color: '#ffffff',
 				fontWeight: 'bold',
 				whiteSpace: 'nowrap',
@@ -120,7 +120,7 @@ export class Card extends Layer {
 			x: dimensions.width - Math.floor(30 * scaleFactor),
 			y: Math.floor(20 * scaleFactor),
 			style: {
-				fontSize: Math.floor(24 * scaleFactor),
+				fontSize: Math.floor(20 * scaleFactor),
 				color: '#ffaa00',
 				fontWeight: 'bold',
 				textAlign: 'center',
@@ -137,7 +137,7 @@ export class Card extends Layer {
 				width: dimensions.width - padding * 2,
 				height: Math.floor(140 * scaleFactor),
 				style: {
-					fontSize: Math.floor(14 * scaleFactor),
+					fontSize: Math.floor(11 * scaleFactor),
 					color: '#cccccc',
 					lineHeight: 1.4,
 					textOverflow: 'ellipsis',
@@ -152,7 +152,7 @@ export class Card extends Layer {
 				x: padding,
 				y: dimensions.height - Math.floor(60 * scaleFactor),
 				style: {
-					fontSize: Math.floor(12 * scaleFactor),
+					fontSize: Math.floor(10 * scaleFactor),
 					color: Card.getRarityColor(data.rarity),
 					fontWeight: 'bold',
 				},
@@ -166,7 +166,7 @@ export class Card extends Layer {
 				y: dimensions.height - Math.floor(35 * scaleFactor),
 				width: dimensions.width - padding * 2,
 				style: {
-					fontSize: Math.floor(10 * scaleFactor),
+					fontSize: Math.floor(8 * scaleFactor),
 					color: '#888888',
 					textOverflow: 'ellipsis',
 					whiteSpace: 'nowrap',
@@ -179,7 +179,7 @@ export class Card extends Layer {
 				x: padding,
 				y: dimensions.height - Math.floor(20 * scaleFactor),
 				style: {
-					fontSize: Math.floor(10 * scaleFactor),
+					fontSize: Math.floor(8 * scaleFactor),
 					color: '#666666',
 				},
 			});
@@ -206,7 +206,7 @@ export class Card extends Layer {
 				x: Math.floor(22.5 * scaleFactor),
 				y: Math.floor(22.5 * scaleFactor),
 				style: {
-					fontSize: Math.floor(12 * scaleFactor),
+					fontSize: Math.floor(10 * scaleFactor),
 					color: '#ffffff',
 					textAlign: 'center',
 					fontWeight: 'bold',

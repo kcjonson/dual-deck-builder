@@ -67,14 +67,14 @@ class Application {
 	}
 
 	/**
-	 * Clean up resources before app shutdown
+	 * Unmount resources before app shutdown
 	 */
-	public cleanup(): void {
-		// Clean up the input system to remove event listeners
-		InputSystem.getInstance().cleanup();
+	public unmount(): void {
+		// Unmount the input system to remove event listeners
+		InputSystem.getInstance().unmount();
 
-		// Additional cleanup as needed
-		console.log('Application resources cleaned up');
+		// Additional unmount as needed
+		console.log('Application resources unmounted');
 	}
 
 	/**

@@ -400,15 +400,15 @@ export class Panel extends Layer implements Interactive {
 	}
 
 	/**
-	 * Clean up resources and event handlers
+	 * Unmount resources and event handlers
 	 */
-	public cleanup(): void {
+	public unmount(): void {
 		// Unregister from input system if scrollable
 		if (this.scrollable) {
 			InputSystem.unregisterComponent(this as Interactive);
 		}
 
-		// Call parent cleanup
-		super.cleanup();
+		// Call parent unmount
+		super.unmount();
 	}
 }

@@ -1,81 +1,88 @@
 import { Layer } from '../../../engine/components/Layer';
 import { Rectangle } from '../../../engine/components/Rectangle';
 import { Text } from '../../../engine/components/Text';
-import { Panel } from '../../../engine/ui/Panel';
 import { CombatLog, CombatLogEntry, CombatLogType } from '../../mechanics/CombatLog';
+import { Panel } from '../../../engine/ui/Panel';
 
 /**
- * Visual representation of a log entry
- */
-interface LogEntryVisual {
-	id: string;
-	text: Text;
-	entry: CombatLogEntry;
-}
-
-/**
- * Combat log layer for displaying action history
- * Efficiently renders log entries by reusing text components
+ * Combat log display layer showing recent battle events
+ * Fixed to properly handle Model change events
  */
 export class CombatLogLayer extends Layer {
-	private panel: Panel;
 	private combatLog: CombatLog;
-	private entryVisuals: Map<string, LogEntryVisual> = new Map();
+	private panel: Panel;
+	private entryVisuals: Map<string, { text: Text, entry: CombatLogEntry }> = new Map();
 	private unsubscriber: (() => void) | null = null;
 	
-	constructor({
-		x, y, width, height,
-		combatLog
-	}: {
+	// Display properties
+	private readonly entryHeight = 20;
+	private readonly padding = 10;
+	private readonly fontSize = 14;
+	
+	constructor(options: {
 		x: number;
 		y: number;
 		width: number;
 		height: number;
 		combatLog: CombatLog;
 	}) {
-		super({ x, y, width, height });
+		super({
+			x: options.x,
+			y: options.y,
+			width: options.width,
+			height: options.height,
+		});
 		
-		this.combatLog = combatLog;
+		this.combatLog = options.combatLog;
 		
 		// Create background
 		const background = new Rectangle({
 			x: 0,
 			y: 0,
-			width,
-			height,
+			width: this.getWidth(),
+			height: this.getHeight(),
 			style: {
-				backgroundColor: '#000000',
-				borderColor: '#333333',
+				backgroundColor: 'rgba(0, 0, 0, 0.8)',
+				borderColor: '#4a4a5a',
 				borderWidth: 2,
-				borderRadius: 8,
-			}
+			},
 		});
 		this.addChild(background);
 		
-		// Create title
-		const title = new Text('Combat Log', {
-			x: 10,
-			y: 5,
+		// Create header
+		const header = new Rectangle({
+			x: 0,
+			y: 0,
+			width: this.getWidth(),
+			height: 30,
 			style: {
-				fontSize: 14,
-				color: '#ffcc00',
-				fontWeight: 'bold'
-			}
+				backgroundColor: '#2a2a3a',
+				borderColor: '#4a4a5a',
+				borderWidth: 1,
+			},
 		});
+		this.addChild(header);
+		
+		const title = new Text('Combat Log', {
+			style: {
+				fontSize: 16,
+				color: '#ffffff',
+				textAlign: 'center',
+				fontWeight: 'bold',
+			},
+		});
+		title.setPosition(Math.floor(this.getWidth() / 2), 15);
 		this.addChild(title);
 		
-		// Create scrollable panel for log entries
+		// Create scrollable panel for entries
 		this.panel = new Panel({
-			x: 5,
-			y: 25,
-			width: width - 10,
-			height: height - 30,
+			x: this.padding,
+			y: 35,
+			width: this.getWidth() - this.padding * 2,
+			height: this.getHeight() - 45,
 			style: {
-				backgroundColor: '#111111',
-				borderColor: '#333333',
-				borderWidth: 1,
-				borderRadius: 4,
-			}
+				backgroundColor: 'transparent',
+			},
 		});
 		this.addChild(this.panel);
 		
@@ -92,9 +99,10 @@ export class CombatLogLayer extends Layer {
 	 * Subscribe to combat log model events
 	 */
 	private subscribeToEvents(): void {
-		// Subscribe to the single change event
-		this.unsubscriber = this.combatLog.on('change', (event: { added: CombatLogEntry[], removed: CombatLogEntry[] }) => {
-			this.handleChange(event.added, event.removed);
+		// Subscribe to the change event - Model emits the full state
+		this.unsubscriber = this.combatLog.on('change', () => {
+			// For now, just re-render all entries
+			this.handleFullUpdate();
 		});
 	}
 	
@@ -109,162 +117,176 @@ export class CombatLogLayer extends Layer {
 	}
 	
 	/**
-	 * Handle change event with batch updates
+	 * Handle full update by re-rendering all entries
 	 */
-	private handleChange(added: CombatLogEntry[], removed: CombatLogEntry[]): void {
-		// First, remove any entries that were removed
-		removed.forEach(entry => {
-			const visual = this.entryVisuals.get(entry.id);
-			if (visual) {
-				// Remove from panel
-				this.panel.removeChild(visual.text);
-				// Remove from map
-				this.entryVisuals.delete(entry.id);
-			}
+	private handleFullUpdate(): void {
+		// Clear existing visuals
+		this.entryVisuals.forEach(visual => {
+			this.panel.removeChild(visual.text);
 		});
+		this.entryVisuals.clear();
 		
-		// Then, add any new entries
-		added.forEach(entry => {
-			const index = this.combatLog.entries.indexOf(entry);
-			if (index !== -1) {
-				this.createEntryVisual(entry, index);
-			}
-		});
+		// Re-render all entries
+		this.renderExistingEntries();
 		
-		// Update layout once for all changes
-		this.updateLayout();
-		
-		// If entries were added, scroll to bottom
-		if (added.length > 0) {
-			// Scroll to bottom by setting scroll offset to max
-			const contentHeight = this.panel.getContentSize().height;
-			const panelHeight = this.panel.getHeight();
-			if (contentHeight > panelHeight) {
-				this.panel.setScrollOffset(0, contentHeight - panelHeight);
-			}
-		}
+		// Scroll to bottom to show latest entries
+		this.scrollToBottom();
 	}
 	
 	/**
-	 * Create visual representation for an entry
+	 * Create visual representation of a log entry
 	 */
 	private createEntryVisual(entry: CombatLogEntry, _index: number): void {
-		// Get color based on type and driver
-		const color = this.getColorForEntry(entry);
+		// Skip if entry already exists
+		if (this.entryVisuals.has(entry.id)) {
+			return;
+		}
 		
-		// Create text component
-		const text = new Text(entry.message, {
-			x: 5,
-			y: 0, // Will be positioned by updateLayout
+		const color = this.getColorForEntry(entry);
+		const prefix = this.getPrefixForEntry(entry);
+		const fullText = prefix + entry.message;
+		
+		const text = new Text(fullText, {
 			style: {
-				fontSize: 12,
-				color,
-				whiteSpace: 'normal',
-				textOverflow: 'visible'
-			}
+				fontSize: this.fontSize,
+				color: color,
+				textAlign: 'left',
+			},
 		});
 		
-		// Set width for wrapping
-		text.setWidth(this.panel.getWidth() - 15);
-		
-		// Add to panel
+		// Position will be set by updateLayout
 		this.panel.addChild(text);
 		
-		// Store visual
-		this.entryVisuals.set(entry.id, {
-			id: entry.id,
-			text,
-			entry
-		});
+		// Store the visual
+		this.entryVisuals.set(entry.id, { text, entry });
 	}
 	
 	/**
 	 * Update layout of all entries
 	 */
 	private updateLayout(): void {
-		let yOffset = 5;
-		const lineHeight = 18;
+		// Get entries in order
+		const orderedEntries = Array.from(this.entryVisuals.values())
+			.sort((a, b) => {
+				const indexA = this.combatLog.entries.indexOf(a.entry);
+				const indexB = this.combatLog.entries.indexOf(b.entry);
+				return indexA - indexB;
+			});
 		
-		// Position each entry based on current order in combat log
-		this.combatLog.entries.forEach(entry => {
-			const visual = this.entryVisuals.get(entry.id);
-			if (visual) {
-				visual.text.setPosition(5, yOffset);
-				
-				// Calculate height accounting for wrapped text
-				const textHeight = Math.max(lineHeight, visual.text.getHeight ? visual.text.getHeight() : lineHeight);
-				yOffset += textHeight + 2;
-			}
+		// Position each entry
+		orderedEntries.forEach((visual, index) => {
+			visual.text.setPosition(5, index * this.entryHeight + this.fontSize);
 		});
 		
-		// Update panel content size
-		this.panel.setContentSize(this.panel.getWidth() - 10, yOffset + 5);
+		// Update panel content size for scrolling
+		const totalHeight = Math.max(
+			orderedEntries.length * this.entryHeight,
+			this.panel.getHeight()
+		);
+		this.panel.setContentSize(this.panel.getWidth(), totalHeight);
 	}
 	
 	/**
-	 * Get color for log entry based on type and driver
+	 * Get color for entry based on type
 	 */
 	private getColorForEntry(entry: CombatLogEntry): string {
-		// If driver-specific action, use driver colors
-		if (entry.driver && entry.type === CombatLogType.ACTION) {
-			return entry.driver === 1 ? '#66bbff' : '#66ff99'; // Blue for D1, Green for D2
+		switch (entry.type) {
+			case CombatLogType.INFO:
+				return '#ffffff';
+			case CombatLogType.ACTION:
+				return '#88cc88';
+			case CombatLogType.DAMAGE:
+				return '#cc8888';
+			case CombatLogType.HEAL:
+				return '#88cccc';
+			case CombatLogType.TURN:
+				return '#cccc88';
+			case CombatLogType.STATUS:
+				return '#8888cc';
+			case CombatLogType.MISS:
+				return '#cc88cc';
+			case CombatLogType.ARMOR:
+				return '#88cc88';
+			case CombatLogType.RESOURCE:
+				return '#ccaa88';
+			case CombatLogType.POSITION:
+				return '#88ccaa';
+			case CombatLogType.BATTLE_START:
+				return '#88ff88';
+			case CombatLogType.BATTLE_END:
+				return '#ff8888';
+			default:
+				return '#aaaaaa';
 		}
-		
-		// Otherwise use type-based colors
-		return this.getColorForType(entry.type);
 	}
 	
 	/**
-	 * Get color for log entry type
+	 * Get prefix for entry based on driver and turn
 	 */
-	private getColorForType(type: CombatLogType): string {
-		switch (type) {
-			case CombatLogType.ACTION:
-				return '#ffffff'; // White for actions
-			case CombatLogType.DAMAGE:
-				return '#ff6666'; // Red for damage
-			case CombatLogType.HEAL:
-				return '#66ff66'; // Green for healing
-			case CombatLogType.STATUS:
-				return '#ffff66'; // Yellow for status effects
-			case CombatLogType.TURN:
-				return '#66ccff'; // Blue for turn changes
-			case CombatLogType.INFO:
-			default:
-				return '#cccccc'; // Gray for info
+	private getPrefixForEntry(entry: CombatLogEntry): string {
+		let prefix = '';
+		
+		// Add turn number if available
+		if (entry.turn !== undefined) {
+			prefix += `[Turn ${entry.turn}] `;
+		}
+		
+		// Add driver identifier if available
+		if (entry.driver === 1) {
+			prefix += '[Driver 1] ';
+		} else if (entry.driver === 2) {
+			prefix += '[Driver 2] ';
+		}
+		
+		return prefix;
+	}
+	
+	/**
+	 * Scroll to bottom of log
+	 */
+	private scrollToBottom(): void {
+		// TODO: Implement scrolling when Panel supports it
+	}
+	
+	/**
+	 * Unmount event subscriptions
+	 */
+	public unmount(): void {
+		if (this.unsubscriber) {
+			this.unsubscriber();
+			this.unsubscriber = null;
 		}
 	}
 	
 	/**
 	 * Handle resize
 	 */
-	public setSize(width: number, height: number): this {
-		super.setSize(width, height);
-		
+	protected onResized(): void {
 		// Update background
-		const background = this.getChildren()[0] as Rectangle;
+		const background = this.children[0] as Rectangle;
 		if (background) {
-			background.setSize(width, height);
+			background.setSize(this.getWidth(), this.getHeight());
+		}
+		
+		// Update header
+		const header = this.children[1] as Rectangle;
+		if (header) {
+			header.setWidth(this.getWidth());
+		}
+		
+		// Update title position
+		const title = this.children[2] as Text;
+		if (title) {
+			title.setPosition(Math.floor(this.getWidth() / 2), 15);
 		}
 		
 		// Update panel
-		this.panel.setSize(width - 10, height - 30);
-		
-		// Update all text max widths and layout
-		this.entryVisuals.forEach(visual => {
-			visual.text.setWidth(this.panel.getWidth() - 15);
-		});
-		this.updateLayout();
-		return this;
-	}
-	
-	/**
-	 * Clean up subscriptions
-	 */
-	public cleanup(): void {
-		if (this.unsubscriber) {
-			this.unsubscriber();
-			this.unsubscriber = null;
+		if (this.panel) {
+			this.panel.setSize(
+				this.getWidth() - this.padding * 2,
+				this.getHeight() - 45
+			);
+			this.updateLayout();
 		}
 	}
 }

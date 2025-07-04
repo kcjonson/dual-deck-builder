@@ -1,4 +1,5 @@
 import { Model } from '../core/Model';
+import { BattleMessage } from './Battle';
 
 /**
  * Types of combat log entries
@@ -9,7 +10,13 @@ export enum CombatLogType {
 	HEAL = 'heal',
 	STATUS = 'status',
 	TURN = 'turn',
-	INFO = 'info'
+	INFO = 'info',
+	MISS = 'miss',
+	ARMOR = 'armor',
+	RESOURCE = 'resource',
+	POSITION = 'position',
+	BATTLE_START = 'battle_start',
+	BATTLE_END = 'battle_end'
 }
 
 /**
@@ -21,6 +28,7 @@ export interface CombatLogEntry {
 	message: string;
 	type: CombatLogType;
 	driver?: 1 | 2; // Optional driver number for driver-specific actions
+	turn?: number; // Optional turn number for battle context
 }
 
 /**
@@ -71,12 +79,14 @@ export class CombatLog extends Model<CombatLogData> {
 			message: string;
 			type?: CombatLogType;
 			driver?: 1 | 2;
+			turn?: number;
 		},
 		type: CombatLogType = CombatLogType.INFO
 	): void {
 		let message: string;
 		let entryType: CombatLogType;
 		let driver: 1 | 2 | undefined;
+		let turn: number | undefined;
 		
 		if (typeof entry === 'string') {
 			// Simple string format
@@ -87,6 +97,7 @@ export class CombatLog extends Model<CombatLogData> {
 			message = this.formatMessage(entry);
 			entryType = entry.type || CombatLogType.INFO;
 			driver = entry.driver;
+			turn = entry.turn;
 		}
 		
 		const newEntry: CombatLogEntry = {
@@ -94,7 +105,8 @@ export class CombatLog extends Model<CombatLogData> {
 			timestamp: Date.now(),
 			message,
 			type: entryType,
-			driver
+			driver,
+			turn
 		};
 		
 		// Increment nextId
@@ -141,7 +153,7 @@ export class CombatLog extends Model<CombatLogData> {
 	/**
 	 * Add multiple entries at once
 	 */
-	public addEntries(entries: Array<string | { message: string; type?: CombatLogType; driver?: 1 | 2 }>): void {
+	public addEntries(entries: Array<string | { message: string; type?: CombatLogType; driver?: 1 | 2; turn?: number }>): void {
 		const newEntries: CombatLogEntry[] = entries.map(entry => {
 			const id = `log-${this.nextId}`;
 			this.nextId = this.nextId + 1;
@@ -159,7 +171,8 @@ export class CombatLog extends Model<CombatLogData> {
 					timestamp: Date.now(),
 					message: this.formatMessage(entry),
 					type: entry.type || CombatLogType.INFO,
-					driver: entry.driver
+					driver: entry.driver,
+					turn: entry.turn
 				};
 			}
 		});
@@ -215,5 +228,57 @@ export class CombatLog extends Model<CombatLogData> {
 	 */
 	public getEntriesByType(type: CombatLogType): CombatLogEntry[] {
 		return this.entries.filter(entry => entry.type === type);
+	}
+
+	/**
+	 * Add a battle message from the Battle system
+	 */
+	public addBattleMessage(message: BattleMessage): void {
+		// Map battle message types to combat log types
+		let logType: CombatLogType;
+		switch (message.type) {
+			case 'battle_start':
+				logType = CombatLogType.BATTLE_START;
+				break;
+			case 'battle_end':
+				logType = CombatLogType.BATTLE_END;
+				break;
+			case 'turn_start':
+			case 'turn_end':
+				logType = CombatLogType.TURN;
+				break;
+			case 'card_played':
+				logType = CombatLogType.ACTION;
+				break;
+			case 'damage_dealt':
+				logType = CombatLogType.DAMAGE;
+				break;
+			case 'heal_applied':
+				logType = CombatLogType.HEAL;
+				break;
+			case 'armor_gained':
+				logType = CombatLogType.ARMOR;
+				break;
+			case 'status_applied':
+				logType = CombatLogType.STATUS;
+				break;
+			case 'miss':
+				logType = CombatLogType.MISS;
+				break;
+			case 'adrenaline_remaining':
+				logType = CombatLogType.RESOURCE;
+				break;
+			case 'general':
+			default:
+				logType = CombatLogType.INFO;
+				break;
+		}
+
+		// Add the message with its turn number
+		this.addEntry({
+			message: message.message,
+			type: logType,
+			turn: message.turn
+		});
 	}
 }

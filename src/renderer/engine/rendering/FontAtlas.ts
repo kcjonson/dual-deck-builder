@@ -202,9 +202,9 @@ export class FontAtlas {
 	}
 
 	/**
-	 * Clean up resources
+	 * Unmount and clean up resources
 	 */
-	public dispose(): void {
+	public unmount(): void {
 		if (this.texture) {
 			this.gl.deleteTexture(this.texture);
 			this.texture = null;

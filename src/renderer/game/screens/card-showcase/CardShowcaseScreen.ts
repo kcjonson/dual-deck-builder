@@ -1,4 +1,5 @@
 import { Screen } from '../../core/Screen';
+import { ScreenManager } from '../../core/ScreenManager';
 import { Renderer } from '../../../engine/rendering/Renderer';
 import { Button } from '../../../engine/ui/Button';
 import { Text } from '../../../engine/components/Text';
@@ -14,9 +15,10 @@ import { Card as GameCard } from '../../mechanics/Card';
 export class CardShowcaseScreen extends Screen {
 	private title: Text;
 	private backButton: Button;
-	private onBack: (() => void) | null = null;
 	private cardsPanel: Panel;
 	private cardLoader: CardLoader;
+	private cardComponents: Card[] = [];
+	private cardsLoaded = false;
 
 	constructor(renderer: Renderer) {
 		super('cardShowcaseScreen', renderer);
@@ -59,9 +61,7 @@ export class CardShowcaseScreen extends Screen {
 			},
 		});
 		this.backButton.onClick(() => {
-			if (this.onBack) {
-				this.onBack();
-			}
+			ScreenManager.navigate('mainMenuScreen');
 		});
 		this.rootLayer.addChild(this.backButton);
 
@@ -79,8 +79,7 @@ export class CardShowcaseScreen extends Screen {
 		this.cardsPanel.setPosition(0, 80); // Position below title
 		this.rootLayer.addChild(this.cardsPanel);
 
-		// Load and display cards
-		this.loadCards();
+		// Don't load cards in constructor - wait for onMount
 	}
 
 	/**
@@ -150,6 +149,7 @@ export class CardShowcaseScreen extends Screen {
 			});
 
 			this.cardsPanel.addChild(cardComponent);
+			this.cardComponents.push(cardComponent);
 
 			// Move to next position
 			currentX += cardDimensions.width + cardSpacing;
@@ -217,6 +217,7 @@ export class CardShowcaseScreen extends Screen {
 				});
 
 				this.cardsPanel.addChild(cardComponent);
+			this.cardComponents.push(cardComponent);
 
 				// Move to next position
 				currentX += cardDimensions.width + cardSpacing;
@@ -252,26 +253,38 @@ export class CardShowcaseScreen extends Screen {
 		}
 	}
 
-	/**
-	 * Set the back button callback
-	 */
-	public setOnBack(callback: () => void): void {
-		this.onBack = callback;
-	}
 
 	/**
 	 * Handle screen mount
 	 */
 	protected onMount(): void {
-		// Reload cards when screen is mounted in case they changed
-		this.loadCards();
+		super.onMount();
+		// Load cards when screen becomes active
+		if (!this.cardsLoaded) {
+			this.loadCards();
+			this.cardsLoaded = true;
+		}
 	}
 
 	/**
 	 * Handle screen unmount
 	 */
 	protected onUnmount(): void {
-		// Nothing to clean up
+		// Unmount all card components to unregister from InputSystem
+		this.cardComponents.forEach(card => {
+			card.unmount();
+		});
+		this.cardComponents = [];
+		
+		// Clear the panel - remove all children
+		const children = [...this.cardsPanel.getChildren()];
+		children.forEach(child => this.cardsPanel.removeChild(child));
+		this.cardsLoaded = false;
+		
+		// Unmount button
+		this.backButton.unmount();
+		
+		super.onUnmount();
 	}
 
 	/**

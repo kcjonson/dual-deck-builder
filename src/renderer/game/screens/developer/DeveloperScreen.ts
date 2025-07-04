@@ -1,4 +1,5 @@
 import { Screen } from '../../core/Screen';
+import { ScreenManager } from '../../core/ScreenManager';
 import { Renderer } from '../../../engine/rendering/Renderer';
 import { Button } from '../../../engine/ui/Button';
 import { Text } from '../../../engine/components/Text';
@@ -24,7 +25,6 @@ export class DeveloperScreen extends Screen {
 	private title: Text;
 	private backButton: Button;
 	private mainScrollContainer!: Panel;
-	private onBack: (() => void) | null = null;
 
 
 	/**
@@ -64,7 +64,7 @@ export class DeveloperScreen extends Screen {
 			},
 		});
 		this.backButton.onClick(() => {
-			if (this.onBack) this.onBack();
+			ScreenManager.navigate('mainMenuScreen');
 		});
 		this.rootLayer.addChild(this.backButton);
 
@@ -161,12 +161,6 @@ export class DeveloperScreen extends Screen {
 	}
 
 
-	/**
-	 * Set callback for when Back button is clicked
-	 */
-	public setOnBack(callback: () => void): void {
-		this.onBack = callback;
-	}
 
 	/**
 	 * Update - removed FPS counter as it's now in dev overlay

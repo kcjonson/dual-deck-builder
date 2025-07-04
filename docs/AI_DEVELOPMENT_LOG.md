@@ -4,6 +4,154 @@ This document contains the chronological log of completed development tasks for 
 
 =========================================
 
+## UI Component Lifecycle Standardization (2025-01-03)
+
+### Fixed Ghost Click Bug and Standardized Component Lifecycle
+
+**What Changed:**
+- Fixed bug where main menu buttons remained clickable after navigating to combat screen
+- Standardized all component lifecycle methods to use mount/unmount terminology
+- Screen base class now properly unmounts all child components when unmounting
+
+**Technical Details:**
+- **Screen.unmount()**: Now calls `rootLayer.unmount()` to recursively clean up all children
+- **Component Renames**: 
+  - `cleanup()` → `unmount()` in Component, Layer, Panel, Input classes
+  - `destroy()` → `unmount()` in Vehicle UI component
+  - `dispose()` → `unmount()` in FontAtlas class
+- **Button Fix**: Buttons now properly unregister from InputSystem via unmount chain
+
+**Benefits:**
+- No more ghost clicks from previous screens
+- Consistent lifecycle terminology across entire codebase
+- Proper memory cleanup and event handler removal
+- Clear component lifecycle: mount (if applicable) → unmount
+
+## Screen Manager Architecture Implementation (2025-01-03)
+
+### Implemented ScreenManager with Lazy Loading
+
+**What Changed:**
+- Created ScreenManager as a static class for global screen navigation
+- Removed all screen creation from Game.createScreens() 
+- Screens now created on-demand when navigated to
+- Removed callback-based navigation in favor of direct ScreenManager.navigate() calls
+- Fixed CardShowcaseScreen creating cards in constructor
+
+**Technical Details:**
+- **ScreenManager**: Static class with `navigate()`, `update()`, `render()` methods
+- **Screen Creation**: Map of screen names to constructors, screens created fresh on each navigation
+- **Navigation Pattern**: Screens call `ScreenManager.navigate('screenName', data)` directly
+- **Memory Management**: Screens fully destroyed when navigating away (no caching)
+- **Data Passing**: Combat screen receives drivers via navigation data in `onMount()`
+
+**Benefits:**
+- Fixes input handler bug where inactive screens intercepted clicks
+- Reduces memory usage - only active screen exists
+- Cleaner architecture with separation of concerns
+- Simpler navigation without callback spaghetti
+
+### Fixed Combat Screen Initialization Issues
+
+**What Changed:**
+- Fixed async initialization timing issues in combat screen
+- Added proper promise handling in Screen base class for async onMount
+- Combat screen now properly updates UI after async initialization completes
+- Added development fallback for direct navigation to combat
+
+**Technical Details:**
+- Screen base class now properly handles async onMount methods
+- Added explicit `updateUIFromBattle()` call after combat initialization
+- Development mode: If no drivers provided, loads default drivers automatically
+- Fixed timing issue where UI was rendering before battle data was ready
+
+## Layer Rendering and Overflow Fixes (2025-01-03)
+
+### Fixed Layer Stacking Issues in Combat Screen
+
+**What Changed:**
+- Fixed card text showing through bottom resource bar
+- Added overflow clipping to all combat layers
+- Improved card positioning with vertical padding
+
+**Technical Details:**
+- Added `setOverflow('hidden')` to PlayerHandLayer, ResourceBarLayer, and BattlefieldLayer base class
+- Modified card layout logic to ensure cards stay within layer bounds with 10px vertical padding
+- Prevents UI elements from bleeding across layer boundaries
+
+## AI Integration and Combat Enhancements (2025-01-03)
+
+### Integrated AI System into Main Game
+
+**What Changed:**
+- Enabled AI controller in CombatScreen - enemies now use AggressiveFlankerAI
+- Removed placeholder enemy turn logic
+- Enhanced combat logging to match battle simulator's comprehensive output
+- Fixed card click routing bug causing navigation to wrong screens
+
+**Technical Details:**
+- **AI Integration**: 
+  - Added `battle.aiController.setEnemyAI('aggressive')` in CombatScreen.initializeCombat()
+  - Battle system already handles AI turns automatically via executeEnemyAction()
+  - Same AI strategies from battle simulator now work in main game
+- **Enhanced Logging**:
+  - Added 6 new CombatLogType entries: MISS, ARMOR, RESOURCE, POSITION, BATTLE_START, BATTLE_END
+  - CombatLog.addBattleMessage() method maps Battle message types to log types
+  - Added turn numbers to log entries with `[Turn X]` prefix
+  - Enhanced color coding for all message types
+- **Card Click Bug Fix**:
+  - Root cause: Cards not unregistered from InputSystem when screens unmount
+  - Solution: Added unmount() calls in screen unmount methods
+  - CardShowcaseScreen tracks and cleans up card components
+  - CombatScreen calls unmount() on all layers
+  - Leveraged existing Layer/Component unmount() architecture
+
+=========================================
+
+## Combat Targeting System Fix (2025-01-03)
+
+### Fixed Card Targeting Not Working
+
+**What Changed:**
+- Removed arrow visualization that was causing complexity
+- Fixed CombatModel to properly emit 'targetedVehicle' event
+- Fixed CombatLogLayer to handle Model change events correctly
+- Removed global click handler that was interfering with vehicle clicks
+
+**Technical Details:**
+- **Root Cause**: Model base class only emits generic 'change' events, but CombatScreen was listening for specific 'targetedVehicle' event
+- **Solution**: Added manual emit of 'targetedVehicle' event in CombatModel.targetVehicle()
+- **CombatLog Fix**: Updated to handle Model's state-based change events instead of expecting added/removed arrays
+
+## Combat Interface Bug Fixes (2025-01-03)
+
+### Fixed High-Priority Combat UI Issues
+
+**What Changed:**
+- Fixed card targeting system - removed arrow, simplified to click-based targeting
+- Fixed card removal from hand after playing
+- Fixed end turn functionality to properly draw new cards
+- Fixed resource display updates with per-driver adrenaline tracking
+- Added victory/defeat screen with proper data passing
+
+**Technical Details:**
+- **Card Targeting**: Simplified system - select card, then click enemy vehicle
+- **Card Playing**: Cards properly removed via Driver.playCard() method, UI updates after
+- **End Turn**: 
+  - Added `emit('stateChanged')` in startPlayerTurn for UI updates
+  - Fixed card discard order - hands now discarded before drawing
+- **Resource Display**: 
+  - Modified PlayerHandLayer to track per-driver adrenaline Map
+  - Added setDriverAdrenaline() method replacing single pool
+  - canPlayCard() now checks correct driver's adrenaline via cardDriverMap
+- **Victory/Defeat Screen**:
+  - Enhanced Screen base class with mount(data?: unknown) support
+  - Updated Game.showScreen() to accept optional data parameter  
+  - Created BattleResultScreen with DRY layoutUI() method
+  - Integrated with CombatScreen via getBattleState() method
+
+=========================================
+
 ## Battle Log Display for Human Player Interface (2025-01-02)
 
 ### Added Real-time Battle Log to Human Player UI
@@ -381,7 +529,7 @@ This document contains the chronological log of completed development tasks for 
 - Vehicle onClick handlers simply set `combatData.targetedVehicle = vehicle`
 - CombatScreen listens for 'targetedVehicle' changes to handle card plays
 - InputSystem stores global handlers in separate Maps from component handlers
-- Proper cleanup of global handlers on screen unmount
+- Proper unmount of global handlers on screen unmount
 
 =========================================
 

@@ -1,7 +1,7 @@
 import { Screen } from '../../core/Screen';
+import { ScreenManager } from '../../core/ScreenManager';
 import { Renderer } from '../../../engine/rendering/Renderer';
 import { Rectangle } from '../../../engine/components/Rectangle';
-import { Arrow } from '../../../engine/components/Arrow';
 import { EnemyBattlefieldLayer, EnemyIntent } from './EnemyBattlefieldLayer';
 import { PlayerBattlefieldLayer } from './PlayerBattlefieldLayer';
 import { PlayerHandLayer } from './PlayerHandLayer';
@@ -13,10 +13,12 @@ import { Driver, DriverRole } from '../../mechanics/Driver';
 import { CombatLog, CombatLogType } from '../../mechanics/CombatLog';
 import { Vehicle, VehiclePosition } from '../../mechanics/Vehicle';
 import { Team, TeamType } from '../../mechanics/Team';
-import { Battle, BattleState } from '../../mechanics/Battle';
+import { Battle, BattleState, BattleMessage } from '../../mechanics/Battle';
 import { Card } from '../../mechanics/Card';
 import { CardLoader } from '../../core/CardLoader';
+import { DriverLoader } from '../../core/DriverLoader';
 import { InputSystem } from '../../../engine/input/InputSystem';
+import { BattleResultData } from '../battleResult/BattleResultScreen';
 
 /**
  * Combat Screen implementing Game Flow Spec section 2
@@ -48,12 +50,6 @@ export class CombatScreen extends Screen {
 	// UI state
 	private combatLogVisible = false;
 	
-	// Targeting visual components
-	private targetingArrow: Arrow;
-	
-	// Callbacks
-	private onEndCombat: ((victory: boolean) => void) | null = null;
-	private onBack: (() => void) | null = null;
 	
 	// Event unsubscribe functions
 	private unsubscribers: (() => void)[] = [];
@@ -67,14 +63,6 @@ export class CombatScreen extends Screen {
 		// Create models
 		this.combatLog = new CombatLog(10); // Keep last 10 entries
 		this.combatModel = new CombatModel();
-		
-		// Create targeting arrow (hidden initially)
-		this.targetingArrow = new Arrow({
-			color: '#00aaff',
-			lineWidth: 3,
-			arrowHeadSize: 12,
-		});
-		this.targetingArrow.hide();
 		
 		// Build UI once during construction
 		this.createBackground();
@@ -127,6 +115,10 @@ export class CombatScreen extends Screen {
 				enemyTeam: this.enemyTeam
 			});
 
+			// Enable AI for enemy team - using aggressive AI as default
+			// Other options: 'random', 'mcts', 'salvage', 'ramming'
+			this.battle.aiController.setEnemyAI('aggressive');
+
 			// Start the battle
 			this.battle.start();
 
@@ -145,7 +137,8 @@ export class CombatScreen extends Screen {
 			this.combatLog.addEntry('Combat Started!', CombatLogType.INFO);
 			this.combatLog.addEntry(`${driver1.metadata.name} and ${driver2.metadata.name} vs ${this.enemyTeam.vehicles[0].name}`, CombatLogType.INFO);
 
-			console.log('Combat initialized with Team system');
+			// Force UI update after initialization
+			this.updateUIFromBattle();
 		} catch (error) {
 			console.error('Failed to initialize combat:', error);
 		}
@@ -190,8 +183,13 @@ export class CombatScreen extends Screen {
 					event.won ? 'Victory! All enemies defeated!' : 'Defeat! Your vehicles were destroyed!',
 					CombatLogType.INFO
 				);
-				if (this.onEndCombat) {
-					this.onEndCombat(event.won);
+				// Navigate to battle result screen
+				if (this.battle) {
+					const resultData: BattleResultData = {
+						victory: event.won,
+						battleState: this.battle.getState()
+					};
+					ScreenManager.navigate('battleResultScreen', resultData);
 				}
 			})
 		);
@@ -229,6 +227,14 @@ export class CombatScreen extends Screen {
 					this.combatLog.addEntry('Player turn ended', CombatLogType.TURN);
 					this.combatLog.addEntry('Enemy turn started', CombatLogType.TURN);
 				}
+			})
+		);
+
+		// Subscribe to detailed battle messages for comprehensive logging
+		this.unsubscribers.push(
+			this.battle.on('battleMessage', (message: BattleMessage) => {
+				// Pass battle messages directly to the combat log
+				this.combatLog.addBattleMessage(message);
 			})
 		);
 		
@@ -375,10 +381,10 @@ export class CombatScreen extends Screen {
 			this.cardDriverMap = new Map(combinedHandData.map(data => [data.card.id, data.driverNumber]));
 			this.handLayer.setCardDriverMap(this.cardDriverMap);
 			
-			// Set adrenaline for hand layer (using combined adrenaline for now)
-			// TODO: Track which driver owns which card for proper adrenaline checking
-			const totalAdrenaline = driver1.adrenaline + driver2.adrenaline;
-			this.handLayer.setAdrenaline(totalAdrenaline);
+			// Pass individual driver adrenaline to hand layer
+			// The hand layer will use the cardDriverMap to check affordability per driver
+			this.handLayer.setDriverAdrenaline(1, driver1.adrenaline);
+			this.handLayer.setDriverAdrenaline(2, driver2.adrenaline);
 			
 			// Update both drivers' resource displays
 			this.resourceLayer.setDriverData(1, {
@@ -450,11 +456,22 @@ export class CombatScreen extends Screen {
 		const screenWidth = this.rootLayer.getWidth();
 		const screenHeight = this.rootLayer.getHeight();
 		
-		// Enemy Layer - Top 25%
-		const enemyLayerHeight = Math.floor(screenHeight * 0.25);
-		this.enemyLayer = new EnemyBattlefieldLayer({
+		// Resource Layer - Top 7%
+		const resourceLayerHeight = Math.floor(screenHeight * 0.07);
+		this.resourceLayer = new ResourceBarLayer({
 			x: 0,
 			y: 0,
+			width: screenWidth,
+			height: resourceLayerHeight,
+		});
+		this.rootLayer.addChild(this.resourceLayer);
+		
+		// Enemy Layer - 23%
+		const enemyLayerHeight = Math.floor(screenHeight * 0.23);
+		const enemyLayerY = resourceLayerHeight;
+		this.enemyLayer = new EnemyBattlefieldLayer({
+			x: 0,
+			y: enemyLayerY,
 			width: screenWidth,
 			height: enemyLayerHeight,
 			combatData: this.combatModel,
@@ -463,7 +480,7 @@ export class CombatScreen extends Screen {
 
 		// Battlefield Layer - Middle 40%
 		const battlefieldLayerHeight = Math.floor(screenHeight * 0.4);
-		const battlefieldLayerY = enemyLayerHeight;
+		const battlefieldLayerY = enemyLayerY + enemyLayerHeight;
 		this.battlefieldLayer = new PlayerBattlefieldLayer({
 			x: 0,
 			y: battlefieldLayerY,
@@ -473,8 +490,8 @@ export class CombatScreen extends Screen {
 		});
 		this.rootLayer.addChild(this.battlefieldLayer);
 
-		// Hand Layer - Bottom 20%
-		const handLayerHeight = Math.floor(screenHeight * 0.2);
+		// Hand Layer - Bottom 18%
+		const handLayerHeight = Math.floor(screenHeight * 0.18);
 		const handLayerY = battlefieldLayerY + battlefieldLayerHeight;
 		this.handLayer = new PlayerHandLayer({
 			x: 0,
@@ -483,33 +500,22 @@ export class CombatScreen extends Screen {
 			height: handLayerHeight,
 		});
 		this.rootLayer.addChild(this.handLayer);
-
-		// Resource Layer - Bottom 5%
-		const resourceLayerHeight = Math.floor(screenHeight * 0.05);
-		const resourceLayerY = handLayerY + handLayerHeight;
-		this.resourceLayer = new ResourceBarLayer({
-			x: 0,
-			y: resourceLayerY,
-			width: screenWidth,
-			height: resourceLayerHeight,
-		});
-		this.rootLayer.addChild(this.resourceLayer);
 		
-		// Turn Phase Display - Top left corner
+		// Turn Phase Display - Below resource bar, left side
 		this.turnPhaseDisplay = new TurnPhaseDisplay({
 			x: 10,
-			y: 10,
+			y: resourceLayerHeight + 10,
 			width: 200,
 			height: 40
 		});
 		this.rootLayer.addChild(this.turnPhaseDisplay);
 		
-		// Combat Log - Top right corner
-		const combatLogWidth = 300; // Fixed width
-		const combatLogHeight = 250; // Enough for ~10 entries
+		// Combat Log - Below resource bar, right side
+		const combatLogWidth = 240; // Reduced width
+		const combatLogHeight = 200; // Reduced height
 		this.combatLogLayer = new CombatLogLayer({
 			x: screenWidth - combatLogWidth - 10,
-			y: 10,
+			y: resourceLayerHeight + 10,
 			width: combatLogWidth,
 			height: combatLogHeight,
 			combatLog: this.combatLog
@@ -540,9 +546,6 @@ export class CombatScreen extends Screen {
 			this.endPlayerTurn();
 		});
 
-		// Add targeting arrow to screen (on top of everything)
-		this.rootLayer.addChild(this.targetingArrow);
-
 		// Set up keyboard handler for ESC key during targeting
 		InputSystem.registerKeyDown(this.rootLayer, (key: string) => {
 			if (key === 'Escape' && this.combatModel.isTargeting) {
@@ -556,20 +559,7 @@ export class CombatScreen extends Screen {
 			this.toggleCombatLog();
 		});
 
-		// Set up global click handler for targeting cancellation
-		InputSystem.registerMouseDown(this.rootLayer, () => {
-			if (this.combatModel.isTargeting && this.combatModel.selectedCard) {
-				// If we're targeting and click somewhere that doesn't handle targeting,
-				// cancel the targeting mode
-				setTimeout(() => {
-					if (this.combatModel.isTargeting) {
-						console.log('Cancelled targeting - clicked empty space');
-						this.combatModel.cancelSelection();
-						this.handLayer.clearCardSelection();
-					}
-				}, 10); // Small delay to let target handlers run first
-			}
-		});
+		// Removed global click handler - it was interfering with vehicle targeting
 	}
 	
 	/**
@@ -589,12 +579,6 @@ export class CombatScreen extends Screen {
 	 */
 	protected onUpdate(dt: number): void {
 		super.onUpdate(dt);
-
-		// Handle targeting arrow updates during mouse movement
-		if (this.combatModel.isTargeting && this.combatModel.selectedCard) {
-			const mousePos = InputSystem.getMousePosition();
-			this.updateTargetingArrow(mousePos.x, mousePos.y);
-		}
 	}
 
 
@@ -655,7 +639,10 @@ export class CombatScreen extends Screen {
 			const targetableIds = this.determineTargetableVehicles(card);
 			this.combatModel.targetableVehicleIds = targetableIds;
 			
-			console.log(`Select target for ${card.displayName}`);
+			console.log(`Select target for ${card.displayName}, targetType: ${card.targetType}`);
+			console.log(`Targetable vehicle IDs:`, targetableIds);
+			console.log(`Is targeting mode active:`, this.combatModel.isTargeting);
+			console.log(`Enemy vehicles:`, this.enemyTeam?.vehicles.map(v => ({ id: v.id, name: v.name })));
 		}
 	}
 
@@ -688,7 +675,11 @@ export class CombatScreen extends Screen {
 		if (success) {
 			console.log(`${driver.metadata.name} played ${card.displayName}`);
 			
-			// Update UI to reflect new state
+			// Clear selection state immediately after successful play
+			this.combatModel.cancelSelection();
+			this.handLayer.clearCardSelection();
+			
+			// Update UI to reflect new state (this will refresh the hand)
 			this.updateUIFromBattle();
 			
 			// Check for battle end conditions
@@ -697,11 +688,10 @@ export class CombatScreen extends Screen {
 			}
 		} else {
 			console.warn('Failed to play card');
+			// Still clear selection state on failure
+			this.combatModel.cancelSelection();
+			this.handLayer.clearCardSelection();
 		}
-
-		// Clear selection state
-		this.combatModel.cancelSelection();
-		this.handLayer.clearCardSelection();
 	}
 	
 	/**
@@ -744,47 +734,15 @@ export class CombatScreen extends Screen {
 		const victory = this.battle.isBattleWon();
 		console.log(victory ? 'Victory!' : 'Defeat!');
 		
-		// Call the end combat callback
-		if (this.onEndCombat) {
-			this.onEndCombat(victory);
+		// Navigate to battle result screen
+		if (this.battle) {
+			const resultData: BattleResultData = {
+				victory,
+				battleState: this.battle.getState()
+			};
+			ScreenManager.navigate('battleResultScreen', resultData);
 		}
 	}
-
-
-	/**
-	 * Handle targeting arrow updates during mouse movement
-	 */
-	private updateTargetingArrow(mouseX: number, mouseY: number): void {
-		if (!this.combatModel.selectedCard || !this.combatModel.isTargeting) {
-			this.targetingArrow.hide();
-			return;
-		}
-
-		// Get the center position of the selected card in the hand
-		const selectedCardElement = this.handLayer.getCardElementByCard(this.combatModel.selectedCard);
-		if (!selectedCardElement) {
-			this.targetingArrow.hide();
-			return;
-		}
-
-		// Get global position of selected card center
-		const cardGlobalPos = this.handLayer.localToGlobal(
-			selectedCardElement.getX() + selectedCardElement.getWidth() / 2,
-			selectedCardElement.getY() + selectedCardElement.getHeight() / 2
-		);
-
-		// Arrow will automatically show when points are set
-		
-		// Set arrow color based on whether we have a focused (valid) target
-		const isValidTarget = this.combatModel.focusedVehicleId && 
-			this.combatModel.isVehicleTargetable(this.combatModel.focusedVehicleId);
-		this.targetingArrow.setColor(isValidTarget ? '#00ff00' : '#ff6666');
-
-		// Draw arrow from card to mouse position
-		this.targetingArrow.setPoints(cardGlobalPos.x, cardGlobalPos.y, mouseX, mouseY);
-	}
-
-
 
 
 
@@ -813,44 +771,6 @@ export class CombatScreen extends Screen {
 		this.updateResourceDisplay();
 	}
 
-	/**
-	 * Process enemy turn
-	 */
-	private processEnemyTurn(): void {
-		// Enemy turn is now handled by the Battle system
-		// This method is no longer needed with the new architecture
-		return;
-	}
-
-
-
-	/**
-	 * Generate random enemy intent
-	 */
-	private generateRandomIntent() {
-		const intents = [
-			{ type: 'attack' as const, value: Math.floor(Math.random() * 15) + 5, description: 'Attack' },
-			{ type: 'defend' as const, description: 'Defend' },
-			{ type: 'repair' as const, description: 'Repair' },
-		];
-		return intents[Math.floor(Math.random() * intents.length)];
-	}
-
-	/**
-	 * Check victory condition
-	 */
-	private checkVictoryCondition(): void {
-		// TODO: Update for new Battle system
-		return;
-	}
-
-	/**
-	 * Check defeat condition
-	 */
-	private checkDefeatCondition(): void {
-		// TODO: Update for new Battle system
-		return;
-	}
 
 	/**
 	 * Update resource display
@@ -868,27 +788,47 @@ export class CombatScreen extends Screen {
 		this.combatLogLayer.setVisible(this.combatLogVisible);
 	}
 
+	
 	/**
-	 * Set combat end callback
+	 * Get the current battle state
 	 */
-	public setOnEndCombat(callback: (victory: boolean) => void): void {
-		this.onEndCombat = callback;
-	}
-
-	/**
-	 * Set back callback
-	 */
-	public setOnBack(callback: () => void): void {
-		this.onBack = callback;
+	public getBattleState(): BattleState | null {
+		return this.battle ? this.battle.getState() : null;
 	}
 
 	/**
 	 * Handle screen mount
 	 */
-	protected onMount(): void {
-		// Update UI from battle state if we have an active battle
-		if (this.battle) {
+	protected async onMount(data?: unknown): Promise<void> {
+		super.onMount(data);
+		
+		// Check if we have driver data
+		if (data && typeof data === 'object' && 'drivers' in data) {
+			const combatData = data as { drivers: Driver[] };
+			try {
+				await this.initializeCombat(combatData.drivers);
+				// Force another UI update after async initialization completes
+				this.updateUIFromBattle();
+			} catch (error) {
+				console.error('Failed to initialize combat:', error);
+			}
+		} else if (this.battle) {
+			// Update UI from existing battle state
 			this.updateUIFromBattle();
+		} else {
+			// For development - create default drivers if none provided
+			try {
+				const driverLoader = DriverLoader.getInstance();
+				await driverLoader.loadDrivers();
+				const drivers = driverLoader.getUnlockedDrivers();
+				if (drivers.length >= 2) {
+					await this.initializeCombat([drivers[0], drivers[1]]);
+				} else {
+					console.error('Not enough drivers available for default combat');
+				}
+			} catch (error) {
+				console.error('Failed to create default combat:', error);
+			}
 		}
 	}
 
@@ -902,10 +842,12 @@ export class CombatScreen extends Screen {
 			this.handLayer.clearCardSelection();
 		}
 		
-		// Clean up combat log subscriptions
-		if (this.combatLogLayer) {
-			this.combatLogLayer.cleanup();
-		}
+		// Unmount all layers (this will unmount cards too)
+		this.handLayer.unmount();
+		this.enemyLayer.unmount();
+		this.battlefieldLayer.unmount();
+		this.resourceLayer.unmount();
+		this.combatLogLayer.unmount();
 		
 		// Unregister global keyboard handler
 		InputSystem.unregisterGlobalKeyDown('F6');

@@ -1,4 +1,5 @@
 import { Screen } from '../../core/Screen';
+import { ScreenManager } from '../../core/ScreenManager';
 import { Renderer } from '../../../engine/rendering/Renderer';
 import { Text } from '../../../engine/components/Text';
 import { Rectangle } from '../../../engine/components/Rectangle';
@@ -15,7 +16,6 @@ export class SplashScreen extends Screen {
 	private fadeOutTime = 1.0; // Time in seconds to fade out
 	private totalTime: number;
 	private currentTime = 0;
-	private onComplete: (() => void) | null = null;
 
 	/**
 	 * Create a new splash screen
@@ -91,13 +91,6 @@ export class SplashScreen extends Screen {
 		this.subtitle.setPosition(centerX, centerY + 150);
 	}
 
-	/**
-	 * Set the completion callback
-	 * @param callback Function to call when the splash screen completes
-	 */
-	public setOnComplete(callback: () => void): void {
-		this.onComplete = callback;
-	}
 
 	/**
 	 * Handle window resize
@@ -133,11 +126,8 @@ export class SplashScreen extends Screen {
 			// Complete
 			// opacity = 0; // Animation complete
 
-			// Call the completion callback if defined
-			if (this.onComplete) {
-				this.onComplete();
-				this.onComplete = null; // Prevent multiple calls
-			}
+			// Navigate to main menu
+			ScreenManager.navigate('mainMenuScreen');
 		}
 
 		// Update colors (keeping them solid for simplicity)

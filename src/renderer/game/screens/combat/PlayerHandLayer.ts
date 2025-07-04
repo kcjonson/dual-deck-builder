@@ -1,5 +1,6 @@
 import { Layer } from '../../../engine/components/Layer';
 import { Rectangle } from '../../../engine/components/Rectangle';
+import { Text } from '../../../engine/components/Text';
 import { Card as UICard, CardSize } from '../../ui/Card';
 import { Card } from '../../mechanics/Card';
 
@@ -11,6 +12,7 @@ export class PlayerHandLayer extends Layer {
 	private handCards: Card[] = [];
 	private cardElements: UICard[] = [];
 	private currentAdrenaline = 0;
+	private driverAdrenaline: Map<number, number> = new Map([[1, 0], [2, 0]]);
 	
 	// Card layout settings
 	private readonly CARD_SIZE = CardSize.NORMAL;
@@ -27,12 +29,20 @@ export class PlayerHandLayer extends Layer {
 	private selectedCard: Card | null = null; // The card player has selected to play (waiting for target)
 	private targetingMode = false;
 	private cardDriverMap: Map<string, 1 | 2> = new Map();
+	
+	// Driver grouping visuals
+	private driverDivider: Rectangle | null = null;
+	private driver1Label: Text | null = null;
+	private driver2Label: Text | null = null;
 
 	/**
 	 * Create player hand layer
 	 */
 	constructor(options: { x: number; y: number; width: number; height: number }) {
 		super(options);
+		
+		// Set overflow hidden to clip cards that extend beyond layer bounds
+		this.setOverflow('hidden');
 		
 		// Hand background
 		const background = new Rectangle({
@@ -60,9 +70,18 @@ export class PlayerHandLayer extends Layer {
 
 	/**
 	 * Set current adrenaline for card playability
+	 * @deprecated Use setDriverAdrenaline instead for dual-driver support
 	 */
 	public setAdrenaline(adrenaline: number): void {
 		this.currentAdrenaline = adrenaline;
+		this.updateCardPlayability();
+	}
+	
+	/**
+	 * Set adrenaline for a specific driver
+	 */
+	public setDriverAdrenaline(driverNumber: 1 | 2, adrenaline: number): void {
+		this.driverAdrenaline.set(driverNumber, adrenaline);
 		this.updateCardPlayability();
 	}
 
@@ -154,6 +173,8 @@ export class PlayerHandLayer extends Layer {
 	 */
 	private clearCardElements(): void {
 		this.cardElements.forEach(cardElement => {
+			// Unmount the card to unregister from InputSystem
+			cardElement.unmount();
 			this.removeChild(cardElement);
 		});
 		this.cardElements = [];
@@ -217,9 +238,16 @@ export class PlayerHandLayer extends Layer {
 	 * Check if a card can be played with current adrenaline
 	 */
 	private canPlayCard(card: Card): boolean {
-		// In single player mode with combined hand, we use combined adrenaline
-		// TODO: In the future, track which driver owns which card
-		return this.currentAdrenaline >= card.cost;
+		// Check which driver owns this card
+		const driverNumber = this.cardDriverMap.get(card.id);
+		if (!driverNumber) {
+			// Fallback to old behavior if no driver mapping
+			return this.currentAdrenaline >= card.cost;
+		}
+		
+		// Check the specific driver's adrenaline
+		const driverAdrenaline = this.driverAdrenaline.get(driverNumber) || 0;
+		return driverAdrenaline >= card.cost;
 	}
 
 	/**
@@ -345,16 +373,109 @@ export class PlayerHandLayer extends Layer {
 		const layerWidth = this.getWidth();
 		const layerHeight = this.getHeight();
 		
-		// Calculate card positioning
-		const totalCardWidth = this.cardElements.length * this.CARD_DIMENSIONS.width + 
-			(this.cardElements.length - 1) * this.CARD_SPACING;
-		const startX = Math.floor((layerWidth - totalCardWidth) / 2);
-		const cardY = Math.floor((layerHeight - this.CARD_DIMENSIONS.height) / 2);
-
-		// Layout each card
+		// Group cards by driver
+		const driver1Cards: { card: UICard; index: number }[] = [];
+		const driver2Cards: { card: UICard; index: number }[] = [];
+		
 		this.cardElements.forEach((cardElement, index) => {
-			const x = startX + index * (this.CARD_DIMENSIONS.width + this.CARD_SPACING);
-			cardElement.setPosition(x, cardY);
+			const card = this.handCards[index];
+			const driverNumber = this.cardDriverMap.get(card.id);
+			if (driverNumber === 1) {
+				driver1Cards.push({ card: cardElement, index });
+			} else if (driverNumber === 2) {
+				driver2Cards.push({ card: cardElement, index });
+			}
 		});
+		
+		// Calculate positions
+		const verticalPadding = 10;
+		const dividerWidth = 2;
+		const dividerGap = 20;
+		const labelHeight = 15;
+		
+		// Calculate total width needed
+		const driver1Width = driver1Cards.length > 0 ? 
+			driver1Cards.length * this.CARD_DIMENSIONS.width + (driver1Cards.length - 1) * this.CARD_SPACING : 0;
+		const driver2Width = driver2Cards.length > 0 ? 
+			driver2Cards.length * this.CARD_DIMENSIONS.width + (driver2Cards.length - 1) * this.CARD_SPACING : 0;
+		const totalWidth = driver1Width + (driver1Cards.length > 0 && driver2Cards.length > 0 ? dividerGap : 0) + driver2Width;
+		
+		const startX = Math.floor((layerWidth - totalWidth) / 2);
+		const cardY = verticalPadding + labelHeight;
+		
+		// Remove old divider and labels
+		if (this.driverDivider) {
+			this.removeChild(this.driverDivider);
+			this.driverDivider = null;
+		}
+		if (this.driver1Label) {
+			this.removeChild(this.driver1Label);
+			this.driver1Label = null;
+		}
+		if (this.driver2Label) {
+			this.removeChild(this.driver2Label);
+			this.driver2Label = null;
+		}
+		
+		// Create divider first but don't add it yet
+		let divider: Rectangle | null = null;
+		if (driver1Cards.length > 0 && driver2Cards.length > 0) {
+			const dividerX = startX + driver1Width + dividerGap / 2 - dividerWidth / 2;
+			divider = new Rectangle({
+				x: dividerX,
+				y: verticalPadding,
+				width: dividerWidth,
+				height: layerHeight - verticalPadding * 2,
+				style: {
+					backgroundColor: '#4a4a5a',
+				},
+			});
+		}
+		
+		// Add divider first so it appears behind cards
+		if (divider) {
+			this.driverDivider = divider;
+			this.addChild(this.driverDivider);
+		}
+		
+		// Layout driver 1 cards
+		let currentX = startX;
+		driver1Cards.forEach(({ card }, i) => {
+			const x = currentX + i * (this.CARD_DIMENSIONS.width + this.CARD_SPACING);
+			card.setPosition(x, cardY);
+		});
+		
+		// Add driver 1 label
+		if (driver1Cards.length > 0) {
+			this.driver1Label = new Text('Driver 1', {
+				style: {
+					fontSize: 10,
+					color: '#8a8aff',
+					textAlign: 'center',
+				},
+			});
+			this.driver1Label.setPosition(startX + driver1Width / 2, verticalPadding);
+			this.addChild(this.driver1Label);
+		}
+		
+		// Layout driver 2 cards
+		currentX = startX + driver1Width + (driver1Cards.length > 0 && driver2Cards.length > 0 ? dividerGap : 0);
+		driver2Cards.forEach(({ card }, i) => {
+			const x = currentX + i * (this.CARD_DIMENSIONS.width + this.CARD_SPACING);
+			card.setPosition(x, cardY);
+		});
+		
+		// Add driver 2 label
+		if (driver2Cards.length > 0) {
+			this.driver2Label = new Text('Driver 2', {
+				style: {
+					fontSize: 10,
+					color: '#88ff88',
+					textAlign: 'center',
+				},
+			});
+			this.driver2Label.setPosition(currentX + driver2Width / 2, verticalPadding);
+			this.addChild(this.driver2Label);
+		}
 	}
 }

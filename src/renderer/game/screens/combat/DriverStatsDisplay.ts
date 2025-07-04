@@ -77,7 +77,6 @@ export class DriverStatsDisplay extends Layer {
 		borderRadius?: number
 	): StatDisplay {
 		const height = this.getHeight();
-		const fontSize = 9;
 		
 		// Create icon
 		const icon = new Rectangle({
@@ -97,7 +96,7 @@ export class DriverStatsDisplay extends Layer {
 		// Create value text
 		const text = new Text(value, {
 			style: {
-				fontSize,
+				fontSize: 8,
 				color: '#ffffff',
 				textAlign: 'center',
 			},
@@ -171,7 +170,7 @@ export class DriverStatsDisplay extends Layer {
 		// Adrenaline text
 		this.adrenalineText = new Text(`${this.data.adrenaline}/${this.data.maxAdrenaline}`, {
 			style: {
-				fontSize: 12,
+				fontSize: 10,
 				color: '#ffffff',
 				textAlign: 'center',
 			},

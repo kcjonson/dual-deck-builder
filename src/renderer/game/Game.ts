@@ -1,33 +1,15 @@
 import { Renderer } from '../engine/rendering/Renderer';
 import { PerformanceMonitor } from '../engine/rendering/PerformanceMonitor';
 import { DeveloperOverlay } from '../engine/ui/DeveloperOverlay';
-import { SplashScreen } from './screens/splash/SplashScreen';
-import { MainMenuScreen } from './screens/main-menu/MainMenuScreen';
-import { DeveloperScreen } from './screens/developer/DeveloperScreen';
-import { CardShowcaseScreen } from './screens/card-showcase/CardShowcaseScreen';
-import { DriverSelectionScreen } from './screens/driver-selection/DriverSelectionScreen';
-import { CombatScreen } from './screens/combat/CombatScreen';
-import { Driver } from './mechanics/Driver';
+import { ScreenManager } from './core/ScreenManager';
 
 /**
- * Interface for game screens
- */
-export interface GameScreen {
-	mount(): void;
-	unmount(): void;
-	update(dt: number): void;
-	render(): void;
-}
-
-/**
- * Main game class responsible for managing game state, screens, and resources
+ * Main game class responsible for managing game state and high-level systems
  */
 export class Game {
 	private renderer: Renderer;
 	private performanceMonitor: PerformanceMonitor;
 	private developerOverlay: DeveloperOverlay;
-	private currentScreen: string | null = null;
-	private screens: Map<string, GameScreen> = new Map();
 	private isElectron = false;
 	private isInitialized = false;
 
@@ -60,11 +42,11 @@ export class Game {
 	 * Initialize the game
 	 */
 	public async init(): Promise<void> {
-		// Create screens
-		await this.createScreens();
+		// Initialize the ScreenManager
+		ScreenManager.initialize(this.renderer);
 
 		// Start with the splash screen
-		this.showScreen('splashScreen');
+		ScreenManager.navigate('splashScreen');
 
 		// Set up any global event handlers
 		this.setupEventHandlers();
@@ -72,93 +54,6 @@ export class Game {
 		this.isInitialized = true;
 	}
 
-	/**
-	 * Create game screens
-	 */
-	private async createScreens(): Promise<void> {
-		// Create splash screen
-		const splashScreen = new SplashScreen(this.renderer);
-		splashScreen.setOnComplete(() => {
-			// Switch to main menu after splash completes
-			this.showScreen('mainMenuScreen');
-		});
-		this.screens.set('splashScreen', splashScreen);
-
-		// Create main menu screen
-		const mainMenuScreen = new MainMenuScreen(this.renderer);
-		mainMenuScreen.setOnStartGame(() => {
-			// Go to driver selection screen
-			this.showScreen('driverSelectionScreen');
-		});
-		mainMenuScreen.setOnOpenSettings(() => {
-			// Settings action (not implemented yet)
-		});
-		mainMenuScreen.setOnOpenCredits(() => {
-			// Credits action (not implemented yet)
-		});
-		mainMenuScreen.setOnOpenCardShowcase(() => {
-			// Show card showcase screen
-			this.showScreen('cardShowcaseScreen');
-		});
-		mainMenuScreen.setOnOpenDeveloper(() => {
-			// Show developer screen
-			this.showScreen('developerScreen');
-		});
-		mainMenuScreen.setOnExitGame(() => {
-			if (this.isElectron) {
-				// In Electron mode, request to close the app
-				// Would use electron API to quit
-			}
-		});
-		this.screens.set('mainMenuScreen', mainMenuScreen);
-
-		// Create developer screen
-		const developerScreen = new DeveloperScreen(this.renderer);
-		developerScreen.setOnBack(() => {
-			// Go back to main menu
-			this.showScreen('mainMenuScreen');
-		});
-		this.screens.set('developerScreen', developerScreen);
-
-		// Create card showcase screen
-		const cardShowcaseScreen = new CardShowcaseScreen(this.renderer);
-		cardShowcaseScreen.setOnBack(() => {
-			// Go back to main menu
-			this.showScreen('mainMenuScreen');
-		});
-		this.screens.set('cardShowcaseScreen', cardShowcaseScreen);
-
-		// Create driver selection screen
-		const driverSelectionScreen = new DriverSelectionScreen(this.renderer);
-		driverSelectionScreen.setOnBack(() => {
-			// Go back to main menu
-			this.showScreen('mainMenuScreen');
-		});
-		driverSelectionScreen.setOnStartRun((driver1, driver2) => {
-			// Start the run with selected drivers
-			console.log(`Starting run with ${driver1.metadata.name} and ${driver2.metadata.name}`);
-			this.startCombatWithDrivers([driver1, driver2]);
-		});
-		this.screens.set('driverSelectionScreen', driverSelectionScreen);
-
-		// Create combat screen
-		const combatScreen = new CombatScreen(this.renderer);
-		combatScreen.setOnEndCombat((victory) => {
-			if (victory) {
-				console.log('Combat victory! Returning to main menu...');
-				// TODO: Go to reward screen or map
-				this.showScreen('mainMenuScreen');
-			} else {
-				console.log('Combat defeat! Returning to main menu...');
-				// TODO: Go to defeat screen
-				this.showScreen('mainMenuScreen');
-			}
-		});
-		combatScreen.setOnBack(() => {
-			this.showScreen('mainMenuScreen');
-		});
-		this.screens.set('combatScreen', combatScreen);
-	}
 
 	/**
 	 * Set up global event handlers
@@ -169,10 +64,10 @@ export class Game {
 		document.addEventListener('keydown', (event) => {
 			// Example: Press F12 to toggle developer screen
 			if (event.key === 'F12') {
-				if (this.currentScreen === 'developerScreen') {
-					this.showScreen('mainMenuScreen');
+				if (ScreenManager.getCurrentScreenName() === 'developerScreen') {
+					ScreenManager.navigate('mainMenuScreen');
 				} else {
-					this.showScreen('developerScreen');
+					ScreenManager.navigate('developerScreen');
 				}
 			}
 
@@ -183,39 +78,18 @@ export class Game {
 			}
 			
 			// Example: Press Escape to go back to main menu
-			if (event.key === 'Escape' && this.currentScreen !== 'mainMenuScreen' && this.currentScreen !== 'splashScreen') {
+			const currentScreen = ScreenManager.getCurrentScreenName();
+			if (event.key === 'Escape' && currentScreen !== 'mainMenuScreen' && currentScreen !== 'splashScreen') {
 				// Don't interfere with combat targeting
-				if (this.currentScreen === 'combatScreen') {
+				if (currentScreen === 'combatScreen') {
 					// Let combat screen handle Escape for canceling targeting
 					return;
 				}
-				this.showScreen('mainMenuScreen');
+				ScreenManager.navigate('mainMenuScreen');
 			}
 		});
 	}
 
-	/**
-	 * Show a specific screen
-	 * @param screenId ID of the screen to show
-	 */
-	public showScreen(screenId: string): void {
-		// Unmount the current screen if there is one
-		if (this.currentScreen) {
-			const currentScreen = this.screens.get(this.currentScreen);
-			if (currentScreen) {
-				currentScreen.unmount();
-			}
-		}
-
-		// Mount the new screen
-		const nextScreen = this.screens.get(screenId);
-		if (nextScreen) {
-			nextScreen.mount();
-			this.currentScreen = screenId;
-		} else {
-			console.error(`Screen not found: ${screenId}`);
-		}
-	}
 
 	/**
 	 * Update the game state
@@ -224,13 +98,8 @@ export class Game {
 	public update(dt: number): void {
 		if (!this.isInitialized) return;
 
-		// Update the current screen
-		if (this.currentScreen) {
-			const screen = this.screens.get(this.currentScreen);
-			if (screen) {
-				screen.update(dt);
-			}
-		}
+		// Update the current screen via ScreenManager
+		ScreenManager.update(dt);
 		
 		// Update developer overlay
 		this.developerOverlay.update();
@@ -245,13 +114,8 @@ export class Game {
 		// Enable text batching for the entire frame
 		this.renderer.beginTextBatch();
 
-		// Render the current screen
-		if (this.currentScreen) {
-			const screen = this.screens.get(this.currentScreen);
-			if (screen) {
-				screen.render();
-			}
-		}
+		// Render the current screen via ScreenManager
+		ScreenManager.render();
 		
 		// Render developer overlay on top
 		this.developerOverlay.render();
@@ -267,15 +131,4 @@ export class Game {
 		this.renderer.endTextBatch();
 	}
 
-	/**
-	 * Start combat with selected drivers using new Team system
-	 */
-	private async startCombatWithDrivers(drivers: Driver[]): Promise<void> {
-		// Get combat screen and initialize it with the new Team-based system
-		const combatScreen = this.screens.get('combatScreen') as CombatScreen;
-		if (combatScreen) {
-			await combatScreen.initializeCombat(drivers);
-			this.showScreen('combatScreen');
-		}
-	}
 }

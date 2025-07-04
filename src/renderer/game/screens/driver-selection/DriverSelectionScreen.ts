@@ -1,4 +1,5 @@
 import { Screen } from '../../core/Screen';
+import { ScreenManager } from '../../core/ScreenManager';
 import { Renderer } from '../../../engine/rendering/Renderer';
 import { Button } from '../../../engine/ui/Button';
 import { Text } from '../../../engine/components/Text';
@@ -28,9 +29,6 @@ export class DriverSelectionScreen extends Screen {
 	private startRunButton!: Button;
 	private backButton!: Button;
 	
-	// Callbacks
-	private onStartRun: ((driver1: Driver, driver2: Driver) => void) | null = null;
-	private onBack: (() => void) | null = null;
 
 	/**
 	 * Create a new driver selection screen
@@ -155,7 +153,7 @@ export class DriverSelectionScreen extends Screen {
 		});
 		this.backButton.setPosition(30, 30);
 		this.backButton.onClick(() => {
-			if (this.onBack) this.onBack();
+			ScreenManager.navigate('mainMenuScreen');
 		});
 		this.rootLayer.addChild(this.backButton);
 		
@@ -174,8 +172,12 @@ export class DriverSelectionScreen extends Screen {
 		this.startRunButton.setEnabled(false);
 		this.startRunButton.setFillColor('#666666'); // Grayed out initially
 		this.startRunButton.onClick(() => {
-			if (this.selectedDriver1 && this.selectedDriver2 && this.onStartRun) {
-				this.onStartRun(this.selectedDriver1, this.selectedDriver2);
+			if (this.selectedDriver1 && this.selectedDriver2) {
+				// Navigate to combat with driver data
+				const combatData = {
+					drivers: [this.selectedDriver1, this.selectedDriver2]
+				};
+				ScreenManager.navigate('combatScreen', combatData);
 			}
 		});
 		this.rootLayer.addChild(this.startRunButton);
@@ -287,19 +289,6 @@ export class DriverSelectionScreen extends Screen {
 		}
 	}
 
-	/**
-	 * Set callback for when start run is clicked
-	 */
-	public setOnStartRun(callback: (driver1: Driver, driver2: Driver) => void): void {
-		this.onStartRun = callback;
-	}
-
-	/**
-	 * Set callback for when back is clicked
-	 */
-	public setOnBack(callback: () => void): void {
-		this.onBack = callback;
-	}
 
 	/**
 	 * Get the selected drivers
