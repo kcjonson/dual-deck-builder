@@ -3,7 +3,7 @@
     {
       "type": "point_blank",
       "name": "Point Blank",
-      "description": "Deal {damage} damage. Range 1.",
+      "description": "Deal {damage} damage. Range 1. Easier to hit (+1 to hit).",
       "rarity": "common",
       "cost": 1,
       "targetType": "enemy_single",
@@ -12,6 +12,7 @@
           "type": "damage",
           "value": 3,
           "range": 1,
+          "hit_modifier": -1,
           "target": "target"
         }
       ],
@@ -77,7 +78,7 @@
     {
       "type": "ram",
       "name": "Ram",
-      "description": "Deal damage equal to your armor/10 + (your speed - target speed).",
+      "description": "Deal damage equal to your armor/10 + (your speed - target speed). Range 1.",
       "rarity": "common",
       "cost": 2,
       "targetType": "enemy_single",
@@ -87,6 +88,7 @@
           "value": 0,
           "formula": "armor/10 + (speed_diff)",
           "attack_type": "ramming",
+          "range": 1,
           "target": "target"
         }
       ],
@@ -97,6 +99,7 @@
             "value": 0,
             "formula": "armor/7 + (speed_diff * 2)",
             "attack_type": "ramming",
+            "range": 1,
             "target": "target"
           }
         ]
@@ -384,7 +387,7 @@
     {
       "type": "ramming_speed",
       "name": "Ramming Speed",
-      "description": "Deal {damage} damage. If target has Vulnerable, gain {adrenaline} Adrenaline.",
+      "description": "Deal {damage} damage. If target has Vulnerable, gain {adrenaline} Adrenaline. Range 1.",
       "driverRestriction": null,
       "rarity": "common",
       "cost": 2,
@@ -394,6 +397,7 @@
           "type": "damage",
           "value": 12,
           "scaling": "ramming",
+          "range": 1,
           "target": "target"
         },
         {

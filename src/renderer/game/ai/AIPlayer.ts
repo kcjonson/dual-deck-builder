@@ -95,14 +95,17 @@ export abstract class AIPlayer {
 		return actions;
 	}
 
-	protected getValidTargets(card: Card, _sourceVehicle: Vehicle): (Vehicle | Driver)[] {
+	protected getValidTargets(card: Card, sourceVehicle: Vehicle): (Vehicle | Driver)[] {
 		const targets: (Vehicle | Driver)[] = [];
 
+		// First get potential targets based on target type
+		let potentialTargets: Vehicle[] = [];
+		
 		switch (card.targetType) {
 			case 'enemy_single':
 				const enemyTeam = this.team === this.battle.playerTeam ? 
 					this.battle.enemyTeam : this.battle.playerTeam;
-				targets.push(...enemyTeam.vehicles.filter(v => v.isAlive()));
+				potentialTargets = enemyTeam.vehicles.filter(v => v.isAlive());
 				break;
 			
 			case 'enemy_all':
@@ -110,7 +113,7 @@ export abstract class AIPlayer {
 				break;
 			
 			case 'ally':
-				targets.push(...this.team.vehicles.filter(v => v.isAlive()));
+				potentialTargets = this.team.vehicles.filter(v => v.isAlive());
 				break;
 			
 			case 'self':
@@ -125,13 +128,32 @@ export abstract class AIPlayer {
 				
 			case 'any':
 				// 'Any' target type means it can target any vehicle
-				const allVehicles = [
+				potentialTargets = [
 					...this.team.vehicles.filter(v => v.isAlive()),
 					...(this.team === this.battle.playerTeam ? 
 						this.battle.enemyTeam : this.battle.playerTeam).vehicles.filter(v => v.isAlive())
 				];
-				targets.push(...allVehicles);
 				break;
+		}
+
+		// Filter by range if card has damage effects with range requirements
+		for (const target of potentialTargets) {
+			let inRange = true;
+			
+			// Check if card has any damage effects with range requirements
+			for (const effect of card.effects) {
+				if (effect.type === 'damage' && typeof effect.range === 'number') {
+					const range = this.battle.calculateRange(sourceVehicle, target);
+					if (range > effect.range) {
+						inRange = false;
+						break;
+					}
+				}
+			}
+			
+			if (inRange) {
+				targets.push(target);
+			}
 		}
 
 		return targets;
