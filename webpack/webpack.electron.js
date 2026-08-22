@@ -71,6 +71,9 @@ const rendererConfig = merge(common, {
 	output: {
 		filename: '[name].[contenthash].js',
 		path: path.resolve(__dirname, '../dist/electron/renderer'),
+		// Renderer has its own directory, so clean is safe here; the shared
+		// dist/electron root is cleared by the rimraf in the npm script.
+		clean: true,
 	},
 	performance: {
 		hints: false,

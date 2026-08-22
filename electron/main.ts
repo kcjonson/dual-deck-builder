@@ -77,8 +77,12 @@ app.whenReady().then(() => {
 		}
 	});
 
-	// Check for updates
+	// Check for updates; without an error listener a failed check (e.g. no
+	// published releases yet) becomes an unhandled rejection in main
 	if (app.isPackaged) {
+		autoUpdater.on('error', (error) => {
+			console.error('Update check failed:', error);
+		});
 		autoUpdater.checkForUpdatesAndNotify();
 	}
 });

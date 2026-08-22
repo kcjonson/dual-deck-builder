@@ -652,6 +652,8 @@ export class CombatScreen extends Screen {
 	private playCardWithTarget(card: Card, targetVehicle: Vehicle | undefined): void {
 		if (!this.battle || !this.combatModel.selectedDriver) {
 			console.warn('Cannot play card: no battle or driver');
+			this.combatModel.cancelSelection();
+			this.handLayer.clearCardSelection();
 			return;
 		}
 
@@ -659,9 +661,11 @@ export class CombatScreen extends Screen {
 		const driver = this.combatModel.selectedDriver;
 		const hand = driver.hand;
 		const cardIndex = hand.findIndex(c => c === card);
-		
+
 		if (cardIndex === -1) {
 			console.warn('Card not found in driver hand');
+			this.combatModel.cancelSelection();
+			this.handLayer.clearCardSelection();
 			return;
 		}
 

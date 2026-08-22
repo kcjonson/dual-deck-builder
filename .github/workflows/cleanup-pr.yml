@@ -15,7 +15,7 @@ jobs:
     
     steps:
     - name: Cleanup SFTP Directory
-      uses: appleboy/ssh-action@v1.0.0
+      uses: appleboy/ssh-action@55dabf81b49d4120609345970c91507e2d734799 # v1.0.0
       env:
         BRANCH_NAME: ${{ github.head_ref }}
       with:

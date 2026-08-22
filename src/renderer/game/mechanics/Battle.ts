@@ -1015,6 +1015,8 @@ export class Battle extends Model<BattleData> {
 	 * Check if the battle is over
 	 */
 	private checkBattleStatus(): void {
+		if (this.battleOver) return;
+
 		// Check if player team is defeated
 		if (this.playerTeam.isDefeated()) {
 			this.battleOver = true;
