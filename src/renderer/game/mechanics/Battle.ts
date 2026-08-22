@@ -561,6 +561,7 @@ export class Battle extends Model<BattleData> {
 			this.battleOver = true;
 			this.battleTied = true;
 			this.log('battle_end', 'Battle ended in a tie: Maximum turns exceeded');
+			this.endCombat();
 			this.emit('battleEnded', Object.freeze({ winner: 'tie', reason: 'maxTurns' }));
 			return;
 		}
@@ -1019,6 +1020,7 @@ export class Battle extends Model<BattleData> {
 			this.battleOver = true;
 			this.battleWon = false;
 			this.log('battle_end', 'Battle lost: All player drivers defeated');
+			this.endCombat();
 			this.emit('battleEnded', Object.freeze({ won: false }));
 			this.emit('stateChanged', this.getState());
 			return;
@@ -1029,6 +1031,7 @@ export class Battle extends Model<BattleData> {
 			this.battleOver = true;
 			this.battleWon = true;
 			this.log('battle_end', 'Battle won: All enemy drivers defeated');
+			this.endCombat();
 			this.emit('battleEnded', Object.freeze({ won: true }));
 			this.emit('stateChanged', this.getState());
 			return;
