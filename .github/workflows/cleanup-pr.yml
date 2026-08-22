@@ -22,6 +22,7 @@ jobs:
         host: ${{ secrets.SFTP_SERVER }}
         username: ${{ secrets.SFTP_USERNAME }}
         password: ${{ secrets.SFTP_PASSWORD }}
+        fingerprint: ${{ secrets.SSH_HOST_FINGERPRINT }}
         envs: BRANCH_NAME
         script: |
           case "$BRANCH_NAME" in

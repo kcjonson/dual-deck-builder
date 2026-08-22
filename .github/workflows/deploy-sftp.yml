@@ -31,12 +31,23 @@ jobs:
       env:
         SFTP_SERVER: ${{ secrets.SFTP_SERVER }}
         SFTP_USERNAME: ${{ secrets.SFTP_USERNAME }}
-        SFTP_PASSWORD: ${{ secrets.SFTP_PASSWORD }}
+        LFTP_PASSWORD: ${{ secrets.SFTP_PASSWORD }}
+        SSH_HOST_KEYS: ${{ secrets.SSH_HOST_KEYS }}
       run: |
         sudo apt-get update && sudo apt-get install -y lftp
 
+        # Pin the server's host keys; an imposter host fails instead of connecting
+        mkdir -p ~/.ssh && chmod 700 ~/.ssh
+        while read -r type key; do
+          [ -n "$type" ] && echo "$SFTP_SERVER $type $key"
+        done <<< "$SSH_HOST_KEYS" >> ~/.ssh/known_hosts
+
         echo "Deploying..."
-        timeout 300 lftp -u "$SFTP_USERNAME","$SFTP_PASSWORD" \
-          -e "set sftp:auto-confirm yes; set net:timeout 20; set net:max-retries 2; \
-              mirror -R --delete --verbose dist/web/ bearcavinteractive.com/playtest/dual-deckbuilder/; quit" \
-          "sftp://$SFTP_SERVER"
+        # Credentials via env and stdin only; nothing secret in argv
+        timeout 300 lftp <<EOF
+        set net:timeout 20
+        set net:max-retries 2
+        open -u "$SFTP_USERNAME" --env-password "sftp://$SFTP_SERVER"
+        mirror -R --delete --verbose dist/web/ bearcavinteractive.com/playtest/dual-deckbuilder/
+        quit
+        EOF
