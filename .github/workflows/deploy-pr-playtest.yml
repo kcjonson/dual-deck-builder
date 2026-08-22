@@ -4,6 +4,10 @@ on:
   pull_request:
     types: [opened, synchronize, labeled, unlabeled]
 
+permissions:
+  contents: read
+  pull-requests: write
+
 jobs:
   deploy:
     runs-on: ubuntu-latest
@@ -25,7 +29,7 @@ jobs:
       run: npm run build:web
     
     - name: Deploy to SFTP
-      uses: SamKirkland/FTP-Deploy-Action@v4.3.4
+      uses: SamKirkland/FTP-Deploy-Action@8a24039354ee91000cb948cb4a1dbdf1a1b94a3c # v4.3.4
       with:
         server: ${{ secrets.SFTP_SERVER }}
         username: ${{ secrets.SFTP_USERNAME }}
@@ -38,9 +42,10 @@ jobs:
       uses: actions/github-script@v6
       with:
         script: |
+          const branch = context.payload.pull_request.head.ref;
           github.rest.issues.createComment({
             issue_number: context.issue.number,
             owner: context.repo.owner,
             repo: context.repo.repo,
-            body: '🎮 **Playtest deployment ready!**\n\nTest this branch at: https://bearcavinteractive.com/playtest/dual-deckbuilder/${{ github.head_ref }}/'
+            body: `🎮 **Playtest deployment ready!**\n\nTest this branch at: https://bearcavinteractive.com/playtest/dual-deckbuilder/${branch}/`
           })

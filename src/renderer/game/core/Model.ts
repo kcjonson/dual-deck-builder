@@ -34,7 +34,8 @@ export abstract class Model<T> extends EventEmitter {
 					const oldValue = this.__data[property];
 					if (oldValue !== value) {
 						this.__data[property] = value;
-						// Emit change with frozen state snapshot
+						// Emit per-property event, then aggregate change with frozen state snapshot
+						this.emit(property, value, oldValue);
 						this.emit('change', this.getState());
 					}
 				}
@@ -54,23 +55,25 @@ export abstract class Model<T> extends EventEmitter {
 	 * Bulk setter - updates multiple properties with a single change event
 	 */
 	set(data: Partial<T>): void {
-		let hasChanges = false;
 		const properties = (this.constructor as typeof Model).properties;
-		
+		const changes: Array<[string, unknown, unknown]> = [];
+
 		// Update all properties without emitting
 		Object.entries(data).forEach(([key, value]) => {
 			if (properties.has(key)) {
-				if ((this.__data as Record<string, unknown>)[key] !== value) {
+				const oldValue = (this.__data as Record<string, unknown>)[key];
+				if (oldValue !== value) {
 					(this.__data as Record<string, unknown>)[key] = value;
-					hasChanges = true;
+					changes.push([key, value, oldValue]);
 				}
 			} else {
 				console.warn(`Skipping set: property "${key}" is invalid on "${this.constructor.name}" model`);
 			}
 		});
-		
-		// Emit single change event if anything changed
-		if (hasChanges) {
+
+		// Emit per-property events, then a single aggregate change event
+		if (changes.length > 0) {
+			changes.forEach(([key, value, oldValue]) => this.emit(key, value, oldValue));
 			this.emit('change', this.getState());
 		}
 	}

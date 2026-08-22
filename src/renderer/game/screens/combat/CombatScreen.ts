@@ -652,6 +652,8 @@ export class CombatScreen extends Screen {
 	private playCardWithTarget(card: Card, targetVehicle: Vehicle | undefined): void {
 		if (!this.battle || !this.combatModel.selectedDriver) {
 			console.warn('Cannot play card: no battle or driver');
+			this.combatModel.cancelSelection();
+			this.handLayer.clearCardSelection();
 			return;
 		}
 
@@ -659,9 +661,11 @@ export class CombatScreen extends Screen {
 		const driver = this.combatModel.selectedDriver;
 		const hand = driver.hand;
 		const cardIndex = hand.findIndex(c => c === card);
-		
+
 		if (cardIndex === -1) {
 			console.warn('Card not found in driver hand');
+			this.combatModel.cancelSelection();
+			this.handLayer.clearCardSelection();
 			return;
 		}
 
@@ -681,11 +685,6 @@ export class CombatScreen extends Screen {
 			
 			// Update UI to reflect new state (this will refresh the hand)
 			this.updateUIFromBattle();
-			
-			// Check for battle end conditions
-			if (this.battle.isBattleOver()) {
-				this.handleBattleEnd();
-			}
 		} else {
 			console.warn('Failed to play card');
 			// Still clear selection state on failure
@@ -722,25 +721,6 @@ export class CombatScreen extends Screen {
 				
 			default:
 				return [];
-		}
-	}
-
-	/**
-	 * Handle battle end
-	 */
-	private handleBattleEnd(): void {
-		if (!this.battle) return;
-
-		const victory = this.battle.isBattleWon();
-		console.log(victory ? 'Victory!' : 'Defeat!');
-		
-		// Navigate to battle result screen
-		if (this.battle) {
-			const resultData: BattleResultData = {
-				victory,
-				battleState: this.battle.getState()
-			};
-			ScreenManager.navigate('battleResultScreen', resultData);
 		}
 	}
 

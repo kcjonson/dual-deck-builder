@@ -120,12 +120,9 @@ export class CombatModel extends Model<CombatModelData> {
 			return;
 		}
 		
-		// Set using the auto-generated setter - this will emit the change event
+		// The auto-generated setter emits the 'targetedVehicle' and 'change' events
 		this.targetedVehicle = vehicle;
 		console.log('Vehicle targeted successfully');
-		
-		// Manually emit the targetedVehicle event that CombatScreen is listening for
-		this.emit('targetedVehicle', vehicle);
 	}
 	
 	/**

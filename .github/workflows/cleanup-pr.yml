@@ -4,6 +4,10 @@ on:
   pull_request:
     types: [closed]
 
+permissions:
+  contents: read
+  pull-requests: write
+
 jobs:
   cleanup:
     runs-on: ubuntu-latest
@@ -11,21 +15,28 @@ jobs:
     
     steps:
     - name: Cleanup SFTP Directory
-      uses: appleboy/ssh-action@v1.0.0
+      uses: appleboy/ssh-action@55dabf81b49d4120609345970c91507e2d734799 # v1.0.0
+      env:
+        BRANCH_NAME: ${{ github.head_ref }}
       with:
         host: ${{ secrets.SFTP_SERVER }}
         username: ${{ secrets.SFTP_USERNAME }}
         password: ${{ secrets.SFTP_PASSWORD }}
+        envs: BRANCH_NAME
         script: |
-          rm -rf /playtest/dual-deckbuilder/${{ github.head_ref }}
+          case "$BRANCH_NAME" in
+            *..*|/*|"") echo "Refusing suspicious branch name: $BRANCH_NAME"; exit 1;;
+          esac
+          rm -rf "/playtest/dual-deckbuilder/${BRANCH_NAME}"
     
     - name: Comment PR with cleanup confirmation
       uses: actions/github-script@v6
       with:
         script: |
+          const branch = context.payload.pull_request.head.ref;
           github.rest.issues.createComment({
             issue_number: context.issue.number,
             owner: context.repo.owner,
             repo: context.repo.repo,
-            body: '🧹 **Playtest deployment cleaned up**\n\nThe deployment for branch `${{ github.head_ref }}` has been removed from the server.'
+            body: `🧹 **Playtest deployment cleaned up**\n\nThe deployment for branch \`${branch}\` has been removed from the server.`
           })
