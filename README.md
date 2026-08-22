@@ -144,4 +144,8 @@ This project is configured for optimal development experience in Visual Studio C
 
 ## License
 
-Copyright 2025, all rights reserved
+Copyright (c) 2025 Kevin Jonson. All rights reserved.
+
+This project is licensed under the [PolyForm Noncommercial License 1.0.0](LICENSE). You may use, modify, and distribute this software for non-commercial purposes only. Attribution is required.
+
+For commercial licensing inquiries, please contact the maintainer.
