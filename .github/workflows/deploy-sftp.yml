@@ -31,12 +31,17 @@ jobs:
       env:
         SFTP_SERVER: ${{ secrets.SFTP_SERVER }}
         SFTP_USERNAME: ${{ secrets.SFTP_USERNAME }}
-        SFTP_PASSWORD: ${{ secrets.SFTP_PASSWORD }}
+        LFTP_PASSWORD: ${{ secrets.SFTP_PASSWORD }}
       run: |
         sudo apt-get update && sudo apt-get install -y lftp
 
         echo "Deploying..."
-        timeout 300 lftp -u "$SFTP_USERNAME","$SFTP_PASSWORD" \
-          -e "set sftp:auto-confirm yes; set net:timeout 20; set net:max-retries 2; \
-              mirror -R --delete --verbose dist/web/ bearcavinteractive.com/playtest/dual-deckbuilder/; quit" \
-          "sftp://$SFTP_SERVER"
+        # Credentials via env and stdin only; nothing secret in argv
+        timeout 300 lftp <<EOF
+        set sftp:auto-confirm yes
+        set net:timeout 20
+        set net:max-retries 2
+        open -u "$SFTP_USERNAME" --env-password "sftp://$SFTP_SERVER"
+        mirror -R --delete --verbose dist/web/ bearcavinteractive.com/playtest/dual-deckbuilder/
+        quit
+        EOF
