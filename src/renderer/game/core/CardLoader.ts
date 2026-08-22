@@ -24,7 +24,7 @@ export class CardLoader {
 	/**
 	 * Load cards from JSON file
 	 */
-	public async loadCards(jsonPath = '/cards.json'): Promise<void> {
+	public async loadCards(jsonPath = 'cards.json'): Promise<void> {
 		try {
 			const response = await fetch(jsonPath);
 			if (!response.ok) {
