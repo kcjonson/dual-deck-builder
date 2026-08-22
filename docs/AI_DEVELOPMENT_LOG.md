@@ -4,7 +4,27 @@ This document contains the chronological log of completed development tasks for 
 
 =========================================
 
-## UI Component Lifecycle Standardization (2025-01-03)
+**Date correction (2026-08-22):** the repo's first commit is 2025-05-17, but many entries below carry dates in December 2024 or January 2025 — the AI that wrote them used its assumed date instead of the real one. Entries dated 2025-07-03 and 2025-07-02 have been corrected from "2025-01-03"/"2025-01-02" (verified against git history). Remaining Dec 2024 / Jan 2025 dates are wrong by roughly six months; the real work happened May–July 2025. Trust git history over these dates.
+
+## Migrated task tracking to Specboard (2026-08-22)
+
+**What changed:**
+- All planning moved from AI_DEVELOPMENT_HUB.md to Specboard: https://specboard.io/projects/6b4e4cdd-15bc-4001-8280-706838168f2e
+- Created six epics with ~40 bugs/tasks: Security and correctness fixes (P0 defects as bugs), Dead code purge, Toolchain modernization, Code convention cleanup, Combat UI and gameplay debt (live-verified rendering bugs), and Game feature roadmap (the unbuilt Game Flow spec phases 4-6 from the old hub, spec docs linked).
+- Hub's to-do and roadmap sections replaced with a pointer to the board; CLAUDE.md todo-management instruction updated to use the Specboard MCP tools.
+- Old planning docs audited for open items: PERFORMANCE_OPTIMIZATION_PLAN.md is fully implemented; VEHICLE_POSITIONING_AND_WAVE_SYSTEM.md's remaining phase (waves + movement cards) became a roadmap task.
+
+## Project Survey and Documentation Rebuild (2026-08-22)
+
+**What changed:**
+- Full re-survey of the dropped project: tests (128/128 pass), lint (0 errors), web build (compiles), live click-through of menu → driver selection → combat with working enemy AI, plus a code audit for stubs, dead code, and doc drift.
+- Rewrote AI_DEVELOPMENT_HUB.md around a verified current-state (working / built-but-broken / never-built) and a prioritized modernization to-do list.
+- Deleted MISSING_COMBAT_FEATURES.md: nearly every "missing" feature (range, hit calc, flanking, ram formulas, occupant damage, targeting restrictions) was implemented in the June–July 2025 combat work. The two genuinely missing pieces (`Battle.endCombat()` never called in production, no post-combat effects pass) moved to the hub's P0 list.
+- Corrected fabricated doc dates (see note above) and the stale screen-lifecycle instructions in CLAUDE.md (activate/deactivate → mount/unmount, registration in ScreenManager not Game.ts).
+
+**Key findings:** battle-end double navigation, dead per-property Model listeners in ui/Vehicle.ts, Electron build broken since early on, production deploys ship dev-mode bundles (no NODE_ENV=production), CI shell injection via `github.head_ref` in cleanup-pr.yml, stale `public/cards.json` fork, ~10 dead modules, CI pinned to EOL Node 18. Details and priorities in the hub.
+
+## UI Component Lifecycle Standardization (2025-07-03)
 
 ### Fixed Ghost Click Bug and Standardized Component Lifecycle
 
@@ -27,7 +47,7 @@ This document contains the chronological log of completed development tasks for 
 - Proper memory cleanup and event handler removal
 - Clear component lifecycle: mount (if applicable) → unmount
 
-## Screen Manager Architecture Implementation (2025-01-03)
+## Screen Manager Architecture Implementation (2025-07-03)
 
 ### Implemented ScreenManager with Lazy Loading
 
@@ -65,7 +85,7 @@ This document contains the chronological log of completed development tasks for 
 - Development mode: If no drivers provided, loads default drivers automatically
 - Fixed timing issue where UI was rendering before battle data was ready
 
-## Layer Rendering and Overflow Fixes (2025-01-03)
+## Layer Rendering and Overflow Fixes (2025-07-03)
 
 ### Fixed Layer Stacking Issues in Combat Screen
 
@@ -79,7 +99,7 @@ This document contains the chronological log of completed development tasks for 
 - Modified card layout logic to ensure cards stay within layer bounds with 10px vertical padding
 - Prevents UI elements from bleeding across layer boundaries
 
-## AI Integration and Combat Enhancements (2025-01-03)
+## AI Integration and Combat Enhancements (2025-07-03)
 
 ### Integrated AI System into Main Game
 
@@ -108,7 +128,7 @@ This document contains the chronological log of completed development tasks for 
 
 =========================================
 
-## Combat Targeting System Fix (2025-01-03)
+## Combat Targeting System Fix (2025-07-03)
 
 ### Fixed Card Targeting Not Working
 
@@ -123,7 +143,7 @@ This document contains the chronological log of completed development tasks for 
 - **Solution**: Added manual emit of 'targetedVehicle' event in CombatModel.targetVehicle()
 - **CombatLog Fix**: Updated to handle Model's state-based change events instead of expecting added/removed arrays
 
-## Combat Interface Bug Fixes (2025-01-03)
+## Combat Interface Bug Fixes (2025-07-03)
 
 ### Fixed High-Priority Combat UI Issues
 
@@ -152,7 +172,7 @@ This document contains the chronological log of completed development tasks for 
 
 =========================================
 
-## Battle Log Display for Human Player Interface (2025-01-02)
+## Battle Log Display for Human Player Interface (2025-07-02)
 
 ### Added Real-time Battle Log to Human Player UI
 
@@ -184,7 +204,7 @@ This document contains the chronological log of completed development tasks for 
 
 =========================================
 
-## Adrenaline System Configuration Update (2025-01-02)
+## Adrenaline System Configuration Update (2025-07-02)
 
 ### Changed Default Max Adrenaline from 10 to 5
 
@@ -203,7 +223,7 @@ This document contains the chronological log of completed development tasks for 
 
 =========================================
 
-## Human Player Interface for Battle Simulator (2025-01-02)
+## Human Player Interface for Battle Simulator (2025-07-02)
 
 ### Added Human Player Support to Battle System
 
