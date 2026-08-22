@@ -681,11 +681,6 @@ export class CombatScreen extends Screen {
 			
 			// Update UI to reflect new state (this will refresh the hand)
 			this.updateUIFromBattle();
-			
-			// Check for battle end conditions
-			if (this.battle.isBattleOver()) {
-				this.handleBattleEnd();
-			}
 		} else {
 			console.warn('Failed to play card');
 			// Still clear selection state on failure
@@ -722,25 +717,6 @@ export class CombatScreen extends Screen {
 				
 			default:
 				return [];
-		}
-	}
-
-	/**
-	 * Handle battle end
-	 */
-	private handleBattleEnd(): void {
-		if (!this.battle) return;
-
-		const victory = this.battle.isBattleWon();
-		console.log(victory ? 'Victory!' : 'Defeat!');
-		
-		// Navigate to battle result screen
-		if (this.battle) {
-			const resultData: BattleResultData = {
-				victory,
-				battleState: this.battle.getState()
-			};
-			ScreenManager.navigate('battleResultScreen', resultData);
 		}
 	}
 
