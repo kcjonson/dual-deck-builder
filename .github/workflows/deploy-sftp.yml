@@ -27,12 +27,16 @@ jobs:
     - name: Build Web
       run: npm run build:web
     
-    - name: Deploy to SFTP
-      uses: SamKirkland/FTP-Deploy-Action@8a24039354ee91000cb948cb4a1dbdf1a1b94a3c # v4.3.4
-      with:
-        server: ${{ secrets.SFTP_SERVER }}
-        username: ${{ secrets.SFTP_USERNAME }}
-        password: ${{ secrets.SFTP_PASSWORD }}
-        local-dir: dist/web/
-        server-dir: /playtest/dual-deckbuilder/
-        protocol: sftp
+    - name: Deploy over SSH
+      env:
+        SFTP_SERVER: ${{ secrets.SFTP_SERVER }}
+        SFTP_USERNAME: ${{ secrets.SFTP_USERNAME }}
+        SFTP_PASSWORD: ${{ secrets.SFTP_PASSWORD }}
+      run: |
+        sudo apt-get update && sudo apt-get install -y lftp
+
+        echo "Deploying..."
+        timeout 300 lftp -u "$SFTP_USERNAME","$SFTP_PASSWORD" \
+          -e "set sftp:auto-confirm yes; set net:timeout 20; set net:max-retries 2; \
+              mirror -R --delete --verbose dist/web/ bearcavinteractive.com/playtest/dual-deckbuilder/; quit" \
+          "sftp://$SFTP_SERVER"

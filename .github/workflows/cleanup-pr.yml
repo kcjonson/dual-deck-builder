@@ -27,7 +27,7 @@ jobs:
           case "$BRANCH_NAME" in
             *..*|/*|"") echo "Refusing suspicious branch name: $BRANCH_NAME"; exit 1;;
           esac
-          rm -rf "/playtest/dual-deckbuilder/${BRANCH_NAME}"
+          rm -rf "bearcavinteractive.com/playtest/dual-deckbuilder/${BRANCH_NAME}"
     
     - name: Comment PR with cleanup confirmation
       uses: actions/github-script@v6
