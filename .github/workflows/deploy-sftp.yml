@@ -33,14 +33,10 @@ jobs:
         SFTP_USERNAME: ${{ secrets.SFTP_USERNAME }}
         SFTP_PASSWORD: ${{ secrets.SFTP_PASSWORD }}
       run: |
-        sudo apt-get update && sudo apt-get install -y sshpass rsync
-
-        echo "Testing SSH connection..."
-        timeout 30 sshpass -p "$SFTP_PASSWORD" ssh -p 22 -o StrictHostKeyChecking=no -o ConnectTimeout=10 \
-          "$SFTP_USERNAME@$SFTP_SERVER" "echo 'SSH connection successful'"
+        sudo apt-get update && sudo apt-get install -y lftp
 
         echo "Deploying..."
-        timeout 300 sshpass -p "$SFTP_PASSWORD" rsync -az --delete --mkpath \
-          -e "ssh -p 22 -o StrictHostKeyChecking=no -o ConnectTimeout=10" \
-          dist/web/ \
-          "$SFTP_USERNAME@$SFTP_SERVER:bearcavinteractive.com/playtest/dual-deckbuilder/"
+        timeout 300 lftp -u "$SFTP_USERNAME","$SFTP_PASSWORD" \
+          -e "set sftp:auto-confirm yes; set net:timeout 20; set net:max-retries 2; \
+              mirror -R --delete --verbose dist/web/ bearcavinteractive.com/playtest/dual-deckbuilder/; quit" \
+          "sftp://$SFTP_SERVER"
