@@ -65,10 +65,10 @@ src/
 
 ### Adding New Screens
 
-1. Create a new class extending `Screen` in `src/renderer/game/screens/`
-2. Implement required methods: `onActivate()`, `onDeactivate()`, `onUpdate()`, `onRender()`
-3. Register the screen in `Game.ts`
-4. Add navigation logic
+1. Create a new class extending `Screen` in `src/renderer/game/screens/<screen-name>/`
+2. Implement lifecycle methods as needed: `onMount()`, `onUnmount()`, `onUpdate()`, `onRender()`, `onResized()`
+3. Register the screen in `ScreenManager.screenConstructors` (`src/renderer/game/core/ScreenManager.ts`)
+4. Navigate with `ScreenManager.navigate(screenName, data?)`; do not create UI in constructors — build it in `onMount()`
 
 ### Creating UI Components
 
@@ -105,7 +105,7 @@ src/
      - Decision made and rationale
      - Trade-offs and consequences
 
-3. **Todo Management**: When asked to update todos or create new task lists, always write them to the AI Development Hub document, not just the internal todo system
+3. **Todo Management**: Task tracking lives on Specboard (project https://specboard.io/projects/6b4e4cdd-15bc-4001-8280-706838168f2e). Use the Specboard MCP tools (get_items / create_item / update_item) to pick up, create, and close work, and keep item status accurate in real time. Do not maintain task lists in the AI Development Hub; it holds status/context only.
 
 4. **Follow existing patterns** in the codebase rather than introducing new paradigms
 
