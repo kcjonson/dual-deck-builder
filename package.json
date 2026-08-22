@@ -76,12 +76,10 @@
 		},
 		"mac": {
 			"category": "public.app-category.games",
-			"target": "dmg",
-			"icon": "electron/icons/icon.icns"
+			"target": "dmg"
 		},
 		"win": {
-			"target": "nsis",
-			"icon": "electron/icons/icon.ico"
+			"target": "nsis"
 		},
 		"publish": {
 			"provider": "github",
