@@ -3,12 +3,6 @@ import * as path from 'path';
 import { autoUpdater } from 'electron-updater';
 import 'source-map-support/register';
 
-// Handle creating/removing shortcuts on Windows when installing/uninstalling
-// eslint-disable-next-line @typescript-eslint/no-var-requires
-if (require('electron-squirrel-startup')) {
-	app.quit();
-}
-
 let mainWindow: BrowserWindow | null = null;
 
 const createWindow = () => {
@@ -27,13 +21,10 @@ const createWindow = () => {
 
 	// In production, load the bundled app
 	if (app.isPackaged) {
-		mainWindow.loadFile(path.join(__dirname, 'index.html'));
+		mainWindow.loadFile(path.join(__dirname, 'renderer', 'index.html'));
 	} else {
 		// In development, load from the dev server
 		mainWindow.loadURL('http://localhost:9000');
-
-		// Enable remote debugging for VS Code to attach
-		mainWindow.webContents.debugger.attach('1.3');
 
 		// Open DevTools by default in development mode
 		mainWindow.webContents.openDevTools();

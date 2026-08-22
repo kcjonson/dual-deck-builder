@@ -7,7 +7,7 @@
 		"start": "webpack serve --config webpack/webpack.web.js",
 		"start:dev": "webpack serve --config webpack/webpack.web.js --mode development",
 		"build:web": "cross-env NODE_ENV=production webpack --config webpack/webpack.web.js",
-		"build:electron": "cross-env NODE_ENV=production webpack --config webpack/webpack.electron.js",
+		"build:electron": "rimraf dist/electron && cross-env NODE_ENV=production webpack --config webpack/webpack.electron.js",
 		"start:electron": "electron .",
 		"start:electron:debug": "electron --inspect=5858 .",
 		"start:electron:monitor": "cross-env ELECTRON_ENABLE_LOGGING=true electron .",
