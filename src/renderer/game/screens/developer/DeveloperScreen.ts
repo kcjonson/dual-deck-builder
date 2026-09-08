@@ -7,15 +7,9 @@ import { Panel } from '../../../engine/ui/Panel';
 import { Rectangle } from '../../../engine/components/Rectangle';
 import { InputSystem } from '../../../engine/input/InputSystem';
 
-// Import all section components
-import { InteractiveControlsSection } from './InteractiveControlsSection';
-import { StyleGuideSection } from './StyleGuideSection';
-import { InputShowcaseSection } from './InputShowcaseSection';
-import { RectangleExamplesSection } from './RectangleExamplesSection';
-import { ButtonExamplesSection } from './ButtonExamplesSection';
-import { TextExamplesSection } from './TextExamplesSection';
-import { PrimitiveShapesSection } from './PrimitiveShapesSection';
-import { NestedPanelsSection } from './NestedPanelsSection';
+// The sections are defined once, in sections.ts, so this screen and the
+// ?scene= gallery show the same eight things (R13.30).
+import { developerSections } from './sections';
 
 /**
  * Developer screen for testing UI components and rendering
@@ -118,45 +112,14 @@ export class DeveloperScreen extends Screen {
 		const margin = 40;
 		const contentWidth = this.rootLayer.getWidth() - margin * 2;
 
-		// === INTERACTIVE CONTROLS SECTION ===
-		const interactiveSection = new InteractiveControlsSection(margin, currentY, contentWidth);
-		this.mainScrollContainer.addChild(interactiveSection);
-		currentY += interactiveSection.getHeight() + sectionSpacing;
-
-		// === STYLE GUIDE SECTION ===
-		const styleGuideSection = new StyleGuideSection(margin, currentY, contentWidth);
-		this.mainScrollContainer.addChild(styleGuideSection);
-		currentY += styleGuideSection.getHeight() + sectionSpacing;
-
-		// === INPUT SHOWCASE SECTION ===
-		const inputSection = new InputShowcaseSection(margin, currentY, contentWidth);
-		this.mainScrollContainer.addChild(inputSection);
-		currentY += inputSection.getHeight() + sectionSpacing;
-
-		// === RECTANGLES SECTION ===
-		const rectangleSection = new RectangleExamplesSection(margin, currentY, contentWidth);
-		this.mainScrollContainer.addChild(rectangleSection);
-		currentY += rectangleSection.getHeight() + sectionSpacing;
-
-		// === BUTTONS SECTION ===
-		const buttonSection = new ButtonExamplesSection(margin, currentY, contentWidth);
-		this.mainScrollContainer.addChild(buttonSection);
-		currentY += buttonSection.getHeight() + sectionSpacing;
-
-		// === TEXT SECTION ===
-		const textSection = new TextExamplesSection(margin, currentY, contentWidth);
-		this.mainScrollContainer.addChild(textSection);
-		currentY += textSection.getHeight() + sectionSpacing;
-
-		// === PRIMITIVE SHAPES SECTION ===
-		const shapesSection = new PrimitiveShapesSection(margin, currentY, contentWidth);
-		this.mainScrollContainer.addChild(shapesSection);
-		currentY += shapesSection.getHeight() + sectionSpacing;
-
-		// === NESTED PANELS SECTION ===
-		const nestedSection = new NestedPanelsSection(margin, currentY, contentWidth);
-		this.mainScrollContainer.addChild(nestedSection);
-		currentY += nestedSection.getHeight() + sectionSpacing;
+		// A section computes its own height from its content and publishes it
+		// with setSize on the last line of its constructor, so the next
+		// section's y is only knowable after the previous factory returned.
+		for (const definition of developerSections) {
+			const section = definition.build({ x: margin, y: currentY, width: contentWidth });
+			this.mainScrollContainer.addChild(section);
+			currentY += section.getHeight() + sectionSpacing;
+		}
 
 		// Update the content size based on actual content height
 		this.mainScrollContainer.setContentSize(this.rootLayer.getWidth(), currentY + 100);

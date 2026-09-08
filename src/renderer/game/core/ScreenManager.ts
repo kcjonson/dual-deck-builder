@@ -127,6 +127,22 @@ export class ScreenManager {
 	}
 
 	/**
+	 * The screens navigate() accepts, for the dev-only window.__app.navigate
+	 * hook: a capture script has to enumerate before it can drive.
+	 */
+	static get screenNames(): ScreenName[] {
+		return [...this.screenConstructors.keys()];
+	}
+
+	/**
+	 * Whether a string names a screen. Guards the dev navigate hook, which
+	 * takes whatever a console or a Playwright script hands it.
+	 */
+	static isScreenName(name: string): name is ScreenName {
+		return this.screenConstructors.has(name as ScreenName);
+	}
+
+	/**
 	 * Get the current screen name
 	 */
 	static getCurrentScreenName(): ScreenName | null {

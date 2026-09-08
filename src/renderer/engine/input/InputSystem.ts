@@ -43,6 +43,9 @@ export class InputSystem {
 	// Canvas element for event handling
 	private canvas: HTMLCanvasElement | null = null;
 
+	// Development-only input gate for R13.32's pause. See the accessor below.
+	private inputPaused = false;
+
 	/**
 	 * Private constructor to enforce singleton pattern
 	 */
@@ -58,6 +61,24 @@ export class InputSystem {
 			InputSystem.instance = new InputSystem();
 		}
 		return InputSystem.instance;
+	}
+
+	/**
+	 * Whether input dispatch is suspended (R13.32's pause, R13.35's "injected
+	 * input is ignored while paused").
+	 *
+	 * The gate lives here rather than in a frame loop because this system
+	 * dispatches straight from DOM listeners: a loop that skipped its update
+	 * call would still see buttons pressed and text typed. Every handler reads
+	 * it behind `__DEV_TOOLS__ &&`, so a production build folds the check away
+	 * and carries no per-event cost (R13.2).
+	 */
+	public get paused(): boolean {
+		return this.inputPaused;
+	}
+
+	public set paused(value: boolean) {
+		this.inputPaused = value;
 	}
 
 	/**
@@ -118,6 +139,8 @@ export class InputSystem {
 	 * Handle mouse movement events
 	 */
 	private handleMouseMove(event: MouseEvent): void {
+		if (__DEV_TOOLS__ && this.inputPaused) return;
+
 		// Get mouse position relative to canvas
 		if (this.canvas) {
 			const rect = this.canvas.getBoundingClientRect();
@@ -137,6 +160,8 @@ export class InputSystem {
 	 * Handle mouse button down events
 	 */
 	private handleMouseDown(_event: MouseEvent): void {
+		if (__DEV_TOOLS__ && this.inputPaused) return;
+
 		this.mouseDown = true;
 
 		if (InputSystem.DEBUG) {
@@ -173,6 +198,8 @@ export class InputSystem {
 	 * Handle mouse button up events
 	 */
 	private handleMouseUp(_event: MouseEvent): void {
+		if (__DEV_TOOLS__ && this.inputPaused) return;
+
 		this.mouseDown = false;
 
 		// Trigger mouseUp handlers for hovered components
@@ -192,6 +219,8 @@ export class InputSystem {
 	 * Handle mouse leave events (when mouse leaves the canvas)
 	 */
 	private handleMouseLeave(_event: MouseEvent): void {
+		if (__DEV_TOOLS__ && this.inputPaused) return;
+
 		// Trigger mouseOut for all currently hovered components
 		for (const component of this.hoveredComponents) {
 			const handler = this.mouseOutComponents.get(component);
@@ -212,6 +241,8 @@ export class InputSystem {
 	 * Handle wheel events
 	 */
 	private handleWheel(event: WheelEvent): void {
+		if (__DEV_TOOLS__ && this.inputPaused) return;
+
 		// Prevent default scrolling behavior
 		event.preventDefault();
 
@@ -249,6 +280,8 @@ export class InputSystem {
 	 * Handle keyboard down events
 	 */
 	private handleKeyDown(event: KeyboardEvent): void {
+		if (__DEV_TOOLS__ && this.inputPaused) return;
+
 		// Check global handlers first
 		const globalHandler = this.globalKeyDownHandlers.get(event.key);
 		if (globalHandler) {

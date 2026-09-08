@@ -58,7 +58,19 @@ export class Game {
 			// inside a branch DefinePlugin has folded to false. That keeps the
 			// whole debug/ subtree out of a production bundle (R13.2).
 			// eslint-disable-next-line @typescript-eslint/no-var-requires
-			const { installDebugHooks } = require('../engine/debug/hooks') as typeof import('../engine/debug/hooks');
+			const { installDebugHooks, installAppHooks } = require('../engine/debug/hooks') as typeof import('../engine/debug/hooks');
+			// The game app's half of R13.32's control surface. Switching screens
+			// is what switching scenes is in the gallery, and it is the only way
+			// a capture script reaches a game screen without clicking through a
+			// menu that positions its buttons by array index.
+			installAppHooks({
+				navigate: (screenName: string) => {
+					if (!ScreenManager.isScreenName(screenName)) return false;
+					ScreenManager.navigate(screenName);
+					return true;
+				},
+				screens: () => ScreenManager.screenNames,
+			});
 			installDebugHooks({
 				// Inlined rather than a method: terser cannot prove a class
 				// method is uncalled once DefinePlugin folds away its only
