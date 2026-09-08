@@ -131,22 +131,4 @@ export class CombatModel extends Model<CombatModelData> {
 	public isVehicleTargetable(vehicleId: string): boolean {
 		return this.targetableVehicleIds.includes(vehicleId);
 	}
-	
-	/**
-	 * Determine which vehicles can be targeted by a card
-	 * This will be expanded based on actual game rules
-	 */
-	private determineTargetableVehicles(card: Card): string[] {
-		// Cards that don't need targeting
-		if (card.targetType === 'self' || 
-		    card.targetType === 'both_drivers' || 
-		    card.targetType === 'enemy_all') {
-			return [];
-		}
-		
-		// For other target types, we need actual vehicle IDs
-		// This should be set by CombatScreen when it calls selectCard
-		// Return empty for now, will be populated by CombatScreen
-		return [];
-	}
 }

@@ -30,11 +30,9 @@ export class InputSystem {
 	private mouseUpComponents: Map<Interactive, MouseHandler> = new Map();
 	private wheelComponents: Map<Interactive, WheelHandler> = new Map();
 	private keyDownComponents: Map<Interactive, KeyboardHandler> = new Map();
-	private keyUpComponents: Map<Interactive, KeyboardHandler> = new Map();
 	
 	// Global keyboard handlers (work without focus)
 	private globalKeyDownHandlers: Map<string, KeyboardHandler> = new Map();
-	private globalKeyUpHandlers: Map<string, KeyboardHandler> = new Map();
 
 	// Currently hovered components
 	private hoveredComponents: Set<Interactive> = new Set();
@@ -85,7 +83,6 @@ export class InputSystem {
 		
 		// Set up keyboard event listeners on window (to capture all keyboard input)
 		window.addEventListener('keydown', this.handleKeyDown.bind(this));
-		window.addEventListener('keyup', this.handleKeyUp.bind(this));
 	}
 
 	/**
@@ -104,7 +101,6 @@ export class InputSystem {
 		
 		// Remove keyboard listeners
 		window.removeEventListener('keydown', this.handleKeyDown.bind(this));
-		window.removeEventListener('keyup', this.handleKeyUp.bind(this));
 
 		// Clear all registered handlers
 		this.mouseOverComponents.clear();
@@ -113,9 +109,7 @@ export class InputSystem {
 		this.mouseUpComponents.clear();
 		this.wheelComponents.clear();
 		this.keyDownComponents.clear();
-		this.keyUpComponents.clear();
 		this.globalKeyDownHandlers.clear();
-		this.globalKeyUpHandlers.clear();
 		this.hoveredComponents.clear();
 		this.focusedComponent = null;
 	}
@@ -277,30 +271,6 @@ export class InputSystem {
 			console.log(`Key Down: ${event.key}, focused component:`, this.focusedComponent?.constructor.name);
 		}
 	}
-	
-	/**
-	 * Handle keyboard up events
-	 */
-	private handleKeyUp(event: KeyboardEvent): void {
-		// Check global handlers first
-		const globalHandler = this.globalKeyUpHandlers.get(event.key);
-		if (globalHandler) {
-			globalHandler(event.key);
-			return;
-		}
-		
-		// Send to focused component if any
-		if (this.focusedComponent) {
-			const handler = this.keyUpComponents.get(this.focusedComponent);
-			if (handler) {
-				handler(event.key);
-			}
-		}
-		
-		if (InputSystem.DEBUG) {
-			console.log(`Key Up: ${event.key}`);
-		}
-	}
 
 	/**
 	 * Process mouse over and out events based on current mouse position
@@ -398,13 +368,6 @@ export class InputSystem {
 	}
 	
 	/**
-	 * Register a component for keyboard up events
-	 */
-	public static registerKeyUp(component: Interactive, handler: KeyboardHandler): void {
-		InputSystem.getInstance().keyUpComponents.set(component, handler);
-	}
-	
-	/**
 	 * Register a global keyboard down handler for a specific key
 	 */
 	public static registerGlobalKeyDown(key: string, handler: KeyboardHandler): void {
@@ -412,24 +375,10 @@ export class InputSystem {
 	}
 	
 	/**
-	 * Register a global keyboard up handler for a specific key
-	 */
-	public static registerGlobalKeyUp(key: string, handler: KeyboardHandler): void {
-		InputSystem.getInstance().globalKeyUpHandlers.set(key, handler);
-	}
-	
-	/**
 	 * Unregister a global keyboard down handler
 	 */
 	public static unregisterGlobalKeyDown(key: string): void {
 		InputSystem.getInstance().globalKeyDownHandlers.delete(key);
-	}
-	
-	/**
-	 * Unregister a global keyboard up handler
-	 */
-	public static unregisterGlobalKeyUp(key: string): void {
-		InputSystem.getInstance().globalKeyUpHandlers.delete(key);
 	}
 	
 	/**
@@ -451,14 +400,6 @@ export class InputSystem {
 	}
 
 	/**
-	 * Get the current mouse position
-	 */
-	public static getMousePosition(): { x: number; y: number } {
-		const instance = InputSystem.getInstance();
-		return { x: instance.mouseX, y: instance.mouseY };
-	}
-
-	/**
 	 * Unregister a component from all mouse events
 	 */
 	public static unregisterComponent(component: Interactive): void {
@@ -469,7 +410,6 @@ export class InputSystem {
 		instance.mouseUpComponents.delete(component);
 		instance.wheelComponents.delete(component);
 		instance.keyDownComponents.delete(component);
-		instance.keyUpComponents.delete(component);
 		instance.hoveredComponents.delete(component);
 		
 		// If this was the focused component, clear focus

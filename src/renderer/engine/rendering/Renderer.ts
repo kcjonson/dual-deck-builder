@@ -301,61 +301,6 @@ export class Renderer {
 	}
 
 	/**
-	 * Draw a line between two points
-	 */
-	public drawLine(
-		startX: number,
-		startY: number,
-		endX: number,
-		endY: number,
-		color: [number, number, number, number] = [1, 1, 1, 1],
-		lineWidth = 1,
-	): void {
-		if (!this.currentShader) {
-			console.error('No shader selected');
-			return;
-		}
-
-		// Calculate line direction and length
-		const dx = endX - startX;
-		const dy = endY - startY;
-		const length = Math.sqrt(dx * dx + dy * dy);
-		const angle = Math.atan2(dy, dx);
-
-		// Create model matrix for the line
-		const modelMatrix = mat4.create();
-		// For lines, use the actual coordinates without centering adjustments
-		mat4.translate(modelMatrix, modelMatrix, [startX, startY, 0]);
-		mat4.rotateZ(modelMatrix, modelMatrix, angle);
-		mat4.scale(modelMatrix, modelMatrix, [length, lineWidth / 2, 1]);
-
-		this.currentShader.setMatrix4('uModelMatrix', modelMatrix);
-		this.currentShader.setVector4('uColor', color);
-
-		// Use the pre-allocated quad buffers for lines (they're just thin rectangles)
-		this.gl.bindBuffer(this.gl.ARRAY_BUFFER, this.quadVertexBuffer);
-		this.gl.bindBuffer(this.gl.ELEMENT_ARRAY_BUFFER, this.quadIndexBuffer);
-
-		// Set up vertex attributes
-		const positionAttribLocation = this.gl.getAttribLocation(
-			this.currentShader.getProgram(),
-			'aPosition',
-		);
-		if (positionAttribLocation >= 0) {
-			this.gl.enableVertexAttribArray(positionAttribLocation);
-			this.gl.vertexAttribPointer(positionAttribLocation, 2, this.gl.FLOAT, false, 8, 0);
-		}
-
-		// Draw the line
-		this.gl.drawElements(this.gl.TRIANGLES, 6, this.gl.UNSIGNED_SHORT, 0);
-
-		// Clean up vertex arrays only
-		if (positionAttribLocation >= 0) {
-			this.gl.disableVertexAttribArray(positionAttribLocation);
-		}
-	}
-
-	/**
 	 * Draw text on the screen using WebGL and font atlas
 	 */
 	public drawText(
@@ -696,11 +641,6 @@ export class Renderer {
 		
 		this.gl.enable(this.gl.SCISSOR_TEST);
 		this.gl.scissor(x, y, width, height);
-		
-		// Notify text renderer of new state
-		if (this.textRenderer) {
-			this.textRenderer.notifyScissorStateChange(true, x, y, width, height);
-		}
 	}
 
 	/**
@@ -713,11 +653,6 @@ export class Renderer {
 		}
 		
 		this.gl.disable(this.gl.SCISSOR_TEST);
-		
-		// Notify text renderer of new state
-		if (this.textRenderer) {
-			this.textRenderer.notifyScissorStateChange(false);
-		}
 	}
 
 	/**
@@ -725,37 +660,6 @@ export class Renderer {
 	 */
 	public isScissorEnabled(): boolean {
 		return this.gl.isEnabled(this.gl.SCISSOR_TEST);
-	}
-	
-	/**
-	 * Clean up WebGL resources
-	 */
-	public destroy(): void {
-		// Remove resize listener
-		window.removeEventListener('resize', this.handleResize);
-		
-		// Delete reusable buffers
-		if (this.quadVertexBuffer) {
-			this.gl.deleteBuffer(this.quadVertexBuffer);
-			this.quadVertexBuffer = null;
-		}
-		if (this.quadIndexBuffer) {
-			this.gl.deleteBuffer(this.quadIndexBuffer);
-			this.quadIndexBuffer = null;
-		}
-		if (this.dynamicVertexBuffer) {
-			this.gl.deleteBuffer(this.dynamicVertexBuffer);
-			this.dynamicVertexBuffer = null;
-		}
-		if (this.dynamicIndexBuffer) {
-			this.gl.deleteBuffer(this.dynamicIndexBuffer);
-			this.dynamicIndexBuffer = null;
-		}
-		
-		// Clean up font atlas
-		if (this.fontAtlas) {
-			this.fontAtlas = null;
-		}
 	}
 	
 	/**
@@ -789,12 +693,5 @@ export class Renderer {
 				this.projectionMatrix
 			);
 		}
-	}
-
-	/**
-	 * Check if there's any text queued to be flushed
-	 */
-	public hasTextToFlush(): boolean {
-		return this.textRenderer ? this.textRenderer.hasTextToFlush() : false;
 	}
 }

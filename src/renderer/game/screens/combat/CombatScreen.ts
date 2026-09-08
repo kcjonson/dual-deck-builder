@@ -831,6 +831,10 @@ export class CombatScreen extends Screen {
 		
 		// Unregister global keyboard handler
 		InputSystem.unregisterGlobalKeyDown('F6');
+
+		// rootLayer is a plain Layer, whose unmount only recurses; it does not
+		// unregister itself the way Component.unmount does.
+		InputSystem.unregisterComponent(this.rootLayer);
 		
 		// Unsubscribe from all events
 		this.unsubscribeAll();

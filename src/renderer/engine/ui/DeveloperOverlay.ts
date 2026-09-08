@@ -61,20 +61,6 @@ export class DeveloperOverlay extends Layer {
 	}
 	
 	/**
-	 * Show the overlay
-	 */
-	public show(): void {
-		this.overlayVisible = true;
-	}
-	
-	/**
-	 * Hide the overlay
-	 */
-	public hide(): void {
-		this.overlayVisible = false;
-	}
-	
-	/**
 	 * Update the overlay position (call on window resize)
 	 */
 	public updatePosition(): void {

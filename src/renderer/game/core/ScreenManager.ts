@@ -120,27 +120,9 @@ export class ScreenManager {
 	}
 	
 	/**
-	 * Handle window resize
-	 */
-	static resize(width: number, height: number): void {
-		this.currentScreen?.resize(width, height);
-	}
-	
-	/**
 	 * Get the current screen name
 	 */
 	static getCurrentScreenName(): ScreenName | null {
 		return this.currentScreenName;
-	}
-	
-	/**
-	 * Clean up the screen manager
-	 */
-	static destroy(): void {
-		if (this.currentScreen) {
-			this.currentScreen.unmount();
-			this.currentScreen = null;
-			this.currentScreenName = null;
-		}
 	}
 }

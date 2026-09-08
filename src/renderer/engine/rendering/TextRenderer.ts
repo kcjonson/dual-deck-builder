@@ -34,11 +34,7 @@ export class TextRenderer {
 	private characterCount = 0;
 	// Group entries by color to minimize shader uniform changes
 	private entriesByColor: Map<string, TextEntry[]> = new Map();
-	
-	// Track current scissor state to flush when it changes
-	private currentScissorState: { enabled: boolean; x?: number; y?: number; width?: number; height?: number } = { enabled: false };
-	private pendingFlush = false;
-	
+
 	/**
 	 * Create a new text renderer
 	 * @param gl WebGL context
@@ -524,7 +520,6 @@ export class TextRenderer {
 		this.entriesByColor.clear();
 		this.currentVertex = 0;
 		this.characterCount = 0;
-		this.pendingFlush = false;
 	}
 
 	/**
@@ -532,42 +527,5 @@ export class TextRenderer {
 	 */
 	public hasTextToFlush(): boolean {
 		return this.characterCount > 0;
-	}
-	
-	/**
-	 * Check if there's a pending flush due to scissor state change
-	 */
-	public hasPendingFlush(): boolean {
-		return this.pendingFlush;
-	}
-	
-	/**
-	 * Clear the pending flush flag (called after flushing)
-	 */
-	public clearPendingFlush(): void {
-		this.pendingFlush = false;
-	}
-
-	/**
-	 * Notify the text renderer that scissor state has changed
-	 * This will cause the next drawText to flush if in batch mode
-	 */
-	public notifyScissorStateChange(enabled: boolean, x?: number, y?: number, width?: number, height?: number): void {
-		// Check if scissor state actually changed
-		const stateChanged = this.currentScissorState.enabled !== enabled ||
-			(enabled && (
-				this.currentScissorState.x !== x ||
-				this.currentScissorState.y !== y ||
-				this.currentScissorState.width !== width ||
-				this.currentScissorState.height !== height
-			));
-		
-		if (stateChanged && this.batchMode && this.characterCount > 0) {
-			// Mark that we need to flush before adding more text
-			this.pendingFlush = true;
-		}
-		
-		// Update current state
-		this.currentScissorState = { enabled, x, y, width, height };
 	}
 }

@@ -236,6 +236,10 @@ export class Layer {
 	public removeChild(child: Layer): boolean {
 		const index = this.children.indexOf(child);
 		if (index !== -1) {
+			// Detaching without unmounting leaves the subtree registered with
+			// InputSystem, so it keeps being hit-tested and never collected.
+			// Safe because unmount on an already-unmounted subtree is a no-op.
+			child.unmount();
 			child.parent = null;
 			this.children.splice(index, 1);
 			return true;
@@ -361,13 +365,6 @@ export class Layer {
 	public setBackgroundColor(color: [number, number, number, number] | null): this {
 		this.backgroundColor = color;
 		return this;
-	}
-
-	/**
-	 * Get the background color of the layer
-	 */
-	public getBackgroundColor(): [number, number, number, number] | null {
-		return this.backgroundColor;
 	}
 
 	/**

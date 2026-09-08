@@ -283,21 +283,4 @@ export class ResourceBarLayer extends Layer {
 		// Don't recreate elements here - let the parent screen handle it via updateUIFromBattle
 		// to avoid duplicate elements during resize
 	}
-	
-	/**
-	 * Clear all elements except background
-	 */
-	private clearElements(): void {
-		// Remove all children except the first (background)
-		while (this.children.length > 1) {
-			this.removeChild(this.children[1]);
-		}
-		
-		// Clear element references
-		this.driver1Display = null;
-		this.driver2Display = null;
-		this.scrapIcon = null;
-		this.scrapText = null;
-		this.endTurnButton = null;
-	}
 }

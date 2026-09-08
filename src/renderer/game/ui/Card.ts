@@ -42,8 +42,6 @@ export class Card extends Layer {
 	// Event callbacks
 	private clickHandler: ((card: GameCard) => void) | null = null;
 	private selectHandler: ((card: GameCard) => void) | null = null;
-	private activateHandler: ((card: GameCard) => void) | null = null;
-	private targetHandler: ((card: GameCard) => void) | null = null;
 	
 	// State
 	private selected = false;
@@ -231,6 +229,15 @@ export class Card extends Layer {
 	}
 
 	/**
+	 * Card extends Layer rather than Component (it declares its own hovered and
+	 * _enabled), so it does not inherit Component's unregistering unmount.
+	 */
+	public unmount(): void {
+		InputSystem.unregisterComponent(this);
+		super.unmount();
+	}
+
+	/**
 	 * Handle mouse over
 	 */
 	private handleMouseOver(): void {
@@ -296,14 +303,6 @@ export class Card extends Layer {
 	 */
 	public setOnSelect(handler: (card: GameCard) => void): void {
 		this.selectHandler = handler;
-	}
-
-	public setOnActivate(handler: (card: GameCard) => void): void {
-		this.activateHandler = handler;
-	}
-
-	public setOnTarget(handler: (card: GameCard) => void): void {
-		this.targetHandler = handler;
 	}
 
 	/**
@@ -387,32 +386,6 @@ export class Card extends Layer {
 	protected onDisabled(): void {
 		// Dim the card when disabled
 		this.cardBackground.setFillColor('#1a1a2a');
-	}
-
-	/**
-	 * Semantic event implementations
-	 */
-	protected onSelect(): void {
-		this.setSelected(true);
-		if (this.selectHandler) {
-			this.selectHandler(this.data);
-		}
-	}
-
-	protected onDeselect(): void {
-		this.setSelected(false);
-	}
-
-	protected onActivate(): void {
-		if (this.activateHandler) {
-			this.activateHandler(this.data);
-		}
-	}
-
-	protected onTarget(): void {
-		if (this.targetHandler) {
-			this.targetHandler(this.data);
-		}
 	}
 
 	/**

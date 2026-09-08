@@ -63,15 +63,6 @@ export class Polygon extends Component {
 	}
 
 	/**
-	 * Set the polygon's stroke width
-	 * @param width Stroke width in pixels
-	 */
-	public setStrokeWidth(width: number): this {
-		this.strokeWidth = width;
-		return this;
-	}
-
-	/**
 	 * Set the polygon's points
 	 * Points are relative to the polygon's position and will be scaled by width/height
 	 * @param points Array of [x, y] coordinates normalized to -1 to 1 range
@@ -82,13 +73,6 @@ export class Polygon extends Component {
 		}
 		this.points = points;
 		return this;
-	}
-
-	/**
-	 * Get the polygon's points
-	 */
-	public getPoints(): [number, number][] {
-		return this.points;
 	}
 
 	/**

@@ -1,7 +1,6 @@
 import { Battle } from '../mechanics/Battle';
 import { Team } from '../mechanics/Team';
 import { Vehicle } from '../mechanics/Vehicle';
-import { Driver } from '../mechanics/Driver';
 import { AIPlayer } from './AIPlayer';
 import { RandomAI } from './RandomAI';
 import { AggressiveFlankerAI } from './AggressiveFlankerAI';
@@ -114,10 +113,5 @@ export class AIController {
 			}
 			// For enemy AI, the Battle.executeEnemyAction will handle it directly
 		}
-	}
-
-	private findVehicleByDriver(driver: Driver): Vehicle | undefined {
-		const allVehicles = [...this.battle.playerTeam.vehicles, ...this.battle.enemyTeam.vehicles];
-		return allVehicles.find(v => v.driver === driver);
 	}
 }

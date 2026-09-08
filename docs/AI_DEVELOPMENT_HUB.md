@@ -4,14 +4,14 @@ This document is a place for multiple AI workers (such as Claude and Claude Code
 
 =========================================
 
-## UI rendering engine rework (documentation phase complete, 2026-09-07)
+## UI rendering engine rework (documentation complete, phase 0 implementation started, 2026-09-07)
 
-The renderer and UI layer are being rebuilt to a backend-agnostic specification abstracted from the sibling C++/OpenGL project worldsim and challenged by five independent reviews. Nothing in `src/` has changed yet; the documents are the deliverable of this phase.
+The renderer and UI layer are being rebuilt to a backend-agnostic specification abstracted from the sibling C++/OpenGL project worldsim and challenged by five independent reviews. The documentation phase is finished and phase 0 (developer tooling) implementation has started against `src/`. DDB-62, the dead engine code purge plus the `Layer.removeChild` unmount fix, is the first task. The DDB-55 recon (working notes in `.claude/notes/ddb55-phase0-recon.md`) fixed the order for the rest of phase 0: DDB-62 first because it shrinks the surface every later task walks, then 56 (tree snapshot, which carries the shared dev-tools plumbing), 57 (layout lint), 58 (gallery routing), and finally 59, 60, and 61, which each depend on some combination of 56 to 59 but are not blocked on documentation. Status and ordering only; the tasks themselves live on Specboard.
 
 - Specification: [docs/ui-rendering-spec/](./ui-rendering-spec/README.md) (chapters 00 to 17; rules cited as R3.14). Chapter 3 (render order) is the one everything else assumes. Research inputs are under `research/`, review reports under `review/`, resolutions in chapter 17.
 - Implementation specification for this repo (the epic's spec doc): [docs/specs/ui-rendering-engine-implementation.md](./specs/ui-rendering-engine-implementation.md): phases, toolchain decisions (fonts, icons, tokens, Playwright, dev-only builds), the board structure to create, success criteria, risks.
 - Decision record: [docs/AI_TECHNICAL_DECISIONS/ui-rendering-spec-adoption.md](./AI_TECHNICAL_DECISIONS/ui-rendering-spec-adoption.md).
-- Board: no items created yet by design; the implementation specification's section 7 lists the epic and tasks to create and the existing items (DDB-28 to 32, 41, 14, 15, 38, 52) they subsume or unblock.
+- Board: the phase 0 epic and its tasks now exist on Specboard (DDB-55 recon, then 62, 56, 57, 58, 59, 60, 61); the implementation specification's section 7 still lists the pre-existing items (DDB-28 to 32, 41, 14, 15, 38, 52) they subsume or unblock.
 - Corrections to earlier notes found during the audit: the "Built but broken" list below is stale for the Model events, double navigation, `endCombat`, production bundles, CI injection, and Electron items (all fixed 2026-08-22 on main); DDB-15's claim that `RenderContext.ts` is unimported is wrong (it is imported by every component; `RendererContext.ts` is the singleton to retire); the hub's "scrollbars draw but don't scroll" is inaccurate in both halves (no scrollbars are drawn; wheel scrolling works where content size is set).
 
 ## Current state (verified survey, 2026-08-22)

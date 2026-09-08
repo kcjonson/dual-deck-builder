@@ -14,7 +14,6 @@ export type TextOptions = ComponentOptions;
 export class Text extends Component {
 	private text: string;
 	private fontSize = 16;
-	private fontFamily = 'Arial';
 	private color: [number, number, number, number] = [1, 1, 1, 1];
 	private align: 'left' | 'center' | 'right' = 'left';
 	private baseline: 'top' | 'middle' | 'bottom' = 'top';
@@ -47,9 +46,6 @@ export class Text extends Component {
 	private applyTextStyle(style: Style): void {
 		if (style.fontSize !== undefined) {
 			this.fontSize = this.parseSize(style.fontSize);
-		}
-		if (style.fontFamily !== undefined) {
-			this.fontFamily = style.fontFamily;
 		}
 		if (style.color !== undefined) {
 			this.color = StyleParser.parseColor(style.color);
@@ -94,15 +90,6 @@ export class Text extends Component {
 	 */
 	public setFontSize(size: number): this {
 		this.fontSize = size;
-		return this;
-	}
-
-	/**
-	 * Set the font family
-	 * @param family Font family name
-	 */
-	public setFontFamily(family: string): this {
-		this.fontFamily = family;
 		return this;
 	}
 

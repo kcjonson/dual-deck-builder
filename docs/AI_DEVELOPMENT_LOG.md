@@ -6,6 +6,18 @@ This document contains the chronological log of completed development tasks for 
 
 **Date correction (2026-08-22):** the repo's first commit is 2025-05-17, but many entries below carry dates in December 2024 or January 2025 — the AI that wrote them used its assumed date instead of the real one. Entries dated 2025-07-03 and 2025-07-02 have been corrected from "2025-01-03"/"2025-01-02" (verified against git history). Remaining Dec 2024 / Jan 2025 dates are wrong by roughly six months; the real work happened May–July 2025. Trust git history over these dates.
 
+## Dead engine code purge and unmount fixes, phase 0 task DDB-62 (2026-09-07)
+
+**What changed:**
+- Deleted nine modules nothing imported: `engine/components/Arrow.ts`, `engine/rendering/ScissorBatcher.ts`, `engine/rendering/Texture.ts`, `game/core/Assets.ts`, `game/core/State.ts`, `game/ai/MCTSNode.ts`, `game/ai/index.ts`, `utils/helpers.ts`, `utils/math.ts`. Eight had zero importers; `helpers.ts` had exactly one, `Assets.ts`, which went with it.
+- Swept the dead members those deletions and earlier refactors left behind, about 1,960 lines across 32 files: `Renderer.drawLine`, `destroy`, `hasTextToFlush` and the scissor-state notification (all dead once ScissorBatcher went); `ScreenManager.resize` and `destroy`, and `Screen.resize`, which lost its only caller with them; the whole keyup half of `InputSystem` (`keyUpComponents`, `globalKeyUpHandlers`, `handleKeyUp`, both window listeners, `registerKeyUp`, `registerGlobalKeyUp`, `unregisterGlobalKeyUp`) plus `getMousePosition`; `Component`'s semantic event system (`select`, `deselect`, `activate`, `target`, `untarget`, `cancel` and the six protected hooks behind them), which had no caller anywhere, `DriverPanel.activate` being its own method on a `Layer` subclass rather than an override; `Card`'s `activateHandler` and `targetHandler` with their setters; `Input`'s focus and blur callbacks with their setters and guards, and `setPlaceholder`, `setMaxLength`, `setTextColor`, `setPlaceholderColor`; `ResourceBarLayer.clearElements`; `CombatModel.determineTargetableVehicles`; `AIController.findVehicleByDriver`; and unread getters and setters on Circle, Polygon, Triangle, Text, Panel, Button, Shader, FontAtlas, TextRenderer, and DeveloperOverlay.
+- Fixed four unmount leaks found while doing the sweep. `Layer.removeChild` now calls `child.unmount()` before detaching, so a removed subtree stops being hit-tested instead of sitting in the InputSystem handler maps forever. `Card` gained an `unmount()` override that unregisters itself, since it extends Layer rather than Component and so inherits no unregistering unmount. `CombatLogLayer.unmount` now calls `super.unmount()`, so its children unmount too. `CombatScreen.onUnmount` unregisters `rootLayer`, a plain Layer that does not unregister itself.
+
+**How:**
+- Every deletion was justified by an importer count or a ripgrep caller count from the DDB-55 recon notes, and re-verified with ripgrep after the cut; nothing was removed on a hunch about naming.
+- `removeChild` is the only behavioural change. It is safe because no call site removes a node and re-adds the same instance: every clear-and-rebuild path constructs fresh objects. Two sites now double-unmount (PlayerHandLayer, CardShowcaseScreen), which is harmless because `Layer.unmount` is pure recursion and `InputSystem.unregisterComponent` is a map delete.
+- Deliberately kept: `RenderContext.ts` (13 importers) and `RendererContext.ts` (9, retired in phase 3), and every `Style` field, since `opacity` and `zIndex` are re-added in phase 4.
+
 ## UI rendering specification and implementation plan (2026-09-07)
 
 **What changed:**

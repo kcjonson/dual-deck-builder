@@ -256,6 +256,8 @@ export class CombatLogLayer extends Layer {
 			this.unsubscriber();
 			this.unsubscriber = null;
 		}
+
+		super.unmount();
 	}
 	
 	/**

@@ -62,15 +62,6 @@ export class Triangle extends Component {
 	}
 
 	/**
-	 * Set the triangle's stroke width
-	 * @param width Stroke width in pixels
-	 */
-	public setStrokeWidth(width: number): this {
-		this.strokeWidth = width;
-		return this;
-	}
-
-	/**
 	 * Render the triangle
 	 * @param context Render context with coordinate transforms
 	 */

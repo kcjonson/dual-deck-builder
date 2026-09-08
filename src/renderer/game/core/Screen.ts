@@ -89,19 +89,6 @@ export abstract class Screen {
 	}
 	
 	/**
-	 * Handle external resize events
-	 * @param width New window width
-	 * @param height New window height
-	 */
-	public resize(width: number, height: number): void {
-		// Update the root layer size
-		this.rootLayer.setSize(width, height);
-		
-		// Call the screen-specific resize handler
-		this.onResized();
-	}
-
-	/**
 	 * Handle window resize events
 	 */
 	private handleResize(): void {

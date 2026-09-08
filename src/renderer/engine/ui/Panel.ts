@@ -259,13 +259,6 @@ export class Panel extends Layer implements Interactive {
 	}
 
 	/**
-	 * Get the content dimensions
-	 */
-	public getContentSize(): { width: number; height: number } {
-		return { width: this.contentWidth, height: this.contentHeight };
-	}
-
-	/**
 	 * Layout method to position background and children
 	 */
 	public layout(): void {
@@ -379,24 +372,12 @@ export class Panel extends Layer implements Interactive {
 		// No-op for now
 	}
 
-	public onMouseMove(_x: number, _y: number): void {
-		// No-op for now
-	}
-
 	public onWheel(deltaX: number, deltaY: number): void {
 		if (this.scrollable) {
 			// Convert wheel delta to scroll amount
 			const scrollAmount = 30; // pixels per wheel notch
 			this.scroll(deltaX * scrollAmount, deltaY * scrollAmount);
 		}
-	}
-
-	public onKeyDown(_key: string): void {
-		// No-op for now
-	}
-
-	public onKeyUp(_key: string): void {
-		// No-op for now
 	}
 
 	/**
