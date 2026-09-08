@@ -1,15 +1,20 @@
 import { FrameTimer, MAX_DELTA_SECONDS, SECTION_NAMES } from './FrameTimer';
 
 /**
- * The live half of the timer, driven by a fake clock so a frame can be made to
+ * The live half of the timer, driven by fake clocks so a frame can be made to
  * take exactly 20 ms. The statistics it reports are frameStats' business and
  * are tested there; what is proved here is the wiring: which interval becomes a
  * frame, which spans become sections, that a nested section is refused rather
  * than silently overlapped (R13.7), and that the snapshot carries R13.11's
  * field names.
+ *
+ * The clocks are constructor arguments, so nothing in this file patches
+ * `performance` or `Date`. Assigning to `performance.now` throws under Node 18,
+ * which is what CI runs, and the next runtime is free to harden something else.
  */
 
 let clockMs = 0;
+let wallMs = 0;
 
 function advance(ms: number): void {
 	clockMs += ms;
@@ -17,12 +22,17 @@ function advance(ms: number): void {
 
 beforeEach(() => {
 	clockMs = 0;
-	jest.spyOn(performance, 'now').mockImplementation(() => clockMs);
+	wallMs = 1_000_000;
 });
 
 afterEach(() => {
 	jest.restoreAllMocks();
 });
+
+/** A timer reading the two fake clocks above. */
+function newTimer(options: { budgetMs?: number; windowSize?: number } = {}): FrameTimer {
+	return new FrameTimer({ ...options, now: () => clockMs, wallNow: () => wallMs });
+}
 
 /** One whole frame: open it, spend the given ms in each section, close it. */
 function runFrame(timer: FrameTimer, { updateMs = 0, renderMs = 0, flushMs = 0 } = {}): number {
@@ -46,13 +56,13 @@ function runFrame(timer: FrameTimer, { updateMs = 0, renderMs = 0, flushMs = 0 }
 
 describe('the delta handed to update (R13.9)', () => {
 	it('is zero on the first frame, because there is no previous frame start', () => {
-		const timer = new FrameTimer();
+		const timer = newTimer();
 
 		expect(timer.beginFrame()).toBe(0);
 	});
 
 	it('is the interval between consecutive frame starts, in seconds', () => {
-		const timer = new FrameTimer();
+		const timer = newTimer();
 		timer.beginFrame();
 		advance(16);
 
@@ -60,7 +70,7 @@ describe('the delta handed to update (R13.9)', () => {
 	});
 
 	it('is clamped, so a backgrounded tab does not hand update a ten second step', () => {
-		const timer = new FrameTimer();
+		const timer = newTimer();
 		timer.beginFrame();
 		advance(10000);
 
@@ -70,7 +80,7 @@ describe('the delta handed to update (R13.9)', () => {
 
 describe('frame time is the interval between frame starts (R13.8)', () => {
 	it('records the interval, not the work inside it', () => {
-		const timer = new FrameTimer();
+		const timer = newTimer();
 		runFrame(timer, { updateMs: 2, renderMs: 3 });
 		advance(15); // idle until the next frame starts: 20 ms between starts
 		runFrame(timer);
@@ -79,7 +89,7 @@ describe('frame time is the interval between frame starts (R13.8)', () => {
 	});
 
 	it("completes a frame's record only when the next frame begins", () => {
-		const timer = new FrameTimer();
+		const timer = newTimer();
 		runFrame(timer, { updateMs: 2, renderMs: 3 });
 
 		// One frame has started and ended, but no second start has happened, so
@@ -88,7 +98,7 @@ describe('frame time is the interval between frame starts (R13.8)', () => {
 	});
 
 	it('stores the sections measured inside the interval it reports', () => {
-		const timer = new FrameTimer();
+		const timer = newTimer();
 		runFrame(timer, { updateMs: 2, renderMs: 3, flushMs: 1 });
 		advance(14);
 		runFrame(timer, { updateMs: 9, renderMs: 9, flushMs: 9 });
@@ -104,7 +114,7 @@ describe('frame time is the interval between frame starts (R13.8)', () => {
 describe('sections are disjoint by construction (R13.7)', () => {
 	it('refuses a section opened inside another and keeps the outer measurement', () => {
 		const warn = jest.spyOn(console, 'warn').mockImplementation(() => undefined);
-		const timer = new FrameTimer();
+		const timer = newTimer();
 
 		timer.beginFrame();
 		timer.beginSection('update');
@@ -125,7 +135,7 @@ describe('sections are disjoint by construction (R13.7)', () => {
 
 	it('complains once rather than sixty times a second (R13.44)', () => {
 		const warn = jest.spyOn(console, 'warn').mockImplementation(() => undefined);
-		const timer = new FrameTimer();
+		const timer = newTimer();
 
 		for (let frame = 0; frame < 10; frame++) {
 			timer.beginFrame();
@@ -141,7 +151,7 @@ describe('sections are disjoint by construction (R13.7)', () => {
 
 	it('ignores a close that does not match the open section', () => {
 		const warn = jest.spyOn(console, 'warn').mockImplementation(() => undefined);
-		const timer = new FrameTimer();
+		const timer = newTimer();
 
 		timer.beginFrame();
 		timer.beginSection('update');
@@ -156,7 +166,7 @@ describe('sections are disjoint by construction (R13.7)', () => {
 	});
 
 	it('reports the sanity sum of the sections against the frame span', () => {
-		const timer = new FrameTimer();
+		const timer = newTimer();
 		runFrame(timer, { updateMs: 2, renderMs: 3, flushMs: 1 });
 		advance(14);
 		runFrame(timer);
@@ -172,13 +182,13 @@ describe('sections are disjoint by construction (R13.7)', () => {
 
 describe('the rolling window (R13.10)', () => {
 	it('defaults to 120 frames', () => {
-		const timer = new FrameTimer();
+		const timer = newTimer();
 
 		expect(timer.snapshot().frame.windowSize).toBe(120);
 	});
 
 	it('keeps the last N frames once it has wrapped', () => {
-		const timer = new FrameTimer({ windowSize: 3, budgetMs: 10 });
+		const timer = newTimer({ windowSize: 3, budgetMs: 10 });
 
 		for (const frameMs of [40, 40, 40, 8, 9, 12]) {
 			timer.beginFrame();
@@ -197,7 +207,7 @@ describe('the rolling window (R13.10)', () => {
 
 describe('the draw counters', () => {
 	it('reports the frame just ended and resets at the next frame start', () => {
-		const timer = new FrameTimer();
+		const timer = newTimer();
 
 		timer.beginFrame();
 		timer.recordDrawCall(4);
@@ -222,7 +232,7 @@ describe('liveness, which nothing else in the snapshot answers', () => {
 	 * throttled by an occluded tab did exactly that twice during this task.
 	 */
 	it('counts every frame begun, monotonically past a window wrap', () => {
-		const timer = new FrameTimer({ windowSize: 2 });
+		const timer = newTimer({ windowSize: 2 });
 
 		for (let frame = 0; frame < 5; frame++) {
 			advance(16);
@@ -233,9 +243,7 @@ describe('liveness, which nothing else in the snapshot answers', () => {
 	});
 
 	it('ages the newest sample against the wall clock, so a stopped loop shows', () => {
-		let wallMs = 1_000_000;
-		jest.spyOn(Date, 'now').mockImplementation(() => wallMs);
-		const timer = new FrameTimer();
+		const timer = newTimer();
 
 		advance(16);
 		runFrame(timer);
@@ -251,7 +259,7 @@ describe('liveness, which nothing else in the snapshot answers', () => {
 	});
 
 	it('reports a null age before any frame has started', () => {
-		const timer = new FrameTimer();
+		const timer = newTimer();
 
 		expect(timer.snapshot().liveness).toEqual({ frameCount: 0, newestSampleAgeMs: null });
 	});
@@ -259,9 +267,9 @@ describe('liveness, which nothing else in the snapshot answers', () => {
 
 describe('the snapshot shape (R13.11)', () => {
 	// Built inside the tests rather than at describe scope, because the fake
-	// clock is installed per test.
+	// clocks are reset per test.
 	function capture() {
-		const timer = new FrameTimer();
+		const timer = newTimer();
 		runFrame(timer, { updateMs: 2, renderMs: 3 });
 		advance(15);
 		runFrame(timer, { updateMs: 1, renderMs: 1 });

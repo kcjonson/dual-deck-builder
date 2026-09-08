@@ -114,6 +114,27 @@ export interface PerfSnapshot {
 	liveness: LivenessStats;
 }
 
+/**
+ * A millisecond source. The timer takes its clocks rather than reading
+ * `performance` and `Date` directly so a screenshot harness can step frames by
+ * hand (R15.36) and a test can drive time without patching a host object whose
+ * properties a runtime is free to make read-only.
+ */
+export type Clock = () => number;
+
+/** `performance.now` needs its receiver, so both platform clocks are wrapped. */
+const platformClock: Clock = () => performance.now();
+const platformWallClock: Clock = () => Date.now();
+
+export interface FrameTimerOptions {
+	budgetMs?: number;
+	windowSize?: number;
+	/** Monotonic ms: frame intervals and section spans. */
+	now?: Clock;
+	/** Wall-clock ms: the snapshot timestamp and the liveness age. */
+	wallNow?: Clock;
+}
+
 interface MemoryMeasurement {
 	bytes: number;
 }
@@ -129,6 +150,8 @@ const MEMORY_SAMPLE_INTERVAL_MS = 1000;
 export class FrameTimer {
 	private readonly budgetMs: number;
 	private readonly windowSize: number;
+	private readonly now: Clock;
+	private readonly wallNow: Clock;
 	private readonly ring: (FrameRecord | null)[];
 	private writeIndex = 0;
 	private recorded = 0;
@@ -151,9 +174,16 @@ export class FrameTimer {
 	private memoryRequestedAtMs = 0;
 	private memoryPending = false;
 
-	constructor({ budgetMs = DEFAULT_BUDGET_MS, windowSize = DEFAULT_WINDOW_SIZE } = {}) {
+	constructor({
+		budgetMs = DEFAULT_BUDGET_MS,
+		windowSize = DEFAULT_WINDOW_SIZE,
+		now = platformClock,
+		wallNow = platformWallClock,
+	}: FrameTimerOptions = {}) {
 		this.budgetMs = budgetMs;
 		this.windowSize = Math.max(1, Math.floor(windowSize));
+		this.now = now;
+		this.wallNow = wallNow;
 		this.ring = new Array<FrameRecord | null>(this.windowSize).fill(null);
 	}
 
@@ -170,7 +200,7 @@ export class FrameTimer {
 	 * sections stored with it are the sections measured inside that interval.
 	 */
 	public beginFrame(): number {
-		const startMs = performance.now();
+		const startMs = this.now();
 		let deltaSeconds = 0;
 
 		if (this.openSection !== null) {
@@ -189,7 +219,7 @@ export class FrameTimer {
 		// Wall clock beside the monotonic one, because a consumer asking whether
 		// the loop is alive compares against its own Date.now(), not against a
 		// performance timeline whose origin it cannot see.
-		this.lastFrameStartWallMs = Date.now();
+		this.lastFrameStartWallMs = this.wallNow();
 		this.frameCount++;
 		this.pendingSections = {};
 		this.openSection = null;
@@ -218,7 +248,7 @@ export class FrameTimer {
 			this.warnOnce(`section "${name}" opened inside "${this.openSection.name}"; sections must be disjoint (R13.7)`);
 			return;
 		}
-		this.openSection = { name, startMs: performance.now() };
+		this.openSection = { name, startMs: this.now() };
 	}
 
 	public endSection(name: SectionName): void {
@@ -228,7 +258,7 @@ export class FrameTimer {
 			return;
 		}
 		this.openSection = null;
-		this.pendingSections[name] = performance.now() - open.startMs;
+		this.pendingSections[name] = this.now() - open.startMs;
 	}
 
 	/**
@@ -272,7 +302,7 @@ export class FrameTimer {
 		this.requestMemorySample();
 
 		return {
-			timestamp: Date.now(),
+			timestamp: this.wallNow(),
 			scene,
 			frame: stats.frame,
 			sections,
@@ -292,7 +322,7 @@ export class FrameTimer {
 				frameCount: this.frameCount,
 				newestSampleAgeMs: this.lastFrameStartWallMs === null
 					? null
-					: Date.now() - this.lastFrameStartWallMs,
+					: this.wallNow() - this.lastFrameStartWallMs,
 			},
 		};
 	}
@@ -327,13 +357,13 @@ export class FrameTimer {
 		if (this.memoryPending) return;
 		if (typeof window === 'undefined' || !window.crossOriginIsolated) return;
 
-		const now = Date.now();
-		if (now - this.memoryRequestedAtMs < MEMORY_SAMPLE_INTERVAL_MS) return;
+		const sampledAtMs = this.wallNow();
+		if (sampledAtMs - this.memoryRequestedAtMs < MEMORY_SAMPLE_INTERVAL_MS) return;
 
 		const measure = (performance as PerformanceWithMemoryMeasure).measureUserAgentSpecificMemory;
 		if (typeof measure !== 'function') return;
 
-		this.memoryRequestedAtMs = now;
+		this.memoryRequestedAtMs = sampledAtMs;
 		this.memoryPending = true;
 		measure.call(performance)
 			.then((result) => {
