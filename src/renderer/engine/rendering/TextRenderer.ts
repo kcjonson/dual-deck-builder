@@ -1,6 +1,6 @@
 import { FontAtlas } from './FontAtlas';
 import { Shader } from './Shader';
-import { PerformanceMonitor } from './PerformanceMonitor';
+import { FrameTimer } from './FrameTimer';
 import { mat4 } from 'gl-matrix';
 
 /**
@@ -21,7 +21,7 @@ interface TextEntry {
 export class TextRenderer {
 	private gl: WebGLRenderingContext;
 	private fontAtlas: FontAtlas;
-	private performanceMonitor: PerformanceMonitor;
+	private frameTimer: FrameTimer;
 	
 	// Batch mode properties
 	private batchMode = false;
@@ -39,18 +39,18 @@ export class TextRenderer {
 	 * Create a new text renderer
 	 * @param gl WebGL context
 	 * @param fontAtlas Font atlas for character data
-	 * @param performanceMonitor Performance tracking
+	 * @param frameTimer Per-frame timing and draw counters
 	 * @param maxCharacters Maximum characters to batch (default 10000)
 	 */
 	constructor(
 		gl: WebGLRenderingContext,
 		fontAtlas: FontAtlas,
-		performanceMonitor: PerformanceMonitor,
+		frameTimer: FrameTimer,
 		maxCharacters = 10000
 	) {
 		this.gl = gl;
 		this.fontAtlas = fontAtlas;
-		this.performanceMonitor = performanceMonitor;
+		this.frameTimer = frameTimer;
 		this.maxCharacters = maxCharacters;
 	}
 	
@@ -138,7 +138,7 @@ export class TextRenderer {
 		fontSize = 16
 	): void {
 		// Track text characters
-		this.performanceMonitor.recordTextCharacters(text.length);
+		this.frameTimer.recordTextCharacters(text.length);
 		
 		if (this.batchMode) {
 			// Add to batch, grouped by color
@@ -301,7 +301,7 @@ export class TextRenderer {
 		
 		// Draw
 		this.gl.drawElements(this.gl.TRIANGLES, 6, this.gl.UNSIGNED_SHORT, 0);
-		this.performanceMonitor.recordDrawCall(4);
+		this.frameTimer.recordDrawCall(4);
 		
 		// Clean up
 		if (positionAttrib >= 0) {
@@ -467,9 +467,6 @@ export class TextRenderer {
 		}
 		
 		// Render each color group separately
-		let totalDrawCalls = 0;
-		let totalVertices = 0;
-		
 		for (const [colorKey, entries] of this.entriesByColor) {
 			if (entries.length === 0) continue;
 			
@@ -492,13 +489,11 @@ export class TextRenderer {
 			const indexCount = charCount * 6; // 6 indices per character
 			this.gl.drawElements(this.gl.TRIANGLES, indexCount, this.gl.UNSIGNED_SHORT, 0);
 			
-			totalDrawCalls++;
-			totalVertices += charCount * 4; // 4 vertices per character
-		}
-		
-		// Record draw calls (one per color group)
-		for (let i = 0; i < totalDrawCalls; i++) {
-			this.performanceMonitor.recordDrawCall(totalVertices / totalDrawCalls);
+			// At its call site, with this group's own count: recording the groups
+			// afterwards from a running total gave every call the mean instead, which
+			// left the sum right, every attribution invented, and the overlay
+			// printing a non-integer vertex count.
+			this.frameTimer.recordDrawCall(charCount * 4); // 4 vertices per character
 		}
 		
 		// Clean up

@@ -5,7 +5,8 @@ import { Game, GameStatus } from './Game';
 import { ScreenManager } from './core/ScreenManager';
 import { InputSystem } from '../engine/input/InputSystem';
 import type { Renderer } from '../engine/rendering/Renderer';
-import type { PerformanceMonitor } from '../engine/rendering/PerformanceMonitor';
+import { FrameTimer } from '../engine/rendering/FrameTimer';
+import type { PerfSnapshot } from '../engine/rendering/FrameTimer';
 
 /**
  * R13.32's pause on the game page, driven through `window.__app` rather than
@@ -57,6 +58,12 @@ interface AppWindow extends Window {
 	};
 }
 
+interface PerfWindow extends Window {
+	__perf?: {
+		snapshot(): PerfSnapshot;
+	};
+}
+
 const screens = ScreenManager as unknown as {
 	navigate: jest.Mock;
 	update: jest.Mock;
@@ -84,7 +91,7 @@ function status(): GameStatus {
 }
 
 beforeAll(async () => {
-	game = new Game(rendererStub, {} as PerformanceMonitor);
+	game = new Game(rendererStub, new FrameTimer());
 	await game.init();
 });
 
@@ -98,6 +105,7 @@ beforeEach(() => {
 afterAll(() => {
 	app().resume?.();
 	delete (window as AppWindow).__app;
+	delete (window as PerfWindow).__perf;
 });
 
 describe('window.__app on the game page (R13.32, R15.37)', () => {
@@ -190,5 +198,32 @@ describe('the document keydown shortcut is gated by pause too', () => {
 		pressF12();
 
 		expect(screens.navigate).toHaveBeenCalledTimes(1);
+	});
+});
+
+describe('window.__perf on the game page (R13.11, R15.37)', () => {
+	function perf(): NonNullable<PerfWindow['__perf']> {
+		const installed = (window as PerfWindow).__perf;
+		if (!installed) throw new Error('window.__perf was not installed');
+		return installed;
+	}
+
+	it('installs the fourth global', () => {
+		expect(typeof perf().snapshot).toBe('function');
+	});
+
+	it('carries the mounted screen as the scene, which is what groups a capture', () => {
+		expect(perf().snapshot().scene).toBe('mainMenuScreen');
+	});
+
+	it('reports null rather than zero for a timer that has seen no frame pair', () => {
+		const snapshot = perf().snapshot();
+
+		expect(snapshot.frame.ms).toBeNull();
+		expect(snapshot.frame.p99Ms).toBeNull();
+		expect(snapshot.sections.update).toBeNull();
+		expect(snapshot.gpu.ms).toBeNull();
+		expect(snapshot.batcher).toBeNull();
+		expect(snapshot.memory.usedBytes).toBeNull();
 	});
 });

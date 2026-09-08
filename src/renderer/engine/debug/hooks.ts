@@ -5,12 +5,15 @@ import type { LintOptions, LintResult } from './layoutLint';
 import { layoutLint } from './layoutLint';
 import type { InjectionResult } from './inputInjection';
 import { injectInput } from './inputInjection';
+import type { ScenarioCapture } from './perfCapture';
+import { capturePerfSamples } from './perfCapture';
+import type { PerfSnapshot } from '../rendering/FrameTimer';
 
 /**
  * Installs the development-only `window.__ui` surface (R13.2, R15.37).
  *
- * R15.37 names four such globals. Three exist: `__ui` here, `__app` and
- * `__dev` below. `__perf` (frame timing) does not.
+ * R15.37 names four such globals and all four now exist: `__ui` here, and
+ * `__app`, `__dev` and `__perf` below.
  *
  * Everything here is behind `if (__DEV_TOOLS__)`, which webpack's DefinePlugin
  * folds to `false` in a production build so the whole module drops out.
@@ -90,10 +93,32 @@ export interface DevToolsApi {
 	input(...commands: string[]): InjectionResult;
 }
 
+/**
+ * R13.11's snapshot and R13.38's sampler, which is the pair a capture needs:
+ * one call for "what is it doing right now" and one for "give me N frames of
+ * it". `capture` is here rather than left to the harness so that the settle
+ * period and the one-sample-per-frame cadence are the same on every run
+ * instead of being re-implemented in each `page.evaluate`.
+ */
+export interface PerfApi {
+	snapshot(): PerfSnapshot;
+	capture(options: {
+		scenario: string;
+		settleFrames?: number;
+		samples?: number;
+	}): Promise<ScenarioCapture<PerfSnapshot>>;
+}
+
+export interface PerfSnapshotSource {
+	/** The live frame timer's snapshot, carrying the active scene (R13.11). */
+	snapshot(): PerfSnapshot;
+}
+
 interface DebugWindow extends Window {
 	__ui?: UiDebugApi;
 	__app?: AppControlApi;
 	__dev?: DevToolsApi;
+	__perf?: PerfApi;
 }
 
 export function installDebugHooks(source: DebugRootSource): void {
@@ -139,4 +164,25 @@ export function installInputHooks(canvas: HTMLCanvasElement): void {
 	};
 
 	debugWindow.__dev = { ...debugWindow.__dev, ...api };
+}
+
+/**
+ * Installs the development-only `window.__perf` surface (R13.11, R13.38).
+ *
+ * The scene name is baked into the source's closure rather than passed here,
+ * because the two entry points name the active thing differently (a screen on
+ * the game page, a gallery scene in the gallery) and each already holds the
+ * object that knows.
+ */
+export function installPerfHooks(source: PerfSnapshotSource): void {
+	if (!__DEV_TOOLS__) return;
+	if (typeof window === 'undefined') return;
+
+	const debugWindow = window as DebugWindow;
+	const api: PerfApi = {
+		snapshot: () => source.snapshot(),
+		capture: (options) => capturePerfSamples({ ...options, snapshot: () => source.snapshot() }),
+	};
+
+	debugWindow.__perf = { ...debugWindow.__perf, ...api };
 }

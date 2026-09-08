@@ -2,8 +2,8 @@ import { Renderer } from '../renderer/engine/rendering/Renderer';
 import { Shader } from '../renderer/engine/rendering/Shader';
 import { RendererContext } from '../renderer/engine/rendering/RendererContext';
 import { InputSystem } from '../renderer/engine/input/InputSystem';
-import { PerformanceMonitor } from '../renderer/engine/rendering/PerformanceMonitor';
-import { installDebugHooks, installAppHooks, installInputHooks } from '../renderer/engine/debug/hooks';
+import { FrameTimer } from '../renderer/engine/rendering/FrameTimer';
+import { installDebugHooks, installAppHooks, installInputHooks, installPerfHooks } from '../renderer/engine/debug/hooks';
 import { gallerySceneRegistry } from './registry';
 import { SceneHost } from './SceneHost';
 import vertexShaderSource from '../assets/shaders/vertex.glsl';
@@ -18,9 +18,9 @@ import fragmentShaderSource from '../assets/shaders/fragment.glsl';
  * `npm run build:web` forces NODE_ENV=production, and both deploy workflows
  * call it, the gallery is absent from every deployed artifact without a second
  * gate, which is R15.37's development-builds-only half; the rule's four globals
- * are a separate matter and three of them exist (`__ui`, `__app`, `__dev`),
- * with `__perf` waiting on DDB-61. The consequence for phase 0's Playwright
- * work is that the harness has to run against a development build.
+ * are a separate matter and all four now exist (`__ui`, `__app`, `__dev`,
+ * `__perf`). The consequence for phase 0's Playwright work is that the harness
+ * has to run against a development build.
  *
  * The bootstrap mirrors src/index.ts deliberately: the same renderer, the same
  * RendererContext singleton, the same InputSystem setup, the same shader, and
@@ -29,14 +29,13 @@ import fragmentShaderSource from '../assets/shaders/fragment.glsl';
  */
 class GalleryApplication {
 	private renderer!: Renderer;
-	private performanceMonitor!: PerformanceMonitor;
+	private frameTimer!: FrameTimer;
 	private host!: SceneHost;
-	private lastTime = 0;
 
 	public init(): void {
 		try {
-			this.performanceMonitor = new PerformanceMonitor();
-			this.renderer = new Renderer('game-canvas', this.performanceMonitor);
+			this.frameTimer = new FrameTimer();
+			this.renderer = new Renderer('game-canvas', this.frameTimer);
 			RendererContext.getInstance().setRenderer(this.renderer);
 
 			const canvas = document.getElementById('game-canvas') as HTMLCanvasElement;
@@ -55,7 +54,6 @@ class GalleryApplication {
 
 			window.addEventListener('resize', () => this.host.resize());
 
-			this.lastTime = performance.now();
 			this.loop();
 		} catch (error) {
 			console.error('Gallery failed to start:', error);
@@ -107,34 +105,48 @@ class GalleryApplication {
 		// gets it for the same reason it gets the tree and the lint: a scripted
 		// run drives a scene the way it drives a screen.
 		installInputHooks(canvas);
+
+		// R13.11's scene name is the gallery's own, which is the grouping key a
+		// per-scene capture (R13.38) writes into perf-results.
+		installPerfHooks({
+			snapshot: () => this.frameTimer.snapshot({ scene: this.host.sceneName }),
+		});
 	}
 
 	/**
-	 * Same shape as the game loop. The paused branch is inside the host rather
-	 * than here so that rendering, and only rendering, keeps running: a paused
-	 * gallery still presents the frame a screenshot needs. lastTime advances on
+	 * Same shape as the game loop, and the same three disjoint sections (R13.7),
+	 * so a frame time captured in the gallery means what one captured on the
+	 * game page means. The paused branch is inside the host rather than here so
+	 * that rendering, and only rendering, keeps running: a paused gallery still
+	 * presents the frame a screenshot needs. The timer's frame start advances on
 	 * every frame including paused ones, so resuming after a long pause hands
-	 * update a normal delta rather than the whole pause.
+	 * update a normal delta rather than the whole pause, and the clamp of R13.9
+	 * catches the case where it does not.
 	 */
 	private loop = (): void => {
-		this.performanceMonitor.beginFrame();
+		const deltaTime = this.frameTimer.beginFrame();
 
-		const currentTime = performance.now();
-		const deltaTime = (currentTime - this.lastTime) / 1000;
-		this.lastTime = currentTime;
-
+		this.frameTimer.beginSection('update');
 		this.host.update(deltaTime);
+		this.frameTimer.endSection('update');
 
+		this.frameTimer.beginSection('render');
 		this.renderer.clear();
 		this.renderer.beginTextBatch();
 		this.host.render();
+		this.frameTimer.endSection('render');
+
+		this.frameTimer.beginSection('flush');
+		// Inside the flush section, not at the end of render: disabling the
+		// scissor flushes whatever text is pending, and that is a flush.
 		if (this.renderer.isScissorEnabled()) {
 			this.renderer.disableScissor();
 		}
 		this.renderer.flushTextBatch();
 		this.renderer.endTextBatch();
+		this.frameTimer.endSection('flush');
 
-		this.performanceMonitor.endFrame();
+		this.frameTimer.endFrame();
 
 		requestAnimationFrame(this.loop);
 	};

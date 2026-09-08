@@ -1,5 +1,5 @@
 import { Renderer } from '../engine/rendering/Renderer';
-import { PerformanceMonitor } from '../engine/rendering/PerformanceMonitor';
+import { FrameTimer } from '../engine/rendering/FrameTimer';
 import { DeveloperOverlay } from '../engine/ui/DeveloperOverlay';
 import { ScreenManager } from './core/ScreenManager';
 import { InputSystem } from '../engine/input/InputSystem';
@@ -31,7 +31,7 @@ export interface GameStatus {
  */
 export class Game {
 	private renderer: Renderer;
-	private performanceMonitor: PerformanceMonitor;
+	private frameTimer: FrameTimer;
 	private developerOverlay: DeveloperOverlay;
 	private isElectron = false;
 	private isInitialized = false;
@@ -43,11 +43,11 @@ export class Game {
 	/**
 	 * Create a new Game instance
 	 * @param renderer WebGL renderer
-	 * @param performanceMonitor Performance tracking system
+	 * @param frameTimer Frame timing and per-frame draw counters (R13.7)
 	 */
-	constructor(renderer: Renderer, performanceMonitor: PerformanceMonitor) {
+	constructor(renderer: Renderer, frameTimer: FrameTimer) {
 		this.renderer = renderer;
-		this.performanceMonitor = performanceMonitor;
+		this.frameTimer = frameTimer;
 
 		// Check if running in Electron
 		interface ElectronWindow extends Window {
@@ -62,7 +62,7 @@ export class Game {
 		console.log(`Running in ${this.isElectron ? 'Electron' : 'Browser'} mode`);
 		
 		// Create developer overlay
-		this.developerOverlay = new DeveloperOverlay(this.performanceMonitor);
+		this.developerOverlay = new DeveloperOverlay(this.frameTimer);
 	}
 
 	/**
@@ -114,7 +114,7 @@ export class Game {
 			// inside a branch DefinePlugin has folded to false. That keeps the
 			// whole debug/ subtree out of a production bundle (R13.2).
 			// eslint-disable-next-line @typescript-eslint/no-var-requires
-			const { installDebugHooks, installAppHooks } = require('../engine/debug/hooks') as typeof import('../engine/debug/hooks');
+			const { installDebugHooks, installAppHooks, installPerfHooks } = require('../engine/debug/hooks') as typeof import('../engine/debug/hooks');
 			// The game app's half of R13.32's control surface. Switching screens
 			// is what switching scenes is in the gallery, and it is the only way
 			// a capture script reaches a game screen without clicking through a
@@ -163,6 +163,12 @@ export class Game {
 					return roots;
 				},
 				viewport: () => ({ width: window.innerWidth, height: window.innerHeight }),
+			});
+			// R13.11 wants the snapshot to carry the active screen so a capture
+			// can group per scene, and the screen name is the game page's answer
+			// to what the gallery calls a scene.
+			installPerfHooks({
+				snapshot: () => this.frameTimer.snapshot({ scene: ScreenManager.getCurrentScreenName() }),
 			});
 		}
 
@@ -242,17 +248,30 @@ export class Game {
 
 		// Render the current screen via ScreenManager
 		ScreenManager.render();
-		
+
 		// Render developer overlay on top
 		this.developerOverlay.render();
-		
-		// Ensure scissor is disabled before final flush
+	}
+
+	/**
+	 * The deferred half of the frame, split from `render` so the loop can time
+	 * the two as separate sections (R13.7). It is the batched text and nothing
+	 * else: every other primitive reaches GL at its draw site inside `render`.
+	 *
+	 * It is not all of the batched text either, and the timed section reads low
+	 * because of it. `Renderer.enableScissor` and `disableScissor` flush pending
+	 * text before changing GL state, and `Panel` and `Layer` call those during
+	 * the render tree walk, so a screen with a clipped panel submits most of its
+	 * text inside `render` and leaves the tail here. Disabling the scissor is
+	 * done here rather than at the end of `render` so that at least the frame's
+	 * final flush is timed by the section that claims to measure flushing.
+	 */
+	public flush(): void {
+		if (!this.isInitialized) return;
+
 		if (this.renderer.isScissorEnabled()) {
 			this.renderer.disableScissor();
 		}
-		
-		// Flush any remaining text
-		// Note: The shader should already be set by the main loop
 		this.renderer.flushTextBatch();
 		this.renderer.endTextBatch();
 	}

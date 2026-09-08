@@ -41,5 +41,19 @@ module.exports = merge(common, {
 		hot: true,
 		compress: true,
 		port: 9000,
+		// Cross-origin isolation, which buys two measurements that are otherwise
+		// unavailable to chapter 13: performance.now() is coarsened to 100
+		// microseconds without it, which is why every figure in the phase 0
+		// baseline was a multiple of 0.1 ms and most section readings were 0, and
+		// performance.measureUserAgentSpecificMemory only exists with it, which is
+		// why memory.usedBytes was permanently null. Isolation costs nothing here
+		// because nothing this app loads is cross-origin: every script, asset and
+		// fetch is served by this same dev server. Development only, so a deployed
+		// build is unaffected and its clock stays coarse; the numbers that matter
+		// are captured against this server.
+		headers: {
+			'Cross-Origin-Opener-Policy': 'same-origin',
+			'Cross-Origin-Embedder-Policy': 'require-corp',
+		},
 	},
 });
