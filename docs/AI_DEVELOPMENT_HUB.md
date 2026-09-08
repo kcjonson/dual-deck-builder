@@ -4,6 +4,16 @@ This document is a place for multiple AI workers (such as Claude and Claude Code
 
 =========================================
 
+## UI rendering engine rework (documentation phase complete, 2026-09-07)
+
+The renderer and UI layer are being rebuilt to a backend-agnostic specification abstracted from the sibling C++/OpenGL project worldsim and challenged by five independent reviews. Nothing in `src/` has changed yet; the documents are the deliverable of this phase.
+
+- Specification: [docs/ui-rendering-spec/](./ui-rendering-spec/README.md) (chapters 00 to 17; rules cited as R3.14). Chapter 3 (render order) is the one everything else assumes. Research inputs are under `research/`, review reports under `review/`, resolutions in chapter 17.
+- Implementation specification for this repo (the epic's spec doc): [docs/specs/ui-rendering-engine-implementation.md](./specs/ui-rendering-engine-implementation.md): phases, toolchain decisions (fonts, icons, tokens, Playwright, dev-only builds), the board structure to create, success criteria, risks.
+- Decision record: [docs/AI_TECHNICAL_DECISIONS/ui-rendering-spec-adoption.md](./AI_TECHNICAL_DECISIONS/ui-rendering-spec-adoption.md).
+- Board: no items created yet by design; the implementation specification's section 7 lists the epic and tasks to create and the existing items (DDB-28 to 32, 41, 14, 15, 38, 52) they subsume or unblock.
+- Corrections to earlier notes found during the audit: the "Built but broken" list below is stale for the Model events, double navigation, `endCombat`, production bundles, CI injection, and Electron items (all fixed 2026-08-22 on main); DDB-15's claim that `RenderContext.ts` is unimported is wrong (it is imported by every component; `RendererContext.ts` is the singleton to retire); the hub's "scrollbars draw but don't scroll" is inaccurate in both halves (no scrollbars are drawn; wheel scrolling works where content size is set).
+
 ## Current state (verified survey, 2026-08-22)
 
 Development stopped 2025-07-03. On 2026-08-22 the whole project was re-surveyed: `npm test` (128/128 pass), `npm run lint` (0 errors, 9 warnings), `npm run build:web` (compiles), plus a live click-through of the running game and a full code audit. Everything below is verified against the code or the running app, not carried forward from old status notes.
