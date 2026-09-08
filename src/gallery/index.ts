@@ -3,7 +3,7 @@ import { Shader } from '../renderer/engine/rendering/Shader';
 import { RendererContext } from '../renderer/engine/rendering/RendererContext';
 import { InputSystem } from '../renderer/engine/input/InputSystem';
 import { PerformanceMonitor } from '../renderer/engine/rendering/PerformanceMonitor';
-import { installDebugHooks, installAppHooks } from '../renderer/engine/debug/hooks';
+import { installDebugHooks, installAppHooks, installInputHooks } from '../renderer/engine/debug/hooks';
 import { gallerySceneRegistry } from './registry';
 import { SceneHost } from './SceneHost';
 import vertexShaderSource from '../assets/shaders/vertex.glsl';
@@ -18,9 +18,9 @@ import fragmentShaderSource from '../assets/shaders/fragment.glsl';
  * `npm run build:web` forces NODE_ENV=production, and both deploy workflows
  * call it, the gallery is absent from every deployed artifact without a second
  * gate, which is R15.37's development-builds-only half; the rule's four globals
- * are a separate matter and only two of them exist. The consequence for phase
- * 0's Playwright work is that the harness has to run against a development
- * build.
+ * are a separate matter and three of them exist (`__ui`, `__app`, `__dev`),
+ * with `__perf` waiting on DDB-61. The consequence for phase 0's Playwright
+ * work is that the harness has to run against a development build.
  *
  * The bootstrap mirrors src/index.ts deliberately: the same renderer, the same
  * RendererContext singleton, the same InputSystem setup, the same shader, and
@@ -51,7 +51,7 @@ class GalleryApplication {
 			});
 
 			this.mountFromLocation();
-			this.installHooks();
+			this.installHooks(canvas);
 
 			window.addEventListener('resize', () => this.host.resize());
 
@@ -80,7 +80,7 @@ class GalleryApplication {
 		}
 	}
 
-	private installHooks(): void {
+	private installHooks(canvas: HTMLCanvasElement): void {
 		if (!__DEV_TOOLS__) return;
 
 		// R13.33: the scene's roots reach the tree snapshot and the layout lint
@@ -102,6 +102,11 @@ class GalleryApplication {
 			},
 			status: () => this.host.status(),
 		});
+
+		// R13.35, on the same canvas the InputSystem listens to. The gallery
+		// gets it for the same reason it gets the tree and the lint: a scripted
+		// run drives a scene the way it drives a screen.
+		installInputHooks(canvas);
 	}
 
 	/**

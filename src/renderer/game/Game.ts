@@ -2,7 +2,29 @@ import { Renderer } from '../engine/rendering/Renderer';
 import { PerformanceMonitor } from '../engine/rendering/PerformanceMonitor';
 import { DeveloperOverlay } from '../engine/ui/DeveloperOverlay';
 import { ScreenManager } from './core/ScreenManager';
+import { InputSystem } from '../engine/input/InputSystem';
 import type { Layer } from '../engine/components/Layer';
+
+/**
+ * What `window.__app.status()` answers on the game page (R13.3, R13.32). The
+ * shape deliberately echoes the gallery's `SceneHostStatus`: a harness that
+ * can read one page's control state can read the other's.
+ *
+ * `updates` and `renders` are the pause evidence. Reading a boolean back from
+ * the same object that set it proves nothing; watching one counter climb while
+ * the other holds still proves the loop is doing what pause claims.
+ */
+export interface GameStatus {
+	screen: string | null;
+	screens: string[];
+	paused: boolean;
+	/** Frames updated and rendered since init. Paused frames render but do not update. */
+	updates: number;
+	renders: number;
+	/** The InputSystem's own gate, which is what actually drops events (R13.35). */
+	inputPaused: boolean;
+	viewport: { width: number; height: number };
+}
 
 /**
  * Main game class responsible for managing game state and high-level systems
@@ -13,6 +35,10 @@ export class Game {
 	private developerOverlay: DeveloperOverlay;
 	private isElectron = false;
 	private isInitialized = false;
+	/** R13.32's pause. Only reachable through window.__app in a dev build. */
+	private isPaused = false;
+	private updates = 0;
+	private renders = 0;
 
 	/**
 	 * Create a new Game instance
@@ -40,6 +66,36 @@ export class Game {
 	}
 
 	/**
+	 * R13.32's pause, on the game page rather than only in the gallery.
+	 *
+	 * The bargain is the gallery's, because R13.32 states it once for both:
+	 * update stops, render keeps running, so a paused page still presents the
+	 * frame a screenshot needs (DDB-59). The branch lives in `update` rather
+	 * than in the frame loop for the same reason `SceneHost` keeps it, and
+	 * `lastTime` in the loop advances on paused frames, so resuming hands
+	 * `update` a normal delta instead of the whole pause.
+	 *
+	 * Input is not gated here. This engine dispatches straight from DOM
+	 * listeners, so a loop that skipped `update` would still see buttons pressed
+	 * and text typed; `InputSystem.paused` is the half that makes R13.35's
+	 * "injected input is ignored while paused" true, and it is the same flag the
+	 * gallery sets. The one listener outside the InputSystem is this class's own
+	 * document keydown shortcut, gated in `setupEventHandlers`.
+	 *
+	 * What pause does not stop: the window resize path. `Renderer.handleResize`
+	 * and `Screen.onResized` still run, so a window resized while paused
+	 * reflows the mounted screen.
+	 */
+	public get paused(): boolean {
+		return this.isPaused;
+	}
+
+	public set paused(value: boolean) {
+		this.isPaused = value;
+		InputSystem.getInstance().paused = value;
+	}
+
+	/**
 	 * Initialize the game
 	 */
 	public async init(): Promise<void> {
@@ -63,6 +119,12 @@ export class Game {
 			// is what switching scenes is in the gallery, and it is the only way
 			// a capture script reaches a game screen without clicking through a
 			// menu that positions its buttons by array index.
+			//
+			// pause, resume and status are inlined here for the reason `roots` is
+			// below: terser cannot prove a class method is uncalled once
+			// DefinePlugin folds away its only caller, so a `status` method would
+			// survive into production whole. The `paused` accessor stays a member
+			// because `update` reads the field on every frame either way.
 			installAppHooks({
 				navigate: (screenName: string) => {
 					if (!ScreenManager.isScreenName(screenName)) return false;
@@ -70,6 +132,21 @@ export class Game {
 					return true;
 				},
 				screens: () => ScreenManager.screenNames,
+				pause: () => {
+					this.paused = true;
+				},
+				resume: () => {
+					this.paused = false;
+				},
+				status: (): GameStatus => ({
+					screen: ScreenManager.getCurrentScreenName(),
+					screens: ScreenManager.screenNames,
+					paused: this.isPaused,
+					updates: this.updates,
+					renders: this.renders,
+					inputPaused: InputSystem.getInstance().paused,
+					viewport: { width: window.innerWidth, height: window.innerHeight },
+				}),
 			});
 			installDebugHooks({
 				// Inlined rather than a method: terser cannot prove a class
@@ -99,6 +176,15 @@ export class Game {
 		// Add any global event handlers here
 		// For example, keyboard shortcuts for development
 		document.addEventListener('keydown', (event) => {
+			// These shortcuts navigate and toggle the overlay, and they are the one
+			// input path the InputSystem's pause gate does not cover, so leaving
+			// them live would let a keystroke change the screen underneath a paused
+			// capture and make status().paused a lie (R13.32, R13.35). Gating them
+			// changes what real keys do while paused, which is only reachable
+			// through window.__app.pause() in a development build; DefinePlugin
+			// folds the check away in production.
+			if (__DEV_TOOLS__ && this.isPaused) return;
+
 			// Example: Press F12 to toggle developer screen
 			if (event.key === 'F12') {
 				if (ScreenManager.getCurrentScreenName() === 'developerScreen') {
@@ -134,6 +220,8 @@ export class Game {
 	 */
 	public update(dt: number): void {
 		if (!this.isInitialized) return;
+		if (__DEV_TOOLS__ && this.isPaused) return;
+		if (__DEV_TOOLS__) this.updates++;
 
 		// Update the current screen via ScreenManager
 		ScreenManager.update(dt);
@@ -147,6 +235,7 @@ export class Game {
 	 */
 	public render(): void {
 		if (!this.isInitialized) return;
+		if (__DEV_TOOLS__) this.renders++;
 
 		// Enable text batching for the entire frame
 		this.renderer.beginTextBatch();

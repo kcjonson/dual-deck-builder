@@ -56,6 +56,18 @@ class Application {
 			this.game = new Game(this.renderer, this.performanceMonitor);
 			await this.game.init();
 
+			if (__DEV_TOOLS__) {
+				// Required, not imported, for the reason Game.ts states: with
+				// tsconfig `module: commonjs` webpack cannot tree-shake an unused
+				// ES import, but it does drop a require inside a branch
+				// DefinePlugin has folded to false (R13.2).
+				// eslint-disable-next-line @typescript-eslint/no-var-requires
+				const { installInputHooks } = require('./renderer/engine/debug/hooks') as typeof import('./renderer/engine/debug/hooks');
+				// R13.35, on the same canvas InputSystem.setup just registered
+				// its listeners on, so injected events land on those listeners.
+				installInputHooks(canvas);
+			}
+
 			// Start the main loop
 			this.lastTime = performance.now();
 			this.loop();
@@ -88,7 +100,10 @@ class Application {
 		const deltaTime = (currentTime - this.lastTime) / 1000; // Convert to seconds
 		this.lastTime = currentTime;
 
-		// Update game state
+		// Update game state. R13.32's pause branch is inside Game.update rather
+		// than here, so a paused page keeps clearing and rendering and a capture
+		// still gets a frame; lastTime advances on paused frames too, so resume
+		// hands update a normal delta instead of the whole pause.
 		this.game.update(deltaTime);
 
 		// Clear the screen
