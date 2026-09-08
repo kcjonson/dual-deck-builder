@@ -170,6 +170,21 @@ Fields: `public x/y/width/height` all default 0, `protected visible`, `protected
 
 `Text.layout()` (`src/renderer/engine/components/Text.ts:201-221`) sets width/height from a `fontSize * 0.6` character estimate only when they are 0. `layout()` is called from exactly two game sites, both inside `onResized`: `CardShowcaseScreen.ts:315` and `DeveloperScreen.ts:182` (verified by grep; `Layer.ts:341`, `Text.ts:220`, `Panel.ts:286` are the recursive/super calls). Neither `Screen.update` nor `Screen.render` calls it. On a freshly mounted screen every Text without explicit dimensions reports w=h=0, which makes the lint's `zero-or-negative-size` rule fire on nearly every text node unless the snapshot runs `layout()` first. Also, `setWidth`/`setHeight` do not fire `onResized`; only `setSize` does (`Layer.ts:122-159`).
 
+### How big that is, measured (DDB-57, 2026-09-08)
+
+Numbers taken from the committed capture `perf-results/phase0-layout-lint.json` (eight scenarios, viewport 1440x882, `window.__ui.lint()` after a rendered frame). They are recorded here rather than in a code comment because they are a property of a capture, not of the code beside them, and a comment that cites a count nobody can re-derive rots the first time the capture is retaken. Re-derive with:
+
+```
+node -e "const d=require('./perf-results/phase0-layout-lint.json');let zero=0,wOnly=0,text=0,box=0,evaluated=0,textNodes=0;for(const e of d.entries){for(const v of e.lint.violations){if(v.rule!=='zero-or-negative-size')continue;zero++;v.bucket==='unmeasured-text'?text++:box++;if(v.bounds.w>0&&v.bounds.h<=0)wOnly++;}evaluated+=e.lint.rules.find(r=>r.rule==='zero-or-negative-size').evaluated;textNodes+=e.lint.rules.find(r=>r.rule==='text-overflow').skippedMissingInput;}console.log({textNodes,zero,text,box,wOnly,evaluated,share:(wOnly/zero*100).toFixed(1)});"
+```
+
+- 704 visible Text nodes across the eight scenarios, of which 596 report `w <= 0 || h <= 0`.
+- All 596 land in the `unmeasured-text` bucket; the `zero-box` bucket is empty. Every zero-size node in every scenario is a Text: no Rectangle, Button, Panel or Layer ever reports zero.
+- 169 of the 596 (28.4%) have a real width and a zero height, which is the share an `AND` in rule 4 would have missed. The review's independent count over the six DDB-56 captures put the same share at 29 to 30 percent, and its Text totals at 741 nodes with 628 zero-size; different capture set, same mechanism and same order of magnitude.
+- 1253 nodes evaluated by rule 4 in total.
+
+The earlier "461 of 555 Text nodes" and "181 nodes, 40% of the live findings" figures that appeared in `layoutLint.ts` comments do not reproduce against either capture set. They have been cut from the code; the mechanism they were illustrating (Text has no size until `layout()` runs, so rule 4 is a Text detector in phase 0) is what the comments now carry.
+
 ## Frame loop
 
 One rAF call site in the tree, `src/index.ts:104`. The loop, verbatim structure at `src/index.ts:83-104`: `beginFrame()`, `performance.now()` delta with **no clamp** at `:87-89`, `game.update(dt)` at `:92`, `renderer.clear()`, `game.render()`, `endFrame()`, `requestAnimationFrame`. `Game.render()` at `Game.ts:111-131` does `beginTextBatch`, `ScreenManager.render()`, `developerOverlay.render()`, a scissor teardown, then `flushTextBatch()`/`endTextBatch()` at `:130-131` - a real render/flush boundary.
