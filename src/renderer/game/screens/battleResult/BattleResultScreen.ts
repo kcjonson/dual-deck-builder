@@ -55,6 +55,7 @@ export class BattleResultScreen extends Screen {
 		
 		// Center panel
 		this.panel = new Rectangle({
+			id: 'result_panel',
 			x: 0,
 			y: 0,
 			width: this.PANEL_WIDTH,
@@ -76,6 +77,7 @@ export class BattleResultScreen extends Screen {
 		};
 		
 		this.titleText = new Text('', {
+			id: 'result_title',
 			style: titleStyle,
 		});
 		this.rootLayer.addChild(this.titleText);
@@ -100,6 +102,7 @@ export class BattleResultScreen extends Screen {
 		
 		// Continue button
 		this.continueButton = new Button('Continue', {
+			id: 'result_continue_button',
 			x: 0,
 			y: 0,
 			width: 200,

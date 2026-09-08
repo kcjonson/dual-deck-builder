@@ -8,6 +8,7 @@ import { Text } from '../../../engine/components/Text';
 export class TextExamplesSection extends Panel {
 	constructor(x: number, y: number, width: number) {
 		super({
+			id: 'dev_section_text',
 			width,
 			height: 200, // Will be calculated based on content
 			style: {

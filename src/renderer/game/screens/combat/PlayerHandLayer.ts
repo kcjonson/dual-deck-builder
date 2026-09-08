@@ -1,4 +1,4 @@
-import { Layer } from '../../../engine/components/Layer';
+import { Layer, LayerOptions } from '../../../engine/components/Layer';
 import { Rectangle } from '../../../engine/components/Rectangle';
 import { Text } from '../../../engine/components/Text';
 import { Card as UICard, CardSize } from '../../ui/Card';
@@ -38,7 +38,7 @@ export class PlayerHandLayer extends Layer {
 	/**
 	 * Create player hand layer
 	 */
-	constructor(options: { x: number; y: number; width: number; height: number }) {
+	constructor(options: LayerOptions & { x: number; y: number; width: number; height: number }) {
 		super(options);
 		
 		// Set overflow hidden to clip cards that extend beyond layer bounds
@@ -188,9 +188,14 @@ export class PlayerHandLayer extends Layer {
 		
 		if (this.handCards.length === 0) return;
 
-		this.handCards.forEach((card, _index) => {
+		this.handCards.forEach((card, index) => {
 			const driverNumber = this.cardDriverMap.get(card.id) || null;
+			// Model ids re-roll every load, so the id is the hand slot plus the
+			// card type. The slot carries uniqueness on its own, since a type
+			// can repeat in a hand; the whole string still varies between runs
+			// because the shuffle decides which type lands in which slot.
 			const cardElement = new UICard({
+				id: `hand_card_${index}_${card.type}`,
 				x: 0, // Will be positioned by layoutCardElements
 				y: 0,
 				data: card,

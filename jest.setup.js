@@ -11,3 +11,6 @@ global.WebGLRenderingContext = {
 };
 
 // Add any additional Jest setup code here
+
+// Stand in for the webpack DefinePlugin constant so dev-tooling modules import.
+global.__DEV_TOOLS__ = true;

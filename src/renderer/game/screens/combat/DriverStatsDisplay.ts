@@ -1,4 +1,4 @@
-import { Layer } from '../../../engine/components/Layer';
+import { Layer, LayerOptions } from '../../../engine/components/Layer';
 import { Text } from '../../../engine/components/Text';
 import { Rectangle } from '../../../engine/components/Rectangle';
 
@@ -47,19 +47,8 @@ export class DriverStatsDisplay extends Layer {
 		fuel: 0
 	};
 	
-	constructor(options: { 
-		x: number; 
-		y: number; 
-		width: number; 
-		height: number;
-		driverNumber: 1 | 2;
-	}) {
-		super({
-			x: options.x,
-			y: options.y,
-			width: options.width,
-			height: options.height
-		});
+	constructor(options: LayerOptions & { x: number; y: number; width: number; height: number; driverNumber: 1 | 2 }) {
+		super(options);
 		
 		this.driverNumber = options.driverNumber;
 		this.createElements();
@@ -169,6 +158,7 @@ export class DriverStatsDisplay extends Layer {
 		
 		// Adrenaline text
 		this.adrenalineText = new Text(`${this.data.adrenaline}/${this.data.maxAdrenaline}`, {
+			id: `driver${this.driverNumber}_adrenaline_value`,
 			style: {
 				fontSize: 10,
 				color: '#ffffff',

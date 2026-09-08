@@ -15,6 +15,7 @@ export class DeveloperOverlay extends Layer {
 	
 	constructor(performanceMonitor: PerformanceMonitor) {
 		super({
+			id: 'developer_overlay',
 			x: 0,
 			y: 0,
 			width: 280,
@@ -53,6 +54,14 @@ export class DeveloperOverlay extends Layer {
 		this.updatePosition();
 	}
 	
+	/**
+	 * Whether the overlay is currently drawn. Separate from Layer.visible,
+	 * which the overlay never touches.
+	 */
+	public get shown(): boolean {
+		return this.overlayVisible;
+	}
+
 	/**
 	 * Toggle visibility of the overlay
 	 */

@@ -48,7 +48,8 @@ export class Card extends Layer {
 	private hovered = false;
 	private _enabled = true;
 
-	constructor({ x, y, data, size = CardSize.NORMAL, driverNumber }: { 
+	constructor({ id, x, y, data, size = CardSize.NORMAL, driverNumber }: { 
+		id?: string;
 		x: number; 
 		y: number; 
 		data: GameCard; 
@@ -57,6 +58,7 @@ export class Card extends Layer {
 	}) {
 		const dimensions = CARD_DIMENSIONS[size];
 		super({
+			id,
 			x,
 			y,
 			width: dimensions.width,
@@ -69,6 +71,7 @@ export class Card extends Layer {
 
 		// Create card border with rarity color
 		this.cardBorder = new Rectangle({
+			id: this.childId('border'),
 			x: 0,
 			y: 0,
 			width: dimensions.width,
@@ -83,6 +86,7 @@ export class Card extends Layer {
 		// Create card background
 		const borderWidth = size === CardSize.MINI ? 2 : 4;
 		this.cardBackground = new Rectangle({
+			id: this.childId('background'),
 			x: borderWidth,
 			y: borderWidth,
 			width: dimensions.width - borderWidth * 2,
@@ -100,6 +104,7 @@ export class Card extends Layer {
 		
 		// Card name
 		this.name = new Text(data.displayName, {
+			id: this.childId('title'),
 			x: padding,
 			y: Math.floor(20 * scaleFactor),
 			width: dimensions.width - Math.floor(60 * scaleFactor),
@@ -115,6 +120,7 @@ export class Card extends Layer {
 
 		// Cost
 		this.cost = new Text(`${data.cost}`, {
+			id: this.childId('cost'),
 			x: dimensions.width - Math.floor(30 * scaleFactor),
 			y: Math.floor(20 * scaleFactor),
 			style: {
@@ -130,6 +136,7 @@ export class Card extends Layer {
 		// Skip description for mini cards
 		if (size !== CardSize.MINI) {
 			this.description = new Text(data.getDescription(), {
+				id: this.childId('description'),
 				x: padding,
 				y: Math.floor(60 * scaleFactor),
 				width: dimensions.width - padding * 2,
@@ -147,6 +154,7 @@ export class Card extends Layer {
 		// Rarity - only show on normal and large cards
 		if (size !== CardSize.MINI) {
 			this.rarity = new Text(data.rarity.toUpperCase(), {
+				id: this.childId('rarity'),
 				x: padding,
 				y: dimensions.height - Math.floor(60 * scaleFactor),
 				style: {
@@ -160,6 +168,7 @@ export class Card extends Layer {
 			// Tags
 			const tagsStr = data.tags.join(', ');
 			this.tags = new Text(tagsStr, {
+				id: this.childId('tags'),
 				x: padding,
 				y: dimensions.height - Math.floor(35 * scaleFactor),
 				width: dimensions.width - padding * 2,
@@ -174,6 +183,7 @@ export class Card extends Layer {
 
 			// Target type
 			const targetText = new Text(data.targetType, {
+				id: this.childId('target_type'),
 				x: padding,
 				y: dimensions.height - Math.floor(20 * scaleFactor),
 				style: {
@@ -187,6 +197,7 @@ export class Card extends Layer {
 		// Driver indicator (if specified)
 		if (this.driverNumber && size !== CardSize.MINI) {
 			const indicatorBg = new Rectangle({
+				id: this.childId('driver_badge_background'),
 				x: Math.floor(10 * scaleFactor),
 				y: Math.floor(10 * scaleFactor),
 				width: Math.floor(25 * scaleFactor),
@@ -201,6 +212,7 @@ export class Card extends Layer {
 			this.addChild(indicatorBg);
 			
 			this.driverIndicator = new Text(`D${this.driverNumber}`, {
+				id: this.childId('driver_badge'),
 				x: Math.floor(22.5 * scaleFactor),
 				y: Math.floor(22.5 * scaleFactor),
 				style: {
@@ -215,6 +227,15 @@ export class Card extends Layer {
 
 		// Setup event handling
 		this.setupEvents();
+	}
+
+	/**
+	 * Composite internals derive their ids from the card's own, so a caller
+	 * names the card once and the lint can still address `<card>_title` and
+	 * `<card>_driver_badge`. Unnamed cards leave their children unnamed too.
+	 */
+	private childId(suffix: string): string | undefined {
+		return this.id === null ? undefined : `${this.id}_${suffix}`;
 	}
 
 	/**

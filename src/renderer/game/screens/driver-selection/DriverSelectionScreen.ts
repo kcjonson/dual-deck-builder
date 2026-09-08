@@ -66,6 +66,7 @@ export class DriverSelectionScreen extends Screen {
 	 */
 	private createTitle(): void {
 		this.titleText = new Text('Choose Your Drivers', {
+			id: 'driver_select_title',
 			style: {
 				fontSize: 48,
 				color: '#ffffff',
@@ -92,6 +93,7 @@ export class DriverSelectionScreen extends Screen {
 		
 		// Left panel - First driver selection
 		this.leftDriverPanel = new DriverPanel('left', {
+			id: 'driver_select_panel_left',
 			x: Math.floor(screenWidth * 0.05), // 5% margin
 			y: panelY,
 			width: panelWidth,
@@ -105,6 +107,7 @@ export class DriverSelectionScreen extends Screen {
 		
 		// Right panel - Second driver selection (initially empty)
 		this.rightDriverPanel = new DriverPanel('right', {
+			id: 'driver_select_panel_right',
 			x: Math.floor(screenWidth * 0.6), // Position on right side
 			y: panelY,
 			width: panelWidth,
@@ -128,6 +131,7 @@ export class DriverSelectionScreen extends Screen {
 		const panelY = Math.floor(screenHeight * 0.55); // Below driver panels
 		
 		this.synergyPanel = new SynergyPreviewPanel({
+			id: 'driver_select_synergy_panel',
 			x: Math.floor(screenWidth * 0.375), // Center between panels
 			y: panelY,
 			width: synergyPanelWidth,
@@ -145,6 +149,7 @@ export class DriverSelectionScreen extends Screen {
 		
 		// Back button
 		this.backButton = new Button('← Back to Menu', {
+			id: 'driver_select_back_button',
 			width: 200,
 			height: 50,
 			style: {
@@ -159,6 +164,7 @@ export class DriverSelectionScreen extends Screen {
 		
 		// Start Run button (disabled initially)
 		this.startRunButton = new Button('START RUN', {
+			id: 'driver_select_start_run_button',
 			width: 300,
 			height: 60,
 			style: {

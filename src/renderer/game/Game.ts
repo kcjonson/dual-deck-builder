@@ -2,6 +2,7 @@ import { Renderer } from '../engine/rendering/Renderer';
 import { PerformanceMonitor } from '../engine/rendering/PerformanceMonitor';
 import { DeveloperOverlay } from '../engine/ui/DeveloperOverlay';
 import { ScreenManager } from './core/ScreenManager';
+import type { Layer } from '../engine/components/Layer';
 
 /**
  * Main game class responsible for managing game state and high-level systems
@@ -51,9 +52,33 @@ export class Game {
 		// Set up any global event handlers
 		this.setupEventHandlers();
 
+		if (__DEV_TOOLS__) {
+			// Required, not imported: with tsconfig `module: commonjs` webpack
+			// cannot tree-shake an unused ES import, but it does drop a require
+			// inside a branch DefinePlugin has folded to false. That keeps the
+			// whole debug/ subtree out of a production bundle (R13.2).
+			// eslint-disable-next-line @typescript-eslint/no-var-requires
+			const { installDebugHooks } = require('../engine/debug/hooks') as typeof import('../engine/debug/hooks');
+			installDebugHooks({
+				// Inlined rather than a method: terser cannot prove a class
+				// method is uncalled once DefinePlugin folds away its only
+				// caller, so a `debugRoots` method survives into production
+				// whole. Inside the branch, the constant folding takes it.
+				// Roots are the mounted screen plus the developer overlay, and
+				// only while the overlay is actually drawn (R13.21).
+				roots: () => {
+					const roots: Layer[] = [];
+					const screen = ScreenManager.activeScreen;
+					if (screen) roots.push(screen.root);
+					if (this.developerOverlay.shown) roots.push(this.developerOverlay);
+					return roots;
+				},
+				viewport: () => ({ width: window.innerWidth, height: window.innerHeight }),
+			});
+		}
+
 		this.isInitialized = true;
 	}
-
 
 	/**
 	 * Set up global event handlers

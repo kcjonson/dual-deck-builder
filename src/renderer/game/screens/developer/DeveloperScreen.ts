@@ -48,6 +48,7 @@ export class DeveloperScreen extends Screen {
 
 		// Create title text
 		this.title = new Text('Developer Tools', {
+			id: 'dev_title',
 			style: {
 				fontSize: 48,
 				color: '#ffffff',
@@ -97,6 +98,7 @@ export class DeveloperScreen extends Screen {
 	private createMainScrollableContent(): void {
 		// Create a full-window scrollable container that holds all content
 		this.mainScrollContainer = new Panel({
+			id: 'dev_scroll',
 			width: this.rootLayer.getWidth(),
 			height: this.rootLayer.getHeight() - 160, // Leave space for title (80) and back button (80)
 			scrollable: true,

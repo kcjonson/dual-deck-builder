@@ -1,4 +1,4 @@
-import { Layer } from '../../../engine/components/Layer';
+import { Layer, LayerOptions } from '../../../engine/components/Layer';
 import { Text } from '../../../engine/components/Text';
 import { Rectangle } from '../../../engine/components/Rectangle';
 import { Button } from '../../../engine/ui/Button';
@@ -27,7 +27,7 @@ export class ResourceBarLayer extends Layer {
 	/**
 	 * Create resource bar layer
 	 */
-	constructor(options: { x: number; y: number; width: number; height: number }) {
+	constructor(options: LayerOptions & { x: number; y: number; width: number; height: number }) {
 		super(options);
 		
 		// Set overflow hidden to ensure proper layer boundaries
@@ -64,6 +64,7 @@ export class ResourceBarLayer extends Layer {
 		// Driver 1 display
 		const driver1Width = DriverStatsDisplay.getRequiredWidth();
 		this.driver1Display = new DriverStatsDisplay({
+			id: 'resource_driver1',
 			x: currentX,
 			y: 0,
 			width: driver1Width,
@@ -76,6 +77,7 @@ export class ResourceBarLayer extends Layer {
 		// Driver 2 display
 		const driver2Width = DriverStatsDisplay.getRequiredWidth();
 		this.driver2Display = new DriverStatsDisplay({
+			id: 'resource_driver2',
 			x: currentX,
 			y: 0,
 			width: driver2Width,
@@ -175,6 +177,7 @@ export class ResourceBarLayer extends Layer {
 		const buttonHeight = Math.floor(layerHeight * 0.8);
 		
 		this.endTurnButton = new Button('END TURN', {
+			id: 'end_turn_button',
 			width: buttonWidth,
 			height: buttonHeight,
 			style: {

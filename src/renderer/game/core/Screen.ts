@@ -22,6 +22,7 @@ export abstract class Screen {
 		this.id = id;
 		this.renderer = renderer;
 		this.rootLayer = new Layer({
+			id,
 			x: 0,
 			y: 0,
 			width: window.innerWidth,
@@ -36,6 +37,13 @@ export abstract class Screen {
 	 */
 	public getId(): string {
 		return this.id;
+	}
+
+	/**
+	 * The screen's root layer, for the dev tree snapshot.
+	 */
+	public get root(): Layer {
+		return this.rootLayer;
 	}
 
 	/**

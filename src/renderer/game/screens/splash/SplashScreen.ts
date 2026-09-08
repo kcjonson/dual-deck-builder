@@ -40,6 +40,7 @@ export class SplashScreen extends Screen {
 
 		// Create logo
 		this.logo = new Rectangle({
+			id: 'splash_logo',
 			width: 300,
 			height: 300,
 			style: {
@@ -51,6 +52,7 @@ export class SplashScreen extends Screen {
 
 		// Create title text
 		this.title = new Text('Dual Deckbuilder', {
+			id: 'splash_title',
 			style: {
 				fontSize: 48,
 				color: '#ffffff',
@@ -60,6 +62,7 @@ export class SplashScreen extends Screen {
 
 		// Create subtitle text
 		this.subtitle = new Text('A Roguelike Card Game', {
+			id: 'splash_subtitle',
 			style: {
 				fontSize: 24,
 				color: '#cccccc',

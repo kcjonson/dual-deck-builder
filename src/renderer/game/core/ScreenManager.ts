@@ -120,6 +120,13 @@ export class ScreenManager {
 	}
 	
 	/**
+	 * The mounted screen instance, for the dev tree snapshot.
+	 */
+	static get activeScreen(): Screen | null {
+		return this.currentScreen;
+	}
+
+	/**
 	 * Get the current screen name
 	 */
 	static getCurrentScreenName(): ScreenName | null {

@@ -1,4 +1,4 @@
-import { Layer } from '../../../engine/components/Layer';
+import { Layer, LayerOptions } from '../../../engine/components/Layer';
 import { Text } from '../../../engine/components/Text';
 import { Rectangle } from '../../../engine/components/Rectangle';
 
@@ -23,7 +23,7 @@ export class TurnPhaseDisplay extends Layer {
 	private _phase = CombatPhase.COMBAT_START;
 	private _activeDriver: string | null = null;
 	
-	constructor(options: { x: number; y: number; width: number; height: number }) {
+	constructor(options: LayerOptions & { x: number; y: number; width: number; height: number }) {
 		super(options);
 		this.createElements();
 	}
@@ -116,6 +116,7 @@ export class TurnPhaseDisplay extends Layer {
 		
 		// Turn counter
 		this.turnText = new Text(`Turn ${this._turn}`, {
+			id: 'turn_counter',
 			x: 0,
 			y: 0,
 			style: {
@@ -129,6 +130,7 @@ export class TurnPhaseDisplay extends Layer {
 		
 		// Phase indicator
 		this.phaseText = new Text(this.getPhaseText(), {
+			id: 'turn_phase',
 			x: 0,
 			y: 0,
 			style: {
