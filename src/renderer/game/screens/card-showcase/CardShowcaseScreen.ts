@@ -302,12 +302,6 @@ export class CardShowcaseScreen extends Screen {
 		// Handle any updates
 	}
 
-	/**
-	 * Render the screen
-	 */
-	public onRender(): void {
-		this.rootLayer.render();
-	}
 
 	/**
 	 * Handle window resize

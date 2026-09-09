@@ -6,6 +6,22 @@ This document contains the chronological log of completed development tasks for 
 
 **Date correction (2026-08-22):** the repo's first commit is 2025-05-17, but many entries below carry dates in December 2024 or January 2025 — the AI that wrote them used its assumed date instead of the real one. Entries dated 2025-07-03 and 2025-07-02 have been corrected from "2025-01-03"/"2025-01-02" (verified against git history). Remaining Dec 2024 / Jan 2025 dates are wrong by roughly six months; the real work happened May–July 2025. Trust git history over these dates.
 
+## Card showcase drew everything twice, DDB-110 (2026-09-09)
+
+**What changed:** six lines deleted from `CardShowcaseScreen`. `Screen.render` renders the tree (`Screen.ts:165`) and then calls the `onRender` hook (`:168`); `CardShowcaseScreen` was the only screen overriding that hook, and its override called `this.rootLayer.render()` again, so the whole tree drew twice every frame.
+
+**Measured, with the override present then absent:** `glDrawCalls` 96 to 48, `vertices` 15736 to 7868, `textCharacters` 3856 to 1928. Exactly halved. That is the first movement on phase 1's real criterion: no screen is CPU-bound (the heaviest costs about 1.1 ms of a 16.67 ms budget) but draw calls are far off target, combat at 92 and card showcase at 96 against under 40.
+
+**It moves no pixels, and that was verified rather than assumed**, because the phase 1 recon had predicted the opposite. Captures taken with the override present and absent are the same file: identical SHA-256, both 79,057 bytes, 0 of 3,810,240 channel samples differing, and the screenshot spec passes with the tolerance forced to `threshold: 0` and `maxDiffPixels: 0`. So this needed no re-baseline and is not one of the three the ground rules budget.
+
+**The recon's argument was not sloppy, and it is still wrong, which leaves something worth chasing.** Its inputs are all real: `FontAtlas` rasterises the atlas opaque so the red channel carries coverage and a 32 px run has 2,608 partial-coverage pixels against 1,375 solid; `fragment.glsl:16` turns that coverage straight into fragment alpha; `Renderer.ts:53-54` blends `SRC_ALPHA, ONE_MINUS_SRC_ALPHA`; and `TextRenderer.drawText` pushes to the batch with no dedupe. Compositing the same partially covered fragment twice should darken every glyph edge. It does not, and the counters prove both passes reach the GPU rather than one being skipped. The character cap is eliminated as the explanation: `maxCharacters` is 10000 (`TextRenderer.ts:49`) against 3856 used, with no truncation warning logged.
+
+The mechanism is recorded as unexplained in `.claude/notes/ddb55-phase1-recon.md` rather than guessed at, and it should be settled before phase 1 designs the text path: if a glyph fragment never takes an intermediate alpha, this engine has no text anti-aliasing at all, which is a larger finding than the double render.
+
+`npm test` 420 passing, `npm run typecheck` clean, `npm run lint` 0 errors, and the full visual suite green on both projects, 34 passed with 4 skipped.
+
+=========================================
+
 ## The lint-zero gate is armed on the gallery, DDB-104 (2026-09-09)
 
 **What changed:**
