@@ -150,9 +150,43 @@ followed, rather than worked around by loosening something.
 3. Once the Linux goldens are on `main`, `continue-on-error` comes off the `visual` job in the same
    change, and only then is the job a gate worth requiring.
 
-Until step 2 has happened the phase 0 checklist item for goldens stays open, and this pull request
-deliberately contains none: the only baselines that exist are this machine's `win32` ones, which
-`.gitignore` keeps untracked, so `git ls-files tests/` returns nothing on purpose.
+### What the bootstrap actually did
+
+All three steps have run. Step 1 landed with the seven-PR stack merge (5da8780). Step 2 was
+[run 34310762573](https://github.com/kcjonson/dual-deck-builder/actions/runs/34310762573),
+dispatched from `main` with `update_baselines=true`, which passed 26 and skipped 4 in 1.5 minutes
+and pushed commit `670350c` carrying twenty-six goldens, thirteen per project. Step 3 is this
+change: `continue-on-error` is off the `visual` job and its name no longer says unbaselined.
+
+Three things the dispatch settled that had been open questions rather than known facts.
+
+**Electron runs on Linux.** It had never been tried, and `--with-deps` installs Chromium's system
+libraries rather than Electron's, so `libgtk-3-0t64`, `libxtst6` and `--no-sandbox` were added
+speculatively against the packaging of 24.04 and Ubuntu's unprivileged-user-namespace restriction.
+All three were necessary and sufficient: the electron project minted all thirteen of its goldens
+under `xvfb-run` with no further packages. The `t64` guess in particular was the one most likely to
+be wrong, since the plain `libgtk-3-0` name still resolves on older images.
+
+**The asset gate held on a runner nobody had measured.** The mint is a single run with no second
+run to disagree with it, so a `cards.json` that resolved late would have committed a pre-data frame
+as the definition of correct, and the two-frame quiescence check cannot see that (measured above:
+an unstarted fetch serialises identically to a finished one). It did not happen. Verified after the
+fact rather than assumed, by decoding all twenty-six committed PNGs: the three card-dependent
+screens carry 45.6, 64.0 and 49.2 percent non-modal pixels with 1,537, 2,367 and 2,175 distinct
+colours, and reading the card showcase golden by eye shows all eighteen cards with their rules text.
+An empty frame would be a flat field of one colour.
+
+**Linux and win32 draw the same picture.** Each committed Linux golden was compared against this
+machine's untracked `win32` baseline for the same scenario by reducing both to a 48x30 grid of mean
+RGB, which averages out glyph antialiasing but not missing content. Every one of the twenty-six
+agreed: mean per-cell difference from 0.07 to 0.68 of 255, worst single cell 18.4, and no size
+mismatches. So the two platforms differ only in how they rasterise edges, which is what the absolute
+pixel budget exists to absorb, and cross-runner variance is now an observation rather than the
+guess it had to be while a developer machine was the only thing that had ever run the suite.
+
+What is still unmeasured is run-to-run variance *on the runner*, because the mint ran once. The next
+push to `main` is the first check against these goldens and the first real observation of it; if it
+wobbles, the value to revisit is `maxDiffPixels`, not `threshold`.
 
 ## What this harness does not catch
 

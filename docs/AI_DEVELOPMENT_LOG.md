@@ -6,6 +6,27 @@ This document contains the chronological log of completed development tasks for 
 
 **Date correction (2026-08-22):** the repo's first commit is 2025-05-17, but many entries below carry dates in December 2024 or January 2025 — the AI that wrote them used its assumed date instead of the real one. Entries dated 2025-07-03 and 2025-07-02 have been corrected from "2025-01-03"/"2025-01-02" (verified against git history). Remaining Dec 2024 / Jan 2025 dates are wrong by roughly six months; the real work happened May–July 2025. Trust git history over these dates.
 
+## Screenshot goldens minted on CI, screenshots job becomes a gate, phase 0 closes (2026-09-09)
+
+**What changed:**
+- Twenty-six Linux baselines committed to `main` as `670350c`, thirteen per project, by the `update-baselines` dispatch job in [run 34310762573](https://github.com/kcjonson/dual-deck-builder/actions/runs/34310762573). That job is the only writer R14.5 permits, and it was unreachable until `visual.yml` reached the default branch, which is why DDB-59 shipped a harness with no pictures in it.
+- `continue-on-error` removed from the `visual` job and its name changed from "Screenshots (unbaselined, non-blocking)" to "Screenshots". The suite is now a merge gate.
+- The bootstrap section of [visual-golden-harness.md](./AI_TECHNICAL_DECISIONS/visual-golden-harness.md) gained a "what the bootstrap actually did" subsection recording the three things the dispatch settled, and the phase 0 checklist item in the implementation spec is ticked. Phase 0 is eight of eight.
+
+**The mint was verified before it was trusted, which was the whole point of the ordering.** A mint runs `--update-snapshots` once and has no second run to disagree with it, so whatever it captures becomes the definition of correct by default. Three checks, none of which assume the run was fine because it was green.
+
+*The card-dependent frames are populated.* The failure this guards against is a slow `cards.json`, which the two-frame quiescence check provably cannot see (an unstarted fetch serialises identically to a finished one), and which `assetsReady` was added to catch. Decoding all twenty-six committed PNGs: card showcase carries 45.6 percent non-modal pixels over 1,537 distinct colours, combat 64.0 percent over 2,367, driver selection 49.2 percent over 2,175. Reading the card showcase golden by eye shows all eighteen cards with their rules text and rarity lines. A pre-data frame would be a flat field of one colour.
+
+*Linux and win32 draw the same picture.* Each Linux golden was compared against this machine's untracked `win32` baseline for the same scenario, both reduced to a 48x30 grid of mean RGB, which averages out glyph antialiasing but not missing or misplaced content. All twenty-six agreed: mean per-cell difference between 0.07 and 0.68 of 255, worst single cell 18.4, no size mismatches. Cross-runner variance was the one thing a developer machine could not measure and the reason the tolerance is nonzero at all; it is now an observation.
+
+*Electron runs on Linux, and the speculative packages were right.* `npx playwright install --with-deps chromium` installs Chromium's system libraries, not Electron's, so `libgtk-3-0t64`, `libxtst6` and `--no-sandbox` had been added against Ubuntu 24.04's packaging and its unprivileged-user-namespace restriction without ever being tried. The electron project minted all thirteen of its goldens under `xvfb-run` with no additional packages. The `t64` suffix was the guess most likely to be wrong, since the plain `libgtk-3-0` name still resolves on older images.
+
+**What is still unmeasured**: run-to-run variance on the runner itself, because the mint ran once. The next push to `main` is the first comparison against these goldens and the first observation of it. If it wobbles the value to revisit is `maxDiffPixels`, not `threshold`; the mutation table in the decision doc is what both numbers were chosen against, and raising `threshold` reopens the colour cliff that let a button drawn in its own hover colour pass as identical.
+
+**Still deliberately unbaselined**, unchanged from DDB-59 and appearing in every report as named gaps rather than silent absences: `primitive-shapes` (DDB-103) and `battleResultScreen` (no `BattleResultData` on the R13.32 control surface).
+
+=========================================
+
 ## Playwright screenshot harness, phase 0 task DDB-59 (2026-09-08)
 
 **What changed:**
