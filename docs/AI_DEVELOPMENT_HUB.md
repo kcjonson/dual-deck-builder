@@ -14,6 +14,23 @@ The renderer and UI layer are being rebuilt to a backend-agnostic specification 
 - Board: the phase 0 epic and its tasks now exist on Specboard (DDB-55 recon, then 62, 56, 57, 58, 59, 60, 61); the implementation specification's section 7 still lists the pre-existing items (DDB-28 to 32, 41, 14, 15, 38, 52) they subsume or unblock.
 - Corrections to earlier notes found during the audit: the "Built but broken" list below is stale for the Model events, double navigation, `endCombat`, production bundles, CI injection, and Electron items (all fixed 2026-08-22 on main); DDB-15's claim that `RenderContext.ts` is unimported is wrong (it is imported by every component; `RendererContext.ts` is the singleton to retire); the hub's "scrollbars draw but don't scroll" is inaccurate in both halves (no scrollbars are drawn; wheel scrolling works where content size is set).
 
+## Phase 1: the draw core (in progress, 2026-09-09)
+
+The seam lands before the machine, per `.claude/notes/ddb55-phase1-recon.md`. DDB-65 is split into three PRs: the draw API with no consumers, then `LegacyGLBackend` plus every consumer moved onto it (DDB-67), then the batcher.
+
+**PR 1 has landed: `src/renderer/engine/draw/`, eighteen files, no consumers, nothing else in the repo touched.** Chapter 2's whole surface, the four state stacks, R2.21's null backend and R2.22's recording backend. The design decision everything downstream inherits is that a draw call reads the four stacks once and stamps the resolved values onto an inert plain-data `DrawCommand`, so a backend never sees a stack, a push, or a pop; the alternatives considered and eleven named departures are in [draw-api-state-resolution.md](./AI_TECHNICAL_DECISIONS/draw-api-state-resolution.md).
+
+Two chapter 3 and 4 rules landed here rather than with the batcher, both because leaving them out would have made this PR's tests lie. R3.10's per-layer partition runs upstream of the backend, since R2.22 says the recording backend returns "the sorted draw list" and 3.12's required order tests are false-green without a sort. R4.2a's CPU cull is implemented, since `culled` is a live R13.12 counter and chapter 4 rates the cull required. Neither is the batcher: nothing merges geometry, drops a group as occluded, or splits a GPU submission.
+
+Open against the spec, for whoever writes PR 3:
+
+- **R2.14 reads "not implemented" in the chapter 2 conformance table.** `measureText` is declared with its real signature, delegated to an optional `DrawBackend.measureText`, and throws. R2.14 requires it to share `drawText`'s glyph iteration (R6.8) and there is no iteration until phase 2. `Input.ts:185-197` still calls `FontAtlas.measureText` directly for caret placement and phase 2 has to unify the two.
+- **R4.2a's cull exempts text** and will until chapter 6, because a run's extent needs R6.8. A scrolled list of labels still submits every hidden run, so 4.7's cull fixture is only half satisfied and the text PR closes it.
+- **Chapter 2 names no call for R3.8 and R4.8's promotion clip reset.** `pushClipReset()` exists because the tree walk cannot express promotion without one; worth raising against the spec.
+- **`pushLayer` enforces R3.6's monotonicity rather than R2.7's plain set**, and reports a lowering push as R3.6's authoring error, so 3.12's required test sees both halves at once.
+- **Backends live under `draw/` and the interface is `DrawBackend`.** The recon note put them under `engine/gpu/`, but the file it names there is R15.38's device seam (render passes, pipeline keys, bind groups), which arrives with WebGL2; `gpu/Backend.ts` is left free for it.
+- **`Renderer.drawTriangle` is absorbed into `drawPolygon`** (three points, no indices) and gets no counterpart, per the delete-legacy convention. `Triangle.ts` is live and PR 3 has to move it.
+
 ## Current state (verified survey, 2026-08-22)
 
 Development stopped 2025-07-03. On 2026-08-22 the whole project was re-surveyed: `npm test` (128/128 pass), `npm run lint` (0 errors, 9 warnings), `npm run build:web` (compiles), plus a live click-through of the running game and a full code audit. Everything below is verified against the code or the running app, not carried forward from old status notes.
