@@ -660,7 +660,7 @@ invisible to the gate.
 Every trap the readers found or this pass found, with evidence. Roughly in the order they will be
 hit.
 
-**The double render IS free, and the reason is not understood.** Measured byte-identical three ways
+**The double render IS free, and the reason is now understood (see Open, not resolved).** Measured byte-identical three ways
 (identical SHA-256, 0 of 3,810,240 channel samples differing, and the spec passing at
 `threshold: 0`/`maxDiffPixels: 0`) while the counters halve from 96/15736/3856 to 48/7868/1928, so
 both passes reach the GPU and change nothing. The blend arithmetic says that is impossible. Until
@@ -794,10 +794,30 @@ remount. Visit it fifth or say which state was captured.
 - **RESOLVED: the double render is pixel-neutral.** Settled by running it: byte-identical captures,
   0 differing channel samples, and exact equality at zero tolerance, while the counters halve. The
   earlier session was right and this note's first draft was wrong. PR 1 needs no re-mint.
-- **NEW, and it replaces that one: why is it pixel-neutral?** Every input to the blend arithmetic
-  was verified and the arithmetic still gives the wrong answer. If glyph fragments never take an
-  intermediate alpha then this engine has no text anti-aliasing, which changes what phase 2 is for.
-  Worth an hour before PR 8 designs the text path.
+- **RESOLVED: why it is pixel-neutral, and it is not what either draft guessed.** The engine does
+  anti-alias text, so that worry is retired: the committed card showcase golden carries 214 distinct
+  luminances in the title box with 199 of them intermediate, a full ramp from the 26,26,51
+  background to white. The arithmetic was right in general and wrong for this one screen.
+
+  What actually happens is an interaction between the deferred text batch and clipping.
+  `Renderer.enableScissor` and `disableScissor` flush the pending text batch before touching GL
+  state (`Renderer.ts:639`, `:652`), and `TextRenderer.flush` clears the batch when it is done
+  (`:508`). The card showcase draws its cards inside a scrollable `Panel`, so pass one's glyphs are
+  flushed and painted partway through the frame, and then pass two redraws the same **opaque** card
+  backgrounds straight over them before submitting its own glyphs. Pass one's text is erased rather
+  than composited with, so the frame ends as exactly one pass of text over one pass of geometry.
+
+  Proven by prediction rather than by inspection: the same double render added to `MainMenuScreen`,
+  which has no clipped container and therefore no mid-frame flush, changes **9,338 pixels**, which
+  is the glyph-edge darkening the arithmetic predicted. The same change on the clipped card showcase
+  changes zero. Reverted after measuring.
+
+  This is worth more to phase 1 than the double render was, because it is a live demonstration of
+  the bug chapter 3 exists to fix: where a glyph lands in paint order depends on where a clip
+  boundary happens to fall, not on tree order. "Text always paints above shapes in the same clip
+  scope" is exact, and its unstated other half is that shapes paint above text across clip scopes.
+  The batcher's layer ordinal is what makes that deterministic, and PR 4 now has a concrete before
+  and after to quote.
 - **RESOLVED WHILE WRITING THIS: the prohibited state save-and-restore is live and stalling the
   GPU.** The card showcase logs `GPU stall due to ReadPixels` four times per load, and it is the
   application rather than the harness: the warnings appear with no screenshot taken and no

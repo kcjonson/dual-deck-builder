@@ -6,6 +6,20 @@ This document contains the chronological log of completed development tasks for 
 
 **Date correction (2026-08-22):** the repo's first commit is 2025-05-17, but many entries below carry dates in December 2024 or January 2025 — the AI that wrote them used its assumed date instead of the real one. Entries dated 2025-07-03 and 2025-07-02 have been corrected from "2025-01-03"/"2025-01-02" (verified against git history). Remaining Dec 2024 / Jan 2025 dates are wrong by roughly six months; the real work happened May–July 2025. Trust git history over these dates.
 
+## Why the double render was invisible, and what it says about paint order (2026-09-09)
+
+DDB-110 left one thing open: deleting the card showcase double render moved no pixels, and nobody could say why. The blend arithmetic said a second identical pass must darken every anti-aliased glyph edge, and every input to that argument was verified. Settled now, and the answer is more useful than the question.
+
+**The engine does anti-alias text, so that worry is retired.** The committed card showcase golden carries 214 distinct luminances in the title box, 199 of them intermediate, a full ramp from the `26,26,51` background to white. Glyph fragments take intermediate alpha exactly as expected.
+
+**The double render was invisible because of an interaction between the deferred text batch and clipping.** `Renderer.enableScissor` and `disableScissor` flush the pending text batch before touching GL state (`Renderer.ts:639`, `:652`), and `TextRenderer.flush` clears the batch afterwards (`:508`). The card showcase draws its cards inside a scrollable `Panel`, so pass one's glyphs are flushed and painted partway through the frame, and pass two then redraws the same **opaque** card backgrounds over them before submitting its own glyphs. Pass one's text is erased rather than composited with, so the frame ends as one pass of text over one pass of geometry.
+
+**Proven by prediction, not by inspection.** The same double render added to `MainMenuScreen`, which has no clipped container and so no mid-frame flush, changes 9,338 pixels, which is the glyph-edge darkening the arithmetic predicted. On the clipped card showcase it changes zero. The probe was reverted after measuring.
+
+**This matters to phase 1 more than the double render did.** It is a live demonstration of the bug chapter 3 exists to fix: where a glyph lands in paint order depends on where a clip boundary happens to fall, not on tree order. The engine audit's line that "text always paints above shapes in the same clip scope" is exact, and its unstated other half is that shapes paint above text across clip scopes. The batcher's layer ordinal is what makes that deterministic, and the batcher PR now has a concrete before and after to quote instead of an argument.
+
+=========================================
+
 ## Card showcase drew everything twice, DDB-110 (2026-09-09)
 
 **What changed:** six lines deleted from `CardShowcaseScreen`. `Screen.render` renders the tree (`Screen.ts:165`) and then calls the `onRender` hook (`:168`); `CardShowcaseScreen` was the only screen overriding that hook, and its override called `this.rootLayer.render()` again, so the whole tree drew twice every frame.
