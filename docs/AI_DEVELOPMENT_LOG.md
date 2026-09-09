@@ -6,6 +6,40 @@ This document contains the chronological log of completed development tasks for 
 
 **Date correction (2026-08-22):** the repo's first commit is 2025-05-17, but many entries below carry dates in December 2024 or January 2025 — the AI that wrote them used its assumed date instead of the real one. Entries dated 2025-07-03 and 2025-07-02 have been corrected from "2025-01-03"/"2025-01-02" (verified against git history). Remaining Dec 2024 / Jan 2025 dates are wrong by roughly six months; the real work happened May–July 2025. Trust git history over these dates.
 
+## The lint-zero gate is armed on the gallery, DDB-104 (2026-09-09)
+
+**What changed:**
+- `Layer.addPart(child)` marks a child as the parent component's own rendering. Same array, same order, same paint result as `addChild`; one private boolean behind a `get isPart()`, cleared by both `addChild` and `removeChild` because the mark describes the edge and not the node.
+- `Panel`, `Button`, `Input` and `DeveloperOverlay` call it for their own visuals: ten sites.
+- `treeSnapshot` emits marked nodes in a `parts` array beside `children`, absent rather than empty when there are none.
+- `layoutLint`'s walk takes a `siblings` flag, false for a parts group. That flag gates rule 1's pairing and nothing else.
+- `tests/visual/web/lint.spec.ts` asserts `lint().count === 0` on all eight gallery scenes, inside the existing Screenshots job with no workflow change.
+- `perf-results/phase0-gallery-lint.json`, the ratchet.
+- One real defect fixed in `TextExamplesSection`, described below.
+- Decision record: [composite-parts-and-the-lint-gate.md](./AI_TECHNICAL_DECISIONS/composite-parts-and-the-lint-gate.md).
+
+**The problem was the tree, not the rule.** Every `Panel` builds a background `Rectangle` and a content `Layer` at its own size and adds both as children, every `Button` adds a background and a label, `Input` adds four. Rule 1 asks whether two visible siblings overlap; those pairs always do; so every composite reported its own construction. Twenty-eight of the gallery's thirty violations were that, and across the screens the same shape was 378 containments and 55 coincident boxes. But `Panel.render` calls `this.background.render()` and `this.contentLayer.render()` by name and never walks a child list to find them, and `Panel.addChild` redirects a caller's child into the content layer so it cannot reach that array at all. The snapshot was calling those nodes siblings of the caller's children, which they are not. Rule 1 was correctly reporting what it was told.
+
+**Both options in the ticket were rejected, on the spec's own text.** Emitting `zIndex` is forbidden for this purpose by R3.18 by name, and R3.19 makes the effective-layer half structurally impossible for a widget's own parts; since nothing in this renderer reorders children, every ordinal would be inert on pixels and exist only to move a count, which R3.14 records as the root of worldsim's ordering bugs. Teaching rule 1 about structural pairs amends the MUST-provide rule, opening an exemption R13.25 states as a closed pair, and its enclosure test is widest exactly where a broken composite ends up.
+
+**Gallery 30 to 0, measured three times, byte-identical.** Per scene: interactive-controls 4, style-guide 1, input-showcase 8, rectangles 1, buttons 9, text 3, primitive-shapes 1, nested-panels 3, all now 0. So R13.29 is armed literally as `count === 0`, with no waiver ledger and no redefinition of what the gate counts.
+
+**Screens are not zero and this task cannot get them there:** 1,044 to 1,002. Almost none of the remainder is a layout defect. 398 are `zero-or-negative-size` bucketed `unmeasured-text`, a violated R13.21 precondition since `Text` sizes come only from `Layer.layout()` and the frame loop never calls it (DDB-73, with metrics from DDB-70/71). 291 are content scrolled out of a container (DDB-85). 245 are sibling-overlap, of which roughly 223 are the same background-sibling construction hand-rolled in `Card`, `Vehicle` and the screens (DDB-79). 68 are child-outside-parent. Screen lint zero is DDB-91's. The dated DDB-57 capture is left as it was, since it is a record of a moment rather than a live file.
+
+**What the fix makes the lint blind to, stated because a gate that reached zero by looking away would be worse than no gate.** Rule 1 no longer pairs a part with anything, so a `Button` icon over its own label reports nothing, and, less obviously, neither does a caller-added child painted over a part: an opaque rectangle added to a Button with `addChild` covering its label exactly lints 0 on all eight scenes, where before it was reported. That is a real loss of coverage, not only a withdrawal of noise. Rule 6 is narrowed the same way and is latent only because it is dormant in phase 0. What still covers it: rules 2, 3, 4, 5 and 7 all run over parts, recursion into a part is not cut, and in the covering-rectangle case the scene's screenshot golden went red in the same run in which the lint stayed silent. Today's engine also batches all text to one flush at frame end, so a `Rectangle` cannot paint over a `Text` at all, which makes that particular bug unrepresentable rather than merely uncaught; that cover expires with phase 1's batcher.
+
+**An adversarial pass found two holes in the first draft, both closed and both now pinned by a test.** The mark was sticky: `addChild` did not clear it, so a layer that had ever been anyone's part stayed one and would be laundered out of rule 1's pairing under a new parent. And the two groups were numbered from their own positions, so a part and a child of the same type under one owner both printed `Type[0]`, which matters because the path is the only identity R13.28 gives a violation and the only key a baseline diff can match on.
+
+**The gate proves it measured something before it reports clean.** `count === 0` is satisfied by measuring nothing, and that is not hypothetical: making `treeSnapshot` return no roots left all eight scenes green, because `openScene` waits on `__app.status()` and never reads the tree. The spec now asserts a node floor first, probing `outside-viewport`'s `evaluated`, the one rule that tests every visible candidate exactly once.
+
+**Two mutations, run to prove the gate is a gate.** Narrowing `buttonSpacing` from 130 to 100 in `ButtonExamplesSection` turned the buttons scene red with five sibling-overlaps naming the adjacent `Button` pairs and their boxes. Making `treeSnapshot` return no roots turned all eight red on the liveness assertion. Both reverted.
+
+**The defect the lint found**, and the reason it is worth having: `TextExamplesSection` positions its three alignment samples as bare points, and `Text` resolves alignment against the node's own box, so the right-hand sample drew a text width past the section and off the viewport. It went unnoticed because the developer screen scrolls that section out of view, and the gallery mounts it alone. It is the only pixel change here: 24 of 26 goldens pass untouched and the two that differ are `scene-text` in both projects, which needs a CI re-mint through the dispatch. "Right aligned" appears in that golden for the first time.
+
+`npm test` 420 passing across 23 suites (384 before), `npm run typecheck` clean, `npm run lint` 0 errors.
+
+=========================================
+
 ## Screenshot goldens minted on CI, screenshots job becomes a gate, phase 0 closes (2026-09-09)
 
 **What changed:**

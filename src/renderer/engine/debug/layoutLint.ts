@@ -82,6 +82,11 @@ export interface LintNode {
 	focusable?: boolean;
 	pointerEvents?: string;
 	text?: LintText;
+	/**
+	 * The node's own drawings, which are not siblings of its children. See the
+	 * note on rule 1 in `walk` for what the distinction changes.
+	 */
+	parts?: readonly LintNode[];
 	children?: readonly LintNode[];
 }
 
@@ -427,6 +432,31 @@ export function layoutLint(document: LintDocument, options: LintOptions | null =
 		return candidates;
 	};
 
+	/**
+	 * A node's two groups, numbered as one.
+	 *
+	 * `pathSegment` disambiguates by position within the array it was given, so
+	 * numbering `parts` and `children` separately would let a part and a child
+	 * of the same type under one owner both print `Type[0]`. The path is the
+	 * only identity R13.28 gives a violation and the only key a baseline diff
+	 * can use, so the two are numbered across the concatenation and split
+	 * afterwards on the boundary. Parts come first because that is submission
+	 * order (R3.18), and a node with no parts numbers exactly as it did before
+	 * the group existed.
+	 */
+	const toGroups = (node: LintNode, parentPath: string): [Candidate[], Candidate[]] => {
+		const parts = Array.isArray(node.parts) ? node.parts : [];
+		if (parts.length === 0) return [[], toCandidates(node.children, parentPath)];
+		const children = Array.isArray(node.children) ? node.children : [];
+		const all = toCandidates([...parts, ...children], parentPath);
+		// Invisible nodes are dropped but keep their original index (R13.27),
+		// so the boundary still splits the survivors correctly.
+		return [
+			all.filter((candidate) => candidate.index < parts.length),
+			all.filter((candidate) => candidate.index >= parts.length),
+		];
+	};
+
 	/** Rule 1. Roots are a sibling group like any other (R13.27). */
 	const siblingOverlap = (group: readonly Candidate[]): void => {
 		const rule = tally('sibling-overlap');
@@ -606,8 +636,34 @@ export function layoutLint(document: LintDocument, options: LintOptions | null =
 	// unexpanded, which is what treeSnapshot emits for the same shape.
 	const expanded = new Set<LintNode>();
 
-	const walk = (group: readonly Candidate[], parent: Candidate | null, depth: number): void => {
-		siblingOverlap(group);
+	/**
+	 * @param siblings False for a group of one node's `parts`. Rule 1 asks
+	 *   whether two *siblings* overlap, and R8.5's sibling relation holds
+	 *   between the children a caller added. A composite's parts are not that:
+	 *   R3.18 fixes their order as shadow, background, decorations, content,
+	 *   chrome, so one part covering another is the construction the spec
+	 *   prescribes rather than a finding. Every other rule still runs over
+	 *   them: a part that escapes its component, collapses or leaves the
+	 *   viewport is reported, and recursion into a part is not cut, so a
+	 *   container part still lints its own contents.
+	 *
+	 *   Two rules are narrowed by this, not one, and the second is easy to
+	 *   miss. Rule 6 takes the same group, so a part covering an interactive
+	 *   child, or a child covering an interactive part, is no longer compared
+	 *   either. That is latent rather than live - rule 6 is dormant in phase 0
+	 *   for want of `focusable` and `pointerEvents` - and DDB-73 has to decide
+	 *   it when the dispatcher supplies them. The same gap in rule 1 is the
+	 *   named blind spot in the decision doc: a caller-added child painted over
+	 *   a composite's own label is invisible to the lint, and the scene's
+	 *   screenshot golden is what covers it today.
+	 */
+	const walk = (
+		group: readonly Candidate[],
+		parent: Candidate | null,
+		depth: number,
+		siblings: boolean,
+	): void => {
+		if (siblings) siblingOverlap(group);
 		for (const candidate of group) {
 			if (parent) childOutsideParent(candidate, parent);
 			outsideViewport(candidate);
@@ -617,11 +673,13 @@ export function layoutLint(document: LintDocument, options: LintOptions | null =
 			targetSize(candidate);
 			if (depth >= MAX_DEPTH || expanded.has(candidate.node)) continue;
 			expanded.add(candidate.node);
-			walk(toCandidates(candidate.node.children, candidate.path), candidate, depth + 1);
+			const [parts, children] = toGroups(candidate.node, candidate.path);
+			walk(parts, candidate, depth + 1, false);
+			walk(children, candidate, depth + 1, true);
 		}
 	};
 
-	walk(toCandidates(document?.roots, ''), null, 0);
+	walk(toCandidates(document?.roots, ''), null, 0, true);
 
 	const rules: LintRuleReport[] = RULE_NAMES.map((name) => {
 		const source = tally(name);

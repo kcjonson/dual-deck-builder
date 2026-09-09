@@ -139,7 +139,7 @@ export class Panel extends Layer implements Interactive {
 				border: options?.style?.border,
 			},
 		});
-		super.addChild(this.background);
+		this.addPart(this.background);
 
 		// Create content layer for user-added children (at local origin)
 		this.contentLayer = new ScrollableContentLayer(this, {
@@ -148,7 +148,7 @@ export class Panel extends Layer implements Interactive {
 			width: this.width || 200,
 			height: this.height || 100,
 		});
-		super.addChild(this.contentLayer);
+		this.addPart(this.contentLayer);
 
 		// Register for wheel events if scrollable
 		if (this.scrollable) {

@@ -46,7 +46,7 @@ export class Input extends Component {
 				borderRadius: 3,
 			},
 		});
-		this.addChild(this.background);
+		this.addPart(this.background);
 
 		// Create text child component for the input value at local origin
 		const textOffset = 10; // Padding from left edge
@@ -63,7 +63,7 @@ export class Input extends Component {
 		});
 		this.text.setAlign('left');
 		this.text.setBaseline('middle');
-		this.addChild(this.text);
+		this.addPart(this.text);
 
 		// Create placeholder text at same position
 		this.placeholder = new Text(placeholder, {
@@ -80,7 +80,7 @@ export class Input extends Component {
 		this.placeholder.setAlign('left');
 		this.placeholder.setBaseline('middle');
 		this.placeholderText = placeholder;
-		this.addChild(this.placeholder);
+		this.addPart(this.placeholder);
 		
 		// Create cursor (initially hidden)
 		this.cursor = new Rectangle({
@@ -93,7 +93,7 @@ export class Input extends Component {
 			},
 		});
 		this.cursor.setVisible(false);
-		this.addChild(this.cursor);
+		this.addPart(this.cursor);
 
 		// Setup event handling (this would be connected to the input system)
 		this.setupEvents();
