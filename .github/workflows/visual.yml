@@ -79,18 +79,19 @@ jobs:
           echo "Every baseline change came from a [visual-baseline] commit."
 
   visual:
-    # The name says unbaselined because it is. No Linux goldens are committed
-    # yet and there is no way to commit them from a branch, since GitHub only
-    # offers workflow_dispatch for workflows already on the default branch.
-    # Until the bootstrap in docs/AI_TECHNICAL_DECISIONS/visual-golden-harness.md
-    # has run, every screenshot assertion here fails on a missing golden, which
-    # is the configured behaviour and not a regression.
-    name: Screenshots (unbaselined, non-blocking)
-    # Without this the job is a red check with no remedy a contributor can act
-    # on, and the documented response to that is to widen the tolerance or
-    # delete the job. Drop continue-on-error in the same change that commits
-    # the first baselines.
-    continue-on-error: true
+    # Baselined and blocking as of run 34310762573, which minted the twenty-six
+    # Linux goldens for both projects on ubuntu-24.04. Before that this job was
+    # continue-on-error, because every assertion failed on a missing golden and
+    # a red check with no remedy invites someone to widen the tolerance or
+    # delete the job.
+    #
+    # When this fails, the answer is to find what varies, not to raise
+    # threshold or maxDiffPixels. Both numbers were set by measurement (the
+    # mutation table in docs/AI_TECHNICAL_DECISIONS/visual-golden-harness.md)
+    # and raising either reopens the mutations they were chosen to catch. A
+    # legitimate re-baseline goes through the dispatch below; the ground rules
+    # schedule three of them, at phases 1, 2 and 4.
+    name: Screenshots
     # Screenshots are only worth reporting once the provenance verdict is in: a
     # green pixel run beside a red provenance run reads as "the pictures are
     # fine", which is the wrong summary of a hand-minted golden. always() plus

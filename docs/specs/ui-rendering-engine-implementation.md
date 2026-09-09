@@ -55,11 +55,12 @@ Each phase lists its deliverables as the checkboxes that become board tasks. The
 - [x] Tree snapshot over the existing `Layer` tree (`window.__ui.tree()`): id, type, bounds, screen bounds, visible, children, viewport (R13.21 to R13.24); `id` added to `LayerOptions` and set on the roughly thirty named game elements.
 - [x] Layout lint as a pure function with the seven required rules (R13.25 to R13.28), unit-tested on hand-built trees, exposed as `window.__ui.lint()`.
 - [x] Gallery routing: the developer screen's sections become scenes in a registry addressable by `?scene=` (R13.30 to R13.33), as a dev-only webpack entry.
-- [ ] Playwright, the SwiftShader flags, `visual.yml`, one screenshot spec per screen and per gallery scene, committed goldens (R14.5, R15.33, R15.36).
-  The harness half landed with DDB-59: the config, both projects, the specs, the determinism controls and the workflow. The goldens half has not, and
-  cannot be done from a developer machine by design: R14.5 puts baselines on the CI runner image, the only writer is the `update_baselines` dispatch,
-  and GitHub offers `workflow_dispatch` only for workflows already on the default branch. This box closes when the Linux baselines are committed by
-  that job; the bootstrap order is in [visual-golden-harness.md](../AI_TECHNICAL_DECISIONS/visual-golden-harness.md).
+- [x] Playwright, the SwiftShader flags, `visual.yml`, one screenshot spec per screen and per gallery scene, committed goldens (R14.5, R15.33, R15.36).
+  The harness landed with DDB-59; the goldens came from the CI runner as R14.5 requires, minted by the `update_baselines` dispatch in run 34310762573
+  and committed as `670350c` (twenty-six PNGs, thirteen per project). `continue-on-error` came off the screenshots job in the same change, so it is a
+  gate rather than a report. Two scenarios stay `test.fixme` with their reasons attached rather than being deleted from the list: `primitive-shapes`
+  (DDB-103, a vertex-buffer overflow whose golden would define corrupt circles as correct) and `battleResultScreen` (the R13.32 control surface carries
+  no `BattleResultData`, so a capture gets the missing-data fallback). See [visual-golden-harness.md](../AI_TECHNICAL_DECISIONS/visual-golden-harness.md).
 - [x] Input injection hook (`window.__dev.input(...)`) feeding the existing input path in logical coordinates (R13.35).
 - [x] Frame timer with disjoint sections and window statistics (R13.7 to R13.11) replacing the frame-interval-only monitor; batcher counters arrive with phase 1.
 - [x] Baseline table recorded and committed under `perf-results/`.
