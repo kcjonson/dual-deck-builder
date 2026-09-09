@@ -4,6 +4,7 @@ import { RendererContext } from '../renderer/engine/rendering/RendererContext';
 import { InputSystem } from '../renderer/engine/input/InputSystem';
 import { FrameTimer } from '../renderer/engine/rendering/FrameTimer';
 import { installDebugHooks, installAppHooks, installInputHooks, installPerfHooks } from '../renderer/engine/debug/hooks';
+import { CardLoader } from '../renderer/game/core/CardLoader';
 import { gallerySceneRegistry } from './registry';
 import { SceneHost } from './SceneHost';
 import vertexShaderSource from '../assets/shaders/vertex.glsl';
@@ -98,7 +99,12 @@ class GalleryApplication {
 			resume: () => {
 				this.host.paused = false;
 			},
-			status: () => this.host.status(),
+			// R14.5's readiness gate, the same field the game page reports.
+			// No gallery scene fetches anything today, so this is constantly
+			// true here; it is present because the harness reads one control
+			// surface across both pages, and a field that is simply absent
+			// would satisfy a gate exactly as well as a field that is true.
+			status: () => ({ ...this.host.status(), assetsReady: !CardLoader.getInstance().loading }),
 		});
 
 		// R13.35, on the same canvas the InputSystem listens to. The gallery

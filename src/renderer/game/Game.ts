@@ -3,6 +3,7 @@ import { FrameTimer } from '../engine/rendering/FrameTimer';
 import { DeveloperOverlay } from '../engine/ui/DeveloperOverlay';
 import { ScreenManager } from './core/ScreenManager';
 import { InputSystem } from '../engine/input/InputSystem';
+import { CardLoader } from './core/CardLoader';
 import type { Layer } from '../engine/components/Layer';
 
 /**
@@ -24,6 +25,15 @@ export interface GameStatus {
 	/** The InputSystem's own gate, which is what actually drops events (R13.35). */
 	inputPaused: boolean;
 	viewport: { width: number; height: number };
+	/**
+	 * False while a data fetch the mounted screen started is still outstanding
+	 * (R14.5). The screenshot harness gates on this because the drawn tree
+	 * cannot answer the question: a screen whose `cards.json` request has not
+	 * resolved holds exactly as still as one whose request finished, so a
+	 * "two frames agree" check accepts the pre-data frame as readily as the
+	 * real one and a mint run would commit it as the golden.
+	 */
+	assetsReady: boolean;
 }
 
 /**
@@ -146,6 +156,7 @@ export class Game {
 					renders: this.renders,
 					inputPaused: InputSystem.getInstance().paused,
 					viewport: { width: window.innerWidth, height: window.innerHeight },
+					assetsReady: !CardLoader.getInstance().loading,
 				}),
 			});
 			installDebugHooks({

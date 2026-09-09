@@ -52,14 +52,18 @@ Each phase lists its deliverables as the checkboxes that become board tasks. The
 
 ### Phase 0: safety net and baseline (chapters 13 and 14, partial)
 
-- [ ] Tree snapshot over the existing `Layer` tree (`window.__ui.tree()`): id, type, bounds, screen bounds, visible, children, viewport (R13.21 to R13.24); `id` added to `LayerOptions` and set on the roughly thirty named game elements.
-- [ ] Layout lint as a pure function with the seven required rules (R13.25 to R13.28), unit-tested on hand-built trees, exposed as `window.__ui.lint()`.
-- [ ] Gallery routing: the developer screen's sections become scenes in a registry addressable by `?scene=` (R13.30 to R13.33), as a dev-only webpack entry.
+- [x] Tree snapshot over the existing `Layer` tree (`window.__ui.tree()`): id, type, bounds, screen bounds, visible, children, viewport (R13.21 to R13.24); `id` added to `LayerOptions` and set on the roughly thirty named game elements.
+- [x] Layout lint as a pure function with the seven required rules (R13.25 to R13.28), unit-tested on hand-built trees, exposed as `window.__ui.lint()`.
+- [x] Gallery routing: the developer screen's sections become scenes in a registry addressable by `?scene=` (R13.30 to R13.33), as a dev-only webpack entry.
 - [ ] Playwright, the SwiftShader flags, `visual.yml`, one screenshot spec per screen and per gallery scene, committed goldens (R14.5, R15.33, R15.36).
-- [ ] Input injection hook (`window.__dev.input(...)`) feeding the existing input path in logical coordinates (R13.35).
-- [ ] Frame timer with disjoint sections and window statistics (R13.7 to R13.11) replacing the frame-interval-only monitor; batcher counters arrive with phase 1.
-- [ ] Baseline table recorded and committed under `perf-results/`.
-- [ ] Dead engine code removed (DDB-14, DDB-15, with the correction that `RenderContext.ts` is live today and `RendererContext.ts` is the singleton to retire in phase 3); `removeChild` gains an unmount as a one-line stopgap for the registration leak.
+  The harness half landed with DDB-59: the config, both projects, the specs, the determinism controls and the workflow. The goldens half has not, and
+  cannot be done from a developer machine by design: R14.5 puts baselines on the CI runner image, the only writer is the `update_baselines` dispatch,
+  and GitHub offers `workflow_dispatch` only for workflows already on the default branch. This box closes when the Linux baselines are committed by
+  that job; the bootstrap order is in [visual-golden-harness.md](../AI_TECHNICAL_DECISIONS/visual-golden-harness.md).
+- [x] Input injection hook (`window.__dev.input(...)`) feeding the existing input path in logical coordinates (R13.35).
+- [x] Frame timer with disjoint sections and window statistics (R13.7 to R13.11) replacing the frame-interval-only monitor; batcher counters arrive with phase 1.
+- [x] Baseline table recorded and committed under `perf-results/`.
+- [x] Dead engine code removed (DDB-14, DDB-15, with the correction that `RenderContext.ts` is live today and `RendererContext.ts` is the singleton to retire in phase 3); `removeChild` gains an unmount as a one-line stopgap for the registration leak.
 
 ### Phase 1: draw core (chapters 2, 3, 4, 5, 7, 15)
 

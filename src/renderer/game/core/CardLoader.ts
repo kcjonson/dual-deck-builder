@@ -9,6 +9,7 @@ export class CardLoader {
 	private cardsData: Map<string, CardData> = new Map();
 	private startingDecks: Map<string, string[]> = new Map();
 	private loaded = false;
+	private inFlight = 0;
 
 	private constructor() {
 		// Private constructor for singleton pattern
@@ -25,6 +26,7 @@ export class CardLoader {
 	 * Load cards from JSON file
 	 */
 	public async loadCards(jsonPath = 'cards.json'): Promise<void> {
+		this.inFlight += 1;
 		try {
 			const response = await fetch(jsonPath);
 			if (!response.ok) {
@@ -37,7 +39,28 @@ export class CardLoader {
 		} catch (error) {
 			console.error('Error loading cards:', error);
 			throw error;
+		} finally {
+			this.inFlight -= 1;
 		}
+	}
+
+	/**
+	 * True while a `cards.json` request is outstanding.
+	 *
+	 * This exists for the screenshot harness (R14.5), whose readiness gate
+	 * cannot be derived from the drawn tree: a tree that has not started
+	 * loading holds as still as one that finished, so "two frames in a row
+	 * agree" is satisfied by the empty frame as well as by the loaded one. The
+	 * counter is incremented in the same turn `loadCards` is called, and every
+	 * screen that wants cards asks during its own mount, so a gate that reads
+	 * this after the mount's microtasks have drained sees the request.
+	 *
+	 * `isLoaded()` is not the same question: it stays false forever on the
+	 * screens that never ask for cards, and a gate built on it would hang on
+	 * the splash and main menu.
+	 */
+	public get loading(): boolean {
+		return this.inFlight > 0;
 	}
 
 	/**
