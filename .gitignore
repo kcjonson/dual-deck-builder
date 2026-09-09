@@ -134,3 +134,17 @@ dist
 .yarn/build-state.yml
 .yarn/install-state.gz
 .pnp.*
+
+# Playwright
+test-results/
+playwright-report/
+playwright/.cache/
+.playwright-build/
+
+# Screenshot baselines are produced by the CI runner image only (R14.5).
+# {platform} is a directory segment in snapshotPathTemplate, so a local run
+# writes under its own platform directory; only the Linux goldens the visual
+# workflow mints are tracked.
+tests/visual/__screenshots__/**
+!tests/visual/__screenshots__/**/
+!tests/visual/__screenshots__/*/linux/**

@@ -1,4 +1,5 @@
 const path = require('path');
+const webpack = require('webpack');
 const HtmlWebpackPlugin = require('html-webpack-plugin');
 const CopyWebpackPlugin = require('copy-webpack-plugin');
 
@@ -33,6 +34,13 @@ module.exports = {
 		},
 	},
 	plugins: [
+		// Dev tooling (window.__ui and friends) is wrapped in `if (__DEV_TOOLS__)`
+		// so a production build folds the constant to false and drops the code.
+		// Lives in common because webpack.electron.js merges this same config
+		// into the renderer; a web-only define would be a ReferenceError there.
+		new webpack.DefinePlugin({
+			__DEV_TOOLS__: JSON.stringify(process.env.NODE_ENV !== 'production'),
+		}),
 		new HtmlWebpackPlugin({
 			template: './public/index.html',
 			favicon: './public/favicon.ico',

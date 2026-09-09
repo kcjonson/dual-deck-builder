@@ -1,4 +1,5 @@
 import { BattlefieldLayer } from './BattlefieldLayer';
+import { LayerOptions } from '../../../engine/components/Layer';
 import { Vehicle as VehicleData } from '../../mechanics/Vehicle';
 import { Vehicle as VehicleUI } from '../../ui/Vehicle';
 import { Rectangle } from '../../../engine/components/Rectangle';
@@ -139,13 +140,7 @@ export class EnemyBattlefieldLayer extends BattlefieldLayer {
   // Map of vehicle IDs to their intents
   private vehicleIntents: Map<string, EnemyIntent> = new Map();
 
-  constructor(options: { 
-    x: number; 
-    y: number; 
-    width: number; 
-    height: number;
-    combatData?: CombatModel;
-  }) {
+  constructor(options: LayerOptions & { x: number; y: number; width: number; height: number; combatData?: CombatModel }) {
     super(options);
 
     // Background for battlefield
@@ -235,8 +230,9 @@ export class EnemyBattlefieldLayer extends BattlefieldLayer {
   /**
    * Create a vehicle display component
    */
-  protected createVehicleCard(vehicle: VehicleData): VehicleUI {
+  protected createVehicleCard(vehicle: VehicleData, laneOrdinal: number): VehicleUI {
     const enemyVehicle = new EnemyVehicle({
+      id: `enemy_vehicle_${vehicle.position}_${laneOrdinal}`,
       x: 0,
       y: 0,
       width: this.getCardWidth(),

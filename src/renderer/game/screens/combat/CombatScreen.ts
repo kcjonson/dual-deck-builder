@@ -459,6 +459,7 @@ export class CombatScreen extends Screen {
 		// Resource Layer - Top 7%
 		const resourceLayerHeight = Math.floor(screenHeight * 0.07);
 		this.resourceLayer = new ResourceBarLayer({
+			id: 'combat_resource_bar',
 			x: 0,
 			y: 0,
 			width: screenWidth,
@@ -470,6 +471,7 @@ export class CombatScreen extends Screen {
 		const enemyLayerHeight = Math.floor(screenHeight * 0.23);
 		const enemyLayerY = resourceLayerHeight;
 		this.enemyLayer = new EnemyBattlefieldLayer({
+			id: 'combat_enemy_battlefield',
 			x: 0,
 			y: enemyLayerY,
 			width: screenWidth,
@@ -482,6 +484,7 @@ export class CombatScreen extends Screen {
 		const battlefieldLayerHeight = Math.floor(screenHeight * 0.4);
 		const battlefieldLayerY = enemyLayerY + enemyLayerHeight;
 		this.battlefieldLayer = new PlayerBattlefieldLayer({
+			id: 'combat_player_battlefield',
 			x: 0,
 			y: battlefieldLayerY,
 			width: screenWidth,
@@ -494,6 +497,7 @@ export class CombatScreen extends Screen {
 		const handLayerHeight = Math.floor(screenHeight * 0.18);
 		const handLayerY = battlefieldLayerY + battlefieldLayerHeight;
 		this.handLayer = new PlayerHandLayer({
+			id: 'combat_player_hand',
 			x: 0,
 			y: handLayerY,
 			width: screenWidth,
@@ -503,6 +507,7 @@ export class CombatScreen extends Screen {
 		
 		// Turn Phase Display - Below resource bar, left side
 		this.turnPhaseDisplay = new TurnPhaseDisplay({
+			id: 'combat_turn_banner',
 			x: 10,
 			y: resourceLayerHeight + 10,
 			width: 200,
@@ -514,6 +519,7 @@ export class CombatScreen extends Screen {
 		const combatLogWidth = 240; // Reduced width
 		const combatLogHeight = 200; // Reduced height
 		this.combatLogLayer = new CombatLogLayer({
+			id: 'combat_log',
 			x: screenWidth - combatLogWidth - 10,
 			y: resourceLayerHeight + 10,
 			width: combatLogWidth,
@@ -831,6 +837,10 @@ export class CombatScreen extends Screen {
 		
 		// Unregister global keyboard handler
 		InputSystem.unregisterGlobalKeyDown('F6');
+
+		// rootLayer is a plain Layer, whose unmount only recurses; it does not
+		// unregister itself the way Component.unmount does.
+		InputSystem.unregisterComponent(this.rootLayer);
 		
 		// Unsubscribe from all events
 		this.unsubscribeAll();

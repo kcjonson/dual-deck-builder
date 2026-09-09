@@ -1,4 +1,4 @@
-import { Layer } from '../../../engine/components/Layer';
+import { Layer, LayerOptions } from '../../../engine/components/Layer';
 import { Text } from '../../../engine/components/Text';
 import { Rectangle } from '../../../engine/components/Rectangle';
 import { Driver } from '../../mechanics/Driver';
@@ -21,7 +21,7 @@ export class SynergyPreviewPanel extends Layer {
 	/**
 	 * Create a new synergy preview panel
 	 */
-	constructor(options: { x: number; y: number; width: number; height: number }) {
+	constructor(options: LayerOptions & { x: number; y: number; width: number; height: number }) {
 		super(options);
 		
 		// Create background

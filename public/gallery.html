@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Scene Gallery</title>
+  <style>
+    body {
+      margin: 0;
+      padding: 0;
+      overflow: hidden;
+      background-color: #000;
+    }
+    canvas {
+      display: block;
+      position: absolute;
+      top: 0;
+      left: 0;
+      /* Canvas dimensions are set programmatically in Renderer.resize() */
+    }
+  </style>
+</head>
+<body>
+  <!-- One scene, no chrome (R13.30). index.html's #loading overlay is
+       deliberately absent: it would sit over the first frames of every
+       screenshot, and only src/index.ts removes it. -->
+  <canvas id="game-canvas"></canvas>
+</body>
+</html>

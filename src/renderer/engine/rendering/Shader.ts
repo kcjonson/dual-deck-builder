@@ -124,14 +124,6 @@ export class Shader {
 	}
 
 	/**
-	 * Set a uniform vec3 value
-	 */
-	public setVector3(name: string, value: [number, number, number]): void {
-		const location = this.gl.getUniformLocation(this.program, name);
-		this.gl.uniform3f(location, value[0], value[1], value[2]);
-	}
-
-	/**
 	 * Set a uniform vec4 value
 	 */
 	public setVector4(name: string, value: [number, number, number, number]): void {

@@ -1,4 +1,5 @@
 import { BattlefieldLayer } from './BattlefieldLayer';
+import { LayerOptions } from '../../../engine/components/Layer';
 import { Vehicle as VehicleData } from '../../mechanics/Vehicle';
 import { Vehicle as VehicleUI } from '../../ui/Vehicle';
 import { Rectangle } from '../../../engine/components/Rectangle';
@@ -23,13 +24,7 @@ class PlayerVehicle extends VehicleUI {
  * Shows player vehicles with targeting support
  */
 export class PlayerBattlefieldLayer extends BattlefieldLayer {
-  constructor(options: { 
-    x: number; 
-    y: number; 
-    width: number; 
-    height: number;
-    combatData?: CombatModel;
-  }) {
+  constructor(options: LayerOptions & { x: number; y: number; width: number; height: number; combatData?: CombatModel }) {
     super(options);
 
     // Background for battlefield
@@ -119,8 +114,9 @@ export class PlayerBattlefieldLayer extends BattlefieldLayer {
   /**
    * Create a vehicle display component
    */
-  protected createVehicleCard(vehicle: VehicleData): VehicleUI {
+  protected createVehicleCard(vehicle: VehicleData, laneOrdinal: number): VehicleUI {
     return new PlayerVehicle({
+      id: `player_vehicle_${vehicle.position}_${laneOrdinal}`,
       x: 0,
       y: 0,
       width: this.getCardWidth(),

@@ -120,27 +120,32 @@ export class ScreenManager {
 	}
 	
 	/**
-	 * Handle window resize
+	 * The mounted screen instance, for the dev tree snapshot.
 	 */
-	static resize(width: number, height: number): void {
-		this.currentScreen?.resize(width, height);
+	static get activeScreen(): Screen | null {
+		return this.currentScreen;
 	}
-	
+
+	/**
+	 * The screens navigate() accepts, for the dev-only window.__app.navigate
+	 * hook: a capture script has to enumerate before it can drive.
+	 */
+	static get screenNames(): ScreenName[] {
+		return [...this.screenConstructors.keys()];
+	}
+
+	/**
+	 * Whether a string names a screen. Guards the dev navigate hook, which
+	 * takes whatever a console or a Playwright script hands it.
+	 */
+	static isScreenName(name: string): name is ScreenName {
+		return this.screenConstructors.has(name as ScreenName);
+	}
+
 	/**
 	 * Get the current screen name
 	 */
 	static getCurrentScreenName(): ScreenName | null {
 		return this.currentScreenName;
-	}
-	
-	/**
-	 * Clean up the screen manager
-	 */
-	static destroy(): void {
-		if (this.currentScreen) {
-			this.currentScreen.unmount();
-			this.currentScreen = null;
-			this.currentScreenName = null;
-		}
 	}
 }

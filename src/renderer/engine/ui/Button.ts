@@ -85,22 +85,6 @@ export class Button extends Component {
 	}
 
 	/**
-	 * Get the button's label text
-	 */
-	public getLabel(): string {
-		return this.text.getText();
-	}
-
-	/**
-	 * Set the text color
-	 * @param color Color value (hex string or RGBA array)
-	 */
-	public setTextColor(color: string | [number, number, number, number]): this {
-		this.text.setColor(color);
-		return this;
-	}
-
-	/**
 	 * Set the font size
 	 * @param size Font size in pixels
 	 */

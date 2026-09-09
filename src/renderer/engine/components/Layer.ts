@@ -6,6 +6,7 @@ import { Style } from '../types/Style';
  * Layer creation options
  */
 export interface LayerOptions {
+	id?: string;
 	x?: number;
 	y?: number;
 	width?: number;
@@ -30,6 +31,7 @@ export class Layer {
 	protected parent: Layer | null = null;
 	private backgroundColor: [number, number, number, number] | null = null;
 	private overflow: 'visible' | 'hidden' = 'visible';
+	private _id: string | null = null;
 
 	/**
 	 * Create a new layer
@@ -38,6 +40,7 @@ export class Layer {
 	constructor(options?: LayerOptions) {
 		// Apply direct properties
 		if (options) {
+			if (options.id !== undefined) this._id = options.id;
 			if (options.x !== undefined) this.x = options.x;
 			if (options.y !== undefined) this.y = options.y;
 			if (options.width !== undefined) this.width = options.width;
@@ -82,6 +85,23 @@ export class Layer {
 			return parseFloat(size.slice(0, -2));
 		}
 		return parseFloat(size as string) || 0;
+	}
+
+	/**
+	 * Stable name for tests, the tree snapshot, and the layout lint.
+	 * Null when the layer was never given one.
+	 */
+	public get id(): string | null {
+		return this._id;
+	}
+
+	/**
+	 * The real child array. Unlike getChildren(), subclasses never redirect
+	 * this, so a tree walker sees a Panel's background and content layer
+	 * rather than the content layer's children one level too shallow.
+	 */
+	public get debugChildren(): readonly Layer[] {
+		return this.children;
 	}
 
 	/**
@@ -236,6 +256,10 @@ export class Layer {
 	public removeChild(child: Layer): boolean {
 		const index = this.children.indexOf(child);
 		if (index !== -1) {
+			// Detaching without unmounting leaves the subtree registered with
+			// InputSystem, so it keeps being hit-tested and never collected.
+			// Safe because unmount on an already-unmounted subtree is a no-op.
+			child.unmount();
 			child.parent = null;
 			this.children.splice(index, 1);
 			return true;
@@ -361,13 +385,6 @@ export class Layer {
 	public setBackgroundColor(color: [number, number, number, number] | null): this {
 		this.backgroundColor = color;
 		return this;
-	}
-
-	/**
-	 * Get the background color of the layer
-	 */
-	public getBackgroundColor(): [number, number, number, number] | null {
-		return this.backgroundColor;
 	}
 
 	/**

@@ -1,4 +1,4 @@
-import { Layer } from '../../../engine/components/Layer';
+import { Layer, LayerOptions } from '../../../engine/components/Layer';
 import { Text } from '../../../engine/components/Text';
 import { Rectangle } from '../../../engine/components/Rectangle';
 import { Button } from '../../../engine/ui/Button';
@@ -12,6 +12,7 @@ import { CardLoader } from '../../core/CardLoader';
  */
 export class DriverPanel extends Layer {
 	private panelSide: 'left' | 'right';
+	private idPrefix: string;
 	private isEmpty = true;
 	private selectedDriver: Driver | null = null;
 	private availableDrivers: Driver[] = [];
@@ -35,10 +36,11 @@ export class DriverPanel extends Layer {
 	/**
 	 * Create a new driver panel
 	 */
-	constructor(side: 'left' | 'right', options: { x: number; y: number; width: number; height: number }) {
+	constructor(side: 'left' | 'right', options: LayerOptions & { x: number; y: number; width: number; height: number }) {
 		super(options);
 		
 		this.panelSide = side;
+		this.idPrefix = `driver_panel_${side}_`;
 		
 		// Create background
 		this.background = new Rectangle({
@@ -202,6 +204,7 @@ export class DriverPanel extends Layer {
 		
 		// Driver name (large, bold)
 		this.driverName = new Text('', {
+			id: `${this.idPrefix}driver_name`,
 			style: {
 				fontSize: 20,
 				color: '#ffffff',
@@ -250,6 +253,7 @@ export class DriverPanel extends Layer {
 		
 		// Starting deck container
 		this.startingDeckContainer = new Layer({
+			id: `${this.idPrefix}deck_preview`,
 			x: Math.floor(panelWidth * 0.05),
 			y: portraitHeight + 140,
 			width: Math.floor(panelWidth * 0.9),
@@ -259,6 +263,7 @@ export class DriverPanel extends Layer {
 		
 		// Driver selector dropdown/carousel (at very bottom as per spec)
 		this.driverSelector = new Button('', {
+			id: `${this.idPrefix}cycle_button`,
 			width: Math.floor(panelWidth * 0.8),
 			height: 35,
 			style: {

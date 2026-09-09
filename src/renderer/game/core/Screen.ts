@@ -22,6 +22,7 @@ export abstract class Screen {
 		this.id = id;
 		this.renderer = renderer;
 		this.rootLayer = new Layer({
+			id,
 			x: 0,
 			y: 0,
 			width: window.innerWidth,
@@ -36,6 +37,13 @@ export abstract class Screen {
 	 */
 	public getId(): string {
 		return this.id;
+	}
+
+	/**
+	 * The screen's root layer, for the dev tree snapshot.
+	 */
+	public get root(): Layer {
+		return this.rootLayer;
 	}
 
 	/**
@@ -88,19 +96,6 @@ export abstract class Screen {
 		return this.isActive;
 	}
 	
-	/**
-	 * Handle external resize events
-	 * @param width New window width
-	 * @param height New window height
-	 */
-	public resize(width: number, height: number): void {
-		// Update the root layer size
-		this.rootLayer.setSize(width, height);
-		
-		// Call the screen-specific resize handler
-		this.onResized();
-	}
-
 	/**
 	 * Handle window resize events
 	 */

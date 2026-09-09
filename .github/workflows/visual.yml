@@ -1,0 +1,217 @@
+name: Visual
+
+on:
+  push:
+    branches: [main, master]
+  # 'claude/**' is here because this repository's feature work lives in a stack
+  # of claude/* branches whose pull requests target each other rather than main,
+  # and a screenshot job that never runs on any of them is decoration. PR #23
+  # makes the same change to ci.yml, web-build.yml and electron-build.yml, so
+  # expect a conflict in this block when the two land; keep all four lists the
+  # same.
+  pull_request:
+    branches: [main, master, 'claude/**']
+  workflow_dispatch:
+    inputs:
+      update_baselines:
+        description: 'Mint screenshot baselines on this runner and commit them (R14.5)'
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+jobs:
+  # R14.5's first half: baselines are produced by the CI runner image, so a
+  # pull request should not carry a hand-edited golden. Any commit in the branch
+  # that touches a committed baseline has to be one the baseline job below made,
+  # which it marks with [visual-baseline] and a link back to its own run.
+  #
+  # What this actually buys, stated plainly because the decision doc used to
+  # overstate it: the marker is a commit subject, and anyone can type a commit
+  # subject. This job raises the cost of slipping a hand-minted golden past a
+  # reviewer and puts the attempt in the log where a reviewer will see it. It
+  # does not make one impossible. Making it impossible means resolving the run
+  # id in the commit body against the Actions API and confirming that run
+  # produced these bytes, which is worth doing once there are baselines to
+  # protect.
+  baseline-provenance:
+    name: Baselines came from CI
+    if: github.event_name == 'pull_request'
+    # Pinned, not rolling: the runner image is part of what a golden is a
+    # picture of, so the image that checks has to be the image that minted. A
+    # GitHub image bump is therefore a re-baseline event, and it is listed as
+    # one in docs/AI_TECHNICAL_DECISIONS/visual-golden-harness.md. Note also
+    # that snapshotPathTemplate carries {platform} and no architecture, so an
+    # arm64 runner would silently compare against the x64 goldens.
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Reject locally minted baselines
+        env:
+          BASE_REF: ${{ github.base_ref }}
+        run: |
+          git fetch --no-tags origin "$BASE_REF"
+          changed=$(git diff --name-only "origin/$BASE_REF...HEAD" -- 'tests/visual/__screenshots__' || true)
+          if [ -z "$changed" ]; then
+            echo "No baseline files touched."
+            exit 0
+          fi
+          echo "Baseline files touched by this pull request:"
+          echo "$changed"
+          # Two dots, not three: the diff wants the merge base, the log wants
+          # the commits this branch adds on top of it.
+          offenders=$(git log --format='%H %s' "origin/$BASE_REF..HEAD" -- 'tests/visual/__screenshots__' \
+            | grep -vF '[visual-baseline]' || true)
+          if [ -n "$offenders" ]; then
+            echo
+            echo "R14.5: screenshot baselines are produced by the CI runner image only."
+            echo "These commits changed a baseline without coming from the Visual workflow:"
+            echo "$offenders"
+            echo
+            echo "Run this workflow with update_baselines=true on this branch instead."
+            exit 1
+          fi
+          echo "Every baseline change came from a [visual-baseline] commit."
+
+  visual:
+    # The name says unbaselined because it is. No Linux goldens are committed
+    # yet and there is no way to commit them from a branch, since GitHub only
+    # offers workflow_dispatch for workflows already on the default branch.
+    # Until the bootstrap in docs/AI_TECHNICAL_DECISIONS/visual-golden-harness.md
+    # has run, every screenshot assertion here fails on a missing golden, which
+    # is the configured behaviour and not a regression.
+    name: Screenshots (unbaselined, non-blocking)
+    # Without this the job is a red check with no remedy a contributor can act
+    # on, and the documented response to that is to widen the tolerance or
+    # delete the job. Drop continue-on-error in the same change that commits
+    # the first baselines.
+    continue-on-error: true
+    # Screenshots are only worth reporting once the provenance verdict is in: a
+    # green pixel run beside a red provenance run reads as "the pictures are
+    # fine", which is the wrong summary of a hand-minted golden. always() plus
+    # the explicit result check is what lets a push build, which has no
+    # provenance job at all, still run this one.
+    needs: baseline-provenance
+    if: ${{ !inputs.update_baselines && always() && needs.baseline-provenance.result != 'failure' }}
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: 'npm'
+
+      - name: Install Dependencies
+        run: npm ci
+
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps chromium
+
+      # --with-deps above installs Chromium's system libraries, which are not
+      # Electron's: Electron links GTK 3 and libXtst and neither is on that
+      # list. On 24.04 the GTK runtime carries the t64 suffix from the 64-bit
+      # time_t transition. The electron project has never run on a Linux runner
+      # and stays unverified there until a dispatch proves it.
+      - name: Install Electron's system libraries
+        run: sudo apt-get update && sudo apt-get install -y libgtk-3-0t64 libxtst6
+
+      # Main and preload only, and into .playwright-build rather than dist:
+      # the Electron project loads its renderer from the dev server, because
+      # build:electron forces NODE_ENV=production and a production renderer has
+      # neither the gallery entry nor the __DEV_TOOLS__ hooks the specs drive.
+      - name: Build the Electron harness shell
+        run: npm run build:harness:electron
+
+      # Electron opens a real window even when the page is never shown, so the
+      # Linux runner needs a display server; the chromium project is headless
+      # and does not care either way.
+      - name: Run visual suite
+        run: xvfb-run -a npx playwright test
+
+      - name: Upload report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: |
+            playwright-report/
+            test-results/
+          retention-days: 14
+
+  # R14.5's second half: the only path that writes a baseline. It is a manual
+  # dispatch, it runs on the same runner image the checking job uses, and
+  # VISUAL_BASELINE_RUNNER is the variable playwright.config.ts demands before
+  # it will accept --update-snapshots at all.
+  #
+  # It is unreachable until this file is on the default branch, which is the
+  # first step of the bootstrap in the decision doc.
+  update-baselines:
+    name: Mint baselines
+    if: ${{ inputs.update_baselines }}
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref_name }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: 'npm'
+
+      - name: Install Dependencies
+        run: npm ci
+
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps chromium
+
+      - name: Install Electron's system libraries
+        run: sudo apt-get update && sudo apt-get install -y libgtk-3-0t64 libxtst6
+
+      - name: Build the Electron harness shell
+        run: npm run build:harness:electron
+
+      - name: Update baselines
+        env:
+          VISUAL_BASELINE_RUNNER: '1'
+        run: xvfb-run -a npx playwright test --update-snapshots
+
+      # This job is the bootstrap, so its report is the one that matters most:
+      # if the first mint captures a wrong picture, this artifact is the only
+      # place that wrongness is visible before it becomes the definition of
+      # correct.
+      - name: Upload report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report-baseline
+          path: |
+            playwright-report/
+            test-results/
+          retention-days: 14
+
+      - name: Commit baselines
+        env:
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email 'github-actions[bot]@users.noreply.github.com'
+          git add tests/visual/__screenshots__
+          if git diff --cached --quiet; then
+            echo "Baselines unchanged."
+            exit 0
+          fi
+          git commit -m "Update screenshot baselines [visual-baseline]" -m "$RUN_URL"
+          git push origin HEAD:${{ github.ref_name }}

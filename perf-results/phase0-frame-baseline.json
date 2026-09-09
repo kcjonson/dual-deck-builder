@@ -1,0 +1,8997 @@
+[
+	{
+		"scenario": "splashScreen",
+		"samples": [
+			{
+				"timestamp": 1788899342222,
+				"scene": "splashScreen",
+				"frame": {
+					"ms": 0.10499989986419678,
+					"minMs": 0.06499993801116943,
+					"maxMs": 0.2200000286102295,
+					"p99Ms": 0.21499991416931152,
+					"histogram": [
+						120,
+						0,
+						0,
+						0
+					],
+					"spikesOverBudget": 0,
+					"spikesOver2xBudget": 0,
+					"budgetMs": 16.666666666666668,
+					"windowSize": 120,
+					"sampleCount": 120
+				},
+				"sections": {
+					"input": null,
+					"update": {
+						"ms": 0,
+						"maxMs": 0.004999995231628418
+					},
+					"layout": null,
+					"render": {
+						"ms": 0.019999980926513672,
+						"maxMs": 0.02499997615814209
+					},
+					"flush": {
+						"ms": 0.009999990463256836,
+						"maxMs": 0.03500008583068848
+					},
+					"present": null
+				},
+				"gpu": {
+					"ms": null,
+					"valid": null,
+					"passes": null,
+					"spanMs": null,
+					"latencyMs": null
+				},
+				"batcher": null,
+				"memory": {
+					"usedBytes": null
+				},
+				"renderer": {
+					"glDrawCalls": 4,
+					"vertices": 156,
+					"textCharacters": 37
+				},
+				"sanity": {
+					"frameMs": 0.10499989986419678,
+					"sectionsMs": 0.029999971389770508,
+					"unaccountedMs": 0.07499992847442627,
+					"framesWithSectionsOverSpan": 0
+				},
+				"liveness": {
+					"frameCount": 953,
+					"newestSampleAgeMs": 1
+				}
+			},
+			{
+				"timestamp": 1788899342222,
+				"scene": "splashScreen",
+				"frame": {
+					"ms": 0.9100000858306885,
+					"minMs": 0.06499993801116943,
+					"maxMs": 0.9100000858306885,
+					"p99Ms": 0.21499991416931152,
+					"histogram": [
+						120,
+						0,
+						0,
+						0
+					],
+					"spikesOverBudget": 0,
+					"spikesOver2xBudget": 0,
+					"budgetMs": 16.666666666666668,
+					"windowSize": 120,
+					"sampleCount": 120
+				},
+				"sections": {
+					"input": null,
+					"update": {
+						"ms": 0,
+						"maxMs": 0.004999995231628418
+					},
+					"layout": null,
+					"render": {
+						"ms": 0.014999985694885254,
+						"maxMs": 0.02499997615814209
+					},
+					"flush": {
+						"ms": 0.010000109672546387,
+						"maxMs": 0.03500008583068848
+					},
+					"present": null
+				},
+				"gpu": {
+					"ms": null,
+					"valid": null,
+					"passes": null,
+					"spanMs": null,
+					"latencyMs": null
+				},
+				"batcher": null,
+				"memory": {
+					"usedBytes": null
+				},
+				"renderer": {
+					"glDrawCalls": 4,
+					"vertices": 156,
+					"textCharacters": 37
+				},
+				"sanity": {
+					"frameMs": 0.9100000858306885,
+					"sectionsMs": 0.02500009536743164,
+					"unaccountedMs": 0.8849999904632568,
+					"framesWithSectionsOverSpan": 0
+				},
+				"liveness": {
+					"frameCount": 954,
+					"newestSampleAgeMs": 0
+				}
+			},
+			{
+				"timestamp": 1788899342223,
+				"scene": "splashScreen",
+				"frame": {
+					"ms": 0.38999998569488525,
+					"minMs": 0.06499993801116943,
+					"maxMs": 0.9100000858306885,
+					"p99Ms": 0.38999998569488525,
+					"histogram": [
+						120,
+						0,
+						0,
+						0
+					],
+					"spikesOverBudget": 0,
+					"spikesOver2xBudget": 0,
+					"budgetMs": 16.666666666666668,
+					"windowSize": 120,
+					"sampleCount": 120
+				},
+				"sections": {
+					"input": null,
+					"update": {
+						"ms": 0.004999995231628418,
+						"maxMs": 0.004999995231628418
+					},
+					"layout": null,
+					"render": {
+						"ms": 0.06999993324279785,
+						"maxMs": 0.06999993324279785
+					},
+					"flush": {
+						"ms": 0.03000009059906006,
+						"maxMs": 0.03500008583068848
+					},
+					"present": null
+				},
+				"gpu": {
+					"ms": null,
+					"valid": null,
+					"passes": null,
+					"spanMs": null,
+					"latencyMs": null
+				},
+				"batcher": null,
+				"memory": {
+					"usedBytes": null
+				},
+				"renderer": {
+					"glDrawCalls": 4,
+					"vertices": 156,
+					"textCharacters": 37
+				},
+				"sanity": {
+					"frameMs": 0.38999998569488525,
+					"sectionsMs": 0.10500001907348633,
+					"unaccountedMs": 0.2849999666213989,
+					"framesWithSectionsOverSpan": 0
+				},
+				"liveness": {
+					"frameCount": 955,
+					"newestSampleAgeMs": 1
+				}
+			},
+			{
+				"timestamp": 1788899342223,
+				"scene": "splashScreen",
+				"frame": {
+					"ms": 0.25,
+					"minMs": 0.06499993801116943,
+					"maxMs": 0.9100000858306885,
+					"p99Ms": 0.38999998569488525,
+					"histogram": [
+						120,
+						0,
+						0,
+						0
+					],
+					"spikesOverBudget": 0,
+					"spikesOver2xBudget": 0,
+					"budgetMs": 16.666666666666668,
+					"windowSize": 120,
+					"sampleCount": 120
+				},
+				"sections": {
+					"input": null,
+					"update": {
+						"ms": 0,
+						"maxMs": 0.004999995231628418
+					},
+					"layout": null,
+					"render": {
+						"ms": 0.019999980926513672,
+						"maxMs": 0.06999993324279785
+					},
+					"flush": {
+						"ms": 0.02499997615814209,
+						"maxMs": 0.03500008583068848
+					},
+					"present": null
+				},
+				"gpu": {
+					"ms": null,
+					"valid": null,
+					"passes": null,
+					"spanMs": null,
+					"latencyMs": null
+				},
+				"batcher": null,
+				"memory": {
+					"usedBytes": null
+				},
+				"renderer": {
+					"glDrawCalls": 4,
+					"vertices": 156,
+					"textCharacters": 37
+				},
+				"sanity": {
+					"frameMs": 0.25,
+					"sectionsMs": 0.04499995708465576,
+					"unaccountedMs": 0.20500004291534424,
+					"framesWithSectionsOverSpan": 0
+				},
+				"liveness": {
+					"frameCount": 956,
+					"newestSampleAgeMs": 0
+				}
+			},
+			{
+				"timestamp": 1788899342223,
+				"scene": "splashScreen",
+				"frame": {
+					"ms": 0.2799999713897705,
+					"minMs": 0.06499993801116943,
+					"maxMs": 0.9100000858306885,
+					"p99Ms": 0.38999998569488525,
+					"histogram": [
+						120,
+						0,
+						0,
+						0
+					],
+					"spikesOverBudget": 0,
+					"spikesOver2xBudget": 0,
+					"budgetMs": 16.666666666666668,
+					"windowSize": 120,
+					"sampleCount": 120
+				},
+				"sections": {
+					"input": null,
+					"update": {
+						"ms": 0.004999995231628418,
+						"maxMs": 0.004999995231628418
+					},
+					"layout": null,
+					"render": {
+						"ms": 0.014999985694885254,
+						"maxMs": 0.06999993324279785
+					},
+					"flush": {
+						"ms": 0.019999980926513672,
+						"maxMs": 0.03500008583068848
+					},
+					"present": null
+				},
+				"gpu": {
+					"ms": null,
+					"valid": null,
+					"passes": null,
+					"spanMs": null,
+					"latencyMs": null
+				},
+				"batcher": null,
+				"memory": {
+					"usedBytes": null
+				},
+				"renderer": {
+					"glDrawCalls": 4,
+					"vertices": 156,
+					"textCharacters": 37
+				},
+				"sanity": {
+					"frameMs": 0.2799999713897705,
+					"sectionsMs": 0.039999961853027344,
+					"unaccountedMs": 0.24000000953674316,
+					"framesWithSectionsOverSpan": 0
+				},
+				"liveness": {
+					"frameCount": 957,
+					"newestSampleAgeMs": 0
+				}
+			},
+			{
+				"timestamp": 1788899342223,
+				"scene": "splashScreen",
+				"frame": {
+					"ms": 0.20500004291534424,
+					"minMs": 0.06499993801116943,
+					"maxMs": 0.9100000858306885,
+					"p99Ms": 0.38999998569488525,
+					"histogram": [
+						120,
+						0,
+						0,
+						0
+					],
+					"spikesOverBudget": 0,
+					"spikesOver2xBudget": 0,
+					"budgetMs": 16.666666666666668,
+					"windowSize": 120,
+					"sampleCount": 120
+				},
+				"sections": {
+					"input": null,
+					"update": {
+						"ms": 0,
+						"maxMs": 0.004999995231628418
+					},
+					"layout": null,
+					"render": {
+						"ms": 0.019999980926513672,
+						"maxMs": 0.06999993324279785
+					},
+					"flush": {
+						"ms": 0.014999985694885254,
+						"maxMs": 0.03500008583068848
+					},
+					"present": null
+				},
+				"gpu": {
+					"ms": null,
+					"valid": null,
+					"passes": null,
+					"spanMs": null,
+					"latencyMs": null
+				},
+				"batcher": null,
+				"memory": {
+					"usedBytes": null
+				},
+				"renderer": {
+					"glDrawCalls": 4,
+					"vertices": 156,
+					"textCharacters": 37
+				},
+				"sanity": {
+					"frameMs": 0.20500004291534424,
+					"sectionsMs": 0.034999966621398926,
+					"unaccountedMs": 0.1700000762939453,
+					"framesWithSectionsOverSpan": 0
+				},
+				"liveness": {
+					"frameCount": 958,
+					"newestSampleAgeMs": 0
+				}
+			},
+			{
+				"timestamp": 1788899342223,
+				"scene": "splashScreen",
+				"frame": {
+					"ms": 0.17499995231628418,
+					"minMs": 0.06499993801116943,
+					"maxMs": 0.9100000858306885,
+					"p99Ms": 0.38999998569488525,
+					"histogram": [
+						120,
+						0,
+						0,
+						0
+					],
+					"spikesOverBudget": 0,
+					"spikesOver2xBudget": 0,
+					"budgetMs": 16.666666666666668,
+					"windowSize": 120,
+					"sampleCount": 120
+				},
+				"sections": {
+					"input": null,
+					"update": {
+						"ms": 0.004999995231628418,
+						"maxMs": 0.004999995231628418
+					},
+					"layout": null,
+					"render": {
+						"ms": 0.009999990463256836,
+						"maxMs": 0.06999993324279785
+					},
+					"flush": {
+						"ms": 0.014999985694885254,
+						"maxMs": 0.03500008583068848
+					},
+					"present": null
+				},
+				"gpu": {
+					"ms": null,
+					"valid": null,
+					"passes": null,
+					"spanMs": null,
+					"latencyMs": null
+				},
+				"batcher": null,
+				"memory": {
+					"usedBytes": null
+				},
+				"renderer": {
+					"glDrawCalls": 4,
+					"vertices": 156,
+					"textCharacters": 37
+				},
+				"sanity": {
+					"frameMs": 0.17499995231628418,
+					"sectionsMs": 0.029999971389770508,
+					"unaccountedMs": 0.14499998092651367,
+					"framesWithSectionsOverSpan": 0
+				},
+				"liveness": {
+					"frameCount": 959,
+					"newestSampleAgeMs": 0
+				}
+			},
+			{
+				"timestamp": 1788899342224,
+				"scene": "splashScreen",
+				"frame": {
+					"ms": 0.16499996185302734,
+					"minMs": 0.06499993801116943,
+					"maxMs": 0.9100000858306885,
+					"p99Ms": 0.38999998569488525,
+					"histogram": [
+						120,
+						0,
+						0,
+						0
+					],
+					"spikesOverBudget": 0,
+					"spikesOver2xBudget": 0,
+					"budgetMs": 16.666666666666668,
+					"windowSize": 120,
+					"sampleCount": 120
+				},
+				"sections": {
+					"input": null,
+					"update": {
+						"ms": 0,
+						"maxMs": 0.004999995231628418
+					},
+					"layout": null,
+					"render": {
+						"ms": 0.009999990463256836,
+						"maxMs": 0.06999993324279785
+					},
+					"flush": {
+						"ms": 0.014999985694885254,
+						"maxMs": 0.03500008583068848
+					},
+					"present": null
+				},
+				"gpu": {
+					"ms": null,
+					"valid": null,
+					"passes": null,
+					"spanMs": null,
+					"latencyMs": null
+				},
+				"batcher": null,
+				"memory": {
+					"usedBytes": null
+				},
+				"renderer": {
+					"glDrawCalls": 4,
+					"vertices": 156,
+					"textCharacters": 37
+				},
+				"sanity": {
+					"frameMs": 0.16499996185302734,
+					"sectionsMs": 0.02499997615814209,
+					"unaccountedMs": 0.13999998569488525,
+					"framesWithSectionsOverSpan": 0
+				},
+				"liveness": {
+					"frameCount": 960,
+					"newestSampleAgeMs": 1
+				}
+			},
+			{
+				"timestamp": 1788899342224,
+				"scene": "splashScreen",
+				"frame": {
+					"ms": 0.1700000762939453,
+					"minMs": 0.06499993801116943,
+					"maxMs": 0.9100000858306885,
+					"p99Ms": 0.38999998569488525,
+					"histogram": [
+						120,
+						0,
+						0,
+						0
+					],
+					"spikesOverBudget": 0,
+					"spikesOver2xBudget": 0,
+					"budgetMs": 16.666666666666668,
+					"windowSize": 120,
+					"sampleCount": 120
+				},
+				"sections": {
+					"input": null,
+					"update": {
+						"ms": 0,
+						"maxMs": 0.004999995231628418
+					},
+					"layout": null,
+					"render": {
+						"ms": 0.014999985694885254,
+						"maxMs": 0.06999993324279785
+					},
+					"flush": {
+						"ms": 0.009999990463256836,
+						"maxMs": 0.03500008583068848
+					},
+					"present": null
+				},
+				"gpu": {
+					"ms": null,
+					"valid": null,
+					"passes": null,
+					"spanMs": null,
+					"latencyMs": null
+				},
+				"batcher": null,
+				"memory": {
+					"usedBytes": null
+				},
+				"renderer": {
+					"glDrawCalls": 4,
+					"vertices": 156,
+					"textCharacters": 37
+				},
+				"sanity": {
+					"frameMs": 0.1700000762939453,
+					"sectionsMs": 0.02499997615814209,
+					"unaccountedMs": 0.14500010013580322,
+					"framesWithSectionsOverSpan": 0
+				},
+				"liveness": {
+					"frameCount": 961,
+					"newestSampleAgeMs": 0
+				}
+			},
+			{
+				"timestamp": 1788899342224,
+				"scene": "splashScreen",
+				"frame": {
+					"ms": 0.3799999952316284,
+					"minMs": 0.06499993801116943,
+					"maxMs": 0.9100000858306885,
+					"p99Ms": 0.38999998569488525,
+					"histogram": [
+						120,
+						0,
+						0,
+						0
+					],
+					"spikesOverBudget": 0,
+					"spikesOver2xBudget": 0,
+					"budgetMs": 16.666666666666668,
+					"windowSize": 120,
+					"sampleCount": 120
+				},
+				"sections": {
+					"input": null,
+					"update": {
+						"ms": 0,
+						"maxMs": 0.004999995231628418
+					},
+					"layout": null,
+					"render": {
+						"ms": 0.014999985694885254,
+						"maxMs": 0.06999993324279785
+					},
+					"flush": {
+						"ms": 0.039999961853027344,
+						"maxMs": 0.039999961853027344
+					},
+					"present": null
+				},
+				"gpu": {
+					"ms": null,
+					"valid": null,
+					"passes": null,
+					"spanMs": null,
+					"latencyMs": null
+				},
+				"batcher": null,
+				"memory": {
+					"usedBytes": null
+				},
+				"renderer": {
+					"glDrawCalls": 4,
+					"vertices": 156,
+					"textCharacters": 37
+				},
+				"sanity": {
+					"frameMs": 0.3799999952316284,
+					"sectionsMs": 0.0549999475479126,
+					"unaccountedMs": 0.3250000476837158,
+					"framesWithSectionsOverSpan": 0
+				},
+				"liveness": {
+					"frameCount": 962,
+					"newestSampleAgeMs": 0
+				}
+			},
+			{
+				"timestamp": 1788899342224,
+				"scene": "splashScreen",
+				"frame": {
+					"ms": 0.25999999046325684,
+					"minMs": 0.06499993801116943,
+					"maxMs": 0.9100000858306885,
+					"p99Ms": 0.38999998569488525,
+					"histogram": [
+						120,
+						0,
+						0,
+						0
+					],
+					"spikesOverBudget": 0,
+					"spikesOver2xBudget": 0,
+					"budgetMs": 16.666666666666668,
+					"windowSize": 120,
+					"sampleCount": 120
+				},
+				"sections": {
+					"input": null,
+					"update": {
+						"ms": 0,
+						"maxMs": 0.004999995231628418
+					},
+					"layout": null,
+					"render": {
+						"ms": 0.034999966621398926,
+						"maxMs": 0.06999993324279785
+					},
+					"flush": {
+						"ms": 0.029999971389770508,
+						"maxMs": 0.039999961853027344
+					},
+					"present": null
+				},
+				"gpu": {
+					"ms": null,
+					"valid": null,
+					"passes": null,
+					"spanMs": null,
+					"latencyMs": null
+				},
+				"batcher": null,
+				"memory": {
+					"usedBytes": null
+				},
+				"renderer": {
+					"glDrawCalls": 4,
+					"vertices": 156,
+					"textCharacters": 37
+				},
+				"sanity": {
+					"frameMs": 0.25999999046325684,
+					"sectionsMs": 0.06499993801116943,
+					"unaccountedMs": 0.1950000524520874,
+					"framesWithSectionsOverSpan": 0
+				},
+				"liveness": {
+					"frameCount": 963,
+					"newestSampleAgeMs": 0
+				}
+			},
+			{
+				"timestamp": 1788899342225,
+				"scene": "splashScreen",
+				"frame": {
+					"ms": 0.15999996662139893,
+					"minMs": 0.06499993801116943,
+					"maxMs": 0.9100000858306885,
+					"p99Ms": 0.38999998569488525,
+					"histogram": [
+						120,
+						0,
+						0,
+						0
+					],
+					"spikesOverBudget": 0,
+					"spikesOver2xBudget": 0,
+					"budgetMs": 16.666666666666668,
+					"windowSize": 120,
+					"sampleCount": 120
+				},
+				"sections": {
+					"input": null,
+					"update": {
+						"ms": 0,
+						"maxMs": 0.004999995231628418
+					},
+					"layout": null,
+					"render": {
+						"ms": 0.019999980926513672,
+						"maxMs": 0.06999993324279785
+					},
+					"flush": {
+						"ms": 0.004999995231628418,
+						"maxMs": 0.039999961853027344
+					},
+					"present": null
+				},
+				"gpu": {
+					"ms": null,
+					"valid": null,
+					"passes": null,
+					"spanMs": null,
+					"latencyMs": null
+				},
+				"batcher": null,
+				"memory": {
+					"usedBytes": null
+				},
+				"renderer": {
+					"glDrawCalls": 4,
+					"vertices": 156,
+					"textCharacters": 37
+				},
+				"sanity": {
+					"frameMs": 0.15999996662139893,
+					"sectionsMs": 0.02499997615814209,
+					"unaccountedMs": 0.13499999046325684,
+					"framesWithSectionsOverSpan": 0
+				},
+				"liveness": {
+					"frameCount": 964,
+					"newestSampleAgeMs": 1
+				}
+			},
+			{
+				"timestamp": 1788899342225,
+				"scene": "splashScreen",
+				"frame": {
+					"ms": 0.12999999523162842,
+					"minMs": 0.06499993801116943,
+					"maxMs": 0.9100000858306885,
+					"p99Ms": 0.38999998569488525,
+					"histogram": [
+						120,
+						0,
+						0,
+						0
+					],
+					"spikesOverBudget": 0,
+					"spikesOver2xBudget": 0,
+					"budgetMs": 16.666666666666668,
+					"windowSize": 120,
+					"sampleCount": 120
+				},
+				"sections": {
+					"input": null,
+					"update": {
+						"ms": 0.004999995231628418,
+						"maxMs": 0.004999995231628418
+					},
+					"layout": null,
+					"render": {
+						"ms": 0.009999990463256836,
+						"maxMs": 0.06999993324279785
+					},
+					"flush": {
+						"ms": 0.009999990463256836,
+						"maxMs": 0.039999961853027344
+					},
+					"present": null
+				},
+				"gpu": {
+					"ms": null,
+					"valid": null,
+					"passes": null,
+					"spanMs": null,
+					"latencyMs": null
+				},
+				"batcher": null,
+				"memory": {
+					"usedBytes": null
+				},
+				"renderer": {
+					"glDrawCalls": 4,
+					"vertices": 156,
+					"textCharacters": 37
+				},
+				"sanity": {
+					"frameMs": 0.12999999523162842,
+					"sectionsMs": 0.02499997615814209,
+					"unaccountedMs": 0.10500001907348633,
+					"framesWithSectionsOverSpan": 0
+				},
+				"liveness": {
+					"frameCount": 965,
+					"newestSampleAgeMs": 0
+				}
+			},
+			{
+				"timestamp": 1788899342225,
+				"scene": "splashScreen",
+				"frame": {
+					"ms": 0.12999999523162842,
+					"minMs": 0.06499993801116943,
+					"maxMs": 0.9100000858306885,
+					"p99Ms": 0.38999998569488525,
+					"histogram": [
+						120,
+						0,
+						0,
+						0
+					],
+					"spikesOverBudget": 0,
+					"spikesOver2xBudget": 0,
+					"budgetMs": 16.666666666666668,
+					"windowSize": 120,
+					"sampleCount": 120
+				},
+				"sections": {
+					"input": null,
+					"update": {
+						"ms": 0.004999995231628418,
+						"maxMs": 0.004999995231628418
+					},
+					"layout": null,
+					"render": {
+						"ms": 0.009999990463256836,
+						"maxMs": 0.06999993324279785
+					},
+					"flush": {
+						"ms": 0.004999995231628418,
+						"maxMs": 0.039999961853027344
+					},
+					"present": null
+				},
+				"gpu": {
+					"ms": null,
+					"valid": null,
+					"passes": null,
+					"spanMs": null,
+					"latencyMs": null
+				},
+				"batcher": null,
+				"memory": {
+					"usedBytes": null
+				},
+				"renderer": {
+					"glDrawCalls": 4,
+					"vertices": 156,
+					"textCharacters": 37
+				},
+				"sanity": {
+					"frameMs": 0.12999999523162842,
+					"sectionsMs": 0.019999980926513672,
+					"unaccountedMs": 0.11000001430511475,
+					"framesWithSectionsOverSpan": 0
+				},
+				"liveness": {
+					"frameCount": 966,
+					"newestSampleAgeMs": 0
+				}
+			},
+			{
+				"timestamp": 1788899342225,
+				"scene": "splashScreen",
+				"frame": {
+					"ms": 0.1499999761581421,
+					"minMs": 0.06499993801116943,
+					"maxMs": 0.9100000858306885,
+					"p99Ms": 0.38999998569488525,
+					"histogram": [
+						120,
+						0,
+						0,
+						0
+					],
+					"spikesOverBudget": 0,
+					"spikesOver2xBudget": 0,
+					"budgetMs": 16.666666666666668,
+					"windowSize": 120,
+					"sampleCount": 120
+				},
+				"sections": {
+					"input": null,
+					"update": {
+						"ms": 0.009999990463256836,
+						"maxMs": 0.009999990463256836
+					},
+					"layout": null,
+					"render": {
+						"ms": 0.019999980926513672,
+						"maxMs": 0.06999993324279785
+					},
+					"flush": {
+						"ms": 0.010000109672546387,
+						"maxMs": 0.039999961853027344
+					},
+					"present": null
+				},
+				"gpu": {
+					"ms": null,
+					"valid": null,
+					"passes": null,
+					"spanMs": null,
+					"latencyMs": null
+				},
+				"batcher": null,
+				"memory": {
+					"usedBytes": null
+				},
+				"renderer": {
+					"glDrawCalls": 4,
+					"vertices": 156,
+					"textCharacters": 37
+				},
+				"sanity": {
+					"frameMs": 0.1499999761581421,
+					"sectionsMs": 0.040000081062316895,
+					"unaccountedMs": 0.1099998950958252,
+					"framesWithSectionsOverSpan": 0
+				},
+				"liveness": {
+					"frameCount": 967,
+					"newestSampleAgeMs": 0
+				}
+			},
+			{
+				"timestamp": 1788899342225,
+				"scene": "splashScreen",
+				"frame": {
+					"ms": 0.1650000810623169,
+					"minMs": 0.06499993801116943,
+					"maxMs": 0.9100000858306885,
+					"p99Ms": 0.38999998569488525,
+					"histogram": [
+						120,
+						0,
+						0,
+						0
+					],
+					"spikesOverBudget": 0,
+					"spikesOver2xBudget": 0,
+					"budgetMs": 16.666666666666668,
+					"windowSize": 120,
+					"sampleCount": 120
+				},
+				"sections": {
+					"input": null,
+					"update": {
+						"ms": 0.004999995231628418,
+						"maxMs": 0.009999990463256836
+					},
+					"layout": null,
+					"render": {
+						"ms": 0.015000104904174805,
+						"maxMs": 0.06999993324279785
+					},
+					"flush": {
+						"ms": 0.004999995231628418,
+						"maxMs": 0.039999961853027344
+					},
+					"present": null
+				},
+				"gpu": {
+					"ms": null,
+					"valid": null,
+					"passes": null,
+					"spanMs": null,
+					"latencyMs": null
+				},
+				"batcher": null,
+				"memory": {
+					"usedBytes": null
+				},
+				"renderer": {
+					"glDrawCalls": 4,
+					"vertices": 156,
+					"textCharacters": 37
+				},
+				"sanity": {
+					"frameMs": 0.1650000810623169,
+					"sectionsMs": 0.02500009536743164,
+					"unaccountedMs": 0.13999998569488525,
+					"framesWithSectionsOverSpan": 0
+				},
+				"liveness": {
+					"frameCount": 968,
+					"newestSampleAgeMs": 0
+				}
+			},
+			{
+				"timestamp": 1788899342225,
+				"scene": "splashScreen",
+				"frame": {
+					"ms": 0.13499999046325684,
+					"minMs": 0.06499993801116943,
+					"maxMs": 0.9100000858306885,
+					"p99Ms": 0.38999998569488525,
+					"histogram": [
+						120,
+						0,
+						0,
+						0
+					],
+					"spikesOverBudget": 0,
+					"spikesOver2xBudget": 0,
+					"budgetMs": 16.666666666666668,
+					"windowSize": 120,
+					"sampleCount": 120
+				},
+				"sections": {
+					"input": null,
+					"update": {
+						"ms": 0,
+						"maxMs": 0.009999990463256836
+					},
+					"layout": null,
+					"render": {
+						"ms": 0.009999990463256836,
+						"maxMs": 0.06999993324279785
+					},
+					"flush": {
+						"ms": 0.009999990463256836,
+						"maxMs": 0.039999961853027344
+					},
+					"present": null
+				},
+				"gpu": {
+					"ms": null,
+					"valid": null,
+					"passes": null,
+					"spanMs": null,
+					"latencyMs": null
+				},
+				"batcher": null,
+				"memory": {
+					"usedBytes": null
+				},
+				"renderer": {
+					"glDrawCalls": 4,
+					"vertices": 156,
+					"textCharacters": 37
+				},
+				"sanity": {
+					"frameMs": 0.13499999046325684,
+					"sectionsMs": 0.019999980926513672,
+					"unaccountedMs": 0.11500000953674316,
+					"framesWithSectionsOverSpan": 0
+				},
+				"liveness": {
+					"frameCount": 969,
+					"newestSampleAgeMs": 0
+				}
+			},
+			{
+				"timestamp": 1788899342225,
+				"scene": "splashScreen",
+				"frame": {
+					"ms": 0.16499996185302734,
+					"minMs": 0.06499993801116943,
+					"maxMs": 0.9100000858306885,
+					"p99Ms": 0.38999998569488525,
+					"histogram": [
+						120,
+						0,
+						0,
+						0
+					],
+					"spikesOverBudget": 0,
+					"spikesOver2xBudget": 0,
+					"budgetMs": 16.666666666666668,
+					"windowSize": 120,
+					"sampleCount": 120
+				},
+				"sections": {
+					"input": null,
+					"update": {
+						"ms": 0,
+						"maxMs": 0.009999990463256836
+					},
+					"layout": null,
+					"render": {
+						"ms": 0.019999980926513672,
+						"maxMs": 0.06999993324279785
+					},
+					"flush": {
+						"ms": 0.004999995231628418,
+						"maxMs": 0.039999961853027344
+					},
+					"present": null
+				},
+				"gpu": {
+					"ms": null,
+					"valid": null,
+					"passes": null,
+					"spanMs": null,
+					"latencyMs": null
+				},
+				"batcher": null,
+				"memory": {
+					"usedBytes": null
+				},
+				"renderer": {
+					"glDrawCalls": 4,
+					"vertices": 156,
+					"textCharacters": 37
+				},
+				"sanity": {
+					"frameMs": 0.16499996185302734,
+					"sectionsMs": 0.02499997615814209,
+					"unaccountedMs": 0.13999998569488525,
+					"framesWithSectionsOverSpan": 0
+				},
+				"liveness": {
+					"frameCount": 970,
+					"newestSampleAgeMs": 0
+				}
+			},
+			{
+				"timestamp": 1788899342225,
+				"scene": "splashScreen",
+				"frame": {
+					"ms": 0.10500001907348633,
+					"minMs": 0.06499993801116943,
+					"maxMs": 0.9100000858306885,
+					"p99Ms": 0.38999998569488525,
+					"histogram": [
+						120,
+						0,
+						0,
+						0
+					],
+					"spikesOverBudget": 0,
+					"spikesOver2xBudget": 0,
+					"budgetMs": 16.666666666666668,
+					"windowSize": 120,
+					"sampleCount": 120
+				},
+				"sections": {
+					"input": null,
+					"update": {
+						"ms": 0.004999995231628418,
+						"maxMs": 0.009999990463256836
+					},
+					"layout": null,
+					"render": {
+						"ms": 0.004999995231628418,
+						"maxMs": 0.06999993324279785
+					},
+					"flush": {
+						"ms": 0.009999990463256836,
+						"maxMs": 0.039999961853027344
+					},
+					"present": null
+				},
+				"gpu": {
+					"ms": null,
+					"valid": null,
+					"passes": null,
+					"spanMs": null,
+					"latencyMs": null
+				},
+				"batcher": null,
+				"memory": {
+					"usedBytes": null
+				},
+				"renderer": {
+					"glDrawCalls": 4,
+					"vertices": 156,
+					"textCharacters": 37
+				},
+				"sanity": {
+					"frameMs": 0.10500001907348633,
+					"sectionsMs": 0.019999980926513672,
+					"unaccountedMs": 0.08500003814697266,
+					"framesWithSectionsOverSpan": 0
+				},
+				"liveness": {
+					"frameCount": 971,
+					"newestSampleAgeMs": 0
+				}
+			},
+			{
+				"timestamp": 1788899342226,
+				"scene": "splashScreen",
+				"frame": {
+					"ms": 0.36000001430511475,
+					"minMs": 0.06499993801116943,
+					"maxMs": 0.9100000858306885,
+					"p99Ms": 0.38999998569488525,
+					"histogram": [
+						120,
+						0,
+						0,
+						0
+					],
+					"spikesOverBudget": 0,
+					"spikesOver2xBudget": 0,
+					"budgetMs": 16.666666666666668,
+					"windowSize": 120,
+					"sampleCount": 120
+				},
+				"sections": {
+					"input": null,
+					"update": {
+						"ms": 0.004999995231628418,
+						"maxMs": 0.009999990463256836
+					},
+					"layout": null,
+					"render": {
+						"ms": 0.009999990463256836,
+						"maxMs": 0.06999993324279785
+					},
+					"flush": {
+						"ms": 0.009999990463256836,
+						"maxMs": 0.039999961853027344
+					},
+					"present": null
+				},
+				"gpu": {
+					"ms": null,
+					"valid": null,
+					"passes": null,
+					"spanMs": null,
+					"latencyMs": null
+				},
+				"batcher": null,
+				"memory": {
+					"usedBytes": null
+				},
+				"renderer": {
+					"glDrawCalls": 4,
+					"vertices": 156,
+					"textCharacters": 37
+				},
+				"sanity": {
+					"frameMs": 0.36000001430511475,
+					"sectionsMs": 0.02499997615814209,
+					"unaccountedMs": 0.33500003814697266,
+					"framesWithSectionsOverSpan": 0
+				},
+				"liveness": {
+					"frameCount": 972,
+					"newestSampleAgeMs": 0
+				}
+			}
+		]
+	},
+	{
+		"scenario": "mainMenuScreen",
+		"samples": [
+			{
+				"timestamp": 1788899342245,
+				"scene": "mainMenuScreen",
+				"frame": {
+					"ms": 0.11499989032745361,
+					"minMs": 0.08999991416931152,
+					"maxMs": 0.41499996185302734,
+					"p99Ms": 0.3450000286102295,
+					"histogram": [
+						120,
+						0,
+						0,
+						0
+					],
+					"spikesOverBudget": 0,
+					"spikesOver2xBudget": 0,
+					"budgetMs": 16.666666666666668,
+					"windowSize": 120,
+					"sampleCount": 120
+				},
+				"sections": {
+					"input": null,
+					"update": {
+						"ms": 0,
+						"maxMs": 0.009999990463256836
+					},
+					"layout": null,
+					"render": {
+						"ms": 0.04499995708465576,
+						"maxMs": 0.0700000524520874
+					},
+					"flush": {
+						"ms": 0.019999980926513672,
+						"maxMs": 0.0700000524520874
+					},
+					"present": null
+				},
+				"gpu": {
+					"ms": null,
+					"valid": null,
+					"passes": null,
+					"spanMs": null,
+					"latencyMs": null
+				},
+				"batcher": null,
+				"memory": {
+					"usedBytes": null
+				},
+				"renderer": {
+					"glDrawCalls": 7,
+					"vertices": 300,
+					"textCharacters": 69
+				},
+				"sanity": {
+					"frameMs": 0.11499989032745361,
+					"sectionsMs": 0.06499993801116943,
+					"unaccountedMs": 0.04999995231628418,
+					"framesWithSectionsOverSpan": 0
+				},
+				"liveness": {
+					"frameCount": 1106,
+					"newestSampleAgeMs": 0
+				}
+			},
+			{
+				"timestamp": 1788899342245,
+				"scene": "mainMenuScreen",
+				"frame": {
+					"ms": 0.18000006675720215,
+					"minMs": 0.08999991416931152,
+					"maxMs": 0.41499996185302734,
+					"p99Ms": 0.3450000286102295,
+					"histogram": [
+						120,
+						0,
+						0,
+						0
+					],
+					"spikesOverBudget": 0,
+					"spikesOver2xBudget": 0,
+					"budgetMs": 16.666666666666668,
+					"windowSize": 120,
+					"sampleCount": 120
+				},
+				"sections": {
+					"input": null,
+					"update": {
+						"ms": 0,
+						"maxMs": 0.009999990463256836
+					},
+					"layout": null,
+					"render": {
+						"ms": 0.04500007629394531,
+						"maxMs": 0.0700000524520874
+					},
+					"flush": {
+						"ms": 0.009999990463256836,
+						"maxMs": 0.0700000524520874
+					},
+					"present": null
+				},
+				"gpu": {
+					"ms": null,
+					"valid": null,
+					"passes": null,
+					"spanMs": null,
+					"latencyMs": null
+				},
+				"batcher": null,
+				"memory": {
+					"usedBytes": null
+				},
+				"renderer": {
+					"glDrawCalls": 7,
+					"vertices": 300,
+					"textCharacters": 69
+				},
+				"sanity": {
+					"frameMs": 0.18000006675720215,
+					"sectionsMs": 0.05500006675720215,
+					"unaccountedMs": 0.125,
+					"framesWithSectionsOverSpan": 0
+				},
+				"liveness": {
+					"frameCount": 1107,
+					"newestSampleAgeMs": 0
+				}
+			},
+			{
+				"timestamp": 1788899342245,
+				"scene": "mainMenuScreen",
+				"frame": {
+					"ms": 0.12999999523162842,
+					"minMs": 0.08999991416931152,
+					"maxMs": 0.41499996185302734,
+					"p99Ms": 0.3450000286102295,
+					"histogram": [
+						120,
+						0,
+						0,
+						0
+					],
+					"spikesOverBudget": 0,
+					"spikesOver2xBudget": 0,
+					"budgetMs": 16.666666666666668,
+					"windowSize": 120,
+					"sampleCount": 120
+				},
+				"sections": {
+					"input": null,
+					"update": {
+						"ms": 0,
+						"maxMs": 0.009999990463256836
+					},
+					"layout": null,
+					"render": {
+						"ms": 0.029999971389770508,
+						"maxMs": 0.0700000524520874
+					},
+					"flush": {
+						"ms": 0.009999990463256836,
+						"maxMs": 0.0700000524520874
+					},
+					"present": null
+				},
+				"gpu": {
+					"ms": null,
+					"valid": null,
+					"passes": null,
+					"spanMs": null,
+					"latencyMs": null
+				},
+				"batcher": null,
+				"memory": {
+					"usedBytes": null
+				},
+				"renderer": {
+					"glDrawCalls": 7,
+					"vertices": 300,
+					"textCharacters": 69
+				},
+				"sanity": {
+					"frameMs": 0.12999999523162842,
+					"sectionsMs": 0.039999961853027344,
+					"unaccountedMs": 0.09000003337860107,
+					"framesWithSectionsOverSpan": 0
+				},
+				"liveness": {
+					"frameCount": 1108,
+					"newestSampleAgeMs": 0
+				}
+			},
+			{
+				"timestamp": 1788899342246,
+				"scene": "mainMenuScreen",
+				"frame": {
+					"ms": 0.12999999523162842,
+					"minMs": 0.08999991416931152,
+					"maxMs": 0.41499996185302734,
+					"p99Ms": 0.3450000286102295,
+					"histogram": [
+						120,
+						0,
+						0,
+						0
+					],
+					"spikesOverBudget": 0,
+					"spikesOver2xBudget": 0,
+					"budgetMs": 16.666666666666668,
+					"windowSize": 120,
+					"sampleCount": 120
+				},
+				"sections": {
+					"input": null,
+					"update": {
+						"ms": 0,
+						"maxMs": 0.009999990463256836
+					},
+					"layout": null,
+					"render": {
+						"ms": 0.029999971389770508,
+						"maxMs": 0.0700000524520874
+					},
+					"flush": {
+						"ms": 0.014999985694885254,
+						"maxMs": 0.0700000524520874
+					},
+					"present": null
+				},
+				"gpu": {
+					"ms": null,
+					"valid": null,
+					"passes": null,
+					"spanMs": null,
+					"latencyMs": null
+				},
+				"batcher": null,
+				"memory": {
+					"usedBytes": null
+				},
+				"renderer": {
+					"glDrawCalls": 7,
+					"vertices": 300,
+					"textCharacters": 69
+				},
+				"sanity": {
+					"frameMs": 0.12999999523162842,
+					"sectionsMs": 0.04499995708465576,
+					"unaccountedMs": 0.08500003814697266,
+					"framesWithSectionsOverSpan": 0
+				},
+				"liveness": {
+					"frameCount": 1109,
+					"newestSampleAgeMs": 1
+				}
+			},
+			{
+				"timestamp": 1788899342246,
+				"scene": "mainMenuScreen",
+				"frame": {
+					"ms": 0.20000004768371582,
+					"minMs": 0.08999991416931152,
+					"maxMs": 0.41499996185302734,
+					"p99Ms": 0.3450000286102295,
+					"histogram": [
+						120,
+						0,
+						0,
+						0
+					],
+					"spikesOverBudget": 0,
+					"spikesOver2xBudget": 0,
+					"budgetMs": 16.666666666666668,
+					"windowSize": 120,
+					"sampleCount": 120
+				},
+				"sections": {
+					"input": null,
+					"update": {
+						"ms": 0,
+						"maxMs": 0.009999990463256836
+					},
+					"layout": null,
+					"render": {
+						"ms": 0.039999961853027344,
+						"maxMs": 0.0700000524520874
+					},
+					"flush": {
+						"ms": 0.03500008583068848,
+						"maxMs": 0.0700000524520874
+					},
+					"present": null
+				},
+				"gpu": {
+					"ms": null,
+					"valid": null,
+					"passes": null,
+					"spanMs": null,
+					"latencyMs": null
+				},
+				"batcher": null,
+				"memory": {
+					"usedBytes": null
+				},
+				"renderer": {
+					"glDrawCalls": 7,
+					"vertices": 300,
+					"textCharacters": 69
+				},
+				"sanity": {
+					"frameMs": 0.20000004768371582,
+					"sectionsMs": 0.07500004768371582,
+					"unaccountedMs": 0.125,
+					"framesWithSectionsOverSpan": 0
+				},
+				"liveness": {
+					"frameCount": 1110,
+					"newestSampleAgeMs": 0
+				}
+			},
+			{
+				"timestamp": 1788899342246,
+				"scene": "mainMenuScreen",
+				"frame": {
+					"ms": 0.1499999761581421,
+					"minMs": 0.08999991416931152,
+					"maxMs": 0.41499996185302734,
+					"p99Ms": 0.3450000286102295,
+					"histogram": [
+						120,
+						0,
+						0,
+						0
+					],
+					"spikesOverBudget": 0,
+					"spikesOver2xBudget": 0,
+					"budgetMs": 16.666666666666668,
+					"windowSize": 120,
+					"sampleCount": 120
+				},
+				"sections": {
+					"input": null,
+					"update": {
+						"ms": 0,
+						"maxMs": 0.009999990463256836
+					},
+					"layout": null,
+					"render": {
+						"ms": 0.04499995708465576,
+						"maxMs": 0.0700000524520874
+					},
+					"flush": {
+						"ms": 0.014999985694885254,
+						"maxMs": 0.0700000524520874
+					},
+					"present": null
+				},
+				"gpu": {
+					"ms": null,
+					"valid": null,
+					"passes": null,
+					"spanMs": null,
+					"latencyMs": null
+				},
+				"batcher": null,
+				"memory": {
+					"usedBytes": null
+				},
+				"renderer": {
+					"glDrawCalls": 7,
+					"vertices": 300,
+					"textCharacters": 69
+				},
+				"sanity": {
+					"frameMs": 0.1499999761581421,
+					"sectionsMs": 0.059999942779541016,
+					"unaccountedMs": 0.09000003337860107,
+					"framesWithSectionsOverSpan": 0
+				},
+				"liveness": {
+					"frameCount": 1111,
+					"newestSampleAgeMs": 0
+				}
+			},
+			{
+				"timestamp": 1788899342246,
+				"scene": "mainMenuScreen",
+				"frame": {
+					"ms": 0.125,
+					"minMs": 0.08999991416931152,
+					"maxMs": 0.41499996185302734,
+					"p99Ms": 0.3450000286102295,
+					"histogram": [
+						120,
+						0,
+						0,
+						0
+					],
+					"spikesOverBudget": 0,
+					"spikesOver2xBudget": 0,
+					"budgetMs": 16.666666666666668,
+					"windowSize": 120,
+					"sampleCount": 120
+				},
+				"sections": {
+					"input": null,
+					"update": {
+						"ms": 0,
+						"maxMs": 0.009999990463256836
+					},
+					"layout": null,
+					"render": {
+						"ms": 0.034999966621398926,
+						"maxMs": 0.0700000524520874
+					},
+					"flush": {
+						"ms": 0.014999985694885254,
+						"maxMs": 0.0700000524520874
+					},
+					"present": null
+				},
+				"gpu": {
+					"ms": null,
+					"valid": null,
+					"passes": null,
+					"spanMs": null,
+					"latencyMs": null
+				},
+				"batcher": null,
+				"memory": {
+					"usedBytes": null
+				},
+				"renderer": {
+					"glDrawCalls": 7,
+					"vertices": 300,
+					"textCharacters": 69
+				},
+				"sanity": {
+					"frameMs": 0.125,
+					"sectionsMs": 0.04999995231628418,
+					"unaccountedMs": 0.07500004768371582,
+					"framesWithSectionsOverSpan": 0
+				},
+				"liveness": {
+					"frameCount": 1112,
+					"newestSampleAgeMs": 0
+				}
+			},
+			{
+				"timestamp": 1788899342246,
+				"scene": "mainMenuScreen",
+				"frame": {
+					"ms": 0.125,
+					"minMs": 0.08999991416931152,
+					"maxMs": 0.41499996185302734,
+					"p99Ms": 0.3450000286102295,
+					"histogram": [
+						120,
+						0,
+						0,
+						0
+					],
+					"spikesOverBudget": 0,
+					"spikesOver2xBudget": 0,
+					"budgetMs": 16.666666666666668,
+					"windowSize": 120,
+					"sampleCount": 120
+				},
+				"sections": {
+					"input": null,
+					"update": {
+						"ms": 0,
+						"maxMs": 0.009999990463256836
+					},
+					"layout": null,
+					"render": {
+						"ms": 0.034999966621398926,
+						"maxMs": 0.0700000524520874
+					},
+					"flush": {
+						"ms": 0.009999990463256836,
+						"maxMs": 0.0700000524520874
+					},
+					"present": null
+				},
+				"gpu": {
+					"ms": null,
+					"valid": null,
+					"passes": null,
+					"spanMs": null,
+					"latencyMs": null
+				},
+				"batcher": null,
+				"memory": {
+					"usedBytes": null
+				},
+				"renderer": {
+					"glDrawCalls": 7,
+					"vertices": 300,
+					"textCharacters": 69
+				},
+				"sanity": {
+					"frameMs": 0.125,
+					"sectionsMs": 0.04499995708465576,
+					"unaccountedMs": 0.08000004291534424,
+					"framesWithSectionsOverSpan": 0
+				},
+				"liveness": {
+					"frameCount": 1113,
+					"newestSampleAgeMs": 0
+				}
+			},
+			{
+				"timestamp": 1788899342246,
+				"scene": "mainMenuScreen",
+				"frame": {
+					"ms": 0.13499999046325684,
+					"minMs": 0.08999991416931152,
+					"maxMs": 0.41499996185302734,
+					"p99Ms": 0.3450000286102295,
+					"histogram": [
+						120,
+						0,
+						0,
+						0
+					],
+					"spikesOverBudget": 0,
+					"spikesOver2xBudget": 0,
+					"budgetMs": 16.666666666666668,
+					"windowSize": 120,
+					"sampleCount": 120
+				},
+				"sections": {
+					"input": null,
+					"update": {
+						"ms": 0.004999995231628418,
+						"maxMs": 0.009999990463256836
+					},
+					"layout": null,
+					"render": {
+						"ms": 0.034999966621398926,
+						"maxMs": 0.0700000524520874
+					},
+					"flush": {
+						"ms": 0.014999985694885254,
+						"maxMs": 0.0700000524520874
+					},
+					"present": null
+				},
+				"gpu": {
+					"ms": null,
+					"valid": null,
+					"passes": null,
+					"spanMs": null,
+					"latencyMs": null
+				},
+				"batcher": null,
+				"memory": {
+					"usedBytes": null
+				},
+				"renderer": {
+					"glDrawCalls": 7,
+					"vertices": 300,
+					"textCharacters": 69
+				},
+				"sanity": {
+					"frameMs": 0.13499999046325684,
+					"sectionsMs": 0.0549999475479126,
+					"unaccountedMs": 0.08000004291534424,
+					"framesWithSectionsOverSpan": 0
+				},
+				"liveness": {
+					"frameCount": 1114,
+					"newestSampleAgeMs": 0
+				}
+			},
+			{
+				"timestamp": 1788899342246,
+				"scene": "mainMenuScreen",
+				"frame": {
+					"ms": 0.12000000476837158,
+					"minMs": 0.08999991416931152,
+					"maxMs": 0.41499996185302734,
+					"p99Ms": 0.3450000286102295,
+					"histogram": [
+						120,
+						0,
+						0,
+						0
+					],
+					"spikesOverBudget": 0,
+					"spikesOver2xBudget": 0,
+					"budgetMs": 16.666666666666668,
+					"windowSize": 120,
+					"sampleCount": 120
+				},
+				"sections": {
+					"input": null,
+					"update": {
+						"ms": 0,
+						"maxMs": 0.009999990463256836
+					},
+					"layout": null,
+					"render": {
+						"ms": 0.034999966621398926,
+						"maxMs": 0.0700000524520874
+					},
+					"flush": {
+						"ms": 0.009999990463256836,
+						"maxMs": 0.0700000524520874
+					},
+					"present": null
+				},
+				"gpu": {
+					"ms": null,
+					"valid": null,
+					"passes": null,
+					"spanMs": null,
+					"latencyMs": null
+				},
+				"batcher": null,
+				"memory": {
+					"usedBytes": null
+				},
+				"renderer": {
+					"glDrawCalls": 7,
+					"vertices": 300,
+					"textCharacters": 69
+				},
+				"sanity": {
+					"frameMs": 0.12000000476837158,
+					"sectionsMs": 0.04499995708465576,
+					"unaccountedMs": 0.07500004768371582,
+					"framesWithSectionsOverSpan": 0
+				},
+				"liveness": {
+					"frameCount": 1115,
+					"newestSampleAgeMs": 0
+				}
+			},
+			{
+				"timestamp": 1788899342247,
+				"scene": "mainMenuScreen",
+				"frame": {
+					"ms": 0.12000000476837158,
+					"minMs": 0.08999991416931152,
+					"maxMs": 0.41499996185302734,
+					"p99Ms": 0.3450000286102295,
+					"histogram": [
+						120,
+						0,
+						0,
+						0
+					],
+					"spikesOverBudget": 0,
+					"spikesOver2xBudget": 0,
+					"budgetMs": 16.666666666666668,
+					"windowSize": 120,
+					"sampleCount": 120
+				},
+				"sections": {
+					"input": null,
+					"update": {
+						"ms": 0.004999995231628418,
+						"maxMs": 0.009999990463256836
+					},
+					"layout": null,
+					"render": {
+						"ms": 0.02499997615814209,
+						"maxMs": 0.0700000524520874
+					},
+					"flush": {
+						"ms": 0.014999985694885254,
+						"maxMs": 0.0700000524520874
+					},
+					"present": null
+				},
+				"gpu": {
+					"ms": null,
+					"valid": null,
+					"passes": null,
+					"spanMs": null,
+					"latencyMs": null
+				},
+				"batcher": null,
+				"memory": {
+					"usedBytes": null
+				},
+				"renderer": {
+					"glDrawCalls": 7,
+					"vertices": 300,
+					"textCharacters": 69
+				},
+				"sanity": {
+					"frameMs": 0.12000000476837158,
+					"sectionsMs": 0.04499995708465576,
+					"unaccountedMs": 0.07500004768371582,
+					"framesWithSectionsOverSpan": 0
+				},
+				"liveness": {
+					"frameCount": 1116,
+					"newestSampleAgeMs": 1
+				}
+			},
+			{
+				"timestamp": 1788899342247,
+				"scene": "mainMenuScreen",
+				"frame": {
+					"ms": 0.13999998569488525,
+					"minMs": 0.08999991416931152,
+					"maxMs": 0.41499996185302734,
+					"p99Ms": 0.3450000286102295,
+					"histogram": [
+						120,
+						0,
+						0,
+						0
+					],
+					"spikesOverBudget": 0,
+					"spikesOver2xBudget": 0,
+					"budgetMs": 16.666666666666668,
+					"windowSize": 120,
+					"sampleCount": 120
+				},
+				"sections": {
+					"input": null,
+					"update": {
+						"ms": 0,
+						"maxMs": 0.009999990463256836
+					},
+					"layout": null,
+					"render": {
+						"ms": 0.034999966621398926,
+						"maxMs": 0.0700000524520874
+					},
+					"flush": {
+						"ms": 0.009999990463256836,
+						"maxMs": 0.0700000524520874
+					},
+					"present": null
+				},
+				"gpu": {
+					"ms": null,
+					"valid": null,
+					"passes": null,
+					"spanMs": null,
+					"latencyMs": null
+				},
+				"batcher": null,
+				"memory": {
+					"usedBytes": null
+				},
+				"renderer": {
+					"glDrawCalls": 7,
+					"vertices": 300,
+					"textCharacters": 69
+				},
+				"sanity": {
+					"frameMs": 0.13999998569488525,
+					"sectionsMs": 0.04499995708465576,
+					"unaccountedMs": 0.09500002861022949,
+					"framesWithSectionsOverSpan": 0
+				},
+				"liveness": {
+					"frameCount": 1117,
+					"newestSampleAgeMs": 0
+				}
+			},
+			{
+				"timestamp": 1788899342247,
+				"scene": "mainMenuScreen",
+				"frame": {
+					"ms": 0.13499999046325684,
+					"minMs": 0.08999991416931152,
+					"maxMs": 0.41499996185302734,
+					"p99Ms": 0.3450000286102295,
+					"histogram": [
+						120,
+						0,
+						0,
+						0
+					],
+					"spikesOverBudget": 0,
+					"spikesOver2xBudget": 0,
+					"budgetMs": 16.666666666666668,
+					"windowSize": 120,
+					"sampleCount": 120
+				},
+				"sections": {
+					"input": null,
+					"update": {
+						"ms": 0.004999995231628418,
+						"maxMs": 0.009999990463256836
+					},
+					"layout": null,
+					"render": {
+						"ms": 0.04499995708465576,
+						"maxMs": 0.0700000524520874
+					},
+					"flush": {
+						"ms": 0.009999990463256836,
+						"maxMs": 0.0700000524520874
+					},
+					"present": null
+				},
+				"gpu": {
+					"ms": null,
+					"valid": null,
+					"passes": null,
+					"spanMs": null,
+					"latencyMs": null
+				},
+				"batcher": null,
+				"memory": {
+					"usedBytes": null
+				},
+				"renderer": {
+					"glDrawCalls": 7,
+					"vertices": 300,
+					"textCharacters": 69
+				},
+				"sanity": {
+					"frameMs": 0.13499999046325684,
+					"sectionsMs": 0.059999942779541016,
+					"unaccountedMs": 0.07500004768371582,
+					"framesWithSectionsOverSpan": 0
+				},
+				"liveness": {
+					"frameCount": 1118,
+					"newestSampleAgeMs": 0
+				}
+			},
+			{
+				"timestamp": 1788899342247,
+				"scene": "mainMenuScreen",
+				"frame": {
+					"ms": 0.125,
+					"minMs": 0.08999991416931152,
+					"maxMs": 0.41499996185302734,
+					"p99Ms": 0.3450000286102295,
+					"histogram": [
+						120,
+						0,
+						0,
+						0
+					],
+					"spikesOverBudget": 0,
+					"spikesOver2xBudget": 0,
+					"budgetMs": 16.666666666666668,
+					"windowSize": 120,
+					"sampleCount": 120
+				},
+				"sections": {
+					"input": null,
+					"update": {
+						"ms": 0,
+						"maxMs": 0.009999990463256836
+					},
+					"layout": null,
+					"render": {
+						"ms": 0.029999971389770508,
+						"maxMs": 0.0700000524520874
+					},
+					"flush": {
+						"ms": 0.019999980926513672,
+						"maxMs": 0.0700000524520874
+					},
+					"present": null
+				},
+				"gpu": {
+					"ms": null,
+					"valid": null,
+					"passes": null,
+					"spanMs": null,
+					"latencyMs": null
+				},
+				"batcher": null,
+				"memory": {
+					"usedBytes": null
+				},
+				"renderer": {
+					"glDrawCalls": 7,
+					"vertices": 300,
+					"textCharacters": 69
+				},
+				"sanity": {
+					"frameMs": 0.125,
+					"sectionsMs": 0.04999995231628418,
+					"unaccountedMs": 0.07500004768371582,
+					"framesWithSectionsOverSpan": 0
+				},
+				"liveness": {
+					"frameCount": 1119,
+					"newestSampleAgeMs": 0
+				}
+			},
+			{
+				"timestamp": 1788899342247,
+				"scene": "mainMenuScreen",
+				"frame": {
+					"ms": 0.13499999046325684,
+					"minMs": 0.08999991416931152,
+					"maxMs": 0.41499996185302734,
+					"p99Ms": 0.3450000286102295,
+					"histogram": [
+						120,
+						0,
+						0,
+						0
+					],
+					"spikesOverBudget": 0,
+					"spikesOver2xBudget": 0,
+					"budgetMs": 16.666666666666668,
+					"windowSize": 120,
+					"sampleCount": 120
+				},
+				"sections": {
+					"input": null,
+					"update": {
+						"ms": 0,
+						"maxMs": 0.009999990463256836
+					},
+					"layout": null,
+					"render": {
+						"ms": 0.04499995708465576,
+						"maxMs": 0.0700000524520874
+					},
+					"flush": {
+						"ms": 0.009999990463256836,
+						"maxMs": 0.0700000524520874
+					},
+					"present": null
+				},
+				"gpu": {
+					"ms": null,
+					"valid": null,
+					"passes": null,
+					"spanMs": null,
+					"latencyMs": null
+				},
+				"batcher": null,
+				"memory": {
+					"usedBytes": null
+				},
+				"renderer": {
+					"glDrawCalls": 7,
+					"vertices": 300,
+					"textCharacters": 69
+				},
+				"sanity": {
+					"frameMs": 0.13499999046325684,
+					"sectionsMs": 0.0549999475479126,
+					"unaccountedMs": 0.08000004291534424,
+					"framesWithSectionsOverSpan": 0
+				},
+				"liveness": {
+					"frameCount": 1120,
+					"newestSampleAgeMs": 0
+				}
+			},
+			{
+				"timestamp": 1788899342247,
+				"scene": "mainMenuScreen",
+				"frame": {
+					"ms": 0.125,
+					"minMs": 0.08999991416931152,
+					"maxMs": 0.41499996185302734,
+					"p99Ms": 0.3450000286102295,
+					"histogram": [
+						120,
+						0,
+						0,
+						0
+					],
+					"spikesOverBudget": 0,
+					"spikesOver2xBudget": 0,
+					"budgetMs": 16.666666666666668,
+					"windowSize": 120,
+					"sampleCount": 120
+				},
+				"sections": {
+					"input": null,
+					"update": {
+						"ms": 0,
+						"maxMs": 0.009999990463256836
+					},
+					"layout": null,
+					"render": {
+						"ms": 0.029999971389770508,
+						"maxMs": 0.0700000524520874
+					},
+					"flush": {
+						"ms": 0.014999985694885254,
+						"maxMs": 0.0700000524520874
+					},
+					"present": null
+				},
+				"gpu": {
+					"ms": null,
+					"valid": null,
+					"passes": null,
+					"spanMs": null,
+					"latencyMs": null
+				},
+				"batcher": null,
+				"memory": {
+					"usedBytes": null
+				},
+				"renderer": {
+					"glDrawCalls": 7,
+					"vertices": 300,
+					"textCharacters": 69
+				},
+				"sanity": {
+					"frameMs": 0.125,
+					"sectionsMs": 0.04499995708465576,
+					"unaccountedMs": 0.08000004291534424,
+					"framesWithSectionsOverSpan": 0
+				},
+				"liveness": {
+					"frameCount": 1121,
+					"newestSampleAgeMs": 0
+				}
+			},
+			{
+				"timestamp": 1788899342247,
+				"scene": "mainMenuScreen",
+				"frame": {
+					"ms": 0.11500000953674316,
+					"minMs": 0.08999991416931152,
+					"maxMs": 0.41499996185302734,
+					"p99Ms": 0.3450000286102295,
+					"histogram": [
+						120,
+						0,
+						0,
+						0
+					],
+					"spikesOverBudget": 0,
+					"spikesOver2xBudget": 0,
+					"budgetMs": 16.666666666666668,
+					"windowSize": 120,
+					"sampleCount": 120
+				},
+				"sections": {
+					"input": null,
+					"update": {
+						"ms": 0,
+						"maxMs": 0.009999990463256836
+					},
+					"layout": null,
+					"render": {
+						"ms": 0.02499997615814209,
+						"maxMs": 0.0700000524520874
+					},
+					"flush": {
+						"ms": 0.009999990463256836,
+						"maxMs": 0.0700000524520874
+					},
+					"present": null
+				},
+				"gpu": {
+					"ms": null,
+					"valid": null,
+					"passes": null,
+					"spanMs": null,
+					"latencyMs": null
+				},
+				"batcher": null,
+				"memory": {
+					"usedBytes": null
+				},
+				"renderer": {
+					"glDrawCalls": 7,
+					"vertices": 300,
+					"textCharacters": 69
+				},
+				"sanity": {
+					"frameMs": 0.11500000953674316,
+					"sectionsMs": 0.034999966621398926,
+					"unaccountedMs": 0.08000004291534424,
+					"framesWithSectionsOverSpan": 0
+				},
+				"liveness": {
+					"frameCount": 1122,
+					"newestSampleAgeMs": 0
+				}
+			},
+			{
+				"timestamp": 1788899342247,
+				"scene": "mainMenuScreen",
+				"frame": {
+					"ms": 0.13499999046325684,
+					"minMs": 0.08999991416931152,
+					"maxMs": 0.41499996185302734,
+					"p99Ms": 0.3450000286102295,
+					"histogram": [
+						120,
+						0,
+						0,
+						0
+					],
+					"spikesOverBudget": 0,
+					"spikesOver2xBudget": 0,
+					"budgetMs": 16.666666666666668,
+					"windowSize": 120,
+					"sampleCount": 120
+				},
+				"sections": {
+					"input": null,
+					"update": {
+						"ms": 0,
+						"maxMs": 0.009999990463256836
+					},
+					"layout": null,
+					"render": {
+						"ms": 0.039999961853027344,
+						"maxMs": 0.0700000524520874
+					},
+					"flush": {
+						"ms": 0.014999985694885254,
+						"maxMs": 0.0700000524520874
+					},
+					"present": null
+				},
+				"gpu": {
+					"ms": null,
+					"valid": null,
+					"passes": null,
+					"spanMs": null,
+					"latencyMs": null
+				},
+				"batcher": null,
+				"memory": {
+					"usedBytes": null
+				},
+				"renderer": {
+					"glDrawCalls": 7,
+					"vertices": 300,
+					"textCharacters": 69
+				},
+				"sanity": {
+					"frameMs": 0.13499999046325684,
+					"sectionsMs": 0.0549999475479126,
+					"unaccountedMs": 0.08000004291534424,
+					"framesWithSectionsOverSpan": 0
+				},
+				"liveness": {
+					"frameCount": 1123,
+					"newestSampleAgeMs": 0
+				}
+			},
+			{
+				"timestamp": 1788899342248,
+				"scene": "mainMenuScreen",
+				"frame": {
+					"ms": 0.125,
+					"minMs": 0.08999991416931152,
+					"maxMs": 0.41499996185302734,
+					"p99Ms": 0.3450000286102295,
+					"histogram": [
+						120,
+						0,
+						0,
+						0
+					],
+					"spikesOverBudget": 0,
+					"spikesOver2xBudget": 0,
+					"budgetMs": 16.666666666666668,
+					"windowSize": 120,
+					"sampleCount": 120
+				},
+				"sections": {
+					"input": null,
+					"update": {
+						"ms": 0,
+						"maxMs": 0.009999990463256836
+					},
+					"layout": null,
+					"render": {
+						"ms": 0.029999971389770508,
+						"maxMs": 0.0700000524520874
+					},
+					"flush": {
+						"ms": 0.014999985694885254,
+						"maxMs": 0.0700000524520874
+					},
+					"present": null
+				},
+				"gpu": {
+					"ms": null,
+					"valid": null,
+					"passes": null,
+					"spanMs": null,
+					"latencyMs": null
+				},
+				"batcher": null,
+				"memory": {
+					"usedBytes": null
+				},
+				"renderer": {
+					"glDrawCalls": 7,
+					"vertices": 300,
+					"textCharacters": 69
+				},
+				"sanity": {
+					"frameMs": 0.125,
+					"sectionsMs": 0.04499995708465576,
+					"unaccountedMs": 0.08000004291534424,
+					"framesWithSectionsOverSpan": 0
+				},
+				"liveness": {
+					"frameCount": 1124,
+					"newestSampleAgeMs": 1
+				}
+			},
+			{
+				"timestamp": 1788899342248,
+				"scene": "mainMenuScreen",
+				"frame": {
+					"ms": 0.12000000476837158,
+					"minMs": 0.08999991416931152,
+					"maxMs": 0.41499996185302734,
+					"p99Ms": 0.3450000286102295,
+					"histogram": [
+						120,
+						0,
+						0,
+						0
+					],
+					"spikesOverBudget": 0,
+					"spikesOver2xBudget": 0,
+					"budgetMs": 16.666666666666668,
+					"windowSize": 120,
+					"sampleCount": 120
+				},
+				"sections": {
+					"input": null,
+					"update": {
+						"ms": 0,
+						"maxMs": 0.009999990463256836
+					},
+					"layout": null,
+					"render": {
+						"ms": 0.029999971389770508,
+						"maxMs": 0.0700000524520874
+					},
+					"flush": {
+						"ms": 0.004999995231628418,
+						"maxMs": 0.0700000524520874
+					},
+					"present": null
+				},
+				"gpu": {
+					"ms": null,
+					"valid": null,
+					"passes": null,
+					"spanMs": null,
+					"latencyMs": null
+				},
+				"batcher": null,
+				"memory": {
+					"usedBytes": null
+				},
+				"renderer": {
+					"glDrawCalls": 7,
+					"vertices": 300,
+					"textCharacters": 69
+				},
+				"sanity": {
+					"frameMs": 0.12000000476837158,
+					"sectionsMs": 0.034999966621398926,
+					"unaccountedMs": 0.08500003814697266,
+					"framesWithSectionsOverSpan": 0
+				},
+				"liveness": {
+					"frameCount": 1125,
+					"newestSampleAgeMs": 0
+				}
+			}
+		]
+	},
+	{
+		"scenario": "developerScreen",
+		"samples": [
+			{
+				"timestamp": 1788899342273,
+				"scene": "developerScreen",
+				"frame": {
+					"ms": 0.14499998092651367,
+					"minMs": 0.12000000476837158,
+					"maxMs": 0.5049999952316284,
+					"p99Ms": 0.4700000286102295,
+					"histogram": [
+						120,
+						0,
+						0,
+						0
+					],
+					"spikesOverBudget": 0,
+					"spikesOver2xBudget": 0,
+					"budgetMs": 16.666666666666668,
+					"windowSize": 120,
+					"sampleCount": 120
+				},
+				"sections": {
+					"input": null,
+					"update": {
+						"ms": 0.004999995231628418,
+						"maxMs": 0.02499997615814209
+					},
+					"layout": null,
+					"render": {
+						"ms": 0.09000003337860107,
+						"maxMs": 0.1499999761581421
+					},
+					"flush": {
+						"ms": 0.004999995231628418,
+						"maxMs": 0.005000114440917969
+					},
+					"present": null
+				},
+				"gpu": {
+					"ms": null,
+					"valid": null,
+					"passes": null,
+					"spanMs": null,
+					"latencyMs": null
+				},
+				"batcher": null,
+				"memory": {
+					"usedBytes": null
+				},
+				"renderer": {
+					"glDrawCalls": 19,
+					"vertices": 776,
+					"textCharacters": 177
+				},
+				"sanity": {
+					"frameMs": 0.14499998092651367,
+					"sectionsMs": 0.10000002384185791,
+					"unaccountedMs": 0.04499995708465576,
+					"framesWithSectionsOverSpan": 0
+				},
+				"liveness": {
+					"frameCount": 1255,
+					"newestSampleAgeMs": 0
+				}
+			},
+			{
+				"timestamp": 1788899342273,
+				"scene": "developerScreen",
+				"frame": {
+					"ms": 0.21000003814697266,
+					"minMs": 0.12000000476837158,
+					"maxMs": 0.5049999952316284,
+					"p99Ms": 0.4700000286102295,
+					"histogram": [
+						120,
+						0,
+						0,
+						0
+					],
+					"spikesOverBudget": 0,
+					"spikesOver2xBudget": 0,
+					"budgetMs": 16.666666666666668,
+					"windowSize": 120,
+					"sampleCount": 120
+				},
+				"sections": {
+					"input": null,
+					"update": {
+						"ms": 0.009999990463256836,
+						"maxMs": 0.02499997615814209
+					},
+					"layout": null,
+					"render": {
+						"ms": 0.08000004291534424,
+						"maxMs": 0.1499999761581421
+					},
+					"flush": {
+						"ms": 0,
+						"maxMs": 0.005000114440917969
+					},
+					"present": null
+				},
+				"gpu": {
+					"ms": null,
+					"valid": null,
+					"passes": null,
+					"spanMs": null,
+					"latencyMs": null
+				},
+				"batcher": null,
+				"memory": {
+					"usedBytes": null
+				},
+				"renderer": {
+					"glDrawCalls": 19,
+					"vertices": 776,
+					"textCharacters": 177
+				},
+				"sanity": {
+					"frameMs": 0.21000003814697266,
+					"sectionsMs": 0.09000003337860107,
+					"unaccountedMs": 0.12000000476837158,
+					"framesWithSectionsOverSpan": 0
+				},
+				"liveness": {
+					"frameCount": 1256,
+					"newestSampleAgeMs": 0
+				}
+			},
+			{
+				"timestamp": 1788899342273,
+				"scene": "developerScreen",
+				"frame": {
+					"ms": 0.24000000953674316,
+					"minMs": 0.12000000476837158,
+					"maxMs": 0.5049999952316284,
+					"p99Ms": 0.4700000286102295,
+					"histogram": [
+						120,
+						0,
+						0,
+						0
+					],
+					"spikesOverBudget": 0,
+					"spikesOver2xBudget": 0,
+					"budgetMs": 16.666666666666668,
+					"windowSize": 120,
+					"sampleCount": 120
+				},
+				"sections": {
+					"input": null,
+					"update": {
+						"ms": 0.009999990463256836,
+						"maxMs": 0.02499997615814209
+					},
+					"layout": null,
+					"render": {
+						"ms": 0.12000000476837158,
+						"maxMs": 0.1499999761581421
+					},
+					"flush": {
+						"ms": 0,
+						"maxMs": 0.005000114440917969
+					},
+					"present": null
+				},
+				"gpu": {
+					"ms": null,
+					"valid": null,
+					"passes": null,
+					"spanMs": null,
+					"latencyMs": null
+				},
+				"batcher": null,
+				"memory": {
+					"usedBytes": null
+				},
+				"renderer": {
+					"glDrawCalls": 19,
+					"vertices": 776,
+					"textCharacters": 177
+				},
+				"sanity": {
+					"frameMs": 0.24000000953674316,
+					"sectionsMs": 0.12999999523162842,
+					"unaccountedMs": 0.11000001430511475,
+					"framesWithSectionsOverSpan": 0
+				},
+				"liveness": {
+					"frameCount": 1257,
+					"newestSampleAgeMs": 0
+				}
+			},
+			{
+				"timestamp": 1788899342273,
+				"scene": "developerScreen",
+				"frame": {
+					"ms": 0.18499994277954102,
+					"minMs": 0.12000000476837158,
+					"maxMs": 0.4700000286102295,
+					"p99Ms": 0.4150000810623169,
+					"histogram": [
+						120,
+						0,
+						0,
+						0
+					],
+					"spikesOverBudget": 0,
+					"spikesOver2xBudget": 0,
+					"budgetMs": 16.666666666666668,
+					"windowSize": 120,
+					"sampleCount": 120
+				},
+				"sections": {
+					"input": null,
+					"update": {
+						"ms": 0.009999990463256836,
+						"maxMs": 0.02499997615814209
+					},
+					"layout": null,
+					"render": {
+						"ms": 0.07499992847442627,
+						"maxMs": 0.1499999761581421
+					},
+					"flush": {
+						"ms": 0.004999995231628418,
+						"maxMs": 0.005000114440917969
+					},
+					"present": null
+				},
+				"gpu": {
+					"ms": null,
+					"valid": null,
+					"passes": null,
+					"spanMs": null,
+					"latencyMs": null
+				},
+				"batcher": null,
+				"memory": {
+					"usedBytes": null
+				},
+				"renderer": {
+					"glDrawCalls": 19,
+					"vertices": 776,
+					"textCharacters": 177
+				},
+				"sanity": {
+					"frameMs": 0.18499994277954102,
+					"sectionsMs": 0.08999991416931152,
+					"unaccountedMs": 0.09500002861022949,
+					"framesWithSectionsOverSpan": 0
+				},
+				"liveness": {
+					"frameCount": 1258,
+					"newestSampleAgeMs": 0
+				}
+			},
+			{
+				"timestamp": 1788899342274,
+				"scene": "developerScreen",
+				"frame": {
+					"ms": 0.18500006198883057,
+					"minMs": 0.12000000476837158,
+					"maxMs": 0.4700000286102295,
+					"p99Ms": 0.4150000810623169,
+					"histogram": [
+						120,
+						0,
+						0,
+						0
+					],
+					"spikesOverBudget": 0,
+					"spikesOver2xBudget": 0,
+					"budgetMs": 16.666666666666668,
+					"windowSize": 120,
+					"sampleCount": 120
+				},
+				"sections": {
+					"input": null,
+					"update": {
+						"ms": 0.009999990463256836,
+						"maxMs": 0.019999980926513672
+					},
+					"layout": null,
+					"render": {
+						"ms": 0.08500003814697266,
+						"maxMs": 0.14499998092651367
+					},
+					"flush": {
+						"ms": 0,
+						"maxMs": 0.005000114440917969
+					},
+					"present": null
+				},
+				"gpu": {
+					"ms": null,
+					"valid": null,
+					"passes": null,
+					"spanMs": null,
+					"latencyMs": null
+				},
+				"batcher": null,
+				"memory": {
+					"usedBytes": null
+				},
+				"renderer": {
+					"glDrawCalls": 19,
+					"vertices": 776,
+					"textCharacters": 177
+				},
+				"sanity": {
+					"frameMs": 0.18500006198883057,
+					"sectionsMs": 0.09500002861022949,
+					"unaccountedMs": 0.09000003337860107,
+					"framesWithSectionsOverSpan": 0
+				},
+				"liveness": {
+					"frameCount": 1259,
+					"newestSampleAgeMs": 0
+				}
+			},
+			{
+				"timestamp": 1788899342274,
+				"scene": "developerScreen",
+				"frame": {
+					"ms": 0.1799999475479126,
+					"minMs": 0.12000000476837158,
+					"maxMs": 0.4700000286102295,
+					"p99Ms": 0.4150000810623169,
+					"histogram": [
+						120,
+						0,
+						0,
+						0
+					],
+					"spikesOverBudget": 0,
+					"spikesOver2xBudget": 0,
+					"budgetMs": 16.666666666666668,
+					"windowSize": 120,
+					"sampleCount": 120
+				},
+				"sections": {
+					"input": null,
+					"update": {
+						"ms": 0.004999995231628418,
+						"maxMs": 0.019999980926513672
+					},
+					"layout": null,
+					"render": {
+						"ms": 0.07999992370605469,
+						"maxMs": 0.14499998092651367
+					},
+					"flush": {
+						"ms": 0,
+						"maxMs": 0.005000114440917969
+					},
+					"present": null
+				},
+				"gpu": {
+					"ms": null,
+					"valid": null,
+					"passes": null,
+					"spanMs": null,
+					"latencyMs": null
+				},
+				"batcher": null,
+				"memory": {
+					"usedBytes": null
+				},
+				"renderer": {
+					"glDrawCalls": 19,
+					"vertices": 776,
+					"textCharacters": 177
+				},
+				"sanity": {
+					"frameMs": 0.1799999475479126,
+					"sectionsMs": 0.0849999189376831,
+					"unaccountedMs": 0.09500002861022949,
+					"framesWithSectionsOverSpan": 0
+				},
+				"liveness": {
+					"frameCount": 1260,
+					"newestSampleAgeMs": 0
+				}
+			},
+			{
+				"timestamp": 1788899342274,
+				"scene": "developerScreen",
+				"frame": {
+					"ms": 0.18000006675720215,
+					"minMs": 0.12000000476837158,
+					"maxMs": 0.4700000286102295,
+					"p99Ms": 0.4150000810623169,
+					"histogram": [
+						120,
+						0,
+						0,
+						0
+					],
+					"spikesOverBudget": 0,
+					"spikesOver2xBudget": 0,
+					"budgetMs": 16.666666666666668,
+					"windowSize": 120,
+					"sampleCount": 120
+				},
+				"sections": {
+					"input": null,
+					"update": {
+						"ms": 0.004999995231628418,
+						"maxMs": 0.019999980926513672
+					},
+					"layout": null,
+					"render": {
+						"ms": 0.07500004768371582,
+						"maxMs": 0.14499998092651367
+					},
+					"flush": {
+						"ms": 0,
+						"maxMs": 0.005000114440917969
+					},
+					"present": null
+				},
+				"gpu": {
+					"ms": null,
+					"valid": null,
+					"passes": null,
+					"spanMs": null,
+					"latencyMs": null
+				},
+				"batcher": null,
+				"memory": {
+					"usedBytes": null
+				},
+				"renderer": {
+					"glDrawCalls": 19,
+					"vertices": 776,
+					"textCharacters": 177
+				},
+				"sanity": {
+					"frameMs": 0.18000006675720215,
+					"sectionsMs": 0.08000004291534424,
+					"unaccountedMs": 0.10000002384185791,
+					"framesWithSectionsOverSpan": 0
+				},
+				"liveness": {
+					"frameCount": 1261,
+					"newestSampleAgeMs": 0
+				}
+			},
+			{
+				"timestamp": 1788899342274,
+				"scene": "developerScreen",
+				"frame": {
+					"ms": 0.21999990940093994,
+					"minMs": 0.12000000476837158,
+					"maxMs": 0.4700000286102295,
+					"p99Ms": 0.4150000810623169,
+					"histogram": [
+						120,
+						0,
+						0,
+						0
+					],
+					"spikesOverBudget": 0,
+					"spikesOver2xBudget": 0,
+					"budgetMs": 16.666666666666668,
+					"windowSize": 120,
+					"sampleCount": 120
+				},
+				"sections": {
+					"input": null,
+					"update": {
+						"ms": 0.004999995231628418,
+						"maxMs": 0.019999980926513672
+					},
+					"layout": null,
+					"render": {
+						"ms": 0.08999991416931152,
+						"maxMs": 0.14499998092651367
+					},
+					"flush": {
+						"ms": 0,
+						"maxMs": 0.005000114440917969
+					},
+					"present": null
+				},
+				"gpu": {
+					"ms": null,
+					"valid": null,
+					"passes": null,
+					"spanMs": null,
+					"latencyMs": null
+				},
+				"batcher": null,
+				"memory": {
+					"usedBytes": null
+				},
+				"renderer": {
+					"glDrawCalls": 19,
+					"vertices": 776,
+					"textCharacters": 177
+				},
+				"sanity": {
+					"frameMs": 0.21999990940093994,
+					"sectionsMs": 0.09499990940093994,
+					"unaccountedMs": 0.125,
+					"framesWithSectionsOverSpan": 0
+				},
+				"liveness": {
+					"frameCount": 1262,
+					"newestSampleAgeMs": 0
+				}
+			},
+			{
+				"timestamp": 1788899342274,
+				"scene": "developerScreen",
+				"frame": {
+					"ms": 0.2200000286102295,
+					"minMs": 0.12000000476837158,
+					"maxMs": 0.4700000286102295,
+					"p99Ms": 0.4150000810623169,
+					"histogram": [
+						120,
+						0,
+						0,
+						0
+					],
+					"spikesOverBudget": 0,
+					"spikesOver2xBudget": 0,
+					"budgetMs": 16.666666666666668,
+					"windowSize": 120,
+					"sampleCount": 120
+				},
+				"sections": {
+					"input": null,
+					"update": {
+						"ms": 0.004999995231628418,
+						"maxMs": 0.019999980926513672
+					},
+					"layout": null,
+					"render": {
+						"ms": 0.10500001907348633,
+						"maxMs": 0.14499998092651367
+					},
+					"flush": {
+						"ms": 0,
+						"maxMs": 0.005000114440917969
+					},
+					"present": null
+				},
+				"gpu": {
+					"ms": null,
+					"valid": null,
+					"passes": null,
+					"spanMs": null,
+					"latencyMs": null
+				},
+				"batcher": null,
+				"memory": {
+					"usedBytes": null
+				},
+				"renderer": {
+					"glDrawCalls": 19,
+					"vertices": 776,
+					"textCharacters": 177
+				},
+				"sanity": {
+					"frameMs": 0.2200000286102295,
+					"sectionsMs": 0.11000001430511475,
+					"unaccountedMs": 0.11000001430511475,
+					"framesWithSectionsOverSpan": 0
+				},
+				"liveness": {
+					"frameCount": 1263,
+					"newestSampleAgeMs": 0
+				}
+			},
+			{
+				"timestamp": 1788899342275,
+				"scene": "developerScreen",
+				"frame": {
+					"ms": 0.21500003337860107,
+					"minMs": 0.12000000476837158,
+					"maxMs": 0.4700000286102295,
+					"p99Ms": 0.4150000810623169,
+					"histogram": [
+						120,
+						0,
+						0,
+						0
+					],
+					"spikesOverBudget": 0,
+					"spikesOver2xBudget": 0,
+					"budgetMs": 16.666666666666668,
+					"windowSize": 120,
+					"sampleCount": 120
+				},
+				"sections": {
+					"input": null,
+					"update": {
+						"ms": 0.004999995231628418,
+						"maxMs": 0.019999980926513672
+					},
+					"layout": null,
+					"render": {
+						"ms": 0.09500002861022949,
+						"maxMs": 0.14499998092651367
+					},
+					"flush": {
+						"ms": 0,
+						"maxMs": 0.005000114440917969
+					},
+					"present": null
+				},
+				"gpu": {
+					"ms": null,
+					"valid": null,
+					"passes": null,
+					"spanMs": null,
+					"latencyMs": null
+				},
+				"batcher": null,
+				"memory": {
+					"usedBytes": null
+				},
+				"renderer": {
+					"glDrawCalls": 19,
+					"vertices": 776,
+					"textCharacters": 177
+				},
+				"sanity": {
+					"frameMs": 0.21500003337860107,
+					"sectionsMs": 0.10000002384185791,
+					"unaccountedMs": 0.11500000953674316,
+					"framesWithSectionsOverSpan": 0
+				},
+				"liveness": {
+					"frameCount": 1264,
+					"newestSampleAgeMs": 0
+				}
+			},
+			{
+				"timestamp": 1788899342275,
+				"scene": "developerScreen",
+				"frame": {
+					"ms": 0.23500001430511475,
+					"minMs": 0.12000000476837158,
+					"maxMs": 0.4700000286102295,
+					"p99Ms": 0.4150000810623169,
+					"histogram": [
+						120,
+						0,
+						0,
+						0
+					],
+					"spikesOverBudget": 0,
+					"spikesOver2xBudget": 0,
+					"budgetMs": 16.666666666666668,
+					"windowSize": 120,
+					"sampleCount": 120
+				},
+				"sections": {
+					"input": null,
+					"update": {
+						"ms": 0,
+						"maxMs": 0.019999980926513672
+					},
+					"layout": null,
+					"render": {
+						"ms": 0.09500002861022949,
+						"maxMs": 0.14499998092651367
+					},
+					"flush": {
+						"ms": 0,
+						"maxMs": 0.005000114440917969
+					},
+					"present": null
+				},
+				"gpu": {
+					"ms": null,
+					"valid": null,
+					"passes": null,
+					"spanMs": null,
+					"latencyMs": null
+				},
+				"batcher": null,
+				"memory": {
+					"usedBytes": null
+				},
+				"renderer": {
+					"glDrawCalls": 19,
+					"vertices": 776,
+					"textCharacters": 177
+				},
+				"sanity": {
+					"frameMs": 0.23500001430511475,
+					"sectionsMs": 0.09500002861022949,
+					"unaccountedMs": 0.13999998569488525,
+					"framesWithSectionsOverSpan": 0
+				},
+				"liveness": {
+					"frameCount": 1265,
+					"newestSampleAgeMs": 0
+				}
+			},
+			{
+				"timestamp": 1788899342275,
+				"scene": "developerScreen",
+				"frame": {
+					"ms": 0.22499990463256836,
+					"minMs": 0.12000000476837158,
+					"maxMs": 0.4700000286102295,
+					"p99Ms": 0.4150000810623169,
+					"histogram": [
+						120,
+						0,
+						0,
+						0
+					],
+					"spikesOverBudget": 0,
+					"spikesOver2xBudget": 0,
+					"budgetMs": 16.666666666666668,
+					"windowSize": 120,
+					"sampleCount": 120
+				},
+				"sections": {
+					"input": null,
+					"update": {
+						"ms": 0.004999995231628418,
+						"maxMs": 0.019999980926513672
+					},
+					"layout": null,
+					"render": {
+						"ms": 0.10000002384185791,
+						"maxMs": 0.14499998092651367
+					},
+					"flush": {
+						"ms": 0,
+						"maxMs": 0.005000114440917969
+					},
+					"present": null
+				},
+				"gpu": {
+					"ms": null,
+					"valid": null,
+					"passes": null,
+					"spanMs": null,
+					"latencyMs": null
+				},
+				"batcher": null,
+				"memory": {
+					"usedBytes": null
+				},
+				"renderer": {
+					"glDrawCalls": 19,
+					"vertices": 776,
+					"textCharacters": 177
+				},
+				"sanity": {
+					"frameMs": 0.22499990463256836,
+					"sectionsMs": 0.10500001907348633,
+					"unaccountedMs": 0.11999988555908203,
+					"framesWithSectionsOverSpan": 0
+				},
+				"liveness": {
+					"frameCount": 1266,
+					"newestSampleAgeMs": 0
+				}
+			},
+			{
+				"timestamp": 1788899342275,
+				"scene": "developerScreen",
+				"frame": {
+					"ms": 0.20000004768371582,
+					"minMs": 0.12000000476837158,
+					"maxMs": 0.4700000286102295,
+					"p99Ms": 0.4150000810623169,
+					"histogram": [
+						120,
+						0,
+						0,
+						0
+					],
+					"spikesOverBudget": 0,
+					"spikesOver2xBudget": 0,
+					"budgetMs": 16.666666666666668,
+					"windowSize": 120,
+					"sampleCount": 120
+				},
+				"sections": {
+					"input": null,
+					"update": {
+						"ms": 0.010000109672546387,
+						"maxMs": 0.019999980926513672
+					},
+					"layout": null,
+					"render": {
+						"ms": 0.09999990463256836,
+						"maxMs": 0.14499998092651367
+					},
+					"flush": {
+						"ms": 0,
+						"maxMs": 0.005000114440917969
+					},
+					"present": null
+				},
+				"gpu": {
+					"ms": null,
+					"valid": null,
+					"passes": null,
+					"spanMs": null,
+					"latencyMs": null
+				},
+				"batcher": null,
+				"memory": {
+					"usedBytes": null
+				},
+				"renderer": {
+					"glDrawCalls": 19,
+					"vertices": 776,
+					"textCharacters": 177
+				},
+				"sanity": {
+					"frameMs": 0.20000004768371582,
+					"sectionsMs": 0.11000001430511475,
+					"unaccountedMs": 0.09000003337860107,
+					"framesWithSectionsOverSpan": 0
+				},
+				"liveness": {
+					"frameCount": 1267,
+					"newestSampleAgeMs": 0
+				}
+			},
+			{
+				"timestamp": 1788899342275,
+				"scene": "developerScreen",
+				"frame": {
+					"ms": 0.15999996662139893,
+					"minMs": 0.12000000476837158,
+					"maxMs": 0.4700000286102295,
+					"p99Ms": 0.4150000810623169,
+					"histogram": [
+						120,
+						0,
+						0,
+						0
+					],
+					"spikesOverBudget": 0,
+					"spikesOver2xBudget": 0,
+					"budgetMs": 16.666666666666668,
+					"windowSize": 120,
+					"sampleCount": 120
+				},
+				"sections": {
+					"input": null,
+					"update": {
+						"ms": 0.004999995231628418,
+						"maxMs": 0.019999980926513672
+					},
+					"layout": null,
+					"render": {
+						"ms": 0.0700000524520874,
+						"maxMs": 0.14499998092651367
+					},
+					"flush": {
+						"ms": 0,
+						"maxMs": 0.005000114440917969
+					},
+					"present": null
+				},
+				"gpu": {
+					"ms": null,
+					"valid": null,
+					"passes": null,
+					"spanMs": null,
+					"latencyMs": null
+				},
+				"batcher": null,
+				"memory": {
+					"usedBytes": null
+				},
+				"renderer": {
+					"glDrawCalls": 19,
+					"vertices": 776,
+					"textCharacters": 177
+				},
+				"sanity": {
+					"frameMs": 0.15999996662139893,
+					"sectionsMs": 0.07500004768371582,
+					"unaccountedMs": 0.0849999189376831,
+					"framesWithSectionsOverSpan": 0
+				},
+				"liveness": {
+					"frameCount": 1268,
+					"newestSampleAgeMs": 0
+				}
+			},
+			{
+				"timestamp": 1788899342276,
+				"scene": "developerScreen",
+				"frame": {
+					"ms": 0.16000008583068848,
+					"minMs": 0.12000000476837158,
+					"maxMs": 0.4700000286102295,
+					"p99Ms": 0.4150000810623169,
+					"histogram": [
+						120,
+						0,
+						0,
+						0
+					],
+					"spikesOverBudget": 0,
+					"spikesOver2xBudget": 0,
+					"budgetMs": 16.666666666666668,
+					"windowSize": 120,
+					"sampleCount": 120
+				},
+				"sections": {
+					"input": null,
+					"update": {
+						"ms": 0.004999995231628418,
+						"maxMs": 0.019999980926513672
+					},
+					"layout": null,
+					"render": {
+						"ms": 0.08000004291534424,
+						"maxMs": 0.14499998092651367
+					},
+					"flush": {
+						"ms": 0,
+						"maxMs": 0.005000114440917969
+					},
+					"present": null
+				},
+				"gpu": {
+					"ms": null,
+					"valid": null,
+					"passes": null,
+					"spanMs": null,
+					"latencyMs": null
+				},
+				"batcher": null,
+				"memory": {
+					"usedBytes": null
+				},
+				"renderer": {
+					"glDrawCalls": 19,
+					"vertices": 776,
+					"textCharacters": 177
+				},
+				"sanity": {
+					"frameMs": 0.16000008583068848,
+					"sectionsMs": 0.08500003814697266,
+					"unaccountedMs": 0.07500004768371582,
+					"framesWithSectionsOverSpan": 0
+				},
+				"liveness": {
+					"frameCount": 1269,
+					"newestSampleAgeMs": 0
+				}
+			},
+			{
+				"timestamp": 1788899342276,
+				"scene": "developerScreen",
+				"frame": {
+					"ms": 0.26499998569488525,
+					"minMs": 0.12000000476837158,
+					"maxMs": 0.4700000286102295,
+					"p99Ms": 0.4150000810623169,
+					"histogram": [
+						120,
+						0,
+						0,
+						0
+					],
+					"spikesOverBudget": 0,
+					"spikesOver2xBudget": 0,
+					"budgetMs": 16.666666666666668,
+					"windowSize": 120,
+					"sampleCount": 120
+				},
+				"sections": {
+					"input": null,
+					"update": {
+						"ms": 0.004999995231628418,
+						"maxMs": 0.019999980926513672
+					},
+					"layout": null,
+					"render": {
+						"ms": 0.06999993324279785,
+						"maxMs": 0.14499998092651367
+					},
+					"flush": {
+						"ms": 0,
+						"maxMs": 0.005000114440917969
+					},
+					"present": null
+				},
+				"gpu": {
+					"ms": null,
+					"valid": null,
+					"passes": null,
+					"spanMs": null,
+					"latencyMs": null
+				},
+				"batcher": null,
+				"memory": {
+					"usedBytes": null
+				},
+				"renderer": {
+					"glDrawCalls": 19,
+					"vertices": 776,
+					"textCharacters": 177
+				},
+				"sanity": {
+					"frameMs": 0.26499998569488525,
+					"sectionsMs": 0.07499992847442627,
+					"unaccountedMs": 0.19000005722045898,
+					"framesWithSectionsOverSpan": 0
+				},
+				"liveness": {
+					"frameCount": 1270,
+					"newestSampleAgeMs": 0
+				}
+			},
+			{
+				"timestamp": 1788899342276,
+				"scene": "developerScreen",
+				"frame": {
+					"ms": 0.25999999046325684,
+					"minMs": 0.12000000476837158,
+					"maxMs": 0.4700000286102295,
+					"p99Ms": 0.4150000810623169,
+					"histogram": [
+						120,
+						0,
+						0,
+						0
+					],
+					"spikesOverBudget": 0,
+					"spikesOver2xBudget": 0,
+					"budgetMs": 16.666666666666668,
+					"windowSize": 120,
+					"sampleCount": 120
+				},
+				"sections": {
+					"input": null,
+					"update": {
+						"ms": 0.019999980926513672,
+						"maxMs": 0.019999980926513672
+					},
+					"layout": null,
+					"render": {
+						"ms": 0.125,
+						"maxMs": 0.14499998092651367
+					},
+					"flush": {
+						"ms": 0,
+						"maxMs": 0.005000114440917969
+					},
+					"present": null
+				},
+				"gpu": {
+					"ms": null,
+					"valid": null,
+					"passes": null,
+					"spanMs": null,
+					"latencyMs": null
+				},
+				"batcher": null,
+				"memory": {
+					"usedBytes": null
+				},
+				"renderer": {
+					"glDrawCalls": 19,
+					"vertices": 776,
+					"textCharacters": 177
+				},
+				"sanity": {
+					"frameMs": 0.25999999046325684,
+					"sectionsMs": 0.14499998092651367,
+					"unaccountedMs": 0.11500000953674316,
+					"framesWithSectionsOverSpan": 0
+				},
+				"liveness": {
+					"frameCount": 1271,
+					"newestSampleAgeMs": 0
+				}
+			},
+			{
+				"timestamp": 1788899342276,
+				"scene": "developerScreen",
+				"frame": {
+					"ms": 0.18999993801116943,
+					"minMs": 0.12000000476837158,
+					"maxMs": 0.4700000286102295,
+					"p99Ms": 0.4150000810623169,
+					"histogram": [
+						120,
+						0,
+						0,
+						0
+					],
+					"spikesOverBudget": 0,
+					"spikesOver2xBudget": 0,
+					"budgetMs": 16.666666666666668,
+					"windowSize": 120,
+					"sampleCount": 120
+				},
+				"sections": {
+					"input": null,
+					"update": {
+						"ms": 0.009999990463256836,
+						"maxMs": 0.019999980926513672
+					},
+					"layout": null,
+					"render": {
+						"ms": 0.08500003814697266,
+						"maxMs": 0.14499998092651367
+					},
+					"flush": {
+						"ms": 0,
+						"maxMs": 0.005000114440917969
+					},
+					"present": null
+				},
+				"gpu": {
+					"ms": null,
+					"valid": null,
+					"passes": null,
+					"spanMs": null,
+					"latencyMs": null
+				},
+				"batcher": null,
+				"memory": {
+					"usedBytes": null
+				},
+				"renderer": {
+					"glDrawCalls": 19,
+					"vertices": 776,
+					"textCharacters": 177
+				},
+				"sanity": {
+					"frameMs": 0.18999993801116943,
+					"sectionsMs": 0.09500002861022949,
+					"unaccountedMs": 0.09499990940093994,
+					"framesWithSectionsOverSpan": 0
+				},
+				"liveness": {
+					"frameCount": 1272,
+					"newestSampleAgeMs": 0
+				}
+			},
+			{
+				"timestamp": 1788899342277,
+				"scene": "developerScreen",
+				"frame": {
+					"ms": 0.19000005722045898,
+					"minMs": 0.12000000476837158,
+					"maxMs": 0.4700000286102295,
+					"p99Ms": 0.4150000810623169,
+					"histogram": [
+						120,
+						0,
+						0,
+						0
+					],
+					"spikesOverBudget": 0,
+					"spikesOver2xBudget": 0,
+					"budgetMs": 16.666666666666668,
+					"windowSize": 120,
+					"sampleCount": 120
+				},
+				"sections": {
+					"input": null,
+					"update": {
+						"ms": 0.004999995231628418,
+						"maxMs": 0.019999980926513672
+					},
+					"layout": null,
+					"render": {
+						"ms": 0.09000003337860107,
+						"maxMs": 0.125
+					},
+					"flush": {
+						"ms": 0,
+						"maxMs": 0.005000114440917969
+					},
+					"present": null
+				},
+				"gpu": {
+					"ms": null,
+					"valid": null,
+					"passes": null,
+					"spanMs": null,
+					"latencyMs": null
+				},
+				"batcher": null,
+				"memory": {
+					"usedBytes": null
+				},
+				"renderer": {
+					"glDrawCalls": 19,
+					"vertices": 776,
+					"textCharacters": 177
+				},
+				"sanity": {
+					"frameMs": 0.19000005722045898,
+					"sectionsMs": 0.09500002861022949,
+					"unaccountedMs": 0.09500002861022949,
+					"framesWithSectionsOverSpan": 0
+				},
+				"liveness": {
+					"frameCount": 1273,
+					"newestSampleAgeMs": 1
+				}
+			},
+			{
+				"timestamp": 1788899342277,
+				"scene": "developerScreen",
+				"frame": {
+					"ms": 0.17499995231628418,
+					"minMs": 0.12000000476837158,
+					"maxMs": 0.4700000286102295,
+					"p99Ms": 0.4150000810623169,
+					"histogram": [
+						120,
+						0,
+						0,
+						0
+					],
+					"spikesOverBudget": 0,
+					"spikesOver2xBudget": 0,
+					"budgetMs": 16.666666666666668,
+					"windowSize": 120,
+					"sampleCount": 120
+				},
+				"sections": {
+					"input": null,
+					"update": {
+						"ms": 0.004999995231628418,
+						"maxMs": 0.019999980926513672
+					},
+					"layout": null,
+					"render": {
+						"ms": 0.08000004291534424,
+						"maxMs": 0.125
+					},
+					"flush": {
+						"ms": 0,
+						"maxMs": 0.005000114440917969
+					},
+					"present": null
+				},
+				"gpu": {
+					"ms": null,
+					"valid": null,
+					"passes": null,
+					"spanMs": null,
+					"latencyMs": null
+				},
+				"batcher": null,
+				"memory": {
+					"usedBytes": null
+				},
+				"renderer": {
+					"glDrawCalls": 19,
+					"vertices": 776,
+					"textCharacters": 177
+				},
+				"sanity": {
+					"frameMs": 0.17499995231628418,
+					"sectionsMs": 0.08500003814697266,
+					"unaccountedMs": 0.08999991416931152,
+					"framesWithSectionsOverSpan": 0
+				},
+				"liveness": {
+					"frameCount": 1274,
+					"newestSampleAgeMs": 0
+				}
+			}
+		]
+	},
+	{
+		"scenario": "cardShowcaseScreen",
+		"samples": [
+			{
+				"timestamp": 1788899342343,
+				"scene": "cardShowcaseScreen",
+				"frame": {
+					"ms": 0.4650000333786011,
+					"minMs": 0.09000003337860107,
+					"maxMs": 2.350000023841858,
+					"p99Ms": 1.034999966621399,
+					"histogram": [
+						120,
+						0,
+						0,
+						0
+					],
+					"spikesOverBudget": 0,
+					"spikesOver2xBudget": 0,
+					"budgetMs": 16.666666666666668,
+					"windowSize": 120,
+					"sampleCount": 120
+				},
+				"sections": {
+					"input": null,
+					"update": {
+						"ms": 0.010000109672546387,
+						"maxMs": 0.039999961853027344
+					},
+					"layout": null,
+					"render": {
+						"ms": 0.3999999761581421,
+						"maxMs": 0.9350000619888306
+					},
+					"flush": {
+						"ms": 0,
+						"maxMs": 0.004999995231628418
+					},
+					"present": null
+				},
+				"gpu": {
+					"ms": null,
+					"valid": null,
+					"passes": null,
+					"spanMs": null,
+					"latencyMs": null
+				},
+				"batcher": null,
+				"memory": {
+					"usedBytes": null
+				},
+				"renderer": {
+					"glDrawCalls": 96,
+					"vertices": 15736,
+					"textCharacters": 3856
+				},
+				"sanity": {
+					"frameMs": 0.4650000333786011,
+					"sectionsMs": 0.4100000858306885,
+					"unaccountedMs": 0.0549999475479126,
+					"framesWithSectionsOverSpan": 0
+				},
+				"liveness": {
+					"frameCount": 1404,
+					"newestSampleAgeMs": 1
+				}
+			},
+			{
+				"timestamp": 1788899342343,
+				"scene": "cardShowcaseScreen",
+				"frame": {
+					"ms": 0.5750000476837158,
+					"minMs": 0.09000003337860107,
+					"maxMs": 2.350000023841858,
+					"p99Ms": 1.034999966621399,
+					"histogram": [
+						120,
+						0,
+						0,
+						0
+					],
+					"spikesOverBudget": 0,
+					"spikesOver2xBudget": 0,
+					"budgetMs": 16.666666666666668,
+					"windowSize": 120,
+					"sampleCount": 120
+				},
+				"sections": {
+					"input": null,
+					"update": {
+						"ms": 0.009999990463256836,
+						"maxMs": 0.039999961853027344
+					},
+					"layout": null,
+					"render": {
+						"ms": 0.4500000476837158,
+						"maxMs": 0.9350000619888306
+					},
+					"flush": {
+						"ms": 0,
+						"maxMs": 0.004999995231628418
+					},
+					"present": null
+				},
+				"gpu": {
+					"ms": null,
+					"valid": null,
+					"passes": null,
+					"spanMs": null,
+					"latencyMs": null
+				},
+				"batcher": null,
+				"memory": {
+					"usedBytes": null
+				},
+				"renderer": {
+					"glDrawCalls": 96,
+					"vertices": 15736,
+					"textCharacters": 3856
+				},
+				"sanity": {
+					"frameMs": 0.5750000476837158,
+					"sectionsMs": 0.46000003814697266,
+					"unaccountedMs": 0.11500000953674316,
+					"framesWithSectionsOverSpan": 0
+				},
+				"liveness": {
+					"frameCount": 1405,
+					"newestSampleAgeMs": 0
+				}
+			},
+			{
+				"timestamp": 1788899342344,
+				"scene": "cardShowcaseScreen",
+				"frame": {
+					"ms": 0.5349999666213989,
+					"minMs": 0.09000003337860107,
+					"maxMs": 2.350000023841858,
+					"p99Ms": 1.034999966621399,
+					"histogram": [
+						120,
+						0,
+						0,
+						0
+					],
+					"spikesOverBudget": 0,
+					"spikesOver2xBudget": 0,
+					"budgetMs": 16.666666666666668,
+					"windowSize": 120,
+					"sampleCount": 120
+				},
+				"sections": {
+					"input": null,
+					"update": {
+						"ms": 0.009999990463256836,
+						"maxMs": 0.039999961853027344
+					},
+					"layout": null,
+					"render": {
+						"ms": 0.434999942779541,
+						"maxMs": 0.9350000619888306
+					},
+					"flush": {
+						"ms": 0,
+						"maxMs": 0.004999995231628418
+					},
+					"present": null
+				},
+				"gpu": {
+					"ms": null,
+					"valid": null,
+					"passes": null,
+					"spanMs": null,
+					"latencyMs": null
+				},
+				"batcher": null,
+				"memory": {
+					"usedBytes": null
+				},
+				"renderer": {
+					"glDrawCalls": 96,
+					"vertices": 15736,
+					"textCharacters": 3856
+				},
+				"sanity": {
+					"frameMs": 0.5349999666213989,
+					"sectionsMs": 0.44499993324279785,
+					"unaccountedMs": 0.09000003337860107,
+					"framesWithSectionsOverSpan": 0
+				},
+				"liveness": {
+					"frameCount": 1406,
+					"newestSampleAgeMs": 1
+				}
+			},
+			{
+				"timestamp": 1788899342344,
+				"scene": "cardShowcaseScreen",
+				"frame": {
+					"ms": 0.5249999761581421,
+					"minMs": 0.09000003337860107,
+					"maxMs": 2.350000023841858,
+					"p99Ms": 1.034999966621399,
+					"histogram": [
+						120,
+						0,
+						0,
+						0
+					],
+					"spikesOverBudget": 0,
+					"spikesOver2xBudget": 0,
+					"budgetMs": 16.666666666666668,
+					"windowSize": 120,
+					"sampleCount": 120
+				},
+				"sections": {
+					"input": null,
+					"update": {
+						"ms": 0.009999990463256836,
+						"maxMs": 0.039999961853027344
+					},
+					"layout": null,
+					"render": {
+						"ms": 0.4099999666213989,
+						"maxMs": 0.9350000619888306
+					},
+					"flush": {
+						"ms": 0,
+						"maxMs": 0.004999995231628418
+					},
+					"present": null
+				},
+				"gpu": {
+					"ms": null,
+					"valid": null,
+					"passes": null,
+					"spanMs": null,
+					"latencyMs": null
+				},
+				"batcher": null,
+				"memory": {
+					"usedBytes": null
+				},
+				"renderer": {
+					"glDrawCalls": 96,
+					"vertices": 15736,
+					"textCharacters": 3856
+				},
+				"sanity": {
+					"frameMs": 0.5249999761581421,
+					"sectionsMs": 0.41999995708465576,
+					"unaccountedMs": 0.10500001907348633,
+					"framesWithSectionsOverSpan": 0
+				},
+				"liveness": {
+					"frameCount": 1407,
+					"newestSampleAgeMs": 0
+				}
+			},
+			{
+				"timestamp": 1788899342345,
+				"scene": "cardShowcaseScreen",
+				"frame": {
+					"ms": 0.7450000047683716,
+					"minMs": 0.09000003337860107,
+					"maxMs": 2.350000023841858,
+					"p99Ms": 1.034999966621399,
+					"histogram": [
+						120,
+						0,
+						0,
+						0
+					],
+					"spikesOverBudget": 0,
+					"spikesOver2xBudget": 0,
+					"budgetMs": 16.666666666666668,
+					"windowSize": 120,
+					"sampleCount": 120
+				},
+				"sections": {
+					"input": null,
+					"update": {
+						"ms": 0.004999995231628418,
+						"maxMs": 0.039999961853027344
+					},
+					"layout": null,
+					"render": {
+						"ms": 0.4200000762939453,
+						"maxMs": 0.9350000619888306
+					},
+					"flush": {
+						"ms": 0,
+						"maxMs": 0.004999995231628418
+					},
+					"present": null
+				},
+				"gpu": {
+					"ms": null,
+					"valid": null,
+					"passes": null,
+					"spanMs": null,
+					"latencyMs": null
+				},
+				"batcher": null,
+				"memory": {
+					"usedBytes": null
+				},
+				"renderer": {
+					"glDrawCalls": 96,
+					"vertices": 15736,
+					"textCharacters": 3856
+				},
+				"sanity": {
+					"frameMs": 0.7450000047683716,
+					"sectionsMs": 0.42500007152557373,
+					"unaccountedMs": 0.31999993324279785,
+					"framesWithSectionsOverSpan": 0
+				},
+				"liveness": {
+					"frameCount": 1408,
+					"newestSampleAgeMs": 0
+				}
+			},
+			{
+				"timestamp": 1788899342346,
+				"scene": "cardShowcaseScreen",
+				"frame": {
+					"ms": 0.5500000715255737,
+					"minMs": 0.09000003337860107,
+					"maxMs": 2.350000023841858,
+					"p99Ms": 1.034999966621399,
+					"histogram": [
+						120,
+						0,
+						0,
+						0
+					],
+					"spikesOverBudget": 0,
+					"spikesOver2xBudget": 0,
+					"budgetMs": 16.666666666666668,
+					"windowSize": 120,
+					"sampleCount": 120
+				},
+				"sections": {
+					"input": null,
+					"update": {
+						"ms": 0.009999990463256836,
+						"maxMs": 0.039999961853027344
+					},
+					"layout": null,
+					"render": {
+						"ms": 0.43500006198883057,
+						"maxMs": 0.9350000619888306
+					},
+					"flush": {
+						"ms": 0,
+						"maxMs": 0.004999995231628418
+					},
+					"present": null
+				},
+				"gpu": {
+					"ms": null,
+					"valid": null,
+					"passes": null,
+					"spanMs": null,
+					"latencyMs": null
+				},
+				"batcher": null,
+				"memory": {
+					"usedBytes": null
+				},
+				"renderer": {
+					"glDrawCalls": 96,
+					"vertices": 15736,
+					"textCharacters": 3856
+				},
+				"sanity": {
+					"frameMs": 0.5500000715255737,
+					"sectionsMs": 0.4450000524520874,
+					"unaccountedMs": 0.10500001907348633,
+					"framesWithSectionsOverSpan": 0
+				},
+				"liveness": {
+					"frameCount": 1409,
+					"newestSampleAgeMs": 1
+				}
+			},
+			{
+				"timestamp": 1788899342346,
+				"scene": "cardShowcaseScreen",
+				"frame": {
+					"ms": 0.5149999856948853,
+					"minMs": 0.09000003337860107,
+					"maxMs": 2.350000023841858,
+					"p99Ms": 1.034999966621399,
+					"histogram": [
+						120,
+						0,
+						0,
+						0
+					],
+					"spikesOverBudget": 0,
+					"spikesOver2xBudget": 0,
+					"budgetMs": 16.666666666666668,
+					"windowSize": 120,
+					"sampleCount": 120
+				},
+				"sections": {
+					"input": null,
+					"update": {
+						"ms": 0.014999985694885254,
+						"maxMs": 0.039999961853027344
+					},
+					"layout": null,
+					"render": {
+						"ms": 0.41499996185302734,
+						"maxMs": 0.9350000619888306
+					},
+					"flush": {
+						"ms": 0,
+						"maxMs": 0.004999995231628418
+					},
+					"present": null
+				},
+				"gpu": {
+					"ms": null,
+					"valid": null,
+					"passes": null,
+					"spanMs": null,
+					"latencyMs": null
+				},
+				"batcher": null,
+				"memory": {
+					"usedBytes": null
+				},
+				"renderer": {
+					"glDrawCalls": 96,
+					"vertices": 15736,
+					"textCharacters": 3856
+				},
+				"sanity": {
+					"frameMs": 0.5149999856948853,
+					"sectionsMs": 0.4299999475479126,
+					"unaccountedMs": 0.08500003814697266,
+					"framesWithSectionsOverSpan": 0
+				},
+				"liveness": {
+					"frameCount": 1410,
+					"newestSampleAgeMs": 0
+				}
+			},
+			{
+				"timestamp": 1788899342347,
+				"scene": "cardShowcaseScreen",
+				"frame": {
+					"ms": 0.49000000953674316,
+					"minMs": 0.09999990463256836,
+					"maxMs": 2.350000023841858,
+					"p99Ms": 1.034999966621399,
+					"histogram": [
+						120,
+						0,
+						0,
+						0
+					],
+					"spikesOverBudget": 0,
+					"spikesOver2xBudget": 0,
+					"budgetMs": 16.666666666666668,
+					"windowSize": 120,
+					"sampleCount": 120
+				},
+				"sections": {
+					"input": null,
+					"update": {
+						"ms": 0.009999990463256836,
+						"maxMs": 0.039999961853027344
+					},
+					"layout": null,
+					"render": {
+						"ms": 0.39499998092651367,
+						"maxMs": 0.9350000619888306
+					},
+					"flush": {
+						"ms": 0,
+						"maxMs": 0.004999995231628418
+					},
+					"present": null
+				},
+				"gpu": {
+					"ms": null,
+					"valid": null,
+					"passes": null,
+					"spanMs": null,
+					"latencyMs": null
+				},
+				"batcher": null,
+				"memory": {
+					"usedBytes": null
+				},
+				"renderer": {
+					"glDrawCalls": 96,
+					"vertices": 15736,
+					"textCharacters": 3856
+				},
+				"sanity": {
+					"frameMs": 0.49000000953674316,
+					"sectionsMs": 0.4049999713897705,
+					"unaccountedMs": 0.08500003814697266,
+					"framesWithSectionsOverSpan": 0
+				},
+				"liveness": {
+					"frameCount": 1411,
+					"newestSampleAgeMs": 1
+				}
+			},
+			{
+				"timestamp": 1788899342347,
+				"scene": "cardShowcaseScreen",
+				"frame": {
+					"ms": 0.49000000953674316,
+					"minMs": 0.09999990463256836,
+					"maxMs": 2.350000023841858,
+					"p99Ms": 1.034999966621399,
+					"histogram": [
+						120,
+						0,
+						0,
+						0
+					],
+					"spikesOverBudget": 0,
+					"spikesOver2xBudget": 0,
+					"budgetMs": 16.666666666666668,
+					"windowSize": 120,
+					"sampleCount": 120
+				},
+				"sections": {
+					"input": null,
+					"update": {
+						"ms": 0.004999995231628418,
+						"maxMs": 0.039999961853027344
+					},
+					"layout": null,
+					"render": {
+						"ms": 0.3999999761581421,
+						"maxMs": 0.9350000619888306
+					},
+					"flush": {
+						"ms": 0,
+						"maxMs": 0.004999995231628418
+					},
+					"present": null
+				},
+				"gpu": {
+					"ms": null,
+					"valid": null,
+					"passes": null,
+					"spanMs": null,
+					"latencyMs": null
+				},
+				"batcher": null,
+				"memory": {
+					"usedBytes": null
+				},
+				"renderer": {
+					"glDrawCalls": 96,
+					"vertices": 15736,
+					"textCharacters": 3856
+				},
+				"sanity": {
+					"frameMs": 0.49000000953674316,
+					"sectionsMs": 0.4049999713897705,
+					"unaccountedMs": 0.08500003814697266,
+					"framesWithSectionsOverSpan": 0
+				},
+				"liveness": {
+					"frameCount": 1412,
+					"newestSampleAgeMs": 0
+				}
+			},
+			{
+				"timestamp": 1788899342348,
+				"scene": "cardShowcaseScreen",
+				"frame": {
+					"ms": 0.4849998950958252,
+					"minMs": 0.125,
+					"maxMs": 2.350000023841858,
+					"p99Ms": 1.034999966621399,
+					"histogram": [
+						120,
+						0,
+						0,
+						0
+					],
+					"spikesOverBudget": 0,
+					"spikesOver2xBudget": 0,
+					"budgetMs": 16.666666666666668,
+					"windowSize": 120,
+					"sampleCount": 120
+				},
+				"sections": {
+					"input": null,
+					"update": {
+						"ms": 0.004999995231628418,
+						"maxMs": 0.039999961853027344
+					},
+					"layout": null,
+					"render": {
+						"ms": 0.38499999046325684,
+						"maxMs": 0.9350000619888306
+					},
+					"flush": {
+						"ms": 0,
+						"maxMs": 0.004999995231628418
+					},
+					"present": null
+				},
+				"gpu": {
+					"ms": null,
+					"valid": null,
+					"passes": null,
+					"spanMs": null,
+					"latencyMs": null
+				},
+				"batcher": null,
+				"memory": {
+					"usedBytes": null
+				},
+				"renderer": {
+					"glDrawCalls": 96,
+					"vertices": 15736,
+					"textCharacters": 3856
+				},
+				"sanity": {
+					"frameMs": 0.4849998950958252,
+					"sectionsMs": 0.38999998569488525,
+					"unaccountedMs": 0.09499990940093994,
+					"framesWithSectionsOverSpan": 0
+				},
+				"liveness": {
+					"frameCount": 1413,
+					"newestSampleAgeMs": 1
+				}
+			},
+			{
+				"timestamp": 1788899342348,
+				"scene": "cardShowcaseScreen",
+				"frame": {
+					"ms": 0.5100001096725464,
+					"minMs": 0.125,
+					"maxMs": 2.350000023841858,
+					"p99Ms": 1.034999966621399,
+					"histogram": [
+						120,
+						0,
+						0,
+						0
+					],
+					"spikesOverBudget": 0,
+					"spikesOver2xBudget": 0,
+					"budgetMs": 16.666666666666668,
+					"windowSize": 120,
+					"sampleCount": 120
+				},
+				"sections": {
+					"input": null,
+					"update": {
+						"ms": 0.005000114440917969,
+						"maxMs": 0.039999961853027344
+					},
+					"layout": null,
+					"render": {
+						"ms": 0.4249999523162842,
+						"maxMs": 0.9350000619888306
+					},
+					"flush": {
+						"ms": 0,
+						"maxMs": 0.004999995231628418
+					},
+					"present": null
+				},
+				"gpu": {
+					"ms": null,
+					"valid": null,
+					"passes": null,
+					"spanMs": null,
+					"latencyMs": null
+				},
+				"batcher": null,
+				"memory": {
+					"usedBytes": null
+				},
+				"renderer": {
+					"glDrawCalls": 96,
+					"vertices": 15736,
+					"textCharacters": 3856
+				},
+				"sanity": {
+					"frameMs": 0.5100001096725464,
+					"sectionsMs": 0.43000006675720215,
+					"unaccountedMs": 0.08000004291534424,
+					"framesWithSectionsOverSpan": 0
+				},
+				"liveness": {
+					"frameCount": 1414,
+					"newestSampleAgeMs": 0
+				}
+			},
+			{
+				"timestamp": 1788899342349,
+				"scene": "cardShowcaseScreen",
+				"frame": {
+					"ms": 0.5299999713897705,
+					"minMs": 0.125,
+					"maxMs": 2.350000023841858,
+					"p99Ms": 1.034999966621399,
+					"histogram": [
+						120,
+						0,
+						0,
+						0
+					],
+					"spikesOverBudget": 0,
+					"spikesOver2xBudget": 0,
+					"budgetMs": 16.666666666666668,
+					"windowSize": 120,
+					"sampleCount": 120
+				},
+				"sections": {
+					"input": null,
+					"update": {
+						"ms": 0.009999990463256836,
+						"maxMs": 0.039999961853027344
+					},
+					"layout": null,
+					"render": {
+						"ms": 0.434999942779541,
+						"maxMs": 0.9350000619888306
+					},
+					"flush": {
+						"ms": 0,
+						"maxMs": 0.004999995231628418
+					},
+					"present": null
+				},
+				"gpu": {
+					"ms": null,
+					"valid": null,
+					"passes": null,
+					"spanMs": null,
+					"latencyMs": null
+				},
+				"batcher": null,
+				"memory": {
+					"usedBytes": null
+				},
+				"renderer": {
+					"glDrawCalls": 96,
+					"vertices": 15736,
+					"textCharacters": 3856
+				},
+				"sanity": {
+					"frameMs": 0.5299999713897705,
+					"sectionsMs": 0.44499993324279785,
+					"unaccountedMs": 0.08500003814697266,
+					"framesWithSectionsOverSpan": 0
+				},
+				"liveness": {
+					"frameCount": 1415,
+					"newestSampleAgeMs": 1
+				}
+			},
+			{
+				"timestamp": 1788899342349,
+				"scene": "cardShowcaseScreen",
+				"frame": {
+					"ms": 0.5449999570846558,
+					"minMs": 0.125,
+					"maxMs": 2.350000023841858,
+					"p99Ms": 1.034999966621399,
+					"histogram": [
+						120,
+						0,
+						0,
+						0
+					],
+					"spikesOverBudget": 0,
+					"spikesOver2xBudget": 0,
+					"budgetMs": 16.666666666666668,
+					"windowSize": 120,
+					"sampleCount": 120
+				},
+				"sections": {
+					"input": null,
+					"update": {
+						"ms": 0.009999990463256836,
+						"maxMs": 0.039999961853027344
+					},
+					"layout": null,
+					"render": {
+						"ms": 0.44499993324279785,
+						"maxMs": 0.9350000619888306
+					},
+					"flush": {
+						"ms": 0,
+						"maxMs": 0.004999995231628418
+					},
+					"present": null
+				},
+				"gpu": {
+					"ms": null,
+					"valid": null,
+					"passes": null,
+					"spanMs": null,
+					"latencyMs": null
+				},
+				"batcher": null,
+				"memory": {
+					"usedBytes": null
+				},
+				"renderer": {
+					"glDrawCalls": 96,
+					"vertices": 15736,
+					"textCharacters": 3856
+				},
+				"sanity": {
+					"frameMs": 0.5449999570846558,
+					"sectionsMs": 0.4549999237060547,
+					"unaccountedMs": 0.09000003337860107,
+					"framesWithSectionsOverSpan": 0
+				},
+				"liveness": {
+					"frameCount": 1416,
+					"newestSampleAgeMs": 0
+				}
+			},
+			{
+				"timestamp": 1788899342350,
+				"scene": "cardShowcaseScreen",
+				"frame": {
+					"ms": 0.5399999618530273,
+					"minMs": 0.2549999952316284,
+					"maxMs": 2.350000023841858,
+					"p99Ms": 1.034999966621399,
+					"histogram": [
+						120,
+						0,
+						0,
+						0
+					],
+					"spikesOverBudget": 0,
+					"spikesOver2xBudget": 0,
+					"budgetMs": 16.666666666666668,
+					"windowSize": 120,
+					"sampleCount": 120
+				},
+				"sections": {
+					"input": null,
+					"update": {
+						"ms": 0.009999990463256836,
+						"maxMs": 0.039999961853027344
+					},
+					"layout": null,
+					"render": {
+						"ms": 0.4500000476837158,
+						"maxMs": 0.9350000619888306
+					},
+					"flush": {
+						"ms": 0,
+						"maxMs": 0.004999995231628418
+					},
+					"present": null
+				},
+				"gpu": {
+					"ms": null,
+					"valid": null,
+					"passes": null,
+					"spanMs": null,
+					"latencyMs": null
+				},
+				"batcher": null,
+				"memory": {
+					"usedBytes": null
+				},
+				"renderer": {
+					"glDrawCalls": 96,
+					"vertices": 15736,
+					"textCharacters": 3856
+				},
+				"sanity": {
+					"frameMs": 0.5399999618530273,
+					"sectionsMs": 0.46000003814697266,
+					"unaccountedMs": 0.07999992370605469,
+					"framesWithSectionsOverSpan": 0
+				},
+				"liveness": {
+					"frameCount": 1417,
+					"newestSampleAgeMs": 1
+				}
+			},
+			{
+				"timestamp": 1788899342350,
+				"scene": "cardShowcaseScreen",
+				"frame": {
+					"ms": 0.505000114440918,
+					"minMs": 0.33000004291534424,
+					"maxMs": 2.350000023841858,
+					"p99Ms": 1.034999966621399,
+					"histogram": [
+						120,
+						0,
+						0,
+						0
+					],
+					"spikesOverBudget": 0,
+					"spikesOver2xBudget": 0,
+					"budgetMs": 16.666666666666668,
+					"windowSize": 120,
+					"sampleCount": 120
+				},
+				"sections": {
+					"input": null,
+					"update": {
+						"ms": 0.005000114440917969,
+						"maxMs": 0.039999961853027344
+					},
+					"layout": null,
+					"render": {
+						"ms": 0.41499996185302734,
+						"maxMs": 0.9350000619888306
+					},
+					"flush": {
+						"ms": 0,
+						"maxMs": 0.004999995231628418
+					},
+					"present": null
+				},
+				"gpu": {
+					"ms": null,
+					"valid": null,
+					"passes": null,
+					"spanMs": null,
+					"latencyMs": null
+				},
+				"batcher": null,
+				"memory": {
+					"usedBytes": null
+				},
+				"renderer": {
+					"glDrawCalls": 96,
+					"vertices": 15736,
+					"textCharacters": 3856
+				},
+				"sanity": {
+					"frameMs": 0.505000114440918,
+					"sectionsMs": 0.4200000762939453,
+					"unaccountedMs": 0.08500003814697266,
+					"framesWithSectionsOverSpan": 0
+				},
+				"liveness": {
+					"frameCount": 1418,
+					"newestSampleAgeMs": 0
+				}
+			},
+			{
+				"timestamp": 1788899342351,
+				"scene": "cardShowcaseScreen",
+				"frame": {
+					"ms": 0.49499988555908203,
+					"minMs": 0.43500006198883057,
+					"maxMs": 2.350000023841858,
+					"p99Ms": 1.034999966621399,
+					"histogram": [
+						120,
+						0,
+						0,
+						0
+					],
+					"spikesOverBudget": 0,
+					"spikesOver2xBudget": 0,
+					"budgetMs": 16.666666666666668,
+					"windowSize": 120,
+					"sampleCount": 120
+				},
+				"sections": {
+					"input": null,
+					"update": {
+						"ms": 0.004999995231628418,
+						"maxMs": 0.039999961853027344
+					},
+					"layout": null,
+					"render": {
+						"ms": 0.3999999761581421,
+						"maxMs": 0.9350000619888306
+					},
+					"flush": {
+						"ms": 0.004999995231628418,
+						"maxMs": 0.004999995231628418
+					},
+					"present": null
+				},
+				"gpu": {
+					"ms": null,
+					"valid": null,
+					"passes": null,
+					"spanMs": null,
+					"latencyMs": null
+				},
+				"batcher": null,
+				"memory": {
+					"usedBytes": null
+				},
+				"renderer": {
+					"glDrawCalls": 96,
+					"vertices": 15736,
+					"textCharacters": 3856
+				},
+				"sanity": {
+					"frameMs": 0.49499988555908203,
+					"sectionsMs": 0.4099999666213989,
+					"unaccountedMs": 0.0849999189376831,
+					"framesWithSectionsOverSpan": 0
+				},
+				"liveness": {
+					"frameCount": 1419,
+					"newestSampleAgeMs": 1
+				}
+			},
+			{
+				"timestamp": 1788899342351,
+				"scene": "cardShowcaseScreen",
+				"frame": {
+					"ms": 0.4950000047683716,
+					"minMs": 0.43500006198883057,
+					"maxMs": 1.034999966621399,
+					"p99Ms": 1.0199999809265137,
+					"histogram": [
+						120,
+						0,
+						0,
+						0
+					],
+					"spikesOverBudget": 0,
+					"spikesOver2xBudget": 0,
+					"budgetMs": 16.666666666666668,
+					"windowSize": 120,
+					"sampleCount": 120
+				},
+				"sections": {
+					"input": null,
+					"update": {
+						"ms": 0.004999995231628418,
+						"maxMs": 0.039999961853027344
+					},
+					"layout": null,
+					"render": {
+						"ms": 0.4049999713897705,
+						"maxMs": 0.9350000619888306
+					},
+					"flush": {
+						"ms": 0,
+						"maxMs": 0.004999995231628418
+					},
+					"present": null
+				},
+				"gpu": {
+					"ms": null,
+					"valid": null,
+					"passes": null,
+					"spanMs": null,
+					"latencyMs": null
+				},
+				"batcher": null,
+				"memory": {
+					"usedBytes": null
+				},
+				"renderer": {
+					"glDrawCalls": 96,
+					"vertices": 15736,
+					"textCharacters": 3856
+				},
+				"sanity": {
+					"frameMs": 0.4950000047683716,
+					"sectionsMs": 0.4099999666213989,
+					"unaccountedMs": 0.08500003814697266,
+					"framesWithSectionsOverSpan": 0
+				},
+				"liveness": {
+					"frameCount": 1420,
+					"newestSampleAgeMs": 0
+				}
+			},
+			{
+				"timestamp": 1788899342352,
+				"scene": "cardShowcaseScreen",
+				"frame": {
+					"ms": 0.6600000858306885,
+					"minMs": 0.43500006198883057,
+					"maxMs": 1.034999966621399,
+					"p99Ms": 1.0199999809265137,
+					"histogram": [
+						120,
+						0,
+						0,
+						0
+					],
+					"spikesOverBudget": 0,
+					"spikesOver2xBudget": 0,
+					"budgetMs": 16.666666666666668,
+					"windowSize": 120,
+					"sampleCount": 120
+				},
+				"sections": {
+					"input": null,
+					"update": {
+						"ms": 0.010000109672546387,
+						"maxMs": 0.039999961853027344
+					},
+					"layout": null,
+					"render": {
+						"ms": 0.5649999380111694,
+						"maxMs": 0.9350000619888306
+					},
+					"flush": {
+						"ms": 0,
+						"maxMs": 0.004999995231628418
+					},
+					"present": null
+				},
+				"gpu": {
+					"ms": null,
+					"valid": null,
+					"passes": null,
+					"spanMs": null,
+					"latencyMs": null
+				},
+				"batcher": null,
+				"memory": {
+					"usedBytes": null
+				},
+				"renderer": {
+					"glDrawCalls": 96,
+					"vertices": 15736,
+					"textCharacters": 3856
+				},
+				"sanity": {
+					"frameMs": 0.6600000858306885,
+					"sectionsMs": 0.5750000476837158,
+					"unaccountedMs": 0.08500003814697266,
+					"framesWithSectionsOverSpan": 0
+				},
+				"liveness": {
+					"frameCount": 1421,
+					"newestSampleAgeMs": 1
+				}
+			},
+			{
+				"timestamp": 1788899342352,
+				"scene": "cardShowcaseScreen",
+				"frame": {
+					"ms": 0.49000000953674316,
+					"minMs": 0.43500006198883057,
+					"maxMs": 1.034999966621399,
+					"p99Ms": 1.0199999809265137,
+					"histogram": [
+						120,
+						0,
+						0,
+						0
+					],
+					"spikesOverBudget": 0,
+					"spikesOver2xBudget": 0,
+					"budgetMs": 16.666666666666668,
+					"windowSize": 120,
+					"sampleCount": 120
+				},
+				"sections": {
+					"input": null,
+					"update": {
+						"ms": 0.009999990463256836,
+						"maxMs": 0.039999961853027344
+					},
+					"layout": null,
+					"render": {
+						"ms": 0.3999999761581421,
+						"maxMs": 0.9350000619888306
+					},
+					"flush": {
+						"ms": 0,
+						"maxMs": 0.004999995231628418
+					},
+					"present": null
+				},
+				"gpu": {
+					"ms": null,
+					"valid": null,
+					"passes": null,
+					"spanMs": null,
+					"latencyMs": null
+				},
+				"batcher": null,
+				"memory": {
+					"usedBytes": null
+				},
+				"renderer": {
+					"glDrawCalls": 96,
+					"vertices": 15736,
+					"textCharacters": 3856
+				},
+				"sanity": {
+					"frameMs": 0.49000000953674316,
+					"sectionsMs": 0.4099999666213989,
+					"unaccountedMs": 0.08000004291534424,
+					"framesWithSectionsOverSpan": 0
+				},
+				"liveness": {
+					"frameCount": 1422,
+					"newestSampleAgeMs": 0
+				}
+			},
+			{
+				"timestamp": 1788899342353,
+				"scene": "cardShowcaseScreen",
+				"frame": {
+					"ms": 0.49000000953674316,
+					"minMs": 0.43500006198883057,
+					"maxMs": 1.034999966621399,
+					"p99Ms": 1.0199999809265137,
+					"histogram": [
+						120,
+						0,
+						0,
+						0
+					],
+					"spikesOverBudget": 0,
+					"spikesOver2xBudget": 0,
+					"budgetMs": 16.666666666666668,
+					"windowSize": 120,
+					"sampleCount": 120
+				},
+				"sections": {
+					"input": null,
+					"update": {
+						"ms": 0.009999990463256836,
+						"maxMs": 0.039999961853027344
+					},
+					"layout": null,
+					"render": {
+						"ms": 0.3999999761581421,
+						"maxMs": 0.9350000619888306
+					},
+					"flush": {
+						"ms": 0,
+						"maxMs": 0.004999995231628418
+					},
+					"present": null
+				},
+				"gpu": {
+					"ms": null,
+					"valid": null,
+					"passes": null,
+					"spanMs": null,
+					"latencyMs": null
+				},
+				"batcher": null,
+				"memory": {
+					"usedBytes": null
+				},
+				"renderer": {
+					"glDrawCalls": 96,
+					"vertices": 15736,
+					"textCharacters": 3856
+				},
+				"sanity": {
+					"frameMs": 0.49000000953674316,
+					"sectionsMs": 0.4099999666213989,
+					"unaccountedMs": 0.08000004291534424,
+					"framesWithSectionsOverSpan": 0
+				},
+				"liveness": {
+					"frameCount": 1423,
+					"newestSampleAgeMs": 1
+				}
+			}
+		]
+	},
+	{
+		"scenario": "driverSelectionScreen",
+		"samples": [
+			{
+				"timestamp": 1788899342384,
+				"scene": "driverSelectionScreen",
+				"frame": {
+					"ms": 0.21500003337860107,
+					"minMs": 0.15999996662139893,
+					"maxMs": 0.5849999189376831,
+					"p99Ms": 0.5,
+					"histogram": [
+						120,
+						0,
+						0,
+						0
+					],
+					"spikesOverBudget": 0,
+					"spikesOver2xBudget": 0,
+					"budgetMs": 16.666666666666668,
+					"windowSize": 120,
+					"sampleCount": 120
+				},
+				"sections": {
+					"input": null,
+					"update": {
+						"ms": 0,
+						"maxMs": 0.014999985694885254
+					},
+					"layout": null,
+					"render": {
+						"ms": 0.10000002384185791,
+						"maxMs": 0.18999993801116943
+					},
+					"flush": {
+						"ms": 0.0549999475479126,
+						"maxMs": 0.12999999523162842
+					},
+					"present": null
+				},
+				"gpu": {
+					"ms": null,
+					"valid": null,
+					"passes": null,
+					"spanMs": null,
+					"latencyMs": null
+				},
+				"batcher": null,
+				"memory": {
+					"usedBytes": null
+				},
+				"renderer": {
+					"glDrawCalls": 33,
+					"vertices": 4016,
+					"textCharacters": 977
+				},
+				"sanity": {
+					"frameMs": 0.21500003337860107,
+					"sectionsMs": 0.1549999713897705,
+					"unaccountedMs": 0.060000061988830566,
+					"framesWithSectionsOverSpan": 0
+				},
+				"liveness": {
+					"frameCount": 1549,
+					"newestSampleAgeMs": 0
+				}
+			},
+			{
+				"timestamp": 1788899342385,
+				"scene": "driverSelectionScreen",
+				"frame": {
+					"ms": 0.24000000953674316,
+					"minMs": 0.15999996662139893,
+					"maxMs": 0.5,
+					"p99Ms": 0.4950000047683716,
+					"histogram": [
+						120,
+						0,
+						0,
+						0
+					],
+					"spikesOverBudget": 0,
+					"spikesOver2xBudget": 0,
+					"budgetMs": 16.666666666666668,
+					"windowSize": 120,
+					"sampleCount": 120
+				},
+				"sections": {
+					"input": null,
+					"update": {
+						"ms": 0.004999995231628418,
+						"maxMs": 0.014999985694885254
+					},
+					"layout": null,
+					"render": {
+						"ms": 0.09000003337860107,
+						"maxMs": 0.18999993801116943
+					},
+					"flush": {
+						"ms": 0.0549999475479126,
+						"maxMs": 0.12999999523162842
+					},
+					"present": null
+				},
+				"gpu": {
+					"ms": null,
+					"valid": null,
+					"passes": null,
+					"spanMs": null,
+					"latencyMs": null
+				},
+				"batcher": null,
+				"memory": {
+					"usedBytes": null
+				},
+				"renderer": {
+					"glDrawCalls": 33,
+					"vertices": 4016,
+					"textCharacters": 977
+				},
+				"sanity": {
+					"frameMs": 0.24000000953674316,
+					"sectionsMs": 0.1499999761581421,
+					"unaccountedMs": 0.09000003337860107,
+					"framesWithSectionsOverSpan": 0
+				},
+				"liveness": {
+					"frameCount": 1550,
+					"newestSampleAgeMs": 1
+				}
+			},
+			{
+				"timestamp": 1788899342385,
+				"scene": "driverSelectionScreen",
+				"frame": {
+					"ms": 0.24000000953674316,
+					"minMs": 0.15999996662139893,
+					"maxMs": 0.5,
+					"p99Ms": 0.4950000047683716,
+					"histogram": [
+						120,
+						0,
+						0,
+						0
+					],
+					"spikesOverBudget": 0,
+					"spikesOver2xBudget": 0,
+					"budgetMs": 16.666666666666668,
+					"windowSize": 120,
+					"sampleCount": 120
+				},
+				"sections": {
+					"input": null,
+					"update": {
+						"ms": 0.004999995231628418,
+						"maxMs": 0.014999985694885254
+					},
+					"layout": null,
+					"render": {
+						"ms": 0.09500002861022949,
+						"maxMs": 0.18999993801116943
+					},
+					"flush": {
+						"ms": 0.0549999475479126,
+						"maxMs": 0.12999999523162842
+					},
+					"present": null
+				},
+				"gpu": {
+					"ms": null,
+					"valid": null,
+					"passes": null,
+					"spanMs": null,
+					"latencyMs": null
+				},
+				"batcher": null,
+				"memory": {
+					"usedBytes": null
+				},
+				"renderer": {
+					"glDrawCalls": 33,
+					"vertices": 4016,
+					"textCharacters": 977
+				},
+				"sanity": {
+					"frameMs": 0.24000000953674316,
+					"sectionsMs": 0.1549999713897705,
+					"unaccountedMs": 0.08500003814697266,
+					"framesWithSectionsOverSpan": 0
+				},
+				"liveness": {
+					"frameCount": 1551,
+					"newestSampleAgeMs": 0
+				}
+			},
+			{
+				"timestamp": 1788899342385,
+				"scene": "driverSelectionScreen",
+				"frame": {
+					"ms": 0.24000000953674316,
+					"minMs": 0.15999996662139893,
+					"maxMs": 0.5,
+					"p99Ms": 0.4950000047683716,
+					"histogram": [
+						120,
+						0,
+						0,
+						0
+					],
+					"spikesOverBudget": 0,
+					"spikesOver2xBudget": 0,
+					"budgetMs": 16.666666666666668,
+					"windowSize": 120,
+					"sampleCount": 120
+				},
+				"sections": {
+					"input": null,
+					"update": {
+						"ms": 0.004999995231628418,
+						"maxMs": 0.014999985694885254
+					},
+					"layout": null,
+					"render": {
+						"ms": 0.0849999189376831,
+						"maxMs": 0.18999993801116943
+					},
+					"flush": {
+						"ms": 0.05500006675720215,
+						"maxMs": 0.12999999523162842
+					},
+					"present": null
+				},
+				"gpu": {
+					"ms": null,
+					"valid": null,
+					"passes": null,
+					"spanMs": null,
+					"latencyMs": null
+				},
+				"batcher": null,
+				"memory": {
+					"usedBytes": null
+				},
+				"renderer": {
+					"glDrawCalls": 33,
+					"vertices": 4016,
+					"textCharacters": 977
+				},
+				"sanity": {
+					"frameMs": 0.24000000953674316,
+					"sectionsMs": 0.14499998092651367,
+					"unaccountedMs": 0.09500002861022949,
+					"framesWithSectionsOverSpan": 0
+				},
+				"liveness": {
+					"frameCount": 1552,
+					"newestSampleAgeMs": 0
+				}
+			},
+			{
+				"timestamp": 1788899342385,
+				"scene": "driverSelectionScreen",
+				"frame": {
+					"ms": 0.23500001430511475,
+					"minMs": 0.15999996662139893,
+					"maxMs": 0.5,
+					"p99Ms": 0.4950000047683716,
+					"histogram": [
+						120,
+						0,
+						0,
+						0
+					],
+					"spikesOverBudget": 0,
+					"spikesOver2xBudget": 0,
+					"budgetMs": 16.666666666666668,
+					"windowSize": 120,
+					"sampleCount": 120
+				},
+				"sections": {
+					"input": null,
+					"update": {
+						"ms": 0.004999995231628418,
+						"maxMs": 0.014999985694885254
+					},
+					"layout": null,
+					"render": {
+						"ms": 0.08999991416931152,
+						"maxMs": 0.18999993801116943
+					},
+					"flush": {
+						"ms": 0.060000061988830566,
+						"maxMs": 0.12999999523162842
+					},
+					"present": null
+				},
+				"gpu": {
+					"ms": null,
+					"valid": null,
+					"passes": null,
+					"spanMs": null,
+					"latencyMs": null
+				},
+				"batcher": null,
+				"memory": {
+					"usedBytes": null
+				},
+				"renderer": {
+					"glDrawCalls": 33,
+					"vertices": 4016,
+					"textCharacters": 977
+				},
+				"sanity": {
+					"frameMs": 0.23500001430511475,
+					"sectionsMs": 0.1549999713897705,
+					"unaccountedMs": 0.08000004291534424,
+					"framesWithSectionsOverSpan": 0
+				},
+				"liveness": {
+					"frameCount": 1553,
+					"newestSampleAgeMs": 0
+				}
+			},
+			{
+				"timestamp": 1788899342386,
+				"scene": "driverSelectionScreen",
+				"frame": {
+					"ms": 0.21999990940093994,
+					"minMs": 0.15999996662139893,
+					"maxMs": 0.5,
+					"p99Ms": 0.4950000047683716,
+					"histogram": [
+						120,
+						0,
+						0,
+						0
+					],
+					"spikesOverBudget": 0,
+					"spikesOver2xBudget": 0,
+					"budgetMs": 16.666666666666668,
+					"windowSize": 120,
+					"sampleCount": 120
+				},
+				"sections": {
+					"input": null,
+					"update": {
+						"ms": 0.004999995231628418,
+						"maxMs": 0.014999985694885254
+					},
+					"layout": null,
+					"render": {
+						"ms": 0.07999992370605469,
+						"maxMs": 0.18999993801116943
+					},
+					"flush": {
+						"ms": 0.05500006675720215,
+						"maxMs": 0.12999999523162842
+					},
+					"present": null
+				},
+				"gpu": {
+					"ms": null,
+					"valid": null,
+					"passes": null,
+					"spanMs": null,
+					"latencyMs": null
+				},
+				"batcher": null,
+				"memory": {
+					"usedBytes": null
+				},
+				"renderer": {
+					"glDrawCalls": 33,
+					"vertices": 4016,
+					"textCharacters": 977
+				},
+				"sanity": {
+					"frameMs": 0.21999990940093994,
+					"sectionsMs": 0.13999998569488525,
+					"unaccountedMs": 0.07999992370605469,
+					"framesWithSectionsOverSpan": 0
+				},
+				"liveness": {
+					"frameCount": 1554,
+					"newestSampleAgeMs": 1
+				}
+			},
+			{
+				"timestamp": 1788899342386,
+				"scene": "driverSelectionScreen",
+				"frame": {
+					"ms": 0.23500001430511475,
+					"minMs": 0.15999996662139893,
+					"maxMs": 0.5,
+					"p99Ms": 0.4950000047683716,
+					"histogram": [
+						120,
+						0,
+						0,
+						0
+					],
+					"spikesOverBudget": 0,
+					"spikesOver2xBudget": 0,
+					"budgetMs": 16.666666666666668,
+					"windowSize": 120,
+					"sampleCount": 120
+				},
+				"sections": {
+					"input": null,
+					"update": {
+						"ms": 0,
+						"maxMs": 0.014999985694885254
+					},
+					"layout": null,
+					"render": {
+						"ms": 0.09500002861022949,
+						"maxMs": 0.18999993801116943
+					},
+					"flush": {
+						"ms": 0.05500006675720215,
+						"maxMs": 0.12999999523162842
+					},
+					"present": null
+				},
+				"gpu": {
+					"ms": null,
+					"valid": null,
+					"passes": null,
+					"spanMs": null,
+					"latencyMs": null
+				},
+				"batcher": null,
+				"memory": {
+					"usedBytes": null
+				},
+				"renderer": {
+					"glDrawCalls": 33,
+					"vertices": 4016,
+					"textCharacters": 977
+				},
+				"sanity": {
+					"frameMs": 0.23500001430511475,
+					"sectionsMs": 0.15000009536743164,
+					"unaccountedMs": 0.0849999189376831,
+					"framesWithSectionsOverSpan": 0
+				},
+				"liveness": {
+					"frameCount": 1555,
+					"newestSampleAgeMs": 0
+				}
+			},
+			{
+				"timestamp": 1788899342386,
+				"scene": "driverSelectionScreen",
+				"frame": {
+					"ms": 0.26499998569488525,
+					"minMs": 0.15999996662139893,
+					"maxMs": 0.5,
+					"p99Ms": 0.4950000047683716,
+					"histogram": [
+						120,
+						0,
+						0,
+						0
+					],
+					"spikesOverBudget": 0,
+					"spikesOver2xBudget": 0,
+					"budgetMs": 16.666666666666668,
+					"windowSize": 120,
+					"sampleCount": 120
+				},
+				"sections": {
+					"input": null,
+					"update": {
+						"ms": 0,
+						"maxMs": 0.014999985694885254
+					},
+					"layout": null,
+					"render": {
+						"ms": 0.09000003337860107,
+						"maxMs": 0.18999993801116943
+					},
+					"flush": {
+						"ms": 0.059999942779541016,
+						"maxMs": 0.12999999523162842
+					},
+					"present": null
+				},
+				"gpu": {
+					"ms": null,
+					"valid": null,
+					"passes": null,
+					"spanMs": null,
+					"latencyMs": null
+				},
+				"batcher": null,
+				"memory": {
+					"usedBytes": null
+				},
+				"renderer": {
+					"glDrawCalls": 33,
+					"vertices": 4016,
+					"textCharacters": 977
+				},
+				"sanity": {
+					"frameMs": 0.26499998569488525,
+					"sectionsMs": 0.1499999761581421,
+					"unaccountedMs": 0.11500000953674316,
+					"framesWithSectionsOverSpan": 0
+				},
+				"liveness": {
+					"frameCount": 1556,
+					"newestSampleAgeMs": 0
+				}
+			},
+			{
+				"timestamp": 1788899342386,
+				"scene": "driverSelectionScreen",
+				"frame": {
+					"ms": 0.2250000238418579,
+					"minMs": 0.15999996662139893,
+					"maxMs": 0.5,
+					"p99Ms": 0.4950000047683716,
+					"histogram": [
+						120,
+						0,
+						0,
+						0
+					],
+					"spikesOverBudget": 0,
+					"spikesOver2xBudget": 0,
+					"budgetMs": 16.666666666666668,
+					"windowSize": 120,
+					"sampleCount": 120
+				},
+				"sections": {
+					"input": null,
+					"update": {
+						"ms": 0.004999995231628418,
+						"maxMs": 0.014999985694885254
+					},
+					"layout": null,
+					"render": {
+						"ms": 0.09000003337860107,
+						"maxMs": 0.18999993801116943
+					},
+					"flush": {
+						"ms": 0.04999995231628418,
+						"maxMs": 0.12999999523162842
+					},
+					"present": null
+				},
+				"gpu": {
+					"ms": null,
+					"valid": null,
+					"passes": null,
+					"spanMs": null,
+					"latencyMs": null
+				},
+				"batcher": null,
+				"memory": {
+					"usedBytes": null
+				},
+				"renderer": {
+					"glDrawCalls": 33,
+					"vertices": 4016,
+					"textCharacters": 977
+				},
+				"sanity": {
+					"frameMs": 0.2250000238418579,
+					"sectionsMs": 0.14499998092651367,
+					"unaccountedMs": 0.08000004291534424,
+					"framesWithSectionsOverSpan": 0
+				},
+				"liveness": {
+					"frameCount": 1557,
+					"newestSampleAgeMs": 0
+				}
+			},
+			{
+				"timestamp": 1788899342387,
+				"scene": "driverSelectionScreen",
+				"frame": {
+					"ms": 0.23500001430511475,
+					"minMs": 0.15999996662139893,
+					"maxMs": 0.5,
+					"p99Ms": 0.4950000047683716,
+					"histogram": [
+						120,
+						0,
+						0,
+						0
+					],
+					"spikesOverBudget": 0,
+					"spikesOver2xBudget": 0,
+					"budgetMs": 16.666666666666668,
+					"windowSize": 120,
+					"sampleCount": 120
+				},
+				"sections": {
+					"input": null,
+					"update": {
+						"ms": 0.004999995231628418,
+						"maxMs": 0.014999985694885254
+					},
+					"layout": null,
+					"render": {
+						"ms": 0.09500002861022949,
+						"maxMs": 0.18999993801116943
+					},
+					"flush": {
+						"ms": 0.0549999475479126,
+						"maxMs": 0.12999999523162842
+					},
+					"present": null
+				},
+				"gpu": {
+					"ms": null,
+					"valid": null,
+					"passes": null,
+					"spanMs": null,
+					"latencyMs": null
+				},
+				"batcher": null,
+				"memory": {
+					"usedBytes": null
+				},
+				"renderer": {
+					"glDrawCalls": 33,
+					"vertices": 4016,
+					"textCharacters": 977
+				},
+				"sanity": {
+					"frameMs": 0.23500001430511475,
+					"sectionsMs": 0.1549999713897705,
+					"unaccountedMs": 0.08000004291534424,
+					"framesWithSectionsOverSpan": 0
+				},
+				"liveness": {
+					"frameCount": 1558,
+					"newestSampleAgeMs": 1
+				}
+			},
+			{
+				"timestamp": 1788899342387,
+				"scene": "driverSelectionScreen",
+				"frame": {
+					"ms": 0.4450000524520874,
+					"minMs": 0.15999996662139893,
+					"maxMs": 0.5,
+					"p99Ms": 0.4950000047683716,
+					"histogram": [
+						120,
+						0,
+						0,
+						0
+					],
+					"spikesOverBudget": 0,
+					"spikesOver2xBudget": 0,
+					"budgetMs": 16.666666666666668,
+					"windowSize": 120,
+					"sampleCount": 120
+				},
+				"sections": {
+					"input": null,
+					"update": {
+						"ms": 0.004999995231628418,
+						"maxMs": 0.014999985694885254
+					},
+					"layout": null,
+					"render": {
+						"ms": 0.11000001430511475,
+						"maxMs": 0.18999993801116943
+					},
+					"flush": {
+						"ms": 0.11500000953674316,
+						"maxMs": 0.12999999523162842
+					},
+					"present": null
+				},
+				"gpu": {
+					"ms": null,
+					"valid": null,
+					"passes": null,
+					"spanMs": null,
+					"latencyMs": null
+				},
+				"batcher": null,
+				"memory": {
+					"usedBytes": null
+				},
+				"renderer": {
+					"glDrawCalls": 33,
+					"vertices": 4016,
+					"textCharacters": 977
+				},
+				"sanity": {
+					"frameMs": 0.4450000524520874,
+					"sectionsMs": 0.23000001907348633,
+					"unaccountedMs": 0.21500003337860107,
+					"framesWithSectionsOverSpan": 0
+				},
+				"liveness": {
+					"frameCount": 1559,
+					"newestSampleAgeMs": 0
+				}
+			},
+			{
+				"timestamp": 1788899342388,
+				"scene": "driverSelectionScreen",
+				"frame": {
+					"ms": 0.5349999666213989,
+					"minMs": 0.15999996662139893,
+					"maxMs": 0.5349999666213989,
+					"p99Ms": 0.5,
+					"histogram": [
+						120,
+						0,
+						0,
+						0
+					],
+					"spikesOverBudget": 0,
+					"spikesOver2xBudget": 0,
+					"budgetMs": 16.666666666666668,
+					"windowSize": 120,
+					"sampleCount": 120
+				},
+				"sections": {
+					"input": null,
+					"update": {
+						"ms": 0.009999990463256836,
+						"maxMs": 0.014999985694885254
+					},
+					"layout": null,
+					"render": {
+						"ms": 0.18999993801116943,
+						"maxMs": 0.18999993801116943
+					},
+					"flush": {
+						"ms": 0.11500000953674316,
+						"maxMs": 0.12999999523162842
+					},
+					"present": null
+				},
+				"gpu": {
+					"ms": null,
+					"valid": null,
+					"passes": null,
+					"spanMs": null,
+					"latencyMs": null
+				},
+				"batcher": null,
+				"memory": {
+					"usedBytes": null
+				},
+				"renderer": {
+					"glDrawCalls": 33,
+					"vertices": 4016,
+					"textCharacters": 977
+				},
+				"sanity": {
+					"frameMs": 0.5349999666213989,
+					"sectionsMs": 0.31499993801116943,
+					"unaccountedMs": 0.2200000286102295,
+					"framesWithSectionsOverSpan": 0
+				},
+				"liveness": {
+					"frameCount": 1560,
+					"newestSampleAgeMs": 1
+				}
+			},
+			{
+				"timestamp": 1788899342388,
+				"scene": "driverSelectionScreen",
+				"frame": {
+					"ms": 0.48500001430511475,
+					"minMs": 0.15999996662139893,
+					"maxMs": 0.5349999666213989,
+					"p99Ms": 0.5,
+					"histogram": [
+						120,
+						0,
+						0,
+						0
+					],
+					"spikesOverBudget": 0,
+					"spikesOver2xBudget": 0,
+					"budgetMs": 16.666666666666668,
+					"windowSize": 120,
+					"sampleCount": 120
+				},
+				"sections": {
+					"input": null,
+					"update": {
+						"ms": 0.014999985694885254,
+						"maxMs": 0.014999985694885254
+					},
+					"layout": null,
+					"render": {
+						"ms": 0.14499998092651367,
+						"maxMs": 0.18999993801116943
+					},
+					"flush": {
+						"ms": 0.10000002384185791,
+						"maxMs": 0.12999999523162842
+					},
+					"present": null
+				},
+				"gpu": {
+					"ms": null,
+					"valid": null,
+					"passes": null,
+					"spanMs": null,
+					"latencyMs": null
+				},
+				"batcher": null,
+				"memory": {
+					"usedBytes": null
+				},
+				"renderer": {
+					"glDrawCalls": 33,
+					"vertices": 4016,
+					"textCharacters": 977
+				},
+				"sanity": {
+					"frameMs": 0.48500001430511475,
+					"sectionsMs": 0.25999999046325684,
+					"unaccountedMs": 0.2250000238418579,
+					"framesWithSectionsOverSpan": 0
+				},
+				"liveness": {
+					"frameCount": 1561,
+					"newestSampleAgeMs": 0
+				}
+			},
+			{
+				"timestamp": 1788899342389,
+				"scene": "driverSelectionScreen",
+				"frame": {
+					"ms": 0.46999990940093994,
+					"minMs": 0.15999996662139893,
+					"maxMs": 0.5349999666213989,
+					"p99Ms": 0.5,
+					"histogram": [
+						120,
+						0,
+						0,
+						0
+					],
+					"spikesOverBudget": 0,
+					"spikesOver2xBudget": 0,
+					"budgetMs": 16.666666666666668,
+					"windowSize": 120,
+					"sampleCount": 120
+				},
+				"sections": {
+					"input": null,
+					"update": {
+						"ms": 0.014999985694885254,
+						"maxMs": 0.014999985694885254
+					},
+					"layout": null,
+					"render": {
+						"ms": 0.1499999761581421,
+						"maxMs": 0.18999993801116943
+					},
+					"flush": {
+						"ms": 0.11000001430511475,
+						"maxMs": 0.12999999523162842
+					},
+					"present": null
+				},
+				"gpu": {
+					"ms": null,
+					"valid": null,
+					"passes": null,
+					"spanMs": null,
+					"latencyMs": null
+				},
+				"batcher": null,
+				"memory": {
+					"usedBytes": null
+				},
+				"renderer": {
+					"glDrawCalls": 33,
+					"vertices": 4016,
+					"textCharacters": 977
+				},
+				"sanity": {
+					"frameMs": 0.46999990940093994,
+					"sectionsMs": 0.2749999761581421,
+					"unaccountedMs": 0.19499993324279785,
+					"framesWithSectionsOverSpan": 0
+				},
+				"liveness": {
+					"frameCount": 1562,
+					"newestSampleAgeMs": 1
+				}
+			},
+			{
+				"timestamp": 1788899342389,
+				"scene": "driverSelectionScreen",
+				"frame": {
+					"ms": 0.4450000524520874,
+					"minMs": 0.15999996662139893,
+					"maxMs": 0.5349999666213989,
+					"p99Ms": 0.5,
+					"histogram": [
+						120,
+						0,
+						0,
+						0
+					],
+					"spikesOverBudget": 0,
+					"spikesOver2xBudget": 0,
+					"budgetMs": 16.666666666666668,
+					"windowSize": 120,
+					"sampleCount": 120
+				},
+				"sections": {
+					"input": null,
+					"update": {
+						"ms": 0.015000104904174805,
+						"maxMs": 0.015000104904174805
+					},
+					"layout": null,
+					"render": {
+						"ms": 0.17499995231628418,
+						"maxMs": 0.18999993801116943
+					},
+					"flush": {
+						"ms": 0.10000002384185791,
+						"maxMs": 0.12999999523162842
+					},
+					"present": null
+				},
+				"gpu": {
+					"ms": null,
+					"valid": null,
+					"passes": null,
+					"spanMs": null,
+					"latencyMs": null
+				},
+				"batcher": null,
+				"memory": {
+					"usedBytes": null
+				},
+				"renderer": {
+					"glDrawCalls": 33,
+					"vertices": 4016,
+					"textCharacters": 977
+				},
+				"sanity": {
+					"frameMs": 0.4450000524520874,
+					"sectionsMs": 0.2900000810623169,
+					"unaccountedMs": 0.1549999713897705,
+					"framesWithSectionsOverSpan": 0
+				},
+				"liveness": {
+					"frameCount": 1563,
+					"newestSampleAgeMs": 0
+				}
+			},
+			{
+				"timestamp": 1788899342389,
+				"scene": "driverSelectionScreen",
+				"frame": {
+					"ms": 0.3450000286102295,
+					"minMs": 0.15999996662139893,
+					"maxMs": 0.5349999666213989,
+					"p99Ms": 0.5,
+					"histogram": [
+						120,
+						0,
+						0,
+						0
+					],
+					"spikesOverBudget": 0,
+					"spikesOver2xBudget": 0,
+					"budgetMs": 16.666666666666668,
+					"windowSize": 120,
+					"sampleCount": 120
+				},
+				"sections": {
+					"input": null,
+					"update": {
+						"ms": 0.009999990463256836,
+						"maxMs": 0.015000104904174805
+					},
+					"layout": null,
+					"render": {
+						"ms": 0.14499998092651367,
+						"maxMs": 0.18999993801116943
+					},
+					"flush": {
+						"ms": 0.09000003337860107,
+						"maxMs": 0.12999999523162842
+					},
+					"present": null
+				},
+				"gpu": {
+					"ms": null,
+					"valid": null,
+					"passes": null,
+					"spanMs": null,
+					"latencyMs": null
+				},
+				"batcher": null,
+				"memory": {
+					"usedBytes": null
+				},
+				"renderer": {
+					"glDrawCalls": 33,
+					"vertices": 4016,
+					"textCharacters": 977
+				},
+				"sanity": {
+					"frameMs": 0.3450000286102295,
+					"sectionsMs": 0.24500000476837158,
+					"unaccountedMs": 0.10000002384185791,
+					"framesWithSectionsOverSpan": 0
+				},
+				"liveness": {
+					"frameCount": 1564,
+					"newestSampleAgeMs": 0
+				}
+			},
+			{
+				"timestamp": 1788899342390,
+				"scene": "driverSelectionScreen",
+				"frame": {
+					"ms": 0.26999998092651367,
+					"minMs": 0.15999996662139893,
+					"maxMs": 0.5349999666213989,
+					"p99Ms": 0.5,
+					"histogram": [
+						120,
+						0,
+						0,
+						0
+					],
+					"spikesOverBudget": 0,
+					"spikesOver2xBudget": 0,
+					"budgetMs": 16.666666666666668,
+					"windowSize": 120,
+					"sampleCount": 120
+				},
+				"sections": {
+					"input": null,
+					"update": {
+						"ms": 0,
+						"maxMs": 0.015000104904174805
+					},
+					"layout": null,
+					"render": {
+						"ms": 0.11500000953674316,
+						"maxMs": 0.18999993801116943
+					},
+					"flush": {
+						"ms": 0.059999942779541016,
+						"maxMs": 0.12999999523162842
+					},
+					"present": null
+				},
+				"gpu": {
+					"ms": null,
+					"valid": null,
+					"passes": null,
+					"spanMs": null,
+					"latencyMs": null
+				},
+				"batcher": null,
+				"memory": {
+					"usedBytes": null
+				},
+				"renderer": {
+					"glDrawCalls": 33,
+					"vertices": 4016,
+					"textCharacters": 977
+				},
+				"sanity": {
+					"frameMs": 0.26999998092651367,
+					"sectionsMs": 0.17499995231628418,
+					"unaccountedMs": 0.09500002861022949,
+					"framesWithSectionsOverSpan": 0
+				},
+				"liveness": {
+					"frameCount": 1565,
+					"newestSampleAgeMs": 1
+				}
+			},
+			{
+				"timestamp": 1788899342390,
+				"scene": "driverSelectionScreen",
+				"frame": {
+					"ms": 0.24000000953674316,
+					"minMs": 0.15999996662139893,
+					"maxMs": 0.5349999666213989,
+					"p99Ms": 0.5,
+					"histogram": [
+						120,
+						0,
+						0,
+						0
+					],
+					"spikesOverBudget": 0,
+					"spikesOver2xBudget": 0,
+					"budgetMs": 16.666666666666668,
+					"windowSize": 120,
+					"sampleCount": 120
+				},
+				"sections": {
+					"input": null,
+					"update": {
+						"ms": 0.004999995231628418,
+						"maxMs": 0.015000104904174805
+					},
+					"layout": null,
+					"render": {
+						"ms": 0.09500002861022949,
+						"maxMs": 0.18999993801116943
+					},
+					"flush": {
+						"ms": 0.059999942779541016,
+						"maxMs": 0.12999999523162842
+					},
+					"present": null
+				},
+				"gpu": {
+					"ms": null,
+					"valid": null,
+					"passes": null,
+					"spanMs": null,
+					"latencyMs": null
+				},
+				"batcher": null,
+				"memory": {
+					"usedBytes": null
+				},
+				"renderer": {
+					"glDrawCalls": 33,
+					"vertices": 4016,
+					"textCharacters": 977
+				},
+				"sanity": {
+					"frameMs": 0.24000000953674316,
+					"sectionsMs": 0.15999996662139893,
+					"unaccountedMs": 0.08000004291534424,
+					"framesWithSectionsOverSpan": 0
+				},
+				"liveness": {
+					"frameCount": 1566,
+					"newestSampleAgeMs": 0
+				}
+			},
+			{
+				"timestamp": 1788899342390,
+				"scene": "driverSelectionScreen",
+				"frame": {
+					"ms": 0.25,
+					"minMs": 0.15999996662139893,
+					"maxMs": 0.5349999666213989,
+					"p99Ms": 0.5,
+					"histogram": [
+						120,
+						0,
+						0,
+						0
+					],
+					"spikesOverBudget": 0,
+					"spikesOver2xBudget": 0,
+					"budgetMs": 16.666666666666668,
+					"windowSize": 120,
+					"sampleCount": 120
+				},
+				"sections": {
+					"input": null,
+					"update": {
+						"ms": 0,
+						"maxMs": 0.015000104904174805
+					},
+					"layout": null,
+					"render": {
+						"ms": 0.10500001907348633,
+						"maxMs": 0.18999993801116943
+					},
+					"flush": {
+						"ms": 0.059999942779541016,
+						"maxMs": 0.12999999523162842
+					},
+					"present": null
+				},
+				"gpu": {
+					"ms": null,
+					"valid": null,
+					"passes": null,
+					"spanMs": null,
+					"latencyMs": null
+				},
+				"batcher": null,
+				"memory": {
+					"usedBytes": null
+				},
+				"renderer": {
+					"glDrawCalls": 33,
+					"vertices": 4016,
+					"textCharacters": 977
+				},
+				"sanity": {
+					"frameMs": 0.25,
+					"sectionsMs": 0.16499996185302734,
+					"unaccountedMs": 0.08500003814697266,
+					"framesWithSectionsOverSpan": 0
+				},
+				"liveness": {
+					"frameCount": 1567,
+					"newestSampleAgeMs": 0
+				}
+			},
+			{
+				"timestamp": 1788899342390,
+				"scene": "driverSelectionScreen",
+				"frame": {
+					"ms": 0.24000000953674316,
+					"minMs": 0.15999996662139893,
+					"maxMs": 0.5349999666213989,
+					"p99Ms": 0.5,
+					"histogram": [
+						120,
+						0,
+						0,
+						0
+					],
+					"spikesOverBudget": 0,
+					"spikesOver2xBudget": 0,
+					"budgetMs": 16.666666666666668,
+					"windowSize": 120,
+					"sampleCount": 120
+				},
+				"sections": {
+					"input": null,
+					"update": {
+						"ms": 0,
+						"maxMs": 0.015000104904174805
+					},
+					"layout": null,
+					"render": {
+						"ms": 0.09500002861022949,
+						"maxMs": 0.18999993801116943
+					},
+					"flush": {
+						"ms": 0.06499993801116943,
+						"maxMs": 0.12999999523162842
+					},
+					"present": null
+				},
+				"gpu": {
+					"ms": null,
+					"valid": null,
+					"passes": null,
+					"spanMs": null,
+					"latencyMs": null
+				},
+				"batcher": null,
+				"memory": {
+					"usedBytes": null
+				},
+				"renderer": {
+					"glDrawCalls": 33,
+					"vertices": 4016,
+					"textCharacters": 977
+				},
+				"sanity": {
+					"frameMs": 0.24000000953674316,
+					"sectionsMs": 0.15999996662139893,
+					"unaccountedMs": 0.08000004291534424,
+					"framesWithSectionsOverSpan": 0
+				},
+				"liveness": {
+					"frameCount": 1568,
+					"newestSampleAgeMs": 0
+				}
+			}
+		]
+	},
+	{
+		"scenario": "combatScreen",
+		"samples": [
+			{
+				"timestamp": 1788899342450,
+				"scene": "combatScreen",
+				"frame": {
+					"ms": 0.33500003814697266,
+					"minMs": 0.18000006675720215,
+					"maxMs": 4.725000023841858,
+					"p99Ms": 0.9900000095367432,
+					"histogram": [
+						120,
+						0,
+						0,
+						0
+					],
+					"spikesOverBudget": 0,
+					"spikesOver2xBudget": 0,
+					"budgetMs": 16.666666666666668,
+					"windowSize": 120,
+					"sampleCount": 120
+				},
+				"sections": {
+					"input": null,
+					"update": {
+						"ms": 0.004999995231628418,
+						"maxMs": 0.059999942779541016
+					},
+					"layout": null,
+					"render": {
+						"ms": 0.2749999761581421,
+						"maxMs": 0.8899999856948853
+					},
+					"flush": {
+						"ms": 0.004999995231628418,
+						"maxMs": 0.04499995708465576
+					},
+					"present": null
+				},
+				"gpu": {
+					"ms": null,
+					"valid": null,
+					"passes": null,
+					"spanMs": null,
+					"latencyMs": null
+				},
+				"batcher": null,
+				"memory": {
+					"usedBytes": null
+				},
+				"renderer": {
+					"glDrawCalls": 92,
+					"vertices": 5328,
+					"textCharacters": 1267
+				},
+				"sanity": {
+					"frameMs": 0.33500003814697266,
+					"sectionsMs": 0.2849999666213989,
+					"unaccountedMs": 0.05000007152557373,
+					"framesWithSectionsOverSpan": 0
+				},
+				"liveness": {
+					"frameCount": 1694,
+					"newestSampleAgeMs": 0
+				}
+			},
+			{
+				"timestamp": 1788899342450,
+				"scene": "combatScreen",
+				"frame": {
+					"ms": 0.4549999237060547,
+					"minMs": 0.18000006675720215,
+					"maxMs": 4.725000023841858,
+					"p99Ms": 0.9900000095367432,
+					"histogram": [
+						120,
+						0,
+						0,
+						0
+					],
+					"spikesOverBudget": 0,
+					"spikesOver2xBudget": 0,
+					"budgetMs": 16.666666666666668,
+					"windowSize": 120,
+					"sampleCount": 120
+				},
+				"sections": {
+					"input": null,
+					"update": {
+						"ms": 0.004999995231628418,
+						"maxMs": 0.059999942779541016
+					},
+					"layout": null,
+					"render": {
+						"ms": 0.31999993324279785,
+						"maxMs": 0.8899999856948853
+					},
+					"flush": {
+						"ms": 0.004999995231628418,
+						"maxMs": 0.04499995708465576
+					},
+					"present": null
+				},
+				"gpu": {
+					"ms": null,
+					"valid": null,
+					"passes": null,
+					"spanMs": null,
+					"latencyMs": null
+				},
+				"batcher": null,
+				"memory": {
+					"usedBytes": null
+				},
+				"renderer": {
+					"glDrawCalls": 92,
+					"vertices": 5328,
+					"textCharacters": 1267
+				},
+				"sanity": {
+					"frameMs": 0.4549999237060547,
+					"sectionsMs": 0.3299999237060547,
+					"unaccountedMs": 0.125,
+					"framesWithSectionsOverSpan": 0
+				},
+				"liveness": {
+					"frameCount": 1695,
+					"newestSampleAgeMs": 0
+				}
+			},
+			{
+				"timestamp": 1788899342451,
+				"scene": "combatScreen",
+				"frame": {
+					"ms": 0.40500009059906006,
+					"minMs": 0.18000006675720215,
+					"maxMs": 4.725000023841858,
+					"p99Ms": 0.9900000095367432,
+					"histogram": [
+						120,
+						0,
+						0,
+						0
+					],
+					"spikesOverBudget": 0,
+					"spikesOver2xBudget": 0,
+					"budgetMs": 16.666666666666668,
+					"windowSize": 120,
+					"sampleCount": 120
+				},
+				"sections": {
+					"input": null,
+					"update": {
+						"ms": 0.010000109672546387,
+						"maxMs": 0.059999942779541016
+					},
+					"layout": null,
+					"render": {
+						"ms": 0.29499995708465576,
+						"maxMs": 0.8899999856948853
+					},
+					"flush": {
+						"ms": 0.009999990463256836,
+						"maxMs": 0.04499995708465576
+					},
+					"present": null
+				},
+				"gpu": {
+					"ms": null,
+					"valid": null,
+					"passes": null,
+					"spanMs": null,
+					"latencyMs": null
+				},
+				"batcher": null,
+				"memory": {
+					"usedBytes": null
+				},
+				"renderer": {
+					"glDrawCalls": 92,
+					"vertices": 5328,
+					"textCharacters": 1267
+				},
+				"sanity": {
+					"frameMs": 0.40500009059906006,
+					"sectionsMs": 0.315000057220459,
+					"unaccountedMs": 0.09000003337860107,
+					"framesWithSectionsOverSpan": 0
+				},
+				"liveness": {
+					"frameCount": 1696,
+					"newestSampleAgeMs": 1
+				}
+			},
+			{
+				"timestamp": 1788899342451,
+				"scene": "combatScreen",
+				"frame": {
+					"ms": 0.4249999523162842,
+					"minMs": 0.24500000476837158,
+					"maxMs": 4.725000023841858,
+					"p99Ms": 0.9900000095367432,
+					"histogram": [
+						120,
+						0,
+						0,
+						0
+					],
+					"spikesOverBudget": 0,
+					"spikesOver2xBudget": 0,
+					"budgetMs": 16.666666666666668,
+					"windowSize": 120,
+					"sampleCount": 120
+				},
+				"sections": {
+					"input": null,
+					"update": {
+						"ms": 0.009999990463256836,
+						"maxMs": 0.059999942779541016
+					},
+					"layout": null,
+					"render": {
+						"ms": 0.31999993324279785,
+						"maxMs": 0.8899999856948853
+					},
+					"flush": {
+						"ms": 0.004999995231628418,
+						"maxMs": 0.04499995708465576
+					},
+					"present": null
+				},
+				"gpu": {
+					"ms": null,
+					"valid": null,
+					"passes": null,
+					"spanMs": null,
+					"latencyMs": null
+				},
+				"batcher": null,
+				"memory": {
+					"usedBytes": null
+				},
+				"renderer": {
+					"glDrawCalls": 92,
+					"vertices": 5328,
+					"textCharacters": 1267
+				},
+				"sanity": {
+					"frameMs": 0.4249999523162842,
+					"sectionsMs": 0.3349999189376831,
+					"unaccountedMs": 0.09000003337860107,
+					"framesWithSectionsOverSpan": 0
+				},
+				"liveness": {
+					"frameCount": 1697,
+					"newestSampleAgeMs": 0
+				}
+			},
+			{
+				"timestamp": 1788899342452,
+				"scene": "combatScreen",
+				"frame": {
+					"ms": 0.38999998569488525,
+					"minMs": 0.3049999475479126,
+					"maxMs": 4.725000023841858,
+					"p99Ms": 0.9900000095367432,
+					"histogram": [
+						120,
+						0,
+						0,
+						0
+					],
+					"spikesOverBudget": 0,
+					"spikesOver2xBudget": 0,
+					"budgetMs": 16.666666666666668,
+					"windowSize": 120,
+					"sampleCount": 120
+				},
+				"sections": {
+					"input": null,
+					"update": {
+						"ms": 0.004999995231628418,
+						"maxMs": 0.059999942779541016
+					},
+					"layout": null,
+					"render": {
+						"ms": 0.2849999666213989,
+						"maxMs": 0.8899999856948853
+					},
+					"flush": {
+						"ms": 0.004999995231628418,
+						"maxMs": 0.04499995708465576
+					},
+					"present": null
+				},
+				"gpu": {
+					"ms": null,
+					"valid": null,
+					"passes": null,
+					"spanMs": null,
+					"latencyMs": null
+				},
+				"batcher": null,
+				"memory": {
+					"usedBytes": null
+				},
+				"renderer": {
+					"glDrawCalls": 92,
+					"vertices": 5328,
+					"textCharacters": 1267
+				},
+				"sanity": {
+					"frameMs": 0.38999998569488525,
+					"sectionsMs": 0.29499995708465576,
+					"unaccountedMs": 0.09500002861022949,
+					"framesWithSectionsOverSpan": 0
+				},
+				"liveness": {
+					"frameCount": 1698,
+					"newestSampleAgeMs": 1
+				}
+			},
+			{
+				"timestamp": 1788899342452,
+				"scene": "combatScreen",
+				"frame": {
+					"ms": 0.38499999046325684,
+					"minMs": 0.3049999475479126,
+					"maxMs": 4.725000023841858,
+					"p99Ms": 0.9900000095367432,
+					"histogram": [
+						120,
+						0,
+						0,
+						0
+					],
+					"spikesOverBudget": 0,
+					"spikesOver2xBudget": 0,
+					"budgetMs": 16.666666666666668,
+					"windowSize": 120,
+					"sampleCount": 120
+				},
+				"sections": {
+					"input": null,
+					"update": {
+						"ms": 0.009999990463256836,
+						"maxMs": 0.059999942779541016
+					},
+					"layout": null,
+					"render": {
+						"ms": 0.28000009059906006,
+						"maxMs": 0.8899999856948853
+					},
+					"flush": {
+						"ms": 0.009999990463256836,
+						"maxMs": 0.04499995708465576
+					},
+					"present": null
+				},
+				"gpu": {
+					"ms": null,
+					"valid": null,
+					"passes": null,
+					"spanMs": null,
+					"latencyMs": null
+				},
+				"batcher": null,
+				"memory": {
+					"usedBytes": null
+				},
+				"renderer": {
+					"glDrawCalls": 92,
+					"vertices": 5328,
+					"textCharacters": 1267
+				},
+				"sanity": {
+					"frameMs": 0.38499999046325684,
+					"sectionsMs": 0.30000007152557373,
+					"unaccountedMs": 0.0849999189376831,
+					"framesWithSectionsOverSpan": 0
+				},
+				"liveness": {
+					"frameCount": 1699,
+					"newestSampleAgeMs": 0
+				}
+			},
+			{
+				"timestamp": 1788899342452,
+				"scene": "combatScreen",
+				"frame": {
+					"ms": 0.3700000047683716,
+					"minMs": 0.3049999475479126,
+					"maxMs": 4.725000023841858,
+					"p99Ms": 0.9900000095367432,
+					"histogram": [
+						120,
+						0,
+						0,
+						0
+					],
+					"spikesOverBudget": 0,
+					"spikesOver2xBudget": 0,
+					"budgetMs": 16.666666666666668,
+					"windowSize": 120,
+					"sampleCount": 120
+				},
+				"sections": {
+					"input": null,
+					"update": {
+						"ms": 0.004999995231628418,
+						"maxMs": 0.059999942779541016
+					},
+					"layout": null,
+					"render": {
+						"ms": 0.26999998092651367,
+						"maxMs": 0.8899999856948853
+					},
+					"flush": {
+						"ms": 0.010000109672546387,
+						"maxMs": 0.04499995708465576
+					},
+					"present": null
+				},
+				"gpu": {
+					"ms": null,
+					"valid": null,
+					"passes": null,
+					"spanMs": null,
+					"latencyMs": null
+				},
+				"batcher": null,
+				"memory": {
+					"usedBytes": null
+				},
+				"renderer": {
+					"glDrawCalls": 92,
+					"vertices": 5328,
+					"textCharacters": 1267
+				},
+				"sanity": {
+					"frameMs": 0.3700000047683716,
+					"sectionsMs": 0.2850000858306885,
+					"unaccountedMs": 0.0849999189376831,
+					"framesWithSectionsOverSpan": 0
+				},
+				"liveness": {
+					"frameCount": 1700,
+					"newestSampleAgeMs": 0
+				}
+			},
+			{
+				"timestamp": 1788899342453,
+				"scene": "combatScreen",
+				"frame": {
+					"ms": 0.36500000953674316,
+					"minMs": 0.3049999475479126,
+					"maxMs": 0.9900000095367432,
+					"p99Ms": 0.9250000715255737,
+					"histogram": [
+						120,
+						0,
+						0,
+						0
+					],
+					"spikesOverBudget": 0,
+					"spikesOver2xBudget": 0,
+					"budgetMs": 16.666666666666668,
+					"windowSize": 120,
+					"sampleCount": 120
+				},
+				"sections": {
+					"input": null,
+					"update": {
+						"ms": 0.004999995231628418,
+						"maxMs": 0.059999942779541016
+					},
+					"layout": null,
+					"render": {
+						"ms": 0.26999998092651367,
+						"maxMs": 0.8899999856948853
+					},
+					"flush": {
+						"ms": 0.005000114440917969,
+						"maxMs": 0.04499995708465576
+					},
+					"present": null
+				},
+				"gpu": {
+					"ms": null,
+					"valid": null,
+					"passes": null,
+					"spanMs": null,
+					"latencyMs": null
+				},
+				"batcher": null,
+				"memory": {
+					"usedBytes": null
+				},
+				"renderer": {
+					"glDrawCalls": 92,
+					"vertices": 5328,
+					"textCharacters": 1267
+				},
+				"sanity": {
+					"frameMs": 0.36500000953674316,
+					"sectionsMs": 0.28000009059906006,
+					"unaccountedMs": 0.0849999189376831,
+					"framesWithSectionsOverSpan": 0
+				},
+				"liveness": {
+					"frameCount": 1701,
+					"newestSampleAgeMs": 1
+				}
+			},
+			{
+				"timestamp": 1788899342453,
+				"scene": "combatScreen",
+				"frame": {
+					"ms": 0.39499998092651367,
+					"minMs": 0.3049999475479126,
+					"maxMs": 0.9900000095367432,
+					"p99Ms": 0.9250000715255737,
+					"histogram": [
+						120,
+						0,
+						0,
+						0
+					],
+					"spikesOverBudget": 0,
+					"spikesOver2xBudget": 0,
+					"budgetMs": 16.666666666666668,
+					"windowSize": 120,
+					"sampleCount": 120
+				},
+				"sections": {
+					"input": null,
+					"update": {
+						"ms": 0.004999995231628418,
+						"maxMs": 0.059999942779541016
+					},
+					"layout": null,
+					"render": {
+						"ms": 0.2749999761581421,
+						"maxMs": 0.8899999856948853
+					},
+					"flush": {
+						"ms": 0.004999995231628418,
+						"maxMs": 0.04499995708465576
+					},
+					"present": null
+				},
+				"gpu": {
+					"ms": null,
+					"valid": null,
+					"passes": null,
+					"spanMs": null,
+					"latencyMs": null
+				},
+				"batcher": null,
+				"memory": {
+					"usedBytes": null
+				},
+				"renderer": {
+					"glDrawCalls": 92,
+					"vertices": 5328,
+					"textCharacters": 1267
+				},
+				"sanity": {
+					"frameMs": 0.39499998092651367,
+					"sectionsMs": 0.2849999666213989,
+					"unaccountedMs": 0.11000001430511475,
+					"framesWithSectionsOverSpan": 0
+				},
+				"liveness": {
+					"frameCount": 1702,
+					"newestSampleAgeMs": 0
+				}
+			},
+			{
+				"timestamp": 1788899342453,
+				"scene": "combatScreen",
+				"frame": {
+					"ms": 0.3700000047683716,
+					"minMs": 0.3049999475479126,
+					"maxMs": 0.9900000095367432,
+					"p99Ms": 0.9250000715255737,
+					"histogram": [
+						120,
+						0,
+						0,
+						0
+					],
+					"spikesOverBudget": 0,
+					"spikesOver2xBudget": 0,
+					"budgetMs": 16.666666666666668,
+					"windowSize": 120,
+					"sampleCount": 120
+				},
+				"sections": {
+					"input": null,
+					"update": {
+						"ms": 0.004999995231628418,
+						"maxMs": 0.059999942779541016
+					},
+					"layout": null,
+					"render": {
+						"ms": 0.27500009536743164,
+						"maxMs": 0.8899999856948853
+					},
+					"flush": {
+						"ms": 0.009999990463256836,
+						"maxMs": 0.04499995708465576
+					},
+					"present": null
+				},
+				"gpu": {
+					"ms": null,
+					"valid": null,
+					"passes": null,
+					"spanMs": null,
+					"latencyMs": null
+				},
+				"batcher": null,
+				"memory": {
+					"usedBytes": null
+				},
+				"renderer": {
+					"glDrawCalls": 92,
+					"vertices": 5328,
+					"textCharacters": 1267
+				},
+				"sanity": {
+					"frameMs": 0.3700000047683716,
+					"sectionsMs": 0.2900000810623169,
+					"unaccountedMs": 0.07999992370605469,
+					"framesWithSectionsOverSpan": 0
+				},
+				"liveness": {
+					"frameCount": 1703,
+					"newestSampleAgeMs": 0
+				}
+			},
+			{
+				"timestamp": 1788899342454,
+				"scene": "combatScreen",
+				"frame": {
+					"ms": 0.4150000810623169,
+					"minMs": 0.3049999475479126,
+					"maxMs": 0.9900000095367432,
+					"p99Ms": 0.9250000715255737,
+					"histogram": [
+						120,
+						0,
+						0,
+						0
+					],
+					"spikesOverBudget": 0,
+					"spikesOver2xBudget": 0,
+					"budgetMs": 16.666666666666668,
+					"windowSize": 120,
+					"sampleCount": 120
+				},
+				"sections": {
+					"input": null,
+					"update": {
+						"ms": 0.004999995231628418,
+						"maxMs": 0.059999942779541016
+					},
+					"layout": null,
+					"render": {
+						"ms": 0.30000007152557373,
+						"maxMs": 0.8899999856948853
+					},
+					"flush": {
+						"ms": 0.004999995231628418,
+						"maxMs": 0.04499995708465576
+					},
+					"present": null
+				},
+				"gpu": {
+					"ms": null,
+					"valid": null,
+					"passes": null,
+					"spanMs": null,
+					"latencyMs": null
+				},
+				"batcher": null,
+				"memory": {
+					"usedBytes": null
+				},
+				"renderer": {
+					"glDrawCalls": 92,
+					"vertices": 5328,
+					"textCharacters": 1267
+				},
+				"sanity": {
+					"frameMs": 0.4150000810623169,
+					"sectionsMs": 0.31000006198883057,
+					"unaccountedMs": 0.10500001907348633,
+					"framesWithSectionsOverSpan": 0
+				},
+				"liveness": {
+					"frameCount": 1704,
+					"newestSampleAgeMs": 0
+				}
+			},
+			{
+				"timestamp": 1788899342454,
+				"scene": "combatScreen",
+				"frame": {
+					"ms": 0.41499996185302734,
+					"minMs": 0.3049999475479126,
+					"maxMs": 0.9900000095367432,
+					"p99Ms": 0.9250000715255737,
+					"histogram": [
+						120,
+						0,
+						0,
+						0
+					],
+					"spikesOverBudget": 0,
+					"spikesOver2xBudget": 0,
+					"budgetMs": 16.666666666666668,
+					"windowSize": 120,
+					"sampleCount": 120
+				},
+				"sections": {
+					"input": null,
+					"update": {
+						"ms": 0.009999990463256836,
+						"maxMs": 0.059999942779541016
+					},
+					"layout": null,
+					"render": {
+						"ms": 0.31499993801116943,
+						"maxMs": 0.8899999856948853
+					},
+					"flush": {
+						"ms": 0.004999995231628418,
+						"maxMs": 0.04499995708465576
+					},
+					"present": null
+				},
+				"gpu": {
+					"ms": null,
+					"valid": null,
+					"passes": null,
+					"spanMs": null,
+					"latencyMs": null
+				},
+				"batcher": null,
+				"memory": {
+					"usedBytes": null
+				},
+				"renderer": {
+					"glDrawCalls": 92,
+					"vertices": 5328,
+					"textCharacters": 1267
+				},
+				"sanity": {
+					"frameMs": 0.41499996185302734,
+					"sectionsMs": 0.3299999237060547,
+					"unaccountedMs": 0.08500003814697266,
+					"framesWithSectionsOverSpan": 0
+				},
+				"liveness": {
+					"frameCount": 1705,
+					"newestSampleAgeMs": 0
+				}
+			},
+			{
+				"timestamp": 1788899342455,
+				"scene": "combatScreen",
+				"frame": {
+					"ms": 0.375,
+					"minMs": 0.3049999475479126,
+					"maxMs": 0.9900000095367432,
+					"p99Ms": 0.9250000715255737,
+					"histogram": [
+						120,
+						0,
+						0,
+						0
+					],
+					"spikesOverBudget": 0,
+					"spikesOver2xBudget": 0,
+					"budgetMs": 16.666666666666668,
+					"windowSize": 120,
+					"sampleCount": 120
+				},
+				"sections": {
+					"input": null,
+					"update": {
+						"ms": 0.004999995231628418,
+						"maxMs": 0.059999942779541016
+					},
+					"layout": null,
+					"render": {
+						"ms": 0.2849999666213989,
+						"maxMs": 0.8899999856948853
+					},
+					"flush": {
+						"ms": 0.004999995231628418,
+						"maxMs": 0.04499995708465576
+					},
+					"present": null
+				},
+				"gpu": {
+					"ms": null,
+					"valid": null,
+					"passes": null,
+					"spanMs": null,
+					"latencyMs": null
+				},
+				"batcher": null,
+				"memory": {
+					"usedBytes": null
+				},
+				"renderer": {
+					"glDrawCalls": 92,
+					"vertices": 5328,
+					"textCharacters": 1267
+				},
+				"sanity": {
+					"frameMs": 0.375,
+					"sectionsMs": 0.29499995708465576,
+					"unaccountedMs": 0.08000004291534424,
+					"framesWithSectionsOverSpan": 0
+				},
+				"liveness": {
+					"frameCount": 1706,
+					"newestSampleAgeMs": 1
+				}
+			},
+			{
+				"timestamp": 1788899342455,
+				"scene": "combatScreen",
+				"frame": {
+					"ms": 0.38499999046325684,
+					"minMs": 0.3049999475479126,
+					"maxMs": 0.9900000095367432,
+					"p99Ms": 0.9250000715255737,
+					"histogram": [
+						120,
+						0,
+						0,
+						0
+					],
+					"spikesOverBudget": 0,
+					"spikesOver2xBudget": 0,
+					"budgetMs": 16.666666666666668,
+					"windowSize": 120,
+					"sampleCount": 120
+				},
+				"sections": {
+					"input": null,
+					"update": {
+						"ms": 0.009999990463256836,
+						"maxMs": 0.059999942779541016
+					},
+					"layout": null,
+					"render": {
+						"ms": 0.26999998092651367,
+						"maxMs": 0.8899999856948853
+					},
+					"flush": {
+						"ms": 0.009999990463256836,
+						"maxMs": 0.04499995708465576
+					},
+					"present": null
+				},
+				"gpu": {
+					"ms": null,
+					"valid": null,
+					"passes": null,
+					"spanMs": null,
+					"latencyMs": null
+				},
+				"batcher": null,
+				"memory": {
+					"usedBytes": null
+				},
+				"renderer": {
+					"glDrawCalls": 92,
+					"vertices": 5328,
+					"textCharacters": 1267
+				},
+				"sanity": {
+					"frameMs": 0.38499999046325684,
+					"sectionsMs": 0.28999996185302734,
+					"unaccountedMs": 0.09500002861022949,
+					"framesWithSectionsOverSpan": 0
+				},
+				"liveness": {
+					"frameCount": 1707,
+					"newestSampleAgeMs": 0
+				}
+			},
+			{
+				"timestamp": 1788899342455,
+				"scene": "combatScreen",
+				"frame": {
+					"ms": 0.38999998569488525,
+					"minMs": 0.3049999475479126,
+					"maxMs": 0.9900000095367432,
+					"p99Ms": 0.9250000715255737,
+					"histogram": [
+						120,
+						0,
+						0,
+						0
+					],
+					"spikesOverBudget": 0,
+					"spikesOver2xBudget": 0,
+					"budgetMs": 16.666666666666668,
+					"windowSize": 120,
+					"sampleCount": 120
+				},
+				"sections": {
+					"input": null,
+					"update": {
+						"ms": 0.004999995231628418,
+						"maxMs": 0.059999942779541016
+					},
+					"layout": null,
+					"render": {
+						"ms": 0.2799999713897705,
+						"maxMs": 0.8899999856948853
+					},
+					"flush": {
+						"ms": 0.004999995231628418,
+						"maxMs": 0.04499995708465576
+					},
+					"present": null
+				},
+				"gpu": {
+					"ms": null,
+					"valid": null,
+					"passes": null,
+					"spanMs": null,
+					"latencyMs": null
+				},
+				"batcher": null,
+				"memory": {
+					"usedBytes": null
+				},
+				"renderer": {
+					"glDrawCalls": 92,
+					"vertices": 5328,
+					"textCharacters": 1267
+				},
+				"sanity": {
+					"frameMs": 0.38999998569488525,
+					"sectionsMs": 0.28999996185302734,
+					"unaccountedMs": 0.10000002384185791,
+					"framesWithSectionsOverSpan": 0
+				},
+				"liveness": {
+					"frameCount": 1708,
+					"newestSampleAgeMs": 0
+				}
+			},
+			{
+				"timestamp": 1788899342456,
+				"scene": "combatScreen",
+				"frame": {
+					"ms": 0.375,
+					"minMs": 0.3049999475479126,
+					"maxMs": 0.9900000095367432,
+					"p99Ms": 0.9250000715255737,
+					"histogram": [
+						120,
+						0,
+						0,
+						0
+					],
+					"spikesOverBudget": 0,
+					"spikesOver2xBudget": 0,
+					"budgetMs": 16.666666666666668,
+					"windowSize": 120,
+					"sampleCount": 120
+				},
+				"sections": {
+					"input": null,
+					"update": {
+						"ms": 0.014999985694885254,
+						"maxMs": 0.059999942779541016
+					},
+					"layout": null,
+					"render": {
+						"ms": 0.26499998569488525,
+						"maxMs": 0.8899999856948853
+					},
+					"flush": {
+						"ms": 0.004999995231628418,
+						"maxMs": 0.04499995708465576
+					},
+					"present": null
+				},
+				"gpu": {
+					"ms": null,
+					"valid": null,
+					"passes": null,
+					"spanMs": null,
+					"latencyMs": null
+				},
+				"batcher": null,
+				"memory": {
+					"usedBytes": null
+				},
+				"renderer": {
+					"glDrawCalls": 92,
+					"vertices": 5328,
+					"textCharacters": 1267
+				},
+				"sanity": {
+					"frameMs": 0.375,
+					"sectionsMs": 0.2849999666213989,
+					"unaccountedMs": 0.09000003337860107,
+					"framesWithSectionsOverSpan": 0
+				},
+				"liveness": {
+					"frameCount": 1709,
+					"newestSampleAgeMs": 1
+				}
+			},
+			{
+				"timestamp": 1788899342457,
+				"scene": "combatScreen",
+				"frame": {
+					"ms": 0.9350000619888306,
+					"minMs": 0.3049999475479126,
+					"maxMs": 0.9900000095367432,
+					"p99Ms": 0.9350000619888306,
+					"histogram": [
+						120,
+						0,
+						0,
+						0
+					],
+					"spikesOverBudget": 0,
+					"spikesOver2xBudget": 0,
+					"budgetMs": 16.666666666666668,
+					"windowSize": 120,
+					"sampleCount": 120
+				},
+				"sections": {
+					"input": null,
+					"update": {
+						"ms": 0.004999995231628418,
+						"maxMs": 0.059999942779541016
+					},
+					"layout": null,
+					"render": {
+						"ms": 0.30000007152557373,
+						"maxMs": 0.8899999856948853
+					},
+					"flush": {
+						"ms": 0.004999995231628418,
+						"maxMs": 0.04499995708465576
+					},
+					"present": null
+				},
+				"gpu": {
+					"ms": null,
+					"valid": null,
+					"passes": null,
+					"spanMs": null,
+					"latencyMs": null
+				},
+				"batcher": null,
+				"memory": {
+					"usedBytes": null
+				},
+				"renderer": {
+					"glDrawCalls": 92,
+					"vertices": 5328,
+					"textCharacters": 1267
+				},
+				"sanity": {
+					"frameMs": 0.9350000619888306,
+					"sectionsMs": 0.31000006198883057,
+					"unaccountedMs": 0.625,
+					"framesWithSectionsOverSpan": 0
+				},
+				"liveness": {
+					"frameCount": 1710,
+					"newestSampleAgeMs": 1
+				}
+			},
+			{
+				"timestamp": 1788899342457,
+				"scene": "combatScreen",
+				"frame": {
+					"ms": 0.38999998569488525,
+					"minMs": 0.3049999475479126,
+					"maxMs": 0.9350000619888306,
+					"p99Ms": 0.9250000715255737,
+					"histogram": [
+						120,
+						0,
+						0,
+						0
+					],
+					"spikesOverBudget": 0,
+					"spikesOver2xBudget": 0,
+					"budgetMs": 16.666666666666668,
+					"windowSize": 120,
+					"sampleCount": 120
+				},
+				"sections": {
+					"input": null,
+					"update": {
+						"ms": 0.009999990463256836,
+						"maxMs": 0.059999942779541016
+					},
+					"layout": null,
+					"render": {
+						"ms": 0.2749999761581421,
+						"maxMs": 0.8550000190734863
+					},
+					"flush": {
+						"ms": 0.009999990463256836,
+						"maxMs": 0.04499995708465576
+					},
+					"present": null
+				},
+				"gpu": {
+					"ms": null,
+					"valid": null,
+					"passes": null,
+					"spanMs": null,
+					"latencyMs": null
+				},
+				"batcher": null,
+				"memory": {
+					"usedBytes": null
+				},
+				"renderer": {
+					"glDrawCalls": 92,
+					"vertices": 5328,
+					"textCharacters": 1267
+				},
+				"sanity": {
+					"frameMs": 0.38999998569488525,
+					"sectionsMs": 0.29499995708465576,
+					"unaccountedMs": 0.09500002861022949,
+					"framesWithSectionsOverSpan": 0
+				},
+				"liveness": {
+					"frameCount": 1711,
+					"newestSampleAgeMs": 0
+				}
+			},
+			{
+				"timestamp": 1788899342457,
+				"scene": "combatScreen",
+				"frame": {
+					"ms": 0.3700000047683716,
+					"minMs": 0.3049999475479126,
+					"maxMs": 0.9350000619888306,
+					"p99Ms": 0.9250000715255737,
+					"histogram": [
+						120,
+						0,
+						0,
+						0
+					],
+					"spikesOverBudget": 0,
+					"spikesOver2xBudget": 0,
+					"budgetMs": 16.666666666666668,
+					"windowSize": 120,
+					"sampleCount": 120
+				},
+				"sections": {
+					"input": null,
+					"update": {
+						"ms": 0.009999990463256836,
+						"maxMs": 0.059999942779541016
+					},
+					"layout": null,
+					"render": {
+						"ms": 0.26499998569488525,
+						"maxMs": 0.8550000190734863
+					},
+					"flush": {
+						"ms": 0.009999990463256836,
+						"maxMs": 0.04499995708465576
+					},
+					"present": null
+				},
+				"gpu": {
+					"ms": null,
+					"valid": null,
+					"passes": null,
+					"spanMs": null,
+					"latencyMs": null
+				},
+				"batcher": null,
+				"memory": {
+					"usedBytes": null
+				},
+				"renderer": {
+					"glDrawCalls": 92,
+					"vertices": 5328,
+					"textCharacters": 1267
+				},
+				"sanity": {
+					"frameMs": 0.3700000047683716,
+					"sectionsMs": 0.2849999666213989,
+					"unaccountedMs": 0.08500003814697266,
+					"framesWithSectionsOverSpan": 0
+				},
+				"liveness": {
+					"frameCount": 1712,
+					"newestSampleAgeMs": 0
+				}
+			},
+			{
+				"timestamp": 1788899342458,
+				"scene": "combatScreen",
+				"frame": {
+					"ms": 0.36000001430511475,
+					"minMs": 0.3049999475479126,
+					"maxMs": 0.9350000619888306,
+					"p99Ms": 0.9250000715255737,
+					"histogram": [
+						120,
+						0,
+						0,
+						0
+					],
+					"spikesOverBudget": 0,
+					"spikesOver2xBudget": 0,
+					"budgetMs": 16.666666666666668,
+					"windowSize": 120,
+					"sampleCount": 120
+				},
+				"sections": {
+					"input": null,
+					"update": {
+						"ms": 0.004999995231628418,
+						"maxMs": 0.059999942779541016
+					},
+					"layout": null,
+					"render": {
+						"ms": 0.25999999046325684,
+						"maxMs": 0.8550000190734863
+					},
+					"flush": {
+						"ms": 0.014999985694885254,
+						"maxMs": 0.04499995708465576
+					},
+					"present": null
+				},
+				"gpu": {
+					"ms": null,
+					"valid": null,
+					"passes": null,
+					"spanMs": null,
+					"latencyMs": null
+				},
+				"batcher": null,
+				"memory": {
+					"usedBytes": null
+				},
+				"renderer": {
+					"glDrawCalls": 92,
+					"vertices": 5328,
+					"textCharacters": 1267
+				},
+				"sanity": {
+					"frameMs": 0.36000001430511475,
+					"sectionsMs": 0.2799999713897705,
+					"unaccountedMs": 0.08000004291534424,
+					"framesWithSectionsOverSpan": 0
+				},
+				"liveness": {
+					"frameCount": 1713,
+					"newestSampleAgeMs": 0
+				}
+			}
+		]
+	},
+	{
+		"scenario": "battleResultScreen",
+		"samples": [
+			{
+				"timestamp": 1788899342475,
+				"scene": "battleResultScreen",
+				"frame": {
+					"ms": 0.07500004768371582,
+					"minMs": 0.06999993324279785,
+					"maxMs": 0.20500004291534424,
+					"p99Ms": 0.2049999237060547,
+					"histogram": [
+						120,
+						0,
+						0,
+						0
+					],
+					"spikesOverBudget": 0,
+					"spikesOver2xBudget": 0,
+					"budgetMs": 16.666666666666668,
+					"windowSize": 120,
+					"sampleCount": 120
+				},
+				"sections": {
+					"input": null,
+					"update": {
+						"ms": 0,
+						"maxMs": 0.005000114440917969
+					},
+					"layout": null,
+					"render": {
+						"ms": 0.014999985694885254,
+						"maxMs": 0.03500008583068848
+					},
+					"flush": {
+						"ms": 0.004999995231628418,
+						"maxMs": 0.020000100135803223
+					},
+					"present": null
+				},
+				"gpu": {
+					"ms": null,
+					"valid": null,
+					"passes": null,
+					"spanMs": null,
+					"latencyMs": null
+				},
+				"batcher": null,
+				"memory": {
+					"usedBytes": null
+				},
+				"renderer": {
+					"glDrawCalls": 4,
+					"vertices": 44,
+					"textCharacters": 8
+				},
+				"sanity": {
+					"frameMs": 0.07500004768371582,
+					"sectionsMs": 0.019999980926513672,
+					"unaccountedMs": 0.05500006675720215,
+					"framesWithSectionsOverSpan": 0
+				},
+				"liveness": {
+					"frameCount": 1841,
+					"newestSampleAgeMs": 0
+				}
+			},
+			{
+				"timestamp": 1788899342475,
+				"scene": "battleResultScreen",
+				"frame": {
+					"ms": 0.125,
+					"minMs": 0.06999993324279785,
+					"maxMs": 0.20500004291534424,
+					"p99Ms": 0.2049999237060547,
+					"histogram": [
+						120,
+						0,
+						0,
+						0
+					],
+					"spikesOverBudget": 0,
+					"spikesOver2xBudget": 0,
+					"budgetMs": 16.666666666666668,
+					"windowSize": 120,
+					"sampleCount": 120
+				},
+				"sections": {
+					"input": null,
+					"update": {
+						"ms": 0,
+						"maxMs": 0.005000114440917969
+					},
+					"layout": null,
+					"render": {
+						"ms": 0.019999980926513672,
+						"maxMs": 0.03500008583068848
+					},
+					"flush": {
+						"ms": 0.009999990463256836,
+						"maxMs": 0.020000100135803223
+					},
+					"present": null
+				},
+				"gpu": {
+					"ms": null,
+					"valid": null,
+					"passes": null,
+					"spanMs": null,
+					"latencyMs": null
+				},
+				"batcher": null,
+				"memory": {
+					"usedBytes": null
+				},
+				"renderer": {
+					"glDrawCalls": 4,
+					"vertices": 44,
+					"textCharacters": 8
+				},
+				"sanity": {
+					"frameMs": 0.125,
+					"sectionsMs": 0.029999971389770508,
+					"unaccountedMs": 0.09500002861022949,
+					"framesWithSectionsOverSpan": 0
+				},
+				"liveness": {
+					"frameCount": 1842,
+					"newestSampleAgeMs": 0
+				}
+			},
+			{
+				"timestamp": 1788899342475,
+				"scene": "battleResultScreen",
+				"frame": {
+					"ms": 0.1099998950958252,
+					"minMs": 0.06999993324279785,
+					"maxMs": 0.20500004291534424,
+					"p99Ms": 0.2049999237060547,
+					"histogram": [
+						120,
+						0,
+						0,
+						0
+					],
+					"spikesOverBudget": 0,
+					"spikesOver2xBudget": 0,
+					"budgetMs": 16.666666666666668,
+					"windowSize": 120,
+					"sampleCount": 120
+				},
+				"sections": {
+					"input": null,
+					"update": {
+						"ms": 0.004999995231628418,
+						"maxMs": 0.005000114440917969
+					},
+					"layout": null,
+					"render": {
+						"ms": 0.009999990463256836,
+						"maxMs": 0.03500008583068848
+					},
+					"flush": {
+						"ms": 0.009999990463256836,
+						"maxMs": 0.020000100135803223
+					},
+					"present": null
+				},
+				"gpu": {
+					"ms": null,
+					"valid": null,
+					"passes": null,
+					"spanMs": null,
+					"latencyMs": null
+				},
+				"batcher": null,
+				"memory": {
+					"usedBytes": null
+				},
+				"renderer": {
+					"glDrawCalls": 4,
+					"vertices": 44,
+					"textCharacters": 8
+				},
+				"sanity": {
+					"frameMs": 0.1099998950958252,
+					"sectionsMs": 0.02499997615814209,
+					"unaccountedMs": 0.0849999189376831,
+					"framesWithSectionsOverSpan": 0
+				},
+				"liveness": {
+					"frameCount": 1843,
+					"newestSampleAgeMs": 0
+				}
+			},
+			{
+				"timestamp": 1788899342475,
+				"scene": "battleResultScreen",
+				"frame": {
+					"ms": 0.09500002861022949,
+					"minMs": 0.06999993324279785,
+					"maxMs": 0.20500004291534424,
+					"p99Ms": 0.2049999237060547,
+					"histogram": [
+						120,
+						0,
+						0,
+						0
+					],
+					"spikesOverBudget": 0,
+					"spikesOver2xBudget": 0,
+					"budgetMs": 16.666666666666668,
+					"windowSize": 120,
+					"sampleCount": 120
+				},
+				"sections": {
+					"input": null,
+					"update": {
+						"ms": 0,
+						"maxMs": 0.005000114440917969
+					},
+					"layout": null,
+					"render": {
+						"ms": 0.010000109672546387,
+						"maxMs": 0.03500008583068848
+					},
+					"flush": {
+						"ms": 0.009999990463256836,
+						"maxMs": 0.020000100135803223
+					},
+					"present": null
+				},
+				"gpu": {
+					"ms": null,
+					"valid": null,
+					"passes": null,
+					"spanMs": null,
+					"latencyMs": null
+				},
+				"batcher": null,
+				"memory": {
+					"usedBytes": null
+				},
+				"renderer": {
+					"glDrawCalls": 4,
+					"vertices": 44,
+					"textCharacters": 8
+				},
+				"sanity": {
+					"frameMs": 0.09500002861022949,
+					"sectionsMs": 0.020000100135803223,
+					"unaccountedMs": 0.07499992847442627,
+					"framesWithSectionsOverSpan": 0
+				},
+				"liveness": {
+					"frameCount": 1844,
+					"newestSampleAgeMs": 0
+				}
+			},
+			{
+				"timestamp": 1788899342475,
+				"scene": "battleResultScreen",
+				"frame": {
+					"ms": 0.11000001430511475,
+					"minMs": 0.06999993324279785,
+					"maxMs": 0.20500004291534424,
+					"p99Ms": 0.2049999237060547,
+					"histogram": [
+						120,
+						0,
+						0,
+						0
+					],
+					"spikesOverBudget": 0,
+					"spikesOver2xBudget": 0,
+					"budgetMs": 16.666666666666668,
+					"windowSize": 120,
+					"sampleCount": 120
+				},
+				"sections": {
+					"input": null,
+					"update": {
+						"ms": 0,
+						"maxMs": 0.005000114440917969
+					},
+					"layout": null,
+					"render": {
+						"ms": 0.014999985694885254,
+						"maxMs": 0.03500008583068848
+					},
+					"flush": {
+						"ms": 0.009999990463256836,
+						"maxMs": 0.020000100135803223
+					},
+					"present": null
+				},
+				"gpu": {
+					"ms": null,
+					"valid": null,
+					"passes": null,
+					"spanMs": null,
+					"latencyMs": null
+				},
+				"batcher": null,
+				"memory": {
+					"usedBytes": null
+				},
+				"renderer": {
+					"glDrawCalls": 4,
+					"vertices": 44,
+					"textCharacters": 8
+				},
+				"sanity": {
+					"frameMs": 0.11000001430511475,
+					"sectionsMs": 0.02499997615814209,
+					"unaccountedMs": 0.08500003814697266,
+					"framesWithSectionsOverSpan": 0
+				},
+				"liveness": {
+					"frameCount": 1845,
+					"newestSampleAgeMs": 0
+				}
+			},
+			{
+				"timestamp": 1788899342475,
+				"scene": "battleResultScreen",
+				"frame": {
+					"ms": 0.18000006675720215,
+					"minMs": 0.0700000524520874,
+					"maxMs": 0.20500004291534424,
+					"p99Ms": 0.2049999237060547,
+					"histogram": [
+						120,
+						0,
+						0,
+						0
+					],
+					"spikesOverBudget": 0,
+					"spikesOver2xBudget": 0,
+					"budgetMs": 16.666666666666668,
+					"windowSize": 120,
+					"sampleCount": 120
+				},
+				"sections": {
+					"input": null,
+					"update": {
+						"ms": 0.004999995231628418,
+						"maxMs": 0.005000114440917969
+					},
+					"layout": null,
+					"render": {
+						"ms": 0.014999985694885254,
+						"maxMs": 0.03500008583068848
+					},
+					"flush": {
+						"ms": 0.009999990463256836,
+						"maxMs": 0.020000100135803223
+					},
+					"present": null
+				},
+				"gpu": {
+					"ms": null,
+					"valid": null,
+					"passes": null,
+					"spanMs": null,
+					"latencyMs": null
+				},
+				"batcher": null,
+				"memory": {
+					"usedBytes": null
+				},
+				"renderer": {
+					"glDrawCalls": 4,
+					"vertices": 44,
+					"textCharacters": 8
+				},
+				"sanity": {
+					"frameMs": 0.18000006675720215,
+					"sectionsMs": 0.029999971389770508,
+					"unaccountedMs": 0.15000009536743164,
+					"framesWithSectionsOverSpan": 0
+				},
+				"liveness": {
+					"frameCount": 1846,
+					"newestSampleAgeMs": 0
+				}
+			},
+			{
+				"timestamp": 1788899342475,
+				"scene": "battleResultScreen",
+				"frame": {
+					"ms": 0.13499999046325684,
+					"minMs": 0.0700000524520874,
+					"maxMs": 0.20500004291534424,
+					"p99Ms": 0.2049999237060547,
+					"histogram": [
+						120,
+						0,
+						0,
+						0
+					],
+					"spikesOverBudget": 0,
+					"spikesOver2xBudget": 0,
+					"budgetMs": 16.666666666666668,
+					"windowSize": 120,
+					"sampleCount": 120
+				},
+				"sections": {
+					"input": null,
+					"update": {
+						"ms": 0,
+						"maxMs": 0.005000114440917969
+					},
+					"layout": null,
+					"render": {
+						"ms": 0.02499997615814209,
+						"maxMs": 0.03500008583068848
+					},
+					"flush": {
+						"ms": 0.004999995231628418,
+						"maxMs": 0.020000100135803223
+					},
+					"present": null
+				},
+				"gpu": {
+					"ms": null,
+					"valid": null,
+					"passes": null,
+					"spanMs": null,
+					"latencyMs": null
+				},
+				"batcher": null,
+				"memory": {
+					"usedBytes": null
+				},
+				"renderer": {
+					"glDrawCalls": 4,
+					"vertices": 44,
+					"textCharacters": 8
+				},
+				"sanity": {
+					"frameMs": 0.13499999046325684,
+					"sectionsMs": 0.029999971389770508,
+					"unaccountedMs": 0.10500001907348633,
+					"framesWithSectionsOverSpan": 0
+				},
+				"liveness": {
+					"frameCount": 1847,
+					"newestSampleAgeMs": 0
+				}
+			},
+			{
+				"timestamp": 1788899342476,
+				"scene": "battleResultScreen",
+				"frame": {
+					"ms": 0.10499989986419678,
+					"minMs": 0.0700000524520874,
+					"maxMs": 0.20500004291534424,
+					"p99Ms": 0.2049999237060547,
+					"histogram": [
+						120,
+						0,
+						0,
+						0
+					],
+					"spikesOverBudget": 0,
+					"spikesOver2xBudget": 0,
+					"budgetMs": 16.666666666666668,
+					"windowSize": 120,
+					"sampleCount": 120
+				},
+				"sections": {
+					"input": null,
+					"update": {
+						"ms": 0.004999995231628418,
+						"maxMs": 0.005000114440917969
+					},
+					"layout": null,
+					"render": {
+						"ms": 0.019999980926513672,
+						"maxMs": 0.03500008583068848
+					},
+					"flush": {
+						"ms": 0.004999995231628418,
+						"maxMs": 0.020000100135803223
+					},
+					"present": null
+				},
+				"gpu": {
+					"ms": null,
+					"valid": null,
+					"passes": null,
+					"spanMs": null,
+					"latencyMs": null
+				},
+				"batcher": null,
+				"memory": {
+					"usedBytes": null
+				},
+				"renderer": {
+					"glDrawCalls": 4,
+					"vertices": 44,
+					"textCharacters": 8
+				},
+				"sanity": {
+					"frameMs": 0.10499989986419678,
+					"sectionsMs": 0.029999971389770508,
+					"unaccountedMs": 0.07499992847442627,
+					"framesWithSectionsOverSpan": 0
+				},
+				"liveness": {
+					"frameCount": 1848,
+					"newestSampleAgeMs": 0
+				}
+			},
+			{
+				"timestamp": 1788899342476,
+				"scene": "battleResultScreen",
+				"frame": {
+					"ms": 0.14500010013580322,
+					"minMs": 0.0700000524520874,
+					"maxMs": 0.20500004291534424,
+					"p99Ms": 0.2049999237060547,
+					"histogram": [
+						120,
+						0,
+						0,
+						0
+					],
+					"spikesOverBudget": 0,
+					"spikesOver2xBudget": 0,
+					"budgetMs": 16.666666666666668,
+					"windowSize": 120,
+					"sampleCount": 120
+				},
+				"sections": {
+					"input": null,
+					"update": {
+						"ms": 0,
+						"maxMs": 0.005000114440917969
+					},
+					"layout": null,
+					"render": {
+						"ms": 0.015000104904174805,
+						"maxMs": 0.03500008583068848
+					},
+					"flush": {
+						"ms": 0.009999990463256836,
+						"maxMs": 0.020000100135803223
+					},
+					"present": null
+				},
+				"gpu": {
+					"ms": null,
+					"valid": null,
+					"passes": null,
+					"spanMs": null,
+					"latencyMs": null
+				},
+				"batcher": null,
+				"memory": {
+					"usedBytes": null
+				},
+				"renderer": {
+					"glDrawCalls": 4,
+					"vertices": 44,
+					"textCharacters": 8
+				},
+				"sanity": {
+					"frameMs": 0.14500010013580322,
+					"sectionsMs": 0.02500009536743164,
+					"unaccountedMs": 0.12000000476837158,
+					"framesWithSectionsOverSpan": 0
+				},
+				"liveness": {
+					"frameCount": 1849,
+					"newestSampleAgeMs": 0
+				}
+			},
+			{
+				"timestamp": 1788899342476,
+				"scene": "battleResultScreen",
+				"frame": {
+					"ms": 0.19499993324279785,
+					"minMs": 0.0700000524520874,
+					"maxMs": 0.20500004291534424,
+					"p99Ms": 0.2049999237060547,
+					"histogram": [
+						120,
+						0,
+						0,
+						0
+					],
+					"spikesOverBudget": 0,
+					"spikesOver2xBudget": 0,
+					"budgetMs": 16.666666666666668,
+					"windowSize": 120,
+					"sampleCount": 120
+				},
+				"sections": {
+					"input": null,
+					"update": {
+						"ms": 0.004999995231628418,
+						"maxMs": 0.005000114440917969
+					},
+					"layout": null,
+					"render": {
+						"ms": 0.02499997615814209,
+						"maxMs": 0.03500008583068848
+					},
+					"flush": {
+						"ms": 0.009999990463256836,
+						"maxMs": 0.020000100135803223
+					},
+					"present": null
+				},
+				"gpu": {
+					"ms": null,
+					"valid": null,
+					"passes": null,
+					"spanMs": null,
+					"latencyMs": null
+				},
+				"batcher": null,
+				"memory": {
+					"usedBytes": null
+				},
+				"renderer": {
+					"glDrawCalls": 4,
+					"vertices": 44,
+					"textCharacters": 8
+				},
+				"sanity": {
+					"frameMs": 0.19499993324279785,
+					"sectionsMs": 0.039999961853027344,
+					"unaccountedMs": 0.1549999713897705,
+					"framesWithSectionsOverSpan": 0
+				},
+				"liveness": {
+					"frameCount": 1850,
+					"newestSampleAgeMs": 0
+				}
+			},
+			{
+				"timestamp": 1788899342476,
+				"scene": "battleResultScreen",
+				"frame": {
+					"ms": 0.1499999761581421,
+					"minMs": 0.0700000524520874,
+					"maxMs": 0.20500004291534424,
+					"p99Ms": 0.2049999237060547,
+					"histogram": [
+						120,
+						0,
+						0,
+						0
+					],
+					"spikesOverBudget": 0,
+					"spikesOver2xBudget": 0,
+					"budgetMs": 16.666666666666668,
+					"windowSize": 120,
+					"sampleCount": 120
+				},
+				"sections": {
+					"input": null,
+					"update": {
+						"ms": 0,
+						"maxMs": 0.005000114440917969
+					},
+					"layout": null,
+					"render": {
+						"ms": 0.019999980926513672,
+						"maxMs": 0.03500008583068848
+					},
+					"flush": {
+						"ms": 0.009999990463256836,
+						"maxMs": 0.020000100135803223
+					},
+					"present": null
+				},
+				"gpu": {
+					"ms": null,
+					"valid": null,
+					"passes": null,
+					"spanMs": null,
+					"latencyMs": null
+				},
+				"batcher": null,
+				"memory": {
+					"usedBytes": null
+				},
+				"renderer": {
+					"glDrawCalls": 4,
+					"vertices": 44,
+					"textCharacters": 8
+				},
+				"sanity": {
+					"frameMs": 0.1499999761581421,
+					"sectionsMs": 0.029999971389770508,
+					"unaccountedMs": 0.12000000476837158,
+					"framesWithSectionsOverSpan": 0
+				},
+				"liveness": {
+					"frameCount": 1851,
+					"newestSampleAgeMs": 0
+				}
+			},
+			{
+				"timestamp": 1788899342476,
+				"scene": "battleResultScreen",
+				"frame": {
+					"ms": 0.14500010013580322,
+					"minMs": 0.0700000524520874,
+					"maxMs": 0.20500004291534424,
+					"p99Ms": 0.20000004768371582,
+					"histogram": [
+						120,
+						0,
+						0,
+						0
+					],
+					"spikesOverBudget": 0,
+					"spikesOver2xBudget": 0,
+					"budgetMs": 16.666666666666668,
+					"windowSize": 120,
+					"sampleCount": 120
+				},
+				"sections": {
+					"input": null,
+					"update": {
+						"ms": 0,
+						"maxMs": 0.005000114440917969
+					},
+					"layout": null,
+					"render": {
+						"ms": 0.02500009536743164,
+						"maxMs": 0.03500008583068848
+					},
+					"flush": {
+						"ms": 0.009999990463256836,
+						"maxMs": 0.020000100135803223
+					},
+					"present": null
+				},
+				"gpu": {
+					"ms": null,
+					"valid": null,
+					"passes": null,
+					"spanMs": null,
+					"latencyMs": null
+				},
+				"batcher": null,
+				"memory": {
+					"usedBytes": null
+				},
+				"renderer": {
+					"glDrawCalls": 4,
+					"vertices": 44,
+					"textCharacters": 8
+				},
+				"sanity": {
+					"frameMs": 0.14500010013580322,
+					"sectionsMs": 0.03500008583068848,
+					"unaccountedMs": 0.11000001430511475,
+					"framesWithSectionsOverSpan": 0
+				},
+				"liveness": {
+					"frameCount": 1852,
+					"newestSampleAgeMs": 0
+				}
+			},
+			{
+				"timestamp": 1788899342476,
+				"scene": "battleResultScreen",
+				"frame": {
+					"ms": 0.13499999046325684,
+					"minMs": 0.0700000524520874,
+					"maxMs": 0.20500004291534424,
+					"p99Ms": 0.20000004768371582,
+					"histogram": [
+						120,
+						0,
+						0,
+						0
+					],
+					"spikesOverBudget": 0,
+					"spikesOver2xBudget": 0,
+					"budgetMs": 16.666666666666668,
+					"windowSize": 120,
+					"sampleCount": 120
+				},
+				"sections": {
+					"input": null,
+					"update": {
+						"ms": 0.004999995231628418,
+						"maxMs": 0.005000114440917969
+					},
+					"layout": null,
+					"render": {
+						"ms": 0.014999985694885254,
+						"maxMs": 0.03500008583068848
+					},
+					"flush": {
+						"ms": 0.004999995231628418,
+						"maxMs": 0.020000100135803223
+					},
+					"present": null
+				},
+				"gpu": {
+					"ms": null,
+					"valid": null,
+					"passes": null,
+					"spanMs": null,
+					"latencyMs": null
+				},
+				"batcher": null,
+				"memory": {
+					"usedBytes": null
+				},
+				"renderer": {
+					"glDrawCalls": 4,
+					"vertices": 44,
+					"textCharacters": 8
+				},
+				"sanity": {
+					"frameMs": 0.13499999046325684,
+					"sectionsMs": 0.02499997615814209,
+					"unaccountedMs": 0.11000001430511475,
+					"framesWithSectionsOverSpan": 0
+				},
+				"liveness": {
+					"frameCount": 1853,
+					"newestSampleAgeMs": 0
+				}
+			},
+			{
+				"timestamp": 1788899342477,
+				"scene": "battleResultScreen",
+				"frame": {
+					"ms": 0.1499999761581421,
+					"minMs": 0.0700000524520874,
+					"maxMs": 0.20500004291534424,
+					"p99Ms": 0.20000004768371582,
+					"histogram": [
+						120,
+						0,
+						0,
+						0
+					],
+					"spikesOverBudget": 0,
+					"spikesOver2xBudget": 0,
+					"budgetMs": 16.666666666666668,
+					"windowSize": 120,
+					"sampleCount": 120
+				},
+				"sections": {
+					"input": null,
+					"update": {
+						"ms": 0,
+						"maxMs": 0.005000114440917969
+					},
+					"layout": null,
+					"render": {
+						"ms": 0.019999980926513672,
+						"maxMs": 0.03500008583068848
+					},
+					"flush": {
+						"ms": 0.009999990463256836,
+						"maxMs": 0.020000100135803223
+					},
+					"present": null
+				},
+				"gpu": {
+					"ms": null,
+					"valid": null,
+					"passes": null,
+					"spanMs": null,
+					"latencyMs": null
+				},
+				"batcher": null,
+				"memory": {
+					"usedBytes": null
+				},
+				"renderer": {
+					"glDrawCalls": 4,
+					"vertices": 44,
+					"textCharacters": 8
+				},
+				"sanity": {
+					"frameMs": 0.1499999761581421,
+					"sectionsMs": 0.029999971389770508,
+					"unaccountedMs": 0.12000000476837158,
+					"framesWithSectionsOverSpan": 0
+				},
+				"liveness": {
+					"frameCount": 1854,
+					"newestSampleAgeMs": 1
+				}
+			},
+			{
+				"timestamp": 1788899342477,
+				"scene": "battleResultScreen",
+				"frame": {
+					"ms": 0.1799999475479126,
+					"minMs": 0.0700000524520874,
+					"maxMs": 0.20500004291534424,
+					"p99Ms": 0.20000004768371582,
+					"histogram": [
+						120,
+						0,
+						0,
+						0
+					],
+					"spikesOverBudget": 0,
+					"spikesOver2xBudget": 0,
+					"budgetMs": 16.666666666666668,
+					"windowSize": 120,
+					"sampleCount": 120
+				},
+				"sections": {
+					"input": null,
+					"update": {
+						"ms": 0,
+						"maxMs": 0.005000114440917969
+					},
+					"layout": null,
+					"render": {
+						"ms": 0.029999971389770508,
+						"maxMs": 0.03500008583068848
+					},
+					"flush": {
+						"ms": 0.014999985694885254,
+						"maxMs": 0.020000100135803223
+					},
+					"present": null
+				},
+				"gpu": {
+					"ms": null,
+					"valid": null,
+					"passes": null,
+					"spanMs": null,
+					"latencyMs": null
+				},
+				"batcher": null,
+				"memory": {
+					"usedBytes": null
+				},
+				"renderer": {
+					"glDrawCalls": 4,
+					"vertices": 44,
+					"textCharacters": 8
+				},
+				"sanity": {
+					"frameMs": 0.1799999475479126,
+					"sectionsMs": 0.04499995708465576,
+					"unaccountedMs": 0.13499999046325684,
+					"framesWithSectionsOverSpan": 0
+				},
+				"liveness": {
+					"frameCount": 1855,
+					"newestSampleAgeMs": 0
+				}
+			},
+			{
+				"timestamp": 1788899342477,
+				"scene": "battleResultScreen",
+				"frame": {
+					"ms": 0.12000000476837158,
+					"minMs": 0.0700000524520874,
+					"maxMs": 0.20500004291534424,
+					"p99Ms": 0.20000004768371582,
+					"histogram": [
+						120,
+						0,
+						0,
+						0
+					],
+					"spikesOverBudget": 0,
+					"spikesOver2xBudget": 0,
+					"budgetMs": 16.666666666666668,
+					"windowSize": 120,
+					"sampleCount": 120
+				},
+				"sections": {
+					"input": null,
+					"update": {
+						"ms": 0,
+						"maxMs": 0.005000114440917969
+					},
+					"layout": null,
+					"render": {
+						"ms": 0.02499997615814209,
+						"maxMs": 0.03500008583068848
+					},
+					"flush": {
+						"ms": 0.010000109672546387,
+						"maxMs": 0.020000100135803223
+					},
+					"present": null
+				},
+				"gpu": {
+					"ms": null,
+					"valid": null,
+					"passes": null,
+					"spanMs": null,
+					"latencyMs": null
+				},
+				"batcher": null,
+				"memory": {
+					"usedBytes": null
+				},
+				"renderer": {
+					"glDrawCalls": 4,
+					"vertices": 44,
+					"textCharacters": 8
+				},
+				"sanity": {
+					"frameMs": 0.12000000476837158,
+					"sectionsMs": 0.03500008583068848,
+					"unaccountedMs": 0.0849999189376831,
+					"framesWithSectionsOverSpan": 0
+				},
+				"liveness": {
+					"frameCount": 1856,
+					"newestSampleAgeMs": 0
+				}
+			},
+			{
+				"timestamp": 1788899342477,
+				"scene": "battleResultScreen",
+				"frame": {
+					"ms": 0.12000000476837158,
+					"minMs": 0.0700000524520874,
+					"maxMs": 0.20500004291534424,
+					"p99Ms": 0.20000004768371582,
+					"histogram": [
+						120,
+						0,
+						0,
+						0
+					],
+					"spikesOverBudget": 0,
+					"spikesOver2xBudget": 0,
+					"budgetMs": 16.666666666666668,
+					"windowSize": 120,
+					"sampleCount": 120
+				},
+				"sections": {
+					"input": null,
+					"update": {
+						"ms": 0.004999995231628418,
+						"maxMs": 0.005000114440917969
+					},
+					"layout": null,
+					"render": {
+						"ms": 0.014999985694885254,
+						"maxMs": 0.034999966621398926
+					},
+					"flush": {
+						"ms": 0.004999995231628418,
+						"maxMs": 0.020000100135803223
+					},
+					"present": null
+				},
+				"gpu": {
+					"ms": null,
+					"valid": null,
+					"passes": null,
+					"spanMs": null,
+					"latencyMs": null
+				},
+				"batcher": null,
+				"memory": {
+					"usedBytes": null
+				},
+				"renderer": {
+					"glDrawCalls": 4,
+					"vertices": 44,
+					"textCharacters": 8
+				},
+				"sanity": {
+					"frameMs": 0.12000000476837158,
+					"sectionsMs": 0.02499997615814209,
+					"unaccountedMs": 0.09500002861022949,
+					"framesWithSectionsOverSpan": 0
+				},
+				"liveness": {
+					"frameCount": 1857,
+					"newestSampleAgeMs": 0
+				}
+			},
+			{
+				"timestamp": 1788899342477,
+				"scene": "battleResultScreen",
+				"frame": {
+					"ms": 0.12000000476837158,
+					"minMs": 0.0700000524520874,
+					"maxMs": 0.20500004291534424,
+					"p99Ms": 0.20000004768371582,
+					"histogram": [
+						120,
+						0,
+						0,
+						0
+					],
+					"spikesOverBudget": 0,
+					"spikesOver2xBudget": 0,
+					"budgetMs": 16.666666666666668,
+					"windowSize": 120,
+					"sampleCount": 120
+				},
+				"sections": {
+					"input": null,
+					"update": {
+						"ms": 0.004999995231628418,
+						"maxMs": 0.005000114440917969
+					},
+					"layout": null,
+					"render": {
+						"ms": 0.014999985694885254,
+						"maxMs": 0.034999966621398926
+					},
+					"flush": {
+						"ms": 0.009999990463256836,
+						"maxMs": 0.020000100135803223
+					},
+					"present": null
+				},
+				"gpu": {
+					"ms": null,
+					"valid": null,
+					"passes": null,
+					"spanMs": null,
+					"latencyMs": null
+				},
+				"batcher": null,
+				"memory": {
+					"usedBytes": null
+				},
+				"renderer": {
+					"glDrawCalls": 4,
+					"vertices": 44,
+					"textCharacters": 8
+				},
+				"sanity": {
+					"frameMs": 0.12000000476837158,
+					"sectionsMs": 0.029999971389770508,
+					"unaccountedMs": 0.09000003337860107,
+					"framesWithSectionsOverSpan": 0
+				},
+				"liveness": {
+					"frameCount": 1858,
+					"newestSampleAgeMs": 0
+				}
+			},
+			{
+				"timestamp": 1788899342477,
+				"scene": "battleResultScreen",
+				"frame": {
+					"ms": 0.10000002384185791,
+					"minMs": 0.0700000524520874,
+					"maxMs": 0.20500004291534424,
+					"p99Ms": 0.20000004768371582,
+					"histogram": [
+						120,
+						0,
+						0,
+						0
+					],
+					"spikesOverBudget": 0,
+					"spikesOver2xBudget": 0,
+					"budgetMs": 16.666666666666668,
+					"windowSize": 120,
+					"sampleCount": 120
+				},
+				"sections": {
+					"input": null,
+					"update": {
+						"ms": 0.004999995231628418,
+						"maxMs": 0.005000114440917969
+					},
+					"layout": null,
+					"render": {
+						"ms": 0.014999985694885254,
+						"maxMs": 0.034999966621398926
+					},
+					"flush": {
+						"ms": 0.004999995231628418,
+						"maxMs": 0.020000100135803223
+					},
+					"present": null
+				},
+				"gpu": {
+					"ms": null,
+					"valid": null,
+					"passes": null,
+					"spanMs": null,
+					"latencyMs": null
+				},
+				"batcher": null,
+				"memory": {
+					"usedBytes": null
+				},
+				"renderer": {
+					"glDrawCalls": 4,
+					"vertices": 44,
+					"textCharacters": 8
+				},
+				"sanity": {
+					"frameMs": 0.10000002384185791,
+					"sectionsMs": 0.02499997615814209,
+					"unaccountedMs": 0.07500004768371582,
+					"framesWithSectionsOverSpan": 0
+				},
+				"liveness": {
+					"frameCount": 1859,
+					"newestSampleAgeMs": 0
+				}
+			},
+			{
+				"timestamp": 1788899342477,
+				"scene": "battleResultScreen",
+				"frame": {
+					"ms": 0.12000000476837158,
+					"minMs": 0.0700000524520874,
+					"maxMs": 0.20500004291534424,
+					"p99Ms": 0.20000004768371582,
+					"histogram": [
+						120,
+						0,
+						0,
+						0
+					],
+					"spikesOverBudget": 0,
+					"spikesOver2xBudget": 0,
+					"budgetMs": 16.666666666666668,
+					"windowSize": 120,
+					"sampleCount": 120
+				},
+				"sections": {
+					"input": null,
+					"update": {
+						"ms": 0,
+						"maxMs": 0.005000114440917969
+					},
+					"layout": null,
+					"render": {
+						"ms": 0.014999985694885254,
+						"maxMs": 0.034999966621398926
+					},
+					"flush": {
+						"ms": 0.004999995231628418,
+						"maxMs": 0.020000100135803223
+					},
+					"present": null
+				},
+				"gpu": {
+					"ms": null,
+					"valid": null,
+					"passes": null,
+					"spanMs": null,
+					"latencyMs": null
+				},
+				"batcher": null,
+				"memory": {
+					"usedBytes": null
+				},
+				"renderer": {
+					"glDrawCalls": 4,
+					"vertices": 44,
+					"textCharacters": 8
+				},
+				"sanity": {
+					"frameMs": 0.12000000476837158,
+					"sectionsMs": 0.019999980926513672,
+					"unaccountedMs": 0.10000002384185791,
+					"framesWithSectionsOverSpan": 0
+				},
+				"liveness": {
+					"frameCount": 1860,
+					"newestSampleAgeMs": 0
+				}
+			}
+		]
+	}
+]

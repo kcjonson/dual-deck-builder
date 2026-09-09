@@ -20,6 +20,10 @@
 		"test:watch": "jest --watch",
 		"test:coverage": "jest --coverage",
 		"test:debug": "node --inspect-brk ./node_modules/jest/bin/jest.js --runInBand",
+		"test:visual": "playwright test",
+		"typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p tsconfig.tests.json",
+		"test:visual:chromium": "playwright test --project chromium",
+		"build:harness:electron": "cross-env NODE_ENV=development webpack --config webpack/webpack.electron.js --config-name main --config-name preload --output-path .playwright-build/electron",
 		"deploy": "gh-pages -d dist/web"
 	},
 	"keywords": [
@@ -32,11 +36,15 @@
 	],
 	"author": "",
 	"license": "PolyForm-Noncommercial-1.0.0",
+	"engines": {
+		"node": ">=20"
+	},
 	"repository": {
 		"type": "git",
 		"url": "https://github.com/kcjonson/dual-deck-builder.git"
 	},
 	"devDependencies": {
+		"@playwright/test": "^1.63.0",
 		"@types/jest": "^29.5.1",
 		"@types/node": "^20.2.1",
 		"@typescript-eslint/eslint-plugin": "^5.59.7",

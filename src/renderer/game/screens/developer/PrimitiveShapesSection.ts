@@ -11,6 +11,7 @@ import { Polygon } from '../../../engine/components/Polygon';
 export class PrimitiveShapesSection extends Panel {
 	constructor(x: number, y: number, width: number) {
 		super({
+			id: 'dev_section_primitive_shapes',
 			width,
 			height: 400, // Will be calculated based on content
 			style: {

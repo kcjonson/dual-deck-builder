@@ -63,15 +63,6 @@ export class Circle extends Component {
 	}
 
 	/**
-	 * Set the circle's stroke width
-	 * @param width Stroke width in pixels
-	 */
-	public setStrokeWidth(width: number): this {
-		this.strokeWidth = width;
-		return this;
-	}
-
-	/**
 	 * Set the circle's radius
 	 * @param radius Circle radius in pixels
 	 */
@@ -79,13 +70,6 @@ export class Circle extends Component {
 		this.radius = radius;
 		this.setSize(radius * 2, radius * 2);
 		return this;
-	}
-
-	/**
-	 * Get the circle's radius
-	 */
-	public getRadius(): number {
-		return this.radius;
 	}
 
 	/**

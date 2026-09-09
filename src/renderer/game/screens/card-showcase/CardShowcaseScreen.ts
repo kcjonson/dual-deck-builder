@@ -39,6 +39,7 @@ export class CardShowcaseScreen extends Screen {
 
 		// Create title
 		this.title = new Text('Card Showcase', {
+			id: 'showcase_title',
 			x: 50,
 			y: 30,
 			style: {
@@ -67,6 +68,7 @@ export class CardShowcaseScreen extends Screen {
 
 		// Create main scrollable container that holds all content
 		this.cardsPanel = new Panel({
+			id: 'showcase_scroll',
 			width: this.rootLayer.getWidth(),
 			height: this.rootLayer.getHeight() - 160, // Leave space for title (80) and back button (80)
 			scrollable: true,
@@ -143,6 +145,7 @@ export class CardShowcaseScreen extends Screen {
 		// Display each card
 		for (const gameCard of cards) {
 			const cardComponent = new Card({
+				id: `showcase_card_${gameCard.type}`,
 				x: currentX,
 				y: currentY,
 				data: gameCard,
@@ -210,7 +213,12 @@ export class CardShowcaseScreen extends Screen {
 			let cardsInCurrentRow = 0;
 
 			for (const gameCard of rarityCards) {
+				// The screen renders the same cards twice; the by-rarity pass
+				// takes a distinct prefix so ids stay unique within the root.
+				// CardLoader keys its map by card type, so a type appears once
+				// per pass and the type alone disambiguates.
 				const cardComponent = new Card({
+					id: `showcase_${rarity}_card_${gameCard.type}`,
 					x: currentX,
 					y: currentY,
 					data: gameCard,

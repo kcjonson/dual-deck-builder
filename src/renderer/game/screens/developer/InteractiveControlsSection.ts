@@ -13,6 +13,7 @@ export class InteractiveControlsSection extends Panel {
 
 	constructor(x: number, y: number, width: number) {
 		super({
+			id: 'dev_section_interactive_controls',
 			width,
 			height: 350, // Will be calculated based on content
 			style: {

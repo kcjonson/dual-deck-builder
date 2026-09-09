@@ -1,4 +1,4 @@
-import { Layer } from '../../../engine/components/Layer';
+import { Layer, LayerOptions } from '../../../engine/components/Layer';
 import { Vehicle, VehiclePosition } from '../../mechanics/Vehicle';
 import { CombatModel } from './CombatModel';
 
@@ -21,13 +21,7 @@ export abstract class BattlefieldLayer extends Layer {
 	// Combat model reference
 	protected combatData: CombatModel | null = null;
 	
-	constructor(options: { 
-		x: number; 
-		y: number; 
-		width: number; 
-		height: number;
-		combatData?: CombatModel;
-	}) {
+	constructor(options: LayerOptions & { x: number; y: number; width: number; height: number; combatData?: CombatModel }) {
 		super(options);
 		this.combatData = options.combatData || null;
 		
@@ -94,7 +88,7 @@ export abstract class BattlefieldLayer extends Layer {
 		// Create cards for new vehicles
 		for (const vehicle of this.vehicles) {
 			if (!this.vehicleCards.has(vehicle.id)) {
-				const card = this.createVehicleCard(vehicle);
+				const card = this.createVehicleCard(vehicle, this.getLaneOrdinal(vehicle));
 				this.vehicleCards.set(vehicle.id, card);
 				this.addChild(card);
 			} else {
@@ -105,6 +99,21 @@ export abstract class BattlefieldLayer extends Layer {
 				}
 			}
 		}
+	}
+	
+	/**
+	 * Position of a vehicle among the vehicles sharing its lane, in roster
+	 * order. Model.id is constructor name plus Math.random(), so it changes
+	 * every load; the roster is fixed for a combat, so this ordinal is a
+	 * stable name for the same slot across runs.
+	 */
+	protected getLaneOrdinal(vehicle: Vehicle): number {
+		let ordinal = 0;
+		for (const other of this.vehicles) {
+			if (other === vehicle) break;
+			if (other.position === vehicle.position) ordinal++;
+		}
+		return ordinal;
 	}
 	
 	/**
@@ -181,7 +190,7 @@ export abstract class BattlefieldLayer extends Layer {
 	/**
 	 * Create a vehicle card display component
 	 */
-	protected abstract createVehicleCard(vehicle: Vehicle): Layer;
+	protected abstract createVehicleCard(vehicle: Vehicle, laneOrdinal: number): Layer;
 	
 	/**
 	 * Update an existing vehicle card with new data
