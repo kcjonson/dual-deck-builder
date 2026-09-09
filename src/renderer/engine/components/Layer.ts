@@ -27,6 +27,7 @@ export class Layer {
 	public height = 0;
 	protected visible = true;
 	protected children: Layer[] = [];
+	private ownedByParent = false;
 	protected componentType = 'Layer';
 	protected parent: Layer | null = null;
 	private backgroundColor: [number, number, number, number] | null = null;
@@ -102,6 +103,16 @@ export class Layer {
 	 */
 	public get debugChildren(): readonly Layer[] {
 		return this.children;
+	}
+
+	/**
+	 * True when this layer is one of its parent's own drawings rather than a
+	 * child a caller added. R8.1 makes a composite's visuals its own draws;
+	 * this engine expresses them as child layers, and this mark is the only
+	 * thing that tells the two apart.
+	 */
+	public get isPart(): boolean {
+		return this.ownedByParent;
 	}
 
 	/**
@@ -246,6 +257,25 @@ export class Layer {
 	 */
 	public addChild(child: Layer): this {
 		child.parent = this;
+		// Clearing rather than leaving alone: the mark says "my parent drew
+		// this", so it belongs to the edge and not to the node. Without it a
+		// layer that was ever anyone's part stays one forever, and re-adding it
+		// as an ordinary child would launder it out of rule 1's sibling pairing
+		// under its new parent.
+		child.ownedByParent = false;
+		this.children.push(child);
+		return this;
+	}
+
+	/**
+	 * Add one of this component's own parts. Same array, same order, same
+	 * paint result as addChild; the mark is the only difference. Pushes
+	 * directly rather than delegating, because Panel redirects addChild into
+	 * its content layer and a part has to land on the Panel itself.
+	 */
+	public addPart(child: Layer): this {
+		child.parent = this;
+		child.ownedByParent = true;
 		this.children.push(child);
 		return this;
 	}
@@ -261,6 +291,7 @@ export class Layer {
 			// Safe because unmount on an already-unmounted subtree is a no-op.
 			child.unmount();
 			child.parent = null;
+			child.ownedByParent = false;
 			this.children.splice(index, 1);
 			return true;
 		}

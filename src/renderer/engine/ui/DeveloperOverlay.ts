@@ -49,7 +49,7 @@ export class DeveloperOverlay extends Layer {
 				borderWidth: 1,
 			},
 		});
-		this.addChild(this.background);
+		this.addPart(this.background);
 		
 		// Performance stats text
 		this.performanceText = new Text('', {
@@ -61,7 +61,7 @@ export class DeveloperOverlay extends Layer {
 				fontFamily: 'monospace',
 			},
 		});
-		this.addChild(this.performanceText);
+		this.addPart(this.performanceText);
 		
 		// Position in top-right corner
 		this.updatePosition();

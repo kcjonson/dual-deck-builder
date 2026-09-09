@@ -217,6 +217,42 @@ describe('layoutLint', () => {
 
 			expect(forRule(result, 'sibling-overlap')).toHaveLength(0);
 		});
+
+		it('reports a sibling whose box wholly contains another, not merely one that clips its corner', () => {
+			// Containment was the bulk of the live findings, and it is exactly
+			// what a geometric shortcut would pardon: by box alone, a
+			// background enclosing what sits on it cannot be told apart from a
+			// panel swallowing the row laid out beside it.
+			const result = layoutLint(
+				doc([
+					node({
+						id: 'root',
+						children: [node({ id: 'a', bounds: box(0, 0, 100, 100) }), node({ id: 'b', bounds: box(10, 10, 50, 50) })],
+					}),
+				]),
+			);
+
+			expect(forRule(result, 'sibling-overlap')).toEqual([
+				{ rule: 'sibling-overlap', path: 'root/a', bounds: box(0, 0, 100, 100), otherPath: 'root/b', otherBounds: box(10, 10, 50, 50) },
+			]);
+			expect(reportFor(result, 'sibling-overlap').exempt).toBe(0);
+		});
+
+		it('reports two siblings whose boxes are exactly coincident', () => {
+			const result = layoutLint(
+				doc([
+					node({
+						id: 'root',
+						children: [node({ id: 'a', bounds: box(0, 0, 100, 100) }), node({ id: 'b', bounds: box(0, 0, 100, 100) })],
+					}),
+				]),
+			);
+
+			expect(forRule(result, 'sibling-overlap')).toEqual([
+				{ rule: 'sibling-overlap', path: 'root/a', bounds: box(0, 0, 100, 100), otherPath: 'root/b', otherBounds: box(0, 0, 100, 100) },
+			]);
+			expect(reportFor(result, 'sibling-overlap').exempt).toBe(0);
+		});
 	});
 
 	describe('rule 2: child-outside-parent (R13.25.2)', () => {
@@ -714,6 +750,197 @@ describe('layoutLint', () => {
 
 			expect(forRule(layoutLint(document), 'target-size')).toHaveLength(0);
 			expect(forRule(layoutLint(document, { touchProfile: true }), 'target-size')).toHaveLength(1);
+		});
+	});
+
+	describe('parts: the drawings a component makes for itself', () => {
+		it('does not pair a part with a child at the same bounds', () => {
+			const result = layoutLint(
+				doc([
+					node({
+						id: 'panel',
+						type: 'Panel',
+						bounds: box(0, 0, 200, 100),
+						parts: [node({ id: 'background', type: 'Rectangle', bounds: box(0, 0, 200, 100) })],
+						children: [node({ id: 'content', type: 'Layer', bounds: box(0, 0, 200, 100) })],
+					}),
+				]),
+			);
+
+			// Never paired, rather than paired and let off: an exemption here
+			// would mean the two groups had been concatenated after all, and
+			// the pass would then depend on whatever geometry the exemption
+			// happened to test.
+			expect(forRule(result, 'sibling-overlap')).toHaveLength(0);
+			expect(reportFor(result, 'sibling-overlap').evaluated).toBe(0);
+			expect(reportFor(result, 'sibling-overlap').exempt).toBe(0);
+		});
+
+		it('does not pair two coincident parts with each other', () => {
+			const result = layoutLint(
+				doc([
+					node({
+						id: 'button',
+						type: 'Button',
+						bounds: box(0, 0, 180, 44),
+						parts: [
+							node({ id: 'background', type: 'Rectangle', bounds: box(0, 0, 180, 44) }),
+							node({ id: 'label', type: 'Text', bounds: box(0, 0, 180, 44) }),
+						],
+					}),
+				]),
+			);
+
+			expect(forRule(result, 'sibling-overlap')).toHaveLength(0);
+			expect(reportFor(result, 'sibling-overlap').evaluated).toBe(0);
+			expect(reportFor(result, 'sibling-overlap').exempt).toBe(0);
+		});
+
+		it('reports a part that escapes its owner', () => {
+			const result = layoutLint(
+				doc([
+					node({
+						id: 'panel',
+						type: 'Panel',
+						bounds: box(0, 0, 100, 100),
+						parts: [node({ id: 'background', type: 'Rectangle', bounds: box(10, 10, 200, 20) })],
+					}),
+				]),
+			);
+
+			expect(forRule(result, 'child-outside-parent')).toEqual([
+				{
+					rule: 'child-outside-parent',
+					path: 'panel/background',
+					bounds: box(10, 10, 200, 20),
+					otherPath: 'panel',
+					otherBounds: box(0, 0, 100, 100),
+				},
+			]);
+		});
+
+		it('reports a collapsed part', () => {
+			const result = layoutLint(
+				doc([
+					node({
+						id: 'panel',
+						type: 'Panel',
+						bounds: box(0, 0, 100, 100),
+						parts: [node({ id: 'divider', type: 'Rectangle', bounds: box(0, 0, 0, 40) })],
+					}),
+				]),
+			);
+
+			expect(forRule(result, 'zero-or-negative-size')).toEqual([
+				{ rule: 'zero-or-negative-size', path: 'panel/divider', bounds: box(0, 0, 0, 40), bucket: ZERO_SIZE_BUCKETS.zeroBox },
+			]);
+		});
+
+		it('reports a part that leaves the viewport', () => {
+			const result = layoutLint(
+				doc(
+					[
+						node({
+							id: 'panel',
+							type: 'Panel',
+							bounds: box(0, 0, 1440, 882),
+							parts: [node({ id: 'background', type: 'Rectangle', bounds: box(1400, 10, 300, 40) })],
+						}),
+					],
+					{ width: 1440, height: 882 },
+				),
+			);
+
+			expect(forRule(result, 'outside-viewport')).toEqual([
+				{ rule: 'outside-viewport', path: 'panel/background', bounds: box(1400, 10, 300, 40) },
+			]);
+		});
+
+		it('still reports two overlapping children of a part', () => {
+			// A part is a subtree, not a leaf: a Panel's content layer is one,
+			// and everything a caller puts in it is a sibling group like any
+			// other.
+			const result = layoutLint(
+				doc([
+					node({
+						id: 'panel',
+						type: 'Panel',
+						bounds: box(0, 0, 200, 200),
+						parts: [
+							node({
+								id: 'content',
+								type: 'Layer',
+								bounds: box(0, 0, 200, 200),
+								children: [node({ id: 'a', bounds: box(0, 0, 100, 100) }), node({ id: 'b', bounds: box(50, 50, 100, 100) })],
+							}),
+						],
+					}),
+				]),
+			);
+
+			expect(forRule(result, 'sibling-overlap')).toEqual([
+				{
+					rule: 'sibling-overlap',
+					path: 'panel/content/a',
+					bounds: box(0, 0, 100, 100),
+					otherPath: 'panel/content/b',
+					otherBounds: box(50, 50, 100, 100),
+				},
+			]);
+		});
+
+		it('leaves a document that declares no parts anywhere exactly as it was', () => {
+			// Every fixture minted before `parts` existed emits a Panel's
+			// background and content layer as plain children, and an absent
+			// field must not be read as an empty group that changes how the
+			// rest of the array pairs up.
+			const result = layoutLint(
+				doc([
+					node({
+						id: 'panel',
+						type: 'Panel',
+						bounds: box(0, 0, 200, 100),
+						children: [
+							node({ id: 'background', type: 'Rectangle', bounds: box(0, 0, 200, 100) }),
+							node({ id: 'content', type: 'Layer', bounds: box(0, 0, 200, 100) }),
+							node({ id: 'label', type: 'Text', bounds: box(10, 10, 90, 20) }),
+						],
+					}),
+				]),
+			);
+
+			expect(forRule(result, 'sibling-overlap').map((violation) => [violation.path, violation.otherPath])).toEqual([
+				['panel/background', 'panel/content'],
+				['panel/background', 'panel/label'],
+				['panel/content', 'panel/label'],
+			]);
+			expect(reportFor(result, 'sibling-overlap').evaluated).toBe(3);
+		});
+
+		it('numbers a part and a child of the same type apart, so their paths cannot collide', () => {
+			// The path is the only identity R13.28 gives a violation and the
+			// only key a baseline diff can match on, and `pathSegment` counts
+			// position within the array it was handed. Numbering the two groups
+			// separately would print `owner/Rectangle[0]` for both the part and
+			// the first child.
+			const result = layoutLint(
+				doc([
+					node({
+						id: 'owner',
+						type: 'Button',
+						bounds: box(0, 0, 200, 100),
+						parts: [node({ type: 'Rectangle', bounds: box(0, 0, 200, 100) })],
+						children: [
+							node({ type: 'Rectangle', bounds: box(0, 0, 60, 40) }),
+							node({ type: 'Rectangle', bounds: box(20, 10, 60, 40) }),
+						],
+					}),
+				]),
+			);
+
+			expect(forRule(result, 'sibling-overlap').map((violation) => [violation.path, violation.otherPath])).toEqual([
+				['owner/Rectangle[1]', 'owner/Rectangle[2]'],
+			]);
 		});
 	});
 

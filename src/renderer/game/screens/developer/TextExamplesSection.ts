@@ -101,7 +101,15 @@ export class TextExamplesSection extends Panel {
 		this.addChild(alignLabel);
 		currentY += 25;
 
+		// Alignment resolves against the node's own box (Text.render), so each
+		// sample needs a box to align inside. Given a bare point, the right
+		// sample drew a text width past the section and off the viewport, and
+		// three boxes spanning the row would all overlap each other; a column
+		// each is the layout the three samples are demonstrating.
+		const alignColumn = (this.width - 40) / 3;
+
 		const leftText = new Text('Left aligned (default)', {
+			width: alignColumn,
 			style: {
 				fontSize: 16,
 				color: '#ffffff',
@@ -112,23 +120,25 @@ export class TextExamplesSection extends Panel {
 		this.addChild(leftText);
 
 		const centerText = new Text('Center aligned', {
+			width: alignColumn,
 			style: {
 				fontSize: 16,
 				color: '#ffffff',
 				textAlign: 'center',
 			},
 		});
-		centerText.setPosition(this.width / 2, currentY);
+		centerText.setPosition(20 + alignColumn, currentY);
 		this.addChild(centerText);
 
 		const rightText = new Text('Right aligned', {
+			width: alignColumn,
 			style: {
 				fontSize: 16,
 				color: '#ffffff',
 				textAlign: 'right',
 			},
 		});
-		rightText.setPosition(this.width - 20, currentY);
+		rightText.setPosition(20 + alignColumn * 2, currentY);
 		this.addChild(rightText);
 		currentY += 40;
 

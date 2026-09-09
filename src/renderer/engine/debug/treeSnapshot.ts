@@ -72,6 +72,15 @@ export interface SnapshotNode {
 	enabled?: boolean;
 	state?: SnapshotState;
 	value?: string;
+	/**
+	 * The owning component's own drawings (R8.1, R3.18), absent when it has
+	 * none. Not a field R13.22 names: R13.22 describes the tree R8.6 allows,
+	 * where a container never inserts a background or a content layer, and
+	 * this engine's composites do. Reporting them as `children` says they are
+	 * siblings of what the caller added, which is what R13.25's
+	 * sibling-overlap rule then reports.
+	 */
+	parts?: SnapshotNode[];
 	children: SnapshotNode[];
 }
 
@@ -233,7 +242,13 @@ function serializeNode(
 						offsetY: isScrolledContent && scroll ? screenY - finite(scroll.y) : screenY,
 						clip: panel && !isScrolledContent ? context.clip : innerClip,
 					};
-					serialized.children.push(serializeNode(child, childContext, ancestors, seen, depth + 1));
+					const serializedChild = serializeNode(child, childContext, ancestors, seen, depth + 1);
+					if (child.isPart === true) {
+						if (!serialized.parts) serialized.parts = [];
+						serialized.parts.push(serializedChild);
+					} else {
+						serialized.children.push(serializedChild);
+					}
 				}
 			}
 		} finally {

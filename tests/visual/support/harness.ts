@@ -1,6 +1,7 @@
 import type { ConsoleMessage, Page, TestInfo } from '@playwright/test';
 import { expect } from '@playwright/test';
 import { BASE_URL } from '../../../playwright.config';
+import type { LintResult } from '../../../src/renderer/engine/debug/layoutLint';
 
 /**
  * R13.37's deterministic capture controls, in one place so both projects get
@@ -67,8 +68,8 @@ const RANDOM_SEED = 0x5eed1e57;
  * rather than a case every call site has to re-handle. `Partial<DevSurface>`
  * is what the waits are written against.
  */
-interface DevSurface {
-	__ui: { tree(): unknown; lint(): { count: number } };
+export interface DevSurface {
+	__ui: { tree(): unknown; lint(): LintResult };
 	__app: {
 		navigate(screen: string): boolean;
 		pause(): void;

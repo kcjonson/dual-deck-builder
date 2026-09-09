@@ -2,14 +2,20 @@ import { Layer } from '../components/Layer';
 import { Rectangle } from '../components/Rectangle';
 import { Text } from '../components/Text';
 import { Panel } from '../ui/Panel';
+import { Button } from '../ui/Button';
 import { Input } from '../ui/Input';
 import { SnapshotNode, treeSnapshot } from './treeSnapshot';
 
 const VIEWPORT = { width: 1440, height: 882 };
 
+/** Both groups, so a walk cannot miss what a composite drew for itself. */
+function descendants(node: SnapshotNode): SnapshotNode[] {
+	return [...(node.parts ?? []), ...node.children];
+}
+
 function findById(node: SnapshotNode, id: string): SnapshotNode | null {
 	if (node.id === id) return node;
-	for (const child of node.children) {
+	for (const child of descendants(node)) {
 		const found = findById(child, id);
 		if (found) return found;
 	}
@@ -17,7 +23,11 @@ function findById(node: SnapshotNode, id: string): SnapshotNode | null {
 }
 
 function countNodes(node: SnapshotNode): number {
-	return node.children.reduce((total, child) => total + countNodes(child), 1);
+	return descendants(node).reduce((total, child) => total + countNodes(child), 1);
+}
+
+function countLayers(layer: Layer): number {
+	return layer.debugChildren.reduce((total, child) => total + countLayers(child), 1);
 }
 
 describe('treeSnapshot', () => {
@@ -188,17 +198,17 @@ describe('treeSnapshot', () => {
 	});
 
 	describe('the Panel structure trap', () => {
-		it('reports the background and the content layer, not the content children one level up', () => {
+		it('reports the background and the content layer as parts, not the content children one level up', () => {
 			const panel = new Panel({ id: 'showcase_scroll', x: 0, y: 0, width: 300, height: 200 });
 			const card = new Layer({ id: 'showcase_card_1', x: 10, y: 10, width: 50, height: 70 });
 			panel.addChild(card);
 
 			const node = treeSnapshot([panel], VIEWPORT).roots[0];
 
-			expect(node.children).toHaveLength(2);
-			expect(node.children[0].type).toBe('Rectangle');
-			expect(node.children[1].type).toBe('Layer');
-			expect(node.children[1].children.map((child) => child.id)).toEqual(['showcase_card_1']);
+			expect(node.parts).toHaveLength(2);
+			expect(node.parts?.[0].type).toBe('Rectangle');
+			expect(node.parts?.[1].type).toBe('Layer');
+			expect(node.parts?.[1].children.map((child) => child.id)).toEqual(['showcase_card_1']);
 			// getChildren() would have put the card directly under the panel.
 			expect(panel.getChildren()).toEqual([card]);
 		});
@@ -239,16 +249,99 @@ describe('treeSnapshot', () => {
 				scrollable: true,
 			});
 
-			const node = treeSnapshot([panel], VIEWPORT).roots[0];
+			const [background, contentLayer] = treeSnapshot([panel], VIEWPORT).roots[0].parts as SnapshotNode[];
 
-			expect('clip' in node.children[0]).toBe(false);
-			expect(node.children[1].clip).toEqual({ x: 10, y: 20, w: 100, h: 50 });
+			expect('clip' in background).toBe(false);
+			expect(contentLayer.clip).toEqual({ x: 10, y: 20, w: 100, h: 50 });
 		});
 
 		it('omits contentOffset on a non-scrollable panel', () => {
 			const panel = new Panel({ id: 'static', width: 100, height: 50 });
 
 			expect('contentOffset' in treeSnapshot([panel], VIEWPORT).roots[0]).toBe(false);
+		});
+	});
+
+	describe("parts, a composite's own drawings (R8.1)", () => {
+		it('omits parts on a node that has none, so an absent group is never read as an empty one', () => {
+			const leaf = treeSnapshot([new Layer({ id: 'plain', width: 10, height: 10 })], VIEWPORT).roots[0];
+
+			const holder = new Layer({ id: 'holder', width: 10, height: 10 });
+			holder.addChild(new Layer({ id: 'kid', width: 4, height: 4 }));
+			const parent = treeSnapshot([holder], VIEWPORT).roots[0];
+
+			expect('parts' in leaf).toBe(false);
+			expect('parts' in parent).toBe(false);
+			expect(parent.children).toHaveLength(1);
+		});
+
+		it("leaves a Panel's children as exactly what the caller added", () => {
+			const panel = new Panel({ id: 'inventory', width: 300, height: 200 });
+			const first = new Layer({ id: 'inventory_slot_1', x: 10, y: 10, width: 50, height: 70 });
+			const second = new Layer({ id: 'inventory_slot_2', x: 70, y: 10, width: 50, height: 70 });
+			panel.addChild(first);
+			panel.addChild(second);
+
+			const node = treeSnapshot([panel], VIEWPORT).roots[0];
+			const [, contentLayer] = node.parts as SnapshotNode[];
+
+			// R8.6: no implicit child in any children list. addChild redirects
+			// into the content layer, so the caller's two land there and the
+			// panel node itself has none.
+			expect(node.children).toEqual([]);
+			expect(contentLayer.children.map((child) => child.id)).toEqual(
+				panel.getChildren().map((child) => child.id),
+			);
+			expect('parts' in contentLayer).toBe(false);
+		});
+
+		it("reports a Button's background and label as parts and leaves it childless", () => {
+			const button = new Button('End turn', { id: 'end_turn_button', width: 100, height: 40 });
+
+			const node = treeSnapshot([button], VIEWPORT).roots[0];
+
+			expect(node.parts?.map((part) => part.type)).toEqual(['Rectangle', 'Text']);
+			expect(node.children).toEqual([]);
+		});
+
+		it('relabels nodes rather than dropping them: parts plus children still cover the live tree', () => {
+			const panel = new Panel({ id: 'toolbar', width: 300, height: 200 });
+			const button = new Button('Fire', { id: 'fire_button', x: 10, y: 10, width: 80, height: 30 });
+			panel.addChild(button);
+
+			const node = treeSnapshot([panel], VIEWPORT).roots[0];
+
+			expect(countNodes(node)).toBe(countLayers(panel));
+			expect(node.children.length + (node.parts?.length ?? 0)).toBe(panel.debugChildren.length);
+			expect(findById(node, 'fire_button')).not.toBeNull();
+		});
+
+		it('gives a part the geometry the render path gives it, scroll subtraction and clip included', () => {
+			const panel = new Panel({
+				id: 'scroller',
+				x: 10,
+				y: 20,
+				width: 100,
+				height: 50,
+				scrollable: true,
+				scrollDirection: 'vertical',
+			});
+			panel.setContentSize(100, 500);
+			panel.scroll(0, 30);
+			panel.addChild(new Layer({ id: 'row', x: 5, y: 100, width: 20, height: 10 }));
+
+			const node = treeSnapshot([panel], VIEWPORT).roots[0];
+			const [background, contentLayer] = node.parts as SnapshotNode[];
+
+			expect(node.contentOffset).toEqual({ x: 0, y: 30 });
+			expect('clip' in background).toBe(false);
+			expect(background.screenBounds).toEqual({ x: 10, y: 20, w: 100, h: 50 });
+			expect(contentLayer.clip).toEqual({ x: 10, y: 20, w: 100, h: 50 });
+			// The content layer is drawn at the scrolled origin; its bounds are
+			// parent-relative and know nothing about scroll.
+			expect(contentLayer.bounds).toEqual({ x: 0, y: 0, w: 100, h: 50 });
+			expect(contentLayer.screenBounds).toEqual({ x: 10, y: -10, w: 100, h: 50 });
+			expect(findById(node, 'row')?.screenBounds).toEqual({ x: 15, y: 90, w: 20, h: 10 });
 		});
 	});
 

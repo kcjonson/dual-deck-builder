@@ -1,0 +1,670 @@
+{
+	"label": "phase0-gallery-lint",
+	"capturedAt": "2026-09-09",
+	"spec": "R13.29's gate surface, shape per R13.38",
+	"build": "webpack dev server, __DEV_TOOLS__ true, chromium under Playwright",
+	"viewport": {
+		"width": 1440,
+		"height": 882,
+		"devicePixelRatio": 1
+	},
+	"note": "The eight gallery scenes after DDB-104, which is the whole of what R13.29 gates in phases 0 to 2. Every scene is at count 0 and tests/visual/web/lint.spec.ts asserts it, so this file is a ratchet rather than a to-do list: a non-zero row here means the gate was loosened. Before DDB-104 the same eight read 4, 1, 8, 1, 9, 3, 1, 3 for a total of 30, of which 28 were a composite's own background paired against its own content and 2 were a real defect in TextExamplesSection. nodeCount counts parts and children both. The screens are NOT on this surface and are not zero; their numbers and their owners are in the DDB-104 entry in AI_DEVELOPMENT_LOG.md.",
+	"entries": [
+		{
+			"scenario": "interactive-controls",
+			"scene": "interactive-controls",
+			"viewport": {
+				"width": 1440,
+				"height": 882
+			},
+			"nodeCount": 21,
+			"lint": {
+				"count": 0,
+				"violations": [],
+				"rules": [
+					{
+						"rule": "sibling-overlap",
+						"violations": 0,
+						"evaluated": 21,
+						"exempt": 0,
+						"skippedMissingInput": 0,
+						"dormant": false
+					},
+					{
+						"rule": "child-outside-parent",
+						"violations": 0,
+						"evaluated": 16,
+						"exempt": 0,
+						"skippedMissingInput": 0,
+						"dormant": false
+					},
+					{
+						"rule": "outside-viewport",
+						"violations": 0,
+						"evaluated": 17,
+						"exempt": 0,
+						"skippedMissingInput": 0,
+						"dormant": false
+					},
+					{
+						"rule": "zero-or-negative-size",
+						"violations": 0,
+						"evaluated": 17,
+						"exempt": 0,
+						"skippedMissingInput": 0,
+						"dormant": false
+					},
+					{
+						"rule": "text-overflow",
+						"violations": 0,
+						"evaluated": 0,
+						"exempt": 0,
+						"skippedMissingInput": 6,
+						"dormant": true,
+						"missingInput": [
+							"text"
+						]
+					},
+					{
+						"rule": "unreachable-interactive",
+						"violations": 0,
+						"evaluated": 0,
+						"exempt": 0,
+						"skippedMissingInput": 17,
+						"dormant": true,
+						"missingInput": [
+							"focusable",
+							"pointerEvents"
+						]
+					},
+					{
+						"rule": "target-size",
+						"violations": 0,
+						"evaluated": 0,
+						"exempt": 0,
+						"skippedMissingInput": 17,
+						"dormant": true,
+						"missingInput": [
+							"focusable",
+							"pointerEvents"
+						]
+					}
+				]
+			}
+		},
+		{
+			"scenario": "style-guide",
+			"scene": "style-guide",
+			"viewport": {
+				"width": 1440,
+				"height": 882
+			},
+			"nodeCount": 22,
+			"lint": {
+				"count": 0,
+				"violations": [],
+				"rules": [
+					{
+						"rule": "sibling-overlap",
+						"violations": 0,
+						"evaluated": 153,
+						"exempt": 0,
+						"skippedMissingInput": 0,
+						"dormant": false
+					},
+					{
+						"rule": "child-outside-parent",
+						"violations": 0,
+						"evaluated": 21,
+						"exempt": 0,
+						"skippedMissingInput": 0,
+						"dormant": false
+					},
+					{
+						"rule": "outside-viewport",
+						"violations": 0,
+						"evaluated": 22,
+						"exempt": 0,
+						"skippedMissingInput": 0,
+						"dormant": false
+					},
+					{
+						"rule": "zero-or-negative-size",
+						"violations": 0,
+						"evaluated": 22,
+						"exempt": 0,
+						"skippedMissingInput": 0,
+						"dormant": false
+					},
+					{
+						"rule": "text-overflow",
+						"violations": 0,
+						"evaluated": 0,
+						"exempt": 0,
+						"skippedMissingInput": 10,
+						"dormant": true,
+						"missingInput": [
+							"text"
+						]
+					},
+					{
+						"rule": "unreachable-interactive",
+						"violations": 0,
+						"evaluated": 0,
+						"exempt": 0,
+						"skippedMissingInput": 22,
+						"dormant": true,
+						"missingInput": [
+							"focusable",
+							"pointerEvents"
+						]
+					},
+					{
+						"rule": "target-size",
+						"violations": 0,
+						"evaluated": 0,
+						"exempt": 0,
+						"skippedMissingInput": 22,
+						"dormant": true,
+						"missingInput": [
+							"focusable",
+							"pointerEvents"
+						]
+					}
+				]
+			}
+		},
+		{
+			"scenario": "input-showcase",
+			"scene": "input-showcase",
+			"viewport": {
+				"width": 1440,
+				"height": 882
+			},
+			"nodeCount": 25,
+			"lint": {
+				"count": 0,
+				"violations": [],
+				"rules": [
+					{
+						"rule": "sibling-overlap",
+						"violations": 0,
+						"evaluated": 36,
+						"exempt": 0,
+						"skippedMissingInput": 0,
+						"dormant": false
+					},
+					{
+						"rule": "child-outside-parent",
+						"violations": 0,
+						"evaluated": 20,
+						"exempt": 0,
+						"skippedMissingInput": 0,
+						"dormant": false
+					},
+					{
+						"rule": "outside-viewport",
+						"violations": 0,
+						"evaluated": 21,
+						"exempt": 0,
+						"skippedMissingInput": 0,
+						"dormant": false
+					},
+					{
+						"rule": "zero-or-negative-size",
+						"violations": 0,
+						"evaluated": 21,
+						"exempt": 0,
+						"skippedMissingInput": 0,
+						"dormant": false
+					},
+					{
+						"rule": "text-overflow",
+						"violations": 0,
+						"evaluated": 0,
+						"exempt": 0,
+						"skippedMissingInput": 11,
+						"dormant": true,
+						"missingInput": [
+							"text"
+						]
+					},
+					{
+						"rule": "unreachable-interactive",
+						"violations": 0,
+						"evaluated": 0,
+						"exempt": 0,
+						"skippedMissingInput": 21,
+						"dormant": true,
+						"missingInput": [
+							"focusable",
+							"pointerEvents"
+						]
+					},
+					{
+						"rule": "target-size",
+						"violations": 0,
+						"evaluated": 0,
+						"exempt": 0,
+						"skippedMissingInput": 21,
+						"dormant": true,
+						"missingInput": [
+							"focusable",
+							"pointerEvents"
+						]
+					}
+				]
+			}
+		},
+		{
+			"scenario": "rectangles",
+			"scene": "rectangles",
+			"viewport": {
+				"width": 1440,
+				"height": 882
+			},
+			"nodeCount": 10,
+			"lint": {
+				"count": 0,
+				"violations": [],
+				"rules": [
+					{
+						"rule": "sibling-overlap",
+						"violations": 0,
+						"evaluated": 15,
+						"exempt": 0,
+						"skippedMissingInput": 0,
+						"dormant": false
+					},
+					{
+						"rule": "child-outside-parent",
+						"violations": 0,
+						"evaluated": 9,
+						"exempt": 0,
+						"skippedMissingInput": 0,
+						"dormant": false
+					},
+					{
+						"rule": "outside-viewport",
+						"violations": 0,
+						"evaluated": 10,
+						"exempt": 0,
+						"skippedMissingInput": 0,
+						"dormant": false
+					},
+					{
+						"rule": "zero-or-negative-size",
+						"violations": 0,
+						"evaluated": 10,
+						"exempt": 0,
+						"skippedMissingInput": 0,
+						"dormant": false
+					},
+					{
+						"rule": "text-overflow",
+						"violations": 0,
+						"evaluated": 0,
+						"exempt": 0,
+						"skippedMissingInput": 1,
+						"dormant": true,
+						"missingInput": [
+							"text"
+						]
+					},
+					{
+						"rule": "unreachable-interactive",
+						"violations": 0,
+						"evaluated": 0,
+						"exempt": 0,
+						"skippedMissingInput": 10,
+						"dormant": true,
+						"missingInput": [
+							"focusable",
+							"pointerEvents"
+						]
+					},
+					{
+						"rule": "target-size",
+						"violations": 0,
+						"evaluated": 0,
+						"exempt": 0,
+						"skippedMissingInput": 10,
+						"dormant": true,
+						"missingInput": [
+							"focusable",
+							"pointerEvents"
+						]
+					}
+				]
+			}
+		},
+		{
+			"scenario": "buttons",
+			"scene": "buttons",
+			"viewport": {
+				"width": 1440,
+				"height": 882
+			},
+			"nodeCount": 30,
+			"lint": {
+				"count": 0,
+				"violations": [],
+				"rules": [
+					{
+						"rule": "sibling-overlap",
+						"violations": 0,
+						"evaluated": 45,
+						"exempt": 0,
+						"skippedMissingInput": 0,
+						"dormant": false
+					},
+					{
+						"rule": "child-outside-parent",
+						"violations": 0,
+						"evaluated": 29,
+						"exempt": 0,
+						"skippedMissingInput": 0,
+						"dormant": false
+					},
+					{
+						"rule": "outside-viewport",
+						"violations": 0,
+						"evaluated": 30,
+						"exempt": 0,
+						"skippedMissingInput": 0,
+						"dormant": false
+					},
+					{
+						"rule": "zero-or-negative-size",
+						"violations": 0,
+						"evaluated": 30,
+						"exempt": 0,
+						"skippedMissingInput": 0,
+						"dormant": false
+					},
+					{
+						"rule": "text-overflow",
+						"violations": 0,
+						"evaluated": 0,
+						"exempt": 0,
+						"skippedMissingInput": 10,
+						"dormant": true,
+						"missingInput": [
+							"text"
+						]
+					},
+					{
+						"rule": "unreachable-interactive",
+						"violations": 0,
+						"evaluated": 0,
+						"exempt": 0,
+						"skippedMissingInput": 30,
+						"dormant": true,
+						"missingInput": [
+							"focusable",
+							"pointerEvents"
+						]
+					},
+					{
+						"rule": "target-size",
+						"violations": 0,
+						"evaluated": 0,
+						"exempt": 0,
+						"skippedMissingInput": 30,
+						"dormant": true,
+						"missingInput": [
+							"focusable",
+							"pointerEvents"
+						]
+					}
+				]
+			}
+		},
+		{
+			"scenario": "text",
+			"scene": "text",
+			"viewport": {
+				"width": 1440,
+				"height": 882
+			},
+			"nodeCount": 24,
+			"lint": {
+				"count": 0,
+				"violations": [],
+				"rules": [
+					{
+						"rule": "sibling-overlap",
+						"violations": 0,
+						"evaluated": 190,
+						"exempt": 0,
+						"skippedMissingInput": 0,
+						"dormant": false
+					},
+					{
+						"rule": "child-outside-parent",
+						"violations": 0,
+						"evaluated": 23,
+						"exempt": 0,
+						"skippedMissingInput": 0,
+						"dormant": false
+					},
+					{
+						"rule": "outside-viewport",
+						"violations": 0,
+						"evaluated": 24,
+						"exempt": 0,
+						"skippedMissingInput": 0,
+						"dormant": false
+					},
+					{
+						"rule": "zero-or-negative-size",
+						"violations": 0,
+						"evaluated": 24,
+						"exempt": 0,
+						"skippedMissingInput": 0,
+						"dormant": false
+					},
+					{
+						"rule": "text-overflow",
+						"violations": 0,
+						"evaluated": 0,
+						"exempt": 0,
+						"skippedMissingInput": 20,
+						"dormant": true,
+						"missingInput": [
+							"text"
+						]
+					},
+					{
+						"rule": "unreachable-interactive",
+						"violations": 0,
+						"evaluated": 0,
+						"exempt": 0,
+						"skippedMissingInput": 24,
+						"dormant": true,
+						"missingInput": [
+							"focusable",
+							"pointerEvents"
+						]
+					},
+					{
+						"rule": "target-size",
+						"violations": 0,
+						"evaluated": 0,
+						"exempt": 0,
+						"skippedMissingInput": 24,
+						"dormant": true,
+						"missingInput": [
+							"focusable",
+							"pointerEvents"
+						]
+					}
+				]
+			}
+		},
+		{
+			"scenario": "primitive-shapes",
+			"scene": "primitive-shapes",
+			"viewport": {
+				"width": 1440,
+				"height": 882
+			},
+			"nodeCount": 18,
+			"lint": {
+				"count": 0,
+				"violations": [],
+				"rules": [
+					{
+						"rule": "sibling-overlap",
+						"violations": 0,
+						"evaluated": 91,
+						"exempt": 0,
+						"skippedMissingInput": 0,
+						"dormant": false
+					},
+					{
+						"rule": "child-outside-parent",
+						"violations": 0,
+						"evaluated": 17,
+						"exempt": 0,
+						"skippedMissingInput": 0,
+						"dormant": false
+					},
+					{
+						"rule": "outside-viewport",
+						"violations": 0,
+						"evaluated": 18,
+						"exempt": 0,
+						"skippedMissingInput": 0,
+						"dormant": false
+					},
+					{
+						"rule": "zero-or-negative-size",
+						"violations": 0,
+						"evaluated": 18,
+						"exempt": 0,
+						"skippedMissingInput": 0,
+						"dormant": false
+					},
+					{
+						"rule": "text-overflow",
+						"violations": 0,
+						"evaluated": 0,
+						"exempt": 0,
+						"skippedMissingInput": 4,
+						"dormant": true,
+						"missingInput": [
+							"text"
+						]
+					},
+					{
+						"rule": "unreachable-interactive",
+						"violations": 0,
+						"evaluated": 0,
+						"exempt": 0,
+						"skippedMissingInput": 18,
+						"dormant": true,
+						"missingInput": [
+							"focusable",
+							"pointerEvents"
+						]
+					},
+					{
+						"rule": "target-size",
+						"violations": 0,
+						"evaluated": 0,
+						"exempt": 0,
+						"skippedMissingInput": 18,
+						"dormant": true,
+						"missingInput": [
+							"focusable",
+							"pointerEvents"
+						]
+					}
+				]
+			}
+		},
+		{
+			"scenario": "nested-panels",
+			"scene": "nested-panels",
+			"viewport": {
+				"width": 1440,
+				"height": 882
+			},
+			"nodeCount": 13,
+			"lint": {
+				"count": 0,
+				"violations": [],
+				"rules": [
+					{
+						"rule": "sibling-overlap",
+						"violations": 0,
+						"evaluated": 4,
+						"exempt": 0,
+						"skippedMissingInput": 0,
+						"dormant": false
+					},
+					{
+						"rule": "child-outside-parent",
+						"violations": 0,
+						"evaluated": 12,
+						"exempt": 0,
+						"skippedMissingInput": 0,
+						"dormant": false
+					},
+					{
+						"rule": "outside-viewport",
+						"violations": 0,
+						"evaluated": 13,
+						"exempt": 0,
+						"skippedMissingInput": 0,
+						"dormant": false
+					},
+					{
+						"rule": "zero-or-negative-size",
+						"violations": 0,
+						"evaluated": 13,
+						"exempt": 0,
+						"skippedMissingInput": 0,
+						"dormant": false
+					},
+					{
+						"rule": "text-overflow",
+						"violations": 0,
+						"evaluated": 0,
+						"exempt": 0,
+						"skippedMissingInput": 3,
+						"dormant": true,
+						"missingInput": [
+							"text"
+						]
+					},
+					{
+						"rule": "unreachable-interactive",
+						"violations": 0,
+						"evaluated": 0,
+						"exempt": 0,
+						"skippedMissingInput": 13,
+						"dormant": true,
+						"missingInput": [
+							"focusable",
+							"pointerEvents"
+						]
+					},
+					{
+						"rule": "target-size",
+						"violations": 0,
+						"evaluated": 0,
+						"exempt": 0,
+						"skippedMissingInput": 13,
+						"dormant": true,
+						"missingInput": [
+							"focusable",
+							"pointerEvents"
+						]
+					}
+				]
+			}
+		}
+	]
+}
