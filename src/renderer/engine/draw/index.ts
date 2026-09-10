@@ -65,7 +65,7 @@ export type {
 export { UNCLIPPED_RECT, clipRectOf } from './clip';
 export type { ClipState, ResolvedClip, RoundedClip } from './clip';
 
-export { IDENTITY, concat, translation } from './geometry';
+export { IDENTITY, concat, transformPoint, translation } from './geometry';
 export type { ClipRect, Mat2D, RGBA, Rect, Vec2 } from './geometry';
 
 export { LAYER_NAMES, LAYER_ORDINALS, ROOT_LAYER, layerOrdinal } from './layers';

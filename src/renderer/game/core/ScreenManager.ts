@@ -1,4 +1,3 @@
-import { Renderer } from '../../engine/rendering/Renderer';
 import { Screen } from './Screen';
 import { SplashScreen } from '../screens/splash/SplashScreen';
 import { MainMenuScreen } from '../screens/main-menu/MainMenuScreen';
@@ -23,7 +22,7 @@ export type ScreenName =
 /**
  * Screen constructor type
  */
-type ScreenConstructor = new (renderer: Renderer) => Screen;
+type ScreenConstructor = new () => Screen;
 
 /**
  * Manages screen lifecycle and navigation
@@ -31,7 +30,6 @@ type ScreenConstructor = new (renderer: Renderer) => Screen;
  * Implemented as a static class for global access
  */
 export class ScreenManager {
-	private static renderer: Renderer;
 	private static currentScreenName: ScreenName | null = null;
 	private static currentScreen: Screen | null = null;
 	private static initialized = false;
@@ -57,15 +55,13 @@ export class ScreenManager {
 	}
 	
 	/**
-	 * Initialize the ScreenManager with a renderer
 	 * Must be called once before using any other methods
 	 */
-	static initialize(renderer: Renderer): void {
+	static initialize(): void {
 		if (this.initialized) {
 			console.warn('ScreenManager already initialized');
 			return;
 		}
-		this.renderer = renderer;
 		this.initialized = true;
 	}
 	
@@ -96,7 +92,7 @@ export class ScreenManager {
 		}
 		
 		// Create new screen instance
-		const screen = new ScreenConstructor(this.renderer);
+		const screen = new ScreenConstructor();
 		
 		// Mount new screen
 		console.log(`ScreenManager: Mounting new screen ${screenName}`);

@@ -14,17 +14,15 @@ import { frameWindowStats } from './frameStats';
  *
  * - `update`, `render` and `flush` are real. The frame loop brackets them, they
  *   cannot overlap (see `beginSection`), and together they are the whole of the
- *   application's per-frame work. `flush` is narrower than R13.7's "GPU
- *   submission" and has to be read that way: the renderer is immediate mode, so
- *   every primitive submits to GL at its draw site inside `render`, and the
- *   batched text flush is the only submission the frame defers. It is measured
- *   rather than folded into `render` because it is the number the phase 1
- *   batcher has to beat. It undercounts, and by how much depends on the screen:
- *   `Renderer.enableScissor` and `disableScissor` flush pending text before they
- *   touch GL state, and `Panel` and `Layer` call those while the render tree is
- *   being walked, so on any screen with a clipped panel most of the text has
- *   already submitted inside `render` and the `flush` section only sees the
- *   tail. Read a low `flush` next to the clip count, not on its own.
+ *   application's per-frame work. `flush` is R13.7's GPU submission, and since
+ *   DDB-55 phase 1 it mostly is one: a draw call resolves state onto a command
+ *   and nothing reaches GL until a sort domain ends, so `render` is the tree
+ *   walk plus whatever a clip boundary submits mid-walk, and `flush` is the last
+ *   domain. It still undercounts on a screen that clips, by one domain per clip
+ *   push and pop, which is where the draw API's temporary barrier sits. Read a
+ *   low `flush` next to the clip count, not on its own. Section numbers from
+ *   before that change are not comparable: shapes used to submit at their draw
+ *   sites, so `render` held nearly all of the frame's GL work.
  * - `input` is null. This engine dispatches input straight from DOM listeners
  *   on the canvas, so input handling happens between frames, not in a phase of
  *   one; a section here would read 0 forever while real input cost lands

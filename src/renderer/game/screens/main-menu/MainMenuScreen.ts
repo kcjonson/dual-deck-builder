@@ -1,6 +1,5 @@
 import { Screen } from '../../core/Screen';
 import { ScreenManager } from '../../core/ScreenManager';
-import { Renderer } from '../../../engine/rendering/Renderer';
 import { Button } from '../../../engine/ui/Button';
 import { Text } from '../../../engine/components/Text';
 import { Rectangle } from '../../../engine/components/Rectangle';
@@ -15,10 +14,9 @@ export class MainMenuScreen extends Screen {
 
 	/**
 	 * Create a new main menu screen
-	 * @param renderer WebGL renderer
 	 */
-	constructor(renderer: Renderer) {
-		super('mainMenuScreen', renderer);
+	constructor() {
+		super('mainMenuScreen');
 		
 		// Check if running in Electron
 		interface ElectronWindow extends Window {

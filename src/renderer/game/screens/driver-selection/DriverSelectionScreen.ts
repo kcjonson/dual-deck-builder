@@ -1,6 +1,5 @@
 import { Screen } from '../../core/Screen';
 import { ScreenManager } from '../../core/ScreenManager';
-import { Renderer } from '../../../engine/rendering/Renderer';
 import { Button } from '../../../engine/ui/Button';
 import { Text } from '../../../engine/components/Text';
 import { Rectangle } from '../../../engine/components/Rectangle';
@@ -33,8 +32,8 @@ export class DriverSelectionScreen extends Screen {
 	/**
 	 * Create a new driver selection screen
 	 */
-	constructor(renderer: Renderer) {
-		super('driverSelectionScreen', renderer);
+	constructor() {
+		super('driverSelectionScreen');
 		
 		this.createBackground();
 		this.createTitle();

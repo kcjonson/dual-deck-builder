@@ -4,6 +4,17 @@ import { RenderContext, DEFAULT_RENDER_CONTEXT } from '../rendering/RenderContex
 import { Style, StyleParser } from '../types/Style';
 
 /**
+ * The unit triangle `Renderer.drawTriangle` drew, in the box-local space the
+ * pushed transform maps onto the component's rectangle. Three points and no
+ * index list is already R2.11's triangle list.
+ */
+const TRIANGLE_POINTS = [
+	{ x: 0, y: 1 },
+	{ x: -1, y: -1 },
+	{ x: 1, y: -1 },
+] as const;
+
+/**
  * Triangle component for rendering triangles
  */
 export class Triangle extends Component {
@@ -75,19 +86,28 @@ export class Triangle extends Component {
 		const screenX = ctx.offsetX + this.x;
 		const screenY = ctx.offsetY + this.y;
 
-		// Get the renderer instance
-		const renderer = RendererContext.getInstance().getRenderer();
-
-		// Draw the triangle at screen position
-		renderer.drawTriangle(
-			screenX,
-			screenY,
-			this.width,
-			this.height,
-			this.fillColor,
-			this.strokeColor,
-			this.strokeWidth,
-		);
+		// The box goes in the transform rather than into the points, so the
+		// matrix the shader receives is the translate-then-scale the legacy
+		// draw built and no vertex multiply moves from the GPU to the CPU.
+		const draw = RendererContext.getInstance().draw;
+		draw.pushTransform([
+			this.width / 2,
+			0,
+			0,
+			this.height / 2,
+			screenX + this.width / 2,
+			screenY + this.height / 2,
+		]);
+		draw.drawPolygon({ id: this.id ?? undefined, points: TRIANGLE_POINTS, fill: this.fillColor });
+		if (this.strokeWidth > 0) {
+			draw.drawPolyline({
+				points: TRIANGLE_POINTS,
+				color: this.strokeColor,
+				width: this.strokeWidth,
+				closed: true,
+			});
+		}
+		draw.popTransform();
 
 		// Create child context with our position added
 		const childContext: RenderContext = {

@@ -1,6 +1,5 @@
 import { Screen } from '../../core/Screen';
 import { ScreenManager } from '../../core/ScreenManager';
-import { Renderer } from '../../../engine/rendering/Renderer';
 import { Text } from '../../../engine/components/Text';
 import { Rectangle } from '../../../engine/components/Rectangle';
 
@@ -19,10 +18,9 @@ export class SplashScreen extends Screen {
 
 	/**
 	 * Create a new splash screen
-	 * @param renderer WebGL renderer
 	 */
-	constructor(renderer: Renderer) {
-		super('splashScreen', renderer);
+	constructor() {
+		super('splashScreen');
 
 		this.totalTime = this.fadeInTime + this.displayTime + this.fadeOutTime;
 

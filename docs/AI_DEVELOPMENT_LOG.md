@@ -6,6 +6,81 @@ This document contains the chronological log of completed development tasks for 
 
 **Date correction (2026-08-22):** the repo's first commit is 2025-05-17, but many entries below carry dates in December 2024 or January 2025 — the AI that wrote them used its assumed date instead of the real one. Entries dated 2025-07-03 and 2025-07-02 have been corrected from "2025-01-03"/"2025-01-02" (verified against git history). Remaining Dec 2024 / Jan 2025 dates are wrong by roughly six months; the real work happened May–July 2025. Trust git history over these dates.
 
+## LegacyGLBackend, and every renderer consumer moved onto the draw API, DDB-67 (2026-09-09)
+
+**What landed:** the pre-spec WebGL drawing path moved bodily out of `Renderer` into
+`src/renderer/engine/rendering/LegacyGLBackend.ts`, behind `DrawBackend`, and every consumer moved
+onto `DrawApi` in the same commit. `Renderer` is a device now: canvas, context, resize handler,
+projection and view matrices, `clear`, `useShader`, `getContext`, `getFontAtlas`, plus `shader`,
+`projection` and `view` accessors for the backend. It has no drawing methods, no vertex buffers, no
+`TextRenderer` and no `FrameTimer`; roughly 500 of its 697 lines left the file. `grep` for
+`drawRectangle`, `drawCircle`, `drawPolygon`, `drawTriangle`, `enableScissor`, `disableScissor`,
+`isScissorEnabled`, `beginTextBatch`, `endTextBatch` or `flushTextBatch` outside the backend now
+returns comments and `DrawApi` methods and nothing else, because there is nothing left to call.
+
+**Both frame loops moved, and that was the failure mode to avoid.** `src/index.ts` drives `Game`;
+`src/gallery/index.ts` drives `SceneHost`, holds its own `Renderer` and never touches `Game`. Both
+called the same five text-batch and scissor methods. Both now build the seam through one factory,
+`createLegacyDrawApi({ renderer, frameTimer })`, open the frame with one helper, `windowFrame()`, and
+close it with `draw.endFrame()`, so the hack cannot be enabled on one page and not the other.
+
+**`getParameter(SCISSOR_BOX)` is gone from `Layer.ts` and `Panel.ts`**, along with the
+`wasScissorEnabled` flag, the saved `Int32Array` and the three-way restore. R15.22 names
+`getParameter` in the frame loop by name and calls the save-and-restore pattern prohibited; the clip
+stack knows what encloses a layer without asking GL. The device-pixel conversion moved once, into a
+pure exported `scissorBox()` with a unit test that asserts it against the old formula written out
+longhand.
+
+**One temporary mechanism, and it turned out to be half what was planned.** `DrawApi` gained a
+`legacyTextOrder` flag that ends a sort domain at every clip push and pop, reproducing the flush
+points `enableScissor` and `disableScissor` had. A companion stable-partition in the backend, meant
+to reproduce "text paints last", was written and then deleted: short-circuiting it left all 21
+chromium goldens green, because a text command does not paint where it sits in the array, it queues a
+run in `TextRenderer` and the batch flush draws it. Keeping `TextRenderer` untouched already
+reproduces the reordering, so the array sort was machinery that changed nothing. What is load-bearing
+is the bound, and it is worth exactly three goldens: with the flag off, `developerScreen`,
+`cardShowcaseScreen` and `combatScreen` fail and the other eighteen pass, those three being the only
+screens that clip. `grep -rn legacyTextOrder src` is the whole deletion list.
+
+**Two premises checked rather than carried forward, one of which was wrong.** No clip nests inside
+another in any state a gate captures: both clip sites were instrumented and all 14 captured states
+driven, and every entry read `already=false` (one clip on developer and card showcase, four siblings
+on combat, none in any gallery scene). That is what makes R4.3's intersection indistinguishable from
+the old replace-then-restore, and it is a property of the current screens rather than of the design.
+And the four "GPU stall due to ReadPixels" warnings on the card showcase are not the scissor
+read-back, which never executes there; bisecting found `TextRenderer.flush`, since suppressing the
+text flush takes the count from 4 to 0. `TextRenderer` is untouched, so the count is still 4 after
+this change. Deleting the read-back was right for conformance, not for the stall.
+
+**Numeric care where a golden could have moved.** `Polygon` and `Triangle` push their box as a
+transform and submit normalized points, so the model matrix the shader sees is the same sixteen
+floats rather than a CPU-side remultiply. `Rectangle` keys its border off width alone with a black
+fallback, because `drawQuad` stroked black for a width with no colour. `cornerRadius` is deliberately
+not sent, since the shader draws square corners. A polygon's stroke became a `drawPolyline` with
+`closed: true`, which is what the old `LINE_LOOP` was. The circle stroke's `bufferData` (DDB-103's
+buffer overrun) moved unchanged rather than being fixed in passing.
+
+**The one place no gate covers was checked by hand.** `Circle`, `Triangle` and `Polygon` are used only
+by `PrimitiveShapesSection`, whose gallery golden is `test.fixme` for DDB-103 and which the
+`developerScreen` capture does not scroll far enough to reach. That scene was captured before and
+after the change, outside the committed baselines: byte-identical, 23,176 bytes both times.
+
+**Also deleted:** the `Renderer` parameter on `Screen`, `ScreenManager.initialize` and all seven
+screen subclasses, which no screen ever read, and the `FrameTimer` parameter on `Renderer`'s
+constructor. `Game` no longer holds a `Renderer` at all.
+
+`npx playwright test` 34 passed / 4 skipped across both projects, unchanged, with nothing written
+under `tests/visual/__screenshots__`. `npm test` 608 passing across 31 suites (from 596 across 29;
+the new suites are `LegacyGLBackend.test.ts` for `scissorBox` and `legacyDrawOrder.test.ts` for the
+domain split). `npm run typecheck` clean on both tsconfigs, which is what proves the `Screen`
+parameter removal is complete. `npm run lint` 0 errors and the same 9 pre-existing warnings in
+`RammingAI.test.ts`.
+
+Design record, including the option that lost and why, in
+[legacy-gl-backend.md](./AI_TECHNICAL_DECISIONS/legacy-gl-backend.md).
+
+=========================================
+
 ## The chapter 2 draw API, with no consumers, DDB-65 first of three (2026-09-09)
 
 **What landed:** `src/renderer/engine/draw/`, eighteen files, nothing else in the repo touched. The immediate draw API of chapter 2 (`DrawApi`), the four state stacks of R2.4 to R2.7, the seven draw calls plus `measureText`, the foreign-draw hooks, `getStats()`, R2.17's resource pass-through, R2.21's `NullBackend` and R2.22's `RecordingBackend`. No GL, no DOM, no shader, no consumer. `src/renderer/game` and `Renderer.ts` are byte-identical.

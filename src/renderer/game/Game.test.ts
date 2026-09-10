@@ -4,7 +4,7 @@
 import { Game, GameStatus } from './Game';
 import { ScreenManager } from './core/ScreenManager';
 import { InputSystem } from '../engine/input/InputSystem';
-import type { Renderer } from '../engine/rendering/Renderer';
+import { DrawApi, NullBackend } from '../engine/draw';
 import { FrameTimer } from '../engine/rendering/FrameTimer';
 import type { PerfSnapshot } from '../engine/rendering/FrameTimer';
 
@@ -70,13 +70,10 @@ const screens = ScreenManager as unknown as {
 	render: jest.Mock;
 };
 
-const rendererStub = {
-	beginTextBatch: () => undefined,
-	isScissorEnabled: () => false,
-	disableScissor: () => undefined,
-	flushTextBatch: () => undefined,
-	endTextBatch: () => undefined,
-} as unknown as Renderer;
+// A real draw API over R2.21's null backend rather than five no-op lambdas:
+// `Game` drives the frame lifecycle now, so the frame it opens and closes is
+// the real one and a mismatched pair would fail here rather than in a browser.
+const draw = new DrawApi({ backend: new NullBackend(), development: false });
 
 let game: Game;
 
@@ -91,7 +88,7 @@ function status(): GameStatus {
 }
 
 beforeAll(async () => {
-	game = new Game(rendererStub, new FrameTimer());
+	game = new Game({ draw, frameTimer: new FrameTimer() });
 	await game.init();
 });
 

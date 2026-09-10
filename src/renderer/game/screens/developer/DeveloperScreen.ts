@@ -1,6 +1,5 @@
 import { Screen } from '../../core/Screen';
 import { ScreenManager } from '../../core/ScreenManager';
-import { Renderer } from '../../../engine/rendering/Renderer';
 import { Button } from '../../../engine/ui/Button';
 import { Text } from '../../../engine/components/Text';
 import { Panel } from '../../../engine/ui/Panel';
@@ -23,10 +22,9 @@ export class DeveloperScreen extends Screen {
 
 	/**
 	 * Create a new developer screen
-	 * @param renderer WebGL renderer
 	 */
-	constructor(renderer: Renderer) {
-		super('developerScreen', renderer);
+	constructor() {
+		super('developerScreen');
 
 		// Create background
 		this.background = new Rectangle({

@@ -1190,6 +1190,69 @@ describe('getStats (R2.19, R13.12 to R13.15)', () => {
 	});
 });
 
+/**
+ * TEMPORARY, deleted with the ordering re-baseline PR. `legacyTextOrder` is the
+ * one option in this file that exists to preserve a bug rather than a rule; see
+ * `DrawApiOptions.legacyTextOrder` and
+ * docs/AI_TECHNICAL_DECISIONS/legacy-gl-backend.md.
+ */
+describe('legacyTextOrder (TEMPORARY)', () => {
+	it('is off by default, so a clip change flushes nothing (R3.20)', () => {
+		const { api, backend } = harness();
+		api.beginFrame({ viewport: VIEWPORT });
+		api.drawRect({ rect: rect(0, 0, 10, 10), fill: BLUE, id: 'before' });
+		api.pushClip(rect(0, 0, 5, 5));
+		api.drawRect({ rect: rect(0, 0, 5, 5), fill: RED, id: 'inside' });
+		api.popClip();
+		api.endFrame();
+
+		expect(backend.batches).toHaveLength(1);
+		expect(backend.ids).toEqual(['before', 'inside']);
+	});
+
+	it('ends a domain at every clip push and pop when it is on', () => {
+		const { api, backend } = harness({ legacyTextOrder: true });
+		api.beginFrame({ viewport: VIEWPORT });
+		api.drawRect({ rect: rect(0, 0, 10, 10), fill: BLUE, id: 'before' });
+		api.pushClip(rect(0, 0, 5, 5));
+		api.drawRect({ rect: rect(0, 0, 5, 5), fill: RED, id: 'inside' });
+		api.popClip();
+		api.drawRect({ rect: rect(0, 0, 10, 10), fill: BLUE, id: 'after' });
+		api.endFrame();
+
+		expect(backend.batches.map((batch) => batch.commands.map((command) => command.id))).toEqual([
+			['before'],
+			['inside'],
+			['after'],
+		]);
+		expect(backend.batches.map((batch) => batch.reason)).toEqual(['barrier', 'barrier', 'endFrame']);
+	});
+
+	it('counts those barriers as flushes so the number is not silently free', () => {
+		const { api } = harness({ legacyTextOrder: true });
+		api.beginFrame({ viewport: VIEWPORT });
+		api.drawRect({ rect: rect(0, 0, 10, 10), fill: BLUE });
+		api.pushClip(rect(0, 0, 5, 5));
+		api.drawRect({ rect: rect(0, 0, 5, 5), fill: RED });
+		api.popClip();
+		api.endFrame();
+
+		expect(api.getStats().flushes).toMatchObject({ barrier: 2, endFrame: 0 });
+	});
+
+	it('leaves submission order alone inside a domain', () => {
+		// Only LegacyGLBackend paints text late, and only because TextRenderer
+		// defers it. The API keeps reporting what was actually submitted.
+		const { api, backend } = harness({ legacyTextOrder: true });
+		api.beginFrame({ viewport: VIEWPORT });
+		api.drawText({ text: 'a', position: { x: 0, y: 0 }, font: 'body', size: 12, color: RED, id: 'text' });
+		api.drawRect({ rect: rect(0, 0, 10, 10), fill: BLUE, id: 'rect' });
+		api.endFrame();
+
+		expect(backend.ids).toEqual(['text', 'rect']);
+	});
+});
+
 describe('R14.1: the module runs with no DOM and no GL', () => {
 	it('renders a full frame with nothing global touched', () => {
 		expect(typeof (globalThis as Record<string, unknown>).document).toBe('undefined');

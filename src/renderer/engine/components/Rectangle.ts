@@ -112,19 +112,19 @@ export class Rectangle extends Component {
 		const screenX = ctx.offsetX + this.x;
 		const screenY = ctx.offsetY + this.y;
 
-		// Get the renderer instance
-		const renderer = RendererContext.getInstance().getRenderer();
-
-		// Draw the rectangle with fill and stroke in a single call
-		renderer.drawRectangle(
-			screenX, 
-			screenY, 
-			this.width, 
-			this.height, 
-			this.fillColor, 
-			this.borderColor || undefined, 
-			this.borderWidth
-		);
+		// `cornerRadius` is deliberately not passed as `radius`: the current
+		// fragment shader has no rounded-rect SDF and draws square corners, so
+		// sending it would describe something the backend does not draw.
+		RendererContext.getInstance().draw.drawRect({
+			id: this.id ?? undefined,
+			rect: { x: screenX, y: screenY, width: this.width, height: this.height },
+			fill: this.fillColor,
+			// Keyed off width alone, with a black fallback, because that is what
+			// the legacy stroke did with a width and no colour.
+			border: this.borderWidth > 0
+				? { color: this.borderColor ?? [0, 0, 0, 1], width: this.borderWidth }
+				: undefined,
+		});
 
 		// Create child context with our position added
 		const childContext: RenderContext = {
