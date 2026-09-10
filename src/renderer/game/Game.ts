@@ -1,4 +1,5 @@
-import { Renderer } from '../engine/rendering/Renderer';
+import { DrawApi } from '../engine/draw';
+import { windowFrame } from '../engine/rendering/LegacyGLBackend';
 import { FrameTimer } from '../engine/rendering/FrameTimer';
 import { DeveloperOverlay } from '../engine/ui/DeveloperOverlay';
 import { ScreenManager } from './core/ScreenManager';
@@ -36,11 +37,18 @@ export interface GameStatus {
 	assetsReady: boolean;
 }
 
+export interface GameOptions {
+	/** The draw API of chapter 2; the game page never sees a backend. */
+	draw: DrawApi;
+	/** Frame timing and per-frame draw counters (R13.7). */
+	frameTimer: FrameTimer;
+}
+
 /**
  * Main game class responsible for managing game state and high-level systems
  */
 export class Game {
-	private renderer: Renderer;
+	private draw: DrawApi;
 	private frameTimer: FrameTimer;
 	private developerOverlay: DeveloperOverlay;
 	private isElectron = false;
@@ -50,13 +58,8 @@ export class Game {
 	private updates = 0;
 	private renders = 0;
 
-	/**
-	 * Create a new Game instance
-	 * @param renderer WebGL renderer
-	 * @param frameTimer Frame timing and per-frame draw counters (R13.7)
-	 */
-	constructor(renderer: Renderer, frameTimer: FrameTimer) {
-		this.renderer = renderer;
+	constructor({ draw, frameTimer }: GameOptions) {
+		this.draw = draw;
 		this.frameTimer = frameTimer;
 
 		// Check if running in Electron
@@ -110,7 +113,7 @@ export class Game {
 	 */
 	public async init(): Promise<void> {
 		// Initialize the ScreenManager
-		ScreenManager.initialize(this.renderer);
+		ScreenManager.initialize();
 
 		// Start with the splash screen
 		ScreenManager.navigate('splashScreen');
@@ -254,8 +257,10 @@ export class Game {
 		if (!this.isInitialized) return;
 		if (__DEV_TOOLS__) this.renders++;
 
-		// Enable text batching for the entire frame
-		this.renderer.beginTextBatch();
+		// Opens the frame where beginTextBatch used to. Nothing below reaches GL:
+		// a draw call resolves its state onto a command and the command waits for
+		// a barrier (R2.4 to R2.7).
+		this.draw.beginFrame(windowFrame());
 
 		// Render the current screen via ScreenManager
 		ScreenManager.render();
@@ -266,25 +271,19 @@ export class Game {
 
 	/**
 	 * The deferred half of the frame, split from `render` so the loop can time
-	 * the two as separate sections (R13.7). It is the batched text and nothing
-	 * else: every other primitive reaches GL at its draw site inside `render`.
+	 * the two as separate sections (R13.7). `endFrame` drains the last sort
+	 * domain and hands it to the backend, which is where it paints.
 	 *
-	 * It is not all of the batched text either, and the timed section reads low
-	 * because of it. `Renderer.enableScissor` and `disableScissor` flush pending
-	 * text before changing GL state, and `Panel` and `Layer` call those during
-	 * the render tree walk, so a screen with a clipped panel submits most of its
-	 * text inside `render` and leaves the tail here. Disabling the scissor is
-	 * done here rather than at the end of `render` so that at least the frame's
-	 * final flush is timed by the section that claims to measure flushing.
+	 * What this moved: shapes used to reach GL at their draw sites inside
+	 * `render`, so the render section held most of the frame's submission and
+	 * this one held the text tail. Now `render` is CPU work only and every GPU
+	 * submission happens in a domain, at a clip boundary or here. No pixel
+	 * changes and no gate reads the split, but section timings on both pages
+	 * are no longer comparable with the phase 0 baseline.
 	 */
 	public flush(): void {
 		if (!this.isInitialized) return;
-
-		if (this.renderer.isScissorEnabled()) {
-			this.renderer.disableScissor();
-		}
-		this.renderer.flushTextBatch();
-		this.renderer.endTextBatch();
+		this.draw.endFrame();
 	}
 
 }

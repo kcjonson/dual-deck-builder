@@ -310,32 +310,22 @@ export class Panel extends Layer implements Interactive {
 			offsetY: screenY - this.scrollOffsetY,
 		};
 
-		// Apply overflow clipping specifically for the content layer if panel is scrollable
-		const renderer = this.contentLayer ? RendererContext.getInstance().getRenderer() : null;
-		let wasScissorEnabled = false;
-		let previousScissorBox: Int32Array | null = null;
+		// The clip wraps the content layer and nothing else: this method walks
+		// `background` and `contentLayer` by hand rather than `this.children`
+		// (`addChild` redirects into the content layer), and the background must
+		// stay outside so a panel is not clipped against itself.
+		//
+		// Read once, before anything draws, so the push and the pop cannot
+		// disagree. The save-and-restore this replaced read the scissor box back
+		// from GL, which R15.22 names as prohibited; the clip stack knows what
+		// encloses this panel without asking.
+		const clips = (this.scrollable || this.getOverflow() === 'hidden')
+			&& this.width > 0
+			&& this.height > 0;
+		const draw = clips ? RendererContext.getInstance().draw : null;
 
-		// Apply scissor test for scrollable panels or panels with overflow hidden
-		if ((this.scrollable || this.getOverflow() === 'hidden') && this.width > 0 && this.height > 0 && renderer) {
-			// Save current scissor state
-			wasScissorEnabled = renderer.isScissorEnabled();
-			if (wasScissorEnabled) {
-				previousScissorBox = renderer.getContext().getParameter(renderer.getContext().SCISSOR_BOX);
-			}
-
-			// Convert from top-left UI coordinates to bottom-left WebGL coordinates
-			const canvas = renderer.getContext().canvas as HTMLCanvasElement;
-			const dpr = window.devicePixelRatio || 1;
-			
-			// Apply device pixel ratio to get actual pixel coordinates
-			const webglX = Math.floor(screenX * dpr);
-			const canvasHeight = canvas.height / dpr;
-			const webglY = Math.floor((canvasHeight - screenY - this.height) * dpr);
-			const webglWidth = Math.floor(this.width * dpr);
-			const webglHeight = Math.floor(this.height * dpr);
-
-			// Enable scissor testing for the content area (auto-flushes text if needed)
-			renderer.enableScissor(webglX, webglY, webglWidth, webglHeight);
+		if (draw) {
+			draw.pushClip({ x: screenX, y: screenY, width: this.width, height: this.height });
 		}
 
 		// Render content layer with scrolled context (CPU culling happens inside)
@@ -343,23 +333,9 @@ export class Panel extends Layer implements Interactive {
 			this.contentLayer.render(contentContext);
 		}
 
-		// Restore previous scissor state
-		if ((this.scrollable || this.getOverflow() === 'hidden') && this.width > 0 && this.height > 0 && renderer) {
-			if (wasScissorEnabled && previousScissorBox) {
-				// Restore previous scissor box (auto-flushes text if needed)
-				renderer.enableScissor(
-					previousScissorBox[0],
-					previousScissorBox[1], 
-					previousScissorBox[2],
-					previousScissorBox[3]
-				);
-			} else {
-				// Disable scissor testing (auto-flushes text if needed)
-				renderer.disableScissor();
-			}
+		if (draw) {
+			draw.popClip();
 		}
-
-		// TODO: Render scrollbars here (they don't scroll)
 	}
 
 

@@ -1,4 +1,6 @@
+import { DrawApi } from '../renderer/engine/draw';
 import { Renderer } from '../renderer/engine/rendering/Renderer';
+import { createLegacyDrawApi, windowFrame } from '../renderer/engine/rendering/LegacyGLBackend';
 import { Shader } from '../renderer/engine/rendering/Shader';
 import { RendererContext } from '../renderer/engine/rendering/RendererContext';
 import { InputSystem } from '../renderer/engine/input/InputSystem';
@@ -30,13 +32,14 @@ import fragmentShaderSource from '../assets/shaders/fragment.glsl';
  */
 class GalleryApplication {
 	private renderer!: Renderer;
+	private draw!: DrawApi;
 	private frameTimer!: FrameTimer;
 	private host!: SceneHost;
 
 	public init(): void {
 		try {
 			this.frameTimer = new FrameTimer();
-			this.renderer = new Renderer('game-canvas', this.frameTimer);
+			this.renderer = new Renderer('game-canvas');
 			RendererContext.getInstance().setRenderer(this.renderer);
 
 			const canvas = document.getElementById('game-canvas') as HTMLCanvasElement;
@@ -44,6 +47,10 @@ class GalleryApplication {
 
 			const shader = new Shader(this.renderer.getContext(), vertexShaderSource, fragmentShaderSource);
 			this.renderer.useShader(shader);
+
+			// Line for line what src/index.ts does, through the same factory.
+			this.draw = createLegacyDrawApi({ renderer: this.renderer, frameTimer: this.frameTimer });
+			RendererContext.getInstance().draw = this.draw;
 
 			this.host = new SceneHost({
 				scenes: gallerySceneRegistry,
@@ -138,18 +145,15 @@ class GalleryApplication {
 
 		this.frameTimer.beginSection('render');
 		this.renderer.clear();
-		this.renderer.beginTextBatch();
+		this.draw.beginFrame(windowFrame());
 		this.host.render();
 		this.frameTimer.endSection('render');
 
 		this.frameTimer.beginSection('flush');
-		// Inside the flush section, not at the end of render: disabling the
-		// scissor flushes whatever text is pending, and that is a flush.
-		if (this.renderer.isScissorEnabled()) {
-			this.renderer.disableScissor();
-		}
-		this.renderer.flushTextBatch();
-		this.renderer.endTextBatch();
+		// endFrame drains the last sort domain and the backend paints it, text
+		// included. A clip boundary inside the walk above ends a domain of its
+		// own, so this section is the tail rather than the whole frame.
+		this.draw.endFrame();
 		this.frameTimer.endSection('flush');
 
 		this.frameTimer.endFrame();

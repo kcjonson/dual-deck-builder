@@ -1,6 +1,5 @@
 import { Screen } from '../../core/Screen';
 import { ScreenManager } from '../../core/ScreenManager';
-import { Renderer } from '../../../engine/rendering/Renderer';
 import { Rectangle } from '../../../engine/components/Rectangle';
 import { EnemyBattlefieldLayer, EnemyIntent } from './EnemyBattlefieldLayer';
 import { PlayerBattlefieldLayer } from './PlayerBattlefieldLayer';
@@ -57,8 +56,8 @@ export class CombatScreen extends Screen {
 	/**
 	 * Create combat screen
 	 */
-	constructor(renderer: Renderer) {
-		super('combatScreen', renderer);
+	constructor() {
+		super('combatScreen');
 		
 		// Create models
 		this.combatLog = new CombatLog(10); // Keep last 10 entries

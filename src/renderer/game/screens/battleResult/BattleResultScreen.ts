@@ -1,6 +1,5 @@
 import { Screen } from '../../core/Screen';
 import { ScreenManager } from '../../core/ScreenManager';
-import { Renderer } from '../../../engine/rendering/Renderer';
 import { Rectangle } from '../../../engine/components/Rectangle';
 import { Text } from '../../../engine/components/Text';
 import { Button } from '../../../engine/ui/Button';
@@ -31,8 +30,8 @@ export class BattleResultScreen extends Screen {
 	private readonly PANEL_WIDTH = 600;
 	private readonly PANEL_HEIGHT = 400;
 	
-	constructor(renderer: Renderer) {
-		super('battleResultScreen', renderer);
+	constructor() {
+		super('battleResultScreen');
 		this.createUI();
 		this.layoutUI();
 	}

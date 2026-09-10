@@ -818,17 +818,27 @@ remount. Visit it fifth or say which state was captured.
   scope" is exact, and its unstated other half is that shapes paint above text across clip scopes.
   The batcher's layer ordinal is what makes that deterministic, and PR 4 now has a concrete before
   and after to quote.
-- **RESOLVED WHILE WRITING THIS: the prohibited state save-and-restore is live and stalling the
-  GPU.** The card showcase logs `GPU stall due to ReadPixels` four times per load, and it is the
-  application rather than the harness: the warnings appear with no screenshot taken and no
-  `getImageData` call anywhere in the run. The caller is
-  `renderer.getContext().getParameter(renderer.getContext().SCISSOR_BOX)` at
-  `src/renderer/engine/components/Layer.ts:453` and `src/renderer/engine/ui/Panel.ts:323`, once per
-  clipped container. R15.22 does not merely ban this in passing, it names the pattern: "Worldsim's
-  planet renderer and render-to-texture path wrap their passes in `glGetIntegerv` save and restore;
-  that pattern is prohibited here" (`docs/ui-rendering-spec/15-backend-webgl2.md`, R15.22). So the
-  clip stack task is not only replacing scissor with per-draw clip data, it is deleting a
-  measurable synchronous stall, and PR 5 should quote this warning disappearing as its evidence.
+- **CORRECTED: the prohibited state save-and-restore is live, but it is NOT what stalls the GPU.**
+  Two separate claims, and only the first survived.
+
+  What is true: `renderer.getContext().getParameter(renderer.getContext().SCISSOR_BOX)` ran at
+  `src/renderer/engine/components/Layer.ts:453` and `src/renderer/engine/ui/Panel.ts:323`, and
+  R15.22 does not ban this in passing, it names the pattern: "Worldsim's planet renderer and
+  render-to-texture path wrap their passes in `glGetIntegerv` save and restore; that pattern is
+  prohibited here". Deleting it is right and it is deleted in the LegacyGLBackend PR.
+
+  What was wrong, and it was my inference rather than a measurement: I attributed the four
+  `GPU stall due to ReadPixels` warnings on the card showcase to that read-back, because a grep
+  found no other synchronous GL call. Deleting it left the count at four. Bisection found the real
+  source in `TextRenderer.flush`: suppressing the text flush drops the count from four to zero, and
+  the read-back branch never even executes on that screen because nothing nests there. The stalls
+  are also once per browser process rather than once per screen, measured by loading three screens
+  in sequence and seeing four, zero, zero.
+
+  So the clip-stack task should claim conformance and dead-code removal here, not a stall fix. The
+  stall belongs to the text path and is phase 2's, and whoever takes it should start from
+  `TextRenderer.flush` rather than from the clip stack.
+
   It is invisible to the harness today because `expectCleanConsole` only fails on `error` and
   `pageerror` (`harness.ts:142-151`), and a driver stall notice is a `warning`.
 - **Whether PR 4 is really pixel-neutral.** It depends on no two differently-coloured text runs

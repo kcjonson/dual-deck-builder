@@ -7,7 +7,7 @@ import { Text } from '../renderer/engine/components/Text';
 import { Input } from '../renderer/engine/ui/Input';
 import { InputSystem } from '../renderer/engine/input/InputSystem';
 import { RendererContext } from '../renderer/engine/rendering/RendererContext';
-import type { Renderer } from '../renderer/engine/rendering/Renderer';
+import { DrawApi, NullBackend } from '../renderer/engine/draw';
 
 const VIEWPORT = { width: 1440, height: 882 };
 
@@ -353,10 +353,13 @@ describe('pause', () => {
 	];
 
 	beforeAll(() => {
-		// Layer.render reads the renderer even on a frame that draws nothing.
-		// An empty object is enough here: with no background colour and no
-		// clip, nothing on it is called.
-		RendererContext.getInstance().setRenderer({} as Renderer);
+		// R14.1: the whole render path runs with no canvas and no GL over the
+		// null backend, so a scene that grows a background or a clip keeps
+		// working here instead of failing on a stub that answers nothing.
+		RendererContext.getInstance().draw = new DrawApi({
+			backend: new NullBackend(),
+			development: false,
+		});
 	});
 
 	it('skips update and keeps rendering', () => {

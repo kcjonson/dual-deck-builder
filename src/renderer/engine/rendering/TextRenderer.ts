@@ -10,7 +10,7 @@ interface TextEntry {
 	text: string;
 	x: number;
 	y: number;
-	color: [number, number, number, number];
+	color: readonly [number, number, number, number];
 	fontSize: number;
 }
 
@@ -134,7 +134,7 @@ export class TextRenderer {
 		text: string,
 		x: number,
 		y: number,
-		color: [number, number, number, number] = [1, 1, 1, 1],
+		color: readonly [number, number, number, number] = [1, 1, 1, 1],
 		fontSize = 16
 	): void {
 		// Track text characters
@@ -165,7 +165,7 @@ export class TextRenderer {
 		text: string,
 		x: number,
 		y: number,
-		color: [number, number, number, number],
+		color: readonly [number, number, number, number],
 		fontSize: number
 	): void {
 		// Calculate scale from font size
@@ -240,7 +240,7 @@ export class TextRenderer {
 		y: number,
 		width: number,
 		height: number,
-		color: [number, number, number, number],
+		color: readonly [number, number, number, number],
 		texture: WebGLTexture,
 		texCoords: number[]
 	): void {

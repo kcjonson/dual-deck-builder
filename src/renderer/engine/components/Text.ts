@@ -1,6 +1,7 @@
 import { Component, ComponentOptions } from './Component';
 import { RendererContext } from '../rendering/RendererContext';
 import { RenderContext, DEFAULT_RENDER_CONTEXT } from '../rendering/RenderContext';
+import { DEFAULT_FONT } from '../rendering/fonts';
 import { Style, StyleParser } from '../types/Style';
 
 /**
@@ -217,8 +218,7 @@ export class Text extends Component {
 		// Use default context if none provided
 		const ctx = context || DEFAULT_RENDER_CONTEXT;
 
-		// Get the renderer instance
-		const renderer = RendererContext.getInstance().getRenderer();
+		const draw = RendererContext.getInstance().draw;
 
 		// Calculate screen position
 		const screenX = ctx.offsetX + this.x;
@@ -244,10 +244,22 @@ export class Text extends Component {
 		const lines = textToRender.split('\n');
 		const lineHeight = this.fontSize * this.lineHeight;
 		
-		// Render each line separately
+		// Render each line separately. `position` and not `box`: `xPos` is
+		// already the alignment anchor this component computed from its own
+		// bounds, and the backend subtracts the measured extent from it the way
+		// `Renderer.drawText` did. R2.13's `box` is different arithmetic.
 		for (let i = 0; i < lines.length; i++) {
 			const lineY = yPos + (i * lineHeight);
-			renderer.drawText(lines[i], xPos, lineY, this.color, this.fontSize, this.align, this.baseline);
+			draw.drawText({
+				id: this.id ?? undefined,
+				text: lines[i],
+				position: { x: xPos, y: lineY },
+				font: DEFAULT_FONT,
+				size: this.fontSize,
+				color: this.color,
+				align: this.align,
+				verticalAlign: this.baseline,
+			});
 		}
 
 		// Create child context with our position added

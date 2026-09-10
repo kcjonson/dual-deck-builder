@@ -86,22 +86,22 @@ export class Circle extends Component {
 		const screenX = ctx.offsetX + this.x;
 		const screenY = ctx.offsetY + this.y;
 
-		// Get the renderer instance
-		const renderer = RendererContext.getInstance().getRenderer();
-
 		// Calculate center position
 		const centerX = screenX + this.radius;
 		const centerY = screenY + this.radius;
 
-		// Draw the circle at screen position
-		renderer.drawCircle(
-			centerX,
-			centerY,
-			this.radius,
-			this.fillColor,
-			this.strokeColor,
-			this.strokeWidth,
-		);
+		RendererContext.getInstance().draw.drawCircle({
+			id: this.id ?? undefined,
+			center: { x: centerX, y: centerY },
+			radius: this.radius,
+			fill: this.fillColor,
+			// `center`, not the `inside` default: the legacy stroke is a line
+			// strip on the boundary, so half of it falls outside the radius and
+			// R4.2a's cull bound has to cover it.
+			border: this.strokeWidth > 0
+				? { color: this.strokeColor, width: this.strokeWidth, position: 'center' }
+				: undefined,
+		});
 
 		// Create child context with our position added
 		const childContext: RenderContext = {

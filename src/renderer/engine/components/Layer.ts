@@ -432,39 +432,28 @@ export class Layer {
 		const screenX = ctx.offsetX + this.x;
 		const screenY = ctx.offsetY + this.y;
 
-		// If the layer has a background color, render the background
-		if (this.backgroundColor && this.width > 0 && this.height > 0) {
-			// Get the renderer instance
-			const renderer = RendererContext.getInstance().getRenderer();
+		// Both conditions read once, before anything draws, so a child that
+		// resizes this layer during the walk cannot leave the push and the pop
+		// disagreeing about whether a clip is open.
+		const hasBackground = this.backgroundColor !== null && this.width > 0 && this.height > 0;
+		const clips = this.overflow === 'hidden' && this.width > 0 && this.height > 0;
 
-			// Draw the background rectangle at screen position
-			renderer.drawRectangle(screenX, screenY, this.width, this.height, this.backgroundColor);
+		// R4.7 converts the rect through the current transform at push time and
+		// the clip stack intersects it with whatever encloses it (R4.3), so
+		// nothing here asks GL what the scissor box was. The read-back this
+		// replaced was R15.22's named prohibition.
+		const draw = hasBackground || clips ? RendererContext.getInstance().draw : null;
+
+		if (draw && hasBackground && this.backgroundColor) {
+			draw.drawRect({
+				id: this.id ?? undefined,
+				rect: { x: screenX, y: screenY, width: this.width, height: this.height },
+				fill: this.backgroundColor,
+			});
 		}
 
-		// Handle overflow clipping with scissor testing
-		const renderer = RendererContext.getInstance().getRenderer();
-		let wasScissorEnabled = false;
-		let previousScissorBox: Int32Array | null = null;
-
-		if (this.overflow === 'hidden' && this.width > 0 && this.height > 0) {
-			// Save current scissor state
-			wasScissorEnabled = renderer.isScissorEnabled();
-			if (wasScissorEnabled) {
-				previousScissorBox = renderer.getContext().getParameter(renderer.getContext().SCISSOR_BOX);
-			}
-
-			// Convert from top-left UI coordinates to bottom-left WebGL coordinates
-			const canvas = renderer.getContext().canvas as HTMLCanvasElement;
-			const dpr = window.devicePixelRatio || 1;
-			
-			// Apply device pixel ratio to get actual pixel coordinates
-			const webglX = Math.floor(screenX * dpr);
-			const webglY = Math.floor((canvas.height / dpr - screenY - this.height) * dpr);
-			const webglWidth = Math.floor(this.width * dpr);
-			const webglHeight = Math.floor(this.height * dpr);
-
-			// Enable scissor testing for this layer (auto-flushes text if needed)
-			renderer.enableScissor(webglX, webglY, webglWidth, webglHeight);
+		if (draw && clips) {
+			draw.pushClip({ x: screenX, y: screenY, width: this.width, height: this.height });
 		}
 
 		// Create child context with our position added
@@ -480,20 +469,8 @@ export class Layer {
 			}
 		}
 
-		// Restore previous scissor state
-		if (this.overflow === 'hidden' && this.width > 0 && this.height > 0) {
-			if (wasScissorEnabled && previousScissorBox) {
-				// Restore previous scissor box (auto-flushes text if needed)
-				renderer.enableScissor(
-					previousScissorBox[0],
-					previousScissorBox[1], 
-					previousScissorBox[2],
-					previousScissorBox[3]
-				);
-			} else {
-				// Disable scissor testing (auto-flushes text if needed)
-				renderer.disableScissor();
-			}
+		if (draw && clips) {
+			draw.popClip();
 		}
 	}
 }

@@ -137,20 +137,36 @@ export class Polygon extends Component {
 		const screenX = ctx.offsetX + this.x;
 		const screenY = ctx.offsetY + this.y;
 
-		// Get the renderer instance
-		const renderer = RendererContext.getInstance().getRenderer();
+		// The fan `Renderer.triangulatePolygon` computed, sent explicitly:
+		// R2.11 reads an absent index list as "the points already are a
+		// triangle list", which a ring of five is not.
+		const indices: number[] = [];
+		for (let corner = 1; corner < this.points.length - 1; corner++) {
+			indices.push(0, corner, corner + 1);
+		}
 
-		// Draw the polygon at screen position
-		renderer.drawPolygon(
-			screenX,
-			screenY,
-			this.width,
-			this.height,
-			this.points,
-			this.fillColor,
-			this.strokeColor,
-			this.strokeWidth,
-		);
+		const points = this.points.map(([x, y]) => ({ x, y }));
+
+		// The box lives in the transform, not in the points; see Triangle.
+		const draw = RendererContext.getInstance().draw;
+		draw.pushTransform([
+			this.width / 2,
+			0,
+			0,
+			this.height / 2,
+			screenX + this.width / 2,
+			screenY + this.height / 2,
+		]);
+		draw.drawPolygon({ id: this.id ?? undefined, points, indices, fill: this.fillColor });
+		if (this.strokeWidth > 0) {
+			draw.drawPolyline({
+				points,
+				color: this.strokeColor,
+				width: this.strokeWidth,
+				closed: true,
+			});
+		}
+		draw.popTransform();
 
 		// Create child context with our position added
 		const childContext: RenderContext = {

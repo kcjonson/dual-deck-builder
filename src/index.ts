@@ -1,4 +1,5 @@
 import { Renderer } from './renderer/engine/rendering/Renderer';
+import { createLegacyDrawApi } from './renderer/engine/rendering/LegacyGLBackend';
 import { Shader } from './renderer/engine/rendering/Shader';
 import { Game } from './renderer/game/Game';
 import { RendererContext } from './renderer/engine/rendering/RendererContext';
@@ -34,7 +35,7 @@ class Application {
 			this.frameTimer = new FrameTimer();
 
 			// Create the WebGL renderer
-			this.renderer = new Renderer('game-canvas', this.frameTimer);
+			this.renderer = new Renderer('game-canvas');
 
 			// Set up the global renderer context
 			RendererContext.getInstance().setRenderer(this.renderer);
@@ -51,8 +52,14 @@ class Application {
 			);
 			this.renderer.useShader(shader);
 
+			// The seam. Built through the shared factory rather than spelled
+			// here, so this page and the gallery cannot end up with differently
+			// configured draw APIs over the same renderer.
+			const draw = createLegacyDrawApi({ renderer: this.renderer, frameTimer: this.frameTimer });
+			RendererContext.getInstance().draw = draw;
+
 			// Create and initialize the game
-			this.game = new Game(this.renderer, this.frameTimer);
+			this.game = new Game({ draw, frameTimer: this.frameTimer });
 			await this.game.init();
 
 			if (__DEV_TOOLS__) {
@@ -96,8 +103,9 @@ class Application {
 	 *
 	 * The three sections are disjoint and exhaustive of the application's own
 	 * work (R13.7). The clear belongs inside render because it is a GL command
-	 * for the frame being drawn, and flush is the text batch alone, since every
-	 * other primitive submits to GL at its draw site inside render.
+	 * for the frame being drawn. Since DDB-55 phase 1 the render section is CPU
+	 * work plus whatever a clip boundary submits mid-walk, and flush is the last
+	 * sort domain; before it, render held every shape's GL submission.
 	 */
 	private loop = (): void => {
 		const deltaTime = this.frameTimer.beginFrame();

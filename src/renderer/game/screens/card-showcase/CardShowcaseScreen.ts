@@ -1,6 +1,5 @@
 import { Screen } from '../../core/Screen';
 import { ScreenManager } from '../../core/ScreenManager';
-import { Renderer } from '../../../engine/rendering/Renderer';
 import { Button } from '../../../engine/ui/Button';
 import { Text } from '../../../engine/components/Text';
 import { Rectangle } from '../../../engine/components/Rectangle';
@@ -20,8 +19,8 @@ export class CardShowcaseScreen extends Screen {
 	private cardComponents: Card[] = [];
 	private cardsLoaded = false;
 
-	constructor(renderer: Renderer) {
-		super('cardShowcaseScreen', renderer);
+	constructor() {
+		super('cardShowcaseScreen');
 
 		this.cardLoader = CardLoader.getInstance();
 

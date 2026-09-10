@@ -1,12 +1,10 @@
 import { Layer } from '../../engine/components/Layer';
-import { Renderer } from '../../engine/rendering/Renderer';
 
 /**
  * Base class for game screens
  */
 export abstract class Screen {
 	protected id: string;
-	protected renderer: Renderer;
 	protected rootLayer: Layer;
 	protected isActive = false;
 	
@@ -16,11 +14,9 @@ export abstract class Screen {
 	/**
 	 * Create a new screen
 	 * @param id Screen identifier
-	 * @param renderer WebGL renderer
 	 */
-	constructor(id: string, renderer: Renderer) {
+	constructor(id: string) {
 		this.id = id;
-		this.renderer = renderer;
 		this.rootLayer = new Layer({
 			id,
 			x: 0,
