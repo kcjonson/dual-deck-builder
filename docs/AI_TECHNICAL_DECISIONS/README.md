@@ -60,3 +60,5 @@ Any specific implementation details or code examples.
 ## Index of Decisions
 
 _This section will be updated as decision documents are added._
+
+- [battle-screen-road-model.md](./battle-screen-road-model.md): the combat screen's road grid, the rules calls made with it, and short and full card text (2026-09-25)

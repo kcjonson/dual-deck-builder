@@ -1,0 +1,1264 @@
+<title>Wasteland Wheels battle screen</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=JetBrains+Mono:wght@400;600&family=Open+Sans:wght@400;600;700&display=swap">
+<style>
+:root {
+	color-scheme: dark;
+	--ground: #111214;
+	--asphalt: #1a1c1e;
+	--asphalt-2: #212427;
+	--panel: #26292c;
+	--panel-2: #30343a;
+	--line: rgba(233, 228, 214, 0.1);
+	--line-2: rgba(233, 228, 214, 0.2);
+	--bone: #e9e4d6;
+	--muted: #a39e92;
+	--dim: #6f6b63;
+	--d1: #f2a33a;
+	--d1-deep: #6b4414;
+	--d2: #3cc3c9;
+	--d2-deep: #134f54;
+	--enemy: #d4513f;
+	--enemy-deep: #5a1f18;
+	--struct: #8fbf5c;
+	--armor: #a9bccd;
+	--hp: #e7727a;
+	--warn: #efd25a;
+	--display: "Barlow Condensed", "Arial Narrow", "Roboto Condensed", sans-serif;
+	--body: "Open Sans", "Segoe UI", system-ui, sans-serif;
+	--mono: "JetBrains Mono", "SF Mono", Menlo, monospace;
+}
+* { box-sizing: border-box; }
+html, body { background: var(--ground); color: var(--bone); }
+body { font: 15px/1.55 var(--body); padding-inline: 24px; padding-block: 40px 80px; }
+.page { max-width: 1320px; margin: 0 auto; display: flex; flex-direction: column; gap: 56px; }
+h1, h2, h3 { font-family: var(--display); font-weight: 600; text-wrap: balance; margin: 0; letter-spacing: 0.01em; }
+h1 { font-size: clamp(34px, 5vw, 52px); line-height: 1; text-transform: uppercase; letter-spacing: 0.03em; }
+h2 { font-size: 30px; line-height: 1.1; text-transform: uppercase; letter-spacing: 0.04em; }
+h3 { font-size: 20px; line-height: 1.2; }
+p { margin: 0; max-width: 68ch; }
+.muted { color: var(--muted); }
+.eyebrow { font: 600 12px/1 var(--mono); letter-spacing: 0.14em; text-transform: uppercase; color: var(--muted); }
+section { display: flex; flex-direction: column; gap: 18px; }
+header.top { display: flex; flex-direction: column; gap: 14px; border-bottom: 1px solid var(--line); padding-bottom: 28px; }
+header.top .lede { font-size: 17px; color: var(--bone); max-width: 72ch; }
+.chips { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.chip-btn { font: 600 13px/1 var(--mono); color: var(--muted); background: var(--asphalt-2); border: 1px solid var(--line-2); border-radius: 2px; padding: 8px 10px; cursor: pointer; }
+.chip-btn[aria-pressed="true"] { color: var(--ground); background: var(--bone); border-color: var(--bone); }
+.chip-btn:focus-visible { outline: 2px solid var(--warn); outline-offset: 2px; }
+.toolbar { display: flex; flex-direction: column; gap: 10px; }
+.toolbar .row { display: flex; flex-wrap: wrap; gap: 14px; align-items: center; }
+.toolbar .label { font: 600 11px/1 var(--mono); letter-spacing: 0.14em; color: var(--dim); text-transform: uppercase; min-width: 72px; }
+.readout { display: flex; flex-wrap: wrap; gap: 6px 22px; font: 12px/1.4 var(--mono); color: var(--muted); }
+.readout b { color: var(--bone); font-weight: 600; }
+.readout .ok { color: var(--struct); }
+.readout .bad { color: var(--enemy); }
+.stagebox { overflow-x: auto; }
+.frame-outer { position: relative; overflow: hidden; background: #000; box-shadow: 0 0 0 1px var(--line-2); margin: 0 auto; }
+.frame-inner { position: absolute; left: 0; top: 0; transform-origin: 0 0; }
+.note { font-size: 14px; color: var(--muted); border-left: 2px solid var(--line-2); padding-left: 12px; max-width: 78ch; }
+.grid-2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 28px; }
+.grid-3 { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 24px; }
+.panel { background: var(--asphalt); border: 1px solid var(--line); padding: 20px; display: flex; flex-direction: column; gap: 12px; }
+.panel ul, .panel ol { margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 6px; }
+.tbl { overflow-x: auto; }
+table { border-collapse: collapse; width: 100%; font-size: 14px; }
+th, td { text-align: left; padding: 9px 12px 9px 0; border-bottom: 1px solid var(--line); vertical-align: top; }
+th { font: 600 11px/1.2 var(--mono); letter-spacing: 0.12em; text-transform: uppercase; color: var(--dim); }
+td.num, th.num { font-variant-numeric: tabular-nums; font-family: var(--mono); font-size: 13px; }
+.sev { font: 600 11px/1 var(--mono); padding: 3px 6px; border-radius: 2px; letter-spacing: 0.08em; white-space: nowrap; }
+.sev.blocker { background: var(--enemy-deep); color: #ffb3a8; }
+.sev.major { background: #4a3a12; color: var(--warn); }
+.shots { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px; }
+.shots figure { margin: 0; display: flex; flex-direction: column; gap: 6px; }
+.shots img { width: 100%; border: 1px solid var(--line-2); display: block; }
+.shots figcaption { font: 12px/1.4 var(--mono); color: var(--muted); }
+.anat { display: flex; flex-wrap: wrap; gap: 28px; align-items: flex-start; }
+.anat .spec { flex: 1 1 280px; }
+.anat-frame { position: relative; background: var(--asphalt); border: 1px solid var(--line); flex: 0 0 auto; }
+.swatches { display: flex; flex-wrap: wrap; gap: 10px; }
+.sw { display: flex; gap: 8px; align-items: center; font: 12px/1.2 var(--mono); color: var(--muted); }
+.sw i { width: 22px; height: 22px; display: block; border-radius: 2px; }
+.decision { display: flex; flex-direction: column; gap: 6px; }
+.decision b { font-family: var(--display); font-size: 18px; font-weight: 600; }
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
+
+/* ---------- in-game (logical px) ---------- */
+.g { position: absolute; font-family: var(--body); color: var(--bone); -webkit-font-smoothing: antialiased; }
+.g * { box-sizing: border-box; }
+.g-bg { position: absolute; inset: 0; background: #151618; }
+.g-top { position: absolute; left: 0; right: 0; top: 0; height: 36px; background: #0e0f10; border-bottom: 1px solid var(--line); display: flex; align-items: center; gap: 18px; padding: 0 12px; }
+.g-top .grp { display: flex; align-items: center; gap: 8px; font: 600 14px/1 var(--display); letter-spacing: 0.06em; text-transform: uppercase; white-space: nowrap; }
+.g-top .ticker { flex: 1 1 auto; min-width: 0; font: 12px/1 var(--body); color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-align: center; }
+.g-top .ic { width: 16px; height: 16px; }
+.g-top .kbtn { display: flex; align-items: center; gap: 6px; padding: 4px 8px; border: 1px solid var(--line-2); border-radius: 2px; font: 600 12px/1 var(--display); letter-spacing: 0.08em; color: var(--muted); }
+.g-top .kbtn kbd { font: 600 10px/1 var(--mono); color: var(--dim); }
+.g-field { position: absolute; left: 0; right: 0; overflow: hidden; }
+.road { position: absolute; background: linear-gradient(#202225, #1c1e20); border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
+.road.flank { background: repeating-linear-gradient(135deg, #1b1c1e 0 14px, #1e2022 14px 28px); }
+.lane-dash { position: absolute; height: 2px; background: repeating-linear-gradient(90deg, rgba(233,228,214,0.13) 0 26px, transparent 26px 52px); }
+.zone { position: absolute; }
+.zone .zl { position: absolute; left: 8px; top: 6px; font: 600 12px/1 var(--display); letter-spacing: 0.16em; text-transform: uppercase; color: var(--dim); }
+.zone.pl .zl { color: #8b8373; }
+.zone.en .zl { color: #8e5d55; }
+.zone.en { background: rgba(212, 81, 63, 0.035); }
+.zone + .zone { box-shadow: inset 1px 0 0 var(--line); }
+.lane-label { position: absolute; font: 600 12px/1 var(--display); letter-spacing: 0.16em; text-transform: uppercase; color: var(--dim); }
+.range-tick { position: absolute; font: 600 12px/1 var(--mono); color: var(--dim); display: flex; align-items: center; gap: 4px; white-space: nowrap; }
+.range-tick::before, .range-tick::after { content: ""; height: 1px; width: 18px; background: var(--line-2); }
+
+.veh { position: absolute; width: 160px; height: 184px; transition: filter .2s, opacity .2s; }
+.veh .intents { position: absolute; left: 0; right: 0; top: 0; height: 24px; display: flex; justify-content: center; gap: 4px; }
+.intent { display: flex; align-items: center; gap: 4px; height: 24px; padding: 0 7px 0 5px; background: #0d0e0f; border: 1px solid var(--line-2); border-radius: 12px; font: 700 15px/1 var(--display); white-space: nowrap; }
+.intent svg { width: 16px; height: 16px; }
+.intent.atk { border-color: rgba(212, 81, 63, 0.7); color: #ff9d8f; }
+.intent.atk.t2 { border-color: #ff5a44; background: #3a120d; }
+.intent.def { border-color: rgba(169, 188, 205, 0.6); color: var(--armor); }
+.intent.dbf { border-color: rgba(190, 120, 230, 0.6); color: #d3a6f0; }
+.intent.unk { color: var(--muted); }
+.intent .tgt { width: 12px; height: 12px; }
+.intent .more { font: 600 12px/1 var(--mono); color: var(--muted); }
+.veh .sprite { position: absolute; left: 10px; right: 10px; top: 28px; height: 58px; }
+.veh .sprite svg { width: 100%; height: 100%; }
+.plate { position: absolute; left: 0; right: 0; top: 88px; height: 70px; background: #0f1011; border: 1px solid var(--line-2); border-radius: 3px; padding: 5px 6px; display: flex; flex-direction: column; gap: 4px; }
+.veh.pl.d1 .plate { border-color: var(--d1); box-shadow: inset 3px 0 0 var(--d1); padding-left: 9px; }
+.veh.pl.d2 .plate { border-color: var(--d2); box-shadow: inset 3px 0 0 var(--d2); padding-left: 9px; }
+.plate .r1 { display: flex; align-items: center; gap: 5px; height: 16px; }
+.plate .vname { flex: 1 1 auto; min-width: 0; font: 600 15px/16px var(--display); letter-spacing: 0.02em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.plate .spd { display: flex; align-items: center; gap: 1px; font: 600 12px/1 var(--mono); color: var(--muted); }
+.plate .spd svg { width: 12px; height: 12px; }
+.plate .mk { width: 12px; height: 12px; flex: 0 0 auto; }
+.plate .r2 { display: flex; align-items: center; gap: 4px; height: 18px; }
+.armor { position: relative; width: 26px; height: 18px; flex: 0 0 auto; display: grid; place-items: center; font: 700 13px/1 var(--display); color: #0f1011; }
+.armor svg { position: absolute; inset: 0; width: 26px; height: 18px; }
+.armor span { position: relative; }
+.armor.zero { opacity: 0.35; }
+.bar { position: relative; flex: 1 1 auto; height: 16px; background: #26292b; border-radius: 2px; overflow: hidden; }
+.bar i { position: absolute; left: 0; top: 0; bottom: 0; background: var(--struct); }
+.bar i.ghost { background: repeating-linear-gradient(135deg, #ffe2a0 0 4px, #c9953a 4px 8px); }
+.bar b { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font: 700 13px/1 var(--display); color: #fff; text-shadow: 0 1px 1px #000, 0 0 3px #000; letter-spacing: 0.03em; }
+.plate .r3 { display: flex; align-items: center; gap: 4px; height: 16px; }
+.plate .r3 > svg { width: 26px; height: 14px; color: var(--hp); flex: 0 0 auto; }
+.bar.hp { height: 14px; }
+.bar.hp i { background: var(--hp); }
+.plate .r3 .hpn { font: 600 12px/1 var(--mono); color: #d8a3a7; }
+.veh .status { position: absolute; left: 0; right: 0; top: 162px; height: 20px; display: flex; gap: 3px; justify-content: center; }
+.st { position: relative; width: 20px; height: 20px; border-radius: 3px; background: #0d0e0f; border: 1px solid var(--line-2); display: grid; place-items: center; }
+.st svg { width: 14px; height: 14px; }
+.st b { position: absolute; right: -3px; bottom: -4px; font: 700 11px/1 var(--mono); color: #fff; background: #000; padding: 1px 2px; border-radius: 2px; }
+.st.buff { color: var(--struct); }
+.st.debuff { color: #d3a6f0; }
+.st.more { width: auto; padding: 0 4px; font: 600 11px/1 var(--mono); color: var(--muted); }
+.veh.tight .plate .vname { font-size: 14px; }
+.veh.tight .plate .spd { display: none; }
+.veh.dimmed { opacity: 0.35; filter: saturate(0.4); }
+.veh.valid .plate { outline: 2px dashed rgba(255, 110, 90, 0.8); outline-offset: 3px; }
+.veh.targeted .plate { outline: 3px solid #ff6a55; outline-offset: 3px; box-shadow: 0 0 22px rgba(255, 90, 70, 0.45); }
+.veh.owner-lit .plate { box-shadow: 0 0 0 1px currentColor, 0 0 18px rgba(242, 163, 58, 0.45); }
+.veh.owner-lit.d2 .plate { box-shadow: 0 0 18px rgba(60, 195, 201, 0.5); }
+.veh.acting { filter: drop-shadow(0 0 10px rgba(255, 110, 90, 0.6)); }
+.dmgpop { position: absolute; font: 700 30px/1 var(--display); color: #ff8a78; text-shadow: 0 2px 0 #000, 0 0 8px #000; }
+.predict { position: absolute; right: -8px; top: 62px; font: 700 14px/1 var(--display); background: var(--enemy); color: #fff; padding: 3px 5px; border-radius: 2px; box-shadow: 0 1px 0 #000; }
+.hitchip { position: absolute; transform: translateX(-50%); z-index: 31; white-space: nowrap; font: 600 12px/1 var(--mono); background: #0d0e0f; border: 1px solid #ff6a55; color: var(--bone); padding: 4px 6px; border-radius: 2px; }
+.hitchip em { color: var(--struct); font-style: normal; }
+
+.g-dock { position: absolute; left: 0; right: 0; background: linear-gradient(#131416, #0c0d0e); border-top: 1px solid var(--line-2); }
+.dtab { position: absolute; height: 30px; display: flex; align-items: center; gap: 10px; padding: 0 10px; background: #17191b; border: 1px solid var(--line-2); border-bottom: 0; border-radius: 3px 3px 0 0; }
+.dtab.d1 { box-shadow: inset 0 3px 0 var(--d1); }
+.dtab.d2 { box-shadow: inset 0 3px 0 var(--d2); flex-direction: row-reverse; }
+.dtab .mk { width: 14px; height: 14px; flex: 0 0 auto; }
+.dtab .dname { font: 600 15px/1 var(--display); letter-spacing: 0.06em; text-transform: uppercase; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; flex: 0 1 auto; }
+.dtab .adr { display: flex; align-items: center; gap: 2px; flex: 0 0 auto; }
+.dtab .adr svg { width: 14px; height: 16px; }
+.dtab .adr .off { opacity: 0.22; }
+.dtab .adr b { font: 700 15px/1 var(--display); margin-left: 4px; font-variant-numeric: tabular-nums; }
+.dtab.d1 .adr { color: var(--d1); }
+.dtab.d2 .adr { color: var(--d2); flex-direction: row-reverse; }
+.dtab.d2 .adr b { margin: 0 4px 0 0; }
+.dtab .piles { display: flex; gap: 8px; flex: 0 0 auto; }
+.dtab .pile { display: flex; align-items: center; gap: 3px; font: 600 12px/1 var(--mono); color: var(--muted); }
+.dtab .pile svg { width: 14px; height: 14px; }
+.dtab .spacer { flex: 1 1 auto; }
+.card { position: absolute; width: 128px; height: 180px; border-radius: 6px; background: #1d2023; border: 2px solid var(--line-2); transform-origin: 50% 100%; box-shadow: 0 6px 14px rgba(0,0,0,0.5); transition: transform .12s; }
+.card.d1 { border-color: var(--d1); }
+.card.d2 { border-color: var(--d2); }
+.card .cost { position: absolute; left: -7px; top: -7px; width: 30px; height: 30px; }
+.card .cost svg { position: absolute; inset: 0; width: 30px; height: 30px; }
+.card .cost span { position: absolute; inset: 0; display: grid; place-items: center; font: 700 19px/1 var(--display); color: var(--ground); }
+.card.cant .cost span { color: #8d1d12; }
+.card .own { position: absolute; right: 6px; top: 6px; width: 12px; height: 12px; }
+.card .ctype { position: absolute; right: 22px; top: 5px; font: 600 11px/14px var(--mono); letter-spacing: 0.08em; color: var(--muted); }
+.card .cname { position: absolute; left: 8px; right: 8px; top: 24px; height: 18px; font: 600 16px/18px var(--display); letter-spacing: 0.02em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.card .art { position: absolute; left: 6px; right: 6px; top: 45px; height: 52px; border-radius: 3px; background: linear-gradient(160deg, #3b3a35, #24262a); overflow: hidden; }
+.card.d1 .art { background: linear-gradient(160deg, #4a3b27, #26241f); }
+.card.d2 .art { background: linear-gradient(160deg, #243e41, #1e2426); }
+.card .art svg { position: absolute; right: 6px; bottom: 4px; width: 38px; height: 38px; opacity: 0.35; }
+.card .rules { position: absolute; left: 7px; right: 7px; top: 101px; height: 51px; font: 12px/17px var(--body); color: #dcd7ca; overflow: hidden; }
+.card .rules k { color: var(--warn); font-weight: 600; }
+.card .foot { position: absolute; left: 8px; right: 8px; bottom: 6px; height: 16px; display: flex; align-items: center; gap: 6px; }
+.card .rar { width: 8px; height: 8px; transform: rotate(45deg); }
+.rar.common { background: #9b978c; }
+.rar.uncommon { background: #6fb3e0; }
+.rar.rare { background: #e0c14f; }
+.card .foot .tag { font: 600 11px/1 var(--mono); color: var(--dim); letter-spacing: 0.06em; white-space: nowrap; }
+.card .foot .rng { margin-left: auto; font: 600 11px/1 var(--mono); color: var(--muted); border: 1px solid var(--line-2); padding: 2px 3px; border-radius: 2px; }
+.card.cant { filter: saturate(0.3) brightness(0.62); }
+.card.synergy-on { box-shadow: 0 0 0 2px var(--warn), 0 0 16px rgba(239, 210, 90, 0.5); }
+.card .syn { position: absolute; left: 7px; right: 7px; top: 84px; height: 14px; font: 700 11px/14px var(--mono); color: var(--ground); background: var(--warn); text-align: center; border-radius: 2px; letter-spacing: 0.06em; }
+.card.inspect { z-index: 20; box-shadow: 0 16px 40px rgba(0,0,0,0.8); }
+.kwpanel { position: absolute; width: 230px; display: flex; flex-direction: column; gap: 6px; z-index: 21; }
+.kw { background: #0d0e0f; border: 1px solid var(--line-2); border-radius: 3px; padding: 8px 10px; font: 13px/18px var(--body); color: #d9d4c6; }
+.kw b { display: block; font: 600 15px/18px var(--display); color: var(--warn); letter-spacing: 0.04em; text-transform: uppercase; }
+.endturn { position: absolute; display: flex; flex-direction: column; align-items: stretch; gap: 8px; }
+.endturn .btn { height: 64px; border-radius: 4px; background: var(--bone); color: #151515; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; box-shadow: 0 3px 0 #7a7568; }
+.endturn .btn span { font: 700 21px/1 var(--display); letter-spacing: 0.1em; }
+.endturn .btn kbd { font: 600 11px/1 var(--mono); color: #6a665d; }
+.endturn.hover .btn { background: #fff; box-shadow: 0 0 0 3px var(--warn), 0 3px 0 #7a7568; }
+.endturn .warn { font: 600 12px/15px var(--mono); color: var(--warn); text-align: center; }
+.endturn .turn { font: 600 13px/1 var(--display); letter-spacing: 0.14em; color: var(--muted); text-align: center; text-transform: uppercase; }
+.endturn.waiting .btn { background: #34373b; color: var(--muted); box-shadow: none; }
+.banner { position: absolute; left: 0; right: 0; height: 56px; display: flex; align-items: center; justify-content: center; background: linear-gradient(90deg, transparent, rgba(90, 31, 24, 0.9) 25%, rgba(90, 31, 24, 0.9) 75%, transparent); font: 700 32px/1 var(--display); letter-spacing: 0.28em; color: #ffd8d0; pointer-events: none; }
+.overlay { position: absolute; inset: 0; pointer-events: none; }
+.fitbad { outline: 2px solid #ff00aa !important; }
+.drawer { position: absolute; right: 0; width: 320px; background: rgba(12, 13, 14, 0.96); border-left: 1px solid var(--line-2); padding: 10px 12px; display: flex; flex-direction: column; gap: 8px; }
+.drawer h4 { margin: 0; font: 600 15px/1 var(--display); letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted); }
+.drawer .ln { font: 13px/18px var(--body); color: #d5d0c3; border-bottom: 1px solid var(--line); padding-bottom: 6px; }
+.drawer .ln .t { font: 600 11px/1 var(--mono); color: var(--dim); margin-right: 6px; }
+.compact-note { position: absolute; inset: 0; display: grid; place-items: center; text-align: center; padding: 40px; font: 600 22px/1.3 var(--display); letter-spacing: 0.04em; color: var(--muted); background: repeating-linear-gradient(135deg, #141517 0 20px, #17181a 20px 40px); }
+
+/* ---------- v2: lateral freeway ---------- */
+.lane { position: absolute; }
+.lane.en { background: rgba(212, 81, 63, 0.05); }
+.lane.shoulder { background: repeating-linear-gradient(135deg, #1a1b1c 0 12px, #1d1e20 12px 24px); }
+.lane-line { position: absolute; width: 2px; background: repeating-linear-gradient(180deg, rgba(233,228,214,0.16) 0 26px, transparent 26px 52px); }
+.lane-line.edge { background: rgba(233,228,214,0.22); }
+.lane-line.contact { width: 4px; background: repeating-linear-gradient(180deg, rgba(239,210,90,0.35) 0 26px, transparent 26px 52px); }
+.col-head { position: absolute; height: 26px; display: flex; align-items: center; justify-content: center; font: 600 12px/1 var(--display); letter-spacing: 0.12em; text-transform: uppercase; color: #8b8373; white-space: nowrap; overflow: hidden; }
+.col-head.en { color: #b0685c; }
+.col-head.sh { letter-spacing: 0.06em; }
+.headstrip { position: absolute; left: 0; right: 0; height: 26px; background: rgba(10, 11, 12, 0.7); border-bottom: 1px solid var(--line); }
+.rchip { position: absolute; transform: translateX(-50%); font: 700 12px/1 var(--mono); padding: 3px 5px; border-radius: 2px; background: #0d0e0f; border: 1px solid var(--line-2); color: var(--muted); }
+.rchip.in { border-color: #ff6a55; color: #ffb3a8; }
+.rchip.out { color: var(--dim); }
+.travel { position: absolute; display: flex; flex-direction: column; align-items: center; gap: 0; color: rgba(233,228,214,0.12); }
+.travel svg { width: 22px; height: 14px; }
+.contact-label { position: absolute; transform: translateX(-50%); font: 600 11px/1 var(--mono); letter-spacing: 0.1em; color: rgba(239,210,90,0.6); background: #151618; padding: 3px 4px; }
+.veh.wrecked { filter: grayscale(1) brightness(0.55); }
+.veh.wrecked .stamp { position: absolute; left: 50%; top: 40px; transform: translateX(-50%) rotate(-8deg); font: 700 18px/1 var(--display); letter-spacing: 0.2em; color: #ff8a78; border: 2px solid #ff8a78; padding: 2px 6px; }
+.plate .r4 { display: flex; align-items: center; gap: 4px; height: 16px; }
+.plate .r4 .ptag { flex: 0 0 26px; height: 14px; display: flex; align-items: center; justify-content: center; gap: 1px; font: 700 10px/1 var(--mono); color: var(--muted); }
+.plate .r4 .ptag svg { width: 10px; height: 10px; }
+.bar.hp.pas i { background: #c9656c; }
+.card .pblock { white-space: nowrap; overflow: hidden; position: absolute; left: 6px; right: 6px; top: 64px; height: 16px; font: 700 11px/16px var(--mono); letter-spacing: 0.04em; text-align: center; color: #ffd0c8; background: rgba(90, 31, 24, 0.95); border-radius: 2px; }
+.card.inspect-big { transform-origin: 0 0 !important; }
+.rar.legendary { background: #d06ad8; }
+.dtab .mods { display: flex; gap: 3px; flex: 0 0 auto; align-items: center; }
+.dtab .mod { width: 18px; height: 18px; border-radius: 2px; background: #0d0e0f; border: 1px solid var(--line-2); display: grid; place-items: center; color: var(--muted); }
+.dtab .mod svg { width: 12px; height: 12px; }
+.dtab .mod.more { width: auto; padding: 0 3px; font: 600 11px/1 var(--mono); }
+.dtab .ptag { font: 700 11px/1 var(--mono); color: #ffd0c8; background: rgba(90,31,24,.95); padding: 3px 5px; border-radius: 2px; flex: 0 0 auto; }
+.dtab .adr .num { font: 700 15px/1 var(--display); }
+.matrix { font: 12px/1.3 var(--mono); }
+.matrix td, .matrix th { padding: 6px 8px; border-bottom: 1px solid var(--line); }
+.matrix td.cell { cursor: pointer; white-space: nowrap; }
+.matrix td.cell:hover { background: var(--asphalt-2); }
+.matrix .pass { color: var(--struct); }
+.matrix .fail { color: #ff8a78; }
+.matrix .pending { color: var(--dim); }
+.scn-list { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 12px; }
+.scn { background: var(--asphalt); border: 1px solid var(--line); padding: 14px 16px; display: flex; flex-direction: column; gap: 6px; font-size: 14px; }
+.scn b { font-family: var(--display); font-size: 17px; font-weight: 600; letter-spacing: 0.02em; }
+.scn .new { font: 600 10px/1 var(--mono); letter-spacing: 0.1em; color: var(--ground); background: var(--warn); padding: 3px 5px; border-radius: 2px; align-self: flex-start; }
+.diagram { overflow-x: auto; }
+.diagram svg { display: block; min-width: 640px; width: 100%; height: auto; }
+.fitpass { color: var(--struct); font-family: var(--mono); font-size: 12px; }
+.fitfail { color: #ff8a78; font-family: var(--mono); font-size: 12px; }
+#matrixhost { position: absolute; left: -20000px; top: 0; }
+.cdetail { position: absolute; width: 250px; max-height: 440px; display: flex; flex-direction: column; gap: 8px; padding: 12px 12px 10px; border-radius: 8px; background: #1d2023; border: 2px solid var(--line-2); box-shadow: 0 16px 40px rgba(0,0,0,0.8); z-index: 20; }
+.cdetail.d1 { border-color: var(--d1); }
+.cdetail.d2 { border-color: var(--d2); }
+.cdetail .cd-head { display: flex; align-items: center; gap: 8px; }
+.cdetail .cd-cost { position: relative; width: 34px; height: 34px; flex: 0 0 auto; }
+.cdetail .cd-cost svg { position: absolute; inset: 0; width: 34px; height: 34px; }
+.cdetail .cd-cost span { position: absolute; inset: 0; display: grid; place-items: center; font: 700 21px/1 var(--display); color: var(--ground); }
+.cdetail .cd-name { flex: 1 1 auto; min-width: 0; font: 600 22px/1.05 var(--display); letter-spacing: 0.02em; text-wrap: balance; }
+.cdetail .cd-type { display: flex; align-items: center; gap: 5px; font: 600 12px/1 var(--mono); color: var(--muted); letter-spacing: 0.08em; flex: 0 0 auto; }
+.cdetail .cd-type svg { width: 12px; height: 12px; }
+.cdetail .cd-art { height: 64px; min-height: 20px; flex: 0 20 auto; border-radius: 4px; background: linear-gradient(160deg, #3b3a35, #24262a); position: relative; overflow: hidden; }
+.cdetail.d1 .cd-art { background: linear-gradient(160deg, #4a3b27, #26241f); }
+.cdetail.d2 .cd-art { background: linear-gradient(160deg, #243e41, #1e2426); }
+.cdetail .cd-art svg { position: absolute; right: 10px; bottom: 6px; width: 48px; height: 48px; opacity: 0.35; }
+.cdetail .cd-rules { flex: 0 1 auto; min-height: 0; overflow: hidden; font: 15px/21px var(--body); color: #e2ddd0; }
+.cdetail .cd-rules k { color: var(--warn); font-weight: 600; }
+.cdetail .cd-short { font: 600 11px/1 var(--mono); letter-spacing: 0.08em; color: var(--dim); text-transform: uppercase; }
+.cdetail .cd-foot { white-space: nowrap; display: flex; align-items: center; gap: 8px; font: 600 11px/1 var(--mono); color: var(--dim); letter-spacing: 0.06em; border-top: 1px solid var(--line); padding-top: 8px; }
+.cdetail .cd-foot .rar { width: 9px; height: 9px; transform: rotate(45deg); }
+.cdetail .cd-foot .pin { margin-left: auto; color: var(--muted); }
+.cdetail .cd-block { font: 700 12px/1 var(--mono); color: #ffd0c8; background: rgba(90,31,24,.95); padding: 5px 6px; border-radius: 2px; }
+/* ---------- v3: 3x3 per side ---------- */
+.slot { position: absolute; border: 1px dashed rgba(233, 228, 214, 0.06); border-radius: 4px; }
+.slot.en { border-color: rgba(212, 81, 63, 0.09); }
+.rowlab { position: absolute; width: 18px; display: flex; align-items: center; justify-content: center; }
+.rowlab span { transform: rotate(-90deg); white-space: nowrap; font: 600 11px/1 var(--mono); letter-spacing: 0.14em; color: var(--dim); }
+.veh.grid .intents { left: 0; right: 0; justify-content: flex-end; }
+.veh.grid .spdchip { position: absolute; left: 0; top: 72px; display: flex; align-items: center; gap: 1px; font: 600 12px/1 var(--mono); color: var(--muted); }
+.veh.grid .spdchip svg { width: 12px; height: 12px; }
+.veh.grid .plate .vname { font-size: 15px; }
+.veh.grid .slotchip { left: 0; top: 2px; }
+.veh.grid .plate .r4 { height: 14px; }
+.veh.grid .plate .r4 .bar { height: 12px; }
+.veh.grid .plate .r4 .bar b { font-size: 12px; }
+.veh.grid .sprite { left: 0; right: auto; top: 30px; width: 60px; height: 40px; }
+.veh.grid .status { left: 64px; right: 0; justify-content: flex-start; }
+.veh.pl.esc .plate { border-color: #8f8a7e; box-shadow: inset 3px 0 0 #8f8a7e; padding-left: 9px; }
+.slotchip { position: absolute; font: 700 11px/1 var(--mono); padding: 2px 4px; border-radius: 2px; background: #0d0e0f; border: 1px solid var(--line-2); color: var(--dim); }
+.slotchip.in { border-color: #ff6a55; color: #ffb3a8; }
+.diagram text { font-family: "JetBrains Mono", monospace; }
+</style>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+	<defs>
+		<symbol id="i-atk" viewBox="0 0 16 16"><g fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="8" cy="8" r="5"/><path d="M8 0.5v4M8 11.5v4M0.5 8h4M11.5 8h4"/></g></symbol>
+		<symbol id="i-def" viewBox="0 0 16 16"><path fill="currentColor" d="M8 1.2 13.8 3.4V8c0 3.1-2.5 5.6-5.8 6.8C4.7 13.6 2.2 11.1 2.2 8V3.4Z"/></symbol>
+		<symbol id="i-dbf" viewBox="0 0 16 16"><path fill="currentColor" d="M8 15 2.5 8.5H6V1.5h4v7h3.5Z"/></symbol>
+		<symbol id="i-buf" viewBox="0 0 16 16"><path fill="currentColor" d="M8 1 13.5 7.5H10v7H6v-7H2.5Z"/></symbol>
+		<symbol id="i-bolt" viewBox="0 0 14 16"><path fill="currentColor" d="M8.5 0.5 1.5 9h4.6L5 15.5 12.5 6.6H7.8Z"/></symbol>
+		<symbol id="i-heart" viewBox="0 0 16 16"><path fill="currentColor" d="M8 14.2C3 10.4 1.4 7.8 1.4 5.3 1.4 3.3 3 1.8 4.9 1.8c1.3 0 2.4.7 3.1 1.9.7-1.2 1.8-1.9 3.1-1.9 1.9 0 3.5 1.5 3.5 3.5 0 2.5-1.6 5.1-6.6 8.9Z"/></symbol>
+		<symbol id="i-speed" viewBox="0 0 16 16"><path fill="none" stroke="currentColor" stroke-width="2" d="M2 3.5 6.5 8 2 12.5M8.5 3.5 13 8l-4.5 4.5"/></symbol>
+		<symbol id="i-slow" viewBox="0 0 16 16"><path fill="none" stroke="currentColor" stroke-width="2" d="M14 3.5 9.5 8l4.5 4.5M7.5 3.5 3 8l4.5 4.5"/></symbol>
+		<symbol id="i-vuln" viewBox="0 0 16 16"><path fill="currentColor" d="M8 1.2 13.8 3.4V8c0 3.1-2.5 5.6-5.8 6.8C4.7 13.6 2.2 11.1 2.2 8V3.4Z"/><path fill="none" stroke="#0d0e0f" stroke-width="1.6" d="M8.5 2.5 6.5 6.5l3 2-2 4.5"/></symbol>
+		<symbol id="i-flame" viewBox="0 0 16 16"><path fill="currentColor" d="M8 15c-3 0-5-2-5-4.8C3 7 6 5.6 6.3 1.5 9 3 9.6 5.5 9.5 7c.8-.4 1.4-1.3 1.5-2.4C12.5 6 13 8 13 10.2 13 13 11 15 8 15Z"/></symbol>
+		<symbol id="i-stun" viewBox="0 0 16 16"><path fill="currentColor" d="m8 1 1.8 4.4 4.7.3-3.6 3 1.2 4.6L8 10.8l-4.1 2.5 1.2-4.6-3.6-3 4.7-.3Z"/></symbol>
+		<symbol id="i-deck" viewBox="0 0 16 16"><g fill="none" stroke="currentColor" stroke-width="1.5"><rect x="4.5" y="1.5" width="9" height="12" rx="1"/><path d="M2.5 4v10.5h8"/></g></symbol>
+		<symbol id="i-disc" viewBox="0 0 16 16"><g fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2.5" y="2.5" width="9" height="12" rx="1" transform="rotate(-12 7 8)"/><path d="M10 9.5h4.5M12.5 7.5l2 2-2 2"/></g></symbol>
+		<symbol id="i-gear" viewBox="0 0 16 16"><g fill="currentColor"><path d="M7 0.8h2l.4 2 1.5.6 1.7-1.1 1.4 1.4-1.1 1.7.6 1.5 2 .4v2l-2 .4-.6 1.5 1.1 1.7-1.4 1.4-1.7-1.1-1.5.6-.4 2H7l-.4-2-1.5-.6-1.7 1.1-1.4-1.4 1.1-1.7-.6-1.5-2-.4V7l2-.4.6-1.5-1.1-1.7 1.4-1.4 1.7 1.1 1.5-.6Z"/></g><circle cx="8" cy="8" r="2.4" fill="#0e0f10"/></symbol>
+		<symbol id="i-fuel" viewBox="0 0 16 16"><path fill="currentColor" d="M3 4 6 1.5h7a1 1 0 0 1 1 1V14a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1Z"/><path fill="none" stroke="#0e0f10" stroke-width="1.4" d="m6 6 5 5M11 6l-5 5"/></symbol>
+		<symbol id="i-log" viewBox="0 0 16 16"><path fill="none" stroke="currentColor" stroke-width="1.6" d="M2 3.5h12M2 8h12M2 12.5h8"/></symbol>
+		<symbol id="i-menu" viewBox="0 0 16 16"><path fill="none" stroke="currentColor" stroke-width="1.8" d="M2 3.5h12M2 8h12M2 12.5h12"/></symbol>
+		<symbol id="i-wrench" viewBox="0 0 16 16"><path fill="currentColor" d="M10.8 1a4 4 0 0 0-3.7 5.3L1.4 12a1.5 1.5 0 0 0 2.1 2.1l5.7-5.7A4 4 0 0 0 14.8 5l-2.5 2.2-2.1-.5-.5-2.1L12 2.1a4 4 0 0 0-1.2-1.1Z"/></symbol>
+		<symbol id="m-d1" viewBox="0 0 12 12"><path fill="currentColor" d="M6 0.8 11.4 11H0.6Z"/></symbol>
+		<symbol id="m-d2" viewBox="0 0 12 12"><path fill="currentColor" d="M6 0.3 11.7 6 6 11.7 0.3 6Z"/></symbol>
+		<symbol id="m-esc" viewBox="0 0 12 12"><rect x="1.5" y="1.5" width="9" height="9" fill="currentColor"/></symbol>
+		<symbol id="m-both" viewBox="0 0 24 12"><path fill="#f2a33a" d="M6 0.8 11.4 11H0.6Z"/><path fill="#3cc3c9" d="M18 0.3 23.7 6 18 11.7 12.3 6Z"/></symbol>
+		<symbol id="i-armor" viewBox="0 0 26 18"><path fill="#a9bccd" d="M13 0.5 25 3v6.5C25 14 19.5 17 13 17.5 6.5 17 1 14 1 9.5V3Z"/></symbol>
+		<symbol id="i-hex" viewBox="0 0 30 30"><path fill="#e9e4d6" stroke="#0e0f10" stroke-width="2" d="M15 1.5 27.5 8.5v13L15 28.5 2.5 21.5v-13Z"/></symbol>
+		<symbol id="car" viewBox="0 0 140 58"><path fill="currentColor" d="M22 50V30q0-6 6-8l12-12q2-2 6-2h48q4 0 6 2l12 12q6 2 6 8v20Z"/><path fill="#0d0e0f" opacity="0.6" d="M44 12h52l10 10H34Z"/><rect x="26" y="28" width="14" height="6" rx="1" fill="#ff5a44"/><rect x="100" y="28" width="14" height="6" rx="1" fill="#ff5a44"/><rect x="60" y="34" width="20" height="7" fill="#0d0e0f" opacity="0.5"/><rect x="20" y="42" width="100" height="6" fill="#0d0e0f" opacity="0.35"/><rect x="20" y="46" width="16" height="12" rx="2" fill="#0d0e0f"/><rect x="104" y="46" width="16" height="12" rx="2" fill="#0d0e0f"/></symbol>
+		<symbol id="truck" viewBox="0 0 140 58"><rect x="14" y="2" width="112" height="42" rx="2" fill="currentColor"/><path d="M70 6v34" stroke="#0d0e0f" stroke-width="2" opacity="0.45"/><rect x="18" y="32" width="12" height="7" fill="#ff5a44"/><rect x="110" y="32" width="12" height="7" fill="#ff5a44"/><rect x="14" y="42" width="112" height="5" fill="#0d0e0f" opacity="0.4"/><rect x="10" y="44" width="26" height="14" rx="2" fill="#0d0e0f"/><rect x="104" y="44" width="26" height="14" rx="2" fill="#0d0e0f"/></symbol>
+		<symbol id="bike" viewBox="0 0 140 58"><circle cx="70" cy="9" r="7" fill="currentColor"/><path fill="currentColor" d="M56 18q14-5 28 0l4 18H52Z"/><rect x="42" y="21" width="56" height="4" rx="2" fill="currentColor"/><rect x="62" y="36" width="16" height="6" fill="currentColor"/><rect x="64" y="37" width="12" height="4" fill="#ff5a44"/><rect x="64" y="42" width="12" height="16" rx="3" fill="#0d0e0f"/></symbol>
+		<symbol id="chev" viewBox="0 0 22 14"><path fill="none" stroke="currentColor" stroke-width="3" d="M2 12 11 3l9 9"/></symbol>
+	</defs>
+</svg>
+
+<div class="page">
+	<header class="top">
+		<span class="eyebrow">Wasteland Wheels &middot; battle screen design &middot; decided 2026-09-25</span>
+		<h1>Battle screen layout</h1>
+		<p class="lede">Two convoys running the same direction on a wide freeway, seen from behind. Each convoy drives in two lanes, inside and outside, three slots deep: ahead, center, behind. The two inside lanes meet in the middle, where the fight is closest. Past each convoy's outside lane is a shoulder, and it belongs to the other side: it's where their flankers pull alongside you. Both sides get the same space, so a friendly convoy reads as well as a raider pack.</p>
+		<p class="muted">Drawn in logical pixels at a 1280x720 reference and scaled by one number. Pick a viewport, a scenario, and a state. The fit check under the frame measures every text box, vehicle, chip, and card, and reports what overflows, collides, shrinks, or leaves the frame.</p>
+	</header>
+
+	<section id="canvas">
+		<div class="toolbar">
+			<div class="row"><span class="label">Viewport</span><div class="chips" id="vp"></div></div>
+			<div class="row"><span class="label">Scenario</span><div class="chips" id="sc"></div></div>
+			<div class="row"><span class="label">State</span><div class="chips" id="st"></div></div>
+		</div>
+		<div class="stagebox"><div class="frame-outer" id="frame"><div class="frame-inner" id="inner"></div></div></div>
+		<div class="readout" id="readout"></div>
+		<p class="note" id="statenote"></p>
+	</section>
+
+	<section>
+		<span class="eyebrow">The road</span>
+		<h2>Two lanes each, and the other side's shoulder</h2>
+		<p>Lanes run across the screen and rows run up it, because everyone is driving up the screen. A convoy's own formation is six slots, inside and outside by ahead, center, and behind. A shoulder only ever holds vehicles from the far side that outran you and swerved around your outside lane, in the row of the vehicle they outran. Nobody parks on their own shoulder, and the fit check fails any scenario that breaks either rule. Slots never move or resize during a fight, so moving is a swerve from one slot to another and the road is a board you can plan on.</p>
+		<div class="diagram"><svg viewBox="0 0 1000 300" role="img" aria-label="Six lanes by three rows. Your side: shoulder, outside, inside. Their side: inside, outside, shoulder. Rows: ahead, center, behind. Numbers show proposed range from your inside-center slot.">
+			<g font-size="13" text-anchor="middle">
+				<text x="500" y="16" fill="#6f6b63" font-size="12">all traffic moves up the screen</text>
+				<path d="M652 20 l8 -10 l8 10" fill="none" stroke="#6f6b63" stroke-width="2"/>
+				<g font-family="Barlow Condensed, Arial Narrow, sans-serif" font-weight="600" font-size="15" letter-spacing="1.5">
+					<text x="140" y="50" fill="#b0685c">RAIDER FLANK</text><text x="280" y="50" fill="#8b8373">OUTSIDE</text><text x="420" y="50" fill="#c9c2b0">INSIDE</text>
+					<text x="580" y="50" fill="#ff9d8f">INSIDE</text><text x="720" y="50" fill="#b0685c">OUTSIDE</text><text x="860" y="50" fill="#c9c2b0">YOUR FLANK</text>
+				</g>
+				<text x="40" y="100" fill="#6f6b63" font-size="12">AHEAD</text><text x="40" y="170" fill="#6f6b63" font-size="12">CENTER</text><text x="40" y="240" fill="#6f6b63" font-size="12">BEHIND</text>
+				<g id="dgrid"></g>
+				<path d="M500 62 v210" stroke="#efd25a" stroke-width="3" stroke-dasharray="10 8" opacity="0.6"/>
+				<text x="350" y="294" fill="#a39e92" font-size="12">your formation, 2x3</text><text x="650" y="294" fill="#b0685c" font-size="12">their formation, 2x3</text>
+			</g>
+		</svg></div>
+		<p class="note">Numbers are the range from your inside-center slot: lanes apart plus rows apart. Your inside to their inside on the same row is 1, one row ahead or behind adds 1, and anything 3 or more away is out of reach for today's cards. A flanker on their shoulder is 1 from their outside lane and 2 from their inside, the rules' "flanking to front is range 2" kept intact. Straight grid distance, with no diagonal shortcut.</p>
+		<div class="tbl"><table>
+			<thead><tr><th>Space</th><th class="num">At 1280x720</th><th>Why</th></tr></thead>
+			<tbody>
+				<tr><td>Each slot</td><td class="num">205 x 141</td><td>Road width minus an 18px row gutter, split six ways; road height split three ways</td></tr>
+				<tr><td>Vehicle token</td><td class="num">196 x 117</td><td>Sprite beside the plate instead of above it, so three rows fit. 135 tall with a passenger</td></tr>
+				<tr><td>Your side vs theirs</td><td class="num">50 / 50</td><td>Six formation slots each, plus three flank slots on the far shoulder, so up to nine a side</td></tr>
+				<tr><td>Shoulders</td><td class="num">1 lane each</td><td>Tinted for the side that can use them: the left one red for raiders flanking you, the right one neutral for your flankers</td></tr>
+				<tr><td>Empty slot</td><td class="num">outline</td><td>A faint dashed outline, so the grid reads as a board without boxing every vehicle</td></tr>
+			</tbody>
+		</table></div>
+	</section>
+
+	<section>
+		<span class="eyebrow">Worst cases</span>
+		<h2>Checked, not assumed</h2>
+		<p>With one vehicle per slot the road's worst case is simple: all eighteen slots full, six in each formation and three flanking on each shoulder. The other scenarios cover what the rules produce around that: the opening state, a passenger after a wreck, and hands that grow past five. Each runs at every viewport in five states (planning, inspecting the leftmost and rightmost cards, targeting, end-turn preview) and is measured for text overflow, collisions between vehicles, chips, and cards, tokens scaled below full size, and anything outside the frame.</p>
+		<div class="scn-list" id="scnlist"></div>
+		<h3>Fit matrix</h3>
+		<div class="tbl"><table class="matrix" id="matrix"></table></div>
+		<p class="muted" id="matrixnote">Click a cell to load it into the canvas above.</p>
+		<h3>Every card, both texts, measured</h3>
+		<p>Each card has a short text for the card face (three lines of 12px) and a full text for the detail view (15px, up to 330 characters before the view reaches its 440px cap). Full text is today's <code>cards.json</code> description with values filled in; keywords in it are highlighted automatically. Tag Team Takedown is a synergy card from the Card System spec, written long on purpose as the worst case.</p>
+		<p class="note" id="fullcap">Measuring the detail view...</p>
+		<div class="tbl"><table id="cardfit"><thead><tr><th>Card</th><th>Short (card face)</th><th>Fits 3 lines</th><th>Full (detail view)</th><th class="num">Chars</th><th>Fits detail</th></tr></thead><tbody></tbody></table></div>
+	</section>
+
+	<section>
+		<span class="eyebrow">Layout rules</span>
+		<h2>One layout, one scale</h2>
+		<div class="grid-2">
+			<div class="panel">
+				<h3>Scale</h3>
+				<p><code>s = min(W / 1280, H / 720)</code>, floored at 0.8. The logical canvas is never smaller than 1280x720.</p>
+				<ul>
+					<li>1920x1080: s 1.5. Rules text lands at 18px, the Xbox accessibility floor for PC.</li>
+					<li>1280x800 (Steam Deck): the extra 80 goes to the rows, and tokens grow to fill them, up to x1.25.</li>
+					<li>2560x1080: the stage caps at 1600 and centers; the road runs to the screen edges as art.</li>
+					<li>1024x768: s 0.8, 1280x960 logical, so the rows are tall and tokens grow.</li>
+					<li>Below 0.8 (phone landscape) needs its own compact layout, not in this proposal.</li>
+				</ul>
+			</div>
+			<div class="panel">
+				<h3>Bands (logical px)</h3>
+				<div class="tbl"><table>
+					<thead><tr><th>Band</th><th class="num">Height</th><th>Grows?</th></tr></thead>
+					<tbody>
+						<tr><td>Top bar: wave, turn, ticker, scrap, fuel, log</td><td class="num">36</td><td>No</td></tr>
+						<tr><td>Road: lane header 26, then three rows</td><td class="num">&ge; 456</td><td>All spare height</td></tr>
+						<tr><td>Dock: driver tabs 30, cards 180, margins</td><td class="num">228</td><td>No</td></tr>
+					</tbody>
+				</table></div>
+				<p class="muted">Tokens scale by <code>min(slot width / 202, slot height / token height)</code>, between 1 and 1.25. The fit check fails any render where that would drop below 1.</p>
+			</div>
+		</div>
+	</section>
+
+	<section>
+		<span class="eyebrow">Anatomy</span>
+		<h2>What each piece carries</h2>
+		<div class="anat">
+			<div class="anat-frame" id="anat-card" style="width:440px;height:400px"></div>
+			<div class="spec">
+				<h3>Card face and detail view</h3>
+				<div class="tbl"><table>
+					<thead><tr><th>Field</th><th class="num">Size</th><th>Budget and overflow</th></tr></thead>
+					<tbody>
+						<tr><td>Cost hex</td><td class="num">30 / 19</td><td>0-9. Dark red numeral when the owner can't pay.</td></tr>
+						<tr><td>Name</td><td class="num">16 cond.</td><td>18 characters fit. Longer shrinks to 14, then ellipsis.</td></tr>
+						<tr><td>Short text</td><td class="num">12 / 17</td><td>Card face only. Three lines, keywords in yellow. Over three lines fails the fit check.</td></tr>
+						<tr><td>Blocked strip</td><td class="num">11 mono</td><td>"NO ATTACKS" over the art; the PASSENGER tag on the driver tab says why.</td></tr>
+						<tr><td>Detail view</td><td class="num">250 wide</td><td>Full text at 15px. Anchored to the bottom and grows upward to a 440px cap, clamped inside the frame, keyword boxes on the side with room.</td></tr>
+					</tbody>
+				</table></div>
+			</div>
+		</div>
+		<div class="anat">
+			<div class="anat-frame" id="anat-veh" style="width:450px;height:180px"></div>
+			<div class="spec">
+				<h3>Vehicle token, 196 wide</h3>
+				<div class="tbl"><table>
+					<thead><tr><th>Part</th><th class="num">Size</th><th>Content</th></tr></thead>
+					<tbody>
+						<tr><td>Intents (raiders)</td><td class="num">24 tall</td><td>Over the plate. Icon, value, and a target mark: triangle for driver 1, diamond for driver 2, square for an escort. Two pills, then "+N".</td></tr>
+						<tr><td>Sprite</td><td class="num">60 x 40</td><td>Rear view, left of the plate.</td></tr>
+						<tr><td>Plate</td><td class="num">132 x 68</td><td>Name, armor and structure, driver HP at the same weight as structure. +18 for a passenger. Speed sits under the sprite so real names (up to 15 characters) fit.</td></tr>
+						<tr><td>Statuses</td><td class="num">20 tall</td><td>Five chips under the plate, then "+N".</td></tr>
+					</tbody>
+				</table></div>
+			</div>
+		</div>
+	</section>
+
+	<section>
+		<span class="eyebrow">Color</span>
+		<h2>One hue, one meaning</h2>
+		<p>Driver identity owns the two strongest hues and nothing else uses them. Escorts, vehicles in your convoy that nobody drives, get neutral bone with a square mark. Every color cue has a shape twin.</p>
+		<div class="swatches">
+			<span class="sw"><i style="background:var(--d1)"></i>Driver 1, triangle</span>
+			<span class="sw"><i style="background:var(--d2)"></i>Driver 2, diamond</span>
+			<span class="sw"><i style="background:#8f8a7e"></i>Escort, square</span>
+			<span class="sw"><i style="background:var(--enemy)"></i>Raiders, attack intent</span>
+			<span class="sw"><i style="background:var(--struct)"></i>Structure</span>
+			<span class="sw"><i style="background:var(--armor)"></i>Armor</span>
+			<span class="sw"><i style="background:var(--hp)"></i>Driver HP</span>
+			<span class="sw"><i style="background:var(--warn)"></i>Keywords, warnings, center line</span>
+			<span class="sw"><i style="background:#6fb3e0"></i>Rarity gems only</span>
+		</div>
+	</section>
+
+	<section>
+		<span class="eyebrow">Text budget</span>
+		<h2>Every string that changes</h2>
+		<div class="tbl"><table>
+			<thead><tr><th>Field</th><th class="num">Size</th><th class="num">Max today</th><th>Tested</th><th>Overflow rule</th></tr></thead>
+			<tbody>
+				<tr><td>Card name</td><td class="num">16</td><td class="num">18</td><td>19 with "+"</td><td>Shrink to 14, then ellipsis</td></tr>
+				<tr><td>Card short text</td><td class="num">12</td><td class="num">n/a</td><td>3 lines</td><td>Content bug; the fit check fails it</td></tr>
+				<tr><td>Card full text</td><td class="num">15</td><td class="num">92</td><td>330 characters</td><td>Detail view grows up to 440px; past that is a content bug</td></tr>
+				<tr><td>Driver name (tab)</td><td class="num">15</td><td class="num">16</td><td>27</td><td>Ellipsis; never squeezes adrenaline, piles, or mods</td></tr>
+				<tr><td>Vehicle name (plate)</td><td class="num">15</td><td class="num">15</td><td>20</td><td>Ellipsis past about 13 characters; full name on hover</td></tr>
+				<tr><td>Intent value</td><td class="num">15</td><td class="num">1 digit</td><td>"6x3", "24"</td><td>Extra intents collapse to "+N"</td></tr>
+				<tr><td>Top-bar ticker</td><td class="num">12</td><td class="num">150+</td><td>any</td><td>One line, ellipsis; full text in the log</td></tr>
+				<tr><td>Log line</td><td class="num">13</td><td class="num">150+</td><td>any</td><td>Wraps in a 320px drawer that scrolls</td></tr>
+			</tbody>
+		</table></div>
+	</section>
+
+	<section>
+		<span class="eyebrow">What's there now</span>
+		<h2>The current build, audited</h2>
+		<p>Captured from the running build at seven sizes and a scripted playthrough. Filed on the board under DDB-5.</p>
+		<div class="tbl"><table id="issues">
+			<thead><tr><th>Board</th><th>Problem</th><th>Fixed in this layout by</th></tr></thead>
+			<tbody></tbody>
+		</table></div>
+		<div class="shots">
+			<figure><img src="current/combat-1920x1080.png" alt="Current combat screen at 1920x1080"><figcaption>1920x1080: enemy and player bands face each other; 12% dead strip under the hand</figcaption></figure>
+			<figure><img src="current/combat-1280x720.png" alt="Current combat screen at 1280x720"><figcaption>1280x720: hand runs off both edges, half of each card hidden</figcaption></figure>
+			<figure><img src="current/combat-2560x1080.png" alt="Current combat screen at 2560x1080"><figcaption>2560x1080: End Turn 2400px from the turn readout</figcaption></figure>
+			<figure><img src="current/combat-844x390.png" alt="Current combat screen at 844x390"><figcaption>844x390: vehicles cross lane dividers, cards show titles only</figcaption></figure>
+		</div>
+	</section>
+
+	<section>
+		<span class="eyebrow">Decided</span>
+		<h2>Rules calls, made for how the game feels to play</h2>
+		<div class="grid-2">
+			<div class="panel decision"><b>A flanker takes the row it outran</b><p>A flank is aimed at someone. The flanker lands on the far shoulder in the row of the vehicle it outran, and the fit check fails any flanker with no opposing vehicle in its row.</p></div>
+			<div class="panel decision"><b>The flanker's old slot stays empty</b><p>Nobody else in your convoy moves. Flanking should cost something, and the cost is the hole it leaves, which raiders can exploit. Sliding other vehicles to close up would move pieces you didn't choose to move, and a plan you made last turn would stop matching the board. When the flanker loses its speed edge it drops back into that reserved slot (Combat Rules already sends a flanker home when it's no longer faster).</p></div>
+			<div class="panel decision"><b>Range is lanes apart plus rows apart</b><p>Straight grid distance, no diagonal shortcut. It keeps the rules' own numbers (inside to inside is 1, a flanker to their inside is 2) and gives ahead and behind a real job: pull ahead of a rammer to get out of its reach, drop behind to line up a shot. Counting diagonals as 1 would make rows nearly meaningless with only 1 and 2 range cards.</p></div>
+			<div class="panel decision"><b>Every card has a short and a full text</b><p>The card face shows the short text, three lines built from keywords, so a hand stays scannable. The full text can say everything and lives in a detail view: hover with a mouse, focus with keyboard or controller, or long-press on touch. Right-click (or I, or the controller's inspect button) pins it open so you can read while looking at the road. Deck, discard, and reward screens use the same detail view. Both fields are required in <code>cards.json</code>, and the card data lint checks each against its budget.</p></div>
+			<div class="panel decision"><b>Hand cap: 7 per driver</b><p>Draws past 7 go straight to discard with a visible burn, the way Slay the Spire handles 10. Nitro Boost still nets you cards up to the cap, so drawing stays exciting, but a hand never gets so wide you can't read it: 7 cards keep about 68px of each card visible, enough for most names. The big-hands scenario now tests 7.</p></div>
+			<div class="panel decision"><b>Two driven vehicles, the rest are escorts</b><p>Two hands is the Symbiotic Driver System, and it's already a lot to hold in your head. Three hands means 15 cards a turn, the load Across the Obelisk players complain about with four heroes, and it would squeeze each card to about 39px. So the convoy grows through escorts: vehicles with plates and slots but no hand, that you order with cards from your drivers' decks. A third human player is co-op, not a third hand.</p></div>
+			<div class="panel decision"><b>Two adrenaline pools, two decks</b><p>Each driver keeps their own deck, hand, and adrenaline, as Combat Rules and the code already do. Pooling them would erase the choice of which driver acts, which is the whole symbiosis. Game Flow's single "3/3" readout and shared draw pile are the outdated half of the docs.</p></div>
+			<div class="panel decision"><b>A wreck makes a passenger, not a spectator</b><p>When a vehicle dies its driver rides with the partner, keeps their hand, and can't attack. Sitting out for the rest of the fight (Gameplay's "Lone Wolf" version) is dull in single player and awful in co-op. This also answers DDB-96: the hand keeps refilling.</p></div>
+			<div class="panel decision"><b>Flanking is +50%, and the same driver twice is not allowed</b><p>+50% matches the cards and the code; 2x on top of the range advantage flanking already buys would make it the only play. Picking one driver for both slots (DDB-98) defeats a system built on two different drivers helping each other, so driver selection should refuse it.</p></div>
+		</div>
+	</section>
+</div>
+<div id="matrixhost"></div>
+
+<script>
+(function () {
+	const REF_W = 1280, REF_H = 720, MIN_S = 0.8, TOP = 36, DOCK = 228, PAD = 16, END_W = 148, STAGE_MAX = 1600, HEAD = 26, GUTTER = 18;
+	const TW = 196, TH = 117, TH_PAS = 135, PLATE_X = 64;
+	const LANES = ['pSh', 'pOut', 'pIn', 'eIn', 'eOut', 'eSh'];
+	const ROWS = ['ahead', 'center', 'behind'];
+	const LANE_META = {
+		pSh: { label: 'Raider flank', side: 'e', sh: true, host: 'e' }, pOut: { label: 'Outside', side: 'p' }, pIn: { label: 'Inside', side: 'p' },
+		eIn: { label: 'Inside', side: 'e' }, eOut: { label: 'Outside', side: 'e' }, eSh: { label: 'Your flank', side: 'p', sh: true, host: 'p' },
+	};
+	const slotRange = (a, b) => Math.abs(LANES.indexOf(a.lane) - LANES.indexOf(b.lane)) + Math.abs(ROWS.indexOf(a.row) - ROWS.indexOf(b.row));
+
+	const VIEWPORTS = [
+		{ id: '1920x1080', w: 1920, h: 1080, label: '1920x1080' },
+		{ id: '1440x882', w: 1440, h: 882, label: '1440x882 golden' },
+		{ id: '1280x800', w: 1280, h: 800, label: '1280x800 Deck' },
+		{ id: '1280x720', w: 1280, h: 720, label: '1280x720' },
+		{ id: '2560x1080', w: 2560, h: 1080, label: '2560x1080' },
+		{ id: '1024x768', w: 1024, h: 768, label: '1024x768' },
+		{ id: '844x390', w: 844, h: 390, label: '844x390 phone' },
+	];
+	const SCENARIOS = [
+		{ id: 'typical', label: 'Typical', desc: 'Turn 3. The Rig holds the inside lane; the Interceptor outran the raiders and is flanking on their shoulder, alongside a Dust Crawler. Three raiders with mixed intents.' },
+		{ id: 'opening', label: 'Opening', desc: 'How a fight starts: both of your vehicles in the inside lane, one behind the other, one raider alongside.' },
+		{ id: 'convoy', label: 'Big convoy', desc: 'Your two driven vehicles escorting three convoy trucks against six raiders, two of which have flanked you on your shoulder. The future the grid is sized for.' },
+		{ id: 'fullroad', label: 'Full road (18)', desc: 'Every slot filled: your six-slot formation plus the Interceptor and two outriders flanking on their shoulder, against six raiders in formation and three flanking you. A boss, three-digit stats, and long names. The road\'s absolute worst case.' },
+		{ id: 'passenger', label: 'Passenger', desc: 'The Rig is wrecked. The Road Warrior rides in the Interceptor\'s bike with a second HP bar, and their hand can\'t attack.' },
+		{ id: 'bighands', label: 'Big hands', desc: 'Seven cards per driver, the hand cap, reached with Nitro Boost. The leftmost card has the longest full text in the set (Tag Team Takedown, 318 characters). Six vehicle mods each, 12,450 scrap, wave 3 of 3, and a crowded road.' },
+	];
+	const STATES = [
+		{ id: 'rest', label: 'Planning' },
+		{ id: 'inspectL', label: 'Inspect left card' },
+		{ id: 'inspectR', label: 'Inspect right card' },
+		{ id: 'target', label: 'Targeting' },
+		{ id: 'preview', label: 'End-turn preview' },
+		{ id: 'enemy', label: 'Enemy turn' },
+		{ id: 'log', label: 'Log open' },
+	];
+	const MATRIX_STATES = ['rest', 'inspectL', 'inspectR', 'target', 'preview'];
+	const NOTES = {
+		rest: 'Planning. Unaffordable cards dim and their cost turns dark red.',
+		inspectL: 'Inspecting the leftmost card: drawn x1.7 above the dock, clamped inside the frame, keyword boxes on the side with room. The vehicle it acts from lights up.',
+		inspectR: 'Inspecting the rightmost card, next to End Turn. The keyword boxes flip left.',
+		target: 'Dragging Headshot from the Interceptor. Every raider slot shows its range from the source slot. Out-of-reach raiders dim, legal ones get a dashed outline, the hovered one a solid outline and a damage ghost on its driver HP. The hit check rides with the card.',
+		preview: 'Pointer on End Turn. Each intent draws a line to what it will hit, and your plates show the incoming total.',
+		enemy: 'Enemy turn. The dock drops and greys out, the banner crosses the road, the acting raider glows while its hit lands.',
+		log: 'The log opens as a 320px drawer over the right of the road, never over the dock or End Turn.',
+	};
+
+	const CARDS = {
+		'Point Blank': { cost: 1, type: 'ATK', rar: 'common', rng: 'R1', art: 'i-atk', text: 'Deal 3. [Range 1]. +1 to hit.', live: 'Deal 3 damage. Range 1. Easier to hit (+1 to hit).' },
+		'Far Shoot': { cost: 1, type: 'ATK', rar: 'common', rng: 'R2', art: 'i-atk', text: 'Deal 1. [Range 2].', live: 'Deal 1 damage. Range 2.' },
+		'Headshot': { cost: 2, type: 'ATK', rar: 'rare', rng: 'R2', art: 'i-atk', text: 'Deal 5 to the driver only. Target gets +2 Evade.', live: 'Deal 5 damage to target driver. No structure damage. Harder to hit (+2 to defender\'s evade).' },
+		'Ram': { cost: 2, type: 'ATK', rar: 'common', rng: 'R1', art: 'i-atk', text: 'Deal Armor/10 + speed gap. [Range 1].', live: 'Deal damage equal to your armor/10 + (your speed - target speed). Range 1.' },
+		'Flank': { cost: 2, type: 'UTL', rar: 'common', art: 'i-speed', text: '[Flank] if faster. Your attacks deal +50%.', live: 'Move to flanking position if your speed is higher. Attack cards do 50% more damage.' },
+		'Oil Slick': { cost: 1, type: 'DBF', rar: 'uncommon', art: 'i-dbf', text: 'Flanker: -4 Speed, 2 turns. [Vulnerable]. [Sure-hit].', live: 'Target flanking vehicle loses 4 speed for 2 turns and becomes Vulnerable. Always hits.' },
+		'Caltrops': { cost: 2, type: 'ATK', rar: 'rare', art: 'i-atk', text: 'Flanker takes 2 Structure, -2 Speed for good. [Sure-hit].', live: 'Target flanking vehicle takes 2 structure damage and loses 2 speed permanently. Always hits.' },
+		'Repair Kit': { cost: 1, type: 'UTL', rar: 'common', art: 'i-wrench', text: 'Repair 8. Overflow becomes [Armor].', live: 'Restore 8 Structure to your vehicle. Excess healing converts to armor.' },
+		'Medical Kit': { cost: 2, type: 'UTL', rar: 'uncommon', art: 'i-heart', text: 'Heal 4 HP to you or your passenger.', live: 'Restore 4 hit points to yourself or a passenger in your vehicle.' },
+		'Nitro Boost': { cost: 1, type: 'UTL', rar: 'uncommon', art: 'i-speed', text: '+3 Speed for 2 turns. Draw 2.', live: 'Gain 3 speed for 2 turns. Draw 2 cards.' },
+		'Coordinated Attack': { cost: 3, type: 'SYN', rar: 'uncommon', rng: 'R2', art: 'i-atk', text: 'Deal 3. Double it if your [Partner] attacked this turn.', live: 'Deal 3 damage. If partner attacked this turn, double the damage.' },
+		'EMP Blast': { cost: 3, type: 'UTL', rar: 'rare', art: 'i-stun', text: 'All raiders skip their next turn.', live: 'All enemies skip their next turn.' },
+		'Berserker': { cost: 1, type: 'UTL', rar: 'common', art: 'i-flame', text: '+3 Adrenaline. Take 3. You are [Vulnerable].', live: 'Take 3 damage. Gain 3 Adrenaline. Your vehicle becomes Vulnerable.' },
+		'Armor Plating': { cost: 1, type: 'DEF', rar: 'common', art: 'i-def', text: 'Gain 8 [Armor].', live: 'Gain 8 Armor.' },
+		'Ramming Speed': { cost: 2, type: 'ATK', rar: 'common', rng: 'R1', art: 'i-atk', text: 'Deal 12. [Range 1]. If [Vulnerable]: +1 Adrenaline.', live: 'Deal 12 damage. If target has Vulnerable, gain 1 Adrenaline. Range 1.' },
+		'Precision Shot': { cost: 2, type: 'ATK', rar: 'common', art: 'i-atk', text: 'Deal 15. +5 if you have Speed+.', live: 'Deal 15 damage. +5 damage if you have Speed+.' },
+		'Witness Me!': { cost: 2, type: 'PWR', rar: 'legendary', art: 'i-flame', text: 'Triple all damage this turn. Die at end of turn.', live: 'Triple all damage this turn. Die at end of turn.' },
+		'Flanking Maneuver': { cost: 1, type: 'UTL', rar: 'uncommon', art: 'i-speed', text: '[Flank]. Your next attack deals +50%.', live: 'Move to Flanking position. Next attack deals +50% damage.' },
+	};
+	CARDS['Tag Team Takedown'] = { cost: 3, type: 'SYN', rar: 'legendary', rng: 'R1', art: 'i-atk', text: 'Deal 8. Your [Partner] deals 8 more. [Exhaust].', live: '', full: 'Deal 8 damage to target raider. If your partner\'s vehicle is within Range 1 of that raider, they immediately deal 8 more to it without spending adrenaline, and both hits ignore Evade. Only playable while The Road Warrior and The Interceptor are both driving. Exhaust: removed from your deck for the rest of this fight.' };
+	Object.values(CARDS).forEach((c) => { if (!c.full) c.full = c.live; if (!c.live) c.live = c.full; });
+	const KEYWORDS = {
+		'Range 1': 'Reaches one step: the next lane over on the same row.',
+		'Range 2': 'Reaches two steps, counting lanes across plus rows ahead or behind.',
+		'Vulnerable': 'Takes 50% more damage. Counts down each turn.',
+		'Sure-hit': 'Ignores Evade. Always lands.',
+		'Partner': 'Your other driver. Synergy cards check what they did this turn.',
+		'Armor': 'Absorbs damage first. Resets at the start of your turn.',
+		'Flank': 'Swerve to the outside of the target. Needs more speed than the target.',
+		'Exhaust': 'Removed from your deck until the fight ends.',
+		'Evade': 'A shot hits only if the attacker\'s Gunnery beats the target\'s Evade.',
+	};
+
+	const card = (name, extra) => Object.assign({ name }, CARDS[name], extra || {});
+	const at = (lane, row) => ({ lane, row });
+	const E = (id, name, sprite, pos, o) => Object.assign({ id, name, sprite, lane: pos.lane, row: pos.row, s: 22, sMax: 30, armor: 5, hp: 30, hpMax: 30, spd: 3, intents: [], status: [] }, o || {});
+	const rig = (pos, o) => Object.assign({ key: 'd1', id: 'p1', name: 'Apocalypse Rig', sprite: 'truck', lane: pos.lane, row: pos.row, s: 54, sMax: 80, armor: 10, hp: 40, hpMax: 40, spd: 1, status: [['i-def', 'buff', '2']] }, o || {});
+	const bike = (pos, o) => Object.assign({ key: 'd2', id: 'p2', name: 'Lightning Bike', sprite: 'bike', lane: pos.lane, row: pos.row, s: 31, sMax: 50, armor: 0, hp: 18, hpMax: 25, spd: 5, status: [['i-speed', 'buff', '3']] }, o || {});
+	const esc = (id, name, sprite, pos, o) => Object.assign({ key: 'esc', id, name, sprite, lane: pos.lane, row: pos.row, s: 60, sMax: 60, armor: 4, hp: 20, hpMax: 20, spd: 2, status: [] }, o || {});
+
+	function buildScenario(id) {
+		const D = {
+			wave: 'Wave 1 of 2', incoming: 2, turn: 3, scrap: '150', fuel: '7/10',
+			ticker: 'Rust Buggy rammed Apocalypse Rig for 6 (4 blocked by Armor)',
+			drivers: [
+				{ key: 'd1', name: 'The Road Warrior', adr: 3, max: 5, draw: 7, disc: 4, mods: ['i-def', 'i-wrench'] },
+				{ key: 'd2', name: 'The Interceptor', adr: 2, max: 5, draw: 3, disc: 8, mods: ['i-speed'] },
+			],
+			players: [rig(at('pIn', 'center')), bike(at('eSh', 'ahead'), { status: [['i-speed', 'buff', '3'], ['i-atk', 'buff', '']] })],
+			enemies: [
+				E('e1', 'Rust Buggy', 'car', at('eIn', 'center'), { intents: [['atk', 8, 'd1']], status: [['i-vuln', 'debuff', '2']] }),
+				E('e2', 'Scrap Hauler', 'truck', at('eIn', 'behind'), { s: 64, sMax: 90, armor: 12, hp: 35, hpMax: 35, spd: 2, intents: [['def', 10, null], ['atk', 6, 'd1']] }),
+				E('e3', 'Dust Crawler', 'car', at('eOut', 'ahead'), { s: 18, sMax: 25, armor: 0, hp: 20, hpMax: 20, spd: 4, intents: [['dbf', 'Slow', 'd2']], status: [['i-flame', 'debuff', '3']] }),
+			],
+			hands: {
+				d1: ['Ramming Speed', 'Armor Plating', 'Coordinated Attack', 'Repair Kit', 'Point Blank'].map((n) => card(n, n === 'Coordinated Attack' ? { syn: true } : null)),
+				d2: ['Headshot', 'Oil Slick', 'Nitro Boost', 'Caltrops', 'Far Shoot'].map((n) => card(n)),
+			},
+		};
+		const nineRaiders = () => [
+			E('e1', 'Rust Buggy', 'car', at('eIn', 'ahead'), { intents: [['atk', '6x3', 'd1']], status: [['i-vuln', 'debuff', '2']] }),
+			E('e2', 'Scrapyard Juggernaut', 'truck', at('eIn', 'center'), { s: 188, sMax: 240, armor: 30, hp: 99, hpMax: 120, spd: 1, intents: [['def', 20, null], ['atk', 24, 'both'], ['dbf', 'Jam', 'd2']], status: [['i-def', 'buff', '3'], ['i-flame', 'debuff', '2'], ['i-slow', 'debuff', '1'], ['i-stun', 'debuff', '1'], ['i-vuln', 'debuff', '2'], ['i-buf', 'buff', '4'], ['i-atk', 'buff', '2']] }),
+			E('e3', 'Rust Buggy', 'car', at('eIn', 'behind'), { s: 30, intents: [['atk', 8, 'd2']] }),
+			E('e4', 'Dust Crawler', 'car', at('eOut', 'ahead'), { s: 18, sMax: 25, armor: 0, hp: 20, hpMax: 20, spd: 4, intents: [['dbf', 'Slow', 'd2']], status: [['i-flame', 'debuff', '3']] }),
+			E('e5', 'Warlord\'s Pride', 'truck', at('eOut', 'center'), { s: 150, sMax: 150, armor: 12, hp: 60, hpMax: 60, spd: 2, intents: [['unk', '?', null]] }),
+			E('e6', 'Chain Hauler', 'truck', at('eOut', 'behind'), { s: 90, sMax: 90, armor: 12, hp: 35, hpMax: 35, spd: 2, intents: [['atk', 12, 'x1']] }),
+			E('e7', 'Spike Runner', 'car', at('pSh', 'ahead'), { spd: 5, intents: [['atk', 7, 'd2']] }),
+			E('e8', 'Dust Crawler', 'car', at('pSh', 'center'), { s: 25, sMax: 25, armor: 0, hp: 20, hpMax: 20, spd: 4, intents: [['atk', 12, 'd1']] }),
+			E('e9', 'Spike Runner', 'car', at('pSh', 'behind'), { spd: 5, intents: [['def', 6, null]] }),
+		];
+		if (id === 'opening') {
+			D.turn = 1; D.wave = 'Wave 1 of 1'; D.incoming = 0; D.ticker = 'The Road Warrior and The Interceptor vs Rust Buggy';
+			D.drivers.forEach((d) => { d.adr = 5; d.draw = 5; d.disc = 0; });
+			D.players = [rig(at('pIn', 'center'), { s: 80, status: [] }), bike(at('pIn', 'behind'), { s: 50, hp: 25, status: [] })];
+			D.enemies = [E('e1', 'Rust Buggy', 'car', at('eIn', 'center'), { s: 30, intents: [['atk', 5, 'd1']] })];
+			D.hands.d1 = ['Point Blank', 'Point Blank', 'Armor Plating', 'Repair Kit', 'Ram'].map((n) => card(n));
+			D.hands.d2 = ['Headshot', 'Nitro Boost', 'Flanking Maneuver', 'Far Shoot', 'Far Shoot'].map((n) => card(n));
+		}
+		if (id === 'convoy') {
+			D.players = [
+				rig(at('pIn', 'center')), bike(at('pOut', 'ahead')),
+				esc('x1', 'Water Tanker', 'truck', at('pOut', 'center'), { s: 42 }),
+				esc('x2', 'Fuel Hauler', 'truck', at('pOut', 'behind')),
+				esc('x3', 'Med Truck', 'car', at('pIn', 'behind'), { hp: 14 }),
+			];
+			D.enemies = nineRaiders().filter((e) => ['e1', 'e3', 'e4', 'e6', 'e7', 'e8'].includes(e.id));
+			D.enemies.find((e) => e.id === 'e1').intents = [['atk', 8, 'x2']];
+		}
+		if (id === 'fullroad' || id === 'bighands') {
+			D.drivers[0].name = id === 'fullroad' ? 'The Road Warrior of Ashfall' : D.drivers[0].name;
+			D.players = [
+				rig(at('pIn', 'center'), { s: 236, sMax: 240, armor: 48, hp: 140, hpMax: 140, status: [['i-def', 'buff', '2'], ['i-speed', 'buff', '3'], ['i-vuln', 'debuff', '1'], ['i-flame', 'debuff', '4'], ['i-slow', 'debuff', '2'], ['i-stun', 'debuff', '1'], ['i-atk', 'buff', '2'], ['i-buf', 'buff', '9']] }),
+				bike(at('eSh', 'ahead'), { name: 'Lightning Bike Mk II' }),
+				esc('x1', 'Water Tanker', 'truck', at('pIn', 'behind')),
+				esc('x8', 'Pilot Car', 'car', at('pIn', 'ahead')),
+				esc('x2', 'Fuel Hauler', 'truck', at('pOut', 'ahead')),
+				esc('x3', 'Salvage Rig', 'truck', at('pOut', 'center'), { s: 120, sMax: 120 }),
+				esc('x4', 'Ammo Carrier', 'truck', at('pOut', 'behind')),
+				esc('x5', 'Outrider', 'car', at('eSh', 'center')),
+				esc('x7', 'Outrider', 'car', at('eSh', 'behind')),
+			];
+			D.enemies = nineRaiders();
+			D.wave = 'Wave 3 of 3'; D.incoming = 4; D.scrap = '12,450'; D.fuel = '10/10';
+			D.ticker = 'Scrapyard Juggernaut rammed Apocalypse Rig for 24 (18 blocked by Armor, 3 to Structure, 3 to The Road Warrior)';
+		}
+		if (id === 'bighands') {
+			D.players = D.players.slice(0, 4);
+			D.enemies = D.enemies.slice(0, 7);
+			D.drivers.forEach((d) => { d.adr = 5; d.draw = 24; d.disc = 17; d.mods = ['i-def', 'i-wrench', 'i-fuel', 'i-atk', 'i-speed', 'i-gear']; });
+			D.hands.d1 = [card('Tag Team Takedown')].concat(D.hands.d1, ['Precision Shot'].map((n) => card(n)));
+			D.hands.d2 = D.hands.d2.concat(['Flanking Maneuver', 'EMP Blast'].map((n) => card(n)));
+		}
+		if (id === 'passenger') {
+			D.drivers[0].passenger = true; D.drivers[0].adr = 5;
+			D.players = [
+				rig(at('pIn', 'center'), { s: 0, armor: 0, hp: 12, wrecked: true, status: [] }),
+				bike(at('pIn', 'ahead'), { pas: { key: 'd1', hp: 12, hpMax: 40 } }),
+			];
+			D.ticker = 'Apocalypse Rig is wrecked. The Road Warrior jumps to Lightning Bike as a passenger.';
+			D.hands.d1 = ['Ramming Speed', 'Armor Plating', 'Medical Kit', 'Repair Kit', 'Point Blank'].map((n) => card(n));
+			D.hands.d1.forEach((c) => { if (c.type === 'ATK' || c.type === 'SYN') c.pblock = true; });
+		}
+		['d1', 'd2'].forEach((k, i) => D.hands[k].forEach((c) => { if (c.cost > D.drivers[i].adr) c.cant = true; }));
+		return D;
+	}
+
+	function computeLayout(W, H, D) {
+		const raw = Math.min(W / REF_W, H / REF_H);
+		const compact = raw < MIN_S;
+		const s = Math.max(raw, MIN_S);
+		const w = W / s, h = H / s;
+		const stageW = Math.min(w, STAGE_MAX);
+		const sx = (w - stageW) / 2;
+		const field = { y: TOP, h: h - TOP - DOCK };
+		const gridX = sx + PAD + GUTTER, gridW = stageW - PAD * 2 - GUTTER;
+		const rowsTop = field.y + HEAD + 4, rowsH = field.h - HEAD - 8;
+		const cellW = gridW / LANES.length, cellH = rowsH / ROWS.length;
+		const hasPas = D.players.some((v) => v.pas);
+		const need = Math.min((cellW - 6) / TW, (cellH - 4) / (hasPas ? TH_PAS : TH));
+		const k = Math.min(1.25, Math.max(need, need < 1 ? need : 1));
+		const cell = (lane, row) => ({ x: gridX + LANES.indexOf(lane) * cellW, y: rowsTop + ROWS.indexOf(row) * cellH, w: cellW, h: cellH });
+		const dockY = h - DOCK;
+		const handsX = sx + PAD, handsW = stageW - PAD * 2 - END_W - 16;
+		const halfW = (handsW - 20) / 2;
+		const regions = { d1: { x: handsX, w: halfW }, d2: { x: handsX + halfW + 20, w: halfW } };
+		const endX = sx + stageW - PAD - END_W;
+		return { s, w, h, raw, compact, stageW, sx, field, gridX, gridW, rowsTop, rowsH, cellW, cellH, k, cell, dockY, regions, endX };
+	}
+
+	const mk = (d, cls) => `<svg class="${cls || 'mk'}" style="color:${d === 'esc' ? '#8f8a7e' : `var(--${d})`}"><use href="#m-${d}"/></svg>`;
+	const icon = (id, cls) => `<svg${cls ? ` class="${cls}"` : ''}><use href="#${id}"/></svg>`;
+	const kw = (t) => t.replace(/\[(.+?)\]/g, '<k>$1</k>');
+	const KW_RE = () => new RegExp('\\b(' + Object.keys(KEYWORDS).map((k) => k.replace(' ', '\\s')).join('|') + ')\\b', 'gi');
+	const kwAuto = (t) => t.replace(KW_RE(), '<k>$1</k>');
+	const kwFound = (t) => { const out = []; (t.match(KW_RE()) || []).forEach((m) => { const k = Object.keys(KEYWORDS).find((x) => x.toLowerCase() === m.toLowerCase().replace(/\s+/, ' ')); if (k && !out.includes(k)) out.push(k); }); return out; };
+	function detailHTML(c, owner, x, bottom, extra) {
+		return `<div class="cdetail ${owner}" style="left:${x}px;bottom:${bottom}px" data-card="${c.name}">
+			<div class="cd-head"><span class="cd-cost"><svg viewBox="0 0 30 30"><use href="#i-hex"/></svg><span>${c.cost}</span></span><span class="cd-name">${c.name}</span><span class="cd-type">${c.type}${mk(owner)}</span></div>
+			<div class="cd-art">${icon(c.art)}</div>
+			${c.pblock ? '<div class="cd-block">NO ATTACKS: THE ROAD WARRIOR IS A PASSENGER</div>' : ''}
+			<div class="cd-rules fit">${kwAuto(c.full)}</div>
+			<div class="cd-foot"><span class="rar ${c.rar}"></span>${c.rar.toUpperCase()}${c.rng ? ` &middot; ${c.rng}` : ''}<span class="pin">${(extra && extra.pinned) ? 'PINNED' : 'RMB: PIN'}</span></div>
+		</div>`;
+	}
+	const tgtMark = (tgt) => (tgt === 'both' ? '<svg class="tgt" style="width:24px"><use href="#m-both"/></svg>' : tgt ? mk(/^x/.test(tgt) ? 'esc' : tgt, 'tgt') : '');
+	const isHitBy = (v, tg) => tg === v.id || (v.key !== 'esc' && (tg === v.key || tg === 'both')) || (v.pas && tg === v.pas.key);
+
+	function tokenHTML(v, side, extra) {
+		const k = extra.k || 1;
+		const cls = ['veh', 'grid', side === 'p' ? 'pl' : 'en', v.key || '', v.wrecked ? 'wrecked' : '', extra.cls || ''].join(' ');
+		const maxI = 2;
+		const intents = (v.intents || []).slice(0, maxI).map(([t, val, tgt]) => {
+			const ic = { atk: 'i-atk', def: 'i-def', dbf: 'i-dbf', unk: null }[t];
+			const tier = t === 'atk' && parseInt(val, 10) >= 12 ? ' t2' : '';
+			return `<span class="intent ${t}${tier} fit">${ic ? icon(ic) : ''}<span>${val}</span>${tgtMark(tgt)}</span>`;
+		}).join('') + ((v.intents || []).length > maxI ? `<span class="intent more">+${v.intents.length - maxI}</span>` : '');
+		const sPct = Math.max(0, Math.min(100, (v.s / v.sMax) * 100));
+		const hpPct = (v.hp / v.hpMax) * 100;
+		const ghost = extra.ghostHp ? `<i class="ghost" style="left:${((v.hp - extra.ghostHp) / v.hpMax) * 100}%;width:${(extra.ghostHp / v.hpMax) * 100}%"></i>` : '';
+		const st = v.status || [];
+		const maxS = 5;
+		const shown = st.length > maxS ? st.slice(0, maxS - 1) : st;
+		const status = shown.map(([ic, kk, n]) => `<span class="st ${kk}">${icon(ic)}${n ? `<b>${n}</b>` : ''}</span>`).join('') + (st.length > maxS ? `<span class="st more">+${st.length - maxS + 1}</span>` : '');
+		const tint = side === 'p' ? ({ d1: '#8a7b63', d2: '#5f7f82', esc: '#77736a' }[v.key]) : '#8a5a50';
+		const pas = v.pas ? `<div class="r4"><span class="ptag">${icon('m-' + v.pas.key)}P</span><div class="bar hp pas"><i style="width:${(v.pas.hp / v.pas.hpMax) * 100}%"></i><b class="fit">${v.pas.hp}/${v.pas.hpMax}</b></div></div>` : '';
+		const plateH = v.pas ? 86 : 68;
+		const H = v.pas ? TH_PAS : TH;
+		return `<div class="${cls}" style="left:${extra.x}px;top:${extra.y}px;width:${TW}px;height:${H}px;transform:scale(${k});transform-origin:0 0" data-id="${v.id}">
+			<div class="intents">${intents}</div>
+			<div class="sprite" style="color:${tint}"><svg viewBox="0 0 140 58"><use href="#${v.sprite}"/></svg></div>
+			${v.wrecked ? '<span class="stamp" style="left:130px;top:44px;z-index:3;background:#0f1011">WRECKED</span>' : ''}
+			<div class="plate" style="left:${PLATE_X}px;top:26px;height:${plateH}px">
+				<div class="r1">${side === 'p' ? mk(v.key) : ''}<span class="vname fit" title="${v.name}">${v.name}</span></div>
+				<div class="r2"><span class="armor${v.armor ? '' : ' zero'}"><svg viewBox="0 0 26 18"><use href="#i-armor"/></svg><span>${v.armor}</span></span><div class="bar"><i style="width:${sPct}%"></i><b class="fit">${v.s}/${v.sMax}</b></div></div>
+				<div class="r3">${icon('i-heart')}<div class="bar hp"><i style="width:${hpPct}%"></i>${ghost}<b class="fit">${v.hp}/${v.hpMax}</b></div></div>
+				${pas}
+			</div>
+			<span class="spdchip" title="Speed">${icon('i-speed')}${v.spd}</span>
+			<div class="status" style="top:${26 + plateH + 3}px">${status}</div>
+			${extra.after || ''}
+		</div>`;
+	}
+
+	function cardHTML(c, owner, x, y, rot, extra) {
+		const cls = ['card', owner, c.cant || c.pblock ? 'cant' : '', c.syn ? 'synergy-on' : '', extra.cls || ''].join(' ');
+		const t = extra.transform || `rotate(${rot}deg)`;
+		return `<div class="${cls}" style="left:${x}px;top:${y}px;transform:${t};${extra.style || ''}" data-card="${c.name}">
+			<div class="cost"><svg viewBox="0 0 30 30"><use href="#i-hex"/></svg><span>${c.cost}</span></div>
+			<span class="ctype">${c.type}</span>${mk(owner, 'own')}
+			<div class="cname fit-shrink">${c.name}</div>
+			<div class="art">${icon(c.art)}</div>
+			${c.syn ? '<div class="syn">x2 ACTIVE</div>' : ''}
+			${c.pblock ? '<div class="pblock fit">NO ATTACKS</div>' : ''}
+			<div class="rules fit">${kw(extra.live ? c.live : c.text)}</div>
+			<div class="foot"><span class="rar ${c.rar}"></span><span class="tag">${c.rar.toUpperCase()}</span>${c.rng ? `<span class="rng">${c.rng}</span>` : ''}</div>
+		</div>`;
+	}
+
+	function fanHand(cards, region, topY) {
+		const CW = 128, n = cards.length;
+		const step = n > 1 ? Math.min(CW + 8, (region.w - CW) / (n - 1)) : 0;
+		const total = CW + step * (n - 1);
+		const x0 = region.x + (region.w - total) / 2;
+		return cards.map((c, i) => {
+			const d = i - (n - 1) / 2;
+			return { c, x: x0 + i * step, y: topY + Math.min(5, d * d * 0.6), rot: d * (n > 7 ? 0.5 : 0.9), i };
+		});
+	}
+
+	function renderInto(inner, V, scnId, st) {
+		const D = buildScenario(scnId);
+		const L = computeLayout(V.w, V.h, D);
+		const seen = new Set();
+		L.badSlots = D.players.filter((v) => v.lane === 'pSh').map((v) => v.name + ' on own shoulder').concat(D.enemies.filter((v) => v.lane === 'eSh').map((v) => v.name + ' on own shoulder'));
+		D.players.concat(D.enemies).forEach((v) => { const k = v.lane + ':' + v.row; if (seen.has(k)) L.badSlots.push('two in ' + k); seen.add(k); });
+		['d1', 'd2'].forEach((k) => { if (D.hands[k].length > 7) L.badSlots.push(`${k} hand of ${D.hands[k].length} over the cap of 7`); });
+		const formation = (list, side) => list.filter((v) => v.lane === side + 'In' || v.lane === side + 'Out');
+		D.players.filter((v) => v.lane === 'eSh' && !formation(D.enemies, 'e').some((e) => e.row === v.row)).forEach((v) => L.badSlots.push(v.name + ' flanks an empty row'));
+		D.enemies.filter((v) => v.lane === 'pSh' && !formation(D.players, 'p').some((e) => e.row === v.row)).forEach((v) => L.badSlots.push(v.name + ' flanks an empty row'));
+		inner.style.width = L.w + 'px';
+		inner.style.height = L.h + 'px';
+		if (L.compact) {
+			inner.innerHTML = `<div class="g" style="width:${L.w}px;height:${L.h}px"><div class="compact-note">s = ${L.raw.toFixed(2)}, under the 0.8 floor.<br>Compact layout: one driver's hand at a time, plates without sprites.<br>Not part of this proposal.</div></div>`;
+			return { L, D };
+		}
+		const f = L.field;
+		const fy = (y) => y - f.y;
+		let html = `<div class="g" style="width:${L.w}px;height:${L.h}px"><div class="g-bg"></div>`;
+		html += `<div class="g-top">
+			<span class="kbtn">${icon('i-menu', 'ic')}</span>
+			<span class="grp">${D.wave}${D.incoming ? `<span style="color:var(--enemy)">+${D.incoming} incoming</span>` : ''}</span>
+			<span class="grp" style="color:var(--muted)">Turn ${D.turn}</span>
+			<span class="ticker fit-ellipsis">${D.ticker}</span>
+			<span class="grp" style="color:#c9b27a">${icon('i-gear', 'ic')}${D.scrap}</span>
+			<span class="grp" style="color:#c9a36a">${icon('i-fuel', 'ic')}${D.fuel}</span>
+			<span class="kbtn">${icon('i-log', 'ic')}LOG <kbd>L</kbd></span>
+		</div>`;
+		html += `<div class="g-field" style="top:${f.y}px;height:${f.h}px">`;
+		const shL = L.gridX + L.cellW, shR = L.gridX + 5 * L.cellW;
+		html += `<div class="lane shoulder" style="left:0;width:${shL}px;top:0;bottom:0"></div>`;
+		html += `<div class="lane shoulder" style="left:${shR}px;right:0;top:0;bottom:0"></div>`;
+		LANES.forEach((l, i) => {
+			const x = L.gridX + i * L.cellW;
+			if (i > 0 && i < 5) html += `<div class="lane ${LANE_META[l].side === 'e' ? 'en' : ''}" style="left:${x}px;width:${L.cellW}px;top:0;bottom:0"></div>`;
+			else html += `<div class="lane" style="left:${x}px;width:${L.cellW}px;top:0;bottom:0;background:${LANE_META[l].host === 'e' ? 'rgba(212,81,63,0.05)' : 'rgba(233,228,214,0.025)'}"></div>`;
+			if (i > 0) html += `<div class="lane-line ${i === 3 ? 'contact' : (i === 1 || i === 5) ? 'edge' : ''}" style="left:${x - (i === 3 ? 2 : 1)}px;top:${HEAD}px;bottom:0"></div>`;
+		});
+		ROWS.forEach((r, ri) => {
+			html += `<div class="rowlab" style="left:${L.gridX - GUTTER}px;top:${fy(L.rowsTop + ri * L.cellH)}px;height:${L.cellH}px"><span>${r.toUpperCase()}</span></div>`;
+		});
+
+		const all = D.players.map((v) => Object.assign({ side: 'p' }, v)).concat(D.enemies.map((v) => Object.assign({ side: 'e' }, v)));
+		const occupied = new Set(all.map((v) => v.lane + ':' + v.row));
+		LANES.forEach((l) => ROWS.forEach((r) => {
+			if (occupied.has(l + ':' + r)) return;
+			const c = L.cell(l, r);
+			html += `<div class="slot ${LANE_META[l].side === 'e' ? 'en' : ''}" style="left:${c.x + 6}px;top:${fy(c.y) + 4}px;width:${c.w - 12}px;height:${c.h - 8}px"></div>`;
+		}));
+
+		html += '<div class="headstrip" style="top:0"></div>';
+		LANES.forEach((l, i) => {
+			html += `<div class="col-head ${LANE_META[l].side === 'e' ? 'en' : ''}" style="left:${L.gridX + i * L.cellW}px;width:${L.cellW}px;top:0">${LANE_META[l].label}</div>`;
+		});
+
+		const targeting = st === 'target';
+		let src = null, srcCard = null, tgt = null;
+		if (targeting) {
+			srcCard = D.hands.d2.find((c) => c.name === 'Headshot') || D.hands.d2.find((c) => c.type === 'ATK');
+			src = D.players.find((p) => p.key === 'd2');
+			const inRange = D.enemies.filter((e) => slotRange(src, e) <= 2).sort((a, b) => slotRange(src, a) - slotRange(src, b));
+			tgt = inRange[0] || null;
+		}
+
+		const placed = all.map((v) => {
+			const c = L.cell(v.lane, v.row);
+			const H = (v.pas ? TH_PAS : TH) * L.k;
+			return { v, side: v.side, x: c.x + (c.w - TW * L.k) / 2, y: c.y + (c.h - H) / 2, w: TW * L.k, h: H };
+		});
+
+		const lines = [];
+		placed.forEach((p) => {
+			const extra = { x: p.x, y: fy(p.y), k: L.k, cls: '' };
+			const id = p.v.id;
+			if (targeting) {
+				if (p.side === 'e') {
+					const r = slotRange(src, p.v);
+					if (tgt && id === tgt.id) { extra.cls = 'targeted'; extra.ghostHp = 5; }
+					else if (r <= 2) extra.cls = 'valid';
+					else extra.cls = 'dimmed';
+				} else extra.cls = p.v.key === 'd2' ? 'owner-lit' : 'dimmed';
+			}
+			if ((st === 'inspectL' && p.v.key === 'd1') || (st === 'inspectR' && p.v.key === 'd2')) extra.cls = 'owner-lit';
+			if (st === 'preview' && p.side === 'p' && !p.v.wrecked) {
+				const inc = D.enemies.flatMap((e) => e.intents.filter(([t, , tg]) => t === 'atk' && isHitBy(p.v, tg)).map(([, val]) => {
+					const m = String(val).split('x');
+					return parseInt(m[0], 10) * (m[1] ? parseInt(m[1], 10) : 1);
+				})).reduce((a, b) => a + b, 0);
+				if (inc) extra.after = `<span class="predict" style="top:14px;right:-6px">-${inc}</span>`;
+			}
+			if (st === 'enemy') {
+				if (id === D.enemies[0].id) extra.cls = 'acting';
+				const t0 = D.enemies[0].intents.find(([t]) => t === 'atk');
+				if (p.side === 'p' && t0 && isHitBy(p.v, t0[2])) extra.after = '<span class="dmgpop" style="left:10px;top:20px">-6</span>';
+			}
+			if (targeting && p.side === 'e') {
+				const r = slotRange(src, p.v);
+				extra.after = (extra.after || '') + `<span class="slotchip ${r <= 2 ? 'in' : ''}">${r <= 2 ? 'R' + r : 'OUT'}</span>`;
+			}
+			html += tokenHTML(p.v, p.side, extra);
+			if (p.side === 'e') p.v.intents.slice(0, 2).forEach(([t, , tg], ii) => { if (tg) lines.push({ from: p, tg, t, ii }); });
+		});
+
+		if (st === 'preview') {
+			let svg = `<svg class="overlay" width="${L.w}" height="${f.h}" viewBox="0 0 ${L.w} ${f.h}">`;
+			lines.forEach((ln) => {
+				placed.filter((p) => p.side === 'p' && !p.v.wrecked && isHitBy(p.v, ln.tg)).forEach((to) => {
+					const x1 = ln.from.x + (PLATE_X + 30 + ln.ii * 70) * L.k, y1 = fy(ln.from.y) + 12 * L.k;
+					const x2 = to.x + (PLATE_X + 66) * L.k, y2 = fy(to.y) + 26 * L.k;
+					const col = ln.t === 'atk' ? '#ff6a55' : '#c98ff0';
+					const lift = Math.max(HEAD + 4, Math.min(y1, y2) - 20);
+					svg += `<path d="M${x1} ${y1} C ${x1} ${lift}, ${x2} ${lift}, ${x2} ${y2}" fill="none" stroke="${col}" stroke-width="2" stroke-dasharray="6 5" opacity="0.8"/><circle cx="${x2}" cy="${y2}" r="4" fill="${col}"/>`;
+				});
+			});
+			html += svg + '</svg>';
+		}
+		if (st === 'enemy') html += `<div class="banner" style="top:${fy(L.rowsTop) + L.rowsH / 2 - 28}px">ENEMY TURN</div>`;
+		html += '</div>';
+
+		const dockDrop = st === 'enemy' ? 60 : 0;
+		html += `<div class="g-dock" style="top:${L.dockY}px;height:${DOCK}px"></div>`;
+		const cardsTop = L.dockY + 38 + dockDrop;
+		let overlay = '';
+		['d1', 'd2'].forEach((dk, di) => {
+			const r = L.regions[dk];
+			const drv = D.drivers[di];
+			const pips = drv.max <= 6
+				? Array.from({ length: drv.max }, (_, i) => `<svg viewBox="0 0 14 16" class="${i < drv.adr ? '' : 'off'}"><use href="#i-bolt"/></svg>`).join('')
+				: `<svg viewBox="0 0 14 16"><use href="#i-bolt"/></svg>`;
+			const modList = drv.passenger ? [] : drv.mods;
+			const mods = modList.slice(0, modList.length > 4 ? 3 : 4).map((m) => `<span class="mod">${icon(m)}</span>`).join('') + (modList.length > 4 ? `<span class="mod more">+${modList.length - 3}</span>` : '');
+			const tabW = Math.min(r.w, 470);
+			const tabX = dk === 'd1' ? r.x : r.x + r.w - tabW;
+			html += `<div class="dtab ${dk}" style="left:${tabX}px;top:${L.dockY + 8 + dockDrop}px;width:${tabW}px;${st === 'enemy' ? 'opacity:.5' : ''}">
+				${mk(dk)}<span class="dname fit-ellipsis">${drv.name}</span>${drv.passenger ? '<span class="ptag">PASSENGER</span>' : ''}
+				<span class="spacer"></span>
+				<span class="mods">${mods}</span>
+				<span class="adr">${pips}<b>${drv.adr}/${drv.max}</b></span>
+				<span class="piles"><span class="pile" title="Draw pile">${icon('i-deck')}${drv.draw}</span><span class="pile" title="Discard pile">${icon('i-disc')}${drv.disc}</span></span>
+			</div>`;
+			const fanned = fanHand(D.hands[dk], r, cardsTop);
+			fanned.forEach((fc) => {
+				const c = fc.c;
+				const isInspect = (st === 'inspectL' && dk === 'd1' && fc.i === 0) || (st === 'inspectR' && dk === 'd2' && fc.i === fanned.length - 1);
+				const isDrag = targeting && dk === 'd2' && c === srcCard;
+				let extra = { cls: st === 'enemy' ? 'cant dropped' : '' };
+				if (isInspect) {
+					extra = { style: 'opacity:.25' };
+					const bw = 250, bottom = 10;
+					const bx = Math.max(8, Math.min(fc.x + 64 - bw / 2, L.w - 8 - bw));
+					overlay += detailHTML(c, dk, bx, bottom);
+					const kws = kwFound(c.full);
+					(c.text.match(/\[(.+?)\]/g) || []).forEach((m) => { const kk = m.slice(1, -1); if (KEYWORDS[kk] && !kws.includes(kk)) kws.push(kk); });
+					if (c.rng) { const rk = c.rng === 'R1' ? 'Range 1' : 'Range 2'; if (!kws.includes(rk)) kws.push(rk); }
+					if (kws.length) {
+						const PW = 230;
+						const roomR = L.w - 8 - (bx + bw + 10), roomL = bx - 10 - 8;
+						const right = dk === 'd1' ? roomR >= PW : roomL < PW;
+						const px = right ? bx + bw + 10 : bx - 10 - PW;
+						overlay += `<div class="kwpanel" style="left:${px}px;bottom:${bottom}px;width:${PW}px">${kws.slice(0, 3).map((kk) => `<div class="kw fit"><b>${kk}</b>${KEYWORDS[kk]}</div>`).join('')}</div>`;
+					}
+				}
+				if (isDrag) {
+					extra = { cls: 'inspect', transform: 'translateY(-36px) scale(1.1)' };
+					const tp = tgt && placed.find((p) => p.v.id === tgt.id);
+					if (tp) {
+						const x1 = fc.x + 64, y1 = cardsTop - 50;
+						const x2 = tp.x + tp.w / 2, y2 = tp.y + tp.h;
+						overlay += `<span class="hitchip" style="left:${x1}px;top:${cardsTop + 146}px">HIT <em>Gunnery 7 vs Evade 4+2</em> &middot; R${slotRange(src, tgt)}</span>`;
+						overlay += `<svg class="overlay" width="${L.w}" height="${L.h}" viewBox="0 0 ${L.w} ${L.h}" style="z-index:30"><path d="M${x1} ${y1} Q ${x1} ${y2 + 30} ${x2} ${y2 + 14}" fill="none" stroke="#ff6a55" stroke-width="5" stroke-linecap="round" stroke-dasharray="2 10"/><path d="M${x2} ${y2} l-10 16 l20 0 Z" fill="#ff6a55"/></svg>`;
+					}
+				}
+				html += cardHTML(c, dk, fc.x, fc.y, fc.rot, extra);
+			});
+		});
+		html += overlay;
+		const unspent = D.drivers.reduce((a, d) => a + d.adr, 0);
+		const etCls = st === 'preview' ? 'hover' : st === 'enemy' ? 'waiting' : '';
+		html += `<div class="endturn ${etCls}" style="left:${L.endX}px;top:${L.dockY + 26}px;width:${END_W}px">
+			<span class="turn">Turn ${D.turn} &middot; ${st === 'enemy' ? 'raiders acting' : 'your move'}</span>
+			<div class="btn"><span>${st === 'enemy' ? 'WAIT' : 'END TURN'}</span><kbd>SPACE</kbd></div>
+			${unspent && st !== 'enemy' ? `<span class="warn">${unspent} adrenaline unspent</span>` : ''}
+		</div>`;
+		if (st === 'log') {
+			const lines2 = [
+				['T2', 'Rust Buggy fired Precision Shot at Lightning Bike: miss (Evade 7 vs Gunnery 6).'],
+				['T2', 'Scrap Hauler braced: +10 Armor.'],
+				['T3', 'The Interceptor played Headshot on Rust Buggy: 5 to Wasteland Raider (25/30).'],
+				['T3', 'The Road Warrior played Armor Plating: +8 Armor (18).'],
+				['T3', D.ticker],
+			];
+			html += `<div class="drawer" style="top:${TOP}px;height:${L.field.h}px"><h4>Combat log</h4>${lines2.map(([t, l]) => `<div class="ln fit"><span class="t">${t}</span>${l}</div>`).join('')}</div>`;
+		}
+		html += '</div>';
+		inner.innerHTML = html;
+		return { L, D };
+	}
+
+	function shrinkNames(root) {
+		const ell = [];
+		root.querySelectorAll('.fit-shrink').forEach((el) => {
+			for (const sz of [16, 15, 14]) {
+				el.style.fontSize = sz + 'px';
+				if (el.scrollWidth <= el.clientWidth + 0.5) return;
+			}
+			ell.push(el.textContent);
+		});
+		return ell;
+	}
+
+	function lint(root, L) {
+		const res = { over: [], out: [], coll: [], trunc: shrinkNames(root) };
+		root.querySelectorAll('.fit').forEach((el) => {
+			el.classList.remove('fitbad');
+			const isEll = el.classList.contains('vname');
+			if (el.scrollHeight > el.clientHeight + 1 || (el.scrollWidth > el.clientWidth + 1 && !isEll)) {
+				res.over.push(el.textContent.trim().slice(0, 32));
+				el.classList.add('fitbad');
+			} else if (isEll && el.scrollWidth > el.clientWidth + 1) res.trunc.push(el.textContent.trim());
+		});
+		root.querySelectorAll('.fit-ellipsis').forEach((el) => { if (el.scrollWidth > el.clientWidth + 1) res.trunc.push(el.textContent.trim().slice(0, 30)); });
+		const g = root.querySelector('.g');
+		if (!g) return res;
+		const gb = g.getBoundingClientRect();
+		const k = gb.width / L.w;
+		const tol = k;
+		root.querySelectorAll('.veh, .card:not(.dropped), .cdetail, .dtab, .endturn, .kwpanel').forEach((el) => {
+			const b = el.getBoundingClientRect();
+			if (b.left < gb.left - tol || b.right > gb.right + tol || b.bottom > gb.bottom + tol || b.top < gb.top - tol) res.out.push(el.dataset.card || el.dataset.id || el.className.split(' ')[0]);
+		});
+		const parts = [...root.querySelectorAll('.veh, .intent, .slotchip, .hitchip, .predict, .col-head, .rowlab')].map((el) => ({ el, owner: el.closest('.veh'), b: el.getBoundingClientRect() }));
+		const name = (p) => `${p.el.classList.contains('veh') ? 'vehicle' : p.el.className.split(' ')[0]}${p.owner ? '(' + p.owner.dataset.id + ')' : ''}`;
+		for (let i = 0; i < parts.length; i++) for (let j = i + 1; j < parts.length; j++) {
+			const A = parts[i], B = parts[j];
+			if (A.owner && B.owner && A.owner === B.owner) continue;
+			if (A.el === B.owner || B.el === A.owner) continue;
+			const both = [A, B].map((p) => p.el.classList[0]);
+			if (both[0] === 'col-head' && both[1] === 'col-head') continue;
+			const ox = Math.min(A.b.right, B.b.right) - Math.max(A.b.left, B.b.left);
+			const oy = Math.min(A.b.bottom, B.b.bottom) - Math.max(A.b.top, B.b.top);
+			if (ox > 2 * k && oy > 2 * k) res.coll.push(`${name(A)}/${name(B)}`);
+		}
+		const et = root.querySelector('.endturn');
+		if (et) {
+			const eb = et.getBoundingClientRect();
+			root.querySelectorAll('.card:not(.inspect-big)').forEach((el) => {
+				const b = el.getBoundingClientRect();
+				if (b.right > eb.left + 2 * k && b.top < eb.bottom) res.coll.push(el.dataset.card + '/End Turn');
+			});
+		}
+		if (L.k < 1) res.coll.push(`tokens scaled to ${L.k.toFixed(2)}`);
+		if (L.badSlots && L.badSlots.length) res.coll.push('slot rules: ' + L.badSlots.join(', '));
+		return res;
+	}
+
+	const cur = { vp: VIEWPORTS[0], scn: 'typical', st: 'rest' };
+
+	function render() {
+		const V = cur.vp;
+		const inner = document.getElementById('inner');
+		const outer = document.getElementById('frame');
+		const avail = Math.min(outer.parentElement.clientWidth, 1320);
+		const kf = Math.min(1, avail / V.w);
+		outer.style.width = V.w * kf + 'px';
+		outer.style.height = V.h * kf + 'px';
+		const { L } = renderInto(inner, V, cur.scn, cur.st);
+		inner.style.transform = `scale(${L.s * kf})`;
+		const scn = SCENARIOS.find((x) => x.id === cur.scn);
+		document.getElementById('statenote').textContent = L.compact
+			? 'Phone landscape falls below the scale floor. Rather than shrink text under 10px, this size gets its own layout.'
+			: `${scn.label}: ${scn.desc} ${NOTES[cur.st]}`;
+		const el = document.getElementById('readout');
+		const px = (n) => (n * L.s).toFixed(1);
+		const parts = [
+			`<span>scale <b>${L.raw.toFixed(3)}</b>${L.compact ? ' <span class="bad">below floor</span>' : ''}</span>`,
+			`<span>logical <b>${Math.round(L.w)}x${Math.round(L.h)}</b></span>`,
+			`<span>rules text <b>${px(12)}px</b></span>`,
+		];
+		if (!L.compact) {
+			const r = lint(inner, L);
+			parts.push(`<span>slot <b>${Math.round(L.cellW)}x${Math.round(L.cellH)}</b>, tokens <b>x${L.k.toFixed(2)}</b></span>`);
+			parts.push(r.over.length ? `<span class="bad">overflow ${r.over.length}: ${r.over.join(' | ')}</span>` : '<span class="ok">no text overflow</span>');
+			parts.push(r.coll.length ? `<span class="bad">collisions: ${r.coll.join(', ')}</span>` : '<span class="ok">no collisions</span>');
+			parts.push(r.out.length ? `<span class="bad">off-screen: ${r.out.join(', ')}</span>` : '<span class="ok">nothing off-screen</span>');
+			parts.push(`<span>truncated by rule: <b>${r.trunc.length}</b>${r.trunc.length ? ` (${r.trunc.map((t) => t.slice(0, 22)).join(', ')})` : ''}</span>`);
+		}
+		el.innerHTML = parts.join('');
+	}
+
+	function chips(id, list, key) {
+		const host = document.getElementById(id);
+		host.innerHTML = list.map((it) => `<button class="chip-btn" id="${id}-${it.id}" data-v="${it.id}" aria-pressed="false">${it.label}</button>`).join('');
+		host.addEventListener('click', (e) => {
+			const b = e.target.closest('button');
+			if (!b) return;
+			if (key === 'vp') cur.vp = VIEWPORTS.find((x) => x.id === b.dataset.v); else cur[key] = b.dataset.v;
+			sync();
+			render();
+		});
+	}
+	function sync() {
+		document.querySelectorAll('#vp button').forEach((b) => b.setAttribute('aria-pressed', b.dataset.v === cur.vp.id));
+		document.querySelectorAll('#sc button').forEach((b) => b.setAttribute('aria-pressed', b.dataset.v === cur.scn));
+		document.querySelectorAll('#st button').forEach((b) => b.setAttribute('aria-pressed', b.dataset.v === cur.st));
+	}
+	chips('vp', VIEWPORTS, 'vp');
+	chips('sc', SCENARIOS, 'scn');
+	chips('st', STATES, 'st');
+	sync();
+
+	document.getElementById('scnlist').innerHTML = SCENARIOS.map((s) => `<div class="scn"><b>${s.label}</b><span class="muted">${s.desc}</span></div>`).join('');
+
+	(function diagram() {
+		const g = document.getElementById('dgrid');
+		const src = { lane: 'pIn', row: 'center' };
+		let out = '';
+		LANES.forEach((l, i) => ROWS.forEach((r, ri) => {
+			const x = 70 + i * 140, y = 62 + ri * 70;
+			const isSrc = l === src.lane && r === src.row;
+			const d = slotRange(src, { lane: l, row: r });
+			const en = LANE_META[l].side === 'e';
+			const sh = LANE_META[l].sh;
+			out += `<rect x="${x + 4}" y="${y + 4}" width="132" height="62" rx="4" fill="${en ? '#231b1a' : '#1f2123'}" stroke="${isSrc ? '#f2a33a' : en ? '#5a1f18' : '#3a3d40'}" stroke-width="${isSrc ? 2 : 1}"${sh ? ' stroke-dasharray="5 4"' : ''}/>`;
+			out += `<text x="${x + 70}" y="${y + 41}" font-size="${isSrc ? 12 : 16}" fill="${isSrc ? '#f2a33a' : en && d <= 2 ? '#efd25a' : '#6f6b63'}">${isSrc ? 'from here' : d}</text>`;
+		}));
+		g.innerHTML = out;
+	})();
+
+	const ISSUES = [
+		['DDB-96', 'Softlock once a vehicle is destroyed: the hand stays empty and the fight never ends.', 'Passenger scenario: the wreck, the passenger HP bar, a hand that stays live but can\'t attack'],
+		['DDB-111', 'Targeting can\'t be cancelled.', 'Drag to play; release on the road or right-click to cancel'],
+		['DDB-112', 'The enemy turn resolves in one frame.', 'Enemy-turn state: dock locks and drops, raiders act one at a time with a hit pop'],
+		['DDB-119', 'Wrecks and dead drivers look alive; driver HP is 8px grey text.', 'Structure and driver HP at equal weight; WRECKED stamp'],
+		['DDB-116', 'Enemy lane labels are reversed, and the two bands face each other.', 'One road, everyone driving the same way, a fixed 3x3 per side'],
+		['DDB-29', 'Hand runs off both edges; cards clipped vertically.', 'Two half-hands that tighten as they fill, dock sized to the card'],
+		['DDB-33', 'Enemy intent is a hardcoded "attack 5" with no target.', 'Intent pills with a target mark and preview lines'],
+		['DDB-120', 'Rarity borders use the driver colors.', 'Driver owns hue; rarity is a gem'],
+		['DDB-117', 'Three adrenaline pips next to "5/5".', 'Tab per driver: pips built from max'],
+		['DDB-30', 'Turn text overlaps and says COMBAT START all of turn 1.', 'Turn readout above End Turn and in the top bar'],
+		['DDB-126', 'Fuel, scrap, and armor glyphs never render.', 'Icons from the atlas, never emoji in text'],
+		['DDB-123', 'Log is debug dumps with doubled prefixes, overflowing, F6 only.', 'Log button, a drawer that wraps and scrolls, last line in the ticker'],
+		['DDB-124', 'Resize uses a different layout from mount.', 'One computeLayout for both'],
+	];
+	document.querySelector('#issues tbody').innerHTML = ISSUES.map(([k, p, f]) => `<tr><td class="num">${k}</td><td>${p}</td><td>${f}</td></tr>`).join('');
+
+	function anatomy() {
+		const ac = document.getElementById('anat-card');
+		ac.innerHTML = `<div class="g" style="left:0;top:0;width:440px;height:400px">${cardHTML(card('Headshot'), 'd2', 16, 40, 0, {})}${detailHTML(card('Headshot'), 'd2', 170, 40)}<div class="lane-label" style="left:16px;top:230px">Card face, 128x180</div><div class="lane-label" style="left:170px;top:370px">Detail view</div></div>`;
+		shrinkNames(ac);
+		const av = document.getElementById('anat-veh');
+		av.innerHTML = `<div class="g" style="left:0;top:0;width:450px;height:180px">${tokenHTML(bike(at('pIn', 'center'), { pas: { key: 'd1', hp: 12, hpMax: 40 } }), 'p', { x: 16, y: 20 })}${tokenHTML(E('e2', 'Scrap Hauler', 'truck', at('eIn', 'center'), { s: 64, sMax: 90, armor: 12, hp: 35, hpMax: 35, spd: 2, intents: [['def', 10, null], ['atk', 6, 'd2']], status: [['i-vuln', 'debuff', '2']] }), 'e', { x: 232, y: 20 })}</div>`;
+	}
+
+	function cardFit() {
+		const host = document.getElementById('matrixhost');
+		const rows = Object.keys(CARDS).map((n) => {
+			const c = card(n);
+			host.innerHTML = `<div class="g" style="position:relative;width:600px;height:500px">${cardHTML(c, 'd1', 0, 0, 0, {})}${detailHTML(c, 'd1', 200, 0)}</div>`;
+			const a = host.querySelector('.card .rules'), b = host.querySelector('.cd-rules');
+			const fits = (el) => el.scrollHeight <= el.clientHeight + 1;
+			return `<tr><td>${n}</td><td>${kw(c.text)}</td><td class="${fits(a) ? 'fitpass' : 'fitfail'}">${fits(a) ? 'yes' : 'no'}</td><td>${kwAuto(c.full)}</td><td class="num">${c.full.length}</td><td class="${fits(b) ? 'fitpass' : 'fitfail'}">${fits(b) ? 'yes' : 'no'}</td></tr>`;
+		});
+		const sample = 'Deal 8 damage to target raider. If your partner is within Range 1, they deal 8 more without spending adrenaline. ';
+		let lo = 50, hi = 900;
+		while (hi - lo > 5) {
+			const mid = Math.floor((lo + hi) / 2);
+			const t = sample.repeat(10).slice(0, mid);
+			host.innerHTML = `<div class="g" style="position:relative;width:600px;height:600px">${detailHTML(Object.assign(card('Tag Team Takedown'), { full: t }), 'd1', 0, 0)}</div>`;
+			const el = host.querySelector('.cd-rules');
+			if (el.scrollHeight <= el.clientHeight + 1) lo = mid; else hi = mid;
+		}
+		document.getElementById('fullcap').textContent = `Measured: the detail view holds about ${lo} characters of full text with a two-line card name, shrinking the art first. The card data budget is set to ${Math.floor(lo / 10) * 10 - 20}, leaving room for upgraded numbers.`;
+		document.querySelector('#cardfit tbody').innerHTML = rows.join('');
+		host.innerHTML = '';
+	}
+
+	function runMatrix() {
+		const vps = VIEWPORTS.filter((v) => v.id !== '844x390');
+		const table = document.getElementById('matrix');
+		table.innerHTML = `<thead><tr><th>Scenario</th>${vps.map((v) => `<th>${v.id}</th>`).join('')}</tr></thead><tbody>${SCENARIOS.map((s) => `<tr><td>${s.label}</td>${vps.map((v) => `<td class="cell pending" id="m-${s.id}-${v.id}" data-s="${s.id}" data-v="${v.id}">...</td>`).join('')}</tr>`).join('')}</tbody>`;
+		const host = document.getElementById('matrixhost');
+		const jobs = [];
+		SCENARIOS.forEach((s) => vps.forEach((v) => jobs.push([s, v])));
+		let totalFail = 0;
+		const step = () => {
+			const job = jobs.shift();
+			if (!job) {
+				host.innerHTML = '';
+				document.getElementById('matrixnote').textContent = `${SCENARIOS.length * vps.length * MATRIX_STATES.length} renders checked, ${totalFail} with problems. Click a cell to load it into the canvas above.`;
+				return;
+			}
+			const [s, v] = job;
+			const fails = [];
+			MATRIX_STATES.forEach((stt) => {
+				const inner = document.createElement('div');
+				inner.className = 'frame-inner';
+				inner.style.position = 'relative';
+				host.innerHTML = '';
+				host.appendChild(inner);
+				const { L } = renderInto(inner, v, s.id, stt);
+				const r = lint(inner, L);
+				if (r.over.length + r.out.length + r.coll.length) fails.push({ stt, r });
+			});
+			totalFail += fails.length;
+			const cell = document.getElementById(`m-${s.id}-${v.id}`);
+			cell.classList.remove('pending');
+			if (!fails.length) { cell.classList.add('pass'); cell.textContent = 'pass 5/5'; }
+			else {
+				cell.classList.add('fail');
+				cell.dataset.st = fails[0].stt;
+				cell.title = fails.map((f) => `${f.stt}: ${[...f.r.over, ...f.r.out, ...f.r.coll].join(', ')}`).join('\n');
+				cell.textContent = `fail ${fails.map((f) => f.stt).join(', ')}`;
+			}
+			setTimeout(step, 0);
+		};
+		step();
+		table.addEventListener('click', (e) => {
+			const c = e.target.closest('td.cell');
+			if (!c) return;
+			cur.scn = c.dataset.s;
+			cur.vp = VIEWPORTS.find((x) => x.id === c.dataset.v);
+			cur.st = c.dataset.st || 'rest';
+			sync();
+			render();
+			document.getElementById('canvas').scrollIntoView({ behavior: 'smooth' });
+		});
+	}
+
+	let t;
+	window.addEventListener('resize', () => { clearTimeout(t); t = setTimeout(render, 80); });
+	const boot = () => { render(); anatomy(); cardFit(); runMatrix(); };
+	if (document.fonts && document.fonts.ready) document.fonts.ready.then(boot); else boot();
+})();
+</script>
