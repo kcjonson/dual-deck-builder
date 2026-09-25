@@ -8,6 +8,7 @@ describe('Hand cap', () => {
 	const createCard = (index: number): Card => new Card({
 		type: `card_${index}`,
 		name: `Test Card ${index}`,
+		summary: 'Test card',
 		description: 'Test card',
 		rarity: 'common',
 		cost: 1,

@@ -49,6 +49,7 @@ describe('RammingAI', () => {
 			const rammingCard = new Card({
 				type: 'ramming_speed',
 				name: 'Ramming Speed',
+				summary: 'Ram an enemy for damage',
 				description: 'Ram an enemy for damage',
 				cost: 2,
 				rarity: 'common',
@@ -62,6 +63,7 @@ describe('RammingAI', () => {
 			const gunCard = new Card({
 				type: 'gun_attack',
 				name: 'Gun Attack',
+				summary: 'Shoot an enemy',
 				description: 'Shoot an enemy',
 				cost: 2,
 				rarity: 'common',
@@ -94,6 +96,7 @@ describe('RammingAI', () => {
 			const speedCard = new Card({
 				type: 'nitro_boost',
 				name: 'Nitro Boost',
+				summary: 'Increase speed',
 				description: 'Increase speed',
 				cost: 1,
 				rarity: 'common',
@@ -107,6 +110,7 @@ describe('RammingAI', () => {
 			const attackCard = new Card({
 				type: 'gun_attack',
 				name: 'Gun Attack',
+				summary: 'Shoot an enemy',
 				description: 'Shoot an enemy',
 				cost: 2,
 				rarity: 'common',
@@ -136,6 +140,7 @@ describe('RammingAI', () => {
 			const armorCard = new Card({
 				type: 'reinforced_plating',
 				name: 'Reinforced Plating',
+				summary: 'Add armor',
 				description: 'Add armor',
 				cost: 1,
 				rarity: 'common',
@@ -149,6 +154,7 @@ describe('RammingAI', () => {
 			const attackCard = new Card({
 				type: 'gun_attack',
 				name: 'Gun Attack',
+				summary: 'Shoot an enemy',
 				description: 'Shoot an enemy',
 				cost: 2,
 				rarity: 'common',
@@ -179,6 +185,7 @@ describe('RammingAI', () => {
 			const healCard = new Card({
 				type: 'emergency_repair',
 				name: 'Emergency Repair',
+				summary: 'Heal vehicle',
 				description: 'Heal vehicle',
 				cost: 2,
 				rarity: 'common',
@@ -192,6 +199,7 @@ describe('RammingAI', () => {
 			const rammingCard = new Card({
 				type: 'ramming_speed',
 				name: 'Ramming Speed',
+				summary: 'Ram an enemy',
 				description: 'Ram an enemy',
 				cost: 2,
 				rarity: 'common',
@@ -220,6 +228,7 @@ describe('RammingAI', () => {
 			const positionCard = new Card({
 				type: 'charge_forward',
 				name: 'Charge Forward',
+				summary: 'Move to front',
 				description: 'Move to front',
 				cost: 1,
 				rarity: 'common',
@@ -233,6 +242,7 @@ describe('RammingAI', () => {
 			const attackCard = new Card({
 				type: 'gun_attack',
 				name: 'Gun Attack',
+				summary: 'Shoot an enemy',
 				description: 'Shoot an enemy',
 				cost: 2,
 				rarity: 'common',
@@ -268,6 +278,7 @@ describe('RammingAI', () => {
 			const rammingCard = new Card({
 				type: 'ramming_speed',
 				name: 'Ramming Speed',
+				summary: 'Ram an enemy',
 				description: 'Ram an enemy',
 				cost: 2,
 				rarity: 'common',
@@ -300,6 +311,7 @@ describe('RammingAI', () => {
 			const expensiveCard = new Card({
 				type: 'mega_ram',
 				name: 'Mega Ram',
+				summary: 'Expensive ram',
 				description: 'Expensive ram',
 				cost: 10,
 				rarity: 'rare',
@@ -329,6 +341,7 @@ describe('RammingAI', () => {
 			const healCard = new Card({
 				type: 'repair_kit',
 				name: 'Repair Kit',
+				summary: 'Heal vehicle',
 				description: 'Heal vehicle',
 				cost: 1,
 				rarity: 'common',
@@ -342,6 +355,7 @@ describe('RammingAI', () => {
 			const attackCard = new Card({
 				type: 'gun_attack',
 				name: 'Gun Attack',
+				summary: 'Shoot an enemy',
 				description: 'Shoot an enemy',
 				cost: 2,
 				rarity: 'common',
@@ -371,6 +385,7 @@ describe('RammingAI', () => {
 			const armorCard = new Card({
 				type: 'armor_plating',
 				name: 'Armor Plating',
+				summary: 'Add armor',
 				description: 'Add armor',
 				cost: 1,
 				rarity: 'common',
@@ -384,6 +399,7 @@ describe('RammingAI', () => {
 			const attackCard = new Card({
 				type: 'gun_attack',
 				name: 'Gun Attack',
+				summary: 'Shoot an enemy',
 				description: 'Shoot an enemy',
 				cost: 2,
 				rarity: 'common',
