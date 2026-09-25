@@ -9,6 +9,7 @@ import { Input } from '../../../engine/ui/Input';
 export class InputShowcaseSection extends Panel {
 	constructor(x: number, y: number, width: number) {
 		super({
+			id: 'dev_section_input_showcase',
 			width,
 			height: 300, // Will be calculated based on content
 			style: {

@@ -6,6 +6,7 @@ import { Style } from '../types/Style';
  * Layer creation options
  */
 export interface LayerOptions {
+	id?: string;
 	x?: number;
 	y?: number;
 	width?: number;
@@ -26,10 +27,12 @@ export class Layer {
 	public height = 0;
 	protected visible = true;
 	protected children: Layer[] = [];
+	private ownedByParent = false;
 	protected componentType = 'Layer';
 	protected parent: Layer | null = null;
 	private backgroundColor: [number, number, number, number] | null = null;
 	private overflow: 'visible' | 'hidden' = 'visible';
+	private _id: string | null = null;
 
 	/**
 	 * Create a new layer
@@ -38,6 +41,7 @@ export class Layer {
 	constructor(options?: LayerOptions) {
 		// Apply direct properties
 		if (options) {
+			if (options.id !== undefined) this._id = options.id;
 			if (options.x !== undefined) this.x = options.x;
 			if (options.y !== undefined) this.y = options.y;
 			if (options.width !== undefined) this.width = options.width;
@@ -82,6 +86,33 @@ export class Layer {
 			return parseFloat(size.slice(0, -2));
 		}
 		return parseFloat(size as string) || 0;
+	}
+
+	/**
+	 * Stable name for tests, the tree snapshot, and the layout lint.
+	 * Null when the layer was never given one.
+	 */
+	public get id(): string | null {
+		return this._id;
+	}
+
+	/**
+	 * The real child array. Unlike getChildren(), subclasses never redirect
+	 * this, so a tree walker sees a Panel's background and content layer
+	 * rather than the content layer's children one level too shallow.
+	 */
+	public get debugChildren(): readonly Layer[] {
+		return this.children;
+	}
+
+	/**
+	 * True when this layer is one of its parent's own drawings rather than a
+	 * child a caller added. R8.1 makes a composite's visuals its own draws;
+	 * this engine expresses them as child layers, and this mark is the only
+	 * thing that tells the two apart.
+	 */
+	public get isPart(): boolean {
+		return this.ownedByParent;
 	}
 
 	/**
@@ -226,6 +257,25 @@ export class Layer {
 	 */
 	public addChild(child: Layer): this {
 		child.parent = this;
+		// Clearing rather than leaving alone: the mark says "my parent drew
+		// this", so it belongs to the edge and not to the node. Without it a
+		// layer that was ever anyone's part stays one forever, and re-adding it
+		// as an ordinary child would launder it out of rule 1's sibling pairing
+		// under its new parent.
+		child.ownedByParent = false;
+		this.children.push(child);
+		return this;
+	}
+
+	/**
+	 * Add one of this component's own parts. Same array, same order, same
+	 * paint result as addChild; the mark is the only difference. Pushes
+	 * directly rather than delegating, because Panel redirects addChild into
+	 * its content layer and a part has to land on the Panel itself.
+	 */
+	public addPart(child: Layer): this {
+		child.parent = this;
+		child.ownedByParent = true;
 		this.children.push(child);
 		return this;
 	}
@@ -236,7 +286,12 @@ export class Layer {
 	public removeChild(child: Layer): boolean {
 		const index = this.children.indexOf(child);
 		if (index !== -1) {
+			// Detaching without unmounting leaves the subtree registered with
+			// InputSystem, so it keeps being hit-tested and never collected.
+			// Safe because unmount on an already-unmounted subtree is a no-op.
+			child.unmount();
 			child.parent = null;
+			child.ownedByParent = false;
 			this.children.splice(index, 1);
 			return true;
 		}
@@ -364,13 +419,6 @@ export class Layer {
 	}
 
 	/**
-	 * Get the background color of the layer
-	 */
-	public getBackgroundColor(): [number, number, number, number] | null {
-		return this.backgroundColor;
-	}
-
-	/**
 	 * Render the layer and all its children
 	 * @param context Optional render context with coordinate transforms
 	 */
@@ -384,39 +432,28 @@ export class Layer {
 		const screenX = ctx.offsetX + this.x;
 		const screenY = ctx.offsetY + this.y;
 
-		// If the layer has a background color, render the background
-		if (this.backgroundColor && this.width > 0 && this.height > 0) {
-			// Get the renderer instance
-			const renderer = RendererContext.getInstance().getRenderer();
+		// Both conditions read once, before anything draws, so a child that
+		// resizes this layer during the walk cannot leave the push and the pop
+		// disagreeing about whether a clip is open.
+		const hasBackground = this.backgroundColor !== null && this.width > 0 && this.height > 0;
+		const clips = this.overflow === 'hidden' && this.width > 0 && this.height > 0;
 
-			// Draw the background rectangle at screen position
-			renderer.drawRectangle(screenX, screenY, this.width, this.height, this.backgroundColor);
+		// R4.7 converts the rect through the current transform at push time and
+		// the clip stack intersects it with whatever encloses it (R4.3), so
+		// nothing here asks GL what the scissor box was. The read-back this
+		// replaced was R15.22's named prohibition.
+		const draw = hasBackground || clips ? RendererContext.getInstance().draw : null;
+
+		if (draw && hasBackground && this.backgroundColor) {
+			draw.drawRect({
+				id: this.id ?? undefined,
+				rect: { x: screenX, y: screenY, width: this.width, height: this.height },
+				fill: this.backgroundColor,
+			});
 		}
 
-		// Handle overflow clipping with scissor testing
-		const renderer = RendererContext.getInstance().getRenderer();
-		let wasScissorEnabled = false;
-		let previousScissorBox: Int32Array | null = null;
-
-		if (this.overflow === 'hidden' && this.width > 0 && this.height > 0) {
-			// Save current scissor state
-			wasScissorEnabled = renderer.isScissorEnabled();
-			if (wasScissorEnabled) {
-				previousScissorBox = renderer.getContext().getParameter(renderer.getContext().SCISSOR_BOX);
-			}
-
-			// Convert from top-left UI coordinates to bottom-left WebGL coordinates
-			const canvas = renderer.getContext().canvas as HTMLCanvasElement;
-			const dpr = window.devicePixelRatio || 1;
-			
-			// Apply device pixel ratio to get actual pixel coordinates
-			const webglX = Math.floor(screenX * dpr);
-			const webglY = Math.floor((canvas.height / dpr - screenY - this.height) * dpr);
-			const webglWidth = Math.floor(this.width * dpr);
-			const webglHeight = Math.floor(this.height * dpr);
-
-			// Enable scissor testing for this layer (auto-flushes text if needed)
-			renderer.enableScissor(webglX, webglY, webglWidth, webglHeight);
+		if (draw && clips) {
+			draw.pushClip({ x: screenX, y: screenY, width: this.width, height: this.height });
 		}
 
 		// Create child context with our position added
@@ -432,20 +469,8 @@ export class Layer {
 			}
 		}
 
-		// Restore previous scissor state
-		if (this.overflow === 'hidden' && this.width > 0 && this.height > 0) {
-			if (wasScissorEnabled && previousScissorBox) {
-				// Restore previous scissor box (auto-flushes text if needed)
-				renderer.enableScissor(
-					previousScissorBox[0],
-					previousScissorBox[1], 
-					previousScissorBox[2],
-					previousScissorBox[3]
-				);
-			} else {
-				// Disable scissor testing (auto-flushes text if needed)
-				renderer.disableScissor();
-			}
+		if (draw && clips) {
+			draw.popClip();
 		}
 	}
 }

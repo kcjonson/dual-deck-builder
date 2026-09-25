@@ -1,12 +1,10 @@
 import { Layer } from '../../engine/components/Layer';
-import { Renderer } from '../../engine/rendering/Renderer';
 
 /**
  * Base class for game screens
  */
 export abstract class Screen {
 	protected id: string;
-	protected renderer: Renderer;
 	protected rootLayer: Layer;
 	protected isActive = false;
 	
@@ -16,12 +14,11 @@ export abstract class Screen {
 	/**
 	 * Create a new screen
 	 * @param id Screen identifier
-	 * @param renderer WebGL renderer
 	 */
-	constructor(id: string, renderer: Renderer) {
+	constructor(id: string) {
 		this.id = id;
-		this.renderer = renderer;
 		this.rootLayer = new Layer({
+			id,
 			x: 0,
 			y: 0,
 			width: window.innerWidth,
@@ -36,6 +33,13 @@ export abstract class Screen {
 	 */
 	public getId(): string {
 		return this.id;
+	}
+
+	/**
+	 * The screen's root layer, for the dev tree snapshot.
+	 */
+	public get root(): Layer {
+		return this.rootLayer;
 	}
 
 	/**
@@ -88,19 +92,6 @@ export abstract class Screen {
 		return this.isActive;
 	}
 	
-	/**
-	 * Handle external resize events
-	 * @param width New window width
-	 * @param height New window height
-	 */
-	public resize(width: number, height: number): void {
-		// Update the root layer size
-		this.rootLayer.setSize(width, height);
-		
-		// Call the screen-specific resize handler
-		this.onResized();
-	}
-
 	/**
 	 * Handle window resize events
 	 */

@@ -1,6 +1,5 @@
 import { Screen } from '../../core/Screen';
 import { ScreenManager } from '../../core/ScreenManager';
-import { Renderer } from '../../../engine/rendering/Renderer';
 import { Text } from '../../../engine/components/Text';
 import { Rectangle } from '../../../engine/components/Rectangle';
 
@@ -19,10 +18,9 @@ export class SplashScreen extends Screen {
 
 	/**
 	 * Create a new splash screen
-	 * @param renderer WebGL renderer
 	 */
-	constructor(renderer: Renderer) {
-		super('splashScreen', renderer);
+	constructor() {
+		super('splashScreen');
 
 		this.totalTime = this.fadeInTime + this.displayTime + this.fadeOutTime;
 
@@ -40,6 +38,7 @@ export class SplashScreen extends Screen {
 
 		// Create logo
 		this.logo = new Rectangle({
+			id: 'splash_logo',
 			width: 300,
 			height: 300,
 			style: {
@@ -51,6 +50,7 @@ export class SplashScreen extends Screen {
 
 		// Create title text
 		this.title = new Text('Dual Deckbuilder', {
+			id: 'splash_title',
 			style: {
 				fontSize: 48,
 				color: '#ffffff',
@@ -60,6 +60,7 @@ export class SplashScreen extends Screen {
 
 		// Create subtitle text
 		this.subtitle = new Text('A Roguelike Card Game', {
+			id: 'splash_subtitle',
 			style: {
 				fontSize: 24,
 				color: '#cccccc',

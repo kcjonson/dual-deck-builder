@@ -34,6 +34,7 @@ export class Vehicle extends Layer {
 	private modelUnsubscribers: (() => void)[] = [];
 	
 	constructor(args: {
+		id?: string;
 		x: number;
 		y: number;
 		width: number;
@@ -74,12 +75,21 @@ export class Vehicle extends Layer {
 	/**
 	 * Create visual elements
 	 */
+	/**
+	 * Composite internals derive their ids from the vehicle's own id, so a
+	 * caller names the vehicle once. Unnamed vehicles leave children unnamed.
+	 */
+	protected childId(suffix: string): string | undefined {
+		return this.id === null ? undefined : `${this.id}_${suffix}`;
+	}
+	
 	protected createElements(): void {
 		const width = this.getWidth();
 		const height = this.getHeight();
 		
 		// Vehicle portrait/body
 		this.portrait = new Rectangle({
+			id: this.childId('portrait'),
 			x: 0,
 			y: 0,
 			width,
@@ -95,6 +105,7 @@ export class Vehicle extends Layer {
 		// Driver portrait (if driver exists)
 		if (this.vehicleData.driver) {
 			this.driverPortrait = new Rectangle({
+				id: this.childId('driver_portrait'),
 				x: Math.floor(width * 0.05),
 				y: Math.floor(height * 0.05),
 				width: Math.min(20, Math.floor(width * 0.15)),
@@ -110,6 +121,7 @@ export class Vehicle extends Layer {
 			
 			// Driver name text
 			this.driverNameText = new Text('', {
+				id: this.childId('driver_name'),
 				style: {
 					fontSize: 9,
 					color: '#cccccc',
@@ -121,6 +133,7 @@ export class Vehicle extends Layer {
 			
 			// Driver HP text
 			this.driverHpText = new Text('', {
+				id: this.childId('driver_hp'),
 				style: {
 					fontSize: 8,
 					color: '#aaaaaa',
@@ -133,6 +146,7 @@ export class Vehicle extends Layer {
 		
 		// Vehicle name
 		this.nameText = new Text('', {
+			id: this.childId('name'),
 			width: Math.floor(width * 0.9),
 			style: {
 				fontSize: 10,
@@ -147,6 +161,7 @@ export class Vehicle extends Layer {
 		
 		// Health bar background
 		this.healthBar = new Rectangle({
+			id: this.childId('structure_track'),
 			x: Math.floor(width * 0.1),
 			y: Math.floor(height * 0.68),
 			width: Math.floor(width * 0.8),
@@ -161,6 +176,7 @@ export class Vehicle extends Layer {
 		
 		// Health bar fill
 		this.healthBarFill = new Rectangle({
+			id: this.childId('structure_fill'),
 			x: Math.floor(width * 0.1),
 			y: Math.floor(height * 0.68),
 			width: 0,
@@ -173,6 +189,7 @@ export class Vehicle extends Layer {
 		
 		// Health text
 		this.healthText = new Text('', {
+			id: this.childId('structure_value'),
 			style: {
 				fontSize: 9,
 				color: '#ffffff',
@@ -185,6 +202,7 @@ export class Vehicle extends Layer {
 		
 		// Armor display and status container on same line
 		this.armorDisplay = new Rectangle({
+			id: this.childId('armor_badge'),
 			x: Math.floor(width * 0.1),
 			y: Math.floor(height * 0.82),
 			width: Math.floor(width * 0.25),
@@ -198,6 +216,7 @@ export class Vehicle extends Layer {
 		this.addChild(this.armorDisplay);
 		
 		this.armorText = new Text('', {
+			id: this.childId('armor_value'),
 			style: {
 				fontSize: 8,
 				color: '#ffffff',
@@ -209,6 +228,7 @@ export class Vehicle extends Layer {
 		
 		// Status effect container (for future use)
 		this.statusContainer = new Layer({
+			id: this.childId('status_container'),
 			x: Math.floor(width * 0.4),
 			y: Math.floor(height * 0.82),
 			width: Math.floor(width * 0.5),

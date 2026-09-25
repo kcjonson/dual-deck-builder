@@ -40,7 +40,7 @@ export class Button extends Component {
 				borderRadius: '5px',
 			},
 		});
-		this.addChild(this.background);
+		this.addPart(this.background);
 
 		// Create text child component for the label at local origin
 		this.text = new Text(label, {
@@ -57,7 +57,7 @@ export class Button extends Component {
 		this.text.setColor([1, 1, 1, 1]);
 		this.text.setAlign('center');
 		this.text.setBaseline('middle');
-		this.addChild(this.text);
+		this.addPart(this.text);
 
 		// Setup event handling (this would be connected to the input system)
 		this.setupEvents();
@@ -81,22 +81,6 @@ export class Button extends Component {
 	 */
 	public setLabel(text: string): this {
 		this.text.setText(text);
-		return this;
-	}
-
-	/**
-	 * Get the button's label text
-	 */
-	public getLabel(): string {
-		return this.text.getText();
-	}
-
-	/**
-	 * Set the text color
-	 * @param color Color value (hex string or RGBA array)
-	 */
-	public setTextColor(color: string | [number, number, number, number]): this {
-		this.text.setColor(color);
 		return this;
 	}
 

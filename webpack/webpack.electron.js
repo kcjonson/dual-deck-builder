@@ -9,6 +9,7 @@ const devtool = process.env.NODE_ENV === 'production' ? 'source-map' : 'eval-sou
 // as the browser build, emitted into dist/electron/renderer so its entry
 // names can't collide with main.js/preload.js.
 const mainConfig = {
+	name: 'main',
 	mode,
 	devtool,
 	target: 'electron-main',
@@ -38,6 +39,7 @@ const mainConfig = {
 };
 
 const preloadConfig = {
+	name: 'preload',
 	mode,
 	devtool,
 	target: 'electron-preload',
@@ -63,6 +65,7 @@ const preloadConfig = {
 };
 
 const rendererConfig = merge(common, {
+	name: 'renderer',
 	mode,
 	devtool,
 	// contextIsolation is on and nodeIntegration off, so the renderer is a

@@ -167,10 +167,6 @@ export class FontAtlas {
 		return this.fontSize;
 	}
 
-	public getLineHeight(): number {
-		return this.lineHeight;
-	}
-
 	public getAtlasSize(): number {
 		return this.atlasSize;
 	}

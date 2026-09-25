@@ -10,6 +10,7 @@ import { Button } from '../../../engine/ui/Button';
 export class NestedPanelsSection extends Panel {
 	constructor(x: number, y: number, width: number) {
 		super({
+			id: 'dev_section_nested_panels',
 			width,
 			height: 200, // Will be calculated based on content
 			style: {

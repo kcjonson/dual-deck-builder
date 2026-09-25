@@ -1,9 +1,10 @@
 import { Renderer } from './renderer/engine/rendering/Renderer';
+import { createLegacyDrawApi } from './renderer/engine/rendering/LegacyGLBackend';
 import { Shader } from './renderer/engine/rendering/Shader';
 import { Game } from './renderer/game/Game';
 import { RendererContext } from './renderer/engine/rendering/RendererContext';
 import { InputSystem } from './renderer/engine/input/InputSystem';
-import { PerformanceMonitor } from './renderer/engine/rendering/PerformanceMonitor';
+import { FrameTimer } from './renderer/engine/rendering/FrameTimer';
 import vertexShaderSource from './assets/shaders/vertex.glsl';
 import fragmentShaderSource from './assets/shaders/fragment.glsl';
 
@@ -13,8 +14,7 @@ import fragmentShaderSource from './assets/shaders/fragment.glsl';
 class Application {
 	private renderer!: Renderer;
 	private game!: Game;
-	private performanceMonitor!: PerformanceMonitor;
-	private lastTime = 0;
+	private frameTimer!: FrameTimer;
 
 	/**
 	 * Initialize the application
@@ -31,11 +31,11 @@ class Application {
 				}
 			});
 
-			// Initialize performance monitoring
-			this.performanceMonitor = new PerformanceMonitor();
+			// Frame timing, section timing and the per-frame draw counters (R13.7).
+			this.frameTimer = new FrameTimer();
 
 			// Create the WebGL renderer
-			this.renderer = new Renderer('game-canvas', this.performanceMonitor);
+			this.renderer = new Renderer('game-canvas');
 
 			// Set up the global renderer context
 			RendererContext.getInstance().setRenderer(this.renderer);
@@ -52,12 +52,29 @@ class Application {
 			);
 			this.renderer.useShader(shader);
 
+			// The seam. Built through the shared factory rather than spelled
+			// here, so this page and the gallery cannot end up with differently
+			// configured draw APIs over the same renderer.
+			const draw = createLegacyDrawApi({ renderer: this.renderer, frameTimer: this.frameTimer });
+			RendererContext.getInstance().draw = draw;
+
 			// Create and initialize the game
-			this.game = new Game(this.renderer, this.performanceMonitor);
+			this.game = new Game({ draw, frameTimer: this.frameTimer });
 			await this.game.init();
 
+			if (__DEV_TOOLS__) {
+				// Required, not imported, for the reason Game.ts states: with
+				// tsconfig `module: commonjs` webpack cannot tree-shake an unused
+				// ES import, but it does drop a require inside a branch
+				// DefinePlugin has folded to false (R13.2).
+				// eslint-disable-next-line @typescript-eslint/no-var-requires
+				const { installInputHooks } = require('./renderer/engine/debug/hooks') as typeof import('./renderer/engine/debug/hooks');
+				// R13.35, on the same canvas InputSystem.setup just registered
+				// its listeners on, so injected events land on those listeners.
+				installInputHooks(canvas);
+			}
+
 			// Start the main loop
-			this.lastTime = performance.now();
 			this.loop();
 
 			console.log('Initialization complete!');
@@ -78,29 +95,40 @@ class Application {
 	}
 
 	/**
-	 * Main game loop
+	 * Main game loop.
+	 *
+	 * beginFrame closes the previous frame's record and hands back the delta,
+	 * already clamped to 0.25 s (R13.9), so the timer owns both halves of the
+	 * frame interval and neither loop can compute it differently.
+	 *
+	 * The three sections are disjoint and exhaustive of the application's own
+	 * work (R13.7). The clear belongs inside render because it is a GL command
+	 * for the frame being drawn. Since DDB-55 phase 1 the render section is CPU
+	 * work plus whatever a clip boundary submits mid-walk, and flush is the last
+	 * sort domain; before it, render held every shape's GL submission.
 	 */
 	private loop = (): void => {
-		// Start performance tracking for this frame
-		this.performanceMonitor.beginFrame();
-		
-		const currentTime = performance.now();
-		const deltaTime = (currentTime - this.lastTime) / 1000; // Convert to seconds
-		this.lastTime = currentTime;
+		const deltaTime = this.frameTimer.beginFrame();
 
-		// Update game state
+		// R13.32's pause branch is inside Game.update rather than here, so a
+		// paused page keeps clearing and rendering and a capture still gets a
+		// frame; the timer's frame start advances on paused frames too, so
+		// resume hands update a normal delta instead of the whole pause.
+		this.frameTimer.beginSection('update');
 		this.game.update(deltaTime);
+		this.frameTimer.endSection('update');
 
-		// Clear the screen
+		this.frameTimer.beginSection('render');
 		this.renderer.clear();
-
-		// Render the game
 		this.game.render();
-		
-		// End performance tracking for this frame
-		this.performanceMonitor.endFrame();
-		
-		// Queue the next frame
+		this.frameTimer.endSection('render');
+
+		this.frameTimer.beginSection('flush');
+		this.game.flush();
+		this.frameTimer.endSection('flush');
+
+		this.frameTimer.endFrame();
+
 		requestAnimationFrame(this.loop);
 	};
 }

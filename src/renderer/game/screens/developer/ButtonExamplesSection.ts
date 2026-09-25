@@ -12,6 +12,7 @@ export class ButtonExamplesSection extends Panel {
 
 	constructor(x: number, y: number, width: number) {
 		super({
+			id: 'dev_section_buttons',
 			width,
 			height: 200, // Will be calculated based on content
 			style: {

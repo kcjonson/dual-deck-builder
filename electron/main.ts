@@ -23,11 +23,20 @@ const createWindow = () => {
 	if (app.isPackaged) {
 		mainWindow.loadFile(path.join(__dirname, 'renderer', 'index.html'));
 	} else {
-		// In development, load from the dev server
-		mainWindow.loadURL('http://localhost:9000');
+		// In development, load from the dev server. The URL is overridable
+		// because the port is not fixed any more: several worktrees of this
+		// repo run their own dev server at once, and the Playwright harness
+		// derives its port from the checkout path
+		// (`playwright.config.ts`, DEV_SERVER_PORT).
+		const rendererUrl = process.env.DDB_RENDERER_URL ?? 'http://localhost:9000';
+		mainWindow.loadURL(rendererUrl);
 
-		// Open DevTools by default in development mode
-		mainWindow.webContents.openDevTools();
+		// DevTools docks to the right of the web contents and takes its width
+		// from them, so a screenshot run has to open without it or every
+		// capture is of a narrower page than the harness asked for.
+		if (!process.env.DDB_RENDERER_URL) {
+			mainWindow.webContents.openDevTools();
+		}
 
 		// Log startup for output monitoring
 		console.log('Electron application starting in development mode');

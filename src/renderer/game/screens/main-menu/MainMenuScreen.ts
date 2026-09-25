@@ -1,6 +1,5 @@
 import { Screen } from '../../core/Screen';
 import { ScreenManager } from '../../core/ScreenManager';
-import { Renderer } from '../../../engine/rendering/Renderer';
 import { Button } from '../../../engine/ui/Button';
 import { Text } from '../../../engine/components/Text';
 import { Rectangle } from '../../../engine/components/Rectangle';
@@ -15,10 +14,9 @@ export class MainMenuScreen extends Screen {
 
 	/**
 	 * Create a new main menu screen
-	 * @param renderer WebGL renderer
 	 */
-	constructor(renderer: Renderer) {
-		super('mainMenuScreen', renderer);
+	constructor() {
+		super('mainMenuScreen');
 		
 		// Check if running in Electron
 		interface ElectronWindow extends Window {
@@ -44,6 +42,7 @@ export class MainMenuScreen extends Screen {
 
 		// Create title text
 		this.title = new Text('Dual Deckbuilder', {
+			id: 'main_menu_title',
 			style: {
 				fontSize: 64,
 				color: '#ffffff',
@@ -69,6 +68,7 @@ export class MainMenuScreen extends Screen {
 
 		// Start Game button
 		const startButton = new Button('Start Game', {
+			id: 'main_menu_start_button',
 			width: buttonWidth,
 			height: buttonHeight,
 			style: {
@@ -82,6 +82,7 @@ export class MainMenuScreen extends Screen {
 
 		// Settings button
 		const settingsButton = new Button('Settings', {
+			id: 'main_menu_settings_button',
 			width: buttonWidth,
 			height: buttonHeight,
 			style: {
@@ -96,6 +97,7 @@ export class MainMenuScreen extends Screen {
 
 		// Credits button
 		const creditsButton = new Button('Credits', {
+			id: 'main_menu_credits_button',
 			width: buttonWidth,
 			height: buttonHeight,
 			style: {
@@ -110,6 +112,7 @@ export class MainMenuScreen extends Screen {
 
 		// Card showcase button
 		const cardShowcaseButton = new Button('Card Showcase', {
+			id: 'main_menu_card_showcase_button',
 			width: buttonWidth,
 			height: buttonHeight,
 			style: {
@@ -123,6 +126,7 @@ export class MainMenuScreen extends Screen {
 
 		// Developer button
 		const devButton = new Button('Developer Tools', {
+			id: 'main_menu_developer_button',
 			width: buttonWidth,
 			height: buttonHeight,
 			style: {

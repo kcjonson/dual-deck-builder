@@ -17,8 +17,6 @@ export class Input extends Component {
 	private placeholderText = '';
 	private maxLength = 100;
 	private onChangeCallback: ((value: string) => void) | null = null;
-	private onFocusCallback: (() => void) | null = null;
-	private onBlurCallback: (() => void) | null = null;
 	private cursorBlinkTimer = 0;
 
 	// Input appearance states
@@ -48,7 +46,7 @@ export class Input extends Component {
 				borderRadius: 3,
 			},
 		});
-		this.addChild(this.background);
+		this.addPart(this.background);
 
 		// Create text child component for the input value at local origin
 		const textOffset = 10; // Padding from left edge
@@ -65,7 +63,7 @@ export class Input extends Component {
 		});
 		this.text.setAlign('left');
 		this.text.setBaseline('middle');
-		this.addChild(this.text);
+		this.addPart(this.text);
 
 		// Create placeholder text at same position
 		this.placeholder = new Text(placeholder, {
@@ -82,7 +80,7 @@ export class Input extends Component {
 		this.placeholder.setAlign('left');
 		this.placeholder.setBaseline('middle');
 		this.placeholderText = placeholder;
-		this.addChild(this.placeholder);
+		this.addPart(this.placeholder);
 		
 		// Create cursor (initially hidden)
 		this.cursor = new Rectangle({
@@ -95,7 +93,7 @@ export class Input extends Component {
 			},
 		});
 		this.cursor.setVisible(false);
-		this.addChild(this.cursor);
+		this.addPart(this.cursor);
 
 		// Setup event handling (this would be connected to the input system)
 		this.setupEvents();
@@ -135,50 +133,6 @@ export class Input extends Component {
 	 */
 	public getValue(): string {
 		return this.value;
-	}
-
-	/**
-	 * Set the placeholder text
-	 * @param placeholder Placeholder text
-	 */
-	public setPlaceholder(placeholder: string): this {
-		this.placeholderText = placeholder;
-		this.placeholder.setText(placeholder);
-		this.updatePlaceholderVisibility();
-		return this;
-	}
-
-	/**
-	 * Set the maximum length for the input value
-	 * @param length Maximum number of characters
-	 */
-	public setMaxLength(length: number): this {
-		this.maxLength = length;
-
-		// Trim existing value if necessary
-		if (this.value.length > this.maxLength) {
-			this.setValue(this.value.substring(0, this.maxLength));
-		}
-
-		return this;
-	}
-
-	/**
-	 * Set the text color
-	 * @param color RGBA color array [r, g, b, a] with values from 0-1
-	 */
-	public setTextColor(color: [number, number, number, number]): this {
-		this.text.setColor(color);
-		return this;
-	}
-
-	/**
-	 * Set the placeholder text color
-	 * @param color RGBA color array [r, g, b, a] with values from 0-1
-	 */
-	public setPlaceholderColor(color: [number, number, number, number]): this {
-		this.placeholder.setColor(color);
-		return this;
 	}
 
 	/**
@@ -271,39 +225,12 @@ export class Input extends Component {
 		return this;
 	}
 
-	/**
-	 * Set the onFocus callback
-	 * @param callback Function to call when the input gains focus
-	 */
-	public setOnFocus(callback: () => void): this {
-		this.onFocusCallback = callback;
-		return this;
-	}
-
-	/**
-	 * Set the onBlur callback
-	 * @param callback Function to call when the input loses focus
-	 */
-	public setOnBlur(callback: () => void): this {
-		this.onBlurCallback = callback;
-		return this;
-	}
-
-	/**
-	 * Override lifecycle methods to trigger callbacks
-	 */
 	protected onFocus(): void {
 		super.onFocus();
-		if (this.onFocusCallback) {
-			this.onFocusCallback();
-		}
 	}
 
 	protected onBlur(): void {
 		super.onBlur();
-		if (this.onBlurCallback) {
-			this.onBlurCallback();
-		}
 	}
 
 	/**
@@ -323,11 +250,6 @@ export class Input extends Component {
 			this.background.setBorderColor([0.4, 0.4, 0.8, 1]);
 			this.cursor.setVisible(true);
 			this.cursorBlinkTimer = 0;
-
-			// Call onFocus callback if defined
-			if (this.onFocusCallback) {
-				this.onFocusCallback();
-			}
 		}
 	}
 
@@ -341,11 +263,6 @@ export class Input extends Component {
 			this.background.setFillColor(this.normalColor);
 			this.background.setBorderColor([0.3, 0.3, 0.3, 1]);
 			this.cursor.setVisible(false);
-
-			// Call onBlur callback if defined
-			if (this.onBlurCallback) {
-				this.onBlurCallback();
-			}
 		}
 	}
 

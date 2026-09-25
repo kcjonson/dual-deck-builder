@@ -9,6 +9,7 @@ import { Rectangle } from '../../../engine/components/Rectangle';
 export class RectangleExamplesSection extends Panel {
 	constructor(x: number, y: number, width: number) {
 		super({
+			id: 'dev_section_rectangles',
 			width,
 			height: 150, // Will be calculated based on content
 			style: {

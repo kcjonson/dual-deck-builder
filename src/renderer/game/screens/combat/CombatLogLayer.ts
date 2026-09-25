@@ -1,4 +1,4 @@
-import { Layer } from '../../../engine/components/Layer';
+import { Layer, LayerOptions } from '../../../engine/components/Layer';
 import { Rectangle } from '../../../engine/components/Rectangle';
 import { Text } from '../../../engine/components/Text';
 import { CombatLog, CombatLogEntry, CombatLogType } from '../../mechanics/CombatLog';
@@ -19,19 +19,8 @@ export class CombatLogLayer extends Layer {
 	private readonly padding = 10;
 	private readonly fontSize = 14;
 	
-	constructor(options: {
-		x: number;
-		y: number;
-		width: number;
-		height: number;
-		combatLog: CombatLog;
-	}) {
-		super({
-			x: options.x,
-			y: options.y,
-			width: options.width,
-			height: options.height,
-		});
+	constructor(options: LayerOptions & { x: number; y: number; width: number; height: number; combatLog: CombatLog }) {
+		super(options);
 		
 		this.combatLog = options.combatLog;
 		
@@ -256,6 +245,8 @@ export class CombatLogLayer extends Layer {
 			this.unsubscriber();
 			this.unsubscriber = null;
 		}
+
+		super.unmount();
 	}
 	
 	/**

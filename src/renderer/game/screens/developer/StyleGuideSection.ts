@@ -9,6 +9,7 @@ import { Rectangle } from '../../../engine/components/Rectangle';
 export class StyleGuideSection extends Panel {
 	constructor(x: number, y: number, width: number) {
 		super({
+			id: 'dev_section_style_guide',
 			width,
 			height: 200, // Will be calculated based on content
 			style: {

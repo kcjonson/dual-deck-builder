@@ -1,6 +1,5 @@
 import { Screen } from '../../core/Screen';
 import { ScreenManager } from '../../core/ScreenManager';
-import { Renderer } from '../../../engine/rendering/Renderer';
 import { Rectangle } from '../../../engine/components/Rectangle';
 import { Text } from '../../../engine/components/Text';
 import { Button } from '../../../engine/ui/Button';
@@ -31,8 +30,8 @@ export class BattleResultScreen extends Screen {
 	private readonly PANEL_WIDTH = 600;
 	private readonly PANEL_HEIGHT = 400;
 	
-	constructor(renderer: Renderer) {
-		super('battleResultScreen', renderer);
+	constructor() {
+		super('battleResultScreen');
 		this.createUI();
 		this.layoutUI();
 	}
@@ -55,6 +54,7 @@ export class BattleResultScreen extends Screen {
 		
 		// Center panel
 		this.panel = new Rectangle({
+			id: 'result_panel',
 			x: 0,
 			y: 0,
 			width: this.PANEL_WIDTH,
@@ -76,6 +76,7 @@ export class BattleResultScreen extends Screen {
 		};
 		
 		this.titleText = new Text('', {
+			id: 'result_title',
 			style: titleStyle,
 		});
 		this.rootLayer.addChild(this.titleText);
@@ -100,6 +101,7 @@ export class BattleResultScreen extends Screen {
 		
 		// Continue button
 		this.continueButton = new Button('Continue', {
+			id: 'result_continue_button',
 			x: 0,
 			y: 0,
 			width: 200,
