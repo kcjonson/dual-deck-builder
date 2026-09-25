@@ -340,29 +340,23 @@ export class Battle extends Model<BattleData> {
 			return false;
 		}
 
-		// Store adrenaline before playing card
-		const adrenalineBefore = driver.adrenaline;
-		
-		// Attempt to play the card with cost validation
-		const result = driver.playCardWithCost(cardIndex);
-		
-		if (!result.success) {
-			this.log('general', `Cannot play card: ${result.reason}`);
+		// Check cost, passenger rules, and target before the card leaves the hand
+		const blocker = driver.getPlayBlocker(cardIndex);
+		if (blocker) {
+			this.log('general', `Cannot play card: ${blocker}`);
 			return false;
 		}
 
-		const card = result.card;
-		if (!card) {
-			console.error('Card play succeeded but no card returned');
-			return false;
-		}
-
-		// Validate target
+		const card = driver.hand[cardIndex];
 		if (!this.validateTarget(card, driver, targetVehicle)) {
 			this.log('general', `Invalid target for card "${card.name}" (type: ${card.targetType}). Driver: ${this.getDriverDisplayName(driver)}, Target: ${targetVehicle ? targetVehicle.name : 'undefined'}`);
-			// Return card to hand and refund cost
-			driver.hand.push(card);
-			driver.gainAdrenaline(card.cost);
+			return false;
+		}
+
+		const adrenalineBefore = driver.adrenaline;
+		const result = driver.playCardWithCost(cardIndex);
+		if (!result.success) {
+			this.log('general', `Cannot play card: ${result.reason}`);
 			return false;
 		}
 

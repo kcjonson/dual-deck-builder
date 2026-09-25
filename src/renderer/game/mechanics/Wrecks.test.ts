@@ -45,6 +45,7 @@ const card = (name: string, targetType: TargetType, effects: CardEffect[], cost 
 	tags: []
 });
 
+const pointBlank = () => card('Point Blank', 'enemy_single', [{ type: 'damage', value: 4, range: 1, always_hits: true }]);
 const farShot = () => card('Far Shot', 'enemy_single', [{ type: 'damage', value: 4, range: 2, always_hits: true }]);
 const bigHit = () => card('Big Hit', 'enemy_single', [{ type: 'damage', value: 40, always_hits: true }]);
 const headshot = () => card('Headshot', 'enemy_single', [{ type: 'damage', value: 10, target: 'driver', always_hits: true }]);
@@ -200,6 +201,7 @@ describe('Wrecks and passengers', () => {
 	});
 
 	describe('enemies never target a wreck', () => {
+		// Regression guard; passed before DDB-96
 		test('a wreck still on the road is not planned against', () => {
 			wreck(battle.playerTeam, rig);
 			giveHand(driverOf(buggy), [farShot()]);
@@ -209,11 +211,26 @@ describe('Wrecks and passengers', () => {
 			expect(battle.getPlan(buggy).map(action => action.target)).toEqual([bike]);
 		});
 
-		test('the player cannot target a wreck either', () => {
+		test('the player cannot target a wreck either, and the card stays where it was', () => {
 			wreck(battle.enemyTeam, buggy);
-			giveHand(bikeDriver, [farShot()]);
+			const hand = [armorUp(), farShot(), armorUp()];
+			giveHand(bikeDriver, [...hand]);
 
-			expect(battle.playCard({ driver: bikeDriver, cardIndex: 0, targetVehicle: buggy })).toBe(false);
+			expect(battle.playCard({ driver: bikeDriver, cardIndex: 1, targetVehicle: buggy })).toBe(false);
+			expect(bikeDriver.hand).toEqual(hand);
+			expect(bikeDriver.discard).toEqual([]);
+			expect(bikeDriver.adrenaline).toBe(5);
+		});
+
+		test('a target out of range is refused without spending the card', () => {
+			const hand = [armorUp(), pointBlank(), armorUp()];
+			giveHand(bikeDriver, [...hand]);
+
+			// Bike (inside, behind) to Buggy (enemy inside, center) is range 2
+			expect(battle.playCard({ driver: bikeDriver, cardIndex: 1, targetVehicle: buggy })).toBe(false);
+			expect(bikeDriver.hand).toEqual(hand);
+			expect(bikeDriver.discard).toEqual([]);
+			expect(bikeDriver.adrenaline).toBe(5);
 		});
 
 		test('a plan aimed at a vehicle cleared before the enemy turn follows its driver', async () => {
