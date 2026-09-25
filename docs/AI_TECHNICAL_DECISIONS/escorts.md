@@ -68,19 +68,23 @@ The first draft of this record had nine open questions. Kevin answered four the 
 15. **Spending.** Attack orders (Covering Fire, Ramming Run, Rally the Convoy) and Draw Fire spend the escort. Close Ranks and Triage don't; Triage is the Med Truck's card, not its action. Buff orders can target a spent escort.
 16. **A passenger in an escort.** When an escort carries a passenger, damage past armor splits half to structure and half to the passenger, the same as a driven vehicle. An empty escort takes it all on structure.
 
-Three edges the answers didn't cover, noted rather than decided: whether a driver-only attack (Headshot) can target a passenger riding in an escort; whether an area intent aimed at both driven vehicles counts as "aimed at a driven vehicle in the escort's row" for Draw Fire; and whether a set-piece escort joins the convoy after the fight.
+Three edges the answers didn't cover, noted rather than decided, each left to its build task:
 
-Full road, read against 14: its raider side (six in formation, three on the player's shoulder) is a legal ambush. Its player side isn't a legal position. The Interceptor flanked, so its formation slot should be empty and reserved, but the formation is full, and it holds five escorts against the cap of four. The scenario stays as a layout stress case.
+- Whether a driver-only attack (Headshot) can target a passenger riding in an escort. DDB-148.
+- Whether an area intent aimed at both driven vehicles counts as "aimed at a driven vehicle in the escort's row" for Draw Fire. DDB-150.
+- Whether a set-piece escort joins the convoy after the fight. DDB-153.
+
+Full road, read against 14: its raider side (six in formation, three on the player's shoulder) is a legal ambush. Its player side isn't a legal position. The Interceptor flanked, so its formation slot should be empty and reserved, but the formation is full, and it holds five escorts against the cap of four. The scenario stays as a layout stress case with a legal raider side. DDB-155 builds the legal gallery scenes.
 
 ## Open questions
 
-These change gameplay, so they're Kevin's. Kevin filed the build as DDB-146 to DDB-155, and each question is settled by the task that builds the piece named with it.
+These change gameplay, so they're Kevin's. Kevin filed the build as DDB-146 to DDB-155, and each question names the task that settles it.
 
-1. **The other signature cards.** Only the Med Truck's (Triage) is named. The Outrider, Pilot Car, and Fuel Hauler each need one. Settled by the order-card task.
-2. **Ramming Run on a miss.** Does the escort still take its 2 structure when the ram misses? Settled by the order-card task.
-3. **After the fight, an unmanned vehicle** is an escort "for the rest of the fight". Does it stay in the convoy afterwards (counting toward four, with no signature card), or is it gone? Settled by the task that builds unmanned vehicles and passengers.
-4. **Med Truck dividend.** The Med Truck is a hauler, but only the Fuel Hauler has a dividend set. Does the Med Truck pay one, or is Triage its payoff? Settled by the task that builds escort run state and dividends.
-5. **Orders that move an escort to the shoulder.** Escorts flank under the normal rules, but no order in the first set moves one onto the shoulder, so in the first version an escort only gets there as a set-piece ambusher. Settled by the order-card task.
+1. **The other signature cards.** Only the Med Truck's (Triage) is named. The Outrider, Pilot Car, and Fuel Hauler each need one. DDB-149 (ORDER cards and order resolution).
+2. **Ramming Run on a miss.** Does the escort still take its 2 structure when the ram misses? DDB-149.
+3. **After the fight, an unmanned vehicle** is an escort "for the rest of the fight". Does it stay in the convoy afterwards (counting toward four, with no signature card), or is it gone? DDB-152 (passengers in escorts, unmanned vehicles becoming escorts).
+4. **Med Truck dividend.** The Med Truck is a hauler, but only the Fuel Hauler has a dividend set. Does the Med Truck pay one, or is Triage its payoff? DDB-151 (escort loss, persistence, and dividends).
+5. **Orders that move an escort to the shoulder.** Escorts flank under the normal rules, but no order in the first set moves one onto the shoulder, so in the first version an escort only gets there as a set-piece ambusher. DDB-149.
 
 ## Consequences
 
