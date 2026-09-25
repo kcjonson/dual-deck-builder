@@ -6,6 +6,14 @@ This document contains the chronological log of completed development tasks for 
 
 **Date correction (2026-08-22):** the repo's first commit is 2025-05-17, but many entries below carry dates in December 2024 or January 2025 — the AI that wrote them used its assumed date instead of the real one. Entries dated 2025-07-03 and 2025-07-02 have been corrected from "2025-01-03"/"2025-01-02" (verified against git history). Remaining Dec 2024 / Jan 2025 dates are wrong by roughly six months; the real work happened May–July 2025. Trust git history over these dates.
 
+## Hand cap of 7 per driver (2026-09-25)
+
+**What landed:** Combat Rules' hand cap, in the mechanics layer. No UI.
+
+- `Driver.drawCards` stops filling the hand at `HAND_CAP` (7). Cards drawn past it go straight to that driver's discard, the draw returns `{ drawn, burned }`, and the driver emits `cardsBurned` with the burned cards for the screen to animate later.
+- Battle routes the turn draw (now `TURN_DRAW`, 5) and both card draw effects through the capped draw and logs burns as a `cards_burned` message, e.g. "Player1 THE MECHANIC's hand is full, so Nitro Boost goes straight to the discard pile". `Team.drawCardsForAllDrivers` went away with it.
+- Tests: a Nitro Boost chain stops at 7 with the overflow in discard, a turn draw into a held hand burns past the cap, and the driver-level burn event. The deck reshuffling tests drew 10 into a hand and were reworked to stay under the cap.
+
 ## Design docs recovered from the old design folder (2026-09-25)
 
 **What landed:** everything from the original design folder that wasn't already in the repo, converted to Markdown. Docs only.

@@ -3,6 +3,26 @@ import { Deck } from './Deck';
 import { Model } from '../core/Model';
 
 /**
+ * Most cards a driver can hold. A card drawn past the cap goes straight to discard (a burn).
+ */
+export const HAND_CAP = 7;
+
+/**
+ * Payload of the Driver 'cardsBurned' event, emitted once per draw that overflows the hand cap
+ */
+export interface CardsBurnedEvent {
+	cards: readonly Card[];
+}
+
+/**
+ * Outcome of a draw: cards that reached the hand, and cards burned to discard past the cap
+ */
+export interface DrawResult {
+	drawn: Card[];
+	burned: Card[];
+}
+
+/**
  * Driver archetype defining playstyle and starting deck
  */
 export type DriverArchetype = 'road_warrior' | 'interceptor' | 'mechanic' | 'raider';
@@ -330,33 +350,41 @@ export class Driver extends Model<DriverData> {
 	}
 
 	/**
-	 * Draw cards from driver's deck into their hand
+	 * Draw cards from driver's deck into their hand. Cards drawn while the hand is at
+	 * HAND_CAP go straight to discard and are announced with a 'cardsBurned' event.
 	 */
-	public drawCards(count: number): void {
-		if (!this.deck) return;
+	public drawCards(count: number): DrawResult {
+		const result: DrawResult = { drawn: [], burned: [] };
+		if (!this.deck) return result;
 
-		const drawnCards: Card[] = [];
 		for (let i = 0; i < count; i++) {
-			// Check if deck is empty before drawing
 			if (this.deck.size === 0 && this.discard.length > 0) {
 				this.reshuffleDiscardIntoDeck();
 			}
-			
+
 			const card = this.deck.draw();
-			if (card) {
+			if (!card) break;
+
+			if (this.hand.length < HAND_CAP) {
 				this.addToHand(card);
-				drawnCards.push(card);
+				result.drawn.push(card);
 			} else {
-				// No cards available in deck or discard
-				break;
+				this.discard.push(card);
+				result.burned.push(card);
 			}
 		}
-		
-		// Log the new hand after drawing
-		if (drawnCards.length > 0) {
+
+		if (result.drawn.length > 0) {
 			const handCards = this.formatHandWithCounts(this.hand);
-			console.log(`${this.metadata.name} drew ${drawnCards.length} cards. New hand: ${handCards}`);
+			console.log(`${this.metadata.name} drew ${result.drawn.length} cards. New hand: ${handCards}`);
 		}
+
+		if (result.burned.length > 0) {
+			const payload: CardsBurnedEvent = { cards: Object.freeze([...result.burned]) };
+			this.emit('cardsBurned', Object.freeze(payload));
+		}
+
+		return result;
 	}
 
 	/**
