@@ -6,6 +6,17 @@ This document contains the chronological log of completed development tasks for 
 
 **Date correction (2026-08-22):** the repo's first commit is 2025-05-17, but many entries below carry dates in December 2024 or January 2025 — the AI that wrote them used its assumed date instead of the real one. Entries dated 2025-07-03 and 2025-07-02 have been corrected from "2025-01-03"/"2025-01-02" (verified against git history). Remaining Dec 2024 / Jan 2025 dates are wrong by roughly six months; the real work happened May–July 2025. Trust git history over these dates.
 
+## Passengers and wrecks leaving the road (2026-09-25)
+
+**What landed:** DDB-96. Losing a vehicle no longer deadlocks combat.
+
+- The combat screen guarded the whole hand and resource update on `getAllDrivers().length >= 2`, and read seats from that list's order. A wreck whose driver died with it dropped the count to one and froze the hand; a wreck whose driver survived swapped the order. It now keeps the two drivers in fixed seats from `initializeCombat`, and the new `screens/combat/PlayerHandView.ts` builds the hand from them: both hands while both drivers live, a dead driver's omitted, playability from `Driver.canPlayCard`, so a passenger's attack cards show disabled. `PlayerHandLayer.setHand(view)` replaces `setHand(cards)`, `setCardDriverMap`, `setDriverAdrenaline`, and the deprecated `setAdrenaline`. The seat label reads "Driver 1 (passenger)".
+- Wrecks leave the road at the end of the turn they die in, player or enemy, right after `dropBackFlankers`: `Battle.clearWrecks` removes them from their team and clears `slot` and `flank`, so the slot, a flanker's shoulder slot, and its reservation all free up. Until then the wreck holds its slot but can't be targeted: `Battle.validateTarget` refuses it, and the screen's targetable list uses alive vehicles only.
+- `Team.handleVehicleDestruction` seats each surviving occupant through `handleDriverEscape` (`Vehicle.canAddPassenger`/`addPassenger`) instead of its own copy of the search, and drops the old passenger-seat condition that compared a vehicle's driver against the wrecked driver.
+- Tests: 14 in `mechanics/Wrecks.test.ts` (passenger keeps hand, discard, and adrenaline, can't attack, draws next turn; wreck holds its slot through its turn then leaves; wrecked flanker frees shoulder and reservation; never targeted by plan or player; stale plan follows the driver after the wreck is cleared; loss and win conditions), 4 in `screens/combat/PlayerHandView.test.ts`.
+
+**How:** "Stays on the road for the turn it dies, then is removed" read with the rules' own sense of a turn, the one the flanking rule uses ("the end of every turn (yours and the enemy's)").
+
 ## Enemy intents planned before the player's turn (2026-09-25)
 
 **What landed:** DDB-132, the model half of DDB-33, stacked on the road-grid PR and merged up to the hand cap and card summaries.

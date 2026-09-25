@@ -3,6 +3,7 @@ import { Rectangle } from '../../../engine/components/Rectangle';
 import { Text } from '../../../engine/components/Text';
 import { Card as UICard, CardSize } from '../../ui/Card';
 import { Card } from '../../mechanics/Card';
+import { DriverSeat, PlayerHandView } from './PlayerHandView';
 
 /**
  * Player hand layer for the bottom 20% of combat screen
@@ -11,8 +12,8 @@ import { Card } from '../../mechanics/Card';
 export class PlayerHandLayer extends Layer {
 	private handCards: Card[] = [];
 	private cardElements: UICard[] = [];
-	private currentAdrenaline = 0;
-	private driverAdrenaline: Map<number, number> = new Map([[1, 0], [2, 0]]);
+	private playableCardIds: Set<string> = new Set();
+	private seatLabels: Map<DriverSeat, string> = new Map();
 	
 	// Card layout settings
 	private readonly CARD_SIZE = CardSize.NORMAL;
@@ -28,7 +29,7 @@ export class PlayerHandLayer extends Layer {
 	// Selection state
 	private selectedCard: Card | null = null; // The card player has selected to play (waiting for target)
 	private targetingMode = false;
-	private cardDriverMap: Map<string, 1 | 2> = new Map();
+	private cardDriverMap: Map<string, DriverSeat> = new Map();
 	
 	// Driver grouping visuals
 	private driverDivider: Rectangle | null = null;
@@ -60,29 +61,15 @@ export class PlayerHandLayer extends Layer {
 	}
 
 	/**
-	 * Set the current hand of cards
+	 * Show both drivers' cards, grouped by seat, with the unplayable ones
+	 * disabled
 	 */
-	public setHand(cards: Card[]): void {
+	public setHand({ cards, seatOf, playable, labels }: PlayerHandView): void {
 		this.handCards = cards;
-		this.clearCardElements();
+		this.cardDriverMap = seatOf;
+		this.playableCardIds = playable;
+		this.seatLabels = labels;
 		this.createCardElements();
-	}
-
-	/**
-	 * Set current adrenaline for card playability
-	 * @deprecated Use setDriverAdrenaline instead for dual-driver support
-	 */
-	public setAdrenaline(adrenaline: number): void {
-		this.currentAdrenaline = adrenaline;
-		this.updateCardPlayability();
-	}
-	
-	/**
-	 * Set adrenaline for a specific driver
-	 */
-	public setDriverAdrenaline(driverNumber: 1 | 2, adrenaline: number): void {
-		this.driverAdrenaline.set(driverNumber, adrenaline);
-		this.updateCardPlayability();
 	}
 
 	/**
@@ -158,17 +145,6 @@ export class PlayerHandLayer extends Layer {
 	}
 	
 	/**
-	 * Set card driver mapping
-	 */
-	public setCardDriverMap(map: Map<string, 1 | 2>): void {
-		this.cardDriverMap = map;
-		// Re-create card elements to update driver indicators
-		if (this.handCards.length > 0) {
-			this.createCardElements();
-		}
-	}
-
-	/**
 	 * Clear all card visual elements
 	 */
 	private clearCardElements(): void {
@@ -240,19 +216,11 @@ export class PlayerHandLayer extends Layer {
 
 
 	/**
-	 * Check if a card can be played with current adrenaline
+	 * Whether the card's driver can play it now: adrenaline, and no attacks
+	 * from a passenger
 	 */
 	private canPlayCard(card: Card): boolean {
-		// Check which driver owns this card
-		const driverNumber = this.cardDriverMap.get(card.id);
-		if (!driverNumber) {
-			// Fallback to old behavior if no driver mapping
-			return this.currentAdrenaline >= card.cost;
-		}
-		
-		// Check the specific driver's adrenaline
-		const driverAdrenaline = this.driverAdrenaline.get(driverNumber) || 0;
-		return driverAdrenaline >= card.cost;
+		return this.playableCardIds.has(card.id);
 	}
 
 	/**
@@ -452,7 +420,7 @@ export class PlayerHandLayer extends Layer {
 		
 		// Add driver 1 label
 		if (driver1Cards.length > 0) {
-			this.driver1Label = new Text('Driver 1', {
+			this.driver1Label = new Text(this.seatLabels.get(1) ?? 'Driver 1', {
 				style: {
 					fontSize: 10,
 					color: '#8a8aff',
@@ -472,7 +440,7 @@ export class PlayerHandLayer extends Layer {
 		
 		// Add driver 2 label
 		if (driver2Cards.length > 0) {
-			this.driver2Label = new Text('Driver 2', {
+			this.driver2Label = new Text(this.seatLabels.get(2) ?? 'Driver 2', {
 				style: {
 					fontSize: 10,
 					color: '#88ff88',
