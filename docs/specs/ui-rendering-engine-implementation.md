@@ -108,7 +108,7 @@ Visible result: overlapping vehicles receive one click; scrolled-out or hidden c
 ### Phase 4: layout and theme (chapters 10 and 11)
 
 - [ ] Stack container: fixed, hug, fill with weights, six distributions, four cross alignments and `alignSelf`, per-pass resolved sizes, the three passes with shrink-to-fit and safe alignment, `minSize`, `maxSize`, `aspectRatio`, negative gap, absolute children with anchor and pivot, roots sized from the viewport (chapter 10); worldsim's layout suite ported as the conformance suite plus the added cases (10.9).
-- [ ] Combat screen as the first stack consumer: bands 25/40/20/5 with the turn counter and log as anchored absolute children (the chapter 10 worked example); the second layout deleted.
+- [ ] Combat screen as the first stack consumer: a 36px top bar, the road filling the rest, and a 228px dock, on the 1280x720 logical reference with `s = min(W/1280, H/720)` floored at 0.8, per [Battle Screen Design](./Battle%20Screen%20Design.md) section 2; the log as an anchored absolute drawer; the second layout deleted.
 - [ ] Token file, generator, committed `tokens.ts`, drift test (R11.1 to R11.4); the two-accent, five-surface, radius, spacing, type-role, and `control` tokens as the starting theme (11.2).
 - [ ] Framework-maintained state flags, layered state resolution, closed style property set rejected rather than ignored, override semantics, token-driven transitions (11.3, 11.4). `Button` and `Input` stop ignoring their style objects; the START RUN and END TURN colour hacks become variants.
 
@@ -124,7 +124,7 @@ Waves, each landing with its gallery scene, behaviour tests, and lint zero:
 
 ### Phase 6: screen migration and polish
 
-- [ ] Combat: the hand as a stack with negative gap, cards with `transform` for the fan, `zIndex` and `raised` for hover lift through the animator, drag targeting through the drag service with `dragenter` highlights and a preview line in `overlay`, card previews through the tooltip factory, the turn banner in `overlay`, enemy intent and status icons through Icon, floating damage numbers spawned at `screenBounds`. Closes DDB-28, DDB-29, DDB-30; sets up DDB-33, DDB-34, DDB-37, DDB-47.
+- [ ] Combat, to [Battle Screen Design](./Battle%20Screen%20Design.md): the road's 6x3 slot grid with fixed slots, the vehicle token, two per-driver hands as stacks with negative gap and `transform` for the fan, `zIndex` and `raised` for hover lift through the animator, drag targeting through the drag service with `dragenter` highlights, per-slot range chips, and a preview line in `overlay`, the card detail view through the tooltip factory (pinnable), the turn banner in `overlay` over the road only, enemy intent and status icons through Icon, floating damage numbers spawned at `screenBounds`. Closes DDB-28, DDB-29, DDB-30; sets up DDB-33, DDB-34, DDB-37, DDB-47.
 - [ ] Driver selection: stacks for the panels and the synergy panel, a scroll container for the deck preview (DDB-31), a Select for driver choice, no rebuild on resize.
 - [ ] Main menu, splash, battle result: root stacks, centred titles, transitions through ScreenTransition.
 - [ ] Settings and credits screens (DDB-38) as the first screens authored entirely on the new catalog (dialog, checkbox, slider, select).

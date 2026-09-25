@@ -8,7 +8,8 @@
 
 - Properties
   - Type: Player or Enemy
-  - Vehicles: Array of vehicles (Player teams have exactly 2, Enemy teams variable)
+  - Vehicles: Array of vehicles. Player teams have exactly 2 driven vehicles, plus optional escorts (vehicles with no driver hand, ordered by cards; not designed yet). Enemy teams are variable.
+  - Up to 9 vehicles on the road per side: 6 in formation and 3 flanking
 - Derived States
   - Defeated = All drivers dead
 
@@ -45,30 +46,55 @@
 
 ## Game State
 
-- Vehicles can be in any of 3 positions, Front, Back, Flanking.
-- Flanking - A vehicle can flank another vehicle if the vehicle speed is faster than the other vehicle and they cast a card with Flanking
+### The road
+
+Both teams drive the same direction on a wide freeway. The road is a grid of slots, one vehicle per slot. Lanes across the road, left to right, and who may use them:
+
+| Lane | Used by |
+|---|---|
+| Player shoulder | enemy flankers only |
+| Player outside | player formation |
+| Player inside | player formation |
+| Enemy inside | enemy formation |
+| Enemy outside | enemy formation |
+| Enemy shoulder | player flankers only |
+
+Each lane has three rows along the road: ahead, center, behind. A team's formation is its inside and outside lanes by three rows, six slots. A shoulder is only for flankers from the other team; nobody parks on their own shoulder. "Ahead" and "behind" replace the old "front" and "back"; the old Front / Back / Flanking positions map to inside / outside / the far shoulder. Screen layout is in [Battle Screen Design](./Battle%20Screen%20Design.md).
+
+### Flanking
+
+- A vehicle can flank a target if its speed is higher than the target's and it plays a card with Flanking.
+- The flanker moves to the far shoulder, in the row of the vehicle it outran.
+- Its old formation slot stays empty and reserved; the rest of the convoy doesn't shift.
+- At the end of combat, if a flanking vehicle is no longer faster than the vehicle it outran, it loses flanking and returns to its reserved slot.
+
+### Losing vehicles and drivers
+
 - Game over - All drivers on a team are dead
 - Driver death - If driver dies, vehicle becomes unmanned (if no passenger) or passenger becomes driver
-- Vehicle death - Driver jumps to a remaining team vehicle as a passenger (if space available)
+- Vehicle death - Driver jumps to a remaining team vehicle as a passenger (if space available). The passenger keeps their own deck, hand, discard, and adrenaline, draws every turn, and can't play attack cards. A wrecked vehicle stays on the road for the turn it dies, then is removed.
 
 ## Combat sequence
 
 - Players always go first (initiative system to be determined later)
 - Each driver draws 5 cards from their personal deck into their individual hand
+- Hand cap: 7 cards per driver. A card drawn past the cap goes straight to discard
 - Each driver's adrenaline pool refills to maximum
 - Players can play cards from either driver's hand (single player) or their own driver's hand (co-op)
 - Cards cost adrenaline from the specific driver who plays them
 - Passengers can play support/utility cards but NOT attack cards
-- After combat if a flanking vehicle is no longer faster it loses flanking and returns to the back position
 
 ## Cards
 
+- Every card has a short text, shown on the card face in the hand (three lines, keyword-based), and a full text, shown in the card detail view (up to 330 characters). See Card System Design 1.1.
+- Driver selection may not pick the same driver for both slots.
+
 - Rules for all Ranged Attack cards
-  - Range 1-2.  Range is determined by the relative vehicle position, for example team 1 front to team 2 front is range 1.  team 1 front to team 2 back is range 2.  Flanking to front is range 2.  Think of the battlefield as layed as out F1, B1, F1 -> F2, B2, F2
+  - Range 1-2. Range is lanes apart plus rows apart on the road grid, with no diagonal shortcut. Player inside to enemy inside on the same row is range 1; one row ahead or behind adds 1; player inside to enemy outside is range 2; a flanker on the enemy shoulder to the enemy inside lane is range 2.
   - Damage
     - An attack hits if the attacking drivers gunnery > the defending drivers evade.  
     - Damage done is: 1 - infinite
-    - Drivers with flanking do 2X damage
+    - Drivers with flanking do 50% more damage (the Flank card, the code, and this rule agree)
     - Reduces armor first
     - When armor <= 0, Applies half of remaining to the structure of a vehicle and its driver and passengers
 
@@ -103,7 +129,7 @@ Specific Cards
   - Rarity Common
   - Adrenaline 2
   - Can only flank an enemy with slower speed
-  - Move into the enemies flanking position
+  - Move to the enemy shoulder, in the row of the target it outran
   - Attack cards do 50% more damage
   - Upgraded: Adrenaline -1
 - Oil slick: Ranged Attack

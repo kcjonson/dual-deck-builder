@@ -14,6 +14,8 @@
 
 "name": "Ramming Speed",
 
+"summary": "Deal {damage}. [Range 1]. If [Vulnerable]: +{adrenaline} Adrenaline.",
+
 "description": "Deal {damage} damage. If target has Vulnerable, gain {adrenaline} Adrenaline.",
 
 "driverRestriction": null,
@@ -79,6 +81,15 @@
 }
 
 }
+
+#### Short and full text
+
+Every card carries two texts, both required, both templated with the same `{variables}`:
+
+- `summary` is the card face in the hand: three lines of 12px text in a 114px box, written with keywords in brackets (`[Range 1]`, `[Vulnerable]`, `[Sure-hit]`, `[Armor]`, `[Partner]`, `[Flank]`, `[Exhaust]`), which render highlighted and get definitions in the detail view.
+- `description` is the full rules text for the card detail view (hover, focus, or long-press; right-click pins it), up to 330 characters with values filled in. Keywords in it are highlighted automatically.
+
+A summary that wraps past three lines, or a description past 330 characters, fails the card data check; the fix is rewriting, never smaller type. Layout and budgets: [Battle Screen Design](./Battle%20Screen%20Design.md) section 5.
 
 ### 1.2 Card Types & Rarities
 
@@ -282,6 +293,8 @@ cards:
 name: Ramming Speed
 
 cost: 2
+
+summary: "Deal {damage}. Push back."
 
 description: "Deal {damage} damage. Push enemy back."
 

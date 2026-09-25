@@ -36,7 +36,7 @@ At the very bottom of this section is a dropdown or carousel selector that lets 
 
 ### 1.3 Initial Deck Construction
 
-Each driver brings their own specialized deck of 8-10 cards to the partnership. Unlike traditional deckbuilders where you might customize before starting, Wasteland Wheels embraces the roguelike philosophy - you start with what your drivers bring and adapt as you go. When combat begins, both drivers' decks are shuffled together into a single draw pile, representing the chaotic coordination required in vehicular combat.
+Each driver brings their own specialized deck of 8-10 cards to the partnership. Unlike traditional deckbuilders where you might customize before starting, Wasteland Wheels embraces the roguelike philosophy - you start with what your drivers bring and adapt as you go. In combat each driver keeps their own deck, draw pile, hand, discard, and adrenaline pool; you choose which driver acts with every card you play.
 
 ## 2\. Combat Screen UI
 
@@ -46,53 +46,30 @@ When combat begins, the screen transitions to show a post-apocalyptic battlefiel
 
 ### 2.2 Screen Layout Description
 
-**Top Section - Enemy Forces (Upper 25% of screen):** The enemy vehicles are displayed across the top of the screen in a horizontal line. Each enemy is represented by a detailed vehicle portrait (smaller than the player vehicles but still clearly visible). Think of these as "combat cards" showing the enemy vehicle from a three-quarter view that emphasizes their most threatening features - spiked bumpers, mounted weapons, armor plating.
+The full layout, sizes, and text budgets are in [Battle Screen Design](./Battle%20Screen%20Design.md); this section is the player-facing summary.
 
-For each enemy vehicle, critical information is displayed clearly:
+**The road (everything between the top bar and the dock):** Both convoys drive up the screen on a wide freeway, seen from behind. Your convoy takes the two lanes left of centre, the raiders the two lanes right of it, and the two inside lanes meet at the centre line where the fight is closest. Each lane has three slots along the road: ahead, center, and behind. The shoulder past your outside lane only fills with raiders that outran you, and the shoulder past theirs only with your vehicles that outran them. Range is how many lanes and rows apart two vehicles are.
 
-- A health bar that depletes from right to left, with numerical values overlaid (e.g., "25/30 HP")
-- An armor indicator shown as a shield icon with a number
-- Most importantly, an "intent" indicator that shows what the enemy is planning to do next turn
-
-The intent system is crucial for tactical planning. Above each enemy, an animated icon shows their next action:
+Each vehicle shows a rear-view sprite beside a plate with its name, an armor shield beside its structure bar, its driver's HP bar at the same size as structure (you lose when drivers die), a passenger's HP when someone is riding along, speed, and up to five status icons. Raiders show their intent above the plate: an icon, a value, and a mark for which of your vehicles they're aiming at, with up to two intents shown and the rest as "+N". Intent icons:
 
 - A crosshair with a damage number for attacks (e.g., crosshair with "15" means 15 damage incoming)
-- A shield being raised for defensive moves
-- A wrench for self-repair actions
-- An exclamation mark for special abilities
-- Multiple icons if the enemy will perform several actions
+- A shield for defensive moves
+- A down arrow with the effect name for debuffs
+- A question mark for hidden intents
 
-**Center Section - The Battlefield (Middle 40% of screen):** The battlefield itself is a atmospheric but not mechanically complex area. While the game doesn't use a grid system, relative positioning matters. Vehicles are shown in a cinematic staging:
+**Top bar:** wave and incoming reinforcements, turn number, the latest combat log line, scrap, fuel, and the log button.
 
-Player vehicles are positioned in the lower portion of this battlefield area, shown larger and with more detail than enemies. Each vehicle has a dynamic idle animation - engines revving, dust clouds, occasional weapon adjustments. When cards are played, animations play out here - rams connecting, shots firing across the battlefield, explosions blooming.
-
-Each player vehicle displays:
-
-- A prominent health bar with clear numerical values
-- An armor indicator that visually shows as actual armor plating on the vehicle (which can crack and fall off as it's depleted)
-- Status effect icons that orbit the vehicle (buffs like Speed+ show as glowing effects, debuffs like Burning show as actual flames)
-- The vehicle name and driver portrait in a small inset
-
-**Bottom Section - Player Interface (Lower 35% of screen):** This is where all player interaction happens, designed for quick decision-making.
-
-_The Hand (Bottom 20% of screen):_ Your current hand of cards fans out across the bottom of the screen. Cards are large enough to read clearly, showing:
+**The dock (bottom of the screen):** Each driver owns half. A tab above their cards shows the driver's name, adrenaline (lightning bolts with "3/5" text), draw and discard counts, and their vehicle's mods. Their cards fan out underneath, bordered in the driver's colour. Each card shows:
 
 - The adrenaline cost in the top left corner (in a hexagonal badge)
-- The card name in a banner across the top
+- The card name
 - Card art that illustrates the action
-- Effect text in clear, concise language
-- A colored border indicating which driver the card belongs to (helps track synergies)
+- A short effect text built from keywords; the full text is one hover away in the card detail view
+- A small gem for rarity
 
-Cards in your hand respond to mouse hover by lifting slightly and glowing. Playable cards (those you have enough adrenaline for) have a subtle animated glow, while unplayable cards are slightly darkened.
+Cards in your hand lift on hover. Cards the driver can't afford are darkened and their cost turns red.
 
-_Resource Bar (Bottom 5% of screen):_ A horizontal bar runs along the very bottom showing critical resources:
-
-- **Adrenaline**: Shown as lightning bolt icons (filled vs empty) with "3/3" text
-- **Draw Pile**: A small deck icon with the number of cards remaining
-- **Discard Pile**: A separate pile icon with its count
-- **Fuel**: A jerrycan icon with current amount (for special abilities)
-- **Scrap**: A gear icon with your current currency
-- **End Turn Button**: A large, prominent button on the right side
+**End Turn:** a large button at the right end of the dock, with the turn number above it and a warning when adrenaline is left unspent.
 
 ### 2.3 Playing Cards - The User Experience
 
@@ -102,7 +79,7 @@ When a player clicks and holds a card, the battlefield dims slightly to reduce d
 - Your vehicles glow green for defensive/healing cards
 - All vehicles glow yellow for area effects
 
-As you drag the card toward a target, a preview line connects the card to the potential target. The target's portrait enlarges slightly and shows a preview of the effect (e.g., "-12 HP" floating above an enemy when targeting with an attack).
+Every enemy slot shows its range from the vehicle playing the card, and targets out of range dim. As you drag the card toward a target, a preview line connects the card to the potential target, the hit check (gunnery against evade) rides along with the card, and the target shows a preview of the effect (e.g., "-12 HP" floating above an enemy when targeting with an attack).
 
 If a card has multiple effects or conditions, these are highlighted as you aim. For example, a card that says "Deal 10 damage, deal 15 instead if target is Burning" would show "-15" in red text if targeting a burning enemy.
 

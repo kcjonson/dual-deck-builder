@@ -6,6 +6,19 @@ This document contains the chronological log of completed development tasks for 
 
 **Date correction (2026-08-22):** the repo's first commit is 2025-05-17, but many entries below carry dates in December 2024 or January 2025 — the AI that wrote them used its assumed date instead of the real one. Entries dated 2025-07-03 and 2025-07-02 have been corrected from "2025-01-03"/"2025-01-02" (verified against git history). Remaining Dec 2024 / Jan 2025 dates are wrong by roughly six months; the real work happened May–July 2025. Trust git history over these dates.
 
+## Battle screen design, docs only (2026-09-25)
+
+**What landed:** the combat screen's target design and the rules it depends on, as documentation. No code changed.
+
+- New spec `docs/specs/Battle Screen Design.md`, decision record `docs/AI_TECHNICAL_DECISIONS/battle-screen-road-model.md`, and the interactive mock at `docs/design/battle-screen/` with the seven screenshots of the current screen it was measured against.
+- Combat Rules: positions become a road grid (two formation lanes by three rows per side, shoulders for the other team's flankers, one vehicle per slot), range becomes lanes apart plus rows apart, flanking is +50% and lands in the row it outran with the old slot left empty, hand cap 7, passengers keep their hand, no duplicate driver.
+- Card System Design: a required `summary` field for the card face beside `description` for the detail view, with budgets.
+- Game Flow 1.3 and 2.2: per-driver decks and pools; the old 25/40/20/5 layout replaced by a summary of the new one. Gameplay Mechanics: "Lone Wolf" replaced by the passenger rule.
+- `VEHICLE_POSITIONING_AND_WAVE_SYSTEM.md`: the superseded positioning, stacking, and card-size sections deleted; the wave system kept and bounded by the grid.
+- `ui-rendering-engine-implementation.md`: the phase 4 and phase 6 combat lines point at the new spec.
+
+**How it was reached:** the current screen was captured at seven viewports and played through with a script, subagents audited the captures, the code, the design docs, and comparable games, and three revisions of an HTML mock were reviewed with Kevin. The mock renders every scenario at every viewport and fails on overflow, collisions, scaling, and slot-rule violations; all 180 renders pass. Bugs found on the way are DDB-111 to DDB-126.
+
 ## LegacyGLBackend, and every renderer consumer moved onto the draw API, DDB-67 (2026-09-09)
 
 **What landed:** the pre-spec WebGL drawing path moved bodily out of `Renderer` into
