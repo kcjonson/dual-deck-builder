@@ -2,7 +2,7 @@ import { Battle } from './Battle';
 import { AIType } from '../ai/AIController';
 import { Driver } from './Driver';
 import { Team, TeamType } from './Team';
-import { Vehicle, VehiclePosition } from './Vehicle';
+import { Vehicle } from './Vehicle';
 import { DriverLoader } from '../core/DriverLoader';
 import { CardLoader } from '../core/CardLoader';
 
@@ -163,7 +163,7 @@ export class AIEvaluator {
 		const availableCards = CardLoader.getInstance().getAllCardsAsMap();
 		
 		// Create vehicles for player team
-		const playerVehicles = player1Drivers.map((driver, index) => {
+		const playerVehicles = player1Drivers.map(driver => {
 			const driverCopy = driver.copy();
 			// Create starting deck for the driver
 			driverCopy.createStartingDeck(availableCards);
@@ -176,7 +176,8 @@ export class AIEvaluator {
 				maxStructure: driver.vehicleStats.maxStructure,
 				speed: driver.vehicleStats.speed,
 				baseSpeed: driver.vehicleStats.speed,
-				position: index === 0 ? VehiclePosition.FRONT : VehiclePosition.BACK,
+				slot: null,
+				flank: null,
 				velocity: 0,
 				driver: driverCopy,
 				passenger: null,
@@ -185,7 +186,7 @@ export class AIEvaluator {
 		});
 		
 		// Create vehicles for enemy team
-		const enemyVehicles = player2Drivers.map((driver, index) => {
+		const enemyVehicles = player2Drivers.map(driver => {
 			const driverCopy = driver.copy();
 			// Create starting deck for the driver
 			driverCopy.createStartingDeck(availableCards);
@@ -198,7 +199,8 @@ export class AIEvaluator {
 				maxStructure: driver.vehicleStats.maxStructure,
 				speed: driver.vehicleStats.speed,
 				baseSpeed: driver.vehicleStats.speed,
-				position: index === 0 ? VehiclePosition.FRONT : VehiclePosition.BACK,
+				slot: null,
+				flank: null,
 				velocity: 0,
 				driver: driverCopy,
 				passenger: null,

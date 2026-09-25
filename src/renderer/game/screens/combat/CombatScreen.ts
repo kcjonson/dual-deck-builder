@@ -10,7 +10,8 @@ import { TurnPhaseDisplay, CombatPhase } from './TurnPhaseDisplay';
 import { CombatModel } from './CombatModel';
 import { Driver, DriverRole } from '../../mechanics/Driver';
 import { CombatLog, CombatLogType } from '../../mechanics/CombatLog';
-import { Vehicle, VehiclePosition } from '../../mechanics/Vehicle';
+import { Vehicle } from '../../mechanics/Vehicle';
+import { RoadLane, RoadRow } from '../../mechanics/Road';
 import { Team, TeamType } from '../../mechanics/Team';
 import { Battle, BattleState, BattleMessage } from '../../mechanics/Battle';
 import { Card } from '../../mechanics/Card';
@@ -278,7 +279,8 @@ export class CombatScreen extends Screen {
 			maxStructure: vehicleStats.maxStructure,
 			speed: vehicleStats.speed,
 			baseSpeed: vehicleStats.speed,
-			position: VehiclePosition.FRONT,
+			slot: null,
+			flank: null,
 			velocity: 0,
 			driver: null,
 			passenger: null,
@@ -341,7 +343,8 @@ export class CombatScreen extends Screen {
 			maxStructure: 30,
 			speed: 3,
 			baseSpeed: 3,
-			position: VehiclePosition.FRONT,
+			slot: { lane: RoadLane.ENEMY_INSIDE, row: RoadRow.CENTER },
+			flank: null,
 			velocity: 0,
 			driver: enemyDriver1,
 			passenger: null,

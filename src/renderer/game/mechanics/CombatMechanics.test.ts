@@ -3,7 +3,8 @@
  */
 import { Battle } from './Battle';
 import { Team, TeamType } from './Team';
-import { Vehicle, VehiclePosition } from './Vehicle';
+import { Vehicle } from './Vehicle';
+import { RoadLane, RoadRow, RoadSlot } from './Road';
 import { Driver, DriverRole } from './Driver';
 import { Card } from './Card';
 import { Deck } from './Deck';
@@ -87,8 +88,8 @@ describe('Combat Mechanics', () => {
 		});
 	};
 
-	// Helper to create vehicles at specific positions
-	const createVehicleAtPosition = (name: string, position: VehiclePosition, driver: Driver): Vehicle => {
+	// Helper to create vehicles in specific slots
+	const createVehicleAt = (name: string, slot: RoadSlot, driver: Driver): Vehicle => {
 		return new Vehicle({
 			name: name,
 			structure: 30,
@@ -97,7 +98,8 @@ describe('Combat Mechanics', () => {
 			maxArmor: 10,
 			speed: 5,
 			baseSpeed: 5,
-			position: position,
+			slot,
+			flank: null,
 			velocity: 0,
 			driver: driver,
 			passenger: null,
@@ -112,11 +114,11 @@ describe('Combat Mechanics', () => {
 		enemyDriver1 = createDriverWithSkills('Enemy 1', 6, 6, 5); // Balanced
 		enemyDriver2 = createDriverWithSkills('Enemy 2', 4, 8, 4); // High evade
 
-		// Create vehicles at different positions
-		playerVehicle1 = createVehicleAtPosition('Player Vehicle 1', VehiclePosition.FRONT, playerDriver1);
-		playerVehicle2 = createVehicleAtPosition('Player Vehicle 2', VehiclePosition.BACK, playerDriver2);
-		enemyVehicle1 = createVehicleAtPosition('Enemy Vehicle 1', VehiclePosition.FRONT, enemyDriver1);
-		enemyVehicle2 = createVehicleAtPosition('Enemy Vehicle 2', VehiclePosition.BACK, enemyDriver2);
+		// Vehicles 1 in the inside lanes, vehicles 2 in the outside lanes, all on the center row
+		playerVehicle1 = createVehicleAt('Player Vehicle 1', { lane: RoadLane.PLAYER_INSIDE, row: RoadRow.CENTER }, playerDriver1);
+		playerVehicle2 = createVehicleAt('Player Vehicle 2', { lane: RoadLane.PLAYER_OUTSIDE, row: RoadRow.CENTER }, playerDriver2);
+		enemyVehicle1 = createVehicleAt('Enemy Vehicle 1', { lane: RoadLane.ENEMY_INSIDE, row: RoadRow.CENTER }, enemyDriver1);
+		enemyVehicle2 = createVehicleAt('Enemy Vehicle 2', { lane: RoadLane.ENEMY_OUTSIDE, row: RoadRow.CENTER }, enemyDriver2);
 
 		// Create teams
 		playerTeam = new Team({
@@ -137,38 +139,35 @@ describe('Combat Mechanics', () => {
 	});
 
 	describe('Range System', () => {
-		test('should calculate range 1 for front to front', () => {
-			const range = battle.calculateRange(playerVehicle1, enemyVehicle1);
-			expect(range).toBe(1);
+		test('inside to inside on the same row is range 1', () => {
+			expect(battle.calculateRange(playerVehicle1, enemyVehicle1)).toBe(1);
 		});
 
-		test('should calculate range 2 for front to back', () => {
-			const range = battle.calculateRange(playerVehicle1, enemyVehicle2);
-			expect(range).toBe(2);
+		test('inside to their outside is range 2', () => {
+			expect(battle.calculateRange(playerVehicle1, enemyVehicle2)).toBe(2);
 		});
 
-		test('should calculate range 2 for back to front', () => {
-			const range = battle.calculateRange(playerVehicle2, enemyVehicle1);
-			expect(range).toBe(2);
+		test('outside to their inside is range 2', () => {
+			expect(battle.calculateRange(playerVehicle2, enemyVehicle1)).toBe(2);
 		});
 
-		test('should calculate correct ranges for flanking positions', () => {
-			playerVehicle1.changePosition(VehiclePosition.FLANKING);
-			
-			// Flanking to Front is range 2
-			expect(battle.calculateRange(playerVehicle1, enemyVehicle1)).toBe(2); // enemyVehicle1 is FRONT
-			// Flanking to Back is range 1
-			expect(battle.calculateRange(playerVehicle1, enemyVehicle2)).toBe(1); // enemyVehicle2 is BACK
-			
-			// Also test reverse: Front/Back attacking Flanking
-			enemyVehicle1.changePosition(VehiclePosition.FLANKING);
-			enemyVehicle2.changePosition(VehiclePosition.FLANKING);
-			playerVehicle1.changePosition(VehiclePosition.FRONT);
-			playerVehicle2.changePosition(VehiclePosition.BACK);
-			
-			// Front to Flanking is range 2
+		test('a row ahead or behind adds 1', () => {
+			playerVehicle1.slot = { lane: RoadLane.PLAYER_INSIDE, row: RoadRow.BEHIND };
 			expect(battle.calculateRange(playerVehicle1, enemyVehicle1)).toBe(2);
-			// Back to Flanking is range 1
+		});
+
+		test('ranges to and from the shoulders', () => {
+			playerVehicle1.slot = { lane: RoadLane.ENEMY_SHOULDER, row: RoadRow.CENTER };
+
+			// A flanker to their inside lane is range 2, to their outside lane 1
+			expect(battle.calculateRange(playerVehicle1, enemyVehicle1)).toBe(2);
+			expect(battle.calculateRange(playerVehicle1, enemyVehicle2)).toBe(1);
+
+			playerVehicle1.slot = { lane: RoadLane.PLAYER_INSIDE, row: RoadRow.CENTER };
+			enemyVehicle1.slot = { lane: RoadLane.PLAYER_SHOULDER, row: RoadRow.CENTER };
+
+			// Range is symmetric: your inside to a raider flanker is 2, your outside 1
+			expect(battle.calculateRange(playerVehicle1, enemyVehicle1)).toBe(2);
 			expect(battle.calculateRange(playerVehicle2, enemyVehicle1)).toBe(1);
 		});
 
@@ -341,7 +340,7 @@ describe('Combat Mechanics', () => {
 			battle.start();
 			
 			// Move to flanking position
-			playerVehicle1.changePosition(VehiclePosition.FLANKING);
+			playerVehicle1.slot = { lane: RoadLane.ENEMY_SHOULDER, row: RoadRow.CENTER };
 
 			const attackCard = new Card({
 				type: 'test_attack',
@@ -453,7 +452,7 @@ describe('Combat Mechanics', () => {
 			battle.start();
 			
 			// Move enemy to flanking
-			enemyVehicle1.changePosition(VehiclePosition.FLANKING);
+			enemyVehicle1.slot = { lane: RoadLane.PLAYER_SHOULDER, row: RoadRow.CENTER };
 
 			const oilSlickCard = new Card({
 				type: 'oil_slick',
@@ -534,7 +533,7 @@ describe('Combat Mechanics', () => {
 			const result = battle.playCard({
 				driver: playerDriver1,
 				cardIndex: playerDriver1.hand.length - 1,
-				targetVehicle: enemyVehicle1 // FRONT position
+				targetVehicle: enemyVehicle1 // in formation, not flanking
 			});
 
 			expect(result).toBe(false); // Should fail - wrong position
@@ -549,11 +548,10 @@ describe('Combat Mechanics', () => {
 				cost: 2,
 				description: 'Move to flanking',
 				rarity: 'common',
-				targetType: 'self',
+				targetType: 'enemy_single',
 				effects: [{
 					type: 'change_position',
-					position: 'flanking',
-					condition: 'speed_higher'
+					position: 'flanking'
 				}],
 				tags: ['utility', 'positioning']
 			});
@@ -568,13 +566,15 @@ describe('Combat Mechanics', () => {
 
 			playerDriver1.hand.push(flankCard);
 
-			battle.playCard({
+			const played = battle.playCard({
 				driver: playerDriver1,
-				cardIndex: playerDriver1.hand.length - 1
+				cardIndex: playerDriver1.hand.length - 1,
+				targetVehicle: enemyVehicle1
 			});
 
 			// Should not change position
-			expect(playerVehicle1.position).toBe(VehiclePosition.FRONT);
+			expect(played).toBe(false);
+			expect(playerVehicle1.slot).toEqual({ lane: RoadLane.PLAYER_INSIDE, row: RoadRow.CENTER });
 		});
 	});
 
@@ -652,29 +652,6 @@ describe('Combat Mechanics', () => {
 	});
 
 	describe('Post-Combat Mechanics', () => {
-		test('should check flanking speed after combat', () => {
-			battle.start();
-			
-			// Set up flanking vehicle
-			playerVehicle1.changePosition(VehiclePosition.FLANKING);
-			
-			// Apply speed reduction during combat
-			playerVehicle1.applyStatusEffect({
-				name: 'speed_reduction',
-				duration: -1,
-				value: -4,
-				description: 'Permanent slow'
-			});
-
-			// End combat
-			battle.endCombat();
-
-			// Should lose flanking if too slow
-			if (playerVehicle1.getTotalSpeed() < 3) { // Assuming min speed
-				expect(playerVehicle1.position).toBe(VehiclePosition.BACK);
-			}
-		});
-
 		test('should handle driver jumping to other vehicles', () => {
 			battle.start();
 

@@ -1,7 +1,8 @@
 /**
  * @jest-environment jsdom
  */
-import { Vehicle, VehiclePosition, VehicleStatusEffect } from './Vehicle';
+import { Vehicle, VehicleStatusEffect } from './Vehicle';
+import { RoadLane, RoadRow } from './Road';
 import { Driver, DriverRole } from './Driver';
 import { Deck } from './Deck';
 
@@ -60,7 +61,8 @@ describe('Vehicle', () => {
 			maxArmor: 10,
 			speed: 2, // Base speed
 			baseSpeed: 2,
-			position: VehiclePosition.FRONT,
+			slot: null,
+			flank: null,
 			velocity: 0,
 			driver: driver,
 			passenger: null,
@@ -116,26 +118,28 @@ describe('Vehicle', () => {
 		});
 	});
 
-	describe('Position System', () => {
-		test('should start with assigned position', () => {
-			expect(vehicle.position).toBe(VehiclePosition.FRONT);
+	describe('Road Slot', () => {
+		test('starts off the road until a battle places it', () => {
+			expect(vehicle.slot).toBeNull();
+			expect(vehicle.isFlanking).toBe(false);
 		});
 
-		test('should allow position changes', () => {
-			vehicle.changePosition(VehiclePosition.FLANKING);
-			expect(vehicle.position).toBe(VehiclePosition.FLANKING);
+		test('is flanking only on a shoulder', () => {
+			vehicle.slot = { lane: RoadLane.PLAYER_INSIDE, row: RoadRow.CENTER };
+			expect(vehicle.isFlanking).toBe(false);
+
+			vehicle.slot = { lane: RoadLane.ENEMY_SHOULDER, row: RoadRow.CENTER };
+			expect(vehicle.isFlanking).toBe(true);
 		});
 
-		test('should emit position change events', () => {
-			const positionSpy = jest.fn();
-			vehicle.on('positionChanged', positionSpy);
-			
-			vehicle.changePosition(VehiclePosition.BACK);
-			
-			expect(positionSpy).toHaveBeenCalledWith({
-				oldPosition: VehiclePosition.FRONT,
-				newPosition: VehiclePosition.BACK
-			});
+		test('emits a slot event when it moves', () => {
+			const slotSpy = jest.fn();
+			vehicle.on('slot', slotSpy);
+
+			const slot = { lane: RoadLane.PLAYER_OUTSIDE, row: RoadRow.AHEAD };
+			vehicle.slot = slot;
+
+			expect(slotSpy).toHaveBeenCalledWith(slot, null);
 		});
 	});
 
@@ -359,7 +363,8 @@ describe('Vehicle', () => {
 				maxArmor: 5,
 				speed: 1,
 				baseSpeed: 1,
-				position: VehiclePosition.FRONT,
+				slot: null,
+				flank: null,
 				velocity: 0,
 				driver: createTestDriver('Target Driver'),
 				passenger: null,
@@ -382,7 +387,8 @@ describe('Vehicle', () => {
 				maxArmor: 5,
 				speed: 3,
 				baseSpeed: 3,
-				position: VehiclePosition.FRONT,
+				slot: null,
+				flank: null,
 				velocity: 0,
 				driver: fasterDriver,
 				passenger: null,
@@ -390,22 +396,6 @@ describe('Vehicle', () => {
 			});
 			
 			expect(vehicle.canFlank(fasterVehicle)).toBe(false);
-		});
-
-		test('should check flanking position after speed changes', () => {
-			vehicle.position = VehiclePosition.FLANKING;
-			
-			// Apply speed reduction that makes us slower than required
-			const heavySlowdown: VehicleStatusEffect = {
-				name: 'oil_slick',
-				duration: 2,
-				value: -4,
-				description: 'Slowed by oil'
-			};
-			vehicle.applyStatusEffect(heavySlowdown);
-			
-			// Assuming minimum flanking speed is 3
-			expect(vehicle.shouldLoseFlanking()).toBe(true);
 		});
 	});
 });

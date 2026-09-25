@@ -1,5 +1,5 @@
 import { Driver, DriverRole } from '../../mechanics/Driver';
-import { Vehicle, VehiclePosition } from '../../mechanics/Vehicle';
+import { Vehicle } from '../../mechanics/Vehicle';
 import { Card } from '../../mechanics/Card';
 import { Deck } from '../../mechanics/Deck';
 
@@ -51,7 +51,8 @@ export function createTestVehicle(name: string, driver: Driver): Vehicle {
 		maxStructure: 10,
 		speed: 50,
 		baseSpeed: 50,
-		position: VehiclePosition.FRONT,
+		slot: null,
+		flank: null,
 		velocity: 0,
 		driver,
 		passenger: null,

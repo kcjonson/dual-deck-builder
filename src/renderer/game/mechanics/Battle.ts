@@ -1,6 +1,15 @@
 import { Team, TeamType } from './Team';
 import { Driver, DrawResult } from './Driver';
-import { Vehicle, VehiclePosition } from './Vehicle';
+import { Vehicle } from './Vehicle';
+import {
+	RoadSlot,
+	describeSlot,
+	flankLane,
+	isFormationLane,
+	openingSlots,
+	sameSlot,
+	slotRange
+} from './Road';
 import { Card } from './Card';
 import { Model } from '../core/Model';
 import { AIController } from '../ai/AIController';
@@ -128,11 +137,52 @@ export class Battle extends Model<BattleData> {
 			throw new Error('Enemy team must have type ENEMY');
 		}
 
+		this.placeOpeningFormation();
+
 		// Initialize AI controller (stored in WeakMap to avoid Model freezing issues)
 		Battle.aiControllers.set(this, new AIController(this));
 		
 		// Initialize message log
 		Battle.messageLogs.set(this, []);
+	}
+
+	/**
+	 * Put every vehicle on the road. A vehicle that arrives with a slot (from
+	 * its encounter) keeps it; the rest fill their team's formation in
+	 * opening order, so the player's pair starts inside center and inside
+	 * behind. Nobody starts flanking.
+	 */
+	private placeOpeningFormation(): void {
+		const teams = [this.playerTeam, this.enemyTeam];
+		const placed: Vehicle[] = [];
+
+		for (const team of teams) {
+			for (const vehicle of team.vehicles) {
+				const slot = vehicle.slot;
+				if (!slot) continue;
+				if (!isFormationLane(team.type, slot.lane)) {
+					throw new Error(`${vehicle.name} must start in its own formation, not ${describeSlot(slot)}`);
+				}
+				if (placed.some(other => sameSlot(other.slot, slot))) {
+					throw new Error(`Two vehicles start in ${describeSlot(slot)}`);
+				}
+				vehicle.flank = null;
+				placed.push(vehicle);
+			}
+		}
+
+		for (const team of teams) {
+			const freeSlots = openingSlots(team.type).filter(slot => !placed.some(v => sameSlot(v.slot, slot)));
+			for (const vehicle of team.vehicles) {
+				if (vehicle.slot) continue;
+				const slot = freeSlots.shift();
+				if (!slot) {
+					throw new Error(`No formation slot left for ${vehicle.name}; a formation holds six`);
+				}
+				vehicle.set({ slot, flank: null });
+				placed.push(vehicle);
+			}
+		}
 	}
 
 	/**
@@ -366,6 +416,8 @@ export class Battle extends Model<BattleData> {
 			}
 		}
 
+		this.dropBackFlankers();
+
 		// Emit turn ended event
 		this.emit('turnEnded', Object.freeze({ team: 'player' }));
 
@@ -421,6 +473,8 @@ export class Battle extends Model<BattleData> {
 				);
 			}
 		}
+
+		this.dropBackFlankers();
 
 		// End enemy turn, start player turn
 		this.startPlayerTurn();
@@ -525,7 +579,7 @@ export class Battle extends Model<BattleData> {
 								}
 							}
 							
-							if (inRange) {
+							if (inRange && this.meetsFlankRules(card, enemyVehicle, target)) {
 								validTarget = target;
 								break;
 							}
@@ -816,19 +870,22 @@ export class Battle extends Model<BattleData> {
 					break;
 
 				case 'status':
-				case 'apply_status':
-					if (targetVehicle) {
+				case 'apply_status': {
+					// A self effect on a targeted card (Flanking Maneuver's bonus) lands on the caster
+					const appliesToSelf = effect.target === 'self';
+					const statusVehicle = appliesToSelf ? this.getVehicleForDriver(caster) : targetVehicle;
+					if (statusVehicle) {
 						// Check condition
-						if (effect.condition === 'target_flanking' && targetVehicle.position !== VehiclePosition.FLANKING) {
+						if (effect.condition === 'target_flanking' && !statusVehicle.isFlanking) {
 							break;
 						}
 						
 						// Check if always hits or needs hit check
-						if (!effect.always_hits && targetVehicle.driver) {
-							if (!this.checkHit(caster, targetVehicle.driver)) {
+						if (!effect.always_hits && !appliesToSelf && statusVehicle.driver) {
+							if (!this.checkHit(caster, statusVehicle.driver)) {
 								this.log('miss',
-									`${card.displayName} misses ${targetVehicle.name}`,
-									{ card: card.displayName, target: targetVehicle.name }
+									`${card.displayName} misses ${statusVehicle.name}`,
+									{ card: card.displayName, target: statusVehicle.name }
 								);
 								break;
 							}
@@ -839,9 +896,9 @@ export class Battle extends Model<BattleData> {
 						const duration = typeof effect.duration === 'number' ? effect.duration : 1;
 						
 						// Get speed before applying status for speed-related effects
-						const speedBefore = targetVehicle.getTotalSpeed();
+						const speedBefore = statusVehicle.getTotalSpeed();
 						
-						targetVehicle.applyStatusEffect({
+						statusVehicle.applyStatusEffect({
 							name: statusName,
 							duration: duration,
 							value: statusValue,
@@ -849,10 +906,10 @@ export class Battle extends Model<BattleData> {
 						});
 						
 						// Get speed after applying status
-						const speedAfter = targetVehicle.getTotalSpeed();
+						const speedAfter = statusVehicle.getTotalSpeed();
 						
 						// Create appropriate log message based on status type
-						let logMessage = `${card.displayName} applies ${statusName} to ${targetVehicle.name}`;
+						let logMessage = `${card.displayName} applies ${statusName} to ${statusVehicle.name}`;
 						
 						// Add speed information for speed-related statuses
 						if (statusName === 'speed_boost' || statusName === 'nitro_boost' || 
@@ -863,36 +920,20 @@ export class Battle extends Model<BattleData> {
 						
 						this.log('status_applied',
 							logMessage,
-							{ card: card.displayName, target: targetVehicle.name, status: statusName }
+							{ card: card.displayName, target: statusVehicle.name, status: statusName }
 						);
 					}
 					break;
+				}
 					
-				case 'change_position':
+				case 'change_position': {
 					const casterVehicle = this.getVehicleForDriver(caster);
-					if (casterVehicle && effect.position) {
-						// Check speed condition for flanking
-						if (effect.condition === 'speed_higher' && effect.position === 'flanking') {
-							// Need to check against all enemy vehicles
-							const casterTeam = this.getTeamForVehicle(casterVehicle);
-							const enemyTeam = casterTeam === this.playerTeam ? this.enemyTeam : this.playerTeam;
-							const fasterThanAll = enemyTeam.vehicles.every(v => 
-								!v.isAlive() || casterVehicle.canFlank(v)
-							);
-							
-							if (!fasterThanAll) {
-								this.log('general', 'Cannot flank - not faster than all enemies');
-								break;
-							}
-						}
-						
-						casterVehicle.changePosition(effect.position as VehiclePosition);
-						this.log('general',
-							`${casterVehicle.name} moves to ${effect.position} position`,
-							{ vehicle: casterVehicle.name, position: String(effect.position) }
-						);
+					// A failed flank cancels the rest of the card, so no bonus without the swerve
+					if (casterVehicle && effect.position === 'flanking' && !this.flankVehicle(casterVehicle, targetVehicle)) {
+						return;
 					}
 					break;
+				}
 					
 				case 'gain_armor':
 					if (targetVehicle) {
@@ -1055,71 +1096,117 @@ export class Battle extends Model<BattleData> {
 	// getState() is provided by Model base class
 
 	/**
-	 * Calculate range between two vehicles based on positions
+	 * Range between two vehicles: lanes apart plus rows apart on the road.
 	 */
-	public calculateRange(attacker: Vehicle, target: Vehicle): number {
-		// Same team vehicles can't attack each other
-		const attackerTeam = this.getTeamForVehicle(attacker);
+	public calculateRange(from: Vehicle, to: Vehicle): number {
+		if (!from.slot || !to.slot) {
+			throw new Error(`Range needs both vehicles on the road (${from.name}, ${to.name})`);
+		}
+		return slotRange(from.slot, to.slot);
+	}
+
+	/**
+	 * Why a vehicle can't flank a target right now, or null if it can. The
+	 * target is the vehicle to outrun: it must be in the other team's
+	 * formation and slower than the flanker, and the shoulder slot in its
+	 * row must be free.
+	 */
+	public getFlankBlocker(flanker: Vehicle, target: Vehicle): string | null {
+		const flankerTeam = this.getTeamForVehicle(flanker);
 		const targetTeam = this.getTeamForVehicle(target);
-		if (attackerTeam === targetTeam) {
-			return 99; // Out of range
+		if (!flankerTeam || !targetTeam || flankerTeam === targetTeam) {
+			return `${target.name} is not on the other team`;
+		}
+		if (!flanker.isAlive() || !flanker.slot) {
+			return `${flanker.name} is not on the road`;
+		}
+		if (!target.isAlive() || !target.slot || !isFormationLane(targetTeam.type, target.slot.lane)) {
+			return `${target.name} is not in formation`;
+		}
+		if (!flanker.canFlank(target)) {
+			return `${flanker.name} is not faster than ${target.name}`;
+		}
+		const destination = { lane: flankLane(flankerTeam.type), row: target.slot.row };
+		if (this.isSlotTaken(destination, flanker)) {
+			return `${describeSlot(destination)} is taken`;
+		}
+		if (sameSlot(flanker.slot, destination)) {
+			return `${flanker.name} is already flanking in that row`;
+		}
+		return null;
+	}
+
+	public canFlank(flanker: Vehicle, target: Vehicle): boolean {
+		return this.getFlankBlocker(flanker, target) === null;
+	}
+
+	/**
+	 * A slot is taken by a vehicle in it, wrecks included, or by a flanker
+	 * holding it as its reserved formation slot.
+	 */
+	private isSlotTaken(slot: RoadSlot, ignoring?: Vehicle): boolean {
+		return this.getAllVehicles().some(vehicle =>
+			vehicle !== ignoring &&
+			(sameSlot(vehicle.slot, slot) || sameSlot(vehicle.flank?.reservedSlot ?? null, slot))
+		);
+	}
+
+	/**
+	 * Swerve onto the other team's shoulder in the row of the vehicle it
+	 * outran. Its formation slot stays empty and reserved; an existing
+	 * flanker keeps its original reservation.
+	 */
+	private flankVehicle(flanker: Vehicle, target: Vehicle | null): boolean {
+		if (!target) {
+			this.log('general', `${flanker.name} needs a vehicle to outrun`);
+			return false;
+		}
+		const blocker = this.getFlankBlocker(flanker, target);
+		const flankerTeam = this.getTeamForVehicle(flanker);
+		if (blocker || !flankerTeam || !flanker.slot || !target.slot) {
+			this.log('general', `Cannot flank: ${blocker}`, { vehicle: flanker.name, target: target.name });
+			return false;
 		}
 
-		// Check if target team has only one vehicle
-		const targetTeamVehicleCount = targetTeam ? targetTeam.getAliveVehicles().length : 0;
-		
-		if (targetTeamVehicleCount === 1) {
-			// When target team has only one vehicle, treat it as occupying the "front" position
-			// This makes flanking attacks against a single vehicle require range 2
-			if (target.position === VehiclePosition.FRONT) {
-				// Single vehicle in front position
-				if (attacker.position === VehiclePosition.FRONT) {
-					return 1; // Front to Front is adjacent
-				} else if (attacker.position === VehiclePosition.FLANKING) {
-					return 2; // Flanking to Front requires range 2
-				} else {
-					return 2; // Back to Front is range 2
-				}
-			} else if (target.position === VehiclePosition.FLANKING) {
-				// Single vehicle in flanking position (less common but possible)
-				if (attacker.position === VehiclePosition.FLANKING) {
-					return 1; // Flanking to Flanking is adjacent
-				} else {
-					return 2; // Any other position to Flanking is range 2
-				}
-			} else {
-				// Single vehicle in back position (shouldn't happen normally but handle it)
-				if (attacker.position === VehiclePosition.BACK) {
-					return 1; // Back to Back is adjacent
-				} else if (attacker.position === VehiclePosition.FLANKING) {
-					return 1; // Flanking to Back is adjacent
-				} else {
-					return 2; // Front to Back is range 2
-				}
-			}
-		}
+		const destination = { lane: flankLane(flankerTeam.type), row: target.slot.row };
+		const reservedSlot = flanker.flank ? flanker.flank.reservedSlot : flanker.slot;
+		flanker.set({ slot: destination, flank: { reservedSlot, outran: target } });
+		this.log('general',
+			`${flanker.name} outruns ${target.name} and swerves onto ${describeSlot(destination)}`,
+			{ vehicle: flanker.name, target: target.name }
+		);
+		return true;
+	}
 
-		// Normal multi-vehicle logic
-		// Flanking to Back is range 1
-		if ((attacker.position === VehiclePosition.FLANKING && target.position === VehiclePosition.BACK) ||
-			(attacker.position === VehiclePosition.BACK && target.position === VehiclePosition.FLANKING)) {
-			return 1;
-		}
+	/**
+	 * Flankers that are no longer faster than the vehicle they outran swerve
+	 * back to their reserved slot. Runs at the end of every turn. A flanker
+	 * whose outran vehicle is wrecked holds the shoulder.
+	 */
+	private dropBackFlankers(): void {
+		for (const vehicle of this.getAllVehicles()) {
+			const flank = vehicle.flank;
+			if (!flank || !vehicle.isAlive() || !flank.outran.isAlive()) continue;
+			if (vehicle.canFlank(flank.outran)) continue;
 
-		// Flanking to Front is range 2
-		if ((attacker.position === VehiclePosition.FLANKING && target.position === VehiclePosition.FRONT) ||
-			(attacker.position === VehiclePosition.FRONT && target.position === VehiclePosition.FLANKING)) {
-			return 2;
+			vehicle.set({ slot: flank.reservedSlot, flank: null });
+			this.log('general',
+				`${vehicle.name} loses its speed edge on ${flank.outran.name} and drops back to ${describeSlot(flank.reservedSlot)}`,
+				{ vehicle: vehicle.name, target: flank.outran.name }
+			);
 		}
+	}
 
-		// Front to Front is range 1
-		if (attacker.position === VehiclePosition.FRONT && 
-			target.position === VehiclePosition.FRONT) {
-			return 1;
-		}
+	/**
+	 * A flank card needs a target this vehicle can flank; other cards pass.
+	 */
+	private meetsFlankRules(card: Card, casterVehicle: Vehicle, target: Vehicle): boolean {
+		const flanks = card.effects.some(e => e.type === 'change_position' && e.position === 'flanking');
+		return !flanks || this.canFlank(casterVehicle, target);
+	}
 
-		// All other combinations (Front to Back, Back to Front, Back to Back) are range 2
-		return 2;
+	private getAllVehicles(): Vehicle[] {
+		return [...this.playerTeam.vehicles, ...this.enemyTeam.vehicles];
 	}
 
 	/**
@@ -1142,7 +1229,7 @@ export class Battle extends Model<BattleData> {
 		let damage = baseDamage;
 
 		// Apply flanking bonus
-		if (attacker.position === VehiclePosition.FLANKING) {
+		if (attacker.isFlanking) {
 			damage = Math.floor(damage * 1.5); // 50% bonus
 		}
 
@@ -1193,12 +1280,12 @@ export class Battle extends Model<BattleData> {
 			return false; // Card needs a target but none provided
 		}
 
+		const casterVehicle = this.getVehicleForDriver(caster);
+		if (!casterVehicle) return false;
+
 		// Check range for ranged attacks
 		const hasRangeEffect = card.effects.some(e => e.range !== undefined);
 		if (hasRangeEffect) {
-			const casterVehicle = this.getVehicleForDriver(caster);
-			if (!casterVehicle) return false;
-
 			const range = this.calculateRange(casterVehicle, target);
 			const ranges = card.effects
 				.filter(e => typeof e.range === 'number')
@@ -1211,20 +1298,22 @@ export class Battle extends Model<BattleData> {
 			}
 		}
 
+		if (!this.meetsFlankRules(card, casterVehicle, target)) {
+			this.log('general', `Cannot flank: ${this.getFlankBlocker(casterVehicle, target)}`);
+			return false;
+		}
+
 		// Check position restrictions
 		for (const effect of card.effects) {
-			if (effect.condition === 'target_flanking' && target.position !== VehiclePosition.FLANKING) {
+			if (effect.condition === 'target_flanking' && !target.isFlanking) {
 				this.log('general', 'Target must be flanking');
 				return false;
 			}
 			
 			// Check same_vehicle restriction for heal_driver
-			if (effect.type === 'heal_driver' && effect.target === 'same_vehicle') {
-				const casterVehicle = this.getVehicleForDriver(caster);
-				if (casterVehicle !== target) {
-					this.log('general', 'Can only heal drivers in same vehicle');
-					return false;
-				}
+			if (effect.type === 'heal_driver' && effect.target === 'same_vehicle' && casterVehicle !== target) {
+				this.log('general', 'Can only heal drivers in same vehicle');
+				return false;
 			}
 		}
 
@@ -1247,8 +1336,7 @@ export class Battle extends Model<BattleData> {
 	 * Get the vehicle that a driver is in
 	 */
 	private getVehicleForDriver(driver: Driver): Vehicle | null {
-		const allVehicles = [...this.playerTeam.vehicles, ...this.enemyTeam.vehicles];
-		return allVehicles.find(v => v.driver === driver || v.passenger === driver) || null;
+		return this.getAllVehicles().find(v => v.driver === driver || v.passenger === driver) || null;
 	}
 
 	/**
@@ -1316,18 +1404,6 @@ export class Battle extends Model<BattleData> {
 	 * End combat and process post-combat effects
 	 */
 	public endCombat(): void {
-		// Check flanking vehicles that lost speed
-		const allVehicles = [...this.playerTeam.vehicles, ...this.enemyTeam.vehicles];
-		allVehicles.forEach(vehicle => {
-			if (vehicle.shouldLoseFlanking()) {
-				vehicle.changePosition(VehiclePosition.BACK);
-				this.log('general',
-					`${vehicle.name} loses flanking position due to low speed`,
-					{ vehicle: vehicle.name }
-				);
-			}
-		});
-
 		this.emit('combatEnded', this.getState());
 	}
 

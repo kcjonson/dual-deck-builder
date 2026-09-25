@@ -1,17 +1,20 @@
 import { Layer, LayerOptions } from '../../../engine/components/Layer';
-import { Vehicle, VehiclePosition } from '../../mechanics/Vehicle';
+import { Vehicle, VehicleData } from '../../mechanics/Vehicle';
+import { LaneKind, ROW_ORDER, laneKind } from '../../mechanics/Road';
 import { CombatModel } from './CombatModel';
 
 /**
  * Base class for displaying vehicles in combat
- * Manages vehicle cards and lane positioning
+ * Manages vehicle cards and lane positioning. Draws each team's vehicles in
+ * three columns (shoulder, outside, inside), a stand-in until the road view
+ * (DDB-134) draws the real grid.
  */
 export abstract class BattlefieldLayer extends Layer {
 	protected vehicles: Vehicle[] = [];
 	protected vehicleCards: Map<string, Layer> = new Map();
 	
 	// Lane containers
-	protected lanes: Map<VehiclePosition, {
+	protected lanes: Map<LaneKind, {
 		x: number;
 		y: number;
 		width: number;
@@ -39,22 +42,22 @@ export abstract class BattlefieldLayer extends Layer {
 		const laneWidth = Math.floor(this.getWidth() / 3);
 		const laneHeight = this.getHeight();
 		
-		// Define lanes from left to right: Flanking, Back, Front
-		this.lanes.set(VehiclePosition.FLANKING, {
+		// Define lanes from left to right: shoulder, outside, inside
+		this.lanes.set('shoulder', {
 			x: 0,
 			y: 0,
 			width: laneWidth,
 			height: laneHeight
 		});
 		
-		this.lanes.set(VehiclePosition.BACK, {
+		this.lanes.set('outside', {
 			x: laneWidth,
 			y: 0,
 			width: laneWidth,
 			height: laneHeight
 		});
 		
-		this.lanes.set(VehiclePosition.FRONT, {
+		this.lanes.set('inside', {
 			x: laneWidth * 2,
 			y: 0,
 			width: laneWidth,
@@ -88,7 +91,7 @@ export abstract class BattlefieldLayer extends Layer {
 		// Create cards for new vehicles
 		for (const vehicle of this.vehicles) {
 			if (!this.vehicleCards.has(vehicle.id)) {
-				const card = this.createVehicleCard(vehicle, this.getLaneOrdinal(vehicle));
+				const card = this.createVehicleCard(vehicle);
 				this.vehicleCards.set(vehicle.id, card);
 				this.addChild(card);
 			} else {
@@ -102,40 +105,29 @@ export abstract class BattlefieldLayer extends Layer {
 	}
 	
 	/**
-	 * Position of a vehicle among the vehicles sharing its lane, in roster
-	 * order. Model.id is constructor name plus Math.random(), so it changes
-	 * every load; the roster is fixed for a combat, so this ordinal is a
-	 * stable name for the same slot across runs.
+	 * Stable element id suffix from the slot a vehicle is created in. Model.id
+	 * is random per load, and slots are unique on the road.
 	 */
-	protected getLaneOrdinal(vehicle: Vehicle): number {
-		let ordinal = 0;
-		for (const other of this.vehicles) {
-			if (other === vehicle) break;
-			if (other.position === vehicle.position) ordinal++;
-		}
-		return ordinal;
+	protected slotId(vehicle: VehicleData): string {
+		return vehicle.slot ? `${vehicle.slot.lane}_${vehicle.slot.row}` : 'off_road';
 	}
 	
 	/**
 	 * Layout vehicles in their lanes
 	 */
 	protected layoutVehicles(): void {
-		// Group vehicles by position
-		const vehiclesByPosition = new Map<VehiclePosition, Vehicle[]>();
-		for (const position of [VehiclePosition.FLANKING, VehiclePosition.BACK, VehiclePosition.FRONT]) {
-			vehiclesByPosition.set(position, []);
-		}
+		// Group vehicles by lane, ahead to behind within each
+		const vehiclesByLane = new Map<LaneKind, Vehicle[]>([['shoulder', []], ['outside', []], ['inside', []]]);
+		const rowOrder = (vehicle: Vehicle): number => (vehicle.slot ? ROW_ORDER.indexOf(vehicle.slot.row) : 0);
 		
-		for (const vehicle of this.vehicles) {
-			const vehicles = vehiclesByPosition.get(vehicle.position);
-			if (vehicles) {
-				vehicles.push(vehicle);
-			}
+		for (const vehicle of [...this.vehicles].sort((a, b) => rowOrder(a) - rowOrder(b))) {
+			if (!vehicle.slot) continue;
+			vehiclesByLane.get(laneKind(vehicle.slot.lane))?.push(vehicle);
 		}
 		
 		// Layout each lane
-		vehiclesByPosition.forEach((vehicles, position) => {
-			const lane = this.lanes.get(position);
+		vehiclesByLane.forEach((vehicles, kind) => {
+			const lane = this.lanes.get(kind);
 			if (!lane || vehicles.length === 0) return;
 			
 			this.layoutVehiclesInLane(vehicles, lane);
@@ -190,7 +182,7 @@ export abstract class BattlefieldLayer extends Layer {
 	/**
 	 * Create a vehicle card display component
 	 */
-	protected abstract createVehicleCard(vehicle: Vehicle, laneOrdinal: number): Layer;
+	protected abstract createVehicleCard(vehicle: Vehicle): Layer;
 	
 	/**
 	 * Update an existing vehicle card with new data

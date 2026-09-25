@@ -1,14 +1,6 @@
 import { Driver, DriverRole } from './Driver';
 import { Model } from '../core/Model';
-
-/**
- * Vehicle position in combat
- */
-export enum VehiclePosition {
-	FRONT = 'front',
-	BACK = 'back',
-	FLANKING = 'flanking'
-}
+import { RoadSlot, isShoulder } from './Road';
 
 /**
  * Vehicle status effects
@@ -18,6 +10,15 @@ export interface VehicleStatusEffect {
 	duration: number;
 	value?: number;
 	description?: string;
+}
+
+/**
+ * A flanker's bookkeeping: the formation slot it left, which stays empty and
+ * reserved, and the vehicle it outran, whose speed it has to keep beating.
+ */
+export interface FlankState {
+	reservedSlot: RoadSlot;
+	outran: Vehicle;
 }
 
 /**
@@ -31,7 +32,9 @@ export interface VehicleData {
 	maxStructure: number;
 	speed: number;
 	baseSpeed: number;
-	position: VehiclePosition;
+	/** Null until a Battle places the vehicle on the road. */
+	slot: RoadSlot | null;
+	flank: FlankState | null;
 	velocity: number;
 	driver: Driver | null;
 	passenger: Driver | null;
@@ -61,7 +64,8 @@ export class Vehicle extends Model<VehicleData> {
 		'maxStructure',
 		'speed',
 		'baseSpeed',
-		'position',
+		'slot',
+		'flank',
 		'velocity',
 		'driver',
 		'passenger',
@@ -88,8 +92,13 @@ export class Vehicle extends Model<VehicleData> {
 		return this.structure > 0;
 	}
 
-	// Model properties are automatically available as:
-	// this.driver, this.passenger, this.position, etc.
+	/**
+	 * On the other team's shoulder. Slots are only ever changed by Battle,
+	 * which keeps shoulders to flankers.
+	 */
+	public get isFlanking(): boolean {
+		return this.slot !== null && isShoulder(this.slot.lane);
+	}
 
 	/**
 	 * Take damage to the vehicle
@@ -272,15 +281,6 @@ export class Vehicle extends Model<VehicleData> {
 	}
 
 	/**
-	 * Change vehicle position
-	 */
-	public changePosition(newPosition: VehiclePosition): void {
-		const oldPosition = this.position;
-		this.position = newPosition;
-		this.emit('positionChanged', { oldPosition, newPosition });
-	}
-
-	/**
 	 * Check if vehicle has a specific status effect
 	 */
 	public hasStatusEffect(effectName: string): boolean {
@@ -292,14 +292,6 @@ export class Vehicle extends Model<VehicleData> {
 	 */
 	public canFlank(target: Vehicle): boolean {
 		return this.getTotalSpeed() > target.getTotalSpeed();
-	}
-
-	/**
-	 * Check if vehicle should lose flanking position
-	 */
-	public shouldLoseFlanking(minFlankingSpeed = 3): boolean {
-		return this.position === VehiclePosition.FLANKING && 
-			   this.getTotalSpeed() < minFlankingSpeed;
 	}
 
 	/**
@@ -357,28 +349,6 @@ export class Vehicle extends Model<VehicleData> {
 		this.armor = 0;
 	}
 
-	/**
-	 * Create a copy of this vehicle
-	 */
-	public copy(): Vehicle {
-		const newVehicle = new Vehicle({
-			name: this.name,
-			armor: this.armor,
-			maxArmor: this.maxArmor,
-			structure: this.structure,
-			maxStructure: this.maxStructure,
-			speed: this.speed,
-			baseSpeed: this.baseSpeed,
-			position: this.position,
-			velocity: this.velocity,
-			driver: null,
-			passenger: null,
-			statusEffects: this.statusEffects.map(effect => ({ ...effect }))
-		});
-		
-		return newVehicle;
-	}
-
 	// All properties are directly accessible:
-	// this.armor, this.maxArmor, this.structure, this.position, etc.
+	// this.armor, this.maxArmor, this.structure, this.slot, etc.
 }

@@ -74,7 +74,7 @@ export class AggressiveFlankerStrategy implements AIStrategy {
 		const cardEffects = this.analyzeCardEffects(card);
 
 		// Prioritize position changes to flanking
-		if (cardEffects.changesPosition && ourVehicle.position !== 'flanking') {
+		if (cardEffects.changesPosition && !ourVehicle.isFlanking) {
 			score += this.POSITION_WEIGHT * 2;
 			
 			// Extra bonus if we have enough speed for flanking
@@ -85,7 +85,7 @@ export class AggressiveFlankerStrategy implements AIStrategy {
 
 		// Prioritize speed boosts if not in flanking position and below threshold
 		if (cardEffects.speedBoost > 0 && 
-			ourVehicle.position !== 'flanking') {
+			!ourVehicle.isFlanking) {
 			const currentSpeed = ourVehicle.vehicle.getTotalSpeed();
 			if (currentSpeed < this.SPEED_THRESHOLD) {
 				// Very high priority for speed boost when we need it for flanking
@@ -98,7 +98,7 @@ export class AggressiveFlankerStrategy implements AIStrategy {
 			let damageScore = cardEffects.damage * this.DAMAGE_WEIGHT;
 
 			// Apply flanking bonus if we're in flanking position
-			if (ourVehicle.position === 'flanking') {
+			if (ourVehicle.isFlanking) {
 				damageScore *= this.FLANKING_BONUS;
 			}
 
@@ -119,7 +119,7 @@ export class AggressiveFlankerStrategy implements AIStrategy {
 					// Bonus if this would kill the target
 					const potentialDamage = this.calculatePotentialDamage(
 						cardEffects.damage, 
-						ourVehicle.position === 'flanking',
+						ourVehicle.isFlanking,
 						targetVehicle.hasStatusEffect('vulnerable')
 					);
 					

@@ -3,7 +3,6 @@ import { createTestDriver, createTestVehicle } from './test-helpers';
 import { Card } from '../../mechanics/Card';
 import { Battle } from '../../mechanics/Battle';
 import { Team, TeamType } from '../../mechanics/Team';
-import { VehiclePosition } from '../../mechanics/Vehicle';
 
 describe('RammingAI', () => {
 	let battle: Battle;
@@ -24,11 +23,7 @@ describe('RammingAI', () => {
 		const enemyVehicle1 = createTestVehicle('Enemy Vehicle 1', enemyDriver1);
 		const enemyVehicle2 = createTestVehicle('Enemy Vehicle 2', enemyDriver2);
 
-		// Set vehicle positions
-		playerVehicle1.position = VehiclePosition.FRONT;
-		playerVehicle2.position = VehiclePosition.BACK;
-		enemyVehicle1.position = VehiclePosition.FRONT;
-		enemyVehicle2.position = VehiclePosition.BACK;
+		// Battle places both teams in their opening formation
 
 		// Create teams
 		playerTeam = new Team({ 
@@ -216,12 +211,11 @@ describe('RammingAI', () => {
 			expect(decision?.card).toBe(healCard);
 		});
 
-		it('should prefer front position for ramming', async () => {
+		it('should value a position change while not flanking', async () => {
 			const enemyVehicle = battle.enemyTeam.vehicles[0];
 			const enemyDriver = enemyVehicle.driver!;
 
-			// Set to back position
-			enemyVehicle.position = VehiclePosition.BACK;
+			expect(enemyVehicle.isFlanking).toBe(false);
 
 			const positionCard = new Card({
 				type: 'charge_forward',

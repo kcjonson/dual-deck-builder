@@ -50,7 +50,7 @@ export abstract class AIPlayer {
 			adrenaline: driver?.adrenaline || 0,
 			cardsInHand: driver?.hand.length || 0,
 			isAlive: vehicle.isAlive(),
-			position: vehicle.position
+			isFlanking: vehicle.isFlanking
 		};
 	}
 
@@ -151,12 +151,21 @@ export abstract class AIPlayer {
 				}
 			}
 			
-			if (inRange) {
+			if (inRange && this.meetsFlankRules(card, sourceVehicle, target)) {
 				targets.push(target);
 			}
 		}
 
 		return targets;
+	}
+
+	/**
+	 * A flank card's target is the vehicle to outrun, so only offer ones the
+	 * battle would accept.
+	 */
+	private meetsFlankRules(card: Card, sourceVehicle: Vehicle, target: Vehicle): boolean {
+		const flanks = card.effects.some(e => e.type === 'change_position' && e.position === 'flanking');
+		return !flanks || this.battle.canFlank(sourceVehicle, target);
 	}
 
 	protected cardRequiresTarget(card: Card): boolean {
