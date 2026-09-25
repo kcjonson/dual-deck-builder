@@ -5,7 +5,7 @@ import { Battle } from './Battle';
 import { Team, TeamType } from './Team';
 import { Vehicle } from './Vehicle';
 import { RoadLane, RoadRow } from './Road';
-import { Driver, DriverRole } from './Driver';
+import { Driver, DriverRole, HAND_CAP } from './Driver';
 import { Card } from './Card';
 import { Deck } from './Deck';
 
@@ -1282,5 +1282,80 @@ describe('Battle', () => {
 			expect(playerDriver1.hand.length).toBe(initialHandSize + 1);
 		});
 
+	});
+
+	describe('Hand Cap', () => {
+		const createNitroBoost = (): Card => new Card({
+			type: 'nitro_boost',
+			name: 'Nitro Boost',
+			cost: 1,
+			description: 'Gain 3 speed for 2 turns. Draw 2 cards.',
+			rarity: 'uncommon',
+			targetType: 'self',
+			effects: [
+				{ type: 'apply_status', status: 'speed_boost', value: 3, duration: 2, target: 'self' },
+				{ type: 'draw_cards', value: 2, target: 'self' }
+			],
+			tags: ['utility', 'status', 'draw']
+		});
+
+		const nitroDeckSize = 20;
+
+		beforeEach(() => {
+			const nitroCards: Card[] = [];
+			for (let i = 0; i < nitroDeckSize; i++) {
+				nitroCards.push(createNitroBoost());
+			}
+			playerDriver1.deck = new Deck('nitro', 'Nitro Deck', nitroCards);
+		});
+
+		const startWithNitroInHand = (): void => {
+			battle.start();
+			playerDriver1.adrenaline = 10;
+		};
+
+		test('a Nitro Boost chain stops at the hand cap and burns the overflow to discard', () => {
+			startWithNitroInHand();
+			const burnSpy = jest.fn();
+			playerDriver1.on('cardsBurned', burnSpy);
+
+			for (let play = 0; play < 5; play++) {
+				expect(battle.playCard({ driver: playerDriver1, cardIndex: 0 })).toBe(true);
+				expect(playerDriver1.hand.length).toBeLessThanOrEqual(HAND_CAP);
+			}
+
+			// 5 + 2 per play: 5 -> 6 -> 7, then each later play burns 1 of its 2 draws
+			expect(playerDriver1.hand.length).toBe(HAND_CAP);
+			expect(burnSpy).toHaveBeenCalledTimes(3);
+			expect(playerDriver1.discard.length).toBe(5 + 3);
+			expect(playerDriver1.deck?.size).toBe(nitroDeckSize - 15);
+
+			const burnedCards = burnSpy.mock.calls.flatMap(([event]) => event.cards);
+			burnedCards.forEach(card => expect(playerDriver1.discard).toContain(card));
+		});
+
+		test('burned cards are logged in plain words', () => {
+			startWithNitroInHand();
+			for (let play = 0; play < 3; play++) {
+				battle.playCard({ driver: playerDriver1, cardIndex: 0 });
+			}
+
+			const burnMessages = battle.getMessagesByType('cards_burned');
+			expect(burnMessages).toHaveLength(1);
+			expect(burnMessages[0].message).toBe(
+				"Player1 Player Driver 1's hand is full, so Nitro Boost goes straight to the discard pile"
+			);
+			expect(burnMessages[0].metadata?.value).toBe(1);
+		});
+
+		test('the turn draw burns past the cap too', () => {
+			playerDriver2.hand = [createNitroBoost(), createNitroBoost(), createNitroBoost(), createNitroBoost()];
+
+			battle.start();
+
+			expect(playerDriver2.hand.length).toBe(HAND_CAP);
+			expect(playerDriver2.discard.length).toBe(4 + 5 - HAND_CAP);
+			expect(battle.getMessagesByType('cards_burned')).toHaveLength(1);
+		});
 	});
 });

@@ -1,5 +1,5 @@
 import { Team, TeamType } from './Team';
-import { Driver } from './Driver';
+import { Driver, DrawResult } from './Driver';
 import { Vehicle } from './Vehicle';
 import {
 	RoadSlot,
@@ -30,6 +30,7 @@ export type BattleMessageType =
 	| 'out_of_range'
 	| 'battle_end'
 	| 'adrenaline_remaining'
+	| 'cards_burned'
 	| 'general';
 
 /**
@@ -48,6 +49,11 @@ export interface BattleMessage {
 		[key: string]: string | number | undefined;
 	};
 }
+
+/**
+ * Cards each driver draws at the start of every turn
+ */
+export const TURN_DRAW = 5;
 
 /**
  * Battle data interface - all properties of a battle
@@ -254,9 +260,7 @@ export class Battle extends Model<BattleData> {
 		this.playerTeam.setInitiative();
 		this.enemyTeam.setInitiative();
 
-		// Draw initial hands for all drivers
-		this.playerTeam.drawCardsForAllDrivers(5);
-		this.enemyTeam.drawCardsForAllDrivers(5);
+		this.drawTurnHands();
 
 		// Refill adrenaline for all drivers
 		this.playerTeam.refillAdrenaline();
@@ -632,9 +636,7 @@ export class Battle extends Model<BattleData> {
 		this.playerTeam.refillAdrenaline();
 		this.enemyTeam.refillAdrenaline();
 
-		// Draw new hands for all drivers
-		this.playerTeam.drawCardsForAllDrivers(5);
-		this.enemyTeam.drawCardsForAllDrivers(5);
+		this.drawTurnHands();
 
 		// Set turn state
 		this.isPlayerTurn = true;
@@ -847,12 +849,7 @@ export class Battle extends Model<BattleData> {
 					break;
 
 				case 'draw':
-					const drawValue = typeof effect.value === 'number' ? effect.value : 0;
-					caster.drawCards(drawValue);
-					this.log('general',
-						`${card.displayName} draws ${drawValue} cards for ${this.getDriverDisplayName(caster)}`,
-						{ card: card.displayName, driver: caster.metadata.name, value: drawValue }
-					);
+					this.drawForCard(card, caster, typeof effect.value === 'number' ? effect.value : 0);
 					break;
 
 				case 'adrenaline':
@@ -958,15 +955,9 @@ export class Battle extends Model<BattleData> {
 					}
 					break;
 					
-				case 'draw_cards': {
-					const drawCardsValue = typeof effect.value === 'number' ? effect.value : 0;
-					caster.drawCards(drawCardsValue);
-					this.log('general',
-						`${card.displayName} draws ${drawCardsValue} cards for ${this.getDriverDisplayName(caster)}`,
-						{ card: card.displayName, driver: caster.metadata.name, value: drawCardsValue }
-					);
+				case 'draw_cards':
+					this.drawForCard(card, caster, typeof effect.value === 'number' ? effect.value : 0);
 					break;
-				}
 					
 				case 'gain_resource':
 					if (effect.resource === 'adrenaline') {
@@ -1361,6 +1352,40 @@ export class Battle extends Model<BattleData> {
 		return null;
 	}
 	
+	/**
+	 * Draw the start-of-turn hand for every driver on both teams
+	 */
+	private drawTurnHands(): void {
+		for (const driver of [...this.playerTeam.getAllDrivers(), ...this.enemyTeam.getAllDrivers()]) {
+			this.logBurnedCards(driver, driver.drawCards(TURN_DRAW));
+		}
+	}
+
+	/**
+	 * Resolve a card's draw effect for the driver who played it
+	 */
+	private drawForCard(card: Card, caster: Driver, count: number): void {
+		const result = caster.drawCards(count);
+		this.log('general',
+			`${card.displayName} draws ${count} cards for ${this.getDriverDisplayName(caster)}`,
+			{ card: card.displayName, driver: caster.metadata.name, value: count }
+		);
+		this.logBurnedCards(caster, result);
+	}
+
+	/**
+	 * Tell the player which drawn cards went straight to discard because the hand was full
+	 */
+	private logBurnedCards(driver: Driver, { burned }: DrawResult): void {
+		if (burned.length === 0) return;
+
+		const cardNames = burned.map(card => card.displayName).join(', ');
+		this.log('cards_burned',
+			`${this.getDriverDisplayName(driver)}'s hand is full, so ${cardNames} ${burned.length === 1 ? 'goes' : 'go'} straight to the discard pile`,
+			{ driver: driver.metadata.name, value: burned.length }
+		);
+	}
+
 	/**
 	 * Get driver display name with team prefix (e.g., "Player1 Road Warrior")
 	 */

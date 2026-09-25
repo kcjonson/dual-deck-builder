@@ -19,6 +19,14 @@ This document contains the chronological log of completed development tasks for 
 
 **How:** rules calls made with Kevin during the session and written into Combat Rules: enemy slots come from encounter data with a fallback order, flankers drop back at the end of every turn rather than at `endCombat`, and a flanker whose outran vehicle is wrecked holds the shoulder.
 
+## Hand cap of 7 per driver (2026-09-25)
+
+**What landed:** Combat Rules' hand cap, in the mechanics layer. No UI.
+
+- `Driver.drawCards` stops filling the hand at `HAND_CAP` (7). Cards drawn past it go straight to that driver's discard, the draw returns `{ drawn, burned }`, and the driver emits `cardsBurned` with the burned cards for the screen to animate later.
+- Battle routes the turn draw (now `TURN_DRAW`, 5) and both card draw effects through the capped draw and logs burns as a `cards_burned` message, e.g. "Player1 THE MECHANIC's hand is full, so Nitro Boost goes straight to the discard pile". `Team.drawCardsForAllDrivers` went away with it.
+- Tests: a Nitro Boost chain stops at 7 with the overflow in discard, a turn draw into a held hand burns past the cap, and the driver-level burn event. The deck reshuffling tests drew 10 into a hand and were reworked to stay under the cap.
+
 ## Design docs recovered from the old design folder (2026-09-25)
 
 **What landed:** everything from the original design folder that wasn't already in the repo, converted to Markdown. Docs only.

@@ -62,15 +62,18 @@ describe('Deck Reshuffling', () => {
 		});
 	});
 
-	test('should automatically reshuffle discard pile when deck is empty', () => {
-		// Draw all cards from deck
-		driver.drawCards(10);
-		expect(driver.hand.length).toBe(10);
-		expect(driver.deck?.size).toBe(0);
-		
-		// Discard all cards
+	// Draws stay at or under the hand cap here; HandCap.test.ts covers overflow
+	const emptyDeckIntoDiscard = (): void => {
+		driver.drawCards(5);
 		driver.discardHand();
+		driver.drawCards(5);
+		driver.discardHand();
+	};
+
+	test('should automatically reshuffle discard pile when deck is empty', () => {
+		emptyDeckIntoDiscard();
 		expect(driver.hand.length).toBe(0);
+		expect(driver.deck?.size).toBe(0);
 		expect(driver.discard.length).toBe(10);
 		
 		// Draw again - should automatically reshuffle
@@ -81,14 +84,8 @@ describe('Deck Reshuffling', () => {
 	});
 
 	test('should handle multiple reshuffle cycles', () => {
-		// First cycle
-		driver.drawCards(10);
-		driver.discardHand();
-		
-		// Second cycle - draw all and discard
-		driver.drawCards(10);
-		expect(driver.hand.length).toBe(10);
-		driver.discardHand();
+		emptyDeckIntoDiscard();
+		emptyDeckIntoDiscard();
 		
 		// Third cycle - should still work
 		driver.drawCards(7);
@@ -97,32 +94,33 @@ describe('Deck Reshuffling', () => {
 	});
 
 	test('should not draw more cards than available even with reshuffling', () => {
-		// Draw all cards
-		driver.drawCards(10);
-		expect(driver.hand.length).toBe(10);
+		driver.deck = new Deck('small', 'Small Deck', testCards.slice(0, 3));
+
+		driver.drawCards(5);
+		expect(driver.hand.length).toBe(3);
 		
 		// Try to draw more when deck and discard are empty
-		driver.drawCards(5);
-		expect(driver.hand.length).toBe(10); // Should still be 10
+		driver.drawCards(2);
+		expect(driver.hand.length).toBe(3);
 	});
 
 	test('should reshuffle mid-draw if needed', () => {
-		// Draw 8 cards, leaving 2 in deck
-		driver.drawCards(8);
+		// Draw 7 cards, leaving 3 in deck
+		driver.drawCards(7);
 		
 		// Discard 5 cards
 		for (let i = 0; i < 5; i++) {
 			const card = driver.hand.pop();
 			if (card) driver.discard.push(card);
 		}
-		expect(driver.hand.length).toBe(3);
+		expect(driver.hand.length).toBe(2);
 		expect(driver.discard.length).toBe(5);
-		expect(driver.deck?.size).toBe(2);
+		expect(driver.deck?.size).toBe(3);
 		
-		// Try to draw 5 cards - should draw 2 from deck, reshuffle, then draw 3 more
+		// Try to draw 5 cards - should draw 3 from deck, reshuffle, then draw 2 more
 		driver.drawCards(5);
-		expect(driver.hand.length).toBe(8); // 3 + 5
-		expect(driver.deck?.size).toBe(2); // 5 reshuffled - 3 drawn
+		expect(driver.hand.length).toBe(7); // 2 + 5
+		expect(driver.deck?.size).toBe(3); // 5 reshuffled - 2 drawn
 		expect(driver.discard.length).toBe(0);
 	});
 
@@ -130,54 +128,47 @@ describe('Deck Reshuffling', () => {
 		// Track specific cards
 		const firstCard = testCards[0];
 		const lastCard = testCards[9];
+		const seenCardNames = (): string[] => [...driver.hand, ...driver.discard].map(c => c.name);
 		
-		// Draw all cards
+		// Draw all cards (the last three burn past the hand cap)
 		driver.drawCards(10);
 		
 		// Verify we have the expected cards
-		expect(driver.hand.some(c => c.name === firstCard.name)).toBe(true);
-		expect(driver.hand.some(c => c.name === lastCard.name)).toBe(true);
+		expect(seenCardNames()).toContain(firstCard.name);
+		expect(seenCardNames()).toContain(lastCard.name);
 		
 		// Discard and reshuffle
 		driver.discardHand();
 		driver.drawCards(10);
 		
 		// Should still have the same cards
-		expect(driver.hand.some(c => c.name === firstCard.name)).toBe(true);
-		expect(driver.hand.some(c => c.name === lastCard.name)).toBe(true);
+		expect(seenCardNames()).toContain(firstCard.name);
+		expect(seenCardNames()).toContain(lastCard.name);
 	});
 
 	test('should shuffle the deck when reshuffling', () => {
-		// Draw and discard all cards multiple times to test randomization
-		const firstDrawOrder = [];
-		driver.drawCards(10);
-		for (const card of driver.hand) {
-			firstDrawOrder.push(card.name);
-		}
+		// Record the order of the unshuffled deck
+		driver.drawCards(5);
+		const firstDrawOrder = driver.hand.map(c => c.name);
+		driver.discardHand();
+		driver.drawCards(5);
+		firstDrawOrder.push(...driver.hand.map(c => c.name));
 		driver.discardHand();
 		
 		// Do multiple reshuffles to find at least one different order
 		let foundDifferentOrder = false;
 		for (let attempt = 0; attempt < 20; attempt++) {
-			driver.drawCards(10);
-			
+			driver.drawCards(5);
 			const currentOrder = driver.hand.map(c => c.name);
+			driver.discardHand();
+			driver.drawCards(5);
+			currentOrder.push(...driver.hand.map(c => c.name));
+			driver.discardHand();
 			
-			// Check if order is different
-			let isDifferent = false;
-			for (let i = 0; i < 10; i++) {
-				if (currentOrder[i] !== firstDrawOrder[i]) {
-					isDifferent = true;
-					break;
-				}
-			}
-			
-			if (isDifferent) {
+			if (currentOrder.some((name, i) => name !== firstDrawOrder[i])) {
 				foundDifferentOrder = true;
 				break;
 			}
-			
-			driver.discardHand();
 		}
 		
 		// With 10 cards and proper shuffling, we should get a different order
