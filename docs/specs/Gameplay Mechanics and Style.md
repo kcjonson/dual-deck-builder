@@ -69,3 +69,5 @@ The game will feature a seamless drop-in/drop-out couch co-op mode where two pla
 ## 9\. Key Elements (Thematic Alignment)
 
 - **Cards (Tactics):** Represent driver skills, vehicle maneuvers, weapon systems, and salvaged tech. Card names and effects will reflect the post-apocalyptic vehicle combat theme (e.g.,
+
+_The original document ends here, mid-sentence, and never had sections 3 to 5._
