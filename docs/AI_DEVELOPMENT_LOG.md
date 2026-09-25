@@ -14,9 +14,9 @@ This document contains the chronological log of completed development tasks for 
 - Card System Design: the Order card type, the `escort` target type, the `[Escort]` keyword, signature cards (1.3), and the six initial order cards with summaries and full texts (4.5).
 - Game Flow and UI Specification: the escort count on the map's convoy marker, escort-gated event choices, and the garage's Convoy strip.
 - Battle Screen Design: short notes in sections 1, 3, and 9 on ambush starts, the escort plate and SPENT chip, and the rules the screen now assumes.
-- The mock's Full road scenario got a comment pointing at the ambush-start rule. Nothing else in it changed.
+- The mock's Full road scenario got a comment pointing at the ambush-start rule and saying the Interceptor got onto the shoulder by flanking. Nothing else in it changed.
 
-**How:** decision record at `docs/AI_TECHNICAL_DECISIONS/escorts.md`, with the calls made while writing it up (attack order ties, preferred slots, and a few others, marked as proposals) and nine open questions for Kevin.
+**How:** decision record at `docs/AI_TECHNICAL_DECISIONS/escorts.md`, with the calls made while writing it up (attack order ties, preferred slots, and a few others, marked as proposals) and the open questions. Kevin answered four of the nine the same day (Draw Fire only redirects intents that can reach the escort, ambushers are raiders and set-piece escorts, which orders spend the escort, and damage to a passenger in an escort); they're in the specs and in the record as follow-up decisions. Five stay open, each tied to its build task (DDB-146 to DDB-155).
 
 ## Enemy intents planned before the player's turn (2026-09-25)
 

@@ -8,7 +8,7 @@
 
 - Properties
   - Type: Player or Enemy
-  - Vehicles: Array of vehicles. Player teams start with exactly 2 driven vehicles, plus up to 4 escorts in formation (see Escorts), plus any vehicles the encounter starts on the enemy shoulder (ambush starts, see The road). Enemy teams are variable.
+  - Vehicles: Array of vehicles. Player teams start with exactly 2 driven vehicles, plus up to 4 escorts in formation (see Escorts), plus any set-piece escorts the encounter starts on the enemy shoulder (ambush starts, see The road). Enemy teams are variable, and their raiders can start on the player's shoulder.
   - Up to 9 vehicles on the road per side: 6 in formation and 3 on the shoulder. A flanker keeps its formation slot reserved, so a side only gets past 6 through ambush starts.
 - Derived States
   - Defeated = All drivers dead. Escorts never count.
@@ -67,7 +67,13 @@ Each lane has three rows along the road: ahead, center, behind. A team's formati
 
 Opening placement: a vehicle whose encounter gives it a slot starts there; the rest fill their own formation inside lane first, center then behind then ahead. So the player's two vehicles start inside center and inside behind. Escorts place after the driven vehicles: each takes its type's preferred slot, or the next free slot in that fill order if the preferred one is taken.
 
-Ambush starts: an encounter can start a vehicle already flanking, on the other team's shoulder in a row the encounter names. Raider reinforcements do this, and so can an escort in a set piece. An ambusher has no reserved formation slot and no outran vehicle. It counts as flanking for every rule that asks. This is the only way a side reaches 9 on the road: 6 in formation and 3 on the shoulder. Without it, every flanker leaves a reserved slot behind and a side caps at 6. The battle screen mock's Full road scenario is legal only as an ambush start.
+Ambush starts: an encounter can place a vehicle already flanking, on the other team's shoulder in a row the encounter names. Ambushers are raiders and set-piece escorts, nothing else:
+
+- Raider encounters and reinforcement waves can place raiders on the player's shoulder, at the start of the fight or when a wave arrives.
+- A set-piece escort (an event ally, for example) can start on the raiders' shoulder.
+- The player's two driven vehicles always start in formation.
+
+An ambusher has no reserved formation slot and no outran vehicle. It counts as flanking for every rule that asks. This is the only way a side reaches 9 on the road: 6 in formation and 3 on the shoulder. Without it, every flanker leaves a reserved slot behind and a side caps at 6. The battle screen mock's Full road scenario is a layout stress case, not a legal position. Its raider side is a legal ambush (six in formation, three on your shoulder), but its player side isn't: the Interceptor got onto the shoulder by flanking, so its formation slot should be empty and reserved, and the formation also holds five escorts against a cap of four.
 
 ### Flanking
 
@@ -107,7 +113,8 @@ Decided by Kevin, 2026-09-25. Record: [enemy-intent-planning.md](../AI_TECHNICAL
 - A raider that is wrecked, or has lost its driver, drops the rest of its plan.
 - Basic raiders show everything. Elites show the type and target but hide the value and the card. Bosses behave like elites until bosses are designed.
 - Raider archetypes have target preferences, applied when the raider plans: looters go for haulers, killers go for drivers (driven vehicles). The preference shows only through the planned intents' target marks, so the player reads it off the road before acting. An archetype picks its preferred target when that target is legal for the card, and otherwise plans as usual. Draw Fire is the counter (see Escorts).
-- An escort is a legal target like any vehicle. It has no HP, so damage aimed only at a driver (Headshot) has nothing to hit on it.
+- Draw Fire redirects only the intents whose card can reach the escort. The rest hit their original target as planned. Draw Fire protects; it never makes an attack fizzle.
+- An escort is a legal target like any vehicle. An escort has no HP of its own, so when it carries no passenger, damage aimed only at a driver (Headshot) has nothing to hit on it.
 
 ## Escorts
 
@@ -119,21 +126,22 @@ An escort is an undriven vehicle in your convoy: it has a slot and a plate but n
 
 - Armor, structure, gunnery, evade, ramming, and base speed, all its own. No HP.
 - Its speed is its base speed.
-- Past armor, all damage goes to structure.
+- Past armor, an empty escort takes all damage on structure. An escort carrying a passenger splits it, half to structure and half to the passenger, the same as a driven vehicle.
 - Hit checks use the escort's own skills, in both directions: its gunnery or ramming when it attacks, its evade when it's attacked.
 
 ### Slots, range, and flanking
 
 - Same slots and range as any vehicle. There's no cover geometry: an escort doesn't block or shield anything by where it sits.
 - Escorts place after the driven vehicles. Each escort type has a preferred slot, used as its encounter or opening slot; if it's taken, the escort takes the next free slot in the fill order.
-- Escorts flank under the normal rules, including the +50% from the shoulder and the end-of-turn drop-back. An escort can also be an ambush start in a set piece.
+- Escorts flank under the normal rules, including the +50% from the shoulder and the end-of-turn drop-back. A set-piece escort can also start on the raiders' shoulder as an ambusher.
 
 ### Orders
 
 - An escort does nothing on its own. It acts when a driver plays an order card, and it acts at most once per turn. Once it has acted it is spent and shows a SPENT chip until the start of the player's turn.
 - Any driver can play an order card, active or passenger. The adrenaline comes from the driver who plays it.
 - Attack orders target a raider. The nearest ready escort within the card's range of that raider carries it out and is spent. Nearest means lowest range to the raider. Ties go to the inside lane, then the outside lane, then the enemy shoulder, and within a lane to ahead, then center, then behind. While the card is dragged over a raider, the escort that would carry it out lights up. A raider with no ready escort in range isn't a legal target.
-- Buff orders (armor, Draw Fire) target an escort directly. Close Ranks doesn't spend the escort. Whether Draw Fire and Triage spend one is open (see the record).
+- Buff orders (armor, Draw Fire) target an escort directly, and can target a spent one.
+- Spending: attack orders (Covering Fire, Ramming Run, Rally the Convoy) and Draw Fire spend the escort. Close Ranks and Triage don't. Triage is the Med Truck's card, not its action, so the Med Truck doesn't need to be ready.
 - Every order card is a single drop, the same as any other card.
 
 ### Signature cards

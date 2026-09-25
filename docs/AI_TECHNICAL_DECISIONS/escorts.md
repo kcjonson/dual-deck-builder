@@ -19,14 +19,14 @@ Kevin made every call below on 2026-09-25. The specs: [Combat Rules](../specs/Co
 
 ## Decisions (Kevin, 2026-09-25)
 
-1. **Ambush starts.** An encounter can start some vehicles already flanking, on the other team's shoulder: raider reinforcements, or an escort in a set piece. They have no reserved slot and no outran vehicle. That makes nine a side possible: six in formation, three on the shoulder. At the end-of-turn drop-back check an ambusher holds the shoulder, the same as a flanker whose outran vehicle is wrecked. The mock's Full road scenario is legal only as an ambush start.
+1. **Ambush starts.** An encounter can start some vehicles already flanking, on the other team's shoulder: raider reinforcements, or an escort in a set piece. They have no reserved slot and no outran vehicle. That makes nine a side possible: six in formation, three on the shoulder. At the end-of-turn drop-back check an ambusher holds the shoulder, the same as a flanker whose outran vehicle is wrecked. The mock's Full road scenario was said to be legal only as an ambush start; decision 14 revisits that.
 2. **Orders.** Escorts act only when an order card is played. Each escort brings one signature order card into a driver's deck, removed if the escort is lost. Generic order cards join the reward pool only while you own an escort.
 3. **Order targeting.** Attack orders target the raider, and the nearest ready escort in range carries them out; the drag highlights that escort. Buff orders (armor, Draw Fire) target an escort directly. Every card stays a single drop.
 4. **Raider targeting.** Raider archetypes have target preferences, shown through planned intents: looters go for haulers, killers go for drivers. Draw Fire is the counter.
 5. **Acquisition.** Events and garage hire. Convoy contracts come later.
 6. **Action economy.** Each escort acts once per turn and shows a SPENT chip.
 7. **Loss.** A lost escort is gone for the run, with its signature card. Haulers pay an after-fight dividend (Fuel Hauler +1 fuel, Salvage Rig +15 scrap). Escort damage persists between fights and the garage repairs it. Escorts never count toward defeat, which stays "all drivers dead".
-8. **Stats.** Escorts have their own gunnery, evade, ramming, and base speed, and no HP. Past armor, all damage goes to structure. They flank under the normal rules.
+8. **Stats.** Escorts have their own gunnery, evade, ramming, and base speed, and no HP. Past armor, all damage goes to structure (16 covers an escort carrying a passenger). They flank under the normal rules.
 9. **Slots and range.** Same as any vehicle, no cover geometry. Escorts fill the formation after the drivers, and each type has a preferred slot, used as its encounter or opening slot.
 10. **Passengers.** A driver whose vehicle is wrecked goes to the partner's vehicle first, then the nearest escort. A passenger can play order cards, which are a new card type, not attack.
 11. **Unmanned.** A driven vehicle whose driver dies with no passenger becomes an escort for the rest of the fight, with default crew stats.
@@ -59,24 +59,33 @@ These weren't in the decision and are needed for the text to be buildable. Each 
 - **Rarity.** Covering Fire, Ramming Run, and Close Ranks are common. Draw Fire (uncommon) and Rally the Convoy (rare) were given.
 - **Numbers left to the build.** Escort gunnery, evade, ramming, armor, and structure; the haulers' speeds; default crew stats; hire and repair costs; upgraded card values.
 
+## Follow-up decisions (Kevin, 2026-09-25)
+
+The first draft of this record had nine open questions. Kevin answered four the same day.
+
+13. **Draw Fire never cancels.** It redirects only the intents whose card can reach the escort. The rest hit their original target as planned. Draw Fire protects; it never makes an attack fizzle. (Before this, the rule for player-caused changes would have fizzled a redirected card that couldn't reach the escort, turning Draw Fire into a way to cancel attacks.)
+14. **Who can ambush.** Ambushers are raiders and set-piece escorts. Raider encounters and reinforcement waves can place raiders on the player's shoulder, at the start of the fight or when a wave arrives. A set-piece escort (an event ally, say) can start on the raiders' shoulder. The player's two driven vehicles always start in formation. The Interceptor on the shoulder in the mock's Full road scenario got there by flanking, not by ambush.
+15. **Spending.** Attack orders (Covering Fire, Ramming Run, Rally the Convoy) and Draw Fire spend the escort. Close Ranks and Triage don't; Triage is the Med Truck's card, not its action. Buff orders can target a spent escort.
+16. **A passenger in an escort.** When an escort carries a passenger, damage past armor splits half to structure and half to the passenger, the same as a driven vehicle. An empty escort takes it all on structure.
+
+Three edges the answers didn't cover, noted rather than decided: whether a driver-only attack (Headshot) can target a passenger riding in an escort; whether an area intent aimed at both driven vehicles counts as "aimed at a driven vehicle in the escort's row" for Draw Fire; and whether a set-piece escort joins the convoy after the fight.
+
+Full road, read against 14: its raider side (six in formation, three on the player's shoulder) is a legal ambush. Its player side isn't a legal position. The Interceptor flanked, so its formation slot should be empty and reserved, but the formation is full, and it holds five escorts against the cap of four. The scenario stays as a layout stress case.
+
 ## Open questions
 
-These change gameplay, so they're Kevin's.
+These change gameplay, so they're Kevin's. Kevin filed the build as DDB-146 to DDB-155, and each question is settled by the task that builds the piece named with it.
 
-1. **The other signature cards.** Only the Med Truck's (Triage) is named. The Outrider, Pilot Car, and Fuel Hauler each need one.
-2. **Does a buff order spend its escort?** Close Ranks says it doesn't, which suggests others might. Do Draw Fire and Triage spend the escort, and can a buff order target an escort that is already spent? Triage also doesn't say whether the Med Truck needs to be ready.
-3. **Draw Fire and range.** When an intent retargets to the escort but the raider's card can't reach it (a range 1 shot at a vehicle in the inside lane, redirected to an escort in the outside lane), the existing rule for player-caused changes makes it fizzle. That turns Draw Fire into a way to cancel attacks outright. Is that intended, or should out-of-range intents stay on their original target? The same question applies to area intents aimed at both vehicles.
-4. **A passenger in an escort.** All damage past armor goes to an escort's structure, so a passenger riding in one never takes damage until the escort is wrecked, and a driver-only attack (Headshot) has nothing to hit. Should damage reach the passenger, and how?
-5. **Ramming Run on a miss.** Does the escort still take its 2 structure when the ram misses?
-6. **After the fight, an unmanned vehicle** is an escort "for the rest of the fight". Does it stay in the convoy afterwards (counting toward four, with no signature card), or is it gone?
-7. **Who can ambush.** The examples are raider reinforcements and set-piece escorts, but the Full road mock starts a driven vehicle (the Interceptor) on the raiders' shoulder. Can a driven vehicle be an ambush start? Does a set-piece escort beyond the four join the convoy after the fight? And can a reinforcement wave that arrives mid-fight arrive on the shoulder, or only at the start?
-8. **Med Truck dividend.** The Med Truck is a hauler, but only the Fuel Hauler has a dividend set. Does the Med Truck pay one, or is Triage its payoff?
-9. **Flank orders.** Escorts flank under the normal rules, but no order in the first set moves one onto the shoulder, so in the first version an escort only flanks by starting there.
+1. **The other signature cards.** Only the Med Truck's (Triage) is named. The Outrider, Pilot Car, and Fuel Hauler each need one. Settled by the order-card task.
+2. **Ramming Run on a miss.** Does the escort still take its 2 structure when the ram misses? Settled by the order-card task.
+3. **After the fight, an unmanned vehicle** is an escort "for the rest of the fight". Does it stay in the convoy afterwards (counting toward four, with no signature card), or is it gone? Settled by the task that builds unmanned vehicles and passengers.
+4. **Med Truck dividend.** The Med Truck is a hauler, but only the Fuel Hauler has a dividend set. Does the Med Truck pay one, or is Triage its payoff? Settled by the task that builds escort run state and dividends.
+5. **Orders that move an escort to the shoulder.** Escorts flank under the normal rules, but no order in the first set moves one onto the shoulder, so in the first version an escort only gets there as a set-piece ambusher. Settled by the order-card task.
 
 ## Consequences
 
 - `Vehicle` already allows a null driver. Escorts need crew skills on the vehicle, a ready flag, and speed from base speed alone. `Battle` gains order resolution (pick the escort, check range and hit, spend it), the SPENT state, and the passenger and unmanned rules.
-- Enemy planning gains archetype target preferences, and Draw Fire has to rewrite committed plans, which the planner doesn't do today.
+- Enemy planning gains archetype target preferences, and Draw Fire has to rewrite committed plans (only the intents that can reach the escort), which the planner doesn't do today. Reinforcement waves need a way to place raiders on the player's shoulder when they arrive.
 - `CardLoader` accepts the `escort` target type and the `order` tag, and card data gains `signatureOf`. The card data check covers the six new summaries; all are under the 60-character proxy.
 - Escorts are run state: they persist between fights with their damage, and the map, events, and garage read them.
-- The battle screen mock still draws a driver HP bar on escort plates and has seven escorts in Full road. It was left alone apart from a comment on the Full road scenario pointing at the ambush-start rule.
+- The battle screen mock still draws a driver HP bar on escort plates and has seven escorts in Full road. It was left alone apart from a comment on the Full road scenario pointing at the ambush-start rule and saying the Interceptor got onto the shoulder by flanking.

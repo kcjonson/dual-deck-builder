@@ -24,7 +24,7 @@ Lanes run across the screen, left to right:
 Rows run along the road: ahead, center, behind. Ahead is further up the screen.
 
 - One vehicle per slot. Eighteen slots: each convoy's formation is its inside and outside lanes by three rows (six slots), plus three flank slots on the far shoulder. Up to nine a side.
-- Nine needs an ambush start. A flanker keeps its formation slot reserved, so a side only gets past six when the encounter starts some of its vehicles already on the other side's shoulder, with no reserved slot (Combat Rules, The road). The Full road scenario in section 10 is one of these.
+- Nine needs an ambush start. A flanker keeps its formation slot reserved, so a side only gets past six when the encounter places some of its vehicles on the other side's shoulder with no reserved slot (Combat Rules, The road). Ambushers are raiders and set-piece escorts; your driven vehicles always start in formation. The Full road scenario in section 10 is a layout stress case: its raider side is a legal ambush, its player side isn't a legal position.
 - Your two driven vehicles open in the inside lane; escorts fill the rest of your formation after them, each in its type's preferred slot.
 - A shoulder only holds the other side's flankers. Nobody parks on their own shoulder.
 - A flanker takes the row of the vehicle it outran. Its old formation slot stays empty and reserved; nobody in the convoy shifts to fill it. When it loses its speed edge it drops back into that slot.
@@ -131,8 +131,8 @@ Driver identity owns the two strongest hues and nothing else uses them: driver 1
 These are decided and recorded in Combat Rules; they're listed here because the layout depends on them.
 
 - Two driven vehicles at most. A bigger convoy grows through escorts: vehicles with slots and plates but no hand, ordered with cards. A third human player is co-op, not a third hand.
-- Up to four escorts in formation. Each acts only when ordered, once per turn. An attack order is dropped on a raider, and the nearest ready escort in range carries it out; that escort lights up during the drag. A buff order is dropped on the escort itself.
-- Some vehicles start a fight already on the other side's shoulder (ambush starts). With no reserved slot to drop back to, they hold it.
+- Up to four escorts in formation. Each acts only when ordered, once per turn. An attack order is dropped on a raider, and the nearest ready escort in range carries it out; that escort lights up during the drag. A buff order is dropped on the escort itself, spent or not. Attack orders and Draw Fire spend the escort; Close Ranks and Triage don't.
+- Raiders can start on your shoulder, at the start of a fight or when their wave arrives, and a set-piece escort can start on theirs (ambush starts). With no reserved slot to drop back to, they hold it.
 - Each driver has their own deck, hand, discard, and adrenaline pool.
 - Hand cap 7 per driver; draws past 7 go straight to discard.
 - A wrecked vehicle's driver becomes a passenger in the partner's vehicle, or the nearest escort if the partner's is gone, keeps their hand, can't play attack cards, and can play order cards.
