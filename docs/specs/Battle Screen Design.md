@@ -2,6 +2,10 @@
 
 Status: decided 2026-09-25. Replaces the combat screen layout in Game Flow and UI Specification section 2.2 and the positioning half of `docs/AI_TECHNICAL_DECISIONS/VEHICLE_POSITIONING_AND_WAVE_SYSTEM.md`. The reasoning and the options that lost are in [battle-screen-road-model.md](../AI_TECHNICAL_DECISIONS/battle-screen-road-model.md). The interactive mock, with the fit matrix that checks every number below, is [docs/design/battle-screen/index.html](../design/battle-screen/index.html); open it through any static server (`python3 -m http.server -d docs/design/battle-screen`).
 
+![A typical turn](../design/battle-screen/proposed/typical-turn.png)
+
+More frames: [every slot full, targeting](../design/battle-screen/proposed/full-road-targeting.png), [the card detail view with the longest full text](../design/battle-screen/proposed/card-detail-view.png). The current screen, for comparison, is in `docs/design/battle-screen/current/`.
+
 ## 1. The road
 
 Two convoys drive the same direction on a wide freeway, seen from behind, everyone moving up the screen. Nothing faces anything else. A fight is a raid on a moving convoy.
