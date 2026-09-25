@@ -6,6 +6,7 @@ import { DriverPanel } from './DriverPanel';
 import { Layer } from '../../../engine/components/Layer';
 import { Button } from '../../../engine/ui/Button';
 import { DriverLoader } from '../../core/DriverLoader';
+import { Driver } from '../../mechanics/Driver';
 import { isSameDriver } from '../../mechanics/DriverPair';
 
 /**
@@ -65,13 +66,15 @@ function expectDifferentDrivers(screen: DriverSelectionScreen): void {
 }
 
 describe('DriverSelectionScreen: one driver per slot', () => {
+	let rosterDrivers: Driver[];
 	let rosterSize: number;
 
 	beforeAll(async () => {
 		jest.spyOn(console, 'log').mockImplementation(() => undefined);
 		const loader = DriverLoader.getInstance();
 		await loader.loadDrivers();
-		rosterSize = loader.getUnlockedDrivers().length;
+		rosterDrivers = loader.getUnlockedDrivers();
+		rosterSize = rosterDrivers.length;
 	});
 
 	afterAll(() => {
@@ -115,13 +118,17 @@ describe('DriverSelectionScreen: one driver per slot', () => {
 
 	it('a remount after unmount starts clean with two different drivers', async () => {
 		const { screen, left, right } = await mountScreen();
+		// Leaves the right panel on the first driver, which a stale partner
+		// would make the left panel skip after the remount
 		left.cycleDriver();
 		right.cycleDriver();
+		expect(screen.getSelectedDrivers().driver2).toBe(rosterDrivers[0]);
 
 		screen.unmount();
 		screen.mount();
 		await flushPromises();
 
 		expectDifferentDrivers(screen);
+		expect(left.getSelectedDriver()).toBe(rosterDrivers[0]);
 	});
 });
