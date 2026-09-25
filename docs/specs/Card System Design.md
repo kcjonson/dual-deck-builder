@@ -121,7 +121,7 @@ Escorts are vehicles in your convoy with a slot and a plate but no driver and no
 - **Spending.** Attack orders and Draw Fire spend the escort. Close Ranks and Triage don't; Triage is the Med Truck's card, not its action.
 - Every order card is a single drop, the same as any other card. No order asks for two targets.
 - **`[Escort]`**: "An undriven vehicle in your convoy. Acts only when ordered, once per turn."
-- **Signature cards.** Each escort type brings one order card into a driver's deck when it joins; the player picks which driver. Card data names its escort with `signatureOf` (the escort type's id). A signature card is never in the reward pool or the shop. While its escort is wrecked it can't be played, and it leaves the deck when the fight ends. It also leaves when the escort is dismissed.
+- **Signature cards.** Each escort type has one signature order card, and each escort brings its own copy into a driver's deck when it joins; the player picks which driver. Card data names the type with `signatureOf` (the escort type's id), and each copy remembers the escort that brought it. A signature card is never in the reward pool or the shop. It's playable while any living escort of its type is in the convoy. The copy an escort brought leaves the deck at the end of the fight it's wrecked in, or when it's dismissed.
 - **Reward pool.** Generic order cards join the reward pool only while you own at least one escort.
 
 ## 2\. Driver-Specific Starting Decks
@@ -262,26 +262,27 @@ The initial set. All cost 1 except Rally the Convoy. Rarities marked "proposed" 
 **Draw Fire** (1 Adrenaline, uncommon). Buff order, `escort`.
 
 - Summary: "This [Escort] draws its row's raider fire. +{armor} [Armor]."
-- Full text: "Target escort gains {armor} Armor and is spent. This turn, raider intents aimed at a driven vehicle in the escort's row retarget to it if their card can reach it. The rest hit their original target as planned."
-- Armor 4. The counter to killers, which aim at driven vehicles. It protects and never cancels: an intent whose card can't reach the escort keeps its target. Can target a spent escort.
+- Full text: "Target escort gains {armor} Armor and is spent. Until the end of the next enemy turn, each raider intent aimed at a driven vehicle in its row hits the escort instead, if the card can reach it. The rest hit their original target as planned."
+- Armor 4. The counter to killers, which aim at driven vehicles. It protects and never cancels: each intent is judged as it plays, and one whose card can't reach the escort keeps its target. Target marks update when it's played, so the end-turn preview shows the redirect. If two Draw Fires cover the same row, the last one played wins. Can target a spent escort.
 
 **Close Ranks** (1 Adrenaline, common, proposed). Buff order, `escort`.
 
-- Summary: "This [Escort] gains {armor} [Armor] and stays ready."
+- Summary: "This [Escort] gains {armor} [Armor]. Doesn't spend it."
 - Full text: "Target escort gains {armor} Armor. The escort isn't spent and can still act this turn."
 - Armor 6.
 
-**Triage** (1 Adrenaline, signature of the Med Truck). Targets a driver or passenger anywhere in your convoy (`ally`).
+**Triage** (1 Adrenaline, signature of the Med Truck). Targets a vehicle in your convoy (`ally`).
 
-- Summary: "Heal {healing} HP to any driver. Needs the Med Truck alive."
-- Full text: "Heal {healing} HP to any driver or passenger in your convoy. Only playable while the Med Truck lives, and doesn't spend it. It leaves your deck if the Med Truck is lost."
-- Healing 4.
+- Summary: "Heal {healing} HP to a driver or passenger. Needs a Med Truck."
+- Full text: "Heal {healing} HP to the driver or passenger you choose in the target vehicle, up to their starting HP. Playable while any Med Truck lives, and doesn't spend it."
+- Healing 4. Heals up to starting HP, like Medical Kit.
+- Choosing the occupant is a proposal, because a card is one drop and `ally` targets a vehicle: dropping on the passenger row of the plate picks the passenger, anywhere else on the vehicle picks the driver. The model already carries a target driver for Medical Kit.
 
 **Rally the Convoy** (2 Adrenaline, rare). `enemy_all`, dropped anywhere on the road like EMP Blast.
 
 - Summary: "Each ready [Escort] deals {damage} to its nearest raider. [Exhaust]."
-- Full text: "Each ready escort deals {damage} damage to its nearest raider within range 2, using its gunnery against that raider's evade. Then every escort is spent, including any with no raider in range. Exhaust."
-- Damage 2. Range 2 and the per-escort hit check are proposed; the decision says "in range". Ties for the nearest raider go to their inside lane, then their outside lane, then your shoulder, and ahead, center, behind within a lane.
+- Full text: "Ready escorts fire one at a time in roster order. Each deals {damage} damage to its nearest living raider within range 2, using its gunnery against that raider's evade. Then every escort is spent, including any with no raider in range. Exhaust."
+- Damage 2. Range 2 and the per-escort hit check are proposed; the decision says "in range". Escorts resolve in roster order, and each one picks its nearest raider again from the raiders still alive, so a raider wrecked by an earlier escort isn't shot twice. Ties for the nearest raider go to their inside lane, then their outside lane, then your shoulder, and ahead, center, behind within a lane.
 
 ## 5\. Vehicle Mods (Permanent Upgrades)
 

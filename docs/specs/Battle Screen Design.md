@@ -131,18 +131,18 @@ Driver identity owns the two strongest hues and nothing else uses them: driver 1
 These are decided and recorded in Combat Rules; they're listed here because the layout depends on them.
 
 - Two driven vehicles at most. A bigger convoy grows through escorts: vehicles with slots and plates but no hand, ordered with cards. A third human player is co-op, not a third hand.
-- Up to four escorts in formation. Each acts only when ordered, once per turn. An attack order is dropped on a raider, and the nearest ready escort in range carries it out; that escort lights up during the drag. A buff order is dropped on the escort itself, spent or not. Attack orders and Draw Fire spend the escort; Close Ranks and Triage don't.
+- Up to four escorts in formation. Each acts only when ordered, once per turn. An attack order is dropped on a raider, and the nearest ready escort in range carries it out; that escort lights up during the drag. A buff order is dropped on the escort itself, spent or not. Attack orders and Draw Fire spend the escort; Close Ranks and Triage don't. When Draw Fire redirects an intent, its target mark moves to the escort's square, so the end-turn preview shows it.
 - Raiders can start on your shoulder, at the start of a fight or when their wave arrives, and a set-piece escort can start on theirs (ambush starts). With no reserved slot to drop back to, they hold it.
 - Each driver has their own deck, hand, discard, and adrenaline pool.
 - Hand cap 7 per driver; draws past 7 go straight to discard.
-- A wrecked vehicle's driver becomes a passenger in the partner's vehicle, or the nearest escort if the partner's is gone, keeps their hand, can't play attack cards, and can play order cards.
+- Every vehicle, escorts included, has one passenger seat. A wreck's occupants jump, driver first, to the partner's vehicle or the nearest escort with a free seat. A passenger keeps their hand, can't play attack cards, and can play order cards. A driver with no free seat sits out the fight, alive, and their half of the dock has no hand.
 - A driven vehicle whose driver dies with no passenger becomes an escort for the rest of the fight.
 - Flanking deals +50%.
 - The same driver can't fill both slots.
 
 ## 10. Worst cases the layout is checked against
 
-The mock runs each of these at 1920x1080, 1440x882, 1280x800, 1280x720, 2560x1080, and 1024x768, in planning, inspecting the leftmost and rightmost cards, targeting, and end-turn preview, and fails any render with text overflow, collisions between vehicles, chips, and cards, a token scaled below x1, anything outside the frame, or a slot-rule violation (a vehicle on its own shoulder, a flanker in a row with no opposing vehicle, two vehicles in one slot, a hand over the cap).
+The mock runs each of these at 1920x1080, 1440x882, 1280x800, 1280x720, 2560x1080, and 1024x768, in planning, inspecting the leftmost and rightmost cards, targeting, and end-turn preview, and fails any render with text overflow, collisions between vehicles, chips, and cards, a token scaled below x1, anything outside the frame, or a slot-rule violation (a vehicle on its own shoulder, a flanker in a row with no opposing vehicle, checked at placement only since the vehicle opposite can be wrecked later, two vehicles in one slot, a hand over the cap).
 
 | Scenario | What it stresses |
 |---|---|

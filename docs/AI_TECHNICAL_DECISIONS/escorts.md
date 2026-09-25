@@ -7,7 +7,7 @@
 
 The battle screen was sized for a convoy bigger than two vehicles, and the road model record left escorts as "a new system with no design yet beyond slots and plates, no hand". DDB-133 asked for the design: escorts are vehicles with slots and plates but no hand, ordered with cards from the drivers' decks. Writing it down also had to settle a road question the grid left open. A flanker keeps its formation slot reserved and nobody starts on a shoulder, so a side can never have more than six vehicles on the road, even though Combat Rules and the screen both said nine.
 
-Kevin made every call below on 2026-09-25. The specs: [Combat Rules](../specs/Combat%20Rules.md) (Escorts, plus Team, Vehicle, The road, Flanking, Losing vehicles and drivers, and Enemy intents), [Card System Design](../specs/Card%20System%20Design.md) 1.3 and 4.5, [Game Flow and UI Specification](../specs/Game%20Flow%20and%20UI%20Specification.md) 3.2, 4.2, and 5.2, and [Battle Screen Design](../specs/Battle%20Screen%20Design.md) sections 1, 3, and 9.
+Kevin made every decision in the next section on 2026-09-25. The specs: [Combat Rules](../specs/Combat%20Rules.md) (Escorts, plus Team, Vehicle, The road, Flanking, Losing vehicles and drivers, and Enemy intents), [Card System Design](../specs/Card%20System%20Design.md) 1.3 and 4.5, [Game Flow and UI Specification](../specs/Game%20Flow%20and%20UI%20Specification.md) 3.2, 4.2, and 5.2, and [Battle Screen Design](../specs/Battle%20Screen%20Design.md) sections 1, 3, and 9.
 
 ## Options considered
 
@@ -50,9 +50,9 @@ These weren't in the decision and are needed for the text to be buildable. Each 
 - **No escort in range.** A raider with no ready escort in range of an attack order isn't a legal target for it.
 - **Preferred slots.** Outrider inside ahead, Pilot Car outside ahead, Fuel Hauler outside center, Med Truck outside behind. With the drivers at inside center and inside behind, the four fill the formation without colliding. If a preferred slot is taken, the escort takes the next free slot in the normal fill order.
 - **Which deck.** The player picks which driver's deck a signature card goes into, the same way the garage asks which driver gets a bought card.
-- **Wrecked mid-fight.** A signature card whose escort is wrecked stays in the deck, hand, or discard but can't be played for the rest of the fight, then leaves the deck when the fight ends. This reads Triage's "only playable while the Med Truck lives" as the general rule.
+- **Wrecked mid-fight.** The signature card an escort brought stays in the deck, hand, or discard for the rest of the fight, then leaves the deck when the fight ends. Decision 18 makes it playable while any escort of its type lives.
 - **Ready resets** at the start of the player's turn. Escorts don't act on the enemy turn.
-- **Preference fallback.** A raider with a target preference picks its preferred target when that target is legal for the card, and otherwise plans as it does today.
+- **Preference fallback.** A raider with a target preference picks its preferred target when that target is legal for the card, and otherwise plans as it does today. Which raiders are looters or killers isn't defined anywhere yet; DDB-150 assigns archetypes. AI System Technical Design 2.1 points here.
 - **Speed.** An escort's speed is its base speed, and an unmanned vehicle keeps its own base speed with default crew skills.
 - **Capacity.** You own up to four escorts; at four, taking another (hire or event) means dismissing one first. Hiring is offered in the garage's Convoy strip.
 - **Rally the Convoy** fires at range 2, the same as Covering Fire, with a gunnery against evade check per escort.
@@ -76,6 +76,23 @@ Three edges the answers didn't cover, noted rather than decided, each left to it
 
 Full road, read against 14: its raider side (six in formation, three on the player's shoulder) is a legal ambush. Its player side isn't a legal position. The Interceptor flanked, so its formation slot should be empty and reserved, but the formation is full, and it holds five escorts against the cap of four. The scenario stays as a layout stress case with a legal raider side. DDB-155 builds the legal gallery scenes.
 
+## Review decisions (Kevin, 2026-09-25)
+
+Answered during the review of #45.
+
+17. **Seats.** Every vehicle, escorts included, has one passenger seat. A wreck's passenger jumps too, the driver first. A driver with no free seat is out of the fight but alive: their hand is gone for that fight and they come back after it. This matches the code in PR #46.
+18. **Duplicate escort types.** Allowed. When two escorts want the same preferred slot, roster order settles it (first acquired wins). Triage needs any living Med Truck. Each duplicate brings its own copy of its signature card.
+19. **Ambush rows.** Ambushers start only in rows with an opposing vehicle. After that, a shoulder vehicle with nothing opposite is legal, since its target can die. Battle Screen Design 10's lint checks this at placement only.
+20. **Draw Fire timing.** It lasts until the end of the next enemy turn. Each intent aimed at a driven vehicle in that row is judged as it plays: if its card can reach the escort, it hits the escort instead. Target marks update so the end-turn preview shows the redirect. If two Draw Fires cover the same row, the last one played wins.
+
+Review fixes that aren't Kevin's calls, applied at the same time:
+
+- Losing a driver is scoped by team. On the player's team a driverless vehicle becomes an escort; a raider vehicle that loses its driver with no passenger is out of the fight and leaves the road at the end of the turn, like a wreck, and its plan drops. The partner's-vehicle-then-nearest-escort order is the player's; raider occupants take any free seat on their team, as the rule said before escorts.
+- A vehicle that becomes an escort mid-turn starts spent.
+- Rally the Convoy resolves escorts in roster order and re-picks the nearest raider for each escort from raiders still alive.
+- Triage heals the driver or passenger you choose in the targeted vehicle, up to their starting HP, like Medical Kit. How you choose is a proposal, since a card is one drop onto a vehicle: dropping on the plate's passenger row picks the passenger.
+- Headshot on an escort: DDB-148 decides whether an empty escort is an illegal Headshot target or the card fizzles.
+
 ## Open questions
 
 These change gameplay, so they're Kevin's. Kevin filed the build as DDB-146 to DDB-155, and each question names the task that settles it.
@@ -89,7 +106,14 @@ These change gameplay, so they're Kevin's. Kevin filed the build as DDB-146 to D
 ## Consequences
 
 - `Vehicle` already allows a null driver. Escorts need crew skills on the vehicle, a ready flag, and speed from base speed alone. `Battle` gains order resolution (pick the escort, check range and hit, spend it), the SPENT state, and the passenger and unmanned rules.
-- Enemy planning gains archetype target preferences, and Draw Fire has to rewrite committed plans (only the intents that can reach the escort), which the planner doesn't do today. Reinforcement waves need a way to place raiders on the player's shoulder when they arrive.
-- `CardLoader` accepts the `escort` target type and the `order` tag, and card data gains `signatureOf`. The card data check covers the six new summaries; all are under the 60-character proxy.
+- Enemy planning gains archetype target preferences. Draw Fire doesn't rewrite committed plans: it's a row cover checked as each intent plays, plus target marks that update for the preview. Reinforcement waves need a way to place raiders on the player's shoulder when they arrive.
+- `CardLoader` will need to accept the `escort` target type (`validTargets` in `CardLoader.ts` doesn't list it today) and card data will gain the `order` tag and `signatureOf`. `cards.json` has no order cards yet, so the card data check doesn't cover them; the six summaries were measured by hand at 44 to 58 rendered characters against the 60 proxy.
+- Code that conflicts with these rules today:
+  - `Vehicle.takeDamage` always splits damage past armor half to structure and half to occupants, so an empty escort would take only half. The rule is all of it.
+  - `Team.addVehicle` throws past two player vehicles, so escorts can't join a player team.
+  - `Team.handleDriverEscape` puts the driver in the first vehicle with a free seat, not the partner's vehicle and then the nearest escort.
+  - `Vehicle.handleDriverDeath` is never called (DDB-156), so neither passenger promotion nor a driverless vehicle becoming an escort happens.
+  - `Driver.isAttackCard` treats any card with a damage or ram effect, or with "attack", "shot", or "ram" in its name, as an attack, so passengers couldn't play Covering Fire, Ramming Run, or Rally the Convoy. The passenger gate needs to use the `order` tag.
+- Signature cards are per escort, so a card instance needs to know which escort brought it.
 - Escorts are run state: they persist between fights with their damage, and the map, events, and garage read them.
 - The battle screen mock still draws a driver HP bar on escort plates and has seven escorts in Full road. It was left alone apart from a comment on the Full road scenario pointing at the ambush-start rule and saying the Interceptor got onto the shoulder by flanking.
