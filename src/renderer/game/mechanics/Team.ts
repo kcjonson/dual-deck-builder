@@ -154,13 +154,6 @@ export class Team extends Model<TeamData> {
 	}
 
 	/**
-	 * Draw cards for all drivers at start of turn
-	 */
-	public drawCardsForAllDrivers(count: number): void {
-		this.getAllDrivers().forEach(driver => driver.drawCards(count));
-	}
-
-	/**
 	 * Discard hands for all drivers at end of turn
 	 */
 	public discardAllHands(): void {
