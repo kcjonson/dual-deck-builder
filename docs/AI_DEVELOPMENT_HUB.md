@@ -112,8 +112,11 @@ The specs in [docs/specs/](./specs/) are the source of truth:
 3. [Card System Design](./specs/Card%20System%20Design.md)
 4. [Game Flow and UI Specification](./specs/Game%20Flow%20and%20UI%20Specification.md)
 5. [Gameplay Mechanics and Style](./specs/Gameplay%20Mechanics%20and%20Style.md)
-6. [AI System Technical Design](./specs/AI%20System%20Technical%20Deisgn.md)
-7. [UI rendering engine implementation](./specs/ui-rendering-engine-implementation.md)
+6. [AI System Technical Design](./specs/AI%20System%20Technical%20Design.md)
+7. [Faction Concepts](./specs/Faction%20Concepts.md)
+8. [UI rendering engine implementation](./specs/ui-rendering-engine-implementation.md)
+
+Background research and the original pitch (genre research, comparable games, naming, the first spec draft) are in [docs/research/](./research/README.md).
 
 ## Code Style Guidelines
 

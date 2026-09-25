@@ -180,3 +180,16 @@ Specific Cards
   - Gain 3 Adrenaline
   - Vehicle gains Vulnerable
   - Upgraded damage -1, Adrenaline +1
+
+## Ideas from the original draft
+
+Not current rules. The first version of this document had a few mechanics that didn't carry into the rules above; they're kept here as options, not as requirements.
+
+- **Initiative and velocity.** At the start of each turn every driver rolls initiative (1-3) and adds their speed and their vehicle's speed. The total is their velocity for that turn, and velocity (not speed) drives flanking and ram damage. The current rules still say "initiative system to be determined later", and this is the one idea on record for it.
+- **Percentage hit chances instead of a hard threshold.**
+  - Ranged attack: 20% + (attacker gunnery - defender evade) / attacker gunnery.
+  - Headshot: 5% + (attacker gunnery - defender evade) / attacker gunnery.
+  - Ram: 30% + (attacker ramming - defender evade) / attacker ramming.
+  - The current rules use a deterministic check (gunnery > evade), which the battle screen's hit-check chip depends on; switching back would turn that chip into a percentage.
+- **Flank grants another attack.** Flank moved you into the enemy's flanking position and let you play another attack card, rather than giving a damage bonus.
+- **Driver death removes the vehicle.** A dead driver's vehicle left the board, rather than carrying on unmanned or passing to its passenger.

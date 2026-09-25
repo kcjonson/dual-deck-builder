@@ -6,6 +6,15 @@ This document contains the chronological log of completed development tasks for 
 
 **Date correction (2026-08-22):** the repo's first commit is 2025-05-17, but many entries below carry dates in December 2024 or January 2025 — the AI that wrote them used its assumed date instead of the real one. Entries dated 2025-07-03 and 2025-07-02 have been corrected from "2025-01-03"/"2025-01-02" (verified against git history). Remaining Dec 2024 / Jan 2025 dates are wrong by roughly six months; the real work happened May–July 2025. Trust git history over these dates.
 
+## Design docs recovered from the old design folder (2026-09-25)
+
+**What landed:** everything from the original design folder that wasn't already in the repo, converted to Markdown. Docs only.
+
+- Compared all twelve documents from the folder export against `docs/specs/`. AI System Technical Design and Card System Design matched word for word. Gameplay Mechanics and Style matched, including its truncation (no sections 3 to 5, ends mid-sentence), now marked as such. Game Flow had lost one unfinished note under 1.1, restored. Combat Rules was an older, shorter draft; its four ideas that didn't carry forward (initiative and velocity, percentage hit chances, Flank granting another attack, driver death removing the vehicle) are now an appendix in Combat Rules, labelled as not current rules.
+- New: `docs/specs/Faction Concepts.md`, and `docs/research/` with the comparable-games list, the genre mechanics research, the Symbiotic Twin pitch, the game name brainstorm, and the original software spec draft (which also stops mid-sentence).
+- The folder's TODO list went to Specboard rather than the repo: picking factions and a mood board are new items, the rest were done or already tracked.
+- `AI System Technical Deisgn.md` renamed to fix the typo; the hub's design documents list links everything.
+
 ## Battle screen design, docs only (2026-09-25)
 
 **What landed:** the combat screen's target design and the rules it depends on, as documentation. No code changed.

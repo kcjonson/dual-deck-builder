@@ -6,6 +6,8 @@
 
 When a player launches the game and wants to start a new run, they'll see the main menu with several options prominently displayed. The "New Run" button should be the largest and most visually prominent, indicating it's the primary action. Below it, if the player has a run in progress, they'll see a "Continue Run" option that shows basic stats from their current run (e.g., "Day 5 - Road Warrior & Interceptor - 3 victories"). At the bottom, a "Run History" option lets players review their past attempts, showing statistics like furthest progression, unlocks earned, and cause of defeat.
 
+There will need to be buttons to see what cards have been (the original note stops here).
+
 ### 1.2 Driver Selection Screen
 
 #### User Scenario
