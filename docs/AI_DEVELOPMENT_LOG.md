@@ -14,6 +14,26 @@ This document contains the chronological log of completed development tasks for 
 - All 18 cards in `cards.json` have summaries, taken from the battle screen mock's rewrites with values turned back into `{variables}`. Flank and Flanking Maneuver are written for the outrun-a-slower-raider behavior in PR #39.
 - New card data check, `src/renderer/game/data/cards.test.ts`, runs in `npm test` against the real file at base and upgraded values: description at most 330 characters, summary at most 60 rendered characters (brackets not counted), no unfilled placeholders. The 60 is a proxy until phase 2 text measurement can check three lines in 114px.
 - Deleted the stale `public/cards.json` fork. Nothing loaded it; the dev server's webpack middleware answers `/cards.json` with the copy of the real file before the static `public/` directory is consulted.
+## Road grid positions and flanking in the combat model (2026-09-25)
+
+**What landed:** DDB-128 and DDB-129 together, since Flank was self-targeted and the outran-row rule needed the card change.
+
+- `VehiclePosition` (front, back, flanking) is gone. New `mechanics/Road.ts`: six lanes left to right, three rows, `slotRange` (lanes apart plus rows apart), lane rules (never your own shoulder, never their formation), and the opening fill order. `TeamType` moved to its own module so `Road` can use it without an import cycle; `Team` re-exports it.
+- `Vehicle` gained `slot`, `flank` (reserved slot and outran vehicle), and an `isFlanking` getter; `changePosition`, `shouldLoseFlanking`, and the unused `copy` are deleted.
+- `Battle`: opening placement in the constructor, range from slots, flank legality and the flank move, drop-back at the end of every turn (moved out of `endCombat`, which only runs when the fight ends), and a self-targeted status on a targeted card now lands on the caster without a hit roll. A failed flank stops the rest of the card.
+- Flank and Flanking Maneuver target the vehicle to outrun; Flank's inert `flanking_damage` status is gone (the +50% comes from the slot). MCTS's flanking weight went from 2.0 to 1.5.
+- AI strategies, `AIEvaluator`, `battle-simulator.ts`, `CombatScreen`, and the three battlefield layers read slots. The layers draw the same picture as before.
+- Tests: the spec's range table as a fixture, lane rules, opening placement, slot uniqueness, the own-shoulder rule, and each flank rule including drop-back and the wrecked-target case.
+
+**How:** rules calls made with Kevin during the session and written into Combat Rules: enemy slots come from encounter data with a fallback order, flankers drop back at the end of every turn rather than at `endCombat`, and a flanker whose outran vehicle is wrecked holds the shoulder.
+
+## Hand cap of 7 per driver (2026-09-25)
+
+**What landed:** Combat Rules' hand cap, in the mechanics layer. No UI.
+
+- `Driver.drawCards` stops filling the hand at `HAND_CAP` (7). Cards drawn past it go straight to that driver's discard, the draw returns `{ drawn, burned }`, and the driver emits `cardsBurned` with the burned cards for the screen to animate later.
+- Battle routes the turn draw (now `TURN_DRAW`, 5) and both card draw effects through the capped draw and logs burns as a `cards_burned` message, e.g. "Player1 THE MECHANIC's hand is full, so Nitro Boost goes straight to the discard pile". `Team.drawCardsForAllDrivers` went away with it.
+- Tests: a Nitro Boost chain stops at 7 with the overflow in discard, a turn draw into a held hand burns past the cap, and the driver-level burn event. The deck reshuffling tests drew 10 into a hand and were reworked to stay under the cap.
 
 ## Design docs recovered from the old design folder (2026-09-25)
 

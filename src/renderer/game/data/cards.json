@@ -115,22 +115,14 @@
       "type": "flank",
       "name": "Flank",
       "summary": "[Flank] a slower raider. Your attacks deal +50%.",
-      "description": "Move to flanking position if your speed is higher. Attack cards do 50% more damage.",
+      "description": "Outrun a slower enemy: swerve onto their shoulder in its row. While flanking, attack cards do 50% more damage.",
       "rarity": "common",
       "cost": 2,
-      "targetType": "self",
+      "targetType": "enemy_single",
       "effects": [
         {
           "type": "change_position",
           "position": "flanking",
-          "condition": "speed_higher",
-          "target": "self"
-        },
-        {
-          "type": "apply_status",
-          "status": "flanking_damage",
-          "value": 50,
-          "duration": -1,
           "target": "self"
         }
       ],
@@ -500,10 +492,10 @@
       "type": "flanking_maneuver",
       "name": "Flanking Maneuver",
       "summary": "[Flank] a slower raider. Next attack +{bonus}%.",
-      "description": "Move to Flanking position. Next attack deals +{bonus}% damage.",
+      "description": "Outrun a slower enemy: swerve onto their shoulder in its row. Next attack deals +{bonus}% damage.",
       "rarity": "uncommon",
       "cost": 1,
-      "targetType": "self",
+      "targetType": "enemy_single",
       "effects": [
         {
           "type": "change_position",

@@ -307,7 +307,7 @@ export class SalvageAIStrategy implements AIStrategy {
 		// Find the driver's vehicle in the game state
 		for (const vehicleEval of ourVehicles) {
 			if (vehicleEval.driver === driver) {
-				return vehicleEval.position === 'flanking';
+				return vehicleEval.isFlanking;
 			}
 		}
 		return false;

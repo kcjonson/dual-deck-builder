@@ -1,14 +1,9 @@
 import { Driver, DriverRole } from './Driver';
 import { Vehicle } from './Vehicle';
 import { Model } from '../core/Model';
+import { TeamType } from './TeamType';
 
-/**
- * Team type (player or AI controlled)
- */
-export enum TeamType {
-	PLAYER = 'player',
-	ENEMY = 'enemy'
-}
+export { TeamType };
 
 /**
  * Team data interface - used throughout the app
@@ -156,13 +151,6 @@ export class Team extends Model<TeamData> {
 	 */
 	public refillAdrenaline(): void {
 		this.getAllDrivers().forEach(driver => driver.refillAdrenaline());
-	}
-
-	/**
-	 * Draw cards for all drivers at start of turn
-	 */
-	public drawCardsForAllDrivers(count: number): void {
-		this.getAllDrivers().forEach(driver => driver.drawCards(count));
 	}
 
 	/**

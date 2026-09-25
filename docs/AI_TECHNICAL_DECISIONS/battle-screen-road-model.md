@@ -66,3 +66,4 @@ Option 4, specified in [docs/specs/Battle Screen Design.md](../specs/Battle%20Sc
 
 - The mock is `docs/design/battle-screen/index.html`: plain HTML and JavaScript, its layout function is the one described in the spec, and its `lint` function is a sketch of the checks the real screen's Playwright suite should make. It is a design artifact, not engine code.
 - The six worst-case scenarios in the spec's section 10 are the ones to port as gallery scenes.
+- Code shape (DDB-128/129): `mechanics/Road.ts` is pure road geometry and lane rules; `Vehicle.slot` is absolute (six named lanes) rather than team-relative, so range is a function of two slots and needs no team lookup; `Battle` is the only thing that moves a vehicle, which is where slot uniqueness and the shoulder rules are enforced. Flank drop-back runs at the end of every turn: `endCombat` only runs when the fight is over, where a positional rule does nothing.

@@ -1,7 +1,7 @@
 import { AggressiveFlankerAI } from './AggressiveFlankerAI';
 import { Battle } from '../mechanics/Battle';
 import { Team, TeamType } from '../mechanics/Team';
-import { VehiclePosition } from '../mechanics/Vehicle';
+import { RoadLane, RoadRow } from '../mechanics/Road';
 import { Card } from '../mechanics/Card';
 import { createTestDriver, createTestVehicle } from './__tests__/test-helpers';
 
@@ -24,11 +24,7 @@ describe('AggressiveFlankerAI', () => {
 		const enemyVehicle1 = createTestVehicle('Enemy Vehicle 1', enemyDriver1);
 		const enemyVehicle2 = createTestVehicle('Enemy Vehicle 2', enemyDriver2);
 
-		// Set vehicle positions
-		playerVehicle1.position = VehiclePosition.FRONT;
-		playerVehicle2.position = VehiclePosition.BACK;
-		enemyVehicle1.position = VehiclePosition.FRONT;
-		enemyVehicle2.position = VehiclePosition.BACK;
+		// Battle places both teams in their opening formation
 
 		// Set vehicle speeds (getTotalSpeed = baseSpeed + driver.vehicleStats.speed)
 		// Test vehicles start with baseSpeed 50 and driver speed 50 = 100 total
@@ -143,7 +139,7 @@ describe('AggressiveFlankerAI', () => {
 		battle.start();
 
 		// Put vehicle in flanking position
-		enemyTeam.vehicles[0].position = VehiclePosition.FLANKING;
+		enemyTeam.vehicles[0].slot = { lane: RoadLane.PLAYER_SHOULDER, row: RoadRow.CENTER };
 		
 		const driver = enemyTeam.vehicles[0].driver;
 		if (!driver) throw new Error('Driver not found');
@@ -190,7 +186,7 @@ describe('AggressiveFlankerAI', () => {
 		playerTeam.vehicles[1].takeDamage(5);  // Higher health
 
 		// Put enemy in flanking position with damage card
-		enemyTeam.vehicles[0].position = VehiclePosition.FLANKING;
+		enemyTeam.vehicles[0].slot = { lane: RoadLane.PLAYER_SHOULDER, row: RoadRow.CENTER };
 		const driver = enemyTeam.vehicles[0].driver;
 		if (!driver) throw new Error('Driver not found');
 		driver.hand = [
@@ -221,7 +217,7 @@ describe('AggressiveFlankerAI', () => {
 		battle.start();
 
 		// Ensure vehicle is NOT in flanking position (so damage isn't boosted)
-		enemyTeam.vehicles[0].position = VehiclePosition.FRONT;
+		expect(enemyTeam.vehicles[0].isFlanking).toBe(false);
 		
 		// Damage enemy vehicle to exactly 20% health
 		enemyTeam.vehicles[0].structure = 2; // Direct assignment to ensure exact value

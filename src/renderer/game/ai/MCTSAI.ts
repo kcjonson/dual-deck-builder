@@ -5,6 +5,9 @@ import { Team } from '../mechanics/Team';
 import { Vehicle } from '../mechanics/Vehicle';
 import { Driver } from '../mechanics/Driver';
 import { Card } from '../mechanics/Card';
+import { laneKind } from '../mechanics/Road';
+
+const isInsideLane = (vehicle: Vehicle): boolean => vehicle.slot !== null && laneKind(vehicle.slot.lane) === 'inside';
 
 /**
  * Monte Carlo Tree Search AI Player
@@ -19,7 +22,7 @@ export class MCTSAI extends AIPlayer {
 	// Strategic weights - optimized for winning
 	private readonly ELIMINATION_SCORE = 20.0; // Doubled - eliminating enemies is key
 	private readonly DAMAGE_WEIGHT = 1.5; // Increased - aggression wins games
-	private readonly FLANKING_BONUS = 2.0; // Increased - flanking is very powerful
+	private readonly FLANKING_BONUS = 1.5; // Flanking deals +50%
 	private readonly LOW_HEALTH_BONUS = 3.0; // Increased - finish off weak enemies
 	private readonly HEAL_WEIGHT = 0.5; // Decreased - offense > defense
 	private readonly ARMOR_WEIGHT = 0.4; // Decreased - offense > defense
@@ -334,7 +337,7 @@ export class MCTSAI extends AIPlayer {
 		let score = damage * this.DAMAGE_WEIGHT;
 		
 		// Apply flanking bonus
-		if (ourVehicle.position === 'flanking') {
+		if (ourVehicle.isFlanking) {
 			score *= this.FLANKING_BONUS;
 		}
 		
@@ -354,8 +357,8 @@ export class MCTSAI extends AIPlayer {
 			score += this.ELIMINATION_SCORE * 0.5;
 		}
 		
-		// Prioritize targets in front position (easier to hit)
-		if (targetVehicle.position === 'front') {
+		// Prioritize targets in the inside lane, closest to the centre line
+		if (isInsideLane(targetVehicle)) {
 			score *= 1.2;
 		}
 		
@@ -417,8 +420,8 @@ export class MCTSAI extends AIPlayer {
 		const healthPercent = targetVehicle.structure / targetVehicle.maxStructure;
 		score *= healthPercent;
 		
-		// Bonus if vehicle is in front position (likely to take damage)
-		if (targetVehicle.position === 'front') {
+		// Bonus if vehicle is in the inside lane (likely to take damage)
+		if (isInsideLane(targetVehicle)) {
 			score *= 1.5;
 		}
 		
@@ -430,7 +433,7 @@ export class MCTSAI extends AIPlayer {
 	 */
 	private evaluatePositionChange(ourVehicle: Vehicle): number {
 		// High value if not in flanking and have good speed
-		if (ourVehicle.position !== 'flanking') {
+		if (!ourVehicle.isFlanking) {
 			const totalSpeed = ourVehicle.speed + (ourVehicle.driver?.vehicleStats?.speed || 0);
 			if (totalSpeed >= 60) {
 				return this.POSITION_CHANGE_WEIGHT * 2;
@@ -447,7 +450,7 @@ export class MCTSAI extends AIPlayer {
 	 */
 	private evaluateSpeedBoost(speedBoost: number, ourVehicle: Vehicle): number {
 		// Very valuable if we need speed for flanking
-		if (ourVehicle.position !== 'flanking') {
+		if (!ourVehicle.isFlanking) {
 			const currentSpeed = ourVehicle.speed + (ourVehicle.driver?.vehicleStats?.speed || 0);
 			const newSpeed = currentSpeed + speedBoost;
 			

@@ -114,9 +114,9 @@ export class PlayerBattlefieldLayer extends BattlefieldLayer {
   /**
    * Create a vehicle display component
    */
-  protected createVehicleCard(vehicle: VehicleData, laneOrdinal: number): VehicleUI {
+  protected createVehicleCard(vehicle: VehicleData): VehicleUI {
     return new PlayerVehicle({
-      id: `player_vehicle_${vehicle.position}_${laneOrdinal}`,
+      id: `player_vehicle_${this.slotId(vehicle)}`,
       x: 0,
       y: 0,
       width: this.getCardWidth(),

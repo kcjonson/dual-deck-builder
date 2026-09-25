@@ -32,7 +32,7 @@ export interface VehicleEvaluation {
 	adrenaline: number;
 	cardsInHand: number;
 	isAlive: boolean;
-	position: 'front' | 'back' | 'flanking';
+	isFlanking: boolean;
 }
 
 export interface AIStrategy {
