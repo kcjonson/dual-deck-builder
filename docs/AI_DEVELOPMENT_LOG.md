@@ -6,6 +6,15 @@ This document contains the chronological log of completed development tasks for 
 
 **Date correction (2026-08-22):** the repo's first commit is 2025-05-17, but many entries below carry dates in December 2024 or January 2025 — the AI that wrote them used its assumed date instead of the real one. Entries dated 2025-07-03 and 2025-07-02 have been corrected from "2025-01-03"/"2025-01-02" (verified against git history). Remaining Dec 2024 / Jan 2025 dates are wrong by roughly six months; the real work happened May–July 2025. Trust git history over these dates.
 
+## Card summary field and card data check (2026-09-25)
+
+**What landed:** DDB-131. Cards carry a required `summary` for the card face beside `description` for the detail view.
+
+- `CardData.summary` is required; the loader rejects a card whose `summary` or `description` is missing or blank. Both texts go through one `{variable}` fill, exposed as `Card.displaySummary` and `Card.displayDescription` (the latter replaces `getDescription()`).
+- All 18 cards in `cards.json` have summaries, taken from the battle screen mock's rewrites with values turned back into `{variables}`. Flank and Flanking Maneuver are written for the outrun-a-slower-raider behavior in PR #39.
+- New card data check, `src/renderer/game/data/cards.test.ts`, runs in `npm test` against the real file at base and upgraded values: description at most 330 characters, summary at most 60 rendered characters (brackets not counted), no unfilled placeholders. The 60 is a proxy until phase 2 text measurement can check three lines in 114px.
+- Deleted the stale `public/cards.json` fork. Nothing loaded it; the dev server's webpack middleware answers `/cards.json` with the copy of the real file before the static `public/` directory is consulted.
+
 ## Design docs recovered from the old design folder (2026-09-25)
 
 **What landed:** everything from the original design folder that wasn't already in the repo, converted to Markdown. Docs only.

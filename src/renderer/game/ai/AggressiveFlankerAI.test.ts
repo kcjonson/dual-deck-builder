@@ -67,6 +67,7 @@ describe('AggressiveFlankerAI', () => {
 			new Card({
 				type: 'flanking_maneuver',
 				name: 'Flanking Maneuver',
+				summary: 'Move to flanking position',
 				description: 'Move to flanking position',
 				rarity: 'common',
 				cost: 2,
@@ -77,6 +78,7 @@ describe('AggressiveFlankerAI', () => {
 			new Card({
 				type: 'power_shot',
 				name: 'Power Shot',
+				summary: 'Deal 8 damage',
 				description: 'Deal 8 damage',
 				rarity: 'common',
 				cost: 2,
@@ -106,6 +108,7 @@ describe('AggressiveFlankerAI', () => {
 			new Card({
 				type: 'speed_boost',
 				name: 'Speed Boost',
+				summary: 'Increase speed by 2',
 				description: 'Increase speed by 2',
 				rarity: 'common',
 				cost: 1,
@@ -116,6 +119,7 @@ describe('AggressiveFlankerAI', () => {
 			new Card({
 				type: 'power_shot',
 				name: 'Power Shot',
+				summary: 'Deal 8 damage',
 				description: 'Deal 8 damage',
 				rarity: 'common',
 				cost: 2,
@@ -147,6 +151,7 @@ describe('AggressiveFlankerAI', () => {
 			new Card({
 				type: 'power_shot',
 				name: 'Power Shot',
+				summary: 'Deal 8 damage',
 				description: 'Deal 8 damage',
 				rarity: 'common',
 				cost: 2,
@@ -157,6 +162,7 @@ describe('AggressiveFlankerAI', () => {
 			new Card({
 				type: 'potshot',
 				name: 'Potshot',
+				summary: 'Deal 3 damage',
 				description: 'Deal 3 damage',
 				rarity: 'starter',
 				cost: 1,
@@ -191,6 +197,7 @@ describe('AggressiveFlankerAI', () => {
 			new Card({
 				type: 'power_shot',
 				name: 'Power Shot',
+				summary: 'Deal 8 damage',
 				description: 'Deal 8 damage',
 				rarity: 'common',
 				cost: 2,
@@ -225,6 +232,7 @@ describe('AggressiveFlankerAI', () => {
 			new Card({
 				type: 'repair',
 				name: 'Repair',
+				summary: 'Heal 5 structure',
 				description: 'Heal 5 structure',
 				rarity: 'common',
 				cost: 2,
@@ -235,6 +243,7 @@ describe('AggressiveFlankerAI', () => {
 			new Card({
 				type: 'power_shot',
 				name: 'Power Shot',
+				summary: 'Deal 8 damage',
 				description: 'Deal 8 damage',
 				rarity: 'common',
 				cost: 2,

@@ -3,6 +3,7 @@
     {
       "type": "point_blank",
       "name": "Point Blank",
+      "summary": "Deal {damage}. [Range 1]. +1 to hit.",
       "description": "Deal {damage} damage. Range 1. Easier to hit (+1 to hit).",
       "rarity": "common",
       "cost": 1,
@@ -25,6 +26,7 @@
     {
       "type": "far_shoot",
       "name": "Far Shoot",
+      "summary": "Deal {damage}. [Range 2].",
       "description": "Deal {damage} damage. Range 2.",
       "rarity": "common",
       "cost": 1,
@@ -46,6 +48,7 @@
     {
       "type": "headshot",
       "name": "Headshot",
+      "summary": "Deal {damage} to the driver only. Target gets +2 Evade.",
       "description": "Deal {damage} damage to target driver. No structure damage. Harder to hit (+2 to defender's evade).",
       "rarity": "rare",
       "cost": 2,
@@ -78,6 +81,7 @@
     {
       "type": "ram",
       "name": "Ram",
+      "summary": "Deal Armor/10 + speed gap. [Range 1].",
       "description": "Deal damage equal to your armor/10 + (your speed - target speed). Range 1.",
       "rarity": "common",
       "cost": 2,
@@ -110,6 +114,7 @@
     {
       "type": "flank",
       "name": "Flank",
+      "summary": "[Flank] a slower raider. Your attacks deal +50%.",
       "description": "Move to flanking position if your speed is higher. Attack cards do 50% more damage.",
       "rarity": "common",
       "cost": 2,
@@ -138,6 +143,7 @@
     {
       "type": "oil_slick",
       "name": "Oil Slick",
+      "summary": "Flanker: -4 Speed, 2 turns. [Vulnerable]. [Sure-hit].",
       "description": "Target flanking vehicle loses 4 speed for 2 turns and becomes Vulnerable. Always hits.",
       "rarity": "uncommon",
       "cost": 1,
@@ -167,6 +173,7 @@
     {
       "type": "caltrops",
       "name": "Caltrops",
+      "summary": "Flanker takes {damage} Structure, -2 Speed for good. [Sure-hit].",
       "description": "Target flanking vehicle takes {damage} structure damage and loses 2 speed permanently. Always hits.",
       "rarity": "rare",
       "cost": 2,
@@ -198,6 +205,7 @@
     {
       "type": "repair_kit",
       "name": "Repair Kit",
+      "summary": "Repair {healing}. Overflow becomes [Armor].",
       "description": "Restore {healing} Structure to your vehicle. Excess healing converts to armor.",
       "rarity": "common",
       "cost": 1,
@@ -219,6 +227,7 @@
     {
       "type": "medical_kit",
       "name": "Medical Kit",
+      "summary": "Heal {healing} HP to you or your passenger.",
       "description": "Restore {healing} hit points to yourself or a passenger in your vehicle.",
       "rarity": "uncommon",
       "cost": 2,
@@ -239,6 +248,7 @@
     {
       "type": "nitro_boost",
       "name": "Nitro Boost",
+      "summary": "+3 Speed for 2 turns. Draw {cards}.",
       "description": "Gain 3 speed for 2 turns. Draw {cards} cards.",
       "rarity": "uncommon",
       "cost": 1,
@@ -266,6 +276,7 @@
     {
       "type": "coordinated_attack",
       "name": "Coordinated Attack",
+      "summary": "Deal {damage}. Double it if your [Partner] attacked this turn.",
       "description": "Deal {damage} damage. If partner attacked this turn, double the damage.",
       "rarity": "uncommon",
       "cost": 3,
@@ -313,6 +324,7 @@
     {
       "type": "emp_blast",
       "name": "EMP Blast",
+      "summary": "All raiders skip their next turn.",
       "description": "All enemies skip their next turn.",
       "rarity": "rare",
       "cost": 3,
@@ -334,6 +346,7 @@
     {
       "type": "berserker",
       "name": "Berserker",
+      "summary": "+{adrenaline} Adrenaline. Take {damage}. You are [Vulnerable].",
       "description": "Take {damage} damage. Gain {adrenaline} Adrenaline. Your vehicle becomes Vulnerable.",
       "rarity": "common",
       "cost": 1,
@@ -367,6 +380,7 @@
     {
       "type": "armor_plating",
       "name": "Armor Plating",
+      "summary": "Gain {armor} [Armor].",
       "description": "Gain {armor} Armor.",
       "rarity": "common",
       "cost": 1,
@@ -387,6 +401,7 @@
     {
       "type": "ramming_speed",
       "name": "Ramming Speed",
+      "summary": "Deal {damage}. [Range 1]. If [Vulnerable]: +{adrenaline} Adrenaline.",
       "description": "Deal {damage} damage. If target has Vulnerable, gain {adrenaline} Adrenaline. Range 1.",
       "driverRestriction": null,
       "rarity": "common",
@@ -425,6 +440,7 @@
     {
       "type": "precision_shot",
       "name": "Precision Shot",
+      "summary": "Deal {damage}. +{bonus} if you have Speed+.",
       "description": "Deal {damage} damage. +{bonus} damage if you have Speed+.",
       "driverRestriction": "interceptor",
       "rarity": "common",
@@ -458,6 +474,7 @@
     {
       "type": "witness_me",
       "name": "Witness Me!",
+      "summary": "Triple all damage this turn. Die at end of turn.",
       "description": "Triple all damage this turn. Die at end of turn.",
       "rarity": "legendary",
       "cost": 2,
@@ -482,6 +499,7 @@
     {
       "type": "flanking_maneuver",
       "name": "Flanking Maneuver",
+      "summary": "[Flank] a slower raider. Next attack +{bonus}%.",
       "description": "Move to Flanking position. Next attack deals +{bonus}% damage.",
       "rarity": "uncommon",
       "cost": 1,

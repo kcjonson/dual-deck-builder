@@ -11,6 +11,7 @@ The combat screen's layout and the rules it depends on are decided and written d
 - The road: both convoys drive the same direction up the screen; two formation lanes by three rows (ahead, center, behind) per side, plus a shoulder per side that only holds the other team's flankers; one vehicle per slot, slots fixed. Range is lanes apart plus rows apart. A flanker takes the row it outran and its old slot stays empty.
 - Rules calls made with it and written into Combat Rules: hand cap 7 per driver, two driven vehicles plus escorts, two adrenaline pools and two decks, a wrecked vehicle's driver becomes a passenger who can't attack, flanking +50%, no duplicate driver.
 - Cards gain a required `summary` (card face, three lines) beside `description` (detail view, 330 characters). Eleven of the eighteen current descriptions don't fit three lines.
+- DDB-131: `summary` is in `CardData`, `cards.json` (all 18 cards), and the loader; `src/renderer/game/data/cards.test.ts` checks descriptions against 330 and summaries against a 60-character proxy until phase 2 text measurement allows a real three-line check. Nothing renders the summary yet.
 - Bugs from the 2026-09-25 capture and playthrough are DDB-111 to DDB-126 under DDB-5. Build work is its own epic on Specboard; the UI half is sequenced behind DDB-55's phases 4 to 6 (DDB-82 now builds these bands, DDB-88 the dock, detail view, and targeting).
 
 ## UI rendering engine rework (documentation complete, phase 0 complete, lint gate armed, 2026-09-09)
@@ -69,7 +70,6 @@ A dated warning about this doc's history: all entries previously dated "December
 - **The Electron build is broken** and has been since roughly the start: `webpack.electron.js` merges the web config so the `main` entry becomes the Electron main-process bundle yet is injected into `index.html`, the `renderer` entry is injected nowhere; `electron/main.ts:8` requires `electron-squirrel-startup` which isn't a dependency; `electron/` is excluded from `tsconfig.json` so it's never type-checked; the preload IPC bridge whitelists channels that have no `ipcMain` handlers and nothing in `src/` uses `window.electron`; `electron/forge.config.js` is an orphaned template with placeholder URLs (the project uses electron-builder).
 - **Production web deploys ship a development bundle**: `build:web` never sets `NODE_ENV=production`, so webpack builds in `development` mode with `eval-source-map`, and that is what `deploy-sftp.yml` uploads.
 - **CI shell injection**: `cleanup-pr.yml:19-21` interpolates `github.head_ref` directly into an SSH shell command; a crafted branch name executes arbitrary commands on the deploy server. `deploy-pr-playtest.yml:38` has the same class of issue in a github-script template literal.
-- **`public/cards.json` is a stale fork** of `src/renderer/game/data/cards.json` (missing headshot/ram/oil_slick/etc., contains cards the real file doesn't). The webpack copy of the real file happens to win on the dev server; in other setups the stale one could be served.
 
 ### In progress / never built (unfinished, not broken)
 
