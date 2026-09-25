@@ -97,11 +97,17 @@ export class CardLoader {
 	 * Validate card data structure
 	 */
 	private validateCardData(cardData: CardData): void {
-		const required = ['type', 'name', 'description', 'rarity', 'cost', 'targetType', 'effects', 'tags'];
-		
+		const required = ['type', 'name', 'summary', 'description', 'rarity', 'cost', 'targetType', 'effects', 'tags'];
+
 		for (const field of required) {
 			if (!(field in cardData)) {
 				throw new Error(`Card ${cardData.type || 'unknown'} missing required field: ${field}`);
+			}
+		}
+
+		for (const field of ['summary', 'description'] as const) {
+			if (typeof cardData[field] !== 'string' || cardData[field].trim() === '') {
+				throw new Error(`Card ${cardData.type} ${field} must be a non-empty string`);
 			}
 		}
 

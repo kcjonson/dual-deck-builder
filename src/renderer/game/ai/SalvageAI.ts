@@ -46,7 +46,7 @@ export class SalvageAIStrategy implements AIStrategy {
 		
 		// Check if any driver has high adrenaline remaining
 		let hasHighAdrenaline = false;
-		if (bestAction.driver && bestAction.driver.adrenaline >= 5) {
+		if (bestAction.driver && gameState.board.adrenalineOf(bestAction.driver) >= 5) {
 			hasHighAdrenaline = true;
 		}
 		
@@ -135,7 +135,7 @@ export class SalvageAIStrategy implements AIStrategy {
 			score += 150; // High priority for flanking
 			
 			// Even better if we have damage cards in hand
-			if (action.driver && action.driver.hand.some(c => c.effects.some(e => e.type === 'damage'))) {
+			if (action.driver && gameState.board.handOf(action.driver).some(c => c.effects.some(e => e.type === 'damage'))) {
 				score += 50;
 			}
 		}
@@ -272,7 +272,7 @@ export class SalvageAIStrategy implements AIStrategy {
 		
 		// But if we have lots of adrenaline, reduce the penalty
 		if (action.driver) {
-			const adrenaline = action.driver.adrenaline;
+			const adrenaline = gameState.board.adrenalineOf(action.driver);
 			if (adrenaline >= 8) {
 				score += card.cost * 2; // Offset some of the cost penalty
 			}
@@ -289,7 +289,7 @@ export class SalvageAIStrategy implements AIStrategy {
 		}
 
 		// Can't play it? Heavy penalty
-		if (action.driver && action.driver.adrenaline < card.cost) {
+		if (action.driver && gameState.board.adrenalineOf(action.driver) < card.cost) {
 			score = -1000;
 		}
 
@@ -344,7 +344,7 @@ export class SalvageAI extends AIPlayer {
 		this.strategy = new SalvageAIStrategy(team);
 	}
 
-	async makeDecision(): Promise<AIDecision | null> {
+	protected chooseAction(): AIDecision | null {
 		const gameState = this.evaluateGameState();
 		const possibleActions = this.generatePossibleActions();
 

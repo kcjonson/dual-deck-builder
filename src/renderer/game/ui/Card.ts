@@ -135,7 +135,7 @@ export class Card extends Layer {
 		// Description with automatic text wrapping
 		// Skip description for mini cards
 		if (size !== CardSize.MINI) {
-			this.description = new Text(data.getDescription(), {
+			this.description = new Text(data.displayDescription, {
 				id: this.childId('description'),
 				x: padding,
 				y: Math.floor(60 * scaleFactor),

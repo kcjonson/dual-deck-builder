@@ -45,7 +45,8 @@ export interface UpgradeData {
 export interface CardData {
 	type: string; // The card identifier (e.g., "ramming_speed")
 	name: string;
-	description: string;
+	summary: string; // Card face text: keywords in [brackets], {variables} filled like description
+	description: string; // Full rules text for the detail view
 	driverRestriction?: string | null;
 	rarity: CardRarity;
 	cost: number;
@@ -73,6 +74,7 @@ export class Card extends Model<CardData> {
 	static properties = new Set<keyof CardData>([
 		'type',
 		'name',
+		'summary',
 		'description',
 		'driverRestriction',
 		'rarity',
@@ -108,22 +110,24 @@ export class Card extends Model<CardData> {
 	}
 
 	/**
-	 * Get the card's description with variable substitution
+	 * Card face text with {variables} filled in (upgraded values once upgraded)
 	 */
-	getDescription(): string {
-		let desc = this.description;
-		
-		// Substitute variables in description (e.g., {damage})
-		if (this.variables) {
-			for (const [key, variable] of Object.entries(this.variables)) {
-				const value = this.upgraded && variable.upgraded !== undefined 
-					? variable.upgraded 
-					: variable.base;
-				desc = desc.replace(new RegExp(`{${key}}`, 'g'), value.toString());
-			}
-		}
-		
-		return desc;
+	get displaySummary(): string {
+		return this.fillVariables(this.summary);
+	}
+
+	/**
+	 * Full rules text with {variables} filled in (upgraded values once upgraded)
+	 */
+	get displayDescription(): string {
+		return this.fillVariables(this.description);
+	}
+
+	private fillVariables(template: string): string {
+		return template.replace(/\{(\w+)\}/g, (placeholder, name: string) => {
+			const value = this.getVariableValue(name);
+			return value === undefined ? placeholder : value.toString();
+		});
 	}
 
 	// rarity is a model property - access it directly with this.rarity
@@ -189,6 +193,7 @@ export class Card extends Model<CardData> {
 		const newCard = new Card({
 			type: this.type,
 			name: this.name,
+			summary: this.summary,
 			description: this.description,
 			driverRestriction: this.driverRestriction,
 			rarity: this.rarity,

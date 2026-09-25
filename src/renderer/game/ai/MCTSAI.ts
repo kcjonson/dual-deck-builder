@@ -7,8 +7,6 @@ import { Driver } from '../mechanics/Driver';
 import { Card } from '../mechanics/Card';
 import { laneKind } from '../mechanics/Road';
 
-const isInsideLane = (vehicle: Vehicle): boolean => vehicle.slot !== null && laneKind(vehicle.slot.lane) === 'inside';
-
 /**
  * Monte Carlo Tree Search AI Player
  * Uses MCTS algorithm to find effective moves through simulated gameplay
@@ -49,7 +47,12 @@ export class MCTSAI extends AIPlayer {
 		this.explorationConstant = explorationConstant;
 	}
 	
-	async makeDecision(): Promise<AIDecision | null> {
+	private isInsideLane(vehicle: Vehicle): boolean {
+		const slot = this.board.slotOf(vehicle);
+		return slot !== null && laneKind(slot.lane) === 'inside';
+	}
+
+	protected chooseAction(): AIDecision | null {
 		// Get possible actions
 		const possibleActions = this.generatePossibleActions();
 		
@@ -219,7 +222,7 @@ export class MCTSAI extends AIPlayer {
 			score -= costPenalty;
 			
 			// Bonus for using adrenaline efficiently
-			if (driver.adrenaline - card.cost <= 1) {
+			if (this.board.adrenalineOf(driver) - card.cost <= 1) {
 				score += 1.0; // Increased bonus for using up adrenaline
 			}
 			
@@ -246,8 +249,8 @@ export class MCTSAI extends AIPlayer {
 			if (!vehicle.isAlive() || !vehicle.driver) continue;
 			const driver = vehicle.driver;
 			
-			for (const card of driver.hand) {
-				if (driver.adrenaline >= card.cost) {
+			for (const card of this.board.handOf(driver)) {
+				if (this.board.adrenalineOf(driver) >= card.cost) {
 					// More comprehensive check for valuable cards
 					if (card.effects && card.effects.some(e => 
 						e.type === 'damage' && (e.value || 0) >= 3 || // Lowered threshold
@@ -337,7 +340,7 @@ export class MCTSAI extends AIPlayer {
 		let score = damage * this.DAMAGE_WEIGHT;
 		
 		// Apply flanking bonus
-		if (ourVehicle.isFlanking) {
+		if (this.board.isFlanking(ourVehicle)) {
 			score *= this.FLANKING_BONUS;
 		}
 		
@@ -358,7 +361,7 @@ export class MCTSAI extends AIPlayer {
 		}
 		
 		// Prioritize targets in the inside lane, closest to the centre line
-		if (isInsideLane(targetVehicle)) {
+		if (this.isInsideLane(targetVehicle)) {
 			score *= 1.2;
 		}
 		
@@ -421,7 +424,7 @@ export class MCTSAI extends AIPlayer {
 		score *= healthPercent;
 		
 		// Bonus if vehicle is in the inside lane (likely to take damage)
-		if (isInsideLane(targetVehicle)) {
+		if (this.isInsideLane(targetVehicle)) {
 			score *= 1.5;
 		}
 		
@@ -433,8 +436,8 @@ export class MCTSAI extends AIPlayer {
 	 */
 	private evaluatePositionChange(ourVehicle: Vehicle): number {
 		// High value if not in flanking and have good speed
-		if (!ourVehicle.isFlanking) {
-			const totalSpeed = ourVehicle.speed + (ourVehicle.driver?.vehicleStats?.speed || 0);
+		if (!this.board.isFlanking(ourVehicle)) {
+			const totalSpeed = this.board.speedOf(ourVehicle);
 			if (totalSpeed >= 60) {
 				return this.POSITION_CHANGE_WEIGHT * 2;
 			}
@@ -450,8 +453,8 @@ export class MCTSAI extends AIPlayer {
 	 */
 	private evaluateSpeedBoost(speedBoost: number, ourVehicle: Vehicle): number {
 		// Very valuable if we need speed for flanking
-		if (!ourVehicle.isFlanking) {
-			const currentSpeed = ourVehicle.speed + (ourVehicle.driver?.vehicleStats?.speed || 0);
+		if (!this.board.isFlanking(ourVehicle)) {
+			const currentSpeed = this.board.speedOf(ourVehicle);
 			const newSpeed = currentSpeed + speedBoost;
 			
 			// Big bonus if this gets us to flanking threshold
@@ -520,8 +523,8 @@ export class MCTSAI extends AIPlayer {
 	private calculateTempoBonus(driver: Driver, _gameState: GameStateEvaluation): number {
 		// Check how many cards we can still play
 		let playableCards = 0;
-		for (const card of driver.hand) {
-			if (driver.adrenaline >= card.cost) {
+		for (const card of this.board.handOf(driver)) {
+			if (this.board.adrenalineOf(driver) >= card.cost) {
 				playableCards++;
 			}
 		}

@@ -1,6 +1,7 @@
 import { Driver, DriverRole } from './Driver';
 import { Model } from '../core/Model';
 import { RoadSlot, isShoulder } from './Road';
+import type { IntentTier } from './Intent';
 
 /**
  * Vehicle status effects
@@ -39,6 +40,27 @@ export interface VehicleData {
 	driver: Driver | null;
 	passenger: Driver | null;
 	statusEffects: VehicleStatusEffect[];
+	/** How much of this vehicle's plan the player sees when it's a raider. Unset means basic. */
+	intentTier?: IntentTier;
+}
+
+/**
+ * Speed a status adds or takes away. Oil Slick and Caltrops carry their own
+ * values; these defaults cover statuses applied without one.
+ */
+export function statusSpeedModifier(effect: VehicleStatusEffect): number {
+	switch (effect.name) {
+		case 'oil_slick':
+		case 'speed_reduction':
+			return effect.value || -4;
+		case 'caltrops':
+			return effect.value || -2;
+		case 'speed_boost':
+		case 'nitro_boost':
+			return effect.value || 3;
+		default:
+			return 0;
+	}
 }
 
 // VehicleState is now the same as VehicleData
@@ -69,7 +91,8 @@ export class Vehicle extends Model<VehicleData> {
 		'velocity',
 		'driver',
 		'passenger',
-		'statusEffects'
+		'statusEffects',
+		'intentTier'
 	]);
 
 	// All properties are now model properties!
@@ -224,23 +247,7 @@ export class Vehicle extends Model<VehicleData> {
 	private updateSpeedFromEffects(): void {
 		// Speed property represents base speed with modifiers (without driver)
 		// getTotalSpeed() adds the driver speed
-		let speedModifier = 0;
-		
-		this.statusEffects.forEach(effect => {
-			switch (effect.name) {
-				case 'oil_slick':
-				case 'speed_reduction':
-					speedModifier += (effect.value || -4);
-					break;
-				case 'caltrops':
-					speedModifier += (effect.value || -2);
-					break;
-				case 'speed_boost':
-				case 'nitro_boost':
-					speedModifier += (effect.value || 3);
-					break;
-			}
-		});
+		const speedModifier = this.statusEffects.reduce((sum, effect) => sum + statusSpeedModifier(effect), 0);
 
 		this.speed = Math.max(0, this.baseSpeed + speedModifier);
 	}
@@ -257,26 +264,8 @@ export class Vehicle extends Model<VehicleData> {
 			totalSpeed += this.driver.vehicleStats.speed;
 		}
 		
-		// Apply status effect modifiers
-		let speedModifier = 0;
-		this.statusEffects.forEach(effect => {
-			switch (effect.name) {
-				case 'oil_slick':
-				case 'speed_reduction':
-					speedModifier += (effect.value || -4);
-					break;
-				case 'caltrops':
-					speedModifier += (effect.value || -2);
-					break;
-				case 'speed_boost':
-				case 'nitro_boost':
-					speedModifier += (effect.value || 3);
-					break;
-			}
-		});
-		
-		totalSpeed += speedModifier;
-		
+		totalSpeed += this.statusEffects.reduce((sum, effect) => sum + statusSpeedModifier(effect), 0);
+
 		return Math.max(0, totalSpeed);
 	}
 

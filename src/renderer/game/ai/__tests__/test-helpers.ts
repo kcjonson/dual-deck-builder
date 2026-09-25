@@ -70,6 +70,7 @@ export function createTestCard(options: {
 	return new Card({
 		type: options.type,
 		name: options.name,
+		summary: `Test card: ${options.name}`,
 		description: `Test card: ${options.name}`,
 		rarity: 'common',
 		cost: options.cost,

@@ -16,6 +16,7 @@ import { RoadLane, RoadRow } from '../../mechanics/Road';
 import { Team, TeamType } from '../../mechanics/Team';
 import { Battle, BattleState, BattleMessage } from '../../mechanics/Battle';
 import { Card } from '../../mechanics/Card';
+import { IntentType } from '../../mechanics/Intent';
 import { CardLoader } from '../../core/CardLoader';
 import { DriverLoader } from '../../core/DriverLoader';
 import { InputSystem } from '../../../engine/input/InputSystem';
@@ -415,12 +416,17 @@ export class CombatScreen extends Screen {
 			// Pass the Vehicle[] directly
 			this.enemyLayer.setVehicles(this.enemyTeam.vehicles);
 			
-			// Set intents for enemy vehicles (temporary placeholder)
+			// Show each raider's first planned intent until the intent pills land (DDB-33)
 			this.enemyTeam.vehicles.forEach(vehicle => {
+				const [planned] = this.battle?.getIntents(vehicle) ?? [];
+				if (!planned) {
+					this.enemyLayer.clearVehicleIntent(vehicle.id);
+					return;
+				}
 				const intent: EnemyIntent = {
-					type: 'attack',
-					value: 5,
-					description: 'Preparing to attack'
+					type: planned.type === IntentType.ATTACK ? 'attack' : planned.type === IntentType.DEFEND ? 'defend' : 'special',
+					value: planned.amount ?? undefined,
+					description: planned.description
 				};
 				this.enemyLayer.setVehicleIntent(vehicle.id, intent);
 			});

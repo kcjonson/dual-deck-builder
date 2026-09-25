@@ -3,25 +3,42 @@ import { Team } from '../mechanics/Team';
 import { Vehicle } from '../mechanics/Vehicle';
 import { Driver } from '../mechanics/Driver';
 import { Card } from '../mechanics/Card';
+import { BoardProjection } from '../mechanics/BoardProjection';
 import { AIDecision, GameStateEvaluation, TeamEvaluation, VehicleEvaluation } from './types';
 
 export abstract class AIPlayer {
 	protected team: Team;
 	protected battle: Battle;
+	/**
+	 * The board this decision is made against: the live board, or the enemy
+	 * turn planner's projection with earlier planned cards already applied.
+	 * AIs read slots, flanks, speed, hands, and adrenaline from here, not
+	 * from the vehicles and drivers.
+	 */
+	protected board!: BoardProjection;
 
 	constructor(team: Team, battle: Battle) {
 		this.team = team;
 		this.battle = battle;
 	}
 
-	abstract makeDecision(): Promise<AIDecision | null>;
+	/**
+	 * Pick the next action. Without a board, decides against the live one.
+	 */
+	public makeDecision(board: BoardProjection = new BoardProjection({ battle: this.battle })): AIDecision | null {
+		this.board = board;
+		return this.chooseAction();
+	}
+
+	protected abstract chooseAction(): AIDecision | null;
 
 	protected evaluateGameState(): GameStateEvaluation {
 		return {
 			playerTeam: this.evaluateTeam(this.battle.playerTeam),
 			enemyTeam: this.evaluateTeam(this.battle.enemyTeam),
 			currentTurn: this.battle.turn,
-			phase: this.battle.isPlayerTurn ? 'player' : 'enemy'
+			phase: this.battle.isPlayerTurn ? 'player' : 'enemy',
+			board: this.board
 		};
 	}
 
@@ -47,10 +64,11 @@ export abstract class AIPlayer {
 			driver: driver || ({} as Driver), // Provide empty object as fallback
 			healthPercent: (vehicle.structure || 0) / maxStructure,
 			armorPercent: maxArmor > 0 ? (vehicle.armor || 0) / maxArmor : 0,
-			adrenaline: driver?.adrenaline || 0,
-			cardsInHand: driver?.hand.length || 0,
+			adrenaline: driver ? this.board.adrenalineOf(driver) : 0,
+			cardsInHand: driver ? this.board.handOf(driver).length : 0,
 			isAlive: vehicle.isAlive(),
-			isFlanking: vehicle.isFlanking
+			isFlanking: this.board.isFlanking(vehicle),
+			speed: this.board.speedOf(vehicle)
 		};
 	}
 
@@ -59,11 +77,12 @@ export abstract class AIPlayer {
 
 		for (const vehicle of this.team.vehicles) {
 			if (!vehicle.isAlive() || !vehicle.driver) continue;
+			if (this.board.actor && vehicle !== this.board.actor) continue;
 
 			const driver = vehicle.driver;
 			
-			for (const card of driver.hand) {
-				if (driver.adrenaline < card.cost) continue;
+			for (const card of this.board.handOf(driver)) {
+				if (this.board.adrenalineOf(driver) < card.cost) continue;
 
 				const validTargets = this.getValidTargets(card, vehicle);
 				
@@ -143,7 +162,7 @@ export abstract class AIPlayer {
 			// Check if card has any damage effects with range requirements
 			for (const effect of card.effects) {
 				if (effect.type === 'damage' && typeof effect.range === 'number') {
-					const range = this.battle.calculateRange(sourceVehicle, target);
+					const range = this.board.range(sourceVehicle, target);
 					if (range > effect.range) {
 						inRange = false;
 						break;
@@ -165,7 +184,7 @@ export abstract class AIPlayer {
 	 */
 	private meetsFlankRules(card: Card, sourceVehicle: Vehicle, target: Vehicle): boolean {
 		const flanks = card.effects.some(e => e.type === 'change_position' && e.position === 'flanking');
-		return !flanks || this.battle.canFlank(sourceVehicle, target);
+		return !flanks || this.board.canFlank(sourceVehicle, target);
 	}
 
 	protected cardRequiresTarget(card: Card): boolean {

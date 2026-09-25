@@ -87,6 +87,18 @@ Opening placement: a vehicle whose encounter gives it a slot starts there; the r
 - Cards cost adrenaline from the specific driver who plays them
 - Passengers can play support/utility cards but NOT attack cards
 
+### Enemy intents
+
+Decided by Kevin, 2026-09-25. Record: [enemy-intent-planning.md](../AI_TECHNICAL_DECISIONS/enemy-intent-planning.md).
+
+- At the start of the player's turn, after the draw, every raider commits its whole coming turn: each card it will play, in order, with a type (attack, defend, buff, debuff, unknown), a value, and a target vehicle, or both vehicles for an area hit. The player sees these as intents. The enemy turn plays the plan; nobody chooses again.
+- A raider plans against a projection of the road that tracks slots, flank state, and speed, so a card planned after its own flank or speed boost is judged from where the raider will be.
+- An attack's value is its damage per hit, worked out when shown, so a Vulnerable picked up during the player's turn raises it. Multi-hit shows as damage x hits.
+- When the player makes a planned card illegal (moves out of range, speeds past a planned flank, or slows a flanker so it drops back), the card fizzles: it's spent, does nothing, and the log says why.
+- When a planned target was wrecked earlier in the enemy turn, the card goes to the vehicle the wrecked driver now rides in as a passenger. If there's no such vehicle, it fizzles.
+- A raider that is wrecked, or has lost its driver, drops the rest of its plan.
+- Basic raiders show everything. Elites show the type and target but hide the value and the card. Bosses behave like elites until bosses are designed.
+
 ## Cards
 
 - Every card has a short text, shown on the card face in the hand (three lines, keyword-based), and a full text, shown in the card detail view (up to 330 characters). See Card System Design 1.1.
