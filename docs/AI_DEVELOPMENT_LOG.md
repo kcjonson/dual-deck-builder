@@ -6,6 +6,18 @@ This document contains the chronological log of completed development tasks for 
 
 **Date correction (2026-08-22):** the repo's first commit is 2025-05-17, but many entries below carry dates in December 2024 or January 2025 — the AI that wrote them used its assumed date instead of the real one. Entries dated 2025-07-03 and 2025-07-02 have been corrected from "2025-01-03"/"2025-01-02" (verified against git history). Remaining Dec 2024 / Jan 2025 dates are wrong by roughly six months; the real work happened May–July 2025. Trust git history over these dates.
 
+## No duplicate driver in driver selection (2026-09-25)
+
+**What landed:** DDB-98. Both driver panels defaulted to the first driver, so a player who never touched the right panel started a run with one `Driver` in both slots; the combined hand held every card twice and combat drew 20 UI cards from 10, with duplicate element ids. Combat Rules says the same driver can't fill both slots.
+
+- New `mechanics/DriverPair.ts`: `isSameDriver` (identity is the archetype, so copies count), `assertDriverPair` (exactly two different drivers), and `nextOpenDriverIndex` (first index at or after a start, wrapping, that isn't the partner).
+- `DriverPanel` takes a `partnerDriver` and never selects it; defaulting, activating, and cycling all go through one `selectFrom`. `setDriverIndex` is gone, and the cycle button's action is the public `cycleDriver()`.
+- `DriverSelectionScreen` hands each panel the other's driver, gives the right panel its roster before the left panel picks (so the right one activates on a different driver on the first load, not only the second), and gates START RUN on a valid pair.
+- `CombatScreen.initializeCombat` calls `assertDriverPair` before touching any driver, replacing the bare length check, so no path into combat can build the doubled state.
+- Tests: the pair rules, and the real screen and panels under jsdom (card fetch and routing stubbed): opens with two drivers, cycling either side skips the other, remount starts clean. All four screen tests fail on the old code.
+
+**How:** the check went in the run start rather than `Team`'s constructor because the AI and battle fixtures build player teams from two Road Warriors (113 tests across 7 suites would need new fixtures), and `battle-simulator.ts` can build mirror setups on purpose. Checked in the web build: selection opens with Road Warrior and Interceptor, both cycle buttons skip the other side, and combat shows 10 hand cards, 5 per driver, with no duplicate ids.
+
 ## Road grid positions and flanking in the combat model (2026-09-25)
 
 **What landed:** DDB-128 and DDB-129 together, since Flank was self-targeted and the outran-row rule needed the card change.
