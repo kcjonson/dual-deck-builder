@@ -1,12 +1,15 @@
 import { Battle } from '../mechanics/Battle';
 import { Team } from '../mechanics/Team';
 import { Vehicle } from '../mechanics/Vehicle';
+import { BoardProjection } from '../mechanics/BoardProjection';
+import { PlannedAction } from '../mechanics/Intent';
 import { AIPlayer } from './AIPlayer';
 import { RandomAI } from './RandomAI';
 import { AggressiveFlankerAI } from './AggressiveFlankerAI';
 import { MCTSAI } from './MCTSAI';
 import { SalvageAI } from './SalvageAI';
 import { RammingAI } from './RammingAI';
+import { FirstPlayableAI } from './FirstPlayableAI';
 import { AIDecision } from './types';
 
 export type AIType = 'random' | 'aggressive' | 'defensive' | 'balanced' | 'mcts' | 'salvage' | 'ramming';
@@ -64,9 +67,48 @@ export class AIController {
 		return this.playerAI.makeDecision();
 	}
 
-	async getEnemyDecision(): Promise<AIDecision | null> {
-		if (!this.enemyAI) return null;
-		return this.enemyAI.makeDecision();
+	/**
+	 * Commit every raider's cards for its coming turn. Raiders plan one at a
+	 * time in team order, which is the order they act, against one shared
+	 * projection, so a later pick sees the board after an earlier flank or
+	 * speed change, this raider's or another's. With no enemy AI set, raiders
+	 * play their first playable card each time.
+	 */
+	planEnemyTurn(): Map<Vehicle, PlannedAction[]> {
+		const team = this.battle.enemyTeam;
+		const ai = this.enemyAI ?? new FirstPlayableAI(team, this.battle);
+		const board = new BoardProjection({ battle: this.battle });
+		const plans = new Map<Vehicle, PlannedAction[]>();
+
+		for (const raider of team.vehicles) {
+			const driver = raider.driver;
+			if (!raider.isAlive() || !driver || !driver.isAlive()) continue;
+
+			board.actor = raider;
+			const actions: PlannedAction[] = [];
+			for (;;) {
+				const decision = ai.makeDecision(board);
+				const card = decision?.card;
+				if (decision?.type !== 'playCard' || !card || decision.driver !== driver || !board.handOf(driver).includes(card)) {
+					break;
+				}
+				const target = decision.target instanceof Vehicle ? decision.target : null;
+				actions.push({
+					card,
+					driver,
+					target,
+					targetDriver: target?.driver ?? null,
+					flanking: board.isFlanking(raider),
+					speed: board.speedOf(raider)
+				});
+				board.apply({ card, driver, target });
+			}
+			if (actions.length > 0) {
+				plans.set(raider, actions);
+			}
+		}
+
+		return plans;
 	}
 
 	isPlayerControlledByAI(): boolean {
@@ -111,7 +153,7 @@ export class AIController {
 					targetVehicle
 				});
 			}
-			// For enemy AI, the Battle.executeEnemyAction will handle it directly
+			// The enemy team plays its planned turn inside Battle, never through here
 		}
 	}
 }
