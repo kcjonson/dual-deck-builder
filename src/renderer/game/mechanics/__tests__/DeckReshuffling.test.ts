@@ -13,6 +13,7 @@ describe('Deck Reshuffling', () => {
 			testCards.push(new Card({
 				type: `card_${i}`,
 				name: `Test Card ${i}`,
+				summary: 'Test card',
 				description: 'Test card',
 				rarity: 'common',
 				cost: 1,

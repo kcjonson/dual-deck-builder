@@ -33,6 +33,7 @@ const createBattle = (playerVehicles: Vehicle[], enemyVehicles: Vehicle[]): Batt
 const flankCard = (): Card => new Card({
 	type: 'flank',
 	name: 'Flank',
+	summary: 'Outrun a slower enemy',
 	description: 'Outrun a slower enemy',
 	rarity: 'common',
 	cost: 1,
@@ -220,6 +221,7 @@ describe('Battle on the road grid', () => {
 			const maneuver = new Card({
 				type: 'flanking_maneuver',
 				name: 'Flanking Maneuver',
+				summary: 'Outrun a slower enemy',
 				description: 'Outrun a slower enemy',
 				rarity: 'uncommon',
 				cost: 1,

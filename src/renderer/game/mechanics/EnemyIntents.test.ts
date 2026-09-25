@@ -39,6 +39,7 @@ const createBattle = (playerVehicles: Vehicle[], enemyVehicles: Vehicle[]): Batt
 const card = (name: string, targetType: TargetType, effects: CardEffect[], cost = 1): Card => new Card({
 	type: name.toLowerCase().replace(/ /g, '_'),
 	name,
+	summary: name,
 	description: name,
 	rarity: 'common',
 	cost,

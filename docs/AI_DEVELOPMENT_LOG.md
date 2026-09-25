@@ -8,7 +8,7 @@ This document contains the chronological log of completed development tasks for 
 
 ## Enemy intents planned before the player's turn (2026-09-25)
 
-**What landed:** DDB-132, the model half of DDB-33, stacked on the road-grid PR.
+**What landed:** DDB-132, the model half of DDB-33, stacked on the road-grid PR and merged up to the hand cap and card summaries.
 
 - Every raider commits its whole turn at the start of the player's turn (`Battle.start()` and `startPlayerTurn()`, after the draw). The enemy turn plays the plan instead of asking the AI again. `Battle.getPlan(raider)` returns the committed cards; `Battle.getIntents(raider)` returns type, amount, hits, label, target (a vehicle id, `'both'`, or null), and description.
 - New `mechanics/BoardProjection.ts`: a scratch copy of slots, flank state, speed, hands, and adrenaline. `AIPlayer.makeDecision(board)` decides against it, and every strategy reads position, speed, and resources through it, so a pick after a planned flank or Nitro Boost sees the new board. `Battle.getFlankBlocker` uses the same code on a fresh projection.
@@ -16,9 +16,18 @@ This document contains the chronological log of completed development tasks for 
 - Stale plans: player-caused (out of range, outpaced flank, dropped-back flanker) fizzle with a plain `fizzle` log line; a target wrecked mid-turn is followed to its driver's new vehicle; a wrecked or driverless raider drops its plan.
 - `Vehicle.intentTier` (basic by default); elites and bosses hide the value, label, and card name. `statusSpeedModifier` pulled out of `Vehicle` so the projection and the vehicle agree on speed.
 - The combat screen shows each raider's first planned intent in the old indicator instead of the hardcoded attack 5.
-- Tests: 19 new in `EnemyIntents.test.ts`; three existing tests updated for planning.
+- Tests: 20 new in `EnemyIntents.test.ts`, one of them a planned draw against the hand cap; three existing tests updated for planning.
 
 **How:** Kevin made both open calls (split fizzle and retarget by cause; whole-turn planning on a projection, no Battle clone), recorded in `docs/AI_TECHNICAL_DECISIONS/enemy-intent-planning.md` and Combat Rules.
+
+## Card summary field and card data check (2026-09-25)
+
+**What landed:** DDB-131. Cards carry a required `summary` for the card face beside `description` for the detail view.
+
+- `CardData.summary` is required; the loader rejects a card whose `summary` or `description` is missing or blank. Both texts go through one `{variable}` fill, exposed as `Card.displaySummary` and `Card.displayDescription` (the latter replaces `getDescription()`).
+- All 18 cards in `cards.json` have summaries, taken from the battle screen mock's rewrites with values turned back into `{variables}`. Flank and Flanking Maneuver are written for the outrun-a-slower-raider behavior in PR #39.
+- New card data check, `src/renderer/game/data/cards.test.ts`, runs in `npm test` against the real file at base and upgraded values: description at most 330 characters, summary at most 60 rendered characters (brackets not counted), no unfilled placeholders. The 60 is a proxy until phase 2 text measurement can check three lines in 114px.
+- Deleted the stale `public/cards.json` fork. Nothing loaded it; the dev server's webpack middleware answers `/cards.json` with the copy of the real file before the static `public/` directory is consulted.
 
 ## Road grid positions and flanking in the combat model (2026-09-25)
 
