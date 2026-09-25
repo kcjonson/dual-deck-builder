@@ -6,6 +6,19 @@ This document contains the chronological log of completed development tasks for 
 
 **Date correction (2026-08-22):** the repo's first commit is 2025-05-17, but many entries below carry dates in December 2024 or January 2025 — the AI that wrote them used its assumed date instead of the real one. Entries dated 2025-07-03 and 2025-07-02 have been corrected from "2025-01-03"/"2025-01-02" (verified against git history). Remaining Dec 2024 / Jan 2025 dates are wrong by roughly six months; the real work happened May–July 2025. Trust git history over these dates.
 
+## Road grid positions and flanking in the combat model (2026-09-25)
+
+**What landed:** DDB-128 and DDB-129 together, since Flank was self-targeted and the outran-row rule needed the card change.
+
+- `VehiclePosition` (front, back, flanking) is gone. New `mechanics/Road.ts`: six lanes left to right, three rows, `slotRange` (lanes apart plus rows apart), lane rules (never your own shoulder, never their formation), and the opening fill order. `TeamType` moved to its own module so `Road` can use it without an import cycle; `Team` re-exports it.
+- `Vehicle` gained `slot`, `flank` (reserved slot and outran vehicle), and an `isFlanking` getter; `changePosition`, `shouldLoseFlanking`, and the unused `copy` are deleted.
+- `Battle`: opening placement in the constructor, range from slots, flank legality and the flank move, drop-back at the end of every turn (moved out of `endCombat`, which only runs when the fight ends), and a self-targeted status on a targeted card now lands on the caster without a hit roll. A failed flank stops the rest of the card.
+- Flank and Flanking Maneuver target the vehicle to outrun; Flank's inert `flanking_damage` status is gone (the +50% comes from the slot). MCTS's flanking weight went from 2.0 to 1.5.
+- AI strategies, `AIEvaluator`, `battle-simulator.ts`, `CombatScreen`, and the three battlefield layers read slots. The layers draw the same picture as before.
+- Tests: the spec's range table as a fixture, lane rules, opening placement, slot uniqueness, the own-shoulder rule, and each flank rule including drop-back and the wrecked-target case.
+
+**How:** rules calls made with Kevin during the session and written into Combat Rules: enemy slots come from encounter data with a fallback order, flankers drop back at the end of every turn rather than at `endCombat`, and a flanker whose outran vehicle is wrecked holds the shoulder.
+
 ## Design docs recovered from the old design folder (2026-09-25)
 
 **What landed:** everything from the original design folder that wasn't already in the repo, converted to Markdown. Docs only.

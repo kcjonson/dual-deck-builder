@@ -4,13 +4,15 @@ This document is a place for multiple AI workers (such as Claude and Claude Code
 
 =========================================
 
-## Battle screen design (decided 2026-09-25)
+## Battle screen design (decided 2026-09-25, road model built)
 
-The combat screen's layout and the rules it depends on are decided and written down; nothing is built yet. Spec: [docs/specs/Battle Screen Design.md](./specs/Battle%20Screen%20Design.md). Decision record, options, and rationale: [battle-screen-road-model.md](./AI_TECHNICAL_DECISIONS/battle-screen-road-model.md). Interactive mock with a fit matrix over six scenarios, six viewports, and five states: [docs/design/battle-screen/index.html](./design/battle-screen/index.html), served through any static server.
+The combat screen's layout and the rules it depends on are decided and written down. The combat model's half of the road is built (DDB-128 and DDB-129, one PR); the screen isn't. Spec: [docs/specs/Battle Screen Design.md](./specs/Battle%20Screen%20Design.md). Decision record, options, and rationale: [battle-screen-road-model.md](./AI_TECHNICAL_DECISIONS/battle-screen-road-model.md). Interactive mock with a fit matrix over six scenarios, six viewports, and five states: [docs/design/battle-screen/index.html](./design/battle-screen/index.html), served through any static server.
 
 - The road: both convoys drive the same direction up the screen; two formation lanes by three rows (ahead, center, behind) per side, plus a shoulder per side that only holds the other team's flankers; one vehicle per slot, slots fixed. Range is lanes apart plus rows apart. A flanker takes the row it outran and its old slot stays empty.
 - Rules calls made with it and written into Combat Rules: hand cap 7 per driver, two driven vehicles plus escorts, two adrenaline pools and two decks, a wrecked vehicle's driver becomes a passenger who can't attack, flanking +50%, no duplicate driver.
 - Cards gain a required `summary` (card face, three lines) beside `description` (detail view, 330 characters). Eleven of the eighteen current descriptions don't fit three lines.
+- Built: `mechanics/Road.ts` holds the lanes, rows, range formula, lane rules, and opening fill order. `Vehicle.slot` (null until a `Battle` places it) replaced `VehiclePosition`, `Vehicle.isFlanking` is derived from the slot, and `Vehicle.flank` carries a flanker's reserved slot and the vehicle it outran. `Battle` owns every move: opening placement in the constructor (encounter-given slots kept, the rest filled inside first, center, behind, ahead), `getFlankBlocker`/`canFlank`, the flank itself, and `dropBackFlankers` at the end of each player and enemy turn. Flank and Flanking Maneuver now target the vehicle they outrun.
+- Open on the road model: wrecks are never removed from the road, so a wreck keeps its slot (and a wrecked flanker its reservation) for the rest of the fight; the rules say it leaves after its turn. The old battlefield layers draw each team in three columns by lane kind until DDB-134. The combat screen golden needs a re-mint because Flanking Maneuver's text changed.
 - Bugs from the 2026-09-25 capture and playthrough are DDB-111 to DDB-126 under DDB-5. Build work is its own epic on Specboard; the UI half is sequenced behind DDB-55's phases 4 to 6 (DDB-82 now builds these bands, DDB-88 the dock, detail view, and targeting).
 
 ## UI rendering engine rework (documentation complete, phase 0 complete, lint gate armed, 2026-09-09)

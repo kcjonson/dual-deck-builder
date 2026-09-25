@@ -61,12 +61,15 @@ Both teams drive the same direction on a wide freeway. The road is a grid of slo
 
 Each lane has three rows along the road: ahead, center, behind. A team's formation is its inside and outside lanes by three rows, six slots. A shoulder is only for flankers from the other team; nobody parks on their own shoulder. "Ahead" and "behind" replace the old "front" and "back"; the old Front / Back / Flanking positions map to inside / outside / the far shoulder. Screen layout is in [Battle Screen Design](./Battle%20Screen%20Design.md).
 
+Opening placement: a vehicle whose encounter gives it a slot starts there; the rest fill their own formation inside lane first, center then behind then ahead. So the player's two vehicles start inside center and inside behind. Nobody starts on a shoulder.
+
 ### Flanking
 
-- A vehicle can flank a target if its speed is higher than the target's and it plays a card with Flanking.
-- The flanker moves to the far shoulder, in the row of the vehicle it outran.
-- Its old formation slot stays empty and reserved; the rest of the convoy doesn't shift.
-- At the end of combat, if a flanking vehicle is no longer faster than the vehicle it outran, it loses flanking and returns to its reserved slot.
+- A flank card targets the vehicle to outrun. The target must be in the other team's formation (not itself flanking) and slower than the flanker.
+- The flanker moves to the far shoulder, in the row of the vehicle it outran. If that shoulder slot is taken, the flank fails and the card goes back to the hand.
+- Its old formation slot stays empty and reserved; the rest of the convoy doesn't shift. Swerving again from the shoulder keeps the original reservation.
+- At the end of every turn (yours and the enemy's), a flanker that is no longer faster than the vehicle it outran loses flanking and returns to its reserved slot. If the vehicle it outran is wrecked, it holds the shoulder.
+- Flanking works the same for both sides: raiders flank onto the player's shoulder, up to three at a time.
 
 ### Losing vehicles and drivers
 

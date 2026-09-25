@@ -230,9 +230,9 @@ export class EnemyBattlefieldLayer extends BattlefieldLayer {
   /**
    * Create a vehicle display component
    */
-  protected createVehicleCard(vehicle: VehicleData, laneOrdinal: number): VehicleUI {
+  protected createVehicleCard(vehicle: VehicleData): VehicleUI {
     const enemyVehicle = new EnemyVehicle({
-      id: `enemy_vehicle_${vehicle.position}_${laneOrdinal}`,
+      id: `enemy_vehicle_${this.slotId(vehicle)}`,
       x: 0,
       y: 0,
       width: this.getCardWidth(),

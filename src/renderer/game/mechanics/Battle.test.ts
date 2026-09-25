@@ -3,7 +3,8 @@
  */
 import { Battle } from './Battle';
 import { Team, TeamType } from './Team';
-import { Vehicle, VehiclePosition } from './Vehicle';
+import { Vehicle } from './Vehicle';
+import { RoadLane, RoadRow } from './Road';
 import { Driver, DriverRole } from './Driver';
 import { Card } from './Card';
 import { Deck } from './Deck';
@@ -186,7 +187,8 @@ describe('Battle', () => {
 			maxArmor: 10,
 			speed: 5,
 			baseSpeed: 5,
-			position: VehiclePosition.FRONT,
+			slot: null,
+			flank: null,
 			velocity: 0,
 			driver: playerDriver1,
 			passenger: null,
@@ -201,7 +203,8 @@ describe('Battle', () => {
 			maxArmor: 10,
 			speed: 5,
 			baseSpeed: 5,
-			position: VehiclePosition.BACK,
+			slot: null,
+			flank: null,
 			velocity: 0,
 			driver: playerDriver2,
 			passenger: null,
@@ -216,7 +219,8 @@ describe('Battle', () => {
 			maxArmor: 5,
 			speed: 4,
 			baseSpeed: 4,
-			position: VehiclePosition.FRONT,
+			slot: null,
+			flank: null,
 			velocity: 0,
 			driver: enemyDriver,
 			passenger: null,
@@ -764,7 +768,8 @@ describe('Battle', () => {
 				maxArmor: 5,
 				speed: 4,
 				baseSpeed: 4,
-				position: VehiclePosition.BACK,
+				slot: { lane: RoadLane.ENEMY_OUTSIDE, row: RoadRow.CENTER },
+				flank: null,
 				velocity: 0,
 				driver: null,
 				passenger: null,
@@ -927,7 +932,7 @@ describe('Battle', () => {
 			});
 			
 			// Enemy is not flanking
-			enemyVehicle.position = VehiclePosition.FRONT;
+			expect(enemyVehicle.isFlanking).toBe(false);
 			
 			playerDriver1.hand = [conditionalCard];
 			
@@ -1021,96 +1026,14 @@ describe('Battle', () => {
 		});
 	});
 
-	describe('Position Changes', () => {
-		beforeEach(() => {
-			battle.start();
-		});
-
-		test('should prevent flanking when not faster than all enemies', () => {
-			// Create flanking card with speed condition
-			const flankCard = new Card({
-				type: 'outmaneuver',
-				name: 'Outmaneuver',
-				cost: 1,
-				description: 'Move to flanking if faster',
-				rarity: 'common',
-				targetType: 'self',
-				effects: [{
-					type: 'change_position',
-					position: 'flanking',
-					condition: 'speed_higher',
-					description: 'Move to flanking if faster than all enemies'
-				}],
-				tags: ['movement']
-			});
-			
-			// Make enemy faster (need to check total speed, not just base)
-			enemyVehicle.speed = 10;
-			enemyVehicle.baseSpeed = 10;
-			playerVehicle1.speed = 5;
-			playerVehicle1.baseSpeed = 5;
-			
-			playerDriver1.hand = [flankCard];
-			
-			// Clear messages before test
-			battle.clearMessages();
-			
-			battle.playCard({
-				driver: playerDriver1,
-				cardIndex: 0
-			});
-			
-			// Check for flanking prevention message
-			const warningMessage = battle.getMessages().find(m => 
-				m.type === 'general' && 
-				m.message.includes('Cannot flank - not faster than all enemies')
-			);
-			expect(warningMessage).toBeDefined();
-			expect(playerVehicle1.position).not.toBe(VehiclePosition.FLANKING);
-		});
-
-		test('should allow flanking when faster than all enemies', () => {
-			// Create flanking card
-			const flankCard = new Card({
-				type: 'outmaneuver',
-				name: 'Outmaneuver',
-				cost: 1,
-				description: 'Move to flanking if faster',
-				rarity: 'common',
-				targetType: 'self',
-				effects: [{
-					type: 'change_position',
-					position: 'flanking',
-					condition: 'speed_higher',
-					description: 'Move to flanking if faster than all enemies'
-				}],
-				tags: ['movement']
-			});
-			
-			// Make player faster
-			playerVehicle1.speed = 10;
-			enemyVehicle.speed = 5;
-			
-			playerDriver1.hand = [flankCard];
-			
-			battle.playCard({
-				driver: playerDriver1,
-				cardIndex: 0
-			});
-			
-			expect(playerVehicle1.position).toBe(VehiclePosition.FLANKING);
-		});
-	});
-
 	describe('Target Validation', () => {
 		beforeEach(() => {
 			battle.start();
 		});
 
 		test('should validate range for cards without explicit range', () => {
-			// Move vehicles to positions that would be out of range
-			playerVehicle1.position = VehiclePosition.BACK;
-			enemyVehicle.position = VehiclePosition.BACK;
+			// Your outside to their inside is range 2
+			playerVehicle1.slot = { lane: RoadLane.PLAYER_OUTSIDE, row: RoadRow.CENTER };
 			
 			// Card with damage but no explicit range (should use default)
 			const rangedCard = new Card({
@@ -1126,7 +1049,7 @@ describe('Battle', () => {
 			
 			playerDriver1.hand = [rangedCard];
 			
-			// Should work - back to back is range 2, default max range
+			// Should work - range 2 is the default max range
 			const result = battle.playCard({
 				driver: playerDriver1,
 				cardIndex: 0,
@@ -1171,8 +1094,7 @@ describe('Battle', () => {
 
 		test('should enforce explicit range limits', () => {
 			// Position vehicles at range 2
-			playerVehicle1.position = VehiclePosition.FRONT;
-			enemyVehicle.position = VehiclePosition.BACK;
+			enemyVehicle.slot = { lane: RoadLane.ENEMY_OUTSIDE, row: RoadRow.CENTER };
 			
 			// Card with explicit range 1
 			const shortRangeCard = new Card({
@@ -1249,35 +1171,6 @@ describe('Battle', () => {
 			expect(battle.battleOver).toBe(true);
 			expect(battle.battleWon).toBe(false);
 			expect(eventSpy).toHaveBeenCalledWith({ won: false });
-		});
-
-		test('should handle post-combat flanking position loss', () => {
-			// Set player vehicle to flanking
-			playerVehicle1.changePosition(VehiclePosition.FLANKING);
-			
-			// Make total speed below threshold (base 5 + driver 5 = 10 total)
-			// Apply a speed reduction to bring it below 3
-			playerVehicle1.applyStatusEffect({
-				name: 'speed_reduction',
-				duration: -1,
-				value: -8, // 10 - 8 = 2 total speed
-				description: 'Heavily damaged'
-			});
-			
-			// Clear messages before test
-			battle.clearMessages();
-			
-			battle.endCombat();
-			
-			// Vehicle should lose flanking due to low speed
-			expect(playerVehicle1.position).toBe(VehiclePosition.BACK);
-			
-			// Check for flanking loss message
-			const flankingMessage = battle.getMessages().find(m => 
-				m.type === 'general' && 
-				m.message.includes(`${playerVehicle1.name} loses flanking position due to low speed`)
-			);
-			expect(flankingMessage).toBeDefined();
 		});
 
 		test('should emit combatEnded event', () => {

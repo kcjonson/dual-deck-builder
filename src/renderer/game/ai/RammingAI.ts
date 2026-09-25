@@ -159,10 +159,9 @@ export class RammingStrategy implements AIStrategy {
 			}
 		}
 
-		// MEDIUM PRIORITY: Position changes (get to front for ramming)
+		// MEDIUM PRIORITY: Position changes (flanking puts a rammer alongside its target)
 		if (cardEffects.changesPosition) {
-			// Prefer front position for ramming
-			if (ourVehicle.position !== 'front') {
+			if (!ourVehicle.isFlanking) {
 				score += this.POSITION_PRIORITY;
 			}
 		}

@@ -1,6 +1,6 @@
 import { Battle, BattleMessage } from './renderer/game/mechanics/Battle';
 import { Team, TeamType } from './renderer/game/mechanics/Team';
-import { Vehicle, VehiclePosition } from './renderer/game/mechanics/Vehicle';
+import { Vehicle } from './renderer/game/mechanics/Vehicle';
 import { DriverArchetype } from './renderer/game/mechanics/Driver';
 import { DriverLoader } from './renderer/game/core/DriverLoader';
 import { CardLoader } from './renderer/game/core/CardLoader';
@@ -96,7 +96,8 @@ class BattleSimulator {
 				maxArmor: 10,
 				speed: driver.vehicleStats.speed,
 				baseSpeed: driver.vehicleStats.speed,
-				position: i === 0 ? VehiclePosition.FRONT : VehiclePosition.BACK,
+				slot: null,
+				flank: null,
 				velocity: 0,
 				driver: driver,
 				passenger: null,
@@ -125,7 +126,8 @@ class BattleSimulator {
 				maxArmor: 10,
 				speed: driver.vehicleStats.speed,
 				baseSpeed: driver.vehicleStats.speed,
-				position: i === 0 ? VehiclePosition.FRONT : VehiclePosition.BACK,
+				slot: null,
+				flank: null,
 				velocity: 0,
 				driver: driver,
 				passenger: null,
