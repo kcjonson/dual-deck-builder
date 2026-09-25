@@ -60,7 +60,6 @@ Option 4, specified in [docs/specs/Battle Screen Design.md](../specs/Battle%20Sc
 - Enemy intents need to be planned in the model with a target before the player's turn, not hardcoded (DDB-33).
 - The enemy turn needs pacing (DDB-112) before the enemy-turn state means anything.
 - DDB-82 (phase 4, combat screen as the first stack consumer) changes from 25/40/20/5 bands to top bar, road, and dock. DDB-88 (phase 6) builds the dock, detail view, and targeting described here.
-- The local spec copies in `docs/specs/` now run ahead of their Google Docs; the Google Docs need the same edits.
 - Escorts, and whatever cards order them, are a new system with no design yet beyond "slots and plates, no hand".
 
 ## Implementation notes

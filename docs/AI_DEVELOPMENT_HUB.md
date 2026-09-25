@@ -11,7 +11,6 @@ The combat screen's layout and the rules it depends on are decided and written d
 - The road: both convoys drive the same direction up the screen; two formation lanes by three rows (ahead, center, behind) per side, plus a shoulder per side that only holds the other team's flankers; one vehicle per slot, slots fixed. Range is lanes apart plus rows apart. A flanker takes the row it outran and its old slot stays empty.
 - Rules calls made with it and written into Combat Rules: hand cap 7 per driver, two driven vehicles plus escorts, two adrenaline pools and two decks, a wrecked vehicle's driver becomes a passenger who can't attack, flanking +50%, no duplicate driver.
 - Cards gain a required `summary` (card face, three lines) beside `description` (detail view, 330 characters). Eleven of the eighteen current descriptions don't fit three lines.
-- The local copies of Combat Rules, Card System Design, Game Flow, and Gameplay Mechanics in `docs/specs/` now run ahead of their Google Docs.
 - Bugs from the 2026-09-25 capture and playthrough are DDB-111 to DDB-126 under DDB-5. Build work is its own epic on Specboard; the UI half is sequenced behind DDB-55's phases 4 to 6 (DDB-82 now builds these bands, DDB-88 the dock, detail view, and targeting).
 
 ## UI rendering engine rework (documentation complete, phase 0 complete, lint gate armed, 2026-09-09)
@@ -106,15 +105,15 @@ Wasteland Wheels is a roguelike deckbuilder game with vehicular combat in a post
 
 ## Design Documents
 
-1. **Game Flow & UI Specification**: https://docs.google.com/document/d/1_upnszasO-9eSIFPNWSSRZaVI2S1Twrncfmia8nd0_o/edit
-2. **Card System Design**: https://docs.google.com/document/d/1sxDkXcnRwJJIlJuhzfcxGPifUZILoEGBRVjLpMQJg2s/edit
-3. **AI System Technical Design**: https://docs.google.com/document/d/14WuPue2Gqol9Sgk5yZ8XwOQRP2C6Df15y9lPkSPBJUo/edit
-4. **Combat System Rules**: https://docs.google.com/document/d/1hgqkxYuYSTBc9UwzbVRdG_Zax52XE2wm4f3d4ITCF5E/edit
-5. **Faction Concepts**: https://docs.google.com/document/d/19BvQVuFcwBvIAIsBMRwizA6N2XNISriVatACgtXG0I4/edit
-6. **Deckbuilder Mechanics Research**: https://docs.google.com/document/d/1E3Qp0LmnvUZnojtIPwYEEani7meb5YlMZLStoiG_vJU/edit
-7. **Software Specification**: https://docs.google.com/document/d/1cJBy1w2YWI0fzmmo7qyMRgg9Xm6t5RO9zpij4y3XwXM/edit
+The specs in [docs/specs/](./specs/) are the source of truth:
 
-Local copies of several specs live in [docs/specs/](./specs/).
+1. [Battle Screen Design](./specs/Battle%20Screen%20Design.md)
+2. [Combat Rules](./specs/Combat%20Rules.md)
+3. [Card System Design](./specs/Card%20System%20Design.md)
+4. [Game Flow and UI Specification](./specs/Game%20Flow%20and%20UI%20Specification.md)
+5. [Gameplay Mechanics and Style](./specs/Gameplay%20Mechanics%20and%20Style.md)
+6. [AI System Technical Design](./specs/AI%20System%20Technical%20Deisgn.md)
+7. [UI rendering engine implementation](./specs/ui-rendering-engine-implementation.md)
 
 ## Code Style Guidelines
 
