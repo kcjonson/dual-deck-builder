@@ -13,12 +13,6 @@ import { CardEffectValidator } from './CardEffectValidator';
  */
 export class RammingStrategy implements AIStrategy {
 	name = 'Ramming AI';
-	private battle: Battle;
-
-	constructor(battle: Battle) {
-		this.battle = battle;
-	}
-
 	private readonly RAMMING_PRIORITY = 300;
 	private readonly SPEED_PRIORITY = 250;
 	private readonly ARMOR_PRIORITY = 200;
@@ -85,7 +79,7 @@ export class RammingStrategy implements AIStrategy {
 
 		// Check if the card will have any beneficial effect
 		const targetVehicle = action.target as Vehicle || ourVehicle.vehicle;
-		if (!CardEffectValidator.willCardHaveEffect(card, driver, targetVehicle, this.battle)) {
+		if (!CardEffectValidator.willCardHaveEffect(card, driver, targetVehicle, gameState.board)) {
 			console.log(`RammingAI: ${card.name} would have no effect, skipping`);
 			return -500; // Strong negative score for cards with no effect
 		}
@@ -98,7 +92,7 @@ export class RammingStrategy implements AIStrategy {
 			score += this.RAMMING_PRIORITY;
 			
 			// Extra bonus if we have high speed
-			const currentSpeed = ourVehicle.vehicle.getTotalSpeed();
+			const currentSpeed = ourVehicle.speed;
 			if (currentSpeed >= this.SPEED_THRESHOLD) {
 				score += this.RAMMING_PRIORITY * 0.5;
 			}
@@ -136,7 +130,7 @@ export class RammingStrategy implements AIStrategy {
 			score += this.SPEED_PRIORITY;
 			
 			// Extra priority if we're below speed threshold
-			const currentSpeed = ourVehicle.vehicle.getTotalSpeed();
+			const currentSpeed = ourVehicle.speed;
 			if (currentSpeed < this.SPEED_THRESHOLD) {
 				score += this.SPEED_PRIORITY * 0.5;
 			}
@@ -217,7 +211,7 @@ export class RammingStrategy implements AIStrategy {
 			let drawScore = cardEffects.drawCards * 40;
 			
 			// Extra value if we have adrenaline left after playing this card
-			const adrenalineAfter = driver.adrenaline - card.cost;
+			const adrenalineAfter = ourVehicle.adrenaline - card.cost;
 			if (adrenalineAfter >= 2) {
 				drawScore *= 1.5; // 50% bonus if we can likely play drawn cards
 			}
@@ -236,7 +230,7 @@ export class RammingStrategy implements AIStrategy {
 		}
 
 		// Slightly penalize using all adrenaline early
-		const adrenalineAfter = driver.adrenaline - card.cost;
+		const adrenalineAfter = ourVehicle.adrenaline - card.cost;
 		if (adrenalineAfter === 0 && gameState.currentTurn < 3) {
 			score *= 0.9;
 		}
@@ -333,8 +327,8 @@ export class RammingStrategy implements AIStrategy {
 		target: VehicleEvaluation
 	): number {
 		// Simplified ram damage calculation
-		const attackerSpeed = attacker.vehicle.getTotalSpeed();
-		const targetSpeed = target.vehicle.getTotalSpeed();
+		const attackerSpeed = attacker.speed;
+		const targetSpeed = target.speed;
 		const speedDiff = Math.max(0, attackerSpeed - targetSpeed);
 		
 		// Base ram damage formula (simplified)
@@ -395,10 +389,10 @@ export class RammingAI extends AIPlayer {
 
 	constructor(team: Team, battle: Battle) {
 		super(team, battle);
-		this.strategy = new RammingStrategy(battle);
+		this.strategy = new RammingStrategy();
 	}
 
-	async makeDecision(): Promise<AIDecision | null> {
+	protected chooseAction(): AIDecision | null {
 		const gameState = this.evaluateGameState();
 		const possibleActions = this.generatePossibleActions();
 

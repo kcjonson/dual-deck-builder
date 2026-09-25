@@ -12,12 +12,6 @@ import { CardEffectValidator } from './CardEffectValidator';
  */
 export class AggressiveFlankerStrategy implements AIStrategy {
 	name = 'Aggressive Flanker AI';
-	private battle: Battle;
-
-	constructor(battle: Battle) {
-		this.battle = battle;
-	}
-
 	private readonly FLANKING_BONUS = 1.5;
 	private readonly VULNERABLE_BONUS = 1.5;
 	private readonly POSITION_WEIGHT = 200;
@@ -66,7 +60,7 @@ export class AggressiveFlankerStrategy implements AIStrategy {
 
 		// Check if the card will have any beneficial effect
 		const targetVehicle = action.target as Vehicle || ourVehicle.vehicle;
-		if (!CardEffectValidator.willCardHaveEffect(card, driver, targetVehicle, this.battle)) {
+		if (!CardEffectValidator.willCardHaveEffect(card, driver, targetVehicle, gameState.board)) {
 			return -500; // Strong negative score for cards with no effect
 		}
 
@@ -78,7 +72,7 @@ export class AggressiveFlankerStrategy implements AIStrategy {
 			score += this.POSITION_WEIGHT * 2;
 			
 			// Extra bonus if we have enough speed for flanking
-			if (ourVehicle.vehicle.getTotalSpeed() >= this.SPEED_THRESHOLD) {
+			if (ourVehicle.speed >= this.SPEED_THRESHOLD) {
 				score += this.POSITION_WEIGHT;
 			}
 		}
@@ -86,7 +80,7 @@ export class AggressiveFlankerStrategy implements AIStrategy {
 		// Prioritize speed boosts if not in flanking position and below threshold
 		if (cardEffects.speedBoost > 0 && 
 			!ourVehicle.isFlanking) {
-			const currentSpeed = ourVehicle.vehicle.getTotalSpeed();
+			const currentSpeed = ourVehicle.speed;
 			if (currentSpeed < this.SPEED_THRESHOLD) {
 				// Very high priority for speed boost when we need it for flanking
 				score += this.POSITION_WEIGHT * 2;
@@ -155,7 +149,7 @@ export class AggressiveFlankerStrategy implements AIStrategy {
 		}
 
 		// Penalize using all adrenaline early
-		const adrenalineAfter = driver.adrenaline - card.cost;
+		const adrenalineAfter = ourVehicle.adrenaline - card.cost;
 		if (adrenalineAfter === 0 && gameState.currentTurn < 3) {
 			score *= 0.8;
 		}
@@ -263,10 +257,10 @@ export class AggressiveFlankerAI extends AIPlayer {
 
 	constructor(team: Team, battle: Battle) {
 		super(team, battle);
-		this.strategy = new AggressiveFlankerStrategy(battle);
+		this.strategy = new AggressiveFlankerStrategy();
 	}
 
-	async makeDecision(): Promise<AIDecision | null> {
+	protected chooseAction(): AIDecision | null {
 		const gameState = this.evaluateGameState();
 		const possibleActions = this.generatePossibleActions();
 

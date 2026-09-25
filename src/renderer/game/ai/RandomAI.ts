@@ -27,7 +27,7 @@ export class RandomAI extends AIPlayer {
 		this.strategy = new RandomAIStrategy();
 	}
 
-	async makeDecision(): Promise<AIDecision | null> {
+	protected chooseAction(): AIDecision | null {
 		const gameState = this.evaluateGameState();
 		const possibleActions = this.generatePossibleActions();
 

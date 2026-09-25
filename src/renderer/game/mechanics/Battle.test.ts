@@ -548,6 +548,8 @@ describe('Battle', () => {
 			// Set up enemy with card in hand and enough adrenaline
 			enemyDriver.hand = [attackCard];
 			enemyDriver.adrenaline = 3; // Ensure enough adrenaline
+			// The plan was made at start() against the drawn hand; plan again for the rigged one
+			battle.planEnemyTurn();
 			
 			const playerInitialStructure = playerVehicle1.structure;
 			const playerInitialArmor = playerVehicle1.armor;

@@ -1,6 +1,7 @@
 import { Card } from '../mechanics/Card';
 import { Driver } from '../mechanics/Driver';
 import { Vehicle } from '../mechanics/Vehicle';
+import { BoardProjection } from '../mechanics/BoardProjection';
 
 export interface AIDecision {
 	type: 'playCard' | 'endTurn';
@@ -14,6 +15,7 @@ export interface GameStateEvaluation {
 	enemyTeam: TeamEvaluation;
 	currentTurn: number;
 	phase: 'player' | 'enemy';
+	board: BoardProjection;
 }
 
 export interface TeamEvaluation {
@@ -33,6 +35,7 @@ export interface VehicleEvaluation {
 	cardsInHand: number;
 	isAlive: boolean;
 	isFlanking: boolean;
+	speed: number;
 }
 
 export interface AIStrategy {

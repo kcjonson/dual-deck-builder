@@ -2,7 +2,6 @@ import { Team, TeamType } from './Team';
 import { Driver } from './Driver';
 import { Vehicle } from './Vehicle';
 import {
-	RoadSlot,
 	describeSlot,
 	flankLane,
 	isFormationLane,
@@ -11,6 +10,18 @@ import {
 	slotRange
 } from './Road';
 import { Card } from './Card';
+import { BoardProjection } from './BoardProjection';
+import {
+	Intent,
+	IntentTier,
+	IntentType,
+	PlannedAction,
+	attackEffectOf,
+	buffLabelOf,
+	debuffLabelOf,
+	defendAmountOf,
+	intentTypeOf
+} from './Intent';
 import { Model } from '../core/Model';
 import { AIController } from '../ai/AIController';
 
@@ -28,6 +39,7 @@ export type BattleMessageType =
 	| 'status_applied'
 	| 'miss'
 	| 'out_of_range'
+	| 'fizzle'
 	| 'battle_end'
 	| 'adrenaline_remaining'
 	| 'general';
@@ -96,6 +108,9 @@ export class Battle extends Model<BattleData> {
 	
 	// Battle message log (stored separately due to Model freezing)
 	private static messageLogs = new WeakMap<Battle, BattleMessage[]>();
+
+	// Each raider's committed cards for the coming enemy turn (stored separately due to Model freezing)
+	private static enemyPlans = new WeakMap<Battle, Map<Vehicle, PlannedAction[]>>();
 	
 	// Static flag to control console logging
 	public static suppressConsoleLog = false;
@@ -262,6 +277,8 @@ export class Battle extends Model<BattleData> {
 		this.playerTeam.refillAdrenaline();
 		this.enemyTeam.refillAdrenaline();
 
+		this.planEnemyTurn();
+
 		this.log('battle_start', 'Battle started!');
 		
 		// Log initial team status
@@ -417,34 +434,103 @@ export class Battle extends Model<BattleData> {
 		// Emit turn ended event
 		this.emit('turnEnded', Object.freeze({ team: 'player' }));
 
-		// Process enemy turns
-		await this.processEnemyTurns();
+		this.processEnemyTurns();
 	}
 
 	/**
-	 * Process enemy turns
+	 * Every raider commits its whole coming turn now, at the start of the
+	 * player's turn, against the hand it just drew. The enemy turn plays the
+	 * plan instead of choosing fresh. Public so a test that rigs a hand can
+	 * plan again.
 	 */
-	private async processEnemyTurns(): Promise<void> {
+	public planEnemyTurn(): void {
+		Battle.enemyPlans.set(this, this.aiController.planEnemyTurn());
+	}
+
+	/**
+	 * A raider's committed cards for the coming enemy turn, in play order.
+	 */
+	public getPlan(raider: Vehicle): readonly PlannedAction[] {
+		return Battle.enemyPlans.get(this)?.get(raider) ?? [];
+	}
+
+	/**
+	 * What the player sees of a raider's plan. Values are worked out now, so
+	 * a Vulnerable the player picks up this turn shows in the number. Elites
+	 * and bosses hide the value and the card.
+	 */
+	public getIntents(raider: Vehicle): Intent[] {
+		const hidden = (raider.intentTier ?? IntentTier.BASIC) !== IntentTier.BASIC;
+		return this.getPlan(raider).map(action => {
+			const type = intentTypeOf(action.card);
+			let amount: number | null = null;
+			let label: string | null = null;
+			if (type === IntentType.ATTACK) {
+				amount = this.previewDamage(raider, action);
+			} else if (type === IntentType.DEFEND) {
+				amount = defendAmountOf(action.card);
+			} else if (type === IntentType.DEBUFF) {
+				label = debuffLabelOf(action.card);
+			} else if (type === IntentType.BUFF) {
+				label = buffLabelOf(action.card);
+			}
+			return {
+				type,
+				amount: hidden ? null : amount,
+				hits: 1,
+				label: hidden ? null : label,
+				target: action.card.targetType === 'enemy_all' ? 'both' : action.target?.id ?? null,
+				description: hidden ? '???' : action.card.displayName
+			};
+		});
+	}
+
+	/**
+	 * Damage per hit a planned attack deals if it lands, from the raider's
+	 * projected flank state and speed and the target as it is now.
+	 */
+	private previewDamage(raider: Vehicle, action: PlannedAction): number {
+		const effect = attackEffectOf(action.card);
+		if (!effect) return 0;
+		const target = action.target;
+		let damage = typeof effect.value === 'number' ? effect.value : 0;
+		if (effect.formula && typeof effect.formula === 'string' && target) {
+			damage = this.calculateFormulaDamage(effect.formula, {
+				armor: raider.armor,
+				speedDiff: action.speed - target.getTotalSpeed()
+			});
+		}
+		return this.applyDamageModifiers(damage, action.flanking, target);
+	}
+
+	/**
+	 * Play each raider's plan, one raider at a time.
+	 */
+	private processEnemyTurns(): void {
 		if (this.battleOver) {
 			return;
 		}
 
-		// Execute AI actions for each enemy driver
-		const enemyDrivers = this.enemyTeam.getAliveDrivers();
-		
-		for (const enemyDriver of enemyDrivers) {
-			// Skip if driver can't act (passenger restrictions, etc.)
-			if (!enemyDriver.canPlayAttackCards() && this.hasOnlyAttackCards(enemyDriver)) {
-				continue;
-			}
+		const plans = Battle.enemyPlans.get(this) ?? new Map<Vehicle, PlannedAction[]>();
+		Battle.enemyPlans.delete(this);
 
-			// Execute enemy AI action
-			await this.executeEnemyAction(enemyDriver);
+		for (const [raider, actions] of plans) {
+			for (const action of actions) {
+				if (!raider.isAlive()) {
+					this.log('general', `${raider.name} is wrecked and drops its plan`, { vehicle: raider.name });
+					break;
+				}
+				if (!action.driver.isAlive() || raider.driver !== action.driver) {
+					this.log('general', `${raider.name} lost its driver and drops its plan`, { vehicle: raider.name });
+					break;
+				}
 
-			// Check if battle is over after enemy action
-			this.checkBattleStatus();
-			if (this.battleOver) {
-				return;
+				this.playPlannedAction(raider, action);
+
+				this.checkBattleStatus();
+				if (this.battleOver) {
+					return;
+				}
 			}
 		}
 
@@ -463,7 +549,7 @@ export class Battle extends Model<BattleData> {
 		const aliveEnemyDrivers = this.enemyTeam.getAllDrivers();
 		for (const driver of aliveEnemyDrivers) {
 			if (driver.isAlive() && driver.adrenaline > 0) {
-				this.log('adrenaline_remaining', 
+				this.log('adrenaline_remaining',
 					`${this.getDriverDisplayName(driver)} ended turn with ${driver.adrenaline} adrenaline remaining`,
 					{ driver: driver.metadata.name, value: driver.adrenaline }
 				);
@@ -477,130 +563,80 @@ export class Battle extends Model<BattleData> {
 	}
 
 	/**
-	 * Check if driver only has attack cards
+	 * Play one planned card. It's spent either way. A target wrecked since
+	 * the plan was made is followed to the vehicle its driver now rides in as
+	 * a passenger; anything else that makes the card illegal (the player
+	 * moved out of range, outpaced a flank, or a flanker dropped back) makes
+	 * it fizzle. See docs/AI_TECHNICAL_DECISIONS/enemy-intent-planning.md.
 	 */
-	private hasOnlyAttackCards(driver: Driver): boolean {
-		const hand = driver.hand;
-		return hand.length > 0 && hand.every(card => this.isAttackCard(card));
-	}
-
-	/**
-	 * Check if a card is an attack card
-	 */
-	private isAttackCard(card: Card): boolean {
-		const effects = card.effects;
-		return effects.some(effect => 
-			effect.type === 'damage' || 
-			effect.type === 'ram' ||
-			card.name.toLowerCase().includes('attack') ||
-			card.name.toLowerCase().includes('shot') ||
-			card.name.toLowerCase().includes('ram')
-		);
-	}
-
-	/**
-	 * Execute an enemy's action (AI)
-	 */
-	private async executeEnemyAction(enemyDriver: Driver): Promise<void> {
-		const hand = enemyDriver.hand;
-		if (hand.length === 0) return;
-
-		// Use AI controller if available
-		if (this.aiController.isEnemyControlledByAI()) {
-			// Keep playing cards until AI decides to end turn or can't play any more
-			let continuePlayingCards = true;
-			while (continuePlayingCards) {
-				const decision = await this.aiController.getEnemyDecision();
-				
-				if (!decision || decision.type === 'endTurn') {
-					continuePlayingCards = false;
-				} else if (decision.type === 'playCard' && decision.card && decision.driver) {
-					// Execute the AI decision directly here
-					const cardIndex = decision.driver.hand.indexOf(decision.card);
-					if (cardIndex !== -1) {
-						const result = decision.driver.playCardWithCost(cardIndex);
-						if (result.success && result.card) {
-							let targetVehicle: Vehicle | null = null;
-							if (decision.target && 'structure' in decision.target) {
-								targetVehicle = decision.target as Vehicle;
-							}
-							const adrenalineBefore = decision.driver.adrenaline + result.card.cost; // Add back cost since it was already spent
-							this.applyCardEffects(result.card, targetVehicle, decision.driver);
-							this.log('card_played', 
-								`${this.getDriverDisplayName(decision.driver)} plays ${result.card.displayName} (Adrenaline: ${adrenalineBefore} -> ${decision.driver.adrenaline})`,
-								{ driver: decision.driver.metadata.name, card: result.card.displayName, adrenalineBefore, adrenalineAfter: decision.driver.adrenaline }
-							);
-						}
-					}
-					
-					// Check if battle ended after the action
-					if (this.battleOver) {
-						return;
-					}
-				}
-			}
+	private playPlannedAction(raider: Vehicle, action: PlannedAction): void {
+		const { card, driver } = action;
+		const adrenalineBefore = driver.adrenaline;
+		const result = driver.playCardWithCost(driver.hand.indexOf(card));
+		if (!result.success) {
+			this.log('general', `${raider.name} can't play ${card.displayName}: ${result.reason}`, { vehicle: raider.name, card: card.displayName });
 			return;
 		}
 
-		// Fallback to simple AI: play all affordable cards
-		let playedCard = true;
-		while (playedCard && !this.battleOver) {
-			playedCard = false;
-			
-			for (let i = 0; i < enemyDriver.hand.length; i++) {
-				const card = enemyDriver.hand[i];
-				
-				if (enemyDriver.canPlayCard(card)) {
-					// Find a valid target considering range
-					const enemyVehicle = this.getVehicleForDriver(enemyDriver);
-					if (!enemyVehicle) continue;
-					
-					const playerVehicles = this.playerTeam.getAliveVehicles();
-					let validTarget: Vehicle | null = null;
-					
-					// Check if card needs a target
-					if (card.targetType === 'enemy_single' || card.targetType === 'enemy_all') {
-						// Find first target in range
-						for (const target of playerVehicles) {
-							let inRange = true;
-							
-							// Check if card has range requirements
-							for (const effect of card.effects) {
-								if (effect.type === 'damage' && typeof effect.range === 'number') {
-									const range = this.calculateRange(enemyVehicle, target);
-									if (range > effect.range) {
-										inRange = false;
-										break;
-									}
-								}
-							}
-							
-							if (inRange && this.meetsFlankRules(card, enemyVehicle, target)) {
-								validTarget = target;
-								break;
-							}
-						}
-						
-						// Skip this card if no valid targets in range
-						if (!validTarget && card.targetType === 'enemy_single') {
-							continue;
-						}
-					}
+		this.log('card_played',
+			`${this.getDriverDisplayName(driver)} plays ${card.displayName} (Adrenaline: ${adrenalineBefore} -> ${driver.adrenaline})`,
+			{ driver: driver.metadata.name, card: card.displayName, adrenalineBefore, adrenalineAfter: driver.adrenaline }
+		);
 
-					const adrenalineBefore = enemyDriver.adrenaline;
-					const result = enemyDriver.playCardWithCost(i);
-					if (result.success && result.card) {
-						this.applyCardEffects(result.card, validTarget, enemyDriver);
-						this.log('card_played',
-							`${enemyDriver.metadata.name} plays ${result.card.displayName} (Adrenaline: ${adrenalineBefore} -> ${enemyDriver.adrenaline})`,
-							{ driver: enemyDriver.metadata.name, card: result.card.displayName, adrenalineBefore, adrenalineAfter: enemyDriver.adrenaline }
-						);
-						playedCard = true;
-						break; // Start from beginning since hand indices changed
-					}
+		if (card.targetType === 'enemy_all') {
+			this.applyCardEffects(card, null, driver);
+			return;
+		}
+		if (!action.target) {
+			this.applyCardEffects(card, raider, driver);
+			return;
+		}
+
+		let target: Vehicle | null = action.target;
+		if (!target.isAlive()) {
+			const wreck: Vehicle = target;
+			target = this.getAllVehicles().find(vehicle =>
+				vehicle.isAlive() && action.targetDriver !== null && vehicle.passenger === action.targetDriver
+			) ?? null;
+			if (!target) {
+				this.log('fizzle', `${raider.name}'s ${card.displayName} fizzles: ${wreck.name} is wrecked and nobody got out`,
+					{ vehicle: raider.name, card: card.displayName, target: wreck.name });
+				return;
+			}
+			this.log('general', `${wreck.name} is wrecked, so ${raider.name} turns ${card.displayName} on ${target.name}`,
+				{ vehicle: raider.name, card: card.displayName, target: target.name });
+		}
+
+		const reason = this.getPlannedCardBlocker(card, raider, target);
+		if (reason) {
+			this.log('fizzle', `${raider.name}'s ${card.displayName} fizzles: ${reason}`,
+				{ vehicle: raider.name, card: card.displayName, target: target.name });
+			return;
+		}
+
+		this.applyCardEffects(card, target, driver);
+	}
+
+	/**
+	 * Why a planned card can no longer be played on its target, in words for
+	 * the log, or null if it still can.
+	 */
+	private getPlannedCardBlocker(card: Card, caster: Vehicle, target: Vehicle): string | null {
+		for (const effect of card.effects) {
+			if (typeof effect.range === 'number') {
+				const range = this.calculateRange(caster, target);
+				if (range > effect.range) {
+					return `${target.name} is out of range (${range} away, needs ${effect.range})`;
 				}
 			}
+			if (effect.condition === 'target_flanking' && !target.isFlanking) {
+				return `${target.name} is no longer flanking`;
+			}
 		}
+		if (!this.meetsFlankRules(card, caster, target)) {
+			return this.getFlankBlocker(caster, target);
+		}
+		return null;
 	}
 
 	/**
@@ -638,6 +674,8 @@ export class Battle extends Model<BattleData> {
 
 		// Set turn state
 		this.isPlayerTurn = true;
+
+		this.planEnemyTurn();
 
 		this.log('turn_start', `Player turn ${this.turn} started`, { turn: this.turn });
 		
@@ -696,7 +734,10 @@ export class Battle extends Model<BattleData> {
 						if (effect.formula && typeof effect.formula === 'string') {
 							const casterVehicle = this.getVehicleForDriver(caster);
 							if (casterVehicle) {
-								damage = this.calculateFormulaDamage(effect.formula, casterVehicle, targetVehicle);
+								damage = this.calculateFormulaDamage(effect.formula, {
+									armor: casterVehicle.armor,
+									speedDiff: casterVehicle.getTotalSpeed() - targetVehicle.getTotalSpeed()
+								});
 							}
 						}
 						
@@ -1121,43 +1162,11 @@ export class Battle extends Model<BattleData> {
 	 * row must be free.
 	 */
 	public getFlankBlocker(flanker: Vehicle, target: Vehicle): string | null {
-		const flankerTeam = this.getTeamForVehicle(flanker);
-		const targetTeam = this.getTeamForVehicle(target);
-		if (!flankerTeam || !targetTeam || flankerTeam === targetTeam) {
-			return `${target.name} is not on the other team`;
-		}
-		if (!flanker.isAlive() || !flanker.slot) {
-			return `${flanker.name} is not on the road`;
-		}
-		if (!target.isAlive() || !target.slot || !isFormationLane(targetTeam.type, target.slot.lane)) {
-			return `${target.name} is not in formation`;
-		}
-		if (!flanker.canFlank(target)) {
-			return `${flanker.name} is not faster than ${target.name}`;
-		}
-		const destination = { lane: flankLane(flankerTeam.type), row: target.slot.row };
-		if (this.isSlotTaken(destination, flanker)) {
-			return `${describeSlot(destination)} is taken`;
-		}
-		if (sameSlot(flanker.slot, destination)) {
-			return `${flanker.name} is already flanking in that row`;
-		}
-		return null;
+		return new BoardProjection({ battle: this }).flankBlocker(flanker, target);
 	}
 
 	public canFlank(flanker: Vehicle, target: Vehicle): boolean {
 		return this.getFlankBlocker(flanker, target) === null;
-	}
-
-	/**
-	 * A slot is taken by a vehicle in it, wrecks included, or by a flanker
-	 * holding it as its reserved formation slot.
-	 */
-	private isSlotTaken(slot: RoadSlot, ignoring?: Vehicle): boolean {
-		return this.getAllVehicles().some(vehicle =>
-			vehicle !== ignoring &&
-			(sameSlot(vehicle.slot, slot) || sameSlot(vehicle.flank?.reservedSlot ?? null, slot))
-		);
 	}
 
 	/**
@@ -1235,44 +1244,40 @@ export class Battle extends Model<BattleData> {
 	 * Calculate damage with modifiers
 	 */
 	public calculateDamage(baseDamage: number, attacker: Vehicle, target: Vehicle): number {
+		return this.applyDamageModifiers(baseDamage, attacker.isFlanking, target);
+	}
+
+	/**
+	 * Flanking and Vulnerable each add 50%. An area hit has no single target
+	 * to be Vulnerable.
+	 */
+	private applyDamageModifiers(baseDamage: number, attackerFlanking: boolean, target: Vehicle | null): number {
 		let damage = baseDamage;
-
-		// Apply flanking bonus
-		if (attacker.isFlanking) {
-			damage = Math.floor(damage * 1.5); // 50% bonus
+		if (attackerFlanking) {
+			damage = Math.floor(damage * 1.5);
 		}
-
-		// Apply vulnerable status
-		if (target.hasStatusEffect('vulnerable')) {
-			damage = Math.floor(damage * 1.5); // 50% bonus
+		if (target?.hasStatusEffect('vulnerable')) {
+			damage = Math.floor(damage * 1.5);
 		}
-
 		return damage;
 	}
 
 	/**
-	 * Calculate formula-based damage (e.g., Ram)
+	 * Calculate formula-based damage (e.g., Ram), like "armor/10 + (speed_diff)"
 	 */
-	private calculateFormulaDamage(formula: string, attacker: Vehicle, target: Vehicle): number {
-		// Parse formula like "armor/10 + (speed_diff)"
+	private calculateFormulaDamage(formula: string, { armor, speedDiff }: { armor: number; speedDiff: number }): number {
 		let damage = 0;
-		
-		// Calculate speed difference
-		const speedDiff = attacker.getTotalSpeed() - target.getTotalSpeed();
-		
-		// Simple formula parser for Ram
 		if (formula.includes('armor/10')) {
-			damage += Math.floor(attacker.armor / 10);
+			damage += Math.floor(armor / 10);
 		}
 		if (formula.includes('armor/7')) {
-			damage += Math.floor(attacker.armor / 7);
+			damage += Math.floor(armor / 7);
 		}
 		if (formula.includes('speed_diff * 2')) {
 			damage += speedDiff * 2;
 		} else if (formula.includes('speed_diff')) {
 			damage += speedDiff;
 		}
-		
 		return Math.max(0, damage);
 	}
 

@@ -211,7 +211,7 @@ describe('AI Player System', () => {
 	});
 
 	describe('Battle Integration', () => {
-		it('should use AI for enemy turns when configured', async () => {
+		it('should plan enemy turns with the configured AI', () => {
 			// Setup AI control
 			battle.aiController.setEnemyAI('random');
 			
@@ -229,16 +229,14 @@ describe('AI Player System', () => {
 			enemyDriver2.hand = [card];
 			enemyDriver2.adrenaline = 5;
 			
-			// Mock the AI decision getter
-			const getEnemyDecisionSpy = jest.spyOn(battle.aiController, 'getEnemyDecision');
-			
-			// End player turn to trigger enemy AI
-			await battle.endPlayerTurn();
-			
-			// Should have called AI to get decisions
-			expect(getEnemyDecisionSpy).toHaveBeenCalled();
-			
-			getEnemyDecisionSpy.mockRestore();
+			// RandomAI takes the first possible action: the card at the first player vehicle
+			const randomSpy = jest.spyOn(Math, 'random').mockReturnValue(0);
+			battle.planEnemyTurn();
+			randomSpy.mockRestore();
+
+			const [plan] = battle.getPlan(enemyTeam.vehicles[0]);
+			expect(plan.card).toBe(card);
+			expect(plan.target).toBe(playerTeam.vehicles[0]);
 		});
 
 		it('should fall back to simple AI when no AI controller configured', async () => {
@@ -297,10 +295,10 @@ describe('AI Player System', () => {
 			
 			// Get AI decisions
 			const playerDecision = await battle.aiController.getPlayerDecision();
-			const enemyDecision = await battle.aiController.getEnemyDecision();
+			const enemyPlans = battle.aiController.planEnemyTurn();
 			
 			expect(playerDecision).toBeDefined();
-			expect(enemyDecision).toBeDefined();
+			expect(enemyPlans).toBeDefined();
 		});
 
 		it('should run a full AI vs AI battle with max turns', async () => {

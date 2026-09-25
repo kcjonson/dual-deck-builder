@@ -2,6 +2,7 @@ import { Card } from '../mechanics/Card';
 import { Driver } from '../mechanics/Driver';
 import { Vehicle } from '../mechanics/Vehicle';
 import { Battle } from '../mechanics/Battle';
+import { BoardProjection } from '../mechanics/BoardProjection';
 
 /**
  * Common utility for validating if a card will have any beneficial effect
@@ -13,17 +14,17 @@ export class CardEffectValidator {
 	 * @param card The card to check
 	 * @param caster The driver playing the card
 	 * @param target The target vehicle (if applicable)
-	 * @param battle The current battle state
+	 * @param board The board the decision is made against, live or projected
 	 * @returns true if the card will have a beneficial effect
 	 */
 	static willCardHaveEffect(
 		card: Card, 
 		caster: Driver, 
 		target: Vehicle | null,
-		battle: Battle
+		board: BoardProjection
 	): boolean {
 		// Get the caster's vehicle
-		const casterVehicle = this.getVehicleForDriver(caster, battle);
+		const casterVehicle = board.vehicleOf(caster);
 		if (!casterVehicle) return false;
 
 		// Check each effect on the card
@@ -83,7 +84,7 @@ export class CardEffectValidator {
 						if (target.driver) {
 							// Check range if specified
 							if (typeof effect.range === 'number') {
-								const range = battle.calculateRange(casterVehicle, target);
+								const range = board.range(casterVehicle, target);
 								if (range > effect.range) {
 									continue; // Out of range
 								}
