@@ -86,7 +86,7 @@
 
 Every card carries two texts, both required, both templated with the same `{variables}`:
 
-- `summary` is the card face in the hand: three lines of 12px text in a 114px box, written with keywords in brackets (`[Range 1]`, `[Vulnerable]`, `[Sure-hit]`, `[Armor]`, `[Partner]`, `[Flank]`, `[Exhaust]`), which render highlighted and get definitions in the detail view.
+- `summary` is the card face in the hand: three lines of 12px text in a 114px box, written with keywords in brackets (`[Range 1]`, `[Vulnerable]`, `[Sure-hit]`, `[Armor]`, `[Partner]`, `[Flank]`, `[Exhaust]`, `[Escort]`), which render highlighted and get definitions in the detail view.
 - `description` is the full rules text for the card detail view (hover, focus, or long-press; right-click pins it), up to 330 characters with values filled in. Keywords in it are highlighted automatically.
 
 A summary that wraps past three lines, or a description past 330 characters, fails the card data check; the fix is rewriting, never smaller type. Layout and budgets: [Battle Screen Design](./Battle%20Screen%20Design.md) section 5.
@@ -101,6 +101,7 @@ A summary that wraps past three lines, or a description past 330 characters, fai
 - **Power**: Persistent effects (stay in play)
 - **Synergy**: Require both drivers or specific conditions
 - **Exhaust**: One-time use per combat
+- **Order**: Commands an escort. Not an attack, so a passenger can play it. See 1.3
 
 #### Rarities
 
@@ -109,6 +110,18 @@ A summary that wraps past three lines, or a description past 330 characters, fai
 - **Uncommon**: 30% drop rate
 - **Rare**: 9% drop rate
 - **Legendary**: 1% drop rate
+
+### 1.3 Order cards
+
+Escorts are vehicles in your convoy with a slot and a plate but no driver and no hand. They act only when an order card is played. The rules for escorts are in [Combat Rules](./Combat%20Rules.md), section Escorts; this is the card side.
+
+- **Order** is its own card type, tagged `order` in card data and never `attack`. Any driver can play one, active or passenger, paying from their own adrenaline.
+- **Attack orders** target a raider (`enemy_single`). The nearest ready escort within the card's range of that raider carries it out and is spent; ties go to the inside lane, then the outside lane, then the enemy shoulder, and within a lane to ahead, center, behind. The drag lights up that escort. A raider with no ready escort in range isn't a legal target.
+- **Buff orders** target an escort directly, with the new `escort` target type. Armor orders and Draw Fire are buff orders.
+- Every order card is a single drop, the same as any other card. No order asks for two targets.
+- **`[Escort]`**: "An undriven vehicle in your convoy. Acts only when ordered, once per turn."
+- **Signature cards.** Each escort type brings one order card into a driver's deck when it joins; the player picks which driver. Card data names its escort with `signatureOf` (the escort type's id). A signature card is never in the reward pool or the shop. While its escort is wrecked it can't be played, and it leaves the deck when the fight ends. It also leaves when the escort is dismissed.
+- **Reward pool.** Generic order cards join the reward pool only while you own at least one escort.
 
 ## 2\. Driver-Specific Starting Decks
 
@@ -228,6 +241,46 @@ Starting Deck:
 1. **Witness Me!** - Triple all damage this turn, die at end of turn
 2. **War Rig's Fury** - Deal damage equal to your max HP
 3. **Time Dilation** - Take an extra turn after this one
+
+### 4.5 Order cards
+
+The initial set. All cost 1 except Rally the Convoy. Rarities marked "proposed" weren't part of the decision. Summaries follow 1.1: keywords in brackets, three lines on the card face. Upgraded values aren't set yet.
+
+**Covering Fire** (1 Adrenaline, common, proposed). Attack order, `enemy_single`, range 2.
+
+- Summary: "Nearest [Escort] in [Range 2] of target deals {damage}."
+- Full text: "The nearest ready escort within range 2 of the target attacks it for {damage} damage, using the escort's gunnery against the target's evade. That escort is spent."
+- Damage 3.
+
+**Ramming Run** (1 Adrenaline, common, proposed). Attack order, `enemy_single`, range 1.
+
+- Summary: "Nearest [Escort] in [Range 1] rams for {damage} + speed gap. Takes 2."
+- Full text: "The nearest ready escort within range 1 of the target rams it for {damage} plus the speed gap (escort speed minus target speed), using the escort's ramming against the target's evade. The escort takes 2 structure damage and is spent."
+- Damage 4.
+
+**Draw Fire** (1 Adrenaline, uncommon). Buff order, `escort`.
+
+- Summary: "This [Escort] draws its row's raider fire. +{armor} [Armor]."
+- Full text: "Target escort gains {armor} Armor. This turn, raider intents aimed at a driven vehicle in the escort's row retarget to the escort."
+- Armor 4. The counter to killers, which aim at driven vehicles.
+
+**Close Ranks** (1 Adrenaline, common, proposed). Buff order, `escort`.
+
+- Summary: "This [Escort] gains {armor} [Armor] and stays ready."
+- Full text: "Target escort gains {armor} Armor. The escort isn't spent and can still act this turn."
+- Armor 6.
+
+**Triage** (1 Adrenaline, signature of the Med Truck). Targets a driver or passenger anywhere in your convoy (`ally`).
+
+- Summary: "Heal {healing} HP to any driver. Needs the Med Truck alive."
+- Full text: "Heal {healing} HP to any driver or passenger in your convoy. Only playable while the Med Truck lives. It leaves your deck if the Med Truck is lost."
+- Healing 4.
+
+**Rally the Convoy** (2 Adrenaline, rare). `enemy_all`, dropped anywhere on the road like EMP Blast.
+
+- Summary: "Each ready [Escort] deals {damage} to its nearest raider. [Exhaust]."
+- Full text: "Each ready escort deals {damage} damage to its nearest raider within range 2, using its gunnery against that raider's evade. Then every escort is spent, including any with no raider in range. Exhaust."
+- Damage 2. Range 2 and the per-escort hit check are proposed; the decision says "in range". Ties for the nearest raider go to their inside lane, then their outside lane, then your shoulder, and ahead, center, behind within a lane.
 
 ## 5\. Vehicle Mods (Permanent Upgrades)
 

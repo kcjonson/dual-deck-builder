@@ -127,6 +127,8 @@ The map is presented as a worn, hand-drawn chart spread across a rusted metal su
 - **Mystery events** display a question mark that shifts between different symbols, hinting at the variety of possible encounters
 - **The boss node** at the top is impossible to miss - a massive skull wreathed in flames or other dramatic imagery
 
+**Your convoy:** the marker for your current location shows how many escorts are travelling with you, as a small count beside it. Escorts are the undriven vehicles in your convoy ([Combat Rules](./Combat%20Rules.md), Escorts).
+
 **Path Visualization:** Available paths from your current location glow with a pulsing light, while paths you can't take are darkened. As you hover over a node, the path to it illuminates more brightly, and a tooltip provides additional information:
 
 - Expected difficulty
@@ -175,6 +177,8 @@ Cards might be grouped by rarity, with common cards on the left and rarer option
 - Cost in scrap
 - Which vehicle(s) it applies to
 
+**Convoy strip (in the mods panel):** one entry per escort you own, up to four, each with its structure and two actions. Repair restores structure for scrap, since escort damage carries over between fights. Dismiss removes the escort and its signature card from your deck. Escorts for hire are offered in the same strip; at four, you dismiss one before hiring another.
+
 **Bottom Section - Leave Button:** A large "Return to the Wasteland" or "Leave Garage" button sits at the bottom center. The game should prevent players from leaving accidentally if they have enough scrap for meaningful purchases, perhaps with a confirmation: "You still have 200 scrap. Are you sure you want to leave?"
 
 ## 5\. Event Screen
@@ -211,6 +215,9 @@ Three raider buggies circle the wreckage like predators, their occupants whoopin
 - A Mechanic driver might see "(Mechanic Only) Jury-rig their engine"
 - Having specific cards might unlock options: "(Requires: EMP Blast) Disable all vehicles"
 - Low resources might lock options with strikethrough text: "Share Fuel (Need 5, Have 2)"
+- An escort in your convoy can unlock options: "(Med Truck) Treat the survivors"
+
+Events are also one of the two ways to gain an escort (the garage is the other). An event can offer one as an outcome; if you already have four, you dismiss one to take it.
 
 ## 6\. Victory and Defeat Screens
 
