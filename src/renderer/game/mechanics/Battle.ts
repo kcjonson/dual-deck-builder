@@ -1822,12 +1822,13 @@ export class Battle extends Model<BattleData> {
 	/**
 	 * End the fight. Every driver who fought gets their exhausted cards back.
 	 * Each convoy escort wrecked this fight is gone for the run, and the
-	 * signature copy it brought leaves the decks now. The living escorts
-	 * leave the road (Vehicle.leaveFight), keeping their structure for the
-	 * next fight, and unless the fight was lost the haulers among them pay
-	 * out. The Med Truck's heal lands here, on every living driver who
-	 * fought, crashed out or not; fuel and scrap go in the result for the run.
-	 * Runs once: a second call returns the same result.
+	 * signature copy it brought leaves the decks now. Every living player
+	 * vehicle leaves the road (Vehicle.leaveRoad), and a living convoy
+	 * escort's armor refills, so it carries only its structure into the next
+	 * fight. After a won fight the haulers among them pay out. The Med
+	 * Truck's heal lands here, on every living driver who fought, crashed
+	 * out or not; fuel and scrap go in the result for the run. Runs once: a
+	 * second call returns the same result.
 	 */
 	public endCombat(): AfterFight {
 		const ended = Battle.afterFights.get(this);
@@ -1847,10 +1848,11 @@ export class Battle extends Model<BattleData> {
 			this.log('general', `${escort.name} is lost for the run${copies}`, { vehicle: escort.name });
 		}
 
+		this.playerTeam.getAliveVehicles().forEach(vehicle => vehicle.leaveRoad());
 		const escorts = this.playerTeam.escorts.filter(escort => escort.isAlive() && !escort.escort?.setPiece);
-		escorts.forEach(escort => escort.leaveFight());
+		escorts.forEach(escort => { escort.armor = escort.maxArmor; });
 
-		const dividends: DividendPayout[] = this.playerTeam.isDefeated() ? [] : escorts.flatMap(escort => {
+		const dividends: DividendPayout[] = !this.battleWon ? [] : escorts.flatMap(escort => {
 			const dividend = escort.escort?.dividend;
 			return dividend ? [{ escort, ...dividend }] : [];
 		});

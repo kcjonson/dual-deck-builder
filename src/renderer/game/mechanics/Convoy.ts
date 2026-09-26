@@ -19,13 +19,13 @@ export interface AfterFight {
 	 * Living escorts on the player team at the end, in team order, whatever
 	 * made them escorts: the convoy's own and any driven vehicle that became
 	 * one this fight. Set-piece allies aren't the convoy's and aren't here.
-	 * Each has already left the road.
+	 * Each has already left the road, with its armor refilled.
 	 */
 	escorts: Vehicle[];
 	/** Convoy escorts wrecked this fight. The copies they brought have already left the decks. */
 	lost: Vehicle[];
 	/**
-	 * What the surviving haulers paid, empty after a lost fight. A heal has
+	 * What the surviving haulers paid, empty unless the fight was won. A heal has
 	 * already landed on the drivers; fuel and scrap are for the run to add,
 	 * since nothing holds them yet.
 	 */

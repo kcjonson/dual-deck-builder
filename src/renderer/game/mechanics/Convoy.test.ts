@@ -66,6 +66,12 @@ const convertToEscort = (vehicle: Vehicle): void => {
 	vehicle.set({ driver: null, escort: profile });
 };
 
+/** End the fight as a win, the only fight haulers pay out after */
+const endWon = (battle: Battle): ReturnType<Battle['endCombat']> => {
+	battle.set({ battleOver: true, battleWon: true });
+	return battle.endCombat();
+};
+
 const healLines = (battle: Battle): string[] =>
 	battle.getMessages().filter(message => message.type === 'heal_applied').map(message => message.message);
 
@@ -180,7 +186,7 @@ describe('Convoy', () => {
 			expect(hauler.structure).toBe(structure);
 		});
 
-		test('leaves the road at the end: slot, flank, statuses, Shield, spent, and passenger cleared, armor back to full', () => {
+		test('leaves the road at the end: slot, flank, statuses, Shield, and spent cleared, armor back to full', () => {
 			const outrider = createEscort({ type: 'outrider' });
 			const hauler = createEscort({ type: 'fuel_hauler' });
 			const buggy = createDriven('Buggy');
@@ -193,7 +199,6 @@ describe('Convoy', () => {
 			outrider.applyStatusEffect({ name: 'speed_boost', duration: 2, value: 2 });
 			hauler.addShield(6);
 			hauler.takeDamage(8);
-			hauler.passenger = createTestDriver('Rider');
 
 			const { escorts } = battle.endCombat();
 
@@ -204,9 +209,49 @@ describe('Convoy', () => {
 				expect(escort.statusEffects).toEqual([]);
 				expect(escort.shield).toBe(0);
 				expect(escort.spent).toBe(false);
-				expect(escort.passenger).toBeNull();
 				expect(escort.armor).toBe(escort.maxArmor);
 			}
+		});
+
+		test('a passenger riding in an escort stays seated and on the team', () => {
+			const hauler = createEscort({ type: 'fuel_hauler' });
+			const battle = createBattle([rig, bike, hauler]);
+			const rider = createTestDriver('Rider');
+			hauler.passenger = rider;
+
+			battle.endCombat();
+
+			expect(hauler.passenger).toBe(rider);
+			expect(battle.playerTeam.getAllDrivers()).toContain(rider);
+		});
+
+		test('a driven vehicle leaves the road too, so the same team can start another fight', () => {
+			const buggy = createDriven('Buggy');
+			const first = createBattle([rig, bike], [buggy]);
+			rig.set({
+				slot: slot(RoadLane.ENEMY_SHOULDER, RoadRow.CENTER),
+				flank: { reservedSlot: rig.slot, outran: buggy },
+				maxArmor: 5,
+				armor: 2
+			});
+			rig.addShield(4);
+			rig.applyStatusEffect({ name: 'speed_boost', duration: 2, value: 2 });
+
+			first.endCombat();
+
+			expect(rig.slot).toBeNull();
+			expect(rig.flank).toBeNull();
+			expect(rig.shield).toBe(0);
+			expect(rig.statusEffects).toEqual([]);
+			// Driven vehicles' armor between fights is run-state work (DDB-166)
+			expect(rig.armor).toBe(2);
+			const next = new Battle({
+				playerTeam: first.playerTeam,
+				enemyTeam: new Team({ type: TeamType.ENEMY, vehicles: [createDriven('Buggy')] })
+			});
+			expect(next.playerTeam.vehicles).toContain(rig);
+			expect(rig.slot).toEqual(slot(RoadLane.PLAYER_INSIDE, RoadRow.CENTER));
+			expect(rig.isFlanking).toBe(false);
 		});
 
 		test('one that ended the fight flanking opens the next in its preferred slot', () => {
@@ -238,7 +283,7 @@ describe('Convoy', () => {
 			const battle = createBattle([rig, bike, truck]);
 			driverOf(rig).set({ hitpoints: 1, maxHitpoints: 20 });
 
-			const result = battle.endCombat();
+			const result = endWon(battle);
 
 			expect(battle.endCombat()).toBe(result);
 			expect(battle.afterFight).toBe(result);
@@ -288,7 +333,7 @@ describe('Convoy', () => {
 			const hauler = createEscort({ type: 'fuel_hauler' });
 			const battle = createBattle([rig, bike, hauler]);
 
-			const { dividends } = battle.endCombat();
+			const { dividends } = endWon(battle);
 
 			expect(dividends).toEqual([{ escort: hauler, kind: 'fuel', amount: 1 }]);
 			expect(battle.getMessages().map(message => message.message)).toContain('Fuel Hauler pays out 1 fuel');
@@ -299,7 +344,7 @@ describe('Convoy', () => {
 			const battle = createBattle([rig, bike, hauler]);
 			hauler.destroy();
 
-			expect(battle.endCombat().dividends).toEqual([]);
+			expect(endWon(battle).dividends).toEqual([]);
 		});
 
 		test('a Med Truck heals every living driver 3, up to their starting HP, including one who crashed out', () => {
@@ -315,7 +360,7 @@ describe('Convoy', () => {
 			battle.playerTeam.handleVehicleDestruction(bike);
 			expect(battle.playerTeam.getAliveDrivers()).not.toContain(bikeDriver);
 
-			const { dividends } = battle.endCombat();
+			const { dividends } = endWon(battle);
 
 			expect(dividends).toEqual([{ escort: truck, kind: 'heal', amount: 3 }]);
 			expect(rigDriver.hitpoints).toBe(13);
@@ -330,7 +375,7 @@ describe('Convoy', () => {
 			const battle = createBattle([rig, bike, createEscort({ type: 'med_truck' })]);
 			driverOf(bike).takeDamage(1000);
 
-			battle.endCombat();
+			endWon(battle);
 
 			expect(driverOf(bike).hitpoints).toBe(0);
 		});
@@ -339,7 +384,7 @@ describe('Convoy', () => {
 			const battle = createBattle([rig, bike, createEscort({ type: 'med_truck' }), createEscort({ type: 'med_truck' })]);
 			driverOf(rig).set({ hitpoints: 10, maxHitpoints: 20 });
 
-			battle.endCombat();
+			endWon(battle);
 
 			expect(driverOf(rig).hitpoints).toBe(16);
 		});
@@ -354,6 +399,29 @@ describe('Convoy', () => {
 			bike.handleDriverDeath();
 
 			expect(battle.endCombat().dividends).toEqual([]);
+		});
+
+		test('nothing pays out after a tie at the turn limit, and a crashed-out driver isn\'t healed', async () => {
+			const truck = createEscort({ type: 'med_truck' });
+			const hauler = createEscort({ type: 'fuel_hauler' });
+			const battle = new Battle({
+				playerTeam: new Team({ type: TeamType.PLAYER, vehicles: [rig, bike, truck, hauler] }),
+				enemyTeam: new Team({ type: TeamType.ENEMY, vehicles: [createDriven('Buggy')] }),
+				maxTurns: 1
+			});
+			const bikeDriver = driverOf(bike);
+			bikeDriver.set({ hitpoints: 10, maxHitpoints: 20 });
+			rig.passenger = createTestDriver('Rider');
+			truck.passenger = createTestDriver('Truck Rider');
+			hauler.passenger = createTestDriver('Hauler Rider');
+			battle.playerTeam.handleVehicleDestruction(bike);
+			battle.start();
+
+			await battle.endPlayerTurn();
+
+			expect(battle.battleTied).toBe(true);
+			expect(battle.afterFight?.dividends).toEqual([]);
+			expect(bikeDriver.hitpoints).toBe(10);
 		});
 
 		test('a won fight ends with the result ready for the run', () => {

@@ -189,7 +189,7 @@ Persistence and dividends were decided 2026-09-26 (Kevin delegated the calls; re
 - After a fight, every living escort stays in the convoy, whatever made it an escort. A driven vehicle that became one (see Passengers and unmanned vehicles) joins the end of the roster and counts toward the 4. If that makes 5, you dismiss one before the next fight.
 - Damage persists between fights: an escort starts the next fight with the structure it ended on. The garage repairs it. Everything else is the fight's: an escort starts the next fight in formation at full armor, with no statuses or Shield, ready. (Armor refilling is a build call, proposed in escorts.md for Kevin to confirm.)
 - A lost escort is gone for the run, with its signature card.
-- Haulers pay a dividend after every fight they survive, unless the fight was lost: the Fuel Hauler +1 fuel, the Med Truck 3 HP to every living driver in the run (up to their starting HP, and including a driver who crashed out), the Salvage Rig (not one of the first four) +15 scrap. Each hauler pays its own, so two Med Trucks heal 6.
+- Haulers pay a dividend after a won fight they survive (a tie or a loss pays nothing): the Fuel Hauler +1 fuel, the Med Truck 3 HP to every living driver in the run (up to their starting HP, and including a driver who crashed out), the Salvage Rig (not one of the first four) +15 scrap. Each hauler pays its own, so two Med Trucks heal 6.
 
 ### Passengers and unmanned vehicles
 
