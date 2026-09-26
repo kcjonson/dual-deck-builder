@@ -1,6 +1,6 @@
 import { Battle, BattleMessage } from './renderer/game/mechanics/Battle';
 import { Team, TeamType } from './renderer/game/mechanics/Team';
-import { Vehicle } from './renderer/game/mechanics/Vehicle';
+import { Vehicle, createDrivenVehicle } from './renderer/game/mechanics/Vehicle';
 import { DriverArchetype } from './renderer/game/mechanics/Driver';
 import { DriverLoader } from './renderer/game/core/DriverLoader';
 import { CardLoader } from './renderer/game/core/CardLoader';
@@ -88,22 +88,9 @@ class BattleSimulator {
 			const driver = await this.driverLoader.createDriverWithStartingDeck(setup.playerDrivers[i] as DriverArchetype);
 			if (!driver) throw new Error(`Unknown driver: ${setup.playerDrivers[i]}`);
 			
-			const vehicle = new Vehicle({
-				name: `Player Vehicle ${i + 1}`,
-				structure: driver.vehicleStats.maxStructure,
-				maxStructure: driver.vehicleStats.maxStructure,
-				armor: 10, // Start with full armor
-				maxArmor: 10,
-				speed: driver.vehicleStats.speed,
-				baseSpeed: driver.vehicleStats.speed,
-				slot: null,
-				flank: null,
-				velocity: 0,
-				driver: driver,
-				passenger: null,
-				statusEffects: []
-			});
-			
+			const vehicle = createDrivenVehicle({ driver, name: `Player Vehicle ${i + 1}` });
+			// The simulator starts every vehicle on 10 armor, whatever its stat block says
+			vehicle.set({ armor: 10, maxArmor: 10 });
 			playerVehicles.push(vehicle);
 		}
 		
@@ -118,22 +105,8 @@ class BattleSimulator {
 			const driver = await this.driverLoader.createDriverWithStartingDeck(setup.enemyDrivers[i] as DriverArchetype);
 			if (!driver) throw new Error(`Unknown driver: ${setup.enemyDrivers[i]}`);
 			
-			const vehicle = new Vehicle({
-				name: `Enemy Vehicle ${i + 1}`,
-				structure: driver.vehicleStats.maxStructure,
-				maxStructure: driver.vehicleStats.maxStructure,
-				armor: 10, // Start with full armor
-				maxArmor: 10,
-				speed: driver.vehicleStats.speed,
-				baseSpeed: driver.vehicleStats.speed,
-				slot: null,
-				flank: null,
-				velocity: 0,
-				driver: driver,
-				passenger: null,
-				statusEffects: []
-			});
-			
+			const vehicle = createDrivenVehicle({ driver, name: `Enemy Vehicle ${i + 1}` });
+			vehicle.set({ armor: 10, maxArmor: 10 });
 			enemyVehicles.push(vehicle);
 		}
 		

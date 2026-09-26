@@ -87,7 +87,8 @@ describe('Battle', () => {
 			skills: {
 				ramming: 5,
 				gunnery: 5,
-				evade: 5
+				evade: 5,
+				speed: 5
 			},
 			vehicleStats: {
 				maxStructure: 30,
@@ -122,7 +123,8 @@ describe('Battle', () => {
 			skills: {
 				ramming: 5,
 				gunnery: 5,
-				evade: 5
+				evade: 5,
+				speed: 5
 			},
 			vehicleStats: {
 				maxStructure: 30,
@@ -158,7 +160,8 @@ describe('Battle', () => {
 			skills: {
 				ramming: 5,
 				gunnery: 5,
-				evade: 5
+				evade: 5,
+				speed: 4
 			},
 			vehicleStats: {
 				maxStructure: 20,
@@ -188,7 +191,6 @@ describe('Battle', () => {
 			maxStructure: 30,
 			armor: 0,
 			maxArmor: 10,
-			speed: 5,
 			baseSpeed: 5,
 			slot: null,
 			flank: null,
@@ -204,7 +206,6 @@ describe('Battle', () => {
 			maxStructure: 30,
 			armor: 0,
 			maxArmor: 10,
-			speed: 5,
 			baseSpeed: 5,
 			slot: null,
 			flank: null,
@@ -220,7 +221,6 @@ describe('Battle', () => {
 			maxStructure: 20,
 			armor: 0,
 			maxArmor: 5,
-			speed: 4,
 			baseSpeed: 4,
 			slot: null,
 			flank: null,
@@ -589,7 +589,8 @@ describe('Battle', () => {
 				skills: {
 					ramming: 5,
 					gunnery: 5,
-					evade: 5
+					evade: 5,
+					speed: 4
 				},
 				vehicleStats: {
 					maxStructure: 20,
@@ -777,7 +778,6 @@ describe('Battle', () => {
 				maxStructure: 20,
 				armor: 0,
 				maxArmor: 5,
-				speed: 4,
 				baseSpeed: 4,
 				slot: { lane: RoadLane.ENEMY_OUTSIDE, row: RoadRow.CENTER },
 				flank: null,

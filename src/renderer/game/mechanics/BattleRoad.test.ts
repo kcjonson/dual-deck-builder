@@ -8,14 +8,13 @@ import { createTestDriver } from '../ai/__tests__/test-helpers';
 
 const slot = (lane: RoadLane, row: RoadRow): RoadSlot => ({ lane, row });
 
-// Total speed is baseSpeed plus the test driver's 50
+// Total speed is baseSpeed plus the test driver's speed skill of 2
 const createVehicle = (name: string, baseSpeed: number, startSlot: RoadSlot | null = null): Vehicle => new Vehicle({
 	name,
 	armor: 0,
 	maxArmor: 0,
 	structure: 20,
 	maxStructure: 20,
-	speed: baseSpeed,
 	baseSpeed,
 	slot: startSlot,
 	flank: null,

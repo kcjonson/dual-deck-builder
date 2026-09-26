@@ -128,7 +128,7 @@ Escorts are vehicles in your convoy with a slot and a plate but no driver and no
 
 ### 2.1 The Road Warrior (Tank)
 
-**Vehicle**: War Rig **Theme**: High armor, ramming attacks, area damage
+**Vehicle**: War Rig **Theme**: High armor, ramming attacks, area damage **Driver speed**: 1 (see Combat Rules, Driver speeds)
 
 Starting Deck:
 
@@ -142,7 +142,7 @@ Starting Deck:
 
 ### 2.2 The Interceptor (Assassin)
 
-**Vehicle**: Lightning Bike **Theme**: High damage, speed, critical hits
+**Vehicle**: Lightning Bike **Theme**: High damage, speed, critical hits **Driver speed**: 3
 
 Starting Deck:
 
@@ -156,7 +156,7 @@ Starting Deck:
 
 ### 2.3 The Mechanic (Support)
 
-**Vehicle**: Mobile Workshop **Theme**: Buffs, debuffs, resource generation
+**Vehicle**: Mobile Workshop **Theme**: Buffs, debuffs, resource generation **Driver speed**: 2
 
 Starting Deck:
 
@@ -170,7 +170,7 @@ Starting Deck:
 
 ### 2.4 The Raider (Berserker)
 
-**Vehicle**: Spike Buggy **Theme**: Self-damage for power, lifesteal, chaos
+**Vehicle**: Spike Buggy **Theme**: Self-damage for power, lifesteal, chaos **Driver speed**: 2
 
 Starting Deck:
 

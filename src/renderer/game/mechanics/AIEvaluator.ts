@@ -2,7 +2,7 @@ import { Battle } from './Battle';
 import { AIType } from '../ai/AIController';
 import { Driver } from './Driver';
 import { Team, TeamType } from './Team';
-import { Vehicle } from './Vehicle';
+import { Vehicle, createDrivenVehicle } from './Vehicle';
 import { DriverLoader } from '../core/DriverLoader';
 import { CardLoader } from '../core/CardLoader';
 
@@ -162,51 +162,14 @@ export class AIEvaluator {
 		// Get available cards
 		const availableCards = CardLoader.getInstance().getAllCardsAsMap();
 		
-		// Create vehicles for player team
-		const playerVehicles = player1Drivers.map(driver => {
+		// Each vehicle gets its own copy of the driver, with a fresh starting deck
+		const vehicleFor = (driver: Driver): Vehicle => {
 			const driverCopy = driver.copy();
-			// Create starting deck for the driver
 			driverCopy.createStartingDeck(availableCards);
-			
-			return new Vehicle({
-				name: driver.metadata.vehicleName,
-				armor: driver.vehicleStats.armor,
-				maxArmor: driver.vehicleStats.armor,
-				structure: driver.vehicleStats.maxStructure,
-				maxStructure: driver.vehicleStats.maxStructure,
-				speed: driver.vehicleStats.speed,
-				baseSpeed: driver.vehicleStats.speed,
-				slot: null,
-				flank: null,
-				velocity: 0,
-				driver: driverCopy,
-				passenger: null,
-				statusEffects: []
-			});
-		});
-		
-		// Create vehicles for enemy team
-		const enemyVehicles = player2Drivers.map(driver => {
-			const driverCopy = driver.copy();
-			// Create starting deck for the driver
-			driverCopy.createStartingDeck(availableCards);
-			
-			return new Vehicle({
-				name: driver.metadata.vehicleName,
-				armor: driver.vehicleStats.armor,
-				maxArmor: driver.vehicleStats.armor,
-				structure: driver.vehicleStats.maxStructure,
-				maxStructure: driver.vehicleStats.maxStructure,
-				speed: driver.vehicleStats.speed,
-				baseSpeed: driver.vehicleStats.speed,
-				slot: null,
-				flank: null,
-				velocity: 0,
-				driver: driverCopy,
-				passenger: null,
-				statusEffects: []
-			});
-		});
+			return createDrivenVehicle({ driver: driverCopy });
+		};
+		const playerVehicles = player1Drivers.map(vehicleFor);
+		const enemyVehicles = player2Drivers.map(vehicleFor);
 		
 		// Create teams with vehicles
 		const playerTeam = new Team({

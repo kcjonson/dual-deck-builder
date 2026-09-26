@@ -594,7 +594,7 @@ export class Battle extends Model<BattleData> {
 		if (effect.formula && typeof effect.formula === 'string' && target) {
 			damage = this.calculateFormulaDamage(effect.formula, {
 				armor: raider.armor,
-				speedDiff: action.speed - target.getTotalSpeed()
+				speedDiff: action.speed - target.speed
 			});
 		}
 		return this.applyDamageModifiers(damage, action.flanking, target);
@@ -848,7 +848,7 @@ export class Battle extends Model<BattleData> {
 						if (effect.formula && typeof effect.formula === 'string') {
 							damage = this.calculateFormulaDamage(effect.formula, {
 								armor: casterVehicle.armor,
-								speedDiff: casterVehicle.getTotalSpeed() - targetVehicle.getTotalSpeed()
+								speedDiff: casterVehicle.speed - targetVehicle.speed
 							});
 						}
 						damage = this.calculateDamage(damage, casterVehicle, targetVehicle);
@@ -1001,7 +1001,7 @@ export class Battle extends Model<BattleData> {
 						const duration = typeof effect.duration === 'number' ? effect.duration : 1;
 						
 						// Get speed before applying status for speed-related effects
-						const speedBefore = statusVehicle.getTotalSpeed();
+						const speedBefore = statusVehicle.speed;
 						
 						statusVehicle.applyStatusEffect({
 							name: statusName,
@@ -1011,7 +1011,7 @@ export class Battle extends Model<BattleData> {
 						});
 						
 						// Get speed after applying status
-						const speedAfter = statusVehicle.getTotalSpeed();
+						const speedAfter = statusVehicle.speed;
 						
 						// Create appropriate log message based on status type
 						let logMessage = `${card.displayName} applies ${statusName} to ${statusVehicle.name}`;

@@ -32,7 +32,7 @@ describe('Hand cap', () => {
 				flavorText: 'Test driver',
 				unlocked: true
 			},
-			skills: { ramming: 5, gunnery: 5, evade: 5 },
+			skills: { ramming: 5, gunnery: 5, evade: 5, speed: 1 },
 			vehicleStats: { maxStructure: 10, weight: 1, armor: 0, speed: 1, gunnery: 1, evade: 1 },
 			startingDeck: { cards: [] },
 			hitpoints: 5,

@@ -38,7 +38,7 @@ export class BoardProjection {
 					team: team.type,
 					slot: vehicle.slot,
 					flank: vehicle.flank,
-					speed: vehicle.getTotalSpeed()
+					speed: vehicle.speed
 				});
 				for (const driver of [vehicle.driver, vehicle.passenger]) {
 					if (!driver) continue;

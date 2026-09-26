@@ -18,13 +18,14 @@ export function createTestDriver(name: string): Driver {
 		skills: {
 			ramming: 5,
 			gunnery: 5,
-			evade: 5
+			evade: 5,
+			speed: 2
 		},
 		vehicleStats: {
 			maxStructure: 10,
 			weight: 100,
 			armor: 5,
-			speed: 50,
+			speed: 3,
 			gunnery: 70,
 			evade: 30
 		},
@@ -49,8 +50,7 @@ export function createTestVehicle(name: string, driver: Driver): Vehicle {
 		maxArmor: 5,
 		structure: 10,
 		maxStructure: 10,
-		speed: 50,
-		baseSpeed: 50,
+		baseSpeed: 3,
 		slot: null,
 		flank: null,
 		velocity: 0,

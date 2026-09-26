@@ -1,5 +1,5 @@
 import { AIPlayer } from './AIPlayer';
-import { AIDecision, AIStrategy, GameStateEvaluation, VehicleEvaluation } from './types';
+import { AIDecision, AIStrategy, FAST_VEHICLE_SPEED, GameStateEvaluation, VehicleEvaluation } from './types';
 import { Team } from '../mechanics/Team';
 import { Battle } from '../mechanics/Battle';
 import { Vehicle } from '../mechanics/Vehicle';
@@ -17,7 +17,7 @@ export class AggressiveFlankerStrategy implements AIStrategy {
 	private readonly POSITION_WEIGHT = 200;
 	private readonly DAMAGE_WEIGHT = 10;
 	private readonly HEAL_WEIGHT = 50;
-	private readonly SPEED_THRESHOLD = 60; // Minimum total speed for flanking (baseSpeed + driver speed)
+	private readonly SPEED_THRESHOLD = FAST_VEHICLE_SPEED;
 
 	chooseBestAction(
 		possibleActions: AIDecision[],

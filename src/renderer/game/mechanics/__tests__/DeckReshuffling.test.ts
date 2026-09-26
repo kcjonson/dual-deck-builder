@@ -39,13 +39,14 @@ describe('Deck Reshuffling', () => {
 			skills: {
 				ramming: 5,
 				gunnery: 5,
-				evade: 5
+				evade: 5,
+				speed: 2
 			},
 			vehicleStats: {
 				maxStructure: 10,
 				weight: 100,
 				armor: 5,
-				speed: 50,
+				speed: 3,
 				gunnery: 70,
 				evade: 30
 			},

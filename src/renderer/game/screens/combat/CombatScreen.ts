@@ -12,7 +12,7 @@ import { buildPlayerHandView } from './PlayerHandView';
 import { Driver, DriverRole } from '../../mechanics/Driver';
 import { assertDriverPair } from '../../mechanics/DriverPair';
 import { CombatLog, CombatLogType } from '../../mechanics/CombatLog';
-import { Vehicle } from '../../mechanics/Vehicle';
+import { Vehicle, createDrivenVehicle } from '../../mechanics/Vehicle';
 import { RoadLane, RoadRow } from '../../mechanics/Road';
 import { Team, TeamType } from '../../mechanics/Team';
 import { Battle, BattleState, BattleMessage } from '../../mechanics/Battle';
@@ -94,13 +94,8 @@ export class CombatScreen extends Screen {
 			driver1.createStartingDeck(cardLoader.getAllCardsAsMap());
 			driver2.createStartingDeck(cardLoader.getAllCardsAsMap());
 			
-			// Create vehicles based on driver configs
-			const vehicle1 = this.createVehicleFromDriver(driver1);
-			const vehicle2 = this.createVehicleFromDriver(driver2);
-			
-			// Assign drivers to their vehicles
-			vehicle1.driver = driver1;
-			vehicle2.driver = driver2;
+			const vehicle1 = createDrivenVehicle({ driver: driver1 });
+			const vehicle2 = createDrivenVehicle({ driver: driver2 });
 
 			this.playerDrivers = [driver1, driver2];
 
@@ -270,29 +265,6 @@ export class CombatScreen extends Screen {
 	}
 
 	/**
-	 * Create a vehicle from a driver configuration
-	 */
-	private createVehicleFromDriver(driver: Driver): Vehicle {
-		const vehicleStats = driver.vehicleStats;
-		
-		return new Vehicle({
-			name: driver.metadata.vehicleName,
-			armor: vehicleStats.armor,
-			maxArmor: vehicleStats.armor,
-			structure: vehicleStats.maxStructure,
-			maxStructure: vehicleStats.maxStructure,
-			speed: vehicleStats.speed,
-			baseSpeed: vehicleStats.speed,
-			slot: null,
-			flank: null,
-			velocity: 0,
-			driver: null,
-			passenger: null,
-			statusEffects: []
-		});
-	}
-
-	/**
 	 * Create a test enemy team
 	 */
 	private createTestEnemyTeam(): Team {
@@ -309,7 +281,8 @@ export class CombatScreen extends Screen {
 			skills: {
 				ramming: 5,
 				gunnery: 6,
-				evade: 4
+				evade: 4,
+				speed: 2
 			},
 			vehicleStats: {
 				maxStructure: 30,
@@ -339,21 +312,8 @@ export class CombatScreen extends Screen {
 		const cardLoader = CardLoader.getInstance();
 		enemyDriver1.createStartingDeck(cardLoader.getAllCardsAsMap());
 
-		const enemyVehicle1 = new Vehicle({
-			name: 'Rust Buggy',
-			armor: 5,
-			maxArmor: 5,
-			structure: 30,
-			maxStructure: 30,
-			speed: 3,
-			baseSpeed: 3,
-			slot: { lane: RoadLane.ENEMY_INSIDE, row: RoadRow.CENTER },
-			flank: null,
-			velocity: 0,
-			driver: enemyDriver1,
-			passenger: null,
-			statusEffects: []
-		});
+		const enemyVehicle1 = createDrivenVehicle({ driver: enemyDriver1 });
+		enemyVehicle1.slot = { lane: RoadLane.ENEMY_INSIDE, row: RoadRow.CENTER };
 
 		return new Team({
 			type: TeamType.ENEMY,

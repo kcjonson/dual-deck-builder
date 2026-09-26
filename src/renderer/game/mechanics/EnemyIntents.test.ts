@@ -9,7 +9,7 @@ import { createTestDriver } from '../ai/__tests__/test-helpers';
 
 const slot = (lane: RoadLane, row: RoadRow): RoadSlot => ({ lane, row });
 
-// Total speed is baseSpeed plus the test driver's 50. Drivers get enough
+// Total speed is baseSpeed plus the test driver's speed skill of 2. Drivers get enough
 // hitpoints that a few hits don't end the fight.
 const createVehicle = (name: string, baseSpeed: number, startSlot: RoadSlot | null = null): Vehicle => {
 	const driver = createTestDriver(`${name} Driver`);
@@ -20,7 +20,6 @@ const createVehicle = (name: string, baseSpeed: number, startSlot: RoadSlot | nu
 		maxArmor: 0,
 		structure: 20,
 		maxStructure: 20,
-		speed: baseSpeed,
 		baseSpeed,
 		slot: startSlot,
 		flank: null,

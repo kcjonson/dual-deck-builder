@@ -6,6 +6,18 @@ This document contains the chronological log of completed development tasks for 
 
 **Date correction (2026-08-22):** the repo's first commit is 2025-05-17, but many entries below carry dates in December 2024 or January 2025 — the AI that wrote them used its assumed date instead of the real one. Entries dated 2025-07-03 and 2025-07-02 have been corrected from "2025-01-03"/"2025-01-02" (verified against git history). Remaining Dec 2024 / Jan 2025 dates are wrong by roughly six months; the real work happened May–July 2025. Trust git history over these dates.
 
+## Driver speed counts once (2026-09-26)
+
+**What landed:** DDB-159. A driven vehicle's speed was its driver's `vehicleStats.speed` twice: once as `baseSpeed`, once more in `getTotalSpeed`. Now it's the spec's driver speed plus vehicle base speed, with per-driver values Kevin set on 2026-09-26.
+
+- `DriverSkills.speed` (1-5) is the driver's speed: Road Warrior 1, Interceptor 3, Mechanic 2, Raider 2, and the combat screen's Rust Buggy driver 2. `vehicleStats.speed` stays the signature vehicle's base speed. Gunnery, evade, and ramming split out as `CrewSkills`, which is what `Vehicle.crewSkills` returns, since an escort's profile has no speed.
+- `Vehicle.speed` is now a getter for the one total that flanking, drop-back, the ram formula, the projection, and the AI read: base speed, plus the speed skill of whoever is at the wheel, plus statuses. That fixes a second bug: `getTotalSpeed` added the driver's own vehicle's speed, so a passenger taking the wheel brought the speed of the car they'd lost. The stored `speed` field, `updateSpeedFromEffects`, and `getTotalSpeed` are gone, and `Team`'s serializer now reports the same number flanking uses. `RammingAI` already read the projected speed, so it needed nothing.
+- `createDrivenVehicle({ driver, name? })` in `Vehicle.ts` is the one way to build a driven vehicle: both combat screen sites, `AIEvaluator`, and both `battle-simulator.ts` sites use it (the simulator still overrides armor to 10).
+- Totals went from Rig 2, Workshop 4, Spike Buggy 6, Bike 10, Rust Buggy 6 to Rig 2, Workshop 4, Spike Buggy 5, Bike 8, Rust Buggy 5. An Outrider (5) now outruns the Rig and the Workshop and ties both Buggies, which isn't enough to flank.
+- The three AI "fast" thresholds (AggressiveFlanker, Ramming, and MCTS's two literals) were 60, calibrated against 50-scale test helpers where every vehicle sat at 100, so in real fights every AI always thought it was slow. They're now `FAST_VEHICLE_SPEED = 6` in `ai/types.ts`, one past the Buggies and the Outrider.
+
+**How:** the AI test helpers moved to a speed 2 driver in a base 3 vehicle, and the AggressiveFlanker and Ramming tests set base speeds on either side of 6. One Ramming test had passed only because every test vehicle counted as fast on the old scale; it now sets a fast rammer explicitly. The Battle and CombatMechanics fixtures give drivers the speed their old `vehicleStats` added, so their totals don't move. New `DrivenVehicleSpeed.test.ts` (12 tests): each stock driver's total, the spec range, statuses, a passenger taking the wheel, an empty seat, and Outrider flanks against the Rust Buggy (blocked on a tie), the Rig, and a slowed Buggy. One new AggressiveFlanker test checks that a vehicle already at 7 shoots instead of boosting. 942 tests pass (929 before).
+
 ## Escorts take fire (2026-09-26)
 
 **What landed:** DDB-148. Escorts are no longer immune: attacks and debuffs on them roll against their own evade, damage lands, and a wrecked escort leaves the road.
