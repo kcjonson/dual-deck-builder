@@ -279,10 +279,11 @@ export class Vehicle extends Layer {
 		this.healthText.setText(`${this.vehicleData.structure}/${this.vehicleData.maxStructure}`);
 		
 		// Update armor
-		this.armorDisplay.setFillColor(this.vehicleData.armor > 0 ? '#6a6aaa' : '#4a4a4a');
-		// Shield, temporary armor on top, shows as a second number while there is any
+		// Shield, temporary armor on top, shows as "SH" and a second number
+		// while there is any. Plain ASCII: the font atlas has nothing else.
 		const shield = this.vehicleData.shield ?? 0;
-		this.armorText.setText(shield > 0 ? `${this.vehicleData.armor}⛡ +${shield}` : `${this.vehicleData.armor}⛡`);
+		this.armorDisplay.setFillColor(this.vehicleData.armor > 0 || shield > 0 ? '#6a6aaa' : '#4a4a4a');
+		this.armorText.setText(shield > 0 ? `${this.vehicleData.armor}⛡ SH${shield}` : `${this.vehicleData.armor}⛡`);
 
 		this.spentChip?.setVisible(Boolean(this.vehicleData.spent));
 	}
