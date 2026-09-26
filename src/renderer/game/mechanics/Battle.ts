@@ -9,6 +9,7 @@ import {
 	flankLane,
 	isFormationLane,
 	openingSlots,
+	resolveFormationSlot,
 	sameSlot,
 	slotRange
 } from './Road';
@@ -185,7 +186,9 @@ export class Battle extends Model<BattleData> {
 	 * Put every vehicle on the road. A vehicle that arrives with a slot (from
 	 * its encounter) keeps it; the rest fill their team's formation in
 	 * opening order, so the player's pair starts inside center and inside
-	 * behind. A slot on the other team's shoulder makes the vehicle an
+	 * behind. Escorts go after the driven vehicles, in roster order, each to
+	 * its type's preferred slot, or the next free one in opening order if
+	 * that's taken. A slot on the other team's shoulder makes the vehicle an
 	 * ambusher, checked once the formations are down since it needs an
 	 * opposing vehicle in its row.
 	 */
@@ -220,9 +223,15 @@ export class Battle extends Model<BattleData> {
 
 		for (const team of teams) {
 			const freeSlots = openingSlots(team.type).filter(slot => !placed.some(v => sameSlot(v.slot, slot)));
-			for (const vehicle of team.vehicles) {
-				if (vehicle.slot) continue;
-				const slot = freeSlots.shift();
+			const unplaced = team.vehicles.filter(vehicle => !vehicle.slot);
+			const inPlacementOrder = [
+				...unplaced.filter(vehicle => !vehicle.isEscort),
+				...unplaced.filter(vehicle => vehicle.isEscort)
+			];
+			for (const vehicle of inPlacementOrder) {
+				const preferred = vehicle.escort ? resolveFormationSlot(team.type, vehicle.escort.preferredSlot) : null;
+				const preferredIndex = freeSlots.findIndex(free => sameSlot(free, preferred));
+				const [slot] = freeSlots.splice(Math.max(preferredIndex, 0), 1);
 				if (!slot) {
 					throw new Error(`No formation slot left for ${vehicle.name}; a formation holds six`);
 				}
@@ -241,14 +250,13 @@ export class Battle extends Model<BattleData> {
 	}
 
 	/**
-	 * Whether an encounter may start a team's vehicles on the other team's
+	 * Whether an encounter may start this vehicle on the other team's
 	 * shoulder. Raiders can, at the start of a fight or when a reinforcement
-	 * wave arrives. On the player's side only set-piece escorts can, and
-	 * escorts don't exist until DDB-146, which should open this for an
-	 * undriven set-piece vehicle. The player's driven vehicles never can.
+	 * wave arrives. On the player's side only set-piece escorts can; the
+	 * driven vehicles and the convoy's own escorts always start in formation.
 	 */
-	private static mayAmbush(teamType: TeamType): boolean {
-		return teamType === TeamType.ENEMY;
+	private static mayAmbush(vehicle: Vehicle, teamType: TeamType): boolean {
+		return teamType === TeamType.ENEMY || Boolean(vehicle.escort?.setPiece);
 	}
 
 	/**
@@ -267,8 +275,10 @@ export class Battle extends Model<BattleData> {
 		if (currentTeam && currentTeam.type !== teamType) {
 			return `${vehicle.name} is on the ${currentTeam.type} team, not the ${teamType} team`;
 		}
-		if (!Battle.mayAmbush(teamType)) {
-			return `${vehicle.name} can't start flanking; the player's driven vehicles always start in formation`;
+		if (!Battle.mayAmbush(vehicle, teamType)) {
+			return vehicle.isEscort
+				? `${vehicle.name} can't start flanking; only set-piece escorts ambush, the convoy's own start in formation`
+				: `${vehicle.name} can't start flanking; the player's driven vehicles always start in formation`;
 		}
 		if (slot.lane !== flankLane(teamType)) {
 			return `${vehicle.name} can only ambush from the ${describeLane(flankLane(teamType))}, not ${describeSlot(slot)}`;

@@ -404,7 +404,7 @@ describe('Battle on the road grid', () => {
 				expect(ambusher.slot).toEqual(slot(RoadLane.PLAYER_SHOULDER, RoadRow.CENTER));
 			});
 
-			test('nothing on the player side can ambush yet', () => {
+			test('a driven player vehicle cannot arrive on the shoulder', () => {
 				const blocker = battle.getAmbushBlocker({
 					vehicle: arriving,
 					teamType: TeamType.PLAYER,

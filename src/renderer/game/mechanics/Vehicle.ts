@@ -2,6 +2,7 @@ import { Driver, DriverRole } from './Driver';
 import { Model } from '../core/Model';
 import { RoadSlot, isShoulder } from './Road';
 import type { IntentTier } from './Intent';
+import type { EscortProfile } from './Escort';
 
 /**
  * Vehicle status effects
@@ -45,6 +46,8 @@ export interface VehicleData {
 	statusEffects: VehicleStatusEffect[];
 	/** How much of this vehicle's plan the player sees when it's a raider. Unset means basic. */
 	intentTier?: IntentTier;
+	/** Set on an escort, which has no driver by design. Unset means a driven vehicle. */
+	escort?: EscortProfile | null;
 }
 
 /**
@@ -95,7 +98,8 @@ export class Vehicle extends Model<VehicleData> {
 		'driver',
 		'passenger',
 		'statusEffects',
-		'intentTier'
+		'intentTier',
+		'escort'
 	]);
 
 	// All properties are now model properties!
@@ -116,6 +120,13 @@ export class Vehicle extends Model<VehicleData> {
 	 */
 	public isAlive(): boolean {
 		return this.structure > 0;
+	}
+
+	/**
+	 * An undriven vehicle in the convoy, acting only when ordered
+	 */
+	public get isEscort(): boolean {
+		return Boolean(this.escort);
 	}
 
 	/**
@@ -297,27 +308,30 @@ export class Vehicle extends Model<VehicleData> {
 	}
 
 	/**
-	 * Nobody alive at the wheel. A dead driver's living passenger takes over,
-	 * so this also means nobody alive aboard.
+	 * A driven vehicle with nobody alive at the wheel. A dead driver's living
+	 * passenger takes over, so this also means nobody alive aboard. An escort
+	 * has no driver by design and is never unmanned.
 	 */
 	public isUnmanned(): boolean {
-		return !this.driver?.isAlive();
+		return !this.isEscort && !this.driver?.isAlive();
 	}
 
 	/**
-	 * Wrecked, or nobody alive aboard. Until escorts land (DDB-152) an
-	 * unmanned vehicle doesn't act, can't be targeted, and leaves the road at
-	 * the end of the turn, like a wreck.
+	 * Wrecked, or unmanned. Until a driverless player vehicle can become an
+	 * escort (DDB-152) an unmanned vehicle doesn't act, can't be targeted,
+	 * and leaves the road at the end of the turn, like a wreck. An escort is
+	 * in the fight while it has structure.
 	 */
 	public get isOutOfFight(): boolean {
 		return !this.isAlive() || this.isUnmanned();
 	}
 
 	/**
-	 * A free passenger seat behind a living driver
+	 * A free passenger seat behind a living driver. Escorts have a seat by
+	 * the rules, but riding in one waits on DDB-152.
 	 */
 	public canAddPassenger(): boolean {
-		return this.passenger === null && !this.isOutOfFight;
+		return this.passenger === null && !this.isEscort && !this.isOutOfFight;
 	}
 
 	/**

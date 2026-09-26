@@ -38,6 +38,15 @@ export interface RoadSlot {
  */
 export type LaneKind = 'inside' | 'outside' | 'shoulder';
 
+/**
+ * A formation slot described from its own team's side, so one value means
+ * the same place for either team (an escort type's preferred slot).
+ */
+export interface FormationSlot {
+	readonly lane: Exclude<LaneKind, 'shoulder'>;
+	readonly row: RoadRow;
+}
+
 const LANE_ORDER: readonly RoadLane[] = [
 	RoadLane.PLAYER_SHOULDER,
 	RoadLane.PLAYER_OUTSIDE,
@@ -93,6 +102,14 @@ export function formationLanes(team: TeamType): readonly [RoadLane, RoadLane] {
 	return team === TeamType.PLAYER
 		? [RoadLane.PLAYER_INSIDE, RoadLane.PLAYER_OUTSIDE]
 		: [RoadLane.ENEMY_INSIDE, RoadLane.ENEMY_OUTSIDE];
+}
+
+/**
+ * The road slot a formation slot names for a team.
+ */
+export function resolveFormationSlot(team: TeamType, { lane, row }: FormationSlot): RoadSlot {
+	const [inside, outside] = formationLanes(team);
+	return { lane: lane === 'inside' ? inside : outside, row };
 }
 
 /**

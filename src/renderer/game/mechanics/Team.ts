@@ -5,6 +5,12 @@ import { TeamType } from './TeamType';
 
 export { TeamType };
 
+/** A player team's driven vehicles, one per driver */
+export const PLAYER_DRIVEN_VEHICLES = 2;
+
+/** Escorts from the convoy a player team can field; an encounter's set-piece allies don't count */
+export const MAX_CONVOY_ESCORTS = 4;
+
 /**
  * Team data interface - used throughout the app
  */
@@ -21,8 +27,9 @@ export interface Team extends TeamData {}
 
 /**
  * Team class representing a side in battle
- * Player teams start with exactly 2 vehicles, enemy teams can have variable
- * amounts. Wrecks leave the list when Battle clears them off the road.
+ * Player teams start with exactly 2 driven vehicles plus up to 4 convoy
+ * escorts, listed in roster order, plus any set-piece allies; enemy teams can have variable amounts.
+ * Wrecks leave the list when Battle clears them off the road.
  * Drivers manage their own hands/cards individually
  */
 export class Team extends Model<TeamData> {
@@ -50,14 +57,46 @@ export class Team extends Model<TeamData> {
 	constructor(initialData: TeamData) {
 		super(initialData);
 
-		// Validate player team has exactly 2 vehicles
-		if (initialData.type === TeamType.PLAYER && initialData.vehicles.length !== 2) {
-			throw new Error('Player teams must have exactly 2 vehicles');
+		if (initialData.type === TeamType.PLAYER) {
+			if (this.drivenVehicles.length !== PLAYER_DRIVEN_VEHICLES) {
+				throw new Error(`Player teams must have exactly ${PLAYER_DRIVEN_VEHICLES} driven vehicles, not ${this.drivenVehicles.length}`);
+			}
+			this.assertEscortRoom(0);
 		}
 	}
 
 	// Model properties are automatically available as:
 	// team.type, team.vehicles
+
+	/**
+	 * Vehicles with a driver's seat, whether or not anyone is in it
+	 */
+	public get drivenVehicles(): Vehicle[] {
+		return this.vehicles.filter(vehicle => !vehicle.isEscort);
+	}
+
+	/**
+	 * Escorts in roster order, first acquired first
+	 */
+	public get escorts(): Vehicle[] {
+		return this.vehicles.filter(vehicle => vehicle.isEscort);
+	}
+
+	/**
+	 * Counts toward the escort cap: the convoy's own escorts, wherever they
+	 * are on the road. A set-piece ally belongs to its encounter, so it never
+	 * counts, whether or not its slot has been set yet.
+	 */
+	private static countsTowardEscortCap(vehicle: Vehicle): boolean {
+		return vehicle.isEscort && !vehicle.escort?.setPiece;
+	}
+
+	private assertEscortRoom(adding: number): void {
+		const convoyEscorts = this.vehicles.filter(Team.countsTowardEscortCap).length + adding;
+		if (convoyEscorts > MAX_CONVOY_ESCORTS) {
+			throw new Error(`Player teams can field ${MAX_CONVOY_ESCORTS} convoy escorts, not ${convoyEscorts}`);
+		}
+	}
 
 	/**
 	 * Get all alive vehicles
@@ -103,9 +142,13 @@ export class Team extends Model<TeamData> {
 	 * Add vehicle to team
 	 */
 	public addVehicle(vehicle: Vehicle): void {
-		// Prevent player teams from having more than 2 vehicles
-		if (this.type === TeamType.PLAYER && this.vehicles.length >= 2) {
-			throw new Error('Player teams cannot have more than 2 vehicles');
+		if (this.type === TeamType.PLAYER) {
+			if (!vehicle.isEscort && this.drivenVehicles.length >= PLAYER_DRIVEN_VEHICLES) {
+				throw new Error(`Player teams cannot have more than ${PLAYER_DRIVEN_VEHICLES} driven vehicles`);
+			}
+			if (Team.countsTowardEscortCap(vehicle)) {
+				this.assertEscortRoom(1);
+			}
 		}
 		
 		// Create new array to trigger change event
