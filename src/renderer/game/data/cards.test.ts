@@ -43,6 +43,21 @@ describe('card data check', () => {
 		expect(description).not.toMatch(/\{\w+\}/);
 	});
 
+	// Battle.checkHit adds hit_modifier to the defender's evade, so positive is harder
+	it('Headshot raises the defender\'s evade by 2, and by 1 once upgraded', () => {
+		const data = cards.find((c) => c.type === 'headshot');
+		expect(data).toBeDefined();
+		if (!data) return;
+		const base = new Card({ ...data });
+		const upgraded = new Card({ ...data }).upgrade();
+
+		expect(base.effects[0].hit_modifier).toBe(2);
+		expect(upgraded.effects[0].hit_modifier).toBe(1);
+		expect(base.displaySummary).toContain('Target gets +2 Evade');
+		expect(upgraded.displaySummary).toContain('Target gets +1 Evade');
+		expect(upgraded.displayDescription).toContain('(+1 to defender\'s evade)');
+	});
+
 	it('the summary proxy rejects full rules text used as a summary', () => {
 		const headshot = texts.find((t) => t.label === 'headshot');
 		expect(headshot).toBeDefined();
