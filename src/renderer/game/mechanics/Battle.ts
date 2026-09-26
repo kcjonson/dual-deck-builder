@@ -179,6 +179,7 @@ export class Battle extends Model<BattleData> {
 
 		for (const team of teams) {
 			const shoulder = flankLane(team.type);
+			// Slot collisions catch this too; clearer error
 			const onShoulder = team.vehicles.filter(vehicle => vehicle.slot?.lane === shoulder).length;
 			if (onShoulder > SHOULDER_CAPACITY) {
 				throw new Error(`${onShoulder} vehicles start on the ${describeLane(shoulder)}; a shoulder holds ${SHOULDER_CAPACITY}`);
@@ -236,13 +237,19 @@ export class Battle extends Model<BattleData> {
 	/**
 	 * Why a vehicle can't enter the fight already flanking in this slot, or
 	 * null if it can. The slot must be the other team's shoulder, free (not
-	 * held or reserved), and in a row with a living opposing vehicle in
-	 * formation. The row check applies only on arrival; once there, an
-	 * ambusher keeps its slot even if the vehicle beside it is wrecked.
-	 * Opening placement uses this, and a reinforcement wave arriving
-	 * mid-fight should too (no wave code exists yet).
+	 * held or reserved), and in a row with a living vehicle of the other
+	 * team, wherever it is in that row. The row check applies only on
+	 * arrival; once there, an ambusher keeps its slot even if the vehicle
+	 * beside it is wrecked. Opening placement uses this, and a reinforcement
+	 * wave arriving mid-fight should too (no wave code exists yet). A vehicle
+	 * already on a team must be checked for that team; one still arriving
+	 * goes by the team passed in.
 	 */
 	public getAmbushBlocker({ vehicle, teamType, slot }: { vehicle: Vehicle; teamType: TeamType; slot: RoadSlot }): string | null {
+		const currentTeam = this.getTeamForVehicle(vehicle);
+		if (currentTeam && currentTeam.type !== teamType) {
+			return `${vehicle.name} is on the ${currentTeam.type} team, not the ${teamType} team`;
+		}
 		if (!Battle.mayAmbush(teamType)) {
 			return `${vehicle.name} can't start flanking; the player's driven vehicles always start in formation`;
 		}
@@ -255,10 +262,9 @@ export class Battle extends Model<BattleData> {
 			return `${describeSlot(slot)} is taken`;
 		}
 		const opposingTeam = teamType === TeamType.PLAYER ? this.enemyTeam : this.playerTeam;
-		const hasOpponentInRow = opposingTeam.vehicles.some(other => other.isAlive() && other.slot !== null &&
-			other.slot.row === slot.row && isFormationLane(opposingTeam.type, other.slot.lane));
+		const hasOpponentInRow = opposingTeam.vehicles.some(other => other.isAlive() && other.slot?.row === slot.row);
 		if (!hasOpponentInRow) {
-			return `${vehicle.name} can't ambush in the ${slot.row} row; no ${opposingTeam.type} vehicle is in formation there`;
+			return `${vehicle.name} can't ambush in the ${slot.row} row; no ${opposingTeam.type} vehicle is in it`;
 		}
 		return null;
 	}

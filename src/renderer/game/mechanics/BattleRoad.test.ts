@@ -328,11 +328,11 @@ describe('Battle on the road grid', () => {
 			)).toThrow("the player's driven vehicles always start in formation");
 		});
 
-		test('an ambush row needs an opposing vehicle in formation', () => {
+		test('an ambush row needs an opposing vehicle', () => {
 			expect(() => createBattle(
 				[rig, bike],
 				[createVehicle('Ambusher', 3, slot(RoadLane.PLAYER_SHOULDER, RoadRow.AHEAD))]
-			)).toThrow("Ambusher can't ambush in the ahead row; no player vehicle is in formation there");
+			)).toThrow("Ambusher can't ambush in the ahead row; no player vehicle is in it");
 		});
 
 		test('the row check sees where the formation lands, given or filled', () => {
@@ -343,7 +343,7 @@ describe('Battle on the road grid', () => {
 			expect(ambusher.isAmbusher).toBe(true);
 		});
 
-		test('a shoulder holds three', () => {
+		test('more than three on a shoulder fails with the shoulder-capacity error message', () => {
 			const rows = [RoadRow.AHEAD, RoadRow.CENTER, RoadRow.BEHIND, RoadRow.CENTER];
 			const ambushers = rows.map((row, n) => createVehicle(`Ambusher ${n}`, 3, slot(RoadLane.PLAYER_SHOULDER, row)));
 			expect(() => createBattle([rig, bike], ambushers))
@@ -394,7 +394,7 @@ describe('Battle on the road grid', () => {
 					teamType: TeamType.ENEMY,
 					slot: slot(RoadLane.PLAYER_SHOULDER, RoadRow.BEHIND)
 				});
-				expect(blocker).toBe("Reinforcement can't ambush in the behind row; no player vehicle is in formation there");
+				expect(blocker).toBe("Reinforcement can't ambush in the behind row; no player vehicle is in it");
 			});
 
 			test('an ambusher already on the road keeps its slot when the vehicle beside it is wrecked', async () => {
@@ -411,6 +411,30 @@ describe('Battle on the road grid', () => {
 					slot: slot(RoadLane.ENEMY_SHOULDER, RoadRow.CENTER)
 				});
 				expect(blocker).toContain("the player's driven vehicles always start in formation");
+			});
+
+			test('a vehicle already on a team is checked for that team, not the one passed in', () => {
+				const blocker = battle.getAmbushBlocker({
+					vehicle: rig,
+					teamType: TeamType.ENEMY,
+					slot: slot(RoadLane.PLAYER_SHOULDER, RoadRow.BEHIND)
+				});
+				expect(blocker).toBe('Rig is on the player team, not the enemy team');
+			});
+
+			test('a player flanker on the far shoulder counts as the opposing vehicle in its row', () => {
+				// Nothing in the player formation is in the center row; Rig 55 outruns Buggy 53 into it
+				const fastRig = createVehicle('Rig', 5, slot(RoadLane.PLAYER_INSIDE, RoadRow.AHEAD));
+				const slowBike = createVehicle('Bike', 1, slot(RoadLane.PLAYER_INSIDE, RoadRow.BEHIND));
+				const buggy = createVehicle('Buggy', 3, slot(RoadLane.ENEMY_INSIDE, RoadRow.CENTER));
+				battle = createBattle([fastRig, slowBike], [buggy]);
+				const center = slot(RoadLane.PLAYER_SHOULDER, RoadRow.CENTER);
+
+				expect(battle.getAmbushBlocker({ vehicle: arriving, teamType: TeamType.ENEMY, slot: center }))
+					.toBe("Reinforcement can't ambush in the center row; no player vehicle is in it");
+				expect(playFlank(battle, fastRig, buggy)).toBe(true);
+				expect(fastRig.slot).toEqual(slot(RoadLane.ENEMY_SHOULDER, RoadRow.CENTER));
+				expect(battle.getAmbushBlocker({ vehicle: arriving, teamType: TeamType.ENEMY, slot: center })).toBeNull();
 			});
 		});
 	});
