@@ -1,4 +1,5 @@
-import { Card, CardData } from '../mechanics/Card';
+import { Card, CardData, CardEffect } from '../mechanics/Card';
+import { EFFECT_TARGETS } from '../mechanics/EffectTargets';
 import cardsFile from './cards.json';
 
 /**
@@ -41,6 +42,19 @@ describe('card data check', () => {
 	it.each(texts)('$label has no unfilled {variables}', ({ summary, description }) => {
 		expect(summary).not.toMatch(/\{\w+\}/);
 		expect(description).not.toMatch(/\{\w+\}/);
+	});
+
+	// Every effect says who it lands on. A wrapper (conditional) says it through
+	// the effect it wraps. Upgrades replace the whole effects array, so they count.
+	const upgradeEffects = (data: CardData): CardEffect[] => {
+		const effects = data.upgrades?.effects;
+		return Array.isArray(effects) ? effects : [];
+	};
+	it.each(cards.map((data) => ({ label: data.type, effects: [...data.effects, ...upgradeEffects(data)] })))('$label effects each name a target the battle knows', ({ effects }) => {
+		const leaves = (effect: CardEffect): CardEffect[] => effect.effect ? leaves(effect.effect) : [effect];
+		for (const effect of effects.flatMap(leaves)) {
+			expect(EFFECT_TARGETS).toContain(effect.target);
+		}
 	});
 
 	// Battle.checkHit adds hit_modifier to the defender's evade, so positive is harder

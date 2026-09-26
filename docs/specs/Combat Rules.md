@@ -278,11 +278,13 @@ Specific Cards
   - Rarity Rare
   - Adrenaline 3
   - All enemies skip their turn
+  - Always hits: every enemy vehicle still in the fight is stunned, whatever its evade (decided 2026-09-26)
   - Upgraded -1 Adrenaline
 - Beserker: Utility
   - Rarity Common
   - Adrenaline 1
   - Driver takes 3 damage
+  - The self damage is a flat printed cost: no hit check, and Vulnerable and flanking don't raise it (decided 2026-09-26)
   - Gain 3 Adrenaline
   - Vehicle gains Vulnerable
   - Upgraded damage -1, Adrenaline +1
