@@ -103,10 +103,10 @@ An ambusher has no reserved formation slot and no outran vehicle. It counts as f
 
 - Game over - The fight goes on while at least one of your drivers is still in it, driving or riding as a passenger. When none are (every driver dead or crashed out), the run ends: true death, the session is over, and there's no rescue even for a driver who crashed out alive. Escorts never count toward defeat. Decided by Kevin, 2026-09-25: one driver has to survive to circle back down the road for the other.
 - Driver death - If the vehicle has a passenger, the passenger becomes the driver. If not:
-  - On the player's team, the vehicle becomes an escort for the rest of the fight, with default crew stats (gunnery, evade, ramming) and its own base speed. It brings no signature card, and if this happens mid-turn it starts spent.
+  - On the player's team, the vehicle becomes an escort for the rest of the fight, with default crew stats (gunnery 4, evade 3, ramming 2) and its own base speed. It brings no signature card, and it starts spent: a vehicle only converts mid-turn, and one that converts on the enemy turn is ready again at the start of yours with every other escort. From then on it's ordered like any escort, takes damage on structure only, and has a free passenger seat.
   - A raider vehicle is out of the fight and leaves the road at the end of the turn, like a wreck. Its plan drops (see Enemy intents).
 - Vehicle death - Every vehicle, escorts included, has one passenger seat. The wreck's occupants jump, the driver first, then the passenger.
-  - On the player's team, each goes to the partner's vehicle first, then the nearest escort (lowest range from the wreck, ties broken as for attack orders), whichever has a free seat.
+  - On the player's team, each goes to the partner's vehicle first, then the nearest escort with a free seat (lowest range from the wreck, ties broken as for attack orders). A vehicle that became an escort when its driver died counts as an escort. Nobody is seated behind a dead driver.
   - On a raider team, each goes to any other vehicle on the team with a free seat.
   - A driver with no free seat has crashed out: out of the fight but alive, and their hand is gone for that fight. If the fight is won, the surviving driver goes back down the road and picks them up, so they rejoin the run.
   - A passenger keeps their own deck, hand, discard, and adrenaline, draws every turn, can't play attack cards, and can play order cards.
@@ -132,7 +132,7 @@ Decided by Kevin, 2026-09-25. Record: [enemy-intent-planning.md](../AI_TECHNICAL
 - A raider plans against a projection of the road that tracks slots, flank state, and speed, so a card planned after its own flank or speed boost is judged from where the raider will be.
 - An attack's value is its damage per hit, worked out when shown, so a Vulnerable picked up during the player's turn raises it. Multi-hit shows as damage x hits.
 - When the player makes a planned card illegal (moves out of range, speeds past a planned flank, or slows a flanker so it drops back), the card fizzles: it's spent, does nothing, and the log says why.
-- When a planned target was wrecked earlier in the enemy turn, the card goes to the vehicle the wrecked driver now rides in as a passenger. If there's no such vehicle, it fizzles.
+- When a planned target was wrecked earlier in the enemy turn, the card goes to the vehicle the wrecked driver now rides in as a passenger, escorts included. If there's no such vehicle, it fizzles. A card planned at a player vehicle whose driver has since died lands on it as an escort (so a Headshot fizzles, since it's an empty escort).
 - A raider that is wrecked, or has lost its driver, drops the rest of its plan.
 - Basic raiders show everything. Elites show the type and target but hide the value and the card. Bosses behave like elites until bosses are designed.
 - Raider archetypes have target preferences, applied when the raider plans: looters go for haulers, killers go for drivers (driven vehicles). The preference shows only through the planned intents' target marks, so the player reads it off the road before acting. An archetype picks its preferred target when that target is legal for the card, and otherwise plans as usual. Draw Fire is the counter (see Escorts). Which raiders are looters or killers isn't assigned yet; DDB-150 does that.
@@ -191,7 +191,7 @@ An escort is an undriven vehicle in your convoy: it has a slot and a plate but n
 ### Passengers and unmanned vehicles
 
 - Every escort has one passenger seat. A driver whose vehicle is wrecked rides in the partner's vehicle first, then the nearest escort with a free seat, and crashes out of the fight if there's none, to be picked up after a won fight (see Losing vehicles and drivers). A passenger in an escort can play order cards and any other card that isn't an attack.
-- A driven vehicle whose driver dies with no passenger becomes an escort for the rest of the fight, with default crew stats and its own base speed. It can be ordered like any escort, it starts spent if it converts mid-turn, and it brings no signature card.
+- A driven vehicle whose driver dies with no passenger becomes an escort for the rest of the fight, with default crew stats and its own base speed. It can be ordered like any escort, it starts spent if it converts mid-turn, and it brings no signature card. Its seat is free, so a wreck survivor can ride in it.
 
 ### Starting escort types
 
@@ -210,7 +210,7 @@ The three new signature cards were decided 2026-09-26 (Kevin delegated the call;
 - Flag Down (Pilot Car): the target raider is Vulnerable and 2 slower until the end of the next enemy turn, sure-hit. A setup play for the gun escorts before Covering Fire, and the slow lets drivers flank.
 - Top Off (Fuel Hauler): +1 Adrenaline to the driver or passenger you pick in a convoy vehicle, 0 cost, doesn't spend the hauler. It makes the hauler your adrenaline source, which is what looters target, so protecting it with Draw Fire is a real choice.
 
-Gunnery, evade, ramming, armor, structure, the haulers' speeds, and the default crew stats for an unmanned vehicle are content numbers, set when escorts are built.
+Gunnery, evade, ramming, armor, structure, and the haulers' speeds are content numbers, set when escorts are built. The default crew stats for an unmanned vehicle are gunnery 4, evade 3, ramming 2, below the gun escorts (set in DDB-152, [escorts.md](../AI_TECHNICAL_DECISIONS/escorts.md) decision 41).
 
 ## Cards
 

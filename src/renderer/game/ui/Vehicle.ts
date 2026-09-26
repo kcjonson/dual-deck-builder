@@ -32,6 +32,7 @@ export class Vehicle extends Layer {
 	
 	// State
 	private isHovered = false;
+	private builtShape = '';
 	private modelUnsubscribers: (() => void)[] = [];
 	
 	constructor(args: {
@@ -63,14 +64,27 @@ export class Vehicle extends Layer {
 	 */
 	public set data(vehicleData: VehicleData) {
 		this.vehicleData = vehicleData;
-		this.updateVisuals();
+		if (this.shape !== this.builtShape) {
+			this.rebuild();
+		} else {
+			this.updateVisuals();
+		}
 	}
-	
+
 	/**
 	 * Get the vehicle data
 	 */
 	public get data(): VehicleData {
 		return this.vehicleData;
+	}
+
+	/**
+	 * What decides which elements the plate has: a driver row, and an
+	 * escort's SPENT chip. A driven vehicle that loses its driver becomes an
+	 * escort mid-fight, so the plate rebuilds when this changes.
+	 */
+	private get shape(): string {
+		return `${Boolean(this.vehicleData.driver)}/${this.vehicleData.isEscort}`;
 	}
 	
 	/**
@@ -85,6 +99,8 @@ export class Vehicle extends Layer {
 	}
 	
 	protected createElements(): void {
+		this.builtShape = this.shape;
+		this.driverPortrait = null;
 		const width = this.getWidth();
 		const height = this.getHeight();
 		
@@ -336,12 +352,19 @@ export class Vehicle extends Layer {
 	 * Handle resize
 	 */
 	protected onResized(): void {
-		// Remove all children and recreate with new size
+		this.rebuild();
+	}
+
+	/**
+	 * Recreate every element for the current size and shape
+	 */
+	private rebuild(): void {
 		while (this.children.length > 0) {
 			this.removeChild(this.children[0]);
 		}
 		this.createElements();
 		this.updateVisuals();
+		this.updateVisualState();
 	}
 	
 	/**

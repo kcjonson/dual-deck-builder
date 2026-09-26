@@ -70,7 +70,7 @@ const giveHand = (vehicle: Vehicle, cards: Card[]): void => {
 const logLines = (battle: Battle, type: string): string[] =>
 	battle.getMessages().filter(message => message.type === type).map(message => message.message);
 
-/** A driver riding in an escort. Seating one for real waits on DDB-152. */
+/** A driver riding in an escort, seated by hand */
 const seatPassenger = (escort: Vehicle, hitpoints = 100): Driver => {
 	const rider = createTestDriver('Rider');
 	rider.set({ hitpoints, maxHitpoints: hitpoints });
@@ -256,12 +256,20 @@ describe('Escorts', () => {
 			expect(escort.isOutOfFight).toBe(true);
 		});
 
-		test('a driven vehicle whose driver died is still unmanned and out of the fight', () => {
+		test('a player vehicle whose driver died is an escort and in the fight; a raider\'s is unmanned and out', () => {
+			const buggy = createDriven('Buggy');
+			const battle = createBattle([rig, bike], [buggy]);
 			rig.driver?.takeDamage(100);
-			rig.handleDriverDeath();
+			buggy.driver?.takeDamage(100);
 
-			expect(rig.isUnmanned()).toBe(true);
-			expect(rig.isOutOfFight).toBe(true);
+			battle.playerTeam.handleDriverDeath(rig);
+			battle.enemyTeam.handleDriverDeath(buggy);
+
+			expect(rig.isEscort).toBe(true);
+			expect(rig.isOutOfFight).toBe(false);
+			expect(buggy.isEscort).toBe(false);
+			expect(buggy.isUnmanned()).toBe(true);
+			expect(buggy.isOutOfFight).toBe(true);
 		});
 
 		test('an escort stays on the road at the end of the turn', async () => {
@@ -282,17 +290,16 @@ describe('Escorts', () => {
 			expect(new BoardProjection({ battle }).targetBlocker({ card: potShot(), caster: buggy, target: escort })).toBeNull();
 		});
 
-		test('a wrecked driver does not ride in an escort yet', () => {
+		test('a wrecked driver rides in an escort when the partner\'s seat is taken', () => {
 			const escort = createEscort({ type: 'med_truck' });
-			const team = playerTeam([rig, bike, escort]);
-			const bikeDriver = bike.driver;
+			const battle = createBattle([rig, bike, escort]);
+			const bikeDriver = driverOf(bike);
 			rig.passenger = createTestDriver('Rider');
 
-			team.handleVehicleDestruction(bike);
+			battle.playerTeam.handleVehicleDestruction(bike);
 
-			expect(escort.canAddPassenger()).toBe(false);
-			expect(escort.passenger).toBeNull();
-			expect(bikeDriver && team.getAliveDrivers().includes(bikeDriver)).toBe(false);
+			expect(escort.passenger).toBe(bikeDriver);
+			expect(battle.playerTeam.getAliveDrivers()).toContain(bikeDriver);
 		});
 	});
 

@@ -2,6 +2,8 @@ import { Driver, DriverRole } from './Driver';
 import { Vehicle } from './Vehicle';
 import { Model } from '../core/Model';
 import { TeamType } from './TeamType';
+import { convertToEscort } from './Escort';
+import { RoadSlot, nearestTo } from './Road';
 
 export { TeamType };
 
@@ -24,6 +26,15 @@ export interface TeamData {
  */
 // eslint-disable-next-line @typescript-eslint/no-empty-interface
 export interface Team extends TeamData {}
+
+/**
+ * Where one of a wreck's survivors ended up: the vehicle they ride in now,
+ * or null if there was no free seat and they crashed out
+ */
+export interface WreckEscape {
+	driver: Driver;
+	seat: Vehicle | null;
+}
 
 /**
  * Team class representing a side in battle
@@ -76,7 +87,8 @@ export class Team extends Model<TeamData> {
 	}
 
 	/**
-	 * Escorts in roster order, first acquired first
+	 * Escorts in roster order, first acquired first. A vehicle that converts
+	 * mid-fight joins last (handleDriverDeath moves it to the end).
 	 */
 	public get escorts(): Vehicle[] {
 		return this.vehicles.filter(vehicle => vehicle.isEscort);
@@ -169,21 +181,34 @@ export class Team extends Model<TeamData> {
 	}
 
 	/**
-	 * A wrecked vehicle's surviving occupants each jump to another team
-	 * vehicle with a free passenger seat, driver first. Anyone with nowhere
-	 * to go is left behind and out of the fight. The wreck itself stays on
-	 * the road until Battle clears it at the end of the turn.
+	 * A wrecked vehicle's surviving occupants each jump to a free passenger
+	 * seat on the team, driver first (see handleDriverEscape). Anyone with
+	 * nowhere to go crashes out of the fight. The wreck itself stays on the
+	 * road until Battle clears it at the end of the turn.
 	 */
-	public handleVehicleDestruction(destroyedVehicle: Vehicle): void {
+	public handleVehicleDestruction(destroyedVehicle: Vehicle): WreckEscape[] {
 		const survivors = [destroyedVehicle.driver, destroyedVehicle.passenger]
 			.filter((occupant): occupant is Driver => occupant?.isAlive() ?? false);
 		Team.wreckSurvivors.set(destroyedVehicle, survivors);
+		const wreckSlot = destroyedVehicle.slot;
 		destroyedVehicle.driver = null;
 		destroyedVehicle.passenger = null;
 		destroyedVehicle.destroy();
 
-		for (const survivor of survivors) {
-			this.handleDriverEscape(survivor);
+		return survivors.map(driver => ({ driver, seat: this.handleDriverEscape({ driver, from: wreckSlot }) }));
+	}
+
+	/**
+	 * Take the dead out of a vehicle's seats. On the player's team a vehicle
+	 * left with nobody at the wheel carries on as an escort for the rest of
+	 * the fight, and as the newest escort it goes to the end of the roster.
+	 * A raider's is out of the fight and leaves at the end of the turn.
+	 */
+	public handleDriverDeath(vehicle: Vehicle): void {
+		vehicle.handleDriverDeath();
+		if (this.type === TeamType.PLAYER && vehicle.isAlive() && vehicle.isUnmanned()) {
+			convertToEscort(vehicle);
+			this.vehicles = [...this.vehicles.filter(other => other !== vehicle), vehicle];
 		}
 	}
 
@@ -248,12 +273,19 @@ export class Team extends Model<TeamData> {
 	}
 
 	/**
-	 * Seat a driver as a passenger in the first team vehicle with a free seat
-	 * behind a living driver. Returns false if there's no room anywhere.
+	 * Seat a driver whose vehicle was wrecked as a passenger, and return
+	 * where, or null if there's no free seat. On the player's team that's
+	 * the partner's driven vehicle first, then the escort nearest the wreck,
+	 * ties broken as for attack orders. A raider takes any free seat on its
+	 * team.
 	 */
-	public handleDriverEscape(driver: Driver): boolean {
-		const availableVehicle = this.vehicles.find(v => v.canAddPassenger());
-		return availableVehicle ? availableVehicle.addPassenger(driver) : false;
+	public handleDriverEscape({ driver, from }: { driver: Driver; from: RoadSlot | null }): Vehicle | null {
+		const open = this.vehicles.filter(vehicle => vehicle.canAddPassenger());
+		const seat = this.type === TeamType.PLAYER
+			? open.find(vehicle => !vehicle.isEscort) ??
+				(from ? nearestTo({ to: from, candidates: open, slotOf: vehicle => vehicle.slot }) : null)
+			: open[0] ?? null;
+		return seat?.addPassenger(driver) ? seat : null;
 	}
 
 	/**
