@@ -121,7 +121,7 @@ describe('Escorts', () => {
 			expect(hauler.name).toBe('Fuel Hauler');
 			expect(hauler.structure).toBe(ESCORT_CONFIGS.fuel_hauler.structure);
 			expect(hauler.escort?.role).toBe('hauler');
-			expect(hauler.escort?.dividend).toEqual({ resource: 'fuel', amount: 1 });
+			expect(hauler.escort?.dividend).toEqual({ kind: 'fuel', amount: 1 });
 			expect(hauler.escort?.setPiece).toBe(false);
 			expect(createEscort({ type: 'med_truck' }).escort?.signatureCard).toBe('triage');
 		});

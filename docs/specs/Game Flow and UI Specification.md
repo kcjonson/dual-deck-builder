@@ -177,7 +177,7 @@ Cards might be grouped by rarity, with common cards on the left and rarer option
 - Cost in scrap
 - Which vehicle(s) it applies to
 
-**Convoy strip (in the mods panel):** one entry per escort you own, up to four, each with its structure and two actions. Repair restores structure for scrap, since escort damage carries over between fights. Dismiss removes the escort and its signature card from your deck. Escorts for hire are offered in the same strip; at four, you dismiss one before hiring another.
+**Convoy strip (in the mods panel):** one entry per escort you own, up to four (five after a fight that turned a driven vehicle into an escort, until you dismiss one), each with its structure and two actions. Repair restores structure for scrap, since escort damage carries over between fights. Dismiss removes the escort and its signature card from your deck. Escorts for hire are offered in the same strip; at four, you dismiss one before hiring another.
 
 **Bottom Section - Leave Button:** A large "Return to the Wasteland" or "Leave Garage" button sits at the bottom center. The game should prevent players from leaving accidentally if they have enough scrap for meaningful purchases, perhaps with a confirmation: "You still have 200 scrap. Are you sure you want to leave?"
 

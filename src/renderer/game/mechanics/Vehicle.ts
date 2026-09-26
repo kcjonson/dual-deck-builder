@@ -384,6 +384,22 @@ export class Vehicle extends Model<VehicleData> {
 	}
 
 	/**
+	 * Off the road at the end of a fight. Slot, flank, statuses, Shield, and
+	 * spent are the fight's; armor, structure, and seats stay as they are.
+	 * A Battle reads a preset slot as the encounter's, so nothing may carry
+	 * one out of a fight.
+	 */
+	public leaveRoad(): void {
+		this.set({
+			slot: null,
+			flank: null,
+			statusEffects: [],
+			shield: 0,
+			spent: false
+		});
+	}
+
+	/**
 	 * Handle vehicle destruction
 	 * Driver jumps to remaining vehicle as passenger (handled by combat system)
 	 */
