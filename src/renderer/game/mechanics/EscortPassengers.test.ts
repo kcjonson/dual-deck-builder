@@ -1,5 +1,6 @@
 import { Battle } from './Battle';
 import { Card, CardData } from './Card';
+import { Convoy } from './Convoy';
 import { Driver, DriverRole } from './Driver';
 import { EscortType, UNMANNED_CREW, createEscort } from './Escort';
 import { RoadLane, RoadRow, RoadSlot } from './Road';
@@ -466,18 +467,31 @@ describe('Passengers and unmanned vehicles (DDB-152)', () => {
 			expect(battle.battleWon).toBe(false);
 		});
 
-		test('is a normal escort on the player team when the fight ends', () => {
+		test('after a won fight it is in AfterFight.escorts, last, and the convoy appends it', () => {
+			const outrider = escortAt('outrider');
+			const convoy = new Convoy({ escorts: [outrider] });
+			battle = createBattle([rig, bike, ...convoy.escorts], [buggy, sniper]);
+
 			giveHand(bikeDriver, [berserk()]);
 			battle.playCard({ driver: bikeDriver, cardIndex: 0 });
+			expect(bike.isEscort).toBe(true);
 
 			giveHand(rigDriver, [farShot(100), farShot(100)]);
 			battle.playCard({ driver: rigDriver, cardIndex: 0, targetVehicle: buggy });
 			battle.playCard({ driver: rigDriver, cardIndex: 0, targetVehicle: sniper });
 
 			expect(battle.battleWon).toBe(true);
-			expect(battle.playerTeam.vehicles).toEqual([rig, bike]);
-			expect(battle.playerTeam.escorts).toEqual([bike]);
-			expect(bike.isOutOfFight).toBe(false);
+			const result = battle.afterFight;
+			if (!result) throw new Error('The fight should have ended');
+			expect(result.escorts).toEqual([outrider, bike]);
+			expect(result.lost).toEqual([]);
+			expect(bike.slot).toBeNull();
+			expect(bike.spent).toBe(false);
+
+			convoy.afterFight(result);
+
+			expect(convoy.escorts).toEqual([outrider, bike]);
+			expect(convoy.isOverCap).toBe(false);
 		});
 	});
 });
