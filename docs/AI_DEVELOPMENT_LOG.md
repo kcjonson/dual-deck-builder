@@ -6,6 +6,18 @@ This document contains the chronological log of completed development tasks for 
 
 **Date correction (2026-08-22):** the repo's first commit is 2025-05-17, but many entries below carry dates in December 2024 or January 2025 — the AI that wrote them used its assumed date instead of the real one. Entries dated 2025-07-03 and 2025-07-02 have been corrected from "2025-01-03"/"2025-01-02" (verified against git history). Remaining Dec 2024 / Jan 2025 dates are wrong by roughly six months; the real work happened May–July 2025. Trust git history over these dates.
 
+## Escorts written into the specs (2026-09-25)
+
+**What landed:** DDB-133, docs only. Kevin's escort design, made on 2026-09-25, is in the specs.
+
+- Combat Rules: a new Escorts section (stats, slots, orders and the SPENT chip, signature cards, owning and losing escorts, passengers, unmanned vehicles, the four starting types), plus edits to Team, Vehicle, Driver, The road (ambush starts and the 9-a-side count), Flanking (an ambusher holds the shoulder), Losing vehicles and drivers, the combat sequence, and Enemy intents (archetype target preferences).
+- Card System Design: the Order card type, the `escort` target type, the `[Escort]` keyword, signature cards (1.3), and the six initial order cards with summaries and full texts (4.5).
+- Game Flow and UI Specification: the escort count on the map's convoy marker, escort-gated event choices, and the garage's Convoy strip.
+- Battle Screen Design: short notes in sections 1, 3, and 9 on ambush starts, the escort plate and SPENT chip, and the rules the screen now assumes.
+- The mock's Full road scenario got a comment pointing at the ambush-start rule and saying the Interceptor got onto the shoulder by flanking. Nothing else in it changed.
+
+**How:** decision record at `docs/AI_TECHNICAL_DECISIONS/escorts.md`, with the calls made while writing it up (attack order ties, preferred slots, and a few others, marked as proposals) and the open questions. Kevin answered four of the nine the same day (Draw Fire only redirects intents that can reach the escort, ambushers are raiders and set-piece escorts, which orders spend the escort, and damage to a passenger in an escort); they're in the specs and in the record as follow-up decisions. Five stay open, each tied to its build task (DDB-146 to DDB-155). A review round added four more of Kevin's answers (one passenger seat per vehicle, duplicate escort types, ambush rows, Draw Fire timing), scoped driver loss by team, and listed the code that conflicts with the new rules. Kevin then settled defeat: a driver with no seat crashes out and is picked up after a won fight, and the run ends only when no driver is left in the fight.
+
 ## Passengers and wrecks leaving the road (2026-09-25)
 
 **What landed:** DDB-96. Losing a vehicle no longer deadlocks combat.

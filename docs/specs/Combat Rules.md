@@ -8,10 +8,10 @@
 
 - Properties
   - Type: Player or Enemy
-  - Vehicles: Array of vehicles. Player teams have exactly 2 driven vehicles, plus optional escorts (vehicles with no driver hand, ordered by cards; not designed yet). Enemy teams are variable.
-  - Up to 9 vehicles on the road per side: 6 in formation and 3 flanking
+  - Vehicles: Array of vehicles. Player teams start with exactly 2 driven vehicles, plus up to 4 escorts in formation (see Escorts), plus any set-piece escorts the encounter starts on the enemy shoulder (ambush starts, see The road). Enemy teams are variable, and their raiders can start on the player's shoulder.
+  - Up to 9 vehicles on the road per side: 6 in formation and 3 on the shoulder. A flanker keeps its formation slot reserved, so a side only gets past 6 through ambush starts.
 - Derived States
-  - Defeated = All drivers dead
+  - Defeated = No driver still in the fight, driving or riding as a passenger. Every driver is dead or crashed out. Escorts never count.
 
 ### Vehicle
 
@@ -19,13 +19,16 @@
   - Armor: 0 - infinite
   - Structure: 0 - infinite
   - Base Speed: 1-5
-  - Driver: driver (required)
-  - Passenger: driver (optional)
+  - Driver: driver (driven vehicles) or none (escorts)
+  - Passenger: driver (optional). Every vehicle, escorts included, has one passenger seat.
+  - Crew skills (escorts only): Gunnery, Evade, Ramming, 0 - 10
   - Statuses: 
     - Vulnerable - The vehicle is exposed and unprepared for attack
 - Derived States
   - Alive = Structure > 0
-  - Speed = Driver speed + vehicle base speed
+  - Speed = Driver speed + vehicle base speed. An escort's speed is its base speed.
+  - Escort = no driver
+  - Ready = an escort that hasn't acted this turn
 
 ### Driver
 
@@ -43,6 +46,7 @@
 - Derived States
   - Alive = Hitpoints > 0
   - Can Play Attack Cards = Role is Active (passengers cannot play attack cards)
+  - Can Play Order Cards = always, active or passenger (orders are their own card type, not attack)
 
 ## Game State
 
@@ -61,21 +65,39 @@ Both teams drive the same direction on a wide freeway. The road is a grid of slo
 
 Each lane has three rows along the road: ahead, center, behind. A team's formation is its inside and outside lanes by three rows, six slots. A shoulder is only for flankers from the other team; nobody parks on their own shoulder. "Ahead" and "behind" replace the old "front" and "back"; the old Front / Back / Flanking positions map to inside / outside / the far shoulder. Screen layout is in [Battle Screen Design](./Battle%20Screen%20Design.md).
 
-Opening placement: a vehicle whose encounter gives it a slot starts there; the rest fill their own formation inside lane first, center then behind then ahead. So the player's two vehicles start inside center and inside behind. Nobody starts on a shoulder.
+Opening placement: a vehicle whose encounter gives it a slot starts there; the rest fill their own formation inside lane first, center then behind then ahead. So the player's two vehicles start inside center and inside behind. Escorts place after the driven vehicles, in roster order (the order they joined the convoy): each takes its type's preferred slot, or the next free slot in that fill order if the preferred one is taken. When two escorts of the same type want the same slot, the first acquired gets it.
+
+Ambush starts: an encounter can place a vehicle already flanking, on the other team's shoulder in a row the encounter names. Ambushers are raiders and set-piece escorts, nothing else:
+
+- Raider encounters and reinforcement waves can place raiders on the player's shoulder, at the start of the fight or when a wave arrives.
+- A set-piece escort (an event ally, for example) can start on the raiders' shoulder.
+- The player's two driven vehicles always start in formation.
+
+Ambushers start only in rows with an opposing vehicle. After that, a shoulder vehicle with nothing opposite is legal, since the vehicle it was beside can be wrecked.
+
+An ambusher has no reserved formation slot and no outran vehicle. It counts as flanking for every rule that asks. This is the only way a side reaches 9 on the road: 6 in formation and 3 on the shoulder. Without it, every flanker leaves a reserved slot behind and a side caps at 6. The battle screen mock's Full road scenario is a layout stress case, not a legal position. Its raider side is a legal ambush (six in formation, three on your shoulder), but its player side isn't: the Interceptor got onto the shoulder by flanking, so its formation slot should be empty and reserved, and the formation also holds five escorts against a cap of four.
 
 ### Flanking
 
 - A flank card targets the vehicle to outrun. The target must be in the other team's formation (not itself flanking) and slower than the flanker.
 - The flanker moves to the far shoulder, in the row of the vehicle it outran. If that shoulder slot is taken, the flank fails and the card goes back to the hand.
 - Its old formation slot stays empty and reserved; the rest of the convoy doesn't shift. Swerving again from the shoulder keeps the original reservation.
-- At the end of every turn (yours and the enemy's), a flanker that is no longer faster than the vehicle it outran loses flanking and returns to its reserved slot. If the vehicle it outran is wrecked, it holds the shoulder.
+- At the end of every turn (yours and the enemy's), a flanker that is no longer faster than the vehicle it outran loses flanking and returns to its reserved slot. If the vehicle it outran is wrecked, it holds the shoulder. A flanker with no reserved slot (an ambush start) holds the shoulder too, for the same reason: there's nowhere to drop back to.
 - Flanking works the same for both sides: raiders flank onto the player's shoulder, up to three at a time.
 
 ### Losing vehicles and drivers
 
-- Game over - All drivers on a team are dead
-- Driver death - If driver dies, vehicle becomes unmanned (if no passenger) or passenger becomes driver
-- Vehicle death - Driver jumps to a remaining team vehicle as a passenger (if space available). The passenger keeps their own deck, hand, discard, and adrenaline, draws every turn, and can't play attack cards. A wrecked vehicle stays on the road for the turn it dies, then is removed.
+- Game over - The fight goes on while at least one of your drivers is still in it, driving or riding as a passenger. When none are (every driver dead or crashed out), the run ends: true death, the session is over, and there's no rescue even for a driver who crashed out alive. Escorts never count toward defeat. Decided by Kevin, 2026-09-25: one driver has to survive to circle back down the road for the other.
+- Driver death - If the vehicle has a passenger, the passenger becomes the driver. If not:
+  - On the player's team, the vehicle becomes an escort for the rest of the fight, with default crew stats (gunnery, evade, ramming) and its own base speed. It brings no signature card, and if this happens mid-turn it starts spent.
+  - A raider vehicle is out of the fight and leaves the road at the end of the turn, like a wreck. Its plan drops (see Enemy intents).
+- Vehicle death - Every vehicle, escorts included, has one passenger seat. The wreck's occupants jump, the driver first, then the passenger.
+  - On the player's team, each goes to the partner's vehicle first, then the nearest escort (lowest range from the wreck, ties broken as for attack orders), whichever has a free seat.
+  - On a raider team, each goes to any other vehicle on the team with a free seat.
+  - A driver with no free seat has crashed out: out of the fight but alive, and their hand is gone for that fight. If the fight is won, the surviving driver goes back down the road and picks them up, so they rejoin the run.
+  - A passenger keeps their own deck, hand, discard, and adrenaline, draws every turn, can't play attack cards, and can play order cards.
+  - A wrecked vehicle stays on the road for the turn it dies, then is removed.
+- Escort death - A wrecked escort is gone for the rest of the run, and its signature card with it. See Escorts.
 
 ## Combat sequence
 
@@ -85,7 +107,8 @@ Opening placement: a vehicle whose encounter gives it a slot starts there; the r
 - Each driver's adrenaline pool refills to maximum
 - Players can play cards from either driver's hand (single player) or their own driver's hand (co-op)
 - Cards cost adrenaline from the specific driver who plays them
-- Passengers can play support/utility cards but NOT attack cards
+- Passengers can play support/utility and order cards but NOT attack cards
+- Every escort is ready again at the start of the player's turn
 
 ### Enemy intents
 
@@ -98,6 +121,73 @@ Decided by Kevin, 2026-09-25. Record: [enemy-intent-planning.md](../AI_TECHNICAL
 - When a planned target was wrecked earlier in the enemy turn, the card goes to the vehicle the wrecked driver now rides in as a passenger. If there's no such vehicle, it fizzles.
 - A raider that is wrecked, or has lost its driver, drops the rest of its plan.
 - Basic raiders show everything. Elites show the type and target but hide the value and the card. Bosses behave like elites until bosses are designed.
+- Raider archetypes have target preferences, applied when the raider plans: looters go for haulers, killers go for drivers (driven vehicles). The preference shows only through the planned intents' target marks, so the player reads it off the road before acting. An archetype picks its preferred target when that target is legal for the card, and otherwise plans as usual. Draw Fire is the counter (see Escorts). Which raiders are looters or killers isn't assigned yet; DDB-150 does that.
+- Draw Fire lasts until the end of the next enemy turn. Each intent aimed at a driven vehicle in the escort's row is judged as it plays: if its card can reach the escort, it hits the escort instead; if not, it hits its original target as planned. Draw Fire protects; it never makes an attack fizzle. Target marks update when Draw Fire is played, so the end-turn preview shows the redirect. If two Draw Fires cover the same row, the last one played wins.
+- An escort is a legal target like any vehicle. It has no HP of its own, so a driver-only attack (Headshot) has nothing to hit on an empty one. DDB-148 decides whether that makes an empty escort an illegal Headshot target or makes the card fizzle, and whether Headshot can hit a passenger riding in an escort.
+
+## Escorts
+
+Decided by Kevin, 2026-09-25. Record: [escorts.md](../AI_TECHNICAL_DECISIONS/escorts.md). Order cards are in [Card System Design](./Card%20System%20Design.md) section 1.3 and 4.5.
+
+An escort is an undriven vehicle in your convoy: it has a slot and a plate but no driver and no hand. It acts only when an order card is played, once per turn. Keyword: `[Escort]`.
+
+### Stats
+
+- Armor, structure, gunnery, evade, ramming, and base speed, all its own. No HP.
+- Its speed is its base speed.
+- Past armor, an empty escort takes all damage on structure. An escort carrying a passenger splits it, half to structure and half to the passenger, the same as a driven vehicle.
+- Hit checks use the escort's own skills, in both directions: its gunnery or ramming when it attacks, its evade when it's attacked.
+
+### Slots, range, and flanking
+
+- Same slots and range as any vehicle. There's no cover geometry: an escort doesn't block or shield anything by where it sits.
+- Escorts place after the driven vehicles. Each escort type has a preferred slot, used as its encounter or opening slot; if it's taken, the escort takes the next free slot in the fill order.
+- Escorts flank under the normal rules, including the +50% from the shoulder and the end-of-turn drop-back. A set-piece escort can also start on the raiders' shoulder as an ambusher.
+
+### Orders
+
+- An escort does nothing on its own. It acts when a driver plays an order card, and it acts at most once per turn. Once it has acted it is spent and shows a SPENT chip until the start of the player's turn.
+- Any driver can play an order card, active or passenger. The adrenaline comes from the driver who plays it.
+- Attack orders target a raider. The nearest ready escort within the card's range of that raider carries it out and is spent. Nearest means lowest range to the raider. Ties go to the inside lane, then the outside lane, then the enemy shoulder, and within a lane to ahead, then center, then behind. While the card is dragged over a raider, the escort that would carry it out lights up. A raider with no ready escort in range isn't a legal target.
+- Buff orders (armor, Draw Fire) target an escort directly, and can target a spent one.
+- Spending: attack orders (Covering Fire, Ramming Run, Rally the Convoy) and Draw Fire spend the escort. Close Ranks and Triage don't. Triage is the Med Truck's card, not its action, so the Med Truck doesn't need to be ready.
+- Every order card is a single drop, the same as any other card.
+
+### Signature cards
+
+- Each escort type has one signature order card, and each escort brings its own copy: two Med Trucks mean two Triages. When the escort joins, the player picks which driver's deck its copy goes into.
+- A signature card is playable while any living escort of its type is in the convoy. Triage needs any living Med Truck.
+- When an escort is wrecked mid-fight, the copy it brought stays where it is for the rest of the fight (playable only if another escort of its type lives) and leaves the deck when the fight ends.
+- Dismissing an escort in the garage removes the copy it brought.
+- Generic order cards join the reward pool only while you own at least one escort. Order cards already in a deck stay there if the last escort is lost.
+
+### Owning escorts
+
+- You get escorts from events and by hiring them in the garage. Convoy contracts come later.
+- Up to 4 escorts. At 4, taking another means dismissing one first.
+- Duplicate types are allowed.
+- The roster is the order your escorts joined the convoy, first acquired first. It settles preferred-slot collisions and the order Rally the Convoy resolves in.
+- Damage persists between fights: an escort starts the next fight with the structure it ended on. The garage repairs it.
+- A lost escort is gone for the run, with its signature card.
+- Haulers pay a dividend after every fight they survive: the Fuel Hauler +1 fuel, the Salvage Rig (not one of the first four) +15 scrap.
+
+### Passengers and unmanned vehicles
+
+- Every escort has one passenger seat. A driver whose vehicle is wrecked rides in the partner's vehicle first, then the nearest escort with a free seat, and crashes out of the fight if there's none, to be picked up after a won fight (see Losing vehicles and drivers). A passenger in an escort can play order cards and any other card that isn't an attack.
+- A driven vehicle whose driver dies with no passenger becomes an escort for the rest of the fight, with default crew stats and its own base speed. It can be ordered like any escort, it starts spent if it converts mid-turn, and it brings no signature card.
+
+### Starting escort types
+
+The minimal first version has four. The driven vehicles open at inside center and inside behind, so these preferred slots fill the rest of the formation without colliding.
+
+| Escort | Role | Speed | Preferred slot | Signature card |
+|---|---|---|---|---|
+| Outrider | gun | 5 | inside ahead | not yet named |
+| Pilot Car | gun | 4 | outside ahead | not yet named |
+| Fuel Hauler | hauler, +1 fuel after each fight | not set | outside center | not yet named |
+| Med Truck | hauler, dividend not set | not set | outside behind | Triage |
+
+Gunnery, evade, ramming, armor, structure, the haulers' speeds, and the default crew stats for an unmanned vehicle are content numbers, set when escorts are built.
 
 ## Cards
 

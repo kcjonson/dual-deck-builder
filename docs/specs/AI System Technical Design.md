@@ -30,6 +30,8 @@ difficultyModifier: DifficultyModifier;
 
 ### 2.1 Base Enemy Archetypes
 
+`targetPriority` below predates escorts. The looter and killer target preferences are in [Combat Rules](./Combat%20Rules.md), Enemy intents; assigning them to raiders is DDB-150.
+
 #### Aggressive Raider
 
 {

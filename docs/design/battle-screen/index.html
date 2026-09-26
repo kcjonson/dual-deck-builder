@@ -574,6 +574,9 @@ td.num, th.num { font-variant-numeric: tabular-nums; font-family: var(--mono); f
 		{ id: 'typical', label: 'Typical', desc: 'Turn 3. The Rig holds the inside lane; the Interceptor outran the raiders and is flanking on their shoulder, alongside a Dust Crawler. Three raiders with mixed intents.' },
 		{ id: 'opening', label: 'Opening', desc: 'How a fight starts: both of your vehicles in the inside lane, one behind the other, one raider alongside.' },
 		{ id: 'convoy', label: 'Big convoy', desc: 'Your two driven vehicles escorting three convoy trucks against six raiders, two of which have flanked you on your shoulder. The future the grid is sized for.' },
+		// Full road's raider side is legal only as an ambush start: flankers keep a reserved formation slot, so nine a side needs
+		// vehicles that start on the shoulder with none. See "Ambush starts" in docs/specs/Combat Rules.md (The road).
+		// The Interceptor on the raiders' shoulder got there by flanking, not by ambush: driven vehicles always start in formation.
 		{ id: 'fullroad', label: 'Full road (18)', desc: 'Every slot filled: your six-slot formation plus the Interceptor and two outriders flanking on their shoulder, against six raiders in formation and three flanking you. A boss, three-digit stats, and long names. The road\'s absolute worst case.' },
 		{ id: 'passenger', label: 'Passenger', desc: 'The Rig is wrecked. The Road Warrior rides in the Interceptor\'s bike with a second HP bar, and their hand can\'t attack.' },
 		{ id: 'bighands', label: 'Big hands', desc: 'Seven cards per driver, the hand cap, reached with Nitro Boost. The leftmost card has the longest full text in the set (Tag Team Takedown, 318 characters). Six vehicle mods each, 12,450 scrap, wave 3 of 3, and a crowded road.' },

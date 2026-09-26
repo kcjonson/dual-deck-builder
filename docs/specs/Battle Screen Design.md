@@ -24,6 +24,8 @@ Lanes run across the screen, left to right:
 Rows run along the road: ahead, center, behind. Ahead is further up the screen.
 
 - One vehicle per slot. Eighteen slots: each convoy's formation is its inside and outside lanes by three rows (six slots), plus three flank slots on the far shoulder. Up to nine a side.
+- Nine needs an ambush start. A flanker keeps its formation slot reserved, so a side only gets past six when the encounter places some of its vehicles on the other side's shoulder with no reserved slot (Combat Rules, The road). Ambushers are raiders and set-piece escorts; your driven vehicles always start in formation. The Full road scenario in section 10 is a layout stress case: its raider side is a legal ambush, its player side isn't a legal position.
+- Your two driven vehicles open in the inside lane; escorts fill the rest of your formation after them, each in its type's preferred slot.
 - A shoulder only holds the other side's flankers. Nobody parks on their own shoulder.
 - A flanker takes the row of the vehicle it outran. Its old formation slot stays empty and reserved; nobody in the convoy shifts to fill it. When it loses its speed edge it drops back into that slot.
 - Slots never move or resize during a fight. Moving is a swerve from one slot to another.
@@ -74,6 +76,7 @@ Everything is laid out in logical pixels on a 1280x720 reference and scaled by o
 - Structure and driver HP get equal weight because you lose when drivers die.
 - A wrecked vehicle greys out with a WRECKED stamp for the turn it dies, then leaves the road.
 - Target marks: triangle for driver 1, diamond for driver 2, both for an area hit, square for an escort.
+- An escort's plate has no driver HP bar, since escorts have no HP. Once it has acted this turn, a SPENT chip leads its status row until the start of your next turn.
 
 ## 4. The dock
 
@@ -128,15 +131,18 @@ Driver identity owns the two strongest hues and nothing else uses them: driver 1
 These are decided and recorded in Combat Rules; they're listed here because the layout depends on them.
 
 - Two driven vehicles at most. A bigger convoy grows through escorts: vehicles with slots and plates but no hand, ordered with cards. A third human player is co-op, not a third hand.
+- Up to four escorts in formation. Each acts only when ordered, once per turn. An attack order is dropped on a raider, and the nearest ready escort in range carries it out; that escort lights up during the drag. A buff order is dropped on the escort itself, spent or not. Attack orders and Draw Fire spend the escort; Close Ranks and Triage don't. When Draw Fire redirects an intent, its target mark moves to the escort's square, so the end-turn preview shows it.
+- Raiders can start on your shoulder, at the start of a fight or when their wave arrives, and a set-piece escort can start on theirs (ambush starts). With no reserved slot to drop back to, they hold it.
 - Each driver has their own deck, hand, discard, and adrenaline pool.
 - Hand cap 7 per driver; draws past 7 go straight to discard.
-- A wrecked vehicle's driver becomes a passenger in the partner's vehicle, keeps their hand, and can't play attack cards.
+- Every vehicle, escorts included, has one passenger seat. A wreck's occupants jump, driver first, to the partner's vehicle or the nearest escort with a free seat. A passenger keeps their hand, can't play attack cards, and can play order cards. A driver with no free seat crashes out of the fight, alive, and their half of the dock has no hand.
+- A driven vehicle whose driver dies with no passenger becomes an escort for the rest of the fight.
 - Flanking deals +50%.
 - The same driver can't fill both slots.
 
 ## 10. Worst cases the layout is checked against
 
-The mock runs each of these at 1920x1080, 1440x882, 1280x800, 1280x720, 2560x1080, and 1024x768, in planning, inspecting the leftmost and rightmost cards, targeting, and end-turn preview, and fails any render with text overflow, collisions between vehicles, chips, and cards, a token scaled below x1, anything outside the frame, or a slot-rule violation (a vehicle on its own shoulder, a flanker in a row with no opposing vehicle, two vehicles in one slot, a hand over the cap).
+The mock runs each of these at 1920x1080, 1440x882, 1280x800, 1280x720, 2560x1080, and 1024x768, in planning, inspecting the leftmost and rightmost cards, targeting, and end-turn preview, and fails any render with text overflow, collisions between vehicles, chips, and cards, a token scaled below x1, anything outside the frame, or a slot-rule violation (a vehicle on its own shoulder, a flanker in a row with no opposing vehicle, checked at placement only since the vehicle opposite can be wrecked later, two vehicles in one slot, a hand over the cap).
 
 | Scenario | What it stresses |
 |---|---|
