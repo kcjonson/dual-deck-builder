@@ -493,6 +493,49 @@ describe('Order cards', () => {
 			expect(battle.getIntents(buggy)[0].target).toBe(pilotCar.id);
 		});
 
+		test('a cover wrecked mid enemy turn hands the row back to the living one played before it', async () => {
+			const { battle, rig, pilotCar, buggy } = setup();
+			const ally = escortAt('outrider', slot(E_SHOULDER, CENTER), true);
+			battle.playerTeam.addVehicle(ally);
+			ally.set({ structure: 1 });
+			pilotCar.set({ armor: 0 });
+			driverOf(buggy).set({ hand: [potShot(), potShot()], adrenaline: 5 });
+			battle.planEnemyTurn();
+
+			play({ battle, driver: driverOf(rig), card: realCard('draw_fire'), target: pilotCar });
+			play({ battle, driver: driverOf(rig), card: realCard('draw_fire'), target: ally });
+			await battle.endPlayerTurn();
+
+			// The first shot wrecks the Outrider; the second goes to the Pilot Car, not the Rig
+			expect(ally.isAlive()).toBe(false);
+			expect(rig.structure).toBe(20);
+			// Draw Fire's armor (3, the Pilot Car's maximum) soaks the shot
+			expect(pilotCar.armor).toBe(0);
+			expect(logLines(battle, 'general')).toContain("Pilot Car draws Buggy's Pot Shot away from Rig");
+		});
+
+		test('a cover wrecked during the player turn: the preview and the play both go to the living cover', async () => {
+			const { battle, rig, pilotCar, buggy } = setup();
+			const ally = escortAt('outrider', slot(E_SHOULDER, CENTER), true);
+			battle.playerTeam.addVehicle(ally);
+			pilotCar.set({ armor: 0 });
+			planShot(battle, buggy, potShot());
+
+			play({ battle, driver: driverOf(rig), card: realCard('draw_fire'), target: pilotCar });
+			play({ battle, driver: driverOf(rig), card: realCard('draw_fire'), target: ally });
+			ally.destroy();
+			battle.playerTeam.handleVehicleDestruction(ally);
+
+			expect(battle.getIntents(buggy)[0].target).toBe(pilotCar.id);
+			await battle.endPlayerTurn();
+
+			// clearWrecks took the Outrider's slot before the shot played
+			expect(ally.slot).toBeNull();
+			expect(rig.structure).toBe(20);
+			expect(pilotCar.armor).toBe(0);
+			expect(logLines(battle, 'general')).toContain("Pilot Car draws Buggy's Pot Shot away from Rig");
+		});
+
 		test('lasts until the end of the next enemy turn', async () => {
 			const { battle, rig, pilotCar, buggy } = setup();
 			planShot(battle, buggy, potShot());
@@ -608,6 +651,19 @@ describe('Order cards', () => {
 
 			expect(driverOf(rig).discard).not.toContain(rally);
 			expect(driverOf(rig).exhausted).toEqual([rally]);
+		});
+
+		test('comes back to the deck when the fight ends, so the next fight has it again', () => {
+			const rig = createDriven('Rig');
+			const battle = createBattle([rig, createDriven('Bike'), escortAt('outrider')], [createDriven('Buggy')]);
+			const driver = driverOf(rig);
+			const rally = realCard('rally_the_convoy');
+			play({ battle, driver, card: rally });
+
+			battle.endCombat();
+
+			expect(driver.exhausted).toEqual([]);
+			expect(driver.deck?.cards).toContain(rally);
 		});
 
 		test('needs a ready escort', () => {

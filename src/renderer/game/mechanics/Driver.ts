@@ -402,6 +402,18 @@ export class Driver extends Model<DriverData> {
 	}
 
 	/**
+	 * Put the cards exhausted this fight back in the deck, at the end of it.
+	 * A card with no room in the deck goes to the discard instead.
+	 */
+	public returnExhausted(): void {
+		const exhausted = this.exhausted ?? [];
+		if (exhausted.length === 0) return;
+		const added = this.deck ? this.deck.addCards(exhausted) : 0;
+		this.discard.push(...exhausted.slice(added));
+		this.exhausted = [];
+	}
+
+	/**
 	 * Discard entire hand
 	 */
 	public discardHand(): void {

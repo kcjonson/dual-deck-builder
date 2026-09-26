@@ -750,8 +750,11 @@ export class Battle extends Model<BattleData> {
 		const landsOnTarget = card.effects.some(effect => !isCasterAction(effect) && effectRecipientOf({ effect, card }) === EffectRecipient.TARGET);
 		if (!landsOnTarget) return null;
 
-		const escort = [...covers].reverse().find(cover => cover.slot?.row === row);
-		if (!escort || escort.isOutOfFight || !this.playerTeam.vehicles.includes(escort)) return null;
+		// The last living cover on the row: a wrecked one hides nothing, and
+		// after clearWrecks it has no slot, so preview and play agree
+		const escort = [...covers].reverse().find(cover =>
+			!cover.isOutOfFight && cover.slot?.row === row && this.playerTeam.vehicles.includes(cover));
+		if (!escort) return null;
 		return this.getPlannedCardBlocker(card, raider, escort, raiderSlot) === null ? escort : null;
 	}
 
@@ -1785,6 +1788,10 @@ export class Battle extends Model<BattleData> {
 	 * End combat and process post-combat effects
 	 */
 	public endCombat(): void {
+		// Exhaust is once per fight: every driver who fought gets theirs back
+		for (const drivers of Battle.driverSeats.get(this)?.values() ?? []) {
+			drivers.forEach(driver => driver.returnExhausted());
+		}
 		this.emit('combatEnded', this.getState());
 	}
 
