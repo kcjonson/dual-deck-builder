@@ -736,9 +736,10 @@ export class Battle extends Model<BattleData> {
 	 * Where a planned card is headed as the board stands, judged the way the
 	 * enemy turn will play it: a wrecked target is followed to the vehicle its
 	 * survivors ride in, then the escort drawing fire in that vehicle's row
-	 * takes it if the card could reach it from where the raider will be. Rows
-	 * and ranges are read after the end-of-turn drop-back, since that runs
-	 * before the enemy turn. This is what the target marks and the end-turn
+	 * takes it if the card could reach it from the raider's planned slot. The
+	 * player's vehicles are read after the end-of-turn drop-back, since that
+	 * runs before the enemy turn; the raider's own drop-back isn't projected
+	 * (DDB-170). This is what the target marks and the end-turn
 	 * preview show. A wreck nobody rode away from keeps the mark; the card
 	 * fizzles.
 	 */
