@@ -6,6 +6,16 @@ This document contains the chronological log of completed development tasks for 
 
 **Date correction (2026-08-22):** the repo's first commit is 2025-05-17, but many entries below carry dates in December 2024 or January 2025 — the AI that wrote them used its assumed date instead of the real one. Entries dated 2025-07-03 and 2025-07-02 have been corrected from "2025-01-03"/"2025-01-02" (verified against git history). Remaining Dec 2024 / Jan 2025 dates are wrong by roughly six months; the real work happened May–July 2025. Trust git history over these dates.
 
+## Draw Fire covers the row (2026-09-26)
+
+**What landed:** DDB-169. Draw Fire now pulls each aimed raider intent at any other of your vehicles in the covering escort's row, not only driven vehicles: haulers, other escorts, and vehicles that became escorts when their driver died. Kevin delegated the call; it's escorts.md decision 48, which supersedes decision 20's "aimed at a driven vehicle", and it's written into Combat Rules (Enemy intents) and Card System Design 4.5.
+
+- `Battle.drawFireRedirect` drops the `isEscort` exclusion; the target has to be a player vehicle in the fight in the covered row, and a shot at the row's cover itself lands as planned. Play and the preview share it, so the marks still match play. With two covers on a row, a shot at the earlier one goes to the later one.
+- Unchanged: one enemy turn, judged as each intent plays, never cancels, last cover played wins skipping wrecks, area intents aren't pulled, and a Headshot can't turn on an empty cover.
+- Draw Fire's full text says "another of your vehicles"; the summary ("draws its row's raider fire") was already right. Combat Rules now says Draw Fire counters both archetypes, and escorts.md's DDB-149 and DDB-150 notes and decision 46 say what changed.
+
+**How:** 8 new tests in `Orders.test.ts`: a looter's shot at a Fuel Hauler lands on the Pilot Car beside it; a shot at another escort, and at a vehicle converted after the raider planned, is pulled; a shot at the covering escort, and at a hauler in another row, isn't; a blast hits a hauler in the row and the cover once each; a Headshot at a hauler's passenger keeps its target past an empty cover; and the marks after Draw Fire match where two shots land. Checked in the dev server with a Pilot Car and Fuel Hauler patched into the combat screen's center row and Draw Fire put in a hand (reverted): the Rust Buggy, a looter, planned its three Precision Shots at the Fuel Hauler; Draw Fire on the Pilot Car moved all three marks to it, and the enemy turn logged "Pilot Car draws Rust Buggy's Precision Shot away from Fuel Hauler" three times, wrecking the Pilot Car and leaving the hauler at 40/40. Its two Ramming Speeds, planned at the Pilot Car itself, stayed on it and fizzled once it was wrecked.
+
 ## Passengers in escorts and unmanned vehicles (2026-09-26)
 
 **What landed:** DDB-152. Drivers ride in escorts, and a player vehicle whose driver dies alone carries on as an escort instead of leaving the road. The isOutOfFight stand-in for the player's team is gone.

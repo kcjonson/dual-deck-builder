@@ -265,8 +265,8 @@ The initial set: six generic and Triage from the escorts decision, plus the Outr
 **Draw Fire** (1 Adrenaline, uncommon). Buff order, `escort`.
 
 - Summary: "This [Escort] draws its row's raider fire. +{shield} [Shield]." (51 rendered)
-- Full text: "Target escort gains {shield} Shield and is spent. Until the end of the next enemy turn, each raider intent aimed at a driven vehicle in its row hits the escort instead, if the card can reach it. The rest hit their original target as planned."
-- Shield 4 (decided 2026-09-26, was 4 Armor). The Shield clears at the start of the player's next turn, so it covers exactly the enemy turn the redirect covers. The counter to killers, which aim at driven vehicles. It protects and never cancels: each intent is judged as it plays, and one whose card can't reach the escort keeps its target. Target marks update when it's played, so the end-turn preview shows the redirect. If two Draw Fires cover the same row, the last one played wins. Can target a spent escort.
+- Full text: "Target escort gains {shield} Shield and is spent. Until the end of the next enemy turn, each raider intent aimed at another of your vehicles in its row hits the escort instead, if the card can reach it. The rest hit their original target as planned."
+- Shield 4 (decided 2026-09-26, was 4 Armor). The Shield clears at the start of the player's next turn, so it covers exactly the enemy turn the redirect covers. It covers every other vehicle in the row, driven, hauler, or escort (decided 2026-09-26, Kevin delegated the call; escorts.md decision 48), so it counters killers, which aim at driven vehicles, and looters, which aim at haulers. It protects and never cancels: each intent is judged as it plays, and one whose card can't reach the escort keeps its target. Target marks update when it's played, so the end-turn preview shows the redirect. If two Draw Fires cover the same row, the last one played wins. Can target a spent escort.
 
 **Close Ranks** (1 Adrenaline, common, proposed). Buff order, `escort`.
 
