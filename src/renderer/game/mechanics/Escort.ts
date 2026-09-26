@@ -11,10 +11,11 @@ export type EscortType = 'outrider' | 'pilot_car' | 'fuel_hauler' | 'med_truck';
 export type EscortRole = 'gun' | 'hauler';
 
 /**
- * What a hauler pays after every fight it survives
+ * What a hauler pays after every fight it survives: fuel or scrap for the
+ * run, or HP for every living driver in the run, up to their starting HP
  */
 export interface EscortDividend {
-	resource: 'fuel' | 'scrap';
+	kind: 'fuel' | 'scrap' | 'heal';
 	amount: number;
 }
 
@@ -91,7 +92,7 @@ export const ESCORT_CONFIGS: Record<EscortType, EscortConfig> = {
 		baseSpeed: 2,
 		preferredSlot: { lane: 'outside', row: RoadRow.CENTER },
 		signatureCard: 'top_off',
-		dividend: { resource: 'fuel', amount: 1 }
+		dividend: { kind: 'fuel', amount: 1 }
 	},
 	med_truck: {
 		type: 'med_truck',
@@ -105,7 +106,7 @@ export const ESCORT_CONFIGS: Record<EscortType, EscortConfig> = {
 		baseSpeed: 2,
 		preferredSlot: { lane: 'outside', row: RoadRow.BEHIND },
 		signatureCard: 'triage',
-		dividend: null
+		dividend: { kind: 'heal', amount: 3 }
 	}
 };
 

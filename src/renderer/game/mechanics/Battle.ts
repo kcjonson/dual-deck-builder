@@ -16,6 +16,7 @@ import {
 import { Card, CardEffect } from './Card';
 import { BoardProjection, cardRange } from './BoardProjection';
 import { ESCORT_CONFIGS } from './Escort';
+import type { AfterFight, DividendPayout } from './Convoy';
 import { EffectRecipient, effectRecipientOf, effectRecipients, isCasterAction, rollsToHit } from './EffectTargets';
 import {
 	Intent,
@@ -145,6 +146,13 @@ export class Battle extends Model<BattleData> {
 	// the next enemy turn (stored separately due to Model freezing)
 	private static drawFireCovers = new WeakMap<Battle, Vehicle[]>();
 
+	// The convoy's escorts as the fight began, so one wrecked and cleared off
+	// the road is still known as lost when it ends
+	private static convoyEscorts = new WeakMap<Battle, Vehicle[]>();
+
+	// What the fight did to the convoy, once it has ended
+	private static afterFights = new WeakMap<Battle, AfterFight>();
+
 	// Static flag to control console logging
 	public static suppressConsoleLog = false;
 
@@ -185,6 +193,7 @@ export class Battle extends Model<BattleData> {
 			[TeamType.PLAYER, playerTeam.getAllDrivers()],
 			[TeamType.ENEMY, enemyTeam.getAllDrivers()]
 		]));
+		Battle.convoyEscorts.set(this, playerTeam.escorts.filter(escort => !escort.escort?.setPiece));
 
 		// Initialize AI controller (stored in WeakMap to avoid Model freezing issues)
 		Battle.aiControllers.set(this, new AIController(this));
@@ -1811,14 +1820,71 @@ export class Battle extends Model<BattleData> {
 	}
 
 	/**
-	 * End combat and process post-combat effects
+	 * End the fight. Every driver who fought gets their exhausted cards back.
+	 * Each convoy escort wrecked this fight is gone for the run, and the
+	 * signature copy it brought leaves the decks now. Every living player
+	 * vehicle leaves the road (Vehicle.leaveRoad), and a living convoy
+	 * escort's armor refills, so it carries only its structure into the next
+	 * fight. After a won fight the haulers among them pay out. The Med
+	 * Truck's heal lands here, on every living driver who fought, crashed
+	 * out or not; fuel and scrap go in the result for the run. Runs once: a
+	 * second call returns the same result.
 	 */
-	public endCombat(): void {
+	public endCombat(): AfterFight {
+		const ended = Battle.afterFights.get(this);
+		if (ended) return ended;
+
+		const seats = Battle.driverSeats.get(this);
 		// Exhaust is once per fight: every driver who fought gets theirs back
-		for (const drivers of Battle.driverSeats.get(this)?.values() ?? []) {
+		for (const drivers of seats?.values() ?? []) {
 			drivers.forEach(driver => driver.returnExhausted());
 		}
+		const playerDrivers = seats?.get(TeamType.PLAYER) ?? [];
+
+		const lost = (Battle.convoyEscorts.get(this) ?? []).filter(escort => !escort.isAlive());
+		for (const escort of lost) {
+			const removed = playerDrivers.flatMap(driver => driver.removeCardsBroughtBy(escort.id));
+			const copies = removed.length > 0 ? `, and ${removed.map(card => card.name).join(', ')} leaves the deck` : '';
+			this.log('general', `${escort.name} is lost for the run${copies}`, { vehicle: escort.name });
+		}
+
+		this.playerTeam.getAliveVehicles().forEach(vehicle => vehicle.leaveRoad());
+		const escorts = this.playerTeam.escorts.filter(escort => escort.isAlive() && !escort.escort?.setPiece);
+		escorts.forEach(escort => { escort.armor = escort.maxArmor; });
+
+		const dividends: DividendPayout[] = !this.battleWon ? [] : escorts.flatMap(escort => {
+			const dividend = escort.escort?.dividend;
+			return dividend ? [{ escort, ...dividend }] : [];
+		});
+		for (const payout of dividends) {
+			this.payDividend({ payout, drivers: playerDrivers });
+		}
+
+		const afterFight: AfterFight = { escorts, lost, dividends };
+		Battle.afterFights.set(this, afterFight);
 		this.emit('combatEnded', this.getState());
+		return afterFight;
+	}
+
+	/**
+	 * What the fight did to the convoy, or null while it's still on
+	 */
+	public get afterFight(): AfterFight | null {
+		return Battle.afterFights.get(this) ?? null;
+	}
+
+	private payDividend({ payout, drivers }: { payout: DividendPayout; drivers: readonly Driver[] }): void {
+		const { escort, kind, amount } = payout;
+		if (kind !== 'heal') {
+			this.log('general', `${escort.name} pays out ${amount} ${kind}`, { vehicle: escort.name, value: amount });
+			return;
+		}
+		for (const driver of drivers.filter(candidate => candidate.isAlive())) {
+			const before = driver.hitpoints;
+			driver.heal(amount);
+			this.log('heal_applied', `${escort.name} patches up ${this.getDriverDisplayName(driver)}: +${driver.hitpoints - before} HP`,
+				{ vehicle: escort.name, driver: driver.metadata.name, value: driver.hitpoints - before });
+		}
 	}
 
 	/**

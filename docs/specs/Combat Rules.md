@@ -103,7 +103,7 @@ An ambusher has no reserved formation slot and no outran vehicle. It counts as f
 
 - Game over - The fight goes on while at least one of your drivers is still in it, driving or riding as a passenger. When none are (every driver dead or crashed out), the run ends: true death, the session is over, and there's no rescue even for a driver who crashed out alive. Escorts never count toward defeat. Decided by Kevin, 2026-09-25: one driver has to survive to circle back down the road for the other.
 - Driver death - If the vehicle has a passenger, the passenger becomes the driver. If not:
-  - On the player's team, the vehicle becomes an escort for the rest of the fight, with default crew stats (gunnery, evade, ramming) and its own base speed. It brings no signature card, and if this happens mid-turn it starts spent.
+  - On the player's team, the vehicle becomes an escort, with default crew stats (gunnery, evade, ramming) and its own base speed. It brings no signature card, and if this happens mid-turn it starts spent. It stays in the convoy after the fight (see Owning escorts).
   - A raider vehicle is out of the fight and leaves the road at the end of the turn, like a wreck. Its plan drops (see Enemy intents).
 - Vehicle death - Every vehicle, escorts included, has one passenger seat. The wreck's occupants jump, the driver first, then the passenger.
   - On the player's team, each goes to the partner's vehicle first, then the nearest escort (lowest range from the wreck, ties broken as for attack orders), whichever has a free seat.
@@ -111,7 +111,7 @@ An ambusher has no reserved formation slot and no outran vehicle. It counts as f
   - A driver with no free seat has crashed out: out of the fight but alive, and their hand is gone for that fight. If the fight is won, the surviving driver goes back down the road and picks them up, so they rejoin the run.
   - A passenger keeps their own deck, hand, discard, and adrenaline, draws every turn, can't play attack cards, and can play order cards.
   - A wrecked vehicle stays on the road for the turn it dies, then is removed.
-- Escort death - A wrecked escort is gone for the rest of the run, and its signature card with it. See Escorts.
+- Escort death - A wrecked escort is gone for the rest of the run, and its signature card leaves the deck when the fight ends. See Escorts.
 
 ## Combat sequence
 
@@ -180,18 +180,21 @@ An escort is an undriven vehicle in your convoy: it has a slot and a plate but n
 
 ### Owning escorts
 
+Persistence and dividends were decided 2026-09-26 (Kevin delegated the calls; record in [escorts.md](../AI_TECHNICAL_DECISIONS/escorts.md) decisions 32 and 33).
+
 - You get escorts from events and by hiring them in the garage. Convoy contracts come later.
 - Up to 4 escorts. At 4, taking another means dismissing one first.
 - Duplicate types are allowed.
 - The roster is the order your escorts joined the convoy, first acquired first. It settles preferred-slot collisions and the order Rally the Convoy resolves in.
-- Damage persists between fights: an escort starts the next fight with the structure it ended on. The garage repairs it.
+- After a fight, every living escort stays in the convoy, whatever made it an escort. A driven vehicle that became one (see Passengers and unmanned vehicles) joins the end of the roster and counts toward the 4. If that makes 5, you dismiss one before the next fight.
+- Damage persists between fights: an escort starts the next fight with the structure it ended on. The garage repairs it. Everything else is the fight's: an escort starts the next fight in formation at full armor, with no statuses or Shield, ready. (Armor refilling is a build call, proposed in escorts.md for Kevin to confirm.)
 - A lost escort is gone for the run, with its signature card.
-- Haulers pay a dividend after every fight they survive: the Fuel Hauler +1 fuel, the Salvage Rig (not one of the first four) +15 scrap.
+- Haulers pay a dividend after a won fight they survive (a tie or a loss pays nothing): the Fuel Hauler +1 fuel, the Med Truck 3 HP to every living driver in the run (up to their starting HP, and including a driver who crashed out), the Salvage Rig (not one of the first four) +15 scrap. Each hauler pays its own, so two Med Trucks heal 6.
 
 ### Passengers and unmanned vehicles
 
 - Every escort has one passenger seat. A driver whose vehicle is wrecked rides in the partner's vehicle first, then the nearest escort with a free seat, and crashes out of the fight if there's none, to be picked up after a won fight (see Losing vehicles and drivers). A passenger in an escort can play order cards and any other card that isn't an attack.
-- A driven vehicle whose driver dies with no passenger becomes an escort for the rest of the fight, with default crew stats and its own base speed. It can be ordered like any escort, it starts spent if it converts mid-turn, and it brings no signature card.
+- A driven vehicle whose driver dies with no passenger becomes an escort, with default crew stats and its own base speed. It can be ordered like any escort, it starts spent if it converts mid-turn, and it brings no signature card. It stays in the convoy after the fight, counting toward the 4.
 
 ### Starting escort types
 
@@ -202,7 +205,7 @@ The minimal first version has four. The driven vehicles open at inside center an
 | Outrider | gun | 5 | inside ahead | Run Ahead |
 | Pilot Car | gun | 4 | outside ahead | Flag Down |
 | Fuel Hauler | hauler, +1 fuel after each fight | not set | outside center | Top Off |
-| Med Truck | hauler, dividend not set | not set | outside behind | Triage |
+| Med Truck | hauler, every living driver heals 3 HP after each fight | not set | outside behind | Triage |
 
 The three new signature cards were decided 2026-09-26 (Kevin delegated the call; record in [escorts.md](../AI_TECHNICAL_DECISIONS/escorts.md) decisions 23 to 27, cards in Card System Design 4.5):
 
