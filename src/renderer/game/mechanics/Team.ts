@@ -195,6 +195,20 @@ export class Team extends Model<TeamData> {
 	}
 
 	/**
+	 * Every vehicle's Shield wears off, at the start of the player's turn
+	 */
+	public clearShields(): void {
+		this.vehicles.forEach(vehicle => vehicle.clearShield());
+	}
+
+	/**
+	 * Every escort is ready to act again, at the start of the player's turn
+	 */
+	public readyEscorts(): void {
+		this.escorts.forEach(escort => { escort.spent = false; });
+	}
+
+	/**
 	 * Discard hands for all drivers at end of turn
 	 */
 	public discardAllHands(): void {

@@ -12,7 +12,7 @@ const DESCRIPTION_MAX_CHARS = 330;
 
 // Stand-in for "three lines of 12px text in a 114px box" until phase 2 text
 // measurement lands and this becomes a real wrap check. Counted as rendered,
-// so keyword brackets don't count. The longest current summary is 55.
+// so keyword brackets don't count. The longest current summary is 59.
 const SUMMARY_MAX_CHARS = 60;
 
 const renderedSummary = (text: string): string => text.replace(/\[(.+?)\]/g, '$1');

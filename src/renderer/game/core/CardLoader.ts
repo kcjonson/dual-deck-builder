@@ -1,4 +1,5 @@
-import { Card, CardData } from '../mechanics/Card';
+import { CARD_RARITIES, Card, CardData, TARGET_TYPES } from '../mechanics/Card';
+import { ESCORT_CONFIGS } from '../mechanics/Escort';
 
 /**
  * Loads and manages card data from JSON configuration
@@ -119,16 +120,29 @@ export class CardLoader {
 			throw new Error(`Card ${cardData.type} tags must be an array`);
 		}
 
-		// Validate rarity
-		const validRarities = ['starter', 'common', 'uncommon', 'rare', 'legendary'];
-		if (!validRarities.includes(cardData.rarity)) {
+		if (!CARD_RARITIES.includes(cardData.rarity)) {
 			throw new Error(`Card ${cardData.type} has invalid rarity: ${cardData.rarity}`);
 		}
 
-		// Validate target type
-		const validTargets = ['enemy_single', 'enemy_all', 'self', 'ally', 'both_drivers', 'any'];
-		if (!validTargets.includes(cardData.targetType)) {
+		if (!TARGET_TYPES.includes(cardData.targetType)) {
 			throw new Error(`Card ${cardData.type} has invalid target type: ${cardData.targetType}`);
+		}
+
+		const isOrder = cardData.tags.includes('order');
+		if (isOrder && cardData.tags.includes('attack')) {
+			throw new Error(`Card ${cardData.type} is an order, so it can't also be tagged attack`);
+		}
+		if (!isOrder && (cardData.targetType === 'escort' || cardData.signatureOf || cardData.spendsEscort)) {
+			throw new Error(`Card ${cardData.type} commands an escort, so it must be tagged order`);
+		}
+
+		// A signature card comes with its escort, never from the reward pool or shop
+		const signatureOf = cardData.signatureOf;
+		if (signatureOf && !(signatureOf in ESCORT_CONFIGS)) {
+			throw new Error(`Card ${cardData.type} is the signature of an unknown escort type: ${signatureOf}`);
+		}
+		if (Boolean(signatureOf) !== (cardData.rarity === 'signature')) {
+			throw new Error(`Card ${cardData.type} must have signature rarity exactly when it has signatureOf`);
 		}
 	}
 

@@ -1,6 +1,7 @@
 import type { Card, CardEffect } from './Card';
 import type { Driver } from './Driver';
 import type { Vehicle } from './Vehicle';
+import type { RoadSlot } from './Road';
 import { EffectRecipient, effectRecipientOf } from './EffectTargets';
 
 /**
@@ -40,7 +41,8 @@ export interface PlannedAction {
 	card: Card;
 	driver: Driver;
 	target: Vehicle | null;
-	/** The raider's projected flank state and speed when this card resolves, after its earlier planned cards. */
+	/** The raider's projected slot, flank state, and speed when this card resolves, after its earlier planned cards. */
+	slot: RoadSlot | null;
 	flanking: boolean;
 	speed: number;
 }
@@ -83,7 +85,7 @@ export function intentTypeOf(card: Card): IntentType {
 	if (card.effects.some(effect => isStatusEffect(effect) && !isSelfEffect(effect, card))) {
 		return IntentType.DEBUFF;
 	}
-	if (card.effects.some(effect => ['gain_armor', 'armor', 'heal', 'heal_driver'].includes(effect.type))) {
+	if (card.effects.some(effect => ['gain_armor', 'armor', 'gain_shield', 'heal', 'heal_driver'].includes(effect.type))) {
 		return IntentType.DEFEND;
 	}
 	if (buffLabelOf(card)) return IntentType.BUFF;
@@ -91,10 +93,10 @@ export function intentTypeOf(card: Card): IntentType {
 }
 
 /**
- * Armor or repair a defend card grants.
+ * Armor, shield, or repair a defend card grants.
  */
 export function defendAmountOf(card: Card): number | null {
-	const effect = card.effects.find(e => ['gain_armor', 'armor', 'heal', 'heal_driver'].includes(e.type));
+	const effect = card.effects.find(e => ['gain_armor', 'armor', 'gain_shield', 'heal', 'heal_driver'].includes(e.type));
 	return typeof effect?.value === 'number' ? effect.value : null;
 }
 

@@ -48,6 +48,10 @@ export interface VehicleData {
 	intentTier?: IntentTier;
 	/** Set on an escort, which has no driver by design. Unset means a driven vehicle. */
 	escort?: EscortProfile | null;
+	/** An escort that has acted this turn. Every escort is ready again at the start of the player's turn. */
+	spent?: boolean;
+	/** Temporary armor: absorbs damage before armor, isn't capped, and clears at the start of the player's turn */
+	shield?: number;
 }
 
 /**
@@ -98,7 +102,9 @@ export class Vehicle extends Model<VehicleData> {
 		'passenger',
 		'statusEffects',
 		'intentTier',
-		'escort'
+		'escort',
+		'spent',
+		'shield'
 	]);
 
 	// All properties are now model properties!
@@ -129,6 +135,13 @@ export class Vehicle extends Model<VehicleData> {
 	}
 
 	/**
+	 * An escort that can still carry out an order this turn
+	 */
+	public get isReady(): boolean {
+		return this.isEscort && !this.spent && !this.isOutOfFight;
+	}
+
+	/**
 	 * On the other team's shoulder. Slots are only ever changed by Battle,
 	 * which keeps shoulders to flankers.
 	 */
@@ -145,15 +158,19 @@ export class Vehicle extends Model<VehicleData> {
 	}
 
 	/**
-	 * Armor soaks damage first. Past armor, damage splits half to structure
-	 * and half to each living occupant; with nobody aboard (an empty escort)
-	 * it all goes to structure.
+	 * Shield soaks damage first, then armor. Past both, damage splits half
+	 * to structure and half to each living occupant; with nobody aboard (an
+	 * empty escort) it all goes to structure.
 	 */
 	public takeDamage(damage: number): void {
-		const armorDamage = Math.min(damage, this.armor);
+		const shieldDamage = Math.min(damage, this.shield ?? 0);
+		if (shieldDamage > 0) {
+			this.shield = (this.shield ?? 0) - shieldDamage;
+		}
+		const armorDamage = Math.min(damage - shieldDamage, this.armor);
 		this.armor -= armorDamage;
 
-		const remainingDamage = damage - armorDamage;
+		const remainingDamage = damage - shieldDamage - armorDamage;
 		if (remainingDamage > 0) {
 			const occupants = [this.driver, this.passenger]
 				.filter((occupant): occupant is Driver => occupant?.isAlive() ?? false);
@@ -203,6 +220,33 @@ export class Vehicle extends Model<VehicleData> {
 			if (overflow > 0) {
 				this.addArmor(overflow);
 			}
+		}
+	}
+
+	/**
+	 * Damage straight to structure, past armor and nobody aboard: a printed
+	 * cost like Ramming Run's.
+	 */
+	public damageStructure(damage: number): void {
+		this.structure = Math.max(0, this.structure - damage);
+		if (!this.isAlive()) {
+			this.emit('destroyed', this);
+		}
+	}
+
+	/**
+	 * Temporary armor on top of armor. Uncapped, and it stacks.
+	 */
+	public addShield(amount: number): void {
+		this.shield = (this.shield ?? 0) + amount;
+	}
+
+	/**
+	 * Shield lasts until the start of the player's next turn
+	 */
+	public clearShield(): void {
+		if (this.shield) {
+			this.shield = 0;
 		}
 	}
 

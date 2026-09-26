@@ -24,6 +24,7 @@ export class Vehicle extends Layer {
 	protected armorText!: Text;
 	protected driverPortrait: Rectangle | null = null;
 	protected statusContainer: Layer | null = null;
+	protected spentChip: Text | null = null;
 	
 	// References
 	private combatData: CombatModel | null = null;
@@ -226,6 +227,22 @@ export class Vehicle extends Layer {
 		this.armorText.setPosition(Math.floor(width * 0.225), Math.floor(height * 0.84));
 		this.addChild(this.armorText);
 		
+		// An escort shows SPENT once it has acted this turn
+		this.spentChip = null;
+		if (this.vehicleData.isEscort) {
+			this.spentChip = new Text('SPENT', {
+				id: this.childId('spent_chip'),
+				style: {
+					fontSize: 9,
+					color: '#ffcc66',
+					textAlign: 'right',
+					fontWeight: 'bold',
+				},
+			});
+			this.spentChip.setPosition(Math.floor(width * 0.95), Math.floor(height * 0.05));
+			this.addChild(this.spentChip);
+		}
+
 		// Status effect container (for future use)
 		this.statusContainer = new Layer({
 			id: this.childId('status_container'),
@@ -262,8 +279,13 @@ export class Vehicle extends Layer {
 		this.healthText.setText(`${this.vehicleData.structure}/${this.vehicleData.maxStructure}`);
 		
 		// Update armor
-		this.armorDisplay.setFillColor(this.vehicleData.armor > 0 ? '#6a6aaa' : '#4a4a4a');
-		this.armorText.setText(`${this.vehicleData.armor}⛡`);
+		// Shield, temporary armor on top, shows as "SH" and a second number
+		// while there is any. Plain ASCII: the font atlas has nothing else.
+		const shield = this.vehicleData.shield ?? 0;
+		this.armorDisplay.setFillColor(this.vehicleData.armor > 0 || shield > 0 ? '#6a6aaa' : '#4a4a4a');
+		this.armorText.setText(shield > 0 ? `${this.vehicleData.armor}⛡ SH${shield}` : `${this.vehicleData.armor}⛡`);
+
+		this.spentChip?.setVisible(Boolean(this.vehicleData.spent));
 	}
 	
 	/**
@@ -374,6 +396,13 @@ export class Vehicle extends Layer {
 				this.updateVisualState();
 			})
 		);
+
+		// Listen for the escort an attack order would use
+		this.modelUnsubscribers.push(
+			this.combatData.on('carrierVehicleId', () => {
+				this.updateVisualState();
+			})
+		);
 		
 		// Listen for targeting state changes
 		this.modelUnsubscribers.push(
@@ -400,11 +429,21 @@ export class Vehicle extends Layer {
 	}
 	
 	/**
-	 * Update visual state based on model state
+	 * The escort that would carry out the attack order being aimed
+	 */
+	private isOrderCarrier(): boolean {
+		return this.combatData?.carrierVehicleId === this.vehicleData.id;
+	}
+
+	/**
+	 * Update visual state based on model state. The escort that would carry
+	 * out an attack order lights up like a focused target while the order is
+	 * over its raider.
 	 */
 	private updateVisualState(): void {
-		const targetable = this.isTargetable();
-		const focused = this.isFocused();
+		const carrier = this.isOrderCarrier();
+		const targetable = this.isTargetable() || carrier;
+		const focused = this.isFocused() || carrier;
 		const targeting = this.combatData?.isTargeting || false;
 		
 		// Update visual state based on targetability

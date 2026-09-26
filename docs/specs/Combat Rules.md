@@ -17,6 +17,7 @@
 
 - Properties
   - Armor: 0 - infinite
+  - Shield: 0 - infinite. Temporary armor: absorbs damage before Armor, isn't capped by the vehicle's armor, stacks, and clears from every vehicle at the start of the player's turn (and when a fight starts). Decided 2026-09-26; see [escorts.md](../AI_TECHNICAL_DECISIONS/escorts.md) decision 28.
   - Structure: 0 - infinite
   - Base Speed: 1-5
   - Driver: driver (driven vehicles) or none (escorts)
@@ -156,14 +157,17 @@ An escort is an undriven vehicle in your convoy: it has a slot and a plate but n
 - Same slots and range as any vehicle. There's no cover geometry: an escort doesn't block or shield anything by where it sits.
 - Escorts place after the driven vehicles. Each escort type has a preferred slot, used as its encounter or opening slot; if it's taken, the escort takes the next free slot in the fill order.
 - Escorts flank under the normal rules, including the +50% from the shoulder and the end-of-turn drop-back. A set-piece escort can also start on the raiders' shoulder as an ambusher.
+- The only order that moves an escort onto the shoulder is the Outrider's Run Ahead. There's no generic flank order in the first set (decided 2026-09-26).
 
 ### Orders
 
 - An escort does nothing on its own. It acts when a driver plays an order card, and it acts at most once per turn. Once it has acted it is spent and shows a SPENT chip until the start of the player's turn.
 - Any driver can play an order card, active or passenger. The adrenaline comes from the driver who plays it.
 - Attack orders target a raider. The nearest ready escort within the card's range of that raider carries it out and is spent. Nearest means lowest range to the raider. Ties go to the inside lane, then the outside lane, then the enemy shoulder, and within a lane to ahead, then center, then behind. While the card is dragged over a raider, the escort that would carry it out lights up. A raider with no ready escort in range isn't a legal target.
-- Buff orders (armor, Draw Fire) target an escort directly, and can target a spent one.
-- Spending: attack orders (Covering Fire, Ramming Run, Rally the Convoy) and Draw Fire spend the escort. Close Ranks and Triage don't. Triage is the Med Truck's card, not its action, so the Med Truck doesn't need to be ready.
+- A signature attack order is carried out only by an escort of its type: Run Ahead by the nearest ready Outrider that can legally flank the target (range isn't a limit), Flag Down by the nearest ready Pilot Car within range 2.
+- Ramming Run's 2 structure damage to the escort lands only on a hit. A miss means no collision; the card, the adrenaline, and the escort's action are still spent (decided 2026-09-26).
+- Buff orders (Close Ranks, Draw Fire) target an escort directly, and can target a spent one. Both give Shield, not armor, so they work on an escort at full armor and on the Outrider, which has none.
+- Spending: attack orders (Covering Fire, Ramming Run, Rally the Convoy, Run Ahead, Flag Down) and Draw Fire spend the escort. Close Ranks, Triage, and Top Off don't. Triage and Top Off are the Med Truck's and Fuel Hauler's cards, not their actions, so neither needs to be ready.
 - Every order card is a single drop, the same as any other card.
 
 ### Signature cards
@@ -195,10 +199,16 @@ The minimal first version has four. The driven vehicles open at inside center an
 
 | Escort | Role | Speed | Preferred slot | Signature card |
 |---|---|---|---|---|
-| Outrider | gun | 5 | inside ahead | not yet named |
-| Pilot Car | gun | 4 | outside ahead | not yet named |
-| Fuel Hauler | hauler, +1 fuel after each fight | not set | outside center | not yet named |
+| Outrider | gun | 5 | inside ahead | Run Ahead |
+| Pilot Car | gun | 4 | outside ahead | Flag Down |
+| Fuel Hauler | hauler, +1 fuel after each fight | not set | outside center | Top Off |
 | Med Truck | hauler, dividend not set | not set | outside behind | Triage |
+
+The three new signature cards were decided 2026-09-26 (Kevin delegated the call; record in [escorts.md](../AI_TECHNICAL_DECISIONS/escorts.md) decisions 23 to 27, cards in Card System Design 4.5):
+
+- Run Ahead (Outrider): the Outrider gains +2 Speed for 2 turns, then flanks the target raider. Speed 5 is the Outrider's only distinguishing stat, and a tie can't flank, so without the boost it couldn't flank a speed 5 raider like the Rust Buggy.
+- Flag Down (Pilot Car): the target raider is Vulnerable and 2 slower until the end of the next enemy turn, sure-hit. A setup play for the gun escorts before Covering Fire, and the slow lets drivers flank.
+- Top Off (Fuel Hauler): +1 Adrenaline to the driver or passenger you pick in a convoy vehicle, 0 cost, doesn't spend the hauler. It makes the hauler your adrenaline source, which is what looters target, so protecting it with Draw Fire is a real choice.
 
 Gunnery, evade, ramming, armor, structure, the haulers' speeds, and the default crew stats for an unmanned vehicle are content numbers, set when escorts are built.
 
@@ -213,8 +223,9 @@ Gunnery, evade, ramming, armor, structure, the haulers' speeds, and the default 
     - An attack hits if the attacking drivers gunnery > the defending drivers evade.  
     - Damage done is: 1 - infinite
     - Drivers with flanking do 50% more damage (the Flank card, the code, and this rule agree)
-    - Reduces armor first
-    - When armor <= 0, Applies half of remaining to the structure of a vehicle and its driver and passengers. With nobody aboard (an empty escort), all of it goes to structure.
+    - Reduces Shield first, then armor
+    - When shield and armor are gone, Applies half of remaining to the structure of a vehicle and its driver and passengers. With nobody aboard (an empty escort), all of it goes to structure.
+    - Damage that skips armor skips Shield the same way: a structure-only cost (Ramming Run's) and a driver-only hit (Headshot). Ram's Armor/10 counts armor only, never Shield.
     - An escort attacks and defends with its own gunnery, ramming, and evade (see Escorts).
 
 Specific Cards

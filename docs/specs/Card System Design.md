@@ -86,7 +86,7 @@
 
 Every card carries two texts, both required, both templated with the same `{variables}`:
 
-- `summary` is the card face in the hand: three lines of 12px text in a 114px box, written with keywords in brackets (`[Range 1]`, `[Vulnerable]`, `[Sure-hit]`, `[Armor]`, `[Partner]`, `[Flank]`, `[Exhaust]`, `[Escort]`), which render highlighted and get definitions in the detail view.
+- `summary` is the card face in the hand: three lines of 12px text in a 114px box, written with keywords in brackets (`[Range 1]`, `[Vulnerable]`, `[Sure-hit]`, `[Armor]`, `[Shield]`, `[Partner]`, `[Flank]`, `[Exhaust]`, `[Escort]`), which render highlighted and get definitions in the detail view.
 - `description` is the full rules text for the card detail view (hover, focus, or long-press; right-click pins it), up to 330 characters with values filled in. Keywords in it are highlighted automatically.
 
 A summary that wraps past three lines, or a description past 330 characters, fails the card data check; the fix is rewriting, never smaller type. Layout and budgets: [Battle Screen Design](./Battle%20Screen%20Design.md) section 5.
@@ -110,18 +110,21 @@ A summary that wraps past three lines, or a description past 330 characters, fai
 - **Uncommon**: 30% drop rate
 - **Rare**: 9% drop rate
 - **Legendary**: 1% drop rate
+- **Signature**: an escort's own order card. Comes with the escort, never from the reward pool or the shop. See 1.3
 
 ### 1.3 Order cards
 
 Escorts are vehicles in your convoy with a slot and a plate but no driver and no hand. They act only when an order card is played. The rules for escorts are in [Combat Rules](./Combat%20Rules.md), section Escorts; this is the card side.
 
 - **Order** is its own card type, tagged `order` in card data and never `attack`. Any driver can play one, active or passenger, paying from their own adrenaline.
-- **Attack orders** target a raider (`enemy_single`). The nearest ready escort within the card's range of that raider carries it out and is spent; ties go to the inside lane, then the outside lane, then the enemy shoulder, and within a lane to ahead, center, behind. The drag lights up that escort. A raider with no ready escort in range isn't a legal target.
-- **Buff orders** target an escort directly, with the new `escort` target type, and can target a spent one. Armor orders and Draw Fire are buff orders.
-- **Spending.** Attack orders and Draw Fire spend the escort. Close Ranks and Triage don't; Triage is the Med Truck's card, not its action.
+- **Attack orders** target a raider (`enemy_single`). The nearest ready escort within the card's range of that raider carries it out and is spent; ties go to the inside lane, then the outside lane, then the enemy shoulder, and within a lane to ahead, center, behind. The drag lights up that escort. A raider with no ready escort in range isn't a legal target. A signature attack order (Run Ahead, Flag Down) only goes to an escort of its type, and a flanking one (Run Ahead) only to an escort that could legally flank the target after the card's own boost. The escort acts with its own slot, speed, and skills, not the ordering driver's.
+- **Buff orders** target an escort directly, with the new `escort` target type, and can target a spent one. Close Ranks and Draw Fire are buff orders, and both give `[Shield]`.
+- **Spending.** Attack orders and Draw Fire spend the escort. Close Ranks, Triage, and Top Off don't; Triage and Top Off are the Med Truck's and Fuel Hauler's cards, not their actions. Card data marks a spending order with `spendsEscort`.
 - Every order card is a single drop, the same as any other card. No order asks for two targets.
 - **`[Escort]`**: "An undriven vehicle in your convoy. Acts only when ordered, once per turn."
-- **Signature cards.** Each escort type has one signature order card, and each escort brings its own copy into a driver's deck when it joins; the player picks which driver. Card data names the type with `signatureOf` (the escort type's id), and each copy remembers the escort that brought it. A signature card is never in the reward pool or the shop. It's playable while any living escort of its type is in the convoy. The copy an escort brought leaves the deck at the end of the fight it's wrecked in, or when it's dismissed.
+- **`[Shield]`**: "Temporary armor. Absorbs damage before Armor. Clears at the start of your next turn." Not capped by the vehicle's armor, and it stacks. Card data grants it with a `gain_shield` effect. Close Ranks and Draw Fire give it; Armor Plating and Repair Kit stay on capped Armor until DDB-164 decides otherwise.
+- **Signature cards.** Each escort type has one signature order card, and each escort brings its own copy into a driver's deck when it joins; the player picks which driver. Card data names the type with `signatureOf` (the escort type's id) and gives it `signature` rarity, and each copy remembers the escort that brought it (`broughtBy`, the escort's id). A signature card is never in the reward pool or the shop. It's playable while any living escort of its type is in the convoy. The copy an escort brought leaves the deck at the end of the fight it's wrecked in, or when it's dismissed.
+- **Picking who aboard.** Triage and Top Off target a vehicle and land on one person in it: dropping on the plate's passenger row picks the passenger, anywhere else the driver (on an escort, whoever rides in it). A vehicle with nobody aboard isn't a legal target for them.
 - **Reward pool.** Generic order cards join the reward pool only while you own at least one escort.
 
 ## 2\. Driver-Specific Starting Decks
@@ -245,7 +248,7 @@ Starting Deck:
 
 ### 4.5 Order cards
 
-The initial set. All cost 1 except Rally the Convoy. Rarities marked "proposed" weren't part of the decision. Summaries follow 1.1: keywords in brackets, three lines on the card face. Upgraded values aren't set yet.
+The initial set: six generic and Triage from the escorts decision, plus the Outrider's, Pilot Car's, and Fuel Hauler's signature cards (decided 2026-09-26, Kevin delegated the call; see [escorts.md](../AI_TECHNICAL_DECISIONS/escorts.md) decisions 23 to 27). All cost 1 except Rally the Convoy (2) and Top Off (0). Rarities marked "proposed" weren't part of the decision. Summaries follow 1.1: keywords in brackets, three lines on the card face, measured against the 60-character rendered proxy in `cards.test.ts`. Upgraded values aren't set yet.
 
 **Covering Fire** (1 Adrenaline, common, proposed). Attack order, `enemy_single`, range 2.
 
@@ -255,34 +258,52 @@ The initial set. All cost 1 except Rally the Convoy. Rarities marked "proposed" 
 
 **Ramming Run** (1 Adrenaline, common, proposed). Attack order, `enemy_single`, range 1.
 
-- Summary: "Nearest [Escort] in [Range 1] rams for {damage} + speed gap. Takes 2."
-- Full text: "The nearest ready escort within range 1 of the target rams it for {damage} plus the speed gap (escort speed minus target speed), using the escort's ramming against the target's evade. The escort takes 2 structure damage and is spent."
-- Damage 4.
+- Summary: "[Escort] in [Range 1] rams for {damage} + speed gap. Takes 2 on a hit." (59 rendered; "Nearest" didn't fit beside "on a hit", and the full text says it.)
+- Full text: "The nearest ready escort within range 1 of the target rams it for {damage} plus the speed gap (escort speed minus target speed), using the escort's ramming against the target's evade. On a hit the escort takes 2 structure damage. Hit or miss, it's spent."
+- Damage 4. The 2 self damage lands only on a hit: a miss means no collision, and the card, adrenaline, and escort action are already spent (decided 2026-09-26). It goes straight to structure, past the escort's armor, as printed.
 
 **Draw Fire** (1 Adrenaline, uncommon). Buff order, `escort`.
 
-- Summary: "This [Escort] draws its row's raider fire. +{armor} [Armor]."
-- Full text: "Target escort gains {armor} Armor and is spent. Until the end of the next enemy turn, each raider intent aimed at a driven vehicle in its row hits the escort instead, if the card can reach it. The rest hit their original target as planned."
-- Armor 4. The counter to killers, which aim at driven vehicles. It protects and never cancels: each intent is judged as it plays, and one whose card can't reach the escort keeps its target. Target marks update when it's played, so the end-turn preview shows the redirect. If two Draw Fires cover the same row, the last one played wins. Can target a spent escort.
+- Summary: "This [Escort] draws its row's raider fire. +{shield} [Shield]." (51 rendered)
+- Full text: "Target escort gains {shield} Shield and is spent. Until the end of the next enemy turn, each raider intent aimed at a driven vehicle in its row hits the escort instead, if the card can reach it. The rest hit their original target as planned."
+- Shield 4 (decided 2026-09-26, was 4 Armor). The Shield clears at the start of the player's next turn, so it covers exactly the enemy turn the redirect covers. The counter to killers, which aim at driven vehicles. It protects and never cancels: each intent is judged as it plays, and one whose card can't reach the escort keeps its target. Target marks update when it's played, so the end-turn preview shows the redirect. If two Draw Fires cover the same row, the last one played wins. Can target a spent escort.
 
 **Close Ranks** (1 Adrenaline, common, proposed). Buff order, `escort`.
 
-- Summary: "This [Escort] gains {armor} [Armor]. Doesn't spend it."
-- Full text: "Target escort gains {armor} Armor. The escort isn't spent and can still act this turn."
-- Armor 6.
+- Summary: "This [Escort] gains {shield} [Shield]. Doesn't spend it." (45 rendered)
+- Full text: "Target escort gains {shield} Shield. The escort isn't spent and can still act this turn."
+- Shield 6 (decided 2026-09-26, was 6 Armor). Stacks with other Shield and isn't capped, so it works at full armor and on the Outrider.
 
-**Triage** (1 Adrenaline, signature of the Med Truck). Targets a vehicle in your convoy (`ally`).
+**Triage** (1 Adrenaline, signature of the Med Truck, signature rarity). Targets a vehicle in your convoy (`ally`).
 
 - Summary: "Heal {healing} HP to a driver or passenger. Needs a Med Truck."
 - Full text: "Heal {healing} HP to the driver or passenger you choose in the target vehicle, up to their starting HP. Playable while any Med Truck lives, and doesn't spend it."
 - Healing 4. Heals up to starting HP, like Medical Kit.
-- Choosing the occupant is a proposal, because a card is one drop and `ally` targets a vehicle: dropping on the passenger row of the plate picks the passenger, anywhere else on the vehicle picks the driver. The model already carries a target driver for Medical Kit.
+- Choosing the occupant is a proposal, because a card is one drop and `ally` targets a vehicle: dropping on the passenger row of the plate picks the passenger, anywhere else on the vehicle picks the driver. `Battle.playCard` takes the pick as `targetOccupant`, and Medical Kit uses the same one.
 
 **Rally the Convoy** (2 Adrenaline, rare). `enemy_all`, dropped anywhere on the road like EMP Blast.
 
 - Summary: "Each ready [Escort] deals {damage} to its nearest raider. [Exhaust]."
 - Full text: "Ready escorts fire one at a time in roster order. Each deals {damage} damage to its nearest living raider within range 2, using its gunnery against that raider's evade. Then every escort is spent, including any with no raider in range. Exhaust."
-- Damage 2. Range 2 and the per-escort hit check are proposed; the decision says "in range". Escorts resolve in roster order, and each one picks its nearest raider again from the raiders still alive, so a raider wrecked by an earlier escort isn't shot twice. Ties for the nearest raider go to their inside lane, then their outside lane, then your shoulder, and ahead, center, behind within a lane.
+- Damage 2. Range 2 and the per-escort hit check are proposed; the decision says "in range". Escorts resolve in roster order, and each one picks its nearest raider again from the raiders still alive, so a raider wrecked by an earlier escort isn't shot twice. Ties for the nearest raider go to their inside lane, then their outside lane, then your shoulder, and ahead, center, behind within a lane. Needs at least one ready escort to play.
+
+**Run Ahead** (1 Adrenaline, signature of the Outrider, signature rarity). Attack order, `enemy_single`.
+
+- Summary: "Outrider gets +{speed} Speed for 2 turns, then [Flank]s target." (55 rendered)
+- Full text: "The nearest ready Outrider that can outrun the target gains {speed} Speed for 2 turns, then swerves onto the raiders' shoulder in the target's row. The target must be in formation and slower than the boosted Outrider, and that shoulder slot free. The Outrider is spent. Needs a living Outrider."
+- Speed 2. The flank follows the normal rules: the target must be in the raiders' formation and slower than the Outrider after the boost; the Outrider moves to the enemy shoulder in the target's row, keeps its formation slot reserved, and drops back at the end of a turn once it's no longer faster. Range isn't a constraint; nearest-with-ties picks among ready Outriders that can legally flank the target. A raider no ready Outrider can flank, including one whose shoulder slot is taken, isn't a legal target, so the card stays in hand. Spends the Outrider.
+
+**Flag Down** (1 Adrenaline, signature of the Pilot Car, signature rarity). Attack order, `enemy_single`, range 2.
+
+- Summary: "Pilot Car in [Range 2]: [Vulnerable], -{slow} Speed. [Sure-hit]." (53 rendered)
+- Full text: "The nearest ready Pilot Car within range 2 of the target flags it down: until the end of the next enemy turn the target is Vulnerable and loses {slow} speed. Always hits. The Pilot Car is spent. Needs a living Pilot Car."
+- Slow 2. Sure-hit, like Oil Slick. Both statuses last until the end of the next enemy turn, so a driver who flanks the slowed raider still holds the shoulder at that turn's drop-back check. Spends the Pilot Car.
+
+**Top Off** (0 Adrenaline, signature of the Fuel Hauler, signature rarity). Targets a vehicle in your convoy (`ally`).
+
+- Summary: "Driver or passenger: +{adrenaline} Adrenaline. Needs a Fuel Hauler." (56 rendered)
+- Full text: "The driver or passenger you choose in the target vehicle gains {adrenaline} Adrenaline, up to their maximum. Playable while any Fuel Hauler lives, and doesn't spend it."
+- Adrenaline 1. Picks who aboard the same way as Triage. Capped at the driver's maximum adrenaline, like every adrenaline gain. Lets one driver fuel the partner.
 
 ## 5\. Vehicle Mods (Permanent Upgrades)
 

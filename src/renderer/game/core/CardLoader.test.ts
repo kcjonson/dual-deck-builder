@@ -59,4 +59,32 @@ describe('CardLoader', () => {
 		respondWith({ cards: [{ ...baseCard, description: '' }] });
 		await expect(loader.loadCards()).rejects.toThrow('Card test_card description must be a non-empty string');
 	});
+
+	it('accepts an order aimed at an escort', async () => {
+		respondWith({ cards: [{ ...baseCard, targetType: 'escort', tags: ['order'] }] });
+		await loader.loadCards();
+		expect(loader.createCard('test_card')?.isOrder).toBe(true);
+	});
+
+	it('rejects an order tagged attack, so passengers can always play orders', async () => {
+		respondWith({ cards: [{ ...baseCard, tags: ['order', 'attack'] }] });
+		await expect(loader.loadCards()).rejects.toThrow("Card test_card is an order, so it can't also be tagged attack");
+	});
+
+	it('rejects an escort target on a card that isn\'t an order', async () => {
+		respondWith({ cards: [{ ...baseCard, targetType: 'escort' }] });
+		await expect(loader.loadCards()).rejects.toThrow('Card test_card commands an escort, so it must be tagged order');
+	});
+
+	it('rejects a signature card for an unknown escort type', async () => {
+		respondWith({ cards: [{ ...baseCard, tags: ['order'], rarity: 'signature', signatureOf: 'war_rig' }] });
+		await expect(loader.loadCards()).rejects.toThrow('Card test_card is the signature of an unknown escort type: war_rig');
+	});
+
+	it('ties signature rarity to signatureOf', async () => {
+		respondWith({ cards: [{ ...baseCard, tags: ['order'], signatureOf: 'outrider' }] });
+		await expect(loader.loadCards()).rejects.toThrow('Card test_card must have signature rarity exactly when it has signatureOf');
+		respondWith({ cards: [{ ...baseCard, rarity: 'signature' }] });
+		await expect(loader.loadCards()).rejects.toThrow('Card test_card must have signature rarity exactly when it has signatureOf');
+	});
 });

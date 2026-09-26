@@ -32,22 +32,22 @@ const createBattle = (playerVehicles: Vehicle[], enemyVehicles: Vehicle[]): Batt
 	enemyTeam: new Team({ type: TeamType.ENEMY, vehicles: enemyVehicles })
 });
 
-const card = (name: string, targetType: TargetType, effects: CardEffect[], cost = 1): Card => new Card({
+const card = (name: string, targetType: TargetType, effects: CardEffect[], tags: string[] = []): Card => new Card({
 	type: name.toLowerCase().replace(/ /g, '_'),
 	name,
 	summary: name,
 	description: name,
 	rarity: 'common',
-	cost,
+	cost: 1,
 	targetType,
 	effects,
-	tags: []
+	tags
 });
 
-const pointBlank = () => card('Point Blank', 'enemy_single', [{ type: 'damage', value: 4, range: 1, always_hits: true }]);
-const farShot = () => card('Far Shot', 'enemy_single', [{ type: 'damage', value: 4, range: 2, always_hits: true }]);
-const bigHit = () => card('Big Hit', 'enemy_single', [{ type: 'damage', value: 40, always_hits: true }]);
-const headshot = () => card('Headshot', 'enemy_single', [{ type: 'damage', value: 10, target: 'driver', always_hits: true }]);
+const pointBlank = () => card('Point Blank', 'enemy_single', [{ type: 'damage', value: 4, range: 1, always_hits: true }], ['attack']);
+const farShot = () => card('Far Shot', 'enemy_single', [{ type: 'damage', value: 4, range: 2, always_hits: true }], ['attack']);
+const bigHit = () => card('Big Hit', 'enemy_single', [{ type: 'damage', value: 40, always_hits: true }], ['attack']);
+const headshot = () => card('Headshot', 'enemy_single', [{ type: 'damage', value: 10, target: 'driver', always_hits: true }], ['attack']);
 const armorUp = () => card('Armor Up', 'self', [{ type: 'gain_armor', value: 3, target: 'self' }]);
 
 const driverOf = (vehicle: Vehicle): Driver => {

@@ -74,6 +74,37 @@ export function slotRange(from: RoadSlot, to: RoadSlot): number {
 	return lanesApart + rowsApart;
 }
 
+const LANE_KIND_RANK: Record<LaneKind, number> = { inside: 0, outside: 1, shoulder: 2 };
+
+/**
+ * Tie order between two slots equally near something: inside lane, then
+ * outside, then shoulder, and within a lane ahead, center, behind. Lanes are
+ * read from their own team's side, so the same order picks the escort that
+ * carries out an attack order (the player's inside, outside, then the
+ * raiders' shoulder) and, mirrored, a raider for Rally the Convoy.
+ */
+export function compareTieOrder(a: RoadSlot, b: RoadSlot): number {
+	return LANE_KIND_RANK[laneKind(a.lane)] - LANE_KIND_RANK[laneKind(b.lane)] ||
+		ROW_ORDER.indexOf(a.row) - ROW_ORDER.indexOf(b.row);
+}
+
+/**
+ * The candidate at the lowest range from a slot, ties broken by
+ * compareTieOrder. Candidates off the road are skipped.
+ */
+export function nearestTo<T>({ to, candidates, slotOf }: { to: RoadSlot; candidates: readonly T[]; slotOf: (candidate: T) => RoadSlot | null }): T | null {
+	let best: { candidate: T; slot: RoadSlot; range: number } | null = null;
+	for (const candidate of candidates) {
+		const slot = slotOf(candidate);
+		if (!slot) continue;
+		const range = slotRange(slot, to);
+		if (!best || range < best.range || (range === best.range && compareTieOrder(slot, best.slot) < 0)) {
+			best = { candidate, slot, range };
+		}
+	}
+	return best?.candidate ?? null;
+}
+
 export function sameSlot(a: RoadSlot | null, b: RoadSlot | null): boolean {
 	return a !== null && b !== null && a.lane === b.lane && a.row === b.row;
 }

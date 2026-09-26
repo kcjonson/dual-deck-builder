@@ -31,8 +31,8 @@ export interface EscortProfile {
 	ramming: number;
 	/** Where it opens when the encounter doesn't place it */
 	preferredSlot: FormationSlot;
-	/** Card type of the order card it brings into a driver's deck, if named yet */
-	signatureCard: string | null;
+	/** Card type of the signature order card it brings into a driver's deck */
+	signatureCard: string;
 	dividend: EscortDividend | null;
 	/** An encounter's escort (an event ally) rather than one from the convoy; only these may start as ambushers */
 	setPiece: boolean;
@@ -62,7 +62,7 @@ export const ESCORT_CONFIGS: Record<EscortType, EscortConfig> = {
 		structure: 25,
 		baseSpeed: 5,
 		preferredSlot: { lane: 'inside', row: RoadRow.AHEAD },
-		signatureCard: null,
+		signatureCard: 'run_ahead',
 		dividend: null
 	},
 	pilot_car: {
@@ -76,7 +76,7 @@ export const ESCORT_CONFIGS: Record<EscortType, EscortConfig> = {
 		structure: 30,
 		baseSpeed: 4,
 		preferredSlot: { lane: 'outside', row: RoadRow.AHEAD },
-		signatureCard: null,
+		signatureCard: 'flag_down',
 		dividend: null
 	},
 	fuel_hauler: {
@@ -90,7 +90,7 @@ export const ESCORT_CONFIGS: Record<EscortType, EscortConfig> = {
 		structure: 40,
 		baseSpeed: 2,
 		preferredSlot: { lane: 'outside', row: RoadRow.CENTER },
-		signatureCard: null,
+		signatureCard: 'top_off',
 		dividend: { resource: 'fuel', amount: 1 }
 	},
 	med_truck: {
@@ -127,6 +127,7 @@ export function createEscort({ type, setPiece = false }: { type: EscortType; set
 		driver: null,
 		passenger: null,
 		statusEffects: [],
+		spent: false,
 		escort: {
 			...crew,
 			preferredSlot: { ...preferredSlot },

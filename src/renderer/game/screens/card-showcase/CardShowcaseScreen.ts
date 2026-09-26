@@ -6,7 +6,7 @@ import { Rectangle } from '../../../engine/components/Rectangle';
 import { Panel } from '../../../engine/ui/Panel';
 import { Card } from '../../ui/Card';
 import { CardLoader } from '../../core/CardLoader';
-import { Card as GameCard } from '../../mechanics/Card';
+import { CARD_RARITIES, Card as GameCard } from '../../mechanics/Card';
 
 /**
  * Screen for showcasing all available cards
@@ -180,7 +180,7 @@ export class CardShowcaseScreen extends Screen {
 	 * Display cards organized by rarity
 	 */
 	private displayCardsByRarity(cards: GameCard[], startY: number): void {
-		const rarities = ['starter', 'common', 'uncommon', 'rare', 'legendary'];
+		const rarities = CARD_RARITIES;
 		const cardDimensions = Card.getDimensions();
 		const margin = 20;
 		const cardSpacing = 20;
@@ -256,6 +256,7 @@ export class CardShowcaseScreen extends Screen {
 			case 'uncommon': return '#00aa00';
 			case 'rare': return '#0088ff';
 			case 'legendary': return '#ff8800';
+			case 'signature': return '#cc66ff';
 			default: return '#ffffff';
 		}
 	}

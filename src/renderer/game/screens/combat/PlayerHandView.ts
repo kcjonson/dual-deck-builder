@@ -18,9 +18,14 @@ export interface PlayerHandView {
  * Build the hand from the player's drivers in seat order. Seats are fixed
  * for the fight, so a driver keeps their side of the hand after riding into
  * the other vehicle as a passenger. A passenger's attack cards stay in the
- * hand but can't be played; a dead driver has no hand to show.
+ * hand but can't be played; a dead driver has no hand to show. The battle
+ * passes its own check, which also knows the convoy (a signature card
+ * needs its escort).
  */
-export function buildPlayerHandView(drivers: readonly Driver[]): PlayerHandView {
+export function buildPlayerHandView(
+	drivers: readonly Driver[],
+	canPlay: (driver: Driver, card: Card) => boolean = (driver, card) => driver.canPlayCard(card)
+): PlayerHandView {
 	const view: PlayerHandView = { cards: [], seatOf: new Map(), playable: new Set(), labels: new Map() };
 
 	drivers.forEach((driver, index) => {
@@ -32,7 +37,7 @@ export function buildPlayerHandView(drivers: readonly Driver[]): PlayerHandView 
 		for (const card of driver.hand) {
 			view.cards.push(card);
 			view.seatOf.set(card.id, seat);
-			if (driver.canPlayCard(card)) {
+			if (canPlay(driver, card)) {
 				view.playable.add(card.id);
 			}
 		}

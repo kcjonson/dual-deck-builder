@@ -328,7 +328,8 @@ export class CombatScreen extends Screen {
 		if (!this.battle || !this.playerTeam || !this.enemyTeam) return;
 
 		// Both hands show whenever both drivers are alive, whichever vehicle they're in
-		this.handLayer.setHand(buildPlayerHandView(this.playerDrivers));
+		const battle = this.battle;
+		this.handLayer.setHand(buildPlayerHandView(this.playerDrivers, (driver, card) => battle.canPlayCard({ driver, card })));
 
 		this.playerDrivers.forEach((driver, index) => {
 			this.resourceLayer.setDriverData((index + 1) as 1 | 2, {
@@ -516,6 +517,22 @@ export class CombatScreen extends Screen {
 				this.playCardWithTarget(this.combatModel.selectedCard, vehicle);
 			}
 		});
+
+		// Over a raider, an attack order lights up the escort that would carry it out
+		this.combatModel.on('focusedVehicleId', (vehicleId: string | null) => {
+			this.combatModel.carrierVehicleId = this.findOrderCarrierId(vehicleId);
+		});
+	}
+
+	/**
+	 * The escort that would carry out the selected attack order on this
+	 * raider, if any
+	 */
+	private findOrderCarrierId(raiderId: string | null): string | null {
+		const card = this.combatModel.selectedCard;
+		const raider = raiderId ? this.enemyTeam?.vehicles.find(vehicle => vehicle.id === raiderId) : null;
+		if (!this.battle || !card || !raider || !this.battle.isAttackOrder(card)) return null;
+		return this.battle.orderCarrier({ card, target: raider })?.id ?? null;
 	}
 
 	/**
@@ -547,6 +564,11 @@ export class CombatScreen extends Screen {
 				? `${owningDriver.metadata.name}: Not enough adrenaline`
 				: `${owningDriver.metadata.name}: Cannot play this card type as passenger`;
 			console.log(reason);
+			return;
+		}
+		const cardBlocker = this.battle.getCardBlocker({ driver: owningDriver, card });
+		if (cardBlocker) {
+			console.log(`${owningDriver.metadata.name}: ${cardBlocker}`);
 			return;
 		}
 
@@ -636,6 +658,16 @@ export class CombatScreen extends Screen {
 			!vehicle.isOutOfFight && !(card.hitsDriverOnly && !vehicle.driverOnlyTarget);
 		const players = this.playerTeam.vehicles.filter(targetable);
 		const enemies = this.enemyTeam.vehicles.filter(targetable);
+
+		// An order's targets depend on the convoy (a raider with no escort to
+		// carry it out isn't one), so ask the battle's own rule
+		const selectedDriver = this.combatModel.selectedDriver;
+		if (card.isOrder && this.battle && selectedDriver) {
+			const battle = this.battle;
+			return [...players, ...enemies]
+				.filter(target => battle.getTargetBlocker({ driver: selectedDriver, card, target }) === null)
+				.map(v => v.id);
+		}
 
 		switch (targetType) {
 			case 'enemy_single':
