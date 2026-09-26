@@ -1,7 +1,6 @@
 import { Card } from '../mechanics/Card';
 import { Driver } from '../mechanics/Driver';
 import { Vehicle } from '../mechanics/Vehicle';
-import { Battle } from '../mechanics/Battle';
 import { BoardProjection } from '../mechanics/BoardProjection';
 
 /**
@@ -180,96 +179,5 @@ export class CardEffectValidator {
 		}
 
 		return effectiveArmor;
-	}
-
-	/**
-	 * Get the vehicle that a driver is in
-	 */
-	private static getVehicleForDriver(driver: Driver, battle: Battle): Vehicle | null {
-		const allVehicles = [...battle.playerTeam.vehicles, ...battle.enemyTeam.vehicles];
-		return allVehicles.find(v => v.driver === driver || v.passenger === driver) || null;
-	}
-
-	/**
-	 * Estimate potential damage for a card
-	 * @param card The damage card
-	 * @param caster The driver playing the card
-	 * @param target The target vehicle
-	 * @param battle The battle context
-	 * @returns Estimated damage or 0 if it won't hit
-	 */
-	static getEstimatedDamage(
-		card: Card, 
-		caster: Driver, 
-		target: Vehicle | null,
-		battle: Battle
-	): number {
-		if (!target || target.isOutOfFight) return 0;
-
-		const casterVehicle = this.getVehicleForDriver(caster, battle);
-		if (!casterVehicle) return 0;
-
-		let totalDamage = 0;
-
-		for (const effect of card.effects) {
-			if (effect.type === 'damage') {
-				// Check range
-				if (typeof effect.range === 'number') {
-					const range = battle.calculateRange(casterVehicle, target);
-					if (range > effect.range) {
-						continue; // Out of range
-					}
-				}
-
-				// Check hit chance
-				if (!effect.always_hits) {
-					const attackType = (typeof effect.attack_type === 'string' ? effect.attack_type : null) || 
-						(effect.scaling === 'ramming' ? 'ramming' : 'ranged');
-					const hitModifier = typeof effect.hit_modifier === 'number' ? effect.hit_modifier : 0;
-					if (!battle.checkHit({ attacker: casterVehicle, caster, defender: target, attackType, modifier: hitModifier })) {
-						continue; // Will miss
-					}
-				}
-
-				// Calculate base damage
-				let damage = effect.value || 0;
-
-				// Handle formula-based damage (like rams)
-				if (effect.formula && typeof effect.formula === 'string') {
-					damage = this.calculateFormulaDamage(effect.formula, casterVehicle, target);
-				}
-
-				// Apply damage modifiers
-				damage = battle.calculateDamage(damage, casterVehicle, target);
-
-				totalDamage += damage;
-			}
-		}
-
-		return totalDamage;
-	}
-
-	/**
-	 * Calculate formula-based damage (simplified version)
-	 */
-	private static calculateFormulaDamage(formula: string, attacker: Vehicle, target: Vehicle): number {
-		// Simplified ram damage calculation
-		let damage = 0;
-		
-		const speedDiff = attacker.getTotalSpeed() - target.getTotalSpeed();
-		
-		if (formula.includes('armor/10')) {
-			damage += Math.floor(attacker.armor / 10);
-		}
-		if (formula.includes('armor/7')) {
-			damage += Math.floor(attacker.armor / 7);
-		}
-		if (formula.includes('speed_diff * 2')) {
-			damage += speedDiff * 2;
-		} else if (formula.includes('speed_diff')) {
-			damage += speedDiff;
-		}
-		
-		return Math.max(0, damage);
 	}
 }

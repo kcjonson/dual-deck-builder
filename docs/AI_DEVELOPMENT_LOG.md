@@ -10,14 +10,15 @@ This document contains the chronological log of completed development tasks for 
 
 **What landed:** DDB-148. Escorts are no longer immune: attacks and debuffs on them roll against their own evade, damage lands, and a wrecked escort leaves the road.
 
-- `Battle.checkHit({ attacker, caster, defender, attackType, modifier })` is the one hit rule. Play, `BoardProjection.apply` (raider planning), and `CardEffectValidator.getEstimatedDamage` all call it, so a debuff a raider plans at an escort only projects its speed change when it would land. Skills come from `Vehicle.crewSkills(actor)`: an escort's profile whoever rides in it or orders it, otherwise the acting driver's (the caster attacking, the driver at the wheel defending), which is ready for an escort carrying out an order in DDB-149.
+- `Battle.checkHit({ attacker, caster, defender, attackType, modifier })` is the one hit rule. Play and `BoardProjection.apply` (raider planning) both call it, so a debuff a raider plans at an escort only projects its speed change when it would land. Skills come from `Vehicle.crewSkills(actor)`: an escort's profile whoever rides in it or orders it, otherwise the acting driver's (the caster attacking, the driver at the wheel defending), which is ready for an escort carrying out an order in DDB-149.
 - `applyCardEffects`: the `targetVehicle.driver` guards on damage and status became "target is out of the fight", so an escort takes damage, logs hits and misses, and pays self costs the same as a driven target. The damage log moved to `Battle.damageVehicle` and only names the parts that took damage.
 - `Vehicle.takeDamage`: past armor, half to structure and half to each living occupant, or all of it to structure with nobody aboard. An escort with a passenger (DDB-152) splits.
 - Headshot: `Card.hitsDriverOnly` and `Vehicle.driverOnlyTarget`. An empty escort is an illegal target in `BoardProjection.targetBlocker` and `Battle.getPlannedCardBlocker`; one with a passenger takes the Headshot on the passenger. Recorded as escorts.md decision 22 and in Combat Rules.
 - Wrecks needed no new code: an empty escort has no survivors, `clearWrecks` takes it off at the end of the turn, and a card planned at it fizzles because nobody got out. Ram damage already read `getTotalSpeed` on both sides.
+- `CardEffectValidator.getEstimatedDamage` had no callers and is gone. `CombatScreen.determineTargetableVehicles` leaves an empty escort unlit for Headshot.
 - A target status now needs the target in the fight, so a status aimed at a vehicle an earlier effect wrecked no longer lands on the wreck.
 
-**How:** 17 new tests in `Escorts.test.ts`: hit and miss on escort evade for damage and status (with the projection matching play), attacker-side escort skills, all-structure damage and the passenger split, ram speed, wreck and removal, a passenger jumping from a wrecked escort, the Headshot calls, and self costs matching a driven target on a hit and a miss.
+**How:** 18 new tests in `Escorts.test.ts`: hit and miss on escort evade for damage and status (with the projection matching play), attacker-side escort skills, all-structure damage and the passenger split, ram speed, wreck and removal, a passenger jumping from a wrecked escort, the Headshot calls (one at play level with Headshot's real -2 modifier against an Outrider's evade), and self costs matching a driven target on a hit and a miss.
 
 ## Escort model and team limits (2026-09-26)
 

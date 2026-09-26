@@ -480,6 +480,25 @@ describe('Escorts', () => {
 				expect(hauler.armor).toBe(5);
 			});
 
+			test('Headshot on an escort\'s passenger rolls against the escort\'s evade, not the passenger\'s', async () => {
+				const outrider = createEscort({ type: 'outrider' });
+				const battle = createBattle([outrider, rig, bike], [buggy]);
+				const rider = seatPassenger(outrider);
+				rider.set({ skills: { ramming: 0, gunnery: 0, evade: 10 } });
+				// The effect as cards.json has it
+				const realHeadshot = card('Headshot', [{ type: 'damage', value: 5, target: 'driver', hit_modifier: -2 }], 2);
+				giveHand(buggy, [realHeadshot]);
+				battle.planEnemyTurn();
+
+				expect(battle.getPlan(buggy).map(action => action.target)).toEqual([outrider]);
+				await battle.endPlayerTurn();
+
+				// Gunnery 5 > Outrider evade 6 - 2 lands; against the rider's 10 - 2 it would miss
+				expect(logLines(battle, 'miss')).toEqual([]);
+				expect(rider.hitpoints).toBe(95);
+				expect(outrider.structure).toBe(ESCORT_CONFIGS.outrider.structure);
+			});
+
 			test('a planned Headshot fizzles when the escort\'s passenger dies before it plays', async () => {
 				const hauler = createEscort({ type: 'fuel_hauler' });
 				const battle = createBattle([hauler, rig, bike], [buggy]);

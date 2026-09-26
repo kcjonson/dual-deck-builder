@@ -1347,11 +1347,12 @@ export class Battle extends Model<BattleData> {
 
 	/**
 	 * Whether an attack from one vehicle lands on another. The one hit rule:
-	 * play, raider planning, and the AI all call it. Each side's skills come
-	 * from its vehicle (`Vehicle.crewSkills`): an escort's own, otherwise the
-	 * caster's when attacking and the driver's when defending. A ram hits on
-	 * ramming >= evade, anything else on gunnery > evade + modifier. A
-	 * defender with nobody to evade is out of the fight and can't be hit.
+	 * play and raider planning both call it. Each side's skills come from its
+	 * vehicle (`Vehicle.crewSkills`): an escort's own, otherwise the caster's
+	 * when attacking and the driver's when defending. A ram hits on ramming
+	 * >= evade, anything else on gunnery > evade + modifier. A driven
+	 * defender with nobody at the wheel has no skills and is never hit. A
+	 * wrecked escort still has its profile, so callers skip wrecks first.
 	 */
 	public checkHit({
 		attacker,
