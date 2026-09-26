@@ -18,6 +18,22 @@ This document contains the chronological log of completed development tasks for 
 
 **How:** "Stays on the road for the turn it dies, then is removed" read with the rules' own sense of a turn, the one the flanking rule uses ("the end of every turn (yours and the enemy's)").
 
+## No duplicate driver in driver selection (2026-09-25)
+
+**What landed:** DDB-98. Both driver panels defaulted to the first driver, so a player who never touched the right panel started a run with one `Driver` in both slots; the combined hand held every card twice and combat drew 20 UI cards from 10, with duplicate element ids. Combat Rules says the same driver can't fill both slots.
+
+- New `mechanics/DriverPair.ts`: `isSameDriver` (identity is the archetype, so copies count), `assertDriverPair` (exactly two different drivers), and `nextOpenDriverIndex` (first index at or after a start, wrapping, that isn't the partner).
+- `DriverPanel` takes a `partnerDriver` and never selects it; defaulting, activating, and cycling all go through one `selectFrom`. `setDriverIndex` is gone, and the cycle button's action is the public `cycleDriver()`.
+- `DriverSelectionScreen` hands each panel the other's driver, gives the right panel its roster before the left panel picks (so the right one activates on a different driver on the first load, not only the second), and gates START RUN on a valid pair.
+- `CombatScreen.initializeCombat` calls `assertDriverPair` before touching any driver, replacing the bare length check, so no path into combat can build the doubled state.
+- Tests: the pair rules, and the real screen and panels under jsdom (card fetch and routing stubbed): opens with two drivers, cycling either side skips the other, remount starts clean with the left panel back on the first driver. Against the unmodified old code the suite doesn't compile, since `cycleDriver` didn't exist; with only that method renamed, all four fail on the same-driver assertion, because the old panels both start on the first driver.
+
+**How:** the check went in the run start rather than `Team`'s constructor because the AI and battle fixtures build player teams from two Road Warriors (113 tests across 7 suites would need new fixtures), and `battle-simulator.ts` can build mirror setups on purpose. Checked in the web build: selection opens with Road Warrior and Interceptor, both cycle buttons skip the other side, and combat shows 10 hand cards, 5 per driver, with no duplicate ids.
+
+## Dead legacy effect cases removed (2026-09-25)
+
+**What landed:** DDB-144. Deleted the "Legacy effect names" `armor`, `draw`, and `adrenaline` cases at the bottom of the `Battle.applyCardEffects` switch; each duplicated a label earlier in the same switch, so they never ran. No card in `cards.json` uses those types, and the tests that do already hit the earlier cases. Turned on ESLint's `no-duplicate-case`, which flagged exactly those three and nothing else in `src/`.
+
 ## Enemy intents planned before the player's turn (2026-09-25)
 
 **What landed:** DDB-132, the model half of DDB-33, stacked on the road-grid PR and merged up to the hand cap and card summaries.

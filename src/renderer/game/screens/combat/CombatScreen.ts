@@ -10,6 +10,7 @@ import { TurnPhaseDisplay, CombatPhase } from './TurnPhaseDisplay';
 import { CombatModel } from './CombatModel';
 import { buildPlayerHandView } from './PlayerHandView';
 import { Driver, DriverRole } from '../../mechanics/Driver';
+import { assertDriverPair } from '../../mechanics/DriverPair';
 import { CombatLog, CombatLogType } from '../../mechanics/CombatLog';
 import { Vehicle } from '../../mechanics/Vehicle';
 import { RoadLane, RoadRow } from '../../mechanics/Road';
@@ -78,9 +79,7 @@ export class CombatScreen extends Screen {
 	 * Initialize combat with driver teams and vehicles
 	 */
 	public async initializeCombat(drivers: Driver[]): Promise<void> {
-		if (drivers.length !== 2) {
-			throw new Error('Combat requires exactly 2 drivers');
-		}
+		assertDriverPair(drivers);
 
 		try {
 			// Ensure cards are loaded

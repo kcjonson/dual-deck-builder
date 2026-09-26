@@ -4,6 +4,7 @@ import { Button } from '../../../engine/ui/Button';
 import { Text } from '../../../engine/components/Text';
 import { Rectangle } from '../../../engine/components/Rectangle';
 import { Driver } from '../../mechanics/Driver';
+import { isSameDriver } from '../../mechanics/DriverPair';
 import { DriverLoader } from '../../core/DriverLoader';
 import { DriverPanel } from './DriverPanel';
 import { SynergyPreviewPanel } from './SynergyPreviewPanel';
@@ -100,6 +101,7 @@ export class DriverSelectionScreen extends Screen {
 		});
 		this.leftDriverPanel.setOnDriverChanged((driver) => {
 			this.selectedDriver1 = driver;
+			this.rightDriverPanel.partnerDriver = driver;
 			this.onDriver1Changed();
 		});
 		this.rootLayer.addChild(this.leftDriverPanel);
@@ -114,6 +116,7 @@ export class DriverSelectionScreen extends Screen {
 		});
 		this.rightDriverPanel.setOnDriverChanged((driver) => {
 			this.selectedDriver2 = driver;
+			this.leftDriverPanel.partnerDriver = driver;
 			this.onDriver2Changed();
 		});
 		this.rootLayer.addChild(this.rightDriverPanel);
@@ -177,7 +180,7 @@ export class DriverSelectionScreen extends Screen {
 		this.startRunButton.setEnabled(false);
 		this.startRunButton.setFillColor('#666666'); // Grayed out initially
 		this.startRunButton.onClick(() => {
-			if (this.selectedDriver1 && this.selectedDriver2) {
+			if (this.canStartRun && this.selectedDriver1 && this.selectedDriver2) {
 				// Navigate to combat with driver data
 				const combatData = {
 					drivers: [this.selectedDriver1, this.selectedDriver2]
@@ -207,13 +210,12 @@ export class DriverSelectionScreen extends Screen {
 			this.availableDrivers = driverLoader.getUnlockedDrivers();
 			
 			if (this.availableDrivers.length > 0) {
-				// Set up left panel with available drivers
+				// Right panel gets drivers first but stays empty until the left
+				// panel picks, which activates it on a different driver
+				this.rightDriverPanel.setAvailableDrivers(this.availableDrivers);
+				
 				this.leftDriverPanel.setAvailableDrivers(this.availableDrivers);
 				this.leftDriverPanel.activate();
-				
-				// Right panel gets drivers but stays empty until first driver selected
-				this.rightDriverPanel.setAvailableDrivers(this.availableDrivers);
-				// Don't activate right panel yet - per spec
 			}
 			
 		} catch (error) {
@@ -281,10 +283,18 @@ export class DriverSelectionScreen extends Screen {
 	}
 
 	/**
+	 * Both slots are filled, with two different drivers
+	 */
+	private get canStartRun(): boolean {
+		if (!this.selectedDriver1 || !this.selectedDriver2) return false;
+		return !isSameDriver(this.selectedDriver1, this.selectedDriver2);
+	}
+
+	/**
 	 * Update start button state
 	 */
 	private updateStartButton(): void {
-		const canStart = !!(this.selectedDriver1 && this.selectedDriver2);
+		const canStart = this.canStartRun;
 		this.startRunButton.setEnabled(canStart);
 		
 		if (canStart) {

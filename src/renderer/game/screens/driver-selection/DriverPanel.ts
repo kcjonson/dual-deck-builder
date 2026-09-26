@@ -3,6 +3,7 @@ import { Text } from '../../../engine/components/Text';
 import { Rectangle } from '../../../engine/components/Rectangle';
 import { Button } from '../../../engine/ui/Button';
 import { Driver } from '../../mechanics/Driver';
+import { isSameDriver, nextOpenDriverIndex } from '../../mechanics/DriverPair';
 import { Card as UICard, CardSize } from '../../ui/Card';
 import { CardLoader } from '../../core/CardLoader';
 
@@ -17,6 +18,7 @@ export class DriverPanel extends Layer {
 	private selectedDriver: Driver | null = null;
 	private availableDrivers: Driver[] = [];
 	private currentDriverIndex = 0;
+	private partner: Driver | null = null;
 	
 	// UI elements
 	private background: Rectangle;
@@ -66,7 +68,18 @@ export class DriverPanel extends Layer {
 		this.availableDrivers = drivers;
 		if (drivers.length > 0 && this.panelSide === 'left') {
 			// Left panel can be activated immediately
-			this.setDriverIndex(0);
+			this.selectFrom(0);
+		}
+	}
+
+	/**
+	 * The driver the other panel holds. This panel never selects it, and moves
+	 * off it if it already holds it.
+	 */
+	public set partnerDriver(driver: Driver | null) {
+		this.partner = driver;
+		if (driver && this.selectedDriver && isSameDriver(driver, this.selectedDriver)) {
+			this.selectFrom(this.currentDriverIndex + 1);
 		}
 	}
 
@@ -79,17 +92,24 @@ export class DriverPanel extends Layer {
 		this.isEmpty = false;
 		this.clearPanelContents();
 		this.createDriverDisplay();
-		this.setDriverIndex(this.currentDriverIndex);
+		this.selectFrom(this.currentDriverIndex);
 	}
 
 	/**
-	 * Set the selected driver by index
+	 * Select the first driver at or after `index` that the partner panel doesn't hold
 	 */
-	public setDriverIndex(index: number): void {
-		if (index < 0 || index >= this.availableDrivers.length) return;
-		
-		this.currentDriverIndex = index;
-		this.selectedDriver = this.availableDrivers[index];
+	private selectFrom(index: number): void {
+		const openIndex = nextOpenDriverIndex({
+			drivers: this.availableDrivers,
+			fromIndex: index,
+			partner: this.partner,
+		});
+		if (openIndex === -1) {
+			this.selectedDriver = null;
+		} else {
+			this.currentDriverIndex = openIndex;
+			this.selectedDriver = this.availableDrivers[openIndex];
+		}
 		
 		if (!this.isEmpty) {
 			this.updateDriverDisplay();
@@ -165,6 +185,7 @@ export class DriverPanel extends Layer {
 	public reset(): void {
 		this.selectedDriver = null;
 		this.currentDriverIndex = 0;
+		this.partner = null;
 		this.isEmpty = true;
 		this.clearPanelContents();
 		
@@ -274,7 +295,7 @@ export class DriverPanel extends Layer {
 			Math.floor(panelWidth * 0.1),
 			panelHeight - 50
 		);
-		this.driverSelector.onClick(() => this.showDriverSelector());
+		this.driverSelector.onClick(() => this.cycleDriver());
 		this.addChild(this.driverSelector);
 	}
 
@@ -400,12 +421,10 @@ export class DriverPanel extends Layer {
 	}
 
 	/**
-	 * Show driver selector (carousel functionality)
+	 * Cycle to the next driver the partner panel doesn't hold (the selector button's action)
 	 */
-	private showDriverSelector(): void {
-		// For now, cycle to next driver
+	public cycleDriver(): void {
 		// In a full implementation, this could show a dropdown menu
-		const nextIndex = (this.currentDriverIndex + 1) % this.availableDrivers.length;
-		this.setDriverIndex(nextIndex);
+		this.selectFrom(this.currentDriverIndex + 1);
 	}
 }
