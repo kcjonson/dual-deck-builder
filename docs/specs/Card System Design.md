@@ -86,7 +86,7 @@
 
 Every card carries two texts, both required, both templated with the same `{variables}`:
 
-- `summary` is the card face in the hand: three lines of 12px text in a 114px box, written with keywords in brackets (`[Range 1]`, `[Vulnerable]`, `[Sure-hit]`, `[Armor]`, `[Partner]`, `[Flank]`, `[Exhaust]`, `[Escort]`), which render highlighted and get definitions in the detail view.
+- `summary` is the card face in the hand: three lines of 12px text in a 114px box, written with keywords in brackets (`[Range 1]`, `[Vulnerable]`, `[Sure-hit]`, `[Armor]`, `[Shield]`, `[Partner]`, `[Flank]`, `[Exhaust]`, `[Escort]`), which render highlighted and get definitions in the detail view.
 - `description` is the full rules text for the card detail view (hover, focus, or long-press; right-click pins it), up to 330 characters with values filled in. Keywords in it are highlighted automatically.
 
 A summary that wraps past three lines, or a description past 330 characters, fails the card data check; the fix is rewriting, never smaller type. Layout and budgets: [Battle Screen Design](./Battle%20Screen%20Design.md) section 5.
@@ -118,10 +118,11 @@ Escorts are vehicles in your convoy with a slot and a plate but no driver and no
 
 - **Order** is its own card type, tagged `order` in card data and never `attack`. Any driver can play one, active or passenger, paying from their own adrenaline.
 - **Attack orders** target a raider (`enemy_single`). The nearest ready escort within the card's range of that raider carries it out and is spent; ties go to the inside lane, then the outside lane, then the enemy shoulder, and within a lane to ahead, center, behind. The drag lights up that escort. A raider with no ready escort in range isn't a legal target. A signature attack order (Run Ahead, Flag Down) only goes to an escort of its type, and a flanking one (Run Ahead) only to an escort that could legally flank the target after the card's own boost. The escort acts with its own slot, speed, and skills, not the ordering driver's.
-- **Buff orders** target an escort directly, with the new `escort` target type, and can target a spent one. Armor orders and Draw Fire are buff orders.
+- **Buff orders** target an escort directly, with the new `escort` target type, and can target a spent one. Close Ranks and Draw Fire are buff orders, and both give `[Shield]`.
 - **Spending.** Attack orders and Draw Fire spend the escort. Close Ranks, Triage, and Top Off don't; Triage and Top Off are the Med Truck's and Fuel Hauler's cards, not their actions. Card data marks a spending order with `spendsEscort`.
 - Every order card is a single drop, the same as any other card. No order asks for two targets.
 - **`[Escort]`**: "An undriven vehicle in your convoy. Acts only when ordered, once per turn."
+- **`[Shield]`**: "Temporary armor. Absorbs damage before Armor. Clears at the start of your next turn." Not capped by the vehicle's armor, and it stacks. Card data grants it with a `gain_shield` effect. Close Ranks and Draw Fire give it; Armor Plating and Repair Kit stay on capped Armor until DDB-164 decides otherwise.
 - **Signature cards.** Each escort type has one signature order card, and each escort brings its own copy into a driver's deck when it joins; the player picks which driver. Card data names the type with `signatureOf` (the escort type's id) and gives it `signature` rarity, and each copy remembers the escort that brought it (`broughtBy`, the escort's id). A signature card is never in the reward pool or the shop. It's playable while any living escort of its type is in the convoy. The copy an escort brought leaves the deck at the end of the fight it's wrecked in, or when it's dismissed.
 - **Picking who aboard.** Triage and Top Off target a vehicle and land on one person in it: dropping on the plate's passenger row picks the passenger, anywhere else the driver (on an escort, whoever rides in it). A vehicle with nobody aboard isn't a legal target for them.
 - **Reward pool.** Generic order cards join the reward pool only while you own at least one escort.
@@ -263,15 +264,15 @@ The initial set: six generic and Triage from the escorts decision, plus the Outr
 
 **Draw Fire** (1 Adrenaline, uncommon). Buff order, `escort`.
 
-- Summary: "This [Escort] draws its row's raider fire. +{armor} [Armor]."
-- Full text: "Target escort gains {armor} Armor and is spent. Until the end of the next enemy turn, each raider intent aimed at a driven vehicle in its row hits the escort instead, if the card can reach it. The rest hit their original target as planned."
-- Armor 4. The counter to killers, which aim at driven vehicles. It protects and never cancels: each intent is judged as it plays, and one whose card can't reach the escort keeps its target. Target marks update when it's played, so the end-turn preview shows the redirect. If two Draw Fires cover the same row, the last one played wins. Can target a spent escort.
+- Summary: "This [Escort] draws its row's raider fire. +{shield} [Shield]." (51 rendered)
+- Full text: "Target escort gains {shield} Shield and is spent. Until the end of the next enemy turn, each raider intent aimed at a driven vehicle in its row hits the escort instead, if the card can reach it. The rest hit their original target as planned."
+- Shield 4 (decided 2026-09-26, was 4 Armor). The Shield clears at the start of the player's next turn, so it covers exactly the enemy turn the redirect covers. The counter to killers, which aim at driven vehicles. It protects and never cancels: each intent is judged as it plays, and one whose card can't reach the escort keeps its target. Target marks update when it's played, so the end-turn preview shows the redirect. If two Draw Fires cover the same row, the last one played wins. Can target a spent escort.
 
 **Close Ranks** (1 Adrenaline, common, proposed). Buff order, `escort`.
 
-- Summary: "This [Escort] gains {armor} [Armor]. Doesn't spend it."
-- Full text: "Target escort gains {armor} Armor. The escort isn't spent and can still act this turn."
-- Armor 6.
+- Summary: "This [Escort] gains {shield} [Shield]. Doesn't spend it." (45 rendered)
+- Full text: "Target escort gains {shield} Shield. The escort isn't spent and can still act this turn."
+- Shield 6 (decided 2026-09-26, was 6 Armor). Stacks with other Shield and isn't capped, so it works at full armor and on the Outrider.
 
 **Triage** (1 Adrenaline, signature of the Med Truck, signature rarity). Targets a vehicle in your convoy (`ally`).
 

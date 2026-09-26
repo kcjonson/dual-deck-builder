@@ -50,6 +50,8 @@ export interface VehicleData {
 	escort?: EscortProfile | null;
 	/** An escort that has acted this turn. Every escort is ready again at the start of the player's turn. */
 	spent?: boolean;
+	/** Temporary armor: absorbs damage before armor, isn't capped, and clears at the start of the player's turn */
+	shield?: number;
 }
 
 /**
@@ -101,7 +103,8 @@ export class Vehicle extends Model<VehicleData> {
 		'statusEffects',
 		'intentTier',
 		'escort',
-		'spent'
+		'spent',
+		'shield'
 	]);
 
 	// All properties are now model properties!
@@ -155,15 +158,19 @@ export class Vehicle extends Model<VehicleData> {
 	}
 
 	/**
-	 * Armor soaks damage first. Past armor, damage splits half to structure
-	 * and half to each living occupant; with nobody aboard (an empty escort)
-	 * it all goes to structure.
+	 * Shield soaks damage first, then armor. Past both, damage splits half
+	 * to structure and half to each living occupant; with nobody aboard (an
+	 * empty escort) it all goes to structure.
 	 */
 	public takeDamage(damage: number): void {
-		const armorDamage = Math.min(damage, this.armor);
+		const shieldDamage = Math.min(damage, this.shield ?? 0);
+		if (shieldDamage > 0) {
+			this.shield = (this.shield ?? 0) - shieldDamage;
+		}
+		const armorDamage = Math.min(damage - shieldDamage, this.armor);
 		this.armor -= armorDamage;
 
-		const remainingDamage = damage - armorDamage;
+		const remainingDamage = damage - shieldDamage - armorDamage;
 		if (remainingDamage > 0) {
 			const occupants = [this.driver, this.passenger]
 				.filter((occupant): occupant is Driver => occupant?.isAlive() ?? false);
@@ -224,6 +231,22 @@ export class Vehicle extends Model<VehicleData> {
 		this.structure = Math.max(0, this.structure - damage);
 		if (!this.isAlive()) {
 			this.emit('destroyed', this);
+		}
+	}
+
+	/**
+	 * Temporary armor on top of armor. Uncapped, and it stacks.
+	 */
+	public addShield(amount: number): void {
+		this.shield = (this.shield ?? 0) + amount;
+	}
+
+	/**
+	 * Shield lasts until the start of the player's next turn
+	 */
+	public clearShield(): void {
+		if (this.shield) {
+			this.shield = 0;
 		}
 	}
 

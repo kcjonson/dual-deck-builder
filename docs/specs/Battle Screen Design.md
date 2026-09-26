@@ -90,7 +90,7 @@ Every card carries two texts.
 
 | Text | Where | Budget |
 |---|---|---|
-| Short | the card face in the hand | three lines at 12px in a 114px box, written with keywords (Range 1, Vulnerable, Sure-hit, Armor, Partner, Flank, Exhaust) |
+| Short | the card face in the hand | three lines at 12px in a 114px box, written with keywords (Range 1, Vulnerable, Sure-hit, Armor, Shield, Partner, Flank, Exhaust) |
 | Full | the detail view | 330 characters |
 
 - The detail view is 250 wide with the full text at 15px. It is anchored to the bottom of the screen and grows upward to a 440px cap, shrinking the card art first. Measured capacity is about 357 characters with a two-line name; the budget leaves room for upgraded numbers.

@@ -575,14 +575,14 @@
     {
       "type": "draw_fire",
       "name": "Draw Fire",
-      "summary": "This [Escort] draws its row's raider fire. +{armor} [Armor].",
-      "description": "Target escort gains {armor} Armor and is spent. Until the end of the next enemy turn, each raider intent aimed at a driven vehicle in its row hits the escort instead, if the card can reach it. The rest hit their original target as planned.",
+      "summary": "This [Escort] draws its row's raider fire. +{shield} [Shield].",
+      "description": "Target escort gains {shield} Shield and is spent. Until the end of the next enemy turn, each raider intent aimed at a driven vehicle in its row hits the escort instead, if the card can reach it. The rest hit their original target as planned.",
       "rarity": "uncommon",
       "cost": 1,
       "targetType": "escort",
       "effects": [
         {
-          "type": "gain_armor",
+          "type": "gain_shield",
           "value": 4,
           "target": "target"
         },
@@ -592,7 +592,7 @@
         }
       ],
       "variables": {
-        "armor": { "base": 4 }
+        "shield": { "base": 4 }
       },
       "spendsEscort": true,
       "tags": ["order", "defense"],
@@ -601,22 +601,22 @@
     {
       "type": "close_ranks",
       "name": "Close Ranks",
-      "summary": "This [Escort] gains {armor} [Armor]. Doesn't spend it.",
-      "description": "Target escort gains {armor} Armor. The escort isn't spent and can still act this turn.",
+      "summary": "This [Escort] gains {shield} [Shield]. Doesn't spend it.",
+      "description": "Target escort gains {shield} Shield. The escort isn't spent and can still act this turn.",
       "rarity": "common",
       "cost": 1,
       "targetType": "escort",
       "effects": [
         {
-          "type": "gain_armor",
+          "type": "gain_shield",
           "value": 6,
           "target": "target"
         }
       ],
       "variables": {
-        "armor": { "base": 6 }
+        "shield": { "base": 6 }
       },
-      "tags": ["order", "defense", "armor"],
+      "tags": ["order", "defense", "shield"],
       "image": "cards/close_ranks.png"
     },
     {

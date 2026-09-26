@@ -17,6 +17,7 @@
 
 - Properties
   - Armor: 0 - infinite
+  - Shield: 0 - infinite. Temporary armor: absorbs damage before Armor, isn't capped by the vehicle's armor, stacks, and clears from every vehicle at the start of the player's turn (and when a fight starts). Decided 2026-09-26; see [escorts.md](../AI_TECHNICAL_DECISIONS/escorts.md) decision 28.
   - Structure: 0 - infinite
   - Base Speed: 1-5
   - Driver: driver (driven vehicles) or none (escorts)
@@ -165,7 +166,7 @@ An escort is an undriven vehicle in your convoy: it has a slot and a plate but n
 - Attack orders target a raider. The nearest ready escort within the card's range of that raider carries it out and is spent. Nearest means lowest range to the raider. Ties go to the inside lane, then the outside lane, then the enemy shoulder, and within a lane to ahead, then center, then behind. While the card is dragged over a raider, the escort that would carry it out lights up. A raider with no ready escort in range isn't a legal target.
 - A signature attack order is carried out only by an escort of its type: Run Ahead by the nearest ready Outrider that can legally flank the target (range isn't a limit), Flag Down by the nearest ready Pilot Car within range 2.
 - Ramming Run's 2 structure damage to the escort lands only on a hit. A miss means no collision; the card, the adrenaline, and the escort's action are still spent (decided 2026-09-26).
-- Buff orders (armor, Draw Fire) target an escort directly, and can target a spent one.
+- Buff orders (Close Ranks, Draw Fire) target an escort directly, and can target a spent one. Both give Shield, not armor, so they work on an escort at full armor and on the Outrider, which has none.
 - Spending: attack orders (Covering Fire, Ramming Run, Rally the Convoy, Run Ahead, Flag Down) and Draw Fire spend the escort. Close Ranks, Triage, and Top Off don't. Triage and Top Off are the Med Truck's and Fuel Hauler's cards, not their actions, so neither needs to be ready.
 - Every order card is a single drop, the same as any other card.
 
@@ -222,8 +223,9 @@ Gunnery, evade, ramming, armor, structure, the haulers' speeds, and the default 
     - An attack hits if the attacking drivers gunnery > the defending drivers evade.  
     - Damage done is: 1 - infinite
     - Drivers with flanking do 50% more damage (the Flank card, the code, and this rule agree)
-    - Reduces armor first
-    - When armor <= 0, Applies half of remaining to the structure of a vehicle and its driver and passengers. With nobody aboard (an empty escort), all of it goes to structure.
+    - Reduces Shield first, then armor
+    - When shield and armor are gone, Applies half of remaining to the structure of a vehicle and its driver and passengers. With nobody aboard (an empty escort), all of it goes to structure.
+    - Damage that skips armor skips Shield the same way: a structure-only cost (Ramming Run's) and a driver-only hit (Headshot). Ram's Armor/10 counts armor only, never Shield.
     - An escort attacks and defends with its own gunnery, ramming, and evade (see Escorts).
 
 Specific Cards

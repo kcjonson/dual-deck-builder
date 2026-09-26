@@ -280,7 +280,9 @@ export class Vehicle extends Layer {
 		
 		// Update armor
 		this.armorDisplay.setFillColor(this.vehicleData.armor > 0 ? '#6a6aaa' : '#4a4a4a');
-		this.armorText.setText(`${this.vehicleData.armor}⛡`);
+		// Shield, temporary armor on top, shows as a second number while there is any
+		const shield = this.vehicleData.shield ?? 0;
+		this.armorText.setText(shield > 0 ? `${this.vehicleData.armor}⛡ +${shield}` : `${this.vehicleData.armor}⛡`);
 
 		this.spentChip?.setVisible(Boolean(this.vehicleData.spent));
 	}

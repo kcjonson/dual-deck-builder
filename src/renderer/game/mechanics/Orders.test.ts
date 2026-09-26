@@ -371,21 +371,30 @@ describe('Order cards', () => {
 	});
 
 	describe('Close Ranks', () => {
-		test('adds armor to the escort, even a spent one, and doesn\'t spend it', () => {
+		test('gives a full-armor escort 6 Shield, stacking, and doesn\'t spend it', () => {
 			const rig = createDriven('Rig');
 			const hauler = escortAt('fuel_hauler');
 			const battle = createBattle([rig, createDriven('Bike'), hauler], [createDriven('Buggy')]);
-			hauler.set({ armor: 0 });
 
 			expect(play({ battle, driver: driverOf(rig), card: realCard('close_ranks'), target: hauler })).toBe(true);
-			// Armor gain stops at the escort's own maximum, as for every armor card
 			expect(hauler.armor).toBe(5);
+			expect(hauler.shield).toBe(6);
 			expect(hauler.spent).toBe(false);
 
-			hauler.set({ armor: 0, spent: true });
 			expect(play({ battle, driver: driverOf(rig), card: realCard('close_ranks'), target: hauler })).toBe(true);
-			expect(hauler.armor).toBe(5);
-			expect(hauler.spent).toBe(true);
+			expect(hauler.shield).toBe(12);
+		});
+
+		test('works on the Outrider, which has no armor, and on a spent escort', () => {
+			const rig = createDriven('Rig');
+			const outrider = escortAt('outrider');
+			const battle = createBattle([rig, createDriven('Bike'), outrider], [createDriven('Buggy')]);
+			outrider.spent = true;
+
+			expect(play({ battle, driver: driverOf(rig), card: realCard('close_ranks'), target: outrider })).toBe(true);
+			expect(outrider.armor).toBe(0);
+			expect(outrider.shield).toBe(6);
+			expect(outrider.spent).toBe(true);
 		});
 
 		test('targets only an escort in your own convoy', () => {
@@ -417,22 +426,28 @@ describe('Order cards', () => {
 			battle.planEnemyTurn();
 		};
 
-		test('turns a raider\'s shot at a driven vehicle in its row onto the escort, target mark first', async () => {
+		test('turns a raider\'s shot at a driven vehicle in its row onto the escort, whose Shield takes it first', async () => {
 			const { battle, rig, pilotCar, buggy } = setup();
-			pilotCar.set({ armor: 0 });
 			planShot(battle, buggy, potShot());
 			expect(battle.getIntents(buggy)[0].target).toBe(rig.id);
 
 			expect(play({ battle, driver: driverOf(rig), card: realCard('draw_fire'), target: pilotCar })).toBe(true);
+			// At full armor, so the 4 is all Shield
 			expect(pilotCar.armor).toBe(3);
+			expect(pilotCar.shield).toBe(4);
 			expect(pilotCar.spent).toBe(true);
 			expect(battle.getIntents(buggy)[0].target).toBe(pilotCar.id);
 
 			await battle.endPlayerTurn();
 
 			expect(rig.structure).toBe(20);
-			expect(pilotCar.armor).toBe(0);
 			expect(logLines(battle, 'general')).toContain("Pilot Car draws Buggy's Pot Shot away from Rig");
+			expect(logLines(battle, 'damage_dealt')).toContain(
+				'Pot Shot deals 3 total (3 to shield) damage to Pilot Car (Structure: 30/30 -> 30/30, Armor: 3/3 -> 3/3, Shield: 4 -> 1)'
+			);
+			// The rest wore off at the start of the player's turn
+			expect(pilotCar.armor).toBe(3);
+			expect(pilotCar.shield).toBe(0);
 		});
 
 		test('a card that can\'t reach the escort keeps its target; Draw Fire never cancels', async () => {
@@ -498,8 +513,9 @@ describe('Order cards', () => {
 			const ally = escortAt('outrider', slot(E_SHOULDER, CENTER), true);
 			battle.playerTeam.addVehicle(ally);
 			ally.set({ structure: 1 });
-			pilotCar.set({ armor: 0 });
-			driverOf(buggy).set({ hand: [potShot(), potShot()], adrenaline: 5 });
+			// Enough to go through the Outrider's 4 Shield
+			const bigShot = raiderCard('Big Shot', 'enemy_single', [{ type: 'damage', value: 10, range: 10, target: 'target', always_hits: true }]);
+			driverOf(buggy).set({ hand: [bigShot, potShot()], adrenaline: 5 });
 			battle.planEnemyTurn();
 
 			play({ battle, driver: driverOf(rig), card: realCard('draw_fire'), target: pilotCar });
@@ -509,8 +525,6 @@ describe('Order cards', () => {
 			// The first shot wrecks the Outrider; the second goes to the Pilot Car, not the Rig
 			expect(ally.isAlive()).toBe(false);
 			expect(rig.structure).toBe(20);
-			// Draw Fire's armor (3, the Pilot Car's maximum) soaks the shot
-			expect(pilotCar.armor).toBe(0);
 			expect(logLines(battle, 'general')).toContain("Pilot Car draws Buggy's Pot Shot away from Rig");
 		});
 
@@ -518,7 +532,6 @@ describe('Order cards', () => {
 			const { battle, rig, pilotCar, buggy } = setup();
 			const ally = escortAt('outrider', slot(E_SHOULDER, CENTER), true);
 			battle.playerTeam.addVehicle(ally);
-			pilotCar.set({ armor: 0 });
 			planShot(battle, buggy, potShot());
 
 			play({ battle, driver: driverOf(rig), card: realCard('draw_fire'), target: pilotCar });
@@ -532,7 +545,6 @@ describe('Order cards', () => {
 			// clearWrecks took the Outrider's slot before the shot played
 			expect(ally.slot).toBeNull();
 			expect(rig.structure).toBe(20);
-			expect(pilotCar.armor).toBe(0);
 			expect(logLines(battle, 'general')).toContain("Pilot Car draws Buggy's Pot Shot away from Rig");
 		});
 
@@ -793,6 +805,110 @@ describe('Order cards', () => {
 			buggy.set({ slot: slot(E_INSIDE, BEHIND) });
 
 			expect(battle.orderCarrier({ card: realCard('flag_down'), target: buggy })).toBeNull();
+		});
+	});
+
+	describe('Shield', () => {
+		test('stacks, isn\'t capped by max armor, and soaks damage before armor', () => {
+			const hauler = escortAt('fuel_hauler');
+			hauler.addShield(4);
+			hauler.addShield(3);
+			expect(hauler.shield).toBe(7);
+
+			hauler.takeDamage(10);
+
+			// 7 to Shield, 3 of the 5 armor, nothing to structure
+			expect(hauler.shield).toBe(0);
+			expect(hauler.armor).toBe(2);
+			expect(hauler.structure).toBe(40);
+		});
+
+		test('past Shield and armor, damage splits as before', () => {
+			const rig = createDriven('Rig');
+			rig.set({ armor: 2, maxArmor: 2 });
+			rig.addShield(2);
+
+			rig.takeDamage(8);
+
+			expect(rig.structure).toBe(18);
+			expect(driverOf(rig).hitpoints).toBe(3);
+		});
+
+		test('structure-only damage skips it: Ramming Run\'s cost leaves the Shield alone', () => {
+			const rig = createDriven('Rig', slot(P_INSIDE, BEHIND));
+			const pilotCar = escortAt('pilot_car', slot(P_INSIDE, CENTER));
+			const buggy = createDriven('Buggy', slot(E_INSIDE, CENTER));
+			setSkills(buggy, { evade: 4 });
+			const battle = createBattle([rig, createDriven('Bike', slot(P_OUTSIDE, BEHIND)), pilotCar], [buggy]);
+			pilotCar.addShield(6);
+
+			expect(play({ battle, driver: driverOf(rig), card: realCard('ramming_run'), target: buggy })).toBe(true);
+
+			expect(pilotCar.shield).toBe(6);
+			expect(pilotCar.structure).toBe(28);
+		});
+
+		test('a driver-only hit skips it', () => {
+			const rig = createDriven('Rig');
+			const buggy = createDriven('Buggy');
+			const battle = createBattle([rig, createDriven('Bike')], [buggy]);
+			buggy.addShield(5);
+			const headshot = raiderCard('Headshot', 'enemy_single', [{ type: 'damage', value: 2, target: 'driver', always_hits: true }]);
+
+			expect(play({ battle, driver: driverOf(rig), card: headshot, target: buggy })).toBe(true);
+
+			expect(buggy.shield).toBe(5);
+			expect(driverOf(buggy).hitpoints).toBe(3);
+		});
+
+		test('lasts through the enemy turn and clears at the start of the player\'s, on both sides', async () => {
+			const rig = createDriven('Rig');
+			const hauler = escortAt('fuel_hauler');
+			const buggy = createDriven('Buggy');
+			const battle = createBattle([rig, createDriven('Bike'), hauler], [buggy]);
+			buggy.addShield(2);
+			play({ battle, driver: driverOf(rig), card: realCard('close_ranks'), target: hauler });
+
+			let shieldAtEnemyTurnEnd = -1;
+			battle.on('battleMessage', message => {
+				if (message.type === 'turn_end' && message.message === 'Ending enemy turn') shieldAtEnemyTurnEnd = hauler.shield ?? 0;
+			});
+			await battle.endPlayerTurn();
+
+			expect(shieldAtEnemyTurnEnd).toBe(6);
+			expect(hauler.shield).toBe(0);
+			expect(buggy.shield).toBe(0);
+		});
+
+		test('clears when the fight starts', () => {
+			const hauler = escortAt('fuel_hauler');
+			hauler.addShield(9);
+			const battle = createBattle([createDriven('Rig'), createDriven('Bike'), hauler], [createDriven('Buggy')]);
+
+			battle.start();
+
+			expect(hauler.shield).toBe(0);
+		});
+
+		test('the preview and the Ram formula ignore it, and play takes it off first', async () => {
+			const hauler = escortAt('fuel_hauler');
+			const buggy = createDriven('Buggy');
+			const battle = createBattle([hauler, createDriven('Rig'), createDriven('Bike')], [buggy]);
+			buggy.set({ armor: 40, maxArmor: 40 });
+			buggy.addShield(50);
+			setSkills(buggy, { speed: 3 });
+			hauler.addShield(4);
+			const ram = raiderCard('Ram', 'enemy_single', [{ type: 'damage', value: 0, formula: 'armor/10 + (speed_diff)', attack_type: 'ramming', range: 10, target: 'target' }]);
+			driverOf(buggy).set({ hand: [ram], adrenaline: 5 });
+			battle.planEnemyTurn();
+
+			// 40 armor / 10 (not 90 / 10), plus Buggy 5 against the Hauler's 2
+			expect(battle.getIntents(buggy)[0]).toMatchObject({ amount: 7, target: hauler.id });
+			await battle.endPlayerTurn();
+
+			expect(logLines(battle, 'damage_dealt')).toContain(
+				'Ram deals 7 total (4 to shield, 3 to armor) damage to Fuel Hauler (Structure: 40/40 -> 40/40, Armor: 5/5 -> 2/5, Shield: 4 -> 0)'
+			);
 		});
 	});
 

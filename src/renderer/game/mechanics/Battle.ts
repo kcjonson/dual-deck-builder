@@ -389,6 +389,7 @@ export class Battle extends Model<BattleData> {
 		this.enemyTeam.refillAdrenaline();
 
 		this.playerTeam.readyEscorts();
+		this.clearShields();
 
 		this.planEnemyTurn();
 
@@ -506,6 +507,16 @@ export class Battle extends Model<BattleData> {
 		this.emit('stateChanged', this.getState());
 
 		return true;
+	}
+
+	/**
+	 * Shield lasts until the start of the player's next turn, on both sides,
+	 * so a Shield given on the player's turn covers exactly the enemy turn
+	 * after it
+	 */
+	private clearShields(): void {
+		this.playerTeam.clearShields();
+		this.enemyTeam.clearShields();
 	}
 
 	/**
@@ -978,6 +989,7 @@ export class Battle extends Model<BattleData> {
 		this.enemyTeam.refillAdrenaline();
 
 		this.playerTeam.readyEscorts();
+		this.clearShields();
 
 		this.drawTurnHands();
 
@@ -1177,6 +1189,17 @@ export class Battle extends Model<BattleData> {
 				break;
 			}
 
+			case 'gain_shield': {
+				const shieldValue = typeof effect.value === 'number' ? effect.value : 0;
+				const beforeShield = recipient.shield ?? 0;
+				recipient.addShield(shieldValue);
+				this.log('armor_gained',
+					`${card.displayName} gives ${recipient.name} ${shieldValue} shield (Shield: ${beforeShield} -> ${recipient.shield ?? 0})`,
+					{ card: card.displayName, target: recipient.name, value: shieldValue }
+				);
+				break;
+			}
+
 			case 'status':
 			case 'apply_status':
 				return this.applyStatus({ card, effect, caster, casterVehicle, recipient });
@@ -1367,12 +1390,13 @@ export class Battle extends Model<BattleData> {
 	}
 
 	/**
-	 * Damage through armor into structure and whoever is aboard, logged with
-	 * where it went
+	 * Damage through shield and armor into structure and whoever is aboard,
+	 * logged with where it went. Structure-only damage skips both.
 	 */
 	private damageVehicle({ vehicle, damage, card, structureOnly = false }: { vehicle: Vehicle; damage: number; card: Card; structureOnly?: boolean }): void {
 		const beforeStructure = vehicle.structure;
 		const beforeArmor = vehicle.armor;
+		const beforeShield = vehicle.shield ?? 0;
 		const crew = this.crewOf(vehicle);
 		const crewHealth = (): number => crew.living.reduce((sum, occupant) => sum + occupant.hitpoints, 0);
 		const beforeCrewHealth = crewHealth();
@@ -1384,6 +1408,7 @@ export class Battle extends Model<BattleData> {
 		}
 
 		const split = [
+			[beforeShield - (vehicle.shield ?? 0), 'shield'],
 			[beforeArmor - vehicle.armor, 'armor'],
 			[beforeStructure - vehicle.structure, 'structure'],
 			[beforeCrewHealth - crewHealth(), 'occupants']
@@ -1392,9 +1417,10 @@ export class Battle extends Model<BattleData> {
 		const breakdown = landed.length > 0 ? `${damage} total (${landed.join(', ')})` : `${damage} total`;
 		const structureText = `${beforeStructure}/${vehicle.maxStructure} -> ${vehicle.structure}/${vehicle.maxStructure}`;
 		const armorText = `${beforeArmor}/${vehicle.maxArmor} -> ${vehicle.armor}/${vehicle.maxArmor}`;
+		const shieldText = beforeShield > 0 ? `, Shield: ${beforeShield} -> ${vehicle.shield ?? 0}` : '';
 
 		this.log('damage_dealt',
-			`${card.displayName} deals ${breakdown} damage to ${vehicle.name} (Structure: ${structureText}, Armor: ${armorText})`,
+			`${card.displayName} deals ${breakdown} damage to ${vehicle.name} (Structure: ${structureText}, Armor: ${armorText}${shieldText})`,
 			{ card: card.displayName, target: vehicle.name, value: damage }
 		);
 		this.logDeaths(vehicle, crew);
