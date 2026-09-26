@@ -2,6 +2,9 @@ import { Team, TeamType } from './Team';
 import { Driver, DrawResult } from './Driver';
 import { Vehicle } from './Vehicle';
 import {
+	RoadSlot,
+	SHOULDER_CAPACITY,
+	describeLane,
 	describeSlot,
 	flankLane,
 	isFormationLane,
@@ -165,17 +168,28 @@ export class Battle extends Model<BattleData> {
 	 * Put every vehicle on the road. A vehicle that arrives with a slot (from
 	 * its encounter) keeps it; the rest fill their team's formation in
 	 * opening order, so the player's pair starts inside center and inside
-	 * behind. Nobody starts flanking.
+	 * behind. A slot on the other team's shoulder makes the vehicle an
+	 * ambusher, checked once the formations are down since it needs an
+	 * opposing vehicle in its row.
 	 */
 	private placeOpeningFormation(): void {
 		const teams = [this.playerTeam, this.enemyTeam];
 		const placed: Vehicle[] = [];
+		const ambushers: { vehicle: Vehicle; teamType: TeamType; slot: RoadSlot }[] = [];
 
 		for (const team of teams) {
+			const shoulder = flankLane(team.type);
+			// Slot collisions catch this too; clearer error
+			const onShoulder = team.vehicles.filter(vehicle => vehicle.slot?.lane === shoulder).length;
+			if (onShoulder > SHOULDER_CAPACITY) {
+				throw new Error(`${onShoulder} vehicles start on the ${describeLane(shoulder)}; a shoulder holds ${SHOULDER_CAPACITY}`);
+			}
+
 			for (const vehicle of team.vehicles) {
 				const slot = vehicle.slot;
 				if (!slot) continue;
-				if (!isFormationLane(team.type, slot.lane)) {
+				const ambush = slot.lane === shoulder;
+				if (!ambush && !isFormationLane(team.type, slot.lane)) {
 					throw new Error(`${vehicle.name} must start in its own formation, not ${describeSlot(slot)}`);
 				}
 				if (placed.some(other => sameSlot(other.slot, slot))) {
@@ -183,6 +197,7 @@ export class Battle extends Model<BattleData> {
 				}
 				vehicle.flank = null;
 				placed.push(vehicle);
+				if (ambush) ambushers.push({ vehicle, teamType: team.type, slot });
 			}
 		}
 
@@ -198,6 +213,60 @@ export class Battle extends Model<BattleData> {
 				placed.push(vehicle);
 			}
 		}
+
+		for (const ambusher of ambushers) {
+			const blocker = this.getAmbushBlocker(ambusher);
+			if (blocker) {
+				throw new Error(blocker);
+			}
+			ambusher.vehicle.flank = { reservedSlot: null, outran: null };
+		}
+	}
+
+	/**
+	 * Whether an encounter may start a team's vehicles on the other team's
+	 * shoulder. Raiders can, at the start of a fight or when a reinforcement
+	 * wave arrives. On the player's side only set-piece escorts can, and
+	 * escorts don't exist until DDB-146, which should open this for an
+	 * undriven set-piece vehicle. The player's driven vehicles never can.
+	 */
+	private static mayAmbush(teamType: TeamType): boolean {
+		return teamType === TeamType.ENEMY;
+	}
+
+	/**
+	 * Why a vehicle can't enter the fight already flanking in this slot, or
+	 * null if it can. The slot must be the other team's shoulder, free (not
+	 * held or reserved), and in a row with a living vehicle of the other
+	 * team, wherever it is in that row. The row check applies only on
+	 * arrival; once there, an ambusher keeps its slot even if the vehicle
+	 * beside it is wrecked. Opening placement uses this, and a reinforcement
+	 * wave arriving mid-fight should too (no wave code exists yet). A vehicle
+	 * already on a team must be checked for that team; one still arriving
+	 * goes by the team passed in.
+	 */
+	public getAmbushBlocker({ vehicle, teamType, slot }: { vehicle: Vehicle; teamType: TeamType; slot: RoadSlot }): string | null {
+		const currentTeam = this.getTeamForVehicle(vehicle);
+		if (currentTeam && currentTeam.type !== teamType) {
+			return `${vehicle.name} is on the ${currentTeam.type} team, not the ${teamType} team`;
+		}
+		if (!Battle.mayAmbush(teamType)) {
+			return `${vehicle.name} can't start flanking; the player's driven vehicles always start in formation`;
+		}
+		if (slot.lane !== flankLane(teamType)) {
+			return `${vehicle.name} can only ambush from the ${describeLane(flankLane(teamType))}, not ${describeSlot(slot)}`;
+		}
+		const taken = this.getAllVehicles().some(other => other !== vehicle &&
+			(sameSlot(other.slot, slot) || sameSlot(other.flank?.reservedSlot ?? null, slot)));
+		if (taken) {
+			return `${describeSlot(slot)} is taken`;
+		}
+		const opposingTeam = teamType === TeamType.PLAYER ? this.enemyTeam : this.playerTeam;
+		const hasOpponentInRow = opposingTeam.vehicles.some(other => other.isAlive() && other.slot?.row === slot.row);
+		if (!hasOpponentInRow) {
+			return `${vehicle.name} can't ambush in the ${slot.row} row; no ${opposingTeam.type} vehicle is in it`;
+		}
+		return null;
 	}
 
 	/**
@@ -1110,7 +1179,7 @@ export class Battle extends Model<BattleData> {
 	/**
 	 * Swerve onto the other team's shoulder in the row of the vehicle it
 	 * outran. Its formation slot stays empty and reserved; an existing
-	 * flanker keeps its original reservation.
+	 * flanker keeps its original reservation, and an ambusher still has none.
 	 */
 	private flankVehicle(flanker: Vehicle, target: Vehicle | null): boolean {
 		if (!target) {
@@ -1137,18 +1206,20 @@ export class Battle extends Model<BattleData> {
 	/**
 	 * Flankers that are no longer faster than the vehicle they outran swerve
 	 * back to their reserved slot. Runs at the end of every turn. A flanker
-	 * whose outran vehicle is wrecked holds the shoulder.
+	 * whose outran vehicle is wrecked holds the shoulder, and so does an
+	 * ambusher, which has no reserved slot to drop back to.
 	 */
 	private dropBackFlankers(): void {
 		for (const vehicle of this.getAllVehicles()) {
-			const flank = vehicle.flank;
-			if (!flank || !vehicle.isAlive() || !flank.outran.isAlive()) continue;
-			if (vehicle.canFlank(flank.outran)) continue;
+			const reservedSlot = vehicle.flank?.reservedSlot;
+			const outran = vehicle.flank?.outran;
+			if (!reservedSlot || !outran || !vehicle.isAlive() || !outran.isAlive()) continue;
+			if (vehicle.canFlank(outran)) continue;
 
-			vehicle.set({ slot: flank.reservedSlot, flank: null });
+			vehicle.set({ slot: reservedSlot, flank: null });
 			this.log('general',
-				`${vehicle.name} loses its speed edge on ${flank.outran.name} and drops back to ${describeSlot(flank.reservedSlot)}`,
-				{ vehicle: vehicle.name, target: flank.outran.name }
+				`${vehicle.name} loses its speed edge on ${outran.name} and drops back to ${describeSlot(reservedSlot)}`,
+				{ vehicle: vehicle.name, target: outran.name }
 			);
 		}
 	}

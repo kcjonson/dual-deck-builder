@@ -49,6 +49,9 @@ const LANE_ORDER: readonly RoadLane[] = [
 
 export const ROW_ORDER: readonly RoadRow[] = [RoadRow.AHEAD, RoadRow.CENTER, RoadRow.BEHIND];
 
+/** One vehicle per row, so a shoulder holds three. */
+export const SHOULDER_CAPACITY = ROW_ORDER.length;
+
 // Opening fill order when an encounter doesn't give a vehicle its slot.
 // The player's pair lands inside center and inside behind, as the spec asks.
 const FORMATION_ROW_FILL: readonly RoadRow[] = [RoadRow.CENTER, RoadRow.BEHIND, RoadRow.AHEAD];
@@ -125,8 +128,15 @@ export function openingSlots(team: TeamType): RoadSlot[] {
 }
 
 /**
+ * Human-readable lane name for the combat log, e.g. "enemy shoulder".
+ */
+export function describeLane(lane: RoadLane): string {
+	return lane.replace('_', ' ');
+}
+
+/**
  * Human-readable slot name for the combat log, e.g. "enemy shoulder, ahead".
  */
 export function describeSlot(slot: RoadSlot): string {
-	return `${slot.lane.replace('_', ' ')}, ${slot.row}`;
+	return `${describeLane(slot.lane)}, ${slot.row}`;
 }
