@@ -414,6 +414,31 @@ export class Driver extends Model<DriverData> {
 	}
 
 	/**
+	 * Take every card an escort brought out of this driver's cards, wherever
+	 * it is: deck, hand, discard, or exhausted. Returns what was removed.
+	 */
+	public removeCardsBroughtBy(escortId: string): Card[] {
+		const brought = (card: Card): boolean => card.broughtBy === escortId;
+		const removed = [
+			...(this.deck?.cards ?? []),
+			...this.hand,
+			...this.discard,
+			...(this.exhausted ?? [])
+		].filter(brought);
+		if (removed.length === 0) return removed;
+
+		if (this.deck) {
+			this.deck.cards = this.deck.cards.filter(card => !brought(card));
+		}
+		this.set({
+			hand: this.hand.filter(card => !brought(card)),
+			discard: this.discard.filter(card => !brought(card)),
+			exhausted: (this.exhausted ?? []).filter(card => !brought(card))
+		});
+		return removed;
+	}
+
+	/**
 	 * Discard entire hand
 	 */
 	public discardHand(): void {

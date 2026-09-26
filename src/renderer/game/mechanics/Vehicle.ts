@@ -384,6 +384,26 @@ export class Vehicle extends Model<VehicleData> {
 	}
 
 	/**
+	 * Off the road at the end of a fight, keeping only the damage that
+	 * carries over: structure. Slot, flank, statuses, Shield, and spent are
+	 * the fight's; armor is plating that's hammered back between fights; and
+	 * whoever rode along gets out, for the run to seat. Leaves the vehicle
+	 * as a fresh one would enter the next fight, so a Battle can still read
+	 * a preset slot as the encounter's.
+	 */
+	public leaveFight(): void {
+		this.set({
+			slot: null,
+			flank: null,
+			statusEffects: [],
+			shield: 0,
+			spent: false,
+			armor: this.maxArmor,
+			passenger: null
+		});
+	}
+
+	/**
 	 * Handle vehicle destruction
 	 * Driver jumps to remaining vehicle as passenger (handled by combat system)
 	 */
