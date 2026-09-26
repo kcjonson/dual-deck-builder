@@ -455,7 +455,7 @@ describe('Driver death', () => {
 
 			expect(messages()).toContain('Rig has nobody at the wheel and carries on as an escort');
 			expect(battle.battleOver).toBe(false);
-			expect(battle.playerTeam.vehicles).toEqual([rig, bike]);
+			expect(battle.playerTeam.vehicles).toEqual([bike, rig]);
 			expect(rig.isEscort).toBe(true);
 			expect(rig.slot).toEqual({ lane: RoadLane.PLAYER_INSIDE, row: RoadRow.CENTER });
 			expect(bike.driver).toBe(bikeDriver);

@@ -301,6 +301,36 @@ describe('Passengers and unmanned vehicles (DDB-152)', () => {
 		});
 	});
 
+	describe('the roster', () => {
+		test('converted vehicles join it last, in the order they converted, so Rally the Convoy fires them after the convoy\'s own', () => {
+			const rig = createDriven('Rig', slot(P_INSIDE, CENTER));
+			const bike = createDriven('Bike', slot(P_INSIDE, BEHIND));
+			const outrider = escortAt('outrider', slot(P_INSIDE, AHEAD));
+			const buggy = createDriven('Buggy', slot(E_INSIDE, CENTER));
+			buggy.set({ structure: 200, maxStructure: 200 });
+			driverOf(buggy).set({ skills: { ...driverOf(buggy).skills, evade: 0 } });
+			const battle = createBattle([rig, bike, outrider], [buggy]);
+			const rider = fillSeat(outrider);
+
+			for (const vehicle of [bike, rig]) {
+				driverOf(vehicle).takeDamage(1000);
+				battle.playerTeam.handleDriverDeath(vehicle);
+			}
+			expect(battle.playerTeam.escorts).toEqual([outrider, bike, rig]);
+
+			// As at the start of the next player turn
+			battle.playerTeam.readyEscorts();
+			giveHand(rider, [realCard('rally_the_convoy')]);
+			expect(battle.playCard({ driver: rider, cardIndex: 0 })).toBe(true);
+
+			expect(messagesOf(battle).filter(line => line.includes(' fires on '))).toEqual([
+				'Outrider fires on Buggy',
+				'Bike fires on Buggy',
+				'Rig fires on Buggy'
+			]);
+		});
+	});
+
 	describe('a player vehicle whose driver dies with no passenger', () => {
 		let rig: Vehicle;
 		let bike: Vehicle;

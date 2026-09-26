@@ -87,7 +87,8 @@ export class Team extends Model<TeamData> {
 	}
 
 	/**
-	 * Escorts in roster order, first acquired first
+	 * Escorts in roster order, first acquired first. A vehicle that converts
+	 * mid-fight joins last (handleDriverDeath moves it to the end).
 	 */
 	public get escorts(): Vehicle[] {
 		return this.vehicles.filter(vehicle => vehicle.isEscort);
@@ -200,13 +201,14 @@ export class Team extends Model<TeamData> {
 	/**
 	 * Take the dead out of a vehicle's seats. On the player's team a vehicle
 	 * left with nobody at the wheel carries on as an escort for the rest of
-	 * the fight. A raider's is out of the fight and leaves at the end of the
-	 * turn.
+	 * the fight, and as the newest escort it goes to the end of the roster.
+	 * A raider's is out of the fight and leaves at the end of the turn.
 	 */
 	public handleDriverDeath(vehicle: Vehicle): void {
 		vehicle.handleDriverDeath();
 		if (this.type === TeamType.PLAYER && vehicle.isAlive() && vehicle.isUnmanned()) {
 			convertToEscort(vehicle);
+			this.vehicles = [...this.vehicles.filter(other => other !== vehicle), vehicle];
 		}
 	}
 
