@@ -30,10 +30,27 @@ const RECIPIENT_BY_TARGET: Record<string, EffectRecipient> = {
  */
 export const EFFECT_TARGETS: readonly string[] = Object.keys(RECIPIENT_BY_TARGET);
 
+/**
+ * Effects that are the caster's own doing: drawing, gaining adrenaline,
+ * moving. They happen once per card, to the caster, whatever the effect's
+ * target says and whatever happened to the card's target.
+ */
+const CASTER_ACTIONS = new Set(['draw', 'draw_cards', 'adrenaline', 'gain_resource', 'change_position']);
+
+export function isCasterAction(effect: CardEffect): boolean {
+	return CASTER_ACTIONS.has(effect.type);
+}
+
+/**
+ * No spec says what a both_drivers card does to the partner, so it lands
+ * on the caster, as it did when the caster's vehicle stood in for the
+ * target. An `any` card always has a target.
+ */
 export function effectRecipientOf({ effect, card }: { effect: CardEffect; card: Card }): EffectRecipient {
+	if (isCasterAction(effect)) return EffectRecipient.CASTER;
 	const recipient = effect.target ? RECIPIENT_BY_TARGET[effect.target] : undefined;
 	if (recipient) return recipient;
-	if (card.targetType === 'self') return EffectRecipient.CASTER;
+	if (card.targetType === 'self' || card.targetType === 'both_drivers') return EffectRecipient.CASTER;
 	if (card.targetType === 'enemy_all') return EffectRecipient.ENEMIES;
 	return EffectRecipient.TARGET;
 }

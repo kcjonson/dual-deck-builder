@@ -118,6 +118,56 @@ describe('Effect targets', () => {
 		});
 	});
 
+	describe('caster actions', () => {
+		test('an area card gains its adrenaline once, not once per enemy, in play and in the projection', () => {
+			const rally = card('Rally', 'enemy_all', [
+				{ type: 'apply_status', status: 'speed_reduction', value: -1, duration: 1, target: 'enemy_all', always_hits: true },
+				{ type: 'gain_resource', resource: 'adrenaline', value: 1 }
+			]);
+			driverOf(rig).set({ hand: [rally], adrenaline: 2 });
+
+			const board = new BoardProjection({ battle });
+			board.apply({ card: rally, driver: driverOf(rig), target: null });
+			expect(battle.playCard({ driver: driverOf(rig), cardIndex: 0 })).toBe(true);
+
+			expect(statusNames(buggy)).toEqual(['speed_reduction']);
+			expect(statusNames(truck)).toEqual(['speed_reduction']);
+			expect(driverOf(rig).adrenaline).toBe(2);
+			expect(board.adrenalineOf(driverOf(rig))).toBe(2);
+		});
+
+		test('a draw still happens when the damage before it wrecked the target', () => {
+			const smashAndGrab = card('Smash and Grab', 'enemy_single', [
+				{ type: 'damage', value: 40, target: 'target', always_hits: true },
+				{ type: 'draw_cards', value: 1, target: 'target' }
+			]);
+			giveHand(rig, [smashAndGrab]);
+			driverOf(rig).deck?.addCards([slipstream()]);
+
+			battle.playCard({ driver: driverOf(rig), cardIndex: 0, targetVehicle: buggy });
+
+			expect(buggy.isAlive()).toBe(false);
+			expect(driverOf(rig).hand.map(drawn => drawn.name)).toEqual(['Slipstream']);
+		});
+
+		test('resolve to the caster whatever their target says', () => {
+			const rally = card('Rally', 'enemy_all', [{ type: 'gain_resource', resource: 'adrenaline', value: 1, target: 'enemy_all' }]);
+			expect(effectRecipientOf({ effect: rally.effects[0], card: rally })).toBe(EffectRecipient.CASTER);
+		});
+	});
+
+	test('an untargeted effect on a both_drivers card lands on the caster', () => {
+		const brace = card('Brace', 'both_drivers', [{ type: 'gain_armor', value: 3 }]);
+		rig.set({ maxArmor: 10 });
+		bike.set({ maxArmor: 10 });
+		giveHand(rig, [brace]);
+
+		battle.playCard({ driver: driverOf(rig), cardIndex: 0 });
+
+		expect(rig.armor).toBe(3);
+		expect(bike.armor).toBe(0);
+	});
+
 	describe('Berserker', () => {
 		test('with gunnery below evade it still deals its self damage, gives its adrenaline, and makes the vehicle Vulnerable', () => {
 			setGunnery(rig, 1);

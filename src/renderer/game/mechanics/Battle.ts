@@ -15,7 +15,7 @@ import {
 } from './Road';
 import { Card, CardEffect } from './Card';
 import { BoardProjection } from './BoardProjection';
-import { EffectRecipient, effectRecipientOf, effectRecipients, rollsToHit } from './EffectTargets';
+import { EffectRecipient, effectRecipientOf, effectRecipients, isCasterAction, rollsToHit } from './EffectTargets';
 import {
 	Intent,
 	IntentTier,
@@ -803,9 +803,10 @@ export class Battle extends Model<BattleData> {
 	}
 
 	/**
-	 * Resolve a card's effects in order. Each lands where its own target
-	 * field says (see EffectTargets): the caster, the card's target, or every
-	 * enemy still in the fight. The target is null for a card that takes none.
+	 * Resolve a card's effects in order. Draws, adrenaline, and moves are the
+	 * caster's and happen once. The rest land where their own target field
+	 * says (see EffectTargets): the caster, the card's target, or every enemy
+	 * still in the fight. The target is null for a card that takes none.
 	 */
 	private applyCardEffects({ card, caster, target }: { card: Card; caster: Driver; target: Vehicle | null }): void {
 		const casterVehicle = this.getVehicleForDriver(caster);
@@ -813,36 +814,85 @@ export class Battle extends Model<BattleData> {
 		const enemies = casterTeam === this.playerTeam ? this.enemyTeam.vehicles : this.playerTeam.vehicles;
 
 		for (const effect of card.effects) {
-			const recipients = effectRecipients({ effect, card, caster: casterVehicle, target, enemies });
-			for (const recipient of recipients) {
-				const keepGoing = this.applyEffect({ card, effect, caster, casterVehicle, recipient, target });
-				if (!keepGoing) return;
+			if (isCasterAction(effect)) {
+				if (!this.applyCasterAction({ card, effect, caster, casterVehicle, target })) return;
+				continue;
+			}
+			for (const recipient of effectRecipients({ effect, card, caster: casterVehicle, target, enemies })) {
+				this.applyEffect({ card, effect, caster, casterVehicle, recipient });
 			}
 		}
 	}
 
 	/**
-	 * One effect on one recipient. False when the rest of the card is
-	 * cancelled (a failed flank).
+	 * A draw, adrenaline gain, or move: once per card, by the caster. False
+	 * when the rest of the card is cancelled (a failed flank).
 	 */
-	private applyEffect({
+	private applyCasterAction({
 		card,
 		effect,
 		caster,
 		casterVehicle,
-		recipient,
 		target
 	}: {
 		card: Card;
 		effect: CardEffect;
 		caster: Driver;
 		casterVehicle: Vehicle | null;
-		recipient: Vehicle;
 		target: Vehicle | null;
 	}): boolean {
+		switch (effect.type) {
+			case 'draw':
+			case 'draw_cards':
+				this.drawForCard(card, caster, typeof effect.value === 'number' ? effect.value : 0);
+				break;
+
+			case 'adrenaline':
+			case 'gain_resource': {
+				if (effect.type === 'gain_resource' && effect.resource !== 'adrenaline') break;
+				const adrenalineValue = typeof effect.value === 'number' ? effect.value : 0;
+				const beforeAdrenaline = caster.adrenaline;
+				const maxAdrenaline = caster.maxAdrenaline;
+
+				caster.gainAdrenaline(adrenalineValue);
+
+				const afterAdrenaline = caster.adrenaline;
+				this.log('general',
+					`${card.displayName} gives ${afterAdrenaline - beforeAdrenaline} adrenaline to ${caster.metadata.name} (Adrenaline: ${beforeAdrenaline}/${maxAdrenaline} -> ${afterAdrenaline}/${maxAdrenaline})`,
+					{ card: card.displayName, driver: caster.metadata.name, value: adrenalineValue }
+				);
+				break;
+			}
+
+			case 'change_position':
+				// A failed flank cancels the rest of the card, so no bonus without the swerve
+				if (casterVehicle && effect.position === 'flanking' && !this.flankVehicle(casterVehicle, target)) {
+					return false;
+				}
+				break;
+		}
+		return true;
+	}
+
+	/**
+	 * One effect on one recipient
+	 */
+	private applyEffect({
+		card,
+		effect,
+		caster,
+		casterVehicle,
+		recipient
+	}: {
+		card: Card;
+		effect: CardEffect;
+		caster: Driver;
+		casterVehicle: Vehicle | null;
+		recipient: Vehicle;
+	}): void {
 		const onCaster = effectRecipientOf({ effect, card }) === EffectRecipient.CASTER;
 		// Out of the fight covers a recipient an earlier effect of this card wrecked
-		if (!onCaster && recipient.isOutOfFight) return true;
+		if (!onCaster && recipient.isOutOfFight) return;
 
 		switch (effect.type) {
 			case 'damage':
@@ -899,42 +949,11 @@ export class Battle extends Model<BattleData> {
 				break;
 			}
 
-			case 'draw':
-			case 'draw_cards':
-				this.drawForCard(card, caster, typeof effect.value === 'number' ? effect.value : 0);
-				break;
-
-			case 'adrenaline':
-			case 'gain_resource': {
-				if (effect.type === 'gain_resource' && effect.resource !== 'adrenaline') break;
-				const adrenalineValue = typeof effect.value === 'number' ? effect.value : 0;
-				const beforeAdrenaline = caster.adrenaline;
-				const maxAdrenaline = caster.maxAdrenaline;
-
-				caster.gainAdrenaline(adrenalineValue);
-
-				const afterAdrenaline = caster.adrenaline;
-				this.log('general',
-					`${card.displayName} gives ${afterAdrenaline - beforeAdrenaline} adrenaline to ${caster.metadata.name} (Adrenaline: ${beforeAdrenaline}/${maxAdrenaline} -> ${afterAdrenaline}/${maxAdrenaline})`,
-					{ card: card.displayName, driver: caster.metadata.name, value: adrenalineValue }
-				);
-				break;
-			}
-
 			case 'status':
 			case 'apply_status':
 				this.applyStatus({ card, effect, caster, casterVehicle, recipient });
 				break;
-
-			case 'change_position':
-				// The caster always makes the move. A failed flank cancels the rest
-				// of the card, so no bonus without the swerve.
-				if (casterVehicle && effect.position === 'flanking' && !this.flankVehicle(casterVehicle, target)) {
-					return false;
-				}
-				break;
 		}
-		return true;
 	}
 
 	/**

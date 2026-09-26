@@ -44,11 +44,17 @@ describe('card data check', () => {
 		expect(description).not.toMatch(/\{\w+\}/);
 	});
 
-	// An unknown target would quietly fall back to the card's target type
-	it.each(cards.map((data) => ({ label: data.type, effects: data.effects })))('$label effects name targets the battle knows', ({ effects }) => {
-		const nested = (effect: CardEffect): CardEffect[] => [effect, ...(effect.effect ? nested(effect.effect) : [])];
-		const targets = effects.flatMap(nested).map((effect) => effect.target).filter((target) => target !== undefined);
-		expect(EFFECT_TARGETS).toEqual(expect.arrayContaining(targets));
+	// Every effect says who it lands on. A wrapper (conditional) says it through
+	// the effect it wraps. Upgrades replace the whole effects array, so they count.
+	const upgradeEffects = (data: CardData): CardEffect[] => {
+		const effects = data.upgrades?.effects;
+		return Array.isArray(effects) ? effects : [];
+	};
+	it.each(cards.map((data) => ({ label: data.type, effects: [...data.effects, ...upgradeEffects(data)] })))('$label effects each name a target the battle knows', ({ effects }) => {
+		const leaves = (effect: CardEffect): CardEffect[] => effect.effect ? leaves(effect.effect) : [effect];
+		for (const effect of effects.flatMap(leaves)) {
+			expect(EFFECT_TARGETS).toContain(effect.target);
+		}
 	});
 
 	// Battle.checkHit adds hit_modifier to the defender's evade, so positive is harder
