@@ -3,7 +3,7 @@ import { BoardProjection } from './BoardProjection';
 import { Card } from './Card';
 import { ESCORT_CONFIGS, createEscort } from './Escort';
 import { RoadLane, RoadRow, RoadSlot } from './Road';
-import { MAX_FORMATION_ESCORTS, Team, TeamType } from './Team';
+import { MAX_CONVOY_ESCORTS, Team, TeamType } from './Team';
 import { Vehicle } from './Vehicle';
 import { createTestDriver } from '../ai/__tests__/test-helpers';
 
@@ -102,16 +102,16 @@ describe('Escorts', () => {
 			const team = playerTeam([rig, bike, ...fullConvoy()]);
 
 			expect(team.drivenVehicles).toEqual([rig, bike]);
-			expect(team.escorts).toHaveLength(MAX_FORMATION_ESCORTS);
+			expect(team.escorts).toHaveLength(MAX_CONVOY_ESCORTS);
 		});
 
 		test('a fifth escort in formation is rejected, at creation or when added', () => {
 			expect(() => playerTeam([rig, bike, ...fullConvoy(), createEscort({ type: 'outrider' })]))
-				.toThrow('Player teams can hold 4 escorts in formation, not 5');
+				.toThrow('Player teams can field 4 convoy escorts, not 5');
 
 			const team = playerTeam([rig, bike, ...fullConvoy()]);
 			expect(() => team.addVehicle(createEscort({ type: 'outrider' })))
-				.toThrow('Player teams can hold 4 escorts in formation, not 5');
+				.toThrow('Player teams can field 4 convoy escorts, not 5');
 		});
 
 		test('a player team still needs exactly two driven vehicles', () => {
@@ -121,11 +121,11 @@ describe('Escorts', () => {
 				.toThrow('Player teams cannot have more than 2 driven vehicles');
 		});
 
-		test('escorts join after the fight starts until the formation cap', () => {
+		test('addVehicle takes escorts up to the cap', () => {
 			const team = playerTeam([rig, bike]);
 			fullConvoy().forEach(escort => team.addVehicle(escort));
 
-			expect(team.escorts).toHaveLength(MAX_FORMATION_ESCORTS);
+			expect(team.escorts).toHaveLength(MAX_CONVOY_ESCORTS);
 		});
 
 		test('a set-piece ambusher on the shoulder does not count toward the four', () => {
@@ -133,6 +133,15 @@ describe('Escorts', () => {
 			ally.slot = slot(RoadLane.ENEMY_SHOULDER, RoadRow.CENTER);
 
 			expect(() => playerTeam([rig, bike, ...fullConvoy(), ally])).not.toThrow();
+		});
+
+		test('a set-piece ally added before its slot is set does not count toward the four', () => {
+			const team = playerTeam([rig, bike, ...fullConvoy()]);
+			const ally = createEscort({ type: 'pilot_car', setPiece: true });
+
+			expect(ally.slot).toBeNull();
+			expect(() => team.addVehicle(ally)).not.toThrow();
+			expect(team.escorts).toContain(ally);
 		});
 
 		test('duplicate escort types are allowed, each with its own profile', () => {

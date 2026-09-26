@@ -2,15 +2,14 @@ import { Driver, DriverRole } from './Driver';
 import { Vehicle } from './Vehicle';
 import { Model } from '../core/Model';
 import { TeamType } from './TeamType';
-import { isShoulder } from './Road';
 
 export { TeamType };
 
 /** A player team's driven vehicles, one per driver */
 export const PLAYER_DRIVEN_VEHICLES = 2;
 
-/** Escorts a player team can hold in formation; set-piece ambushers on the shoulder don't count */
-export const MAX_FORMATION_ESCORTS = 4;
+/** Escorts from the convoy a player team can field; an encounter's set-piece allies don't count */
+export const MAX_CONVOY_ESCORTS = 4;
 
 /**
  * Team data interface - used throughout the app
@@ -28,8 +27,8 @@ export interface Team extends TeamData {}
 
 /**
  * Team class representing a side in battle
- * Player teams start with exactly 2 driven vehicles plus up to 4 escorts in
- * formation, listed in roster order; enemy teams can have variable amounts.
+ * Player teams start with exactly 2 driven vehicles plus up to 4 convoy
+ * escorts, listed in roster order, plus any set-piece allies; enemy teams can have variable amounts.
  * Wrecks leave the list when Battle clears them off the road.
  * Drivers manage their own hands/cards individually
  */
@@ -84,18 +83,18 @@ export class Team extends Model<TeamData> {
 	}
 
 	/**
-	 * Holds a place in the formation: everything but an ambusher, which
-	 * starts on the other team's shoulder with no reserved slot. A flanker
-	 * keeps its reserved slot, so it still counts.
+	 * Counts toward the escort cap: the convoy's own escorts, wherever they
+	 * are on the road. A set-piece ally belongs to its encounter, so it never
+	 * counts, whether or not its slot has been set yet.
 	 */
-	private static holdsFormationPlace(vehicle: Vehicle): boolean {
-		return !(vehicle.slot && isShoulder(vehicle.slot.lane) && !vehicle.flank?.reservedSlot);
+	private static countsTowardEscortCap(vehicle: Vehicle): boolean {
+		return vehicle.isEscort && !vehicle.escort?.setPiece;
 	}
 
 	private assertEscortRoom(adding: number): void {
-		const inFormation = this.escorts.filter(Team.holdsFormationPlace).length + adding;
-		if (inFormation > MAX_FORMATION_ESCORTS) {
-			throw new Error(`Player teams can hold ${MAX_FORMATION_ESCORTS} escorts in formation, not ${inFormation}`);
+		const convoyEscorts = this.vehicles.filter(Team.countsTowardEscortCap).length + adding;
+		if (convoyEscorts > MAX_CONVOY_ESCORTS) {
+			throw new Error(`Player teams can field ${MAX_CONVOY_ESCORTS} convoy escorts, not ${convoyEscorts}`);
 		}
 	}
 
@@ -147,7 +146,7 @@ export class Team extends Model<TeamData> {
 			if (!vehicle.isEscort && this.drivenVehicles.length >= PLAYER_DRIVEN_VEHICLES) {
 				throw new Error(`Player teams cannot have more than ${PLAYER_DRIVEN_VEHICLES} driven vehicles`);
 			}
-			if (vehicle.isEscort && Team.holdsFormationPlace(vehicle)) {
+			if (Team.countsTowardEscortCap(vehicle)) {
 				this.assertEscortRoom(1);
 			}
 		}
