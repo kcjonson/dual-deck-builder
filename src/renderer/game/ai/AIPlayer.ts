@@ -155,36 +155,14 @@ export abstract class AIPlayer {
 				break;
 		}
 
-		// Filter by range if card has damage effects with range requirements
+		// Only offer targets the battle's own targeting rules accept
 		for (const target of potentialTargets) {
-			let inRange = true;
-			
-			// Check if card has any damage effects with range requirements
-			for (const effect of card.effects) {
-				if (effect.type === 'damage' && typeof effect.range === 'number') {
-					const range = this.board.range(sourceVehicle, target);
-					if (range > effect.range) {
-						inRange = false;
-						break;
-					}
-				}
-			}
-			
-			if (inRange && this.meetsFlankRules(card, sourceVehicle, target)) {
+			if (this.board.targetBlocker({ card, caster: sourceVehicle, target }) === null) {
 				targets.push(target);
 			}
 		}
 
 		return targets;
-	}
-
-	/**
-	 * A flank card's target is the vehicle to outrun, so only offer ones the
-	 * battle would accept.
-	 */
-	private meetsFlankRules(card: Card, sourceVehicle: Vehicle, target: Vehicle): boolean {
-		const flanks = card.effects.some(e => e.type === 'change_position' && e.position === 'flanking');
-		return !flanks || this.board.canFlank(sourceVehicle, target);
 	}
 
 	protected cardRequiresTarget(card: Card): boolean {

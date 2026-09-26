@@ -582,7 +582,17 @@ describe('Driver death', () => {
 			expect(battle.enemyTeam.vehicles).toContain(buggy);
 		};
 
-		test.each(['aggressive', 'random', 'salvage', 'ramming', 'defensive', 'balanced', 'mcts'] as const)(
+		// Random-backed AIs take the first action offered, which is the first card's first target
+		beforeEach(() => {
+			jest.spyOn(Math, 'random').mockReturnValue(0);
+		});
+
+		afterEach(() => {
+			jest.restoreAllMocks();
+		});
+
+		// Ramming isn't here: its scoring already turns down a target with no driver
+		test.each(['aggressive', 'random', 'salvage', 'defensive', 'balanced', 'mcts'] as const)(
 			'%s AI never offers a vehicle with nobody aboard as a target',
 			async (aiType) => {
 				emptyBuggy();
@@ -608,6 +618,21 @@ describe('Driver death', () => {
 
 			expect(decide).toHaveBeenCalledTimes(1);
 			expect(rigDriver.hand.map(c => c.name)).toEqual(['Point Blank']);
+		});
+
+		test('only offers targets the battle accepts, so a card it can\'t play doesn\'t cost it the turn', async () => {
+			const oilSlick = card('Oil Slick', 'enemy_single', [
+				{ type: 'apply_status', status: 'speed_reduction', value: -4, duration: 2, condition: 'target_flanking', always_hits: true }
+			]);
+			giveHand(rigDriver, [oilSlick, pointBlank()]);
+			expect(buggy.isFlanking).toBe(false);
+			battle.aiController.setPlayerAI('random');
+
+			await battle.aiController.playPlayerCards();
+
+			expect(buggy.structure).toBe(18);
+			expect(rigDriver.discard.map(c => c.name)).toEqual(['Point Blank']);
+			expect(rigDriver.hand).toEqual([oilSlick]);
 		});
 	});
 

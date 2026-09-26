@@ -1340,65 +1340,15 @@ export class Battle extends Model<BattleData> {
 			return false; // Card needs a target but none provided
 		}
 
-		if (!target.isAlive() || !target.slot) {
-			this.log('general', `${target.name} is wrecked`);
-			return false;
-		}
-		if (target.isUnmanned()) {
-			this.log('general', `${target.name} has nobody aboard`);
-			return false;
-		}
-
 		const casterVehicle = this.getVehicleForDriver(caster);
 		if (!casterVehicle) return false;
 
-		// Check range for ranged attacks
-		const hasRangeEffect = card.effects.some(e => e.range !== undefined);
-		if (hasRangeEffect) {
-			const range = this.calculateRange(casterVehicle, target);
-			const ranges = card.effects
-				.filter(e => typeof e.range === 'number')
-				.map(e => e.range as number);
-			const maxRange = ranges.length > 0 ? Math.max(...ranges) : 2;
-			
-			if (range > maxRange) {
-				this.log('general', `Target out of range: ${range} > ${maxRange}`);
-				return false;
-			}
-		}
-
-		if (!this.meetsFlankRules(card, casterVehicle, target)) {
-			this.log('general', `Cannot flank: ${this.getFlankBlocker(casterVehicle, target)}`);
+		const blocker = new BoardProjection({ battle: this }).targetBlocker({ card, caster: casterVehicle, target });
+		if (blocker) {
+			this.log('general', blocker);
 			return false;
 		}
-
-		// Check position restrictions
-		for (const effect of card.effects) {
-			if (effect.condition === 'target_flanking' && !target.isFlanking) {
-				this.log('general', 'Target must be flanking');
-				return false;
-			}
-			
-			// Check same_vehicle restriction for heal_driver
-			if (effect.type === 'heal_driver' && effect.target === 'same_vehicle' && casterVehicle !== target) {
-				this.log('general', 'Can only heal drivers in same vehicle');
-				return false;
-			}
-		}
-
-		// Check team restrictions
-		const casterTeam = this.getTeamForDriver(caster);
-		const targetTeam = this.getTeamForVehicle(target);
-
-		switch (card.targetType) {
-			case 'enemy_single':
-				return targetTeam !== casterTeam;
-			case 'ally':
-				return targetTeam === casterTeam;
-			default:
-				// For other target types like 'self', 'both_drivers', 'any', etc.
-				return true;
-		}
+		return true;
 	}
 
 	/**

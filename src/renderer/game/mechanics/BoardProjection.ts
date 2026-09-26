@@ -123,6 +123,62 @@ export class BoardProjection {
 		return null;
 	}
 
+	/**
+	 * Why a card can't be played from one vehicle at a target, or null if it
+	 * can. The one set of targeting rules: the battle checks a player's play
+	 * against a fresh projection, and the AI checks its picks against the
+	 * projection it's planning on, so a raider's earlier planned flank counts.
+	 * Only for cards that take a target.
+	 */
+	public targetBlocker({ card, caster, target }: { card: Card; caster: Vehicle; target: Vehicle }): string | null {
+		const casterState = this.vehicles.get(caster);
+		const targetState = this.vehicles.get(target);
+		if (!target.isAlive() || !targetState?.slot) {
+			return `${target.name} is wrecked`;
+		}
+		if (target.isUnmanned()) {
+			return `${target.name} has nobody aboard`;
+		}
+		if (!casterState?.slot) {
+			return `${caster.name} is not on the road`;
+		}
+
+		const ranges = card.effects
+			.map(effect => effect.range)
+			.filter((range): range is number => typeof range === 'number');
+		if (ranges.length > 0) {
+			const range = this.range(caster, target);
+			const maxRange = Math.max(...ranges);
+			if (range > maxRange) {
+				return `Target out of range: ${range} > ${maxRange}`;
+			}
+		}
+
+		if (card.effects.some(effect => effect.type === 'change_position' && effect.position === 'flanking')) {
+			const flankBlocker = this.flankBlocker(caster, target);
+			if (flankBlocker) {
+				return `Cannot flank: ${flankBlocker}`;
+			}
+		}
+
+		for (const effect of card.effects) {
+			if (effect.condition === 'target_flanking' && !this.isFlanking(target)) {
+				return 'Target must be flanking';
+			}
+			if (effect.type === 'heal_driver' && effect.target === 'same_vehicle' && caster !== target) {
+				return 'Can only heal drivers in same vehicle';
+			}
+		}
+
+		if (card.targetType === 'enemy_single' && targetState.team === casterState.team) {
+			return `${target.name} is not an enemy`;
+		}
+		if (card.targetType === 'ally' && targetState.team !== casterState.team) {
+			return `${target.name} is not an ally`;
+		}
+		return null;
+	}
+
 	public canFlank(flanker: Vehicle, target: Vehicle): boolean {
 		return this.flankBlocker(flanker, target) === null;
 	}
