@@ -1,6 +1,7 @@
 import type { Card, CardEffect } from './Card';
 import type { Driver } from './Driver';
 import type { Vehicle } from './Vehicle';
+import type { RoadSlot } from './Road';
 import { EffectRecipient, effectRecipientOf } from './EffectTargets';
 
 /**
@@ -40,7 +41,8 @@ export interface PlannedAction {
 	card: Card;
 	driver: Driver;
 	target: Vehicle | null;
-	/** The raider's projected flank state and speed when this card resolves, after its earlier planned cards. */
+	/** The raider's projected slot, flank state, and speed when this card resolves, after its earlier planned cards. */
+	slot: RoadSlot | null;
 	flanking: boolean;
 	speed: number;
 }

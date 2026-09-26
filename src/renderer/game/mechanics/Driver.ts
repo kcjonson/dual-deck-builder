@@ -117,6 +117,8 @@ export interface DriverData {
 	hand: Card[];
 	discard: Card[];
 	deck: Deck | null;
+	/** Exhaust cards played this fight, out of the draw and discard until it ends */
+	exhausted?: Card[];
 }
 
 /**
@@ -143,7 +145,8 @@ export class Driver extends Model<DriverData> {
 		'role',
 		'hand',
 		'discard',
-		'deck'
+		'deck',
+		'exhausted'
 	]);
 
 	/**
@@ -252,7 +255,8 @@ export class Driver extends Model<DriverData> {
 	// driver.role
 
 	/**
-	 * Check if driver can play attack cards
+	 * Check if driver can play attack cards. Order cards aren't attacks, so
+	 * a passenger can play them.
 	 */
 	public canPlayAttackCards(): boolean {
 		return this.role === DriverRole.ACTIVE;
@@ -269,7 +273,8 @@ export class Driver extends Model<DriverData> {
 	}
 
 	/**
-	 * Remove card from hand and add to discard pile
+	 * Remove card from hand and add to discard pile, or to the exhausted pile
+	 * for an Exhaust card
 	 */
 	public playCard(cardIndex: number): Card | null {
 		if (cardIndex < 0 || cardIndex >= this.hand.length) {
@@ -277,7 +282,11 @@ export class Driver extends Model<DriverData> {
 		}
 
 		const card = this.hand.splice(cardIndex, 1)[0];
-		this.discard.push(card);
+		if (card.hasTag('exhaust')) {
+			this.exhausted = [...(this.exhausted ?? []), card];
+		} else {
+			this.discard.push(card);
+		}
 		return card;
 	}
 
@@ -316,24 +325,10 @@ export class Driver extends Model<DriverData> {
 		if (this.adrenaline < card.cost) {
 			return 'Not enough adrenaline';
 		}
-		if (!this.canPlayAttackCards() && this.isAttackCard(card)) {
+		if (!this.canPlayAttackCards() && card.isAttack) {
 			return 'Passengers cannot play attack cards';
 		}
 		return null;
-	}
-
-	/**
-	 * Check if a card is an attack card
-	 */
-	private isAttackCard(card: Card): boolean {
-		const effects = card.effects;
-		return effects.some(effect => 
-			effect.type === 'damage' || 
-			effect.type === 'ram' ||
-			card.name.toLowerCase().includes('attack') ||
-			card.name.toLowerCase().includes('shot') ||
-			card.name.toLowerCase().includes('ram')
-		);
 	}
 
 	/**
@@ -446,7 +441,7 @@ export class Driver extends Model<DriverData> {
 		}
 
 		// Check passenger restrictions
-		if (!this.canPlayAttackCards() && this.isAttackCard(card)) {
+		if (!this.canPlayAttackCards() && card.isAttack) {
 			return false;
 		}
 
@@ -470,7 +465,8 @@ export class Driver extends Model<DriverData> {
 			role: this.role,
 			hand: this.hand.map(card => card.copy()),
 			discard: this.discard.map(card => card.copy()),
-			deck: this.deck ? this.deck.copy() : null
+			deck: this.deck ? this.deck.copy() : null,
+			exhausted: this.exhausted?.map(card => card.copy())
 		});
 
 		return newDriver;

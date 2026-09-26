@@ -439,6 +439,8 @@ export class Card extends Layer {
 				return '#0088ff';
 			case 'legendary':
 				return '#ff8800';
+			case 'signature':
+				return '#cc66ff';
 			default:
 				return '#ffffff';
 		}

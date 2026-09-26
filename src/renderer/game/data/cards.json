@@ -516,6 +516,240 @@
       },
       "tags": ["utility", "positioning", "buff"],
       "image": "cards/flanking_maneuver.png"
+    },
+    {
+      "type": "covering_fire",
+      "name": "Covering Fire",
+      "summary": "Nearest [Escort] in [Range 2] of target deals {damage}.",
+      "description": "The nearest ready escort within range 2 of the target attacks it for {damage} damage, using the escort's gunnery against the target's evade. That escort is spent.",
+      "rarity": "common",
+      "cost": 1,
+      "targetType": "enemy_single",
+      "effects": [
+        {
+          "type": "damage",
+          "value": 3,
+          "range": 2,
+          "target": "target"
+        }
+      ],
+      "variables": {
+        "damage": { "base": 3 }
+      },
+      "spendsEscort": true,
+      "tags": ["order", "ranged"],
+      "image": "cards/covering_fire.png"
+    },
+    {
+      "type": "ramming_run",
+      "name": "Ramming Run",
+      "summary": "[Escort] in [Range 1] rams for {damage} + speed gap. Takes 2 on a hit.",
+      "description": "The nearest ready escort within range 1 of the target rams it for {damage} plus the speed gap (escort speed minus target speed), using the escort's ramming against the target's evade. On a hit the escort takes 2 structure damage. Hit or miss, it's spent.",
+      "rarity": "common",
+      "cost": 1,
+      "targetType": "enemy_single",
+      "effects": [
+        {
+          "type": "damage",
+          "value": 4,
+          "formula": "speed_diff",
+          "attack_type": "ramming",
+          "range": 1,
+          "target": "target"
+        },
+        {
+          "type": "damage",
+          "value": 2,
+          "target": "self",
+          "on_hit": true,
+          "structure_only": true
+        }
+      ],
+      "variables": {
+        "damage": { "base": 4 }
+      },
+      "spendsEscort": true,
+      "tags": ["order", "physical"],
+      "image": "cards/ramming_run.png"
+    },
+    {
+      "type": "draw_fire",
+      "name": "Draw Fire",
+      "summary": "This [Escort] draws its row's raider fire. +{armor} [Armor].",
+      "description": "Target escort gains {armor} Armor and is spent. Until the end of the next enemy turn, each raider intent aimed at a driven vehicle in its row hits the escort instead, if the card can reach it. The rest hit their original target as planned.",
+      "rarity": "uncommon",
+      "cost": 1,
+      "targetType": "escort",
+      "effects": [
+        {
+          "type": "gain_armor",
+          "value": 4,
+          "target": "target"
+        },
+        {
+          "type": "draw_fire",
+          "target": "target"
+        }
+      ],
+      "variables": {
+        "armor": { "base": 4 }
+      },
+      "spendsEscort": true,
+      "tags": ["order", "defense"],
+      "image": "cards/draw_fire.png"
+    },
+    {
+      "type": "close_ranks",
+      "name": "Close Ranks",
+      "summary": "This [Escort] gains {armor} [Armor]. Doesn't spend it.",
+      "description": "Target escort gains {armor} Armor. The escort isn't spent and can still act this turn.",
+      "rarity": "common",
+      "cost": 1,
+      "targetType": "escort",
+      "effects": [
+        {
+          "type": "gain_armor",
+          "value": 6,
+          "target": "target"
+        }
+      ],
+      "variables": {
+        "armor": { "base": 6 }
+      },
+      "tags": ["order", "defense", "armor"],
+      "image": "cards/close_ranks.png"
+    },
+    {
+      "type": "triage",
+      "name": "Triage",
+      "summary": "Heal {healing} HP to a driver or passenger. Needs a Med Truck.",
+      "description": "Heal {healing} HP to the driver or passenger you choose in the target vehicle, up to their starting HP. Playable while any Med Truck lives, and doesn't spend it.",
+      "rarity": "signature",
+      "signatureOf": "med_truck",
+      "cost": 1,
+      "targetType": "ally",
+      "effects": [
+        {
+          "type": "heal_driver",
+          "value": 4,
+          "target": "target"
+        }
+      ],
+      "variables": {
+        "healing": { "base": 4 }
+      },
+      "tags": ["order", "heal"],
+      "image": "cards/triage.png"
+    },
+    {
+      "type": "rally_the_convoy",
+      "name": "Rally the Convoy",
+      "summary": "Each ready [Escort] deals {damage} to its nearest raider. [Exhaust].",
+      "description": "Ready escorts fire one at a time in roster order. Each deals {damage} damage to its nearest living raider within range 2, using its gunnery against that raider's evade. Then every escort is spent, including any with no raider in range. Exhaust.",
+      "rarity": "rare",
+      "cost": 2,
+      "targetType": "enemy_all",
+      "effects": [
+        {
+          "type": "damage",
+          "value": 2,
+          "range": 2,
+          "target": "target"
+        }
+      ],
+      "variables": {
+        "damage": { "base": 2 }
+      },
+      "spendsEscort": true,
+      "tags": ["order", "ranged", "exhaust"],
+      "image": "cards/rally_the_convoy.png"
+    },
+    {
+      "type": "run_ahead",
+      "name": "Run Ahead",
+      "summary": "Outrider gets +{speed} Speed for 2 turns, then [Flank]s target.",
+      "description": "The nearest ready Outrider that can outrun the target gains {speed} Speed for 2 turns, then swerves onto the raiders' shoulder in the target's row. The target must be in formation and slower than the boosted Outrider, and that shoulder slot free. The Outrider is spent. Needs a living Outrider.",
+      "rarity": "signature",
+      "signatureOf": "outrider",
+      "cost": 1,
+      "targetType": "enemy_single",
+      "effects": [
+        {
+          "type": "apply_status",
+          "status": "speed_boost",
+          "value": 2,
+          "duration": 2,
+          "target": "self"
+        },
+        {
+          "type": "change_position",
+          "position": "flanking",
+          "target": "self"
+        }
+      ],
+      "variables": {
+        "speed": { "base": 2 }
+      },
+      "spendsEscort": true,
+      "tags": ["order", "positioning"],
+      "image": "cards/run_ahead.png"
+    },
+    {
+      "type": "flag_down",
+      "name": "Flag Down",
+      "summary": "Pilot Car in [Range 2]: [Vulnerable], -{slow} Speed. [Sure-hit].",
+      "description": "The nearest ready Pilot Car within range 2 of the target flags it down: until the end of the next enemy turn the target is Vulnerable and loses {slow} speed. Always hits. The Pilot Car is spent. Needs a living Pilot Car.",
+      "rarity": "signature",
+      "signatureOf": "pilot_car",
+      "cost": 1,
+      "targetType": "enemy_single",
+      "effects": [
+        {
+          "type": "apply_status",
+          "status": "vulnerable",
+          "duration": 1,
+          "range": 2,
+          "target": "target",
+          "always_hits": true
+        },
+        {
+          "type": "apply_status",
+          "status": "speed_reduction",
+          "value": -2,
+          "duration": 1,
+          "range": 2,
+          "target": "target",
+          "always_hits": true
+        }
+      ],
+      "variables": {
+        "slow": { "base": 2 }
+      },
+      "spendsEscort": true,
+      "tags": ["order", "control"],
+      "image": "cards/flag_down.png"
+    },
+    {
+      "type": "top_off",
+      "name": "Top Off",
+      "summary": "Driver or passenger: +{adrenaline} Adrenaline. Needs a Fuel Hauler.",
+      "description": "The driver or passenger you choose in the target vehicle gains {adrenaline} Adrenaline, up to their maximum. Playable while any Fuel Hauler lives, and doesn't spend it.",
+      "rarity": "signature",
+      "signatureOf": "fuel_hauler",
+      "cost": 0,
+      "targetType": "ally",
+      "effects": [
+        {
+          "type": "grant_adrenaline",
+          "value": 1,
+          "target": "target"
+        }
+      ],
+      "variables": {
+        "adrenaline": { "base": 1 }
+      },
+      "tags": ["order", "resource"],
+      "image": "cards/top_off.png"
     }
   ]
 }

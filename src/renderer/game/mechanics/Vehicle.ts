@@ -48,6 +48,8 @@ export interface VehicleData {
 	intentTier?: IntentTier;
 	/** Set on an escort, which has no driver by design. Unset means a driven vehicle. */
 	escort?: EscortProfile | null;
+	/** An escort that has acted this turn. Every escort is ready again at the start of the player's turn. */
+	spent?: boolean;
 }
 
 /**
@@ -98,7 +100,8 @@ export class Vehicle extends Model<VehicleData> {
 		'passenger',
 		'statusEffects',
 		'intentTier',
-		'escort'
+		'escort',
+		'spent'
 	]);
 
 	// All properties are now model properties!
@@ -126,6 +129,13 @@ export class Vehicle extends Model<VehicleData> {
 	 */
 	public get isEscort(): boolean {
 		return Boolean(this.escort);
+	}
+
+	/**
+	 * An escort that can still carry out an order this turn
+	 */
+	public get isReady(): boolean {
+		return this.isEscort && !this.spent && !this.isOutOfFight;
 	}
 
 	/**
@@ -203,6 +213,17 @@ export class Vehicle extends Model<VehicleData> {
 			if (overflow > 0) {
 				this.addArmor(overflow);
 			}
+		}
+	}
+
+	/**
+	 * Damage straight to structure, past armor and nobody aboard: a printed
+	 * cost like Ramming Run's.
+	 */
+	public damageStructure(damage: number): void {
+		this.structure = Math.max(0, this.structure - damage);
+		if (!this.isAlive()) {
+			this.emit('destroyed', this);
 		}
 	}
 

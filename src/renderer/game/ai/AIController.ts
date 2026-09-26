@@ -97,6 +97,7 @@ export class AIController {
 					card,
 					driver,
 					target,
+					slot: board.slotOf(raider),
 					flanking: board.isFlanking(raider),
 					speed: board.speedOf(raider)
 				});

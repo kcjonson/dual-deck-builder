@@ -3,7 +3,7 @@ import { Driver, DriverRole } from '../../mechanics/Driver';
 import { createTestDriver } from '../../ai/__tests__/test-helpers';
 import { buildPlayerHandView } from './PlayerHandView';
 
-const card = (name: string, effects: CardEffect[], cost = 1): Card => new Card({
+const card = (name: string, effects: CardEffect[], cost = 1, tags: string[] = []): Card => new Card({
 	type: name.toLowerCase().replace(/ /g, '_'),
 	name,
 	summary: name,
@@ -12,10 +12,10 @@ const card = (name: string, effects: CardEffect[], cost = 1): Card => new Card({
 	cost,
 	targetType: 'enemy_single',
 	effects,
-	tags: []
+	tags
 });
 
-const farShot = () => card('Far Shot', [{ type: 'damage', value: 4, range: 2 }]);
+const farShot = () => card('Far Shot', [{ type: 'damage', value: 4, range: 2 }], 1, ['attack']);
 const armorUp = () => card('Armor Up', [{ type: 'gain_armor', value: 3, target: 'self' }]);
 
 describe('buildPlayerHandView', () => {

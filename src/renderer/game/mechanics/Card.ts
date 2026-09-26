@@ -1,14 +1,23 @@
 import { Model } from '../core/Model';
+import type { EscortType } from './Escort';
 
 /**
  * Card rarities following spec requirements
  */
-export type CardRarity = 'starter' | 'common' | 'uncommon' | 'rare' | 'legendary';
+export type CardRarity = 'starter' | 'common' | 'uncommon' | 'rare' | 'legendary' | 'signature';
+
+/**
+ * Rarities in the order the card browser lists them. Signature cards come
+ * with an escort and are never in the reward pool or the shop.
+ */
+export const CARD_RARITIES: readonly CardRarity[] = ['starter', 'common', 'uncommon', 'rare', 'legendary', 'signature'];
 
 /**
  * Card target types for effect resolution
  */
-export type TargetType = 'enemy_single' | 'enemy_all' | 'self' | 'ally' | 'both_drivers' | 'any';
+export type TargetType = 'enemy_single' | 'enemy_all' | 'self' | 'ally' | 'both_drivers' | 'any' | 'escort';
+
+export const TARGET_TYPES: readonly TargetType[] = ['enemy_single', 'enemy_all', 'self', 'ally', 'both_drivers', 'any', 'escort'];
 
 /**
  * Scaling types for variable effects
@@ -57,6 +66,12 @@ export interface CardData {
 	image?: string;
 	variables?: { [key: string]: { base: number; upgraded?: number; scaling?: ScalingType } };
 	upgraded: boolean;
+	/** The escort type whose signature order card this is */
+	signatureOf?: EscortType | null;
+	/** An order card that leaves the escort it commands spent */
+	spendsEscort?: boolean;
+	/** Id of the escort that brought this copy into the deck, for a signature card */
+	broughtBy?: string | null;
 }
 
 /**
@@ -85,7 +100,10 @@ export class Card extends Model<CardData> {
 		'tags',
 		'image',
 		'variables',
-		'upgraded'
+		'upgraded',
+		'signatureOf',
+		'spendsEscort',
+		'broughtBy'
 	]);
 
 	/**
@@ -121,6 +139,21 @@ export class Card extends Model<CardData> {
 	 */
 	get displayDescription(): string {
 		return this.fillVariables(this.description);
+	}
+
+	/**
+	 * Commands an escort. Its own card type: never an attack, so a passenger
+	 * can play it.
+	 */
+	get isOrder(): boolean {
+		return this.hasTag('order');
+	}
+
+	/**
+	 * An attack card, which a passenger can't play
+	 */
+	get isAttack(): boolean {
+		return this.hasTag('attack');
 	}
 
 	/**
@@ -211,7 +244,10 @@ export class Card extends Model<CardData> {
 			tags: [...this.tags],
 			image: this.image,
 			variables: this.variables ? JSON.parse(JSON.stringify(this.variables)) : undefined,
-			upgraded: this.upgraded
+			upgraded: this.upgraded,
+			signatureOf: this.signatureOf,
+			spendsEscort: this.spendsEscort,
+			broughtBy: this.broughtBy
 		});
 
 		return newCard;

@@ -14,7 +14,8 @@ import {
 	slotRange
 } from './Road';
 import { Card, CardEffect } from './Card';
-import { BoardProjection } from './BoardProjection';
+import { BoardProjection, cardRange } from './BoardProjection';
+import { ESCORT_CONFIGS } from './Escort';
 import { EffectRecipient, effectRecipientOf, effectRecipients, isCasterAction, rollsToHit } from './EffectTargets';
 import {
 	Intent,
@@ -139,6 +140,10 @@ export class Battle extends Model<BattleData> {
 	// Each team's drivers in the order they were first seated, so a driver's
 	// log name (Player1, Enemy2) survives a wreck or a death
 	private static driverSeats = new WeakMap<Battle, Map<TeamType, Driver[]>>();
+
+	// Escorts under Draw Fire, in the order it was played, until the end of
+	// the next enemy turn (stored separately due to Model freezing)
+	private static drawFireCovers = new WeakMap<Battle, Vehicle[]>();
 
 	// Static flag to control console logging
 	public static suppressConsoleLog = false;
@@ -383,6 +388,8 @@ export class Battle extends Model<BattleData> {
 		this.playerTeam.refillAdrenaline();
 		this.enemyTeam.refillAdrenaline();
 
+		this.playerTeam.readyEscorts();
+
 		this.planEnemyTurn();
 
 		this.log('battle_start', 'Battle started!');
@@ -424,11 +431,14 @@ export class Battle extends Model<BattleData> {
 	public playCard({
 		driver,
 		cardIndex,
-		targetVehicle
+		targetVehicle,
+		targetOccupant
 	}: {
 		driver: Driver;
 		cardIndex: number;
 		targetVehicle?: Vehicle;
+		/** For a card that lands on one person aboard (Triage, Top Off, Medical Kit): who. Defaults to the driver, or an escort's passenger. */
+		targetOccupant?: Driver;
 	}): boolean {
 		if (!this.isPlayerTurn) {
 			this.log('general', "Cannot play card: not player's turn");
@@ -452,10 +462,20 @@ export class Battle extends Model<BattleData> {
 		}
 
 		const card = driver.hand[cardIndex];
+		const cardBlocker = this.getCardBlocker({ driver, card });
+		if (cardBlocker) {
+			this.log('general', `Cannot play card: ${cardBlocker}`);
+			return false;
+		}
 		if (!this.validateTarget(card, driver, targetVehicle)) {
 			this.log('general', `Invalid target for card "${card.name}" (type: ${card.targetType}). Driver: ${this.getDriverDisplayName(driver)}, Target: ${targetVehicle ? targetVehicle.name : 'undefined'}`);
 			return false;
 		}
+		if (targetOccupant && !(targetVehicle && [targetVehicle.driver, targetVehicle.passenger].includes(targetOccupant))) {
+			this.log('general', `Cannot play card: ${targetOccupant.metadata.name} is not aboard ${targetVehicle?.name ?? 'the target'}`);
+			return false;
+		}
+		const carrier = this.isAttackOrder(card) && targetVehicle ? this.orderCarrier({ card, target: targetVehicle }) : null;
 
 		const adrenalineBefore = driver.adrenaline;
 		const result = driver.playCardWithCost(cardIndex);
@@ -470,7 +490,7 @@ export class Battle extends Model<BattleData> {
 			{ driver: driver.metadata.name, card: card.displayName, adrenalineBefore, adrenalineAfter: driver.adrenaline }
 		);
 
-		this.applyCardEffects({ card, caster: driver, target: targetVehicle ?? null });
+		this.resolvePlayedCard({ card, caster: driver, target: targetVehicle ?? null, occupant: targetOccupant ?? null, carrier });
 
 		// Emit card played event
 		this.emit('cardPlayed', Object.freeze({
@@ -486,6 +506,115 @@ export class Battle extends Model<BattleData> {
 		this.emit('stateChanged', this.getState());
 
 		return true;
+	}
+
+	/**
+	 * Why a card can't be played at all right now, whatever its target, or
+	 * null if it can. The driver's own checks (life, cost, the passenger
+	 * gate) are Driver.getPlayBlocker; these need the convoy. A signature
+	 * card needs a living escort of its type, and Rally the Convoy a ready
+	 * escort to fire.
+	 */
+	public getCardBlocker({ driver, card }: { driver: Driver; card: Card }): string | null {
+		const escorts = this.getTeamForDriver(driver)?.escorts ?? [];
+		const signatureOf = card.signatureOf;
+		if (signatureOf && !escorts.some(escort => !escort.isOutOfFight && escort.escort?.type === signatureOf)) {
+			return `${card.name} needs a living ${ESCORT_CONFIGS[signatureOf].name} in the convoy`;
+		}
+		if (card.isOrder && card.targetType === 'enemy_all' && !escorts.some(escort => escort.isReady)) {
+			return `${card.name} needs a ready escort`;
+		}
+		return null;
+	}
+
+	/**
+	 * Whether a driver could play this card now, given a legal target
+	 */
+	public canPlayCard({ driver, card }: { driver: Driver; card: Card }): boolean {
+		return driver.canPlayCard(card) && this.getCardBlocker({ driver, card }) === null;
+	}
+
+	/**
+	 * Why this driver's card can't go on this target, or null if it can:
+	 * the same rule playCard checks, for the combat screen's highlights
+	 */
+	public getTargetBlocker({ driver, card, target }: { driver: Driver; card: Card; target: Vehicle }): string | null {
+		const casterVehicle = this.getVehicleForDriver(driver);
+		if (!casterVehicle) return `${driver.metadata.name} is not in a vehicle`;
+		return new BoardProjection({ battle: this }).targetBlocker({ card, caster: casterVehicle, target });
+	}
+
+	/**
+	 * The escort that would carry out an attack order on this raider, or
+	 * null if none can. See BoardProjection.orderCarrier.
+	 */
+	public orderCarrier({ card, target }: { card: Card; target: Vehicle }): Vehicle | null {
+		return new BoardProjection({ battle: this }).orderCarrier({ card, target });
+	}
+
+	/**
+	 * An order that targets a raider and is carried out by the nearest ready
+	 * escort (Covering Fire, Ramming Run, Run Ahead, Flag Down)
+	 */
+	public isAttackOrder(card: Card): boolean {
+		return card.isOrder && card.targetType === 'enemy_single';
+	}
+
+	/**
+	 * Resolve a card the player just paid for. An attack order acts through
+	 * its carrier and spends it; Rally the Convoy acts through every ready
+	 * escort; a buff order that spends (Draw Fire) spends the escort it
+	 * targets. Everything else resolves from the caster's own vehicle.
+	 */
+	private resolvePlayedCard({
+		card,
+		caster,
+		target,
+		occupant,
+		carrier
+	}: {
+		card: Card;
+		caster: Driver;
+		target: Vehicle | null;
+		occupant: Driver | null;
+		carrier: Vehicle | null;
+	}): void {
+		if (carrier && target) {
+			this.log('general', `${carrier.name} carries out ${card.displayName} on ${target.name}`,
+				{ vehicle: carrier.name, card: card.displayName, target: target.name });
+			this.applyCardEffects({ card, caster, target, actor: carrier });
+			if (card.spendsEscort) carrier.spent = true;
+			return;
+		}
+		if (card.isOrder && card.targetType === 'enemy_all') {
+			this.rallyConvoy({ card, caster });
+			return;
+		}
+		this.applyCardEffects({ card, caster, target, occupant });
+		if (card.isOrder && card.spendsEscort && target?.isEscort) {
+			target.spent = true;
+		}
+	}
+
+	/**
+	 * Every ready escort acts, one at a time in roster order, on the nearest
+	 * raider still in the fight within the card's range, picked again for
+	 * each escort so a raider an earlier one wrecked isn't shot twice. Then
+	 * every escort is spent, including any with nothing in range.
+	 */
+	private rallyConvoy({ card, caster }: { card: Card; caster: Driver }): void {
+		const escorts = this.getTeamForDriver(caster)?.escorts ?? [];
+		const range = cardRange(card) ?? 0;
+		for (const escort of escorts.filter(candidate => candidate.isReady)) {
+			const raider = new BoardProjection({ battle: this }).nearestEnemyInRange({ from: escort, range });
+			if (!raider) {
+				this.log('general', `${escort.name} has no raider within range ${range}`, { vehicle: escort.name, card: card.displayName });
+				continue;
+			}
+			this.log('general', `${escort.name} fires on ${raider.name}`, { vehicle: escort.name, card: card.displayName, target: raider.name });
+			this.applyCardEffects({ card, caster, target: raider, actor: escort });
+		}
+		escorts.forEach(escort => { escort.spent = true; });
 	}
 
 	/**
@@ -559,10 +688,11 @@ export class Battle extends Model<BattleData> {
 		const hidden = (raider.intentTier ?? IntentTier.BASIC) !== IntentTier.BASIC;
 		return this.getPlan(raider).map(action => {
 			const type = intentTypeOf(action.card);
+			const target = this.plannedTarget(raider, action);
 			let amount: number | null = null;
 			let label: string | null = null;
 			if (type === IntentType.ATTACK) {
-				amount = this.previewDamage(raider, action);
+				amount = this.previewDamage(raider, action, target);
 			} else if (type === IntentType.DEFEND) {
 				amount = defendAmountOf(action.card);
 			} else if (type === IntentType.DEBUFF) {
@@ -575,23 +705,67 @@ export class Battle extends Model<BattleData> {
 				amount: hidden ? null : amount,
 				hits: 1,
 				label: hidden ? null : label,
-				target: action.card.targetType === 'enemy_all' ? 'both' : action.target?.id ?? null,
+				target: action.card.targetType === 'enemy_all' ? 'both' : target?.id ?? null,
 				description: hidden ? '???' : action.card.displayName
 			};
 		});
 	}
 
 	/**
+	 * Where a planned card is headed as the board stands: its planned
+	 * target, or the escort drawing fire in that target's row if the card
+	 * could reach it from where the raider will be. This is what the target
+	 * marks and the end-turn preview show.
+	 */
+	private plannedTarget(raider: Vehicle, action: PlannedAction): Vehicle | null {
+		if (!action.target) return null;
+		return this.drawFireRedirect({ raider, card: action.card, target: action.target, raiderSlot: action.slot }) ?? action.target;
+	}
+
+	/**
+	 * The escort under Draw Fire that takes this card instead of its target,
+	 * or null. Draw Fire covers single-target cards that land something on a
+	 * driven vehicle in the escort's row; an area hit keeps its targets
+	 * (DDB-150), and so does a card with nothing landing on its target (a
+	 * flank). Rows are judged as they stand, and the last Draw Fire played
+	 * on the row wins. It never cancels: a card that can't reach the escort
+	 * keeps its target.
+	 */
+	private drawFireRedirect({
+		raider,
+		card,
+		target,
+		raiderSlot
+	}: {
+		raider: Vehicle;
+		card: Card;
+		target: Vehicle;
+		raiderSlot: RoadSlot | null;
+	}): Vehicle | null {
+		const covers = Battle.drawFireCovers.get(this) ?? [];
+		const row = target.slot?.row;
+		if (covers.length === 0 || !row || card.targetType === 'enemy_all' || target.isEscort || !this.playerTeam.vehicles.includes(target)) {
+			return null;
+		}
+		const landsOnTarget = card.effects.some(effect => !isCasterAction(effect) && effectRecipientOf({ effect, card }) === EffectRecipient.TARGET);
+		if (!landsOnTarget) return null;
+
+		const escort = [...covers].reverse().find(cover => cover.slot?.row === row);
+		if (!escort || escort.isOutOfFight || !this.playerTeam.vehicles.includes(escort)) return null;
+		return this.getPlannedCardBlocker(card, raider, escort, raiderSlot) === null ? escort : null;
+	}
+
+	/**
 	 * Damage per hit a planned attack deals if it lands, from the raider's
 	 * projected flank state and speed and the target as it is now.
 	 */
-	private previewDamage(raider: Vehicle, action: PlannedAction): number {
+	private previewDamage(raider: Vehicle, action: PlannedAction, target: Vehicle | null): number {
 		const effect = attackEffectOf(action.card);
 		if (!effect) return 0;
-		const target = action.target;
 		let damage = typeof effect.value === 'number' ? effect.value : 0;
 		if (effect.formula && typeof effect.formula === 'string' && target) {
 			damage = this.calculateFormulaDamage(effect.formula, {
+				base: damage,
 				armor: raider.armor,
 				speedDiff: action.speed - target.speed
 			});
@@ -655,6 +829,9 @@ export class Battle extends Model<BattleData> {
 		this.dropBackFlankers();
 		this.clearWrecks();
 
+		// Draw Fire lasts until the end of the next enemy turn, which is this one
+		Battle.drawFireCovers.delete(this);
+
 		// End enemy turn, start player turn
 		this.startPlayerTurn();
 	}
@@ -705,6 +882,13 @@ export class Battle extends Model<BattleData> {
 			return;
 		}
 
+		const cover = this.drawFireRedirect({ raider, card, target, raiderSlot: raider.slot });
+		if (cover) {
+			this.log('general', `${cover.name} draws ${raider.name}'s ${card.displayName} away from ${target.name}`,
+				{ vehicle: raider.name, card: card.displayName, target: cover.name });
+			target = cover;
+		}
+
 		const reason = this.getPlannedCardBlocker(card, raider, target);
 		if (reason) {
 			this.log('fizzle', `${raider.name}'s ${card.displayName} fizzles: ${reason}`,
@@ -731,12 +915,19 @@ export class Battle extends Model<BattleData> {
 
 	/**
 	 * Why a planned card can no longer be played on its target, in words for
-	 * the log, or null if it still can.
+	 * the log, or null if it still can. Range is measured from the caster's
+	 * slot unless another is given (where a plan puts it).
 	 */
-	private getPlannedCardBlocker(card: Card, caster: Vehicle, target: Vehicle): string | null {
+	private getPlannedCardBlocker(card: Card, caster: Vehicle, target: Vehicle, casterSlot: RoadSlot | null = caster.slot): string | null {
+		if (target.isOutOfFight) {
+			return `${target.name} is out of the fight`;
+		}
 		for (const effect of card.effects) {
 			if (typeof effect.range === 'number') {
-				const range = this.calculateRange(caster, target);
+				if (!casterSlot || !target.slot) {
+					return `${target.name} is not on the road`;
+				}
+				const range = slotRange(casterSlot, target.slot);
 				if (range > effect.range) {
 					return `${target.name} is out of range (${range} away, needs ${effect.range})`;
 				}
@@ -783,6 +974,8 @@ export class Battle extends Model<BattleData> {
 		this.playerTeam.refillAdrenaline();
 		this.enemyTeam.refillAdrenaline();
 
+		this.playerTeam.readyEscorts();
+
 		this.drawTurnHands();
 
 		// Set turn state
@@ -807,21 +1000,51 @@ export class Battle extends Model<BattleData> {
 	 * caster's and happen once. The rest land where their own target field
 	 * says (see EffectTargets): the caster, the card's target, or every enemy
 	 * still in the fight. The target is null for a card that takes none.
+	 *
+	 * The actor is the vehicle doing it: the caster's own, or the escort
+	 * carrying out an order, whose slot, speed, and skills the card then
+	 * uses. An `on_hit` effect (Ramming Run's self damage) happens only if an
+	 * earlier effect landed on someone else.
 	 */
-	private applyCardEffects({ card, caster, target }: { card: Card; caster: Driver; target: Vehicle | null }): void {
-		const casterVehicle = this.getVehicleForDriver(caster);
+	private applyCardEffects({
+		card,
+		caster,
+		target,
+		actor = this.getVehicleForDriver(caster),
+		occupant = null
+	}: {
+		card: Card;
+		caster: Driver;
+		target: Vehicle | null;
+		actor?: Vehicle | null;
+		occupant?: Driver | null;
+	}): void {
 		const casterTeam = this.getTeamForDriver(caster);
 		const enemies = casterTeam === this.playerTeam ? this.enemyTeam.vehicles : this.playerTeam.vehicles;
+		let landed = false;
 
 		for (const effect of card.effects) {
+			if (effect.on_hit && !landed) continue;
 			if (isCasterAction(effect)) {
-				if (!this.applyCasterAction({ card, effect, caster, casterVehicle, target })) return;
+				if (!this.applyCasterAction({ card, effect, caster, casterVehicle: actor, target })) return;
 				continue;
 			}
-			for (const recipient of effectRecipients({ effect, card, caster: casterVehicle, target, enemies })) {
-				this.applyEffect({ card, effect, caster, casterVehicle, recipient });
+			const onCaster = effectRecipientOf({ effect, card }) === EffectRecipient.CASTER;
+			for (const recipient of effectRecipients({ effect, card, caster: actor, target, enemies })) {
+				const took = this.applyEffect({ card, effect, caster, casterVehicle: actor, recipient, occupant });
+				if (took && !onCaster) landed = true;
 			}
 		}
+	}
+
+	/**
+	 * Who an effect for one person aboard lands on: the occupant the player
+	 * picked if they're aboard and alive, otherwise the driver, or the
+	 * passenger riding in an escort
+	 */
+	private static occupantOf(vehicle: Vehicle, picked: Driver | null): Driver | null {
+		const aboard = [vehicle.driver, vehicle.passenger].filter((occupant): occupant is Driver => occupant?.isAlive() ?? false);
+		return aboard.find(occupant => occupant === picked) ?? aboard[0] ?? null;
 	}
 
 	/**
@@ -875,29 +1098,31 @@ export class Battle extends Model<BattleData> {
 	}
 
 	/**
-	 * One effect on one recipient
+	 * One effect on one recipient. True when it took hold: out of range, a
+	 * miss, or nobody to land on is false.
 	 */
 	private applyEffect({
 		card,
 		effect,
 		caster,
 		casterVehicle,
-		recipient
+		recipient,
+		occupant
 	}: {
 		card: Card;
 		effect: CardEffect;
 		caster: Driver;
 		casterVehicle: Vehicle | null;
 		recipient: Vehicle;
-	}): void {
+		occupant: Driver | null;
+	}): boolean {
 		const onCaster = effectRecipientOf({ effect, card }) === EffectRecipient.CASTER;
 		// Out of the fight covers a recipient an earlier effect of this card wrecked
-		if (!onCaster && recipient.isOutOfFight) return;
+		if (!onCaster && recipient.isOutOfFight) return false;
 
 		switch (effect.type) {
 			case 'damage':
-				this.applyDamage({ card, effect, caster, casterVehicle, recipient, onCaster });
-				break;
+				return this.applyDamage({ card, effect, caster, casterVehicle, recipient, onCaster });
 
 			case 'heal': {
 				const healValue = typeof effect.value === 'number' ? effect.value : 0;
@@ -918,8 +1143,8 @@ export class Battle extends Model<BattleData> {
 			}
 
 			case 'heal_driver': {
-				const patient = recipient.driver;
-				if (!patient) break;
+				const patient = Battle.occupantOf(recipient, occupant);
+				if (!patient) return false;
 				const healValue = typeof effect.value === 'number' ? effect.value : 0;
 				const beforeHP = patient.hitpoints;
 				const maxHP = patient.maxHitpoints;
@@ -951,9 +1176,32 @@ export class Battle extends Model<BattleData> {
 
 			case 'status':
 			case 'apply_status':
-				this.applyStatus({ card, effect, caster, casterVehicle, recipient });
+				return this.applyStatus({ card, effect, caster, casterVehicle, recipient });
+
+			case 'grant_adrenaline': {
+				const fueled = Battle.occupantOf(recipient, occupant);
+				if (!fueled) return false;
+				const before = fueled.adrenaline;
+				fueled.gainAdrenaline(typeof effect.value === 'number' ? effect.value : 0);
+				this.log('general',
+					`${card.displayName} gives ${fueled.adrenaline - before} adrenaline to ${this.getDriverDisplayName(fueled)} (Adrenaline: ${before}/${fueled.maxAdrenaline} -> ${fueled.adrenaline}/${fueled.maxAdrenaline})`,
+					{ card: card.displayName, driver: fueled.metadata.name, value: effect.value }
+				);
 				break;
+			}
+
+			case 'draw_fire': {
+				// Last one played wins its row, so a repeat moves to the end
+				const covers = (Battle.drawFireCovers.get(this) ?? []).filter(cover => cover !== recipient);
+				Battle.drawFireCovers.set(this, [...covers, recipient]);
+				this.log('status_applied',
+					`${recipient.name} draws fire: until the end of the next enemy turn, raider cards aimed at driven vehicles in its row turn on it if they can reach it`,
+					{ card: card.displayName, target: recipient.name, status: 'draw_fire' }
+				);
+				break;
+			}
 		}
+		return true;
 	}
 
 	/**
@@ -976,14 +1224,14 @@ export class Battle extends Model<BattleData> {
 		casterVehicle: Vehicle | null;
 		recipient: Vehicle;
 		onCaster: boolean;
-	}): void {
+	}): boolean {
 		let damage = typeof effect.value === 'number' ? effect.value : 0;
 
 		if (onCaster) {
 			if (effect.target === 'self_driver') {
 				this.damageDriver({ driver: caster, vehicle: recipient, damage, card });
 			} else {
-				this.damageVehicle({ vehicle: recipient, damage, card });
+				this.damageVehicle({ vehicle: recipient, damage, card, structureOnly: effect.structure_only === true });
 			}
 		} else {
 			if (typeof effect.range === 'number' && casterVehicle) {
@@ -993,7 +1241,7 @@ export class Battle extends Model<BattleData> {
 						`${card.displayName} cannot reach ${recipient.name} - requires range ${effect.range}, but target is at range ${range}`,
 						{ card: card.displayName, target: recipient.name, requiredRange: effect.range, actualRange: range }
 					);
-					return;
+					return false;
 				}
 			}
 
@@ -1006,13 +1254,14 @@ export class Battle extends Model<BattleData> {
 						`${card.displayName} misses ${recipient.name}`,
 						{ card: card.displayName, target: recipient.name }
 					);
-					return;
+					return false;
 				}
 			}
 
 			if (casterVehicle) {
 				if (effect.formula && typeof effect.formula === 'string') {
 					damage = this.calculateFormulaDamage(effect.formula, {
+						base: damage,
 						armor: casterVehicle.armor,
 						speedDiff: casterVehicle.speed - recipient.speed
 					});
@@ -1028,7 +1277,7 @@ export class Battle extends Model<BattleData> {
 				if (!victim) {
 					this.log('fizzle', `${card.displayName} fizzles: ${recipient.name} has nobody aboard to hit`,
 						{ card: card.displayName, target: recipient.name });
-					return;
+					return false;
 				}
 				this.damageDriver({ driver: victim, vehicle: recipient, damage, card });
 			} else {
@@ -1039,6 +1288,7 @@ export class Battle extends Model<BattleData> {
 		if (!recipient.isAlive()) {
 			this.getTeamForVehicle(recipient)?.handleVehicleDestruction(recipient);
 		}
+		return true;
 	}
 
 	/**
@@ -1057,16 +1307,16 @@ export class Battle extends Model<BattleData> {
 		caster: Driver;
 		casterVehicle: Vehicle | null;
 		recipient: Vehicle;
-	}): void {
+	}): boolean {
 		if (effect.condition === 'target_flanking' && !recipient.isFlanking) {
-			return;
+			return false;
 		}
 		if (rollsToHit({ effect, card }) && !this.checkHit({ attacker: casterVehicle, caster, defender: recipient })) {
 			this.log('miss',
 				`${card.displayName} misses ${recipient.name}`,
 				{ card: card.displayName, target: recipient.name }
 			);
-			return;
+			return false;
 		}
 
 		const statusName = effect.status || (effect.description || 'unknown').toLowerCase();
@@ -1087,6 +1337,7 @@ export class Battle extends Model<BattleData> {
 			logMessage,
 			{ card: card.displayName, target: recipient.name, status: statusName }
 		);
+		return true;
 	}
 
 	/**
@@ -1116,14 +1367,18 @@ export class Battle extends Model<BattleData> {
 	 * Damage through armor into structure and whoever is aboard, logged with
 	 * where it went
 	 */
-	private damageVehicle({ vehicle, damage, card }: { vehicle: Vehicle; damage: number; card: Card }): void {
+	private damageVehicle({ vehicle, damage, card, structureOnly = false }: { vehicle: Vehicle; damage: number; card: Card; structureOnly?: boolean }): void {
 		const beforeStructure = vehicle.structure;
 		const beforeArmor = vehicle.armor;
 		const crew = this.crewOf(vehicle);
 		const crewHealth = (): number => crew.living.reduce((sum, occupant) => sum + occupant.hitpoints, 0);
 		const beforeCrewHealth = crewHealth();
 
-		vehicle.takeDamage(damage);
+		if (structureOnly) {
+			vehicle.damageStructure(damage);
+		} else {
+			vehicle.takeDamage(damage);
+		}
 
 		const split = [
 			[beforeArmor - vehicle.armor, 'armor'],
@@ -1404,10 +1659,12 @@ export class Battle extends Model<BattleData> {
 	}
 
 	/**
-	 * Calculate formula-based damage (e.g., Ram), like "armor/10 + (speed_diff)"
+	 * Formula damage on top of the effect's printed value: Ram's
+	 * "armor/10 + (speed_diff)" on 0, Ramming Run's "speed_diff" on 4. Never
+	 * below 0.
 	 */
-	private calculateFormulaDamage(formula: string, { armor, speedDiff }: { armor: number; speedDiff: number }): number {
-		let damage = 0;
+	private calculateFormulaDamage(formula: string, { base, armor, speedDiff }: { base: number; armor: number; speedDiff: number }): number {
+		let damage = base;
 		if (formula.includes('armor/10')) {
 			damage += Math.floor(armor / 10);
 		}

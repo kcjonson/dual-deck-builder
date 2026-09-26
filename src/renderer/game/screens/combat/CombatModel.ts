@@ -15,6 +15,7 @@ export interface CombatModelData {
 	isTargeting: boolean;
 	targetableVehicleIds: string[];
 	focusedVehicleId: string | null;  // Currently focused/highlighted vehicle during targeting
+	carrierVehicleId: string | null;  // The escort that would carry out the selected attack order on the focused raider
 	targetedVehicle: Vehicle | null;  // The actually selected target vehicle
 	
 	// UI state
@@ -40,6 +41,7 @@ export class CombatModel extends Model<CombatModelData> {
 		'isTargeting',
 		'targetableVehicleIds',
 		'focusedVehicleId',
+		'carrierVehicleId',
 		'targetedVehicle',
 		'combatPhase',
 		'isProcessing'
@@ -55,6 +57,7 @@ export class CombatModel extends Model<CombatModelData> {
 			isTargeting: false,
 			targetableVehicleIds: [],
 			focusedVehicleId: null,
+			carrierVehicleId: null,
 			targetedVehicle: null,
 			combatPhase: 'player_turn',
 			isProcessing: false
@@ -89,6 +92,7 @@ export class CombatModel extends Model<CombatModelData> {
 		this.isTargeting = false;
 		this.targetableVehicleIds = [];
 		this.focusedVehicleId = null;
+		this.carrierVehicleId = null;
 		this.targetedVehicle = null;
 	}
 	
