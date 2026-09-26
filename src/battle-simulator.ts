@@ -221,27 +221,7 @@ class BattleSimulator {
 					}
 				} else if (aiController.isPlayerControlledByAI()) {
 					// AI player - automatic decisions
-					let continuePlayingCards = true;
-					while (continuePlayingCards && !battle.isBattleOver()) {
-						const decision = await aiController.getPlayerDecision();
-						
-						if (!decision || decision.type === 'endTurn') {
-							continuePlayingCards = false;
-						} else if (decision.type === 'playCard' && decision.card && decision.driver) {
-							const cardIndex = decision.driver.hand.indexOf(decision.card);
-							if (cardIndex !== -1) {
-								let targetVehicle: Vehicle | undefined = undefined;
-								if (decision.target && 'structure' in decision.target) {
-									targetVehicle = decision.target as Vehicle;
-								}
-								battle.playCard({
-									driver: decision.driver,
-									cardIndex,
-									targetVehicle
-								});
-							}
-						}
-					}
+					await aiController.playPlayerCards();
 				}
 				
 				// End player turn

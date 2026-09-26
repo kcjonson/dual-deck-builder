@@ -32,6 +32,18 @@ export class Team extends Model<TeamData> {
 		'vehicles'
 	]);
 
+	// Who got out of each wreck alive, kept after the wreck leaves its team so
+	// a card planned at it can follow them (stored separately due to Model freezing)
+	private static wreckSurvivors = new WeakMap<Vehicle, Driver[]>();
+
+	/**
+	 * Everyone who was aboard a wreck when it was wrecked and lived, driver
+	 * first, whether they found a seat or crashed out
+	 */
+	public static survivorsOf(wreck: Vehicle): readonly Driver[] {
+		return Team.wreckSurvivors.get(wreck) ?? [];
+	}
+
 	/**
 	 * Create a new team
 	 */
@@ -120,15 +132,15 @@ export class Team extends Model<TeamData> {
 	 * the road until Battle clears it at the end of the turn.
 	 */
 	public handleVehicleDestruction(destroyedVehicle: Vehicle): void {
-		const occupants = [destroyedVehicle.driver, destroyedVehicle.passenger];
+		const survivors = [destroyedVehicle.driver, destroyedVehicle.passenger]
+			.filter((occupant): occupant is Driver => occupant?.isAlive() ?? false);
+		Team.wreckSurvivors.set(destroyedVehicle, survivors);
 		destroyedVehicle.driver = null;
 		destroyedVehicle.passenger = null;
 		destroyedVehicle.destroy();
 
-		for (const occupant of occupants) {
-			if (occupant?.isAlive()) {
-				this.handleDriverEscape(occupant);
-			}
+		for (const survivor of survivors) {
+			this.handleDriverEscape(survivor);
 		}
 	}
 

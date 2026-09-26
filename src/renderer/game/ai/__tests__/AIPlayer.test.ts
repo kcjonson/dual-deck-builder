@@ -374,17 +374,8 @@ describe('AI Player System', () => {
 				
 				if (aiVsAiBattle.isPlayerTurn) {
 					// Player AI turn - keep playing cards until AI can't or won't
-					let continuePlayingCards = true;
-					while (continuePlayingCards && !aiVsAiBattle.isBattleOver()) {
-						const decision = await aiVsAiBattle.aiController.getPlayerDecision();
-						if (!decision || decision.type === 'endTurn') {
-							// No valid action or AI decided to end turn
-							await aiVsAiBattle.endPlayerTurn();
-							continuePlayingCards = false;
-						} else {
-							await aiVsAiBattle.aiController.executeAIDecision(decision, true);
-						}
-					}
+					await aiVsAiBattle.aiController.playPlayerCards();
+					await aiVsAiBattle.endPlayerTurn();
 				}
 				
 				// Check if battle ended

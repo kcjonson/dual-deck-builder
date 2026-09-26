@@ -669,9 +669,10 @@ export class CombatScreen extends Screen {
 		
 		const targetType = card.targetType;
 		
-		// A wreck still on the road for the turn it died in is never a target
-		const players = this.playerTeam.getAliveVehicles();
-		const enemies = this.enemyTeam.getAliveVehicles();
+		// A wreck, or a vehicle with nobody aboard, still on the road for the
+		// rest of the turn is never a target
+		const players = this.playerTeam.vehicles.filter(vehicle => !vehicle.isOutOfFight);
+		const enemies = this.enemyTeam.vehicles.filter(vehicle => !vehicle.isOutOfFight);
 
 		switch (targetType) {
 			case 'enemy_single':

@@ -239,16 +239,7 @@ export class AIEvaluator {
 		while (!battle.isBattleOver() && turnsPlayed < maxTurns) {
 			if (battle.isPlayerTurn) {
 				// Player turn - AI makes decisions
-				let continuePlayingCards = true;
-				while (continuePlayingCards && !battle.isBattleOver()) {
-					const decision = await battle.aiController.getPlayerDecision();
-					
-					if (!decision || decision.type === 'endTurn') {
-						continuePlayingCards = false;
-					} else if (decision.type === 'playCard' && decision.card && decision.driver) {
-						await battle.aiController.executeAIDecision(decision, true);
-					}
-				}
+				await battle.aiController.playPlayerCards();
 				
 				// End player turn
 				if (!battle.isBattleOver()) {

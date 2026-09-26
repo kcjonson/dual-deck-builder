@@ -583,8 +583,8 @@ export class Battle extends Model<BattleData> {
 
 	/**
 	 * Play one planned card. It's spent either way. A target wrecked since
-	 * the plan was made is followed to the vehicle its driver now rides in as
-	 * a passenger; anything else that makes the card illegal (the target has
+	 * the plan was made is followed to the vehicle that whoever got out of it
+	 * now rides in, driving or as a passenger; anything else that makes the card illegal (the target has
 	 * nobody aboard, the player moved out of range, outpaced a flank, or a
 	 * flanker dropped back) makes it fizzle. See docs/AI_TECHNICAL_DECISIONS/enemy-intent-planning.md.
 	 */
@@ -614,11 +614,11 @@ export class Battle extends Model<BattleData> {
 		let target: Vehicle | null = action.target;
 		if (!target.isAlive()) {
 			const wreck: Vehicle = target;
-			target = this.getAllVehicles().find(vehicle =>
-				vehicle.isAlive() && action.targetDriver !== null && vehicle.passenger === action.targetDriver
-			) ?? null;
+			const survivors = Team.survivorsOf(wreck);
+			target = this.findVehicleCarrying(survivors);
 			if (!target) {
-				this.log('fizzle', `${raider.name}'s ${card.displayName} fizzles: ${wreck.name} is wrecked and nobody got out`,
+				const why = survivors.length === 0 ? 'nobody got out' : 'nobody who got out is still in the fight';
+				this.log('fizzle', `${raider.name}'s ${card.displayName} fizzles: ${wreck.name} is wrecked and ${why}`,
 					{ vehicle: raider.name, card: card.displayName, target: wreck.name });
 				return;
 			}
@@ -639,6 +639,20 @@ export class Battle extends Model<BattleData> {
 		}
 
 		this.applyCardEffects(card, target, driver);
+	}
+
+	/**
+	 * The vehicle in the fight that the first of these drivers still alive
+	 * rides in, driving or as a passenger
+	 */
+	private findVehicleCarrying(drivers: readonly Driver[]): Vehicle | null {
+		for (const driver of drivers.filter(candidate => candidate.isAlive())) {
+			const vehicle = this.getVehicleForDriver(driver);
+			if (vehicle && !vehicle.isOutOfFight) {
+				return vehicle;
+			}
+		}
+		return null;
 	}
 
 	/**

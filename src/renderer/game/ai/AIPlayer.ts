@@ -76,7 +76,7 @@ export abstract class AIPlayer {
 		const actions: AIDecision[] = [];
 
 		for (const vehicle of this.team.vehicles) {
-			if (!vehicle.isAlive() || !vehicle.driver) continue;
+			if (vehicle.isOutOfFight || !vehicle.driver) continue;
 			if (this.board.actor && vehicle !== this.board.actor) continue;
 
 			const driver = vehicle.driver;
@@ -124,7 +124,7 @@ export abstract class AIPlayer {
 			case 'enemy_single':
 				const enemyTeam = this.team === this.battle.playerTeam ? 
 					this.battle.enemyTeam : this.battle.playerTeam;
-				potentialTargets = enemyTeam.vehicles.filter(v => v.isAlive());
+				potentialTargets = enemyTeam.vehicles.filter(v => !v.isOutOfFight);
 				break;
 			
 			case 'enemy_all':
@@ -132,7 +132,7 @@ export abstract class AIPlayer {
 				break;
 			
 			case 'ally':
-				potentialTargets = this.team.vehicles.filter(v => v.isAlive());
+				potentialTargets = this.team.vehicles.filter(v => !v.isOutOfFight);
 				break;
 			
 			case 'self':
@@ -148,9 +148,9 @@ export abstract class AIPlayer {
 			case 'any':
 				// 'Any' target type means it can target any vehicle
 				potentialTargets = [
-					...this.team.vehicles.filter(v => v.isAlive()),
-					...(this.team === this.battle.playerTeam ? 
-						this.battle.enemyTeam : this.battle.playerTeam).vehicles.filter(v => v.isAlive())
+					...this.team.vehicles.filter(v => !v.isOutOfFight),
+					...(this.team === this.battle.playerTeam ?
+						this.battle.enemyTeam : this.battle.playerTeam).vehicles.filter(v => !v.isOutOfFight)
 				];
 				break;
 		}

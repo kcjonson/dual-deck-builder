@@ -525,6 +525,92 @@ describe('Driver death', () => {
 		});
 	});
 
+	describe('a stale plan follows whoever got out of the wreck', () => {
+		beforeEach(() => {
+			giveHand(haulerDriver, [farShot()]);
+			battle.planEnemyTurn();
+			expect(battle.getPlan(hauler)[0].target).toBe(rig);
+		});
+
+		test('into the vehicle they were promoted to drive', async () => {
+			wreck(battle.playerTeam, rig);
+			bikeDriver.set({ hitpoints: 2 });
+			bike.takeDamage(4);
+			expect(bike.driver).toBe(rigDriver);
+
+			await battle.endPlayerTurn();
+
+			expect(bike.structure).toBe(16);
+			expect(messages()).toContain('Rig is wrecked, so Hauler turns Far Shot on Bike');
+		});
+
+		test('even when the driver it was planned against died before the wreck', async () => {
+			const stowaway = createTestDriver('Stowaway');
+			stowaway.set({ hitpoints: 100, maxHitpoints: 100, role: DriverRole.PASSENGER });
+			rig.set({ passenger: stowaway });
+			rigDriver.set({ hitpoints: 2 });
+			rig.takeDamage(4);
+			expect(rig.driver).toBe(stowaway);
+
+			wreck(battle.playerTeam, rig);
+			expect(bike.passenger).toBe(stowaway);
+
+			await battle.endPlayerTurn();
+
+			expect(bike.structure).toBe(18);
+			expect(messages()).toContain('Rig is wrecked, so Hauler turns Far Shot on Bike');
+		});
+
+		test('and fizzles when everyone who got out crashed out', async () => {
+			bikeDriver.set({ hitpoints: 2 });
+			bike.takeDamage(4);
+			wreck(battle.playerTeam, rig);
+			expect(rigDriver.isAlive()).toBe(true);
+
+			await battle.endPlayerTurn();
+
+			expect(messages()).toContain("Hauler's Far Shot fizzles: Rig is wrecked and nobody who got out is still in the fight");
+		});
+	});
+
+	describe('the player AI', () => {
+		const emptyBuggy = () => {
+			buggyDriver.set({ hitpoints: 5 });
+			giveHand(bikeDriver, [headshot()]);
+			battle.playCard({ driver: bikeDriver, cardIndex: 0, targetVehicle: buggy });
+			expect(buggy.isUnmanned()).toBe(true);
+			expect(battle.enemyTeam.vehicles).toContain(buggy);
+		};
+
+		test.each(['aggressive', 'random', 'salvage', 'ramming', 'defensive', 'balanced', 'mcts'] as const)(
+			'%s AI never offers a vehicle with nobody aboard as a target',
+			async (aiType) => {
+				emptyBuggy();
+				// Point Blank reaches only Buggy from Rig; Hauler is two away
+				giveHand(rigDriver, [pointBlank()]);
+				battle.aiController.setPlayerAI(aiType);
+
+				const decision = await battle.aiController.getPlayerDecision();
+
+				expect(decision?.target).not.toBe(buggy);
+			}
+		);
+
+		test('stops playing cards the first time the battle refuses one', async () => {
+			emptyBuggy();
+			giveHand(rigDriver, [pointBlank()]);
+			battle.aiController.setPlayerAI('aggressive');
+			const refused = { type: 'playCard' as const, card: rigDriver.hand[0], driver: rigDriver, target: buggy };
+			const decide = jest.spyOn(battle.aiController, 'getPlayerDecision').mockResolvedValue(refused);
+
+			expect(await battle.aiController.executeAIDecision(refused, true)).toBe(false);
+			await battle.aiController.playPlayerCards();
+
+			expect(decide).toHaveBeenCalledTimes(1);
+			expect(rigDriver.hand.map(c => c.name)).toEqual(['Point Blank']);
+		});
+	});
+
 	describe('the battle log keeps seat names', () => {
 		test('a driver riding on as a passenger keeps their Player number', () => {
 			wreck(battle.playerTeam, rig);
