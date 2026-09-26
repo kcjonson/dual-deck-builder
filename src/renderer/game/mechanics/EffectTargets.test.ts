@@ -201,9 +201,16 @@ describe('Effect targets', () => {
 	});
 
 	describe('EMP Blast', () => {
-		test('lands on every raider and never on the caster or its partner', () => {
-			setGunnery(rig, 6);
-			giveHand(rig, [realCard('emp_blast')]);
+		// Test drivers have gunnery 5 against evade 5, and the Truck is raised
+		// to evade 9, so anything that rolled would miss both raiders.
+		test.each([
+			['base', false],
+			['upgraded', true]
+		])('%s lands on every raider whatever its evade, and never on the caster or its partner', (_label, upgraded) => {
+			setEvade(truck, 9);
+			const emp = realCard('emp_blast');
+			if (upgraded) emp.upgrade();
+			giveHand(rig, [emp]);
 
 			expect(battle.playCard({ driver: driverOf(rig), cardIndex: 0 })).toBe(true);
 
@@ -211,22 +218,10 @@ describe('Effect targets', () => {
 			expect(statusNames(truck)).toEqual(['stunned']);
 			expect(statusNames(rig)).toEqual([]);
 			expect(statusNames(bike)).toEqual([]);
-		});
-
-		test('rolls the hit check against each raider on its own', () => {
-			setGunnery(rig, 6);
-			setEvade(truck, 9);
-			giveHand(rig, [realCard('emp_blast')]);
-
-			battle.playCard({ driver: driverOf(rig), cardIndex: 0 });
-
-			expect(statusNames(buggy)).toEqual(['stunned']);
-			expect(statusNames(truck)).toEqual([]);
-			expect(logLines(battle, 'miss')).toEqual(['EMP Blast misses Truck']);
+			expect(logLines(battle, 'miss')).toEqual([]);
 		});
 
 		test('skips a raider already out of the fight', () => {
-			setGunnery(rig, 6);
 			truck.set({ structure: 0 });
 			giveHand(rig, [realCard('emp_blast')]);
 
@@ -237,7 +232,7 @@ describe('Effect targets', () => {
 		});
 
 		test('a raider playing it lands on every player vehicle and none of its own side', async () => {
-			setGunnery(buggy, 6);
+			setEvade(bike, 9);
 			giveHand(buggy, [realCard('emp_blast')]);
 			battle.planEnemyTurn();
 
@@ -248,6 +243,18 @@ describe('Effect targets', () => {
 				'EMP Blast applies stunned to Bike'
 			]);
 		});
+	});
+
+	test('an area effect that can miss rolls against each enemy on its own', () => {
+		setGunnery(rig, 6);
+		setEvade(truck, 9);
+		giveHand(rig, [tarSpray()]);
+
+		battle.playCard({ driver: driverOf(rig), cardIndex: 0 });
+
+		expect(statusNames(buggy)).toEqual(['speed_reduction']);
+		expect(statusNames(truck)).toEqual([]);
+		expect(logLines(battle, 'miss')).toEqual(['Tar Spray misses Truck']);
 	});
 
 	describe('a card with a self effect and a target effect', () => {
