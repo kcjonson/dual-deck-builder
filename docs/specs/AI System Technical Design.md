@@ -30,7 +30,7 @@ difficultyModifier: DifficultyModifier;
 
 ### 2.1 Base Enemy Archetypes
 
-`targetPriority` below predates escorts. The looter and killer target preferences are in [Combat Rules](./Combat%20Rules.md), Enemy intents; assigning them to raiders is DDB-150.
+`targetPriority` below predates escorts. Target preferences are a separate axis: a raider's archetype (`Vehicle.raiderArchetype`: looter, killer, or none) is independent of the AI personality or strategy that plans for it. A looter goes for haulers and a killer for driven vehicles, whenever the preferred target is legal for the card; otherwise the raider plans as it would with none, and the strategy's own scoring picks among several preferred targets. The rule is in [Combat Rules](./Combat%20Rules.md), Enemy intents, and the assignments and build notes in [escorts.md](../AI_TECHNICAL_DECISIONS/escorts.md), Raider preferences (decisions 29 and 30). The Rust Buggy is a looter.
 
 #### Aggressive Raider
 

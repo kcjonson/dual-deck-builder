@@ -6,6 +6,17 @@ This document contains the chronological log of completed development tasks for 
 
 **Date correction (2026-08-22):** the repo's first commit is 2025-05-17, but many entries below carry dates in December 2024 or January 2025 — the AI that wrote them used its assumed date instead of the real one. Entries dated 2025-07-03 and 2025-07-02 have been corrected from "2025-01-03"/"2025-01-02" (verified against git history). Remaining Dec 2024 / Jan 2025 dates are wrong by roughly six months; the real work happened May–July 2025. Trust git history over these dates.
 
+## Raider target preferences (2026-09-26)
+
+**What landed:** DDB-150. Raiders have archetypes: a looter plans at your haulers, a killer at your driven vehicles, whenever the card can legally reach one; otherwise it plans as it did. Kevin delegated two calls, recorded as escorts.md decisions 29 and 30, Combat Rules (Enemy intents), and AI System Technical Design 2.1.
+
+- `Vehicle.raiderArchetype` (`'looter'`, `'killer'`, or unset), independent of the AI strategy. `preferredTargets` in `mechanics/RaiderArchetype.ts` narrows a card's legal targets to the preferred ones when any is legal. `AIPlayer.getValidTargets` applies it after `BoardProjection.targetBlocker`, so every strategy's own scoring chooses among the preferred targets, and the planned target is what the marks show and the enemy turn plays.
+- Only `enemy_single` cards that land something on their target have a preference; a flank keeps its usual pick. `landsOnTarget` moved into `EffectTargets.ts`, shared with Draw Fire.
+- Draw Fire never redirects an area intent (decision 29). It already didn't; the code and Combat Rules now say so.
+- The Rust Buggy is a looter (decision 30): salvage flavor, and the one preference a player can see in the combat screen once a hauler is on the road.
+
+**How:** `RaiderPreferences.test.ts` (11 tests): a looter picks a hauler (Fuel Hauler or Med Truck) when legal and falls back when it's out of range or there's no hauler; the aggressive AI's scoring picks between two haulers past a softer gun escort; a flank ignores the preference; a killer picks a driven vehicle over escorts, including one the aggressive AI would otherwise finish; Draw Fire still pulls a killer's shot; no archetype is unchanged; and the planned marks match where the cards land. The Draw Fire area test in `Orders.test.ts` now plays the blast. Checked in the dev server with a Fuel Hauler patched into the combat screen (not committed): the Rust Buggy's intent marks went to the hauler for its unlimited-range shots and fell back to a driver for its range 1 card.
+
 ## Order cards and order resolution (2026-09-26)
 
 **What landed:** DDB-149. Escorts act now: nine order cards, the escort that carries each one out, SPENT state, and Draw Fire's redirect. Kevin delegated the open card questions; they were decided the same day and recorded as escorts.md decisions 23 to 27, Combat Rules (Escorts), and Card System Design 1.3 and 4.5.
