@@ -8,6 +8,7 @@ import {
 	describeSlot,
 	flankLane,
 	isFormationLane,
+	isShoulder,
 	openingSlots,
 	resolveFormationSlot,
 	sameSlot,
@@ -732,14 +733,25 @@ export class Battle extends Model<BattleData> {
 	}
 
 	/**
-	 * Where a planned card is headed as the board stands: its planned
-	 * target, or the escort drawing fire in that target's row if the card
-	 * could reach it from where the raider will be. This is what the target
-	 * marks and the end-turn preview show.
+	 * Where a planned card is headed as the board stands, judged the way the
+	 * enemy turn will play it: a wrecked target is followed to the vehicle its
+	 * survivors ride in, then the escort drawing fire in that vehicle's row
+	 * takes it if the card could reach it from where the raider will be. Rows
+	 * and ranges are read after the end-of-turn drop-back, since that runs
+	 * before the enemy turn. This is what the target marks and the end-turn
+	 * preview show. A wreck nobody rode away from keeps the mark; the card
+	 * fizzles.
 	 */
 	private plannedTarget(raider: Vehicle, action: PlannedAction): Vehicle | null {
 		if (!action.target) return null;
-		return this.drawFireRedirect({ raider, card: action.card, target: action.target, raiderSlot: action.slot }) ?? action.target;
+		const target = action.target.isAlive() ? action.target : this.followWreck(action.target) ?? action.target;
+		return this.drawFireRedirect({
+			raider,
+			card: action.card,
+			target,
+			raiderSlot: action.slot,
+			slotOf: vehicle => this.dropBackSlotOf(vehicle) ?? vehicle.slot
+		}) ?? target;
 	}
 
 	/**
@@ -751,23 +763,26 @@ export class Battle extends Model<BattleData> {
 	 * (decision 29). A card with nothing landing on its target (a flank)
 	 * keeps its target too. Rows are judged as they stand, and the last Draw
 	 * Fire played on the row wins. It never cancels: a card that can't reach
-	 * the escort keeps its target.
+	 * the escort keeps its target. `slotOf` is where each vehicle stands for
+	 * the check: now, in play, or after the drop-back, for the preview.
 	 */
 	private drawFireRedirect({
 		raider,
 		card,
 		target,
-		raiderSlot
+		raiderSlot,
+		slotOf = vehicle => vehicle.slot
 	}: {
 		raider: Vehicle;
 		card: Card;
 		target: Vehicle;
 		raiderSlot: RoadSlot | null;
+		slotOf?: (vehicle: Vehicle) => RoadSlot | null;
 	}): Vehicle | null {
 		// Aimed fire only, never a blast
 		if (card.targetType === 'enemy_all' || !landsOnTarget(card)) return null;
 		const covers = Battle.drawFireCovers.get(this) ?? [];
-		const row = target.slot?.row;
+		const row = slotOf(target)?.row;
 		if (covers.length === 0 || !row || target.isOutOfFight || !this.playerTeam.vehicles.includes(target)) {
 			return null;
 		}
@@ -776,9 +791,9 @@ export class Battle extends Model<BattleData> {
 		// after clearWrecks it has no slot, so preview and play agree. A shot
 		// at that cover is already where Draw Fire wants it.
 		const escort = [...covers].reverse().find(cover =>
-			!cover.isOutOfFight && cover.slot?.row === row && this.playerTeam.vehicles.includes(cover));
+			!cover.isOutOfFight && slotOf(cover)?.row === row && this.playerTeam.vehicles.includes(cover));
 		if (!escort || escort === target) return null;
-		return this.getPlannedCardBlocker(card, raider, escort, raiderSlot) === null ? escort : null;
+		return this.getPlannedCardBlocker(card, raider, escort, raiderSlot, slotOf(escort)) === null ? escort : null;
 	}
 
 	/**
@@ -892,10 +907,9 @@ export class Battle extends Model<BattleData> {
 		let target: Vehicle | null = action.target;
 		if (!target.isAlive()) {
 			const wreck: Vehicle = target;
-			const survivors = Team.survivorsOf(wreck);
-			target = this.findVehicleCarrying(survivors);
+			target = this.followWreck(wreck);
 			if (!target) {
-				const why = survivors.length === 0 ? 'nobody got out' : 'nobody who got out is still in the fight';
+				const why = Team.survivorsOf(wreck).length === 0 ? 'nobody got out' : 'nobody who got out is still in the fight';
 				this.log('fizzle', `${raider.name}'s ${card.displayName} fizzles: ${wreck.name} is wrecked and ${why}`,
 					{ vehicle: raider.name, card: card.displayName, target: wreck.name });
 				return;
@@ -927,6 +941,15 @@ export class Battle extends Model<BattleData> {
 	}
 
 	/**
+	 * Where a card planned at a wreck goes: the vehicle in the fight that
+	 * someone who got out of it now rides in, or null. Play and the preview
+	 * both follow wrecks through this.
+	 */
+	private followWreck(wreck: Vehicle): Vehicle | null {
+		return this.findVehicleCarrying(Team.survivorsOf(wreck));
+	}
+
+	/**
 	 * The vehicle in the fight that the first of these drivers still alive
 	 * rides in, driving or as a passenger
 	 */
@@ -942,24 +965,31 @@ export class Battle extends Model<BattleData> {
 
 	/**
 	 * Why a planned card can no longer be played on its target, in words for
-	 * the log, or null if it still can. Range is measured from the caster's
-	 * slot unless another is given (where a plan puts it).
+	 * the log, or null if it still can. Range is measured between the
+	 * vehicles' slots unless others are given (where a plan or the drop-back
+	 * puts them).
 	 */
-	private getPlannedCardBlocker(card: Card, caster: Vehicle, target: Vehicle, casterSlot: RoadSlot | null = caster.slot): string | null {
+	private getPlannedCardBlocker(
+		card: Card,
+		caster: Vehicle,
+		target: Vehicle,
+		casterSlot: RoadSlot | null = caster.slot,
+		targetSlot: RoadSlot | null = target.slot
+	): string | null {
 		if (target.isOutOfFight) {
 			return `${target.name} is out of the fight`;
 		}
 		for (const effect of card.effects) {
 			if (typeof effect.range === 'number') {
-				if (!casterSlot || !target.slot) {
+				if (!casterSlot || !targetSlot) {
 					return `${target.name} is not on the road`;
 				}
-				const range = slotRange(casterSlot, target.slot);
+				const range = slotRange(casterSlot, targetSlot);
 				if (range > effect.range) {
 					return `${target.name} is out of range (${range} away, needs ${effect.range})`;
 				}
 			}
-			if (effect.condition === 'target_flanking' && !target.isFlanking) {
+			if (effect.condition === 'target_flanking' && !(targetSlot && isShoulder(targetSlot.lane))) {
 				return `${target.name} is no longer flanking`;
 			}
 		}
@@ -1616,10 +1646,9 @@ export class Battle extends Model<BattleData> {
 	 */
 	private dropBackFlankers(): void {
 		for (const vehicle of this.getAllVehicles()) {
-			const reservedSlot = vehicle.flank?.reservedSlot;
+			const reservedSlot = this.dropBackSlotOf(vehicle);
 			const outran = vehicle.flank?.outran;
-			if (!reservedSlot || !outran || vehicle.isOutOfFight || outran.isOutOfFight) continue;
-			if (vehicle.canFlank(outran)) continue;
+			if (!reservedSlot || !outran) continue;
 
 			vehicle.set({ slot: reservedSlot, flank: null });
 			this.log('general',
@@ -1627,6 +1656,18 @@ export class Battle extends Model<BattleData> {
 				{ vehicle: vehicle.name, target: outran.name }
 			);
 		}
+	}
+
+	/**
+	 * The reserved slot this flanker would drop back to if the turn ended
+	 * now, or null if it holds where it is. Speed is the only test, so one
+	 * flanker dropping back never changes another's answer.
+	 */
+	private dropBackSlotOf(vehicle: Vehicle): RoadSlot | null {
+		const reservedSlot = vehicle.flank?.reservedSlot;
+		const outran = vehicle.flank?.outran;
+		if (!reservedSlot || !outran || vehicle.isOutOfFight || outran.isOutOfFight) return null;
+		return vehicle.canFlank(outran) ? null : reservedSlot;
 	}
 
 	/**

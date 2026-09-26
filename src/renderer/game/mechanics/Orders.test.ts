@@ -426,6 +426,10 @@ describe('Order cards', () => {
 			battle.planEnemyTurn();
 		};
 
+		const drawFireOn = (battle: Battle, rig: Vehicle, pilotCar: Vehicle): void => {
+			expect(play({ battle, driver: driverOf(rig), card: realCard('draw_fire'), target: pilotCar })).toBe(true);
+		};
+
 		test('turns a raider\'s shot at a driven vehicle in its row onto the escort, whose Shield takes it first', async () => {
 			const { battle, rig, pilotCar, buggy } = setup();
 			planShot(battle, buggy, potShot());
@@ -582,10 +586,6 @@ describe('Order cards', () => {
 				return { battle: createBattle(roster, [buggy]), rig, pilotCar, buggy };
 			};
 
-			const drawFireOn = (battle: Battle, rig: Vehicle, pilotCar: Vehicle): void => {
-				expect(play({ battle, driver: driverOf(rig), card: realCard('draw_fire'), target: pilotCar })).toBe(true);
-			};
-
 			test('a looter\'s shot at a hauler lands on the escort drawing fire', async () => {
 				const hauler = escortAt('fuel_hauler');
 				const { battle, rig, pilotCar, buggy } = rowSetup(hauler, { first: 'last' });
@@ -726,6 +726,84 @@ describe('Order cards', () => {
 				const byId = new Map([[hauler.id, hauler.name], [pilotCar.id, pilotCar.name]]);
 				expect(hits).toHaveLength(2);
 				hits.forEach((line, index) => expect(line).toContain(`damage to ${byId.get(marks[index] ?? '')}`));
+			});
+		});
+
+		describe('the preview judges rows as the enemy turn will find them', () => {
+			// The Pilot Car covers the center row. Flankers drop back at the end
+			// of the player's turn, before the enemy turn plays, and a target
+			// wrecked on the player's turn is followed to its survivors.
+			test('an escort flanking in the covered row that will drop back out of it keeps the shot', async () => {
+				const rig = createDriven('Rig', slot(P_INSIDE, CENTER));
+				const bike = createDriven('Bike', slot(P_INSIDE, BEHIND));
+				const pilotCar = escortAt('pilot_car', slot(P_OUTSIDE, CENTER));
+				const outrider = escortAt('outrider', slot(P_OUTSIDE, AHEAD));
+				const buggy = createDriven('Buggy', slot(E_INSIDE, CENTER));
+				const battle = createBattle([outrider, rig, bike, pilotCar], [buggy]);
+				// Run Ahead's usual end: outrunning the Buggy onto the center row
+				outrider.set({ slot: slot(E_SHOULDER, CENTER), flank: { reservedSlot: slot(P_OUTSIDE, AHEAD), outran: buggy } });
+				planShot(battle, buggy, potShot());
+				expect(battle.getIntents(buggy)[0].target).toBe(outrider.id);
+
+				drawFireOn(battle, rig, pilotCar);
+				expect(battle.getIntents(buggy)[0].target).toBe(pilotCar.id);
+
+				// The Buggy speeds past it, so it will drop back to outside ahead
+				buggy.set({ baseSpeed: 10 });
+				expect(battle.getIntents(buggy)[0].target).toBe(outrider.id);
+				await battle.endPlayerTurn();
+
+				expect(outrider.slot).toEqual(slot(P_OUTSIDE, AHEAD));
+				expect(logLines(battle, 'general').filter(line => line.includes('draws'))).toEqual([]);
+				expect(logLines(battle, 'damage_dealt').some(line => line.includes('damage to Outrider'))).toBe(true);
+			});
+
+			test('a driven flanker that will drop back into the covered row has its shot pulled', async () => {
+				const rig = createDriven('Rig', slot(P_INSIDE, BEHIND));
+				const bike = createDriven('Bike', slot(P_INSIDE, CENTER));
+				const pilotCar = escortAt('pilot_car', slot(P_OUTSIDE, CENTER));
+				const buggy = createDriven('Buggy', slot(E_INSIDE, CENTER));
+				const battle = createBattle([bike, rig, pilotCar], [buggy]);
+				// Faster than the Buggy for now, so it holds the shoulder ahead
+				bike.set({ baseSpeed: 5, slot: slot(E_SHOULDER, AHEAD), flank: { reservedSlot: slot(P_INSIDE, CENTER), outran: buggy } });
+				planShot(battle, buggy, potShot());
+				expect(battle.getIntents(buggy)[0].target).toBe(bike.id);
+
+				drawFireOn(battle, rig, pilotCar);
+				expect(battle.getIntents(buggy)[0].target).toBe(bike.id);
+
+				buggy.set({ baseSpeed: 10 });
+				expect(battle.getIntents(buggy)[0].target).toBe(pilotCar.id);
+				await battle.endPlayerTurn();
+
+				expect(bike.slot).toEqual(slot(P_INSIDE, CENTER));
+				expect(bike.structure).toBe(20);
+				expect(logLines(battle, 'general')).toContain("Pilot Car draws Buggy's Pot Shot away from Bike");
+			});
+
+			test('a target wrecked on the player\'s turn is followed to its driver\'s new ride, then pulled', async () => {
+				const rig = createDriven('Rig', slot(P_INSIDE, BEHIND));
+				const bike = createDriven('Bike', slot(P_INSIDE, CENTER));
+				const pilotCar = escortAt('pilot_car', slot(P_OUTSIDE, CENTER));
+				const buggy = createDriven('Buggy', slot(E_INSIDE, CENTER));
+				const battle = createBattle([rig, bike, pilotCar], [buggy]);
+				planShot(battle, buggy, potShot());
+				expect(battle.getIntents(buggy)[0].target).toBe(rig.id);
+				drawFireOn(battle, rig, pilotCar);
+				expect(battle.getIntents(buggy)[0].target).toBe(rig.id);
+
+				const rigDriver = driverOf(rig);
+				rig.destroy();
+				battle.playerTeam.handleVehicleDestruction(rig);
+				expect(bike.passenger).toBe(rigDriver);
+				const mark = battle.getIntents(buggy)[0].target;
+				expect(mark).toBe(pilotCar.id);
+				await battle.endPlayerTurn();
+
+				expect(logLines(battle, 'general')).toContain("Pilot Car draws Buggy's Pot Shot away from Bike");
+				expect(logLines(battle, 'damage_dealt').filter(line => line.startsWith('Pot Shot'))).toEqual([
+					'Pot Shot deals 3 total (3 to shield) damage to Pilot Car (Structure: 30/30 -> 30/30, Armor: 3/3 -> 3/3, Shield: 4 -> 1)'
+				]);
 			});
 		});
 

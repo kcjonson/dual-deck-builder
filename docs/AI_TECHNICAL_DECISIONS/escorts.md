@@ -200,7 +200,8 @@ What the build settled:
 
 - **The check.** `Battle.drawFireRedirect` drops the `isEscort` exclusion. The target has to be a player vehicle still in the fight and in the row, and the covering escort has to be someone else. Play and the preview both go through it, so the marks still match play.
 - **Two covers on a row.** The last one played is the row's cover, so a shot at an earlier cover in the same row goes to the later one, the same as a shot at anything else in that row. A shot at the last cover lands on it.
-- **A target out of the fight** isn't redirected in the preview. In play a wrecked target is followed to its survivors first, as before, and the redirect is judged on where they ride.
+- **The preview matches play.** `plannedTarget` judges the board the enemy turn will find (review of #59). A wrecked target is followed to the vehicle its survivors ride in (`Battle.followWreck`, which play uses too), and the redirect is judged there; a wreck nobody rode away from keeps the mark, since the card fizzles. Rows and ranges are read after the end-of-player-turn drop-back (`Battle.dropBackSlotOf`, which `dropBackFlankers` uses too), so a flanker that will drop back counts in its reserved slot's row, for the target and for the covers. Before this, a Run Ahead Outrider flanking in a covered row that was about to drop back showed the mark on the cover but took the shot itself, and a wreck's mark stayed on the wreck while play followed and redirected.
+- **A target out of the fight** after that isn't redirected; the card fizzles as before, and the mark stays on it.
 
 ## Open questions
 
