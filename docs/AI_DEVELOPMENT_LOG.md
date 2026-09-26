@@ -18,6 +18,10 @@ This document contains the chronological log of completed development tasks for 
 
 **How:** the check went in the run start rather than `Team`'s constructor because the AI and battle fixtures build player teams from two Road Warriors (113 tests across 7 suites would need new fixtures), and `battle-simulator.ts` can build mirror setups on purpose. Checked in the web build: selection opens with Road Warrior and Interceptor, both cycle buttons skip the other side, and combat shows 10 hand cards, 5 per driver, with no duplicate ids.
 
+## Dead legacy effect cases removed (2026-09-25)
+
+**What landed:** DDB-144. Deleted the "Legacy effect names" `armor`, `draw`, and `adrenaline` cases at the bottom of the `Battle.applyCardEffects` switch; each duplicated a label earlier in the same switch, so they never ran. No card in `cards.json` uses those types, and the tests that do already hit the earlier cases. Turned on ESLint's `no-duplicate-case`, which flagged exactly those three and nothing else in `src/`.
+
 ## Enemy intents planned before the player's turn (2026-09-25)
 
 **What landed:** DDB-132, the model half of DDB-33, stacked on the road-grid PR and merged up to the hand cap and card summaries.
