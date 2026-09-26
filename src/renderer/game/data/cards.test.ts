@@ -1,4 +1,5 @@
-import { Card, CardData } from '../mechanics/Card';
+import { Card, CardData, CardEffect } from '../mechanics/Card';
+import { EFFECT_TARGETS } from '../mechanics/EffectTargets';
 import cardsFile from './cards.json';
 
 /**
@@ -41,6 +42,13 @@ describe('card data check', () => {
 	it.each(texts)('$label has no unfilled {variables}', ({ summary, description }) => {
 		expect(summary).not.toMatch(/\{\w+\}/);
 		expect(description).not.toMatch(/\{\w+\}/);
+	});
+
+	// An unknown target would quietly fall back to the card's target type
+	it.each(cards.map((data) => ({ label: data.type, effects: data.effects })))('$label effects name targets the battle knows', ({ effects }) => {
+		const nested = (effect: CardEffect): CardEffect[] => [effect, ...(effect.effect ? nested(effect.effect) : [])];
+		const targets = effects.flatMap(nested).map((effect) => effect.target).filter((target) => target !== undefined);
+		expect(EFFECT_TARGETS).toEqual(expect.arrayContaining(targets));
 	});
 
 	it('the summary proxy rejects full rules text used as a summary', () => {

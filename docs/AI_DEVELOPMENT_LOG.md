@@ -6,6 +6,17 @@ This document contains the chronological log of completed development tasks for 
 
 **Date correction (2026-08-22):** the repo's first commit is 2025-05-17, but many entries below carry dates in December 2024 or January 2025 — the AI that wrote them used its assumed date instead of the real one. Entries dated 2025-07-03 and 2025-07-02 have been corrected from "2025-01-03"/"2025-01-02" (verified against git history). Remaining Dec 2024 / Jan 2025 dates are wrong by roughly six months; the real work happened May–July 2025. Trust git history over these dates.
 
+## Card effects land where their own target says (2026-09-26)
+
+**What landed:** DDB-160. A card with no target used to pass the caster's own vehicle as the target, so Berserker rolled its self damage against the caster's own evade and EMP Blast stunned (or missed) the caster. Each effect now picks its recipients from its own `target` field.
+
+- `mechanics/EffectTargets.ts` is the one rule, used by play, the enemy turn, and `BoardProjection.apply`. `self`, `self_driver`, and `same_vehicle` mean the caster's vehicle; `target` and `driver` the card's target; `enemy_all` every vehicle on the other team still in the fight. An effect with no `target` falls back to the card's `targetType`. `rollsToHit`: never against the caster, otherwise unless `always_hits`, per recipient.
+- `Battle.applyCardEffects({ card, caster, target })` takes the dropped target (null for self and area cards) and resolves each effect per recipient; damage and status moved into `applyDamage` and `applyStatus`. Damage on the caster skips range, the hit check, and the flank and Vulnerable bonuses, so Berserker's 3 is 3. A flank always moves the caster. The runtime same-vehicle check for Medical Kit went away because its recipient is the caster's vehicle by construction; targeting still requires it.
+- `Intent.ts` classifies self effects with the same resolver. `cards.test.ts` fails on an effect target the resolver doesn't know.
+- Cards whose behavior changed: Berserker (self damage always lands, flat) and EMP Blast (stuns each raider it hits, or each player vehicle when a raider plays it; `stunned` does nothing yet). Self cards (Repair Kit, Armor Plating, Nitro Boost, Witness Me) now ignore a target passed to `playCard`; neither the UI nor the AI passes one. EMP Blast has no `always_hits`, so it rolls per raider, while the spec says all enemies skip their turn; open question.
+
+**How:** 16 tests in `EffectTargets.test.ts` (Berserker at low gunnery, EMP Blast from both sides with per-target misses and an out-of-fight raider, mixed self and target cards, projection against play) and 18 card data checks. The Berserker Rage test in `Battle.test.ts` now expects the self damage it used to mark as a known gap.
+
 ## Escorts take fire (2026-09-26)
 
 **What landed:** DDB-148. Escorts are no longer immune: attacks and debuffs on them roll against their own evade, damage lands, and a wrecked escort leaves the road.

@@ -1,6 +1,7 @@
 import type { Card, CardEffect } from './Card';
 import type { Driver } from './Driver';
 import type { Vehicle } from './Vehicle';
+import { EffectRecipient, effectRecipientOf } from './EffectTargets';
 
 /**
  * What a raider is about to do, as the player sees it.
@@ -57,8 +58,8 @@ export interface Intent {
 	description: string;
 }
 
-const isSelfEffect = (effect: CardEffect): boolean =>
-	effect.target === 'self' || effect.target === 'self_driver' || effect.target === 'same_vehicle';
+const isSelfEffect = (effect: CardEffect, card: Card): boolean =>
+	effectRecipientOf({ effect, card }) === EffectRecipient.CASTER;
 
 const isStatusEffect = (effect: CardEffect): boolean =>
 	effect.type === 'apply_status' || effect.type === 'status';
@@ -68,7 +69,7 @@ const isStatusEffect = (effect: CardEffect): boolean =>
  * (Berserker) doesn't count.
  */
 export function attackEffectOf(card: Card): CardEffect | null {
-	return card.effects.find(effect => effect.type === 'damage' && effect.target !== 'self_driver') ?? null;
+	return card.effects.find(effect => effect.type === 'damage' && !isSelfEffect(effect, card)) ?? null;
 }
 
 /**
@@ -79,7 +80,7 @@ export function attackEffectOf(card: Card): CardEffect | null {
  */
 export function intentTypeOf(card: Card): IntentType {
 	if (attackEffectOf(card)) return IntentType.ATTACK;
-	if (card.effects.some(effect => isStatusEffect(effect) && !isSelfEffect(effect) && card.targetType !== 'self')) {
+	if (card.effects.some(effect => isStatusEffect(effect) && !isSelfEffect(effect, card))) {
 		return IntentType.DEBUFF;
 	}
 	if (card.effects.some(effect => ['gain_armor', 'armor', 'heal', 'heal_driver'].includes(effect.type))) {
@@ -98,7 +99,7 @@ export function defendAmountOf(card: Card): number | null {
 }
 
 export function debuffLabelOf(card: Card): string | null {
-	const effect = card.effects.find(e => isStatusEffect(e) && !isSelfEffect(e));
+	const effect = card.effects.find(e => isStatusEffect(e) && !isSelfEffect(e, card));
 	return effect?.status ?? null;
 }
 

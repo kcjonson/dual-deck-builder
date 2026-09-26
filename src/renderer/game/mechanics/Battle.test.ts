@@ -750,12 +750,10 @@ describe('Battle', () => {
 			
 			// Enemy should take damage
 			expect(enemyVehicle.structure).toBeLessThan(enemyInitialStructure);
-			
-			// Due to current implementation, self_driver damage requires a target vehicle
-			// and is processed as part of the damage effect against the target
-			// This is a known limitation - self damage isn't currently working
-			// TODO: Fix Battle.ts to handle self_driver effects independently
-			
+
+			// The self damage lands on the caster without a hit check (gunnery 5 isn't above evade 5)
+			expect(playerDriver1.hitpoints).toBe(7);
+
 			// Check battle messages instead of console.log
 			const messages = battle.getMessages();
 			const damageMessage = messages.find(m => 
