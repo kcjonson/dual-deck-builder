@@ -127,7 +127,7 @@ describe('Battle on the road grid', () => {
 			)).toThrow('must start in its own formation');
 		});
 
-		test("a vehicle cannot start on the other team's shoulder; only flanking gets it there", () => {
+		test('a raider cannot start on its own shoulder either', () => {
 			expect(() => createBattle(
 				[createVehicle('Rig', 1), createVehicle('Bike', 5)],
 				[createVehicle('Buggy', 3, slot(RoadLane.ENEMY_SHOULDER, RoadRow.CENTER))]
@@ -276,6 +276,142 @@ describe('Battle on the road grid', () => {
 			await battle.endPlayerTurn();
 
 			expect(bike.isFlanking).toBe(true);
+		});
+	});
+
+	describe('ambush starts', () => {
+		// The player pair fills inside center and inside behind, so only those rows can be ambushed
+		let rig: Vehicle;
+		let bike: Vehicle;
+
+		beforeEach(() => {
+			rig = createVehicle('Rig', 1);
+			bike = createVehicle('Bike', 5);
+		});
+
+		test("a raider the encounter puts on the player's shoulder starts flanking, with no reserved slot or outran vehicle", () => {
+			const ambusher = createVehicle('Ambusher', 3, slot(RoadLane.PLAYER_SHOULDER, RoadRow.CENTER));
+			const battle = createBattle([rig, bike], [ambusher]);
+
+			expect(ambusher.slot).toEqual(slot(RoadLane.PLAYER_SHOULDER, RoadRow.CENTER));
+			expect(ambusher.isFlanking).toBe(true);
+			expect(ambusher.isAmbusher).toBe(true);
+			expect(ambusher.flank).toEqual({ reservedSlot: null, outran: null });
+			expect(battle.calculateDamage(10, ambusher, rig)).toBe(15);
+		});
+
+		test('ambushers take no formation slot, so six in formation and two on the shoulder all fit', () => {
+			const formation = [1, 2, 3, 4, 5, 6].map(n => createVehicle(`Raider ${n}`, 3));
+			const ambushers = [RoadRow.CENTER, RoadRow.BEHIND].map(row =>
+				createVehicle(`Ambusher ${row}`, 3, slot(RoadLane.PLAYER_SHOULDER, row)));
+			createBattle([rig, bike], [...formation, ...ambushers]);
+
+			expect(formation.every(vehicle => !vehicle.isFlanking)).toBe(true);
+			expect(ambushers.every(vehicle => vehicle.isAmbusher)).toBe(true);
+		});
+
+		test('holds the shoulder at drop-back, since it has nowhere to drop back to', async () => {
+			const ambusher = createVehicle('Ambusher', 3, slot(RoadLane.PLAYER_SHOULDER, RoadRow.CENTER));
+			const battle = createBattle([rig, bike], [ambusher]);
+			ambusher.applyStatusEffect({ name: 'oil_slick', duration: 2, value: -40 });
+
+			await battle.endPlayerTurn();
+
+			expect(ambusher.slot).toEqual(slot(RoadLane.PLAYER_SHOULDER, RoadRow.CENTER));
+			expect(ambusher.isAmbusher).toBe(true);
+		});
+
+		test("the player's driven vehicles cannot ambush", () => {
+			expect(() => createBattle(
+				[createVehicle('Rig', 1, slot(RoadLane.ENEMY_SHOULDER, RoadRow.CENTER)), bike],
+				[createVehicle('Buggy', 3)]
+			)).toThrow("the player's driven vehicles always start in formation");
+		});
+
+		test('an ambush row needs an opposing vehicle in formation', () => {
+			expect(() => createBattle(
+				[rig, bike],
+				[createVehicle('Ambusher', 3, slot(RoadLane.PLAYER_SHOULDER, RoadRow.AHEAD))]
+			)).toThrow("Ambusher can't ambush in the ahead row; no player vehicle is in formation there");
+		});
+
+		test('the row check sees where the formation lands, given or filled', () => {
+			const ahead = createVehicle('Rig', 1, slot(RoadLane.PLAYER_OUTSIDE, RoadRow.AHEAD));
+			const ambusher = createVehicle('Ambusher', 3, slot(RoadLane.PLAYER_SHOULDER, RoadRow.AHEAD));
+			createBattle([ahead, bike], [ambusher]);
+
+			expect(ambusher.isAmbusher).toBe(true);
+		});
+
+		test('a shoulder holds three', () => {
+			const rows = [RoadRow.AHEAD, RoadRow.CENTER, RoadRow.BEHIND, RoadRow.CENTER];
+			const ambushers = rows.map((row, n) => createVehicle(`Ambusher ${n}`, 3, slot(RoadLane.PLAYER_SHOULDER, row)));
+			expect(() => createBattle([rig, bike], ambushers))
+				.toThrow('4 vehicles start on the player shoulder; a shoulder holds 3');
+		});
+
+		test('two ambushers cannot start in the same shoulder slot', () => {
+			const shared = slot(RoadLane.PLAYER_SHOULDER, RoadRow.CENTER);
+			expect(() => createBattle(
+				[rig, bike],
+				[createVehicle('Ambusher 1', 3, shared), createVehicle('Ambusher 2', 3, shared)]
+			)).toThrow('Two vehicles start in');
+		});
+
+		describe('the arrival rule a reinforcement wave will use', () => {
+			let ambusher: Vehicle;
+			let battle: Battle;
+			let arriving: Vehicle;
+
+			beforeEach(() => {
+				ambusher = createVehicle('Ambusher', 3, slot(RoadLane.PLAYER_SHOULDER, RoadRow.CENTER));
+				battle = createBattle([rig, bike], [ambusher]);
+				arriving = createVehicle('Reinforcement', 3);
+			});
+
+			test('a raider can arrive on a free shoulder slot beside a player vehicle', () => {
+				const blocker = battle.getAmbushBlocker({
+					vehicle: arriving,
+					teamType: TeamType.ENEMY,
+					slot: slot(RoadLane.PLAYER_SHOULDER, RoadRow.BEHIND)
+				});
+				expect(blocker).toBeNull();
+			});
+
+			test('not onto a slot another vehicle holds', () => {
+				const blocker = battle.getAmbushBlocker({
+					vehicle: arriving,
+					teamType: TeamType.ENEMY,
+					slot: slot(RoadLane.PLAYER_SHOULDER, RoadRow.CENTER)
+				});
+				expect(blocker).toBe('player shoulder, center is taken');
+			});
+
+			test('not beside a wreck; the vehicle opposite has to be alive', () => {
+				bike.structure = 0;
+				const blocker = battle.getAmbushBlocker({
+					vehicle: arriving,
+					teamType: TeamType.ENEMY,
+					slot: slot(RoadLane.PLAYER_SHOULDER, RoadRow.BEHIND)
+				});
+				expect(blocker).toBe("Reinforcement can't ambush in the behind row; no player vehicle is in formation there");
+			});
+
+			test('an ambusher already on the road keeps its slot when the vehicle beside it is wrecked', async () => {
+				rig.structure = 0;
+				await battle.endPlayerTurn();
+
+				expect(ambusher.slot).toEqual(slot(RoadLane.PLAYER_SHOULDER, RoadRow.CENTER));
+			});
+
+			test('nothing on the player side can ambush yet', () => {
+				const blocker = battle.getAmbushBlocker({
+					vehicle: arriving,
+					teamType: TeamType.PLAYER,
+					slot: slot(RoadLane.ENEMY_SHOULDER, RoadRow.CENTER)
+				});
+				expect(blocker).toContain("the player's driven vehicles always start in formation");
+			});
 		});
 	});
 });

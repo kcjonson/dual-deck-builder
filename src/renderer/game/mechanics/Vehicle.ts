@@ -16,10 +16,13 @@ export interface VehicleStatusEffect {
 /**
  * A flanker's bookkeeping: the formation slot it left, which stays empty and
  * reserved, and the vehicle it outran, whose speed it has to keep beating.
+ * An ambusher (a vehicle its encounter started on the shoulder) has no
+ * reserved slot, so it never drops back, and no outran vehicle until it
+ * swerves again by outrunning one.
  */
 export interface FlankState {
-	reservedSlot: RoadSlot;
-	outran: Vehicle;
+	reservedSlot: RoadSlot | null;
+	outran: Vehicle | null;
 }
 
 /**
@@ -121,6 +124,14 @@ export class Vehicle extends Model<VehicleData> {
 	 */
 	public get isFlanking(): boolean {
 		return this.slot !== null && isShoulder(this.slot.lane);
+	}
+
+	/**
+	 * Started the fight on the shoulder, so it has no formation slot to drop
+	 * back to and holds the shoulder for the rest of the fight.
+	 */
+	public get isAmbusher(): boolean {
+		return this.flank !== null && this.flank.reservedSlot === null;
 	}
 
 	/**

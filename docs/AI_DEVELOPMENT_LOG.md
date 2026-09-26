@@ -6,6 +6,19 @@ This document contains the chronological log of completed development tasks for 
 
 **Date correction (2026-08-22):** the repo's first commit is 2025-05-17, but many entries below carry dates in December 2024 or January 2025 — the AI that wrote them used its assumed date instead of the real one. Entries dated 2025-07-03 and 2025-07-02 have been corrected from "2025-01-03"/"2025-01-02" (verified against git history). Remaining Dec 2024 / Jan 2025 dates are wrong by roughly six months; the real work happened May–July 2025. Trust git history over these dates.
 
+## Ambush starts (2026-09-25)
+
+**What landed:** DDB-147. An encounter can start raiders already flanking, on the player's shoulder.
+
+- `Vehicle.flank`'s `reservedSlot` and `outran` are both nullable now. An ambusher starts with both null; if it swerves again by outrunning someone, `outran` is set and `reservedSlot` stays null. `Vehicle.isAmbusher` is true while `reservedSlot` is null.
+- `Battle.placeOpeningFormation` accepts a given slot on the team's flank lane as an ambush, rejects more than three on a shoulder, places the formations, then checks each ambusher with the new public `Battle.getAmbushBlocker` (team allowed to ambush, the other team's shoulder, slot free and not reserved, a living opposing vehicle in formation in that row).
+- `Battle.mayAmbush` allows the enemy team only. DDB-146 opens it for undriven set-piece escorts; the driven pair never can.
+- `dropBackFlankers` skips anything without both a reserved slot and a living outran vehicle, so an ambusher holds the shoulder. `BoardProjection` already carried flank state through as-is and needed no change.
+- There's no reinforcement wave code yet, so waves get only the rule: `getAmbushBlocker` is written to be called on arrival mid-fight and is tested that way.
+- With the player limited to two vehicles, a raider side reaches eight today (six in formation, two on the shoulder), since only two rows have an opposing vehicle. Nine needs a player escort in the third row.
+
+**How:** 13 tests in `BattleRoad.test.ts` (placement, drop-back, player can't ambush, row rule, shoulder cap, slot uniqueness, the arrival rule) and 4 in `EnemyIntents.test.ts` (planning from an ambusher with the flank bonus, a planned swerve that keeps no reservation, a raider flank blocked by the ambusher's slot, the player's cards against it). One misnamed test in `BattleRoad.test.ts` was renamed; it tested a raider on its own shoulder.
+
 ## Escorts written into the specs (2026-09-25)
 
 **What landed:** DDB-133, docs only. Kevin's escort design, made on 2026-09-25, is in the specs.
