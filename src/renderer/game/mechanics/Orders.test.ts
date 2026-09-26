@@ -559,6 +559,176 @@ describe('Order cards', () => {
 			expect(logLines(battle, 'general')).toContain("Pilot Car draws Buggy's Pot Shot away from Rig");
 		});
 
+		describe('covers every other vehicle in its row', () => {
+			// The Pilot Car covers the center row from the outside lane, with
+			// the one vehicle under test beside it in the inside lane. The Rig
+			// and Bike sit in the other rows. FirstPlayableAI aims at the first
+			// legal target in the roster, so `first` picks the raider's target;
+			// with `last` the vehicle under test goes to the back, for a looter
+			// to find on its own.
+			const rowSetup = (beside: Vehicle, { first = 'beside' }: { first?: 'beside' | 'pilotCar' | 'last' } = {}): {
+				battle: Battle; rig: Vehicle; pilotCar: Vehicle; buggy: Vehicle;
+			} => {
+				beside.slot = slot(P_INSIDE, CENTER);
+				const rig = createDriven('Rig', slot(P_INSIDE, BEHIND));
+				const bike = createDriven('Bike', slot(P_INSIDE, AHEAD));
+				const pilotCar = escortAt('pilot_car', slot(P_OUTSIDE, CENTER));
+				const buggy = createDriven('Buggy', slot(E_INSIDE, CENTER));
+				const roster = {
+					beside: [beside, rig, bike, pilotCar],
+					pilotCar: [pilotCar, rig, bike, beside],
+					last: [rig, bike, pilotCar, beside]
+				}[first];
+				return { battle: createBattle(roster, [buggy]), rig, pilotCar, buggy };
+			};
+
+			const drawFireOn = (battle: Battle, rig: Vehicle, pilotCar: Vehicle): void => {
+				expect(play({ battle, driver: driverOf(rig), card: realCard('draw_fire'), target: pilotCar })).toBe(true);
+			};
+
+			test('a looter\'s shot at a hauler lands on the escort drawing fire', async () => {
+				const hauler = escortAt('fuel_hauler');
+				const { battle, rig, pilotCar, buggy } = rowSetup(hauler, { first: 'last' });
+				buggy.raiderArchetype = 'looter';
+				planShot(battle, buggy, potShot());
+				expect(battle.getIntents(buggy)[0].target).toBe(hauler.id);
+
+				drawFireOn(battle, rig, pilotCar);
+				expect(battle.getIntents(buggy)[0].target).toBe(pilotCar.id);
+				await battle.endPlayerTurn();
+
+				expect(hauler.armor).toBe(hauler.maxArmor);
+				expect(hauler.structure).toBe(hauler.maxStructure);
+				expect(logLines(battle, 'general')).toContain("Pilot Car draws Buggy's Pot Shot away from Fuel Hauler");
+				expect(logLines(battle, 'damage_dealt')).toContain(
+					'Pot Shot deals 3 total (3 to shield) damage to Pilot Car (Structure: 30/30 -> 30/30, Armor: 3/3 -> 3/3, Shield: 4 -> 1)'
+				);
+			});
+
+			test('a shot at another escort is pulled', async () => {
+				const outrider = escortAt('outrider');
+				const { battle, rig, pilotCar, buggy } = rowSetup(outrider);
+				planShot(battle, buggy, potShot());
+				expect(battle.getIntents(buggy)[0].target).toBe(outrider.id);
+
+				drawFireOn(battle, rig, pilotCar);
+				expect(battle.getIntents(buggy)[0].target).toBe(pilotCar.id);
+				await battle.endPlayerTurn();
+
+				expect(outrider.structure).toBe(outrider.maxStructure);
+				expect(logLines(battle, 'general')).toContain("Pilot Car draws Buggy's Pot Shot away from Outrider");
+			});
+
+			test('a shot at a vehicle that became an escort when its driver died is pulled', async () => {
+				// Two driven vehicles is the cap, so the Bike is the one that converts
+				const bike = createDriven('Bike', slot(P_INSIDE, CENTER));
+				const rig = createDriven('Rig', slot(P_INSIDE, BEHIND));
+				const pilotCar = escortAt('pilot_car', slot(P_OUTSIDE, CENTER));
+				const buggy = createDriven('Buggy', slot(E_INSIDE, CENTER));
+				const battle = createBattle([bike, rig, pilotCar], [buggy]);
+				planShot(battle, buggy, potShot());
+				// The driver dies after the raider planned, as in decision 46
+				driverOf(bike).takeDamage(1000);
+				battle.playerTeam.handleDriverDeath(bike);
+				expect(bike.isEscort).toBe(true);
+				expect(battle.getIntents(buggy)[0].target).toBe(bike.id);
+
+				drawFireOn(battle, rig, pilotCar);
+				expect(battle.getIntents(buggy)[0].target).toBe(pilotCar.id);
+				await battle.endPlayerTurn();
+
+				expect(bike.structure).toBe(20);
+				expect(logLines(battle, 'general')).toContain("Pilot Car draws Buggy's Pot Shot away from Bike");
+			});
+
+			test('a shot at the escort drawing fire lands on it as planned', async () => {
+				const hauler = escortAt('fuel_hauler');
+				const { battle, rig, pilotCar, buggy } = rowSetup(hauler, { first: 'pilotCar' });
+				planShot(battle, buggy, potShot());
+				expect(battle.getIntents(buggy)[0].target).toBe(pilotCar.id);
+
+				drawFireOn(battle, rig, pilotCar);
+				expect(battle.getIntents(buggy)[0].target).toBe(pilotCar.id);
+				await battle.endPlayerTurn();
+
+				expect(logLines(battle, 'general').filter(line => line.includes('draws'))).toEqual([]);
+				expect(logLines(battle, 'damage_dealt')).toContain(
+					'Pot Shot deals 3 total (3 to shield) damage to Pilot Car (Structure: 30/30 -> 30/30, Armor: 3/3 -> 3/3, Shield: 4 -> 1)'
+				);
+			});
+
+			test('a hauler in another row keeps the shot', async () => {
+				const hauler = escortAt('fuel_hauler');
+				const { battle, rig, pilotCar, buggy } = rowSetup(hauler);
+				hauler.slot = slot(P_OUTSIDE, AHEAD);
+				planShot(battle, buggy, potShot());
+
+				drawFireOn(battle, rig, pilotCar);
+				expect(battle.getIntents(buggy)[0].target).toBe(hauler.id);
+				await battle.endPlayerTurn();
+
+				expect(logLines(battle, 'damage_dealt').filter(line => line.includes('damage to Fuel Hauler'))).toHaveLength(1);
+				expect(logLines(battle, 'general').filter(line => line.includes('draws'))).toEqual([]);
+			});
+
+			test('an area hit isn\'t pulled off a hauler in the row', async () => {
+				const hauler = escortAt('fuel_hauler');
+				const { battle, rig, pilotCar, buggy } = rowSetup(hauler);
+				const blast = raiderCard('Blast', 'enemy_all', [{ type: 'damage', value: 3, target: 'enemy_all', always_hits: true }]);
+				planShot(battle, buggy, blast);
+
+				drawFireOn(battle, rig, pilotCar);
+				expect(battle.getIntents(buggy)[0].target).toBe('both');
+				await battle.endPlayerTurn();
+
+				// Each takes its own 3; the Pilot Car's Shield takes one hit, not the hauler's too
+				expect(logLines(battle, 'damage_dealt').filter(line => line.includes('damage to Fuel Hauler'))).toHaveLength(1);
+				expect(logLines(battle, 'damage_dealt')).toContain(
+					'Blast deals 3 total (3 to shield) damage to Pilot Car (Structure: 30/30 -> 30/30, Armor: 3/3 -> 3/3, Shield: 4 -> 1)'
+				);
+				expect(logLines(battle, 'general').filter(line => line.includes('draws'))).toEqual([]);
+			});
+
+			test('a Headshot at a hauler\'s passenger can\'t turn on an empty escort, so it keeps its target', async () => {
+				const hauler = escortAt('fuel_hauler');
+				const passenger = createTestDriver('Stowaway');
+				passenger.set({ hitpoints: 100, maxHitpoints: 100, role: DriverRole.PASSENGER });
+				hauler.passenger = passenger;
+				const { battle, rig, pilotCar, buggy } = rowSetup(hauler);
+				const headshot = raiderCard('Headshot', 'enemy_single', [{ type: 'damage', value: 2, target: 'driver', always_hits: true }]);
+				planShot(battle, buggy, headshot);
+				expect(battle.getIntents(buggy)[0].target).toBe(hauler.id);
+
+				drawFireOn(battle, rig, pilotCar);
+				expect(battle.getIntents(buggy)[0].target).toBe(hauler.id);
+				await battle.endPlayerTurn();
+
+				expect(passenger.hitpoints).toBeLessThan(100);
+				expect(logLines(battle, 'general').filter(line => line.includes('draws'))).toEqual([]);
+				expect(logLines(battle, 'fizzle')).toEqual([]);
+			});
+
+			test('the marks after Draw Fire are where the cards land', async () => {
+				const hauler = escortAt('fuel_hauler');
+				const { battle, rig, pilotCar, buggy } = rowSetup(hauler);
+				// The long shot can reach the Pilot Car; the range 1 shot reaches
+				// only the hauler, so it keeps its target
+				driverOf(buggy).set({ hand: [potShot(), potShot(1)], adrenaline: 5 });
+				battle.planEnemyTurn();
+				expect(battle.getIntents(buggy).map(intent => intent.target)).toEqual([hauler.id, hauler.id]);
+
+				drawFireOn(battle, rig, pilotCar);
+				const marks = battle.getIntents(buggy).map(intent => intent.target);
+				expect(marks).toEqual([pilotCar.id, hauler.id]);
+				await battle.endPlayerTurn();
+
+				const hits = logLines(battle, 'damage_dealt').filter(line => line.startsWith('Pot Shot'));
+				const byId = new Map([[hauler.id, hauler.name], [pilotCar.id, pilotCar.name]]);
+				expect(hits).toHaveLength(2);
+				hits.forEach((line, index) => expect(line).toContain(`damage to ${byId.get(marks[index] ?? '')}`));
+			});
+		});
+
 		test('lasts until the end of the next enemy turn', async () => {
 			const { battle, rig, pilotCar, buggy } = setup();
 			planShot(battle, buggy, potShot());
