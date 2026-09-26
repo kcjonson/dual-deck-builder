@@ -1018,55 +1018,6 @@ export class Battle extends Model<BattleData> {
 						);
 					}
 					break;
-
-				// Legacy effect names for compatibility
-				case 'armor':
-					if (targetVehicle) {
-						const armorValue = typeof effect.value === 'number' ? effect.value : 0;
-						const beforeArmor = targetVehicle.armor;
-						
-						targetVehicle.addArmor(armorValue);
-						
-						// Calculate actual armor gained
-						const armorGained = targetVehicle.armor - beforeArmor;
-						
-						// Show before and after armor state
-						const armorText = `${beforeArmor}/${targetVehicle.maxArmor} -> ${targetVehicle.armor}/${targetVehicle.maxArmor}`;
-						
-						this.log('armor_gained',
-							`${card.displayName} adds ${armorGained} armor to ${targetVehicle.name} (Armor: ${armorText})`,
-							{ card: card.displayName, target: targetVehicle.name, value: armorValue }
-						);
-					}
-					break;
-					
-				case 'draw': {
-					const legacyDrawValue = typeof effect.value === 'number' ? effect.value : 0;
-					caster.drawCards(legacyDrawValue);
-					this.log('general',
-						`${card.displayName} draws ${legacyDrawValue} cards for ${this.getDriverDisplayName(caster)}`,
-						{ card: card.displayName, driver: caster.metadata.name, value: legacyDrawValue }
-					);
-					break;
-				}
-					
-				case 'adrenaline': {
-					const legacyAdrenalineValue = typeof effect.value === 'number' ? effect.value : 0;
-					const beforeAdrenaline = caster.adrenaline;
-					const maxAdrenaline = caster.maxAdrenaline;
-					
-					caster.gainAdrenaline(legacyAdrenalineValue);
-					
-					const afterAdrenaline = caster.adrenaline;
-					const actualGained = afterAdrenaline - beforeAdrenaline;
-					const adrenalineText = `${beforeAdrenaline}/${maxAdrenaline} -> ${afterAdrenaline}/${maxAdrenaline}`;
-					
-					this.log('general',
-						`${card.displayName} gives ${actualGained} adrenaline to ${caster.metadata.name} (Adrenaline: ${adrenalineText})`,
-						{ card: card.displayName, driver: caster.metadata.name, value: legacyAdrenalineValue }
-					);
-					break;
-				}
 			}
 		}
 	}
