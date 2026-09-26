@@ -394,15 +394,16 @@ describe('Driver death', () => {
 			expect(battle.playerTeam.isDefeated()).toBe(true);
 		});
 
-		test('a wreck survivor is not seated in a vehicle with nobody aboard', () => {
-			bikeDriver.set({ hitpoints: 2 });
-			bike.takeDamage(4);
-			expect(bike.driver).toBeNull();
+		test('a raider wreck survivor is not seated in a raider with nobody aboard', () => {
+			buggyDriver.set({ hitpoints: 2 });
+			buggy.takeDamage(4);
+			battle.enemyTeam.handleDriverDeath(buggy);
+			expect(buggy.isUnmanned()).toBe(true);
 
-			wreck(battle.playerTeam, rig);
+			wreck(battle.enemyTeam, hauler);
 
-			expect(bike.passenger).toBeNull();
-			expect(battle.playerTeam.isDefeated()).toBe(true);
+			expect(buggy.passenger).toBeNull();
+			expect(battle.enemyTeam.isDefeated()).toBe(true);
 		});
 	});
 
@@ -444,7 +445,7 @@ describe('Driver death', () => {
 			expect(battle.battleWon).toBe(true);
 		});
 
-		test('a player vehicle whose driver dies alone leaves the road, and the partner fights on', async () => {
+		test('a player vehicle whose driver dies alone stays on the road as an escort, and the partner fights on', async () => {
 			rigDriver.set({ hitpoints: 5 });
 			giveHand(buggyDriver, [headshot()]);
 			battle.planEnemyTurn();
@@ -452,15 +453,15 @@ describe('Driver death', () => {
 
 			await battle.endPlayerTurn();
 
-			expect(messages()).toContain('Rig has nobody aboard and is out of the fight');
-			expect(messages()).toContain('Rig has nobody aboard and leaves the road');
+			expect(messages()).toContain('Rig has nobody at the wheel and carries on as an escort');
 			expect(battle.battleOver).toBe(false);
-			expect(battle.playerTeam.vehicles).toEqual([bike]);
-			expect(rig.slot).toBeNull();
+			expect(battle.playerTeam.vehicles).toEqual([bike, rig]);
+			expect(rig.isEscort).toBe(true);
+			expect(rig.slot).toEqual({ lane: RoadLane.PLAYER_INSIDE, row: RoadRow.CENTER });
 			expect(bike.driver).toBe(bikeDriver);
 		});
 
-		test('a planned attack on a vehicle emptied earlier in the enemy turn fizzles', async () => {
+		test('a planned attack on a vehicle emptied earlier in the enemy turn lands on it as an escort, all on structure', async () => {
 			rigDriver.set({ hitpoints: 5 });
 			giveHand(buggyDriver, [headshot()]);
 			giveHand(haulerDriver, [farShot()]);
@@ -470,11 +471,10 @@ describe('Driver death', () => {
 
 			await battle.endPlayerTurn();
 
-			expect(rig.structure).toBe(20);
-			expect(messages()).toContain("Hauler's Far Shot fizzles: Rig has nobody aboard");
+			expect(rig.structure).toBe(16);
 		});
 
-		test('a driver who kills themself leaves their vehicle empty', () => {
+		test('a driver who kills themself on the player turn leaves their vehicle an escort, spent until the next turn', async () => {
 			rigDriver.set({ hitpoints: 5 });
 			giveHand(rigDriver, [berserk()]);
 
@@ -482,7 +482,15 @@ describe('Driver death', () => {
 
 			expect(rigDriver.isAlive()).toBe(false);
 			expect(rig.driver).toBeNull();
+			expect(rig.isEscort).toBe(true);
+			expect(rig.spent).toBe(true);
+			expect(rig.isReady).toBe(false);
 			expect(battle.battleOver).toBe(false);
+
+			await battle.endPlayerTurn();
+
+			expect(battle.isPlayerTurn).toBe(true);
+			expect(rig.isReady).toBe(true);
 		});
 	});
 
@@ -561,8 +569,7 @@ describe('Driver death', () => {
 		});
 
 		test('and fizzles when everyone who got out crashed out', async () => {
-			bikeDriver.set({ hitpoints: 2 });
-			bike.takeDamage(4);
+			bike.set({ passenger: createTestDriver('Stowaway') });
 			wreck(battle.playerTeam, rig);
 			expect(rigDriver.isAlive()).toBe(true);
 

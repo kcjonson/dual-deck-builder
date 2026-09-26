@@ -2,7 +2,7 @@ import { Battle } from './Battle';
 import { Card, CardData } from './Card';
 import { Convoy } from './Convoy';
 import { Driver } from './Driver';
-import { EscortProfile, EscortType, createEscort } from './Escort';
+import { EscortType, createEscort } from './Escort';
 import { RoadLane, RoadRow, RoadSlot } from './Road';
 import { MAX_CONVOY_ESCORTS, Team, TeamType } from './Team';
 import { Vehicle } from './Vehicle';
@@ -46,24 +46,13 @@ const signatureCopy = (escort: Vehicle): Card => {
 };
 
 /**
- * A driven vehicle whose driver died with no passenger, turned into an
- * escort with default crew stats. DDB-152 builds the conversion and owns
- * the real profile; this stands in for it.
+ * A driven vehicle whose driver dies with no passenger becomes an escort,
+ * through the battle's own path (Team.handleDriverDeath)
  */
-const convertToEscort = (vehicle: Vehicle): void => {
+const convertToEscort = (battle: Battle, vehicle: Vehicle): void => {
 	driverOf(vehicle).takeDamage(1000);
-	const profile: EscortProfile = {
-		type: 'outrider',
-		role: 'gun',
-		gunnery: 3,
-		evade: 3,
-		ramming: 3,
-		preferredSlot: { lane: 'inside', row: RoadRow.AHEAD },
-		signatureCard: '',
-		dividend: null,
-		setPiece: false
-	};
-	vehicle.set({ driver: null, escort: profile });
+	battle.playerTeam.handleDriverDeath(vehicle);
+	expect(vehicle.isEscort).toBe(true);
 };
 
 /** End the fight as a win, the only fight haulers pay out after */
@@ -298,7 +287,7 @@ describe('Convoy', () => {
 			const battle = createBattle([rig, bike, ...convoy.escorts]);
 			const roster = [...convoy.escorts];
 
-			convertToEscort(bike);
+			convertToEscort(battle, bike);
 			const result = battle.endCombat();
 			convoy.afterFight(result);
 
@@ -318,7 +307,7 @@ describe('Convoy', () => {
 			const battle = createBattle([rig, bike]);
 			const deckSize = driverOf(rig).deck?.size;
 
-			convertToEscort(bike);
+			convertToEscort(battle, bike);
 			bike.destroy();
 			const result = battle.endCombat();
 

@@ -198,6 +198,25 @@ describe('Raider target preferences', () => {
 			expect(killer.target).toBe(killer.rig.id);
 		});
 
+		test('passes up a driven vehicle that became an escort when its driver died', () => {
+			const planAgainstConverted = (archetype: RaiderArchetype | null): { target: string | null; rig: Vehicle; bike: Vehicle } => {
+				const { battle, rig, bike, buggy } = setup({ archetype });
+				driverOf(rig).takeDamage(1000);
+				battle.playerTeam.handleDriverDeath(rig);
+				expect(rig.isEscort).toBe(true);
+				rig.set({ structure: 2 });
+				battle.aiController.setEnemyAI('aggressive');
+				plan(battle, buggy, [potShot()]);
+				return { target: intentTargets(battle, buggy)[0], rig, bike };
+			};
+
+			const unaligned = planAgainstConverted(null);
+			expect(unaligned.target).toBe(unaligned.rig.id);
+
+			const killer = planAgainstConverted('killer');
+			expect(killer.target).toBe(killer.bike.id);
+		});
+
 		test('Draw Fire still pulls its shot onto the escort in the row', async () => {
 			const pilotCar = escortAt('pilot_car', slot(P_OUTSIDE, CENTER));
 			const { battle, rig, buggy } = setup({ archetype: 'killer', escorts: [pilotCar] });

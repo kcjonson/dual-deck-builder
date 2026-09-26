@@ -675,9 +675,9 @@ describe('Combat Mechanics', () => {
 			playerVehicle1.takeDamage(60);
 
 			// Driver should attempt to jump to vehicle 2
-			const jumped = playerTeam.handleDriverEscape(playerDriver1);
+			const seat = playerTeam.handleDriverEscape({ driver: playerDriver1, from: playerVehicle1.slot });
 
-			expect(jumped).toBe(true);
+			expect(seat).toBe(playerVehicle2);
 			expect(playerVehicle2.passenger).toBe(playerDriver1);
 			expect(playerDriver1.role).toBe(DriverRole.PASSENGER);
 		});
