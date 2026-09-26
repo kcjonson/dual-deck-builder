@@ -123,7 +123,7 @@ Decided by Kevin, 2026-09-25. Record: [enemy-intent-planning.md](../AI_TECHNICAL
 - Basic raiders show everything. Elites show the type and target but hide the value and the card. Bosses behave like elites until bosses are designed.
 - Raider archetypes have target preferences, applied when the raider plans: looters go for haulers, killers go for drivers (driven vehicles). The preference shows only through the planned intents' target marks, so the player reads it off the road before acting. An archetype picks its preferred target when that target is legal for the card, and otherwise plans as usual. Draw Fire is the counter (see Escorts). Which raiders are looters or killers isn't assigned yet; DDB-150 does that.
 - Draw Fire lasts until the end of the next enemy turn. Each intent aimed at a driven vehicle in the escort's row is judged as it plays: if its card can reach the escort, it hits the escort instead; if not, it hits its original target as planned. Draw Fire protects; it never makes an attack fizzle. Target marks update when Draw Fire is played, so the end-turn preview shows the redirect. If two Draw Fires cover the same row, the last one played wins.
-- An escort is a legal target like any vehicle. It has no HP of its own, so a driver-only attack (Headshot) has nothing to hit on an empty one. DDB-148 decides whether that makes an empty escort an illegal Headshot target or makes the card fizzle, and whether Headshot can hit a passenger riding in an escort.
+- An escort is a legal target like any vehicle, except for a driver-only attack (Headshot): an empty escort has no HP of its own, so it isn't a legal Headshot target. An escort carrying a passenger is, and Headshot hits the passenger. A planned Headshot whose passenger dies before it plays fizzles. Decided in DDB-148; see [escorts.md](../AI_TECHNICAL_DECISIONS/escorts.md) decision 22.
 
 ## Escorts
 
@@ -201,7 +201,8 @@ Gunnery, evade, ramming, armor, structure, the haulers' speeds, and the default 
     - Damage done is: 1 - infinite
     - Drivers with flanking do 50% more damage (the Flank card, the code, and this rule agree)
     - Reduces armor first
-    - When armor <= 0, Applies half of remaining to the structure of a vehicle and its driver and passengers
+    - When armor <= 0, Applies half of remaining to the structure of a vehicle and its driver and passengers. With nobody aboard (an empty escort), all of it goes to structure.
+    - An escort attacks and defends with its own gunnery, ramming, and evade (see Escorts).
 
 Specific Cards
 - Point Blank : Ranged Attack
@@ -219,7 +220,7 @@ Specific Cards
 - Headshot: Ranged Attack
   - Rarity Rare
   - Adrenaline 2
-  - Target: driver
+  - Target: driver, or the passenger riding in an escort. An empty escort isn't a legal target.
   - An attack hits if the attacking drivers gunnery > the defending drivers evade + 2.  
   - Does no structure damage
   - Damage 2

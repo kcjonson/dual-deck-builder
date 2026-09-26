@@ -139,6 +139,9 @@ export class BoardProjection {
 		if (target.isUnmanned()) {
 			return `${target.name} has nobody aboard`;
 		}
+		if (card.hitsDriverOnly && !target.driverOnlyTarget) {
+			return `${target.name} has nobody aboard to hit`;
+		}
 		if (!casterState?.slot) {
 			return `${caster.name} is not on the road`;
 		}
@@ -243,8 +246,8 @@ export class BoardProjection {
 					const statusVehicle = appliesToSelf ? caster : target;
 					if (!statusVehicle || !effect.status) break;
 					if (effect.condition === 'target_flanking' && !this.isFlanking(statusVehicle)) break;
-					if (!effect.always_hits && !appliesToSelf && statusVehicle.driver &&
-						!this.battle.checkHit(driver, statusVehicle.driver)) {
+					if (!effect.always_hits && !appliesToSelf &&
+						!this.battle.checkHit({ attacker: caster, caster: driver, defender: statusVehicle })) {
 						break;
 					}
 					const state = this.vehicles.get(statusVehicle);

@@ -123,6 +123,13 @@ export class Card extends Model<CardData> {
 		return this.fillVariables(this.description);
 	}
 
+	/**
+	 * Damage that skips the vehicle and hits one person aboard (Headshot)
+	 */
+	get hitsDriverOnly(): boolean {
+		return this.effects.some(effect => effect.type === 'damage' && effect.target === 'driver');
+	}
+
 	private fillVariables(template: string): string {
 		return template.replace(/\{(\w+)\}/g, (placeholder, name: string) => {
 			const value = this.getVariableValue(name);

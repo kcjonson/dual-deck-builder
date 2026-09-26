@@ -81,7 +81,7 @@ export class CardEffectValidator {
 						}
 						
 						// Check if we can hit this specific target
-						if (target.driver) {
+						if (!target.isOutOfFight && (effect.target !== 'driver' || target.driverOnlyTarget)) {
 							// Check range if specified
 							if (typeof effect.range === 'number') {
 								const range = board.range(casterVehicle, target);
@@ -204,7 +204,7 @@ export class CardEffectValidator {
 		target: Vehicle | null,
 		battle: Battle
 	): number {
-		if (!target || !target.driver) return 0;
+		if (!target || target.isOutOfFight) return 0;
 
 		const casterVehicle = this.getVehicleForDriver(caster, battle);
 		if (!casterVehicle) return 0;
@@ -226,7 +226,7 @@ export class CardEffectValidator {
 					const attackType = (typeof effect.attack_type === 'string' ? effect.attack_type : null) || 
 						(effect.scaling === 'ramming' ? 'ramming' : 'ranged');
 					const hitModifier = typeof effect.hit_modifier === 'number' ? effect.hit_modifier : 0;
-					if (!battle.checkHit(caster, target.driver, attackType, hitModifier)) {
+					if (!battle.checkHit({ attacker: casterVehicle, caster, defender: target, attackType, modifier: hitModifier })) {
 						continue; // Will miss
 					}
 				}
