@@ -284,30 +284,75 @@ describe('Vehicle', () => {
 
 	describe('Driver Management', () => {
 		test('should handle driver death with no passenger', () => {
+			driver.takeDamage(driver.hitpoints);
 			vehicle.handleDriverDeath();
-			
+
 			expect(vehicle.driver).toBeNull();
 			expect(vehicle.isUnmanned()).toBe(true);
+			expect(vehicle.isOutOfFight).toBe(true);
+		});
+
+		test('should leave a living driver at the wheel', () => {
+			vehicle.passenger = passenger;
+
+			vehicle.handleDriverDeath();
+
+			expect(vehicle.driver).toBe(driver);
+			expect(vehicle.passenger).toBe(passenger);
 		});
 
 		test('should promote passenger to driver on driver death', () => {
 			vehicle.passenger = passenger;
 			passenger.role = DriverRole.PASSENGER;
-			
+
+			driver.takeDamage(driver.hitpoints);
 			vehicle.handleDriverDeath();
-			
+
 			expect(vehicle.driver).toBe(passenger);
 			expect(vehicle.passenger).toBeNull();
 			expect(passenger.role).toBe(DriverRole.ACTIVE);
 		});
 
+		test('should not promote a dead passenger', () => {
+			vehicle.passenger = passenger;
+			driver.takeDamage(driver.hitpoints);
+			passenger.takeDamage(passenger.hitpoints);
+
+			vehicle.handleDriverDeath();
+
+			expect(vehicle.driver).toBeNull();
+			expect(vehicle.passenger).toBeNull();
+		});
+
+		test('should clear a dead passenger and keep the living driver', () => {
+			vehicle.passenger = passenger;
+			passenger.takeDamage(passenger.hitpoints);
+
+			vehicle.handleDriverDeath();
+
+			expect(vehicle.driver).toBe(driver);
+			expect(vehicle.passenger).toBeNull();
+		});
+
+		test('should handle a driver killed by damage to the vehicle', () => {
+			vehicle.passenger = passenger;
+			vehicle.armor = 0;
+			driver.hitpoints = 1;
+
+			vehicle.takeDamage(2);
+
+			expect(vehicle.driver).toBe(passenger);
+			expect(vehicle.passenger).toBeNull();
+		});
+
 		test('should emit driver change events', () => {
 			const driverChangeSpy = jest.fn();
 			vehicle.on('driverChanged', driverChangeSpy);
-			
+
 			vehicle.passenger = passenger;
+			driver.takeDamage(driver.hitpoints);
 			vehicle.handleDriverDeath();
-			
+
 			expect(driverChangeSpy).toHaveBeenCalledWith({
 				oldDriver: driver,
 				newDriver: passenger
@@ -330,6 +375,19 @@ describe('Vehicle', () => {
 			
 			const result = vehicle.addPassenger(passenger);
 			expect(result).toBe(false);
+		});
+
+		test('should not seat a passenger behind a dead driver', () => {
+			driver.takeDamage(driver.hitpoints);
+
+			expect(vehicle.canAddPassenger()).toBe(false);
+			expect(vehicle.addPassenger(passenger)).toBe(false);
+		});
+
+		test('should not seat a passenger in an unmanned vehicle', () => {
+			vehicle.driver = null;
+
+			expect(vehicle.canAddPassenger()).toBe(false);
 		});
 	});
 

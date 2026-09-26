@@ -79,7 +79,9 @@ export class Team extends Model<TeamData> {
 	}
 
 	/**
-	 * Check if team is defeated (all drivers dead)
+	 * No driver still in the fight, driving or riding. The dead leave their
+	 * seats, and a driver who crashed out never got one, so only living
+	 * drivers still aboard a vehicle count.
 	 */
 	public isDefeated(): boolean {
 		return this.getAliveDrivers().length === 0;
@@ -131,10 +133,10 @@ export class Team extends Model<TeamData> {
 	}
 
 	/**
-	 * Refill adrenaline for all drivers at start of turn
+	 * Refill adrenaline for all living drivers at start of turn
 	 */
 	public refillAdrenaline(): void {
-		this.getAllDrivers().forEach(driver => driver.refillAdrenaline());
+		this.getAliveDrivers().forEach(driver => driver.refillAdrenaline());
 	}
 
 	/**
@@ -177,8 +179,8 @@ export class Team extends Model<TeamData> {
 	}
 
 	/**
-	 * Seat a driver as a passenger in the first alive team vehicle with room.
-	 * Returns false if there's no room anywhere.
+	 * Seat a driver as a passenger in the first team vehicle with a free seat
+	 * behind a living driver. Returns false if there's no room anywhere.
 	 */
 	public handleDriverEscape(driver: Driver): boolean {
 		const availableVehicle = this.vehicles.find(v => v.canAddPassenger());

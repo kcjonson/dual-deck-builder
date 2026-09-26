@@ -63,6 +63,14 @@ export interface BattleMessage {
 }
 
 /**
+ * A vehicle's driver and its living occupants, taken before a hit
+ */
+interface Crew {
+	driver: Driver | null;
+	living: Driver[];
+}
+
+/**
  * Cards each driver draws at the start of every turn
  */
 export const TURN_DRAW = 5;
@@ -117,7 +125,11 @@ export class Battle extends Model<BattleData> {
 
 	// Each raider's committed cards for the coming enemy turn (stored separately due to Model freezing)
 	private static enemyPlans = new WeakMap<Battle, Map<Vehicle, PlannedAction[]>>();
-	
+
+	// Each team's drivers in the order they were first seated, so a driver's
+	// log name (Player1, Enemy2) survives a wreck or a death
+	private static driverSeats = new WeakMap<Battle, Map<TeamType, Driver[]>>();
+
 	// Static flag to control console logging
 	public static suppressConsoleLog = false;
 
@@ -153,6 +165,11 @@ export class Battle extends Model<BattleData> {
 		}
 
 		this.placeOpeningFormation();
+
+		Battle.driverSeats.set(this, new Map([
+			[TeamType.PLAYER, playerTeam.getAllDrivers()],
+			[TeamType.ENEMY, enemyTeam.getAllDrivers()]
+		]));
 
 		// Initialize AI controller (stored in WeakMap to avoid Model freezing issues)
 		Battle.aiControllers.set(this, new AIController(this));
@@ -333,17 +350,19 @@ export class Battle extends Model<BattleData> {
 			return false;
 		}
 
+		// Check life, cost, passenger rules, and target before the card leaves
+		// the hand. A dead driver has left their seat, so this comes before the
+		// team check to say why.
+		const blocker = driver.getPlayBlocker(cardIndex);
+		if (blocker) {
+			this.log('general', `Cannot play card: ${blocker}`);
+			return false;
+		}
+
 		// Validate the driver belongs to the player team
 		const playerDrivers = this.playerTeam.getAllDrivers();
 		if (!playerDrivers.includes(driver)) {
 			this.log('general', 'Driver does not belong to player team');
-			return false;
-		}
-
-		// Check cost, passenger rules, and target before the card leaves the hand
-		const blocker = driver.getPlayBlocker(cardIndex);
-		if (blocker) {
-			this.log('general', `Cannot play card: ${blocker}`);
 			return false;
 		}
 
@@ -565,9 +584,9 @@ export class Battle extends Model<BattleData> {
 	/**
 	 * Play one planned card. It's spent either way. A target wrecked since
 	 * the plan was made is followed to the vehicle its driver now rides in as
-	 * a passenger; anything else that makes the card illegal (the player
-	 * moved out of range, outpaced a flank, or a flanker dropped back) makes
-	 * it fizzle. See docs/AI_TECHNICAL_DECISIONS/enemy-intent-planning.md.
+	 * a passenger; anything else that makes the card illegal (the target has
+	 * nobody aboard, the player moved out of range, outpaced a flank, or a
+	 * flanker dropped back) makes it fizzle. See docs/AI_TECHNICAL_DECISIONS/enemy-intent-planning.md.
 	 */
 	private playPlannedAction(raider: Vehicle, action: PlannedAction): void {
 		const { card, driver } = action;
@@ -605,6 +624,11 @@ export class Battle extends Model<BattleData> {
 			}
 			this.log('general', `${wreck.name} is wrecked, so ${raider.name} turns ${card.displayName} on ${target.name}`,
 				{ vehicle: raider.name, card: card.displayName, target: target.name });
+		}
+		if (target.isUnmanned()) {
+			this.log('fizzle', `${raider.name}'s ${card.displayName} fizzles: ${target.name} has nobody aboard`,
+				{ vehicle: raider.name, card: card.displayName, target: target.name });
+			return;
 		}
 
 		const reason = this.getPlannedCardBlocker(card, raider, target);
@@ -748,48 +772,37 @@ export class Battle extends Model<BattleData> {
 						// Apply damage to specific target
 						if (effect.target === 'driver' && targetVehicle.driver) {
 							// Direct driver damage (e.g., Headshot)
-							targetVehicle.driver.takeDamage(damage);
-							this.log('damage_dealt',
-								`${card.displayName} deals ${damage} damage to ${this.getDriverDisplayName(targetVehicle.driver)}`,
-								{ card: card.displayName, target: targetVehicle.driver.metadata.name, value: damage }
-							);
+							this.damageDriver({ driver: targetVehicle.driver, vehicle: targetVehicle, damage, card });
 						} else if (effect.target === 'self_driver') {
 							// Self damage (e.g., Berserker)
-							caster.takeDamage(damage);
-							this.log('damage_dealt',
-								`${card.displayName} deals ${damage} damage to ${this.getDriverDisplayName(caster)}`,
-								{ card: card.displayName, target: caster.metadata.name, value: damage }
-							);
+							this.damageDriver({ driver: caster, vehicle: this.getVehicleForDriver(caster), damage, card });
 						} else {
 							// Normal vehicle damage
 							const beforeStructure = targetVehicle.structure;
 							const beforeArmor = targetVehicle.armor;
-							
-							// Store driver health before damage
-							const beforeDriverHealth = targetVehicle.driver ? targetVehicle.driver.hitpoints : 0;
-							const beforePassengerHealth = targetVehicle.passenger ? targetVehicle.passenger.hitpoints : 0;
-							
+							const crew = this.crewOf(targetVehicle);
+							const beforeCrewHealth = crew.living.reduce((sum, occupant) => sum + occupant.hitpoints, 0);
+
 							targetVehicle.takeDamage(damage);
-							
+
 							// Calculate damage distribution
 							const armorDamage = beforeArmor - targetVehicle.armor;
 							const structureDamage = beforeStructure - targetVehicle.structure;
-							const driverDamage = targetVehicle.driver ? beforeDriverHealth - targetVehicle.driver.hitpoints : 0;
-							const passengerDamage = targetVehicle.passenger ? beforePassengerHealth - targetVehicle.passenger.hitpoints : 0;
-							
+							const occupantDamage = beforeCrewHealth - crew.living.reduce((sum, occupant) => sum + occupant.hitpoints, 0);
+
 							// Build damage breakdown message
 							let damageBreakdown = `${damage} total`;
 							if (armorDamage > 0) {
 								damageBreakdown += ` (${armorDamage} to armor`;
-								if (structureDamage > 0 || driverDamage > 0 || passengerDamage > 0) {
+								if (structureDamage > 0 || occupantDamage > 0) {
 									damageBreakdown += `, ${structureDamage} to structure`;
-									if (driverDamage > 0 || passengerDamage > 0) {
-										damageBreakdown += `, ${driverDamage + passengerDamage} to occupants`;
+									if (occupantDamage > 0) {
+										damageBreakdown += `, ${occupantDamage} to occupants`;
 									}
 								}
 								damageBreakdown += ')';
-							} else if (structureDamage > 0 || driverDamage > 0 || passengerDamage > 0) {
-								damageBreakdown += ` (${structureDamage} to structure, ${driverDamage + passengerDamage} to occupants)`;
+							} else if (structureDamage > 0 || occupantDamage > 0) {
+								damageBreakdown += ` (${structureDamage} to structure, ${occupantDamage} to occupants)`;
 							}
 							
 							// Show before and after state
@@ -800,8 +813,9 @@ export class Battle extends Model<BattleData> {
 								`${card.displayName} deals ${damageBreakdown} damage to ${targetVehicle.name} (Structure: ${structureText}, Armor: ${armorText})`,
 								{ card: card.displayName, target: targetVehicle.name, value: damage }
 							);
+							this.logDeaths(targetVehicle, crew);
 						}
-						
+
 						// Handle vehicle destruction
 						if (!targetVehicle.isAlive()) {
 							const owningTeam = this.getTeamForVehicle(targetVehicle);
@@ -1032,6 +1046,65 @@ export class Battle extends Model<BattleData> {
 	}
 
 	/**
+	 * Who is aboard a vehicle before a hit, to tell afterwards who it killed
+	 */
+	private crewOf(vehicle: Vehicle): Crew {
+		return {
+			driver: vehicle.driver,
+			living: [vehicle.driver, vehicle.passenger].filter((occupant): occupant is Driver => occupant?.isAlive() ?? false)
+		};
+	}
+
+	/**
+	 * Damage that skips the vehicle and lands on one driver (Headshot,
+	 * Berserker). A driver it kills leaves their seat.
+	 */
+	private damageDriver({
+		driver,
+		vehicle,
+		damage,
+		card
+	}: {
+		driver: Driver;
+		vehicle: Vehicle | null;
+		damage: number;
+		card: Card;
+	}): void {
+		const crew = vehicle ? this.crewOf(vehicle) : null;
+		driver.takeDamage(damage);
+		this.log('damage_dealt',
+			`${card.displayName} deals ${damage} damage to ${this.getDriverDisplayName(driver)}`,
+			{ card: card.displayName, target: driver.metadata.name, value: damage }
+		);
+		if (vehicle && crew) {
+			vehicle.handleDriverDeath();
+			this.logDeaths(vehicle, crew);
+		}
+	}
+
+	/**
+	 * Log who a hit killed and who has the wheel now. The vehicle has already
+	 * taken the dead out of their seats. A wreck's survivors are logged by
+	 * where they jump, not here.
+	 */
+	private logDeaths(vehicle: Vehicle, crew: Crew): void {
+		for (const occupant of crew.living) {
+			if (!occupant.isAlive()) {
+				this.log('general', `${this.getDriverDisplayName(occupant)} is dead`, { driver: occupant.metadata.name });
+			}
+		}
+		if (!vehicle.isAlive() || vehicle.driver === crew.driver) {
+			return;
+		}
+		if (vehicle.driver) {
+			this.log('general', `${this.getDriverDisplayName(vehicle.driver)} takes the wheel of ${vehicle.name}`,
+				{ driver: vehicle.driver.metadata.name, vehicle: vehicle.name });
+		} else {
+			this.log('general', `${vehicle.name} has nobody aboard and is out of the fight`, { vehicle: vehicle.name });
+		}
+	}
+
+	/**
 	 * Check if the battle is over
 	 */
 	private checkBattleStatus(): void {
@@ -1137,12 +1210,12 @@ export class Battle extends Model<BattleData> {
 	/**
 	 * Flankers that are no longer faster than the vehicle they outran swerve
 	 * back to their reserved slot. Runs at the end of every turn. A flanker
-	 * whose outran vehicle is wrecked holds the shoulder.
+	 * whose outran vehicle is out of the fight holds the shoulder.
 	 */
 	private dropBackFlankers(): void {
 		for (const vehicle of this.getAllVehicles()) {
 			const flank = vehicle.flank;
-			if (!flank || !vehicle.isAlive() || !flank.outran.isAlive()) continue;
+			if (!flank || vehicle.isOutOfFight || flank.outran.isOutOfFight) continue;
 			if (vehicle.canFlank(flank.outran)) continue;
 
 			vehicle.set({ slot: flank.reservedSlot, flank: null });
@@ -1158,13 +1231,18 @@ export class Battle extends Model<BattleData> {
 	 * its slot (or its shoulder slot and reservation, if it was flanking).
 	 * At the end of that turn, yours or the enemy's, it leaves the road and
 	 * its team. Its occupants already jumped out when it was wrecked.
+	 *
+	 * A vehicle with nobody alive aboard leaves the same way. The spec has a
+	 * raider do this; a player vehicle should become an escort instead, which
+	 * waits on DDB-152, so for now it leaves too.
 	 */
 	private clearWrecks(): void {
 		for (const team of [this.playerTeam, this.enemyTeam]) {
-			for (const wreck of team.vehicles.filter(vehicle => !vehicle.isAlive())) {
-				team.removeVehicle(wreck);
-				wreck.set({ slot: null, flank: null });
-				this.log('general', `${wreck.name} is wrecked and leaves the road`, { vehicle: wreck.name });
+			for (const vehicle of team.vehicles.filter(candidate => candidate.isOutOfFight)) {
+				team.removeVehicle(vehicle);
+				vehicle.set({ slot: null, flank: null });
+				const reason = vehicle.isAlive() ? 'has nobody aboard' : 'is wrecked';
+				this.log('general', `${vehicle.name} ${reason} and leaves the road`, { vehicle: vehicle.name });
 			}
 		}
 	}
@@ -1252,6 +1330,10 @@ export class Battle extends Model<BattleData> {
 			this.log('general', `${target.name} is wrecked`);
 			return false;
 		}
+		if (target.isUnmanned()) {
+			this.log('general', `${target.name} has nobody aboard`);
+			return false;
+		}
 
 		const casterVehicle = this.getVehicleForDriver(caster);
 		if (!casterVehicle) return false;
@@ -1326,10 +1408,10 @@ export class Battle extends Model<BattleData> {
 	}
 	
 	/**
-	 * Draw the start-of-turn hand for every driver on both teams
+	 * Draw the start-of-turn hand for every living driver on both teams
 	 */
 	private drawTurnHands(): void {
-		for (const driver of [...this.playerTeam.getAllDrivers(), ...this.enemyTeam.getAllDrivers()]) {
+		for (const driver of [...this.playerTeam.getAliveDrivers(), ...this.enemyTeam.getAliveDrivers()]) {
 			this.logBurnedCards(driver, driver.drawCards(TURN_DRAW));
 		}
 	}
@@ -1360,17 +1442,27 @@ export class Battle extends Model<BattleData> {
 	}
 
 	/**
-	 * Get driver display name with team prefix (e.g., "Player1 Road Warrior")
+	 * Driver name with their seat prefix (e.g., "Player1 Road Warrior"). The
+	 * seat is where they started the fight, so it doesn't change when they
+	 * ride on as a passenger or die. A driver seated later takes the next
+	 * number on their team.
 	 */
 	private getDriverDisplayName(driver: Driver): string {
+		const seats = Battle.driverSeats.get(this);
+		if (!seats) return driver.metadata.name;
+
+		for (const [teamType, drivers] of seats) {
+			const seat = drivers.indexOf(driver) + 1;
+			if (seat > 0) {
+				return `${teamType === TeamType.PLAYER ? 'Player' : 'Enemy'}${seat} ${driver.metadata.name}`;
+			}
+		}
+
 		const team = this.getTeamForDriver(driver);
-		if (!team) return driver.metadata.name;
-		
-		const teamDrivers = team.getAllDrivers();
-		const driverIndex = teamDrivers.indexOf(driver) + 1;
-		const teamPrefix = team.type === TeamType.PLAYER ? `Player${driverIndex}` : `Enemy${driverIndex}`;
-		
-		return `${teamPrefix} ${driver.metadata.name}`;
+		const teamSeats = team && seats.get(team.type);
+		if (!teamSeats) return driver.metadata.name;
+		teamSeats.push(driver);
+		return this.getDriverDisplayName(driver);
 	}
 
 	/**

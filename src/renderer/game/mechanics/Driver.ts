@@ -299,6 +299,9 @@ export class Driver extends Model<DriverData> {
 	 * Moves nothing, so a caller can check the target before spending the card.
 	 */
 	public getPlayBlocker(cardIndex: number): string | null {
+		if (!this.isAlive()) {
+			return 'Dead drivers cannot play cards';
+		}
 		const card = this.hand[cardIndex];
 		if (!card) {
 			return 'Invalid card index';
@@ -431,7 +434,7 @@ export class Driver extends Model<DriverData> {
 	 * Check if driver can play a specific card (cost + restrictions)
 	 */
 	public canPlayCard(card: Card): boolean {
-		if (!this.canAffordCard(card)) {
+		if (!this.isAlive() || !this.canAffordCard(card)) {
 			return false;
 		}
 
