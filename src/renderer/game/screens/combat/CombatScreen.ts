@@ -8,6 +8,7 @@ import { ResourceBarLayer } from './ResourceBarLayer';
 import { CombatLogLayer } from './CombatLogLayer';
 import { TurnPhaseDisplay, CombatPhase } from './TurnPhaseDisplay';
 import { CombatModel } from './CombatModel';
+import { buildPlayerHandView } from './PlayerHandView';
 import { Driver, DriverRole } from '../../mechanics/Driver';
 import { assertDriverPair } from '../../mechanics/DriverPair';
 import { CombatLog, CombatLogType } from '../../mechanics/CombatLog';
@@ -46,8 +47,9 @@ export class CombatScreen extends Screen {
 	private fuel = 5;
 	private scrap = 150;
 	
-	// Driver-card mapping
-	private cardDriverMap: Map<string, 1 | 2> = new Map();
+	// The player's drivers in seat order (Driver 1, Driver 2), fixed for the
+	// fight so a driver keeps their seat after riding on as a passenger
+	private playerDrivers: Driver[] = [];
 	
 	// UI state
 	private combatLogVisible = false;
@@ -99,6 +101,8 @@ export class CombatScreen extends Screen {
 			// Assign drivers to their vehicles
 			vehicle1.driver = driver1;
 			vehicle2.driver = driver2;
+
+			this.playerDrivers = [driver1, driver2];
 
 			// Create player team
 			this.playerTeam = new Team({
@@ -197,8 +201,8 @@ export class CombatScreen extends Screen {
 		this.unsubscribers.push(
 			this.battle.on('cardPlayed', (event: { driver: Driver; card: Card; targetVehicle?: Vehicle }) => {
 				// Log card play with driver info
-				const driverNumber = this.playerTeam?.getAllDrivers().indexOf(event.driver);
-				if (driverNumber !== undefined && driverNumber >= 0) {
+				const driverNumber = this.playerDrivers.indexOf(event.driver);
+				if (driverNumber >= 0) {
 					let message = `played ${event.card.displayName}`;
 					if (event.targetVehicle) {
 						message += ` targeting ${event.targetVehicle.name}`;
@@ -363,53 +367,20 @@ export class CombatScreen extends Screen {
 	private updateUIFromBattle(): void {
 		if (!this.battle || !this.playerTeam || !this.enemyTeam) return;
 
-		// const battleStats = this.battle.getBattleStats(); // For future use
-		
-		// Get both drivers
-		const drivers = this.playerTeam.getAllDrivers();
-		if (drivers.length >= 2) {
-			const [driver1, driver2] = drivers;
-			
-			// Show combined hand from both drivers with ownership tracking
-			const driver1Cards = driver1.hand.map(card => ({ card, driverNumber: 1 as const }));
-			const driver2Cards = driver2.hand.map(card => ({ card, driverNumber: 2 as const }));
-			const combinedHandData = [...driver1Cards, ...driver2Cards];
-			
-			// For now, still pass just the cards array (will update PlayerHandLayer next)
-			const combinedHand: Card[] = combinedHandData.map(data => data.card);
-			this.handLayer.setHand(combinedHand);
-			
-			// Store the driver mapping and pass to hand layer
-			this.cardDriverMap = new Map(combinedHandData.map(data => [data.card.id, data.driverNumber]));
-			this.handLayer.setCardDriverMap(this.cardDriverMap);
-			
-			// Pass individual driver adrenaline to hand layer
-			// The hand layer will use the cardDriverMap to check affordability per driver
-			this.handLayer.setDriverAdrenaline(1, driver1.adrenaline);
-			this.handLayer.setDriverAdrenaline(2, driver2.adrenaline);
-			
-			// Update both drivers' resource displays
-			this.resourceLayer.setDriverData(1, {
-				name: driver1.metadata.name,
-				adrenaline: driver1.adrenaline,
-				maxAdrenaline: driver1.maxAdrenaline,
-				drawPileCount: driver1.deck ? driver1.deck.cards.length : 0,
-				discardPileCount: driver1.discard.length,
-				fuel: this.fuel // TODO: Track fuel per driver when implemented
+		// Both hands show whenever both drivers are alive, whichever vehicle they're in
+		this.handLayer.setHand(buildPlayerHandView(this.playerDrivers));
+
+		this.playerDrivers.forEach((driver, index) => {
+			this.resourceLayer.setDriverData((index + 1) as 1 | 2, {
+				name: driver.metadata.name,
+				adrenaline: driver.adrenaline,
+				maxAdrenaline: driver.maxAdrenaline,
+				drawPileCount: driver.deck ? driver.deck.cards.length : 0,
+				discardPileCount: driver.discard.length,
+				fuel: index === 0 ? this.fuel : 0 // TODO: Track fuel per driver when implemented
 			});
-			
-			this.resourceLayer.setDriverData(2, {
-				name: driver2.metadata.name,
-				adrenaline: driver2.adrenaline,
-				maxAdrenaline: driver2.maxAdrenaline,
-				drawPileCount: driver2.deck ? driver2.deck.cards.length : 0,
-				discardPileCount: driver2.discard.length,
-				fuel: 0 // TODO: Track fuel per driver when implemented
-			});
-			
-			// Update shared resources
-			this.resourceLayer.setScrap(this.scrap);
-		}
+		});
+		this.resourceLayer.setScrap(this.scrap);
 
 		// Update enemy layer with enemy vehicles
 		if (this.enemyTeam) {
@@ -604,23 +575,7 @@ export class CombatScreen extends Screen {
 			return;
 		}
 
-		// Find which driver owns this card using our map
-		const drivers = this.playerTeam.getAllDrivers();
-		const driverNumber = this.cardDriverMap.get(card.id);
-		let owningDriver: Driver | null = null;
-		
-		if (driverNumber && drivers.length >= driverNumber) {
-			owningDriver = drivers[driverNumber - 1];
-		} else {
-			// Fallback to searching in hands if map is not set
-			for (const driver of drivers) {
-				if (driver.hand.includes(card)) {
-					owningDriver = driver;
-					break;
-				}
-			}
-		}
-		
+		const owningDriver = this.playerDrivers.find(driver => driver.hand.includes(card));
 		if (!owningDriver) {
 			console.warn('Could not find driver who owns this card');
 			return;
@@ -714,23 +669,26 @@ export class CombatScreen extends Screen {
 		
 		const targetType = card.targetType;
 		
+		// A wreck still on the road for the turn it died in is never a target
+		const players = this.playerTeam.getAliveVehicles();
+		const enemies = this.enemyTeam.getAliveVehicles();
+
 		switch (targetType) {
 			case 'enemy_single':
-				return this.enemyTeam.vehicles.map(v => v.id);
+				return enemies.map(v => v.id);
 				
-			case 'self':
-				// Only the vehicle with the driver playing the card
-				if (this.combatModel.selectedDriver) {
-					const driverVehicle = this.playerTeam.vehicles.find(v => v.driver === this.combatModel.selectedDriver);
-					return driverVehicle ? [driverVehicle.id] : [];
-				}
-				return [];
+			case 'self': {
+				// Only the vehicle the playing driver is in, driving or riding
+				const selectedDriver = this.combatModel.selectedDriver;
+				const driverVehicle = selectedDriver && players.find(v => v.driver === selectedDriver || v.passenger === selectedDriver);
+				return driverVehicle ? [driverVehicle.id] : [];
+			}
 				
 			case 'ally':
-				return this.playerTeam.vehicles.map(v => v.id);
+				return players.map(v => v.id);
 				
 			case 'any':
-				return [...this.playerTeam.vehicles, ...this.enemyTeam.vehicles].map(v => v.id);
+				return [...players, ...enemies].map(v => v.id);
 				
 			default:
 				return [];

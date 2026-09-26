@@ -340,29 +340,23 @@ export class Battle extends Model<BattleData> {
 			return false;
 		}
 
-		// Store adrenaline before playing card
-		const adrenalineBefore = driver.adrenaline;
-		
-		// Attempt to play the card with cost validation
-		const result = driver.playCardWithCost(cardIndex);
-		
-		if (!result.success) {
-			this.log('general', `Cannot play card: ${result.reason}`);
+		// Check cost, passenger rules, and target before the card leaves the hand
+		const blocker = driver.getPlayBlocker(cardIndex);
+		if (blocker) {
+			this.log('general', `Cannot play card: ${blocker}`);
 			return false;
 		}
 
-		const card = result.card;
-		if (!card) {
-			console.error('Card play succeeded but no card returned');
-			return false;
-		}
-
-		// Validate target
+		const card = driver.hand[cardIndex];
 		if (!this.validateTarget(card, driver, targetVehicle)) {
 			this.log('general', `Invalid target for card "${card.name}" (type: ${card.targetType}). Driver: ${this.getDriverDisplayName(driver)}, Target: ${targetVehicle ? targetVehicle.name : 'undefined'}`);
-			// Return card to hand and refund cost
-			driver.hand.push(card);
-			driver.gainAdrenaline(card.cost);
+			return false;
+		}
+
+		const adrenalineBefore = driver.adrenaline;
+		const result = driver.playCardWithCost(cardIndex);
+		if (!result.success) {
+			this.log('general', `Cannot play card: ${result.reason}`);
 			return false;
 		}
 
@@ -434,6 +428,7 @@ export class Battle extends Model<BattleData> {
 		}
 
 		this.dropBackFlankers();
+		this.clearWrecks();
 
 		// Emit turn ended event
 		this.emit('turnEnded', Object.freeze({ team: 'player' }));
@@ -561,6 +556,7 @@ export class Battle extends Model<BattleData> {
 		}
 
 		this.dropBackFlankers();
+		this.clearWrecks();
 
 		// End enemy turn, start player turn
 		this.startPlayerTurn();
@@ -1158,6 +1154,22 @@ export class Battle extends Model<BattleData> {
 	}
 
 	/**
+	 * A wreck stays on the road for the rest of the turn it died in, holding
+	 * its slot (or its shoulder slot and reservation, if it was flanking).
+	 * At the end of that turn, yours or the enemy's, it leaves the road and
+	 * its team. Its occupants already jumped out when it was wrecked.
+	 */
+	private clearWrecks(): void {
+		for (const team of [this.playerTeam, this.enemyTeam]) {
+			for (const wreck of team.vehicles.filter(vehicle => !vehicle.isAlive())) {
+				team.removeVehicle(wreck);
+				wreck.set({ slot: null, flank: null });
+				this.log('general', `${wreck.name} is wrecked and leaves the road`, { vehicle: wreck.name });
+			}
+		}
+	}
+
+	/**
 	 * A flank card needs a target this vehicle can flank; other cards pass.
 	 */
 	private meetsFlankRules(card: Card, casterVehicle: Vehicle, target: Vehicle): boolean {
@@ -1234,6 +1246,11 @@ export class Battle extends Model<BattleData> {
 
 		if (!target) {
 			return false; // Card needs a target but none provided
+		}
+
+		if (!target.isAlive() || !target.slot) {
+			this.log('general', `${target.name} is wrecked`);
+			return false;
 		}
 
 		const casterVehicle = this.getVehicleForDriver(caster);
