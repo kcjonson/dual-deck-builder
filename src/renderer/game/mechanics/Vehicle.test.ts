@@ -25,13 +25,14 @@ describe('Vehicle', () => {
 			skills: {
 				ramming: 5,
 				gunnery: 5,
-				evade: 5
+				evade: 5,
+				speed: 3
 			},
 			vehicleStats: {
 				maxStructure: 30,
 				weight: 5,
 				armor: 0,
-				speed: 3, // Driver speed
+				speed: 2,
 				gunnery: 5,
 				evade: 5
 			},
@@ -59,7 +60,6 @@ describe('Vehicle', () => {
 			maxStructure: 30,
 			armor: 10,
 			maxArmor: 10,
-			speed: 2, // Base speed
 			baseSpeed: 2,
 			slot: null,
 			flank: null,
@@ -73,12 +73,12 @@ describe('Vehicle', () => {
 	describe('Speed Calculation', () => {
 		test('should calculate total speed as driver speed + base speed', () => {
 			// Base speed: 2, Driver speed: 3
-			expect(vehicle.getTotalSpeed()).toBe(5);
+			expect(vehicle.speed).toBe(5);
 		});
 
 		test('should use only base speed if no driver', () => {
 			vehicle.driver = null;
-			expect(vehicle.getTotalSpeed()).toBe(2); // Just base speed
+			expect(vehicle.speed).toBe(2); // Just base speed
 		});
 
 		test('should apply speed modifiers from status effects', () => {
@@ -90,7 +90,7 @@ describe('Vehicle', () => {
 			};
 			vehicle.applyStatusEffect(speedBoost);
 			
-			expect(vehicle.getTotalSpeed()).toBe(8); // 5 + 3
+			expect(vehicle.speed).toBe(8); // 5 + 3
 		});
 
 		test('should handle negative speed modifiers', () => {
@@ -102,7 +102,7 @@ describe('Vehicle', () => {
 			};
 			vehicle.applyStatusEffect(speedReduction);
 			
-			expect(vehicle.getTotalSpeed()).toBe(1); // 5 - 4
+			expect(vehicle.speed).toBe(1); // 5 - 4
 		});
 
 		test('should not allow speed to go below 0', () => {
@@ -114,7 +114,7 @@ describe('Vehicle', () => {
 			};
 			vehicle.applyStatusEffect(heavySpeedReduction);
 			
-			expect(vehicle.getTotalSpeed()).toBe(0); // Clamped to 0
+			expect(vehicle.speed).toBe(0); // Clamped to 0
 		});
 	});
 
@@ -419,7 +419,6 @@ describe('Vehicle', () => {
 				maxStructure: 20,
 				armor: 5,
 				maxArmor: 5,
-				speed: 1,
 				baseSpeed: 1,
 				slot: null,
 				flank: null,
@@ -429,13 +428,13 @@ describe('Vehicle', () => {
 				statusEffects: []
 			});
 			
-			// Our vehicle has total speed 5, target has speed ~4
+			// Ours is 2 + 3 = 5, the target 1 + 3 = 4
 			expect(vehicle.canFlank(targetVehicle)).toBe(true);
 		});
 
 		test('should not allow flanking faster vehicles', () => {
 			const fasterDriver = createTestDriver('Fast Driver');
-			fasterDriver.vehicleStats.speed = 8;
+			fasterDriver.skills.speed = 5;
 			
 			const fasterVehicle = new Vehicle({
 				name: 'Faster',
@@ -443,7 +442,6 @@ describe('Vehicle', () => {
 				maxStructure: 20,
 				armor: 5,
 				maxArmor: 5,
-				speed: 3,
 				baseSpeed: 3,
 				slot: null,
 				flank: null,

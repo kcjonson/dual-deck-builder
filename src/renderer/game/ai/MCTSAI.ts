@@ -1,5 +1,5 @@
 import { AIPlayer } from './AIPlayer';
-import { AIDecision, GameStateEvaluation } from './types';
+import { AIDecision, FAST_VEHICLE_SPEED, GameStateEvaluation } from './types';
 import { Battle } from '../mechanics/Battle';
 import { Team } from '../mechanics/Team';
 import { Vehicle } from '../mechanics/Vehicle';
@@ -438,7 +438,7 @@ export class MCTSAI extends AIPlayer {
 		// High value if not in flanking and have good speed
 		if (!this.board.isFlanking(ourVehicle)) {
 			const totalSpeed = this.board.speedOf(ourVehicle);
-			if (totalSpeed >= 60) {
+			if (totalSpeed >= FAST_VEHICLE_SPEED) {
 				return this.POSITION_CHANGE_WEIGHT * 2;
 			}
 			return this.POSITION_CHANGE_WEIGHT;
@@ -458,7 +458,7 @@ export class MCTSAI extends AIPlayer {
 			const newSpeed = currentSpeed + speedBoost;
 			
 			// Big bonus if this gets us to flanking threshold
-			if (currentSpeed < 60 && newSpeed >= 60) {
+			if (currentSpeed < FAST_VEHICLE_SPEED && newSpeed >= FAST_VEHICLE_SPEED) {
 				return this.SPEED_BOOST_WEIGHT * 3;
 			}
 			

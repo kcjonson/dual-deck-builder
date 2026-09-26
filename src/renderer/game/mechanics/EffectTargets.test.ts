@@ -28,7 +28,7 @@ const card = (name: string, targetType: TargetType, effects: CardEffect[]): Card
 	tags: []
 });
 
-// Total speed is baseSpeed plus the test driver's 50. Test drivers have
+// Total speed is baseSpeed plus the test driver's speed skill of 2. Test drivers have
 // gunnery 5 and evade 5, so anything that rolls to hit misses by default.
 const createVehicle = (name: string, baseSpeed: number): Vehicle => {
 	const driver = createTestDriver(`${name} Driver`);
@@ -39,7 +39,6 @@ const createVehicle = (name: string, baseSpeed: number): Vehicle => {
 		maxArmor: 0,
 		structure: 20,
 		maxStructure: 20,
-		speed: baseSpeed,
 		baseSpeed,
 		slot: null,
 		flank: null,
@@ -60,11 +59,11 @@ const giveHand = (vehicle: Vehicle, cards: Card[]): void => {
 };
 
 const setGunnery = (vehicle: Vehicle, gunnery: number): void => {
-	driverOf(vehicle).set({ skills: { ramming: 5, gunnery, evade: 5 } });
+	driverOf(vehicle).set({ skills: { ramming: 5, gunnery, evade: 5, speed: 2 } });
 };
 
 const setEvade = (vehicle: Vehicle, evade: number): void => {
-	driverOf(vehicle).set({ skills: { ramming: 5, gunnery: 5, evade } });
+	driverOf(vehicle).set({ skills: { ramming: 5, gunnery: 5, evade, speed: 2 } });
 };
 
 const statusNames = (vehicle: Vehicle): string[] => vehicle.statusEffects.map(effect => effect.name);
@@ -265,8 +264,8 @@ describe('Effect targets', () => {
 
 			expect(statusNames(buggy)).toEqual(['speed_reduction']);
 			expect(statusNames(rig)).toEqual(['speed_boost']);
-			expect(buggy.getTotalSpeed()).toBe(51);
-			expect(rig.getTotalSpeed()).toBe(58);
+			expect(buggy.speed).toBe(3); // 3 + 2 - 2
+			expect(rig.speed).toBe(10); // 5 + 2 + 3
 		});
 
 		test('Flanking Maneuver moves the caster and puts its damage bonus on the caster, not the target', () => {
@@ -295,7 +294,7 @@ describe('Effect targets', () => {
 	});
 
 	describe('the planning projection agrees with play', () => {
-		const speeds = (vehicles: Vehicle[]): number[] => vehicles.map(vehicle => vehicle.getTotalSpeed());
+		const speeds = (vehicles: Vehicle[]): number[] => vehicles.map(vehicle => vehicle.speed);
 
 		test.each([
 			['Slipstream', slipstream, true],
@@ -327,12 +326,12 @@ describe('Effect targets', () => {
 
 			const board = new BoardProjection({ battle });
 			board.apply({ card: spray, driver: driverOf(buggy), target: null });
-			expect([rig, bike, buggy, truck].map(vehicle => board.speedOf(vehicle))).toEqual([53, 53, 53, 51]);
+			expect([rig, bike, buggy, truck].map(vehicle => board.speedOf(vehicle))).toEqual([5, 5, 5, 3]);
 
 			battle.planEnemyTurn();
 			await battle.endPlayerTurn();
 
-			expect(logLines(battle, 'status_applied')).toEqual(['Tar Spray applies speed_reduction to Rig (Speed: 55 -> 53)']);
+			expect(logLines(battle, 'status_applied')).toEqual(['Tar Spray applies speed_reduction to Rig (Speed: 7 -> 5)']);
 			expect(logLines(battle, 'miss')).toEqual(['Tar Spray misses Bike']);
 		});
 	});

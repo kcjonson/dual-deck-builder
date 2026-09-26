@@ -16,7 +16,6 @@ const createDriven = (name: string, startSlot: RoadSlot | null = null): Vehicle 
 	maxArmor: 0,
 	structure: 20,
 	maxStructure: 20,
-	speed: 2,
 	baseSpeed: 2,
 	slot: startSlot,
 	flank: null,
@@ -128,8 +127,8 @@ describe('Escorts', () => {
 		});
 
 		test('an escort moves at its base speed', () => {
-			expect(createEscort({ type: 'outrider' }).getTotalSpeed()).toBe(5);
-			expect(createEscort({ type: 'pilot_car' }).getTotalSpeed()).toBe(4);
+			expect(createEscort({ type: 'outrider' }).speed).toBe(5);
+			expect(createEscort({ type: 'pilot_car' }).speed).toBe(4);
 		});
 
 		test('a driven vehicle is not an escort', () => {
@@ -310,7 +309,7 @@ describe('Escorts', () => {
 				const hauler = createEscort({ type: 'fuel_hauler' });
 				const battle = createBattle([rig, bike, outrider, hauler], [buggy]);
 				const caster = driverOf(buggy);
-				seatPassenger(hauler).set({ skills: { ramming: 0, gunnery: 0, evade: 10 } });
+				seatPassenger(hauler).set({ skills: { ramming: 0, gunnery: 0, evade: 10, speed: 2 } });
 
 				expect(battle.checkHit({ attacker: buggy, caster, defender: outrider })).toBe(false);
 				expect(battle.checkHit({ attacker: buggy, caster, defender: hauler })).toBe(true);
@@ -322,7 +321,7 @@ describe('Escorts', () => {
 				const outrider = createEscort({ type: 'outrider' });
 				const pilotCar = createEscort({ type: 'pilot_car' });
 				const battle = createBattle([rig, bike, outrider, pilotCar], [buggy]);
-				driverOf(rig).set({ skills: { ramming: 10, gunnery: 10, evade: 10 } });
+				driverOf(rig).set({ skills: { ramming: 10, gunnery: 10, evade: 10, speed: 2 } });
 
 				// Buggy's driver evades 5: the Outrider's gunnery 6 beats it, the Pilot Car's 5 doesn't
 				expect(battle.checkHit({ attacker: outrider, caster: driverOf(rig), defender: buggy })).toBe(true);
@@ -372,8 +371,8 @@ describe('Escorts', () => {
 
 				expect(action.target).toBe(escort);
 				expect(escort.hasStatusEffect('speed_reduction')).toBe(lands);
-				expect(escort.getTotalSpeed()).toBe(board.speedOf(escort));
-				expect(escort.getTotalSpeed()).toBe(lands ? escort.baseSpeed - 2 : escort.baseSpeed);
+				expect(escort.speed).toBe(board.speedOf(escort));
+				expect(escort.speed).toBe(lands ? escort.baseSpeed - 2 : escort.baseSpeed);
 			});
 		});
 
@@ -401,7 +400,7 @@ describe('Escorts', () => {
 				const hauler = createEscort({ type: 'fuel_hauler' });
 				const battle = createBattle([hauler, rig, bike], [buggy]);
 				buggy.set({ armor: 40, maxArmor: 40 });
-				driverOf(buggy).set({ vehicleStats: { ...driverOf(buggy).vehicleStats, speed: 3 } });
+				driverOf(buggy).set({ skills: { ...driverOf(buggy).skills, speed: 3 } });
 				giveHand(buggy, [ram()]);
 				battle.planEnemyTurn();
 
@@ -484,7 +483,7 @@ describe('Escorts', () => {
 				const hauler = createEscort({ type: 'fuel_hauler' });
 				const battle = createBattle([hauler, rig, bike], [buggy]);
 				const rider = seatPassenger(hauler);
-				rider.set({ skills: { ramming: 0, gunnery: 0, evade: 3 } });
+				rider.set({ skills: { ramming: 0, gunnery: 0, evade: 3, speed: 2 } });
 				// The effect as cards.json has it
 				const realHeadshot = card('Headshot', [{ type: 'damage', value: 5, target: 'driver', hit_modifier: 2 }], 2);
 				giveHand(buggy, [realHeadshot]);
@@ -542,7 +541,7 @@ describe('Escorts', () => {
 				['misses', 'outrider', 6]
 			] as const)('an attack that %s an escort pays the same self costs as one on a driven vehicle', async (_outcome, type, evade) => {
 				const drivenTarget = createDriven('Van');
-				driverOf(drivenTarget).set({ skills: { ramming: 5, gunnery: 5, evade } });
+				driverOf(drivenTarget).set({ skills: { ramming: 5, gunnery: 5, evade, speed: 2 } });
 
 				const onEscort = await costsPaid(createEscort({ type }), [rig, bike]);
 				const onDriven = await costsPaid(drivenTarget, [createDriven('Bike')]);

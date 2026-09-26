@@ -5,6 +5,31 @@ import { RoadLane, RoadRow } from '../mechanics/Road';
 import { Card } from '../mechanics/Card';
 import { createTestDriver, createTestVehicle } from './__tests__/test-helpers';
 
+const speedBoostAndShot = (): Card[] => [
+	new Card({
+		type: 'speed_boost',
+		name: 'Speed Boost',
+		summary: 'Increase speed by 2',
+		description: 'Increase speed by 2',
+		rarity: 'common',
+		cost: 1,
+		targetType: 'self',
+		effects: [{ type: 'speed', value: 2 }],
+		tags: ['buff']
+	}),
+	new Card({
+		type: 'power_shot',
+		name: 'Power Shot',
+		summary: 'Deal 8 damage',
+		description: 'Deal 8 damage',
+		rarity: 'common',
+		cost: 2,
+		targetType: 'enemy_single',
+		effects: [{ type: 'damage', value: 8 }],
+		tags: ['attack']
+	})
+];
+
 describe('AggressiveFlankerAI', () => {
 	let battle: Battle;
 	let playerTeam: Team;
@@ -26,13 +51,11 @@ describe('AggressiveFlankerAI', () => {
 
 		// Battle places both teams in their opening formation
 
-		// Set vehicle speeds (getTotalSpeed = baseSpeed + driver.vehicleStats.speed)
-		// Test vehicles start with baseSpeed 50 and driver speed 50 = 100 total
-		// We need vehicle 2 to be below the flanking threshold (60)
-		enemyVehicle1.baseSpeed = 20; // Total: 20 + 50 = 70 (above threshold)
-		enemyVehicle1.speed = 20;
-		enemyVehicle2.baseSpeed = 5; // Total: 5 + 50 = 55 (below threshold of 60)
-		enemyVehicle2.speed = 5;
+		// Speed is base speed plus the test driver's 2. Vehicle 1 sits above
+		// FAST_VEHICLE_SPEED (6) and vehicle 2 below it, where a +2 boost
+		// carries it over.
+		enemyVehicle1.baseSpeed = 5; // 5 + 2 = 7
+		enemyVehicle2.baseSpeed = 3; // 3 + 2 = 5
 
 		// Create teams with vehicles
 		playerTeam = new Team({ 
@@ -100,30 +123,7 @@ describe('AggressiveFlankerAI', () => {
 		// Setup low speed vehicle with speed boost card
 		const driver = enemyTeam.vehicles[1].driver; // Low speed vehicle
 		if (!driver) throw new Error('Driver not found');
-		driver.hand = [
-			new Card({
-				type: 'speed_boost',
-				name: 'Speed Boost',
-				summary: 'Increase speed by 2',
-				description: 'Increase speed by 2',
-				rarity: 'common',
-				cost: 1,
-				targetType: 'self',
-				effects: [{ type: 'speed', value: 2 }],
-				tags: ['buff']
-			}),
-			new Card({
-				type: 'power_shot',
-				name: 'Power Shot',
-				summary: 'Deal 8 damage',
-				description: 'Deal 8 damage',
-				rarity: 'common',
-				cost: 2,
-				targetType: 'enemy_single',
-				effects: [{ type: 'damage', value: 8 }],
-				tags: ['attack']
-			})
-		];
+		driver.hand = speedBoostAndShot();
 		driver.adrenaline = 5;
 
 		// Make AI decision
@@ -132,6 +132,21 @@ describe('AggressiveFlankerAI', () => {
 		expect(decision).not.toBeNull();
 		expect(decision?.type).toBe('playCard');
 		expect(decision?.card?.name).toBe('Speed Boost');
+	});
+
+	test('shoots instead of boosting once it is already fast enough to flank', async () => {
+		battle.start();
+
+		// Vehicle 1 is at 7, over FAST_VEHICLE_SPEED (6)
+		const driver = enemyTeam.vehicles[0].driver;
+		if (!driver) throw new Error('Driver not found');
+		driver.hand = speedBoostAndShot();
+		driver.adrenaline = 5;
+
+		const decision = await ai.makeDecision();
+
+		expect(decision?.type).toBe('playCard');
+		expect(decision?.card?.name).toBe('Power Shot');
 	});
 
 	test('should prefer high damage cards when in flanking position', async () => {

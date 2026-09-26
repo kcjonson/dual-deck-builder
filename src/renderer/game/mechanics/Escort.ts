@@ -120,7 +120,6 @@ export function createEscort({ type, setPiece = false }: { type: EscortType; set
 		maxArmor: armor,
 		structure,
 		maxStructure: structure,
-		speed: baseSpeed,
 		baseSpeed,
 		slot: null,
 		flank: null,

@@ -113,7 +113,7 @@ What else the build settled:
 - **Damage.** `Vehicle.takeDamage` splits damage past armor half to structure and half to each living occupant, and with nobody aboard puts it all on structure. That covers the empty escort and, for DDB-152, the escort with a passenger.
 - **Wrecks.** A wrecked escort holds its slot for the rest of the turn and leaves at the end of it, like any wreck. It has nobody to jump unless a passenger rides in it, and a card planned at it fizzles because nobody got out.
 - **Self costs.** They resolve the same whatever the target is. Self statuses, adrenaline, and draws are their own effects and apply on a hit or a miss. A self-damage effect on a targeted card still rolls with the card, as it does against a driven vehicle today, so a miss skips it; no current card has one on an attack. Whether a cost should land on a miss is the same question as open question 2 (Ramming Run), left to DDB-149.
-- **Ram and speed.** The ram formula and speed checks read `Vehicle.getTotalSpeed` on both sides, which is base speed plus statuses for an escort. The driven side's double-counted driver speed is DDB-159 and wasn't touched.
+- **Ram and speed.** The ram formula and speed checks read `Vehicle.speed` on both sides, which is base speed plus statuses for an escort. A driven vehicle used to count its driver's speed twice; DDB-159 fixed that, so it's base speed plus the driver's speed skill plus statuses.
 
 ## Open questions
 

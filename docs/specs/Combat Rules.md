@@ -26,7 +26,7 @@
     - Vulnerable - The vehicle is exposed and unprepared for attack
 - Derived States
   - Alive = Structure > 0
-  - Speed = Driver speed + vehicle base speed. An escort's speed is its base speed.
+  - Speed = Driver speed + vehicle base speed + statuses. The driver is whoever is at the wheel, so a passenger who takes over brings their own speed. An escort's speed is its base speed.
   - Escort = no driver
   - Ready = an escort that hasn't acted this turn
 
@@ -34,7 +34,7 @@
 
 - Properties
   - Hitpoints: 0 - infinite
-  - Speed: 1-5
+  - Speed: 1-5, added to the base speed of the vehicle they're driving
   - Individual Adrenaline Pool: 0 - infinite (refills each turn)
   - Individual Hand of Cards: drawn from their personal deck
   - Individual Discard Pile: their played cards
@@ -47,6 +47,19 @@
   - Alive = Hitpoints > 0
   - Can Play Attack Cards = Role is Active (passengers cannot play attack cards)
   - Can Play Order Cards = always, active or passenger (orders are their own card type, not attack)
+
+#### Driver speeds
+
+Decided by Kevin, 2026-09-26 (DDB-159). Each driver's speed, their signature vehicle's base speed, and the speed they drive it at:
+
+| Driver | Driver speed | Vehicle | Base speed | Speed |
+|---|---|---|---|---|
+| The Road Warrior | 1 | Apocalypse Rig | 1 | 2 |
+| The Interceptor | 3 | Lightning Bike | 5 | 8 |
+| The Mechanic | 2 | Mobile Workshop | 2 | 4 |
+| The Raider | 2 | Spike Buggy | 3 | 5 |
+
+For the escorts: the Outrider (5) outruns the Rig and the Workshop, ties the Spike Buggy (a tie can't flank), and can't catch the Bike. The combat screen's test raider, the Rust Buggy, is base 3 with a speed 2 driver, so it's 5 too.
 
 ## Game State
 

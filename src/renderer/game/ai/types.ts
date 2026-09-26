@@ -3,6 +3,13 @@ import { Driver } from '../mechanics/Driver';
 import { Vehicle } from '../mechanics/Vehicle';
 import { BoardProjection } from '../mechanics/BoardProjection';
 
+/**
+ * Speed the AIs treat as fast enough to flank and ram well. It's one more
+ * than the Spike Buggy and the Outrider (5), so of the stock vehicles only
+ * the Lightning Bike (8) is faster.
+ */
+export const FAST_VEHICLE_SPEED = 6;
+
 export interface AIDecision {
 	type: 'playCard' | 'endTurn';
 	card?: Card;

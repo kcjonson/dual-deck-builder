@@ -1,5 +1,5 @@
 import { AIPlayer } from './AIPlayer';
-import { AIDecision, AIStrategy, GameStateEvaluation, VehicleEvaluation } from './types';
+import { AIDecision, AIStrategy, FAST_VEHICLE_SPEED, GameStateEvaluation, VehicleEvaluation } from './types';
 import { Team } from '../mechanics/Team';
 import { Battle } from '../mechanics/Battle';
 import { Vehicle } from '../mechanics/Vehicle';
@@ -21,7 +21,7 @@ export class RammingStrategy implements AIStrategy {
 	private readonly HEAL_WEIGHT = 50;
 	private readonly KILL_BONUS = 500;
 	private readonly LOW_HEALTH_THRESHOLD = 0.3;
-	private readonly SPEED_THRESHOLD = 60; // Minimum speed for effective ramming
+	private readonly SPEED_THRESHOLD = FAST_VEHICLE_SPEED;
 	private readonly VULNERABLE_BONUS = 1.5;
 
 	chooseBestAction(

@@ -6,7 +6,7 @@ import { Team, TeamType } from './Team';
 import { Vehicle } from './Vehicle';
 import { createTestDriver } from '../ai/__tests__/test-helpers';
 
-// Total speed is baseSpeed plus the test driver's 50. Drivers get enough
+// Total speed is baseSpeed plus the test driver's speed skill of 2. Drivers get enough
 // hitpoints to walk away from a wreck.
 const createVehicle = (name: string, baseSpeed: number): Vehicle => {
 	const driver = createTestDriver(`${name} Driver`);
@@ -17,7 +17,6 @@ const createVehicle = (name: string, baseSpeed: number): Vehicle => {
 		maxArmor: 0,
 		structure: 20,
 		maxStructure: 20,
-		speed: baseSpeed,
 		baseSpeed,
 		slot: null,
 		flank: null,

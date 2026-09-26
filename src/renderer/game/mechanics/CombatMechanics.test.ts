@@ -68,7 +68,8 @@ describe('Combat Mechanics', () => {
 			skills: {
 				ramming: ramming,
 				gunnery: gunnery,
-				evade: evade
+				evade: evade,
+				speed: 5
 			},
 			vehicleStats: {
 				maxStructure: 30,
@@ -98,7 +99,6 @@ describe('Combat Mechanics', () => {
 			maxStructure: 30,
 			armor: 10,
 			maxArmor: 10,
-			speed: 5,
 			baseSpeed: 5,
 			slot,
 			flank: null,

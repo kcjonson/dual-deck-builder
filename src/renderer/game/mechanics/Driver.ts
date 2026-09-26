@@ -28,12 +28,19 @@ export interface DrawResult {
 export type DriverArchetype = 'road_warrior' | 'interceptor' | 'mechanic' | 'raider';
 
 /**
- * Driver combat skills based on Combat Rules specification
+ * The skills a hit check reads. A driver has them, and so does an escort's crew.
  */
-export interface DriverSkills {
+export interface CrewSkills {
 	ramming: number; // 0-10, affects ramming attack accuracy
-	gunnery: number; // 0-10, affects ranged attack accuracy  
+	gunnery: number; // 0-10, affects ranged attack accuracy
 	evade: number; // 0-10, affects defensive capabilities
+}
+
+/**
+ * Driver skills based on Combat Rules specification
+ */
+export interface DriverSkills extends CrewSkills {
+	speed: number; // 1-5, added to the base speed of whatever vehicle they're driving
 }
 
 /**
@@ -43,7 +50,7 @@ export interface VehicleStats {
 	maxStructure: number; // Vehicle's maximum structure points
 	weight: number; // Affects ramming damage
 	armor: number; // Starting armor
-	speed: number; // Affects turn order and evasion
+	speed: number; // The vehicle's base speed, 1-5; the driver's speed skill adds to it
 	gunnery: number; // Ranged attack accuracy
 	evade: number; // Defensive stat
 }
@@ -488,7 +495,8 @@ export const DRIVER_CONFIGS: Record<DriverArchetype, DriverConfig> = {
 		skills: {
 			ramming: 8,
 			gunnery: 4,
-			evade: 3
+			evade: 3,
+			speed: 1
 		},
 		vehicleStats: {
 			maxStructure: 80,
@@ -524,7 +532,8 @@ export const DRIVER_CONFIGS: Record<DriverArchetype, DriverConfig> = {
 		skills: {
 			ramming: 3,
 			gunnery: 9,
-			evade: 8
+			evade: 8,
+			speed: 3
 		},
 		vehicleStats: {
 			maxStructure: 50,
@@ -562,7 +571,8 @@ export const DRIVER_CONFIGS: Record<DriverArchetype, DriverConfig> = {
 		skills: {
 			ramming: 4,
 			gunnery: 6,
-			evade: 5
+			evade: 5,
+			speed: 2
 		},
 		vehicleStats: {
 			maxStructure: 60,
@@ -599,7 +609,8 @@ export const DRIVER_CONFIGS: Record<DriverArchetype, DriverConfig> = {
 		skills: {
 			ramming: 7,
 			gunnery: 6,
-			evade: 4
+			evade: 4,
+			speed: 2
 		},
 		vehicleStats: {
 			maxStructure: 65,

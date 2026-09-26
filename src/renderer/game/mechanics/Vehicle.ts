@@ -1,4 +1,4 @@
-import { Driver, DriverRole, DriverSkills } from './Driver';
+import { CrewSkills, Driver, DriverRole } from './Driver';
 import { Model } from '../core/Model';
 import { RoadSlot, isShoulder } from './Road';
 import type { IntentTier } from './Intent';
@@ -35,7 +35,7 @@ export interface VehicleData {
 	maxArmor: number;
 	structure: number;
 	maxStructure: number;
-	speed: number;
+	/** The vehicle's own speed. Its speed on the road is the `speed` getter. */
 	baseSpeed: number;
 	/** Null until a Battle places the vehicle on the road. */
 	slot: RoadSlot | null;
@@ -90,7 +90,6 @@ export class Vehicle extends Model<VehicleData> {
 		'maxArmor',
 		'structure',
 		'maxStructure',
-		'speed',
 		'baseSpeed',
 		'slot',
 		'flank',
@@ -177,7 +176,7 @@ export class Vehicle extends Model<VehicleData> {
 	 * acting driver's: whoever plays the card when it attacks, the driver at
 	 * the wheel when it's attacked. Null with nobody to act.
 	 */
-	public crewSkills(actor: Driver | null = this.driver): DriverSkills | null {
+	public crewSkills(actor: Driver | null = this.driver): CrewSkills | null {
 		return this.escort ?? actor?.skills ?? null;
 	}
 
@@ -220,7 +219,6 @@ export class Vehicle extends Model<VehicleData> {
 	public applyStatusEffect(effect: VehicleStatusEffect): void {
 		// Add new effect (allow stacking)
 		this.statusEffects = [...this.statusEffects, { ...effect }];
-		this.updateSpeedFromEffects();
 	}
 
 	/**
@@ -228,7 +226,6 @@ export class Vehicle extends Model<VehicleData> {
 	 */
 	public removeStatusEffect(effectName: string): void {
 		this.statusEffects = this.statusEffects.filter(e => e.name !== effectName);
-		this.updateSpeedFromEffects();
 	}
 
 	// statusEffects is a model property - access it directly with this.statusEffects
@@ -244,23 +241,7 @@ export class Vehicle extends Model<VehicleData> {
 			if (effect.duration !== -1) {
 				effect.duration--;
 			}
-			
-			// Apply any ongoing effects
-			switch (effect.name) {
-				case 'oil_slick':
-				case 'speed_reduction':
-				case 'speed_boost':
-					// Speed modifications already applied in updateSpeedFromEffects
-					break;
-				case 'caltrops':
-					// Speed reduction already applied in updateSpeedFromEffects
-					// Caltrops are permanent, no ongoing damage
-					break;
-				case 'vulnerable':
-					// Just a status, no ongoing effect
-					break;
-			}
-			
+
 			// Keep if not expired (duration > 0 or permanent -1)
 			if (effect.duration > 0 || effect.duration === -1) {
 				updatedEffects.push(effect);
@@ -269,36 +250,17 @@ export class Vehicle extends Model<VehicleData> {
 
 		// Update effects array
 		this.statusEffects = updatedEffects;
-		this.updateSpeedFromEffects();
 	}
 
 	/**
-	 * Update speed based on status effects
-	 * This is kept for Model compatibility but getTotalSpeed() handles the actual calculation
+	 * Speed on the road, which flanking and ramming read: base speed, plus
+	 * the speed skill of whoever is at the wheel, plus statuses. An escort
+	 * has nobody at the wheel, so its speed is its base speed.
 	 */
-	private updateSpeedFromEffects(): void {
-		// Speed property represents base speed with modifiers (without driver)
-		// getTotalSpeed() adds the driver speed
-		const speedModifier = this.statusEffects.reduce((sum, effect) => sum + statusSpeedModifier(effect), 0);
-
-		this.speed = Math.max(0, this.baseSpeed + speedModifier);
-	}
-
-	/**
-	 * Get total speed (driver speed + vehicle base speed + modifiers)
-	 */
-	public getTotalSpeed(): number {
-		// Start with base speed
-		let totalSpeed = this.baseSpeed;
-		
-		// Add driver speed
-		if (this.driver) {
-			totalSpeed += this.driver.vehicleStats.speed;
-		}
-		
-		totalSpeed += this.statusEffects.reduce((sum, effect) => sum + statusSpeedModifier(effect), 0);
-
-		return Math.max(0, totalSpeed);
+	public get speed(): number {
+		const driverSpeed = this.driver?.skills.speed ?? 0;
+		const statusModifier = this.statusEffects.reduce((sum, effect) => sum + statusSpeedModifier(effect), 0);
+		return Math.max(0, this.baseSpeed + driverSpeed + statusModifier);
 	}
 
 	/**
@@ -312,7 +274,7 @@ export class Vehicle extends Model<VehicleData> {
 	 * Check if this vehicle can flank the target
 	 */
 	public canFlank(target: Vehicle): boolean {
-		return this.getTotalSpeed() > target.getTotalSpeed();
+		return this.speed > target.speed;
 	}
 
 	/**
@@ -388,4 +350,28 @@ export class Vehicle extends Model<VehicleData> {
 
 	// All properties are directly accessible:
 	// this.armor, this.maxArmor, this.structure, this.slot, etc.
+}
+
+/**
+ * A driver's signature vehicle at full armor and structure, with the driver
+ * at the wheel, not yet on the road. `driver.vehicleStats` is the
+ * vehicle's own stat block, so its speed is the base speed; the driver's
+ * speed skill adds to it through `Vehicle.speed`.
+ */
+export function createDrivenVehicle({ driver, name = driver.metadata.vehicleName }: { driver: Driver; name?: string }): Vehicle {
+	const { armor, maxStructure, speed } = driver.vehicleStats;
+	return new Vehicle({
+		name,
+		armor,
+		maxArmor: armor,
+		structure: maxStructure,
+		maxStructure,
+		baseSpeed: speed,
+		slot: null,
+		flank: null,
+		velocity: 0,
+		driver,
+		passenger: null,
+		statusEffects: []
+	});
 }
