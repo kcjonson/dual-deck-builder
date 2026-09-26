@@ -19,6 +19,28 @@ This document contains the chronological log of completed development tasks for 
 
 **How:** tests first in `Wrecks.test.ts` (15, including the soft lock) and `Vehicle.test.ts` (6 more). Six existing tests leaned on dead drivers staying seated, `handleDriverDeath` running on a living driver, or a driverless vehicle taking a passenger, and were updated to set up the same situation legally. Checked in the app: reproduced the scenario on the combat screen and played Ramming Speed with the promoted driver.
 
+## Ambush starts (2026-09-25)
+
+**What landed:** DDB-147. An encounter can start raiders already flanking, on the player's shoulder.
+
+- `Vehicle.flank`'s `reservedSlot` and `outran` are both nullable now. An ambusher starts with both null; if it swerves again by outrunning someone, `outran` is set and `reservedSlot` stays null. `Vehicle.isAmbusher` is true while `reservedSlot` is null.
+- `Battle.placeOpeningFormation` accepts a given slot on the team's flank lane as an ambush, rejects more than three on a shoulder, places the formations, then checks each ambusher with the new public `Battle.getAmbushBlocker` (the vehicle's own team if it's already on one, team allowed to ambush, the other team's shoulder, slot free and not reserved, a living vehicle of the other team anywhere in that row, a flanker on the far shoulder included).
+- `Battle.mayAmbush` allows the enemy team only. DDB-146 opens it for undriven set-piece escorts; the driven pair never can.
+- `dropBackFlankers` skips anything without both a reserved slot and a living outran vehicle, so an ambusher holds the shoulder. `BoardProjection` already carried flank state through as-is and needed no change.
+- There's no reinforcement wave code yet, so waves get only the rule: `getAmbushBlocker` is written to be called on arrival mid-fight and is tested that way.
+- With the player limited to two vehicles, a raider side reaches eight today (six in formation, two on the shoulder), since only two rows have an opposing vehicle. Nine needs a player escort in the third row.
+
+**How:** 15 tests in `BattleRoad.test.ts` (placement, drop-back, player can't ambush, row rule including a far-shoulder flanker, shoulder cap error, slot uniqueness, the arrival rule, a vehicle checked against its own team) and 4 in `EnemyIntents.test.ts` (planning from an ambusher with the flank bonus, a planned swerve that keeps no reservation, a raider flank blocked by the ambusher's slot, the player's cards against it). One misnamed test in `BattleRoad.test.ts` was renamed; it tested a raider on its own shoulder.
+
+## Each run gets its own drivers (2026-09-25)
+
+**What landed:** DDB-157. A second run in the same session no longer starts with the first run's driver damage, hand, discard, or adrenaline.
+
+- START RUN handed DriverLoader's singleton template drivers to combat, and `CombatScreen.initializeCombat` mutates its drivers in place. The dev fallback in `CombatScreen.onMount` and `createDriverWithStartingDeck` (the battle simulator's path) did the same to the templates, the latter by building the deck on the template before copying it.
+- `DriverLoader` now keeps its templates private and every getter (`getDriver`, `getAllDrivers`, `getUnlockedDrivers`, `getLockedDrivers`, the static `getAllDriverArchetypes`) returns fresh `Driver.copy()`s at starting state. Putting the copy in the loader rather than at START RUN or in `initializeCombat` means no caller, current or future, can reach a template to mutate it. Selection screens are rebuilt on every navigate and fetch drivers on mount, so each run gets new copies.
+- `Driver.copy()` already deep-copied the hand, discard, and deck; it now copies the starting deck's card entries too. `unlockDriver` sets the flag on a copy's own metadata, so it no longer writes into `DRIVER_CONFIGS` and `resetUnlockState` really does reset.
+- Tests: 3 in `screens/combat/CombatScreen.test.ts` (two runs back to back through the selection screen, templates untouched after a fight, the dev fallback), 3 in `core/DriverLoader.test.ts`. The DDB-98 selection test compared drivers by reference and now compares archetypes, which is the identity `DriverPair` already uses.
+
 ## Escorts written into the specs (2026-09-25)
 
 **What landed:** DDB-133, docs only. Kevin's escort design, made on 2026-09-25, is in the specs.

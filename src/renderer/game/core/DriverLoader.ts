@@ -4,10 +4,15 @@ import { CardLoader } from './CardLoader';
 /**
  * DriverLoader manages the loading and creation of driver instances
  * Follows the same pattern as CardLoader for consistency
+ *
+ * The loader keeps one template per archetype and never hands it out: every
+ * getter returns fresh copies at starting state. Combat mutates drivers in
+ * place (hit points, hand, deck, adrenaline), so a shared template would carry
+ * one run's damage into the next.
  */
 export class DriverLoader {
 	private static instance: DriverLoader;
-	private drivers: Map<DriverArchetype, Driver> = new Map();
+	private templates: Map<DriverArchetype, Driver> = new Map();
 	private loaded = false;
 
 	/**
@@ -58,11 +63,11 @@ export class DriverLoader {
 					discard: [],
 					deck: null
 				});
-				this.drivers.set(archetype as DriverArchetype, driver);
+				this.templates.set(archetype as DriverArchetype, driver);
 			}
 
 			this.loaded = true;
-			console.log(`Loaded ${this.drivers.size} drivers successfully`);
+			console.log(`Loaded ${this.templates.size} drivers successfully`);
 
 		} catch (error) {
 			console.error('Failed to load drivers:', error);
@@ -71,9 +76,9 @@ export class DriverLoader {
 	}
 
 	/**
-	 * Get a driver by archetype
+	 * Get a fresh copy of a driver by archetype
 	 * @param archetype The driver archetype to retrieve
-	 * @returns Driver instance or undefined if not found
+	 * @returns A new Driver at starting state, or undefined if not found
 	 */
 	public getDriver(archetype: DriverArchetype): Driver | undefined {
 		if (!this.loaded) {
@@ -81,12 +86,12 @@ export class DriverLoader {
 			return undefined;
 		}
 
-		return this.drivers.get(archetype);
+		return this.templates.get(archetype)?.copy();
 	}
 
 	/**
-	 * Get all loaded drivers
-	 * @returns Array of all driver instances
+	 * Get fresh copies of all loaded drivers
+	 * @returns A new Driver at starting state for every archetype
 	 */
 	public getAllDrivers(): Driver[] {
 		if (!this.loaded) {
@@ -94,7 +99,7 @@ export class DriverLoader {
 			return [];
 		}
 
-		return Array.from(this.drivers.values());
+		return Array.from(this.templates.values(), template => template.copy());
 	}
 
 	/**
@@ -135,11 +140,8 @@ export class DriverLoader {
 			await cardLoader.loadCards();
 		}
 
-		// Create starting deck using available cards
-		const availableCards = cardLoader.getAllCardsAsMap();
-		driver.createStartingDeck(availableCards);
-
-		return driver.copy(); // Return a copy to avoid modifying the template
+		driver.createStartingDeck(cardLoader.getAllCardsAsMap());
+		return driver;
 	}
 
 	/**
@@ -155,7 +157,7 @@ export class DriverLoader {
 	 * @returns Number of drivers
 	 */
 	public getDriverCount(): number {
-		return this.drivers.size;
+		return this.templates.size;
 	}
 
 	/**
@@ -175,28 +177,9 @@ export class DriverLoader {
 			return true;
 		}
 
-		// Modify the driver's config to unlock it
-		const config = driver.getConfig();
-		config.metadata.unlocked = true;
-		
-		// Create new driver instance with unlocked status
-		const unlockedDriver = new Driver({
-			archetype: config.id,
-			metadata: config.metadata,
-			skills: config.skills,
-			vehicleStats: config.vehicleStats,
-			startingDeck: config.startingDeck,
-			// Default runtime values
-			hitpoints: config.maxHitpoints,
-			maxHitpoints: config.maxHitpoints,
-			adrenaline: 3,
-			maxAdrenaline: config.maxAdrenaline,
-			role: DriverRole.ACTIVE,
-			hand: [],
-			discard: [],
-			deck: null
-		});
-		this.drivers.set(archetype, unlockedDriver);
+		// The copy's metadata is its own, so DRIVER_CONFIGS keeps its default unlock state
+		driver.metadata = { ...driver.metadata, unlocked: true };
+		this.templates.set(archetype, driver);
 
 		console.log(`Driver ${archetype} unlocked!`);
 		return true;
@@ -206,7 +189,7 @@ export class DriverLoader {
 	 * Reset all drivers to their default unlock state
 	 */
 	public resetUnlockState(): void {
-		this.drivers.clear();
+		this.templates.clear();
 		this.loaded = false;
 		
 		// Reload drivers with default unlock states

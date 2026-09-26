@@ -324,4 +324,60 @@ describe('Enemy intents', () => {
 			expect(logLines(battle, 'general')).toContain('Buggy is wrecked and drops its plan');
 		});
 	});
+
+	describe('ambushers', () => {
+		const ambushAt = (row: RoadRow): Vehicle => {
+			const ambusher = createVehicle('Ambusher', 3, slot(RoadLane.PLAYER_SHOULDER, row));
+			battle = createBattle([rig, bike], [buggy, ambusher]);
+			return ambusher;
+		};
+
+		test('an ambusher plans from the shoulder with the flank bonus', () => {
+			// Player shoulder center to Rig at inside center is range 2
+			const ambusher = ambushAt(RoadRow.CENTER);
+			giveHand(ambusher, [farShot()]);
+			battle.planEnemyTurn();
+
+			expect(battle.getIntents(ambusher)).toEqual([
+				expect.objectContaining({ type: IntentType.ATTACK, amount: 6, target: rig.id })
+			]);
+		});
+
+		test('a planned swerve keeps it without a reserved slot, so it holds the shoulder once outpaced', async () => {
+			// Ambusher 53 outruns Rig 51 from the behind row onto the center shoulder slot
+			const ambusher = ambushAt(RoadRow.BEHIND);
+			giveHand(ambusher, [flank()]);
+			battle.planEnemyTurn();
+			expect(battle.getPlan(ambusher)[0].target).toBe(rig);
+
+			await battle.endPlayerTurn();
+
+			expect(ambusher.slot).toEqual(slot(RoadLane.PLAYER_SHOULDER, RoadRow.CENTER));
+			expect(ambusher.flank).toEqual({ reservedSlot: null, outran: rig });
+
+			ambusher.applyStatusEffect({ name: 'oil_slick', duration: 2, value: -40 });
+			await battle.endPlayerTurn();
+
+			expect(ambusher.slot).toEqual(slot(RoadLane.PLAYER_SHOULDER, RoadRow.CENTER));
+		});
+
+		test("another raider can't plan a flank into the ambusher's slot", () => {
+			ambushAt(RoadRow.CENTER);
+			giveHand(buggy, [flank()]);
+			battle.planEnemyTurn();
+
+			expect(battle.getPlan(buggy)).toEqual([]);
+			expect(battle.getFlankBlocker(buggy, rig)).toBe('player shoulder, center is taken');
+		});
+
+		test('the player plays against it as a flanker that is not in formation', () => {
+			const ambusher = ambushAt(RoadRow.CENTER);
+
+			expect(battle.getFlankBlocker(bike, ambusher)).toBe('Ambusher is not in formation');
+
+			giveHand(rig, [oilSlick()]);
+			expect(battle.playCard({ driver: driverOf(rig), cardIndex: 0, targetVehicle: ambusher })).toBe(true);
+			expect(ambusher.hasStatusEffect('speed_reduction')).toBe(true);
+		});
+	});
 });

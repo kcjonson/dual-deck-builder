@@ -122,13 +122,13 @@ describe('DriverSelectionScreen: one driver per slot', () => {
 		// would make the left panel skip after the remount
 		left.cycleDriver();
 		right.cycleDriver();
-		expect(screen.getSelectedDrivers().driver2).toBe(rosterDrivers[0]);
+		expect(screen.getSelectedDrivers().driver2?.archetype).toBe(rosterDrivers[0].archetype);
 
 		screen.unmount();
 		screen.mount();
 		await flushPromises();
 
 		expectDifferentDrivers(screen);
-		expect(left.getSelectedDriver()).toBe(rosterDrivers[0]);
+		expect(left.getSelectedDriver()?.archetype).toBe(rosterDrivers[0].archetype);
 	});
 });
