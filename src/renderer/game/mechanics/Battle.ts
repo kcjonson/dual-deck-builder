@@ -1312,9 +1312,23 @@ export class Battle extends Model<BattleData> {
 		}
 
 		if (!recipient.isAlive()) {
-			this.getTeamForVehicle(recipient)?.handleVehicleDestruction(recipient);
+			this.handleWreck(recipient);
 		}
 		return true;
+	}
+
+	/**
+	 * Everyone who lived through a wreck jumps to a free seat or crashes out
+	 */
+	private handleWreck(wreck: Vehicle): void {
+		for (const { driver, seat } of this.getTeamForVehicle(wreck)?.handleVehicleDestruction(wreck) ?? []) {
+			const name = this.getDriverDisplayName(driver);
+			if (seat) {
+				this.log('general', `${name} jumps from ${wreck.name} into ${seat.name}`, { driver: driver.metadata.name, vehicle: seat.name });
+			} else {
+				this.log('general', `${name} has no free seat and crashes out of the fight`, { driver: driver.metadata.name });
+			}
+		}
 	}
 
 	/**
@@ -1405,6 +1419,7 @@ export class Battle extends Model<BattleData> {
 			vehicle.damageStructure(damage);
 		} else {
 			vehicle.takeDamage(damage);
+			this.getTeamForVehicle(vehicle)?.handleDriverDeath(vehicle);
 		}
 
 		const split = [
@@ -1448,7 +1463,7 @@ export class Battle extends Model<BattleData> {
 			{ card: card.displayName, target: driver.metadata.name, value: damage }
 		);
 		if (vehicle && crew) {
-			vehicle.handleDriverDeath();
+			this.getTeamForVehicle(vehicle)?.handleDriverDeath(vehicle);
 			this.logDeaths(vehicle, crew);
 		}
 	}
@@ -1470,6 +1485,8 @@ export class Battle extends Model<BattleData> {
 		if (vehicle.driver) {
 			this.log('general', `${this.getDriverDisplayName(vehicle.driver)} takes the wheel of ${vehicle.name}`,
 				{ driver: vehicle.driver.metadata.name, vehicle: vehicle.name });
+		} else if (vehicle.isEscort) {
+			this.log('general', `${vehicle.name} has nobody at the wheel and carries on as an escort`, { vehicle: vehicle.name });
 		} else {
 			this.log('general', `${vehicle.name} has nobody aboard and is out of the fight`, { vehicle: vehicle.name });
 		}
@@ -1605,9 +1622,8 @@ export class Battle extends Model<BattleData> {
 	 * At the end of that turn, yours or the enemy's, it leaves the road and
 	 * its team. Its occupants already jumped out when it was wrecked.
 	 *
-	 * A vehicle with nobody alive aboard leaves the same way. The spec has a
-	 * raider do this; a player vehicle should become an escort instead, which
-	 * waits on DDB-152, so for now it leaves too.
+	 * A raider with nobody alive aboard leaves the same way. A player's
+	 * vehicle never does: it became an escort when its driver died.
 	 */
 	private clearWrecks(): void {
 		for (const team of [this.playerTeam, this.enemyTeam]) {

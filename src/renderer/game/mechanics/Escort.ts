@@ -1,4 +1,5 @@
-import { FormationSlot, RoadRow } from './Road';
+import type { CrewSkills } from './Driver';
+import { FormationSlot, RoadRow, laneKind } from './Road';
 import { Vehicle } from './Vehicle';
 
 /**
@@ -24,15 +25,16 @@ export interface EscortDividend {
  * vehicle, as they do for a driven one.
  */
 export interface EscortProfile {
-	type: EscortType;
+	/** Null for a driven vehicle carrying on unmanned: not a hired type */
+	type: EscortType | null;
 	role: EscortRole;
 	gunnery: number;
 	evade: number;
 	ramming: number;
 	/** Where it opens when the encounter doesn't place it */
 	preferredSlot: FormationSlot;
-	/** Card type of the signature order card it brings into a driver's deck */
-	signatureCard: string;
+	/** Card type of the signature order card it brings into a driver's deck. An unmanned vehicle brings none. */
+	signatureCard: string | null;
 	dividend: EscortDividend | null;
 	/** An encounter's escort (an event ally) rather than one from the convoy; only these may start as ambushers */
 	setPiece: boolean;
@@ -41,7 +43,9 @@ export interface EscortProfile {
 /**
  * Everything needed to build an escort of one type
  */
-export interface EscortConfig extends Omit<EscortProfile, 'setPiece'> {
+export interface EscortConfig extends Omit<EscortProfile, 'setPiece' | 'type' | 'signatureCard'> {
+	type: EscortType;
+	signatureCard: string;
 	name: string;
 	armor: number;
 	structure: number;
@@ -133,6 +137,41 @@ export function createEscort({ type, setPiece = false }: { type: EscortType; set
 			preferredSlot: { ...preferredSlot },
 			dividend: dividend ? { ...dividend } : null,
 			setPiece
+		}
+	});
+}
+
+/**
+ * Whoever is left keeping a driven vehicle on the road once its driver is
+ * dead: a content number, set below every hired gun escort's gunnery and
+ * evade and no better than the Outrider's ramming
+ */
+export const UNMANNED_CREW: Readonly<CrewSkills> = { gunnery: 4, evade: 3, ramming: 2 };
+
+/**
+ * A player's driven vehicle whose driver died with nobody to take the wheel
+ * carries on as an escort for the rest of the fight: default crew skills,
+ * its own base speed (Vehicle.speed without a driver), no signature card, no
+ * dividend. It starts spent, since it can only convert mid-turn, and the next
+ * player turn readies it with the rest. Its preferred slot is the formation
+ * slot it held, or had reserved while flanking.
+ */
+export function convertToEscort(vehicle: Vehicle): void {
+	if (vehicle.isEscort || vehicle.driver || vehicle.passenger) {
+		throw new Error(`${vehicle.name} can only become an escort with nobody aboard`);
+	}
+	const home = vehicle.flank ? vehicle.flank.reservedSlot : vehicle.slot;
+	const lane = home && laneKind(home.lane) === 'outside' ? 'outside' : 'inside';
+	vehicle.set({
+		spent: true,
+		escort: {
+			type: null,
+			role: 'gun',
+			...UNMANNED_CREW,
+			preferredSlot: { lane, row: home?.row ?? RoadRow.CENTER },
+			signatureCard: null,
+			dividend: null,
+			setPiece: false
 		}
 	});
 }

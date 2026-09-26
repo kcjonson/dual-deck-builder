@@ -324,28 +324,29 @@ export class Vehicle extends Model<VehicleData> {
 	/**
 	 * A driven vehicle with nobody alive at the wheel. A dead driver's living
 	 * passenger takes over, so this also means nobody alive aboard. An escort
-	 * has no driver by design and is never unmanned.
+	 * has no driver by design and is never unmanned, and a player's vehicle
+	 * becomes an escort the moment it would be (Team.handleDriverDeath), so
+	 * only a raider stays unmanned.
 	 */
 	public isUnmanned(): boolean {
 		return !this.isEscort && !this.driver?.isAlive();
 	}
 
 	/**
-	 * Wrecked, or unmanned. Until a driverless player vehicle can become an
-	 * escort (DDB-152) an unmanned vehicle doesn't act, can't be targeted,
-	 * and leaves the road at the end of the turn, like a wreck. An escort is
-	 * in the fight while it has structure.
+	 * Wrecked, or an unmanned raider. Either doesn't act, can't be targeted,
+	 * and leaves the road at the end of the turn. An escort is in the fight
+	 * while it has structure.
 	 */
 	public get isOutOfFight(): boolean {
 		return !this.isAlive() || this.isUnmanned();
 	}
 
 	/**
-	 * A free passenger seat behind a living driver. Escorts have a seat by
-	 * the rules, but riding in one waits on DDB-152.
+	 * A free passenger seat in a vehicle still in the fight: behind a living
+	 * driver, or in an escort, which has a seat and no driver
 	 */
 	public canAddPassenger(): boolean {
-		return this.passenger === null && !this.isEscort && !this.isOutOfFight;
+		return this.passenger === null && !this.isOutOfFight;
 	}
 
 	/**
@@ -364,7 +365,8 @@ export class Vehicle extends Model<VehicleData> {
 	/**
 	 * Take anyone who has died out of their seat. A dead driver's living
 	 * passenger takes the wheel; with no living passenger the vehicle is left
-	 * unmanned. Runs wherever driver damage lands.
+	 * unmanned, and its team decides what that means (Team.handleDriverDeath).
+	 * Runs wherever driver damage lands.
 	 */
 	public handleDriverDeath(): void {
 		if (this.passenger && !this.passenger.isAlive()) {
