@@ -82,7 +82,7 @@ export class AIController {
 
 		for (const raider of team.vehicles) {
 			const driver = raider.driver;
-			if (!raider.isAlive() || !driver || !driver.isAlive()) continue;
+			if (raider.isOutOfFight || !driver) continue;
 
 			board.actor = raider;
 			const actions: PlannedAction[] = [];
@@ -97,7 +97,6 @@ export class AIController {
 					card,
 					driver,
 					target,
-					targetDriver: target?.driver ?? null,
 					flanking: board.isFlanking(raider),
 					speed: board.speedOf(raider)
 				});
@@ -119,12 +118,29 @@ export class AIController {
 		return this.enemyAI !== null;
 	}
 
-	async executeAIDecision(decision: AIDecision, isPlayerTeam: boolean): Promise<void> {
+	/**
+	 * Let the player AI play cards until it chooses to end the turn or picks
+	 * a play the battle refuses. Stopping on a refusal keeps a bad pick from
+	 * being offered forever. Doesn't end the turn itself.
+	 */
+	async playPlayerCards(): Promise<void> {
+		while (!this.battle.isBattleOver()) {
+			const decision = await this.getPlayerDecision();
+			if (decision?.type !== 'playCard' || !await this.executeAIDecision(decision, true)) {
+				return;
+			}
+		}
+	}
+
+	/**
+	 * Carry out an AI decision. Returns true only when a card was played.
+	 */
+	async executeAIDecision(decision: AIDecision, isPlayerTeam: boolean): Promise<boolean> {
 		if (decision.type === 'endTurn') {
 			if (isPlayerTeam) {
 				await this.battle.endPlayerTurn();
 			}
-			return;
+			return false;
 		}
 
 		if (decision.type === 'playCard' && decision.card && decision.driver) {
@@ -132,7 +148,7 @@ export class AIController {
 			const cardIndex = decision.driver.hand.indexOf(decision.card);
 			if (cardIndex === -1) {
 				console.error('Card not found in driver hand');
-				return;
+				return false;
 			}
 
 			if (isPlayerTeam) {
@@ -147,7 +163,7 @@ export class AIController {
 					}
 				}
 				
-				this.battle.playCard({
+				return this.battle.playCard({
 					driver: decision.driver,
 					cardIndex,
 					targetVehicle
@@ -155,5 +171,6 @@ export class AIController {
 			}
 			// The enemy team plays its planned turn inside Battle, never through here
 		}
+		return false;
 	}
 }

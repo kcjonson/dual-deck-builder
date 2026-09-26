@@ -39,8 +39,6 @@ export interface PlannedAction {
 	card: Card;
 	driver: Driver;
 	target: Vehicle | null;
-	/** Who was driving the target when planned, so a wreck can be followed to the vehicle they ride in. */
-	targetDriver: Driver | null;
 	/** The raider's projected flank state and speed when this card resolves, after its earlier planned cards. */
 	flanking: boolean;
 	speed: number;

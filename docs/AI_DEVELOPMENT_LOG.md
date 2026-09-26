@@ -6,6 +6,19 @@ This document contains the chronological log of completed development tasks for 
 
 **Date correction (2026-08-22):** the repo's first commit is 2025-05-17, but many entries below carry dates in December 2024 or January 2025 — the AI that wrote them used its assumed date instead of the real one. Entries dated 2025-07-03 and 2025-07-02 have been corrected from "2025-01-03"/"2025-01-02" (verified against git history). Remaining Dec 2024 / Jan 2025 dates are wrong by roughly six months; the real work happened May–July 2025. Trust git history over these dates.
 
+## Driver death handled mid-fight (2026-09-25)
+
+**What landed:** DDB-156. A driver killed without their vehicle being wrecked no longer soft-locks the fight.
+
+- `Vehicle.handleDriverDeath` now runs wherever driver damage lands: `Vehicle.takeDamage` after occupant damage, and `Battle.damageDriver` for Headshot and self damage. It takes the dead out of their seats and promotes the passenger only if they're alive. The repro (Rig wrecked, its driver riding in Bike, Headshot kills Bike's driver) now leaves the survivor driving Bike, free to attack.
+- `Vehicle.canAddPassenger` needs a living driver, so a wreck survivor is never seated behind a dead driver or in an empty vehicle; with no seat they crash out, and `Team.isDefeated` counts only living drivers still aboard.
+- Dead drivers don't draw (`Battle.drawTurnHands`), refill (`Team.refillAdrenaline`), or play (`Driver.getPlayBlocker`, `Driver.canPlayCard`).
+- Nobody alive aboard (`Vehicle.isOutOfFight`): the vehicle can't be targeted, a planned card aimed at it fizzles, a flanker that outran it holds the shoulder, and `Battle.clearWrecks` takes it off the road at the end of the turn. That's the spec for raiders; the player's version should become an escort (DDB-152), so until then it leaves too.
+- Battle log prefixes come from each team's seat order at the start of the fight, so a passenger keeps their `Player1` after a wreck. Deaths and handovers are logged.
+- Review fixes: the AI's target lists (`AIPlayer.getValidTargets` and friends) and the combat screen's target highlight skip vehicles out of the fight, since the player AI kept offering an empty raider that `playCard` refused. The targeting rules now live in one place, `BoardProjection.targetBlocker`: `Battle.validateTarget` logs its answer against a fresh projection, and `AIPlayer.getValidTargets` filters with it against the projection it's planning on, so the AI no longer offers Oil Slick at a non-flanker, Medical Kit at another vehicle, or anything out of a non-damage effect's range. The AI-vs-AI loops in `AIEvaluator` and `battle-simulator.ts` now share `AIController.playPlayerCards`, which ends the turn the first time a play is refused. A card planned at a wreck follows whoever was aboard when it was wrecked (`Team.survivorsOf`, replacing `PlannedAction.targetDriver`), driving or riding.
+
+**How:** tests first in `Wrecks.test.ts` (15, including the soft lock) and `Vehicle.test.ts` (6 more). Six existing tests leaned on dead drivers staying seated, `handleDriverDeath` running on a living driver, or a driverless vehicle taking a passenger, and were updated to set up the same situation legally. Checked in the app: reproduced the scenario on the combat screen and played Ramming Speed with the promoted driver.
+
 ## Ambush starts (2026-09-25)
 
 **What landed:** DDB-147. An encounter can start raiders already flanking, on the player's shoulder.

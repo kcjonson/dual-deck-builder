@@ -32,6 +32,18 @@ export class Team extends Model<TeamData> {
 		'vehicles'
 	]);
 
+	// Who got out of each wreck alive, kept after the wreck leaves its team so
+	// a card planned at it can follow them (stored separately due to Model freezing)
+	private static wreckSurvivors = new WeakMap<Vehicle, Driver[]>();
+
+	/**
+	 * Everyone who was aboard a wreck when it was wrecked and lived, driver
+	 * first, whether they found a seat or crashed out
+	 */
+	public static survivorsOf(wreck: Vehicle): readonly Driver[] {
+		return Team.wreckSurvivors.get(wreck) ?? [];
+	}
+
 	/**
 	 * Create a new team
 	 */
@@ -79,7 +91,9 @@ export class Team extends Model<TeamData> {
 	}
 
 	/**
-	 * Check if team is defeated (all drivers dead)
+	 * No driver still in the fight, driving or riding. The dead leave their
+	 * seats, and a driver who crashed out never got one, so only living
+	 * drivers still aboard a vehicle count.
 	 */
 	public isDefeated(): boolean {
 		return this.getAliveDrivers().length === 0;
@@ -118,23 +132,23 @@ export class Team extends Model<TeamData> {
 	 * the road until Battle clears it at the end of the turn.
 	 */
 	public handleVehicleDestruction(destroyedVehicle: Vehicle): void {
-		const occupants = [destroyedVehicle.driver, destroyedVehicle.passenger];
+		const survivors = [destroyedVehicle.driver, destroyedVehicle.passenger]
+			.filter((occupant): occupant is Driver => occupant?.isAlive() ?? false);
+		Team.wreckSurvivors.set(destroyedVehicle, survivors);
 		destroyedVehicle.driver = null;
 		destroyedVehicle.passenger = null;
 		destroyedVehicle.destroy();
 
-		for (const occupant of occupants) {
-			if (occupant?.isAlive()) {
-				this.handleDriverEscape(occupant);
-			}
+		for (const survivor of survivors) {
+			this.handleDriverEscape(survivor);
 		}
 	}
 
 	/**
-	 * Refill adrenaline for all drivers at start of turn
+	 * Refill adrenaline for all living drivers at start of turn
 	 */
 	public refillAdrenaline(): void {
-		this.getAllDrivers().forEach(driver => driver.refillAdrenaline());
+		this.getAliveDrivers().forEach(driver => driver.refillAdrenaline());
 	}
 
 	/**
@@ -177,8 +191,8 @@ export class Team extends Model<TeamData> {
 	}
 
 	/**
-	 * Seat a driver as a passenger in the first alive team vehicle with room.
-	 * Returns false if there's no room anywhere.
+	 * Seat a driver as a passenger in the first team vehicle with a free seat
+	 * behind a living driver. Returns false if there's no room anywhere.
 	 */
 	public handleDriverEscape(driver: Driver): boolean {
 		const availableVehicle = this.vehicles.find(v => v.canAddPassenger());

@@ -76,7 +76,7 @@ export abstract class AIPlayer {
 		const actions: AIDecision[] = [];
 
 		for (const vehicle of this.team.vehicles) {
-			if (!vehicle.isAlive() || !vehicle.driver) continue;
+			if (vehicle.isOutOfFight || !vehicle.driver) continue;
 			if (this.board.actor && vehicle !== this.board.actor) continue;
 
 			const driver = vehicle.driver;
@@ -124,7 +124,7 @@ export abstract class AIPlayer {
 			case 'enemy_single':
 				const enemyTeam = this.team === this.battle.playerTeam ? 
 					this.battle.enemyTeam : this.battle.playerTeam;
-				potentialTargets = enemyTeam.vehicles.filter(v => v.isAlive());
+				potentialTargets = enemyTeam.vehicles.filter(v => !v.isOutOfFight);
 				break;
 			
 			case 'enemy_all':
@@ -132,7 +132,7 @@ export abstract class AIPlayer {
 				break;
 			
 			case 'ally':
-				potentialTargets = this.team.vehicles.filter(v => v.isAlive());
+				potentialTargets = this.team.vehicles.filter(v => !v.isOutOfFight);
 				break;
 			
 			case 'self':
@@ -148,43 +148,21 @@ export abstract class AIPlayer {
 			case 'any':
 				// 'Any' target type means it can target any vehicle
 				potentialTargets = [
-					...this.team.vehicles.filter(v => v.isAlive()),
-					...(this.team === this.battle.playerTeam ? 
-						this.battle.enemyTeam : this.battle.playerTeam).vehicles.filter(v => v.isAlive())
+					...this.team.vehicles.filter(v => !v.isOutOfFight),
+					...(this.team === this.battle.playerTeam ?
+						this.battle.enemyTeam : this.battle.playerTeam).vehicles.filter(v => !v.isOutOfFight)
 				];
 				break;
 		}
 
-		// Filter by range if card has damage effects with range requirements
+		// Only offer targets the battle's own targeting rules accept
 		for (const target of potentialTargets) {
-			let inRange = true;
-			
-			// Check if card has any damage effects with range requirements
-			for (const effect of card.effects) {
-				if (effect.type === 'damage' && typeof effect.range === 'number') {
-					const range = this.board.range(sourceVehicle, target);
-					if (range > effect.range) {
-						inRange = false;
-						break;
-					}
-				}
-			}
-			
-			if (inRange && this.meetsFlankRules(card, sourceVehicle, target)) {
+			if (this.board.targetBlocker({ card, caster: sourceVehicle, target }) === null) {
 				targets.push(target);
 			}
 		}
 
 		return targets;
-	}
-
-	/**
-	 * A flank card's target is the vehicle to outrun, so only offer ones the
-	 * battle would accept.
-	 */
-	private meetsFlankRules(card: Card, sourceVehicle: Vehicle, target: Vehicle): boolean {
-		const flanks = card.effects.some(e => e.type === 'change_position' && e.position === 'flanking');
-		return !flanks || this.board.canFlank(sourceVehicle, target);
 	}
 
 	protected cardRequiresTarget(card: Card): boolean {

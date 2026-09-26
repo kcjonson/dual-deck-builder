@@ -161,6 +161,8 @@ export class Vehicle extends Model<VehicleData> {
 			if (this.passenger && this.passenger.isAlive()) {
 				this.passenger.takeDamage(occupantDamage);
 			}
+
+			this.handleDriverDeath();
 		}
 		
 		// Check if vehicle is destroyed
@@ -295,17 +297,27 @@ export class Vehicle extends Model<VehicleData> {
 	}
 
 	/**
-	 * Check if vehicle is unmanned
+	 * Nobody alive at the wheel. A dead driver's living passenger takes over,
+	 * so this also means nobody alive aboard.
 	 */
 	public isUnmanned(): boolean {
-		return this.driver === null;
+		return !this.driver?.isAlive();
 	}
 
 	/**
-	 * Check if vehicle can add a passenger
+	 * Wrecked, or nobody alive aboard. Until escorts land (DDB-152) an
+	 * unmanned vehicle doesn't act, can't be targeted, and leaves the road at
+	 * the end of the turn, like a wreck.
+	 */
+	public get isOutOfFight(): boolean {
+		return !this.isAlive() || this.isUnmanned();
+	}
+
+	/**
+	 * A free passenger seat behind a living driver
 	 */
 	public canAddPassenger(): boolean {
-		return this.passenger === null && this.isAlive();
+		return this.passenger === null && !this.isOutOfFight;
 	}
 
 	/**
@@ -322,22 +334,25 @@ export class Vehicle extends Model<VehicleData> {
 	}
 
 	/**
-	 * Handle driver death - promote passenger if available
+	 * Take anyone who has died out of their seat. A dead driver's living
+	 * passenger takes the wheel; with no living passenger the vehicle is left
+	 * unmanned. Runs wherever driver damage lands.
 	 */
 	public handleDriverDeath(): void {
-		const oldDriver = this.driver;
-		
-		if (this.passenger) {
-			// Promote passenger to driver
-			this.driver = this.passenger;
+		if (this.passenger && !this.passenger.isAlive()) {
 			this.passenger = null;
-			this.driver.role = DriverRole.ACTIVE;
-			this.emit('driverChanged', { oldDriver, newDriver: this.driver });
-		} else {
-			// Vehicle becomes unmanned
-			this.driver = null;
-			this.emit('driverChanged', { oldDriver, newDriver: null });
 		}
+		if (!this.driver || this.driver.isAlive()) {
+			return;
+		}
+
+		const oldDriver = this.driver;
+		const newDriver = this.passenger;
+		this.set({ driver: newDriver, passenger: null });
+		if (newDriver) {
+			newDriver.role = DriverRole.ACTIVE;
+		}
+		this.emit('driverChanged', { oldDriver, newDriver });
 	}
 
 	/**

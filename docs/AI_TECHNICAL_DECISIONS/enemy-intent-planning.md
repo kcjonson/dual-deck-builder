@@ -28,7 +28,7 @@ Between planning and the raider's turn, the player can flank out of range, speed
 Split by cause.
 
 - When the player caused it (moved out of range, outpaced a planned flank, or slowed a flanker so it dropped back), the card fizzles: it's spent, does nothing, and the combat log says why in plain words.
-- When the target was wrecked during the enemy turn, the card follows the wrecked driver to the vehicle they now ride in as a passenger, and fizzles if there's no such vehicle.
+- When the target was wrecked during the enemy turn, the card follows the wrecked driver to the vehicle they now ride in as a passenger, and fizzles if there's no such vehicle. Since DDB-156 "the wrecked driver" means whoever was aboard at the moment of the wreck and lived (`Team.survivorsOf`), driver first, and they can be driving by then after a promotion.
 - A raider that is itself wrecked, or has lost its driver, drops the rest of its plan.
 
 ## Q2: what a raider plans against

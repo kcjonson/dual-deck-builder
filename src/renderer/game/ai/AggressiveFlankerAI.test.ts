@@ -181,7 +181,8 @@ describe('AggressiveFlankerAI', () => {
 		// Start battle
 		battle.start();
 
-		// Damage one player vehicle significantly
+		// Damage one player vehicle significantly, with drivers tough enough to live through it
+		playerTeam.vehicles.forEach(vehicle => vehicle.driver?.set({ hitpoints: 20, maxHitpoints: 20 }));
 		playerTeam.vehicles[0].takeDamage(15); // Low health
 		playerTeam.vehicles[1].takeDamage(5);  // Higher health
 

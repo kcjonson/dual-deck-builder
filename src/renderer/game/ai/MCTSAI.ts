@@ -246,7 +246,7 @@ export class MCTSAI extends AIPlayer {
 	private countRemainingValuableActions(): number {
 		let count = 0;
 		for (const vehicle of this.team.vehicles) {
-			if (!vehicle.isAlive() || !vehicle.driver) continue;
+			if (vehicle.isOutOfFight || !vehicle.driver) continue;
 			const driver = vehicle.driver;
 			
 			for (const card of this.board.handOf(driver)) {

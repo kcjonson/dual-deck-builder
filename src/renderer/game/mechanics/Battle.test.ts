@@ -782,11 +782,11 @@ describe('Battle', () => {
 				slot: { lane: RoadLane.ENEMY_OUTSIDE, row: RoadRow.CENTER },
 				flank: null,
 				velocity: 0,
-				driver: null,
+				driver: enemyDriver.copy(),
 				passenger: null,
 				statusEffects: []
 			});
-			
+
 			enemyTeam.vehicles.push(enemyVehicle2);
 			
 			const highDamageCard = new Card({
@@ -1163,27 +1163,25 @@ describe('Battle', () => {
 			const eventSpy = jest.fn();
 			battle.on('battleEnded', eventSpy);
 			
-			// Kill all player drivers
-			playerDriver1.hitpoints = 0;
+			// The last living player driver kills themself
+			playerDriver1.hitpoints = 1;
 			playerDriver2.hitpoints = 0;
-			
-			// Play any card to trigger battle status check
+
 			const card = new Card({
-				type: 'simple',
-				name: 'Simple',
+				type: 'berserk',
+				name: 'Berserk',
 				cost: 0,
-				summary: 'Simple card',
-				description: 'Simple card',
+				summary: 'Hurt yourself',
+				description: 'Hurt yourself',
 				rarity: 'common',
 				targetType: 'self',
-				effects: [{ type: 'draw', value: 1, description: 'Draw 1' }],
-				tags: ['draw']
+				effects: [{ type: 'damage', value: 5, target: 'self_driver', always_hits: true, description: 'Deal 5 damage to yourself' }],
+				tags: []
 			});
-			
+
 			playerDriver1.hand = [card];
 			playerDriver1.adrenaline = 1;
-			
-			// This should trigger checkBattleStatus internally
+
 			battle.playCard({
 				driver: playerDriver1,
 				cardIndex: 0
