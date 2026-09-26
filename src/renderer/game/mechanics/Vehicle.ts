@@ -3,6 +3,7 @@ import { Model } from '../core/Model';
 import { RoadSlot, isShoulder } from './Road';
 import type { IntentTier } from './Intent';
 import type { EscortProfile } from './Escort';
+import type { RaiderArchetype } from './RaiderArchetype';
 
 /**
  * Vehicle status effects
@@ -46,6 +47,8 @@ export interface VehicleData {
 	statusEffects: VehicleStatusEffect[];
 	/** How much of this vehicle's plan the player sees when it's a raider. Unset means basic. */
 	intentTier?: IntentTier;
+	/** Who this vehicle goes for when it's a raider: haulers, driven vehicles, or unset for no preference */
+	raiderArchetype?: RaiderArchetype | null;
 	/** Set on an escort, which has no driver by design. Unset means a driven vehicle. */
 	escort?: EscortProfile | null;
 	/** An escort that has acted this turn. Every escort is ready again at the start of the player's turn. */
@@ -102,6 +105,7 @@ export class Vehicle extends Model<VehicleData> {
 		'passenger',
 		'statusEffects',
 		'intentTier',
+		'raiderArchetype',
 		'escort',
 		'spent',
 		'shield'

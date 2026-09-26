@@ -56,6 +56,14 @@ export function effectRecipientOf({ effect, card }: { effect: CardEffect; card: 
 }
 
 /**
+ * Whether any of the card's effects lands on its target. A flank's target
+ * is only the vehicle it outruns, so nothing lands there.
+ */
+export function landsOnTarget(card: Card): boolean {
+	return card.effects.some(effect => effectRecipientOf({ effect, card }) === EffectRecipient.TARGET);
+}
+
+/**
  * Whether a damage or status effect rolls the hit check against each
  * recipient. The caster never rolls against itself; anyone else is rolled
  * against unless the effect always hits.

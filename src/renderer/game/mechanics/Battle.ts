@@ -16,7 +16,7 @@ import {
 import { Card, CardEffect } from './Card';
 import { BoardProjection, cardRange } from './BoardProjection';
 import { ESCORT_CONFIGS } from './Escort';
-import { EffectRecipient, effectRecipientOf, effectRecipients, isCasterAction, rollsToHit } from './EffectTargets';
+import { EffectRecipient, effectRecipientOf, effectRecipients, isCasterAction, landsOnTarget, rollsToHit } from './EffectTargets';
 import {
 	Intent,
 	IntentTier,
@@ -735,12 +735,13 @@ export class Battle extends Model<BattleData> {
 
 	/**
 	 * The escort under Draw Fire that takes this card instead of its target,
-	 * or null. Draw Fire covers single-target cards that land something on a
-	 * driven vehicle in the escort's row; an area hit keeps its targets
-	 * (DDB-150), and so does a card with nothing landing on its target (a
-	 * flank). Rows are judged as they stand, and the last Draw Fire played
-	 * on the row wins. It never cancels: a card that can't reach the escort
-	 * keeps its target.
+	 * or null. Draw Fire pulls aimed fire: single-target cards that land
+	 * something on a driven vehicle in the escort's row. It never pulls a
+	 * blast, so an area hit (`enemy_all`) lands on everything it would have,
+	 * as planned (escorts.md decision 29). A card with nothing landing on its
+	 * target (a flank) keeps its target too. Rows are judged as they stand,
+	 * and the last Draw Fire played on the row wins. It never cancels: a
+	 * card that can't reach the escort keeps its target.
 	 */
 	private drawFireRedirect({
 		raider,
@@ -753,13 +754,13 @@ export class Battle extends Model<BattleData> {
 		target: Vehicle;
 		raiderSlot: RoadSlot | null;
 	}): Vehicle | null {
+		// Aimed fire only, never a blast
+		if (card.targetType === 'enemy_all' || !landsOnTarget(card)) return null;
 		const covers = Battle.drawFireCovers.get(this) ?? [];
 		const row = target.slot?.row;
-		if (covers.length === 0 || !row || card.targetType === 'enemy_all' || target.isEscort || !this.playerTeam.vehicles.includes(target)) {
+		if (covers.length === 0 || !row || target.isEscort || !this.playerTeam.vehicles.includes(target)) {
 			return null;
 		}
-		const landsOnTarget = card.effects.some(effect => !isCasterAction(effect) && effectRecipientOf({ effect, card }) === EffectRecipient.TARGET);
-		if (!landsOnTarget) return null;
 
 		// The last living cover on the row: a wrecked one hides nothing, and
 		// after clearWrecks it has no slot, so preview and play agree
@@ -871,6 +872,7 @@ export class Battle extends Model<BattleData> {
 			{ driver: driver.metadata.name, card: card.displayName, adrenalineBefore, adrenalineAfter: driver.adrenaline }
 		);
 
+		// An area hit lands as planned; Draw Fire never pulls it
 		if (card.targetType === 'enemy_all' || !action.target) {
 			this.applyCardEffects({ card, caster: driver, target: null });
 			return;

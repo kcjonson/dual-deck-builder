@@ -314,6 +314,8 @@ export class CombatScreen extends Screen {
 
 		const enemyVehicle1 = createDrivenVehicle({ driver: enemyDriver1 });
 		enemyVehicle1.slot = { lane: RoadLane.ENEMY_INSIDE, row: RoadRow.CENTER };
+		// A scavenger's buggy: it goes for your haulers (escorts.md decision 30)
+		enemyVehicle1.raiderArchetype = 'looter';
 
 		return new Team({
 			type: TeamType.ENEMY,

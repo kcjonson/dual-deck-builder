@@ -4,6 +4,7 @@ import { Vehicle } from '../mechanics/Vehicle';
 import { Driver } from '../mechanics/Driver';
 import { Card } from '../mechanics/Card';
 import { BoardProjection } from '../mechanics/BoardProjection';
+import { preferredTargets } from '../mechanics/RaiderArchetype';
 import { AIDecision, GameStateEvaluation, TeamEvaluation, VehicleEvaluation } from './types';
 
 export abstract class AIPlayer {
@@ -114,9 +115,11 @@ export abstract class AIPlayer {
 		return actions;
 	}
 
-	protected getValidTargets(card: Card, sourceVehicle: Vehicle): (Vehicle | Driver)[] {
-		const targets: (Vehicle | Driver)[] = [];
-
+	/**
+	 * The targets the battle's targeting rules accept for this card, narrowed
+	 * to the ones a raider's archetype prefers when any of them is legal
+	 */
+	protected getValidTargets(card: Card, sourceVehicle: Vehicle): Vehicle[] {
 		// First get potential targets based on target type
 		let potentialTargets: Vehicle[] = [];
 		
@@ -155,14 +158,12 @@ export abstract class AIPlayer {
 				break;
 		}
 
-		// Only offer targets the battle's own targeting rules accept
-		for (const target of potentialTargets) {
-			if (this.board.targetBlocker({ card, caster: sourceVehicle, target }) === null) {
-				targets.push(target);
-			}
-		}
+		const legalTargets = potentialTargets.filter(target =>
+			this.board.targetBlocker({ card, caster: sourceVehicle, target }) === null);
 
-		return targets;
+		// Archetypes are a raider's; a player vehicle carrying one plans without it
+		const archetype = this.team === this.battle.enemyTeam ? sourceVehicle.raiderArchetype : null;
+		return preferredTargets({ archetype, card, targets: legalTargets });
 	}
 
 	protected cardRequiresTarget(card: Card): boolean {
