@@ -25,7 +25,7 @@ Kevin made every decision in the next section on 2026-09-25. The specs: [Combat 
 4. **Raider targeting.** Raider archetypes have target preferences, shown through planned intents: looters go for haulers, killers go for drivers. Draw Fire is the counter.
 5. **Acquisition.** Events and garage hire. Convoy contracts come later.
 6. **Action economy.** Each escort acts once per turn and shows a SPENT chip.
-7. **Loss.** A lost escort is gone for the run, with its signature card. Haulers pay an after-fight dividend (Fuel Hauler +1 fuel, Salvage Rig +15 scrap). Escort damage persists between fights and the garage repairs it. Escorts never count toward defeat, which stays "all drivers dead".
+7. **Loss.** A lost escort is gone for the run, with its signature card. Haulers pay an after-fight dividend (Fuel Hauler +1 fuel, Salvage Rig +15 scrap). Escort damage persists between fights and the garage repairs it. Escorts never count toward defeat, which stays "all drivers dead" (decision 21 changed that to "no driver left in the fight").
 8. **Stats.** Escorts have their own gunnery, evade, ramming, and base speed, and no HP. Past armor, all damage goes to structure (16 covers an escort carrying a passenger). They flank under the normal rules.
 9. **Slots and range.** Same as any vehicle, no cover geometry. Escorts fill the formation after the drivers, and each type has a preferred slot, used as its encounter or opening slot.
 10. **Passengers.** A driver whose vehicle is wrecked goes to the partner's vehicle first, then the nearest escort. A passenger can play order cards, which are a new card type, not attack.
@@ -93,6 +93,12 @@ Review fixes that aren't Kevin's calls, applied at the same time:
 - Triage heals the driver or passenger you choose in the targeted vehicle, up to their starting HP, like Medical Kit. How you choose is a proposal, since a card is one drop onto a vehicle: dropping on the plate's passenger row picks the passenger.
 - Headshot on an escort: DDB-148 decides whether an empty escort is an illegal Headshot target or the card fizzles.
 
+## Defeat (Kevin, 2026-09-25)
+
+The seat rule (17) left a gap: a driver with no free seat is out of the fight but alive, so two drivers could both be out while defeat, still "all drivers dead", didn't trigger. Kevin's framing: one driver must survive to circle back down the road to pick up the other player who crashed out, so the run only needs one survivor to continue, and both out means true death.
+
+21. **Crashed out and defeat.** A driver with no free seat has crashed out: out of the fight but alive. After a won fight, the surviving driver goes back down the road and picks them up, so they rejoin the run. Defeat is no longer "all drivers dead". The fight continues while at least one of your drivers is still in it, driving or riding as a passenger. When none are (every driver dead or crashed out), the run ends: true death, the session is over, with no rescue even for a driver who crashed out alive.
+
 ## Open questions
 
 These change gameplay, so they're Kevin's. Kevin filed the build as DDB-146 to DDB-155, and each question names the task that settles it.
@@ -115,5 +121,6 @@ These change gameplay, so they're Kevin's. Kevin filed the build as DDB-146 to D
   - `Vehicle.handleDriverDeath` is never called (DDB-156), so neither passenger promotion nor a driverless vehicle becoming an escort happens.
   - `Driver.isAttackCard` treats any card with a damage or ram effect, or with "attack", "shot", or "ram" in its name, as an attack, so passengers couldn't play Covering Fire, Ramming Run, or Rally the Convoy. The passenger gate needs to use the `order` tag.
 - Signature cards are per escort, so a card instance needs to know which escort brought it.
+- After PR #46, `Team.isDefeated` already behaves like decision 21 in a fight, since stranded drivers leave the team. Nothing yet carries a crashed-out driver back into the run after a won fight; that's a future run-state task.
 - Escorts are run state: they persist between fights with their damage, and the map, events, and garage read them.
 - The battle screen mock still draws a driver HP bar on escort plates and has seven escorts in Full road. It was left alone apart from a comment on the Full road scenario pointing at the ambush-start rule and saying the Interceptor got onto the shoulder by flanking.

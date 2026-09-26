@@ -135,7 +135,7 @@ These are decided and recorded in Combat Rules; they're listed here because the 
 - Raiders can start on your shoulder, at the start of a fight or when their wave arrives, and a set-piece escort can start on theirs (ambush starts). With no reserved slot to drop back to, they hold it.
 - Each driver has their own deck, hand, discard, and adrenaline pool.
 - Hand cap 7 per driver; draws past 7 go straight to discard.
-- Every vehicle, escorts included, has one passenger seat. A wreck's occupants jump, driver first, to the partner's vehicle or the nearest escort with a free seat. A passenger keeps their hand, can't play attack cards, and can play order cards. A driver with no free seat sits out the fight, alive, and their half of the dock has no hand.
+- Every vehicle, escorts included, has one passenger seat. A wreck's occupants jump, driver first, to the partner's vehicle or the nearest escort with a free seat. A passenger keeps their hand, can't play attack cards, and can play order cards. A driver with no free seat crashes out of the fight, alive, and their half of the dock has no hand.
 - A driven vehicle whose driver dies with no passenger becomes an escort for the rest of the fight.
 - Flanking deals +50%.
 - The same driver can't fill both slots.

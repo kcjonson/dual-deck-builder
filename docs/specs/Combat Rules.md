@@ -11,7 +11,7 @@
   - Vehicles: Array of vehicles. Player teams start with exactly 2 driven vehicles, plus up to 4 escorts in formation (see Escorts), plus any set-piece escorts the encounter starts on the enemy shoulder (ambush starts, see The road). Enemy teams are variable, and their raiders can start on the player's shoulder.
   - Up to 9 vehicles on the road per side: 6 in formation and 3 on the shoulder. A flanker keeps its formation slot reserved, so a side only gets past 6 through ambush starts.
 - Derived States
-  - Defeated = All drivers dead. Escorts never count.
+  - Defeated = No driver still in the fight, driving or riding as a passenger. Every driver is dead or crashed out. Escorts never count.
 
 ### Vehicle
 
@@ -87,14 +87,14 @@ An ambusher has no reserved formation slot and no outran vehicle. It counts as f
 
 ### Losing vehicles and drivers
 
-- Game over - All drivers on a team are dead. Escorts never count toward defeat.
+- Game over - The fight goes on while at least one of your drivers is still in it, driving or riding as a passenger. When none are (every driver dead or crashed out), the run ends: true death, the session is over, and there's no rescue even for a driver who crashed out alive. Escorts never count toward defeat. Decided by Kevin, 2026-09-25: one driver has to survive to circle back down the road for the other.
 - Driver death - If the vehicle has a passenger, the passenger becomes the driver. If not:
   - On the player's team, the vehicle becomes an escort for the rest of the fight, with default crew stats (gunnery, evade, ramming) and its own base speed. It brings no signature card, and if this happens mid-turn it starts spent.
   - A raider vehicle is out of the fight and leaves the road at the end of the turn, like a wreck. Its plan drops (see Enemy intents).
 - Vehicle death - Every vehicle, escorts included, has one passenger seat. The wreck's occupants jump, the driver first, then the passenger.
   - On the player's team, each goes to the partner's vehicle first, then the nearest escort (lowest range from the wreck, ties broken as for attack orders), whichever has a free seat.
   - On a raider team, each goes to any other vehicle on the team with a free seat.
-  - A driver with no free seat is out of the fight but alive: their hand is gone for that fight, and they come back after it.
+  - A driver with no free seat has crashed out: out of the fight but alive, and their hand is gone for that fight. If the fight is won, the surviving driver goes back down the road and picks them up, so they rejoin the run.
   - A passenger keeps their own deck, hand, discard, and adrenaline, draws every turn, can't play attack cards, and can play order cards.
   - A wrecked vehicle stays on the road for the turn it dies, then is removed.
 - Escort death - A wrecked escort is gone for the rest of the run, and its signature card with it. See Escorts.
@@ -173,7 +173,7 @@ An escort is an undriven vehicle in your convoy: it has a slot and a plate but n
 
 ### Passengers and unmanned vehicles
 
-- Every escort has one passenger seat. A driver whose vehicle is wrecked rides in the partner's vehicle first, then the nearest escort with a free seat, and sits out the fight if there's none (see Losing vehicles and drivers). A passenger in an escort can play order cards and any other card that isn't an attack.
+- Every escort has one passenger seat. A driver whose vehicle is wrecked rides in the partner's vehicle first, then the nearest escort with a free seat, and crashes out of the fight if there's none, to be picked up after a won fight (see Losing vehicles and drivers). A passenger in an escort can play order cards and any other card that isn't an attack.
 - A driven vehicle whose driver dies with no passenger becomes an escort for the rest of the fight, with default crew stats and its own base speed. It can be ordered like any escort, it starts spent if it converts mid-turn, and it brings no signature card.
 
 ### Starting escort types

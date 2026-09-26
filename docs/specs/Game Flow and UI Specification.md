@@ -247,6 +247,8 @@ When players defeat the final boss, the victory screen celebrates their achievem
 
 Defeat screens need to be informative without being discouraging, helping players learn for next time.
 
+A run ends when a fight has none of your drivers left in it: every driver dead, or crashed out with no free seat to jump to. That's true death, and the session is over; a driver who crashed out alive isn't rescued. As long as one driver is still in the fight, the run goes on, and after a won fight they go back for a driver who crashed out ([Combat Rules](./Combat%20Rules.md), Losing vehicles and drivers).
+
 **Defeat Presentation:** The screen shows your vehicles' final moments - perhaps one burning while the other tries to limp away, or both overwhelmed by enemies. The presentation is dramatic but not gruesome, maintaining the game's action-movie tone.
 
 **Learning Opportunity:** The defeat screen provides clear information about what went wrong:
