@@ -484,14 +484,25 @@ describe('Order cards', () => {
 			expect(battle.getIntents(buggy)[0].target).toBe(rig.id);
 		});
 
-		test('an area hit keeps its targets', () => {
+		test('an area hit isn\'t pulled: it lands on everything as planned, the escort drawing fire included', async () => {
 			const { battle, rig, pilotCar, buggy } = setup();
+			const bike = battle.playerTeam.vehicles[1];
 			const blast = raiderCard('Blast', 'enemy_all', [{ type: 'damage', value: 3, target: 'enemy_all', always_hits: true }]);
 			planShot(battle, buggy, blast);
 
 			play({ battle, driver: driverOf(rig), card: realCard('draw_fire'), target: pilotCar });
-
 			expect(battle.getIntents(buggy)[0].target).toBe('both');
+
+			await battle.endPlayerTurn();
+
+			// Each driven vehicle takes its own 3 (split with the driver), and the
+			// escort takes one 3 on its Shield, not the Rig's hit as well
+			expect(rig.structure).toBe(18);
+			expect(bike.structure).toBe(18);
+			expect(logLines(battle, 'damage_dealt')).toContain(
+				'Blast deals 3 total (3 to shield) damage to Pilot Car (Structure: 30/30 -> 30/30, Armor: 3/3 -> 3/3, Shield: 4 -> 1)'
+			);
+			expect(logLines(battle, 'general').filter(line => line.includes('draws'))).toEqual([]);
 		});
 
 		test('when two Draw Fires cover the same row, the last one played wins', () => {
