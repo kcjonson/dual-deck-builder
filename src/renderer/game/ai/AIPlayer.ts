@@ -161,7 +161,9 @@ export abstract class AIPlayer {
 		const legalTargets = potentialTargets.filter(target =>
 			this.board.targetBlocker({ card, caster: sourceVehicle, target }) === null);
 
-		return preferredTargets({ archetype: sourceVehicle.raiderArchetype, card, targets: legalTargets });
+		// Archetypes are a raider's; a player vehicle carrying one plans without it
+		const archetype = this.team === this.battle.enemyTeam ? sourceVehicle.raiderArchetype : null;
+		return preferredTargets({ archetype, card, targets: legalTargets });
 	}
 
 	protected cardRequiresTarget(card: Card): boolean {

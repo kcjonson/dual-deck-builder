@@ -7,6 +7,7 @@ import { RoadLane, RoadRow, RoadSlot } from './Road';
 import { Team, TeamType } from './Team';
 import { Vehicle } from './Vehicle';
 import { createTestDriver } from '../ai/__tests__/test-helpers';
+import { FirstPlayableAI } from '../ai/FirstPlayableAI';
 import cardsFile from '../data/cards.json';
 
 const cardData = (cardsFile as unknown as { cards: CardData[] }).cards;
@@ -151,9 +152,9 @@ describe('Raider target preferences', () => {
 			const damaged = escortAt('med_truck', slot(P_OUTSIDE, BEHIND));
 			damaged.set({ structure: 2, armor: 0 });
 			// The softest target on the road, but not a hauler
-			const wreckedGun = escortAt('pilot_car', slot(P_OUTSIDE, AHEAD));
-			wreckedGun.set({ structure: 1, armor: 0 });
-			const { battle, buggy } = setup({ archetype: 'looter', escorts: [fresh, damaged, wreckedGun], escortsFirst: false });
+			const nearlyWreckedGun = escortAt('pilot_car', slot(P_OUTSIDE, AHEAD));
+			nearlyWreckedGun.set({ structure: 1, armor: 0 });
+			const { battle, buggy } = setup({ archetype: 'looter', escorts: [fresh, damaged, nearlyWreckedGun], escortsFirst: false });
 			battle.aiController.setEnemyAI('aggressive');
 			plan(battle, buggy, [potShot()]);
 
@@ -223,6 +224,28 @@ describe('Raider target preferences', () => {
 
 			expect(buggy.raiderArchetype).toBeNull();
 			expect(intentTargets(battle, buggy)).toEqual([hauler.id]);
+		});
+
+		test('a player vehicle carrying an archetype plans without it', () => {
+			const rig = createDriven('Rig', slot(P_INSIDE, CENTER));
+			const bike = createDriven('Bike', slot(P_INSIDE, BEHIND));
+			const buggy = createDriven('Buggy', slot(E_INSIDE, CENTER));
+			const raiderHauler = escortAt('fuel_hauler', slot(RoadLane.ENEMY_OUTSIDE, CENTER));
+			rig.raiderArchetype = 'looter';
+			const playerTeam = new Team({ type: TeamType.PLAYER, vehicles: [rig, bike] });
+			const battle = new Battle({
+				playerTeam,
+				enemyTeam: new Team({ type: TeamType.ENEMY, vehicles: [buggy, raiderHauler] })
+			});
+			const shot = potShot();
+			driverOf(rig).set({ hand: [shot], adrenaline: 5 });
+			driverOf(bike).set({ hand: [], adrenaline: 5 });
+
+			const decision = new FirstPlayableAI(playerTeam, battle).makeDecision();
+
+			// A looter would have picked the hauler; the player AI keeps its first legal target
+			expect(decision?.card).toBe(shot);
+			expect(decision?.target).toBe(buggy);
 		});
 	});
 

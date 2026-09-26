@@ -154,12 +154,13 @@ Built with DDB-150, which put decision 4's looters and killers into raider plann
 
 What the build settled. These are implementation calls, not Kevin's, and each is small enough to change:
 
-- **Where it lives.** `Vehicle.raiderArchetype` (`'looter'`, `'killer'`, or unset for none), beside `intentTier`, so it's a property of the raider and not of the AI strategy that plans for it. The rule is `preferredTargets` in `mechanics/RaiderArchetype.ts`.
+- **Where it lives.** `Vehicle.raiderArchetype` (`'looter'`, `'killer'`, or unset for none), beside `intentTier`, so it's a property of the raider and not of the AI strategy that plans for it. Only the enemy team's planning reads it; a player vehicle carrying one plans without it. The rule is `preferredTargets` in `mechanics/RaiderArchetype.ts`.
 - **One targeting rule.** `AIPlayer.getValidTargets` asks `BoardProjection.targetBlocker` for the legal targets, as before, then narrows them to the preferred ones when any is legal. Every strategy builds its actions from that list, so the existing scoring picks among the preferred targets, and the planned target is what the intent marks and the enemy turn plays. With no preferred target legal for the card, the list comes back unchanged.
 - **Which cards.** Only cards aimed at the other side (`enemy_single`) that land something on their target, the same test Draw Fire uses (`landsOnTarget` in `EffectTargets.ts`). A flank's target is only the vehicle it outruns, so a flank keeps its usual pick. Area, self, and ally cards have no target to prefer.
 - **Who counts.** A hauler is an escort whose role is `hauler` (Fuel Hauler, Med Truck). A driven vehicle is anything that isn't an escort; once DDB-152 turns a driverless vehicle into an escort, a killer stops preferring it.
 - **Card choice.** The archetype narrows targets, never cards. A preferred target can change which card scores best, and an AI will still play a card on a preferred target it can't hurt (a slow on someone already slowed) before falling back, since legality, not usefulness, decides the fallback.
-- **Draw Fire** redirects a killer's or looter's intent the same as anyone's; the preference is only where the raider aims.
+- **Draw Fire** redirects a killer's intent the same as anyone's, since the preference is only where the raider aims. It never pulls a looter's shot at a hauler: decision 20 redirects only intents aimed at a driven vehicle, so a Draw Fire escort in the hauler's row does nothing for it. Against a looter the counters are Shield on the hauler (Draw Fire's own or Close Ranks) and keeping the hauler out of range. Extending Draw Fire to cover escorts would be Kevin's call and a separate change.
+- **Overkill.** The projection doesn't model damage, so a looter aims every shot of its turn at the same hauler. Once that hauler is wrecked, the rest fizzle: an empty escort has nobody aboard to follow, which is the intents record's fizzle rule working as intended. Overkill costs the raider cards, and it's part of why baiting a looter with a hauler works.
 
 ## Open questions
 
