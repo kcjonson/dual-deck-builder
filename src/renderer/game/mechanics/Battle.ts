@@ -13,8 +13,9 @@ import {
 	sameSlot,
 	slotRange
 } from './Road';
-import { Card } from './Card';
+import { Card, CardEffect } from './Card';
 import { BoardProjection } from './BoardProjection';
+import { EffectRecipient, effectRecipientOf, effectRecipients, isCasterAction, rollsToHit } from './EffectTargets';
 import {
 	Intent,
 	IntentTier,
@@ -78,6 +79,11 @@ interface Crew {
  * Cards each driver draws at the start of every turn
  */
 export const TURN_DRAW = 5;
+
+/**
+ * Statuses whose log line shows the speed change
+ */
+const SPEED_STATUSES = ['speed_boost', 'nitro_boost', 'speed_reduction', 'oil_slick', 'caltrops'];
 
 /**
  * Battle data interface - all properties of a battle
@@ -464,14 +470,7 @@ export class Battle extends Model<BattleData> {
 			{ driver: driver.metadata.name, card: card.displayName, adrenalineBefore, adrenalineAfter: driver.adrenaline }
 		);
 
-		// Apply card effects
-		if (targetVehicle) {
-			this.applyCardEffects(card, targetVehicle, driver);
-		} else {
-			// Self-targeting or no target needed
-			const driverVehicle = this.getVehicleForDriver(driver);
-			this.applyCardEffects(card, driverVehicle, driver);
-		}
+		this.applyCardEffects({ card, caster: driver, target: targetVehicle ?? null });
 
 		// Emit card played event
 		this.emit('cardPlayed', Object.freeze({
@@ -681,12 +680,8 @@ export class Battle extends Model<BattleData> {
 			{ driver: driver.metadata.name, card: card.displayName, adrenalineBefore, adrenalineAfter: driver.adrenaline }
 		);
 
-		if (card.targetType === 'enemy_all') {
-			this.applyCardEffects(card, null, driver);
-			return;
-		}
-		if (!action.target) {
-			this.applyCardEffects(card, raider, driver);
+		if (card.targetType === 'enemy_all' || !action.target) {
+			this.applyCardEffects({ card, caster: driver, target: null });
 			return;
 		}
 
@@ -717,7 +712,7 @@ export class Battle extends Model<BattleData> {
 			return;
 		}
 
-		this.applyCardEffects(card, target, driver);
+		this.applyCardEffects({ card, caster: driver, target });
 	}
 
 	/**
@@ -808,282 +803,290 @@ export class Battle extends Model<BattleData> {
 	}
 
 	/**
-	 * Apply card effects to a target
+	 * Resolve a card's effects in order. Draws, adrenaline, and moves are the
+	 * caster's and happen once. The rest land where their own target field
+	 * says (see EffectTargets): the caster, the card's target, or every enemy
+	 * still in the fight. The target is null for a card that takes none.
 	 */
-	private applyCardEffects(card: Card, targetVehicle: Vehicle | null, caster: Driver): void {
-		// Process each effect on the card
+	private applyCardEffects({ card, caster, target }: { card: Card; caster: Driver; target: Vehicle | null }): void {
+		const casterVehicle = this.getVehicleForDriver(caster);
+		const casterTeam = this.getTeamForDriver(caster);
+		const enemies = casterTeam === this.playerTeam ? this.enemyTeam.vehicles : this.playerTeam.vehicles;
+
 		for (const effect of card.effects) {
-			switch (effect.type) {
-				case 'damage': {
-					// Out of the fight covers a target an earlier effect of this card wrecked
-					if (!targetVehicle || targetVehicle.isOutOfFight) break;
-					const casterVehicle = this.getVehicleForDriver(caster);
-					let damage = typeof effect.value === 'number' ? effect.value : 0;
-
-					if (typeof effect.range === 'number' && casterVehicle) {
-						const range = this.calculateRange(casterVehicle, targetVehicle);
-						if (range > effect.range) {
-							this.log('out_of_range',
-								`${card.displayName} cannot reach ${targetVehicle.name} - requires range ${effect.range}, but target is at range ${range}`,
-								{ card: card.displayName, target: targetVehicle.name, requiredRange: effect.range, actualRange: range }
-							);
-							break;
-						}
-					}
-
-					if (!effect.always_hits) {
-						const attackType = (typeof effect.attack_type === 'string' ? effect.attack_type : null) ||
-							(effect.scaling === 'ramming' ? 'ramming' : 'ranged');
-						const modifier = typeof effect.hit_modifier === 'number' ? effect.hit_modifier : 0;
-						if (!this.checkHit({ attacker: casterVehicle, caster, defender: targetVehicle, attackType, modifier })) {
-							this.log('miss',
-								`${card.displayName} misses ${targetVehicle.name}`,
-								{ card: card.displayName, target: targetVehicle.name }
-							);
-							break;
-						}
-					}
-
-					if (casterVehicle) {
-						if (effect.formula && typeof effect.formula === 'string') {
-							damage = this.calculateFormulaDamage(effect.formula, {
-								armor: casterVehicle.armor,
-								speedDiff: casterVehicle.speed - targetVehicle.speed
-							});
-						}
-						damage = this.calculateDamage(damage, casterVehicle, targetVehicle);
-					}
-
-					if (effect.target === 'driver') {
-						// Headshot: the driver, or a passenger riding in an escort. An
-						// empty escort isn't a legal target, so this only misses its mark
-						// when the last person aboard died earlier in the card.
-						const victim = targetVehicle.driverOnlyTarget;
-						if (!victim) {
-							this.log('fizzle', `${card.displayName} fizzles: ${targetVehicle.name} has nobody aboard to hit`,
-								{ card: card.displayName, target: targetVehicle.name });
-							break;
-						}
-						this.damageDriver({ driver: victim, vehicle: targetVehicle, damage, card });
-					} else if (effect.target === 'self_driver') {
-						// Self damage (Berserker)
-						this.damageDriver({ driver: caster, vehicle: casterVehicle, damage, card });
-					} else {
-						this.damageVehicle({ vehicle: targetVehicle, damage, card });
-					}
-
-					if (!targetVehicle.isAlive()) {
-						this.getTeamForVehicle(targetVehicle)?.handleVehicleDestruction(targetVehicle);
-					}
-					break;
-				}
-
-				case 'heal':
-					if (targetVehicle) {
-						const healValue = typeof effect.value === 'number' ? effect.value : 0;
-						const overflowToArmor = effect.overflow_to_armor === true;
-						
-						// Store before values
-						const beforeStructure = targetVehicle.structure;
-						const beforeArmor = targetVehicle.armor;
-						
-						targetVehicle.repair(healValue, overflowToArmor);
-						
-						// Calculate actual healing applied
-						const structureHealed = targetVehicle.structure - beforeStructure;
-						const armorHealed = targetVehicle.armor - beforeArmor;
-						
-						// Create detailed message showing before and after
-						const structureText = `${beforeStructure}/${targetVehicle.maxStructure} -> ${targetVehicle.structure}/${targetVehicle.maxStructure}`;
-						const armorText = `${beforeArmor}/${targetVehicle.maxArmor} -> ${targetVehicle.armor}/${targetVehicle.maxArmor}`;
-						
-						this.log('heal_applied',
-							`${card.displayName} repairs ${structureHealed} structure and ${armorHealed} armor on ${targetVehicle.name} (Structure: ${structureText}, Armor: ${armorText})`,
-							{ card: card.displayName, target: targetVehicle.name, value: healValue }
-						);
-					}
-					break;
-					
-				case 'heal_driver':
-					if (effect.target === 'same_vehicle' && targetVehicle) {
-						const casterVehicle = this.getVehicleForDriver(caster);
-						if (casterVehicle !== targetVehicle) {
-							this.log('general', 'Medical kit can only heal drivers in same vehicle');
-							break;
-						}
-					}
-					
-					const healValue = typeof effect.value === 'number' ? effect.value : 0;
-					if (targetVehicle && targetVehicle.driver) {
-						const beforeHP = targetVehicle.driver.hitpoints;
-						const maxHP = targetVehicle.driver.maxHitpoints;
-						
-						targetVehicle.driver.heal(healValue);
-						
-						const afterHP = targetVehicle.driver.hitpoints;
-						const actualHealed = afterHP - beforeHP;
-						const hpText = `${beforeHP}/${maxHP} -> ${afterHP}/${maxHP}`;
-						
-						this.log('heal_applied',
-							`${card.displayName} heals ${actualHealed} hit points on ${this.getDriverDisplayName(targetVehicle.driver)} (HP: ${hpText})`,
-							{ card: card.displayName, target: targetVehicle.driver.metadata.name, value: healValue }
-						);
-					}
-					break;
-
-				case 'armor':
-					if (targetVehicle) {
-						const armorValue = typeof effect.value === 'number' ? effect.value : 0;
-						const beforeArmor = targetVehicle.armor;
-						
-						targetVehicle.addArmor(armorValue);
-						
-						// Calculate actual armor gained
-						const armorGained = targetVehicle.armor - beforeArmor;
-						
-						// Show before and after armor state
-						const armorText = `${beforeArmor}/${targetVehicle.maxArmor} -> ${targetVehicle.armor}/${targetVehicle.maxArmor}`;
-						
-						this.log('armor_gained',
-							`${card.displayName} adds ${armorGained} armor to ${targetVehicle.name} (Armor: ${armorText})`,
-							{ card: card.displayName, target: targetVehicle.name, value: armorValue }
-						);
-					}
-					break;
-
-				case 'draw':
-					this.drawForCard(card, caster, typeof effect.value === 'number' ? effect.value : 0);
-					break;
-
-				case 'adrenaline':
-					const adrenalineValue = typeof effect.value === 'number' ? effect.value : 0;
-					const beforeAdrenaline = caster.adrenaline;
-					const maxAdrenaline = caster.maxAdrenaline;
-					
-					caster.gainAdrenaline(adrenalineValue);
-					
-					const afterAdrenaline = caster.adrenaline;
-					const actualGained = afterAdrenaline - beforeAdrenaline;
-					const adrenalineText = `${beforeAdrenaline}/${maxAdrenaline} -> ${afterAdrenaline}/${maxAdrenaline}`;
-					
-					this.log('general',
-						`${card.displayName} gives ${actualGained} adrenaline to ${caster.metadata.name} (Adrenaline: ${adrenalineText})`,
-						{ card: card.displayName, driver: caster.metadata.name, value: adrenalineValue }
-					);
-					break;
-
-				case 'status':
-				case 'apply_status': {
-					// A self effect on a targeted card (Flanking Maneuver's bonus) lands on the caster
-					const appliesToSelf = effect.target === 'self';
-					const statusVehicle = appliesToSelf ? this.getVehicleForDriver(caster) : targetVehicle;
-					if (statusVehicle) {
-						// Check condition
-						if (effect.condition === 'target_flanking' && !statusVehicle.isFlanking) {
-							break;
-						}
-						
-						if (!appliesToSelf && statusVehicle.isOutOfFight) {
-							break;
-						}
-						if (!effect.always_hits && !appliesToSelf) {
-							if (!this.checkHit({ attacker: this.getVehicleForDriver(caster), caster, defender: statusVehicle })) {
-								this.log('miss',
-									`${card.displayName} misses ${statusVehicle.name}`,
-									{ card: card.displayName, target: statusVehicle.name }
-								);
-								break;
-							}
-						}
-						
-						const statusName = effect.status || (effect.description || 'unknown').toLowerCase();
-						const statusValue = typeof effect.value === 'number' ? effect.value : 0;
-						const duration = typeof effect.duration === 'number' ? effect.duration : 1;
-						
-						// Get speed before applying status for speed-related effects
-						const speedBefore = statusVehicle.speed;
-						
-						statusVehicle.applyStatusEffect({
-							name: statusName,
-							duration: duration,
-							value: statusValue,
-							description: effect.description
-						});
-						
-						// Get speed after applying status
-						const speedAfter = statusVehicle.speed;
-						
-						// Create appropriate log message based on status type
-						let logMessage = `${card.displayName} applies ${statusName} to ${statusVehicle.name}`;
-						
-						// Add speed information for speed-related statuses
-						if (statusName === 'speed_boost' || statusName === 'nitro_boost' || 
-						    statusName === 'speed_reduction' || statusName === 'oil_slick' || 
-						    statusName === 'caltrops') {
-							logMessage += ` (Speed: ${speedBefore} -> ${speedAfter})`;
-						}
-						
-						this.log('status_applied',
-							logMessage,
-							{ card: card.displayName, target: statusVehicle.name, status: statusName }
-						);
-					}
-					break;
-				}
-					
-				case 'change_position': {
-					const casterVehicle = this.getVehicleForDriver(caster);
-					// A failed flank cancels the rest of the card, so no bonus without the swerve
-					if (casterVehicle && effect.position === 'flanking' && !this.flankVehicle(casterVehicle, targetVehicle)) {
-						return;
-					}
-					break;
-				}
-					
-				case 'gain_armor':
-					if (targetVehicle) {
-						const armorValue = typeof effect.value === 'number' ? effect.value : 0;
-						const beforeArmor = targetVehicle.armor;
-						
-						targetVehicle.addArmor(armorValue);
-						
-						// Calculate actual armor gained
-						const armorGained = targetVehicle.armor - beforeArmor;
-						
-						// Show before and after armor state
-						const armorText = `${beforeArmor}/${targetVehicle.maxArmor} -> ${targetVehicle.armor}/${targetVehicle.maxArmor}`;
-						
-						this.log('armor_gained',
-							`${card.displayName} adds ${armorGained} armor to ${targetVehicle.name} (Armor: ${armorText})`,
-							{ card: card.displayName, target: targetVehicle.name, value: armorValue }
-						);
-					}
-					break;
-					
-				case 'draw_cards':
-					this.drawForCard(card, caster, typeof effect.value === 'number' ? effect.value : 0);
-					break;
-					
-				case 'gain_resource':
-					if (effect.resource === 'adrenaline') {
-						const adrenalineValue = typeof effect.value === 'number' ? effect.value : 0;
-						const beforeAdrenaline = caster.adrenaline;
-						const maxAdrenaline = caster.maxAdrenaline;
-						
-						caster.gainAdrenaline(adrenalineValue);
-						
-						const afterAdrenaline = caster.adrenaline;
-						const actualGained = afterAdrenaline - beforeAdrenaline;
-						const adrenalineText = `${beforeAdrenaline}/${maxAdrenaline} -> ${afterAdrenaline}/${maxAdrenaline}`;
-						
-						this.log('general',
-							`${card.displayName} gives ${actualGained} adrenaline to ${caster.metadata.name} (Adrenaline: ${adrenalineText})`,
-							{ card: card.displayName, driver: caster.metadata.name, value: adrenalineValue }
-						);
-					}
-					break;
+			if (isCasterAction(effect)) {
+				if (!this.applyCasterAction({ card, effect, caster, casterVehicle, target })) return;
+				continue;
+			}
+			for (const recipient of effectRecipients({ effect, card, caster: casterVehicle, target, enemies })) {
+				this.applyEffect({ card, effect, caster, casterVehicle, recipient });
 			}
 		}
+	}
+
+	/**
+	 * A draw, adrenaline gain, or move: once per card, by the caster. False
+	 * when the rest of the card is cancelled (a failed flank).
+	 */
+	private applyCasterAction({
+		card,
+		effect,
+		caster,
+		casterVehicle,
+		target
+	}: {
+		card: Card;
+		effect: CardEffect;
+		caster: Driver;
+		casterVehicle: Vehicle | null;
+		target: Vehicle | null;
+	}): boolean {
+		switch (effect.type) {
+			case 'draw':
+			case 'draw_cards':
+				this.drawForCard(card, caster, typeof effect.value === 'number' ? effect.value : 0);
+				break;
+
+			case 'adrenaline':
+			case 'gain_resource': {
+				if (effect.type === 'gain_resource' && effect.resource !== 'adrenaline') break;
+				const adrenalineValue = typeof effect.value === 'number' ? effect.value : 0;
+				const beforeAdrenaline = caster.adrenaline;
+				const maxAdrenaline = caster.maxAdrenaline;
+
+				caster.gainAdrenaline(adrenalineValue);
+
+				const afterAdrenaline = caster.adrenaline;
+				this.log('general',
+					`${card.displayName} gives ${afterAdrenaline - beforeAdrenaline} adrenaline to ${caster.metadata.name} (Adrenaline: ${beforeAdrenaline}/${maxAdrenaline} -> ${afterAdrenaline}/${maxAdrenaline})`,
+					{ card: card.displayName, driver: caster.metadata.name, value: adrenalineValue }
+				);
+				break;
+			}
+
+			case 'change_position':
+				// A failed flank cancels the rest of the card, so no bonus without the swerve
+				if (casterVehicle && effect.position === 'flanking' && !this.flankVehicle(casterVehicle, target)) {
+					return false;
+				}
+				break;
+		}
+		return true;
+	}
+
+	/**
+	 * One effect on one recipient
+	 */
+	private applyEffect({
+		card,
+		effect,
+		caster,
+		casterVehicle,
+		recipient
+	}: {
+		card: Card;
+		effect: CardEffect;
+		caster: Driver;
+		casterVehicle: Vehicle | null;
+		recipient: Vehicle;
+	}): void {
+		const onCaster = effectRecipientOf({ effect, card }) === EffectRecipient.CASTER;
+		// Out of the fight covers a recipient an earlier effect of this card wrecked
+		if (!onCaster && recipient.isOutOfFight) return;
+
+		switch (effect.type) {
+			case 'damage':
+				this.applyDamage({ card, effect, caster, casterVehicle, recipient, onCaster });
+				break;
+
+			case 'heal': {
+				const healValue = typeof effect.value === 'number' ? effect.value : 0;
+				const beforeStructure = recipient.structure;
+				const beforeArmor = recipient.armor;
+
+				recipient.repair(healValue, effect.overflow_to_armor === true);
+
+				const structureHealed = recipient.structure - beforeStructure;
+				const armorHealed = recipient.armor - beforeArmor;
+				const structureText = `${beforeStructure}/${recipient.maxStructure} -> ${recipient.structure}/${recipient.maxStructure}`;
+				const armorText = `${beforeArmor}/${recipient.maxArmor} -> ${recipient.armor}/${recipient.maxArmor}`;
+				this.log('heal_applied',
+					`${card.displayName} repairs ${structureHealed} structure and ${armorHealed} armor on ${recipient.name} (Structure: ${structureText}, Armor: ${armorText})`,
+					{ card: card.displayName, target: recipient.name, value: healValue }
+				);
+				break;
+			}
+
+			case 'heal_driver': {
+				const patient = recipient.driver;
+				if (!patient) break;
+				const healValue = typeof effect.value === 'number' ? effect.value : 0;
+				const beforeHP = patient.hitpoints;
+				const maxHP = patient.maxHitpoints;
+
+				patient.heal(healValue);
+
+				const afterHP = patient.hitpoints;
+				this.log('heal_applied',
+					`${card.displayName} heals ${afterHP - beforeHP} hit points on ${this.getDriverDisplayName(patient)} (HP: ${beforeHP}/${maxHP} -> ${afterHP}/${maxHP})`,
+					{ card: card.displayName, target: patient.metadata.name, value: healValue }
+				);
+				break;
+			}
+
+			case 'armor':
+			case 'gain_armor': {
+				const armorValue = typeof effect.value === 'number' ? effect.value : 0;
+				const beforeArmor = recipient.armor;
+
+				recipient.addArmor(armorValue);
+
+				const armorText = `${beforeArmor}/${recipient.maxArmor} -> ${recipient.armor}/${recipient.maxArmor}`;
+				this.log('armor_gained',
+					`${card.displayName} adds ${recipient.armor - beforeArmor} armor to ${recipient.name} (Armor: ${armorText})`,
+					{ card: card.displayName, target: recipient.name, value: armorValue }
+				);
+				break;
+			}
+
+			case 'status':
+			case 'apply_status':
+				this.applyStatus({ card, effect, caster, casterVehicle, recipient });
+				break;
+		}
+	}
+
+	/**
+	 * Damage on one recipient. An attack on someone else checks range, rolls
+	 * to hit unless it always hits, and takes the flank and Vulnerable
+	 * bonuses. Damage on the caster (Berserker) is none of those: it lands
+	 * as printed, on the caster's driver for self_driver.
+	 */
+	private applyDamage({
+		card,
+		effect,
+		caster,
+		casterVehicle,
+		recipient,
+		onCaster
+	}: {
+		card: Card;
+		effect: CardEffect;
+		caster: Driver;
+		casterVehicle: Vehicle | null;
+		recipient: Vehicle;
+		onCaster: boolean;
+	}): void {
+		let damage = typeof effect.value === 'number' ? effect.value : 0;
+
+		if (onCaster) {
+			if (effect.target === 'self_driver') {
+				this.damageDriver({ driver: caster, vehicle: recipient, damage, card });
+			} else {
+				this.damageVehicle({ vehicle: recipient, damage, card });
+			}
+		} else {
+			if (typeof effect.range === 'number' && casterVehicle) {
+				const range = this.calculateRange(casterVehicle, recipient);
+				if (range > effect.range) {
+					this.log('out_of_range',
+						`${card.displayName} cannot reach ${recipient.name} - requires range ${effect.range}, but target is at range ${range}`,
+						{ card: card.displayName, target: recipient.name, requiredRange: effect.range, actualRange: range }
+					);
+					return;
+				}
+			}
+
+			if (rollsToHit({ effect, card })) {
+				const attackType = (typeof effect.attack_type === 'string' ? effect.attack_type : null) ||
+					(effect.scaling === 'ramming' ? 'ramming' : 'ranged');
+				const modifier = typeof effect.hit_modifier === 'number' ? effect.hit_modifier : 0;
+				if (!this.checkHit({ attacker: casterVehicle, caster, defender: recipient, attackType, modifier })) {
+					this.log('miss',
+						`${card.displayName} misses ${recipient.name}`,
+						{ card: card.displayName, target: recipient.name }
+					);
+					return;
+				}
+			}
+
+			if (casterVehicle) {
+				if (effect.formula && typeof effect.formula === 'string') {
+					damage = this.calculateFormulaDamage(effect.formula, {
+						armor: casterVehicle.armor,
+						speedDiff: casterVehicle.speed - recipient.speed
+					});
+				}
+				damage = this.calculateDamage(damage, casterVehicle, recipient);
+			}
+
+			if (effect.target === 'driver') {
+				// Headshot: the driver, or a passenger riding in an escort. An
+				// empty escort isn't a legal target, so this only misses its mark
+				// when the last person aboard died earlier in the card.
+				const victim = recipient.driverOnlyTarget;
+				if (!victim) {
+					this.log('fizzle', `${card.displayName} fizzles: ${recipient.name} has nobody aboard to hit`,
+						{ card: card.displayName, target: recipient.name });
+					return;
+				}
+				this.damageDriver({ driver: victim, vehicle: recipient, damage, card });
+			} else {
+				this.damageVehicle({ vehicle: recipient, damage, card });
+			}
+		}
+
+		if (!recipient.isAlive()) {
+			this.getTeamForVehicle(recipient)?.handleVehicleDestruction(recipient);
+		}
+	}
+
+	/**
+	 * A status on one recipient. One on someone else rolls to hit unless it
+	 * always hits; one on the caster just lands.
+	 */
+	private applyStatus({
+		card,
+		effect,
+		caster,
+		casterVehicle,
+		recipient
+	}: {
+		card: Card;
+		effect: CardEffect;
+		caster: Driver;
+		casterVehicle: Vehicle | null;
+		recipient: Vehicle;
+	}): void {
+		if (effect.condition === 'target_flanking' && !recipient.isFlanking) {
+			return;
+		}
+		if (rollsToHit({ effect, card }) && !this.checkHit({ attacker: casterVehicle, caster, defender: recipient })) {
+			this.log('miss',
+				`${card.displayName} misses ${recipient.name}`,
+				{ card: card.displayName, target: recipient.name }
+			);
+			return;
+		}
+
+		const statusName = effect.status || (effect.description || 'unknown').toLowerCase();
+		const speedBefore = recipient.speed;
+
+		recipient.applyStatusEffect({
+			name: statusName,
+			duration: typeof effect.duration === 'number' ? effect.duration : 1,
+			value: typeof effect.value === 'number' ? effect.value : 0,
+			description: effect.description
+		});
+
+		let logMessage = `${card.displayName} applies ${statusName} to ${recipient.name}`;
+		if (SPEED_STATUSES.includes(statusName)) {
+			logMessage += ` (Speed: ${speedBefore} -> ${recipient.speed})`;
+		}
+		this.log('status_applied',
+			logMessage,
+			{ card: card.displayName, target: recipient.name, status: statusName }
+		);
 	}
 
 	/**

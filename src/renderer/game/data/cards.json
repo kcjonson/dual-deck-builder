@@ -326,7 +326,8 @@
           "type": "apply_status",
           "status": "stunned",
           "duration": 1,
-          "target": "enemy_all"
+          "target": "enemy_all",
+          "always_hits": true
         }
       ],
       "upgrades": {

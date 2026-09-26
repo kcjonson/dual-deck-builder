@@ -4,6 +4,7 @@ import type { Driver } from './Driver';
 import { FlankState, Vehicle, statusSpeedModifier } from './Vehicle';
 import { TeamType } from './TeamType';
 import { RoadSlot, describeSlot, flankLane, isFormationLane, isShoulder, sameSlot, slotRange } from './Road';
+import { EffectRecipient, effectRecipientOf, effectRecipients, rollsToHit } from './EffectTargets';
 
 interface ProjectedVehicle {
 	team: TeamType;
@@ -211,9 +212,18 @@ export class BoardProjection {
 	}
 
 	/**
+	 * Every vehicle on the other team from this one
+	 */
+	public enemiesOf(vehicle: Vehicle): Vehicle[] {
+		const team = this.vehicles.get(vehicle)?.team;
+		return [...this.vehicles].filter(([, state]) => state.team !== team).map(([other]) => other);
+	}
+
+	/**
 	 * Play a card on the projection: it leaves the hand, costs adrenaline,
-	 * and moves or changes speed as it would in the battle. Hit checks are
-	 * deterministic, so a status that would miss doesn't land here either.
+	 * and moves or changes speed as it would in the battle, each effect on
+	 * the recipients the battle would pick. Hit checks are deterministic, so
+	 * a status that would miss doesn't land here either.
 	 */
 	public apply({ card, driver, target }: { card: Card; driver: Driver; target: Vehicle | null }): void {
 		const hand = this.hands.get(driver);
@@ -242,18 +252,20 @@ export class BoardProjection {
 				}
 				case 'apply_status':
 				case 'status': {
-					const appliesToSelf = effect.target === 'self' || !target;
-					const statusVehicle = appliesToSelf ? caster : target;
-					if (!statusVehicle || !effect.status) break;
-					if (effect.condition === 'target_flanking' && !this.isFlanking(statusVehicle)) break;
-					if (!effect.always_hits && !appliesToSelf &&
-						!this.battle.checkHit({ attacker: caster, caster: driver, defender: statusVehicle })) {
-						break;
-					}
-					const state = this.vehicles.get(statusVehicle);
-					if (state) {
-						const modifier = statusSpeedModifier({ name: effect.status, duration: 1, value: effect.value });
-						state.speed = Math.max(0, state.speed + modifier);
+					const status = effect.status;
+					if (!status) break;
+					const enemies = caster ? this.enemiesOf(caster) : [];
+					const onCaster = effectRecipientOf({ effect, card }) === EffectRecipient.CASTER;
+					const rolls = rollsToHit({ effect, card });
+					for (const recipient of effectRecipients({ effect, card, caster, target, enemies })) {
+						if (!onCaster && recipient.isOutOfFight) continue;
+						if (effect.condition === 'target_flanking' && !this.isFlanking(recipient)) continue;
+						if (rolls && !this.battle.checkHit({ attacker: caster, caster: driver, defender: recipient })) continue;
+						const state = this.vehicles.get(recipient);
+						if (state) {
+							const modifier = statusSpeedModifier({ name: status, duration: 1, value: effect.value });
+							state.speed = Math.max(0, state.speed + modifier);
+						}
 					}
 					break;
 				}
