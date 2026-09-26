@@ -2,8 +2,15 @@ import { Driver, DriverRole } from './Driver';
 import { Vehicle } from './Vehicle';
 import { Model } from '../core/Model';
 import { TeamType } from './TeamType';
+import { isShoulder } from './Road';
 
 export { TeamType };
+
+/** A player team's driven vehicles, one per driver */
+export const PLAYER_DRIVEN_VEHICLES = 2;
+
+/** Escorts a player team can hold in formation; set-piece ambushers on the shoulder don't count */
+export const MAX_FORMATION_ESCORTS = 4;
 
 /**
  * Team data interface - used throughout the app
@@ -21,8 +28,9 @@ export interface Team extends TeamData {}
 
 /**
  * Team class representing a side in battle
- * Player teams start with exactly 2 vehicles, enemy teams can have variable
- * amounts. Wrecks leave the list when Battle clears them off the road.
+ * Player teams start with exactly 2 driven vehicles plus up to 4 escorts in
+ * formation, listed in roster order; enemy teams can have variable amounts.
+ * Wrecks leave the list when Battle clears them off the road.
  * Drivers manage their own hands/cards individually
  */
 export class Team extends Model<TeamData> {
@@ -50,14 +58,46 @@ export class Team extends Model<TeamData> {
 	constructor(initialData: TeamData) {
 		super(initialData);
 
-		// Validate player team has exactly 2 vehicles
-		if (initialData.type === TeamType.PLAYER && initialData.vehicles.length !== 2) {
-			throw new Error('Player teams must have exactly 2 vehicles');
+		if (initialData.type === TeamType.PLAYER) {
+			if (this.drivenVehicles.length !== PLAYER_DRIVEN_VEHICLES) {
+				throw new Error(`Player teams must have exactly ${PLAYER_DRIVEN_VEHICLES} driven vehicles, not ${this.drivenVehicles.length}`);
+			}
+			this.assertEscortRoom(0);
 		}
 	}
 
 	// Model properties are automatically available as:
 	// team.type, team.vehicles
+
+	/**
+	 * Vehicles with a driver's seat, whether or not anyone is in it
+	 */
+	public get drivenVehicles(): Vehicle[] {
+		return this.vehicles.filter(vehicle => !vehicle.isEscort);
+	}
+
+	/**
+	 * Escorts in roster order, first acquired first
+	 */
+	public get escorts(): Vehicle[] {
+		return this.vehicles.filter(vehicle => vehicle.isEscort);
+	}
+
+	/**
+	 * Holds a place in the formation: everything but an ambusher, which
+	 * starts on the other team's shoulder with no reserved slot. A flanker
+	 * keeps its reserved slot, so it still counts.
+	 */
+	private static holdsFormationPlace(vehicle: Vehicle): boolean {
+		return !(vehicle.slot && isShoulder(vehicle.slot.lane) && !vehicle.flank?.reservedSlot);
+	}
+
+	private assertEscortRoom(adding: number): void {
+		const inFormation = this.escorts.filter(Team.holdsFormationPlace).length + adding;
+		if (inFormation > MAX_FORMATION_ESCORTS) {
+			throw new Error(`Player teams can hold ${MAX_FORMATION_ESCORTS} escorts in formation, not ${inFormation}`);
+		}
+	}
 
 	/**
 	 * Get all alive vehicles
@@ -103,9 +143,13 @@ export class Team extends Model<TeamData> {
 	 * Add vehicle to team
 	 */
 	public addVehicle(vehicle: Vehicle): void {
-		// Prevent player teams from having more than 2 vehicles
-		if (this.type === TeamType.PLAYER && this.vehicles.length >= 2) {
-			throw new Error('Player teams cannot have more than 2 vehicles');
+		if (this.type === TeamType.PLAYER) {
+			if (!vehicle.isEscort && this.drivenVehicles.length >= PLAYER_DRIVEN_VEHICLES) {
+				throw new Error(`Player teams cannot have more than ${PLAYER_DRIVEN_VEHICLES} driven vehicles`);
+			}
+			if (vehicle.isEscort && Team.holdsFormationPlace(vehicle)) {
+				this.assertEscortRoom(1);
+			}
 		}
 		
 		// Create new array to trigger change event

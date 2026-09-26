@@ -6,6 +6,20 @@ This document contains the chronological log of completed development tasks for 
 
 **Date correction (2026-08-22):** the repo's first commit is 2025-05-17, but many entries below carry dates in December 2024 or January 2025 — the AI that wrote them used its assumed date instead of the real one. Entries dated 2025-07-03 and 2025-07-02 have been corrected from "2025-01-03"/"2025-01-02" (verified against git history). Remaining Dec 2024 / Jan 2025 dates are wrong by roughly six months; the real work happened May–July 2025. Trust git history over these dates.
 
+## Escort model and team limits (2026-09-26)
+
+**What landed:** DDB-146. Escorts exist in the model and a player team can field them.
+
+- `Vehicle.escort` (optional `EscortProfile`, in `mechanics/Escort.ts`) makes a vehicle an escort: type, role, gunnery, evade, ramming, preferred slot, signature card, dividend, and a `setPiece` flag for an encounter's ally. Armor, structure, and base speed stay on the vehicle like any other, and an escort's speed is its base speed because it has no driver to add one. `Vehicle.isEscort` reads it.
+- The four starting types are a typed constant, `ESCORT_CONFIGS`, beside `createEscort({ type, setPiece })`; drivers use the same pattern (`DRIVER_CONFIGS`), and escorts are built synchronously in tests and battles, so no JSON loader. Speeds for the Outrider (5) and Pilot Car (4), the preferred slots, the Fuel Hauler's +1 fuel, and the Med Truck's Triage are the record's. The rest are first-pass numbers: Outrider gunnery 6, evade 6, ramming 2, armor 0, structure 25; Pilot Car 5/4/4, armor 3, structure 30; Fuel Hauler 1/1/3, armor 5, structure 40, speed 2; Med Truck 1/2/1, armor 4, structure 35, speed 2. The other three signature cards and the Med Truck's dividend stay null until DDB-149 and DDB-151.
+- `Team` checks a player team for exactly 2 driven vehicles and at most 4 escorts in formation, at construction and in `addVehicle`, replacing the "exactly 2 vehicles" checks. A set-piece ambusher on the shoulder (no reserved slot) doesn't count; a flanker still does, since its reserved slot is in the formation. Duplicate types are allowed. `Team.drivenVehicles` and `Team.escorts` (roster order) are new getters.
+- Opening fill (`Battle.placeOpeningFormation`): encounter-given slots first, then driven vehicles in fill order, then escorts in roster order to their preferred slot, falling back to the next free slot in fill order. The four types land around the drivers without colliding.
+- `Battle.mayAmbush` takes the vehicle now: raiders and set-piece escorts may start on the other team's shoulder, driven player vehicles and convoy escorts may not, each with its own blocker message.
+- `Vehicle.isUnmanned` is now "a driven vehicle with nobody alive at the wheel", so an escort is never unmanned and `isOutOfFight` stays false for it until it's wrecked. Escorts are legal targets and stay on the road at the end of the turn. `isDefeated` is unchanged: escorts have no drivers, so they never count.
+- Left for other tasks, on purpose: damage from `applyCardEffects` needs a target driver, so escorts take no attack damage until DDB-148 gives undriven vehicles hit checks and all-structure damage. `canAddPassenger` refuses escorts until DDB-152 builds passengers in escorts.
+
+**How:** 25 tests in `Escorts.test.ts` (profile, limits, duplicates, preferred slots and fallback, defeat, out-of-fight, ambush). One `BattleRoad.test.ts` title renamed. Checked in the app on port 9145: the combat screen plays several turns with the usual two vehicles, and with the four starting escorts added in a scratch edit they open at their preferred slots, survive the end of each turn, and nothing throws; the old battlefield layers stack them, which DDB-154 replaces.
+
 ## Driver death handled mid-fight (2026-09-25)
 
 **What landed:** DDB-156. A driver killed without their vehicle being wrecked no longer soft-locks the fight.
