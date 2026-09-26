@@ -70,6 +70,7 @@ A dated warning about this doc's history: all entries previously dated "December
 - The AI stack: RandomAI, AggressiveFlankerAI, MCTSAI, SalvageAI, RammingAI, all wired through `AIController`.
 - Both standalone HTML harnesses: `/battle.html` (AI vs AI and human battle simulator, runs a full battle to completion with log) and `/evalai.html` (round-robin AI tournament UI).
 - ScreenManager with lazy screen creation, mount/unmount lifecycle, text batching with the F5 performance overlay.
+- The Electron build, on Windows as well as macOS (verified 2026-09-07 on Windows 11 / Node 24.16). `webpack.electron.js` emits three bundles (electron-main, electron-preload, and the web renderer into `dist/electron/renderer`); `npm run build:electron` compiles, `npm run start:electron` runs against the dev server on :9000, `npm run package:win` produces an NSIS installer, and `release/win-unpacked` launches and renders from the bundled renderer. Two Windows-only install snags and their fixes are written up in README.md and the 2026-09-07 log entry.
 
 ### Built but broken (exists, doesn't work right)
 
@@ -77,7 +78,6 @@ A dated warning about this doc's history: all entries previously dated "December
 - **`Battle.endCombat()` is never called in production** (`Battle.ts:1288`). Only tests call it, so post-combat flanking loss and the `combatEnded` event never happen in the real game.
 - **Vehicle targeting highlights are dead**: `ui/Vehicle.ts:346-360` subscribes to per-property events (`'targetableVehicleIds'`, `'focusedVehicleId'`, `'isTargeting'`) that `Model` never emits — `Model.ts` only emits `'change'`. Dimming of untargetable vehicles doesn't update. `CombatModel.targetVehicle():128` hand-emits its own event as a workaround for the same gap.
 - **Combat screen rendering bugs** (seen live): card titles render twice (an icon-placeholder label overprints the title, e.g. "RaRamming Speed2"), the hand row overflows the bottom of the viewport, the "Turn N" text and phase banner overlap, the main-menu title is horizontally off-center, and the driver-selection deck preview cards clip through the driver-cycle button.
-- **The Electron build is broken** and has been since roughly the start: `webpack.electron.js` merges the web config so the `main` entry becomes the Electron main-process bundle yet is injected into `index.html`, the `renderer` entry is injected nowhere; `electron/main.ts:8` requires `electron-squirrel-startup` which isn't a dependency; `electron/` is excluded from `tsconfig.json` so it's never type-checked; the preload IPC bridge whitelists channels that have no `ipcMain` handlers and nothing in `src/` uses `window.electron`; `electron/forge.config.js` is an orphaned template with placeholder URLs (the project uses electron-builder).
 - **Production web deploys ship a development bundle**: `build:web` never sets `NODE_ENV=production`, so webpack builds in `development` mode with `eval-source-map`, and that is what `deploy-sftp.yml` uploads.
 - **CI shell injection**: `cleanup-pr.yml:19-21` interpolates `github.head_ref` directly into an SSH shell command; a crafted branch name executes arbitrary commands on the deploy server. `deploy-pr-playtest.yml:38` has the same class of issue in a github-script template literal.
 
@@ -110,7 +110,7 @@ AI workers: query and update the board via the Specboard MCP tools (get_items / 
 
 Wasteland Wheels is a roguelike deckbuilder game with vehicular combat in a post-apocalyptic setting. Core mechanic: "Symbiotic Driver System" where players control two drivers/vehicles simultaneously.
 
-**Tech Stack**: TypeScript, WebGL, Electron (currently broken, see the Security and correctness epic on Specboard), Jest
+**Tech Stack**: TypeScript, WebGL, Electron, Jest
 **Target Audience**: Fans of Slay the Spire, Monster Train, and roguelike deckbuilders
 
 ## Design Documents

@@ -551,6 +551,19 @@ Unthrottled, so these say how much of a 16.67 ms budget each screen costs, not w
 
 **Notable findings about this codebase (from the audit, evidence in the research folder):** text always paints above shapes drawn in the same clip scope because the text batch flushes on scissor changes, which is the mechanism behind DDB-28 and DDB-31; `borderRadius`, `opacity`, `fontFamily`, `fontWeight`, and `zIndex` are parsed and ignored; `Button` and `Input` ignore their style objects entirely; hit testing ignores occlusion, clipping, and visibility; the combat screen has two different layouts (construction and resize); the F5 overlay measures only the frame interval.
 
+## Windows build and run brought up (2026-09-07)
+
+**What changed:**
+- `package.json` gained an `overrides` entry pinning `extract-zip`'s `yauzl` to `^3.2.0`. On Node 24, yauzl 2.10's fd-slicer read stream stalls part-way through an entry and never emits `end`, so `extract-zip` never settles its promise, the process exits 0 with the work unfinished, and the Electron postinstall leaves `node_modules/electron/dist` holding one truncated `locales/it.pak` and nothing else. `npm run start:electron` then failed with "Electron failed to install correctly". The cached zip was fine (`inflateRawSync` over the same bytes produced the full 427761 bytes); yauzl 3.4.0 streams it correctly. Verified with a clean `npm ci`: all 73 entries extract and `electron.exe` lands.
+- `.claude/launch.json` added so the dev server can be started by name (port 9000, matching the URL `electron/main.ts` loads in development).
+- README gained a Windows notes section covering the yauzl issue and the winCodeSign symlink privilege requirement.
+
+**Verified on Windows 11 / Node 24.16.0:** lint (0 errors, 9 warnings), `npm test` (128/128), `npm run build:web`, `npm run build:electron`, dev server click-through to a live battle, Electron in development mode against the dev server, `npm run package:win`, and the packaged `release/win-unpacked` binary launching and rendering the menu from the bundled renderer.
+
+**Not a code problem, but blocks packaging locally:** electron-builder's `winCodeSign-2.6.0.7z` contains two macOS symlinks (`darwin/10.12/lib/libcrypto.dylib`, `libssl.dylib`). Creating symlinks on Windows needs Developer Mode or an elevated shell; without it 7za fails, electron-builder discards the extraction, retries, and aborts. Worked around here by populating `%LOCALAPPDATA%\electron-builder\Cache\winCodeSign\winCodeSign-2.6.0` from the partial extraction with the two dylibs copied rather than linked. The durable fix is Developer Mode on the machine; CI runners already have the privilege, which is why `electron-build.yml`'s Windows job has always passed.
+
+**Note on hub accuracy:** the hub listed the Electron build as broken. That was true of the survey's snapshot but has since been fixed on main; the electron webpack config now emits main, preload, and renderer separately and the app runs. Hub updated.
+
 ## Migrated task tracking to Specboard (2026-08-22)
 
 **What changed:**
