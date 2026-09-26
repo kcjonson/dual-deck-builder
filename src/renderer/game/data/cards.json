@@ -48,8 +48,8 @@
     {
       "type": "headshot",
       "name": "Headshot",
-      "summary": "Deal {damage} to the driver only. Target gets +2 Evade.",
-      "description": "Deal {damage} damage to target driver. No structure damage. Harder to hit (+2 to defender's evade).",
+      "summary": "Deal {damage} to the driver only. Target gets +{hit_modifier} Evade.",
+      "description": "Deal {damage} damage to target driver. No structure damage. Harder to hit (+{hit_modifier} to defender's evade).",
       "rarity": "rare",
       "cost": 2,
       "targetType": "enemy_single",
@@ -58,12 +58,12 @@
           "type": "damage",
           "value": 5,
           "target": "driver",
-          "hit_modifier": -2
+          "hit_modifier": 2
         }
       ],
       "variables": {
         "damage": { "base": 5, "upgraded": 10 },
-        "hit_modifier": { "base": -2, "upgraded": -1 }
+        "hit_modifier": { "base": 2, "upgraded": 1 }
       },
       "upgrades": {
         "effects": [
@@ -71,7 +71,7 @@
             "type": "damage",
             "value": 2,
             "target": "driver",
-            "hit_modifier": -1
+            "hit_modifier": 1
           }
         ]
       },

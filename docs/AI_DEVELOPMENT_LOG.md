@@ -18,6 +18,15 @@ This document contains the chronological log of completed development tasks for 
 
 **How:** the AI test helpers moved to a speed 2 driver in a base 3 vehicle, and the AggressiveFlanker and Ramming tests set base speeds on either side of 6. One Ramming test had passed only because every test vehicle counted as fast on the old scale; it now sets a fast rammer explicitly. The Battle and CombatMechanics fixtures give drivers the speed their old `vehicleStats` added, so their totals don't move. New `DrivenVehicleSpeed.test.ts` (12 tests): each stock driver's total, the spec range, statuses, a passenger taking the wheel, an empty seat, and Outrider flanks against the Rust Buggy (blocked on a tie), the Rig, and a slowed Buggy. One new AggressiveFlanker test checks that a vehicle already at 7 shoots instead of boosting. 942 tests pass (929 before).
 
+## Headshot is harder to hit (2026-09-26)
+
+**What landed:** DDB-161. Headshot's `hit_modifier` was -2, and since `Battle.checkHit` hits on gunnery > evade + modifier, that made it easier to land than a plain shot. Combat Rules says the defender gets +2 evade, +1 upgraded.
+
+- `cards.json`: Headshot's effect, its upgrade effect, and its `hit_modifier` variable are now +2 base and +1 upgraded. The summary and description fill the number from `{hit_modifier}`, so the upgraded card reads +1. Point Blank's -1 (easier to hit) was already right.
+- Balance: every Headshot is now harder to land than before.
+- Nothing else reads `hit_modifier`; the AI and `BoardProjection` don't estimate hit odds for damage cards.
+- Tests: `cards.test.ts` checks the real Headshot at base and upgraded, and the escort Headshot test in `Escorts.test.ts` uses the Fuel Hauler (evade 1) with a rider at evade 3, so gunnery 5 lands only against the escort's evade.
+
 ## Escorts take fire (2026-09-26)
 
 **What landed:** DDB-148. Escorts are no longer immune: attacks and debuffs on them roll against their own evade, damage lands, and a wrecked escort leaves the road.
