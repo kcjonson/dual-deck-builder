@@ -21,7 +21,8 @@ export interface Team extends TeamData {}
 
 /**
  * Team class representing a side in battle
- * Player teams have exactly 2 vehicles, enemy teams can have variable amounts
+ * Player teams start with exactly 2 vehicles, enemy teams can have variable
+ * amounts. Wrecks leave the list when Battle clears them off the road.
  * Drivers manage their own hands/cards individually
  */
 export class Team extends Model<TeamData> {
@@ -111,39 +112,22 @@ export class Team extends Model<TeamData> {
 	}
 
 	/**
-	 * Handle vehicle destruction - driver becomes passenger in another vehicle
+	 * A wrecked vehicle's surviving occupants each jump to another team
+	 * vehicle with a free passenger seat, driver first. Anyone with nowhere
+	 * to go is left behind and out of the fight. The wreck itself stays on
+	 * the road until Battle clears it at the end of the turn.
 	 */
 	public handleVehicleDestruction(destroyedVehicle: Vehicle): void {
-		const destroyedDriver = destroyedVehicle.driver;
-		const destroyedPassenger = destroyedVehicle.passenger;
-		const survivingVehicles = this.getAliveVehicles().filter(v => v !== destroyedVehicle);
-
-		// Handle the driver
-		if (destroyedDriver && destroyedDriver.isAlive() && survivingVehicles.length > 0) {
-			// Find a vehicle without a passenger
-			const targetVehicle = survivingVehicles.find(v => !v.passenger);
-			
-			if (targetVehicle) {
-				targetVehicle.passenger = destroyedDriver;
-				destroyedDriver.role = DriverRole.PASSENGER;
-			}
-		}
-
-		// Handle the passenger (if there was one)
-		if (destroyedPassenger && destroyedPassenger.isAlive() && survivingVehicles.length > 0) {
-			// Find another vehicle without a passenger
-			const targetVehicle = survivingVehicles.find(v => !v.passenger && v.driver !== destroyedDriver);
-			
-			if (targetVehicle) {
-				targetVehicle.passenger = destroyedPassenger;
-				destroyedPassenger.role = DriverRole.PASSENGER;
-			}
-		}
-
-		// Clear the destroyed vehicle's occupants
+		const occupants = [destroyedVehicle.driver, destroyedVehicle.passenger];
 		destroyedVehicle.driver = null;
 		destroyedVehicle.passenger = null;
 		destroyedVehicle.destroy();
+
+		for (const occupant of occupants) {
+			if (occupant?.isAlive()) {
+				this.handleDriverEscape(occupant);
+			}
+		}
 	}
 
 	/**
@@ -193,20 +177,12 @@ export class Team extends Model<TeamData> {
 	}
 
 	/**
-	 * Handle driver escaping from destroyed vehicle
-	 * Returns true if driver found a new vehicle, false otherwise
+	 * Seat a driver as a passenger in the first alive team vehicle with room.
+	 * Returns false if there's no room anywhere.
 	 */
 	public handleDriverEscape(driver: Driver): boolean {
-		// Find an alive vehicle with space for a passenger
-		const availableVehicle = this.vehicles.find(v => 
-			v.isAlive() && v.canAddPassenger()
-		);
-		
-		if (availableVehicle) {
-			return availableVehicle.addPassenger(driver);
-		}
-		
-		return false;
+		const availableVehicle = this.vehicles.find(v => v.canAddPassenger());
+		return availableVehicle ? availableVehicle.addPassenger(driver) : false;
 	}
 
 	/**

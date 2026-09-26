@@ -278,21 +278,12 @@ export class Driver extends Model<DriverData> {
 	 * Play a card with adrenaline cost validation and restrictions
 	 */
 	public playCardWithCost(cardIndex: number): { success: boolean; card: Card | null; reason?: string } {
+		const reason = this.getPlayBlocker(cardIndex);
+		if (reason) {
+			return { success: false, card: null, reason };
+		}
+
 		const card = this.hand[cardIndex];
-		
-		if (!card) {
-			return { success: false, card: null, reason: 'Invalid card index' };
-		}
-
-		// Check if driver can afford the card
-		if (this.adrenaline < card.cost) {
-			return { success: false, card: null, reason: 'Not enough adrenaline' };
-		}
-
-		// Check card restrictions for passengers
-		if (!this.canPlayAttackCards() && this.isAttackCard(card)) {
-			return { success: false, card: null, reason: 'Passengers cannot play attack cards' };
-		}
 
 		// Spend adrenaline and play card
 		if (this.spendAdrenaline(card.cost)) {
@@ -301,6 +292,24 @@ export class Driver extends Model<DriverData> {
 		}
 
 		return { success: false, card: null, reason: 'Failed to spend adrenaline' };
+	}
+
+	/**
+	 * Why the card at this hand index can't be played now, or null if it can.
+	 * Moves nothing, so a caller can check the target before spending the card.
+	 */
+	public getPlayBlocker(cardIndex: number): string | null {
+		const card = this.hand[cardIndex];
+		if (!card) {
+			return 'Invalid card index';
+		}
+		if (this.adrenaline < card.cost) {
+			return 'Not enough adrenaline';
+		}
+		if (!this.canPlayAttackCards() && this.isAttackCard(card)) {
+			return 'Passengers cannot play attack cards';
+		}
+		return null;
 	}
 
 	/**
