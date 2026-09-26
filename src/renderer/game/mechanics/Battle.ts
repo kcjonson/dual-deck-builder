@@ -753,6 +753,9 @@ export class Battle extends Model<BattleData> {
 		if (!this.meetsFlankRules(card, caster, target)) {
 			return this.getFlankBlocker(caster, target);
 		}
+		if (card.hitsDriverOnly && !target.driverOnlyTarget) {
+			return `${target.name} has nobody aboard to hit`;
+		}
 		return null;
 	}
 
@@ -811,113 +814,69 @@ export class Battle extends Model<BattleData> {
 		// Process each effect on the card
 		for (const effect of card.effects) {
 			switch (effect.type) {
-				case 'damage':
-					if (targetVehicle && targetVehicle.driver) {
-						let damage = typeof effect.value === 'number' ? effect.value : 0;
-						
-						// Check range if specified
-						if (typeof effect.range === 'number') {
-							const casterVehicle = this.getVehicleForDriver(caster);
-							if (casterVehicle) {
-								const range = this.calculateRange(casterVehicle, targetVehicle);
-								if (range > effect.range) {
-									this.log('out_of_range',
-										`${card.displayName} cannot reach ${targetVehicle.name} - requires range ${effect.range}, but target is at range ${range}`,
-										{ card: card.displayName, target: targetVehicle.name, requiredRange: effect.range, actualRange: range }
-									);
-									break;
-								}
-							}
-						}
-						
-						// Check if attack hits (unless always_hits is true)
-						if (!effect.always_hits) {
-							const attackType = (typeof effect.attack_type === 'string' ? effect.attack_type : null) || 
-								(effect.scaling === 'ramming' ? 'ramming' : 'ranged');
-							const hitModifier = typeof effect.hit_modifier === 'number' ? effect.hit_modifier : 0;
-							
-							if (!this.checkHit(caster, targetVehicle.driver, attackType, hitModifier)) {
-								this.log('miss',
-									`${card.displayName} misses ${targetVehicle.name}`,
-									{ card: card.displayName, target: targetVehicle.name }
-								);
-								break;
-							}
-						}
-						
-						// Calculate formula-based damage
-						if (effect.formula && typeof effect.formula === 'string') {
-							const casterVehicle = this.getVehicleForDriver(caster);
-							if (casterVehicle) {
-								damage = this.calculateFormulaDamage(effect.formula, {
-									armor: casterVehicle.armor,
-									speedDiff: casterVehicle.getTotalSpeed() - targetVehicle.getTotalSpeed()
-								});
-							}
-						}
-						
-						// Apply damage modifiers
-						const casterVehicle = this.getVehicleForDriver(caster);
-						if (casterVehicle) {
-							damage = this.calculateDamage(damage, casterVehicle, targetVehicle);
-						}
-						
-						// Apply damage to specific target
-						if (effect.target === 'driver' && targetVehicle.driver) {
-							// Direct driver damage (e.g., Headshot)
-							this.damageDriver({ driver: targetVehicle.driver, vehicle: targetVehicle, damage, card });
-						} else if (effect.target === 'self_driver') {
-							// Self damage (e.g., Berserker)
-							this.damageDriver({ driver: caster, vehicle: this.getVehicleForDriver(caster), damage, card });
-						} else {
-							// Normal vehicle damage
-							const beforeStructure = targetVehicle.structure;
-							const beforeArmor = targetVehicle.armor;
-							const crew = this.crewOf(targetVehicle);
-							const beforeCrewHealth = crew.living.reduce((sum, occupant) => sum + occupant.hitpoints, 0);
+				case 'damage': {
+					// Out of the fight covers a target an earlier effect of this card wrecked
+					if (!targetVehicle || targetVehicle.isOutOfFight) break;
+					const casterVehicle = this.getVehicleForDriver(caster);
+					let damage = typeof effect.value === 'number' ? effect.value : 0;
 
-							targetVehicle.takeDamage(damage);
-
-							// Calculate damage distribution
-							const armorDamage = beforeArmor - targetVehicle.armor;
-							const structureDamage = beforeStructure - targetVehicle.structure;
-							const occupantDamage = beforeCrewHealth - crew.living.reduce((sum, occupant) => sum + occupant.hitpoints, 0);
-
-							// Build damage breakdown message
-							let damageBreakdown = `${damage} total`;
-							if (armorDamage > 0) {
-								damageBreakdown += ` (${armorDamage} to armor`;
-								if (structureDamage > 0 || occupantDamage > 0) {
-									damageBreakdown += `, ${structureDamage} to structure`;
-									if (occupantDamage > 0) {
-										damageBreakdown += `, ${occupantDamage} to occupants`;
-									}
-								}
-								damageBreakdown += ')';
-							} else if (structureDamage > 0 || occupantDamage > 0) {
-								damageBreakdown += ` (${structureDamage} to structure, ${occupantDamage} to occupants)`;
-							}
-							
-							// Show before and after state
-							const structureText = `${beforeStructure}/${targetVehicle.maxStructure} -> ${targetVehicle.structure}/${targetVehicle.maxStructure}`;
-							const armorText = `${beforeArmor}/${targetVehicle.maxArmor} -> ${targetVehicle.armor}/${targetVehicle.maxArmor}`;
-							
-							this.log('damage_dealt',
-								`${card.displayName} deals ${damageBreakdown} damage to ${targetVehicle.name} (Structure: ${structureText}, Armor: ${armorText})`,
-								{ card: card.displayName, target: targetVehicle.name, value: damage }
+					if (typeof effect.range === 'number' && casterVehicle) {
+						const range = this.calculateRange(casterVehicle, targetVehicle);
+						if (range > effect.range) {
+							this.log('out_of_range',
+								`${card.displayName} cannot reach ${targetVehicle.name} - requires range ${effect.range}, but target is at range ${range}`,
+								{ card: card.displayName, target: targetVehicle.name, requiredRange: effect.range, actualRange: range }
 							);
-							this.logDeaths(targetVehicle, crew);
-						}
-
-						// Handle vehicle destruction
-						if (!targetVehicle.isAlive()) {
-							const owningTeam = this.getTeamForVehicle(targetVehicle);
-							if (owningTeam) {
-								owningTeam.handleVehicleDestruction(targetVehicle);
-							}
+							break;
 						}
 					}
+
+					if (!effect.always_hits) {
+						const attackType = (typeof effect.attack_type === 'string' ? effect.attack_type : null) ||
+							(effect.scaling === 'ramming' ? 'ramming' : 'ranged');
+						const modifier = typeof effect.hit_modifier === 'number' ? effect.hit_modifier : 0;
+						if (!this.checkHit({ attacker: casterVehicle, caster, defender: targetVehicle, attackType, modifier })) {
+							this.log('miss',
+								`${card.displayName} misses ${targetVehicle.name}`,
+								{ card: card.displayName, target: targetVehicle.name }
+							);
+							break;
+						}
+					}
+
+					if (casterVehicle) {
+						if (effect.formula && typeof effect.formula === 'string') {
+							damage = this.calculateFormulaDamage(effect.formula, {
+								armor: casterVehicle.armor,
+								speedDiff: casterVehicle.getTotalSpeed() - targetVehicle.getTotalSpeed()
+							});
+						}
+						damage = this.calculateDamage(damage, casterVehicle, targetVehicle);
+					}
+
+					if (effect.target === 'driver') {
+						// Headshot: the driver, or a passenger riding in an escort. An
+						// empty escort isn't a legal target, so this only misses its mark
+						// when the last person aboard died earlier in the card.
+						const victim = targetVehicle.driverOnlyTarget;
+						if (!victim) {
+							this.log('fizzle', `${card.displayName} fizzles: ${targetVehicle.name} has nobody aboard to hit`,
+								{ card: card.displayName, target: targetVehicle.name });
+							break;
+						}
+						this.damageDriver({ driver: victim, vehicle: targetVehicle, damage, card });
+					} else if (effect.target === 'self_driver') {
+						// Self damage (Berserker)
+						this.damageDriver({ driver: caster, vehicle: casterVehicle, damage, card });
+					} else {
+						this.damageVehicle({ vehicle: targetVehicle, damage, card });
+					}
+
+					if (!targetVehicle.isAlive()) {
+						this.getTeamForVehicle(targetVehicle)?.handleVehicleDestruction(targetVehicle);
+					}
 					break;
+				}
 
 				case 'heal':
 					if (targetVehicle) {
@@ -1024,9 +983,11 @@ export class Battle extends Model<BattleData> {
 							break;
 						}
 						
-						// Check if always hits or needs hit check
-						if (!effect.always_hits && !appliesToSelf && statusVehicle.driver) {
-							if (!this.checkHit(caster, statusVehicle.driver)) {
+						if (!appliesToSelf && statusVehicle.isOutOfFight) {
+							break;
+						}
+						if (!effect.always_hits && !appliesToSelf) {
+							if (!this.checkHit({ attacker: this.getVehicleForDriver(caster), caster, defender: statusVehicle })) {
 								this.log('miss',
 									`${card.displayName} misses ${statusVehicle.name}`,
 									{ card: card.displayName, target: statusVehicle.name }
@@ -1146,6 +1107,36 @@ export class Battle extends Model<BattleData> {
 			driver: vehicle.driver,
 			living: [vehicle.driver, vehicle.passenger].filter((occupant): occupant is Driver => occupant?.isAlive() ?? false)
 		};
+	}
+
+	/**
+	 * Damage through armor into structure and whoever is aboard, logged with
+	 * where it went
+	 */
+	private damageVehicle({ vehicle, damage, card }: { vehicle: Vehicle; damage: number; card: Card }): void {
+		const beforeStructure = vehicle.structure;
+		const beforeArmor = vehicle.armor;
+		const crew = this.crewOf(vehicle);
+		const crewHealth = (): number => crew.living.reduce((sum, occupant) => sum + occupant.hitpoints, 0);
+		const beforeCrewHealth = crewHealth();
+
+		vehicle.takeDamage(damage);
+
+		const split = [
+			[beforeArmor - vehicle.armor, 'armor'],
+			[beforeStructure - vehicle.structure, 'structure'],
+			[beforeCrewHealth - crewHealth(), 'occupants']
+		] as const;
+		const landed = split.filter(([amount]) => amount > 0).map(([amount, where]) => `${amount} to ${where}`);
+		const breakdown = landed.length > 0 ? `${damage} total (${landed.join(', ')})` : `${damage} total`;
+		const structureText = `${beforeStructure}/${vehicle.maxStructure} -> ${vehicle.structure}/${vehicle.maxStructure}`;
+		const armorText = `${beforeArmor}/${vehicle.maxArmor} -> ${vehicle.armor}/${vehicle.maxArmor}`;
+
+		this.log('damage_dealt',
+			`${card.displayName} deals ${breakdown} damage to ${vehicle.name} (Structure: ${structureText}, Armor: ${armorText})`,
+			{ card: card.displayName, target: vehicle.name, value: damage }
+		);
+		this.logDeaths(vehicle, crew);
 	}
 
 	/**
@@ -1355,16 +1346,36 @@ export class Battle extends Model<BattleData> {
 	}
 
 	/**
-	 * Check if an attack hits based on skills
+	 * Whether an attack from one vehicle lands on another. The one hit rule:
+	 * play and raider planning both call it. Each side's skills come from its
+	 * vehicle (`Vehicle.crewSkills`): an escort's own, otherwise the caster's
+	 * when attacking and the driver's when defending. A ram hits on ramming
+	 * >= evade, anything else on gunnery > evade + modifier. A driven
+	 * defender with nobody at the wheel has no skills and is never hit. A
+	 * wrecked escort still has its profile, so callers skip wrecks first.
 	 */
-	public checkHit(attacker: Driver, defender: Driver, attackType = 'ranged', modifier = 0): boolean {
-		if (attackType === 'ramming') {
-			// Ram: attacker ramming >= defender evade
-			return attacker.skills.ramming >= defender.skills.evade;
-		} else {
-			// Ranged: attacker gunnery > defender evade + modifier
-			return attacker.skills.gunnery > (defender.skills.evade + modifier);
+	public checkHit({
+		attacker,
+		caster,
+		defender,
+		attackType = 'ranged',
+		modifier = 0
+	}: {
+		attacker: Vehicle | null;
+		caster: Driver;
+		defender: Vehicle;
+		attackType?: string;
+		modifier?: number;
+	}): boolean {
+		const attack = attacker ? attacker.crewSkills(caster) : caster.skills;
+		const defense = defender.crewSkills();
+		if (!attack || !defense) {
+			return false;
 		}
+		if (attackType === 'ramming') {
+			return attack.ramming >= defense.evade;
+		}
+		return attack.gunnery > defense.evade + modifier;
 	}
 
 	/**

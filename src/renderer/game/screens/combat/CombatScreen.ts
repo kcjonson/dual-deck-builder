@@ -670,9 +670,12 @@ export class CombatScreen extends Screen {
 		const targetType = card.targetType;
 		
 		// A wreck, or a vehicle with nobody aboard, still on the road for the
-		// rest of the turn is never a target
-		const players = this.playerTeam.vehicles.filter(vehicle => !vehicle.isOutOfFight);
-		const enemies = this.enemyTeam.vehicles.filter(vehicle => !vehicle.isOutOfFight);
+		// rest of the turn is never a target. Nor is an empty escort for
+		// Headshot, which has nobody on it to hit.
+		const targetable = (vehicle: Vehicle): boolean =>
+			!vehicle.isOutOfFight && !(card.hitsDriverOnly && !vehicle.driverOnlyTarget);
+		const players = this.playerTeam.vehicles.filter(targetable);
+		const enemies = this.enemyTeam.vehicles.filter(targetable);
 
 		switch (targetType) {
 			case 'enemy_single':

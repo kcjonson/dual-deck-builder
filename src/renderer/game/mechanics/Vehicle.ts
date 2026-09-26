@@ -1,4 +1,4 @@
-import { Driver, DriverRole } from './Driver';
+import { Driver, DriverRole, DriverSkills } from './Driver';
 import { Model } from '../core/Model';
 import { RoadSlot, isShoulder } from './Road';
 import type { IntentTier } from './Intent';
@@ -146,40 +146,48 @@ export class Vehicle extends Model<VehicleData> {
 	}
 
 	/**
-	 * Take damage to the vehicle
-	 * Follows Combat Rules: reduces armor first, then applies half of remaining to structure and occupants
+	 * Armor soaks damage first. Past armor, damage splits half to structure
+	 * and half to each living occupant; with nobody aboard (an empty escort)
+	 * it all goes to structure.
 	 */
 	public takeDamage(damage: number): void {
-		// First, reduce armor
 		const armorDamage = Math.min(damage, this.armor);
 		this.armor -= armorDamage;
-		
+
 		const remainingDamage = damage - armorDamage;
 		if (remainingDamage > 0) {
-			// Apply half of remaining damage to structure
-			const structureDamage = Math.ceil(remainingDamage / 2);
+			const occupants = [this.driver, this.passenger]
+				.filter((occupant): occupant is Driver => occupant?.isAlive() ?? false);
+			const halfDamage = Math.ceil(remainingDamage / 2);
+			const structureDamage = occupants.length > 0 ? halfDamage : remainingDamage;
 			this.structure = Math.max(0, this.structure - structureDamage);
-			
-			// Apply half of remaining damage to ALL occupants
-			const occupantDamage = Math.ceil(remainingDamage / 2);
-			
-			// Damage driver
-			if (this.driver && this.driver.isAlive()) {
-				this.driver.takeDamage(occupantDamage);
-			}
-			
-			// Damage passenger
-			if (this.passenger && this.passenger.isAlive()) {
-				this.passenger.takeDamage(occupantDamage);
-			}
+			occupants.forEach(occupant => occupant.takeDamage(halfDamage));
 
 			this.handleDriverDeath();
 		}
-		
-		// Check if vehicle is destroyed
+
 		if (!this.isAlive()) {
 			this.emit('destroyed', this);
 		}
+	}
+
+	/**
+	 * The skills a hit check reads for this vehicle. An escort's are its
+	 * own, whoever rides in it or orders it. A driven vehicle's are the
+	 * acting driver's: whoever plays the card when it attacks, the driver at
+	 * the wheel when it's attacked. Null with nobody to act.
+	 */
+	public crewSkills(actor: Driver | null = this.driver): DriverSkills | null {
+		return this.escort ?? actor?.skills ?? null;
+	}
+
+	/**
+	 * Who a driver-only attack (Headshot) hits: the driver, or on an escort
+	 * the passenger riding in it. Null on an empty escort, which makes it an
+	 * illegal target for those cards.
+	 */
+	public get driverOnlyTarget(): Driver | null {
+		return this.driver ?? (this.isEscort ? this.passenger : null);
 	}
 
 	/**

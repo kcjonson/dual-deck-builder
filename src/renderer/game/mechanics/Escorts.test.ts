@@ -1,6 +1,7 @@
 import { Battle } from './Battle';
 import { BoardProjection } from './BoardProjection';
-import { Card } from './Card';
+import { Card, CardEffect } from './Card';
+import { Driver } from './Driver';
 import { ESCORT_CONFIGS, createEscort } from './Escort';
 import { RoadLane, RoadRow, RoadSlot } from './Road';
 import { MAX_CONVOY_ESCORTS, Team, TeamType } from './Team';
@@ -38,6 +39,45 @@ const fullConvoy = (): Vehicle[] => [
 	createEscort({ type: 'fuel_hauler' }),
 	createEscort({ type: 'med_truck' })
 ];
+
+const card = (name: string, effects: CardEffect[], cost = 1): Card => new Card({
+	type: name.toLowerCase().replace(/ /g, '_'),
+	name,
+	summary: name,
+	description: name,
+	rarity: 'common',
+	cost,
+	targetType: 'enemy_single',
+	effects,
+	tags: []
+});
+
+// No always_hits: these roll the hit check. Test drivers have gunnery and
+// ramming 5, so they hit the Fuel Hauler (evade 1) and miss the Outrider (evade 6).
+const shot = (value = 15): Card => card('Shot', [{ type: 'damage', value, range: 10 }]);
+const slow = (): Card => card('Slow', [{ type: 'apply_status', status: 'speed_reduction', value: -2, duration: 2, target: 'target' }]);
+const ram = (): Card => card('Ram', [{ type: 'damage', value: 0, formula: 'armor/10 + (speed_diff)', attack_type: 'ramming', range: 10 }], 2);
+const headshot = (value = 10): Card => card('Headshot', [{ type: 'damage', value, target: 'driver', range: 10, always_hits: true }], 2);
+
+const driverOf = (vehicle: Vehicle): Driver => {
+	if (!vehicle.driver) throw new Error(`${vehicle.name} has no driver`);
+	return vehicle.driver;
+};
+
+const giveHand = (vehicle: Vehicle, cards: Card[]): void => {
+	driverOf(vehicle).set({ hand: cards, adrenaline: 5 });
+};
+
+const logLines = (battle: Battle, type: string): string[] =>
+	battle.getMessages().filter(message => message.type === type).map(message => message.message);
+
+/** A driver riding in an escort. Seating one for real waits on DDB-152. */
+const seatPassenger = (escort: Vehicle, hitpoints = 100): Driver => {
+	const rider = createTestDriver('Rider');
+	rider.set({ hitpoints, maxHitpoints: hitpoints });
+	escort.passenger = rider;
+	return rider;
+};
 
 const potShot = (): Card => new Card({
 	type: 'pot_shot',
@@ -254,6 +294,269 @@ describe('Escorts', () => {
 			expect(escort.canAddPassenger()).toBe(false);
 			expect(escort.passenger).toBeNull();
 			expect(bikeDriver && team.getAliveDrivers().includes(bikeDriver)).toBe(false);
+		});
+	});
+
+	describe('taking fire', () => {
+		let buggy: Vehicle;
+
+		beforeEach(() => {
+			buggy = createDriven('Buggy');
+		});
+
+		describe('hit checks', () => {
+			test('an escort defends with its own evade, whoever rides in it', () => {
+				const outrider = createEscort({ type: 'outrider' });
+				const hauler = createEscort({ type: 'fuel_hauler' });
+				const battle = createBattle([rig, bike, outrider, hauler], [buggy]);
+				const caster = driverOf(buggy);
+				seatPassenger(hauler).set({ skills: { ramming: 0, gunnery: 0, evade: 10 } });
+
+				expect(battle.checkHit({ attacker: buggy, caster, defender: outrider })).toBe(false);
+				expect(battle.checkHit({ attacker: buggy, caster, defender: hauler })).toBe(true);
+				expect(battle.checkHit({ attacker: buggy, caster, defender: outrider, attackType: 'ramming' })).toBe(false);
+				expect(battle.checkHit({ attacker: buggy, caster, defender: hauler, attackType: 'ramming' })).toBe(true);
+			});
+
+			test('an escort attacks with its own skills, not those of the driver ordering it', () => {
+				const outrider = createEscort({ type: 'outrider' });
+				const pilotCar = createEscort({ type: 'pilot_car' });
+				const battle = createBattle([rig, bike, outrider, pilotCar], [buggy]);
+				driverOf(rig).set({ skills: { ramming: 10, gunnery: 10, evade: 10 } });
+
+				// Buggy's driver evades 5: the Outrider's gunnery 6 beats it, the Pilot Car's 5 doesn't
+				expect(battle.checkHit({ attacker: outrider, caster: driverOf(rig), defender: buggy })).toBe(true);
+				expect(battle.checkHit({ attacker: pilotCar, caster: driverOf(rig), defender: buggy })).toBe(false);
+			});
+
+			test.each([
+				['outrider', false],
+				['fuel_hauler', true]
+			] as const)('a raider\'s attack on the %s lands only if it beats the escort\'s evade', async (type, lands) => {
+				const escort = createEscort({ type });
+				const battle = createBattle([escort, rig, bike], [buggy]);
+				const { armor, structure } = escort;
+				giveHand(buggy, [shot()]);
+				battle.planEnemyTurn();
+
+				expect(battle.getPlan(buggy).map(action => action.target)).toEqual([escort]);
+				await battle.endPlayerTurn();
+
+				if (lands) {
+					// 15 against 5 armor: all 10 past it goes to structure
+					expect(escort.armor).toBe(0);
+					expect(escort.structure).toBe(structure - 10);
+					expect(logLines(battle, 'damage_dealt')).toContain(
+						`Shot deals 15 total (5 to armor, 10 to structure) damage to ${escort.name} (Structure: 40/40 -> 30/40, Armor: 5/5 -> 0/5)`
+					);
+				} else {
+					expect(escort.armor).toBe(armor);
+					expect(escort.structure).toBe(structure);
+					expect(logLines(battle, 'miss')).toContain(`Shot misses ${escort.name}`);
+				}
+			});
+
+			test.each([
+				['outrider', false],
+				['fuel_hauler', true]
+			] as const)('a raider\'s debuff on the %s lands only if it beats the escort\'s evade, as the plan projected', async (type, lands) => {
+				const escort = createEscort({ type });
+				const battle = createBattle([escort, rig, bike], [buggy]);
+				giveHand(buggy, [slow()]);
+				battle.planEnemyTurn();
+				const [action] = battle.getPlan(buggy);
+				const board = new BoardProjection({ battle });
+				board.apply({ card: action.card, driver: action.driver, target: action.target });
+
+				await battle.endPlayerTurn();
+
+				expect(action.target).toBe(escort);
+				expect(escort.hasStatusEffect('speed_reduction')).toBe(lands);
+				expect(escort.getTotalSpeed()).toBe(board.speedOf(escort));
+				expect(escort.getTotalSpeed()).toBe(lands ? escort.baseSpeed - 2 : escort.baseSpeed);
+			});
+		});
+
+		describe('damage', () => {
+			test('an empty escort takes everything past armor on structure', () => {
+				const hauler = createEscort({ type: 'fuel_hauler' });
+
+				hauler.takeDamage(15);
+
+				expect(hauler.armor).toBe(0);
+				expect(hauler.structure).toBe(30);
+			});
+
+			test('an escort carrying a passenger splits past armor like a driven vehicle', () => {
+				const hauler = createEscort({ type: 'fuel_hauler' });
+				const rider = seatPassenger(hauler);
+
+				hauler.takeDamage(15);
+
+				expect(hauler.structure).toBe(35);
+				expect(rider.hitpoints).toBe(95);
+			});
+
+			test('a ram on an escort runs on the escort\'s own speed', async () => {
+				const hauler = createEscort({ type: 'fuel_hauler' });
+				const battle = createBattle([hauler, rig, bike], [buggy]);
+				buggy.set({ armor: 40, maxArmor: 40 });
+				driverOf(buggy).set({ vehicleStats: { ...driverOf(buggy).vehicleStats, speed: 3 } });
+				giveHand(buggy, [ram()]);
+				battle.planEnemyTurn();
+
+				// 40 armor / 10, plus Buggy's 2 + 3 against the Hauler's 2
+				expect(battle.getIntents(buggy)[0]).toMatchObject({ amount: 7, target: hauler.id });
+				await battle.endPlayerTurn();
+
+				expect(hauler.armor).toBe(0);
+				expect(hauler.structure).toBe(38);
+			});
+		});
+
+		describe('wrecks', () => {
+			test('a wrecked escort holds its slot for the rest of the turn, then leaves the road', async () => {
+				const hauler = createEscort({ type: 'fuel_hauler' });
+				const battle = createBattle([hauler, rig, bike], [buggy]);
+				const haulerSlot = hauler.slot;
+				giveHand(buggy, [shot(100), shot()]);
+				battle.planEnemyTurn();
+				expect(battle.getPlan(buggy).map(action => action.target)).toEqual([hauler, hauler]);
+
+				let onRoadWhenFollowedUp = false;
+				battle.on('battleMessage', message => {
+					if (message.type === 'fizzle') {
+						onRoadWhenFollowedUp = battle.playerTeam.vehicles.includes(hauler) && hauler.slot === haulerSlot;
+					}
+				});
+				await battle.endPlayerTurn();
+
+				expect(hauler.isAlive()).toBe(false);
+				expect(onRoadWhenFollowedUp).toBe(true);
+				expect(logLines(battle, 'fizzle')).toEqual(["Buggy's Shot fizzles: Fuel Hauler is wrecked and nobody got out"]);
+				expect(battle.playerTeam.vehicles).not.toContain(hauler);
+				expect(hauler.slot).toBeNull();
+				expect(logLines(battle, 'general')).toContain('Fuel Hauler is wrecked and leaves the road');
+				expect(battle.battleOver).toBe(false);
+			});
+
+			test('a passenger riding in a wrecked escort jumps out', () => {
+				const hauler = createEscort({ type: 'fuel_hauler' });
+				const team = playerTeam([rig, bike, hauler]);
+				const rider = seatPassenger(hauler);
+
+				hauler.takeDamage(100);
+				team.handleVehicleDestruction(hauler);
+
+				expect(Team.survivorsOf(hauler)).toEqual([rider]);
+				expect(rig.passenger).toBe(rider);
+			});
+		});
+
+		describe('Headshot', () => {
+			test('an empty escort is not a legal Headshot target, so a raider aims it elsewhere', () => {
+				const hauler = createEscort({ type: 'fuel_hauler' });
+				const battle = createBattle([hauler, rig, bike], [buggy]);
+				giveHand(buggy, [headshot()]);
+				battle.planEnemyTurn();
+
+				expect(new BoardProjection({ battle }).targetBlocker({ card: headshot(), caster: buggy, target: hauler }))
+					.toBe('Fuel Hauler has nobody aboard to hit');
+				expect(battle.getPlan(buggy).map(action => action.target)).toEqual([rig]);
+			});
+
+			test('Headshot on an escort hits the passenger riding in it, not the structure', async () => {
+				const hauler = createEscort({ type: 'fuel_hauler' });
+				const battle = createBattle([hauler, rig, bike], [buggy]);
+				const rider = seatPassenger(hauler);
+				giveHand(buggy, [headshot()]);
+				battle.planEnemyTurn();
+
+				expect(battle.getPlan(buggy).map(action => action.target)).toEqual([hauler]);
+				await battle.endPlayerTurn();
+
+				expect(rider.hitpoints).toBe(90);
+				expect(hauler.structure).toBe(40);
+				expect(hauler.armor).toBe(5);
+			});
+
+			test('Headshot on an escort\'s passenger rolls against the escort\'s evade, not the passenger\'s', async () => {
+				const outrider = createEscort({ type: 'outrider' });
+				const battle = createBattle([outrider, rig, bike], [buggy]);
+				const rider = seatPassenger(outrider);
+				rider.set({ skills: { ramming: 0, gunnery: 0, evade: 10 } });
+				// The effect as cards.json has it
+				const realHeadshot = card('Headshot', [{ type: 'damage', value: 5, target: 'driver', hit_modifier: -2 }], 2);
+				giveHand(buggy, [realHeadshot]);
+				battle.planEnemyTurn();
+
+				expect(battle.getPlan(buggy).map(action => action.target)).toEqual([outrider]);
+				await battle.endPlayerTurn();
+
+				// Gunnery 5 > Outrider evade 6 - 2 lands; against the rider's 10 - 2 it would miss
+				expect(logLines(battle, 'miss')).toEqual([]);
+				expect(rider.hitpoints).toBe(95);
+				expect(outrider.structure).toBe(ESCORT_CONFIGS.outrider.structure);
+			});
+
+			test('a planned Headshot fizzles when the escort\'s passenger dies before it plays', async () => {
+				const hauler = createEscort({ type: 'fuel_hauler' });
+				const battle = createBattle([hauler, rig, bike], [buggy]);
+				const rider = seatPassenger(hauler, 10);
+				giveHand(buggy, [headshot(), headshot()]);
+				battle.planEnemyTurn();
+				expect(battle.getPlan(buggy).map(action => action.target)).toEqual([hauler, hauler]);
+
+				await battle.endPlayerTurn();
+
+				expect(rider.isAlive()).toBe(false);
+				expect(hauler.passenger).toBeNull();
+				expect(logLines(battle, 'fizzle')).toEqual(["Buggy's Headshot fizzles: Fuel Hauler has nobody aboard to hit"]);
+			});
+		});
+
+		describe('self costs', () => {
+			const recklessShot = (): Card => card('Reckless Shot', [
+				{ type: 'damage', value: 3, range: 10 },
+				{ type: 'damage', value: 1, target: 'self_driver' },
+				{ type: 'gain_resource', resource: 'adrenaline', value: 1, target: 'self' },
+				{ type: 'apply_status', status: 'vulnerable', duration: 2, target: 'self' }
+			], 2);
+
+			// FirstPlayableAI shoots at the first vehicle in the roster
+			const costsPaid = async (target: Vehicle, others: Vehicle[]): Promise<{ hitpoints: number; vulnerable: boolean; adrenalineGained: boolean }> => {
+				const raider = createDriven('Buggy');
+				const battle = createBattle([target, ...others], [raider]);
+				giveHand(raider, [recklessShot()]);
+				battle.planEnemyTurn();
+				await battle.endPlayerTurn();
+				return {
+					hitpoints: driverOf(raider).hitpoints,
+					vulnerable: raider.hasStatusEffect('vulnerable'),
+					adrenalineGained: battle.getMessages().some(message => message.message.startsWith('Reckless Shot gives 1 adrenaline'))
+				};
+			};
+
+			test.each([
+				['hits', 'fuel_hauler', 1],
+				['misses', 'outrider', 6]
+			] as const)('an attack that %s an escort pays the same self costs as one on a driven vehicle', async (_outcome, type, evade) => {
+				const drivenTarget = createDriven('Van');
+				driverOf(drivenTarget).set({ skills: { ramming: 5, gunnery: 5, evade } });
+
+				const onEscort = await costsPaid(createEscort({ type }), [rig, bike]);
+				const onDriven = await costsPaid(drivenTarget, [createDriven('Bike')]);
+
+				expect(onEscort).toEqual(onDriven);
+				expect(onEscort.vulnerable).toBe(true);
+				expect(onEscort.adrenalineGained).toBe(true);
+			});
+
+			test('an attack that hits an escort costs the self damage', async () => {
+				const costs = await costsPaid(createEscort({ type: 'fuel_hauler' }), [rig, bike]);
+
+				expect(costs.hitpoints).toBe(4);
+			});
 		});
 	});
 

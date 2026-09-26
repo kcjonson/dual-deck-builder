@@ -70,7 +70,7 @@ The first draft of this record had nine open questions. Kevin answered four the 
 
 Three edges the answers didn't cover, noted rather than decided, each left to its build task:
 
-- Whether a driver-only attack (Headshot) can target a passenger riding in an escort. DDB-148.
+- Whether a driver-only attack (Headshot) can target a passenger riding in an escort. DDB-148 settled it: yes (see Undriven damage).
 - Whether an area intent aimed at both driven vehicles counts as "aimed at a driven vehicle in the escort's row" for Draw Fire. DDB-150.
 - Whether a set-piece escort joins the convoy after the fight. DDB-153.
 
@@ -91,13 +91,29 @@ Review fixes that aren't Kevin's calls, applied at the same time:
 - A vehicle that becomes an escort mid-turn starts spent.
 - Rally the Convoy resolves escorts in roster order and re-picks the nearest raider for each escort from raiders still alive.
 - Triage heals the driver or passenger you choose in the targeted vehicle, up to their starting HP, like Medical Kit. How you choose is a proposal, since a card is one drop onto a vehicle: dropping on the plate's passenger row picks the passenger.
-- Headshot on an escort: DDB-148 decides whether an empty escort is an illegal Headshot target or the card fizzles.
+- Headshot on an escort: DDB-148 settled it: an empty escort isn't a legal Headshot target (see Undriven damage).
 
 ## Defeat (Kevin, 2026-09-25)
 
 The seat rule (17) left a gap: a driver with no free seat is out of the fight but alive, so two drivers could both be out while defeat, still "all drivers dead", didn't trigger. Kevin's framing: one driver must survive to circle back down the road to pick up the other player who crashed out, so the run only needs one survivor to continue, and both out means true death.
 
 21. **Crashed out and defeat.** A driver with no free seat has crashed out: out of the fight but alive. After a won fight, the surviving driver goes back down the road and picks them up, so they rejoin the run. Defeat is no longer "all drivers dead". The fight continues while at least one of your drivers is still in it, driving or riding as a passenger. When none are (every driver dead or crashed out), the run ends: true death, the session is over, with no rescue even for a driver who crashed out alive.
+
+## Undriven damage (DDB-148, 2026-09-26)
+
+Built with DDB-148, which gave escorts hit checks and damage. The passenger split (16) was Kevin's; the Headshot call below was the build's, as the review asked, and is written into Combat Rules. It's a proposal for Kevin to confirm or change.
+
+22. **Headshot and escorts.** An empty escort is not a legal target for a driver-only attack. The drag doesn't light it, the AI never plans at it, and nothing is spent. An escort carrying a passenger is a legal target, and Headshot hits the passenger, with the hit check against the escort's own evade (plus Headshot's modifier) like any other attack on it. If a planned Headshot's passenger dies before it plays, the escort has nobody aboard to hit and the card fizzles, the same as any planned card whose target turned illegal.
+
+Why not let it fizzle: Combat Rules says an escort is a legal target like any vehicle, but the fizzle rules in the intents record are for plans the board changed after they were made, not a way to throw a card at something it can't hurt. An illegal target keeps the drop highlight honest, so a player never pays two adrenaline for nothing, and it answers Draw Fire's "can its card reach the escort" cleanly: Headshot can't reach an empty one, so it hits its original target, and decision 13's "Draw Fire never makes an attack fizzle" holds.
+
+What else the build settled:
+
+- **One hit rule.** `Battle.checkHit` is the only hit check. Play and raider planning (`BoardProjection.apply`) both call it, and the combat screen's drag highlight skips an empty escort for Headshot. Each side's skills come from its vehicle (`Vehicle.crewSkills`): an escort's own, whoever rides in it or orders it; otherwise the caster's when attacking and the driver's when defending. A debuff a raider plans at an escort now rolls against the escort's evade in the projection, the same as in play.
+- **Damage.** `Vehicle.takeDamage` splits damage past armor half to structure and half to each living occupant, and with nobody aboard puts it all on structure. That covers the empty escort and, for DDB-152, the escort with a passenger.
+- **Wrecks.** A wrecked escort holds its slot for the rest of the turn and leaves at the end of it, like any wreck. It has nobody to jump unless a passenger rides in it, and a card planned at it fizzles because nobody got out.
+- **Self costs.** They resolve the same whatever the target is. Self statuses, adrenaline, and draws are their own effects and apply on a hit or a miss. A self-damage effect on a targeted card still rolls with the card, as it does against a driven vehicle today, so a miss skips it; no current card has one on an attack. Whether a cost should land on a miss is the same question as open question 2 (Ramming Run), left to DDB-149.
+- **Ram and speed.** The ram formula and speed checks read `Vehicle.getTotalSpeed` on both sides, which is base speed plus statuses for an escort. The driven side's double-counted driver speed is DDB-159 and wasn't touched.
 
 ## Open questions
 
@@ -115,7 +131,6 @@ These change gameplay, so they're Kevin's. Kevin filed the build as DDB-146 to D
 - Enemy planning gains archetype target preferences. Draw Fire doesn't rewrite committed plans: it's a row cover checked as each intent plays, plus target marks that update for the preview. Reinforcement waves need a way to place raiders on the player's shoulder when they arrive.
 - `CardLoader` will need to accept the `escort` target type (`validTargets` in `CardLoader.ts` doesn't list it today) and card data will gain the `order` tag and `signatureOf`. `cards.json` has no order cards yet, so the card data check doesn't cover them; the six summaries were measured by hand at 44 to 58 rendered characters against the 60 proxy.
 - Code that conflicts with these rules today:
-  - `Vehicle.takeDamage` always splits damage past armor half to structure and half to occupants, so an empty escort would take only half. The rule is all of it.
   - `Team.addVehicle` throws past two player vehicles, so escorts can't join a player team.
   - `Team.handleDriverEscape` puts the driver in the first vehicle with a free seat, not the partner's vehicle and then the nearest escort.
   - `Vehicle.handleDriverDeath` is never called (DDB-156), so neither passenger promotion nor a driverless vehicle becoming an escort happens.
