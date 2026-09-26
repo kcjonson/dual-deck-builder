@@ -6,6 +6,15 @@ This document contains the chronological log of completed development tasks for 
 
 **Date correction (2026-08-22):** the repo's first commit is 2025-05-17, but many entries below carry dates in December 2024 or January 2025 — the AI that wrote them used its assumed date instead of the real one. Entries dated 2025-07-03 and 2025-07-02 have been corrected from "2025-01-03"/"2025-01-02" (verified against git history). Remaining Dec 2024 / Jan 2025 dates are wrong by roughly six months; the real work happened May–July 2025. Trust git history over these dates.
 
+## Each run gets its own drivers (2026-09-25)
+
+**What landed:** DDB-157. A second run in the same session no longer starts with the first run's driver damage, hand, discard, or adrenaline.
+
+- START RUN handed DriverLoader's singleton template drivers to combat, and `CombatScreen.initializeCombat` mutates its drivers in place. The dev fallback in `CombatScreen.onMount` and `createDriverWithStartingDeck` (the battle simulator's path) did the same to the templates, the latter by building the deck on the template before copying it.
+- `DriverLoader` now keeps its templates private and every getter (`getDriver`, `getAllDrivers`, `getUnlockedDrivers`, `getLockedDrivers`, the static `getAllDriverArchetypes`) returns fresh `Driver.copy()`s at starting state. Putting the copy in the loader rather than at START RUN or in `initializeCombat` means no caller, current or future, can reach a template to mutate it. Selection screens are rebuilt on every navigate and fetch drivers on mount, so each run gets new copies.
+- `Driver.copy()` already deep-copied the hand, discard, and deck; it now copies the starting deck's card entries too. `unlockDriver` sets the flag on a copy's own metadata, so it no longer writes into `DRIVER_CONFIGS` and `resetUnlockState` really does reset.
+- Tests: 3 in `screens/combat/CombatScreen.test.ts` (two runs back to back through the selection screen, templates untouched after a fight, the dev fallback), 3 in `core/DriverLoader.test.ts`. The DDB-98 selection test compared drivers by reference and now compares archetypes, which is the identity `DriverPair` already uses.
+
 ## Escorts written into the specs (2026-09-25)
 
 **What landed:** DDB-133, docs only. Kevin's escort design, made on 2026-09-25, is in the specs.

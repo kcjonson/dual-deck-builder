@@ -452,7 +452,7 @@ export class Driver extends Model<DriverData> {
 			metadata: { ...this.metadata },
 			skills: { ...this.skills },
 			vehicleStats: { ...this.vehicleStats },
-			startingDeck: { cards: [...this.startingDeck.cards] },
+			startingDeck: { cards: this.startingDeck.cards.map(cardConfig => ({ ...cardConfig })) },
 			hitpoints: this.hitpoints,
 			maxHitpoints: this.maxHitpoints,
 			adrenaline: this.adrenaline,
