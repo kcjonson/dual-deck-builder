@@ -2,6 +2,29 @@ const path = require('path');
 const webpack = require('webpack');
 const HtmlWebpackPlugin = require('html-webpack-plugin');
 const CopyWebpackPlugin = require('copy-webpack-plugin');
+const { execSync } = require('child_process');
+
+const isProduction = process.env.NODE_ENV === 'production';
+
+// The main menu's build stamp. Null outside production so the dev server, and
+// the screenshot harness that runs on it, never render a per-commit value.
+function resolveBuildSha() {
+	if (!isProduction) return null;
+	if (process.env.BUILD_SHA) return process.env.BUILD_SHA.slice(0, 7);
+	try {
+		const sha = execSync('git rev-parse --short HEAD', { stdio: ['ignore', 'pipe', 'ignore'] })
+			.toString()
+			.trim();
+		return sha.slice(0, 7) || null;
+	} catch {
+		return null;
+	}
+}
+
+function resolveBuildNumber() {
+	if (!isProduction) return null;
+	return process.env.BUILD_NUMBER || null;
+}
 
 module.exports = {
 	entry: {
@@ -39,7 +62,9 @@ module.exports = {
 		// Lives in common because webpack.electron.js merges this same config
 		// into the renderer; a web-only define would be a ReferenceError there.
 		new webpack.DefinePlugin({
-			__DEV_TOOLS__: JSON.stringify(process.env.NODE_ENV !== 'production'),
+			__DEV_TOOLS__: JSON.stringify(!isProduction),
+			__BUILD_SHA__: JSON.stringify(resolveBuildSha()),
+			__BUILD_NUMBER__: JSON.stringify(resolveBuildNumber()),
 		}),
 		new HtmlWebpackPlugin({
 			template: './public/index.html',
