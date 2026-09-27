@@ -199,6 +199,46 @@ describe('Enemy intents', () => {
 		});
 	});
 
+	describe('a raider slowed below 0 that plans a Nitro Boost, then a Flank', () => {
+		// The Buggy is 3 with a -4 slow on it, so its speed sum is -1 and it
+		// moves at 0. Nitro's +3 takes the sum to 2, not 0 + 3, so it moves
+		// at 2 when the Flank plays.
+		const slowedBuggy = ({ rigSlow = 0 }: { rigSlow?: number } = {}): void => {
+			rig = createVehicle('Rig', 0);
+			buggy = createVehicle('Buggy', 1);
+			battle = createBattle([rig, bike], [buggy]);
+			buggy.applyStatusEffect({ name: 'speed_reduction', duration: 2, value: -4 });
+			if (rigSlow) rig.applyStatusEffect({ name: 'speed_reduction', duration: 2, value: rigSlow });
+			giveHand(buggy, [flank(), nitro()]);
+			battle.planEnemyTurn();
+		};
+
+		test('doesn\'t plan a Flank on a vehicle as fast as it will be', async () => {
+			// The Rig moves at 2
+			slowedBuggy();
+
+			expect(battle.getPlan(buggy).map(action => action.card.name)).toEqual(['Nitro Boost']);
+			expect(battle.getIntents(buggy).map(intent => intent.description)).toEqual(['Nitro Boost']);
+			await battle.endPlayerTurn();
+
+			expect(logLines(battle, 'card_played')).toEqual([expect.stringContaining('plays Nitro Boost')]);
+			expect(logLines(battle, 'fizzle')).toEqual([]);
+			expect(buggy.slot).toEqual(slot(RoadLane.ENEMY_INSIDE, RoadRow.CENTER));
+		});
+
+		test('plans and plays a Flank on a slower one', async () => {
+			// Slowed by 1, the Rig moves at 1
+			slowedBuggy({ rigSlow: -1 });
+
+			expect(battle.getPlan(buggy).map(action => [action.card.name, action.target])).toEqual([['Nitro Boost', null], ['Flank', rig]]);
+			expect(battle.getIntents(buggy).map(intent => [intent.description, intent.target])).toEqual([['Nitro Boost', null], ['Flank', rig.id]]);
+			await battle.endPlayerTurn();
+
+			expect(logLines(battle, 'fizzle')).toEqual([]);
+			expect(buggy.slot).toEqual(slot(RoadLane.PLAYER_SHOULDER, RoadRow.CENTER));
+		});
+	});
+
 	describe('the enemy turn plays the plan', () => {
 		test('plays the planned cards and nothing it picked up since', async () => {
 			giveHand(buggy, [pointBlank()]);
