@@ -26,6 +26,10 @@ jobs:
       run: npm ci
     
     - name: Build Web
+      env:
+        # The branch commit, not the merge ref the PR checkout builds from
+        BUILD_SHA: ${{ github.event.pull_request.head.sha }}
+        BUILD_NUMBER: ${{ github.run_number }}
       run: npm run build:web
     
     - name: Deploy over SSH

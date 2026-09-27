@@ -14,3 +14,5 @@ global.WebGLRenderingContext = {
 
 // Stand in for the webpack DefinePlugin constant so dev-tooling modules import.
 global.__DEV_TOOLS__ = true;
+global.__BUILD_SHA__ = null;
+global.__BUILD_NUMBER__ = null;

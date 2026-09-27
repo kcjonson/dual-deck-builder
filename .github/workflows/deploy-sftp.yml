@@ -25,6 +25,9 @@ jobs:
       run: npm ci
     
     - name: Build Web
+      env:
+        BUILD_SHA: ${{ github.sha }}
+        BUILD_NUMBER: ${{ github.run_number }}
       run: npm run build:web
     
     - name: Deploy over SSH

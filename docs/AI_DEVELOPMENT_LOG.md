@@ -16,6 +16,16 @@ This document contains the chronological log of completed development tasks for 
 
 **How:** 6 new tests, all failing on main: EMP empties every raider's intents, the enemy turn plays nothing and logs both skips; a stunned raider whose driver the player then kills logs the lost-driver line, not a stun line (from review: the stun check runs after the wreck and driver checks); the preview is already empty when `stateChanged` fires for the play; the stun clears and both raiders plan and hit on the following turn; a stunned flanker outpaced by Nitro Boost still drops back to its reserved slot; and after Draw Fire on the Pilot Car, EMP empties the redirected intent and nothing is drawn or dealt. Checked in the dev server with a temporary patch (reverted) that put EMP Blast in the Road Warrior's hand: playing it cleared the Rust Buggy's intent, END TURN logged "Rust Buggy is stunned and skips its turn" with no damage to either player vehicle, turn 2 showed a fresh intent, and ending turn 2 played the Buggy's cards.
 
+## Build stamp on the main menu (2026-09-27)
+
+**What landed:** production builds show the short commit SHA and CI run number in the main menu's bottom-right corner (`build 142 - 2f8d7a7`, or the SHA alone with no number), small and muted, so a playtester can tell which deploy is live. The separator is a hyphen because the font atlas is printable ASCII only.
+
+- `webpack.common.js` defines `__BUILD_SHA__` (env `BUILD_SHA`, else `git rev-parse --short HEAD`, truncated to 7) and `__BUILD_NUMBER__` (env `BUILD_NUMBER`, else null). Both are null unless `NODE_ENV=production`, so the dev server and the screenshot harness that runs on it render nothing and the main menu goldens don't change per commit. Electron's renderer merges common, so a packaged build shows it too.
+- `MainMenuScreen.onMount` builds the Text from `formatBuildLabel` (`main-menu/buildLabel.ts`) and positions it from the viewport, again on resize.
+- `deploy-sftp.yml` passes `github.sha` and `deploy-pr-playtest.yml` passes the PR head SHA (not the merge ref) as `BUILD_SHA`, with `github.run_number` as `BUILD_NUMBER`, through the build step's `env:`.
+
+**How:** 3 tests in `buildLabel.test.ts`. `npm run build:web` put `sha:"2f8d7a7",number:null` in the bundle, and with `BUILD_SHA`/`BUILD_NUMBER` set the served build showed "build 142 - abcdef1" bottom-right, following a resize; the dev server bundle had `sha: null` and showed no label.
+
 ## The intent preview judges a raider from where it will be (2026-09-27)
 
 **What landed:** DDB-170. The intent preview read a raider's slot and flank state from what its plan recorded, so outpacing a flanker (say with Nitro Boost on the vehicle it outran) left the preview judging it from the shoulder while play dropped it back to its reserved slot first. The verified case: a Buggy flanking the Rig with a range 2 Pot Shot at it, Draw Fire on the Pilot Car beside the Rig. After a Nitro Boost on the Rig the preview showed the Pilot Car taking the shot and +50% damage; in play the Buggy dropped back, couldn't reach the Pilot Car, and hit the Rig without the bonus.

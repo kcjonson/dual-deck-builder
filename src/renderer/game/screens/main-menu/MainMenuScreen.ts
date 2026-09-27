@@ -3,6 +3,11 @@ import { ScreenManager } from '../../core/ScreenManager';
 import { Button } from '../../../engine/ui/Button';
 import { Text } from '../../../engine/components/Text';
 import { Rectangle } from '../../../engine/components/Rectangle';
+import { formatBuildLabel } from './buildLabel';
+
+const BUILD_LABEL_WIDTH = 240;
+const BUILD_LABEL_HEIGHT = 12;
+const BUILD_LABEL_MARGIN = 8;
 
 /**
  * Main menu screen with game options
@@ -10,6 +15,7 @@ import { Rectangle } from '../../../engine/components/Rectangle';
 export class MainMenuScreen extends Screen {
 	private background: Rectangle;
 	private title: Text;
+	private buildLabel: Text | null = null;
 	private isElectron = false;
 
 	/**
@@ -168,6 +174,40 @@ export class MainMenuScreen extends Screen {
 	}
 
 	/**
+	 * The build stamp in the bottom-right corner, so a playtester can tell
+	 * which deploy they're on. Development builds define no SHA and show none,
+	 * which keeps the main menu goldens stable across commits.
+	 */
+	protected onMount(): void {
+		const label = formatBuildLabel({ sha: __BUILD_SHA__, number: __BUILD_NUMBER__ });
+		if (!label) return;
+
+		// An explicit box rather than a zero-width anchor, so a layout pass
+		// can't resize it and shift the right edge.
+		this.buildLabel = new Text(label, {
+			id: 'main_menu_build_label',
+			width: BUILD_LABEL_WIDTH,
+			height: BUILD_LABEL_HEIGHT,
+			style: {
+				fontSize: 12,
+				color: '#6b6b8f',
+				textAlign: 'right',
+				verticalAlign: 'bottom',
+				whiteSpace: 'nowrap',
+			},
+		});
+		this.rootLayer.addChild(this.buildLabel);
+		this.positionBuildLabel();
+	}
+
+	private positionBuildLabel(): void {
+		this.buildLabel?.setPosition(
+			window.innerWidth - BUILD_LABEL_WIDTH - BUILD_LABEL_MARGIN,
+			window.innerHeight - BUILD_LABEL_HEIGHT - BUILD_LABEL_MARGIN,
+		);
+	}
+
+	/**
 	 * Position the menu elements
 	 */
 	private positionElements(): void {
@@ -207,5 +247,6 @@ export class MainMenuScreen extends Screen {
 		this.background.setHeight(window.innerHeight);
 		
 		this.positionElements();
+		this.positionBuildLabel();
 	}
 }
