@@ -8,7 +8,7 @@ import { Card, CardEffect } from '../mechanics/Card';
 import { laneKind } from '../mechanics/Road';
 import { DamageKind, damageToFinish, effectDamageKind } from './DamageEstimate';
 import { EffectRecipient, effectRecipientOf } from '../mechanics/EffectTargets';
-import { selfSpeedBonus } from '../mechanics/BoardProjection';
+import { cardFlanks, selfSpeedBonus } from '../mechanics/BoardProjection';
 
 /**
  * Monte Carlo Tree Search AI Player
@@ -201,14 +201,15 @@ export class MCTSAI extends AIPlayer {
 			const ourVehicle = this.findVehicleForDriver(driver);
 			if (!ourVehicle) return -10;
 			
-			let score = 0;
+			const actor = this.actorOf({ card, target: action.target, ourVehicle });
+			let score = this.evaluateMovement(card, actor);
 			
 			// Evaluate card effects with context
 			if (card.effects) {
 				for (const effect of card.effects) {
 					// Self damage (Ramming Run's cost) lands on us, not the target
 					if (effect.type === 'damage' && effectRecipientOf({ effect, card }) === EffectRecipient.CASTER) continue;
-					score += this.evaluateEffectWithContext({ effect, card, target: action.target, ourVehicle });
+					score += this.evaluateEffectWithContext({ effect, card, target: action.target, ourVehicle, actor });
 				}
 			}
 			
@@ -293,36 +294,48 @@ export class MCTSAI extends AIPlayer {
 	}
 	
 	/**
-	 * Evaluate effect with full context
+	 * The vehicle a card's own effects land on: the escort that carries out an
+	 * attack order (Run Ahead's Outrider), otherwise the one playing it. Null
+	 * when no escort can carry the order out.
+	 */
+	private actorOf({ card, target, ourVehicle }: { card: Card; target: Vehicle | Driver | undefined; ourVehicle: Vehicle }): Vehicle | null {
+		if (!this.battle.isAttackOrder(card)) return ourVehicle;
+		return target instanceof Vehicle ? this.board.orderCarrier({ card, target }) : null;
+	}
+
+	/**
+	 * Evaluate effect with full context. The card's flank and its own speed
+	 * are scored once for the whole card in evaluateMovement.
 	 */
 	private evaluateEffectWithContext({
 		effect,
 		card,
 		target,
-		ourVehicle
+		ourVehicle,
+		actor
 	}: {
 		effect: CardEffect;
 		card: Card;
 		target: Vehicle | Driver | undefined;
 		ourVehicle: Vehicle;
+		actor: Vehicle | null;
 	}): number {
+		const onActor = effectRecipientOf({ effect, card }) === EffectRecipient.CASTER;
 		switch (effect.type) {
 			case 'damage':
 				return this.evaluateDamageWithContext({ damage: effect.value || 0, kind: effectDamageKind(effect), target, ourVehicle });
 			case 'heal':
 				return this.evaluateHealWithContext(effect.value || 0, target, ourVehicle);
-			case 'gain_armor': {
-				const armored = effectRecipientOf({ effect, card }) === EffectRecipient.CASTER ? ourVehicle : target;
-				return this.evaluateArmorWithContext(effect.value || 0, armored);
-			}
+			case 'gain_armor':
+				return this.evaluateArmorWithContext(effect.value || 0, onActor ? actor ?? undefined : target);
 			case 'draw_cards':
 				return this.CARD_DRAW_WEIGHT * (effect.value || 1);
 			case 'gain_resource':
 				return effect.resource === 'adrenaline' ? this.ADRENALINE_WEIGHT * (effect.value || 1) : 0;
 			case 'change_position':
-				return this.evaluateFlank(card, ourVehicle);
+				return 0;
 			case 'apply_status':
-				return this.evaluateStatus({ effect, card, ourVehicle });
+				return this.evaluateStatus({ effect, onActor, target });
 			default:
 				return 0.5; // Unknown effects get moderate score
 		}
@@ -429,7 +442,12 @@ export class MCTSAI extends AIPlayer {
 		}
 		
 		const targetVehicle = target as Vehicle;
-		let score = armor * this.ARMOR_WEIGHT;
+		// Armor past the vehicle's max is lost
+		const armorGained = Math.min(armor, targetVehicle.maxArmor - targetVehicle.armor);
+		if (armorGained <= 0) {
+			return 0;
+		}
+		let score = armorGained * this.ARMOR_WEIGHT;
 		
 		// Armor is more valuable on healthy vehicles
 		const healthPercent = targetVehicle.structure / targetVehicle.maxStructure;
@@ -444,31 +462,39 @@ export class MCTSAI extends AIPlayer {
 	}
 	
 	/**
-	 * A flank is worth the full weight from formation when the vehicle can
-	 * outrun someone, the card's own boost counted first (Run Ahead), and
-	 * nothing otherwise
+	 * The card's flank and its speed boost for whoever acts, scored once for
+	 * the whole card. A card that flanks is worth the flank weight when its
+	 * boost (Run Ahead) or the actor's own speed lets it outrun someone, and
+	 * nothing otherwise; the boost counts only through the flank. A boost
+	 * alone (Nitro Boost) is worth most when it's what opens a flank.
 	 */
-	private evaluateFlank(card: Card, ourVehicle: Vehicle): number {
-		if (this.board.isFlanking(ourVehicle) || !this.board.canFlankAnyone(ourVehicle, selfSpeedBonus(card))) {
+	private evaluateMovement(card: Card, actor: Vehicle | null): number {
+		if (!actor) {
 			return 0;
 		}
-		return this.FLANK_WEIGHT;
+		const speedBonus = selfSpeedBonus(card);
+		if (cardFlanks(card)) {
+			return !this.board.isFlanking(actor) && this.board.canFlankAnyone(actor, speedBonus) ? this.FLANK_WEIGHT : 0;
+		}
+		return speedBonus > 0 ? this.evaluateSpeedBoost(speedBonus, actor) : 0;
 	}
 
 	/**
-	 * A speed status on us is a boost (Nitro Boost) and one on the target is
-	 * a slow (Oil Slick, Caltrops, Flag Down). Any other status keeps the flat
-	 * score unknown effects get.
+	 * A slow on the target (Oil Slick, Caltrops, Flag Down) is worth the speed
+	 * it can take away. A speed boost on whoever acts is scored in
+	 * evaluateMovement, and any other status keeps the flat score unknown
+	 * effects get.
 	 */
-	private evaluateStatus({ effect, card, ourVehicle }: { effect: CardEffect; card: Card; ourVehicle: Vehicle }): number {
+	private evaluateStatus({ effect, onActor, target }: { effect: CardEffect; onActor: boolean; target: Vehicle | Driver | undefined }): number {
 		const speedChange = statusSpeedModifier({ name: effect.status ?? '', duration: 1, value: effect.value });
-		const onUs = effectRecipientOf({ effect, card }) === EffectRecipient.CASTER;
-		if (onUs && speedChange > 0) {
-			return this.evaluateSpeedBoost(speedChange, ourVehicle);
+		if (onActor && speedChange > 0) {
+			return 0;
 		}
-		if (!onUs && speedChange < 0) {
-			// Worth what a boost that opens no flank is worth, point for point
-			return this.SPEED_BOOST_WEIGHT * (-speedChange / 10);
+		if (!onActor && speedChange < 0) {
+			// Speed floors at 0, so a slow takes away no more than the target has.
+			// Worth what a boost that opens no flank is worth, point for point.
+			const speedLost = target instanceof Vehicle ? Math.min(-speedChange, this.board.speedOf(target)) : 0;
+			return this.SPEED_BOOST_WEIGHT * (speedLost / 10);
 		}
 		return 0.5;
 	}
