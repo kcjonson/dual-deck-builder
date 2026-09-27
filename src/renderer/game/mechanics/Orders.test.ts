@@ -511,6 +511,23 @@ describe('Order cards', () => {
 			expect(logLines(battle, 'general').filter(line => line.includes('draws'))).toEqual([]);
 		});
 
+		test('a raider stunned by EMP Blast after Draw Fire has no intents, so nothing is drawn', async () => {
+			const { battle, rig, pilotCar, buggy } = setup();
+			const bike = battle.playerTeam.vehicles[1];
+			planShot(battle, buggy, potShot());
+			play({ battle, driver: driverOf(rig), card: realCard('draw_fire'), target: pilotCar });
+			expect(battle.getIntents(buggy)[0].target).toBe(pilotCar.id);
+
+			expect(play({ battle, driver: driverOf(bike), card: realCard('emp_blast') })).toBe(true);
+			expect(battle.getIntents(buggy)).toEqual([]);
+			await battle.endPlayerTurn();
+
+			expect(logLines(battle, 'general')).toContain('Buggy is stunned and skips its turn');
+			expect(logLines(battle, 'general').filter(line => line.includes('draws'))).toEqual([]);
+			expect(logLines(battle, 'damage_dealt')).toEqual([]);
+			expect(rig.structure).toBe(20);
+		});
+
 		test('when two Draw Fires cover the same row, the last one played wins', () => {
 			const { battle, rig, pilotCar, buggy } = setup();
 			const ally = escortAt('outrider', slot(E_SHOULDER, CENTER), true);

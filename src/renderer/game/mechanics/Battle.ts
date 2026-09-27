@@ -716,8 +716,8 @@ export class Battle extends Model<BattleData> {
 	 * of the enemy turn (projectEnemyTurn). Values are worked out now, so a
 	 * Vulnerable the player picks up this turn shows in the number. Elites
 	 * and bosses hide the value and the card. A card that will fizzle shows
-	 * nothing, and neither does a raider that will drop its plan. Read this
-	 * once when showing several raiders.
+	 * nothing, and neither does a raider that will drop its plan or is
+	 * stunned. Read this once when showing several raiders.
 	 */
 	public getAllIntents(): Map<Vehicle, Intent[]> {
 		const intents = new Map<Vehicle, Intent[]>();
@@ -788,12 +788,14 @@ export class Battle extends Model<BattleData> {
 	 * card judged by the same checks play makes, on the projection: a flank
 	 * or boost earlier in a raider's own plan moves it from where it really
 	 * starts, and a card that will fizzle is left out and changes nothing on
-	 * the board. A raider that will drop its plan has no entry.
+	 * the board. A raider that will drop its plan, or is stunned and skips
+	 * its turn, has no entry, and its cards change nothing on the board.
 	 */
 	private projectEnemyTurn(): Map<Vehicle, ProjectedAction[]> {
 		const board = this.projectEnemyTurnStart();
 		const projected = new Map<Vehicle, ProjectedAction[]>();
 		for (const [raider, plan] of Battle.enemyPlans.get(this) ?? []) {
+			if (raider.isStunned) continue;
 			const actions: ProjectedAction[] = [];
 			for (const planned of plan) {
 				if (!raider.isAlive() || !planned.driver.isAlive() || raider.driver !== planned.driver) break;
@@ -908,7 +910,8 @@ export class Battle extends Model<BattleData> {
 	}
 
 	/**
-	 * Play each raider's plan, one raider at a time.
+	 * Play each raider's plan, one raider at a time. A stunned raider drops
+	 * its plan and skips its turn.
 	 */
 	private processEnemyTurns(): void {
 		if (this.battleOver) {
@@ -919,6 +922,10 @@ export class Battle extends Model<BattleData> {
 		Battle.enemyPlans.delete(this);
 
 		for (const [raider, actions] of plans) {
+			if (raider.isAlive() && raider.isStunned) {
+				this.log('general', `${raider.name} is stunned and skips its turn`, { vehicle: raider.name });
+				continue;
+			}
 			for (const action of actions) {
 				if (!raider.isAlive()) {
 					this.log('general', `${raider.name} is wrecked and drops its plan`, { vehicle: raider.name });

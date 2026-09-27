@@ -6,6 +6,16 @@ This document contains the chronological log of completed development tasks for 
 
 **Date correction (2026-08-22):** the repo's first commit is 2025-05-17, but many entries below carry dates in December 2024 or January 2025 — the AI that wrote them used its assumed date instead of the real one. Entries dated 2025-07-03 and 2025-07-02 have been corrected from "2025-01-03"/"2025-01-02" (verified against git history). Remaining Dec 2024 / Jan 2025 dates are wrong by roughly six months; the real work happened May–July 2025. Trust git history over these dates.
 
+## EMP Blast's stun makes raiders skip their turn (2026-09-27)
+
+**What landed:** DDB-173. EMP Blast applied a `stunned` status to every raider, but nothing read it, so a stunned raider showed its intents and played its whole plan. Rule, decided 2026-09-27 as the natural reading of the card and recorded in Combat Rules (Enemy intents and the EMP Blast entry): EMP played during the player's turn stuns every raider in the fight for the coming enemy turn, each drops its committed plan with a log line, the preview drops its intents at once, and the stun is gone when the next player turn starts, so the raider plans and acts normally after that. A raider arriving later isn't stunned, and a stunned one is otherwise still in the fight (targetable, takes damage, drops back when outpaced).
+
+- `Vehicle.isStunned` is the single check. `AIController.planEnemyTurn` plans nothing for a stunned raider, `Battle.projectEnemyTurn` gives it no entry and applies none of its cards to the projection, and `processEnemyTurns` logs "X is stunned and skips its turn" and skips its plan.
+- No change to the status system: EMP's stun has duration 1, and statuses tick at the start of the player's turn, before planning, so it covers exactly the enemy turn after it's played.
+- enemy-intent-planning.md notes the stun in the plan-dropping rule and the implementation.
+
+**How:** 5 new tests, all failing on main: EMP empties every raider's intents, the enemy turn plays nothing and logs both skips; the preview is already empty when `stateChanged` fires for the play; the stun clears and both raiders plan and hit on the following turn; a stunned flanker outpaced by Nitro Boost still drops back to its reserved slot; and after Draw Fire on the Pilot Car, EMP empties the redirected intent and nothing is drawn or dealt. Checked in the dev server with a temporary patch (reverted) that put EMP Blast in the Road Warrior's hand: playing it cleared the Rust Buggy's intent, END TURN logged "Rust Buggy is stunned and skips its turn" with no damage to either player vehicle, turn 2 showed a fresh intent, and ending turn 2 played the Buggy's cards.
+
 ## The intent preview judges a raider from where it will be (2026-09-27)
 
 **What landed:** DDB-170. The intent preview read a raider's slot and flank state from what its plan recorded, so outpacing a flanker (say with Nitro Boost on the vehicle it outran) left the preview judging it from the shoulder while play dropped it back to its reserved slot first. The verified case: a Buggy flanking the Rig with a range 2 Pot Shot at it, Draw Fire on the Pilot Car beside the Rig. After a Nitro Boost on the Rig the preview showed the Pilot Car taking the shot and +50% damage; in play the Buggy dropped back, couldn't reach the Pilot Car, and hit the Rig without the bonus.
