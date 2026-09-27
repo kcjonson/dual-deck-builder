@@ -138,12 +138,24 @@ describe('CombatScreen: the fight ending leaves no combat cards behind', () => {
 	});
 
 	it('after the enemy turn that loses the fight', async () => {
+		// Seeded, so the shuffles and the raider's plan are the same every run
+		let seed = 20260927;
+		const random = jest.spyOn(Math, 'random').mockImplementation(() => {
+			seed = (seed + 0x6d2b79f5) >>> 0;
+			let t = seed;
+			t = Math.imul(t ^ (t >>> 15), t | 1);
+			t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+			return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+		});
 		const combat = await openCombat();
+		random.mockRestore();
 		const playerTeam = combat['playerTeam'];
-		if (!playerTeam) throw new Error('the dev fight should field a player team');
+		const raider = combat['enemyTeam']?.vehicles[0];
+		if (!playerTeam || !raider?.driver) throw new Error('the dev fight should field both teams');
 
-		// One driver already dead, and every raider shot that lands kills the
-		// other: the dev fight's raider plans its whole turn at the Rig
+		// One driver already dead, and the raider's first shot kills the
+		// other: it plans its whole turn at the Rig, and can't miss
+		raider.driver.set({ skills: { ...raider.driver.skills, gunnery: 20, ramming: 20 } });
 		const [rigDriver, bikeDriver] = combat['playerDrivers'];
 		const bike = playerTeam.vehicles.find(vehicle => vehicle.driver === bikeDriver);
 		if (!bike) throw new Error('the second driver should be driving');
