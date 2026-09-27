@@ -310,17 +310,89 @@ describe('Enemy intents', () => {
 			});
 		});
 
-		test('a raider wrecked during the player turn drops its plan', async () => {
+		test('a raider wrecked during the player turn drops its plan, and the preview shows none', async () => {
 			const hauler = createVehicle('Hauler', 2);
 			battle = createBattle([rig, bike], [buggy, hauler]);
 			giveHand(buggy, [pointBlank()]);
 			battle.planEnemyTurn();
 
 			buggy.structure = 0;
+			expect(battle.getIntents(buggy)).toEqual([]);
 			await battle.endPlayerTurn();
 
 			expect(rig.structure).toBe(20);
 			expect(logLines(battle, 'general')).toContain('Buggy is wrecked and drops its plan');
+		});
+	});
+
+	describe('a flanker the player outpaces is previewed from where it drops back', () => {
+		// The Buggy (speed 5) outran the Rig (3) onto the player shoulder,
+		// center, holding enemy outside center. A Nitro Boost puts the Rig at
+		// 6, so the Buggy drops back at the end of the player's turn.
+		const flankRig = (): void => {
+			buggy.set({
+				slot: slot(RoadLane.PLAYER_SHOULDER, RoadRow.CENTER),
+				flank: { reservedSlot: slot(RoadLane.ENEMY_OUTSIDE, RoadRow.CENTER), outran: rig }
+			});
+		};
+
+		const boost = (vehicle: Vehicle): void => {
+			giveHand(vehicle, [nitro()]);
+			expect(battle.playCard({ driver: driverOf(vehicle), cardIndex: 0 })).toBe(true);
+		};
+
+		test('an attack loses the flank bonus it planned with', async () => {
+			flankRig();
+			giveHand(buggy, [farShot()]);
+			battle.planEnemyTurn();
+			expect(battle.getIntents(buggy)[0]).toMatchObject({ amount: 6, target: rig.id });
+
+			boost(rig);
+			expect(battle.getIntents(buggy)[0]).toMatchObject({ amount: 4, target: rig.id });
+			await battle.endPlayerTurn();
+
+			expect(buggy.slot).toEqual(slot(RoadLane.ENEMY_OUTSIDE, RoadRow.CENTER));
+			expect(logLines(battle, 'damage_dealt')).toEqual([expect.stringMatching(/^Far Shot deals 4 total .*damage to Rig /)]);
+		});
+
+		describe('when its plan starts with its own flank', () => {
+			// The Bike (speed 3) is first in the roster, so the Buggy plans to
+			// flank it from the shoulder onto the behind row, then shoot it from
+			// there with the bonus: range 2, where its reserved slot is range 3.
+			const longShot = () => card('Long Shot', 'enemy_single', [{ type: 'damage', value: 4, range: 3, always_hits: true }]);
+
+			beforeEach(() => {
+				rig = createVehicle('Rig', 1, slot(RoadLane.PLAYER_INSIDE, RoadRow.CENTER));
+				bike = createVehicle('Bike', 1, slot(RoadLane.PLAYER_INSIDE, RoadRow.BEHIND));
+				buggy = createVehicle('Buggy', 3);
+				battle = createBattle([bike, rig], [buggy]);
+				flankRig();
+				giveHand(buggy, [flank(), longShot()]);
+				battle.planEnemyTurn();
+				expect(battle.getPlan(buggy).map(action => [action.card.name, action.target])).toEqual([['Flank', bike], ['Long Shot', bike]]);
+				expect(battle.getIntents(buggy)[1]).toMatchObject({ amount: 6, target: bike.id });
+			});
+
+			test('it drops back, flanks again, and shoots from where the flank takes it', async () => {
+				boost(rig);
+				expect(battle.getIntents(buggy)[1]).toMatchObject({ amount: 6, target: bike.id });
+				await battle.endPlayerTurn();
+
+				expect(buggy.slot).toEqual(slot(RoadLane.PLAYER_SHOULDER, RoadRow.BEHIND));
+				expect(logLines(battle, 'fizzle')).toEqual([]);
+				expect(logLines(battle, 'damage_dealt')).toEqual([expect.stringMatching(/^Long Shot deals 6 total .*damage to Bike /)]);
+			});
+
+			test('a flank the player outpaces too leaves it shooting from its reserved slot', async () => {
+				boost(rig);
+				boost(bike);
+				expect(battle.getIntents(buggy)[1]).toMatchObject({ amount: 4, target: bike.id });
+				await battle.endPlayerTurn();
+
+				expect(buggy.slot).toEqual(slot(RoadLane.ENEMY_OUTSIDE, RoadRow.CENTER));
+				expect(logLines(battle, 'fizzle')).toEqual(["Buggy's Flank fizzles: Buggy is not faster than Bike"]);
+				expect(logLines(battle, 'damage_dealt')).toEqual([expect.stringMatching(/^Long Shot deals 4 total .*damage to Bike /)]);
+			});
 		});
 	});
 

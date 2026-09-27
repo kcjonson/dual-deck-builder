@@ -51,6 +51,7 @@ Option 2. The projection tracks only slot, flank state, and speed, and it doesn'
 - `AIPlayer.makeDecision(board)` decides against whatever board it's given, the live board by default. Each strategy reads slots, flanks, speed, hand, and adrenaline through it. `AIController.planEnemyTurn()` loops the enemy AI over each raider in team order, which is the order they act, against one shared projection. With no enemy AI set, `FirstPlayableAI` plays the first playable card, which is what the old fallback did.
 - `Battle.planEnemyTurn()` runs after the draw in `start()` and in `startPlayerTurn()`. `Battle.getPlan(raider)` returns the committed cards. `Battle.getIntents(raider)` turns them into `{ type, amount, hits, label, target, description }`.
 - The attack value is computed when it's read. It uses the raider's projected flank state and speed at that step, plus the target as it is now, so a Vulnerable the player picks up after planning shows in the number.
+- The preview doesn't trust the slot, flank state, and speed a plan recorded, since the player's turn can change them (DDB-170). `Battle.projectEnemyTurn` builds a fresh projection, drops back the flankers that will drop back at the end of the player's turn (`Battle.dropBackSlotOf`, which play uses too), takes wrecks off the road, and replays every raider's plan in team order with `BoardProjection.apply`, recording each card's slot, flank state, speed, and target along the way. A raider that will drop its plan (wrecked, or its driver is gone) shows no intents.
 
 ## Smaller calls
 

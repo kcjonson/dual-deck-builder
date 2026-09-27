@@ -92,9 +92,11 @@ const raiderCard = (name: string, targetType: CardData['targetType'], effects: C
 
 const potShot = (range = 10): Card => raiderCard('Pot Shot', 'enemy_single', [{ type: 'damage', value: 3, range, target: 'target', always_hits: true }]);
 
+const P_SHOULDER = RoadLane.PLAYER_SHOULDER;
 const P_INSIDE = RoadLane.PLAYER_INSIDE;
 const P_OUTSIDE = RoadLane.PLAYER_OUTSIDE;
 const E_INSIDE = RoadLane.ENEMY_INSIDE;
+const E_OUTSIDE = RoadLane.ENEMY_OUTSIDE;
 const E_SHOULDER = RoadLane.ENEMY_SHOULDER;
 const { AHEAD, CENTER, BEHIND } = RoadRow;
 
@@ -804,6 +806,52 @@ describe('Order cards', () => {
 				expect(logLines(battle, 'damage_dealt').filter(line => line.startsWith('Pot Shot'))).toEqual([
 					'Pot Shot deals 3 total (3 to shield) damage to Pilot Car (Structure: 30/30 -> 30/30, Armor: 3/3 -> 3/3, Shield: 4 -> 1)'
 				]);
+			});
+		});
+
+		describe('the preview judges a raider from where it will be when the card plays', () => {
+			// The Buggy (speed 5) outran the Rig (speed 4) onto the player
+			// shoulder, center, holding enemy outside center. From the shoulder
+			// its range 2 Pot Shot reaches the Pilot Car covering the row; from
+			// its reserved slot the Pilot Car is 3 away.
+			const flankerSetup = (): { battle: Battle; rig: Vehicle; pilotCar: Vehicle; buggy: Vehicle } => {
+				const rig = createDriven('Rig', slot(P_INSIDE, CENTER));
+				const bike = createDriven('Bike', slot(P_INSIDE, BEHIND));
+				const pilotCar = escortAt('pilot_car', slot(P_OUTSIDE, CENTER));
+				const buggy = createDriven('Buggy', slot(E_OUTSIDE, CENTER));
+				const battle = createBattle([rig, bike, pilotCar], [buggy]);
+				buggy.set({ baseSpeed: 3, slot: slot(P_SHOULDER, CENTER), flank: { reservedSlot: slot(E_OUTSIDE, CENTER), outran: rig } });
+				planShot(battle, buggy, potShot(2));
+				expect(battle.getIntents(buggy)[0]).toMatchObject({ target: rig.id, amount: 4 });
+				drawFireOn(battle, rig, pilotCar);
+				expect(battle.getIntents(buggy)[0]).toMatchObject({ target: pilotCar.id, amount: 4 });
+				return { battle, rig, pilotCar, buggy };
+			};
+
+			test('a flanker the player outpaces drops back, so the cover is out of reach and the target keeps the shot', async () => {
+				const { battle, rig, buggy } = flankerSetup();
+
+				expect(play({ battle, driver: driverOf(rig), card: realCard('nitro_boost') })).toBe(true);
+				const [intent] = battle.getIntents(buggy);
+				expect(intent).toMatchObject({ target: rig.id, amount: 3 });
+				await battle.endPlayerTurn();
+
+				expect(buggy.slot).toEqual(slot(E_OUTSIDE, CENTER));
+				expect(logLines(battle, 'general').filter(line => line.includes('draws Buggy'))).toEqual([]);
+				expect(logLines(battle, 'damage_dealt').filter(line => line.startsWith('Pot Shot'))).toEqual([
+					expect.stringMatching(/^Pot Shot deals 3 total .*damage to Rig /)
+				]);
+			});
+
+			test('a flanker that holds the shoulder is previewed as planned: the cover takes it with the flank bonus', async () => {
+				const { battle, buggy } = flankerSetup();
+				await battle.endPlayerTurn();
+
+				expect(buggy.slot).toEqual(slot(P_SHOULDER, CENTER));
+				expect(logLines(battle, 'general')).toContain("Pilot Car draws Buggy's Pot Shot away from Rig");
+				expect(logLines(battle, 'damage_dealt')).toContain(
+					'Pot Shot deals 4 total (4 to shield) damage to Pilot Car (Structure: 30/30 -> 30/30, Armor: 3/3 -> 3/3, Shield: 4 -> 0)'
+				);
 			});
 		});
 
