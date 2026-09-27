@@ -576,7 +576,7 @@
       "type": "draw_fire",
       "name": "Draw Fire",
       "summary": "This [Escort] draws its row's raider fire. +{shield} [Shield].",
-      "description": "Target escort gains {shield} Shield and is spent. Until the end of the next enemy turn, each raider intent aimed at a driven vehicle in its row hits the escort instead, if the card can reach it. The rest hit their original target as planned.",
+      "description": "Target escort gains {shield} Shield and is spent. Until the end of the next enemy turn, each raider intent aimed at another of your vehicles in its row hits the escort instead, if the card can reach it. The rest hit their original target as planned.",
       "rarity": "uncommon",
       "cost": 1,
       "targetType": "escort",
