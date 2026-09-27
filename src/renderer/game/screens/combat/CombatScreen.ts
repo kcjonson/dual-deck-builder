@@ -330,7 +330,9 @@ export class CombatScreen extends Screen {
 	 * Update UI layers with current battle state
 	 */
 	private updateUIFromBattle(): void {
-		if (!this.battle || !this.playerTeam || !this.enemyTeam) return;
+		// An unmounted screen's layers are detached; building cards on them
+		// would register those cards with the InputSystem again
+		if (!this.isActive || !this.battle || !this.playerTeam || !this.enemyTeam) return;
 
 		// Both hands show whenever both drivers are alive, whichever vehicle they're in
 		const battle = this.battle;
@@ -619,6 +621,10 @@ export class CombatScreen extends Screen {
 			targetVehicle: targetVehicle
 		});
 
+		// A winning play ends the battle, which navigates away and unmounts
+		// this screen before playCard returns
+		if (!this.isActive) return;
+
 		if (success) {
 			console.log(`${driver.metadata.name} played ${card.displayName}`);
 			
@@ -701,22 +707,12 @@ export class CombatScreen extends Screen {
 
 		console.log('Ending player turn...');
 		
-		// End turn through the battle system
+		// End turn through the battle system. A loss on the enemy turn ends the
+		// battle, which navigates away and unmounts this screen.
 		this.battle.endPlayerTurn();
-		
+		if (!this.isActive) return;
+
 		// Update UI to reflect new state
-		this.updateUIFromBattle();
-		
-		// Update displays
-		this.updateResourceDisplay();
-	}
-
-
-	/**
-	 * Update resource display
-	 */
-	private updateResourceDisplay(): void {
-		// Now handled by updateUIFromBattle
 		this.updateUIFromBattle();
 	}
 	
