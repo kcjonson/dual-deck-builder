@@ -15,7 +15,7 @@ import {
 	slotRange
 } from './Road';
 import { Card, CardEffect } from './Card';
-import { BoardProjection, cardRange } from './BoardProjection';
+import { BoardProjection, cardFlanks, cardRange } from './BoardProjection';
 import { ESCORT_CONFIGS } from './Escort';
 import type { AfterFight, DividendPayout } from './Convoy';
 import { EffectRecipient, effectRecipientOf, effectRecipients, isCasterAction, landsOnTarget, rollsToHit } from './EffectTargets';
@@ -76,6 +76,17 @@ export interface BattleMessage {
 interface Crew {
 	driver: Driver | null;
 	living: Driver[];
+}
+
+/**
+ * A planned card as the enemy turn will find it: the plan re-derived from
+ * where the raider will really start, and where the card is headed
+ */
+interface ProjectedAction {
+	action: PlannedAction;
+	target: Vehicle | null;
+	/** The target's projected speed when the card plays */
+	targetSpeed: number;
 }
 
 /**
@@ -701,58 +712,130 @@ export class Battle extends Model<BattleData> {
 	}
 
 	/**
-	 * What the player sees of a raider's plan. Values are worked out now, so
-	 * a Vulnerable the player picks up this turn shows in the number. Elites
-	 * and bosses hide the value and the card.
+	 * What the player sees of every raider's plan, judged from one projection
+	 * of the enemy turn (projectEnemyTurn). Values are worked out now, so a
+	 * Vulnerable the player picks up this turn shows in the number. Elites
+	 * and bosses hide the value and the card. A card that will fizzle shows
+	 * nothing, and neither does a raider that will drop its plan. Read this
+	 * once when showing several raiders.
 	 */
-	public getIntents(raider: Vehicle): Intent[] {
-		const hidden = (raider.intentTier ?? IntentTier.BASIC) !== IntentTier.BASIC;
-		return this.getPlan(raider).map(action => {
-			const type = intentTypeOf(action.card);
-			const target = this.plannedTarget(raider, action);
-			let amount: number | null = null;
-			let label: string | null = null;
-			if (type === IntentType.ATTACK) {
-				amount = this.previewDamage(raider, action, target);
-			} else if (type === IntentType.DEFEND) {
-				amount = defendAmountOf(action.card);
-			} else if (type === IntentType.DEBUFF) {
-				label = debuffLabelOf(action.card);
-			} else if (type === IntentType.BUFF) {
-				label = buffLabelOf(action.card);
-			}
-			return {
-				type,
-				amount: hidden ? null : amount,
-				hits: 1,
-				label: hidden ? null : label,
-				target: action.card.targetType === 'enemy_all' ? 'both' : target?.id ?? null,
-				description: hidden ? '???' : action.card.displayName
-			};
-		});
+	public getAllIntents(): Map<Vehicle, Intent[]> {
+		const intents = new Map<Vehicle, Intent[]>();
+		for (const [raider, actions] of this.projectEnemyTurn()) {
+			intents.set(raider, actions.map(projected => this.intentOf({ raider, ...projected })));
+		}
+		return intents;
 	}
 
 	/**
-	 * Where a planned card is headed as the board stands, judged the way the
-	 * enemy turn will play it: a wrecked target is followed to the vehicle its
-	 * survivors ride in, then the escort drawing fire in that vehicle's row
-	 * takes it if the card could reach it from the raider's planned slot. The
-	 * player's vehicles are read after the end-of-turn drop-back, since that
-	 * runs before the enemy turn; the raider's own drop-back isn't projected
-	 * (DDB-170). This is what the target marks and the end-turn
-	 * preview show. A wreck nobody rode away from keeps the mark; the card
-	 * fizzles.
+	 * One raider's intents, as getAllIntents shows them
 	 */
-	private plannedTarget(raider: Vehicle, action: PlannedAction): Vehicle | null {
+	public getIntents(raider: Vehicle): Intent[] {
+		return this.getAllIntents().get(raider) ?? [];
+	}
+
+	private intentOf({ raider, action, target, targetSpeed }: { raider: Vehicle } & ProjectedAction): Intent {
+		const hidden = (raider.intentTier ?? IntentTier.BASIC) !== IntentTier.BASIC;
+		const type = intentTypeOf(action.card);
+		let amount: number | null = null;
+		let label: string | null = null;
+		if (type === IntentType.ATTACK) {
+			amount = this.previewDamage({ raider, action, target, targetSpeed });
+		} else if (type === IntentType.DEFEND) {
+			amount = defendAmountOf(action.card);
+		} else if (type === IntentType.DEBUFF) {
+			label = debuffLabelOf(action.card);
+		} else if (type === IntentType.BUFF) {
+			label = buffLabelOf(action.card);
+		}
+		return {
+			type,
+			amount: hidden ? null : amount,
+			hits: 1,
+			label: hidden ? null : label,
+			target: action.card.targetType === 'enemy_all' ? 'both' : target?.id ?? null,
+			description: hidden ? '???' : action.card.displayName
+		};
+	}
+
+	/**
+	 * A projection of the board as the enemy turn will find it before any
+	 * raider acts, if the player's turn ended now: flankers that will drop
+	 * back are in their reserved slots (dropBackSlotOf, which
+	 * dropBackFlankers uses too), and wrecks are off the road. Planning and
+	 * the preview both start from it, so a raider doesn't plan from a
+	 * shoulder it's expected to lose as the board stands. The player can
+	 * still change that before the turn ends.
+	 */
+	public projectEnemyTurnStart(): BoardProjection {
+		const board = new BoardProjection({ battle: this });
+		for (const vehicle of this.getAllVehicles()) {
+			if (vehicle.isOutOfFight) {
+				board.leaveRoad(vehicle);
+			} else if (this.dropBackSlotOf(vehicle)) {
+				board.dropBack(vehicle);
+			}
+		}
+		return board;
+	}
+
+	/**
+	 * Each raider's planned cards as the enemy turn will play them. A plan
+	 * records where the raider stands for each card as the board stood when
+	 * it was made; the player can change that before it plays, say by
+	 * outpacing a flanker so it drops back. So the plans are replayed from
+	 * projectEnemyTurnStart in the order processEnemyTurns plays them, each
+	 * card judged by the same checks play makes, on the projection: a flank
+	 * or boost earlier in a raider's own plan moves it from where it really
+	 * starts, and a card that will fizzle is left out and changes nothing on
+	 * the board. A raider that will drop its plan has no entry.
+	 */
+	private projectEnemyTurn(): Map<Vehicle, ProjectedAction[]> {
+		const board = this.projectEnemyTurnStart();
+		const projected = new Map<Vehicle, ProjectedAction[]>();
+		for (const [raider, plan] of Battle.enemyPlans.get(this) ?? []) {
+			const actions: ProjectedAction[] = [];
+			for (const planned of plan) {
+				if (!raider.isAlive() || !planned.driver.isAlive() || raider.driver !== planned.driver) break;
+				const { card, driver } = planned;
+				if (!board.handOf(driver).includes(card)) continue;
+				const action: PlannedAction = {
+					...planned,
+					slot: board.slotOf(raider),
+					flanking: board.isFlanking(raider),
+					speed: board.speedOf(raider)
+				};
+				const target = this.plannedTarget({ raider, action, board });
+				if (target && card.targetType !== 'enemy_all' && this.plannedCardFizzles({ raider, card, target, board })) continue;
+				actions.push({ action, target, targetSpeed: target ? board.speedOf(target) : 0 });
+				board.apply({ card, driver, target });
+			}
+			if (actions.length > 0) projected.set(raider, actions);
+		}
+		return projected;
+	}
+
+	/**
+	 * Where a planned card is headed, judged the way the enemy turn will play
+	 * it, on the board projectEnemyTurn has brought up to the moment the card
+	 * plays: a wrecked target is followed to the vehicle its survivors ride
+	 * in, then the escort drawing fire in that vehicle's row takes it if the
+	 * card could reach it from where the raider will be. This is what the
+	 * target marks and the end-turn preview show.
+	 */
+	private plannedTarget({ raider, action, board }: { raider: Vehicle; action: PlannedAction; board: BoardProjection }): Vehicle | null {
 		if (!action.target) return null;
 		const target = action.target.isAlive() ? action.target : this.followWreck(action.target) ?? action.target;
-		return this.drawFireRedirect({
-			raider,
-			card: action.card,
-			target,
-			raiderSlot: action.slot,
-			slotOf: vehicle => this.dropBackSlotOf(vehicle) ?? vehicle.slot
-		}) ?? target;
+		return this.drawFireRedirect({ raider, card: action.card, target, board }) ?? target;
+	}
+
+	/**
+	 * Whether a planned card at the target plannedTarget found will fizzle,
+	 * by the checks playPlannedAction makes: a wreck nobody rode away from,
+	 * nobody aboard, or getPlannedCardBlocker on the projected board.
+	 */
+	private plannedCardFizzles({ raider, card, target, board }: { raider: Vehicle; card: Card; target: Vehicle; board: BoardProjection }): boolean {
+		return target.isUnmanned() || this.getPlannedCardBlocker({ card, caster: raider, target, board }) !== null;
 	}
 
 	/**
@@ -764,26 +847,24 @@ export class Battle extends Model<BattleData> {
 	 * (decision 29). A card with nothing landing on its target (a flank)
 	 * keeps its target too. Rows are judged as they stand, and the last Draw
 	 * Fire played on the row wins. It never cancels: a card that can't reach
-	 * the escort keeps its target. `slotOf` is where each vehicle stands for
-	 * the check: now, in play, or after the drop-back, for the preview.
+	 * the escort keeps its target. `board` is where everyone stands for the
+	 * check: the live board in play, or the projected one for the preview.
 	 */
 	private drawFireRedirect({
 		raider,
 		card,
 		target,
-		raiderSlot,
-		slotOf = vehicle => vehicle.slot
+		board = new BoardProjection({ battle: this })
 	}: {
 		raider: Vehicle;
 		card: Card;
 		target: Vehicle;
-		raiderSlot: RoadSlot | null;
-		slotOf?: (vehicle: Vehicle) => RoadSlot | null;
+		board?: BoardProjection;
 	}): Vehicle | null {
 		// Aimed fire only, never a blast
 		if (card.targetType === 'enemy_all' || !landsOnTarget(card)) return null;
 		const covers = Battle.drawFireCovers.get(this) ?? [];
-		const row = slotOf(target)?.row;
+		const row = board.slotOf(target)?.row;
 		if (covers.length === 0 || !row || target.isOutOfFight || !this.playerTeam.vehicles.includes(target)) {
 			return null;
 		}
@@ -792,16 +873,27 @@ export class Battle extends Model<BattleData> {
 		// after clearWrecks it has no slot, so preview and play agree. A shot
 		// at that cover is already where Draw Fire wants it.
 		const escort = [...covers].reverse().find(cover =>
-			!cover.isOutOfFight && slotOf(cover)?.row === row && this.playerTeam.vehicles.includes(cover));
+			!cover.isOutOfFight && board.slotOf(cover)?.row === row && this.playerTeam.vehicles.includes(cover));
 		if (!escort || escort === target) return null;
-		return this.getPlannedCardBlocker(card, raider, escort, raiderSlot, slotOf(escort)) === null ? escort : null;
+		return this.getPlannedCardBlocker({ card, caster: raider, target: escort, board }) === null ? escort : null;
 	}
 
 	/**
 	 * Damage per hit a planned attack deals if it lands, from the raider's
-	 * projected flank state and speed and the target as it is now.
+	 * flank state and speed and the target's speed when the card plays
+	 * (projectEnemyTurn). Vulnerable is read from the target as it is now.
 	 */
-	private previewDamage(raider: Vehicle, action: PlannedAction, target: Vehicle | null): number {
+	private previewDamage({
+		raider,
+		action,
+		target,
+		targetSpeed
+	}: {
+		raider: Vehicle;
+		action: PlannedAction;
+		target: Vehicle | null;
+		targetSpeed: number;
+	}): number {
 		const effect = attackEffectOf(action.card);
 		if (!effect) return 0;
 		let damage = typeof effect.value === 'number' ? effect.value : 0;
@@ -809,7 +901,7 @@ export class Battle extends Model<BattleData> {
 			damage = this.calculateFormulaDamage(effect.formula, {
 				base: damage,
 				armor: raider.armor,
-				speedDiff: action.speed - target.speed
+				speedDiff: action.speed - targetSpeed
 			});
 		}
 		return this.applyDamageModifiers(damage, action.flanking, target);
@@ -924,14 +1016,14 @@ export class Battle extends Model<BattleData> {
 			return;
 		}
 
-		const cover = this.drawFireRedirect({ raider, card, target, raiderSlot: raider.slot });
+		const cover = this.drawFireRedirect({ raider, card, target });
 		if (cover) {
 			this.log('general', `${cover.name} draws ${raider.name}'s ${card.displayName} away from ${target.name}`,
 				{ vehicle: raider.name, card: card.displayName, target: cover.name });
 			target = cover;
 		}
 
-		const reason = this.getPlannedCardBlocker(card, raider, target);
+		const reason = this.getPlannedCardBlocker({ card, caster: raider, target });
 		if (reason) {
 			this.log('fizzle', `${raider.name}'s ${card.displayName} fizzles: ${reason}`,
 				{ vehicle: raider.name, card: card.displayName, target: target.name });
@@ -966,20 +1058,26 @@ export class Battle extends Model<BattleData> {
 
 	/**
 	 * Why a planned card can no longer be played on its target, in words for
-	 * the log, or null if it still can. Range is measured between the
-	 * vehicles' slots unless others are given (where a plan or the drop-back
-	 * puts them).
+	 * the log, or null if it still can. Slots, speeds, and the flank rules are
+	 * read from `board`: the live board in play, or the projected one for the
+	 * preview (projectEnemyTurn).
 	 */
-	private getPlannedCardBlocker(
-		card: Card,
-		caster: Vehicle,
-		target: Vehicle,
-		casterSlot: RoadSlot | null = caster.slot,
-		targetSlot: RoadSlot | null = target.slot
-	): string | null {
+	private getPlannedCardBlocker({
+		card,
+		caster,
+		target,
+		board = new BoardProjection({ battle: this })
+	}: {
+		card: Card;
+		caster: Vehicle;
+		target: Vehicle;
+		board?: BoardProjection;
+	}): string | null {
 		if (target.isOutOfFight) {
 			return `${target.name} is out of the fight`;
 		}
+		const casterSlot = board.slotOf(caster);
+		const targetSlot = board.slotOf(target);
 		for (const effect of card.effects) {
 			if (typeof effect.range === 'number') {
 				if (!casterSlot || !targetSlot) {
@@ -994,8 +1092,9 @@ export class Battle extends Model<BattleData> {
 				return `${target.name} is no longer flanking`;
 			}
 		}
-		if (!this.meetsFlankRules(card, caster, target)) {
-			return this.getFlankBlocker(caster, target);
+		const flankBlocker = cardFlanks(card) ? board.flankBlocker(caster, target) : null;
+		if (flankBlocker) {
+			return flankBlocker;
 		}
 		if (card.hitsDriverOnly && !target.driverOnlyTarget) {
 			return `${target.name} has nobody aboard to hit`;
@@ -1689,14 +1788,6 @@ export class Battle extends Model<BattleData> {
 				this.log('general', `${vehicle.name} ${reason} and leaves the road`, { vehicle: vehicle.name });
 			}
 		}
-	}
-
-	/**
-	 * A flank card needs a target this vehicle can flank; other cards pass.
-	 */
-	private meetsFlankRules(card: Card, casterVehicle: Vehicle, target: Vehicle): boolean {
-		const flanks = card.effects.some(e => e.type === 'change_position' && e.position === 'flanking');
-		return !flanks || this.canFlank(casterVehicle, target);
 	}
 
 	private getAllVehicles(): Vehicle[] {
