@@ -1,11 +1,13 @@
 import { AIPlayer } from './AIPlayer';
-import { AIDecision, FAST_VEHICLE_SPEED, GameStateEvaluation } from './types';
+import { AIDecision, GameStateEvaluation } from './types';
 import { Battle } from '../mechanics/Battle';
 import { Team } from '../mechanics/Team';
 import { Vehicle } from '../mechanics/Vehicle';
 import { Driver } from '../mechanics/Driver';
-import { Card } from '../mechanics/Card';
+import { Card, CardEffect } from '../mechanics/Card';
 import { laneKind } from '../mechanics/Road';
+import { DamageKind, damageToFinish, effectDamageKind } from './DamageEstimate';
+import { EffectRecipient, effectRecipientOf } from '../mechanics/EffectTargets';
 
 /**
  * Monte Carlo Tree Search AI Player
@@ -202,7 +204,9 @@ export class MCTSAI extends AIPlayer {
 			// Evaluate card effects with context
 			if (card.effects) {
 				for (const effect of card.effects) {
-					score += this.evaluateEffectWithContext(effect, action.target, ourVehicle, gameState);
+					// Self damage (Ramming Run's cost) lands on us, not the target
+					if (effect.type === 'damage' && effectRecipientOf({ effect, card }) === EffectRecipient.CASTER) continue;
+					score += this.evaluateEffectWithContext(effect, action.target, ourVehicle);
 				}
 			}
 			
@@ -291,16 +295,15 @@ export class MCTSAI extends AIPlayer {
 	 * Evaluate effect with full context
 	 */
 	private evaluateEffectWithContext(
-		effect: { type: string; value?: number }, 
+		effect: CardEffect,
 		target: Vehicle | Driver | undefined,
-		ourVehicle: Vehicle,
-		gameState: GameStateEvaluation
+		ourVehicle: Vehicle
 	): number {
 		let score = 0;
 		
 		switch (effect.type) {
 			case 'damage':
-				score += this.evaluateDamageWithContext(effect.value || 0, target, ourVehicle, gameState);
+				score += this.evaluateDamageWithContext({ damage: effect.value || 0, kind: effectDamageKind(effect), target, ourVehicle });
 				break;
 			case 'heal':
 				score += this.evaluateHealWithContext(effect.value || 0, target, ourVehicle);
@@ -330,13 +333,23 @@ export class MCTSAI extends AIPlayer {
 	/**
 	 * Evaluate damage with flanking bonus and target priority
 	 */
-	private evaluateDamageWithContext(damage: number, target: Vehicle | Driver | undefined, ourVehicle: Vehicle, gameState: GameStateEvaluation): number {
+	private evaluateDamageWithContext({
+		damage,
+		kind,
+		target,
+		ourVehicle
+	}: {
+		damage: number;
+		kind: DamageKind;
+		target: Vehicle | Driver | undefined;
+		ourVehicle: Vehicle;
+	}): number {
 		if (!target || !(target instanceof Vehicle)) {
 			return damage * 0.1; // Small score for untargeted damage
 		}
 		
 		const targetVehicle = target as Vehicle;
-		const currentHealth = targetVehicle.structure + targetVehicle.armor;
+		const currentHealth = damageToFinish({ target: targetVehicle, kind });
 		let score = damage * this.DAMAGE_WEIGHT;
 		
 		// Apply flanking bonus
@@ -356,7 +369,7 @@ export class MCTSAI extends AIPlayer {
 		}
 		
 		// Extra bonus if this puts them in elimination range for next attack
-		if (targetVehicle.structure - damage <= 5) {
+		if (currentHealth - damage <= 5) {
 			score += this.ELIMINATION_SCORE * 0.5;
 		}
 		
@@ -365,14 +378,15 @@ export class MCTSAI extends AIPlayer {
 			score *= 1.2;
 		}
 		
-		// Consider armor (armor reduces damage effectiveness)
-		if (targetVehicle.armor > 0) {
-			const armorReduction = Math.min(targetVehicle.armor / damage, 0.5);
-			score *= (1 - armorReduction);
+		// Shield and armor soak a vehicle hit, which makes it worth less
+		const soak = kind === DamageKind.VEHICLE ? (targetVehicle.shield ?? 0) + targetVehicle.armor : 0;
+		if (soak > 0) {
+			const soakReduction = Math.min(soak / damage, 0.5);
+			score *= (1 - soakReduction);
 		}
 		
 		// Apply focus fire bonus if others are also targeting this vehicle
-		score += this.calculateFocusFireBonus(targetVehicle, gameState);
+		score += this.calculateFocusFireBonus(targetVehicle, currentHealth);
 		
 		return score;
 	}
@@ -435,10 +449,9 @@ export class MCTSAI extends AIPlayer {
 	 * Evaluate position change
 	 */
 	private evaluatePositionChange(ourVehicle: Vehicle): number {
-		// High value if not in flanking and have good speed
+		// High value if not in flanking and fast enough to outrun someone
 		if (!this.board.isFlanking(ourVehicle)) {
-			const totalSpeed = this.board.speedOf(ourVehicle);
-			if (totalSpeed >= FAST_VEHICLE_SPEED) {
+			if (this.board.canFlankAnyone(ourVehicle)) {
 				return this.POSITION_CHANGE_WEIGHT * 2;
 			}
 			return this.POSITION_CHANGE_WEIGHT;
@@ -454,11 +467,8 @@ export class MCTSAI extends AIPlayer {
 	private evaluateSpeedBoost(speedBoost: number, ourVehicle: Vehicle): number {
 		// Very valuable if we need speed for flanking
 		if (!this.board.isFlanking(ourVehicle)) {
-			const currentSpeed = this.board.speedOf(ourVehicle);
-			const newSpeed = currentSpeed + speedBoost;
-			
-			// Big bonus if this gets us to flanking threshold
-			if (currentSpeed < FAST_VEHICLE_SPEED && newSpeed >= FAST_VEHICLE_SPEED) {
+			// Big bonus if this is what opens a flank
+			if (!this.board.canFlankAnyone(ourVehicle) && this.board.canFlankAnyone(ourVehicle, speedBoost)) {
 				return this.SPEED_BOOST_WEIGHT * 3;
 			}
 			
@@ -499,7 +509,7 @@ export class MCTSAI extends AIPlayer {
 	/**
 	 * Calculate focus fire bonus - reward concentrating attacks on one target
 	 */
-	private calculateFocusFireBonus(targetVehicle: Vehicle, _gameState: GameStateEvaluation): number {
+	private calculateFocusFireBonus(targetVehicle: Vehicle, damageToFinishTarget: number): number {
 		let bonus = 0;
 		
 		// Check if this target is already damaged
@@ -509,7 +519,7 @@ export class MCTSAI extends AIPlayer {
 			bonus += this.FOCUS_FIRE_BONUS * (1 - healthPercent);
 			
 			// Extra bonus if we can eliminate the target
-			if (targetVehicle.structure <= 10) {
+			if (damageToFinishTarget <= 10) {
 				bonus += this.FOCUS_FIRE_BONUS;
 			}
 		}

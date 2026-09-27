@@ -2,6 +2,7 @@ import { MCTSAI } from '../MCTSAI';
 import { Battle } from '../../mechanics/Battle';
 import { Team, TeamType } from '../../mechanics/Team';
 import { Driver } from '../../mechanics/Driver';
+import { Card } from '../../mechanics/Card';
 import { createTestDriver, createTestVehicle, createTestCard } from './test-helpers';
 
 describe('MCTSAI', () => {
@@ -94,6 +95,41 @@ describe('MCTSAI', () => {
 		}
 	});
 	
+	test('a card\'s self cost isn\'t scored as damage on its target', async () => {
+		// 2 structure behind 5 armor: the self cost's 2 would read as a kill against it
+		const target = playerTeam.vehicles[0];
+		target.set({ structure: 2 });
+		playerTeam.vehicles[1].set({ structure: 10, armor: 50, maxArmor: 50 });
+		const recklessShot = new Card({
+			type: 'reckless_shot',
+			name: 'Reckless Shot',
+			summary: 'Reckless Shot',
+			description: 'Reckless Shot',
+			rarity: 'common',
+			cost: 1,
+			targetType: 'enemy_single',
+			effects: [
+				{ type: 'damage', value: 1, target: 'target', always_hits: true },
+				{ type: 'damage', value: 2, target: 'self', structure_only: true }
+			],
+			tags: ['attack']
+		});
+		const potShot = createTestCard({
+			type: 'action',
+			name: 'Pot Shot',
+			cost: 1,
+			targetType: 'enemy_single',
+			effects: [{ type: 'damage', value: 3 }]
+		});
+		enemyDriver1.hand = [recklessShot, potShot];
+		enemyDriver1.adrenaline = 5;
+
+		const decision = await mctsAI.makeDecision();
+
+		expect(decision?.card).toBe(potShot);
+		expect(decision?.target).toBe(target);
+	});
+
 	test('should handle empty hand gracefully', async () => {
 		// Clear enemy driver's hand
 		enemyDriver1.hand = [];

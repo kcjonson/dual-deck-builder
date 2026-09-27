@@ -5,6 +5,7 @@ import { Driver } from '../mechanics/Driver';
 import { Card } from '../mechanics/Card';
 import { Vehicle } from '../mechanics/Vehicle';
 import { Team, TeamType } from '../mechanics/Team';
+import { DamageKind, cardDamageKind, damageToFinish } from './DamageEstimate';
 
 /**
  * AI strategy that tries to win while minimizing vehicle damage for salvage
@@ -106,20 +107,18 @@ export class SalvageAIStrategy implements AIStrategy {
 				
 				// Extra points for good targets
 				if (action.target && 'driver' in action.target) {
-					const targetVehicle = action.target as Vehicle;
-					if (targetVehicle.driver) {
-						const driverHealth = targetVehicle.driver.hitpoints;
-						const damage = this.estimateCardDamage(card, action.driver);
-						
-						// Perfect kill shot
-						if (driverHealth <= damage && driverHealth > 0) {
-							score += 300;
-						}
-						
-						// Low health target
-						if (driverHealth <= 5) {
-							score += 100;
-						}
+					// Driver-only damage skips Shield and armor
+					const driverHealth = damageToFinish({ target: action.target as Vehicle, kind: DamageKind.DRIVER_ONLY });
+					const damage = this.estimateCardDamage(card, action.driver);
+
+					// Perfect kill shot
+					if (driverHealth <= damage) {
+						score += 300;
+					}
+
+					// Low health target
+					if (driverHealth <= 5) {
+						score += 100;
 					}
 				}
 				console.log(`SalvageAI: Headshot score: ${score}`);
@@ -229,7 +228,7 @@ export class SalvageAIStrategy implements AIStrategy {
 				}
 				
 				// Finishing blow is always good
-				if (targetVehicle.structure <= structureDamage) {
+				if (effectiveDamage >= damageToFinish({ target: targetVehicle, kind: cardDamageKind(card) })) {
 					score += 200;
 				}
 				
