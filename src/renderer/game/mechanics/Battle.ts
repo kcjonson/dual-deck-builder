@@ -922,10 +922,6 @@ export class Battle extends Model<BattleData> {
 		Battle.enemyPlans.delete(this);
 
 		for (const [raider, actions] of plans) {
-			if (raider.isAlive() && raider.isStunned) {
-				this.log('general', `${raider.name} is stunned and skips its turn`, { vehicle: raider.name });
-				continue;
-			}
 			for (const action of actions) {
 				if (!raider.isAlive()) {
 					this.log('general', `${raider.name} is wrecked and drops its plan`, { vehicle: raider.name });
@@ -933,6 +929,10 @@ export class Battle extends Model<BattleData> {
 				}
 				if (!action.driver.isAlive() || raider.driver !== action.driver) {
 					this.log('general', `${raider.name} lost its driver and drops its plan`, { vehicle: raider.name });
+					break;
+				}
+				if (raider.isStunned) {
+					this.log('general', `${raider.name} is stunned and skips its turn`, { vehicle: raider.name });
 					break;
 				}
 

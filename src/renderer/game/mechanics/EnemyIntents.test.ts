@@ -621,6 +621,20 @@ describe('Enemy intents', () => {
 			]));
 		});
 
+		test('a raider whose driver the player killed after the EMP drops its plan for that, not the stun', async () => {
+			const headshot = card('Headshot', 'enemy_single', [{ type: 'damage', value: 100, target: 'driver', always_hits: true }]);
+			playEmp();
+			giveHand(rig, [headshot]);
+			expect(battle.playCard({ driver: driverOf(rig), cardIndex: 0, targetVehicle: buggy })).toBe(true);
+			expect(buggy.isOutOfFight).toBe(true);
+			await battle.endPlayerTurn();
+
+			const general = logLines(battle, 'general');
+			expect(general).toContain('Buggy lost its driver and drops its plan');
+			expect(general).not.toContain('Buggy is stunned and skips its turn');
+			expect(general).toContain('Hauler is stunned and skips its turn');
+		});
+
 		test('the preview has already dropped its intents when the play is announced', () => {
 			let shown: Map<Vehicle, unknown> | null = null;
 			battle.on('stateChanged', () => {
