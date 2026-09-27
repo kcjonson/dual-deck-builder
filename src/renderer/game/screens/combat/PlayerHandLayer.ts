@@ -6,10 +6,11 @@ import { Card } from '../../mechanics/Card';
 import { DriverSeat, PlayerHandView } from './PlayerHandView';
 
 /**
- * Player hand layer for the bottom 20% of combat screen
+ * Player hand layer, the combat screen band below the player battlefield
  * Displays hand of cards with hover effects and drag targeting
  */
 export class PlayerHandLayer extends Layer {
+	private background: Rectangle;
 	private handCards: Card[] = [];
 	private cardElements: UICard[] = [];
 	private playableCardIds: Set<string> = new Set();
@@ -41,23 +42,18 @@ export class PlayerHandLayer extends Layer {
 	 */
 	constructor(options: LayerOptions & { x: number; y: number; width: number; height: number }) {
 		super(options);
-		
-		// Set overflow hidden to clip cards that extend beyond layer bounds
-		this.setOverflow('hidden');
-		
+
 		// Hand background
-		const background = new Rectangle({
-			x: 0,
-			y: 0,
-			width: this.getWidth(),
-			height: this.getHeight(),
+		this.background = new Rectangle({
 			style: {
 				backgroundColor: '#2a2a3a', // Visible hand area background
 				borderColor: '#3a3a4a',
 				borderWidth: 1,
 			},
 		});
-		this.addChild(background);
+		this.addChild(this.background);
+
+		this.layoutElements();
 	}
 
 	/**
@@ -326,15 +322,25 @@ export class PlayerHandLayer extends Layer {
 	 * Handle layer resize
 	 */
 	protected onResized(): void {
-		// Update background size
-		const background = this.children[0] as Rectangle;
-		if (background) {
-			background.setWidth(this.getWidth());
-			background.setHeight(this.getHeight());
+		this.layoutElements();
+	}
+
+	/**
+	 * Size the background and place the cards for the layer's current size,
+	 * on construction and on every resize
+	 */
+	private layoutElements(): void {
+		// Clips cards that extend beyond the layer; a layer can only clip once it has a size
+		if (this.getWidth() > 0 && this.getHeight() > 0) {
+			this.setOverflow('hidden');
 		}
-		
-		// Re-layout existing cards without recreating them
+		this.background.setSize(this.getWidth(), this.getHeight());
+
+		// Re-layout existing cards without recreating them. The visuals pass
+		// follows as it does when the hand is dealt, because Card.updateVisuals
+		// also moves the card (its lift reset nudges y off a multiple of 10).
 		this.layoutCardElements();
+		this.updateCardSelectionVisuals();
 	}
 
 	/**
