@@ -1,10 +1,12 @@
 import { AIPlayer } from './AIPlayer';
-import { AIDecision, AIStrategy, FAST_VEHICLE_SPEED, GameStateEvaluation, VehicleEvaluation } from './types';
+import { AIDecision, AIStrategy, GameStateEvaluation, VehicleEvaluation } from './types';
 import { Team } from '../mechanics/Team';
 import { Battle } from '../mechanics/Battle';
 import { Vehicle } from '../mechanics/Vehicle';
 import { Card } from '../mechanics/Card';
 import { CardEffectValidator } from './CardEffectValidator';
+import { cardDamageKind, damageToFinish, lastingDamage } from './DamageEstimate';
+import { selfSpeedBonus } from '../mechanics/BoardProjection';
 
 /**
  * Aggressive Flanker AI Strategy
@@ -17,7 +19,6 @@ export class AggressiveFlankerStrategy implements AIStrategy {
 	private readonly POSITION_WEIGHT = 200;
 	private readonly DAMAGE_WEIGHT = 10;
 	private readonly HEAL_WEIGHT = 50;
-	private readonly SPEED_THRESHOLD = FAST_VEHICLE_SPEED;
 
 	chooseBestAction(
 		possibleActions: AIDecision[],
@@ -40,7 +41,10 @@ export class AggressiveFlankerStrategy implements AIStrategy {
 		return scoredActions[0].action;
 	}
 
-	private scoreAction(action: AIDecision, gameState: GameStateEvaluation): number {
+	/**
+	 * Public so tests can read what a play is worth
+	 */
+	public scoreAction(action: AIDecision, gameState: GameStateEvaluation): number {
 		if (action.type === 'endTurn') {
 			// Only end turn if we have no other options
 			return -1000;
@@ -67,29 +71,33 @@ export class AggressiveFlankerStrategy implements AIStrategy {
 		// Get card effects
 		const cardEffects = this.analyzeCardEffects(card);
 
+		// Fast enough means able to outrun someone on the road right now
+		const canFlankNow = gameState.board.canFlankAnyone(ourVehicle.vehicle);
+
 		// Prioritize position changes to flanking
 		if (cardEffects.changesPosition && !ourVehicle.isFlanking) {
 			score += this.POSITION_WEIGHT * 2;
-			
-			// Extra bonus if we have enough speed for flanking
-			if (ourVehicle.speed >= this.SPEED_THRESHOLD) {
+
+			if (canFlankNow) {
 				score += this.POSITION_WEIGHT;
 			}
 		}
 
-		// Prioritize speed boosts if not in flanking position and below threshold
-		if (cardEffects.speedBoost > 0 && 
-			!ourVehicle.isFlanking) {
-			const currentSpeed = ourVehicle.speed;
-			if (currentSpeed < this.SPEED_THRESHOLD) {
-				// Very high priority for speed boost when we need it for flanking
-				score += this.POSITION_WEIGHT * 2;
-			}
+		// A speed boost is worth a lot when it's what opens a flank
+		if (cardEffects.speedBoost > 0 && !ourVehicle.isFlanking && !canFlankNow &&
+			gameState.board.canFlankAnyone(ourVehicle.vehicle, cardEffects.speedBoost)) {
+			score += this.POSITION_WEIGHT * 2;
 		}
 
 		// Score damage effects
 		if (cardEffects.damage > 0 && card.targetType === 'enemy_single') {
-			let damageScore = cardEffects.damage * this.DAMAGE_WEIGHT;
+			const damageKind = cardDamageKind(card);
+			const damageTarget = action.target && 'structure' in action.target ? action.target as Vehicle : null;
+			// Damage that only soaks into Shield is gone by the player's turn
+			const damageThatLasts = damageTarget
+				? lastingDamage({ target: damageTarget, damage: cardEffects.damage, kind: damageKind })
+				: cardEffects.damage;
+			let damageScore = damageThatLasts * this.DAMAGE_WEIGHT;
 
 			// Apply flanking bonus if we're in flanking position
 			if (ourVehicle.isFlanking) {
@@ -97,16 +105,15 @@ export class AggressiveFlankerStrategy implements AIStrategy {
 			}
 
 			// Consider target's health if we have one
-			if (action.target && 'structure' in action.target) {
-				const targetVehicle = action.target as Vehicle;
-				const targetEval = this.getVehicleEvaluation(targetVehicle, gameState);
+			if (damageTarget) {
+				const targetEval = this.getVehicleEvaluation(damageTarget, gameState);
 				
 				if (targetEval) {
 					// Bonus for attacking low health targets
 					damageScore *= (2 - targetEval.healthPercent);
 					
 					// Bonus for attacking vulnerable targets
-					if (targetVehicle.hasStatusEffect('vulnerable')) {
+					if (damageTarget.hasStatusEffect('vulnerable')) {
 						damageScore *= this.VULNERABLE_BONUS;
 					}
 
@@ -114,10 +121,10 @@ export class AggressiveFlankerStrategy implements AIStrategy {
 					const potentialDamage = this.calculatePotentialDamage(
 						cardEffects.damage, 
 						ourVehicle.isFlanking,
-						targetVehicle.hasStatusEffect('vulnerable')
+						damageTarget.hasStatusEffect('vulnerable')
 					);
 					
-					if (potentialDamage >= targetVehicle.structure + targetVehicle.armor) {
+					if (potentialDamage >= damageToFinish({ target: damageTarget, kind: damageKind })) {
 						damageScore += 500; // Huge bonus for kills
 					}
 				}
@@ -192,6 +199,8 @@ export class AggressiveFlankerStrategy implements AIStrategy {
 					break;
 			}
 		}
+
+		result.speedBoost += selfSpeedBonus(card);
 
 		// Check for variable damage
 		if (card.variables?.damage) {

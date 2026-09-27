@@ -45,9 +45,9 @@ describe('RammingAI', () => {
 			const enemyVehicle = battle.enemyTeam.vehicles[0];
 			const enemyDriver = enemyVehicle.driver!;
 
-			// A fast rammer: 5 + the test driver's 2 = 7, over FAST_VEHICLE_SPEED (6).
-			// At the default 5 the gun card's kill bonus outscores the ram, which
-			// is the right call for a vehicle too slow to ram hard.
+			// A fast rammer: 5 + the test driver's 2 = 7, faster than the player's 5s.
+			// Ram damage grows with the speed difference, so the ram's bonus needs
+			// that edge over its target.
 			enemyVehicle.baseSpeed = 5;
 
 			// Create test cards
@@ -95,7 +95,7 @@ describe('RammingAI', () => {
 			const enemyVehicle = battle.enemyTeam.vehicles[0];
 			const enemyDriver = enemyVehicle.driver!;
 
-			// 1 + the test driver's 2 = 3, under FAST_VEHICLE_SPEED (6)
+			// 1 + the test driver's 2 = 3, slower than both player vehicles (5)
 			enemyVehicle.baseSpeed = 1;
 
 			const speedCard = new Card({
@@ -298,7 +298,7 @@ describe('RammingAI', () => {
 			enemyDriver.adrenaline = 5;
 
 			// Set up good ramming conditions
-			enemyVehicle.baseSpeed = 5; // 5 + the test driver's 2 = 7, over FAST_VEHICLE_SPEED (6)
+			enemyVehicle.baseSpeed = 5; // 5 + the test driver's 2 = 7, faster than the player's 5s
 			enemyVehicle.armor = 50;
 
 			const decision = await ai.makeDecision();

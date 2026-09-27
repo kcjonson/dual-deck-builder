@@ -318,6 +318,44 @@ describe('Effect targets', () => {
 			expect(speeds(everyone)).toEqual(projected);
 		});
 
+		describe('a boost after a slow that bottoms out floors the sum once, as play does', () => {
+			const heavySlow = { name: 'speed_reduction', duration: 2, value: -6 };
+
+			test('a slow the vehicle already has', () => {
+				// The Bike is 3 + 2 = 5, so -6 leaves it at -1, shown as 0
+				bike.applyStatusEffect(heavySlow);
+				expect(bike.speed).toBe(0);
+				const nitro = realCard('nitro_boost');
+				giveHand(bike, [nitro]);
+
+				const board = new BoardProjection({ battle });
+				board.apply({ card: nitro, driver: driverOf(bike), target: null });
+
+				expect(battle.playCard({ driver: driverOf(bike), cardIndex: 0 })).toBe(true);
+				expect(bike.speed).toBe(2);
+				expect(board.speedOf(bike)).toBe(2);
+			});
+
+			test('a slow and a boost planned on the same board', () => {
+				const tarBomb = card('Tar Bomb', 'enemy_single', [
+					{ type: 'apply_status', status: heavySlow.name, value: heavySlow.value, duration: 2, target: 'target', always_hits: true }
+				]);
+				const nitro = realCard('nitro_boost');
+				giveHand(rig, [tarBomb]);
+				giveHand(buggy, [nitro]);
+
+				const board = new BoardProjection({ battle });
+				board.apply({ card: tarBomb, driver: driverOf(rig), target: buggy });
+				expect(board.speedOf(buggy)).toBe(0);
+				board.apply({ card: nitro, driver: driverOf(buggy), target: null });
+
+				buggy.applyStatusEffect(heavySlow);
+				buggy.applyStatusEffect({ name: 'speed_boost', duration: 2, value: 3 });
+				expect(buggy.speed).toBe(2);
+				expect(board.speedOf(buggy)).toBe(2);
+			});
+		});
+
 		test('a raider plans an area slow on the vehicles it will hit', async () => {
 			setGunnery(buggy, 6);
 			setEvade(bike, 9);

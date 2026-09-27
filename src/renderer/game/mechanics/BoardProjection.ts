@@ -1,7 +1,7 @@
 import type { Battle } from './Battle';
 import type { Card } from './Card';
 import type { Driver } from './Driver';
-import { FlankState, Vehicle, statusSpeedModifier } from './Vehicle';
+import { FlankState, Vehicle, floorSpeed, statusSpeedModifier } from './Vehicle';
 import { TeamType } from './TeamType';
 import { RoadSlot, describeSlot, flankLane, isFormationLane, isShoulder, nearestTo, sameSlot, slotRange } from './Road';
 import { EffectRecipient, effectRecipientOf, effectRecipients, rollsToHit } from './EffectTargets';
@@ -26,9 +26,9 @@ export function cardFlanks(card: Card): boolean {
 
 /**
  * Speed a card's own statuses give whoever acts, applied before its flank
- * (Run Ahead's boost)
+ * (Run Ahead's boost, Nitro Boost)
  */
-function selfSpeedBonus(card: Card): number {
+export function selfSpeedBonus(card: Card): number {
 	return card.effects
 		.filter(effect => (effect.type === 'apply_status' || effect.type === 'status') && effect.status &&
 			effectRecipientOf({ effect, card }) === EffectRecipient.CASTER)
@@ -45,7 +45,8 @@ interface ProjectedVehicle {
 	team: TeamType;
 	slot: RoadSlot | null;
 	flank: FlankState | null;
-	speed: number;
+	/** Vehicle.speedSum, floored only when read, as play floors it */
+	speedSum: number;
 }
 
 /**
@@ -74,7 +75,7 @@ export class BoardProjection {
 					team: team.type,
 					slot: vehicle.slot,
 					flank: vehicle.flank,
-					speed: vehicle.speed
+					speedSum: vehicle.speedSum
 				});
 				for (const driver of [vehicle.driver, vehicle.passenger]) {
 					if (!driver) continue;
@@ -99,7 +100,7 @@ export class BoardProjection {
 	}
 
 	public speedOf(vehicle: Vehicle): number {
-		return this.vehicles.get(vehicle)?.speed ?? 0;
+		return floorSpeed(this.vehicles.get(vehicle)?.speedSum ?? 0);
 	}
 
 	public handOf(driver: Driver): readonly Card[] {
@@ -147,7 +148,7 @@ export class BoardProjection {
 		if (!target.isAlive() || !targetState.slot || !isFormationLane(targetState.team, targetState.slot.lane)) {
 			return `${target.name} is not in formation`;
 		}
-		if (flankerState.speed + speedBonus <= targetState.speed) {
+		if (floorSpeed(flankerState.speedSum + speedBonus) <= floorSpeed(targetState.speedSum)) {
 			return `${flanker.name} is not faster than ${target.name}`;
 		}
 		const destination = this.flankDestination(flanker, target);
@@ -309,6 +310,16 @@ export class BoardProjection {
 	}
 
 	/**
+	 * Whether the flanker could flank anyone on the other team, with a speed
+	 * bonus counted first. Flanking is relative: a speed 5 raider outruns a
+	 * speed 2 Rig but not a speed 8 Bike, so this, not a fixed speed, is what
+	 * makes a vehicle fast enough to flank.
+	 */
+	public canFlankAnyone(flanker: Vehicle, speedBonus = 0): boolean {
+		return this.enemiesOf(flanker).some(target => this.flankBlocker(flanker, target, speedBonus) === null);
+	}
+
+	/**
 	 * The far shoulder, in the row of the vehicle being outrun.
 	 */
 	public flankDestination(flanker: Vehicle, target: Vehicle): RoadSlot {
@@ -385,7 +396,7 @@ export class BoardProjection {
 						const state = this.vehicles.get(recipient);
 						if (state) {
 							const modifier = statusSpeedModifier({ name: status, duration: 1, value: effect.value });
-							state.speed = Math.max(0, state.speed + modifier);
+							state.speedSum += modifier;
 						}
 					}
 					break;
