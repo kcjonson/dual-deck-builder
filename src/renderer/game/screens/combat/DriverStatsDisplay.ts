@@ -28,15 +28,15 @@ interface StatDisplay {
  */
 export class DriverStatsDisplay extends Layer {
 	private driverNumber: 1 | 2;
-	private nameLabel: Text | null = null;
-	private adrenalineIcons: Rectangle[] = [];
-	private adrenalineText: Text | null = null;
-	
+	private nameLabel: Text;
+	private adrenalineIcons: Rectangle[];
+	private adrenalineText: Text;
+
 	// Stat displays
-	private drawPile: StatDisplay | null = null;
-	private discardPile: StatDisplay | null = null;
-	private fuel: StatDisplay | null = null;
-	
+	private drawPile: StatDisplay;
+	private discardPile: StatDisplay;
+	private fuel: StatDisplay;
+
 	// Current data
 	private data: DriverResourceData = {
 		name: 'Driver',
@@ -49,85 +49,10 @@ export class DriverStatsDisplay extends Layer {
 	
 	constructor(options: LayerOptions & { x: number; y: number; width: number; height: number; driverNumber: 1 | 2 }) {
 		super(options);
-		
+
 		this.driverNumber = options.driverNumber;
-		this.createElements();
-	}
-	
-	/**
-	 * Helper function to create a stat display (icon + text)
-	 */
-	private createStatDisplay(
-		x: number, 
-		iconSize: number, 
-		backgroundColor: string, 
-		value: string,
-		symbol?: string,
-		borderRadius?: number
-	): StatDisplay {
-		const height = this.getHeight();
-		
-		// Create icon
-		const icon = new Rectangle({
-			x: x,
-			y: Math.floor((height - iconSize) / 2),
-			width: iconSize,
-			height: iconSize,
-			style: {
-				backgroundColor,
-				borderColor: '#ffffff',
-				borderWidth: 1,
-				borderRadius: borderRadius || 0,
-			},
-		});
-		this.addChild(icon);
-		
-		// Create value text
-		const text = new Text(value, {
-			style: {
-				fontSize: 8,
-				color: '#ffffff',
-				textAlign: 'center',
-			},
-		});
-		
-		let symbolText: Text | undefined;
-		
-		if (symbol) {
-			// If there's a symbol, show it in the icon and value next to it
-			symbolText = new Text(symbol, {
-				style: {
-					fontSize: Math.floor(iconSize * 0.6),
-					color: '#ffffff',
-					textAlign: 'center',
-				},
-			});
-			symbolText.setPosition(x + iconSize / 2, Math.floor(height / 2));
-			this.addChild(symbolText);
-			
-			// Position value text to the right of icon
-			text.setPosition(x + iconSize + 10, Math.floor(height / 2));
-		} else {
-			// No symbol, show value in the center of icon
-			text.setPosition(x + iconSize / 2, Math.floor(height / 2));
-		}
-		
-		this.addChild(text);
-		
-		return { icon, text, symbol: symbolText };
-	}
-	
-	/**
-	 * Create all display elements
-	 */
-	private createElements(): void {
-		const height = this.getHeight();
-		const iconSize = Math.floor(height * 0.6);
-		const smallIconSize = Math.floor(iconSize * 0.7);
-		const padding = 5;
-		let currentX = 0;
-		
-		// Driver name label
+
+		// Created here and placed by layoutElements
 		this.nameLabel = new Text(this.data.name, {
 			style: {
 				fontSize: 10,
@@ -135,16 +60,10 @@ export class DriverStatsDisplay extends Layer {
 				textAlign: 'left',
 			},
 		});
-		this.nameLabel.setPosition(currentX, Math.floor(height * 0.2));
 		this.addChild(this.nameLabel);
-		
-		// Adrenaline icons
-		for (let i = 0; i < this.data.maxAdrenaline; i++) {
+
+		this.adrenalineIcons = Array.from({ length: this.data.maxAdrenaline }, () => {
 			const boltIcon = new Rectangle({
-				x: currentX,
-				y: Math.floor((height - iconSize) / 2),
-				width: iconSize,
-				height: iconSize,
 				style: {
 					backgroundColor: '#6a6aaa',
 					borderColor: '#8a8acc',
@@ -152,11 +71,9 @@ export class DriverStatsDisplay extends Layer {
 				},
 			});
 			this.addChild(boltIcon);
-			this.adrenalineIcons.push(boltIcon);
-			currentX += iconSize + 2;
-		}
-		
-		// Adrenaline text
+			return boltIcon;
+		});
+
 		this.adrenalineText = new Text(`${this.data.adrenaline}/${this.data.maxAdrenaline}`, {
 			id: `driver${this.driverNumber}_adrenaline_value`,
 			style: {
@@ -165,37 +82,103 @@ export class DriverStatsDisplay extends Layer {
 				textAlign: 'center',
 			},
 		});
-		this.adrenalineText.setPosition(currentX + 10, Math.floor(height / 2));
 		this.addChild(this.adrenalineText);
+
+		this.drawPile = this.createStatDisplay('#4a4a6a', this.data.drawPileCount.toString());
+		this.discardPile = this.createStatDisplay('#6a4a4a', this.data.discardPileCount.toString());
+		this.fuel = this.createStatDisplay('#6a6a4a', this.data.fuel.toString(), '⛽');
+
+		this.layoutElements();
+	}
+
+	/**
+	 * Helper function to create a stat display (icon + text); layoutElements
+	 * places it
+	 */
+	private createStatDisplay(backgroundColor: string, value: string, symbol?: string): StatDisplay {
+		const icon = new Rectangle({
+			style: {
+				backgroundColor,
+				borderColor: '#ffffff',
+				borderWidth: 1,
+			},
+		});
+		this.addChild(icon);
+
+		let symbolText: Text | undefined;
+		if (symbol) {
+			// The symbol sits in the icon and the value next to it
+			symbolText = new Text(symbol, {
+				style: {
+					color: '#ffffff',
+					textAlign: 'center',
+				},
+			});
+			this.addChild(symbolText);
+		}
+
+		const text = new Text(value, {
+			style: {
+				fontSize: 8,
+				color: '#ffffff',
+				textAlign: 'center',
+			},
+		});
+		this.addChild(text);
+
+		return { icon, text, symbol: symbolText };
+	}
+
+	/**
+	 * Place a stat display with its icon's left edge at x
+	 */
+	private layoutStatDisplay({ icon, text, symbol }: StatDisplay, x: number, iconSize: number): void {
+		const height = this.getHeight();
+		icon.setPosition(x, Math.floor((height - iconSize) / 2));
+		icon.setSize(iconSize, iconSize);
+		if (symbol) {
+			icon.setCornerRadius(Math.floor(iconSize / 4));
+			symbol.setFontSize(Math.floor(iconSize * 0.6));
+			symbol.setPosition(x + iconSize / 2, Math.floor(height / 2));
+			text.setPosition(x + iconSize + 10, Math.floor(height / 2));
+		} else {
+			text.setPosition(x + iconSize / 2, Math.floor(height / 2));
+		}
+	}
+
+	/**
+	 * Place every element for the display's current height, on construction
+	 * and on every resize
+	 */
+	private layoutElements(): void {
+		const height = this.getHeight();
+		const iconSize = Math.floor(height * 0.6);
+		const smallIconSize = Math.floor(iconSize * 0.7);
+		const padding = 5;
+		let currentX = 0;
+
+		this.nameLabel.setPosition(currentX, Math.floor(height * 0.2));
+
+		for (const boltIcon of this.adrenalineIcons) {
+			boltIcon.setPosition(currentX, Math.floor((height - iconSize) / 2));
+			boltIcon.setSize(iconSize, iconSize);
+			currentX += iconSize + 2;
+		}
+
+		this.adrenalineText.setPosition(currentX + 10, Math.floor(height / 2));
 		currentX += 40;
-		
-		// Draw pile (deck icon with count)
-		this.drawPile = this.createStatDisplay(
-			currentX,
-			smallIconSize,
-			'#4a4a6a',
-			this.data.drawPileCount.toString()
-		);
-		currentX += smallIconSize + padding;
-		
-		// Discard pile
-		this.discardPile = this.createStatDisplay(
-			currentX,
-			smallIconSize,
-			'#6a4a4a',
-			this.data.discardPileCount.toString()
-		);
-		currentX += smallIconSize + padding;
-		
-		// Fuel (with symbol)
-		this.fuel = this.createStatDisplay(
-			currentX,
-			smallIconSize,
-			'#6a6a4a',
-			this.data.fuel.toString(),
-			'⛽',
-			Math.floor(smallIconSize / 4)
-		);
+
+		for (const stat of [this.drawPile, this.discardPile, this.fuel]) {
+			this.layoutStatDisplay(stat, currentX, smallIconSize);
+			currentX += smallIconSize + padding;
+		}
+	}
+
+	/**
+	 * Handle resize
+	 */
+	protected onResized(): void {
+		this.layoutElements();
 	}
 	
 	/**
@@ -206,7 +189,7 @@ export class DriverStatsDisplay extends Layer {
 		Object.assign(this.data, data);
 		
 		// Update name
-		if (data.name && this.nameLabel) {
+		if (data.name) {
 			this.nameLabel.setText(data.name);
 		}
 		
@@ -227,29 +210,19 @@ export class DriverStatsDisplay extends Layer {
 				}
 			});
 			
-			// Update text
-			if (this.adrenalineText) {
-				this.adrenalineText.setText(`${this.data.adrenaline}/${this.data.maxAdrenaline}`);
-			}
+			this.adrenalineText.setText(`${this.data.adrenaline}/${this.data.maxAdrenaline}`);
 		}
-		
+
 		// Update stat displays
-		if (this.drawPile && data.drawPileCount !== undefined) {
+		if (data.drawPileCount !== undefined) {
 			this.drawPile.text.setText(data.drawPileCount.toString());
 		}
-		if (this.discardPile && data.discardPileCount !== undefined) {
+		if (data.discardPileCount !== undefined) {
 			this.discardPile.text.setText(data.discardPileCount.toString());
 		}
-		if (this.fuel && data.fuel !== undefined) {
+		if (data.fuel !== undefined) {
 			this.fuel.text.setText(data.fuel.toString());
 		}
-	}
-	
-	/**
-	 * Get current data
-	 */
-	public getData(): DriverResourceData {
-		return { ...this.data };
 	}
 	
 	/**
