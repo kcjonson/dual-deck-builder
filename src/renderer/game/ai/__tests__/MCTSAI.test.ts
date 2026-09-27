@@ -1,9 +1,44 @@
 import { MCTSAI } from '../MCTSAI';
+import { AIDecision } from '../types';
 import { Battle } from '../../mechanics/Battle';
+import { BoardProjection } from '../../mechanics/BoardProjection';
 import { Team, TeamType } from '../../mechanics/Team';
 import { Driver } from '../../mechanics/Driver';
-import { Card } from '../../mechanics/Card';
+import { Vehicle } from '../../mechanics/Vehicle';
+import { Card, CardData } from '../../mechanics/Card';
 import { createTestDriver, createTestVehicle, createTestCard } from './test-helpers';
+import cardsFile from '../../data/cards.json';
+
+const cardData = (type: string): CardData => {
+	const data = (cardsFile as unknown as { cards: CardData[] }).cards.find(candidate => candidate.type === type);
+	if (!data) throw new Error(`No card ${type} in cards.json`);
+	return { ...data, upgraded: false };
+};
+
+const realCard = (type: string): Card => new Card(cardData(type));
+
+// A real card with its effects swapped for a status MCTS gives the flat unknown-effect score
+const withFlatStatus = (type: string): Card => new Card({
+	...cardData(type),
+	type: `flat_${type}`,
+	name: `Flat ${type}`,
+	effects: [{ type: 'apply_status', status: 'vulnerable', target: 'target' }]
+});
+
+const driverOf = (vehicle: Vehicle): Driver => {
+	if (!vehicle.driver) throw new Error(`${vehicle.name} has no driver`);
+	return vehicle.driver;
+};
+
+/**
+ * Reads MCTS's score for one play against the live board
+ */
+class ScoringMCTSAI extends MCTSAI {
+	public score(action: AIDecision): number {
+		this.board = new BoardProjection({ battle: this.battle });
+		return this.evaluateActionWithContext(action);
+	}
+}
 
 describe('MCTSAI', () => {
 	let battle: Battle;
@@ -192,5 +227,75 @@ describe('MCTSAI', () => {
 		
 		// Should return null or handle gracefully
 		expect(decision).toBeNull();
+	});
+
+	describe('scores Flank and Nitro Boost by whether they open a flank', () => {
+		// A speed 5 raider, base 3 plus the test driver's 2, against player vehicles of the given speeds
+		const setup = (playerSpeeds: number[]): { battle: Battle; raider: Vehicle; players: Vehicle[]; ai: ScoringMCTSAI } => {
+			const raider = createTestVehicle('Rust Buggy', createTestDriver('Raider'));
+			const players = playerSpeeds.map((speed, index) => {
+				const vehicle = createTestVehicle(`Player Vehicle ${index + 1}`, createTestDriver(`Player Driver ${index + 1}`));
+				vehicle.baseSpeed = speed - 2;
+				return vehicle;
+			});
+			const battle = new Battle({
+				playerTeam: new Team({ type: TeamType.PLAYER, vehicles: players }),
+				enemyTeam: new Team({ type: TeamType.ENEMY, vehicles: [raider] })
+			});
+			battle.start();
+			driverOf(raider).set({ adrenaline: 5 });
+			return { battle, raider, players, ai: new ScoringMCTSAI({ team: battle.enemyTeam, battle, iterations: 100 }) };
+		};
+
+		const play = (raider: Vehicle, card: Card, target?: Vehicle): AIDecision =>
+			({ type: 'playCard', card, driver: driverOf(raider), target });
+
+		test('a Flank it can make scores above the flat default', () => {
+			const { battle, raider, players, ai } = setup([2, 4]);
+			const flank = realCard('flank');
+			const control = withFlatStatus('flank');
+			driverOf(raider).set({ hand: [flank, control] });
+
+			expect(new BoardProjection({ battle }).canFlankAnyone(raider)).toBe(true);
+			expect(ai.score(play(raider, flank, players[0]))).toBeGreaterThan(ai.score(play(raider, control, players[0])));
+		});
+
+		test('a Flank it can\'t make scores no more than the flat default', () => {
+			const { battle, raider, players, ai } = setup([6, 8]);
+			const flank = realCard('flank');
+			const control = withFlatStatus('flank');
+			driverOf(raider).set({ hand: [flank, control] });
+
+			expect(new BoardProjection({ battle }).canFlankAnyone(raider)).toBe(false);
+			expect(ai.score(play(raider, flank, players[0]))).toBeLessThanOrEqual(ai.score(play(raider, control, players[0])));
+		});
+
+		test('Nitro Boost scores higher when its boost opens a flank', () => {
+			// 5 + 3 = 8 outruns a 6; it can't outrun two 8s, and already outruns a 2 and a 4
+			const opens = setup([6, 8]);
+			const noFlank = setup([8, 8]);
+			const alreadyFast = setup([2, 4]);
+			const nitroScore = ({ raider, ai }: { raider: Vehicle; ai: ScoringMCTSAI }): number => {
+				const nitro = realCard('nitro_boost');
+				driverOf(raider).set({ hand: [nitro] });
+				return ai.score(play(raider, nitro));
+			};
+
+			expect(new BoardProjection({ battle: opens.battle }).canFlankAnyone(opens.raider, 3)).toBe(true);
+			expect(new BoardProjection({ battle: noFlank.battle }).canFlankAnyone(noFlank.raider, 3)).toBe(false);
+			expect(nitroScore(opens)).toBeGreaterThan(nitroScore(noFlank));
+			expect(nitroScore(opens)).toBeGreaterThan(nitroScore(alreadyFast));
+		});
+
+		test('a slow on the target is worth a little more than the flat default', () => {
+			const { raider, players, ai } = setup([2, 4]);
+			const oilSlick = realCard('oil_slick');
+			const control = withFlatStatus('oil_slick');
+			driverOf(raider).set({ hand: [oilSlick, control] });
+
+			// Oil Slick's vulnerable status scores flat, like the control's, so the gap is the -4 slow
+			const slowValue = ai.score(play(raider, oilSlick, players[0])) - ai.score(play(raider, control, players[0]));
+			expect(slowValue).toBeCloseTo(1.4);
+		});
 	});
 });

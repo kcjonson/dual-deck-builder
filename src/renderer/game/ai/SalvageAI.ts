@@ -140,12 +140,12 @@ export class SalvageAIStrategy implements AIStrategy {
 		}
 
 		// CARD DRAW: Essential for finding headshots and maintaining options
-		if (card.effects.some(e => e.type === 'draw')) {
+		if (card.effects.some(e => e.type === 'draw_cards')) {
 			score += 80 + (cardAdvantage < 0 ? 40 : 0); // More valuable when behind on cards
 		}
 
 		// DEFENSIVE CARDS: Important when in danger or damaged
-		if (card.effects.some(e => ['armor', 'gain_armor', 'heal'].includes(e.type))) {
+		if (card.effects.some(e => e.type === 'gain_armor' || e.type === 'heal')) {
 			// Check if we actually need healing or armor
 			let needsHealing = false;
 			let healingValue = 0;
@@ -186,7 +186,7 @@ export class SalvageAIStrategy implements AIStrategy {
 					const healEfficiency = Math.min(healingValue / 8, 1); // Assuming 8 heal from repair kit
 					score += (inDanger ? 120 : 60) * healEfficiency;
 				}
-			} else if (card.effects.some(e => e.type === 'armor' || e.type === 'gain_armor')) {
+			} else if (card.effects.some(e => e.type === 'gain_armor')) {
 				// Armor cards - check if we can use them
 				if (!canUseArmor) {
 					score -= 200; // Armor plating at max armor is very wasteful
@@ -251,17 +251,17 @@ export class SalvageAIStrategy implements AIStrategy {
 		}
 
 		// STATUS EFFECTS: Valuable for control
-		if (card.effects.some(e => ['status', 'apply_status'].includes(e.type))) {
+		if (card.effects.some(e => e.type === 'apply_status')) {
 			score += 40;
 			
 			// Speed reduction effects are great
-			if (card.effects.some(e => e.status === 'oil_slick' || e.status === 'caltrops')) {
+			if (card.effects.some(e => e.status === 'speed_reduction')) {
 				score += 30;
 			}
 		}
 
 		// ADRENALINE GENERATION: Always useful
-		if (card.effects.some(e => e.type === 'adrenaline')) {
+		if (card.effects.some(e => e.type === 'gain_resource' && e.resource === 'adrenaline')) {
 			score += 30;
 		}
 

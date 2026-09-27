@@ -2,12 +2,13 @@ import { AIPlayer } from './AIPlayer';
 import { AIDecision, GameStateEvaluation } from './types';
 import { Battle } from '../mechanics/Battle';
 import { Team } from '../mechanics/Team';
-import { Vehicle } from '../mechanics/Vehicle';
+import { Vehicle, statusSpeedModifier } from '../mechanics/Vehicle';
 import { Driver } from '../mechanics/Driver';
 import { Card, CardEffect } from '../mechanics/Card';
 import { laneKind } from '../mechanics/Road';
 import { DamageKind, damageToFinish, effectDamageKind } from './DamageEstimate';
 import { EffectRecipient, effectRecipientOf } from '../mechanics/EffectTargets';
+import { selfSpeedBonus } from '../mechanics/BoardProjection';
 
 /**
  * Monte Carlo Tree Search AI Player
@@ -28,7 +29,7 @@ export class MCTSAI extends AIPlayer {
 	private readonly ARMOR_WEIGHT = 0.4; // Decreased - offense > defense
 	private readonly CARD_DRAW_WEIGHT = 2.0; // Increased - card advantage is crucial
 	private readonly ADRENALINE_WEIGHT = 2.5; // Increased - enables more plays
-	private readonly POSITION_CHANGE_WEIGHT = 4.0; // Increased - flanking wins games
+	private readonly FLANK_WEIGHT = 8.0; // Flanking wins games
 	private readonly SPEED_BOOST_WEIGHT = 3.5; // Increased - enables flanking
 	private readonly FOCUS_FIRE_BONUS = 2.5; // New - concentrate attacks
 	private readonly TEMPO_BONUS = 1.5; // New - reward playing multiple cards
@@ -178,9 +179,10 @@ export class MCTSAI extends AIPlayer {
 	}
 	
 	/**
-	 * Evaluate an action with full game context
+	 * Evaluate an action with full game context. Protected so tests can read
+	 * what a play is worth.
 	 */
-	private evaluateActionWithContext(action: AIDecision): number {
+	protected evaluateActionWithContext(action: AIDecision): number {
 		if (action.type === 'endTurn') {
 			// End turn only if we can't play valuable cards
 			const remainingActions = this.countRemainingValuableActions();
@@ -206,7 +208,7 @@ export class MCTSAI extends AIPlayer {
 				for (const effect of card.effects) {
 					// Self damage (Ramming Run's cost) lands on us, not the target
 					if (effect.type === 'damage' && effectRecipientOf({ effect, card }) === EffectRecipient.CASTER) continue;
-					score += this.evaluateEffectWithContext(effect, action.target, ourVehicle);
+					score += this.evaluateEffectWithContext({ effect, card, target: action.target, ourVehicle });
 				}
 			}
 			
@@ -256,13 +258,12 @@ export class MCTSAI extends AIPlayer {
 			for (const card of this.board.handOf(driver)) {
 				if (this.board.adrenalineOf(driver) >= card.cost) {
 					// More comprehensive check for valuable cards
-					if (card.effects && card.effects.some(e => 
+					if (selfSpeedBonus(card) > 0 || card.effects.some(e =>
 						e.type === 'damage' && (e.value || 0) >= 3 || // Lowered threshold
 						e.type === 'heal' && (e.value || 0) >= 3 ||
-						e.type === 'position_change' ||
-						e.type === 'speed' ||
-						e.type === 'draw' ||
-						e.type === 'adrenaline'
+						e.type === 'change_position' ||
+						e.type === 'draw_cards' ||
+						e.type === 'gain_resource' && e.resource === 'adrenaline'
 					)) {
 						count++;
 					}
@@ -294,40 +295,37 @@ export class MCTSAI extends AIPlayer {
 	/**
 	 * Evaluate effect with full context
 	 */
-	private evaluateEffectWithContext(
-		effect: CardEffect,
-		target: Vehicle | Driver | undefined,
-		ourVehicle: Vehicle
-	): number {
-		let score = 0;
-		
+	private evaluateEffectWithContext({
+		effect,
+		card,
+		target,
+		ourVehicle
+	}: {
+		effect: CardEffect;
+		card: Card;
+		target: Vehicle | Driver | undefined;
+		ourVehicle: Vehicle;
+	}): number {
 		switch (effect.type) {
 			case 'damage':
-				score += this.evaluateDamageWithContext({ damage: effect.value || 0, kind: effectDamageKind(effect), target, ourVehicle });
-				break;
+				return this.evaluateDamageWithContext({ damage: effect.value || 0, kind: effectDamageKind(effect), target, ourVehicle });
 			case 'heal':
-				score += this.evaluateHealWithContext(effect.value || 0, target, ourVehicle);
-				break;
-			case 'armor':
-				score += this.evaluateArmorWithContext(effect.value || 0, target);
-				break;
-			case 'draw':
-				score += this.CARD_DRAW_WEIGHT * (effect.value || 1);
-				break;
-			case 'adrenaline':
-				score += this.ADRENALINE_WEIGHT * (effect.value || 1);
-				break;
-			case 'position_change':
-				score += this.evaluatePositionChange(ourVehicle);
-				break;
-			case 'speed':
-				score += this.evaluateSpeedBoost(effect.value || 0, ourVehicle);
-				break;
+				return this.evaluateHealWithContext(effect.value || 0, target, ourVehicle);
+			case 'gain_armor': {
+				const armored = effectRecipientOf({ effect, card }) === EffectRecipient.CASTER ? ourVehicle : target;
+				return this.evaluateArmorWithContext(effect.value || 0, armored);
+			}
+			case 'draw_cards':
+				return this.CARD_DRAW_WEIGHT * (effect.value || 1);
+			case 'gain_resource':
+				return effect.resource === 'adrenaline' ? this.ADRENALINE_WEIGHT * (effect.value || 1) : 0;
+			case 'change_position':
+				return this.evaluateFlank(card, ourVehicle);
+			case 'apply_status':
+				return this.evaluateStatus({ effect, card, ourVehicle });
 			default:
-				score += 0.5; // Unknown effects get moderate score
+				return 0.5; // Unknown effects get moderate score
 		}
-		
-		return score;
 	}
 	
 	/**
@@ -446,21 +444,35 @@ export class MCTSAI extends AIPlayer {
 	}
 	
 	/**
-	 * Evaluate position change
+	 * A flank is worth the full weight from formation when the vehicle can
+	 * outrun someone, the card's own boost counted first (Run Ahead), and
+	 * nothing otherwise
 	 */
-	private evaluatePositionChange(ourVehicle: Vehicle): number {
-		// High value if not in flanking and fast enough to outrun someone
-		if (!this.board.isFlanking(ourVehicle)) {
-			if (this.board.canFlankAnyone(ourVehicle)) {
-				return this.POSITION_CHANGE_WEIGHT * 2;
-			}
-			return this.POSITION_CHANGE_WEIGHT;
+	private evaluateFlank(card: Card, ourVehicle: Vehicle): number {
+		if (this.board.isFlanking(ourVehicle) || !this.board.canFlankAnyone(ourVehicle, selfSpeedBonus(card))) {
+			return 0;
 		}
-		
-		// Low value if already flanking
-		return 0.2;
+		return this.FLANK_WEIGHT;
 	}
-	
+
+	/**
+	 * A speed status on us is a boost (Nitro Boost) and one on the target is
+	 * a slow (Oil Slick, Caltrops, Flag Down). Any other status keeps the flat
+	 * score unknown effects get.
+	 */
+	private evaluateStatus({ effect, card, ourVehicle }: { effect: CardEffect; card: Card; ourVehicle: Vehicle }): number {
+		const speedChange = statusSpeedModifier({ name: effect.status ?? '', duration: 1, value: effect.value });
+		const onUs = effectRecipientOf({ effect, card }) === EffectRecipient.CASTER;
+		if (onUs && speedChange > 0) {
+			return this.evaluateSpeedBoost(speedChange, ourVehicle);
+		}
+		if (!onUs && speedChange < 0) {
+			// Worth what a boost that opens no flank is worth, point for point
+			return this.SPEED_BOOST_WEIGHT * (-speedChange / 10);
+		}
+		return 0.5;
+	}
+
 	/**
 	 * Evaluate speed boost
 	 */
@@ -499,7 +511,7 @@ export class MCTSAI extends AIPlayer {
 		}
 		
 		// Bonus for combo potential
-		if (card.effects && card.effects.some(e => e.type === 'draw')) {
+		if (card.effects.some(e => e.type === 'draw_cards')) {
 			synergyScore += 0.5; // Card draw enables more combos
 		}
 		

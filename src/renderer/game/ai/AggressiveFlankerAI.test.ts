@@ -35,30 +35,17 @@ class ScoringAggressiveAI extends AggressiveFlankerAI {
 	}
 }
 
-const speedBoostAndShot = (): Card[] => [
-	new Card({
-		type: 'speed_boost',
-		name: 'Speed Boost',
-		summary: 'Increase speed by 2',
-		description: 'Increase speed by 2',
-		rarity: 'common',
-		cost: 1,
-		targetType: 'self',
-		effects: [{ type: 'speed', value: 2 }],
-		tags: ['buff']
-	}),
-	new Card({
-		type: 'power_shot',
-		name: 'Power Shot',
-		summary: 'Deal 8 damage',
-		description: 'Deal 8 damage',
-		rarity: 'common',
-		cost: 2,
-		targetType: 'enemy_single',
-		effects: [{ type: 'damage', value: 8 }],
-		tags: ['attack']
-	})
-];
+const powerShot = (): Card => new Card({
+	type: 'power_shot',
+	name: 'Power Shot',
+	summary: 'Deal 8 damage',
+	description: 'Deal 8 damage',
+	rarity: 'common',
+	cost: 2,
+	targetType: 'enemy_single',
+	effects: [{ type: 'damage', value: 8 }],
+	tags: ['attack']
+});
 
 describe('AggressiveFlankerAI', () => {
 	let battle: Battle;
@@ -112,30 +99,7 @@ describe('AggressiveFlankerAI', () => {
 		// Setup hand for the first driver
 		const driver = enemyTeam.vehicles[0].driver;
 		if (!driver) throw new Error('Driver not found');
-		driver.hand = [
-			new Card({
-				type: 'flanking_maneuver',
-				name: 'Flanking Maneuver',
-				summary: 'Move to flanking position',
-				description: 'Move to flanking position',
-				rarity: 'common',
-				cost: 2,
-				targetType: 'self',
-				effects: [{ type: 'move_to_position', value: 2 }],
-				tags: ['movement']
-			}),
-			new Card({
-				type: 'power_shot',
-				name: 'Power Shot',
-				summary: 'Deal 8 damage',
-				description: 'Deal 8 damage',
-				rarity: 'common',
-				cost: 2,
-				targetType: 'enemy_single',
-				effects: [{ type: 'damage', value: 8 }],
-				tags: ['attack']
-			})
-		];
+		driver.hand = [realCard('flanking_maneuver'), powerShot()];
 		driver.adrenaline = 5;
 
 		// Make AI decision
@@ -153,7 +117,7 @@ describe('AggressiveFlankerAI', () => {
 		// Setup low speed vehicle with speed boost card
 		const driver = enemyTeam.vehicles[1].driver; // Low speed vehicle
 		if (!driver) throw new Error('Driver not found');
-		driver.hand = speedBoostAndShot();
+		driver.hand = [realCard('nitro_boost'), powerShot()];
 		driver.adrenaline = 5;
 
 		// Make AI decision
@@ -161,7 +125,7 @@ describe('AggressiveFlankerAI', () => {
 
 		expect(decision).not.toBeNull();
 		expect(decision?.type).toBe('playCard');
-		expect(decision?.card?.name).toBe('Speed Boost');
+		expect(decision?.card?.name).toBe('Nitro Boost');
 	});
 
 	test('shoots instead of boosting once it is already fast enough to flank', async () => {
@@ -170,7 +134,7 @@ describe('AggressiveFlankerAI', () => {
 		// Vehicle 1 is at 7, so it can already outrun the player's 5s
 		const driver = enemyTeam.vehicles[0].driver;
 		if (!driver) throw new Error('Driver not found');
-		driver.hand = speedBoostAndShot();
+		driver.hand = [realCard('nitro_boost'), powerShot()];
 		driver.adrenaline = 5;
 
 		const decision = await ai.makeDecision();
@@ -345,12 +309,12 @@ describe('AggressiveFlankerAI', () => {
 			test('can already flank, so Nitro Boost earns no speed bonus and it shoots instead', async () => {
 				const { battle, raider, ai } = setup([2, 4]);
 				const nitro = realCard('nitro_boost');
-				const [, powerShot] = speedBoostAndShot();
-				driverOf(raider).set({ hand: [nitro, powerShot] });
+				const shot = powerShot();
+				driverOf(raider).set({ hand: [nitro, shot] });
 
 				expect(new BoardProjection({ battle }).canFlankAnyone(raider)).toBe(true);
 				expect(ai.score(play(raider, nitro))).toBe(0);
-				expect((await ai.makeDecision())?.card).toBe(powerShot);
+				expect((await ai.makeDecision())?.card).toBe(shot);
 			});
 
 			test('every legal Flank gets the full flank priority', () => {
@@ -366,8 +330,7 @@ describe('AggressiveFlankerAI', () => {
 		test('against faster vehicles it can\'t flank, so Nitro Boost that opens a flank comes first', async () => {
 			const { battle, raider, ai } = setup([6, 8]);
 			const nitro = realCard('nitro_boost');
-			const [, powerShot] = speedBoostAndShot();
-			driverOf(raider).set({ hand: [powerShot, nitro] });
+			driverOf(raider).set({ hand: [powerShot(), nitro] });
 
 			const board = new BoardProjection({ battle });
 			expect(board.canFlankAnyone(raider)).toBe(false);

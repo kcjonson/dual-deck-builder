@@ -60,7 +60,6 @@ export class CardEffectValidator {
 					}
 					break;
 
-				case 'armor':
 				case 'gain_armor':
 					// Check if target vehicle needs armor
 					if (target) {
@@ -100,23 +99,18 @@ export class CardEffectValidator {
 					break;
 
 				case 'draw_cards':
-				case 'draw':
 					// Drawing cards is always beneficial
 					return true;
 
-				case 'adrenaline':
 				case 'gain_resource':
 					// Gaining resources is always beneficial
 					return true;
 
-				case 'speed':
 				case 'apply_status':
-				case 'status':
 					// Status effects are generally beneficial
 					// Could add more specific checks here
 					return true;
 
-				case 'move_to_position':
 				case 'change_position':
 					// Position changes are situational but generally useful
 					return true;
@@ -171,7 +165,7 @@ export class CardEffectValidator {
 		let effectiveArmor = 0;
 
 		for (const effect of card.effects) {
-			if (effect.type === 'armor' || effect.type === 'gain_armor') {
+			if (effect.type === 'gain_armor') {
 				const armorAmount = effect.value || 0;
 				const armorMissing = target.maxArmor - target.armor;
 				effectiveArmor += Math.min(armorAmount, armorMissing);

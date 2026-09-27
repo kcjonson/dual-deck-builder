@@ -6,6 +6,7 @@ import { Vehicle } from '../mechanics/Vehicle';
 import { Card } from '../mechanics/Card';
 import { CardEffectValidator } from './CardEffectValidator';
 import { cardDamageKind, damageToFinish, lastingDamage } from './DamageEstimate';
+import { selfSpeedBonus } from '../mechanics/BoardProjection';
 
 /**
  * Ramming AI Strategy
@@ -257,8 +258,8 @@ export class RammingStrategy implements AIStrategy {
 			damage: 0,
 			heal: 0,
 			armor: 0,
-			speedBoost: 0,
-			adrenalineGain: 0, 
+			speedBoost: selfSpeedBonus(card),
+			adrenalineGain: 0,
 			changesPosition: false,
 			isRamming: false,
 			drawCards: 0
@@ -288,30 +289,19 @@ export class RammingStrategy implements AIStrategy {
 				case 'heal':
 					result.heal += effect.value || 0;
 					break;
-				case 'armor':
 				case 'gain_armor':
 					result.armor += effect.value || 0;
 					break;
-				case 'speed':
-					result.speedBoost += effect.value || 0;
+				case 'gain_resource':
+					if (effect.resource === 'adrenaline') {
+						result.adrenalineGain += effect.value || 0;
+					}
 					break;
-				case 'adrenaline':
-					result.adrenalineGain += effect.value || 0;
-					break;
-				case 'move_to_position':
 				case 'change_position':
 					result.changesPosition = true;
 					break;
 				case 'draw_cards':
-				case 'draw':
 					result.drawCards += effect.value || 0;
-					break;
-				case 'apply_status':
-				case 'status':
-					// Check for speed-related statuses
-					if (effect.status === 'speed_boost' || effect.status === 'nitro_boost') {
-						result.speedBoost += effect.value || 0;
-					}
 					break;
 			}
 		}

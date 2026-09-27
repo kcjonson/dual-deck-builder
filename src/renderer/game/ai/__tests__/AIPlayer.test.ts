@@ -64,7 +64,7 @@ describe('AI Player System', () => {
 				name: 'Test Defense',
 				cost: 1,
 				targetType: 'self',
-				effects: [{ type: 'armor', value: 2 }]
+				effects: [{ type: 'gain_armor', value: 2 }]
 			});
 			
 			enemyDriver1.hand = [card1, card2];
@@ -343,7 +343,7 @@ describe('AI Player System', () => {
 						name: 'Armor Up',
 						cost: 1,
 						targetType: 'self',
-						effects: [{ type: 'armor', value: 2 }]
+						effects: [{ type: 'gain_armor', value: 2 }]
 					}));
 				}
 				// Total: 30 cards per deck

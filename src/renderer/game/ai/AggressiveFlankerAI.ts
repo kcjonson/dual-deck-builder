@@ -170,7 +170,7 @@ export class AggressiveFlankerStrategy implements AIStrategy {
 			damage: 0,
 			heal: 0,
 			armor: 0,
-			speedBoost: 0,
+			speedBoost: selfSpeedBonus(card),
 			changesPosition: false
 		};
 
@@ -182,20 +182,14 @@ export class AggressiveFlankerStrategy implements AIStrategy {
 				case 'heal':
 					result.heal += effect.value || 0;
 					break;
-				case 'armor':
+				case 'gain_armor':
 					result.armor += effect.value || 0;
 					break;
-				case 'speed':
-					result.speedBoost += effect.value || 0;
-					break;
-				case 'move_to_position':
 				case 'change_position':
 					result.changesPosition = true;
 					break;
 			}
 		}
-
-		result.speedBoost += selfSpeedBonus(card);
 
 		// Check for variable damage
 		if (card.variables?.damage) {
