@@ -1,6 +1,8 @@
 import { Screen } from '../../core/Screen';
 import { ScreenManager } from '../../core/ScreenManager';
 import { Rectangle } from '../../../engine/components/Rectangle';
+import { Layer } from '../../../engine/components/Layer';
+import { Rect } from '../../../engine/draw/geometry';
 import { EnemyBattlefieldLayer, EnemyIntent } from './EnemyBattlefieldLayer';
 import { PlayerBattlefieldLayer } from './PlayerBattlefieldLayer';
 import { PlayerHandLayer } from './PlayerHandLayer';
@@ -8,6 +10,7 @@ import { ResourceBarLayer } from './ResourceBarLayer';
 import { CombatLogLayer } from './CombatLogLayer';
 import { TurnPhaseDisplay, CombatPhase } from './TurnPhaseDisplay';
 import { CombatModel } from './CombatModel';
+import { CombatLayout, computeCombatLayout } from './CombatLayout';
 import { buildPlayerHandView } from './PlayerHandView';
 import { Driver, DriverRole } from '../../mechanics/Driver';
 import { assertDriverPair } from '../../mechanics/DriverPair';
@@ -28,7 +31,8 @@ import { BattleResultData } from '../battleResult/BattleResultScreen';
  * Layered implementation with proper coordinate management
  */
 export class CombatScreen extends Screen {
-	// Layer components
+	// Layer components, built in onMount
+	private background!: Rectangle;
 	private enemyLayer!: EnemyBattlefieldLayer;
 	private battlefieldLayer!: PlayerBattlefieldLayer;
 	private handLayer!: PlayerHandLayer;
@@ -67,18 +71,12 @@ export class CombatScreen extends Screen {
 		// Create models
 		this.combatLog = new CombatLog(10); // Keep last 10 entries
 		this.combatModel = new CombatModel();
-		
-		// Build UI once during construction
-		this.createBackground();
-		this.createLayers();
-		this.setupInteractions();
-		this.setupModelListeners();
 	}
 
 	/**
 	 * Initialize combat with driver teams and vehicles
 	 */
-	public async initializeCombat(drivers: Driver[]): Promise<void> {
+	private async initializeCombat(drivers: Driver[]): Promise<void> {
 		assertDriverPair(drivers);
 
 		try {
@@ -374,10 +372,19 @@ export class CombatScreen extends Screen {
 	}
 
 	/**
-	 * Create background
+	 * The layout for the screen's current size
 	 */
-	private createBackground(): void {
-		const background = new Rectangle({
+	private get layout(): CombatLayout {
+		return computeCombatLayout({ width: this.rootLayer.getWidth(), height: this.rootLayer.getHeight() });
+	}
+
+	/**
+	 * Create the background and every layer where the layout puts them
+	 */
+	private createLayers(): void {
+		const layout = this.layout;
+
+		this.background = new Rectangle({
 			x: 0,
 			y: 0,
 			width: this.rootLayer.getWidth(),
@@ -386,91 +393,68 @@ export class CombatScreen extends Screen {
 				backgroundColor: '#1a1a1a', // Dark combat background
 			},
 		});
-		this.rootLayer.addChild(background);
-	}
+		this.rootLayer.addChild(this.background);
 
-
-	/**
-	 * Create all UI layers with proper positioning
-	 */
-	private createLayers(): void {
-		const screenWidth = this.rootLayer.getWidth();
-		const screenHeight = this.rootLayer.getHeight();
-		
-		// Resource Layer - Top 7%
-		const resourceLayerHeight = Math.floor(screenHeight * 0.07);
 		this.resourceLayer = new ResourceBarLayer({
 			id: 'combat_resource_bar',
-			x: 0,
-			y: 0,
-			width: screenWidth,
-			height: resourceLayerHeight,
+			...layout.resourceBar,
 		});
 		this.rootLayer.addChild(this.resourceLayer);
-		
-		// Enemy Layer - 23%
-		const enemyLayerHeight = Math.floor(screenHeight * 0.23);
-		const enemyLayerY = resourceLayerHeight;
+
 		this.enemyLayer = new EnemyBattlefieldLayer({
 			id: 'combat_enemy_battlefield',
-			x: 0,
-			y: enemyLayerY,
-			width: screenWidth,
-			height: enemyLayerHeight,
+			...layout.enemyBattlefield,
 			combatData: this.combatModel,
 		});
 		this.rootLayer.addChild(this.enemyLayer);
 
-		// Battlefield Layer - Middle 40%
-		const battlefieldLayerHeight = Math.floor(screenHeight * 0.4);
-		const battlefieldLayerY = enemyLayerY + enemyLayerHeight;
 		this.battlefieldLayer = new PlayerBattlefieldLayer({
 			id: 'combat_player_battlefield',
-			x: 0,
-			y: battlefieldLayerY,
-			width: screenWidth,
-			height: battlefieldLayerHeight,
+			...layout.playerBattlefield,
 			combatData: this.combatModel,
 		});
 		this.rootLayer.addChild(this.battlefieldLayer);
 
-		// Hand Layer - Bottom 18%
-		const handLayerHeight = Math.floor(screenHeight * 0.18);
-		const handLayerY = battlefieldLayerY + battlefieldLayerHeight;
 		this.handLayer = new PlayerHandLayer({
 			id: 'combat_player_hand',
-			x: 0,
-			y: handLayerY,
-			width: screenWidth,
-			height: handLayerHeight,
+			...layout.hand,
 		});
 		this.rootLayer.addChild(this.handLayer);
-		
-		// Turn Phase Display - Below resource bar, left side
+
 		this.turnPhaseDisplay = new TurnPhaseDisplay({
 			id: 'combat_turn_banner',
-			x: 10,
-			y: resourceLayerHeight + 10,
-			width: 200,
-			height: 40
+			...layout.turnBanner,
 		});
 		this.rootLayer.addChild(this.turnPhaseDisplay);
-		
-		// Combat Log - Below resource bar, right side
-		const combatLogWidth = 240; // Reduced width
-		const combatLogHeight = 200; // Reduced height
+
 		this.combatLogLayer = new CombatLogLayer({
 			id: 'combat_log',
-			x: screenWidth - combatLogWidth - 10,
-			y: resourceLayerHeight + 10,
-			width: combatLogWidth,
-			height: combatLogHeight,
-			combatLog: this.combatLog
+			...layout.combatLog,
+			combatLog: this.combatLog,
 		});
 		this.rootLayer.addChild(this.combatLogLayer);
-		
+
 		// Start with combat log hidden
 		this.combatLogLayer.setVisible(this.combatLogVisible);
+	}
+
+	/**
+	 * Move and size every layer to the layout for the current size
+	 */
+	private applyLayout(): void {
+		const layout = this.layout;
+		const place = (layer: Layer, { x, y, width, height }: Rect): void => {
+			layer.setPosition(x, y);
+			layer.setSize(width, height);
+		};
+
+		this.background.setSize(this.rootLayer.getWidth(), this.rootLayer.getHeight());
+		place(this.resourceLayer, layout.resourceBar);
+		place(this.enemyLayer, layout.enemyBattlefield);
+		place(this.battlefieldLayer, layout.playerBattlefield);
+		place(this.handLayer, layout.hand);
+		place(this.turnPhaseDisplay, layout.turnBanner);
+		place(this.combatLogLayer, layout.combatLog);
 	}
 
 	/**
@@ -750,7 +734,11 @@ export class CombatScreen extends Screen {
 	 */
 	protected async onMount(data?: unknown): Promise<void> {
 		super.onMount(data);
-		
+
+		this.createLayers();
+		this.setupInteractions();
+		this.setupModelListeners();
+
 		// Check if we have driver data
 		if (data && typeof data === 'object' && 'drivers' in data) {
 			const combatData = data as { drivers: Driver[] };
@@ -813,52 +801,6 @@ export class CombatScreen extends Screen {
 	 * Handle window resize
 	 */
 	protected onResized(): void {
-		// Update layer positions and sizes
-		const screenWidth = this.rootLayer.getWidth();
-		const screenHeight = this.rootLayer.getHeight();
-		
-		// Update background
-		const background = this.rootLayer.getChildren()[0] as Rectangle;
-		if (background) {
-			background.setSize(screenWidth, screenHeight);
-		}
-		
-		// Only update layers if they exist (screen is fully initialized)
-		if (!this.enemyLayer || !this.battlefieldLayer || !this.handLayer || !this.resourceLayer) {
-			return;
-		}
-		
-		// Update layer sizes and positions
-		const enemyLayerHeight = Math.floor(screenHeight * 0.25);
-		this.enemyLayer.setPosition(0, 0);
-		this.enemyLayer.setSize(screenWidth, enemyLayerHeight);
-		
-		const battlefieldLayerHeight = Math.floor(screenHeight * 0.4);
-		const battlefieldLayerY = enemyLayerHeight;
-		this.battlefieldLayer.setPosition(0, battlefieldLayerY);
-		this.battlefieldLayer.setSize(screenWidth, battlefieldLayerHeight);
-		
-		const handLayerHeight = Math.floor(screenHeight * 0.2);
-		const handLayerY = battlefieldLayerY + battlefieldLayerHeight;
-		this.handLayer.setPosition(0, handLayerY);
-		this.handLayer.setSize(screenWidth, handLayerHeight);
-		
-		const resourceLayerHeight = Math.floor(screenHeight * 0.05);
-		const resourceLayerY = handLayerY + handLayerHeight;
-		this.resourceLayer.setPosition(0, resourceLayerY);
-		this.resourceLayer.setSize(screenWidth, resourceLayerHeight);
-		
-		// Update turn phase display position
-		if (this.turnPhaseDisplay) {
-			this.turnPhaseDisplay.setPosition(10, 10);
-		}
-		
-		// Update combat log position
-		if (this.combatLogLayer) {
-			const combatLogWidth = 300;
-			this.combatLogLayer.setPosition(screenWidth - combatLogWidth - 10, 10);
-		}
-		
-		// Don't recreate all UI elements on resize - they'll be repositioned by their own resize handlers
+		this.applyLayout();
 	}
 }

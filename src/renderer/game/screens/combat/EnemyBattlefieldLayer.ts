@@ -1,10 +1,8 @@
-import { BattlefieldLayer } from './BattlefieldLayer';
-import { LayerOptions } from '../../../engine/components/Layer';
+import { BattlefieldLayer, BattlefieldLayerOptions, LaneDecor } from './BattlefieldLayer';
 import { Vehicle as VehicleData } from '../../mechanics/Vehicle';
 import { Vehicle as VehicleUI } from '../../ui/Vehicle';
 import { Rectangle } from '../../../engine/components/Rectangle';
 import { Text } from '../../../engine/components/Text';
-import { CombatModel } from './CombatModel';
 
 /**
  * Enemy intent indicator types
@@ -80,6 +78,14 @@ class EnemyVehicle extends VehicleUI {
   }
 
   /**
+   * A resize rebuilds the plate, intent marker included, so show the intent again
+   */
+  protected onResized(): void {
+    super.onResized();
+    this.updateIntent();
+  }
+
+  /**
    * Update intent display
    */
   private updateIntent(): void {
@@ -132,6 +138,14 @@ class EnemyVehicle extends VehicleUI {
   }
 }
 
+// Columns mirrored from the player's
+const ENEMY_LANE_DECOR: LaneDecor = {
+  backgroundColor: '#2a1a1a', // Dark enemy battlefield
+  dividerColor: '#3a2a2a',
+  labelColor: '#8a6a6a',
+  labels: ['FRONT', 'BACK', 'FLANKING'],
+};
+
 /**
  * Enemy battlefield display layer
  * Shows enemy vehicles with intent indicators
@@ -140,80 +154,8 @@ export class EnemyBattlefieldLayer extends BattlefieldLayer {
   // Map of vehicle IDs to their intents
   private vehicleIntents: Map<string, EnemyIntent> = new Map();
 
-  constructor(options: LayerOptions & { x: number; y: number; width: number; height: number; combatData?: CombatModel }) {
-    super(options);
-
-    // Background for battlefield
-    const background = new Rectangle({
-      x: 0,
-      y: 0,
-      width: this.getWidth(),
-      height: this.getHeight(),
-      style: {
-        backgroundColor: '#2a1a1a', // Dark enemy battlefield
-      },
-    });
-    this.addChild(background);
-
-    // Lane dividers
-    this.createLaneDividers();
-
-    // Lane labels
-    this.createLaneLabels();
-
-    // Background is already first child, so it's at the back
-  }
-
-  /**
-   * Create visual lane dividers
-   */
-  private createLaneDividers(): void {
-    const laneWidth = Math.floor(this.getWidth() / 3);
-
-    // Divider between Front and Back
-    const divider1 = new Rectangle({
-      x: laneWidth - 1,
-      y: 40,
-      width: 2,
-      height: this.getHeight() - 40,
-      style: {
-        backgroundColor: '#3a2a2a',
-      },
-    });
-    this.addChild(divider1);
-
-    // Divider between Back and Flanking
-    const divider2 = new Rectangle({
-      x: (laneWidth * 2) - 1,
-      y: 40,
-      width: 2,
-      height: this.getHeight() - 40,
-      style: {
-        backgroundColor: '#3a2a2a',
-      },
-    });
-    this.addChild(divider2);
-  }
-
-  /**
-   * Create lane labels (mirrored from player)
-   */
-  private createLaneLabels(): void {
-    const laneWidth = Math.floor(this.getWidth() / 3);
-    const labels = ['FRONT', 'BACK', 'FLANKING']; // Reversed order for enemy
-
-    labels.forEach((label, index) => {
-      const text = new Text(label, {
-        style: {
-          fontSize: 14,
-          color: '#8a6a6a',
-          textAlign: 'center',
-          fontWeight: 'bold',
-        },
-      });
-      text.setPosition(Math.floor(laneWidth * index + laneWidth / 2), 20);
-      this.addChild(text);
-    });
+  constructor(options: BattlefieldLayerOptions) {
+    super({ ...options, laneDecor: ENEMY_LANE_DECOR });
   }
 
   /**
@@ -292,33 +234,5 @@ export class EnemyBattlefieldLayer extends BattlefieldLayer {
     if (card && card instanceof EnemyVehicle) {
       card.setIntent(null);
     }
-  }
-
-  // Removed - targeting is now handled by Vehicle components directly
-
-  /**
-   * Handle resize
-   */
-  protected onResized(): void {
-    // Update background
-    const background = this.children[0] as Rectangle;
-    if (background) {
-      background.setWidth(this.getWidth());
-      background.setHeight(this.getHeight());
-    }
-
-    // Recreate dividers and labels
-    // Remove old ones first
-    const toRemove = this.children.filter(child =>
-      child !== background && !(child instanceof VehicleUI)
-    );
-    toRemove.forEach(child => this.removeChild(child));
-
-    // Recreate
-    this.createLaneDividers();
-    this.createLaneLabels();
-
-    // Call parent resize
-    super.onResized();
   }
 }
