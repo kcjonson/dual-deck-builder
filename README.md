@@ -22,6 +22,14 @@ A roguelike deckbuilder game with WebGL rendering for web and desktop platforms.
 npm install
 ```
 
+### Windows notes
+
+The project was developed on macOS first; two things bite on Windows and both are handled, but worth knowing about.
+
+**Electron binary install.** `yauzl` 2.x, which `extract-zip` uses to unpack the downloaded Electron binary, stalls mid-stream on Node 24 and leaves `node_modules/electron/dist` half-extracted, so `npm run start:electron` dies with "Electron failed to install correctly". `package.json` carries an `overrides` entry pinning `extract-zip`'s `yauzl` to 3.x, which doesn't have the bug. If you ever see that error, delete `node_modules/electron/dist` and `node_modules/electron/path.txt`, then run `node node_modules/electron/install.js`.
+
+**Packaging (`npm run package:win`).** electron-builder's `winCodeSign` archive contains macOS symlinks, and creating symlinks on Windows needs either Developer Mode or an elevated shell. Without one, extraction fails with "Cannot create symbolic link : A required privilege is not held by the client" and the build aborts. Turn on Settings > System > For developers > Developer Mode, or run the package command from an elevated terminal. This is a machine setting, not a repo problem; CI runners already have the privilege.
+
 ### Development
 
 #### Testing & Linting

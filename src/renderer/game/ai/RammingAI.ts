@@ -1,10 +1,11 @@
 import { AIPlayer } from './AIPlayer';
-import { AIDecision, AIStrategy, FAST_VEHICLE_SPEED, GameStateEvaluation, VehicleEvaluation } from './types';
+import { AIDecision, AIStrategy, GameStateEvaluation, VehicleEvaluation } from './types';
 import { Team } from '../mechanics/Team';
 import { Battle } from '../mechanics/Battle';
 import { Vehicle } from '../mechanics/Vehicle';
 import { Card } from '../mechanics/Card';
 import { CardEffectValidator } from './CardEffectValidator';
+import { cardDamageKind, damageToFinish, lastingDamage } from './DamageEstimate';
 
 /**
  * Ramming AI Strategy
@@ -21,7 +22,6 @@ export class RammingStrategy implements AIStrategy {
 	private readonly HEAL_WEIGHT = 50;
 	private readonly KILL_BONUS = 500;
 	private readonly LOW_HEALTH_THRESHOLD = 0.3;
-	private readonly SPEED_THRESHOLD = FAST_VEHICLE_SPEED;
 	private readonly VULNERABLE_BONUS = 1.5;
 
 	chooseBestAction(
@@ -90,10 +90,10 @@ export class RammingStrategy implements AIStrategy {
 		// HIGHEST PRIORITY: Ramming attacks
 		if (cardEffects.isRamming) {
 			score += this.RAMMING_PRIORITY;
-			
-			// Extra bonus if we have high speed
-			const currentSpeed = ourVehicle.speed;
-			if (currentSpeed >= this.SPEED_THRESHOLD) {
+
+			// Extra bonus when we're faster than the target, since a ram hits harder by the speed difference
+			if (action.target instanceof Vehicle &&
+				gameState.board.speedOf(ourVehicle.vehicle) > gameState.board.speedOf(action.target)) {
 				score += this.RAMMING_PRIORITY * 0.5;
 			}
 			
@@ -118,7 +118,7 @@ export class RammingStrategy implements AIStrategy {
 
 					// Check if ram would kill
 					const potentialDamage = this.estimateRamDamage(ourVehicle, targetEval);
-					if (potentialDamage >= targetVehicle.structure + targetVehicle.armor) {
+					if (potentialDamage >= damageToFinish({ target: targetVehicle, kind: cardDamageKind(card) })) {
 						score += this.KILL_BONUS;
 					}
 				}
@@ -129,9 +129,8 @@ export class RammingStrategy implements AIStrategy {
 		if (cardEffects.speedBoost > 0) {
 			score += this.SPEED_PRIORITY;
 			
-			// Extra priority if we're below speed threshold
-			const currentSpeed = ourVehicle.speed;
-			if (currentSpeed < this.SPEED_THRESHOLD) {
+			// Extra priority if we're not faster than anyone we could ram
+			if (!this.outpacesAnyEnemy(ourVehicle.vehicle, gameState)) {
 				score += this.SPEED_PRIORITY * 0.5;
 			}
 		}
@@ -162,19 +161,24 @@ export class RammingStrategy implements AIStrategy {
 
 		// Score regular damage (lower priority than ramming)
 		if (cardEffects.damage > 0 && !cardEffects.isRamming) {
-			let damageScore = cardEffects.damage * this.DAMAGE_WEIGHT;
+			const damageKind = cardDamageKind(card);
+			const damageTarget = action.target && 'structure' in action.target ? action.target as Vehicle : null;
+			// Damage that only soaks into Shield is gone by the player's turn
+			const damageThatLasts = damageTarget
+				? lastingDamage({ target: damageTarget, damage: cardEffects.damage, kind: damageKind })
+				: cardEffects.damage;
+			let damageScore = damageThatLasts * this.DAMAGE_WEIGHT;
 
 			// Consider target
-			if (action.target && 'structure' in action.target) {
-				const targetVehicle = action.target as Vehicle;
-				const targetEval = this.getVehicleEvaluation(targetVehicle, gameState);
+			if (damageTarget) {
+				const targetEval = this.getVehicleEvaluation(damageTarget, gameState);
 				
 				if (targetEval) {
 					// Bonus for attacking low health targets
 					damageScore *= (2 - targetEval.healthPercent);
 					
 					// Kill bonus
-					if (cardEffects.damage >= targetVehicle.structure + targetVehicle.armor) {
+					if (cardEffects.damage >= damageToFinish({ target: damageTarget, kind: damageKind })) {
 						damageScore += this.KILL_BONUS * 0.5; // Less than ram kill
 					}
 				}
@@ -320,6 +324,14 @@ export class RammingStrategy implements AIStrategy {
 		}
 
 		return result;
+	}
+
+	/**
+	 * Faster than at least one vehicle on the other side still in the fight
+	 */
+	private outpacesAnyEnemy(vehicle: Vehicle, gameState: GameStateEvaluation): boolean {
+		const board = gameState.board;
+		return board.enemiesOf(vehicle).some(enemy => !enemy.isOutOfFight && board.speedOf(vehicle) > board.speedOf(enemy));
 	}
 
 	private estimateRamDamage(

@@ -162,6 +162,19 @@ describe('Raider target preferences', () => {
 			expect(intentTargets(battle, buggy)).toEqual([damaged.id]);
 		});
 
+		test('passes up a hauler whose Shield it can\'t get through for a fresh one', () => {
+			const fresh = escortAt('fuel_hauler', slot(P_OUTSIDE, CENTER));
+			const shielded = escortAt('med_truck', slot(P_OUTSIDE, BEHIND));
+			shielded.set({ structure: 2, armor: 0 });
+			shielded.addShield(20);
+			const { battle, buggy } = setup({ archetype: 'looter', escorts: [fresh, shielded], escortsFirst: false });
+			battle.aiController.setEnemyAI('aggressive');
+			plan(battle, buggy, [potShot()]);
+
+			// Pot Shot's 3 goes into the Shield and wrecks nothing, so the Med Truck isn't a kill
+			expect(intentTargets(battle, buggy)).toEqual([fresh.id]);
+		});
+
 		test('a flank keeps its usual target, since nothing lands on the vehicle it outruns', () => {
 			const hauler = escortAt('fuel_hauler', slot(P_OUTSIDE, CENTER));
 			const { battle, rig, buggy } = setup({ archetype: 'looter', escorts: [hauler], escortsFirst: false });

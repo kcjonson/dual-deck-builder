@@ -76,6 +76,13 @@ export function statusSpeedModifier(effect: VehicleStatusEffect): number {
 	}
 }
 
+/**
+ * Speed on the road from a speed sum: never below 0
+ */
+export function floorSpeed(speedSum: number): number {
+	return Math.max(0, speedSum);
+}
+
 // VehicleState is now the same as VehicleData
 export type VehicleState = VehicleData;
 
@@ -189,6 +196,18 @@ export class Vehicle extends Model<VehicleData> {
 		if (!this.isAlive()) {
 			this.emit('destroyed', this);
 		}
+	}
+
+	/**
+	 * The smallest single hit that wrecks this vehicle through takeDamage:
+	 * Shield and armor first, then twice the structure less one while anyone
+	 * aboard is alive to take the other half, or just the structure when
+	 * nobody is.
+	 */
+	public get damageToWreck(): number {
+		const occupied = [this.driver, this.passenger].some(occupant => occupant?.isAlive() ?? false);
+		const throughStructure = occupied ? this.structure * 2 - 1 : this.structure;
+		return (this.shield ?? 0) + this.armor + Math.max(0, throughStructure);
 	}
 
 	/**
@@ -306,9 +325,19 @@ export class Vehicle extends Model<VehicleData> {
 	 * has nobody at the wheel, so its speed is its base speed.
 	 */
 	public get speed(): number {
+		return floorSpeed(this.speedSum);
+	}
+
+	/**
+	 * Base speed, driver speed, and statuses summed before the floor at 0.
+	 * A slow can take it below 0, and a boost adds to the sum, not to 0, so
+	 * anything that stacks speed changes (the planning projection) works
+	 * from this and floors once.
+	 */
+	public get speedSum(): number {
 		const driverSpeed = this.driver?.skills.speed ?? 0;
 		const statusModifier = this.statusEffects.reduce((sum, effect) => sum + statusSpeedModifier(effect), 0);
-		return Math.max(0, this.baseSpeed + driverSpeed + statusModifier);
+		return this.baseSpeed + driverSpeed + statusModifier;
 	}
 
 	/**
