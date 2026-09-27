@@ -71,9 +71,9 @@ export class AIController {
 	 * time in team order, which is the order they act, against one shared
 	 * projection, so a later pick sees the board after an earlier flank or
 	 * speed change, this raider's or another's. The projection starts where
-	 * the enemy turn will (Battle.projectEnemyTurnStart), so a flanker
-	 * already certain to drop back plans from its reserved slot. With no
-	 * enemy AI set, raiders play their first playable card each time.
+	 * the enemy turn will as the board stands (Battle.projectEnemyTurnStart),
+	 * so a flanker expected to drop back plans from its reserved slot. With
+	 * no enemy AI set, raiders play their first playable card each time.
 	 */
 	planEnemyTurn(): Map<Vehicle, PlannedAction[]> {
 		const team = this.battle.enemyTeam;

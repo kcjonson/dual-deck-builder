@@ -763,8 +763,9 @@ export class Battle extends Model<BattleData> {
 	 * raider acts, if the player's turn ended now: flankers that will drop
 	 * back are in their reserved slots (dropBackSlotOf, which
 	 * dropBackFlankers uses too), and wrecks are off the road. Planning and
-	 * the preview both start from it, so a raider never plans from a shoulder
-	 * it's already certain to lose.
+	 * the preview both start from it, so a raider doesn't plan from a
+	 * shoulder it's expected to lose as the board stands. The player can
+	 * still change that before the turn ends.
 	 */
 	public projectEnemyTurnStart(): BoardProjection {
 		const board = new BoardProjection({ battle: this });
