@@ -351,8 +351,9 @@ export class CombatScreen extends Screen {
 			this.enemyLayer.setVehicles(this.enemyTeam.vehicles);
 			
 			// Show each raider's first planned intent until the intent pills land (DDB-33)
+			const intents = this.battle?.getAllIntents();
 			this.enemyTeam.vehicles.forEach(vehicle => {
-				const [planned] = this.battle?.getIntents(vehicle) ?? [];
+				const [planned] = intents?.get(vehicle) ?? [];
 				if (!planned) {
 					this.enemyLayer.clearVehicleIntent(vehicle.id);
 					return;
