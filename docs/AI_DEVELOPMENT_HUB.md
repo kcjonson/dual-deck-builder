@@ -30,6 +30,7 @@ The combat screen's layout and the rules it depends on are decided and written d
 - Hand cap 7 is enforced in `Driver.drawCards` (DDB-130): draws past it go to discard, emit `cardsBurned` for the UI, and log in the battle log.
 - `DriverLoader` never exposes its templates (DDB-157): every getter returns fresh copies, so combat can mutate its drivers freely and each run starts clean.
 - No duplicate driver is enforced (DDB-98): the driver-selection panels skip each other's driver, and `CombatScreen.initializeCombat` rejects a same-archetype pair through `mechanics/DriverPair.ts`. `Team` doesn't check it yet because the AI and battle test fixtures field two Road Warriors.
+- Combat screen layout (DDB-124): `computeCombatLayout` in `screens/combat/CombatLayout.ts` is the one layout for mount and every resize, and `CombatScreen` builds its UI in `onMount`. Each combat layer lays out its own children the same way on construction and resize, so a resized screen matches one mounted at that size. The bands still stop at 88% of the height; what fills the bottom 12% is open for Kevin and the redesign (DDB-127).
 - Bugs from the 2026-09-25 capture and playthrough are DDB-111 to DDB-126 under DDB-5. Build work is its own epic on Specboard; the UI half is sequenced behind DDB-55's phases 4 to 6 (DDB-82 now builds these bands, DDB-88 the dock, detail view, and targeting).
 
 ## UI rendering engine rework (documentation complete, phase 0 complete, lint gate armed, 2026-09-09)

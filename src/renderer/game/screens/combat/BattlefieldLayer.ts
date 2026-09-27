@@ -1,7 +1,25 @@
 import { Layer, LayerOptions } from '../../../engine/components/Layer';
+import { Rectangle } from '../../../engine/components/Rectangle';
+import { Text } from '../../../engine/components/Text';
 import { Vehicle, VehicleData } from '../../mechanics/Vehicle';
 import { LaneKind, ROW_ORDER, laneKind } from '../../mechanics/Road';
 import { CombatModel } from './CombatModel';
+
+/**
+ * A team's battlefield colors and its three column labels, left to right
+ */
+export interface LaneDecor {
+	backgroundColor: string;
+	dividerColor: string;
+	labelColor: string;
+	labels: [string, string, string];
+}
+
+export type BattlefieldLayerOptions = LayerOptions & { x: number; y: number; width: number; height: number; combatData?: CombatModel };
+
+const LANE_LABEL_Y = 20;
+const LANE_DIVIDER_TOP = 40;
+const LANE_DIVIDER_WIDTH = 2;
 
 /**
  * Base class for displaying vehicles in combat
@@ -12,7 +30,7 @@ import { CombatModel } from './CombatModel';
 export abstract class BattlefieldLayer extends Layer {
 	protected vehicles: Vehicle[] = [];
 	protected vehicleCards: Map<string, Layer> = new Map();
-	
+
 	// Lane containers
 	protected lanes: Map<LaneKind, {
 		x: number;
@@ -20,28 +38,65 @@ export abstract class BattlefieldLayer extends Layer {
 		width: number;
 		height: number;
 	}> = new Map();
-	
+
 	// Combat model reference
 	protected combatData: CombatModel | null = null;
-	
-	constructor(options: LayerOptions & { x: number; y: number; width: number; height: number; combatData?: CombatModel }) {
+
+	// Drawn behind the vehicles, created once and moved by layoutLanes
+	private background: Rectangle;
+	private laneDividers: Rectangle[];
+	private laneLabels: Text[];
+
+	constructor(options: BattlefieldLayerOptions & { laneDecor: LaneDecor }) {
 		super(options);
 		this.combatData = options.combatData || null;
-		
-		// Set overflow hidden to ensure content stays within layer bounds
-		this.setOverflow('hidden');
-		
-		// Initialize lane positions
-		this.initializeLanes();
+
+		const decor = options.laneDecor;
+		this.background = new Rectangle({ style: { backgroundColor: decor.backgroundColor } });
+		this.addChild(this.background);
+		this.laneDividers = [0, 1].map(() => {
+			const divider = new Rectangle({ style: { backgroundColor: decor.dividerColor } });
+			this.addChild(divider);
+			return divider;
+		});
+		this.laneLabels = decor.labels.map(label => {
+			const text = new Text(label, {
+				style: {
+					fontSize: 14,
+					color: decor.labelColor,
+					textAlign: 'center',
+					fontWeight: 'bold',
+				},
+			});
+			this.addChild(text);
+			return text;
+		});
+
+		this.layoutLanes();
 	}
-	
+
 	/**
-	 * Initialize lane layout
+	 * Lay out the lanes, their dividers and labels, and the background for
+	 * the layer's current size, on construction and on every resize
 	 */
-	protected initializeLanes(): void {
+	protected layoutLanes(): void {
 		const laneWidth = Math.floor(this.getWidth() / 3);
 		const laneHeight = this.getHeight();
-		
+
+		// Keeps content within layer bounds; a layer can only clip once it has a size
+		if (this.getWidth() > 0 && laneHeight > 0) {
+			this.setOverflow('hidden');
+		}
+
+		this.background.setSize(this.getWidth(), laneHeight);
+		this.laneDividers.forEach((divider, index) => {
+			divider.setPosition(laneWidth * (index + 1) - LANE_DIVIDER_WIDTH / 2, LANE_DIVIDER_TOP);
+			divider.setSize(LANE_DIVIDER_WIDTH, laneHeight - LANE_DIVIDER_TOP);
+		});
+		this.laneLabels.forEach((label, index) => {
+			label.setPosition(Math.floor(laneWidth * index + laneWidth / 2), LANE_LABEL_Y);
+		});
+
 		// Define lanes from left to right: shoulder, outside, inside
 		this.lanes.set('shoulder', {
 			x: 0,
@@ -193,10 +248,7 @@ export abstract class BattlefieldLayer extends Layer {
 	 * Handle resize
 	 */
 	protected onResized(): void {
-		// Reinitialize lanes with new dimensions
-		this.initializeLanes();
-		
-		// Re-layout all vehicles
+		this.layoutLanes();
 		this.layoutVehicles();
 	}
 }
