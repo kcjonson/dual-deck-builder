@@ -7,6 +7,7 @@ import { Driver } from '../mechanics/Driver';
 import { Card, CardEffect } from '../mechanics/Card';
 import { laneKind } from '../mechanics/Road';
 import { DamageKind, damageToFinish, effectDamageKind } from './DamageEstimate';
+import { EffectRecipient, effectRecipientOf } from '../mechanics/EffectTargets';
 
 /**
  * Monte Carlo Tree Search AI Player
@@ -203,6 +204,8 @@ export class MCTSAI extends AIPlayer {
 			// Evaluate card effects with context
 			if (card.effects) {
 				for (const effect of card.effects) {
+					// Self damage (Ramming Run's cost) lands on us, not the target
+					if (effect.type === 'damage' && effectRecipientOf({ effect, card }) === EffectRecipient.CASTER) continue;
 					score += this.evaluateEffectWithContext(effect, action.target, ourVehicle);
 				}
 			}

@@ -310,13 +310,15 @@ export class BoardProjection {
 	}
 
 	/**
-	 * Whether the flanker could flank anyone on the other team, with a speed
-	 * bonus counted first. Flanking is relative: a speed 5 raider outruns a
-	 * speed 2 Rig but not a speed 8 Bike, so this, not a fixed speed, is what
-	 * makes a vehicle fast enough to flank.
+	 * Whether the flanker could flank anyone on the other team still in the
+	 * fight, with a speed bonus counted first. Flanking is relative: a speed 5
+	 * raider outruns a speed 2 Rig but not a speed 8 Bike, so this, not a
+	 * fixed speed, is what makes a vehicle fast enough to flank. An unmanned
+	 * raider can't be targeted, so it can't be flanked.
 	 */
 	public canFlankAnyone(flanker: Vehicle, speedBonus = 0): boolean {
-		return this.enemiesOf(flanker).some(target => this.flankBlocker(flanker, target, speedBonus) === null);
+		return this.enemiesOf(flanker).some(target =>
+			!target.isOutOfFight && this.flankBlocker(flanker, target, speedBonus) === null);
 	}
 
 	/**

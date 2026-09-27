@@ -71,21 +71,16 @@ export class AggressiveFlankerStrategy implements AIStrategy {
 		// Get card effects
 		const cardEffects = this.analyzeCardEffects(card);
 
-		// Fast enough means able to outrun someone on the road right now
-		const canFlankNow = gameState.board.canFlankAnyone(ourVehicle.vehicle);
-
-		// Prioritize position changes to flanking
+		// Moving to the shoulder. A Flank is only offered at a target it can
+		// outrun, so every legal one gets the full priority.
 		if (cardEffects.changesPosition && !ourVehicle.isFlanking) {
-			score += this.POSITION_WEIGHT * 2;
-
-			if (canFlankNow) {
-				score += this.POSITION_WEIGHT;
-			}
+			score += this.POSITION_WEIGHT * 3;
 		}
 
 		// A speed boost is worth a lot when it's what opens a flank
-		if (cardEffects.speedBoost > 0 && !ourVehicle.isFlanking && !canFlankNow &&
-			gameState.board.canFlankAnyone(ourVehicle.vehicle, cardEffects.speedBoost)) {
+		const board = gameState.board;
+		if (cardEffects.speedBoost > 0 && !ourVehicle.isFlanking &&
+			!board.canFlankAnyone(ourVehicle.vehicle) && board.canFlankAnyone(ourVehicle.vehicle, cardEffects.speedBoost)) {
 			score += this.POSITION_WEIGHT * 2;
 		}
 

@@ -353,12 +353,12 @@ describe('AggressiveFlankerAI', () => {
 				expect((await ai.makeDecision())?.card).toBe(powerShot);
 			});
 
-			test('gets the bonus for having the speed to flank', () => {
+			test('every legal Flank gets the full flank priority', () => {
 				const { raider, players, ai } = setup([2, 4]);
 				const flank = realCard('flank');
 				driverOf(raider).set({ hand: [flank] });
 
-				// POSITION_WEIGHT (200) twice for moving to the shoulder, once more for the speed to do it
+				// POSITION_WEIGHT (200) three times
 				expect(ai.score(play(raider, flank, players[0]))).toBe(600);
 			});
 		});
@@ -375,6 +375,17 @@ describe('AggressiveFlankerAI', () => {
 			expect(board.canFlankAnyone(raider, 3)).toBe(true);
 			expect(ai.score(play(raider, nitro))).toBe(400);
 			expect((await ai.makeDecision())?.card).toBe(nitro);
+		});
+
+		test('an unmanned raider isn\'t someone to flank', () => {
+			// The player's 8 outruns the Buggy's 5 until nobody is left aboard it
+			const { battle, raider, players } = setup([8, 8]);
+			expect(new BoardProjection({ battle }).canFlankAnyone(players[0])).toBe(true);
+
+			driverOf(raider).set({ hitpoints: 0 });
+
+			expect(raider.isUnmanned()).toBe(true);
+			expect(new BoardProjection({ battle }).canFlankAnyone(players[0])).toBe(false);
 		});
 
 		test('a boost that opens no flank earns no speed bonus', () => {
