@@ -9,6 +9,11 @@ import { CardData, CardEffect } from '../../mechanics/Card';
  * Nitro Boost. This reads every AI source file for the effect types,
  * statuses, and resources it checks and fails on any the card data doesn't
  * have.
+ *
+ * It reads source text, so it isn't full coverage. It can't see a
+ * destructured field (`const { type } = effect`), a type string passed to a
+ * helper (`hasEffect(card, 'speed')`), a backtick string, or an effect held in
+ * a variable with an exempt name such as `card`.
  */
 
 const AI_DIR = path.join(__dirname, '..');
@@ -69,7 +74,7 @@ function namedCollection(source: string, name: string): string[] {
  * case labels, and lookups in a named object, Set, or Map
  */
 function checkedNames(source: string, field: Field): string[] {
-	const read = String.raw`(${RECEIVER})\.${field}\b`;
+	const read = String.raw`(${RECEIVER})\??\.${field}\b`;
 	const counts = (receiver: string): boolean => field !== 'type' || !NOT_AN_EFFECT.test(receiver);
 	const names: string[] = [];
 
@@ -123,6 +128,7 @@ describe('the AI strategies only check effect types, statuses, and resources the
 		test.each([
 			['any variable name', 'if (fx.type === \'speed\') {}'],
 			['a chained receiver', 'if (this.effect.type === \'speed\') {}'],
+			['optional chaining', 'if (fx?.type === \'speed\') {}'],
 			['double quotes', 'if (fx.type === "speed") {}'],
 			['loose equality', 'if (x.type == \'speed\') {}'],
 			['inequality', 'if (x.type !== \'speed\') {}'],
@@ -140,6 +146,7 @@ describe('the AI strategies only check effect types, statuses, and resources the
 
 		test('a dead status and a dead resource', () => {
 			expect(unknownNames('if (fx.status === "nitro_boost" || fx.resource === \'fuel\') {}')).toEqual({ type: [], status: ['nitro_boost'], resource: ['fuel'] });
+			expect(unknownNames('if (fx?.status === \'nitro_boost\' || fx?.resource === \'fuel\') {}')).toEqual({ type: [], status: ['nitro_boost'], resource: ['fuel'] });
 		});
 
 		test('a condition-only status', () => {
