@@ -1,7 +1,6 @@
 import { Battle } from '../mechanics/Battle';
 import { Team } from '../mechanics/Team';
 import { Vehicle } from '../mechanics/Vehicle';
-import { BoardProjection } from '../mechanics/BoardProjection';
 import { PlannedAction } from '../mechanics/Intent';
 import { AIPlayer } from './AIPlayer';
 import { RandomAI } from './RandomAI';
@@ -71,13 +70,15 @@ export class AIController {
 	 * Commit every raider's cards for its coming turn. Raiders plan one at a
 	 * time in team order, which is the order they act, against one shared
 	 * projection, so a later pick sees the board after an earlier flank or
-	 * speed change, this raider's or another's. With no enemy AI set, raiders
-	 * play their first playable card each time.
+	 * speed change, this raider's or another's. The projection starts where
+	 * the enemy turn will as the board stands (Battle.projectEnemyTurnStart),
+	 * so a flanker expected to drop back plans from its reserved slot. With
+	 * no enemy AI set, raiders play their first playable card each time.
 	 */
 	planEnemyTurn(): Map<Vehicle, PlannedAction[]> {
 		const team = this.battle.enemyTeam;
 		const ai = this.enemyAI ?? new FirstPlayableAI(team, this.battle);
-		const board = new BoardProjection({ battle: this.battle });
+		const board = this.battle.projectEnemyTurnStart();
 		const plans = new Map<Vehicle, PlannedAction[]>();
 
 		for (const raider of team.vehicles) {

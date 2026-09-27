@@ -346,6 +346,24 @@ export class BoardProjection {
 	}
 
 	/**
+	 * Swerve a flanker back to its reserved slot, as the end-of-turn
+	 * drop-back does. The battle decides who drops back.
+	 */
+	public dropBack(vehicle: Vehicle): void {
+		const state = this.vehicles.get(vehicle);
+		if (!state?.flank?.reservedSlot) return;
+		state.slot = state.flank.reservedSlot;
+		state.flank = null;
+	}
+
+	/**
+	 * Take a vehicle off the road, as clearing a wreck at the end of a turn does
+	 */
+	public leaveRoad(vehicle: Vehicle): void {
+		this.vehicles.delete(vehicle);
+	}
+
+	/**
 	 * Every vehicle on the other team from this one
 	 */
 	public enemiesOf(vehicle: Vehicle): Vehicle[] {

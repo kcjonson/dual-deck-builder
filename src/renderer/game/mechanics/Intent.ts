@@ -41,7 +41,11 @@ export interface PlannedAction {
 	card: Card;
 	driver: Driver;
 	target: Vehicle | null;
-	/** The raider's projected slot, flank state, and speed when this card resolves, after its earlier planned cards. */
+	/**
+	 * The raider's slot, flank state, and speed for this card as planning
+	 * projected them, after its earlier planned cards. The preview re-derives
+	 * them (Battle.projectEnemyTurn), since the player's turn can change them.
+	 */
 	slot: RoadSlot | null;
 	flanking: boolean;
 	speed: number;
