@@ -59,8 +59,13 @@ export class CombatScreen extends Screen {
 	private combatLogVisible = false;
 	
 	
-	// Event unsubscribe functions
+	// Event unsubscribe functions: battle and team events, and the combat model's
 	private unsubscribers: (() => void)[] = [];
+	private modelUnsubscribers: (() => void)[] = [];
+
+	// Bumped on every mount and unmount, so a load that finishes after its
+	// mount has ended knows to stop
+	private mountGeneration = 0;
 
 	/**
 	 * Create combat screen
@@ -76,14 +81,14 @@ export class CombatScreen extends Screen {
 	/**
 	 * Initialize combat with driver teams and vehicles
 	 */
-	private async initializeCombat(drivers: Driver[]): Promise<void> {
+	private async initializeCombat(drivers: Driver[], generation: number): Promise<void> {
 		assertDriverPair(drivers);
 
 		try {
 			// Ensure cards are loaded
 			const cardLoader = CardLoader.getInstance();
 			await cardLoader.loadCards();
-			// const availableCards = cardLoader.getAllCards(); // For future use
+			if (generation !== this.mountGeneration) return;
 
 			// Create vehicles from driver configurations
 			const [driver1, driver2] = drivers;
@@ -497,17 +502,19 @@ export class CombatScreen extends Screen {
 	 * Set up combat model listeners
 	 */
 	private setupModelListeners(): void {
-		// Listen for when a vehicle is targeted
-		this.combatModel.on('targetedVehicle', (vehicle: Vehicle | null) => {
-			if (vehicle && this.combatModel.selectedCard && this.combatModel.selectedDriver) {
-				this.playCardWithTarget(this.combatModel.selectedCard, vehicle);
-			}
-		});
+		this.modelUnsubscribers.push(
+			// Listen for when a vehicle is targeted
+			this.combatModel.on('targetedVehicle', (vehicle: Vehicle | null) => {
+				if (vehicle && this.combatModel.selectedCard && this.combatModel.selectedDriver) {
+					this.playCardWithTarget(this.combatModel.selectedCard, vehicle);
+				}
+			}),
 
-		// Over a raider, an attack order lights up the escort that would carry it out
-		this.combatModel.on('focusedVehicleId', (vehicleId: string | null) => {
-			this.combatModel.carrierVehicleId = this.findOrderCarrierId(vehicleId);
-		});
+			// Over a raider, an attack order lights up the escort that would carry it out
+			this.combatModel.on('focusedVehicleId', (vehicleId: string | null) => {
+				this.combatModel.carrierVehicleId = this.findOrderCarrierId(vehicleId);
+			}),
+		);
 	}
 
 	/**
@@ -734,6 +741,7 @@ export class CombatScreen extends Screen {
 	 */
 	protected async onMount(data?: unknown): Promise<void> {
 		super.onMount(data);
+		const generation = ++this.mountGeneration;
 
 		this.createLayers();
 		this.setupInteractions();
@@ -743,23 +751,19 @@ export class CombatScreen extends Screen {
 		if (data && typeof data === 'object' && 'drivers' in data) {
 			const combatData = data as { drivers: Driver[] };
 			try {
-				await this.initializeCombat(combatData.drivers);
-				// Force another UI update after async initialization completes
-				this.updateUIFromBattle();
+				await this.initializeCombat(combatData.drivers, generation);
 			} catch (error) {
 				console.error('Failed to initialize combat:', error);
 			}
-		} else if (this.battle) {
-			// Update UI from existing battle state
-			this.updateUIFromBattle();
 		} else {
 			// For development - create default drivers if none provided
 			try {
 				const driverLoader = DriverLoader.getInstance();
 				await driverLoader.loadDrivers();
+				if (generation !== this.mountGeneration) return;
 				const drivers = driverLoader.getUnlockedDrivers();
 				if (drivers.length >= 2) {
-					await this.initializeCombat([drivers[0], drivers[1]]);
+					await this.initializeCombat([drivers[0], drivers[1]], generation);
 				} else {
 					console.error('Not enough drivers available for default combat');
 				}
@@ -773,28 +777,32 @@ export class CombatScreen extends Screen {
 	 * Handle screen unmount
 	 */
 	protected onUnmount(): void {
+		// A load still in flight for this mount stops when it lands
+		this.mountGeneration++;
+
 		// Cancel any active targeting
 		if (this.combatModel.isTargeting) {
 			this.combatModel.cancelSelection();
 			this.handLayer.clearCardSelection();
 		}
-		
-		// Unmount all layers (this will unmount cards too)
-		this.handLayer.unmount();
-		this.enemyLayer.unmount();
-		this.battlefieldLayer.unmount();
-		this.resourceLayer.unmount();
-		this.combatLogLayer.unmount();
-		
+
+		// Remove every layer so a remount builds them fresh; removeChild
+		// unmounts each one, cards included
+		for (const layer of [...this.rootLayer.getChildren()]) {
+			this.rootLayer.removeChild(layer);
+		}
+
 		// Unregister global keyboard handler
 		InputSystem.unregisterGlobalKeyDown('F6');
 
 		// rootLayer is a plain Layer, whose unmount only recurses; it does not
 		// unregister itself the way Component.unmount does.
 		InputSystem.unregisterComponent(this.rootLayer);
-		
+
 		// Unsubscribe from all events
 		this.unsubscribeAll();
+		this.modelUnsubscribers.forEach(unsubscribe => unsubscribe());
+		this.modelUnsubscribers = [];
 	}
 
 	/**

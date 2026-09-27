@@ -28,15 +28,15 @@ interface StatDisplay {
  */
 export class DriverStatsDisplay extends Layer {
 	private driverNumber: 1 | 2;
-	private nameLabel: Text | null = null;
-	private adrenalineIcons: Rectangle[] = [];
-	private adrenalineText: Text | null = null;
-	
+	private nameLabel: Text;
+	private adrenalineIcons: Rectangle[];
+	private adrenalineText: Text;
+
 	// Stat displays
-	private drawPile: StatDisplay | null = null;
-	private discardPile: StatDisplay | null = null;
-	private fuel: StatDisplay | null = null;
-	
+	private drawPile: StatDisplay;
+	private discardPile: StatDisplay;
+	private fuel: StatDisplay;
+
 	// Current data
 	private data: DriverResourceData = {
 		name: 'Driver',
@@ -51,7 +51,43 @@ export class DriverStatsDisplay extends Layer {
 		super(options);
 
 		this.driverNumber = options.driverNumber;
-		this.createElements();
+
+		// Created here and placed by layoutElements
+		this.nameLabel = new Text(this.data.name, {
+			style: {
+				fontSize: 10,
+				color: '#cccccc',
+				textAlign: 'left',
+			},
+		});
+		this.addChild(this.nameLabel);
+
+		this.adrenalineIcons = Array.from({ length: this.data.maxAdrenaline }, () => {
+			const boltIcon = new Rectangle({
+				style: {
+					backgroundColor: '#6a6aaa',
+					borderColor: '#8a8acc',
+					borderWidth: 1,
+				},
+			});
+			this.addChild(boltIcon);
+			return boltIcon;
+		});
+
+		this.adrenalineText = new Text(`${this.data.adrenaline}/${this.data.maxAdrenaline}`, {
+			id: `driver${this.driverNumber}_adrenaline_value`,
+			style: {
+				fontSize: 10,
+				color: '#ffffff',
+				textAlign: 'center',
+			},
+		});
+		this.addChild(this.adrenalineText);
+
+		this.drawPile = this.createStatDisplay('#4a4a6a', this.data.drawPileCount.toString());
+		this.discardPile = this.createStatDisplay('#6a4a4a', this.data.discardPileCount.toString());
+		this.fuel = this.createStatDisplay('#6a6a4a', this.data.fuel.toString(), '⛽');
+
 		this.layoutElements();
 	}
 
@@ -111,46 +147,6 @@ export class DriverStatsDisplay extends Layer {
 	}
 
 	/**
-	 * Create all display elements; layoutElements places them
-	 */
-	private createElements(): void {
-		this.nameLabel = new Text(this.data.name, {
-			style: {
-				fontSize: 10,
-				color: '#cccccc',
-				textAlign: 'left',
-			},
-		});
-		this.addChild(this.nameLabel);
-
-		for (let i = 0; i < this.data.maxAdrenaline; i++) {
-			const boltIcon = new Rectangle({
-				style: {
-					backgroundColor: '#6a6aaa',
-					borderColor: '#8a8acc',
-					borderWidth: 1,
-				},
-			});
-			this.addChild(boltIcon);
-			this.adrenalineIcons.push(boltIcon);
-		}
-
-		this.adrenalineText = new Text(`${this.data.adrenaline}/${this.data.maxAdrenaline}`, {
-			id: `driver${this.driverNumber}_adrenaline_value`,
-			style: {
-				fontSize: 10,
-				color: '#ffffff',
-				textAlign: 'center',
-			},
-		});
-		this.addChild(this.adrenalineText);
-
-		this.drawPile = this.createStatDisplay('#4a4a6a', this.data.drawPileCount.toString());
-		this.discardPile = this.createStatDisplay('#6a4a4a', this.data.discardPileCount.toString());
-		this.fuel = this.createStatDisplay('#6a6a4a', this.data.fuel.toString(), '⛽');
-	}
-
-	/**
 	 * Place every element for the display's current height, on construction
 	 * and on every resize
 	 */
@@ -161,7 +157,7 @@ export class DriverStatsDisplay extends Layer {
 		const padding = 5;
 		let currentX = 0;
 
-		this.nameLabel?.setPosition(currentX, Math.floor(height * 0.2));
+		this.nameLabel.setPosition(currentX, Math.floor(height * 0.2));
 
 		for (const boltIcon of this.adrenalineIcons) {
 			boltIcon.setPosition(currentX, Math.floor((height - iconSize) / 2));
@@ -169,13 +165,11 @@ export class DriverStatsDisplay extends Layer {
 			currentX += iconSize + 2;
 		}
 
-		this.adrenalineText?.setPosition(currentX + 10, Math.floor(height / 2));
+		this.adrenalineText.setPosition(currentX + 10, Math.floor(height / 2));
 		currentX += 40;
 
 		for (const stat of [this.drawPile, this.discardPile, this.fuel]) {
-			if (stat) {
-				this.layoutStatDisplay(stat, currentX, smallIconSize);
-			}
+			this.layoutStatDisplay(stat, currentX, smallIconSize);
 			currentX += smallIconSize + padding;
 		}
 	}
@@ -195,7 +189,7 @@ export class DriverStatsDisplay extends Layer {
 		Object.assign(this.data, data);
 		
 		// Update name
-		if (data.name && this.nameLabel) {
+		if (data.name) {
 			this.nameLabel.setText(data.name);
 		}
 		
@@ -216,29 +210,19 @@ export class DriverStatsDisplay extends Layer {
 				}
 			});
 			
-			// Update text
-			if (this.adrenalineText) {
-				this.adrenalineText.setText(`${this.data.adrenaline}/${this.data.maxAdrenaline}`);
-			}
+			this.adrenalineText.setText(`${this.data.adrenaline}/${this.data.maxAdrenaline}`);
 		}
-		
+
 		// Update stat displays
-		if (this.drawPile && data.drawPileCount !== undefined) {
+		if (data.drawPileCount !== undefined) {
 			this.drawPile.text.setText(data.drawPileCount.toString());
 		}
-		if (this.discardPile && data.discardPileCount !== undefined) {
+		if (data.discardPileCount !== undefined) {
 			this.discardPile.text.setText(data.discardPileCount.toString());
 		}
-		if (this.fuel && data.fuel !== undefined) {
+		if (data.fuel !== undefined) {
 			this.fuel.text.setText(data.fuel.toString());
 		}
-	}
-	
-	/**
-	 * Get current data
-	 */
-	public getData(): DriverResourceData {
-		return { ...this.data };
 	}
 	
 	/**

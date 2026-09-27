@@ -28,9 +28,6 @@ export class ResourceBarLayer extends Layer {
 	private scrap: ScrapDisplay;
 	private endTurnButton: Button;
 
-	// Shared resource values
-	private scrapAmount = 0;
-
 	// Callbacks
 	private onEndTurn: (() => void) | null = null;
 
@@ -73,7 +70,6 @@ export class ResourceBarLayer extends Layer {
 		this.endTurnButton = this.createEndTurnButton();
 
 		this.layoutElements();
-		this.setScrap(this.scrapAmount);
 	}
 
 	/**
@@ -190,18 +186,9 @@ export class ResourceBarLayer extends Layer {
 	}
 
 	/**
-	 * Get driver data
-	 */
-	public getDriverData(driverNumber: 1 | 2): DriverResourceData {
-		const display = driverNumber === 1 ? this.driver1Display : this.driver2Display;
-		return display.getData();
-	}
-
-	/**
 	 * Update scrap amount
 	 */
 	public setScrap(amount: number): void {
-		this.scrapAmount = amount;
 		this.scrap.amount.setText(amount.toString());
 	}
 
@@ -210,25 +197,6 @@ export class ResourceBarLayer extends Layer {
 	 */
 	public setOnEndTurn(callback: () => void): void {
 		this.onEndTurn = callback;
-	}
-
-	/**
-	 * Enable/disable end turn button
-	 */
-	public setEndTurnEnabled(enabled: boolean): void {
-		this.endTurnButton.setEnabled(enabled);
-		this.endTurnButton.setFillColor(enabled ? '#4a8a4a' : '#666666');
-	}
-
-	/**
-	 * Get all resource values
-	 */
-	public get resources() {
-		return {
-			driver1: this.driver1Display.getData(),
-			driver2: this.driver2Display.getData(),
-			scrap: this.scrapAmount,
-		};
 	}
 
 	/**

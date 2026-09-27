@@ -317,3 +317,84 @@ describe('CombatScreen: one layout for mount and resize', () => {
 		combat.unmount();
 	});
 });
+
+/**
+ * ScreenManager builds a new screen for every navigate, but the screen itself
+ * shouldn't depend on that: a remount rebuilds cleanly, and a load that lands
+ * after an unmount leaves nothing behind.
+ */
+describe('CombatScreen: mount and unmount', () => {
+	const canvas = document.createElement('canvas');
+
+	beforeAll(() => {
+		document.body.appendChild(canvas);
+		InputSystem.getInstance().setup(canvas);
+	});
+
+	beforeEach(() => {
+		Object.defineProperty(window, 'innerWidth', { configurable: true, writable: true, value: 1024 });
+		Object.defineProperty(window, 'innerHeight', { configurable: true, writable: true, value: 768 });
+	});
+
+	async function settle(): Promise<void> {
+		await flushPromises();
+		await flushPromises();
+	}
+
+	/** Every handler of every kind the InputSystem holds */
+	function inputRegistrations(): number {
+		const input = InputSystem.getInstance() as unknown as Record<string, Map<unknown, unknown>>;
+		return ['mouseOverComponents', 'mouseOutComponents', 'mouseDownComponents', 'mouseUpComponents', 'wheelComponents', 'keyDownComponents', 'globalKeyDownHandlers']
+			.reduce((total, key) => total + input[key].size, 0);
+	}
+
+	function modelListeners(combat: CombatScreen): number {
+		const model = combat['combatModel'];
+		return model.eventNames().reduce((total, event) => total + model.listenerCount(event), 0);
+	}
+
+	it('a remount builds the same layers and listeners as the first mount, and END TURN fires once', async () => {
+		const combat = new CombatScreen();
+		combat.mount();
+		await settle();
+		const firstMount = {
+			layers: combat.root.getChildren().length,
+			listeners: modelListeners(combat),
+			input: inputRegistrations(),
+		};
+
+		combat.unmount();
+		combat.mount();
+		await settle();
+		expect({
+			layers: combat.root.getChildren().length,
+			listeners: modelListeners(combat),
+			input: inputRegistrations(),
+		}).toEqual(firstMount);
+
+		const endPlayerTurn = jest.spyOn(Battle.prototype, 'endPlayerTurn');
+		expect(injectInput(canvas, ['click,954,26']).ok).toBe(true);
+		expect(endPlayerTurn).toHaveBeenCalledTimes(1);
+
+		await settle();
+		endPlayerTurn.mockRestore();
+		combat.unmount();
+	});
+
+	it.each([
+		['with drivers', async () => ({ drivers: await selectDrivers() })],
+		['on the dev fallback', async () => undefined],
+	])('a load that lands after an early unmount starts no fight and leaves nothing registered (%s)', async (_label, makeData) => {
+		const data = await makeData();
+		const before = inputRegistrations();
+
+		const combat = new CombatScreen();
+		combat.mount(data);
+		combat.unmount();
+		await settle();
+
+		expect(combat.getBattleState()).toBeNull();
+		expect(inputRegistrations()).toBe(before);
+		expect(modelListeners(combat)).toBe(0);
+	});
+});
