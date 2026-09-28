@@ -1,6 +1,15 @@
+/**
+ * @jest-environment jsdom
+ */
 import { DeveloperOverlay, hitchLines } from './DeveloperOverlay';
 import { FrameTimer } from '../rendering/FrameTimer';
 import { EVENT_THRESHOLD_MS } from '../debug/hitchObserver';
+import { DrawApi, RecordingBackend } from '../draw';
+import { RendererContext } from '../rendering/RendererContext';
+import { committedFontAtlas } from '../text/testing';
+import { Layer } from '../components/Layer';
+import { Rectangle } from '../components/Rectangle';
+import { Text } from '../components/Text';
 
 function overlay(viewportWidth: number): DeveloperOverlay {
 	return new DeveloperOverlay({ snapshot: () => new FrameTimer().snapshot(), viewportWidth });
@@ -20,6 +29,61 @@ describe('the overlay\'s anchor (R7.11)', () => {
 
 		expect(developerOverlay.viewportWidth).toBe(900);
 		expect(developerOverlay.getX()).toBe(900 - developerOverlay.getWidth() - 10);
+	});
+});
+
+describe('the overlay paints above every screen draw (R3.21)', () => {
+	let backend: RecordingBackend;
+	let draw: DrawApi;
+
+	beforeEach(() => {
+		backend = new RecordingBackend({ maxFrames: 1 });
+		backend.loadFontAtlas({
+			name: 'body',
+			atlas: committedFontAtlas('body'),
+			texture: { id: 1, width: 1, height: 1, label: null },
+		});
+		draw = new DrawApi({ backend });
+		RendererContext.getInstance().draw = draw;
+	});
+
+	/**
+	 * The main menu's shape: a background, then a title where the overlay
+	 * sits. Inside one domain the title's text is ordered after the overlay's
+	 * panel by the backend's paint order, which is how the title came to draw
+	 * over the overlay; this checks the overlay is a later domain instead.
+	 */
+	function frame(developerOverlay: DeveloperOverlay): void {
+		const screen = new Layer({ id: 'screen', width: 1440, height: 882 });
+		screen.addChild(new Rectangle({ id: 'screen_background', width: 1440, height: 882 }));
+		screen.addChild(new Text('Dual Deckbuilder', { id: 'title', x: 1000, y: 20 }));
+
+		draw.beginFrame({ viewport: { width: 1440, height: 882 }, ratio: 1 });
+		screen.render();
+		developerOverlay.update();
+		developerOverlay.render();
+		draw.endFrame();
+	}
+
+	it('submits the screen as a finished domain before any overlay draw', () => {
+		const developerOverlay = overlay(1440);
+		developerOverlay.toggle();
+		frame(developerOverlay);
+
+		const [screenDomain, overlayDomain, ...rest] = backend.batches;
+		expect(rest).toEqual([]);
+		expect(screenDomain.reason).toBe('barrier');
+		expect(screenDomain.commands.map((command) => command.id)).toEqual(['screen_background', 'title']);
+		// Background panel and readout, nothing of the screen's.
+		expect(overlayDomain.commands.length).toBeGreaterThanOrEqual(2);
+		expect(overlayDomain.commands.map((command) => command.id)).not.toContain('title');
+	});
+
+	it('adds no barrier while hidden, so the frame is what it was without an overlay', () => {
+		frame(overlay(1440));
+
+		expect(backend.batches).toHaveLength(1);
+		expect(backend.batches[0].reason).toBe('endFrame');
 	});
 });
 

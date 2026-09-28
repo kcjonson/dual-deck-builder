@@ -5,6 +5,7 @@ import type { SectionStats } from '../rendering/frameStats';
 import type { GpuStats, PerfSnapshot, SectionName } from '../rendering/FrameTimer';
 import type { HitchStats } from '../debug/hitchObserver';
 import { RenderContext } from '../rendering/RenderContext';
+import { RendererContext } from '../rendering/RendererContext';
 
 /** Null is "not measurable here", so it prints as n/a rather than as 0 (R13.5). */
 function milliseconds(value: number | null): string {
@@ -165,10 +166,19 @@ export class DeveloperOverlay extends Layer {
 	}
 	
 	/**
-	 * Render the overlay if visible
+	 * Draws the overlay as its own domain after the UI's (R3.21: the UI is the
+	 * last domain before any diagnostic overlay). Submitting last is not enough
+	 * inside one domain, because order there is by layer and the screen's text
+	 * can sit above the overlay's panel; a barrier puts every screen draw,
+	 * whatever its layer, beneath it. A layer would be the wrong tool: the
+	 * ladder is the UI's (R3.9), and even its top rung would tie with a screen
+	 * transition. The barrier only exists while the overlay is shown, so a
+	 * hidden overlay leaves the frame, its GPU pass count and every golden as
+	 * they were; a shown one adds one pass, which the GPU line counts.
 	 */
 	public render(context?: RenderContext): void {
 		if (!this.overlayVisible) return;
+		RendererContext.getInstance().draw.flush();
 		super.render(context);
 	}
 }
