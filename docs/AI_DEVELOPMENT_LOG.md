@@ -19,6 +19,17 @@ This document contains the chronological log of completed development tasks for 
 
 **How:** `Placement.test.ts`, `OverlayService.test.ts`, `PopupService.test.ts`, `TooltipService.test.ts` (state timing, tolerance, swap, fades, flips, never consumes, press suppression, capture and drag suppression, keyboard trigger, factory trees), `ClipboardService.test.ts`, `AssetService.test.ts`, `input/rootOrder.test.ts` (tiers, observers, `requestTick`); 2058 tests green. Driven in the gallery through `__dev.input`: hover swap to the card preview, outside press closing the menu, trigger reopening it, Escape closing it; `__ui.lint()` is 0 on the scene.
 
+## Packed instances for the uber shader (2026-09-28)
+
+**What landed:** DDB-191 (DDB-55), R5.4.
+
+- `UberGeometryEncoder` writes one 104-byte instance per quad (`UBER_INSTANCE`, `UBER_ATTRIBUTES`): corners, geometry and clip as float32, radii and shape as half floats, per-corner fill and border as normalised bytes, mode, slot and flags as integer bytes. Flat triangles repeat their third corner; feather-ring quads have four free corners. `rendering/packing.ts` converts to half floats and to bytes the way a framebuffer write rounds.
+- `Batcher` takes instances: `GroupShape.instances`, a four-view byte sink, instance-range `GpuDraw`s, a word fence for the contract check, and `instances`, `vertices` and `triangles` counted from instances.
+- `WebGL2Backend`: one instance ring (4 MB), divisors of one set once in the vertex array, `drawArraysInstanced`, attributes re-pointed only at a split, `WEBGL_provoking_vertex` set to the first vertex. `IndexBufferPool` and its tests are deleted.
+- `uber.vert` builds the quad from `gl_VertexID` and selects each corner's position and colour; `uber.frag` is unchanged. `uberShader.spec.ts` draws the new layout.
+
+**How:** unit tests for the packing conversions, the layout's tiling, every encoder case against the instance bytes, the batcher contract, and the backend's calls (no element buffer, divisors, split pointers, provoking vertex). Screenshots pass against `main`'s goldens with no re-mint; strict local captures differ by one level at most (four pixels by two). Perf captures interleaved with `main` in `perf-results/ddb-191-ab-*`.
+
 ## Focus manager and keyboard play (2026-09-28)
 
 **What landed:** DDB-76 (DDB-55 phase 3), chapter 9's focus half: R9.15 to R9.29, R11.12's focus ring, R12.7's keyboard activation.
@@ -125,7 +136,6 @@ This document contains the chronological log of completed development tasks for 
 
 **How:** unit tests for the helper (center, borderless, sub-pixel, out param), the encoder (translated hairline at ratio 2, abutting pair, center border, and the three opt-outs) and the clip stack (snapped at every fractional scroll, not under a scale). Goldens re-minted on CI with `update_mode=all` and checked old against new.
 
-
 ## Mount context, lifecycle, and frame order (2026-09-28)
 
 **What landed:** DDB-73's second PR (DDB-55 phase 3), R1.6, R8.14 to R8.18, R8.21, R8.22.
@@ -154,7 +164,6 @@ This document contains the chronological log of completed development tasks for 
 - Merged with DDB-68, DDB-71 and DDB-72 as they landed: `DrawFixture` and `Text` draw in their own space; `Icon.drawGlyph` lets `ArmorBadge` and `IntentMarker` draw their icon as one of their own draws, in the same order as before; `Button` places its icon from its `render` hook until the layout phase exists; the F5 overlay's visibility is `visible`.
 
 **How:** `Component.test.ts` (properties, effective values, children, reconciliation, screen geometry under rotation and scale) and `renderTree.test.ts` (local draws, leaf children walked by the framework, skipped subtrees, zIndex order, opacity, clip and promotion, balanced stacks) on the recording backend. Every screen and gallery scene captured locally on `main` and on the branch passes the golden tolerance; the CI goldens are unchanged.
-
 
 ## Visual gate: cluster rule and settled-layout wait (2026-09-28)
 

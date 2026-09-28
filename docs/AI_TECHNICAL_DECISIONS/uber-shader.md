@@ -153,7 +153,8 @@ dark midpoint, a 24 px shadow with no cutoff, abutting rects with no seam, and r
 ## Departures
 
 **R5.4's packed layout.** Floats throughout, four vertices per quad. Allowed by R5.4; the
-bandwidth figure is above. DDB-191.
+bandwidth figure is above. DDB-191 replaced it with 104-byte packed instances, one per quad
+([packed-instance-layout.md](./packed-instance-layout.md)).
 
 **R5.6's footprint** is the derivative of the local position, not of `d`, for the reason above.
 

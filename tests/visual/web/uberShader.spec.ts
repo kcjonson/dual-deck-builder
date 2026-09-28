@@ -9,8 +9,9 @@ import { parseFontAtlas } from '../../../src/renderer/engine/text/FontAtlas';
 import { TextMetricsService } from '../../../src/renderer/engine/text/TextMetricsService';
 import {
 	UBER_ATTRIBUTES,
+	UBER_STRIDE,
 	UBER_TEXTURE_UNITS,
-	UBER_VERTEX,
+	UBER_VERTICES_PER_INSTANCE,
 	UberGeometryEncoder,
 } from '../../../src/renderer/engine/rendering/UberGeometryEncoder';
 
@@ -21,9 +22,10 @@ import {
  *
  * The geometry is the production path in Node: commands from the draw API,
  * encoded by `UberGeometryEncoder` through the `Batcher`. The page gets the
- * resulting floats and indices, compiles `uber.vert` and `uber.frag` from
- * the source tree on a bare canvas, draws them with premultiplied `over`, and
- * reads the framebuffer back. Nothing of the game is loaded, so a failure
+ * resulting instance bytes, compiles `uber.vert` and `uber.frag` from the
+ * source tree on a bare canvas, points the attributes as the backend does,
+ * draws the instances with premultiplied `over`, and reads the framebuffer
+ * back. Nothing of the game is loaded, so a failure
  * here is the shader's or the encoder's and nobody else's.
  */
 
@@ -83,7 +85,7 @@ function encode(
 	target: Target,
 	build: (api: DrawApi) => void,
 	prepare?: (api: DrawApi) => void,
-): { floats: number[]; indices: number[] } {
+): { bytes: number[]; instances: number } {
 	const backend = new RecordingBackend({ maxFrames: 1 });
 	backend.loadFontAtlas({ name: 'body', atlas: GLYPH_ATLAS, texture: GLYPH_TEXTURE });
 	const api = new DrawApi({ backend, strict: true });
@@ -106,14 +108,15 @@ function encode(
 		encoder,
 		textures: new ResidentTextureSet({ units: UBER_TEXTURE_UNITS, resident: [GLYPH_TEXTURE] }),
 	});
-	let floats: number[] = [];
-	let indices: number[] = [];
+	let bytes: number[] = [];
+	let instances = 0;
 	batcher.flush(backend.commands, (upload) => {
-		if (floats.length > 0) throw new Error('expected one upload');
-		floats = Array.from(upload.vertices.subarray(0, upload.floatCount));
-		indices = Array.from(upload.indices.subarray(0, upload.indexCount));
+		if (bytes.length > 0) throw new Error('expected one upload');
+		if (upload.draws.length !== 1) throw new Error('expected one draw');
+		bytes = Array.from(upload.bytes.subarray(0, upload.byteCount));
+		instances = upload.instanceCount;
 	});
-	return { floats, indices };
+	return { bytes, instances };
 }
 
 async function render(
@@ -123,7 +126,7 @@ async function render(
 	prepare?: (api: DrawApi) => void,
 ): Promise<Frame> {
 	const geometry = encode(target, build, prepare);
-	return page.evaluate(({ target, geometry, sources, attributes, stride, units }) => {
+	return page.evaluate(({ target, geometry, sources, attributes, stride, verticesPerInstance, units }) => {
 		const canvas = document.createElement('canvas');
 		canvas.width = target.width;
 		canvas.height = target.height;
@@ -183,15 +186,20 @@ async function render(
 		gl.uniformBlockBinding(program, gl.getUniformBlockIndex(program, 'Frame'), 0);
 		gl.bindBufferBase(gl.UNIFORM_BUFFER, 0, uniforms);
 
+		// Every attribute per instance, as `WebGL2Backend` sets them.
 		const vertexArray = gl.createVertexArray();
 		gl.bindVertexArray(vertexArray);
 		gl.bindBuffer(gl.ARRAY_BUFFER, gl.createBuffer());
-		gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(geometry.floats), gl.STATIC_DRAW);
-		gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, gl.createBuffer());
-		gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Uint32Array(geometry.indices), gl.STATIC_DRAW);
+		gl.bufferData(gl.ARRAY_BUFFER, new Uint8Array(geometry.bytes), gl.STATIC_DRAW);
+		const types = { float: gl.FLOAT, half: gl.HALF_FLOAT, unorm8: gl.UNSIGNED_BYTE, uint8: gl.UNSIGNED_BYTE };
 		for (const attribute of attributes) {
 			gl.enableVertexAttribArray(attribute.location);
-			gl.vertexAttribPointer(attribute.location, attribute.size, gl.FLOAT, false, stride, attribute.offset * 4);
+			gl.vertexAttribDivisor(attribute.location, 1);
+			if (attribute.type === 'uint8') {
+				gl.vertexAttribIPointer(attribute.location, attribute.size, types[attribute.type], stride, attribute.offset);
+			} else {
+				gl.vertexAttribPointer(attribute.location, attribute.size, types[attribute.type], attribute.type === 'unorm8', stride, attribute.offset);
+			}
 		}
 
 		gl.viewport(0, 0, target.width, target.height);
@@ -200,7 +208,7 @@ async function render(
 		gl.clear(gl.COLOR_BUFFER_BIT);
 		gl.enable(gl.BLEND);
 		gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
-		gl.drawElements(gl.TRIANGLES, geometry.indices.length, gl.UNSIGNED_INT, 0);
+		gl.drawArraysInstanced(gl.TRIANGLES, 0, verticesPerInstance, geometry.instances);
 
 		const pixels = new Uint8Array(target.width * target.height * 4);
 		gl.readPixels(0, 0, target.width, target.height, gl.RGBA, gl.UNSIGNED_BYTE, pixels);
@@ -210,7 +218,8 @@ async function render(
 		geometry,
 		sources: { vertex: VERTEX_SOURCE, fragment: FRAGMENT_SOURCE },
 		attributes: UBER_ATTRIBUTES.map((attribute) => ({ ...attribute })),
-		stride: UBER_VERTEX.floats * 4,
+		stride: UBER_STRIDE,
+		verticesPerInstance: UBER_VERTICES_PER_INSTANCE,
 		units: UBER_TEXTURE_UNITS,
 	});
 }

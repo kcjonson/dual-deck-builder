@@ -4,8 +4,7 @@ import type { FrameTimer } from './FrameTimer';
 import type { GpuTimer } from './GpuTimer';
 import type { ContextListener, Renderer } from './Renderer';
 import { WebGL2Backend } from './WebGL2Backend';
-import { DEFAULT_INITIAL_INDEX_SLOTS } from './IndexBufferPool';
-import { UBER_ATTRIBUTES, UBER_MODE, UBER_VERTEX } from './UberGeometryEncoder';
+import { UBER_ATTRIBUTES, UBER_INSTANCE, UBER_MODE, UBER_STRIDE } from './UberGeometryEncoder';
 import { TextureStore } from '../gpu/TextureStore';
 import { WebGL2TextureDevice } from './WebGL2TextureDevice';
 import { committedFontAtlas } from '../text/testing';
@@ -58,7 +57,13 @@ function fakeGl(): { gl: WebGL2RenderingContext; calls: GlCall[]; constant: (nam
 		return value;
 	};
 	let objects = 0;
-	const answers: Record<string, () => unknown> = {
+	// WEBGL_provoking_vertex, recording into the same log as the context.
+	const provokingVertex = {
+		FIRST_VERTEX_CONVENTION_WEBGL: 0x8e4d,
+		provokingVertexWEBGL: (mode: number) => calls.push({ name: 'provokingVertexWEBGL', args: [mode], result: undefined }),
+	};
+	const answers: Record<string, (...args: unknown[]) => unknown> = {
+		getExtension: (name) => (name === 'WEBGL_provoking_vertex' ? provokingVertex : null),
 		getParameter: () => 256,
 		getProgramParameter: () => true,
 		getShaderParameter: () => true,
@@ -70,7 +75,7 @@ function fakeGl(): { gl: WebGL2RenderingContext; calls: GlCall[]; constant: (nam
 			if (/^[A-Z0-9_]+$/.test(property)) return constant(property);
 			return (...args: unknown[]) => {
 				let result: unknown;
-				if (answers[property]) result = answers[property]();
+				if (answers[property]) result = answers[property](...args);
 				else if (property.startsWith('create')) result = { object: property, id: ++objects };
 				calls.push({ name: property, args, result });
 				return result;
@@ -83,9 +88,7 @@ function fakeGl(): { gl: WebGL2RenderingContext; calls: GlCall[]; constant: (nam
 const WHITE: RGBA = [1, 1, 1, 1];
 
 interface SetupOptions {
-	vertexRingBytes?: number;
-	indexSlots?: number;
-	indexSlotBytes?: number;
+	instanceRingBytes?: number;
 	timed?: boolean;
 	/** Font roles to load, each as its own resident atlas. */
 	roles?: FontRole[];
@@ -175,7 +178,7 @@ describe('WebGL2Backend', () => {
 			} else if (name === 'timer.endPass') {
 				expect(open).toBe(true);
 				open = false;
-			} else if (name === 'clear' || name === 'drawElements') {
+			} else if (name === 'clear' || name === 'drawArraysInstanced') {
 				expect(open).toBe(true);
 			}
 		}
@@ -183,17 +186,43 @@ describe('WebGL2Backend', () => {
 		expect(passes).toBe(4);
 	});
 
-	it('allocates the vertex ring, the index slots and the uniform slots once, at their fixed capacity (R15.11, R15.15)', () => {
-		const { calls, constant, named } = setupBackend({ vertexRingBytes: 3 * 1024 * 1024, indexSlots: 4, indexSlotBytes: 8192 });
+	it('allocates the instance ring and the uniform slots once, at their fixed capacity, and no index buffer (R15.11, R15.15)', () => {
+		const { calls, constant, named } = setupBackend({ instanceRingBytes: 3 * 1024 * 1024 });
 		const sizes = named(calls, 'bufferData').map((call) => [call.args[0], call.args[1]]);
 		expect(sizes).toEqual([
 			[constant('UNIFORM_BUFFER'), 256 * 3],
 			[constant('ARRAY_BUFFER'), 3 * 1024 * 1024],
-			[constant('ELEMENT_ARRAY_BUFFER'), 8192],
-			[constant('ELEMENT_ARRAY_BUFFER'), 8192],
-			[constant('ELEMENT_ARRAY_BUFFER'), 8192],
-			[constant('ELEMENT_ARRAY_BUFFER'), 8192],
 		]);
+	});
+
+	it('makes every attribute per instance, inside the vertex array, once at creation (R15.13, R15.14)', () => {
+		const { calls, named, frame } = setupBackend();
+		const vertexArray = named(calls, 'createVertexArray')[0].result;
+		let bound: unknown = null;
+		const divisors: unknown[][] = [];
+		for (const call of calls) {
+			if (call.name === 'bindVertexArray') bound = call.args[0];
+			if (call.name === 'vertexAttribDivisor') {
+				expect(bound).toBe(vertexArray);
+				divisors.push(call.args);
+			}
+		}
+		expect(divisors).toEqual(UBER_ATTRIBUTES.map((attribute) => [attribute.location, 1]));
+		// Attribute 0 is an enabled array (R15.13).
+		expect(named(calls, 'enableVertexAttribArray').map((call) => call.args[0])).toContain(0);
+		expect(named(frame(threeDomains), 'vertexAttribDivisor')).toEqual([]);
+	});
+
+	it('takes the first vertex as provoking where the extension exists, at creation and on restore', () => {
+		const { calls, named, restore, frame } = setupBackend();
+		// Every flat varying is per instance, so either convention draws the
+		// same; the last-vertex default costs ANGLE Metal an index pass per
+		// non-indexed draw.
+		expect(named(calls, 'provokingVertexWEBGL').map((call) => call.args)).toEqual([[0x8e4d]]);
+		expect(named(frame(threeDomains), 'provokingVertexWEBGL')).toEqual([]);
+		const before = calls.length;
+		restore();
+		expect(named(calls.slice(before), 'provokingVertexWEBGL')).toHaveLength(1);
 	});
 
 	it('points the eight samplers at units 0 to 7 once, at creation (R5.20)', () => {
@@ -222,7 +251,7 @@ describe('WebGL2Backend', () => {
 			const calls = frame(threeDomains);
 			const clear = calls.findIndex((call) => call.name === 'clear');
 			expect(calls.filter((call) => call.name === 'clear')).toHaveLength(1);
-			expect(clear).toBeLessThan(calls.findIndex((call) => call.name === 'drawElements'));
+			expect(clear).toBeLessThan(calls.findIndex((call) => call.name === 'drawArraysInstanced'));
 			expect(calls.filter((call) => call.name === 'scissor')).toEqual([]);
 			expect(calls.filter((call) => call.args[0] === constant('SCISSOR_TEST'))).toEqual([]);
 		}
@@ -252,101 +281,64 @@ describe('WebGL2Backend', () => {
 		expect(Array.from(block)).toEqual(Array.from(projection));
 	});
 
-	it('uploads vertices into the ring with a source range and draws 32-bit indices from the start of their own slot', () => {
+	it('uploads instances into the ring with a source range and draws six vertices an instance, with no index buffer', () => {
 		const { frame, named, constant } = setupBackend();
 		const first = frame(someShapesAndText);
 		const second = frame(someShapesAndText);
 
-		const writes = (calls: GlCall[], target: string) => named(calls, 'bufferSubData')
-			.filter((call) => call.args[0] === constant(target))
+		const writes = (calls: GlCall[]) => named(calls, 'bufferSubData')
+			.filter((call) => call.args[0] === constant('ARRAY_BUFFER'))
 			.map((call) => ({ offset: call.args[1] as number, srcOffset: call.args[3], length: call.args[4] as number }));
-		const [firstVertices] = writes(first, 'ARRAY_BUFFER');
-		const [secondVertices] = writes(second, 'ARRAY_BUFFER');
-		const [firstIndices] = writes(first, 'ELEMENT_ARRAY_BUFFER');
-		const [secondIndices] = writes(second, 'ELEMENT_ARRAY_BUFFER');
+		const [firstInstances] = writes(first);
+		const [secondInstances] = writes(second);
 
-		expect(firstVertices.offset).toBe(0);
-		expect(firstVertices.srcOffset).toBe(0);
+		expect(firstInstances.offset).toBe(0);
+		expect(firstInstances.srcOffset).toBe(0);
+		expect(firstInstances.length % UBER_STRIDE).toBe(0);
 		// The second frame writes after the first rather than over it.
-		expect(secondVertices.offset).toBe(firstVertices.length * 4);
-		// Indices always start their slot; the slot is what changes.
-		expect(firstIndices).toMatchObject({ offset: 0, srcOffset: 0 });
-		expect(secondIndices).toMatchObject({ offset: 0, srcOffset: 0 });
+		expect(secondInstances.offset).toBe(firstInstances.length);
 
-		const [draw] = named(second, 'drawElements');
-		expect(draw.args[0]).toBe(constant('TRIANGLES'));
-		expect(draw.args[2]).toBe(constant('UNSIGNED_INT'));
-		expect(draw.args[3]).toBe(0);
-	});
-
-	it('gives each upload an element buffer no draw has read in the last two frames (R5.27, DDB-195)', () => {
-		const { frame, named, constant } = setupBackend();
-		const elementBuffers = (calls: GlCall[]) => named(calls, 'bindBuffer')
-			.filter((call) => call.args[0] === constant('ELEMENT_ARRAY_BUFFER'))
-			.map((call) => call.args[1]);
-		const frames = [frame(threeDomains), frame(threeDomains), frame(threeDomains), frame(threeDomains)].map(elementBuffers);
-
-		// Three domains, three distinct slots, in every frame.
-		for (const buffers of frames) expect(new Set(buffers).size).toBe(3);
-		// Nothing written in frame n is rewritten in frame n + 1; frame n + 2 may reuse it.
-		for (let index = 1; index < frames.length; index++) {
-			expect(frames[index].filter((buffer) => frames[index - 1].includes(buffer))).toEqual([]);
+		const [draw] = named(second, 'drawArraysInstanced');
+		expect(draw.args).toEqual([constant('TRIANGLES'), 0, 6, secondInstances.length / UBER_STRIDE]);
+		for (const calls of [first, second]) {
+			expect(named(calls, 'drawElements')).toEqual([]);
+			expect(named(calls, 'bindBuffer').filter((call) => call.args[0] === constant('ELEMENT_ARRAY_BUFFER'))).toEqual([]);
 		}
-		expect(new Set(frames.flat()).size).toBe(6);
 	});
 
-	it('binds each upload\'s element buffer inside its vertex array and draws before unbinding it', () => {
-		const { frame, named, constant } = setupBackend();
-		frame(threeDomains);
-		const calls = frame(threeDomains);
-		const vertexArray = named(calls, 'bindVertexArray').find((call) => call.args[0] !== null)?.args[0];
-		let bound: unknown = null;
-		let element: unknown = null;
-		let uploads = 0;
-		for (const call of calls) {
-			if (call.name === 'bindVertexArray') {
-				bound = call.args[0];
-				element = null;
-			} else if (call.name === 'bindBuffer' && call.args[0] === constant('ELEMENT_ARRAY_BUFFER')) {
-				// Element binding is vertex array state: bound anywhere else it
-				// would land on the default vertex array.
-				expect(bound).toBe(vertexArray);
-				element = call.args[1];
-				uploads++;
-			} else if (call.name === 'drawElements') {
-				expect(bound).toBe(vertexArray);
-				expect(element).not.toBeNull();
-			}
-		}
-		expect(uploads).toBe(3);
-	});
-
-	it('creates a larger slot, once, for an upload that does not fit, and never allocates for it again', () => {
-		const { frame, named, constant } = setupBackend({ indexSlots: 6, indexSlotBytes: 256 });
-		const many = (draw: DrawApi) => {
-			for (let index = 0; index < 40; index++) draw.drawRect({ rect: { x: index, y: 0, width: 4, height: 4 }, fill: WHITE });
-		};
-		const created = (calls: GlCall[]) => named(calls, 'bufferData').filter((call) => call.args[0] === constant('ELEMENT_ARRAY_BUFFER'));
-		const firstThree = [frame(many), frame(many), frame(many)].map(created);
-		// Forty quads are 240 indices, 960 bytes: over 256, so the first two
-		// frames each create a 1024-byte slot, and the third reuses the first's,
-		// which is two frames old by then (R5.27).
-		expect(firstThree.map((calls) => calls.map((call) => call.args[1]))).toEqual([[1024], [1024], []]);
-		for (let index = 0; index < 3; index++) expect(created(frame(many))).toEqual([]);
-	});
-
-	it('points the attributes once per upload, never per draw (R15.14)', () => {
+	it('points the attributes once per upload, never per draw group (R15.14)', () => {
 		const { frame, named } = setupBackend();
 		const calls = frame(threeDomains);
 		const uploads = named(calls, 'bindVertexArray').filter((call) => call.args[0] !== null).length;
 		expect(uploads).toBe(3);
-		expect(named(calls, 'vertexAttribPointer')).toHaveLength(uploads * UBER_ATTRIBUTES.length);
+		const pointers = [...named(calls, 'vertexAttribPointer'), ...named(calls, 'vertexAttribIPointer')];
+		expect(pointers).toHaveLength(uploads * UBER_ATTRIBUTES.length);
+		// The flags byte is an integer attribute; everything else goes through the float path.
+		expect(named(calls, 'vertexAttribIPointer')).toHaveLength(uploads);
+	});
+
+	it('points the attributes at a split draw\'s first instance, since WebGL2 has no base instance', () => {
+		const { frame, named, constant } = setupBackend();
+		frame(someShapesAndText);
+		const rect = { x: 0, y: 0, width: 10, height: 10 };
+		const calls = frame((draw) => {
+			draw.drawRect({ rect, fill: WHITE });
+			draw.drawRect({ rect, fill: WHITE });
+			draw.drawRect({ rect, fill: WHITE, blend: 'multiply' });
+		});
+		const [write] = named(calls, 'bufferSubData').filter((call) => call.args[0] === constant('ARRAY_BUFFER'));
+		const ringOffset = write.args[1] as number;
+		const bases = named(calls, 'vertexAttribPointer')
+			.filter((call) => call.args[0] === 0)
+			.map((call) => call.args[5]);
+		expect(bases).toEqual([ringOffset, ringOffset + 2 * UBER_STRIDE]);
+		expect(named(calls, 'drawArraysInstanced').map((call) => call.args[3])).toEqual([2, 1]);
 	});
 
 	it('draws each domain, shapes, borders and text together, in one GPU draw (R5.1)', () => {
 		const { frame, named } = setupBackend();
 		// Three domains, each ended by a barrier; nothing inside a domain splits.
-		expect(named(frame(threeDomains), 'drawElements')).toHaveLength(3);
+		expect(named(frame(threeDomains), 'drawArraysInstanced')).toHaveLength(3);
 	});
 
 	it('paints in submission order: text drawn before an overlapping rect stays under it (chapter 3)', () => {
@@ -356,15 +348,13 @@ describe('WebGL2Backend', () => {
 			draw.drawRect({ rect: { x: 10, y: 10, width: 100, height: 40 }, fill: WHITE });
 		});
 		const [write] = named(calls, 'bufferSubData').filter((call) => call.args[0] === constant('ARRAY_BUFFER'));
-		const vertices = write.args[2] as Float32Array;
-		const floatCount = write.args[4] as number;
+		const bytes = write.args[2] as Uint8Array;
+		const byteCount = write.args[4] as number;
 		const modes: number[] = [];
-		for (let offset = 0; offset < floatCount; offset += UBER_VERTEX.floats * 4) {
-			modes.push(vertices[offset + UBER_VERTEX.mode]);
-		}
+		for (let offset = 0; offset < byteCount; offset += UBER_STRIDE) modes.push(bytes[offset + UBER_INSTANCE.mode * 4]);
 		// Two glyph quads, then the rect's quad: nothing hoists text past it.
 		expect(modes.map((mode) => (mode === UBER_MODE.text ? 'text' : 'shape'))).toEqual(['text', 'text', 'shape']);
-		expect(named(calls, 'drawElements')).toHaveLength(1);
+		expect(named(calls, 'drawArraysInstanced')).toHaveLength(1);
 	});
 
 	it('never splits on a clip change inside a domain (R4.1)', () => {
@@ -384,7 +374,7 @@ describe('WebGL2Backend', () => {
 		expect(api.getStats().clipChange).toBe(0);
 	});
 
-	it('carries the clip in logical pixels on every vertex, at any ratio (R4.1, R4.4)', () => {
+	it('carries the clip in logical pixels on every instance, at any ratio (R4.1, R4.4)', () => {
 		const { calls, named, api, constant } = setupBackend();
 		const start = calls.length;
 		api.beginFrame({ viewport: { width: 400, height: 300 }, ratio: 2 });
@@ -393,11 +383,10 @@ describe('WebGL2Backend', () => {
 		api.popClip();
 		api.endFrame();
 		const [write] = named(calls.slice(start), 'bufferSubData').filter((call) => call.args[0] === constant('ARRAY_BUFFER'));
-		const vertices = write.args[2] as Float32Array;
-		for (let vertex = 0; vertex < 4; vertex++) {
-			const offset = vertex * UBER_VERTEX.floats + UBER_VERTEX.clip;
-			expect(Array.from(vertices.subarray(offset, offset + 4))).toEqual([10, 20, 110, 70]);
-		}
+		const bytes = write.args[2] as Uint8Array;
+		const floats = new Float32Array(bytes.buffer, bytes.byteOffset, (write.args[4] as number) / 4);
+		expect(floats.length).toBe(UBER_INSTANCE.words);
+		expect(Array.from(floats.subarray(UBER_INSTANCE.clip, UBER_INSTANCE.clip + 4))).toEqual([10, 20, 110, 70]);
 	});
 
 	it('binds the atlas and the placeholders once, and nothing on later frames (R5.20)', () => {
@@ -417,24 +406,24 @@ describe('WebGL2Backend', () => {
 		const units = named(calls, 'activeTexture').map((call) => (call.args[0] as number) - constant('TEXTURE0'));
 		// Unit 1 for the draw, then unit 1 again to restore the placeholder.
 		expect(units).toEqual([1, 1]);
-		expect(named(calls, 'drawElements')).toHaveLength(1);
+		expect(named(calls, 'drawArraysInstanced')).toHaveLength(1);
 	});
 
 	it('grows a ring that cannot hold two frames and says so, instead of overwriting one', () => {
 		const warn = jest.spyOn(console, 'warn').mockImplementation(() => undefined);
 		try {
-			// `threeDomains` is three uploads of 36 vertices at 128 bytes,
-			// 13824 bytes a frame; a 14000-byte ring takes one frame and not
-			// the next beside it.
-			const { frame, named, constant } = setupBackend({ vertexRingBytes: 14000 });
+			// `threeDomains` is three uploads of nine instances at 104 bytes,
+			// 2808 bytes a frame; a 3000-byte ring takes one frame and not the
+			// next beside it.
+			const { frame, named, constant } = setupBackend({ instanceRingBytes: 3000 });
 			const first = frame(threeDomains);
 			expect(named(first, 'bufferData')).toEqual([]);
 			const calls = frame(threeDomains);
 			const grown = named(calls, 'bufferData').filter((call) => call.args[0] === constant('ARRAY_BUFFER'));
 			expect(grown).toHaveLength(1);
-			expect(grown[0].args[1]).toBeGreaterThanOrEqual(14000 * 2);
+			expect(grown[0].args[1]).toBeGreaterThanOrEqual(3000 * 2);
 			expect(named(calls, 'deleteBuffer')).toHaveLength(1);
-			expect(warn).toHaveBeenCalledWith(expect.stringContaining('vertex ring grew'));
+			expect(warn).toHaveBeenCalledWith(expect.stringContaining('instance ring grew'));
 		} finally {
 			warn.mockRestore();
 		}
@@ -448,12 +437,32 @@ describe('WebGL2Backend', () => {
 		const rebuilt = calls.slice(before);
 		expect(named(rebuilt, 'createProgram')).toHaveLength(1);
 		expect(named(rebuilt, 'createVertexArray')).toHaveLength(1);
-		// The uniform ring, the vertex ring, and the initial index slots.
-		expect(named(rebuilt, 'createBuffer')).toHaveLength(2 + DEFAULT_INITIAL_INDEX_SLOTS);
+		// The uniform ring and the instance ring.
+		expect(named(rebuilt, 'createBuffer')).toHaveLength(2);
+
+		// The rebuilt vertex array gets every attribute enabled and per instance again.
+		const newVertexArray = named(rebuilt, 'createVertexArray')[0].result;
+		let bound: unknown = null;
+		const divisors: unknown[][] = [];
+		for (const call of rebuilt) {
+			if (call.name === 'bindVertexArray') bound = call.args[0];
+			if (call.name === 'vertexAttribDivisor') {
+				expect(bound).toBe(newVertexArray);
+				divisors.push(call.args);
+			}
+		}
+		expect(divisors).toEqual(UBER_ATTRIBUTES.map((attribute) => [attribute.location, 1]));
+		expect(named(rebuilt, 'enableVertexAttribArray')).toHaveLength(UBER_ATTRIBUTES.length);
 
 		const next = frame(someShapesAndText);
 		const [vertices] = named(next, 'bufferSubData').filter((call) => call.args[0] === constant('ARRAY_BUFFER'));
 		expect(vertices.args[1]).toBe(0);
+		// The pointer cache was dropped with the old context, so the first frame
+		// points every attribute again, at offset 0 of the new ring.
+		const pointers = [...named(next, 'vertexAttribPointer'), ...named(next, 'vertexAttribIPointer')];
+		expect(pointers).toHaveLength(UBER_ATTRIBUTES.length);
+		const firstPointer = named(next, 'vertexAttribPointer').find((call) => call.args[0] === 0);
+		expect(firstPointer?.args[5]).toBe(0);
 		// The frame binds the program the restore created, not the dead one.
 		expect(named(next, 'useProgram')[0].args[0]).toBe(named(rebuilt, 'createProgram')[0].result);
 		expect(named(next, 'bindVertexArray')[0].args[0]).toBe(named(rebuilt, 'createVertexArray')[0].result);
@@ -494,7 +503,7 @@ describe('WebGL2Backend', () => {
 			[constant('DST_COLOR'), constant('ONE_MINUS_SRC_ALPHA')],
 			[constant('ONE'), constant('ONE_MINUS_SRC_ALPHA')],
 		]);
-		expect(named(calls, 'drawElements')).toHaveLength(3);
+		expect(named(calls, 'drawArraysInstanced')).toHaveLength(3);
 	});
 
 	it('uploads a queued texture at the top of the frame, before the clear, and not again (R5.32, R15.18)', () => {
@@ -536,15 +545,14 @@ describe('WebGL2Backend', () => {
 			expect(stats.apiDraws).toBe(11);
 			expect(stats.gpuDraws).toBe(1);
 			expect(stats.splits).toEqual(expect.objectContaining({ textureSlotsExhausted: 0, blendChange: 0 }));
-			expect(named(calls, 'drawElements')).toHaveLength(1);
+			expect(named(calls, 'drawArraysInstanced')).toHaveLength(1);
 		});
 
-		it('never writes a vertex range or an index slot the previous frame may still read, with four flushes a frame (R5.27)', () => {
-			// Four uploads of 36 vertices at 128 bytes are 18432 bytes a frame, so
-			// a 60000-byte ring holds three frames and the fourth has to wrap onto
-			// the first; eight index slots hold two frames of four uploads, so the
-			// third frame has to reuse the first's slots.
-			const { frame, named, constant } = setupBackend({ vertexRingBytes: 60000, indexSlots: 8, indexSlotBytes: 1024 });
+		it('never writes an instance range the previous frame may still read, with four flushes a frame (R5.27)', () => {
+			// Four uploads of nine instances at 104 bytes are 3744 bytes a
+			// frame, so a 12000-byte ring holds three frames and the fourth has
+			// to wrap onto the first.
+			const { frame, named, constant } = setupBackend({ instanceRingBytes: 12000 });
 			const fourDomains = (draw: DrawApi): void => {
 				for (let domain = 0; domain < 4; domain++) {
 					if (domain > 0) draw.flush();
@@ -552,23 +560,18 @@ describe('WebGL2Backend', () => {
 				}
 			};
 			interface Range { start: number; end: number }
-			const vertexRanges = (calls: GlCall[]): Range[] => named(calls, 'bufferSubData')
+			const instanceRanges = (calls: GlCall[]): Range[] => named(calls, 'bufferSubData')
 				.filter((call) => call.args[0] === constant('ARRAY_BUFFER'))
 				.map((call) => {
 					const start = call.args[1] as number;
-					return { start, end: start + (call.args[4] as number) * 4 };
+					return { start, end: start + (call.args[4] as number) };
 				});
-			const elementBuffers = (calls: GlCall[]): unknown[] => named(calls, 'bindBuffer')
-				.filter((call) => call.args[0] === constant('ELEMENT_ARRAY_BUFFER'))
-				.map((call) => call.args[1]);
 			const overlaps = (a: Range, b: Range): boolean => a.start < b.end && b.start < a.end;
 
 			const frames = Array.from({ length: 6 }, () => frame(fourDomains));
-			const ranges = frames.map(vertexRanges);
-			const slots = frames.map(elementBuffers);
+			const ranges = frames.map(instanceRanges);
 			for (let index = 0; index < frames.length; index++) {
 				expect(ranges[index]).toHaveLength(4);
-				expect(new Set(slots[index]).size).toBe(4);
 				// Inside a frame the four uploads sit side by side.
 				for (let a = 0; a < 4; a++) {
 					for (let b = a + 1; b < 4; b++) expect(overlaps(ranges[index][a], ranges[index][b])).toBe(false);
@@ -577,11 +580,8 @@ describe('WebGL2Backend', () => {
 				for (const range of ranges[index]) {
 					expect(ranges[index - 1].some((previous) => overlaps(range, previous))).toBe(false);
 				}
-				expect(slots[index].filter((slot) => slots[index - 1].includes(slot))).toEqual([]);
 			}
 
-			// The wrap happened, into the region three frames old, and nothing grew
-			// to avoid it.
 			// The wrap happened (mid-frame, onto offset 0, which frame 0 wrote and
 			// is three frames old by then), and nothing grew to avoid it.
 			const sequence = ranges.flat();
@@ -589,8 +589,6 @@ describe('WebGL2Backend', () => {
 			expect(wraps.length).toBeGreaterThan(0);
 			expect(sequence[wraps[0]].start).toBe(0);
 			expect(Math.floor(wraps[0] / 4)).toBe(3);
-			expect(slots[2]).toEqual(expect.arrayContaining(slots[0]));
-			expect(new Set(slots.flat()).size).toBe(8);
 			const grown = frames.flatMap((calls) => named(calls, 'bufferData'));
 			expect(grown).toEqual([]);
 		});

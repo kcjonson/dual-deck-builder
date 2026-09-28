@@ -1,0 +1,8597 @@
+[
+	{
+		"scenario": "mainMenuScreen",
+		"samples": [
+			{
+				"timestamp": 1790620530574,
+				"scene": "mainMenuScreen",
+				"frame": {
+					"ms": 16.84000000357628,
+					"minMs": 15.459999978542328,
+					"maxMs": 17.930000007152557,
+					"p99Ms": 17.75,
+					"histogram": [
+						0,
+						61,
+						59,
+						0
+					],
+					"spikesOverBudget": 8,
+					"spikesOver2xBudget": 0,
+					"budgetMs": 16.666666666666668,
+					"windowSize": 120,
+					"sampleCount": 120
+				},
+				"sections": {
+					"input": null,
+					"update": {
+						"ms": 0.014999985694885254,
+						"maxMs": 0.02000001072883606
+					},
+					"layout": {
+						"ms": 0,
+						"maxMs": 0.009999990463256836
+					},
+					"render": {
+						"ms": 0.20499998331069946,
+						"maxMs": 0.5349999964237213
+					},
+					"flush": {
+						"ms": 0.17000001668930054,
+						"maxMs": 0.4650000035762787
+					},
+					"present": null
+				},
+				"gpu": {
+					"ms": 2.940996,
+					"valid": true,
+					"passes": [
+						1.294879,
+						1.646117
+					],
+					"spanMs": null,
+					"latencyMs": null,
+					"source": "timerQuery",
+					"p99Ms": 3.645729,
+					"maxMs": 3.9110500000000004,
+					"sampleCount": 120,
+					"invalidCount": 0
+				},
+				"batcher": {
+					"apiDraws": 12,
+					"gpuDraws": 1,
+					"vertices": 284,
+					"triangles": 142,
+					"instances": 0,
+					"culled": 0,
+					"occluded": null,
+					"flushes": {
+						"barrier": 0,
+						"endFrame": 1,
+						"targetChange": 0,
+						"bufferFull": 0
+					},
+					"splits": {
+						"textureSlotsExhausted": 0,
+						"blendChange": 0,
+						"stencilLevel": 0
+					},
+					"groupsByLayer": {
+						"base": 12,
+						"raised": 0,
+						"overlay": 0,
+						"modal": 0,
+						"popup": 0,
+						"toast": 0,
+						"tooltip": 0,
+						"drag": 0,
+						"transition": 0
+					},
+					"reorderedGroups": 0,
+					"clipChange": 0,
+					"shaderChange": 0,
+					"textureBinds": 0,
+					"clipPushes": 0,
+					"bytesUploaded": 38056,
+					"residentTextureBytes": 5373956,
+					"pendingUploads": 0,
+					"evictions": 0,
+					"targetSwitches": null
+				},
+				"memory": {
+					"usedBytes": null
+				},
+				"renderer": {
+					"glDrawCalls": 1,
+					"vertices": 284,
+					"textCharacters": 69
+				},
+				"sanity": {
+					"frameMs": 16.84000000357628,
+					"sectionsMs": 0.38999998569488525,
+					"unaccountedMs": 16.450000017881393,
+					"framesWithSectionsOverSpan": 0
+				},
+				"liveness": {
+					"frameCount": 187,
+					"newestSampleAgeMs": 1
+				},
+				"device": {
+					"backend": "webgl2",
+					"vendor": "Google Inc. (AMD)",
+					"renderer": "ANGLE (AMD, ANGLE Metal Renderer: AMD Radeon Pro 560X, Unspecified Version)",
+					"features": {
+						"timerQuery": true,
+						"parallelShaderCompile": true,
+						"debugRendererInfo": true
+					}
+				},
+				"tracks": "console.timeStamp",
+				"hitches": {
+					"longFrames": {
+						"source": "long-animation-frame",
+						"count": 0,
+						"saturated": false,
+						"maxMs": null,
+						"blockingMs": 0,
+						"worst": null
+					},
+					"slowEvents": {
+						"thresholdMs": 16,
+						"count": 0,
+						"saturated": false,
+						"maxMs": null,
+						"worst": null
+					}
+				}
+			},
+			{
+				"timestamp": 1790620530591,
+				"scene": "mainMenuScreen",
+				"frame": {
+					"ms": 16.650000005960464,
+					"minMs": 15.459999978542328,
+					"maxMs": 17.930000007152557,
+					"p99Ms": 17.75,
+					"histogram": [
+						0,
+						62,
+						58,
+						0
+					],
+					"spikesOverBudget": 8,
+					"spikesOver2xBudget": 0,
+					"budgetMs": 16.666666666666668,
+					"windowSize": 120,
+					"sampleCount": 120
+				},
+				"sections": {
+					"input": null,
+					"update": {
+						"ms": 0.019999980926513672,
+						"maxMs": 0.02000001072883606
+					},
+					"layout": {
+						"ms": 0,
+						"maxMs": 0.009999990463256836
+					},
+					"render": {
+						"ms": 0.1599999964237213,
+						"maxMs": 0.5349999964237213
+					},
+					"flush": {
+						"ms": 0.17500001192092896,
+						"maxMs": 0.4650000035762787
+					},
+					"present": null
+				},
+				"gpu": {
+					"ms": 2.9451970000000003,
+					"valid": true,
+					"passes": [
+						1.30224,
+						1.642957
+					],
+					"spanMs": null,
+					"latencyMs": null,
+					"source": "timerQuery",
+					"p99Ms": 3.645729,
+					"maxMs": 3.9110500000000004,
+					"sampleCount": 120,
+					"invalidCount": 0
+				},
+				"batcher": {
+					"apiDraws": 12,
+					"gpuDraws": 1,
+					"vertices": 284,
+					"triangles": 142,
+					"instances": 0,
+					"culled": 0,
+					"occluded": null,
+					"flushes": {
+						"barrier": 0,
+						"endFrame": 1,
+						"targetChange": 0,
+						"bufferFull": 0
+					},
+					"splits": {
+						"textureSlotsExhausted": 0,
+						"blendChange": 0,
+						"stencilLevel": 0
+					},
+					"groupsByLayer": {
+						"base": 12,
+						"raised": 0,
+						"overlay": 0,
+						"modal": 0,
+						"popup": 0,
+						"toast": 0,
+						"tooltip": 0,
+						"drag": 0,
+						"transition": 0
+					},
+					"reorderedGroups": 0,
+					"clipChange": 0,
+					"shaderChange": 0,
+					"textureBinds": 0,
+					"clipPushes": 0,
+					"bytesUploaded": 38056,
+					"residentTextureBytes": 5373956,
+					"pendingUploads": 0,
+					"evictions": 0,
+					"targetSwitches": null
+				},
+				"memory": {
+					"usedBytes": null
+				},
+				"renderer": {
+					"glDrawCalls": 1,
+					"vertices": 284,
+					"textCharacters": 69
+				},
+				"sanity": {
+					"frameMs": 16.650000005960464,
+					"sectionsMs": 0.35499998927116394,
+					"unaccountedMs": 16.2950000166893,
+					"framesWithSectionsOverSpan": 0
+				},
+				"liveness": {
+					"frameCount": 188,
+					"newestSampleAgeMs": 1
+				},
+				"device": {
+					"backend": "webgl2",
+					"vendor": "Google Inc. (AMD)",
+					"renderer": "ANGLE (AMD, ANGLE Metal Renderer: AMD Radeon Pro 560X, Unspecified Version)",
+					"features": {
+						"timerQuery": true,
+						"parallelShaderCompile": true,
+						"debugRendererInfo": true
+					}
+				},
+				"tracks": "console.timeStamp",
+				"hitches": {
+					"longFrames": {
+						"source": "long-animation-frame",
+						"count": 0,
+						"saturated": false,
+						"maxMs": null,
+						"blockingMs": 0,
+						"worst": null
+					},
+					"slowEvents": {
+						"thresholdMs": 16,
+						"count": 0,
+						"saturated": false,
+						"maxMs": null,
+						"worst": null
+					}
+				}
+			},
+			{
+				"timestamp": 1790620530607,
+				"scene": "mainMenuScreen",
+				"frame": {
+					"ms": 16.82499998807907,
+					"minMs": 15.459999978542328,
+					"maxMs": 17.930000007152557,
+					"p99Ms": 17.75,
+					"histogram": [
+						0,
+						62,
+						58,
+						0
+					],
+					"spikesOverBudget": 8,
+					"spikesOver2xBudget": 0,
+					"budgetMs": 16.666666666666668,
+					"windowSize": 120,
+					"sampleCount": 120
+				},
+				"sections": {
+					"input": null,
+					"update": {
+						"ms": 0.010000020265579224,
+						"maxMs": 0.02000001072883606
+					},
+					"layout": {
+						"ms": 0,
+						"maxMs": 0.009999990463256836
+					},
+					"render": {
+						"ms": 0.24500000476837158,
+						"maxMs": 0.5349999964237213
+					},
+					"flush": {
+						"ms": 0.1899999976158142,
+						"maxMs": 0.4650000035762787
+					},
+					"present": null
+				},
+				"gpu": {
+					"ms": 2.9413660000000004,
+					"valid": true,
+					"passes": [
+						1.29872,
+						1.642646
+					],
+					"spanMs": null,
+					"latencyMs": null,
+					"source": "timerQuery",
+					"p99Ms": 3.645729,
+					"maxMs": 3.9110500000000004,
+					"sampleCount": 120,
+					"invalidCount": 0
+				},
+				"batcher": {
+					"apiDraws": 12,
+					"gpuDraws": 1,
+					"vertices": 284,
+					"triangles": 142,
+					"instances": 0,
+					"culled": 0,
+					"occluded": null,
+					"flushes": {
+						"barrier": 0,
+						"endFrame": 1,
+						"targetChange": 0,
+						"bufferFull": 0
+					},
+					"splits": {
+						"textureSlotsExhausted": 0,
+						"blendChange": 0,
+						"stencilLevel": 0
+					},
+					"groupsByLayer": {
+						"base": 12,
+						"raised": 0,
+						"overlay": 0,
+						"modal": 0,
+						"popup": 0,
+						"toast": 0,
+						"tooltip": 0,
+						"drag": 0,
+						"transition": 0
+					},
+					"reorderedGroups": 0,
+					"clipChange": 0,
+					"shaderChange": 0,
+					"textureBinds": 0,
+					"clipPushes": 0,
+					"bytesUploaded": 38056,
+					"residentTextureBytes": 5373956,
+					"pendingUploads": 0,
+					"evictions": 0,
+					"targetSwitches": null
+				},
+				"memory": {
+					"usedBytes": null
+				},
+				"renderer": {
+					"glDrawCalls": 1,
+					"vertices": 284,
+					"textCharacters": 69
+				},
+				"sanity": {
+					"frameMs": 16.82499998807907,
+					"sectionsMs": 0.445000022649765,
+					"unaccountedMs": 16.379999965429306,
+					"framesWithSectionsOverSpan": 0
+				},
+				"liveness": {
+					"frameCount": 189,
+					"newestSampleAgeMs": 1
+				},
+				"device": {
+					"backend": "webgl2",
+					"vendor": "Google Inc. (AMD)",
+					"renderer": "ANGLE (AMD, ANGLE Metal Renderer: AMD Radeon Pro 560X, Unspecified Version)",
+					"features": {
+						"timerQuery": true,
+						"parallelShaderCompile": true,
+						"debugRendererInfo": true
+					}
+				},
+				"tracks": "console.timeStamp",
+				"hitches": {
+					"longFrames": {
+						"source": "long-animation-frame",
+						"count": 0,
+						"saturated": false,
+						"maxMs": null,
+						"blockingMs": 0,
+						"worst": null
+					},
+					"slowEvents": {
+						"thresholdMs": 16,
+						"count": 0,
+						"saturated": false,
+						"maxMs": null,
+						"worst": null
+					}
+				}
+			},
+			{
+				"timestamp": 1790620530624,
+				"scene": "mainMenuScreen",
+				"frame": {
+					"ms": 16.5,
+					"minMs": 15.459999978542328,
+					"maxMs": 17.930000007152557,
+					"p99Ms": 17.75,
+					"histogram": [
+						0,
+						62,
+						58,
+						0
+					],
+					"spikesOverBudget": 8,
+					"spikesOver2xBudget": 0,
+					"budgetMs": 16.666666666666668,
+					"windowSize": 120,
+					"sampleCount": 120
+				},
+				"sections": {
+					"input": null,
+					"update": {
+						"ms": 0.009999990463256836,
+						"maxMs": 0.02000001072883606
+					},
+					"layout": {
+						"ms": 0,
+						"maxMs": 0.009999990463256836
+					},
+					"render": {
+						"ms": 0.17499998211860657,
+						"maxMs": 0.5349999964237213
+					},
+					"flush": {
+						"ms": 0.1599999964237213,
+						"maxMs": 0.4650000035762787
+					},
+					"present": null
+				},
+				"gpu": {
+					"ms": 2.9400880000000003,
+					"valid": true,
+					"passes": [
+						1.30112,
+						1.638968
+					],
+					"spanMs": null,
+					"latencyMs": null,
+					"source": "timerQuery",
+					"p99Ms": 3.645729,
+					"maxMs": 3.9110500000000004,
+					"sampleCount": 120,
+					"invalidCount": 0
+				},
+				"batcher": {
+					"apiDraws": 12,
+					"gpuDraws": 1,
+					"vertices": 284,
+					"triangles": 142,
+					"instances": 0,
+					"culled": 0,
+					"occluded": null,
+					"flushes": {
+						"barrier": 0,
+						"endFrame": 1,
+						"targetChange": 0,
+						"bufferFull": 0
+					},
+					"splits": {
+						"textureSlotsExhausted": 0,
+						"blendChange": 0,
+						"stencilLevel": 0
+					},
+					"groupsByLayer": {
+						"base": 12,
+						"raised": 0,
+						"overlay": 0,
+						"modal": 0,
+						"popup": 0,
+						"toast": 0,
+						"tooltip": 0,
+						"drag": 0,
+						"transition": 0
+					},
+					"reorderedGroups": 0,
+					"clipChange": 0,
+					"shaderChange": 0,
+					"textureBinds": 0,
+					"clipPushes": 0,
+					"bytesUploaded": 38056,
+					"residentTextureBytes": 5373956,
+					"pendingUploads": 0,
+					"evictions": 0,
+					"targetSwitches": null
+				},
+				"memory": {
+					"usedBytes": null
+				},
+				"renderer": {
+					"glDrawCalls": 1,
+					"vertices": 284,
+					"textCharacters": 69
+				},
+				"sanity": {
+					"frameMs": 16.5,
+					"sectionsMs": 0.3449999690055847,
+					"unaccountedMs": 16.155000030994415,
+					"framesWithSectionsOverSpan": 0
+				},
+				"liveness": {
+					"frameCount": 190,
+					"newestSampleAgeMs": 1
+				},
+				"device": {
+					"backend": "webgl2",
+					"vendor": "Google Inc. (AMD)",
+					"renderer": "ANGLE (AMD, ANGLE Metal Renderer: AMD Radeon Pro 560X, Unspecified Version)",
+					"features": {
+						"timerQuery": true,
+						"parallelShaderCompile": true,
+						"debugRendererInfo": true
+					}
+				},
+				"tracks": "console.timeStamp",
+				"hitches": {
+					"longFrames": {
+						"source": "long-animation-frame",
+						"count": 0,
+						"saturated": false,
+						"maxMs": null,
+						"blockingMs": 0,
+						"worst": null
+					},
+					"slowEvents": {
+						"thresholdMs": 16,
+						"count": 0,
+						"saturated": false,
+						"maxMs": null,
+						"worst": null
+					}
+				}
+			},
+			{
+				"timestamp": 1790620530641,
+				"scene": "mainMenuScreen",
+				"frame": {
+					"ms": 16.775000005960464,
+					"minMs": 15.459999978542328,
+					"maxMs": 17.930000007152557,
+					"p99Ms": 17.75,
+					"histogram": [
+						0,
+						62,
+						58,
+						0
+					],
+					"spikesOverBudget": 8,
+					"spikesOver2xBudget": 0,
+					"budgetMs": 16.666666666666668,
+					"windowSize": 120,
+					"sampleCount": 120
+				},
+				"sections": {
+					"input": null,
+					"update": {
+						"ms": 0.015000015497207642,
+						"maxMs": 0.02000001072883606
+					},
+					"layout": {
+						"ms": 0,
+						"maxMs": 0.009999990463256836
+					},
+					"render": {
+						"ms": 0.22499999403953552,
+						"maxMs": 0.5349999964237213
+					},
+					"flush": {
+						"ms": 0.2150000035762787,
+						"maxMs": 0.4650000035762787
+					},
+					"present": null
+				},
+				"gpu": {
+					"ms": 2.932935,
+					"valid": true,
+					"passes": [
+						1.293759,
+						1.639176
+					],
+					"spanMs": null,
+					"latencyMs": null,
+					"source": "timerQuery",
+					"p99Ms": 3.645729,
+					"maxMs": 3.9110500000000004,
+					"sampleCount": 120,
+					"invalidCount": 0
+				},
+				"batcher": {
+					"apiDraws": 12,
+					"gpuDraws": 1,
+					"vertices": 284,
+					"triangles": 142,
+					"instances": 0,
+					"culled": 0,
+					"occluded": null,
+					"flushes": {
+						"barrier": 0,
+						"endFrame": 1,
+						"targetChange": 0,
+						"bufferFull": 0
+					},
+					"splits": {
+						"textureSlotsExhausted": 0,
+						"blendChange": 0,
+						"stencilLevel": 0
+					},
+					"groupsByLayer": {
+						"base": 12,
+						"raised": 0,
+						"overlay": 0,
+						"modal": 0,
+						"popup": 0,
+						"toast": 0,
+						"tooltip": 0,
+						"drag": 0,
+						"transition": 0
+					},
+					"reorderedGroups": 0,
+					"clipChange": 0,
+					"shaderChange": 0,
+					"textureBinds": 0,
+					"clipPushes": 0,
+					"bytesUploaded": 38056,
+					"residentTextureBytes": 5373956,
+					"pendingUploads": 0,
+					"evictions": 0,
+					"targetSwitches": null
+				},
+				"memory": {
+					"usedBytes": null
+				},
+				"renderer": {
+					"glDrawCalls": 1,
+					"vertices": 284,
+					"textCharacters": 69
+				},
+				"sanity": {
+					"frameMs": 16.775000005960464,
+					"sectionsMs": 0.45500001311302185,
+					"unaccountedMs": 16.319999992847443,
+					"framesWithSectionsOverSpan": 0
+				},
+				"liveness": {
+					"frameCount": 191,
+					"newestSampleAgeMs": 1
+				},
+				"device": {
+					"backend": "webgl2",
+					"vendor": "Google Inc. (AMD)",
+					"renderer": "ANGLE (AMD, ANGLE Metal Renderer: AMD Radeon Pro 560X, Unspecified Version)",
+					"features": {
+						"timerQuery": true,
+						"parallelShaderCompile": true,
+						"debugRendererInfo": true
+					}
+				},
+				"tracks": "console.timeStamp",
+				"hitches": {
+					"longFrames": {
+						"source": "long-animation-frame",
+						"count": 0,
+						"saturated": false,
+						"maxMs": null,
+						"blockingMs": 0,
+						"worst": null
+					},
+					"slowEvents": {
+						"thresholdMs": 16,
+						"count": 0,
+						"saturated": false,
+						"maxMs": null,
+						"worst": null
+					}
+				}
+			},
+			{
+				"timestamp": 1790620530657,
+				"scene": "mainMenuScreen",
+				"frame": {
+					"ms": 16.525000005960464,
+					"minMs": 15.459999978542328,
+					"maxMs": 17.930000007152557,
+					"p99Ms": 17.75,
+					"histogram": [
+						0,
+						62,
+						58,
+						0
+					],
+					"spikesOverBudget": 8,
+					"spikesOver2xBudget": 0,
+					"budgetMs": 16.666666666666668,
+					"windowSize": 120,
+					"sampleCount": 120
+				},
+				"sections": {
+					"input": null,
+					"update": {
+						"ms": 0.009999990463256836,
+						"maxMs": 0.02000001072883606
+					},
+					"layout": {
+						"ms": 0,
+						"maxMs": 0.009999990463256836
+					},
+					"render": {
+						"ms": 0.1899999976158142,
+						"maxMs": 0.5349999964237213
+					},
+					"flush": {
+						"ms": 0.2199999988079071,
+						"maxMs": 0.4650000035762787
+					},
+					"present": null
+				},
+				"gpu": {
+					"ms": 2.945563,
+					"valid": true,
+					"passes": [
+						1.30304,
+						1.642523
+					],
+					"spanMs": null,
+					"latencyMs": null,
+					"source": "timerQuery",
+					"p99Ms": 3.645729,
+					"maxMs": 3.9110500000000004,
+					"sampleCount": 120,
+					"invalidCount": 0
+				},
+				"batcher": {
+					"apiDraws": 12,
+					"gpuDraws": 1,
+					"vertices": 284,
+					"triangles": 142,
+					"instances": 0,
+					"culled": 0,
+					"occluded": null,
+					"flushes": {
+						"barrier": 0,
+						"endFrame": 1,
+						"targetChange": 0,
+						"bufferFull": 0
+					},
+					"splits": {
+						"textureSlotsExhausted": 0,
+						"blendChange": 0,
+						"stencilLevel": 0
+					},
+					"groupsByLayer": {
+						"base": 12,
+						"raised": 0,
+						"overlay": 0,
+						"modal": 0,
+						"popup": 0,
+						"toast": 0,
+						"tooltip": 0,
+						"drag": 0,
+						"transition": 0
+					},
+					"reorderedGroups": 0,
+					"clipChange": 0,
+					"shaderChange": 0,
+					"textureBinds": 0,
+					"clipPushes": 0,
+					"bytesUploaded": 38056,
+					"residentTextureBytes": 5373956,
+					"pendingUploads": 0,
+					"evictions": 0,
+					"targetSwitches": null
+				},
+				"memory": {
+					"usedBytes": null
+				},
+				"renderer": {
+					"glDrawCalls": 1,
+					"vertices": 284,
+					"textCharacters": 69
+				},
+				"sanity": {
+					"frameMs": 16.525000005960464,
+					"sectionsMs": 0.41999998688697815,
+					"unaccountedMs": 16.105000019073486,
+					"framesWithSectionsOverSpan": 0
+				},
+				"liveness": {
+					"frameCount": 192,
+					"newestSampleAgeMs": 1
+				},
+				"device": {
+					"backend": "webgl2",
+					"vendor": "Google Inc. (AMD)",
+					"renderer": "ANGLE (AMD, ANGLE Metal Renderer: AMD Radeon Pro 560X, Unspecified Version)",
+					"features": {
+						"timerQuery": true,
+						"parallelShaderCompile": true,
+						"debugRendererInfo": true
+					}
+				},
+				"tracks": "console.timeStamp",
+				"hitches": {
+					"longFrames": {
+						"source": "long-animation-frame",
+						"count": 0,
+						"saturated": false,
+						"maxMs": null,
+						"blockingMs": 0,
+						"worst": null
+					},
+					"slowEvents": {
+						"thresholdMs": 16,
+						"count": 0,
+						"saturated": false,
+						"maxMs": null,
+						"worst": null
+					}
+				}
+			},
+			{
+				"timestamp": 1790620530674,
+				"scene": "mainMenuScreen",
+				"frame": {
+					"ms": 16.844999998807907,
+					"minMs": 15.459999978542328,
+					"maxMs": 17.930000007152557,
+					"p99Ms": 17.75,
+					"histogram": [
+						0,
+						62,
+						58,
+						0
+					],
+					"spikesOverBudget": 7,
+					"spikesOver2xBudget": 0,
+					"budgetMs": 16.666666666666668,
+					"windowSize": 120,
+					"sampleCount": 120
+				},
+				"sections": {
+					"input": null,
+					"update": {
+						"ms": 0.005000025033950806,
+						"maxMs": 0.02000001072883606
+					},
+					"layout": {
+						"ms": 0,
+						"maxMs": 0.009999990463256836
+					},
+					"render": {
+						"ms": 0.2199999988079071,
+						"maxMs": 0.5349999964237213
+					},
+					"flush": {
+						"ms": 0.18000000715255737,
+						"maxMs": 0.4650000035762787
+					},
+					"present": null
+				},
+				"gpu": {
+					"ms": 2.8842280000000002,
+					"valid": true,
+					"passes": [
+						1.27536,
+						1.608868
+					],
+					"spanMs": null,
+					"latencyMs": null,
+					"source": "timerQuery",
+					"p99Ms": 3.645729,
+					"maxMs": 3.9110500000000004,
+					"sampleCount": 120,
+					"invalidCount": 0
+				},
+				"batcher": {
+					"apiDraws": 12,
+					"gpuDraws": 1,
+					"vertices": 284,
+					"triangles": 142,
+					"instances": 0,
+					"culled": 0,
+					"occluded": null,
+					"flushes": {
+						"barrier": 0,
+						"endFrame": 1,
+						"targetChange": 0,
+						"bufferFull": 0
+					},
+					"splits": {
+						"textureSlotsExhausted": 0,
+						"blendChange": 0,
+						"stencilLevel": 0
+					},
+					"groupsByLayer": {
+						"base": 12,
+						"raised": 0,
+						"overlay": 0,
+						"modal": 0,
+						"popup": 0,
+						"toast": 0,
+						"tooltip": 0,
+						"drag": 0,
+						"transition": 0
+					},
+					"reorderedGroups": 0,
+					"clipChange": 0,
+					"shaderChange": 0,
+					"textureBinds": 0,
+					"clipPushes": 0,
+					"bytesUploaded": 38056,
+					"residentTextureBytes": 5373956,
+					"pendingUploads": 0,
+					"evictions": 0,
+					"targetSwitches": null
+				},
+				"memory": {
+					"usedBytes": null
+				},
+				"renderer": {
+					"glDrawCalls": 1,
+					"vertices": 284,
+					"textCharacters": 69
+				},
+				"sanity": {
+					"frameMs": 16.844999998807907,
+					"sectionsMs": 0.4050000309944153,
+					"unaccountedMs": 16.439999967813492,
+					"framesWithSectionsOverSpan": 0
+				},
+				"liveness": {
+					"frameCount": 193,
+					"newestSampleAgeMs": 1
+				},
+				"device": {
+					"backend": "webgl2",
+					"vendor": "Google Inc. (AMD)",
+					"renderer": "ANGLE (AMD, ANGLE Metal Renderer: AMD Radeon Pro 560X, Unspecified Version)",
+					"features": {
+						"timerQuery": true,
+						"parallelShaderCompile": true,
+						"debugRendererInfo": true
+					}
+				},
+				"tracks": "console.timeStamp",
+				"hitches": {
+					"longFrames": {
+						"source": "long-animation-frame",
+						"count": 0,
+						"saturated": false,
+						"maxMs": null,
+						"blockingMs": 0,
+						"worst": null
+					},
+					"slowEvents": {
+						"thresholdMs": 16,
+						"count": 0,
+						"saturated": false,
+						"maxMs": null,
+						"worst": null
+					}
+				}
+			},
+			{
+				"timestamp": 1790620530690,
+				"scene": "mainMenuScreen",
+				"frame": {
+					"ms": 16.430000007152557,
+					"minMs": 15.459999978542328,
+					"maxMs": 17.930000007152557,
+					"p99Ms": 17.75,
+					"histogram": [
+						0,
+						62,
+						58,
+						0
+					],
+					"spikesOverBudget": 7,
+					"spikesOver2xBudget": 0,
+					"budgetMs": 16.666666666666668,
+					"windowSize": 120,
+					"sampleCount": 120
+				},
+				"sections": {
+					"input": null,
+					"update": {
+						"ms": 0.014999985694885254,
+						"maxMs": 0.02000001072883606
+					},
+					"layout": {
+						"ms": 0.004999995231628418,
+						"maxMs": 0.009999990463256836
+					},
+					"render": {
+						"ms": 0.1900000274181366,
+						"maxMs": 0.5349999964237213
+					},
+					"flush": {
+						"ms": 0.20999997854232788,
+						"maxMs": 0.4650000035762787
+					},
+					"present": null
+				},
+				"gpu": {
+					"ms": 2.9245270000000003,
+					"valid": true,
+					"passes": [
+						1.311039,
+						1.613488
+					],
+					"spanMs": null,
+					"latencyMs": null,
+					"source": "timerQuery",
+					"p99Ms": 3.645729,
+					"maxMs": 3.9110500000000004,
+					"sampleCount": 120,
+					"invalidCount": 0
+				},
+				"batcher": {
+					"apiDraws": 12,
+					"gpuDraws": 1,
+					"vertices": 284,
+					"triangles": 142,
+					"instances": 0,
+					"culled": 0,
+					"occluded": null,
+					"flushes": {
+						"barrier": 0,
+						"endFrame": 1,
+						"targetChange": 0,
+						"bufferFull": 0
+					},
+					"splits": {
+						"textureSlotsExhausted": 0,
+						"blendChange": 0,
+						"stencilLevel": 0
+					},
+					"groupsByLayer": {
+						"base": 12,
+						"raised": 0,
+						"overlay": 0,
+						"modal": 0,
+						"popup": 0,
+						"toast": 0,
+						"tooltip": 0,
+						"drag": 0,
+						"transition": 0
+					},
+					"reorderedGroups": 0,
+					"clipChange": 0,
+					"shaderChange": 0,
+					"textureBinds": 0,
+					"clipPushes": 0,
+					"bytesUploaded": 38056,
+					"residentTextureBytes": 5373956,
+					"pendingUploads": 0,
+					"evictions": 0,
+					"targetSwitches": null
+				},
+				"memory": {
+					"usedBytes": null
+				},
+				"renderer": {
+					"glDrawCalls": 1,
+					"vertices": 284,
+					"textCharacters": 69
+				},
+				"sanity": {
+					"frameMs": 16.430000007152557,
+					"sectionsMs": 0.41999998688697815,
+					"unaccountedMs": 16.01000002026558,
+					"framesWithSectionsOverSpan": 0
+				},
+				"liveness": {
+					"frameCount": 194,
+					"newestSampleAgeMs": 0
+				},
+				"device": {
+					"backend": "webgl2",
+					"vendor": "Google Inc. (AMD)",
+					"renderer": "ANGLE (AMD, ANGLE Metal Renderer: AMD Radeon Pro 560X, Unspecified Version)",
+					"features": {
+						"timerQuery": true,
+						"parallelShaderCompile": true,
+						"debugRendererInfo": true
+					}
+				},
+				"tracks": "console.timeStamp",
+				"hitches": {
+					"longFrames": {
+						"source": "long-animation-frame",
+						"count": 0,
+						"saturated": false,
+						"maxMs": null,
+						"blockingMs": 0,
+						"worst": null
+					},
+					"slowEvents": {
+						"thresholdMs": 16,
+						"count": 0,
+						"saturated": false,
+						"maxMs": null,
+						"worst": null
+					}
+				}
+			},
+			{
+				"timestamp": 1790620530707,
+				"scene": "mainMenuScreen",
+				"frame": {
+					"ms": 16.7049999833107,
+					"minMs": 15.459999978542328,
+					"maxMs": 17.930000007152557,
+					"p99Ms": 17.75,
+					"histogram": [
+						0,
+						61,
+						59,
+						0
+					],
+					"spikesOverBudget": 7,
+					"spikesOver2xBudget": 0,
+					"budgetMs": 16.666666666666668,
+					"windowSize": 120,
+					"sampleCount": 120
+				},
+				"sections": {
+					"input": null,
+					"update": {
+						"ms": 0.02000001072883606,
+						"maxMs": 0.02000001072883606
+					},
+					"layout": {
+						"ms": 0.004999995231628418,
+						"maxMs": 0.009999990463256836
+					},
+					"render": {
+						"ms": 0.17500001192092896,
+						"maxMs": 0.5349999964237213
+					},
+					"flush": {
+						"ms": 0.19499999284744263,
+						"maxMs": 0.4650000035762787
+					},
+					"present": null
+				},
+				"gpu": {
+					"ms": 2.889974,
+					"valid": true,
+					"passes": [
+						1.27504,
+						1.614934
+					],
+					"spanMs": null,
+					"latencyMs": null,
+					"source": "timerQuery",
+					"p99Ms": 3.645729,
+					"maxMs": 3.9110500000000004,
+					"sampleCount": 120,
+					"invalidCount": 0
+				},
+				"batcher": {
+					"apiDraws": 12,
+					"gpuDraws": 1,
+					"vertices": 284,
+					"triangles": 142,
+					"instances": 0,
+					"culled": 0,
+					"occluded": null,
+					"flushes": {
+						"barrier": 0,
+						"endFrame": 1,
+						"targetChange": 0,
+						"bufferFull": 0
+					},
+					"splits": {
+						"textureSlotsExhausted": 0,
+						"blendChange": 0,
+						"stencilLevel": 0
+					},
+					"groupsByLayer": {
+						"base": 12,
+						"raised": 0,
+						"overlay": 0,
+						"modal": 0,
+						"popup": 0,
+						"toast": 0,
+						"tooltip": 0,
+						"drag": 0,
+						"transition": 0
+					},
+					"reorderedGroups": 0,
+					"clipChange": 0,
+					"shaderChange": 0,
+					"textureBinds": 0,
+					"clipPushes": 0,
+					"bytesUploaded": 38056,
+					"residentTextureBytes": 5373956,
+					"pendingUploads": 0,
+					"evictions": 0,
+					"targetSwitches": null
+				},
+				"memory": {
+					"usedBytes": null
+				},
+				"renderer": {
+					"glDrawCalls": 1,
+					"vertices": 284,
+					"textCharacters": 69
+				},
+				"sanity": {
+					"frameMs": 16.7049999833107,
+					"sectionsMs": 0.39500001072883606,
+					"unaccountedMs": 16.309999972581863,
+					"framesWithSectionsOverSpan": 0
+				},
+				"liveness": {
+					"frameCount": 195,
+					"newestSampleAgeMs": 1
+				},
+				"device": {
+					"backend": "webgl2",
+					"vendor": "Google Inc. (AMD)",
+					"renderer": "ANGLE (AMD, ANGLE Metal Renderer: AMD Radeon Pro 560X, Unspecified Version)",
+					"features": {
+						"timerQuery": true,
+						"parallelShaderCompile": true,
+						"debugRendererInfo": true
+					}
+				},
+				"tracks": "console.timeStamp",
+				"hitches": {
+					"longFrames": {
+						"source": "long-animation-frame",
+						"count": 0,
+						"saturated": false,
+						"maxMs": null,
+						"blockingMs": 0,
+						"worst": null
+					},
+					"slowEvents": {
+						"thresholdMs": 16,
+						"count": 0,
+						"saturated": false,
+						"maxMs": null,
+						"worst": null
+					}
+				}
+			},
+			{
+				"timestamp": 1790620530723,
+				"scene": "mainMenuScreen",
+				"frame": {
+					"ms": 16.599999994039536,
+					"minMs": 15.459999978542328,
+					"maxMs": 17.930000007152557,
+					"p99Ms": 17.75,
+					"histogram": [
+						0,
+						62,
+						58,
+						0
+					],
+					"spikesOverBudget": 7,
+					"spikesOver2xBudget": 0,
+					"budgetMs": 16.666666666666668,
+					"windowSize": 120,
+					"sampleCount": 120
+				},
+				"sections": {
+					"input": null,
+					"update": {
+						"ms": 0.015000015497207642,
+						"maxMs": 0.02000001072883606
+					},
+					"layout": {
+						"ms": 0.004999995231628418,
+						"maxMs": 0.009999990463256836
+					},
+					"render": {
+						"ms": 0.24500000476837158,
+						"maxMs": 0.5349999964237213
+					},
+					"flush": {
+						"ms": 0.1899999976158142,
+						"maxMs": 0.4650000035762787
+					},
+					"present": null
+				},
+				"gpu": {
+					"ms": 2.903483,
+					"valid": true,
+					"passes": [
+						1.30192,
+						1.601563
+					],
+					"spanMs": null,
+					"latencyMs": null,
+					"source": "timerQuery",
+					"p99Ms": 3.645729,
+					"maxMs": 3.9110500000000004,
+					"sampleCount": 120,
+					"invalidCount": 0
+				},
+				"batcher": {
+					"apiDraws": 12,
+					"gpuDraws": 1,
+					"vertices": 284,
+					"triangles": 142,
+					"instances": 0,
+					"culled": 0,
+					"occluded": null,
+					"flushes": {
+						"barrier": 0,
+						"endFrame": 1,
+						"targetChange": 0,
+						"bufferFull": 0
+					},
+					"splits": {
+						"textureSlotsExhausted": 0,
+						"blendChange": 0,
+						"stencilLevel": 0
+					},
+					"groupsByLayer": {
+						"base": 12,
+						"raised": 0,
+						"overlay": 0,
+						"modal": 0,
+						"popup": 0,
+						"toast": 0,
+						"tooltip": 0,
+						"drag": 0,
+						"transition": 0
+					},
+					"reorderedGroups": 0,
+					"clipChange": 0,
+					"shaderChange": 0,
+					"textureBinds": 0,
+					"clipPushes": 0,
+					"bytesUploaded": 38056,
+					"residentTextureBytes": 5373956,
+					"pendingUploads": 0,
+					"evictions": 0,
+					"targetSwitches": null
+				},
+				"memory": {
+					"usedBytes": null
+				},
+				"renderer": {
+					"glDrawCalls": 1,
+					"vertices": 284,
+					"textCharacters": 69
+				},
+				"sanity": {
+					"frameMs": 16.599999994039536,
+					"sectionsMs": 0.45500001311302185,
+					"unaccountedMs": 16.144999980926514,
+					"framesWithSectionsOverSpan": 0
+				},
+				"liveness": {
+					"frameCount": 196,
+					"newestSampleAgeMs": 0
+				},
+				"device": {
+					"backend": "webgl2",
+					"vendor": "Google Inc. (AMD)",
+					"renderer": "ANGLE (AMD, ANGLE Metal Renderer: AMD Radeon Pro 560X, Unspecified Version)",
+					"features": {
+						"timerQuery": true,
+						"parallelShaderCompile": true,
+						"debugRendererInfo": true
+					}
+				},
+				"tracks": "console.timeStamp",
+				"hitches": {
+					"longFrames": {
+						"source": "long-animation-frame",
+						"count": 0,
+						"saturated": false,
+						"maxMs": null,
+						"blockingMs": 0,
+						"worst": null
+					},
+					"slowEvents": {
+						"thresholdMs": 16,
+						"count": 0,
+						"saturated": false,
+						"maxMs": null,
+						"worst": null
+					}
+				}
+			},
+			{
+				"timestamp": 1790620530740,
+				"scene": "mainMenuScreen",
+				"frame": {
+					"ms": 16.844999998807907,
+					"minMs": 15.459999978542328,
+					"maxMs": 17.930000007152557,
+					"p99Ms": 17.75,
+					"histogram": [
+						0,
+						61,
+						59,
+						0
+					],
+					"spikesOverBudget": 7,
+					"spikesOver2xBudget": 0,
+					"budgetMs": 16.666666666666668,
+					"windowSize": 120,
+					"sampleCount": 120
+				},
+				"sections": {
+					"input": null,
+					"update": {
+						"ms": 0.009999990463256836,
+						"maxMs": 0.02000001072883606
+					},
+					"layout": {
+						"ms": 0,
+						"maxMs": 0.009999990463256836
+					},
+					"render": {
+						"ms": 0.16499999165534973,
+						"maxMs": 0.5349999964237213
+					},
+					"flush": {
+						"ms": 0.16999998688697815,
+						"maxMs": 0.4650000035762787
+					},
+					"present": null
+				},
+				"gpu": {
+					"ms": 2.953833,
+					"valid": true,
+					"passes": [
+						1.3112,
+						1.642633
+					],
+					"spanMs": null,
+					"latencyMs": null,
+					"source": "timerQuery",
+					"p99Ms": 3.645729,
+					"maxMs": 3.9110500000000004,
+					"sampleCount": 120,
+					"invalidCount": 0
+				},
+				"batcher": {
+					"apiDraws": 12,
+					"gpuDraws": 1,
+					"vertices": 284,
+					"triangles": 142,
+					"instances": 0,
+					"culled": 0,
+					"occluded": null,
+					"flushes": {
+						"barrier": 0,
+						"endFrame": 1,
+						"targetChange": 0,
+						"bufferFull": 0
+					},
+					"splits": {
+						"textureSlotsExhausted": 0,
+						"blendChange": 0,
+						"stencilLevel": 0
+					},
+					"groupsByLayer": {
+						"base": 12,
+						"raised": 0,
+						"overlay": 0,
+						"modal": 0,
+						"popup": 0,
+						"toast": 0,
+						"tooltip": 0,
+						"drag": 0,
+						"transition": 0
+					},
+					"reorderedGroups": 0,
+					"clipChange": 0,
+					"shaderChange": 0,
+					"textureBinds": 0,
+					"clipPushes": 0,
+					"bytesUploaded": 38056,
+					"residentTextureBytes": 5373956,
+					"pendingUploads": 0,
+					"evictions": 0,
+					"targetSwitches": null
+				},
+				"memory": {
+					"usedBytes": null
+				},
+				"renderer": {
+					"glDrawCalls": 1,
+					"vertices": 284,
+					"textCharacters": 69
+				},
+				"sanity": {
+					"frameMs": 16.844999998807907,
+					"sectionsMs": 0.3449999690055847,
+					"unaccountedMs": 16.500000029802322,
+					"framesWithSectionsOverSpan": 0
+				},
+				"liveness": {
+					"frameCount": 197,
+					"newestSampleAgeMs": 0
+				},
+				"device": {
+					"backend": "webgl2",
+					"vendor": "Google Inc. (AMD)",
+					"renderer": "ANGLE (AMD, ANGLE Metal Renderer: AMD Radeon Pro 560X, Unspecified Version)",
+					"features": {
+						"timerQuery": true,
+						"parallelShaderCompile": true,
+						"debugRendererInfo": true
+					}
+				},
+				"tracks": "console.timeStamp",
+				"hitches": {
+					"longFrames": {
+						"source": "long-animation-frame",
+						"count": 0,
+						"saturated": false,
+						"maxMs": null,
+						"blockingMs": 0,
+						"worst": null
+					},
+					"slowEvents": {
+						"thresholdMs": 16,
+						"count": 0,
+						"saturated": false,
+						"maxMs": null,
+						"worst": null
+					}
+				}
+			},
+			{
+				"timestamp": 1790620530757,
+				"scene": "mainMenuScreen",
+				"frame": {
+					"ms": 16.850000023841858,
+					"minMs": 15.459999978542328,
+					"maxMs": 17.930000007152557,
+					"p99Ms": 17.75,
+					"histogram": [
+						0,
+						60,
+						60,
+						0
+					],
+					"spikesOverBudget": 7,
+					"spikesOver2xBudget": 0,
+					"budgetMs": 16.666666666666668,
+					"windowSize": 120,
+					"sampleCount": 120
+				},
+				"sections": {
+					"input": null,
+					"update": {
+						"ms": 0.009999990463256836,
+						"maxMs": 0.02000001072883606
+					},
+					"layout": {
+						"ms": 0.004999995231628418,
+						"maxMs": 0.009999990463256836
+					},
+					"render": {
+						"ms": 0.15000000596046448,
+						"maxMs": 0.5349999964237213
+					},
+					"flush": {
+						"ms": 0.1549999713897705,
+						"maxMs": 0.4650000035762787
+					},
+					"present": null
+				},
+				"gpu": {
+					"ms": 2.950987,
+					"valid": true,
+					"passes": [
+						1.303679,
+						1.647308
+					],
+					"spanMs": null,
+					"latencyMs": null,
+					"source": "timerQuery",
+					"p99Ms": 3.645729,
+					"maxMs": 3.9110500000000004,
+					"sampleCount": 120,
+					"invalidCount": 0
+				},
+				"batcher": {
+					"apiDraws": 12,
+					"gpuDraws": 1,
+					"vertices": 284,
+					"triangles": 142,
+					"instances": 0,
+					"culled": 0,
+					"occluded": null,
+					"flushes": {
+						"barrier": 0,
+						"endFrame": 1,
+						"targetChange": 0,
+						"bufferFull": 0
+					},
+					"splits": {
+						"textureSlotsExhausted": 0,
+						"blendChange": 0,
+						"stencilLevel": 0
+					},
+					"groupsByLayer": {
+						"base": 12,
+						"raised": 0,
+						"overlay": 0,
+						"modal": 0,
+						"popup": 0,
+						"toast": 0,
+						"tooltip": 0,
+						"drag": 0,
+						"transition": 0
+					},
+					"reorderedGroups": 0,
+					"clipChange": 0,
+					"shaderChange": 0,
+					"textureBinds": 0,
+					"clipPushes": 0,
+					"bytesUploaded": 38056,
+					"residentTextureBytes": 5373956,
+					"pendingUploads": 0,
+					"evictions": 0,
+					"targetSwitches": null
+				},
+				"memory": {
+					"usedBytes": null
+				},
+				"renderer": {
+					"glDrawCalls": 1,
+					"vertices": 284,
+					"textCharacters": 69
+				},
+				"sanity": {
+					"frameMs": 16.850000023841858,
+					"sectionsMs": 0.31999996304512024,
+					"unaccountedMs": 16.530000060796738,
+					"framesWithSectionsOverSpan": 0
+				},
+				"liveness": {
+					"frameCount": 198,
+					"newestSampleAgeMs": 0
+				},
+				"device": {
+					"backend": "webgl2",
+					"vendor": "Google Inc. (AMD)",
+					"renderer": "ANGLE (AMD, ANGLE Metal Renderer: AMD Radeon Pro 560X, Unspecified Version)",
+					"features": {
+						"timerQuery": true,
+						"parallelShaderCompile": true,
+						"debugRendererInfo": true
+					}
+				},
+				"tracks": "console.timeStamp",
+				"hitches": {
+					"longFrames": {
+						"source": "long-animation-frame",
+						"count": 0,
+						"saturated": false,
+						"maxMs": null,
+						"blockingMs": 0,
+						"worst": null
+					},
+					"slowEvents": {
+						"thresholdMs": 16,
+						"count": 0,
+						"saturated": false,
+						"maxMs": null,
+						"worst": null
+					}
+				}
+			},
+			{
+				"timestamp": 1790620530774,
+				"scene": "mainMenuScreen",
+				"frame": {
+					"ms": 16.399999976158142,
+					"minMs": 15.459999978542328,
+					"maxMs": 17.930000007152557,
+					"p99Ms": 17.75,
+					"histogram": [
+						0,
+						61,
+						59,
+						0
+					],
+					"spikesOverBudget": 7,
+					"spikesOver2xBudget": 0,
+					"budgetMs": 16.666666666666668,
+					"windowSize": 120,
+					"sampleCount": 120
+				},
+				"sections": {
+					"input": null,
+					"update": {
+						"ms": 0.010000020265579224,
+						"maxMs": 0.02000001072883606
+					},
+					"layout": {
+						"ms": 0.004999995231628418,
+						"maxMs": 0.009999990463256836
+					},
+					"render": {
+						"ms": 0.23499998450279236,
+						"maxMs": 0.5349999964237213
+					},
+					"flush": {
+						"ms": 0.18000000715255737,
+						"maxMs": 0.4650000035762787
+					},
+					"present": null
+				},
+				"gpu": {
+					"ms": 2.9446719999999997,
+					"valid": true,
+					"passes": [
+						1.305439,
+						1.639233
+					],
+					"spanMs": null,
+					"latencyMs": null,
+					"source": "timerQuery",
+					"p99Ms": 3.645729,
+					"maxMs": 3.9110500000000004,
+					"sampleCount": 120,
+					"invalidCount": 0
+				},
+				"batcher": {
+					"apiDraws": 12,
+					"gpuDraws": 1,
+					"vertices": 284,
+					"triangles": 142,
+					"instances": 0,
+					"culled": 0,
+					"occluded": null,
+					"flushes": {
+						"barrier": 0,
+						"endFrame": 1,
+						"targetChange": 0,
+						"bufferFull": 0
+					},
+					"splits": {
+						"textureSlotsExhausted": 0,
+						"blendChange": 0,
+						"stencilLevel": 0
+					},
+					"groupsByLayer": {
+						"base": 12,
+						"raised": 0,
+						"overlay": 0,
+						"modal": 0,
+						"popup": 0,
+						"toast": 0,
+						"tooltip": 0,
+						"drag": 0,
+						"transition": 0
+					},
+					"reorderedGroups": 0,
+					"clipChange": 0,
+					"shaderChange": 0,
+					"textureBinds": 0,
+					"clipPushes": 0,
+					"bytesUploaded": 38056,
+					"residentTextureBytes": 5373956,
+					"pendingUploads": 0,
+					"evictions": 0,
+					"targetSwitches": null
+				},
+				"memory": {
+					"usedBytes": null
+				},
+				"renderer": {
+					"glDrawCalls": 1,
+					"vertices": 284,
+					"textCharacters": 69
+				},
+				"sanity": {
+					"frameMs": 16.399999976158142,
+					"sectionsMs": 0.4300000071525574,
+					"unaccountedMs": 15.969999969005585,
+					"framesWithSectionsOverSpan": 0
+				},
+				"liveness": {
+					"frameCount": 199,
+					"newestSampleAgeMs": 1
+				},
+				"device": {
+					"backend": "webgl2",
+					"vendor": "Google Inc. (AMD)",
+					"renderer": "ANGLE (AMD, ANGLE Metal Renderer: AMD Radeon Pro 560X, Unspecified Version)",
+					"features": {
+						"timerQuery": true,
+						"parallelShaderCompile": true,
+						"debugRendererInfo": true
+					}
+				},
+				"tracks": "console.timeStamp",
+				"hitches": {
+					"longFrames": {
+						"source": "long-animation-frame",
+						"count": 0,
+						"saturated": false,
+						"maxMs": null,
+						"blockingMs": 0,
+						"worst": null
+					},
+					"slowEvents": {
+						"thresholdMs": 16,
+						"count": 0,
+						"saturated": false,
+						"maxMs": null,
+						"worst": null
+					}
+				}
+			},
+			{
+				"timestamp": 1790620530790,
+				"scene": "mainMenuScreen",
+				"frame": {
+					"ms": 16.615000009536743,
+					"minMs": 15.459999978542328,
+					"maxMs": 17.930000007152557,
+					"p99Ms": 17.75,
+					"histogram": [
+						0,
+						61,
+						59,
+						0
+					],
+					"spikesOverBudget": 7,
+					"spikesOver2xBudget": 0,
+					"budgetMs": 16.666666666666668,
+					"windowSize": 120,
+					"sampleCount": 120
+				},
+				"sections": {
+					"input": null,
+					"update": {
+						"ms": 0.015000015497207642,
+						"maxMs": 0.02000001072883606
+					},
+					"layout": {
+						"ms": 0.004999995231628418,
+						"maxMs": 0.009999990463256836
+					},
+					"render": {
+						"ms": 0.17499998211860657,
+						"maxMs": 0.5349999964237213
+					},
+					"flush": {
+						"ms": 0.23000001907348633,
+						"maxMs": 0.4650000035762787
+					},
+					"present": null
+				},
+				"gpu": {
+					"ms": 2.948602,
+					"valid": true,
+					"passes": [
+						1.308959,
+						1.639643
+					],
+					"spanMs": null,
+					"latencyMs": null,
+					"source": "timerQuery",
+					"p99Ms": 3.645729,
+					"maxMs": 3.9110500000000004,
+					"sampleCount": 120,
+					"invalidCount": 0
+				},
+				"batcher": {
+					"apiDraws": 12,
+					"gpuDraws": 1,
+					"vertices": 284,
+					"triangles": 142,
+					"instances": 0,
+					"culled": 0,
+					"occluded": null,
+					"flushes": {
+						"barrier": 0,
+						"endFrame": 1,
+						"targetChange": 0,
+						"bufferFull": 0
+					},
+					"splits": {
+						"textureSlotsExhausted": 0,
+						"blendChange": 0,
+						"stencilLevel": 0
+					},
+					"groupsByLayer": {
+						"base": 12,
+						"raised": 0,
+						"overlay": 0,
+						"modal": 0,
+						"popup": 0,
+						"toast": 0,
+						"tooltip": 0,
+						"drag": 0,
+						"transition": 0
+					},
+					"reorderedGroups": 0,
+					"clipChange": 0,
+					"shaderChange": 0,
+					"textureBinds": 0,
+					"clipPushes": 0,
+					"bytesUploaded": 38056,
+					"residentTextureBytes": 5373956,
+					"pendingUploads": 0,
+					"evictions": 0,
+					"targetSwitches": null
+				},
+				"memory": {
+					"usedBytes": null
+				},
+				"renderer": {
+					"glDrawCalls": 1,
+					"vertices": 284,
+					"textCharacters": 69
+				},
+				"sanity": {
+					"frameMs": 16.615000009536743,
+					"sectionsMs": 0.42500001192092896,
+					"unaccountedMs": 16.189999997615814,
+					"framesWithSectionsOverSpan": 0
+				},
+				"liveness": {
+					"frameCount": 200,
+					"newestSampleAgeMs": 0
+				},
+				"device": {
+					"backend": "webgl2",
+					"vendor": "Google Inc. (AMD)",
+					"renderer": "ANGLE (AMD, ANGLE Metal Renderer: AMD Radeon Pro 560X, Unspecified Version)",
+					"features": {
+						"timerQuery": true,
+						"parallelShaderCompile": true,
+						"debugRendererInfo": true
+					}
+				},
+				"tracks": "console.timeStamp",
+				"hitches": {
+					"longFrames": {
+						"source": "long-animation-frame",
+						"count": 0,
+						"saturated": false,
+						"maxMs": null,
+						"blockingMs": 0,
+						"worst": null
+					},
+					"slowEvents": {
+						"thresholdMs": 16,
+						"count": 0,
+						"saturated": false,
+						"maxMs": null,
+						"worst": null
+					}
+				}
+			},
+			{
+				"timestamp": 1790620530807,
+				"scene": "mainMenuScreen",
+				"frame": {
+					"ms": 16.62999999523163,
+					"minMs": 15.459999978542328,
+					"maxMs": 17.930000007152557,
+					"p99Ms": 17.75,
+					"histogram": [
+						0,
+						62,
+						58,
+						0
+					],
+					"spikesOverBudget": 7,
+					"spikesOver2xBudget": 0,
+					"budgetMs": 16.666666666666668,
+					"windowSize": 120,
+					"sampleCount": 120
+				},
+				"sections": {
+					"input": null,
+					"update": {
+						"ms": 0.009999990463256836,
+						"maxMs": 0.02000001072883606
+					},
+					"layout": {
+						"ms": 0.004999995231628418,
+						"maxMs": 0.009999990463256836
+					},
+					"render": {
+						"ms": 0.18000000715255737,
+						"maxMs": 0.5349999964237213
+					},
+					"flush": {
+						"ms": 0.21000000834465027,
+						"maxMs": 0.4650000035762787
+					},
+					"present": null
+				},
+				"gpu": {
+					"ms": 2.938587,
+					"valid": true,
+					"passes": [
+						1.30512,
+						1.633467
+					],
+					"spanMs": null,
+					"latencyMs": null,
+					"source": "timerQuery",
+					"p99Ms": 3.645729,
+					"maxMs": 3.9110500000000004,
+					"sampleCount": 120,
+					"invalidCount": 0
+				},
+				"batcher": {
+					"apiDraws": 12,
+					"gpuDraws": 1,
+					"vertices": 284,
+					"triangles": 142,
+					"instances": 0,
+					"culled": 0,
+					"occluded": null,
+					"flushes": {
+						"barrier": 0,
+						"endFrame": 1,
+						"targetChange": 0,
+						"bufferFull": 0
+					},
+					"splits": {
+						"textureSlotsExhausted": 0,
+						"blendChange": 0,
+						"stencilLevel": 0
+					},
+					"groupsByLayer": {
+						"base": 12,
+						"raised": 0,
+						"overlay": 0,
+						"modal": 0,
+						"popup": 0,
+						"toast": 0,
+						"tooltip": 0,
+						"drag": 0,
+						"transition": 0
+					},
+					"reorderedGroups": 0,
+					"clipChange": 0,
+					"shaderChange": 0,
+					"textureBinds": 0,
+					"clipPushes": 0,
+					"bytesUploaded": 38056,
+					"residentTextureBytes": 5373956,
+					"pendingUploads": 0,
+					"evictions": 0,
+					"targetSwitches": null
+				},
+				"memory": {
+					"usedBytes": null
+				},
+				"renderer": {
+					"glDrawCalls": 1,
+					"vertices": 284,
+					"textCharacters": 69
+				},
+				"sanity": {
+					"frameMs": 16.62999999523163,
+					"sectionsMs": 0.4050000011920929,
+					"unaccountedMs": 16.224999994039536,
+					"framesWithSectionsOverSpan": 0
+				},
+				"liveness": {
+					"frameCount": 201,
+					"newestSampleAgeMs": 1
+				},
+				"device": {
+					"backend": "webgl2",
+					"vendor": "Google Inc. (AMD)",
+					"renderer": "ANGLE (AMD, ANGLE Metal Renderer: AMD Radeon Pro 560X, Unspecified Version)",
+					"features": {
+						"timerQuery": true,
+						"parallelShaderCompile": true,
+						"debugRendererInfo": true
+					}
+				},
+				"tracks": "console.timeStamp",
+				"hitches": {
+					"longFrames": {
+						"source": "long-animation-frame",
+						"count": 0,
+						"saturated": false,
+						"maxMs": null,
+						"blockingMs": 0,
+						"worst": null
+					},
+					"slowEvents": {
+						"thresholdMs": 16,
+						"count": 0,
+						"saturated": false,
+						"maxMs": null,
+						"worst": null
+					}
+				}
+			},
+			{
+				"timestamp": 1790620530824,
+				"scene": "mainMenuScreen",
+				"frame": {
+					"ms": 17.28499999642372,
+					"minMs": 15.459999978542328,
+					"maxMs": 17.930000007152557,
+					"p99Ms": 17.75,
+					"histogram": [
+						0,
+						61,
+						59,
+						0
+					],
+					"spikesOverBudget": 7,
+					"spikesOver2xBudget": 0,
+					"budgetMs": 16.666666666666668,
+					"windowSize": 120,
+					"sampleCount": 120
+				},
+				"sections": {
+					"input": null,
+					"update": {
+						"ms": 0.009999990463256836,
+						"maxMs": 0.02000001072883606
+					},
+					"layout": {
+						"ms": 0.005000025033950806,
+						"maxMs": 0.009999990463256836
+					},
+					"render": {
+						"ms": 0.1499999761581421,
+						"maxMs": 0.5349999964237213
+					},
+					"flush": {
+						"ms": 0.1549999713897705,
+						"maxMs": 0.4650000035762787
+					},
+					"present": null
+				},
+				"gpu": {
+					"ms": 2.890591,
+					"valid": true,
+					"passes": [
+						1.274879,
+						1.615712
+					],
+					"spanMs": null,
+					"latencyMs": null,
+					"source": "timerQuery",
+					"p99Ms": 3.645729,
+					"maxMs": 3.9110500000000004,
+					"sampleCount": 120,
+					"invalidCount": 0
+				},
+				"batcher": {
+					"apiDraws": 12,
+					"gpuDraws": 1,
+					"vertices": 284,
+					"triangles": 142,
+					"instances": 0,
+					"culled": 0,
+					"occluded": null,
+					"flushes": {
+						"barrier": 0,
+						"endFrame": 1,
+						"targetChange": 0,
+						"bufferFull": 0
+					},
+					"splits": {
+						"textureSlotsExhausted": 0,
+						"blendChange": 0,
+						"stencilLevel": 0
+					},
+					"groupsByLayer": {
+						"base": 12,
+						"raised": 0,
+						"overlay": 0,
+						"modal": 0,
+						"popup": 0,
+						"toast": 0,
+						"tooltip": 0,
+						"drag": 0,
+						"transition": 0
+					},
+					"reorderedGroups": 0,
+					"clipChange": 0,
+					"shaderChange": 0,
+					"textureBinds": 0,
+					"clipPushes": 0,
+					"bytesUploaded": 38056,
+					"residentTextureBytes": 5373956,
+					"pendingUploads": 0,
+					"evictions": 0,
+					"targetSwitches": null
+				},
+				"memory": {
+					"usedBytes": null
+				},
+				"renderer": {
+					"glDrawCalls": 1,
+					"vertices": 284,
+					"textCharacters": 69
+				},
+				"sanity": {
+					"frameMs": 17.28499999642372,
+					"sectionsMs": 0.31999996304512024,
+					"unaccountedMs": 16.9650000333786,
+					"framesWithSectionsOverSpan": 0
+				},
+				"liveness": {
+					"frameCount": 202,
+					"newestSampleAgeMs": 1
+				},
+				"device": {
+					"backend": "webgl2",
+					"vendor": "Google Inc. (AMD)",
+					"renderer": "ANGLE (AMD, ANGLE Metal Renderer: AMD Radeon Pro 560X, Unspecified Version)",
+					"features": {
+						"timerQuery": true,
+						"parallelShaderCompile": true,
+						"debugRendererInfo": true
+					}
+				},
+				"tracks": "console.timeStamp",
+				"hitches": {
+					"longFrames": {
+						"source": "long-animation-frame",
+						"count": 0,
+						"saturated": false,
+						"maxMs": null,
+						"blockingMs": 0,
+						"worst": null
+					},
+					"slowEvents": {
+						"thresholdMs": 16,
+						"count": 0,
+						"saturated": false,
+						"maxMs": null,
+						"worst": null
+					}
+				}
+			},
+			{
+				"timestamp": 1790620530840,
+				"scene": "mainMenuScreen",
+				"frame": {
+					"ms": 16.314999997615814,
+					"minMs": 15.459999978542328,
+					"maxMs": 17.930000007152557,
+					"p99Ms": 17.75,
+					"histogram": [
+						0,
+						61,
+						59,
+						0
+					],
+					"spikesOverBudget": 7,
+					"spikesOver2xBudget": 0,
+					"budgetMs": 16.666666666666668,
+					"windowSize": 120,
+					"sampleCount": 120
+				},
+				"sections": {
+					"input": null,
+					"update": {
+						"ms": 0.010000020265579224,
+						"maxMs": 0.02000001072883606
+					},
+					"layout": {
+						"ms": 0.004999995231628418,
+						"maxMs": 0.009999990463256836
+					},
+					"render": {
+						"ms": 0.16499999165534973,
+						"maxMs": 0.5349999964237213
+					},
+					"flush": {
+						"ms": 0.21000000834465027,
+						"maxMs": 0.4650000035762787
+					},
+					"present": null
+				},
+				"gpu": {
+					"ms": 2.936817,
+					"valid": true,
+					"passes": [
+						1.299679,
+						1.637138
+					],
+					"spanMs": null,
+					"latencyMs": null,
+					"source": "timerQuery",
+					"p99Ms": 3.645729,
+					"maxMs": 3.9110500000000004,
+					"sampleCount": 120,
+					"invalidCount": 0
+				},
+				"batcher": {
+					"apiDraws": 12,
+					"gpuDraws": 1,
+					"vertices": 284,
+					"triangles": 142,
+					"instances": 0,
+					"culled": 0,
+					"occluded": null,
+					"flushes": {
+						"barrier": 0,
+						"endFrame": 1,
+						"targetChange": 0,
+						"bufferFull": 0
+					},
+					"splits": {
+						"textureSlotsExhausted": 0,
+						"blendChange": 0,
+						"stencilLevel": 0
+					},
+					"groupsByLayer": {
+						"base": 12,
+						"raised": 0,
+						"overlay": 0,
+						"modal": 0,
+						"popup": 0,
+						"toast": 0,
+						"tooltip": 0,
+						"drag": 0,
+						"transition": 0
+					},
+					"reorderedGroups": 0,
+					"clipChange": 0,
+					"shaderChange": 0,
+					"textureBinds": 0,
+					"clipPushes": 0,
+					"bytesUploaded": 38056,
+					"residentTextureBytes": 5373956,
+					"pendingUploads": 0,
+					"evictions": 0,
+					"targetSwitches": null
+				},
+				"memory": {
+					"usedBytes": null
+				},
+				"renderer": {
+					"glDrawCalls": 1,
+					"vertices": 284,
+					"textCharacters": 69
+				},
+				"sanity": {
+					"frameMs": 16.314999997615814,
+					"sectionsMs": 0.39000001549720764,
+					"unaccountedMs": 15.924999982118607,
+					"framesWithSectionsOverSpan": 0
+				},
+				"liveness": {
+					"frameCount": 203,
+					"newestSampleAgeMs": 0
+				},
+				"device": {
+					"backend": "webgl2",
+					"vendor": "Google Inc. (AMD)",
+					"renderer": "ANGLE (AMD, ANGLE Metal Renderer: AMD Radeon Pro 560X, Unspecified Version)",
+					"features": {
+						"timerQuery": true,
+						"parallelShaderCompile": true,
+						"debugRendererInfo": true
+					}
+				},
+				"tracks": "console.timeStamp",
+				"hitches": {
+					"longFrames": {
+						"source": "long-animation-frame",
+						"count": 0,
+						"saturated": false,
+						"maxMs": null,
+						"blockingMs": 0,
+						"worst": null
+					},
+					"slowEvents": {
+						"thresholdMs": 16,
+						"count": 0,
+						"saturated": false,
+						"maxMs": null,
+						"worst": null
+					}
+				}
+			},
+			{
+				"timestamp": 1790620530857,
+				"scene": "mainMenuScreen",
+				"frame": {
+					"ms": 16.455000013113022,
+					"minMs": 15.459999978542328,
+					"maxMs": 17.930000007152557,
+					"p99Ms": 17.75,
+					"histogram": [
+						0,
+						62,
+						58,
+						0
+					],
+					"spikesOverBudget": 7,
+					"spikesOver2xBudget": 0,
+					"budgetMs": 16.666666666666668,
+					"windowSize": 120,
+					"sampleCount": 120
+				},
+				"sections": {
+					"input": null,
+					"update": {
+						"ms": 0.010000020265579224,
+						"maxMs": 0.02000001072883606
+					},
+					"layout": {
+						"ms": 0,
+						"maxMs": 0.009999990463256836
+					},
+					"render": {
+						"ms": 0.16499999165534973,
+						"maxMs": 0.5349999964237213
+					},
+					"flush": {
+						"ms": 0.16499999165534973,
+						"maxMs": 0.4650000035762787
+					},
+					"present": null
+				},
+				"gpu": {
+					"ms": 2.8962459999999997,
+					"valid": true,
+					"passes": [
+						1.280319,
+						1.615927
+					],
+					"spanMs": null,
+					"latencyMs": null,
+					"source": "timerQuery",
+					"p99Ms": 3.645729,
+					"maxMs": 3.9110500000000004,
+					"sampleCount": 120,
+					"invalidCount": 0
+				},
+				"batcher": {
+					"apiDraws": 12,
+					"gpuDraws": 1,
+					"vertices": 284,
+					"triangles": 142,
+					"instances": 0,
+					"culled": 0,
+					"occluded": null,
+					"flushes": {
+						"barrier": 0,
+						"endFrame": 1,
+						"targetChange": 0,
+						"bufferFull": 0
+					},
+					"splits": {
+						"textureSlotsExhausted": 0,
+						"blendChange": 0,
+						"stencilLevel": 0
+					},
+					"groupsByLayer": {
+						"base": 12,
+						"raised": 0,
+						"overlay": 0,
+						"modal": 0,
+						"popup": 0,
+						"toast": 0,
+						"tooltip": 0,
+						"drag": 0,
+						"transition": 0
+					},
+					"reorderedGroups": 0,
+					"clipChange": 0,
+					"shaderChange": 0,
+					"textureBinds": 0,
+					"clipPushes": 0,
+					"bytesUploaded": 38056,
+					"residentTextureBytes": 5373956,
+					"pendingUploads": 0,
+					"evictions": 0,
+					"targetSwitches": null
+				},
+				"memory": {
+					"usedBytes": null
+				},
+				"renderer": {
+					"glDrawCalls": 1,
+					"vertices": 284,
+					"textCharacters": 69
+				},
+				"sanity": {
+					"frameMs": 16.455000013113022,
+					"sectionsMs": 0.3400000035762787,
+					"unaccountedMs": 16.115000009536743,
+					"framesWithSectionsOverSpan": 0
+				},
+				"liveness": {
+					"frameCount": 204,
+					"newestSampleAgeMs": 1
+				},
+				"device": {
+					"backend": "webgl2",
+					"vendor": "Google Inc. (AMD)",
+					"renderer": "ANGLE (AMD, ANGLE Metal Renderer: AMD Radeon Pro 560X, Unspecified Version)",
+					"features": {
+						"timerQuery": true,
+						"parallelShaderCompile": true,
+						"debugRendererInfo": true
+					}
+				},
+				"tracks": "console.timeStamp",
+				"hitches": {
+					"longFrames": {
+						"source": "long-animation-frame",
+						"count": 0,
+						"saturated": false,
+						"maxMs": null,
+						"blockingMs": 0,
+						"worst": null
+					},
+					"slowEvents": {
+						"thresholdMs": 16,
+						"count": 0,
+						"saturated": false,
+						"maxMs": null,
+						"worst": null
+					}
+				}
+			},
+			{
+				"timestamp": 1790620530874,
+				"scene": "mainMenuScreen",
+				"frame": {
+					"ms": 16.75,
+					"minMs": 15.459999978542328,
+					"maxMs": 17.930000007152557,
+					"p99Ms": 17.75,
+					"histogram": [
+						0,
+						61,
+						59,
+						0
+					],
+					"spikesOverBudget": 7,
+					"spikesOver2xBudget": 0,
+					"budgetMs": 16.666666666666668,
+					"windowSize": 120,
+					"sampleCount": 120
+				},
+				"sections": {
+					"input": null,
+					"update": {
+						"ms": 0.015000015497207642,
+						"maxMs": 0.02000001072883606
+					},
+					"layout": {
+						"ms": 0.004999995231628418,
+						"maxMs": 0.009999990463256836
+					},
+					"render": {
+						"ms": 0.23500001430511475,
+						"maxMs": 0.5349999964237213
+					},
+					"flush": {
+						"ms": 0.2199999988079071,
+						"maxMs": 0.4650000035762787
+					},
+					"present": null
+				},
+				"gpu": {
+					"ms": 2.941548,
+					"valid": true,
+					"passes": [
+						1.29872,
+						1.642828
+					],
+					"spanMs": null,
+					"latencyMs": null,
+					"source": "timerQuery",
+					"p99Ms": 3.645729,
+					"maxMs": 3.9110500000000004,
+					"sampleCount": 120,
+					"invalidCount": 0
+				},
+				"batcher": {
+					"apiDraws": 12,
+					"gpuDraws": 1,
+					"vertices": 284,
+					"triangles": 142,
+					"instances": 0,
+					"culled": 0,
+					"occluded": null,
+					"flushes": {
+						"barrier": 0,
+						"endFrame": 1,
+						"targetChange": 0,
+						"bufferFull": 0
+					},
+					"splits": {
+						"textureSlotsExhausted": 0,
+						"blendChange": 0,
+						"stencilLevel": 0
+					},
+					"groupsByLayer": {
+						"base": 12,
+						"raised": 0,
+						"overlay": 0,
+						"modal": 0,
+						"popup": 0,
+						"toast": 0,
+						"tooltip": 0,
+						"drag": 0,
+						"transition": 0
+					},
+					"reorderedGroups": 0,
+					"clipChange": 0,
+					"shaderChange": 0,
+					"textureBinds": 0,
+					"clipPushes": 0,
+					"bytesUploaded": 38056,
+					"residentTextureBytes": 5373956,
+					"pendingUploads": 0,
+					"evictions": 0,
+					"targetSwitches": null
+				},
+				"memory": {
+					"usedBytes": null
+				},
+				"renderer": {
+					"glDrawCalls": 1,
+					"vertices": 284,
+					"textCharacters": 69
+				},
+				"sanity": {
+					"frameMs": 16.75,
+					"sectionsMs": 0.4750000238418579,
+					"unaccountedMs": 16.274999976158142,
+					"framesWithSectionsOverSpan": 0
+				},
+				"liveness": {
+					"frameCount": 205,
+					"newestSampleAgeMs": 1
+				},
+				"device": {
+					"backend": "webgl2",
+					"vendor": "Google Inc. (AMD)",
+					"renderer": "ANGLE (AMD, ANGLE Metal Renderer: AMD Radeon Pro 560X, Unspecified Version)",
+					"features": {
+						"timerQuery": true,
+						"parallelShaderCompile": true,
+						"debugRendererInfo": true
+					}
+				},
+				"tracks": "console.timeStamp",
+				"hitches": {
+					"longFrames": {
+						"source": "long-animation-frame",
+						"count": 0,
+						"saturated": false,
+						"maxMs": null,
+						"blockingMs": 0,
+						"worst": null
+					},
+					"slowEvents": {
+						"thresholdMs": 16,
+						"count": 0,
+						"saturated": false,
+						"maxMs": null,
+						"worst": null
+					}
+				}
+			},
+			{
+				"timestamp": 1790620530890,
+				"scene": "mainMenuScreen",
+				"frame": {
+					"ms": 16.544999986886978,
+					"minMs": 15.459999978542328,
+					"maxMs": 17.930000007152557,
+					"p99Ms": 17.75,
+					"histogram": [
+						0,
+						62,
+						58,
+						0
+					],
+					"spikesOverBudget": 7,
+					"spikesOver2xBudget": 0,
+					"budgetMs": 16.666666666666668,
+					"windowSize": 120,
+					"sampleCount": 120
+				},
+				"sections": {
+					"input": null,
+					"update": {
+						"ms": 0.014999985694885254,
+						"maxMs": 0.02000001072883606
+					},
+					"layout": {
+						"ms": 0,
+						"maxMs": 0.009999990463256836
+					},
+					"render": {
+						"ms": 0.20000001788139343,
+						"maxMs": 0.5349999964237213
+					},
+					"flush": {
+						"ms": 0.18000000715255737,
+						"maxMs": 0.4650000035762787
+					},
+					"present": null
+				},
+				"gpu": {
+					"ms": 2.948624,
+					"valid": true,
+					"passes": [
+						1.3,
+						1.648624
+					],
+					"spanMs": null,
+					"latencyMs": null,
+					"source": "timerQuery",
+					"p99Ms": 3.645729,
+					"maxMs": 3.9110500000000004,
+					"sampleCount": 120,
+					"invalidCount": 0
+				},
+				"batcher": {
+					"apiDraws": 12,
+					"gpuDraws": 1,
+					"vertices": 284,
+					"triangles": 142,
+					"instances": 0,
+					"culled": 0,
+					"occluded": null,
+					"flushes": {
+						"barrier": 0,
+						"endFrame": 1,
+						"targetChange": 0,
+						"bufferFull": 0
+					},
+					"splits": {
+						"textureSlotsExhausted": 0,
+						"blendChange": 0,
+						"stencilLevel": 0
+					},
+					"groupsByLayer": {
+						"base": 12,
+						"raised": 0,
+						"overlay": 0,
+						"modal": 0,
+						"popup": 0,
+						"toast": 0,
+						"tooltip": 0,
+						"drag": 0,
+						"transition": 0
+					},
+					"reorderedGroups": 0,
+					"clipChange": 0,
+					"shaderChange": 0,
+					"textureBinds": 0,
+					"clipPushes": 0,
+					"bytesUploaded": 38056,
+					"residentTextureBytes": 5373956,
+					"pendingUploads": 0,
+					"evictions": 0,
+					"targetSwitches": null
+				},
+				"memory": {
+					"usedBytes": null
+				},
+				"renderer": {
+					"glDrawCalls": 1,
+					"vertices": 284,
+					"textCharacters": 69
+				},
+				"sanity": {
+					"frameMs": 16.544999986886978,
+					"sectionsMs": 0.39500001072883606,
+					"unaccountedMs": 16.149999976158142,
+					"framesWithSectionsOverSpan": 0
+				},
+				"liveness": {
+					"frameCount": 206,
+					"newestSampleAgeMs": 0
+				},
+				"device": {
+					"backend": "webgl2",
+					"vendor": "Google Inc. (AMD)",
+					"renderer": "ANGLE (AMD, ANGLE Metal Renderer: AMD Radeon Pro 560X, Unspecified Version)",
+					"features": {
+						"timerQuery": true,
+						"parallelShaderCompile": true,
+						"debugRendererInfo": true
+					}
+				},
+				"tracks": "console.timeStamp",
+				"hitches": {
+					"longFrames": {
+						"source": "long-animation-frame",
+						"count": 0,
+						"saturated": false,
+						"maxMs": null,
+						"blockingMs": 0,
+						"worst": null
+					},
+					"slowEvents": {
+						"thresholdMs": 16,
+						"count": 0,
+						"saturated": false,
+						"maxMs": null,
+						"worst": null
+					}
+				}
+			}
+		]
+	},
+	{
+		"scenario": "developerScreen",
+		"samples": [
+			{
+				"timestamp": 1790620533959,
+				"scene": "developerScreen",
+				"frame": {
+					"ms": 15.734999984502792,
+					"minMs": 14.515000015497208,
+					"maxMs": 18.895000010728836,
+					"p99Ms": 18.75,
+					"histogram": [
+						0,
+						65,
+						55,
+						0
+					],
+					"spikesOverBudget": 34,
+					"spikesOver2xBudget": 0,
+					"budgetMs": 16.666666666666668,
+					"windowSize": 120,
+					"sampleCount": 120
+				},
+				"sections": {
+					"input": null,
+					"update": {
+						"ms": 0.009999990463256836,
+						"maxMs": 0.025000005960464478
+					},
+					"layout": {
+						"ms": 0,
+						"maxMs": 0.009999990463256836
+					},
+					"render": {
+						"ms": 0.7350000143051147,
+						"maxMs": 1.6500000059604645
+					},
+					"flush": {
+						"ms": 0.16500002145767212,
+						"maxMs": 0.39500001072883606
+					},
+					"present": null
+				},
+				"gpu": {
+					"ms": 4.697108,
+					"valid": true,
+					"passes": [
+						1.317599,
+						3.379509
+					],
+					"spanMs": null,
+					"latencyMs": null,
+					"source": "timerQuery",
+					"p99Ms": 5.456453,
+					"maxMs": 5.701288,
+					"sampleCount": 120,
+					"invalidCount": 0
+				},
+				"batcher": {
+					"apiDraws": 44,
+					"gpuDraws": 1,
+					"vertices": 888,
+					"triangles": 444,
+					"instances": 0,
+					"culled": 738,
+					"occluded": null,
+					"flushes": {
+						"barrier": 0,
+						"endFrame": 1,
+						"targetChange": 0,
+						"bufferFull": 0
+					},
+					"splits": {
+						"textureSlotsExhausted": 0,
+						"blendChange": 0,
+						"stencilLevel": 0
+					},
+					"groupsByLayer": {
+						"base": 37,
+						"raised": 0,
+						"overlay": 0,
+						"modal": 0,
+						"popup": 7,
+						"toast": 0,
+						"tooltip": 0,
+						"drag": 0,
+						"transition": 0
+					},
+					"reorderedGroups": 0,
+					"clipChange": 0,
+					"shaderChange": 0,
+					"textureBinds": 0,
+					"clipPushes": 14,
+					"bytesUploaded": 118992,
+					"residentTextureBytes": 5437956,
+					"pendingUploads": 0,
+					"evictions": 0,
+					"targetSwitches": null
+				},
+				"memory": {
+					"usedBytes": null
+				},
+				"renderer": {
+					"glDrawCalls": 1,
+					"vertices": 888,
+					"textCharacters": 217
+				},
+				"sanity": {
+					"frameMs": 15.734999984502792,
+					"sectionsMs": 0.9100000262260437,
+					"unaccountedMs": 14.824999958276749,
+					"framesWithSectionsOverSpan": 0
+				},
+				"liveness": {
+					"frameCount": 390,
+					"newestSampleAgeMs": 2
+				},
+				"device": {
+					"backend": "webgl2",
+					"vendor": "Google Inc. (AMD)",
+					"renderer": "ANGLE (AMD, ANGLE Metal Renderer: AMD Radeon Pro 560X, Unspecified Version)",
+					"features": {
+						"timerQuery": true,
+						"parallelShaderCompile": true,
+						"debugRendererInfo": true
+					}
+				},
+				"tracks": "console.timeStamp",
+				"hitches": {
+					"longFrames": {
+						"source": "long-animation-frame",
+						"count": 0,
+						"saturated": false,
+						"maxMs": null,
+						"blockingMs": 0,
+						"worst": null
+					},
+					"slowEvents": {
+						"thresholdMs": 16,
+						"count": 0,
+						"saturated": false,
+						"maxMs": null,
+						"worst": null
+					}
+				}
+			},
+			{
+				"timestamp": 1790620533976,
+				"scene": "developerScreen",
+				"frame": {
+					"ms": 17.890000015497208,
+					"minMs": 14.515000015497208,
+					"maxMs": 18.895000010728836,
+					"p99Ms": 18.75,
+					"histogram": [
+						0,
+						65,
+						55,
+						0
+					],
+					"spikesOverBudget": 35,
+					"spikesOver2xBudget": 0,
+					"budgetMs": 16.666666666666668,
+					"windowSize": 120,
+					"sampleCount": 120
+				},
+				"sections": {
+					"input": null,
+					"update": {
+						"ms": 0.009999990463256836,
+						"maxMs": 0.025000005960464478
+					},
+					"layout": {
+						"ms": 0,
+						"maxMs": 0.009999990463256836
+					},
+					"render": {
+						"ms": 1.2600000202655792,
+						"maxMs": 1.6500000059604645
+					},
+					"flush": {
+						"ms": 0.29999998211860657,
+						"maxMs": 0.39500001072883606
+					},
+					"present": null
+				},
+				"gpu": {
+					"ms": 4.724761,
+					"valid": true,
+					"passes": [
+						1.326239,
+						3.398522
+					],
+					"spanMs": null,
+					"latencyMs": null,
+					"source": "timerQuery",
+					"p99Ms": 5.456453,
+					"maxMs": 5.701288,
+					"sampleCount": 120,
+					"invalidCount": 0
+				},
+				"batcher": {
+					"apiDraws": 44,
+					"gpuDraws": 1,
+					"vertices": 888,
+					"triangles": 444,
+					"instances": 0,
+					"culled": 738,
+					"occluded": null,
+					"flushes": {
+						"barrier": 0,
+						"endFrame": 1,
+						"targetChange": 0,
+						"bufferFull": 0
+					},
+					"splits": {
+						"textureSlotsExhausted": 0,
+						"blendChange": 0,
+						"stencilLevel": 0
+					},
+					"groupsByLayer": {
+						"base": 37,
+						"raised": 0,
+						"overlay": 0,
+						"modal": 0,
+						"popup": 7,
+						"toast": 0,
+						"tooltip": 0,
+						"drag": 0,
+						"transition": 0
+					},
+					"reorderedGroups": 0,
+					"clipChange": 0,
+					"shaderChange": 0,
+					"textureBinds": 0,
+					"clipPushes": 14,
+					"bytesUploaded": 118992,
+					"residentTextureBytes": 5437956,
+					"pendingUploads": 0,
+					"evictions": 0,
+					"targetSwitches": null
+				},
+				"memory": {
+					"usedBytes": null
+				},
+				"renderer": {
+					"glDrawCalls": 1,
+					"vertices": 888,
+					"textCharacters": 217
+				},
+				"sanity": {
+					"frameMs": 17.890000015497208,
+					"sectionsMs": 1.5699999928474426,
+					"unaccountedMs": 16.320000022649765,
+					"framesWithSectionsOverSpan": 0
+				},
+				"liveness": {
+					"frameCount": 391,
+					"newestSampleAgeMs": 1
+				},
+				"device": {
+					"backend": "webgl2",
+					"vendor": "Google Inc. (AMD)",
+					"renderer": "ANGLE (AMD, ANGLE Metal Renderer: AMD Radeon Pro 560X, Unspecified Version)",
+					"features": {
+						"timerQuery": true,
+						"parallelShaderCompile": true,
+						"debugRendererInfo": true
+					}
+				},
+				"tracks": "console.timeStamp",
+				"hitches": {
+					"longFrames": {
+						"source": "long-animation-frame",
+						"count": 0,
+						"saturated": false,
+						"maxMs": null,
+						"blockingMs": 0,
+						"worst": null
+					},
+					"slowEvents": {
+						"thresholdMs": 16,
+						"count": 0,
+						"saturated": false,
+						"maxMs": null,
+						"worst": null
+					}
+				}
+			},
+			{
+				"timestamp": 1790620533993,
+				"scene": "developerScreen",
+				"frame": {
+					"ms": 16.524999976158142,
+					"minMs": 14.515000015497208,
+					"maxMs": 18.895000010728836,
+					"p99Ms": 18.75,
+					"histogram": [
+						0,
+						65,
+						55,
+						0
+					],
+					"spikesOverBudget": 35,
+					"spikesOver2xBudget": 0,
+					"budgetMs": 16.666666666666668,
+					"windowSize": 120,
+					"sampleCount": 120
+				},
+				"sections": {
+					"input": null,
+					"update": {
+						"ms": 0.009999990463256836,
+						"maxMs": 0.025000005960464478
+					},
+					"layout": {
+						"ms": 0,
+						"maxMs": 0.009999990463256836
+					},
+					"render": {
+						"ms": 0.8799999952316284,
+						"maxMs": 1.6500000059604645
+					},
+					"flush": {
+						"ms": 0.27000001072883606,
+						"maxMs": 0.39500001072883606
+					},
+					"present": null
+				},
+				"gpu": {
+					"ms": 4.656484,
+					"valid": true,
+					"passes": [
+						1.316959,
+						3.339525
+					],
+					"spanMs": null,
+					"latencyMs": null,
+					"source": "timerQuery",
+					"p99Ms": 5.456453,
+					"maxMs": 5.701288,
+					"sampleCount": 120,
+					"invalidCount": 0
+				},
+				"batcher": {
+					"apiDraws": 44,
+					"gpuDraws": 1,
+					"vertices": 888,
+					"triangles": 444,
+					"instances": 0,
+					"culled": 738,
+					"occluded": null,
+					"flushes": {
+						"barrier": 0,
+						"endFrame": 1,
+						"targetChange": 0,
+						"bufferFull": 0
+					},
+					"splits": {
+						"textureSlotsExhausted": 0,
+						"blendChange": 0,
+						"stencilLevel": 0
+					},
+					"groupsByLayer": {
+						"base": 37,
+						"raised": 0,
+						"overlay": 0,
+						"modal": 0,
+						"popup": 7,
+						"toast": 0,
+						"tooltip": 0,
+						"drag": 0,
+						"transition": 0
+					},
+					"reorderedGroups": 0,
+					"clipChange": 0,
+					"shaderChange": 0,
+					"textureBinds": 0,
+					"clipPushes": 14,
+					"bytesUploaded": 118992,
+					"residentTextureBytes": 5437956,
+					"pendingUploads": 0,
+					"evictions": 0,
+					"targetSwitches": null
+				},
+				"memory": {
+					"usedBytes": null
+				},
+				"renderer": {
+					"glDrawCalls": 1,
+					"vertices": 888,
+					"textCharacters": 217
+				},
+				"sanity": {
+					"frameMs": 16.524999976158142,
+					"sectionsMs": 1.1599999964237213,
+					"unaccountedMs": 15.36499997973442,
+					"framesWithSectionsOverSpan": 0
+				},
+				"liveness": {
+					"frameCount": 392,
+					"newestSampleAgeMs": 2
+				},
+				"device": {
+					"backend": "webgl2",
+					"vendor": "Google Inc. (AMD)",
+					"renderer": "ANGLE (AMD, ANGLE Metal Renderer: AMD Radeon Pro 560X, Unspecified Version)",
+					"features": {
+						"timerQuery": true,
+						"parallelShaderCompile": true,
+						"debugRendererInfo": true
+					}
+				},
+				"tracks": "console.timeStamp",
+				"hitches": {
+					"longFrames": {
+						"source": "long-animation-frame",
+						"count": 0,
+						"saturated": false,
+						"maxMs": null,
+						"blockingMs": 0,
+						"worst": null
+					},
+					"slowEvents": {
+						"thresholdMs": 16,
+						"count": 0,
+						"saturated": false,
+						"maxMs": null,
+						"worst": null
+					}
+				}
+			},
+			{
+				"timestamp": 1790620534008,
+				"scene": "developerScreen",
+				"frame": {
+					"ms": 15.930000007152557,
+					"minMs": 14.515000015497208,
+					"maxMs": 18.895000010728836,
+					"p99Ms": 18.75,
+					"histogram": [
+						0,
+						66,
+						54,
+						0
+					],
+					"spikesOverBudget": 35,
+					"spikesOver2xBudget": 0,
+					"budgetMs": 16.666666666666668,
+					"windowSize": 120,
+					"sampleCount": 120
+				},
+				"sections": {
+					"input": null,
+					"update": {
+						"ms": 0.009999990463256836,
+						"maxMs": 0.025000005960464478
+					},
+					"layout": {
+						"ms": 0,
+						"maxMs": 0.009999990463256836
+					},
+					"render": {
+						"ms": 1.0150000154972076,
+						"maxMs": 1.6500000059604645
+					},
+					"flush": {
+						"ms": 0.26999998092651367,
+						"maxMs": 0.39500001072883606
+					},
+					"present": null
+				},
+				"gpu": {
+					"ms": 4.673723,
+					"valid": true,
+					"passes": [
+						1.336639,
+						3.337084
+					],
+					"spanMs": null,
+					"latencyMs": null,
+					"source": "timerQuery",
+					"p99Ms": 5.456453,
+					"maxMs": 5.701288,
+					"sampleCount": 120,
+					"invalidCount": 0
+				},
+				"batcher": {
+					"apiDraws": 44,
+					"gpuDraws": 1,
+					"vertices": 888,
+					"triangles": 444,
+					"instances": 0,
+					"culled": 738,
+					"occluded": null,
+					"flushes": {
+						"barrier": 0,
+						"endFrame": 1,
+						"targetChange": 0,
+						"bufferFull": 0
+					},
+					"splits": {
+						"textureSlotsExhausted": 0,
+						"blendChange": 0,
+						"stencilLevel": 0
+					},
+					"groupsByLayer": {
+						"base": 37,
+						"raised": 0,
+						"overlay": 0,
+						"modal": 0,
+						"popup": 7,
+						"toast": 0,
+						"tooltip": 0,
+						"drag": 0,
+						"transition": 0
+					},
+					"reorderedGroups": 0,
+					"clipChange": 0,
+					"shaderChange": 0,
+					"textureBinds": 0,
+					"clipPushes": 14,
+					"bytesUploaded": 118992,
+					"residentTextureBytes": 5437956,
+					"pendingUploads": 0,
+					"evictions": 0,
+					"targetSwitches": null
+				},
+				"memory": {
+					"usedBytes": null
+				},
+				"renderer": {
+					"glDrawCalls": 1,
+					"vertices": 888,
+					"textCharacters": 217
+				},
+				"sanity": {
+					"frameMs": 15.930000007152557,
+					"sectionsMs": 1.2949999868869781,
+					"unaccountedMs": 14.63500002026558,
+					"framesWithSectionsOverSpan": 0
+				},
+				"liveness": {
+					"frameCount": 393,
+					"newestSampleAgeMs": 1
+				},
+				"device": {
+					"backend": "webgl2",
+					"vendor": "Google Inc. (AMD)",
+					"renderer": "ANGLE (AMD, ANGLE Metal Renderer: AMD Radeon Pro 560X, Unspecified Version)",
+					"features": {
+						"timerQuery": true,
+						"parallelShaderCompile": true,
+						"debugRendererInfo": true
+					}
+				},
+				"tracks": "console.timeStamp",
+				"hitches": {
+					"longFrames": {
+						"source": "long-animation-frame",
+						"count": 0,
+						"saturated": false,
+						"maxMs": null,
+						"blockingMs": 0,
+						"worst": null
+					},
+					"slowEvents": {
+						"thresholdMs": 16,
+						"count": 0,
+						"saturated": false,
+						"maxMs": null,
+						"worst": null
+					}
+				}
+			},
+			{
+				"timestamp": 1790620534026,
+				"scene": "developerScreen",
+				"frame": {
+					"ms": 17.525000005960464,
+					"minMs": 14.515000015497208,
+					"maxMs": 18.895000010728836,
+					"p99Ms": 18.75,
+					"histogram": [
+						0,
+						66,
+						54,
+						0
+					],
+					"spikesOverBudget": 35,
+					"spikesOver2xBudget": 0,
+					"budgetMs": 16.666666666666668,
+					"windowSize": 120,
+					"sampleCount": 120
+				},
+				"sections": {
+					"input": null,
+					"update": {
+						"ms": 0.009999990463256836,
+						"maxMs": 0.025000005960464478
+					},
+					"layout": {
+						"ms": 0,
+						"maxMs": 0.009999990463256836
+					},
+					"render": {
+						"ms": 0.9600000083446503,
+						"maxMs": 1.6500000059604645
+					},
+					"flush": {
+						"ms": 0.2199999988079071,
+						"maxMs": 0.39500001072883606
+					},
+					"present": null
+				},
+				"gpu": {
+					"ms": 4.650712,
+					"valid": true,
+					"passes": [
+						1.307839,
+						3.342873
+					],
+					"spanMs": null,
+					"latencyMs": null,
+					"source": "timerQuery",
+					"p99Ms": 5.456453,
+					"maxMs": 5.701288,
+					"sampleCount": 120,
+					"invalidCount": 0
+				},
+				"batcher": {
+					"apiDraws": 44,
+					"gpuDraws": 1,
+					"vertices": 888,
+					"triangles": 444,
+					"instances": 0,
+					"culled": 738,
+					"occluded": null,
+					"flushes": {
+						"barrier": 0,
+						"endFrame": 1,
+						"targetChange": 0,
+						"bufferFull": 0
+					},
+					"splits": {
+						"textureSlotsExhausted": 0,
+						"blendChange": 0,
+						"stencilLevel": 0
+					},
+					"groupsByLayer": {
+						"base": 37,
+						"raised": 0,
+						"overlay": 0,
+						"modal": 0,
+						"popup": 7,
+						"toast": 0,
+						"tooltip": 0,
+						"drag": 0,
+						"transition": 0
+					},
+					"reorderedGroups": 0,
+					"clipChange": 0,
+					"shaderChange": 0,
+					"textureBinds": 0,
+					"clipPushes": 14,
+					"bytesUploaded": 118992,
+					"residentTextureBytes": 5437956,
+					"pendingUploads": 0,
+					"evictions": 0,
+					"targetSwitches": null
+				},
+				"memory": {
+					"usedBytes": null
+				},
+				"renderer": {
+					"glDrawCalls": 1,
+					"vertices": 888,
+					"textCharacters": 217
+				},
+				"sanity": {
+					"frameMs": 17.525000005960464,
+					"sectionsMs": 1.1899999976158142,
+					"unaccountedMs": 16.33500000834465,
+					"framesWithSectionsOverSpan": 0
+				},
+				"liveness": {
+					"frameCount": 394,
+					"newestSampleAgeMs": 1
+				},
+				"device": {
+					"backend": "webgl2",
+					"vendor": "Google Inc. (AMD)",
+					"renderer": "ANGLE (AMD, ANGLE Metal Renderer: AMD Radeon Pro 560X, Unspecified Version)",
+					"features": {
+						"timerQuery": true,
+						"parallelShaderCompile": true,
+						"debugRendererInfo": true
+					}
+				},
+				"tracks": "console.timeStamp",
+				"hitches": {
+					"longFrames": {
+						"source": "long-animation-frame",
+						"count": 0,
+						"saturated": false,
+						"maxMs": null,
+						"blockingMs": 0,
+						"worst": null
+					},
+					"slowEvents": {
+						"thresholdMs": 16,
+						"count": 0,
+						"saturated": false,
+						"maxMs": null,
+						"worst": null
+					}
+				}
+			},
+			{
+				"timestamp": 1790620534042,
+				"scene": "developerScreen",
+				"frame": {
+					"ms": 16.305000007152557,
+					"minMs": 14.515000015497208,
+					"maxMs": 18.895000010728836,
+					"p99Ms": 18.75,
+					"histogram": [
+						0,
+						66,
+						54,
+						0
+					],
+					"spikesOverBudget": 35,
+					"spikesOver2xBudget": 0,
+					"budgetMs": 16.666666666666668,
+					"windowSize": 120,
+					"sampleCount": 120
+				},
+				"sections": {
+					"input": null,
+					"update": {
+						"ms": 0.005000025033950806,
+						"maxMs": 0.025000005960464478
+					},
+					"layout": {
+						"ms": 0,
+						"maxMs": 0.009999990463256836
+					},
+					"render": {
+						"ms": 0.8100000023841858,
+						"maxMs": 1.6500000059604645
+					},
+					"flush": {
+						"ms": 0.29499998688697815,
+						"maxMs": 0.39500001072883606
+					},
+					"present": null
+				},
+				"gpu": {
+					"ms": 4.59894,
+					"valid": true,
+					"passes": [
+						1.28672,
+						3.31222
+					],
+					"spanMs": null,
+					"latencyMs": null,
+					"source": "timerQuery",
+					"p99Ms": 5.456453,
+					"maxMs": 5.701288,
+					"sampleCount": 120,
+					"invalidCount": 0
+				},
+				"batcher": {
+					"apiDraws": 44,
+					"gpuDraws": 1,
+					"vertices": 888,
+					"triangles": 444,
+					"instances": 0,
+					"culled": 738,
+					"occluded": null,
+					"flushes": {
+						"barrier": 0,
+						"endFrame": 1,
+						"targetChange": 0,
+						"bufferFull": 0
+					},
+					"splits": {
+						"textureSlotsExhausted": 0,
+						"blendChange": 0,
+						"stencilLevel": 0
+					},
+					"groupsByLayer": {
+						"base": 37,
+						"raised": 0,
+						"overlay": 0,
+						"modal": 0,
+						"popup": 7,
+						"toast": 0,
+						"tooltip": 0,
+						"drag": 0,
+						"transition": 0
+					},
+					"reorderedGroups": 0,
+					"clipChange": 0,
+					"shaderChange": 0,
+					"textureBinds": 0,
+					"clipPushes": 14,
+					"bytesUploaded": 118992,
+					"residentTextureBytes": 5437956,
+					"pendingUploads": 0,
+					"evictions": 0,
+					"targetSwitches": null
+				},
+				"memory": {
+					"usedBytes": null
+				},
+				"renderer": {
+					"glDrawCalls": 1,
+					"vertices": 888,
+					"textCharacters": 217
+				},
+				"sanity": {
+					"frameMs": 16.305000007152557,
+					"sectionsMs": 1.1100000143051147,
+					"unaccountedMs": 15.194999992847443,
+					"framesWithSectionsOverSpan": 0
+				},
+				"liveness": {
+					"frameCount": 395,
+					"newestSampleAgeMs": 1
+				},
+				"device": {
+					"backend": "webgl2",
+					"vendor": "Google Inc. (AMD)",
+					"renderer": "ANGLE (AMD, ANGLE Metal Renderer: AMD Radeon Pro 560X, Unspecified Version)",
+					"features": {
+						"timerQuery": true,
+						"parallelShaderCompile": true,
+						"debugRendererInfo": true
+					}
+				},
+				"tracks": "console.timeStamp",
+				"hitches": {
+					"longFrames": {
+						"source": "long-animation-frame",
+						"count": 0,
+						"saturated": false,
+						"maxMs": null,
+						"blockingMs": 0,
+						"worst": null
+					},
+					"slowEvents": {
+						"thresholdMs": 16,
+						"count": 0,
+						"saturated": false,
+						"maxMs": null,
+						"worst": null
+					}
+				}
+			},
+			{
+				"timestamp": 1790620534058,
+				"scene": "developerScreen",
+				"frame": {
+					"ms": 15.185000002384186,
+					"minMs": 14.515000015497208,
+					"maxMs": 18.895000010728836,
+					"p99Ms": 18.75,
+					"histogram": [
+						0,
+						66,
+						54,
+						0
+					],
+					"spikesOverBudget": 35,
+					"spikesOver2xBudget": 0,
+					"budgetMs": 16.666666666666668,
+					"windowSize": 120,
+					"sampleCount": 120
+				},
+				"sections": {
+					"input": null,
+					"update": {
+						"ms": 0.015000015497207642,
+						"maxMs": 0.025000005960464478
+					},
+					"layout": {
+						"ms": 0,
+						"maxMs": 0.009999990463256836
+					},
+					"render": {
+						"ms": 0.8199999928474426,
+						"maxMs": 1.6500000059604645
+					},
+					"flush": {
+						"ms": 0.24000000953674316,
+						"maxMs": 0.39500001072883606
+					},
+					"present": null
+				},
+				"gpu": {
+					"ms": 4.649387,
+					"valid": true,
+					"passes": [
+						1.323359,
+						3.326028
+					],
+					"spanMs": null,
+					"latencyMs": null,
+					"source": "timerQuery",
+					"p99Ms": 5.456453,
+					"maxMs": 5.701288,
+					"sampleCount": 120,
+					"invalidCount": 0
+				},
+				"batcher": {
+					"apiDraws": 44,
+					"gpuDraws": 1,
+					"vertices": 888,
+					"triangles": 444,
+					"instances": 0,
+					"culled": 738,
+					"occluded": null,
+					"flushes": {
+						"barrier": 0,
+						"endFrame": 1,
+						"targetChange": 0,
+						"bufferFull": 0
+					},
+					"splits": {
+						"textureSlotsExhausted": 0,
+						"blendChange": 0,
+						"stencilLevel": 0
+					},
+					"groupsByLayer": {
+						"base": 37,
+						"raised": 0,
+						"overlay": 0,
+						"modal": 0,
+						"popup": 7,
+						"toast": 0,
+						"tooltip": 0,
+						"drag": 0,
+						"transition": 0
+					},
+					"reorderedGroups": 0,
+					"clipChange": 0,
+					"shaderChange": 0,
+					"textureBinds": 0,
+					"clipPushes": 14,
+					"bytesUploaded": 118992,
+					"residentTextureBytes": 5437956,
+					"pendingUploads": 0,
+					"evictions": 0,
+					"targetSwitches": null
+				},
+				"memory": {
+					"usedBytes": null
+				},
+				"renderer": {
+					"glDrawCalls": 1,
+					"vertices": 888,
+					"textCharacters": 217
+				},
+				"sanity": {
+					"frameMs": 15.185000002384186,
+					"sectionsMs": 1.0750000178813934,
+					"unaccountedMs": 14.109999984502792,
+					"framesWithSectionsOverSpan": 0
+				},
+				"liveness": {
+					"frameCount": 396,
+					"newestSampleAgeMs": 2
+				},
+				"device": {
+					"backend": "webgl2",
+					"vendor": "Google Inc. (AMD)",
+					"renderer": "ANGLE (AMD, ANGLE Metal Renderer: AMD Radeon Pro 560X, Unspecified Version)",
+					"features": {
+						"timerQuery": true,
+						"parallelShaderCompile": true,
+						"debugRendererInfo": true
+					}
+				},
+				"tracks": "console.timeStamp",
+				"hitches": {
+					"longFrames": {
+						"source": "long-animation-frame",
+						"count": 0,
+						"saturated": false,
+						"maxMs": null,
+						"blockingMs": 0,
+						"worst": null
+					},
+					"slowEvents": {
+						"thresholdMs": 16,
+						"count": 0,
+						"saturated": false,
+						"maxMs": null,
+						"worst": null
+					}
+				}
+			},
+			{
+				"timestamp": 1790620534076,
+				"scene": "developerScreen",
+				"frame": {
+					"ms": 18.530000001192093,
+					"minMs": 14.515000015497208,
+					"maxMs": 18.895000010728836,
+					"p99Ms": 18.695000022649765,
+					"histogram": [
+						0,
+						66,
+						54,
+						0
+					],
+					"spikesOverBudget": 35,
+					"spikesOver2xBudget": 0,
+					"budgetMs": 16.666666666666668,
+					"windowSize": 120,
+					"sampleCount": 120
+				},
+				"sections": {
+					"input": null,
+					"update": {
+						"ms": 0.009999990463256836,
+						"maxMs": 0.025000005960464478
+					},
+					"layout": {
+						"ms": 0.005000025033950806,
+						"maxMs": 0.009999990463256836
+					},
+					"render": {
+						"ms": 1.0049999952316284,
+						"maxMs": 1.6500000059604645
+					},
+					"flush": {
+						"ms": 0.2849999964237213,
+						"maxMs": 0.39500001072883606
+					},
+					"present": null
+				},
+				"gpu": {
+					"ms": 4.66315,
+					"valid": true,
+					"passes": [
+						1.277279,
+						3.385871
+					],
+					"spanMs": null,
+					"latencyMs": null,
+					"source": "timerQuery",
+					"p99Ms": 5.456453,
+					"maxMs": 5.701288,
+					"sampleCount": 120,
+					"invalidCount": 0
+				},
+				"batcher": {
+					"apiDraws": 44,
+					"gpuDraws": 1,
+					"vertices": 888,
+					"triangles": 444,
+					"instances": 0,
+					"culled": 738,
+					"occluded": null,
+					"flushes": {
+						"barrier": 0,
+						"endFrame": 1,
+						"targetChange": 0,
+						"bufferFull": 0
+					},
+					"splits": {
+						"textureSlotsExhausted": 0,
+						"blendChange": 0,
+						"stencilLevel": 0
+					},
+					"groupsByLayer": {
+						"base": 37,
+						"raised": 0,
+						"overlay": 0,
+						"modal": 0,
+						"popup": 7,
+						"toast": 0,
+						"tooltip": 0,
+						"drag": 0,
+						"transition": 0
+					},
+					"reorderedGroups": 0,
+					"clipChange": 0,
+					"shaderChange": 0,
+					"textureBinds": 0,
+					"clipPushes": 14,
+					"bytesUploaded": 118992,
+					"residentTextureBytes": 5437956,
+					"pendingUploads": 0,
+					"evictions": 0,
+					"targetSwitches": null
+				},
+				"memory": {
+					"usedBytes": null
+				},
+				"renderer": {
+					"glDrawCalls": 1,
+					"vertices": 888,
+					"textCharacters": 217
+				},
+				"sanity": {
+					"frameMs": 18.530000001192093,
+					"sectionsMs": 1.3050000071525574,
+					"unaccountedMs": 17.224999994039536,
+					"framesWithSectionsOverSpan": 0
+				},
+				"liveness": {
+					"frameCount": 397,
+					"newestSampleAgeMs": 1
+				},
+				"device": {
+					"backend": "webgl2",
+					"vendor": "Google Inc. (AMD)",
+					"renderer": "ANGLE (AMD, ANGLE Metal Renderer: AMD Radeon Pro 560X, Unspecified Version)",
+					"features": {
+						"timerQuery": true,
+						"parallelShaderCompile": true,
+						"debugRendererInfo": true
+					}
+				},
+				"tracks": "console.timeStamp",
+				"hitches": {
+					"longFrames": {
+						"source": "long-animation-frame",
+						"count": 0,
+						"saturated": false,
+						"maxMs": null,
+						"blockingMs": 0,
+						"worst": null
+					},
+					"slowEvents": {
+						"thresholdMs": 16,
+						"count": 0,
+						"saturated": false,
+						"maxMs": null,
+						"worst": null
+					}
+				}
+			},
+			{
+				"timestamp": 1790620534091,
+				"scene": "developerScreen",
+				"frame": {
+					"ms": 14.669999986886978,
+					"minMs": 14.659999996423721,
+					"maxMs": 18.895000010728836,
+					"p99Ms": 18.695000022649765,
+					"histogram": [
+						0,
+						66,
+						54,
+						0
+					],
+					"spikesOverBudget": 35,
+					"spikesOver2xBudget": 0,
+					"budgetMs": 16.666666666666668,
+					"windowSize": 120,
+					"sampleCount": 120
+				},
+				"sections": {
+					"input": null,
+					"update": {
+						"ms": 0.009999990463256836,
+						"maxMs": 0.025000005960464478
+					},
+					"layout": {
+						"ms": 0.005000025033950806,
+						"maxMs": 0.009999990463256836
+					},
+					"render": {
+						"ms": 0.9149999916553497,
+						"maxMs": 1.6500000059604645
+					},
+					"flush": {
+						"ms": 0.28999999165534973,
+						"maxMs": 0.39500001072883606
+					},
+					"present": null
+				},
+				"gpu": {
+					"ms": 4.685274,
+					"valid": true,
+					"passes": [
+						1.34128,
+						3.343994
+					],
+					"spanMs": null,
+					"latencyMs": null,
+					"source": "timerQuery",
+					"p99Ms": 5.456453,
+					"maxMs": 5.701288,
+					"sampleCount": 120,
+					"invalidCount": 0
+				},
+				"batcher": {
+					"apiDraws": 44,
+					"gpuDraws": 1,
+					"vertices": 888,
+					"triangles": 444,
+					"instances": 0,
+					"culled": 738,
+					"occluded": null,
+					"flushes": {
+						"barrier": 0,
+						"endFrame": 1,
+						"targetChange": 0,
+						"bufferFull": 0
+					},
+					"splits": {
+						"textureSlotsExhausted": 0,
+						"blendChange": 0,
+						"stencilLevel": 0
+					},
+					"groupsByLayer": {
+						"base": 37,
+						"raised": 0,
+						"overlay": 0,
+						"modal": 0,
+						"popup": 7,
+						"toast": 0,
+						"tooltip": 0,
+						"drag": 0,
+						"transition": 0
+					},
+					"reorderedGroups": 0,
+					"clipChange": 0,
+					"shaderChange": 0,
+					"textureBinds": 0,
+					"clipPushes": 14,
+					"bytesUploaded": 118992,
+					"residentTextureBytes": 5437956,
+					"pendingUploads": 0,
+					"evictions": 0,
+					"targetSwitches": null
+				},
+				"memory": {
+					"usedBytes": null
+				},
+				"renderer": {
+					"glDrawCalls": 1,
+					"vertices": 888,
+					"textCharacters": 217
+				},
+				"sanity": {
+					"frameMs": 14.669999986886978,
+					"sectionsMs": 1.219999998807907,
+					"unaccountedMs": 13.449999988079071,
+					"framesWithSectionsOverSpan": 0
+				},
+				"liveness": {
+					"frameCount": 398,
+					"newestSampleAgeMs": 2
+				},
+				"device": {
+					"backend": "webgl2",
+					"vendor": "Google Inc. (AMD)",
+					"renderer": "ANGLE (AMD, ANGLE Metal Renderer: AMD Radeon Pro 560X, Unspecified Version)",
+					"features": {
+						"timerQuery": true,
+						"parallelShaderCompile": true,
+						"debugRendererInfo": true
+					}
+				},
+				"tracks": "console.timeStamp",
+				"hitches": {
+					"longFrames": {
+						"source": "long-animation-frame",
+						"count": 0,
+						"saturated": false,
+						"maxMs": null,
+						"blockingMs": 0,
+						"worst": null
+					},
+					"slowEvents": {
+						"thresholdMs": 16,
+						"count": 0,
+						"saturated": false,
+						"maxMs": null,
+						"worst": null
+					}
+				}
+			},
+			{
+				"timestamp": 1790620534109,
+				"scene": "developerScreen",
+				"frame": {
+					"ms": 18.62000000476837,
+					"minMs": 14.659999996423721,
+					"maxMs": 18.895000010728836,
+					"p99Ms": 18.695000022649765,
+					"histogram": [
+						0,
+						66,
+						54,
+						0
+					],
+					"spikesOverBudget": 36,
+					"spikesOver2xBudget": 0,
+					"budgetMs": 16.666666666666668,
+					"windowSize": 120,
+					"sampleCount": 120
+				},
+				"sections": {
+					"input": null,
+					"update": {
+						"ms": 0.014999985694885254,
+						"maxMs": 0.025000005960464478
+					},
+					"layout": {
+						"ms": 0,
+						"maxMs": 0.009999990463256836
+					},
+					"render": {
+						"ms": 0.9050000011920929,
+						"maxMs": 1.6500000059604645
+					},
+					"flush": {
+						"ms": 0.26500001549720764,
+						"maxMs": 0.39500001072883606
+					},
+					"present": null
+				},
+				"gpu": {
+					"ms": 4.759723,
+					"valid": true,
+					"passes": [
+						1.312959,
+						3.446764
+					],
+					"spanMs": null,
+					"latencyMs": null,
+					"source": "timerQuery",
+					"p99Ms": 5.456453,
+					"maxMs": 5.701288,
+					"sampleCount": 120,
+					"invalidCount": 0
+				},
+				"batcher": {
+					"apiDraws": 44,
+					"gpuDraws": 1,
+					"vertices": 888,
+					"triangles": 444,
+					"instances": 0,
+					"culled": 738,
+					"occluded": null,
+					"flushes": {
+						"barrier": 0,
+						"endFrame": 1,
+						"targetChange": 0,
+						"bufferFull": 0
+					},
+					"splits": {
+						"textureSlotsExhausted": 0,
+						"blendChange": 0,
+						"stencilLevel": 0
+					},
+					"groupsByLayer": {
+						"base": 37,
+						"raised": 0,
+						"overlay": 0,
+						"modal": 0,
+						"popup": 7,
+						"toast": 0,
+						"tooltip": 0,
+						"drag": 0,
+						"transition": 0
+					},
+					"reorderedGroups": 0,
+					"clipChange": 0,
+					"shaderChange": 0,
+					"textureBinds": 0,
+					"clipPushes": 14,
+					"bytesUploaded": 118992,
+					"residentTextureBytes": 5437956,
+					"pendingUploads": 0,
+					"evictions": 0,
+					"targetSwitches": null
+				},
+				"memory": {
+					"usedBytes": null
+				},
+				"renderer": {
+					"glDrawCalls": 1,
+					"vertices": 888,
+					"textCharacters": 217
+				},
+				"sanity": {
+					"frameMs": 18.62000000476837,
+					"sectionsMs": 1.1850000023841858,
+					"unaccountedMs": 17.435000002384186,
+					"framesWithSectionsOverSpan": 0
+				},
+				"liveness": {
+					"frameCount": 399,
+					"newestSampleAgeMs": 1
+				},
+				"device": {
+					"backend": "webgl2",
+					"vendor": "Google Inc. (AMD)",
+					"renderer": "ANGLE (AMD, ANGLE Metal Renderer: AMD Radeon Pro 560X, Unspecified Version)",
+					"features": {
+						"timerQuery": true,
+						"parallelShaderCompile": true,
+						"debugRendererInfo": true
+					}
+				},
+				"tracks": "console.timeStamp",
+				"hitches": {
+					"longFrames": {
+						"source": "long-animation-frame",
+						"count": 0,
+						"saturated": false,
+						"maxMs": null,
+						"blockingMs": 0,
+						"worst": null
+					},
+					"slowEvents": {
+						"thresholdMs": 16,
+						"count": 0,
+						"saturated": false,
+						"maxMs": null,
+						"worst": null
+					}
+				}
+			},
+			{
+				"timestamp": 1790620534126,
+				"scene": "developerScreen",
+				"frame": {
+					"ms": 16.650000005960464,
+					"minMs": 14.659999996423721,
+					"maxMs": 18.895000010728836,
+					"p99Ms": 18.695000022649765,
+					"histogram": [
+						0,
+						67,
+						53,
+						0
+					],
+					"spikesOverBudget": 35,
+					"spikesOver2xBudget": 0,
+					"budgetMs": 16.666666666666668,
+					"windowSize": 120,
+					"sampleCount": 120
+				},
+				"sections": {
+					"input": null,
+					"update": {
+						"ms": 0.025000005960464478,
+						"maxMs": 0.025000005960464478
+					},
+					"layout": {
+						"ms": 0,
+						"maxMs": 0.009999990463256836
+					},
+					"render": {
+						"ms": 0.8950000107288361,
+						"maxMs": 1.6500000059604645
+					},
+					"flush": {
+						"ms": 0.17499998211860657,
+						"maxMs": 0.39500001072883606
+					},
+					"present": null
+				},
+				"gpu": {
+					"ms": 4.662718,
+					"valid": true,
+					"passes": [
+						1.30448,
+						3.358238
+					],
+					"spanMs": null,
+					"latencyMs": null,
+					"source": "timerQuery",
+					"p99Ms": 5.321613,
+					"maxMs": 5.456453,
+					"sampleCount": 120,
+					"invalidCount": 0
+				},
+				"batcher": {
+					"apiDraws": 44,
+					"gpuDraws": 1,
+					"vertices": 888,
+					"triangles": 444,
+					"instances": 0,
+					"culled": 738,
+					"occluded": null,
+					"flushes": {
+						"barrier": 0,
+						"endFrame": 1,
+						"targetChange": 0,
+						"bufferFull": 0
+					},
+					"splits": {
+						"textureSlotsExhausted": 0,
+						"blendChange": 0,
+						"stencilLevel": 0
+					},
+					"groupsByLayer": {
+						"base": 37,
+						"raised": 0,
+						"overlay": 0,
+						"modal": 0,
+						"popup": 7,
+						"toast": 0,
+						"tooltip": 0,
+						"drag": 0,
+						"transition": 0
+					},
+					"reorderedGroups": 0,
+					"clipChange": 0,
+					"shaderChange": 0,
+					"textureBinds": 0,
+					"clipPushes": 14,
+					"bytesUploaded": 118992,
+					"residentTextureBytes": 5437956,
+					"pendingUploads": 0,
+					"evictions": 0,
+					"targetSwitches": null
+				},
+				"memory": {
+					"usedBytes": null
+				},
+				"renderer": {
+					"glDrawCalls": 1,
+					"vertices": 888,
+					"textCharacters": 217
+				},
+				"sanity": {
+					"frameMs": 16.650000005960464,
+					"sectionsMs": 1.094999998807907,
+					"unaccountedMs": 15.555000007152557,
+					"framesWithSectionsOverSpan": 0
+				},
+				"liveness": {
+					"frameCount": 400,
+					"newestSampleAgeMs": 1
+				},
+				"device": {
+					"backend": "webgl2",
+					"vendor": "Google Inc. (AMD)",
+					"renderer": "ANGLE (AMD, ANGLE Metal Renderer: AMD Radeon Pro 560X, Unspecified Version)",
+					"features": {
+						"timerQuery": true,
+						"parallelShaderCompile": true,
+						"debugRendererInfo": true
+					}
+				},
+				"tracks": "console.timeStamp",
+				"hitches": {
+					"longFrames": {
+						"source": "long-animation-frame",
+						"count": 0,
+						"saturated": false,
+						"maxMs": null,
+						"blockingMs": 0,
+						"worst": null
+					},
+					"slowEvents": {
+						"thresholdMs": 16,
+						"count": 0,
+						"saturated": false,
+						"maxMs": null,
+						"worst": null
+					}
+				}
+			},
+			{
+				"timestamp": 1790620534141,
+				"scene": "developerScreen",
+				"frame": {
+					"ms": 14.894999980926514,
+					"minMs": 14.659999996423721,
+					"maxMs": 18.895000010728836,
+					"p99Ms": 18.695000022649765,
+					"histogram": [
+						0,
+						67,
+						53,
+						0
+					],
+					"spikesOverBudget": 35,
+					"spikesOver2xBudget": 0,
+					"budgetMs": 16.666666666666668,
+					"windowSize": 120,
+					"sampleCount": 120
+				},
+				"sections": {
+					"input": null,
+					"update": {
+						"ms": 0.004999995231628418,
+						"maxMs": 0.025000005960464478
+					},
+					"layout": {
+						"ms": 0,
+						"maxMs": 0.009999990463256836
+					},
+					"render": {
+						"ms": 0.8650000095367432,
+						"maxMs": 1.6500000059604645
+					},
+					"flush": {
+						"ms": 0.28999999165534973,
+						"maxMs": 0.39500001072883606
+					},
+					"present": null
+				},
+				"gpu": {
+					"ms": 4.7053519999999995,
+					"valid": true,
+					"passes": [
+						1.333599,
+						3.371753
+					],
+					"spanMs": null,
+					"latencyMs": null,
+					"source": "timerQuery",
+					"p99Ms": 5.321613,
+					"maxMs": 5.456453,
+					"sampleCount": 120,
+					"invalidCount": 0
+				},
+				"batcher": {
+					"apiDraws": 44,
+					"gpuDraws": 1,
+					"vertices": 888,
+					"triangles": 444,
+					"instances": 0,
+					"culled": 738,
+					"occluded": null,
+					"flushes": {
+						"barrier": 0,
+						"endFrame": 1,
+						"targetChange": 0,
+						"bufferFull": 0
+					},
+					"splits": {
+						"textureSlotsExhausted": 0,
+						"blendChange": 0,
+						"stencilLevel": 0
+					},
+					"groupsByLayer": {
+						"base": 37,
+						"raised": 0,
+						"overlay": 0,
+						"modal": 0,
+						"popup": 7,
+						"toast": 0,
+						"tooltip": 0,
+						"drag": 0,
+						"transition": 0
+					},
+					"reorderedGroups": 0,
+					"clipChange": 0,
+					"shaderChange": 0,
+					"textureBinds": 0,
+					"clipPushes": 14,
+					"bytesUploaded": 118992,
+					"residentTextureBytes": 5437956,
+					"pendingUploads": 0,
+					"evictions": 0,
+					"targetSwitches": null
+				},
+				"memory": {
+					"usedBytes": null
+				},
+				"renderer": {
+					"glDrawCalls": 1,
+					"vertices": 888,
+					"textCharacters": 217
+				},
+				"sanity": {
+					"frameMs": 14.894999980926514,
+					"sectionsMs": 1.1599999964237213,
+					"unaccountedMs": 13.734999984502792,
+					"framesWithSectionsOverSpan": 0
+				},
+				"liveness": {
+					"frameCount": 401,
+					"newestSampleAgeMs": 2
+				},
+				"device": {
+					"backend": "webgl2",
+					"vendor": "Google Inc. (AMD)",
+					"renderer": "ANGLE (AMD, ANGLE Metal Renderer: AMD Radeon Pro 560X, Unspecified Version)",
+					"features": {
+						"timerQuery": true,
+						"parallelShaderCompile": true,
+						"debugRendererInfo": true
+					}
+				},
+				"tracks": "console.timeStamp",
+				"hitches": {
+					"longFrames": {
+						"source": "long-animation-frame",
+						"count": 0,
+						"saturated": false,
+						"maxMs": null,
+						"blockingMs": 0,
+						"worst": null
+					},
+					"slowEvents": {
+						"thresholdMs": 16,
+						"count": 0,
+						"saturated": false,
+						"maxMs": null,
+						"worst": null
+					}
+				}
+			},
+			{
+				"timestamp": 1790620534158,
+				"scene": "developerScreen",
+				"frame": {
+					"ms": 16.645000010728836,
+					"minMs": 14.659999996423721,
+					"maxMs": 18.895000010728836,
+					"p99Ms": 18.695000022649765,
+					"histogram": [
+						0,
+						67,
+						53,
+						0
+					],
+					"spikesOverBudget": 35,
+					"spikesOver2xBudget": 0,
+					"budgetMs": 16.666666666666668,
+					"windowSize": 120,
+					"sampleCount": 120
+				},
+				"sections": {
+					"input": null,
+					"update": {
+						"ms": 0.009999990463256836,
+						"maxMs": 0.025000005960464478
+					},
+					"layout": {
+						"ms": 0.004999995231628418,
+						"maxMs": 0.009999990463256836
+					},
+					"render": {
+						"ms": 0.9200000166893005,
+						"maxMs": 1.6500000059604645
+					},
+					"flush": {
+						"ms": 0.2449999749660492,
+						"maxMs": 0.39500001072883606
+					},
+					"present": null
+				},
+				"gpu": {
+					"ms": 4.700564,
+					"valid": true,
+					"passes": [
+						1.308799,
+						3.391765
+					],
+					"spanMs": null,
+					"latencyMs": null,
+					"source": "timerQuery",
+					"p99Ms": 5.321613,
+					"maxMs": 5.456453,
+					"sampleCount": 120,
+					"invalidCount": 0
+				},
+				"batcher": {
+					"apiDraws": 44,
+					"gpuDraws": 1,
+					"vertices": 888,
+					"triangles": 444,
+					"instances": 0,
+					"culled": 738,
+					"occluded": null,
+					"flushes": {
+						"barrier": 0,
+						"endFrame": 1,
+						"targetChange": 0,
+						"bufferFull": 0
+					},
+					"splits": {
+						"textureSlotsExhausted": 0,
+						"blendChange": 0,
+						"stencilLevel": 0
+					},
+					"groupsByLayer": {
+						"base": 37,
+						"raised": 0,
+						"overlay": 0,
+						"modal": 0,
+						"popup": 7,
+						"toast": 0,
+						"tooltip": 0,
+						"drag": 0,
+						"transition": 0
+					},
+					"reorderedGroups": 0,
+					"clipChange": 0,
+					"shaderChange": 0,
+					"textureBinds": 0,
+					"clipPushes": 14,
+					"bytesUploaded": 118992,
+					"residentTextureBytes": 5437956,
+					"pendingUploads": 0,
+					"evictions": 0,
+					"targetSwitches": null
+				},
+				"memory": {
+					"usedBytes": null
+				},
+				"renderer": {
+					"glDrawCalls": 1,
+					"vertices": 888,
+					"textCharacters": 217
+				},
+				"sanity": {
+					"frameMs": 16.645000010728836,
+					"sectionsMs": 1.179999977350235,
+					"unaccountedMs": 15.465000033378601,
+					"framesWithSectionsOverSpan": 0
+				},
+				"liveness": {
+					"frameCount": 402,
+					"newestSampleAgeMs": 2
+				},
+				"device": {
+					"backend": "webgl2",
+					"vendor": "Google Inc. (AMD)",
+					"renderer": "ANGLE (AMD, ANGLE Metal Renderer: AMD Radeon Pro 560X, Unspecified Version)",
+					"features": {
+						"timerQuery": true,
+						"parallelShaderCompile": true,
+						"debugRendererInfo": true
+					}
+				},
+				"tracks": "console.timeStamp",
+				"hitches": {
+					"longFrames": {
+						"source": "long-animation-frame",
+						"count": 0,
+						"saturated": false,
+						"maxMs": null,
+						"blockingMs": 0,
+						"worst": null
+					},
+					"slowEvents": {
+						"thresholdMs": 16,
+						"count": 0,
+						"saturated": false,
+						"maxMs": null,
+						"worst": null
+					}
+				}
+			},
+			{
+				"timestamp": 1790620534176,
+				"scene": "developerScreen",
+				"frame": {
+					"ms": 18.430000007152557,
+					"minMs": 14.659999996423721,
+					"maxMs": 18.895000010728836,
+					"p99Ms": 18.695000022649765,
+					"histogram": [
+						0,
+						67,
+						53,
+						0
+					],
+					"spikesOverBudget": 35,
+					"spikesOver2xBudget": 0,
+					"budgetMs": 16.666666666666668,
+					"windowSize": 120,
+					"sampleCount": 120
+				},
+				"sections": {
+					"input": null,
+					"update": {
+						"ms": 0.005000025033950806,
+						"maxMs": 0.025000005960464478
+					},
+					"layout": {
+						"ms": 0,
+						"maxMs": 0.009999990463256836
+					},
+					"render": {
+						"ms": 1.1899999976158142,
+						"maxMs": 1.6500000059604645
+					},
+					"flush": {
+						"ms": 0.22999998927116394,
+						"maxMs": 0.39500001072883606
+					},
+					"present": null
+				},
+				"gpu": {
+					"ms": 4.744199,
+					"valid": true,
+					"passes": [
+						1.3456,
+						3.398599
+					],
+					"spanMs": null,
+					"latencyMs": null,
+					"source": "timerQuery",
+					"p99Ms": 5.321613,
+					"maxMs": 5.456453,
+					"sampleCount": 120,
+					"invalidCount": 0
+				},
+				"batcher": {
+					"apiDraws": 44,
+					"gpuDraws": 1,
+					"vertices": 888,
+					"triangles": 444,
+					"instances": 0,
+					"culled": 738,
+					"occluded": null,
+					"flushes": {
+						"barrier": 0,
+						"endFrame": 1,
+						"targetChange": 0,
+						"bufferFull": 0
+					},
+					"splits": {
+						"textureSlotsExhausted": 0,
+						"blendChange": 0,
+						"stencilLevel": 0
+					},
+					"groupsByLayer": {
+						"base": 37,
+						"raised": 0,
+						"overlay": 0,
+						"modal": 0,
+						"popup": 7,
+						"toast": 0,
+						"tooltip": 0,
+						"drag": 0,
+						"transition": 0
+					},
+					"reorderedGroups": 0,
+					"clipChange": 0,
+					"shaderChange": 0,
+					"textureBinds": 0,
+					"clipPushes": 14,
+					"bytesUploaded": 118992,
+					"residentTextureBytes": 5437956,
+					"pendingUploads": 0,
+					"evictions": 0,
+					"targetSwitches": null
+				},
+				"memory": {
+					"usedBytes": null
+				},
+				"renderer": {
+					"glDrawCalls": 1,
+					"vertices": 888,
+					"textCharacters": 217
+				},
+				"sanity": {
+					"frameMs": 18.430000007152557,
+					"sectionsMs": 1.425000011920929,
+					"unaccountedMs": 17.00499999523163,
+					"framesWithSectionsOverSpan": 0
+				},
+				"liveness": {
+					"frameCount": 403,
+					"newestSampleAgeMs": 1
+				},
+				"device": {
+					"backend": "webgl2",
+					"vendor": "Google Inc. (AMD)",
+					"renderer": "ANGLE (AMD, ANGLE Metal Renderer: AMD Radeon Pro 560X, Unspecified Version)",
+					"features": {
+						"timerQuery": true,
+						"parallelShaderCompile": true,
+						"debugRendererInfo": true
+					}
+				},
+				"tracks": "console.timeStamp",
+				"hitches": {
+					"longFrames": {
+						"source": "long-animation-frame",
+						"count": 0,
+						"saturated": false,
+						"maxMs": null,
+						"blockingMs": 0,
+						"worst": null
+					},
+					"slowEvents": {
+						"thresholdMs": 16,
+						"count": 0,
+						"saturated": false,
+						"maxMs": null,
+						"worst": null
+					}
+				}
+			},
+			{
+				"timestamp": 1790620534191,
+				"scene": "developerScreen",
+				"frame": {
+					"ms": 14.769999980926514,
+					"minMs": 14.659999996423721,
+					"maxMs": 18.895000010728836,
+					"p99Ms": 18.695000022649765,
+					"histogram": [
+						0,
+						67,
+						53,
+						0
+					],
+					"spikesOverBudget": 35,
+					"spikesOver2xBudget": 0,
+					"budgetMs": 16.666666666666668,
+					"windowSize": 120,
+					"sampleCount": 120
+				},
+				"sections": {
+					"input": null,
+					"update": {
+						"ms": 0.009999990463256836,
+						"maxMs": 0.025000005960464478
+					},
+					"layout": {
+						"ms": 0,
+						"maxMs": 0.009999990463256836
+					},
+					"render": {
+						"ms": 0.820000022649765,
+						"maxMs": 1.6500000059604645
+					},
+					"flush": {
+						"ms": 0.2150000035762787,
+						"maxMs": 0.39500001072883606
+					},
+					"present": null
+				},
+				"gpu": {
+					"ms": 4.635449,
+					"valid": true,
+					"passes": [
+						1.272959,
+						3.36249
+					],
+					"spanMs": null,
+					"latencyMs": null,
+					"source": "timerQuery",
+					"p99Ms": 5.321613,
+					"maxMs": 5.456453,
+					"sampleCount": 120,
+					"invalidCount": 0
+				},
+				"batcher": {
+					"apiDraws": 44,
+					"gpuDraws": 1,
+					"vertices": 888,
+					"triangles": 444,
+					"instances": 0,
+					"culled": 738,
+					"occluded": null,
+					"flushes": {
+						"barrier": 0,
+						"endFrame": 1,
+						"targetChange": 0,
+						"bufferFull": 0
+					},
+					"splits": {
+						"textureSlotsExhausted": 0,
+						"blendChange": 0,
+						"stencilLevel": 0
+					},
+					"groupsByLayer": {
+						"base": 37,
+						"raised": 0,
+						"overlay": 0,
+						"modal": 0,
+						"popup": 7,
+						"toast": 0,
+						"tooltip": 0,
+						"drag": 0,
+						"transition": 0
+					},
+					"reorderedGroups": 0,
+					"clipChange": 0,
+					"shaderChange": 0,
+					"textureBinds": 0,
+					"clipPushes": 14,
+					"bytesUploaded": 118992,
+					"residentTextureBytes": 5437956,
+					"pendingUploads": 0,
+					"evictions": 0,
+					"targetSwitches": null
+				},
+				"memory": {
+					"usedBytes": null
+				},
+				"renderer": {
+					"glDrawCalls": 1,
+					"vertices": 888,
+					"textCharacters": 217
+				},
+				"sanity": {
+					"frameMs": 14.769999980926514,
+					"sectionsMs": 1.0450000166893005,
+					"unaccountedMs": 13.724999964237213,
+					"framesWithSectionsOverSpan": 0
+				},
+				"liveness": {
+					"frameCount": 404,
+					"newestSampleAgeMs": 2
+				},
+				"device": {
+					"backend": "webgl2",
+					"vendor": "Google Inc. (AMD)",
+					"renderer": "ANGLE (AMD, ANGLE Metal Renderer: AMD Radeon Pro 560X, Unspecified Version)",
+					"features": {
+						"timerQuery": true,
+						"parallelShaderCompile": true,
+						"debugRendererInfo": true
+					}
+				},
+				"tracks": "console.timeStamp",
+				"hitches": {
+					"longFrames": {
+						"source": "long-animation-frame",
+						"count": 0,
+						"saturated": false,
+						"maxMs": null,
+						"blockingMs": 0,
+						"worst": null
+					},
+					"slowEvents": {
+						"thresholdMs": 16,
+						"count": 0,
+						"saturated": false,
+						"maxMs": null,
+						"worst": null
+					}
+				}
+			},
+			{
+				"timestamp": 1790620534209,
+				"scene": "developerScreen",
+				"frame": {
+					"ms": 18.405000001192093,
+					"minMs": 14.659999996423721,
+					"maxMs": 18.895000010728836,
+					"p99Ms": 18.695000022649765,
+					"histogram": [
+						0,
+						66,
+						54,
+						0
+					],
+					"spikesOverBudget": 36,
+					"spikesOver2xBudget": 0,
+					"budgetMs": 16.666666666666668,
+					"windowSize": 120,
+					"sampleCount": 120
+				},
+				"sections": {
+					"input": null,
+					"update": {
+						"ms": 0.010000020265579224,
+						"maxMs": 0.025000005960464478
+					},
+					"layout": {
+						"ms": 0.004999995231628418,
+						"maxMs": 0.005000025033950806
+					},
+					"render": {
+						"ms": 1.0850000083446503,
+						"maxMs": 1.6500000059604645
+					},
+					"flush": {
+						"ms": 0.28999999165534973,
+						"maxMs": 0.39500001072883606
+					},
+					"present": null
+				},
+				"gpu": {
+					"ms": 4.729194,
+					"valid": true,
+					"passes": [
+						1.315679,
+						3.413515
+					],
+					"spanMs": null,
+					"latencyMs": null,
+					"source": "timerQuery",
+					"p99Ms": 5.321613,
+					"maxMs": 5.456453,
+					"sampleCount": 120,
+					"invalidCount": 0
+				},
+				"batcher": {
+					"apiDraws": 44,
+					"gpuDraws": 1,
+					"vertices": 888,
+					"triangles": 444,
+					"instances": 0,
+					"culled": 738,
+					"occluded": null,
+					"flushes": {
+						"barrier": 0,
+						"endFrame": 1,
+						"targetChange": 0,
+						"bufferFull": 0
+					},
+					"splits": {
+						"textureSlotsExhausted": 0,
+						"blendChange": 0,
+						"stencilLevel": 0
+					},
+					"groupsByLayer": {
+						"base": 37,
+						"raised": 0,
+						"overlay": 0,
+						"modal": 0,
+						"popup": 7,
+						"toast": 0,
+						"tooltip": 0,
+						"drag": 0,
+						"transition": 0
+					},
+					"reorderedGroups": 0,
+					"clipChange": 0,
+					"shaderChange": 0,
+					"textureBinds": 0,
+					"clipPushes": 14,
+					"bytesUploaded": 118992,
+					"residentTextureBytes": 5437956,
+					"pendingUploads": 0,
+					"evictions": 0,
+					"targetSwitches": null
+				},
+				"memory": {
+					"usedBytes": null
+				},
+				"renderer": {
+					"glDrawCalls": 1,
+					"vertices": 888,
+					"textCharacters": 217
+				},
+				"sanity": {
+					"frameMs": 18.405000001192093,
+					"sectionsMs": 1.3900000154972076,
+					"unaccountedMs": 17.014999985694885,
+					"framesWithSectionsOverSpan": 0
+				},
+				"liveness": {
+					"frameCount": 405,
+					"newestSampleAgeMs": 1
+				},
+				"device": {
+					"backend": "webgl2",
+					"vendor": "Google Inc. (AMD)",
+					"renderer": "ANGLE (AMD, ANGLE Metal Renderer: AMD Radeon Pro 560X, Unspecified Version)",
+					"features": {
+						"timerQuery": true,
+						"parallelShaderCompile": true,
+						"debugRendererInfo": true
+					}
+				},
+				"tracks": "console.timeStamp",
+				"hitches": {
+					"longFrames": {
+						"source": "long-animation-frame",
+						"count": 0,
+						"saturated": false,
+						"maxMs": null,
+						"blockingMs": 0,
+						"worst": null
+					},
+					"slowEvents": {
+						"thresholdMs": 16,
+						"count": 0,
+						"saturated": false,
+						"maxMs": null,
+						"worst": null
+					}
+				}
+			},
+			{
+				"timestamp": 1790620534226,
+				"scene": "developerScreen",
+				"frame": {
+					"ms": 16.9200000166893,
+					"minMs": 14.659999996423721,
+					"maxMs": 18.695000022649765,
+					"p99Ms": 18.694999992847443,
+					"histogram": [
+						0,
+						66,
+						54,
+						0
+					],
+					"spikesOverBudget": 35,
+					"spikesOver2xBudget": 0,
+					"budgetMs": 16.666666666666668,
+					"windowSize": 120,
+					"sampleCount": 120
+				},
+				"sections": {
+					"input": null,
+					"update": {
+						"ms": 0.034999996423721313,
+						"maxMs": 0.034999996423721313
+					},
+					"layout": {
+						"ms": 0,
+						"maxMs": 0.005000025033950806
+					},
+					"render": {
+						"ms": 1.1699999868869781,
+						"maxMs": 1.6500000059604645
+					},
+					"flush": {
+						"ms": 0.24000000953674316,
+						"maxMs": 0.39500001072883606
+					},
+					"present": null
+				},
+				"gpu": {
+					"ms": 4.6335560000000005,
+					"valid": true,
+					"passes": [
+						1.2704,
+						3.363156
+					],
+					"spanMs": null,
+					"latencyMs": null,
+					"source": "timerQuery",
+					"p99Ms": 4.768383,
+					"maxMs": 5.456453,
+					"sampleCount": 120,
+					"invalidCount": 0
+				},
+				"batcher": {
+					"apiDraws": 44,
+					"gpuDraws": 1,
+					"vertices": 888,
+					"triangles": 444,
+					"instances": 0,
+					"culled": 738,
+					"occluded": null,
+					"flushes": {
+						"barrier": 0,
+						"endFrame": 1,
+						"targetChange": 0,
+						"bufferFull": 0
+					},
+					"splits": {
+						"textureSlotsExhausted": 0,
+						"blendChange": 0,
+						"stencilLevel": 0
+					},
+					"groupsByLayer": {
+						"base": 37,
+						"raised": 0,
+						"overlay": 0,
+						"modal": 0,
+						"popup": 7,
+						"toast": 0,
+						"tooltip": 0,
+						"drag": 0,
+						"transition": 0
+					},
+					"reorderedGroups": 0,
+					"clipChange": 0,
+					"shaderChange": 0,
+					"textureBinds": 0,
+					"clipPushes": 14,
+					"bytesUploaded": 118992,
+					"residentTextureBytes": 5437956,
+					"pendingUploads": 0,
+					"evictions": 0,
+					"targetSwitches": null
+				},
+				"memory": {
+					"usedBytes": null
+				},
+				"renderer": {
+					"glDrawCalls": 1,
+					"vertices": 888,
+					"textCharacters": 217
+				},
+				"sanity": {
+					"frameMs": 16.9200000166893,
+					"sectionsMs": 1.4449999928474426,
+					"unaccountedMs": 15.475000023841858,
+					"framesWithSectionsOverSpan": 0
+				},
+				"liveness": {
+					"frameCount": 406,
+					"newestSampleAgeMs": 1
+				},
+				"device": {
+					"backend": "webgl2",
+					"vendor": "Google Inc. (AMD)",
+					"renderer": "ANGLE (AMD, ANGLE Metal Renderer: AMD Radeon Pro 560X, Unspecified Version)",
+					"features": {
+						"timerQuery": true,
+						"parallelShaderCompile": true,
+						"debugRendererInfo": true
+					}
+				},
+				"tracks": "console.timeStamp",
+				"hitches": {
+					"longFrames": {
+						"source": "long-animation-frame",
+						"count": 0,
+						"saturated": false,
+						"maxMs": null,
+						"blockingMs": 0,
+						"worst": null
+					},
+					"slowEvents": {
+						"thresholdMs": 16,
+						"count": 0,
+						"saturated": false,
+						"maxMs": null,
+						"worst": null
+					}
+				}
+			},
+			{
+				"timestamp": 1790620534242,
+				"scene": "developerScreen",
+				"frame": {
+					"ms": 16.359999984502792,
+					"minMs": 14.659999996423721,
+					"maxMs": 18.695000022649765,
+					"p99Ms": 18.694999992847443,
+					"histogram": [
+						0,
+						66,
+						54,
+						0
+					],
+					"spikesOverBudget": 35,
+					"spikesOver2xBudget": 0,
+					"budgetMs": 16.666666666666668,
+					"windowSize": 120,
+					"sampleCount": 120
+				},
+				"sections": {
+					"input": null,
+					"update": {
+						"ms": 0.010000020265579224,
+						"maxMs": 0.034999996423721313
+					},
+					"layout": {
+						"ms": 0,
+						"maxMs": 0.005000025033950806
+					},
+					"render": {
+						"ms": 0.8950000107288361,
+						"maxMs": 1.6500000059604645
+					},
+					"flush": {
+						"ms": 0.38999998569488525,
+						"maxMs": 0.39500001072883606
+					},
+					"present": null
+				},
+				"gpu": {
+					"ms": 5.229366000000001,
+					"valid": true,
+					"passes": [
+						1.284319,
+						3.945047
+					],
+					"spanMs": null,
+					"latencyMs": null,
+					"source": "timerQuery",
+					"p99Ms": 5.229366000000001,
+					"maxMs": 5.456453,
+					"sampleCount": 120,
+					"invalidCount": 0
+				},
+				"batcher": {
+					"apiDraws": 44,
+					"gpuDraws": 1,
+					"vertices": 888,
+					"triangles": 444,
+					"instances": 0,
+					"culled": 738,
+					"occluded": null,
+					"flushes": {
+						"barrier": 0,
+						"endFrame": 1,
+						"targetChange": 0,
+						"bufferFull": 0
+					},
+					"splits": {
+						"textureSlotsExhausted": 0,
+						"blendChange": 0,
+						"stencilLevel": 0
+					},
+					"groupsByLayer": {
+						"base": 37,
+						"raised": 0,
+						"overlay": 0,
+						"modal": 0,
+						"popup": 7,
+						"toast": 0,
+						"tooltip": 0,
+						"drag": 0,
+						"transition": 0
+					},
+					"reorderedGroups": 0,
+					"clipChange": 0,
+					"shaderChange": 0,
+					"textureBinds": 0,
+					"clipPushes": 14,
+					"bytesUploaded": 118992,
+					"residentTextureBytes": 5437956,
+					"pendingUploads": 0,
+					"evictions": 0,
+					"targetSwitches": null
+				},
+				"memory": {
+					"usedBytes": null
+				},
+				"renderer": {
+					"glDrawCalls": 1,
+					"vertices": 888,
+					"textCharacters": 217
+				},
+				"sanity": {
+					"frameMs": 16.359999984502792,
+					"sectionsMs": 1.2950000166893005,
+					"unaccountedMs": 15.064999967813492,
+					"framesWithSectionsOverSpan": 0
+				},
+				"liveness": {
+					"frameCount": 407,
+					"newestSampleAgeMs": 1
+				},
+				"device": {
+					"backend": "webgl2",
+					"vendor": "Google Inc. (AMD)",
+					"renderer": "ANGLE (AMD, ANGLE Metal Renderer: AMD Radeon Pro 560X, Unspecified Version)",
+					"features": {
+						"timerQuery": true,
+						"parallelShaderCompile": true,
+						"debugRendererInfo": true
+					}
+				},
+				"tracks": "console.timeStamp",
+				"hitches": {
+					"longFrames": {
+						"source": "long-animation-frame",
+						"count": 0,
+						"saturated": false,
+						"maxMs": null,
+						"blockingMs": 0,
+						"worst": null
+					},
+					"slowEvents": {
+						"thresholdMs": 16,
+						"count": 0,
+						"saturated": false,
+						"maxMs": null,
+						"worst": null
+					}
+				}
+			},
+			{
+				"timestamp": 1790620534258,
+				"scene": "developerScreen",
+				"frame": {
+					"ms": 15.020000010728836,
+					"minMs": 14.659999996423721,
+					"maxMs": 18.695000022649765,
+					"p99Ms": 18.694999992847443,
+					"histogram": [
+						0,
+						67,
+						53,
+						0
+					],
+					"spikesOverBudget": 35,
+					"spikesOver2xBudget": 0,
+					"budgetMs": 16.666666666666668,
+					"windowSize": 120,
+					"sampleCount": 120
+				},
+				"sections": {
+					"input": null,
+					"update": {
+						"ms": 0.005000025033950806,
+						"maxMs": 0.034999996423721313
+					},
+					"layout": {
+						"ms": 0,
+						"maxMs": 0.005000025033950806
+					},
+					"render": {
+						"ms": 0.824999988079071,
+						"maxMs": 1.6500000059604645
+					},
+					"flush": {
+						"ms": 0.1850000023841858,
+						"maxMs": 0.39500001072883606
+					},
+					"present": null
+				},
+				"gpu": {
+					"ms": 4.735864,
+					"valid": true,
+					"passes": [
+						1.30432,
+						3.431544
+					],
+					"spanMs": null,
+					"latencyMs": null,
+					"source": "timerQuery",
+					"p99Ms": 5.229366000000001,
+					"maxMs": 5.456453,
+					"sampleCount": 120,
+					"invalidCount": 0
+				},
+				"batcher": {
+					"apiDraws": 44,
+					"gpuDraws": 1,
+					"vertices": 888,
+					"triangles": 444,
+					"instances": 0,
+					"culled": 738,
+					"occluded": null,
+					"flushes": {
+						"barrier": 0,
+						"endFrame": 1,
+						"targetChange": 0,
+						"bufferFull": 0
+					},
+					"splits": {
+						"textureSlotsExhausted": 0,
+						"blendChange": 0,
+						"stencilLevel": 0
+					},
+					"groupsByLayer": {
+						"base": 37,
+						"raised": 0,
+						"overlay": 0,
+						"modal": 0,
+						"popup": 7,
+						"toast": 0,
+						"tooltip": 0,
+						"drag": 0,
+						"transition": 0
+					},
+					"reorderedGroups": 0,
+					"clipChange": 0,
+					"shaderChange": 0,
+					"textureBinds": 0,
+					"clipPushes": 14,
+					"bytesUploaded": 118992,
+					"residentTextureBytes": 5437956,
+					"pendingUploads": 0,
+					"evictions": 0,
+					"targetSwitches": null
+				},
+				"memory": {
+					"usedBytes": null
+				},
+				"renderer": {
+					"glDrawCalls": 1,
+					"vertices": 888,
+					"textCharacters": 217
+				},
+				"sanity": {
+					"frameMs": 15.020000010728836,
+					"sectionsMs": 1.0150000154972076,
+					"unaccountedMs": 14.004999995231628,
+					"framesWithSectionsOverSpan": 0
+				},
+				"liveness": {
+					"frameCount": 408,
+					"newestSampleAgeMs": 2
+				},
+				"device": {
+					"backend": "webgl2",
+					"vendor": "Google Inc. (AMD)",
+					"renderer": "ANGLE (AMD, ANGLE Metal Renderer: AMD Radeon Pro 560X, Unspecified Version)",
+					"features": {
+						"timerQuery": true,
+						"parallelShaderCompile": true,
+						"debugRendererInfo": true
+					}
+				},
+				"tracks": "console.timeStamp",
+				"hitches": {
+					"longFrames": {
+						"source": "long-animation-frame",
+						"count": 0,
+						"saturated": false,
+						"maxMs": null,
+						"blockingMs": 0,
+						"worst": null
+					},
+					"slowEvents": {
+						"thresholdMs": 16,
+						"count": 0,
+						"saturated": false,
+						"maxMs": null,
+						"worst": null
+					}
+				}
+			},
+			{
+				"timestamp": 1790620534276,
+				"scene": "developerScreen",
+				"frame": {
+					"ms": 18.519999980926514,
+					"minMs": 14.659999996423721,
+					"maxMs": 18.695000022649765,
+					"p99Ms": 18.694999992847443,
+					"histogram": [
+						0,
+						66,
+						54,
+						0
+					],
+					"spikesOverBudget": 36,
+					"spikesOver2xBudget": 0,
+					"budgetMs": 16.666666666666668,
+					"windowSize": 120,
+					"sampleCount": 120
+				},
+				"sections": {
+					"input": null,
+					"update": {
+						"ms": 0.009999990463256836,
+						"maxMs": 0.034999996423721313
+					},
+					"layout": {
+						"ms": 0,
+						"maxMs": 0.005000025033950806
+					},
+					"render": {
+						"ms": 1.1349999904632568,
+						"maxMs": 1.6500000059604645
+					},
+					"flush": {
+						"ms": 0.2849999964237213,
+						"maxMs": 0.39500001072883606
+					},
+					"present": null
+				},
+				"gpu": {
+					"ms": 4.7250049999999995,
+					"valid": true,
+					"passes": [
+						1.311519,
+						3.413486
+					],
+					"spanMs": null,
+					"latencyMs": null,
+					"source": "timerQuery",
+					"p99Ms": 5.229366000000001,
+					"maxMs": 5.456453,
+					"sampleCount": 120,
+					"invalidCount": 0
+				},
+				"batcher": {
+					"apiDraws": 44,
+					"gpuDraws": 1,
+					"vertices": 888,
+					"triangles": 444,
+					"instances": 0,
+					"culled": 738,
+					"occluded": null,
+					"flushes": {
+						"barrier": 0,
+						"endFrame": 1,
+						"targetChange": 0,
+						"bufferFull": 0
+					},
+					"splits": {
+						"textureSlotsExhausted": 0,
+						"blendChange": 0,
+						"stencilLevel": 0
+					},
+					"groupsByLayer": {
+						"base": 37,
+						"raised": 0,
+						"overlay": 0,
+						"modal": 0,
+						"popup": 7,
+						"toast": 0,
+						"tooltip": 0,
+						"drag": 0,
+						"transition": 0
+					},
+					"reorderedGroups": 0,
+					"clipChange": 0,
+					"shaderChange": 0,
+					"textureBinds": 0,
+					"clipPushes": 14,
+					"bytesUploaded": 118992,
+					"residentTextureBytes": 5437956,
+					"pendingUploads": 0,
+					"evictions": 0,
+					"targetSwitches": null
+				},
+				"memory": {
+					"usedBytes": null
+				},
+				"renderer": {
+					"glDrawCalls": 1,
+					"vertices": 888,
+					"textCharacters": 217
+				},
+				"sanity": {
+					"frameMs": 18.519999980926514,
+					"sectionsMs": 1.429999977350235,
+					"unaccountedMs": 17.09000000357628,
+					"framesWithSectionsOverSpan": 0
+				},
+				"liveness": {
+					"frameCount": 409,
+					"newestSampleAgeMs": 1
+				},
+				"device": {
+					"backend": "webgl2",
+					"vendor": "Google Inc. (AMD)",
+					"renderer": "ANGLE (AMD, ANGLE Metal Renderer: AMD Radeon Pro 560X, Unspecified Version)",
+					"features": {
+						"timerQuery": true,
+						"parallelShaderCompile": true,
+						"debugRendererInfo": true
+					}
+				},
+				"tracks": "console.timeStamp",
+				"hitches": {
+					"longFrames": {
+						"source": "long-animation-frame",
+						"count": 0,
+						"saturated": false,
+						"maxMs": null,
+						"blockingMs": 0,
+						"worst": null
+					},
+					"slowEvents": {
+						"thresholdMs": 16,
+						"count": 0,
+						"saturated": false,
+						"maxMs": null,
+						"worst": null
+					}
+				}
+			}
+		]
+	},
+	{
+		"scenario": "combatScreen",
+		"samples": [
+			{
+				"timestamp": 1790620537308,
+				"scene": "combatScreen",
+				"frame": {
+					"ms": 15.134999990463257,
+					"minMs": 14.605000019073486,
+					"maxMs": 18.75,
+					"p99Ms": 18.689999997615814,
+					"histogram": [
+						0,
+						64,
+						56,
+						0
+					],
+					"spikesOverBudget": 35,
+					"spikesOver2xBudget": 0,
+					"budgetMs": 16.666666666666668,
+					"windowSize": 120,
+					"sampleCount": 120
+				},
+				"sections": {
+					"input": null,
+					"update": {
+						"ms": 0,
+						"maxMs": 0.025000005960464478
+					},
+					"layout": {
+						"ms": 0.004999995231628418,
+						"maxMs": 0.009999990463256836
+					},
+					"render": {
+						"ms": 0.49000000953674316,
+						"maxMs": 0.7849999964237213
+					},
+					"flush": {
+						"ms": 0.7400000095367432,
+						"maxMs": 1.1099999845027924
+					},
+					"present": null
+				},
+				"gpu": {
+					"ms": 4.5259030000000005,
+					"valid": true,
+					"passes": [
+						1.31424,
+						3.211663
+					],
+					"spanMs": null,
+					"latencyMs": null,
+					"source": "timerQuery",
+					"p99Ms": 5.177129,
+					"maxMs": 5.238769,
+					"sampleCount": 120,
+					"invalidCount": 0
+				},
+				"batcher": {
+					"apiDraws": 153,
+					"gpuDraws": 1,
+					"vertices": 2944,
+					"triangles": 1472,
+					"instances": 0,
+					"culled": 33,
+					"occluded": null,
+					"flushes": {
+						"barrier": 0,
+						"endFrame": 1,
+						"targetChange": 0,
+						"bufferFull": 0
+					},
+					"splits": {
+						"textureSlotsExhausted": 0,
+						"blendChange": 0,
+						"stencilLevel": 0
+					},
+					"groupsByLayer": {
+						"base": 153,
+						"raised": 0,
+						"overlay": 0,
+						"modal": 0,
+						"popup": 0,
+						"toast": 0,
+						"tooltip": 0,
+						"drag": 0,
+						"transition": 0
+					},
+					"reorderedGroups": 0,
+					"clipChange": 0,
+					"shaderChange": 0,
+					"textureBinds": 0,
+					"clipPushes": 4,
+					"bytesUploaded": 394496,
+					"residentTextureBytes": 5373956,
+					"pendingUploads": 0,
+					"evictions": 0,
+					"targetSwitches": null
+				},
+				"memory": {
+					"usedBytes": null
+				},
+				"renderer": {
+					"glDrawCalls": 1,
+					"vertices": 2944,
+					"textCharacters": 747
+				},
+				"sanity": {
+					"frameMs": 15.134999990463257,
+					"sectionsMs": 1.2350000143051147,
+					"unaccountedMs": 13.899999976158142,
+					"framesWithSectionsOverSpan": 0
+				},
+				"liveness": {
+					"frameCount": 591,
+					"newestSampleAgeMs": 2
+				},
+				"device": {
+					"backend": "webgl2",
+					"vendor": "Google Inc. (AMD)",
+					"renderer": "ANGLE (AMD, ANGLE Metal Renderer: AMD Radeon Pro 560X, Unspecified Version)",
+					"features": {
+						"timerQuery": true,
+						"parallelShaderCompile": true,
+						"debugRendererInfo": true
+					}
+				},
+				"tracks": "console.timeStamp",
+				"hitches": {
+					"longFrames": {
+						"source": "long-animation-frame",
+						"count": 0,
+						"saturated": false,
+						"maxMs": null,
+						"blockingMs": 0,
+						"worst": null
+					},
+					"slowEvents": {
+						"thresholdMs": 16,
+						"count": 0,
+						"saturated": false,
+						"maxMs": null,
+						"worst": null
+					}
+				}
+			},
+			{
+				"timestamp": 1790620537325,
+				"scene": "combatScreen",
+				"frame": {
+					"ms": 16.889999985694885,
+					"minMs": 14.675000011920929,
+					"maxMs": 18.75,
+					"p99Ms": 18.689999997615814,
+					"histogram": [
+						0,
+						63,
+						57,
+						0
+					],
+					"spikesOverBudget": 35,
+					"spikesOver2xBudget": 0,
+					"budgetMs": 16.666666666666668,
+					"windowSize": 120,
+					"sampleCount": 120
+				},
+				"sections": {
+					"input": null,
+					"update": {
+						"ms": 0.004999995231628418,
+						"maxMs": 0.025000005960464478
+					},
+					"layout": {
+						"ms": 0,
+						"maxMs": 0.009999990463256836
+					},
+					"render": {
+						"ms": 0.6100000143051147,
+						"maxMs": 0.7849999964237213
+					},
+					"flush": {
+						"ms": 0.8799999952316284,
+						"maxMs": 1.1099999845027924
+					},
+					"present": null
+				},
+				"gpu": {
+					"ms": 4.702844000000001,
+					"valid": true,
+					"passes": [
+						1.38288,
+						3.319964
+					],
+					"spanMs": null,
+					"latencyMs": null,
+					"source": "timerQuery",
+					"p99Ms": 5.177129,
+					"maxMs": 5.238769,
+					"sampleCount": 120,
+					"invalidCount": 0
+				},
+				"batcher": {
+					"apiDraws": 153,
+					"gpuDraws": 1,
+					"vertices": 2944,
+					"triangles": 1472,
+					"instances": 0,
+					"culled": 33,
+					"occluded": null,
+					"flushes": {
+						"barrier": 0,
+						"endFrame": 1,
+						"targetChange": 0,
+						"bufferFull": 0
+					},
+					"splits": {
+						"textureSlotsExhausted": 0,
+						"blendChange": 0,
+						"stencilLevel": 0
+					},
+					"groupsByLayer": {
+						"base": 153,
+						"raised": 0,
+						"overlay": 0,
+						"modal": 0,
+						"popup": 0,
+						"toast": 0,
+						"tooltip": 0,
+						"drag": 0,
+						"transition": 0
+					},
+					"reorderedGroups": 0,
+					"clipChange": 0,
+					"shaderChange": 0,
+					"textureBinds": 0,
+					"clipPushes": 4,
+					"bytesUploaded": 394496,
+					"residentTextureBytes": 5373956,
+					"pendingUploads": 0,
+					"evictions": 0,
+					"targetSwitches": null
+				},
+				"memory": {
+					"usedBytes": null
+				},
+				"renderer": {
+					"glDrawCalls": 1,
+					"vertices": 2944,
+					"textCharacters": 747
+				},
+				"sanity": {
+					"frameMs": 16.889999985694885,
+					"sectionsMs": 1.4950000047683716,
+					"unaccountedMs": 15.394999980926514,
+					"framesWithSectionsOverSpan": 0
+				},
+				"liveness": {
+					"frameCount": 592,
+					"newestSampleAgeMs": 2
+				},
+				"device": {
+					"backend": "webgl2",
+					"vendor": "Google Inc. (AMD)",
+					"renderer": "ANGLE (AMD, ANGLE Metal Renderer: AMD Radeon Pro 560X, Unspecified Version)",
+					"features": {
+						"timerQuery": true,
+						"parallelShaderCompile": true,
+						"debugRendererInfo": true
+					}
+				},
+				"tracks": "console.timeStamp",
+				"hitches": {
+					"longFrames": {
+						"source": "long-animation-frame",
+						"count": 0,
+						"saturated": false,
+						"maxMs": null,
+						"blockingMs": 0,
+						"worst": null
+					},
+					"slowEvents": {
+						"thresholdMs": 16,
+						"count": 0,
+						"saturated": false,
+						"maxMs": null,
+						"worst": null
+					}
+				}
+			},
+			{
+				"timestamp": 1790620537340,
+				"scene": "combatScreen",
+				"frame": {
+					"ms": 16.12000000476837,
+					"minMs": 14.675000011920929,
+					"maxMs": 18.75,
+					"p99Ms": 18.689999997615814,
+					"histogram": [
+						0,
+						64,
+						56,
+						0
+					],
+					"spikesOverBudget": 34,
+					"spikesOver2xBudget": 0,
+					"budgetMs": 16.666666666666668,
+					"windowSize": 120,
+					"sampleCount": 120
+				},
+				"sections": {
+					"input": null,
+					"update": {
+						"ms": 0.004999995231628418,
+						"maxMs": 0.025000005960464478
+					},
+					"layout": {
+						"ms": 0,
+						"maxMs": 0.009999990463256836
+					},
+					"render": {
+						"ms": 0.574999988079071,
+						"maxMs": 0.7849999964237213
+					},
+					"flush": {
+						"ms": 0.9899999797344208,
+						"maxMs": 1.1099999845027924
+					},
+					"present": null
+				},
+				"gpu": {
+					"ms": 4.537861,
+					"valid": true,
+					"passes": [
+						1.318719,
+						3.219142
+					],
+					"spanMs": null,
+					"latencyMs": null,
+					"source": "timerQuery",
+					"p99Ms": 5.177129,
+					"maxMs": 5.238769,
+					"sampleCount": 120,
+					"invalidCount": 0
+				},
+				"batcher": {
+					"apiDraws": 153,
+					"gpuDraws": 1,
+					"vertices": 2944,
+					"triangles": 1472,
+					"instances": 0,
+					"culled": 33,
+					"occluded": null,
+					"flushes": {
+						"barrier": 0,
+						"endFrame": 1,
+						"targetChange": 0,
+						"bufferFull": 0
+					},
+					"splits": {
+						"textureSlotsExhausted": 0,
+						"blendChange": 0,
+						"stencilLevel": 0
+					},
+					"groupsByLayer": {
+						"base": 153,
+						"raised": 0,
+						"overlay": 0,
+						"modal": 0,
+						"popup": 0,
+						"toast": 0,
+						"tooltip": 0,
+						"drag": 0,
+						"transition": 0
+					},
+					"reorderedGroups": 0,
+					"clipChange": 0,
+					"shaderChange": 0,
+					"textureBinds": 0,
+					"clipPushes": 4,
+					"bytesUploaded": 394496,
+					"residentTextureBytes": 5373956,
+					"pendingUploads": 0,
+					"evictions": 0,
+					"targetSwitches": null
+				},
+				"memory": {
+					"usedBytes": null
+				},
+				"renderer": {
+					"glDrawCalls": 1,
+					"vertices": 2944,
+					"textCharacters": 747
+				},
+				"sanity": {
+					"frameMs": 16.12000000476837,
+					"sectionsMs": 1.5699999630451202,
+					"unaccountedMs": 14.550000041723251,
+					"framesWithSectionsOverSpan": 0
+				},
+				"liveness": {
+					"frameCount": 593,
+					"newestSampleAgeMs": 1
+				},
+				"device": {
+					"backend": "webgl2",
+					"vendor": "Google Inc. (AMD)",
+					"renderer": "ANGLE (AMD, ANGLE Metal Renderer: AMD Radeon Pro 560X, Unspecified Version)",
+					"features": {
+						"timerQuery": true,
+						"parallelShaderCompile": true,
+						"debugRendererInfo": true
+					}
+				},
+				"tracks": "console.timeStamp",
+				"hitches": {
+					"longFrames": {
+						"source": "long-animation-frame",
+						"count": 0,
+						"saturated": false,
+						"maxMs": null,
+						"blockingMs": 0,
+						"worst": null
+					},
+					"slowEvents": {
+						"thresholdMs": 16,
+						"count": 0,
+						"saturated": false,
+						"maxMs": null,
+						"worst": null
+					}
+				}
+			},
+			{
+				"timestamp": 1790620537360,
+				"scene": "combatScreen",
+				"frame": {
+					"ms": 18.700000017881393,
+					"minMs": 14.675000011920929,
+					"maxMs": 18.75,
+					"p99Ms": 18.700000017881393,
+					"histogram": [
+						0,
+						63,
+						57,
+						0
+					],
+					"spikesOverBudget": 35,
+					"spikesOver2xBudget": 0,
+					"budgetMs": 16.666666666666668,
+					"windowSize": 120,
+					"sampleCount": 120
+				},
+				"sections": {
+					"input": null,
+					"update": {
+						"ms": 0.004999995231628418,
+						"maxMs": 0.025000005960464478
+					},
+					"layout": {
+						"ms": 0,
+						"maxMs": 0.009999990463256836
+					},
+					"render": {
+						"ms": 0.445000022649765,
+						"maxMs": 0.7849999964237213
+					},
+					"flush": {
+						"ms": 0.6199999749660492,
+						"maxMs": 1.1099999845027924
+					},
+					"present": null
+				},
+				"gpu": {
+					"ms": 4.613326,
+					"valid": true,
+					"passes": [
+						1.30656,
+						3.306766
+					],
+					"spanMs": null,
+					"latencyMs": null,
+					"source": "timerQuery",
+					"p99Ms": 5.177129,
+					"maxMs": 5.238769,
+					"sampleCount": 120,
+					"invalidCount": 0
+				},
+				"batcher": {
+					"apiDraws": 153,
+					"gpuDraws": 1,
+					"vertices": 2944,
+					"triangles": 1472,
+					"instances": 0,
+					"culled": 33,
+					"occluded": null,
+					"flushes": {
+						"barrier": 0,
+						"endFrame": 1,
+						"targetChange": 0,
+						"bufferFull": 0
+					},
+					"splits": {
+						"textureSlotsExhausted": 0,
+						"blendChange": 0,
+						"stencilLevel": 0
+					},
+					"groupsByLayer": {
+						"base": 153,
+						"raised": 0,
+						"overlay": 0,
+						"modal": 0,
+						"popup": 0,
+						"toast": 0,
+						"tooltip": 0,
+						"drag": 0,
+						"transition": 0
+					},
+					"reorderedGroups": 0,
+					"clipChange": 0,
+					"shaderChange": 0,
+					"textureBinds": 0,
+					"clipPushes": 4,
+					"bytesUploaded": 394496,
+					"residentTextureBytes": 5373956,
+					"pendingUploads": 0,
+					"evictions": 0,
+					"targetSwitches": null
+				},
+				"memory": {
+					"usedBytes": null
+				},
+				"renderer": {
+					"glDrawCalls": 1,
+					"vertices": 2944,
+					"textCharacters": 747
+				},
+				"sanity": {
+					"frameMs": 18.700000017881393,
+					"sectionsMs": 1.0699999928474426,
+					"unaccountedMs": 17.63000002503395,
+					"framesWithSectionsOverSpan": 0
+				},
+				"liveness": {
+					"frameCount": 594,
+					"newestSampleAgeMs": 2
+				},
+				"device": {
+					"backend": "webgl2",
+					"vendor": "Google Inc. (AMD)",
+					"renderer": "ANGLE (AMD, ANGLE Metal Renderer: AMD Radeon Pro 560X, Unspecified Version)",
+					"features": {
+						"timerQuery": true,
+						"parallelShaderCompile": true,
+						"debugRendererInfo": true
+					}
+				},
+				"tracks": "console.timeStamp",
+				"hitches": {
+					"longFrames": {
+						"source": "long-animation-frame",
+						"count": 0,
+						"saturated": false,
+						"maxMs": null,
+						"blockingMs": 0,
+						"worst": null
+					},
+					"slowEvents": {
+						"thresholdMs": 16,
+						"count": 0,
+						"saturated": false,
+						"maxMs": null,
+						"worst": null
+					}
+				}
+			},
+			{
+				"timestamp": 1790620537374,
+				"scene": "combatScreen",
+				"frame": {
+					"ms": 14.604999989271164,
+					"minMs": 14.604999989271164,
+					"maxMs": 18.75,
+					"p99Ms": 18.700000017881393,
+					"histogram": [
+						0,
+						63,
+						57,
+						0
+					],
+					"spikesOverBudget": 35,
+					"spikesOver2xBudget": 0,
+					"budgetMs": 16.666666666666668,
+					"windowSize": 120,
+					"sampleCount": 120
+				},
+				"sections": {
+					"input": null,
+					"update": {
+						"ms": 0.004999995231628418,
+						"maxMs": 0.025000005960464478
+					},
+					"layout": {
+						"ms": 0.004999995231628418,
+						"maxMs": 0.009999990463256836
+					},
+					"render": {
+						"ms": 0.5850000083446503,
+						"maxMs": 0.7849999964237213
+					},
+					"flush": {
+						"ms": 0.8950000107288361,
+						"maxMs": 1.1099999845027924
+					},
+					"present": null
+				},
+				"gpu": {
+					"ms": 4.546025,
+					"valid": true,
+					"passes": [
+						1.287199,
+						3.258826
+					],
+					"spanMs": null,
+					"latencyMs": null,
+					"source": "timerQuery",
+					"p99Ms": 5.177129,
+					"maxMs": 5.238769,
+					"sampleCount": 120,
+					"invalidCount": 0
+				},
+				"batcher": {
+					"apiDraws": 153,
+					"gpuDraws": 1,
+					"vertices": 2944,
+					"triangles": 1472,
+					"instances": 0,
+					"culled": 33,
+					"occluded": null,
+					"flushes": {
+						"barrier": 0,
+						"endFrame": 1,
+						"targetChange": 0,
+						"bufferFull": 0
+					},
+					"splits": {
+						"textureSlotsExhausted": 0,
+						"blendChange": 0,
+						"stencilLevel": 0
+					},
+					"groupsByLayer": {
+						"base": 153,
+						"raised": 0,
+						"overlay": 0,
+						"modal": 0,
+						"popup": 0,
+						"toast": 0,
+						"tooltip": 0,
+						"drag": 0,
+						"transition": 0
+					},
+					"reorderedGroups": 0,
+					"clipChange": 0,
+					"shaderChange": 0,
+					"textureBinds": 0,
+					"clipPushes": 4,
+					"bytesUploaded": 394496,
+					"residentTextureBytes": 5373956,
+					"pendingUploads": 0,
+					"evictions": 0,
+					"targetSwitches": null
+				},
+				"memory": {
+					"usedBytes": null
+				},
+				"renderer": {
+					"glDrawCalls": 1,
+					"vertices": 2944,
+					"textCharacters": 747
+				},
+				"sanity": {
+					"frameMs": 14.604999989271164,
+					"sectionsMs": 1.4900000095367432,
+					"unaccountedMs": 13.11499997973442,
+					"framesWithSectionsOverSpan": 0
+				},
+				"liveness": {
+					"frameCount": 595,
+					"newestSampleAgeMs": 2
+				},
+				"device": {
+					"backend": "webgl2",
+					"vendor": "Google Inc. (AMD)",
+					"renderer": "ANGLE (AMD, ANGLE Metal Renderer: AMD Radeon Pro 560X, Unspecified Version)",
+					"features": {
+						"timerQuery": true,
+						"parallelShaderCompile": true,
+						"debugRendererInfo": true
+					}
+				},
+				"tracks": "console.timeStamp",
+				"hitches": {
+					"longFrames": {
+						"source": "long-animation-frame",
+						"count": 0,
+						"saturated": false,
+						"maxMs": null,
+						"blockingMs": 0,
+						"worst": null
+					},
+					"slowEvents": {
+						"thresholdMs": 16,
+						"count": 0,
+						"saturated": false,
+						"maxMs": null,
+						"worst": null
+					}
+				}
+			},
+			{
+				"timestamp": 1790620537393,
+				"scene": "combatScreen",
+				"frame": {
+					"ms": 18.594999998807907,
+					"minMs": 14.604999989271164,
+					"maxMs": 18.75,
+					"p99Ms": 18.700000017881393,
+					"histogram": [
+						0,
+						63,
+						57,
+						0
+					],
+					"spikesOverBudget": 35,
+					"spikesOver2xBudget": 0,
+					"budgetMs": 16.666666666666668,
+					"windowSize": 120,
+					"sampleCount": 120
+				},
+				"sections": {
+					"input": null,
+					"update": {
+						"ms": 0,
+						"maxMs": 0.025000005960464478
+					},
+					"layout": {
+						"ms": 0,
+						"maxMs": 0.009999990463256836
+					},
+					"render": {
+						"ms": 0.699999988079071,
+						"maxMs": 0.7849999964237213
+					},
+					"flush": {
+						"ms": 0.8849999904632568,
+						"maxMs": 1.1099999845027924
+					},
+					"present": null
+				},
+				"gpu": {
+					"ms": 4.611284,
+					"valid": true,
+					"passes": [
+						1.312959,
+						3.298325
+					],
+					"spanMs": null,
+					"latencyMs": null,
+					"source": "timerQuery",
+					"p99Ms": 5.177129,
+					"maxMs": 5.238769,
+					"sampleCount": 120,
+					"invalidCount": 0
+				},
+				"batcher": {
+					"apiDraws": 153,
+					"gpuDraws": 1,
+					"vertices": 2944,
+					"triangles": 1472,
+					"instances": 0,
+					"culled": 33,
+					"occluded": null,
+					"flushes": {
+						"barrier": 0,
+						"endFrame": 1,
+						"targetChange": 0,
+						"bufferFull": 0
+					},
+					"splits": {
+						"textureSlotsExhausted": 0,
+						"blendChange": 0,
+						"stencilLevel": 0
+					},
+					"groupsByLayer": {
+						"base": 153,
+						"raised": 0,
+						"overlay": 0,
+						"modal": 0,
+						"popup": 0,
+						"toast": 0,
+						"tooltip": 0,
+						"drag": 0,
+						"transition": 0
+					},
+					"reorderedGroups": 0,
+					"clipChange": 0,
+					"shaderChange": 0,
+					"textureBinds": 0,
+					"clipPushes": 4,
+					"bytesUploaded": 394496,
+					"residentTextureBytes": 5373956,
+					"pendingUploads": 0,
+					"evictions": 0,
+					"targetSwitches": null
+				},
+				"memory": {
+					"usedBytes": null
+				},
+				"renderer": {
+					"glDrawCalls": 1,
+					"vertices": 2944,
+					"textCharacters": 747
+				},
+				"sanity": {
+					"frameMs": 18.594999998807907,
+					"sectionsMs": 1.5849999785423279,
+					"unaccountedMs": 17.01000002026558,
+					"framesWithSectionsOverSpan": 0
+				},
+				"liveness": {
+					"frameCount": 596,
+					"newestSampleAgeMs": 2
+				},
+				"device": {
+					"backend": "webgl2",
+					"vendor": "Google Inc. (AMD)",
+					"renderer": "ANGLE (AMD, ANGLE Metal Renderer: AMD Radeon Pro 560X, Unspecified Version)",
+					"features": {
+						"timerQuery": true,
+						"parallelShaderCompile": true,
+						"debugRendererInfo": true
+					}
+				},
+				"tracks": "console.timeStamp",
+				"hitches": {
+					"longFrames": {
+						"source": "long-animation-frame",
+						"count": 0,
+						"saturated": false,
+						"maxMs": null,
+						"blockingMs": 0,
+						"worst": null
+					},
+					"slowEvents": {
+						"thresholdMs": 16,
+						"count": 0,
+						"saturated": false,
+						"maxMs": null,
+						"worst": null
+					}
+				}
+			},
+			{
+				"timestamp": 1790620537410,
+				"scene": "combatScreen",
+				"frame": {
+					"ms": 16.719999998807907,
+					"minMs": 14.604999989271164,
+					"maxMs": 18.75,
+					"p99Ms": 18.700000017881393,
+					"histogram": [
+						0,
+						62,
+						58,
+						0
+					],
+					"spikesOverBudget": 35,
+					"spikesOver2xBudget": 0,
+					"budgetMs": 16.666666666666668,
+					"windowSize": 120,
+					"sampleCount": 120
+				},
+				"sections": {
+					"input": null,
+					"update": {
+						"ms": 0.009999990463256836,
+						"maxMs": 0.025000005960464478
+					},
+					"layout": {
+						"ms": 0,
+						"maxMs": 0.009999990463256836
+					},
+					"render": {
+						"ms": 0.5849999785423279,
+						"maxMs": 0.7849999964237213
+					},
+					"flush": {
+						"ms": 0.9000000059604645,
+						"maxMs": 1.1099999845027924
+					},
+					"present": null
+				},
+				"gpu": {
+					"ms": 4.490606,
+					"valid": true,
+					"passes": [
+						1.292639,
+						3.197967
+					],
+					"spanMs": null,
+					"latencyMs": null,
+					"source": "timerQuery",
+					"p99Ms": 5.177129,
+					"maxMs": 5.238769,
+					"sampleCount": 120,
+					"invalidCount": 0
+				},
+				"batcher": {
+					"apiDraws": 153,
+					"gpuDraws": 1,
+					"vertices": 2944,
+					"triangles": 1472,
+					"instances": 0,
+					"culled": 33,
+					"occluded": null,
+					"flushes": {
+						"barrier": 0,
+						"endFrame": 1,
+						"targetChange": 0,
+						"bufferFull": 0
+					},
+					"splits": {
+						"textureSlotsExhausted": 0,
+						"blendChange": 0,
+						"stencilLevel": 0
+					},
+					"groupsByLayer": {
+						"base": 153,
+						"raised": 0,
+						"overlay": 0,
+						"modal": 0,
+						"popup": 0,
+						"toast": 0,
+						"tooltip": 0,
+						"drag": 0,
+						"transition": 0
+					},
+					"reorderedGroups": 0,
+					"clipChange": 0,
+					"shaderChange": 0,
+					"textureBinds": 0,
+					"clipPushes": 4,
+					"bytesUploaded": 394496,
+					"residentTextureBytes": 5373956,
+					"pendingUploads": 0,
+					"evictions": 0,
+					"targetSwitches": null
+				},
+				"memory": {
+					"usedBytes": null
+				},
+				"renderer": {
+					"glDrawCalls": 1,
+					"vertices": 2944,
+					"textCharacters": 747
+				},
+				"sanity": {
+					"frameMs": 16.719999998807907,
+					"sectionsMs": 1.4949999749660492,
+					"unaccountedMs": 15.225000023841858,
+					"framesWithSectionsOverSpan": 0
+				},
+				"liveness": {
+					"frameCount": 597,
+					"newestSampleAgeMs": 2
+				},
+				"device": {
+					"backend": "webgl2",
+					"vendor": "Google Inc. (AMD)",
+					"renderer": "ANGLE (AMD, ANGLE Metal Renderer: AMD Radeon Pro 560X, Unspecified Version)",
+					"features": {
+						"timerQuery": true,
+						"parallelShaderCompile": true,
+						"debugRendererInfo": true
+					}
+				},
+				"tracks": "console.timeStamp",
+				"hitches": {
+					"longFrames": {
+						"source": "long-animation-frame",
+						"count": 0,
+						"saturated": false,
+						"maxMs": null,
+						"blockingMs": 0,
+						"worst": null
+					},
+					"slowEvents": {
+						"thresholdMs": 16,
+						"count": 0,
+						"saturated": false,
+						"maxMs": null,
+						"worst": null
+					}
+				}
+			},
+			{
+				"timestamp": 1790620537425,
+				"scene": "combatScreen",
+				"frame": {
+					"ms": 15.75,
+					"minMs": 14.604999989271164,
+					"maxMs": 18.75,
+					"p99Ms": 18.700000017881393,
+					"histogram": [
+						0,
+						63,
+						57,
+						0
+					],
+					"spikesOverBudget": 35,
+					"spikesOver2xBudget": 0,
+					"budgetMs": 16.666666666666668,
+					"windowSize": 120,
+					"sampleCount": 120
+				},
+				"sections": {
+					"input": null,
+					"update": {
+						"ms": 0.004999995231628418,
+						"maxMs": 0.025000005960464478
+					},
+					"layout": {
+						"ms": 0,
+						"maxMs": 0.009999990463256836
+					},
+					"render": {
+						"ms": 0.6149999797344208,
+						"maxMs": 0.7849999964237213
+					},
+					"flush": {
+						"ms": 0.925000011920929,
+						"maxMs": 1.1099999845027924
+					},
+					"present": null
+				},
+				"gpu": {
+					"ms": 4.519102,
+					"valid": true,
+					"passes": [
+						1.29392,
+						3.225182
+					],
+					"spanMs": null,
+					"latencyMs": null,
+					"source": "timerQuery",
+					"p99Ms": 5.177129,
+					"maxMs": 5.238769,
+					"sampleCount": 120,
+					"invalidCount": 0
+				},
+				"batcher": {
+					"apiDraws": 153,
+					"gpuDraws": 1,
+					"vertices": 2944,
+					"triangles": 1472,
+					"instances": 0,
+					"culled": 33,
+					"occluded": null,
+					"flushes": {
+						"barrier": 0,
+						"endFrame": 1,
+						"targetChange": 0,
+						"bufferFull": 0
+					},
+					"splits": {
+						"textureSlotsExhausted": 0,
+						"blendChange": 0,
+						"stencilLevel": 0
+					},
+					"groupsByLayer": {
+						"base": 153,
+						"raised": 0,
+						"overlay": 0,
+						"modal": 0,
+						"popup": 0,
+						"toast": 0,
+						"tooltip": 0,
+						"drag": 0,
+						"transition": 0
+					},
+					"reorderedGroups": 0,
+					"clipChange": 0,
+					"shaderChange": 0,
+					"textureBinds": 0,
+					"clipPushes": 4,
+					"bytesUploaded": 394496,
+					"residentTextureBytes": 5373956,
+					"pendingUploads": 0,
+					"evictions": 0,
+					"targetSwitches": null
+				},
+				"memory": {
+					"usedBytes": null
+				},
+				"renderer": {
+					"glDrawCalls": 1,
+					"vertices": 2944,
+					"textCharacters": 747
+				},
+				"sanity": {
+					"frameMs": 15.75,
+					"sectionsMs": 1.5449999868869781,
+					"unaccountedMs": 14.205000013113022,
+					"framesWithSectionsOverSpan": 0
+				},
+				"liveness": {
+					"frameCount": 598,
+					"newestSampleAgeMs": 1
+				},
+				"device": {
+					"backend": "webgl2",
+					"vendor": "Google Inc. (AMD)",
+					"renderer": "ANGLE (AMD, ANGLE Metal Renderer: AMD Radeon Pro 560X, Unspecified Version)",
+					"features": {
+						"timerQuery": true,
+						"parallelShaderCompile": true,
+						"debugRendererInfo": true
+					}
+				},
+				"tracks": "console.timeStamp",
+				"hitches": {
+					"longFrames": {
+						"source": "long-animation-frame",
+						"count": 0,
+						"saturated": false,
+						"maxMs": null,
+						"blockingMs": 0,
+						"worst": null
+					},
+					"slowEvents": {
+						"thresholdMs": 16,
+						"count": 0,
+						"saturated": false,
+						"maxMs": null,
+						"worst": null
+					}
+				}
+			},
+			{
+				"timestamp": 1790620537443,
+				"scene": "combatScreen",
+				"frame": {
+					"ms": 17.530000001192093,
+					"minMs": 14.604999989271164,
+					"maxMs": 18.75,
+					"p99Ms": 18.700000017881393,
+					"histogram": [
+						0,
+						62,
+						58,
+						0
+					],
+					"spikesOverBudget": 36,
+					"spikesOver2xBudget": 0,
+					"budgetMs": 16.666666666666668,
+					"windowSize": 120,
+					"sampleCount": 120
+				},
+				"sections": {
+					"input": null,
+					"update": {
+						"ms": 0.004999995231628418,
+						"maxMs": 0.025000005960464478
+					},
+					"layout": {
+						"ms": 0.004999995231628418,
+						"maxMs": 0.009999990463256836
+					},
+					"render": {
+						"ms": 0.625,
+						"maxMs": 0.7849999964237213
+					},
+					"flush": {
+						"ms": 0.9300000071525574,
+						"maxMs": 1.1099999845027924
+					},
+					"present": null
+				},
+				"gpu": {
+					"ms": 4.564412,
+					"valid": true,
+					"passes": [
+						1.336639,
+						3.227773
+					],
+					"spanMs": null,
+					"latencyMs": null,
+					"source": "timerQuery",
+					"p99Ms": 5.177129,
+					"maxMs": 5.238769,
+					"sampleCount": 120,
+					"invalidCount": 0
+				},
+				"batcher": {
+					"apiDraws": 153,
+					"gpuDraws": 1,
+					"vertices": 2944,
+					"triangles": 1472,
+					"instances": 0,
+					"culled": 33,
+					"occluded": null,
+					"flushes": {
+						"barrier": 0,
+						"endFrame": 1,
+						"targetChange": 0,
+						"bufferFull": 0
+					},
+					"splits": {
+						"textureSlotsExhausted": 0,
+						"blendChange": 0,
+						"stencilLevel": 0
+					},
+					"groupsByLayer": {
+						"base": 153,
+						"raised": 0,
+						"overlay": 0,
+						"modal": 0,
+						"popup": 0,
+						"toast": 0,
+						"tooltip": 0,
+						"drag": 0,
+						"transition": 0
+					},
+					"reorderedGroups": 0,
+					"clipChange": 0,
+					"shaderChange": 0,
+					"textureBinds": 0,
+					"clipPushes": 4,
+					"bytesUploaded": 394496,
+					"residentTextureBytes": 5373956,
+					"pendingUploads": 0,
+					"evictions": 0,
+					"targetSwitches": null
+				},
+				"memory": {
+					"usedBytes": null
+				},
+				"renderer": {
+					"glDrawCalls": 1,
+					"vertices": 2944,
+					"textCharacters": 747
+				},
+				"sanity": {
+					"frameMs": 17.530000001192093,
+					"sectionsMs": 1.5649999976158142,
+					"unaccountedMs": 15.965000003576279,
+					"framesWithSectionsOverSpan": 0
+				},
+				"liveness": {
+					"frameCount": 599,
+					"newestSampleAgeMs": 2
+				},
+				"device": {
+					"backend": "webgl2",
+					"vendor": "Google Inc. (AMD)",
+					"renderer": "ANGLE (AMD, ANGLE Metal Renderer: AMD Radeon Pro 560X, Unspecified Version)",
+					"features": {
+						"timerQuery": true,
+						"parallelShaderCompile": true,
+						"debugRendererInfo": true
+					}
+				},
+				"tracks": "console.timeStamp",
+				"hitches": {
+					"longFrames": {
+						"source": "long-animation-frame",
+						"count": 0,
+						"saturated": false,
+						"maxMs": null,
+						"blockingMs": 0,
+						"worst": null
+					},
+					"slowEvents": {
+						"thresholdMs": 16,
+						"count": 0,
+						"saturated": false,
+						"maxMs": null,
+						"worst": null
+					}
+				}
+			},
+			{
+				"timestamp": 1790620537458,
+				"scene": "combatScreen",
+				"frame": {
+					"ms": 15.004999995231628,
+					"minMs": 14.604999989271164,
+					"maxMs": 18.75,
+					"p99Ms": 18.700000017881393,
+					"histogram": [
+						0,
+						62,
+						58,
+						0
+					],
+					"spikesOverBudget": 36,
+					"spikesOver2xBudget": 0,
+					"budgetMs": 16.666666666666668,
+					"windowSize": 120,
+					"sampleCount": 120
+				},
+				"sections": {
+					"input": null,
+					"update": {
+						"ms": 0.004999995231628418,
+						"maxMs": 0.025000005960464478
+					},
+					"layout": {
+						"ms": 0,
+						"maxMs": 0.009999990463256836
+					},
+					"render": {
+						"ms": 0.6350000202655792,
+						"maxMs": 0.7849999964237213
+					},
+					"flush": {
+						"ms": 0.8949999809265137,
+						"maxMs": 1.1099999845027924
+					},
+					"present": null
+				},
+				"gpu": {
+					"ms": 4.53171,
+					"valid": true,
+					"passes": [
+						1.29792,
+						3.23379
+					],
+					"spanMs": null,
+					"latencyMs": null,
+					"source": "timerQuery",
+					"p99Ms": 5.177129,
+					"maxMs": 5.238769,
+					"sampleCount": 120,
+					"invalidCount": 0
+				},
+				"batcher": {
+					"apiDraws": 153,
+					"gpuDraws": 1,
+					"vertices": 2944,
+					"triangles": 1472,
+					"instances": 0,
+					"culled": 33,
+					"occluded": null,
+					"flushes": {
+						"barrier": 0,
+						"endFrame": 1,
+						"targetChange": 0,
+						"bufferFull": 0
+					},
+					"splits": {
+						"textureSlotsExhausted": 0,
+						"blendChange": 0,
+						"stencilLevel": 0
+					},
+					"groupsByLayer": {
+						"base": 153,
+						"raised": 0,
+						"overlay": 0,
+						"modal": 0,
+						"popup": 0,
+						"toast": 0,
+						"tooltip": 0,
+						"drag": 0,
+						"transition": 0
+					},
+					"reorderedGroups": 0,
+					"clipChange": 0,
+					"shaderChange": 0,
+					"textureBinds": 0,
+					"clipPushes": 4,
+					"bytesUploaded": 394496,
+					"residentTextureBytes": 5373956,
+					"pendingUploads": 0,
+					"evictions": 0,
+					"targetSwitches": null
+				},
+				"memory": {
+					"usedBytes": null
+				},
+				"renderer": {
+					"glDrawCalls": 1,
+					"vertices": 2944,
+					"textCharacters": 747
+				},
+				"sanity": {
+					"frameMs": 15.004999995231628,
+					"sectionsMs": 1.5349999964237213,
+					"unaccountedMs": 13.469999998807907,
+					"framesWithSectionsOverSpan": 0
+				},
+				"liveness": {
+					"frameCount": 600,
+					"newestSampleAgeMs": 2
+				},
+				"device": {
+					"backend": "webgl2",
+					"vendor": "Google Inc. (AMD)",
+					"renderer": "ANGLE (AMD, ANGLE Metal Renderer: AMD Radeon Pro 560X, Unspecified Version)",
+					"features": {
+						"timerQuery": true,
+						"parallelShaderCompile": true,
+						"debugRendererInfo": true
+					}
+				},
+				"tracks": "console.timeStamp",
+				"hitches": {
+					"longFrames": {
+						"source": "long-animation-frame",
+						"count": 0,
+						"saturated": false,
+						"maxMs": null,
+						"blockingMs": 0,
+						"worst": null
+					},
+					"slowEvents": {
+						"thresholdMs": 16,
+						"count": 0,
+						"saturated": false,
+						"maxMs": null,
+						"worst": null
+					}
+				}
+			},
+			{
+				"timestamp": 1790620537475,
+				"scene": "combatScreen",
+				"frame": {
+					"ms": 17.155000001192093,
+					"minMs": 14.604999989271164,
+					"maxMs": 18.75,
+					"p99Ms": 18.700000017881393,
+					"histogram": [
+						0,
+						62,
+						58,
+						0
+					],
+					"spikesOverBudget": 36,
+					"spikesOver2xBudget": 0,
+					"budgetMs": 16.666666666666668,
+					"windowSize": 120,
+					"sampleCount": 120
+				},
+				"sections": {
+					"input": null,
+					"update": {
+						"ms": 0.004999995231628418,
+						"maxMs": 0.025000005960464478
+					},
+					"layout": {
+						"ms": 0.010000020265579224,
+						"maxMs": 0.010000020265579224
+					},
+					"render": {
+						"ms": 0.6449999809265137,
+						"maxMs": 0.7849999964237213
+					},
+					"flush": {
+						"ms": 0.7699999809265137,
+						"maxMs": 1.1099999845027924
+					},
+					"present": null
+				},
+				"gpu": {
+					"ms": 4.628939,
+					"valid": true,
+					"passes": [
+						1.3024,
+						3.326539
+					],
+					"spanMs": null,
+					"latencyMs": null,
+					"source": "timerQuery",
+					"p99Ms": 5.177129,
+					"maxMs": 5.238769,
+					"sampleCount": 120,
+					"invalidCount": 0
+				},
+				"batcher": {
+					"apiDraws": 153,
+					"gpuDraws": 1,
+					"vertices": 2944,
+					"triangles": 1472,
+					"instances": 0,
+					"culled": 33,
+					"occluded": null,
+					"flushes": {
+						"barrier": 0,
+						"endFrame": 1,
+						"targetChange": 0,
+						"bufferFull": 0
+					},
+					"splits": {
+						"textureSlotsExhausted": 0,
+						"blendChange": 0,
+						"stencilLevel": 0
+					},
+					"groupsByLayer": {
+						"base": 153,
+						"raised": 0,
+						"overlay": 0,
+						"modal": 0,
+						"popup": 0,
+						"toast": 0,
+						"tooltip": 0,
+						"drag": 0,
+						"transition": 0
+					},
+					"reorderedGroups": 0,
+					"clipChange": 0,
+					"shaderChange": 0,
+					"textureBinds": 0,
+					"clipPushes": 4,
+					"bytesUploaded": 394496,
+					"residentTextureBytes": 5373956,
+					"pendingUploads": 0,
+					"evictions": 0,
+					"targetSwitches": null
+				},
+				"memory": {
+					"usedBytes": null
+				},
+				"renderer": {
+					"glDrawCalls": 1,
+					"vertices": 2944,
+					"textCharacters": 747
+				},
+				"sanity": {
+					"frameMs": 17.155000001192093,
+					"sectionsMs": 1.429999977350235,
+					"unaccountedMs": 15.725000023841858,
+					"framesWithSectionsOverSpan": 0
+				},
+				"liveness": {
+					"frameCount": 601,
+					"newestSampleAgeMs": 2
+				},
+				"device": {
+					"backend": "webgl2",
+					"vendor": "Google Inc. (AMD)",
+					"renderer": "ANGLE (AMD, ANGLE Metal Renderer: AMD Radeon Pro 560X, Unspecified Version)",
+					"features": {
+						"timerQuery": true,
+						"parallelShaderCompile": true,
+						"debugRendererInfo": true
+					}
+				},
+				"tracks": "console.timeStamp",
+				"hitches": {
+					"longFrames": {
+						"source": "long-animation-frame",
+						"count": 0,
+						"saturated": false,
+						"maxMs": null,
+						"blockingMs": 0,
+						"worst": null
+					},
+					"slowEvents": {
+						"thresholdMs": 16,
+						"count": 0,
+						"saturated": false,
+						"maxMs": null,
+						"worst": null
+					}
+				}
+			},
+			{
+				"timestamp": 1790620537492,
+				"scene": "combatScreen",
+				"frame": {
+					"ms": 17.080000013113022,
+					"minMs": 14.604999989271164,
+					"maxMs": 18.75,
+					"p99Ms": 18.700000017881393,
+					"histogram": [
+						0,
+						62,
+						58,
+						0
+					],
+					"spikesOverBudget": 35,
+					"spikesOver2xBudget": 0,
+					"budgetMs": 16.666666666666668,
+					"windowSize": 120,
+					"sampleCount": 120
+				},
+				"sections": {
+					"input": null,
+					"update": {
+						"ms": 0.004999995231628418,
+						"maxMs": 0.025000005960464478
+					},
+					"layout": {
+						"ms": 0,
+						"maxMs": 0.010000020265579224
+					},
+					"render": {
+						"ms": 0.5050000250339508,
+						"maxMs": 0.7849999964237213
+					},
+					"flush": {
+						"ms": 0.7450000047683716,
+						"maxMs": 1.1099999845027924
+					},
+					"present": null
+				},
+				"gpu": {
+					"ms": 4.582343,
+					"valid": true,
+					"passes": [
+						1.300159,
+						3.282184
+					],
+					"spanMs": null,
+					"latencyMs": null,
+					"source": "timerQuery",
+					"p99Ms": 5.177129,
+					"maxMs": 5.238769,
+					"sampleCount": 120,
+					"invalidCount": 0
+				},
+				"batcher": {
+					"apiDraws": 153,
+					"gpuDraws": 1,
+					"vertices": 2944,
+					"triangles": 1472,
+					"instances": 0,
+					"culled": 33,
+					"occluded": null,
+					"flushes": {
+						"barrier": 0,
+						"endFrame": 1,
+						"targetChange": 0,
+						"bufferFull": 0
+					},
+					"splits": {
+						"textureSlotsExhausted": 0,
+						"blendChange": 0,
+						"stencilLevel": 0
+					},
+					"groupsByLayer": {
+						"base": 153,
+						"raised": 0,
+						"overlay": 0,
+						"modal": 0,
+						"popup": 0,
+						"toast": 0,
+						"tooltip": 0,
+						"drag": 0,
+						"transition": 0
+					},
+					"reorderedGroups": 0,
+					"clipChange": 0,
+					"shaderChange": 0,
+					"textureBinds": 0,
+					"clipPushes": 4,
+					"bytesUploaded": 394496,
+					"residentTextureBytes": 5373956,
+					"pendingUploads": 0,
+					"evictions": 0,
+					"targetSwitches": null
+				},
+				"memory": {
+					"usedBytes": null
+				},
+				"renderer": {
+					"glDrawCalls": 1,
+					"vertices": 2944,
+					"textCharacters": 747
+				},
+				"sanity": {
+					"frameMs": 17.080000013113022,
+					"sectionsMs": 1.2550000250339508,
+					"unaccountedMs": 15.824999988079071,
+					"framesWithSectionsOverSpan": 0
+				},
+				"liveness": {
+					"frameCount": 602,
+					"newestSampleAgeMs": 2
+				},
+				"device": {
+					"backend": "webgl2",
+					"vendor": "Google Inc. (AMD)",
+					"renderer": "ANGLE (AMD, ANGLE Metal Renderer: AMD Radeon Pro 560X, Unspecified Version)",
+					"features": {
+						"timerQuery": true,
+						"parallelShaderCompile": true,
+						"debugRendererInfo": true
+					}
+				},
+				"tracks": "console.timeStamp",
+				"hitches": {
+					"longFrames": {
+						"source": "long-animation-frame",
+						"count": 0,
+						"saturated": false,
+						"maxMs": null,
+						"blockingMs": 0,
+						"worst": null
+					},
+					"slowEvents": {
+						"thresholdMs": 16,
+						"count": 0,
+						"saturated": false,
+						"maxMs": null,
+						"worst": null
+					}
+				}
+			},
+			{
+				"timestamp": 1790620537508,
+				"scene": "combatScreen",
+				"frame": {
+					"ms": 16.405000001192093,
+					"minMs": 14.604999989271164,
+					"maxMs": 18.75,
+					"p99Ms": 18.700000017881393,
+					"histogram": [
+						0,
+						62,
+						58,
+						0
+					],
+					"spikesOverBudget": 35,
+					"spikesOver2xBudget": 0,
+					"budgetMs": 16.666666666666668,
+					"windowSize": 120,
+					"sampleCount": 120
+				},
+				"sections": {
+					"input": null,
+					"update": {
+						"ms": 0.004999995231628418,
+						"maxMs": 0.025000005960464478
+					},
+					"layout": {
+						"ms": 0,
+						"maxMs": 0.010000020265579224
+					},
+					"render": {
+						"ms": 0.625,
+						"maxMs": 0.7849999964237213
+					},
+					"flush": {
+						"ms": 0.8499999940395355,
+						"maxMs": 1.1099999845027924
+					},
+					"present": null
+				},
+				"gpu": {
+					"ms": 4.517765,
+					"valid": true,
+					"passes": [
+						1.287999,
+						3.229766
+					],
+					"spanMs": null,
+					"latencyMs": null,
+					"source": "timerQuery",
+					"p99Ms": 5.177129,
+					"maxMs": 5.238769,
+					"sampleCount": 120,
+					"invalidCount": 0
+				},
+				"batcher": {
+					"apiDraws": 153,
+					"gpuDraws": 1,
+					"vertices": 2944,
+					"triangles": 1472,
+					"instances": 0,
+					"culled": 33,
+					"occluded": null,
+					"flushes": {
+						"barrier": 0,
+						"endFrame": 1,
+						"targetChange": 0,
+						"bufferFull": 0
+					},
+					"splits": {
+						"textureSlotsExhausted": 0,
+						"blendChange": 0,
+						"stencilLevel": 0
+					},
+					"groupsByLayer": {
+						"base": 153,
+						"raised": 0,
+						"overlay": 0,
+						"modal": 0,
+						"popup": 0,
+						"toast": 0,
+						"tooltip": 0,
+						"drag": 0,
+						"transition": 0
+					},
+					"reorderedGroups": 0,
+					"clipChange": 0,
+					"shaderChange": 0,
+					"textureBinds": 0,
+					"clipPushes": 4,
+					"bytesUploaded": 394496,
+					"residentTextureBytes": 5373956,
+					"pendingUploads": 0,
+					"evictions": 0,
+					"targetSwitches": null
+				},
+				"memory": {
+					"usedBytes": null
+				},
+				"renderer": {
+					"glDrawCalls": 1,
+					"vertices": 2944,
+					"textCharacters": 747
+				},
+				"sanity": {
+					"frameMs": 16.405000001192093,
+					"sectionsMs": 1.479999989271164,
+					"unaccountedMs": 14.925000011920929,
+					"framesWithSectionsOverSpan": 0
+				},
+				"liveness": {
+					"frameCount": 603,
+					"newestSampleAgeMs": 1
+				},
+				"device": {
+					"backend": "webgl2",
+					"vendor": "Google Inc. (AMD)",
+					"renderer": "ANGLE (AMD, ANGLE Metal Renderer: AMD Radeon Pro 560X, Unspecified Version)",
+					"features": {
+						"timerQuery": true,
+						"parallelShaderCompile": true,
+						"debugRendererInfo": true
+					}
+				},
+				"tracks": "console.timeStamp",
+				"hitches": {
+					"longFrames": {
+						"source": "long-animation-frame",
+						"count": 0,
+						"saturated": false,
+						"maxMs": null,
+						"blockingMs": 0,
+						"worst": null
+					},
+					"slowEvents": {
+						"thresholdMs": 16,
+						"count": 0,
+						"saturated": false,
+						"maxMs": null,
+						"worst": null
+					}
+				}
+			},
+			{
+				"timestamp": 1790620537526,
+				"scene": "combatScreen",
+				"frame": {
+					"ms": 17.375,
+					"minMs": 14.604999989271164,
+					"maxMs": 18.75,
+					"p99Ms": 18.700000017881393,
+					"histogram": [
+						0,
+						61,
+						59,
+						0
+					],
+					"spikesOverBudget": 35,
+					"spikesOver2xBudget": 0,
+					"budgetMs": 16.666666666666668,
+					"windowSize": 120,
+					"sampleCount": 120
+				},
+				"sections": {
+					"input": null,
+					"update": {
+						"ms": 0,
+						"maxMs": 0.025000005960464478
+					},
+					"layout": {
+						"ms": 0.004999995231628418,
+						"maxMs": 0.010000020265579224
+					},
+					"render": {
+						"ms": 0.6350000202655792,
+						"maxMs": 0.7849999964237213
+					},
+					"flush": {
+						"ms": 0.8449999988079071,
+						"maxMs": 1.1099999845027924
+					},
+					"present": null
+				},
+				"gpu": {
+					"ms": 4.488165,
+					"valid": true,
+					"passes": [
+						1.27984,
+						3.208325
+					],
+					"spanMs": null,
+					"latencyMs": null,
+					"source": "timerQuery",
+					"p99Ms": 5.177129,
+					"maxMs": 5.238769,
+					"sampleCount": 120,
+					"invalidCount": 0
+				},
+				"batcher": {
+					"apiDraws": 153,
+					"gpuDraws": 1,
+					"vertices": 2944,
+					"triangles": 1472,
+					"instances": 0,
+					"culled": 33,
+					"occluded": null,
+					"flushes": {
+						"barrier": 0,
+						"endFrame": 1,
+						"targetChange": 0,
+						"bufferFull": 0
+					},
+					"splits": {
+						"textureSlotsExhausted": 0,
+						"blendChange": 0,
+						"stencilLevel": 0
+					},
+					"groupsByLayer": {
+						"base": 153,
+						"raised": 0,
+						"overlay": 0,
+						"modal": 0,
+						"popup": 0,
+						"toast": 0,
+						"tooltip": 0,
+						"drag": 0,
+						"transition": 0
+					},
+					"reorderedGroups": 0,
+					"clipChange": 0,
+					"shaderChange": 0,
+					"textureBinds": 0,
+					"clipPushes": 4,
+					"bytesUploaded": 394496,
+					"residentTextureBytes": 5373956,
+					"pendingUploads": 0,
+					"evictions": 0,
+					"targetSwitches": null
+				},
+				"memory": {
+					"usedBytes": null
+				},
+				"renderer": {
+					"glDrawCalls": 1,
+					"vertices": 2944,
+					"textCharacters": 747
+				},
+				"sanity": {
+					"frameMs": 17.375,
+					"sectionsMs": 1.4850000143051147,
+					"unaccountedMs": 15.889999985694885,
+					"framesWithSectionsOverSpan": 0
+				},
+				"liveness": {
+					"frameCount": 604,
+					"newestSampleAgeMs": 2
+				},
+				"device": {
+					"backend": "webgl2",
+					"vendor": "Google Inc. (AMD)",
+					"renderer": "ANGLE (AMD, ANGLE Metal Renderer: AMD Radeon Pro 560X, Unspecified Version)",
+					"features": {
+						"timerQuery": true,
+						"parallelShaderCompile": true,
+						"debugRendererInfo": true
+					}
+				},
+				"tracks": "console.timeStamp",
+				"hitches": {
+					"longFrames": {
+						"source": "long-animation-frame",
+						"count": 0,
+						"saturated": false,
+						"maxMs": null,
+						"blockingMs": 0,
+						"worst": null
+					},
+					"slowEvents": {
+						"thresholdMs": 16,
+						"count": 0,
+						"saturated": false,
+						"maxMs": null,
+						"worst": null
+					}
+				}
+			},
+			{
+				"timestamp": 1790620537543,
+				"scene": "combatScreen",
+				"frame": {
+					"ms": 17.009999990463257,
+					"minMs": 14.604999989271164,
+					"maxMs": 18.75,
+					"p99Ms": 18.700000017881393,
+					"histogram": [
+						0,
+						61,
+						59,
+						0
+					],
+					"spikesOverBudget": 34,
+					"spikesOver2xBudget": 0,
+					"budgetMs": 16.666666666666668,
+					"windowSize": 120,
+					"sampleCount": 120
+				},
+				"sections": {
+					"input": null,
+					"update": {
+						"ms": 0.009999990463256836,
+						"maxMs": 0.025000005960464478
+					},
+					"layout": {
+						"ms": 0,
+						"maxMs": 0.010000020265579224
+					},
+					"render": {
+						"ms": 0.5049999952316284,
+						"maxMs": 0.7849999964237213
+					},
+					"flush": {
+						"ms": 0.7450000047683716,
+						"maxMs": 1.1099999845027924
+					},
+					"present": null
+				},
+				"gpu": {
+					"ms": 4.603086,
+					"valid": true,
+					"passes": [
+						1.312479,
+						3.290607
+					],
+					"spanMs": null,
+					"latencyMs": null,
+					"source": "timerQuery",
+					"p99Ms": 5.177129,
+					"maxMs": 5.238769,
+					"sampleCount": 120,
+					"invalidCount": 0
+				},
+				"batcher": {
+					"apiDraws": 153,
+					"gpuDraws": 1,
+					"vertices": 2944,
+					"triangles": 1472,
+					"instances": 0,
+					"culled": 33,
+					"occluded": null,
+					"flushes": {
+						"barrier": 0,
+						"endFrame": 1,
+						"targetChange": 0,
+						"bufferFull": 0
+					},
+					"splits": {
+						"textureSlotsExhausted": 0,
+						"blendChange": 0,
+						"stencilLevel": 0
+					},
+					"groupsByLayer": {
+						"base": 153,
+						"raised": 0,
+						"overlay": 0,
+						"modal": 0,
+						"popup": 0,
+						"toast": 0,
+						"tooltip": 0,
+						"drag": 0,
+						"transition": 0
+					},
+					"reorderedGroups": 0,
+					"clipChange": 0,
+					"shaderChange": 0,
+					"textureBinds": 0,
+					"clipPushes": 4,
+					"bytesUploaded": 394496,
+					"residentTextureBytes": 5373956,
+					"pendingUploads": 0,
+					"evictions": 0,
+					"targetSwitches": null
+				},
+				"memory": {
+					"usedBytes": null
+				},
+				"renderer": {
+					"glDrawCalls": 1,
+					"vertices": 2944,
+					"textCharacters": 747
+				},
+				"sanity": {
+					"frameMs": 17.009999990463257,
+					"sectionsMs": 1.2599999904632568,
+					"unaccountedMs": 15.75,
+					"framesWithSectionsOverSpan": 0
+				},
+				"liveness": {
+					"frameCount": 605,
+					"newestSampleAgeMs": 2
+				},
+				"device": {
+					"backend": "webgl2",
+					"vendor": "Google Inc. (AMD)",
+					"renderer": "ANGLE (AMD, ANGLE Metal Renderer: AMD Radeon Pro 560X, Unspecified Version)",
+					"features": {
+						"timerQuery": true,
+						"parallelShaderCompile": true,
+						"debugRendererInfo": true
+					}
+				},
+				"tracks": "console.timeStamp",
+				"hitches": {
+					"longFrames": {
+						"source": "long-animation-frame",
+						"count": 0,
+						"saturated": false,
+						"maxMs": null,
+						"blockingMs": 0,
+						"worst": null
+					},
+					"slowEvents": {
+						"thresholdMs": 16,
+						"count": 0,
+						"saturated": false,
+						"maxMs": null,
+						"worst": null
+					}
+				}
+			},
+			{
+				"timestamp": 1790620537557,
+				"scene": "combatScreen",
+				"frame": {
+					"ms": 14.754999995231628,
+					"minMs": 14.604999989271164,
+					"maxMs": 18.75,
+					"p99Ms": 18.700000017881393,
+					"histogram": [
+						0,
+						62,
+						58,
+						0
+					],
+					"spikesOverBudget": 34,
+					"spikesOver2xBudget": 0,
+					"budgetMs": 16.666666666666668,
+					"windowSize": 120,
+					"sampleCount": 120
+				},
+				"sections": {
+					"input": null,
+					"update": {
+						"ms": 0,
+						"maxMs": 0.025000005960464478
+					},
+					"layout": {
+						"ms": 0,
+						"maxMs": 0.010000020265579224
+					},
+					"render": {
+						"ms": 0.5949999988079071,
+						"maxMs": 0.7849999964237213
+					},
+					"flush": {
+						"ms": 0.8100000023841858,
+						"maxMs": 1.1099999845027924
+					},
+					"present": null
+				},
+				"gpu": {
+					"ms": 4.500268999999999,
+					"valid": true,
+					"passes": [
+						1.29968,
+						3.200589
+					],
+					"spanMs": null,
+					"latencyMs": null,
+					"source": "timerQuery",
+					"p99Ms": 5.177129,
+					"maxMs": 5.238769,
+					"sampleCount": 120,
+					"invalidCount": 0
+				},
+				"batcher": {
+					"apiDraws": 153,
+					"gpuDraws": 1,
+					"vertices": 2944,
+					"triangles": 1472,
+					"instances": 0,
+					"culled": 33,
+					"occluded": null,
+					"flushes": {
+						"barrier": 0,
+						"endFrame": 1,
+						"targetChange": 0,
+						"bufferFull": 0
+					},
+					"splits": {
+						"textureSlotsExhausted": 0,
+						"blendChange": 0,
+						"stencilLevel": 0
+					},
+					"groupsByLayer": {
+						"base": 153,
+						"raised": 0,
+						"overlay": 0,
+						"modal": 0,
+						"popup": 0,
+						"toast": 0,
+						"tooltip": 0,
+						"drag": 0,
+						"transition": 0
+					},
+					"reorderedGroups": 0,
+					"clipChange": 0,
+					"shaderChange": 0,
+					"textureBinds": 0,
+					"clipPushes": 4,
+					"bytesUploaded": 394496,
+					"residentTextureBytes": 5373956,
+					"pendingUploads": 0,
+					"evictions": 0,
+					"targetSwitches": null
+				},
+				"memory": {
+					"usedBytes": null
+				},
+				"renderer": {
+					"glDrawCalls": 1,
+					"vertices": 2944,
+					"textCharacters": 747
+				},
+				"sanity": {
+					"frameMs": 14.754999995231628,
+					"sectionsMs": 1.405000001192093,
+					"unaccountedMs": 13.349999994039536,
+					"framesWithSectionsOverSpan": 0
+				},
+				"liveness": {
+					"frameCount": 606,
+					"newestSampleAgeMs": 1
+				},
+				"device": {
+					"backend": "webgl2",
+					"vendor": "Google Inc. (AMD)",
+					"renderer": "ANGLE (AMD, ANGLE Metal Renderer: AMD Radeon Pro 560X, Unspecified Version)",
+					"features": {
+						"timerQuery": true,
+						"parallelShaderCompile": true,
+						"debugRendererInfo": true
+					}
+				},
+				"tracks": "console.timeStamp",
+				"hitches": {
+					"longFrames": {
+						"source": "long-animation-frame",
+						"count": 0,
+						"saturated": false,
+						"maxMs": null,
+						"blockingMs": 0,
+						"worst": null
+					},
+					"slowEvents": {
+						"thresholdMs": 16,
+						"count": 0,
+						"saturated": false,
+						"maxMs": null,
+						"worst": null
+					}
+				}
+			},
+			{
+				"timestamp": 1790620537576,
+				"scene": "combatScreen",
+				"frame": {
+					"ms": 18.724999994039536,
+					"minMs": 14.604999989271164,
+					"maxMs": 18.75,
+					"p99Ms": 18.724999994039536,
+					"histogram": [
+						0,
+						61,
+						59,
+						0
+					],
+					"spikesOverBudget": 35,
+					"spikesOver2xBudget": 0,
+					"budgetMs": 16.666666666666668,
+					"windowSize": 120,
+					"sampleCount": 120
+				},
+				"sections": {
+					"input": null,
+					"update": {
+						"ms": 0.004999995231628418,
+						"maxMs": 0.025000005960464478
+					},
+					"layout": {
+						"ms": 0,
+						"maxMs": 0.010000020265579224
+					},
+					"render": {
+						"ms": 0.5300000011920929,
+						"maxMs": 0.7849999964237213
+					},
+					"flush": {
+						"ms": 0.7800000011920929,
+						"maxMs": 1.1099999845027924
+					},
+					"present": null
+				},
+				"gpu": {
+					"ms": 5.049803000000001,
+					"valid": true,
+					"passes": [
+						1.311039,
+						3.738764
+					],
+					"spanMs": null,
+					"latencyMs": null,
+					"source": "timerQuery",
+					"p99Ms": 5.177129,
+					"maxMs": 5.238769,
+					"sampleCount": 120,
+					"invalidCount": 0
+				},
+				"batcher": {
+					"apiDraws": 153,
+					"gpuDraws": 1,
+					"vertices": 2944,
+					"triangles": 1472,
+					"instances": 0,
+					"culled": 33,
+					"occluded": null,
+					"flushes": {
+						"barrier": 0,
+						"endFrame": 1,
+						"targetChange": 0,
+						"bufferFull": 0
+					},
+					"splits": {
+						"textureSlotsExhausted": 0,
+						"blendChange": 0,
+						"stencilLevel": 0
+					},
+					"groupsByLayer": {
+						"base": 153,
+						"raised": 0,
+						"overlay": 0,
+						"modal": 0,
+						"popup": 0,
+						"toast": 0,
+						"tooltip": 0,
+						"drag": 0,
+						"transition": 0
+					},
+					"reorderedGroups": 0,
+					"clipChange": 0,
+					"shaderChange": 0,
+					"textureBinds": 0,
+					"clipPushes": 4,
+					"bytesUploaded": 394496,
+					"residentTextureBytes": 5373956,
+					"pendingUploads": 0,
+					"evictions": 0,
+					"targetSwitches": null
+				},
+				"memory": {
+					"usedBytes": null
+				},
+				"renderer": {
+					"glDrawCalls": 1,
+					"vertices": 2944,
+					"textCharacters": 747
+				},
+				"sanity": {
+					"frameMs": 18.724999994039536,
+					"sectionsMs": 1.3149999976158142,
+					"unaccountedMs": 17.40999999642372,
+					"framesWithSectionsOverSpan": 0
+				},
+				"liveness": {
+					"frameCount": 607,
+					"newestSampleAgeMs": 1
+				},
+				"device": {
+					"backend": "webgl2",
+					"vendor": "Google Inc. (AMD)",
+					"renderer": "ANGLE (AMD, ANGLE Metal Renderer: AMD Radeon Pro 560X, Unspecified Version)",
+					"features": {
+						"timerQuery": true,
+						"parallelShaderCompile": true,
+						"debugRendererInfo": true
+					}
+				},
+				"tracks": "console.timeStamp",
+				"hitches": {
+					"longFrames": {
+						"source": "long-animation-frame",
+						"count": 0,
+						"saturated": false,
+						"maxMs": null,
+						"blockingMs": 0,
+						"worst": null
+					},
+					"slowEvents": {
+						"thresholdMs": 16,
+						"count": 0,
+						"saturated": false,
+						"maxMs": null,
+						"worst": null
+					}
+				}
+			},
+			{
+				"timestamp": 1790620537592,
+				"scene": "combatScreen",
+				"frame": {
+					"ms": 15.680000007152557,
+					"minMs": 14.604999989271164,
+					"maxMs": 18.75,
+					"p99Ms": 18.724999994039536,
+					"histogram": [
+						0,
+						62,
+						58,
+						0
+					],
+					"spikesOverBudget": 34,
+					"spikesOver2xBudget": 0,
+					"budgetMs": 16.666666666666668,
+					"windowSize": 120,
+					"sampleCount": 120
+				},
+				"sections": {
+					"input": null,
+					"update": {
+						"ms": 0.004999995231628418,
+						"maxMs": 0.025000005960464478
+					},
+					"layout": {
+						"ms": 0,
+						"maxMs": 0.010000020265579224
+					},
+					"render": {
+						"ms": 0.6200000047683716,
+						"maxMs": 0.7849999964237213
+					},
+					"flush": {
+						"ms": 0.9000000059604645,
+						"maxMs": 1.1099999845027924
+					},
+					"present": null
+				},
+				"gpu": {
+					"ms": 4.691098,
+					"valid": true,
+					"passes": [
+						1.376,
+						3.315098
+					],
+					"spanMs": null,
+					"latencyMs": null,
+					"source": "timerQuery",
+					"p99Ms": 5.177129,
+					"maxMs": 5.238769,
+					"sampleCount": 120,
+					"invalidCount": 0
+				},
+				"batcher": {
+					"apiDraws": 153,
+					"gpuDraws": 1,
+					"vertices": 2944,
+					"triangles": 1472,
+					"instances": 0,
+					"culled": 33,
+					"occluded": null,
+					"flushes": {
+						"barrier": 0,
+						"endFrame": 1,
+						"targetChange": 0,
+						"bufferFull": 0
+					},
+					"splits": {
+						"textureSlotsExhausted": 0,
+						"blendChange": 0,
+						"stencilLevel": 0
+					},
+					"groupsByLayer": {
+						"base": 153,
+						"raised": 0,
+						"overlay": 0,
+						"modal": 0,
+						"popup": 0,
+						"toast": 0,
+						"tooltip": 0,
+						"drag": 0,
+						"transition": 0
+					},
+					"reorderedGroups": 0,
+					"clipChange": 0,
+					"shaderChange": 0,
+					"textureBinds": 0,
+					"clipPushes": 4,
+					"bytesUploaded": 394496,
+					"residentTextureBytes": 5373956,
+					"pendingUploads": 0,
+					"evictions": 0,
+					"targetSwitches": null
+				},
+				"memory": {
+					"usedBytes": null
+				},
+				"renderer": {
+					"glDrawCalls": 1,
+					"vertices": 2944,
+					"textCharacters": 747
+				},
+				"sanity": {
+					"frameMs": 15.680000007152557,
+					"sectionsMs": 1.5250000059604645,
+					"unaccountedMs": 14.155000001192093,
+					"framesWithSectionsOverSpan": 0
+				},
+				"liveness": {
+					"frameCount": 608,
+					"newestSampleAgeMs": 2
+				},
+				"device": {
+					"backend": "webgl2",
+					"vendor": "Google Inc. (AMD)",
+					"renderer": "ANGLE (AMD, ANGLE Metal Renderer: AMD Radeon Pro 560X, Unspecified Version)",
+					"features": {
+						"timerQuery": true,
+						"parallelShaderCompile": true,
+						"debugRendererInfo": true
+					}
+				},
+				"tracks": "console.timeStamp",
+				"hitches": {
+					"longFrames": {
+						"source": "long-animation-frame",
+						"count": 0,
+						"saturated": false,
+						"maxMs": null,
+						"blockingMs": 0,
+						"worst": null
+					},
+					"slowEvents": {
+						"thresholdMs": 16,
+						"count": 0,
+						"saturated": false,
+						"maxMs": null,
+						"worst": null
+					}
+				}
+			},
+			{
+				"timestamp": 1790620537607,
+				"scene": "combatScreen",
+				"frame": {
+					"ms": 15.590000003576279,
+					"minMs": 14.604999989271164,
+					"maxMs": 18.75,
+					"p99Ms": 18.724999994039536,
+					"histogram": [
+						0,
+						62,
+						58,
+						0
+					],
+					"spikesOverBudget": 34,
+					"spikesOver2xBudget": 0,
+					"budgetMs": 16.666666666666668,
+					"windowSize": 120,
+					"sampleCount": 120
+				},
+				"sections": {
+					"input": null,
+					"update": {
+						"ms": 0.009999990463256836,
+						"maxMs": 0.025000005960464478
+					},
+					"layout": {
+						"ms": 0.005000025033950806,
+						"maxMs": 0.010000020265579224
+					},
+					"render": {
+						"ms": 0.6049999892711639,
+						"maxMs": 0.7849999964237213
+					},
+					"flush": {
+						"ms": 0.925000011920929,
+						"maxMs": 1.1099999845027924
+					},
+					"present": null
+				},
+				"gpu": {
+					"ms": 4.575308,
+					"valid": true,
+					"passes": [
+						1.313919,
+						3.261389
+					],
+					"spanMs": null,
+					"latencyMs": null,
+					"source": "timerQuery",
+					"p99Ms": 5.177129,
+					"maxMs": 5.238769,
+					"sampleCount": 120,
+					"invalidCount": 0
+				},
+				"batcher": {
+					"apiDraws": 153,
+					"gpuDraws": 1,
+					"vertices": 2944,
+					"triangles": 1472,
+					"instances": 0,
+					"culled": 33,
+					"occluded": null,
+					"flushes": {
+						"barrier": 0,
+						"endFrame": 1,
+						"targetChange": 0,
+						"bufferFull": 0
+					},
+					"splits": {
+						"textureSlotsExhausted": 0,
+						"blendChange": 0,
+						"stencilLevel": 0
+					},
+					"groupsByLayer": {
+						"base": 153,
+						"raised": 0,
+						"overlay": 0,
+						"modal": 0,
+						"popup": 0,
+						"toast": 0,
+						"tooltip": 0,
+						"drag": 0,
+						"transition": 0
+					},
+					"reorderedGroups": 0,
+					"clipChange": 0,
+					"shaderChange": 0,
+					"textureBinds": 0,
+					"clipPushes": 4,
+					"bytesUploaded": 394496,
+					"residentTextureBytes": 5373956,
+					"pendingUploads": 0,
+					"evictions": 0,
+					"targetSwitches": null
+				},
+				"memory": {
+					"usedBytes": null
+				},
+				"renderer": {
+					"glDrawCalls": 1,
+					"vertices": 2944,
+					"textCharacters": 747
+				},
+				"sanity": {
+					"frameMs": 15.590000003576279,
+					"sectionsMs": 1.5450000166893005,
+					"unaccountedMs": 14.044999986886978,
+					"framesWithSectionsOverSpan": 0
+				},
+				"liveness": {
+					"frameCount": 609,
+					"newestSampleAgeMs": 1
+				},
+				"device": {
+					"backend": "webgl2",
+					"vendor": "Google Inc. (AMD)",
+					"renderer": "ANGLE (AMD, ANGLE Metal Renderer: AMD Radeon Pro 560X, Unspecified Version)",
+					"features": {
+						"timerQuery": true,
+						"parallelShaderCompile": true,
+						"debugRendererInfo": true
+					}
+				},
+				"tracks": "console.timeStamp",
+				"hitches": {
+					"longFrames": {
+						"source": "long-animation-frame",
+						"count": 0,
+						"saturated": false,
+						"maxMs": null,
+						"blockingMs": 0,
+						"worst": null
+					},
+					"slowEvents": {
+						"thresholdMs": 16,
+						"count": 0,
+						"saturated": false,
+						"maxMs": null,
+						"worst": null
+					}
+				}
+			},
+			{
+				"timestamp": 1790620537625,
+				"scene": "combatScreen",
+				"frame": {
+					"ms": 17.615000009536743,
+					"minMs": 14.604999989271164,
+					"maxMs": 18.75,
+					"p99Ms": 18.724999994039536,
+					"histogram": [
+						0,
+						62,
+						58,
+						0
+					],
+					"spikesOverBudget": 34,
+					"spikesOver2xBudget": 0,
+					"budgetMs": 16.666666666666668,
+					"windowSize": 120,
+					"sampleCount": 120
+				},
+				"sections": {
+					"input": null,
+					"update": {
+						"ms": 0.004999995231628418,
+						"maxMs": 0.025000005960464478
+					},
+					"layout": {
+						"ms": 0,
+						"maxMs": 0.010000020265579224
+					},
+					"render": {
+						"ms": 0.5349999964237213,
+						"maxMs": 0.7849999964237213
+					},
+					"flush": {
+						"ms": 0.7899999916553497,
+						"maxMs": 1.1099999845027924
+					},
+					"present": null
+				},
+				"gpu": {
+					"ms": 4.593738,
+					"valid": true,
+					"passes": [
+						1.2976,
+						3.296138
+					],
+					"spanMs": null,
+					"latencyMs": null,
+					"source": "timerQuery",
+					"p99Ms": 5.177129,
+					"maxMs": 5.238769,
+					"sampleCount": 120,
+					"invalidCount": 0
+				},
+				"batcher": {
+					"apiDraws": 153,
+					"gpuDraws": 1,
+					"vertices": 2944,
+					"triangles": 1472,
+					"instances": 0,
+					"culled": 33,
+					"occluded": null,
+					"flushes": {
+						"barrier": 0,
+						"endFrame": 1,
+						"targetChange": 0,
+						"bufferFull": 0
+					},
+					"splits": {
+						"textureSlotsExhausted": 0,
+						"blendChange": 0,
+						"stencilLevel": 0
+					},
+					"groupsByLayer": {
+						"base": 153,
+						"raised": 0,
+						"overlay": 0,
+						"modal": 0,
+						"popup": 0,
+						"toast": 0,
+						"tooltip": 0,
+						"drag": 0,
+						"transition": 0
+					},
+					"reorderedGroups": 0,
+					"clipChange": 0,
+					"shaderChange": 0,
+					"textureBinds": 0,
+					"clipPushes": 4,
+					"bytesUploaded": 394496,
+					"residentTextureBytes": 5373956,
+					"pendingUploads": 0,
+					"evictions": 0,
+					"targetSwitches": null
+				},
+				"memory": {
+					"usedBytes": null
+				},
+				"renderer": {
+					"glDrawCalls": 1,
+					"vertices": 2944,
+					"textCharacters": 747
+				},
+				"sanity": {
+					"frameMs": 17.615000009536743,
+					"sectionsMs": 1.3299999833106995,
+					"unaccountedMs": 16.285000026226044,
+					"framesWithSectionsOverSpan": 0
+				},
+				"liveness": {
+					"frameCount": 610,
+					"newestSampleAgeMs": 2
+				},
+				"device": {
+					"backend": "webgl2",
+					"vendor": "Google Inc. (AMD)",
+					"renderer": "ANGLE (AMD, ANGLE Metal Renderer: AMD Radeon Pro 560X, Unspecified Version)",
+					"features": {
+						"timerQuery": true,
+						"parallelShaderCompile": true,
+						"debugRendererInfo": true
+					}
+				},
+				"tracks": "console.timeStamp",
+				"hitches": {
+					"longFrames": {
+						"source": "long-animation-frame",
+						"count": 0,
+						"saturated": false,
+						"maxMs": null,
+						"blockingMs": 0,
+						"worst": null
+					},
+					"slowEvents": {
+						"thresholdMs": 16,
+						"count": 0,
+						"saturated": false,
+						"maxMs": null,
+						"worst": null
+					}
+				}
+			}
+		]
+	}
+]

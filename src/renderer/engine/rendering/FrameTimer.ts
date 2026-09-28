@@ -98,7 +98,7 @@ export const NO_GPU_STATS: Readonly<GpuStats> = {
 
 /**
  * What the GL backend counts at its own call sites: `glDrawCalls` is one
- * increment per `drawElements`, `vertices` the vertices that call drew, and
+ * increment per GPU draw, `vertices` the vertices that draw ran, and
  * `textCharacters` the characters handed to it. Kept beside `batcher` rather
  * than replaced by it because the two are measured at different places, and
  * `batcher.gpuDraws` equalling `glDrawCalls` on the same frame is the R13.5
