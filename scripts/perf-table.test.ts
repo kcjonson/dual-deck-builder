@@ -89,7 +89,7 @@ describe('summaryTable', () => {
 		const lines = summaryTable([CAPTURE]).split('\n');
 		expect(lines).toHaveLength(3);
 		expect(lines[0]).toMatch(/^\| Scenario \| FPS \|/);
-		expect(lines[2]).toBe('| combatScreen | 182 | 5.50 | 9.00 | 12.00 | 1.00 | 2.50 | 0.75 | 2.00 | 3.00 | 4.00 | 40 | 6 | 1200 | barrier 2, endFrame 1 |');
+		expect(lines[2]).toBe('| combatScreen | 182 | 5.50 | 9.00 | 12.00 | 1.00 | 2.50 | 0.75 | 2.00 | 3.00 | 4.00 | 1 | 40 | 6 | 1200 | barrier 2, endFrame 1 |');
 	});
 });
 

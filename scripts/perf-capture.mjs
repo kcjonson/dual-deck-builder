@@ -26,6 +26,8 @@
  * that is a launch flag rather than an in-page call, and killing the browser at
  * the end is what restores it. Frame times here are therefore unthrottled: they
  * say how much of the budget a scene costs, not what a vsync-paced run displays.
+ * The exception is `--vsync on`, which is how GPU time is captured; see the
+ * option for why an unthrottled run cannot collect it.
  *
  * The chapter 13 mapping table names Playwright as the browser answer. When a
  * Playwright harness lands it should replace this file rather than run beside
@@ -64,10 +66,20 @@ function parseArguments(argv) {
 		width: 1440,
 		height: 882,
 		settleFrames: 120,
+		// Wall-clock settle on top of the frame count. Unthrottled, 120 frames
+		// pass in a tenth of a second on a light screen, before a lazily loaded
+		// asset lands and before Chromium has handed back a single GPU result.
+		settleMs: 1000,
 		samples: 20,
 		chrome: null,
 		compare: null,
-		'gpu-timer': 'on',
+		gpuTimer: 'on',
+		// R13.38 wants vsync off, and it is by default. `--vsync on` is the GPU
+		// capture: with the frame cap off, Chromium hands timer query results
+		// back hundreds of frames late (measured on ANGLE Metal: none of twelve
+		// in flight resolved within 300 frames, against the next frame when
+		// paced), so an unthrottled run collects almost no GPU samples.
+		vsync: 'off',
 		scenarios: [],
 	};
 	for (let index = 0; index < argv.length; index++) {
@@ -94,8 +106,7 @@ const chrome = spawn(options.chrome ?? CHROME_CANDIDATES.find((path) => existsSy
 	'--force-device-scale-factor=1',
 	// R13.38: vsync and the frame cap are off for the capture. Killing the
 	// browser at the end is what restores them.
-	'--disable-frame-rate-limit',
-	'--disable-gpu-vsync',
+	...(options.vsync === 'on' ? [] : ['--disable-frame-rate-limit', '--disable-gpu-vsync']),
 	'--no-first-run',
 	'--no-default-browser-check',
 	// Its own profile, so a capture neither waits on nor disturbs the browser
@@ -174,8 +185,8 @@ console.error(await evaluate('JSON.stringify({ viewport: [innerWidth, innerHeigh
 
 // The GPU timer is on by default in a development build; setting it here keeps
 // a capture honest if someone switched it off in the page first, and
-// `--gpu-timer off` measures what the timer itself costs.
-const gpuTimer = await evaluate(`window.__perf.gpuTimer?.(${options['gpu-timer'] !== 'off'}) ?? null`);
+// `--gpuTimer off` measures what the timer itself costs.
+const gpuTimer = await evaluate(`window.__perf.gpuTimer?.(${options.gpuTimer !== 'off'}) ?? null`);
 const device = await evaluate('window.__perf.snapshot().device');
 console.error(`device: ${device?.renderer ?? 'unknown'}; GPU timer: ${gpuTimer === null ? 'absent' : gpuTimer ? 'on' : 'off'}`);
 
@@ -197,6 +208,7 @@ for (const scenario of options.scenarios) {
 	// so it outlives the frame window and would carry the previous scenario's
 	// samples into this one's p99. Toggling the timer empties it.
 	if (gpuTimer) await evaluate('window.__perf.gpuTimer(false), window.__perf.gpuTimer(true)');
+	await sleep(options.settleMs);
 	const capture = await evaluate(`window.__perf.capture(${JSON.stringify({
 		scenario,
 		settleFrames: options.settleFrames,
@@ -219,9 +231,14 @@ const table = [
 	`# ${options.label}`,
 	'',
 	`Captured ${new Date().toISOString().slice(0, 10)} from ${options.url} at ${options.width}x${options.height}, `
-		+ `headless Chrome with vsync and the frame cap off (R13.38), ${options.settleFrames} settle frames and `
+		+ `headless Chrome with ${options.vsync === 'on'
+			? 'vsync on, so frame times are paced and only the GPU columns and the sections are costs'
+			: 'vsync and the frame cap off (R13.38)'}, ${options.settleMs} ms and `
+		+ `${options.settleFrames} frames of settle, and `
 		+ `${options.samples} samples per scenario. Times in ms. Device: ${device?.renderer ?? 'unknown'}. `
-		+ `GPU columns are timer-query GPU time (R13.16); n/a where the extension is absent.`,
+		+ `GPU columns are timer-query GPU time over the valid samples (R13.16); a sample over three times its `
+		+ `CPU frame is excluded and counted under GPU invalid (R13.18), and n/a with no invalid count means the `
+		+ `extension is absent.`,
 	'',
 	summaryTable(results),
 	'',

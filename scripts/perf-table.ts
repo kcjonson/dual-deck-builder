@@ -133,7 +133,7 @@ function row(cells: readonly string[]): string {
 
 const SUMMARY_HEADER = [
 	'Scenario', 'FPS', 'Frame median', 'Frame p99', 'Frame max', 'Update max', 'Render max', 'Flush max',
-	'GPU median', 'GPU p99', 'GPU max', 'API draws', 'GPU draws', 'Triangles', 'Flushes',
+	'GPU median', 'GPU p99', 'GPU max', 'GPU invalid', 'API draws', 'GPU draws', 'Triangles', 'Flushes',
 ];
 
 /** One run's table, all times in ms. */
@@ -153,6 +153,9 @@ export function summaryTable(captures: readonly ScenarioCaptureLike[]): string {
 			ms(summary.gpuSource === 'timerQuery' ? summary.gpuMedianMs : null),
 			ms(summary.gpuP99Ms),
 			ms(summary.gpuMaxMs),
+			// R13.18's exclusions, so an n/a above reads as "all rejected" rather
+			// than "not measured" when that is what happened.
+			count(summary.gpuInvalid),
 			count(summary.apiDraws),
 			count(summary.gpuDraws),
 			count(summary.triangles),

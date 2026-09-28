@@ -6,6 +6,17 @@ This document contains the chronological log of completed development tasks for 
 
 **Date correction (2026-08-22):** the repo's first commit is 2025-05-17, but many entries below carry dates in December 2024 or January 2025 — the AI that wrote them used its assumed date instead of the real one. Entries dated 2025-07-03 and 2025-07-02 have been corrected from "2025-01-03"/"2025-01-02" (verified against git history). Remaining Dec 2024 / Jan 2025 dates are wrong by roughly six months; the real work happened May–July 2025. Trust git history over these dates.
 
+## GPU timer, DevTools tracks, and perf capture tables (2026-09-28)
+
+**What landed:** DDB-92 (DDB-55 phase 7).
+
+- `rendering/GpuTimer.ts`: one `TIME_ELAPSED_EXT` query per GPU pass, never nested, polled oldest first no sooner than two frames after issue and never awaited (R13.16, R13.17, R15.22's permitted calls only); samples invalid on a disjoint event, over three times their CPU frame, or across a lost context, and excluded from the window (R13.18); a per-frame fence reported as `gpu.latencyMs` where the extension is absent (R13.19, R15.23); a query pool and an eight-frame cap on what is in flight. `WebGL2Backend` brackets the clear and each `submit` and never reads a result. Development builds only; `window.__perf.gpuTimer(on)` toggles it.
+- `debug/devtoolsTracks.ts`: frame sections and frames on a DevTools custom track, `console.timeStamp` from Chromium 134, `performance.measure` with `detail.devtools` from 128 (cleared after each call), nothing on Electron 25 (R15.29, R15.42). The snapshot reports which as `tracks`.
+- `FrameTimer`: `gpu` is live, with `source`, `p99Ms`, `maxMs`, `sampleCount`, `invalidCount` after R13.11's five fields; the F5 overlay reads the page's snapshot function and shows GPU time or fence latency, the worst section, the device, and the track mode.
+- `scripts/perf-table.ts` and `perf-capture.mjs`: a markdown table beside every capture, `--compare` and a `compare` subcommand for R13.39, all scenarios when none are named, a one second wall-clock settle, `--gpuTimer off`, and `--vsync on` for GPU captures.
+
+**Evidence:** unit tests for the timer against a scripted device (15), the track selection (9), the tables (7), the backend's pass bracketing, the snapshot fields and track emission, and the `__perf` toggle; 1600 jest tests pass. A production `build:web` bundle contains no timer or track code. Baselines on one Mac (Radeon Pro 560X, ANGLE Metal): `perf-results/phase7-frame-baseline`, `phase7-gallery-baseline` (vsync off) and `phase7-frame-gpu`, `phase7-gallery-gpu` (paced). Measured along the way: Chromium returns timer results hundreds of frames late with the frame cap off, the first second after mounting is a sub-millisecond transient before GPU back-pressure sets in, and on ANGLE Metal a query around a single clear reads 1.39 ms, the same as around twenty, so each timed pass carries an MSAA resolve floor. Decision record: [gpu-timer-and-perf-capture.md](./AI_TECHNICAL_DECISIONS/gpu-timer-and-perf-capture.md).
+
 ## Body face kerning: stay on unkerned Open Sans (2026-09-28)
 
 **What landed:** DDB-189, a decision with no asset change. Open Sans 3.000 stays the body face and ships with an empty `kerning[]`.
