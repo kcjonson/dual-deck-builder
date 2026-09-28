@@ -4,6 +4,9 @@ import { Rectangle } from '../../../engine/components/Rectangle';
 import { Driver } from '../../mechanics/Driver';
 import { DriverSynergy, SynergyAnalysis } from '../../mechanics/DriverSynergy';
 
+/** Horizontal padding inside a tag pill. */
+const TAG_PADDING = 5;
+
 /**
  * Synergy preview panel for the Driver Selection Screen
  * Implements the center panel from Game Flow Spec 1.2
@@ -39,15 +42,19 @@ export class SynergyPreviewPanel extends Layer {
 		this.addChild(this.background);
 		
 		// Create title
+		// Centred across the panel
 		this.titleText = new Text('Team Synergy', {
+			x: 0,
+			y: 25,
+			width: this.getWidth(),
 			style: {
 				fontSize: 20,
 				color: '#ffffff',
 				textAlign: 'center',
+				whiteSpace: 'nowrap',
 				fontWeight: 'bold',
 			},
 		});
-		this.titleText.setPosition(this.getWidth() / 2, 25);
 		this.addChild(this.titleText);
 		
 		// Initially hidden
@@ -113,14 +120,7 @@ export class SynergyPreviewPanel extends Layer {
 		});
 		this.synergyDescription.setPosition(Math.floor(panelWidth * 0.05), currentY);
 		this.addChild(this.synergyDescription);
-		
-		// Calculate height used by description text
-		const descriptionHeight = this.estimateTextHeight(
-			this.currentSynergy.description, 
-			panelWidth * 0.9, 
-			14
-		);
-		currentY += descriptionHeight + 20;
+		currentY += this.synergyDescription.getHeight() + 20;
 		
 		// Warning text if present
 		if (this.currentSynergy.warning) {
@@ -136,13 +136,7 @@ export class SynergyPreviewPanel extends Layer {
 			});
 			this.warningText.setPosition(Math.floor(panelWidth * 0.05), currentY);
 			this.addChild(this.warningText);
-			
-			const warningHeight = this.estimateTextHeight(
-				this.currentSynergy.warning, 
-				panelWidth * 0.9, 
-				12
-			);
-			currentY += warningHeight + 15;
+			currentY += this.warningText.getHeight() + 15;
 		}
 		
 		// Synergy tags
@@ -175,18 +169,31 @@ export class SynergyPreviewPanel extends Layer {
 		let currentRow = 0;
 		
 		for (const tag of this.currentSynergy.tags) {
-			const tagWidth = Math.min(maxTagWidth, this.estimateTextWidth(tag, 12) + 10);
-			
+			// Measured at its hug width, then boxed in a pill that fits it, or
+			// truncated to the widest pill
+			const tagText = new Text(tag, {
+				style: {
+					fontSize: 10,
+					color: '#ffffff',
+					textAlign: 'center',
+					verticalAlign: 'middle',
+					whiteSpace: 'nowrap',
+					textOverflow: 'ellipsis',
+					fontWeight: 'bold',
+				},
+			});
+			const tagWidth = Math.ceil(Math.min(maxTagWidth, tagText.getWidth() + TAG_PADDING * 2));
+
 			// Check if tag fits on current row
 			if (currentX + tagWidth > panelWidth - 10) {
 				currentX = 10;
 				currentRow++;
 			}
-			
-			// Create tag background
+			const tagY = currentRow * (tagHeight + tagSpacing);
+
 			const tagBackground = new Rectangle({
 				x: currentX,
-				y: currentRow * (tagHeight + tagSpacing),
+				y: tagY,
 				width: tagWidth,
 				height: tagHeight,
 				style: {
@@ -195,24 +202,12 @@ export class SynergyPreviewPanel extends Layer {
 				},
 			});
 			this.tagsContainer.addChild(tagBackground);
-			
-			// Tag text, centred in the pill's own box
-			const tagText = new Text(tag, {
-				x: currentX,
-				y: currentRow * (tagHeight + tagSpacing),
-				width: tagWidth,
-				height: tagHeight,
-				style: {
-					fontSize: 10,
-					color: '#ffffff',
-					textAlign: 'center',
-					verticalAlign: 'middle',
-					whiteSpace: 'nowrap',
-					fontWeight: 'bold',
-				},
-			});
+
+			// Centred in the pill, inside its padding
+			tagText.setPosition(currentX + TAG_PADDING, tagY);
+			tagText.setSize(tagWidth - TAG_PADDING * 2, tagHeight);
 			this.tagsContainer.addChild(tagText);
-			
+
 			currentX += tagWidth + tagSpacing;
 		}
 	}
@@ -252,24 +247,6 @@ export class SynergyPreviewPanel extends Layer {
 		};
 		
 		return tagColors[tag] || '#888888';
-	}
-
-	/**
-	 * Estimate text height for layout calculation
-	 */
-	private estimateTextHeight(text: string, maxWidth: number, fontSize: number): number {
-		// Rough estimation: assume ~12 characters per line at 14px font
-		const charsPerLine = Math.floor(maxWidth / (fontSize * 0.6));
-		const lines = Math.ceil(text.length / charsPerLine);
-		return lines * (fontSize * 1.2); // 1.2 for line height
-	}
-
-	/**
-	 * Estimate text width for layout calculation
-	 */
-	private estimateTextWidth(text: string, fontSize: number): number {
-		// Rough estimation: ~0.6 * fontSize per character
-		return text.length * (fontSize * 0.6);
 	}
 
 	/**

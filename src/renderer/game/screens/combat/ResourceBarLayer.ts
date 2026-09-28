@@ -16,6 +16,8 @@ interface ScrapDisplay {
 
 const END_TURN_WIDTH = 120;
 const END_TURN_MARGIN = 10;
+/** The scrap amount's box, centred 15 px past the icon. */
+const SCRAP_AMOUNT_WIDTH = 30;
 
 /**
  * Resource bar strip at the top of the combat screen
@@ -99,6 +101,7 @@ export class ResourceBarLayer extends Layer {
 				fontSize: 10,
 				color: '#ffffff',
 				textAlign: 'center',
+				whiteSpace: 'nowrap',
 				fontWeight: 'bold',
 			},
 		});
@@ -109,6 +112,7 @@ export class ResourceBarLayer extends Layer {
 				fontSize: 8,
 				color: '#cccccc',
 				textAlign: 'center',
+				whiteSpace: 'nowrap',
 			},
 		});
 		this.addChild(label);
@@ -167,8 +171,11 @@ export class ResourceBarLayer extends Layer {
 		icon.setCornerRadius(Math.floor(iconSize / 4));
 		symbol.setFontSize(Math.floor(iconSize * 0.6));
 		symbol.setPosition(currentX + iconSize / 2, Math.floor(layerHeight / 2));
-		amount.setPosition(currentX + iconSize + 15, Math.floor(layerHeight / 2));
-		label.setPosition(currentX + iconSize / 2, Math.floor(layerHeight * 0.8));
+		// Centred 15 px past the icon, and under it
+		amount.setPosition(currentX + iconSize, Math.floor(layerHeight / 2));
+		amount.setWidth(SCRAP_AMOUNT_WIDTH);
+		label.setPosition(currentX, Math.floor(layerHeight * 0.8));
+		label.setWidth(iconSize);
 
 		const buttonHeight = Math.floor(layerHeight * 0.8);
 		this.endTurnButton.setSize(END_TURN_WIDTH, buttonHeight);

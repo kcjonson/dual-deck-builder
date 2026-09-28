@@ -65,19 +65,20 @@ export class DriverSelectionScreen extends Screen {
 	 * Create the title
 	 */
 	private createTitle(): void {
+		// Centred across the screen
 		this.titleText = new Text('Choose Your Drivers', {
 			id: 'driver_select_title',
+			x: 0,
+			y: window.innerHeight * 0.08,
+			width: window.innerWidth,
 			style: {
 				fontSize: 48,
 				color: '#ffffff',
 				textAlign: 'center',
+				whiteSpace: 'nowrap',
 				fontWeight: 'bold',
 			},
 		});
-		this.titleText.setPosition(
-			window.innerWidth / 2,
-			window.innerHeight * 0.08
-		);
 		this.rootLayer.addChild(this.titleText);
 	}
 
@@ -268,17 +269,18 @@ export class DriverSelectionScreen extends Screen {
 		if (this.selectedDriver1 && this.selectedDriver2) {
 			const confirmationMessage = `Ready to enter the wasteland with ${this.selectedDriver1.metadata.name} and ${this.selectedDriver2.metadata.name}`;
 			
+			// Centred across the screen, just above the start button
 			this.confirmationText = new Text(confirmationMessage, {
+				x: 0,
+				y: Math.floor(window.innerHeight * 0.8),
+				width: window.innerWidth,
 				style: {
 					fontSize: 16,
 					color: '#cccccc',
 					textAlign: 'center',
+					whiteSpace: 'nowrap',
 				},
 			});
-			this.confirmationText.setPosition(
-				Math.floor(window.innerWidth / 2),
-				Math.floor(window.innerHeight * 0.8) // Just above start button
-			);
 			this.rootLayer.addChild(this.confirmationText);
 		}
 	}
