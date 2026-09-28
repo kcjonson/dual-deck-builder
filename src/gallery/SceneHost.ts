@@ -88,14 +88,15 @@ export class SceneHost {
 	}
 
 	/**
-	 * The roots R13.33 hands to the tree snapshot and the layout lint. One
-	 * root, the viewport-sized container, with the scene beneath it. The
+	 * The roots R13.33 hands to the tree snapshot and the layout lint: the
+	 * viewport-sized container, with the scene beneath it, then whatever the
+	 * scene opened through the overlay service (R8.21). The
 	 * serializer walks `debugChildren` rather than `getChildren`, which is what
 	 * makes a Panel scene report its background and content layer instead of
 	 * the content layer's children one level too shallow.
 	 */
 	public roots(): Layer[] {
-		return [this.rootLayer];
+		return [this.rootLayer, ...this.context.overlays.roots];
 	}
 
 	public get root(): Layer {
@@ -228,6 +229,9 @@ export class SceneHost {
 
 		this.context.focus.blur();
 		this.rootLayer.removeChild(this.mountedRoot);
+		// R8.22: whatever the scene opened above itself goes with it.
+		this.context.popups.close();
+		this.context.overlays.closeAll();
 		this.mountedRoot = null;
 		this.mounted = null;
 		this.requestedName = null;
@@ -267,6 +271,7 @@ export class SceneHost {
 	public resize(): void {
 		const { width, height } = this.readViewport();
 
+		this.context.overlays.resize();
 		if (!this.mounted) {
 			this.rootLayer.setSize(width, height);
 			return;
@@ -292,6 +297,7 @@ export class SceneHost {
 	public render(draw: DrawApi): void {
 		this.renders++;
 		renderTree(this.rootLayer, draw);
+		this.context.overlays.render(draw);
 	}
 
 	/**

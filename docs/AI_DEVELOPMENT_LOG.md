@@ -6,6 +6,19 @@ This document contains the chronological log of completed development tasks for 
 
 **Date correction (2026-08-22):** the repo's first commit is 2025-05-17, but many entries below carry dates in December 2024 or January 2025 — the AI that wrote them used its assumed date instead of the real one. Entries dated 2025-07-03 and 2025-07-02 have been corrected from "2025-01-03"/"2025-01-02" (verified against git history). Remaining Dec 2024 / Jan 2025 dates are wrong by roughly six months; the real work happened May–July 2025. Trust git history over these dates.
 
+## Overlay, popup, tooltip, placement, clipboard and asset services (2026-09-28)
+
+**What landed:** DDB-78 (DDB-55 phase 3), R12.30 to R12.32 with R12.22, R8.21, R3.6a, R3.15, R9.13 to R9.15.
+
+- `engine/services/`: `Placement.ts` (`place` and `PlacementService`), `OverlayService.ts`, `PopupService.ts`, `TooltipService.ts` with `TooltipSurface.ts` and `tooltipSpec.ts`, `ClipboardService.ts`, `AssetService.ts`, and `testing.ts` (queue-driven input helpers for tests). All six are built by `createMountContext`; the pages pass `detectClipboard(window)` and `imageUrlLoader()`.
+- Dispatcher: root tiers (`scene`, `overlay`, `diagnostic`) with `raiseRoot`; `addObserver` with `pointerDown` (can swallow), `pointerMove`, `hoverChange`, `keyDown` (before the scene hotkeys) and `focusChange`; `capturing` and `hoverPoint`. `Component.mount(context, { tier })`, `Component.tooltip`, `Component.popupTrigger`. `UiFrame.requestTick` for services.
+- Pages: both render overlay roots after the scene and report them to the tree snapshot; the F5 overlay mounts as `diagnostic`; a screen change or gallery scene switch closes popups and overlays; viewport changes resize overlay roots. Electron's preload exposes `clipboard.readText`/`writeText` over IPC.
+- On DDB-76 and DDB-77: overlay hotkeys are the root's own `hotkeys` and a modal overlay sets `root.modal` and pushes a focus scope; `FocusManager.onFocusChange` feeds the popup focus-loss close and the tooltip keyboard trigger (visible focus only); `tooltips.dragActive` reads `context.drag.isDragging`; the dispatcher's `focusChange` observer hook is gone with `Dispatcher.focus()`.
+- Review fixes: a swallowed press's release is swallowed too; placements apply a `constrained` size to popups (from `naturalSize`) and tooltips; `overlays.open` takes `inside` so a scrim press is outside a modal's panel; the Electron clipboard handlers answer only the app's own renderer frame.
+- Gallery: `overlays` scene (gallery-only, `galleryOnlyScenes`), with placement outcomes drawn against a frame and a live tooltip, card-preview tooltip and popup menu; `tests/visual/support/scenarios.ts` lists it.
+
+**How:** `Placement.test.ts`, `OverlayService.test.ts`, `PopupService.test.ts`, `TooltipService.test.ts` (state timing, tolerance, swap, fades, flips, never consumes, press suppression, capture and drag suppression, keyboard trigger, factory trees), `ClipboardService.test.ts`, `AssetService.test.ts`, `input/rootOrder.test.ts` (tiers, observers, `requestTick`); 2058 tests green. Driven in the gallery through `__dev.input`: hover swap to the card preview, outside press closing the menu, trigger reopening it, Escape closing it; `__ui.lint()` is 0 on the scene.
+
 ## Packed instances for the uber shader (2026-09-28)
 
 **What landed:** DDB-191 (DDB-55), R5.4.
@@ -123,7 +136,6 @@ This document contains the chronological log of completed development tasks for 
 
 **How:** unit tests for the helper (center, borderless, sub-pixel, out param), the encoder (translated hairline at ratio 2, abutting pair, center border, and the three opt-outs) and the clip stack (snapped at every fractional scroll, not under a scale). Goldens re-minted on CI with `update_mode=all` and checked old against new.
 
-
 ## Mount context, lifecycle, and frame order (2026-09-28)
 
 **What landed:** DDB-73's second PR (DDB-55 phase 3), R1.6, R8.14 to R8.18, R8.21, R8.22.
@@ -152,7 +164,6 @@ This document contains the chronological log of completed development tasks for 
 - Merged with DDB-68, DDB-71 and DDB-72 as they landed: `DrawFixture` and `Text` draw in their own space; `Icon.drawGlyph` lets `ArmorBadge` and `IntentMarker` draw their icon as one of their own draws, in the same order as before; `Button` places its icon from its `render` hook until the layout phase exists; the F5 overlay's visibility is `visible`.
 
 **How:** `Component.test.ts` (properties, effective values, children, reconciliation, screen geometry under rotation and scale) and `renderTree.test.ts` (local draws, leaf children walked by the framework, skipped subtrees, zIndex order, opacity, clip and promotion, balanced stacks) on the recording backend. Every screen and gallery scene captured locally on `main` and on the branch passes the golden tolerance; the CI goldens are unchanged.
-
 
 ## Visual gate: cluster rule and settled-layout wait (2026-09-28)
 

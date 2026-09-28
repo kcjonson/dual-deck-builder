@@ -6,6 +6,8 @@ import { MountContext, createMountContext } from './renderer/engine/components/M
 import { followReducedMotion } from './renderer/engine/rendering/reducedMotion';
 import { FrameTimer } from './renderer/engine/rendering/FrameTimer';
 import { PointerAdapter } from './renderer/engine/input/PointerAdapter';
+import { detectClipboard } from './renderer/engine/services/ClipboardService';
+import { imageUrlLoader } from './renderer/engine/services/AssetService';
 import type { GpuTimer } from './renderer/engine/rendering/GpuTimer';
 import { FontAtlasError } from './renderer/engine/text/FontAtlas';
 import {
@@ -82,7 +84,12 @@ class Application {
 
 			// R1.6: the one object every root is mounted with. The pointer
 			// adapter feeds its dispatcher from the canvas the renderer draws to.
-			this.context = createMountContext({ draw, viewport: this.renderer.viewport });
+			this.context = createMountContext({
+				draw,
+				viewport: this.renderer.viewport,
+				clipboard: detectClipboard(window),
+				assetLoader: imageUrlLoader(),
+			});
 			followReducedMotion(this.context.animator);
 			const canvas = this.renderer.canvas;
 			this.inputAdapter = new PointerAdapter({ dispatcher: this.context.dispatcher });
