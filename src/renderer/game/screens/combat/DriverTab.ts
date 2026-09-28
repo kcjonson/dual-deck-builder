@@ -1,8 +1,11 @@
+import type { Component } from '../../../engine/components/Component';
 import { Layer } from '../../../engine/components/Layer';
+import { Polygon } from '../../../engine/components/Polygon';
 import { Rectangle } from '../../../engine/components/Rectangle';
 import { Stack, StackOptions } from '../../../engine/components/Stack';
 import { Text } from '../../../engine/components/Text';
-import { DRIVER_COLORS, DRIVER_TAB_BACKGROUND, rgba } from './combatStyle';
+import { ChromeStack } from './ChromeStack';
+import { DRIVER_COLORS, DRIVER_TAB_BACKGROUND, hexRgba, rgba } from './combatStyle';
 import type { DriverSeat } from './PlayerHandView';
 
 /**
@@ -18,22 +21,36 @@ export interface DriverResourceData {
 }
 
 export const DRIVER_TAB_HEIGHT = 30;
+/** The mock's `min(half, 470)`: past this a tab stops growing and holds to its outer edge. */
+export const DRIVER_TAB_MAX_WIDTH = 470;
 /** Pips up to this many; the count beside them carries the rest. */
 const MAX_PIPS = 6;
 const PIP_WIDTH = 7;
 const PIP_HEIGHT = 14;
-const MARK_SIZE = 10;
+const MARK_SIZE = 14;
 /** An unfilled pip, the driver's colour at this alpha. */
 const EMPTY_PIP_ALPHA = 0.22;
+const STRIPE_HEIGHT = 3;
+const TOP_RADIUS = 3;
+
+/**
+ * Each driver's mark, in a -1 to 1 box (section 7): driver 1 a triangle,
+ * driver 2 a diamond. A square is an escort's.
+ */
+const MARK_OUTLINES: Readonly<Record<DriverSeat, [number, number][]>> = {
+	1: [[0, -0.87], [0.9, 0.83], [-0.9, 0.83]],
+	2: [[0, -0.95], [0.95, 0], [0, 0.95], [-0.95, 0]],
+};
 
 /**
  * A driver's tab above their half of the hand (Battle Screen Design,
- * section 4): their mark and name, a PASSENGER tag when it applies, then
- * adrenaline pips with the count, and draw and discard pile counts. One
- * row; the name gives way first, with an ellipsis, so the counts are never
- * squeezed.
+ * section 4, the mock's `.dtab`): their mark and name, a PASSENGER tag when
+ * it applies, then adrenaline pips with the count, and draw and discard pile
+ * counts. One row; the name gives way first, with an ellipsis, so the counts
+ * are never squeezed. Driver 2's tab is mirrored, name at the outer end, so
+ * the two read outward from the middle of the dock.
  */
-export class DriverTab extends Stack {
+export class DriverTab extends ChromeStack {
 	private readonly seat: DriverSeat;
 	private readonly nameLabel: Text;
 	private readonly passengerTag: Text;
@@ -52,27 +69,28 @@ export class DriverTab extends Stack {
 	};
 
 	constructor({ seat, ...options }: StackOptions & { seat: DriverSeat }) {
+		const color = DRIVER_COLORS[seat];
 		super({
 			direction: 'horizontal',
 			gap: 10,
-			padding: { left: 10, right: 10 },
+			padding: { left: 10, right: 10, top: STRIPE_HEIGHT },
 			crossAlign: 'center',
 			height: DRIVER_TAB_HEIGHT,
 			widthMode: 'fill',
+			maxSize: { width: DRIVER_TAB_MAX_WIDTH },
+			alignSelf: seat === 1 ? 'start' : 'end',
+			chrome: {
+				fill: DRIVER_TAB_BACKGROUND,
+				edge: { color: rgba('line_edge'), edges: { top: true, left: true, right: true } },
+				stripe: { color: hexRgba(color), height: STRIPE_HEIGHT },
+				topRadius: TOP_RADIUS,
+			},
 			...options,
 		});
 		this.seat = seat;
-		this.setBackgroundColor(DRIVER_TAB_BACKGROUND);
-		const color = DRIVER_COLORS[seat];
 
-		// Driver 1's mark is a square, driver 2's the same square turned to a
-		// diamond, so the colour always has a shape twin (section 7)
-		this.addChild(new Rectangle({
-			width: MARK_SIZE,
-			height: MARK_SIZE,
-			transform: seat === 2 ? { rotate: Math.PI / 4 } : undefined,
-			style: { backgroundColor: color },
-		}));
+		const mark = new Polygon({ width: MARK_SIZE, height: MARK_SIZE, style: { backgroundColor: color } });
+		mark.setPoints(MARK_OUTLINES[seat]);
 
 		this.nameLabel = new Text('', {
 			id: `driver${seat}_tab_name`,
@@ -86,31 +104,31 @@ export class DriverTab extends Stack {
 				textOverflow: 'ellipsis',
 			},
 		});
-		this.addChild(this.nameLabel);
 
 		this.passengerTag = new Text('PASSENGER', {
 			visible: false,
 			style: { fontFamily: 'mono', fontSize: 11, color: rgba('text_dim'), whiteSpace: 'nowrap' },
 		});
-		this.addChild(this.passengerTag);
 
 		// Takes whatever the row leaves, so the counts sit at the far end
-		this.addChild(new Layer({ widthMode: 'fill', heightMode: 'fill' }));
+		const spacer = new Layer({ widthMode: 'fill', heightMode: 'fill' });
 
 		this.pipRow = new Stack({ direction: 'horizontal', gap: 2, crossAlign: 'center' });
-		this.addChild(this.pipRow);
-
 		this.adrenalineValue = new Text('', {
 			id: `driver${seat}_adrenaline_value`,
 			style: { fontFamily: 'display', fontSize: 15, color, whiteSpace: 'nowrap' },
 		});
-		this.addChild(this.adrenalineValue);
+		const adrenaline = new Stack({ direction: 'horizontal', gap: 4, crossAlign: 'center' });
+		const adrenalineParts: Component[] = [this.pipRow, this.adrenalineValue];
+		for (const part of seat === 1 ? adrenalineParts : adrenalineParts.reverse()) adrenaline.addChild(part);
 
 		this.piles = new Text('', {
 			id: `driver${seat}_piles`,
 			style: { fontFamily: 'mono', fontSize: 12, color: rgba('text_dim'), whiteSpace: 'nowrap' },
 		});
-		this.addChild(this.piles);
+
+		const parts: Component[] = [mark, this.nameLabel, this.passengerTag, spacer, adrenaline, this.piles];
+		for (const part of seat === 1 ? parts : parts.reverse()) this.addChild(part);
 
 		this.show();
 	}
@@ -132,7 +150,10 @@ export class DriverTab extends Stack {
 		this.piles.setText(`DRAW ${drawPileCount}   DISCARD ${discardPileCount}`);
 	}
 
-	/** One pip per point up to the cap, the first `filled` in the driver's colour. */
+	/**
+	 * One pip per point up to the cap, the first `filled` in the driver's
+	 * colour, counted from the tab's outer end.
+	 */
 	private showPips(count: number, filled: number): void {
 		while (this.pips.length > count) {
 			const pip = this.pips.pop();
@@ -143,14 +164,9 @@ export class DriverTab extends Stack {
 			this.pips.push(pip);
 			this.pipRow.addChild(pip);
 		}
-		const [red, green, blue] = hexToRgb(DRIVER_COLORS[this.seat]);
-		this.pips.forEach((pip, index) => {
-			pip.setFillColor([red, green, blue, index < filled ? 1 : EMPTY_PIP_ALPHA]);
+		const outward = this.seat === 1 ? this.pips : [...this.pips].reverse();
+		outward.forEach((pip, index) => {
+			pip.setFillColor(hexRgba(DRIVER_COLORS[this.seat], index < filled ? 1 : EMPTY_PIP_ALPHA));
 		});
 	}
-}
-
-function hexToRgb(hex: string): [number, number, number] {
-	const value = parseInt(hex.slice(1), 16);
-	return [((value >> 16) & 255) / 255, ((value >> 8) & 255) / 255, (value & 255) / 255];
 }

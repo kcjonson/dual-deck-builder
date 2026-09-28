@@ -4,7 +4,7 @@ import { Stack } from '../../../engine/components/Stack';
 import { EnemyBattlefieldLayer, EnemyIntent } from './EnemyBattlefieldLayer';
 import { PlayerBattlefieldLayer } from './PlayerBattlefieldLayer';
 import { PlayerHandLayer } from './PlayerHandLayer';
-import { TopBarLayer } from './TopBarLayer';
+import { LOG_KEY, TopBarLayer } from './TopBarLayer';
 import { EndTurnColumn } from './EndTurnColumn';
 import { CombatLogLayer } from './CombatLogLayer';
 import { TurnPhaseDisplay, CombatPhase } from './TurnPhaseDisplay';
@@ -17,7 +17,8 @@ import {
 	STAGE_MAX_WIDTH,
 	computeCombatStage,
 } from './CombatLayout';
-import { DOCK_BACKGROUND, Rgba } from './combatStyle';
+import { ChromeStack } from './ChromeStack';
+import { DOCK_GRADIENT, Rgba, rgba } from './combatStyle';
 import { buildPlayerHandView } from './PlayerHandView';
 import { Driver, DriverRole } from '../../mechanics/Driver';
 import { assertDriverPair } from '../../mechanics/DriverPair';
@@ -35,6 +36,8 @@ import { BattleResultData } from '../battleResult/BattleResultScreen';
 /** Behind the stage, to the screen's edges (the mock's `.g-bg`). */
 const SCREEN_BACKGROUND: Rgba = [0.0824, 0.0863, 0.0941, 1];
 const BANNER_INSET = 12;
+/** The top bar's LOG key in either case, and F6, which it has always had. */
+const LOG_TOGGLE_KEYS = [LOG_KEY.toLowerCase(), LOG_KEY, 'F6'];
 /** Between the hands and the End Turn column. */
 const DOCK_GAP = 16;
 /**
@@ -153,7 +156,7 @@ export class CombatScreen extends Screen {
 
 			// Initial UI update is handled by battleStarted event
 			
-			this.turnPhaseDisplay.phase = CombatPhase.COMBAT_START;
+			this.turnPhaseDisplay.phase = this.battle.isPlayerTurn ? CombatPhase.PLAYER_TURN : CombatPhase.ENEMY_TURN;
 			
 			// Log combat start
 			this.combatLog.addEntry('Combat Started!', CombatLogType.INFO);
@@ -471,13 +474,12 @@ export class CombatScreen extends Screen {
 		});
 		road.addChild(this.battlefieldLayer);
 
-		// Centred on the line between the two bands, at the left edge, where
-		// no lane centres a vehicle
+		// Centred on the road's height at its left edge, whatever fills the
+		// road, so the slot grid (DDB-134) can replace the two bands under it
 		this.turnPhaseDisplay = new TurnPhaseDisplay({
 			id: 'combat_turn_banner',
 			positioned: 'absolute',
-			anchor: [0, ENEMY_ROAD_WEIGHT / (ENEMY_ROAD_WEIGHT + PLAYER_ROAD_WEIGHT)],
-			pivot: 'left',
+			anchor: 'left',
 			x: BANNER_INSET,
 			zIndex: 1,
 		});
@@ -500,7 +502,7 @@ export class CombatScreen extends Screen {
 
 	/** Both drivers' tabs and hands, then the End Turn column at the stage's right end. */
 	private createDock(): Stack {
-		const dock = new Stack({
+		const dock = new ChromeStack({
 			id: 'combat_dock',
 			direction: 'horizontal',
 			gap: DOCK_GAP,
@@ -508,8 +510,8 @@ export class CombatScreen extends Screen {
 			crossAlign: 'stretch',
 			widthMode: 'fill',
 			height: DOCK_HEIGHT,
+			chrome: { fill: DOCK_GRADIENT, edge: { color: rgba('line_edge'), edges: { top: true } } },
 		});
-		dock.setBackgroundColor(DOCK_BACKGROUND);
 
 		this.handLayer = new PlayerHandLayer({
 			id: 'combat_player_hand',
@@ -546,7 +548,7 @@ export class CombatScreen extends Screen {
 			this.onCardSelected(card);
 		});
 
-		// Escape cancels targeting and F6 toggles the combat log, from the
+		// Escape cancels targeting and L or F6 toggles the combat log, from the
 		// screen root's hotkey table, which keys reach after bubbling out of
 		// whatever is focused (R9.15)
 		const { hotkeys } = this.rootLayer;
@@ -557,9 +559,7 @@ export class CombatScreen extends Screen {
 				this.restoreKeyboardFocus();
 			}
 		});
-		hotkeys.register('F6', () => {
-			this.toggleCombatLog();
-		});
+		for (const key of LOG_TOGGLE_KEYS) hotkeys.register(key, () => this.toggleCombatLog());
 
 		// Removed global click handler - it was interfering with vehicle targeting
 	}
@@ -875,7 +875,7 @@ export class CombatScreen extends Screen {
 		}
 
 		this.rootLayer.hotkeys.unregister('Escape');
-		this.rootLayer.hotkeys.unregister('F6');
+		for (const key of LOG_TOGGLE_KEYS) this.rootLayer.hotkeys.unregister(key);
 
 		// Unsubscribe from all events
 		this.unsubscribeAll();

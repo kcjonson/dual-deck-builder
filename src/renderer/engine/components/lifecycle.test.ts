@@ -281,7 +281,7 @@ describe('hugging containers and the layout passes (R8.18)', () => {
 		}
 	}
 
-	/** Places its chips in a row from their widths, as ResourceBarLayer places its displays. */
+	/** Places its chips in a row from their widths, as a hand-placed row reads its measured children. */
 	class Row extends Layer {
 		public passes = 0;
 
