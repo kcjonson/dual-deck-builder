@@ -2,10 +2,11 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { expect, test } from '@playwright/test';
 import type { Page } from '@playwright/test';
+import { PNG } from 'pngjs';
 import { DrawApi, RecordingBackend, TextureHandle } from '../../../src/renderer/engine/draw';
 import { Batcher } from '../../../src/renderer/engine/draw/Batcher';
 import { ResidentTextureSet } from '../../../src/renderer/engine/draw/ResidentTextureSet';
-import { parseFontAtlas } from '../../../src/renderer/engine/text/FontAtlas';
+import { FontAtlas, parseFontAtlas } from '../../../src/renderer/engine/text/FontAtlas';
 import { TextMetricsService } from '../../../src/renderer/engine/text/TextMetricsService';
 import {
 	UBER_ATTRIBUTES,
@@ -74,6 +75,14 @@ const GLYPH_ATLAS = parseFontAtlas({
 });
 const GLYPH_TEXTURE: TextureHandle = { id: 1, width: 4, height: 4, label: 'glyph atlas' };
 
+/** The `body` role a test draws with: its metrics and the texture its groups name. */
+interface BodyFont {
+	atlas: FontAtlas;
+	texture: TextureHandle;
+}
+
+const GLYPH_FONT: BodyFont = { atlas: GLYPH_ATLAS, texture: GLYPH_TEXTURE };
+
 interface Frame {
 	pixels: number[];
 	width: number;
@@ -85,9 +94,10 @@ function encode(
 	target: Target,
 	build: (api: DrawApi) => void,
 	prepare?: (api: DrawApi) => void,
+	font: BodyFont = GLYPH_FONT,
 ): { bytes: number[]; instances: number } {
 	const backend = new RecordingBackend({ maxFrames: 1 });
-	backend.loadFontAtlas({ name: 'body', atlas: GLYPH_ATLAS, texture: GLYPH_TEXTURE });
+	backend.loadFontAtlas({ name: 'body', atlas: font.atlas, texture: font.texture });
 	const api = new DrawApi({ backend, strict: true });
 	prepare?.(api);
 	api.beginFrame({ viewport: { width: target.width / target.ratio, height: target.height / target.ratio }, ratio: target.ratio });
@@ -95,18 +105,18 @@ function encode(
 	api.endFrame();
 
 	const text = new TextMetricsService();
-	text.addAtlas({ name: 'body', atlas: GLYPH_ATLAS });
+	text.addAtlas({ name: 'body', atlas: font.atlas });
 	const encoder = new UberGeometryEncoder({
 		text,
 		onUnpaintable: (kind, detail) => {
 			throw new Error(`${kind}: ${detail}`);
 		},
 	});
-	encoder.registerFontTexture('body', GLYPH_TEXTURE);
+	encoder.registerFontTexture('body', font.texture);
 	encoder.ratio = target.ratio;
 	const batcher = new Batcher({
 		encoder,
-		textures: new ResidentTextureSet({ units: UBER_TEXTURE_UNITS, resident: [GLYPH_TEXTURE] }),
+		textures: new ResidentTextureSet({ units: UBER_TEXTURE_UNITS, resident: [font.texture] }),
 	});
 	let bytes: number[] = [];
 	let instances = 0;
@@ -124,8 +134,9 @@ async function render(
 	target: Target,
 	build: (api: DrawApi) => void,
 	prepare?: (api: DrawApi) => void,
+	font?: BodyFont,
 ): Promise<Frame> {
-	const geometry = encode(target, build, prepare);
+	const geometry = encode(target, build, prepare, font);
 	return page.evaluate(({ target, geometry, sources, attributes, stride, verticesPerInstance, units }) => {
 		const canvas = document.createElement('canvas');
 		canvas.width = target.width;
@@ -510,4 +521,137 @@ test.describe('uber shader', () => {
 		expect(pixel(frame, 4, 4)).toEqual([255, 0, 255, 255]);
 		expect(pixel(frame, 12, 4)).toEqual([255, 0, 0, 255]);
 	});
+});
+
+/**
+ * 6.9's scored small-size gate: at ratio 1, the body face at 10, 12 and 13 px
+ * through the distance field against the platform's own rasterisation of the
+ * same font file, for stem weight (total ink over a word) and evenness (how
+ * much the darkest column of each `l` in a row of them varies as its
+ * sub-pixel phase moves). Distance fields have no hinting (R6.4a), so the
+ * gate is a band, not equality; the scores print so a regression shows how
+ * far it moved.
+ */
+test.describe('small text against a platform reference (6.9)', () => {
+	const FONTS = join(__dirname, '../../../src/assets/fonts');
+	const BODY_ATLAS = parseFontAtlas({
+		json: JSON.parse(readFileSync(join(FONTS, 'open-sans-regular.json'), 'utf8')),
+		source: 'open-sans-regular',
+		warn: () => undefined,
+	});
+	const BODY_TEXTURE: TextureHandle = { id: 1, width: BODY_ATLAS.width, height: BODY_ATLAS.height, label: 'body atlas' };
+	const BODY_FACE = readFileSync(join(FONTS, 'open-sans/OpenSans-Regular.ttf')).toString('base64');
+	const WORD = 'Hamburgefonstiv';
+	const STEMS = 'llllllllllllllll';
+	const WIDTH = 240;
+	const HEIGHT = 48;
+	const WORD_BASELINE = 18;
+	const STEM_BASELINE = 40;
+	/** Lowest weight and highest stem variation each size may score (see the test). */
+	const SCORE_FLOORS: Record<number, { weight: number; variation: number }> = {
+		10: { weight: 0.55, variation: 0.35 },
+		12: { weight: 0.58, variation: 0.3 },
+		13: { weight: 0.62, variation: 0.3 },
+	};
+	let texels: number[] = [];
+
+	test.beforeAll(() => {
+		texels = Array.from(PNG.sync.read(readFileSync(join(FONTS, 'open-sans-regular.png'))).data);
+	});
+
+	test.beforeEach(async ({ page }) => {
+		await page.setContent('<!doctype html><title>small text</title>');
+	});
+
+	/** Coverage per device pixel, top row first, and the pen advance of one `l`. */
+	interface Raster {
+		coverage: number[];
+		stemAdvance: number;
+	}
+
+	/** The two runs through the uber shader, laid out by the atlas metrics. */
+	async function distanceField(page: Page, size: number): Promise<Raster> {
+		const target: Target = {
+			width: WIDTH,
+			height: HEIGHT,
+			ratio: 1,
+			clear: TRANSPARENT,
+			textures: [{ unit: 0, width: BODY_ATLAS.width, height: BODY_ATLAS.height, texels }],
+		};
+		const frame = await render(page, target, (api) => {
+			api.drawText({ text: WORD, position: { x: 4, y: WORD_BASELINE }, font: 'body', size, color: [1, 1, 1, 1] });
+			api.drawText({ text: STEMS, position: { x: 4, y: STEM_BASELINE }, font: 'body', size, color: [1, 1, 1, 1] });
+		}, undefined, { atlas: BODY_ATLAS, texture: BODY_TEXTURE });
+		const coverage: number[] = [];
+		for (let y = 0; y < HEIGHT; y++) for (let x = 0; x < WIDTH; x++) coverage.push(pixel(frame, x, y)[3] / 255);
+		return { coverage, stemAdvance: (BODY_ATLAS.glyph(0x6C)?.advance ?? 0) * size };
+	}
+
+	/** The same two runs from the platform's 2D text API with the same font file. */
+	async function platform(page: Page, size: number): Promise<Raster> {
+		return page.evaluate(async ({ face, size, width, height, word, stems, wordBaseline, stemBaseline }) => {
+			const bytes = Uint8Array.from(atob(face), (char) => char.charCodeAt(0));
+			const font = new FontFace('reference', bytes.buffer);
+			await font.load();
+			// This project's test lib predates `FontFaceSet.add`.
+			(document.fonts as unknown as { add(face: FontFace): void }).add(font);
+			const canvas = document.createElement('canvas');
+			canvas.width = width;
+			canvas.height = height;
+			const context = canvas.getContext('2d') as CanvasRenderingContext2D;
+			context.font = `${size}px reference`;
+			context.fillStyle = '#ffffff';
+			context.fillText(word, 4, wordBaseline);
+			context.fillText(stems, 4, stemBaseline);
+			const data = context.getImageData(0, 0, width, height).data;
+			const coverage: number[] = [];
+			for (let index = 3; index < data.length; index += 4) coverage.push(data[index] / 255);
+			// The platform's own advances, which hinting may round.
+			return { coverage, stemAdvance: context.measureText(stems).width / stems.length };
+		}, { face: BODY_FACE, size, width: WIDTH, height: HEIGHT, word: WORD, stems: STEMS, wordBaseline: WORD_BASELINE, stemBaseline: STEM_BASELINE });
+	}
+
+	function ink(coverage: number[], top: number, bottom: number): number {
+		let sum = 0;
+		for (let y = top; y < bottom; y++) for (let x = 0; x < WIDTH; x++) sum += coverage[y * WIDTH + x];
+		return sum;
+	}
+
+	/** The coefficient of variation of each `l`'s darkest column, in its advance-wide window. */
+	function stemVariation({ coverage, stemAdvance: advance }: Raster): number {
+		const peaks: number[] = [];
+		for (let glyph = 0; glyph < STEMS.length; glyph++) {
+			const start = Math.floor(4 + glyph * advance);
+			const end = Math.floor(4 + (glyph + 1) * advance);
+			let peak = 0;
+			for (let x = start; x < end; x++) {
+				let column = 0;
+				for (let y = WORD_BASELINE + 4; y < HEIGHT; y++) column += coverage[y * WIDTH + x];
+				peak = Math.max(peak, column);
+			}
+			peaks.push(peak);
+		}
+		const mean = peaks.reduce((sum, value) => sum + value, 0) / peaks.length;
+		const variance = peaks.reduce((sum, value) => sum + (value - mean) ** 2, 0) / peaks.length;
+		return Math.sqrt(variance) / mean;
+	}
+
+	for (const size of [10, 12, 13]) {
+		test(`scores the body face at ${size} px for stem weight and evenness`, async ({ page }) => {
+			const field = await distanceField(page, size);
+			const reference = await platform(page, size);
+			const weight = ink(field.coverage, 0, WORD_BASELINE + 4) / ink(reference.coverage, 0, WORD_BASELINE + 4);
+			const fieldEvenness = stemVariation(field);
+			const referenceEvenness = stemVariation(reference);
+			console.log(`6.9 small text, body ${size} px: weight ${weight.toFixed(3)} of the platform's, stem variation ${fieldEvenness.toFixed(3)} against ${referenceEvenness.toFixed(3)}`);
+			// A ratchet, not the target: the field is visibly lighter than the
+			// platform's hinted raster at these sizes (DDB-199 measured 0.64 to
+			// 0.72 of its ink on macOS), which stem darkening in `text` mode
+			// would close. These floors catch it getting worse.
+			const floor = SCORE_FLOORS[size];
+			expect(weight).toBeGreaterThan(floor.weight);
+			expect(weight).toBeLessThan(1.25);
+			expect(fieldEvenness).toBeLessThan(floor.variation);
+		});
+	}
 });

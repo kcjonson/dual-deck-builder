@@ -21,10 +21,12 @@ import vertexSource from '../../../assets/shaders/uber.vert';
 import fragmentSource from '../../../assets/shaders/uber.frag';
 import type { TextureStore } from '../gpu/TextureStore';
 import type { LoadedFontAtlas } from '../text/loadFontAtlases';
+import { PlatformFaces, documentFaceLoader } from '../text/platformFaces';
 import { TextMetricsService } from '../text/TextMetricsService';
 import { FrameTimer } from './FrameTimer';
 import type { GpuTimer } from './GpuTimer';
 import { Renderer } from './Renderer';
+import { GlyphCanvas, SmallTextAtlases, createDocumentGlyphCanvas } from './SmallTextAtlases';
 import { StreamRing } from './StreamRing';
 import {
 	UBER_ATTRIBUTES,
@@ -99,6 +101,13 @@ export interface WebGL2BackendOptions {
 	gpuTimer?: GpuTimer | null;
 	/** Initial instance ring capacity in bytes. */
 	instanceRingBytes?: number;
+	/**
+	 * The platform faces R6.4a's raster fallback draws small text with
+	 * (`PlatformFaces`). Absent, every size draws from the distance field.
+	 */
+	rasterFaces?: { familyOf(role: string): string | null } | null;
+	/** The canvas the fallback rasterises into; the DOM's by default. */
+	createGlyphCanvas?: (width: number, height: number) => GlyphCanvas | null;
 }
 
 export interface CreateDrawApiOptions {
@@ -138,7 +147,12 @@ const FRAME_SLOTS = 3;
  * `expectCleanConsole`.
  */
 export function createDrawApi({ renderer, frameTimer, gpuTimer, fontAtlases = [] }: CreateDrawApiOptions): DrawApi {
-	const backend = new WebGL2Backend({ renderer, frameTimer, gpuTimer });
+	// Small text draws from the distance field until its face loads (R6.4a).
+	const rasterFaces = new PlatformFaces({
+		load: documentFaceLoader(),
+		onError: (face, error) => console.error(`draw: the ${face} font file failed to load, so its small text stays soft:`, error),
+	});
+	const backend = new WebGL2Backend({ renderer, frameTimer, gpuTimer, rasterFaces });
 	for (const { role, face, atlas, image } of fontAtlases) {
 		const texture = renderer.textures.create({
 			width: atlas.width,
@@ -181,6 +195,8 @@ export class WebGL2Backend implements DrawBackend {
 	/** Font role to atlas texture, in load order; the resident set is these (R6.4). */
 	private readonly fontTextures = new Map<string, TextureHandle>();
 	private readonly encoder: UberGeometryEncoder;
+	/** R6.4a's raster atlases, or null without platform faces. */
+	private readonly smallText: SmallTextAtlases | null;
 	private readonly residentTextures: ResidentTextureSet;
 	private readonly batcher: Batcher;
 	/** What every unit holds when nothing else is bound to it; the store restores it with the rest. */
@@ -219,15 +235,25 @@ export class WebGL2Backend implements DrawBackend {
 		frameTimer,
 		gpuTimer = null,
 		instanceRingBytes = DEFAULT_INSTANCE_RING_BYTES,
+		rasterFaces = null,
+		createGlyphCanvas = createDocumentGlyphCanvas,
 	}: WebGL2BackendOptions) {
 		this.renderer = renderer;
 		this.frameTimer = frameTimer;
 		this.gpuTimer = gpuTimer;
 		this.gl = renderer.getContext();
 
+		this.smallText = rasterFaces
+			? new SmallTextAtlases({
+				textures: renderer.textures,
+				familyOf: (role) => rasterFaces.familyOf(role),
+				createCanvas: createGlyphCanvas,
+			})
+			: null;
 		this.encoder = new UberGeometryEncoder({
 			text: this.text,
 			onUnpaintable: (kind, detail) => this.reportUnpaintable(kind, detail),
+			smallText: this.smallText,
 		});
 		// The font atlases join as they load (`loadFontAtlas`); the rest of the
 		// units are dynamic, handed to images as they arrive (R5.20).
@@ -289,6 +315,7 @@ export class WebGL2Backend implements DrawBackend {
 		// R7.2: the ratio reaches the encoder per frame, for inflation, the
 		// feather and glyph snapping.
 		this.encoder.ratio = frame.ratio;
+		this.smallText?.beginFrame(frame.ratio);
 		this.instanceRing.beginFrame(frame.frame);
 		this.writeFrameUniforms(frame);
 		this.bindPipeline();

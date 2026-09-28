@@ -6,6 +6,15 @@ This document contains the chronological log of completed development tasks for 
 
 **Date correction (2026-08-22):** the repo's first commit is 2025-05-17, but many entries below carry dates in December 2024 or January 2025 — the AI that wrote them used its assumed date instead of the real one. Entries dated 2025-07-03 and 2025-07-02 have been corrected from "2025-01-03"/"2025-01-02" (verified against git history). Remaining Dec 2024 / Jan 2025 dates are wrong by roughly six months; the real work happened May–July 2025. Trust git history over these dates.
 
+## Small-text raster fallback and the scored small-size gate (2026-09-28)
+
+**What landed:** DDB-199 (R6.4a, chapter 6.9, from DDB-70).
+
+- Runs whose screen-space range is under 1.5 device pixels (8 px and below at ratio 1) draw from a per-(role, size, ratio) atlas rasterised with the platform's 2D text API from the same TTFs the distance-field atlases were built from, as `image`-mode quads. Placement and measurement are still the distance-field layout; each glyph's pen rounds to a device pixel. `text/rasterGlyphs.ts` plans and draws the cells, `text/platformFaces.ts` registers the faces as `FontFace`s under private names, `rendering/SmallTextAtlases.ts` builds on first use and retires on ratio change or idleness. Substitute glyphs (R6.3) carry `outlineCodePoint` so the raster draws the outline the atlas holds.
+- Chosen over moving the seven literal 8 and 9 px combat sites to 11 px, which needs a combat card re-layout (DDB-217). 9 px sits exactly on the threshold and is unchanged.
+- 6.9's scored comparison is in `uberShader.spec.ts`: body at 10, 12, 13 px, field against platform, 0.64 to 0.72 of the platform's ink on macOS. A ratchet for now; stem darkening is DDB-218.
+- Font files are asset modules (URLs on the web, data URIs in Electron). The combat golden moves at the 8 px sites only.
+
 ## Honest text ink, pooled draw stacks, real pointer identity (2026-09-28)
 
 **What landed:** DDB-212, DDB-213, DDB-214, DDB-215 (DDB-55 follow-ups).

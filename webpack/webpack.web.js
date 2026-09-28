@@ -38,12 +38,18 @@ module.exports = merge(common, {
 				type: 'asset/resource',
 				generator: { filename: 'assets/fonts/[name].[contenthash][ext]' },
 			},
+			// The faces the small-text raster fallback draws with (R6.4a).
+			{
+				test: /\.ttf$/,
+				type: 'asset/resource',
+				generator: { filename: 'assets/fonts/[name].[contenthash][ext]' },
+			},
 		],
 	},
 	performance: {
 		// A 1024x512 atlas page is ~300 KiB and loads once; the size hint is for
 		// code, where splitting helps, not for a texture that cannot be split.
-		assetFilter: (file) => !/\.png$/.test(file),
+		assetFilter: (file) => !/\.(png|ttf)$/.test(file),
 	},
 	output: {
 		filename: '[name].[contenthash].js',

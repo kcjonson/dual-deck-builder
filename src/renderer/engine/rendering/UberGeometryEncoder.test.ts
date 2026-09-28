@@ -2,6 +2,8 @@ import { DrawApi, DrawCommand, DrawTextOptions, RecordingBackend, RGBA, TextureH
 import { Batcher, GeometryUpload, GroupShape } from '../draw/Batcher';
 import { ResidentTextureSet } from '../draw/ResidentTextureSet';
 import { TextMetricsService } from '../text/TextMetricsService';
+import type { FontAtlas } from '../text/FontAtlas';
+import { RasterGlyphAtlas, RasterGlyphSource, planRasterGlyphs } from '../text/rasterGlyphs';
 import { syntheticFontAtlas } from '../text/testing';
 import { fromHalf, toUnorm8 } from './packing';
 import {
@@ -54,13 +56,14 @@ interface Encoded {
 	upload: GeometryUpload;
 }
 
-function setup(ratio = 1) {
+function setup(ratio = 1, smallText: RasterGlyphSource | null = null) {
 	const text = new TextMetricsService();
 	text.addAtlas({ name: 'body', atlas: syntheticFontAtlas() });
 	const unpaintable: string[] = [];
 	const encoder = new UberGeometryEncoder({
 		text,
 		onUnpaintable: (kind, detail) => unpaintable.push(`${kind}: ${detail}`),
+		smallText,
 	});
 	encoder.registerFontTexture('body', ATLAS_TEXTURE);
 	encoder.ratio = ratio;
@@ -757,6 +760,122 @@ describe('UberGeometryEncoder: text (chapter 6)', () => {
 		const { uploads } = encode(commands);
 		expect(uploads).toEqual([]);
 		expect(unpaintable).toEqual(["text: drawText with font 'mono', which has no atlas"]);
+	});
+});
+
+describe('UberGeometryEncoder: small text from a raster atlas (R6.4a)', () => {
+	const RASTER_TEXTURE: TextureHandle = { id: 90, width: 1, height: 1, label: 'small text' };
+
+	/** Plans a raster atlas the way `SmallTextAtlases` does, without a canvas, and records each request. */
+	function rasterSource(): RasterGlyphSource & { requests: string[] } {
+		const requests: string[] = [];
+		return {
+			requests,
+			glyphs(font: string, atlas: FontAtlas, size: number, ratio: number): RasterGlyphAtlas {
+				requests.push(`${font} ${size} ${ratio}`);
+				const plan = planRasterGlyphs(atlas, size, ratio);
+				return { texture: { ...RASTER_TEXTURE, width: plan.width, height: plan.height }, width: plan.width, height: plan.height, cells: plan.cells };
+			},
+		};
+	}
+
+	it('draws a run under the threshold as image quads from its raster atlas, one texel to one pixel', () => {
+		const source = rasterSource();
+		const { draw } = setup(1, source);
+		const upload = draw((api) => {
+			api.drawText({ text: 'Ab', position: { x: 10.3, y: 20.4 }, font: 'body', size: 8, color: BLUE });
+		});
+		expect(source.requests).toEqual(['body 8 1']);
+		expect(upload.count).toBe(2);
+		const plan = planRasterGlyphs(syntheticFontAtlas(), 8, 1);
+		const a = plan.cells.get(0x41);
+		if (!a) throw new Error('no cell for A');
+		const [first, second] = [instance(upload, 0), instance(upload, 1)];
+		// Origin (10.3, 20.4) snaps to (10, 20); A is 5 by 6 above the
+		// baseline, b follows at 5 less 1 of kerning.
+		expect(first.corners).toEqual([[10, 14], [15, 14], [15, 20], [10, 20]]);
+		expect(second.corners).toEqual([[14, 14], [18, 14], [18, 20], [14, 20]]);
+		expect(first.texCoords).toEqual(f32([a.x / plan.width, a.y / plan.height, (a.x + a.width) / plan.width, (a.y + a.height) / plan.height]));
+		for (const glyph of [first, second]) {
+			expect(glyph.mode).toBe(UBER_MODE.image);
+			// The atlas is resident on unit 0; the raster atlas is a dynamic unit.
+			expect(glyph.slot).toBe(1);
+			expect(glyph.colors).toEqual([0, 1, 2, 3].map(() => pm(BLUE)));
+		}
+	});
+
+	it('reports the raster atlas as the group\'s texture', () => {
+		const { encoder } = setup(1, rasterSource());
+		const [command] = record((api) => {
+			api.drawText({ text: 'A', position: { x: 0, y: 20 }, font: 'body', size: 8, color: RED });
+		});
+		const shape: GroupShape = { instances: 0, texture: null };
+		expect(encoder.shape(command, shape)).toBe(true);
+		expect(shape.texture).toMatchObject({ id: RASTER_TEXTURE.id });
+	});
+
+	it('rounds each glyph\'s pen to a device pixel and leaves the advances alone, so measurement is unchanged', () => {
+		const { draw } = setup(1, rasterSource());
+		// At 7 px A advances 4.375: pens 10, 14.375 and 18.75 round to 10, 14 and 19.
+		const upload = draw((api) => {
+			api.drawText({ text: 'AAA', position: { x: 10, y: 20 }, font: 'body', size: 7, color: RED });
+		});
+		expect([0, 1, 2].map((n) => instance(upload, n).corners[0][0])).toEqual([10, 14, 19]);
+
+		const measured = new TextMetricsService();
+		measured.addAtlas({ name: 'body', atlas: syntheticFontAtlas() });
+		const { width } = measured.measure({ text: 'AAA', font: 'body', size: 7 });
+		expect(width).toBe(3 * 4.375);
+		// The last glyph's pen is within half a device pixel of the measured one.
+		expect(Math.abs(instance(upload, 2).corners[0][0] - (10 + 2 * 4.375))).toBeLessThanOrEqual(0.5);
+	});
+
+	it('keeps the distance field at 9 px, which sits on the threshold, and at 8 px at ratio 2', () => {
+		const source = rasterSource();
+		const atOne = setup(1, source).draw((api) => {
+			api.drawText({ text: 'A', position: { x: 0, y: 20 }, font: 'body', size: 9, color: RED });
+		});
+		expect(instance(atOne, 0).mode).toBe(UBER_MODE.text);
+		const atTwo = setup(2, source).draw((api) => {
+			api.drawText({ text: 'A', position: { x: 0, y: 20 }, font: 'body', size: 8, color: RED });
+		});
+		expect(instance(atTwo, 0).mode).toBe(UBER_MODE.text);
+		expect(source.requests).toEqual([]);
+	});
+
+	it('keeps the distance field for scaled or rotated text and for a blurred shadow run', () => {
+		const source = rasterSource();
+		const { draw } = setup(1, source);
+		const upload = draw((api) => {
+			api.pushTransform([0.5, 0, 0, 0.5, 0, 0]);
+			api.drawText({ text: 'A', position: { x: 0, y: 20 }, font: 'body', size: 8, color: RED });
+			api.popTransform();
+			api.drawText({ text: 'A', position: { x: 0, y: 40 }, font: 'body', size: 8, color: RED, shadow: { color: BLUE, blur: 2 } });
+		});
+		// The scaled run, the blurred shadow run, then the shadow's owner, which is sharp and small.
+		expect(upload.count).toBe(3);
+		expect(instance(upload, 0).mode).toBe(UBER_MODE.text);
+		expect(instance(upload, 1).mode).toBe(UBER_MODE.text);
+		expect(instance(upload, 2).mode).toBe(UBER_MODE.image);
+		expect(source.requests).toEqual(['body 8 1']);
+	});
+
+	it('keeps the distance field while the source has no atlas to give', () => {
+		const { draw } = setup(1, { glyphs: () => null });
+		const upload = draw((api) => {
+			api.drawText({ text: 'A', position: { x: 0, y: 20 }, font: 'body', size: 8, color: RED });
+		});
+		expect(instance(upload, 0).mode).toBe(UBER_MODE.text);
+	});
+
+	it('still draws decorations after the glyphs, as rect-mode rules', () => {
+		const { draw } = setup(1, rasterSource());
+		const upload = draw((api) => {
+			api.drawText({ text: 'Ab', position: { x: 0, y: 20 }, font: 'body', size: 8, color: RED, decoration: 'underline' });
+		});
+		expect(upload.count).toBe(3);
+		expect(instance(upload, 1).mode).toBe(UBER_MODE.image);
+		expect(instance(upload, 2).mode).toBe(UBER_MODE.rect);
 	});
 });
 
