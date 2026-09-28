@@ -16,6 +16,17 @@ This document contains the chronological log of completed development tasks for 
 
 **How:** unit tests for the grammar (pointer fields, defaults, rejections, cancel), dispatch (fields through the adapter, second-touch non-primary with no click, cancel suppresses the click and targets only its pointer, touch implicit capture), snapshot fields, the lint changes, and the scene's paint order from a recording backend. Lint measured over saved trees of all 14 scenes and 6 screens: gallery 0 (146 under the literal reading), screens 1,722 on `main` to 1,190 (developer 323 to 14; card showcase 1,020 to 797, of which 49 are DDB-216's unreachable cards). Follow-ups filed: DDB-212 (dispatcher's synthetic pointer fields), DDB-216 (card showcase scroll range). Decision record: [lint-interactivity.md](./AI_TECHNICAL_DECISIONS/lint-interactivity.md).
 
+## Culled subtrees skipped on a cached ink bound (2026-09-28)
+
+**What landed:** DDB-184 (DDB-55), R4.2a.
+
+- `Component.subtreeInk`: a conservative bound on the subtree's ink in the parent's space (own `cullInk` plus the walk's focus ring, every visible child's bound less the content offset, placed by origin and transform), cached and marked stale to the root by `invalidateInk` from every geometry setter, size change, anchor placement, `layer`, drag offset, focus-visible, `Panel`'s scroll and `invalidateLayout`. Null (never skipped) under a `layer` or a null `cullInk`.
+- `renderTree` skips a counted subtree whose bound misses the clip (grown by `SUBTREE_INK_OUTSET`, four device pixels) and adds its last walk's group count through `DrawApi.cullGroups`, so `apiDraws + culled` is unchanged.
+- `cullInk` overrides: `Text` (box plus measured overrun plus an em; null unmeasured), `Icon`, `ArmorBadge`, `IntentMarker`, `Circle` (the disc its radius draws), `DrawFixture` (null).
+- Development-only ink audit: `DrawApi.setInkBound` around each `render`, `ink-outside-bound` when a group leaves it.
+- No per-frame allocation for `clipRect`, `transformMatrix` or `Panel.contentOffset`. `MeasuringRecordingBackend` answers `textInk` through the new shared `runInk`.
+- No pixel moved (screenshot hashes against `main` at 84 screen and scroll states). Card showcase render median about 0.81 to 0.63 ms, developer 0.85 to 0.50 ms. [subtree-ink-cull.md](./AI_TECHNICAL_DECISIONS/subtree-ink-cull.md).
+
 ## Game code on the tree (2026-09-28)
 
 **What landed:** DDB-79 (DDB-55 phase 3), closing DDB-41.

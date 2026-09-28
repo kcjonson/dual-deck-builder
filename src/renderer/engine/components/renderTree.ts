@@ -1,5 +1,6 @@
+import { SUBTREE_INK_OUTSET } from '../draw/bounds';
 import type { DrawApi } from '../draw/DrawApi';
-import type { RGBA } from '../draw/geometry';
+import { ClipRect, RGBA, intersects, transformBoxInto } from '../draw/geometry';
 import { tokens } from '../theme/tokens';
 import type { Component } from './Component';
 
@@ -16,13 +17,26 @@ import type { Component } from './Component';
  * focus (R11.12).
  *
  * Invisible components and components at zero opacity are skipped whole
- * (R3.27). Nothing is pushed for a default: a component at the origin with no
+ * (R3.27). So is a subtree whose cached ink bound (`subtreeInk`) misses the
+ * current clip: every group in it would be culled (R4.2a), so the walk adds
+ * the groups it asked for on its last walk to `culled` and does not enter it.
+ * A subtree is never skipped before it has been walked and counted once,
+ * and any change to it forgets the count.
+ *
+ * Nothing is pushed for a default: a component at the origin with no
  * transform, full opacity and an inherited layer costs one `render` call.
  */
 export function renderTree(component: Component, draw: DrawApi): void {
 	if (!component.visible) return;
 	const opacity = component.opacity;
 	if (opacity <= 0) return;
+
+	const counted = component.walkedGroupCount;
+	if (counted >= 0 && missesClip(component, draw)) {
+		draw.cullGroups(counted);
+		return;
+	}
+	const requestedBefore = draw.groupsRequested;
 
 	const originX = component.originX;
 	const originY = component.originY;
@@ -41,7 +55,10 @@ export function renderTree(component: Component, draw: DrawApi): void {
 	if (layered) draw.pushLayer(layer);
 	if (promotes) draw.pushClipReset();
 
+	const audits = draw.auditsInk;
+	if (audits) draw.setInkBound(component.ownInkBound);
 	component.render(draw);
+	if (audits) draw.setInkBound(null);
 
 	const children = component.renderOrder;
 	if (children.length > 0) {
@@ -61,13 +78,44 @@ export function renderTree(component: Component, draw: DrawApi): void {
 		if (clips) draw.popClip();
 	}
 
-	if (component.focusVisible && component.effectivelyEnabled && !component.drawsOwnFocusRing) drawFocusRing(component, draw);
+	if (component.focusVisible && component.effectivelyEnabled && !component.drawsOwnFocusRing) {
+		if (audits) draw.setInkBound(component.ownInkBound);
+		drawFocusRing(component, draw);
+		if (audits) draw.setInkBound(null);
+	}
 
 	if (promotes) draw.popClip();
 	if (layered) draw.popLayer();
 	if (fades) draw.popOpacity();
 	if (matrix) draw.popTransform();
 	if (translated) draw.popTransform();
+
+	component.walkedGroupCount = draw.groupsRequested - requestedBefore;
+}
+
+/** Reused by `missesClip`, which runs per component per frame. */
+const screenInk: ClipRect = { minX: 0, minY: 0, maxX: 0, maxY: 0 };
+
+/**
+ * Whether everything `component`'s subtree can draw, placed by the current
+ * transform and grown by the most any group's cull ink grows, misses the
+ * current clip. Never under `none`, and never for a subtree with no bound
+ * (a layer that may promote past the clip, an unmeasured text).
+ */
+function missesClip(component: Component, draw: DrawApi): boolean {
+	const clip = draw.clip;
+	if (clip.kind === 'none') return false;
+	const ink = component.subtreeInk;
+	if (ink === null) return false;
+	if (clip.kind === 'empty') return true;
+	const ratio = draw.devicePixelScale;
+	const outset = SUBTREE_INK_OUTSET / (ratio > 0 ? ratio : 1);
+	const screen = transformBoxInto(draw.transform, ink.minX, ink.minY, ink.maxX, ink.maxY, screenInk);
+	screen.minX -= outset;
+	screen.minY -= outset;
+	screen.maxX += outset;
+	screen.maxY += outset;
+	return !intersects(screen, clip.rect);
 }
 
 const CLEAR: RGBA = [0, 0, 0, 0];

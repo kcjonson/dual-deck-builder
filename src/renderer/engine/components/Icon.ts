@@ -1,4 +1,6 @@
 import { Component, ComponentOptions, ResolvedColors } from './Component';
+import { grownRect } from './componentGeometry';
+import type { Rect } from '../draw/geometry';
 import type { RGBA } from '../draw';
 import type { DrawApi } from '../draw/DrawApi';
 import { ICON_ATLAS_ROLE } from '../text/fontFaces';
@@ -64,6 +66,11 @@ export class Icon extends Component {
 
 	public get resolvedColors(): ResolvedColors {
 		return { text: this.glyphTint };
+	}
+
+	/** The box grown by an em: a glyph's quad, padding included, may reach past its design square (DDB-184). */
+	protected get cullInk(): Rect {
+		return grownRect(this.inkRect, this.glyphSize);
 	}
 
 	public render(draw: DrawApi): void {

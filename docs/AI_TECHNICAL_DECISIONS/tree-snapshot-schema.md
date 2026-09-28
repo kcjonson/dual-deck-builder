@@ -87,8 +87,8 @@ label would have swapped its axes.
 **`inkBounds` is the seam DDB-184 needs.** `Component.inkRect` is the content box grown by
 `inkExtent` in local space, and the snapshot transforms it. Circle, Triangle and Polygon now report
 half their centred stroke as `inkExtent` (the draw layer's own cull bound says the same); nothing
-else reads `inkExtent`, so no pixel or cull changes. A cached subtree union of `inkRect`, dirtied at
-the geometry setters, is DDB-184's.
+else reads `inkExtent`, so no pixel or cull changes. DDB-184's cached subtree union of it is in
+[subtree-ink-cull.md](./subtree-ink-cull.md).
 
 **`pointerEvents` was withheld here, and DDB-208 emitted it.** The lint read it as "interactive"
 for rules 6 and 7 and R8.29 makes `auto` every leaf's default, so emitting it alone counted every

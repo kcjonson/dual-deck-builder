@@ -1,10 +1,12 @@
 import { DrawApi } from '../draw/DrawApi';
 import type { FontAtlasOptions } from '../draw/DrawBackend';
-import type { FontAtlasHandle, MeasureTextOptions, TextMetrics } from '../draw/commands';
+import type { DrawTextOptions, FontAtlasHandle, MeasureTextOptions, TextMetrics } from '../draw/commands';
+import type { Rect } from '../draw/geometry';
 import { RecordingBackend } from '../draw/RecordingBackend';
 import { FontAtlas, parseFontAtlas } from './FontAtlas';
 import { ATLAS_ASSETS, AtlasRole, FontRole } from './fontFaces';
 import { TextMetricsService } from './TextMetricsService';
+import { runInk } from './textPlacement';
 
 /**
  * Fixtures for tests that lay text out in Node (R14.1). Nothing in the game
@@ -93,6 +95,12 @@ export class MeasuringRecordingBackend extends RecordingBackend {
 	measureText(options: MeasureTextOptions): TextMetrics {
 		this.measureCalls++;
 		return this.text.measure(options);
+	}
+
+	/** The WebGL2 encoder's run extent, from the same layout, so text is culled here as it is in the game (R4.2a). */
+	textInk(options: DrawTextOptions): Rect | null {
+		const layout = this.text.layout(options);
+		return layout ? runInk(layout, options, options.decoration) : null;
 	}
 }
 

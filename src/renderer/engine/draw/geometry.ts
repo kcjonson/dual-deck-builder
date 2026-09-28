@@ -122,6 +122,44 @@ export function transformedBounds(matrix: Mat2D, rect: Rect): ClipRect {
 	};
 }
 
+/**
+ * `transformedBounds` of the box `[minX, maxX] x [minY, maxY]`, written into
+ * `out` and returned, for callers that run per component per frame and must
+ * not allocate.
+ */
+export function transformBoxInto(
+	matrix: Mat2D,
+	minX: number,
+	minY: number,
+	maxX: number,
+	maxY: number,
+	out: ClipRect,
+): ClipRect {
+	const [a, b, c, d, e, f] = matrix;
+	if (a === 1 && b === 0 && c === 0 && d === 1) {
+		out.minX = minX + e;
+		out.minY = minY + f;
+		out.maxX = maxX + e;
+		out.maxY = maxY + f;
+		return out;
+	}
+	// Each output axis is linear in x and y, so its extremes are at the
+	// corners and each term takes whichever end of its range is smaller.
+	const ax0 = a * minX;
+	const ax1 = a * maxX;
+	const cy0 = c * minY;
+	const cy1 = c * maxY;
+	const bx0 = b * minX;
+	const bx1 = b * maxX;
+	const dy0 = d * minY;
+	const dy1 = d * maxY;
+	out.minX = Math.min(ax0, ax1) + Math.min(cy0, cy1) + e;
+	out.maxX = Math.max(ax0, ax1) + Math.max(cy0, cy1) + e;
+	out.minY = Math.min(bx0, bx1) + Math.min(dy0, dy1) + f;
+	out.maxY = Math.max(bx0, bx1) + Math.max(dy0, dy1) + f;
+	return out;
+}
+
 /** Grown by `amount` on every side. Used for the conservative cull bounds of R4.2a. */
 export function inflate(rect: ClipRect, amount: number): ClipRect {
 	return {

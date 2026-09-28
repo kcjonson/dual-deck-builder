@@ -30,6 +30,14 @@ export class DrawFixture extends Layer {
 		this.paint = paint;
 	}
 
+	/**
+	 * Unbounded: `paint` draws anywhere, promotes layers and resets clips,
+	 * so no ancestor's clip can rule it out (DDB-184).
+	 */
+	protected get cullInk(): Rect | null {
+		return null;
+	}
+
 	/** The walk has already translated to the fixture's origin. */
 	public render(draw: DrawApi): void {
 		this.paint(draw);
