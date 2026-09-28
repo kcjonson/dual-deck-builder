@@ -68,7 +68,7 @@ describe('PaintOrderFixturesSection', () => {
 		expect(paintIndex('dev_po_scroll_menu')).toBeGreaterThan(paintIndex('dev_po_row_6'));
 	});
 
-	it('keeps the modal\'s select in the modal layer though it asks for base (R3.6)', () => {
+	it('paints the modal\'s select in the modal layer, over its dialog', () => {
 		expect(command('dev_po_modal_select').layer).toBe('modal');
 		expect(paintIndex('dev_po_modal_select')).toBeGreaterThan(paintIndex('dev_po_dialog'));
 	});

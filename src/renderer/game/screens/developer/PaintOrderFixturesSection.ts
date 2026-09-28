@@ -304,9 +304,12 @@ function popupInScroller(body: Layer): void {
 /**
  * The layer ladder in one place, inserted top of the ladder first: tooltip,
  * toast, then the modal, then the screen under it all. The modal's select
- * asks for `layer: 'base'` and stays at the modal's (R3.6's max, so a child
- * can never lower itself beneath its ancestor); its menu is a child of the
- * select raised to popup.
+ * inherits `modal`, and its menu is its child raised to popup.
+ *
+ * No child here asks for a layer below its ancestor's. R3.6 clamps it to the
+ * ancestor's, and also makes it an authoring error a development build
+ * reports, which the gallery's clean-console gate would fail; renderTree's
+ * tests cover the clamp.
  */
 function modalStack(body: Layer): void {
 	const dialog = { x: 50, y: 60, width: 320, height: 190 };
@@ -333,7 +336,6 @@ function modalStack(body: Layer): void {
 	const selectBox = new FixtureBox({
 		...select,
 		id: 'dev_po_modal_select',
-		layer: 'base',
 		fill: FIELD,
 		radius: 4,
 		border: { color: [0.8, 0.8, 0.9, 1], width: 1 },
