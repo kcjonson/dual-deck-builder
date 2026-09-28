@@ -40,6 +40,11 @@ positions so "how old is the region I am about to overwrite" is a subtraction. W
 the ring, the backend replaces the buffer at double size and logs it, rather than overwriting a live
 region; a ring that grows in steady state is a ring sized wrong, and the warning says so.
 
+Superseded for indices by DDB-195: on ANGLE Metal a draw from a freshly written element buffer
+costs in proportion to the whole buffer, so the index ring made every upload pay for three frames
+of indices. Indices now use a pool of per-upload buffers; vertices keep this ring. See
+[index-buffer-pool.md](./index-buffer-pool.md).
+
 There are no fences behind the two-frame rule, on purpose. Two frames is R5.27's number, not one
 measured with `fenceSync`, and it does not need to be: on WebGL a `bufferSubData` is ordered in the
 command stream, so overwriting a region the GPU is still reading costs ANGLE a copy or a stall and
