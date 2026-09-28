@@ -147,7 +147,34 @@ describe('a backend that cannot attribute its work leaves the counters null', ()
 
 		const stats = api.getStats();
 		expect(stats.gpuDraws).toBe(2);
-		expect(stats.splits).toEqual({ textureSlotsExhausted: 0, blendChange: 1, stencilLevel: 0 });
+		expect(stats.splits).toEqual({ textureSlotsExhausted: 0, blendChange: 1, stencilLevel: 0, topologyChange: 0 });
+	});
+
+	it('folds backend-caused flushes and clip changes into the frame (R13.13)', () => {
+		const api = new DrawApi({ backend: new SilentBackend() });
+		api.beginFrame({ viewport: VIEWPORT });
+		api.reportForeignDraws({
+			gpuDraws: 3,
+			vertices: 12,
+			triangles: 6,
+			instances: 0,
+			textureBinds: 0,
+			bytesUploaded: 64,
+			flushes: { bufferFull: 2 },
+			clipChanges: 1,
+		});
+		api.endFrame();
+
+		const stats = api.getStats();
+		expect(stats.flushes).toEqual({ barrier: 0, endFrame: 0, targetChange: 0, bufferFull: 2 });
+		// Measured, and non-zero here on purpose: R13.13 says it must read zero
+		// under the final design, so a backend that splits on clip says so.
+		expect(stats.clipChange).toBe(1);
+
+		api.beginFrame({ viewport: VIEWPORT });
+		api.endFrame();
+		expect(api.getStats().clipChange).toBe(0);
+		expect(api.getStats().flushes.bufferFull).toBe(0);
 	});
 });
 

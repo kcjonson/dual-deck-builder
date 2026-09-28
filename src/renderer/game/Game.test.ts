@@ -220,7 +220,15 @@ describe('window.__perf on the game page (R13.11, R15.37)', () => {
 		expect(snapshot.frame.p99Ms).toBeNull();
 		expect(snapshot.sections.update).toBeNull();
 		expect(snapshot.gpu.ms).toBeNull();
-		expect(snapshot.batcher).toBeNull();
 		expect(snapshot.memory.usedBytes).toBeNull();
+	});
+
+	it('carries the draw API counters for the last completed frame (R13.12)', () => {
+		game.render();
+		game.flush();
+
+		const { batcher } = perf().snapshot();
+		expect(batcher).not.toBeNull();
+		expect(batcher).toEqual(draw.getStats());
 	});
 });

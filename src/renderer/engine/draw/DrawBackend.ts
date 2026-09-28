@@ -37,12 +37,15 @@ import { FlushReason, GpuWork } from './stats';
  * - `NullBackend` (R2.21) accepts and counts, touches nothing.
  * - `RecordingBackend` (R2.22) keeps the arrays it was handed so a test can
  *   assert what would have been drawn and in what order.
- * - `LegacyGLBackend`, next PR, whose body is today's `Renderer`: it walks the
- *   array and issues one GL draw per command, which is what the current shader
- *   forces (one unit quad times a per-draw model matrix).
+ * - `LegacyGLBackend`, the pre-spec WebGL1 program: it hands the array to a
+ *   `Batcher` with a per-vertex encoder, so a domain becomes one GPU draw
+ *   unless something splits it.
  *
  * And the one it has to fit later: the WebGL2 backend of chapter 15, which
- * packs the same array into an instance buffer. Nothing here presumes either.
+ * hands the same array to the same `Batcher` with an instance encoder. The
+ * batcher sits behind this seam rather than in front of it because what a
+ * group's geometry looks like is the backend's vertex format (R5.4); see
+ * `Batcher.ts`.
  */
 
 export interface FrameDescription {

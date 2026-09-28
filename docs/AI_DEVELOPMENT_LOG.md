@@ -6,6 +6,19 @@ This document contains the chronological log of completed development tasks for 
 
 **Date correction (2026-08-22):** the repo's first commit is 2025-05-17, but many entries below carry dates in December 2024 or January 2025 — the AI that wrote them used its assumed date instead of the real one. Entries dated 2025-07-03 and 2025-07-02 have been corrected from "2025-01-03"/"2025-01-02" (verified against git history). Remaining Dec 2024 / Jan 2025 dates are wrong by roughly six months; the real work happened May–July 2025. Trust git history over these dates.
 
+## The batcher: one GPU draw per sort domain (2026-09-28)
+
+**What landed:** DDB-65's third PR (DDB-55 phase 1). The back half of chapter 3's batcher, and the legacy backend moved onto it.
+
+- `draw/Batcher.ts`: merges a sorted domain into one shared vertex and index upload, one contiguous range per draw group, and splits a GPU draw only for a reason (blend, topology, scissor clip, `textureSlotsExhausted`). A domain that outgrows the upload starts another, counted as a `bufferFull` flush. It sits behind the backend seam because the vertex format is the backend's (R5.4); the WebGL2 backend will compose it with an instance encoder.
+- `draw/ResidentTextureSet.ts`: R5.20's fixed resident units plus dynamic units; only exhaustion splits.
+- `rendering/LegacyGeometryEncoder.ts` and both legacy shaders: the per-draw uniforms (model matrix, colour, border colour and width, shape size) are per-vertex attributes, with the model matrix built by the same `gl-matrix` calls and multiplied in the same order, so the GPU sees the same floats. Text glyphs share the buffer. `TextRenderer.ts` deleted.
+- `LegacyGLBackend`: `legacyPaintOrder` puts each domain's text after its shapes, grouped by colour as `TextRenderer` did; one upload per domain; the font atlas bound once per frame; `submit` returns real `GpuWork`.
+- Stats: `GpuWork` carries backend-caused flushes and clip changes, `DrawStats.clipChange` is measured, `topologyChange` added as a legacy-only split reason. `PerfSnapshot.batcher` is `DrawApi.getStats()` on both pages; the F5 overlay shows groups in and GPU draws out.
+- Circles and polygons no longer inherit a previous rect's border uniform, and DDB-103's circle-outline buffer overrun is gone by construction; only the unbaselined primitive-shapes scene draws either.
+
+**How:** 18 batcher tests (merging, growth, upload capacity, resident and dynamic slots, every split reason, the clip seam, determinism, draw-record reuse), 5 resident-set tests, 18 encoder tests whose expectations are the deleted code's expressions written longhand, plus stats, FrameTimer and Game snapshot tests. Pixel check: `main` and this branch served side by side in Chromium at 1440x882, canvases hashed inside a paused frame; all six screens and seven baselined gallery scenes identical. Plain submission order for text differed by one level on driver selection, which is why the colour grouping stays. GPU draws: combat 91 to 6, showcase 91 to 2, developer 19 to 2, main menu 7 to 1, with `batcher.gpuDraws` equal to `renderer.glDrawCalls` on each. Decision record: `docs/AI_TECHNICAL_DECISIONS/batcher.md`.
+
 ## AI strategies score the effect types cards actually use (2026-09-27)
 
 **What landed:** DDB-171. The strategies checked effect types no card in `cards.json` has (`speed`, `move_to_position`, `position_change`, plus `armor`, `draw`, `adrenaline`, and `status`, and the status names `nitro_boost`, `oil_slick`, and `caltrops`), so MCTS gave a real Flank and Nitro Boost its flat 0.5 for unknown effects and the other strategies carried dead branches.

@@ -9,9 +9,8 @@ import { FontAtlas } from './FontAtlas';
  * It draws nothing. Every drawing method it used to have moved into
  * `LegacyGLBackend`, behind the `DrawBackend` seam, so a component reaches GL
  * through `DrawApi` and there is no second spelling of a rectangle for a screen
- * to find by autocomplete. The three accessors below exist for the backend,
- * which needs the shader it is drawing with and the matrices the text flush
- * uploads.
+ * to find by autocomplete. `shader` exists for the backend, which needs the
+ * program it is drawing with.
  */
 export class Renderer {
 	private canvas: HTMLCanvasElement;
@@ -120,15 +119,6 @@ export class Renderer {
 	/** The shader `useShader` bound, for the backend that draws with it. */
 	public get shader(): Shader | null {
 		return this.currentShader;
-	}
-
-	/** Logical pixels to clip space, rebuilt on every resize. */
-	public get projection(): mat4 {
-		return this.projectionMatrix;
-	}
-
-	public get view(): mat4 {
-		return this.viewMatrix;
 	}
 
 	/**

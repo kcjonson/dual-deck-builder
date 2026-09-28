@@ -1,3 +1,4 @@
+import type { DrawStats } from '../draw';
 import type { FrameRecord, FrameStats, FrameSanity, SectionStats } from './frameStats';
 import { frameWindowStats } from './frameStats';
 
@@ -66,13 +67,12 @@ export interface GpuStats {
 }
 
 /**
- * What the immediate-mode renderer can actually count today, under names that
- * say exactly what they count. This is deliberately not `batcher` (R13.12):
- * there is no batcher until phase 1, `glDrawCalls` is one increment per
- * `drawElements` or `drawArrays` at its call site, and `vertices` is the count
- * each call site reports for itself. Naming either of them `apiDraws` or
- * `gpuDraws` would publish R13.12's field names over numbers that do not mean
- * what those names promise.
+ * What the GL backend counts at its own call sites: `glDrawCalls` is one
+ * increment per `drawElements`, `vertices` the vertices that call drew, and
+ * `textCharacters` the characters handed to it. Kept beside `batcher` rather
+ * than replaced by it because the two are measured at different places, and
+ * `batcher.gpuDraws` equalling `glDrawCalls` on the same frame is the R13.5
+ * cross-check that the batcher's own count is honest.
  */
 export interface RendererCounters {
 	glDrawCalls: number;
@@ -104,8 +104,11 @@ export interface PerfSnapshot {
 	frame: FrameStats;
 	sections: Record<SectionName, SectionStats | null>;
 	gpu: GpuStats;
-	/** R13.12's counters arrive with the batcher in phase 1. */
-	batcher: null;
+	/**
+	 * R13.12 to R13.15, for the last completed frame, from `DrawApi.getStats`.
+	 * Null until a frame has been drawn, and on any caller that supplies none.
+	 */
+	batcher: DrawStats | null;
 	memory: { usedBytes: number | null };
 	renderer: RendererCounters;
 	sanity: FrameSanity;
@@ -284,8 +287,13 @@ export class FrameTimer {
 	 * `window.__perf` cannot drift apart.
 	 *
 	 * @param scene Active screen or scene name, so captures group per scene.
+	 * @param batcher The draw API's counters. The timer does not own the draw
+	 *   API, so the page that owns both hands them over.
 	 */
-	public snapshot({ scene = null }: { scene?: string | null } = {}): PerfSnapshot {
+	public snapshot({
+		scene = null,
+		batcher = null,
+	}: { scene?: string | null; batcher?: DrawStats | null } = {}): PerfSnapshot {
 		const stats = frameWindowStats({
 			frames: this.orderedFrames(),
 			budgetMs: this.budgetMs,
@@ -308,7 +316,7 @@ export class FrameTimer {
 			// nothing has been measured, and `valid: false` would read as a
 			// measurement that failed its R13.18 check.
 			gpu: { ms: null, valid: null, passes: null, spanMs: null, latencyMs: null },
-			batcher: null,
+			batcher,
 			memory: { usedBytes: this.memoryBytes },
 			renderer: {
 				glDrawCalls: this.lastFrameDrawCalls,

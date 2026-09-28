@@ -88,9 +88,11 @@ import { DrawCounters, DrawStats, FlushReason, GpuWork } from './stats';
  * WHAT ORDERING HAPPENS HERE, and what does not. R3.10's stable per-layer
  * partition runs before submission, so the array a backend receives is already
  * in emit order and R2.22's "sorted draw list" is true for every backend rather
- * than for whichever one implemented a sort. The batcher proper is still a
- * later PR: nothing here merges geometry, drops a group as occluded, splits a
- * GPU submission, or looks at a texture.
+ * than for whichever one implemented a sort. This is the front half of the
+ * batcher. The back half, which merges geometry into GPU draws, selects texture
+ * slots, and splits a submission with a reason, is `Batcher`, owned by the
+ * backend because it writes the backend's vertex format. Nothing here drops a
+ * group as occluded (R3.2 is a MAY and `occluded` stays null).
  *
  * WHAT IT COSTS. One object per draw group per frame, plus the copies. The
  * heaviest screen in this game submits 96 draws at a p99 of 1.02 ms against a
@@ -148,9 +150,9 @@ export interface DrawApiOptions {
 	 * every shape drawn in the same clip scope." That engine is this one, and
 	 * the 26 committed screenshot goldens are pictures of exactly that bug.
 	 *
-	 * `TextRenderer` reproduces the reordering by itself, because
-	 * `LegacyGLBackend` keeps it and flushes it once per batch. What no backend
-	 * can reproduce is the BOUND: a backend never sees a push or a pop (see
+	 * `LegacyGLBackend` reproduces the reordering by itself: `legacyPaintOrder`
+	 * puts each domain's text after its shapes before the batcher sees it. What
+	 * no backend can reproduce is the BOUND: a backend never sees a push or a pop (see
 	 * `DrawBackend`), so it cannot know where a clip scope started. This flag
 	 * supplies that half by ending a domain at every clip push and pop, which is
 	 * where `Renderer.enableScissor` and `disableScissor` flushed.

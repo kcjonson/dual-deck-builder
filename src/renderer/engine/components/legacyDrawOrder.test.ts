@@ -13,8 +13,9 @@ import { Text } from './Text';
  * and the file the ordering re-baseline PR deletes.
  *
  * What it pins is the BOUND, not the reordering. The reordering lives in
- * `TextRenderer`, which holds runs until `LegacyGLBackend` flushes them at the
- * end of a batch; that is invisible from here and is the backend's own business.
+ * `LegacyGLBackend`'s `legacyPaintOrder`, which moves each domain's text after
+ * its shapes before the batcher sees it; that is invisible from here and is
+ * the backend's own business.
  * What is visible from here, and what a golden depends on, is that a clip push
  * and a clip pop each end a sort domain, so a text run cannot outlive the scope
  * it was submitted in. Without it, the three chromium goldens whose screens clip
@@ -92,7 +93,7 @@ describe('legacyTextOrder domain bounds (TEMPORARY)', () => {
 
 	it('leaves submission order alone inside a domain', () => {
 		// The draw API reports the true order whatever the flag says; only
-		// LegacyGLBackend paints text late, and only because TextRenderer does.
+		// LegacyGLBackend paints text late, and only because legacyPaintOrder does.
 		const api = build(true);
 		api.beginFrame({ viewport: { width: 200, height: 200 } });
 		scene().render();
