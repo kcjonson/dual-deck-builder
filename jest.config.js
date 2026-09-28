@@ -14,6 +14,7 @@ module.exports = {
 	moduleNameMapper: {
 		'^@/(.*)$': '<rootDir>/src/$1',
 		'\\.(glsl|vs|fs|vert|frag)$': '<rootDir>/src/__mocks__/glslMock.js',
+		'\\.png$': '<rootDir>/src/__mocks__/assetMock.js',
 	},
 	collectCoverage: true,
 	coverageDirectory: 'coverage',

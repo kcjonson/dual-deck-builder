@@ -20,3 +20,10 @@ declare const __DEV_TOOLS__: boolean;
 // Build-time stamp from webpack DefinePlugin; null outside production builds.
 declare const __BUILD_SHA__: string | null;
 declare const __BUILD_NUMBER__: string | null;
+
+// Bundler asset modules (R15.34): a URL in the web build, a data URI in the
+// Electron renderer.
+declare module '*.png' {
+	const url: string;
+	export default url;
+}

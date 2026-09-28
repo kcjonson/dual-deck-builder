@@ -5,6 +5,7 @@ import { Game } from './renderer/game/Game';
 import { RendererContext } from './renderer/engine/rendering/RendererContext';
 import { InputSystem } from './renderer/engine/input/InputSystem';
 import { FrameTimer } from './renderer/engine/rendering/FrameTimer';
+import { LoadedFontAtlas, loadFontAtlases, loadImageElement } from './renderer/engine/text/loadFontAtlases';
 import vertexShaderSource from './assets/shaders/vertex.glsl';
 import fragmentShaderSource from './assets/shaders/fragment.glsl';
 
@@ -15,6 +16,8 @@ class Application {
 	private renderer!: Renderer;
 	private game!: Game;
 	private frameTimer!: FrameTimer;
+	/** Loaded and validated, not yet drawn with; DDB-70 hands these to the backend. */
+	private fontAtlases!: Promise<LoadedFontAtlas[]>;
 
 	/**
 	 * Initialize the application
@@ -30,6 +33,8 @@ class Application {
 					loadingElement.style.display = 'none';
 				}
 			});
+
+			this.fontAtlases = this.loadFonts();
 
 			// Frame timing, section timing and the per-frame draw counters (R13.7).
 			this.frameTimer = new FrameTimer();
@@ -81,6 +86,26 @@ class Application {
 		} catch (error) {
 			console.error('Failed to initialize application:', error);
 		}
+	}
+
+	/**
+	 * Starts decoding the font atlases alongside the rest of startup. The two
+	 * marks are the outcome as a packaged build reports it: the smoke test in
+	 * scripts/smoke-electron-package.mjs waits on them to check the atlases
+	 * load from file:// (R15.34), where a production bundle has no dev hooks.
+	 */
+	private loadFonts(): Promise<LoadedFontAtlas[]> {
+		const loading = loadFontAtlases({ loadImage: loadImageElement });
+		loading.then(
+			(atlases) => {
+				performance.mark('font-atlases-ready', { detail: { faces: atlases.map((loaded) => loaded.face) } });
+			},
+			(error: unknown) => {
+				console.error('Font atlases failed to load:', error);
+				performance.mark('font-atlases-failed', { detail: { message: String(error) } });
+			},
+		);
+		return loading;
 	}
 
 	/**
