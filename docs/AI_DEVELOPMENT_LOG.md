@@ -6,6 +6,14 @@ This document contains the chronological log of completed development tasks for 
 
 **Date correction (2026-08-22):** the repo's first commit is 2025-05-17, but many entries below carry dates in December 2024 or January 2025 — the AI that wrote them used its assumed date instead of the real one. Entries dated 2025-07-03 and 2025-07-02 have been corrected from "2025-01-03"/"2025-01-02" (verified against git history). Remaining Dec 2024 / Jan 2025 dates are wrong by roughly six months; the real work happened May–July 2025. Trust git history over these dates.
 
+## Body face kerning: stay on unkerned Open Sans (2026-09-28)
+
+**What landed:** DDB-189, a decision with no asset change. Open Sans 3.000 stays the body face and ships with an empty `kerning[]`.
+
+**Why:** no OFL Open Sans has kerning (3.000 and 3.003, static and variable, carry GPOS `mark` and `mkmk` only; upstream issue googlefonts/opensans#4 is still open), and the woff2 Google Fonts serves the mock is 3.003 with identical outlines and advances for every atlas glyph it holds, so unkerned is the mock's look. Open Sans 1.10 kerns but is Apache 2.0 and a different drawing (214 of 225 outlines differ); Noto Sans kerns but sets 1.1% wider with every advance different. Measured on all card text at 13 px, 1.10's kerning would move 26 of 4468 pairs by 0.5 px or more (largest 1.69 px): small, not zero, so the reason is mock fidelity.
+
+**How:** fontkit inspection and shaping of each candidate, recorded in [font-pipeline.md](./AI_TECHNICAL_DECISIONS/font-pipeline.md#body-text-stays-unkerned-ddb-189). `src/assets/fonts/README.md` and the zero-pairs test in `fontAssets.test.ts` point at the decision. No pixel moves.
+
 ## GPOS kerning in the font atlases (2026-09-28)
 
 **What landed:** DDB-182. `scripts/gpos-kerning.ts` resolves GPOS pair adjustment (lookup type 2, formats 1 and 2, through type 9 extensions) for the `kern` feature, and `scripts/merge-kerning.mjs` splices the result into an atlas JSON's `kerning[]` in msdf-atlas-gen's schema. `build-fonts.sh` and `.ps1` run it after each atlas. fontkit is a new devDependency. The loader drops, with a warning, a kerning pair naming a code point the atlas lacks, and a duplicate pair. jest and the root tsconfig now include `scripts/`.

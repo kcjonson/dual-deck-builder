@@ -116,6 +116,7 @@ describe('committed kerning (R6.9)', () => {
 		expect(kern('HH')).toBe(0);
 	});
 
+	// Open Sans is unkerned by decision (DDB-189): no OFL build kerns, and the mock renders the same unkerned face.
 	it('has no pairs for Open Sans 3.000 or JetBrains Mono, whose faces carry no kerning', () => {
 		expect(atlases.get('open-sans-regular')?.kerningPairCount).toBe(0);
 		expect(atlases.get('jetbrains-mono-regular')?.kerningPairCount).toBe(0);
