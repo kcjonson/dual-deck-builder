@@ -6,6 +6,18 @@ This document contains the chronological log of completed development tasks for 
 
 **Date correction (2026-08-22):** the repo's first commit is 2025-05-17, but many entries below carry dates in December 2024 or January 2025 — the AI that wrote them used its assumed date instead of the real one. Entries dated 2025-07-03 and 2025-07-02 have been corrected from "2025-01-03"/"2025-01-02" (verified against git history). Remaining Dec 2024 / Jan 2025 dates are wrong by roughly six months; the real work happened May–July 2025. Trust git history over these dates.
 
+## Phase 1 close-out: rendering fixtures, test gaps, perf re-capture (2026-09-28)
+
+**What landed:** DDB-68 (DDB-55 phase 1, its last task).
+
+- `screens/developer/DrawFixture.ts`: a `Layer` that paints through the draw API in its own space, plus caption helpers. The tree snapshot sees one node, so a fixture's deliberate overlaps stay out of the sibling-overlap lint.
+- Three new sections and gallery scenes: `PaintOrderFixturesSection` (3.12's fixture: ladder against submission order, one layer in both orders, a shadowed panel over a busy ground, a popup promoted out of a clipped scroller, a modal with an open select menu under a toast and a tooltip), `ClippingFixturesSection` (4.7's: nested and disjoint clips, content offset before a fixed clip, every primitive cut by one clip, text too long for its box) and `ShadingFixturesSection` (5.10's: radii, border widths and positions, gradients over a checker, bordered circles, lines, shadows and glows, the four blend modes over a generated landscape texture).
+- `DrawApi.test.ts`: promotion with base groups submitted after the popup. `WebGL2Backend.test.ts`: `roles` option on the fake backend, and 5.10's mixed-screen and four-flush ring tests. `uberShader.spec.ts`: the fractional abutting-rects case as `test.fail` for DDB-188.
+- Docs: phase 1's checklist ticked with a note per item, the coordinates line corrected (R7.8 and R7.8a were never applied), and the phase 1 result recorded under it.
+- Captures: `perf-results/phase1-frame-final.{json,md}` and `phase1-gallery-final.{json,md}`, compared against the phase 7 baselines.
+
+**How:** the three scenes rendered locally in the chromium project first and checked by eye, including the per-corner radius order; lint zero on all three through `lint.spec.ts`. Goldens minted on CI with `update_mode=changed`. Filed DDB-203 (nine-slice); notes on DDB-73, DDB-75, DDB-188 and DDB-190 for the tests and fixture items they now own.
+
 ## Paint order: text in submission order, reorder sites fixed (2026-09-28)
 
 **What landed:** DDB-67 (DDB-55 phase 1), the second deliberate re-baseline.
