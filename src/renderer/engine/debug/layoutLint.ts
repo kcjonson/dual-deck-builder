@@ -525,16 +525,21 @@ export function layoutLint(document: LintDocument, options: LintOptions | null =
 	 * parent's content box. Without a `margin` on the document the two boxes
 	 * coincide.
 	 *
-	 * No exemption for a scroll container. R13.25.2 grants none, and the intent
-	 * signal that would carry one, `contentOffset`, sits on the Panel, whose
-	 * only children are a background sized to the panel and a content layer
-	 * sized to the panel. The rows that actually overflow are a level below it
-	 * and would never have been reached by a parent-side test anyway.
+	 * One exemption R13.25.2 does not state: the direct children of a scroll
+	 * container, the node that carries `contentOffset`. Its content is taller
+	 * than it by definition (R12.20) and is clipped to it; what overflows
+	 * inside that content is still compared against the content, one level
+	 * down. Recorded as a departure in panel-and-scroll-container.md.
 	 */
 	const childOutsideParent = (child: Candidate, parent: Candidate): void => {
 		const rule = tally('child-outside-parent');
 		rule.evaluated++;
-		if (escape(marginBox(child), parent.screen) > EPSILON) report('child-outside-parent', child, parent);
+		if (escape(marginBox(child), parent.screen) <= EPSILON) return;
+		if (parent.node.contentOffset !== undefined) {
+			rule.exempt++;
+			return;
+		}
+		report('child-outside-parent', child, parent);
 	};
 
 	/**

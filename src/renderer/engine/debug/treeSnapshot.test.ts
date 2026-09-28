@@ -3,6 +3,7 @@ import type { Component } from '../components/Component';
 import { Rectangle } from '../components/Rectangle';
 import { Text } from '../components/Text';
 import { Panel } from '../ui/Panel';
+import { ScrollContainer } from '../ui/ScrollContainer';
 import { Button } from '../ui/Button';
 import { tokens } from '../theme/tokens';
 import { Input } from '../ui/Input';
@@ -238,18 +239,9 @@ describe('treeSnapshot', () => {
 			expect(panel.getChildren()).toEqual([card]);
 		});
 
-		it('subtracts panel scroll from screenBounds but never from bounds', () => {
-			const panel = new Panel({
-				id: 'scroller',
-				x: 10,
-				y: 20,
-				width: 100,
-				height: 50,
-				scrollable: true,
-				scrollDirection: 'vertical',
-			});
-			panel.setContentSize(100, 500);
-			panel.scroll(0, 30);
+		it('subtracts the scroll from screenBounds but never from bounds', () => {
+			const panel = new ScrollContainer({ id: 'scroller', x: 10, y: 20, width: 100, height: 50, contentHeight: 500 });
+			panel.scrollBy(30);
 
 			const row = new Layer({ id: 'row', x: 5, y: 100, width: 20, height: 10 });
 			panel.addChild(row);
@@ -265,14 +257,7 @@ describe('treeSnapshot', () => {
 		});
 
 		it('clips its children but not itself, matching the render walk', () => {
-			const panel = new Panel({
-				id: 'scroller',
-				x: 10,
-				y: 20,
-				width: 100,
-				height: 50,
-				scrollable: true,
-			});
+			const panel = new ScrollContainer({ id: 'scroller', x: 10, y: 20, width: 100, height: 50 });
 			panel.addChild(new Layer({ id: 'row', width: 20, height: 10 }));
 
 			const node = treeSnapshot([panel], VIEWPORT).roots[0];
@@ -281,22 +266,24 @@ describe('treeSnapshot', () => {
 			expect(node.children[0].clip).toEqual({ x: 10, y: 20, w: 100, h: 50 });
 		});
 
-		it('omits contentOffset on a non-scrollable panel', () => {
+		it('omits contentOffset on a panel, which does not scroll', () => {
 			const panel = new Panel({ id: 'static', width: 100, height: 50 });
 
 			expect('contentOffset' in treeSnapshot([panel], VIEWPORT).roots[0]).toBe(false);
 		});
 
-		it('reports a padded panel\'s inset as the offset the walk applies, and clips inside the border and radius', () => {
-			const panel = new Panel({ id: 'padded', x: 20, y: 30, width: 200, height: 100, padding: 10, overflow: 'hidden' });
+		it('places a padded panel\'s children inside the inset, and clips inside the border and radius', () => {
+			const panel = new Panel({ id: 'padded', x: 20, y: 30, width: 200, height: 100, layout: 'free', overflow: 'hidden', style: { padding: 10, borderRadius: 5 } });
 			panel.addChild(new Layer({ id: 'row', width: 50, height: 10 }));
+			panel.layoutSubtree();
 
 			const node = treeSnapshot([panel], VIEWPORT).roots[0];
 			const row = findById(node, 'row');
 
-			expect(node.contentOffset).toEqual({ x: -10, y: -10 });
+			// The inset is layout's anchor placement now, not a content offset.
+			expect('contentOffset' in node).toBe(false);
 			expect(row?.screenBounds).toEqual({ x: 30, y: 40, w: 50, h: 10 });
-			// The default box's 5 px radius is the larger inset.
+			// The 5 px radius is the larger inset.
 			expect(row?.clip).toEqual({ x: 25, y: 35, w: 190, h: 90 });
 		});
 	});
@@ -352,17 +339,8 @@ describe('treeSnapshot', () => {
 		});
 
 		it('gives a scrolled child the geometry the render walk gives it, scroll subtraction and clip included', () => {
-			const panel = new Panel({
-				id: 'scroller',
-				x: 10,
-				y: 20,
-				width: 100,
-				height: 50,
-				scrollable: true,
-				scrollDirection: 'vertical',
-			});
-			panel.setContentSize(100, 500);
-			panel.scroll(0, 30);
+			const panel = new ScrollContainer({ id: 'scroller', x: 10, y: 20, width: 100, height: 50, contentHeight: 500 });
+			panel.scrollBy(30);
 			panel.addChild(new Layer({ id: 'row', x: 5, y: 100, width: 20, height: 10 }));
 
 			const node = treeSnapshot([panel], VIEWPORT).roots[0];
@@ -573,9 +551,8 @@ describe('treeSnapshot', () => {
 		});
 
 		it('round-trips a mixed tree through JSON.stringify', () => {
-			const panel = new Panel({ id: 'dev_scroll', width: 300, height: 200, scrollable: true });
-			panel.setContentSize(300, 900);
-			panel.scroll(0, 40);
+			const panel = new ScrollContainer({ id: 'dev_scroll', width: 300, height: 200, contentHeight: 900 });
+			panel.scrollBy(40);
 			panel.addChild(new Text('Developer Tools', { id: 'dev_title', width: 200, height: 24 }));
 			panel.addChild(new Input('search', { id: 'dev_filter', width: 120, height: 30 }));
 
@@ -646,9 +623,8 @@ describe('treeSnapshot', () => {
 				margin: 7,
 				transform: { rotate: 0.3, scale: 1.5 },
 			});
-			const scroller = new Panel({ id: 'scroller', x: 20, y: 10, width: 200, height: 100, scrollable: true });
-			scroller.setContentSize(200, 400);
-			scroller.scroll(0, 25);
+			const scroller = new ScrollContainer({ id: 'scroller', x: 20, y: 10, width: 200, height: 100, contentHeight: 400 });
+			scroller.scrollBy(25);
 			scroller.addChild(new Button('Fire', { id: 'fire', x: 10, y: 60, width: 80, height: 30, margin: { left: 3 } }));
 			tilted.addChild(scroller);
 			root.addChild(tilted);

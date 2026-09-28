@@ -1,6 +1,6 @@
 import { Component } from '../components/Component';
 import { Text } from '../components/Text';
-import { Panel } from '../ui/Panel';
+import { ScrollContainer } from '../ui/ScrollContainer';
 import { Stack } from '../components/Stack';
 import { Input } from '../ui/Input';
 import { CLIP_NONE, ClipState, intersectClip } from '../draw/clip';
@@ -382,7 +382,7 @@ function serializeNode(
 		const offset = node.contentOffset;
 		const offsetX = finite(offset?.x);
 		const offsetY = finite(offset?.y);
-		if ((node instanceof Panel && node.scrollable) || offsetX !== 0 || offsetY !== 0) {
+		if (node instanceof ScrollContainer || offsetX !== 0 || offsetY !== 0) {
 			serialized.contentOffset = { x: offsetX, y: offsetY };
 		}
 

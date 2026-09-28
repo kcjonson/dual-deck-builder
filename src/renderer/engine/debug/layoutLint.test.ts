@@ -292,39 +292,33 @@ describe('layoutLint', () => {
 			expect(forRule(result, 'child-outside-parent')).toHaveLength(0);
 		});
 
-		it('reports the overflow inside a scroll container, which sits a level below contentOffset', () => {
-			// The shape treeSnapshot actually emits for a scrollable Panel: the
-			// Panel carries contentOffset, its two implicit children (a
-			// background and the content layer) are both sized to it, and the
-			// content the scroll moves is one level further down. A
-			// parent-side exemption keyed on contentOffset would therefore let
-			// off only the two children that can never overflow, and never the
-			// rows that do.
+		it('lets a scroll container\'s content overflow it, and still judges what overflows the content', () => {
+			// The shape treeSnapshot emits for a ScrollContainer (R12.20): it
+			// carries contentOffset, and its one content child is as tall as the
+			// content, which the container clips.
 			const result = layoutLint(
 				doc([
 					node({
 						id: 'scroller',
-						type: 'Panel',
+						type: 'ScrollContainer',
 						bounds: box(0, 0, 100, 100),
 						contentOffset: { x: 0, y: 40 },
 						children: [
-							node({ type: 'Rectangle', bounds: box(0, 0, 100, 100) }),
 							node({
-								type: 'Layer',
-								bounds: box(0, -40, 100, 100),
-								children: [node({ id: 'row', bounds: box(0, 0, 100, 400), screenBounds: box(0, -40, 100, 400) })],
+								id: 'content',
+								type: 'Stack',
+								bounds: box(0, 0, 100, 400),
+								screenBounds: box(0, -40, 100, 400),
+								children: [node({ id: 'row', bounds: box(0, 390, 120, 20), screenBounds: box(0, 350, 120, 20) })],
 							}),
 						],
 					}),
 				]),
 			);
 
-			expect(forRule(result, 'child-outside-parent').map((violation) => violation.path)).toEqual([
-				'scroller/Layer[1]',
-				'scroller/Layer[1]/row',
-			]);
-			expect(reportFor(result, 'child-outside-parent').exempt).toBe(0);
-			expect(reportFor(result, 'child-outside-parent').evaluated).toBe(3);
+			expect(forRule(result, 'child-outside-parent').map((violation) => violation.path)).toEqual(['scroller/content/row']);
+			expect(reportFor(result, 'child-outside-parent').exempt).toBe(1);
+			expect(reportFor(result, 'child-outside-parent').evaluated).toBe(2);
 		});
 
 		it('compares in screen space, so an offset parent does not make a contained child escape', () => {

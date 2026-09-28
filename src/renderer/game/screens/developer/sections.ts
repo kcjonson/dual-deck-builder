@@ -12,6 +12,8 @@ import { ClippingFixturesSection } from './ClippingFixturesSection';
 import { ShadingFixturesSection } from './ShadingFixturesSection';
 import { IconExamplesSection } from './IconExamplesSection';
 import { StackExamplesSection } from './StackExamplesSection';
+import { PanelExamplesSection } from './PanelExamplesSection';
+import { ScrollExamplesSection } from './ScrollExamplesSection';
 
 /**
  * The developer screen's sections, defined once.
@@ -111,5 +113,14 @@ export const developerSections: readonly DeveloperSection[] = [
 	{
 		name: 'stack',
 		build: ({ x, y, width }) => new StackExamplesSection(x, y, width),
+	},
+	// Chapter 12's component catalog (phase 5), one scene per component group.
+	{
+		name: 'panels',
+		build: ({ x, y, width }) => new PanelExamplesSection(x, y, width),
+	},
+	{
+		name: 'scrolling',
+		build: ({ x, y, width }) => new ScrollExamplesSection(x, y, width),
 	},
 ];

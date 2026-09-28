@@ -1,20 +1,23 @@
 import { Layer, LayerOptions } from '../../../engine/components/Layer';
 import { Rectangle } from '../../../engine/components/Rectangle';
+import { Stack } from '../../../engine/components/Stack';
 import { Text } from '../../../engine/components/Text';
+import { ScrollContainer } from '../../../engine/ui/ScrollContainer';
 import { CombatLog, CombatLogEntry, CombatLogType } from '../../mechanics/CombatLog';
-import { Panel } from '../../../engine/ui/Panel';
 
 /**
- * Combat log display layer showing recent battle events
- * Fixed to properly handle Model change events
+ * The combat log drawer: a header, and the entries in a scroll container
+ * that follows the newest entry (DDB-32). Entries are reconciled by id
+ * (R8.27), so a change adds the new line and drops the ones the log's
+ * rolling buffer dropped, rather than rebuilding every line.
  */
 export class CombatLogLayer extends Layer {
 	private combatLog: CombatLog;
 	private background: Rectangle;
 	private header: Rectangle;
 	private title: Text;
-	private panel: Panel;
-	private entryVisuals: Map<string, { text: Text, entry: CombatLogEntry }> = new Map();
+	private scroller: ScrollContainer;
+	private entryList: Stack;
 	private unsubscriber: (() => void) | null = null;
 
 	// Display properties
@@ -28,7 +31,7 @@ export class CombatLogLayer extends Layer {
 
 		this.combatLog = options.combatLog;
 
-		// Sized from the layer by placeChrome, in the layout phase
+		// Sized from the layer in the layout phase
 		this.background = new Rectangle({
 			style: {
 				backgroundColor: 'rgba(0, 0, 0, 0.8)',
@@ -62,25 +65,30 @@ export class CombatLogLayer extends Layer {
 		});
 		this.addChild(this.title);
 
-		// The entries' panel; not scrollable yet
-		this.panel = new Panel({
+		this.scroller = new ScrollContainer({
+			id: 'combat_log_scroll',
 			x: this.padding,
 			y: this.headerHeight + 5,
-			style: {
-				backgroundColor: 'transparent',
-			},
+			style: { padding: { top: 4, bottom: 4 } },
 		});
-		this.addChild(this.panel);
+		this.entryList = new Stack({ id: 'combat_log_entries', padding: { left: 5, right: 5 } });
+		this.scroller.addChild(this.entryList);
+		this.addChild(this.scroller);
+	}
+
+	/** The scroll container the entries are in. */
+	public get scrollContainer(): ScrollContainer {
+		return this.scroller;
 	}
 
 	/**
 	 * The model subscription is registered on mount and released on unmount
-	 * (R8.14), and the entries are rebuilt from the model, which may have
+	 * (R8.14), and the entries are reconciled with the model, which may have
 	 * moved on while the layer was detached.
 	 */
 	protected onMount(): void {
-		this.unsubscriber = this.combatLog.on('change', () => this.handleFullUpdate());
-		this.handleFullUpdate();
+		this.unsubscriber = this.combatLog.on('change', () => this.syncEntries());
+		this.syncEntries();
 	}
 
 	/** The model subscription; input is released by the base. */
@@ -93,99 +101,36 @@ export class CombatLogLayer extends Layer {
 
 	/** The layout phase: the layer was sized (R8.18). */
 	protected layoutChildren(): void {
-		this.placeChrome();
-		this.updateLayout();
-	}
-
-	private placeChrome(): void {
 		const width = this.getWidth();
 		const height = this.getHeight();
 		this.background.setSize(width, height);
 		this.header.setWidth(width);
 		this.title.setWidth(width);
-		this.panel.setSize(width - this.padding * 2, height - this.headerHeight - 15);
+		this.scroller.setSize(width - this.padding * 2, height - this.headerHeight - 15);
 	}
 
 	/**
-	 * Render any existing entries in the combat log
+	 * One line per entry, in the log's order, kept by entry id, then the
+	 * newest line in view: the scroll container settles at its end after the
+	 * layout the new lines cause.
 	 */
-	private renderExistingEntries(): void {
-		this.combatLog.entries.forEach((entry, index) => {
-			this.createEntryVisual(entry, index);
+	private syncEntries(): void {
+		this.entryList.reconcileChildren(this.combatLog.entries, {
+			key: (entry) => entry.id,
+			create: (entry) => new Text(this.getPrefixForEntry(entry) + entry.message, {
+				height: this.entryHeight,
+				style: {
+					fontSize: this.fontSize,
+					color: this.getColorForEntry(entry),
+					textAlign: 'left',
+					whiteSpace: 'nowrap',
+					textOverflow: 'ellipsis',
+				},
+			}),
 		});
-		this.updateLayout();
+		this.scroller.scrollToBottom();
 	}
 
-	/**
-	 * Handle full update by re-rendering all entries
-	 */
-	private handleFullUpdate(): void {
-		// Clear existing visuals
-		this.entryVisuals.forEach(visual => {
-			this.panel.removeChild(visual.text);
-		});
-		this.entryVisuals.clear();
-		
-		// Re-render all entries
-		this.renderExistingEntries();
-		
-		// Scroll to bottom to show latest entries
-		this.scrollToBottom();
-	}
-	
-	/**
-	 * Create visual representation of a log entry
-	 */
-	private createEntryVisual(entry: CombatLogEntry, _index: number): void {
-		// Skip if entry already exists
-		if (this.entryVisuals.has(entry.id)) {
-			return;
-		}
-		
-		const color = this.getColorForEntry(entry);
-		const prefix = this.getPrefixForEntry(entry);
-		const fullText = prefix + entry.message;
-		
-		const text = new Text(fullText, {
-			style: {
-				fontSize: this.fontSize,
-				color: color,
-				textAlign: 'left',
-			},
-		});
-		
-		// Position will be set by updateLayout
-		this.panel.addChild(text);
-		
-		// Store the visual
-		this.entryVisuals.set(entry.id, { text, entry });
-	}
-	
-	/**
-	 * Update layout of all entries
-	 */
-	private updateLayout(): void {
-		// Get entries in order
-		const orderedEntries = Array.from(this.entryVisuals.values())
-			.sort((a, b) => {
-				const indexA = this.combatLog.entries.indexOf(a.entry);
-				const indexB = this.combatLog.entries.indexOf(b.entry);
-				return indexA - indexB;
-			});
-		
-		// Position each entry
-		orderedEntries.forEach((visual, index) => {
-			visual.text.setPosition(5, index * this.entryHeight + this.fontSize);
-		});
-		
-		// Update panel content size for scrolling
-		const totalHeight = Math.max(
-			orderedEntries.length * this.entryHeight,
-			this.panel.getHeight()
-		);
-		this.panel.setContentSize(this.panel.getWidth(), totalHeight);
-	}
-	
 	/**
 	 * Get color for entry based on type
 	 */
@@ -239,12 +184,5 @@ export class CombatLogLayer extends Layer {
 		}
 		
 		return prefix;
-	}
-	
-	/**
-	 * Scroll to bottom of log
-	 */
-	private scrollToBottom(): void {
-		// TODO: Implement scrolling when Panel supports it
 	}
 }

@@ -33,16 +33,21 @@ export class DeveloperSectionPanel extends Panel {
 			width,
 			// Replaced by fitContentHeight once the section knows its content.
 			height: SECTION_INSET * 2,
-			padding: SECTION_INSET,
+			// Sections place their content by hand.
+			layout: 'free',
+			// The frame the sections have always had, rather than a themed panel.
 			style: {
 				backgroundColor: 'transparent',
+				borderColor: '#4d4d4d',
 				borderWidth: SECTION_BORDER_WIDTH,
+				borderRadius: 5,
+				padding: SECTION_INSET,
 			},
 		});
 	}
 
 	/** Size the frame to hold `contentHeight` of content plus the inset above and below it. */
 	protected fitContentHeight(contentHeight: number): void {
-		this.setSize(this.width, contentHeight + this.padding * 2);
+		this.setSize(this.width, contentHeight + SECTION_INSET * 2);
 	}
 }

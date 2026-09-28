@@ -32,10 +32,13 @@ export class NestedPanelsSection extends DeveloperSectionPanel {
 		const nestedPanel = new Panel({
 			width: Math.min(width - 40, 600),
 			height: 150,
+			layout: 'free',
 			style: {
 				backgroundColor: '#333333e6',
 				borderRadius: 8,
-				border: '2px solid #555555',
+				borderWidth: 2,
+				borderColor: '#555555',
+				padding: 0,
 			},
 		});
 		nestedPanel.setPosition(20, currentY);

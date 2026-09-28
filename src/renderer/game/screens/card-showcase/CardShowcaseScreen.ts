@@ -3,7 +3,8 @@ import { ScreenManager } from '../../core/ScreenManager';
 import { Button } from '../../../engine/ui/Button';
 import { Text } from '../../../engine/components/Text';
 import { Rectangle } from '../../../engine/components/Rectangle';
-import { Panel } from '../../../engine/ui/Panel';
+import { Layer } from '../../../engine/components/Layer';
+import { ScrollContainer } from '../../../engine/ui/ScrollContainer';
 import { Card } from '../../ui/Card';
 import { CardLoader } from '../../core/CardLoader';
 import { CARD_RARITIES, Card as GameCard } from '../../mechanics/Card';
@@ -19,7 +20,9 @@ export class CardShowcaseScreen extends Screen {
 	private background: Rectangle;
 	private title: Text;
 	private backButton: Button;
-	private cardsPanel: Panel;
+	private cardsPanel: ScrollContainer;
+	/** The scroll container's one content child: the titles and cards, placed by hand. */
+	private cardsContent: Layer;
 	private cardLoader: CardLoader;
 	private cardComponents: Card[] = [];
 	private cardsLoaded = false;
@@ -62,16 +65,15 @@ export class CardShowcaseScreen extends Screen {
 		this.rootLayer.addChild(this.backButton);
 
 		// Create main scrollable container that holds all content
-		this.cardsPanel = new Panel({
+		this.cardsPanel = new ScrollContainer({
 			id: 'showcase_scroll',
 			y: HEADER_HEIGHT,
-			scrollable: true,
-			scrollDirection: 'vertical',
-			overflow: 'hidden',
 			style: {
 				backgroundColor: '#1a1a33', // Match the background
 			},
 		});
+		this.cardsContent = new Layer({ id: 'showcase_cards' });
+		this.cardsPanel.addChild(this.cardsContent);
 		this.rootLayer.addChild(this.cardsPanel);
 	}
 
@@ -111,7 +113,7 @@ export class CardShowcaseScreen extends Screen {
 					color: '#ff6666',
 				},
 			});
-			this.cardsPanel.addChild(errorText);
+			this.cardsContent.addChild(errorText);
 		}
 	}
 
@@ -139,7 +141,7 @@ export class CardShowcaseScreen extends Screen {
 				fontWeight: 'bold',
 			},
 		});
-		this.cardsPanel.addChild(sectionTitle);
+		this.cardsContent.addChild(sectionTitle);
 		currentY += 40;
 
 		// Display each card
@@ -151,7 +153,7 @@ export class CardShowcaseScreen extends Screen {
 				data: gameCard,
 			});
 
-			this.cardsPanel.addChild(cardComponent);
+			this.cardsContent.addChild(cardComponent);
 			this.cardComponents.push(cardComponent);
 
 			// Move to next position
@@ -174,7 +176,7 @@ export class CardShowcaseScreen extends Screen {
 
 		// Set content size for scrolling
 		const contentHeight = currentY + (cardDimensions.height * 5) + 100; // Rough estimate
-		this.cardsPanel.setContentSize(this.rootLayer.getWidth(), contentHeight);
+		this.cardsContent.setSize(this.rootLayer.getWidth(), contentHeight);
 	}
 
 	/**
@@ -205,7 +207,7 @@ export class CardShowcaseScreen extends Screen {
 					fontWeight: 'bold',
 				},
 			});
-			this.cardsPanel.addChild(rarityTitle);
+			this.cardsContent.addChild(rarityTitle);
 			currentY += 30;
 
 			// Display cards for this rarity
@@ -224,7 +226,7 @@ export class CardShowcaseScreen extends Screen {
 					data: gameCard,
 				});
 
-				this.cardsPanel.addChild(cardComponent);
+				this.cardsContent.addChild(cardComponent);
 			this.cardComponents.push(cardComponent);
 
 				// Move to next position
@@ -283,7 +285,7 @@ export class CardShowcaseScreen extends Screen {
 		// Cleared so a remount loads the cards again; clearChildren unmounts
 		// them, and the root's unmount releases the rest (the back button).
 		this.cardComponents = [];
-		this.cardsPanel.clearChildren();
+		this.cardsContent.clearChildren();
 		this.cardsLoaded = false;
 
 		super.onUnmount();

@@ -931,12 +931,12 @@ describe('Stack additions (spec 10.9)', () => {
 	});
 
 	it('anchors inside a padded panel\'s padding', () => {
-		const panel = new Panel({ width: 300, height: 200, padding: 10 });
+		const panel = new Panel({ width: 300, height: 200, layout: 'free', style: { padding: 10 } });
 		const corner = box(20, 20, 0, { anchor: 'bottomRight' });
 		panel.addChild(corner);
 		layOut(panel);
 
-		expect(corner.bounds).toEqual({ x: 260, y: 160, width: 20, height: 20 });
+		expect(corner.bounds).toEqual({ x: 270, y: 170, width: 20, height: 20 });
 		expect(corner.screenBounds).toEqual({ x: 270, y: 170, width: 20, height: 20 });
 	});
 
