@@ -859,6 +859,12 @@ describe('Stack additions (spec 10.9)', () => {
 
 		expect(clicks).toEqual(['badge']);
 		expect(badge.screenBounds).toEqual({ x: 192, y: 102, width: 16, height: 16 });
+
+		// The snapshot places it from the same origin.
+		const node = treeSnapshot([card], { width: 800, height: 600 }).roots[0].children[0];
+		expect(node.screenBounds).toEqual({ x: 192, y: 102, w: 16, h: 16 });
+		expect(node.bounds).toEqual({ x: 180, y: 80, w: 20, h: 20 });
+		expect(treeSnapshot([card], { width: 800, height: 600 }).roots[0].stack).toEqual({ direction: 'vertical', gap: 0 });
 	});
 
 	it('places by anchor and a separate pivot, plus the offset', () => {

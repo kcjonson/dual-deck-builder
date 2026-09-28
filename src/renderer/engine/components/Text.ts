@@ -1,4 +1,4 @@
-import { Component, ComponentOptions } from './Component';
+import { Component, ComponentOptions, ResolvedColors } from './Component';
 import type {
 	TextAlign,
 	TextDecoration,
@@ -18,6 +18,13 @@ export type TextOptions = ComponentOptions;
 
 /** R12.4's vertical alignment inside the text's own box. */
 export type TextVerticalAlign = 'top' | 'middle' | 'bottom';
+
+/**
+ * R13.22's `text.overflow`: what happened to a text that did not fit its box.
+ * `none` when it fits; `visible` when it runs past the box with nothing
+ * handling it, which is what the lint's text-overflow rule reports.
+ */
+export type TextOverflowOutcome = 'none' | 'clip' | 'ellipsis' | 'visible';
 
 const OVERFLOW: Readonly<Record<NonNullable<Style['textOverflow']>, TextOverflow>> = {
 	visible: 'visible',
@@ -209,6 +216,36 @@ export class Text extends Component {
 	get measured(): TextMetrics | null {
 		if (this.stale) this.remeasure();
 		return this.metrics;
+	}
+
+	/**
+	 * The last measurement, or null when there is none current. Unlike
+	 * `measured` it never measures, so a reader (the tree snapshot) cannot
+	 * resize the text it is observing.
+	 */
+	get currentMetrics(): TextMetrics | null {
+		return this.stale ? null : this.metrics;
+	}
+
+	/**
+	 * Whether the last measurement overran the box, and what drew it then:
+	 * `clip` clips the run to its box on both axes, and `ellipsis` truncates
+	 * lines to the width, and to the height only when wrapping (R6.14). Null
+	 * when nothing has measured.
+	 */
+	get overflowOutcome(): TextOverflowOutcome | null {
+		const metrics = this.currentMetrics;
+		if (!metrics) return null;
+		const wide = metrics.width > this.width;
+		const tall = metrics.height > this.height;
+		if (!wide && !tall) return 'none';
+		if (this.textOverflow === 'clip') return 'clip';
+		if (this.textOverflow === 'ellipsis' && (!tall || this.wrap === 'word')) return 'ellipsis';
+		return 'visible';
+	}
+
+	public get resolvedColors(): ResolvedColors {
+		return { text: this.color };
 	}
 
 	get wrap(): TextWrap {

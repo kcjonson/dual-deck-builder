@@ -1,4 +1,4 @@
-import { Component, ComponentOptions } from './Component';
+import { Component, ComponentOptions, ResolvedColors } from './Component';
 import type { DrawApi } from '../draw/DrawApi';
 import { Style, StyleParser } from '../types/Style';
 
@@ -78,6 +78,15 @@ export class Circle extends Component {
 		this.radius = radius;
 		this.setSize(radius * 2, radius * 2);
 		return this;
+	}
+
+	/** The stroke is centred on the outline, so half of it lands outside the box (R8.8). */
+	public get inkExtent(): number {
+		return this.strokeWidth > 0 ? this.strokeWidth / 2 : 0;
+	}
+
+	public get resolvedColors(): ResolvedColors {
+		return this.strokeWidth > 0 ? { fill: this.fillColor, border: this.strokeColor } : { fill: this.fillColor };
 	}
 
 	public render(draw: DrawApi): void {

@@ -19,6 +19,19 @@ This document contains the chronological log of completed development tasks for 
 - Tests: `Stack.test.ts` (worldsim's suite ported with its numbers, spec 10.9's additions, anchors, viewport roots, boundaries, the negative-gap lint case) and `Stack.text.test.ts` (real-metrics text cases). Gallery scene `stack`, lint clean; its golden is minted on CI.
 - Decision record: `docs/AI_TECHNICAL_DECISIONS/stack-layout.md`.
 
+## Tree snapshot schema and the text record (2026-09-28)
+
+**What landed:** DDB-80 (DDB-55 phase 3) with DDB-206, R13.21 to R13.28.
+
+- `debug/treeSnapshot.ts` walks with a matrix per node (origin, margin, transform, scroll), the clip reset at a promotion, and the effective layer and opacity, and emits margin, zIndex, layer, opacity, transform, state (plus `pressed` on Button), text, style and inkBounds.
+- `Component` gains `resolvedColors` and `inkRect`; Rectangle, Panel, Layer, Circle, Triangle, Polygon, Icon, Text, Button and Input report their colours; the three stroked shapes report half the stroke as `inkExtent`.
+- `Text` gains `currentMetrics` (never measures) and `overflowOutcome`; `Button` gains `pressed`.
+- `debug/layoutLint.ts`: rule 5 compares the measurement with the local content box; a sibling at zero opacity does not occlude for rule 6; stale phase notes updated.
+- `tests/visual/support/harness.ts`: `expectTextSnapshot`, called by the gallery and screen specs before the golden, against `<kind>-<name>-text.json` beside the PNG.
+- `perf-results/phase3-snapshot-lint.json`: per-scenario lint before and after.
+
+**How:** `treeSnapshot.test.ts` (margin box and content box, transformed bounds, agreement with every component's `screenBounds` through margins, transforms, scroll and parts, transformed clips, zIndex and promotion, R13.25.1 exemption through a real tree, opacity, text measure and outcomes, the reader not measuring, text-overflow live, style, pressed, ink) and `layoutLint.test.ts` (local content box for rule 5, zero-opacity occluder). Lint before and after captured on every scene and screen: no count moved. Five punctuation mutations run against local baselines: the text record caught all five, the pixels one.
+
 ## Input dispatcher and Pointer Events adapter (2026-09-28)
 
 **What landed:** DDB-75 (DDB-55 phase 3), chapter 9's dispatch half: R9.1 to R9.11, R9.25, R9.30 to R9.32, R3.28, R4.12, R8.2's input callbacks.

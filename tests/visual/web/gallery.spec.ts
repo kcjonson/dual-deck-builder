@@ -5,6 +5,7 @@ import {
 	captureConsole,
 	expectCleanConsole,
 	expectGolden,
+	expectTextSnapshot,
 	openScene,
 	prepare,
 } from '../support/harness';
@@ -23,6 +24,7 @@ test.describe('gallery scenes', () => {
 			await prepare(page);
 			await openScene(page, scenario.scene);
 
+			await expectTextSnapshot(page, 'scene', scenario.scene);
 			await expectGolden(page, testInfo, 'scene', scenario.scene);
 
 			await attachTree(page, testInfo);

@@ -1,0 +1,12 @@
+[
+{"path":"gallery_root/dev_section_buttons/Text[0]","text":"Button Examples","rect":[53,53,161.48,33.6]},
+{"path":"gallery_root/dev_section_buttons/Text[1]","text":"Button clicks: 0","rect":[73,103,112.09,21.79]},
+{"path":"gallery_root/dev_section_buttons/Button[2]/Text[1]","text":"Primary","rect":[73,133,120,40]},
+{"path":"gallery_root/dev_section_buttons/Button[3]/Text[1]","text":"Secondary","rect":[203,133,120,40]},
+{"path":"gallery_root/dev_section_buttons/Button[4]/Text[1]","text":"Success","rect":[333,133,120,40]},
+{"path":"gallery_root/dev_section_buttons/Button[5]/Text[1]","text":"Danger","rect":[463,133,120,40]},
+{"path":"gallery_root/dev_section_buttons/Button[6]/Text[1]","text":"Rounded","rect":[73,193,120,40]},
+{"path":"gallery_root/dev_section_buttons/Button[7]/Text[1]","text":"Outlined","rect":[203,193,120,40]},
+{"path":"gallery_root/dev_section_buttons/Button[8]/Text[1]","text":"Small","rect":[333,198,80,30]},
+{"path":"gallery_root/dev_section_buttons/Button[9]/Text[1]","text":"Large Button","rect":[423,188,150,50]}
+]
