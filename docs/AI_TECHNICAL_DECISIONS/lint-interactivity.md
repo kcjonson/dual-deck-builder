@@ -70,26 +70,23 @@ Three narrower calls the change forced, each with a test:
 ## Result
 
 Same captures, `main`'s lint against this lint (`node` over saved `__ui.tree()` documents, all
-thirteen scenes and the six capturable screens):
+fourteen scenes and the six capturable screens, after merging DDB-79 and DDB-78):
 
 | | main's lint, fields emitted | this lint |
 |---|---|---|
-| gallery | 135 (with DDB-205's scene) | 0, rules 6 and 7 evaluating on every scene |
-| screens | 3,087 | 1,938 |
+| gallery | 146 (with DDB-205's scene) | 0, rules 6 and 7 evaluating on every scene |
+| screens | 2,951 | 1,834 |
 
-Against `main` as it is (fields withheld, old paint-order scene), the screens go 1,818 to 1,938.
-Two causes, neither noise from this rule change:
+Against `main` as it is (fields withheld, old paint-order scene), the screens go 1,722 to 1,834,
+and all 112 are `outside-viewport` on the developer screen: DDB-205 turned the paint-order fixture
+from one `DrawFixture` node into about a hundred component nodes, and that section sits below the
+developer screen's viewport. Rule 3 deliberately reports content scrolled out of view; the
+scroll-container question is DDB-85's. Rules 6 and 7 add nothing on any screen. Before DDB-79
+merged, rule 6 did report 8 on driver selection, DDB-108's coincident deck-preview `Layer`s, each a
+hover target covered by the copy stacked on it; DDB-79's rebuild of that screen took them away.
 
-- +112 `outside-viewport` on the developer screen: DDB-205 turned the paint-order fixture from one
-  `DrawFixture` node into about a hundred component nodes, and that section sits below the developer
-  screen's viewport. Rule 3 deliberately reports content scrolled out of view (291 such findings
-  before this); the scroll-container question is DDB-85's.
-- +8 `unreachable-interactive` on driver selection: the coincident deck-preview `Layer`s of DDB-108,
-  each a hover target entirely covered by the copy stacked on it. The same defect rule 1 already
-  reported, now reported by the rule written for it.
-
-Rules 6 and 7 evaluate 12, 2, 3, 3 and 1 nodes on the buttons, icons, input showcase, interactive
-controls and nested panels scenes, zero on scenes with no controls.
+Rules 6 and 7 evaluate 12, 2, 3, 3, 4 and 1 nodes on the buttons, icons, input showcase,
+interactive controls, overlays and nested panels scenes, zero on scenes with no controls.
 
 ## What is still open
 

@@ -14,7 +14,34 @@ This document contains the chronological log of completed development tasks for 
 - DDB-207: `inputScript.ts` parses `[,pointerId[,pointerType]]` after each pointer verb's existing fields and `cancel[,pointerId]`; `inputInjection.ts` dispatches them (defined on the event in jsdom), derives `isPrimary` per pointer type across calls, and sends `cancel` from the pointer's last position.
 - DDB-208: `Component.handlesPointer` (overridden by `Button`, `Card`, `Vehicle`); the snapshot emits `focusable`, `pointerEvents`, `handlesPointer`; the lint counts focusable or pointer-handling hit targets as interactive, rule 6 covers across parts and children and exempts scrolled-away content from its clip half, and rule 2 exempts a child raised into another layer. Chapter 13's R13.22, R13.25 and R13.35 amended.
 
-**How:** unit tests for the grammar (pointer fields, defaults, rejections, cancel), dispatch (fields through the adapter, second-touch non-primary with no click, cancel suppresses the click and targets only its pointer, touch implicit capture), snapshot fields, the lint changes, and the scene's paint order from a recording backend. Lint measured over saved trees of all 13 scenes and 6 screens through `main`'s lint and this one: gallery 0 (106 under the literal reading), screens 1,818 to 1,938 (+112 outside-viewport from the rebuilt fixture's nodes below the developer screen's fold, +8 DDB-108's stacked deck previews now caught by rule 6). Follow-up filed: DDB-212 (dispatcher's synthetic pointer fields). Decision record: [lint-interactivity.md](./AI_TECHNICAL_DECISIONS/lint-interactivity.md).
+**How:** unit tests for the grammar (pointer fields, defaults, rejections, cancel), dispatch (fields through the adapter, second-touch non-primary with no click, cancel suppresses the click and targets only its pointer, touch implicit capture), snapshot fields, the lint changes, and the scene's paint order from a recording backend. Lint measured over saved trees of all 14 scenes and 6 screens through `main`'s lint and this one: gallery 0 (146 under the literal reading), screens 1,722 to 1,834, all 112 `outside-viewport` from the rebuilt fixture's nodes below the developer screen's fold; rules 6 and 7 add nothing on any screen. Follow-up filed: DDB-212 (dispatcher's synthetic pointer fields). Decision record: [lint-interactivity.md](./AI_TECHNICAL_DECISIONS/lint-interactivity.md).
+
+## Game code on the tree (2026-09-28)
+
+**What landed:** DDB-79 (DDB-55 phase 3), closing DDB-41.
+
+- `Screen` no longer reads the window: its root is zero-sized until mount sizes it from `context.viewport`. Splash, main menu, developer, card showcase and driver selection place their elements from the root in `onMount` and `onResized`.
+- Driver selection stops rebuilding on resize. `DriverPanel` and `SynergyPreviewPanel` place their contents from their own size in `layoutChildren`; the confirmation line is one persistent text shown when both drivers are picked; drivers load once, on mount.
+- The deck preview clears after the card data arrives and a stale build gives way, so the left panel's deck is no longer drawn three times.
+- `Card` and `Vehicle` extend `Component`. `Card` uses the base's `enabled` and `onStateChange`, lifting by transform; the hand places cards where the old `y % 10` test left them. `Vehicle` builds every part once, hides the driver row and SPENT chip by data, places parts in `layoutChildren`, and subscribes to the combat model on mount. `EnemyVehicle` places its intent marker the same way.
+- `CombatLogLayer` holds its chrome as named fields, places it in `layoutChildren` (fixing the resize that moved the centred title to half the width), and subscribes on mount. Main menu buttons and the card showcase background are named fields.
+- The splash fades in, holds on the clock, and fades out through its root's opacity with the animator, then goes to the main menu.
+- `Component.setOverflow` accepts `hidden` before a size; `clipsChildren` still waits for one. `ArmorBadge.minWidth` is settable. Dead code: `PlayerHandLayer.getCardAtPosition`, `Vehicle.getDisplayName`/`getNameFontSize`.
+
+**How:** `SplashScreen.test.ts` (fade in, hold, fade out, navigate, settle at opacity 1, resize, unmount cancels), `Vehicle.test.ts` (parts kept across a driver's death and a resize, model subscription on mount and remount), `Card.test.ts` (lift by transform, disabled cards neither lift nor brighten), `DriverSelectionScreen.test.ts` (three resizes keep the same children and both drivers, one deck preview across overlapping loads), `Screen.test.ts`, `Component.test.ts` (overflow before size). Played in the browser: splash fade, menu to driver selection, cycling and resizing three times without losing the selection, START RUN, a self-targeted and an enemy-targeted card, END TURN, the combat log. Details in [game-code-on-the-tree.md](AI_TECHNICAL_DECISIONS/game-code-on-the-tree.md).
+
+## Overlay, popup, tooltip, placement, clipboard and asset services (2026-09-28)
+
+**What landed:** DDB-78 (DDB-55 phase 3), R12.30 to R12.32 with R12.22, R8.21, R3.6a, R3.15, R9.13 to R9.15.
+
+- `engine/services/`: `Placement.ts` (`place` and `PlacementService`), `OverlayService.ts`, `PopupService.ts`, `TooltipService.ts` with `TooltipSurface.ts` and `tooltipSpec.ts`, `ClipboardService.ts`, `AssetService.ts`, and `testing.ts` (queue-driven input helpers for tests). All six are built by `createMountContext`; the pages pass `detectClipboard(window)` and `imageUrlLoader()`.
+- Dispatcher: root tiers (`scene`, `overlay`, `diagnostic`) with `raiseRoot`; `addObserver` with `pointerDown` (can swallow), `pointerMove`, `hoverChange`, `keyDown` (before the scene hotkeys) and `focusChange`; `capturing` and `hoverPoint`. `Component.mount(context, { tier })`, `Component.tooltip`, `Component.popupTrigger`. `UiFrame.requestTick` for services.
+- Pages: both render overlay roots after the scene and report them to the tree snapshot; the F5 overlay mounts as `diagnostic`; a screen change or gallery scene switch closes popups and overlays; viewport changes resize overlay roots. Electron's preload exposes `clipboard.readText`/`writeText` over IPC.
+- On DDB-76 and DDB-77: overlay hotkeys are the root's own `hotkeys` and a modal overlay sets `root.modal` and pushes a focus scope; `FocusManager.onFocusChange` feeds the popup focus-loss close and the tooltip keyboard trigger (visible focus only); `tooltips.dragActive` reads `context.drag.isDragging`; the dispatcher's `focusChange` observer hook is gone with `Dispatcher.focus()`.
+- Review fixes: a swallowed press's release is swallowed too; placements apply a `constrained` size to popups (from `naturalSize`) and tooltips; `overlays.open` takes `inside` so a scrim press is outside a modal's panel; the Electron clipboard handlers answer only the app's own renderer frame.
+- Gallery: `overlays` scene (gallery-only, `galleryOnlyScenes`), with placement outcomes drawn against a frame and a live tooltip, card-preview tooltip and popup menu; `tests/visual/support/scenarios.ts` lists it.
+
+**How:** `Placement.test.ts`, `OverlayService.test.ts`, `PopupService.test.ts`, `TooltipService.test.ts` (state timing, tolerance, swap, fades, flips, never consumes, press suppression, capture and drag suppression, keyboard trigger, factory trees), `ClipboardService.test.ts`, `AssetService.test.ts`, `input/rootOrder.test.ts` (tiers, observers, `requestTick`); 2058 tests green. Driven in the gallery through `__dev.input`: hover swap to the card preview, outside press closing the menu, trigger reopening it, Escape closing it; `__ui.lint()` is 0 on the scene.
 
 ## Packed instances for the uber shader (2026-09-28)
 
@@ -133,7 +160,6 @@ This document contains the chronological log of completed development tasks for 
 
 **How:** unit tests for the helper (center, borderless, sub-pixel, out param), the encoder (translated hairline at ratio 2, abutting pair, center border, and the three opt-outs) and the clip stack (snapped at every fractional scroll, not under a scale). Goldens re-minted on CI with `update_mode=all` and checked old against new.
 
-
 ## Mount context, lifecycle, and frame order (2026-09-28)
 
 **What landed:** DDB-73's second PR (DDB-55 phase 3), R1.6, R8.14 to R8.18, R8.21, R8.22.
@@ -162,7 +188,6 @@ This document contains the chronological log of completed development tasks for 
 - Merged with DDB-68, DDB-71 and DDB-72 as they landed: `DrawFixture` and `Text` draw in their own space; `Icon.drawGlyph` lets `ArmorBadge` and `IntentMarker` draw their icon as one of their own draws, in the same order as before; `Button` places its icon from its `render` hook until the layout phase exists; the F5 overlay's visibility is `visible`.
 
 **How:** `Component.test.ts` (properties, effective values, children, reconciliation, screen geometry under rotation and scale) and `renderTree.test.ts` (local draws, leaf children walked by the framework, skipped subtrees, zIndex order, opacity, clip and promotion, balanced stacks) on the recording backend. Every screen and gallery scene captured locally on `main` and on the branch passes the golden tolerance; the CI goldens are unchanged.
-
 
 ## Visual gate: cluster rule and settled-layout wait (2026-09-28)
 

@@ -1,7 +1,5 @@
 /**
  * @jest-environment jsdom
- *
- * Screen still reads the window in its constructor until DDB-79.
  */
 import { createTestContext } from '../../engine/components/testing';
 import type { MountContext } from '../../engine/components/MountContext';
@@ -34,6 +32,8 @@ describe('Screen lifecycle (R8.21, R8.22)', () => {
 	it('sizes its root from the context viewport and mounts what onMount builds', () => {
 		const context = createTestContext({ viewport: { logical: { width: 800, height: 600 } } });
 		const screen = new ButtonScreen('first');
+		// Nothing reads the window: the root has no size until it mounts
+		expect(screen.root.getWidth()).toBe(0);
 
 		screen.mount(context);
 

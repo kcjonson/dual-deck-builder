@@ -1,73 +1,181 @@
+import { Component, ComponentOptions, PointerEvents } from '../../engine/components/Component';
 import { Layer } from '../../engine/components/Layer';
 import { Rectangle } from '../../engine/components/Rectangle';
 import { Text } from '../../engine/components/Text';
 import { Vehicle as VehicleData } from '../mechanics/Vehicle';
-import type { PointerEvents } from '../../engine/components/Component';
 import type { AnyUiEvent } from '../../engine/input/events';
 import { CombatModel } from '../screens/combat/CombatModel';
 import { ArmorBadge } from './ArmorBadge';
 
+export interface VehicleOptions extends ComponentOptions {
+	x: number;
+	y: number;
+	width: number;
+	height: number;
+	vehicleData: VehicleData;
+	combatData?: CombatModel;
+	onClick?: (vehicle: VehicleData) => void;
+}
+
 /**
- * Visual representation of a vehicle on the battlefield
- * Can be extended for player/enemy specific styling
+ * Visual representation of a vehicle on the battlefield. Can be extended for
+ * player/enemy specific styling.
+ *
+ * Every element is built once. The plate's size places them in the layout
+ * phase (R8.18), so a resize moves them rather than rebuilding, and the
+ * data decides which show: the driver row while there is a driver, and an
+ * escort's SPENT chip once it has acted. A driven vehicle that loses its
+ * driver becomes an escort mid-fight, and only visibility changes.
  */
-export class Vehicle extends Layer {
+export class Vehicle extends Component {
 	protected vehicleData: VehicleData;
-	
+
 	// UI elements
-	protected portrait!: Rectangle;
-	protected nameText!: Text;
-	protected driverNameText!: Text;
-	protected driverHpText!: Text;
-	protected healthBar!: Rectangle;
-	protected healthBarFill!: Rectangle;
-	protected healthText!: Text;
-	protected armorBadge!: ArmorBadge;
-	protected driverPortrait: Rectangle | null = null;
-	protected statusContainer: Layer | null = null;
-	protected spentChip: Text | null = null;
-	
+	protected portrait: Rectangle;
+	protected driverPortrait: Rectangle;
+	protected driverNameText: Text;
+	protected driverHpText: Text;
+	protected nameText: Text;
+	protected healthBar: Rectangle;
+	protected healthBarFill: Rectangle;
+	protected healthText: Text;
+	protected armorBadge: ArmorBadge;
+	protected spentChip: Text;
+	protected statusContainer: Layer;
+
 	// References
 	private combatData: CombatModel | null = null;
 	private onClickCallback: ((vehicle: VehicleData) => void) | null = null;
-	
-	// State
-	private builtShape = '';
+
 	private modelUnsubscribers: (() => void)[] = [];
-	
-	constructor(args: {
-		id?: string;
-		x: number;
-		y: number;
-		width: number;
-		height: number;
-		vehicleData: VehicleData;
-		combatData?: CombatModel;
-		onClick?: (vehicle: VehicleData) => void;
-	}) {
+
+	constructor(args: VehicleOptions) {
 		super(args);
+		this.componentType = 'Vehicle';
 		this.vehicleData = args.vehicleData;
 		this.combatData = args.combatData || null;
 		this.onClickCallback = args.onClick || null;
-		
-		this.createElements();
+
+		this.portrait = new Rectangle({
+			id: this.childId('portrait'),
+			style: {
+				backgroundColor: this.getPortraitColor(),
+				borderColor: this.getBorderColor(),
+				borderWidth: 3,
+			},
+		});
+		this.addChild(this.portrait);
+
+		this.driverPortrait = new Rectangle({
+			id: this.childId('driver_portrait'),
+			style: {
+				backgroundColor: '#6a5a4a',
+				borderColor: '#8a7a6a',
+				borderWidth: 1,
+				borderRadius: 10,
+			},
+		});
+		this.addChild(this.driverPortrait);
+
+		this.driverNameText = new Text('', {
+			id: this.childId('driver_name'),
+			style: {
+				fontSize: 9,
+				color: '#cccccc',
+				textAlign: 'left',
+			},
+		});
+		this.addChild(this.driverNameText);
+
+		this.driverHpText = new Text('', {
+			id: this.childId('driver_hp'),
+			style: {
+				fontSize: 8,
+				color: '#aaaaaa',
+				textAlign: 'left',
+			},
+		});
+		this.addChild(this.driverHpText);
+
+		// Just the vehicle's name; the driver's is on its own row
+		this.nameText = new Text('', {
+			id: this.childId('name'),
+			style: {
+				fontSize: 10,
+				color: '#ffffff',
+				textAlign: 'center',
+				fontWeight: 'bold',
+				whiteSpace: 'normal',
+			},
+		});
+		this.addChild(this.nameText);
+
+		this.healthBar = new Rectangle({
+			id: this.childId('structure_track'),
+			height: 10,
+			style: {
+				backgroundColor: '#333333',
+				borderColor: '#555555',
+				borderWidth: 1,
+			},
+		});
+		this.addChild(this.healthBar);
+
+		this.healthBarFill = new Rectangle({
+			id: this.childId('structure_fill'),
+			height: 10,
+			style: {
+				backgroundColor: '#4a8a4a',
+			},
+		});
+		this.addChild(this.healthBarFill);
+
+		this.healthText = new Text('', {
+			id: this.childId('structure_value'),
+			style: {
+				fontSize: 9,
+				color: '#ffffff',
+				textAlign: 'center',
+				fontWeight: 'bold',
+			},
+		});
+		this.addChild(this.healthText);
+
+		// Armor and the status container share a line
+		this.armorBadge = new ArmorBadge({
+			id: this.childId('armor_badge'),
+			minWidth: Math.floor(args.width * 0.25),
+			height: 16,
+		});
+		this.addChild(this.armorBadge);
+
+		this.spentChip = new Text('SPENT', {
+			id: this.childId('spent_chip'),
+			style: {
+				fontSize: 9,
+				color: '#ffcc66',
+				fontWeight: 'bold',
+			},
+		});
+		this.addChild(this.spentChip);
+
+		// Status effect container (for future use)
+		this.statusContainer = new Layer({
+			id: this.childId('status_container'),
+			height: 16,
+		});
+		this.addChild(this.statusContainer);
+
 		this.updateVisuals();
-		
-		if (this.combatData) {
-			this.subscribeToModel();
-		}
 	}
-	
+
 	/**
 	 * Update the vehicle data and refresh visuals
 	 */
 	public set data(vehicleData: VehicleData) {
 		this.vehicleData = vehicleData;
-		if (this.shape !== this.builtShape) {
-			this.rebuild();
-		} else {
-			this.updateVisuals();
-		}
+		this.updateVisuals();
+		this.updateVisualState();
 	}
 
 	/**
@@ -78,220 +186,92 @@ export class Vehicle extends Layer {
 	}
 
 	/**
-	 * What decides which elements the plate has: a driver row, and an
-	 * escort's SPENT chip. A driven vehicle that loses its driver becomes an
-	 * escort mid-fight, so the plate rebuilds when this changes.
-	 */
-	private get shape(): string {
-		return `${Boolean(this.vehicleData.driver)}/${this.vehicleData.isEscort}`;
-	}
-	
-	/**
-	 * Create visual elements
-	 */
-	/**
 	 * Composite internals derive their ids from the vehicle's own id, so a
 	 * caller names the vehicle once. Unnamed vehicles leave children unnamed.
 	 */
 	protected childId(suffix: string): string | undefined {
 		return this.id === null ? undefined : `${this.id}_${suffix}`;
 	}
-	
-	protected createElements(): void {
-		this.builtShape = this.shape;
-		this.driverPortrait = null;
+
+	/** The layout phase: the plate was sized, or a text in it measured (R8.18). */
+	protected layoutChildren(): void {
+		this.placeElements();
+	}
+
+	/**
+	 * Every element from the plate's size. Subclasses place their own
+	 * additions after calling this.
+	 */
+	protected placeElements(): void {
 		const width = this.getWidth();
 		const height = this.getHeight();
-		
-		// Vehicle portrait/body
-		this.portrait = new Rectangle({
-			id: this.childId('portrait'),
-			x: 0,
-			y: 0,
-			width,
-			height: Math.floor(height * 0.65),
-			style: {
-				backgroundColor: this.getPortraitColor(),
-				borderColor: this.getBorderColor(),
-				borderWidth: 3,
-			},
-		});
-		this.addChild(this.portrait);
-		
-		// Driver portrait (if driver exists)
-		if (this.vehicleData.driver) {
-			this.driverPortrait = new Rectangle({
-				id: this.childId('driver_portrait'),
-				x: Math.floor(width * 0.05),
-				y: Math.floor(height * 0.05),
-				width: Math.min(20, Math.floor(width * 0.15)),
-				height: Math.min(20, Math.floor(width * 0.15)),
-				style: {
-					backgroundColor: '#6a5a4a',
-					borderColor: '#8a7a6a',
-					borderWidth: 1,
-					borderRadius: 10,
-				},
-			});
-			this.addChild(this.driverPortrait);
-			
-			// Driver name text
-			this.driverNameText = new Text('', {
-				id: this.childId('driver_name'),
-				style: {
-					fontSize: 9,
-					color: '#cccccc',
-					textAlign: 'left',
-				},
-			});
-			this.driverNameText.setPosition(Math.floor(width * 0.05), Math.floor(height * 0.30));
-			this.addChild(this.driverNameText);
-			
-			// Driver HP text
-			this.driverHpText = new Text('', {
-				id: this.childId('driver_hp'),
-				style: {
-					fontSize: 8,
-					color: '#aaaaaa',
-					textAlign: 'left',
-				},
-			});
-			this.driverHpText.setPosition(Math.floor(width * 0.05), Math.floor(height * 0.42));
-			this.addChild(this.driverHpText);
-		}
-		
-		// Vehicle name
-		this.nameText = new Text('', {
-			id: this.childId('name'),
-			width: Math.floor(width * 0.9),
-			style: {
-				fontSize: 10,
-				color: '#ffffff',
-				textAlign: 'center',
-				fontWeight: 'bold',
-				whiteSpace: 'normal',
-			},
-		});
-		this.nameText.setPosition(Math.floor(width * 0.05), Math.floor(height * 0.55));
-		this.addChild(this.nameText);
-		
-		// Health bar background
-		this.healthBar = new Rectangle({
-			id: this.childId('structure_track'),
-			x: Math.floor(width * 0.1),
-			y: Math.floor(height * 0.68),
-			width: Math.floor(width * 0.8),
-			height: 10,
-			style: {
-				backgroundColor: '#333333',
-				borderColor: '#555555',
-				borderWidth: 1,
-			},
-		});
-		this.addChild(this.healthBar);
-		
-		// Health bar fill
-		this.healthBarFill = new Rectangle({
-			id: this.childId('structure_fill'),
-			x: Math.floor(width * 0.1),
-			y: Math.floor(height * 0.68),
-			width: 0,
-			height: 10,
-			style: {
-				backgroundColor: '#4a8a4a',
-			},
-		});
-		this.addChild(this.healthBarFill);
-		
-		// Health text
-		this.healthText = new Text('', {
-			id: this.childId('structure_value'),
-			x: 0,
-			y: Math.floor(height * 0.73),
-			width,
-			style: {
-				fontSize: 9,
-				color: '#ffffff',
-				textAlign: 'center',
-				fontWeight: 'bold',
-			},
-		});
-		this.addChild(this.healthText);
-		
-		// Armor display and status container on same line
-		this.armorBadge = new ArmorBadge({
-			id: this.childId('armor_badge'),
-			x: Math.floor(width * 0.1),
-			y: Math.floor(height * 0.82),
-			minWidth: Math.floor(width * 0.25),
-			height: 16,
-		});
-		this.addChild(this.armorBadge);
-		
-		// An escort shows SPENT once it has acted this turn
-		this.spentChip = null;
-		if (this.vehicleData.isEscort) {
-			this.spentChip = new Text('SPENT', {
-				id: this.childId('spent_chip'),
-				style: {
-					fontSize: 9,
-					color: '#ffcc66',
-					fontWeight: 'bold',
-				},
-			});
-			this.addChild(this.spentChip);
-			this.placeSpentChip();
-		}
 
-		// Status effect container (for future use)
-		this.statusContainer = new Layer({
-			id: this.childId('status_container'),
-			x: Math.floor(width * 0.4),
-			y: Math.floor(height * 0.82),
-			width: Math.floor(width * 0.5),
-			height: 16,
-		});
-		this.addChild(this.statusContainer);
+		this.portrait.setPosition(0, 0);
+		this.portrait.setSize(width, Math.floor(height * 0.65));
+
+		const driverPortraitSize = Math.min(20, Math.floor(width * 0.15));
+		this.driverPortrait.setPosition(Math.floor(width * 0.05), Math.floor(height * 0.05));
+		this.driverPortrait.setSize(driverPortraitSize, driverPortraitSize);
+		this.driverNameText.setPosition(Math.floor(width * 0.05), Math.floor(height * 0.30));
+		this.driverHpText.setPosition(Math.floor(width * 0.05), Math.floor(height * 0.42));
+
+		this.nameText.setPosition(Math.floor(width * 0.05), Math.floor(height * 0.55));
+		this.nameText.setWidth(Math.floor(width * 0.9));
+
+		this.healthBar.setPosition(Math.floor(width * 0.1), Math.floor(height * 0.68));
+		this.healthBar.setWidth(Math.floor(width * 0.8));
+		this.healthBarFill.setPosition(Math.floor(width * 0.1), Math.floor(height * 0.68));
+		this.placeHealthFill();
+		this.healthText.setPosition(0, Math.floor(height * 0.73));
+		this.healthText.setWidth(width);
+
+		this.armorBadge.setPosition(Math.floor(width * 0.1), Math.floor(height * 0.82));
+		this.armorBadge.minWidth = Math.floor(width * 0.25);
+
+		// Right edge at 95 percent of the width, from the chip's measured width
+		this.spentChip.setPosition(
+			Math.floor(width * 0.95 - this.spentChip.getWidth()),
+			Math.floor(height * 0.05),
+		);
+
+		this.statusContainer.setPosition(Math.floor(width * 0.4), Math.floor(height * 0.82));
+		this.statusContainer.setWidth(Math.floor(width * 0.5));
 	}
-	
+
+	/** The fill's width is the track's, scaled by the structure left. */
+	private placeHealthFill(): void {
+		const healthPercentage = this.vehicleData.structure / this.vehicleData.maxStructure;
+		this.healthBarFill.setWidth(Math.floor(this.healthBar.getWidth() * healthPercentage));
+		this.healthBarFill.setFillColor(this.getHealthColor(healthPercentage));
+	}
+
 	/**
 	 * Update visual elements with current vehicle data
 	 */
 	protected updateVisuals(): void {
-		// Update vehicle name (just the vehicle name, not driver's)
-		this.nameText.setText(this.vehicleData.name);
-		
-		// Update driver info if present
-		if (this.vehicleData.driver) {
-			if (this.driverNameText) {
-				this.driverNameText.setText(`Driver: ${this.vehicleData.driver.metadata.name}`);
-			}
-			if (this.driverHpText) {
-				this.driverHpText.setText(`HP: ${this.vehicleData.driver.hitpoints}/${this.vehicleData.driver.maxHitpoints}`);
-			}
-		}
-		
-		// Update health
-		const healthPercentage = this.vehicleData.structure / this.vehicleData.maxStructure;
-		const healthBarWidth = Math.floor(this.healthBar.getWidth() * healthPercentage);
-		this.healthBarFill.setWidth(healthBarWidth);
-		this.healthBarFill.setFillColor(this.getHealthColor(healthPercentage));
-		this.healthText.setText(`${this.vehicleData.structure}/${this.vehicleData.maxStructure}`);
-		
-		// Update armor; shield is temporary armor on top
-		this.armorBadge.armor = this.vehicleData.armor;
-		this.armorBadge.shield = this.vehicleData.shield ?? 0;
+		const data = this.vehicleData;
+		this.nameText.setText(data.name);
 
-		this.spentChip?.setVisible(Boolean(this.vehicleData.spent));
+		const driver = data.driver;
+		this.driverPortrait.setVisible(Boolean(driver));
+		this.driverNameText.setVisible(Boolean(driver));
+		this.driverHpText.setVisible(Boolean(driver));
+		if (driver) {
+			this.driverNameText.setText(`Driver: ${driver.metadata.name}`);
+			this.driverHpText.setText(`HP: ${driver.hitpoints}/${driver.maxHitpoints}`);
+		}
+
+		this.placeHealthFill();
+		this.healthText.setText(`${data.structure}/${data.maxStructure}`);
+
+		// Shield is temporary armor on top
+		this.armorBadge.armor = data.armor;
+		this.armorBadge.shield = data.shield ?? 0;
+
+		// An escort shows SPENT once it has acted this turn
+		this.spentChip.setVisible(Boolean(data.isEscort && data.spent));
 	}
-	
-	/**
-	 * Get display name - can be overridden
-	 */
-	protected getDisplayName(): string {
-		return this.vehicleData.name;
-	}
-	
+
 	/**
 	 * Get health bar color based on percentage
 	 */
@@ -300,66 +280,26 @@ export class Vehicle extends Layer {
 		if (percentage > 0.3) return '#8a8a4a'; // Yellow
 		return '#8a4a4a'; // Red
 	}
-	
+
 	/**
 	 * Get portrait background color - can be overridden
 	 */
 	protected getPortraitColor(): string {
 		return '#5a4a3a';
 	}
-	
+
 	/**
 	 * Get border color - can be overridden
 	 */
 	protected getBorderColor(): string {
 		return '#7a6a5a';
 	}
-	
-	/**
-	 * Get name font size - can be overridden for different sizes
-	 */
-	protected getNameFontSize(): number {
-		return 10;
-	}
-	
+
 	/**
 	 * Get vehicle ID
 	 */
 	public get vehicleId(): string {
 		return this.vehicleData.id;
-	}
-	
-	/**
-	 * Handle resize
-	 */
-	protected onResized(): void {
-		this.rebuild();
-	}
-
-	/**
-	 * Recreate every element for the current size and shape
-	 */
-	private rebuild(): void {
-		while (this.children.length > 0) {
-			this.removeChild(this.children[0]);
-		}
-		this.createElements();
-		this.updateVisuals();
-		this.updateVisualState();
-	}
-	
-	/** Right edge at 95 percent of the width, from the chip's measured width. */
-	private placeSpentChip(): void {
-		if (!this.spentChip) return;
-		this.spentChip.setPosition(
-			Math.floor(this.getWidth() * 0.95 - this.spentChip.getWidth()),
-			Math.floor(this.getHeight() * 0.05),
-		);
-	}
-
-	/** The chip measures on mount (R1.6); this places it before the first render. */
-	protected layoutChildren(): void {
-		this.placeSpentChip();
 	}
 
 	/** R8.29: the plate is one target; its portrait, bars, and text are internals. */
@@ -413,7 +353,7 @@ export class Vehicle extends Layer {
 				return;
 		}
 	}
-	
+
 	private chooseAsTarget(): void {
 		if (this.onClickCallback && this.isTargetable()) {
 			this.onClickCallback(this.vehicleData);
@@ -421,40 +361,30 @@ export class Vehicle extends Layer {
 	}
 
 	/**
-	 * Subscribe to combat model changes
+	 * Model subscriptions are registered on mount and released on unmount
+	 * (R8.14), so a remount subscribes again. The state is read fresh too:
+	 * the model may have moved on while the plate was detached.
 	 */
-	private subscribeToModel(): void {
-		if (!this.combatData) return;
-		
-		// Listen for targetable changes
+	protected onMount(): void {
+		const model = this.combatData;
+		if (!model) return;
+		const refresh = (): void => this.updateVisualState();
 		this.modelUnsubscribers.push(
-			this.combatData.on('targetableVehicleIds', () => {
-				this.updateVisualState();
-			})
+			model.on('targetableVehicleIds', refresh),
+			model.on('focusedVehicleId', refresh),
+			// The escort an attack order would use
+			model.on('carrierVehicleId', refresh),
+			model.on('isTargeting', refresh),
 		);
-		
-		// Listen for focus changes
-		this.modelUnsubscribers.push(
-			this.combatData.on('focusedVehicleId', () => {
-				this.updateVisualState();
-			})
-		);
-
-		// Listen for the escort an attack order would use
-		this.modelUnsubscribers.push(
-			this.combatData.on('carrierVehicleId', () => {
-				this.updateVisualState();
-			})
-		);
-		
-		// Listen for targeting state changes
-		this.modelUnsubscribers.push(
-			this.combatData.on('isTargeting', () => {
-				this.updateVisualState();
-			})
-		);
+		this.updateVisualState();
 	}
-	
+
+	/** Model subscriptions are the vehicle's own; input is released by the base. */
+	protected onUnmount(): void {
+		this.modelUnsubscribers.forEach(unsubscribe => unsubscribe());
+		this.modelUnsubscribers = [];
+	}
+
 	/**
 	 * Check if this vehicle is targetable
 	 */
@@ -462,7 +392,7 @@ export class Vehicle extends Layer {
 		if (!this.combatData) return true;
 		return this.combatData.isVehicleTargetable(this.vehicleData.id);
 	}
-	
+
 	/**
 	 * Check if this vehicle is focused
 	 */
@@ -470,7 +400,7 @@ export class Vehicle extends Layer {
 		if (!this.combatData) return false;
 		return this.combatData.focusedVehicleId === this.vehicleData.id;
 	}
-	
+
 	/**
 	 * The escort that would carry out the attack order being aimed
 	 */
@@ -489,43 +419,30 @@ export class Vehicle extends Layer {
 		const focused = this.isFocusedTarget() || carrier;
 		const targeting = this.combatData?.isTargeting || false;
 		this.focusable = targeting && this.onClickCallback !== null && this.isTargetable();
-		
-		// Update visual state based on targetability
+
 		// Non-targetable vehicles get dimmed colors
 		if (!targetable && targeting) {
-			this.portrait.setFillColor('#3a3a3a'); // Dimmed background
-			this.portrait.setBorderColor('#4a4a4a'); // Dimmed border
+			this.portrait.setFillColor('#3a3a3a');
 		} else {
 			this.portrait.setFillColor(this.getPortraitColor());
-			this.portrait.setBorderColor(this.getBorderColor());
 		}
-		
-		// Update border based on state
+
 		if (focused && targetable) {
-			// Focused and targetable
 			this.portrait.setBorderWidth(4);
 			this.portrait.setBorderColor(this.getFocusedBorderColor());
 		} else if (this.hovered && targetable) {
-			// Hovered and targetable
 			this.portrait.setBorderWidth(4);
 			this.portrait.setBorderColor(this.getBorderColor());
 		} else {
-			// Normal state
 			this.portrait.setBorderWidth(3);
 			this.portrait.setBorderColor(this.getBorderColor());
 		}
 	}
-	
+
 	/**
 	 * Get border color for focused state - can be overridden
 	 */
 	protected getFocusedBorderColor(): string {
 		return '#88ff88'; // Default green for focused targets
-	}
-	
-	/** Model subscriptions are the vehicle's own; input is released by the base. */
-	protected onUnmount(): void {
-		this.modelUnsubscribers.forEach(unsubscribe => unsubscribe());
-		this.modelUnsubscribers = [];
 	}
 }

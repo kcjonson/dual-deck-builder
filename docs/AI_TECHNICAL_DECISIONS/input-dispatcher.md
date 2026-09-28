@@ -23,7 +23,7 @@ Date: 2026-09-28. Task: DDB-75 (DDB-55 phase 3). Spec: chapter 9 of `docs/ui-ren
 ## Options considered
 
 - Keep `InputSystem`'s registration API and put a dispatcher behind it, then migrate: rejected because registrations are exactly what the tree replaces; every call site changes shape anyway, and the implementation spec's ground rules forbid the parallel path.
-- Roots supplied by the shell in paint order: deferred. Mount order is what the dispatcher uses, and it is not paint order on the game page: the F5 overlay mounts before the first screen and paints after it. That is harmless only because the overlay is `pointerEvents: 'none'`; until the overlay service (DDB-78) orders roots by layer, a root that paints over another and takes input has to be mounted after it.
+- Roots in paint order: DDB-78 groups roots in three tiers (scene, overlay, diagnostic), so the F5 overlay is hit last whenever it mounted, and overlay roots follow the overlay service's order. See [overlay-and-popup-services.md](./overlay-and-popup-services.md).
 - Injection straight into the queue: rejected. The hook dispatches DOM events at the adapter's listeners (a `PointerEvent`, or a `MouseEvent` under the pointer type name in jsdom), so injected input takes the real path (R13.35).
 
 ## Departure: the drag threshold cancels clicks only on drag sources
@@ -35,4 +35,4 @@ R9.31 says no click is synthesised when the pointer moved more than the drag thr
 - Behaviour changes, per the spec and the departure above: a click needs press and release on the same thing (Card, Vehicle, Button); Vehicle targets on click rather than on press; one wheel notch scrolls about 100 px instead of 3000; Escape now reaches combat (it was registered on a root that never had focus); only the topmost of overlapping components receives a press.
 - Input takes effect on the frame after it arrives. Pausing cancels every gesture in progress (as a window blur does), so a press held across a pause cannot click after resume. Tests call `dispatchPending()` or `injectNow` from `components/testing.ts`.
 - `Button.onClick` is the base callback property, assigned rather than called.
-- Left for later: the injection grammar's `pointerId`, `pointerType` and `cancel` fields, per-root and overlay hotkey tables (DDB-78), `activate`/`cancel` actions and the focus manager (DDB-76), drag and drop on top of capture and `hitTest({ exclude })` (DDB-77), `detachTransform` (R3.8).
+- Left for later: the injection grammar's `pointerId`, `pointerType` and `cancel` fields, per-root and overlay hotkey tables (done in DDB-78), `activate`/`cancel` actions and the focus manager (DDB-76), drag and drop on top of capture and `hitTest({ exclude })` (DDB-77), `detachTransform` (R3.8).

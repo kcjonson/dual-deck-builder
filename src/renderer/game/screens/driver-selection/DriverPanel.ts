@@ -9,6 +9,14 @@ import { CardLoader } from '../../core/CardLoader';
 
 /** Space between the bottom of the deck preview and the selector button. */
 const DECK_PREVIEW_GAP = 10;
+/** Space between mini cards, across and down. */
+const DECK_CARD_SPACING = 10;
+
+/** One card of the starting deck preview, and its quantity when above one. */
+interface DeckEntry {
+	card: UICard;
+	quantity: Text | null;
+}
 
 /**
  * Driver selection panel for the Driver Selection Screen
@@ -32,27 +40,26 @@ export class DriverPanel extends Layer {
 	private specialtyTag: Text | null = null;
 	private flavorText: Text | null = null;
 	private startingDeckContainer: Layer | null = null;
+	private deckTitle: Text | null = null;
 	private driverSelector: Button | null = null;
-	private miniCards: UICard[] = [];
+	private deckEntries: DeckEntry[] = [];
+	/** Bumped per preview build, so a build that awaited the card data can tell a newer one started. */
+	private deckRequest = 0;
 	
 	// Callbacks
 	private onDriverChanged: ((driver: Driver | null) => void) | null = null;
 
 	/**
-	 * Create a new driver panel
+	 * Create a new driver panel. Its contents are placed from its size in the
+	 * layout phase, so the screen resizes it rather than rebuilding it.
 	 */
-	constructor(side: 'left' | 'right', options: LayerOptions & { x: number; y: number; width: number; height: number }) {
+	constructor(side: 'left' | 'right', options: LayerOptions) {
 		super(options);
-		
+
 		this.panelSide = side;
 		this.idPrefix = `driver_panel_${side}_`;
-		
-		// Create background
+
 		this.background = new Rectangle({
-			x: 0,
-			y: 0,
-			width: this.getWidth(),
-			height: this.getHeight(),
 			style: {
 				backgroundColor: '#3a3a5a',
 				borderColor: '#5a5a7a',
@@ -154,8 +161,6 @@ export class DriverPanel extends Layer {
 			
 		// Centred in the panel
 		this.emptyStateText = new Text(emptyText, {
-			width: this.getWidth(),
-			height: this.getHeight(),
 			style: {
 				fontSize: 24,
 				color: '#888888',
@@ -178,7 +183,17 @@ export class DriverPanel extends Layer {
 				this.removeChild(child);
 			}
 		});
-		this.miniCards = [];
+		this.emptyStateText = null;
+		this.portraitArea = null;
+		this.driverName = null;
+		this.vehicleName = null;
+		this.specialtyTag = null;
+		this.flavorText = null;
+		this.startingDeckContainer = null;
+		this.deckTitle = null;
+		this.driverSelector = null;
+		this.deckEntries = [];
+		this.deckRequest += 1;
 	}
 
 	/**
@@ -191,35 +206,14 @@ export class DriverPanel extends Layer {
 		this.isEmpty = true;
 		this.clearPanelContents();
 		
-		// Re-add empty panel text
-		const emptyText = new Text(this.panelSide === 'left' ? 'Select First Driver' : 'Select Second Driver', {
-			width: this.getWidth(),
-			height: this.getHeight(),
-			style: {
-				fontSize: 24,
-				color: '#666666',
-				textAlign: 'center',
-				verticalAlign: 'middle',
-				whiteSpace: 'nowrap',
-			},
-		});
-		this.addChild(emptyText);
+		this.createEmptyState();
 	}
 
 	/**
-	 * Create the driver display layout
+	 * Create the driver display; placeContents sizes and places it
 	 */
 	private createDriverDisplay(): void {
-		const panelWidth = this.getWidth();
-		const panelHeight = this.getHeight();
-		
-		// Portrait area (40% of panel height, not screen height)
-		const portraitHeight = Math.floor(panelHeight * 0.4);
 		this.portraitArea = new Rectangle({
-			x: Math.floor(panelWidth * 0.05),
-			y: 20,
-			width: Math.floor(panelWidth * 0.9),
-			height: portraitHeight,
 			style: {
 				backgroundColor: '#555577',
 				borderColor: '#777799',
@@ -227,12 +221,10 @@ export class DriverPanel extends Layer {
 			},
 		});
 		this.addChild(this.portraitArea);
-		
+
 		// Driver name (large, bold); it and the two lines under it are centred across the panel
 		this.driverName = new Text('', {
 			id: `${this.idPrefix}driver_name`,
-			y: portraitHeight + 30,
-			width: panelWidth,
 			style: {
 				fontSize: 20,
 				color: '#ffffff',
@@ -242,11 +234,9 @@ export class DriverPanel extends Layer {
 			},
 		});
 		this.addChild(this.driverName);
-		
+
 		// Vehicle name (smaller)
 		this.vehicleName = new Text('', {
-			y: portraitHeight + 55,
-			width: panelWidth,
 			style: {
 				fontSize: 14,
 				color: '#cccccc',
@@ -255,11 +245,9 @@ export class DriverPanel extends Layer {
 			},
 		});
 		this.addChild(this.vehicleName);
-		
+
 		// Specialty tag (2-3 words)
 		this.specialtyTag = new Text('', {
-			y: portraitHeight + 80,
-			width: panelWidth,
 			style: {
 				fontSize: 16,
 				color: '#ffaa00',
@@ -269,10 +257,8 @@ export class DriverPanel extends Layer {
 			},
 		});
 		this.addChild(this.specialtyTag);
-		
-		// Flavor text
+
 		this.flavorText = new Text('', {
-			width: Math.floor(panelWidth * 0.9),
 			style: {
 				fontSize: 12,
 				color: '#aaaaaa',
@@ -280,40 +266,71 @@ export class DriverPanel extends Layer {
 				whiteSpace: 'normal',
 			},
 		});
-		this.flavorText.setPosition(Math.floor(panelWidth * 0.05), portraitHeight + 105);
 		this.addChild(this.flavorText);
-		
-		// Driver selector dropdown/carousel (at very bottom as per spec)
-		const selectorY = panelHeight - 50;
 
 		// The deck preview fills the space down to the selector and clips
 		// there. It is submitted before the selector, so anything it drew past
 		// that line would now sit under the button rather than over it.
-		const deckY = portraitHeight + 140;
 		this.startingDeckContainer = new Layer({
 			id: `${this.idPrefix}deck_preview`,
-			x: Math.floor(panelWidth * 0.05),
-			y: deckY,
-			width: Math.floor(panelWidth * 0.9),
-			height: Math.max(0, selectorY - DECK_PREVIEW_GAP - deckY),
 			overflow: 'hidden',
 		});
 		this.addChild(this.startingDeckContainer);
 
+		// Driver selector (at the very bottom as per spec)
 		this.driverSelector = new Button('', {
 			id: `${this.idPrefix}cycle_button`,
-			width: Math.floor(panelWidth * 0.8),
 			height: 35,
 			style: {
 				fontSize: 14,
 			},
 		});
-		this.driverSelector.setPosition(
-			Math.floor(panelWidth * 0.1),
-			selectorY
-		);
 		this.driverSelector.onClick = () => this.cycleDriver();
 		this.addChild(this.driverSelector);
+
+		this.placeContents();
+	}
+
+	/** The frame's layout phase: the panel was sized, or what it holds changed (R8.18). */
+	protected layoutChildren(): void {
+		this.placeContents();
+	}
+
+	/**
+	 * Every element from the panel's size: the portrait takes 40 percent of
+	 * the height, the text lines stack under it, the selector sits at the
+	 * bottom, and the deck preview fills the space between.
+	 */
+	private placeContents(): void {
+		const panelWidth = this.getWidth();
+		const panelHeight = this.getHeight();
+
+		this.background.setSize(panelWidth, panelHeight);
+		this.emptyStateText?.setSize(panelWidth, panelHeight);
+
+		const portraitHeight = Math.floor(panelHeight * 0.4);
+		this.portraitArea?.setPosition(Math.floor(panelWidth * 0.05), 20);
+		this.portraitArea?.setSize(Math.floor(panelWidth * 0.9), portraitHeight);
+
+		this.driverName?.setPosition(0, portraitHeight + 30);
+		this.driverName?.setWidth(panelWidth);
+		this.vehicleName?.setPosition(0, portraitHeight + 55);
+		this.vehicleName?.setWidth(panelWidth);
+		this.specialtyTag?.setPosition(0, portraitHeight + 80);
+		this.specialtyTag?.setWidth(panelWidth);
+		this.flavorText?.setPosition(Math.floor(panelWidth * 0.05), portraitHeight + 105);
+		this.flavorText?.setWidth(Math.floor(panelWidth * 0.9));
+
+		const selectorY = panelHeight - 50;
+		const deckY = portraitHeight + 140;
+		if (this.startingDeckContainer) {
+			this.startingDeckContainer.setPosition(Math.floor(panelWidth * 0.05), deckY);
+			this.startingDeckContainer.setSize(Math.floor(panelWidth * 0.9), Math.max(0, selectorY - DECK_PREVIEW_GAP - deckY));
+			this.placeDeck();
+		}
+
+		this.driverSelector?.setPosition(Math.floor(panelWidth * 0.1), selectorY);
+		this.driverSelector?.setWidth(Math.floor(panelWidth * 0.8));
 	}
 
 	/**
@@ -354,22 +371,29 @@ export class DriverPanel extends Layer {
 	}
 
 	/**
-	 * Update the starting deck display with mini-cards
+	 * Rebuild the starting deck preview for the selected driver. The card data
+	 * may still be loading; a build that awaited it gives way to any build
+	 * started since, so two quick selections never leave two decks stacked
+	 * in the preview.
 	 */
 	private async updateStartingDeckDisplay(): Promise<void> {
-		if (!this.selectedDriver || !this.startingDeckContainer) return;
-		
-		// Clear existing contents
-		const children = [...this.startingDeckContainer.getChildren()];
-		children.forEach(child => {
-			if (this.startingDeckContainer) {
-				this.startingDeckContainer.removeChild(child);
-			}
-		});
-		this.miniCards = [];
-		
-		// Add "Starting Deck:" title
-		const deckTitle = new Text('Starting Deck:', {
+		const request = ++this.deckRequest;
+		const driver = this.selectedDriver;
+		const container = this.startingDeckContainer;
+		if (!driver || !container) return;
+
+		const cardLoader = CardLoader.getInstance();
+		if (!cardLoader.isLoaded()) {
+			await cardLoader.loadCards();
+		}
+		if (request !== this.deckRequest) return;
+
+		container.clearChildren();
+		this.deckEntries = [];
+
+		// Centred across the preview by placeDeck
+		this.deckTitle = new Text('Starting Deck:', {
+			y: 20,
 			style: {
 				fontSize: 16,
 				color: '#ffffff',
@@ -378,71 +402,64 @@ export class DriverPanel extends Layer {
 				fontWeight: 'bold',
 			},
 		});
-		// Centred across the preview
-		deckTitle.setPosition(0, 20);
-		deckTitle.setWidth(this.startingDeckContainer.getWidth());
-		this.startingDeckContainer.addChild(deckTitle);
-		
-		// Get card loader for actual card data
-		const cardLoader = CardLoader.getInstance();
-		if (!cardLoader.isLoaded()) {
-			await cardLoader.loadCards();
-		}
-		
-		// Create mini-cards for starting deck
-		const startingDeckConfig = this.selectedDriver.startingDeck;
+		container.addChild(this.deckTitle);
+
 		const availableCards = cardLoader.getAllCardsAsMap();
-		
-		const cardDimensions = UICard.getDimensions(CardSize.MINI);
-		const cardSpacing = 10;
-		const containerWidth = this.startingDeckContainer.getWidth();
-		const deckSize = startingDeckConfig.cards.filter((cardConfig) => availableCards.has(cardConfig.type)).length;
-		// Hug the deck: as many cards to a row as the width holds, so a starting
-		// deck fits in one row at the reference size instead of stacking into
-		// rows that run past the selector.
-		const fittingPerRow = Math.floor((containerWidth + cardSpacing) / (cardDimensions.width + cardSpacing));
-		const cardsPerRow = Math.max(1, Math.min(deckSize, fittingPerRow));
-		const startX = Math.floor((containerWidth - (cardsPerRow * cardDimensions.width + (cardsPerRow - 1) * cardSpacing)) / 2);
-		
-		let cardIndex = 0;
-		for (const cardConfig of startingDeckConfig.cards) {
+		for (const cardConfig of driver.startingDeck.cards) {
 			const cardData = availableCards.get(cardConfig.type);
 			if (!cardData) continue;
-			
-			const row = Math.floor(cardIndex / cardsPerRow);
-			const col = cardIndex % cardsPerRow;
-			
-			const x = startX + col * (cardDimensions.width + cardSpacing);
-			const y = 40 + row * (cardDimensions.height + cardSpacing);
-			
-			// Create proper mini card using Card component
-			const miniCard = new UICard({
-				x,
-				y,
+
+			const card = new UICard({
+				x: 0,
+				y: 0,
 				data: cardData,
 				size: CardSize.MINI,
 			});
-			
-			// Disable interaction for display purposes
-			miniCard.enabled = false;
-			
-			this.startingDeckContainer.addChild(miniCard);
-			
-			// Quantity indicator if > 1
+			// Display only
+			card.enabled = false;
+			container.addChild(card);
+
+			let quantity: Text | null = null;
 			if (cardConfig.quantity > 1) {
-				const quantityText = new Text(`x${cardConfig.quantity}`, {
+				quantity = new Text(`x${cardConfig.quantity}`, {
 					style: {
 						fontSize: 10,
 						color: '#ffaa00',
 						fontWeight: 'bold',
 					},
 				});
-				quantityText.setPosition(x + cardDimensions.width - 10, y + 5);
-				this.startingDeckContainer.addChild(quantityText);
+				container.addChild(quantity);
 			}
-			
-			cardIndex++;
+			this.deckEntries.push({ card, quantity });
 		}
+		this.placeDeck();
+	}
+
+	/**
+	 * The mini cards hug the deck: as many to a row as the preview's width
+	 * holds, centred, so a starting deck fits in one row at the reference
+	 * size instead of stacking into rows that run past the selector.
+	 */
+	private placeDeck(): void {
+		const container = this.startingDeckContainer;
+		if (!container) return;
+		const containerWidth = container.getWidth();
+		this.deckTitle?.setWidth(containerWidth);
+
+		const cardDimensions = UICard.getDimensions(CardSize.MINI);
+		const deckSize = this.deckEntries.length;
+		const fittingPerRow = Math.floor((containerWidth + DECK_CARD_SPACING) / (cardDimensions.width + DECK_CARD_SPACING));
+		const cardsPerRow = Math.max(1, Math.min(deckSize, fittingPerRow));
+		const startX = Math.floor((containerWidth - (cardsPerRow * cardDimensions.width + (cardsPerRow - 1) * DECK_CARD_SPACING)) / 2);
+
+		this.deckEntries.forEach(({ card, quantity }, index) => {
+			const row = Math.floor(index / cardsPerRow);
+			const col = index % cardsPerRow;
+			const x = startX + col * (cardDimensions.width + DECK_CARD_SPACING);
+			const y = 40 + row * (cardDimensions.height + DECK_CARD_SPACING);
+			card.setPosition(x, y);
+			quantity?.setPosition(x + cardDimensions.width - 10, y + 5);
+		});
 	}
 
 	/**
