@@ -6,6 +6,18 @@ This document contains the chronological log of completed development tasks for 
 
 **Date correction (2026-08-22):** the repo's first commit is 2025-05-17, but many entries below carry dates in December 2024 or January 2025 — the AI that wrote them used its assumed date instead of the real one. Entries dated 2025-07-03 and 2025-07-02 have been corrected from "2025-01-03"/"2025-01-02" (verified against git history). Remaining Dec 2024 / Jan 2025 dates are wrong by roughly six months; the real work happened May–July 2025. Trust git history over these dates.
 
+## Style states, variants, and the closed style set (2026-09-28)
+
+**What landed:** DDB-84 (DDB-55 phase 4), R11.10 to R11.16. The third deliberate golden re-baseline.
+
+- `engine/style/`: `look.ts` (flags, `Look`, the R11.12 resolver), `styleObject.ts` (closed set, validation, value readers), `variants.ts` (`tone`, `size`, button and field layers), `LookTransition.ts` (R11.13 over the animator).
+- `Component` carries all nine R11.11 flags with `stateFlags` and `onStateChange`; `enabled` changes notify descendants; unmount clears the framework's four.
+- `Button` and `Input` take `tone`/`size`/`style`, validate the style, draw their own box, glow, and focus ring, and follow the look with their parts; the legacy colour setters are gone. START RUN and END TURN are accent variants.
+- `treeSnapshot` reports the full flag set as `state` on every node.
+- `color.bg_pressed` token. The battle mock's legend gains the debuff and non-attack intent lavenders; the token hue test checks a CIE Lab distance of at least 20 against every legend colour instead of exact hex.
+
+**How:** `style/look.test.ts` (the 11.6 flag table, override semantics), `style/styleObject.test.ts`, `ui/Button.test.ts` (each accepted property changes the draw list, rejection, runtime restyle, transitions at `dur_fast` and `dur`, reversal, reduced motion, the ring), `Component.test.ts` flag tests, `widgetInput.test.ts` press tests through injected input. Goldens re-minted on CI. Details in [style-states-and-variants.md](./AI_TECHNICAL_DECISIONS/style-states-and-variants.md).
+
 ## Tree snapshot schema and the text record (2026-09-28)
 
 **What landed:** DDB-80 (DDB-55 phase 3) with DDB-206, R13.21 to R13.28.
