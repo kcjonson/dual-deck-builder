@@ -8,7 +8,7 @@ import {
 	attachTree,
 	captureConsole,
 	expectCleanConsole,
-	goldenName,
+	expectGolden,
 	openScene,
 	openScreen,
 	prepare,
@@ -112,7 +112,7 @@ test.describe('electron shell', () => {
 			await prepare(page);
 			await openScreen(page, scenario.screen);
 
-			await expect(page).toHaveScreenshot(goldenName('screen', scenario.screen));
+			await expectGolden(page, testInfo, 'screen', scenario.screen);
 
 			await attachTree(page, testInfo);
 			expectCleanConsole(log);
@@ -127,7 +127,7 @@ test.describe('electron shell', () => {
 			await prepare(page);
 			await openScene(page, scenario.scene);
 
-			await expect(page).toHaveScreenshot(goldenName('scene', scenario.scene));
+			await expectGolden(page, testInfo, 'scene', scenario.scene);
 
 			await attachTree(page, testInfo);
 			expectCleanConsole(log);

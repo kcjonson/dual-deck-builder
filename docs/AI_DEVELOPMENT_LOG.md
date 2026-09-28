@@ -21,6 +21,15 @@ This document contains the chronological log of completed development tasks for 
 
 **How:** `Component.test.ts` (properties, effective values, children, reconciliation, screen geometry under rotation and scale) and `renderTree.test.ts` (local draws, leaf children walked by the framework, skipped subtrees, zIndex order, opacity, clip and promotion, balanced stacks) on the recording backend. Every screen and gallery scene captured locally on `main` and on the branch passes the golden tolerance; the CI goldens are unchanged.
 
+## Visual gate: cluster rule and settled-layout wait (2026-09-28)
+
+**What landed:** DDB-197 and DDB-201 (DDB-55 test harness).
+
+- `tests/visual/support/diffClusters.ts`: the pixelmatch mask at the suite's threshold, grouped into clusters by union-find with a join radius. `expectGolden` in the harness runs `toHaveScreenshot`, then fails any capture whose largest cluster exceeds `GOLDEN_CLUSTER.maxClusterPixels` (8, radius 2, in `playwright.config.ts`), writes `golden-diff.json` for every capture, and rewrites a cluster-rejected golden on a `changed` mint. All screen, scene and context-loss specs use it. `pixelmatch` 5 and `pngjs` are new dev dependencies; jest now also runs `tests/visual/support`.
+- `settle` polls inside one `page.evaluate`: the old tree comparison was an async `waitForFunction` predicate, which Playwright takes as truthy on the first poll, so it never compared anything. The new gate requires the window, the canvas box, its backing store and the committed viewport at 1440x882 and the tree unchanged for two counted frames, and `openScreen` asserts the screen root fills the viewport.
+
+**How:** 19 mutations run against local baselines (four digit changes the area budget missed are caught; the +2 background shift and in-place punctuation changes are recorded misses, DDB-206 for the latter). A 1300x800 resize just before `navigate` reproduced a screen built for a size the backing store had not reached; the new gate waits it out. On CI, 35 captures against `main`'s goldens differ by 0 pixels and three `update_mode=all` mints committed nothing. The driver-selection layout flip DDB-201 describes is not in any committed golden (checked pixel by pixel across all versions). 13 unit tests for the clustering.
+
 ## Icon atlas and the six symbol sites (2026-09-28)
 
 **What landed:** DDB-72 (DDB-55 phase 2), R12.6 and R12.7's button icon.
