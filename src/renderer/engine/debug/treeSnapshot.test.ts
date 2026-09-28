@@ -287,6 +287,19 @@ describe('treeSnapshot', () => {
 
 			expect('contentOffset' in treeSnapshot([panel], VIEWPORT).roots[0]).toBe(false);
 		});
+
+		it('reports a padded panel\'s inset as the offset the walk applies, and clips inside the border and radius', () => {
+			const panel = new Panel({ id: 'padded', x: 20, y: 30, width: 200, height: 100, padding: 10, overflow: 'hidden' });
+			panel.addChild(new Layer({ id: 'row', width: 50, height: 10 }));
+
+			const node = treeSnapshot([panel], VIEWPORT).roots[0];
+			const row = findById(node, 'row');
+
+			expect(node.contentOffset).toEqual({ x: -10, y: -10 });
+			expect(row?.screenBounds).toEqual({ x: 30, y: 40, w: 50, h: 10 });
+			// The default box's 5 px radius is the larger inset.
+			expect(row?.clip).toEqual({ x: 25, y: 35, w: 190, h: 90 });
+		});
 	});
 
 	describe("parts, a composite's own drawings (R8.1)", () => {
