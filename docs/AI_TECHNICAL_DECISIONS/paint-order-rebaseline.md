@@ -55,8 +55,11 @@ ordering alone moved only glyph overlaps inside the mini cards; the layout was w
 with a clip as the backstop: the container reaches from its top to 10 px above the selector and
 clips (`overflow: 'hidden'`), and a row holds as many cards as the width fits, capped at the deck
 size. Every starting deck (four or six entries) is one centred row at the reference size, inside
-the panel. At a narrow window a deck that needs a second row that does not fit is clipped at the
-container rather than drawn over the button.
+the panel. The clip has a cost at short windows: the flavour text and the panel's fixed 140 px
+offset push the preview's top below the selector, so the container clamps to zero height and the
+whole preview, "Starting Deck:" included, disappears (1024x600 does this). That is better than
+`main`, where it drew over START RUN, but it is not a layout; the panel needs to be responsive, which
+is DDB-89's migration of this screen and is noted there.
 
 **Developer screen title and the scroll panel (spec 14.6).** The title's line box ran from 30 to
 87.6 px while the opaque scroll panel starts at 80, so with true order the panel would cover
@@ -69,10 +72,13 @@ reference instead of by `getY() === 80`.
 
 **Combat resource bar driver names (not in 14.6; found by the pass).** Each `DriverStatsDisplay`
 put the driver's name at 20% of the bar's height, on top of the adrenaline icons added after it, so
-with true order the names vanished under the icons. Fix: the name gets a 16 px band (a 12 px line
-box and a 2 px margin each side) and the icons shrink until the band is free while staying
-vertically centred; at the 61 px bar that is 29 px icons instead of 36, and the draw, discard and
-fuel icons scale with them.
+with true order the names vanished under the icons. Fix: the name gets a 16 px band on top (a 12 px
+line box and a 2 px margin each side), and the icon row is centred in what is left, at
+`min(0.6h, h - 18)`. At the reference 61 px bar the icons stay 36 px, as on `main`, and sit 8 px
+lower; at 1366x650 (a 45 px bar) they are 27 px, also as on `main`. The first version of this fix
+reserved the band on both sides to keep the row centred on the whole bar, which shrank the icons
+twice as fast as the name needed (13 px at 1366x650, gone below a 457 px viewport); review caught
+it. Checked at 1920x1080, 1440x882, 1366x650, 1024x600 and 800x450.
 
 **Developer overlay background (spec 14.6).** F5's overlay draws after the screen, and its black
 panel used to have screen text from the same domain hoisted over it. Not in any golden (the overlay
@@ -109,20 +115,31 @@ driver (compare DDB-195's index-ring cost on combat).
 
 ## Goldens
 
-Re-minted on CI (run 36425170426), six files: `screen-combatScreen` (hand titles past the badges,
-badges whole, resource bar names above smaller icons), `screen-driverSelectionScreen` (deck previews
-in one row inside each panel) and `screen-developerScreen` (title 14 px higher), in both the
+Re-minted on CI: `screen-combatScreen` (hand titles past the badges, badges whole, resource bar
+names in a band above the icons), `screen-driverSelectionScreen` (deck previews in one row inside
+each panel), `screen-developerScreen` (title 14 px higher) and `screen-cardShowcaseScreen` (125
+pixels where two cards' "COMMON" labels overlap their overflowing descriptions), in both the
 chromium and electron projects. Each old and new pair was diffed and every changed pixel falls in
-those regions: 14963, 36529 and 9553 pixels on chromium. `screen-cardShowcaseScreen` moves 125
-pixels (the overlapping "COMMON" labels, a text-over-text order change), under the gate's 200-pixel
-budget, so the mint left its golden alone; the next mint that touches it will pick the change up.
-Unchanged: splash, main menu, all eight gallery scenes.
+those regions. Unchanged: splash, main menu, all eight gallery scenes.
+
+The showcase needed a change to the mint. `visual.yml` ran a bare `--update-snapshots`, which
+Playwright reads as `changed`: it rewrites only a baseline that fails, so a real 125-pixel change
+under the gate's 200-pixel budget survived the first mint and would have surfaced, unexplained, in
+some later PR's mint. The dispatch now takes `update_mode` (`changed` by default, or `all`), and
+this re-baseline was minted with `all`, which rewrites every captured baseline; any file it
+rewrites without a real change is nondeterminism and was checked for.
 
 ## Left open
 
-- Long card titles still run into the cost digit ("Armor Plating" on a badged card, "Coordinated
-  Attack" on any card). Titles are `nowrap` with an estimated width and never truncate; the badge
-  fix narrows the slot by 29 px, so a badged card reaches the cost sooner. Real metrics and
-  measured ellipsis are DDB-71's; the card face follow-up is DDB-198.
+- Long card titles run under the cost digit, which stays on top and readable because it is
+  submitted later. Every combat hand card is badged, and with the title starting past the badge any
+  title over about 72 px collides: in the seeded turn 2 hand that is 6 of 8 cards (Armor Plating,
+  Ramming Speed three times, Precision Shot, Flanking Maneuver), and from `cards.json` the badged
+  collisions are Armor Plating, Covering Fire, Ramming Speed, Precision Shot and Rally the Convoy,
+  with Flanking Maneuver and Coordinated Attack colliding on `main` already and any upgraded
+  eleven-character name ("Nitro Boost+") joining them. On `main` the badge garbled the first letters
+  of every one of those titles instead. Titles are `nowrap` with an estimated width and never
+  truncate; measured ellipsis is DDB-71's, the card face follow-up is DDB-198, and a two-line title
+  (y 20 to about 54 fits above the description) is the cheapest interim fix if one is wanted first.
 - DDB-196 (developer section titles sitting on their bordered panels) is layout, not order, and
   touches every section and gallery scene; left to its own change.
