@@ -12,10 +12,23 @@ This document contains the chronological log of completed development tasks for 
 
 - `engine/services/`: `Placement.ts` (`place` and `PlacementService`), `OverlayService.ts`, `PopupService.ts`, `TooltipService.ts` with `TooltipSurface.ts` and `tooltipSpec.ts`, `ClipboardService.ts`, `AssetService.ts`, and `testing.ts` (queue-driven input helpers for tests). All six are built by `createMountContext`; the pages pass `detectClipboard(window)` and `imageUrlLoader()`.
 - Dispatcher: root tiers (`scene`, `overlay`, `diagnostic`) with `raiseRoot`; `addObserver` with `pointerDown` (can swallow), `pointerMove`, `hoverChange`, `keyDown` (before the scene hotkeys) and `focusChange`; `capturing` and `hoverPoint`. `Component.mount(context, { tier })`, `Component.tooltip`, `Component.popupTrigger`. `UiFrame.requestTick` for services.
-- Pages: both render overlay roots after the scene and report them to the tree snapshot; the F5 overlay mounts as `diagnostic`; a screen change or gallery scene switch closes popups and overlays; viewport changes resize overlay roots. `treeSnapshot` emits the effective `layer`. Electron's preload exposes `clipboard.readText`/`writeText` over IPC.
+- Pages: both render overlay roots after the scene and report them to the tree snapshot; the F5 overlay mounts as `diagnostic`; a screen change or gallery scene switch closes popups and overlays; viewport changes resize overlay roots. Electron's preload exposes `clipboard.readText`/`writeText` over IPC.
 - Gallery: `overlays` scene (gallery-only, `galleryOnlyScenes`), with placement outcomes drawn against a frame and a live tooltip, card-preview tooltip and popup menu; `tests/visual/support/scenarios.ts` lists it.
 
-**How:** `Placement.test.ts`, `OverlayService.test.ts`, `PopupService.test.ts`, `TooltipService.test.ts` (state timing, tolerance, swap, fades, flips, never consumes, press suppression, capture and drag suppression, keyboard trigger, factory trees), `ClipboardService.test.ts`, `AssetService.test.ts`, `input/rootOrder.test.ts` (tiers, observers, `requestTick`), and a `layer` case in `treeSnapshot.test.ts`; 2058 tests green. Driven in the gallery through `__dev.input`: hover swap to the card preview, outside press closing the menu, trigger reopening it, Escape closing it; `__ui.lint()` is 0 on the scene.
+**How:** `Placement.test.ts`, `OverlayService.test.ts`, `PopupService.test.ts`, `TooltipService.test.ts` (state timing, tolerance, swap, fades, flips, never consumes, press suppression, capture and drag suppression, keyboard trigger, factory trees), `ClipboardService.test.ts`, `AssetService.test.ts`, `input/rootOrder.test.ts` (tiers, observers, `requestTick`); 2058 tests green. Driven in the gallery through `__dev.input`: hover swap to the card preview, outside press closing the menu, trigger reopening it, Escape closing it; `__ui.lint()` is 0 on the scene.
+
+## Tree snapshot schema and the text record (2026-09-28)
+
+**What landed:** DDB-80 (DDB-55 phase 3) with DDB-206, R13.21 to R13.28.
+
+- `debug/treeSnapshot.ts` walks with a matrix per node (origin, margin, transform, scroll), the clip reset at a promotion, and the effective layer and opacity, and emits margin, zIndex, layer, opacity, transform, state (plus `pressed` on Button), text, style and inkBounds.
+- `Component` gains `resolvedColors` and `inkRect`; Rectangle, Panel, Layer, Circle, Triangle, Polygon, Icon, Text, Button and Input report their colours; the three stroked shapes report half the stroke as `inkExtent`.
+- `Text` gains `currentMetrics` (never measures) and `overflowOutcome`; `Button` gains `pressed`.
+- `debug/layoutLint.ts`: rule 5 compares the measurement with the local content box; a sibling at zero opacity does not occlude for rule 6; stale phase notes updated.
+- `tests/visual/support/harness.ts`: `expectTextSnapshot`, called by the gallery and screen specs before the golden, against `<kind>-<name>-text.json` beside the PNG.
+- `perf-results/phase3-snapshot-lint.json`: per-scenario lint before and after.
+
+**How:** `treeSnapshot.test.ts` (margin box and content box, transformed bounds, agreement with every component's `screenBounds` through margins, transforms, scroll and parts, transformed clips, zIndex and promotion, R13.25.1 exemption through a real tree, opacity, text measure and outcomes, the reader not measuring, text-overflow live, style, pressed, ink) and `layoutLint.test.ts` (local content box for rule 5, zero-opacity occluder). Lint before and after captured on every scene and screen: no count moved. Five punctuation mutations run against local baselines: the text record caught all five, the pixels one.
 
 ## Input dispatcher and Pointer Events adapter (2026-09-28)
 

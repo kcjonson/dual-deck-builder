@@ -31,7 +31,7 @@ Chapter 12's catalog needs somewhere for its floating things to live before any 
 
 **Assets (R12.32).** `assets.acquire(key)` returns a ref with `texture`, `ready` and `release`. The first acquire decodes through the context's loader (`imageUrlLoader()` on both pages); later ones share the texture; the last release frees it through the draw API. A key released before its decode finishes is never uploaded. Textures are created with a `reload` that decodes again, so a lost context brings them back without a CPU copy (R5.33). A failed decode stays failed while held, so a screen asking every frame does not refetch every frame. `ready` is handled internally, so an unread failure is not an unhandled rejection.
 
-**The tree snapshot reports `layer`.** Overlay roots are viewport-sized by R8.21, so each overlaps the scene's root, and the lint exempts a pair of siblings in different layers only when both carry a `layer`. The field is the effective layer (R3.6), on every node.
+**Overlay roots reach the tree snapshot and the lint.** Both pages append `overlays.roots` to the roots they report. Overlay roots are viewport-sized by R8.21, so each overlaps the scene's root; the lint exempts that pair because the snapshot carries each node's effective `layer` (DDB-80).
 
 ## Alternatives considered
 

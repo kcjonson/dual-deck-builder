@@ -9,9 +9,9 @@
  * The input types below are declared here rather than imported from
  * treeSnapshot so this module has no dependency on the serializer at all. They
  * are a structural superset: every field R13.22 defines that a rule reads is
- * declared, and the phase-dependent ones are optional, so today's
- * `SnapshotDocument` is assignable to `LintDocument` without a cast and stays
- * assignable as phase 2 and phase 4 add fields.
+ * declared, and every one is optional, so `SnapshotDocument` is assignable to
+ * `LintDocument` without a cast and a hand-built document can leave out
+ * whatever it does not test.
  *
  * Geometry is computed in screen space (`screenBounds`) throughout, because
  * rule 2 compares a child against its parent and rule 3 compares a node against
@@ -22,12 +22,14 @@
  * Absence never exempts. Where a rule's exemption depends on a field the
  * snapshot may not carry (`zIndex`, `layer`, `wrap`), the exemption applies
  * only when the field is actually present on both sides of the comparison. An
- * absent `zIndex` read as 0 on both nodes would turn "no stacking declared"
- * into "same stacking declared" and silently exempt every pair in phase 0.
+ * absent `zIndex` read as 0 on one node and declared on the other would invent
+ * a difference nobody declared. The serializer emits `zIndex` and the
+ * effective `layer` on every node since DDB-80, so R13.25.1's exemption now
+ * applies as written wherever a component sets either.
  *
  * R13.29 makes `count: 0` the merge gate. Per the implementation spec's ground
  * rules that gate applies to the gallery first and to each screen as it
- * migrates, so nothing here is wired into CI.
+ * migrates; `tests/visual/web/lint.spec.ts` holds the gallery to it.
  */
 
 export interface LintRect {
@@ -78,6 +80,8 @@ export interface LintNode {
 	contentOffset?: LintPoint;
 	zIndex?: number;
 	layer?: string;
+	/** Effective opacity; a node at 0 draws nothing and takes no hits (R3.27). */
+	opacity?: number;
 	margin?: LintEdges;
 	focusable?: boolean;
 	pointerEvents?: string;
@@ -175,9 +179,10 @@ export const TARGET_SIZE_MIN_TOUCH = 44;
  * Every violation is still reported with the bucket it belongs to, so a
  * consumer filters on `bucket !== 'unmeasured-text'` to get the signal and
  * reads `rules[].buckets` for the split. The discriminator is the type *and*
- * the absence of `text.measured`, which the snapshot does not emit yet
- * (DDB-80); once it does, a Text whose box genuinely collapsed moves to
- * `zero-box` on its own and the prescribed filter stops hiding it.
+ * the absence of `text.measured`, which the snapshot emits whenever the text
+ * has been measured (DDB-80), so a Text whose box genuinely collapsed (an
+ * empty string, an assigned zero) lands in `zero-box` and the prescribed
+ * filter does not hide it.
  */
 export const ZERO_SIZE_BUCKETS = {
 	unmeasuredText: 'unmeasured-text',
@@ -203,9 +208,9 @@ const INTERACTIVE_POINTER_EVENTS: readonly string[] = ['auto', 'unit'];
  * and rule 6 compares a target against a sibling's own box and never descends
  * into that sibling's children. So neither can make a target unreachable here.
  *
- * R3.27 gives `opacity: 0` the same property. R13.22 emits no opacity, so that
- * case defers to phase 3 along with the rest of R8.29's vocabulary rather than
- * being guessed at from a field that is not there.
+ * R3.27 gives `opacity: 0` the same property: the walk skips the subtree, so
+ * nothing in it paints or takes a hit. Read from the effective `opacity`, and
+ * only when the document carries it.
  */
 const TRANSPARENT_TO_HITS: readonly string[] = ['none', 'passthrough'];
 
@@ -226,9 +231,9 @@ const MISSING_TEXT = ['text'];
 const MISSING_TEXT_MEASURE = ['text.measured'];
 
 /**
- * Rule 5's candidates. `text` is the field that makes a node a text node, but
- * phase 0's serializer omits the whole object, so the type name is the fallback
- * signal that a candidate was there and went untested. R12.4 names the
+ * Rule 5's candidates. `text` is the field that makes a node a text node; the
+ * type name is the fallback signal that a candidate was there and went
+ * untested when a document carries no `text` object. R12.4 names the
  * component Text, so the name is schema, not an engine detail.
  */
 const TEXT_TYPE = 'Text';
@@ -343,6 +348,20 @@ function marginBox(candidate: Candidate): LintRect {
 		y: candidate.screen.y - top,
 		w: candidate.screen.w + left + num(margin.right),
 		h: candidate.screen.h + top + num(margin.bottom),
+	};
+}
+
+/**
+ * The content box's size in the node's own space: `bounds` is the margin box
+ * there (R13.22), so the margin comes off when the document carries it.
+ * Without `margin` the two boxes are the same.
+ */
+function contentSize(candidate: Candidate): { w: number; h: number } {
+	const margin = candidate.node.margin;
+	if (!margin) return { w: candidate.bounds.w, h: candidate.bounds.h };
+	return {
+		w: candidate.bounds.w - num(margin.left) - num(margin.right),
+		h: candidate.bounds.h - num(margin.top) - num(margin.bottom),
 	};
 }
 
@@ -485,8 +504,8 @@ export function layoutLint(document: LintDocument, options: LintOptions | null =
 	 * Rule 2. Ink overflow is excluded by construction: `inkBounds` is never
 	 * read. R13.25.2 names the child's *bounds*, which R13.22 defines as the
 	 * margin box, so the child is compared as its margin box against the
-	 * parent's content box. Phase 0 emits no `margin` and the two boxes
-	 * coincide; phase 1 makes the difference real.
+	 * parent's content box. Without a `margin` on the document the two boxes
+	 * coincide.
 	 *
 	 * No exemption for a scroll container. R13.25.2 grants none, and the intent
 	 * signal that would carry one, `contentOffset`, sits on the Panel, whose
@@ -518,17 +537,20 @@ export function layoutLint(document: LintDocument, options: LintOptions | null =
 		// here would miss the Text nodes that have a real width and a zero
 		// height, which are close to a third of the live findings.
 		if (candidate.screen.w > 0 && candidate.screen.h > 0) return;
-		// Type alone would keep bucketing a phase-2 Text that really did
+		// Type alone would keep bucketing a measured Text that really did
 		// collapse as `unmeasured-text`, and the filter this module prescribes
-		// would then drop a real defect. A measurement present says the phase-0
-		// cause has been ruled out.
+		// would then drop a real defect. A measurement present says the
+		// unmeasured cause has been ruled out.
 		const unmeasuredText = candidate.node.type === TEXT_TYPE && !candidate.node.text?.measured;
 		const bucket = unmeasuredText ? ZERO_SIZE_BUCKETS.unmeasuredText : ZERO_SIZE_BUCKETS.zeroBox;
 		rule.bucket(bucket);
 		report('zero-or-negative-size', candidate, undefined, bucket);
 	};
 
-	/** Rule 5. Dormant until a measurement service supplies `text.measured` (phase 2). */
+	/**
+	 * Rule 5. Tests a text whose `text.measured` is present, which the
+	 * snapshot emits once the metrics service has measured it (R6.11).
+	 */
 	const textOverflow = (candidate: Candidate): void => {
 		const text = candidate.node.text;
 		const rule = tally('text-overflow');
@@ -549,14 +571,31 @@ export function layoutLint(document: LintDocument, options: LintOptions | null =
 			return;
 		}
 		rule.evaluated++;
-		// No epsilon: R13.27 scopes it to the geometry rules, and measurement is
-		// exact by R6.11, so a sub-pixel excess is a real excess.
-		if (num(measured.w) > candidate.screen.w || num(measured.h) > candidate.screen.h) {
+		// The document's own verdict wins when it carries one: the Text
+		// compared its measure with its exact own size, and rebuilding that
+		// size here from `bounds` less `margin` drifts in the last bit, which
+		// under no epsilon would report a text that fits exactly.
+		if (typeof text.overflow === 'string') {
+			if (text.overflow === 'visible') report('text-overflow', candidate);
+			return;
+		}
+		// Otherwise no epsilon: R13.27 scopes it to the geometry rules, and
+		// measurement is exact by R6.11, so a sub-pixel excess is a real
+		// excess. The box it is compared with is the local content box, the
+		// space the measurement is in: `screenBounds` is scaled and rotated
+		// with the node, and a quarter-turned label would otherwise swap its
+		// axes.
+		const box = contentSize(candidate);
+		if (num(measured.w) > box.w || num(measured.h) > box.h) {
 			report('text-overflow', candidate);
 		}
 	};
 
-	/** Rule 6. Dormant until R8.29's vocabulary reaches the snapshot (phase 3). */
+	/**
+	 * Rule 6. Dormant until the document says what is interactive: R13.22's
+	 * `focusable`, which the focus manager backs, or R8.29's `pointerEvents`,
+	 * which the snapshot deliberately leaves out for now (see treeSnapshot).
+	 */
 	const unreachableInteractive = (candidate: Candidate, group: readonly Candidate[]): void => {
 		const rule = tally('unreachable-interactive');
 		if (!declaresInteractivity(candidate.node)) {
@@ -583,6 +622,7 @@ export function layoutLint(document: LintDocument, options: LintOptions | null =
 			if (typeof other.node.pointerEvents === 'string' && TRANSPARENT_TO_HITS.indexOf(other.node.pointerEvents) >= 0) {
 				continue;
 			}
+			if (other.node.opacity === 0) continue;
 			if (declaresDifferentLayer(candidate.node, other.node)) continue;
 			if (!paintsAbove(other.node, other.index, candidate.node, candidate.index)) continue;
 			// Entirely covered, with the same epsilon tolerance the geometry
@@ -645,9 +685,9 @@ export function layoutLint(document: LintDocument, options: LintOptions | null =
 	 *   Two rules are narrowed by this, not one, and the second is easy to
 	 *   miss. Rule 6 takes the same group, so a part covering an interactive
 	 *   child, or a child covering an interactive part, is no longer compared
-	 *   either. That is latent rather than live - rule 6 is dormant in phase 0
-	 *   for want of `focusable` and `pointerEvents` - and DDB-73 has to decide
-	 *   it when the dispatcher supplies them. The same gap in rule 1 is the
+	 *   either. That is latent rather than live - rule 6 is dormant for want of
+	 *   `focusable` and `pointerEvents` - and has to be decided when the
+	 *   snapshot starts carrying them. The same gap in rule 1 is the
 	 *   named blind spot in the decision doc: a caller-added child painted over
 	 *   a composite's own label is invisible to the lint, and the scene's
 	 *   screenshot golden is what covers it today.

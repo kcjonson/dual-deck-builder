@@ -5,7 +5,9 @@ import { Text } from '../components/Text';
 import { Panel } from '../ui/Panel';
 import { Button } from '../ui/Button';
 import { Input } from '../ui/Input';
-import { SnapshotNode, treeSnapshot } from './treeSnapshot';
+import { Circle } from '../components/Circle';
+import { SnapshotNode, SnapshotRect, treeSnapshot } from './treeSnapshot';
+import { layoutLint } from './layoutLint';
 import { createMeasuringDrawApi } from '../text/testing';
 import { createTestContext } from '../components/testing';
 
@@ -27,6 +29,28 @@ function findById(node: SnapshotNode, id: string): SnapshotNode | null {
 
 function countNodes(node: SnapshotNode): number {
 	return descendants(node).reduce((total, child) => total + countNodes(child), 1);
+}
+
+/** A mounted text, sized by the committed metrics the way a page sizes it. */
+function measuredText(content: string, options?: ConstructorParameters<typeof Text>[1]): Text {
+	const text = new Text(content, options);
+	text.mount(createTestContext({ draw: createMeasuringDrawApi().api }));
+	return text;
+}
+
+function rectOf(bounds: { x: number; y: number; width: number; height: number }): SnapshotRect {
+	return { x: bounds.x, y: bounds.y, w: bounds.width, h: bounds.height };
+}
+
+/** Every component beside its serialized node, parts and children both, in the snapshot's order. */
+function pairs(component: Component, node: SnapshotNode): [Component, SnapshotNode][] {
+	const kids = component.debugChildren;
+	const serialized = [...(node.parts ?? []), ...node.children];
+	const parts = kids.filter((child) => child.isPart);
+	const children = kids.filter((child) => !child.isPart);
+	return [[component, node] as [Component, SnapshotNode]].concat(
+		[...parts, ...children].flatMap((child, index) => pairs(child, serialized[index])),
+	);
 }
 
 function countLayers(layer: Component): number {
@@ -108,44 +132,24 @@ describe('treeSnapshot', () => {
 	});
 
 	describe('the omission rule (R13.22)', () => {
-		it('leaves out every field the engine cannot back', () => {
+		it('leaves out every field nothing in the engine backs yet', () => {
 			const node = treeSnapshot([new Layer({ id: 'plain', width: 10, height: 10 })], VIEWPORT).roots[0];
 
-			for (const absent of [
-				'margin',
-				'zIndex',
-				'opacity',
-				'transform',
-				'focusable',
-				'inkBounds',
-				'style',
-				'text',
-			]) {
+			for (const absent of ['focusable', 'transform', 'text', 'value', 'style', 'clip', 'contentOffset']) {
 				expect(absent in node).toBe(false);
 			}
 		});
 
-		it('reports the effective layer, inherited from a promoted ancestor', () => {
-			const popup = new Layer({ id: 'popup', width: 10, height: 10, layer: 'popup' });
-			const inside = new Layer({ id: 'inside', width: 5, height: 5 });
-			popup.addChild(inside);
-			const root = new Layer({ id: 'root', width: 20, height: 20 });
-			root.addChild(popup);
-			const serialized = treeSnapshot([root], VIEWPORT).roots[0];
+		it('reports the base-backed fields on every node, a plain Layer included', () => {
+			const node = treeSnapshot([new Layer({ id: 'plain', width: 10, height: 10 })], VIEWPORT).roots[0];
 
-			expect(serialized.layer).toBe('base');
-			expect(serialized.children[0].layer).toBe('popup');
-			expect(serialized.children[0].children[0].layer).toBe('popup');
-		});
-
-		it('omits clip, contentOffset, enabled, state and value on a plain Layer', () => {
-			const node = treeSnapshot([new Layer({ width: 10, height: 10 })], VIEWPORT).roots[0];
-
-			expect('clip' in node).toBe(false);
-			expect('contentOffset' in node).toBe(false);
-			expect('enabled' in node).toBe(false);
-			expect('state' in node).toBe(false);
-			expect('value' in node).toBe(false);
+			expect(node.margin).toEqual({ top: 0, right: 0, bottom: 0, left: 0 });
+			expect(node.zIndex).toBe(0);
+			expect(node.layer).toBe('base');
+			expect(node.enabled).toBe(true);
+			expect(node.opacity).toBe(1);
+			expect(node.state).toEqual({ hovered: false, focused: false });
+			expect(node.inkBounds).toEqual(node.screenBounds);
 		});
 
 		it('reports enabled and only the two derivable state flags on a Component', () => {
@@ -282,6 +286,19 @@ describe('treeSnapshot', () => {
 			const panel = new Panel({ id: 'static', width: 100, height: 50 });
 
 			expect('contentOffset' in treeSnapshot([panel], VIEWPORT).roots[0]).toBe(false);
+		});
+
+		it('reports a padded panel\'s inset as the offset the walk applies, and clips inside the border and radius', () => {
+			const panel = new Panel({ id: 'padded', x: 20, y: 30, width: 200, height: 100, padding: 10, overflow: 'hidden' });
+			panel.addChild(new Layer({ id: 'row', width: 50, height: 10 }));
+
+			const node = treeSnapshot([panel], VIEWPORT).roots[0];
+			const row = findById(node, 'row');
+
+			expect(node.contentOffset).toEqual({ x: -10, y: -10 });
+			expect(row?.screenBounds).toEqual({ x: 30, y: 40, w: 50, h: 10 });
+			// The default box's 5 px radius is the larger inset.
+			expect(row?.clip).toEqual({ x: 25, y: 35, w: 190, h: 90 });
 		});
 	});
 
@@ -581,6 +598,271 @@ describe('treeSnapshot', () => {
 			const bounds = treeSnapshot([text], VIEWPORT).roots[0].bounds;
 			expect(bounds.w).toBeGreaterThan(0);
 			expect(bounds.h).toBeGreaterThan(0);
+		});
+	});
+
+	describe('margin and transform (R8.10, R8.13, R8.26)', () => {
+		it('reports bounds as the margin box and screenBounds as the content box', () => {
+			const root = new Layer({ id: 'root', x: 5, y: 5, width: 400, height: 400 });
+			const boxed = new Layer({
+				id: 'boxed',
+				x: 10,
+				y: 20,
+				width: 100,
+				height: 50,
+				margin: { top: 4, right: 6, bottom: 8, left: 2 },
+			});
+			root.addChild(boxed);
+
+			const node = findById(treeSnapshot([root], VIEWPORT).roots[0], 'boxed');
+
+			expect(node?.margin).toEqual({ top: 4, right: 6, bottom: 8, left: 2 });
+			expect(node?.bounds).toEqual({ x: 10, y: 20, w: 108, h: 62 });
+			expect(node?.screenBounds).toEqual({ x: 17, y: 29, w: 100, h: 50 });
+		});
+
+		it('reports a non-identity transform and the axis-aligned bounds it puts on screen', () => {
+			const card = new Layer({ id: 'card', x: 100, y: 100, width: 100, height: 50, transform: { rotate: Math.PI / 2 } });
+
+			const node = treeSnapshot([card], VIEWPORT).roots[0];
+
+			expect(node.transform).toEqual({ rotate: Math.PI / 2, scale: 1, translate: [0, 0], origin: [0.5, 0.5] });
+			// A quarter turn about its centre, (150, 125).
+			expect(node.screenBounds.x).toBeCloseTo(125);
+			expect(node.screenBounds.y).toBeCloseTo(75);
+			expect(node.screenBounds.w).toBeCloseTo(50);
+			expect(node.screenBounds.h).toBeCloseTo(100);
+			// Layout ignores the transform (R8.26), and so does bounds.
+			expect(node.bounds).toEqual({ x: 100, y: 100, w: 100, h: 50 });
+		});
+
+		it("agrees with every component's own screenBounds through margins, transforms, scroll and parts", () => {
+			const root = new Layer({ id: 'root', width: 1440, height: 882 });
+			const tilted = new Layer({
+				id: 'tilted',
+				x: 40,
+				y: 60,
+				width: 300,
+				height: 200,
+				margin: 7,
+				transform: { rotate: 0.3, scale: 1.5 },
+			});
+			const scroller = new Panel({ id: 'scroller', x: 20, y: 10, width: 200, height: 100, scrollable: true });
+			scroller.setContentSize(200, 400);
+			scroller.scroll(0, 25);
+			scroller.addChild(new Button('Fire', { id: 'fire', x: 10, y: 60, width: 80, height: 30, margin: { left: 3 } }));
+			tilted.addChild(scroller);
+			root.addChild(tilted);
+
+			const document = treeSnapshot([root], VIEWPORT);
+			const all = pairs(root, document.roots[0]);
+
+			expect(all).toHaveLength(countLayers(root));
+			for (const [component, node] of all) {
+				const expected = rectOf(component.screenBounds);
+				expect(node.screenBounds.x).toBeCloseTo(expected.x, 9);
+				expect(node.screenBounds.y).toBeCloseTo(expected.y, 9);
+				expect(node.screenBounds.w).toBeCloseTo(expected.w, 9);
+				expect(node.screenBounds.h).toBeCloseTo(expected.h, 9);
+			}
+		});
+
+		it('clips children to the transformed box, as the draw API pushes it (R4.7)', () => {
+			const scaled = new Layer({
+				id: 'scaled',
+				x: 10,
+				y: 10,
+				width: 50,
+				height: 20,
+				overflow: 'hidden',
+				transform: { scale: 2, origin: [0, 0] },
+			});
+			scaled.addChild(new Layer({ id: 'inside', width: 5, height: 5 }));
+
+			expect(findById(treeSnapshot([scaled], VIEWPORT).roots[0], 'inside')?.clip).toEqual({ x: 10, y: 10, w: 100, h: 40 });
+		});
+	});
+
+	describe('stacking: zIndex and the effective layer (R3.6, R3.8, R3.12)', () => {
+		it("reports own zIndex and the effective layer, which never drops below the parent's", () => {
+			const root = new Layer({ id: 'root', width: 100, height: 100 });
+			const raised = new Layer({ id: 'raised', zIndex: 2, layer: 'overlay', width: 50, height: 50 });
+			const lower = new Layer({ id: 'lower', layer: 'raised', width: 10, height: 10 });
+			raised.addChild(lower);
+			root.addChild(raised);
+
+			const node = treeSnapshot([root], VIEWPORT).roots[0];
+
+			expect(findById(node, 'raised')).toMatchObject({ zIndex: 2, layer: 'overlay' });
+			expect(findById(node, 'lower')).toMatchObject({ zIndex: 0, layer: 'overlay' });
+		});
+
+		it('resets the inherited clip at a promotion, for the promoted node and its subtree', () => {
+			const clipper = new Layer({ id: 'clipper', width: 100, height: 100, overflow: 'hidden' });
+			const popup = new Layer({ id: 'popup', layer: 'popup', x: 80, y: 80, width: 60, height: 60 });
+			const row = new Layer({ id: 'row', width: 10, height: 10 });
+			const sibling = new Layer({ id: 'sibling', width: 10, height: 10 });
+			popup.addChild(row);
+			clipper.addChild(popup);
+			clipper.addChild(sibling);
+
+			const node = treeSnapshot([clipper], VIEWPORT).roots[0];
+
+			expect('clip' in (findById(node, 'popup') ?? {})).toBe(false);
+			expect('clip' in (findById(node, 'row') ?? {})).toBe(false);
+			expect(findById(node, 'sibling')?.clip).toEqual({ x: 0, y: 0, w: 100, h: 100 });
+		});
+
+		it('gives R13.25.1 what it needs: siblings on differing zIndex or layer are exempt, equal ones are not', () => {
+			type Stacking = { zIndex?: number; layer?: 'base' | 'overlay' };
+			const lint = (a: Stacking, b: Stacking) => {
+				const root = new Layer({ id: 'root', width: 400, height: 400 });
+				root.addChild(new Layer({ id: 'a', width: 100, height: 100, ...a }));
+				root.addChild(new Layer({ id: 'b', x: 50, y: 50, width: 100, height: 100, ...b }));
+				return layoutLint(treeSnapshot([root], VIEWPORT));
+			};
+			const overlaps = (result: ReturnType<typeof layoutLint>) =>
+				result.violations.filter((violation) => violation.rule === 'sibling-overlap');
+
+			expect(overlaps(lint({}, {}))).toHaveLength(1);
+			expect(overlaps(lint({ zIndex: 1 }, {}))).toHaveLength(0);
+			expect(overlaps(lint({ layer: 'overlay' }, {}))).toHaveLength(0);
+			expect(lint({ layer: 'overlay' }, {}).rules.find((rule) => rule.rule === 'sibling-overlap')?.exempt).toBe(1);
+		});
+	});
+
+	describe('opacity (R3.25)', () => {
+		it('reports the product down the tree', () => {
+			const outer = new Layer({ id: 'outer', opacity: 0.5, width: 10, height: 10 });
+			outer.addChild(new Layer({ id: 'inner', opacity: 0.5, width: 5, height: 5 }));
+
+			const node = treeSnapshot([outer], VIEWPORT).roots[0];
+
+			expect(node.opacity).toBe(0.5);
+			expect(findById(node, 'inner')?.opacity).toBe(0.25);
+		});
+	});
+
+	describe('text (R13.22, R6.14)', () => {
+		it('reports content and wrap before anything has measured, and no measure or outcome', () => {
+			const node = treeSnapshot([new Text('End turn')], VIEWPORT).roots[0];
+
+			expect(node.text).toEqual({ content: 'End turn', wrap: 'none' });
+		});
+
+		it('reports the measured extent and a fitting outcome for a hugging text', () => {
+			const node = treeSnapshot([measuredText('End turn')], VIEWPORT).roots[0];
+
+			expect(node.text?.content).toBe('End turn');
+			expect(node.text?.measured).toEqual({ w: node.screenBounds.w, h: node.screenBounds.h, lines: 1 });
+			expect(node.text?.overflow).toBe('none');
+		});
+
+		it('says what happened to a nowrap text wider than its box, by overflow mode', () => {
+			const text = (textOverflow?: 'visible' | 'hidden' | 'ellipsis') => treeSnapshot(
+				[measuredText('A label far too long for its box', { width: 40, height: 30, style: { whiteSpace: 'nowrap', textOverflow } })],
+				VIEWPORT,
+			).roots[0].text;
+
+			expect(text()?.overflow).toBe('visible');
+			expect(text()?.measured?.w).toBeGreaterThan(40);
+			expect(text('hidden')?.overflow).toBe('clip');
+			expect(text('ellipsis')?.overflow).toBe('ellipsis');
+		});
+
+		it('reports word wrap at an assigned width', () => {
+			const node = treeSnapshot([measuredText('one two three four five six', { width: 60 })], VIEWPORT).roots[0];
+
+			expect(node.text?.wrap).toBe('word');
+			expect(node.text?.measured?.lines).toBeGreaterThan(1);
+		});
+
+		it('never measures from the reader: an unmeasurable text stays unmeasured', () => {
+			const text = new Text('Pending');
+			text.mount(createTestContext());
+
+			const node = treeSnapshot([text], VIEWPORT).roots[0];
+
+			expect(node.text).toEqual({ content: 'Pending', wrap: 'none' });
+			expect(text.currentMetrics).toBeNull();
+			expect(text.width).toBe(0);
+		});
+
+		it("wakes the lint's text-overflow rule, which reports only the unhandled case", () => {
+			const root = new Layer({ id: 'root', width: 400, height: 400 });
+			root.addChild(measuredText('A label far too long for its box', {
+				id: 'spill',
+				width: 40,
+				height: 30,
+				style: { whiteSpace: 'nowrap' },
+			}));
+			root.addChild(measuredText('A label far too long for its box', {
+				id: 'cut',
+				y: 40,
+				width: 40,
+				height: 30,
+				style: { whiteSpace: 'nowrap', textOverflow: 'ellipsis' },
+			}));
+
+			const result = layoutLint(treeSnapshot([root], VIEWPORT));
+
+			expect(result.violations.filter((violation) => violation.rule === 'text-overflow').map((violation) => violation.path))
+				.toEqual(['root/spill']);
+			expect(result.rules.find((entry) => entry.rule === 'text-overflow')).toMatchObject({ evaluated: 1, exempt: 1, dormant: false });
+		});
+	});
+
+	describe('style (R13.22)', () => {
+		it("reports a rectangle's fill, and its border only when one is drawn", () => {
+			const plain = treeSnapshot(
+				[new Rectangle({ width: 10, height: 10, style: { backgroundColor: '#ff0000' } })],
+				VIEWPORT,
+			).roots[0];
+			const bordered = treeSnapshot(
+				[new Rectangle({ width: 10, height: 10, style: { backgroundColor: '#ff0000', border: '2px solid #00ff00' } })],
+				VIEWPORT,
+			).roots[0];
+
+			expect(plain.style).toEqual({ fill: [1, 0, 0, 1] });
+			expect(bordered.style).toEqual({ fill: [1, 0, 0, 1], border: [0, 1, 0, 1] });
+		});
+
+		it("reports a text's colour as text, and a button's fill, label and border together", () => {
+			const text = treeSnapshot([new Text('hi', { style: { color: '#0000ff' } })], VIEWPORT).roots[0];
+			const button = treeSnapshot([new Button('Go', { width: 80, height: 30 })], VIEWPORT).roots[0];
+
+			expect(text.style).toEqual({ text: [0, 0, 1, 1] });
+			expect(Object.keys(button.style ?? {}).sort()).toEqual(['border', 'fill', 'text']);
+		});
+
+		it('omits style on a component that draws nothing', () => {
+			const bare = treeSnapshot([new Layer({ width: 10, height: 10 })], VIEWPORT).roots[0];
+			const filled = treeSnapshot(
+				[new Layer({ width: 10, height: 10 }).setBackgroundColor([0, 0, 0, 1])],
+				VIEWPORT,
+			).roots[0];
+
+			expect('style' in bare).toBe(false);
+			expect(filled.style).toEqual({ fill: [0, 0, 0, 1] });
+		});
+	});
+
+	describe('state and ink (R11.11, R8.8)', () => {
+		it('reports pressed on a Button, which maintains it, and nowhere else', () => {
+			const button = treeSnapshot([new Button('Go', { width: 80, height: 30 })], VIEWPORT).roots[0];
+
+			expect(button.state).toEqual({ hovered: false, focused: false, pressed: false });
+			expect('pressed' in (button.parts?.[0].state ?? {})).toBe(false);
+		});
+
+		it("grows inkBounds past screenBounds by a centred stroke's outer half", () => {
+			const ring = new Circle({ x: 10, y: 10, style: { borderWidth: 4 } });
+			ring.setRadius(20);
+
+			const node = treeSnapshot([ring], VIEWPORT).roots[0];
+
+			expect(node.screenBounds).toEqual({ x: 10, y: 10, w: 40, h: 40 });
+			expect(node.inkBounds).toEqual({ x: 8, y: 8, w: 44, h: 44 });
 		});
 	});
 });

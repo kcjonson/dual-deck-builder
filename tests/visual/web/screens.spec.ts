@@ -5,6 +5,7 @@ import {
 	captureConsole,
 	expectCleanConsole,
 	expectGolden,
+	expectTextSnapshot,
 	openScreen,
 	prepare,
 } from '../support/harness';
@@ -28,6 +29,7 @@ test.describe('game screens', () => {
 			await prepare(page);
 			await openScreen(page, scenario.screen);
 
+			await expectTextSnapshot(page, 'screen', scenario.screen);
 			await expectGolden(page, testInfo, 'screen', scenario.screen);
 
 			await attachTree(page, testInfo);
