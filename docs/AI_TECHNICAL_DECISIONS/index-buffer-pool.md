@@ -41,9 +41,19 @@ Unthrottled headless measurements were useless for this. The first second after 
 - **16-bit indices where an upload has at most 65536 vertices.** Measured as bad as 32-bit at the same buffer size.
 - **Orphan the buffer each frame (`bufferData`).** Measured worse: 29 ms at 4 MB. It also allocates per frame (R15.11).
 - **Write all of a frame's indices before any draw.** The six-writes-then-six-draws row shows it would work. But domains are flushed as the tree walk reaches barriers, so a domain's indices cannot be written before an earlier domain draws without deferring all GPU work to `endFrame`, which is an architecture change.
-- **A buffer per upload, sized to the upload.** The draw-time work becomes proportional to the indices actually written, whatever the frame's total. R5.27 names this shape ("a ring of at least three buffers per flush"). Chosen.
+- **A buffer per upload, sized to the upload.** The draw-time work becomes proportional to the indices actually written, whatever the frame's total. Chosen.
 
 ## Decision
+
+### A hybrid of R5.27's two shapes
+
+R5.27 allows "a ring of at least `3 * flushesPerFrame` fixed-capacity buffers" or one buffer per stream written at an advancing offset that wraps onto regions two frames old, "either way one vertex array object per buffer (or per slot) ... bound once per flush". This is neither, exactly:
+
+- Slots are one per flush, like the ring shape, but their capacity varies (powers of two from 16 KB) rather than being fixed. A fixed capacity big enough for the card showcase's largest upload would put that size under every small upload's draw, which is the cost this change removes.
+- Reuse is keyed on age, two frames, as in the offset shape, rather than on a slot count. The slot count then follows the working set rather than a guessed `flushesPerFrame`.
+- There is one vertex array object, not one per slot. It is bound once per flush as the rule asks, and the upload's element buffer is rebound into it (element binding is vertex array state). That is one extra bind per flush and nothing per draw, the same cost R5.27 is after. A vertex array per slot would have to repeat the ten attribute pointers for each slot, even though they depend on the vertex ring's offset rather than on the slot.
+
+The rule's intent holds: no write into a region the GPU may still read, no orphaning, and nothing bound per draw.
 
 `rendering/IndexBufferPool.ts`, GL-free like `StreamRing`, owns slot bookkeeping. `WebGL2Backend` owns one element buffer per slot and binds the upload's slot into the vertex array before writing it at offset 0.
 
@@ -68,8 +78,12 @@ What changed is the sensitivity. Combat's cost no longer depends on how large th
 
 No pixel change: the same indices are drawn from the same vertices, and only the buffer they are read from and its offset differ. The screenshot suite is the check.
 
-## Trade-offs
+## Trade-offs and known limits
 
 - An element buffer bind per upload. It is vertex array state and there is one upload per sort domain, so it is a handful of binds a frame.
 - 24 small buffers (384 KB) replace one 786 KB buffer.
+- Smallest fit prefers any free slot that fits over creating one of the right size. A screen with more than 12 uploads a frame, after a heavier screen has left 128 to 256 KB slots behind, would put small uploads in those large slots. That brings back the size-proportional cost, capped at 256 KB: the batcher's `maxVertices` limits an upload to about 64K indices, and the probe measured 256 KB as free. No screen today has more than six uploads.
+- Slots are never trimmed, so index memory stays at the session's peak working set: a few MB in the worst case, under 1 MB for today's screens. Both of these limits are left for a follow-up if a screen needs it: create a right-sized slot when the best fit is more than one power of two too large, and drop slots unused for N frames.
+- Only ANGLE Metal was measured. Per-upload element buffers should be neutral or better on D3D11, but that is an expectation, not a measurement; a paced combat capture on the Windows machine should confirm it before more is built on this path.
 - If ANGLE ever does this work for vertex buffers too, the vertex ring would need the same treatment. Nothing measured says it does.
+- The likely culprit is ANGLE Metal's primitive-restart range cache in `BufferMtl` (restart is always on in WebGL2), which, as remembered by the reviewer and by me, rescans the whole buffer on the first draw after any data change. That would explain why 16-bit indices do not help and why six writes followed by six draws cost one scan. Nobody has confirmed it from ANGLE's source.

@@ -49,8 +49,8 @@ import { DEFAULT_FONT } from './fonts';
  *   offset that wraps only onto a region at least two frames old (R5.27,
  *   R15.11, `StreamRing`). A frame that outgrows it grows it once, and says
  *   so, rather than overwriting a region the GPU may still read.
- * - Index storage is R5.27's other shape, a pool of buffers, one per upload,
- *   each reused only once two frames old (`IndexBufferPool`). On ANGLE Metal a
+ * - Index storage is a pool of buffers, one per upload, each reused only once
+ *   two frames old (`IndexBufferPool`, a hybrid of R5.27's two shapes). On ANGLE Metal a
  *   draw from a freshly written element buffer costs in proportion to the
  *   whole buffer, so one ring sized for three frames made every upload pay for
  *   all of it (DDB-195); a buffer per upload pays for its own indices.
@@ -419,19 +419,20 @@ export class WebGL2Backend implements DrawBackend {
 	private execute(upload: GeometryUpload): number {
 		const gl = this.gl;
 		const vertexOffset = this.reserve(upload.floatCount * 4);
-		const index = this.indexPool.acquire(upload.indexCount * 4);
+		const slot = this.indexPool.acquire(upload.indexCount * 4);
+		const created = this.indexPool.created;
 
 		this.bindPipeline();
 		const { vertexArray, vertexBuffer, indexBuffers } = this.resources;
 		gl.bindVertexArray(vertexArray);
 		gl.bindBuffer(gl.ARRAY_BUFFER, vertexBuffer);
 		gl.bufferSubData(gl.ARRAY_BUFFER, vertexOffset, upload.vertices, 0, upload.floatCount);
-		if (index.created) indexBuffers[index.slot] = createBuffer(gl);
+		if (created) indexBuffers[slot] = createBuffer(gl);
 		// Vertex array state: the slot becomes this upload's element buffer.
-		gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, indexBuffers[index.slot]);
+		gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, indexBuffers[slot]);
 		// A slot is created at the size it keeps; this is the one allocation a
 		// screen's heaviest upload can cause, the first time it is seen (R15.11).
-		if (index.created) gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, index.capacity, gl.DYNAMIC_DRAW);
+		if (created) gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, this.indexPool.capacityOf(slot), gl.DYNAMIC_DRAW);
 		gl.bufferSubData(gl.ELEMENT_ARRAY_BUFFER, 0, upload.indices, 0, upload.indexCount);
 
 		// Indices are relative to the upload's first vertex, so the pointers

@@ -1,7 +1,9 @@
 /**
- * Slot bookkeeping for the index stream: R5.27's first storage shape, a ring
- * of buffers rather than one buffer written at an advancing offset, for the
- * index stream only (DDB-195).
+ * Slot bookkeeping for the index stream (DDB-195): a buffer per upload rather
+ * than one buffer written at an advancing offset. It is a hybrid of R5.27's
+ * two shapes, slots per flush with the offset shape's two-frame age rule and
+ * one vertex array for all of them; `docs/AI_TECHNICAL_DECISIONS/
+ * index-buffer-pool.md` says why.
  *
  * Why indices get their own shape. Measured on ANGLE Metal (Radeon Pro 560X,
  * Chrome, paced): a `drawElements` that reads an element buffer written since
@@ -40,14 +42,6 @@ export interface IndexBufferPoolOptions {
 	minAge?: number;
 }
 
-export interface IndexSlot {
-	/** Index into the pool, stable for the pool's life; the backend's buffer array is parallel to it. */
-	slot: number;
-	capacity: number;
-	/** True when this call created the slot, so the backend must create and size its buffer. */
-	created: boolean;
-}
-
 /** Eight uploads a frame, three frames deep: combat, the busiest screen by uploads, has six. */
 export const DEFAULT_INITIAL_INDEX_SLOTS = 24;
 
@@ -65,6 +59,7 @@ export class IndexBufferPool {
 	private readonly minAge: number;
 	private readonly slots: SlotState[] = [];
 	private currentFrame = -1;
+	private lastCreated = false;
 
 	constructor({
 		initialSlots = DEFAULT_INITIAL_INDEX_SLOTS,
@@ -84,6 +79,15 @@ export class IndexBufferPool {
 		return this.slots.map((slot) => slot.capacity);
 	}
 
+	/** Whether the last `acquire` created its slot, so the backend must create and size a buffer for it. */
+	get created(): boolean {
+		return this.lastCreated;
+	}
+
+	capacityOf(slot: number): number {
+		return this.slots[slot].capacity;
+	}
+
 	/** Frames only move forward, as `StreamRing`'s do. */
 	beginFrame(frame: number): void {
 		if (frame <= this.currentFrame) {
@@ -95,9 +99,11 @@ export class IndexBufferPool {
 	/**
 	 * The smallest slot that holds `bytes` and was last written at least
 	 * `minAge` frames ago, or a new slot when none does. The slot is marked
-	 * written in this frame.
+	 * written in this frame. Returns the slot index, stable for the pool's life
+	 * (the backend's buffer array is parallel to it); `created` and
+	 * `capacityOf` answer the rest, so a steady frame allocates nothing here.
 	 */
-	acquire(bytes: number): IndexSlot {
+	acquire(bytes: number): number {
 		let best = -1;
 		for (let index = 0; index < this.slots.length; index++) {
 			const slot = this.slots[index];
@@ -107,13 +113,15 @@ export class IndexBufferPool {
 
 		if (best >= 0) {
 			this.slots[best].lastFrame = this.currentFrame;
-			return { slot: best, capacity: this.slots[best].capacity, created: false };
+			this.lastCreated = false;
+			return best;
 		}
 
 		let capacity = this.minCapacity;
 		while (capacity < bytes) capacity *= 2;
 		this.slots.push({ capacity, lastFrame: this.currentFrame });
-		return { slot: this.slots.length - 1, capacity, created: true };
+		this.lastCreated = true;
+		return this.slots.length - 1;
 	}
 
 	/**

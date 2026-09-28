@@ -296,6 +296,32 @@ describe('WebGL2Backend', () => {
 		expect(new Set(frames.flat()).size).toBe(6);
 	});
 
+	it('binds each upload\'s element buffer inside its vertex array and draws before unbinding it', () => {
+		const { frame, named, constant } = setupBackend();
+		frame(clippedTwice);
+		const calls = frame(clippedTwice);
+		const vertexArray = named(calls, 'bindVertexArray').find((call) => call.args[0] !== null)?.args[0];
+		let bound: unknown = null;
+		let element: unknown = null;
+		let uploads = 0;
+		for (const call of calls) {
+			if (call.name === 'bindVertexArray') {
+				bound = call.args[0];
+				element = null;
+			} else if (call.name === 'bindBuffer' && call.args[0] === constant('ELEMENT_ARRAY_BUFFER')) {
+				// Element binding is vertex array state: bound anywhere else it
+				// would land on the default vertex array.
+				expect(bound).toBe(vertexArray);
+				element = call.args[1];
+				uploads++;
+			} else if (call.name === 'drawElements') {
+				expect(bound).toBe(vertexArray);
+				expect(element).not.toBeNull();
+			}
+		}
+		expect(uploads).toBe(3);
+	});
+
 	it('creates a larger slot, once, for an upload that does not fit, and never allocates for it again', () => {
 		const { frame, named, constant } = setupBackend({ indexSlots: 6, indexSlotBytes: 256 });
 		const many = (draw: DrawApi) => {

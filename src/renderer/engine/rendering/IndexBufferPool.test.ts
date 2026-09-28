@@ -10,8 +10,9 @@ describe('IndexBufferPool', () => {
 	it('hands each upload in a frame its own slot', () => {
 		const pool = new IndexBufferPool({ initialSlots: 6, minCapacity: 16 * KB });
 		pool.beginFrame(0);
-		const slots = [pool.acquire(100), pool.acquire(100), pool.acquire(100)].map((index) => index.slot);
+		const slots = [pool.acquire(100), pool.acquire(100), pool.acquire(100)];
 		expect(new Set(slots).size).toBe(3);
+		expect(pool.created).toBe(false);
 	});
 
 	it('reuses a slot only once the frame that wrote it is two frames old (R5.27)', () => {
@@ -20,22 +21,28 @@ describe('IndexBufferPool', () => {
 		const first = pool.acquire(100);
 		pool.beginFrame(1);
 		const second = pool.acquire(100);
-		expect(second.slot).not.toBe(first.slot);
+		expect(second).not.toBe(first);
 		pool.beginFrame(2);
-		expect(pool.acquire(100)).toEqual({ slot: first.slot, capacity: 16 * KB, created: false });
+		expect(pool.acquire(100)).toBe(first);
+		expect(pool.created).toBe(false);
 	});
 
 	it('creates a slot when every free one is too young, rather than rewriting a live one', () => {
 		const pool = new IndexBufferPool({ initialSlots: 1, minCapacity: 16 * KB });
 		pool.beginFrame(0);
-		expect(pool.acquire(100).created).toBe(false);
-		expect(pool.acquire(100)).toEqual({ slot: 1, capacity: 16 * KB, created: true });
+		pool.acquire(100);
+		expect(pool.created).toBe(false);
+		expect(pool.acquire(100)).toBe(1);
+		expect(pool.created).toBe(true);
+		expect(pool.capacityOf(1)).toBe(16 * KB);
 	});
 
 	it('sizes a new slot to the upload, as the next power of two above the minimum', () => {
 		const pool = new IndexBufferPool({ initialSlots: 2, minCapacity: 16 * KB });
 		pool.beginFrame(0);
-		expect(pool.acquire(40 * KB)).toEqual({ slot: 2, capacity: 64 * KB, created: true });
+		expect(pool.acquire(40 * KB)).toBe(2);
+		expect(pool.created).toBe(true);
+		expect(pool.capacityOf(2)).toBe(64 * KB);
 	});
 
 	it('picks the smallest free slot that fits, so a large slot is not dirtied by a small upload', () => {
@@ -44,9 +51,9 @@ describe('IndexBufferPool', () => {
 		const large = pool.acquire(100 * KB);
 		pool.beginFrame(2);
 		// Both slots are free; the small one fits the small upload.
-		expect(pool.acquire(1 * KB).slot).toBe(0);
+		expect(pool.acquire(1 * KB)).toBe(0);
 		// The large one is the only free slot that fits the large upload.
-		expect(pool.acquire(100 * KB).slot).toBe(large.slot);
+		expect(pool.acquire(100 * KB)).toBe(large);
 	});
 
 	it('stops creating once a steady frame has been seen three times', () => {
@@ -55,7 +62,10 @@ describe('IndexBufferPool', () => {
 		const created: number[] = [];
 		for (let frame = 0; frame < 10; frame++) {
 			pool.beginFrame(frame);
-			created.push(uploads.filter((bytes) => pool.acquire(bytes).created).length);
+			created.push(uploads.filter((bytes) => {
+				pool.acquire(bytes);
+				return pool.created;
+			}).length);
 		}
 		expect(created.slice(0, 2)).toEqual([6, 6]);
 		expect(created.slice(2)).toEqual([0, 0, 0, 0, 0, 0, 0, 0]);
@@ -69,8 +79,10 @@ describe('IndexBufferPool', () => {
 		pool.reset();
 		expect(pool.capacities).toEqual([16 * KB, 16 * KB]);
 		pool.beginFrame(1);
-		expect(pool.acquire(100).created).toBe(false);
-		expect(pool.acquire(100).created).toBe(false);
+		for (let upload = 0; upload < 2; upload++) {
+			pool.acquire(100);
+			expect(pool.created).toBe(false);
+		}
 	});
 
 	it('refuses frames that do not move forward', () => {
