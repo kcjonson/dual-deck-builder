@@ -4,7 +4,7 @@ import { Layer } from '../../../engine/components/Layer';
 import { Rectangle } from '../../../engine/components/Rectangle';
 import { Stack } from '../../../engine/components/Stack';
 import { Text } from '../../../engine/components/Text';
-import { Panel } from '../../../engine/ui/Panel';
+import { ScrollContainer } from '../../../engine/ui/ScrollContainer';
 import type { BoxShadow, DrawApi, RGBA } from '../../../engine/draw';
 import { shadowInk } from '../../../engine/draw/bounds';
 
@@ -268,13 +268,13 @@ function shadowOverBusyGround(body: Layer): void {
  */
 function popupInScroller(body: Layer): void {
 	const rowHeight = 30;
-	const scroller = new Panel({
+	const scroller = new ScrollContainer({
 		id: 'dev_paint_order_scroll',
 		width: COLUMN_WIDTH,
 		height: 180,
-		scrollable: true,
-		style: { backgroundColor: styleColor(PANEL), borderColor: styleColor(PANEL) },
+		style: { backgroundColor: styleColor(PANEL) },
 	});
+	const rows = new Layer({ id: 'dev_paint_order_rows', width: COLUMN_WIDTH, height: rowHeight * 6 });
 	for (let row = 0; row < 6; row++) {
 		const rowBox = new FixtureBox({
 			id: `dev_po_row_${row + 1}`,
@@ -299,8 +299,9 @@ function popupInScroller(body: Layer): void {
 			select.addChild(menu({ id: 'dev_po_scroll_menu', y: rowHeight - 8, width: 200, height: 150 }, 'Option', 5));
 			rowBox.addChild(select);
 		}
-		scroller.addChild(rowBox);
+		rows.addChild(rowBox);
 	}
+	scroller.addChild(rows);
 	body.addChild(scroller);
 }
 

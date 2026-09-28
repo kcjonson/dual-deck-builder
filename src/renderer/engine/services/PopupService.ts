@@ -5,7 +5,7 @@ import type { KeyStroke } from '../input/HotkeyTable';
 import { OverlayHandle, OverlayService, contains } from './OverlayService';
 import type { Placement, PlacementAlign, PlacementService, PlacementSide } from './Placement';
 
-export type PopupCloseReason = 'replaced' | 'outside-press' | 'escape' | 'focus-loss' | 'modal' | 'closed';
+export type PopupCloseReason = 'replaced' | 'outside-press' | 'escape' | 'focus-loss' | 'modal' | 'scroll' | 'closed';
 
 const SECONDARY_BUTTON = 2;
 
@@ -34,6 +34,8 @@ export interface PopupOptions {
 export class PopupHandle {
 	public readonly popup: Component;
 	public readonly trigger: Component | null;
+	/** The component it was placed against, when it was placed against one. */
+	public readonly anchor: Component | null;
 	/**
 	 * Where the service placed it; null for a popup that was mounted already.
 	 * Its size is the popup's: a `constrained` placement has shrunk the popup
@@ -52,6 +54,7 @@ export class PopupHandle {
 		this.service = service;
 		this.popup = options.popup;
 		this.trigger = options.trigger ?? null;
+		this.anchor = options.anchor && isComponent(options.anchor) ? options.anchor : null;
 		this.onClose = options.onClose ?? null;
 		this.overlay = overlay;
 		this.naturalSize = { width: options.popup.width, height: options.popup.height };
@@ -167,6 +170,20 @@ export class PopupService implements InputObserver {
 
 	private inside(handle: PopupHandle, component: Component): boolean {
 		return contains(handle.popup, component) || (handle.trigger !== null && contains(handle.trigger, component));
+	}
+
+	/**
+	 * R3.6a: `scroller` moved its content. A popup whose trigger or anchor is
+	 * inside it was placed against where they were, and a promoted child
+	 * keeps its host's offset, so the popup closes rather than float over
+	 * the wrong row. A scroller inside the popup (a long menu) is the popup's
+	 * own business.
+	 */
+	public scrolled(scroller: Component): void {
+		const handle = this.current;
+		if (!handle || contains(handle.popup, scroller)) return;
+		const moved = (component: Component | null): boolean => component !== null && component !== scroller && contains(scroller, component);
+		if (moved(handle.trigger) || moved(handle.anchor)) this.closeCurrent('scroll');
 	}
 
 	// -- input (R9.13, R9.14) -------------------------------------------------
