@@ -440,9 +440,29 @@ describe('WebGL2Backend', () => {
 		// The uniform ring and the instance ring.
 		expect(named(rebuilt, 'createBuffer')).toHaveLength(2);
 
+		// The rebuilt vertex array gets every attribute enabled and per instance again.
+		const newVertexArray = named(rebuilt, 'createVertexArray')[0].result;
+		let bound: unknown = null;
+		const divisors: unknown[][] = [];
+		for (const call of rebuilt) {
+			if (call.name === 'bindVertexArray') bound = call.args[0];
+			if (call.name === 'vertexAttribDivisor') {
+				expect(bound).toBe(newVertexArray);
+				divisors.push(call.args);
+			}
+		}
+		expect(divisors).toEqual(UBER_ATTRIBUTES.map((attribute) => [attribute.location, 1]));
+		expect(named(rebuilt, 'enableVertexAttribArray')).toHaveLength(UBER_ATTRIBUTES.length);
+
 		const next = frame(someShapesAndText);
 		const [vertices] = named(next, 'bufferSubData').filter((call) => call.args[0] === constant('ARRAY_BUFFER'));
 		expect(vertices.args[1]).toBe(0);
+		// The pointer cache was dropped with the old context, so the first frame
+		// points every attribute again, at offset 0 of the new ring.
+		const pointers = [...named(next, 'vertexAttribPointer'), ...named(next, 'vertexAttribIPointer')];
+		expect(pointers).toHaveLength(UBER_ATTRIBUTES.length);
+		const firstPointer = named(next, 'vertexAttribPointer').find((call) => call.args[0] === 0);
+		expect(firstPointer?.args[5]).toBe(0);
 		// The frame binds the program the restore created, not the dead one.
 		expect(named(next, 'useProgram')[0].args[0]).toBe(named(rebuilt, 'createProgram')[0].result);
 		expect(named(next, 'bindVertexArray')[0].args[0]).toBe(named(rebuilt, 'createVertexArray')[0].result);

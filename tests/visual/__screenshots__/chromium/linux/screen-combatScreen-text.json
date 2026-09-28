@@ -11,7 +11,7 @@
 {"path":"combatScreen/combat_resource_bar/resource_driver2/Text[11]","text":"0","rect":[548.78,26,4.57,25]},
 {"path":"combatScreen/combat_resource_bar/Text[5]","text":"150","rect":[645.35,30,30,12]},
 {"path":"combatScreen/combat_resource_bar/Text[6]","text":"SCRAP","rect":[609.35,48,36,10.89]},
-{"path":"combatScreen/combat_resource_bar/end_turn_button/Text[1]","text":"END TURN","rect":[1310,6,120,48]},
+{"path":"combatScreen/combat_resource_bar/end_turn_button/Text[0]","text":"END TURN","rect":[1292,6,126,48]},
 {"path":"combatScreen/combat_enemy_battlefield/Text[3]","text":"FRONT","rect":[0,81,480,16.8]},
 {"path":"combatScreen/combat_enemy_battlefield/Text[4]","text":"BACK","rect":[480,81,480,16.8]},
 {"path":"combatScreen/combat_enemy_battlefield/Text[5]","text":"FLANKING","rect":[960,81,480,16.8]},

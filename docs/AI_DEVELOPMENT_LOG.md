@@ -17,6 +17,18 @@ This document contains the chronological log of completed development tasks for 
 
 **How:** unit tests for the packing conversions, the layout's tiling, every encoder case against the instance bytes, the batcher contract, and the backend's calls (no element buffer, divisors, split pointers, provoking vertex). Screenshots pass against `main`'s goldens with no re-mint; strict local captures differ by one level at most (four pixels by two). Perf captures interleaved with `main` in `perf-results/ddb-191-ab-*`.
 
+## Style states, variants, and the closed style set (2026-09-28)
+
+**What landed:** DDB-84 (DDB-55 phase 4), R11.10 to R11.16. The third deliberate golden re-baseline.
+
+- `engine/style/`: `look.ts` (flags, `Look`, the R11.12 resolver), `styleObject.ts` (closed set, validation, value readers), `variants.ts` (`tone`, `size`, button and field layers), `LookTransition.ts` (R11.13 over the animator).
+- `Component` carries all nine R11.11 flags with `stateFlags` and `onStateChange`; `enabled` changes notify descendants; unmount clears the framework's four.
+- `Button` and `Input` take `tone`/`size`/`style`, validate the style, draw their own box, glow, and focus ring (`drawsOwnFocusRing`), report it all as `inkExtent`, and follow the look with their parts; the legacy colour setters are gone. START RUN is the accent variant; END TURN is the mock's bone button through a style object.
+- `treeSnapshot` reports the full flag set as `state` on every node.
+- `color.bg_pressed` token. The battle mock's legend gains the debuff and non-attack intent lavenders; the token hue test checks a CIE Lab distance of at least 20 against every legend colour instead of exact hex.
+
+**How:** `style/look.test.ts` (the 11.6 flag table, override semantics), `style/styleObject.test.ts`, `ui/Button.test.ts` (each accepted property changes the draw list, rejection, runtime restyle, transitions at `dur_fast` and `dur`, reversal, reduced motion, the ring), `Component.test.ts` flag tests, `widgetInput.test.ts` press tests through injected input. Goldens re-minted on CI. Details in [style-states-and-variants.md](./AI_TECHNICAL_DECISIONS/style-states-and-variants.md).
+
 ## Tree snapshot schema and the text record (2026-09-28)
 
 **What landed:** DDB-80 (DDB-55 phase 3) with DDB-206, R13.21 to R13.28.
