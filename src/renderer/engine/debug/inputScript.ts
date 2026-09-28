@@ -6,15 +6,31 @@
  * browser (R13.4). Dispatch lives next door in inputInjection.ts, the same way
  * treeSnapshot and layoutLint are split from the hooks that install them.
  *
- * The grammar, verbatim from R13.35:
+ * The grammar, R13.35's verbs with R9.25's pointer fields:
  *
- *   move,x,y
- *   down,x,y[,button]
- *   up,x,y[,button]
- *   click,x,y[,button]     expands to move, then down, then up
+ *   move,x,y[,pointerId[,pointerType]]
+ *   down,x,y[,button[,pointerId[,pointerType]]]
+ *   up,x,y[,button[,pointerId[,pointerType]]]
+ *   click,x,y[,button[,pointerId[,pointerType]]]   expands to move, then down, then up
+ *   cancel[,pointerId]
  *   scroll,x,y,delta
  *   keydown,<key>
  *   keyup,<key>
+ *
+ * The pointer fields are positional and trail the existing ones, so every
+ * command R13.35 wrote still parses to the same thing: `pointerId` defaults
+ * to 1. An omitted `pointerType` is left out of the step, and the dispatch
+ * side takes the type that pointer last had (its down's, for an up), or
+ * `mouse` for a pointer it has never seen, since a real pointer does not
+ * change type mid-gesture. The cost
+ * of positional is that a touch press spells out its button,
+ * `down,10,20,0,2,touch`; named fields would be a second syntax for a
+ * grammar whose appeal is that it has one.
+ *
+ * `cancel` is the platform abandoning a gesture (R9.1, R15.39): the pointer's
+ * press and capture reset and no click follows. It takes no coordinates
+ * because the dispatcher's cancel uses none; the dispatch side sends it
+ * where that pointer last was.
  *
  * `x` and `y` are logical pixels in the space window.__ui.tree() reports
  * (R7.1, R7.15): CSS pixels from the top-left of the canvas, never multiplied
@@ -33,6 +49,9 @@
  *   space bar. Trimming the key would make the space bar unreachable.
  * - A number must be finite. `Number('')` is 0 in JavaScript, so an empty
  *   field is rejected before it can silently become the origin.
+ * - `pointerId` is a non-negative integer. `pointerType` is `mouse`, `touch`
+ *   or `pen`, case-insensitive; `virtual` is the controller's type (R9.1) and
+ *   never arrives through the pointer adapter, so it is not injectable here.
  * - `button` defaults to 0 and must otherwise be an integer from 0 to 4.
  *   The upper bound is the dispatcher's: `MouseEvent.buttons` has a bit for
  *   each of those five and no more, so a button 9 would dispatch a mousedown
@@ -43,10 +62,22 @@
  *   harness that mistypes one command gets a message, not a stack trace.
  */
 
+/** The pointer types a DOM PointerEvent can carry (R9.1). */
+export type InjectedPointerType = 'mouse' | 'touch' | 'pen';
+
+interface PointerFields {
+	x: number;
+	y: number;
+	pointerId: number;
+	/** Absent when the command named none: the pointer's own type, or `mouse` (see above). */
+	pointerType?: InjectedPointerType;
+}
+
 export type InjectedStep =
-	| { kind: 'move'; x: number; y: number }
-	| { kind: 'down'; x: number; y: number; button: number }
-	| { kind: 'up'; x: number; y: number; button: number }
+	| ({ kind: 'move' } & PointerFields)
+	| ({ kind: 'down'; button: number } & PointerFields)
+	| ({ kind: 'up'; button: number } & PointerFields)
+	| { kind: 'cancel'; pointerId: number }
 	| { kind: 'scroll'; x: number; y: number; delta: number }
 	| { kind: 'keydown'; key: string }
 	| { kind: 'keyup'; key: string };
@@ -75,6 +106,37 @@ function buttonNumber(field: string | undefined): number | null {
 	const value = finiteNumber(field);
 	if (value === null || !Number.isInteger(value) || value < 0 || value > 4) return null;
 	return value;
+}
+
+const POINTER_TYPES: readonly InjectedPointerType[] = ['mouse', 'touch', 'pen'];
+
+function pointerIdNumber(field: string | undefined): number | null {
+	if (field === undefined) return 1;
+	const value = finiteNumber(field);
+	if (value === null || !Number.isInteger(value) || value < 0) return null;
+	return value;
+}
+
+function pointerTypeName(field: string): InjectedPointerType | null {
+	const type = field.toLowerCase();
+	return (POINTER_TYPES as readonly string[]).includes(type) ? (type as InjectedPointerType) : null;
+}
+
+/** The optional `pointerId[,pointerType]` tail, starting at `fields[index]`. */
+function parsePointerTail(
+	verb: string,
+	fields: string[],
+	index: number,
+): { pointerId: number; pointerType?: InjectedPointerType } | string {
+	const pointerId = pointerIdNumber(fields[index]);
+	if (pointerId === null) return `${verb} needs a non-negative integer pointerId, got "${fields[index]}"`;
+
+	const field = fields[index + 1];
+	if (field === undefined) return { pointerId };
+	const pointerType = pointerTypeName(field);
+	if (pointerType === null) return `${verb} needs a pointerType of mouse, touch or pen, got "${field}"`;
+
+	return { pointerId, pointerType };
 }
 
 function parsePoint(verb: string, fields: string[]): { x: number; y: number } | string {
@@ -107,38 +169,42 @@ export function parseInputCommand(command: string): ParsedCommand {
 
 	switch (verb) {
 		case 'move': {
-			if (fields.length !== 2) return fail(`move takes x,y (got ${fields.length} argument(s))`);
+			if (fields.length < 2 || fields.length > 4) {
+				return fail(`move takes x,y[,pointerId[,pointerType]] (got ${fields.length} argument(s))`);
+			}
 			const point = parsePoint(verb, fields);
 			if (typeof point === 'string') return fail(point);
-			return { ok: true, steps: [{ kind: 'move', ...point }] };
+			const pointer = parsePointerTail(verb, fields, 2);
+			if (typeof pointer === 'string') return fail(pointer);
+			return { ok: true, steps: [{ kind: 'move', ...point, ...pointer }] };
 		}
 		case 'down':
-		case 'up': {
-			if (fields.length < 2 || fields.length > 3) {
-				return fail(`${verb} takes x,y[,button] (got ${fields.length} argument(s))`);
+		case 'up':
+		case 'click': {
+			if (fields.length < 2 || fields.length > 5) {
+				return fail(`${verb} takes x,y[,button[,pointerId[,pointerType]]] (got ${fields.length} argument(s))`);
 			}
 			const point = parsePoint(verb, fields);
 			if (typeof point === 'string') return fail(point);
 			const button = buttonNumber(fields[2]);
 			if (button === null) return fail(`${verb} needs an integer button from 0 to 4, got "${fields[2]}"`);
-			return { ok: true, steps: [{ kind: verb, ...point, button }] };
-		}
-		case 'click': {
-			if (fields.length < 2 || fields.length > 3) {
-				return fail(`click takes x,y[,button] (got ${fields.length} argument(s))`);
-			}
-			const point = parsePoint(verb, fields);
-			if (typeof point === 'string') return fail(point);
-			const button = buttonNumber(fields[2]);
-			if (button === null) return fail(`click needs an integer button from 0 to 4, got "${fields[2]}"`);
+			const pointer = parsePointerTail(verb, fields, 3);
+			if (typeof pointer === 'string') return fail(pointer);
+			if (verb !== 'click') return { ok: true, steps: [{ kind: verb, ...point, button, ...pointer }] };
 			return {
 				ok: true,
 				steps: [
-					{ kind: 'move', ...point },
-					{ kind: 'down', ...point, button },
-					{ kind: 'up', ...point, button },
+					{ kind: 'move', ...point, ...pointer },
+					{ kind: 'down', ...point, button, ...pointer },
+					{ kind: 'up', ...point, button, ...pointer },
 				],
 			};
+		}
+		case 'cancel': {
+			if (fields.length > 1) return fail(`cancel takes [pointerId] (got ${fields.length} argument(s))`);
+			const pointerId = pointerIdNumber(fields[0]);
+			if (pointerId === null) return fail(`cancel needs a non-negative integer pointerId, got "${fields[0]}"`);
+			return { ok: true, steps: [{ kind: 'cancel', pointerId }] };
 		}
 		case 'scroll': {
 			if (fields.length !== 3) return fail(`scroll takes x,y,delta (got ${fields.length} argument(s))`);
@@ -153,6 +219,6 @@ export function parseInputCommand(command: string): ParsedCommand {
 			// variadic input(...) and no help surface: a harness author with a
 			// console and no copy of R13.35 recovers from the message or not
 			// at all.
-			return fail(`unknown command "${verb}" (expected move, down, up, click, scroll, keydown, keyup)`);
+			return fail(`unknown command "${verb}" (expected move, down, up, click, cancel, scroll, keydown, keyup)`);
 	}
 }

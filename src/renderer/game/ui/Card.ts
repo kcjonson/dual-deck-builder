@@ -290,6 +290,11 @@ export class Card extends Component {
 		return 'unit';
 	}
 
+	/** A card acts on press and click in handleEvent, with or without a caller callback. */
+	public get handlesPointer(): boolean {
+		return true;
+	}
+
 	/**
 	 * Hover arrives through `onHover` and `onUnhover`, which the dispatcher
 	 * drives (R9.8); the press shades the frame, and the click is the
