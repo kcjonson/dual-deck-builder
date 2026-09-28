@@ -11,8 +11,8 @@ import { Deck } from '../../mechanics/Deck';
 import { Battle } from '../../mechanics/Battle';
 import { computeCombatLayout } from './CombatLayout';
 import { SnapshotNode, SnapshotRect, treeSnapshot } from '../../../engine/debug/treeSnapshot';
-import { InputSystem } from '../../../engine/input/InputSystem';
 import { injectInput } from '../../../engine/debug/inputInjection';
+import { createTestContext } from '../../../engine/components/testing';
 
 /**
  * DDB-157: START RUN used to hand DriverLoader's template drivers straight to
@@ -24,6 +24,14 @@ jest.mock('../../core/ScreenManager', () => ({
 	ScreenManager: { navigate: jest.fn() },
 }));
 
+
+/**
+ * Mounted the way the page mounts screens. The viewport follows the window,
+ * because these tests size the window and the screens still read it.
+ */
+const context = createTestContext({
+	viewport: { get logical() { return { width: window.innerWidth, height: window.innerHeight }; } },
+});
 function flushPromises(): Promise<void> {
 	return new Promise(resolve => setTimeout(resolve, 0));
 }
@@ -34,7 +42,7 @@ function flushPromises(): Promise<void> {
  */
 async function startCombat(drivers: Driver[]): Promise<CombatScreen> {
 	const combat = new CombatScreen();
-	combat.mount({ drivers });
+	combat.mount(context, { drivers });
 	await flushPromises();
 	await flushPromises();
 	return combat;
@@ -45,7 +53,7 @@ async function startCombat(drivers: Driver[]): Promise<CombatScreen> {
  */
 async function selectDrivers(): Promise<Driver[]> {
 	const selection = new DriverSelectionScreen();
-	selection.mount();
+	selection.mount(context);
 	await flushPromises();
 	const { driver1, driver2 } = selection.getSelectedDrivers();
 	selection.unmount();
@@ -137,7 +145,7 @@ describe('CombatScreen: each run starts from fresh drivers', () => {
 
 	it('the dev fallback (no drivers passed) never fights the templates either', async () => {
 		const combat = new CombatScreen();
-		combat.mount();
+		combat.mount(context);
 		await flushPromises();
 		await flushPromises();
 
@@ -162,7 +170,7 @@ describe('CombatScreen: one layout for mount and resize', () => {
 
 	beforeAll(() => {
 		document.body.appendChild(canvas);
-		InputSystem.getInstance().setup(canvas);
+		context.input.setup(canvas);
 	});
 
 	function setViewport(width: number, height: number): void {
@@ -220,7 +228,7 @@ describe('CombatScreen: one layout for mount and resize', () => {
 	 */
 	function mountBare(): CombatScreen {
 		const combat = new CombatScreen();
-		combat.mount();
+		combat.mount(context);
 		return combat;
 	}
 
@@ -314,7 +322,7 @@ describe('CombatScreen: one layout for mount and resize', () => {
 		resizeViewport(combat, 1280, 720);
 		const { x, y, w, h } = endTurnBounds(combat);
 		const endPlayerTurn = jest.spyOn(Battle.prototype, 'endPlayerTurn');
-		expect(injectInput(canvas, [`click,${Math.round(x + w / 2)},${Math.round(y + h / 2)}`]).ok).toBe(true);
+		expect(injectInput({ canvas, input: context.input }, [`click,${Math.round(x + w / 2)},${Math.round(y + h / 2)}`]).ok).toBe(true);
 		expect(endPlayerTurn).toHaveBeenCalledTimes(1);
 
 		await settle();
@@ -333,7 +341,7 @@ describe('CombatScreen: mount and unmount', () => {
 
 	beforeAll(() => {
 		document.body.appendChild(canvas);
-		InputSystem.getInstance().setup(canvas);
+		context.input.setup(canvas);
 	});
 
 	beforeEach(() => {
@@ -348,7 +356,7 @@ describe('CombatScreen: mount and unmount', () => {
 
 	/** Every handler of every kind the InputSystem holds */
 	function inputRegistrations(): number {
-		const input = InputSystem.getInstance() as unknown as Record<string, Map<unknown, unknown>>;
+		const input = context.input as unknown as Record<string, Map<unknown, unknown>>;
 		return ['mouseOverComponents', 'mouseOutComponents', 'mouseDownComponents', 'mouseUpComponents', 'wheelComponents', 'keyDownComponents', 'globalKeyDownHandlers']
 			.reduce((total, key) => total + input[key].size, 0);
 	}
@@ -360,7 +368,7 @@ describe('CombatScreen: mount and unmount', () => {
 
 	it('a remount builds the same layers and listeners as the first mount, and END TURN fires once', async () => {
 		const combat = new CombatScreen();
-		combat.mount();
+		combat.mount(context);
 		await settle();
 		const firstMount = {
 			layers: combat.root.getChildren().length,
@@ -369,7 +377,7 @@ describe('CombatScreen: mount and unmount', () => {
 		};
 
 		combat.unmount();
-		combat.mount();
+		combat.mount(context);
 		await settle();
 		expect({
 			layers: combat.root.getChildren().length,
@@ -378,7 +386,7 @@ describe('CombatScreen: mount and unmount', () => {
 		}).toEqual(firstMount);
 
 		const endPlayerTurn = jest.spyOn(Battle.prototype, 'endPlayerTurn');
-		expect(injectInput(canvas, ['click,954,26']).ok).toBe(true);
+		expect(injectInput({ canvas, input: context.input }, ['click,954,26']).ok).toBe(true);
 		expect(endPlayerTurn).toHaveBeenCalledTimes(1);
 
 		await settle();
@@ -394,7 +402,7 @@ describe('CombatScreen: mount and unmount', () => {
 		const before = inputRegistrations();
 
 		const combat = new CombatScreen();
-		combat.mount(data);
+		combat.mount(context, data);
 		combat.unmount();
 		await settle();
 

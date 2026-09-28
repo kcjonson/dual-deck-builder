@@ -1,7 +1,7 @@
 import { Layer } from '../renderer/engine/components/Layer';
 import { renderTree } from '../renderer/engine/components/renderTree';
 import type { DrawApi } from '../renderer/engine/draw/DrawApi';
-import { InputSystem } from '../renderer/engine/input/InputSystem';
+import type { MountContext } from '../renderer/engine/components/MountContext';
 import type { SnapshotViewport } from '../renderer/engine/debug/treeSnapshot';
 import type { GalleryScene } from './registry';
 import type { SceneResolution } from './sceneSelection';
@@ -11,11 +11,11 @@ import { resolveScene } from './sceneSelection';
  * Mounts one gallery scene at a time (R13.30) and owns the R13.32 control
  * state: pause, resume, reload, switch.
  *
- * Nothing here touches the DOM. The viewport arrives as a supplier and the
- * scene list as an argument, so the mount/unmount discipline this class exists
- * to enforce is exercised by unit tests with no canvas and no GL (R13.4,
- * R14.1). The bootstrap in index.ts supplies the window, the frame loop, and
- * the renderer.
+ * Nothing here touches the DOM. The mount context carries the viewport and
+ * the scene list is an argument, so the mount/unmount discipline this class
+ * exists to enforce is exercised by unit tests with no canvas and no GL
+ * (R13.4, R14.1). The bootstrap in index.ts supplies the window, the frame
+ * loop, and the renderer.
  *
  * The root layer holds the mounted scene and nothing else: no menu, no scene
  * picker, no title bar. R13.30 wants a scripted capture to start on the scene
@@ -25,8 +25,8 @@ import { resolveScene } from './sceneSelection';
 
 export interface SceneHostOptions {
 	scenes: readonly GalleryScene[];
-	/** Logical viewport in CSS pixels, read fresh on every mount (R7.1). */
-	viewport: () => SnapshotViewport;
+	/** The host's root mounts with it; its viewport is read fresh on every mount (R7.1). */
+	context: MountContext;
 	/** Gap between the viewport edge and the scene, in logical pixels. */
 	margin?: number;
 }
@@ -58,7 +58,7 @@ const DEFAULT_MARGIN = 40;
 
 export class SceneHost {
 	private readonly scenes: readonly GalleryScene[];
-	private readonly readViewport: () => SnapshotViewport;
+	private readonly context: MountContext;
 	private readonly margin: number;
 	private readonly rootLayer: Layer;
 	private mounted: GalleryScene | null = null;
@@ -72,13 +72,19 @@ export class SceneHost {
 	private updates = 0;
 	private renders = 0;
 
-	constructor({ scenes, viewport, margin = DEFAULT_MARGIN }: SceneHostOptions) {
+	constructor({ scenes, context, margin = DEFAULT_MARGIN }: SceneHostOptions) {
 		this.scenes = scenes;
-		this.readViewport = viewport;
+		this.context = context;
 		this.margin = margin;
 
-		const { width, height } = viewport();
+		const { width, height } = this.readViewport();
 		this.rootLayer = new Layer({ id: 'gallery_root', x: 0, y: 0, width, height });
+		this.rootLayer.mount(context);
+	}
+
+	private readViewport(): SnapshotViewport {
+		const { width, height } = this.context.viewport.logical;
+		return { width, height };
 	}
 
 	/**
@@ -119,7 +125,7 @@ export class SceneHost {
 	public set paused(value: boolean) {
 		const resuming = this.isPaused && !value;
 		this.isPaused = value;
-		InputSystem.getInstance().paused = value;
+		this.context.input.paused = value;
 		if (resuming) this.resize();
 	}
 
@@ -211,18 +217,18 @@ export class SceneHost {
 	 * A scene switch is a teardown path the developer screen never exercises:
 	 * it builds its sections once and lives until the screen does. Two of the
 	 * sections construct Inputs, and an Input registers a mouse-down and a
-	 * keydown handler with the InputSystem singleton from its constructor, so
-	 * a switch that merely dropped the reference would leave every scene ever
-	 * mounted hit-tested on every mouse move. removeChild unmounts the subtree
-	 * it detaches, and Component.unmount unregisters, so the maps stay flat
-	 * across switches. Focus is the one pointer that is not per-component
+	 * keydown handler with the input system on mount, so a switch that merely
+	 * dropped the reference would leave every scene ever mounted hit-tested on
+	 * every mouse move. removeChild unmounts the subtree it detaches, and the
+	 * base class unregisters on unmount, so the maps stay flat across
+	 * switches. Focus is the one pointer that is not per-component
 	 * bookkeeping: unregisterComponent clears it only for the component it is
 	 * handed, and only if that component still holds it.
 	 */
 	public unmount(): void {
 		if (!this.mountedRoot) return;
 
-		InputSystem.setFocus(null);
+		this.context.input.setFocus(null);
 		this.rootLayer.removeChild(this.mountedRoot);
 		this.mountedRoot = null;
 		this.mounted = null;
@@ -277,7 +283,12 @@ export class SceneHost {
 	public update(deltaTime: number): void {
 		if (this.isPaused) return;
 		this.updates++;
-		this.rootLayer.update(deltaTime);
+		this.context.frame.update(deltaTime);
+	}
+
+	/** R8.16's layout phase. Not gated by pause: a resize while paused still reflows. */
+	public layout(): void {
+		this.context.frame.layout();
 	}
 
 	public render(draw: DrawApi): void {

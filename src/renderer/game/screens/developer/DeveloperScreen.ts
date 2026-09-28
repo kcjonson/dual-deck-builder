@@ -4,7 +4,6 @@ import { Button } from '../../../engine/ui/Button';
 import { Text } from '../../../engine/components/Text';
 import { Panel } from '../../../engine/ui/Panel';
 import { Rectangle } from '../../../engine/components/Rectangle';
-import { InputSystem } from '../../../engine/input/InputSystem';
 
 // The sections are defined once, in sections.ts, so this screen and the
 // ?scene= gallery show the same eight things (R13.30).
@@ -178,9 +177,7 @@ export class DeveloperScreen extends Screen {
 	 */
 	protected onUnmount(): void {
 		// Clear any focus from input fields
-		if (InputSystem.getFocus()) {
-			InputSystem.setFocus(null);
-		}
+		this.context.input.setFocus(null);
 		
 		this.mainScrollContainer.setScrollOffset(0, 0);
 	}

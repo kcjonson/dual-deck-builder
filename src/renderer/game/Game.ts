@@ -5,7 +5,7 @@ import type { GpuTimer } from '../engine/rendering/GpuTimer';
 import { DeveloperOverlay } from '../engine/ui/DeveloperOverlay';
 import { renderTree } from '../engine/components/renderTree';
 import { ScreenManager } from './core/ScreenManager';
-import { InputSystem } from '../engine/input/InputSystem';
+import type { MountContext } from '../engine/components/MountContext';
 import { CardLoader } from './core/CardLoader';
 import type { Layer } from '../engine/components/Layer';
 import type { DeviceInfo } from '../engine/rendering/deviceInfo';
@@ -41,8 +41,8 @@ export interface GameStatus {
 }
 
 export interface GameOptions {
-	/** The draw API of chapter 2; the game page never sees a backend. */
-	draw: DrawApi;
+	/** R1.6's services, the draw API and input among them; every root mounts with it. */
+	context: MountContext;
 	/** Frame timing and per-frame draw counters (R13.7). */
 	frameTimer: FrameTimer;
 	/** R7.11's viewport owner; the game reads its size and hears its changes, never the window's. */
@@ -57,6 +57,7 @@ export interface GameOptions {
  * Main game class responsible for managing game state and high-level systems
  */
 export class Game {
+	private readonly context: MountContext;
 	private draw: DrawApi;
 	private frameTimer: FrameTimer;
 	private viewport: CanvasViewport;
@@ -70,8 +71,9 @@ export class Game {
 	private updates = 0;
 	private renders = 0;
 
-	constructor({ draw, frameTimer, viewport, device, gpuTimer = null }: GameOptions) {
-		this.draw = draw;
+	constructor({ context, frameTimer, viewport, device, gpuTimer = null }: GameOptions) {
+		this.context = context;
+		this.draw = context.draw;
 		this.frameTimer = frameTimer;
 		this.viewport = viewport;
 		this.device = device;
@@ -121,7 +123,7 @@ export class Game {
 
 	public set paused(value: boolean) {
 		this.isPaused = value;
-		InputSystem.getInstance().paused = value;
+		this.context.input.paused = value;
 	}
 
 	/**
@@ -129,7 +131,9 @@ export class Game {
 	 */
 	public async init(): Promise<void> {
 		// Initialize the ScreenManager
-		ScreenManager.initialize();
+		ScreenManager.initialize(this.context);
+		// The overlay is a root of its own, drawn after the screen (R8.21).
+		this.developerOverlay.mount(this.context);
 
 		// Start with the splash screen
 		ScreenManager.navigate('splashScreen');
@@ -173,7 +177,7 @@ export class Game {
 					paused: this.isPaused,
 					updates: this.updates,
 					renders: this.renders,
-					inputPaused: InputSystem.getInstance().paused,
+					inputPaused: this.context.input.paused,
 					viewport: this.viewport.logical,
 					assetsReady: !CardLoader.getInstance().loading,
 				}),
@@ -273,11 +277,23 @@ export class Game {
 		if (__DEV_TOOLS__ && this.isPaused) return;
 		if (__DEV_TOOLS__) this.updates++;
 
-		// Update the current screen via ScreenManager
+		// R8.17: the components that asked for this frame, then the screen's
+		// own game logic.
+		this.context.frame.update(dt);
 		ScreenManager.update(dt);
 		
 		// Update developer overlay
 		this.developerOverlay.update();
+	}
+
+	/**
+	 * R8.16's layout phase, after update and before render: every dirty
+	 * relayout boundary once. It runs while paused too, so a resize during a
+	 * capture still reflows the frame render is about to present.
+	 */
+	public layout(): void {
+		if (!this.isInitialized) return;
+		this.context.frame.layout();
 	}
 
 	/**

@@ -6,6 +6,18 @@ This document contains the chronological log of completed development tasks for 
 
 **Date correction (2026-08-22):** the repo's first commit is 2025-05-17, but many entries below carry dates in December 2024 or January 2025 — the AI that wrote them used its assumed date instead of the real one. Entries dated 2025-07-03 and 2025-07-02 have been corrected from "2025-01-03"/"2025-01-02" (verified against git history). Remaining Dec 2024 / Jan 2025 dates are wrong by roughly six months; the real work happened May–July 2025. Trust git history over these dates.
 
+## Mount context, lifecycle, and frame order (2026-09-28)
+
+**What landed:** DDB-73's second PR (DDB-55 phase 3), R1.6, R8.14 to R8.18, R8.21, R8.22.
+
+- `components/MountContext.ts`: the context interface and `createMountContext`; `components/UiFrame.ts`: update requests and the layout phase; `components/testing.ts`: `createTestContext` over the null backend.
+- `Component`: `mount`, `unmount`, `onMount`, `onUnmount`, `isMounted`, `context`, `requestUpdate`, `invalidateLayout`, `layoutSubtree`, `onLayout`; size, margin, visibility and child changes invalidate; `update` no longer recurses.
+- `RendererContext.ts` deleted. `InputSystem` is an instance with the same method names, handlers bound once (so `detach` really removes them), and a `beforeHitTest` hook.
+- Button, Input, Panel, Card and Vehicle register in `onMount`; Input asks for updates while focused; CombatScreen, DeveloperScreen and the gallery host reach input through the context.
+- `Screen.mount(context, data)`, `ScreenManager.initialize(context)`, `Game` and `SceneHost` take the context; both loops run update, layout, render, flush, with the `layout` section timed.
+
+**How:** `lifecycle.test.ts` (no service touched before mount, mount and unmount order and idempotence, mount on add, same-root moves versus cross-root re-parenting, update on request, invisible and unmounted requests, text invalidating its boundary once, transform, zIndex, opacity and colour not invalidating, `onLayout` on first layout and on change, layout before a hit test) and `Screen.test.ts` (root sized from the viewport, nothing of the old screen registered after a switch, `onLayout` before the first render). Every existing test that touched the singletons now builds a context. All chromium visual specs pass against local captures of `main`, and a scripted click-through goes menu, driver selection, combat, END TURN with a clean console.
+
 ## Component base and the framework render walk (2026-09-28)
 
 **What landed:** DDB-73's first PR (DDB-55 phase 3), R8.1 to R8.13, R8.26, R8.27, R8.29 and R3.11 to R3.13.

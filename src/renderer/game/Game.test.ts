@@ -3,7 +3,7 @@
  */
 import { Game, GameStatus } from './Game';
 import { ScreenManager } from './core/ScreenManager';
-import { InputSystem } from '../engine/input/InputSystem';
+import { createTestContext } from '../engine/components/testing';
 import { DrawApi, NullBackend } from '../engine/draw';
 import { FrameTimer } from '../engine/rendering/FrameTimer';
 import type { PerfSnapshot } from '../engine/rendering/FrameTimer';
@@ -42,6 +42,9 @@ jest.mock('../engine/ui/DeveloperOverlay', () => ({
 		public shown = false;
 		public toggle(): void {
 			this.shown = !this.shown;
+		}
+		public mount(): void {
+			/* a root with nothing to register */
 		}
 		public update(): void {
 			/* no drawing in a test */
@@ -102,6 +105,7 @@ const device: DeviceInfo = {
 const draw = new DrawApi({ backend: new NullBackend(), development: false });
 
 let game: Game;
+const context = createTestContext({ draw, viewport });
 /** Stands in for the GPU timer: the page only ever flips `enabled` and reads `stats`. */
 const gpuTimer = { enabled: false, stats: undefined } as unknown as GpuTimer;
 
@@ -116,7 +120,7 @@ function status(): GameStatus {
 }
 
 beforeAll(async () => {
-	game = new Game({ draw, frameTimer: new FrameTimer(), viewport, device, gpuTimer });
+	game = new Game({ context, frameTimer: new FrameTimer(), viewport, device, gpuTimer });
 	await game.init();
 });
 
@@ -183,13 +187,13 @@ describe('pause stops update and leaves render running', () => {
 		expect(screens.update).toHaveBeenCalledWith(0.016);
 	});
 
-	it('sets the InputSystem gate, which is what actually drops events (R13.35)', () => {
+	it('sets the input system gate, which is what actually drops events (R13.35)', () => {
 		app().pause?.();
-		expect(InputSystem.getInstance().paused).toBe(true);
+		expect(context.input.paused).toBe(true);
 		expect(status().inputPaused).toBe(true);
 
 		app().resume?.();
-		expect(InputSystem.getInstance().paused).toBe(false);
+		expect(context.input.paused).toBe(false);
 		expect(status().inputPaused).toBe(false);
 	});
 });

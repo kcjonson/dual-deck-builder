@@ -237,16 +237,12 @@ export class CombatLogLayer extends Layer {
 		// TODO: Implement scrolling when Panel supports it
 	}
 	
-	/**
-	 * Unmount event subscriptions
-	 */
-	public unmount(): void {
+	/** The log's model subscription; input is released by the base. */
+	protected onUnmount(): void {
 		if (this.unsubscriber) {
 			this.unsubscriber();
 			this.unsubscriber = null;
 		}
-
-		super.unmount();
 	}
 	
 	/**

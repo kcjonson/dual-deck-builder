@@ -3,7 +3,7 @@ import type { SnapshotDocument, SnapshotViewport } from './treeSnapshot';
 import { treeSnapshot } from './treeSnapshot';
 import type { LintOptions, LintResult } from './layoutLint';
 import { layoutLint } from './layoutLint';
-import type { InjectionResult } from './inputInjection';
+import type { InjectionResult, InjectionTarget } from './inputInjection';
 import { injectInput } from './inputInjection';
 import type { ScenarioCapture } from './perfCapture';
 import { capturePerfSamples } from './perfCapture';
@@ -157,18 +157,19 @@ export function installAppHooks(api: AppControlApi): void {
 /**
  * Installs the development-only `window.__dev` surface (R13.35).
  *
- * The canvas is an argument rather than looked up by id: it is the element
- * `InputSystem.setup` actually registered its listeners on, and the two entry
- * points already hold it. Resolving `#game-canvas` here would be a second
- * source of truth that agrees until the day it does not.
+ * The canvas and the input system are arguments rather than looked up: the
+ * canvas is the element `InputSystem.setup` actually registered its listeners
+ * on, the input system is the mount context's, and the two entry points
+ * already hold both. Resolving `#game-canvas` here would be a second source of
+ * truth that agrees until the day it does not.
  */
-export function installInputHooks(canvas: HTMLCanvasElement): void {
+export function installInputHooks(target: InjectionTarget): void {
 	if (!__DEV_TOOLS__) return;
 	if (typeof window === 'undefined') return;
 
 	const debugWindow = window as DebugWindow;
 	const api: DevToolsApi = {
-		input: (...commands: string[]) => injectInput(canvas, commands),
+		input: (...commands: string[]) => injectInput(target, commands),
 	};
 
 	debugWindow.__dev = { ...debugWindow.__dev, ...api };

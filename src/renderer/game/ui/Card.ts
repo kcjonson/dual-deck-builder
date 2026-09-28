@@ -2,7 +2,7 @@ import { Layer } from '../../engine/components/Layer';
 import type { PointerEvents } from '../../engine/components/Component';
 import { Text } from '../../engine/components/Text';
 import { Rectangle } from '../../engine/components/Rectangle';
-import { InputSystem } from '../../engine/input/InputSystem';
+import type { MountContext } from '../../engine/components/MountContext';
 import { Card as GameCard } from '../mechanics/Card';
 
 /**
@@ -229,9 +229,6 @@ export class Card extends Layer {
 			});
 			this.addChild(this.driverIndicator);
 		}
-
-		// Setup event handling
-		this.setupEvents();
 	}
 
 	/**
@@ -243,15 +240,11 @@ export class Card extends Layer {
 		return this.id === null ? undefined : `${this.id}_${suffix}`;
 	}
 
-	/**
-	 * Setup mouse event handling
-	 */
-	private setupEvents(): void {
-		// Register event handlers with the global input system
-		InputSystem.registerMouseOver(this, () => this.handleMouseOver());
-		InputSystem.registerMouseOut(this, () => this.handleMouseOut());
-		InputSystem.registerMouseDown(this, () => this.handleMouseDown());
-		InputSystem.registerMouseUp(this, () => this.handleMouseUp());
+	protected onMount({ input }: MountContext): void {
+		input.registerMouseOver(this, () => this.handleMouseOver());
+		input.registerMouseOut(this, () => this.handleMouseOut());
+		input.registerMouseDown(this, () => this.handleMouseDown());
+		input.registerMouseUp(this, () => this.handleMouseUp());
 	}
 
 	/** R8.29: a card is one target; its text and frame are internals. */

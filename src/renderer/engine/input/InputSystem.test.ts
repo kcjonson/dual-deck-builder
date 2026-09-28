@@ -16,8 +16,8 @@ describe('InputSystem', () => {
 		mockCanvas.height = 600;
 		document.body.appendChild(mockCanvas);
 
-		// Get InputSystem instance and set it up
-		inputSystem = InputSystem.getInstance();
+		// A fresh input system per test
+		inputSystem = new InputSystem();
 		inputSystem.setup(mockCanvas);
 
 		// Create test rectangle
@@ -34,8 +34,8 @@ describe('InputSystem', () => {
 
 	afterEach(() => {
 		// Unmount
-		InputSystem.unregisterComponent(testRect);
-		inputSystem.unmount();
+		inputSystem.unregisterComponent(testRect);
+		inputSystem.detach();
 		document.body.removeChild(mockCanvas);
 	});
 
@@ -47,10 +47,10 @@ describe('InputSystem', () => {
 		const onMouseUp = jest.fn();
 
 		// Register event handlers
-		InputSystem.registerMouseOver(testRect, onMouseOver);
-		InputSystem.registerMouseOut(testRect, onMouseOut);
-		InputSystem.registerMouseDown(testRect, onMouseDown);
-		InputSystem.registerMouseUp(testRect, onMouseUp);
+		inputSystem.registerMouseOver(testRect, onMouseOver);
+		inputSystem.registerMouseOut(testRect, onMouseOut);
+		inputSystem.registerMouseDown(testRect, onMouseDown);
+		inputSystem.registerMouseUp(testRect, onMouseUp);
 
 		// Simulate mouse events
 
@@ -99,11 +99,11 @@ describe('InputSystem', () => {
 		const onMouseDown = jest.fn();
 
 		// Register event handlers
-		InputSystem.registerMouseOver(testRect, onMouseOver);
-		InputSystem.registerMouseDown(testRect, onMouseDown);
+		inputSystem.registerMouseOver(testRect, onMouseOver);
+		inputSystem.registerMouseDown(testRect, onMouseDown);
 
 		// Unregister component
-		InputSystem.unregisterComponent(testRect);
+		inputSystem.unregisterComponent(testRect);
 
 		// Simulate mouse events
 		const mouseEvent = new MouseEvent('mousemove', {

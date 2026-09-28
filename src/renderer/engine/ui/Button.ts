@@ -1,7 +1,7 @@
 import { Component, ComponentOptions, PointerEvents } from '../components/Component';
 import { Rectangle } from '../components/Rectangle';
 import { Text } from '../components/Text';
-import { InputSystem } from '../input/InputSystem';
+import type { MountContext } from '../components/MountContext';
 
 /**
  * Button UI component
@@ -57,9 +57,6 @@ export class Button extends Component {
 		this.text.setAlign('center');
 		this.text.setBaseline('middle');
 		this.addPart(this.text);
-
-		// Setup event handling (this would be connected to the input system)
-		this.setupEvents();
 	}
 
 	/** R8.29: the label and background are internals, not targets. */
@@ -67,16 +64,11 @@ export class Button extends Component {
 		return 'unit';
 	}
 
-	/**
-	 * Setup input event handling for the button
-	 * Registers this button with the global InputSystem for mouse events
-	 */
-	private setupEvents(): void {
-		// Register event handlers with the global input system
-		InputSystem.registerMouseOver(this, () => this.onMouseOver());
-		InputSystem.registerMouseOut(this, () => this.onMouseOut());
-		InputSystem.registerMouseDown(this, () => this.onMouseDown());
-		InputSystem.registerMouseUp(this, () => this.onMouseUp());
+	protected onMount({ input }: MountContext): void {
+		input.registerMouseOver(this, () => this.onMouseOver());
+		input.registerMouseOut(this, () => this.onMouseOut());
+		input.registerMouseDown(this, () => this.onMouseDown());
+		input.registerMouseUp(this, () => this.onMouseUp());
 	}
 
 	/**

@@ -78,8 +78,11 @@ export class Text extends Component {
 	 * @param text Text content
 	 */
 	public setText(text: string): this {
+		if (this.text === text) return this;
 		this.text = text;
 		this.updateWrappedText();
+		// Content drives measurement (R8.18).
+		this.invalidateLayout();
 		return this;
 	}
 
@@ -95,7 +98,9 @@ export class Text extends Component {
 	 * @param size Font size in pixels
 	 */
 	public setFontSize(size: number): this {
+		if (this.fontSize === size) return this;
 		this.fontSize = size;
+		this.invalidateLayout();
 		return this;
 	}
 

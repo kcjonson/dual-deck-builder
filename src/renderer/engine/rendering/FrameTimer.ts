@@ -30,9 +30,10 @@ import { frameWindowStats } from './frameStats';
  *   invisibly outside the loop. Attributing it needs a PerformanceObserver on
  *   `event` entries, which the chapter 13 mapping table names and phase 0 does
  *   not build.
- * - `layout` is null. There is no layout phase: `Layer.layout()` is called by
- *   screens when they choose, inside their update or their render, so there is
- *   no disjoint span to bracket. Chapter 10's layout pass is phase 3.
+ * - `layout` is the mount context's layout phase (R8.16): every dirty
+ *   relayout boundary, between update and render. Screens that still call
+ *   the legacy `layout()` size estimate do so inside update or mount, which
+ *   that section carries.
  * - `present` is null. rAF is vsync-paced, so the wait shows up as a late next
  *   frame rather than as a measurable call, exactly as the chapter 13 mapping
  *   table describes for the browser.
