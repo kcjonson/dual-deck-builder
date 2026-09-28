@@ -81,7 +81,7 @@ Skipping on the box is the under-cull R4.2a forbids, and it bypasses `culled`. S
 of a clipper whose clip goes empty is sound, but no clip nests in the app, so it never fires, and the
 skipped draws would go uncounted. The sound version needs a conservative subtree ink bound (R13.22's
 `inkBounds`) that the object model keeps current, plus a cached group count to add to `culled`.
-That is DDB-184, with the phase 3 and 4 object model and layout.
+DDB-184 built that: [subtree-ink-cull.md](./subtree-ink-cull.md).
 
 ## What moved
 
