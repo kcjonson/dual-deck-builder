@@ -1,5 +1,6 @@
 import { Component, ComponentOptions, ResolvedColors } from './Component';
 import type { DrawApi } from '../draw/DrawApi';
+import type { Rect } from '../draw/geometry';
 import { Style, StyleParser } from '../types/Style';
 
 /**
@@ -75,6 +76,7 @@ export class Circle extends Component {
 	 * @param radius Circle radius in pixels
 	 */
 	public setRadius(radius: number): this {
+		if (radius !== this.radius) this.invalidateInk();
 		this.radius = radius;
 		this.setSize(radius * 2, radius * 2);
 		return this;
@@ -83,6 +85,24 @@ export class Circle extends Component {
 	/** The stroke is centred on the outline, so half of it lands outside the box (R8.8). */
 	public get inkExtent(): number {
 		return this.strokeWidth > 0 ? this.strokeWidth / 2 : 0;
+	}
+
+	/**
+	 * The subtree cull's bound (DDB-184): the box, and the disc `render`
+	 * draws from its radius, which a size given without `setRadius` does not
+	 * change, so the two can differ.
+	 */
+	protected get cullInk(): Rect {
+		const box = this.inkRect;
+		const extent = this.radius * 2 + this.inkExtent;
+		const minX = Math.min(box.x, -this.inkExtent);
+		const minY = Math.min(box.y, -this.inkExtent);
+		return {
+			x: minX,
+			y: minY,
+			width: Math.max(box.x + box.width, extent) - minX,
+			height: Math.max(box.y + box.height, extent) - minY,
+		};
 	}
 
 	public get resolvedColors(): ResolvedColors {

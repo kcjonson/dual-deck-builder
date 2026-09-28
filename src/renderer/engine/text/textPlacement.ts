@@ -123,3 +123,14 @@ export function layoutInk(layout: TextLayout, placement: TextPlacement, decorati
 	if (minX === Infinity) return null;
 	return { x: minX, y: minY, width: maxX - minX, height: maxY - minY };
 }
+
+/**
+ * R4.2a's per-run extent, what `DrawBackend.textInk` answers: `layoutInk`
+ * grown by a pixel for R6.16's snap, which moves a line by at most half a
+ * device pixel. Null when the run draws nothing.
+ */
+export function runInk(layout: TextLayout, placement: TextPlacement, decoration?: TextDecoration): Rect | null {
+	const ink = layoutInk(layout, placement, decoration);
+	if (!ink) return null;
+	return { x: ink.x - 1, y: ink.y - 1, width: ink.width + 2, height: ink.height + 2 };
+}

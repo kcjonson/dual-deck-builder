@@ -1,5 +1,18 @@
 import type { DrawApi } from '../draw/DrawApi';
-import { Mat2D, RGBA, Rect, Vec2, concat, invert, isTranslateOnly, transformPoint, translation } from '../draw/geometry';
+import {
+	ClipRect,
+	IDENTITY,
+	Mat2D,
+	RGBA,
+	Rect,
+	Vec2,
+	concat,
+	invert,
+	isTranslateOnly,
+	transformBoxInto,
+	transformPoint,
+	translation,
+} from '../draw/geometry';
 import { snapClipRect } from '../coords/snapping';
 import { LayerName, ROOT_LAYER, layerOrdinal } from '../draw/layers';
 import { Style } from '../types/Style';
@@ -33,6 +46,7 @@ import { HotkeyTable } from '../input/HotkeyTable';
 import type { RootTier } from '../input/Dispatcher';
 import { TooltipInput, TooltipSpec, normalizeTooltip } from '../services/tooltipSpec';
 import type { StateFlags } from '../style/look';
+import { tokens } from '../theme/tokens';
 
 /**
  * R8.29. `auto`: this box is a target and children are hit-tested.
@@ -223,6 +237,22 @@ export abstract class Component {
 	 */
 	private anchorShiftX = 0;
 	private anchorShiftY = 0;
+	/**
+	 * DDB-184's subtree ink cache. `placedInk` bounds everything this subtree
+	 * can draw, in the parent's content space before the parent's scroll
+	 * offset; `inkUnbounded` says nothing can bound it (a layer that may
+	 * escape an ancestor's clip, a text not yet measured). Stale until
+	 * `refreshInk` recomputes it; `invalidateInk` marks this component and
+	 * every ancestor.
+	 */
+	private inkStale = true;
+	private inkUnbounded = false;
+	private readonly placedInk: ClipRect = { minX: 0, minY: 0, maxX: 0, maxY: 0 };
+	/** Groups this subtree requested the last time the walk entered it; -1 until then and after any change. */
+	private walkedGroups = -1;
+	/** `clipRect` and `transformMatrix`, kept until the size, transform or drag offset changes; undefined when stale. */
+	private clipRectCache: Rect | undefined = undefined;
+	private matrixCache: Mat2D | null | undefined = undefined;
 
 	constructor(options?: ComponentOptions) {
 		this.ownPointerEvents = this.defaultPointerEvents;
@@ -399,7 +429,9 @@ export abstract class Component {
 	}
 
 	public set x(value: number) {
+		if (this.positionX === value) return;
 		this.positionX = value;
+		this.invalidateInk();
 	}
 
 	public get y(): number {
@@ -407,7 +439,9 @@ export abstract class Component {
 	}
 
 	public set y(value: number) {
+		if (this.positionY === value) return;
 		this.positionY = value;
+		this.invalidateInk();
 	}
 
 	/**
@@ -471,6 +505,7 @@ export abstract class Component {
 		if (givesHeight) this.givenHeight = height;
 		this.contentWidth = width;
 		this.contentHeight = height;
+		if (resized) this.sizeChanged();
 		if (resized || regiven) this.invalidateLayout();
 		if (resized && notify) this.onResized();
 	}
@@ -517,6 +552,137 @@ export abstract class Component {
 		return { x: -extent, y: -extent, width: this.contentWidth + extent * 2, height: this.contentHeight + extent * 2 };
 	}
 
+	/**
+	 * What the subtree cull (DDB-184) takes this component's own draws to
+	 * cover, in local space: `inkRect`, or null when this component cannot
+	 * bound its draws, which keeps every ancestor from being skipped on its
+	 * account. The walk's focus ring is added on top. A subclass whose answer
+	 * changes calls `invalidateInk`; anything that invalidates layout already
+	 * does.
+	 */
+	protected get cullInk(): Rect | null {
+		return this.inkRect;
+	}
+
+	/**
+	 * `cullInk` grown by the walk's fallback focus ring while this component
+	 * can show one: all this component itself draws, in local space, or null
+	 * when that has no bound. The render walk hands it to the draw API's ink
+	 * audit around `render` in development builds.
+	 */
+	public get ownInkBound(): Rect | null {
+		const own = this.cullInk;
+		if (own === null || !(this.ownFocusable || this.focusVisibleState)) return own;
+		const ring = FOCUS_RING_EXTENT;
+		return { x: own.x - ring, y: own.y - ring, width: own.width + ring * 2, height: own.height + ring * 2 };
+	}
+
+	/**
+	 * Something that moves or grows what this subtree can draw changed: a
+	 * position, size, transform, layer, content, or a child. Marks the cached
+	 * ink stale here and on every ancestor, and forgets their group counts,
+	 * so a changed subtree is walked once before it is skipped again. Always
+	 * to the root rather than stopping at a stale ancestor, since a count can
+	 * be taken while the ink is stale.
+	 */
+	protected invalidateInk(): void {
+		this.inkStale = true;
+		this.walkedGroups = -1;
+		for (let node = this.parentComponent; node !== null; node = node.parentComponent) {
+			node.inkStale = true;
+			node.walkedGroups = -1;
+		}
+	}
+
+	/**
+	 * A conservative bound on everything this subtree draws, in the parent's
+	 * content space before its scroll offset, or null when it has no bound.
+	 * The render walk skips the subtree when this, through the current
+	 * transform, misses the current clip (R4.2a). Recomputed only when stale;
+	 * the returned rect is this component's own and is overwritten then.
+	 */
+	public get subtreeInk(): Readonly<ClipRect> | null {
+		this.refreshInk();
+		return this.inkUnbounded ? null : this.placedInk;
+	}
+
+	/**
+	 * The render walk's: how many groups this subtree asked the draw API for
+	 * the last time it was walked, which a skip adds to `culled` so that
+	 * `apiDraws + culled` still counts every group (R4.2a). -1 when unknown,
+	 * and a subtree is never skipped before it has been counted.
+	 */
+	public get walkedGroupCount(): number {
+		return this.walkedGroups;
+	}
+
+	public set walkedGroupCount(count: number) {
+		this.walkedGroups = count;
+	}
+
+	/**
+	 * Own ink, grown by the walk's focus ring when this component can show
+	 * one, unioned with every visible child's placed ink less the content
+	 * offset, then placed by this component's origin and transform. Children
+	 * are not intersected with this component's clip: the clip is snapped to
+	 * device pixels at push, so the local rect is not quite what it keeps.
+	 * Opacity is ignored, so a faded subtree is over-bounded, never under.
+	 */
+	private refreshInk(): void {
+		if (!this.inkStale) return;
+		this.inkStale = false;
+		// A layer may be a promotion, which resets the clip (R4.8), so no
+		// ancestor's clip bounds it.
+		let unbounded = this.layer !== null;
+		let minX = Infinity;
+		let minY = Infinity;
+		let maxX = -Infinity;
+		let maxY = -Infinity;
+		const own = unbounded ? null : this.ownInkBound;
+		if (own === null) {
+			unbounded = true;
+		} else {
+			minX = own.x;
+			minY = own.y;
+			maxX = own.x + own.width;
+			maxY = own.y + own.height;
+		}
+		const children = this.children;
+		if (!unbounded && children.length > 0) {
+			const offset = this.contentOffset;
+			for (let index = 0; index < children.length; index++) {
+				const child = children[index];
+				if (!child.ownVisible) continue;
+				child.refreshInk();
+				if (child.inkUnbounded) {
+					unbounded = true;
+					break;
+				}
+				const ink = child.placedInk;
+				if (ink.minX - offset.x < minX) minX = ink.minX - offset.x;
+				if (ink.minY - offset.y < minY) minY = ink.minY - offset.y;
+				if (ink.maxX - offset.x > maxX) maxX = ink.maxX - offset.x;
+				if (ink.maxY - offset.y > maxY) maxY = ink.maxY - offset.y;
+			}
+		}
+		this.inkUnbounded = unbounded;
+		if (unbounded) return;
+		const placed = transformBoxInto(this.transformMatrix ?? IDENTITY, minX, minY, maxX, maxY, this.placedInk);
+		const originX = this.originX;
+		const originY = this.originY;
+		placed.minX += originX;
+		placed.minY += originY;
+		placed.maxX += originX;
+		placed.maxY += originY;
+	}
+
+	/** The content size changed: what depends on it is stale. */
+	private sizeChanged(): void {
+		this.clipRectCache = undefined;
+		this.matrixCache = undefined;
+		this.invalidateInk();
+	}
+
 	/** What this component's own draws are coloured with right now; null when it draws nothing (R13.22's `style`). */
 	public get resolvedColors(): ResolvedColors | null {
 		return null;
@@ -529,6 +695,8 @@ export abstract class Component {
 	/** Layout ignores it (R8.26); it never invalidates anything but paint. */
 	public set transform(value: TransformInput) {
 		this.ownTransform = normalizeTransform(value);
+		this.matrixCache = undefined;
+		this.invalidateInk();
 	}
 
 	/**
@@ -537,11 +705,16 @@ export abstract class Component {
 	 * `transform` keeps running while the ghost follows the pointer.
 	 */
 	public get transformMatrix(): Mat2D | null {
+		if (this.matrixCache !== undefined) return this.matrixCache;
 		const own = transformMatrix(this.ownTransform, this.contentWidth, this.contentHeight);
 		const ghost = this.dragGhostOffset;
-		if (!ghost) return own;
-		const lift = translation(ghost.x, ghost.y);
-		return own ? concat(lift, own) : lift;
+		let matrix = own;
+		if (ghost) {
+			const lift = translation(ghost.x, ghost.y);
+			matrix = own ? concat(lift, own) : lift;
+		}
+		this.matrixCache = matrix;
+		return matrix;
 	}
 
 	/**
@@ -560,6 +733,8 @@ export abstract class Component {
 	/** The drag service's: sets or clears the ghost state. */
 	public setDragOffset(offset: Vec2 | null): void {
 		this.dragGhostOffset = offset;
+		this.matrixCache = undefined;
+		this.invalidateInk();
 	}
 
 	/**
@@ -711,8 +886,21 @@ export abstract class Component {
 		return this.ownOverflow === 'hidden' && this.contentWidth > 0 && this.contentHeight > 0;
 	}
 
-	/** The clip in this component's local space: its content box. */
+	/**
+	 * The clip in this component's local space: `computeClipRect`'s answer,
+	 * kept until the size changes so the walk allocates none per frame, and
+	 * frozen because every reader shares it.
+	 */
 	public get clipRect(): Rect {
+		if (this.clipRectCache === undefined) this.clipRectCache = Object.freeze(this.computeClipRect());
+		return this.clipRectCache;
+	}
+
+	/**
+	 * The content box. An override may read the size and anything fixed at
+	 * construction, since `clipRect` keeps the answer until the size changes.
+	 */
+	protected computeClipRect(): Rect {
 		return { x: 0, y: 0, width: this.contentWidth, height: this.contentHeight };
 	}
 
@@ -753,7 +941,9 @@ export abstract class Component {
 	}
 
 	public set layer(value: LayerName | null) {
+		if (this.ownLayer === value) return;
 		this.ownLayer = value;
+		this.invalidateInk();
 	}
 
 	/** Local order among siblings (R3.12). Marks the parent's order view and nothing else. */
@@ -1115,7 +1305,8 @@ export abstract class Component {
 		this.pressState = false;
 		this.focusVisibleState = false;
 		this.dropActiveState = false;
-		this.dragGhostOffset = null;
+		// Through the setter, so the cached matrix and ink drop the ghost's offset too.
+		this.setDragOffset(null);
 	}
 
 	/**
@@ -1165,6 +1356,8 @@ export abstract class Component {
 	 * hands the boundary to the frame's layout phase.
 	 */
 	public invalidateLayout(): void {
+		// Whatever needs a layout can also move or grow ink, content included.
+		this.invalidateInk();
 		this.markDirty();
 		const boundary = this.parentComponent ? this.parentComponent.markLayoutPath() : this;
 		this.mountContext?.frame.scheduleLayout(boundary);
@@ -1237,18 +1430,21 @@ export abstract class Component {
 	private placeAnchoredChildren(): void {
 		const box = this.anchorBox;
 		for (const child of this.children) {
-			if (!this.anchorsChild(child)) {
-				child.anchorShiftX = 0;
-				child.anchorShiftY = 0;
-				continue;
+			let shiftX = 0;
+			let shiftY = 0;
+			if (this.anchorsChild(child)) {
+				const anchor = child.ownAnchor;
+				const pivot = child.pivot;
+				const margin = child.ownMargin;
+				const width = child.contentWidth + margin.left + margin.right;
+				const height = child.contentHeight + margin.top + margin.bottom;
+				shiftX = box.x + anchor[0] * box.width - pivot[0] * width;
+				shiftY = box.y + anchor[1] * box.height - pivot[1] * height;
 			}
-			const anchor = child.ownAnchor;
-			const pivot = child.pivot;
-			const margin = child.ownMargin;
-			const width = child.contentWidth + margin.left + margin.right;
-			const height = child.contentHeight + margin.top + margin.bottom;
-			child.anchorShiftX = box.x + anchor[0] * box.width - pivot[0] * width;
-			child.anchorShiftY = box.y + anchor[1] * box.height - pivot[1] * height;
+			if (child.anchorShiftX === shiftX && child.anchorShiftY === shiftY) continue;
+			child.anchorShiftX = shiftX;
+			child.anchorShiftY = shiftY;
+			child.invalidateInk();
 		}
 	}
 
@@ -1442,6 +1638,7 @@ export abstract class Component {
 		if (this.contentWidth === width && this.contentHeight === height) return;
 		this.contentWidth = width;
 		this.contentHeight = height;
+		this.sizeChanged();
 		this.onResized();
 		// Only the parent's placement of this box can change (its anchors),
 		// so the parent alone is laid out again, not everything up to its
@@ -1462,6 +1659,7 @@ export abstract class Component {
 		if (this.contentWidth === width && this.contentHeight === height) return false;
 		this.contentWidth = width;
 		this.contentHeight = height;
+		this.sizeChanged();
 		this.needsLayout = true;
 		this.onResized();
 		return true;
@@ -1624,6 +1822,7 @@ export abstract class Component {
 	public setFocusState(focused: boolean, visible: boolean): void {
 		const focusVisible = focused && visible;
 		if (this.focusState === focused && this.focusVisibleState === focusVisible) return;
+		if (this.focusVisibleState !== focusVisible) this.invalidateInk();
 		this.focusState = focused;
 		this.focusVisibleState = focusVisible;
 		this.onStateChange();
@@ -1662,6 +1861,7 @@ export abstract class Component {
 	public set focusable(value: boolean) {
 		if (this.ownFocusable === value) return;
 		this.ownFocusable = value;
+		this.invalidateInk();
 		this.invalidateFocusOrder();
 	}
 
@@ -1957,6 +2157,9 @@ export abstract class Component {
 }
 
 const ORIGIN: Vec2 = Object.freeze({ x: 0, y: 0 });
+
+/** How far the walk's fallback focus ring reaches past the content box (R11.12). */
+const FOCUS_RING_EXTENT = tokens.control.focus_ring_offset + tokens.control.focus_ring_width;
 
 function normalizeFocusGroup(value: boolean | Partial<FocusGroupConfig> | null): FocusGroupConfig | null {
 	if (!value) return null;

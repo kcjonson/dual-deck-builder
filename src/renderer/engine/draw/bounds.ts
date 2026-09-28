@@ -31,6 +31,14 @@ import { ClipRect, Mat2D, Rect, Vec2, inflate, transformedBounds } from './geome
 /** How far, in device pixels, R5.17's feather miter may reach past a polygon vertex. */
 export const FEATHER_MITER_LIMIT = 4;
 
+/**
+ * Device pixels a subtree's ink bound grows by before the render walk tests
+ * it against the clip (DDB-184): the most any one group's cull ink grows past
+ * its local extent, so a subtree whose grown bound misses the clip holds no
+ * group the per-draw cull would have kept.
+ */
+export const SUBTREE_INK_OUTSET = FEATHER_MITER_LIMIT;
+
 /** R5.7: how far a border grows the shape's footprint outward. */
 function borderOutset(border: Border | null | undefined): number {
 	if (!border) return 0;

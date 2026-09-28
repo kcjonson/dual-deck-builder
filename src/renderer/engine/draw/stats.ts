@@ -21,7 +21,9 @@ import { LAYER_NAMES, LayerName } from './layers';
  * - `culled`     draws dropped on the CPU by the clip: R4.2's `empty` state and
  *                R4.2a's bounds rejection, both counted where they happen. Text
  *                is bounds-tested per run only when the backend can give its
- *                extent (`DrawBackend.textInk`); `bounds.ts` says why.
+ *                extent (`DrawBackend.textInk`); `bounds.ts` says why. A
+ *                subtree the render walk skips whole (its cached ink misses
+ *                the clip) adds the groups it asked for on its last walk.
  * - `clipPushes` counted at `pushClip`, `pushClipRounded` and `pushClipReset`
  *                (R4.17).
  * - `flushes`    `barrier` and `endFrame` are caused here and counted here.
@@ -167,8 +169,14 @@ export class DrawCounters {
 		this.layers[layer] += 1;
 	}
 
-	countCulled(): void {
-		this.culled += 1;
+	/** One group by default; the render walk passes a skipped subtree's whole count. */
+	countCulled(groups = 1): void {
+		this.culled += groups;
+	}
+
+	/** `apiDraws + culled` so far this frame: every group asked for, drawn or not. */
+	get requested(): number {
+		return this.apiDraws + this.culled;
 	}
 
 	countClipPush(): void {

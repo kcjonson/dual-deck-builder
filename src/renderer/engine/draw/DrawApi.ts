@@ -6,6 +6,7 @@ import {
 } from './DrawBackend';
 import {
 	FEATHER_MITER_LIMIT,
+	SUBTREE_INK_OUTSET,
 	circleInk,
 	lineInk,
 	pointsInk,
@@ -51,10 +52,12 @@ import {
 	RGBA,
 	Rect,
 	Vec2,
+	ClipRect,
 	concat,
 	copyColor,
 	copyRect,
 	copyVec2,
+	inflate,
 	intersects,
 	isTranslateOnly,
 	transformedBounds,
@@ -120,7 +123,8 @@ export type DiagnosticCode =
 	| 'texture-upload-in-frame'
 	| 'texture-not-live'
 	| 'polygon-not-one-outline'
-	| 'foreign-draw-without-flush';
+	| 'foreign-draw-without-flush'
+	| 'ink-outside-bound';
 
 export interface Diagnostic {
 	code: DiagnosticCode;
@@ -183,6 +187,9 @@ interface TransformEntry {
 
 const ROOT_TRANSFORM: TransformEntry = { matrix: IDENTITY, translateOnly: true };
 
+/** Screen-space slack for float error in the ink audit, far below a pixel. */
+const INK_AUDIT_EPSILON = 1e-3;
+
 interface CaptureRequest {
 	id?: string;
 	blend?: BlendMode;
@@ -221,6 +228,10 @@ export class DrawApi {
 	private viewportHeight = 0;
 	private ratio = 1;
 	private warnedNestedRoundedClip = false;
+	private inkBoundLocal: Rect | null = null;
+	private inkBoundMatrix: Mat2D = IDENTITY;
+	private inkBoundScreen: ClipRect | null = null;
+	private warnedInkBound = false;
 
 	constructor({
 		backend,
@@ -276,6 +287,15 @@ export class DrawApi {
 		return this.ratio;
 	}
 
+	/**
+	 * R4.2a's `apiDraws + culled` so far this frame: every group asked for,
+	 * drawn or dropped. The render walk reads it around a subtree to learn
+	 * the subtree's count without allocating a stats snapshot.
+	 */
+	get groupsRequested(): number {
+		return this.counters.requested;
+	}
+
 	/** Groups accumulated since the last barrier. */
 	get pendingCount(): number {
 		return this.partition.size;
@@ -305,6 +325,9 @@ export class DrawApi {
 		this.sequence = 0;
 		this.domainFirstSequence = 0;
 		this.warnedNestedRoundedClip = false;
+		this.warnedInkBound = false;
+		this.inkBoundLocal = null;
+		this.inkBoundScreen = null;
 		this.transforms = [ROOT_TRANSFORM];
 		this.clips = [CLIP_NONE];
 		this.opacities = [1];
@@ -515,6 +538,40 @@ export class DrawApi {
 	popLayer(): void {
 		if (!this.ensureFrame('popLayer')) return;
 		this.popStack(this.layerStack, 'popLayer');
+	}
+
+	// -- subtree cull (R4.2a, DDB-184) ---------------------------------------
+
+	/**
+	 * Counts as culled the groups of a subtree the caller skipped whole
+	 * because its conservative ink missed the clip, so that `apiDraws +
+	 * culled` still counts every group the frame asked for (R4.2a). The
+	 * render walk passes the count from the subtree's last walk.
+	 */
+	cullGroups(groups: number): void {
+		if (!this.ensureFrame('cullGroups')) return;
+		this.counters.countCulled(groups);
+	}
+
+	/** Whether `setInkBound` does anything: development builds only, so a production walk never builds the rect. */
+	get auditsInk(): boolean {
+		return this.development;
+	}
+
+	/**
+	 * The local rect, under the current transform, that the caller promises
+	 * its next draws stay inside; null withdraws the promise. The render walk
+	 * sets a component's `cullInk` around its `render`, since a subtree skip
+	 * trusts exactly that promise. In a development build a group whose cull
+	 * ink leaves the rect is reported once a frame as `ink-outside-bound`.
+	 * Checked only where the cull computes ink anyway, under a rect clip,
+	 * which is also the only place a skip can happen. A no-op otherwise.
+	 */
+	setInkBound(local: Rect | null): void {
+		if (!this.development) return;
+		this.inkBoundLocal = local;
+		this.inkBoundMatrix = this.transforms[this.transforms.length - 1].matrix;
+		this.inkBoundScreen = null;
 	}
 
 	// -- draw calls (R2.8 to R2.13) -----------------------------------------
@@ -840,6 +897,7 @@ export class DrawApi {
 
 		if (ink && clip.kind === 'rect') {
 			const bounds = screenInk(ink, transform.matrix, this.ratio, inkOutset);
+			if (this.inkBoundLocal) this.auditInk(id, bounds);
 			if (!intersects(bounds, clipRectOf(clip))) {
 				this.counters.countCulled();
 				return null;
@@ -860,6 +918,27 @@ export class DrawApi {
 			blend: blend ?? 'over',
 			group,
 		};
+	}
+
+	private auditInk(id: string | undefined, bounds: ClipRect): void {
+		const local = this.inkBoundLocal;
+		if (!local || this.warnedInkBound) return;
+		let bound = this.inkBoundScreen;
+		if (!bound) {
+			const devicePixel = this.ratio > 0 ? 1 / this.ratio : 1;
+			bound = inflate(transformedBounds(this.inkBoundMatrix, local), devicePixel * SUBTREE_INK_OUTSET);
+			this.inkBoundScreen = bound;
+		}
+		if (bounds.minX >= bound.minX - INK_AUDIT_EPSILON && bounds.minY >= bound.minY - INK_AUDIT_EPSILON
+			&& bounds.maxX <= bound.maxX + INK_AUDIT_EPSILON && bounds.maxY <= bound.maxY + INK_AUDIT_EPSILON) {
+			return;
+		}
+		this.warnedInkBound = true;
+		const format = (rect: ClipRect): string => `[${rect.minX.toFixed(1)}, ${rect.minY.toFixed(1)}, ${rect.maxX.toFixed(1)}, ${rect.maxY.toFixed(1)}]`;
+		this.report(
+			'ink-outside-bound',
+			`${id ?? 'a group'} draws at ${format(bounds)}, outside its component's cull ink ${format(bound)}; a subtree skip (R4.2a) would drop it while visible. Grow the component's inkExtent or cullInk.`,
+		);
 	}
 
 	private emit(command: DrawCommand): void {
