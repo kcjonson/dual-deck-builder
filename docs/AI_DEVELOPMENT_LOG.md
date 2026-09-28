@@ -17,6 +17,15 @@ This document contains the chronological log of completed development tasks for 
 
 **How:** `Clock.test.ts`, `easing.test.ts` (against a bisection solve), `Animator.test.ts` (order, defaults, arrays, reduced motion in flight, retarget, same-target retargets (running, idle, and every frame for 700 frames completing once and on time), single and compounded reversals, restart from a completion, cancel, owners, `done`, settle and its runaway guard), `components/animation.test.ts` (clock and tick before component updates, no motion without an update phase, injected and frozen clocks, subtree unmount cancelling, a reconciled exit driven by `done`, a cancelled exit still detaching), `reducedMotion.test.ts`. Every chromium visual spec passes against local captures of `main` with zero differing pixels.
 
+## Developer section titles inset inside their frames (2026-09-28)
+
+**What landed:** DDB-196 (DDB-55).
+
+- `Panel` has a `padding` option, expressed as `contentOffset` (scroll position less padding), the one value DDB-73's render walk, hit test and tree snapshot read, so children are placed inside the padding everywhere and the padding scrolls with the content (R4.13: scroll extent is content plus both paddings less the box). A padded panel clips inside its border and corner radius, inset by `max(borderWidth, cornerRadius)`; unpadded panels keep the border-box clip. The departure from R4.9 is recorded in `AI_TECHNICAL_DECISIONS/panel-padding.md`. `treeSnapshot` now takes a clip from `clipRect` rather than the node's whole box, so snapshot, walk and hit test agree. `innerWidth` reports the width left for children.
+- `developer/DeveloperSectionPanel.ts` is the shared frame all twelve sections extend: transparent, `bw` border, inset `bw + space_3` (13 px), and `fitContentHeight` to size the frame around the content. Sections dropped their duplicated `super` blocks; the three draw fixtures, the text alignment columns and the nested panel use `innerWidth`.
+- `DeveloperScreen` subtracts both insets from its section spacing so the content pitch is what it was.
+- Tests: `engine/ui/PanelPadding.test.ts` (drawing, hit test, snapshot, vertical and horizontal scroll extent, radius-aware clip in walk, hit test and snapshot, default). Lint: every scene 0, developer screen 186, both as on main with the same violation paths. Goldens re-minted with `update_mode=all`.
+
 ## Pixel snapping at submission: hairlines, shared edges and clips (2026-09-28)
 
 **What landed:** DDB-188 (DDB-55).
@@ -29,6 +38,7 @@ This document contains the chronological log of completed development tasks for 
 - `uberShader.spec.ts`: the fractional abutting-rects case passes and lost its `test.fail`; new GPU checks for chapter 7's 1 px border at y 10.4 on device rows 21 and 22 at ratio 2, and a 1 px center border on one column. The two coverage-ramp tests moved under a scale, where nothing snaps.
 
 **How:** unit tests for the helper (center, borderless, sub-pixel, out param), the encoder (translated hairline at ratio 2, abutting pair, center border, and the three opt-outs) and the clip stack (snapped at every fractional scroll, not under a scale). Goldens re-minted on CI with `update_mode=all` and checked old against new.
+
 
 ## Mount context, lifecycle, and frame order (2026-09-28)
 
@@ -58,6 +68,7 @@ This document contains the chronological log of completed development tasks for 
 - Merged with DDB-68, DDB-71 and DDB-72 as they landed: `DrawFixture` and `Text` draw in their own space; `Icon.drawGlyph` lets `ArmorBadge` and `IntentMarker` draw their icon as one of their own draws, in the same order as before; `Button` places its icon from its `render` hook until the layout phase exists; the F5 overlay's visibility is `visible`.
 
 **How:** `Component.test.ts` (properties, effective values, children, reconciliation, screen geometry under rotation and scale) and `renderTree.test.ts` (local draws, leaf children walked by the framework, skipped subtrees, zIndex order, opacity, clip and promotion, balanced stacks) on the recording backend. Every screen and gallery scene captured locally on `main` and on the branch passes the golden tolerance; the CI goldens are unchanged.
+
 
 ## Visual gate: cluster rule and settled-layout wait (2026-09-28)
 

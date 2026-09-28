@@ -1,4 +1,4 @@
-import { Panel } from '../../../engine/ui/Panel';
+import { DeveloperSectionPanel } from './DeveloperSectionPanel';
 import { Text } from '../../../engine/components/Text';
 import { Input } from '../../../engine/ui/Input';
 
@@ -6,18 +6,10 @@ import { Input } from '../../../engine/ui/Input';
  * Input showcase section for the developer screen
  * Demonstrates various input field configurations
  */
-export class InputShowcaseSection extends Panel {
+export class InputShowcaseSection extends DeveloperSectionPanel {
 	constructor(x: number, y: number, width: number) {
-		super({
-			id: 'dev_section_input_showcase',
-			width,
-			height: 300, // Will be calculated based on content
-			style: {
-				backgroundColor: 'transparent',
-			},
-		});
+		super({ id: 'dev_section_input_showcase', x, y, width });
 
-		this.setPosition(x, y);
 		this.initializeContent();
 	}
 
@@ -128,7 +120,7 @@ export class InputShowcaseSection extends Panel {
 		prefilledInput.onChange((value: string) => updateDisplay('Pre-filled', value));
 
 		// Update our height based on content
-		this.setSize(this.width, currentY + 40);
+		this.fitContentHeight(currentY + 40);
 	}
 
 	/**
