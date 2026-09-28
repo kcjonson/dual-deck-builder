@@ -1,6 +1,5 @@
 import { DeveloperSectionPanel } from './DeveloperSectionPanel';
 import { Text } from '../../../engine/components/Text';
-import type { MountContext } from '../../../engine/components/MountContext';
 import { Button } from '../../../engine/ui/Button';
 
 /**
@@ -171,14 +170,18 @@ export class ButtonExamplesSection extends DeveloperSectionPanel {
 	}
 
 	/**
-	 * Focus goes through the dispatcher, so this button is the one focused
-	 * component and a press elsewhere takes the ring away; focus-visible is
-	 * set as the flag the focus manager (DDB-76) will own, as if focus had
-	 * arrived by keyboard.
+	 * Focuses the demo button as keyboard navigation would, so it shows its
+	 * ring; a press elsewhere takes it away. From the first update rather than
+	 * here, since `onMount` runs before the children mount and the focus
+	 * manager refuses a component that is not mounted yet.
 	 */
-	protected onMount(context: MountContext): void {
-		context.dispatcher.focus(this.focusDemo);
-		this.focusDemo.focusVisible = true;
+	protected onMount(): void {
+		this.requestUpdate();
+	}
+
+	public update(dt: number): void {
+		super.update(dt);
+		this.context?.focus.focus(this.focusDemo, 'keyboard');
 	}
 
 	private incrementCounter(): void {

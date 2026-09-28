@@ -27,8 +27,11 @@ import { snapClipRect } from '../coords/snapping';
  * effective layer, enabled, the effective opacity, inkBounds, and every
  * R11.11 state flag (the base carries them all since DDB-84). Backed where a
  * component has them: clip, contentOffset, transform, text, value, style.
- * Still absent everywhere, because nothing backs it yet: focusable (the focus
- * manager's).
+ *
+ * `focusable` is backed since DDB-76 but not emitted, for the same reason as
+ * `pointerEvents` below: the lint reads it as "interactive", and reporting it
+ * would wake rules 6 and 7 on every Button in the gallery, which is a call
+ * for whoever settles what "interactive" means there.
  *
  * `pointerEvents` is backed but deliberately not emitted. R13.22 does not name
  * it, and the lint reads it as "interactive" for rules 6 and 7 (R13.25.6),

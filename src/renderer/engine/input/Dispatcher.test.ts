@@ -677,23 +677,24 @@ describe('wheel (R9.3, R9.32)', () => {
 	});
 });
 
-describe('keys (R9.15) and the focus seam', () => {
+describe('keys (R9.15)', () => {
 	it('delivers to the focused component, bubbles, and falls through to the hotkey table', () => {
 		const root = new Container({ id: 'root', width: 400, height: 400 });
-		const field = new Probe({ id: 'field', width: 100, height: 40 });
+		const field = new Probe({ id: 'field', width: 100, height: 40, focusable: true });
 		root.addChild(field);
 		mount(root);
 		const hotkeys: string[] = [];
-		context.dispatcher.hotkeys.register('Escape', (stroke) => hotkeys.push(stroke.key));
-		context.dispatcher.focus(field);
+		context.dispatcher.hotkeys.register('F6', (stroke) => hotkeys.push(stroke.key));
+		context.focus.focus(field);
+		log.length = 0;
 
-		key('down', 'Escape');
+		key('down', 'F6');
 		expect(log).toEqual(['keydown:field', 'keydown:root']);
-		expect(hotkeys).toEqual(['Escape']);
+		expect(hotkeys).toEqual(['F6']);
 
 		field.consumes = 'keydown';
-		key('down', 'Escape');
-		expect(hotkeys).toEqual(['Escape']);
+		key('down', 'F6');
+		expect(hotkeys).toEqual(['F6']);
 	});
 
 	it('reaches the hotkey table on keydown only, with nothing focused', () => {
@@ -705,28 +706,31 @@ describe('keys (R9.15) and the focus seam', () => {
 		expect(context.dispatcher.claimsKey('F6')).toBe(true);
 		expect(context.dispatcher.claimsKey('F7')).toBe(false);
 
-		const field = new Probe({ id: 'field', width: 10, height: 10 });
-		mount(field);
-		context.dispatcher.focus(field);
-		expect(context.dispatcher.claimsKey('c')).toBe(true);
-		expect(context.dispatcher.claimsKey('c', { ...NO_MODIFIERS, meta: true })).toBe(false);
-		expect(context.dispatcher.claimsKey('c', { ...NO_MODIFIERS, ctrl: true })).toBe(false);
+		const button = new Probe({ id: 'button', width: 10, height: 10, focusable: true });
+		mount(button);
+		context.focus.focus(button);
+		// A focused component that takes no text claims navigation, not letters.
+		expect(context.dispatcher.claimsKey('Enter')).toBe(true);
+		expect(context.dispatcher.claimsKey('c')).toBe(false);
+		expect(context.dispatcher.claimsKey('Tab')).toBe(true);
 	});
 
 	it('clears focus on a press outside the focused component, with onBlur', () => {
 		const root = new Container({ id: 'root', width: 400, height: 400 });
-		const field = new Probe({ id: 'field', width: 100, height: 40 });
+		const field = new Probe({ id: 'field', width: 100, height: 40, focusable: true });
 		root.addChild(field);
 		root.addChild(new Probe({ id: 'other', x: 200, y: 0, width: 100, height: 40 }));
 		mount(root);
-		context.dispatcher.focus(field);
+		context.focus.focus(field);
 		expect(field.focused).toBe(true);
 
 		click(50, 20);
-		expect(context.dispatcher.focused).toBe(field);
+		expect(context.focus.focused).toBe(field);
+		log.length = 0;
 		click(250, 20);
-		expect(context.dispatcher.focused).toBeNull();
+		expect(context.focus.focused).toBeNull();
 		expect(field.focused).toBe(false);
+		expect(only('blur')).toEqual(['blur:field']);
 	});
 });
 
@@ -793,7 +797,9 @@ describe('the queue (R9.2)', () => {
 		const layer = new Layer({ id: 'layer', width: 100, height: 100, pointerEvents: 'auto' });
 		const seen: string[] = [];
 		layer.onPointerDown = () => seen.push('down');
-		layer.onClick = (event) => seen.push(`click at ${event.local?.x},${event.local?.y}`);
+		layer.onClick = (event) => {
+			if (event.type === 'click') seen.push(`click at ${event.local?.x},${event.local?.y}`);
+		};
 		mount(layer);
 		click(10, 20);
 		expect(seen).toEqual(['down', 'click at 10,20']);

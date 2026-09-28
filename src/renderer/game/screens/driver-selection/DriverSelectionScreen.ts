@@ -161,6 +161,9 @@ export class DriverSelectionScreen extends Screen {
 		// Back button
 		this.backButton = new Button('Back to Menu', {
 			id: 'driver_select_back_button',
+			// Tab reaches it first, as it reads, though the panels are built
+			// before it (R9.18: a positive tabIndex leads the order)
+			tabIndex: 1,
 			icon: 'arrow_back',
 			size: 'lg',
 			width: 200,
@@ -374,6 +377,8 @@ export class DriverSelectionScreen extends Screen {
 	 * Handle screen mount - reload drivers
 	 */
 	protected onMount(): void {
+		// Escape goes back, as the Back button does (R9.15's root table)
+		this.rootLayer.hotkeys.register('Escape', () => ScreenManager.navigate('mainMenuScreen'));
 		// Reload drivers when screen is mounted
 		this.loadDrivers();
 	}

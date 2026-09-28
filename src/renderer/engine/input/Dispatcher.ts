@@ -3,17 +3,20 @@ import type { Clock } from '../animation/Clock';
 import type { Component } from '../components/Component';
 import type { UiFrame } from '../components/UiFrame';
 import {
+	ActionEventType,
 	AnyUiEvent,
 	Modifiers,
 	NO_MODIFIERS,
 	PointerEventType,
 	PointerType,
+	UiActionEvent,
 	UiKeyEvent,
 	UiPointerEvent,
 	UiWheelEvent,
 } from './events';
+import { FocusDirection, FocusManager, GroupKey } from './FocusManager';
 import { HitTestOptions, hitTest } from './hitTest';
-import { HotkeyTable } from './HotkeyTable';
+import { HotkeyTable, KeyStroke } from './HotkeyTable';
 import { DragService, dragThreshold } from './DragService';
 
 /** R9.32: a wheel event within this long of the last stays with the latched scroller. */
@@ -28,6 +31,19 @@ const SECONDARY_BUTTON = 2;
 
 /** `WheelEvent.deltaMode`: pixels, lines, pages. */
 export type WheelDeltaMode = 0 | 1 | 2;
+
+/** R9.27: the last input source, so components may change affordances. */
+export type InputMode = 'pointer' | 'keyboard' | 'controller';
+
+const ARROW_DIRECTIONS: Readonly<Record<string, FocusDirection>> = {
+	ArrowUp: 'up',
+	ArrowDown: 'down',
+	ArrowLeft: 'left',
+	ArrowRight: 'right',
+};
+
+/** Keys the focused component or the focus manager acts on, whose browser default (scrolling) must not run. */
+const NAVIGATION_KEYS = new Set(['Enter', ' ', 'Escape', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Home', 'End']);
 
 interface PointerFields {
 	x: number;
@@ -107,19 +123,24 @@ export interface DispatcherOptions {
  * `pointerenter`, `pointerleave` and `hovered` are derived here from
  * consecutive hit tests (R9.8, R9.9); `click` is synthesised on the nearest
  * common ancestor of the press and release targets (R9.31); wheel deltas are
- * normalised and latched to one scroller per gesture (R9.3, R9.32). Keys go
- * to the focused component, bubble, and fall through to the hotkey table
- * (R9.15).
+ * normalised and latched to one scroller per gesture (R9.3, R9.32).
  *
- * Focus is a seam here, not a manager: the focused component, set by
- * `focus()`, receives keys, and a press outside it clears it (R9.23's
- * fallback). DDB-76's focus manager takes the seam over. Drag and drop is
- * `drag` (R9.12), built on capture and `hitTest({ exclude })` and fed from
- * the pointer path here.
+ * Keys go to the focused component and bubble (R9.15, R9.24); Tab moves
+ * focus before anything sees it (R9.16); an unconsumed Enter, Space, or
+ * Escape becomes `activate` or `cancel` at the focused component (R9.27);
+ * unconsumed arrows move within a focus group or directionally (R9.29,
+ * R9.26); what is left reaches the hotkey tables, the focused root's, then
+ * the other roots' from the topmost down to a modal root, then the scene's
+ * (R9.15). Focus itself is `focus`, the `FocusManager` this dispatcher
+ * drives: a press focuses the nearest focusable ancestor of its target
+ * (R9.23). Drag and drop is `drag` (R9.12), built on capture and
+ * `hitTest({ exclude })` and fed from the pointer path here.
  */
 export class Dispatcher {
-	/** R9.15's scene hotkey table: keys nothing focused consumed. */
+	/** R9.15's scene hotkey table: the last one searched, and never while a modal root is mounted. */
 	public readonly hotkeys = new HotkeyTable();
+	/** Chapter 9's focus manager; the mount context exposes it as `focus`. */
+	public readonly focus: FocusManager;
 	/** R9.12's drag and drop, which the mount context hands out as `drag`. */
 	public readonly drag: DragService;
 
@@ -136,7 +157,7 @@ export class Dispatcher {
 	private layoutVersionSeen = -1;
 	private readonly captures = new Map<number, Component>();
 	private readonly presses = new Map<number, Press>();
-	private focusedComponent: Component | null = null;
+	private mode: InputMode = 'pointer';
 	private latch: { scroller: Component; lastTime: number } | null = null;
 	private inputPaused = false;
 	private dispatching = false;
@@ -145,6 +166,7 @@ export class Dispatcher {
 		this.frame = frame;
 		this.clock = clock;
 		this.pixelRatio = pixelRatio;
+		this.focus = new FocusManager({ clock, roots: () => this.rootList });
 		this.drag = new DragService({
 			host: {
 				hitTest: (point, options) => this.hit(point.x, point.y, options),
@@ -164,6 +186,14 @@ export class Dispatcher {
 				},
 			},
 		});
+	}
+
+	/**
+	 * R9.27: `pointer` since the last press, `keyboard` since the last key,
+	 * `controller` since the last virtual-pointer press.
+	 */
+	public get inputMode(): InputMode {
+		return this.mode;
 	}
 
 	/** Lays out on demand, then walks the roots (R9.2, R9.4). */
@@ -192,6 +222,7 @@ export class Dispatcher {
 		if (this.rootList.includes(root)) return;
 		this.rootList.push(root);
 		this.hoverStale = true;
+		this.focus.invalidateOrder();
 	}
 
 	// -- pause (R13.32, R13.35) -----------------------------------------------
@@ -315,28 +346,14 @@ export class Dispatcher {
 		return this.captures.get(pointerId) ?? null;
 	}
 
-	// -- focus seam (DDB-76 replaces) -----------------------------------------
-
-	public get focused(): Component | null {
-		return this.focusedComponent;
-	}
-
-	/** Moves key delivery to `component`: `onBlur` on the previous, then `onFocus` (R9.22's order). */
-	public focus(component: Component | null): void {
-		const previous = this.focusedComponent;
-		if (previous === component) return;
-		this.focusedComponent = component;
-		previous?.setFocused(false);
-		component?.setFocused(true);
-	}
-
 	// -- unmount (R8.15, R9.10, R9.21) ----------------------------------------
 
 	/**
 	 * Drops everything the dispatcher holds on `component` as it unmounts:
-	 * its root entry, its place in the hover chain, focus (without callbacks,
-	 * since it may be mid-teardown), a press it is the target of, and the
-	 * latch. A captor hears `pointercancel` first, then loses the capture.
+	 * its root entry, its place in the hover chain, focus and any scope it
+	 * roots (without callbacks on it, since it may be mid-teardown, R9.21), a
+	 * press it is the target of, and the latch. A captor hears
+	 * `pointercancel` first, then loses the capture.
 	 */
 	public forget(component: Component): void {
 		const rootIndex = this.rootList.indexOf(component);
@@ -354,7 +371,7 @@ export class Dispatcher {
 			this.hoverStale = true;
 		}
 
-		if (this.focusedComponent === component) this.focusedComponent = null;
+		this.focus.forget(component);
 
 		for (const [pointerId, captor] of this.captures) {
 			if (captor !== component) continue;
@@ -381,7 +398,7 @@ export class Dispatcher {
 		this.hoverPosition = null;
 		this.captures.clear();
 		this.presses.clear();
-		this.focusedComponent = null;
+		this.focus.reset();
 		this.latch = null;
 		this.hotkeys.clear();
 	}
@@ -444,12 +461,7 @@ export class Dispatcher {
 
 		const target = this.targetFor(fields);
 		this.trackHover(fields, target);
-
-		// R9.23's fallback until the focus manager: a press outside the
-		// focused component clears focus before the press is delivered, so the
-		// component pressed can take it.
-		const focused = this.focusedComponent;
-		if (focused && !(target && isInclusiveAncestor(focused, target))) this.focus(null);
+		this.mode = fields.pointerType === 'virtual' ? 'controller' : 'pointer';
 
 		this.presses.set(fields.pointerId, {
 			target,
@@ -461,9 +473,16 @@ export class Dispatcher {
 			moved: false,
 			spent: false,
 		});
-		if (!target) return;
+		if (!target) {
+			this.focus.focusFromPointer(null);
+			return;
+		}
 
-		this.bubble(this.pointerEvent('pointerdown', target, fields, true));
+		const press = this.pointerEvent('pointerdown', target, fields, true);
+		this.bubble(press);
+		// R9.23: after the handlers, so one that owns the press can keep focus
+		// where it is.
+		if (!press.isFocusPrevented) this.focus.focusFromPointer(target);
 
 		// R9.10: a touch is captured by its press target unless a handler
 		// captured it elsewhere.
@@ -684,38 +703,117 @@ export class Dispatcher {
 		this.refreshHover();
 	}
 
-	// -- keys (R9.15) ---------------------------------------------------------
+	// -- keys (R9.15, R9.16, R9.24, R9.27) ------------------------------------
 
 	/**
-	 * The focused component first, bubbling to its root; then, for a keydown
-	 * nothing consumed, the hotkey table.
+	 * A keydown, in order: Tab moves focus unless the focused component
+	 * handles Tab (R9.16); the focused component, bubbling to its root
+	 * (R9.24); a text field keeps what it did not consume (R9.15); `activate`
+	 * or `cancel` at the focused component (R9.27); arrows, Home, and End
+	 * within a focus group, then directionally (R9.29, R9.26); the hotkey
+	 * tables (R9.15). A keyup goes to the focused component only.
 	 */
 	private key(input: Extract<PlatformInput, { kind: 'key' }>): void {
-		const focused = this.focusedComponent;
-		if (focused && focused.isMounted && focused.effectivelyVisible && focused.effectivelyEnabled) {
+		this.mode = 'keyboard';
+		const focused = this.keyTarget;
+		const down = input.phase === 'down';
+		const { modifiers } = input;
+		const chord = modifiers.ctrl || modifiers.meta || modifiers.alt;
+
+		if (down && input.key === 'Tab' && !chord && !focused?.handlesTab) {
+			if (modifiers.shift) this.focus.focusPrevious();
+			else this.focus.focusNext();
+			return;
+		}
+
+		if (focused) {
 			const event = new UiKeyEvent({
-				type: input.phase === 'down' ? 'keydown' : 'keyup',
+				type: down ? 'keydown' : 'keyup',
 				timestamp: this.clock.now,
 				target: focused,
 				key: input.key,
 				repeat: input.repeat,
-				modifiers: input.modifiers,
+				modifiers,
 			});
+			this.bubble(event);
+			if (event.consumed || !down) return;
+			if (focused.acceptsText && ownedByTextField(input.key, modifiers)) return;
+		}
+		if (!down) return;
+
+		const action = actionFor(input);
+		if (action && focused && focused.isMounted) {
+			if (action === 'activate') this.focus.showFocusVisible();
+			const event = new UiActionEvent({ type: action, timestamp: this.clock.now, target: focused, source: 'keyboard' });
 			this.bubble(event);
 			if (event.consumed) return;
 		}
-		if (input.phase === 'down') this.hotkeys.handle({ key: input.key, repeat: input.repeat, modifiers: input.modifiers });
+
+		if (!chord && !modifiers.shift && this.navigate(input.key)) return;
+
+		const stroke: KeyStroke = { key: input.key, repeat: input.repeat, modifiers };
+		for (const table of this.hotkeyTables(focused)) {
+			if (table.handle(stroke)) return;
+		}
+	}
+
+	/** Arrows, Home, and End that nothing consumed: the focused group first, then directional focus. */
+	private navigate(key: string): boolean {
+		const direction = ARROW_DIRECTIONS[key];
+		if (!direction && key !== 'Home' && key !== 'End') return false;
+		if (this.focus.moveWithinGroup(key as GroupKey)) return true;
+		return direction !== undefined && this.focus.focusDirection(direction);
+	}
+
+	/** The focused component when keys can reach it (R9.15, R9.18). */
+	private get keyTarget(): Component | null {
+		const focused = this.focus.focused;
+		return focused && focused.canReceiveFocus() ? focused : null;
+	}
+
+	/**
+	 * R9.15's search order: the focused component's root, then every other
+	 * root from the topmost down, stopping at a modal root (whose own table
+	 * is searched), then the scene's table when no modal root is mounted.
+	 * With nothing focused the search starts at the topmost root.
+	 */
+	private hotkeyTables(focused: Component | null): HotkeyTable[] {
+		const roots = this.rootList;
+		let floor = 0;
+		let modal = false;
+		for (let index = roots.length - 1; index >= 0; index--) {
+			if (roots[index].modal) {
+				floor = index;
+				modal = true;
+				break;
+			}
+		}
+		const tables: HotkeyTable[] = [];
+		const focusedRoot = focused?.root ?? null;
+		if (focusedRoot && roots.indexOf(focusedRoot) >= floor && focusedRoot.ownHotkeys) tables.push(focusedRoot.ownHotkeys);
+		for (let index = roots.length - 1; index >= floor; index--) {
+			const root = roots[index];
+			if (root !== focusedRoot && root.ownHotkeys) tables.push(root.ownHotkeys);
+		}
+		if (!modal) tables.push(this.hotkeys);
+		return tables;
 	}
 
 	/**
 	 * Whether a key would be handled if it were dispatched now, which the
 	 * adapter needs synchronously to prevent the browser's default: the event
-	 * itself is only dispatched at the next frame (R9.2).
+	 * itself is only dispatched at the next frame (R9.2). Tab always is, so
+	 * focus never leaves the canvas for the browser's chrome; a text field
+	 * claims what it owns (R9.15); navigation keys are claimed while
+	 * something is focused, and arrows always, since they move focus from
+	 * nothing (R9.26).
 	 */
 	public claimsKey(key: string, modifiers: Modifiers = NO_MODIFIERS): boolean {
-		if (this.hotkeys.has(key)) return true;
-		// R9.15: a focused field lets Cmd and Ctrl chords through to the platform.
-		return this.focusedComponent !== null && !modifiers.ctrl && !modifiers.meta;
+		if (key === 'Tab') return true;
+		const focused = this.keyTarget;
+		if (focused?.acceptsText && ownedByTextField(key, modifiers)) return true;
+		if (NAVIGATION_KEYS.has(key) && (focused || ARROW_DIRECTIONS[key])) return true;
+		return this.hotkeyTables(focused).some((table) => table.has(key));
 	}
 
 	// -- delivery -------------------------------------------------------------
@@ -802,6 +900,27 @@ export function normaliseWheel(
 	}
 	if (input.modifiers.shift && deltaX === 0) return [deltaY, 0];
 	return [deltaX, deltaY];
+}
+
+/**
+ * R9.15: what a focused text field keeps from activation, navigation, and
+ * the hotkey tables whether or not it consumed it: printable keys and the
+ * editing and caret keys. Tab and Escape leave it, as do Cmd and Ctrl chords
+ * (copy, a menu shortcut) and named keys such as F6, which are not text.
+ */
+function ownedByTextField(key: string, modifiers: Modifiers): boolean {
+	if (modifiers.ctrl || modifiers.meta) return false;
+	if (key === 'Escape') return false;
+	return [...key].length === 1 || NAVIGATION_KEYS.has(key) || key === 'Backspace' || key === 'Delete';
+}
+
+/** R9.27: the first Enter or Space of a press activates, Escape cancels; chords are neither. */
+function actionFor(input: { key: string; repeat: boolean; modifiers: Modifiers }): ActionEventType | null {
+	const { ctrl, meta, alt } = input.modifiers;
+	if (ctrl || meta || alt) return null;
+	if (input.key === 'Escape') return 'cancel';
+	if ((input.key === 'Enter' || input.key === ' ') && !input.repeat) return 'activate';
+	return null;
 }
 
 /** Root first, `component` last. */

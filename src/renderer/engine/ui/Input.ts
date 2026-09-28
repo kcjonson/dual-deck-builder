@@ -82,7 +82,7 @@ export class Input extends Component {
 	 * @param placeholder Shown while the value is empty
 	 */
 	constructor(placeholder = '', { size = 'md', style = {}, ...options }: InputOptions = {}) {
-		super({ ...options, height: options.height ?? CONTROL_SIZES[size].height });
+		super({ focusable: true, ...options, height: options.height ?? CONTROL_SIZES[size].height });
 		this.componentType = 'Input';
 		this.heightFollowsSize = options.height === undefined;
 		validateStyle(style, INPUT_STYLE);
@@ -176,17 +176,25 @@ export class Input extends Component {
 		return { fill: look.fill, text: look.text, border: look.border };
 	}
 
+	/** R9.15: while focused, printable keys are this field's, never a hotkey's. */
+	public get acceptsText(): boolean {
+		return true;
+	}
+
 	/**
-	 * A press focuses the field through the dispatcher's focus seam, and a
-	 * press anywhere else blurs it (R9.23's fallback until DDB-76). Keys reach
-	 * it only while focused; the ones it handles are consumed, so they never
-	 * reach the hotkey table (R9.15).
+	 * A press focuses the field and a press anywhere else blurs it, through
+	 * the focus manager (R9.23). Keys reach it only while focused; the ones
+	 * it handles are consumed, and as a text field it keeps the rest from the
+	 * hotkey tables too (R9.15).
 	 */
 	public handleEvent(event: AnyUiEvent): void {
 		super.handleEvent(event);
 		switch (event.type) {
-			case 'pointerdown':
-				if (this.enabled) this.context?.dispatcher.focus(this);
+			case 'focus':
+				this.showFocus();
+				return;
+			case 'blur':
+				this.showBlur();
 				return;
 			case 'keydown':
 				// R9.15: bound modifier chords (copy, a menu shortcut) are not text.
@@ -202,7 +210,7 @@ export class Input extends Component {
 	}
 
 	/**
-	 * Unmount drops focus without `onBlur` (R9.21), so the editing state it
+	 * Unmount drops focus without a `blur` event (R9.21), so the editing state it
 	 * set goes here, before the look settles.
 	 */
 	protected onUnmount(): void {
@@ -250,14 +258,14 @@ export class Input extends Component {
 	}
 
 	/** Holding focus is editing: layer 4's `active`, and a blinking caret. */
-	protected onFocus(): void {
+	private showFocus(): void {
 		this.active = true;
 		this.cursor.setVisible(true);
 		this.cursorBlinkTimer = 0;
 		this.requestUpdate();
 	}
 
-	protected onBlur(): void {
+	private showBlur(): void {
 		this.active = false;
 		this.cursor.setVisible(false);
 	}
@@ -308,7 +316,7 @@ export class Input extends Component {
 			return true;
 		}
 		if (key === 'Enter') {
-			this.context?.dispatcher.focus(null);
+			this.context?.focus.blur();
 			return true;
 		}
 		if (key.length === 1) {

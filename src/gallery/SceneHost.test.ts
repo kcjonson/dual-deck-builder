@@ -163,11 +163,11 @@ describe('switching scenes', () => {
 		const host = makeHost(interactiveScenes);
 		host.mount('alpha');
 		const input = findById(host.root, 'alpha_input') as Input;
-		context.dispatcher.focus(input);
-		expect(context.dispatcher.focused).toBe(input);
+		context.focus.focus(input);
+		expect(context.focus.focused).toBe(input);
 
 		host.mount('beta');
-		expect(context.dispatcher.focused).toBeNull();
+		expect(context.focus.focused).toBeNull();
 		expect(input.focused).toBe(false);
 	});
 
