@@ -109,7 +109,8 @@ Visible result: overlapping vehicles receive one click; scrolled-out or hidden c
 
 - [ ] Stack container: fixed, hug, fill with weights, six distributions, four cross alignments and `alignSelf`, per-pass resolved sizes, the three passes with shrink-to-fit and safe alignment, `minSize`, `maxSize`, `aspectRatio`, negative gap, absolute children with anchor and pivot, roots sized from the viewport (chapter 10); worldsim's layout suite ported as the conformance suite plus the added cases (10.9).
 - [ ] Combat screen as the first stack consumer: a 36px top bar, the road filling the rest, and a 228px dock, on the 1280x720 logical reference with `s = min(W/1280, H/720)` floored at 0.8, per [Battle Screen Design](./Battle%20Screen%20Design.md) section 2; the log as an anchored absolute drawer; the second layout deleted.
-- [ ] Token file, generator, committed `tokens.ts`, drift test (R11.1 to R11.4); the two-accent, five-surface, radius, spacing, type-role, and `control` tokens as the starting theme (11.2).
+- [x] Token file, generator, committed `tokens.ts`, drift test (R11.1 to R11.4); the two-accent, five-surface, radius, spacing, type-role, and `control` tokens as the starting theme (11.2).
+  DDB-83. The palette comes from the battle screen mock; format, sources, and departures are in [theme-tokens.md](../AI_TECHNICAL_DECISIONS/theme-tokens.md).
 - [ ] Framework-maintained state flags, layered state resolution, closed style property set rejected rather than ignored, override semantics, token-driven transitions (11.3, 11.4). `Button` and `Input` stop ignoring their style objects; the START RUN and END TURN colour hacks become variants.
 
 Visible result: every button changes appearance once (they ignore their styles today), so this phase is the third deliberate re-baseline; resizing the combat screen re-runs one layout.
