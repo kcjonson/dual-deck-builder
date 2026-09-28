@@ -9,6 +9,9 @@ import { Card as GameCard, CardData } from '../mechanics/Card';
 import cardsFile from '../data/cards.json';
 import { CARD_LIFT, Card, CardSize } from './Card';
 
+// Lays out every card face at both sizes, a second idle; the 5 s default fails under a loaded machine.
+jest.setTimeout(30_000);
+
 const cardData = (cardsFile as unknown as { cards: CardData[] }).cards;
 
 function part(card: Card, suffix: string): Text {

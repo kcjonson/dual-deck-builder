@@ -107,10 +107,14 @@ function snapSpan(start: number, extent: number, shift: number, ratio: number, o
 
 /** R7.8a: a container's clip, and the shared edges of abutting rects, on the device grid. */
 export function snapClipRect(clip: ClipRect, ratio: number): ClipRect {
-	return {
-		minX: snapToDevice(clip.minX, ratio),
-		minY: snapToDevice(clip.minY, ratio),
-		maxX: snapToDevice(clip.maxX, ratio),
-		maxY: snapToDevice(clip.maxY, ratio),
-	};
+	return snapClipRectInto(clip, ratio, { minX: 0, minY: 0, maxX: 0, maxY: 0 });
+}
+
+/** `snapClipRect` into `out`, which may be `clip` itself: the draw API's allocation-free clip push. */
+export function snapClipRectInto(clip: ClipRect, ratio: number, out: ClipRect): ClipRect {
+	out.minX = snapToDevice(clip.minX, ratio);
+	out.minY = snapToDevice(clip.minY, ratio);
+	out.maxX = snapToDevice(clip.maxX, ratio);
+	out.maxY = snapToDevice(clip.maxY, ratio);
+	return out;
 }

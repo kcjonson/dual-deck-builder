@@ -217,9 +217,9 @@ describe('pointer fields and cancel (R9.25)', () => {
 	it('carries the pointerId and pointerType through the adapter to the component', () => {
 		inject(['click,150,150,0,7,pen']);
 
-		// Only the events a platform event carries: the dispatcher synthesises
-		// boundary events' fields itself (DDB-212).
-		expect(pointerLog().filter((line) => !line.startsWith('pointerenter'))).toEqual([
+		// The synthesised pointerenter carries the pen's identity too (DDB-212).
+		expect(pointerLog()).toEqual([
+			'pointerenter 7 pen primary',
 			'pointermove 7 pen primary',
 			'pointerdown 7 pen primary',
 			'pointerup 7 pen primary',

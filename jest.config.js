@@ -23,5 +23,4 @@ module.exports = {
 	coverageDirectory: 'coverage',
 	collectCoverageFrom: ['src/**/*.{js,ts}', '!src/**/*.d.ts', '!src/index.ts'],
 	verbose: true,
-	setupFilesAfterEnv: ['<rootDir>/jest.setup.js'],
-};
+	setupFilesAfterEnv: ['<rootDir>/jest.setup.js'],};
