@@ -48,6 +48,23 @@ const DEV_SERVER_PORT = Number(process.env.DDB_VISUAL_PORT)
 export const BASE_URL = `http://127.0.0.1:${DEV_SERVER_PORT}`;
 
 /**
+ * pixelmatch's per-pixel threshold, shared by `toHaveScreenshot` below and the
+ * harness's cluster rule so the two agree on which pixels differ. Why 0.01 is
+ * on `expect.toHaveScreenshot`.
+ */
+export const VISUAL_THRESHOLD = 0.01;
+
+/**
+ * The cluster rule (DDB-197), which `expectGolden` in
+ * `tests/visual/support/harness.ts` applies after `toHaveScreenshot` passes.
+ * Differing pixels within `joinRadius` of each other on both axes are one
+ * cluster, and no cluster may exceed `maxClusterPixels`, whatever the total.
+ * The measurements behind both numbers are in the mutation table of
+ * docs/AI_TECHNICAL_DECISIONS/visual-golden-harness.md.
+ */
+export const GOLDEN_CLUSTER = { joinRadius: 2, maxClusterPixels: 12 };
+
+/**
  * R14.5: baselines come from the CI runner image and local runs never update
  * a committed one. Two mechanisms, because a convention is not a mechanism.
  *
@@ -151,7 +168,7 @@ export default defineConfig({
 			// 200 px, and there the ratio binds.
 			//
 			// Widening either of these is not the fix for a flaky golden.
-			threshold: 0.01,
+			threshold: VISUAL_THRESHOLD,
 			maxDiffPixels: 200,
 			maxDiffPixelRatio: 0.0002,
 			animations: 'disabled',

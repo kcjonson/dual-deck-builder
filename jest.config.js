@@ -1,13 +1,16 @@
 module.exports = {
 	preset: 'ts-jest',
 	testEnvironment: 'node',
-	roots: ['<rootDir>/src', '<rootDir>/scripts'],
+	// tests/visual/support holds the screenshot harness's pure helpers, whose
+	// unit tests run here with everything else rather than inside a browser.
+	roots: ['<rootDir>/src', '<rootDir>/scripts', '<rootDir>/tests/visual/support'],
 	moduleFileExtensions: ['ts', 'js'],
 	testMatch: ['**/*.test.(ts|js)'],
 	// The Playwright specs live in tests/ and are already unreachable twice over
-	// (roots are src/ and scripts/, and they carry no .test. infix). This is the belt: the day
-	// roots widens, jest must still not try to run a spec that needs a browser.
-	testPathIgnorePatterns: ['/node_modules/', '<rootDir>/tests/', '<rootDir>/dist/'],
+	// (the only root under tests/ is the support directory, and specs carry no
+	// .test. infix). This is the belt: jest must never try to run a spec that
+	// needs a browser, so everything under tests/ except that directory stays out.
+	testPathIgnorePatterns: ['/node_modules/', '<rootDir>/tests/(?!visual/support/)', '<rootDir>/dist/'],
 	transform: {
 		'^.+\\.(ts)$': 'ts-jest',
 	},
