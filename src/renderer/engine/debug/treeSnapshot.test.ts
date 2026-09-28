@@ -190,6 +190,16 @@ describe('treeSnapshot', () => {
 			});
 		});
 
+		it('reports the clip snapped to the device grid at the viewport ratio, as pushClip snaps it (R7.8a)', () => {
+			const clipper = new Layer({ id: 'clipper', x: 10.3, y: 5.1, width: 20.3, height: 20, overflow: 'hidden' });
+			clipper.addChild(new Layer({ id: 'child', width: 5, height: 5 }));
+
+			const atOne = findById(treeSnapshot([clipper], VIEWPORT).roots[0], 'child')?.clip;
+			expect(atOne).toEqual({ x: 10, y: 5, w: 21, h: 20 });
+			const atTwo = findById(treeSnapshot([clipper], { ...VIEWPORT, ratio: 2 }).roots[0], 'child')?.clip;
+			expect(atTwo).toEqual({ x: 10.5, y: 5, w: 20, h: 20 });
+		});
+
 		it('ignores overflow on a zero-sized layer, matching Layer.render', () => {
 			const layer = new Layer({ id: 'sized', width: 10, height: 10, overflow: 'hidden' });
 			layer.setSize(0, 0);

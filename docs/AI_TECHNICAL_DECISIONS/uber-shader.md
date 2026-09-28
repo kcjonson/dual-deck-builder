@@ -157,8 +157,9 @@ bandwidth figure is above. DDB-191.
 
 **R5.6's footprint** is the derivative of the local position, not of `d`, for the reason above.
 
-**R5.10's snapping and R7.8's hairlines** are not applied. They move pixels at fractional
-positions on their own and are DDB-188, so this re-baseline stays attributable to chapter 5.
+**R5.10's snapping and R7.8's hairlines** were left out of this re-baseline so it stayed
+attributable to chapter 5. DDB-188 applied them in `encodeRect` (see
+[resource-layer-and-viewport.md](./resource-layer-and-viewport.md)).
 
 **R4.14's rounded clip** is not implemented: a rounded panel still clips its children to its
 square bounds, so a child that reaches into a rounded corner draws square over it. DDB-190.
