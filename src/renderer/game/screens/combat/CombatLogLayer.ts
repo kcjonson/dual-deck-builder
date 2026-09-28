@@ -52,15 +52,21 @@ export class CombatLogLayer extends Layer {
 		});
 		this.addChild(header);
 		
+		// Centred in the header
 		const title = new Text('Combat Log', {
+			x: 0,
+			y: 0,
+			width: header.getWidth(),
+			height: header.getHeight(),
 			style: {
 				fontSize: 16,
 				color: '#ffffff',
 				textAlign: 'center',
+				verticalAlign: 'middle',
+				whiteSpace: 'nowrap',
 				fontWeight: 'bold',
 			},
 		});
-		title.setPosition(Math.floor(this.getWidth() / 2), 15);
 		this.addChild(title);
 		
 		// Create scrollable panel for entries

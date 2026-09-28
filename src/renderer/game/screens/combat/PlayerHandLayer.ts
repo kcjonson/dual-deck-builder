@@ -427,14 +427,18 @@ export class PlayerHandLayer extends Layer {
 		
 		// Add driver 1 label
 		if (driver1Cards.length > 0) {
+			// Centred over the driver's cards
 			this.driver1Label = new Text(this.seatLabels.get(1) ?? 'Driver 1', {
+				x: startX,
+				y: verticalPadding,
+				width: driver1Width,
 				style: {
 					fontSize: 10,
 					color: '#8a8aff',
 					textAlign: 'center',
+					whiteSpace: 'nowrap',
 				},
 			});
-			this.driver1Label.setPosition(startX + driver1Width / 2, verticalPadding);
 			this.addChild(this.driver1Label);
 		}
 		
@@ -447,14 +451,18 @@ export class PlayerHandLayer extends Layer {
 		
 		// Add driver 2 label
 		if (driver2Cards.length > 0) {
+			// Centred over the driver's cards
 			this.driver2Label = new Text(this.seatLabels.get(2) ?? 'Driver 2', {
+				x: currentX,
+				y: verticalPadding,
+				width: driver2Width,
 				style: {
 					fontSize: 10,
 					color: '#88ff88',
 					textAlign: 'center',
+					whiteSpace: 'nowrap',
 				},
 			});
-			this.driver2Label.setPosition(currentX + driver2Width / 2, verticalPadding);
 			this.addChild(this.driver2Label);
 		}
 	}

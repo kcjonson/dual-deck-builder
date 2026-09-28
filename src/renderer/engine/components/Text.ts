@@ -1,51 +1,80 @@
 import { Component, ComponentOptions } from './Component';
+import type {
+	TextAlign,
+	TextDecoration,
+	TextMetrics,
+	TextOverflow,
+	TextTransform,
+	TextWrap,
+} from '../draw/commands';
 import type { DrawApi } from '../draw/DrawApi';
+import { RendererContext } from '../rendering/RendererContext';
 import type { FontRole } from '../text/fontFaces';
 import { resolveFontRole } from '../text/fontRoles';
 import { Style, StyleParser } from '../types/Style';
 
-/**
- * Text-specific options
- */
 export type TextOptions = ComponentOptions;
 
+/** R12.4's vertical alignment inside the text's own box. */
+export type TextVerticalAlign = 'top' | 'middle' | 'bottom';
+
+const OVERFLOW: Readonly<Record<NonNullable<Style['textOverflow']>, TextOverflow>> = {
+	visible: 'visible',
+	hidden: 'clip',
+	ellipsis: 'ellipsis',
+};
+
 /**
- * Text component for rendering text
+ * R12.4's text component. Its position is the top-left of its line box and
+ * its bounds are that box; the draw API's baseline anchor never shows.
+ *
+ * Each axis is either assigned or hugged. An assigned width (a `width` option,
+ * `setWidth` or `setSize` with a positive value) is the alignment box and,
+ * unless `whiteSpace` is `nowrap`, the wrap width; `nowrap` with an ellipsis
+ * truncates to it (R6.14). An assigned height is the box `verticalAlign`
+ * places the lines in, and the height a wrapped ellipsis fits. An axis left at
+ * zero hugs: it takes the measured width, or `lines * lineHeight`, from the
+ * metrics service, the same layout `drawText` draws (R6.8). Setting an axis
+ * back to zero hugs it again.
+ *
+ * Measurement needs the draw API and a backend with the text's atlas. Built
+ * before either exists (a unit test's tree on the null backend), a hugging
+ * text keeps a zero size, the layout lint's `unmeasured-text`, and measures
+ * the first time it renders somewhere that can. It never estimates.
  */
 export class Text extends Component {
-	private text: string;
+	private content: string;
 	private fontSize = 16;
 	/** R11.8's role, from the style's `fontFamily` and `fontWeight` through the theme table. */
 	private fontRole: FontRole = 'body';
 	private color: [number, number, number, number] = [1, 1, 1, 1];
-	private align: 'left' | 'center' | 'right' = 'left';
-	private baseline: 'top' | 'middle' | 'bottom' = 'top';
-	private lineHeight = 1.2;
+	private align: TextAlign = 'left';
+	private verticalAlign: TextVerticalAlign = 'top';
+	/** A multiple of `fontSize`; null is the face's own (R6.10). */
+	private lineHeight: number | null = null;
 	private whiteSpace: 'normal' | 'nowrap' = 'normal';
-	private textOverflow: 'visible' | 'hidden' | 'ellipsis' = 'visible';
-	private wrappedText = '';
+	private textOverflow: TextOverflow = 'visible';
+	private letterSpacing = 0;
+	private textTransform: TextTransform = 'none';
+	private decoration: TextDecoration = 'none';
+	private assignedWidth: boolean;
+	private assignedHeight: boolean;
+	private metrics: TextMetrics | null = null;
+	private stale = true;
 
-	/**
-	 * Create a new text component
-	 * @param text Text content
-	 * @param options Optional configuration including style
-	 */
 	constructor(text = '', options?: TextOptions) {
 		super(options);
-		this.text = text;
+		this.content = text;
 		this.componentType = 'Text';
+		this.assignedWidth = this.width > 0;
+		this.assignedHeight = this.height > 0;
 
 		if (options?.style) {
 			this.applyTextStyle(options.style);
 		}
-
-		// Initialize wrapped text after dimensions and styles are set
-		this.updateWrappedText();
+		this.measure();
 	}
 
-	/**
-	 * Apply text-specific style properties
-	 */
 	private applyTextStyle(style: Style): void {
 		if (style.fontSize !== undefined) {
 			this.fontSize = this.parseSize(style.fontSize);
@@ -60,7 +89,7 @@ export class Text extends Component {
 			this.align = style.textAlign;
 		}
 		if (style.verticalAlign !== undefined) {
-			this.baseline = style.verticalAlign;
+			this.verticalAlign = style.verticalAlign;
 		}
 		if (style.lineHeight !== undefined) {
 			this.lineHeight = style.lineHeight;
@@ -69,68 +98,80 @@ export class Text extends Component {
 			this.whiteSpace = style.whiteSpace;
 		}
 		if (style.textOverflow !== undefined) {
-			this.textOverflow = style.textOverflow;
+			this.textOverflow = OVERFLOW[style.textOverflow];
+		}
+		if (style.letterSpacing !== undefined) {
+			this.letterSpacing = style.letterSpacing;
+		}
+		if (style.textTransform !== undefined) {
+			this.textTransform = style.textTransform;
+		}
+		if (style.textDecoration !== undefined) {
+			this.decoration = style.textDecoration;
 		}
 	}
 
-	/**
-	 * Set the text content
-	 * @param text Text content
-	 */
 	public setText(text: string): this {
-		this.text = text;
-		this.updateWrappedText();
+		if (text !== this.content) {
+			this.content = text;
+			this.measure();
+		}
 		return this;
 	}
 
-	/**
-	 * Get the text content
-	 */
 	public getText(): string {
-		return this.text;
+		return this.content;
 	}
 
-	/**
-	 * Set the font size
-	 * @param size Font size in pixels
-	 */
 	public setFontSize(size: number): this {
-		this.fontSize = size;
+		if (size !== this.fontSize) {
+			this.fontSize = size;
+			this.measure();
+		}
 		return this;
 	}
 
-	/**
-	 * Set the text color
-	 * @param color Color value (hex string or RGBA array)
-	 */
+	public getFontSize(): number {
+		return this.fontSize;
+	}
+
 	public setColor(color: string | [number, number, number, number]): this {
 		this.color = StyleParser.parseColor(color);
 		return this;
 	}
 
-	/**
-	 * Set the text alignment
-	 * @param align Text alignment (left, center, right)
-	 */
-	public setAlign(align: 'left' | 'center' | 'right'): this {
+	public setAlign(align: TextAlign): this {
 		this.align = align;
 		return this;
 	}
 
-	/**
-	 * Set the text baseline
-	 * @param baseline Text baseline (top, middle, bottom)
-	 */
-	public setBaseline(baseline: 'top' | 'middle' | 'bottom'): this {
-		this.baseline = baseline;
+	public setVerticalAlign(verticalAlign: TextVerticalAlign): this {
+		this.verticalAlign = verticalAlign;
 		return this;
 	}
 
-	/**
-	 * Get the font size
-	 */
-	public getFontSize(): number {
-		return this.fontSize;
+	/** Positive assigns the width; zero hugs the measured width again. */
+	public setWidth(width: number): this {
+		super.setWidth(width);
+		this.assignedWidth = width > 0;
+		this.measure();
+		return this;
+	}
+
+	/** Positive assigns the height; zero hugs the measured height again. */
+	public setHeight(height: number): this {
+		super.setHeight(height);
+		this.assignedHeight = height > 0;
+		this.measure();
+		return this;
+	}
+
+	public setSize(width: number, height: number): this {
+		super.setSize(width, height);
+		this.assignedWidth = width > 0;
+		this.assignedHeight = height > 0;
+		this.measure();
+		return this;
 	}
 
 	/** The font role this text draws with (R11.8). */
@@ -139,122 +180,69 @@ export class Text extends Component {
 	}
 
 	/**
-	 * Update wrapped text based on current settings
+	 * The text as laid out in its box: unwrapped and untruncated when the
+	 * width hugs, wrapped at an assigned width. Null until it can be measured.
+	 * Its width can exceed an assigned width, which is how a caller tells that
+	 * a `nowrap` text will be truncated or overflow.
 	 */
-	private updateWrappedText(): void {
-		// Default to original text if no wrapping needed
-		if (this.whiteSpace === 'nowrap' || this.width <= 0) {
-			this.wrappedText = this.text;
-			return;
-		}
+	get measured(): TextMetrics | null {
+		if (this.stale) this.measure();
+		return this.metrics;
+	}
 
-		// Estimate character width for wrapping (more conservative estimate)
-		const charWidth = this.fontSize * 0.5; // Reduced from 0.6 to be more aggressive with wrapping
-		const maxCharsPerLine = Math.floor(this.width / charWidth);
-		
-		// If width is too small, just use original text
-		if (maxCharsPerLine <= 5) {
-			this.wrappedText = this.text;
-			return;
-		}
-
-		const words = this.text.split(' ');
-		const lines: string[] = [];
-		let currentLine = '';
-
-		for (const word of words) {
-			const testLine = currentLine ? `${currentLine} ${word}` : word;
-			
-			if (testLine.length <= maxCharsPerLine) {
-				currentLine = testLine;
-			} else {
-				if (currentLine) {
-					lines.push(currentLine);
-				}
-				// Handle very long words by just adding them
-				currentLine = word;
-			}
-		}
-
-		if (currentLine) {
-			lines.push(currentLine);
-		}
-
-		// Handle text overflow with ellipsis
-		if (this.textOverflow === 'ellipsis' && this.height > 0) {
-			const maxLines = Math.floor(this.height / (this.fontSize * this.lineHeight));
-			if (lines.length > maxLines && maxLines > 0) {
-				lines.splice(maxLines);
-				if (lines.length > 0) {
-					lines[lines.length - 1] += '...';
-				}
-			}
-		}
-
-		this.wrappedText = lines.join('\n');
+	get wrap(): TextWrap {
+		return this.whiteSpace === 'normal' && this.assignedWidth ? 'word' : 'none';
 	}
 
 	/**
-	 * Layout method to calculate text dimensions
+	 * Lays the text out again and resizes each hugging axis to it. Called on
+	 * every change that moves a glyph; the layouts are cached (R6.12), so
+	 * repeating one is a map lookup.
 	 */
-	public layout(): void {
-		// For existing text without explicit dimensions, calculate based on original text first
-		if (this.width === 0 || this.height === 0) {
-			const charWidth = this.fontSize * 0.6;
-			const lines = this.text.split('\n');
-			const maxLineLength = Math.max(...lines.map(line => line.length));
-			
-			const estimatedWidth = maxLineLength * charWidth;
-			const estimatedHeight = lines.length * this.fontSize * this.lineHeight;
-
-			if (this.width === 0) this.setWidth(estimatedWidth);
-			if (this.height === 0) this.setHeight(estimatedHeight);
+	private measure(): void {
+		const context = RendererContext.getInstance();
+		if (!context.hasDraw || !context.draw.canMeasureText(this.fontRole)) {
+			this.stale = true;
+			return;
 		}
+		this.metrics = context.draw.measureText({
+			text: this.content,
+			font: this.fontRole,
+			size: this.fontSize,
+			letterSpacing: this.letterSpacing,
+			textTransform: this.textTransform,
+			wrap: this.wrap,
+			maxWidth: this.assignedWidth ? this.width : undefined,
+			lineHeight: this.lineHeight ?? undefined,
+		});
+		this.stale = false;
+		if (!this.assignedWidth) this.width = this.metrics.width;
+		if (!this.assignedHeight) this.height = this.metrics.height;
+	}
 
-		// Now update wrapped text based on final dimensions
-		this.updateWrappedText();
-
-		// Call parent layout for children
+	public layout(): void {
+		if (this.stale) this.measure();
 		super.layout();
 	}
 
 	public render(draw: DrawApi): void {
-		// Position based on alignment and bounding box
-		let xPos = 0;
-		if (this.align === 'center' && this.width > 0) {
-			xPos = this.width / 2;
-		} else if (this.align === 'right' && this.width > 0) {
-			xPos = this.width;
-		}
+		if (this.stale) this.measure();
 
-		let yPos = 0;
-		if (this.baseline === 'middle' && this.height > 0) {
-			yPos = this.height / 2;
-		} else if (this.baseline === 'bottom' && this.height > 0) {
-			yPos = this.height;
-		}
-
-		// Handle multi-line text rendering
-		const textToRender = this.wrappedText || this.text;
-		const lines = textToRender.split('\n');
-		const lineHeight = this.fontSize * this.lineHeight;
-		
-		// Render each line separately. `position` and not `box`: `xPos` is
-		// already the alignment anchor this component computed from its own
-		// bounds, and `verticalAlign` puts that edge of the line box on
-		// `lineY`. Real line boxes, and R2.13's `box`, are DDB-71's.
-		for (let i = 0; i < lines.length; i++) {
-			const lineY = yPos + (i * lineHeight);
-			draw.drawText({
-				id: this.id ?? undefined,
-				text: lines[i],
-				position: { x: xPos, y: lineY },
-				font: this.fontRole,
-				size: this.fontSize,
-				color: this.color,
-				align: this.align,
-				verticalAlign: this.baseline,
-			});
-		}
+		draw.drawText({
+			id: this.id ?? undefined,
+			text: this.content,
+			box: { x: 0, y: 0, width: this.width, height: this.height },
+			font: this.fontRole,
+			size: this.fontSize,
+			color: this.color,
+			align: this.align,
+			verticalAlign: this.verticalAlign,
+			wrap: this.wrap,
+			overflow: this.textOverflow,
+			letterSpacing: this.letterSpacing,
+			textTransform: this.textTransform,
+			decoration: this.decoration,
+			lineHeight: this.lineHeight ?? undefined,
+		});
 	}
 }
