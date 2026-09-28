@@ -43,12 +43,17 @@ class Application {
 			const fontAtlases = this.loadFonts();
 
 			// Frame timing, section timing and the per-frame draw counters (R13.7).
-			// A development build mirrors the sections to a DevTools track
-			// (R15.29); the require sits in a branch DefinePlugin folds away.
+			// A development build mirrors the sections to a DevTools track and
+			// observes long frames and slow input (R15.29); the requires sit in
+			// branches DefinePlugin folds away.
 			this.frameTimer = new FrameTimer({
 				tracks: __DEV_TOOLS__
 					// eslint-disable-next-line @typescript-eslint/no-var-requires
 					? (require('./renderer/engine/debug/devtoolsTracks') as typeof import('./renderer/engine/debug/devtoolsTracks')).createDevToolsTracks()
+					: null,
+				hitches: __DEV_TOOLS__
+					// eslint-disable-next-line @typescript-eslint/no-var-requires
+					? (require('./renderer/engine/debug/hitchObserver') as typeof import('./renderer/engine/debug/hitchObserver')).createHitchObserver()
 					: null,
 			});
 

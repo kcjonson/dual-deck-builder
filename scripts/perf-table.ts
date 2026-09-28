@@ -40,6 +40,7 @@ interface SnapshotLike {
 	} | null;
 	renderer?: { glDrawCalls: number } | null;
 	device?: { renderer: string | null } | null;
+	hitches?: { longFrames: { count: number; maxMs: number | null; saturated?: boolean } | null } | null;
 }
 
 export interface ScenarioCaptureLike {
@@ -68,6 +69,15 @@ export interface ScenarioSummary {
 	/** Non-zero flush reasons, e.g. "barrier 2, endFrame 1". */
 	flushes: string | null;
 	device: string | null;
+	/**
+	 * R15.29's long frames: the most any one sample's window held, and the
+	 * longest across all of them, so a hitch during any sample shows. Null where
+	 * unobserved. The windows overlap, so the counts are not summed.
+	 */
+	longFrames: number | null;
+	longFrameMaxMs: number | null;
+	/** Some window's count was a lower bound (R15.29's ring saturated). */
+	longFramesSaturated: boolean;
 }
 
 export function median(values: readonly number[]): number | null {
@@ -85,6 +95,17 @@ function flushLine(flushes: Record<string, number> | undefined): string | null {
 	if (!flushes) return null;
 	const parts = Object.entries(flushes).filter(([, count]) => count > 0).map(([reason, count]) => `${reason} ${count}`);
 	return parts.length > 0 ? parts.join(', ') : 'none';
+}
+
+function longFrameSummary(samples: readonly SnapshotLike[]): Pick<ScenarioSummary, 'longFrames' | 'longFrameMaxMs' | 'longFramesSaturated'> {
+	const windows = samples.map((sample) => sample.hitches?.longFrames ?? null).filter((stats) => stats !== null);
+	if (windows.length === 0) return { longFrames: null, longFrameMaxMs: null, longFramesSaturated: false };
+	const maxima = numbers(windows.map((stats) => stats.maxMs));
+	return {
+		longFrames: Math.max(...windows.map((stats) => stats.count)),
+		longFrameMaxMs: maxima.length > 0 ? Math.max(...maxima) : null,
+		longFramesSaturated: windows.some((stats) => stats.saturated === true),
+	};
 }
 
 export function summarizeScenario({ scenario, samples }: ScenarioCaptureLike): ScenarioSummary {
@@ -116,6 +137,7 @@ export function summarizeScenario({ scenario, samples }: ScenarioCaptureLike): S
 		triangles: last.batcher?.triangles ?? null,
 		flushes: flushLine(last.batcher?.flushes),
 		device: last.device?.renderer ?? null,
+		...longFrameSummary(samples),
 	};
 }
 
@@ -134,8 +156,15 @@ function row(cells: readonly string[]): string {
 const SUMMARY_HEADER = [
 	'Scenario', 'FPS', 'Frame median', 'Frame p99', 'Frame max', 'Update max', 'Render max', 'Flush max',
 	'GPU median', 'GPU p99', 'GPU max', 'GPU invalid', 'Fence latency', 'API draws', 'GPU draws', 'Triangles',
-	'Flushes',
+	'Flushes', 'Long frames (worst window)',
 ];
+
+/** "2 (max 84.00)", "0", "64+" when a window saturated, or n/a where the runtime observed none of them. */
+function longFrameCell(summary: ScenarioSummary): string {
+	if (summary.longFrames === null) return 'n/a';
+	const count = `${summary.longFrames}${summary.longFramesSaturated ? '+' : ''}`;
+	return summary.longFrames > 0 ? `${count} (max ${ms(summary.longFrameMaxMs)})` : count;
+}
 
 /** One run's table, all times in ms. */
 export function summaryTable(captures: readonly ScenarioCaptureLike[]): string {
@@ -163,6 +192,7 @@ export function summaryTable(captures: readonly ScenarioCaptureLike[]): string {
 			count(summary.gpuDraws),
 			count(summary.triangles),
 			summary.flushes ?? 'n/a',
+			longFrameCell(summary),
 		]));
 	}
 	return lines.join('\n');
