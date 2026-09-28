@@ -4,12 +4,9 @@ import { resolveScene } from './sceneSelection';
 
 /**
  * These assertions are about the properties a `?scene=` name has to hold, not
- * about how many scenes there are. Constructing a scene is deliberately absent:
- * two of the sections call Input.setValue in their constructors, which
- * measures text through RendererContext and throws without a GL renderer, so a
- * factory can only be exercised in the browser (R14.1 keeps the unit suite
- * GPU-free). SceneHost.test.ts covers the mount and unmount discipline against
- * synthetic scenes instead.
+ * about how many scenes there are. Constructing a scene is left to the
+ * browser suite, which renders every one against a golden; SceneHost.test.ts
+ * covers the mount and unmount discipline against synthetic scenes.
  */
 describe('gallery scene registry', () => {
 	it('has scenes', () => {
