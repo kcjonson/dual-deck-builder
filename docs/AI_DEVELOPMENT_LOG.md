@@ -6,6 +6,14 @@ This document contains the chronological log of completed development tasks for 
 
 **Date correction (2026-08-22):** the repo's first commit is 2025-05-17, but many entries below carry dates in December 2024 or January 2025 — the AI that wrote them used its assumed date instead of the real one. Entries dated 2025-07-03 and 2025-07-02 have been corrected from "2025-01-03"/"2025-01-02" (verified against git history). Remaining Dec 2024 / Jan 2025 dates are wrong by roughly six months; the real work happened May–July 2025. Trust git history over these dates.
 
+## Electron visual flake: atlas decode rejected by navigation, not a load failure (2026-09-28)
+
+**What landed:** DDB-187. `tests/visual/electron/shell.spec.ts` waits, in `beforeEach`, for the boot page's `font-atlases-ready` or `font-atlases-failed` mark and asserts it is ready before any test navigates.
+
+**Why:** the Electron window loads the renderer on its own at launch, and that boot page starts decoding the three atlases. Every test then `goto`s its scene or screen on the same `Page`. When the navigation lands while a `decode()` is in flight, Chromium rejects it with "The source image cannot be decoded.", the dying page's `console.error` reaches the listener `captureConsole` attached to that `Page`, and the clean-console gate fails the attempt; the retry passes because the timing moves. The chromium project never saw it because its context starts blank. Nothing in the loader, the atlases or the webpack inlining was at fault (the electron project runs the dev server, so the inline data URIs are not even on this path).
+
+**Evidence:** a local sweep that launched Electron and navigated N ms after `firstWindow` failed at 40, 50, 60, 75 and 80 ms and was clean at 0 to 30 and 100 ms and up, 5 of 20 runs; the same sweep with the boot wait was clean 20 of 20. The electron project passes locally (14 passed, 1 skipped) with no pixel change, since the wait happens before any capture and the captured page is unchanged.
+
 ## Concave polygons fill inside their outline; primitive-shapes has a golden (2026-09-28)
 
 **What landed:** DDB-185 and the close-out of DDB-103.
