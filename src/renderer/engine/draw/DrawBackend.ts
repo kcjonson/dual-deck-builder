@@ -6,6 +6,8 @@ import {
 	TextMetrics,
 	TextureHandle,
 } from './commands';
+export type { TextureOptions } from '../gpu/TextureStore';
+import type { TextureStore } from '../gpu/TextureStore';
 import { Rect } from './geometry';
 import { FlushReason, GpuWork } from './stats';
 
@@ -31,9 +33,10 @@ import { FlushReason, GpuWork } from './stats';
  * immutable pipeline keys, bind groups, uniform blocks, async readback. That is
  * a different and lower seam than this one, one layer under the batcher. The
  * WebGL2 backend did not split it out: with one program and one texture there
- * is nothing for a pipeline key or a bind group to select between, so it waits
- * for the resource layer (DDB-66) and the uber shader (DDB-64), which are the
- * first to need them. Naming this `DrawBackend` in `draw/` leaves
+ * is nothing for a pipeline key or a bind group to select between. The
+ * resource layer (DDB-66) landed as `gpu/TextureStore.ts` without needing one
+ * either, since it binds nothing for drawing; the uber shader (DDB-64) is the
+ * first that will. Naming this `DrawBackend` in `draw/` leaves
  * `gpu/Backend.ts` free for R15.38 with no collision and no file move when the
  * fourth backend lands.
  *
@@ -70,14 +73,6 @@ export interface DrawBatch {
 	readonly commands: readonly DrawCommand[];
 }
 
-export interface TextureOptions {
-	width: number;
-	height: number;
-	/** Premultiplied RGBA8 (R5.18). */
-	pixels?: Uint8Array;
-	label?: string;
-}
-
 export interface FontAtlasOptions {
 	/** The name `drawText`'s `font` field selects; R11.8's three roles. */
 	name: string;
@@ -110,10 +105,16 @@ export interface DrawBackend {
 	 */
 	invalidateState(): void;
 
-	// -- resources (R2.17, R2.18) -------------------------------------------
+	// -- resources (R2.17, R2.18, R5.30) ------------------------------------
 
-	createTexture(options: TextureOptions): TextureHandle;
-	destroyTexture(handle: TextureHandle): void;
+	/**
+	 * R5.30's resource layer. The draw API creates, retains and releases
+	 * through it and drives its frame (uploads at `beginFrame`, deferred frees
+	 * after `endFrame`); the backend resolves a handle to its own texture
+	 * object with `native` when it draws. The null and recording backends
+	 * hold one over `NULL_TEXTURE_DEVICE`, so they count textures too.
+	 */
+	readonly textures: TextureStore<unknown>;
 	loadFontAtlas(options: FontAtlasOptions): FontAtlasHandle;
 	/** Atlases loaded so far. R2.18's precondition is checked against this. */
 	readonly fontAtlasNames: readonly string[];

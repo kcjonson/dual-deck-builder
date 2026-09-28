@@ -25,11 +25,13 @@ import { parseInputCommand } from './inputScript';
  *
  * `x` and `y` are logical pixels, the space `window.__ui.tree()` reports
  * (R7.1, R7.15). `handleMouseMove` computes `event.clientX - rect.left`
- * against the canvas's bounding rect, which is CSS pixels; `Renderer.resize`
- * builds the ortho projection from `window.innerWidth/innerHeight`, also CSS
- * pixels, and applies `devicePixelRatio` only to the backing store
- * (`canvas.width`) and `gl.viewport`. Input space and snapshot space are
- * therefore the same space and no conversion is needed (R7.2). This adds
+ * against the canvas's bounding rect, which is CSS pixels; `CanvasViewport`
+ * defines the logical viewport the projection is built from as the backing
+ * store divided by `dpr * uiScale`, which is the canvas's CSS box while
+ * `uiScale` is 1 (to under a device pixel at a fractional ratio). Input space
+ * and snapshot space are therefore the same space and no conversion is
+ * needed (R7.2); R7.14's division by `uiScale` arrives with the phase 3
+ * dispatcher, before any setting can change it. This adds
  * `rect.left`/`rect.top` back for the same reason the handler subtracts them:
  * the canvas sits at the origin today, and a hook that assumed so would break
  * the day it does not.

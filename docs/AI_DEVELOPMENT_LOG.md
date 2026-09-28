@@ -14,6 +14,17 @@ This document contains the chronological log of completed development tasks for 
 
 **How:** synthetic-table unit tests for each resolution rule (format 1 miss falling through, class 0, lookups summing, extension, mark filtering, unsupported values failing, DFLT fallback, determinism), a cross-check against fontkit's shaper over all 2704 Barlow letter pairs, and a test that each committed `kerning[]` equals a fresh extraction from its face. Decisions in [font-pipeline.md](./AI_TECHNICAL_DECISIONS/font-pipeline.md#kerning).
 
+## Textures get an owner and the canvas a single viewport (2026-09-28)
+
+**What landed:** DDB-66 (DDB-55 phase 1), with DDB-186 (R15.3) alongside.
+
+- `gpu/TextureStore.ts`, R5.30 to R5.33's resource layer, GL-free over a `TextureDevice`: reference counts with the GPU free deferred to `endFrame` inside a frame, uploads queued and drained oldest first at `beginFrame` under a 2 MB budget (the first of a frame always goes), storage allocated at upload, `immediate` for UI atlases, and context loss and restore from `keepSource`, `reload()`, or empty storage. `rendering/WebGL2TextureDevice.ts` does `texStorage2D` and `texSubImage2D` on unit 31. `FontAtlas` creates through it; the null and recording backends hold one over `NULL_TEXTURE_DEVICE`. `DrawBackend.textures` replaces `createTexture`/`destroyTexture`; `DrawApi` gains `retainTexture`, `isTextureResident` and a `texture-not-live` diagnostic, and fills three R5.35 counters.
+- `coords/viewport.ts` and `rendering/CanvasViewport.ts`: R15.4's `ResizeObserver` sizing with its WebKit fallback and `matchMedia` watch, logical size from the framebuffer (R7.5), changes committed at the top of the frame (R7.3) and delivered to the GL viewport, then `ScreenManager.resize`, then the gallery host (R7.11). `windowFrame()`, the `Renderer` and `Screen` window listeners, and the gallery's are gone; `scissorBox` takes the frame's logical height.
+- `coords/snapping.ts`: `snapToDevice`, `snapTextOrigin`, `snapHairlineRect`, `snapClipRect`. The legacy encoder's per-glyph rounding goes through `snapToDevice` at the frame's ratio.
+- `rendering/deviceInfo.ts`: the three R15.3 extensions and the unmasked GPU identity, detected once and carried in the perf snapshot as `device`.
+
+**How:** Unit tests: `TextureStore` (18: ownership, deferral, the budget and its ordering, immediate uploads, an upload that throws mid-drain, loss and restore by each path, a decode that resolves after a second loss), `WebGL2TextureDevice` (4), `CanvasViewport` (13: both R15.4 paths, a device-pixel box that disagrees with an emulated ratio in either direction, commit semantics and the pre-paint frame, zoom, no observer, `uiScale`), `coords` (12: chapter 7's required numbers for ratio 2, UI scale 1.25 and the hairline rows), plus backend, draw API, `Renderer`, `Game` and encoder additions. `CombatScreen.test.ts` resizes through `Screen.resize` now that no screen listens to the window. No golden moves: at ratio 1 every change is an identity (`Math.round(x * 1) / 1`, `round(1440 * 1)`, `fb / 1`). Decision record: `docs/AI_TECHNICAL_DECISIONS/resource-layer-and-viewport.md`.
+
 ## Electron visual flake: atlas decode rejected by navigation, not a load failure (2026-09-28)
 
 **What landed:** DDB-187. `tests/visual/electron/shell.spec.ts` waits, in `beforeEach`, for the boot page's `font-atlases-ready` or `font-atlases-failed` mark and asserts it is ready before any test navigates.

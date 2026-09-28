@@ -4,6 +4,8 @@ import type { CharacterInfo } from './FontAtlas';
 import type { FrameTimer } from './FrameTimer';
 import type { ContextListener, Renderer } from './Renderer';
 import { WebGL2Backend, scissorBox } from './WebGL2Backend';
+import { TextureStore } from '../gpu/TextureStore';
+import { WebGL2TextureDevice } from './WebGL2TextureDevice';
 
 /**
  * The one arithmetic in `WebGL2Backend` that a golden depends on and a reader
@@ -17,6 +19,9 @@ import { WebGL2Backend, scissorBox } from './WebGL2Backend';
  *     webglY      = Math.floor((canvas.height / dpr - screenY - height) * dpr)
  *     webglWidth  = Math.floor(width * dpr)
  *     webglHeight = Math.floor(height * dpr)
+ *
+ * `canvas.height / dpr` is now passed in as the logical viewport height,
+ * which `resolveViewport` computes as that same division.
  */
 
 function clip(x: number, y: number, width: number, height: number): ClipRect {
@@ -38,7 +43,7 @@ describe('scissorBox', () => {
 	it('scales the box and the flip by the ratio', () => {
 		// Same logical rect on a 2x display: the canvas is twice as tall in
 		// device pixels, so the logical height it divides back to is unchanged.
-		expect(scissorBox(clip(0, 80, 1440, 722), 2, 1764)).toEqual({
+		expect(scissorBox(clip(0, 80, 1440, 722), 2, 1764 / 2)).toEqual({
 			x: 0,
 			y: Math.floor((1764 / 2 - 80 - 722) * 2),
 			width: 2880,
@@ -47,7 +52,7 @@ describe('scissorBox', () => {
 	});
 
 	it('floors each of the four components independently', () => {
-		const box = scissorBox(clip(10.6, 20.4, 100.7, 50.9), 1.5, 1323);
+		const box = scissorBox(clip(10.6, 20.4, 100.7, 50.9), 1.5, 1323 / 1.5);
 		expect(box).toEqual({
 			x: Math.floor(10.6 * 1.5),
 			y: Math.floor((1323 / 1.5 - 20.4 - 50.9) * 1.5),
@@ -168,8 +173,8 @@ function setupBackend(options: { vertexRingBytes?: number; indexRingBytes?: numb
 	const { gl, calls, constant } = fakeGl();
 	const listeners: ContextListener[] = [];
 	const renderer = {
-		canvas: { height: 600 },
 		getContext: () => gl,
+		textures: new TextureStore({ device: new WebGL2TextureDevice({ gl }) }),
 		getFontAtlas: () => new FakeAtlas(),
 		addContextListener: (listener: ContextListener) => {
 			listeners.push(listener);
@@ -192,7 +197,7 @@ function setupBackend(options: { vertexRingBytes?: number; indexRingBytes?: numb
 	const restore = (): void => {
 		for (const listener of listeners) listener.restored?.();
 	};
-	return { calls, constant, backend, frame, named, restore };
+	return { calls, constant, backend, api, frame, named, restore };
 }
 
 function someShapesAndText(draw: DrawApi): void {
@@ -365,6 +370,32 @@ describe('WebGL2Backend', () => {
 		expect(fixedState(calls)).toHaveLength(3);
 		const blend = calls.findIndex((call) => call.name === 'blendFunc');
 		expect(blend).toBeLessThan(calls.findIndex((call) => call.name === 'clear'));
+	});
+
+	it('uploads a queued texture at the top of the frame, before the clear, and not again (R5.32, R15.18)', () => {
+		const { frame, named, api } = setupBackend();
+		const art = api.createTexture({ width: 2, height: 2, label: 'art', source: new Uint8Array(16) });
+		const first = frame(someShapesAndText);
+		const upload = first.findIndex((call) => call.name === 'texSubImage2D');
+		expect(upload).toBeGreaterThanOrEqual(0);
+		expect(upload).toBeLessThan(first.findIndex((call) => call.name === 'clear'));
+		expect(named(first, 'texStorage2D')).toHaveLength(1);
+		expect(named(first, 'texImage2D')).toEqual([]);
+		expect(api.isTextureResident(art)).toBe(true);
+
+		expect(named(frame(someShapesAndText), 'texSubImage2D')).toEqual([]);
+	});
+
+	it('flips the scissor against the frame\'s logical height at ratio 2', () => {
+		const { calls, named, api } = setupBackend();
+		const start = calls.length;
+		api.beginFrame({ viewport: { width: 400, height: 300 }, ratio: 2 });
+		api.pushClip({ x: 10, y: 20, width: 100, height: 50 });
+		someShapesAndText(api);
+		api.popClip();
+		api.endFrame();
+		const [box] = named(calls.slice(start), 'scissor');
+		expect(box.args).toEqual([20, (300 - 70) * 2, 200, 100]);
 	});
 
 	it('answers R4.2a text ink from the encoder', () => {

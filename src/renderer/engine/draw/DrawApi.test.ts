@@ -1151,6 +1151,18 @@ describe('resources (R2.17, R2.18)', () => {
 		const { api, texture } = harness();
 		expect(() => api.destroyTexture(texture)).not.toThrow();
 	});
+
+	it('drops and reports a draw of a released texture (R5.30)', () => {
+		const { api, backend } = harness();
+		const art = api.createTexture({ width: 4, height: 4, label: 'art' });
+		api.destroyTexture(art);
+		api.beginFrame({ viewport: VIEWPORT });
+		api.drawImage({ rect: rect(0, 0, 4, 4), texture: art, id: 'stale' });
+		api.endFrame();
+
+		expect(codes(api)).toEqual(['texture-not-live']);
+		expect(backend.ids).toEqual([]);
+	});
 });
 
 describe('getStats (R2.19, R13.12 to R13.15)', () => {
@@ -1242,15 +1254,17 @@ describe('getStats (R2.19, R13.12 to R13.15)', () => {
 		expect(stats.shaderChange).toBe(0);
 	});
 
-	it('leaves the resource counters null, because R5.30 resource layer is a later PR', () => {
+	it('reads the resource counters from the resource layer, and leaves target switches null (R5.35)', () => {
 		const { api } = harness();
 		api.beginFrame({ viewport: VIEWPORT });
 		api.endFrame();
 
 		const stats = api.getStats();
-		expect(stats.residentTextureBytes).toBeNull();
-		expect(stats.pendingUploads).toBeNull();
-		expect(stats.evictions).toBeNull();
+		// The harness's 512-square atlas, allocated empty.
+		expect(stats.residentTextureBytes).toBe(512 * 512 * 4);
+		expect(stats.pendingUploads).toBe(0);
+		expect(stats.evictions).toBe(0);
+		// No render targets exist until group opacity (R5.34).
 		expect(stats.targetSwitches).toBeNull();
 	});
 

@@ -75,7 +75,7 @@ describe('extractGposKerning: pair adjustment', () => {
 
 	it('lets the first subtable that applies win, falling through a format 1 miss', () => {
 		// A is covered by both. A,V is in the pair set; A,o is not, so it falls to
-		// the class subtable, where A is class 0 and kerns nothing.
+		// the class subtable, where A and o are both class 1.
 		const classKernsA = { ...FORMAT_2, classDef1: { version: 1, startGlyph: 1, classValueArray: [1, 0, 1] } };
 		const { pairs } = extractGposKerning({
 			font: syntheticFont({ lookups: [lookup([FORMAT_1, classKernsA])] }),
@@ -83,6 +83,23 @@ describe('extractGposKerning: pair adjustment', () => {
 		});
 		expect(pairs).toContainEqual({ unicode1: 0x41, unicode2: 0x56, advance: -0.08 });
 		expect(pairs).toContainEqual({ unicode1: 0x41, unicode2: 0x6F, advance: -0.12 });
+	});
+
+	it('stops at a format 2 subtable that covers the first glyph, even with a zero record', () => {
+		// FORMAT_2 covers A as class 0, whose records are all 0; that still
+		// applies, so the A,V pair in the later format 1 subtable is never reached.
+		const { pairs } = extractGposKerning({
+			font: syntheticFont({ lookups: [lookup([FORMAT_2, FORMAT_1])] }),
+			codePoints: LETTERS,
+		});
+		expect(pairs.filter((pair) => pair.unicode1 === 0x41)).toEqual([]);
+		expect(pairs).toContainEqual({ unicode1: 0x54, unicode2: 0x6F, advance: -0.12 });
+	});
+
+	it('fails on a kern lookup with a mark filtering set', () => {
+		const filtered: GposLookup = { lookupType: 2, flags: { markAttachmentType: 0, flags: { useMarkFilteringSet: true } }, subTables: [FORMAT_1] };
+		expect(() => extractGposKerning({ font: syntheticFont({ lookups: [filtered] }), codePoints: LETTERS }))
+			.toThrow(/mark filtering set/);
 	});
 
 	it('sums adjustments across lookups and unwraps extension lookups', () => {

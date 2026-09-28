@@ -65,7 +65,12 @@ export interface GposLookup {
 	readonly lookupType: number;
 	readonly flags: {
 		readonly markAttachmentType: number;
-		readonly flags: { readonly ignoreBaseGlyphs?: boolean; readonly ignoreLigatures?: boolean; readonly ignoreMarks?: boolean };
+		readonly flags: {
+			readonly ignoreBaseGlyphs?: boolean;
+			readonly ignoreLigatures?: boolean;
+			readonly ignoreMarks?: boolean;
+			readonly useMarkFilteringSet?: boolean;
+		};
 	};
 	readonly subTables: ListOf<unknown>;
 }
@@ -221,6 +226,11 @@ function kernLookups(font: KerningFont): { lookups: PairLookup[]; skippedLookups
 		if (lookupType !== LOOKUP_PAIR_ADJUSTMENT) {
 			skippedLookups.push({ index, lookupType });
 			continue;
+		}
+		// A mark filtering set skips marks outside a GDEF glyph set; not modelled,
+		// so fail rather than emit pairs a shaper would not apply.
+		if (lookup.flags.flags.useMarkFilteringSet === true) {
+			throw new Error(`GPOS kern lookup ${index} uses a mark filtering set, which the extraction does not model`);
 		}
 		lookups.push({ index, subtables, ignores: glyphFilter({ lookup, gdef: font.GDEF }) });
 	}

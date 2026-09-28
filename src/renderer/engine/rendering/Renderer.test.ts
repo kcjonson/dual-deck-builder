@@ -7,11 +7,27 @@ jest.mock('./FontAtlas', () => ({
 	FontAtlas: jest.fn().mockImplementation(() => ({ upload: jest.fn() })),
 }));
 
-/** Enough of a WebGL2 context for the device: it only sizes the viewport. */
+/** jsdom has no `matchMedia`; `CanvasViewport` registers one resolution query. */
+window.matchMedia = jest.fn().mockReturnValue({
+	addEventListener: jest.fn(),
+	removeEventListener: jest.fn(),
+}) as unknown as typeof window.matchMedia;
+
+/**
+ * Enough of a WebGL2 context for the device: it sizes the viewport and
+ * detects features, and finds none.
+ */
 function mountCanvas(): HTMLCanvasElement {
 	document.body.innerHTML = '<canvas id="game-canvas"></canvas>';
 	const canvas = document.getElementById('game-canvas') as HTMLCanvasElement;
-	const gl = { viewport: jest.fn(), drawingBufferColorSpace: 'srgb' };
+	const gl = {
+		viewport: jest.fn(),
+		drawingBufferColorSpace: 'srgb',
+		getExtension: jest.fn().mockReturnValue(null),
+		getParameter: jest.fn().mockReturnValue('Test GL'),
+		VENDOR: 0x1f00,
+		RENDERER: 0x1f01,
+	};
 	canvas.getContext = jest.fn().mockReturnValue(gl) as unknown as HTMLCanvasElement['getContext'];
 	return canvas;
 }
@@ -64,5 +80,33 @@ describe('Renderer context loss (R15.5)', () => {
 		expect(status()).toMatch(/could not rebuild/);
 		// The loop's listener comes after the failed one and never runs.
 		expect(resumed).not.toHaveBeenCalled();
+	});
+
+	it('forgets every texture on loss and rebuilds them before any listener runs', () => {
+		const canvas = mountCanvas();
+		const renderer = new Renderer('game-canvas');
+		const lose = jest.spyOn(renderer.textures, 'lose');
+		const restore = jest.spyOn(renderer.textures, 'restore');
+		const order: string[] = [];
+		restore.mockImplementation(() => order.push('textures'));
+		renderer.addContextListener({ restored: () => order.push('backend') });
+
+		canvas.dispatchEvent(new Event('webglcontextlost', { cancelable: true }));
+		expect(lose).toHaveBeenCalledTimes(1);
+		canvas.dispatchEvent(new Event('webglcontextrestored'));
+		expect(order).toEqual(['textures', 'backend']);
+	});
+});
+
+describe('Renderer device detection (R15.3)', () => {
+	it('reports the backend and whatever identity the context gives', () => {
+		mountCanvas();
+		const renderer = new Renderer('game-canvas');
+		expect(renderer.device).toEqual({
+			backend: 'webgl2',
+			vendor: 'Test GL',
+			renderer: 'Test GL',
+			features: { timerQuery: false, parallelShaderCompile: false, debugRendererInfo: false },
+		});
 	});
 });
