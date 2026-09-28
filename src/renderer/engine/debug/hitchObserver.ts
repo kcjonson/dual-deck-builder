@@ -1,3 +1,5 @@
+import { DEFAULT_WINDOW_SIZE } from '../rendering/FrameTimer';
+
 /**
  * R15.29's second half: `PerformanceObserver` subscriptions that attribute
  * hitches and slow input, which the frame timer's sections cannot see because
@@ -50,8 +52,13 @@ export interface LongFrameEntry {
 
 export interface LongFrameStats {
 	source: LongFrameSource;
-	/** Long frames that started inside the window. */
+	/** Long frames that started inside the window; a lower bound when `saturated`. */
 	count: number;
+	/**
+	 * True when the ring overwrote an entry that was still inside the window,
+	 * so `count` and `blockingMs` are lower bounds and `worst` may be missing.
+	 */
+	saturated: boolean;
 	/** Null when the window held none. */
 	maxMs: number | null;
 	blockingMs: number;
@@ -76,7 +83,10 @@ export interface SlowEventEntry {
 export interface SlowEventStats {
 	/** The `durationThreshold` asked for, so a reader knows what "slow" meant. */
 	thresholdMs: number;
+	/** A lower bound when `saturated`. */
 	count: number;
+	/** As on `LongFrameStats`. */
+	saturated: boolean;
 	maxMs: number | null;
 	worst: SlowEventEntry | null;
 }
@@ -98,8 +108,12 @@ export const LONG_TASK_MS = 50;
 /** R15.29 and 13.8's mapping table; 16 is the smallest threshold the platform honours. */
 export const EVENT_THRESHOLD_MS = 16;
 
-/** Per ring. A window holds a couple of seconds, and a hitch storm past this is already the finding. */
-export const ENTRY_CAPACITY = 64;
+/**
+ * Per ring: twice the frame window, so a window where every frame is long
+ * still fits with room for the frames it is about to take in. Past that the
+ * stats say `saturated` rather than undercount silently.
+ */
+export const ENTRY_CAPACITY = 2 * DEFAULT_WINDOW_SIZE;
 
 interface ScriptTimingLike {
 	duration: number;
@@ -138,18 +152,31 @@ export interface HitchEnvironment {
 	PerformanceObserver?: ObserverConstructorLike;
 }
 
-/** A fixed-size ring, written in place so a hitch storm cannot grow memory. */
-class EntryRing<T> {
+/**
+ * A fixed-size ring, written in place so a hitch storm cannot grow memory. It
+ * remembers the newest start it has overwritten, which is how a window can
+ * tell it lost entries it should have counted.
+ */
+class EntryRing<T extends { startMs: number }> {
 	private readonly entries: (T | null)[];
 	private writeIndex = 0;
+	/** The latest `startMs` among overwritten entries; -Infinity until one is. */
+	newestEvictedMs = Number.NEGATIVE_INFINITY;
 
 	constructor(capacity: number) {
 		this.entries = new Array<T | null>(capacity).fill(null);
 	}
 
 	push(entry: T): void {
+		const evicted = this.entries[this.writeIndex];
+		if (evicted !== null && evicted.startMs > this.newestEvictedMs) this.newestEvictedMs = evicted.startMs;
 		this.entries[this.writeIndex] = entry;
 		this.writeIndex = (this.writeIndex + 1) % this.entries.length;
+	}
+
+	/** Whether anything that started at or after `sinceMs` was overwritten. */
+	lostSince(sinceMs: number): boolean {
+		return this.newestEvictedMs >= sinceMs;
 	}
 
 	*[Symbol.iterator](): Iterator<T> {
@@ -205,11 +232,13 @@ export function slowEventFromEntry(entry: EntryLike): SlowEventEntry {
 export class HitchObserver implements HitchSource {
 	readonly longFrameSource: LongFrameSource | null;
 	readonly observesEvents: boolean;
-	private readonly longFrames = new EntryRing<LongFrameEntry>(ENTRY_CAPACITY);
-	private readonly slowEvents = new EntryRing<SlowEventEntry>(ENTRY_CAPACITY);
+	private readonly longFrames: EntryRing<LongFrameEntry>;
+	private readonly slowEvents: EntryRing<SlowEventEntry>;
 	private readonly observers: ObserverLike[] = [];
 
-	constructor({ PerformanceObserver: Observer }: { PerformanceObserver: ObserverConstructorLike }) {
+	constructor({ PerformanceObserver: Observer, capacity = ENTRY_CAPACITY }: { PerformanceObserver: ObserverConstructorLike; capacity?: number }) {
+		this.longFrames = new EntryRing<LongFrameEntry>(capacity);
+		this.slowEvents = new EntryRing<SlowEventEntry>(capacity);
 		const supported = Observer.supportedEntryTypes ?? [];
 		this.longFrameSource = supported.includes('long-animation-frame')
 			? 'long-animation-frame'
@@ -260,6 +289,7 @@ export class HitchObserver implements HitchSource {
 		return {
 			source: this.longFrameSource as LongFrameSource,
 			count,
+			saturated: sinceMs !== null && this.longFrames.lostSince(sinceMs),
 			maxMs: worst?.durationMs ?? null,
 			blockingMs,
 			worst,
@@ -276,7 +306,13 @@ export class HitchObserver implements HitchSource {
 				if (worst === null || entry.durationMs > worst.durationMs) worst = entry;
 			}
 		}
-		return { thresholdMs: EVENT_THRESHOLD_MS, count, maxMs: worst?.durationMs ?? null, worst };
+		return {
+			thresholdMs: EVENT_THRESHOLD_MS,
+			count,
+			saturated: sinceMs !== null && this.slowEvents.lostSince(sinceMs),
+			maxMs: worst?.durationMs ?? null,
+			worst,
+		};
 	}
 
 	private subscribe(

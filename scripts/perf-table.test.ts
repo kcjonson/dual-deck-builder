@@ -62,6 +62,7 @@ describe('summarizeScenario', () => {
 			// No hitches block: a capture from before R15.29's observer.
 			longFrames: null,
 			longFrameMaxMs: null,
+			longFramesSaturated: false,
 		});
 	});
 
@@ -95,17 +96,21 @@ describe('summaryTable', () => {
 		expect(lines[2]).toBe('| combatScreen | 182 | 5.50 | 9.00 | 12.00 | 1.00 | 2.50 | 0.75 | 2.00 | 3.00 | 4.00 | 1 | n/a | 40 | 6 | 1200 | barrier 2, endFrame 1 | n/a |');
 	});
 
-	it('prints the last window\'s long frames with their max, and a bare 0 for a clean window', () => {
-		const withHitches = (count: number, maxMs: number | null) => ({
+	it('prints the worst window\'s long frames across every sample, not only the last', () => {
+		const withHitches = (count: number, maxMs: number | null, saturated = false) => ({
 			...sample(4, 1),
-			hitches: { longFrames: { count, maxMs }, slowEvents: null },
+			hitches: { longFrames: { count, maxMs, saturated }, slowEvents: null },
 		});
 		const lines = summaryTable([
-			{ scenario: 'combatScreen', samples: [withHitches(0, null), withHitches(2, 84)] },
+			// The hitch landed in the first sample's window and had left by the last.
+			{ scenario: 'combatScreen', samples: [withHitches(2, 84), withHitches(1, 60), withHitches(0, null)] },
 			{ scenario: 'mainMenuScreen', samples: [withHitches(0, null)] },
+			{ scenario: 'stress', samples: [withHitches(240, 90, true)] },
 		]).split('\n');
+		expect(lines[0]).toMatch(/\| Long frames \(worst window\) \|$/);
 		expect(lines[2]).toMatch(/\| 2 \(max 84\.00\) \|$/);
 		expect(lines[3]).toMatch(/\| 0 \|$/);
+		expect(lines[4]).toMatch(/\| 240\+ \(max 90\.00\) \|$/);
 	});
 });
 

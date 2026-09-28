@@ -39,15 +39,22 @@
 import { spawn } from 'node:child_process';
 import { writeFileSync, mkdirSync, existsSync, readFileSync } from 'node:fs';
 import { dirname, resolve, join } from 'node:path';
-import { tmpdir } from 'node:os';
+import { loadavg, tmpdir } from 'node:os';
 import { comparisonTable, summaryTable } from './perf-table.ts';
 
 const readCapture = (path) => JSON.parse(readFileSync(resolve(path), 'utf8'));
+const formatLoad = (load) => load.map((value) => value.toFixed(1)).join(', ');
+
+/** Printed with every comparison, because the table alone reads every delta as a finding. */
+const COMPARISON_CAVEAT = 'Section maxima and p99 move with whatever else the machine is doing, and two '
+	+ 'unthrottled captures of the same build can differ by tens of percent on a light scene. A section or max '
+	+ 'delta here is unconfirmed until a second capture agrees; FPS on a heavy scene and paced GPU medians are '
+	+ 'stable to a few percent.';
 
 if (process.argv[2] === 'compare') {
 	const [before, after] = process.argv.slice(3);
 	if (!before || !after) throw new Error('compare takes two capture files: before.json after.json');
-	console.log(comparisonTable(readCapture(before), readCapture(after)));
+	console.log(`${COMPARISON_CAVEAT}\n\n${comparisonTable(readCapture(before), readCapture(after))}`);
 	process.exit(0);
 }
 
@@ -198,6 +205,9 @@ if (options.scenarios.length === 0) {
 	if (options.scenarios.length === 0) throw new Error('name at least one scenario; the page offers none');
 }
 
+// The machine's own load, so a later comparison can judge how much of a
+// section delta was the capture's neighbours rather than the change.
+const loadBefore = loadavg();
 const results = [];
 for (const scenario of options.scenarios) {
 	const mounted = await evaluate(
@@ -238,7 +248,8 @@ const table = [
 			? 'vsync on, so frame times are paced and only the GPU columns and the sections are costs'
 			: 'vsync and the frame cap off (R13.38)'}, ${options.settleMs} ms and `
 		+ `${options.settleFrames} frames of settle, and `
-		+ `${options.samples} samples per scenario. Times in ms. Device: ${device?.renderer ?? 'unknown'}.`,
+		+ `${options.samples} samples per scenario. Times in ms. Device: ${device?.renderer ?? 'unknown'}. `
+		+ `Load average (1, 5, 15 min): ${formatLoad(loadBefore)} at the start, ${formatLoad(loadavg())} at the end.`,
 	'',
 	`GPU timer: ${gpuTimer === null ? 'absent from the page' : gpuTimer ? 'on' : 'off'}. `
 		+ (gpuTimer
@@ -260,7 +271,7 @@ const table = [
 	'',
 ];
 if (options.compare) {
-	table.push(`## Against ${options.compare}`, '', comparisonTable(readCapture(options.compare), results), '');
+	table.push(`## Against ${options.compare}`, '', COMPARISON_CAVEAT, '', comparisonTable(readCapture(options.compare), results), '');
 }
 const tableOut = out.replace(/\.json$/, '.md');
 writeFileSync(tableOut, table.join('\n'));

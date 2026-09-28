@@ -94,8 +94,8 @@ describe('hitchLines (R15.29)', () => {
 
 	it('reports a clean window as counted zeros, with the source and threshold', () => {
 		expect(hitchLines({
-			longFrames: { source: 'longtask', count: 0, maxMs: null, blockingMs: 0, worst: null },
-			slowEvents: { thresholdMs: EVENT_THRESHOLD_MS, count: 0, maxMs: null, worst: null },
+			longFrames: { source: 'longtask', count: 0, saturated: false, maxMs: null, blockingMs: 0, worst: null },
+			slowEvents: { thresholdMs: EVENT_THRESHOLD_MS, count: 0, saturated: false, maxMs: null, worst: null },
 		})).toEqual(['Long frames: 0 (long tasks)', 'Slow input: 0 over 16ms']);
 	});
 
@@ -104,6 +104,7 @@ describe('hitchLines (R15.29)', () => {
 			longFrames: {
 				source: 'long-animation-frame',
 				count: 2,
+				saturated: true,
 				maxMs: 84,
 				blockingMs: 40,
 				worst: { startMs: 0, durationMs: 84, blockingMs: 34, script: 'handlePointer (CANVAS.onpointerdown) main.js:4521' },
@@ -111,11 +112,13 @@ describe('hitchLines (R15.29)', () => {
 			slowEvents: {
 				thresholdMs: EVENT_THRESHOLD_MS,
 				count: 1,
+				saturated: false,
 				maxMs: 48,
 				worst: { name: 'pointerdown', startMs: 0, durationMs: 48, inputDelayMs: 12, processingMs: 28, presentationMs: 8 },
 			},
 		})).toEqual([
-			'Long frames: 2, max 84.0ms, blocking 40.0ms (LoAF)',
+			// Saturated: a lower bound, said so.
+			'Long frames: 2+, max 84.0ms, blocking 40.0ms (LoAF)',
 			'  worst: handlePointer (CANVAS.onpointerdown) main.js:4521',
 			'Slow input: 1, max 48.0ms pointerdown (delay 12.0ms, handler 28.0ms)',
 		]);

@@ -8,6 +8,7 @@ import {
 	longFrameFromEntry,
 	slowEventFromEntry,
 } from './hitchObserver';
+import { DEFAULT_WINDOW_SIZE } from '../rendering/FrameTimer';
 
 /**
  * A scripted `PerformanceObserver`: it records what each instance was asked to
@@ -82,7 +83,7 @@ describe('feature detection (R15.29, R15.42)', () => {
 
 		expect(observer?.stats(0)).toEqual({
 			longFrames: null,
-			slowEvents: { thresholdMs: EVENT_THRESHOLD_MS, count: 0, maxMs: null, worst: null },
+			slowEvents: { thresholdMs: EVENT_THRESHOLD_MS, count: 0, saturated: false, maxMs: null, worst: null },
 		});
 	});
 
@@ -107,6 +108,7 @@ describe('the window', () => {
 		expect(observer.stats(900).longFrames).toEqual({
 			source: 'long-animation-frame',
 			count: 2,
+			saturated: false,
 			maxMs: 90,
 			blockingMs: 10 + 40,
 			worst: { startMs: 1500, durationMs: 90, blockingMs: 40, script: null },
@@ -129,19 +131,30 @@ describe('the window', () => {
 		expect(observer.stats(0).slowEvents).toEqual({
 			thresholdMs: EVENT_THRESHOLD_MS,
 			count: 2,
+			saturated: false,
 			maxMs: 48,
 			worst: { name: 'pointerdown', startMs: 600, durationMs: 48, inputDelayMs: 12, processingMs: 28, presentationMs: 8 },
 		});
 	});
 
-	it('keeps a bounded number of entries, dropping the oldest', () => {
+	it('holds twice the frame window, so a window of nothing but long frames still fits', () => {
+		expect(ENTRY_CAPACITY).toBe(2 * DEFAULT_WINDOW_SIZE);
+	});
+
+	it('keeps a bounded number of entries, and says so when it dropped one still in the window', () => {
 		const { observer, deliver } = observed();
 		const entries = Array.from({ length: ENTRY_CAPACITY + 10 }, (_, index) => loaf(index * 100, 60 + index));
 		deliver('long-animation-frame', entries);
 
-		const stats = observer.stats(0).longFrames;
-		expect(stats?.count).toBe(ENTRY_CAPACITY);
-		expect(stats?.maxMs).toBe(60 + ENTRY_CAPACITY + 9);
+		const all = observer.stats(0).longFrames;
+		expect(all?.count).toBe(ENTRY_CAPACITY);
+		expect(all?.saturated).toBe(true);
+		expect(all?.maxMs).toBe(60 + ENTRY_CAPACITY + 9);
+
+		// The ten overwritten entries started at 0 to 900; a window opening
+		// after them lost nothing and is exact.
+		expect(observer.stats(1000).longFrames?.saturated).toBe(false);
+		expect(observer.stats(900).longFrames?.saturated).toBe(true);
 	});
 });
 

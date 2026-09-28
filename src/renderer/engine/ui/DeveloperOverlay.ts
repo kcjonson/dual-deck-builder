@@ -212,7 +212,8 @@ export function hitchLines(hitches: HitchStats | null): string[] {
 		lines.push('Long frames: n/a');
 	} else {
 		const label = longFrames.source === 'long-animation-frame' ? 'LoAF' : 'long tasks';
-		lines.push(`Long frames: ${longFrames.count}`
+		// A trailing + is a lower bound: the ring overwrote entries still in the window.
+		lines.push(`Long frames: ${longFrames.count}${longFrames.saturated ? '+' : ''}`
 			+ (longFrames.count > 0 ? `, max ${milliseconds(longFrames.maxMs)}, blocking ${milliseconds(longFrames.blockingMs)}` : '')
 			+ ` (${label})`);
 		const script = longFrames.worst?.script ?? null;
@@ -224,7 +225,7 @@ export function hitchLines(hitches: HitchStats | null): string[] {
 		lines.push(`Slow input: 0 over ${slowEvents.thresholdMs}ms`);
 	} else {
 		const { worst } = slowEvents;
-		lines.push(`Slow input: ${slowEvents.count}, max ${milliseconds(worst.durationMs)} ${worst.name}`
+		lines.push(`Slow input: ${slowEvents.count}${slowEvents.saturated ? '+' : ''}, max ${milliseconds(worst.durationMs)} ${worst.name}`
 			+ ` (delay ${milliseconds(worst.inputDelayMs)}, handler ${milliseconds(worst.processingMs)})`);
 	}
 	return lines;
