@@ -19,9 +19,14 @@ export interface Style {
 	fontWeight?: 'normal' | 'bold' | number;
 	textAlign?: 'left' | 'center' | 'right';
 	verticalAlign?: 'top' | 'middle' | 'bottom';
+	/** A multiple of `fontSize`; absent is the face's own line height (R6.10). */
 	lineHeight?: number;
 	whiteSpace?: 'normal' | 'nowrap';
 	textOverflow?: 'visible' | 'hidden' | 'ellipsis';
+	/** Em, between glyphs only, like the `letterSpacing` tokens (R6.9). */
+	letterSpacing?: number;
+	textTransform?: 'none' | 'uppercase';
+	textDecoration?: 'none' | 'underline' | 'strike';
 
 	// Display and Visibility
 	display?: 'block' | 'none';

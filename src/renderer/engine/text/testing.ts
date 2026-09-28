@@ -1,5 +1,11 @@
+import { DrawApi } from '../draw/DrawApi';
+import type { FontAtlasOptions } from '../draw/DrawBackend';
+import type { FontAtlasHandle, MeasureTextOptions, TextMetrics } from '../draw/commands';
+import { RecordingBackend } from '../draw/RecordingBackend';
+import { RendererContext } from '../rendering/RendererContext';
 import { FontAtlas, parseFontAtlas } from './FontAtlas';
 import { FONT_FACES, FontRole } from './fontFaces';
+import { TextMetricsService } from './TextMetricsService';
 
 /**
  * Fixtures for tests that lay text out in Node (R14.1). Nothing in the game
@@ -63,4 +69,37 @@ export function syntheticFontAtlas(): FontAtlas {
 			],
 		},
 	});
+}
+
+/**
+ * A recording backend that also measures, from the atlases it is given, with
+ * the service the WebGL2 backend measures with. What a component test needs
+ * to lay text out and read back the commands it drew, without a GPU.
+ */
+export class MeasuringRecordingBackend extends RecordingBackend {
+	private readonly text = new TextMetricsService();
+
+	loadFontAtlas(options: FontAtlasOptions): FontAtlasHandle {
+		this.text.addAtlas({ name: options.name, atlas: options.atlas });
+		return super.loadFontAtlas(options);
+	}
+
+	measureText(options: MeasureTextOptions): TextMetrics {
+		return this.text.measure(options);
+	}
+}
+
+/**
+ * A draw API over a `MeasuringRecordingBackend` with every committed role
+ * loaded, installed as the components' draw API.
+ */
+export function installMeasuringDrawApi(): { api: DrawApi; backend: MeasuringRecordingBackend } {
+	const backend = new MeasuringRecordingBackend({ maxFrames: 1 });
+	const api = new DrawApi({ backend });
+	for (const face of FONT_FACES) {
+		const texture = api.createTexture({ width: 1, height: 1, label: face.role });
+		api.loadFontAtlas({ name: face.role, atlas: committedFontAtlas(face.role), texture });
+	}
+	RendererContext.getInstance().draw = api;
+	return { api, backend };
 }
