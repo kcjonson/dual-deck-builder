@@ -26,6 +26,7 @@ import { FrameTimer } from './FrameTimer';
 import type { GpuTimer } from './GpuTimer';
 import { LegacyPaintOrder } from './LegacyPaintOrder';
 import { Renderer } from './Renderer';
+import { IndexBufferPool } from './IndexBufferPool';
 import { StreamRing } from './StreamRing';
 import { UBER_ATTRIBUTES, UBER_TEXTURE_UNITS, UBER_VERTEX, UberGeometryEncoder } from './UberGeometryEncoder';
 import { compileProgram } from './program';
@@ -51,13 +52,18 @@ import { compileProgram } from './program';
  * - Text is laid out by one `TextMetricsService`, which answers
  *   `measureText`, `textInk` and the encoder's glyph quads from the same
  *   layout (R6.8).
- * - Stream storage is one fixed-capacity vertex buffer and one index buffer,
- *   each written at an advancing offset that wraps only onto a region at least
- *   two frames old (R5.27, R15.11, `StreamRing`). `bufferData` runs once per
- *   buffer at creation; a frame issues one `bufferSubData` per stream per
- *   upload, with a source offset and length, so an upload allocates nothing.
- *   A frame that outgrows the ring grows it once, and says so, rather than
- *   overwriting a region the GPU may still read.
+ * - Vertex storage is one fixed-capacity buffer written at an advancing
+ *   offset that wraps only onto a region at least two frames old (R5.27,
+ *   R15.11, `StreamRing`). A frame that outgrows it grows it once, and says
+ *   so, rather than overwriting a region the GPU may still read.
+ * - Index storage is a pool of buffers, one per upload, each reused only once
+ *   two frames old (`IndexBufferPool`, a hybrid of R5.27's two shapes). On ANGLE Metal a
+ *   draw from a freshly written element buffer costs in proportion to the
+ *   whole buffer, so one ring sized for three frames made every upload pay for
+ *   all of it (DDB-195); a buffer per upload pays for its own indices.
+ * - `bufferData` runs once per buffer at creation. A frame issues one
+ *   `bufferSubData` per stream per upload, with a source offset and length, so
+ *   an upload allocates nothing once a screen's working set has been seen.
  * - Per-frame uniform state (the projection) is a `std140` block in a ring of
  *   three 256-byte-aligned slots, written once per frame and selected with
  *   `bindBufferRange` (R15.15). Nothing is set per draw.
@@ -69,7 +75,7 @@ import { compileProgram } from './program';
  * - Context loss (R15.5): `Renderer` stops the loop and this backend rebuilds
  *   its program, buffers, vertex array and uniform ring from their CPU-side
  *   descriptions on restore.
- * - Indices are 32-bit (R5.4); the upload cap is the ring's, not 65536.
+ * - Indices are 32-bit (R5.4); the upload cap is the vertex ring's, not 65536.
  *
  * `LegacyPaintOrder` and the `legacyTextOrder` barrier are the ordering
  * re-baseline's to delete, not this backend's.
@@ -86,8 +92,9 @@ export interface WebGL2BackendOptions {
 	gpuTimer?: GpuTimer | null;
 	/** Initial vertex ring capacity in bytes. */
 	vertexRingBytes?: number;
-	/** Initial index ring capacity in bytes. */
-	indexRingBytes?: number;
+	/** Index slots that exist from creation, and the smallest slot's bytes. */
+	indexSlots?: number;
+	indexSlotBytes?: number;
 }
 
 export interface CreateDrawApiOptions {
@@ -106,12 +113,6 @@ const STRIDE_BYTES = UBER_VERTEX.floats * 4;
  * that. A frame that needs more grows the ring once, and says so.
  */
 const DEFAULT_VERTEX_RING_BYTES = 8 * 1024 * 1024;
-/**
- * Indices run at most three per vertex (a feathered polygon is under two) at
- * four bytes each, so the index ring holds as many vertices' worth as the
- * vertex ring does and neither grows first.
- */
-const DEFAULT_INDEX_RING_BYTES = Math.ceil(DEFAULT_VERTEX_RING_BYTES / STRIDE_BYTES) * 3 * 4;
 
 /** `Frame` in `uber.vert`: the projection. */
 const FRAME_BLOCK_FLOATS = 16;
@@ -166,7 +167,8 @@ interface GpuResources {
 	program: WebGLProgram;
 	vertexArray: WebGLVertexArrayObject;
 	vertexBuffer: WebGLBuffer;
-	indexBuffer: WebGLBuffer;
+	/** One per `IndexBufferPool` slot, by slot index. */
+	indexBuffers: WebGLBuffer[];
 	uniformBuffer: WebGLBuffer;
 	/** Bytes between frame uniform slots, from `UNIFORM_BUFFER_OFFSET_ALIGNMENT`. */
 	uniformStride: number;
@@ -190,7 +192,7 @@ export class WebGL2Backend implements DrawBackend {
 	private readonly placeholder: TextureHandle;
 
 	private readonly vertexRing: StreamRing;
-	private readonly indexRing: StreamRing;
+	private readonly indexPool: IndexBufferPool;
 	private resources: GpuResources;
 
 	/** The frame block's CPU copy, which is the projection. */
@@ -221,7 +223,8 @@ export class WebGL2Backend implements DrawBackend {
 		frameTimer,
 		gpuTimer = null,
 		vertexRingBytes = DEFAULT_VERTEX_RING_BYTES,
-		indexRingBytes = DEFAULT_INDEX_RING_BYTES,
+		indexSlots,
+		indexSlotBytes,
 	}: WebGL2BackendOptions) {
 		this.renderer = renderer;
 		this.frameTimer = frameTimer;
@@ -236,7 +239,7 @@ export class WebGL2Backend implements DrawBackend {
 		// units are dynamic, handed to images as they arrive (R5.20).
 		this.residentTextures = new ResidentTextureSet({ units: UBER_TEXTURE_UNITS });
 		this.vertexRing = new StreamRing({ capacity: vertexRingBytes });
-		this.indexRing = new StreamRing({ capacity: indexRingBytes });
+		this.indexPool = new IndexBufferPool({ initialSlots: indexSlots, minCapacity: indexSlotBytes });
 		this.batcher = new Batcher({
 			encoder: this.encoder,
 			textures: this.residentTextures,
@@ -293,7 +296,7 @@ export class WebGL2Backend implements DrawBackend {
 		// feather and glyph snapping.
 		this.encoder.ratio = frame.ratio;
 		this.vertexRing.beginFrame(frame.frame);
-		this.indexRing.beginFrame(frame.frame);
+		this.indexPool.beginFrame(frame.frame);
 		this.writeFrameUniforms(frame);
 		this.bindPipeline();
 		this.gl.clear(this.gl.COLOR_BUFFER_BIT);
@@ -388,13 +391,17 @@ export class WebGL2Backend implements DrawBackend {
 		gl.bindBuffer(gl.ARRAY_BUFFER, vertexBuffer);
 		gl.bufferData(gl.ARRAY_BUFFER, this.vertexRing.capacity, gl.DYNAMIC_DRAW);
 		for (const attribute of UBER_ATTRIBUTES) gl.enableVertexAttribArray(attribute.location);
-		// The element buffer binding is vertex array state: bound once, here.
-		const indexBuffer = createBuffer(gl);
-		gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, indexBuffer);
-		gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, this.indexRing.capacity, gl.DYNAMIC_DRAW);
+		// The element buffer binding is vertex array state, so each slot is
+		// sized with the vertex array bound; `execute` rebinds per upload.
+		const indexBuffers = this.indexPool.capacities.map((capacity) => {
+			const buffer = createBuffer(gl);
+			gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, buffer);
+			gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, capacity, gl.DYNAMIC_DRAW);
+			return buffer;
+		});
 		gl.bindVertexArray(null);
 
-		return { program, vertexArray, vertexBuffer, indexBuffer, uniformBuffer, uniformStride };
+		return { program, vertexArray, vertexBuffer, indexBuffers, uniformBuffer, uniformStride };
 	}
 
 	/**
@@ -404,9 +411,9 @@ export class WebGL2Backend implements DrawBackend {
 	 * before this runs.
 	 */
 	private restore(): void {
-		this.resources = this.createResources();
 		this.vertexRing.reset();
-		this.indexRing.reset();
+		this.indexPool.reset();
+		this.resources = this.createResources();
 		this.invalidateState();
 	}
 
@@ -453,20 +460,28 @@ export class WebGL2Backend implements DrawBackend {
 
 	// -- execution ----------------------------------------------------------
 
-	/** Uploads once into the rings and issues the upload's draws in order. Returns texture binds made. */
+	/**
+	 * Uploads once, vertices into the ring and indices into a slot of their
+	 * own, and issues the upload's draws in order. Returns texture binds made.
+	 */
 	private execute(upload: GeometryUpload): number {
 		const gl = this.gl;
-		const vertexBytes = upload.floatCount * 4;
-		const indexBytes = upload.indexCount * 4;
-		const vertexOffset = this.reserve(this.vertexRing, vertexBytes, 'vertex');
-		const indexOffset = this.reserve(this.indexRing, indexBytes, 'index');
+		const vertexOffset = this.reserve(upload.floatCount * 4);
+		const slot = this.indexPool.acquire(upload.indexCount * 4);
+		const created = this.indexPool.created;
 
 		this.bindPipeline();
-		const { vertexArray, vertexBuffer } = this.resources;
+		const { vertexArray, vertexBuffer, indexBuffers } = this.resources;
 		gl.bindVertexArray(vertexArray);
 		gl.bindBuffer(gl.ARRAY_BUFFER, vertexBuffer);
 		gl.bufferSubData(gl.ARRAY_BUFFER, vertexOffset, upload.vertices, 0, upload.floatCount);
-		gl.bufferSubData(gl.ELEMENT_ARRAY_BUFFER, indexOffset, upload.indices, 0, upload.indexCount);
+		if (created) indexBuffers[slot] = createBuffer(gl);
+		// Vertex array state: the slot becomes this upload's element buffer.
+		gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, indexBuffers[slot]);
+		// A slot is created at the size it keeps; this is the one allocation a
+		// screen's heaviest upload can cause, the first time it is seen (R15.11).
+		if (created) gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, this.indexPool.capacityOf(slot), gl.DYNAMIC_DRAW);
+		gl.bufferSubData(gl.ELEMENT_ARRAY_BUFFER, 0, upload.indices, 0, upload.indexCount);
 
 		// Indices are relative to the upload's first vertex, so the pointers
 		// move with the upload. Once per upload, never per draw (R15.14).
@@ -485,16 +500,16 @@ export class WebGL2Backend implements DrawBackend {
 		}
 
 		let binds = 0;
-		for (let index = 0; index < upload.draws.length; index++) binds += this.issue(upload.draws[index], indexOffset);
+		for (let draw = 0; draw < upload.draws.length; draw++) binds += this.issue(upload.draws[draw]);
 		gl.bindVertexArray(null);
 		return binds;
 	}
 
-	private issue(draw: GpuDraw, indexOffset: number): number {
+	private issue(draw: GpuDraw): number {
 		const gl = this.gl;
 		const binds = this.bindTextures(draw.textures);
 		this.applyBlend(draw.blend);
-		gl.drawElements(gl.TRIANGLES, draw.indexCount, gl.UNSIGNED_INT, indexOffset + draw.firstIndex * 4);
+		gl.drawElements(gl.TRIANGLES, draw.indexCount, gl.UNSIGNED_INT, draw.firstIndex * 4);
 		this.frameTimer.recordDrawCall(draw.vertexCount);
 		return binds;
 	}
@@ -545,13 +560,14 @@ export class WebGL2Backend implements DrawBackend {
 	}
 
 	/**
-	 * A ring offset for `bytes`, growing the stream once when the ring cannot
-	 * place it without overwriting a region the GPU may still be reading
-	 * (R5.27). Growth replaces the buffer (a fresh `bufferData` on a new
-	 * object, so nothing in flight is touched) and is reported, since a ring
-	 * that grows in steady state is a ring sized wrong.
+	 * A vertex ring offset for `bytes`, growing the stream once when the ring
+	 * cannot place it without overwriting a region the GPU may still be
+	 * reading (R5.27). Growth replaces the buffer (a fresh `bufferData` on a
+	 * new object, so nothing in flight is touched) and is reported, since a
+	 * ring that grows in steady state is a ring sized wrong.
 	 */
-	private reserve(ring: StreamRing, bytes: number, stream: 'vertex' | 'index'): number {
+	private reserve(bytes: number): number {
+		const ring = this.vertexRing;
 		const offset = ring.allocate(bytes, 4);
 		if (offset >= 0) return offset;
 
@@ -560,20 +576,12 @@ export class WebGL2Backend implements DrawBackend {
 		const capacity = Math.max(previous * 2, bytes * 3);
 		ring.reset(capacity);
 		const buffer = createBuffer(gl);
-		if (stream === 'vertex') {
-			gl.deleteBuffer(this.resources.vertexBuffer);
-			this.resources.vertexBuffer = buffer;
-			gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
-			gl.bufferData(gl.ARRAY_BUFFER, capacity, gl.DYNAMIC_DRAW);
-			this.attributeBase = -1;
-		} else {
-			gl.deleteBuffer(this.resources.indexBuffer);
-			this.resources.indexBuffer = buffer;
-			gl.bindVertexArray(this.resources.vertexArray);
-			gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, buffer);
-			gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, capacity, gl.DYNAMIC_DRAW);
-		}
-		console.warn(`WebGL2Backend: ${stream} ring grew from ${previous} to ${capacity} bytes`);
+		gl.deleteBuffer(this.resources.vertexBuffer);
+		this.resources.vertexBuffer = buffer;
+		gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
+		gl.bufferData(gl.ARRAY_BUFFER, capacity, gl.DYNAMIC_DRAW);
+		this.attributeBase = -1;
+		console.warn(`WebGL2Backend: vertex ring grew from ${previous} to ${capacity} bytes`);
 		return ring.allocate(bytes, 4);
 	}
 
