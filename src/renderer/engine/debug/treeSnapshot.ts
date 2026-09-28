@@ -199,10 +199,10 @@ function serializeNode(
 	};
 
 	try {
-		// `bounds` rather than `x` and `y`: an anchored child's placement
-		// (R10.15) is its position plus the anchor's shift.
-		const x = finite(node.bounds.x);
-		const y = finite(node.bounds.y);
+		// The placed origin, not `x` and `y`: an anchored child sits at its
+		// position plus the anchor's shift (R10.15).
+		const x = finite(node.placedX);
+		const y = finite(node.placedY);
 		const w = finite(node.width);
 		const h = finite(node.height);
 		const screenX = context.offsetX + x;

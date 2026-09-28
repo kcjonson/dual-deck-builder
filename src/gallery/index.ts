@@ -5,6 +5,7 @@ import { FrameLoop } from '../renderer/engine/rendering/FrameLoop';
 import { MountContext, createMountContext } from '../renderer/engine/components/MountContext';
 import { followReducedMotion } from '../renderer/engine/rendering/reducedMotion';
 import { FrameTimer } from '../renderer/engine/rendering/FrameTimer';
+import { PointerAdapter } from '../renderer/engine/input/PointerAdapter';
 import { GpuTimer, createGpuTimer } from '../renderer/engine/rendering/GpuTimer';
 import { createDevToolsTracks } from '../renderer/engine/debug/devtoolsTracks';
 import { createHitchObserver } from '../renderer/engine/debug/hitchObserver';
@@ -65,7 +66,7 @@ class GalleryApplication {
 			this.context = createMountContext({ draw: this.draw, viewport: this.renderer.viewport });
 			followReducedMotion(this.context.animator);
 			const canvas = this.renderer.canvas;
-			this.context.input.setup(canvas);
+			new PointerAdapter({ dispatcher: this.context.dispatcher }).attach(canvas);
 
 			this.host = new SceneHost({
 				scenes: gallerySceneRegistry,
@@ -142,10 +143,10 @@ class GalleryApplication {
 			status: () => ({ ...this.host.status(), assetsReady: !CardLoader.getInstance().loading }),
 		});
 
-		// R13.35, on the same canvas the InputSystem listens to. The gallery
+		// R13.35, on the same canvas the pointer adapter listens to. The gallery
 		// gets it for the same reason it gets the tree and the lint: a scripted
 		// run drives a scene the way it drives a screen.
-		installInputHooks({ canvas, input: this.context.input });
+		installInputHooks({ canvas, dispatcher: this.context.dispatcher });
 
 		// R13.11's scene name is the gallery's own, which is the grouping key a
 		// per-scene capture (R13.38) writes into perf-results.
@@ -174,6 +175,11 @@ class GalleryApplication {
 	 */
 	private loop = (): void => {
 		const deltaTime = this.frameTimer.beginFrame();
+
+		// R8.16 and R9.2: the input queued since the last frame, first.
+		this.frameTimer.beginSection('input');
+		this.context.dispatcher.dispatchPending();
+		this.frameTimer.endSection('input');
 
 		this.frameTimer.beginSection('update');
 		// R7.3, as on the game page: the resize lands at the top of the frame.

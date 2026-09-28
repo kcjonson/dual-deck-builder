@@ -116,16 +116,14 @@ export class SceneHost {
 
 	/**
 	 * R13.32's pause skips input and update while rendering continues, and
-	 * R13.35 leans on it: injected input must be ignored while paused. This
-	 * engine dispatches input straight from DOM listeners rather than from the
-	 * frame loop, so stopping the loop's update alone would leave clicks and
-	 * keystrokes landing on components; the InputSystem flag is the half that
-	 * makes the promise true.
+	 * R13.35 leans on it: injected input must be ignored while paused. The
+	 * dispatcher's flag drops input at its queue, so nothing pressed or typed
+	 * while paused is dispatched on resume either.
 	 */
 	public set paused(value: boolean) {
 		const resuming = this.isPaused && !value;
 		this.isPaused = value;
-		this.context.input.paused = value;
+		this.context.dispatcher.paused = value;
 		if (resuming) this.resize();
 	}
 
@@ -228,7 +226,7 @@ export class SceneHost {
 	public unmount(): void {
 		if (!this.mountedRoot) return;
 
-		this.context.input.setFocus(null);
+		this.context.dispatcher.focus(null);
 		this.rootLayer.removeChild(this.mountedRoot);
 		this.mountedRoot = null;
 		this.mounted = null;

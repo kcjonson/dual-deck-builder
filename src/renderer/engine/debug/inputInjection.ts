@@ -1,103 +1,86 @@
-import type { InputSystem } from '../input/InputSystem';
+import type { Dispatcher } from '../input/Dispatcher';
 import type { InjectedStep } from './inputScript';
 import { parseInputCommand } from './inputScript';
 
 /**
  * Dispatch half of R13.35's injection hook: turns parsed steps into real DOM
- * events aimed at the very listeners the InputSystem registered, so injected
- * input travels the path real input travels and no component knows the
- * difference.
+ * events aimed at the listeners `PointerAdapter` registered, so injected
+ * input travels the path real input travels (R9.25) and no component knows
+ * the difference.
  *
  * ## The seam
  *
- * `InputSystem.setup` registers `mousemove`, `mousedown`, `mouseup`, `wheel`
- * and `mouseleave` on the canvas, and `keydown` on `window`. Mouse and wheel
- * events therefore go to the canvas, and key events go up a bubble path that
- * reaches `window`.
+ * `PointerAdapter.attach` listens for `pointerdown`, `pointermove`,
+ * `pointerup`, `pointercancel`, `pointerleave` and `wheel` on the canvas,
+ * and `keydown`, `keyup` and `blur` on `window`. Pointer and wheel events
+ * therefore go to the canvas, and key events go up a bubble path that
+ * reaches `window`. The adapter queues them and the frame loop dispatches
+ * the queue at the start of the next frame (R9.2), so an injected click
+ * takes effect on the next frame, exactly as a real one does; a caller that
+ * needs the effect synchronously (a unit test) calls the dispatcher's
+ * `dispatchPending` itself.
  *
- * These are plain `MouseEvent`s, not `PointerEvent`s. A `PointerEvent` reaches
- * a `mousemove` listener only when the browser synthesises the compatibility
- * mouse event, which is a behaviour the harness would then be built on top of;
- * a `MouseEvent` hits the registered listener directly, in every runtime, and
- * in jsdom.
+ * Pointer events are `PointerEvent`s with `pointerId` 1, `pointerType`
+ * `mouse`, and `isPrimary`, where the runtime has the constructor. jsdom has
+ * none, so there they are `MouseEvent`s carrying the pointer event's type
+ * name, which reach the same listeners; the adapter reads the missing
+ * pointer fields with those same defaults.
  *
  * ## Coordinates
  *
  * `x` and `y` are logical pixels, the space `window.__ui.tree()` reports
- * (R7.1, R7.15). `handleMouseMove` computes `event.clientX - rect.left`
- * against the canvas's bounding rect, which is CSS pixels; `CanvasViewport`
- * defines the logical viewport the projection is built from as the backing
- * store divided by `dpr * uiScale`, which is the canvas's CSS box while
- * `uiScale` is 1 (to under a device pixel at a fractional ratio). Input space
- * and snapshot space are therefore the same space and no conversion is
- * needed (R7.2); R7.14's division by `uiScale` arrives with the phase 3
- * dispatcher, before any setting can change it. This adds
- * `rect.left`/`rect.top` back for the same reason the handler subtracts them:
- * the canvas sits at the origin today, and a hook that assumed so would break
- * the day it does not.
+ * (R7.1, R7.15). The adapter computes `clientX - rect.left` against the
+ * canvas's bounding rect, in CSS pixels, and divides by the UI scale (1
+ * until R7.5's setting exists), which is the logical viewport
+ * `CanvasViewport` defines. This adds `rect.left` and `rect.top` back for the
+ * same reason the adapter subtracts them: the canvas sits at the origin
+ * today, and a hook that assumed so would break the day it does not.
  *
- * ## Pointer tracking, and why `click` is the primitive to reach for
- *
- * `handleMouseDown`, `handleMouseUp` and `handleWheel` ignore their event's
- * coordinates entirely and act on the position `handleMouseMove` last stored.
- * R13.35 expands only `click`, so a bare `down,x,y` or `scroll,x,y,delta`
- * presses or scrolls wherever the pointer already was, not at the x and y it
- * names. Send `move,x,y` first, or use `click`. Injecting a hidden move inside
- * those verbs would be worse than the hazard: it would fire mouseover and
- * mouseout handlers the harness never asked for, changing hover state
- * underneath an assertion about it.
+ * Every pointer verb is dispatched at its own coordinates, and the
+ * dispatcher hit-tests each at its own position, so `down,x,y` presses at
+ * x, y whatever the last move said. `click` still expands to a move first
+ * (R13.35), which is what gives the press a hover: a bare `down` delivers
+ * `pointerenter` along with the press, as a real press without a preceding
+ * move would.
  *
  * ## Scroll delta units
  *
- * `delta` is logical pixels of vertical scroll intent, per R9.3 ("wheel deltas
- * are normalised to logical pixels per axis ... no per-notch constant"), and
- * is dispatched as `deltaY` with `deltaMode` DOM_DELTA_PIXEL. So `delta` 100
- * means a hundred pixels, not one notch. The engine does not yet honour R9.3:
- * `handleWheel` passes the raw delta through and `Panel.onWheel` multiplies it
- * by 30, so 100 currently scrolls a panel 3000 pixels. That gap is deliberate
- * here. Compensating for it inside the injection hook would make injected
- * wheels behave differently from real ones, which is what R13.35's "same path
- * real input takes" forbids; the fix belongs in the wheel handler. The grammar
- * carries one delta, so injected scrolls are vertical only.
+ * `delta` is logical pixels of vertical scroll intent, per R9.3, and is
+ * dispatched as `deltaY` with `deltaMode` DOM_DELTA_PIXEL. The dispatcher
+ * uses pixel deltas as scroll distances directly, so `delta` 100 scrolls a
+ * panel 100 pixels. The grammar carries one delta, so injected scrolls are
+ * vertical only.
  *
  * ## Keys
  *
- * R13.36 covers engines that poll key state, where a down and an up landing in
- * the same frame collapse into a release. That hazard does not arise here: the
- * engine is event-driven, `handleKeyDown` calls the component's handler
- * synchronously from the DOM listener, and no frame boundary sits between the
- * two. A `keydown` and a `keyup` injected in the same call are both delivered,
+ * R13.36 covers engines that poll key state, where a down and an up landing
+ * in the same frame collapse into a release. That hazard does not arise
+ * here: the adapter queues both as events and the dispatcher delivers both,
  * in order, with no collapse and no need to split them across frames.
- *
- * `keyup` is dispatched faithfully but nothing in the engine listens for it
- * today; the InputSystem registers `keydown` only. The verb is in the grammar
- * and the event is real, so the day a keyup listener is added, injection
- * already feeds it.
  *
  * Key events are dispatched at the focused element (`document.body` when
  * nothing else holds focus) and bubble, rather than being fired straight at
  * `window`. That is where a real key event starts, and it is the difference
- * between reaching only the InputSystem's window listener and also reaching
- * the game's F5/F12 handler on `document`.
+ * between reaching only the adapter's window listener and also reaching the
+ * game's F5/F12 handler on `document`.
  *
  * ## Pause
  *
- * R13.35's "injected input is ignored while paused" needs no code here. Every
- * one of the InputSystem's six handlers opens with
- * `if (__DEV_TOOLS__ && this.inputPaused) return;`, so an injected event that
- * travels the real listener path is dropped exactly like a real one. The
- * result reports `swallowed` per event so a harness can tell an ignored click
- * from a missed one.
+ * R13.35's "injected input is ignored while paused" needs no code here: the
+ * dispatcher drops everything offered to its queue while paused, so an
+ * injected event that travels the real listener path is dropped exactly
+ * like a real one. The result reports `swallowed` per event so a harness can
+ * tell an ignored click from a missed one.
  */
 
 export interface InjectedEventResult {
-	/** The DOM event type dispatched: mousemove, mousedown, mouseup, wheel, keydown, keyup. */
+	/** The DOM event type dispatched: pointermove, pointerdown, pointerup, wheel, keydown, keyup. */
 	type: string;
 	/** False only when there was nowhere to dispatch it, e.g. no document body for a key. */
 	dispatched: boolean;
 	/**
-	 * True when the InputSystem's pause gate dropped the event before any
-	 * component saw it (R13.35). Listeners outside the InputSystem, such as the
+	 * True when the dispatcher's pause gate dropped the event before any
+	 * component saw it (R13.35). Listeners outside the adapter, such as the
 	 * game's F5/F12 handler on `document`, are not gated and still ran.
 	 */
 	swallowed: boolean;
@@ -116,7 +99,7 @@ export interface InjectedCommandResult {
 export interface InjectionResult {
 	/** True when every command parsed and every event reached a target. */
 	ok: boolean;
-	/** The InputSystem's pause state when the call started (R13.35). */
+	/** The dispatcher's pause state when the call started (R13.35). */
 	paused: boolean;
 	commands: InjectedCommandResult[];
 }
@@ -135,7 +118,12 @@ function buttonsMask(button: number): number {
 	return BUTTONS_BIT[button] ?? 0;
 }
 
-function mouseEvent(
+/**
+ * A pointer event as the platform sends a mouse's: a real `PointerEvent`
+ * where the runtime has one, otherwise a `MouseEvent` under the pointer
+ * event's type name (see the module comment).
+ */
+function pointerEvent(
 	canvas: HTMLCanvasElement,
 	type: string,
 	x: number,
@@ -144,33 +132,37 @@ function mouseEvent(
 	buttons: number,
 ): MouseEvent {
 	const rect = canvas.getBoundingClientRect();
-	return new MouseEvent(type, {
+	const init = {
 		bubbles: true,
 		cancelable: true,
 		clientX: rect.left + x,
 		clientY: rect.top + y,
 		button,
 		buttons,
-	});
+	};
+	if (typeof PointerEvent === 'function') {
+		return new PointerEvent(type, { ...init, pointerId: 1, pointerType: 'mouse', isPrimary: true });
+	}
+	return new MouseEvent(type, init);
 }
 
-function dispatchStep({ canvas, input }: InjectionTarget, step: InjectedStep): InjectedEventResult {
-	const swallowed = input.paused;
+function dispatchStep({ canvas, dispatcher }: InjectionTarget, step: InjectedStep): InjectedEventResult {
+	const swallowed = dispatcher.paused;
 
 	switch (step.kind) {
 		case 'move':
-			canvas.dispatchEvent(mouseEvent(canvas, 'mousemove', step.x, step.y, 0, 0));
-			return { type: 'mousemove', dispatched: true, swallowed };
+			canvas.dispatchEvent(pointerEvent(canvas, 'pointermove', step.x, step.y, -1, 0));
+			return { type: 'pointermove', dispatched: true, swallowed };
 
 		case 'down':
 			canvas.dispatchEvent(
-				mouseEvent(canvas, 'mousedown', step.x, step.y, step.button, buttonsMask(step.button)),
+				pointerEvent(canvas, 'pointerdown', step.x, step.y, step.button, buttonsMask(step.button)),
 			);
-			return { type: 'mousedown', dispatched: true, swallowed };
+			return { type: 'pointerdown', dispatched: true, swallowed };
 
 		case 'up':
-			canvas.dispatchEvent(mouseEvent(canvas, 'mouseup', step.x, step.y, step.button, 0));
-			return { type: 'mouseup', dispatched: true, swallowed };
+			canvas.dispatchEvent(pointerEvent(canvas, 'pointerup', step.x, step.y, step.button, 0));
+			return { type: 'pointerup', dispatched: true, swallowed };
 
 		case 'scroll': {
 			const rect = canvas.getBoundingClientRect();
@@ -203,16 +195,16 @@ function dispatchStep({ canvas, input }: InjectionTarget, step: InjectedStep): I
 }
 
 /**
- * The canvas the input system listens on, and that input system, whose pause
- * gate decides whether an injected event is swallowed (R13.35).
+ * The canvas the pointer adapter listens on, and the dispatcher it feeds,
+ * whose pause gate decides whether an injected event is swallowed (R13.35).
  */
 export interface InjectionTarget {
 	canvas: HTMLCanvasElement;
-	input: InputSystem;
+	dispatcher: Dispatcher;
 }
 
 export function injectInput(target: InjectionTarget, commands: string[]): InjectionResult {
-	const paused = target.input.paused;
+	const paused = target.dispatcher.paused;
 	const results: InjectedCommandResult[] = [];
 	let ok = true;
 

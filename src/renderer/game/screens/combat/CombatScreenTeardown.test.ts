@@ -11,8 +11,8 @@ import { DriverLoader } from '../../core/DriverLoader';
 import { Battle } from '../../mechanics/Battle';
 import { Card as UICard } from '../../ui/Card';
 import type { Component } from '../../../engine/components/Component';
-import { injectInput } from '../../../engine/debug/inputInjection';
-import { createTestContext } from '../../../engine/components/testing';
+import { createTestContext, injectNow } from '../../../engine/components/testing';
+import { PointerAdapter } from '../../../engine/input/PointerAdapter';
 
 /**
  * The play that ends a fight navigates to the result screen, which unmounts
@@ -34,7 +34,7 @@ async function settle(): Promise<void> {
 }
 
 function click(spot: string): void {
-	expect(injectInput({ canvas, input: context.input }, [`click,${spot}`]).ok).toBe(true);
+	expect(injectNow({ canvas, dispatcher: context.dispatcher }, [`click,${spot}`]).ok).toBe(true);
 }
 
 /** The global centre of a layer, as `x,y` for a click */
@@ -43,14 +43,14 @@ function centerOf(layer: Component): string {
 	return `${Math.round(x + layer.getWidth() / 2)},${Math.round(y + layer.getHeight() / 2)}`;
 }
 
-/** Combat hand cards the InputSystem still hit-tests */
-function cardRegistrations(): number {
-	const input = context.input as unknown as Record<string, Map<unknown, unknown>>;
-	const components = new Set<unknown>();
-	for (const key of ['mouseOverComponents', 'mouseOutComponents', 'mouseDownComponents', 'mouseUpComponents']) {
-		for (const component of input[key].keys()) components.add(component);
-	}
-	return [...components].filter(component => component instanceof UICard).length;
+/** Hand cards still reachable by a click at any of the spots */
+function cardsHitAt(spots: string[]): number {
+	return spots
+		.map(spot => {
+			const [x, y] = spot.split(',').map(Number);
+			return context.dispatcher.hitTest({ x, y });
+		})
+		.filter(component => component instanceof UICard).length;
 }
 
 async function openCombat(): Promise<CombatScreen> {
@@ -73,7 +73,7 @@ function cardSpots(combat: CombatScreen): string[] {
 /** No click where a card was reaches combat or the finished battle */
 function expectCardsGone(spots: string[]): void {
 	expect(ScreenManager.getCurrentScreenName()).toBe('battleResultScreen');
-	expect(cardRegistrations()).toBe(0);
+	expect(cardsHitAt(spots)).toBe(0);
 
 	const onCardSelected = jest.spyOn(CombatScreen.prototype as unknown as { onCardSelected: () => void }, 'onCardSelected');
 	const playCard = jest.spyOn(Battle.prototype, 'playCard');
@@ -105,7 +105,7 @@ beforeAll(async () => {
 	Object.defineProperty(window, 'innerWidth', { configurable: true, writable: true, value: 1024 });
 	Object.defineProperty(window, 'innerHeight', { configurable: true, writable: true, value: 768 });
 	document.body.appendChild(canvas);
-	context.input.setup(canvas);
+	new PointerAdapter({ dispatcher: context.dispatcher }).attach(canvas);
 	ScreenManager.initialize(context);
 });
 

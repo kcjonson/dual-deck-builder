@@ -10,6 +10,7 @@ import { Panel } from '../ui/Panel';
 import { Stack, StackOptions } from './Stack';
 import { renderTree } from './renderTree';
 import { createTestContext } from './testing';
+import { NO_MODIFIERS } from '../input/events';
 import type { Axis, Distribution, Size } from './layoutTypes';
 
 /**
@@ -831,6 +832,33 @@ describe('Stack additions (spec 10.9)', () => {
 		expect(drawn?.transform).toEqual([1, 0, 0, 1, 194, 104]);
 		expect(drawn?.transform).toEqual(badge.screenMatrix);
 		expect(badge.containsScreenPoint(200, 110)).toBe(true);
+	});
+
+	it('routes a click on an anchored child to it, through the dispatcher', () => {
+		const context = createTestContext();
+		const card = stack({ x: 10, y: 20, width: 200, height: 100 });
+		const badge = box(16, 16, 0, { id: 'badge', positioned: 'absolute', anchor: 'bottomRight', margin: 2 });
+		card.addChild(badge);
+		layOut(card, context);
+
+		const clicks: string[] = [];
+		badge.onClick = () => clicks.push('badge');
+		const press = (phase: 'down' | 'up', x: number, y: number) => context.dispatcher.enqueue({
+			kind: 'pointer', phase, x, y, pointerId: 1, pointerType: 'mouse', isPrimary: true,
+			button: 0, buttons: phase === 'down' ? 1 : 0, pressure: phase === 'down' ? 0.5 : 0, modifiers: NO_MODIFIERS,
+		});
+
+		// Content box: card origin (10, 20) + (200 - 20, 100 - 20) + margin 2.
+		expect(context.dispatcher.hitTest({ x: 200, y: 110 })).toBe(badge);
+		// Where `position` alone would put it, at the card's top-left, is
+		// nothing: the card is a passthrough container.
+		expect(context.dispatcher.hitTest({ x: 14, y: 24 })).toBeNull();
+		press('down', 200, 110);
+		press('up', 200, 110);
+		context.dispatcher.dispatchPending();
+
+		expect(clicks).toEqual(['badge']);
+		expect(badge.screenBounds).toEqual({ x: 192, y: 102, width: 16, height: 16 });
 	});
 
 	it('places by anchor and a separate pivot, plus the offset', () => {

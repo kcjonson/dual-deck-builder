@@ -19,6 +19,17 @@ This document contains the chronological log of completed development tasks for 
 - Tests: `Stack.test.ts` (worldsim's suite ported with its numbers, spec 10.9's additions, anchors, viewport roots, boundaries, the negative-gap lint case) and `Stack.text.test.ts` (real-metrics text cases). Gallery scene `stack`, lint clean; its golden is minted on CI.
 - Decision record: `docs/AI_TECHNICAL_DECISIONS/stack-layout.md`.
 
+## Input dispatcher and Pointer Events adapter (2026-09-28)
+
+**What landed:** DDB-75 (DDB-55 phase 3), chapter 9's dispatch half: R9.1 to R9.11, R9.25, R9.30 to R9.32, R3.28, R4.12, R8.2's input callbacks.
+
+- `input/Dispatcher.ts` (queue, hit test, bubble, hover, click, capture, wheel latching, key routing, focus seam), `input/hitTest.ts`, `input/events.ts`, `input/HotkeyTable.ts`, `input/PointerAdapter.ts`. `InputSystem.ts` and its tests are deleted; `MountContext.input` is now `dispatcher`.
+- `Component.handleEvent` with `onPointerDown`, `onPointerUp`, `onPointerMove`, `onPointerEnter`, `onPointerLeave`, `onClick`, `onContextMenu`, `onWheel`, `onKeyDown`, `onKeyUp`; `canScroll`; roots register with the dispatcher on mount; unmount releases capture, hover and focus. `setEnabled(false)` no longer clears hover, which is the dispatcher's.
+- Button, Card, Vehicle, Input and Panel handle events in `handleEvent`; `Button.onClick` is the base property (call sites assign it); Vehicle is `unit`; a scrollable Panel is `auto` and scrolls by the normalised delta; combat's Escape and F6 are hotkeys; the F5 overlay is `pointerEvents: 'none'`.
+- Both loops drain the queue in a timed `input` section; `UiFrame.layoutVersion` lets hover follow layout. Timing reads the context clock (DDB-74): event timestamps, the 150 ms wheel latch, and R9.30's 500 ms touch-hold `contextmenu`. The injection hook dispatches pointer events at the adapter; `components/testing.ts` has `injectNow`.
+
+**How:** `Dispatcher.test.ts` (chapter 9.11's hit order including 3.12's promoted popup and 4.7's popup inside a clip, bubble, scrim, enter and leave order, hover after scroll and layout, click on the common ancestor, the threshold on drag sources only, pause abandoning a held press, Cmd and Ctrl chords through a focused field, capture and its cancellations, touch, wheel line and page modes, latching, Shift, keys and hotkeys, coalescing, pause, handler isolation), `widgetInput.test.ts` (Button, Input and the adapter through injection), and the existing screen, gallery, injection and teardown tests moved from registration maps to hit tests. An audit hit-tested every Button, Card, Vehicle, Input and scrollable Panel on six screens and found none occluded. Driven in the browser through `__dev.input` and real pointer and wheel events: menu, driver cycling, START RUN, a targeted card played on an enemy, Escape cancelling targeting, END TURN into turn 2, F6, the developer screen's inputs, Apply and scroll, the card showcase, and the gallery's input scene, with a clean console.
+
 ## Clock and animator (2026-09-28)
 
 **What landed:** DDB-74 (DDB-55 phase 3), R8.28 with R8.15's tween cancellation and R11.13's reduced-motion collapse.

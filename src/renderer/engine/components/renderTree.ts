@@ -21,9 +21,8 @@ export function renderTree(component: Component, draw: DrawApi): void {
 	const opacity = component.opacity;
 	if (opacity <= 0) return;
 
-	const margin = component.margin;
-	const originX = component.placedX + margin.left;
-	const originY = component.placedY + margin.top;
+	const originX = component.originX;
+	const originY = component.originY;
 	const translated = originX !== 0 || originY !== 0;
 	if (translated) draw.pushTranslate(originX, originY);
 

@@ -11,8 +11,8 @@ import { Deck } from '../../mechanics/Deck';
 import { Battle } from '../../mechanics/Battle';
 import { computeCombatLayout } from './CombatLayout';
 import { SnapshotNode, SnapshotRect, treeSnapshot } from '../../../engine/debug/treeSnapshot';
-import { injectInput } from '../../../engine/debug/inputInjection';
-import { createTestContext } from '../../../engine/components/testing';
+import { createTestContext, injectNow } from '../../../engine/components/testing';
+import { PointerAdapter } from '../../../engine/input/PointerAdapter';
 
 /**
  * DDB-157: START RUN used to hand DriverLoader's template drivers straight to
@@ -168,9 +168,15 @@ describe('CombatScreen: each run starts from fresh drivers', () => {
 describe('CombatScreen: one layout for mount and resize', () => {
 	const canvas = document.createElement('canvas');
 
+	const adapter = new PointerAdapter({ dispatcher: context.dispatcher });
+
 	beforeAll(() => {
 		document.body.appendChild(canvas);
-		context.input.setup(canvas);
+		adapter.attach(canvas);
+	});
+
+	afterAll(() => {
+		adapter.detach();
 	});
 
 	function setViewport(width: number, height: number): void {
@@ -322,7 +328,7 @@ describe('CombatScreen: one layout for mount and resize', () => {
 		resizeViewport(combat, 1280, 720);
 		const { x, y, w, h } = endTurnBounds(combat);
 		const endPlayerTurn = jest.spyOn(Battle.prototype, 'endPlayerTurn');
-		expect(injectInput({ canvas, input: context.input }, [`click,${Math.round(x + w / 2)},${Math.round(y + h / 2)}`]).ok).toBe(true);
+		expect(injectNow({ canvas, dispatcher: context.dispatcher }, [`click,${Math.round(x + w / 2)},${Math.round(y + h / 2)}`]).ok).toBe(true);
 		expect(endPlayerTurn).toHaveBeenCalledTimes(1);
 
 		await settle();
@@ -339,9 +345,15 @@ describe('CombatScreen: one layout for mount and resize', () => {
 describe('CombatScreen: mount and unmount', () => {
 	const canvas = document.createElement('canvas');
 
+	const adapter = new PointerAdapter({ dispatcher: context.dispatcher });
+
 	beforeAll(() => {
 		document.body.appendChild(canvas);
-		context.input.setup(canvas);
+		adapter.attach(canvas);
+	});
+
+	afterAll(() => {
+		adapter.detach();
 	});
 
 	beforeEach(() => {
@@ -354,11 +366,9 @@ describe('CombatScreen: mount and unmount', () => {
 		await flushPromises();
 	}
 
-	/** Every handler of every kind the InputSystem holds */
-	function inputRegistrations(): number {
-		const input = context.input as unknown as Record<string, Map<unknown, unknown>>;
-		return ['mouseOverComponents', 'mouseOutComponents', 'mouseDownComponents', 'mouseUpComponents', 'wheelComponents', 'keyDownComponents', 'globalKeyDownHandlers']
-			.reduce((total, key) => total + input[key].size, 0);
+	/** What the dispatcher holds for the screen: its root and its hotkeys */
+	function inputRegistrations(): { roots: number; hotkeys: number } {
+		return { roots: context.dispatcher.roots.length, hotkeys: context.dispatcher.hotkeys.size };
 	}
 
 	function modelListeners(combat: CombatScreen): number {
@@ -386,7 +396,7 @@ describe('CombatScreen: mount and unmount', () => {
 		}).toEqual(firstMount);
 
 		const endPlayerTurn = jest.spyOn(Battle.prototype, 'endPlayerTurn');
-		expect(injectInput({ canvas, input: context.input }, ['click,954,26']).ok).toBe(true);
+		expect(injectNow({ canvas, dispatcher: context.dispatcher }, ['click,954,26']).ok).toBe(true);
 		expect(endPlayerTurn).toHaveBeenCalledTimes(1);
 
 		await settle();
@@ -407,7 +417,7 @@ describe('CombatScreen: mount and unmount', () => {
 		await settle();
 
 		expect(combat.getBattleState()).toBeNull();
-		expect(inputRegistrations()).toBe(before);
+		expect(inputRegistrations()).toEqual(before);
 		expect(modelListeners(combat)).toBe(0);
 	});
 });
