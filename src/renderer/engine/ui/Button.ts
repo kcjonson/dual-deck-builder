@@ -1,95 +1,181 @@
 import { Component, ComponentOptions, PointerEvents, ResolvedColors } from '../components/Component';
 import { Icon } from '../components/Icon';
-import type { AnyUiEvent } from '../input/events';
-import { Rectangle } from '../components/Rectangle';
 import { Text } from '../components/Text';
+import type { DrawApi } from '../draw/DrawApi';
+import type { RGBA } from '../draw/geometry';
+import type { AnyUiEvent } from '../input/events';
 import type { IconName } from '../text/icons';
+import type { FontRole } from '../text/fontFaces';
+import { resolveFontRole } from '../text/fontRoles';
 import { tokens } from '../theme/tokens';
+import { Look, LookLayers, glowShadow, layersInkExtent, resolveLook } from '../style/look';
+import { LookTransition } from '../style/LookTransition';
+import {
+	Sides,
+	StyleAcceptance,
+	StyleObject,
+	StyleProperty,
+	fontRoleOfFamily,
+	resolveLength,
+	resolveLetterSpacing,
+	resolvePadding,
+	validateStyle,
+} from '../style/styleObject';
+import { CONTROL_SIZES, ControlSize, Tone, buttonLayers } from '../style/variants';
 
-export interface ButtonOptions extends ComponentOptions {
+export interface ButtonOptions extends Omit<ComponentOptions, 'style'> {
 	/** R12.7's leading icon, drawn before the label; the pair is centred together. */
 	icon?: IconName;
+	/** R11.10. `default` is the neutral raised button; `accent` is the primary action. */
+	tone?: Tone;
+	/** R11.10: height (unless `height` is given), label size, and icon size together. */
+	size?: ControlSize;
+	style?: StyleObject;
 }
 
-/** The leading icon's em square and its gap to the label, as multiples of the label size. */
-const ICON_SCALE = 1.25;
+/** A rect's fill defaults to white, so an outline-only or shadow-only draw says clear. */
+const CLEAR: RGBA = [0, 0, 0, 0];
+
+/** R11.14: what a button renders. `cursor` waits for a cursor service to render it. */
+const BUTTON_STYLE: StyleAcceptance = {
+	component: 'Button',
+	properties: new Set<StyleProperty>([
+		'backgroundColor',
+		'color',
+		'borderColor',
+		'borderWidth',
+		'borderRadius',
+		'opacity',
+		'fontSize',
+		'fontRole',
+		'fontFamily',
+		'fontWeight',
+		'letterSpacing',
+		'textTransform',
+		'textAlign',
+		'textDecoration',
+		'padding',
+		'shadow',
+	]),
+	states: new Set(['hover', 'pressed', 'selected', 'active', 'disabled']),
+	stateProperties: new Set<StyleProperty>(['backgroundColor', 'color', 'borderColor']),
+};
+
+/** The label's gap to a leading icon, as a multiple of the label size. */
 const ICON_GAP = 0.375;
 
 /**
- * Button UI component
+ * R12.7's button, styled by R11: a tone and size pick the variant base from
+ * tokens, the style object overrides it, and the R11.11 flags layer over
+ * both through `resolveLook`, moving by R11.13's transitions. The box, its
+ * glow, and the focus ring are this component's own draws; the label and
+ * icon are parts that follow the look.
  */
 export class Button extends Component {
-	private background: Rectangle;
 	private text: Text;
 	private icon: Icon | null = null;
 	/** The icon and gap the label's box gives up on its left. */
 	private labelInset = 0;
-	private pressState = false;
+	private buttonTone: Tone;
+	private buttonSize: ControlSize;
+	private styleObject: StyleObject;
+	private layers: LookLayers;
+	private padding: Sides;
+	private readonly transition: LookTransition;
+	/** Height comes from `size` until the caller gives one (R11.10). */
+	private heightFollowsSize: boolean;
 
-	// Button appearance states
-	private normalColor = '#3333cc';
-	private hoverColor = '#4d4de6';
-	private pressedColor = '#1a1ab3';
-	private disabledColor = '#808080';
-
-	/**
-	 * Create a new button
-	 * @param label Text to display on the button
-	 * @param options Optional configuration including style
-	 */
-	constructor(label = '', options?: ButtonOptions) {
+	constructor(label = '', { icon, tone = 'default', size = 'md', style = {}, ...options }: ButtonOptions = {}) {
 		// R12.7: focusable unless told otherwise.
-		super({ focusable: true, ...options });
+		super({ focusable: true, ...options, height: options.height ?? CONTROL_SIZES[size].height });
 		this.componentType = 'Button';
+		this.heightFollowsSize = options.height === undefined;
+		validateStyle(style, BUTTON_STYLE);
+		this.buttonTone = tone;
+		this.buttonSize = size;
+		this.styleObject = style;
+		this.layers = buttonLayers(tone, style);
+		this.padding = this.resolvePadding();
+		if (style.opacity !== undefined) this.opacity = style.opacity;
 
-		// Create background rectangle at local origin
-		this.background = new Rectangle({
-			x: 0,
-			y: 0,
-			width: this.width,
-			height: this.height,
-			style: {
-				backgroundColor: this.normalColor,
-				border: '2px solid #1a1a1a',
-				borderRadius: '5px',
-			},
-		});
-		this.addPart(this.background);
-
-		// Create text child component for the label at local origin
 		this.text = new Text(label, {
-			x: 0,
-			y: 0,
-			width: this.width,
-			height: this.height,
 			style: {
-				color: '#ffffff',
-				textAlign: 'center',
+				...this.labelStyle(),
 				verticalAlign: 'middle',
 				whiteSpace: 'nowrap',
 			},
 		});
 		this.addPart(this.text);
 
-		if (options?.icon) {
-			this.icon = new Icon({ glyph: options.icon, size: this.iconSize, tint: tokens.color.text_bright });
+		if (icon) {
+			this.icon = new Icon({ glyph: icon, size: CONTROL_SIZES[size].iconSize });
 			this.addPart(this.icon);
 		}
+
+		this.transition = new LookTransition({
+			owner: this,
+			look: this.targetLook,
+			onChange: (look) => this.followLook(look),
+		});
+		this.followLook(this.transition.look);
+		this.placeLabel();
 	}
 
-	/** The pointer went down on it and has not been released or left (R11.11's `pressed`). */
-	public get pressed(): boolean {
-		return this.pressState;
-	}
-
-	/** The background's fill and border and the label's colour, as they are drawn now. */
-	public get resolvedColors(): ResolvedColors {
-		return { ...this.background.resolvedColors, ...this.text.resolvedColors };
-	}
-
-	/** R8.29: the label and background are internals, not targets. */
+	/** R8.29: the label and icon are internals, not targets. */
 	protected get defaultPointerEvents(): PointerEvents {
 		return 'unit';
+	}
+
+	public get tone(): Tone {
+		return this.buttonTone;
+	}
+
+	public set tone(tone: Tone) {
+		if (tone === this.buttonTone) return;
+		this.buttonTone = tone;
+		this.restyle();
+	}
+
+	public get size(): ControlSize {
+		return this.buttonSize;
+	}
+
+	/** Label size and icon size follow, and the height unless the caller has set one. */
+	public set size(size: ControlSize) {
+		if (size === this.buttonSize) return;
+		this.buttonSize = size;
+		if (this.icon) this.icon.size = CONTROL_SIZES[size].iconSize;
+		if (this.heightFollowsSize) super.setSize(this.width, CONTROL_SIZES[size].height);
+		this.restyle();
+	}
+
+	public get style(): StyleObject {
+		return this.styleObject;
+	}
+
+	/** R11.16: the same path as construction, and the same validation. */
+	public set style(style: StyleObject) {
+		validateStyle(style, BUTTON_STYLE);
+		const previous = this.styleObject;
+		this.styleObject = style;
+		if (style.opacity !== undefined) this.opacity = style.opacity;
+		else if (previous.opacity !== undefined) this.opacity = 1;
+		this.restyle();
+	}
+
+	/** The ring is layer 6 of this component's own look (R11.12), not the render walk's. */
+	public get drawsOwnFocusRing(): boolean {
+		return true;
+	}
+
+	/** R8.8: the ring, any glow a state can raise, the style's shadow, and the press nudge. */
+	public get inkExtent(): number {
+		return layersInkExtent(this.layers);
+	}
+
+	/** The look drawn this frame, mid-transition included. */
+	public get look(): Look {
+		return this.transition.look;
 	}
 
 	/**
@@ -98,16 +184,23 @@ export class Button extends Component {
 	 * new label, font size, or size lays it out again (R8.18).
 	 */
 	protected layoutChildren(): void {
-		if (this.icon) this.placeIcon(this.icon);
+		this.placeLabel();
+	}
+
+	/** The look's colours as drawn now, mid-transition included (R13.22's `style`). */
+	public get resolvedColors(): ResolvedColors {
+		const look = this.transition.look;
+		return { fill: look.fill, text: look.text, border: look.border };
 	}
 
 	/**
-	 * R9.11's press, without capture: the click itself is the dispatcher's,
-	 * synthesised only when the press and the release both land on this
-	 * button (R9.31), and never while disabled (R9.5). The callbacks run
-	 * first, so `onClick` is the base class's callback property. `activate`
-	 * from Enter or Space while focused fires `onClick` too (R12.7), once
-	 * per press, since the dispatcher never repeats it (R9.27).
+	 * R9.11's press, without capture. The dispatcher maintains `hovered` and
+	 * synthesises the click only when press and release both land here, never
+	 * while disabled (R9.5, R9.31); this keeps `pressed`, the one framework
+	 * flag it does not own yet. The callbacks run first, so `onClick` is the
+	 * base class's callback property. `activate` from Enter or Space while
+	 * focused fires `onClick` too (R12.7), once per press, since the
+	 * dispatcher never repeats it (R9.27).
 	 */
 	public handleEvent(event: AnyUiEvent): void {
 		super.handleEvent(event);
@@ -116,25 +209,30 @@ export class Button extends Component {
 				event.consume();
 				this.onClick?.(event);
 				return;
-			case 'pointerenter':
-				if (this.enabled) this.background.setFillColor(this.pressState ? this.pressedColor : this.hoverColor);
-				return;
 			case 'pointerleave':
-				this.pressState = false;
-				if (this.enabled) this.background.setFillColor(this.normalColor);
+				this.pressed = false;
 				return;
 			case 'pointerdown':
-				if (event.button !== 0) return;
-				this.pressState = true;
-				this.background.setFillColor(this.pressedColor);
+				if (event.button === 0 && this.enabled) this.pressed = true;
 				return;
 			case 'pointerup':
 			case 'pointercancel':
-				if (!this.pressState) return;
-				this.pressState = false;
-				if (this.enabled) this.background.setFillColor(this.hovered ? this.hoverColor : this.normalColor);
+				this.pressed = false;
 				return;
 		}
+	}
+
+	/** Mounting shows the current state at once; transitions start from there. */
+	protected onMount(): void {
+		this.transition.moveTo(this.targetLook, null);
+	}
+
+	protected onUnmount(): void {
+		this.transition.moveTo(this.targetLook, null);
+	}
+
+	protected onStateChange(): void {
+		this.transition.moveTo(this.targetLook, this.context?.animator ?? null);
 	}
 
 	/**
@@ -146,126 +244,109 @@ export class Button extends Component {
 		return this;
 	}
 
-	/**
-	 * Set the font size
-	 * @param size Font size in pixels
-	 */
-	public setFontSize(size: number): this {
-		this.text.setFontSize(size);
-		return this;
+	public getLabel(): string {
+		return this.text.getText();
 	}
 
-	/**
-	 * Set the button's size and update the text position
-	 */
+	/** From here the height is the caller's, and a new `size` leaves it alone. */
 	public setSize(width: number, height: number): this {
+		this.heightFollowsSize = false;
 		super.setSize(width, height);
-
-		// Update the text position and size to match button
-		this.updateTextPosition();
-
+		this.placeLabel();
 		return this;
 	}
 
-	/**
-	 * Set the button's position and update the text position
-	 */
-	public setPosition(x: number, y: number): this {
-		super.setPosition(x, y);
-
-		// Update text position based on button position
-		this.updateTextPosition();
-
-		return this;
-	}
-
-	/**
-	 * Update the positions of all child components
-	 */
-	private updateTextPosition(): void {
-		// Children should be positioned relative to button's local origin (0,0)
-		// Background at button origin
-		this.background.setPosition(0, 0);
-		this.background.setSize(this.width, this.height);
-
-		// Text centred in what the icon leaves (all of it without one)
-		this.text.setPosition(this.labelInset, 0);
-		this.text.setSize(this.width - this.labelInset, this.height);
-	}
-
-	private get iconSize(): number {
-		return Math.round(this.text.getFontSize() * ICON_SCALE);
-	}
-
-	/**
-	 * Icon, gap and label are centred as one group: the label's box gives up
-	 * the icon and gap on its left, which moves its centre right by half of
-	 * them, and the icon sits just before the label's left edge. The width is
-	 * the label's own measure, so its tracking and transform count (R12.7);
-	 * nothing moves while the label cannot be measured.
-	 */
-	private placeIcon(icon: Icon): void {
-		const labelWidth = this.text.measured?.width;
-		if (labelWidth === undefined) return;
-		const iconSize = this.iconSize;
-		const gap = Math.round(this.text.getFontSize() * ICON_GAP);
-		const groupLeft = (this.width - (iconSize + gap + labelWidth)) / 2;
-		icon.size = iconSize;
-		icon.setPosition(Math.round(groupLeft), Math.round((this.height - iconSize) / 2));
-		this.labelInset = iconSize + gap;
-		this.updateTextPosition();
-	}
-
-	/**
-	 * Set whether the button is enabled
-	 * @param enabled Enabled state
-	 */
-	public setEnabled(enabled: boolean): this {
-		super.setEnabled(enabled);
-
-		// Update appearance based on enabled state
-		if (!this.enabled) {
-			this.background.setFillColor(this.disabledColor);
-		} else {
-			this.background.setFillColor(this.normalColor);
+	public render(draw: DrawApi): void {
+		const look = this.transition.look;
+		const rect = { x: 0, y: look.offsetY, width: this.width, height: this.height };
+		const radius = look.radius > 0 ? look.radius : undefined;
+		const glow = look.glow[3] > 0 ? glowShadow(look.glow) : null;
+		// One shadow per rect: the glow rides on the box unless the style
+		// already gave it an elevation, in which case it gets its own.
+		if (glow && look.shadow) draw.drawRect({ rect, fill: CLEAR, radius, shadow: glow });
+		draw.drawRect({
+			id: this.id ?? undefined,
+			rect,
+			fill: look.fill,
+			radius,
+			border: look.borderWidth > 0 ? { color: look.border, width: look.borderWidth } : undefined,
+			shadow: look.shadow ?? glow ?? undefined,
+		});
+		if (look.focusRing) {
+			const offset = tokens.control.focus_ring_offset;
+			draw.drawRect({
+				rect: { x: -offset, y: rect.y - offset, width: this.width + offset * 2, height: this.height + offset * 2 },
+				fill: CLEAR,
+				radius: radius !== undefined ? radius + offset : undefined,
+				border: { color: look.focusRing, width: tokens.control.focus_ring_width, position: 'outside' },
+			});
 		}
+	}
 
-		return this;
+	private get targetLook(): Look {
+		return resolveLook(this.layers, this.stateFlags);
+	}
+
+	/** Rebuilds everything the tone, size, and style decide, and moves the look there. */
+	private restyle(): void {
+		this.layers = buttonLayers(this.buttonTone, this.styleObject);
+		this.padding = this.resolvePadding();
+		this.text.textStyle = this.labelStyle();
+		this.onStateChange();
+		this.invalidateLayout();
+	}
+
+	private labelStyle() {
+		const style = this.styleObject;
+		let role: FontRole = style.fontRole ?? (style.fontFamily !== undefined ? fontRoleOfFamily(style.fontFamily, 'Button') : 'display');
+		if (style.fontWeight !== undefined) role = resolveFontRole({ family: role, weight: style.fontWeight });
+		return {
+			fontFamily: role,
+			fontSize: style.fontSize !== undefined ? resolveLength(style.fontSize, 'fontSize') : CONTROL_SIZES[this.buttonSize].fontSize,
+			letterSpacing: style.letterSpacing !== undefined ? resolveLetterSpacing(style.letterSpacing) : 0,
+			textTransform: style.textTransform ?? 'none',
+			textDecoration: style.textDecoration ?? 'none',
+			textAlign: style.textAlign ?? 'center',
+		} as const;
+	}
+
+	/** R11.9: a control's horizontal inset is `inset_field` unless the style says otherwise. */
+	private resolvePadding(): Sides {
+		const inset = tokens.control.inset_field;
+		const fallback = { top: 0, right: inset, bottom: 0, left: inset };
+		return this.styleObject.padding !== undefined ? resolvePadding(this.styleObject.padding, fallback) : fallback;
+	}
+
+	/** The label and icon take the look's text colour and follow the pressed nudge. */
+	private followLook(look: Look): void {
+		this.text.setColor([...look.text] as [number, number, number, number]);
+		if (this.icon) this.icon.tint = look.text;
+		const nudge = look.offsetY;
+		if (this.text.transform.translate[1] !== nudge) {
+			this.text.transform = { translate: [0, nudge] };
+			if (this.icon) this.icon.transform = { translate: [0, nudge] };
+		}
 	}
 
 	/**
-	 * Set the fill color of the button background
-	 * @param color Color value (hex string or RGBA array)
+	 * The label fills the padded box. With an icon, icon, gap and label are
+	 * centred as one group: the label's box gives up the icon and gap on its
+	 * left, which moves its centre right by half of them, and the icon sits
+	 * just before the label's left edge. The width is the label's own measure,
+	 * so its tracking and transform count (R12.7); the icon waits while the
+	 * label cannot be measured.
 	 */
-	public setFillColor(color: string | [number, number, number, number]): this {
-		this.background.setFillColor(color);
-		return this;
-	}
-
-	/**
-	 * Set the border color of the button background
-	 * @param color Color value (hex string or RGBA array)
-	 */
-	public setBorderColor(color: string | [number, number, number, number]): this {
-		this.background.setBorderColor(color);
-		return this;
-	}
-
-	/**
-	 * Set the border width of the button background
-	 * @param width Border width in pixels
-	 */
-	public setBorderWidth(width: number): this {
-		this.background.setBorderWidth(width);
-		return this;
-	}
-
-	/**
-	 * Set the corner radius of the button background
-	 * @param radius Corner radius in pixels
-	 */
-	public setCornerRadius(radius: number): this {
-		this.background.setCornerRadius(radius);
-		return this;
+	private placeLabel(): void {
+		const { top, right, bottom, left } = this.padding;
+		const icon = this.icon;
+		const labelWidth = this.text.measured?.width;
+		if (icon && labelWidth !== undefined) {
+			const gap = Math.round(this.text.getFontSize() * ICON_GAP);
+			const groupLeft = (this.width - (icon.size + gap + labelWidth)) / 2;
+			icon.setPosition(Math.round(groupLeft), Math.round(top + (this.height - top - bottom - icon.size) / 2));
+			this.labelInset = icon.size + gap;
+		}
+		this.text.setPosition(left + this.labelInset, top);
+		this.text.setSize(Math.max(0, this.width - left - right - this.labelInset), Math.max(0, this.height - top - bottom));
 	}
 }

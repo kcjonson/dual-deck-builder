@@ -384,3 +384,75 @@ describe('screen geometry (R8.13, R8.26)', () => {
 		expect(flat.containsScreenPoint(5, 5)).toBe(false);
 	});
 });
+
+/** Counts state notifications, as a styled component would re-resolve on each. */
+class StateProbe extends Layer {
+	public changes = 0;
+
+	protected onStateChange(): void {
+		this.changes += 1;
+	}
+}
+
+describe('state flags (R11.11)', () => {
+	it('carries every flag, composing rather than ranked', () => {
+		const probe = new StateProbe();
+		probe.setHovered(true);
+		probe.pressed = true;
+		probe.setFocusState(true, true);
+		probe.selected = true;
+		probe.open = true;
+		probe.active = true;
+		probe.dropActive = true;
+
+		expect(probe.stateFlags).toEqual({
+			hovered: true,
+			pressed: true,
+			focused: true,
+			focusVisible: true,
+			enabled: true,
+			selected: true,
+			open: true,
+			active: true,
+			dropActive: true,
+		});
+		expect(probe.changes).toBe(7);
+	});
+
+	it('notifies only on a change', () => {
+		const probe = new StateProbe();
+		probe.selected = false;
+		probe.pressed = false;
+		probe.setHovered(false);
+		expect(probe.changes).toBe(0);
+	});
+
+	it('holds focus-visible only while focused, and drops it with focus', () => {
+		const probe = new StateProbe();
+		probe.setFocusState(false, true);
+		expect(probe.focusVisible).toBe(false);
+		probe.setFocusState(true, true);
+		expect(probe.focusVisible).toBe(true);
+		probe.setFocusState(false, true);
+		expect(probe.focusVisible).toBe(false);
+	});
+
+	it('reports the effective enabled state and tells descendants when an ancestor changes it', () => {
+		const parent = new StateProbe();
+		const child = new StateProbe();
+		parent.addChild(child);
+
+		parent.setEnabled(false);
+
+		expect(child.enabled).toBe(true);
+		expect(child.stateFlags.enabled).toBe(false);
+		expect(child.changes).toBe(1);
+	});
+
+	it('clears pressed when disabled', () => {
+		const probe = new StateProbe();
+		probe.pressed = true;
+		probe.setEnabled(false);
+		expect(probe.pressed).toBe(false);
+	});
+});

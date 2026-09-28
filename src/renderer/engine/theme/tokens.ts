@@ -10,6 +10,7 @@ export const tokens = {
 		bg_panel_raised: [0.1882, 0.2039, 0.2275, 1],
 		bg_hover: [1, 1, 1, 0.045],
 		bg_active: [0.9373, 0.8235, 0.3529, 0.1],
+		bg_pressed: [0, 0, 0, 0.16],
 		line_hairline: [0.9137, 0.8941, 0.8392, 0.1],
 		line_edge: [0.9137, 0.8941, 0.8392, 0.2],
 		line_strong: [0.9137, 0.8941, 0.8392, 0.36],

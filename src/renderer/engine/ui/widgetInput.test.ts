@@ -63,6 +63,46 @@ describe('Button', () => {
 		expect(made.hovered).toBe(false);
 	});
 
+	it('holds pressed from press to release, and drops it when the pointer leaves (R11.11)', () => {
+		const { button: made } = button();
+		inject('move,160,120', 'down,160,120');
+		expect(made.stateFlags).toMatchObject({ hovered: true, pressed: true });
+		inject('up,160,120');
+		expect(made.pressed).toBe(false);
+		inject('down,160,120', 'move,400,400');
+		expect(made.stateFlags).toMatchObject({ hovered: false, pressed: false });
+	});
+
+	it('drops pressed when a window blur cancels the press', () => {
+		const { button: made } = button();
+		inject('move,160,120', 'down,160,120');
+		expect(made.pressed).toBe(true);
+		window.dispatchEvent(new FocusEvent('blur'));
+		context.dispatcher.dispatchPending();
+		expect(made.pressed).toBe(false);
+	});
+
+	it('drops pressed when an ancestor is disabled mid-press, and stays unpressed when it is enabled again', () => {
+		const holder = new Layer({ id: 'holder', width: 800, height: 600 });
+		root.addChild(holder);
+		const made = new Button('Go', { x: 100, y: 100, width: 120, height: 40 });
+		holder.addChild(made);
+		inject('move,160,120', 'down,160,120');
+		expect(made.pressed).toBe(true);
+		holder.setEnabled(false);
+		expect(made.pressed).toBe(false);
+		inject('up,160,120');
+		holder.setEnabled(true);
+		expect(made.pressed).toBe(false);
+	});
+
+	it('is not pressed while disabled', () => {
+		const { button: made } = button();
+		made.setEnabled(false);
+		inject('move,160,120', 'down,160,120');
+		expect(made.pressed).toBe(false);
+	});
+
 	it('does not click when released outside (R9.11)', () => {
 		const { clicks } = button();
 		inject('move,160,120', 'down,160,120');

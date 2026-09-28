@@ -1,6 +1,6 @@
 [
 {"path":"cardShowcaseScreen/showcase_title","text":"Card Showcase","rect":[50,30,168.61,38.4]},
-{"path":"cardShowcaseScreen/Button[2]/Text[1]","text":"Back to Main Menu","rect":[50,802,200,50]},
+{"path":"cardShowcaseScreen/Button[2]/Text[0]","text":"Back to Main Menu","rect":[62,802,176,50]},
 {"path":"cardShowcaseScreen/showcase_scroll/Text[0]","text":"All Cards (27 total)","rect":[20,100,126.36,24]},
 {"path":"cardShowcaseScreen/showcase_scroll/showcase_card_point_blank/showcase_card_point_blank_title","text":"Point Blank","rect":[32,160,101,34]},
 {"path":"cardShowcaseScreen/showcase_scroll/showcase_card_point_blank/showcase_card_point_blank_cost","text":"1","rect":[137.17,160,5.66,24]},

@@ -1,7 +1,6 @@
 import { Component } from '../components/Component';
 import { Text } from '../components/Text';
 import { Panel } from '../ui/Panel';
-import { Button } from '../ui/Button';
 import { Input } from '../ui/Input';
 import { CLIP_NONE, ClipState, intersectClip } from '../draw/clip';
 import { ClipRect, IDENTITY, Mat2D, RGBA, Rect, concat, isTranslateOnly, transformedBounds, translation } from '../draw/geometry';
@@ -24,13 +23,9 @@ import { snapClipRect } from '../coords/snapping';
  * that is always present, because R13.22 states it is null when unset.
  *
  * Backed on every node since the component base (DDB-73): margin, zIndex, the
- * effective layer, enabled, the effective opacity, inkBounds, and the two
- * state flags the base maintains (hovered, focused). Backed where a component
- * has them: clip, contentOffset, transform, text, value, style, and `pressed`
- * on a Button. `focusVisible` is backed on every node since the focus manager
- * (DDB-76). Still absent everywhere, because nothing backs them yet: the
- * other R11.11 flags (selected, open, active, dropActive), which phase 4's
- * state resolution owns.
+ * effective layer, enabled, the effective opacity, inkBounds, and every
+ * R11.11 state flag (the base carries them all since DDB-84). Backed where a
+ * component has them: clip, contentOffset, transform, text, value, style.
  *
  * `focusable` is backed since DDB-76 but not emitted, for the same reason as
  * `pointerEvents` below: the lint reads it as "interactive", and reporting it
@@ -92,13 +87,16 @@ export interface SnapshotViewport {
 	ratio?: number;
 }
 
-/** R11.11's flags minus `enabled`, each present only where something maintains it. */
+/** R11.11's flags minus `enabled`, which is its own field. */
 export interface SnapshotState {
 	hovered: boolean;
+	pressed: boolean;
 	focused: boolean;
-	/** R9.23: focused from the keyboard, so the ring shows. */
 	focusVisible: boolean;
-	pressed?: boolean;
+	selected: boolean;
+	open: boolean;
+	active: boolean;
+	dropActive: boolean;
 }
 
 export interface SnapshotTransform {
@@ -377,13 +375,8 @@ function serializeNode(
 		const transform = snapshotTransform(node);
 		if (transform) serialized.transform = transform;
 
-		const state: SnapshotState = {
-			hovered: node.hovered === true,
-			focused: node.focused === true,
-			focusVisible: node.focusVisible === true,
-		};
-		if (node instanceof Button) state.pressed = node.pressed;
-		serialized.state = state;
+		const { hovered, pressed, focused, focusVisible, selected, open, active, dropActive } = node.stateFlags;
+		serialized.state = { hovered, pressed, focused, focusVisible, selected, open, active, dropActive };
 
 		if (node instanceof Text) serialized.text = snapshotText(node);
 		if (node instanceof Input) serialized.value = safeString(node.getValue()) ?? '';
