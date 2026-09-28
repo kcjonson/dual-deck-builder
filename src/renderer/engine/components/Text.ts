@@ -10,6 +10,7 @@ import type {
 import type { DrawApi } from '../draw/DrawApi';
 import type { MountContext } from './MountContext';
 import { Axis, Size, SizeMode, authoredSizeMode } from './layoutTypes';
+import type { Rect } from '../draw/geometry';
 import type { FontRole } from '../text/fontFaces';
 import { resolveFontRole } from '../text/fontRoles';
 import { Style, StyleParser } from '../types/Style';
@@ -277,6 +278,29 @@ export class Text extends Component {
 
 	public get resolvedColors(): ResolvedColors {
 		return { text: this.color };
+	}
+
+	/**
+	 * The subtree cull's bound on the run (DDB-184): the box grown on every
+	 * side by however far the laid-out run overruns it, so any alignment is
+	 * covered, and by an em beyond that for side bearings, ascenders past a
+	 * tight line height, decorations and the glyph quads' distance-field
+	 * padding. The clip of `overflow: clip` is not relied on, since the ink
+	 * audit compares the unclipped run. Null while nothing has measured,
+	 * because then nothing bounds what `drawText` lays out.
+	 */
+	protected get cullInk(): Rect | null {
+		const metrics = this.currentMetrics;
+		if (!metrics) return null;
+		const spillX = Math.max(0, metrics.width - this.width);
+		const spillY = Math.max(0, metrics.height - this.height);
+		const slack = Math.max(0, this.fontSize);
+		return {
+			x: -spillX - slack,
+			y: -spillY - slack,
+			width: this.width + (spillX + slack) * 2,
+			height: this.height + (spillY + slack) * 2,
+		};
 	}
 
 	get wrap(): TextWrap {

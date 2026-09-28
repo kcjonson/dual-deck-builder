@@ -1,5 +1,7 @@
 import { Component, ComponentOptions } from '../../engine/components/Component';
 import { Icon } from '../../engine/components/Icon';
+import { grownRect } from '../../engine/components/componentGeometry';
+import type { Rect } from '../../engine/draw/geometry';
 import type { DrawApi } from '../../engine/draw/DrawApi';
 import { StyleParser } from '../../engine/types/Style';
 import { tokens } from '../../engine/theme/tokens';
@@ -101,6 +103,14 @@ export class ArmorBadge extends Component {
 		const width = Math.max(this.minWidth, contentWidth);
 		if (width !== this.width) this.setSize(width, this.height);
 		this.measuredLabel = this.label;
+	}
+
+	/**
+	 * The subtree cull's bound (DDB-184): the badge grown by an em of the
+	 * icon, the larger of its two glyph sizes, for glyph quads past the box.
+	 */
+	protected get cullInk(): Rect {
+		return grownRect(this.inkRect, ICON_SIZE);
 	}
 
 	public render(draw: DrawApi): void {
