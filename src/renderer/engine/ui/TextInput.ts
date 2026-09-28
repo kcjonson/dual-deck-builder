@@ -126,6 +126,8 @@ export class TextInput extends Component {
 	private caret = 0;
 	private selectionAnchor = 0;
 	private scrollX = 0;
+	/** The run's width as of the last scroll update, for `cullInk`. */
+	private inkRunWidth = 0;
 	private blinkEpoch = 0;
 	/** A press is selecting: set on the press, cleared on its release. */
 	private dragging = false;
@@ -602,14 +604,34 @@ export class TextInput extends Component {
 	private updateScroll(): void {
 		const visible = this.contentBox.width;
 		const textWidth = this.boundaryX(this.codePoints.length);
-		if (textWidth + CARET_WIDTH <= visible) {
-			this.scrollX = 0;
-			return;
+		let scroll = 0;
+		if (textWidth + CARET_WIDTH > visible) {
+			const caret = this.boundaryX(this.caret);
+			scroll = this.scrollX;
+			if (caret - scroll < 0) scroll = caret;
+			else if (caret - scroll > visible - CARET_WIDTH) scroll = caret - visible + CARET_WIDTH;
+			scroll = clamp(scroll, 0, textWidth + CARET_WIDTH - visible);
 		}
-		const caret = this.boundaryX(this.caret);
-		if (caret - this.scrollX < 0) this.scrollX = caret;
-		else if (caret - this.scrollX > visible - CARET_WIDTH) this.scrollX = caret - visible + CARET_WIDTH;
-		this.scrollX = clamp(this.scrollX, 0, textWidth + CARET_WIDTH - visible);
+		const runWidth = textWidth;
+		if (scroll === this.scrollX && runWidth === this.inkRunWidth) return;
+		this.scrollX = scroll;
+		this.inkRunWidth = runWidth;
+		// The run reaches past the box while scrolled; the cull bound follows it.
+		this.invalidateInk();
+	}
+
+	/**
+	 * R4.2a: what this field draws, clipped or not. The whole run is drawn,
+	 * shifted left by the scroll and cut by the content box's clip, so the
+	 * bound the subtree cull and the ink audit trust spans the run, with a
+	 * glyph's slack for bearings either side.
+	 */
+	protected get cullInk(): Rect {
+		const ink = this.inkRect;
+		const slack = this.textStyle().fontSize;
+		const left = Math.min(ink.x, this.padding.left - this.scrollX - slack);
+		const right = Math.max(ink.x + ink.width, this.padding.left - this.scrollX + this.inkRunWidth + slack);
+		return { x: left, y: ink.y, width: right - left, height: ink.height };
 	}
 
 	private afterCaretMove(): void {
@@ -706,7 +728,7 @@ export class TextInput extends Component {
 				});
 			}
 		} else {
-			const width = Math.max(box.width, this.boundaryX(this.codePoints.length)) + this.scrollX;
+			const width = Math.max(box.width + this.scrollX, this.boundaryX(this.codePoints.length));
 			draw.drawText({
 				text,
 				box: { x: box.x - this.scrollX, y: box.y, width, height: box.height },

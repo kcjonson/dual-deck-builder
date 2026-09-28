@@ -382,6 +382,13 @@ describe('TextInput scrolling and clipping (R12.10, R4.5)', () => {
 		expect(made.scrollOffset).toBe(0);
 	});
 
+	it('bounds the scrolled run in its cull ink, so the ink audit stays quiet (R4.2a)', () => {
+		const made = field({ value: LONG });
+		expect(made.scrollOffset).toBeGreaterThan(0);
+		commands();
+		expect(context.draw.diagnostics.filter((diagnostic) => diagnostic.code === 'ink-outside-bound')).toEqual([]);
+	});
+
 	it('clips its text to the padded content box', () => {
 		field({ value: LONG });
 		const text = commands().find((command): command is TextCommand => command.kind === 'text' && command.text === LONG);
