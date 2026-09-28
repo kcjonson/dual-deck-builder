@@ -5,6 +5,9 @@ import { extractGposKerning, type KerningFont } from '../../../../scripts/gpos-k
 import { parseFontAtlas } from './FontAtlas';
 import { FONT_FACES } from './fontFaces';
 
+// Parses the committed fonts with fontkit, a second or two idle; the 5 s default fails under a loaded machine.
+jest.setTimeout(30_000);
+
 /**
  * The committed atlases themselves, as scripts/build-fonts wrote them. These
  * are the checks a regenerated atlas has to pass before it is committed.

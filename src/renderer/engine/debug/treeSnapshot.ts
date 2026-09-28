@@ -42,9 +42,11 @@ import { snapClipRect } from '../coords/snapping';
  * R4.8), then, around the children only, the clip in the component's own
  * unscrolled space and the content offset inside it (R4.9, R4.10). So
  * `screenBounds`, `clip`, `layer` and `opacity` are what the renderer applied.
- * The clip arithmetic is the draw API's own (`intersectClip`,
+ * The clip arithmetic is the draw API's own: `intersectClip`, whose rect
+ * intersection the draw API's clip stack shares (`intersectClipRectInto`),
  * `transformedBounds`, and under a translation `snapClipRect` at the
- * viewport's ratio, R7.8a), including R4.2's `empty` state, reported as a
+ * viewport's ratio (R7.8a, the same `snapClipRectInto` the draw API snaps a
+ * push with), including R4.2's `empty` state, reported as a
  * zero-sized rect rather than dropped: a node clipped away entirely has a
  * clip, and it contains nothing.
  *

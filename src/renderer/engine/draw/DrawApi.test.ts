@@ -1443,3 +1443,122 @@ describe('R14.1: the module runs with no DOM and no GL', () => {
 		expect(commands).toHaveLength(3);
 	});
 });
+
+describe('pooled stacks (DDB-215)', () => {
+	/** A card-shaped frame: nested translates, a clip, a rounded clip, an opacity and a layer, with `draw` at the deepest level. */
+	function pushFrame(api: DrawApi, x: number, draw?: () => void): void {
+		api.pushTranslate(x, 20);
+		api.pushClip(rect(0, 0, 200, 100));
+		api.pushTransform([2, 0, 0, 2, 5, 5]);
+		api.pushOpacity(0.5);
+		api.pushLayer('overlay');
+		api.pushClipRounded(rect(0, 0, 40, 40), 6);
+		draw?.();
+		api.popClip();
+		api.popLayer();
+		api.popOpacity();
+		api.popTransform();
+		api.popClip();
+		api.popTransform();
+	}
+
+	/** The live transform and clip at every depth `pushFrame` reaches. */
+	function levels(api: DrawApi, x: number): object[] {
+		const seen: object[] = [];
+		const record = (): void => {
+			seen.push(api.transform, api.clip);
+		};
+		api.pushTranslate(x, 20);
+		record();
+		api.pushClip(rect(0, 0, 200, 100));
+		record();
+		api.pushTransform([2, 0, 0, 2, 5, 5]);
+		record();
+		api.pushClipRounded(rect(0, 0, 40, 40), 6);
+		record();
+		api.popClip();
+		api.popTransform();
+		api.popClip();
+		api.popTransform();
+		return seen;
+	}
+
+	it('reuses the same stack frames across frames and between siblings, so a push allocates nothing once warm', () => {
+		const { api } = harness();
+		const distinct = new Set<object>();
+		let first: object[] = [];
+		for (let frame = 0; frame < 50; frame++) {
+			api.beginFrame({ viewport: VIEWPORT });
+			for (let sibling = 0; sibling < 4; sibling++) {
+				const seen = levels(api, sibling * 50 + frame);
+				if (frame === 0 && sibling === 0) first = seen;
+				for (const object of seen) distinct.add(object);
+				seen.forEach((object, index) => expect(object).toBe(first[index]));
+			}
+			api.endFrame();
+		}
+		// Two pushed transform levels, two pushed clip levels and the root's
+		// `none`, and nothing new in 200 walks at different offsets: the pool
+		// is as deep as the nesting and no deeper.
+		expect(distinct.size).toBe(5);
+		expect(codes(api)).not.toContain('unbalanced-stack');
+	});
+
+	it('shares one captured transform and clip between draws under one push', () => {
+		const { api, backend } = harness();
+		api.beginFrame({ viewport: VIEWPORT });
+		pushFrame(api, 10, () => {
+			api.drawRect({ rect: rect(0, 0, 10, 10), fill: BLUE, id: 'a' });
+			api.drawRect({ rect: rect(10, 0, 10, 10), fill: RED, id: 'b' });
+		});
+		api.endFrame();
+
+		const [a, b] = backend.commands;
+		expect(a.transform).toBe(b.transform);
+		expect(a.clip).toBe(b.clip);
+		// Captured, never the live level: the next push there cannot reach it.
+		expect(a.transform).not.toBe(api.transform);
+	});
+
+	it('keeps what a command captured when a later push overwrites its level, in the frame and after it', () => {
+		const { api, backend } = harness();
+		api.beginFrame({ viewport: VIEWPORT });
+		pushFrame(api, 10, () => api.drawRect({ rect: rect(0, 0, 10, 10), fill: BLUE, id: 'first' }));
+		pushFrame(api, 300, () => api.drawRect({ rect: rect(0, 0, 10, 10), fill: BLUE, id: 'second' }));
+		api.endFrame();
+		const [first, second] = backend.commands;
+		const snapshot = JSON.parse(JSON.stringify(first));
+
+		api.beginFrame({ viewport: VIEWPORT });
+		pushFrame(api, 600);
+		api.endFrame();
+
+		expect(JSON.parse(JSON.stringify(first))).toEqual(snapshot);
+		expect(first.transform).toEqual([2, 0, 0, 2, 15, 25]);
+		expect(second.transform).toEqual([2, 0, 0, 2, 305, 25]);
+		expect(first.clip).toEqual({
+			kind: 'rect',
+			rect: { minX: 15, minY: 25, maxX: 95, maxY: 105 },
+			rounded: { rect: { minX: 15, minY: 25, maxX: 95, maxY: 105 }, radius: 6 },
+		});
+		expect(first.opacity).toBe(0.5);
+		expect(first.layer).toBe('overlay');
+	});
+
+	it('carries an outer rounded clip into a plain clip pushed inside it', () => {
+		const { api, backend } = harness();
+		api.beginFrame({ viewport: VIEWPORT });
+		api.pushClipRounded(rect(0, 0, 100, 100), 8);
+		api.pushClip(rect(10, 10, 200, 200));
+		api.drawRect({ rect: rect(0, 0, 10, 10), fill: BLUE });
+		api.popClip();
+		api.popClip();
+		api.endFrame();
+
+		expect(backend.commands[0].clip).toEqual({
+			kind: 'rect',
+			rect: { minX: 10, minY: 10, maxX: 100, maxY: 100 },
+			rounded: { rect: { minX: 0, minY: 0, maxX: 100, maxY: 100 }, radius: 8 },
+		});
+	});
+});

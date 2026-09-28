@@ -1171,19 +1171,16 @@ describe('Stack measurement cost', () => {
 		const root = tree(8, leaves);
 		const measures = jest.spyOn(Stack.prototype as unknown as { computeMeasure(): Size }, 'computeMeasure');
 
-		const started = performance.now();
 		const context = layOut(root);
-		const elapsed = performance.now() - started;
 
-		// 255 stacks. Uncached this was N squared (65,025 at this size) and 1.6 s.
+		// 255 stacks. Uncached this was N squared (65,025 at this size). The
+		// call count is the bound, not wall-clock time, which flakes on a
+		// loaded runner (DDB-213).
 		expect(measures.mock.calls.length).toBeLessThan(255 * 8);
-		expect(elapsed).toBeLessThan(500);
 
 		measures.mockClear();
 		leaves[0].height = 12;
-		const again = performance.now();
 		layOut(root, context);
-		expect(performance.now() - again).toBeLessThan(200);
 		// One leaf changed: only its ancestors measure again.
 		expect(measures.mock.calls.length).toBeLessThan(8 * 8);
 		expect(root.height).toBeGreaterThan(0);
