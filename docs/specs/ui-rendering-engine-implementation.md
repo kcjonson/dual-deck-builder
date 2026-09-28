@@ -83,12 +83,12 @@ Visible result: text can be covered by later shapes, rounded corners and borders
 
 ### Phase 2: text (chapter 6)
 
-- [ ] Font pipeline per section 5: faces, licences, `charset.txt`, `build-fonts` script, committed atlases, loader with R6.2 validation.
+- [x] Font pipeline per section 5: faces, licences, `charset.txt`, `build-fonts` script, committed atlases, loader with R6.2 validation (DDB-69: Barlow Condensed SemiBold, Open Sans, JetBrains Mono; see [font-pipeline.md](../AI_TECHNICAL_DECISIONS/font-pipeline.md)).
 - [ ] Metrics service: shared measure and render iteration, kerning, letter spacing, transform, ascent centring, greedy wrap with `Intl.Segmenter`, ellipsis, decoration, measurement cache keyed on role (6.3, 6.4).
 - [ ] `text` mode (median of three, derivative range), run-origin snapping, text shadow (6.2, 6.5); the `mask` mode, `FontAtlas` canvas rasterisation, and the old text batching deleted.
 - [ ] `Text` component on real metrics: top-left line box, roles, `fontWeight` through the theme table, `fontFamily` alias, `nowrap` plus `ellipsis` truncates (R12.4); the estimate sites (`Text.layout`, wrapping, the synergy panel, driver stats, the input caret) replaced.
 - [ ] Icon atlas and the six symbol-glyph sites (R12.6).
-- [ ] Electron packaged build smoke-tested for the asset path (R15.34).
+- [x] Electron packaged build smoke-tested for the asset path (R15.34): `scripts/smoke-electron-package.mjs` in both Electron Build jobs (DDB-69).
 
 Visible result: crisp text from 8 to 64 px in the new faces, centred titles centred (DDB-30), bold titles bold, symbols rendered; every measured layout shifts once and the goldens are re-baselined deliberately.
 
@@ -109,7 +109,8 @@ Visible result: overlapping vehicles receive one click; scrolled-out or hidden c
 
 - [ ] Stack container: fixed, hug, fill with weights, six distributions, four cross alignments and `alignSelf`, per-pass resolved sizes, the three passes with shrink-to-fit and safe alignment, `minSize`, `maxSize`, `aspectRatio`, negative gap, absolute children with anchor and pivot, roots sized from the viewport (chapter 10); worldsim's layout suite ported as the conformance suite plus the added cases (10.9).
 - [ ] Combat screen as the first stack consumer: a 36px top bar, the road filling the rest, and a 228px dock, on the 1280x720 logical reference with `s = min(W/1280, H/720)` floored at 0.8, per [Battle Screen Design](./Battle%20Screen%20Design.md) section 2; the log as an anchored absolute drawer; the second layout deleted.
-- [ ] Token file, generator, committed `tokens.ts`, drift test (R11.1 to R11.4); the two-accent, five-surface, radius, spacing, type-role, and `control` tokens as the starting theme (11.2).
+- [x] Token file, generator, committed `tokens.ts`, drift test (R11.1 to R11.4); the two-accent, five-surface, radius, spacing, type-role, and `control` tokens as the starting theme (11.2).
+  DDB-83. The palette comes from the battle screen mock; format, sources, and departures are in [theme-tokens.md](../AI_TECHNICAL_DECISIONS/theme-tokens.md).
 - [ ] Framework-maintained state flags, layered state resolution, closed style property set rejected rather than ignored, override semantics, token-driven transitions (11.3, 11.4). `Button` and `Input` stop ignoring their style objects; the START RUN and END TURN colour hacks become variants.
 
 Visible result: every button changes appearance once (they ignore their styles today), so this phase is the third deliberate re-baseline; resizing the combat screen re-runs one layout.

@@ -111,7 +111,7 @@ Every card carries two texts.
 
 ## 7. Colour
 
-Driver identity owns the two strongest hues and nothing else uses them: driver 1 amber with a triangle, driver 2 teal with a diamond. Escorts are neutral bone with a square. Raiders and attack intents are red. Structure green, armor steel, driver HP pink-red. Yellow is keywords, warnings, and the centre line. Rarity is a small gem on the card and never a border colour. Every colour cue has a shape twin.
+Driver identity owns the two strongest hues and nothing else uses them: driver 1 amber with a triangle, driver 2 teal with a diamond. Escorts are neutral bone with a square. Raiders and attack intents are red. Structure green, armor steel, driver HP pink-red. Yellow is keywords, warnings, the centre line, and interaction (focus, hover, primary actions). Rarity is a small gem on the card and never a border colour. The UI theme adds three hues nothing above uses: periwinkle for read-only data and information, mint for ok, pink for critical ([theme-tokens.md](../AI_TECHNICAL_DECISIONS/theme-tokens.md)). Every colour cue has a shape twin.
 
 ## 8. Text budget
 

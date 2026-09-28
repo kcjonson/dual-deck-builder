@@ -29,6 +29,22 @@ module.exports = merge(common, {
 	devtool: process.env.NODE_ENV === 'production' ? 'source-map' : 'eval-source-map',
 	entry: galleryEntry,
 	plugins: galleryPlugins,
+	module: {
+		rules: [
+			// R15.34: atlas images are asset modules, emitted as files beside the
+			// bundle for the web build. The Electron renderer inlines them instead.
+			{
+				test: /\.png$/,
+				type: 'asset/resource',
+				generator: { filename: 'assets/fonts/[name].[contenthash][ext]' },
+			},
+		],
+	},
+	performance: {
+		// A 1024x512 atlas page is ~300 KiB and loads once; the size hint is for
+		// code, where splitting helps, not for a texture that cannot be split.
+		assetFilter: (file) => !/\.png$/.test(file),
+	},
 	output: {
 		filename: '[name].[contenthash].js',
 		path: path.resolve(__dirname, '../dist/web'),
