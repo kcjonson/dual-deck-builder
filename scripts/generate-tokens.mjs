@@ -327,7 +327,8 @@ function main(argv) {
 	if (argv.includes('--check')) {
 		let committed = '';
 		try {
-			committed = readFileSync(defaultOutput, 'utf8');
+			// A Windows checkout with autocrlf holds CRLF; line endings are not drift.
+			committed = readFileSync(defaultOutput, 'utf8').replace(/\r\n/g, '\n');
 		} catch {
 			// A missing module is stale by definition.
 		}

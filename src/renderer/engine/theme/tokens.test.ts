@@ -61,7 +61,8 @@ describe('tokens.ts (R11.2)', () => {
 		const result = runGenerator(['--stdout']);
 		expect(result.stderr).toBe('');
 		expect(result.status).toBe(0);
-		expect(readFileSync(modulePath, 'utf8')).toBe(result.stdout);
+		// A Windows checkout with autocrlf holds CRLF; the generator writes LF.
+		expect(readFileSync(modulePath, 'utf8').replace(/\r\n/g, '\n')).toBe(result.stdout);
 	});
 
 	it('carries every token of the file with the same value, and css-only tokens nowhere', () => {
