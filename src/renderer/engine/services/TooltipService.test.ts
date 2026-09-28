@@ -204,6 +204,26 @@ describe('TooltipService (R12.22)', () => {
 		expect(context.tooltips.state).toBe('hiding');
 	});
 
+	it('shows from Tab through the focus manager, and not from focus a press gave', () => {
+		save.focusable = true;
+		load.focusable = true;
+		send(context, [pointer('move', 700, 500), pointer('down', 120, 110), pointer('up', 120, 110), pointer('move', 700, 500)]);
+		expect(context.focus.focused).toBe(save);
+		advance(context, DELAY * 2);
+		expect(tooltipRoot()).toBeUndefined();
+
+		send(context, [key('Tab')]);
+		expect(context.focus.focused).toBe(load);
+		expect(context.tooltips.trigger).toBe('focus');
+		advance(context, DELAY + 16);
+		expect(context.tooltips.owner).toBe(load);
+		expect(tooltipRoot()).toBeDefined();
+	});
+
+	it('reads the drag service for R9.12e', () => {
+		expect(context.tooltips.dragActive()).toBe(context.drag.isDragging);
+	});
+
 	it('shows at once through show(), and hides on Escape without consuming it', () => {
 		const heard: string[] = [];
 		context.dispatcher.hotkeys.register('Escape', () => heard.push('scene'));

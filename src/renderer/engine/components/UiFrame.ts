@@ -33,7 +33,10 @@ export class UiFrame {
 	private readonly dirty = new Set<Component>();
 	private tickers = new Set<FrameTicker>();
 	private spareTickers = new Set<FrameTicker>();
+	/** Mounted roots, for `viewportChanged`. */
+	private readonly roots = new Set<Component>();
 	private layoutRuns = 0;
+	private readonly layoutListeners: (() => void)[] = [];
 
 	constructor({ clock, animator }: { clock: Clock; animator: Animator }) {
 		this.clock = clock;
@@ -53,6 +56,24 @@ export class UiFrame {
 		this.requested.delete(component);
 		this.spare.delete(component);
 		this.dirty.delete(component);
+		this.roots.delete(component);
+	}
+
+	/** Called by the base class when a root mounts. */
+	public addRoot(root: Component): void {
+		this.roots.add(root);
+	}
+
+	/**
+	 * The viewport's logical size changed. Every root sized from it (a `fill`
+	 * axis, R8.21) is invalidated, so the resize re-lays out through the same
+	 * path as the first layout, with no screen code involved.
+	 */
+	public viewportChanged(): void {
+		for (const root of this.roots) {
+			if (root.parent !== null) continue;
+			if (root.widthMode === 'fill' || root.heightMode === 'fill') root.invalidateLayout();
+		}
 	}
 
 	public get hasUpdateRequests(): boolean {
@@ -105,6 +126,15 @@ export class UiFrame {
 		this.dirty.add(boundary);
 	}
 
+	/**
+	 * Runs after every `layout`, whether or not anything was dirty: the focus
+	 * manager's fixup (R9.28), which has to see a component hidden or
+	 * disabled since the last frame.
+	 */
+	public afterLayout(listener: () => void): void {
+		this.layoutListeners.push(listener);
+	}
+
 	public get layoutPending(): boolean {
 		return this.dirty.size > 0;
 	}
@@ -137,6 +167,7 @@ export class UiFrame {
 				if (boundary.isMounted) boundary.layoutSubtree();
 			}
 		}
+		for (const listener of this.layoutListeners) listener();
 	}
 }
 

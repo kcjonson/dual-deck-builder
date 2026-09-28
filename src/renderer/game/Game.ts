@@ -84,6 +84,8 @@ export class Game {
 			viewportWidth: viewport.logical.width,
 		});
 		viewport.onChange(({ width, height }) => {
+			// Roots sized from the viewport re-lay out on their own (R8.21).
+			this.context.frame.viewportChanged();
 			ScreenManager.resize(width, height);
 			this.context.overlays.resize();
 			this.developerOverlay.viewportWidth = width;

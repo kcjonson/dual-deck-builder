@@ -7,7 +7,7 @@ import { DriverSeat, PlayerHandView } from './PlayerHandView';
 
 /**
  * Player hand layer, the combat screen band below the player battlefield
- * Displays hand of cards with hover effects and drag targeting
+ * Displays hand of cards with hover effects; a card is played by clicking it, then its target
  */
 export class PlayerHandLayer extends Layer {
 	private background: Rectangle;
@@ -41,7 +41,8 @@ export class PlayerHandLayer extends Layer {
 	 * Create player hand layer
 	 */
 	constructor(options: LayerOptions & { x: number; y: number; width: number; height: number }) {
-		super(options);
+		// R9.29: the hand is one Tab stop; Left and Right move between its cards.
+		super({ focusGroup: { orientation: 'horizontal' }, ...options });
 
 		// Hand background
 		this.background = new Rectangle({
@@ -171,6 +172,7 @@ export class PlayerHandLayer extends Layer {
 				size: this.CARD_SIZE,
 				driverNumber: driverNumber,
 			});
+			cardElement.focusable = true;
 
 			// Set up card interactivity
 			this.setupCardInteractivity(cardElement, card);
@@ -251,6 +253,28 @@ export class PlayerHandLayer extends Layer {
 				cardElement.enabled = this.canPlayCard(card);
 			}
 		});
+	}
+
+	/** The slot `card` holds in the hand, or -1. */
+	public slotOf(card: Card): number {
+		return this.handCards.findIndex(held => held.id === card.id);
+	}
+
+	/**
+	 * Focuses the card that can take focus nearest `slot`, at or after it
+	 * first, for a keyboard player whose card was just played or put back:
+	 * the hand is rebuilt on every change, so the focused card is gone.
+	 * False when no card can take focus.
+	 */
+	public focusNearSlot(slot: number): boolean {
+		const focus = this.context?.focus;
+		if (!focus) return false;
+		const after = this.cardElements.slice(Math.max(0, slot));
+		const before = this.cardElements.slice(0, Math.max(0, slot)).reverse();
+		for (const cardElement of [...after, ...before]) {
+			if (focus.focus(cardElement)) return true;
+		}
+		return false;
 	}
 
 	/**

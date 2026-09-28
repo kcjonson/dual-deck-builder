@@ -1,6 +1,7 @@
 import { Component } from '../components/Component';
 import { Text } from '../components/Text';
 import { Panel } from '../ui/Panel';
+import { Stack } from '../components/Stack';
 import { Input } from '../ui/Input';
 import { CLIP_NONE, ClipState, intersectClip } from '../draw/clip';
 import { ClipRect, IDENTITY, Mat2D, RGBA, Rect, concat, isTranslateOnly, transformedBounds, translation } from '../draw/geometry';
@@ -26,8 +27,11 @@ import { snapClipRect } from '../coords/snapping';
  * effective layer, enabled, the effective opacity, inkBounds, and every
  * R11.11 state flag (the base carries them all since DDB-84). Backed where a
  * component has them: clip, contentOffset, transform, text, value, style.
- * Still absent everywhere, because nothing backs it yet: focusable (the focus
- * manager's).
+ *
+ * `focusable` is backed since DDB-76 but not emitted, for the same reason as
+ * `pointerEvents` below: the lint reads it as "interactive", and reporting it
+ * would wake rules 6 and 7 on every Button in the gallery, which is a call
+ * for whoever settles what "interactive" means there.
  *
  * `pointerEvents` is backed but deliberately not emitted. R13.22 does not name
  * it, and the lint reads it as "interactive" for rules 6 and 7 (R13.25.6),
@@ -125,6 +129,16 @@ export interface SnapshotStyle {
 	border?: number[];
 }
 
+/**
+ * A stack container's flow: not a field R13.22 names, but R13.25.1's
+ * sibling-overlap allowance ("beyond what a negative stack gap allows") needs
+ * the gap, and the direction says which axis it applies to.
+ */
+export interface SnapshotStack {
+	direction: 'vertical' | 'horizontal';
+	gap: number;
+}
+
 export interface SnapshotNode {
 	id: string | null;
 	type: string;
@@ -149,6 +163,7 @@ export interface SnapshotNode {
 	style?: SnapshotStyle;
 	/** The content box grown by `inkExtent`, in the viewport, before any clip (R8.8). */
 	inkBounds?: SnapshotRect;
+	stack?: SnapshotStack;
 	/**
 	 * The owning component's own drawings (R8.1, R3.18), absent when it has
 	 * none. Not a field R13.22 names: R13.22 describes the tree R8.6 allows,
@@ -323,8 +338,9 @@ function serializeNode(
 		serialized.id = safeString(node.id);
 		serialized.type = typeof node.getComponentType === 'function' ? String(node.getComponentType()) : 'Unknown';
 
-		const x = finite(node.x);
-		const y = finite(node.y);
+		// The placed margin box: position plus any anchor shift (R10.15).
+		const x = finite(node.placedX);
+		const y = finite(node.placedY);
 		const w = finite(node.width);
 		const h = finite(node.height);
 		const margin = node.margin;
@@ -335,8 +351,9 @@ function serializeNode(
 			left: finite(margin.left),
 		};
 
-		// Origin, then transform: `renderTree`'s order, and `localMatrix`'s.
-		const origin = translation(x + edges.left, y + edges.top);
+		// Origin, then transform: `renderTree`'s order, and `localMatrix`'s,
+		// from the one placed-origin accessor they all read.
+		const origin = translation(finite(node.originX), finite(node.originY));
 		const own = node.transformMatrix;
 		const matrix = concat(context.matrix, own ? concat(origin, own) : origin);
 
@@ -377,6 +394,7 @@ function serializeNode(
 
 		if (node instanceof Text) serialized.text = snapshotText(node);
 		if (node instanceof Input) serialized.value = safeString(node.getValue()) ?? '';
+		if (node instanceof Stack) serialized.stack = { direction: node.direction, gap: finite(node.gap) };
 
 		const style = snapshotStyle(node);
 		if (style) serialized.style = style;

@@ -4,6 +4,7 @@
 import { Layer } from '../components/Layer';
 import type { MountContext } from '../components/MountContext';
 import { createTestContext, injectNow } from '../components/testing';
+import { NO_MODIFIERS } from '../input/events';
 import { PointerAdapter } from '../input/PointerAdapter';
 import { Button } from './Button';
 import { Input } from './Input';
@@ -127,6 +128,48 @@ describe('Button', () => {
 		expect(clicks).toHaveLength(1);
 		expect(under).toHaveLength(0);
 	});
+
+	it('clicks from Enter and Space once focused by Tab, once for a held key (R12.7, R9.27)', () => {
+		const { button: made, clicks } = button();
+		inject('keydown,Tab', 'keyup,Tab');
+		expect(made.focused).toBe(true);
+		expect(made.focusVisible).toBe(true);
+
+		inject('keydown,Enter', 'keyup,Enter', 'keydown, ', 'keyup, ');
+		expect(clicks).toHaveLength(2);
+
+		context.dispatcher.enqueue({ kind: 'key', phase: 'down', key: 'Enter', repeat: false, modifiers: NO_MODIFIERS });
+		context.dispatcher.enqueue({ kind: 'key', phase: 'down', key: 'Enter', repeat: true, modifiers: NO_MODIFIERS });
+		context.dispatcher.dispatchPending();
+		expect(clicks).toHaveLength(3);
+	});
+
+	it('clicks once when a click disables it and Enter comes twice in one frame, then loses focus at layout (R9.28)', () => {
+		const { button: made, clicks } = button();
+		made.onClick = () => {
+			clicks.push(1);
+			made.setEnabled(false);
+		};
+		inject('keydown,Tab', 'keyup,Tab');
+		for (const repeat of [false, false]) {
+			context.dispatcher.enqueue({ kind: 'key', phase: 'down', key: 'Enter', repeat, modifiers: NO_MODIFIERS });
+			context.dispatcher.enqueue({ kind: 'key', phase: 'up', key: 'Enter', repeat: false, modifiers: NO_MODIFIERS });
+		}
+		context.dispatcher.dispatchPending();
+		expect(clicks).toHaveLength(1);
+		expect(made.focused).toBe(true);
+
+		context.frame.layout();
+		expect(made.focused).toBe(false);
+		expect(context.focus.focused).toBeNull();
+	});
+
+	it('takes focus from a press without showing it (R9.23)', () => {
+		const { button: made } = button();
+		inject('click,160,120');
+		expect(made.focused).toBe(true);
+		expect(made.focusVisible).toBe(false);
+	});
 });
 
 describe('Input', () => {
@@ -154,7 +197,7 @@ describe('Input', () => {
 		inject('click,150,220');
 		inject('click,600,500');
 		expect(made.focused).toBe(false);
-		expect(context.dispatcher.focused).toBeNull();
+		expect(context.focus.focused).toBeNull();
 
 		inject('click,150,220', 'keydown,Enter');
 		expect(made.focused).toBe(false);

@@ -64,13 +64,17 @@ describe('input observers', () => {
 		target.onPointerDown = () => heard.push('down');
 		target.onPointerUp = () => heard.push('up');
 		target.onClick = () => heard.push('click');
+		target.focusable = true;
 		scene.addChild(target);
 		scene.mount(context);
 	});
 
 	it('hears a press before delivery, and a swallowed press delivers neither itself, its release, a click nor a focus change', () => {
 		const presses: (Component | null)[] = [];
-		context.dispatcher.focus(target);
+		const other = root('other', 200, 200);
+		other.focusable = true;
+		target.parent?.addChild(other);
+		context.focus.focus(other);
 		context.dispatcher.addObserver({
 			pointerDown: (press: PointerPress) => {
 				presses.push(press.target);
@@ -80,7 +84,7 @@ describe('input observers', () => {
 		send(context, [pointer('down', 50, 50), pointer('up', 50, 50)]);
 		expect(presses).toEqual([target]);
 		expect(heard).toEqual([]);
-		expect(context.dispatcher.focused).toBe(target);
+		expect(context.focus.focused).toBe(other);
 	});
 
 	it('tells later observers whether an earlier one swallowed the press', () => {
@@ -122,17 +126,38 @@ describe('input observers', () => {
 		expect(heard).toEqual(['observer:k', 'observer:j', 'hotkey']);
 	});
 
-	it('reports hover changes, moves, and focus changes', () => {
+	it('reports hover changes and moves', () => {
 		const events: string[] = [];
 		context.dispatcher.addObserver({
 			hoverChange: (hovered) => events.push(`hover:${hovered?.id ?? 'none'}`),
 			pointerMove: (position) => events.push(`move:${position.x}`),
-			focusChange: (focused) => events.push(`focus:${focused?.id ?? 'none'}`),
 		});
 		send(context, [pointer('move', 50, 50), pointer('move', 60, 50), pointer('move', 300, 300)]);
-		context.dispatcher.focus(target);
-		expect(events).toEqual(['hover:target', 'move:50', 'move:60', 'hover:none', 'move:300', 'focus:target']);
+		expect(events).toEqual(['hover:target', 'move:50', 'move:60', 'hover:none', 'move:300']);
 		expect(context.dispatcher.hoverPoint).toEqual({ x: 300, y: 300 });
+	});
+});
+
+describe('FocusManager.onFocusChange', () => {
+	it('reports each change of the focused component and of its visibility once, including an unmount', () => {
+		const heard: string[] = [];
+		const scene = new Layer({ id: 'scene', width: 400, height: 400 });
+		const a = root('a');
+		const b = root('b', 200, 0);
+		a.focusable = true;
+		b.focusable = true;
+		scene.addChild(a);
+		scene.addChild(b);
+		scene.mount(context);
+		const stop = context.focus.onFocusChange((focused, visible) => heard.push(`${focused?.id ?? 'none'}:${visible}`));
+
+		send(context, [pointer('down', 50, 50), pointer('up', 50, 50)]);
+		context.focus.focus(a);
+		send(context, [key('Tab')]);
+		scene.removeChild(b);
+		stop();
+		context.focus.focus(a);
+		expect(heard).toEqual(['a:false', 'b:true', 'none:false']);
 	});
 });
 

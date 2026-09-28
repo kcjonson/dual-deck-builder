@@ -181,6 +181,35 @@ describe('OverlayService (R8.21)', () => {
 		expect(heard).toEqual(['popover', 'scene', 'modal']);
 	});
 
+	it('marks a modal root modal and traps focus in it, restoring focus on close (R9.20)', () => {
+		const behind = box('behind', 0, 0, 50, 50);
+		behind.focusable = true;
+		scene.addChild(behind);
+		context.focus.focus(behind);
+
+		const dialog = new Layer({ id: 'dialog', width: 400, height: 300 });
+		const ok = box('ok', 10, 10, 80, 30);
+		ok.focusable = true;
+		dialog.addChild(ok);
+		const handle = context.overlays.open(dialog, { layer: 'modal' });
+		expect(handle.root.modal).toBe(true);
+		expect(context.focus.activeScope).toBe(handle.root);
+		expect(context.focus.focused).toBe(ok);
+
+		send(context, [key('Tab')]);
+		expect(context.focus.focused).toBe(ok);
+
+		handle.close();
+		expect(context.focus.activeScope).toBeNull();
+		expect(context.focus.focused).toBe(behind);
+	});
+
+	it('leaves a non-modal root unmarked and focus where it was', () => {
+		const handle = context.overlays.open(box('popover', 0, 0), { layer: 'overlay' });
+		expect(handle.root.modal).toBe(false);
+		expect(context.focus.activeScope).toBeNull();
+	});
+
 	it('closes everything with closeAll', () => {
 		context.overlays.open(box('a', 0, 0), { layer: 'overlay' });
 		context.overlays.open(box('b', 0, 0), { layer: 'modal' });

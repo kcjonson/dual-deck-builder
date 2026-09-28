@@ -135,9 +135,11 @@ describe('PopupService (R12.31)', () => {
 
 	it('closes when focus moves outside the popup and its trigger (R9.14)', () => {
 		const { reasons } = openMenu();
-		context.dispatcher.focus(trigger);
+		trigger.focusable = true;
+		otherTrigger.focusable = true;
+		context.focus.focus(trigger);
 		expect(reasons).toEqual([]);
-		context.dispatcher.focus(otherTrigger);
+		context.focus.focus(otherTrigger);
 		expect(reasons).toEqual(['focus-loss']);
 	});
 

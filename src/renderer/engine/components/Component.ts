@@ -15,7 +15,21 @@ import {
 	transformMatrix,
 } from './componentGeometry';
 import type { MountContext } from './MountContext';
-import type { AnyUiEvent, UiKeyEvent, UiPointerEvent, UiWheelEvent } from '../input/events';
+import {
+	AnchorInput,
+	Axis,
+	AxisLimits,
+	CrossAlign,
+	Fraction2,
+	Positioned,
+	Size,
+	SizeMode,
+	TOP_LEFT,
+	normalizeAnchor,
+} from './layoutTypes';
+import type { AnyUiEvent, UiActionEvent, UiDragEvent, UiFocusEvent, UiKeyEvent, UiPointerEvent, UiWheelEvent } from '../input/events';
+import type { FocusDirection, FocusGroupConfig } from '../input/FocusManager';
+import { HotkeyTable } from '../input/HotkeyTable';
 import type { RootTier } from '../input/Dispatcher';
 import { TooltipInput, TooltipSpec, normalizeTooltip } from '../services/tooltipSpec';
 import type { StateFlags } from '../style/look';
@@ -45,7 +59,7 @@ export type Quad = readonly [Vec2, Vec2, Vec2, Vec2];
 
 /**
  * Named constructor arguments shared by every component (R8.2, R8.23).
- * Layout's sizing modes, focus, tooltips and the event callbacks arrive with
+ * Layout's sizing modes, tooltips and the drag callbacks arrive with
  * the phase that owns them (chapters 9 to 12).
  */
 export interface ComponentOptions {
@@ -74,6 +88,30 @@ export interface ComponentOptions {
 	tooltip?: TooltipInput | null;
 	/** A press here is not consumed by an open popup's outside-press close (R9.13). */
 	popupTrigger?: boolean;
+	/** R9.18: takes focus from a press, Tab, arrows, or `focus()`. */
+	focusable?: boolean;
+	/** R9.18: above 0 comes first in Tab order, ascending; below 0 is focusable but never a Tab stop. */
+	tabIndex?: number;
+	/** R9.29: one Tab stop whose focusable descendants the arrows move between. `true` is both axes, no wrap. */
+	focusGroup?: boolean | Partial<FocusGroupConfig>;
+	/** R10.1's sizing modes. Absent takes the kind's default: `fixed`, or `hug` for text and stacks without a size. */
+	widthMode?: SizeMode;
+	heightMode?: SizeMode;
+	/** This component's share of a parent stack's main-axis leftover when it is `fill` (R10.3). Default 1. */
+	fillWeight?: number;
+	/** Clamps on the resolved content size, per axis (R10.4). */
+	minSize?: AxisLimits;
+	maxSize?: AxisLimits;
+	/** Width over height: an axis the parent does not assign is resolved from the one it does (R10.4). */
+	aspectRatio?: number;
+	/** Overrides the parent stack's `crossAlign` for this child (R10.4). */
+	alignSelf?: CrossAlign;
+	/** `absolute` leaves the parent stack's flow and is placed by `anchor` and `pivot` (R10.15). */
+	positioned?: Positioned;
+	/** A point of the parent's content box, as fractions or a named shorthand (R10.15). Default `topLeft`. */
+	anchor?: AnchorInput;
+	/** The point of this component's margin box placed on the anchor. Defaults to `anchor`. */
+	pivot?: AnchorInput;
 }
 
 export interface RootMountOptions {
@@ -82,8 +120,12 @@ export interface RootMountOptions {
 }
 
 export type PointerCallback = (event: UiPointerEvent) => void;
+/** A pointer click, or `activate` on a component that treats activation as a click (R12.7). */
+export type ClickCallback = (event: UiPointerEvent | UiActionEvent) => void;
+export type FocusCallback = (event: UiFocusEvent) => void;
 export type WheelCallback = (event: UiWheelEvent) => void;
 export type KeyCallback = (event: UiKeyEvent) => void;
+export type DragCallback = (event: UiDragEvent) => void;
 
 /**
  * Keyed reconciliation callbacks (R8.27). `remove` may return a promise to
@@ -118,6 +160,13 @@ export abstract class Component {
 	private positionY = 0;
 	private contentWidth = 0;
 	private contentHeight = 0;
+	/**
+	 * The size this component was given, by construction or a setter, which
+	 * a layout assignment never overwrites: what a component with no content
+	 * to measure hugs to (R10.5).
+	 */
+	private givenWidth = 0;
+	private givenHeight = 0;
 	private ownVisible = true;
 	private ownEnabled = true;
 	private ownOpacity = 1;
@@ -136,6 +185,13 @@ export abstract class Component {
 	private openState = false;
 	private activeState = false;
 	private dropActiveState = false;
+	private ownFocusable = false;
+	private ownTabIndex = 0;
+	private ownFocusGroup: FocusGroupConfig | null = null;
+	private groupActiveChild: Component | null = null;
+	private hotkeyTable: HotkeyTable | null = null;
+	/** Set while this component is a drag ghost (R9.12b): its travel in the parent's space. */
+	private dragGhostOffset: Vec2 | null = null;
 	private parentComponent: Component | null = null;
 	private mountContext: MountContext | null = null;
 	/** This subtree has to be laid out: set here and on every ancestor up to the boundary (R8.18). */
@@ -148,15 +204,38 @@ export abstract class Component {
 	private [RECONCILE_KEY]: string | undefined;
 	/** Removed by `reconcileChildren` and still drawn while its exit runs. */
 	private exiting = false;
+	/** `cachedMeasure`'s results since the last invalidation; null until first used. */
+	private measureCache: Map<string, Size> | null = null;
+	private ownWidthMode: SizeMode;
+	private ownHeightMode: SizeMode;
+	private ownFillWeight = 1;
+	private ownMinSize: AxisLimits = NO_LIMITS;
+	private ownMaxSize: AxisLimits = NO_LIMITS;
+	private ownAspectRatio: number | null = null;
+	private ownAlignSelf: CrossAlign | null = null;
+	private ownPositioned: Positioned = 'flow';
+	private ownAnchor: Fraction2 = TOP_LEFT;
+	private ownPivot: Fraction2 | null = null;
+	/**
+	 * Where the parent's anchor placement moved the margin box, on top of
+	 * `position` (R10.15). Zero for a flow child of a stack, which receives its
+	 * placement through `position` itself (R10.11).
+	 */
+	private anchorShiftX = 0;
+	private anchorShiftY = 0;
 
 	constructor(options?: ComponentOptions) {
 		this.ownPointerEvents = this.defaultPointerEvents;
+		this.ownWidthMode = options?.widthMode ?? this.defaultSizeMode(options?.width);
+		this.ownHeightMode = options?.heightMode ?? this.defaultSizeMode(options?.height);
 		if (!options) return;
 		if (options.id !== undefined) this.componentId = options.id;
 		if (options.x !== undefined) this.positionX = options.x;
 		if (options.y !== undefined) this.positionY = options.y;
 		if (options.width !== undefined) this.contentWidth = options.width;
 		if (options.height !== undefined) this.contentHeight = options.height;
+		this.givenWidth = this.contentWidth;
+		this.givenHeight = this.contentHeight;
 		if (options.visible !== undefined) this.ownVisible = options.visible;
 		if (options.enabled !== undefined) this.ownEnabled = options.enabled;
 		if (options.opacity !== undefined) this.ownOpacity = options.opacity;
@@ -169,6 +248,17 @@ export abstract class Component {
 		if (options.onLayout) this.onLayout = options.onLayout;
 		if (options.tooltip !== undefined) this.tooltipSpec = normalizeTooltip(options.tooltip);
 		if (options.popupTrigger !== undefined) this.popupTrigger = options.popupTrigger;
+		if (options.focusable !== undefined) this.ownFocusable = options.focusable;
+		if (options.tabIndex !== undefined) this.ownTabIndex = options.tabIndex;
+		if (options.focusGroup !== undefined) this.ownFocusGroup = normalizeFocusGroup(options.focusGroup);
+		if (options.fillWeight !== undefined) this.ownFillWeight = options.fillWeight;
+		if (options.minSize !== undefined) this.ownMinSize = { ...options.minSize };
+		if (options.maxSize !== undefined) this.ownMaxSize = { ...options.maxSize };
+		if (options.aspectRatio !== undefined) this.ownAspectRatio = options.aspectRatio;
+		if (options.alignSelf !== undefined) this.ownAlignSelf = options.alignSelf;
+		if (options.positioned !== undefined) this.ownPositioned = options.positioned;
+		if (options.anchor !== undefined) this.ownAnchor = normalizeAnchor(options.anchor);
+		if (options.pivot !== undefined) this.ownPivot = normalizeAnchor(options.pivot);
 		if (options.style) this.applyStyle(options.style);
 	}
 
@@ -176,27 +266,45 @@ export abstract class Component {
 	public onLayout: ((bounds: Rect) => void) | null = null;
 
 	// R8.2's input callbacks. `handleEvent` runs the one matching an event
-	// before the component's own handling; focus and drag callbacks arrive
-	// with DDB-76 and DDB-77.
+	// before the component's own handling.
 	public onPointerDown: PointerCallback | null = null;
 	public onPointerUp: PointerCallback | null = null;
 	public onPointerMove: PointerCallback | null = null;
 	public onPointerEnter: PointerCallback | null = null;
 	public onPointerLeave: PointerCallback | null = null;
-	public onClick: PointerCallback | null = null;
+	public onClick: ClickCallback | null = null;
 	public onContextMenu: PointerCallback | null = null;
 	public onWheel: WheelCallback | null = null;
 	public onKeyDown: KeyCallback | null = null;
 	public onKeyUp: KeyCallback | null = null;
+	public onFocus: FocusCallback | null = null;
+	public onBlur: FocusCallback | null = null;
 
 	/**
-	 * Whether a press here, or on a descendant, may start a drag (R9.12a).
-	 * Only then does moving past the drag threshold cancel the click; a
-	 * press elsewhere clicks wherever it wandered, as long as it is released
-	 * on the same component. DDB-77's drag service sets it through
-	 * `context.drag.start`; until then it is set by hand.
+	 * R9.26's explicit neighbours: where an arrow goes from here instead of
+	 * the geometric search, when that component can take focus.
 	 */
-	public dragSource = false;
+	public focusUp: Component | null = null;
+	public focusDown: Component | null = null;
+	public focusLeft: Component | null = null;
+	public focusRight: Component | null = null;
+
+	/** R9.16: Tab reaches this component while it is focused instead of moving focus. */
+	public handlesTab = false;
+
+	/**
+	 * R9.15: a root that blocks what is beneath it. Hotkey tables of roots
+	 * mounted before it, and the scene's table, never fire while it is
+	 * mounted. The overlay service sets it on a modal's root.
+	 */
+	public modal = false;
+
+	/** R9.12's drag events: enter, over, leave and drop on targets, end on the source. */
+	public onDragEnter: DragCallback | null = null;
+	public onDragOver: DragCallback | null = null;
+	public onDragLeave: DragCallback | null = null;
+	public onDrop: DragCallback | null = null;
+	public onDragEnd: DragCallback | null = null;
 
 	/**
 	 * R9.13: a press on this component, or inside it, closes an open popup
@@ -225,6 +333,14 @@ export abstract class Component {
 	 */
 	protected get defaultPointerEvents(): PointerEvents {
 		return 'auto';
+	}
+
+	/**
+	 * R10.1's per-kind default for an axis given its constructed size: `fixed`
+	 * for everything but text and stacks, which hug an axis given no size.
+	 */
+	protected defaultSizeMode(_size: number | undefined): SizeMode {
+		return 'fixed';
 	}
 
 	protected applyStyle(style: Style): void {
@@ -283,15 +399,39 @@ export abstract class Component {
 		this.positionY = value;
 	}
 
+	/**
+	 * Where the margin box sits in the parent's content box: `position` plus
+	 * the parent's anchor placement (R10.15). What the walk translates by.
+	 */
+	public get placedX(): number {
+		return this.positionX + this.anchorShiftX;
+	}
+
+	public get placedY(): number {
+		return this.positionY + this.anchorShiftY;
+	}
+
+	/**
+	 * The content box's origin in the parent's content box: the placed margin
+	 * box inset by the margin. The one answer the render walk, the hit test,
+	 * `screenMatrix` and the snapshot all read, so none of them can place a
+	 * component somewhere the others do not.
+	 */
+	public get originX(): number {
+		return this.placedX + this.ownMargin.left;
+	}
+
+	public get originY(): number {
+		return this.placedY + this.ownMargin.top;
+	}
+
 	/** Content width (R8.11). */
 	public get width(): number {
 		return this.contentWidth;
 	}
 
 	public set width(value: number) {
-		if (this.contentWidth === value) return;
-		this.contentWidth = value;
-		this.invalidateLayout();
+		this.storeSize({ width: value, height: this.contentHeight, axes: 'width' });
 	}
 
 	public get height(): number {
@@ -299,9 +439,29 @@ export abstract class Component {
 	}
 
 	public set height(value: number) {
-		if (this.contentHeight === value) return;
-		this.contentHeight = value;
-		this.invalidateLayout();
+		this.storeSize({ width: this.contentWidth, height: value, axes: 'height' });
+	}
+
+	/**
+	 * The one write path for a size the component is given (a constructor
+	 * option aside): records it as given, so `measure` hugs it, and as the
+	 * content size, and invalidates layout when either changed. `axes` limits
+	 * which axes count as given. `setSize` reports a change through
+	 * `onResized`; the single-axis accessors never have. Subclasses whose
+	 * accessors mean something more (Text, Stack) call this rather than the
+	 * base accessors.
+	 */
+	protected storeSize({ width, height, axes = 'both', notify = false }: StoreSizeOptions): void {
+		const givesWidth = axes !== 'height';
+		const givesHeight = axes !== 'width';
+		const resized = this.contentWidth !== width || this.contentHeight !== height;
+		const regiven = (givesWidth && this.givenWidth !== width) || (givesHeight && this.givenHeight !== height);
+		if (givesWidth) this.givenWidth = width;
+		if (givesHeight) this.givenHeight = height;
+		this.contentWidth = width;
+		this.contentHeight = height;
+		if (resized || regiven) this.invalidateLayout();
+		if (resized && notify) this.onResized();
 	}
 
 	public get margin(): Sides {
@@ -320,8 +480,8 @@ export abstract class Component {
 	public get bounds(): Rect {
 		const margin = this.ownMargin;
 		return {
-			x: this.positionX,
-			y: this.positionY,
+			x: this.placedX,
+			y: this.placedY,
 			width: this.contentWidth + margin.left + margin.right,
 			height: this.contentHeight + margin.top + margin.bottom,
 		};
@@ -360,9 +520,35 @@ export abstract class Component {
 		this.ownTransform = normalizeTransform(value);
 	}
 
-	/** The transform as a matrix over the content box, or null for identity. */
+	/**
+	 * The transform as a matrix over the content box, or null for identity.
+	 * A drag ghost's offset is applied outside `transform`, so a tween on
+	 * `transform` keeps running while the ghost follows the pointer.
+	 */
 	public get transformMatrix(): Mat2D | null {
-		return transformMatrix(this.ownTransform, this.contentWidth, this.contentHeight);
+		const own = transformMatrix(this.ownTransform, this.contentWidth, this.contentHeight);
+		const ghost = this.dragGhostOffset;
+		if (!ghost) return own;
+		const lift = translation(ghost.x, ghost.y);
+		return own ? concat(lift, own) : lift;
+	}
+
+	/**
+	 * R9.12b: while the drag service moves this component as a ghost, its
+	 * offset from where layout put it, in the parent's content space; null
+	 * otherwise. A ghost draws and hit-tests on the `drag` layer with
+	 * `pointerEvents: none` and moves by this offset, all without touching
+	 * the component's own `layer`, `pointerEvents` or `transform`, which
+	 * read back as the ghost values and are the author's again when the drag
+	 * ends.
+	 */
+	public get dragOffset(): Vec2 | null {
+		return this.dragGhostOffset;
+	}
+
+	/** The drag service's: sets or clears the ghost state. */
+	public setDragOffset(offset: Vec2 | null): void {
+		this.dragGhostOffset = offset;
 	}
 
 	/**
@@ -374,11 +560,11 @@ export abstract class Component {
 	}
 
 	/**
-	 * Local (content box) to parent content box: the margin-box origin, the
-	 * margin inset, then this component's transform.
+	 * Local (content box) to parent content box: the margin-box origin (with
+	 * any anchor placement), the margin inset, then this component's transform.
 	 */
 	private get localMatrix(): Mat2D {
-		const origin = translation(this.positionX + this.ownMargin.left, this.positionY + this.ownMargin.top);
+		const origin = translation(this.originX, this.originY);
 		const own = this.transformMatrix;
 		return own ? concat(origin, own) : origin;
 	}
@@ -458,7 +644,7 @@ export abstract class Component {
 
 	/** `pointerEvents: none` here or on any ancestor. */
 	private get pointerEventsBlocked(): boolean {
-		return this.ownPointerEvents === 'none' || (this.parentComponent?.pointerEventsBlocked ?? false);
+		return this.pointerEvents === 'none' || (this.parentComponent?.pointerEventsBlocked ?? false);
 	}
 
 	private insideAncestorClips(screenX: number, screenY: number, ratio = this.clipRatio): boolean {
@@ -548,9 +734,11 @@ export abstract class Component {
 		this.ownOpacity = value;
 	}
 
-	/** Own layer, or null to inherit (R3.6). */
+	/** Own layer, or null to inherit (R3.6); at least `drag` while a drag ghost. */
 	public get layer(): LayerName | null {
-		return this.ownLayer;
+		const own = this.ownLayer;
+		if (this.dragGhostOffset && (own === null || layerOrdinal(own) < layerOrdinal('drag'))) return 'drag';
+		return own;
 	}
 
 	public set layer(value: LayerName | null) {
@@ -568,8 +756,9 @@ export abstract class Component {
 		if (this.parentComponent) this.parentComponent.orderView = null;
 	}
 
+	/** `none` while a drag ghost, so the hit walk sees through it. */
 	public get pointerEvents(): PointerEvents {
-		return this.ownPointerEvents;
+		return this.dragGhostOffset ? 'none' : this.ownPointerEvents;
 	}
 
 	public set pointerEvents(value: PointerEvents) {
@@ -594,7 +783,7 @@ export abstract class Component {
 	/** `max(own, parent's effective)`, `base` at a root (R3.6). */
 	public get effectiveLayer(): LayerName {
 		const inherited = this.parentComponent ? this.parentComponent.effectiveLayer : ROOT_LAYER;
-		const own = this.ownLayer;
+		const own = this.layer;
 		return own !== null && layerOrdinal(own) > layerOrdinal(inherited) ? own : inherited;
 	}
 
@@ -603,7 +792,7 @@ export abstract class Component {
 	 * clip for this subtree (R3.8, R4.8).
 	 */
 	public get promoted(): boolean {
-		const own = this.ownLayer;
+		const own = this.layer;
 		if (own === null) return false;
 		const inherited = this.parentComponent ? this.parentComponent.effectiveLayer : ROOT_LAYER;
 		return layerOrdinal(own) > layerOrdinal(inherited);
@@ -701,8 +890,18 @@ export abstract class Component {
 		this.orderView = null;
 		// R8.15: adding to a mounted parent mounts at once.
 		if (this.mountContext && !child.mountContext) child.mount(this.mountContext);
+		this.invalidateFocusOrder();
 		this.invalidateLayout();
+		child.onParentChanged();
 		return this;
+	}
+
+	/**
+	 * Called after this component is inserted under a new parent. A size a
+	 * previous parent's layout assigned is that parent's; a text re-fits here.
+	 */
+	protected onParentChanged(): void {
+		// Override in subclasses
 	}
 
 	private isAncestorOf(node: Component): boolean {
@@ -725,8 +924,13 @@ export abstract class Component {
 		const from = this.children.indexOf(child);
 		if (from === -1) return this;
 		this.children.splice(from, 1);
-		this.children.splice(clampIndex(index, this.children.length), 0, child);
+		const to = clampIndex(index, this.children.length);
+		this.children.splice(to, 0, child);
+		if (to === from) return this;
 		this.orderView = null;
+		this.invalidateFocusOrder();
+		// Order is flow input for a stack (R10.18).
+		this.invalidateLayout();
 		return this;
 	}
 
@@ -745,6 +949,7 @@ export abstract class Component {
 		for (const child of removed) {
 			child.parentComponent = null;
 			child.ownedByParent = false;
+			this.forgetActiveChild(child);
 			child.unmount();
 		}
 		this.invalidateLayout();
@@ -761,6 +966,8 @@ export abstract class Component {
 		child.ownedByParent = false;
 		child[RECONCILE_KEY] = undefined;
 		child.exiting = false;
+		this.forgetActiveChild(child);
+		this.invalidateFocusOrder();
 		this.invalidateLayout();
 		return true;
 	}
@@ -855,6 +1062,9 @@ export abstract class Component {
 	public mount(context: MountContext, { tier = 'scene' }: RootMountOptions = {}): void {
 		if (this.mountContext) return;
 		this.mountSubtree(context);
+		// A root sizes its `fill` axes from the viewport, so the frame
+		// re-lays it out when the viewport changes (R8.21).
+		if (!this.parentComponent) context.frame.addRoot(this);
 		// A root is hit-tested from here on, over the roots of its tier mounted
 		// before it (R9.4, R3.15).
 		if (!this.parentComponent) context.dispatcher.addRoot(this, tier);
@@ -866,7 +1076,7 @@ export abstract class Component {
 	private mountSubtree(context: MountContext): void {
 		if (this.mountContext) return;
 		this.mountContext = context;
-		this.needsLayout = true;
+		this.markDirty();
 		this.onMount(context);
 		for (const child of this.children) child.mountSubtree(context);
 	}
@@ -893,6 +1103,8 @@ export abstract class Component {
 		this.focusState = false;
 		this.pressState = false;
 		this.focusVisibleState = false;
+		this.dropActiveState = false;
+		this.dragGhostOffset = null;
 	}
 
 	/**
@@ -942,48 +1154,334 @@ export abstract class Component {
 	 * hands the boundary to the frame's layout phase.
 	 */
 	public invalidateLayout(): void {
-		this.needsLayout = true;
+		this.markDirty();
 		const boundary = this.parentComponent ? this.parentComponent.markLayoutPath() : this;
 		this.mountContext?.frame.scheduleLayout(boundary);
 	}
 
 	private markLayoutPath(): Component {
-		this.needsLayout = true;
+		this.markDirty();
 		if (this.isRelayoutBoundary || !this.parentComponent) return this;
 		return this.parentComponent.markLayoutPath();
 	}
 
 	/**
 	 * Whether this component's own size is independent of its children, so a
-	 * change beneath it stops here. Every component is fixed-size until phase
-	 * 4's sizing modes, where `hug` and `fill` answer false.
+	 * change beneath it stops here: both sizing modes `fixed` (R8.18). A root
+	 * is a boundary whatever its modes, since there is nothing above it.
 	 */
 	protected get isRelayoutBoundary(): boolean {
-		return true;
+		return this.ownWidthMode === 'fixed' && this.ownHeightMode === 'fixed';
 	}
 
 	/**
 	 * Positions and sizes this component's children. The frame's layout pass
-	 * calls it top-down on dirty components; phase 4's Stack implements it.
+	 * calls it top-down on dirty components; Stack implements chapter 10's
+	 * passes here.
 	 */
 	protected layoutChildren(): void {
 		// A plain container leaves its children where they were put.
 	}
 
 	/**
-	 * The frame's layout pass over this subtree (R8.16, R8.18): dirty
-	 * components lay out their children, top-down; invisible subtrees are
-	 * skipped and stay dirty for when they are shown (R8.3); every component
-	 * whose bounds changed hears `onLayout`.
+	 * The frame's layout pass over this subtree (R8.16, R8.18): a root sizes
+	 * itself from the viewport on its `fill` axes (R8.21), dirty components lay
+	 * out their children and place anchored ones (R10.15), top-down; invisible
+	 * subtrees are skipped and stay dirty for when they are shown (R8.3);
+	 * every component whose bounds changed hears `onLayout`.
 	 */
 	public layoutSubtree(): void {
 		if (!this.visible) return;
+		if (!this.parentComponent) this.sizeFromViewport();
 		if (this.needsLayout) {
 			this.needsLayout = false;
 			this.layoutChildren();
+			this.placeAnchoredChildren();
 			for (const child of this.children) child.layoutSubtree();
 		}
 		this.reportLayout();
+	}
+
+	/**
+	 * R8.21: a root's layout box is the viewport, so a root with a `fill` axis
+	 * takes the viewport's logical size, less its margin, on that axis.
+	 */
+	private sizeFromViewport(): void {
+		const context = this.mountContext;
+		if (!context || (this.ownWidthMode !== 'fill' && this.ownHeightMode !== 'fill')) return;
+		const { width, height } = context.viewport.logical;
+		const margin = this.ownMargin;
+		this.applyLayoutSize(
+			this.ownWidthMode === 'fill' ? Math.max(width - margin.left - margin.right, 0) : this.contentWidth,
+			this.ownHeightMode === 'fill' ? Math.max(height - margin.top - margin.bottom, 0) : this.contentHeight,
+		);
+	}
+
+	/**
+	 * R10.15: `origin = box.origin + anchor * box.size - pivot * child.size +
+	 * position`, for every child this component anchors, against `anchorBox`.
+	 * With the default `topLeft` anchor and pivot the shift is zero, so a
+	 * child placed by hand stays exactly where `position` put it.
+	 */
+	private placeAnchoredChildren(): void {
+		const box = this.anchorBox;
+		for (const child of this.children) {
+			if (!this.anchorsChild(child)) {
+				child.anchorShiftX = 0;
+				child.anchorShiftY = 0;
+				continue;
+			}
+			const anchor = child.ownAnchor;
+			const pivot = child.pivot;
+			const margin = child.ownMargin;
+			const width = child.contentWidth + margin.left + margin.right;
+			const height = child.contentHeight + margin.top + margin.bottom;
+			child.anchorShiftX = box.x + anchor[0] * box.width - pivot[0] * width;
+			child.anchorShiftY = box.y + anchor[1] * box.height - pivot[1] * height;
+		}
+	}
+
+	/** The box anchored children are placed against, in this component's local space. */
+	protected get anchorBox(): Rect {
+		return { x: 0, y: 0, width: this.contentWidth, height: this.contentHeight };
+	}
+
+	/**
+	 * Whether `placeAnchoredChildren` places this child. Every child outside a
+	 * stack (R10.15); a stack answers only for its `absolute` children.
+	 */
+	protected anchorsChild(_child: Component): boolean {
+		return true;
+	}
+
+	// -- sizing (R8.1's layout protocol, R10.1, R10.4) -------------------------
+
+	public get widthMode(): SizeMode {
+		return this.ownWidthMode;
+	}
+
+	public set widthMode(value: SizeMode) {
+		if (this.ownWidthMode === value) return;
+		this.ownWidthMode = value;
+		this.invalidateLayout();
+	}
+
+	public get heightMode(): SizeMode {
+		return this.ownHeightMode;
+	}
+
+	public set heightMode(value: SizeMode) {
+		if (this.ownHeightMode === value) return;
+		this.ownHeightMode = value;
+		this.invalidateLayout();
+	}
+
+	public sizeMode(axis: Axis): SizeMode {
+		return axis === 'width' ? this.ownWidthMode : this.ownHeightMode;
+	}
+
+	/** Content size on one axis. */
+	public sizeOn(axis: Axis): number {
+		return axis === 'width' ? this.contentWidth : this.contentHeight;
+	}
+
+	public get fillWeight(): number {
+		return this.ownFillWeight;
+	}
+
+	public set fillWeight(value: number) {
+		if (this.ownFillWeight === value) return;
+		this.ownFillWeight = value;
+		this.invalidateLayout();
+	}
+
+	/** Explicit minimums; an absent axis falls back to `automaticMinSize` on a stack's main axis. */
+	public get minSize(): AxisLimits {
+		return this.ownMinSize;
+	}
+
+	public set minSize(value: AxisLimits) {
+		this.ownMinSize = { ...value };
+		this.invalidateLayout();
+	}
+
+	public get maxSize(): AxisLimits {
+		return this.ownMaxSize;
+	}
+
+	public set maxSize(value: AxisLimits) {
+		this.ownMaxSize = { ...value };
+		this.invalidateLayout();
+	}
+
+	/** Width over height, or null. */
+	public get aspectRatio(): number | null {
+		return this.ownAspectRatio;
+	}
+
+	public set aspectRatio(value: number | null) {
+		if (this.ownAspectRatio === value) return;
+		this.ownAspectRatio = value;
+		this.invalidateLayout();
+	}
+
+	public get alignSelf(): CrossAlign | null {
+		return this.ownAlignSelf;
+	}
+
+	public set alignSelf(value: CrossAlign | null) {
+		if (this.ownAlignSelf === value) return;
+		this.ownAlignSelf = value;
+		this.invalidateLayout();
+	}
+
+	public get positioned(): Positioned {
+		return this.ownPositioned;
+	}
+
+	public set positioned(value: Positioned) {
+		if (this.ownPositioned === value) return;
+		this.ownPositioned = value;
+		this.invalidateLayout();
+	}
+
+	public get anchor(): Fraction2 {
+		return this.ownAnchor;
+	}
+
+	public set anchor(value: AnchorInput) {
+		this.ownAnchor = normalizeAnchor(value);
+		this.invalidateLayout();
+	}
+
+	/** The effective pivot: the authored one, or the anchor (R10.15). */
+	public get pivot(): Fraction2 {
+		return this.ownPivot ?? this.ownAnchor;
+	}
+
+	public set pivot(value: AnchorInput | null) {
+		this.ownPivot = value === null ? null : normalizeAnchor(value);
+		this.invalidateLayout();
+	}
+
+	/**
+	 * The minimum a stack applies on its main axis when `minSize` leaves that
+	 * axis unset: CSS `min-width: auto` (R10.4). Zero except for text.
+	 */
+	public automaticMinSize(_axis: Axis): number {
+		return 0;
+	}
+
+	/**
+	 * The smallest this component can be on `axis` without overflowing its
+	 * own content: how far a stack may shrink it when the row or column runs
+	 * out of room (R10.7's shrink-to-fit, CSS min-content). A component with
+	 * nothing to reflow cannot shrink below the size it was given.
+	 */
+	public minContentSize(axis: Axis): number {
+		if (this.sizeMode(axis) === 'fixed') return this.sizeOn(axis);
+		return axis === 'width' ? this.givenWidth : this.givenHeight;
+	}
+
+	/**
+	 * Whether this component resolves its children's sizes in its own layout
+	 * (a stack). A child of one is assigned its size every pass and never
+	 * sizes itself.
+	 */
+	public get sizesChildren(): boolean {
+		return false;
+	}
+
+	/**
+	 * R8.1's `measure`: the content size this component takes with at most the
+	 * given space, before its parent's clamps. `definite` names an axis the
+	 * parent will assign exactly (a stretched cross axis), so the other axis
+	 * is measured at that size. A component with no content to measure
+	 * reports the size it was given, not one a layout assigned it, so a box
+	 * that was stretched once does not keep the stretch.
+	 */
+	public measure(availableWidth: number, availableHeight: number, definite: Axis | null = null): Size {
+		return {
+			width: definite === 'width' ? availableWidth : this.givenWidth,
+			height: definite === 'height' ? availableHeight : this.givenHeight,
+		};
+	}
+
+	/**
+	 * R8.1's `assignSize` (worldsim's `setLayoutSize`): the parent resolves this
+	 * component's content size for the current pass. NaN keeps an axis. It
+	 * never changes a sizing mode (R10.5) and does not invalidate upward, since
+	 * the parent doing the assigning is already laying out; a changed size
+	 * marks this subtree so its own children follow.
+	 */
+	public assignSize(width: number, height: number): void {
+		this.applyLayoutSize(
+			Number.isNaN(width) ? this.contentWidth : width,
+			Number.isNaN(height) ? this.contentHeight : height,
+		);
+	}
+
+	/**
+	 * Sets this component's own size from inside its own layout (a hug stack
+	 * with no stack above it). Nothing to mark here, since this layout is the
+	 * one running; the parent is invalidated, since it may anchor this box or
+	 * read its size to place something else.
+	 */
+	protected resizeInLayout(width: number, height: number): void {
+		if (this.contentWidth === width && this.contentHeight === height) return;
+		this.contentWidth = width;
+		this.contentHeight = height;
+		this.onResized();
+		// Only the parent's placement of this box can change (its anchors),
+		// so the parent alone is laid out again, not everything up to its
+		// boundary.
+		const parent = this.parentComponent;
+		if (parent) {
+			parent.needsLayout = true;
+			parent.mountContext?.frame.scheduleLayout(parent);
+		}
+	}
+
+	/**
+	 * Sets the content size as layout's result: no upward invalidation, and
+	 * `onResized` when it changed, as for any other resize. Returns whether
+	 * it changed.
+	 */
+	protected applyLayoutSize(width: number, height: number): boolean {
+		if (this.contentWidth === width && this.contentHeight === height) return false;
+		this.contentWidth = width;
+		this.contentHeight = height;
+		this.needsLayout = true;
+		this.onResized();
+		return true;
+	}
+
+	/**
+	 * Something this component's measurement reads changed: lay it out again
+	 * and forget what it measured. An assignment does not come through here,
+	 * since `measure` never reads an assigned size.
+	 */
+	private markDirty(): void {
+		this.needsLayout = true;
+		if (this.measureCache) this.measureCache.clear();
+	}
+
+	/**
+	 * `compute`'s answer for `key`, remembered until this component is next
+	 * invalidated. Nested hug stacks measure each other at the same
+	 * constraints over and over in one pass; this keeps a pass linear.
+	 */
+	protected cachedMeasure(key: string, compute: () => Size): Size {
+		let cache = this.measureCache;
+		if (!cache) {
+			cache = new Map();
+			this.measureCache = cache;
+		}
+		const hit = cache.get(key);
+		if (hit) return hit;
+		const size = compute();
+		cache.set(key, size);
+		return size;
 	}
 
 	private reportLayout(): void {
@@ -1037,7 +1535,38 @@ export abstract class Component {
 			case 'keyup':
 				this.onKeyUp?.(event);
 				return;
+			case 'focus':
+				this.onFocus?.(event);
+				return;
+			case 'blur':
+				this.onBlur?.(event);
+				return;
+			case 'dragenter':
+				this.onDragEnter?.(event);
+				return;
+			case 'dragover':
+				this.onDragOver?.(event);
+				return;
+			case 'dragleave':
+				this.onDragLeave?.(event);
+				return;
+			case 'drop':
+				this.onDrop?.(event);
+				return;
+			case 'dragend':
+				this.onDragEnd?.(event);
+				return;
 		}
+	}
+
+	/**
+	 * R12.20's `scrollIntoView` with `block: nearest`: a scroller moves the
+	 * least that brings `descendant`'s box inside its clip. The focus manager
+	 * asks every ancestor of a component focused by keyboard or code, inner
+	 * first, so focus never lands out of sight. Only scrollers act.
+	 */
+	public scrollIntoView(_descendant: Component): void {
+		// Not a scroller.
 	}
 
 	/**
@@ -1059,6 +1588,7 @@ export abstract class Component {
 		return this.hoverState;
 	}
 
+	/** Keys come here first (R9.15). Maintained by the focus manager, which calls `setFocusState`. */
 	public get focused(): boolean {
 		return this.focusState;
 	}
@@ -1075,17 +1605,16 @@ export abstract class Component {
 		this.onStateChange();
 	}
 
-	public isFocused(): boolean {
-		return this.focusState;
-	}
-
-	/** Losing focus loses focus-visible with it. */
-	public setFocused(focused: boolean): void {
-		if (this.focusState === focused) return;
+	/**
+	 * The focus manager's half of `focused` and `focusVisible`. It delivers
+	 * the `focus` and `blur` events itself, in R9.22's order; nothing else
+	 * should call this.
+	 */
+	public setFocusState(focused: boolean, visible: boolean): void {
+		const focusVisible = focused && visible;
+		if (this.focusState === focused && this.focusVisibleState === focusVisible) return;
 		this.focusState = focused;
-		if (!focused) this.focusVisibleState = false;
-		if (focused) this.onFocus();
-		else this.onBlur();
+		this.focusVisibleState = focusVisible;
 		this.onStateChange();
 	}
 
@@ -1105,27 +1634,121 @@ export abstract class Component {
 	}
 
 	/**
-	 * Focus arrived by keyboard, so the ring shows (R11.12 layer 6). The focus
-	 * manager sets it (DDB-76); it is only ever true while focused.
+	 * Focus arrived by keyboard, so the ring shows (R9.23, R11.12 layer 6).
+	 * Only the focus manager changes it, through `setFocusState`; it is only
+	 * ever true while focused.
 	 */
 	public get focusVisible(): boolean {
 		return this.focusVisibleState;
 	}
 
-	public set focusVisible(visible: boolean) {
-		const value = visible && this.focusState;
-		if (this.focusVisibleState === value) return;
-		this.focusVisibleState = value;
-		this.onStateChange();
+	// -- focus (R9.18 to R9.29) -----------------------------------------------
+
+	public get focusable(): boolean {
+		return this.ownFocusable;
+	}
+
+	public set focusable(value: boolean) {
+		if (this.ownFocusable === value) return;
+		this.ownFocusable = value;
+		this.invalidateFocusOrder();
+	}
+
+	public get tabIndex(): number {
+		return this.ownTabIndex;
+	}
+
+	public set tabIndex(value: number) {
+		if (this.ownTabIndex === value) return;
+		this.ownTabIndex = value;
+		this.invalidateFocusOrder();
+	}
+
+	/** R9.29's configuration when this container is a focus group, else null. */
+	public get focusGroup(): FocusGroupConfig | null {
+		return this.ownFocusGroup;
+	}
+
+	public set focusGroup(value: boolean | Partial<FocusGroupConfig> | null) {
+		this.ownFocusGroup = normalizeFocusGroup(value);
+		this.invalidateFocusOrder();
+	}
+
+	/** The member Tab enters a focus group at: the last one focused (R9.29). The focus manager keeps it. */
+	public get activeChild(): Component | null {
+		return this.groupActiveChild;
+	}
+
+	public set activeChild(value: Component | null) {
+		this.groupActiveChild = value;
 	}
 
 	/**
 	 * True when this component draws its own focus ring from `focusVisible`
-	 * as one of its R11.12 state layers, so a generic ring drawn by the render
-	 * walk (DDB-76) must skip it. Button and Input answer true.
+	 * as one of its R11.12 state layers (Button and Input do), so the render
+	 * walk's token ring, the fallback for focusables without a resolved look,
+	 * skips it and nothing gets two rings.
 	 */
 	public get drawsOwnFocusRing(): boolean {
 		return false;
+	}
+
+	/**
+	 * R9.15: this component takes text, so while it is focused it owns every
+	 * key but Tab, Escape, and Ctrl or Cmd chords; no hotkey, activation, or
+	 * arrow navigation sees them. Text fields override it.
+	 */
+	public get acceptsText(): boolean {
+		return false;
+	}
+
+	/** R9.18: focusable, mounted, and effectively visible and enabled. */
+	public canReceiveFocus(): boolean {
+		return this.ownFocusable && this.mountContext !== null && this.effectivelyVisible && this.effectivelyEnabled;
+	}
+
+	/** The explicit neighbour in `direction`, if one was set (R9.26). */
+	public focusNeighbour(direction: FocusDirection): Component | null {
+		switch (direction) {
+			case 'up':
+				return this.focusUp;
+			case 'down':
+				return this.focusDown;
+			case 'left':
+				return this.focusLeft;
+			case 'right':
+				return this.focusRight;
+		}
+	}
+
+	/**
+	 * This root's hotkey table (R9.15): searched after a key bubbles out of
+	 * the focused component in this tree, and for the topmost roots when
+	 * nothing is focused. Created on first use.
+	 */
+	public get hotkeys(): HotkeyTable {
+		if (!this.hotkeyTable) this.hotkeyTable = new HotkeyTable();
+		return this.hotkeyTable;
+	}
+
+	/** The table if one was ever created, for the dispatcher's search. */
+	public get ownHotkeys(): HotkeyTable | null {
+		return this.hotkeyTable;
+	}
+
+	/**
+	 * A focus group here or above whose active child was `removed` or inside
+	 * it lets go (R9.29), so a detached card is not kept alive and Tab enters
+	 * the group at its first member instead.
+	 */
+	private forgetActiveChild(removed: Component): void {
+		const active = this.groupActiveChild;
+		if (active && (active === removed || removed.isAncestorOf(active))) this.groupActiveChild = null;
+		this.parentComponent?.forgetActiveChild(removed);
+	}
+
+	private invalidateFocusOrder(): void {
+		this.mountContext?.focus.invalidateOrder();
 	}
 
 	/** The component's own flags (R11.11): a chosen tab or row, an open menu, a field taking keys, a live drop target. */
@@ -1159,6 +1782,7 @@ export abstract class Component {
 		this.onStateChange();
 	}
 
+	/** R9.12c: accepted the drag under the pointer and would take the drop. The drag service sets it. */
 	public get dropActive(): boolean {
 		return this.dropActiveState;
 	}
@@ -1198,8 +1822,8 @@ export abstract class Component {
 		if (!enabled) {
 			// Hover is the dispatcher's containment state and stays true under
 			// the pointer (R9.8); a disabled component shows it only through
-			// its disabled style (R9.5).
-			this.setFocused(false);
+			// its disabled style (R9.5). Focus moves off it at the end of the
+			// frame's layout (R9.28).
 			this.onDisabled();
 		} else {
 			this.onEnabled();
@@ -1232,14 +1856,6 @@ export abstract class Component {
 	}
 
 	protected onUnhover(): void {
-		// Override in subclasses
-	}
-
-	protected onFocus(): void {
-		// Override in subclasses
-	}
-
-	protected onBlur(): void {
 		// Override in subclasses
 	}
 
@@ -1280,14 +1896,11 @@ export abstract class Component {
 	}
 
 	public setSize(width: number, height: number): this {
-		const changed = this.contentWidth !== width || this.contentHeight !== height;
-		this.width = width;
-		this.height = height;
-		if (changed) this.onResized();
+		this.storeSize({ width, height, notify: true });
 		return this;
 	}
 
-	/** Called when `setSize` changes the size. */
+	/** Called when `setSize` or a layout assignment changes the content size. */
 	protected onResized(): void {
 		// Override in subclasses
 	}
@@ -1333,6 +1946,22 @@ export abstract class Component {
 }
 
 const ORIGIN: Vec2 = Object.freeze({ x: 0, y: 0 });
+
+function normalizeFocusGroup(value: boolean | Partial<FocusGroupConfig> | null): FocusGroupConfig | null {
+	if (!value) return null;
+	const config = value === true ? {} : value;
+	return { orientation: config.orientation ?? 'both', wrap: config.wrap ?? false };
+}
+
+const NO_LIMITS: AxisLimits = Object.freeze({});
+
+interface StoreSizeOptions {
+	width: number;
+	height: number;
+	axes?: Axis | 'both';
+	/** Fire `onResized` on a change, as `setSize` does. */
+	notify?: boolean;
+}
 
 function clampIndex(index: number, length: number): number {
 	return Math.max(0, Math.min(length, Math.floor(index)));

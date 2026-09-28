@@ -851,8 +851,7 @@ describe('treeSnapshot', () => {
 			const component = new Button('Go', { width: 80, height: 30 });
 			component.pressed = true;
 			component.selected = true;
-			component.setFocused(true);
-			component.focusVisible = true;
+			component.setFocusState(true, true);
 
 			const button = treeSnapshot([component], VIEWPORT).roots[0];
 
@@ -861,8 +860,7 @@ describe('treeSnapshot', () => {
 
 		it('grows a focus-visible button\'s inkBounds past its bounds by the ring and the nudge (R8.8)', () => {
 			const component = new Button('Go', { x: 20, y: 20, width: 80, height: 30 });
-			component.setFocused(true);
-			component.focusVisible = true;
+			component.setFocusState(true, true);
 
 			const node = treeSnapshot([component], VIEWPORT).roots[0];
 			const extent = tokens.control.focus_ring_offset + tokens.control.focus_ring_width + tokens.control.press_offset;

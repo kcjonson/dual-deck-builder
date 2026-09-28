@@ -191,7 +191,11 @@ export class PopupService implements InputObserver {
 		return true;
 	}
 
-	/** Focus moving to something outside the popup and its trigger closes it; focus cleared by a press is the press's business. */
+	/**
+	 * The focus manager's change signal (`createMountContext` wires it):
+	 * focus moving to something outside the popup and its trigger closes it
+	 * (R9.14); focus cleared by a press is the press's business.
+	 */
 	public focusChange(focused: Component | null): void {
 		const handle = this.current;
 		if (!handle || !focused) return;

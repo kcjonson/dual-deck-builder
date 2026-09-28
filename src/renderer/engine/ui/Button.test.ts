@@ -226,8 +226,7 @@ describe('Button styling (R11)', () => {
 
 		it('shows the focus ring at once, outside the box at the ring offset', () => {
 			const button = mount(new Button('Go', { width: 100 }));
-			button.setFocused(true);
-			button.focusVisible = true;
+			context.focus.focus(button, 'keyboard');
 			const ring = draw(button).rects[1];
 			const offset = tokens.control.focus_ring_offset;
 			expect(ring.rect).toEqual({ x: -offset, y: -offset, width: 100 + offset * 2, height: button.height + offset * 2 });
@@ -241,17 +240,17 @@ describe('Button styling (R11)', () => {
 			const input = mount(new Input('Name', { width: 200 }));
 			expect(input.height).toBe(tokens.control.control_h_md);
 			expect(draw(input).rects[0]).toMatchObject({ fill: color.bg_inset, border: { color: color.line_edge } });
-			input.setFocused(true);
+			context.focus.focus(input);
 			expect(input.active).toBe(true);
 			advance(tokens.motion.dur_fast);
 			expect(draw(input).rects[0].border?.color).toEqual(color.accent);
-			input.setFocused(false);
+			context.focus.blur();
 			expect(input.active).toBe(false);
 		});
 
 		it('clears its editing state when unmounted while focused', () => {
 			const input = mount(new Input('Name', { width: 200 }));
-			context.dispatcher.focus(input);
+			context.focus.focus(input);
 			expect(input.active).toBe(true);
 			input.unmount();
 			expect(input.active).toBe(false);

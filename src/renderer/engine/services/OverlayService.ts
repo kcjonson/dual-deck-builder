@@ -5,7 +5,7 @@ import { renderTree } from '../components/renderTree';
 import type { DrawApi } from '../draw/DrawApi';
 import { LayerName, layerOrdinal } from '../draw/layers';
 import type { InputObserver, PointerPress } from '../input/Dispatcher';
-import { HotkeyTable, KeyStroke } from '../input/HotkeyTable';
+import type { HotkeyTable, KeyStroke } from '../input/HotkeyTable';
 
 export type OverlayDismissReason = 'outside-press' | 'escape';
 
@@ -13,9 +13,10 @@ export interface OverlayOptions {
 	/** The layer the root paints and is hit-tested in (R3.5, R3.9). */
 	layer: LayerName;
 	/**
-	 * A modal root stops the hotkey search (R9.15), consumes an outside press,
-	 * and closes exclusive popups when it opens (R3.6a). Defaults to true in
-	 * the `modal` layer.
+	 * A modal root is the root's `modal` (hotkeys of roots beneath it and the
+	 * scene's never fire, R9.15), traps focus in a scope (R9.20), consumes an
+	 * outside press, and closes exclusive popups when it opens (R3.6a).
+	 * Defaults to true in the `modal` layer.
 	 */
 	modal?: boolean;
 	/** A press outside `inside` dismisses it (R12.21, R12.33). */
@@ -48,8 +49,6 @@ export interface OverlayOptions {
  * viewport change resizes the root with no code in the content (R8.21).
  */
 export class OverlayHandle {
-	/** R9.15's per-root table, searched topmost first after the focused chain declines a key. */
-	public readonly hotkeys = new HotkeyTable();
 	public readonly root: Layer;
 	public readonly content: Component;
 	/** What a press must land in to be inside (`OverlayOptions.inside`). */
@@ -80,6 +79,11 @@ export class OverlayHandle {
 
 	public get isOpen(): boolean {
 		return this.open;
+	}
+
+	/** R9.15's per-root table: the root's own, searched by the dispatcher (DDB-76). */
+	public get hotkeys(): HotkeyTable {
+		return this.root.hotkeys;
 	}
 
 	/** Unmounts the root and gives the content back unmounted, so it can be opened again. */
@@ -115,9 +119,9 @@ export class OverlayHandle {
  *
  * As an input observer it dismisses: an outside press dismisses the topmost
  * roots that ask for it down to the first root the press is inside, stopping
- * at a modal; Escape and per-root hotkeys go topmost first down to the first
- * modal root, which ends the search so no key reaches the scene beneath a
- * modal (R9.13, R9.15).
+ * at a modal (R9.13); Escape goes topmost first to the first root that closes
+ * on it, stopping at a modal. Per-root hotkeys are the root's own
+ * `hotkeys`, which the dispatcher searches after this (R9.15, DDB-76).
  */
 export class OverlayService implements InputObserver {
 	private readonly viewport: ViewportSource;
@@ -156,8 +160,11 @@ export class OverlayService implements InputObserver {
 		});
 		root.addChild(content);
 		const handle = new OverlayHandle({ service: this, root, content, options });
+		root.modal = handle.modal;
 		this.handles.push(handle);
 		root.mount(context, { tier: 'overlay' });
+		// R9.20: Tab stays inside a modal, and focus comes back when it closes.
+		if (handle.modal) context.focus.pushScope(root);
 		for (const listener of [...this.openListeners]) listener(handle);
 		return handle;
 	}
@@ -205,6 +212,7 @@ export class OverlayService implements InputObserver {
 		const index = this.handles.indexOf(handle);
 		if (index === -1) return;
 		this.handles.splice(index, 1);
+		if (handle.modal) this.context?.focus.popScope(handle.root);
 		// Detached first, so the content comes back unmounted and parentless.
 		handle.root.removeChild(handle.content);
 		handle.root.unmount();
@@ -243,15 +251,14 @@ export class OverlayService implements InputObserver {
 	}
 
 	public keyDown(stroke: KeyStroke): boolean {
-		if (this.handles.length === 0) return false;
+		if (this.handles.length === 0 || stroke.key !== 'Escape' || stroke.repeat) return false;
 		for (const handle of this.topmostFirst()) {
-			if (stroke.key === 'Escape' && handle.closeOnEscape && !stroke.repeat) {
+			if (handle.closeOnEscape) {
 				handle.dismiss('escape');
 				return true;
 			}
-			if (handle.hotkeys.handle(stroke)) return true;
-			// R9.15: hotkeys of roots beneath a modal, and the scene's, never fire.
-			if (handle.modal) return true;
+			// Nothing beneath a modal closes; its own hotkeys may still want Escape.
+			if (handle.modal) return false;
 		}
 		return false;
 	}

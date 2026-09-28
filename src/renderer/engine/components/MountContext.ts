@@ -2,6 +2,8 @@ import { Animator } from '../animation/Animator';
 import { Clock } from '../animation/Clock';
 import type { DrawApi } from '../draw/DrawApi';
 import { Dispatcher } from '../input/Dispatcher';
+import type { FocusManager } from '../input/FocusManager';
+import type { DragService } from '../input/DragService';
 import { AssetLoader, AssetService } from '../services/AssetService';
 import { ClipboardBackend, ClipboardService } from '../services/ClipboardService';
 import { OverlayService } from '../services/OverlayService';
@@ -23,15 +25,18 @@ export interface ViewportSource {
  * Construction touches none of it (R8.14). A component gets the context in
  * `onMount` and releases what it registered in `onUnmount`; the base class
  * already releases what `dispatcher` and `frame` hold on it.
- *
- * Still to arrive, as fields added here by the tasks that build them:
- * `focus` (DDB-76) and `drag` (DDB-77).
  */
 export interface MountContext {
 	/** Chapter 2's draw API: drawing and `measureText`. */
 	readonly draw: DrawApi;
 	/** Chapter 9's dispatcher: the input queue, hit testing, hover, capture, hotkeys. */
 	readonly dispatcher: Dispatcher;
+	/**
+	 * Chapter 9's focus manager (9.7): Tab order from the tree, scopes,
+	 * groups, directional focus, focus-visible. The dispatcher drives it from
+	 * input and the frame's layout ends with its fixup (R9.28).
+	 */
+	readonly focus: FocusManager;
 	readonly viewport: ViewportSource;
 	/** Update requests and layout invalidation for the frame (R8.16 to R8.18). */
 	readonly frame: UiFrame;
@@ -39,6 +44,8 @@ export interface MountContext {
 	readonly clock: Clock;
 	/** Tweens over `clock`, ticked in the update phase (R8.28). */
 	readonly animator: Animator;
+	/** R9.12's drag and drop: `start` from a `pointerdown`, and `isDragging` for tooltips (R9.12e). */
+	readonly drag: DragService;
 	/** Anchor, flip, shift, and constrain inside the viewport (R12.30). */
 	readonly placement: PlacementService;
 	/** Roots above the scene's: dialogs, popovers, popups opened as roots, the tooltip (R8.21). */
@@ -79,17 +86,31 @@ export function createMountContext({ draw, viewport, clock = new Clock(), clipbo
 	const animator = new Animator({ clock });
 	const frame = new UiFrame({ clock, animator });
 	const dispatcher = new Dispatcher({ frame, clock, pixelRatio: () => draw.devicePixelScale });
+	const focus = dispatcher.focus;
+	const drag = dispatcher.drag;
+	frame.afterLayout(() => focus.fixup());
 	const placement = new PlacementService({ viewport });
 	const overlays = new OverlayService({ viewport });
 	const popups = new PopupService({ overlays, placement });
-	const tooltips = new TooltipService({ overlays, placement, dispatcher, clock, animator, frame });
+	const tooltips = new TooltipService({
+		overlays,
+		placement,
+		dispatcher,
+		clock,
+		animator,
+		frame,
+		// R9.12e: tooltips stay hidden while a drag is active.
+		dragActive: () => drag.isDragging,
+	});
 	const context: MountContext = {
 		draw,
 		dispatcher,
+		focus,
 		viewport,
 		frame,
 		clock,
 		animator,
+		drag,
 		placement,
 		overlays,
 		popups,
@@ -101,5 +122,11 @@ export function createMountContext({ draw, viewport, clock = new Clock(), clipbo
 	dispatcher.addObserver(tooltips);
 	dispatcher.addObserver(popups);
 	dispatcher.addObserver(overlays);
+	// R9.14: focus moving outside an open popup closes it. R12.22: a tooltip
+	// is reachable from keyboard focus, which is focus while it is visible.
+	focus.onFocusChange((focused, visible) => {
+		popups.focusChange(focused);
+		tooltips.focusVisibleChange(visible ? focused : null);
+	});
 	return context;
 }

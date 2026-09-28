@@ -14,9 +14,10 @@ export type HotkeyHandler = (stroke: KeyStroke) => void;
  * focused component and its ancestors have declined the key. It is the one
  * part of the old InputSystem that survives (its global key map).
  *
- * The dispatcher holds one, the scene's table. Each overlay root has its own
- * on its handle, searched topmost first and stopping at a modal root, before
- * the scene's (`OverlayService.keyDown`).
+ * The dispatcher holds the scene's table, searched last; every root has its
+ * own (`Component.hotkeys`), searched from the focused root, then the other
+ * roots topmost first, stopping at a `modal` root (DDB-76). The overlay
+ * service sets `modal` on a modal overlay's root (DDB-78).
  */
 export class HotkeyTable {
 	private readonly handlers = new Map<string, HotkeyHandler>();
