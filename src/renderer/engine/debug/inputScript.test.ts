@@ -13,8 +13,8 @@ function steps(command: string) {
 	return parsed.steps;
 }
 
-/** What a pointer verb reports when it names no pointer: a mouse's, R9.25's defaults. */
-const mouse = { pointerId: 1, pointerType: 'mouse' };
+/** What a pointer verb reports when it names no pointer: pointer 1, type left to the dispatch side. */
+const mouse = { pointerId: 1 };
 
 function error(command: string): string {
 	const parsed = parseInputCommand(command);
@@ -93,8 +93,9 @@ describe('pointer fields and cancel (R9.25)', () => {
 		]);
 	});
 
-	it('defaults the pointerType to mouse when only the id is given', () => {
-		expect(steps('move,10,20,4')).toEqual([{ kind: 'move', x: 10, y: 20, pointerId: 4, pointerType: 'mouse' }]);
+	// The dispatch side fills it from the pointer's own type (its down's).
+	it('leaves the pointerType out when only the id is given', () => {
+		expect(steps('move,10,20,4')).toEqual([{ kind: 'move', x: 10, y: 20, pointerId: 4 }]);
 	});
 
 	it('reads the pointerType case-insensitively', () => {

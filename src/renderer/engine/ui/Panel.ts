@@ -157,20 +157,33 @@ export class Panel extends Layer {
 	}
 
 	/**
+	 * The furthest the scroll offset goes on each axis, 0 on an axis the
+	 * panel does not scroll: the content extent plus the padding on both
+	 * sides, less the box. What `scroll` clamps to, `canScroll` tests, and
+	 * the tree snapshot reports (R13.22).
+	 */
+	public get scrollRange(): Vec2 {
+		if (!this.scrollable) return { x: 0, y: 0 };
+		const vertical = this.scrollDirection !== 'horizontal';
+		const horizontal = this.scrollDirection !== 'vertical';
+		return {
+			x: horizontal ? Math.max(0, this.scrollExtentWidth + this.contentInset * 2 - this.width) : 0,
+			y: vertical ? Math.max(0, this.scrollExtentHeight + this.contentInset * 2 - this.height) : 0,
+		};
+	}
+
+	/**
 	 * Scroll by delta amount
 	 */
 	public scroll(deltaX: number, deltaY: number): this {
 		if (!this.scrollable) return this;
 
+		const range = this.scrollRange;
 		if (this.scrollDirection === 'vertical' || this.scrollDirection === 'both') {
-			const maxScrollY = this.scrollExtentHeight + this.contentInset * 2 - this.height;
-			const newScrollY = this.scrollOffsetY + deltaY;
-			this.scrollOffsetY = Math.max(0, Math.min(maxScrollY, newScrollY));
+			this.scrollOffsetY = Math.max(0, Math.min(range.y, this.scrollOffsetY + deltaY));
 		}
 		if (this.scrollDirection === 'horizontal' || this.scrollDirection === 'both') {
-			const maxScrollX = this.scrollExtentWidth + this.contentInset * 2 - this.width;
-			const newScrollX = this.scrollOffsetX + deltaX;
-			this.scrollOffsetX = Math.max(0, Math.min(maxScrollX, newScrollX));
+			this.scrollOffsetX = Math.max(0, Math.min(range.x, this.scrollOffsetX + deltaX));
 		}
 
 		return this;
@@ -222,8 +235,7 @@ export class Panel extends Layer {
 		if (!this.scrollable) return false;
 		const vertical = this.scrollDirection !== 'horizontal';
 		const horizontal = this.scrollDirection !== 'vertical';
-		const maxY = Math.max(0, this.scrollExtentHeight - this.height);
-		const maxX = Math.max(0, this.scrollExtentWidth - this.width);
+		const { x: maxX, y: maxY } = this.scrollRange;
 		return (vertical && ((deltaY > 0 && this.scrollOffsetY < maxY) || (deltaY < 0 && this.scrollOffsetY > 0)))
 			|| (horizontal && ((deltaX > 0 && this.scrollOffsetX < maxX) || (deltaX < 0 && this.scrollOffsetX > 0)));
 	}

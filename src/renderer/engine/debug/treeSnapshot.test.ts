@@ -335,6 +335,49 @@ describe('treeSnapshot', () => {
 		});
 	});
 
+	// DDB-208 review: the lint's scroll exemptions key on `scroll`, which only
+	// a real scroller emits. A padded panel reports its padding as
+	// contentOffset and must not read as one.
+	describe('scroll signal, through to the lint', () => {
+		const hiddenButton = (panel: Panel) => {
+			const clipper = new Layer({ id: 'clipper', width: 200, height: 100, overflow: 'hidden' });
+			clipper.addChild(new Button('Hidden', { id: 'hidden', x: 20, y: 300, width: 100, height: 32 }));
+			panel.addChild(clipper);
+			return layoutLint(treeSnapshot([panel], VIEWPORT));
+		};
+
+		it('emits scroll on a scrollable Panel only', () => {
+			const scroller = new Panel({ width: 200, height: 100, scrollable: true });
+			scroller.setContentSize(200, 500);
+			scroller.scroll(0, 40);
+			const padded = new Panel({ width: 200, height: 100, padding: 12 });
+
+			const [scrollerNode, paddedNode] = treeSnapshot([scroller, padded], VIEWPORT).roots;
+
+			expect(scrollerNode.scroll).toEqual({ x: 0, y: 40, maxX: 0, maxY: 400 });
+			expect(paddedNode.contentOffset).toEqual({ x: -12, y: -12 });
+			expect('scroll' in paddedNode).toBe(false);
+		});
+
+		it('reports a button a non-scrolling clip hides inside a padded panel', () => {
+			const result = hiddenButton(new Panel({ id: 'padded', width: 400, height: 400, padding: 12 }));
+
+			expect(result.violations.filter((violation) => violation.rule === 'unreachable-interactive').map((violation) => violation.path))
+				.toEqual(['padded/clipper/hidden']);
+		});
+
+		it('lets off a button a scroller can bring into view', () => {
+			const scroller = new Panel({ id: 'list', width: 200, height: 100, scrollable: true });
+			scroller.setContentSize(200, 600);
+			scroller.addChild(new Button('Row', { id: 'row', x: 20, y: 400, width: 100, height: 32 }));
+
+			const result = layoutLint(treeSnapshot([scroller], VIEWPORT));
+
+			expect(result.violations.filter((violation) => violation.rule === 'unreachable-interactive')).toEqual([]);
+			expect(result.rules.find((rule) => rule.rule === 'unreachable-interactive')?.exempt).toBe(1);
+		});
+	});
+
 	describe("parts, a composite's own drawings (R8.1)", () => {
 		it('omits parts on a node that has none, so an absent group is never read as an empty one', () => {
 			const leaf = treeSnapshot([new Layer({ id: 'plain', width: 10, height: 10 })], VIEWPORT).roots[0];

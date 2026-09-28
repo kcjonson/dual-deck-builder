@@ -135,6 +135,21 @@ export interface SnapshotStack {
 	gap: number;
 }
 
+/**
+ * A scroll container's position and range (R13.22, amended by DDB-208):
+ * `x` and `y` are the scroll offset, `maxX` and `maxY` the furthest it goes,
+ * 0 on an axis that does not scroll. Emitted only by a real scroller, which
+ * is what the lint's rules 3 and 6 key on: `contentOffset` is not that
+ * signal, because a padded panel that never scrolls reports its padding
+ * there too.
+ */
+export interface SnapshotScroll {
+	x: number;
+	y: number;
+	maxX: number;
+	maxY: number;
+}
+
 export interface SnapshotNode {
 	id: string | null;
 	type: string;
@@ -157,6 +172,7 @@ export interface SnapshotNode {
 	opacity?: number;
 	clip?: SnapshotRect;
 	contentOffset?: SnapshotPoint;
+	scroll?: SnapshotScroll;
 	transform?: SnapshotTransform;
 	state?: SnapshotState;
 	text?: SnapshotText;
@@ -388,6 +404,11 @@ function serializeNode(
 		const offsetY = finite(offset?.y);
 		if ((node instanceof Panel && node.scrollable) || offsetX !== 0 || offsetY !== 0) {
 			serialized.contentOffset = { x: offsetX, y: offsetY };
+		}
+		if (node instanceof Panel && node.scrollable) {
+			const position = node.getScrollOffset();
+			const range = node.scrollRange;
+			serialized.scroll = { x: finite(position.x), y: finite(position.y), maxX: finite(range.x), maxY: finite(range.y) };
 		}
 
 		const transform = snapshotTransform(node);

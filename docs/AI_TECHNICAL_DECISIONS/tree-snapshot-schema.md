@@ -34,6 +34,7 @@ margin box it cannot see, a promoted popup it thinks is clipped, a text-overflow
 | `inkBounds` | `Component.inkRect` through the walk's matrix | always |
 | `parts` | the `addPart` mark | on Button, Input and the F5 overlay |
 | `focusable`, `pointerEvents`, `handlesPointer` | `Component.focusable`, its own `pointerEvents`, `Component.handlesPointer` | always (DDB-208) |
+| `scroll` | `Panel.getScrollOffset()` and `Panel.scrollRange` | on a scrollable Panel (DDB-208) |
 
 R11.11's other flags arrived with DDB-84's state resolution.
 

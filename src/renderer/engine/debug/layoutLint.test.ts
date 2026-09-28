@@ -280,14 +280,14 @@ describe('layoutLint', () => {
 
 		// R3.8: a raise resets the clip, so an open menu hangs past its select
 		// by design; R13.31's z-order fixture needs one and still lints clean.
-		it('lets off a child raised into another layer, and only that', () => {
-			const menu = (layer: string) => layoutLint(
+		it('lets off a child raised into another layer that touches its parent, and only that', () => {
+			const menu = (layer: string, y = 30) => layoutLint(
 				doc([
 					node({
 						id: 'select',
 						bounds: box(0, 0, 200, 30),
 						layer: 'base',
-						children: [node({ id: 'menu', bounds: box(0, 32, 200, 150), layer })],
+						children: [node({ id: 'menu', bounds: box(0, y, 200, 150), layer })],
 					}),
 				]),
 			);
@@ -295,6 +295,35 @@ describe('layoutLint', () => {
 			expect(forRule(menu('popup'), 'child-outside-parent')).toHaveLength(0);
 			expect(reportFor(menu('popup'), 'child-outside-parent').exempt).toBe(1);
 			expect(forRule(menu('base'), 'child-outside-parent')).toHaveLength(1);
+			// Overlapping counts as touching too.
+			expect(forRule(menu('popup', 20), 'child-outside-parent')).toHaveLength(0);
+		});
+
+		// The popup built in the wrong coordinate space: raised, on screen,
+		// and nowhere near the component that opened it.
+		it('reports a raised child that has come away from its parent', () => {
+			const result = layoutLint(
+				doc([
+					node({
+						id: 'host',
+						bounds: box(0, 0, 100, 100),
+						children: [node({ id: 'menu', bounds: box(600, 600, 200, 150), layer: 'popup' })],
+					}),
+				]),
+			);
+
+			expect(forRule(result, 'child-outside-parent').map((violation) => violation.path)).toEqual(['host/menu']);
+			// Two pixels clear is already apart.
+			const gap = layoutLint(
+				doc([
+					node({
+						id: 'select',
+						bounds: box(0, 0, 200, 30),
+						children: [node({ id: 'menu', bounds: box(0, 32, 200, 150), layer: 'popup' })],
+					}),
+				]),
+			);
+			expect(forRule(gap, 'child-outside-parent')).toHaveLength(1);
 		});
 
 		it('does not report a child inside its parent, nor one over by less than epsilon', () => {
@@ -408,6 +437,54 @@ describe('layoutLint', () => {
 	});
 
 	describe('rule 3: outside-viewport (R13.25.3)', () => {
+		// R13.25.3 as amended by DDB-208: scrolled away is not off screen.
+		// R3.8: a raised child leaves every clip behind but still moves with
+		// the scrollers around it, including ones further out than its own.
+		it('lets off raised content an outer scroller can bring into the viewport', () => {
+			const result = layoutLint(
+				doc([
+					node({
+						id: 'page',
+						bounds: box(0, 0, 800, 400),
+						layer: 'base',
+						scroll: { x: 0, y: 0, maxX: 0, maxY: 2000 },
+						children: [
+							node({
+								id: 'inner',
+								bounds: box(0, 1000, 400, 100),
+								layer: 'base',
+								clip: box(0, 0, 800, 400),
+								scroll: { x: 0, y: 0, maxX: 0, maxY: 0 },
+								children: [node({ id: 'menu', bounds: box(0, 1100, 200, 150), layer: 'popup' })],
+							}),
+						],
+					}),
+				], { width: 800, height: 400 }),
+			);
+
+			expect(forRule(result, 'outside-viewport').map((violation) => violation.path)).toEqual([]);
+		});
+
+		it('lets off content a scroll container can bring wholly into view, and nothing else', () => {
+			const list = (rows: LintNode[], scroll = { x: 0, y: 0, maxX: 0, maxY: 1200 }) => layoutLint(
+				doc([node({ id: 'list', bounds: box(0, 0, 400, 400), scroll, children: rows })], { width: 800, height: 400 }),
+			);
+
+			const below = list([node({ id: 'row', bounds: box(0, 900, 400, 40) })]);
+			expect(forRule(below, 'outside-viewport')).toHaveLength(0);
+			expect(reportFor(below, 'outside-viewport').exempt).toBe(1);
+			// Past the end of the range.
+			expect(forRule(list([node({ id: 'row', bounds: box(0, 1700, 400, 40) })]), 'outside-viewport')).toHaveLength(1);
+			// Wider than the window on the axis it does not scroll.
+			expect(forRule(list([node({ id: 'row', bounds: box(0, 900, 900, 40) })]), 'outside-viewport')).toHaveLength(1);
+			// Taller than the window on the axis it scrolls: exempt where it can span the window.
+			expect(forRule(list([node({ id: 'section', bounds: box(0, 900, 400, 700) })]), 'outside-viewport')).toHaveLength(0);
+			expect(forRule(list([node({ id: 'section', bounds: box(0, 1700, 400, 700) })]), 'outside-viewport')).toHaveLength(1);
+						// No scroll signal, no exemption.
+			const plain = layoutLint(doc([node({ id: 'list', bounds: box(0, 0, 400, 400), contentOffset: { x: -8, y: -8 }, children: [node({ id: 'row', bounds: box(0, 900, 400, 40) })] })], { width: 800, height: 400 }));
+			expect(forRule(plain, 'outside-viewport')).toHaveLength(1);
+		});
+
 		it('reports a visible node past the viewport edge', () => {
 			const result = layoutLint(doc([node({ id: 'banner', bounds: box(1900, 10, 300, 40) })], { width: 1440, height: 882 }));
 
@@ -828,12 +905,13 @@ describe('layoutLint', () => {
 		// A scroller's content outside its clip is scrolled away, not lost:
 		// the wheel brings it back and focus scrolls it in (R12.20).
 		it('lets off a control a scroll container has scrolled out of view', () => {
-			const scroller = (contentOffset?: { x: number; y: number }) => layoutLint(
+			const scroller = (scroll?: { x: number; y: number; maxX: number; maxY: number }) => layoutLint(
 				doc([
 					node({
 						id: 'list',
 						bounds: box(0, 0, 400, 400),
-						contentOffset,
+						contentOffset: { x: 0, y: 0 },
+						scroll,
 						children: [
 							node({
 								id: 'rows',
@@ -847,9 +925,39 @@ describe('layoutLint', () => {
 				]),
 			);
 
-			expect(forRule(scroller({ x: 0, y: 0 }), 'unreachable-interactive')).toHaveLength(0);
-			expect(reportFor(scroller({ x: 0, y: 0 }), 'unreachable-interactive').exempt).toBe(1);
+			const reach = { x: 0, y: 0, maxX: 0, maxY: 1600 };
+			expect(forRule(scroller(reach), 'unreachable-interactive')).toHaveLength(0);
+			expect(reportFor(scroller(reach), 'unreachable-interactive').exempt).toBe(1);
+			// contentOffset alone is not a scroller: a padded panel reports one.
 			expect(forRule(scroller(), 'unreachable-interactive')).toHaveLength(1);
+			// A range that stops short of the row does not reach it.
+			expect(forRule(scroller({ x: 0, y: 0, maxX: 0, maxY: 400 }), 'unreachable-interactive')).toHaveLength(1);
+		});
+
+		// A scroller an outer, non-scrolling clip hides entirely has nowhere
+		// to scroll anything into.
+		it('does not let off a control inside a scroller that is itself clipped away', () => {
+			const result = layoutLint(
+				doc([
+					node({
+						id: 'frame',
+						bounds: box(0, 0, 400, 400),
+						children: [
+							node({
+								id: 'list',
+								bounds: box(0, 600, 400, 400),
+								clip: box(0, 0, 400, 400),
+								scroll: { x: 0, y: 0, maxX: 0, maxY: 1600 },
+								children: [
+									node({ id: 'row', type: 'Button', bounds: box(0, 1200, 180, 44), focusable: true, clip: box(0, 0, 400, 400) }),
+								],
+							}),
+						],
+					}),
+				]),
+			);
+
+			expect(forRule(result, 'unreachable-interactive').map((violation) => violation.path)).toEqual(['frame/list/row']);
 		});
 
 		it('still checks a scrolled-out control for cover', () => {
@@ -858,7 +966,7 @@ describe('layoutLint', () => {
 					node({
 						id: 'list',
 						bounds: box(0, 0, 400, 400),
-						contentOffset: { x: 0, y: 0 },
+						scroll: { x: 0, y: 0, maxX: 0, maxY: 1600 },
 						children: [
 							node({ id: 'row', type: 'Button', bounds: box(0, 900, 180, 44), focusable: true, clip: box(0, 0, 400, 400) }),
 							node({ id: 'cover', bounds: box(0, 880, 400, 100) }),
@@ -876,7 +984,7 @@ describe('layoutLint', () => {
 					node({
 						id: 'list',
 						bounds: box(0, 0, 400, 400),
-						contentOffset: { x: 0, y: 0 },
+						scroll: { x: 0, y: 0, maxX: 0, maxY: 1600 },
 						parts: [node({ id: 'grip', type: 'Button', bounds: box(0, 900, 30, 30), focusable: true, clip: box(0, 0, 400, 400) })],
 					}),
 				]),

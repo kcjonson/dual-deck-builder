@@ -293,7 +293,7 @@ function popupInScroller(body: Layer): void {
 				border: { color: [0.55, 0.6, 0.7, 1], width: 1 },
 				label: 'Select: open',
 			});
-			select.addChild(menu({ id: 'dev_po_scroll_menu', y: rowHeight - 6, width: 200, height: 150 }, 'Option', 5));
+			select.addChild(menu({ id: 'dev_po_scroll_menu', y: rowHeight - 8, width: 200, height: 150 }, 'Option', 5));
 			rowBox.addChild(select);
 		}
 		scroller.addChild(rowBox);
@@ -314,7 +314,8 @@ function popupInScroller(body: Layer): void {
 function modalStack(body: Layer): void {
 	const dialog = { x: 50, y: 60, width: 320, height: 190 };
 	const select = { x: 30, y: 70, width: 260, height: 30 };
-	const menuTop = select.height + 2;
+	// Menus hang flush from their selects: rule 2 lets a raised child off only while it touches its parent.
+	const menuTop = select.height;
 	const menuHeight = 210;
 	const menuLeft = dialog.x + select.x;
 	const menuY = dialog.y + select.y + menuTop;

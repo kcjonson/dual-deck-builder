@@ -19,7 +19,10 @@
  *
  * The pointer fields are positional and trail the existing ones, so every
  * command R13.35 wrote still parses to the same thing: `pointerId` defaults
- * to 1 and `pointerType` to `mouse`, which is what a mouse reports. The cost
+ * to 1. An omitted `pointerType` is left out of the step, and the dispatch
+ * side takes the type that pointer last had (its down's, for an up), or
+ * `mouse` for a pointer it has never seen, since a real pointer does not
+ * change type mid-gesture. The cost
  * of positional is that a touch press spells out its button,
  * `down,10,20,0,2,touch`; named fields would be a second syntax for a
  * grammar whose appeal is that it has one.
@@ -66,7 +69,8 @@ interface PointerFields {
 	x: number;
 	y: number;
 	pointerId: number;
-	pointerType: InjectedPointerType;
+	/** Absent when the command named none: the pointer's own type, or `mouse` (see above). */
+	pointerType?: InjectedPointerType;
 }
 
 export type InjectedStep =
@@ -113,8 +117,7 @@ function pointerIdNumber(field: string | undefined): number | null {
 	return value;
 }
 
-function pointerTypeName(field: string | undefined): InjectedPointerType | null {
-	if (field === undefined) return 'mouse';
+function pointerTypeName(field: string): InjectedPointerType | null {
 	const type = field.toLowerCase();
 	return (POINTER_TYPES as readonly string[]).includes(type) ? (type as InjectedPointerType) : null;
 }
@@ -124,12 +127,14 @@ function parsePointerTail(
 	verb: string,
 	fields: string[],
 	index: number,
-): { pointerId: number; pointerType: InjectedPointerType } | string {
+): { pointerId: number; pointerType?: InjectedPointerType } | string {
 	const pointerId = pointerIdNumber(fields[index]);
 	if (pointerId === null) return `${verb} needs a non-negative integer pointerId, got "${fields[index]}"`;
 
-	const pointerType = pointerTypeName(fields[index + 1]);
-	if (pointerType === null) return `${verb} needs a pointerType of mouse, touch or pen, got "${fields[index + 1]}"`;
+	const field = fields[index + 1];
+	if (field === undefined) return { pointerId };
+	const pointerType = pointerTypeName(field);
+	if (pointerType === null) return `${verb} needs a pointerType of mouse, touch or pen, got "${field}"`;
 
 	return { pointerId, pointerType };
 }

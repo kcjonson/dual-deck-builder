@@ -78,6 +78,12 @@ export interface LintNode {
 	clip?: LintRect;
 	/** Emitted only by scroll containers, which overflow by design. */
 	contentOffset?: LintPoint;
+	/**
+	 * Present only on a scroll container: the offset and the furthest it goes
+	 * per axis. The lint's one scroll signal; `contentOffset` is not, since a
+	 * padded panel that never scrolls reports its padding there.
+	 */
+	scroll?: { x: number; y: number; maxX: number; maxY: number };
 	zIndex?: number;
 	layer?: string;
 	/** Effective opacity; a node at 0 draws nothing and takes no hits (R3.27). */
@@ -253,6 +259,22 @@ function overlapOnAxis(aStart: number, aSize: number, bStart: number, bSize: num
 	return Math.min(aStart + aSize, bStart + bSize) - Math.max(aStart, bStart);
 }
 
+/** The overlap of two rects, or null when they share no area. A null `b` is no constraint. */
+function intersect(a: LintRect | null, b: LintRect | null): LintRect | null {
+	if (!a) return null;
+	if (!b) return a;
+	const x = Math.max(a.x, b.x);
+	const y = Math.max(a.y, b.y);
+	const w = Math.min(a.x + a.w, b.x + b.w) - x;
+	const h = Math.min(a.y + a.h, b.y + b.h) - y;
+	return w > 0 && h > 0 ? { x, y, w, h } : null;
+}
+
+/** Overlapping or abutting within epsilon on both axes. */
+function touches(a: LintRect, b: LintRect): boolean {
+	return overlapOnAxis(a.x, a.w, b.x, b.w) >= -EPSILON && overlapOnAxis(a.y, a.h, b.y, b.h) >= -EPSILON;
+}
+
 /** How far `inner` pokes out of `outer` on its worst side. Negative when contained. */
 function escape(inner: LintRect, outer: LintRect): number {
 	return Math.max(
@@ -270,8 +292,8 @@ function escape(inner: LintRect, outer: LintRect): number {
  * R13.25.6 reads literally as focusable or `pointerEvents: auto | unit`, and
  * R8.29 makes `auto` the default for every leaf, so the literal reading counts
  * every label, icon and swatch as a control: measured with the snapshot
- * emitting `pointerEvents`, the gallery went from 0 to 106 findings and the
- * screens gained 1,064, and not one was a control (DDB-208). `pointerEvents`
+ * emitting `pointerEvents`, the gallery went from 0 to 146 findings and the
+ * screens gained 1,229, and not one was a control (DDB-208). `pointerEvents`
  * says whether a box takes hits, not whether anything listens, so the rule
  * takes the handler from `handlesPointer` and keeps `pointerEvents` as the
  * veto it is: a `passthrough` container with an onClick hears its children's
@@ -348,8 +370,8 @@ interface Candidate {
 	index: number;
 	bounds: LintRect;
 	screen: LintRect;
-	/** Inside a scroll container's content, which scrolling can bring into view (rule 6). */
-	scrolled?: boolean;
+	/** The nearest scroll container this node scrolls with, if any (rules 3 and 6). */
+	scroller?: Candidate;
 }
 
 /**
@@ -545,7 +567,8 @@ export function layoutLint(document: LintDocument, options: LintOptions | null =
 	 * parent's content box. Without a `margin` on the document the two boxes
 	 * coincide.
 	 *
-	 * One exemption, a child raised to another layer; see the comment inside.
+	 * One exemption, a raised child that touches its parent; see the comment
+	 * inside.
 	 *
 	 * No exemption for a scroll container. R13.25.2 grants none, and the intent
 	 * signal that would carry one, `contentOffset`, sits on the Panel, whose
@@ -561,23 +584,101 @@ export function layoutLint(document: LintDocument, options: LintOptions | null =
 		// the scroller around them on purpose. R13.31 asks for exactly that
 		// popup in the z-order fixture while R13.29 asks the fixture to lint
 		// clean, and R13.25.1 already reads a differing layer as declared
-		// intent, so it is read the same way here.
-		if (declaresDifferentLayer(child.node, parent.node)) {
+		// intent, so it is read the same way here. Only while the child still
+		// touches its parent, as an anchored menu always does: a raised child
+		// nowhere near its parent is the popup built in the wrong coordinate
+		// space, and nothing else in the lint would see it.
+		const box = marginBox(child);
+		if (declaresDifferentLayer(child.node, parent.node) && touches(box, parent.screen)) {
 			rule.exempt++;
 			return;
 		}
 		rule.evaluated++;
-		if (escape(marginBox(child), parent.screen) > EPSILON) report('child-outside-parent', child, parent);
+		if (escape(box, parent.screen) > EPSILON) report('child-outside-parent', child, parent);
 	};
 
 	/**
-	 * Rule 3. Deliberately not exempting a node scrolled out of a clip: R13.25.3
-	 * reads plainly, and rule 6 is the one that judges reachability.
+	 * Where a scroller's content can be seen, or null when it cannot be: its
+	 * box inside the viewport and its own effective clip. A scroller that is
+	 * itself scrolled out of view counts as its whole box, once its own
+	 * scroller can bring it in; one an outer, non-scrolling clip hides has
+	 * nowhere to show anything.
+	 */
+	const scrollWindow = (scroller: Candidate, depth = 0): LintRect | null => {
+		if (depth > MAX_DEPTH) return null;
+		const shown = intersect(intersect(scroller.screen, viewport), scroller.node.clip ? rect(scroller.node.clip) : null);
+		if (shown) return shown;
+		return canScrollInto(scroller, 'meets', depth + 1) ? scroller.screen : null;
+	};
+
+	/**
+	 * Whether some scroll position of the candidate's nearest scroller shows
+	 * it in the scroller's window. `meets` asks for any overlap. `fits` asks
+	 * for all of it on each axis, or, on a scrolling axis it is longer than
+	 * the window on, for a position where it spans the window, as a tall
+	 * section in a scrolled page does; an axis that does not scroll gets no
+	 * such allowance. The content moves by the difference between the current
+	 * offset and the new one, anywhere from 0 to the scroller's range.
+	 *
+	 * A candidate raised out of its scroller's layer is not clipped by it or
+	 * by anything outside it (R3.8), but still moves with every scroller
+	 * around it, so its window is the viewport and any of those scrollers
+	 * may be the one that brings it there.
+	 */
+	const canScrollInto = (candidate: Candidate, mode: 'fits' | 'meets', depth = 0): boolean => {
+		const nearest = candidate.scroller;
+		if (!nearest) return false;
+		if (declaresDifferentLayer(candidate.node, nearest.node)) {
+			for (let scroller: Candidate | undefined = nearest; scroller; scroller = scroller.scroller) {
+				if (scrollsInto(candidate, scroller, viewport, mode)) return true;
+			}
+			return false;
+		}
+		const window = scrollWindow(nearest, depth);
+		return window !== null && scrollsInto(candidate, nearest, window, mode);
+	};
+
+	const scrollsInto = (candidate: Candidate, scroller: Candidate, window: LintRect, mode: 'fits' | 'meets'): boolean => {
+		const range = scroller.node.scroll;
+		if (!range) return false;
+		const axis = (start: number, size: number, offset: number, max: number, windowStart: number, windowSize: number): boolean => {
+			const reach = Math.max(num(max), 0);
+			const lowest = num(offset) - reach;
+			const highest = num(offset);
+			const windowEnd = windowStart + windowSize;
+			if (mode === 'meets') {
+				// Some shift in [lowest, highest] with a positive overlap: the
+				// open interval of shifts that overlap, against the closed range.
+				return lowest < windowEnd - start && highest > windowStart - start - size;
+			}
+			if (reach > 0 && size > windowSize) {
+				return Math.max(lowest, windowEnd - start - size - EPSILON) <= Math.min(highest, windowStart - start + EPSILON);
+			}
+			return Math.max(lowest, windowStart - start - EPSILON) <= Math.min(highest, windowEnd - start - size + EPSILON);
+		};
+		const box = candidate.screen;
+		return axis(box.x, box.w, range.x, range.maxX, window.x, window.w)
+			&& axis(box.y, box.h, range.y, range.maxY, window.y, window.h);
+	};
+
+	/**
+	 * Rule 3. A node inside a scroll container that some scroll position
+	 * brings wholly into the scroller's window is scrolled away, not outside
+	 * the viewport, and is exempt (R13.25.3 as amended by DDB-208). The
+	 * scroller itself is still checked, and so is anything wider than the
+	 * window on an axis it does not scroll.
 	 */
 	const outsideViewport = (candidate: Candidate): void => {
 		const rule = tally('outside-viewport');
+		// Every candidate counts as evaluated, exempt or not: lint.spec.ts reads
+		// this rule's `evaluated` as the scene's node count.
 		rule.evaluated++;
-		if (escape(candidate.screen, viewport) > EPSILON) report('outside-viewport', candidate);
+		if (escape(candidate.screen, viewport) <= EPSILON) return;
+		if (canScrollInto(candidate, 'fits')) {
+			rule.exempt++;
+			return;
+		}
+		report('outside-viewport', candidate);
 	};
 
 	/** Rule 4. `w <= 0` OR `h <= 0`; see ZERO_SIZE_BUCKETS for why the split exists. */
@@ -666,12 +767,15 @@ export function layoutLint(document: LintDocument, options: LintOptions | null =
 			const y = overlapOnAxis(candidate.screen.y, candidate.screen.h, clipped.y, clipped.h);
 			// An empty intersection, not a thin one: a sliver is still a target.
 			// Scrolled out of a scroll container is not unreachable: the
-			// wheel brings it back, and focus scrolls it in (R12.20). The
-			// document says only that some ancestor clipped it, so a control
-			// under a scroller that an inner, non-scrolling clip hides is let
-			// off too; that is the price of not guessing which ancestor it was.
+			// wheel brings it back, and focus scrolls it in (R12.20). So a
+			// control that some scroll position of its nearest scroller puts
+			// across the scroller's window is let off, provided that window
+			// can be seen at all. The document says only that some ancestor
+			// clipped the control, so one that an inner, non-scrolling clip
+			// inside the scroller hides is let off too; that is the price of
+			// not guessing which ancestor it was.
 			if (x <= 0 || y <= 0) {
-				if (candidate.scrolled === true) {
+				if (canScrollInto(candidate, 'meets')) {
 					rule.exempt++;
 				} else {
 					report('unreachable-interactive', candidate);
@@ -773,9 +877,9 @@ export function layoutLint(document: LintDocument, options: LintOptions | null =
 			expanded.add(candidate.node);
 			const [parts, children] = toGroups(candidate.node, candidate.path);
 			// A scroller scrolls its children, not its own drawings.
-			const scrolls = candidate.node.contentOffset !== undefined && candidate.node.contentOffset !== null;
-			for (const part of parts) part.scrolled = candidate.scrolled;
-			for (const child of children) child.scrolled = candidate.scrolled === true || scrolls;
+			const scrolls = candidate.node.scroll !== undefined && candidate.node.scroll !== null;
+			for (const part of parts) part.scroller = candidate.scroller;
+			for (const child of children) child.scroller = scrolls ? candidate : candidate.scroller;
 			const owned = parts.length === 0 ? children : [...parts, ...children];
 			walk(parts, candidate, depth + 1, false, owned);
 			walk(children, candidate, depth + 1, true, owned);

@@ -288,6 +288,39 @@ describe('pointer fields and cancel (R9.25)', () => {
 		expect(result.commands[1].events).toEqual([{ type: 'pointercancel', dispatched: true, swallowed: false }]);
 	});
 
+	// A real pointer never changes type mid-gesture, so an up or a move that
+	// names no type is sent as the type its pointer went down as.
+	it('sends an up that names no type as its pointer\'s type', () => {
+		const types: string[] = [];
+		const listener = (event: Event): void => {
+			types.push(`${event.type} ${(event as MouseEvent & { pointerType: string }).pointerType}`);
+		};
+		canvas.addEventListener('pointerup', listener);
+		canvas.addEventListener('pointermove', listener);
+
+		inject(['down,150,150,0,2,touch', 'move,155,150,2', 'up,155,150,0,2']);
+		canvas.removeEventListener('pointerup', listener);
+		canvas.removeEventListener('pointermove', listener);
+
+		expect(types).toEqual(['pointermove touch', 'pointerup touch']);
+		// A pointer never seen is a mouse.
+		inject(['click,150,150,0,9']);
+		expect(pointerLog()).toContain('pointerdown 9 mouse primary');
+	});
+
+	it('refuses a cancel for a pointer it has never seen', () => {
+		const result = inject(['cancel,42']);
+
+		expect(result.ok).toBe(false);
+		expect(result.commands[0]).toEqual({
+			command: 'cancel,42',
+			ok: false,
+			error: 'cancel: no pointer 42 has moved or pressed yet',
+			events: [],
+		});
+		expect(box.count('pointercancel')).toBe(0);
+	});
+
 	// R9.10: a touch pointer is implicitly captured by its pointerdown
 	// target, so dragging off the box still releases on it.
 	it('gets the dispatcher to capture a touch implicitly', () => {

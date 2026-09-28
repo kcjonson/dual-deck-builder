@@ -212,8 +212,14 @@ class InjectedPointers {
 		this.lastSeen.set(pointerId, { x, y, pointerType });
 	}
 
-	public last(pointerId: number): { x: number; y: number; pointerType: InjectedPointerType } {
-		return this.lastSeen.get(pointerId) ?? { x: 0, y: 0, pointerType: 'mouse' };
+	/** Where a pointer last was and what type it was, or null for one never seen. */
+	public last(pointerId: number): { x: number; y: number; pointerType: InjectedPointerType } | null {
+		return this.lastSeen.get(pointerId) ?? null;
+	}
+
+	/** The command's type, else the one this pointer last had, else a mouse's. */
+	public typeOf(pointerId: number, named: InjectedPointerType | undefined): InjectedPointerType {
+		return named ?? this.lastSeen.get(pointerId)?.pointerType ?? 'mouse';
 	}
 }
 
@@ -233,40 +239,45 @@ function dispatchStep({ canvas, dispatcher }: InjectionTarget, step: InjectedSte
 	const swallowed = dispatcher.paused;
 	const pointers = pointersFor(dispatcher);
 
+	const pointerType = step.kind === 'move' || step.kind === 'down' || step.kind === 'up'
+		? pointers.typeOf(step.pointerId, step.pointerType)
+		: 'mouse';
+
 	switch (step.kind) {
 		case 'move': {
-			const identity = pointers.identity(step.pointerId, step.pointerType);
+			const identity = pointers.identity(step.pointerId, pointerType);
 			canvas.dispatchEvent(
 				pointerEvent(canvas, 'pointermove', { x: step.x, y: step.y, button: -1, buttons: 0, ...identity }),
 			);
-			pointers.moved(step.pointerId, step.x, step.y, step.pointerType);
+			pointers.moved(step.pointerId, step.x, step.y, pointerType);
 			return { type: 'pointermove', dispatched: true, swallowed };
 		}
 
 		case 'down': {
-			pointers.press(step.pointerId, step.pointerType);
-			const identity = pointers.identity(step.pointerId, step.pointerType);
+			pointers.press(step.pointerId, pointerType);
+			const identity = pointers.identity(step.pointerId, pointerType);
 			const buttons = buttonsMask(step.button);
 			canvas.dispatchEvent(
 				pointerEvent(canvas, 'pointerdown', { x: step.x, y: step.y, button: step.button, buttons, ...identity }),
 			);
-			pointers.moved(step.pointerId, step.x, step.y, step.pointerType);
+			pointers.moved(step.pointerId, step.x, step.y, pointerType);
 			return { type: 'pointerdown', dispatched: true, swallowed };
 		}
 
 		case 'up': {
-			const identity = pointers.identity(step.pointerId, step.pointerType);
+			const identity = pointers.identity(step.pointerId, pointerType);
 			canvas.dispatchEvent(
 				pointerEvent(canvas, 'pointerup', { x: step.x, y: step.y, button: step.button, buttons: 0, ...identity }),
 			);
-			pointers.moved(step.pointerId, step.x, step.y, step.pointerType);
+			pointers.moved(step.pointerId, step.x, step.y, pointerType);
 			pointers.lift(step.pointerId);
 			return { type: 'pointerup', dispatched: true, swallowed };
 		}
 
 		case 'cancel': {
-			const { x, y, pointerType } = pointers.last(step.pointerId);
-			const identity = pointers.identity(step.pointerId, pointerType);
+			// injectInput refuses a cancel for a pointer never seen, so this is known.
+			const { x, y, pointerType: lastType } = pointers.last(step.pointerId) ?? { x: 0, y: 0, pointerType: 'mouse' as const };
+			const identity = pointers.identity(step.pointerId, lastType);
 			canvas.dispatchEvent(pointerEvent(canvas, 'pointercancel', { x, y, button: -1, buttons: 0, ...identity }));
 			pointers.lift(step.pointerId);
 			return { type: 'pointercancel', dispatched: true, swallowed };
@@ -322,6 +333,16 @@ export function injectInput(target: InjectionTarget, commands: string[]): Inject
 		if (!parsed.ok) {
 			ok = false;
 			results.push({ command: String(command), ok: false, error: parsed.error, events: [] });
+			continue;
+		}
+
+		// A cancel says a gesture was abandoned, so there has to have been a
+		// pointer to abandon. A mouse cancel at the origin for a mistyped id
+		// would report success and prove nothing.
+		const unknown = parsed.steps.find((step) => step.kind === 'cancel' && pointersFor(target.dispatcher).last(step.pointerId) === null);
+		if (unknown && unknown.kind === 'cancel') {
+			ok = false;
+			results.push({ command, ok: false, error: `cancel: no pointer ${unknown.pointerId} has moved or pressed yet`, events: [] });
 			continue;
 		}
 
