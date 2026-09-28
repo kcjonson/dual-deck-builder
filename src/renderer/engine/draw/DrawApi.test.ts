@@ -1,6 +1,6 @@
 import { DrawApi, DrawApiOptions, Diagnostic, TEXT_MEASUREMENT_UNAVAILABLE } from './DrawApi';
 import { RecordingBackend } from './RecordingBackend';
-import { DrawCommand, RectCommand, TextCommand, TextureHandle } from './commands';
+import { DrawCommand, DrawTextOptions, RectCommand, TextCommand, TextureHandle } from './commands';
 import { Rect } from './geometry';
 
 const BLUE = [0.2, 0.4, 0.6, 1] as const;
@@ -525,7 +525,7 @@ describe('clip stack (R2.5, R4.2, R4.7) and chapter 4.7 required tests', () => {
 		expect(stats.apiDraws + stats.culled).toBe(500);
 	});
 
-	it('never bounds-culls text, because a run extent needs R6.8 glyph iteration', () => {
+	it('does not bounds-cull text when the backend cannot give a run extent', () => {
 		const { api, backend } = harness();
 		api.beginFrame({ viewport: VIEWPORT });
 		api.pushClip(rect(0, 0, 10, 10));
@@ -546,6 +546,80 @@ describe('clip stack (R2.5, R4.2, R4.7) and chapter 4.7 required tests', () => {
 
 		expect(backend.ids).toEqual(['offscreen']);
 		expect(api.getStats().culled).toBe(0);
+	});
+
+	describe('text, when the backend gives a run extent (DrawBackend.textInk)', () => {
+		/** Every run is 10 px per character wide and 12 px tall from its position. */
+		class InkBackend extends RecordingBackend {
+			readonly asked: string[] = [];
+
+			textInk(options: DrawTextOptions): Rect | null {
+				this.asked.push(options.text);
+				if (!options.position) return null;
+				return { x: options.position.x, y: options.position.y, width: options.text.length * 10, height: 12 };
+			}
+		}
+
+		function inkHarness() {
+			const backend = new InkBackend({ maxFrames: 1 });
+			backend.loadFontAtlas({ name: 'body', metrics: {}, texture: { id: 1, width: 1, height: 1, label: null } });
+			return { api: new DrawApi({ backend }), backend };
+		}
+
+		const run = (id: string, x: number, y: number, extra: Partial<DrawTextOptions> = {}): DrawTextOptions => ({
+			id,
+			text: 'row',
+			position: { x, y },
+			font: 'body',
+			size: 12,
+			color: RED,
+			...extra,
+		});
+
+		it('culls a run outside the clip per run, and counts it (R4.2a)', () => {
+			const { api, backend } = inkHarness();
+			api.beginFrame({ viewport: VIEWPORT, ratio: 1 });
+			api.pushClip(rect(0, 0, 100, 100));
+			api.drawText(run('inside', 10, 10));
+			api.drawText(run('straddles', 95, 95));
+			api.drawText(run('below', 10, 200));
+			api.popClip();
+			api.endFrame();
+
+			expect(backend.ids).toEqual(['inside', 'straddles']);
+			expect(api.getStats().culled).toBe(1);
+		});
+
+		it('tests the shadow run at its own offset', () => {
+			const { api, backend } = inkHarness();
+			api.beginFrame({ viewport: VIEWPORT, ratio: 1 });
+			api.pushClip(rect(0, 0, 100, 100));
+			// The run is below the clip; its shadow is lifted back into it.
+			api.drawText(run('lifted', 10, 110, { shadow: { color: BLUE, offset: { x: 0, y: -50 } } }));
+			api.popClip();
+			api.endFrame();
+
+			expect(backend.commands.map((command) => command.group)).toEqual(['shadow']);
+			expect(api.getStats().culled).toBe(1);
+		});
+
+		it('does not ask under no clip, or under a transform the extent cannot follow', () => {
+			const { api, backend } = inkHarness();
+			api.beginFrame({ viewport: VIEWPORT, ratio: 1 });
+			api.drawText(run('unclipped', 5000, 5000));
+			api.pushClip(rect(0, 0, 100, 100));
+			api.pushTransform([0, 1, -1, 0, 0, 0]);
+			api.drawText(run('rotated', 5000, 5000));
+			api.popTransform();
+			api.pushTranslate(-4990, -4990);
+			api.drawText(run('translated', 5000, 5000));
+			api.popTransform();
+			api.popClip();
+			api.endFrame();
+
+			expect(backend.ids).toEqual(['unclipped', 'rotated', 'translated']);
+			expect(backend.asked).toEqual(['row']);
+		});
 	});
 
 	it('culls a shadow and its owner independently', () => {

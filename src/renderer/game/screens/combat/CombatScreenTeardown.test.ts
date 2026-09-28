@@ -117,8 +117,11 @@ describe('CombatScreen: the fight ending leaves no combat cards behind', () => {
 		const headshot = CardLoader.getInstance().createCard('headshot');
 		if (!headshot) throw new Error('headshot should load');
 		raider.driver.set({ hitpoints: 1 });
+		// Last, not first: at this 1024 px viewport the first driver's hand
+		// starts off the left edge, outside the hand layer's clip, and R4.12
+		// makes a card there unclickable, as it is unseeable.
 		driver.set({
-			hand: [headshot, ...driver.hand],
+			hand: [...driver.hand, headshot],
 			adrenaline: driver.maxAdrenaline,
 			skills: { ...driver.skills, gunnery: 20 },
 		});

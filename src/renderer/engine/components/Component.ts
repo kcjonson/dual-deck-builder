@@ -33,6 +33,17 @@ export abstract class Component extends Layer implements Interactive {
 	public abstract render(context?: RenderContext): void;
 
 	/**
+	 * A component draws itself in its own `render` and never runs
+	 * `Layer.render`'s clip push, so it clips nothing whatever its overflow
+	 * says. Reporting false keeps the tree snapshot and the hit test in step
+	 * with what is drawn. A component that starts clipping its parts pushes
+	 * the clip in its `render` and overrides this back.
+	 */
+	public get clipsChildren(): boolean {
+		return false;
+	}
+
+	/**
 	 * Get hover state
 	 */
 	public isHovered(): boolean {
