@@ -1,5 +1,6 @@
 import { Component, ComponentOptions, ResolvedColors } from './Component';
 import type {
+	DrawTextOptions,
 	TextAlign,
 	TextDecoration,
 	TextMetrics,
@@ -81,6 +82,11 @@ export class Text extends Component {
 	private layoutHeight: number | null = null;
 	private metrics: TextMetrics | null = null;
 	private stale = true;
+	/** `measuredInk`'s cache, and the box and inputs it was taken for. */
+	private cachedInk: Rect | null = null;
+	private inkWidth = Number.NaN;
+	private inkHeight = Number.NaN;
+	private inkDirty = true;
 
 	constructor(text = '', options?: TextOptions) {
 		super(options);
@@ -180,13 +186,25 @@ export class Text extends Component {
 	}
 
 	public setAlign(align: TextAlign): this {
-		this.align = align;
+		if (align !== this.align) {
+			this.align = align;
+			this.runMoved();
+		}
 		return this;
 	}
 
 	public setVerticalAlign(verticalAlign: TextVerticalAlign): this {
-		this.verticalAlign = verticalAlign;
+		if (verticalAlign !== this.verticalAlign) {
+			this.verticalAlign = verticalAlign;
+			this.runMoved();
+		}
 		return this;
+	}
+
+	/** The run moved inside its box without changing size: only its ink is stale. */
+	private runMoved(): void {
+		this.inkDirty = true;
+		this.invalidateInk();
 	}
 
 	/**
@@ -281,17 +299,65 @@ export class Text extends Component {
 	}
 
 	/**
-	 * The subtree cull's bound on the run (DDB-184): the box grown on every
-	 * side by however far the laid-out run overruns it, so any alignment is
-	 * covered, and by an em beyond that for side bearings, ascenders past a
-	 * tight line height, decorations and the glyph quads' distance-field
-	 * padding. The clip of `overflow: clip` is not relied on, since the ink
-	 * audit compares the unclipped run. Null while nothing has measured,
-	 * because then nothing bounds what `drawText` lays out.
+	 * The box unioned with the run's ink, from the layout and placement
+	 * `render` draws (`DrawApi.measureTextInk`, the extent R4.2a culls the run
+	 * by), so a nowrap run past a narrow box, wrapped lines past a fixed
+	 * height, and glyphs past a tight line height are all inside it. Null
+	 * while nothing has measured, when the run draws nothing, or when the
+	 * backend cannot give the extent. Cached until the text, its style, its
+	 * alignment or its box changes.
+	 */
+	private get measuredInk(): Rect | null {
+		const width = this.width;
+		const height = this.height;
+		if (this.inkDirty || width !== this.inkWidth || height !== this.inkHeight) {
+			this.inkDirty = false;
+			this.inkWidth = width;
+			this.inkHeight = height;
+			const draw = this.context?.draw;
+			const run = this.currentMetrics && draw ? draw.measureTextInk(this.drawOptions()) : null;
+			if (run) {
+				const minX = Math.min(0, run.x);
+				const minY = Math.min(0, run.y);
+				const maxX = Math.max(width, run.x + run.width);
+				const maxY = Math.max(height, run.y + run.height);
+				this.cachedInk = Object.freeze({ x: minX, y: minY, width: maxX - minX, height: maxY - minY });
+			} else {
+				this.cachedInk = null;
+			}
+		}
+		return this.cachedInk;
+	}
+
+	/** R8.8: how far the measured run reaches past the box on its furthest side. */
+	public get inkExtent(): number {
+		const ink = this.measuredInk;
+		if (!ink) return 0;
+		return Math.max(-ink.x, -ink.y, ink.x + ink.width - this.width, ink.y + ink.height - this.height);
+	}
+
+	/**
+	 * The box and the measured run, per side rather than `inkExtent` on all
+	 * four, since a run overruns on the sides its alignment sends it to. The
+	 * snapshot's `inkBounds` (R13.22).
+	 */
+	public get inkRect(): Rect {
+		return this.measuredInk ?? super.inkRect;
+	}
+
+	/**
+	 * The subtree cull's bound on the run (DDB-184): `inkRect`. The clip of
+	 * `overflow: clip` is not relied on, since the ink audit compares the
+	 * unclipped run. Null while nothing has measured, because then nothing
+	 * bounds what `drawText` lays out. On a backend that measures text but
+	 * cannot give its extent, the box grown on every side by however far the
+	 * layout overruns it, and an em beyond that for side bearings, ascenders
+	 * past a tight line height, decorations and distance-field padding.
 	 */
 	protected get cullInk(): Rect | null {
 		const metrics = this.currentMetrics;
 		if (!metrics) return null;
+		if (this.context?.draw.canMeasureTextInk) return this.inkRect;
 		const spillX = Math.max(0, metrics.width - this.width);
 		const spillY = Math.max(0, metrics.height - this.height);
 		const slack = Math.max(0, this.fontSize);
@@ -334,6 +400,7 @@ export class Text extends Component {
 	 * invalidate layout for a size it never had (R8.18).
 	 */
 	private fit(): void {
+		this.inkDirty = true;
 		const size = this.resolveSize();
 		this.storeSize({ width: size.width, height: size.height, notify: true });
 	}
@@ -355,7 +422,14 @@ export class Text extends Component {
 		// Measured or not decides whether `cullInk` has a bound at all, and a
 		// first measure at an unchanged size invalidates nothing else, so the
 		// subtree would otherwise stay unbounded and never be skipped.
-		if (stale !== this.stale) this.invalidateInk();
+		// A different layout moves the run, and a stack's `assignSize` lays out
+		// here without `fit`, often at an unchanged size, so this is where the
+		// cached ink learns of it (a measure returns a fresh object each time,
+		// hence the comparison by value).
+		if (stale !== this.stale || (metrics !== null && !sameLayout(metrics, this.metrics))) {
+			this.inkDirty = true;
+			this.invalidateInk();
+		}
 		this.stale = stale;
 		if (metrics) this.metrics = metrics;
 		return metrics;
@@ -456,7 +530,12 @@ export class Text extends Component {
 	}
 
 	public render(draw: DrawApi): void {
-		draw.drawText({
+		draw.drawText(this.drawOptions());
+	}
+
+	/** The run `render` draws, which `measuredInk` measures too. */
+	private drawOptions(): DrawTextOptions {
+		return {
 			id: this.id ?? undefined,
 			text: this.content,
 			box: { x: 0, y: 0, width: this.width, height: this.height },
@@ -471,7 +550,7 @@ export class Text extends Component {
 			textTransform: this.textTransform,
 			decoration: this.decoration,
 			lineHeight: this.lineHeight ?? undefined,
-		});
+		};
 	}
 }
 
@@ -480,3 +559,12 @@ export class Text extends Component {
  * Zero would read as no wrap at all.
  */
 const NARROWEST_WRAP = 1e-3;
+
+/** Whether two measures describe the same lines, so the run lands in the same place. */
+function sameLayout(a: TextMetrics, b: TextMetrics | null): boolean {
+	if (!b || a.width !== b.width || a.height !== b.height || a.lines !== b.lines) return false;
+	for (let line = 0; line < a.lineWidths.length; line++) {
+		if (a.lineWidths[line] !== b.lineWidths[line]) return false;
+	}
+	return true;
+}

@@ -21,6 +21,17 @@ This document contains the chronological log of completed development tasks for 
 
 **How:** `CombatLayout.test.ts`; `CombatScreen.test.ts` (bands at three sizes including the 1600 cap, the drawer over the road only, END TURN after resize, seven cards a driver on screen and in their half at five sizes); `CombatScreenKeyboard.test.ts`; `DrawApi.test.ts` (quiet exact clip under a scale). A turn played through `window.__dev.input` at 1280x720 and 800x450: Headshot picked from its visible strip and aimed at the raider, END TURN, the raiders' turn, the log opened from LOG. Combat lint (with #101's interactivity rules) at 1440x882, 1280x720, 1920x1080, 1024x600 and 800x450 went from 282, 325, 258, 359, 401 to 215, 222, 230, 216, 237. Details in [combat-screen-stacks.md](AI_TECHNICAL_DECISIONS/combat-screen-stacks.md).
 
+## Honest text ink, pooled draw stacks, real pointer identity (2026-09-28)
+
+**What landed:** DDB-212, DDB-213, DDB-214, DDB-215 (DDB-55 follow-ups).
+
+- `Text.inkRect` is the box unioned with the run's ink from the layout `render` draws, through the new `DrawApi.measureTextInk` (the backend's `textInk`); `inkExtent` is its furthest side and `cullInk` reuses it, replacing DDB-184's box-plus-overrun-plus-an-em. Cached until text, style, alignment or size changes; `setAlign` and `setVerticalAlign` now invalidate ink. The em fallback stays for a backend without `textInk`.
+- `drawStacks.ts`: `TransformStack`, `ClipStack`, `NumberStack` and `ValueStack` replace the arrays of fresh entries. A push overwrites a pooled level in place; `capture` takes one immutable copy of the transform and clip per push it draws under. 500 frames of 1,000 pushes went from about 68 MB allocated to nothing measurable after warm-up.
+- `Dispatcher` remembers each live pointer's `pointerType` and `isPrimary` and uses them for `pointerenter`, `pointerleave`, `pointercancel` and `lostpointercapture`, dropping them once nothing can synthesise an event for the pointer.
+- Stack's depth-8 test drops its wall-clock bounds. The font, icon and card-face suites set a 30 s timeout of their own and the baseline provenance suite 120 s; the 5 s default stays for everything else. `intersectClipRectInto` and `snapClipRectInto` are the in-place arithmetic the clip stack and `intersectClip`/`snapClipRect` share; `resolveClip` is gone. A text's cached ink is refreshed whenever its layout changes, including a stack's `assignSize` at an unchanged size (review).
+
+**How:** sweeps in `subtreeCull.test.ts` for right-aligned, centred, tall, bottom-aligned and tight-line-height text (each fails with a box-only bound), a snapshot `inkBounds` test that follows `setAlign`, pooled-stack identity and capture tests in `DrawApi.test.ts`, and synthesised-field tests in `Dispatcher.test.ts`. No pixel moved.
+
 ## Dev tooling: paint order on components, pointer injection, lint interactivity (2026-09-28)
 
 **What landed:** DDB-205, DDB-207, DDB-208 (DDB-55), one PR.

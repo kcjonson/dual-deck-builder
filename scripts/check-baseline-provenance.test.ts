@@ -18,8 +18,10 @@ const MINT = 'Update screenshot baselines [visual-baseline]';
 
 let repo: string;
 
-// Each case runs a dozen git processes; a cold CI runner is slower than the 5 s default.
-jest.setTimeout(30_000);
+// Each case runs a dozen git processes. The slowest take 15 s on an idle
+// machine and several times that when parallel suites load it; the timeout
+// only has to catch a hang.
+jest.setTimeout(120_000);
 
 function git(args: string[], who = HAND): string {
 	const result = spawnSync('git', args, {

@@ -15,15 +15,13 @@ import {
 	shadowInk,
 } from './bounds';
 import { isSingleOutline } from './triangulate';
-import { snapClipRect } from '../coords/snapping';
+import { snapClipRectInto } from '../coords/snapping';
 import {
-	CLIP_NONE,
 	ClipState,
 	clipRectOf,
 	hasRoundedClip,
-	intersectClip,
-	resolveClip,
 } from './clip';
+import { ClipStack, NumberStack, TransformStack, ValueStack } from './drawStacks';
 import {
 	BlendMode,
 	Border,
@@ -47,22 +45,18 @@ import {
 	TextureHandle,
 } from './commands';
 import {
-	IDENTITY,
 	Mat2D,
 	RGBA,
 	Rect,
 	Vec2,
 	ClipRect,
-	concat,
 	copyColor,
 	copyRect,
 	copyVec2,
 	inflate,
 	intersects,
 	isAxisAligned,
-	isTranslateOnly,
 	transformedBounds,
-	translation,
 } from './geometry';
 import { LayerPartition } from './layerPartition';
 import { LayerName, ROOT_LAYER, layerOrdinal } from './layers';
@@ -109,6 +103,12 @@ import { DrawCounters, DrawStats, FlushReason, GpuWork } from './stats';
  * proves otherwise, and it should not be taken pre-emptively: pooling is
  * exactly what would destroy the inert, outlives-the-call property the
  * recording backend and the partition depend on.
+ *
+ * The state stacks are the exception, because nothing outlives a push but
+ * what a command captured: each level is a pooled frame the next push at that
+ * depth overwrites, and the transform and clip are copied once per push, at
+ * the first capture under it, and shared by every command after it
+ * (`drawStacks.ts`, DDB-215). A push nothing draws under costs nothing.
  */
 
 export type DiagnosticCode =
@@ -181,13 +181,6 @@ export interface BeginFrameOptions {
 export const TEXT_MEASUREMENT_UNAVAILABLE =
 	'measureText: this backend supplies no metrics. R2.14 requires measurement to share drawText\'s glyph iteration (R6.8), and a backend that lays no text out has nothing honest to return.';
 
-interface TransformEntry {
-	readonly matrix: Mat2D;
-	readonly translateOnly: boolean;
-}
-
-const ROOT_TRANSFORM: TransformEntry = { matrix: IDENTITY, translateOnly: true };
-
 /** Screen-space slack for float error in the ink audit, far below a pixel. */
 const INK_AUDIT_EPSILON = 1e-3;
 
@@ -215,10 +208,13 @@ export class DrawApi {
 	private readonly recordedDiagnostics: Diagnostic[] = [];
 	private readonly partition = new LayerPartition<DrawCommand>();
 
-	private transforms: TransformEntry[] = [ROOT_TRANSFORM];
-	private clips: ClipState[] = [CLIP_NONE];
-	private opacities: number[] = [1];
-	private layerStack: LayerName[] = [ROOT_LAYER];
+	/** R2.4 to R2.7's stacks, pooled so a push allocates nothing once warm (DDB-215). */
+	private readonly transforms = new TransformStack();
+	private readonly clips = new ClipStack();
+	private readonly opacities = new NumberStack({ root: 1 });
+	private readonly layerStack = new ValueStack<LayerName>({ root: ROOT_LAYER });
+	/** The screen rect a clip push computes, reused; the clip stack copies it. */
+	private readonly clipScratch: ClipRect = { minX: 0, minY: 0, maxX: 0, maxY: 0 };
 
 	private frameOpen = false;
 	private frameIndex = 0;
@@ -230,7 +226,7 @@ export class DrawApi {
 	private ratio = 1;
 	private warnedNestedRoundedClip = false;
 	private inkBoundLocal: Rect | null = null;
-	private inkBoundMatrix: Mat2D = IDENTITY;
+	private readonly inkBoundMatrix: [number, number, number, number, number, number] = [1, 0, 0, 1, 0, 0];
 	private inkBoundScreen: ClipRect | null = null;
 	private warnedInkBound = false;
 
@@ -256,26 +252,29 @@ export class DrawApi {
 		return this.frameIndex;
 	}
 
-	/** The current local-to-screen matrix (R2.4). */
+	/**
+	 * The current local-to-screen matrix (R2.4). Live: the next push at this
+	 * depth overwrites it, so read it on the spot and copy it to keep it.
+	 */
 	get transform(): Mat2D {
-		return this.transforms[this.transforms.length - 1].matrix;
+		return this.transforms.matrix;
 	}
 
 	get translateOnly(): boolean {
-		return this.transforms[this.transforms.length - 1].translateOnly;
+		return this.transforms.translateOnly;
 	}
 
-	/** The current clip, in screen space, in all three of R4.2's states. */
+	/** The current clip, in screen space, in all three of R4.2's states. Live, as `transform` is. */
 	get clip(): ClipState {
-		return this.clips[this.clips.length - 1];
+		return this.clips.state;
 	}
 
 	get opacity(): number {
-		return this.opacities[this.opacities.length - 1];
+		return this.opacities.value;
 	}
 
 	get layer(): LayerName {
-		return this.layerStack[this.layerStack.length - 1];
+		return this.layerStack.value;
 	}
 
 	/** The logical viewport of the open frame (R7.1); R4.1's target rect when `none` grows one. */
@@ -329,10 +328,10 @@ export class DrawApi {
 		this.warnedInkBound = false;
 		this.inkBoundLocal = null;
 		this.inkBoundScreen = null;
-		this.transforms = [ROOT_TRANSFORM];
-		this.clips = [CLIP_NONE];
-		this.opacities = [1];
-		this.layerStack = [ROOT_LAYER];
+		this.transforms.reset();
+		this.clips.reset();
+		this.opacities.reset();
+		this.layerStack.reset();
 		this.counters.reset();
 		this.recordedDiagnostics.length = 0;
 		if (reopened) {
@@ -399,25 +398,18 @@ export class DrawApi {
 
 	pushTransform(matrix: Mat2D): void {
 		if (!this.ensureFrame('pushTransform')) return;
-		this.pushMatrix(concat(this.transform, matrix));
+		this.transforms.push(matrix);
 	}
 
 	/** The common case, and the one R2.4 requires be tracked as translate-only. */
 	pushTranslate(dx: number, dy: number): void {
 		if (!this.ensureFrame('pushTranslate')) return;
-		this.pushMatrix(concat(this.transform, translation(dx, dy)));
+		this.transforms.pushTranslate(dx, dy);
 	}
 
 	popTransform(): void {
 		if (!this.ensureFrame('popTransform')) return;
-		this.popStack(this.transforms, 'popTransform');
-	}
-
-	private pushMatrix(matrix: Mat2D): void {
-		// R2.4's flag is decided once, here, from the concatenated result, so a
-		// draw never re-tests it and a scale under its own inverse gets the
-		// cheap snapping path back instead of staying false for the scope.
-		this.transforms.push({ matrix, translateOnly: isTranslateOnly(matrix) });
+		if (!this.transforms.pop()) this.reportEmptyPop('popTransform');
 	}
 
 	// -- clip stack (R2.5, R4.2, R4.7) --------------------------------------
@@ -449,19 +441,19 @@ export class DrawApi {
 	pushClipReset(): void {
 		if (!this.ensureFrame('pushClipReset')) return;
 		this.counters.countClipPush();
-		this.clips.push(CLIP_NONE);
+		this.clips.pushNone();
 	}
 
 	popClip(): void {
 		if (!this.ensureFrame('popClip')) return;
-		this.popStack(this.clips, 'popClip');
+		if (!this.clips.pop()) this.reportEmptyPop('popClip');
 	}
 
 	private pushClipInternal(rect: Rect, radius: number | null): void {
 		this.counters.countClipPush();
-		const current = this.transforms[this.transforms.length - 1];
+		const translateOnly = this.transforms.translateOnly;
 
-		if (!current.translateOnly && !isAxisAligned(current.matrix)) {
+		if (!translateOnly && !isAxisAligned(this.transforms.matrix)) {
 			// R4.7: the axis-aligned bounds of the transformed rect is the
 			// first of the three permitted responses, and it under-clips, so
 			// the warning is required rather than polite. A scale without
@@ -475,11 +467,10 @@ export class DrawApi {
 
 		// R7.8a: under a translation the clip goes onto the device grid, so R4.4's
 		// hard edge keeps or drops the same pixels as the content under it moves.
-		const bounds = transformedBounds(current.matrix, rect);
-		const screen = current.translateOnly ? snapClipRect(bounds, this.ratio) : bounds;
-		const rounded = radius === null ? null : { rect: screen, radius };
+		const screen = this.screenBounds(rect);
+		if (translateOnly) snapClipRectInto(screen, this.ratio, screen);
 
-		if (rounded && hasRoundedClip(this.clip) && !this.warnedNestedRoundedClip) {
+		if (radius !== null && hasRoundedClip(this.clip) && !this.warnedNestedRoundedClip) {
 			// R4.14: once per frame. The outer rounded clip degrades to its
 			// bounding rect, so content can show in its corners.
 			this.warnedNestedRoundedClip = true;
@@ -489,7 +480,43 @@ export class DrawApi {
 			);
 		}
 
-		this.clips.push(intersectClip(this.clip, screen, rounded));
+		this.clips.push(screen, radius);
+	}
+
+	/**
+	 * `transformedBounds` of `rect` under the current transform, into the
+	 * reused scratch rect. The translate-only case, every clip the render walk
+	 * pushes, is the same arithmetic in place; a rotated clip is rare and
+	 * already reported (R4.7), so it may allocate. A scale without rotation
+	 * (the combat stage) is every clip under it, so it is done in place too.
+	 */
+	private screenBounds(rect: Rect): ClipRect {
+		const out = this.clipScratch;
+		const matrix = this.transforms.matrix;
+		if (this.transforms.translateOnly) {
+			out.minX = rect.x + matrix[4];
+			out.minY = rect.y + matrix[5];
+			out.maxX = rect.x + rect.width + matrix[4];
+			out.maxY = rect.y + rect.height + matrix[5];
+			return out;
+		}
+		if (isAxisAligned(matrix)) {
+			const x0 = rect.x * matrix[0] + matrix[4];
+			const x1 = (rect.x + rect.width) * matrix[0] + matrix[4];
+			const y0 = rect.y * matrix[3] + matrix[5];
+			const y1 = (rect.y + rect.height) * matrix[3] + matrix[5];
+			out.minX = Math.min(x0, x1);
+			out.maxX = Math.max(x0, x1);
+			out.minY = Math.min(y0, y1);
+			out.maxY = Math.max(y0, y1);
+			return out;
+		}
+		const bounds = transformedBounds(matrix, rect);
+		out.minX = bounds.minX;
+		out.minY = bounds.minY;
+		out.maxX = bounds.maxX;
+		out.maxY = bounds.maxY;
+		return out;
 	}
 
 	// -- opacity stack (R2.6) -----------------------------------------------
@@ -505,7 +532,7 @@ export class DrawApi {
 
 	popOpacity(): void {
 		if (!this.ensureFrame('popOpacity')) return;
-		this.popStack(this.opacities, 'popOpacity');
+		if (!this.opacities.pop()) this.reportEmptyPop('popOpacity');
 	}
 
 	// -- layer stack (R2.7, R3.6) -------------------------------------------
@@ -540,7 +567,7 @@ export class DrawApi {
 
 	popLayer(): void {
 		if (!this.ensureFrame('popLayer')) return;
-		this.popStack(this.layerStack, 'popLayer');
+		if (!this.layerStack.pop()) this.reportEmptyPop('popLayer');
 	}
 
 	// -- subtree cull (R4.2a, DDB-184) ---------------------------------------
@@ -573,7 +600,11 @@ export class DrawApi {
 	setInkBound(local: Rect | null): void {
 		if (!this.development) return;
 		this.inkBoundLocal = local;
-		this.inkBoundMatrix = this.transforms[this.transforms.length - 1].matrix;
+		// Copied, since the live matrix is overwritten by the next push at its
+		// depth, which an over-popping `render` would reach unreported.
+		const matrix = this.transforms.matrix;
+		const bound = this.inkBoundMatrix;
+		for (let index = 0; index < 6; index++) bound[index] = matrix[index];
 		this.inkBoundScreen = null;
 	}
 
@@ -771,10 +802,7 @@ export class DrawApi {
 		}
 
 		const box = options.overflow === 'clip' ? options.box : undefined;
-		if (box) {
-			const transform = this.transforms[this.transforms.length - 1];
-			this.clips.push(intersectClip(this.clip, transformedBounds(transform.matrix, box), null));
-		}
+		if (box) this.clips.push(this.screenBounds(box), null);
 		this.emitText(options);
 		if (box) this.clips.pop();
 	}
@@ -828,6 +856,20 @@ export class DrawApi {
 	 */
 	canMeasureText(font: string): boolean {
 		return this.backend.measureText !== undefined && this.backend.fontAtlasNames.includes(font);
+	}
+
+	/** Whether `measureTextInk` can answer: the backend offers `textInk`. */
+	get canMeasureTextInk(): boolean {
+		return this.backend.textInk !== undefined;
+	}
+
+	/**
+	 * The local extent `drawText(options)` would cover, the same rect R4.2a
+	 * culls the run by, whatever the clip. Null when the run draws nothing or
+	 * the backend cannot say (`canMeasureTextInk`).
+	 */
+	measureTextInk(options: DrawTextOptions): Rect | null {
+		return this.backend.textInk?.(options) ?? null;
 	}
 
 	/** R2.14, delegated to the backend that owns the glyph walk. See `TEXT_MEASUREMENT_UNAVAILABLE`. */
@@ -890,16 +932,14 @@ export class DrawApi {
 	 *   and for text whose extent the backend cannot give (`textInk`).
 	 */
 	private capture({ id, blend, group, ink, inkOutset = 1 }: CaptureRequest): ResolvedState | null {
-		const clip = resolveClip(this.clip);
+		const clip = this.clips.captured();
 		if (!clip) {
 			this.counters.countCulled();
 			return null;
 		}
 
-		const transform = this.transforms[this.transforms.length - 1];
-
 		if (ink && clip.kind === 'rect') {
-			const bounds = screenInk(ink, transform.matrix, this.ratio, inkOutset);
+			const bounds = screenInk(ink, this.transforms.matrix, this.ratio, inkOutset);
 			if (this.inkBoundLocal) this.auditInk(id, bounds);
 			if (!intersects(bounds, clipRectOf(clip))) {
 				this.counters.countCulled();
@@ -914,8 +954,8 @@ export class DrawApi {
 			sequence: this.sequence++,
 			layer,
 			layerOrdinal: layerOrdinal(layer),
-			transform: transform.matrix,
-			translateOnly: transform.translateOnly,
+			transform: this.transforms.captured(),
+			translateOnly: this.transforms.translateOnly,
 			clip,
 			opacity: this.opacity,
 			blend: blend ?? 'over',
@@ -979,20 +1019,16 @@ export class DrawApi {
 		if (work) this.counters.addGpuWork(work);
 	}
 
-	private popStack(stack: unknown[], call: string): void {
-		if (stack.length <= 1) {
-			this.report('pop-empty-stack', `${call} with nothing pushed`);
-			return;
-		}
-		stack.pop();
+	private reportEmptyPop(call: string): void {
+		this.report('pop-empty-stack', `${call} with nothing pushed`);
 	}
 
 	private checkBalanced(): void {
 		const unbalanced: string[] = [];
-		if (this.transforms.length > 1) unbalanced.push(`transform x${this.transforms.length - 1}`);
-		if (this.clips.length > 1) unbalanced.push(`clip x${this.clips.length - 1}`);
-		if (this.opacities.length > 1) unbalanced.push(`opacity x${this.opacities.length - 1}`);
-		if (this.layerStack.length > 1) unbalanced.push(`layer x${this.layerStack.length - 1}`);
+		if (this.transforms.pushed > 0) unbalanced.push(`transform x${this.transforms.pushed}`);
+		if (this.clips.pushed > 0) unbalanced.push(`clip x${this.clips.pushed}`);
+		if (this.opacities.pushed > 0) unbalanced.push(`opacity x${this.opacities.pushed}`);
+		if (this.layerStack.pushed > 0) unbalanced.push(`layer x${this.layerStack.pushed}`);
 		if (unbalanced.length > 0) {
 			this.report('unbalanced-stack', `endFrame with unpopped state: ${unbalanced.join(', ')}`);
 		}
