@@ -7,6 +7,9 @@ import { isSameDriver, nextOpenDriverIndex } from '../../mechanics/DriverPair';
 import { Card as UICard, CardSize } from '../../ui/Card';
 import { CardLoader } from '../../core/CardLoader';
 
+/** Space between the bottom of the deck preview and the selector button. */
+const DECK_PREVIEW_GAP = 10;
+
 /**
  * Driver selection panel for the Driver Selection Screen
  * Implements the left/right panel layout from Game Flow Spec 1.2
@@ -272,17 +275,23 @@ export class DriverPanel extends Layer {
 		this.flavorText.setPosition(Math.floor(panelWidth * 0.05), portraitHeight + 105);
 		this.addChild(this.flavorText);
 		
-		// Starting deck container
+		// Driver selector dropdown/carousel (at very bottom as per spec)
+		const selectorY = panelHeight - 50;
+
+		// The deck preview fills the space down to the selector and clips
+		// there. It is submitted before the selector, so anything it drew past
+		// that line would now sit under the button rather than over it.
+		const deckY = portraitHeight + 140;
 		this.startingDeckContainer = new Layer({
 			id: `${this.idPrefix}deck_preview`,
 			x: Math.floor(panelWidth * 0.05),
-			y: portraitHeight + 140,
+			y: deckY,
 			width: Math.floor(panelWidth * 0.9),
-			height: Math.floor(panelHeight - portraitHeight - 220),
+			height: Math.max(0, selectorY - DECK_PREVIEW_GAP - deckY),
+			overflow: 'hidden',
 		});
 		this.addChild(this.startingDeckContainer);
-		
-		// Driver selector dropdown/carousel (at very bottom as per spec)
+
 		this.driverSelector = new Button('', {
 			id: `${this.idPrefix}cycle_button`,
 			width: Math.floor(panelWidth * 0.8),
@@ -293,7 +302,7 @@ export class DriverPanel extends Layer {
 		});
 		this.driverSelector.setPosition(
 			Math.floor(panelWidth * 0.1),
-			panelHeight - 50
+			selectorY
 		);
 		this.driverSelector.onClick(() => this.cycleDriver());
 		this.addChild(this.driverSelector);
@@ -375,8 +384,13 @@ export class DriverPanel extends Layer {
 		
 		const cardDimensions = UICard.getDimensions(CardSize.MINI);
 		const cardSpacing = 10;
-		const cardsPerRow = 2;
 		const containerWidth = this.startingDeckContainer.getWidth();
+		const deckSize = startingDeckConfig.cards.filter((cardConfig) => availableCards.has(cardConfig.type)).length;
+		// Hug the deck: as many cards to a row as the width holds, so a starting
+		// deck fits in one row at the reference size instead of stacking into
+		// rows that run past the selector.
+		const fittingPerRow = Math.floor((containerWidth + cardSpacing) / (cardDimensions.width + cardSpacing));
+		const cardsPerRow = Math.max(1, Math.min(deckSize, fittingPerRow));
 		const startX = Math.floor((containerWidth - (cardsPerRow * cardDimensions.width + (cardsPerRow - 1) * cardSpacing)) / 2);
 		
 		let cardIndex = 0;

@@ -17,15 +17,13 @@ import { frameWindowStats } from './frameStats';
  *
  * - `update`, `render` and `flush` are real. The frame loop brackets them, they
  *   cannot overlap (see `beginSection`), and together they are the whole of the
- *   application's per-frame work. `flush` is R13.7's GPU submission, and since
- *   DDB-55 phase 1 it mostly is one: a draw call resolves state onto a command
- *   and nothing reaches GL until a sort domain ends, so `render` is the tree
- *   walk plus whatever a clip boundary submits mid-walk, and `flush` is the last
- *   domain. It still undercounts on a screen that clips, by one domain per clip
- *   push and pop, which is where the draw API's temporary barrier sits. Read a
- *   low `flush` next to the clip count, not on its own. Section numbers from
- *   before that change are not comparable: shapes used to submit at their draw
- *   sites, so `render` held nearly all of the frame's GL work.
+ *   application's per-frame work. `flush` is R13.7's GPU submission: a draw
+ *   call resolves state onto a command and nothing reaches GL until a sort
+ *   domain ends, and only an explicit barrier or `endFrame` ends one (R3.20).
+ *   No screen calls `flush` mid-walk, so `render` is the tree walk and `flush`
+ *   is the whole frame's submission. Section numbers from before DDB-55 phase 1
+ *   are not comparable: shapes used to submit at their draw sites, so `render`
+ *   held nearly all of the frame's GL work.
  * - `input` is null. This engine dispatches input straight from DOM listeners
  *   on the canvas, so input handling happens between frames, not in a phase of
  *   one; a section here would read 0 forever while real input cost lands

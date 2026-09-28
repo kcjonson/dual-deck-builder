@@ -10,6 +10,20 @@ import { InputSystem } from '../../../engine/input/InputSystem';
 // ?scene= gallery show the same eight things (R13.30).
 import { developerSections } from './sections';
 
+const TITLE_FONT_SIZE = 48;
+const TITLE_LINE_HEIGHT = 1.2;
+/** The strip above the scroll panel. The title's whole line box sits inside it. */
+const HEADER_HEIGHT = 80;
+/** The strip below the scroll panel, which holds the back button. */
+const FOOTER_HEIGHT = 80;
+/**
+ * The title's line box ends this far above the panel. The panel is submitted
+ * after the title and is opaque, so a line box reaching past the header would
+ * lose its descenders under it (chapter 3).
+ */
+const TITLE_GAP = 6;
+const TITLE_TOP = Math.floor(HEADER_HEIGHT - TITLE_FONT_SIZE * TITLE_LINE_HEIGHT - TITLE_GAP);
+
 /**
  * Developer screen for testing UI components and rendering
  */
@@ -42,7 +56,8 @@ export class DeveloperScreen extends Screen {
 		this.title = new Text('Developer Tools', {
 			id: 'dev_title',
 			style: {
-				fontSize: 48,
+				fontSize: TITLE_FONT_SIZE,
+				lineHeight: TITLE_LINE_HEIGHT,
 				color: '#ffffff',
 			},
 		});
@@ -77,7 +92,7 @@ export class DeveloperScreen extends Screen {
 
 		// Position title (centered)
 		this.title.setAlign('center');
-		this.title.setPosition(centerX, 30);
+		this.title.setPosition(centerX, TITLE_TOP);
 
 		// Position back button (bottom center)
 		this.backButton.setPosition(centerX - this.backButton.getWidth() / 2, this.rootLayer.getHeight() - 70);
@@ -92,7 +107,7 @@ export class DeveloperScreen extends Screen {
 		this.mainScrollContainer = new Panel({
 			id: 'dev_scroll',
 			width: this.rootLayer.getWidth(),
-			height: this.rootLayer.getHeight() - 160, // Leave space for title (80) and back button (80)
+			height: this.rootLayer.getHeight() - HEADER_HEIGHT - FOOTER_HEIGHT,
 			scrollable: true,
 			scrollDirection: 'vertical',
 			overflow: 'hidden',
@@ -100,7 +115,7 @@ export class DeveloperScreen extends Screen {
 				backgroundColor: '#262626', // Match the background
 			},
 		});
-		this.mainScrollContainer.setPosition(0, 80); // Position below title
+		this.mainScrollContainer.setPosition(0, HEADER_HEIGHT);
 
 		this.rootLayer.addChild(this.mainScrollContainer);
 
@@ -151,7 +166,7 @@ export class DeveloperScreen extends Screen {
 		if (this.mainScrollContainer) {
 			this.mainScrollContainer.setSize(
 				this.rootLayer.getWidth(),
-				this.rootLayer.getHeight() - 160 // Leave space for title (80) and back button (80)
+				this.rootLayer.getHeight() - HEADER_HEIGHT - FOOTER_HEIGHT
 			);
 			
 			// Note: Content height is preserved automatically, we don't need to update it
@@ -167,13 +182,6 @@ export class DeveloperScreen extends Screen {
 			InputSystem.setFocus(null);
 		}
 		
-		// Find and reset scroll position of the main panel
-		const children = this.rootLayer.getChildren();
-		for (const child of children) {
-			if (child instanceof Panel && child.getY() === 80) { // The main scroll container
-				child.setScrollOffset(0, 0); // Reset both x and y scroll
-				break;
-			}
-		}
+		this.mainScrollContainer.setScrollOffset(0, 0);
 	}
 }

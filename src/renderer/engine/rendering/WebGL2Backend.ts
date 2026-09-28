@@ -24,7 +24,6 @@ import type { LoadedFontAtlas } from '../text/loadFontAtlases';
 import { TextMetricsService } from '../text/TextMetricsService';
 import { FrameTimer } from './FrameTimer';
 import type { GpuTimer } from './GpuTimer';
-import { LegacyPaintOrder } from './LegacyPaintOrder';
 import { Renderer } from './Renderer';
 import { IndexBufferPool } from './IndexBufferPool';
 import { StreamRing } from './StreamRing';
@@ -76,9 +75,8 @@ import { compileProgram } from './program';
  *   its program, buffers, vertex array and uniform ring from their CPU-side
  *   descriptions on restore.
  * - Indices are 32-bit (R5.4); the upload cap is the vertex ring's, not 65536.
- *
- * `LegacyPaintOrder` and the `legacyTextOrder` barrier are the ordering
- * re-baseline's to delete, not this backend's.
+ * - Commands paint in the order the batch holds them (chapter 3): nothing
+ *   here moves text after shapes.
  */
 
 export interface WebGL2BackendOptions {
@@ -123,9 +121,8 @@ const FRAME_SLOTS = 3;
 
 /**
  * The seam, built the same way on both pages. Neither bootstrap spells the
- * options itself, so `legacyTextOrder` cannot be on in one and off in the
- * other, which is the failure mode that would show up as a screenshot diff on
- * seven gallery scenes and nowhere else.
+ * options itself, so the two cannot drift, which is the failure mode that
+ * would show up as a screenshot diff on the gallery scenes and nowhere else.
  *
  * Each font atlas is uploaded raw (R6.4b) as an immediate texture that keeps
  * its image for a context restore, then handed to the backend under its role,
@@ -134,9 +131,6 @@ const FRAME_SLOTS = 3;
  * Diagnostics go to `console.error` in a development build, which turns any
  * R2.1 finding into a red screenshot spec through the harness's
  * `expectCleanConsole`.
- *
- * `legacyTextOrder` is the one temporary option and this is its only caller;
- * see `DrawApiOptions.legacyTextOrder` for what it does and when it dies.
  */
 export function createDrawApi({ renderer, frameTimer, gpuTimer, fontAtlases = [] }: CreateDrawApiOptions): DrawApi {
 	const backend = new WebGL2Backend({ renderer, frameTimer, gpuTimer });
@@ -155,7 +149,6 @@ export function createDrawApi({ renderer, frameTimer, gpuTimer, fontAtlases = []
 	return new DrawApi({
 		backend,
 		development: __DEV_TOOLS__,
-		legacyTextOrder: true,
 		onDiagnostic: (diagnostic) => {
 			console.error(`draw: ${diagnostic.code}: ${diagnostic.message}`);
 		},
@@ -187,7 +180,6 @@ export class WebGL2Backend implements DrawBackend {
 	private readonly encoder: UberGeometryEncoder;
 	private readonly residentTextures: ResidentTextureSet;
 	private readonly batcher: Batcher;
-	private readonly paintOrder = new LegacyPaintOrder();
 	/** What every unit holds when nothing else is bound to it; the store restores it with the rest. */
 	private readonly placeholder: TextureHandle;
 
@@ -304,16 +296,16 @@ export class WebGL2Backend implements DrawBackend {
 	}
 
 	submit(batch: DrawBatch): GpuWork {
-		const ordered = this.paintOrder.apply(batch.commands);
-		for (let index = 0; index < ordered.length; index++) {
-			const command = ordered[index];
+		const commands = batch.commands;
+		for (let index = 0; index < commands.length; index++) {
+			const command = commands[index];
 			if (command.kind === 'text') this.frameTimer.recordTextCharacters(command.text.length);
 		}
 
 		let binds = 0;
 		// One sort domain is one GPU pass (R13.16).
 		this.gpuTimer?.beginPass();
-		const work = this.batcher.flush(ordered, (upload) => {
+		const work = this.batcher.flush(commands, (upload) => {
 			binds += this.execute(upload);
 		});
 		this.gpuTimer?.endPass();
