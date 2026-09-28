@@ -1,6 +1,7 @@
 import { DrawApi } from '../engine/draw';
 import type { CanvasViewport } from '../engine/rendering/CanvasViewport';
-import { FrameTimer } from '../engine/rendering/FrameTimer';
+import { FrameTimer, PerfSnapshot } from '../engine/rendering/FrameTimer';
+import type { GpuTimer } from '../engine/rendering/GpuTimer';
 import { DeveloperOverlay } from '../engine/ui/DeveloperOverlay';
 import { ScreenManager } from './core/ScreenManager';
 import { InputSystem } from '../engine/input/InputSystem';
@@ -47,6 +48,8 @@ export interface GameOptions {
 	viewport: CanvasViewport;
 	/** R15.3 and R13.20's device identity, for the perf snapshot. */
 	device: DeviceInfo;
+	/** R13.16's GPU timer; null in a production build, which has none. */
+	gpuTimer?: GpuTimer | null;
 }
 
 /**
@@ -57,6 +60,7 @@ export class Game {
 	private frameTimer: FrameTimer;
 	private viewport: CanvasViewport;
 	private device: DeviceInfo;
+	private gpuTimer: GpuTimer | null;
 	private developerOverlay: DeveloperOverlay;
 	private isElectron = false;
 	private isInitialized = false;
@@ -65,11 +69,12 @@ export class Game {
 	private updates = 0;
 	private renders = 0;
 
-	constructor({ draw, frameTimer, viewport, device }: GameOptions) {
+	constructor({ draw, frameTimer, viewport, device, gpuTimer = null }: GameOptions) {
 		this.draw = draw;
 		this.frameTimer = frameTimer;
 		this.viewport = viewport;
 		this.device = device;
+		this.gpuTimer = gpuTimer;
 		viewport.onChange(({ width, height }) => ScreenManager.resize(width, height));
 
 		// Check if running in Electron
@@ -84,8 +89,8 @@ export class Game {
 
 		console.log(`Running in ${this.isElectron ? 'Electron' : 'Browser'} mode`);
 		
-		// Create developer overlay
-		this.developerOverlay = new DeveloperOverlay(this.frameTimer);
+		// Off until F5, so nothing it draws reaches a golden.
+		this.developerOverlay = new DeveloperOverlay({ snapshot: this.perfSnapshot });
 	}
 
 	/**
@@ -188,22 +193,27 @@ export class Game {
 				},
 				viewport: () => this.viewport.logical,
 			});
-			// R13.11 wants the snapshot to carry the active screen so a capture
-			// can group per scene, and the screen name is the game page's answer
-			// to what the gallery calls a scene.
-			installPerfHooks({
-				snapshot: () => this.frameTimer.snapshot({
-					scene: ScreenManager.getCurrentScreenName(),
-					device: this.device,
-					// Null before the first frame: an unopened draw API's zeros
-					// would read as a measured empty frame (R13.5).
-					batcher: this.draw.frame > 0 ? this.draw.getStats() : null,
-				}),
-			});
+			installPerfHooks({ snapshot: this.perfSnapshot, gpuTimer: this.gpuTimer });
 		}
 
 		this.isInitialized = true;
 	}
+
+	/**
+	 * R13.11's snapshot with everything this page owns folded in. The F5
+	 * overlay and `window.__perf` both read this one function, so what a person
+	 * sees and what a capture records cannot disagree (R13.3). R13.11 wants the
+	 * active screen on it so a capture can group per scene, and the screen name
+	 * is the game page's answer to what the gallery calls a scene.
+	 */
+	private perfSnapshot = (): PerfSnapshot => this.frameTimer.snapshot({
+		scene: ScreenManager.getCurrentScreenName(),
+		device: this.device,
+		// Null before the first frame: an unopened draw API's zeros would read
+		// as a measured empty frame (R13.5).
+		batcher: this.draw.frame > 0 ? this.draw.getStats() : null,
+		gpu: this.gpuTimer?.stats ?? null,
+	});
 
 	/**
 	 * Set up global event handlers
@@ -234,6 +244,9 @@ export class Game {
 			if (event.key === 'F5') {
 				event.preventDefault();
 				this.developerOverlay.toggle();
+				// The GPU timer costs frame time on some drivers, so it runs
+				// only while someone is looking at what it reports.
+				if (this.gpuTimer) this.gpuTimer.enabled = this.developerOverlay.shown;
 			}
 			
 			// Example: Press Escape to go back to main menu
