@@ -3,6 +3,7 @@ import { Renderer, showStatusLine } from '../renderer/engine/rendering/Renderer'
 import { createDrawApi } from '../renderer/engine/rendering/WebGL2Backend';
 import { FrameLoop } from '../renderer/engine/rendering/FrameLoop';
 import { MountContext, createMountContext } from '../renderer/engine/components/MountContext';
+import { followReducedMotion } from '../renderer/engine/rendering/reducedMotion';
 import { FrameTimer } from '../renderer/engine/rendering/FrameTimer';
 import { GpuTimer, createGpuTimer } from '../renderer/engine/rendering/GpuTimer';
 import { createDevToolsTracks } from '../renderer/engine/debug/devtoolsTracks';
@@ -62,6 +63,7 @@ class GalleryApplication {
 				fontAtlases: await fontAtlases,
 			});
 			this.context = createMountContext({ draw: this.draw, viewport: this.renderer.viewport });
+			followReducedMotion(this.context.animator);
 			const canvas = this.renderer.canvas;
 			this.context.input.setup(canvas);
 
@@ -128,6 +130,7 @@ class GalleryApplication {
 			resume: () => {
 				this.host.paused = false;
 			},
+			settleAnimations: () => this.context.animator.settle(),
 			// R14.5's readiness gate, the same field the game page reports.
 			// No gallery scene fetches anything today, so this is constantly
 			// true here; it is present because the harness reads one control

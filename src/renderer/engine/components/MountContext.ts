@@ -1,3 +1,5 @@
+import { Animator } from '../animation/Animator';
+import { Clock } from '../animation/Clock';
 import type { DrawApi } from '../draw/DrawApi';
 import { InputSystem } from '../input/InputSystem';
 import { UiFrame } from './UiFrame';
@@ -17,7 +19,7 @@ export interface ViewportSource {
  * already unregisters it from `input` and `frame`.
  *
  * Services arrive with the tasks that build them, as fields added here:
- * `clock` and `animator` (DDB-74), the dispatcher that replaces `input`
+ * the dispatcher that replaces `input`
  * (DDB-75), `focus` (DDB-76), `drag` (DDB-77), and `popups`, `tooltips`,
  * `placement`, `overlays`, `clipboard` and `assets` (DDB-78).
  */
@@ -29,19 +31,29 @@ export interface MountContext {
 	readonly viewport: ViewportSource;
 	/** Update requests and layout invalidation for the frame (R8.16 to R8.18). */
 	readonly frame: UiFrame;
+	/** Frame time; the frame advances it, nothing reads a platform timer (R8.28). */
+	readonly clock: Clock;
+	/** Tweens over `clock`, ticked in the update phase (R8.28). */
+	readonly animator: Animator;
 }
 
 export interface MountContextOptions {
 	draw: DrawApi;
 	viewport: ViewportSource;
+	/** A test's own clock, to hold or freeze; otherwise a fresh one (R13.37). */
+	clock?: Clock;
 }
 
 /**
  * The one way to build a context, for the two pages and for tests alike: the
- * input system lays out on demand before every hit test (R8.16).
+ * frame advances the clock and ticks the animator at the start of its update
+ * phase, and the input system lays out on demand before every hit test
+ * (R8.16). Reduced motion starts off; the platform shell follows the system
+ * preference (`followReducedMotion`).
  */
-export function createMountContext({ draw, viewport }: MountContextOptions): MountContext {
-	const frame = new UiFrame();
+export function createMountContext({ draw, viewport, clock = new Clock() }: MountContextOptions): MountContext {
+	const animator = new Animator({ clock });
+	const frame = new UiFrame({ clock, animator });
 	const input = new InputSystem({ beforeHitTest: () => frame.layout() });
-	return { draw, input, viewport, frame };
+	return { draw, input, viewport, frame, clock, animator };
 }

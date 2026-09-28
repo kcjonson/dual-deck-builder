@@ -3,6 +3,7 @@ import { createDrawApi } from './renderer/engine/rendering/WebGL2Backend';
 import { FrameLoop } from './renderer/engine/rendering/FrameLoop';
 import { Game } from './renderer/game/Game';
 import { MountContext, createMountContext } from './renderer/engine/components/MountContext';
+import { followReducedMotion } from './renderer/engine/rendering/reducedMotion';
 import { FrameTimer } from './renderer/engine/rendering/FrameTimer';
 import type { GpuTimer } from './renderer/engine/rendering/GpuTimer';
 import { FontAtlasError } from './renderer/engine/text/FontAtlas';
@@ -80,6 +81,7 @@ class Application {
 			// R1.6: the one object every root is mounted with. Input listens on
 			// the canvas the renderer draws to.
 			this.context = createMountContext({ draw, viewport: this.renderer.viewport });
+			followReducedMotion(this.context.animator);
 			const canvas = this.renderer.canvas;
 			this.context.input.setup(canvas);
 
