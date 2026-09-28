@@ -18,6 +18,8 @@ interface ScrapDisplay {
 
 const END_TURN_WIDTH = 120;
 const END_TURN_MARGIN = 10;
+/** The scrap amount's box, centred 15 px past the icon. */
+const SCRAP_AMOUNT_WIDTH = 30;
 
 /**
  * Resource bar strip at the top of the combat screen
@@ -50,9 +52,6 @@ export class ResourceBarLayer extends Layer {
 
 		this.driver1Display = new DriverStatsDisplay({
 			id: 'resource_driver1',
-			x: 0,
-			y: 0,
-			width: DriverStatsDisplay.getRequiredWidth(),
 			height: this.getHeight(),
 			driverNumber: 1
 		});
@@ -60,9 +59,6 @@ export class ResourceBarLayer extends Layer {
 
 		this.driver2Display = new DriverStatsDisplay({
 			id: 'resource_driver2',
-			x: 0,
-			y: 0,
-			width: DriverStatsDisplay.getRequiredWidth(),
 			height: this.getHeight(),
 			driverNumber: 2
 		});
@@ -95,6 +91,7 @@ export class ResourceBarLayer extends Layer {
 				fontSize: 10,
 				color: '#ffffff',
 				textAlign: 'center',
+				whiteSpace: 'nowrap',
 				fontWeight: 'bold',
 			},
 		});
@@ -105,6 +102,7 @@ export class ResourceBarLayer extends Layer {
 				fontSize: 8,
 				color: '#cccccc',
 				textAlign: 'center',
+				whiteSpace: 'nowrap',
 			},
 		});
 		this.addChild(label);
@@ -151,10 +149,10 @@ export class ResourceBarLayer extends Layer {
 
 		let currentX = spacing;
 		for (const display of [this.driver1Display, this.driver2Display]) {
-			const displayWidth = DriverStatsDisplay.getRequiredWidth();
+			// A display hugs its content, measured at this height
 			display.setPosition(currentX, 0);
-			display.setSize(displayWidth, layerHeight);
-			currentX += displayWidth + spacing * 2;
+			display.setSize(display.getWidth(), layerHeight);
+			currentX += display.getWidth() + spacing * 2;
 		}
 
 		const { icon, symbol, amount, label } = this.scrap;
@@ -164,8 +162,11 @@ export class ResourceBarLayer extends Layer {
 		const symbolSize = Math.floor(iconSize * 0.75);
 		symbol.size = symbolSize;
 		symbol.setPosition(currentX + (iconSize - symbolSize) / 2, Math.floor((layerHeight - symbolSize) / 2));
-		amount.setPosition(currentX + iconSize + 15, Math.floor(layerHeight / 2));
-		label.setPosition(currentX + iconSize / 2, Math.floor(layerHeight * 0.8));
+		// Centred 15 px past the icon, and under it
+		amount.setPosition(currentX + iconSize, Math.floor(layerHeight / 2));
+		amount.setWidth(SCRAP_AMOUNT_WIDTH);
+		label.setPosition(currentX, Math.floor(layerHeight * 0.8));
+		label.setWidth(iconSize);
 
 		const buttonHeight = Math.floor(layerHeight * 0.8);
 		this.endTurnButton.setSize(END_TURN_WIDTH, buttonHeight);

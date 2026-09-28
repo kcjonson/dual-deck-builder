@@ -1,8 +1,10 @@
-import { FontAtlas, parseFontAtlas } from './FontAtlas';
+import { DrawApi } from '../draw/DrawApi';
+import type { FontAtlasOptions } from '../draw/DrawBackend';
+import type { FontAtlasHandle, MeasureTextOptions, TextMetrics } from '../draw/commands';
 import { RecordingBackend } from '../draw/RecordingBackend';
-import type { RecordingBackendOptions } from '../draw/RecordingBackend';
-import type { FontAtlasHandle, FontAtlasOptions, MeasureTextOptions, TextMetrics } from '../draw';
-import { ATLAS_ASSETS, FONT_FACES, FontRole } from './fontFaces';
+import { RendererContext } from '../rendering/RendererContext';
+import { FontAtlas, parseFontAtlas } from './FontAtlas';
+import { ATLAS_ASSETS, AtlasRole, FontRole } from './fontFaces';
 import { TextMetricsService } from './TextMetricsService';
 
 /**
@@ -10,18 +12,23 @@ import { TextMetricsService } from './TextMetricsService';
  * imports this file.
  */
 
-const parsed = new Map<FontRole, FontAtlas>();
+const parsed = new Map<AtlasRole, FontAtlas>();
 
-/** A committed face's metrics, parsed once per role; a `FontAtlas` is immutable. */
-export function committedFontAtlas(role: FontRole): FontAtlas {
+/** A committed atlas's metrics, a face's or the icons', parsed once per role; a `FontAtlas` is immutable. */
+export function committedAtlas(role: AtlasRole): FontAtlas {
 	let atlas = parsed.get(role);
 	if (!atlas) {
-		const face = FONT_FACES.find((candidate) => candidate.role === role);
-		if (!face) throw new Error(`no committed face for role '${role}'`);
-		atlas = parseFontAtlas({ json: face.metrics, source: face.face, warn: () => undefined });
+		const asset = ATLAS_ASSETS.find((candidate) => candidate.role === role);
+		if (!asset) throw new Error(`no committed atlas for role '${role}'`);
+		atlas = parseFontAtlas({ json: asset.metrics, source: asset.face, warn: () => undefined });
 		parsed.set(role, atlas);
 	}
 	return atlas;
+}
+
+/** A committed face's metrics, parsed once per role. */
+export function committedFontAtlas(role: FontRole): FontAtlas {
+	return committedAtlas(role);
 }
 
 /**
@@ -70,25 +77,14 @@ export function syntheticFontAtlas(): FontAtlas {
 }
 
 /**
- * A recording backend that also answers `measureText`, from the same
- * `TextMetricsService` the WebGL2 backend uses (R2.14), with every committed
- * atlas loaded: the three faces and the icons. For components that size
- * themselves from a measured label.
+ * A recording backend that also measures, from the atlases it is given, with
+ * the service the WebGL2 backend measures with. What a component test needs
+ * to lay text out and read back the commands it drew, without a GPU.
  */
 export class MeasuringRecordingBackend extends RecordingBackend {
 	private readonly text = new TextMetricsService();
+	/** How many times `measureText` ran, for tests that check a component measures once. */
 	measureCalls = 0;
-
-	constructor(options: RecordingBackendOptions = {}) {
-		super(options);
-		ATLAS_ASSETS.forEach((asset, index) => {
-			this.loadFontAtlas({
-				name: asset.role,
-				atlas: parseFontAtlas({ json: asset.metrics, source: asset.face, warn: () => undefined }),
-				texture: { id: index + 1, width: 1, height: 1, label: null },
-			});
-		});
-	}
 
 	loadFontAtlas(options: FontAtlasOptions): FontAtlasHandle {
 		this.text.addAtlas({ name: options.name, atlas: options.atlas });
@@ -99,4 +95,19 @@ export class MeasuringRecordingBackend extends RecordingBackend {
 		this.measureCalls++;
 		return this.text.measure(options);
 	}
+}
+
+/**
+ * A draw API over a `MeasuringRecordingBackend` with every committed atlas
+ * loaded (the three roles and the icons), installed as the components' draw API.
+ */
+export function installMeasuringDrawApi(): { api: DrawApi; backend: MeasuringRecordingBackend } {
+	const backend = new MeasuringRecordingBackend({ maxFrames: 1 });
+	const api = new DrawApi({ backend });
+	for (const asset of ATLAS_ASSETS) {
+		const texture = api.createTexture({ width: 1, height: 1, label: asset.role });
+		api.loadFontAtlas({ name: asset.role, atlas: committedAtlas(asset.role), texture });
+	}
+	RendererContext.getInstance().draw = api;
+	return { api, backend };
 }

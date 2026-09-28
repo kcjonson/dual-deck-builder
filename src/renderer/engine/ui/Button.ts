@@ -70,11 +70,9 @@ export class Button extends Component {
 				color: '#ffffff',
 				textAlign: 'center',
 				verticalAlign: 'middle',
+				whiteSpace: 'nowrap',
 			},
 		});
-		this.text.setColor([1, 1, 1, 1]);
-		this.text.setAlign('center');
-		this.text.setBaseline('middle');
 		this.addPart(this.text);
 
 		if (options?.icon) {

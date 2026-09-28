@@ -59,6 +59,8 @@ export class DeveloperScreen extends Screen {
 				fontSize: TITLE_FONT_SIZE,
 				lineHeight: TITLE_LINE_HEIGHT,
 				color: '#ffffff',
+				textAlign: 'center',
+				whiteSpace: 'nowrap',
 			},
 		});
 		this.rootLayer.addChild(this.title);
@@ -90,9 +92,9 @@ export class DeveloperScreen extends Screen {
 	private positionFixedElements(): void {
 		const centerX = this.rootLayer.getWidth() / 2;
 
-		// Position title (centered)
-		this.title.setAlign('center');
-		this.title.setPosition(centerX, TITLE_TOP);
+		// Title centred across the screen
+		this.title.setPosition(0, TITLE_TOP);
+		this.title.setWidth(this.rootLayer.getWidth());
 
 		// Position back button (bottom center)
 		this.backButton.setPosition(centerX - this.backButton.getWidth() / 2, this.rootLayer.getHeight() - 70);

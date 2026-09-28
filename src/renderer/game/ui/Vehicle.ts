@@ -207,6 +207,9 @@ export class Vehicle extends Layer {
 		// Health text
 		this.healthText = new Text('', {
 			id: this.childId('structure_value'),
+			x: 0,
+			y: Math.floor(height * 0.73),
+			width,
 			style: {
 				fontSize: 9,
 				color: '#ffffff',
@@ -214,7 +217,6 @@ export class Vehicle extends Layer {
 				fontWeight: 'bold',
 			},
 		});
-		this.healthText.setPosition(Math.floor(width / 2), Math.floor(height * 0.73));
 		this.addChild(this.healthText);
 		
 		// Armor display and status container on same line
@@ -235,11 +237,11 @@ export class Vehicle extends Layer {
 				style: {
 					fontSize: 9,
 					color: '#ffcc66',
-					textAlign: 'right',
 					fontWeight: 'bold',
 				},
 			});
-			this.spentChip.setPosition(Math.floor(width * 0.95), Math.floor(height * 0.05));
+			// Right edge at 95 percent of the width
+			this.spentChip.setPosition(Math.floor(width * 0.95 - this.spentChip.getWidth()), Math.floor(height * 0.05));
 			this.addChild(this.spentChip);
 		}
 

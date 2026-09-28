@@ -2,9 +2,8 @@
  * @jest-environment jsdom
  */
 import { DrawApi, TextCommand } from '../../../engine/draw';
-import { RendererContext } from '../../../engine/rendering/RendererContext';
 import { ICON_ATLAS_ROLE } from '../../../engine/text/fontFaces';
-import { MeasuringRecordingBackend } from '../../../engine/text/testing';
+import { installMeasuringDrawApi, MeasuringRecordingBackend } from '../../../engine/text/testing';
 import { ICON_CODE_POINTS } from '../../../engine/text/icons';
 import { Vehicle } from '../../mechanics/Vehicle';
 import { EnemyBattlefieldLayer, EnemyIntent } from './EnemyBattlefieldLayer';
@@ -16,9 +15,7 @@ describe('EnemyBattlefieldLayer intent markers', () => {
 	let raider: Vehicle;
 
 	beforeEach(() => {
-		backend = new MeasuringRecordingBackend({ maxFrames: 1 });
-		api = new DrawApi({ backend });
-		RendererContext.getInstance().draw = api;
+		({ api, backend } = installMeasuringDrawApi());
 
 		raider = new Vehicle({
 			name: 'Rust Buggy',

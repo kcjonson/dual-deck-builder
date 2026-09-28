@@ -9,6 +9,9 @@ import { DriverLoader } from '../../core/DriverLoader';
 import { DriverPanel } from './DriverPanel';
 import { SynergyPreviewPanel } from './SynergyPreviewPanel';
 
+/** Space between the synergy panel and each driver panel. */
+const SYNERGY_MARGIN = 10;
+
 /**
  * Driver Selection Screen implementing Game Flow Spec section 1.2
  * Sequential driver selection with synergy preview
@@ -65,19 +68,20 @@ export class DriverSelectionScreen extends Screen {
 	 * Create the title
 	 */
 	private createTitle(): void {
+		// Centred across the screen
 		this.titleText = new Text('Choose Your Drivers', {
 			id: 'driver_select_title',
+			x: 0,
+			y: window.innerHeight * 0.08,
+			width: window.innerWidth,
 			style: {
 				fontSize: 48,
 				color: '#ffffff',
 				textAlign: 'center',
+				whiteSpace: 'nowrap',
 				fontWeight: 'bold',
 			},
 		});
-		this.titleText.setPosition(
-			window.innerWidth / 2,
-			window.innerHeight * 0.08
-		);
 		this.rootLayer.addChild(this.titleText);
 	}
 
@@ -128,13 +132,18 @@ export class DriverSelectionScreen extends Screen {
 	private createSynergyPanel(): void {
 		const screenWidth = window.innerWidth;
 		const screenHeight = window.innerHeight;
-		const synergyPanelWidth = Math.floor(screenWidth * 0.25); // 25% for synergy panel
+		// The gap between the driver panels (40% to 60% of the width), less a
+		// margin either side. It used to be 25% wide and overlap both panels,
+		// and it is submitted after them, so it covered the ends of the left
+		// panel's flavour text.
+		const gapStart = Math.floor(screenWidth * 0.4);
+		const synergyPanelWidth = Math.floor(screenWidth * 0.6) - gapStart - SYNERGY_MARGIN * 2;
 		const synergyPanelHeight = Math.floor(screenHeight * 0.2); // 20% of screen height
 		const panelY = Math.floor(screenHeight * 0.55); // Below driver panels
 		
 		this.synergyPanel = new SynergyPreviewPanel({
 			id: 'driver_select_synergy_panel',
-			x: Math.floor(screenWidth * 0.375), // Center between panels
+			x: gapStart + SYNERGY_MARGIN,
 			y: panelY,
 			width: synergyPanelWidth,
 			height: synergyPanelHeight,
@@ -268,17 +277,18 @@ export class DriverSelectionScreen extends Screen {
 		if (this.selectedDriver1 && this.selectedDriver2) {
 			const confirmationMessage = `Ready to enter the wasteland with ${this.selectedDriver1.metadata.name} and ${this.selectedDriver2.metadata.name}`;
 			
+			// Centred across the screen, just above the start button
 			this.confirmationText = new Text(confirmationMessage, {
+				x: 0,
+				y: Math.floor(window.innerHeight * 0.8),
+				width: window.innerWidth,
 				style: {
 					fontSize: 16,
 					color: '#cccccc',
 					textAlign: 'center',
+					whiteSpace: 'nowrap',
 				},
 			});
-			this.confirmationText.setPosition(
-				Math.floor(window.innerWidth / 2),
-				Math.floor(window.innerHeight * 0.8) // Just above start button
-			);
 			this.rootLayer.addChild(this.confirmationText);
 		}
 	}

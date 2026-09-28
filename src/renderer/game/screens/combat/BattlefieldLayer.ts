@@ -65,6 +65,7 @@ export abstract class BattlefieldLayer extends Layer {
 					fontSize: 14,
 					color: decor.labelColor,
 					textAlign: 'center',
+					whiteSpace: 'nowrap',
 					fontWeight: 'bold',
 				},
 			});
@@ -94,7 +95,9 @@ export abstract class BattlefieldLayer extends Layer {
 			divider.setSize(LANE_DIVIDER_WIDTH, laneHeight - LANE_DIVIDER_TOP);
 		});
 		this.laneLabels.forEach((label, index) => {
-			label.setPosition(Math.floor(laneWidth * index + laneWidth / 2), LANE_LABEL_Y);
+			// Centred across its lane
+			label.setPosition(laneWidth * index, LANE_LABEL_Y);
+			label.setWidth(laneWidth);
 		});
 
 		// Define lanes from left to right: shoulder, outside, inside

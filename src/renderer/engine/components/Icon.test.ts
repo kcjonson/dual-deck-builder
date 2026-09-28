@@ -2,10 +2,9 @@
  * @jest-environment jsdom
  */
 import { DrawApi, TextCommand } from '../draw';
-import { RendererContext } from '../rendering/RendererContext';
 import { ICON_ATLAS_ROLE } from '../text/fontFaces';
 import { ICON_CODE_POINTS } from '../text/icons';
-import { MeasuringRecordingBackend } from '../text/testing';
+import { installMeasuringDrawApi, MeasuringRecordingBackend } from '../text/testing';
 import { tokens } from '../theme/tokens';
 import { Button } from '../ui/Button';
 import { Icon } from './Icon';
@@ -15,9 +14,7 @@ describe('Icon (R12.6)', () => {
 	let api: DrawApi;
 
 	beforeEach(() => {
-		backend = new MeasuringRecordingBackend({ maxFrames: 1 });
-		api = new DrawApi({ backend });
-		RendererContext.getInstance().draw = api;
+		({ api, backend } = installMeasuringDrawApi());
 	});
 
 	function textCommands(): TextCommand[] {
@@ -106,25 +103,32 @@ describe('Icon (R12.6)', () => {
 			const groupLeft = 30 + (200 - (iconBox.width + gap + labelWidth)) / 2;
 			expect(iconBox.x).toBeCloseTo(groupLeft, 0);
 			expect(iconBox.y + iconBox.height / 2).toBeCloseTo(30 + 25, 0);
-			// The label is centred at an anchor half the icon and gap right of the button's centre.
-			expect(label.position?.x).toBeCloseTo(30 + 100 + (iconBox.width + gap) / 2);
+			// The label centres in a box that gives up the icon and gap on its
+			// left, so its measured left edge sits one gap past the icon.
+			const labelBox = label.box ?? { x: NaN, y: NaN, width: NaN, height: NaN };
+			expect(label.align).toBe('center');
+			const labelCentre = labelBox.x + labelBox.width / 2;
+			expect(labelCentre).toBeCloseTo(30 + 100 + (iconBox.width + gap) / 2);
+			expect(labelCentre - labelWidth / 2).toBeCloseTo(iconBox.x + iconBox.width + gap, 0);
 		});
 
 		it('keeps its placement when the button moves, and re-places after a label change', () => {
 			const button = new Button('Back', { icon: 'arrow_back', width: 200, height: 50 });
 			button.setPosition(0, 0);
-			const measure = jest.spyOn(api, 'measureText');
+			// Text measures itself too, so count the button's own placement.
+			const place = jest.spyOn(Button.prototype as unknown as { placeIcon: () => void }, 'placeIcon');
 			frame(() => button.render());
 			const first = textCommands().map((command) => command.box ?? command.position);
 
 			button.setPosition(0, 0);
 			frame(() => button.render());
 			expect(textCommands().map((command) => command.box ?? command.position)).toEqual(first);
-			expect(measure).toHaveBeenCalledTimes(1);
+			expect(place).toHaveBeenCalledTimes(1);
 
 			button.setLabel('Back to Menu');
 			frame(() => button.render());
-			expect(measure).toHaveBeenCalledTimes(2);
+			expect(place).toHaveBeenCalledTimes(2);
+			place.mockRestore();
 		});
 
 		it('draws no icon without one', () => {
