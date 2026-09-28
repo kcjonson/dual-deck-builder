@@ -1,5 +1,5 @@
 import { DrawApi } from '../engine/draw';
-import { windowFrame } from '../engine/rendering/LegacyGLBackend';
+import { windowFrame } from '../engine/rendering/WebGL2Backend';
 import { FrameTimer } from '../engine/rendering/FrameTimer';
 import { DeveloperOverlay } from '../engine/ui/DeveloperOverlay';
 import { ScreenManager } from './core/ScreenManager';

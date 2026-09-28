@@ -9,7 +9,7 @@
  *
  * It lives here rather than on a backend so a component does not import a name
  * from the thing that draws it, and so R2.18's precondition is one constant
- * compared against itself: `LegacyGLBackend.fontAtlasNames` returns this, and
+ * compared against itself: `WebGL2Backend.fontAtlasNames` returns this, and
  * `Text` passes this.
  */
 export const DEFAULT_FONT = 'body';

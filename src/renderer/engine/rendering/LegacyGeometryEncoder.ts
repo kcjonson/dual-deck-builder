@@ -36,7 +36,7 @@ import type { CharacterInfo } from './FontAtlas';
  *   divides by are the old `uColor`, `uStrokeColor`, `uStrokeWidth` and
  *   `uShapeSize`, now constant across the four vertices of their quad.
  * - A glyph is the quad `TextRenderer.buildVertexBufferForColor` wrote, from
- *   the pen position `LegacyGLBackend.paintText` computed, with an identity
+ *   the pen position the pre-batch text path computed (`pen` below), with an identity
  *   model, which is what `TextRenderer.flush` uploaded.
  *
  * The one deliberate difference: circles and polygons now carry a border width
@@ -46,10 +46,12 @@ import type { CharacterInfo } from './FontAtlas';
  * golden (only the developer screen's primitive shapes section, below the
  * fold), so fixing it moves no captured pixel.
  *
- * Dies with `LegacyGLBackend`; the uber shader has its own layout (R5.4).
+ * Dies with the uber shader (DDB-64), which has its own layout (R5.4). Indices
+ * are 32-bit since the WebGL2 backend (R5.4), so an upload is capped by the
+ * backend's ring rather than by 65536 vertices.
  */
 
-/** Vertex layout, in floats. 22 floats is 88 bytes and seven attributes, under WebGL1's guaranteed eight. */
+/** Vertex layout, in floats. 22 floats is 88 bytes and seven attributes. */
 export const LEGACY_VERTEX = {
 	position: 0,
 	texCoord: 2,
@@ -106,7 +108,7 @@ const QUAD_INDICES = [0, 1, 2, 0, 2, 3] as const;
 
 export class LegacyGeometryEncoder implements GeometryEncoder {
 	readonly floatsPerVertex = LEGACY_VERTEX.floats;
-	readonly indexType = 'uint16' as const;
+	readonly indexType = 'uint32' as const;
 	/** The scissor stays GPU state until DDB-64's shader carries the clip per draw (R4.1). */
 	readonly clipIsState = true;
 
@@ -374,9 +376,9 @@ export class LegacyGeometryEncoder implements GeometryEncoder {
 	}
 
 	/**
-	 * `LegacyGLBackend.paintText`'s alignment, then
+	 * The pre-batch alignment (`pen`), then
 	 * `TextRenderer.buildVertexBufferForColor`'s glyph loop, fused. The pen
-	 * starts where `paintText` put it and each glyph is rounded to whole pixels
+	 * starts where the old alignment put it and each glyph is rounded to whole pixels
 	 * exactly as before. `blur` is not read: R3.17's shadow run needs a blurred
 	 * glyph pass this shader does not have, and nothing asks for one.
 	 */
@@ -466,7 +468,7 @@ export class LegacyGeometryEncoder implements GeometryEncoder {
 	}
 
 	/**
-	 * `LegacyGLBackend.paintText`'s alignment: where the pen starts, and the
+	 * The alignment the pre-batch text path applied: where the pen starts, and the
 	 * atlas scale, in a reused object that is read before the next call.
 	 */
 	private pen(run: TextRun, anchorX: number, anchorY: number): { startX: number; startY: number; scale: number } {

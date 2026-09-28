@@ -18,7 +18,7 @@ export class FontAtlas {
 	private canvas: HTMLCanvasElement;
 	private context: CanvasRenderingContext2D;
 	private texture: WebGLTexture | null = null;
-	private gl: WebGLRenderingContext;
+	private gl: WebGL2RenderingContext;
 	private characters: Map<string, CharacterInfo> = new Map();
 	private fontFamily: string;
 	private fontSize: number;
@@ -26,7 +26,7 @@ export class FontAtlas {
 	private lineHeight: number;
 
 	constructor(
-		gl: WebGLRenderingContext,
+		gl: WebGL2RenderingContext,
 		fontFamily = 'Arial',
 		fontSize = 16,
 		atlasSize = 512
@@ -116,34 +116,34 @@ export class FontAtlas {
 			x += charWidth;
 		}
 
-		// Create WebGL texture
-		this.createTexture();
+		this.upload();
 	}
 
 	/**
-	 * Create WebGL texture from canvas
+	 * Uploads the atlas canvas into a new immutable texture: `texStorage2D`
+	 * once, then `texSubImage2D` (R15.18), so ANGLE never re-specifies a live
+	 * texture. The canvas stays alive as the CPU-side copy, which is what a
+	 * restored context uploads again (R15.5); the previous texture died with
+	 * the old context and is not deleted.
+	 *
+	 * No colour-space conversion (R15.19). No premultiplication either: the
+	 * canvas is opaque, white glyphs on black, and the shader reads the red
+	 * channel as coverage, so this is a mask rather than a colour texture.
 	 */
-	private createTexture(): void {
-		this.texture = this.gl.createTexture();
-		this.gl.bindTexture(this.gl.TEXTURE_2D, this.texture);
-		
-		// Upload canvas data to texture
-		this.gl.texImage2D(
-			this.gl.TEXTURE_2D,
-			0,
-			this.gl.RGBA,
-			this.gl.RGBA,
-			this.gl.UNSIGNED_BYTE,
-			this.canvas
-		);
+	public upload(): void {
+		const gl = this.gl;
+		this.texture = gl.createTexture();
+		gl.bindTexture(gl.TEXTURE_2D, this.texture);
+		gl.texStorage2D(gl.TEXTURE_2D, 1, gl.RGBA8, this.canvas.width, this.canvas.height);
+		gl.pixelStorei(gl.UNPACK_COLORSPACE_CONVERSION_WEBGL, gl.NONE);
+		gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, 0, gl.RGBA, gl.UNSIGNED_BYTE, this.canvas);
 
-		// Set texture parameters for smooth anti-aliased text rendering
-		this.gl.texParameteri(this.gl.TEXTURE_2D, this.gl.TEXTURE_MIN_FILTER, this.gl.LINEAR);
-		this.gl.texParameteri(this.gl.TEXTURE_2D, this.gl.TEXTURE_MAG_FILTER, this.gl.LINEAR);
-		this.gl.texParameteri(this.gl.TEXTURE_2D, this.gl.TEXTURE_WRAP_S, this.gl.CLAMP_TO_EDGE);
-		this.gl.texParameteri(this.gl.TEXTURE_2D, this.gl.TEXTURE_WRAP_T, this.gl.CLAMP_TO_EDGE);
+		gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+		gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+		gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+		gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
 
-		this.gl.bindTexture(this.gl.TEXTURE_2D, null);
+		gl.bindTexture(gl.TEXTURE_2D, null);
 	}
 
 	/**
@@ -186,15 +186,6 @@ export class FontAtlas {
 		}
 
 		return { width, height };
-	}
-
-	/**
-	 * Bind the font atlas texture for rendering
-	 */
-	public bind(): void {
-		if (this.texture) {
-			this.gl.bindTexture(this.gl.TEXTURE_2D, this.texture);
-		}
 	}
 
 	/**

@@ -145,7 +145,9 @@ draws nothing. A trailing partial triangle is dropped for the same reason.
 
 ## How this dies
 
-With the WebGL2 backend (DDB-63) and the uber shader (DDB-64): delete `LegacyGLBackend.ts`,
-`LegacyGeometryEncoder.ts` and its test, the two files under `src/assets/shaders/`, and the
-`topologyChange` split reason. `Batcher` and `ResidentTextureSet` stay. `LegacyPaintOrder` goes
-earlier, with `legacyTextOrder`, in the ordering re-baseline.
+The WebGL2 backend (DDB-63) deleted `LegacyGLBackend.ts` and took over the batcher unchanged,
+with the same encoder on 32-bit indices; see [webgl2-backend.md](./webgl2-backend.md). With the uber
+shader (DDB-64): delete `LegacyGeometryEncoder.ts` and its test, the two files under
+`src/assets/shaders/`, and the `topologyChange` split reason. `Batcher` and `ResidentTextureSet`
+stay. `LegacyPaintOrder` (now its own file) goes earlier, with `legacyTextOrder`, in the ordering
+re-baseline.

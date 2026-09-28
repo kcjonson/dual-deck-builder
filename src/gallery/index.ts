@@ -1,7 +1,7 @@
 import { DrawApi } from '../renderer/engine/draw';
 import { Renderer } from '../renderer/engine/rendering/Renderer';
-import { createLegacyDrawApi, windowFrame } from '../renderer/engine/rendering/LegacyGLBackend';
-import { Shader } from '../renderer/engine/rendering/Shader';
+import { createDrawApi, windowFrame } from '../renderer/engine/rendering/WebGL2Backend';
+import { FrameLoop } from '../renderer/engine/rendering/FrameLoop';
 import { RendererContext } from '../renderer/engine/rendering/RendererContext';
 import { InputSystem } from '../renderer/engine/input/InputSystem';
 import { FrameTimer } from '../renderer/engine/rendering/FrameTimer';
@@ -9,8 +9,6 @@ import { installDebugHooks, installAppHooks, installInputHooks, installPerfHooks
 import { CardLoader } from '../renderer/game/core/CardLoader';
 import { gallerySceneRegistry } from './registry';
 import { SceneHost } from './SceneHost';
-import vertexShaderSource from '../assets/shaders/vertex.glsl';
-import fragmentShaderSource from '../assets/shaders/fragment.glsl';
 
 /**
  * The scene gallery (R13.30 to R13.33): a second application over the same
@@ -26,7 +24,7 @@ import fragmentShaderSource from '../assets/shaders/fragment.glsl';
  * has to run against a development build.
  *
  * The bootstrap mirrors src/index.ts deliberately: the same renderer, the same
- * RendererContext singleton, the same InputSystem setup, the same shader, and
+ * RendererContext singleton, the same InputSystem setup, the same backend, and
  * a frame loop with the same shape. A gallery that renders through a different
  * path would prove things about the gallery rather than about the game.
  */
@@ -35,6 +33,7 @@ class GalleryApplication {
 	private draw!: DrawApi;
 	private frameTimer!: FrameTimer;
 	private host!: SceneHost;
+	private frameLoop!: FrameLoop;
 
 	public init(): void {
 		try {
@@ -45,11 +44,8 @@ class GalleryApplication {
 			const canvas = document.getElementById('game-canvas') as HTMLCanvasElement;
 			InputSystem.getInstance().setup(canvas);
 
-			const shader = new Shader(this.renderer.getContext(), vertexShaderSource, fragmentShaderSource);
-			this.renderer.useShader(shader);
-
 			// Line for line what src/index.ts does, through the same factory.
-			this.draw = createLegacyDrawApi({ renderer: this.renderer, frameTimer: this.frameTimer });
+			this.draw = createDrawApi({ renderer: this.renderer, frameTimer: this.frameTimer });
 			RendererContext.getInstance().draw = this.draw;
 
 			this.host = new SceneHost({
@@ -62,7 +58,12 @@ class GalleryApplication {
 
 			window.addEventListener('resize', () => this.host.resize());
 
-			this.loop();
+			this.frameLoop = new FrameLoop({ tick: this.loop });
+			this.renderer.addContextListener({
+				lost: () => this.frameLoop.stop(),
+				restored: () => this.frameLoop.start(),
+			});
+			this.frameLoop.start();
 		} catch (error) {
 			console.error('Gallery failed to start:', error);
 		}
@@ -149,7 +150,7 @@ class GalleryApplication {
 		this.frameTimer.endSection('update');
 
 		this.frameTimer.beginSection('render');
-		this.renderer.clear();
+		// Clears the target too: the clear is the render pass's (R15.38).
 		this.draw.beginFrame(windowFrame());
 		this.host.render();
 		this.frameTimer.endSection('render');
@@ -162,8 +163,6 @@ class GalleryApplication {
 		this.frameTimer.endSection('flush');
 
 		this.frameTimer.endFrame();
-
-		requestAnimationFrame(this.loop);
 	};
 }
 

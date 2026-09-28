@@ -27,7 +27,7 @@ import { GpuWork, SplitCounts, SplitReason } from './stats';
  *
  * WHY IT SITS BEHIND THE SEAM rather than in `DrawApi`. What a group's geometry
  * looks like is the backend's vertex format, and R5.4 leaves that layout open:
- * the legacy backend writes 22-float vertices for its WebGL1 program, the uber
+ * the WebGL2 backend writes 22-float vertices for the legacy program, the uber
  * shader will write instances. So the backend owns a `Batcher` and hands it a
  * `GeometryEncoder`; the batcher owns everything that is the same for every
  * backend, which is buffer growth, ranges, split decisions, slot selection and
@@ -87,7 +87,7 @@ export interface GeometrySink {
 
 export interface GeometryEncoder {
 	readonly floatsPerVertex: number;
-	/** WebGL1 has only 16-bit indices; R5.4 requires 32-bit on WebGL2. */
+	/** R5.4 requires 32-bit indices on the indexed path; 16-bit caps an upload at 65536 vertices. */
 	readonly indexType: 'uint16' | 'uint32';
 	/**
 	 * True while a backend lowers the clip to GPU state (scissor) instead of

@@ -1315,7 +1315,7 @@ describe('legacyTextOrder (TEMPORARY)', () => {
 	});
 
 	it('leaves submission order alone inside a domain', () => {
-		// Only LegacyGLBackend paints text late, and only because legacyPaintOrder
+		// Only WebGL2Backend paints text late, and only because LegacyPaintOrder
 		// defers it. The API keeps reporting what was actually submitted.
 		const { api, backend } = harness({ legacyTextOrder: true });
 		api.beginFrame({ viewport: VIEWPORT });

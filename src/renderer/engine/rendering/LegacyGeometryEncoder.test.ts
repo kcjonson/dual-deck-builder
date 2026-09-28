@@ -4,7 +4,7 @@ import { Batcher, GeometryUpload, GroupShape } from '../draw/Batcher';
 import { ResidentTextureSet } from '../draw/ResidentTextureSet';
 import type { CharacterInfo } from './FontAtlas';
 import { LEGACY_VERTEX, LegacyGeometryEncoder, GlyphSource } from './LegacyGeometryEncoder';
-import { LegacyPaintOrder } from './LegacyGLBackend';
+import { LegacyPaintOrder } from './LegacyPaintOrder';
 
 /** A fresh orderer's output, copied, since `apply` reuses its list. */
 function legacyPaintOrder(commands: readonly DrawCommand[]): DrawCommand[] {

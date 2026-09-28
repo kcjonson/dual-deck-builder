@@ -37,10 +37,9 @@ export class RendererContext {
 	 * @returns The renderer instance
 	 * @throws Error if the renderer has not been set
 	 *
-	 * Kept alongside `draw` because two callers still need the device itself:
-	 * both bootstraps build a `Shader` from `getContext()`, and `Input` measures
-	 * a caret through `getFontAtlas()` until chapter 6's `measureText` exists.
-	 * Nothing else outside `LegacyGLBackend` touches it.
+	 * Kept alongside `draw` for one caller: `Input` measures a caret through
+	 * `getFontAtlas()` until chapter 6's `measureText` exists. The backend is
+	 * handed the renderer directly and never looks it up here.
 	 */
 	public getRenderer(): Renderer {
 		if (!this.renderer) {
