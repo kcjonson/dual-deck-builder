@@ -126,8 +126,10 @@ The showcase needed a change to the mint. `visual.yml` ran a bare `--update-snap
 Playwright reads as `changed`: it rewrites only a baseline that fails, so a real 125-pixel change
 under the gate's 200-pixel budget survived the first mint and would have surfaced, unexplained, in
 some later PR's mint. The dispatch now takes `update_mode` (`changed` by default, or `all`), and
-this re-baseline was minted with `all`, which rewrites every captured baseline; any file it
-rewrites without a real change is nondeterminism and was checked for.
+this re-baseline was minted with `all` (run 36428901384), which rewrites every captured baseline.
+Only four files changed in that commit: the two showcase goldens (103 and 102 pixels, the "COMMON"
+overlap) and the two combat goldens (the resource bar's icons back at full size, rows 16 to 55
+only). The other 22 came out byte-identical, so the runner is deterministic across mints.
 
 ## Left open
 
