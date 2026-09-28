@@ -76,9 +76,12 @@ the same as a text that fits. `ellipsis` is only claimed where the layout actual
 across the width, and down the height only when wrapping (R6.14). `text.wrap` is emitted too, because
 R13.25.5's exemption is "without wrap" and the lint already reads it.
 
-**Rule 5 compares in the text's own space.** The measurement is local; `screenBounds` is scaled and
-rotated with the node, so a quarter-turned label would have swapped its axes. The rule now compares
-against the local content box, `bounds` less `margin`.
+**Rule 5 trusts the document's outcome.** When a node carries `text.overflow`, the rule reports
+`visible` and nothing else, because the Text compared its measure with its exact own size and
+rebuilding that size from `bounds` less `margin` drifts in the last bit under fractional margins.
+Without the field it falls back to comparing the measure with the local content box: the
+measurement is local, and `screenBounds` is scaled and rotated with the node, so a quarter-turned
+label would have swapped its axes.
 
 **`inkBounds` is the seam DDB-184 needs.** `Component.inkRect` is the content box grown by
 `inkExtent` in local space, and the snapshot transforms it. Circle, Triangle and Polygon now report
@@ -122,9 +125,11 @@ rect, compared with `toMatchSnapshot` against `<kind>-<name>-text.json` beside t
 
 - Beside the PNG, under `__screenshots__/chromium/linux/`, so the same dispatch mints it and the
   provenance job holds it to the same rule. Chromium only: the strings do not depend on the backend.
-- Only what the capture can show: visible and not at zero opacity through the whole ancestor chain,
-  and not clipped or scrolled wholly off screen. A string nobody can see is not a visual regression,
-  and the developer screen scrolls most of its content out of the viewport.
+- Every string that is visible and not at zero opacity through the whole ancestor chain, and not
+  clipped or scrolled wholly off screen; the developer screen scrolls most of its content out of the
+  viewport. Occlusion is not tested, so a string under an opaque sibling or a modal is recorded and
+  a change to it fails the scenario even though the picture is the same. Deliberate: it is still
+  text the product shows once the cover goes away.
 - Soft and taken before the golden, so a change both checks see reports both.
 - The rect is in the record because layout is deterministic arithmetic over committed metrics, so a
   moved label is a real change and the diff names it.

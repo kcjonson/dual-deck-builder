@@ -565,6 +565,24 @@ describe('layoutLint', () => {
 			expect(reportFor(result, 'text-overflow').exempt).toBe(3);
 		});
 
+		it("trusts the document's overflow outcome over a size rebuilt from bounds and margin", () => {
+			// 62.84 wide with margins 1.24 and 0.84: bounds.w less the margins
+			// comes back a last-bit short of the measure.
+			const measured = { w: 62.84, h: 15, lines: 1 };
+			const margin = { top: 0, right: 0.84, bottom: 0, left: 1.24 };
+			const bounds = box(0, 0, 62.84 + 1.24 + 0.84, 15);
+			const lint = (overflow?: string) => layoutLint(
+				doc([node({ id: 'label', type: 'Text', bounds, margin, text: { measured, overflow } })]),
+			);
+
+			expect(bounds.w - 1.24 - 0.84).toBeLessThan(62.84);
+			expect(forRule(lint('none'), 'text-overflow')).toHaveLength(0);
+			expect(reportFor(lint('none'), 'text-overflow').evaluated).toBe(1);
+			expect(forRule(lint('visible'), 'text-overflow')).toHaveLength(1);
+			// Without the outcome the rule falls back to the size comparison.
+			expect(forRule(lint(), 'text-overflow')).toHaveLength(1);
+		});
+
 		it('compares in the local content box, so a turned or margined label is judged by its own size', () => {
 			const measured = { w: 74, h: 15, lines: 1 };
 			const result = layoutLint(

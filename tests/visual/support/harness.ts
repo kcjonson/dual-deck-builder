@@ -383,10 +383,15 @@ export function textSnapshotName(kind: 'screen' | 'scene', name: string): string
  * holds every Text node's string, so the strings are asserted directly: one
  * line per text with its path, its content, and its rounded screen rect.
  *
- * "On screen" is what the capture can show: visible and not faded out, the
- * whole ancestor chain too, and not clipped or scrolled wholly out of the
- * viewport. A string nobody can see changing is not a visual regression, and
- * recording it would fail a scenario whose picture is unchanged.
+ * The record keeps every string that is visible and not faded out through the
+ * whole ancestor chain, and not clipped or scrolled wholly out of the
+ * viewport. Those cuts drop text the scenario never draws, which the
+ * developer screen's scrolled-out sections are most of. Occlusion is not
+ * tested: a string painted over by an opaque sibling or a modal is still
+ * recorded, so changing it fails the scenario though its picture is the
+ * same. That is deliberate: a covered string is still one the product
+ * shows once whatever covers it goes away, and the tree has no opacity-aware
+ * occlusion test to make the cut honestly.
  *
  * The record lives beside the PNG under `__screenshots__`, named by the same
  * template, so it is minted by the same dispatch and the provenance job holds

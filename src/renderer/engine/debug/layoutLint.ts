@@ -571,11 +571,20 @@ export function layoutLint(document: LintDocument, options: LintOptions | null =
 			return;
 		}
 		rule.evaluated++;
-		// No epsilon: R13.27 scopes it to the geometry rules, and measurement is
-		// exact by R6.11, so a sub-pixel excess is a real excess. The box it is
-		// compared with is the local content box, the space the measurement is
-		// in: `screenBounds` is scaled and rotated with the node, and a
-		// quarter-turned label would otherwise swap its axes.
+		// The document's own verdict wins when it carries one: the Text
+		// compared its measure with its exact own size, and rebuilding that
+		// size here from `bounds` less `margin` drifts in the last bit, which
+		// under no epsilon would report a text that fits exactly.
+		if (typeof text.overflow === 'string') {
+			if (text.overflow === 'visible') report('text-overflow', candidate);
+			return;
+		}
+		// Otherwise no epsilon: R13.27 scopes it to the geometry rules, and
+		// measurement is exact by R6.11, so a sub-pixel excess is a real
+		// excess. The box it is compared with is the local content box, the
+		// space the measurement is in: `screenBounds` is scaled and rotated
+		// with the node, and a quarter-turned label would otherwise swap its
+		// axes.
 		const box = contentSize(candidate);
 		if (num(measured.w) > box.w || num(measured.h) > box.h) {
 			report('text-overflow', candidate);
