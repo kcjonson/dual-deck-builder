@@ -12,6 +12,10 @@ import { ClippingFixturesSection } from './ClippingFixturesSection';
 import { ShadingFixturesSection } from './ShadingFixturesSection';
 import { IconExamplesSection } from './IconExamplesSection';
 import { StackExamplesSection } from './StackExamplesSection';
+import { ButtonVariantsSection } from './ButtonVariantsSection';
+import { ListExamplesSection } from './ListExamplesSection';
+import { CheckboxExamplesSection } from './CheckboxExamplesSection';
+import { RadioExamplesSection } from './RadioExamplesSection';
 
 /**
  * The developer screen's sections, defined once.
@@ -112,5 +116,22 @@ export const developerSections: readonly DeveloperSection[] = [
 	{
 		name: 'stack',
 		build: ({ x, y, width }) => new StackExamplesSection(x, y, width),
+	},
+	// Chapter 12's component catalog (phase 5), one scene per component group.
+	{
+		name: 'button-variants',
+		build: ({ x, y, width }) => new ButtonVariantsSection(x, y, width),
+	},
+	{
+		name: 'lists',
+		build: ({ x, y, width }) => new ListExamplesSection(x, y, width),
+	},
+	{
+		name: 'checkboxes',
+		build: ({ x, y, width }) => new CheckboxExamplesSection(x, y, width),
+	},
+	{
+		name: 'radio-group',
+		build: ({ x, y, width }) => new RadioExamplesSection(x, y, width),
 	},
 ];

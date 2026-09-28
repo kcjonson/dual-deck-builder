@@ -3,6 +3,7 @@ import { Text } from '../components/Text';
 import { Panel } from '../ui/Panel';
 import { Stack } from '../components/Stack';
 import { Input } from '../ui/Input';
+import { Checkable } from '../ui/Checkbox';
 import { CLIP_NONE, ClipState, intersectClip } from '../draw/clip';
 import { ClipRect, IDENTITY, Mat2D, RGBA, Rect, concat, isTranslateOnly, transformedBounds, translation } from '../draw/geometry';
 import { LayerName, ROOT_LAYER, layerOrdinal } from '../draw/layers';
@@ -96,6 +97,8 @@ export interface SnapshotState {
 	open: boolean;
 	active: boolean;
 	dropActive: boolean;
+	/** A checkbox, toggle, or radio's value (R12.9, R12.35): `mixed` for an indeterminate checkbox. Absent elsewhere. */
+	checked?: boolean | 'mixed';
 }
 
 export interface SnapshotTransform {
@@ -418,6 +421,7 @@ function serializeNode(
 
 		const { hovered, pressed, focused, focusVisible, selected, open, active, dropActive } = node.stateFlags;
 		serialized.state = { hovered, pressed, focused, focusVisible, selected, open, active, dropActive };
+		if (node instanceof Checkable) serialized.state.checked = node.checkedState;
 
 		if (node instanceof Text) serialized.text = snapshotText(node);
 		if (node instanceof Input) serialized.value = safeString(node.getValue()) ?? '';

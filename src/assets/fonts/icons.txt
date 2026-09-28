@@ -7,3 +7,5 @@ build
 local_gas_station
 settings
 shield
+check
+remove

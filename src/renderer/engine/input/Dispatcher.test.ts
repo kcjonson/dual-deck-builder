@@ -541,20 +541,20 @@ describe('capture (R9.10)', () => {
 		expect(context.dispatcher.captorOf(1)).toBeNull();
 	});
 
-	it('cancels the capture of a captor that is hidden', () => {
+	it('cancels the capture of a captor that is hidden, bubbling from it (R9.10)', () => {
 		const { thumb } = slider();
 		send(pointer('down', 10, 10));
 		thumb.visible = false;
 		context.dispatcher.dispatchPending();
 
-		expect(only('pointercancel')).toEqual(['pointercancel:thumb']);
+		expect(only('pointercancel')).toEqual(['pointercancel:thumb', 'pointercancel:track', 'pointercancel:root']);
 		expect(context.dispatcher.captorOf(1)).toBeNull();
 	});
 
-	it('cancels every gesture on window blur', () => {
+	it('cancels every gesture on window blur, the captor first and then its ancestors', () => {
 		slider();
 		send(pointer('down', 10, 10), { kind: 'blur' }, pointer('up', 10, 10));
-		expect(only('pointercancel')).toEqual(['pointercancel:thumb']);
+		expect(only('pointercancel')).toEqual(['pointercancel:thumb', 'pointercancel:track', 'pointercancel:root']);
 		expect(only('click')).toEqual([]);
 	});
 

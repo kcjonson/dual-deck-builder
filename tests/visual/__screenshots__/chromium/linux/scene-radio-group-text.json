@@ -1,0 +1,12 @@
+[
+{"path":"gallery_root/dev_section_radio_group/Text[0]","text":"Radio Groups","rect":[53,53,127.43,33.6]},
+{"path":"gallery_root/dev_section_radio_group/dev_section_radio_group_rows/Stack[0]/Text[0]","text":"vertical, with a selection and a disabled option","rect":[53,103,278.95,17.7]},
+{"path":"gallery_root/dev_section_radio_group/dev_section_radio_group_rows/Stack[0]/dev_radio_difficulty/Radio[0]/Text[0]","text":"Easy","rect":[77,126.7,31.33,34]},
+{"path":"gallery_root/dev_section_radio_group/dev_section_radio_group_rows/Stack[0]/dev_radio_difficulty/Radio[1]/Text[0]","text":"Normal","rect":[77,164.7,52.46,34]},
+{"path":"gallery_root/dev_section_radio_group/dev_section_radio_group_rows/Stack[0]/dev_radio_difficulty/Radio[2]/Text[0]","text":"Hard (locked)","rect":[77,202.7,92.92,34]},
+{"path":"gallery_root/dev_section_radio_group/dev_section_radio_group_rows/Stack[0]/dev_radio_difficulty/Radio[3]/Text[0]","text":"Brutal","rect":[77,240.7,42.49,34]},
+{"path":"gallery_root/dev_section_radio_group/dev_section_radio_group_rows/Stack[1]/Text[0]","text":"horizontal, nothing selected","rect":[53,298.7,168.44,17.7]},
+{"path":"gallery_root/dev_section_radio_group/dev_section_radio_group_rows/Stack[1]/dev_radio_quality/Radio[0]/Text[0]","text":"Low","rect":[77,322.41,28.48,34]},
+{"path":"gallery_root/dev_section_radio_group/dev_section_radio_group_rows/Stack[1]/dev_radio_quality/Radio[1]/Text[0]","text":"Medium","rect":[153.48,322.41,57.96,34]},
+{"path":"gallery_root/dev_section_radio_group/dev_section_radio_group_rows/Stack[1]/dev_radio_quality/Radio[2]/Text[0]","text":"High","rect":[259.44,322.41,32.19,34]}
+]
