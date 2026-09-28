@@ -123,6 +123,19 @@ describe('pixel snapping (R7.7 to R7.8a)', () => {
 		expect(zero.rect.width).toBe(0);
 	});
 
+	it('keeps a sub-pixel rect with a center border on the shifted grid, so the border stays whole', () => {
+		// 10.2 to 10.5 with a 1 px center border rounds both edges to 10.5.
+		const thin = hairline({ rect: { x: 10.2, y: 0, width: 0.3, height: 4 }, borderWidth: 1, position: 'center', ratio: 1 });
+		expect(thin.rect.width).toBe(1);
+		// The edges are on half pixels, so the border's outer edges are whole.
+		expect(thin.rect.x).toBe(9.5);
+		expect(Number.isInteger(thin.rect.x - thin.borderWidth / 2)).toBe(true);
+		expect(Number.isInteger(thin.rect.x + thin.rect.width + thin.borderWidth / 2)).toBe(true);
+		// The rect's centre is still inside the pixel it keeps.
+		expect(10.35).toBeGreaterThanOrEqual(thin.rect.x);
+		expect(10.35).toBeLessThan(thin.rect.x + thin.rect.width);
+	});
+
 	it('writes into the object it is handed', () => {
 		const out = { rect: { x: 0, y: 0, width: 0, height: 0 }, borderWidth: 0 };
 		expect(snapHairlineRect({ rect: { x: 1.2, y: 0, width: 4, height: 4 }, borderWidth: 1, ratio: 1 }, out)).toBe(out);

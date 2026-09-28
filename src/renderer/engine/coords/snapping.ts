@@ -68,7 +68,9 @@ export interface SnappedHairlineRect {
  * is how R7.8a's shared edges get snapped: two rects that abut at a fractional
  * x both round that x the same way, whoever draws them. A rect narrower than a
  * device pixel keeps the one device pixel its centre is in rather than
- * rounding to nothing, so a thin divider does not vanish at some offsets.
+ * rounding to nothing, so a thin divider does not vanish at some offsets; for
+ * a `center` border that pixel is on the same shifted grid, so the border
+ * still lands on whole pixels.
  *
  * "Hairline" is a border that rounds to one logical pixel or less, which is
  * wider than R7.8's "at or below 1 logical pixel": chapter 7's own required
@@ -95,7 +97,7 @@ function snapSpan(start: number, extent: number, shift: number, ratio: number, o
 	let low = snapToDevice(start - shift, ratio) + shift;
 	let high = snapToDevice(start + extent + shift, ratio) - shift;
 	if (high <= low && extent > 0) {
-		low = Math.floor((start + extent / 2) * ratio) / ratio;
+		low = Math.floor((start + extent / 2 - shift) * ratio) / ratio + shift;
 		high = low + 1 / ratio;
 	}
 	out[axis] = low;

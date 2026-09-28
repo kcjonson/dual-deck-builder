@@ -3,6 +3,7 @@ import { Component } from '../components/Component';
 import { Panel } from '../ui/Panel';
 import { Input } from '../ui/Input';
 import { CLIP_NONE, ClipState, intersectClip } from '../draw/clip';
+import { snapClipRect } from '../coords/snapping';
 
 /**
  * Serializes the live Layer tree to the JSON document of R13.22-R13.24.
@@ -28,8 +29,10 @@ import { CLIP_NONE, ClipState, intersectClip } from '../draw/clip';
  * Clips are reported as the intersection of every clipping ancestor, which is
  * what R13.22's "effective values" asks for, computed by the draw API's own
  * clip stack arithmetic (`intersectClip`, R4.2 and R4.3) from the same
- * `clipsChildren` fact `Layer.render` and `Panel.render` push from. So the
- * reported clip is the one the renderer applied, including R4.2's `empty`
+ * `clipsChildren` fact `Layer.render` and `Panel.render` push from, each rect
+ * snapped to the device grid at the viewport's ratio as `pushClip` snaps it
+ * (R7.8a; the tree renders under translations only). So the reported clip is
+ * the one the renderer applied, including R4.2's `empty`
  * state, which is reported as a zero-sized rect rather than dropped: a node
  * clipped away entirely has a clip, and it contains nothing.
  *
@@ -56,6 +59,12 @@ export interface SnapshotPoint {
 export interface SnapshotViewport {
 	width: number;
 	height: number;
+	/**
+	 * `dpr * uiScale` (R7.2), which the clips snap at. Read, never reported:
+	 * the document's viewport stays logical. 1 when absent, the draw API's own
+	 * default.
+	 */
+	ratio?: number;
 }
 
 export interface SnapshotState {
@@ -104,6 +113,8 @@ interface WalkContext {
 	offsetY: number;
 	/** Effective clip contributed by ancestors, in logical space (R4.2's three states). */
 	clip: ClipState;
+	/** R7.2's ratio, for R7.8a's clip snap. */
+	ratio: number;
 }
 
 /**
@@ -212,7 +223,7 @@ function serializeNode(
 		}
 
 		const innerClip = node.clipsChildren
-			? intersectClip(context.clip, { minX: screenX, minY: screenY, maxX: screenX + w, maxY: screenY + h }, null)
+			? intersectClip(context.clip, snapClipRect({ minX: screenX, minY: screenY, maxX: screenX + w, maxY: screenY + h }, context.ratio), null)
 			: context.clip;
 
 		// `ancestors` is per-path and catches cycles. `seen` is walk-wide and
@@ -239,6 +250,7 @@ function serializeNode(
 						offsetX: isScrolledContent && scroll ? screenX - finite(scroll.x) : screenX,
 						offsetY: isScrolledContent && scroll ? screenY - finite(scroll.y) : screenY,
 						clip: panel && !isScrolledContent ? context.clip : innerClip,
+						ratio: context.ratio,
 					};
 					const serializedChild = serializeNode(child, childContext, ancestors, seen, depth + 1);
 					if (child.isPart === true) {
@@ -280,10 +292,11 @@ export function treeSnapshot(roots: readonly Layer[], viewport: SnapshotViewport
 
 	// Walk-wide, so a node shared between two roots is expanded once.
 	const seen = new Set<Layer>();
+	const ratio = typeof viewport?.ratio === 'number' && Number.isFinite(viewport.ratio) && viewport.ratio > 0 ? viewport.ratio : 1;
 
 	for (const root of roots) {
 		if (!root) continue;
-		document.roots.push(serializeNode(root, { offsetX: 0, offsetY: 0, clip: CLIP_NONE }, new Set<Layer>(), seen, 0));
+		document.roots.push(serializeNode(root, { offsetX: 0, offsetY: 0, clip: CLIP_NONE, ratio }, new Set<Layer>(), seen, 0));
 	}
 
 	return document;

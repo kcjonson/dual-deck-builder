@@ -123,6 +123,27 @@ describe('hit testing honours ancestor clips (R4.12)', () => {
 		expect(child.containsPoint(120, 120)).toBe(false);
 	});
 
+	it('tests against the snapped clip edges the renderer applied, at its ratio (R7.8a)', () => {
+		const clipper = new Layer({ id: 'clipper', x: 10.3, y: 0, width: 20.3, height: 20, overflow: 'hidden' });
+		const child = new Layer({ id: 'child', x: -10, y: 0, width: 40, height: 20 });
+		clipper.addChild(child);
+
+		// Ratio 1: the clip is x 10 to 31, so 10.1 hits and 30.8 hits although
+		// both are outside the unsnapped 10.3 to 30.6.
+		frame(clipper);
+		expect(child.containsPoint(10.1, 5)).toBe(true);
+		expect(child.containsPoint(30.8, 5)).toBe(true);
+		expect(child.containsPoint(31, 5)).toBe(false);
+
+		// Ratio 2: 10.5 to 30.5.
+		api.beginFrame({ viewport: { width: 1440, height: 882 }, ratio: 2 });
+		clipper.render();
+		api.endFrame();
+		expect(child.containsPoint(10.4, 5)).toBe(false);
+		expect(child.containsPoint(10.5, 5)).toBe(true);
+		expect(child.containsPoint(30.5, 5)).toBe(false);
+	});
+
 	it('intersects nested clips', () => {
 		const outer = new Layer({ id: 'outer', x: 0, y: 0, width: 100, height: 100, overflow: 'hidden' });
 		const inner = new Layer({ id: 'inner', x: 50, y: 0, width: 100, height: 100, overflow: 'hidden' });
@@ -165,6 +186,25 @@ describe('tree snapshot clips from the clip stack arithmetic (R13.22)', () => {
 		const leafNode = root.children[0].children[0];
 		expect(leafNode.id).toBe('leaf');
 		expect(leafNode.clip).toEqual({ x: 0, y: 0, w: 0, h: 0 });
+	});
+
+	it('reports the snapped clip the renderer applied at a fractional position and ratio 2 (R7.8a)', () => {
+		const clipper = new Layer({ id: 'clipper', x: 10.3, y: 5.1, width: 20.3, height: 20.7, overflow: 'hidden' });
+		clipper.addChild(new Rectangle({ id: 'fill', x: 0, y: 0, width: 40, height: 40 }));
+		api.beginFrame({ viewport: { width: 1440, height: 882 }, ratio: 2 });
+		clipper.render();
+		api.endFrame();
+
+		const drawn = rectById('fill').clip;
+		const reported = treeSnapshot([clipper], { width: 1440, height: 882, ratio: 2 }).roots[0].children[0].clip;
+		if (drawn.kind !== 'rect') throw new Error('the fill should be clipped');
+		expect(reported).toEqual({
+			x: drawn.rect.minX,
+			y: drawn.rect.minY,
+			w: drawn.rect.maxX - drawn.rect.minX,
+			h: drawn.rect.maxY - drawn.rect.minY,
+		});
+		expect(reported).toEqual({ x: 10.5, y: 5, w: 20, h: 21 });
 	});
 
 	it('reports the same clip the renderer applied to the same node', () => {

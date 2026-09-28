@@ -177,9 +177,13 @@ heard by the GL viewport first and the screens second. Nothing in the engine rea
 
 Where: the rect snap is in `UberGeometryEncoder.encodeRect`, which already had the frame's ratio
 and the command's `translateOnly` flag and is where text snapping lives; the clip snap is in
-`DrawApi.pushClip`, at the one place a clip is converted to screen space (R4.7), so the cull, the
-tree snapshot and the shader all see the same snapped rect. Both run only under a translate-only
-transform (R7.9). The rect is snapped in screen space and handed back to local space by the same
+`DrawApi.pushClip`, at the one place a clip is converted to screen space (R4.7), so the cull and
+the shader see the same snapped rect. The tree snapshot and `Layer`'s hit test build their clips
+from the tree rather than from the clip stack, so each snaps the same way: the snapshot at the
+`ratio` its viewport now carries (read, not reported), the hit test at the draw API's
+`devicePixelScale`. Paint, snapshot and hit test agree to the device pixel, including at x.5,
+where R4.4's centre test and `round` break the tie in opposite directions. Both run only under a
+translate-only transform (R7.9). The rect is snapped in screen space and handed back to local space by the same
 delta, since under a translation the two differ by that translation alone.
 
 **Borderless rects count.** R7.8 covers a rect whose border is "at or below 1 logical pixel", and
@@ -200,7 +204,8 @@ edge still moves by at most half a device pixel.
 
 **Thin rects keep a pixel.** Snapping each edge independently rounds a rect narrower than a device
 pixel to nothing at some offsets (10.6 to 11.1 becomes 11 to 11), so a hairline divider drawn as a
-fill would blink out as it moved. Such a rect keeps the one device pixel its centre falls in. The
+fill would blink out as it moved. Such a rect keeps the one device pixel its centre falls in, on
+the shifted grid when it has a `center` border, so that border still lands on whole pixels. The
 edge can then move by up to a device pixel, past R7.8's half, which is the lesser defect.
 
 **Not snapped:** shadows (their owner snaps, the shadow keeps its fractional offset and ramps

@@ -196,7 +196,7 @@ export class Game {
 					if (this.developerOverlay.shown) roots.push(this.developerOverlay);
 					return roots;
 				},
-				viewport: () => this.viewport.logical,
+				viewport: () => ({ ...this.viewport.logical, ratio: this.viewport.state.ratio }),
 			});
 			installPerfHooks({ snapshot: this.perfSnapshot, gpuTimer: this.gpuTimer });
 		}

@@ -1,4 +1,5 @@
 import { RendererContext } from '../rendering/RendererContext';
+import { snapToDevice } from '../coords/snapping';
 import { RenderContext, DEFAULT_RENDER_CONTEXT } from '../rendering/RenderContext';
 import { Style } from '../types/Style';
 
@@ -338,7 +339,8 @@ export class Layer {
 	 * scrolled out of a panel is not clickable although its bounds still
 	 * exist. Each clipping ancestor is asked in its own local space, which is
 	 * where `globalToLocal` already removes a panel's scroll (R4.11), and the
-	 * test is half-open like the fragment test it mirrors (R4.4).
+	 * test is half-open like the fragment test it mirrors (R4.4), against the
+	 * edges snapped at the draw API's ratio as the pushed clip is (R7.8a).
 	 *
 	 * What this does not do yet: honour layer promotion's clip reset (R4.8),
 	 * because components have no layer to be promoted into until phase 3's
@@ -347,10 +349,18 @@ export class Layer {
 	 * gap anyone can reach today.
 	 */
 	protected insideAncestorClips(x: number, y: number): boolean {
+		const renderer = RendererContext.getInstance();
+		const ratio = renderer.hasDraw ? renderer.draw.devicePixelScale : 1;
 		for (let ancestor = this.parent; ancestor; ancestor = ancestor.parent) {
 			if (!ancestor.clipsChildren) continue;
+			// The clip's screen edges, snapped as `pushClip` snaps them (R7.8a),
+			// so a point hits exactly the pixels the clip kept.
 			const local = ancestor.globalToLocal(x, y);
-			if (local.x < 0 || local.x >= ancestor.width || local.y < 0 || local.y >= ancestor.height) {
+			const left = snapToDevice(x - local.x, ratio);
+			const top = snapToDevice(y - local.y, ratio);
+			const right = snapToDevice(x - local.x + ancestor.width, ratio);
+			const bottom = snapToDevice(y - local.y + ancestor.height, ratio);
+			if (x < left || x >= right || y < top || y >= bottom) {
 				return false;
 			}
 		}

@@ -15,9 +15,9 @@ const CLEAR: RGBA = [0, 0, 0, 0];
 /**
  * Chapter 4's gallery fixture (4.7), drawn through the draw API: nested rect
  * clips intersecting, a disjoint pair producing `empty`, a content offset
- * applied before a fixed clip, a clip edge snapped under fractional content
- * offsets (R7.8a), every primitive kind cut by one clip, and text too long for
- * its box.
+ * applied before a fixed clip, a clip edge that agrees with its content as a
+ * viewport slides by fractions of a pixel (R7.8a), every primitive kind cut
+ * by one clip, and text too long for its box.
  *
  * Three items of 4.7's list are not here, each because drawing it today would
  * make a wrong picture the golden. The rounded clip needs the per-draw SDF of
@@ -143,29 +143,37 @@ function contentOffset(draw: DrawApi, left: number, top: number): void {
 }
 
 /**
- * 4.7's animated content offset with a snapped clip edge, as four frames of the
- * animation side by side: viewports at a fractional x, their content scrolled
- * by a fraction more each time. The clip goes onto the device grid at push
- * (R7.8a), so every frame keeps and drops the same columns and rows, where an
- * unsnapped edge would flip a pixel between frames (the shimmer of R4.4).
+ * 4.7's animated content offset with a snapped clip edge, as four frames of a
+ * viewport sliding by a quarter pixel a frame while its content scrolls. Each
+ * frame outlines the viewport with a hairline, which R7.8 puts on the device
+ * grid, and fills it with content cut by the viewport's clip.
+ *
+ * What the golden proves is that the clip and the content agree on where the
+ * edge is in every frame, including the one at x.5. R4.4 keeps a pixel by its
+ * centre, which breaks the x.5 tie the other way from `round`: unsnapped, that
+ * frame's clip would keep the column left of the outline's inner edge (over
+ * the outline) and drop the last column inside it (a dark gap), and the frames
+ * either side would not. Snapped at push (R7.8a), the content meets the
+ * outline on all four sides in all four frames.
  */
 function snappedClipEdge(draw: DrawApi, left: number, top: number): void {
-	fixtureHeading(draw, 'Clip edges stay put under a fractional scroll', left, top);
-	const offsets = [0, 7.3, 14.6, 21.9];
-	for (let index = 0; index < offsets.length; index++) {
-		const offset = offsets[index];
-		const viewport = { x: left + 0.4 + index * 96, y: top + 40.6, width: 80.3, height: 120 };
-		draw.drawRect({ rect: viewport, fill: PANEL });
+	fixtureHeading(draw, 'Clip and content edges agree as a viewport slides', left, top);
+	const frames = [0, 0.25, 0.5, 0.75];
+	for (let index = 0; index < frames.length; index++) {
+		const slide = frames[index];
+		const scroll = index * 7.3;
+		const viewport = { x: left + index * 96 + slide, y: top + 40 + slide, width: 80, height: 120 };
+		draw.drawRect({ rect: viewport, fill: CLEAR, border: { color: OUTLINE, width: 1, position: 'outside' } });
 		draw.pushClip(viewport);
-		draw.pushTranslate(viewport.x, viewport.y - offset);
+		draw.pushTranslate(viewport.x, viewport.y - scroll);
 		for (let row = 0; row < 8; row++) {
 			const colour: RGBA = row % 2 === 0 ? [0.3, 0.5, 0.85, 1] : [0.9, 0.55, 0.2, 1];
-			draw.drawRect({ rect: { x: -10, y: row * 20, width: 100.3, height: 20 }, fill: colour });
+			draw.drawRect({ rect: { x: -10, y: row * 20, width: 100, height: 20 }, fill: colour });
 		}
 		draw.popTransform();
 		draw.popClip();
 		fixtureLabel(draw, {
-			text: `scroll ${offset}`,
+			text: `x +${slide}, scroll ${scroll.toFixed(1)}`,
 			box: { x: viewport.x, y: viewport.y + viewport.height + 6, width: viewport.width, height: 18 },
 			color: [0.7, 0.72, 0.76, 1],
 		});
