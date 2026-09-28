@@ -89,8 +89,9 @@ export const developerSections: readonly DeveloperSection[] = [
 		name: 'nested-panels',
 		build: ({ x, y, width }) => new NestedPanelsSection(x, y, width),
 	},
-	// The spec's rendering fixtures (3.12, 4.7, 5.10), drawn through the draw
-	// API rather than built from components.
+	// The spec's rendering fixtures (3.12, 4.7, 5.10). Paint order is built
+	// from components, so it proves the tree's ordering; clipping and shading
+	// are drawn through the draw API rather than built from components.
 	{
 		name: 'paint-order',
 		build: ({ x, y, width }) => new PaintOrderFixturesSection(x, y, width),

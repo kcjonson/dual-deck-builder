@@ -126,6 +126,11 @@ export class Button extends Component {
 		return 'unit';
 	}
 
+	/** Presses show on the button whether or not a caller set onClick. */
+	public get handlesPointer(): boolean {
+		return true;
+	}
+
 	public get tone(): Tone {
 		return this.buttonTone;
 	}

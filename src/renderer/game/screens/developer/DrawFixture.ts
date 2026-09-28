@@ -13,9 +13,10 @@ export interface DrawFixtureOptions {
 
 /**
  * A gallery fixture that talks to the draw API directly, for the spec's
- * rendering fixtures (chapters 3, 4 and 5): what they test is the draw core,
- * and several of the things they need (layer promotion, blend modes, per-corner
- * radii, border positions) have no component that exposes them yet. The tree
+ * rendering fixtures (chapters 4 and 5): what they test is the draw core, and
+ * several of the things they need (blend modes, per-corner radii, border
+ * positions) have no component that exposes them yet. Chapter 3's paint-order
+ * fixture moved onto components once they had `zIndex` and `layer` (DDB-205). The tree
  * snapshot sees one node with its bounds, so the scene stays inside the lint
  * gate without the fixture's deliberately overlapping shapes reading as
  * sibling overlaps.

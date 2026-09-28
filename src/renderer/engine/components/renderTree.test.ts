@@ -122,6 +122,22 @@ describe('renderTree (R3.11, R8.1)', () => {
 		expect(rect(commands, 'inside').clip.kind).toBe('rect');
 	});
 
+	// R3.6: the tree half of the draw API's clamp. A child asking for a layer
+	// below its ancestor's paints in the ancestor's, and a development build
+	// reports it, which is why no gallery scene can show it.
+	it('keeps a child that asks for a lower layer in its ancestor\'s, and reports it (R3.6)', () => {
+		const lenient = new DrawApi({ backend });
+		const modal = new Layer({ width: 100, height: 100, layer: 'modal' });
+		modal.addChild(new Rectangle({ id: 'lowered', width: 10, height: 10, layer: 'base' }));
+
+		lenient.beginFrame({ viewport: { width: 800, height: 600 }, ratio: 1 });
+		renderTree(modal, lenient);
+		lenient.endFrame();
+
+		expect(backend.commands.find((command) => command.id === 'lowered')?.layer).toBe('modal');
+		expect(lenient.diagnostics.map((diagnostic) => diagnostic.code)).toEqual(['layer-lowered']);
+	});
+
 	it('pushes a rotated transform about the content box centre, matching screenMatrix (R8.26)', () => {
 		const root = new Layer({ width: 400, height: 400 });
 		const card = new Rectangle({ id: 'card', x: 100, y: 100, width: 100, height: 20, transform: { rotate: Math.PI / 2 } });
