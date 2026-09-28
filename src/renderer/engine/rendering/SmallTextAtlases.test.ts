@@ -2,15 +2,16 @@ import type { TextureHandle } from '../draw/commands';
 import type { TextureOptions } from '../gpu/TextureStore';
 import type { GlyphCanvasContext } from '../text/rasterGlyphs';
 import { syntheticFontAtlas } from '../text/testing';
-import { GlyphCanvas, SmallTextAtlases } from './SmallTextAtlases';
+import { SmallTextAtlases } from './SmallTextAtlases';
 
-function fakeContext(): GlyphCanvasContext {
+function fakeContext(width: number, height: number): GlyphCanvasContext {
 	const noop = () => undefined;
 	return {
 		font: '',
 		fillStyle: '',
 		textBaseline: 'alphabetic',
 		textAlign: 'left',
+		setTransform: noop,
 		clearRect: noop,
 		save: noop,
 		restore: noop,
@@ -18,6 +19,7 @@ function fakeContext(): GlyphCanvasContext {
 		rect: noop,
 		clip: noop,
 		fillText: noop,
+		getImageData: () => ({ data: new Uint8ClampedArray(width * height * 4) }),
 	};
 }
 
@@ -25,7 +27,6 @@ function setup({ family = 'ddb-synthetic' as string | null, canvas = true, idleF
 	const created: TextureOptions[] = [];
 	const released: number[] = [];
 	let nextId = 1;
-	const canvases: GlyphCanvas[] = [];
 	const atlases = new SmallTextAtlases({
 		textures: {
 			create: (options) => {
@@ -35,16 +36,11 @@ function setup({ family = 'ddb-synthetic' as string | null, canvas = true, idleF
 			release: (handle) => released.push(handle.id),
 		},
 		familyOf: (font) => (font === 'body' ? family : null),
-		createCanvas: (width, height) => {
-			if (!canvas) return null;
-			const made = { source: new Uint8Array(width * height * 4), context: fakeContext() };
-			canvases.push(made);
-			return made;
-		},
+		createCanvas: (width, height) => (canvas ? fakeContext(width, height) : null),
 		idleFrames,
 		buildsPerFrame,
 	});
-	return { atlases, created, released, canvases };
+	return { atlases, created, released };
 }
 
 describe('SmallTextAtlases (R6.4a)', () => {
@@ -59,6 +55,9 @@ describe('SmallTextAtlases (R6.4a)', () => {
 		expect(again).toBe(first);
 		expect(created).toHaveLength(1);
 		expect(created[0]).toMatchObject({ content: 'color', immediate: true, keepSource: true, width: first?.width, height: first?.height });
+		// The box-filtered texels are the source, not the oversampled canvas.
+		expect(created[0].source).toBeInstanceOf(Uint8Array);
+		expect((created[0].source as Uint8Array).length).toBe(created[0].width * created[0].height * 4);
 		atlases.glyphs('body', font, 7);
 		expect(created).toHaveLength(2);
 		expect(atlases.size).toBe(2);

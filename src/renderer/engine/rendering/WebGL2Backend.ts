@@ -26,7 +26,8 @@ import { TextMetricsService } from '../text/TextMetricsService';
 import { FrameTimer } from './FrameTimer';
 import type { GpuTimer } from './GpuTimer';
 import { Renderer } from './Renderer';
-import { GlyphCanvas, SmallTextAtlases, createDocumentGlyphCanvas } from './SmallTextAtlases';
+import type { GlyphCanvasContext } from '../text/rasterGlyphs';
+import { SmallTextAtlases, createDocumentGlyphCanvas } from './SmallTextAtlases';
 import { StreamRing } from './StreamRing';
 import {
 	UBER_ATTRIBUTES,
@@ -107,7 +108,7 @@ export interface WebGL2BackendOptions {
 	 */
 	rasterFaces?: { familyOf(role: string): string | null } | null;
 	/** The canvas the fallback rasterises into; the DOM's by default. */
-	createGlyphCanvas?: (width: number, height: number) => GlyphCanvas | null;
+	createGlyphCanvas?: (width: number, height: number) => GlyphCanvasContext | null;
 }
 
 export interface CreateDrawApiOptions {

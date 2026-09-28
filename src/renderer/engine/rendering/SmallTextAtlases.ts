@@ -1,19 +1,14 @@
 import type { TextureHandle } from '../draw/commands';
-import type { TexelSource, TextureOptions } from '../gpu/TextureStore';
+import type { TextureOptions } from '../gpu/TextureStore';
 import type { FontAtlas } from '../text/FontAtlas';
 import {
 	GlyphCanvasContext,
 	RasterGlyphAtlas,
 	RasterGlyphSource,
 	planRasterGlyphs,
+	rasterCanvasSize,
 	rasterizeGlyphs,
 } from '../text/rasterGlyphs';
-
-/** A canvas to rasterise into: the texel source to upload and its 2D context. */
-export interface GlyphCanvas {
-	readonly source: TexelSource;
-	readonly context: GlyphCanvasContext;
-}
 
 export interface SmallTextAtlasesOptions {
 	textures: {
@@ -22,8 +17,8 @@ export interface SmallTextAtlasesOptions {
 	};
 	/** The platform family for a font role once its face is ready, else null (`PlatformFaces.familyOf`). */
 	familyOf: (font: string) => string | null;
-	/** A canvas of the given size, or null where there is none. */
-	createCanvas: (width: number, height: number) => GlyphCanvas | null;
+	/** A 2D context on a canvas of the given size, or null where there is none. */
+	createCanvas: (width: number, height: number) => GlyphCanvasContext | null;
 	/** Frames an atlas may go unused before it is freed. */
 	idleFrames?: number;
 	/** Atlases built in one frame at most; a run past it keeps the distance field until the next. */
@@ -66,7 +61,7 @@ const DEFAULT_BUILDS_PER_FRAME = 4;
 export class SmallTextAtlases implements RasterGlyphSource {
 	private readonly textures: SmallTextAtlasesOptions['textures'];
 	private readonly familyOf: (font: string) => string | null;
-	private readonly createCanvas: (width: number, height: number) => GlyphCanvas | null;
+	private readonly createCanvas: (width: number, height: number) => GlyphCanvasContext | null;
 	private readonly idleFrames: number;
 	private readonly buildsPerFrame: number;
 	private readonly entries = new Map<string, Entry>();
@@ -113,16 +108,17 @@ export class SmallTextAtlases implements RasterGlyphSource {
 		const family = this.familyOf(font);
 		if (!family || this.builtThisFrame >= this.buildsPerFrame) return null;
 		const plan = planRasterGlyphs(atlas, pixelSize);
-		const canvas = this.createCanvas(plan.width, plan.height);
-		if (!canvas) return null;
-		rasterizeGlyphs(canvas.context, plan, family);
+		const canvasSize = rasterCanvasSize(plan);
+		const context = this.createCanvas(canvasSize.width, canvasSize.height);
+		if (!context) return null;
+		const texels = rasterizeGlyphs(context, plan, family);
 		const texture = this.textures.create({
 			width: plan.width,
 			height: plan.height,
 			label: `small text ${font} at ${pixelSize} device px`,
-			source: canvas.source,
+			source: texels,
 			content: 'color',
-			// The canvas is the source a restored context uploads again (R5.33).
+			// The texels are the source a restored context uploads again (R5.33).
 			keepSource: true,
 			immediate: true,
 		});
@@ -142,11 +138,10 @@ export class SmallTextAtlases implements RasterGlyphSource {
 	}
 }
 
-/** The DOM's canvas, for the WebGL2 backend. */
-export function createDocumentGlyphCanvas(width: number, height: number): GlyphCanvas | null {
+/** The DOM's canvas, for the WebGL2 backend; read back once per atlas. */
+export function createDocumentGlyphCanvas(width: number, height: number): GlyphCanvasContext | null {
 	const canvas = document.createElement('canvas');
 	canvas.width = width;
 	canvas.height = height;
-	const context = canvas.getContext('2d');
-	return context ? { source: canvas, context } : null;
+	return canvas.getContext('2d', { willReadFrequently: true });
 }

@@ -791,10 +791,10 @@ describe('UberGeometryEncoder: small text from a raster atlas (R6.4a)', () => {
 		const a = plan.cells.get(0x41);
 		if (!a) throw new Error('no cell for A');
 		const [first, second] = [instance(upload, 0), instance(upload, 1)];
-		// Origin (10.3, 20.4) snaps to (10, 20); A is 5 by 6 above the
-		// baseline, b follows at 5 less 1 of kerning.
-		expect(first.corners).toEqual([[10, 14], [15, 14], [15, 20], [10, 20]]);
-		expect(second.corners).toEqual([[14, 14], [18, 14], [18, 20], [14, 20]]);
+		// Origin (10.3, 20.4) snaps to (10, 20); A's cell is 5 by 6 above the
+		// baseline plus the phases' column, b follows at 5 less 1 of kerning.
+		expect(first.corners).toEqual([[10, 14], [16, 14], [16, 20], [10, 20]]);
+		expect(second.corners).toEqual([[14, 14], [19, 14], [19, 20], [14, 20]]);
 		expect(first.texCoords).toEqual(f32([a.x / plan.width, a.y / plan.height, (a.x + a.width) / plan.width, (a.y + a.height) / plan.height]));
 		for (const glyph of [first, second]) {
 			expect(glyph.mode).toBe(UBER_MODE.image);
@@ -814,22 +814,25 @@ describe('UberGeometryEncoder: small text from a raster atlas (R6.4a)', () => {
 		expect(shape.texture).toMatchObject({ id: RASTER_TEXTURE.id });
 	});
 
-	it('puts each word\'s pens on whole pixels with its ends within half a pixel, so measurement is unchanged', () => {
+	it('draws each pen at its nearest quarter pixel, as a whole-pixel cell in that phase, so measurement is unchanged', () => {
 		const { draw } = setup(1, rasterSource());
-		// At 7 px A advances 4.375: pens 10, 14.375 and 18.75. The ends round
-		// to 10 and 19; the advances tie, so the spare pixel goes where the
-		// middle pen stays nearest the layout.
+		// At 7 px A advances 4.375: pens 10, 14.375 and 18.75, which are pixels
+		// 10, 14 and 18 in phases 0, 2 and 3.
 		const upload = draw((api) => {
 			api.drawText({ text: 'AAA', position: { x: 10, y: 20 }, font: 'body', size: 7, color: RED });
 		});
-		expect([0, 1, 2].map((n) => instance(upload, n).corners[0][0])).toEqual([10, 14, 19]);
+		expect([0, 1, 2].map((n) => instance(upload, n).corners[0][0])).toEqual([10, 14, 18]);
+		const plan = planRasterGlyphs(syntheticFontAtlas(), 7);
+		const a = plan.cells.get(0x41);
+		if (!a) throw new Error('no cell for A');
+		expect([0, 1, 2].map((n) => instance(upload, n).texCoords[0])).toEqual(f32([0, 2, 3].map((phase) => (a.x + phase * a.stride) / plan.width)));
 
 		const measured = new TextMetricsService();
 		measured.addAtlas({ name: 'body', atlas: syntheticFontAtlas() });
 		const { width } = measured.measure({ text: 'AAA', font: 'body', size: 7 });
 		expect(width).toBe(3 * 4.375);
-		// The last glyph's pen is within half a device pixel of the measured one.
-		expect(Math.abs(instance(upload, 2).corners[0][0] - (10 + 2 * 4.375))).toBeLessThanOrEqual(0.5);
+		// The last glyph lands within an eighth of a pixel of the measured pen.
+		expect(Math.abs(18 + 3 / 4 - (10 + 2 * 4.375))).toBeLessThanOrEqual(1 / 8);
 	});
 
 	it('keeps the distance field at 9 px, which sits on the threshold, and at 8 px at ratio 2', () => {
@@ -855,10 +858,10 @@ describe('UberGeometryEncoder: small text from a raster atlas (R6.4a)', () => {
 			api.popTransform();
 		});
 		expect(source.requests).toEqual(['body 8']);
-		// Pen (10, 40) is (8, 21) on screen; A's cell is 5 by 6 at 8 px, and b
+		// Pen (10, 40) is (8, 21) on screen; A's cell is 6 by 6 at 8 px, and b
 		// follows at (10 - 2) / 2 = 4 device px.
 		expect(instance(upload, 0).mode).toBe(UBER_MODE.image);
-		expect(instance(upload, 0).corners).toEqual([[8, 15], [13, 15], [13, 21], [8, 21]]);
+		expect(instance(upload, 0).corners).toEqual([[8, 15], [14, 15], [14, 21], [8, 21]]);
 		expect(instance(upload, 1).corners[0]).toEqual([12, 15]);
 	});
 
@@ -889,15 +892,21 @@ describe('UberGeometryEncoder: small text from a raster atlas (R6.4a)', () => {
 		expect(instance(upload, 0).mode).toBe(UBER_MODE.text);
 	});
 
-	it('pins each word to the layout separately, across a space', () => {
+	it('keeps equal advances equal, where whole-pixel pens would alternate', () => {
 		const { draw } = setup(1, rasterSource());
-		// At 7 px: A 4.375, space 1.75. Pens 10, 14.375, then the second word
-		// at 20.5 and 24.875; each word rounds its own ends.
+		// At 4 px A advances 2.5: the As land 2.5 px apart.
 		const upload = draw((api) => {
-			api.drawText({ text: 'AA AA', position: { x: 10, y: 20 }, font: 'body', size: 7, color: RED });
+			api.drawText({ text: 'AAA', position: { x: 10, y: 20 }, font: 'body', size: 4, color: RED });
 		});
-		expect(upload.count).toBe(4);
-		expect([0, 1, 2, 3].map((n) => instance(upload, n).corners[0][0])).toEqual([10, 14, 21, 25]);
+		const plan = planRasterGlyphs(syntheticFontAtlas(), 4);
+		const a = plan.cells.get(0x41);
+		if (!a) throw new Error('no cell for A');
+		const drawn = [0, 1, 2].map((n) => {
+			const glyph = instance(upload, n);
+			const phase = Math.round((glyph.texCoords[0] * plan.width - a.x) / a.stride);
+			return glyph.corners[0][0] + phase / 4;
+		});
+		expect(drawn).toEqual([10, 12.5, 15]);
 	});
 
 	it('still draws decorations after the glyphs, as rect-mode rules', () => {

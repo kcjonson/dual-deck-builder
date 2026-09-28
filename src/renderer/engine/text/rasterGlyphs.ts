@@ -42,93 +42,28 @@ export function rasterPixelSize(size: number, scale: number): number {
 }
 
 /**
- * Whole-device-pixel pens for one word of a raster run, so its glyphs sit one
- * texel to one pixel with even gaps. `pens[0 .. count)` are the layout's pens
- * in device pixels; `out` gets the whole-pixel ones.
- *
- * Rounding each pen alone makes a glyph's gap depend on the sub-pixel phase
- * its pen lands on, so equal letters get unequal gaps ("attack" reads
- * "atta ck"). Here each gap is its layout advance rounded down or up, chosen
- * for the whole word at once to stay closest to the advances (the spare
- * pixels go to the advances with the largest fractional parts, as hinted
- * platform text rounds its advances), under two constraints: the first and
- * last pens round to the nearest pixel, so a word starts and ends within half
- * a pixel of where the layout and `measureText` put it (R6.8), and no pen
- * strays a whole pixel from the layout, so a long word is never squeezed at
- * one end and stretched at the other. Rounding each pen is always one such
- * choice, so there is always a solution.
- *
- * A two-state dynamic program over the pens: each is its layout pen rounded
- * down or up. `back` is scratch of at least `2 * count` entries.
+ * Horizontal sub-pixel positions each glyph is rasterised at. A pen goes to
+ * the nearest quarter pixel, so glyphs sit within an eighth of a pixel of
+ * the layout and spacing is even (a 2.5 px advance stays 2.5 px) instead of
+ * alternating whole pixels. Four is what Skia uses for sub-pixel text.
  */
-export function evenWordPens(pens: Float64Array, count: number, out: Float64Array, back: Uint8Array): void {
-	if (count <= 0) return;
-	const first = Math.round(pens[0]);
-	out[0] = first;
-	if (count === 1) return;
-	const last = Math.round(pens[count - 1]);
+export const RASTER_PHASES = 4;
 
-	let cost0 = first === Math.floor(pens[0]) ? 0 : Infinity;
-	let cost1 = first === Math.floor(pens[0]) ? Infinity : 0;
-	for (let index = 1; index < count; index++) {
-		const pen = pens[index];
-		const previous = pens[index - 1];
-		const advance = pen - previous;
-		const floor = Math.floor(pen);
-		const previousFloor = Math.floor(previous);
-		let next0 = Infinity;
-		let next1 = Infinity;
-		for (let state = 0; state < 2; state++) {
-			const whole = floor + state;
-			if (Math.abs(whole - pen) >= 1) continue;
-			if (index === count - 1 && whole !== last) continue;
-			let best = Infinity;
-			let from = 0;
-			for (let before = 0; before < 2; before++) {
-				const prior = before === 0 ? cost0 : cost1;
-				if (prior === Infinity) continue;
-				const gap = whole - (previousFloor + before);
-				const error = gap - advance;
-				if (Math.abs(error) >= 1) continue;
-				const drift = whole - pen;
-				const total = prior + error * error + DRIFT_WEIGHT * drift * drift;
-				if (total < best) {
-					best = total;
-					from = before;
-				}
-			}
-			back[index * 2 + state] = from;
-			if (state === 0) next0 = best;
-			else next1 = best;
-		}
-		cost0 = next0;
-		cost1 = next1;
-	}
-
-	let state = last - Math.floor(pens[count - 1]);
-	for (let index = count - 1; index > 0; index--) {
-		out[index] = Math.floor(pens[index]) + state;
-		state = back[index * 2 + state];
-	}
-}
-
-/** How much a pen's distance from the layout counts against the gaps' distance from their advances. */
-const DRIFT_WEIGHT = 0.1;
-
-/** One glyph's cell in a raster atlas. */
+/** One glyph's cells in a raster atlas: one per phase, side by side. */
 export interface RasterGlyphCell {
 	readonly codePoint: number;
 	/** What the platform draws: the outline's code point, a substitute's source (R6.3). */
 	readonly outlineCodePoint: number;
-	/** The cell in atlas texels. */
+	/** Phase 0's cell in atlas texels; phase `n` is `n * stride` texels to its right. */
 	readonly x: number;
 	readonly y: number;
 	readonly width: number;
 	readonly height: number;
+	readonly stride: number;
 	/**
 	 * The cell's top-left corner in whole device pixels from the pen on the
-	 * baseline, y down. A pen on a device pixel draws the cell one texel to
-	 * one pixel, which is what keeps the platform's rasterisation sharp.
+	 * baseline, y down, for a pen on a whole pixel; phase `n` is the glyph
+	 * drawn `n / RASTER_PHASES` of a pixel to the right inside the same box.
 	 */
 	readonly left: number;
 	readonly top: number;
@@ -144,10 +79,10 @@ export interface RasterGlyphPlan {
 }
 
 /**
- * Packs a cell for every glyph with an image into rows. A cell spans the
- * glyph's plane bounds (R6.2's quad placement, which already pads the outline
- * by half the distance range) rounded out to whole device pixels, so the
- * platform's ink for the same outline lands inside it.
+ * Packs every glyph with an image into rows, `RASTER_PHASES` cells each. A
+ * cell spans the glyph's plane bounds (R6.2's quad placement, which already
+ * pads the outline by half the distance range) rounded out to whole device
+ * pixels, plus one column for the phases to shift into.
  */
 export function planRasterGlyphs(atlas: FontAtlas, pixelSize: number): RasterGlyphPlan {
 	const cells = new Map<number, RasterGlyphCell>();
@@ -163,19 +98,42 @@ export function planRasterGlyphs(atlas: FontAtlas, pixelSize: number): RasterGly
 		if (!glyph || !plane) continue;
 		const left = Math.floor(plane.left * pixelSize);
 		const top = Math.floor(plane.top * pixelSize);
-		const cellWidth = Math.max(1, Math.ceil(plane.right * pixelSize) - left);
+		const cellWidth = Math.max(1, Math.ceil(plane.right * pixelSize) - left) + 1;
 		const cellHeight = Math.max(1, Math.ceil(plane.bottom * pixelSize) - top);
-		if (penX + cellWidth + GUTTER > MAX_ROW_WIDTH && penX > GUTTER) {
+		const stride = cellWidth + GUTTER;
+		const span = RASTER_PHASES * stride;
+		if (penX + span > MAX_ROW_WIDTH && penX > GUTTER) {
 			penX = GUTTER;
 			penY += rowHeight + GUTTER;
 			rowHeight = 0;
 		}
-		cells.set(codePoint, { codePoint, outlineCodePoint: glyph.outlineCodePoint ?? codePoint, x: penX, y: penY, width: cellWidth, height: cellHeight, left, top });
-		penX += cellWidth + GUTTER;
+		cells.set(codePoint, {
+			codePoint,
+			outlineCodePoint: glyph.outlineCodePoint ?? codePoint,
+			x: penX,
+			y: penY,
+			width: cellWidth,
+			height: cellHeight,
+			stride,
+			left,
+			top,
+		});
+		penX += span;
 		rowHeight = Math.max(rowHeight, cellHeight);
 		width = Math.max(width, penX);
 	}
 	return { width: Math.max(1, width), height: Math.max(1, penY + rowHeight + GUTTER), pixelSize, cells };
+}
+
+/**
+ * Where a pen at `pen` device pixels draws: the whole pixel its cell's
+ * `left` counts from, and the phase to sample.
+ */
+export function rasterPen(pen: number, out: { pixel: number; phase: number }): { pixel: number; phase: number } {
+	const steps = Math.round(pen * RASTER_PHASES);
+	out.pixel = Math.floor(steps / RASTER_PHASES);
+	out.phase = steps - out.pixel * RASTER_PHASES;
+	return out;
 }
 
 /** A plan drawn and uploaded: what the encoder samples a small run from. */
@@ -197,6 +155,7 @@ export interface GlyphCanvasContext {
 	fillStyle: string | CanvasGradient | CanvasPattern;
 	textBaseline: CanvasTextBaseline;
 	textAlign: CanvasTextAlign;
+	setTransform(a: number, b: number, c: number, d: number, e: number, f: number): void;
 	clearRect(x: number, y: number, width: number, height: number): void;
 	save(): void;
 	restore(): void;
@@ -204,16 +163,30 @@ export interface GlyphCanvasContext {
 	rect(x: number, y: number, width: number, height: number): void;
 	clip(): void;
 	fillText(text: string, x: number, y: number): void;
+	getImageData(x: number, y: number, width: number, height: number): { readonly data: ArrayLike<number> };
+}
+
+/** The canvas `rasterizeGlyphs` draws into for a plan: `RASTER_PHASES` times as wide. */
+export function rasterCanvasSize(plan: RasterGlyphPlan): { width: number; height: number } {
+	return { width: plan.width * RASTER_PHASES, height: plan.height };
 }
 
 /**
- * Draws every planned glyph in white through the platform's 2D text API
- * (R6.1's permitted raster alternative), each clipped to its own cell and
- * with its pen on a whole texel, so the canvas holds coverage in alpha. The
- * canvas must be `plan.width` by `plan.height`.
+ * Draws every planned glyph once, in white, through the platform's 2D text
+ * API (R6.1's permitted raster alternative), `RASTER_PHASES` times wider than
+ * it lands, and box-filters each into its phases: phase `n` is the glyph
+ * moved `n` subsamples right, each output texel the mean of the subsamples it
+ * covers. Doing the shift here rather than with a fractional `fillText` x
+ * keeps it exact on platforms that snap text to whole pixels, as Chrome does
+ * on Linux at ratio 1. Returns the atlas as premultiplied white RGBA8, whose
+ * alpha is the coverage. `context` is a canvas of `rasterCanvasSize(plan)`.
  */
-export function rasterizeGlyphs(context: GlyphCanvasContext, plan: RasterGlyphPlan, family: string): void {
-	context.clearRect(0, 0, plan.width, plan.height);
+export function rasterizeGlyphs(context: GlyphCanvasContext, plan: RasterGlyphPlan, family: string): Uint8Array {
+	const phases = RASTER_PHASES;
+	const size = rasterCanvasSize(plan);
+	context.setTransform(1, 0, 0, 1, 0, 0);
+	context.clearRect(0, 0, size.width, size.height);
+	context.setTransform(phases, 0, 0, 1, 0, 0);
 	context.font = `${plan.pixelSize}px "${family}"`;
 	context.fillStyle = '#ffffff';
 	context.textBaseline = 'alphabetic';
@@ -226,4 +199,33 @@ export function rasterizeGlyphs(context: GlyphCanvasContext, plan: RasterGlyphPl
 		context.fillText(String.fromCodePoint(cell.outlineCodePoint), cell.x - cell.left, cell.y - cell.top);
 		context.restore();
 	}
+	context.setTransform(1, 0, 0, 1, 0, 0);
+
+	const source = context.getImageData(0, 0, size.width, size.height).data;
+	const texels = new Uint8Array(plan.width * plan.height * 4);
+	for (const cell of plan.cells.values()) {
+		const first = cell.x * phases;
+		const end = (cell.x + cell.width) * phases;
+		for (let row = 0; row < cell.height; row++) {
+			const sourceRow = (cell.y + row) * size.width;
+			const targetRow = (cell.y + row) * plan.width;
+			for (let phase = 0; phase < phases; phase++) {
+				const targetX = cell.x + phase * cell.stride;
+				for (let column = 0; column < cell.width; column++) {
+					let sum = 0;
+					const start = (cell.x + column) * phases - phase;
+					for (let sub = start; sub < start + phases; sub++) {
+						if (sub >= first && sub < end) sum += source[(sourceRow + sub) * 4 + 3];
+					}
+					const value = Math.round(sum / phases);
+					const offset = (targetRow + targetX + column) * 4;
+					texels[offset] = value;
+					texels[offset + 1] = value;
+					texels[offset + 2] = value;
+					texels[offset + 3] = value;
+				}
+			}
+		}
+	}
+	return texels;
 }

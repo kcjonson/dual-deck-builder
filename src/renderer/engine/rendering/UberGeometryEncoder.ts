@@ -27,7 +27,7 @@ import { HairlineRectOptions, SnappedHairlineRect, snapHairlineRect, snapTextOri
 import type { TextLayout } from '../text/TextLayout';
 import { TextMetricsService } from '../text/TextMetricsService';
 import { DECORATION_THICKNESS, LineOrigin, decorationOffset, lineOrigin, runInk } from '../text/textPlacement';
-import { RasterGlyphAtlas, RasterGlyphCell, RasterGlyphSource, evenWordPens, rasterPixelSize, wantsRasterGlyphs } from '../text/rasterGlyphs';
+import { RasterGlyphAtlas, RasterGlyphCell, RasterGlyphSource, rasterPen, rasterPixelSize, wantsRasterGlyphs } from '../text/rasterGlyphs';
 import { toHalf, toUnorm8 } from './packing';
 
 /**
@@ -219,10 +219,7 @@ export class UberGeometryEncoder implements GeometryEncoder {
 	/** Likewise the raster atlas `shape` chose, so `encode` draws from the texture its group reported. */
 	private rasterCommand: TextCommand | null = null;
 	private rasterResult: RasterGlyphAtlas | null = null;
-	/** R6.4a: a line's layout pens, its whole-pixel pens and `evenWordPens`' back-pointers, grown and reused. */
-	private penScratch = new Float64Array(0);
-	private evenPenScratch = new Float64Array(0);
-	private penBackScratch = new Uint8Array(0);
+	private readonly rasterPenScratch = { pixel: 0, phase: 0 };
 	private readonly pointScratch = { x: 0, y: 0 };
 	/** R5.17: screen-space outline and outward offsets, grown and reused. */
 	private outline = new Float64Array(0);
@@ -790,14 +787,11 @@ export class UberGeometryEncoder implements GeometryEncoder {
 	 * R6.4a's raster path: each glyph's cell from the run's raster atlas as an
 	 * `image`-mode quad, whose shader multiplies the premultiplied white
 	 * coverage by the text colour. Placement is the same layout's (R6.8),
-	 * taken to the screen through the run's translation and uniform scale.
-	 * Each baseline and pen lands on a whole device pixel (R6.16 allows
-	 * per-glyph snapping under 16 px), so a cell is one texel to one pixel as
-	 * the platform drew it. Pens are placed a word at a time by
-	 * `evenWordPens`: every word starts and ends within half a pixel of the
-	 * layout, so measurement still describes the run, and the gaps inside it
-	 * are whole-pixel advances rather than whatever rounding each pen alone
-	 * would give.
+	 * taken to the screen through the run's translation and uniform scale, so
+	 * measurement does not change. Each baseline lands on a whole device row;
+	 * each pen goes to its nearest quarter pixel, drawn as the whole pixel's
+	 * cell in that phase (`rasterPen`), so a cell is one texel to one pixel and
+	 * glyphs keep the layout's spacing to within an eighth of a pixel.
 	 */
 	private encodeRasterGlyphs(command: TextCommand, layout: TextLayout, raster: RasterGlyphAtlas, sink: GeometrySink, slot: number): void {
 		const ratio = this.ratioValue;
@@ -805,43 +799,29 @@ export class UberGeometryEncoder implements GeometryEncoder {
 		this.begin(command, UBER_MODE.image, slot);
 		const color = premultiply(command.color, this.fillScratch);
 		const origin = this.originScratch;
+		const pen = this.rasterPenScratch;
 		let instance = 0;
 		for (let line = 0; line < layout.lines.length; line++) {
 			this.snappedOrigin(layout, command, line, origin);
 			const baseline = Math.round((matrix[3] * origin.y + matrix[5]) * ratio);
 			const glyphs = layout.lines[line].glyphs;
-			this.growPenScratch(glyphs.length);
-			const pens = this.penScratch;
-			let wordStart = -1;
-			let wordLength = 0;
-			for (let index = 0; index <= glyphs.length; index++) {
-				const glyph = index < glyphs.length ? glyphs[index].glyph : null;
-				if (glyph && glyph.plane && glyph.atlas) {
-					if (wordStart < 0) wordStart = index;
-					pens[wordLength++] = (matrix[0] * (origin.x + glyphs[index].x) + matrix[4]) * ratio;
-					continue;
-				}
-				// A blank (a space) or the line's end closes the word.
-				if (wordLength > 0) {
-					evenWordPens(pens, wordLength, this.evenPenScratch, this.penBackScratch);
-					for (let member = 0; member < wordLength; member++) {
-						const cell = raster.cells.get(glyphs[wordStart + member].glyph.codePoint);
-						this.rasterGlyphQuad(sink, instance++, raster, cell, this.evenPenScratch[member], baseline, ratio, color);
-					}
-				}
-				wordStart = -1;
-				wordLength = 0;
+			for (let index = 0; index < glyphs.length; index++) {
+				const { glyph, x } = glyphs[index];
+				if (!glyph.plane || !glyph.atlas) continue;
+				rasterPen((matrix[0] * (origin.x + x) + matrix[4]) * ratio, pen);
+				this.rasterGlyphQuad(sink, instance++, raster, raster.cells.get(glyph.codePoint), pen.pixel, pen.phase, baseline, ratio, color);
 			}
 		}
 	}
 
-	/** One raster glyph at a whole-pixel pen and baseline, both in device pixels. */
+	/** One raster glyph at a whole-pixel pen, in a phase, on a whole-pixel baseline, all in device pixels. */
 	private rasterGlyphQuad(
 		sink: GeometrySink,
 		instance: number,
 		raster: RasterGlyphAtlas,
 		cell: RasterGlyphCell | undefined,
 		pen: number,
+		phase: number,
 		baseline: number,
 		ratio: number,
 		color: RGBA,
@@ -858,21 +838,14 @@ export class UberGeometryEncoder implements GeometryEncoder {
 		const top = (baseline + cell.top) / ratio;
 		const right = left + cell.width / ratio;
 		const bottom = top + cell.height / ratio;
-		this.setTexCoords(sink, base, cell.x / raster.width, cell.y / raster.height,
-			(cell.x + cell.width) / raster.width, (cell.y + cell.height) / raster.height);
+		const cellX = cell.x + phase * cell.stride;
+		this.setTexCoords(sink, base, cellX / raster.width, cell.y / raster.height,
+			(cellX + cell.width) / raster.width, (cell.y + cell.height) / raster.height);
 		this.screenCorner(sink, base, 0, left, top);
 		this.screenCorner(sink, base, 1, right, top);
 		this.screenCorner(sink, base, 2, right, bottom);
 		this.screenCorner(sink, base, 3, left, bottom);
 		for (let corner = 0; corner < 4; corner++) this.color(sink, base, corner, color);
-	}
-
-	private growPenScratch(glyphs: number): void {
-		if (this.penScratch.length >= glyphs) return;
-		const size = Math.max(glyphs, this.penScratch.length * 2, 32);
-		this.penScratch = new Float64Array(size);
-		this.evenPenScratch = new Float64Array(size);
-		this.penBackScratch = new Uint8Array(size * 2);
 	}
 
 	/** R12.4's rules after a run's glyphs, from instance `first` of its group. */
