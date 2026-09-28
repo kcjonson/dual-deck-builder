@@ -1,7 +1,7 @@
 import { Layer, LayerOptions } from '../../../engine/components/Layer';
 import { Rectangle } from '../../../engine/components/Rectangle';
 import { Text } from '../../../engine/components/Text';
-import { Card as UICard, CardSize } from '../../ui/Card';
+import { CARD_LIFT, Card as UICard, CardSize } from '../../ui/Card';
 import { Card } from '../../mechanics/Card';
 import { DriverSeat, PlayerHandView } from './PlayerHandView';
 
@@ -278,27 +278,6 @@ export class PlayerHandLayer extends Layer {
 	}
 
 	/**
-	 * Get card at screen position
-	 */
-	public getCardAtPosition(x: number, y: number): Card | null {
-		// Convert to local coordinates
-		const localPos = this.screenToLocal({ x, y });
-		if (!localPos) return null;
-		
-		for (let i = 0; i < this.cardElements.length; i++) {
-			const cardElement = this.cardElements[i];
-			if (localPos.x >= cardElement.getX() && 
-				localPos.x <= cardElement.getX() + cardElement.getWidth() &&
-				localPos.y >= cardElement.getY() && 
-				localPos.y <= cardElement.getY() + cardElement.getHeight()) {
-				return this.handCards[i];
-			}
-		}
-		
-		return null;
-	}
-
-	/**
 	 * Get current hand cards
 	 */
 	public getHandCards(): Card[] {
@@ -378,7 +357,9 @@ export class PlayerHandLayer extends Layer {
 		const totalWidth = driver1Width + (driver1Cards.length > 0 && driver2Cards.length > 0 ? dividerGap : 0) + driver2Width;
 		
 		const startX = Math.floor((layerWidth - totalWidth) / 2);
-		const cardY = verticalPadding + labelHeight;
+		// Cards rest one lift below the seat labels, so a hovered or selected
+		// card rises clear of them
+		const cardY = verticalPadding + labelHeight + CARD_LIFT;
 		
 		// Remove old divider and labels
 		if (this.driverDivider) {

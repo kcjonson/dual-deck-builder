@@ -2,6 +2,7 @@ import { Layer, LayerOptions } from '../../../engine/components/Layer';
 import { Rectangle } from '../../../engine/components/Rectangle';
 import { Text } from '../../../engine/components/Text';
 import { Vehicle, VehicleData } from '../../mechanics/Vehicle';
+import { Vehicle as VehicleUI } from '../../ui/Vehicle';
 import { LaneKind, ROW_ORDER, laneKind } from '../../mechanics/Road';
 import { CombatModel } from './CombatModel';
 
@@ -29,7 +30,7 @@ const LANE_DIVIDER_WIDTH = 2;
  */
 export abstract class BattlefieldLayer extends Layer {
 	protected vehicles: Vehicle[] = [];
-	protected vehicleCards: Map<string, Layer> = new Map();
+	protected vehicleCards: Map<string, VehicleUI> = new Map();
 
 	// Lane containers
 	protected lanes: Map<LaneKind, {
@@ -240,12 +241,12 @@ export abstract class BattlefieldLayer extends Layer {
 	/**
 	 * Create a vehicle card display component
 	 */
-	protected abstract createVehicleCard(vehicle: Vehicle): Layer;
+	protected abstract createVehicleCard(vehicle: Vehicle): VehicleUI;
 	
 	/**
 	 * Update an existing vehicle card with new data
 	 */
-	protected abstract updateVehicleCard(vehicle: Vehicle, card: Layer): void;
+	protected abstract updateVehicleCard(vehicle: Vehicle, card: VehicleUI): void;
 	
 	/**
 	 * Handle resize

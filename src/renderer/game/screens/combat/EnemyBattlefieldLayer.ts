@@ -1,6 +1,6 @@
 import { BattlefieldLayer, BattlefieldLayerOptions, LaneDecor } from './BattlefieldLayer';
 import { Vehicle as VehicleData } from '../../mechanics/Vehicle';
-import { Vehicle as VehicleUI } from '../../ui/Vehicle';
+import { Vehicle as VehicleUI, VehicleOptions } from '../../ui/Vehicle';
 import { EnemyIntent, IntentMarker } from '../../ui/IntentMarker';
 
 export type { EnemyIntent, IntentType } from '../../ui/IntentMarker';
@@ -9,18 +9,17 @@ export type { EnemyIntent, IntentType } from '../../ui/IntentMarker';
  * Enemy-specific vehicle UI component
  */
 class EnemyVehicle extends VehicleUI {
-	private intentMarker!: IntentMarker;
-	private intent: EnemyIntent | null = null;
+	private intentMarker: IntentMarker;
 
-	protected createElements(): void {
-		super.createElements();
-
-		this.intentMarker = new IntentMarker({
-			x: Math.floor(this.getWidth() * 0.7),
-			y: Math.floor(this.getHeight() * 0.05),
-			size: 30,
-		});
+	constructor(options: VehicleOptions) {
+		super(options);
+		this.intentMarker = new IntentMarker({ size: 30 });
 		this.addChild(this.intentMarker);
+	}
+
+	protected placeElements(): void {
+		super.placeElements();
+		this.intentMarker.setPosition(Math.floor(this.getWidth() * 0.7), Math.floor(this.getHeight() * 0.05));
 	}
 
 	protected getPortraitColor(): string {
@@ -31,25 +30,11 @@ class EnemyVehicle extends VehicleUI {
 		return '#6a5a5a'; // Enemy red border
 	}
 
-	protected getDisplayName(): string {
-		// Enemies just show vehicle name, not driver name
-		return this.vehicleData.name;
-	}
-
 	/**
 	 * Set enemy intent
 	 */
 	public setIntent(intent: EnemyIntent | null): void {
-		this.intent = intent;
 		this.intentMarker.intent = intent;
-	}
-
-	/**
-	 * A resize rebuilds the plate, intent marker included, so show the intent again
-	 */
-	protected onResized(): void {
-		super.onResized();
-		this.intentMarker.intent = this.intent;
 	}
 }
 

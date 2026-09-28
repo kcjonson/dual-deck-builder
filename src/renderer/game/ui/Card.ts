@@ -1,5 +1,4 @@
-import { Layer } from '../../engine/components/Layer';
-import type { PointerEvents } from '../../engine/components/Component';
+import { Component, PointerEvents } from '../../engine/components/Component';
 import { Text } from '../../engine/components/Text';
 import { Rectangle } from '../../engine/components/Rectangle';
 import type { AnyUiEvent } from '../../engine/input/events';
@@ -28,11 +27,17 @@ const TITLE_LINES = 2;
 const TITLE_LINE_HEIGHT = 1.2;
 /** Space between the title slot and the cost's digits. */
 const TITLE_COST_GAP = 4;
+/** How far a hovered or selected card rises, through its transform so layout never sees it (R8.26). */
+export const CARD_LIFT = 5;
+const LIFTED = { translate: [0, -CARD_LIFT] as const };
+const RESTING = {};
 
 /**
- * Visual component for displaying a card
+ * Visual component for displaying a card. One composite target (R8.29):
+ * its frame and text are parts, and every state it shows (hovered,
+ * selected, disabled, pressed) comes from the framework's flags.
  */
-export class Card extends Layer {
+export class Card extends Component {
 	private data: GameCard;
 	private size: CardSize;
 	private name: Text;
@@ -52,9 +57,6 @@ export class Card extends Layer {
 	// Event callbacks
 	private clickHandler: ((card: GameCard) => void) | null = null;
 	private selectHandler: ((card: GameCard) => void) | null = null;
-	
-	// State
-	private _enabled = true;
 
 	constructor({ id, x, y, data, size = CardSize.NORMAL, driverNumber }: { 
 		id?: string;
@@ -72,6 +74,7 @@ export class Card extends Layer {
 			width: dimensions.width,
 			height: dimensions.height,
 		});
+		this.componentType = 'Card';
 
 		this.data = data;
 		this.size = size;
@@ -347,7 +350,6 @@ export class Card extends Layer {
 	 */
 	public setSelected(selected: boolean): void {
 		this.selected = selected;
-		this.updateVisuals();
 	}
 
 	/**
@@ -356,73 +358,26 @@ export class Card extends Layer {
 	public isSelected(): boolean {
 		return this.selected;
 	}
-	
-	/**
-	 * Set enabled state
-	 */
-	public set enabled(value: boolean) {
-		this._enabled = value;
-		this.updateVisuals();
-		if (value) {
-			this.onEnabled();
-		} else {
-			this.onDisabled();
-		}
-	}
-	
-	/**
-	 * Get enabled state
-	 */
-	public get enabled(): boolean {
-		return this._enabled;
-	}
 
 	/**
-	 * Override hover lifecycle methods to update visuals
+	 * Hover, selection, and enabled state, the last inherited (R8.3): a
+	 * selected card, or a hovered one that can be played, rises and takes a
+	 * glow; a disabled card dims. The dispatcher keeps `hovered` true over a
+	 * disabled card (R9.8), so the glow checks enabled itself.
 	 */
-	protected onHover(): void {
-		this.updateVisuals();
-	}
-
-	protected onUnhover(): void {
-		this.updateVisuals();
-	}
-
-	/**
-	 * Update card visuals based on current state
-	 */
-	private updateVisuals(): void {
-		// Reset position first
-		if (this.getY() % 10 !== 0) { // Simple check if lifted
-			this.setY(this.getY() + 5);
-		}
-
+	protected onStateChange(): void {
+		const enabled = this.effectivelyEnabled;
 		if (this.selected) {
-			// Selected state - blue glow and lift
 			this.cardBorder.setBorderWidth(3);
 			this.cardBorder.setBorderColor('#00aaff');
-			this.setY(this.getY() - 5);
-		} else if (this.hovered && this.enabled) {
-			// Hovered state - white glow and lift
+		} else if (this.hovered && enabled) {
 			this.cardBorder.setBorderWidth(3);
 			this.cardBorder.setBorderColor('#ffffff');
-			this.setY(this.getY() - 5);
 		} else {
-			// Normal state
 			this.cardBorder.setBorderWidth(0);
 		}
-	}
-
-	/**
-	 * Override enabled lifecycle methods to update visuals
-	 */
-	protected onEnabled(): void {
-		this.cardBackground.setFillColor('#2a2a3a');
-	}
-
-	protected onDisabled(): void {
-		// Dim the card when disabled
-		this.cardBackground.setFillColor('#1a1a2a');
+		this.transform = this.selected || (this.hovered && enabled) ? LIFTED : RESTING;
+		this.cardBackground.setFillColor(enabled ? '#2a2a3a' : '#1a1a2a');
 	}
 
 	/**
@@ -440,14 +395,14 @@ export class Card extends Layer {
 		return color;
 	}
 
-	/**
-	 * Get color based on card rarity
-	 */
 	/** A summary as the face draws it: `[keyword]` brackets stripped. */
 	public static faceText(summary: string): string {
 		return summary.replace(/\[(.+?)\]/g, '$1');
 	}
 
+	/**
+	 * Get color based on card rarity
+	 */
 	private static getRarityColor(rarity: string): string {
 		switch (rarity) {
 			case 'starter':
