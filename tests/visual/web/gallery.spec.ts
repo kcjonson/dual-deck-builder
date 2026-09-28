@@ -10,9 +10,9 @@ import {
 } from '../support/harness';
 
 /**
- * One screenshot spec per gallery scene (R14.5, R13.31 as far as phase 0 goes:
- * the scene set is the eight developer sections, not the full fixture list,
- * because the component catalog does not exist until phase 4).
+ * One screenshot spec per gallery scene (R14.5, and R13.31 in part: the
+ * scenes are the developer sections plus the chapter 3, 4 and 5 fixtures, and
+ * the component catalog's scenes arrive with it in phase 5).
  */
 test.describe('gallery scenes', () => {
 	for (const scenario of SCENE_SCENARIOS) {
