@@ -15,6 +15,7 @@ import {
 	VerticalAlign,
 } from '../draw';
 import { GeometryEncoder, GeometrySink, GroupShape } from '../draw/Batcher';
+import { snapToDevice } from '../coords/snapping';
 import type { CharacterInfo } from './FontAtlas';
 
 /**
@@ -122,6 +123,14 @@ export class LegacyGeometryEncoder implements GeometryEncoder {
 	private readonly fadedFill: [number, number, number, number] = [0, 0, 0, 0];
 	private readonly fadedStroke: [number, number, number, number] = [0, 0, 0, 0];
 	private readonly penScratch = { startX: 0, startY: 0, scale: 1 };
+	/**
+	 * `dpr * uiScale` for the frame being encoded (R7.2), which the backend
+	 * sets at `beginFrame`. Each glyph lands on the device grid through
+	 * `snapToDevice`, which at ratio 1 is the `Math.round` this encoder always
+	 * did; at ratio 2 a glyph can now sit on a half logical pixel instead of
+	 * being pushed to a whole one.
+	 */
+	ratio = 1;
 
 	constructor({ glyphs, onUnpaintable }: LegacyGeometryEncoderOptions) {
 		this.glyphs = glyphs;
@@ -378,8 +387,8 @@ export class LegacyGeometryEncoder implements GeometryEncoder {
 	/**
 	 * The pre-batch alignment (`pen`), then
 	 * `TextRenderer.buildVertexBufferForColor`'s glyph loop, fused. The pen
-	 * starts where the old alignment put it and each glyph is rounded to whole pixels
-	 * exactly as before. `blur` is not read: R3.17's shadow run needs a blurred
+	 * starts where the old alignment put it and each glyph is snapped to the
+	 * device grid, which at ratio 1 is the old rounding exactly. `blur` is not read: R3.17's shadow run needs a blurred
 	 * glyph pass this shader does not have, and nothing asks for one.
 	 */
 	private encodeText(command: TextCommand, sink: GeometrySink, slot: number): void {
@@ -408,8 +417,8 @@ export class LegacyGeometryEncoder implements GeometryEncoder {
 
 			const charWidth = info.width * atlasSize * scale;
 			const charHeight = info.height * atlasSize * scale;
-			const pixelX = Math.round(currentX + info.offsetX * scale);
-			const pixelY = Math.round(startY + info.offsetY * scale);
+			const pixelX = snapToDevice(currentX + info.offsetX * scale, this.ratio);
+			const pixelY = snapToDevice(startY + info.offsetY * scale, this.ratio);
 			const u1 = info.x;
 			const v1 = info.y;
 			const u2 = info.x + info.width;
@@ -435,7 +444,7 @@ export class LegacyGeometryEncoder implements GeometryEncoder {
 	/**
 	 * R4.2a's per-run extent, in the run's local space: the union of the glyph
 	 * quads `encodeText` would write for a pen anchored at `position`, grown by
-	 * one pixel because each glyph is rounded to whole pixels after the
+	 * one pixel because each glyph is snapped to device pixels after the
 	 * transform's translation is added, which can move it by up to one. Null
 	 * when the run has no position or no glyph, which leaves it uncullable
 	 * rather than guessed at.
@@ -454,8 +463,8 @@ export class LegacyGeometryEncoder implements GeometryEncoder {
 		for (let i = 0; i < run.text.length; i++) {
 			const info = glyphs.getCharacter(run.text[i]);
 			if (!info) continue;
-			const pixelX = Math.round(currentX + info.offsetX * scale);
-			const pixelY = Math.round(startY + info.offsetY * scale);
+			const pixelX = snapToDevice(currentX + info.offsetX * scale, this.ratio);
+			const pixelY = snapToDevice(startY + info.offsetY * scale, this.ratio);
 			minX = Math.min(minX, pixelX);
 			minY = Math.min(minY, pixelY);
 			maxX = Math.max(maxX, pixelX + info.width * atlasSize * scale);

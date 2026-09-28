@@ -1,11 +1,12 @@
 import { DrawApi } from '../engine/draw';
-import { windowFrame } from '../engine/rendering/WebGL2Backend';
+import type { CanvasViewport } from '../engine/rendering/CanvasViewport';
 import { FrameTimer } from '../engine/rendering/FrameTimer';
 import { DeveloperOverlay } from '../engine/ui/DeveloperOverlay';
 import { ScreenManager } from './core/ScreenManager';
 import { InputSystem } from '../engine/input/InputSystem';
 import { CardLoader } from './core/CardLoader';
 import type { Layer } from '../engine/components/Layer';
+import type { DeviceInfo } from '../engine/rendering/deviceInfo';
 
 /**
  * What `window.__app.status()` answers on the game page (R13.3, R13.32). The
@@ -42,6 +43,10 @@ export interface GameOptions {
 	draw: DrawApi;
 	/** Frame timing and per-frame draw counters (R13.7). */
 	frameTimer: FrameTimer;
+	/** R7.11's viewport owner; the game reads its size and hears its changes, never the window's. */
+	viewport: CanvasViewport;
+	/** R15.3 and R13.20's device identity, for the perf snapshot. */
+	device: DeviceInfo;
 }
 
 /**
@@ -50,6 +55,8 @@ export interface GameOptions {
 export class Game {
 	private draw: DrawApi;
 	private frameTimer: FrameTimer;
+	private viewport: CanvasViewport;
+	private device: DeviceInfo;
 	private developerOverlay: DeveloperOverlay;
 	private isElectron = false;
 	private isInitialized = false;
@@ -58,9 +65,12 @@ export class Game {
 	private updates = 0;
 	private renders = 0;
 
-	constructor({ draw, frameTimer }: GameOptions) {
+	constructor({ draw, frameTimer, viewport, device }: GameOptions) {
 		this.draw = draw;
 		this.frameTimer = frameTimer;
+		this.viewport = viewport;
+		this.device = device;
+		viewport.onChange(({ width, height }) => ScreenManager.resize(width, height));
 
 		// Check if running in Electron
 		interface ElectronWindow extends Window {
@@ -95,9 +105,9 @@ export class Game {
 	 * gallery sets. The one listener outside the InputSystem is this class's own
 	 * document keydown shortcut, gated in `setupEventHandlers`.
 	 *
-	 * What pause does not stop: the window resize path. `Renderer.handleResize`
-	 * and `Screen.onResized` still run, so a window resized while paused
-	 * reflows the mounted screen.
+	 * What pause does not stop: the resize path. The viewport commits at the
+	 * top of every frame, paused or not, and `Screen.onResized` runs, so a
+	 * window resized while paused reflows the mounted screen.
 	 */
 	public get paused(): boolean {
 		return this.isPaused;
@@ -158,7 +168,7 @@ export class Game {
 					updates: this.updates,
 					renders: this.renders,
 					inputPaused: InputSystem.getInstance().paused,
-					viewport: { width: window.innerWidth, height: window.innerHeight },
+					viewport: this.viewport.logical,
 					assetsReady: !CardLoader.getInstance().loading,
 				}),
 			});
@@ -176,7 +186,7 @@ export class Game {
 					if (this.developerOverlay.shown) roots.push(this.developerOverlay);
 					return roots;
 				},
-				viewport: () => ({ width: window.innerWidth, height: window.innerHeight }),
+				viewport: () => this.viewport.logical,
 			});
 			// R13.11 wants the snapshot to carry the active screen so a capture
 			// can group per scene, and the screen name is the game page's answer
@@ -184,6 +194,7 @@ export class Game {
 			installPerfHooks({
 				snapshot: () => this.frameTimer.snapshot({
 					scene: ScreenManager.getCurrentScreenName(),
+					device: this.device,
 					// Null before the first frame: an unopened draw API's zeros
 					// would read as a measured empty frame (R13.5).
 					batcher: this.draw.frame > 0 ? this.draw.getStats() : null,
@@ -265,7 +276,7 @@ export class Game {
 		// Opens the frame where beginTextBatch used to. Nothing below reaches GL:
 		// a draw call resolves its state onto a command and the command waits for
 		// a barrier (R2.4 to R2.7).
-		this.draw.beginFrame(windowFrame());
+		this.draw.beginFrame(this.viewport.frame);
 
 		// Render the current screen via ScreenManager
 		ScreenManager.render();

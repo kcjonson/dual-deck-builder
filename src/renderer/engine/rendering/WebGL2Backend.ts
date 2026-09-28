@@ -1,6 +1,5 @@
 import { mat4 } from 'gl-matrix';
 import {
-	BeginFrameOptions,
 	ClipRect,
 	DrawApi,
 	DrawBackend,
@@ -17,6 +16,7 @@ import { Batcher, GeometryUpload, GpuDraw } from '../draw/Batcher';
 import { ResidentTextureSet } from '../draw/ResidentTextureSet';
 import vertexSource from '../../../assets/shaders/vertex.glsl';
 import fragmentSource from '../../../assets/shaders/fragment.glsl';
+import type { TextureStore } from '../gpu/TextureStore';
 import { FontAtlas } from './FontAtlas';
 import { FrameTimer } from './FrameTimer';
 import { LEGACY_VERTEX, LegacyGeometryEncoder } from './LegacyGeometryEncoder';
@@ -60,9 +60,12 @@ import { DEFAULT_FONT } from './fonts';
  * loss handling and the batcher stay. `LegacyPaintOrder` and the
  * `legacyTextOrder` barrier go earlier, with the ordering re-baseline.
  *
- * Textures other than the one font atlas arrive with the resource layer
- * (DDB-66), which is where R15.18's `texStorage2D` for everything else lives;
- * `FontAtlas` already uploads that way.
+ * Textures belong to the resource layer (`gpu/TextureStore.ts`, R5.30), which
+ * the `Renderer` owns because it outlives this backend's resources across a
+ * context loss; `textures` hands it to the draw API. The font atlas is its one
+ * texture today. Images are not drawn until the uber shader has an `image`
+ * mode, so nothing here resolves a handle yet; `textures.native` is how it
+ * will.
  */
 
 export interface WebGL2BackendOptions {
@@ -120,35 +123,22 @@ const NO_CLIP: ResolvedClip = { kind: 'none' };
  *
  * Lifted expression for expression out of the block deleted from `Layer.ts`,
  * which read `screenX`, `screenY + height` and `canvas.height / dpr` where this
- * reads `minX`, `maxY` and `canvasHeightDevicePx / ratio`. It takes the
- * drawing buffer's height rather than `FrameDescription.viewport.height`
- * because the scissor is measured from the bottom of the drawing buffer, and
- * at a fractional ratio `innerHeight * dpr` truncates: the buffer height is
- * the one the box has to agree with.
+ * reads `minX`, `maxY` and `viewportHeight`. The flip needs the logical
+ * height the drawing buffer divides back to, and since DDB-66 that is exactly
+ * the frame's viewport: `CanvasViewport` defines the logical size as the
+ * framebuffer over the ratio (R7.5), the same division `canvas.height / dpr`
+ * performed, so the box and the projection agree at any ratio.
  */
 export function scissorBox(
 	rect: ClipRect,
 	ratio: number,
-	canvasHeightDevicePx: number,
+	viewportHeight: number,
 ): { x: number; y: number; width: number; height: number } {
-	const logicalHeight = canvasHeightDevicePx / ratio;
 	return {
 		x: Math.floor(rect.minX * ratio),
-		y: Math.floor((logicalHeight - rect.maxY) * ratio),
+		y: Math.floor((viewportHeight - rect.maxY) * ratio),
 		width: Math.floor((rect.maxX - rect.minX) * ratio),
 		height: Math.floor((rect.maxY - rect.minY) * ratio),
-	};
-}
-
-/**
- * The frame description both entry points open with. One function so the game
- * page and the gallery cannot disagree about the viewport or the ratio; it
- * moves to chapter 7's mount context when that exists.
- */
-export function windowFrame(): BeginFrameOptions {
-	return {
-		viewport: { width: window.innerWidth, height: window.innerHeight },
-		ratio: window.devicePixelRatio || 1,
 	};
 }
 
@@ -272,6 +262,11 @@ export class WebGL2Backend implements DrawBackend {
 		renderer.addContextListener({ restored: () => this.restore() });
 	}
 
+	/** R5.30's resource layer, the `Renderer`'s. */
+	get textures(): TextureStore<WebGLTexture> {
+		return this.renderer.textures;
+	}
+
 	/** R2.18's precondition, answered by the atlas the `Renderer` builds in its constructor. */
 	get fontAtlasNames(): readonly string[] {
 		return [DEFAULT_FONT];
@@ -288,6 +283,8 @@ export class WebGL2Backend implements DrawBackend {
 	 */
 	beginFrame(frame: FrameDescription): void {
 		this.frame = frame;
+		// R7.2: the ratio reaches the encoder per frame, for its snapping.
+		this.encoder.ratio = frame.ratio;
 		this.vertexRing.beginFrame(frame.frame);
 		this.indexRing.beginFrame(frame.frame);
 		this.residentBound = false;
@@ -324,14 +321,6 @@ export class WebGL2Backend implements DrawBackend {
 		this.attributeBase = -1;
 		this.appliedClip = null;
 		this.residentBound = false;
-	}
-
-	createTexture(): never {
-		throw new Error('WebGL2Backend: R2.17 textures arrive with the resource layer (DDB-66)');
-	}
-
-	destroyTexture(): never {
-		throw new Error('WebGL2Backend: R2.17 textures arrive with the resource layer (DDB-66)');
 	}
 
 	loadFontAtlas(): never {
@@ -556,7 +545,9 @@ export class WebGL2Backend implements DrawBackend {
 			return;
 		}
 
-		const box = scissorBox(clipRectOf(clip), this.frame?.ratio ?? 1, this.renderer.canvas.height);
+		// A rect clip only arrives on a command, and commands only inside a frame.
+		const frame = this.frame as FrameDescription;
+		const box = scissorBox(clipRectOf(clip), frame.ratio, frame.viewport.height);
 		this.gl.enable(this.gl.SCISSOR_TEST);
 		this.gl.scissor(box.x, box.y, box.width, box.height);
 	}

@@ -7,6 +7,8 @@ import { InputSystem } from '../engine/input/InputSystem';
 import { DrawApi, NullBackend } from '../engine/draw';
 import { FrameTimer } from '../engine/rendering/FrameTimer';
 import type { PerfSnapshot } from '../engine/rendering/FrameTimer';
+import type { CanvasViewport, ViewportListener } from '../engine/rendering/CanvasViewport';
+import type { DeviceInfo } from '../engine/rendering/deviceInfo';
 
 /**
  * R13.32's pause on the game page, driven through `window.__app` rather than
@@ -30,6 +32,7 @@ jest.mock('./core/ScreenManager', () => ({
 		getCurrentScreenName: jest.fn(() => 'mainMenuScreen'),
 		update: jest.fn(),
 		render: jest.fn(),
+		resize: jest.fn(),
 	},
 }));
 
@@ -68,6 +71,28 @@ const screens = ScreenManager as unknown as {
 	navigate: jest.Mock;
 	update: jest.Mock;
 	render: jest.Mock;
+	resize: jest.Mock;
+};
+
+/**
+ * The viewport owner's surface as `Game` uses it: a size to report and a
+ * change to hear. `CanvasViewport.test.ts` covers the measuring.
+ */
+const viewportListeners: ViewportListener[] = [];
+const viewport = {
+	logical: { width: 1440, height: 882 },
+	frame: { viewport: { width: 1440, height: 882 }, ratio: 1 },
+	onChange: (listener: ViewportListener) => {
+		viewportListeners.push(listener);
+		return () => undefined;
+	},
+} as unknown as CanvasViewport;
+
+const device: DeviceInfo = {
+	backend: 'webgl2',
+	vendor: 'Test Vendor',
+	renderer: 'Test Renderer',
+	features: { timerQuery: false, parallelShaderCompile: true, debugRendererInfo: true },
 };
 
 // A real draw API over R2.21's null backend rather than five no-op lambdas:
@@ -88,7 +113,7 @@ function status(): GameStatus {
 }
 
 beforeAll(async () => {
-	game = new Game({ draw, frameTimer: new FrameTimer() });
+	game = new Game({ draw, frameTimer: new FrameTimer(), viewport, device });
 	await game.init();
 });
 
@@ -223,6 +248,10 @@ describe('window.__perf on the game page (R13.11, R15.37)', () => {
 		expect(snapshot.memory.usedBytes).toBeNull();
 	});
 
+	it('carries the device the renderer detected (R15.3, R13.20)', () => {
+		expect(perf().snapshot().device).toEqual(device);
+	});
+
 	it('carries the draw API counters for the last completed frame (R13.12)', () => {
 		game.render();
 		game.flush();
@@ -230,5 +259,18 @@ describe('window.__perf on the game page (R13.11, R15.37)', () => {
 		const { batcher } = perf().snapshot();
 		expect(batcher).not.toBeNull();
 		expect(batcher).toEqual(draw.getStats());
+	});
+});
+
+describe('the viewport owner, not the window, resizes the screen (R7.11)', () => {
+	it('hands a committed viewport to the mounted screen', () => {
+		for (const listener of viewportListeners) {
+			listener({ width: 1280, height: 720, framebufferWidth: 2560, framebufferHeight: 1440, dpr: 2, uiScale: 1, ratio: 2 });
+		}
+		expect(screens.resize).toHaveBeenCalledWith(1280, 720);
+	});
+
+	it('reports the owner\'s logical size in status', () => {
+		expect(status().viewport).toEqual({ width: 1440, height: 882 });
 	});
 });

@@ -55,7 +55,12 @@ class Application {
 			RendererContext.getInstance().draw = draw;
 
 			// Create and initialize the game
-			this.game = new Game({ draw, frameTimer: this.frameTimer });
+			this.game = new Game({
+				draw,
+				frameTimer: this.frameTimer,
+				viewport: this.renderer.viewport,
+				device: this.renderer.device,
+			});
 			await this.game.init();
 
 			if (__DEV_TOOLS__) {
@@ -138,6 +143,9 @@ class Application {
 		// frame; the timer's frame start advances on paused frames too, so
 		// resume hands update a normal delta instead of the whole pause.
 		this.frameTimer.beginSection('update');
+		// R7.3: a resize takes effect here, at the top of the frame, and the
+		// screens hear about it before they update.
+		this.renderer.viewport.commit();
 		this.game.update(deltaTime);
 		this.frameTimer.endSection('update');
 

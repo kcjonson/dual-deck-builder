@@ -1,3 +1,6 @@
+import type { TextureHandle } from '../draw/commands';
+import type { TextureStore } from '../gpu/TextureStore';
+
 /**
  * Character information in the font atlas
  */
@@ -11,42 +14,52 @@ export interface CharacterInfo {
 	advance: number;  // Horizontal advance to next character
 }
 
+export interface FontAtlasOptions {
+	/** The resource layer the atlas texture belongs to (R5.30). */
+	textures: TextureStore<WebGLTexture>;
+	fontFamily?: string;
+	fontSize?: number;
+	/** Logical size of the square atlas. */
+	atlasSize?: number;
+	/**
+	 * Device pixels per logical pixel (R7.2) to rasterise at: a fallback
+	 * raster size, which is one of the ratio's named consumers. Read once; the
+	 * atlas does not follow a later ratio change, and chapter 6's distance-field
+	 * atlases, which do not need to, replace it.
+	 */
+	ratio?: number;
+}
+
 /**
  * Font atlas that manages character textures for efficient text rendering
  */
 export class FontAtlas {
 	private canvas: HTMLCanvasElement;
 	private context: CanvasRenderingContext2D;
-	private texture: WebGLTexture | null = null;
-	private gl: WebGL2RenderingContext;
+	private readonly textures: TextureStore<WebGLTexture>;
+	private texture: TextureHandle | null = null;
 	private characters: Map<string, CharacterInfo> = new Map();
 	private fontFamily: string;
 	private fontSize: number;
 	private atlasSize: number;
 	private lineHeight: number;
 
-	constructor(
-		gl: WebGL2RenderingContext,
-		fontFamily = 'Arial',
-		fontSize = 16,
-		atlasSize = 512
-	) {
-		this.gl = gl;
+	constructor({ textures, fontFamily = 'Arial', fontSize = 16, atlasSize = 512, ratio = 1 }: FontAtlasOptions) {
+		this.textures = textures;
 		this.fontFamily = fontFamily;
 		this.fontSize = fontSize;
 		this.atlasSize = atlasSize;
 
 		// Create high-DPI canvas for rendering characters
-		const devicePixelRatio = window.devicePixelRatio || 1;
 		this.canvas = document.createElement('canvas');
-		this.canvas.width = atlasSize * devicePixelRatio;
-		this.canvas.height = atlasSize * devicePixelRatio;
+		this.canvas.width = atlasSize * ratio;
+		this.canvas.height = atlasSize * ratio;
 		const context = this.canvas.getContext('2d');
 		if (!context) {
 			throw new Error('Failed to get 2D context for font atlas');
 		}
 		this.context = context;
-		this.context.scale(devicePixelRatio, devicePixelRatio);
+		this.context.scale(ratio, ratio);
 
 		// Configure text rendering with anti-aliasing for smooth edges
 		this.context.font = `${fontSize}px ${fontFamily}`;
@@ -120,30 +133,24 @@ export class FontAtlas {
 	}
 
 	/**
-	 * Uploads the atlas canvas into a new immutable texture: `texStorage2D`
-	 * once, then `texSubImage2D` (R15.18), so ANGLE never re-specifies a live
-	 * texture. The canvas stays alive as the CPU-side copy, which is what a
-	 * restored context uploads again (R15.5); the previous texture died with
-	 * the old context and is not deleted.
-	 *
-	 * No colour-space conversion (R15.19). No premultiplication either: the
-	 * canvas is opaque, white glyphs on black, and the shader reads the red
-	 * channel as coverage, so this is a mask rather than a colour texture.
+	 * Hands the atlas canvas to the resource layer as an immediate, kept
+	 * texture: it is on the GPU before the first frame (R2.18), and the canvas
+	 * is the CPU-side copy a restored context uploads again (R15.5). A `mask`,
+	 * so it goes up without premultiplication: the canvas is opaque, white
+	 * glyphs on black, and the shader reads the red channel as coverage.
+	 * `WebGL2TextureDevice` allocates it with `texStorage2D` and fills it with
+	 * `texSubImage2D` exactly as this method used to (R15.18, R15.19).
 	 */
-	public upload(): void {
-		const gl = this.gl;
-		this.texture = gl.createTexture();
-		gl.bindTexture(gl.TEXTURE_2D, this.texture);
-		gl.texStorage2D(gl.TEXTURE_2D, 1, gl.RGBA8, this.canvas.width, this.canvas.height);
-		gl.pixelStorei(gl.UNPACK_COLORSPACE_CONVERSION_WEBGL, gl.NONE);
-		gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, 0, gl.RGBA, gl.UNSIGNED_BYTE, this.canvas);
-
-		gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
-		gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
-		gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
-		gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
-
-		gl.bindTexture(gl.TEXTURE_2D, null);
+	private upload(): void {
+		this.texture = this.textures.create({
+			width: this.canvas.width,
+			height: this.canvas.height,
+			label: `font atlas ${this.fontFamily} ${this.fontSize}`,
+			source: this.canvas,
+			content: 'mask',
+			keepSource: true,
+			immediate: true,
+		});
 	}
 
 	/**
@@ -157,7 +164,7 @@ export class FontAtlas {
 	 * Get the WebGL texture
 	 */
 	public getTexture(): WebGLTexture | null {
-		return this.texture;
+		return this.texture ? this.textures.native(this.texture) : null;
 	}
 
 	/**
@@ -193,7 +200,7 @@ export class FontAtlas {
 	 */
 	public unmount(): void {
 		if (this.texture) {
-			this.gl.deleteTexture(this.texture);
+			this.textures.release(this.texture);
 			this.texture = null;
 		}
 		this.characters.clear();

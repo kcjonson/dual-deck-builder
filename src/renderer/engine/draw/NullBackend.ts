@@ -1,11 +1,11 @@
+import { NULL_TEXTURE_DEVICE, TextureStore } from '../gpu/TextureStore';
 import {
 	DrawBackend,
 	DrawBatch,
 	FontAtlasOptions,
 	FrameDescription,
-	TextureOptions,
 } from './DrawBackend';
-import { DrawCommandKind, FontAtlasHandle, TextureHandle } from './commands';
+import { DrawCommandKind, FontAtlasHandle } from './commands';
 import { GpuWork, NO_GPU_WORK } from './stats';
 
 /**
@@ -28,12 +28,13 @@ import { GpuWork, NO_GPU_WORK } from './stats';
  */
 export class NullBackend implements DrawBackend {
 	readonly name = 'null';
+	/** R5.30: the null backend counts textures through the same resource layer, over a device that does nothing. */
+	readonly textures = new TextureStore({ device: NULL_TEXTURE_DEVICE });
 
 	private frames = 0;
 	private batches = 0;
 	private commands = 0;
 	private invalidations = 0;
-	private textures = 0;
 	private atlases = 0;
 	private readonly atlasNames: string[] = [];
 	private readonly byKind = new Map<DrawCommandKind, number>();
@@ -87,15 +88,6 @@ export class NullBackend implements DrawBackend {
 
 	invalidateState(): void {
 		this.invalidations += 1;
-	}
-
-	createTexture({ width, height, label }: TextureOptions): TextureHandle {
-		this.textures += 1;
-		return { id: this.textures, width, height, label: label ?? null };
-	}
-
-	destroyTexture(): void {
-		// Handles are plain values; there is nothing to release.
 	}
 
 	loadFontAtlas({ name }: FontAtlasOptions): FontAtlasHandle {

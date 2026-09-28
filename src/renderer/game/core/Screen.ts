@@ -7,9 +7,6 @@ export abstract class Screen {
 	protected id: string;
 	protected rootLayer: Layer;
 	protected isActive = false;
-	
-	// Resize handler reference for unmount
-	private resizeHandler: (() => void) | null = null;
 
 	/**
 	 * Create a new screen
@@ -24,8 +21,6 @@ export abstract class Screen {
 			width: window.innerWidth,
 			height: window.innerHeight,
 		});
-
-		// Don't add resize listener in constructor - let mount/unmount handle it
 	}
 
 	/**
@@ -48,11 +43,7 @@ export abstract class Screen {
 	 */
 	public mount(data?: unknown): void {
 		this.isActive = true;
-		
-		// Create and add resize listener
-		this.resizeHandler = this.handleResize.bind(this);
-		window.addEventListener('resize', this.resizeHandler);
-		
+
 		// Call onMount - handle both sync and async versions
 		try {
 			const mountResult = this.onMount(data);
@@ -72,13 +63,7 @@ export abstract class Screen {
 	 */
 	public unmount(): void {
 		this.isActive = false;
-		
-		// Remove resize listener
-		if (this.resizeHandler) {
-			window.removeEventListener('resize', this.resizeHandler);
-			this.resizeHandler = null;
-		}
-		
+
 		this.onUnmount();
 		
 		// Unmount all child components to prevent input system leaks
@@ -93,11 +78,12 @@ export abstract class Screen {
 	}
 	
 	/**
-	 * Handle window resize events
+	 * The viewport changed (R7.11). The application shell is the one owner and
+	 * calls this through `ScreenManager.resize`, at the top of the frame the new
+	 * size takes effect in; a screen no longer listens to the window itself.
 	 */
-	private handleResize(): void {
-		// Update the root layer size
-		this.rootLayer.setSize(window.innerWidth, window.innerHeight);
+	public resize(width: number, height: number): void {
+		this.rootLayer.setSize(width, height);
 
 		// Call the screen-specific resize handler
 		this.onResized();

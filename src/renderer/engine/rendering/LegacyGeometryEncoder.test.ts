@@ -234,6 +234,21 @@ describe('LegacyGeometryEncoder: text', () => {
 		return quads;
 	}
 
+	it('snaps glyphs to the device grid of the frame\'s ratio, not to whole logical pixels (R7.2)', () => {
+		const { encode, encoder } = setup();
+		encoder.ratio = 2;
+		const commands = record((api) => {
+			api.drawText({ text: 'AA', position: { x: 100.3, y: 50.2 }, font: 'body', size: 32, color: BLUE });
+		});
+		const [{ floats }] = encode(commands).uploads;
+		const [first] = quadsOf(floats, 1);
+		// The top-left corner is the fourth vertex. 'A' is offset (1.5, 2.25),
+		// so it starts at (101.8, 52.45): whole-pixel rounding gave (102, 52),
+		// the half-pixel grid of ratio 2 gives (102, 52.5).
+		const [x, y] = first.slice(12, 14);
+		expect([x, y]).toEqual([102, 52.5]);
+	});
+
 	it.each([
 		['left', 'top'],
 		['center', 'middle'],

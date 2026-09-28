@@ -1,4 +1,5 @@
 import type { DrawStats } from '../draw';
+import type { DeviceInfo } from './deviceInfo';
 import type { FrameRecord, FrameStats, FrameSanity, SectionStats } from './frameStats';
 import { frameWindowStats } from './frameStats';
 
@@ -113,6 +114,11 @@ export interface PerfSnapshot {
 	renderer: RendererCounters;
 	sanity: FrameSanity;
 	liveness: LivenessStats;
+	/**
+	 * R13.20's renderer and GPU identity, R15.31's backend, and R15.3's
+	 * detected features. Null on a caller that supplies none.
+	 */
+	device: DeviceInfo | null;
 }
 
 /**
@@ -293,7 +299,8 @@ export class FrameTimer {
 	public snapshot({
 		scene = null,
 		batcher = null,
-	}: { scene?: string | null; batcher?: DrawStats | null } = {}): PerfSnapshot {
+		device = null,
+	}: { scene?: string | null; batcher?: DrawStats | null; device?: DeviceInfo | null } = {}): PerfSnapshot {
 		const stats = frameWindowStats({
 			frames: this.orderedFrames(),
 			budgetMs: this.budgetMs,
@@ -330,6 +337,7 @@ export class FrameTimer {
 					? null
 					: this.wallNow() - this.lastFrameStartWallMs,
 			},
+			device,
 		};
 	}
 

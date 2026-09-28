@@ -1,6 +1,6 @@
 import { DrawApi } from '../renderer/engine/draw';
 import { Renderer } from '../renderer/engine/rendering/Renderer';
-import { createDrawApi, windowFrame } from '../renderer/engine/rendering/WebGL2Backend';
+import { createDrawApi } from '../renderer/engine/rendering/WebGL2Backend';
 import { FrameLoop } from '../renderer/engine/rendering/FrameLoop';
 import { RendererContext } from '../renderer/engine/rendering/RendererContext';
 import { InputSystem } from '../renderer/engine/input/InputSystem';
@@ -50,13 +50,14 @@ class GalleryApplication {
 
 			this.host = new SceneHost({
 				scenes: gallerySceneRegistry,
-				viewport: () => ({ width: window.innerWidth, height: window.innerHeight }),
+				viewport: () => this.renderer.viewport.logical,
 			});
 
 			this.mountFromLocation();
 			this.installHooks(canvas);
 
-			window.addEventListener('resize', () => this.host.resize());
+			// R7.11: the viewport owner, not the window, says when the size changed.
+			this.renderer.viewport.onChange(() => this.host.resize());
 
 			this.frameLoop = new FrameLoop({ tick: this.loop });
 			this.renderer.addContextListener({
@@ -95,7 +96,7 @@ class GalleryApplication {
 		// and window.__ui.lint() mean the same thing on both pages.
 		installDebugHooks({
 			roots: () => this.host.roots(),
-			viewport: () => ({ width: window.innerWidth, height: window.innerHeight }),
+			viewport: () => this.renderer.viewport.logical,
 		});
 
 		installAppHooks({
@@ -125,6 +126,7 @@ class GalleryApplication {
 		installPerfHooks({
 			snapshot: () => this.frameTimer.snapshot({
 				scene: this.host.sceneName,
+				device: this.renderer.device,
 				// Null before the first frame: an unopened draw API's zeros
 				// would read as a measured empty frame (R13.5).
 				batcher: this.draw.frame > 0 ? this.draw.getStats() : null,
@@ -146,12 +148,14 @@ class GalleryApplication {
 		const deltaTime = this.frameTimer.beginFrame();
 
 		this.frameTimer.beginSection('update');
+		// R7.3, as on the game page: the resize lands at the top of the frame.
+		this.renderer.viewport.commit();
 		this.host.update(deltaTime);
 		this.frameTimer.endSection('update');
 
 		this.frameTimer.beginSection('render');
 		// Clears the target too: the clear is the render pass's (R15.38).
-		this.draw.beginFrame(windowFrame());
+		this.draw.beginFrame(this.renderer.viewport.frame);
 		this.host.render();
 		this.frameTimer.endSection('render');
 

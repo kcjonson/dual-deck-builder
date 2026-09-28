@@ -170,9 +170,14 @@ describe('CombatScreen: one layout for mount and resize', () => {
 		Object.defineProperty(window, 'innerHeight', { configurable: true, writable: true, value: height });
 	}
 
-	function resizeViewport(width: number, height: number): void {
+	/**
+	 * What the application shell does on a resize (R7.11): the viewport owner
+	 * calls the mounted screen through `ScreenManager.resize`. The window size
+	 * moves too, because the screens still read it until phase 3.
+	 */
+	function resizeViewport(combat: CombatScreen, width: number, height: number): void {
 		setViewport(width, height);
-		window.dispatchEvent(new Event('resize'));
+		combat.resize(width, height);
 	}
 
 	function snapshot(combat: CombatScreen): SnapshotNode {
@@ -231,7 +236,7 @@ describe('CombatScreen: one layout for mount and resize', () => {
 		[1440, 882],
 	])('a screen resized to %ix%i matches one mounted at that size', async (width, height) => {
 		const resized = mountBare();
-		resizeViewport(width, height);
+		resizeViewport(resized, width, height);
 		const afterResize = snapshot(resized);
 
 		const mounted = mountBare();
@@ -249,8 +254,8 @@ describe('CombatScreen: one layout for mount and resize', () => {
 		expect(allIds(atMount).some(id => id.startsWith('hand_card_'))).toBe(true);
 		expect(allIds(atMount).some(id => id.startsWith('enemy_vehicle_'))).toBe(true);
 
-		resizeViewport(1280, 720);
-		resizeViewport(1024, 768);
+		resizeViewport(combat, 1280, 720);
+		resizeViewport(combat, 1024, 768);
 		expect(snapshot(combat)).toEqual(atMount);
 
 		combat.unmount();
@@ -281,7 +286,7 @@ describe('CombatScreen: one layout for mount and resize', () => {
 		const combat = mountBare();
 		expectInsideViewport(endTurnBounds(combat));
 
-		resizeViewport(1280, 720);
+		resizeViewport(combat, 1280, 720);
 		const { x, w } = endTurnBounds(combat);
 		expectInsideViewport(endTurnBounds(combat));
 		expect(x + w).toBe(1280 - 10);
@@ -294,7 +299,7 @@ describe('CombatScreen: one layout for mount and resize', () => {
 		setViewport(0, 0);
 		const combat = mountBare();
 
-		resizeViewport(1024, 768);
+		resizeViewport(combat, 1024, 768);
 		expectInsideViewport(endTurnBounds(combat));
 
 		await settle();
@@ -306,7 +311,7 @@ describe('CombatScreen: one layout for mount and resize', () => {
 		await settle();
 		expect(combat.getBattleState()?.isPlayerTurn).toBe(true);
 
-		resizeViewport(1280, 720);
+		resizeViewport(combat, 1280, 720);
 		const { x, y, w, h } = endTurnBounds(combat);
 		const endPlayerTurn = jest.spyOn(Battle.prototype, 'endPlayerTurn');
 		expect(injectInput(canvas, [`click,${Math.round(x + w / 2)},${Math.round(y + h / 2)}`]).ok).toBe(true);
