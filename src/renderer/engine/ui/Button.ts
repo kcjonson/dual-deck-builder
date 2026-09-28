@@ -1,4 +1,4 @@
-import { Component, ComponentOptions, PointerEvents } from '../components/Component';
+import { Component, ComponentOptions, PointerEvents, ResolvedColors } from '../components/Component';
 import { Icon } from '../components/Icon';
 import type { MountContext } from '../components/MountContext';
 import { Rectangle } from '../components/Rectangle';
@@ -24,7 +24,7 @@ export class Button extends Component {
 	private icon: Icon | null = null;
 	/** The icon and gap the label's box gives up on its left. */
 	private labelInset = 0;
-	private pressed = false;
+	private pressState = false;
 	private clickHandler: (() => void) | null = null;
 
 	// Button appearance states
@@ -75,6 +75,16 @@ export class Button extends Component {
 			this.icon = new Icon({ glyph: options.icon, size: this.iconSize, tint: tokens.color.text_bright });
 			this.addPart(this.icon);
 		}
+	}
+
+	/** The pointer went down on it and has not been released or left (R11.11's `pressed`). */
+	public get pressed(): boolean {
+		return this.pressState;
+	}
+
+	/** The background's fill and border and the label's colour, as they are drawn now. */
+	public get resolvedColors(): ResolvedColors {
+		return { ...this.background.resolvedColors, ...this.text.resolvedColors };
 	}
 
 	/** R8.29: the label and background are internals, not targets. */
@@ -219,7 +229,7 @@ export class Button extends Component {
 	private onMouseOut(): void {
 		if (this.enabled) {
 			this.setHovered(false);
-			this.pressed = false;
+			this.pressState = false;
 			this.background.setFillColor(this.normalColor);
 		}
 	}
@@ -229,7 +239,7 @@ export class Button extends Component {
 	 */
 	private onMouseDown(): void {
 		if (this.enabled) {
-			this.pressed = true;
+			this.pressState = true;
 			this.background.setFillColor(this.pressedColor);
 		}
 	}
@@ -238,7 +248,7 @@ export class Button extends Component {
 	 * Handle mouse up event
 	 */
 	private onMouseUp(): void {
-		if (this.enabled && this.pressed && this.hovered) {
+		if (this.enabled && this.pressState && this.hovered) {
 			// Trigger click callback
 			if (this.clickHandler) {
 				this.clickHandler();
@@ -247,7 +257,7 @@ export class Button extends Component {
 			this.background.setFillColor(this.hoverColor);
 		}
 
-		this.pressed = false;
+		this.pressState = false;
 	}
 
 	/**

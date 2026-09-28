@@ -361,6 +361,80 @@ export function goldenName(kind: 'screen' | 'scene', name: string): string {
 	return `${kind}-${name}.png`;
 }
 
+/** The text snapshot's name beside the golden's, so the pair is one scenario's. */
+export function textSnapshotName(kind: 'screen' | 'scene', name: string): string {
+	return `${kind}-${name}-text.json`;
+}
+
+/**
+ * Every string on screen, checked against its committed record (DDB-206).
+ *
+ * The cluster rule cannot see punctuation: `.` to `,` and `:` to `;` at body
+ * sizes differ by a few pixels that pixelmatch classes as anti-aliasing, so
+ * they come back as zero differing pixels (the mutation table in
+ * docs/AI_TECHNICAL_DECISIONS/visual-golden-harness.md). The tree snapshot
+ * holds every Text node's string, so the strings are asserted directly: one
+ * line per text with its path, its content, and its rounded screen rect.
+ *
+ * "On screen" is what the capture can show: visible and not faded out, the
+ * whole ancestor chain too, and not clipped or scrolled wholly out of the
+ * viewport. A string nobody can see changing is not a visual regression, and
+ * recording it would fail a scenario whose picture is unchanged.
+ *
+ * The record lives beside the PNG under `__screenshots__`, named by the same
+ * template, so it is minted by the same dispatch and the provenance job holds
+ * it to the same rule: a pull request never carries a hand-written one.
+ */
+export async function expectTextSnapshot(page: Page, kind: 'screen' | 'scene', name: string): Promise<void> {
+	const lines = await page.evaluate(() => {
+		interface Rect { x: number; y: number; w: number; h: number }
+		interface Node {
+			id: string | null;
+			type: string;
+			visible: boolean;
+			opacity?: number;
+			screenBounds: Rect;
+			clip?: Rect;
+			text?: { content: string };
+			parts?: Node[];
+			children: Node[];
+		}
+		const document = (window as unknown as { __ui: { tree(): { viewport: { width: number; height: number }; roots: Node[] } } }).__ui.tree();
+		const viewport: Rect = { x: 0, y: 0, w: document.viewport.width, h: document.viewport.height };
+		const round = (value: number): number => Math.round(value * 100) / 100;
+		const meets = (a: Rect, b: Rect): boolean => a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h;
+		const out: string[] = [];
+
+		// The layout lint's path rule (R13.28): ids when present, Type[index]
+		// otherwise, parts and children numbered as one list.
+		const walk = (nodes: Node[], parentPath: string): void => {
+			const ids = new Map<string, number>();
+			for (const node of nodes) if (node.id) ids.set(node.id, (ids.get(node.id) ?? 0) + 1);
+			nodes.forEach((node, index) => {
+				if (!node.visible || node.opacity === 0) return;
+				const segment = node.id ? ((ids.get(node.id) ?? 0) > 1 ? `${node.id}[${index}]` : node.id) : `${node.type}[${index}]`;
+				const path = parentPath ? `${parentPath}/${segment}` : segment;
+				const box = node.screenBounds;
+				if (node.text && meets(box, node.clip ?? viewport) && meets(box, viewport)) {
+					out.push(JSON.stringify({
+						path,
+						text: node.text.content,
+						rect: [round(box.x), round(box.y), round(box.w), round(box.h)],
+					}));
+				}
+				walk([...(node.parts ?? []), ...node.children], path);
+			});
+		};
+		walk(document.roots, '');
+		return out;
+	});
+
+	expect(lines.length, `${kind} "${name}" shows no text at all, so its text record would check nothing`).toBeGreaterThan(0);
+	// Soft, and taken before the golden, so a change both checks see reports
+	// both: the string that changed here and the picture below.
+	expect.soft(`[\n${lines.join(',\n')}\n]\n`).toMatchSnapshot(textSnapshotName(kind, name));
+}
+
 /** The tree behind a red diff, attached to the report. */
 export async function attachTree(page: Page, testInfo: TestInfo): Promise<void> {
 	const tree = await page.evaluate(() => JSON.stringify((window as unknown as DevSurface).__ui.tree(), null, '\t'));

@@ -1,4 +1,4 @@
-import { Component, ComponentOptions } from './Component';
+import { Component, ComponentOptions, ResolvedColors } from './Component';
 import type { RGBA } from '../draw';
 import type { DrawApi } from '../draw/DrawApi';
 import { ICON_ATLAS_ROLE } from '../text/fontFaces';
@@ -60,6 +60,10 @@ export class Icon extends Component {
 
 	set tint(tint: RGBA) {
 		this.glyphTint = tint;
+	}
+
+	public get resolvedColors(): ResolvedColors {
+		return { text: this.glyphTint };
 	}
 
 	public render(draw: DrawApi): void {

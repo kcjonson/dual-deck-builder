@@ -1,4 +1,4 @@
-import { Component, ComponentOptions, PointerEvents } from '../components/Component';
+import { Component, ComponentOptions, PointerEvents, ResolvedColors } from '../components/Component';
 import { Rectangle } from '../components/Rectangle';
 import { Text } from '../components/Text';
 import type { MountContext } from '../components/MountContext';
@@ -87,6 +87,11 @@ export class Input extends Component {
 		});
 		this.cursor.setVisible(false);
 		this.addPart(this.cursor);
+	}
+
+	/** The field's fill and border and the value's colour, as they are drawn now. */
+	public get resolvedColors(): ResolvedColors {
+		return { ...this.background.resolvedColors, ...this.text.resolvedColors };
 	}
 
 	/** R8.29: the text, placeholder and caret are internals, not targets. */

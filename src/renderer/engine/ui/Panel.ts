@@ -1,7 +1,8 @@
 import type { Vec2 } from '../draw/geometry';
 import type { DrawApi } from '../draw/DrawApi';
 import { Layer, LayerOptions } from '../components/Layer';
-import { BoxStyle, drawBox, resolveBoxStyle } from '../components/Rectangle';
+import { BoxStyle, boxColors, drawBox, resolveBoxStyle } from '../components/Rectangle';
+import type { ResolvedColors } from '../components/Component';
 import type { Interactive } from '../input/InputSystem';
 import type { MountContext } from '../components/MountContext';
 
@@ -75,6 +76,10 @@ export class Panel extends Layer implements Interactive {
 		if (this.scrollable) {
 			input.registerWheel(this, (deltaX, deltaY) => this.onWheel(deltaX, deltaY));
 		}
+	}
+
+	public get resolvedColors(): ResolvedColors {
+		return boxColors(this.box);
 	}
 
 	public render(draw: DrawApi): void {
