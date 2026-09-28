@@ -126,7 +126,7 @@ export class PointerAdapter {
 		if (this.dispatcher.paused) return;
 		// Dispatch waits for the frame, so the default is prevented on whether
 		// the key would be handled now: a hotkey binding or a focused field.
-		if (this.dispatcher.claimsKey(event.key)) event.preventDefault();
+		if (this.dispatcher.claimsKey(event.key, modifiersOf(event))) event.preventDefault();
 		this.dispatcher.enqueue({
 			kind: 'key',
 			phase,

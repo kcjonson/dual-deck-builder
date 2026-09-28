@@ -132,6 +132,25 @@ describe('Input', () => {
 		expect(first.getValue()).toBe('');
 	});
 
+	it('lets Cmd and Ctrl chords through: no text, no prevented default (R9.15)', () => {
+		const made = field();
+		const fired: string[] = [];
+		context.dispatcher.hotkeys.register('s', (stroke) => fired.push(`${stroke.modifiers.ctrl ? 'ctrl+' : ''}${stroke.key}`));
+		inject('click,150,220', 'keydown,a');
+
+		const copy = new KeyboardEvent('keydown', { key: 'c', metaKey: true, cancelable: true });
+		window.dispatchEvent(copy);
+		const save = new KeyboardEvent('keydown', { key: 's', ctrlKey: true, cancelable: true });
+		window.dispatchEvent(save);
+		context.dispatcher.dispatchPending();
+
+		expect(copy.defaultPrevented).toBe(false);
+		expect(made.getValue()).toBe('a');
+		expect(made.focused).toBe(true);
+		// The chord passed the field and reached the hotkey table.
+		expect(fired).toEqual(['ctrl+s']);
+	});
+
 	it('keeps a hotkey from firing for a key the field consumes (R9.15)', () => {
 		const made = field();
 		const fired: string[] = [];

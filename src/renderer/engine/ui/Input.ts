@@ -115,6 +115,8 @@ export class Input extends Component {
 				this.context?.dispatcher.focus(this);
 				return;
 			case 'keydown':
+				// R9.15: bound modifier chords (copy, a menu shortcut) are not text.
+				if (event.modifiers.ctrl || event.modifiers.meta) return;
 				if (this.handleKey(event.key)) event.consume();
 				return;
 		}

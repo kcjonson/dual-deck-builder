@@ -74,7 +74,9 @@ interface Press {
 	pointerType: PointerType;
 	/** Clock time of the press, for the touch hold (R9.30). */
 	startTime: number;
-	/** Past the drag threshold, cancelled, or already a hold: no click (R9.31). */
+	/** Moved past the drag threshold: no touch hold, and no click if the press is on a drag source. */
+	moved: boolean;
+	/** Cancelled or already a hold: no click (R9.31). */
 	spent: boolean;
 }
 
@@ -154,9 +156,12 @@ export class Dispatcher {
 
 	/**
 	 * The mounted roots in the order they were mounted, which is the order
-	 * the hit walk visits them: a shell mounts roots in the order it paints
-	 * them (a root that paints over another but must not take input sets
-	 * `pointerEvents: 'none'`, as the developer overlay does).
+	 * the hit walk visits them, a later root over an earlier one. That is not
+	 * necessarily paint order: the game page mounts the F5 overlay before the
+	 * first screen and paints it after, which is harmless only because the
+	 * overlay is `pointerEvents: 'none'`. A root that paints over another and
+	 * takes input has to be mounted after it until the overlay service
+	 * (DDB-78) orders roots by layer.
 	 */
 	public get roots(): readonly Component[] {
 		return this.rootList;
@@ -180,9 +185,24 @@ export class Dispatcher {
 		return this.inputPaused;
 	}
 
+	/**
+	 * Pausing also abandons every gesture in progress, as a window blur does
+	 * (R9.30): the release it would have needed is dropped at the queue, so a
+	 * press held across a pause would otherwise stay pressed, captured, and
+	 * able to click after resume. Resuming re-derives hover.
+	 */
 	public set paused(value: boolean) {
+		if (value === this.inputPaused) return;
 		this.inputPaused = value;
-		if (value) this.queue = [];
+		if (value) {
+			this.queue = [];
+			for (const pointerId of new Set([...this.presses.keys(), ...this.captures.keys()])) {
+				this.cancelPointer(pointerId);
+			}
+			this.latch = null;
+		} else {
+			this.hoverStale = true;
+		}
 	}
 
 	// -- queue (R9.2) ---------------------------------------------------------
@@ -373,7 +393,7 @@ export class Dispatcher {
 				return;
 			case 'blur':
 				// R9.10: window blur cancels every gesture in progress.
-				for (const pointerId of [...this.presses.keys(), ...this.captures.keys()]) {
+				for (const pointerId of new Set([...this.presses.keys(), ...this.captures.keys()])) {
 					this.cancelPointer(pointerId);
 				}
 				return;
@@ -411,6 +431,7 @@ export class Dispatcher {
 			button: fields.button,
 			pointerType: fields.pointerType,
 			startTime: this.clock.now,
+			moved: false,
 			spent: false,
 		});
 		if (!target) return;
@@ -429,9 +450,9 @@ export class Dispatcher {
 		this.trackHover(fields, target);
 
 		const press = this.presses.get(fields.pointerId);
-		if (press && !press.spent) {
+		if (press && !press.moved) {
 			const threshold = press.pointerType === 'touch' ? DRAG_THRESHOLD_TOUCH : DRAG_THRESHOLD_MOUSE;
-			if (Math.hypot(fields.x - press.x, fields.y - press.y) > threshold) press.spent = true;
+			if (Math.hypot(fields.x - press.x, fields.y - press.y) > threshold) press.moved = true;
 		}
 
 		if (target) this.bubble(this.pointerEvent('pointermove', target, fields, false, fields.coalesced));
@@ -447,7 +468,11 @@ export class Dispatcher {
 
 		if (target) this.bubble(this.pointerEvent('pointerup', target, fields));
 
-		if (press && !press.spent && press.target && fields.isPrimary) {
+		// Movement past the threshold cancels the click only for a press that
+		// could have started a drag; anywhere else a press and release on the
+		// same component is a click however far it wandered, as in a browser.
+		const dragged = press ? press.moved && press.target !== null && withinDragSource(press.target) : false;
+		if (press && !press.spent && !dragged && press.target && fields.isPrimary) {
 			// R9.31: the captor, or the nearest common inclusive ancestor of
 			// where the press and the release landed.
 			const clickTarget = captor ?? (target ? commonAncestor(press.target, target) : null);
@@ -495,7 +520,7 @@ export class Dispatcher {
 		if (this.presses.size === 0) return;
 		const now = this.clock.now;
 		for (const [pointerId, press] of this.presses) {
-			if (press.spent || press.pointerType !== 'touch' || !press.target) continue;
+			if (press.spent || press.moved || press.pointerType !== 'touch' || !press.target) continue;
 			if (now - press.startTime < TOUCH_HOLD_MS) continue;
 			press.spent = true;
 			if (!press.target.isMounted || !press.target.effectivelyEnabled) continue;
@@ -657,8 +682,10 @@ export class Dispatcher {
 	 * adapter needs synchronously to prevent the browser's default: the event
 	 * itself is only dispatched at the next frame (R9.2).
 	 */
-	public claimsKey(key: string): boolean {
-		return this.focusedComponent !== null || this.hotkeys.has(key);
+	public claimsKey(key: string, modifiers: Modifiers = NO_MODIFIERS): boolean {
+		if (this.hotkeys.has(key)) return true;
+		// R9.15: a focused field lets Cmd and Ctrl chords through to the platform.
+		return this.focusedComponent !== null && !modifiers.ctrl && !modifiers.meta;
 	}
 
 	// -- delivery -------------------------------------------------------------
@@ -745,6 +772,14 @@ export function normaliseWheel(
 	}
 	if (input.modifiers.shift && deltaX === 0) return [deltaY, 0];
 	return [deltaX, deltaY];
+}
+
+/** Whether a press on `component` could start a drag: it or an ancestor is a drag source (R9.12a). */
+function withinDragSource(component: Component): boolean {
+	for (let node: Component | null = component; node; node = node.parent) {
+		if (node.dragSource) return true;
+	}
+	return false;
 }
 
 /** Root first, `component` last. */

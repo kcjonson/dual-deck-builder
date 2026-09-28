@@ -438,10 +438,26 @@ describe('click (R9.31)', () => {
 		expect(only('click')).toEqual(['click:button', 'click:root']);
 	});
 
-	it('synthesises no click once the pointer moved past the drag threshold', () => {
-		button();
+	it('synthesises no click once a press on a drag source moved past the threshold', () => {
+		const shell = button();
+		shell.dragSource = true;
 		send(pointer('down', 10, 20), pointer('move', 10 + DRAG_THRESHOLD_MOUSE + 1, 20), pointer('up', 10, 20));
 		expect(only('click')).toEqual([]);
+	});
+
+	it('still clicks a drag source moved within the threshold', () => {
+		const shell = button();
+		shell.dragSource = true;
+		send(pointer('down', 10, 20), pointer('move', 10 + DRAG_THRESHOLD_MOUSE, 20), pointer('up', 10 + DRAG_THRESHOLD_MOUSE, 20));
+		expect(only('click')).toEqual(['click:label', 'click:button', 'click:root']);
+	});
+
+	// Departure from R9.31: a player's click that wanders never goes missing
+	// on something that cannot be dragged, matching browser click semantics.
+	it('clicks a non-draggable component however far the pointer wandered before release on it', () => {
+		button();
+		send(pointer('down', 10, 20), pointer('move', 300, 300), pointer('move', 90, 20), pointer('up', 90, 20));
+		expect(only('click')).toEqual(['click:button', 'click:root']);
 	});
 
 	it('still clicks after a consumed press: consumption stops the bubble, not the gesture', () => {
@@ -590,7 +606,8 @@ describe('touch hold (R9.30)', () => {
 		send(pointer('up', 50, 50));
 
 		expect(only('contextmenu')).toEqual([]);
-		expect(only('click')).toEqual(['click:pad', 'click:root']);
+		// Neither press is on a drag source, so both still click.
+		expect(only('click')).toEqual(['click:pad', 'click:root', 'click:pad', 'click:root']);
 	});
 
 	it('stamps events with the frame clock, not a platform timer (R8.28)', () => {
@@ -679,6 +696,13 @@ describe('keys (R9.15) and the focus seam', () => {
 		expect(hotkeys).toEqual(['F6']);
 		expect(context.dispatcher.claimsKey('F6')).toBe(true);
 		expect(context.dispatcher.claimsKey('F7')).toBe(false);
+
+		const field = new Probe({ id: 'field', width: 10, height: 10 });
+		mount(field);
+		context.dispatcher.focus(field);
+		expect(context.dispatcher.claimsKey('c')).toBe(true);
+		expect(context.dispatcher.claimsKey('c', { ...NO_MODIFIERS, meta: true })).toBe(false);
+		expect(context.dispatcher.claimsKey('c', { ...NO_MODIFIERS, ctrl: true })).toBe(false);
 	});
 
 	it('clears focus on a press outside the focused component, with onBlur', () => {
@@ -711,6 +735,22 @@ describe('the queue (R9.2)', () => {
 		expect(context.dispatcher.pendingCount).toBe(1);
 		context.dispatcher.dispatchPending();
 		expect(moves).toEqual([2]);
+	});
+
+	it('abandons a press held across a pause, so the release after resume does not click', () => {
+		const box = new Probe({ id: 'box', width: 100, height: 100 });
+		box.captureOnDown = true;
+		mount(box);
+		send(pointer('down', 10, 10));
+		expect(context.dispatcher.captorOf(1)).toBe(box);
+
+		context.dispatcher.paused = true;
+		expect(only('pointercancel')).toEqual(['pointercancel:box']);
+		expect(context.dispatcher.captorOf(1)).toBeNull();
+		context.dispatcher.paused = false;
+
+		send(pointer('up', 10, 10));
+		expect(only('click')).toEqual([]);
 	});
 
 	it('drops input offered while paused and discards what was queued (R13.35)', () => {

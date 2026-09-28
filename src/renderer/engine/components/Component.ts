@@ -158,6 +158,15 @@ export abstract class Component {
 	public onKeyUp: KeyCallback | null = null;
 
 	/**
+	 * Whether a press here, or on a descendant, may start a drag (R9.12a).
+	 * Only then does moving past the drag threshold cancel the click; a
+	 * press elsewhere clicks wherever it wandered, as long as it is released
+	 * on the same component. DDB-77's drag service sets it through
+	 * `context.drag.start`; until then it is set by hand.
+	 */
+	public dragSource = false;
+
+	/**
 	 * R8.29's per-type default: `auto` for leaves and widgets. Containers say
 	 * `passthrough` and composite widgets `unit` by overriding this.
 	 */
@@ -778,7 +787,7 @@ export abstract class Component {
 	public mount(context: MountContext): void {
 		if (this.mountContext) return;
 		this.mountSubtree(context);
-		// A root is hit-tested from here on, in mount order (R9.4).
+		// A root is hit-tested from here on, over the roots mounted before it (R9.4).
 		if (!this.parentComponent) context.dispatcher.addRoot(this);
 		// The first layout after mount reports every component's bounds through
 		// `onLayout`, so geometry is known before the first render (R8.21).
