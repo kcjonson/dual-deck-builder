@@ -2,7 +2,8 @@ import { FontAtlasError } from './FontAtlas';
 import { FONT_FACES, FontFaceAsset } from './fontFaces';
 import { AtlasImage, loadFontAtlases } from './loadFontAtlases';
 
-const face = (overrides: Partial<FontFaceAsset> = {}): FontFaceAsset => ({ ...FONT_FACES[0], ...overrides });
+const body = FONT_FACES.find((entry) => entry.face === 'open-sans-regular') as FontFaceAsset;
+const face = (overrides: Partial<FontFaceAsset> = {}): FontFaceAsset => ({ ...body, ...overrides });
 
 const sized = (width: number, height: number) => async (): Promise<AtlasImage> => ({
 	naturalWidth: width,
@@ -11,17 +12,27 @@ const sized = (width: number, height: number) => async (): Promise<AtlasImage> =
 
 describe('loadFontAtlases', () => {
 	it('loads every committed face with its role', async () => {
+		// Jest stubs every image module to one URL, so each face gets its own
+		// here and the fake decoder answers with the size its metrics give.
+		const faces = FONT_FACES.map((entry) => ({ ...entry, imageUrl: entry.face }));
+		const sizes = new Map(FONT_FACES.map((entry) => {
+			const { width, height } = (entry.metrics as { atlas: { width: number; height: number } }).atlas;
+			return [entry.face, { naturalWidth: width, naturalHeight: height }];
+		}));
 		const requested: string[] = [];
 		const loaded = await loadFontAtlases({
+			faces,
 			loadImage: async (url) => {
 				requested.push(url);
-				return { naturalWidth: 1024, naturalHeight: 512 };
+				const size = sizes.get(url);
+				if (!size) throw new Error(`unexpected ${url}`);
+				return size;
 			},
 		});
 		expect(loaded.map((entry) => [entry.role, entry.face])).toEqual(
 			FONT_FACES.map((entry) => [entry.role, entry.face]),
 		);
-		expect(requested).toHaveLength(FONT_FACES.length);
+		expect(requested).toEqual(FONT_FACES.map((entry) => entry.face));
 		expect(loaded[0].atlas.glyph(0x41)).toBeDefined();
 	});
 

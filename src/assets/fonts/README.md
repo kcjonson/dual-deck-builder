@@ -1,12 +1,12 @@
 # Font atlases
 
-MSDF atlases for the text roles of R11.8, built by `scripts/build-fonts.sh` (macOS, Linux) or `scripts/build-fonts.ps1` (Windows). The PNG and JSON pairs are committed, so neither CI nor a fresh checkout needs the generator; run the script only when a face or `charset.txt` changes, then commit what it writes.
+MSDF atlases for the three text roles of R11.8, one face each (R6.4), built by `scripts/build-fonts.sh` (macOS, Linux) or `scripts/build-fonts.ps1` (Windows). The PNG and JSON pairs are committed, so neither CI nor a fresh checkout needs the generator; run the script only when a face or `charset.txt` changes, then commit what it writes.
 
 | Role | Face | Source | Licence | Atlas |
 |---|---|---|---|---|
 | body | Open Sans Regular 3.000 | [googlefonts/opensans](https://github.com/googlefonts/opensans) | SIL OFL 1.1, `open-sans/OFL.txt` | `open-sans-regular.{png,json}` |
 | mono | JetBrains Mono Regular 2.304 | [JetBrains/JetBrainsMono release v2.304](https://github.com/JetBrains/JetBrainsMono/releases/tag/v2.304) | SIL OFL 1.1, `jetbrains-mono/OFL.txt` | `jetbrains-mono-regular.{png,json}` |
-| display | not chosen yet | | | |
+| display | Barlow Condensed SemiBold 1.422 | [jpt/barlow tag 1.422](https://github.com/jpt/barlow/tree/1.422) | SIL OFL 1.1, `barlow-condensed/OFL.txt` | `barlow-condensed-semibold.{png,json}` |
 
 Every face has to ship with its licence file (R6.2), and the web and Electron builds copy the `OFL.txt` files into `assets/fonts/`. System fonts (Arial) cannot be redistributed, so they cannot be atlased.
 
@@ -24,6 +24,6 @@ Parameters (implementation spec section 5, R6.4a): `-type mtsdf -size 48 -pxrang
 
 `charset.txt` is msdf-atlas-gen's charset syntax (hex code points and `[first, last]` ranges; the format has no comments). It holds the R6.3 coverage: printable ASCII, Latin-1 Supplement (which includes the degree sign and middle dot), the general punctuation text uses (typographic spaces, zero-width space, dashes, quotes, dagger, bullet, ellipsis, per mille, primes, single guillemets, fraction slash, word joiner), the euro and trademark signs, U+FEFF, and U+FFFD.
 
-A face may lack some of these: Open Sans has no U+2010 to U+2012, and JetBrains Mono has none of the typographic spaces. The generator warns about them and the loader (`src/renderer/engine/text/FontAtlas.ts`) substitutes the glyph a typesetter would use, a hyphen for a non-breaking hyphen, for example. `fontAssets.test.ts` fails if any code point in the charset still resolves to nothing, so extending the charset means checking both faces cover it or adding a substitute.
+A face may lack some of these: Open Sans has no U+2010 to U+2012, JetBrains Mono and Barlow Condensed have none of the typographic spaces, and Barlow Condensed has no U+FFFD. The generator warns about them and the loader (`src/renderer/engine/text/FontAtlas.ts`) substitutes the glyph a typesetter would use, a hyphen for a non-breaking hyphen, for example. `fontAssets.test.ts` fails if any code point in the charset still resolves to nothing, so extending the charset means checking both faces cover it or adding a substitute.
 
 Symbols, arrows, and emoji are not text (R6.3); they belong in the icon atlas.

@@ -88,13 +88,12 @@ describe.each(FONT_FACES.map((face) => [face.face, face] as const))('committed a
 });
 
 describe('font roles', () => {
-	it('gives each role at most one face', () => {
-		const roles = FONT_FACES.map((face) => face.role);
-		expect(new Set(roles).size).toBe(roles.length);
+	it('gives each of the three roles exactly one face', () => {
+		expect(FONT_FACES.map((face) => face.role).sort()).toEqual(['body', 'display', 'mono']);
 	});
 
 	it('ships an OFL licence beside each face', () => {
-		for (const directory of ['open-sans', 'jetbrains-mono']) {
+		for (const directory of ['barlow-condensed', 'open-sans', 'jetbrains-mono']) {
 			expect(readFileSync(join(FONTS_DIR, directory, 'OFL.txt'), 'utf8')).toContain('SIL OPEN FONT LICENSE Version 1.1');
 		}
 	});

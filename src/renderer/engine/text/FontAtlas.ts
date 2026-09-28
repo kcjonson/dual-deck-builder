@@ -72,7 +72,8 @@ export class FontAtlasError extends Error {
  * that does not break; breaking is the wrap's business, R6.13, not the
  * glyph's). Without these the R6.3 punctuation would render as the fallback
  * glyph in faces that simply omit it: Open Sans 3.000 has no U+2010, and
- * JetBrains Mono has none of the typographic spaces.
+ * JetBrains Mono and Barlow Condensed have none of the typographic spaces.
+ * Barlow Condensed has no U+FFFD either, which R6.3 lets fall back to `?`.
  */
 export const CODE_POINT_SUBSTITUTES: ReadonlyMap<number, readonly number[]> = new Map([
 	[0x2002, [0x0020]],
@@ -88,8 +89,10 @@ export const CODE_POINT_SUBSTITUTES: ReadonlyMap<number, readonly number[]> = ne
 	[0x2011, [0x2010, 0x002D]],
 	[0x2012, [0x2013]],
 	[0x2015, [0x2014]],
+	[0x201B, [0x2018]],
 	[0x201F, [0x201D]],
 	[0x202F, [0x2009, 0x00A0]],
+	[0xFFFD, [0x003F]],
 ]);
 
 /**

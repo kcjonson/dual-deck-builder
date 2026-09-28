@@ -1,9 +1,11 @@
+import barlowCondensedSemiBoldMetrics from '../../../assets/fonts/barlow-condensed-semibold.json';
+import barlowCondensedSemiBoldImage from '../../../assets/fonts/barlow-condensed-semibold.png';
 import openSansRegularMetrics from '../../../assets/fonts/open-sans-regular.json';
 import openSansRegularImage from '../../../assets/fonts/open-sans-regular.png';
 import jetBrainsMonoRegularMetrics from '../../../assets/fonts/jetbrains-mono-regular.json';
 import jetBrainsMonoRegularImage from '../../../assets/fonts/jetbrains-mono-regular.png';
 
-/** R11.8's three roles. A role with no face yet has no entry in `FONT_FACES`. */
+/** R11.8's three roles. */
 export type FontRole = 'display' | 'body' | 'mono';
 
 export interface FontFaceAsset {
@@ -21,11 +23,16 @@ export interface FontFaceAsset {
 }
 
 /**
- * The committed atlases. The display face is not chosen yet; until it is,
- * `display` has no atlas and the theme's weight table (R11.8) cannot resolve
- * `bold` to it.
+ * The committed atlases, one face per role (R6.4). There is no body bold face,
+ * so R11.8's weight table resolves `bold` on body to the display face.
  */
 export const FONT_FACES: readonly FontFaceAsset[] = [
+	{
+		role: 'display',
+		face: 'barlow-condensed-semibold',
+		metrics: barlowCondensedSemiBoldMetrics,
+		imageUrl: barlowCondensedSemiBoldImage,
+	},
 	{
 		role: 'body',
 		face: 'open-sans-regular',
