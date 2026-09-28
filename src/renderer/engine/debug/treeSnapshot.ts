@@ -221,8 +221,14 @@ function serializeNode(
 			serialized.value = node.getValue();
 		}
 
-		const innerClip = node.clipsChildren
-			? intersectClip(context.clip, snapClipRect({ minX: screenX, minY: screenY, maxX: screenX + w, maxY: screenY + h }, context.ratio), null)
+		const clipRect = node.clipsChildren ? node.clipRect : null;
+		const innerClip = clipRect
+			? intersectClip(context.clip, snapClipRect({
+				minX: screenX + finite(clipRect.x),
+				minY: screenY + finite(clipRect.y),
+				maxX: screenX + finite(clipRect.x) + finite(clipRect.width),
+				maxY: screenY + finite(clipRect.y) + finite(clipRect.height),
+			}, context.ratio), null)
 			: context.clip;
 
 		// `ancestors` is per-path and catches cycles. `seen` is walk-wide and
