@@ -220,6 +220,17 @@ describe('TooltipService (R12.22)', () => {
 		expect(tooltipRoot()).toBeDefined();
 	});
 
+	it('forgets a shown tooltip on a press elsewhere, so keyboard focus can show it again', () => {
+		save.focusable = true;
+		context.tooltips.show(save, { fade: false });
+		send(context, [pointer('down', 700, 500), pointer('up', 700, 500)]);
+		expect(context.tooltips.state).toBe('idle');
+		send(context, [key('Tab')]);
+		expect(context.focus.focused).toBe(save);
+		advance(context, DELAY + 16);
+		expect(tooltipRoot()).toBeDefined();
+	});
+
 	it('reads the drag service for R9.12e', () => {
 		expect(context.tooltips.dragActive()).toBe(context.drag.isDragging);
 	});

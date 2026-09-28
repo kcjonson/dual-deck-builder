@@ -6,7 +6,7 @@ import type { Rect, Vec2 } from '../draw/geometry';
 import type { Dispatcher, InputObserver, PointerPosition, PointerPress } from '../input/Dispatcher';
 import type { KeyStroke } from '../input/HotkeyTable';
 import { tokens } from '../theme/tokens';
-import type { OverlayHandle, OverlayService } from './OverlayService';
+import { OverlayHandle, OverlayService, contains } from './OverlayService';
 import { PlacementService, pointAnchor } from './Placement';
 import type { TooltipSpec } from './tooltipSpec';
 import { TooltipSurface } from './TooltipSurface';
@@ -147,7 +147,8 @@ export class TooltipService implements InputObserver, FrameTicker {
 	public focusVisibleChange(component: Component | null): void {
 		const owner = ownerOf(component);
 		if (owner) {
-			if (owner === this.ownerValue && this.stateValue !== 'hiding' && this.stateValue !== 'idle') return;
+			const active = this.stateValue === 'waiting' || this.stateValue === 'showing' || this.stateValue === 'visible';
+			if (owner === this.ownerValue && active) return;
 			this.enter(owner, null, 'focus');
 		} else if (this.triggerValue === 'focus') {
 			this.leave();
@@ -176,12 +177,19 @@ export class TooltipService implements InputObserver, FrameTicker {
 		this.waitStart = this.clock.now;
 	}
 
-	/** Any press hides it and keeps it hidden while the pointer stays on the owner. Never consumes. */
-	public pointerDown(_press: PointerPress): boolean {
+	/**
+	 * Any press hides it; a press on the owner keeps it hidden while the
+	 * pointer stays there. Never consumes.
+	 */
+	public pointerDown(press: PointerPress): boolean {
 		if (this.stateValue === 'idle') return false;
 		const owner = this.ownerValue;
-		this.removeSurface();
-		this.stateValue = owner ? 'suppressed' : 'idle';
+		if (owner && press.target && contains(owner, press.target)) {
+			this.removeSurface();
+			this.stateValue = 'suppressed';
+		} else {
+			this.reset();
+		}
 		return false;
 	}
 
