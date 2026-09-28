@@ -1,0 +1,19 @@
+[
+{"path":"gallery_root/dev_section_checkboxes/Text[0]","text":"Checkboxes and Toggles","rect":[53,53,236.26,33.6]},
+{"path":"gallery_root/dev_section_checkboxes/dev_section_checkboxes_rows/Stack[0]/Text[0]","text":"checkbox: off, on, indeterminate, disabled off, disabled on","rect":[53,103,350.85,17.7]},
+{"path":"gallery_root/dev_section_checkboxes/dev_section_checkboxes_rows/Stack[0]/Stack[1]/dev_check_off/Text[0]","text":"Damage numbers","rect":[77,126.7,125.07,34]},
+{"path":"gallery_root/dev_section_checkboxes/dev_section_checkboxes_rows/Stack[0]/Stack[1]/dev_check_on/Text[0]","text":"Screen shake","rect":[250.07,126.7,92.47,34]},
+{"path":"gallery_root/dev_section_checkboxes/dev_section_checkboxes_rows/Stack[0]/Stack[1]/dev_check_mixed/Text[0]","text":"All effects","rect":[390.54,126.7,67.57,34]},
+{"path":"gallery_root/dev_section_checkboxes/dev_section_checkboxes_rows/Stack[0]/Stack[1]/dev_check_disabled/Text[0]","text":"Tutorial","rect":[506.11,126.7,53.87,34]},
+{"path":"gallery_root/dev_section_checkboxes/dev_section_checkboxes_rows/Stack[0]/Stack[1]/dev_check_disabled_on/Text[0]","text":"Autosave","rect":[607.98,126.7,64.45,34]},
+{"path":"gallery_root/dev_section_checkboxes/dev_section_checkboxes_rows/Stack[1]/Text[0]","text":"toggle: off, on, disabled off, disabled on","rect":[53,184.7,237.93,17.7]},
+{"path":"gallery_root/dev_section_checkboxes/dev_section_checkboxes_rows/Stack[1]/Stack[1]/dev_toggle_off/Text[0]","text":"Music","rect":[93,208.41,40.81,34]},
+{"path":"gallery_root/dev_section_checkboxes/dev_section_checkboxes_rows/Stack[1]/Stack[1]/dev_toggle_on/Text[0]","text":"Sound","rect":[197.81,208.41,44.82,34]},
+{"path":"gallery_root/dev_section_checkboxes/dev_section_checkboxes_rows/Stack[1]/Stack[1]/dev_toggle_disabled/Text[0]","text":"Voice","rect":[306.63,208.41,37.36,34]},
+{"path":"gallery_root/dev_section_checkboxes/dev_section_checkboxes_rows/Stack[1]/Stack[1]/dev_toggle_disabled_on/Text[0]","text":"Fullscreen","rect":[408,208.41,71.02,34]},
+{"path":"gallery_root/dev_section_checkboxes/dev_section_checkboxes_rows/Stack[2]/Text[0]","text":"sizes: sm and lg","rect":[53,266.41,94.33,17.7]},
+{"path":"gallery_root/dev_section_checkboxes/dev_section_checkboxes_rows/Stack[2]/Stack[1]/Checkbox[0]/Text[0]","text":"Small","rect":[75,300.11,32.95,26]},
+{"path":"gallery_root/dev_section_checkboxes/dev_section_checkboxes_rows/Stack[2]/Stack[1]/Checkbox[1]/Text[0]","text":"Large","rect":[159.95,290.11,46.63,46]},
+{"path":"gallery_root/dev_section_checkboxes/dev_section_checkboxes_rows/Stack[2]/Stack[1]/Toggle[2]/Text[0]","text":"Small","rect":[266.59,300.11,32.95,26]},
+{"path":"gallery_root/dev_section_checkboxes/dev_section_checkboxes_rows/Stack[2]/Stack[1]/Toggle[3]/Text[0]","text":"Large","rect":[371.54,290.11,46.63,46]}
+]

@@ -292,6 +292,17 @@ export abstract class Component {
 		if (options.style) this.applyStyle(options.style);
 	}
 
+	/**
+	 * R12.34: a focus group hears each press of one of its members (a click
+	 * that counted, or an accepted `activate`) after the member has handled
+	 * it, which is how a list selects the row that was clicked or activated.
+	 * `Pressable` controls call it on their nearest focus-group ancestor;
+	 * containers that are not groups ignore it.
+	 */
+	public memberPressed(_member: Component, _event: UiPointerEvent | UiActionEvent): void {
+		// Not a focus group.
+	}
+
 	/** R8.2's layout callback. A property, as every callback is (R8.25). */
 	public onLayout: ((bounds: Rect) => void) | null = null;
 

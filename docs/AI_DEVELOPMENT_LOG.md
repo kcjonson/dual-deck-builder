@@ -14,6 +14,19 @@ This document contains the chronological log of completed development tasks for 
 - Corners draw at one logical pixel per texel. Insets that cross inside the source are scaled down per axis; a destination smaller than two corners scales every corner by the smaller axis's factor, so corners keep their aspect (CSS border-image's rule). Zero insets drop their empty cells.
 - Tests: grid math in `nineSlice.test.ts`, encoder output in `UberGeometryEncoder.test.ts`, and a SwiftShader pixel test (corners stay 2x2 texels of pure colour, a fractional placement has no gap between cells). The `shading` gallery scene gained 5.10's nine-sliced image: a 24 px frame at one to one, sliced wide, stretched unsliced for contrast, and sliced shorter than its corners.
 
+## Catalog Wave A, controls (2026-09-28)
+
+**What landed:** DDB-85's first PR (DDB-55 phase 5), R12.7, R12.8, R12.9, R12.34, R12.35.
+
+- `ui/Pressable.ts`: the shared press machine (capture on press, `pressed` tracks the pointer, click only when released inside, `activate` presses, `acceptsActivation` and `onPressed` hooks, the focus group hears presses through the new `Component.memberPressed`).
+- `Button` extends it; new options `iconPosition`, `ghost` (`ghostLayers` in `style/variants.ts`), `block`, `disabled`, `onClick`.
+- New `ListRow`, `Checkbox` (and the shared `Checkable`, whose `checked` is its own field, apart from the group-owned `selected`, and is reported as `state.checked`, `mixed` when indeterminate), `Toggle`, `RadioGroup` with `Radio`, `FocusGroup` (selection `none` by default); `rowLayers` and `markLayers` in `style/variants.ts`; `drawIcon` in `components/Icon.ts`; `groupMembers` exported from the focus manager.
+- `UiActionEvent.key` carries the key behind a keyboard `activate` or `cancel`. A captured `pointercancel` bubbles from the captor (R9.10). The innermost pressable takes a press; a press that becomes a drag stops showing pressed.
+- Icon atlas: `check` and `remove` added; the five existing glyphs keep their atlas cells, so nothing already drawn moved.
+- Gallery: `CatalogSection` plus `button-variants`, `lists`, `checkboxes`, `radio-group`.
+
+**How:** `ui/controls.test.ts` drives every control through injected input on a mounted root with the committed font metrics (press machine, capture, release outside, options, list selection single, multiple, and none, Tab stops and group re-entry, Space versus Enter, controlled values, indeterminate, toggle slide and reduced motion, radio arrows skipping disabled and wrapping). All four scenes lint clean in the browser, clicked and arrowed through by hand.
+
 ## Combat screen on stacks (2026-09-28)
 
 **What landed:** DDB-82 (DDB-55 phase 4), closing DDB-183 and the 800x450 resource bar note from #78.
