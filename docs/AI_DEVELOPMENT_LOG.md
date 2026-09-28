@@ -6,6 +6,14 @@ This document contains the chronological log of completed development tasks for 
 
 **Date correction (2026-08-22):** the repo's first commit is 2025-05-17, but many entries below carry dates in December 2024 or January 2025 — the AI that wrote them used its assumed date instead of the real one. Entries dated 2025-07-03 and 2025-07-02 have been corrected from "2025-01-03"/"2025-01-02" (verified against git history). Remaining Dec 2024 / Jan 2025 dates are wrong by roughly six months; the real work happened May–July 2025. Trust git history over these dates.
 
+## WebGL2 backend replaces the WebGL1 path (2026-09-28)
+
+**What landed:** DDB-63 (DDB-55 phase 1). `src/renderer/engine/rendering/WebGL2Backend.ts` is the live backend on both pages and `LegacyGLBackend.ts`, its WebGL1 context and `Shader.ts` are deleted. It reuses `Batcher` and `LegacyGeometryEncoder` (32-bit indices now), with the two shaders ported to GLSL ES 3.00 without changing their arithmetic.
+
+**How:** `Renderer` creates a WebGL2 context with R15.2's attributes (except `antialias`, measured to move 12 of 13 goldens with the legacy program, kept until DDB-64), handles `webglcontextlost`/`webglcontextrestored`, and shows a DOM status line when the context is missing or lost. `StreamRing` places each upload in a fixed-capacity vertex or index buffer at an advancing offset that never overwrites a region younger than two frames, growing the buffer once with a warning if a frame needs more. The projection and view live in a `std140` block, one 256-byte-aligned slot per frame in a ring of three, bound with `bindBufferRange`. `FontAtlas` uploads with `texStorage2D` and `texSubImage2D` and re-uploads on restore. `FrameLoop` replaces both hand-written rAF loops so R15.5 can cancel it. `LegacyPaintOrder` moved to its own file unchanged; `createLegacyDrawApi` is `createDrawApi`.
+
+**Evidence:** byte-identical screenshots against `main` for six screens and eight gallery scenes, under SwiftShader at ratio 1 and hardware Metal at ratio 2 (with `powerPreference` held at default for the hardware run, since `high-performance` selects the discrete GPU). New unit tests: `StreamRing` (8), `FrameLoop` (4), and `WebGL2Backend` against a recording context (11: no R15.22 call, no `bufferData`, `texImage2D` or uniform setter inside a frame, rotating uniform slots, ring offsets and growth, attribute pointers per upload, rebuild on restore). New Playwright spec `contextLoss.spec.ts`. Follow-ups filed: DDB-185 (concave `Polygon` fill, now the `primitive-shapes` golden's blocker) and DDB-186 (R15.3, R15.4). Decision record: `docs/AI_TECHNICAL_DECISIONS/webgl2-backend.md`.
+
 ## The clip stack's consumers: cull, snapshot, hit test (2026-09-28)
 
 **What landed:** DDB-65's fourth and last PR (DDB-55 phase 1), stacked on the batcher.
