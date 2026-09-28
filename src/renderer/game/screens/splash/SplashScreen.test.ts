@@ -69,6 +69,20 @@ describe('SplashScreen fade (DDB-41)', () => {
 		expect(screen.root.findById('splash_logo')?.getX()).toBe(400 - 150);
 	});
 
+	it('fades in and holds again after a remount mid-fade-out', () => {
+		advance(context, screen, 1000);
+		advance(context, screen, 2000);
+		advance(context, screen, 200);
+		screen.unmount();
+
+		screen.mount(context);
+		expect(screen.root.opacity).toBe(0);
+		advance(context, screen, 1000);
+		advance(context, screen, 1999);
+		expect(screen.root.opacity).toBe(1);
+		expect(navigate).not.toHaveBeenCalled();
+	});
+
 	it('stops fading when it unmounts', () => {
 		advance(context, screen, 200);
 		screen.unmount();

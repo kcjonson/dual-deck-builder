@@ -8,13 +8,13 @@ import { Card } from '../../ui/Card';
 import { CardLoader } from '../../core/CardLoader';
 import { CARD_RARITIES, Card as GameCard } from '../../mechanics/Card';
 
-/**
- * Screen for showcasing all available cards
- */
 /** The strips above and below the scroll panel: the title's and the back button's. */
 const HEADER_HEIGHT = 80;
 const FOOTER_HEIGHT = 80;
 
+/**
+ * Screen for showcasing all available cards
+ */
 export class CardShowcaseScreen extends Screen {
 	private background: Rectangle;
 	private title: Text;

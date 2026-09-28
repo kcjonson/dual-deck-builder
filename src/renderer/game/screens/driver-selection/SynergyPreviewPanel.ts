@@ -202,7 +202,7 @@ export class SynergyPreviewPanel extends Layer {
 		}
 		if (this.tagsContainer) {
 			this.tagsContainer.setPosition(0, currentY);
-			this.tagsContainer.setSize(panelWidth, panelHeight - currentY);
+			this.tagsContainer.setSize(panelWidth, Math.max(0, panelHeight - currentY));
 			this.placeTags(panelWidth);
 		}
 	}

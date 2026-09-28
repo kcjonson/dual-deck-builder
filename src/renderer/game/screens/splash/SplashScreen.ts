@@ -75,6 +75,8 @@ export class SplashScreen extends Screen {
 	 * settles the fade-in and captures the screen at full opacity.
 	 */
 	protected onMount(): void {
+		this.shownAt = null;
+		this.leaving = false;
 		this.positionElements();
 		this.context.animator.tween({
 			from: 0,

@@ -22,6 +22,6 @@ Phases 1 to 3 built the component base, the mount context, the dispatcher, and t
 
 ## Consequences
 
-- Driver selection's goldens move: the left deck preview is drawn once, where it was drawn three times, so the mini cards' anti-aliased edges and text are lighter, and the text record loses the duplicate entries. Everything else is intended to be pixel-identical.
+- Only the driver selection text record moved: it loses the left deck preview's duplicate entries, and unnamed mini cards are addressed as `Card[n]` rather than `Layer[n]`. No PNG golden changed; the triple overdraw sat inside the pixel budget.
 - `ArmorBadge.minWidth` is settable, so a plate's badge follows the plate's width.
 - The remaining `onResized` overrides in combat layers work as before; moving them to `layoutChildren` is phase 4's Stack work.
