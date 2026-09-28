@@ -351,7 +351,7 @@ resize the observer has not reported yet.
 Stability, measured on CI: a Screenshots run on the branch compared all 35 captures against
 `main`'s goldens, minted on other runner instances, and every one differed by 0 pixels. Three
 `update_mode=all` mints on the branch each rewrote every golden and each ended "Baselines
-unchanged", so the files are byte-identical across mints: runs 36443442482, MINT2 and MINT3.
+unchanged", so the files are byte-identical across mints: runs 36443442482, 36444289171 and 36444931498.
 
 ## The cluster rule (DDB-197)
 
