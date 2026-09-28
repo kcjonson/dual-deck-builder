@@ -1,4 +1,7 @@
 import { Layer } from '../../engine/components/Layer';
+import { renderTree } from '../../engine/components/renderTree';
+import type { DrawApi } from '../../engine/draw/DrawApi';
+import type { MountContext } from '../../engine/components/MountContext';
 
 /**
  * Base class for game screens
@@ -7,6 +10,7 @@ export abstract class Screen {
 	protected id: string;
 	protected rootLayer: Layer;
 	protected isActive = false;
+	private mountContext: MountContext | null = null;
 
 	/**
 	 * Create a new screen
@@ -14,6 +18,9 @@ export abstract class Screen {
 	 */
 	constructor(id: string) {
 		this.id = id;
+		// Window-sized only because two screens still build UI in their
+		// constructors from this size; mount resizes it to the viewport the
+		// screen is mounted in (R8.21), and DDB-79 moves that UI to onMount.
 		this.rootLayer = new Layer({
 			id,
 			x: 0,
@@ -38,11 +45,26 @@ export abstract class Screen {
 	}
 
 	/**
-	 * Mount the screen (make it active)
+	 * The services this screen was mounted with. Only valid between `mount`
+	 * and `unmount`, which is when every hook runs.
+	 */
+	protected get context(): MountContext {
+		if (!this.mountContext) throw new Error(`Screen ${this.id} is not mounted`);
+		return this.mountContext;
+	}
+
+	/**
+	 * Mount the screen: size and mount its root with the context, then run
+	 * `onMount`, so everything it builds is mounted as it is added (R8.15).
+	 * @param context The mount context every component in the screen receives
 	 * @param data Optional data to pass to the screen
 	 */
-	public mount(data?: unknown): void {
+	public mount(context: MountContext, data?: unknown): void {
+		this.mountContext = context;
 		this.isActive = true;
+		const { width, height } = context.viewport.logical;
+		this.rootLayer.setSize(width, height);
+		this.rootLayer.mount(context);
 
 		// Call onMount - handle both sync and async versions
 		try {
@@ -65,9 +87,10 @@ export abstract class Screen {
 		this.isActive = false;
 
 		this.onUnmount();
-		
-		// Unmount all child components to prevent input system leaks
+
+		// Releases every registration in the tree (R8.22).
 		this.rootLayer.unmount();
+		this.mountContext = null;
 	}
 
 	/**
@@ -121,10 +144,7 @@ export abstract class Screen {
 	public update(dt: number): void {
 		if (!this.isActive) return;
 
-		// Update the root layer (which updates all children)
-		this.rootLayer.update(dt);
-
-		// Call the screen-specific update handler
+		// Components are updated by the frame, on request (R8.17).
 		this.onUpdate(dt);
 	}
 
@@ -140,11 +160,10 @@ export abstract class Screen {
 	/**
 	 * Render the screen
 	 */
-	public render(): void {
+	public render(draw: DrawApi): void {
 		if (!this.isActive) return;
 
-		// Render the root layer (which renders all children)
-		this.rootLayer.render();
+		renderTree(this.rootLayer, draw);
 
 		// Call the screen-specific render handler
 		this.onRender();

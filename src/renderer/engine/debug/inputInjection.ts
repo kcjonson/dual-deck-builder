@@ -1,4 +1,4 @@
-import { InputSystem } from '../input/InputSystem';
+import type { InputSystem } from '../input/InputSystem';
 import type { InjectedStep } from './inputScript';
 import { parseInputCommand } from './inputScript';
 
@@ -154,8 +154,8 @@ function mouseEvent(
 	});
 }
 
-function dispatchStep(canvas: HTMLCanvasElement, step: InjectedStep): InjectedEventResult {
-	const swallowed = InputSystem.getInstance().paused;
+function dispatchStep({ canvas, input }: InjectionTarget, step: InjectedStep): InjectedEventResult {
+	const swallowed = input.paused;
 
 	switch (step.kind) {
 		case 'move':
@@ -202,8 +202,17 @@ function dispatchStep(canvas: HTMLCanvasElement, step: InjectedStep): InjectedEv
 	}
 }
 
-export function injectInput(canvas: HTMLCanvasElement, commands: string[]): InjectionResult {
-	const paused = InputSystem.getInstance().paused;
+/**
+ * The canvas the input system listens on, and that input system, whose pause
+ * gate decides whether an injected event is swallowed (R13.35).
+ */
+export interface InjectionTarget {
+	canvas: HTMLCanvasElement;
+	input: InputSystem;
+}
+
+export function injectInput(target: InjectionTarget, commands: string[]): InjectionResult {
+	const paused = target.input.paused;
 	const results: InjectedCommandResult[] = [];
 	let ok = true;
 
@@ -216,7 +225,7 @@ export function injectInput(canvas: HTMLCanvasElement, commands: string[]): Inje
 			continue;
 		}
 
-		const events = parsed.steps.map((step) => dispatchStep(canvas, step));
+		const events = parsed.steps.map((step) => dispatchStep(target, step));
 		const delivered = events.every((event) => event.dispatched);
 		if (!delivered) ok = false;
 		results.push({ command, ok: delivered, events });

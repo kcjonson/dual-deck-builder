@@ -67,7 +67,7 @@ export class InteractiveControlsSection extends DeveloperSectionPanel {
 			const parts = value.split(',').map((v) => parseFloat(v.trim()));
 			if (parts.length === 4 && parts.every((v) => !isNaN(v))) {
 				const [r, g, b, a] = parts;
-				this.demoRectangle.setBackgroundColor([r / 255, g / 255, b / 255, a]);
+				this.demoRectangle.setFillColor([r / 255, g / 255, b / 255, a]);
 			}
 		});
 		this.addChild(colorInput);
@@ -117,7 +117,7 @@ export class InteractiveControlsSection extends DeveloperSectionPanel {
 			const colorParts = colorValue.split(',').map((v) => parseFloat(v.trim()));
 			if (colorParts.length === 4 && colorParts.every((v) => !isNaN(v))) {
 				const [r, g, b, a] = colorParts;
-				this.demoRectangle.setBackgroundColor([r / 255, g / 255, b / 255, a]);
+				this.demoRectangle.setFillColor([r / 255, g / 255, b / 255, a]);
 			}
 			
 			const posParts = posValue.split(',').map((v) => parseInt(v.trim()));

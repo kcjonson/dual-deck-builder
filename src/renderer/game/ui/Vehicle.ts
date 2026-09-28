@@ -2,7 +2,7 @@ import { Layer } from '../../engine/components/Layer';
 import { Rectangle } from '../../engine/components/Rectangle';
 import { Text } from '../../engine/components/Text';
 import { Vehicle as VehicleData } from '../mechanics/Vehicle';
-import { InputSystem } from '../../engine/input/InputSystem';
+import type { MountContext } from '../../engine/components/MountContext';
 import { CombatModel } from '../screens/combat/CombatModel';
 import { ArmorBadge } from './ArmorBadge';
 
@@ -31,7 +31,6 @@ export class Vehicle extends Layer {
 	private onClickCallback: ((vehicle: VehicleData) => void) | null = null;
 	
 	// State
-	private isHovered = false;
 	private builtShape = '';
 	private modelUnsubscribers: (() => void)[] = [];
 	
@@ -52,7 +51,6 @@ export class Vehicle extends Layer {
 		
 		this.createElements();
 		this.updateVisuals();
-		this.setupEventHandlers();
 		
 		if (this.combatData) {
 			this.subscribeToModel();
@@ -240,9 +238,8 @@ export class Vehicle extends Layer {
 					fontWeight: 'bold',
 				},
 			});
-			// Right edge at 95 percent of the width
-			this.spentChip.setPosition(Math.floor(width * 0.95 - this.spentChip.getWidth()), Math.floor(height * 0.05));
 			this.addChild(this.spentChip);
+			this.placeSpentChip();
 		}
 
 		// Status effect container (for future use)
@@ -350,21 +347,32 @@ export class Vehicle extends Layer {
 		this.updateVisualState();
 	}
 	
-	/**
-	 * Set up event handlers
-	 */
-	private setupEventHandlers(): void {
+	/** Right edge at 95 percent of the width, from the chip's measured width. */
+	private placeSpentChip(): void {
+		if (!this.spentChip) return;
+		this.spentChip.setPosition(
+			Math.floor(this.getWidth() * 0.95 - this.spentChip.getWidth()),
+			Math.floor(this.getHeight() * 0.05),
+		);
+	}
+
+	/** The chip measures on mount (R1.6); this places it before the first render. */
+	protected layoutChildren(): void {
+		this.placeSpentChip();
+	}
+
+	protected onMount({ input }: MountContext): void {
 		// Click handler
-		InputSystem.registerMouseDown(this, () => {
+		input.registerMouseDown(this, () => {
 			if (this.onClickCallback && this.isTargetable()) {
 				this.onClickCallback(this.vehicleData);
 			}
 		});
 		
 		// Hover handlers for visual feedback
-		InputSystem.registerMouseOver(this, () => {
-			if (!this.isHovered) {
-				this.isHovered = true;
+		input.registerMouseOver(this, () => {
+			if (!this.hovered) {
+				this.setHovered(true);
 				if (this.combatData && this.combatData.isTargeting) {
 					this.combatData.focusVehicle(this.vehicleData.id);
 				}
@@ -372,9 +380,9 @@ export class Vehicle extends Layer {
 			}
 		});
 		
-		InputSystem.registerMouseOut(this, () => {
-			if (this.isHovered) {
-				this.isHovered = false;
+		input.registerMouseOut(this, () => {
+			if (this.hovered) {
+				this.setHovered(false);
 				if (this.combatData && this.combatData.focusedVehicleId === this.vehicleData.id) {
 					this.combatData.focusVehicle(null);
 				}
@@ -429,7 +437,7 @@ export class Vehicle extends Layer {
 	/**
 	 * Check if this vehicle is focused
 	 */
-	private isFocused(): boolean {
+	private isFocusedTarget(): boolean {
 		if (!this.combatData) return false;
 		return this.combatData.focusedVehicleId === this.vehicleData.id;
 	}
@@ -449,7 +457,7 @@ export class Vehicle extends Layer {
 	private updateVisualState(): void {
 		const carrier = this.isOrderCarrier();
 		const targetable = this.isTargetable() || carrier;
-		const focused = this.isFocused() || carrier;
+		const focused = this.isFocusedTarget() || carrier;
 		const targeting = this.combatData?.isTargeting || false;
 		
 		// Update visual state based on targetability
@@ -467,7 +475,7 @@ export class Vehicle extends Layer {
 			// Focused and targetable
 			this.portrait.setBorderWidth(4);
 			this.portrait.setBorderColor(this.getFocusedBorderColor());
-		} else if (this.isHovered && targetable) {
+		} else if (this.hovered && targetable) {
 			// Hovered and targetable
 			this.portrait.setBorderWidth(4);
 			this.portrait.setBorderColor(this.getBorderColor());
@@ -485,25 +493,9 @@ export class Vehicle extends Layer {
 		return '#88ff88'; // Default green for focused targets
 	}
 	
-	/**
-	 * Get hover state
-	 */
-	public get hovered(): boolean {
-		return this.isHovered;
-	}
-	
-	/**
-	 * Unmount the vehicle and clean up event listeners
-	 */
-	public unmount(): void {
-		// Unsubscribe from model
+	/** Model subscriptions are the vehicle's own; input is released by the base. */
+	protected onUnmount(): void {
 		this.modelUnsubscribers.forEach(unsubscribe => unsubscribe());
 		this.modelUnsubscribers = [];
-		
-		// Unregister from input system
-		InputSystem.unregisterComponent(this);
-		
-		// Call parent unmount to handle children
-		super.unmount();
 	}
 }

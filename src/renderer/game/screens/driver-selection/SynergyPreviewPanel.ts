@@ -182,6 +182,17 @@ export class SynergyPreviewPanel extends Layer {
 					fontWeight: 'bold',
 				},
 			});
+			const tagBackground = new Rectangle({
+				style: {
+					backgroundColor: this.getTagColor(tag),
+					borderRadius: 10,
+				},
+			});
+			// Added before they are placed: the panel is mounted, so the label
+			// measures through the mount context as it is added (R1.6), and the
+			// pill is sized from that.
+			this.tagsContainer.addChild(tagBackground);
+			this.tagsContainer.addChild(tagText);
 			const tagWidth = Math.ceil(Math.min(maxTagWidth, tagText.getWidth() + TAG_PADDING * 2));
 
 			// Check if tag fits on current row
@@ -191,22 +202,12 @@ export class SynergyPreviewPanel extends Layer {
 			}
 			const tagY = currentRow * (tagHeight + tagSpacing);
 
-			const tagBackground = new Rectangle({
-				x: currentX,
-				y: tagY,
-				width: tagWidth,
-				height: tagHeight,
-				style: {
-					backgroundColor: this.getTagColor(tag),
-					borderRadius: 10,
-				},
-			});
-			this.tagsContainer.addChild(tagBackground);
+			tagBackground.setPosition(currentX, tagY);
+			tagBackground.setSize(tagWidth, tagHeight);
 
 			// Centred in the pill, inside its padding
 			tagText.setPosition(currentX + TAG_PADDING, tagY);
 			tagText.setSize(tagWidth - TAG_PADDING * 2, tagHeight);
-			this.tagsContainer.addChild(tagText);
 
 			currentX += tagWidth + tagSpacing;
 		}

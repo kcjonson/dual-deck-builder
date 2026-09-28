@@ -2,7 +2,6 @@ import { DrawApi } from '../draw/DrawApi';
 import type { FontAtlasOptions } from '../draw/DrawBackend';
 import type { FontAtlasHandle, MeasureTextOptions, TextMetrics } from '../draw/commands';
 import { RecordingBackend } from '../draw/RecordingBackend';
-import { RendererContext } from '../rendering/RendererContext';
 import { FontAtlas, parseFontAtlas } from './FontAtlas';
 import { ATLAS_ASSETS, AtlasRole, FontRole } from './fontFaces';
 import { TextMetricsService } from './TextMetricsService';
@@ -99,15 +98,15 @@ export class MeasuringRecordingBackend extends RecordingBackend {
 
 /**
  * A draw API over a `MeasuringRecordingBackend` with every committed atlas
- * loaded (the three roles and the icons), installed as the components' draw API.
+ * loaded (the three roles and the icons), for a test context that measures
+ * text (`createTestContext({ draw })`).
  */
-export function installMeasuringDrawApi(): { api: DrawApi; backend: MeasuringRecordingBackend } {
+export function createMeasuringDrawApi(): { api: DrawApi; backend: MeasuringRecordingBackend } {
 	const backend = new MeasuringRecordingBackend({ maxFrames: 1 });
 	const api = new DrawApi({ backend });
 	for (const asset of ATLAS_ASSETS) {
 		const texture = api.createTexture({ width: 1, height: 1, label: asset.role });
 		api.loadFontAtlas({ name: asset.role, atlas: committedAtlas(asset.role), texture });
 	}
-	RendererContext.getInstance().draw = api;
 	return { api, backend };
 }

@@ -1,4 +1,6 @@
 import { Screen } from './Screen';
+import type { DrawApi } from '../../engine/draw/DrawApi';
+import type { MountContext } from '../../engine/components/MountContext';
 import { SplashScreen } from '../screens/splash/SplashScreen';
 import { MainMenuScreen } from '../screens/main-menu/MainMenuScreen';
 import { DeveloperScreen } from '../screens/developer/DeveloperScreen';
@@ -32,7 +34,7 @@ type ScreenConstructor = new () => Screen;
 export class ScreenManager {
 	private static currentScreenName: ScreenName | null = null;
 	private static currentScreen: Screen | null = null;
-	private static initialized = false;
+	private static context: MountContext | null = null;
 	
 	/**
 	 * Map of screen names to their constructors
@@ -57,12 +59,12 @@ export class ScreenManager {
 	/**
 	 * Must be called once before using any other methods
 	 */
-	static initialize(): void {
-		if (this.initialized) {
+	static initialize(context: MountContext): void {
+		if (this.context) {
 			console.warn('ScreenManager already initialized');
 			return;
 		}
-		this.initialized = true;
+		this.context = context;
 	}
 	
 	/**
@@ -70,7 +72,8 @@ export class ScreenManager {
 	 * Properly destroys the current screen before creating the new one
 	 */
 	static navigate(screenName: ScreenName, data?: unknown): void {
-		if (!this.initialized) {
+		const context = this.context;
+		if (!context) {
 			throw new Error('ScreenManager not initialized. Call ScreenManager.initialize() first');
 		}
 		
@@ -96,7 +99,7 @@ export class ScreenManager {
 		
 		// Mount new screen
 		console.log(`ScreenManager: Mounting new screen ${screenName}`);
-		screen.mount(data);
+		screen.mount(context, data);
 		this.currentScreen = screen;
 		this.currentScreenName = screenName;
 	}
@@ -116,8 +119,8 @@ export class ScreenManager {
 	/**
 	 * Render the current screen
 	 */
-	static render(): void {
-		this.currentScreen?.render();
+	static render(draw: DrawApi): void {
+		this.currentScreen?.render(draw);
 	}
 	
 	/**

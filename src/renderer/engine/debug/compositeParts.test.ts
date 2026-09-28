@@ -6,6 +6,7 @@
  * other three composites do not care which environment they get.
  */
 import { Layer } from '../components/Layer';
+import type { Component } from '../components/Component';
 import { FrameTimer } from '../rendering/FrameTimer';
 import { Button } from '../ui/Button';
 import { DeveloperOverlay } from '../ui/DeveloperOverlay';
@@ -15,7 +16,7 @@ import { SnapshotNode, treeSnapshot } from './treeSnapshot';
 
 const VIEWPORT = { width: 1440, height: 882 };
 
-function snapshotOf(layer: Layer): SnapshotNode {
+function snapshotOf(layer: Component): SnapshotNode {
 	return treeSnapshot([layer], VIEWPORT).roots[0];
 }
 
@@ -47,10 +48,10 @@ function childIds(node: SnapshotNode): (string | null)[] {
  * caller-added child swap places with a background and still read as 2.
  */
 describe('the parts a composite owns', () => {
-	it('gives a Panel a background rectangle and a content layer, and no children of its own', () => {
+	it('gives a Panel no parts: its background is its own draw, not a child (R8.1, R8.6)', () => {
 		const node = snapshotOf(new Panel({ id: 'inventory_panel', width: 300, height: 200 }));
 
-		expect(partTypes(node)).toEqual(['Rectangle', 'Layer']);
+		expect('parts' in node).toBe(false);
 		expect(node.children).toEqual([]);
 	});
 
@@ -87,17 +88,14 @@ describe('the parts a composite owns', () => {
 });
 
 describe('what a caller adds is never a part', () => {
-	it('routes a Panel child into the content layer, which is a part, while the child is not', () => {
+	it('keeps a Panel child where the caller put it, directly under the panel', () => {
 		const panel = new Panel({ id: 'inventory_panel', width: 300, height: 200 });
 		panel.addChild(new Layer({ id: 'inventory_row', width: 200, height: 30 }));
 
 		const node = snapshotOf(panel);
-		const contentLayer = (node.parts ?? [])[1];
 
-		expect(node.children).toEqual([]);
-		expect(partTypes(node)).toEqual(['Rectangle', 'Layer']);
-		expect(childIds(contentLayer)).toEqual(['inventory_row']);
-		expect('parts' in contentLayer).toBe(false);
+		expect(childIds(node)).toEqual(['inventory_row']);
+		expect('parts' in node).toBe(false);
 	});
 
 	it('puts a Button child in children and leaves its two parts alone', () => {

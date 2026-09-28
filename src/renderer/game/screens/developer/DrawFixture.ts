@@ -1,7 +1,5 @@
 import { Layer } from '../../../engine/components/Layer';
 import type { DrawApi, RGBA, Rect, TextAlign } from '../../../engine/draw';
-import { DEFAULT_RENDER_CONTEXT, RenderContext } from '../../../engine/rendering/RenderContext';
-import { RendererContext } from '../../../engine/rendering/RendererContext';
 
 export interface DrawFixtureOptions {
 	id: string;
@@ -11,8 +9,6 @@ export interface DrawFixtureOptions {
 	height: number;
 	/** Draws in the fixture's own space: (0, 0) is its top-left corner. */
 	paint: (draw: DrawApi) => void;
-	/** Releases whatever `paint` holds (textures), once, when the fixture unmounts. */
-	release?: () => void;
 }
 
 /**
@@ -26,29 +22,16 @@ export interface DrawFixtureOptions {
  */
 export class DrawFixture extends Layer {
 	private readonly paint: (draw: DrawApi) => void;
-	private release: (() => void) | null;
 
-	constructor({ id, x, y, width, height, paint, release }: DrawFixtureOptions) {
+	constructor({ id, x, y, width, height, paint }: DrawFixtureOptions) {
 		super({ id, x, y, width, height });
 		this.componentType = 'DrawFixture';
 		this.paint = paint;
-		this.release = release ?? null;
 	}
 
-	public render(context?: RenderContext): void {
-		if (!this.visible) return;
-		const ctx = context ?? DEFAULT_RENDER_CONTEXT;
-		const draw = RendererContext.getInstance().draw;
-		draw.pushTranslate(ctx.offsetX + this.x, ctx.offsetY + this.y);
+	/** The walk has already translated to the fixture's origin. */
+	public render(draw: DrawApi): void {
 		this.paint(draw);
-		draw.popTransform();
-	}
-
-	public unmount(): void {
-		super.unmount();
-		const release = this.release;
-		this.release = null;
-		release?.();
 	}
 }
 

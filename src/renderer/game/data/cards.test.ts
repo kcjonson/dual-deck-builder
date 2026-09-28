@@ -2,7 +2,9 @@ import { Card, CardData, CardEffect } from '../mechanics/Card';
 import { EFFECT_TARGETS } from '../mechanics/EffectTargets';
 import cardsFile from './cards.json';
 import { Text } from '../../engine/components/Text';
-import { installMeasuringDrawApi } from '../../engine/text/testing';
+import { createMeasuringDrawApi } from '../../engine/text/testing';
+import { createTestContext } from '../../engine/components/testing';
+import type { MountContext } from '../../engine/components/MountContext';
 import { Card as UICard, CardSize } from '../ui/Card';
 
 /**
@@ -20,8 +22,12 @@ const DESCRIPTION_MAX_CHARS = 330;
 // (DDB-204), so this checks the face that ships.
 const SUMMARY_MAX_LINES = 3;
 
+let context: MountContext;
+
 const summaryLines = (summary: string): number => {
 	const face = new UICard({ x: 0, y: 0, data: new Card({ ...cards[0], summary }), size: CardSize.NORMAL });
+	// Mounted, so its texts measure through the context (R1.6).
+	face.mount(context);
 	const text = face.getChildren().find((child) => child instanceof Text && child.getText() === UICard.faceText(summary));
 	const measured = text instanceof Text ? text.measured : null;
 	if (!measured) throw new Error('summary text could not be measured');
@@ -43,7 +49,7 @@ const texts = cards.flatMap((data) =>
 
 describe('card data check', () => {
 	beforeAll(() => {
-		installMeasuringDrawApi();
+		context = createTestContext({ draw: createMeasuringDrawApi().api });
 	});
 
 	it.each(texts)('$label description fits the detail view', ({ description }) => {

@@ -1,6 +1,5 @@
 import { Component, ComponentOptions } from './Component';
-import { RendererContext } from '../rendering/RendererContext';
-import { RenderContext, DEFAULT_RENDER_CONTEXT } from '../rendering/RenderContext';
+import type { DrawApi } from '../draw/DrawApi';
 import { Style, StyleParser } from '../types/Style';
 
 /**
@@ -72,27 +71,10 @@ export class Circle extends Component {
 		return this;
 	}
 
-	/**
-	 * Render the circle
-	 * @param context Render context with coordinate transforms
-	 */
-	public render(context?: RenderContext): void {
-		if (!this.visible) return;
-
-		// Use default context if none provided
-		const ctx = context || DEFAULT_RENDER_CONTEXT;
-
-		// Calculate screen position
-		const screenX = ctx.offsetX + this.x;
-		const screenY = ctx.offsetY + this.y;
-
-		// Calculate center position
-		const centerX = screenX + this.radius;
-		const centerY = screenY + this.radius;
-
-		RendererContext.getInstance().draw.drawCircle({
+	public render(draw: DrawApi): void {
+		draw.drawCircle({
 			id: this.id ?? undefined,
-			center: { x: centerX, y: centerY },
+			center: { x: this.radius, y: this.radius },
 			radius: this.radius,
 			fill: this.fillColor,
 			// `center`, not the `inside` default: the stroke has always straddled
@@ -101,18 +83,5 @@ export class Circle extends Component {
 				? { color: this.strokeColor, width: this.strokeWidth, position: 'center' }
 				: undefined,
 		});
-
-		// Create child context with our position added
-		const childContext: RenderContext = {
-			offsetX: screenX,
-			offsetY: screenY,
-		};
-
-		// Render children with transformed context
-		for (const child of this.children) {
-			if (child.isVisible()) {
-				child.render(childContext);
-			}
-		}
 	}
 }

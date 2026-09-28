@@ -23,7 +23,6 @@ import { Card } from '../../mechanics/Card';
 import { IntentType } from '../../mechanics/Intent';
 import { CardLoader } from '../../core/CardLoader';
 import { DriverLoader } from '../../core/DriverLoader';
-import { InputSystem } from '../../../engine/input/InputSystem';
 import { BattleResultData } from '../battleResult/BattleResultScreen';
 
 /**
@@ -486,7 +485,7 @@ export class CombatScreen extends Screen {
 		});
 
 		// Set up keyboard handler for ESC key during targeting
-		InputSystem.registerKeyDown(this.rootLayer, (key: string) => {
+		this.context.input.registerKeyDown(this.rootLayer, (key: string) => {
 			if (key === 'Escape' && this.combatModel.isTargeting) {
 				this.combatModel.cancelSelection();
 				this.handLayer.clearCardSelection();
@@ -494,7 +493,7 @@ export class CombatScreen extends Screen {
 		});
 		
 		// Register global F6 handler for combat log toggle
-		InputSystem.registerGlobalKeyDown('F6', () => {
+		this.context.input.registerGlobalKeyDown('F6', () => {
 			this.toggleCombatLog();
 		});
 
@@ -789,12 +788,9 @@ export class CombatScreen extends Screen {
 			this.rootLayer.removeChild(layer);
 		}
 
-		// Unregister global keyboard handler
-		InputSystem.unregisterGlobalKeyDown('F6');
-
-		// rootLayer is a plain Layer, whose unmount only recurses; it does not
-		// unregister itself the way Component.unmount does.
-		InputSystem.unregisterComponent(this.rootLayer);
+		// Unregister global keyboard handler. The root's own keydown goes with
+		// its unmount, which the base class releases.
+		this.context.input.unregisterGlobalKeyDown('F6');
 
 		// Unsubscribe from all events
 		this.unsubscribeAll();

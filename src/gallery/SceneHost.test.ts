@@ -1,14 +1,15 @@
 import { SceneHost } from './SceneHost';
 import type { GalleryScene } from './registry';
 import { Layer } from '../renderer/engine/components/Layer';
+import type { Component } from '../renderer/engine/components/Component';
 import { Panel } from '../renderer/engine/ui/Panel';
 import { Button } from '../renderer/engine/ui/Button';
 import { Text } from '../renderer/engine/components/Text';
 import { Input } from '../renderer/engine/ui/Input';
-import { InputSystem } from '../renderer/engine/input/InputSystem';
-import { RendererContext } from '../renderer/engine/rendering/RendererContext';
-import { DrawApi, NullBackend } from '../renderer/engine/draw';
-import { installMeasuringDrawApi } from '../renderer/engine/text/testing';
+import type { DrawApi } from '../renderer/engine/draw';
+import type { MountContext } from '../renderer/engine/components/MountContext';
+import { createTestContext } from '../renderer/engine/components/testing';
+import { createMeasuringDrawApi } from '../renderer/engine/text/testing';
 
 const VIEWPORT = { width: 1440, height: 882 };
 
@@ -17,8 +18,6 @@ const VIEWPORT = { width: 1440, height: 882 };
  * private, so this test reaches them through a cast: a public accessor would
  * exist for this test alone, and the leak it guards against (a scene switch
  * that detaches a subtree without unmounting it) is invisible from outside.
- * InputSystem.unmount would clear them too, but it also touches window, which
- * the node test environment does not have.
  */
 const REGISTRATION_MAPS = [
 	'mouseOverComponents',
@@ -30,8 +29,10 @@ const REGISTRATION_MAPS = [
 	'hoveredComponents',
 ] as const;
 
+let context: MountContext;
+
 function registrations(): Array<{ size: number; clear(): void }> {
-	const system = InputSystem.getInstance() as unknown as Record<string, { size: number; clear(): void }>;
+	const system = context.input as unknown as Record<string, { size: number; clear(): void }>;
 	return REGISTRATION_MAPS.map((key) => system[key]);
 }
 
@@ -39,7 +40,7 @@ function registrationCount(): number {
 	return registrations().reduce((total, map) => total + map.size, 0);
 }
 
-function findById(root: Layer, id: string): Layer | null {
+function findById(root: Component, id: string): Component | null {
 	if (root.id === id) return root;
 	for (const child of root.debugChildren) {
 		const found = findById(child, id);
@@ -48,7 +49,7 @@ function findById(root: Layer, id: string): Layer | null {
 	return null;
 }
 
-function findByType(root: Layer, type: string): Layer | null {
+function findByType(root: Component, type: string): Component | null {
 	if (root.getComponentType() === type) return root;
 	for (const child of root.debugChildren) {
 		const found = findByType(child, type);
@@ -77,14 +78,18 @@ class CountingLayer extends Layer {
 	public updates = 0;
 	public renders = 0;
 
-	public update(deltaTime: number): void {
-		this.updates++;
-		super.update(deltaTime);
+	protected onMount(): void {
+		this.requestUpdate();
 	}
 
-	public render(): void {
+	public update(): void {
+		this.updates++;
+		this.requestUpdate();
+	}
+
+	public render(draw: DrawApi): void {
 		this.renders++;
-		super.render();
+		super.render(draw);
 	}
 }
 
@@ -94,13 +99,11 @@ const interactiveScenes: GalleryScene[] = [
 ];
 
 function makeHost(scenes: readonly GalleryScene[]): SceneHost {
-	return new SceneHost({ scenes, viewport: () => ({ ...VIEWPORT }) });
+	return new SceneHost({ scenes, context });
 }
 
 beforeEach(() => {
-	for (const map of registrations()) map.clear();
-	InputSystem.setFocus(null);
-	InputSystem.getInstance().paused = false;
+	context = createTestContext({ viewport: { logical: { ...VIEWPORT } } });
 });
 
 describe('mounting', () => {
@@ -134,7 +137,7 @@ describe('mounting', () => {
 	// A Text sizes itself from the metrics service (R12.4), so a mounted scene's
 	// labels report their line boxes to the tree snapshot, not w = h = 0.
 	it('mounts text at its measured size', () => {
-		installMeasuringDrawApi();
+		context = createTestContext({ draw: createMeasuringDrawApi().api, viewport: { logical: { ...VIEWPORT } } });
 		const host = makeHost(interactiveScenes);
 		host.mount('alpha');
 
@@ -175,11 +178,11 @@ describe('switching scenes', () => {
 		const host = makeHost(interactiveScenes);
 		host.mount('alpha');
 		const input = findById(host.root, 'alpha_input') as Input;
-		InputSystem.setFocus(input);
-		expect(InputSystem.getFocus()).toBe(input);
+		context.input.setFocus(input);
+		expect(context.input.getFocus()).toBe(input);
 
 		host.mount('beta');
-		expect(InputSystem.getFocus()).toBeNull();
+		expect(context.input.getFocus()).toBeNull();
 	});
 
 	it('reload re-enters the scene, and does nothing when none is mounted', () => {
@@ -200,7 +203,8 @@ describe('switching scenes', () => {
 
 describe('resize', () => {
 	function resizableHost(viewport: { width: number; height: number }): SceneHost {
-		return new SceneHost({ scenes: interactiveScenes, viewport: () => ({ ...viewport }) });
+		context = createTestContext({ viewport: { logical: viewport } });
+		return new SceneHost({ scenes: interactiveScenes, context });
 	}
 
 	it('re-enters on a real resize, because a section lays itself out from the width it was built with', () => {
@@ -321,7 +325,8 @@ describe('resolution', () => {
 
 	it('keeps the substitution across a reload and a resize', () => {
 		const viewport = { width: 1440, height: 882 };
-		const host = new SceneHost({ scenes: interactiveScenes, viewport: () => ({ ...viewport }) });
+		context = createTestContext({ viewport: { logical: viewport } });
+		const host = new SceneHost({ scenes: interactiveScenes, context });
 		host.mountFromSearch('?scene=gamma');
 
 		host.reload();
@@ -353,29 +358,25 @@ describe('pause', () => {
 		},
 	];
 
-	beforeAll(() => {
-		// R14.1: the whole render path runs with no canvas and no GL over the
-		// null backend, so a scene that grows a background or a clip keeps
-		// working here instead of failing on a stub that answers nothing.
-		RendererContext.getInstance().draw = new DrawApi({
-			backend: new NullBackend(),
-			development: false,
-		});
-	});
+	// R14.1: the whole render path runs with no canvas and no GL over the
+	// null backend the test context carries, so a scene that grows a
+	// background or a clip keeps working here instead of failing on a stub
+	// that answers nothing.
+	const draw = (): DrawApi => context.draw;
 
 	it('skips update and keeps rendering', () => {
 		const host = makeHost(countingScenes);
 		host.mount('counting');
 
 		host.update(0.016);
-		host.render();
+		host.render(draw());
 		expect(countingScene.updates).toBe(1);
 		expect(countingScene.renders).toBe(1);
 
 		host.paused = true;
 		for (let index = 0; index < 5; index++) {
 			host.update(0.016);
-			host.render();
+			host.render(draw());
 		}
 
 		expect(countingScene.updates).toBe(1);
@@ -397,16 +398,16 @@ describe('pause', () => {
 
 	// R13.35: injected input is ignored while paused. Input reaches components
 	// from DOM listeners rather than from the frame loop, so pausing the loop
-	// alone would not stop it; the host has to gate the InputSystem too.
+	// alone would not stop it; the host has to gate the input system too.
 	it('gates the InputSystem, not just the loop', () => {
 		const host = makeHost(countingScenes);
-		expect(InputSystem.getInstance().paused).toBe(false);
+		expect(context.input.paused).toBe(false);
 
 		host.paused = true;
-		expect(InputSystem.getInstance().paused).toBe(true);
+		expect(context.input.paused).toBe(true);
 
 		host.paused = false;
-		expect(InputSystem.getInstance().paused).toBe(false);
+		expect(context.input.paused).toBe(false);
 	});
 });
 

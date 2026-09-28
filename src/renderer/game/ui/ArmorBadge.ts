@@ -1,7 +1,6 @@
 import { Component, ComponentOptions } from '../../engine/components/Component';
 import { Icon } from '../../engine/components/Icon';
-import { RendererContext } from '../../engine/rendering/RendererContext';
-import { RenderContext, DEFAULT_RENDER_CONTEXT } from '../../engine/rendering/RenderContext';
+import type { DrawApi } from '../../engine/draw/DrawApi';
 import { StyleParser } from '../../engine/types/Style';
 import { tokens } from '../../engine/theme/tokens';
 
@@ -28,10 +27,9 @@ const BORDER = StyleParser.parseColor('#8a8aaa');
  * own parts and is as wide as they need, `minWidth` at least, so "10 SH12"
  * never runs onto the icon or out of the badge.
  *
- * The width comes from the value's measured width (R2.14), and components are
- * built before the draw API exists in unit tests, so it is settled at the
- * first render after the value changes. DDB-73's layout pass is where that
- * measure belongs once there is one.
+ * The width comes from the value's measured width (R2.14), through the
+ * mount context (R1.6), in the layout phase: on the first layout after mount
+ * and after every change of value (R8.18).
  */
 export class ArmorBadge extends Component {
 	private readonly minWidth: number;
@@ -40,7 +38,8 @@ export class ArmorBadge extends Component {
 	private shieldValue = 0;
 	private label = '0';
 	private labelWidth = 0;
-	private measured = false;
+	/** The label `labelWidth` was measured for; null until the first measure. */
+	private measuredLabel: string | null = null;
 
 	constructor({ minWidth, height, ...options }: ArmorBadgeOptions) {
 		super({ ...options, width: minWidth, height });
@@ -82,14 +81,18 @@ export class ArmorBadge extends Component {
 		const label = this.shieldValue > 0 ? `${this.armorValue} SH${this.shieldValue}` : `${this.armorValue}`;
 		if (label === this.label) return;
 		this.label = label;
-		this.measured = false;
+		this.invalidateLayout();
 	}
 
-	/** Keeps the minimum width, and tries again next frame, while the body face cannot be measured. */
+	/** It hugs its value, so its size follows the measure: once per value. */
+	protected layoutChildren(): void {
+		if (this.label !== this.measuredLabel) this.measure();
+	}
+
 	private measure(): void {
-		const context = RendererContext.getInstance();
-		if (!context.draw.canMeasureText(VALUE_FONT)) return;
-		this.labelWidth = context.draw.measureText({
+		const draw = this.context?.draw;
+		if (!draw || !draw.canMeasureText(VALUE_FONT)) return;
+		this.labelWidth = draw.measureText({
 			text: this.label,
 			font: VALUE_FONT,
 			size: VALUE_SIZE,
@@ -97,32 +100,24 @@ export class ArmorBadge extends Component {
 		const contentWidth = Math.ceil(LEFT_INSET + ICON_SIZE + ICON_GAP + this.labelWidth + RIGHT_INSET);
 		const width = Math.max(this.minWidth, contentWidth);
 		if (width !== this.width) this.setSize(width, this.height);
-		this.measured = true;
+		this.measuredLabel = this.label;
 	}
 
-	public render(context?: RenderContext): void {
-		if (!this.visible) return;
-		if (!this.measured) this.measure();
-
-		const ctx = context || DEFAULT_RENDER_CONTEXT;
-		const screenX = ctx.offsetX + this.x;
-		const screenY = ctx.offsetY + this.y;
-		const draw = RendererContext.getInstance().draw;
-
+	public render(draw: DrawApi): void {
 		draw.drawRect({
 			id: this.id ?? undefined,
-			rect: { x: screenX, y: screenY, width: this.width, height: this.height },
+			rect: { x: 0, y: 0, width: this.width, height: this.height },
 			fill: this.armorValue > 0 || this.shieldValue > 0 ? FILL_ACTIVE : FILL_EMPTY,
 			border: { color: BORDER, width: 1 },
 		});
 
-		this.icon.render({ offsetX: screenX, offsetY: screenY });
+		this.icon.drawGlyph(draw, this.icon.x, this.icon.y);
 
 		// The value centres in what the icon leaves
 		const valueLeft = LEFT_INSET + ICON_SIZE + ICON_GAP;
 		draw.drawText({
 			text: this.label,
-			box: { x: screenX + valueLeft, y: screenY, width: this.width - valueLeft - RIGHT_INSET, height: this.height },
+			box: { x: valueLeft, y: 0, width: this.width - valueLeft - RIGHT_INSET, height: this.height },
 			font: VALUE_FONT,
 			size: VALUE_SIZE,
 			color: tokens.color.text_bright,

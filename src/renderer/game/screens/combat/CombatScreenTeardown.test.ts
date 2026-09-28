@@ -10,9 +10,9 @@ import { CardLoader } from '../../core/CardLoader';
 import { DriverLoader } from '../../core/DriverLoader';
 import { Battle } from '../../mechanics/Battle';
 import { Card as UICard } from '../../ui/Card';
-import { Layer } from '../../../engine/components/Layer';
-import { InputSystem } from '../../../engine/input/InputSystem';
+import type { Component } from '../../../engine/components/Component';
 import { injectInput } from '../../../engine/debug/inputInjection';
+import { createTestContext } from '../../../engine/components/testing';
 
 /**
  * The play that ends a fight navigates to the result screen, which unmounts
@@ -34,18 +34,18 @@ async function settle(): Promise<void> {
 }
 
 function click(spot: string): void {
-	expect(injectInput(canvas, [`click,${spot}`]).ok).toBe(true);
+	expect(injectInput({ canvas, input: context.input }, [`click,${spot}`]).ok).toBe(true);
 }
 
 /** The global centre of a layer, as `x,y` for a click */
-function centerOf(layer: Layer): string {
-	const { x, y } = layer.localToGlobal(0, 0);
+function centerOf(layer: Component): string {
+	const { x, y } = layer.localToScreen({ x: 0, y: 0 });
 	return `${Math.round(x + layer.getWidth() / 2)},${Math.round(y + layer.getHeight() / 2)}`;
 }
 
 /** Combat hand cards the InputSystem still hit-tests */
 function cardRegistrations(): number {
-	const input = InputSystem.getInstance() as unknown as Record<string, Map<unknown, unknown>>;
+	const input = context.input as unknown as Record<string, Map<unknown, unknown>>;
 	const components = new Set<unknown>();
 	for (const key of ['mouseOverComponents', 'mouseOutComponents', 'mouseDownComponents', 'mouseUpComponents']) {
 		for (const component of input[key].keys()) components.add(component);
@@ -84,6 +84,14 @@ function expectCardsGone(spots: string[]): void {
 	playCard.mockRestore();
 }
 
+
+/**
+ * Mounted the way the page mounts screens. The viewport follows the window,
+ * because these tests size the window and the screens still read it.
+ */
+const context = createTestContext({
+	viewport: { get logical() { return { width: window.innerWidth, height: window.innerHeight }; } },
+});
 beforeAll(async () => {
 	jest.spyOn(console, 'log').mockImplementation(() => undefined);
 	global.fetch = jest.fn().mockResolvedValue({
@@ -97,8 +105,8 @@ beforeAll(async () => {
 	Object.defineProperty(window, 'innerWidth', { configurable: true, writable: true, value: 1024 });
 	Object.defineProperty(window, 'innerHeight', { configurable: true, writable: true, value: 768 });
 	document.body.appendChild(canvas);
-	InputSystem.getInstance().setup(canvas);
-	ScreenManager.initialize();
+	context.input.setup(canvas);
+	ScreenManager.initialize(context);
 });
 
 afterAll(() => {

@@ -4,8 +4,7 @@ import { Text } from '../components/Text';
 import type { SectionStats } from '../rendering/frameStats';
 import type { GpuStats, PerfSnapshot, SectionName } from '../rendering/FrameTimer';
 import type { HitchStats } from '../debug/hitchObserver';
-import { RenderContext } from '../rendering/RenderContext';
-import { RendererContext } from '../rendering/RendererContext';
+import type { DrawApi } from '../draw/DrawApi';
 
 /** Null is "not measurable here", so it prints as n/a rather than as 0 (R13.5). */
 function milliseconds(value: number | null): string {
@@ -39,7 +38,6 @@ export class DeveloperOverlay extends Layer {
 	private background: Rectangle;
 	private performanceText: Text;
 	private readonly snapshot: () => PerfSnapshot;
-	private overlayVisible = false;
 	private anchorWidth = 0;
 	
 	constructor({ snapshot, viewportWidth }: DeveloperOverlayOptions) {
@@ -51,6 +49,9 @@ export class DeveloperOverlay extends Layer {
 			// the longest of them is the device line at about sixty characters.
 			width: 520,
 			height: 350,
+			// Off until F5, so nothing it draws reaches a golden; hidden, the walk
+			// skips it and its barrier with it.
+			visible: false,
 		});
 		
 		this.snapshot = snapshot;
@@ -84,19 +85,16 @@ export class DeveloperOverlay extends Layer {
 		this.viewportWidth = viewportWidth;
 	}
 	
-	/**
-	 * Whether the overlay is currently drawn. Separate from Layer.visible,
-	 * which the overlay never touches.
-	 */
+	/** Whether the overlay is currently drawn: its own visibility. */
 	public get shown(): boolean {
-		return this.overlayVisible;
+		return this.visible;
 	}
 
 	/**
 	 * Toggle visibility of the overlay
 	 */
 	public toggle(): void {
-		this.overlayVisible = !this.overlayVisible;
+		this.visible = !this.visible;
 	}
 	
 	/**
@@ -118,7 +116,7 @@ export class DeveloperOverlay extends Layer {
 	 * Update the overlay content
 	 */
 	public update(): void {
-		if (!this.overlayVisible) return;
+		if (!this.visible) return;
 		
 		// Update performance stats
 		this.updatePerformanceStats();
@@ -164,7 +162,7 @@ export class DeveloperOverlay extends Layer {
 
 		this.performanceText.setText(text);
 	}
-	
+
 	/**
 	 * Draws the overlay as its own domain after the UI's (R3.21: the UI is the
 	 * last domain before any diagnostic overlay). Submitting last is not enough
@@ -177,10 +175,11 @@ export class DeveloperOverlay extends Layer {
 	 * hidden overlay leaves the frame, its GPU pass count and every golden as
 	 * they were; a shown one adds one pass, which the GPU line counts.
 	 */
-	public render(context?: RenderContext): void {
-		if (!this.overlayVisible) return;
-		RendererContext.getInstance().draw.flush();
-		super.render(context);
+	public render(draw: DrawApi): void {
+		// The overlay's own draw, and the walk only reaches it while shown, so
+		// the barrier lands before the background and the readout.
+		draw.flush();
+		super.render(draw);
 	}
 }
 
