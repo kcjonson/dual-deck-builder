@@ -1,0 +1,18 @@
+[
+{"path":"gallery_root/gallery_scene_overlays/Text[0]","text":"Overlays","rect":[53,53,83.33,33.6]},
+{"path":"gallery_root/gallery_scene_overlays/Text[1]","text":"Placement against the framed bounds: preferred side, flip, shift along the edge, constrain to the room.","rect":[53,103,665.53,19.07]},
+{"path":"gallery_root/gallery_scene_overlays/overlays_frame/placed_preferred/Text[0]","text":"bottom","rect":[121,213,41.44,16.34]},
+{"path":"gallery_root/gallery_scene_overlays/overlays_frame/placed_flipped/Text[0]","text":"flipped to top","rect":[341,291,75.43,16.34]},
+{"path":"gallery_root/gallery_scene_overlays/overlays_frame/placed_shifted/Text[0]","text":"shifted","rect":[563,213,38.5,16.34]},
+{"path":"gallery_root/gallery_scene_overlays/overlays_frame/placed_constrained/Text[0]","text":"constrained","rect":[501,273,66.36,16.34]},
+{"path":"gallery_root/gallery_scene_overlays/Text[3]","text":"Live services: hover a button for its tooltip; the menu opens from its trigger.","rect":[753,137,491.62,19.07]},
+{"path":"gallery_root/gallery_scene_overlays/overlays_hover/Text[1]","text":"Hover me","rect":[753,173,150,36]},
+{"path":"gallery_root/gallery_scene_overlays/overlays_card/Text[1]","text":"Card preview","rect":[923,173,150,36]},
+{"path":"gallery_root/gallery_scene_overlays/overlays_menu_trigger/Text[1]","text":"Open menu","rect":[1093,173,150,36]},
+{"path":"popup_overlays_menu/overlays_menu/overlays_menu_repair","text":"Repair","rect":[1105,222,42.1,19.07]},
+{"path":"popup_overlays_menu/overlays_menu/overlays_menu_refuel","text":"Refuel","rect":[1105,250,41.19,19.07]},
+{"path":"popup_overlays_menu/overlays_menu/overlays_menu_scrap","text":"Scrap","rect":[1105,278,36.45,19.07]},
+{"path":"tooltip_root/tooltip_surface/tooltip_title","text":"Reload weapons","rect":[765,223,73.19,15.6]},
+{"path":"tooltip_root/tooltip_surface/tooltip_hotkey","text":"R","rect":[850.19,223.54,6.6,14.52]},
+{"path":"tooltip_root/tooltip_surface/tooltip_description","text":"Refills every mounted weapon on the active vehicle and ends the driver's turn.","rect":[765,242.6,256,32.68]}
+]
