@@ -2,6 +2,7 @@ import { mat4 } from 'gl-matrix';
 import { ClipRect, DrawApi, RGBA } from '../draw';
 import type { CharacterInfo } from './FontAtlas';
 import type { FrameTimer } from './FrameTimer';
+import type { GpuTimer } from './GpuTimer';
 import type { ContextListener, Renderer } from './Renderer';
 import { WebGL2Backend, scissorBox } from './WebGL2Backend';
 import { TextureStore } from '../gpu/TextureStore';
@@ -169,8 +170,15 @@ class FakeAtlas {
 
 const WHITE: RGBA = [1, 1, 1, 1];
 
-function setupBackend(options: { vertexRingBytes?: number; indexRingBytes?: number } = {}) {
+function setupBackend(options: { vertexRingBytes?: number; indexRingBytes?: number; timed?: boolean } = {}) {
 	const { gl, calls, constant } = fakeGl();
+	const { timed, ...ringOptions } = options;
+	// The timer's four calls land in the same log as the GL calls, so a test
+	// can see what each pass bracketed.
+	const timerCall = (name: string) => () => calls.push({ name: `timer.${name}`, args: [], result: undefined });
+	const gpuTimer = timed
+		? { beginFrame: timerCall('beginFrame'), beginPass: timerCall('beginPass'), endPass: timerCall('endPass'), endFrame: timerCall('endFrame') } as unknown as GpuTimer
+		: null;
 	const listeners: ContextListener[] = [];
 	const renderer = {
 		getContext: () => gl,
@@ -182,7 +190,7 @@ function setupBackend(options: { vertexRingBytes?: number; indexRingBytes?: numb
 		},
 	} as unknown as Renderer;
 	const frameTimer = { recordDrawCall: jest.fn(), recordTextCharacters: jest.fn() } as unknown as FrameTimer;
-	const backend = new WebGL2Backend({ renderer, frameTimer, ...options });
+	const backend = new WebGL2Backend({ renderer, frameTimer, gpuTimer, ...ringOptions });
 	const api = new DrawApi({ backend, development: true, legacyTextOrder: true });
 
 	function frame(build: (draw: DrawApi) => void): GlCall[] {
@@ -216,6 +224,30 @@ function clippedTwice(draw: DrawApi): void {
 }
 
 describe('WebGL2Backend', () => {
+	it('brackets the clear and each sort domain as one GPU pass, never nested (R13.16)', () => {
+		const { frame } = setupBackend({ timed: true });
+		const calls = frame(clippedTwice).map((call) => call.name);
+
+		expect(calls[0]).toBe('timer.beginFrame');
+		expect(calls.at(-1)).toBe('timer.endFrame');
+		let open = false;
+		let passes = 0;
+		for (const name of calls) {
+			if (name === 'timer.beginPass') {
+				expect(open).toBe(false);
+				open = true;
+				passes++;
+			} else if (name === 'timer.endPass') {
+				expect(open).toBe(true);
+				open = false;
+			} else if (name === 'clear' || name === 'drawElements') {
+				expect(open).toBe(true);
+			}
+		}
+		// The clear, then the three domains `clippedTwice` produces.
+		expect(passes).toBe(4);
+	});
+
 	it('allocates the rings and the uniform slots once, at their fixed capacity (R15.11, R15.15)', () => {
 		const { calls, constant, named } = setupBackend({ vertexRingBytes: 3 * 1024 * 1024, indexRingBytes: 512 * 1024 });
 		const sizes = named(calls, 'bufferData').map((call) => [call.args[0], call.args[1]]);

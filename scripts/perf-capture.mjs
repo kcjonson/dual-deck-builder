@@ -2,10 +2,20 @@
  * R13.38's capture script: drive a development build through a fixed list of
  * scenarios, sample `window.__perf.snapshot()` N times per scenario after a
  * settle period, and write `perf-results/<label>.json` as
- * `[ { "scenario", "samples": [snapshot...] } ]`.
+ * `[ { "scenario", "samples": [snapshot...] } ]`, with the run's table beside
+ * it as `perf-results/<label>.md`.
  *
  *   node scripts/perf-capture.mjs --label phase0-frame-baseline \
  *     --url http://localhost:9061/ splashScreen mainMenuScreen
+ *
+ * With no scenarios named it captures every one the page offers: each screen
+ * on the game page (`__app.screens()`), each scene in the gallery
+ * (`__app.status().scenes`). `--compare <file>` adds R13.39's before/after
+ * table against an earlier capture to the output, and
+ *
+ *   node scripts/perf-capture.mjs compare perf-results/a.json perf-results/b.json
+ *
+ * prints that table for two existing files without launching anything.
  *
  * It drives headless Chrome over the DevTools protocol with no dependencies
  * beyond Node's own WebSocket, for two reasons. The first is that it has to be
@@ -25,9 +35,19 @@
  * `__app.scene` (gallery), whichever the page installed.
  */
 import { spawn } from 'node:child_process';
-import { writeFileSync, mkdirSync, existsSync } from 'node:fs';
+import { writeFileSync, mkdirSync, existsSync, readFileSync } from 'node:fs';
 import { dirname, resolve, join } from 'node:path';
 import { tmpdir } from 'node:os';
+import { comparisonTable, summaryTable } from './perf-table.ts';
+
+const readCapture = (path) => JSON.parse(readFileSync(resolve(path), 'utf8'));
+
+if (process.argv[2] === 'compare') {
+	const [before, after] = process.argv.slice(3);
+	if (!before || !after) throw new Error('compare takes two capture files: before.json after.json');
+	console.log(comparisonTable(readCapture(before), readCapture(after)));
+	process.exit(0);
+}
 
 const CHROME_CANDIDATES = [
 	'C:/Program Files/Google/Chrome/Application/chrome.exe',
@@ -46,6 +66,8 @@ function parseArguments(argv) {
 		settleFrames: 120,
 		samples: 20,
 		chrome: null,
+		compare: null,
+		'gpu-timer': 'on',
 		scenarios: [],
 	};
 	for (let index = 0; index < argv.length; index++) {
@@ -59,7 +81,6 @@ function parseArguments(argv) {
 			options.scenarios.push(argument);
 		}
 	}
-	if (options.scenarios.length === 0) throw new Error('name at least one scenario');
 	return options;
 }
 
@@ -79,9 +100,12 @@ const chrome = spawn(options.chrome ?? CHROME_CANDIDATES.find((path) => existsSy
 	'--no-default-browser-check',
 	// Its own profile, so a capture neither waits on nor disturbs the browser
 	// the person running it already has open.
-	`--user-data-dir=${join(tmpdir(), 'ddb-perf-capture-profile')}`,
+	`--user-data-dir=${join(tmpdir(), `ddb-perf-capture-profile-${options.port}`)}`,
 	options.url,
 ], { stdio: 'ignore' });
+// A capture that throws must not leave a headless browser holding the port
+// and the profile, which the next run would then fail to open.
+process.on('exit', () => chrome.kill());
 
 async function debuggerUrl() {
 	for (let attempt = 0; attempt < 60; attempt++) {
@@ -148,6 +172,18 @@ for (let attempt = 0; ; attempt++) {
 
 console.error(await evaluate('JSON.stringify({ viewport: [innerWidth, innerHeight, devicePixelRatio] })'));
 
+// The GPU timer is on by default in a development build; setting it here keeps
+// a capture honest if someone switched it off in the page first, and
+// `--gpu-timer off` measures what the timer itself costs.
+const gpuTimer = await evaluate(`window.__perf.gpuTimer?.(${options['gpu-timer'] !== 'off'}) ?? null`);
+const device = await evaluate('window.__perf.snapshot().device');
+console.error(`device: ${device?.renderer ?? 'unknown'}; GPU timer: ${gpuTimer === null ? 'absent' : gpuTimer ? 'on' : 'off'}`);
+
+if (options.scenarios.length === 0) {
+	options.scenarios = await evaluate('window.__app.screens?.() ?? window.__app.status?.().scenes ?? []');
+	if (options.scenarios.length === 0) throw new Error('name at least one scenario; the page offers none');
+}
+
 const results = [];
 for (const scenario of options.scenarios) {
 	const mounted = await evaluate(
@@ -157,6 +193,10 @@ for (const scenario of options.scenarios) {
 		console.error(`skipped ${scenario}: the page does not know it`);
 		continue;
 	}
+	// The GPU window resolves a sample every few frames on an unthrottled page,
+	// so it outlives the frame window and would carry the previous scenario's
+	// samples into this one's p99. Toggling the timer empties it.
+	if (gpuTimer) await evaluate('window.__perf.gpuTimer(false), window.__perf.gpuTimer(true)');
 	const capture = await evaluate(`window.__perf.capture(${JSON.stringify({
 		scenario,
 		settleFrames: options.settleFrames,
@@ -165,7 +205,8 @@ for (const scenario of options.scenarios) {
 	const last = capture.samples[capture.samples.length - 1];
 	console.error(`${scenario}: frame p99 ${last.frame.p99Ms} ms, max ${last.frame.maxMs} ms, `
 		+ `render max ${last.sections.render?.maxMs} ms, update max ${last.sections.update?.maxMs} ms, `
-		+ `${last.renderer.glDrawCalls} draws, ${last.sanity.framesWithSectionsOverSpan} section overlaps`);
+		+ `${last.renderer.glDrawCalls} draws, ${last.sanity.framesWithSectionsOverSpan} section overlaps, `
+		+ `GPU ${last.gpu.source ?? 'n/a'} p99 ${last.gpu.p99Ms} ms, latency ${last.gpu.latencyMs} ms`);
 	results.push(capture);
 }
 
@@ -173,6 +214,25 @@ const out = resolve(`perf-results/${options.label}.json`);
 mkdirSync(dirname(out), { recursive: true });
 writeFileSync(out, `${JSON.stringify(results, null, '\t')}\n`);
 console.error(`wrote ${out}`);
+
+const table = [
+	`# ${options.label}`,
+	'',
+	`Captured ${new Date().toISOString().slice(0, 10)} from ${options.url} at ${options.width}x${options.height}, `
+		+ `headless Chrome with vsync and the frame cap off (R13.38), ${options.settleFrames} settle frames and `
+		+ `${options.samples} samples per scenario. Times in ms. Device: ${device?.renderer ?? 'unknown'}. `
+		+ `GPU columns are timer-query GPU time (R13.16); n/a where the extension is absent.`,
+	'',
+	summaryTable(results),
+	'',
+];
+if (options.compare) {
+	table.push(`## Against ${options.compare}`, '', comparisonTable(readCapture(options.compare), results), '');
+}
+const tableOut = out.replace(/\.json$/, '.md');
+writeFileSync(tableOut, table.join('\n'));
+console.log(table.join('\n'));
+console.error(`wrote ${tableOut}`);
 
 socket.close();
 chrome.kill();

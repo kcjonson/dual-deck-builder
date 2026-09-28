@@ -107,11 +107,19 @@ export interface PerfApi {
 		settleFrames?: number;
 		samples?: number;
 	}): Promise<ScenarioCapture<PerfSnapshot>>;
+	/**
+	 * R13.2's runtime toggle for the GPU timer. With an argument it sets the
+	 * state; either way it returns the state now, or null on a page without a
+	 * timer.
+	 */
+	gpuTimer(enabled?: boolean): boolean | null;
 }
 
 export interface PerfSnapshotSource {
 	/** The live frame timer's snapshot, carrying the active scene (R13.11). */
 	snapshot(): PerfSnapshot;
+	/** The page's GPU timer, for the toggle; absent or null where there is none. */
+	gpuTimer?: { enabled: boolean } | null;
 }
 
 interface DebugWindow extends Window {
@@ -182,6 +190,12 @@ export function installPerfHooks(source: PerfSnapshotSource): void {
 	const api: PerfApi = {
 		snapshot: () => source.snapshot(),
 		capture: (options) => capturePerfSamples({ ...options, snapshot: () => source.snapshot() }),
+		gpuTimer: (enabled?: boolean) => {
+			const timer = source.gpuTimer;
+			if (!timer) return null;
+			if (enabled !== undefined) timer.enabled = enabled;
+			return timer.enabled;
+		},
 	};
 
 	debugWindow.__perf = { ...debugWindow.__perf, ...api };

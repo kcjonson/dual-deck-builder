@@ -1,5 +1,6 @@
 import type { DrawStats } from '../draw';
 import type { DeviceInfo } from './deviceInfo';
+import type { TrackColor, TrackEmitter, TrackMode } from '../debug/devtoolsTracks';
 import type { FrameRecord, FrameStats, FrameSanity, SectionStats } from './frameStats';
 import { frameWindowStats } from './frameStats';
 
@@ -59,13 +60,43 @@ export const SECTION_NAMES = ['input', 'update', 'layout', 'render', 'flush', 'p
 
 export type SectionName = (typeof SECTION_NAMES)[number];
 
+/**
+ * R13.11's `gpu` block. The first five fields are normative; the rest are
+ * additive, so a capture can tabulate GPU time the way it tabulates frame time
+ * without re-deriving a distribution from samples that lag the frame.
+ */
 export interface GpuStats {
+	/** Sum of the newest resolved frame's passes (R13.16). */
 	ms: number | null;
+	/** R13.18's validity of that frame; null when nothing was measured. */
 	valid: boolean | null;
 	passes: number[] | null;
 	spanMs: number | null;
+	/** R13.19's fence fallback: submission to observed completion, an upper bound. Never GPU time. */
 	latencyMs: number | null;
+	/** Which measurement produced the figures; null when there is no GPU timer. */
+	source: 'timerQuery' | 'fence' | null;
+	/** Over the valid samples in the window only (R13.18). */
+	p99Ms: number | null;
+	maxMs: number | null;
+	sampleCount: number;
+	/** Samples the window excluded as invalid, since the timer was last enabled. */
+	invalidCount: number;
 }
+
+/** Nothing measured, which is not zero (R13.5). */
+export const NO_GPU_STATS: Readonly<GpuStats> = {
+	ms: null,
+	valid: null,
+	passes: null,
+	spanMs: null,
+	latencyMs: null,
+	source: null,
+	p99Ms: null,
+	maxMs: null,
+	sampleCount: 0,
+	invalidCount: 0,
+};
 
 /**
  * What the GL backend counts at its own call sites: `glDrawCalls` is one
@@ -119,6 +150,8 @@ export interface PerfSnapshot {
 	 * detected features. Null on a caller that supplies none.
 	 */
 	device: DeviceInfo | null;
+	/** R15.29's DevTools track and how it is emitted; null where R15.42 finds no support. */
+	tracks: TrackMode | null;
 }
 
 /**
@@ -140,7 +173,19 @@ export interface FrameTimerOptions {
 	now?: Clock;
 	/** Wall-clock ms: the snapshot timestamp and the liveness age. */
 	wallNow?: Clock;
+	/** R15.29: sections and frames mirrored to a DevTools track. Development builds only. */
+	tracks?: TrackEmitter | null;
 }
+
+/** DevTools colours per section, so the three read apart at a glance. */
+const SECTION_COLORS: Record<SectionName, TrackColor> = {
+	input: 'primary-dark',
+	update: 'primary',
+	layout: 'secondary-dark',
+	render: 'secondary',
+	flush: 'tertiary',
+	present: 'tertiary-dark',
+};
 
 interface MemoryMeasurement {
 	bytes: number;
@@ -159,6 +204,7 @@ export class FrameTimer {
 	private readonly windowSize: number;
 	private readonly now: Clock;
 	private readonly wallNow: Clock;
+	private readonly tracks: TrackEmitter | null;
 	private readonly ring: (FrameRecord | null)[];
 	private writeIndex = 0;
 	private recorded = 0;
@@ -186,11 +232,13 @@ export class FrameTimer {
 		windowSize = DEFAULT_WINDOW_SIZE,
 		now = platformClock,
 		wallNow = platformWallClock,
+		tracks = null,
 	}: FrameTimerOptions = {}) {
 		this.budgetMs = budgetMs;
 		this.windowSize = Math.max(1, Math.floor(windowSize));
 		this.now = now;
 		this.wallNow = wallNow;
+		this.tracks = tracks;
 		this.ring = new Array<FrameRecord | null>(this.windowSize).fill(null);
 	}
 
@@ -220,6 +268,7 @@ export class FrameTimer {
 			this.writeIndex = (this.writeIndex + 1) % this.windowSize;
 			if (this.recorded < this.windowSize) this.recorded++;
 			deltaSeconds = Math.min(frameMs / 1000, MAX_DELTA_SECONDS);
+			this.tracks?.emit('frame', this.lastFrameStartMs, startMs, frameMs > this.budgetMs ? 'error' : 'primary-light');
 		}
 
 		this.lastFrameStartMs = startMs;
@@ -265,7 +314,9 @@ export class FrameTimer {
 			return;
 		}
 		this.openSection = null;
-		this.pendingSections[name] = this.now() - open.startMs;
+		const endMs = this.now();
+		this.pendingSections[name] = endMs - open.startMs;
+		this.tracks?.emit(name, open.startMs, endMs, SECTION_COLORS[name]);
 	}
 
 	/**
@@ -295,12 +346,19 @@ export class FrameTimer {
 	 * @param scene Active screen or scene name, so captures group per scene.
 	 * @param batcher The draw API's counters. The timer does not own the draw
 	 *   API, so the page that owns both hands them over.
+	 * @param gpu The GPU timer's figures (R13.16), from the page that built it.
 	 */
 	public snapshot({
 		scene = null,
 		batcher = null,
 		device = null,
-	}: { scene?: string | null; batcher?: DrawStats | null; device?: DeviceInfo | null } = {}): PerfSnapshot {
+		gpu = null,
+	}: {
+		scene?: string | null;
+		batcher?: DrawStats | null;
+		device?: DeviceInfo | null;
+		gpu?: GpuStats | null;
+	} = {}): PerfSnapshot {
 		const stats = frameWindowStats({
 			frames: this.orderedFrames(),
 			budgetMs: this.budgetMs,
@@ -319,10 +377,10 @@ export class FrameTimer {
 			scene,
 			frame: stats.frame,
 			sections,
-			// GPU timing is phase 7. Null throughout rather than zero or false:
-			// nothing has been measured, and `valid: false` would read as a
-			// measurement that failed its R13.18 check.
-			gpu: { ms: null, valid: null, passes: null, spanMs: null, latencyMs: null },
+			// Null throughout without a timer rather than zero or false: nothing
+			// was measured, and `valid: false` would read as a measurement that
+			// failed its R13.18 check.
+			gpu: gpu ?? { ...NO_GPU_STATS },
 			batcher,
 			memory: { usedBytes: this.memoryBytes },
 			renderer: {
@@ -338,6 +396,7 @@ export class FrameTimer {
 					: this.wallNow() - this.lastFrameStartWallMs,
 			},
 			device,
+			tracks: this.tracks?.mode ?? null,
 		};
 	}
 

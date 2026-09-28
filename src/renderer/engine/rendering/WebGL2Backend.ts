@@ -19,6 +19,7 @@ import fragmentSource from '../../../assets/shaders/fragment.glsl';
 import type { TextureStore } from '../gpu/TextureStore';
 import { FontAtlas } from './FontAtlas';
 import { FrameTimer } from './FrameTimer';
+import type { GpuTimer } from './GpuTimer';
 import { LEGACY_VERTEX, LegacyGeometryEncoder } from './LegacyGeometryEncoder';
 import { LegacyPaintOrder } from './LegacyPaintOrder';
 import { Renderer } from './Renderer';
@@ -71,6 +72,12 @@ import { DEFAULT_FONT } from './fonts';
 export interface WebGL2BackendOptions {
 	renderer: Renderer;
 	frameTimer: FrameTimer;
+	/**
+	 * R13.16's per-pass GPU timer, development builds only. The backend's whole
+	 * contract with it is to bracket the frame and each GPU submission; it
+	 * never reads a result.
+	 */
+	gpuTimer?: GpuTimer | null;
 	/** Initial vertex ring capacity in bytes. */
 	vertexRingBytes?: number;
 	/** Initial index ring capacity in bytes. */
@@ -155,9 +162,9 @@ export function scissorBox(
  * `legacyTextOrder` is the one temporary option and this is its only caller;
  * see `DrawApiOptions.legacyTextOrder` for what it does and when it dies.
  */
-export function createDrawApi({ renderer, frameTimer }: WebGL2BackendOptions): DrawApi {
+export function createDrawApi({ renderer, frameTimer, gpuTimer }: WebGL2BackendOptions): DrawApi {
 	return new DrawApi({
-		backend: new WebGL2Backend({ renderer, frameTimer }),
+		backend: new WebGL2Backend({ renderer, frameTimer, gpuTimer }),
 		development: __DEV_TOOLS__,
 		legacyTextOrder: true,
 		onDiagnostic: (diagnostic) => {
@@ -182,6 +189,7 @@ export class WebGL2Backend implements DrawBackend {
 
 	private readonly renderer: Renderer;
 	private readonly frameTimer: FrameTimer;
+	private readonly gpuTimer: GpuTimer | null;
 	private readonly gl: WebGL2RenderingContext;
 	private readonly fontAtlas: FontAtlas;
 	private readonly encoder: LegacyGeometryEncoder;
@@ -227,11 +235,13 @@ export class WebGL2Backend implements DrawBackend {
 	constructor({
 		renderer,
 		frameTimer,
+		gpuTimer = null,
 		vertexRingBytes = DEFAULT_VERTEX_RING_BYTES,
 		indexRingBytes = DEFAULT_INDEX_RING_BYTES,
 	}: WebGL2BackendOptions) {
 		this.renderer = renderer;
 		this.frameTimer = frameTimer;
+		this.gpuTimer = gpuTimer;
 		this.gl = renderer.getContext();
 		this.fontAtlas = renderer.getFontAtlas();
 
@@ -282,6 +292,9 @@ export class WebGL2Backend implements DrawBackend {
 	 * written into this frame's slot, the scissor off, the target cleared.
 	 */
 	beginFrame(frame: FrameDescription): void {
+		// The clear is the frame's first GPU pass (R13.16).
+		this.gpuTimer?.beginFrame();
+		this.gpuTimer?.beginPass();
 		this.frame = frame;
 		// R7.2: the ratio reaches the encoder per frame, for its snapping.
 		this.encoder.ratio = frame.ratio;
@@ -293,6 +306,7 @@ export class WebGL2Backend implements DrawBackend {
 
 		this.applyClip(NO_CLIP);
 		this.gl.clear(this.gl.COLOR_BUFFER_BIT);
+		this.gpuTimer?.endPass();
 	}
 
 	submit(batch: DrawBatch): GpuWork {
@@ -303,9 +317,12 @@ export class WebGL2Backend implements DrawBackend {
 		}
 
 		let residentBinds = 0;
+		// One sort domain is one GPU pass (R13.16).
+		this.gpuTimer?.beginPass();
 		const work = this.batcher.flush(ordered, (upload) => {
 			residentBinds += this.execute(upload);
 		});
+		this.gpuTimer?.endPass();
 		work.textureBinds += residentBinds;
 		return work;
 	}
@@ -313,6 +330,7 @@ export class WebGL2Backend implements DrawBackend {
 	endFrame(): void {
 		this.applyClip(NO_CLIP);
 		this.frame = null;
+		this.gpuTimer?.endFrame();
 	}
 
 	invalidateState(): void {

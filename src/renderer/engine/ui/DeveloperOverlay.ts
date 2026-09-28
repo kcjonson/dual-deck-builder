@@ -2,9 +2,8 @@ import { Layer } from '../components/Layer';
 import { Rectangle } from '../components/Rectangle';
 import { Text } from '../components/Text';
 import type { SectionStats } from '../rendering/frameStats';
-import { FrameTimer } from '../rendering/FrameTimer';
+import type { GpuStats, PerfSnapshot, SectionName } from '../rendering/FrameTimer';
 import { RenderContext } from '../rendering/RenderContext';
-import { RendererContext } from '../rendering/RendererContext';
 
 /** Null is "not measurable here", so it prints as n/a rather than as 0 (R13.5). */
 function milliseconds(value: number | null): string {
@@ -16,27 +15,37 @@ function sectionLine(stats: SectionStats | null): string {
 	return `${milliseconds(stats.ms)} (max ${milliseconds(stats.maxMs)})`;
 }
 
+/** Device strings run to a hundred characters; the overlay is about sixty wide. */
+const DEVICE_CHARACTERS = 56;
+
+export interface DeveloperOverlayOptions {
+	/** The page's perf snapshot, the same function `window.__perf.snapshot` calls. */
+	snapshot: () => PerfSnapshot;
+}
+
 /**
- * Developer overlay that displays debug information and performance metrics
+ * The perf overlay (F5), drawn through the renderer like any other layer, and
+ * off until toggled so nothing it draws reaches a golden. Every figure on it
+ * comes from one `PerfSnapshot`, which is the object a capture records.
  */
 export class DeveloperOverlay extends Layer {
 	private background: Rectangle;
 	private performanceText: Text;
-	private frameTimer: FrameTimer;
+	private readonly snapshot: () => PerfSnapshot;
 	private overlayVisible = false;
 	
-	constructor(frameTimer: FrameTimer) {
+	constructor({ snapshot }: DeveloperOverlayOptions) {
 		super({
 			id: 'developer_overlay',
 			x: 0,
 			y: 0,
-			// Ten lines of 14px monospace, and the longest of them is the frame
-			// line at about fifty characters.
-			width: 460,
-			height: 210,
+			// Fourteen lines of 14px monospace at about nineteen pixels each, and
+			// the longest of them is the device line at about sixty characters.
+			width: 520,
+			height: 290,
 		});
 		
-		this.frameTimer = frameTimer;
+		this.snapshot = snapshot;
 		
 		// Semi-transparent background
 		this.background = new Rectangle({
@@ -112,7 +121,7 @@ export class DeveloperOverlay extends Layer {
 		// reads off the overlay and what a capture records cannot disagree
 		// (R13.3). The average this used to show is gone: R13.6, and worldsim's
 		// 120 FPS average that hid 64 ms hitches.
-		const { frame, sections, sanity, renderer } = this.frameTimer.snapshot();
+		const { frame, sections, sanity, renderer, batcher, gpu, device, tracks } = this.snapshot();
 
 		const text = [
 			`FPS: ${frame.ms !== null && frame.ms > 0 ? Math.round(1000 / frame.ms) : 'n/a'}`
@@ -128,9 +137,15 @@ export class DeveloperOverlay extends Layer {
 			`Update: ${sectionLine(sections.update)}`,
 			`Render: ${sectionLine(sections.render)}`,
 			`Flush: ${sectionLine(sections.flush)}`,
+			// 13.11's "biggest offender" line: which section owns the window's
+			// worst frame, which is the question a spike count raises.
+			`Worst section: ${worstSection(sections)}`,
 			`Outside sections: ${milliseconds(sanity.unaccountedMs)}`,
+			gpuLine(gpu),
 			`Draws: ${renderer.glDrawCalls}  Verts: ${renderer.vertices}  Text: ${renderer.textCharacters}`,
-			batcherLine(),
+			batcherLine(batcher),
+			`Device: ${truncate(device?.renderer ?? 'n/a', DEVICE_CHARACTERS)}`,
+			`DevTools track: ${tracks ?? 'n/a'}`,
 		].join('\n');
 
 		this.performanceText.setText(text);
@@ -146,14 +161,39 @@ export class DeveloperOverlay extends Layer {
 }
 
 /**
- * R13.12's two draw counts side by side, which is the number the batcher
- * exists to move: API draw groups in, GPU draws out. Read between frames, so it
- * is the last completed frame's.
+ * R13.19's degrade: GPU time where the timer query exists, otherwise the
+ * fence latency labelled as what it is, otherwise n/a. Never a zero.
  */
-function batcherLine(): string {
-	const draw = RendererContext.getInstance().draw;
-	if (draw.frame === 0) return 'Batch: n/a';
-	const stats = draw.getStats();
+function gpuLine(gpu: GpuStats): string {
+	if (gpu.source === 'timerQuery') {
+		if (gpu.ms === null) return 'GPU: waiting for results';
+		const passes = gpu.passes?.length ?? 0;
+		return `GPU: ${milliseconds(gpu.ms)} / p99 ${milliseconds(gpu.p99Ms)} / max ${milliseconds(gpu.maxMs)}`
+			+ `  ${passes} passes${gpu.valid ? '' : ' (invalid)'}  ${gpu.invalidCount} dropped`;
+	}
+	if (gpu.source === 'fence') return `GPU: n/a (no timer query); latency <= ${milliseconds(gpu.latencyMs)}`;
+	return 'GPU: n/a';
+}
+
+function worstSection(sections: Record<SectionName, SectionStats | null>): string {
+	let worst: { name: string; maxMs: number } | null = null;
+	for (const [name, stats] of Object.entries(sections)) {
+		if (stats !== null && (worst === null || stats.maxMs > worst.maxMs)) worst = { name, maxMs: stats.maxMs };
+	}
+	return worst === null ? 'n/a' : `${worst.name} (max ${milliseconds(worst.maxMs)})`;
+}
+
+function truncate(text: string, length: number): string {
+	return text.length <= length ? text : `${text.slice(0, length - 3)}...`;
+}
+
+/**
+ * R13.12's two draw counts side by side, which is the number the batcher
+ * exists to move: API draw groups in, GPU draws out. The last completed
+ * frame's, from the snapshot.
+ */
+function batcherLine(stats: PerfSnapshot['batcher']): string {
+	if (stats === null) return 'Batch: n/a';
 	const flushes = Object.values(stats.flushes).reduce((sum, count) => sum + count, 0);
 	const splits = stats.splits ? Object.values(stats.splits).reduce((sum, count) => sum + count, 0) : 0;
 	return `Batch: ${stats.apiDraws} groups -> ${stats.gpuDraws ?? 'n/a'} GPU  culled ${stats.culled}`
