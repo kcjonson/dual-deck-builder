@@ -275,30 +275,6 @@ export class PlayerHandLayer extends Layer {
 	}
 
 	/**
-	 * Animate card to discard pile
-	 */
-	public animateCardToDiscard(card: Card, _discardX: number, _discardY: number): void {
-		const cardIndex = this.handCards.findIndex(c => c.id === card.id);
-		if (cardIndex >= 0) {
-			// const cardElement = this.cardElements[cardIndex]; // For future animation use
-			
-			// TODO: Add tween animation to move card to discard pile
-			// For now, just remove it
-			setTimeout(() => {
-				this.removeCard(card);
-			}, 300);
-		}
-	}
-
-	/**
-	 * Fan out cards in hand
-	 */
-	private fanCards(): void {
-		// TODO: Implement card fanning for better visual presentation
-		// This would slightly rotate and offset cards for a more natural hand look
-	}
-
-	/**
 	 * Get current hand cards
 	 */
 	public getHandCards(): Card[] {

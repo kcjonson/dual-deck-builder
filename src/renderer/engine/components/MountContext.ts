@@ -1,3 +1,5 @@
+import { Animator } from '../animation/Animator';
+import { Clock } from '../animation/Clock';
 import type { DrawApi } from '../draw/DrawApi';
 import { Dispatcher } from '../input/Dispatcher';
 import { UiFrame } from './UiFrame';
@@ -17,9 +19,8 @@ export interface ViewportSource {
  * already releases what `dispatcher` and `frame` hold on it.
  *
  * Services arrive with the tasks that build them, as fields added here:
- * `clock` and `animator` (DDB-74), `focus` (DDB-76), `drag` (DDB-77), and
- * `popups`, `tooltips`, `placement`, `overlays`, `clipboard` and `assets`
- * (DDB-78).
+ * `focus` (DDB-76), `drag` (DDB-77), and `popups`, `tooltips`,
+ * `placement`, `overlays`, `clipboard` and `assets` (DDB-78).
  */
 export interface MountContext {
 	/** Chapter 2's draw API: drawing and `measureText`. */
@@ -29,19 +30,30 @@ export interface MountContext {
 	readonly viewport: ViewportSource;
 	/** Update requests and layout invalidation for the frame (R8.16 to R8.18). */
 	readonly frame: UiFrame;
+	/** Frame time; the frame advances it, nothing reads a platform timer (R8.28). */
+	readonly clock: Clock;
+	/** Tweens over `clock`, ticked in the update phase (R8.28). */
+	readonly animator: Animator;
 }
 
 export interface MountContextOptions {
 	draw: DrawApi;
 	viewport: ViewportSource;
+	/** A test's own clock, to hold or freeze; otherwise a fresh one (R13.37). */
+	clock?: Clock;
 }
 
 /**
  * The one way to build a context, for the two pages and for tests alike: the
- * dispatcher lays out through `frame` on demand before every hit test (R8.16).
+ * frame advances the clock and ticks the animator at the start of its update
+ * phase, and the dispatcher lays out on demand before every hit test and
+ * times gestures on the same clock (R8.16, R8.28). Reduced motion starts
+ * off; the platform shell follows the system preference
+ * (`followReducedMotion`).
  */
-export function createMountContext({ draw, viewport }: MountContextOptions): MountContext {
-	const frame = new UiFrame();
-	const dispatcher = new Dispatcher({ frame, pixelRatio: () => draw.devicePixelScale });
-	return { draw, dispatcher, viewport, frame };
+export function createMountContext({ draw, viewport, clock = new Clock() }: MountContextOptions): MountContext {
+	const animator = new Animator({ clock });
+	const frame = new UiFrame({ clock, animator });
+	const dispatcher = new Dispatcher({ frame, clock, pixelRatio: () => draw.devicePixelScale });
+	return { draw, dispatcher, viewport, frame, clock, animator };
 }

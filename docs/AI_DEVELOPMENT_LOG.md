@@ -13,9 +13,30 @@ This document contains the chronological log of completed development tasks for 
 - `input/Dispatcher.ts` (queue, hit test, bubble, hover, click, capture, wheel latching, key routing, focus seam), `input/hitTest.ts`, `input/events.ts`, `input/HotkeyTable.ts`, `input/PointerAdapter.ts`. `InputSystem.ts` and its tests are deleted; `MountContext.input` is now `dispatcher`.
 - `Component.handleEvent` with `onPointerDown`, `onPointerUp`, `onPointerMove`, `onPointerEnter`, `onPointerLeave`, `onClick`, `onContextMenu`, `onWheel`, `onKeyDown`, `onKeyUp`; `canScroll`; roots register with the dispatcher on mount; unmount releases capture, hover and focus. `setEnabled(false)` no longer clears hover, which is the dispatcher's.
 - Button, Card, Vehicle, Input and Panel handle events in `handleEvent`; `Button.onClick` is the base property (call sites assign it); Vehicle is `unit`; a scrollable Panel is `auto` and scrolls by the normalised delta; combat's Escape and F6 are hotkeys; the F5 overlay is `pointerEvents: 'none'`.
-- Both loops drain the queue in a timed `input` section; `UiFrame.layoutVersion` lets hover follow layout. The injection hook dispatches pointer events at the adapter; `components/testing.ts` has `injectNow`.
+- Both loops drain the queue in a timed `input` section; `UiFrame.layoutVersion` lets hover follow layout. Timing reads the context clock (DDB-74): event timestamps, the 150 ms wheel latch, and R9.30's 500 ms touch-hold `contextmenu`. The injection hook dispatches pointer events at the adapter; `components/testing.ts` has `injectNow`.
 
 **How:** `Dispatcher.test.ts` (chapter 9.11's hit order including 3.12's promoted popup and 4.7's popup inside a clip, bubble, scrim, enter and leave order, hover after scroll and layout, click on the common ancestor and the threshold, capture and its cancellations, touch, wheel line and page modes, latching, Shift, keys and hotkeys, coalescing, pause, handler isolation), `widgetInput.test.ts` (Button, Input and the adapter through injection), and the existing screen, gallery, injection and teardown tests moved from registration maps to hit tests. An audit hit-tested every Button, Card, Vehicle, Input and scrollable Panel on six screens and found none occluded. Driven in the browser through `__dev.input` and real pointer and wheel events: menu, driver cycling, START RUN, a targeted card played on an enemy, Escape cancelling targeting, END TURN into turn 2, F6, the developer screen's inputs, Apply and scroll, the card showcase, and the gallery's input scene, with a clean console.
+
+## Clock and animator (2026-09-28)
+
+**What landed:** DDB-74 (DDB-55 phase 3), R8.28 with R8.15's tween cancellation and R11.13's reduced-motion collapse.
+
+- `engine/animation/Clock.ts`, `Animator.ts`, `easing.ts`: a frame clock in milliseconds that only moves when advanced (and not at all while frozen), tweens over numbers and number arrays with token defaults, CSS `cubic-bezier` eases, retargeting with CSS's reversing shortening factor, reduced motion, owner cancellation, `settle`, and a `done` promise that settles on completion or cancel.
+- `MountContext` gains `clock` and `animator`; `createMountContext` and `createTestContext` take an optional clock. `UiFrame.update` advances the clock and ticks the animator before component updates. `Component.unmount` cancels the tweens it owns.
+- `engine/rendering/reducedMotion.ts` follows `prefers-reduced-motion` on both pages. `window.__app.settleAnimations()` on both pages; the visual harness's `settle` calls it every pass.
+- `.eslintrc.js` forbids platform timers and wall-clock reads (`Date.now`, `performance.now`) in UI and engine-core directories, `game/*.ts` included. `PlayerHandLayer.animateCardToDiscard` (an uncalled `setTimeout`) and the empty `fanCards` are deleted.
+
+**How:** `Clock.test.ts`, `easing.test.ts` (against a bisection solve), `Animator.test.ts` (order, defaults, arrays, reduced motion in flight, retarget, same-target retargets (running, idle, and every frame for 700 frames completing once and on time), single and compounded reversals, restart from a completion, cancel, owners, `done`, settle and its runaway guard), `components/animation.test.ts` (clock and tick before component updates, no motion without an update phase, injected and frozen clocks, subtree unmount cancelling, a reconciled exit driven by `done`, a cancelled exit still detaching), `reducedMotion.test.ts`. Every chromium visual spec passes against local captures of `main` with zero differing pixels.
+
+## Developer section titles inset inside their frames (2026-09-28)
+
+**What landed:** DDB-196 (DDB-55).
+
+- `Panel` has a `padding` option, expressed as `contentOffset` (scroll position less padding), the one value DDB-73's render walk, hit test and tree snapshot read, so children are placed inside the padding everywhere and the padding scrolls with the content (R4.13: scroll extent is content plus both paddings less the box). A padded panel clips inside its border and corner radius, inset by `max(borderWidth, cornerRadius)`; unpadded panels keep the border-box clip. The departure from R4.9 is recorded in `AI_TECHNICAL_DECISIONS/panel-padding.md`. `treeSnapshot` now takes a clip from `clipRect` rather than the node's whole box, so snapshot, walk and hit test agree. `innerWidth` reports the width left for children.
+- `developer/DeveloperSectionPanel.ts` is the shared frame all twelve sections extend: transparent, `bw` border, inset `bw + space_3` (13 px), and `fitContentHeight` to size the frame around the content. Sections dropped their duplicated `super` blocks; the three draw fixtures, the text alignment columns and the nested panel use `innerWidth`.
+- `DeveloperScreen` subtracts both insets from its section spacing so the content pitch is what it was.
+- Tests: `engine/ui/PanelPadding.test.ts` (drawing, hit test, snapshot, vertical and horizontal scroll extent, radius-aware clip in walk, hit test and snapshot, default). Lint: every scene 0, developer screen 186, both as on main with the same violation paths. Goldens re-minted with `update_mode=all`.
+
 ## Pixel snapping at submission: hairlines, shared edges and clips (2026-09-28)
 
 **What landed:** DDB-188 (DDB-55).
@@ -28,6 +49,7 @@ This document contains the chronological log of completed development tasks for 
 - `uberShader.spec.ts`: the fractional abutting-rects case passes and lost its `test.fail`; new GPU checks for chapter 7's 1 px border at y 10.4 on device rows 21 and 22 at ratio 2, and a 1 px center border on one column. The two coverage-ramp tests moved under a scale, where nothing snaps.
 
 **How:** unit tests for the helper (center, borderless, sub-pixel, out param), the encoder (translated hairline at ratio 2, abutting pair, center border, and the three opt-outs) and the clip stack (snapped at every fractional scroll, not under a scale). Goldens re-minted on CI with `update_mode=all` and checked old against new.
+
 
 ## Mount context, lifecycle, and frame order (2026-09-28)
 
@@ -57,6 +79,7 @@ This document contains the chronological log of completed development tasks for 
 - Merged with DDB-68, DDB-71 and DDB-72 as they landed: `DrawFixture` and `Text` draw in their own space; `Icon.drawGlyph` lets `ArmorBadge` and `IntentMarker` draw their icon as one of their own draws, in the same order as before; `Button` places its icon from its `render` hook until the layout phase exists; the F5 overlay's visibility is `visible`.
 
 **How:** `Component.test.ts` (properties, effective values, children, reconciliation, screen geometry under rotation and scale) and `renderTree.test.ts` (local draws, leaf children walked by the framework, skipped subtrees, zIndex order, opacity, clip and promotion, balanced stacks) on the recording backend. Every screen and gallery scene captured locally on `main` and on the branch passes the golden tolerance; the CI goldens are unchanged.
+
 
 ## Visual gate: cluster rule and settled-layout wait (2026-09-28)
 

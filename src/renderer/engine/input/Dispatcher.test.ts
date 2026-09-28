@@ -3,7 +3,7 @@ import { Layer } from '../components/Layer';
 import type { MountContext } from '../components/MountContext';
 import { createTestContext } from '../components/testing';
 import { Panel } from '../ui/Panel';
-import { DRAG_THRESHOLD_MOUSE, PlatformInput, WHEEL_LATCH_MS, WHEEL_LINE_PX } from './Dispatcher';
+import { DRAG_THRESHOLD_MOUSE, PlatformInput, TOUCH_HOLD_MS, WHEEL_LATCH_MS, WHEEL_LINE_PX } from './Dispatcher';
 import type { AnyUiEvent, PointerType } from './events';
 import { NO_MODIFIERS } from './events';
 
@@ -39,11 +39,9 @@ class Container extends Probe {
 }
 
 let context: MountContext;
-let time = 0;
 
 beforeEach(() => {
 	log.length = 0;
-	time = 0;
 	context = createTestContext();
 });
 
@@ -56,11 +54,9 @@ interface PointerOptions {
 	pointerId?: number;
 	pointerType?: PointerType;
 	isPrimary?: boolean;
-	at?: number;
 }
 
 function pointer(phase: 'down' | 'move' | 'up' | 'cancel', x: number, y: number, options: PointerOptions = {}): PlatformInput {
-	time = options.at ?? time + 1;
 	const button = options.button ?? (phase === 'move' ? -1 : 0);
 	return {
 		kind: 'pointer',
@@ -74,15 +70,16 @@ function pointer(phase: 'down' | 'move' | 'up' | 'cancel', x: number, y: number,
 		buttons: phase === 'down' ? 1 : 0,
 		pressure: phase === 'down' ? 0.5 : 0,
 		modifiers: NO_MODIFIERS,
-		timestamp: time,
 	};
 }
 
 function send(...inputs: PlatformInput[]): void {
 	for (const input of inputs) {
 		context.dispatcher.enqueue(input);
-		// One frame per input, so moves are not coalesced away.
+		// One frame per input, so moves are not coalesced away: the input
+		// phase, then the update phase's clock advance.
 		context.dispatcher.dispatchPending();
+		context.clock.advance(1);
 	}
 }
 
@@ -90,8 +87,7 @@ function click(x: number, y: number, options: PointerOptions = {}): void {
 	send(pointer('move', x, y, options), pointer('down', x, y, options), pointer('up', x, y, options));
 }
 
-function wheel(x: number, y: number, deltaY: number, { deltaMode = 0, at, shift = false }: { deltaMode?: 0 | 1 | 2; at?: number; shift?: boolean } = {}): void {
-	time = at ?? time + 1;
+function wheel(x: number, y: number, deltaY: number, { deltaMode = 0, shift = false }: { deltaMode?: 0 | 1 | 2; shift?: boolean } = {}): void {
 	send({
 		kind: 'wheel',
 		x,
@@ -100,12 +96,11 @@ function wheel(x: number, y: number, deltaY: number, { deltaMode = 0, at, shift 
 		deltaY,
 		deltaMode,
 		modifiers: { ...NO_MODIFIERS, shift },
-		timestamp: time,
 	});
 }
 
 function key(phase: 'down' | 'up', name: string): void {
-	send({ kind: 'key', phase, key: name, repeat: false, modifiers: NO_MODIFIERS, timestamp: ++time });
+	send({ kind: 'key', phase, key: name, repeat: false, modifiers: NO_MODIFIERS });
 }
 
 function hit(x: number, y: number): string | null {
@@ -403,7 +398,7 @@ describe('enter, leave, and hovered (R9.8, R9.9)', () => {
 		const box = new Probe({ id: 'box', width: 100, height: 100 });
 		mount(box);
 		send(pointer('move', 50, 50));
-		send({ kind: 'leave', pointerId: 1, timestamp: ++time });
+		send({ kind: 'leave', pointerId: 1 });
 		expect(box.hovered).toBe(false);
 		expect(only('pointerleave')).toEqual(['pointerleave:box']);
 	});
@@ -439,7 +434,7 @@ describe('click (R9.31)', () => {
 
 	it('down on the label and up on the icon is one click on the button', () => {
 		button();
-		send(pointer('down', 10, 20), pointer('move', 13, 20), pointer('up', 53, 20, { at: time + 1 }));
+		send(pointer('down', 10, 20), pointer('move', 13, 20), pointer('up', 53, 20));
 		expect(only('click')).toEqual(['click:button', 'click:root']);
 	});
 
@@ -534,7 +529,7 @@ describe('capture (R9.10)', () => {
 
 	it('cancels every gesture on window blur', () => {
 		slider();
-		send(pointer('down', 10, 10), { kind: 'blur', timestamp: ++time }, pointer('up', 10, 10));
+		send(pointer('down', 10, 10), { kind: 'blur' }, pointer('up', 10, 10));
 		expect(only('pointercancel')).toEqual(['pointercancel:thumb']);
 		expect(only('click')).toEqual([]);
 	});
@@ -553,6 +548,58 @@ describe('capture (R9.10)', () => {
 		expect(pad.hovered).toBe(false);
 		send(pointer('up', 250, 50, touch));
 		expect(context.dispatcher.captorOf(7)).toBeNull();
+	});
+});
+
+describe('touch hold (R9.30)', () => {
+	function pad(): Probe {
+		const root = new Container({ id: 'root', width: 400, height: 400 });
+		const target = new Probe({ id: 'pad', width: 100, height: 100 });
+		root.addChild(target);
+		mount(root);
+		return target;
+	}
+	const touch = { pointerType: 'touch' as const, pointerId: 3 };
+
+	it('fires contextmenu after a 500 ms hold, and the release is not a click', () => {
+		pad();
+		send(pointer('down', 50, 50, touch));
+		context.clock.advance(TOUCH_HOLD_MS - 10);
+		context.dispatcher.dispatchPending();
+		expect(only('contextmenu')).toEqual([]);
+
+		context.clock.advance(10);
+		context.dispatcher.dispatchPending();
+		context.dispatcher.dispatchPending();
+		expect(only('contextmenu')).toEqual(['contextmenu:pad', 'contextmenu:root']);
+
+		send(pointer('up', 50, 50, touch));
+		expect(only('click')).toEqual([]);
+	});
+
+	it('does not fire for a touch that moved past the threshold, or for a mouse', () => {
+		pad();
+		send(pointer('down', 50, 50, touch), pointer('move', 70, 50, touch));
+		context.clock.advance(TOUCH_HOLD_MS);
+		context.dispatcher.dispatchPending();
+		send(pointer('up', 70, 50, touch));
+
+		send(pointer('down', 50, 50));
+		context.clock.advance(TOUCH_HOLD_MS);
+		context.dispatcher.dispatchPending();
+		send(pointer('up', 50, 50));
+
+		expect(only('contextmenu')).toEqual([]);
+		expect(only('click')).toEqual(['click:pad', 'click:root']);
+	});
+
+	it('stamps events with the frame clock, not a platform timer (R8.28)', () => {
+		const target = pad();
+		const stamps: number[] = [];
+		target.onPointerDown = (event) => stamps.push(event.timestamp);
+		context.clock.advance(1234);
+		send(pointer('down', 50, 50));
+		expect(stamps).toEqual([context.clock.now - 1]);
 	});
 });
 
@@ -581,15 +628,18 @@ describe('wheel (R9.3, R9.32)', () => {
 
 	it('keeps a latched inner scroller for 150 ms at its end, then passes a new gesture on', () => {
 		const { outer, inner } = nested();
-		wheel(50, 50, 30, { at: 1000 });
+		wheel(50, 50, 30);
 		expect(inner.getScrollOffset().y).toBe(30);
 		// At its end (32), still latched: the outer panel does not move.
-		wheel(50, 50, 30, { at: 1000 + WHEEL_LATCH_MS - 10 });
-		wheel(50, 50, 30, { at: 1000 + 2 * WHEEL_LATCH_MS - 20 });
+		context.clock.advance(WHEEL_LATCH_MS - 10);
+		wheel(50, 50, 30);
+		context.clock.advance(WHEEL_LATCH_MS - 10);
+		wheel(50, 50, 30);
 		expect(inner.getScrollOffset().y).toBe(32);
 		expect(outer.getScrollOffset().y).toBe(0);
 		// A new gesture: the inner panel cannot move down, so the outer takes it.
-		wheel(50, 50, 30, { at: 2000 });
+		context.clock.advance(WHEEL_LATCH_MS + 1);
+		wheel(50, 50, 30);
 		expect(outer.getScrollOffset().y).toBe(30);
 	});
 

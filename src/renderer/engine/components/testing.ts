@@ -1,3 +1,4 @@
+import type { Clock } from '../animation/Clock';
 import { DrawApi, NullBackend } from '../draw';
 import { MountContext, ViewportSource, createMountContext } from './MountContext';
 import { InjectionResult, InjectionTarget, injectInput } from '../debug/inputInjection';
@@ -7,13 +8,16 @@ export interface TestContextOptions {
 	draw?: DrawApi;
 	/** Defaults to the harness's fixed 1440 by 882 viewport (R13.37). */
 	viewport?: ViewportSource;
+	/** A clock the test holds, to freeze or inspect (R13.37). */
+	clock?: Clock;
 }
 
 /** A mount context for tests, built through the same factory the pages use. */
-export function createTestContext({ draw, viewport }: TestContextOptions = {}): MountContext {
+export function createTestContext({ draw, viewport, clock }: TestContextOptions = {}): MountContext {
 	return createMountContext({
 		draw: draw ?? new DrawApi({ backend: new NullBackend(), development: false }),
 		viewport: viewport ?? { logical: { width: 1440, height: 882 } },
+		clock,
 	});
 }
 

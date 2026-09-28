@@ -1,4 +1,4 @@
-import { Panel } from '../../../engine/ui/Panel';
+import { DeveloperSectionPanel } from './DeveloperSectionPanel';
 import { Text } from '../../../engine/components/Text';
 import { Rectangle } from '../../../engine/components/Rectangle';
 
@@ -6,18 +6,10 @@ import { Rectangle } from '../../../engine/components/Rectangle';
  * Rectangle examples section for the developer screen
  * Demonstrates various rectangle styling options
  */
-export class RectangleExamplesSection extends Panel {
+export class RectangleExamplesSection extends DeveloperSectionPanel {
 	constructor(x: number, y: number, width: number) {
-		super({
-			id: 'dev_section_rectangles',
-			width,
-			height: 150, // Will be calculated based on content
-			style: {
-				backgroundColor: 'transparent',
-			},
-		});
+		super({ id: 'dev_section_rectangles', x, y, width });
 
-		this.setPosition(x, y);
 		this.initializeContent();
 	}
 
@@ -106,7 +98,7 @@ export class RectangleExamplesSection extends Panel {
 		this.addChild(circleRect);
 
 		// Update our height based on content
-		this.setSize(this.width, rectY + 100);
+		this.fitContentHeight(rectY + 100);
 	}
 
 	/**

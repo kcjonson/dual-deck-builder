@@ -1,4 +1,4 @@
-import { Panel } from '../../../engine/ui/Panel';
+import { DeveloperSectionPanel } from './DeveloperSectionPanel';
 import { Text } from '../../../engine/components/Text';
 import { Rectangle } from '../../../engine/components/Rectangle';
 import { Input } from '../../../engine/ui/Input';
@@ -8,20 +8,12 @@ import { Button } from '../../../engine/ui/Button';
  * Interactive controls section for the developer screen
  * Demonstrates dynamic property changes through input controls
  */
-export class InteractiveControlsSection extends Panel {
+export class InteractiveControlsSection extends DeveloperSectionPanel {
 	private demoRectangle!: Rectangle;
 
 	constructor(x: number, y: number, width: number) {
-		super({
-			id: 'dev_section_interactive_controls',
-			width,
-			height: 350, // Will be calculated based on content
-			style: {
-				backgroundColor: 'transparent',
-			},
-		});
+		super({ id: 'dev_section_interactive_controls', x, y, width });
 
-		this.setPosition(x, y);
 		this.initializeContent();
 	}
 
@@ -137,7 +129,7 @@ export class InteractiveControlsSection extends Panel {
 		this.addChild(updateButton);
 
 		// Update our height based on content
-		this.setSize(this.width, currentY + 40);
+		this.fitContentHeight(currentY + 40);
 	}
 
 	/**

@@ -3,6 +3,7 @@ import { createDrawApi } from './renderer/engine/rendering/WebGL2Backend';
 import { FrameLoop } from './renderer/engine/rendering/FrameLoop';
 import { Game } from './renderer/game/Game';
 import { MountContext, createMountContext } from './renderer/engine/components/MountContext';
+import { followReducedMotion } from './renderer/engine/rendering/reducedMotion';
 import { FrameTimer } from './renderer/engine/rendering/FrameTimer';
 import { PointerAdapter } from './renderer/engine/input/PointerAdapter';
 import type { GpuTimer } from './renderer/engine/rendering/GpuTimer';
@@ -82,6 +83,7 @@ class Application {
 			// R1.6: the one object every root is mounted with. The pointer
 			// adapter feeds its dispatcher from the canvas the renderer draws to.
 			this.context = createMountContext({ draw, viewport: this.renderer.viewport });
+			followReducedMotion(this.context.animator);
 			const canvas = this.renderer.canvas;
 			this.inputAdapter = new PointerAdapter({ dispatcher: this.context.dispatcher });
 			this.inputAdapter.attach(canvas);

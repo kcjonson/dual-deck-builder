@@ -92,7 +92,7 @@ export class PointerAdapter {
 	};
 
 	private handlePointerLeave = (event: DomPointerEvent): void => {
-		this.dispatcher.enqueue({ kind: 'leave', pointerId: event.pointerId ?? 1, timestamp: event.timeStamp });
+		this.dispatcher.enqueue({ kind: 'leave', pointerId: event.pointerId ?? 1 });
 	};
 
 	private handleWheel = (event: WheelEvent): void => {
@@ -107,7 +107,6 @@ export class PointerAdapter {
 			deltaY: event.deltaY,
 			deltaMode: event.deltaMode as WheelDeltaMode,
 			modifiers: modifiersOf(event),
-			timestamp: event.timeStamp,
 		});
 	};
 
@@ -119,8 +118,8 @@ export class PointerAdapter {
 		this.enqueueKey(event, 'up');
 	};
 
-	private handleBlur = (event: FocusEvent): void => {
-		this.dispatcher.enqueue({ kind: 'blur', timestamp: event.timeStamp });
+	private handleBlur = (): void => {
+		this.dispatcher.enqueue({ kind: 'blur' });
 	};
 
 	private enqueueKey(event: KeyboardEvent, phase: 'down' | 'up'): void {
@@ -134,7 +133,6 @@ export class PointerAdapter {
 			key: event.key,
 			repeat: event.repeat,
 			modifiers: modifiersOf(event),
-			timestamp: event.timeStamp,
 		});
 	}
 
@@ -154,7 +152,6 @@ export class PointerAdapter {
 			// R9.1: a platform without pressure reports 0.5 while pressed.
 			pressure: event.pressure ?? (buttons !== 0 ? 0.5 : 0),
 			modifiers: modifiersOf(event),
-			timestamp: event.timeStamp,
 		});
 	}
 

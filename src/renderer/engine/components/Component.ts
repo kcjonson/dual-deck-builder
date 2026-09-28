@@ -796,8 +796,9 @@ export abstract class Component {
 	/**
 	 * Detaches this subtree from its rooted tree, bottom-up: the children,
 	 * then the dispatcher's hold on it (a captor hears `pointercancel` here,
-	 * R9.10), then `onUnmount`, then update requests and pending layout. Hover
-	 * and focus are cleared without callbacks (R9.21). A no-op when not
+	 * R9.10), then `onUnmount`, then update requests, pending layout, and the
+	 * tweens it owns. Hover and focus are cleared without callbacks (R9.21).
+	 * A no-op when not
 	 * mounted (R8.15).
 	 */
 	public unmount(): void {
@@ -807,6 +808,7 @@ export abstract class Component {
 		context.dispatcher.forget(this);
 		this.onUnmount();
 		context.frame.forget(this);
+		context.animator.cancelOwnedBy(this);
 		this.mountContext = null;
 		this.laidOutBounds = null;
 		this.hoverState = false;
@@ -821,7 +823,7 @@ export abstract class Component {
 		// Override in subclasses
 	}
 
-	/** Release what `onMount` registered beyond dispatcher state and update requests, which the base releases. */
+	/** Release what `onMount` registered beyond dispatcher state, update requests and owned tweens, which the base releases. */
 	protected onUnmount(): void {
 		// Override in subclasses
 	}

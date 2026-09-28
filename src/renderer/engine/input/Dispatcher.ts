@@ -1,4 +1,5 @@
 import type { Vec2 } from '../draw/geometry';
+import type { Clock } from '../animation/Clock';
 import type { Component } from '../components/Component';
 import type { UiFrame } from '../components/UiFrame';
 import {
@@ -19,6 +20,8 @@ export const DRAG_THRESHOLD_MOUSE = 4;
 export const DRAG_THRESHOLD_TOUCH = 10;
 /** R9.32: a wheel event within this long of the last stays with the latched scroller. */
 export const WHEEL_LATCH_MS = 150;
+/** R9.30: a touch held this long under the drag threshold is a `contextmenu`. */
+export const TOUCH_HOLD_MS = 500;
 /** R9.3: one line of a line-mode wheel delta, in logical pixels. */
 export const WHEEL_LINE_PX = 16;
 
@@ -38,17 +41,18 @@ interface PointerFields {
 	buttons: number;
 	pressure: number;
 	modifiers: Modifiers;
-	timestamp: number;
 }
 
 /**
  * What a platform adapter hands the queue (R9.2): positions already in
  * viewport logical pixels, wheel deltas still in the platform's units, since
  * page mode can only be resolved against the scroller that takes them (R9.3).
+ * No timestamps: events are stamped with the frame clock when dispatched, the
+ * one time UI code reads (R8.28).
  */
 export type PlatformInput =
 	| (PointerFields & { kind: 'pointer'; phase: 'down' | 'move' | 'up' | 'cancel'; coalesced?: Vec2[] })
-	| { kind: 'leave'; pointerId: number; timestamp: number }
+	| { kind: 'leave'; pointerId: number }
 	| {
 		kind: 'wheel';
 		x: number;
@@ -57,10 +61,9 @@ export type PlatformInput =
 		deltaY: number;
 		deltaMode: WheelDeltaMode;
 		modifiers: Modifiers;
-		timestamp: number;
 	}
-	| { kind: 'key'; phase: 'down' | 'up'; key: string; repeat: boolean; modifiers: Modifiers; timestamp: number }
-	| { kind: 'blur'; timestamp: number };
+	| { kind: 'key'; phase: 'down' | 'up'; key: string; repeat: boolean; modifiers: Modifiers }
+	| { kind: 'blur' };
 
 interface Press {
 	/** Null when the press landed on nothing, or its target has since unmounted. */
@@ -69,7 +72,9 @@ interface Press {
 	y: number;
 	button: number;
 	pointerType: PointerType;
-	/** Past the drag threshold, or cancelled: no click (R9.31). */
+	/** Clock time of the press, for the touch hold (R9.30). */
+	startTime: number;
+	/** Past the drag threshold, cancelled, or already a hold: no click (R9.31). */
 	spent: boolean;
 }
 
@@ -80,6 +85,11 @@ export interface DispatcherOptions {
 	 * that moved content under a still pointer (R9.9).
 	 */
 	frame: UiFrame;
+	/**
+	 * R8.28's frame clock, for event timestamps, wheel latching, and the touch
+	 * hold. The frame advances it; the dispatcher never reads a platform timer.
+	 */
+	clock: Clock;
 	/** `dpr * uiScale` for clip snapping in the hit walk (R7.8a); 1 when absent. */
 	pixelRatio?: () => number;
 }
@@ -111,6 +121,7 @@ export class Dispatcher {
 	public readonly hotkeys = new HotkeyTable();
 
 	private readonly frame: UiFrame;
+	private readonly clock: Clock;
 	private readonly pixelRatio: () => number;
 	private queue: PlatformInput[] = [];
 	private readonly rootList: Component[] = [];
@@ -127,8 +138,9 @@ export class Dispatcher {
 	private inputPaused = false;
 	private dispatching = false;
 
-	constructor({ frame, pixelRatio = () => 1 }: DispatcherOptions) {
+	constructor({ frame, clock, pixelRatio = () => 1 }: DispatcherOptions) {
 		this.frame = frame;
+		this.clock = clock;
 		this.pixelRatio = pixelRatio;
 	}
 
@@ -212,6 +224,7 @@ export class Dispatcher {
 		try {
 			this.cancelInvalidCaptors();
 			this.refreshHover();
+			this.fireTouchHolds();
 			const batch = this.queue;
 			this.queue = [];
 			for (const input of batch) {
@@ -397,6 +410,7 @@ export class Dispatcher {
 			y: fields.y,
 			button: fields.button,
 			pointerType: fields.pointerType,
+			startTime: this.clock.now,
 			spent: false,
 		});
 		if (!target) return;
@@ -468,6 +482,25 @@ export class Dispatcher {
 			this.hoverStale = true;
 		} else if (press?.target?.isMounted) {
 			this.bubble(this.pointerEvent('pointercancel', press.target, fields));
+		}
+	}
+
+	/**
+	 * R9.30: a primary touch still under the drag threshold after
+	 * `TOUCH_HOLD_MS` is a `contextmenu` at its press target, and its release
+	 * is no longer a click. Checked each frame, since a still finger sends
+	 * nothing.
+	 */
+	private fireTouchHolds(): void {
+		if (this.presses.size === 0) return;
+		const now = this.clock.now;
+		for (const [pointerId, press] of this.presses) {
+			if (press.spent || press.pointerType !== 'touch' || !press.target) continue;
+			if (now - press.startTime < TOUCH_HOLD_MS) continue;
+			press.spent = true;
+			if (!press.target.isMounted || !press.target.effectivelyEnabled) continue;
+			const fields = this.lastPointerFields(pointerId, press, press);
+			this.bubble(this.pointerEvent('contextmenu', press.target, { ...fields, pointerType: 'touch', button: 0 }));
 		}
 	}
 
@@ -557,7 +590,8 @@ export class Dispatcher {
 		const latch = this.latch;
 		let scroller: Component | null = null;
 		let hit: Component | null = null;
-		if (latch && input.timestamp - latch.lastTime <= WHEEL_LATCH_MS && latch.scroller.isMounted && latch.scroller.effectivelyVisible) {
+		const now = this.clock.now;
+		if (latch && now - latch.lastTime <= WHEEL_LATCH_MS && latch.scroller.isMounted && latch.scroller.effectivelyVisible) {
 			scroller = latch.scroller;
 		} else {
 			this.latch = null;
@@ -574,10 +608,10 @@ export class Dispatcher {
 		const target = scroller ?? hit;
 		if (!target) return;
 		const [deltaX, deltaY] = normaliseWheel(input, target);
-		if (scroller) this.latch = { scroller, lastTime: input.timestamp };
+		if (scroller) this.latch = { scroller, lastTime: now };
 
 		this.bubble(new UiWheelEvent({
-			timestamp: input.timestamp,
+			timestamp: now,
 			target,
 			screen: { x: input.x, y: input.y },
 			deltaX,
@@ -606,7 +640,7 @@ export class Dispatcher {
 		if (focused && focused.isMounted && focused.effectivelyVisible && focused.effectivelyEnabled) {
 			const event = new UiKeyEvent({
 				type: input.phase === 'down' ? 'keydown' : 'keyup',
-				timestamp: input.timestamp,
+				timestamp: this.clock.now,
 				target: focused,
 				key: input.key,
 				repeat: input.repeat,
@@ -659,7 +693,7 @@ export class Dispatcher {
 	): UiPointerEvent {
 		return new UiPointerEvent({
 			type,
-			timestamp: fields.timestamp,
+			timestamp: this.clock.now,
 			target,
 			screen: { x: fields.x, y: fields.y },
 			pointerId: fields.pointerId,
@@ -687,13 +721,8 @@ export class Dispatcher {
 			buttons: 0,
 			pressure: 0,
 			modifiers: NO_MODIFIERS,
-			timestamp: now(),
 		};
 	}
-}
-
-function now(): number {
-	return typeof performance !== 'undefined' ? performance.now() : Date.now();
 }
 
 /**
