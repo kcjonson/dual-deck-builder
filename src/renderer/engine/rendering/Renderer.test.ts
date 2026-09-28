@@ -3,10 +3,6 @@
  */
 import { Renderer } from './Renderer';
 
-jest.mock('./FontAtlas', () => ({
-	FontAtlas: jest.fn().mockImplementation(() => ({ upload: jest.fn() })),
-}));
-
 /** jsdom has no `matchMedia`; `CanvasViewport` registers one resolution query. */
 window.matchMedia = jest.fn().mockReturnValue({
 	addEventListener: jest.fn(),

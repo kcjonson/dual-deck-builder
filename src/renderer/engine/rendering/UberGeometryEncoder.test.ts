@@ -1,10 +1,10 @@
-import { DrawApi, DrawCommand, RecordingBackend, RGBA, TextureHandle, UNCLIPPED_RECT } from '../draw';
+import { DrawApi, DrawCommand, DrawTextOptions, RecordingBackend, RGBA, TextureHandle, UNCLIPPED_RECT } from '../draw';
 import { Batcher, GeometryUpload, GroupShape } from '../draw/Batcher';
 import { ResidentTextureSet } from '../draw/ResidentTextureSet';
-import type { CharacterInfo } from './FontAtlas';
+import { TextMetricsService } from '../text/TextMetricsService';
+import { syntheticFontAtlas } from '../text/testing';
 import { LegacyPaintOrder } from './LegacyPaintOrder';
 import {
-	GlyphSource,
 	UBER_MODE,
 	UBER_VERTEX,
 	UberGeometryEncoder,
@@ -23,31 +23,8 @@ const RED: RGBA = [1, 0, 0, 1];
 const BLUE: RGBA = [0.2, 0.4, 0.6, 0.8];
 const V = UBER_VERTEX;
 
-/** A two-glyph atlas at a 32 px base, 512 px square, with a line height of 40. */
-class FakeGlyphs implements GlyphSource {
-	readonly glyphs: Record<string, CharacterInfo> = {
-		A: { x: 0.1, y: 0.2, width: 0.03, height: 0.05, offsetX: 1.5, offsetY: 2.25, advance: 20 },
-		b: { x: 0.4, y: 0.5, width: 0.02, height: 0.06, offsetX: -0.5, offsetY: 3.75, advance: 17 },
-	};
-
-	getCharacter(char: string): CharacterInfo | null {
-		return this.glyphs[char] ?? null;
-	}
-
-	getFontSize(): number {
-		return 32;
-	}
-
-	getAtlasSize(): number {
-		return 512;
-	}
-
-	measureText(text: string): { width: number; height: number } {
-		let width = 0;
-		for (const char of text) width += this.glyphs[char]?.advance ?? 0;
-		return { width, height: 40 };
-	}
-}
+/** The synthetic atlas's texture: 512 by 64, the key its text groups report. */
+const ATLAS_TEXTURE: TextureHandle = { id: 1, width: 512, height: 64, label: 'synthetic atlas' };
 
 function record(
 	build: (api: DrawApi) => void,
@@ -56,7 +33,7 @@ function record(
 	strict = true,
 ): DrawCommand[] {
 	const backend = new RecordingBackend({ maxFrames: 1 });
-	backend.loadFontAtlas({ name: 'body', metrics: null, texture: { id: 1, width: 1, height: 1, label: null } });
+	backend.loadFontAtlas({ name: 'body', atlas: syntheticFontAtlas(), texture: ATLAS_TEXTURE });
 	const api = new DrawApi({ backend, strict });
 	prepare?.(api);
 	api.beginFrame({ viewport: { width: 800, height: 600 }, ratio });
@@ -66,18 +43,20 @@ function record(
 }
 
 function setup(ratio = 1) {
-	const glyphs = new FakeGlyphs();
+	const text = new TextMetricsService();
+	text.addAtlas({ name: 'body', atlas: syntheticFontAtlas() });
 	const unpaintable: string[] = [];
 	const encoder = new UberGeometryEncoder({
-		glyphs,
+		text,
 		onUnpaintable: (kind, detail) => unpaintable.push(`${kind}: ${detail}`),
 	});
+	encoder.registerFontTexture('body', ATLAS_TEXTURE);
 	encoder.ratio = ratio;
 	// Every encoding in this file runs under the contract check, so an encoder
 	// that writes a count other than the one it reported fails here.
 	const batcher = new Batcher({
 		encoder,
-		textures: new ResidentTextureSet({ units: 4, resident: [glyphs] }),
+		textures: new ResidentTextureSet({ units: 4, resident: [ATLAS_TEXTURE] }),
 		verify: (command, problem) => {
 			throw new Error(`${command.kind}: ${problem}`);
 		},
@@ -102,7 +81,7 @@ function setup(ratio = 1) {
 		return uploads[0];
 	}
 
-	return { encoder, encode, draw, unpaintable, glyphs };
+	return { encoder, encode, draw, unpaintable, text };
 }
 
 /** The floats of vertex `n` of an upload, by field. */
@@ -125,6 +104,7 @@ function vertex(floats: Float32Array, n: number) {
 		mode: floats[base + V.mode],
 		slot: floats[base + V.mode + 1],
 		additive: floats[base + V.mode + 2],
+		blur: floats[base + V.mode + 3],
 	};
 }
 
@@ -471,153 +451,203 @@ describe('UberGeometryEncoder: image (R5.18)', () => {
 	});
 });
 
-describe('UberGeometryEncoder: text in mask mode', () => {
-	/** The pre-uber alignment and glyph loop, longhand, as quads of (x, y, u, v) top-left first. */
-	function expectedGlyphQuads(
-		glyphs: FakeGlyphs,
-		text: string,
-		x: number,
-		y: number,
-		size: number,
-		align: 'left' | 'center' | 'right',
-		verticalAlign: 'top' | 'middle' | 'bottom',
-	) {
-		const scale = size / 32;
-		const metrics = glyphs.measureText(text);
-		let startX = x;
-		if (align === 'center') startX = x - (metrics.width * scale) / 2;
-		if (align === 'right') startX = x - metrics.width * scale;
-		let startY = y;
-		if (verticalAlign === 'middle') startY = y - (metrics.height * scale) / 2;
-		if (verticalAlign === 'bottom') startY = y - metrics.height * scale;
-
+describe('UberGeometryEncoder: text (chapter 6)', () => {
+	/**
+	 * The synthetic atlas at 16 px: A is 10 px wide and 12 tall above the
+	 * baseline, b 8 by 12, A then b kerns by -2. Its atlas cells are 30 by 60
+	 * texels at x = 32n of 512 by 64.
+	 */
+	function quadsOf(floats: Float32Array, count: number, first = 0): number[][] {
 		const quads: number[][] = [];
-		let currentX = startX;
-		for (const char of text) {
-			const info = glyphs.getCharacter(char);
-			if (!info) continue;
-			const width = info.width * 512 * scale;
-			const height = info.height * 512 * scale;
-			const left = Math.round(currentX + info.offsetX * scale);
-			const top = Math.round(startY + info.offsetY * scale);
-			const u0 = info.x;
-			const v0 = info.y;
-			const u1 = info.x + info.width;
-			const v1 = info.y + info.height;
-			quads.push([
-				left, top, u0, v0,
-				left + width, top, u1, v0,
-				left + width, top + height, u1, v1,
-				left, top + height, u0, v1,
-			]);
-			currentX += info.advance * scale;
+		for (let quad = first; quad < first + count; quad++) {
+			const corners: number[] = [];
+			for (let corner = 0; corner < 4; corner++) corners.push(...vertex(floats, quad * 4 + corner).position);
+			quads.push(corners);
 		}
 		return quads;
 	}
 
-	function quadsOf(floats: Float32Array, count: number): number[][] {
-		const quads: number[][] = [];
-		for (let glyph = 0; glyph < count; glyph++) {
-			const quad: number[] = [];
-			for (let corner = 0; corner < 4; corner++) {
-				const v = vertex(floats, glyph * 4 + corner);
-				quad.push(...v.position, ...v.texCoord);
-			}
-			quads.push(quad);
-		}
-		return quads;
-	}
-
-	it.each([
-		['left', 'top'],
-		['center', 'middle'],
-		['right', 'bottom'],
-	] as const)('places glyphs where the legacy path did (%s, %s)', (align, verticalAlign) => {
-		const { draw, glyphs } = setup();
+	it('writes a quad per glyph from the layout, in text mode, with the atlas cell as its texture coordinates (R6.5)', () => {
+		const { draw } = setup();
 		const { floats, indices } = draw((api) => {
 			api.pushTranslate(3, 4);
-			api.drawText({ text: 'Ab?A', position: { x: 100.25, y: 50 }, font: 'body', size: 18, color: BLUE, align, verticalAlign });
+			api.drawText({ text: 'A b', position: { x: 100, y: 50 }, font: 'body', size: 16, color: BLUE });
 			api.popTransform();
 		});
 
-		// '?' has no glyph and is skipped.
-		expect(quadsOf(floats, 3)).toEqual(expectedGlyphQuads(glyphs, 'Ab?A', 103.25, 54, 18, align, verticalAlign).map(f32));
-		expect(indices).toEqual([0, 1, 2, 0, 2, 3, 4, 5, 6, 4, 6, 7, 8, 9, 10, 8, 10, 11]);
-		for (let n = 0; n < 12; n++) {
-			expect(vertex(floats, n).fill).toEqual(f32([0.2 * 0.8, 0.4 * 0.8, 0.6 * 0.8, 0.8]));
-			expect(vertex(floats, n).mode).toBe(UBER_MODE.mask);
-			expect(vertex(floats, n).slot).toBe(0);
+		// The space is a blank: two quads. b sits at 10 + 4 (no kerning across the space).
+		expect(quadsOf(floats, 2)).toEqual([
+			[103, 42, 113, 42, 113, 54, 103, 54],
+			[117, 42, 125, 42, 125, 54, 117, 54],
+		]);
+		expect(indices).toEqual([0, 1, 2, 0, 2, 3, 4, 5, 6, 4, 6, 7]);
+		expect(vertex(floats, 4).texCoord).toEqual(f32([32 / 512, 0]));
+		expect(vertex(floats, 6).texCoord).toEqual(f32([62 / 512, 60 / 64]));
+		for (let n = 0; n < 8; n++) {
+			const v = vertex(floats, n);
+			expect(v.fill).toEqual(f32([0.2 * 0.8, 0.4 * 0.8, 0.6 * 0.8, 0.8]));
+			expect(v.mode).toBe(UBER_MODE.text);
+			expect(v.slot).toBe(0);
+			// R6.5's range, a per-draw constant under a translation: 8 * 16 / 48.
+			expect(v.sigma).toBeCloseTo(8 * 16 / 48, 5);
+			expect(v.blur).toBe(0);
 		}
 	});
 
-	it('snaps glyphs to the device grid of the frame\'s ratio (R7.2)', () => {
+	it('clamps the screen range to at least one device pixel (R6.4a)', () => {
+		const { draw } = setup();
+		const { floats } = draw((api) => {
+			api.drawText({ text: 'A', position: { x: 0, y: 20 }, font: 'body', size: 4, color: RED });
+		});
+		expect(vertex(floats, 0).sigma).toBe(1);
+	});
+
+	it('snaps the run origin, not each glyph, to the device grid (R6.16)', () => {
 		const { draw } = setup(2);
 		const { floats } = draw((api) => {
-			api.drawText({ text: 'AA', position: { x: 100.3, y: 50.2 }, font: 'body', size: 32, color: BLUE });
+			api.drawText({ text: 'AbA', position: { x: 10.3, y: 50.2 }, font: 'body', size: 16, color: BLUE });
 		});
-		// 'A' is offset (1.5, 2.25), so it starts at (101.8, 52.45): the
-		// half-pixel grid of ratio 2 puts it at (102, 52.5).
-		expect(vertex(floats, 0).position).toEqual([102, 52.5]);
+		// Origin (10.3, 50.2) to (10.5, 50); the glyphs keep their spacing.
+		const [a, b, second] = quadsOf(floats, 3);
+		expect(a[0]).toBe(10.5);
+		expect(a[1]).toBe(38);
+		expect(b[0] - a[0]).toBe(8);
+		expect(second[0] - b[0]).toBe(8);
 	});
 
-	it.each([
-		[0, 0, 'left', 'top'],
-		[0.4, 0.6, 'center', 'middle'],
-		[3.5, -2.5, 'right', 'bottom'],
-	] as const)('reports an ink extent that contains every glyph it draws (translate %s, %s)', (dx, dy, align, verticalAlign) => {
-		const { encoder, draw } = setup();
-		const options = { text: 'bAb?A', position: { x: 60.3, y: 40.7 }, font: 'body', size: 21, color: RED, align, verticalAlign };
+	it('sends every vertex through a rotation, snaps nothing, and leaves the range to the shader', () => {
+		const { draw } = setup(2);
 		const { floats } = draw((api) => {
-			api.pushTranslate(dx, dy);
-			api.drawText(options);
+			api.pushTransform([0, 1, -1, 0, 0, 0]);
+			api.drawText({ text: 'A', position: { x: 10.3, y: 50.2 }, font: 'body', size: 16, color: BLUE });
 			api.popTransform();
 		});
+		// The top-left corner (10.3, 38.2) rotated a quarter turn.
+		expect(close(vertex(floats, 0).position)).toEqual(close([-38.2, 10.3]));
+		expect(vertex(floats, 0).sigma).toBe(0);
+		// The unit range the shader's derivative path needs: range over atlas size.
+		expect(vertex(floats, 0).halfSize).toEqual(f32([8 / 512, 8 / 64]));
+	});
 
+	it('places lines by the placement rules, one after another', () => {
+		const { draw } = setup();
+		const { floats } = draw((api) => {
+			api.drawText({
+				text: 'A\nbb',
+				box: { x: 0, y: 0, width: 100, height: 60 },
+				align: 'right',
+				verticalAlign: 'middle',
+				font: 'body',
+				size: 16,
+				color: BLUE,
+			});
+		});
+		// Block of 20 + 16 + 4 centred in 60: baselines 26 and 46. Right-aligned lines of 10 and 16.
+		expect(quadsOf(floats, 3)).toEqual([
+			[90, 14, 100, 14, 100, 26, 90, 26],
+			[84, 34, 92, 34, 92, 46, 84, 46],
+			[92, 34, 100, 34, 100, 46, 92, 46],
+		]);
+	});
+
+	it('draws the measured width: a string drawn twice end to end lands its second copy one width later (R6.8)', () => {
+		const { draw, text } = setup();
+		const options: Omit<DrawTextOptions, 'position'> = { text: 'AbA', font: 'body', size: 16, color: RED, letterSpacing: 0.125 };
+		const { width } = text.measure(options);
+		const { floats } = draw((api) => {
+			api.drawText({ ...options, position: { x: 0, y: 20 } });
+			api.drawText({ ...options, position: { x: width, y: 20 } });
+		});
+		const quads = quadsOf(floats, 6);
+		// The last glyph's right edge (its plane ends at its advance) is the measured width.
+		expect(quads[2][2]).toBe(width);
+		expect(quads[3][0]).toBe(width);
+		expect(quads[5][0] - quads[3][0]).toBe(quads[2][0] - quads[0][0]);
+	});
+
+	it('draws the shadow run first with its blur in device pixels, from the mtsdf alpha (R6.6)', () => {
+		const { draw } = setup(2);
+		const { floats } = draw((api) => {
+			api.drawText({
+				text: 'A',
+				position: { x: 0, y: 20 },
+				font: 'body',
+				size: 16,
+				color: RED,
+				shadow: { color: BLUE, offset: { x: 1, y: 1 }, blur: 1.5 },
+			});
+		});
+		expect(vertex(floats, 0).blur).toBe(3);
+		expect(vertex(floats, 0).position).toEqual([1, 9]);
+		expect(vertex(floats, 4).blur).toBe(0);
+		expect(vertex(floats, 4).position).toEqual([0, 8]);
+	});
+
+	it('draws a decoration per line after the glyphs, as a rect-mode quad on whole device rows (R12.4)', () => {
+		const { draw } = setup(2);
+		const { floats, indices } = draw((api) => {
+			api.drawText({ text: 'AA\n\nA', position: { x: 0, y: 20 }, font: 'body', size: 16, color: RED, decoration: 'underline' });
+		});
+		// Three glyphs and two decorations: the empty line has none.
+		expect(floats.length).toBe(5 * 4 * V.floats);
+		expect(indices.slice(18, 24)).toEqual([12, 13, 14, 12, 14, 15]);
+		const rule = vertex(floats, 12);
+		expect(rule.mode).toBe(UBER_MODE.rect);
+		// The underline is centred 2 px below the baseline at 20, one pixel thick.
+		expect(rule.halfSize).toEqual([10, 0.5]);
+		expect(rule.position).toEqual([-0.5, 21]);
+		expect(vertex(floats, 14).position).toEqual([20.5, 23]);
+	});
+
+	it('reports an ink extent that contains every quad it draws, within the cull\'s one-pixel outset (R5.7)', () => {
+		const { encoder, draw } = setup();
+		const options: DrawTextOptions = {
+			text: 'bA b\nAA',
+			position: { x: 60.3, y: 40.7 },
+			font: 'body',
+			size: 21,
+			color: RED,
+			align: 'center',
+			decoration: 'strike',
+		};
+		const { floats } = draw((api) => api.drawText(options));
 		const ink = encoder.textInk(options);
 		if (!ink) throw new Error('a run with glyphs has an extent');
-		let minX = Infinity;
-		let minY = Infinity;
-		let maxX = -Infinity;
-		let maxY = -Infinity;
+		// A decoration quad is inflated by R5.7's device pixel like any rect;
+		// the draw API's cull adds that pixel to every extent.
 		for (let n = 0; n < floats.length / V.floats; n++) {
 			const [x, y] = vertex(floats, n).position;
-			minX = Math.min(minX, x - dx);
-			minY = Math.min(minY, y - dy);
-			maxX = Math.max(maxX, x - dx);
-			maxY = Math.max(maxY, y - dy);
+			expect(x).toBeGreaterThanOrEqual(ink.x - 1);
+			expect(y).toBeGreaterThanOrEqual(ink.y - 1);
+			expect(x).toBeLessThanOrEqual(ink.x + ink.width + 1);
+			expect(y).toBeLessThanOrEqual(ink.y + ink.height + 1);
 		}
-		expect(ink.x).toBeLessThanOrEqual(minX);
-		expect(ink.y).toBeLessThanOrEqual(minY);
-		expect(ink.x + ink.width).toBeGreaterThanOrEqual(maxX);
-		expect(ink.y + ink.height).toBeGreaterThanOrEqual(maxY);
-		expect(minX - ink.x).toBeLessThanOrEqual(2);
-		expect(ink.x + ink.width - maxX).toBeLessThanOrEqual(2);
 	});
 
 	it('has no extent for a run it would not draw', () => {
 		const { encoder } = setup();
-		expect(encoder.textInk({ text: '??', position: { x: 0, y: 0 }, size: 12 })).toBeNull();
-		expect(encoder.textInk({ text: 'A', position: null, size: 12 })).toBeNull();
+		expect(encoder.textInk({ text: '   ', position: { x: 0, y: 0 }, font: 'body', size: 12, color: RED })).toBeNull();
+		expect(encoder.textInk({ text: 'A', position: { x: 0, y: 0 }, font: 'mono', size: 12, color: RED })).toBeNull();
 	});
 
-	it('samples the atlas it was built with, which is the resident texture', () => {
-		const { encoder, glyphs } = setup();
+	it('samples the atlas texture its font role registered, which is resident', () => {
+		const { encoder } = setup();
 		const [command] = record((api) => {
 			api.drawText({ text: 'A', position: { x: 0, y: 0 }, font: 'body', size: 12, color: RED });
 		});
 		const shape: GroupShape = { vertices: 0, indices: 0, texture: null };
 		expect(encoder.shape(command, shape)).toBe(true);
-		expect(shape.texture).toBe(glyphs);
-		expect(encoder.glyphTexture).toBe(glyphs);
+		expect(shape.texture).toBe(ATLAS_TEXTURE);
 	});
 
-	it('refuses a run with a box and no position, and says so', () => {
+	it('refuses a run whose font has no atlas, and says so', () => {
 		const { encode, unpaintable } = setup();
-		const { uploads } = encode(record((api) => {
-			api.drawText({ text: 'A', box: { x: 0, y: 0, width: 10, height: 10 }, font: 'body', size: 12, color: RED });
-		}));
+		const commands = record((api) => {
+			api.drawText({ text: 'A', position: { x: 0, y: 0 }, font: 'mono', size: 12, color: RED });
+		}, 1, undefined, false);
+		const { uploads } = encode(commands);
 		expect(uploads).toEqual([]);
-		expect(unpaintable).toEqual(["text: drawText with a box and no position needs chapter 6's layout"]);
+		expect(unpaintable).toEqual(["text: drawText with font 'mono', which has no atlas"]);
 	});
 });
 

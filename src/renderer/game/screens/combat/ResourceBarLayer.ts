@@ -85,7 +85,8 @@ export class ResourceBarLayer extends Layer {
 		});
 		this.addChild(icon);
 
-		const symbol = new Text('⚙', {
+		// Empty until DDB-72 draws the gear as an icon; the atlas has no glyph for it (R6.3).
+		const symbol = new Text('', {
 			style: {
 				color: '#ffffff',
 				textAlign: 'center',

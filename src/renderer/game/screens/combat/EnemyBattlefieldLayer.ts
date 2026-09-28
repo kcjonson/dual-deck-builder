@@ -126,10 +126,11 @@ class EnemyVehicle extends VehicleUI {
 		switch (intent.type) {
 			case 'attack':
 				return intent.value ? intent.value.toString() : '?';
+			// The shield and wrench symbols are not text the atlas covers
+			// (R6.3); the badge colour carries the intent until DDB-72's icons.
 			case 'defend':
-				return '🛡';
 			case 'repair':
-				return '🔧';
+				return '';
 			case 'special':
 				return '!';
 			default:

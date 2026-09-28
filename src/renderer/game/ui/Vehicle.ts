@@ -296,10 +296,11 @@ export class Vehicle extends Layer {
 		
 		// Update armor
 		// Shield, temporary armor on top, shows as "SH" and a second number
-		// while there is any. Plain ASCII: the font atlas has nothing else.
+		// while there is any. Plain ASCII: the font atlas has nothing else,
+		// and the armor symbol comes back as an icon with DDB-72.
 		const shield = this.vehicleData.shield ?? 0;
 		this.armorDisplay.setFillColor(this.vehicleData.armor > 0 || shield > 0 ? '#6a6aaa' : '#4a4a4a');
-		this.armorText.setText(shield > 0 ? `${this.vehicleData.armor}⛡ SH${shield}` : `${this.vehicleData.armor}⛡`);
+		this.armorText.setText(shield > 0 ? `${this.vehicleData.armor} SH${shield}` : `${this.vehicleData.armor}`);
 
 		this.spentChip?.setVisible(Boolean(this.vehicleData.spent));
 	}

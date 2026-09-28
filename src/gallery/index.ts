@@ -1,5 +1,5 @@
 import { DrawApi } from '../renderer/engine/draw';
-import { Renderer } from '../renderer/engine/rendering/Renderer';
+import { Renderer, showStatusLine } from '../renderer/engine/rendering/Renderer';
 import { createDrawApi } from '../renderer/engine/rendering/WebGL2Backend';
 import { FrameLoop } from '../renderer/engine/rendering/FrameLoop';
 import { RendererContext } from '../renderer/engine/rendering/RendererContext';
@@ -8,6 +8,8 @@ import { FrameTimer } from '../renderer/engine/rendering/FrameTimer';
 import { GpuTimer, createGpuTimer } from '../renderer/engine/rendering/GpuTimer';
 import { createDevToolsTracks } from '../renderer/engine/debug/devtoolsTracks';
 import { createHitchObserver } from '../renderer/engine/debug/hitchObserver';
+import { FontAtlasError } from '../renderer/engine/text/FontAtlas';
+import { fontLoadFailureMessage, loadFontAtlases, loadImageElement } from '../renderer/engine/text/loadFontAtlases';
 import { installDebugHooks, installAppHooks, installInputHooks, installPerfHooks } from '../renderer/engine/debug/hooks';
 import { CardLoader } from '../renderer/game/core/CardLoader';
 import { gallerySceneRegistry } from './registry';
@@ -39,21 +41,29 @@ class GalleryApplication {
 	private host!: SceneHost;
 	private frameLoop!: FrameLoop;
 
-	public init(): void {
+	public async init(): Promise<void> {
 		try {
+			const fontAtlases = loadFontAtlases({ loadImage: loadImageElement });
+			// Handled here too, so a renderer that throws before the await
+			// below does not leave the load's rejection unhandled.
+			fontAtlases.catch(() => undefined);
 			// The gallery is a development-only bundle, so the DevTools track and
 			// the hitch observer (R15.29) and the GPU timer (R13.16) need no
 			// build-time gate here.
 			this.frameTimer = new FrameTimer({ tracks: createDevToolsTracks(), hitches: createHitchObserver() });
 			this.renderer = new Renderer('game-canvas');
 			this.gpuTimer = createGpuTimer(this.renderer);
-			RendererContext.getInstance().setRenderer(this.renderer);
 
 			const canvas = document.getElementById('game-canvas') as HTMLCanvasElement;
 			InputSystem.getInstance().setup(canvas);
 
 			// Line for line what src/index.ts does, through the same factory.
-			this.draw = createDrawApi({ renderer: this.renderer, frameTimer: this.frameTimer, gpuTimer: this.gpuTimer });
+			this.draw = createDrawApi({
+				renderer: this.renderer,
+				frameTimer: this.frameTimer,
+				gpuTimer: this.gpuTimer,
+				fontAtlases: await fontAtlases,
+			});
 			RendererContext.getInstance().draw = this.draw;
 
 			this.host = new SceneHost({
@@ -77,6 +87,7 @@ class GalleryApplication {
 			this.frameLoop.start();
 		} catch (error) {
 			console.error('Gallery failed to start:', error);
+			if (error instanceof FontAtlasError) showStatusLine(fontLoadFailureMessage(error));
 		}
 	}
 

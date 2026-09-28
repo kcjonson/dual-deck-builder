@@ -54,6 +54,7 @@ export type {
 	TextAlign,
 	TextCommand,
 	TextMetrics,
+	TextDecoration,
 	TextOverflow,
 	TextShadow,
 	TextTransform,

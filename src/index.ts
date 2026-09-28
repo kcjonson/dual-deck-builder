@@ -1,4 +1,4 @@
-import { Renderer } from './renderer/engine/rendering/Renderer';
+import { Renderer, showStatusLine } from './renderer/engine/rendering/Renderer';
 import { createDrawApi } from './renderer/engine/rendering/WebGL2Backend';
 import { FrameLoop } from './renderer/engine/rendering/FrameLoop';
 import { Game } from './renderer/game/Game';
@@ -6,7 +6,13 @@ import { RendererContext } from './renderer/engine/rendering/RendererContext';
 import { InputSystem } from './renderer/engine/input/InputSystem';
 import { FrameTimer } from './renderer/engine/rendering/FrameTimer';
 import type { GpuTimer } from './renderer/engine/rendering/GpuTimer';
-import { LoadedFontAtlas, loadFontAtlases, loadImageElement } from './renderer/engine/text/loadFontAtlases';
+import { FontAtlasError } from './renderer/engine/text/FontAtlas';
+import {
+	LoadedFontAtlas,
+	fontLoadFailureMessage,
+	loadFontAtlases,
+	loadImageElement,
+} from './renderer/engine/text/loadFontAtlases';
 
 /**
  * Main entry point for the application
@@ -16,8 +22,6 @@ class Application {
 	private game!: Game;
 	private frameTimer!: FrameTimer;
 	private frameLoop!: FrameLoop;
-	/** Loaded and validated, not yet drawn with; DDB-70 hands these to the backend. */
-	private fontAtlases!: Promise<LoadedFontAtlas[]>;
 
 	/**
 	 * Initialize the application
@@ -34,7 +38,9 @@ class Application {
 				}
 			});
 
-			this.fontAtlases = this.loadFonts();
+			// Decoded alongside the rest of startup, awaited before the draw
+			// API exists: text before its atlas is an error (R2.18).
+			const fontAtlases = this.loadFonts();
 
 			// Frame timing, section timing and the per-frame draw counters (R13.7).
 			// A development build mirrors the sections to a DevTools track and
@@ -61,9 +67,6 @@ class Application {
 				? (require('./renderer/engine/rendering/GpuTimer') as typeof import('./renderer/engine/rendering/GpuTimer')).createGpuTimer(this.renderer)
 				: null;
 
-			// Set up the global renderer context
-			RendererContext.getInstance().setRenderer(this.renderer);
-
 			// Initialize the input system with the canvas
 			const canvas = document.getElementById('game-canvas') as HTMLCanvasElement;
 			InputSystem.getInstance().setup(canvas);
@@ -71,7 +74,12 @@ class Application {
 			// The seam. Built through the shared factory rather than spelled
 			// here, so this page and the gallery cannot end up with differently
 			// configured draw APIs over the same renderer.
-			const draw = createDrawApi({ renderer: this.renderer, frameTimer: this.frameTimer, gpuTimer });
+			const draw = createDrawApi({
+				renderer: this.renderer,
+				frameTimer: this.frameTimer,
+				gpuTimer,
+				fontAtlases: await fontAtlases,
+			});
 			RendererContext.getInstance().draw = draw;
 
 			// Create and initialize the game
@@ -110,6 +118,7 @@ class Application {
 			console.log('Initialization complete!');
 		} catch (error) {
 			console.error('Failed to initialize application:', error);
+			if (error instanceof FontAtlasError) showStatusLine(fontLoadFailureMessage(error));
 		}
 	}
 
