@@ -1,6 +1,8 @@
+import { Icon } from '../../../engine/components/Icon';
 import { Layer, LayerOptions } from '../../../engine/components/Layer';
 import { Text } from '../../../engine/components/Text';
 import { Rectangle } from '../../../engine/components/Rectangle';
+import { tokens } from '../../../engine/theme/tokens';
 import { Button } from '../../../engine/ui/Button';
 import { DriverStatsDisplay, DriverResourceData } from './DriverStatsDisplay';
 
@@ -9,7 +11,7 @@ import { DriverStatsDisplay, DriverResourceData } from './DriverStatsDisplay';
  */
 interface ScrapDisplay {
 	icon: Rectangle;
-	symbol: Text;
+	symbol: Icon;
 	amount: Text;
 	label: Text;
 }
@@ -81,13 +83,7 @@ export class ResourceBarLayer extends Layer {
 		});
 		this.addChild(icon);
 
-		// Empty until DDB-72 draws the gear as an icon; the atlas has no glyph for it (R6.3).
-		const symbol = new Text('', {
-			style: {
-				color: '#ffffff',
-				textAlign: 'center',
-			},
-		});
+		const symbol = new Icon({ glyph: 'settings', size: 0, tint: tokens.color.text_bright });
 		this.addChild(symbol);
 
 		const amount = new Text('0', {
@@ -163,8 +159,9 @@ export class ResourceBarLayer extends Layer {
 		icon.setPosition(currentX, Math.floor((layerHeight - iconSize) / 2));
 		icon.setSize(iconSize, iconSize);
 		icon.setCornerRadius(Math.floor(iconSize / 4));
-		symbol.setFontSize(Math.floor(iconSize * 0.6));
-		symbol.setPosition(currentX + iconSize / 2, Math.floor(layerHeight / 2));
+		const symbolSize = Math.floor(iconSize * 0.75);
+		symbol.size = symbolSize;
+		symbol.setPosition(currentX + (iconSize - symbolSize) / 2, Math.floor((layerHeight - symbolSize) / 2));
 		// Centred 15 px past the icon, and under it
 		amount.setPosition(currentX + iconSize, Math.floor(layerHeight / 2));
 		amount.setWidth(SCRAP_AMOUNT_WIDTH);
