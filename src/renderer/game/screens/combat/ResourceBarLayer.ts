@@ -50,9 +50,6 @@ export class ResourceBarLayer extends Layer {
 
 		this.driver1Display = new DriverStatsDisplay({
 			id: 'resource_driver1',
-			x: 0,
-			y: 0,
-			width: DriverStatsDisplay.getRequiredWidth(),
 			height: this.getHeight(),
 			driverNumber: 1
 		});
@@ -60,9 +57,6 @@ export class ResourceBarLayer extends Layer {
 
 		this.driver2Display = new DriverStatsDisplay({
 			id: 'resource_driver2',
-			x: 0,
-			y: 0,
-			width: DriverStatsDisplay.getRequiredWidth(),
 			height: this.getHeight(),
 			driverNumber: 2
 		});
@@ -159,10 +153,10 @@ export class ResourceBarLayer extends Layer {
 
 		let currentX = spacing;
 		for (const display of [this.driver1Display, this.driver2Display]) {
-			const displayWidth = DriverStatsDisplay.getRequiredWidth();
+			// A display hugs its content, measured at this height
 			display.setPosition(currentX, 0);
-			display.setSize(displayWidth, layerHeight);
-			currentX += displayWidth + spacing * 2;
+			display.setSize(display.getWidth(), layerHeight);
+			currentX += display.getWidth() + spacing * 2;
 		}
 
 		const { icon, symbol, amount, label } = this.scrap;

@@ -23,6 +23,10 @@ const CARD_DIMENSIONS = {
 	[CardSize.LARGE]: { width: 240, height: 336 }
 } as const;
 
+/** A card title gets up to two lines, at the display face's own line height. */
+const TITLE_LINES = 2;
+const TITLE_LINE_HEIGHT = 1.2;
+
 /**
  * Visual component for displaying a card
  */
@@ -107,18 +111,26 @@ export class Card extends Layer {
 		// The badge paints over anything submitted before it (chapter 3), so the
 		// title starts past it rather than under it.
 		const titleX = hasDriverBadge ? badgeX + badgeSize + Math.floor(6 * scaleFactor) : padding;
+		const headerY = Math.floor(20 * scaleFactor);
+		// The cost is centred 30 px in from the right edge
+		const costWidth = Math.floor(24 * scaleFactor);
+		const costX = dimensions.width - Math.floor(30 * scaleFactor) - Math.floor(costWidth / 2);
+		const titleSize = Math.floor(14 * scaleFactor);
 
-		// Card name
+		// Card name: wraps to a second line rather than running under the
+		// cost, and a name that needs a third is cut with an ellipsis. Two line
+		// boxes end above the description.
 		this.name = new Text(data.displayName, {
 			id: this.childId('title'),
 			x: titleX,
-			y: Math.floor(20 * scaleFactor),
-			width: dimensions.width - titleX - Math.floor(48 * scaleFactor),
+			y: headerY,
+			width: costX - Math.floor(4 * scaleFactor) - titleX,
+			height: Math.ceil(TITLE_LINES * titleSize * TITLE_LINE_HEIGHT),
 			style: {
-				fontSize: Math.floor(14 * scaleFactor),
+				fontSize: titleSize,
+				lineHeight: TITLE_LINE_HEIGHT,
 				color: '#ffffff',
 				fontWeight: 'bold',
-				whiteSpace: 'nowrap',
 				textOverflow: 'ellipsis',
 			},
 		});
@@ -127,13 +139,15 @@ export class Card extends Layer {
 		// Cost
 		this.cost = new Text(`${data.cost}`, {
 			id: this.childId('cost'),
-			x: dimensions.width - Math.floor(30 * scaleFactor),
-			y: Math.floor(20 * scaleFactor),
+			x: costX,
+			y: headerY,
+			width: costWidth,
 			style: {
 				fontSize: Math.floor(20 * scaleFactor),
 				color: '#ffaa00',
 				fontWeight: 'bold',
 				textAlign: 'center',
+				whiteSpace: 'nowrap',
 			},
 		});
 		this.addChild(this.cost);
@@ -217,14 +231,19 @@ export class Card extends Layer {
 			});
 			this.addChild(indicatorBg);
 			
+			// Centred in the badge
 			this.driverIndicator = new Text(`D${this.driverNumber}`, {
 				id: this.childId('driver_badge'),
-				x: Math.floor(22.5 * scaleFactor),
-				y: Math.floor(22.5 * scaleFactor),
+				x: badgeX,
+				y: badgeX,
+				width: badgeSize,
+				height: badgeSize,
 				style: {
 					fontSize: Math.floor(10 * scaleFactor),
 					color: '#ffffff',
 					textAlign: 'center',
+					verticalAlign: 'middle',
+					whiteSpace: 'nowrap',
 					fontWeight: 'bold',
 				},
 			});
