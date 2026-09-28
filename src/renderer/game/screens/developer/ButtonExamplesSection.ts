@@ -1,4 +1,4 @@
-import { Panel } from '../../../engine/ui/Panel';
+import { DeveloperSectionPanel } from './DeveloperSectionPanel';
 import { Text } from '../../../engine/components/Text';
 import { Button } from '../../../engine/ui/Button';
 
@@ -6,21 +6,13 @@ import { Button } from '../../../engine/ui/Button';
  * Button examples section for the developer screen
  * Demonstrates various button styles and states
  */
-export class ButtonExamplesSection extends Panel {
+export class ButtonExamplesSection extends DeveloperSectionPanel {
 	private clickCounter = 0;
 	private clickCountText!: Text;
 
 	constructor(x: number, y: number, width: number) {
-		super({
-			id: 'dev_section_buttons',
-			width,
-			height: 200, // Will be calculated based on content
-			style: {
-				backgroundColor: 'transparent',
-			},
-		});
+		super({ id: 'dev_section_buttons', x, y, width });
 
-		this.setPosition(x, y);
 		this.initializeContent();
 	}
 
@@ -179,7 +171,7 @@ export class ButtonExamplesSection extends Panel {
 		this.addChild(largeButton);
 
 		// Update our height based on content
-		this.setSize(this.width, buttonY2 + 60);
+		this.fitContentHeight(buttonY2 + 60);
 	}
 
 	private incrementCounter(): void {

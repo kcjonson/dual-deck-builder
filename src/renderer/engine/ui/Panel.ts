@@ -1,4 +1,4 @@
-import type { Vec2 } from '../draw/geometry';
+import type { Rect, Vec2 } from '../draw/geometry';
 import type { DrawApi } from '../draw/DrawApi';
 import { Layer, LayerOptions } from '../components/Layer';
 import { BoxStyle, boxColors, drawBox, resolveBoxStyle } from '../components/Rectangle';
@@ -12,6 +12,12 @@ import type { MountContext } from '../components/MountContext';
 export interface PanelOptions extends LayerOptions {
 	scrollable?: boolean;
 	scrollDirection?: 'vertical' | 'horizontal' | 'both';
+	/**
+	 * Inset of the content from every edge of the box, border included
+	 * (R12.19). Children at (0, 0) sit this far inside the border rather than
+	 * on it; the panel's own size stays the border box.
+	 */
+	padding?: number;
 }
 
 const DEFAULT_BOX: BoxStyle = {
@@ -39,6 +45,7 @@ export class Panel extends Layer implements Interactive {
 	private scrollOffsetY = 0;
 	private scrollExtentWidth = 0;
 	private scrollExtentHeight = 0;
+	private readonly contentInset: number;
 
 	/**
 	 * Create a new panel
@@ -47,6 +54,7 @@ export class Panel extends Layer implements Interactive {
 	constructor(options?: PanelOptions) {
 		super(options);
 		this.componentType = 'Panel';
+		this.contentInset = Math.max(options?.padding ?? 0, 0);
 
 		// A zero is no value here, as it was when the background was a child
 		// Rectangle built with `||` defaults.
@@ -86,9 +94,40 @@ export class Panel extends Layer implements Interactive {
 		drawBox(draw, this.id, this.width, this.height, this.box);
 	}
 
-	/** R4.9: the scroll position, which the walk and the hit test both subtract from children. */
+	/**
+	 * R4.9: what the walk, the hit test and the tree snapshot subtract from
+	 * children. The scroll position less the padding, so the padding is part
+	 * of the scrolled content (R4.13) and needs no second offset anywhere.
+	 */
 	public get contentOffset(): Vec2 {
-		return { x: this.scrollOffsetX, y: this.scrollOffsetY };
+		return { x: this.scrollOffsetX - this.contentInset, y: this.scrollOffsetY - this.contentInset };
+	}
+
+	/** The content inset from each edge (the `padding` option). */
+	public get padding(): number {
+		return this.contentInset;
+	}
+
+	/** Width available to children: the box less the padding on both sides. */
+	public get innerWidth(): number {
+		return Math.max(this.width - this.contentInset * 2, 0);
+	}
+
+	/**
+	 * A padded panel clips inside its border and its corner radius, inset by
+	 * the larger of the two on every side: the padding scrolls with the
+	 * content (R4.13), so a clip at the content box would cut rows off inside
+	 * the scroll range, and one at the border box lets scrolled children paint
+	 * over the border and past the rounded corners `render` drew first. The
+	 * walk, hit test and snapshot all clip to a plain rect, so the radius is
+	 * cleared by inset rather than by R4.14's rounded clip. An unpadded panel
+	 * keeps the border-box clip it always had. Decision:
+	 * docs/AI_TECHNICAL_DECISIONS/panel-padding.md.
+	 */
+	public get clipRect(): Rect {
+		const edge = this.contentInset > 0 ? Math.max(this.box.borderWidth, this.box.cornerRadius) : 0;
+		const inset = Math.min(edge, this.width / 2, this.height / 2);
+		return { x: inset, y: inset, width: this.width - inset * 2, height: this.height - inset * 2 };
 	}
 
 	/**
@@ -116,12 +155,12 @@ export class Panel extends Layer implements Interactive {
 		if (!this.scrollable) return this;
 
 		if (this.scrollDirection === 'vertical' || this.scrollDirection === 'both') {
-			const maxScrollY = this.scrollExtentHeight - this.height;
+			const maxScrollY = this.scrollExtentHeight + this.contentInset * 2 - this.height;
 			const newScrollY = this.scrollOffsetY + deltaY;
 			this.scrollOffsetY = Math.max(0, Math.min(maxScrollY, newScrollY));
 		}
 		if (this.scrollDirection === 'horizontal' || this.scrollDirection === 'both') {
-			const maxScrollX = this.scrollExtentWidth - this.width;
+			const maxScrollX = this.scrollExtentWidth + this.contentInset * 2 - this.width;
 			const newScrollX = this.scrollOffsetX + deltaX;
 			this.scrollOffsetX = Math.max(0, Math.min(maxScrollX, newScrollX));
 		}
