@@ -197,13 +197,13 @@ describe('pause stops update and leaves render running', () => {
 		expect(screens.update).toHaveBeenCalledWith(0.016);
 	});
 
-	it('sets the input system gate, which is what actually drops events (R13.35)', () => {
+	it('sets the dispatcher gate, which is what actually drops events (R13.35)', () => {
 		app().pause?.();
-		expect(context.input.paused).toBe(true);
+		expect(context.dispatcher.paused).toBe(true);
 		expect(status().inputPaused).toBe(true);
 
 		app().resume?.();
-		expect(context.input.paused).toBe(false);
+		expect(context.dispatcher.paused).toBe(false);
 		expect(status().inputPaused).toBe(false);
 	});
 });
@@ -223,7 +223,7 @@ describe('F5 runs the GPU timer only while the overlay shows', () => {
 });
 
 describe('the document keydown shortcut is gated by pause too', () => {
-	// F12 and F5 sit on a raw document listener, outside the InputSystem, so
+	// F12 and F5 sit on a raw document listener, outside the dispatcher, so
 	// the pause gate there does not reach them. Ungated they would navigate
 	// out from under a paused capture. Gating changes what a real key does
 	// while paused, which is only reachable in a development build.

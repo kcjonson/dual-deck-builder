@@ -167,9 +167,9 @@ export class DriverSelectionScreen extends Screen {
 			height: 50,
 		});
 		this.backButton.setPosition(30, 30);
-		this.backButton.onClick(() => {
+		this.backButton.onClick = () => {
 			ScreenManager.navigate('mainMenuScreen');
-		});
+		};
 		this.rootLayer.addChild(this.backButton);
 		
 		// The primary action; disabled until two different drivers are picked,
@@ -189,7 +189,7 @@ export class DriverSelectionScreen extends Screen {
 			Math.floor(screenHeight * 0.85)
 		);
 		this.startRunButton.setEnabled(false);
-		this.startRunButton.onClick(() => {
+		this.startRunButton.onClick = () => {
 			if (this.canStartRun && this.selectedDriver1 && this.selectedDriver2) {
 				// Navigate to combat with driver data
 				const combatData = {
@@ -197,7 +197,7 @@ export class DriverSelectionScreen extends Screen {
 				};
 				ScreenManager.navigate('combatScreen', combatData);
 			}
-		});
+		};
 		this.rootLayer.addChild(this.startRunButton);
 	}
 

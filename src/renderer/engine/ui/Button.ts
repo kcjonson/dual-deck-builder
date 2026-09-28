@@ -1,9 +1,9 @@
-import { Component, ComponentOptions, PointerEvents } from '../components/Component';
+import { Component, ComponentOptions, PointerEvents, ResolvedColors } from '../components/Component';
 import { Icon } from '../components/Icon';
-import type { MountContext } from '../components/MountContext';
 import { Text } from '../components/Text';
 import type { DrawApi } from '../draw/DrawApi';
 import type { RGBA } from '../draw/geometry';
+import type { AnyUiEvent } from '../input/events';
 import type { IconName } from '../text/icons';
 import type { FontRole } from '../text/fontFaces';
 import { resolveFontRole } from '../text/fontRoles';
@@ -76,7 +76,6 @@ export class Button extends Component {
 	private icon: Icon | null = null;
 	/** The icon and gap the label's box gives up on its left. */
 	private labelInset = 0;
-	private clickHandler: (() => void) | null = null;
 	private buttonTone: Tone;
 	private buttonSize: ControlSize;
 	private styleObject: StyleObject;
@@ -171,23 +170,42 @@ export class Button extends Component {
 		this.placeLabel();
 	}
 
-	protected onMount(context: MountContext): void {
-		this.transition.snap();
-		const { input } = context;
-		input.registerMouseOver(this, () => this.setHovered(true));
-		input.registerMouseOut(this, () => {
-			this.setHovered(false);
-			this.pressed = false;
-		});
-		input.registerMouseDown(this, () => {
-			if (this.enabled) this.pressed = true;
-		});
-		input.registerMouseUp(this, () => this.release());
+	/** The look's colours as drawn now, mid-transition included (R13.22's `style`). */
+	public get resolvedColors(): ResolvedColors {
+		const look = this.transition.look;
+		return { fill: look.fill, text: look.text, border: look.border };
+	}
+
+	/**
+	 * R9.11's press, without capture. The dispatcher maintains `hovered` and
+	 * synthesises the click only when press and release both land here, never
+	 * while disabled (R9.5, R9.31); this keeps `pressed`, the one framework
+	 * flag it does not own yet. The callbacks run first, so `onClick` is the
+	 * base class's callback property.
+	 */
+	public handleEvent(event: AnyUiEvent): void {
+		super.handleEvent(event);
+		switch (event.type) {
+			case 'pointerleave':
+				this.pressed = false;
+				return;
+			case 'pointerdown':
+				if (event.button === 0 && this.enabled) this.pressed = true;
+				return;
+			case 'pointerup':
+			case 'pointercancel':
+				this.pressed = false;
+				return;
+		}
+	}
+
+	/** Mounting shows the current state at once; transitions start from there. */
+	protected onMount(): void {
+		this.transition.moveTo(this.targetLook, null);
 	}
 
 	protected onUnmount(): void {
-		this.pressed = false;
-		this.transition.snap();
+		this.transition.moveTo(this.targetLook, null);
 	}
 
 	protected onStateChange(): void {
@@ -210,15 +228,6 @@ export class Button extends Component {
 	public setSize(width: number, height: number): this {
 		super.setSize(width, height);
 		this.placeLabel();
-		return this;
-	}
-
-	/**
-	 * Set the click handler
-	 * @param callback Function to call when the button is clicked
-	 */
-	public onClick(callback: () => void): this {
-		this.clickHandler = callback;
 		return this;
 	}
 
@@ -247,12 +256,6 @@ export class Button extends Component {
 				border: { color: look.focusRing, width: tokens.control.focus_ring_width, position: 'outside' },
 			});
 		}
-	}
-
-	private release(): void {
-		const clicked = this.enabled && this.pressed && this.hovered;
-		this.pressed = false;
-		if (clicked) this.clickHandler?.();
 	}
 
 	private get targetLook(): Look {

@@ -40,18 +40,23 @@ export class LookTransition {
 		return this.goal;
 	}
 
+	/**
+	 * Heads for `target`. Without an animator (unmounted, or a mount or unmount
+	 * that should show the state at once) it jumps there and drops any tween
+	 * in flight, even when the target has not changed.
+	 */
 	public moveTo(target: Look, animator: Animator | null): void {
+		if (!animator) {
+			this.goal = target;
+			this.snap();
+			return;
+		}
 		if (sameLook(target, this.goal)) return;
 		this.goal = target;
 		this.shown.borderWidth = target.borderWidth;
 		this.shown.radius = target.radius;
 		this.shown.shadow = target.shadow;
 		this.shown.focusRing = target.focusRing;
-
-		if (!animator) {
-			this.snap();
-			return;
-		}
 		this.onChange?.(this.shown);
 
 		const colors = packColors(target);
@@ -85,8 +90,8 @@ export class LookTransition {
 		}
 	}
 
-	/** Jumps to the target and drops the tweens; the owner calls it on mount and unmount. */
-	public snap(): void {
+	/** Jumps to the target and drops the tweens. */
+	private snap(): void {
 		this.colors?.cancel();
 		this.glow?.cancel();
 		this.colors = null;

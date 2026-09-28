@@ -119,11 +119,11 @@ export class ResourceBarLayer extends Layer {
 			tone: 'accent',
 			size: 'sm',
 		});
-		button.onClick(() => {
+		button.onClick = () => {
 			if (this.onEndTurn) {
 				this.onEndTurn();
 			}
-		});
+		};
 		this.addChild(button);
 		return button;
 	}

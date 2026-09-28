@@ -56,9 +56,9 @@ export class CardShowcaseScreen extends Screen {
 			width: 200,
 			height: 50,
 		});
-		this.backButton.onClick(() => {
+		this.backButton.onClick = () => {
 			ScreenManager.navigate('mainMenuScreen');
-		});
+		};
 		this.rootLayer.addChild(this.backButton);
 
 		// Create main scrollable container that holds all content

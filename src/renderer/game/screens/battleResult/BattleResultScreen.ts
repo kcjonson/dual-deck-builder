@@ -111,10 +111,10 @@ export class BattleResultScreen extends Screen {
 			height: 50,
 		});
 		
-		this.continueButton.onClick(() => {
+		this.continueButton.onClick = () => {
 			// TODO: Navigate to reward screen or map for victory, or retry options for defeat
 			ScreenManager.navigate('mainMenuScreen');
-		});
+		};
 		
 		this.rootLayer.addChild(this.continueButton);
 	}

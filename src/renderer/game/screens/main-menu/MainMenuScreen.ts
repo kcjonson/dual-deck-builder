@@ -83,9 +83,9 @@ export class MainMenuScreen extends Screen {
 				fontSize: 24,
 			},
 		});
-		startButton.onClick(() => {
+		startButton.onClick = () => {
 			ScreenManager.navigate('driverSelectionScreen');
-		});
+		};
 		this.rootLayer.addChild(startButton);
 
 		// Settings button
@@ -97,10 +97,10 @@ export class MainMenuScreen extends Screen {
 				fontSize: 24,
 			},
 		});
-		settingsButton.onClick(() => {
+		settingsButton.onClick = () => {
 			// Settings not implemented yet
 			console.log('Settings not implemented');
-		});
+		};
 		this.rootLayer.addChild(settingsButton);
 
 		// Credits button
@@ -112,10 +112,10 @@ export class MainMenuScreen extends Screen {
 				fontSize: 24,
 			},
 		});
-		creditsButton.onClick(() => {
+		creditsButton.onClick = () => {
 			// Credits not implemented yet
 			console.log('Credits not implemented');
-		});
+		};
 		this.rootLayer.addChild(creditsButton);
 
 		// Card showcase button
@@ -127,9 +127,9 @@ export class MainMenuScreen extends Screen {
 				fontSize: 24,
 			},
 		});
-		cardShowcaseButton.onClick(() => {
+		cardShowcaseButton.onClick = () => {
 			ScreenManager.navigate('cardShowcaseScreen');
-		});
+		};
 		this.rootLayer.addChild(cardShowcaseButton);
 
 		// Developer button
@@ -141,9 +141,9 @@ export class MainMenuScreen extends Screen {
 				fontSize: 24,
 			},
 		});
-		devButton.onClick(() => {
+		devButton.onClick = () => {
 			ScreenManager.navigate('developerScreen');
-		});
+		};
 		this.rootLayer.addChild(devButton);
 
 		// Exit button (only for desktop)
@@ -154,13 +154,13 @@ export class MainMenuScreen extends Screen {
 				fontSize: 24,
 			},
 		});
-		exitButton.onClick(() => {
+		exitButton.onClick = () => {
 			if (this.isElectron) {
 				// In Electron mode, request to close the app
 				// Would use electron API to quit
 				console.log('Exit requested in Electron mode');
 			}
-		});
+		};
 
 		// Only show exit button in desktop mode
 		interface ElectronWindow extends Window {

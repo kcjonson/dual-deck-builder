@@ -108,7 +108,7 @@ export class InteractiveControlsSection extends DeveloperSectionPanel {
 			height: 30,
 		});
 		updateButton.setPosition(180, currentY);
-		updateButton.onClick(() => {
+		updateButton.onClick = () => {
 			// Force update all inputs
 			const colorValue = colorInput.getValue();
 			const posValue = positionInput.getValue();
@@ -125,7 +125,7 @@ export class InteractiveControlsSection extends DeveloperSectionPanel {
 				const [x, y] = posParts;
 				this.demoRectangle.setPosition(x, y);
 			}
-		});
+		};
 		this.addChild(updateButton);
 
 		// Update our height based on content

@@ -52,6 +52,9 @@ export class DeveloperOverlay extends Layer {
 			// Off until F5, so nothing it draws reaches a golden; hidden, the walk
 			// skips it and its barrier with it.
 			visible: false,
+			// A readout painted over the screen, never a target: it would
+			// otherwise take the clicks meant for what is beneath it (R8.29).
+			pointerEvents: 'none',
 		});
 		
 		this.snapshot = snapshot;

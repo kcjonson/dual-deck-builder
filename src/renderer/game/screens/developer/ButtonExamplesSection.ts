@@ -52,7 +52,7 @@ export class ButtonExamplesSection extends DeveloperSectionPanel {
 			height: 40,
 		});
 		primaryButton.setPosition(buttonX, buttonY1);
-		primaryButton.onClick(() => this.incrementCounter());
+		primaryButton.onClick = () => this.incrementCounter();
 		this.addChild(primaryButton);
 		buttonX += buttonSpacing;
 
@@ -62,7 +62,7 @@ export class ButtonExamplesSection extends DeveloperSectionPanel {
 			height: 40,
 		});
 		secondaryButton.setPosition(buttonX, buttonY1);
-		secondaryButton.onClick(() => this.incrementCounter());
+		secondaryButton.onClick = () => this.incrementCounter();
 		this.addChild(secondaryButton);
 		buttonX += buttonSpacing;
 
@@ -72,7 +72,7 @@ export class ButtonExamplesSection extends DeveloperSectionPanel {
 			height: 40,
 		});
 		successButton.setPosition(buttonX, buttonY1);
-		successButton.onClick(() => this.incrementCounter());
+		successButton.onClick = () => this.incrementCounter();
 		this.addChild(successButton);
 		buttonX += buttonSpacing;
 
@@ -82,7 +82,7 @@ export class ButtonExamplesSection extends DeveloperSectionPanel {
 			height: 40,
 		});
 		dangerButton.setPosition(buttonX, buttonY1);
-		dangerButton.onClick(() => this.incrementCounter());
+		dangerButton.onClick = () => this.incrementCounter();
 		this.addChild(dangerButton);
 
 		// Second row of buttons
@@ -100,7 +100,7 @@ export class ButtonExamplesSection extends DeveloperSectionPanel {
 			},
 		});
 		roundedButton.setPosition(buttonX, buttonY2);
-		roundedButton.onClick(() => this.incrementCounter());
+		roundedButton.onClick = () => this.incrementCounter();
 		this.addChild(roundedButton);
 		buttonX += buttonSpacing;
 
@@ -115,7 +115,7 @@ export class ButtonExamplesSection extends DeveloperSectionPanel {
 			},
 		});
 		outlinedButton.setPosition(buttonX, buttonY2);
-		outlinedButton.onClick(() => this.incrementCounter());
+		outlinedButton.onClick = () => this.incrementCounter();
 		this.addChild(outlinedButton);
 		buttonX += buttonSpacing;
 
@@ -125,7 +125,7 @@ export class ButtonExamplesSection extends DeveloperSectionPanel {
 			width: 80,
 		});
 		smallButton.setPosition(buttonX, buttonY2 + 7);
-		smallButton.onClick(() => this.incrementCounter());
+		smallButton.onClick = () => this.incrementCounter();
 		this.addChild(smallButton);
 		buttonX += 90;
 
@@ -135,7 +135,7 @@ export class ButtonExamplesSection extends DeveloperSectionPanel {
 			width: 150,
 		});
 		largeButton.setPosition(buttonX, buttonY2 - 3);
-		largeButton.onClick(() => this.incrementCounter());
+		largeButton.onClick = () => this.incrementCounter();
 		this.addChild(largeButton);
 
 		// Third row: R11.11 flags held on, so the gallery shows the state layers
@@ -159,7 +159,7 @@ export class ButtonExamplesSection extends DeveloperSectionPanel {
 
 		for (const button of [disabledButton, selectedButton, activeButton, focusedButton]) {
 			button.setPosition(buttonX, buttonY3);
-			button.onClick(() => this.incrementCounter());
+			button.onClick = () => this.incrementCounter();
 			this.addChild(button);
 			buttonX += buttonSpacing;
 		}

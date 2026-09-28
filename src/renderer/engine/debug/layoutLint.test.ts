@@ -564,6 +564,57 @@ describe('layoutLint', () => {
 			expect(forRule(result, 'text-overflow')).toHaveLength(0);
 			expect(reportFor(result, 'text-overflow').exempt).toBe(3);
 		});
+
+		it("trusts the document's overflow outcome over a size rebuilt from bounds and margin", () => {
+			// 62.84 wide with margins 1.24 and 0.84: bounds.w less the margins
+			// comes back a last-bit short of the measure.
+			const measured = { w: 62.84, h: 15, lines: 1 };
+			const margin = { top: 0, right: 0.84, bottom: 0, left: 1.24 };
+			const bounds = box(0, 0, 62.84 + 1.24 + 0.84, 15);
+			const lint = (overflow?: string) => layoutLint(
+				doc([node({ id: 'label', type: 'Text', bounds, margin, text: { measured, overflow } })]),
+			);
+
+			expect(bounds.w - 1.24 - 0.84).toBeLessThan(62.84);
+			expect(forRule(lint('none'), 'text-overflow')).toHaveLength(0);
+			expect(reportFor(lint('none'), 'text-overflow').evaluated).toBe(1);
+			expect(forRule(lint('visible'), 'text-overflow')).toHaveLength(1);
+			// Without the outcome the rule falls back to the size comparison.
+			expect(forRule(lint(), 'text-overflow')).toHaveLength(1);
+		});
+
+		it('compares in the local content box, so a turned or margined label is judged by its own size', () => {
+			const measured = { w: 74, h: 15, lines: 1 };
+			const result = layoutLint(
+				doc([
+					node({
+						id: 'root',
+						bounds: box(0, 0, 500, 500),
+						children: [
+							// A quarter turn swaps the screen axes; the measure did not turn.
+							node({
+								id: 'turned',
+								type: 'Text',
+								bounds: box(0, 0, 74, 15),
+								screenBounds: box(30, -30, 15, 74),
+								text: { measured },
+							}),
+							// The margin box is wider than the content box the text lays out in.
+							node({
+								id: 'margined',
+								type: 'Text',
+								bounds: box(0, 100, 84, 15),
+								screenBounds: box(5, 100, 70, 15),
+								margin: { top: 0, right: 7, bottom: 0, left: 7 },
+								text: { measured },
+							}),
+						],
+					}),
+				]),
+			);
+
+			expect(forRule(result, 'text-overflow').map((violation) => violation.path)).toEqual(['root/margined']);
+		});
 	});
 
 	describe('rule 6: unreachable-interactive (R13.25.6)', () => {
@@ -683,6 +734,24 @@ describe('layoutLint', () => {
 
 			expect(forRule(result, 'unreachable-interactive')).toHaveLength(0);
 			expect(reportFor(result, 'unreachable-interactive').evaluated).toBe(1);
+		});
+
+		it('does not let a sibling at zero opacity occlude, since the walk skips it (R3.27)', () => {
+			const covered = (opacity: number) => forRule(layoutLint(
+				doc([
+					node({
+						id: 'root',
+						bounds: box(0, 0, 800, 800),
+						children: [
+							node({ id: 'button', type: 'Button', bounds: box(100, 100, 180, 44), focusable: true }),
+							node({ id: 'scrim', bounds: box(0, 0, 800, 800), opacity }),
+						],
+					}),
+				]),
+			), 'unreachable-interactive');
+
+			expect(covered(0)).toHaveLength(0);
+			expect(covered(0.5)).toHaveLength(1);
 		});
 
 		it('does not treat a passthrough or none component as interactive', () => {

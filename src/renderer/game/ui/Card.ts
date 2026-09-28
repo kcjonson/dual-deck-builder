@@ -2,7 +2,7 @@ import { Layer } from '../../engine/components/Layer';
 import type { PointerEvents } from '../../engine/components/Component';
 import { Text } from '../../engine/components/Text';
 import { Rectangle } from '../../engine/components/Rectangle';
-import type { MountContext } from '../../engine/components/MountContext';
+import type { AnyUiEvent } from '../../engine/input/events';
 import { Card as GameCard } from '../mechanics/Card';
 
 /**
@@ -282,67 +282,41 @@ export class Card extends Layer {
 		this.placeHeader();
 	}
 
-	protected onMount({ input }: MountContext): void {
-		input.registerMouseOver(this, () => this.handleMouseOver());
-		input.registerMouseOut(this, () => this.handleMouseOut());
-		input.registerMouseDown(this, () => this.handleMouseDown());
-		input.registerMouseUp(this, () => this.handleMouseUp());
-	}
-
 	/** R8.29: a card is one target; its text and frame are internals. */
 	protected get defaultPointerEvents(): PointerEvents {
 		return 'unit';
 	}
 
 	/**
-	 * Handle mouse over
+	 * Hover arrives through `onHover` and `onUnhover`, which the dispatcher
+	 * drives (R9.8); the press shades the frame, and the click is the
+	 * dispatcher's, synthesised when press and release both land on this card
+	 * (R9.31). A disabled card receives none of these (R9.5).
 	 */
-	private handleMouseOver(): void {
-		if (!this.enabled) return;
-		this.setHovered(true);
-		this.updateVisuals();
+	public handleEvent(event: AnyUiEvent): void {
+		super.handleEvent(event);
+		switch (event.type) {
+			case 'pointerdown':
+				if (event.button === 0) {
+					this.cardBorder.setFillColor(this.adjustBrightness(Card.getRarityColor(this.data.rarity), -20));
+				}
+				return;
+			case 'pointerup':
+			case 'pointerleave':
+			case 'pointercancel':
+				this.cardBorder.setFillColor(Card.getRarityColor(this.data.rarity));
+				return;
+			case 'click':
+				this.activate();
+				return;
+		}
 	}
 
-	/**
-	 * Handle mouse out
-	 */
-	private handleMouseOut(): void {
-		this.setHovered(false);
-		this.updateVisuals();
-	}
-
-	/**
-	 * Handle mouse down
-	 */
-	private handleMouseDown(): void {
-		if (!this.enabled) return;
-		// Visual feedback for press
-		this.cardBorder.setFillColor(this.adjustBrightness(Card.getRarityColor(this.data.rarity), -20));
-	}
-
-	/**
-	 * Handle mouse up
-	 */
-	private handleMouseUp(): void {
-		if (!this.enabled) return;
-		
-		// Reset visual
-		this.cardBorder.setFillColor(Card.getRarityColor(this.data.rarity));
-		
-		// Trigger click (InputSystem already verified mouse is over component)
-		this.onClick();
-	}
-
-	/**
-	 * Handle click event - maps to semantic events
-	 */
-	private onClick(): void {
-		// Legacy click handler for backwards compatibility
+	/** A click, as the two semantic callbacks. */
+	private activate(): void {
 		if (this.clickHandler) {
 			this.clickHandler(this.data);
 		}
-		
-		// Primary semantic event: select the card
 		if (this.selectHandler) {
 			this.selectHandler(this.data);
 		}

@@ -1,8 +1,8 @@
-import { Component, ComponentOptions, PointerEvents } from '../components/Component';
+import { Component, ComponentOptions, PointerEvents, ResolvedColors } from '../components/Component';
 import { Rectangle } from '../components/Rectangle';
 import { Text } from '../components/Text';
-import type { MountContext } from '../components/MountContext';
 import type { DrawApi } from '../draw/DrawApi';
+import type { AnyUiEvent } from '../input/events';
 import type { RGBA } from '../draw/geometry';
 import type { FontRole } from '../text/fontFaces';
 import { resolveFontRole } from '../text/fontRoles';
@@ -153,17 +153,39 @@ export class Input extends Component {
 		this.placeText();
 	}
 
-	protected onMount(context: MountContext): void {
-		this.transition.snap();
-		const { input } = context;
-		input.registerMouseOver(this, () => this.setHovered(true));
-		input.registerMouseOut(this, () => this.setHovered(false));
-		input.registerMouseDown(this, () => this.onMouseDown());
-		input.registerKeyDown(this, (key: string) => this.onKeyPress(key));
+	/** The field's colours as drawn now, mid-transition included (R13.22's `style`). */
+	public get resolvedColors(): ResolvedColors {
+		const look = this.transition.look;
+		return { fill: look.fill, text: look.text, border: look.border };
+	}
+
+	/**
+	 * A press focuses the field through the dispatcher's focus seam, and a
+	 * press anywhere else blurs it (R9.23's fallback until DDB-76). Keys reach
+	 * it only while focused; the ones it handles are consumed, so they never
+	 * reach the hotkey table (R9.15).
+	 */
+	public handleEvent(event: AnyUiEvent): void {
+		super.handleEvent(event);
+		switch (event.type) {
+			case 'pointerdown':
+				if (this.enabled) this.context?.dispatcher.focus(this);
+				return;
+			case 'keydown':
+				// R9.15: bound modifier chords (copy, a menu shortcut) are not text.
+				if (event.modifiers.ctrl || event.modifiers.meta) return;
+				if (this.handleKey(event.key)) event.consume();
+				return;
+		}
+	}
+
+	/** Mounting shows the current state at once; transitions start from there. */
+	protected onMount(): void {
+		this.transition.moveTo(this.targetLook, null);
 	}
 
 	protected onUnmount(): void {
-		this.transition.snap();
+		this.transition.moveTo(this.targetLook, null);
 	}
 
 	protected onStateChange(): void {
@@ -250,39 +272,27 @@ export class Input extends Component {
 		}
 	}
 
-	private onMouseDown(): void {
-		if (!this.enabled) return;
-		// Blur whichever other field holds focus
-		const input = this.context?.input;
-		const currentFocus = input?.getFocus() ?? null;
-		if (currentFocus && currentFocus !== this && currentFocus instanceof Input) {
-			currentFocus.onMouseDownOutside();
-		}
-		this.setFocused(true);
-		input?.setFocus(this);
-	}
-
-	/** The input system calls this by name when a press lands anywhere else. */
-	private onMouseDownOutside(): void {
-		if (!this.focused) return;
-		this.setFocused(false);
-		this.context?.input.setFocus(null);
-	}
-
-	private onKeyPress(key: string): void {
-		if (!this.focused || !this.enabled) return;
+	/** Edits the value for one key; false for a key the field does not use. */
+	private handleKey(key: string): boolean {
+		if (!this.focused || !this.enabled) return false;
 
 		if (key === 'Backspace') {
 			if (this.value.length > 0) {
 				this.setValue(this.value.substring(0, this.value.length - 1));
 			}
-		} else if (key === 'Enter') {
-			this.onMouseDownOutside();
-		} else if (key.length === 1) {
+			return true;
+		}
+		if (key === 'Enter') {
+			this.context?.dispatcher.focus(null);
+			return true;
+		}
+		if (key.length === 1) {
 			if (this.value.length < this.maxLength) {
 				this.setValue(this.value + key);
 			}
+			return true;
 		}
+		return false;
 	}
 
 	private get targetLook(): Look {
