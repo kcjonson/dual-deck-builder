@@ -4,7 +4,7 @@
 
 R6.4a: a run whose screen-space distance range falls below 1.5 device pixels SHOULD be drawn from a per-(face, size, ratio) atlas rasterised by the platform's 2D text API, with measurement unchanged; and a token scale SHOULD define no text size below 11 logical px. With the committed atlases (48 px per em, range 8) the range is `8 * size * ratio / 48`, so at ratio 1 that is 8 px and below. 9 px sits exactly on 1.5 and is not below it.
 
-The token scale already stops at 11 (`fs_xs`). The game still draws literal 8 and 9 px in `Vehicle` (driver name 9, driver HP 8, structure value 9, the SPENT chip 9); the other literal sites went with DDB-82's combat rework. What matters is device size, though, not the number in the style: DDB-82 draws the combat stage under a uniform scale transform (`min(W / 1280, H / 720)`), and cards are drawn scaled elsewhere. At the capture viewport (1440x882) the runs that fall under the threshold are the card showcase's 8 px body text, the driver selection's scaled cards (display role at 4 and 7 device px) and an 8 px caption in the `icons` scene; combat's 8 px HP lands on exactly 9 device px at scale 1.125 and stays on the field. At 1280x720 it is under; at 800x450 (scale 0.625) every combat run under 14.4 px is.
+The token scale already stops at 11 (`fs_xs`). The game still draws literal 8 and 9 px in `Vehicle` (driver name 9, driver HP 8, structure value 9, the SPENT chip 9); the other literal sites went with DDB-82's combat rework. What matters is device size, though, not the number in the style: DDB-82 draws the combat stage under a uniform scale transform (`min(W / 1280, H / 720)`), and cards are drawn scaled elsewhere. At the capture viewport (1440x882) the runs that fall under the threshold are the cards' footer lines in the card showcase and the combat hand, and an 8 px caption in the `icons` scene; combat's 8 px HP lands on exactly 9 device px at scale 1.125 and stays on the field. At 1280x720 it is under; at 800x450 (scale 0.625) every combat run under 14.4 px is.
 
 ## Options
 
@@ -25,10 +25,24 @@ Option 3, with option 1 filed for design (DDB-217).
 
 ## The scored gate (6.9)
 
-`tests/visual/web/uberShader.spec.ts` renders the body face at 10, 12 and 13 px through the uber shader and through the platform's canvas from the same TTF, and scores stem weight (total ink of a word) and evenness (variation of the darkest column of each `l` in a row). On macOS Chromium the field scores 0.64, 0.67 and 0.72 of the platform's ink, with stem variation 0.24, 0.17 and 0.18 against the platform's 0.15, 0.09 and 0.05. Enlarged, the field is lighter and softer than the hinted raster. The test is a ratchet with floors under those numbers, not a target; closing the gap is stem darkening in `text` mode at small screen ranges (DDB-218), which moves most text in most goldens and wants its own review.
+`tests/visual/web/uberShader.spec.ts` renders the body face at 10, 12 and 13 px through the uber shader and through the platform's canvas from the same TTF, and scores stem weight (total ink of a word) and evenness (variation of the darkest column of each `l` in a row). The reference is the platform's, so the numbers depend on it:
+
+| | 10 px | 12 px | 13 px |
+|---|---|---|---|
+| Weight, field over platform, Linux CI (FreeType) | 0.97 | 1.00 | 0.95 |
+| Weight, macOS Chromium (CoreText) | 0.64 | 0.67 | 0.72 |
+| Stem variation, field | 0.24 | 0.17 | 0.18 |
+| Stem variation, platform, Linux | 0.00 | 0.00 | 0.00 |
+| Stem variation, platform, macOS | 0.15 | 0.09 | 0.05 |
+
+On the reference platform the field's weight matches; what it lacks is evenness, since its stems land at whatever sub-pixel phase the layout gives them and the hinted platform raster puts every stem on a pixel. The test is a ratchet (a platform-dependent weight floor, a variation ceiling a little above today's), not a target. Closing the evenness gap is DDB-218.
+
+## Spacing
+
+Rounding each pen to a whole pixel keeps every cell one texel to one pixel, which is where the crispness comes from, but the advances are the field's unhinted ones (R6.8), so the rounding error alternates by up to half a pixel and some pairs sit visibly apart: in the minted card showcase, "attack" at about 7 device px reads close to "atta ck". R6.16 allows the per-glyph snap under 16 px; it is still a visible cost. Chrome's Linux canvas appears to snap glyph origins at ratio 1 (the reference row of `l`s scores exactly 0), so drawing sub-pixel phases with a fractional `fillText` x would not help there; horizontal oversampling or error diffusion along the run are the candidates (DDB-219).
 
 ## Consequences
 
-- Text under 9 device px is crisper and heavier than before. Where it sits beside field text a pixel larger it is now the heavier of the two, since the platform's raster is heavier than the field at every small size; the darkening follow-up would bring 9 to 13 px toward it.
-- Goldens move where runs are under the threshold at 1440x882: `cardShowcaseScreen`, `driverSelectionScreen` and the `icons` scene. `combatScreen` does not move at that size.
+- Text under 9 device px is crisper than before, with even stems, and its spacing is less even (see Spacing). On macOS it is also heavier than field text a pixel larger beside it; on Linux the two match in weight.
+- Goldens moved where runs are under the threshold at 1440x882: `cardShowcaseScreen` (the card footers' tag and target lines), `combatScreen` (the same lines on the hand's scaled cards) and an 8 px caption in the `icons` scene. Combat's 8 px HP lands on exactly 9 device px at scale 1.125 and does not move.
 - Any future run under 9 device px takes this path with no call-site change.

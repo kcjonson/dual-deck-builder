@@ -547,12 +547,14 @@ test.describe('small text against a platform reference (6.9)', () => {
 	const HEIGHT = 48;
 	const WORD_BASELINE = 18;
 	const STEM_BASELINE = 40;
-	/** Lowest weight and highest stem variation each size may score (see the test). */
-	const SCORE_FLOORS: Record<number, { weight: number; variation: number }> = {
-		10: { weight: 0.55, variation: 0.35 },
-		12: { weight: 0.58, variation: 0.3 },
-		13: { weight: 0.62, variation: 0.3 },
-	};
+	/**
+	 * Lowest weight and highest stem variation each size may score (see the
+	 * test). The reference is the platform's, so the weight floor is too: the
+	 * Linux runner's FreeType matches the field's ink (0.95 to 1.0 when
+	 * DDB-199 measured it) and macOS CoreText draws a third heavier.
+	 */
+	const WEIGHT_FLOOR = process.platform === 'linux' ? 0.9 : 0.55;
+	const VARIATION_CEILING: Record<number, number> = { 10: 0.3, 12: 0.22, 13: 0.23 };
 	let texels: number[] = [];
 
 	test.beforeAll(() => {
@@ -644,14 +646,13 @@ test.describe('small text against a platform reference (6.9)', () => {
 			const fieldEvenness = stemVariation(field);
 			const referenceEvenness = stemVariation(reference);
 			console.log(`6.9 small text, body ${size} px: weight ${weight.toFixed(3)} of the platform's, stem variation ${fieldEvenness.toFixed(3)} against ${referenceEvenness.toFixed(3)}`);
-			// A ratchet, not the target: the field is visibly lighter than the
-			// platform's hinted raster at these sizes (DDB-199 measured 0.64 to
-			// 0.72 of its ink on macOS), which stem darkening in `text` mode
-			// would close. These floors catch it getting worse.
-			const floor = SCORE_FLOORS[size];
-			expect(weight).toBeGreaterThan(floor.weight);
+			// A ratchet, not the target (DDB-218): the field's stems vary with
+			// their sub-pixel phase (0.17 to 0.24) where the hinted platform
+			// raster's do not, and on macOS it is also lighter. These bounds
+			// catch it getting worse.
+			expect(weight).toBeGreaterThan(WEIGHT_FLOOR);
 			expect(weight).toBeLessThan(1.25);
-			expect(fieldEvenness).toBeLessThan(floor.variation);
+			expect(fieldEvenness).toBeLessThan(VARIATION_CEILING[size]);
 		});
 	}
 });
