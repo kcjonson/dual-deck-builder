@@ -7,9 +7,10 @@ import { createMeasuringDrawApi } from '../text/testing';
 import { createTestContext } from '../components/testing';
 import type { MountContext } from '../components/MountContext';
 import { Input } from './Input';
+import { tokens } from '../theme/tokens';
 
 function parts(input: Input): { value: Text; caret: Rectangle } {
-	const [, value, , caret] = input.debugChildren;
+	const [value, , caret] = input.debugChildren;
 	if (!(value instanceof Text) || !(caret instanceof Rectangle)) throw new Error('unexpected Input parts');
 	return { value, caret };
 }
@@ -36,7 +37,7 @@ describe('Input caret (R2.14)', () => {
 
 		expect(advances).toHaveLength(6);
 		// The trailing space counts: the caret is past it, not at the o.
-		expect(caret.x).toBe(10 + advances[5]);
+		expect(caret.x).toBe(tokens.control.inset_field + advances[5]);
 		expect(advances[5]).toBeGreaterThan(advances[4]);
 	});
 
@@ -46,7 +47,7 @@ describe('Input caret (R2.14)', () => {
 		const lineHeight = value.measured?.height ?? 0;
 
 		expect(lineHeight).toBeGreaterThan(0);
-		expect(caret.x).toBe(10);
+		expect(caret.x).toBe(tokens.control.inset_field);
 		expect(caret.getHeight()).toBe(lineHeight);
 		expect(caret.y + caret.getHeight() / 2).toBe(15);
 	});

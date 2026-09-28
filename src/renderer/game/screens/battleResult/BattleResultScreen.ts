@@ -106,13 +106,9 @@ export class BattleResultScreen extends Screen {
 			id: 'result_continue_button',
 			x: 0,
 			y: 0,
+			tone: 'accent',
 			width: 200,
 			height: 50,
-			style: {
-				backgroundColor: '#4a4a5a',
-				borderColor: '#6a6a7a',
-				borderWidth: 2,
-			},
 		});
 		
 		this.continueButton.onClick = () => {

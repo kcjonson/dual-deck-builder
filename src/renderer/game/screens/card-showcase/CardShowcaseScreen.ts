@@ -55,10 +55,6 @@ export class CardShowcaseScreen extends Screen {
 			y: this.rootLayer.getHeight() - 80,
 			width: 200,
 			height: 50,
-			style: {
-				backgroundColor: '#444444',
-				color: '#ffffff',
-			},
 		});
 		this.backButton.onClick = () => {
 			ScreenManager.navigate('mainMenuScreen');

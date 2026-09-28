@@ -9,7 +9,7 @@ Status: decided 2026-09-28 with DDB-83 (phase 4 of DDB-55). Rules R11.1 to R11.9
 - `src/renderer/engine/theme/tokens.ts`: generated, committed, `as const`. Consumers read `tokens.color.accent`, `tokens.control.control_h_md`, and so on (R11.4's namespacing).
 - `src/renderer/engine/theme/tokens.test.ts`: the drift test (spawns the generator and compares its output to the committed file byte for byte), the round trip of 11.6 (every token present with the file's value, css-only tokens absent, nothing extra), the generator's rejections, and the 11.2 structure rules as assertions.
 
-Nothing consumes the tokens yet. DDB-84 migrates components; that PR is where pixels move.
+Button and Input consume them since DDB-84 ([style-states-and-variants.md](./style-states-and-variants.md)), which also added `bg_pressed`.
 
 ## File format
 
@@ -57,7 +57,7 @@ The three UI hues are chosen from the gaps in that wheel, then checked by CIE La
 | `status_ok` | `#56d29e` mint | 155 | teal 32, structure green 32 | 8.3 / 7.7 / 6.6 |
 | `status_crit` | `#f075b3` pink | 330 | legendary gem 29, driver HP 29 | 5.9 / 5.5 / 4.7 |
 
-All three clear 4.5:1 on every surface, so they work as text. Crit is the uncomfortable one: the red end of the wheel belongs to raiders and HP, so critical is a hot pink rather than a red. That is a readability trade for the one-meaning rule, and it's Kevin's to overrule; if crit should read as danger-red, the honest alternative is to share raider red and say so in section 7, not to pick a near-red that collides anyway. `tokens.test.ts` asserts none of the three equals a legend colour.
+All three clear 4.5:1 on every surface, so they work as text. Crit is the uncomfortable one: the red end of the wheel belongs to raiders and HP, so critical is a hot pink rather than a red. That is a readability trade for the one-meaning rule, and it's Kevin's to overrule; if crit should read as danger-red, the honest alternative is to share raider red and say so in section 7, not to pick a near-red that collides anyway. `tokens.test.ts` asserts each of the three is at least 20 (CIE76) from every legend colour, the debuff and non-attack intent lavenders included since DDB-84.
 
 Departures from worldsim's defaults, all allowed by 11.2 ("values are its defaults and any theme may replace them"):
 
