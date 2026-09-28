@@ -3,7 +3,6 @@ import { Rectangle } from '../components/Rectangle';
 import { Text } from '../components/Text';
 import type { SectionStats } from '../rendering/frameStats';
 import type { GpuStats, PerfSnapshot, SectionName } from '../rendering/FrameTimer';
-import { RenderContext } from '../rendering/RenderContext';
 
 /** Null is "not measurable here", so it prints as n/a rather than as 0 (R13.5). */
 function milliseconds(value: number | null): string {
@@ -149,14 +148,6 @@ export class DeveloperOverlay extends Layer {
 		].join('\n');
 
 		this.performanceText.setText(text);
-	}
-	
-	/**
-	 * Render the overlay if visible
-	 */
-	public render(context?: RenderContext): void {
-		if (!this.overlayVisible) return;
-		super.render(context);
 	}
 }
 

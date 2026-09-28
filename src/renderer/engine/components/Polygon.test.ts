@@ -3,7 +3,6 @@
  */
 import { DrawApi, RecordingBackend } from '../draw';
 import type { DrawCommand } from '../draw';
-import { RendererContext } from '../rendering/RendererContext';
 import { Polygon } from './Polygon';
 
 describe('Polygon', () => {
@@ -13,12 +12,11 @@ describe('Polygon', () => {
 	beforeEach(() => {
 		backend = new RecordingBackend({ maxFrames: 1 });
 		api = new DrawApi({ backend });
-		RendererContext.getInstance().draw = api;
 	});
 
 	function drawn(polygon: Polygon): DrawCommand[] {
 		api.beginFrame({ viewport: { width: 200, height: 200 } });
-		polygon.render();
+		polygon.render(api);
 		api.endFrame();
 		return [...backend.commands];
 	}

@@ -10,7 +10,7 @@ import { CardLoader } from '../../core/CardLoader';
 import { DriverLoader } from '../../core/DriverLoader';
 import { Battle } from '../../mechanics/Battle';
 import { Card as UICard } from '../../ui/Card';
-import { Layer } from '../../../engine/components/Layer';
+import type { Component } from '../../../engine/components/Component';
 import { InputSystem } from '../../../engine/input/InputSystem';
 import { injectInput } from '../../../engine/debug/inputInjection';
 
@@ -38,8 +38,8 @@ function click(spot: string): void {
 }
 
 /** The global centre of a layer, as `x,y` for a click */
-function centerOf(layer: Layer): string {
-	const { x, y } = layer.localToGlobal(0, 0);
+function centerOf(layer: Component): string {
+	const { x, y } = layer.localToScreen({ x: 0, y: 0 });
 	return `${Math.round(x + layer.getWidth() / 2)},${Math.round(y + layer.getHeight() / 2)}`;
 }
 

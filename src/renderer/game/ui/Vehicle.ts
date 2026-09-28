@@ -31,7 +31,6 @@ export class Vehicle extends Layer {
 	private onClickCallback: ((vehicle: VehicleData) => void) | null = null;
 	
 	// State
-	private isHovered = false;
 	private builtShape = '';
 	private modelUnsubscribers: (() => void)[] = [];
 	
@@ -381,8 +380,8 @@ export class Vehicle extends Layer {
 		
 		// Hover handlers for visual feedback
 		InputSystem.registerMouseOver(this, () => {
-			if (!this.isHovered) {
-				this.isHovered = true;
+			if (!this.hovered) {
+				this.setHovered(true);
 				if (this.combatData && this.combatData.isTargeting) {
 					this.combatData.focusVehicle(this.vehicleData.id);
 				}
@@ -391,8 +390,8 @@ export class Vehicle extends Layer {
 		});
 		
 		InputSystem.registerMouseOut(this, () => {
-			if (this.isHovered) {
-				this.isHovered = false;
+			if (this.hovered) {
+				this.setHovered(false);
 				if (this.combatData && this.combatData.focusedVehicleId === this.vehicleData.id) {
 					this.combatData.focusVehicle(null);
 				}
@@ -447,7 +446,7 @@ export class Vehicle extends Layer {
 	/**
 	 * Check if this vehicle is focused
 	 */
-	private isFocused(): boolean {
+	private isFocusedTarget(): boolean {
 		if (!this.combatData) return false;
 		return this.combatData.focusedVehicleId === this.vehicleData.id;
 	}
@@ -467,7 +466,7 @@ export class Vehicle extends Layer {
 	private updateVisualState(): void {
 		const carrier = this.isOrderCarrier();
 		const targetable = this.isTargetable() || carrier;
-		const focused = this.isFocused() || carrier;
+		const focused = this.isFocusedTarget() || carrier;
 		const targeting = this.combatData?.isTargeting || false;
 		
 		// Update visual state based on targetability
@@ -485,7 +484,7 @@ export class Vehicle extends Layer {
 			// Focused and targetable
 			this.portrait.setBorderWidth(4);
 			this.portrait.setBorderColor(this.getFocusedBorderColor());
-		} else if (this.isHovered && targetable) {
+		} else if (this.hovered && targetable) {
 			// Hovered and targetable
 			this.portrait.setBorderWidth(4);
 			this.portrait.setBorderColor(this.getBorderColor());
@@ -501,13 +500,6 @@ export class Vehicle extends Layer {
 	 */
 	protected getFocusedBorderColor(): string {
 		return '#88ff88'; // Default green for focused targets
-	}
-	
-	/**
-	 * Get hover state
-	 */
-	public get hovered(): boolean {
-		return this.isHovered;
 	}
 	
 	/**

@@ -32,7 +32,7 @@ interface Box extends Interactive {
 /** A component occupying logical pixels 100,100 to 200,200. */
 function makeBox(): Box {
 	return {
-		containsPoint: (x: number, y: number) => x >= 100 && x <= 200 && y >= 100 && y <= 200,
+		containsScreenPoint: (x: number, y: number) => x >= 100 && x <= 200 && y >= 100 && y <= 200,
 		overs: 0,
 		outs: 0,
 		downs: 0,
@@ -134,7 +134,7 @@ describe('coordinates are logical pixels in the snapshot space (R7.1, R7.15)', (
 		}
 
 		expect(seen).toEqual([[180, 190]]);
-		// The component's containsPoint sees 150,150: the rect went on in the
+		// The component's containsScreenPoint sees 150,150: the rect went on in the
 		// injector and came back off in the handler.
 		expect(box.downs).toBe(1);
 	});

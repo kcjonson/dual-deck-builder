@@ -1,4 +1,6 @@
 import { Layer } from '../renderer/engine/components/Layer';
+import { renderTree } from '../renderer/engine/components/renderTree';
+import type { DrawApi } from '../renderer/engine/draw/DrawApi';
 import { InputSystem } from '../renderer/engine/input/InputSystem';
 import type { SnapshotViewport } from '../renderer/engine/debug/treeSnapshot';
 import type { GalleryScene } from './registry';
@@ -278,9 +280,9 @@ export class SceneHost {
 		this.rootLayer.update(deltaTime);
 	}
 
-	public render(): void {
+	public render(draw: DrawApi): void {
 		this.renders++;
-		this.rootLayer.render();
+		renderTree(this.rootLayer, draw);
 	}
 
 	/**

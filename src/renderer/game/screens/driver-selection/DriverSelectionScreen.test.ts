@@ -3,7 +3,7 @@
  */
 import { DriverSelectionScreen } from './DriverSelectionScreen';
 import { DriverPanel } from './DriverPanel';
-import { Layer } from '../../../engine/components/Layer';
+import type { Component } from '../../../engine/components/Component';
 import { Button } from '../../../engine/ui/Button';
 import { DriverLoader } from '../../core/DriverLoader';
 import { Driver } from '../../mechanics/Driver';
@@ -29,7 +29,7 @@ jest.mock('../../core/ScreenManager', () => ({
 	ScreenManager: { navigate: jest.fn() },
 }));
 
-function findById(layer: Layer, id: string): Layer | null {
+function findById(layer: Component, id: string): Component | null {
 	if (layer.id === id) return layer;
 	for (const child of layer.getChildren()) {
 		const found = findById(child, id);

@@ -1,6 +1,5 @@
 import { Component, ComponentOptions } from './Component';
-import { RendererContext } from '../rendering/RendererContext';
-import { RenderContext, DEFAULT_RENDER_CONTEXT } from '../rendering/RenderContext';
+import type { DrawApi } from '../draw/DrawApi';
 import type { FontRole } from '../text/fontFaces';
 import { resolveFontRole } from '../text/fontRoles';
 import { Style, StyleParser } from '../types/Style';
@@ -219,35 +218,20 @@ export class Text extends Component {
 		super.layout();
 	}
 
-	/**
-	 * Render the text
-	 * @param context Render context with coordinate transforms
-	 */
-	public render(context?: RenderContext): void {
-		if (!this.visible) return;
-
-		// Use default context if none provided
-		const ctx = context || DEFAULT_RENDER_CONTEXT;
-
-		const draw = RendererContext.getInstance().draw;
-
-		// Calculate screen position
-		const screenX = ctx.offsetX + this.x;
-		const screenY = ctx.offsetY + this.y;
-
-		// Calculate position based on alignment and bounding box
-		let xPos = screenX;
+	public render(draw: DrawApi): void {
+		// Position based on alignment and bounding box
+		let xPos = 0;
 		if (this.align === 'center' && this.width > 0) {
-			xPos = screenX + this.width / 2;
+			xPos = this.width / 2;
 		} else if (this.align === 'right' && this.width > 0) {
-			xPos = screenX + this.width;
+			xPos = this.width;
 		}
 
-		let yPos = screenY;
+		let yPos = 0;
 		if (this.baseline === 'middle' && this.height > 0) {
-			yPos = screenY + this.height / 2;
+			yPos = this.height / 2;
 		} else if (this.baseline === 'bottom' && this.height > 0) {
-			yPos = screenY + this.height;
+			yPos = this.height;
 		}
 
 		// Handle multi-line text rendering
@@ -271,19 +255,6 @@ export class Text extends Component {
 				align: this.align,
 				verticalAlign: this.baseline,
 			});
-		}
-
-		// Create child context with our position added
-		const childContext: RenderContext = {
-			offsetX: screenX,
-			offsetY: screenY,
-		};
-
-		// Render children with transformed context
-		for (const child of this.children) {
-			if (child.isVisible()) {
-				child.render(childContext);
-			}
 		}
 	}
 }

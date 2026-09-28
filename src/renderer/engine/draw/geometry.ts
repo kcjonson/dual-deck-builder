@@ -58,6 +58,24 @@ export function concat(outer: Mat2D, inner: Mat2D): Mat2D {
 	];
 }
 
+/**
+ * The inverse affine map, or null when the matrix collapses an axis (a zero
+ * scale), which has no inverse and maps every point onto a line.
+ */
+export function invert(matrix: Mat2D): Mat2D | null {
+	const [a, b, c, d, e, f] = matrix;
+	const determinant = a * d - b * c;
+	if (determinant === 0 || !Number.isFinite(determinant)) return null;
+	return [
+		d / determinant,
+		-b / determinant,
+		-c / determinant,
+		a / determinant,
+		(c * f - d * e) / determinant,
+		(b * e - a * f) / determinant,
+	];
+}
+
 export function transformPoint(matrix: Mat2D, x: number, y: number): Vec2 {
 	return {
 		x: matrix[0] * x + matrix[2] * y + matrix[4],

@@ -261,7 +261,8 @@ export class PlayerHandLayer extends Layer {
 	 */
 	public getCardAtPosition(x: number, y: number): Card | null {
 		// Convert to local coordinates
-		const localPos = this.globalToLocal(x, y);
+		const localPos = this.screenToLocal({ x, y });
+		if (!localPos) return null;
 		
 		for (let i = 0; i < this.cardElements.length; i++) {
 			const cardElement = this.cardElements[i];
