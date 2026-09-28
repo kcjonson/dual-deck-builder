@@ -119,7 +119,7 @@ class GalleryApplication {
 		// and window.__ui.lint() mean the same thing on both pages.
 		installDebugHooks({
 			roots: () => this.host.roots(),
-			viewport: () => this.renderer.viewport.logical,
+			viewport: () => ({ ...this.renderer.viewport.logical, ratio: this.renderer.viewport.state.ratio }),
 		});
 
 		installAppHooks({

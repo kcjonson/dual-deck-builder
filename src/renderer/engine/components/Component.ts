@@ -1,5 +1,6 @@
 import type { DrawApi } from '../draw/DrawApi';
-import { Mat2D, Rect, Vec2, concat, invert, transformPoint, translation } from '../draw/geometry';
+import { Mat2D, Rect, Vec2, concat, invert, isTranslateOnly, transformPoint, translation } from '../draw/geometry';
+import { snapClipRect } from '../coords/snapping';
 import { LayerName, ROOT_LAYER, layerOrdinal } from '../draw/layers';
 import { Style } from '../types/Style';
 import {
@@ -451,18 +452,38 @@ export abstract class Component {
 		return this.ownPointerEvents === 'none' || (this.parentComponent?.pointerEventsBlocked ?? false);
 	}
 
-	private insideAncestorClips(screenX: number, screenY: number): boolean {
+	private insideAncestorClips(screenX: number, screenY: number, ratio = this.clipRatio): boolean {
 		const ancestor = this.parentComponent;
 		if (!ancestor || this.promoted) return true;
-		if (ancestor.clipsChildren) {
-			const local = ancestor.screenToLocal({ x: screenX, y: screenY });
-			if (!local) return false;
-			const clip = ancestor.clipRect;
-			if (local.x < clip.x || local.x >= clip.x + clip.width || local.y < clip.y || local.y >= clip.y + clip.height) {
-				return false;
-			}
+		if (ancestor.clipsChildren && !ancestor.containsInClip(screenX, screenY, ratio)) return false;
+		return ancestor.insideAncestorClips(screenX, screenY, ratio);
+	}
+
+	/** The ratio the draw API snapped the last frame's clips at (R7.2), 1 while unmounted. */
+	private get clipRatio(): number {
+		return this.mountContext?.draw.devicePixelScale ?? 1;
+	}
+
+	/**
+	 * R4.4's half-open test against this component's clip as `pushClip` leaves
+	 * it: under a translation, its screen edges snapped at `ratio` (R7.8a), so
+	 * a point hits exactly the pixels the clip kept; otherwise in local space.
+	 */
+	private containsInClip(screenX: number, screenY: number, ratio: number): boolean {
+		const matrix = this.screenMatrix;
+		const clip = this.clipRect;
+		if (isTranslateOnly(matrix)) {
+			const snapped = snapClipRect({
+				minX: clip.x + matrix[4],
+				minY: clip.y + matrix[5],
+				maxX: clip.x + clip.width + matrix[4],
+				maxY: clip.y + clip.height + matrix[5],
+			}, ratio);
+			return screenX >= snapped.minX && screenX < snapped.maxX && screenY >= snapped.minY && screenY < snapped.maxY;
 		}
-		return ancestor.insideAncestorClips(screenX, screenY);
+		const local = this.screenToLocal({ x: screenX, y: screenY });
+		if (!local) return false;
+		return local.x >= clip.x && local.x < clip.x + clip.width && local.y >= clip.y && local.y < clip.y + clip.height;
 	}
 
 	// -- clipping (chapter 4) -------------------------------------------------

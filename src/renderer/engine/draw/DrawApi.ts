@@ -14,6 +14,7 @@ import {
 	shadowInk,
 } from './bounds';
 import { isSingleOutline } from './triangulate';
+import { snapClipRect } from '../coords/snapping';
 import {
 	CLIP_NONE,
 	ClipState,
@@ -446,7 +447,10 @@ export class DrawApi {
 			);
 		}
 
-		const screen = transformedBounds(current.matrix, rect);
+		// R7.8a: under a translation the clip goes onto the device grid, so R4.4's
+		// hard edge keeps or drops the same pixels as the content under it moves.
+		const bounds = transformedBounds(current.matrix, rect);
+		const screen = current.translateOnly ? snapClipRect(bounds, this.ratio) : bounds;
 		const rounded = radius === null ? null : { rect: screen, radius };
 
 		if (rounded && hasRoundedClip(this.clip) && !this.warnedNestedRoundedClip) {
