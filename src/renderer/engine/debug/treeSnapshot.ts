@@ -1,4 +1,4 @@
-import { Component } from '../components/Component';
+import { Component, PointerEvents } from '../components/Component';
 import { Text } from '../components/Text';
 import { ScrollContainer } from '../ui/ScrollContainer';
 import { Stack } from '../components/Stack';
@@ -28,18 +28,14 @@ import { snapClipRect } from '../coords/snapping';
  * R11.11 state flag (the base carries them all since DDB-84). Backed where a
  * component has them: clip, contentOffset, transform, text, value, style.
  *
- * `focusable` is backed since DDB-76 but not emitted, for the same reason as
- * `pointerEvents` below: the lint reads it as "interactive", and reporting it
- * would wake rules 6 and 7 on every Button in the gallery, which is a call
- * for whoever settles what "interactive" means there.
- *
- * `pointerEvents` is backed but deliberately not emitted. R13.22 does not name
- * it, and the lint reads it as "interactive" for rules 6 and 7 (R13.25.6),
- * while R8.29 makes `auto` the default for every leaf: emitting it would count
- * every label and swatch as a hit target and take the gallery from 0 to 72
- * target-size and unreachable-interactive findings, none of them a control.
- * What "interactive" should mean there is an open spec question, not a
- * serializer one.
+ * Interaction, on every node: `focusable` (R13.22), `pointerEvents` (R8.29's
+ * own value, which R13.22 does not name but the lint's occlusion test reads),
+ * and `handlesPointer`, which is not in R13.22 either. R8.29 makes `auto` the
+ * default for every leaf, so `pointerEvents` alone counts every label and
+ * swatch as a hit target; `handlesPointer` says whether the component answers
+ * the pointer, and the lint's rules 6 and 7 read that with `focusable` to find
+ * the controls (see Component.handlesPointer and
+ * docs/AI_TECHNICAL_DECISIONS/tree-snapshot-schema.md).
  *
  * The walk mirrors `renderTree` step for step: origin (position plus margin),
  * transform, opacity, layer and the clip reset a promotion brings (R3.8,
@@ -139,6 +135,20 @@ export interface SnapshotStack {
 	gap: number;
 }
 
+/**
+ * A scroll container's position and range (R13.22, amended by DDB-208):
+ * `x` and `y` are the scroll offset, `maxX` and `maxY` the furthest it goes,
+ * 0 on an axis that does not scroll. Emitted only by a real scroller, which
+ * is what the lint's rules 3 and 6 key on: `contentOffset` is not that
+ * signal on its own.
+ */
+export interface SnapshotScroll {
+	x: number;
+	y: number;
+	maxX: number;
+	maxY: number;
+}
+
 export interface SnapshotNode {
 	id: string | null;
 	type: string;
@@ -152,10 +162,16 @@ export interface SnapshotNode {
 	layer?: LayerName;
 	visible: boolean;
 	enabled?: boolean;
+	focusable?: boolean;
+	/** The component's own R8.29 value, not inherited: `none` above it still blocks it. */
+	pointerEvents?: PointerEvents;
+	/** The component answers the pointer itself: not in R13.22, see the module comment. */
+	handlesPointer?: boolean;
 	/** The effective opacity (R3.25). */
 	opacity?: number;
 	clip?: SnapshotRect;
 	contentOffset?: SnapshotPoint;
+	scroll?: SnapshotScroll;
 	transform?: SnapshotTransform;
 	state?: SnapshotState;
 	text?: SnapshotText;
@@ -372,6 +388,9 @@ function serializeNode(
 
 		serialized.visible = node.visible === true;
 		serialized.enabled = node.enabled === true;
+		serialized.focusable = node.focusable === true;
+		serialized.pointerEvents = node.pointerEvents;
+		serialized.handlesPointer = node.handlesPointer === true;
 
 		const opacity = context.opacity * finite(node.opacity);
 		serialized.opacity = opacity;
@@ -384,6 +403,9 @@ function serializeNode(
 		const offsetY = finite(offset?.y);
 		if (node instanceof ScrollContainer || offsetX !== 0 || offsetY !== 0) {
 			serialized.contentOffset = { x: offsetX, y: offsetY };
+		}
+		if (node instanceof ScrollContainer) {
+			serialized.scroll = { x: 0, y: finite(node.scrollPosition), maxX: 0, maxY: finite(node.maxScroll) };
 		}
 
 		const transform = snapshotTransform(node);

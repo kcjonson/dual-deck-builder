@@ -102,7 +102,8 @@ export class ScrollContainer extends Component {
 		};
 		this.contentHeightOverride = contentHeight ?? null;
 		if (onScroll) this.onScroll = onScroll;
-		this.scrollbar = new Scrollbar({ id: options.id ? `${options.id}.scrollbar` : undefined, onScroll: (offset) => this.scrollTo(offset) });
+		// Hidden until a layout or a scroll places it over overflowing content.
+		this.scrollbar = new Scrollbar({ id: options.id ? `${options.id}.scrollbar` : undefined, visible: false, onScroll: (offset) => this.scrollTo(offset) });
 		// Above the content, which it sits beside but may meet at its gutter edge.
 		this.scrollbar.zIndex = 1;
 		this.addPart(this.scrollbar);
@@ -386,8 +387,9 @@ export class ScrollContainer extends Component {
 		const edge = Math.max(this.box.borderWidth, this.box.radius > 0 ? tokens.space.space_0_5 : 0);
 		bar.visible = this.overflows;
 		// Centred in the gutter at the right edge, and moved by the offset so
-		// it stays fixed on screen.
-		bar.setPosition(this.width - edge - (SCROLLBAR_GUTTER + SCROLLBAR_THICKNESS) / 2, clip.y + this.scrollY);
+		// it stays fixed on screen; the position is the margin box's, whose
+		// left margin is the hit slop.
+		bar.setPosition(this.width - edge - (SCROLLBAR_GUTTER + SCROLLBAR_THICKNESS) / 2 - bar.margin.left, clip.y + this.scrollY);
 		bar.setSize(SCROLLBAR_THICKNESS, clip.height);
 		bar.range = { offset: this.scrollY, extent: this.scrollExtent, viewport: this.height };
 	}

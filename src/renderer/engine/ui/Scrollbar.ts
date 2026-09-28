@@ -26,6 +26,13 @@ export const SCROLLBAR_THICKNESS = tokens.space.space_1_5;
 export const SCROLLBAR_GUTTER = SCROLLBAR_THICKNESS + tokens.space.space_1;
 /** The thumb never gets shorter than this, however long the content. */
 const MIN_THUMB = tokens.space.space_6;
+/**
+ * How far past the thin track, on each side across it, a press still lands
+ * on the scrollbar, so the target is R13.25.7's 24 px across while the track
+ * draws at its thickness. It is the scrollbar's default margin on those two
+ * sides, which is the spacing the lint's target-size rule reads.
+ */
+export const SCROLLBAR_HIT_SLOP = (24 - SCROLLBAR_THICKNESS) / 2;
 
 /**
  * R12.37's standalone scrollbar: a track and a thumb bound to any
@@ -52,6 +59,9 @@ export class Scrollbar extends Component {
 
 	constructor({ orientation = 'vertical', range = { offset: 0, extent: 0, viewport: 0 }, onScroll, ...options }: ScrollbarOptions = {}) {
 		super({
+			margin: orientation === 'vertical'
+				? { left: SCROLLBAR_HIT_SLOP, right: SCROLLBAR_HIT_SLOP }
+				: { top: SCROLLBAR_HIT_SLOP, bottom: SCROLLBAR_HIT_SLOP },
 			...options,
 			width: options.width ?? (orientation === 'vertical' ? SCROLLBAR_THICKNESS : 0),
 			height: options.height ?? (orientation === 'horizontal' ? SCROLLBAR_THICKNESS : 0),
@@ -99,8 +109,17 @@ export class Scrollbar extends Component {
 		return { start, length };
 	}
 
+	/** R8.12's override: the track, grown across into the margin (the hit slop). */
 	public containsPoint(localX: number, localY: number): boolean {
-		return this.active && super.containsPoint(localX, localY);
+		if (!this.active) return false;
+		const margin = this.margin;
+		return localX >= -margin.left && localX < this.width + margin.right
+			&& localY >= -margin.top && localY < this.height + margin.bottom;
+	}
+
+	/** It acts on presses in `handleEvent`, with or without a caller callback (the lint's rules 6 and 7). */
+	public get handlesPointer(): boolean {
+		return true;
 	}
 
 	public get resolvedColors(): ResolvedColors | null {
