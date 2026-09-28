@@ -17,7 +17,7 @@
 {"path":"gallery_root/dev_section_scrolling/dev_scroll_line/Stack[1]/dev_scroll_middle/dev_scroll_rows/Stack[8]/Text[0]","text":"Salvage lot 9","rect":[313,271.85,75.63,17.7]},
 {"path":"gallery_root/dev_section_scrolling/dev_scroll_line/Stack[1]/dev_scroll_middle/dev_scroll_rows/Stack[9]/Text[0]","text":"Salvage lot 10","rect":[313,299.85,83.07,17.7]},
 {"path":"gallery_root/dev_section_scrolling/dev_scroll_line/Stack[2]/Text[0]","text":"nested: the inner one latches (R9.32)","rect":[557,103,220.73,17.7]},
-{"path":"gallery_root/dev_section_scrolling/dev_scroll_line/Stack[2]/dev_scroll_outer/Stack[1]/Text[0]","text":"Outer: wheel here scrolls the page of lots.","rect":[565,134.7,214,32.68]},
+{"path":"gallery_root/dev_section_scrolling/dev_scroll_line/Stack[2]/dev_scroll_outer/Stack[1]/Text[0]","text":"Outer: wheel here scrolls the page of lots.","rect":[565,134.7,200,32.68]},
 {"path":"gallery_root/dev_section_scrolling/dev_scroll_line/Stack[2]/dev_scroll_outer/Stack[1]/dev_scroll_inner/dev_scroll_rows/Stack[0]/Text[0]","text":"Salvage lot 1","rect":[573,180.54,75.63,17.7]},
 {"path":"gallery_root/dev_section_scrolling/dev_scroll_line/Stack[2]/dev_scroll_outer/Stack[1]/dev_scroll_inner/dev_scroll_rows/Stack[1]/Text[0]","text":"Salvage lot 2","rect":[573,208.54,75.63,17.7]},
 {"path":"gallery_root/dev_section_scrolling/dev_scroll_line/Stack[2]/dev_scroll_outer/Stack[1]/dev_scroll_inner/dev_scroll_rows/Stack[2]/Text[0]","text":"Salvage lot 3","rect":[573,236.54,75.63,17.7]},
