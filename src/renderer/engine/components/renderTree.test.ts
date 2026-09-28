@@ -154,6 +154,17 @@ describe('renderTree (R3.11, R8.1)', () => {
 		expect(ring()).toBeUndefined();
 	});
 
+	it('leaves the ring to a component that draws its own', () => {
+		class Styled extends Rectangle {
+			public get drawsOwnFocusRing(): boolean {
+				return true;
+			}
+		}
+		const styled = new Styled({ id: 'styled', width: 100, height: 40 });
+		styled.setFocusState(true, true);
+		expect(frame(styled).map((command) => command.id)).toEqual(['styled']);
+	});
+
 	it('leaves every stack balanced', () => {
 		const root = new Layer({ width: 100, height: 100, overflow: 'hidden', opacity: 0.5, transform: { translate: [3, 4] } });
 		const raised = new Layer({ width: 50, height: 50, layer: 'raised', overflow: 'hidden' });

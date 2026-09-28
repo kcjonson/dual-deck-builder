@@ -61,7 +61,7 @@ export function renderTree(component: Component, draw: DrawApi): void {
 		if (clips) draw.popClip();
 	}
 
-	if (component.focusVisible && component.effectivelyEnabled) drawFocusRing(component, draw);
+	if (component.focusVisible && component.effectivelyEnabled && !component.drawsOwnFocusRing) drawFocusRing(component, draw);
 
 	if (promotes) draw.popClip();
 	if (layered) draw.popLayer();
@@ -77,8 +77,9 @@ const CLEAR: RGBA = [0, 0, 0, 0];
  * outside the content box, drawn after the children so nothing inside covers
  * it and independent of every other state, so a keyboard player never loses
  * it to a hover. Drawn only while `focusVisible` (R9.23), so a pointer never
- * shows it. The state-layer resolution (DDB-84) may move it into the
- * component's own style.
+ * shows it, and only for a component that does not draw its own ring from
+ * its state layers (`drawsOwnFocusRing`): the fallback that gives cards,
+ * vehicles, and any other focusable without a resolved look a ring.
  */
 function drawFocusRing(component: Component, draw: DrawApi): void {
 	const offset = tokens.control.focus_ring_offset;

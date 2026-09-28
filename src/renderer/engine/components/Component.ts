@@ -1142,6 +1142,16 @@ export abstract class Component {
 	}
 
 	/**
+	 * Whether this component draws its own focus ring from `focusVisible` as
+	 * part of its resolved look (R11.12 layer 6), as widgets with state
+	 * layers do. The render walk draws the token ring only for focusable
+	 * components that answer false, so no component gets two rings.
+	 */
+	public get drawsOwnFocusRing(): boolean {
+		return false;
+	}
+
+	/**
 	 * R9.15: this component takes text, so while it is focused it owns every
 	 * key but Tab, Escape, and Ctrl or Cmd chords; no hotkey, activation, or
 	 * arrow navigation sees them. Text fields override it.
