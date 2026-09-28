@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { expect, test } from '@playwright/test';
 import type { Page } from '@playwright/test';
-import { DrawApi, RecordingBackend } from '../../../src/renderer/engine/draw';
+import { DrawApi, RecordingBackend, TextureHandle } from '../../../src/renderer/engine/draw';
 import { Batcher } from '../../../src/renderer/engine/draw/Batcher';
 import { ResidentTextureSet } from '../../../src/renderer/engine/draw/ResidentTextureSet';
 import {
@@ -36,7 +36,30 @@ interface Target {
 	ratio: number;
 	/** Straight RGBA, 0 to 1. */
 	clear: [number, number, number, number];
+	/** Textures to put on units before drawing, RGBA8 texels uploaded as given. */
+	textures?: UnitTexture[];
 }
+
+interface UnitTexture {
+	unit: number;
+	width: number;
+	height: number;
+	texels: number[];
+}
+
+/**
+ * One 4x4 glyph, 'A', filling its whole atlas: the glyph quad is 4x4 device
+ * pixels at size 16, so each pixel samples one texel at its centre. The
+ * atlas is the font role's resident texture, on unit 0 as in the backend.
+ */
+const GLYPHS = {
+	getCharacter: (char: string) => (char === 'A'
+		? { x: 0, y: 0, width: 1, height: 1, offsetX: 0, offsetY: 0, advance: 4 }
+		: null),
+	getFontSize: () => 16,
+	getAtlasSize: () => 4,
+	measureText: (text: string) => ({ width: text.length * 4, height: 4 }),
+};
 
 interface Frame {
 	pixels: number[];
@@ -45,26 +68,30 @@ interface Frame {
 }
 
 /** The draw API and the encoder, as the backend drives them, into one upload. */
-function encode(target: Target, build: (api: DrawApi) => void): { floats: number[]; indices: number[] } {
+function encode(
+	target: Target,
+	build: (api: DrawApi) => void,
+	prepare?: (api: DrawApi) => void,
+): { floats: number[]; indices: number[] } {
 	const backend = new RecordingBackend({ maxFrames: 1 });
+	backend.loadFontAtlas({ name: 'body', metrics: null, texture: { id: 1, width: 4, height: 4, label: null } });
 	const api = new DrawApi({ backend, strict: true });
+	prepare?.(api);
 	api.beginFrame({ viewport: { width: target.width / target.ratio, height: target.height / target.ratio }, ratio: target.ratio });
 	build(api);
 	api.endFrame();
 
 	const encoder = new UberGeometryEncoder({
-		glyphs: {
-			getCharacter: () => null,
-			getFontSize: () => 16,
-			getAtlasSize: () => 1,
-			measureText: () => ({ width: 0, height: 0 }),
-		},
+		glyphs: GLYPHS,
 		onUnpaintable: (kind, detail) => {
 			throw new Error(`${kind}: ${detail}`);
 		},
 	});
 	encoder.ratio = target.ratio;
-	const batcher = new Batcher({ encoder, textures: new ResidentTextureSet({ units: UBER_TEXTURE_UNITS }) });
+	const batcher = new Batcher({
+		encoder,
+		textures: new ResidentTextureSet({ units: UBER_TEXTURE_UNITS, resident: [GLYPHS] }),
+	});
 	let floats: number[] = [];
 	let indices: number[] = [];
 	batcher.flush(backend.commands, (upload) => {
@@ -75,8 +102,13 @@ function encode(target: Target, build: (api: DrawApi) => void): { floats: number
 	return { floats, indices };
 }
 
-async function render(page: Page, target: Target, build: (api: DrawApi) => void): Promise<Frame> {
-	const geometry = encode(target, build);
+async function render(
+	page: Page,
+	target: Target,
+	build: (api: DrawApi) => void,
+	prepare?: (api: DrawApi) => void,
+): Promise<Frame> {
+	const geometry = encode(target, build, prepare);
 	return page.evaluate(({ target, geometry, sources, attributes, stride, units }) => {
 		const canvas = document.createElement('canvas');
 		canvas.width = target.width;
@@ -98,16 +130,26 @@ async function render(page: Page, target: Target, build: (api: DrawApi) => void)
 		if (!gl.getProgramParameter(program, gl.LINK_STATUS)) throw new Error(gl.getProgramInfoLog(program) ?? 'link');
 		gl.useProgram(program);
 
-		// Every sampler on a 1x1 transparent texture, as the backend does.
-		const empty = gl.createTexture();
+		// The given textures on their units, as `WebGL2TextureDevice` creates
+		// them, and a 1x1 transparent texture on every other unit, as the
+		// backend does.
+		const texture = (width: number, height: number, texels: Uint8Array) => {
+			const created = gl.createTexture();
+			gl.bindTexture(gl.TEXTURE_2D, created);
+			gl.texStorage2D(gl.TEXTURE_2D, 1, gl.RGBA8, width, height);
+			gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+			gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+			gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+			gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+			gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, 0, width, height, gl.RGBA, gl.UNSIGNED_BYTE, texels);
+			return created;
+		};
+		const empty = texture(1, 1, new Uint8Array(4));
 		const unitIndices = new Int32Array(units);
 		for (let unit = 0; unit < units; unit++) {
+			const given = (target.textures ?? []).find((entry) => entry.unit === unit);
 			gl.activeTexture(gl.TEXTURE0 + unit);
-			gl.bindTexture(gl.TEXTURE_2D, empty);
-			if (unit === 0) {
-				gl.texStorage2D(gl.TEXTURE_2D, 1, gl.RGBA8, 1, 1);
-				gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, 0, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, new Uint8Array(4));
-			}
+			gl.bindTexture(gl.TEXTURE_2D, given ? texture(given.width, given.height, new Uint8Array(given.texels)) : empty);
 			unitIndices[unit] = unit;
 		}
 		gl.uniform1iv(gl.getUniformLocation(program, 'uTextures[0]'), unitIndices);
@@ -311,5 +353,55 @@ test.describe('uber shader', () => {
 		const rim = pixel(frame, 25, 35)[0];
 		expect(rim).toBeGreaterThan(0);
 		expect(rim).toBeLessThan(255);
+	});
+	test('samples an image from a dynamic unit, premultiplied, and multiplies its tint (R5.18, R5.20)', async ({ page }) => {
+		// Premultiplied texels: opaque red, half green, opaque blue, transparent.
+		const texels = [255, 0, 0, 255, 0, 128, 0, 128, 0, 0, 255, 255, 0, 0, 0, 0];
+		const created: { art?: TextureHandle } = {};
+		const prepare = (api: DrawApi) => {
+			created.art = api.createTexture({ width: 2, height: 2, label: 'art' });
+		};
+		// The atlas is resident on unit 0, so the image is handed unit 1.
+		const target: Target = { width: 16, height: 8, ratio: 1, clear: TRANSPARENT, textures: [{ unit: 1, width: 2, height: 2, texels }] };
+		const frame = await render(page, target, (api) => {
+			api.drawImage({ rect: { x: 0, y: 0, width: 8, height: 8 }, texture: created.art as TextureHandle });
+			api.drawImage({ rect: { x: 8, y: 0, width: 8, height: 8 }, texture: created.art as TextureHandle, tint: [1, 1, 1, 0.5] });
+		}, prepare);
+		expect(pixel(frame, 0, 0)).toEqual([255, 0, 0, 255]);
+		expect(pixel(frame, 7, 0)).toEqual([0, 128, 0, 128]);
+		expect(pixel(frame, 0, 7)).toEqual([0, 0, 255, 255]);
+		expect(pixel(frame, 7, 7)).toEqual([0, 0, 0, 0]);
+		// Half tint halves every premultiplied channel.
+		const tinted = pixel(frame, 8, 0);
+		expect(Math.abs(tinted[0] - 128)).toBeLessThanOrEqual(1);
+		expect(Math.abs(tinted[3] - 128)).toBeLessThanOrEqual(1);
+	});
+
+	test('draws a glyph in mask mode from the atlas red channel as coverage', async ({ page }) => {
+		// A 4x4 atlas: the left two columns fully covered, the right two half.
+		const texels: number[] = [];
+		for (let row = 0; row < 4; row++) {
+			for (let column = 0; column < 4; column++) texels.push(column < 2 ? 255 : 128, 0, 0, 255);
+		}
+		const target: Target = { width: 10, height: 8, ratio: 1, clear: OPAQUE_BLACK, textures: [{ unit: 0, width: 4, height: 4, texels }] };
+		const frame = await render(page, target, (api) => {
+			api.drawText({ text: 'A', position: { x: 2, y: 2 }, font: 'body', size: 16, color: [0, 1, 0, 1] });
+		});
+		expect(pixel(frame, 2, 3)).toEqual([0, 255, 0, 255]);
+		expect(pixel(frame, 3, 3)).toEqual([0, 255, 0, 255]);
+		const half = pixel(frame, 5, 3);
+		expect(Math.abs(half[1] - 128)).toBeLessThanOrEqual(1);
+		expect(half[3]).toBe(255);
+		expect(pixel(frame, 1, 3)).toEqual([0, 0, 0, 255]);
+		expect(pixel(frame, 6, 3)).toEqual([0, 0, 0, 255]);
+	});
+
+	test('adds an additive draw without covering what is under it (R5.22a)', async ({ page }) => {
+		const frame = await render(page, { width: 16, height: 8, ratio: 1, clear: [0, 0, 1, 1] }, (api) => {
+			api.drawRect({ rect: { x: 0, y: 0, width: 8, height: 8 }, fill: [1, 0, 0, 1], blend: 'additive' });
+			api.drawRect({ rect: { x: 8, y: 0, width: 8, height: 8 }, fill: [1, 0, 0, 1] });
+		});
+		expect(pixel(frame, 4, 4)).toEqual([255, 0, 255, 255]);
+		expect(pixel(frame, 12, 4)).toEqual([255, 0, 0, 255]);
 	});
 });

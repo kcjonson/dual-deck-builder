@@ -18,6 +18,8 @@ This document contains the chronological log of completed development tasks for 
 
 **How:** `UberGeometryEncoder.test.ts` (42, including the paint-order tests moved from the deleted encoder test), rewritten `WebGL2Backend.test.ts` (no scissor call, clip on every vertex at ratio 2, blend state per mode, texture units), `Batcher.test.ts` for the reduced split reasons. `tests/visual/web/uberShader.spec.ts` runs the real shader in SwiftShader against chapter 4.7's fragment fixture and chapter 5.10's pixel tests. Every golden re-minted on CI; the before and after comparison, and GPU draw counts per screen (unchanged, with every screen at one draw once `legacyTextOrder` goes), are in `docs/AI_TECHNICAL_DECISIONS/uber-shader.md`.
 
+**Review follow-ups (same PR):** the R4.2a bound for a polygon grows by the feather miter's four device pixels, `shadowInk` clamps a negative blur, the indexed-polygon outline contract is written on `DrawPolygonOptions` and checked by `isSingleOutline` (unfeathered draw plus a `polygon-not-one-outline` diagnostic when it fails), and the pixel suite gained image, mask and additive cases. The combat golden's intent badge reads 15 where `main`'s said 5: `main`'s golden was stale and passed under the 200-pixel budget (DDB-197).
+
 ## Body face kerning: stay on unkerned Open Sans (2026-09-28)
 
 **What landed:** DDB-189, a decision with no asset change. Open Sans 3.000 stays the body face and ships with an empty `kerning[]`.

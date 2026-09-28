@@ -68,7 +68,7 @@ export type { ClipState, ResolvedClip, RoundedClip } from './clip';
 export { IDENTITY, concat, transformPoint, translation } from './geometry';
 export type { ClipRect, Mat2D, RGBA, Rect, Vec2 } from './geometry';
 
-export { triangulatePolygon } from './triangulate';
+export { isSingleOutline, triangulatePolygon } from './triangulate';
 
 export { LAYER_NAMES, LAYER_ORDINALS, ROOT_LAYER, layerOrdinal } from './layers';
 export type { LayerName } from './layers';

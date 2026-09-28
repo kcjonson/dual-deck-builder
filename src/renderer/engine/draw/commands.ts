@@ -150,6 +150,15 @@ export interface DrawPolylineOptions extends CommonOptions {
 	cap?: LineCap;
 }
 
+/**
+ * R2.11 and R5.17. With `indices`, `points` in order MUST be one simple closed
+ * outline (no holes, no self-crossing, not several shapes) and `indices` a
+ * triangulation that covers it exactly once, as `triangulatePolygon` returns:
+ * the anti-aliasing feather ring is built along `points` in order. A list that
+ * breaks this is drawn without the feather, and a development build reports
+ * `polygon-not-one-outline`. Without `indices`, `points` is a bare triangle
+ * list, feathered only when it is a single triangle.
+ */
 export interface DrawPolygonOptions extends CommonOptions {
 	points: readonly Vec2[];
 	/** R2.11's triangle list into `points`. Absent means `points` is already one. */

@@ -20,6 +20,8 @@ import {
 	clipRectOf,
 } from '../draw';
 import { GeometryEncoder, GeometrySink, GroupShape } from '../draw/Batcher';
+import { FEATHER_MITER_LIMIT } from '../draw/bounds';
+import { isSingleOutline } from '../draw/triangulate';
 import { snapToDevice } from '../coords/snapping';
 import type { CharacterInfo } from './FontAtlas';
 
@@ -124,8 +126,6 @@ const CORNER_X = [-1, 1, 1, -1] as const;
 const CORNER_Y = [-1, -1, 1, 1] as const;
 const QUAD_INDICES = [0, 1, 2, 0, 2, 3] as const;
 
-/** R5.17's feather ring: a spike sharper than this keeps a bounded miter. */
-const MITER_LIMIT = 4;
 
 export class UberGeometryEncoder implements GeometryEncoder {
 	readonly floatsPerVertex = UBER_VERTEX.floats;
@@ -420,8 +420,10 @@ export class UberGeometryEncoder implements GeometryEncoder {
 	 * R5.17: `flat` triangles, then a feather ring one device pixel wide
 	 * around the outline, its inner edge the polygon's own vertices and its
 	 * outer vertices transparent. The ring is built on the whole outline, not
-	 * per triangle, so shared interior edges have no seam. A polygon given as a
-	 * bare triangle list has no outline to feather unless it is one triangle.
+	 * per triangle, so shared interior edges have no seam. It needs `points` to
+	 * be that outline (`DrawPolygonOptions`); an indexed list that is not one is
+	 * drawn unfeathered rather than with a ring across its interior, and a bare
+	 * triangle list is feathered only when it is one triangle.
 	 */
 	private encodePolygon(command: PolygonCommand, sink: GeometrySink): void {
 		this.begin(command, UBER_MODE.flat, -1);
@@ -502,7 +504,7 @@ export class UberGeometryEncoder implements GeometryEncoder {
 				miterX /= miterLength;
 				miterY /= miterLength;
 				const cosine = miterX * outX + miterY * outY;
-				scale = width * Math.min(MITER_LIMIT, cosine > 1e-9 ? 1 / cosine : MITER_LIMIT);
+				scale = width * Math.min(FEATHER_MITER_LIMIT, cosine > 1e-9 ? 1 / cosine : FEATHER_MITER_LIMIT);
 			} else {
 				miterX = outX;
 				miterY = outY;
@@ -896,9 +898,10 @@ function polylineSegments(command: PolylineCommand): number {
 	return command.closed && count > 2 ? count : count - 1;
 }
 
-/** Whether the points are an outline R5.17 can feather: an indexed polygon, or a single triangle. */
+/** Whether the points are an outline R5.17 can feather: one outline its indices cover once, or a single triangle. */
 function hasOutline(command: PolygonCommand): boolean {
-	return command.indices !== null || command.points.length === 3;
+	if (command.indices === null) return command.points.length === 3;
+	return isSingleOutline(command.points, command.indices);
 }
 
 /** The unit outward normal of the edge from point `a` to point `b` of `outline` into `out`, zero for a degenerate edge. */

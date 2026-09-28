@@ -65,8 +65,19 @@ colour. The MSDF `text` branch is in the shader (median of three, `clamp(range *
   position (R5.7), one device pixel of inflation in local units, R5.11's shadow geometry with
   CSS's spread radius cubic and 3 sigma of padding (`bounds.shadowInk` is the same box), line
   quads, the polygon feather ring (R5.17: one device pixel, outward by the outline's signed area,
-  mitred and limited to four times the width, on the outline and not per triangle; a bare triangle
-  list is feathered only when it is one triangle), and images with a source rect and tint (R5.18).
+  mitred and limited to `FEATHER_MITER_LIMIT`, four device pixels, on the outline and not per
+  triangle), and images with a source rect and tint (R5.18).
+- The feather needs `points` to be one outline. `DrawPolygonOptions` now says so: with
+  `indices`, the points in order MUST be one simple closed outline that the indices cover once.
+  `draw/triangulate.ts`'s `isSingleOutline` checks it in linear time with no allocation (the
+  outline has area, every triangle is wound like it, every outline edge is walked exactly once,
+  through collinear vertices the triangulation dropped, and the areas add up). A list that fails
+  is drawn without the feather rather than with a ring across its interior, and a development
+  build reports `polygon-not-one-outline`. A bare triangle list is feathered only when it is one
+  triangle.
+- The R4.2a cull bound covers the feather: a polygon's ink grows by `FEATHER_MITER_LIMIT`
+  device pixels rather than the one R5.7 needs, so no visible miter pixel is ever culled.
+  `shadowInk` clamps a negative blur to zero, as the encoder draws it.
 - `WebGL2Backend`: the uber program, `ONE, ONE_MINUS_SRC_ALPHA` (R5.22, R15.25); `multiply` and
   `screen` set their own blend function and split (`blendChange`), `additive` does not. Eight
   sampler units selected by slot (R5.20): the font atlas resident on unit 0, images on the
@@ -86,8 +97,11 @@ colour. The MSDF `text` branch is in the shader (median of three, `clamp(range *
 
 Every committed golden, for the reasons below and no others. Compared capture by capture against
 `main` before the mint (chromium, SwiftShader, 1440x882, ratio 1) and cropped at 6 to 8 times;
-nothing is missing, no fill colour changed, nothing moved position, and glyphs are drawn as
-before (the `text` scene differs only along its panel's border).
+nothing is missing, no fill colour changed and nothing moved position. Glyphs draw as before
+with one exception that is not this PR's: the enemy intent badge on the combat screen reads 15
+where `main`'s golden read 5. `main`'s combat golden was stale; the number changed in an earlier
+PR and the capture still passed, since a two-glyph change is about 108 pixels and the gate allows
+200. This re-mint is the first capture of the current value (DDB-197).
 
 - **Rounded corners where the style asked for them.** Buttons (5 px), inputs (3 px), panels (5
   px), cards (8 px, 4 px mini), and the developer screen's swatches and examples. The card icon
@@ -104,9 +118,9 @@ before (the `text` scene differs only along its panel's border).
 - **Strokes at their width.** GL lines were one pixel whatever the width; triangle and polygon
   strokes in `primitive-shapes` are now their 2 or 3 px, with round joins.
 
-One now-visible layout issue, not caused here: on the developer screen each section title
-overlaps its panel's top border, which used to be too thin to see. That is one of the reorder
-sites the ordering re-baseline (DDB-67) already owns.
+One now-visible layout issue, not caused here: on the developer screen each section title is
+placed at (0, 0) of a bordered `Panel`, so it sits on the panel's top border, which used to be too
+thin to see. That is a layout fix (an inset for the title), not paint order (DDB-196).
 
 ## What was measured
 

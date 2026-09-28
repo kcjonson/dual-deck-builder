@@ -1,4 +1,4 @@
-import { circleInk, lineInk, pointsInk, rectInk, screenInk, shadowInk } from './bounds';
+import { FEATHER_MITER_LIMIT, circleInk, lineInk, pointsInk, rectInk, screenInk, shadowInk } from './bounds';
 import { IDENTITY, Rect, translation } from './geometry';
 
 const RED = [1, 0, 0, 1] as const;
@@ -52,6 +52,10 @@ describe('bounds (R4.2a)', () => {
 		it('is the owner rect when every shadow field is defaulted', () => {
 			expect(shadowInk(shape, { color: RED })).toEqual(shape);
 		});
+
+		it('treats a negative blur as none rather than shrinking below the owner', () => {
+			expect(shadowInk(shape, { color: RED, blur: -20 })).toEqual(shape);
+		});
 	});
 
 	it('bounds a circle by its radius plus any outward border', () => {
@@ -104,6 +108,10 @@ describe('bounds (R4.2a)', () => {
 
 		it('inflates by less at a higher ratio, because a device pixel is smaller', () => {
 			expect(screenInk(shape, IDENTITY, 2)).toEqual({ minX: 9.5, minY: 19.5, maxX: 40.5, maxY: 60.5 });
+		});
+
+		it('grows by a polygon feather miter\'s full reach when asked (R5.17)', () => {
+			expect(screenInk(shape, IDENTITY, 2, FEATHER_MITER_LIMIT)).toEqual({ minX: 8, minY: 18, maxX: 42, maxY: 62 });
 		});
 
 		it('applies the transform before the inflation', () => {

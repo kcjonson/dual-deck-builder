@@ -49,10 +49,15 @@ class FakeGlyphs implements GlyphSource {
 	}
 }
 
-function record(build: (api: DrawApi) => void, ratio = 1, prepare?: (api: DrawApi) => void): DrawCommand[] {
+function record(
+	build: (api: DrawApi) => void,
+	ratio = 1,
+	prepare?: (api: DrawApi) => void,
+	strict = true,
+): DrawCommand[] {
 	const backend = new RecordingBackend({ maxFrames: 1 });
 	backend.loadFontAtlas({ name: 'body', metrics: null, texture: { id: 1, width: 1, height: 1, label: null } });
-	const api = new DrawApi({ backend, strict: true });
+	const api = new DrawApi({ backend, strict });
 	prepare?.(api);
 	api.beginFrame({ viewport: { width: 800, height: 600 }, ratio });
 	build(api);
@@ -397,6 +402,17 @@ describe('UberGeometryEncoder: polygon (R5.17)', () => {
 		expect(draw((api) => api.drawPolygon({ points: two, fill: RED })).floats.length).toBe(6 * V.floats);
 	});
 
+	it('draws an indexed list that is not one outline without a ring across its interior', () => {
+		const { encode } = setup();
+		const points = [{ x: 0, y: 0 }, { x: 10, y: 0 }, { x: 0, y: 10 }, { x: 20, y: 0 }, { x: 30, y: 0 }, { x: 20, y: 10 }];
+		// Not strict: the draw API reports this list, and still draws it.
+		const [{ floats, indices }] = encode(record((api) => {
+			api.drawPolygon({ points, indices: [0, 1, 2, 3, 4, 5], fill: RED });
+		}, 1, undefined, false)).uploads;
+		expect(floats.length).toBe(6 * V.floats);
+		expect(indices).toEqual([0, 1, 2, 3, 4, 5]);
+	});
+
 	it('premultiplies per-vertex colours and keeps them on the inner ring', () => {
 		const { draw } = setup();
 		const colors: RGBA[] = [RED, BLUE, RED, BLUE];
@@ -409,7 +425,7 @@ describe('UberGeometryEncoder: polygon (R5.17)', () => {
 		const { encode, unpaintable } = setup();
 		expect(encode(record((api) => {
 			api.drawPolygon({ points: square, indices: [0, 1, 7] });
-		})).uploads).toEqual([]);
+		}, 1, undefined, false)).uploads).toEqual([]);
 		expect(unpaintable).toEqual(['polygon: polygon index 7 is outside its 4 points']);
 	});
 });
