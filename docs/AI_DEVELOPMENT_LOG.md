@@ -17,6 +17,20 @@ This document contains the chronological log of completed development tasks for 
 - No per-frame allocation for `clipRect`, `transformMatrix` or `Panel.contentOffset`. `MeasuringRecordingBackend` answers `textInk` through the new shared `runInk`.
 - No pixel moved (screenshot hashes against `main` at 84 screen and scroll states). Card showcase render median about 0.81 to 0.63 ms, developer 0.85 to 0.50 ms. [subtree-ink-cull.md](./AI_TECHNICAL_DECISIONS/subtree-ink-cull.md).
 
+## Game code on the tree (2026-09-28)
+
+**What landed:** DDB-79 (DDB-55 phase 3), closing DDB-41.
+
+- `Screen` no longer reads the window: its root is zero-sized until mount sizes it from `context.viewport`. Splash, main menu, developer, card showcase and driver selection place their elements from the root in `onMount` and `onResized`.
+- Driver selection stops rebuilding on resize. `DriverPanel` and `SynergyPreviewPanel` place their contents from their own size in `layoutChildren`; the confirmation line is one persistent text shown when both drivers are picked; drivers load once, on mount.
+- The deck preview clears after the card data arrives and a stale build gives way, so the left panel's deck is no longer drawn three times.
+- `Card` and `Vehicle` extend `Component`. `Card` uses the base's `enabled` and `onStateChange`, lifting by transform; the hand places cards where the old `y % 10` test left them. `Vehicle` builds every part once, hides the driver row and SPENT chip by data, places parts in `layoutChildren`, and subscribes to the combat model on mount. `EnemyVehicle` places its intent marker the same way.
+- `CombatLogLayer` holds its chrome as named fields, places it in `layoutChildren` (fixing the resize that moved the centred title to half the width), and subscribes on mount. Main menu buttons and the card showcase background are named fields.
+- The splash fades in, holds on the clock, and fades out through its root's opacity with the animator, then goes to the main menu.
+- `Component.setOverflow` accepts `hidden` before a size; `clipsChildren` still waits for one. `ArmorBadge.minWidth` is settable. Dead code: `PlayerHandLayer.getCardAtPosition`, `Vehicle.getDisplayName`/`getNameFontSize`.
+
+**How:** `SplashScreen.test.ts` (fade in, hold, fade out, navigate, settle at opacity 1, resize, unmount cancels), `Vehicle.test.ts` (parts kept across a driver's death and a resize, model subscription on mount and remount), `Card.test.ts` (lift by transform, disabled cards neither lift nor brighten), `DriverSelectionScreen.test.ts` (three resizes keep the same children and both drivers, one deck preview across overlapping loads), `Screen.test.ts`, `Component.test.ts` (overflow before size). Played in the browser: splash fade, menu to driver selection, cycling and resizing three times without losing the selection, START RUN, a self-targeted and an enemy-targeted card, END TURN, the combat log. Details in [game-code-on-the-tree.md](AI_TECHNICAL_DECISIONS/game-code-on-the-tree.md).
+
 ## Overlay, popup, tooltip, placement, clipboard and asset services (2026-09-28)
 
 **What landed:** DDB-78 (DDB-55 phase 3), R12.30 to R12.32 with R12.22, R8.21, R3.6a, R3.15, R9.13 to R9.15.

@@ -93,7 +93,7 @@ export interface ComponentOptions {
 	margin?: MarginInput;
 	transform?: TransformInput;
 	pointerEvents?: PointerEvents;
-	/** Only valid when width and height are set. */
+	/** Clips only once width and height are both positive. */
 	overflow?: Overflow;
 	style?: Style;
 	/** Fired after a layout in which this component's bounds changed, including the first (R8.21). */
@@ -2129,12 +2129,12 @@ export abstract class Component {
 		return this.visible;
 	}
 
-	/** Requires width and height to be set; a zero-sized box has nothing to clip to. */
+	/**
+	 * A mode, not a clip: it may be set before the box has a size, which a
+	 * screen sizes from the viewport on mount. `clipsChildren` answers false
+	 * while the box is zero-sized, which has nothing to clip to.
+	 */
 	public setOverflow(overflow: Overflow): this {
-		if (overflow === 'hidden' && (this.contentWidth <= 0 || this.contentHeight <= 0)) {
-			console.warn(`${this.componentType}: overflow requires both width and height to be set`);
-			return this;
-		}
 		this.ownOverflow = overflow;
 		return this;
 	}
