@@ -70,14 +70,28 @@ jobs:
           fi
           echo "Baseline files touched by this pull request:"
           echo "$changed"
-          # Two dots, not three: the diff wants the merge base, the log wants
-          # the commits this branch adds on top of it.
-          offenders=$(git log --format='%H %s' "origin/$BASE_REF..HEAD" -- 'tests/visual/__screenshots__' \
-            | grep -vF '[visual-baseline]' || true)
+          # Per file: the last commit this branch adds that set a changed file
+          # has to be a [visual-baseline] commit. Two dots, not three: the diff
+          # wants the merge base, the log wants the commits this branch adds on
+          # top of it. Judged per file, not per commit, because a merge of the
+          # base branch that brings the base's own new baselines is TREESAME
+          # only to its base-side parent, which the range excludes, so a
+          # whole-directory log lists that merge as if it had minted them. A
+          # file only the base changed is not in $changed; a merge that
+          # hand-edits a file the branch does change is that file's last
+          # commit and is still caught.
+          offenders=""
+          for file in $changed; do
+            last=$(git log -1 --format='%H %s' "origin/$BASE_REF..HEAD" -- "$file")
+            case "$last" in
+              *'[visual-baseline]'*) ;;
+              *) offenders="${offenders}${file}: ${last}"$'\n' ;;
+            esac
+          done
           if [ -n "$offenders" ]; then
             echo
             echo "R14.5: screenshot baselines are produced by the CI runner image only."
-            echo "These commits changed a baseline without coming from the Visual workflow:"
+            echo "These files were last changed by a commit that did not come from the Visual workflow:"
             echo "$offenders"
             echo
             echo "Run this workflow with update_baselines=true on this branch instead."

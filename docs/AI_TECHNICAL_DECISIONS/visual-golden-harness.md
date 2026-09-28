@@ -42,9 +42,12 @@ On top of that, `playwright.config.ts` refuses any argument that begins with `-u
 sets. The prefix is the point: the flag takes an optional mode and commander accepts it
 attached, so `-uall`, `-uchanged` and `--update-snapshots=changed` rewrite baselines exactly as
 the bare forms do, and a check for the bare forms alone lets all of them through. And the
-`baseline-provenance` job fails any pull request in which a commit touching
-`tests/visual/__screenshots__` lacks the `[visual-baseline]` marker the dispatch job writes
-together with a link to its run.
+`baseline-provenance` job fails any pull request in which a baseline the branch changes was
+last set by a commit without the `[visual-baseline]` marker the dispatch job writes together
+with a link to its run. It judges each changed file rather than each commit touching the
+directory: a merge of `main` that brings `main`'s own new baselines is TREESAME only to its
+`main` parent, which the range excludes, so a per-commit log listed such merges as offenders
+(DDB-72).
 
 What the three layers are actually worth, in order and stated without inflation. The `.gitignore`
 layer is the strong one: it is not a rule about behaviour but a fact about paths, and a Windows or
