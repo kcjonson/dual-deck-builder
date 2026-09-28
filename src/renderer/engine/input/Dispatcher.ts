@@ -13,7 +13,7 @@ import {
 	UiWheelEvent,
 } from './events';
 import { HitTestOptions, hitTest } from './hitTest';
-import { HotkeyTable } from './HotkeyTable';
+import { HotkeyTable, KeyStroke } from './HotkeyTable';
 
 /** R9.12a's tokens: movement under which a press is still a candidate click. */
 export const DRAG_THRESHOLD_MOUSE = 4;
@@ -27,6 +27,67 @@ export const WHEEL_LINE_PX = 16;
 
 const PRIMARY_BUTTON = 0;
 const SECONDARY_BUTTON = 2;
+
+/**
+ * Where a root sits in paint order, which is hit order reversed (R3.15,
+ * R3.28): the scene's own roots in the order they were mounted, then the
+ * overlay service's roots in the order it keeps (open order, with
+ * `bringToFront`), then diagnostic roots such as the F5 overlay, which draw
+ * as their own domain after the UI's (R3.21).
+ */
+export type RootTier = 'scene' | 'overlay' | 'diagnostic';
+
+const ROOT_TIER_RANK: Readonly<Record<RootTier, number>> = { scene: 0, overlay: 1, diagnostic: 2 };
+
+/** A `pointerdown` about to be delivered, as an input observer sees it. */
+export interface PointerPress {
+	/** What the press landed on; null over nothing. */
+	readonly target: Component | null;
+	readonly x: number;
+	readonly y: number;
+	readonly pointerId: number;
+	readonly pointerType: PointerType;
+	readonly button: number;
+}
+
+/** A pointer's position after a move, with what it is over. */
+export interface PointerPosition {
+	readonly target: Component | null;
+	readonly x: number;
+	readonly y: number;
+	readonly pointerId: number;
+	readonly pointerType: PointerType;
+}
+
+/**
+ * The services' view of the dispatcher (R12.30 to R12.32): the popup,
+ * overlay, and tooltip services close, dismiss, and hide from what they are
+ * told here, and never from listeners of their own. Observers run in the
+ * order they were added; the mount context adds tooltips, then popups, then
+ * overlays, so a tooltip hides on a press a popup swallows and a popup's
+ * Escape wins over the dialog beneath it.
+ */
+export interface InputObserver {
+	/**
+	 * Before a `pointerdown` is delivered and before it moves focus. Returning
+	 * true swallows the press: it is not delivered, focus stays, and it
+	 * produces no click (R9.13's consumed outside press). Later observers
+	 * still hear it; only the first true matters.
+	 */
+	pointerDown?(press: PointerPress, swallowed: boolean): boolean | void;
+	/** After a move of the hovering pointer, hover already updated. */
+	pointerMove?(position: PointerPosition): void;
+	/** The hovered target changed (R9.8): the innermost hovered component, or null. */
+	hoverChange?(target: Component | null): void;
+	/**
+	 * A `keydown` the focused chain did not consume, before the scene's
+	 * hotkey table (R9.15). Returning true consumes it; later observers and
+	 * the table do not hear it.
+	 */
+	keyDown?(stroke: KeyStroke): boolean | void;
+	/** Key delivery moved (the focus seam; DDB-76's manager takes it over). */
+	focusChange?(focused: Component | null): void;
+}
 
 /** `WheelEvent.deltaMode`: pixels, lines, pages. */
 export type WheelDeltaMode = 0 | 1 | 2;
@@ -126,7 +187,10 @@ export class Dispatcher {
 	private readonly clock: Clock;
 	private readonly pixelRatio: () => number;
 	private queue: PlatformInput[] = [];
+	/** Paint order: grouped by tier, and in the order each tier supplies within it. */
 	private readonly rootList: Component[] = [];
+	private readonly rootTiers = new Map<Component, RootTier>();
+	private readonly observers: InputObserver[] = [];
 	/** The hovered chain, outermost first: the target and every ancestor (R9.8). */
 	private hoverPath: Component[] = [];
 	/** The hovering pointer's last position, or null while no hover-capable pointer is over the surface. */
@@ -155,23 +219,60 @@ export class Dispatcher {
 	// -- roots ----------------------------------------------------------------
 
 	/**
-	 * The mounted roots in the order they were mounted, which is the order
-	 * the hit walk visits them, a later root over an earlier one. That is not
-	 * necessarily paint order: the game page mounts the F5 overlay before the
-	 * first screen and paints it after, which is harmless only because the
-	 * overlay is `pointerEvents: 'none'`. A root that paints over another and
-	 * takes input has to be mounted after it until the overlay service
-	 * (DDB-78) orders roots by layer.
+	 * The mounted roots in paint order, which the hit walk visits so a later
+	 * root is hit over an earlier one in the same layer (R3.15, R3.28): scene
+	 * roots in mount order, then overlay roots in the overlay service's
+	 * order, then diagnostic roots. Across layers the walk's ordinal
+	 * comparison already puts a higher layer first, whatever the root order.
 	 */
 	public get roots(): readonly Component[] {
 		return this.rootList;
 	}
 
-	/** Called by `Component.mount` on a root. */
-	public addRoot(root: Component): void {
-		if (this.rootList.includes(root)) return;
-		this.rootList.push(root);
+	/** Called by `Component.mount` on a root, at the end of its tier. */
+	public addRoot(root: Component, tier: RootTier = 'scene'): void {
+		if (this.rootTiers.has(root)) return;
+		this.rootTiers.set(root, tier);
+		this.rootList.splice(this.tierEnd(tier), 0, root);
 		this.hoverStale = true;
+	}
+
+	/** Moves a root to the end of its tier: painted and hit over the rest of it (R3.6a's `bringToFront`). */
+	public raiseRoot(root: Component): void {
+		const tier = this.rootTiers.get(root);
+		if (tier === undefined) return;
+		this.rootList.splice(this.rootList.indexOf(root), 1);
+		this.rootList.splice(this.tierEnd(tier), 0, root);
+		this.hoverStale = true;
+	}
+
+	private tierEnd(tier: RootTier): number {
+		const rank = ROOT_TIER_RANK[tier];
+		let index = 0;
+		while (index < this.rootList.length && ROOT_TIER_RANK[this.rootTiers.get(this.rootList[index]) as RootTier] <= rank) index++;
+		return index;
+	}
+
+	// -- observers (R12.30 to R12.32) -----------------------------------------
+
+	/** Adds a service's observer; the returned function removes it. */
+	public addObserver(observer: InputObserver): () => void {
+		this.observers.push(observer);
+		return () => {
+			const index = this.observers.indexOf(observer);
+			if (index !== -1) this.observers.splice(index, 1);
+		};
+	}
+
+	/** The hovering pointer's last position, or null while none is over the surface. */
+	public get hoverPoint(): Vec2 | null {
+		const position = this.hoverPosition;
+		return position ? { x: position.x, y: position.y } : null;
+	}
+
+	/** Whether any pointer is captured (R9.10); tooltips stay hidden while one is (R12.22). */
+	public get capturing(): boolean {
+		return this.captures.size > 0;
 	}
 
 	// -- pause (R13.32, R13.35) -----------------------------------------------
@@ -303,6 +404,7 @@ export class Dispatcher {
 		this.focusedComponent = component;
 		previous?.setFocused(false);
 		component?.setFocused(true);
+		for (const observer of [...this.observers]) observer.focusChange?.(component);
 	}
 
 	// -- unmount (R8.15, R9.10, R9.21) ----------------------------------------
@@ -317,6 +419,7 @@ export class Dispatcher {
 		const rootIndex = this.rootList.indexOf(component);
 		if (rootIndex !== -1) {
 			this.rootList.splice(rootIndex, 1);
+			this.rootTiers.delete(component);
 			this.hoverStale = true;
 		}
 
@@ -350,6 +453,7 @@ export class Dispatcher {
 	public reset(): void {
 		this.queue = [];
 		this.rootList.length = 0;
+		this.rootTiers.clear();
 		this.hoverPath = [];
 		this.hoverPosition = null;
 		this.captures.clear();
@@ -418,6 +522,22 @@ export class Dispatcher {
 		const target = this.targetFor(fields);
 		this.trackHover(fields, target);
 
+		if (this.observePress(fields, target)) {
+			// Swallowed: a press that closed a popup (R9.13). It is still
+			// tracked, spent, so its release is no click and no hold.
+			this.presses.set(fields.pointerId, {
+				target: null,
+				x: fields.x,
+				y: fields.y,
+				button: fields.button,
+				pointerType: fields.pointerType,
+				startTime: this.clock.now,
+				moved: false,
+				spent: true,
+			});
+			return;
+		}
+
 		// R9.23's fallback until the focus manager: a press outside the
 		// focused component clears focus before the press is delivered, so the
 		// component pressed can take it.
@@ -448,6 +568,16 @@ export class Dispatcher {
 	private pointerMove(fields: PointerFields & { coalesced?: Vec2[] }): void {
 		const target = this.targetFor(fields);
 		this.trackHover(fields, target);
+		if (this.observers.length > 0 && fields.isPrimary && fields.pointerType !== 'touch') {
+			const position: PointerPosition = {
+				target,
+				x: fields.x,
+				y: fields.y,
+				pointerId: fields.pointerId,
+				pointerType: fields.pointerType,
+			};
+			for (const observer of [...this.observers]) observer.pointerMove?.(position);
+		}
 
 		const press = this.presses.get(fields.pointerId);
 		if (press && !press.moved) {
@@ -487,6 +617,24 @@ export class Dispatcher {
 		}
 
 		if (captor) this.releasePointer(fields.pointerId);
+	}
+
+	/** Every observer hears the press; true when one of them swallowed it. */
+	private observePress(fields: PointerFields, target: Component | null): boolean {
+		if (this.observers.length === 0) return false;
+		const press: PointerPress = {
+			target,
+			x: fields.x,
+			y: fields.y,
+			pointerId: fields.pointerId,
+			pointerType: fields.pointerType,
+			button: fields.button,
+		};
+		let swallowed = false;
+		for (const observer of [...this.observers]) {
+			if (observer.pointerDown?.(press, swallowed) === true) swallowed = true;
+		}
+		return swallowed;
 	}
 
 	/**
@@ -607,6 +755,8 @@ export class Dispatcher {
 			entered.setHovered(true);
 			this.deliverTo(entered, this.pointerEvent('pointerenter', entered, fields));
 		}
+		const hovered = next.length > 0 ? next[next.length - 1] : null;
+		for (const observer of [...this.observers]) observer.hoverChange?.(hovered);
 	}
 
 	// -- wheel (R9.3, R9.32) --------------------------------------------------
@@ -674,7 +824,12 @@ export class Dispatcher {
 			this.bubble(event);
 			if (event.consumed) return;
 		}
-		if (input.phase === 'down') this.hotkeys.handle({ key: input.key, repeat: input.repeat, modifiers: input.modifiers });
+		if (input.phase !== 'down') return;
+		const stroke: KeyStroke = { key: input.key, repeat: input.repeat, modifiers: input.modifiers };
+		for (const observer of [...this.observers]) {
+			if (observer.keyDown?.(stroke) === true) return;
+		}
+		this.hotkeys.handle(stroke);
 	}
 
 	/**

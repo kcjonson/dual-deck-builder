@@ -8,6 +8,11 @@ import type { Component } from './Component';
  */
 const MAX_LAYOUT_PASSES = 8;
 
+/** A mount-context service with per-frame work, such as the tooltip service's hover delay. */
+export interface FrameTicker {
+	tick(): void;
+}
+
 /**
  * The per-frame half of the mount context (R8.16 to R8.18): who asked for
  * `update(dt)`, and which relayout boundaries are dirty. Its update phase is
@@ -26,6 +31,8 @@ export class UiFrame {
 	/** The other half of a double buffer, so a frame's update allocates nothing. */
 	private spare = new Set<Component>();
 	private readonly dirty = new Set<Component>();
+	private tickers = new Set<FrameTicker>();
+	private spareTickers = new Set<FrameTicker>();
 	private layoutRuns = 0;
 
 	constructor({ clock, animator }: { clock: Clock; animator: Animator }) {
@@ -49,7 +56,17 @@ export class UiFrame {
 	}
 
 	public get hasUpdateRequests(): boolean {
-		return this.requested.size > 0;
+		return this.requested.size > 0 || this.tickers.size > 0;
+	}
+
+	/**
+	 * R8.17 for a service rather than a component: `tick` on the next frame,
+	 * once, after the animator and before component updates, with the clock
+	 * already at the frame's time. A service that is waiting on the clock
+	 * asks again from its own `tick`.
+	 */
+	public requestTick(ticker: FrameTicker): void {
+		this.tickers.add(ticker);
 	}
 
 	/**
@@ -61,6 +78,13 @@ export class UiFrame {
 	public update(dt: number): void {
 		this.clock.advance(dt * 1000);
 		this.animator.tick();
+		if (this.tickers.size > 0) {
+			const tickers = this.tickers;
+			this.tickers = this.spareTickers;
+			this.spareTickers = tickers;
+			for (const ticker of tickers) ticker.tick();
+			tickers.clear();
+		}
 		if (this.requested.size === 0) return;
 		const due = this.requested;
 		this.requested = this.spare;

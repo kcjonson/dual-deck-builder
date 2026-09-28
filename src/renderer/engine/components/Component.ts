@@ -16,6 +16,8 @@ import {
 } from './componentGeometry';
 import type { MountContext } from './MountContext';
 import type { AnyUiEvent, UiKeyEvent, UiPointerEvent, UiWheelEvent } from '../input/events';
+import type { RootTier } from '../input/Dispatcher';
+import { TooltipInput, TooltipSpec, normalizeTooltip } from '../services/tooltipSpec';
 
 /**
  * R8.29. `auto`: this box is a target and children are hit-tested.
@@ -56,6 +58,15 @@ export interface ComponentOptions {
 	style?: Style;
 	/** Fired after a layout in which this component's bounds changed, including the first (R8.21). */
 	onLayout?: (bounds: Rect) => void;
+	/** Shown by the tooltip service on hover (R12.22). */
+	tooltip?: TooltipInput | null;
+	/** A press here is not consumed by an open popup's outside-press close (R9.13). */
+	popupTrigger?: boolean;
+}
+
+export interface RootMountOptions {
+	/** Where the root sits in paint and hit order; the overlay service passes `overlay`. */
+	tier?: RootTier;
 }
 
 export type PointerCallback = (event: UiPointerEvent) => void;
@@ -104,6 +115,7 @@ export abstract class Component {
 	private ownTransform: ComponentTransform = IDENTITY_TRANSFORM;
 	private ownPointerEvents: PointerEvents;
 	private ownOverflow: Overflow = 'visible';
+	private tooltipSpec: TooltipSpec | null = null;
 	private hoverState = false;
 	private focusState = false;
 	private parentComponent: Component | null = null;
@@ -137,6 +149,8 @@ export abstract class Component {
 		if (options.pointerEvents !== undefined) this.ownPointerEvents = options.pointerEvents;
 		if (options.overflow !== undefined) this.setOverflow(options.overflow);
 		if (options.onLayout) this.onLayout = options.onLayout;
+		if (options.tooltip !== undefined) this.tooltipSpec = normalizeTooltip(options.tooltip);
+		if (options.popupTrigger !== undefined) this.popupTrigger = options.popupTrigger;
 		if (options.style) this.applyStyle(options.style);
 	}
 
@@ -165,6 +179,27 @@ export abstract class Component {
 	 * `context.drag.start`; until then it is set by hand.
 	 */
 	public dragSource = false;
+
+	/**
+	 * R9.13: a press on this component, or inside it, closes an open popup
+	 * without being consumed, so one press moves from one open select to
+	 * another. Selects, dropdown buttons, and anything else that opens a popup
+	 * set it.
+	 */
+	public popupTrigger = false;
+
+	/**
+	 * R12.22: what the tooltip service shows while the pointer rests on this
+	 * component, or on a descendant without a tooltip of its own. A string
+	 * is a title.
+	 */
+	public get tooltip(): TooltipSpec | null {
+		return this.tooltipSpec;
+	}
+
+	public set tooltip(value: TooltipInput | null) {
+		this.tooltipSpec = normalizeTooltip(value);
+	}
 
 	/**
 	 * R8.29's per-type default: `auto` for leaves and widgets. Containers say
@@ -784,11 +819,12 @@ export abstract class Component {
 	 * owner (a screen, the gallery host); everything else is mounted by
 	 * `addChild` on a mounted parent.
 	 */
-	public mount(context: MountContext): void {
+	public mount(context: MountContext, { tier = 'scene' }: RootMountOptions = {}): void {
 		if (this.mountContext) return;
 		this.mountSubtree(context);
-		// A root is hit-tested from here on, over the roots mounted before it (R9.4).
-		if (!this.parentComponent) context.dispatcher.addRoot(this);
+		// A root is hit-tested from here on, over the roots of its tier mounted
+		// before it (R9.4, R3.15).
+		if (!this.parentComponent) context.dispatcher.addRoot(this, tier);
 		// The first layout after mount reports every component's bounds through
 		// `onLayout`, so geometry is known before the first render (R8.21).
 		this.invalidateLayout();

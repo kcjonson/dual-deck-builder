@@ -1,4 +1,4 @@
-import { app, BrowserWindow, Menu } from 'electron';
+import { app, BrowserWindow, Menu, clipboard, ipcMain } from 'electron';
 import * as path from 'path';
 import { autoUpdater } from 'electron-updater';
 import 'source-map-support/register';
@@ -73,6 +73,13 @@ const createWindow = () => {
 	const menu = Menu.buildFromTemplate(template as Electron.MenuItemConstructorOptions[]);
 	Menu.setApplicationMenu(menu);
 };
+
+// The renderer is sandboxed, so its clipboard is this process's, reached
+// through the preload bridge (the engine's ClipboardService). Text only.
+ipcMain.handle('clipboard:readText', () => clipboard.readText());
+ipcMain.handle('clipboard:writeText', (_event, text: unknown) => {
+	clipboard.writeText(typeof text === 'string' ? text : '');
+});
 
 // This method will be called when Electron has finished
 // initialization and is ready to create browser windows.

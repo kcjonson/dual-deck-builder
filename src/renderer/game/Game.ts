@@ -85,6 +85,7 @@ export class Game {
 		});
 		viewport.onChange(({ width, height }) => {
 			ScreenManager.resize(width, height);
+			this.context.overlays.resize();
 			this.developerOverlay.viewportWidth = width;
 		});
 
@@ -137,8 +138,9 @@ export class Game {
 	public async init(): Promise<void> {
 		// Initialize the ScreenManager
 		ScreenManager.initialize(this.context);
-		// The overlay is a root of its own, drawn after the screen (R8.21).
-		this.developerOverlay.mount(this.context);
+		// A root of its own, drawn after the screen and its overlays as a
+		// diagnostic domain (R3.21), so it is hit-tested last too.
+		this.developerOverlay.mount(this.context, { tier: 'diagnostic' });
 
 		// Start with the splash screen
 		ScreenManager.navigate('splashScreen');
@@ -199,6 +201,7 @@ export class Game {
 					const roots: Layer[] = [];
 					const screen = ScreenManager.activeScreen;
 					if (screen) roots.push(screen.root);
+					roots.push(...this.context.overlays.roots);
 					if (this.developerOverlay.shown) roots.push(this.developerOverlay);
 					return roots;
 				},
@@ -313,8 +316,10 @@ export class Game {
 		// and the command waits for a barrier or endFrame (R2.4 to R2.7).
 		this.draw.beginFrame(this.viewport.frame);
 
-		// Render the current screen via ScreenManager
+		// Render the current screen via ScreenManager, then the roots opened
+		// above it in open order (R3.15, R8.21)
 		ScreenManager.render(this.draw);
+		this.context.overlays.render(this.draw);
 
 		// Render developer overlay on top
 		renderTree(this.developerOverlay, this.draw);

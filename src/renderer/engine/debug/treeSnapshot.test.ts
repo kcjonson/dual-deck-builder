@@ -114,7 +114,6 @@ describe('treeSnapshot', () => {
 			for (const absent of [
 				'margin',
 				'zIndex',
-				'layer',
 				'opacity',
 				'transform',
 				'focusable',
@@ -124,6 +123,19 @@ describe('treeSnapshot', () => {
 			]) {
 				expect(absent in node).toBe(false);
 			}
+		});
+
+		it('reports the effective layer, inherited from a promoted ancestor', () => {
+			const popup = new Layer({ id: 'popup', width: 10, height: 10, layer: 'popup' });
+			const inside = new Layer({ id: 'inside', width: 5, height: 5 });
+			popup.addChild(inside);
+			const root = new Layer({ id: 'root', width: 20, height: 20 });
+			root.addChild(popup);
+			const serialized = treeSnapshot([root], VIEWPORT).roots[0];
+
+			expect(serialized.layer).toBe('base');
+			expect(serialized.children[0].layer).toBe('popup');
+			expect(serialized.children[0].children[0].layer).toBe('popup');
 		});
 
 		it('omits clip, contentOffset, enabled, state and value on a plain Layer', () => {

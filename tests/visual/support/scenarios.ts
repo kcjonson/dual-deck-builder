@@ -77,4 +77,5 @@ export const SCENE_SCENARIOS: readonly SceneScenario[] = [
 	{ scene: 'clipping' },
 	{ scene: 'shading' },
 	{ scene: 'icons' },
+	{ scene: 'overlays' },
 ];

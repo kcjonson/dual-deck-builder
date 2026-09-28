@@ -2,6 +2,12 @@ import { Animator } from '../animation/Animator';
 import { Clock } from '../animation/Clock';
 import type { DrawApi } from '../draw/DrawApi';
 import { Dispatcher } from '../input/Dispatcher';
+import { AssetLoader, AssetService } from '../services/AssetService';
+import { ClipboardBackend, ClipboardService } from '../services/ClipboardService';
+import { OverlayService } from '../services/OverlayService';
+import { PlacementService } from '../services/Placement';
+import { PopupService } from '../services/PopupService';
+import { TooltipService } from '../services/TooltipService';
 import { UiFrame } from './UiFrame';
 
 /** The logical viewport a root is sized from (R7.11, R8.21). `CanvasViewport` is one. */
@@ -18,9 +24,8 @@ export interface ViewportSource {
  * `onMount` and releases what it registered in `onUnmount`; the base class
  * already releases what `dispatcher` and `frame` hold on it.
  *
- * Services arrive with the tasks that build them, as fields added here:
- * `focus` (DDB-76), `drag` (DDB-77), and `popups`, `tooltips`,
- * `placement`, `overlays`, `clipboard` and `assets` (DDB-78).
+ * Still to arrive, as fields added here by the tasks that build them:
+ * `focus` (DDB-76) and `drag` (DDB-77).
  */
 export interface MountContext {
 	/** Chapter 2's draw API: drawing and `measureText`. */
@@ -34,6 +39,17 @@ export interface MountContext {
 	readonly clock: Clock;
 	/** Tweens over `clock`, ticked in the update phase (R8.28). */
 	readonly animator: Animator;
+	/** Anchor, flip, shift, and constrain inside the viewport (R12.30). */
+	readonly placement: PlacementService;
+	/** Roots above the scene's: dialogs, popovers, popups opened as roots, the tooltip (R8.21). */
+	readonly overlays: OverlayService;
+	/** The one open exclusive popup and its dismissal (R12.31). */
+	readonly popups: PopupService;
+	/** The `tooltip` property's hover and focus behaviour (R12.22). */
+	readonly tooltips: TooltipService;
+	readonly clipboard: ClipboardService;
+	/** Images by key over the texture store (R12.32). */
+	readonly assets: AssetService;
 }
 
 export interface MountContextOptions {
@@ -41,6 +57,10 @@ export interface MountContextOptions {
 	viewport: ViewportSource;
 	/** A test's own clock, to hold or freeze; otherwise a fresh one (R13.37). */
 	clock?: Clock;
+	/** The platform's clipboard (`detectClipboard(window)`); text stays in the page without one. */
+	clipboard?: ClipboardBackend;
+	/** Decodes an image by key (`imageUrlLoader()` on the pages); without one every acquire fails. */
+	assetLoader?: AssetLoader;
 }
 
 /**
@@ -50,10 +70,36 @@ export interface MountContextOptions {
  * times gestures on the same clock (R8.16, R8.28). Reduced motion starts
  * off; the platform shell follows the system preference
  * (`followReducedMotion`).
+ *
+ * The tooltip, popup, and overlay services observe the dispatcher in that
+ * order: a press hides a tooltip even when a popup's close swallows it, and a
+ * popup's Escape is taken before a dialog beneath it could be dismissed.
  */
-export function createMountContext({ draw, viewport, clock = new Clock() }: MountContextOptions): MountContext {
+export function createMountContext({ draw, viewport, clock = new Clock(), clipboard, assetLoader }: MountContextOptions): MountContext {
 	const animator = new Animator({ clock });
 	const frame = new UiFrame({ clock, animator });
 	const dispatcher = new Dispatcher({ frame, clock, pixelRatio: () => draw.devicePixelScale });
-	return { draw, dispatcher, viewport, frame, clock, animator };
+	const placement = new PlacementService({ viewport });
+	const overlays = new OverlayService({ viewport });
+	const popups = new PopupService({ overlays, placement });
+	const tooltips = new TooltipService({ overlays, placement, dispatcher, clock, animator, frame });
+	const context: MountContext = {
+		draw,
+		dispatcher,
+		viewport,
+		frame,
+		clock,
+		animator,
+		placement,
+		overlays,
+		popups,
+		tooltips,
+		clipboard: new ClipboardService({ backend: clipboard }),
+		assets: new AssetService({ textures: draw, loader: assetLoader }),
+	};
+	overlays.bind(context);
+	dispatcher.addObserver(tooltips);
+	dispatcher.addObserver(popups);
+	dispatcher.addObserver(overlays);
+	return context;
 }

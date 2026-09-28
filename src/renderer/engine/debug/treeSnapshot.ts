@@ -21,8 +21,12 @@ import { snapClipRect } from '../coords/snapping';
  * that is always present, because R13.22 states it is null when unset.
  *
  * Deliberately absent, because no backing property exists in this engine:
- * margin, zIndex, layer, opacity, transform, focusable, inkBounds, style,
+ * margin, zIndex, opacity, transform, focusable, inkBounds, style,
  * text.measured, and state.{pressed,focusVisible,selected,open,active,dropActive}.
+ * `layer` is present, as the effective layer (R3.6), since overlay roots
+ * (R8.21) made it load-bearing: a viewport-sized root in `popup` overlaps the
+ * scene's root by construction, and the lint exempts that pair only when both
+ * carry a layer.
  * Emitting zIndex: 0 in particular would silently change what the layout lint's
  * sibling-overlap rule exempts.
  *
@@ -77,6 +81,8 @@ export interface SnapshotNode {
 	bounds: SnapshotRect;
 	screenBounds: SnapshotRect;
 	visible: boolean;
+	/** R3.6's effective layer: the own layer, or the nearest ancestor's, `base` at a root. */
+	layer?: string;
 	clip?: SnapshotRect;
 	contentOffset?: SnapshotPoint;
 	enabled?: boolean;
@@ -199,6 +205,7 @@ function serializeNode(
 		serialized.bounds = { x, y, w, h };
 		serialized.screenBounds = { x: screenX, y: screenY, w, h };
 		serialized.visible = node.isVisible() === true;
+		serialized.layer = node.effectiveLayer;
 
 		const clip = snapshotClip(context.clip);
 		if (clip) serialized.clip = clip;
