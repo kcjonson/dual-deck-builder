@@ -109,17 +109,20 @@ driver (compare DDB-195's index-ring cost on combat).
 
 ## Goldens
 
-Re-minted on CI. Changed, per project: `screen-combatScreen` (hand titles past the badges, badges
-whole, resource bar names above smaller icons), `screen-driverSelectionScreen` (deck previews in one
-row inside each panel), `screen-developerScreen` (title 14 px higher), `screen-cardShowcaseScreen`
-(the overlapping "COMMON" labels, a text-over-text order change). Unchanged: splash, main menu,
-all eight gallery scenes.
+Re-minted on CI (run 36425170426), six files: `screen-combatScreen` (hand titles past the badges,
+badges whole, resource bar names above smaller icons), `screen-driverSelectionScreen` (deck previews
+in one row inside each panel) and `screen-developerScreen` (title 14 px higher), in both the
+chromium and electron projects. Each old and new pair was diffed and every changed pixel falls in
+those regions: 14963, 36529 and 9553 pixels on chromium. `screen-cardShowcaseScreen` moves 125
+pixels (the overlapping "COMMON" labels, a text-over-text order change), under the gate's 200-pixel
+budget, so the mint left its golden alone; the next mint that touches it will pick the change up.
+Unchanged: splash, main menu, all eight gallery scenes.
 
 ## Left open
 
 - Long card titles still run into the cost digit ("Armor Plating" on a badged card, "Coordinated
   Attack" on any card). Titles are `nowrap` with an estimated width and never truncate; the badge
   fix narrows the slot by 29 px, so a badged card reaches the cost sooner. Real metrics and
-  measured ellipsis are DDB-71's; filed as a follow-up for the card face.
+  measured ellipsis are DDB-71's; the card face follow-up is DDB-198.
 - DDB-196 (developer section titles sitting on their bordered panels) is layout, not order, and
   touches every section and gallery scene; left to its own change.
