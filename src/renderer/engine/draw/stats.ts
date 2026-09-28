@@ -1,3 +1,4 @@
+import type { TextureStoreStats } from '../gpu/TextureStore';
 import { LAYER_NAMES, LayerName } from './layers';
 
 /**
@@ -59,10 +60,14 @@ import { LAYER_NAMES, LayerName } from './layers';
  *   rect became. A backend that reports nothing leaves them null for the frame.
  *   The null and recording backends report real zeros: they rasterise nothing,
  *   so zero draws, zero vertices and zero uploaded bytes is what happened.
- * - `residentTextureBytes`, `pendingUploads`, `evictions`, `targetSwitches` are
- *   R13.14's resource-layer counters. R5.30 to R5.35's resource manager is a
- *   later PR; `createTexture` here forwards to a backend and keeps no residency
- *   accounting, so there is nothing to ask.
+ * - `targetSwitches` is R13.14's render-target counter. Render targets and
+ *   their pool (R5.34) arrive with their first consumer, group opacity; until
+ *   then nothing switches targets and nothing counts it.
+ *
+ * What the resource layer fills (`gpu/TextureStore.ts`, read when the stats are
+ * taken): `residentTextureBytes`, `pendingUploads`, and `evictions`, which is a
+ * measured zero because nothing evicts before the phase 6 residency budget.
+ * The frame's texture uploads join `bytesUploaded` beside the geometry.
  */
 
 export const FLUSH_REASONS = ['barrier', 'endFrame', 'targetChange', 'bufferFull'] as const;
@@ -217,7 +222,11 @@ export class DrawCounters {
 		}
 	}
 
-	snapshot(): DrawStats {
+	/**
+	 * @param resources The resource layer's counters at the moment the stats
+	 *   are taken; absent, its fields read null.
+	 */
+	snapshot(resources?: TextureStoreStats): DrawStats {
 		const gpu = this.gpu;
 		return {
 			apiDraws: this.apiDraws,
@@ -235,10 +244,12 @@ export class DrawCounters {
 			shaderChange: 0,
 			textureBinds: gpu ? gpu.textureBinds : null,
 			clipPushes: this.clipPushes,
-			bytesUploaded: gpu ? gpu.bytesUploaded : null,
-			residentTextureBytes: null,
-			pendingUploads: null,
-			evictions: null,
+			// Null follows the geometry: a backend that cannot attribute its GPU
+			// work leaves the total unknown, whatever the textures added.
+			bytesUploaded: gpu ? gpu.bytesUploaded + (resources?.bytesUploaded ?? 0) : null,
+			residentTextureBytes: resources ? resources.residentTextureBytes : null,
+			pendingUploads: resources ? resources.pendingUploads : null,
+			evictions: resources ? resources.evictions : null,
 			targetSwitches: null,
 		};
 	}

@@ -1,11 +1,11 @@
+import { NULL_TEXTURE_DEVICE, TextureStore } from '../gpu/TextureStore';
 import {
 	DrawBackend,
 	DrawBatch,
 	FontAtlasOptions,
 	FrameDescription,
-	TextureOptions,
 } from './DrawBackend';
-import { DrawCommand, FontAtlasHandle, TextureHandle } from './commands';
+import { DrawCommand, FontAtlasHandle } from './commands';
 import { FlushReason, GpuWork, NO_GPU_WORK } from './stats';
 
 /**
@@ -53,12 +53,12 @@ export interface RecordingBackendOptions {
 
 export class RecordingBackend implements DrawBackend {
 	readonly name = 'recording';
+	readonly textures = new TextureStore({ device: NULL_TEXTURE_DEVICE });
 
 	private readonly maxFrames: number;
 	private readonly recorded: RecordedFrame[] = [];
 	private open: { frame: number; batches: RecordedBatch[] } | null = null;
 	private invalidations = 0;
-	private textures = 0;
 	private atlases = 0;
 	private readonly atlasNames: string[] = [];
 
@@ -134,15 +134,6 @@ export class RecordingBackend implements DrawBackend {
 
 	invalidateState(): void {
 		this.invalidations += 1;
-	}
-
-	createTexture({ width, height, label }: TextureOptions): TextureHandle {
-		this.textures += 1;
-		return { id: this.textures, width, height, label: label ?? null };
-	}
-
-	destroyTexture(): void {
-		// Handles are plain values; there is nothing to release.
 	}
 
 	loadFontAtlas({ name }: FontAtlasOptions): FontAtlasHandle {

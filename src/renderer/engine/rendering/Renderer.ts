@@ -1,4 +1,8 @@
+import { TextureStore } from '../gpu/TextureStore';
+import { CanvasViewport } from './CanvasViewport';
+import { DeviceInfo, detectDevice } from './deviceInfo';
 import { FontAtlas } from './FontAtlas';
+import { WebGL2TextureDevice } from './WebGL2TextureDevice';
 
 /**
  * R15.2's context attributes, with one measured departure.
@@ -37,17 +41,25 @@ export interface ContextListener {
 }
 
 /**
- * The device: a canvas, its WebGL2 context, the resize handler that keeps the
- * drawing buffer and the viewport in step, context loss, and the font atlas.
+ * The device: a canvas, its WebGL2 context, the viewport that sizes it, the
+ * texture store, context loss, and the font atlas.
  *
  * It draws nothing and owns no pipeline state; `WebGL2Backend` does, and
  * listens here for a restored context so it can rebuild. The order on restore
- * is fixed: the viewport and the atlas texture first (they are this class's),
- * then the listeners in the order they registered, so a backend constructed
- * before the frame loop has its resources back before the loop resumes.
+ * is fixed: the drawing-buffer viewport and every texture first (they are this
+ * class's, and the immediate ones, the atlas among them, are back before the
+ * restore returns), then the listeners in the order they registered, so a
+ * backend constructed before the frame loop has its resources back before the
+ * loop resumes.
  */
 export class Renderer {
 	readonly canvas: HTMLCanvasElement;
+	/** R7.11's single viewport owner; the pages commit it at the top of each frame. */
+	readonly viewport: CanvasViewport;
+	/** R5.30's resource layer. The backend creates through it; components hold its handles. */
+	readonly textures: TextureStore<WebGLTexture>;
+	/** R15.3, detected once. */
+	readonly device: DeviceInfo;
 	private readonly gl: WebGL2RenderingContext;
 	private readonly fontAtlas: FontAtlas;
 	private readonly listeners: ContextListener[] = [];
@@ -74,12 +86,26 @@ export class Renderer {
 		// R15.2: token colours are sRGB and never reinterpreted as Display P3.
 		gl.drawingBufferColorSpace = 'srgb';
 
-		this.resize();
-		window.addEventListener('resize', this.resize);
+		this.device = detectDevice(gl);
+
+		this.viewport = new CanvasViewport({ canvas });
+		this.applyDrawingBufferViewport();
+		// First listener, so the GL viewport matches the new backing store
+		// before anything else hears about it.
+		this.viewport.onChange(this.applyDrawingBufferViewport);
 		canvas.addEventListener('webglcontextlost', this.handleContextLost);
 		canvas.addEventListener('webglcontextrestored', this.handleContextRestored);
 
-		this.fontAtlas = new FontAtlas(this.gl, 'Arial', 32);
+		this.textures = new TextureStore({
+			device: new WebGL2TextureDevice({ gl }),
+			onDiagnostic: (message) => console.error(`TextureStore: ${message}`),
+		});
+		this.fontAtlas = new FontAtlas({
+			textures: this.textures,
+			fontFamily: 'Arial',
+			fontSize: 32,
+			ratio: this.viewport.state.ratio,
+		});
 	}
 
 	/** True between `webglcontextlost` and `webglcontextrestored`. */
@@ -105,30 +131,17 @@ export class Renderer {
 		return this.fontAtlas;
 	}
 
-	/**
-	 * The drawing buffer follows the window at the device pixel ratio; the
-	 * logical viewport (and so the projection) is the frame's, set by
-	 * `DrawApi.beginFrame`. R15.4's `ResizeObserver` sizing is not here yet:
-	 * it changes how the backing store rounds at fractional ratios, which is a
-	 * pixel change of its own.
-	 */
-	private resize = (): void => {
-		const dpr = window.devicePixelRatio || 1;
-		const displayWidth = window.innerWidth;
-		const displayHeight = window.innerHeight;
-
-		this.canvas.width = displayWidth * dpr;
-		this.canvas.height = displayHeight * dpr;
-		this.canvas.style.width = displayWidth + 'px';
-		this.canvas.style.height = displayHeight + 'px';
-
-		this.gl.viewport(0, 0, this.canvas.width, this.canvas.height);
+	/** The GL viewport covers the whole backing store `CanvasViewport` sized. */
+	private applyDrawingBufferViewport = (): void => {
+		const { framebufferWidth, framebufferHeight } = this.viewport.state;
+		this.gl.viewport(0, 0, framebufferWidth, framebufferHeight);
 	};
 
 	private handleContextLost = (event: Event): void => {
 		// Without preventDefault the browser never offers a restore.
 		event.preventDefault();
 		this.lost = true;
+		this.textures.lose();
 		showGpuStatus('The graphics device was lost. Waiting for it to come back.');
 		for (const listener of [...this.listeners]) listener.lost?.();
 	};
@@ -136,12 +149,12 @@ export class Renderer {
 	private handleContextRestored = (): void => {
 		this.lost = false;
 		this.gl.drawingBufferColorSpace = 'srgb';
-		this.resize();
+		this.applyDrawingBufferViewport();
 		// The status line stays up until every rebuild has succeeded: a rebuild
 		// that throws (a compile failure on the new device, or the context lost
 		// again mid-restore) leaves the loop stopped, and the page has to say so.
 		try {
-			this.fontAtlas.upload();
+			this.textures.restore();
 			for (const listener of [...this.listeners]) listener.restored?.();
 		} catch (error) {
 			showGpuStatus('The graphics device came back, but the game could not rebuild on it. Reload the page to try again.');

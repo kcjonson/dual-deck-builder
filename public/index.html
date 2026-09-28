@@ -16,7 +16,10 @@
       position: absolute;
       top: 0;
       left: 0;
-      /* Canvas dimensions are set programmatically in Renderer.resize() */
+      /* The page sizes the canvas's CSS box; CanvasViewport observes it and
+         sizes the backing store from it (R15.4). */
+      width: 100%;
+      height: 100%;
     }
     #loading {
       position: fixed;

@@ -2,7 +2,8 @@ import { DrawApi } from './DrawApi';
 import { DrawBackend, DrawBatch, FrameDescription } from './DrawBackend';
 import { NullBackend } from './NullBackend';
 import { RecordingBackend } from './RecordingBackend';
-import { FontAtlasHandle, TextureHandle } from './commands';
+import { FontAtlasHandle } from './commands';
+import { NULL_TEXTURE_DEVICE, TextureStore } from '../gpu/TextureStore';
 import { GpuWork } from './stats';
 
 const BLUE = [0.2, 0.4, 0.6, 1] as const;
@@ -34,13 +35,7 @@ class SilentBackend implements DrawBackend {
 		// Accepted and ignored.
 	}
 
-	createTexture(): TextureHandle {
-		return { id: 1, width: 1, height: 1, label: null };
-	}
-
-	destroyTexture(): void {
-		// Accepted and ignored.
-	}
+	readonly textures = new TextureStore({ device: NULL_TEXTURE_DEVICE });
 
 	loadFontAtlas(): FontAtlasHandle {
 		return { id: 1, name: 'body' };
@@ -88,9 +83,41 @@ describe('NullBackend (R2.21)', () => {
 		const api = new DrawApi({ backend });
 		const texture = api.createTexture({ width: 2, height: 2 });
 		api.invalidateState();
+		expect(backend.textures.stats.liveTextures).toBe(1);
 		api.destroyTexture(texture);
 
 		expect(backend.invalidateStateCount).toBe(1);
+		expect(backend.textures.stats.liveTextures).toBe(0);
+	});
+
+	it('counts textures by reference, and frees one with its last holder (R5.30)', () => {
+		const backend = new NullBackend();
+		const api = new DrawApi({ backend });
+		const texture = api.createTexture({ width: 4, height: 4 });
+		api.retainTexture(texture);
+		api.destroyTexture(texture);
+		expect(backend.textures.isLive(texture)).toBe(true);
+		api.destroyTexture(texture);
+		expect(backend.textures.isLive(texture)).toBe(false);
+	});
+
+	it('meters an upload into the frame it lands in and reports it in the stats (R5.32, R5.35)', () => {
+		const backend = new NullBackend();
+		const api = new DrawApi({ backend });
+		const texture = api.createTexture({ width: 8, height: 8, source: new Uint8Array(8 * 8 * 4) });
+		expect(api.isTextureResident(texture)).toBe(false);
+		expect(api.getStats().pendingUploads).toBe(1);
+
+		api.beginFrame({ viewport: VIEWPORT });
+		api.drawRect({ rect: { x: 0, y: 0, width: 10, height: 10 }, fill: BLUE });
+		api.endFrame();
+		expect(api.isTextureResident(texture)).toBe(true);
+		const stats = api.getStats();
+		expect(stats.bytesUploaded).toBe(256);
+		expect(stats.residentTextureBytes).toBe(256);
+		expect(stats.pendingUploads).toBe(0);
+		expect(stats.evictions).toBe(0);
+		expect(stats.targetSwitches).toBeNull();
 	});
 
 	it('receives the viewport and ratio of the frame', () => {
@@ -128,6 +155,8 @@ describe('a backend that cannot attribute its work leaves the counters null', ()
 		expect(stats.instances).toBeNull();
 		expect(stats.textureBinds).toBeNull();
 		expect(stats.bytesUploaded).toBeNull();
+		// The resource layer still answers for itself.
+		expect(stats.residentTextureBytes).toBe(0);
 		expect(stats.splits).toBeNull();
 	});
 

@@ -101,6 +101,11 @@ export class ScreenManager {
 		this.currentScreenName = screenName;
 	}
 	
+	/** The viewport owner's new logical size, for the mounted screen (R7.11). */
+	static resize(width: number, height: number): void {
+		this.currentScreen?.resize(width, height);
+	}
+
 	/**
 	 * Update the current screen
 	 */

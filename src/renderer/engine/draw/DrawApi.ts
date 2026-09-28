@@ -115,6 +115,7 @@ export type DiagnosticCode =
 	| 'opacity-out-of-range'
 	| 'text-before-atlas'
 	| 'texture-upload-in-frame'
+	| 'texture-not-live'
 	| 'foreign-draw-without-flush';
 
 export interface Diagnostic {
@@ -315,7 +316,7 @@ export class DrawApi {
 
 	/** R2.19. Current frame while one is open, last frame otherwise. */
 	getStats(): DrawStats {
-		return this.counters.snapshot();
+		return this.counters.snapshot(this.backend.textures.stats);
 	}
 
 	// -- frame lifecycle (R2.1 to R2.3) -------------------------------------
@@ -346,6 +347,8 @@ export class DrawApi {
 				'beginFrame called while a frame was open; the previous frame is discarded',
 			);
 		}
+		// R5.32: the metered uploads, before anything this frame can draw.
+		this.backend.textures.beginFrame();
 		this.backend.beginFrame({
 			viewport: { width: this.viewportWidth, height: this.viewportHeight },
 			ratio: this.ratio,
@@ -365,6 +368,9 @@ export class DrawApi {
 		this.submitPending('endFrame');
 		this.frameOpen = false;
 		this.backend.endFrame();
+		// Textures released during the frame are freed now that every command
+		// that could name them has been submitted.
+		this.backend.textures.endFrame();
 	}
 
 	// -- foreign draws (R2.15, R2.16) ---------------------------------------
@@ -685,6 +691,12 @@ export class DrawApi {
 
 	drawImage(options: DrawImageOptions): void {
 		if (!this.ensureFrame('drawImage')) return;
+		if (!this.backend.textures.isLive(options.texture)) {
+			// A released handle names nothing, and a later texture may reuse
+			// nothing of it; drawing it would be drawing garbage (R5.30).
+			this.report('texture-not-live', `drawImage with texture ${options.texture.id}, which was released`);
+			return;
+		}
 		const state = this.capture({
 			id: options.id,
 			blend: options.blend,
@@ -775,8 +787,14 @@ export class DrawApi {
 		return this.backend.measureText(options);
 	}
 
-	// -- resources (R2.17, R2.18) -------------------------------------------
+	// -- resources (R2.17, R2.18, R5.30) ------------------------------------
 
+	/**
+	 * A texture with one reference, owned by the caller. With a source it is
+	 * queued and uploaded under the per-frame budget (R5.32) unless it asks to
+	 * be immediate; until then `isTextureResident` is false and the caller
+	 * draws its placeholder.
+	 */
 	createTexture(options: TextureOptions): TextureHandle {
 		if (this.frameOpen) {
 			// R2.17: uploads happen outside the frame or at beginFrame, never
@@ -786,11 +804,21 @@ export class DrawApi {
 				'createTexture inside a frame; uploads happen outside it or at beginFrame (R2.17)',
 			);
 		}
-		return this.backend.createTexture(options);
+		return this.backend.textures.create(options);
 	}
 
+	/** A second holder of the same texture. Each `retainTexture` is paired with a `destroyTexture`. */
+	retainTexture(handle: TextureHandle): TextureHandle {
+		return this.backend.textures.retain(handle);
+	}
+
+	/** Drops the caller's reference; the texture is freed with the last one (R5.30). */
 	destroyTexture(handle: TextureHandle): void {
-		this.backend.destroyTexture(handle);
+		this.backend.textures.release(handle);
+	}
+
+	isTextureResident(handle: TextureHandle): boolean {
+		return this.backend.textures.isResident(handle);
 	}
 
 	loadFontAtlas(options: FontAtlasOptions): FontAtlasHandle {

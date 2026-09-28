@@ -282,7 +282,7 @@ describe('the snapshot shape (R13.11)', () => {
 
 		expect(Object.keys(snapshot)).toEqual([
 			'timestamp', 'scene', 'frame', 'sections', 'gpu', 'batcher', 'memory', 'renderer', 'sanity',
-			'liveness',
+			'liveness', 'device',
 		]);
 	});
 
