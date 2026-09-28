@@ -1,7 +1,7 @@
 import { Component, ComponentOptions, PointerEvents, ResolvedColors } from '../components/Component';
 import type { MountContext } from '../components/MountContext';
 import type { DrawApi } from '../draw/DrawApi';
-import type { RGBA, Rect } from '../draw/geometry';
+import type { Rect } from '../draw/geometry';
 import type { AnyUiEvent, UiKeyEvent, UiPointerEvent } from '../input/events';
 import type { FontRole } from '../text/fontFaces';
 import { resolveFontRole } from '../text/fontRoles';
@@ -20,6 +20,7 @@ import {
 	validateStyle,
 } from '../style/styleObject';
 import { CONTROL_SIZES, ControlSize, fieldLayers } from '../style/variants';
+import { drawControlBox } from './controlBox';
 
 /**
  * R12.10's validator: whether an edit may happen, given the value it would
@@ -57,7 +58,6 @@ export interface TextRange {
 
 const DEFAULT_WIDTH = 200;
 const MASK = '•';
-const CLEAR: RGBA = [0, 0, 0, 0];
 const CARET_WIDTH = tokens.borderWidth.bw_thick;
 
 /** R11.14: what a text field renders. Its text is left-aligned and unstyled beyond its face and size. */
@@ -681,24 +681,7 @@ export class TextInput extends Component {
 
 	public render(draw: DrawApi): void {
 		const look = this.transition.look;
-		const radius = look.radius > 0 ? look.radius : undefined;
-		draw.drawRect({
-			id: this.id ?? undefined,
-			rect: { x: 0, y: 0, width: this.width, height: this.height },
-			fill: look.fill,
-			radius,
-			border: look.borderWidth > 0 ? { color: look.border, width: look.borderWidth } : undefined,
-			shadow: look.shadow ?? undefined,
-		});
-		if (look.focusRing) {
-			const offset = tokens.control.focus_ring_offset;
-			draw.drawRect({
-				rect: { x: -offset, y: -offset, width: this.width + offset * 2, height: this.height + offset * 2 },
-				fill: CLEAR,
-				radius: radius !== undefined ? radius + offset : undefined,
-				border: { color: look.focusRing, width: tokens.control.focus_ring_width, position: 'outside' },
-			});
-		}
+		drawControlBox(draw, { id: this.id ?? undefined, width: this.width, height: this.height, look });
 
 		const box = this.contentBox;
 		if (box.width <= 0 || box.height <= 0) return;

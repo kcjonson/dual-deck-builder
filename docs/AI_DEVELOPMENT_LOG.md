@@ -6,6 +6,17 @@ This document contains the chronological log of completed development tasks for 
 
 **Date correction (2026-08-22):** the repo's first commit is 2025-05-17, but many entries below carry dates in December 2024 or January 2025 — the AI that wrote them used its assumed date instead of the real one. Entries dated 2025-07-03 and 2025-07-02 have been corrected from "2025-01-03"/"2025-01-02" (verified against git history). Remaining Dec 2024 / Jan 2025 dates are wrong by roughly six months; the real work happened May–July 2025. Trust git history over these dates.
 
+## Catalog Wave B, menus (2026-09-28)
+
+**What landed:** DDB-86's second PR (DDB-55 phase 5), R12.11 to R12.14.
+
+- `ui/Menu.ts`: a raised surface and one `MenuRows` part that draws and hit-tests the rows (items, separators, shortcut hints, disabled items), hover on move, a press inside consumed with `preventFocus`, selection on a release whose press began inside; `moveHover`, `hoverEdge`, `selectHovered` for owners; `maxHeight`, clipping until ScrollContainer lands.
+- `ui/Select.ts`, `ui/DropdownButton.ts` (a Button with a trailing caret), `ui/ContextMenu.ts` (a Menu with `openAt`, taking focus while open and giving it back), all opened through the popup service.
+- `ui/controlBox.ts`: the field box and outside ring TextInput and Select share.
+- Gallery scene `menus`.
+
+**How:** `ui/menus.test.ts`, 33 cases through injected input (worldsim's Menu, Select, DropdownButton, and ContextMenu behaviour, plus separators, shortcuts, `maxHeight`, focus kept through a press in the list, switching between selects in one press, the captured opening press, R9.13's primary and secondary outside presses). The scene lints clean in the browser with a select and a context menu open.
+
 ## Catalog Wave B, text entry (2026-09-28)
 
 **What landed:** DDB-86's first PR (DDB-55 phase 5), R12.10 and R12.36.

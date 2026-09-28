@@ -4,7 +4,7 @@ Status: in progress, 2026-09-28, DDB-86 (DDB-55 phase 5). Chapter 12 of the [UI 
 
 Wave B lands as sequential pull requests by component group:
 
-1. Text entry: TextInput (R12.10) replacing the old `Input`, and NumberInput (R12.36). This document covers it so far.
+1. Text entry: TextInput (R12.10) replacing the old `Input`, and NumberInput (R12.36).
 2. Menus: Menu (R12.11), Select (R12.12), DropdownButton (R12.13), ContextMenu (R12.14), on the popup and placement services; Menu's internal scrolling on DDB-85's ScrollContainer.
 3. Slider (R12.15), TabBar (R12.16), SegmentedControl (R12.17).
 
@@ -26,11 +26,31 @@ Wave B lands as sequential pull requests by component group:
 
 **NumberInput composes a field and a stepper column.** It is not a TextInput subclass, because its `onChange` takes a number and TextInput's a string. Its parts are a TextInput (the focus target and the only Tab stop, with room reserved at its right end through the protected `reserveTrailing`) and a stepper column drawing `expand_less` and `expand_more` from the icon atlas, which a press on steps once and returns focus to the field without a ring (it calls `preventFocus` and focuses the field as a pointer would). Up and Down bubble from the field to the NumberInput; the wheel steps while the field is focused, through `canScroll` so a scroll container around it does not take the wheel first (R9.32). Typed text is committed on Enter and on blur: parsed, clamped, and rounded to `precision` (by default the step's decimal places); text that is not a number goes back to the value's text. A step from typed text steps from what was typed and fires `onChange` once. The field's validator accepts only what could become a number: a sign only when `min` is negative, a point only when `precision` allows one.
 
+## Menus
+
+**Menu rows are data, drawn by one component.** A menu's items are rebuilt every time its owner opens it, and a row has no state of its own beyond the menu's hovered index, so rows are not components: `Menu` is the raised surface (`bg_panel_raised`, an edge border, `shadow_pop`) and holds one `MenuRows` part that draws and hit-tests every row. A row is the size's control height (R11.10, `sm` by default, so an `md` select opens `md` rows); a separator is `space_2` with a hairline; a shortcut is a mono hint drawn right-aligned in `text_dim`, never bound. The label ellipsises before it runs into the shortcut.
+
+**Selection needs a press that began inside.** Hover follows the pointer and is not consumed; a press inside is consumed, captured, and calls `preventFocus`, so the select or button that opened the menu keeps focus (R9.23; the menu is an overlay root, not a descendant of its trigger, so the nearest-focusable rule alone would clear focus); the release selects the enabled item under it. A release whose press began elsewhere never selects, which is R12.14's captured opening press made structural: the release of the press that opened a menu cannot pick the row that appeared under it, whichever owner opened it.
+
+**Menus are not focus groups.** R12.34 lists menus among focus groups, but the item that holds focus while a select's list is open is the select (R12.12, R9.23), and a menu's rows are not components. The owner drives the highlight with `moveHover` (skipping separators and disabled items, wrapping or not), `hoverEdge`, and `selectHovered`. ContextMenu is the one owner that is its own menu: it takes focus (`tabIndex: -1`) while open and gives it back when it closes.
+
+**Select** opens on the press (captured, so the release does nothing) and toggles closed on the next; Down opens a closed select, Up and Down move without wrapping, Home and End jump, `activate` opens or picks, and Escape (`cancel`) closes and is consumed, so a dialog around it does not also close. `onChange` fires only for a different value. The caret is `expand_more`, `expand_less` while open; `open` (R11.11) lifts the border to the accent.
+
+**DropdownButton** is a Button (`icon: 'expand_more'`, right) whose press machine's click toggles the menu, so it opens on release as R12.13 asks. Down opens it with the first item highlighted, as `activate` does; with the menu open, `activate` picks the highlighted item or, with none highlighted, closes it. `openUpward` asks the placement service for the top side, which still flips when there is no room.
+
+**ContextMenu** is a Menu with `openAt(point, { press?, from?, keyboard? })`. An unopened context menu is in no tree, so it opens in the mount context of `from` (the component handling the event) or of the press; `press` is captured on the way, for a menu opened from a `pointerdown` rather than from `contextmenu`. It is placed below and right of the point with no offset, flipped or clamped by the placement service, and the popup service gives R9.13's two outside-press behaviours (a primary press consumed, a secondary one not, so a right-click elsewhere reopens it there). `onClose` hears the popup service's reason.
+
+All three open through the popup service, so one exclusive popup is open at a time, a press on another `popupTrigger` switches in one press, and focus leaving closes the menu (R9.14).
+
+**Scrolling waits on ScrollContainer.** R12.11's "a menu taller than the rect the placement service returns scrolls internally" needs DDB-85's ScrollContainer (#105), which is not on `main` yet. Until it lands a menu clips its rows to its box (`overflow: 'hidden'`), so a menu shortened by `maxHeight` or by placement never draws past itself, and the rows past its edge are unreachable by pointer; the follow-up commit wraps the rows in a ScrollContainer.
+
 ## Departures
 
 - R12.10's "`char`" is the `keydown` of a one-code-point key: the dispatcher has no separate `char` event, and the key names the platform reports for printable keys are the characters.
 - Enter no longer blurs the field, which `Input` did; R12.10 has Enter fire `onSubmit` only.
 - Stepper buttons do not auto-repeat while held. R12.36 does not ask for it.
+- Menus are not focus groups (R12.34); their owners drive the highlight, as above.
+- A menu item's release selects only when the press began inside the menu; worldsim selected on any release over an item.
 
 ## Gallery
 
