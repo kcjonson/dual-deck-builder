@@ -18,6 +18,7 @@ import fragmentSource from '../../../assets/shaders/uber.frag';
 import type { TextureStore } from '../gpu/TextureStore';
 import { FontAtlas } from './FontAtlas';
 import { FrameTimer } from './FrameTimer';
+import type { GpuTimer } from './GpuTimer';
 import { Renderer } from './Renderer';
 import { StreamRing } from './StreamRing';
 import { UBER_ATTRIBUTES, UBER_TEXTURE_UNITS, UBER_VERTEX, UberGeometryEncoder } from './UberGeometryEncoder';
@@ -68,6 +69,12 @@ import { DEFAULT_FONT } from './fonts';
 export interface WebGL2BackendOptions {
 	renderer: Renderer;
 	frameTimer: FrameTimer;
+	/**
+	 * R13.16's per-pass GPU timer, development builds only. The backend's whole
+	 * contract with it is to bracket the frame and each GPU submission; it
+	 * never reads a result.
+	 */
+	gpuTimer?: GpuTimer | null;
 	/** Initial vertex ring capacity in bytes. */
 	vertexRingBytes?: number;
 	/** Initial index ring capacity in bytes. */
@@ -105,9 +112,9 @@ const FRAME_SLOTS = 3;
  * R2.1 finding into a red screenshot spec through the harness's
  * `expectCleanConsole`.
  */
-export function createDrawApi({ renderer, frameTimer }: WebGL2BackendOptions): DrawApi {
+export function createDrawApi({ renderer, frameTimer, gpuTimer }: WebGL2BackendOptions): DrawApi {
 	return new DrawApi({
-		backend: new WebGL2Backend({ renderer, frameTimer }),
+		backend: new WebGL2Backend({ renderer, frameTimer, gpuTimer }),
 		development: __DEV_TOOLS__,
 		onDiagnostic: (diagnostic) => {
 			console.error(`draw: ${diagnostic.code}: ${diagnostic.message}`);
@@ -131,6 +138,7 @@ export class WebGL2Backend implements DrawBackend {
 
 	private readonly renderer: Renderer;
 	private readonly frameTimer: FrameTimer;
+	private readonly gpuTimer: GpuTimer | null;
 	private readonly gl: WebGL2RenderingContext;
 	private readonly fontAtlas: FontAtlas;
 	private readonly encoder: UberGeometryEncoder;
@@ -168,11 +176,13 @@ export class WebGL2Backend implements DrawBackend {
 	constructor({
 		renderer,
 		frameTimer,
+		gpuTimer = null,
 		vertexRingBytes = DEFAULT_VERTEX_RING_BYTES,
 		indexRingBytes = DEFAULT_INDEX_RING_BYTES,
 	}: WebGL2BackendOptions) {
 		this.renderer = renderer;
 		this.frameTimer = frameTimer;
+		this.gpuTimer = gpuTimer;
 		this.gl = renderer.getContext();
 		this.fontAtlas = renderer.getFontAtlas();
 
@@ -228,6 +238,9 @@ export class WebGL2Backend implements DrawBackend {
 
 	/** Opens the frame's one render pass: rings advanced, the frame block written into this frame's slot, the target cleared. */
 	beginFrame(frame: FrameDescription): void {
+		// The clear is the frame's first GPU pass (R13.16).
+		this.gpuTimer?.beginFrame();
+		this.gpuTimer?.beginPass();
 		// R7.2: the ratio reaches the encoder per frame, for inflation, the
 		// feather and glyph snapping.
 		this.encoder.ratio = frame.ratio;
@@ -236,6 +249,7 @@ export class WebGL2Backend implements DrawBackend {
 		this.writeFrameUniforms(frame);
 		this.bindPipeline();
 		this.gl.clear(this.gl.COLOR_BUFFER_BIT);
+		this.gpuTimer?.endPass();
 	}
 
 	submit(batch: DrawBatch): GpuWork {
@@ -246,9 +260,12 @@ export class WebGL2Backend implements DrawBackend {
 		}
 
 		let binds = 0;
+		// One sort domain is one GPU pass (R13.16).
+		this.gpuTimer?.beginPass();
 		const work = this.batcher.flush(commands, (upload) => {
 			binds += this.execute(upload);
 		});
+		this.gpuTimer?.endPass();
 		// The batcher counted the dynamic units it handed out; what the GPU
 		// was actually asked to bind is this backend's count.
 		work.textureBinds = binds;
@@ -265,6 +282,7 @@ export class WebGL2Backend implements DrawBackend {
 		for (let unit = 1; unit < UBER_TEXTURE_UNITS; unit++) {
 			if (this.boundUnits[unit] !== placeholder) this.bindUnit(unit, placeholder);
 		}
+		this.gpuTimer?.endFrame();
 	}
 
 	invalidateState(): void {

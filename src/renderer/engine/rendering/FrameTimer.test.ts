@@ -1,4 +1,5 @@
-import { FrameTimer, MAX_DELTA_SECONDS, SECTION_NAMES } from './FrameTimer';
+import { FrameTimer, MAX_DELTA_SECONDS, NO_GPU_STATS, SECTION_NAMES } from './FrameTimer';
+import type { TrackEmitter } from '../debug/devtoolsTracks';
 import { DrawApi, NullBackend } from '../draw';
 
 /**
@@ -282,7 +283,7 @@ describe('the snapshot shape (R13.11)', () => {
 
 		expect(Object.keys(snapshot)).toEqual([
 			'timestamp', 'scene', 'frame', 'sections', 'gpu', 'batcher', 'memory', 'renderer', 'sanity',
-			'liveness', 'device',
+			'liveness', 'device', 'tracks',
 		]);
 	});
 
@@ -302,10 +303,25 @@ describe('the snapshot shape (R13.11)', () => {
 		expect(Object.keys(snapshot.sections)).toEqual([...SECTION_NAMES]);
 	});
 
-	it('carries the normative gpu fields, all null until phase 7', () => {
+	it('carries the normative gpu fields first, all null without a GPU timer', () => {
 		const { snapshot } = capture();
 
-		expect(snapshot.gpu).toEqual({ ms: null, valid: null, passes: null, spanMs: null, latencyMs: null });
+		expect(Object.keys(snapshot.gpu).slice(0, 5)).toEqual(['ms', 'valid', 'passes', 'spanMs', 'latencyMs']);
+		expect(snapshot.gpu).toEqual(NO_GPU_STATS);
+		expect(snapshot.gpu.source).toBeNull();
+	});
+
+	it('reports the GPU figures the page hands over (R13.16)', () => {
+		const { timer } = capture();
+		const gpu = { ...NO_GPU_STATS, ms: 2.5, valid: true, passes: [0.5, 2], source: 'timerQuery' as const, sampleCount: 1 };
+
+		expect(timer.snapshot({ gpu }).gpu).toEqual(gpu);
+	});
+
+	it('reports no DevTools track unless one was given (R15.42)', () => {
+		const { snapshot } = capture();
+
+		expect(snapshot.tracks).toBeNull();
 	});
 
 	it('reports null, never zero, for what this platform cannot measure (R13.5)', () => {
@@ -342,5 +358,26 @@ describe('the snapshot shape (R13.11)', () => {
 		const { snapshot } = capture();
 
 		expect(JSON.parse(JSON.stringify(snapshot))).toEqual(snapshot);
+	});
+});
+
+describe('the DevTools track (R15.29)', () => {
+	it('mirrors each section and each completed frame as a track entry on the timer\'s clock', () => {
+		const emit = jest.fn();
+		const tracks: TrackEmitter = { mode: 'console.timeStamp', emit };
+		const timer = new FrameTimer({ now: () => clockMs, wallNow: () => wallMs, tracks, budgetMs: 10 });
+
+		runFrame(timer, { updateMs: 1, renderMs: 2, flushMs: 3 });
+		advance(10);
+		timer.beginFrame();
+
+		expect(emit.mock.calls).toEqual([
+			['update', 0, 1, 'primary'],
+			['render', 1, 3, 'secondary'],
+			['flush', 3, 6, 'tertiary'],
+			// 16 ms against a 10 ms budget.
+			['frame', 0, 16, 'error'],
+		]);
+		expect(timer.snapshot().tracks).toBe('console.timeStamp');
 	});
 });

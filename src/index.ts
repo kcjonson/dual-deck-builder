@@ -5,6 +5,7 @@ import { Game } from './renderer/game/Game';
 import { RendererContext } from './renderer/engine/rendering/RendererContext';
 import { InputSystem } from './renderer/engine/input/InputSystem';
 import { FrameTimer } from './renderer/engine/rendering/FrameTimer';
+import type { GpuTimer } from './renderer/engine/rendering/GpuTimer';
 import { LoadedFontAtlas, loadFontAtlases, loadImageElement } from './renderer/engine/text/loadFontAtlases';
 
 /**
@@ -36,10 +37,24 @@ class Application {
 			this.fontAtlases = this.loadFonts();
 
 			// Frame timing, section timing and the per-frame draw counters (R13.7).
-			this.frameTimer = new FrameTimer();
+			// A development build mirrors the sections to a DevTools track
+			// (R15.29); the require sits in a branch DefinePlugin folds away.
+			this.frameTimer = new FrameTimer({
+				tracks: __DEV_TOOLS__
+					// eslint-disable-next-line @typescript-eslint/no-var-requires
+					? (require('./renderer/engine/debug/devtoolsTracks') as typeof import('./renderer/engine/debug/devtoolsTracks')).createDevToolsTracks()
+					: null,
+			});
 
 			// Create the WebGL renderer
 			this.renderer = new Renderer('game-canvas');
+
+			// R13.16's GPU timer. Development builds only: production issues no
+			// query at all (R15.22).
+			const gpuTimer: GpuTimer | null = __DEV_TOOLS__
+				// eslint-disable-next-line @typescript-eslint/no-var-requires
+				? (require('./renderer/engine/rendering/GpuTimer') as typeof import('./renderer/engine/rendering/GpuTimer')).createGpuTimer(this.renderer)
+				: null;
 
 			// Set up the global renderer context
 			RendererContext.getInstance().setRenderer(this.renderer);
@@ -51,7 +66,7 @@ class Application {
 			// The seam. Built through the shared factory rather than spelled
 			// here, so this page and the gallery cannot end up with differently
 			// configured draw APIs over the same renderer.
-			const draw = createDrawApi({ renderer: this.renderer, frameTimer: this.frameTimer });
+			const draw = createDrawApi({ renderer: this.renderer, frameTimer: this.frameTimer, gpuTimer });
 			RendererContext.getInstance().draw = draw;
 
 			// Create and initialize the game
@@ -60,6 +75,7 @@ class Application {
 				frameTimer: this.frameTimer,
 				viewport: this.renderer.viewport,
 				device: this.renderer.device,
+				gpuTimer,
 			});
 			await this.game.init();
 
