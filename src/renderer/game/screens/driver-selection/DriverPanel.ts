@@ -152,19 +152,18 @@ export class DriverPanel extends Layer {
 			? 'Choose Your First Driver' 
 			: 'Choose Your Second Driver';
 			
+		// Centred in the panel
 		this.emptyStateText = new Text(emptyText, {
+			width: this.getWidth(),
+			height: this.getHeight(),
 			style: {
 				fontSize: 24,
 				color: '#888888',
 				textAlign: 'center',
+				verticalAlign: 'middle',
+				whiteSpace: 'nowrap',
 			},
 		});
-		
-		// Center in panel
-		this.emptyStateText.setPosition(
-			this.getWidth() / 2,
-			this.getHeight() / 2
-		);
 		
 		this.addChild(this.emptyStateText);
 	}
@@ -194,13 +193,16 @@ export class DriverPanel extends Layer {
 		
 		// Re-add empty panel text
 		const emptyText = new Text(this.panelSide === 'left' ? 'Select First Driver' : 'Select Second Driver', {
+			width: this.getWidth(),
+			height: this.getHeight(),
 			style: {
 				fontSize: 24,
 				color: '#666666',
 				textAlign: 'center',
+				verticalAlign: 'middle',
+				whiteSpace: 'nowrap',
 			},
 		});
-		emptyText.setPosition(this.getWidth() / 2, this.getHeight() / 2);
 		this.addChild(emptyText);
 	}
 
@@ -226,40 +228,46 @@ export class DriverPanel extends Layer {
 		});
 		this.addChild(this.portraitArea);
 		
-		// Driver name (large, bold)
+		// Driver name (large, bold); it and the two lines under it are centred across the panel
 		this.driverName = new Text('', {
 			id: `${this.idPrefix}driver_name`,
+			y: portraitHeight + 30,
+			width: panelWidth,
 			style: {
 				fontSize: 20,
 				color: '#ffffff',
 				textAlign: 'center',
+				whiteSpace: 'nowrap',
 				fontWeight: 'bold',
 			},
 		});
-		this.driverName.setPosition(Math.floor(panelWidth / 2), portraitHeight + 30);
 		this.addChild(this.driverName);
 		
 		// Vehicle name (smaller)
 		this.vehicleName = new Text('', {
+			y: portraitHeight + 55,
+			width: panelWidth,
 			style: {
 				fontSize: 14,
 				color: '#cccccc',
 				textAlign: 'center',
+				whiteSpace: 'nowrap',
 			},
 		});
-		this.vehicleName.setPosition(Math.floor(panelWidth / 2), portraitHeight + 55);
 		this.addChild(this.vehicleName);
 		
 		// Specialty tag (2-3 words)
 		this.specialtyTag = new Text('', {
+			y: portraitHeight + 80,
+			width: panelWidth,
 			style: {
 				fontSize: 16,
 				color: '#ffaa00',
 				textAlign: 'center',
+				whiteSpace: 'nowrap',
 				fontWeight: 'bold',
 			},
 		});
-		this.specialtyTag.setPosition(Math.floor(panelWidth / 2), portraitHeight + 80);
 		this.addChild(this.specialtyTag);
 		
 		// Flavor text
@@ -366,10 +374,13 @@ export class DriverPanel extends Layer {
 				fontSize: 16,
 				color: '#ffffff',
 				textAlign: 'center',
+				whiteSpace: 'nowrap',
 				fontWeight: 'bold',
 			},
 		});
-		deckTitle.setPosition(this.startingDeckContainer.getWidth() / 2, 20);
+		// Centred across the preview
+		deckTitle.setPosition(0, 20);
+		deckTitle.setWidth(this.startingDeckContainer.getWidth());
 		this.startingDeckContainer.addChild(deckTitle);
 		
 		// Get card loader for actual card data

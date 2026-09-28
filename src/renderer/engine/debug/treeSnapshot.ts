@@ -34,10 +34,11 @@ import { CLIP_NONE, ClipState, intersectClip } from '../draw/clip';
  * clipped away entirely has a clip, and it contains nothing.
  *
  * R13.21 says the snapshot is taken after layout has run for the frame. This
- * engine has no layout phase in the frame loop, and Text sizes are only
- * populated by Layer.layout(), which the loop never calls. The read hook does
- * NOT run layout: a reader must not mutate the tree it observes. Read the
- * snapshot after at least one rendered frame.
+ * engine has no layout phase in the frame loop; a Text sizes itself from the
+ * metrics service when its content changes, and one built before the draw API
+ * could measure sizes itself on its first render. The read hook does NOT run
+ * layout: a reader must not mutate the tree it observes. Read the snapshot
+ * after at least one rendered frame.
  */
 
 export interface SnapshotRect {

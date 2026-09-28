@@ -756,6 +756,16 @@ export class DrawApi {
 		return this.backend.textInk(options);
 	}
 
+	/**
+	 * Whether `measureText` can answer for `font`: the backend lays text out
+	 * and has that role's atlas. A component that sizes itself from its text
+	 * asks this first and stays unmeasured when the answer is no (the null and
+	 * recording backends), rather than guessing a width.
+	 */
+	canMeasureText(font: string): boolean {
+		return this.backend.measureText !== undefined && this.backend.fontAtlasNames.includes(font);
+	}
+
 	/** R2.14, delegated to the backend that owns the glyph walk. See `TEXT_MEASUREMENT_UNAVAILABLE`. */
 	measureText(options: MeasureTextOptions): TextMetrics {
 		if (!this.backend.measureText) {

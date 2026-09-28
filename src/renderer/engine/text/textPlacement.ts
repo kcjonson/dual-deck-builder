@@ -32,13 +32,6 @@ const ALIGN_FRACTION: Record<TextAlign, number> = { left: 0, center: 0.5, right:
  * which is R6.11's guarantee: a line with no descenders sits on the same
  * baseline as one with them. `baseline` in a box is `top`.
  *
- * R6.11 says the centring is on the ascent alone. That puts every centred
- * label low in these faces, whose ascenders leave room for accents above the
- * caps: Open Sans's 1.069 em ascender centres 16 px caps 2.9 px low in a
- * 30 px field, where the ascent plus descent box (CSS's content area) leaves
- * them 0.5 px low. The descender-independence the rule exists for holds
- * either way; see docs/AI_TECHNICAL_DECISIONS/text-metrics-service.md.
- *
  * Vertical, without a box, `position.y` is a zero-height box: `baseline` (the
  * default, R2.13) is the first baseline itself, and the other three put the
  * same edge on it that they put on a box's edge, `middle` centring on it.

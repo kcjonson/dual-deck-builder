@@ -15,6 +15,20 @@ This document contains the chronological log of completed development tasks for 
 
 **How:** 13 mutations run against local baselines (four digit changes the area budget missed are caught; +2 background shift still missed by the threshold). A 1300x800 resize just before `navigate` reproduced a screen built for a size the backing store had not reached; the new gate waits it out. On CI, 35 captures against `main`'s goldens differ by 0 pixels and three `update_mode=all` mints committed nothing. The driver-selection layout flip DDB-201 describes is not in any committed golden (checked pixel by pixel across all versions). 13 unit tests for the clustering.
 
+## Text component on real metrics, estimate sites replaced (2026-09-28)
+
+**What landed:** DDB-71 (DDB-55 phase 2), with DDB-198 and DDB-200. The third deliberate re-baseline.
+
+- `components/Text.ts` rewritten to R12.4: position is the top-left of the line box, each axis assigned or hugged from `measureText`, one `drawText` with R2.13's box, so wrap, ellipsis and clip come from the layout. `letterSpacing`, `textTransform` and `textDecoration` in `Style`; line height defaults to the face's. `setBaseline` became `setVerticalAlign`.
+- `DrawApi.canMeasureText` and `RendererContext.hasDraw`; a text that cannot measure yet stays zero-sized and measures on its first render.
+- `text/testing.ts`: `MeasuringRecordingBackend` and `installMeasuringDrawApi` for component tests.
+- Estimate sites replaced: `Text.layout`, the synergy panel, the driver stats (`getRequiredWidth` deleted, the display hugs), the input caret. About thirty anchored labels given real boxes; main menu, splash, developer and driver-selection titles centred.
+- `Card`: the cost hugs its digits and the title runs to them, wrapping to a second line only when it must (DDB-198); the face shows the summary with brackets stripped instead of cutting rules text, in a box that ends above the rarity line. `cards.test.ts` measures summaries on the face instead of counting characters (DDB-202). `DriverSelectionScreen`: the synergy panel fits the gap between the driver panels.
+- R6.11, R12.4 and the chapter 6 checklist say ascent plus descent (DDB-200).
+- Tests: `Text.test.ts`, `Card.test.ts` (every title fits its slot, nothing on any face is cut), `Input.test.ts`; the snapshot and gallery tests that pinned the old zero-until-layout behaviour now pin measurement.
+
+**How:** every screen and scene captured locally before and after and read side by side; the three that showed problems the new metrics exposed (description over the rarity line, synergy panel over the flavour text, splash subtitle inside the title's line box) were fixed and recaptured. Decision record: [text-component-metrics.md](./AI_TECHNICAL_DECISIONS/text-component-metrics.md).
+
 ## Phase 1 close-out: rendering fixtures, test gaps, perf re-capture (2026-09-28)
 
 **What landed:** DDB-68 (DDB-55 phase 1, its last task).
