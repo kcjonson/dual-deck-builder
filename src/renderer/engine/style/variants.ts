@@ -99,9 +99,11 @@ const ACTIVE: LookOverlay = { border: color.accent, wash: color.bg_active };
  * the neutral surface with `text_dim` when disabled, as the battle screen
  * mock's waiting End Turn does (`text_disabled` there would be about 1.6:1). An instance `backgroundColor` keeps the white hover wash rather
  * than the tone's bright fill, so the override still reads as hovered.
+ * `ghost` is R12.7's ghost variant, built by `ghostLayers`.
  */
-export function buttonLayers(tone: Tone, style: StyleObject): LookLayers {
+export function buttonLayers(tone: Tone, style: StyleObject, ghost = false): LookLayers {
 	if (tone === 'auto') throw new Error('Button: tone "auto" bands a value, which a button does not have (R11.10)');
+	if (ghost) return ghostLayers(tone, style);
 	const neutral: LookBase = {
 		fill: color.bg_panel_raised,
 		border: color.line_edge,
@@ -177,4 +179,92 @@ function baseColors(style: StyleProperties): Partial<LookBase> {
 	if (overlay.border) colors.border = overlay.border;
 	if (overlay.text) colors.text = overlay.text;
 	return colors;
+}
+
+const CLEAR: RGBA = [0, 0, 0, 0];
+
+/**
+ * R12.7's ghost button: clear at rest, with no border, and the label in the
+ * tone's colour (`text` for the default tone). Hover is the white wash with
+ * the tone's glow, pressed the usual wash and nudge, so a ghost says it is a
+ * control only when the pointer or focus reaches it. An instance style
+ * replaces the base as for any button (R11.15).
+ */
+function ghostLayers(tone: Exclude<Tone, 'auto'>, style: StyleObject): LookLayers {
+	const palette = tone === 'default' ? null : TONES[tone];
+	const normal = withInstance({
+		fill: CLEAR,
+		border: CLEAR,
+		borderWidth: 0,
+		radius: tokens.radius.radius_ui,
+		text: palette ? palette.fill : color.text,
+		shadow: null,
+	}, style);
+	return {
+		normal,
+		selected: style.selected ? { ...selectedOf(normal), ...baseColors(style.selected) } : selectedOf(normal),
+		hover: style.hover ? overlayFrom(style.hover) : palette ? { wash: color.bg_hover, glow: palette.glow } : { wash: color.bg_hover },
+		pressed: style.pressed ? { ...overlayFrom(style.pressed), offsetY: PRESSED.offsetY } : PRESSED,
+		active: style.active ? overlayFrom(style.active) : ACTIVE,
+		disabled: style.disabled ? overlayFrom(style.disabled) : { text: color.text_disabled },
+		focusRing: color.accent,
+	};
+}
+
+/**
+ * R12.8's list row: clear at rest with the body text colour (`text_dim`
+ * when `dim`), the selected base R11.12 names for a row (the accent-glow
+ * wash with bright text; the row draws its 2 px bar itself), a hover wash,
+ * a pressed wash with no nudge (a row in a list does not move), and the
+ * disabled text. The row's hairline is not a state layer.
+ */
+export function rowLayers({ dim }: { dim: boolean }): LookLayers {
+	const normal: LookBase = {
+		fill: CLEAR,
+		border: CLEAR,
+		borderWidth: 0,
+		radius: 0,
+		text: dim ? color.text_dim : color.text,
+		shadow: null,
+	};
+	return {
+		normal,
+		selected: { ...normal, fill: color.bg_active, text: color.text_bright },
+		hover: { wash: color.bg_hover },
+		pressed: { wash: color.bg_pressed },
+		active: { wash: color.bg_active },
+		disabled: { text: color.text_disabled },
+		focusRing: color.accent,
+	};
+}
+
+/**
+ * R12.9 and R12.35's marks (a checkbox's box, a toggle's track, a radio's
+ * ring): an inset well with a strong edge when off, the accent filled when on
+ * (`selected`), with the mark or thumb drawn in `text` on it. Hover washes
+ * the well and brightens the edge; the accent brightens with its glow when
+ * on, which the component picks by building from `on`. Disabled drops to the
+ * well with the disabled text colour for the mark, whether on or off.
+ */
+export function markLayers({ on }: { on: boolean }): LookLayers {
+	const off: LookBase = {
+		fill: color.bg_inset,
+		border: color.line_strong,
+		borderWidth: tokens.borderWidth.bw,
+		radius: tokens.radius.r_sm,
+		text: color.text_dim,
+		shadow: null,
+	};
+	const filled: LookBase = { ...off, fill: color.accent, border: color.accent, text: color.accent_contrast };
+	return {
+		normal: off,
+		selected: filled,
+		hover: on
+			? { fill: color.accent_bright, border: color.accent_bright, glow: color.accent_glow }
+			: { wash: color.bg_hover, border: color.text_dim },
+		pressed: { wash: color.bg_pressed },
+		active: {},
+		disabled: { fill: color.bg_inset, border: color.line_edge, text: color.text_disabled },
+		focusRing: color.accent,
+	};
 }

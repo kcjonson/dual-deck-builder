@@ -730,9 +730,9 @@ export class Dispatcher {
 		const fields = this.lastPointerFields(pointerId, press);
 		if (captor) {
 			this.captures.delete(pointerId);
-			if (captor.isMounted) {
-				this.deliverTo(captor, this.pointerEvent('pointercancel', captor, fields));
-			}
+			// Bubbling from the captor (R9.10), so an ancestor that shades on
+			// the press hears the gesture end too.
+			if (captor.isMounted) this.bubble(this.pointerEvent('pointercancel', captor, fields));
 			this.drag.pointerLost(pointerId);
 			this.deliverTo(captor, this.pointerEvent('lostpointercapture', captor, fields));
 			this.hoverStale = true;
@@ -931,7 +931,7 @@ export class Dispatcher {
 		const action = actionFor(input);
 		if (action && focused && focused.isMounted) {
 			if (action === 'activate') this.focus.showFocusVisible();
-			const event = new UiActionEvent({ type: action, timestamp: this.clock.now, target: focused, source: 'keyboard' });
+			const event = new UiActionEvent({ type: action, timestamp: this.clock.now, target: focused, source: 'keyboard', key: input.key });
 			this.bubble(event);
 			if (event.consumed) return;
 		}

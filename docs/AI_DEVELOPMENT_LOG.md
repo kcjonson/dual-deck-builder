@@ -18,6 +18,19 @@ This document contains the chronological log of completed development tasks for 
 
 **How:** `ScrollContainer.test.ts` (worldsim's suite ported: max scroll, clamping, a resized viewport re-clamping; plus layout and the gutter, the fixed scrollbar and its thumb, the clip and ink, wheel latching, hover after a scroll by code, keys, thumb drag and track press without taking focus, `scrollIntoView` nearest and center, `scrollToBottom` across a layout, and popups closing), `Panel.test.ts`, `ScrollClip.test.ts` (the old panel clip suite on the new container), `CombatLogLayer.test.ts`, and the dispatcher, focus, snapshot, and cull suites moved onto ScrollContainer. In the browser: every existing gallery scene's text record matches its committed JSON, all scenes lint clean at 1440 by 882, and the lists scroll by wheel and thumb.
 
+## Catalog Wave A, controls (2026-09-28)
+
+**What landed:** DDB-85's first PR (DDB-55 phase 5), R12.7, R12.8, R12.9, R12.34, R12.35.
+
+- `ui/Pressable.ts`: the shared press machine (capture on press, `pressed` tracks the pointer, click only when released inside, `activate` presses, `acceptsActivation` and `onPressed` hooks, the focus group hears presses through the new `Component.memberPressed`).
+- `Button` extends it; new options `iconPosition`, `ghost` (`ghostLayers` in `style/variants.ts`), `block`, `disabled`, `onClick`.
+- New `ListRow`, `Checkbox` (and the shared `Checkable`, whose `checked` is its own field, apart from the group-owned `selected`, and is reported as `state.checked`, `mixed` when indeterminate), `Toggle`, `RadioGroup` with `Radio`, `FocusGroup` (selection `none` by default); `rowLayers` and `markLayers` in `style/variants.ts`; `drawIcon` in `components/Icon.ts`; `groupMembers` exported from the focus manager.
+- `UiActionEvent.key` carries the key behind a keyboard `activate` or `cancel`. A captured `pointercancel` bubbles from the captor (R9.10). The innermost pressable takes a press; a press that becomes a drag stops showing pressed.
+- Icon atlas: `check` and `remove` added; the five existing glyphs keep their atlas cells, so nothing already drawn moved.
+- Gallery: `CatalogSection` plus `button-variants`, `lists`, `checkboxes`, `radio-group`.
+
+**How:** `ui/controls.test.ts` drives every control through injected input on a mounted root with the committed font metrics (press machine, capture, release outside, options, list selection single, multiple, and none, Tab stops and group re-entry, Space versus Enter, controlled values, indeterminate, toggle slide and reduced motion, radio arrows skipping disabled and wrapping). All four scenes lint clean in the browser, clicked and arrowed through by hand.
+
 ## Combat screen on stacks (2026-09-28)
 
 **What landed:** DDB-82 (DDB-55 phase 4), closing DDB-183 and the 800x450 resource bar note from #78.
