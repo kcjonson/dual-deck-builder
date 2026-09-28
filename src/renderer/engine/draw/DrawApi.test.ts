@@ -450,6 +450,40 @@ describe('clip stack (R2.5, R4.2, R4.7) and chapter 4.7 required tests', () => {
 		api.endFrame();
 	});
 
+	it('snaps a clip to the device grid under a translation, whatever the content offset (R7.8a)', () => {
+		const { api } = harness();
+		api.beginFrame({ viewport: VIEWPORT, ratio: 2 });
+		// A panel at a fractional x with its content scrolled by a fraction: the
+		// clip lands on the same device edges at every offset, so it does not shimmer.
+		for (const offset of [0, 0.3, 0.7]) {
+			api.pushTranslate(10.3 + offset, 0);
+			api.pushClip(rect(-offset, 5.1, 20, 20));
+			expect(api.clip).toEqual({
+				kind: 'rect',
+				rect: { minX: 10.5, minY: 5, maxX: 30.5, maxY: 25 },
+				rounded: null,
+			});
+			api.popClip();
+			api.popTransform();
+		}
+		api.endFrame();
+	});
+
+	it('does not snap a clip pushed under a scale (R7.9)', () => {
+		const { api } = harness();
+		api.beginFrame({ viewport: VIEWPORT });
+		api.pushTransform([2, 0, 0, 2, 0, 0]);
+		api.pushClip(rect(0.1, 0.1, 10, 10));
+		expect(api.clip).toEqual({
+			kind: 'rect',
+			rect: { minX: 0.2, minY: 0.2, maxX: 20.2, maxY: 20.2 },
+			rounded: null,
+		});
+		api.popClip();
+		api.popTransform();
+		api.endFrame();
+	});
+
 	it('warns when a clip is pushed under a non-translate transform', () => {
 		const { api } = harness();
 		api.beginFrame({ viewport: VIEWPORT });

@@ -1,5 +1,6 @@
 import {
 	Border,
+	BorderPosition,
 	CircleCommand,
 	CornerColors,
 	CornerRadii,
@@ -22,7 +23,7 @@ import { GeometryEncoder, GeometrySink, GroupShape } from '../draw/Batcher';
 import type { TextureKey } from '../draw/ResidentTextureSet';
 import { FEATHER_MITER_LIMIT } from '../draw/bounds';
 import { isSingleOutline } from '../draw/triangulate';
-import { snapTextOrigin, snapToDevice } from '../coords/snapping';
+import { HairlineRectOptions, SnappedHairlineRect, snapHairlineRect, snapTextOrigin, snapToDevice } from '../coords/snapping';
 import type { TextLayout } from '../text/TextLayout';
 import { TextMetricsService } from '../text/TextMetricsService';
 import { DECORATION_THICKNESS, LineOrigin, decorationOffset, layoutInk, lineOrigin } from '../text/textPlacement';
@@ -127,6 +128,8 @@ export class UberGeometryEncoder implements GeometryEncoder {
 	private readonly gradientScratch: number[] = new Array(16).fill(0);
 	private readonly originScratch: LineOrigin = { x: 0, y: 0 };
 	private readonly snapScratch = { x: 0, y: 0 };
+	private readonly hairlineScratch: HairlineRectOptions = { rect: { x: 0, y: 0, width: 0, height: 0 }, borderWidth: 0, ratio: 1 };
+	private readonly hairlineOut: SnappedHairlineRect = { rect: { x: 0, y: 0, width: 0, height: 0 }, borderWidth: 0 };
 	/** `shape` and `encode` see the same command back to back; its layout is looked up once. */
 	private layoutCommand: TextCommand | null = null;
 	private layoutResult: TextLayout | null = null;
@@ -233,11 +236,17 @@ export class UberGeometryEncoder implements GeometryEncoder {
 	// -- rect -------------------------------------------------------------
 
 	private encodeRect(command: RectCommand, sink: GeometrySink): void {
-		const { rect, border } = command;
+		const border = command.border;
+		let rect = command.rect;
+		let width = border && border.width > 0 ? border.width : 0;
+		const snapped = this.snappedRect(command, width);
+		if (snapped) {
+			rect = snapped.rect;
+			width = snapped.borderWidth;
+		}
 		const halfWidth = rect.width / 2;
 		const halfHeight = rect.height / 2;
-		const width = border && border.width > 0 ? border.width : 0;
-		const outset = width > 0 ? borderOutset(border as Border) : 0;
+		const outset = width > 0 ? borderOutset((border as Border).position, width) : 0;
 
 		this.begin(command, UBER_MODE.rect, -1);
 		this.setHalfSize(halfWidth, halfHeight);
@@ -248,6 +257,31 @@ export class UberGeometryEncoder implements GeometryEncoder {
 		const gradient = command.gradient ? this.premultiplyCorners(command.gradient) : null;
 		this.quad(sink, command.transform, rect.x + halfWidth, rect.y + halfHeight, halfWidth + outset, halfHeight + outset,
 			fill, gradient, halfWidth, halfHeight);
+	}
+
+	/**
+	 * R7.8 and R7.8a under a translate-only transform: a square-cornered rect
+	 * whose border is a hairline or absent, its edges and border on the device
+	 * grid. Snapped in screen space and handed back in local space (the same
+	 * delta, under a translation). Null when the rect keeps its own edges.
+	 */
+	private snappedRect(command: RectCommand, borderWidth: number): SnappedHairlineRect | null {
+		if (!command.translateOnly || hasRadius(command.radius)) return null;
+		const tx = command.transform[4];
+		const ty = command.transform[5];
+		const options = this.hairlineScratch;
+		options.rect.x = command.rect.x + tx;
+		options.rect.y = command.rect.y + ty;
+		options.rect.width = command.rect.width;
+		options.rect.height = command.rect.height;
+		options.borderWidth = borderWidth;
+		options.position = command.border?.position ?? 'inside';
+		options.ratio = this.ratioValue;
+		const snapped = snapHairlineRect(options, this.hairlineOut);
+		if (!snapped) return null;
+		snapped.rect.x -= tx;
+		snapped.rect.y -= ty;
+		return snapped;
 	}
 
 	// -- shadow -----------------------------------------------------------
@@ -287,7 +321,7 @@ export class UberGeometryEncoder implements GeometryEncoder {
 	private encodeCircle(command: CircleCommand, sink: GeometrySink): void {
 		const { border, radius } = command;
 		const width = border && border.width > 0 ? border.width : 0;
-		const outset = width > 0 ? borderOutset(border as Border) : 0;
+		const outset = width > 0 ? borderOutset((border as Border).position, width) : 0;
 
 		this.begin(command, UBER_MODE.circle, -1);
 		this.setHalfSize(radius, radius);
@@ -862,9 +896,9 @@ export class UberGeometryEncoder implements GeometryEncoder {
 }
 
 /** R5.7: how far a border's outer edge sits outside the shape edge. */
-export function borderOutset(border: Border): number {
-	if (border.position === 'outside') return border.width;
-	if (border.position === 'center') return border.width / 2;
+export function borderOutset(position: BorderPosition | undefined, width: number): number {
+	if (position === 'outside') return width;
+	if (position === 'center') return width / 2;
 	return 0;
 }
 
@@ -914,6 +948,12 @@ function writeQuadIndices(sink: GeometrySink, indexOffset: number, vertexOffset:
 	const first = sink.indexOffset + indexOffset;
 	const base = sink.baseVertex + vertexOffset;
 	for (let index = 0; index < 6; index++) sink.indices[first + index] = base + QUAD_INDICES[index];
+}
+
+function hasRadius(radius: CornerRadii | null): boolean {
+	if (radius === null) return false;
+	if (typeof radius === 'number') return radius > 0;
+	return radius[0] > 0 || radius[1] > 0 || radius[2] > 0 || radius[3] > 0;
 }
 
 /** A transform that collapses an axis draws nothing, and would divide by zero in the inflation. */

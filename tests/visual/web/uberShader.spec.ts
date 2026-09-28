@@ -248,7 +248,11 @@ test.describe('uber shader', () => {
 
 	test('ramps a fractional edge over exactly one device pixel on each side (R5.6, R5.7)', async ({ page }) => {
 		const frame = await render(page, { width: 48, height: 8, ratio: 1, clear: OPAQUE_BLACK }, (api) => {
-			api.drawRect({ rect: { x: 10.25, y: 0, width: 20, height: 8 }, fill: [1, 1, 1, 1] });
+			// Under a scale, where R7.9 snaps nothing: a translated square rect
+			// would have its edges put on the grid (R7.8) and show no ramp.
+			api.pushTransform([2, 0, 0, 2, 0, 0]);
+			api.drawRect({ rect: { x: 5.125, y: 0, width: 10, height: 4 }, fill: [1, 1, 1, 1] });
+			api.popTransform();
 		});
 		const row = (x: number) => pixel(frame, x, 4)[0];
 		expect(row(9)).toBe(0);
@@ -263,11 +267,14 @@ test.describe('uber shader', () => {
 	test('leaves no fill halo outside a dark border offset by half a pixel (R5.8)', async ({ page }) => {
 		const clear: Target['clear'] = [0.5, 0.5, 0.5, 1];
 		const frame = await render(page, { width: 40, height: 20, ratio: 1, clear }, (api) => {
+			// Scaled so R7.8 leaves the hairline where it is (R7.9).
+			api.pushTransform([2, 0, 0, 2, 0, 0]);
 			api.drawRect({
-				rect: { x: 10.5, y: 2, width: 20, height: 16 },
+				rect: { x: 5.25, y: 1, width: 10, height: 8 },
 				fill: [0.9, 0.9, 0.9, 1],
-				border: { color: [0.1, 0.1, 0.1, 1], width: 1 },
+				border: { color: [0.1, 0.1, 0.1, 1], width: 0.5 },
 			});
+			api.popTransform();
 		});
 		// Column 10 is half covered by the border and nothing else: 0.1 over
 		// 0.5 at half coverage is 0.3, and no fill colour leaks in.
@@ -355,16 +362,35 @@ test.describe('uber shader', () => {
 	});
 
 	test('shows no seam between two rects that abut at a fractional x once snapped (R5.10, R7.8a)', async ({ page }) => {
-		// Expected to fail until DDB-188 snaps shared edges at submission. Today
-		// each rect ramps its own edge, so the shared column is 0.3 covered by
-		// one and 0.7 by the other, and 0.7 over 0.3 composites to about 0.79,
-		// a visible seam. When this starts passing, drop the `fail` marker.
-		test.fail(true, 'DDB-188: R7.8a shared-edge snapping is not applied at submission yet');
+		// Unsnapped, each rect would ramp its own edge: the shared column 0.3
+		// covered by one and 0.7 by the other, which composites to about 0.79,
+		// a visible seam. Both round 20.3 to 20, so the column is the second
+		// rect's alone.
 		const frame = await render(page, { width: 40, height: 8, ratio: 1, clear: OPAQUE_BLACK }, (api) => {
 			api.drawRect({ rect: { x: 0, y: 0, width: 20.3, height: 8 }, fill: [1, 1, 1, 1] });
 			api.drawRect({ rect: { x: 20.3, y: 0, width: 19.7, height: 8 }, fill: [1, 1, 1, 1] });
 		});
 		expect(pixel(frame, 20, 4)).toEqual([255, 255, 255, 255]);
+	});
+
+	test('puts a 1 px border at y 10.4 on whole device rows 21 and 22 at ratio 2 (R7.8)', async ({ page }) => {
+		const frame = await render(page, { width: 40, height: 40, ratio: 2, clear: OPAQUE_BLACK }, (api) => {
+			api.drawRect({ rect: { x: 2, y: 10.4, width: 14, height: 6 }, fill: [1, 0, 0, 1], border: { color: [0, 1, 0, 1], width: 1 } });
+		});
+		expect(pixel(frame, 16, 20)).toEqual([0, 0, 0, 255]);
+		expect(pixel(frame, 16, 21)).toEqual([0, 255, 0, 255]);
+		expect(pixel(frame, 16, 22)).toEqual([0, 255, 0, 255]);
+		expect(pixel(frame, 16, 23)).toEqual([255, 0, 0, 255]);
+	});
+
+	test('centres a 1 px center border on one whole device column (R7.8)', async ({ page }) => {
+		const frame = await render(page, { width: 40, height: 40, ratio: 1, clear: OPAQUE_BLACK }, (api) => {
+			api.drawRect({ rect: { x: 10, y: 10, width: 20, height: 20 }, fill: [1, 0, 0, 1], border: { color: [0, 1, 0, 1], width: 1, position: 'center' } });
+		});
+		// Unsnapped it would straddle x 10 and cover columns 9 and 10 by half each.
+		expect(pixel(frame, 9, 20)).toEqual([0, 0, 0, 255]);
+		expect(pixel(frame, 10, 20)).toEqual([0, 255, 0, 255]);
+		expect(pixel(frame, 11, 20)).toEqual([255, 0, 0, 255]);
 	});
 
 	test('rounds corners and anti-aliases a circle (R5.5, R5.15)', async ({ page }) => {
