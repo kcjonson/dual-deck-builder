@@ -44,15 +44,21 @@ class EnemyVehicle extends VehicleUI {
 		});
 		this.addChild(this.intentIndicator);
 
+		// Centred in the indicator
 		this.intentText = new Text('!', {
+			x: this.intentIndicator.getX(),
+			y: this.intentIndicator.getY(),
+			width: this.intentIndicator.getWidth(),
+			height: this.intentIndicator.getHeight(),
 			style: {
 				fontSize: 16,
 				color: '#ffffff',
 				textAlign: 'center',
+				verticalAlign: 'middle',
+				whiteSpace: 'nowrap',
 				fontWeight: 'bold',
 			},
 		});
-		this.intentText.setPosition(Math.floor(width * 0.85), Math.floor(height * 0.2));
 		this.addChild(this.intentText);
 	}
 

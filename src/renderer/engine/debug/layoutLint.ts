@@ -165,24 +165,19 @@ export const TARGET_SIZE_MIN_TOUCH = 44;
 /**
  * Rule 4's buckets.
  *
- * Run against the live game in phase 0 the rule is, in practice, a Text
- * detector: every zero-size node in every capture is a Text, and no Rectangle,
- * Button, Panel or Layer ever reports zero. The cause is structural, not a
- * layout bug: `Text.render` reads width and height for alignment and assigns
- * neither, only `Text.layout()` writes them, and the frame loop never calls it.
- * The counts behind that claim, and how they were taken, are in
- * `.claude/notes/ddb55-phase0-recon.md`; they belong with the capture, not in
- * a comment that cannot be re-derived from the code beside it.
+ * Run against the live game in phase 0 the rule was, in practice, a Text
+ * detector: every zero-size node in every capture was a Text, because nothing
+ * sized one unless a screen ran `layout()` (counts in
+ * `.claude/notes/ddb55-phase0-recon.md`). Since DDB-71 a Text sizes itself
+ * from the metrics service, so that flood is gone; a zero-size Text now is
+ * one built where nothing could measure it (a unit test on the null backend).
  *
- * Suppressing Text would hide the one class of node the rule can currently see,
- * and reporting it undifferentiated buries the case the rule exists for: a
- * Rectangle or Button that really did collapse. Every violation is therefore
- * still reported, and each carries the bucket it belongs to, so a consumer
- * filters on `bucket !== 'unmeasured-text'` to get the signal and reads
- * `rules[].buckets` for the split. The discriminator is the type *and* the
- * absence of `text.measured`, so when phase 2's measurement service lands a
- * Text whose box genuinely collapsed moves to `zero-box` on its own and the
- * prescribed filter stops hiding it.
+ * Every violation is still reported with the bucket it belongs to, so a
+ * consumer filters on `bucket !== 'unmeasured-text'` to get the signal and
+ * reads `rules[].buckets` for the split. The discriminator is the type *and*
+ * the absence of `text.measured`, which the snapshot does not emit yet
+ * (DDB-80); once it does, a Text whose box genuinely collapsed moves to
+ * `zero-box` on its own and the prescribed filter stops hiding it.
  */
 export const ZERO_SIZE_BUCKETS = {
 	unmeasuredText: 'unmeasured-text',
