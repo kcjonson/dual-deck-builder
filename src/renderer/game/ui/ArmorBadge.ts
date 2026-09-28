@@ -85,8 +85,11 @@ export class ArmorBadge extends Component {
 		this.measured = false;
 	}
 
+	/** Keeps the minimum width, and tries again next frame, while the body face cannot be measured. */
 	private measure(): void {
-		this.labelWidth = RendererContext.getInstance().draw.measureText({
+		const context = RendererContext.getInstance();
+		if (!context.draw.canMeasureText(VALUE_FONT)) return;
+		this.labelWidth = context.draw.measureText({
 			text: this.label,
 			font: VALUE_FONT,
 			size: VALUE_SIZE,

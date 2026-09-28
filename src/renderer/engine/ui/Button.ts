@@ -3,7 +3,6 @@ import { Icon } from '../components/Icon';
 import { Rectangle } from '../components/Rectangle';
 import { Text } from '../components/Text';
 import { InputSystem } from '../input/InputSystem';
-import { RendererContext } from '../rendering/RendererContext';
 import { RenderContext, DEFAULT_RENDER_CONTEXT } from '../rendering/RenderContext';
 import type { IconName } from '../text/icons';
 import { tokens } from '../theme/tokens';
@@ -162,22 +161,21 @@ export class Button extends Component {
 	/**
 	 * Icon, gap and label are centred as one group: the label's box gives up
 	 * the icon and gap on its left, which moves its centre right by half of
-	 * them, and the icon sits just before the label's measured left edge
-	 * (R2.14, the same measure the label draws with).
+	 * them, and the icon sits just before the label's left edge. The width is
+	 * the label's own measure, so its tracking and transform count (R12.7).
+	 * False, and nothing moved, while the label cannot be measured yet.
 	 */
-	private placeIcon(icon: Icon): void {
+	private placeIcon(icon: Icon): boolean {
+		const labelWidth = this.text.measured?.width;
+		if (labelWidth === undefined) return false;
 		const iconSize = this.iconSize;
 		const gap = Math.round(this.text.getFontSize() * ICON_GAP);
-		const labelWidth = RendererContext.getInstance().draw.measureText({
-			text: this.text.getText(),
-			font: this.text.font,
-			size: this.text.getFontSize(),
-		}).width;
 		const groupLeft = (this.width - (iconSize + gap + labelWidth)) / 2;
 		icon.size = iconSize;
 		icon.setPosition(Math.round(groupLeft), Math.round((this.height - iconSize) / 2));
 		this.labelInset = iconSize + gap;
 		this.updateTextPosition();
+		return true;
 	}
 
 	/**
@@ -305,8 +303,7 @@ export class Button extends Component {
 		const screenY = ctx.offsetY + this.y;
 
 		if (this.icon && !this.iconPlaced) {
-			this.placeIcon(this.icon);
-			this.iconPlaced = true;
+			this.iconPlaced = this.placeIcon(this.icon);
 		}
 
 		// Create child context with our position added
