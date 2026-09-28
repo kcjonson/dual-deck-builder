@@ -26,7 +26,10 @@ export type PointerEventType =
 
 export type KeyEventType = 'keydown' | 'keyup';
 
-export type UiEventType = PointerEventType | 'wheel' | KeyEventType;
+/** R9.12's drag events, synthesised by the drag service. */
+export type DragEventType = 'dragenter' | 'dragover' | 'dragleave' | 'drop' | 'dragend';
+
+export type UiEventType = PointerEventType | 'wheel' | KeyEventType | DragEventType;
 
 /**
  * R9.1's common fields. `target` is where dispatch started; `currentTarget`
@@ -177,4 +180,70 @@ export class UiKeyEvent extends UiEvent {
 	}
 }
 
-export type AnyUiEvent = UiPointerEvent | UiWheelEvent | UiKeyEvent;
+export interface DragEventInit {
+	type: DragEventType;
+	timestamp: number;
+	target: Component;
+	screen: Vec2;
+	/** The component the drag started from (R9.12a). */
+	source: Component;
+	/** What `drag.start` was given, handed to every target. */
+	data: unknown;
+	pointerId: number;
+	pointerType: PointerType;
+	/** `dragend` only: whether an accepting target took the drop (R9.12c). */
+	dropped?: boolean;
+	/** `dragend` only: the component that accepted the drop, null when nothing did. */
+	dropTarget?: Component | null;
+}
+
+/**
+ * R9.12's drag event. `dragenter`, `dragover`, `dragleave` and `drop` go to
+ * the component under the pointer with the ghost excluded and bubble;
+ * `dragend` goes to the source. A component takes the drop by calling
+ * `accept()` while a `dragenter` or `dragover` passes through it (R9.12c).
+ */
+export class UiDragEvent extends UiEvent {
+	public readonly type: DragEventType;
+	public readonly screen: Vec2;
+	public readonly source: Component;
+	public readonly data: unknown;
+	public readonly pointerId: number;
+	public readonly pointerType: PointerType;
+	public readonly dropped: boolean;
+	public readonly dropTarget: Component | null;
+	private acceptingComponent: Component | null = null;
+
+	constructor(init: DragEventInit) {
+		super(init);
+		this.type = init.type;
+		this.screen = init.screen;
+		this.source = init.source;
+		this.data = init.data;
+		this.pointerId = init.pointerId;
+		this.pointerType = init.pointerType;
+		this.dropped = init.dropped ?? false;
+		this.dropTarget = init.dropTarget ?? null;
+	}
+
+	public get local(): Vec2 | null {
+		return this.currentTarget.screenToLocal(this.screen);
+	}
+
+	/**
+	 * R9.12c: `currentTarget` will take the drop. Only a `dragenter` or
+	 * `dragover` can accept, and the innermost component to accept wins; it
+	 * shows `dropActive` until the pointer leaves it or the drag ends.
+	 */
+	public accept(): void {
+		if (this.type !== 'dragenter' && this.type !== 'dragover') return;
+		if (this.acceptingComponent === null) this.acceptingComponent = this.currentTarget;
+	}
+
+	/** The component that called `accept()`, or null. */
+	public get acceptedBy(): Component | null {
+		return this.acceptingComponent;
+	}
+}
+
+export type AnyUiEvent = UiPointerEvent | UiWheelEvent | UiKeyEvent | UiDragEvent;

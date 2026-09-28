@@ -6,6 +6,16 @@ This document contains the chronological log of completed development tasks for 
 
 **Date correction (2026-08-22):** the repo's first commit is 2025-05-17, but many entries below carry dates in December 2024 or January 2025 — the AI that wrote them used its assumed date instead of the real one. Entries dated 2025-07-03 and 2025-07-02 have been corrected from "2025-01-03"/"2025-01-02" (verified against git history). Remaining Dec 2024 / Jan 2025 dates are wrong by roughly six months; the real work happened May–July 2025. Trust git history over these dates.
 
+## Drag service (2026-09-28)
+
+**What landed:** DDB-77 (DDB-55 phase 3), R9.12a to R9.12e.
+
+- `input/DragService.ts`: `start`, the token threshold (`dragThreshold`), ghost promotion to the `drag` layer following the pointer by transform, targeting with the ghost excluded, `dragenter`/`dragover`/`dragleave`/`drop`/`dragend`, `accept()`, cancellation, `cancel()`, and `isDragging`/`onDraggingChange`/`current`/`canDrop` for readers such as the tooltip service. `UiDragEvent` in `input/events.ts`.
+- The dispatcher builds the service and feeds it from move, up, cancel, capture release, unmount and each frame's re-target; `MountContext.drag`. `Component` gains the five drag callbacks and `dropActive` with `onDropActiveChange`; `dragSource` and `DRAG_THRESHOLD_MOUSE`/`_TOUCH` are deleted.
+- No game code drags yet; the hand layer's comment that said it did is corrected.
+
+**How:** `DragService.test.ts` (27 tests: threshold per pointer type and given, second start refused, ghost promotion, offset and restore, a scaled parent, enter/over/leave order with bubbling, the captured enemy that hears no `pointerenter` but does hear `dragenter`, re-targeting under a still pointer, accept on enter and on over, an ancestor accepting for a child, `dropActive` moving between targets, drop and undropped ends, cancel, blur, capture release, unmount of source and target, `cancel()` before and after the threshold, the dragging listener, and a full drag through the injection hook). The dispatcher's drag-source click tests now start a real drag. Driven in the browser through `__dev.input`: menu, START RUN, a card pressed with a 30 px wander and released on itself still selected it, Headshot played on the raider, Escape cancelled targeting, END TURN into turn 2, clean console.
+
 ## Input dispatcher and Pointer Events adapter (2026-09-28)
 
 **What landed:** DDB-75 (DDB-55 phase 3), chapter 9's dispatch half: R9.1 to R9.11, R9.25, R9.30 to R9.32, R3.28, R4.12, R8.2's input callbacks.

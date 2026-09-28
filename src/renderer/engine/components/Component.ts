@@ -15,7 +15,7 @@ import {
 	transformMatrix,
 } from './componentGeometry';
 import type { MountContext } from './MountContext';
-import type { AnyUiEvent, UiKeyEvent, UiPointerEvent, UiWheelEvent } from '../input/events';
+import type { AnyUiEvent, UiDragEvent, UiKeyEvent, UiPointerEvent, UiWheelEvent } from '../input/events';
 
 /**
  * R8.29. `auto`: this box is a target and children are hit-tested.
@@ -61,6 +61,7 @@ export interface ComponentOptions {
 export type PointerCallback = (event: UiPointerEvent) => void;
 export type WheelCallback = (event: UiWheelEvent) => void;
 export type KeyCallback = (event: UiKeyEvent) => void;
+export type DragCallback = (event: UiDragEvent) => void;
 
 /**
  * Keyed reconciliation callbacks (R8.27). `remove` may return a promise to
@@ -106,6 +107,7 @@ export abstract class Component {
 	private ownOverflow: Overflow = 'visible';
 	private hoverState = false;
 	private focusState = false;
+	private dropActiveState = false;
 	private parentComponent: Component | null = null;
 	private mountContext: MountContext | null = null;
 	/** This subtree has to be laid out: set here and on every ancestor up to the boundary (R8.18). */
@@ -144,8 +146,7 @@ export abstract class Component {
 	public onLayout: ((bounds: Rect) => void) | null = null;
 
 	// R8.2's input callbacks. `handleEvent` runs the one matching an event
-	// before the component's own handling; focus and drag callbacks arrive
-	// with DDB-76 and DDB-77.
+	// before the component's own handling; focus callbacks arrive with DDB-76.
 	public onPointerDown: PointerCallback | null = null;
 	public onPointerUp: PointerCallback | null = null;
 	public onPointerMove: PointerCallback | null = null;
@@ -156,15 +157,12 @@ export abstract class Component {
 	public onWheel: WheelCallback | null = null;
 	public onKeyDown: KeyCallback | null = null;
 	public onKeyUp: KeyCallback | null = null;
-
-	/**
-	 * Whether a press here, or on a descendant, may start a drag (R9.12a).
-	 * Only then does moving past the drag threshold cancel the click; a
-	 * press elsewhere clicks wherever it wandered, as long as it is released
-	 * on the same component. DDB-77's drag service sets it through
-	 * `context.drag.start`; until then it is set by hand.
-	 */
-	public dragSource = false;
+	/** R9.12's drag events: enter, over, leave and drop on targets, end on the source. */
+	public onDragEnter: DragCallback | null = null;
+	public onDragOver: DragCallback | null = null;
+	public onDragLeave: DragCallback | null = null;
+	public onDrop: DragCallback | null = null;
+	public onDragEnd: DragCallback | null = null;
 
 	/**
 	 * R8.29's per-type default: `auto` for leaves and widgets. Containers say
@@ -822,6 +820,7 @@ export abstract class Component {
 		this.laidOutBounds = null;
 		this.hoverState = false;
 		this.focusState = false;
+		this.dropActiveState = false;
 	}
 
 	/**
@@ -966,6 +965,21 @@ export abstract class Component {
 			case 'keyup':
 				this.onKeyUp?.(event);
 				return;
+			case 'dragenter':
+				this.onDragEnter?.(event);
+				return;
+			case 'dragover':
+				this.onDragOver?.(event);
+				return;
+			case 'dragleave':
+				this.onDragLeave?.(event);
+				return;
+			case 'drop':
+				this.onDrop?.(event);
+				return;
+			case 'dragend':
+				this.onDragEnd?.(event);
+				return;
 		}
 	}
 
@@ -1001,6 +1015,20 @@ export abstract class Component {
 		this.hoverState = hovered;
 		if (hovered) this.onHover();
 		else this.onUnhover();
+	}
+
+	/**
+	 * R9.12c and R11.11: this component accepted the drag under the pointer
+	 * and would take the drop. Maintained by the drag service.
+	 */
+	public get dropActive(): boolean {
+		return this.dropActiveState;
+	}
+
+	public setDropActive(active: boolean): void {
+		if (this.dropActiveState === active) return;
+		this.dropActiveState = active;
+		this.onDropActiveChange(active);
 	}
 
 	public isFocused(): boolean {
@@ -1046,6 +1074,10 @@ export abstract class Component {
 	}
 
 	protected onBlur(): void {
+		// Override in subclasses
+	}
+
+	protected onDropActiveChange(_active: boolean): void {
 		// Override in subclasses
 	}
 
