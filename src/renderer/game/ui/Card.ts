@@ -26,6 +26,8 @@ const CARD_DIMENSIONS = {
 /** A card title gets up to two lines, at the display face's own line height. */
 const TITLE_LINES = 2;
 const TITLE_LINE_HEIGHT = 1.2;
+/** Space between the title slot and the cost's digits. */
+const TITLE_COST_GAP = 4;
 
 /**
  * Visual component for displaying a card
@@ -112,19 +114,29 @@ export class Card extends Layer {
 		// title starts past it rather than under it.
 		const titleX = hasDriverBadge ? badgeX + badgeSize + Math.floor(6 * scaleFactor) : padding;
 		const headerY = Math.floor(20 * scaleFactor);
-		// The cost is centred 30 px in from the right edge
-		const costWidth = Math.floor(24 * scaleFactor);
-		const costX = dimensions.width - Math.floor(30 * scaleFactor) - Math.floor(costWidth / 2);
 		const titleSize = Math.floor(14 * scaleFactor);
 
-		// Card name: wraps to a second line rather than running under the
-		// cost, and a name that needs a third is cut with an ellipsis. Two line
-		// boxes end above the description.
+		// Cost: hugs its digits, centred 30 px in from the right edge
+		this.cost = new Text(`${data.cost}`, {
+			id: this.childId('cost'),
+			y: headerY,
+			style: {
+				fontSize: Math.floor(20 * scaleFactor),
+				color: '#ffaa00',
+				fontWeight: 'bold',
+				whiteSpace: 'nowrap',
+			},
+		});
+		this.cost.setX(dimensions.width - Math.floor(30 * scaleFactor) - this.cost.getWidth() / 2);
+
+		// Card name: runs up to the cost's measured left edge, wraps to a second
+		// line rather than under it, and a name that needs a third is cut with
+		// an ellipsis. Two line boxes end above the description.
 		this.name = new Text(data.displayName, {
 			id: this.childId('title'),
 			x: titleX,
 			y: headerY,
-			width: costX - Math.floor(4 * scaleFactor) - titleX,
+			width: Math.floor(this.cost.getX() - TITLE_COST_GAP * scaleFactor - titleX),
 			height: Math.ceil(TITLE_LINES * titleSize * TITLE_LINE_HEIGHT),
 			style: {
 				fontSize: titleSize,
@@ -135,29 +147,17 @@ export class Card extends Layer {
 			},
 		});
 		this.addChild(this.name);
-
-		// Cost
-		this.cost = new Text(`${data.cost}`, {
-			id: this.childId('cost'),
-			x: costX,
-			y: headerY,
-			width: costWidth,
-			style: {
-				fontSize: Math.floor(20 * scaleFactor),
-				color: '#ffaa00',
-				fontWeight: 'bold',
-				textAlign: 'center',
-				whiteSpace: 'nowrap',
-			},
-		});
 		this.addChild(this.cost);
 
 		// Description with automatic text wrapping
 		// Skip description for mini cards
 		if (size !== CardSize.MINI) {
-			// Ends above the rarity line; a longer text ends in an ellipsis
+			// The face shows the summary (Card System Design 1.1); the full rules
+			// text is for the detail view. Keyword brackets become highlights
+			// with DDB-137, plain until then. The box ends above the rarity line
+			// and the ellipsis is only a backstop: no summary reaches it.
 			const descriptionY = Math.floor(60 * scaleFactor);
-			this.description = new Text(data.displayDescription, {
+			this.description = new Text(Card.faceText(data.displaySummary), {
 				id: this.childId('description'),
 				x: padding,
 				y: descriptionY,
@@ -454,6 +454,11 @@ export class Card extends Layer {
 	/**
 	 * Get color based on card rarity
 	 */
+	/** A summary as the face draws it: `[keyword]` brackets stripped. */
+	public static faceText(summary: string): string {
+		return summary.replace(/\[(.+?)\]/g, '$1');
+	}
+
 	private static getRarityColor(rarity: string): string {
 		switch (rarity) {
 			case 'starter':

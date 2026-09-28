@@ -31,9 +31,11 @@ Under the new contract a zero-width centred text starts at its x. About thirty c
 - Driver stats: the readout hugs its width (Open Sans digits share one advance, so it holds still as the count changes), each value is centred in its icon, and the display hugs its content. `getRequiredWidth` is gone; the resource bar lays the displays out from their widths.
 - Input caret: `x` is the last entry of the value's `advances` (a trailing space counts), and the caret spans the value's line box, centred as the value is.
 
-### Card header (DDB-198)
+### Card header (DDB-198) and face text
 
-Both options the ticket named come from R6.14: ellipsis, or a second line. The title keeps two line boxes (at 1.2, the display face's own) between the badge or padding and the cost's box, wraps, and ends in an ellipsis if a name ever needs a third line. Every title in `cards.json`, upgraded or not, badged or not, fits (a test walks them all), where a one-line ellipsis would have cut about eight of them on a badged card. Shrink-to-fit was not considered: the spec has no such text property, and a size that changes per card would break the hand's rhythm. The description box used to run 50 px past the rarity line and draw over it on long cards; it now ends 4 px above it with an ellipsis.
+Both options the ticket named come from R6.14: ellipsis, or a second line. The cost hugs its digits, centred where it was, and the title slot runs from the badge (or padding) to 4 px before the digits' measured left edge, about 71 px on a badged card. A title that fits there stays on one line (Armor Plating, Precision Shot); a longer one wraps to a second line box (at 1.2, the display face's own) and ends in an ellipsis only if a name ever needs a third. Every title in `cards.json`, upgraded or not, badged or not, fits. Shrink-to-fit was not considered: the design specs say never smaller type, and the spec has no such text property.
+
+Real measurement showed the face cutting rules text: at NORMAL size nine of the 27 descriptions need six to thirteen lines in a five-line box. The face now shows the card's `summary` with its `[keyword]` brackets stripped, as Card System Design 1.1 and Battle Screen Design intend (short text on the face, full text in the detail view, DDB-137). The box ends 4 px above the rarity line and keeps an ellipsis as a backstop that nothing reaches: `Card.test.ts` checks that no text on any card face, NORMAL and LARGE, badged or not, upgraded or not, measures larger than its box. `cards.test.ts`'s 60-character summary proxy is a measured three-line check on the face as drawn (DDB-202). The design's redesigned face, 12 px in 114 px, would need a fourth line for three summaries; that content call is DDB-204.
 
 ### R6.11 (DDB-200)
 

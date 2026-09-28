@@ -16,9 +16,9 @@ function part(card: Card, suffix: string): Text {
 	return found;
 }
 
-function build(data: CardData, driverNumber: 1 | 2 | null, upgraded = false): Card {
+function build(data: CardData, driverNumber: 1 | 2 | null, upgraded = false, size = CardSize.NORMAL): Card {
 	const model = new GameCard({ ...data, upgraded });
-	return new Card({ id: 'card', x: 0, y: 0, data: model, size: CardSize.NORMAL, driverNumber });
+	return new Card({ id: 'card', x: 0, y: 0, data: model, size, driverNumber });
 }
 
 describe('Card header (DDB-198)', () => {
@@ -34,7 +34,7 @@ describe('Card header (DDB-198)', () => {
 				const cost = part(card, 'cost');
 				const measured = title.measured;
 
-				// The slot ends before the cost's box, so nothing runs under the digit.
+				// The slot ends before the cost's digits, so nothing runs under them.
 				expect(title.x + title.width).toBeLessThanOrEqual(cost.x);
 				// Every line of the wrapped title fits the slot's width and the slot
 				// holds all of them: no name needs the ellipsis today.
@@ -43,6 +43,44 @@ describe('Card header (DDB-198)', () => {
 				expect(measured?.height).toBeLessThanOrEqual(title.height);
 			}
 		}
+	});
+
+	it('keeps a title that fits beside the cost on one line', () => {
+		for (const name of ['Armor Plating', 'Precision Shot']) {
+			const data = cardData.find((candidate) => candidate.name === name);
+			expect(data).toBeDefined();
+			expect(part(build(data as CardData, 1), 'title').measured?.lines).toBe(1);
+		}
+	});
+
+	it('cuts nothing on any card face, NORMAL or LARGE, badged or not, upgraded or not', () => {
+		for (const size of [CardSize.NORMAL, CardSize.LARGE]) {
+			for (const driverNumber of [1, null] as const) {
+				for (const data of cardData) {
+					for (const upgraded of [false, true]) {
+						const card = build(data, driverNumber, upgraded, size);
+						for (const child of card.getChildren()) {
+							if (!(child instanceof Text)) continue;
+							const measured = child.measured;
+							const label = `${data.name}${upgraded ? '+' : ''} ${size} ${child.id}`;
+							expect([label, measured]).not.toEqual([label, null]);
+							// No ellipsis or clip can fire: the laid-out text fits its box.
+							expect([label, (measured?.width ?? 0) <= child.width + 1e-6]).toEqual([label, true]);
+							expect([label, (measured?.height ?? 0) <= child.height + 1e-6]).toEqual([label, true]);
+						}
+					}
+				}
+			}
+		}
+	});
+
+	it('shows the summary on the face, keyword brackets stripped', () => {
+		const data = cardData.find((candidate) => candidate.summary.includes('['));
+		expect(data).toBeDefined();
+		const model = new GameCard({ ...(data as CardData) });
+		const description = part(build(data as CardData, null), 'description');
+		expect(description.getText()).toBe(Card.faceText(model.displaySummary));
+		expect(description.getText()).not.toMatch(/[[\]]/);
 	});
 
 	it('wraps a long badged title onto a second line instead of under the cost', () => {
