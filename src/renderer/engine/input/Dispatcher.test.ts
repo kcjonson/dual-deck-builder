@@ -2,7 +2,7 @@ import { Component, ComponentOptions } from '../components/Component';
 import { Container } from '../components/Container';
 import type { MountContext } from '../components/MountContext';
 import { createTestContext } from '../components/testing';
-import { Panel } from '../ui/Panel';
+import { ScrollContainer } from '../ui/ScrollContainer';
 import { PlatformInput, TOUCH_HOLD_MS, WHEEL_LATCH_MS, WHEEL_LINE_PX } from './Dispatcher';
 import { dragThreshold } from './DragService';
 import type { AnyUiEvent, PointerType } from './events';
@@ -148,11 +148,12 @@ describe('hit order (R9.4, R3.28)', () => {
 	});
 
 	it('does not hit a child scrolled out of its clip', () => {
-		const panel = new Panel({ id: 'panel', width: 100, height: 100, scrollable: true });
+		const panel = new ScrollContainer({ id: 'panel', width: 100, height: 100, contentHeight: 200 });
+		const content = new Container({ width: 100, height: 200 });
 		const rows = [0, 1, 2, 3].map((index) => new Probe({ id: `row-${index}`, x: 0, y: index * 50, width: 100, height: 50 }));
-		rows.forEach((row) => panel.addChild(row));
-		panel.setContentSize(100, 200);
-		panel.scroll(0, 60);
+		rows.forEach((row) => content.addChild(row));
+		panel.addChild(content);
+		panel.scrollBy(60);
 		mount(panel);
 
 		// Row 0 now sits at y -60 to -10, outside the panel.
@@ -368,10 +369,11 @@ describe('enter, leave, and hovered (R9.8, R9.9)', () => {
 	});
 
 	it('updates hover when a scroll moves content under a still pointer', () => {
-		const panel = new Panel({ id: 'panel', width: 100, height: 100, scrollable: true });
+		const panel = new ScrollContainer({ id: 'panel', width: 100, height: 100 });
+		const content = new Container({ width: 100, height: 200 });
 		const rows = [0, 1, 2, 3].map((index) => new Probe({ id: `row-${index}`, x: 0, y: index * 50, width: 100, height: 50 }));
-		rows.forEach((row) => panel.addChild(row));
-		panel.setContentSize(100, 200);
+		rows.forEach((row) => content.addChild(row));
+		panel.addChild(content);
 		mount(panel);
 
 		send(pointer('move', 10, 10));
@@ -629,12 +631,13 @@ describe('touch hold (R9.30)', () => {
 });
 
 describe('wheel (R9.3, R9.32)', () => {
-	function nested(): { outer: Panel; inner: Panel } {
-		const outer = new Panel({ id: 'outer', width: 200, height: 200, scrollable: true });
-		outer.setContentSize(200, 1000);
-		const inner = new Panel({ id: 'inner', x: 0, y: 0, width: 100, height: 100, scrollable: true });
-		inner.setContentSize(100, 132);
-		outer.addChild(inner);
+	function nested(): { outer: ScrollContainer; inner: ScrollContainer } {
+		const outer = new ScrollContainer({ id: 'outer', width: 200, height: 200 });
+		const outerContent = new Container({ width: 200, height: 1000 });
+		const inner = new ScrollContainer({ id: 'inner', x: 0, y: 0, width: 100, height: 100 });
+		inner.addChild(new Container({ width: 100, height: 132 }));
+		outerContent.addChild(inner);
+		outer.addChild(outerContent);
 		mount(outer);
 		return { outer, inner };
 	}
@@ -642,38 +645,48 @@ describe('wheel (R9.3, R9.32)', () => {
 	it('scrolls 16 logical pixels for one line-mode event', () => {
 		const { inner } = nested();
 		wheel(50, 50, 1, { deltaMode: 1 });
-		expect(inner.getScrollOffset().y).toBe(WHEEL_LINE_PX);
+		expect(inner.scrollPosition).toBe(WHEEL_LINE_PX);
 	});
 
 	it('scrolls a page as the scroller\'s own viewport', () => {
 		const { outer } = nested();
 		wheel(150, 150, 1, { deltaMode: 2 });
-		expect(outer.getScrollOffset().y).toBe(200);
+		expect(outer.scrollPosition).toBe(200);
 	});
 
 	it('keeps a latched inner scroller for 150 ms at its end, then passes a new gesture on', () => {
 		const { outer, inner } = nested();
 		wheel(50, 50, 30);
-		expect(inner.getScrollOffset().y).toBe(30);
+		expect(inner.scrollPosition).toBe(30);
 		// At its end (32), still latched: the outer panel does not move.
 		context.clock.advance(WHEEL_LATCH_MS - 10);
 		wheel(50, 50, 30);
 		context.clock.advance(WHEEL_LATCH_MS - 10);
 		wheel(50, 50, 30);
-		expect(inner.getScrollOffset().y).toBe(32);
-		expect(outer.getScrollOffset().y).toBe(0);
+		expect(inner.scrollPosition).toBe(32);
+		expect(outer.scrollPosition).toBe(0);
 		// A new gesture: the inner panel cannot move down, so the outer takes it.
 		context.clock.advance(WHEEL_LATCH_MS + 1);
 		wheel(50, 50, 30);
-		expect(outer.getScrollOffset().y).toBe(30);
+		expect(outer.scrollPosition).toBe(30);
 	});
 
 	it('scrolls horizontally with Shift and a vertical-only delta', () => {
-		const panel = new Panel({ id: 'wide', width: 100, height: 100, scrollable: true, scrollDirection: 'horizontal' });
-		panel.setContentSize(400, 100);
-		mount(panel);
+		// A horizontal scroller of the test's own: ScrollContainer is vertical only (R12.20).
+		const deltas: Array<[number, number]> = [];
+		class Wide extends Probe {
+			public canScroll(deltaX: number): boolean {
+				return deltaX !== 0;
+			}
+
+			public handleEvent(event: AnyUiEvent): void {
+				super.handleEvent(event);
+				if (event.type === 'wheel') deltas.push([event.deltaX, event.deltaY]);
+			}
+		}
+		mount(new Wide({ id: 'wide', width: 100, height: 100 }));
 		wheel(50, 50, 40, { shift: true });
-		expect(panel.getScrollOffset()).toEqual({ x: 40, y: 0 });
+		expect(deltas).toEqual([[40, 0]]);
 	});
 });
 

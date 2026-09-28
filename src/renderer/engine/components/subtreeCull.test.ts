@@ -4,7 +4,7 @@ import type { DrawApi as DrawApiType } from '../draw/DrawApi';
 import { ATLAS_ASSETS } from '../text/fontFaces';
 import { MeasuringRecordingBackend, committedAtlas, createMeasuringDrawApi } from '../text/testing';
 import { Button } from '../ui/Button';
-import { Panel } from '../ui/Panel';
+import { ScrollContainer } from '../ui/ScrollContainer';
 import { Circle } from './Circle';
 import type { Component } from './Component';
 import { Container } from './Container';
@@ -117,17 +117,18 @@ describe('subtree cull (DDB-184, R4.2a)', () => {
 		card.y = 50;
 		expect(frame(root).drawn).toEqual(['card:rect']);
 
-		const panel = new Panel({ id: 'panel', x: 100, y: 100, width: 200, height: 200, scrollable: true });
+		const panel = new ScrollContainer({ id: 'panel', x: 100, y: 100, width: 200, height: 200, contentHeight: 400 });
+		const content = new Container({ width: 200, height: 400 });
 		const row = new Counting({ id: 'row', x: 0, y: 300, width: 100, height: 40 });
-		panel.setContentSize(200, 400);
-		panel.addChild(row);
+		content.addChild(row);
+		panel.addChild(content);
 		const scrolled = new Container({ width: 800, height: 600 });
 		scrolled.addChild(panel);
 		frame(scrolled);
 		frame(scrolled);
 		expect(row.renders).toBe(1);
 
-		panel.scroll(0, 150);
+		panel.scrollBy(150);
 		expect(frame(scrolled).drawn).toContain('row:rect');
 	});
 
@@ -521,15 +522,14 @@ describe('the walk allocates no geometry per frame (#85 review)', () => {
 		expect(card.subtreeInk).toEqual({ minX: 0, minY: 0, maxX: 100, maxY: 20 });
 	});
 
-	it('keeps one Panel content offset until the scroll moves', () => {
-		const panel = new Panel({ width: 100, height: 100, scrollable: true, padding: 4 });
-		panel.setContentSize(100, 400);
+	it('keeps one ScrollContainer content offset until the scroll moves', () => {
+		const panel = new ScrollContainer({ width: 100, height: 100, contentHeight: 400, style: { padding: 4 } });
 		const offset = panel.contentOffset;
 		expect(panel.contentOffset).toBe(offset);
-		expect(offset).toEqual({ x: -4, y: -4 });
+		expect(offset).toEqual({ x: 0, y: 0 });
 
-		panel.scroll(0, 30);
+		panel.scrollBy(30);
 		expect(panel.contentOffset).not.toBe(offset);
-		expect(panel.contentOffset).toEqual({ x: -4, y: 26 });
+		expect(panel.contentOffset).toEqual({ x: 0, y: 30 });
 	});
 });

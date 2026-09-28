@@ -1,281 +1,373 @@
-import type { Rect, Vec2 } from '../draw/geometry';
+import type { Component, PointerEvents, ResolvedColors } from '../components/Component';
+import type { Sides } from '../components/componentGeometry';
+import { Stack, StackOptions } from '../components/Stack';
+import { Text } from '../components/Text';
+import type { BoxShadow } from '../draw/commands';
 import type { DrawApi } from '../draw/DrawApi';
-import { Container, ContainerOptions } from '../components/Container';
-import { BoxStyle, BoxStyleObject, boxAcceptance, boxColors, drawBox, resolveBoxStyle } from '../components/Rectangle';
-import { validateStyle } from '../style/styleObject';
-import type { Component, ResolvedColors } from '../components/Component';
-import type { AnyUiEvent } from '../input/events';
+import type { RGBA, Rect } from '../draw/geometry';
+import { glowShadow, shadowExtent } from '../style/look';
+import {
+	StyleAcceptance,
+	StyleObject,
+	StyleProperty,
+	resolveColor,
+	resolveLength,
+	resolvePadding,
+	resolveShadow,
+	validateStyle,
+} from '../style/styleObject';
+import { tokens } from '../theme/tokens';
+
+export type PanelVariant = 'panel' | 'raised' | 'inset';
+export type PanelAccent = 'accent' | 'data' | 'none';
 
 /**
- * Panel creation options
+ * `stack` lays the children out as a stack (R12.19's content slot, the
+ * default); `free` leaves them where they were put, inside the content box,
+ * for the hand-placed layouts older screens still have.
  */
-export interface PanelOptions extends ContainerOptions {
-	scrollable?: boolean;
-	scrollDirection?: 'vertical' | 'horizontal' | 'both';
-	/**
-	 * Inset of the content from every edge of the box, border included
-	 * (R12.19). Children at (0, 0) sit this far inside the border rather than
-	 * on it; the panel's own size stays the border box.
-	 */
-	padding?: number;
-	/** R11.14's box properties. */
-	style?: BoxStyleObject;
+export type PanelLayout = 'stack' | 'free';
+
+export interface PanelOptions extends Omit<StackOptions, 'style' | 'padding'> {
+	/** The header's title; a header band is drawn only with a title or kicker. */
+	title?: string;
+	/** A small line above the title: a category, a count, a status. */
+	kicker?: string;
+	/** Default `panel`. `raised` adds the raised shadow, `inset` is a well. */
+	variant?: PanelVariant;
+	/** The colour of the corner ticks, the kicker, and the glow. Default `accent`. */
+	accent?: PanelAccent;
+	/** Bracket ticks at the four corners, straddling the border in the accent colour. */
+	corners?: boolean;
+	/** A smaller header and content inset. */
+	compact?: boolean;
+	/** No content inset at all: the content meets the border (a list, a map). */
+	flush?: boolean;
+	/** The accent's glow around the box. */
+	glow?: boolean;
+	/** Components laid out right to left at the header's right end. Needs a title or kicker. */
+	actions?: Component[];
+	/** Default `stack`. */
+	layout?: PanelLayout;
+	/** R11.14's closed set: box colours, border, radius, shadow, and the content inset (`padding`). */
+	style?: StyleObject;
 }
 
-const DEFAULT_BOX: BoxStyle = {
-	fill: [0.2, 0.2, 0.2, 0.8],
-	borderColor: [0x4d / 255, 0x4d / 255, 0x4d / 255, 1],
-	borderWidth: 1,
-	cornerRadius: 5,
-	shadow: null,
+const PANEL_STYLE: StyleAcceptance = {
+	component: 'Panel',
+	properties: new Set<StyleProperty>(['backgroundColor', 'borderColor', 'borderWidth', 'borderRadius', 'opacity', 'padding', 'shadow']),
+	states: new Set(),
 };
 
+const { color } = tokens;
+const CLEAR: RGBA = [0, 0, 0, 0];
+/** A corner tick's arm length. */
+const TICK = tokens.space.space_2;
+const TICK_WIDTH = tokens.borderWidth.bw_thick;
+/** A kicker line and a title line: their font sizes times the default line height. */
+const KICKER_LINE = Math.round(tokens.fontSize.fs_xs * tokens.lineHeight.lh);
+const TITLE_LINE = Math.round(tokens.fontSize.fs_md * tokens.lineHeight.lh);
+
+interface PanelBox {
+	fill: RGBA;
+	border: RGBA;
+	borderWidth: number;
+	radius: number;
+	shadow: BoxShadow | null;
+}
+
 /**
- * A container with a background box, optionally scrolling its children.
+ * R12.19's panel: a box from the theme (`variant`), an optional header band
+ * with a kicker, a title, and a slot of actions at its right end, a hairline
+ * under the header, bracket ticks at the corners, and a glow; the content is
+ * a stack by default (`layout: 'stack'`), inset from the border by the
+ * content padding, below the header.
  *
- * The background is the panel's own draw (R8.1) and the children are exactly
- * what callers added (R8.6): there is no background child and no content
- * layer. Scrolling is R4.9's pair, a clip at the panel's box and a
- * `contentOffset` the walk applies inside it, so the clip stays fixed on
- * screen while the content moves (R4.10), and rows scrolled out of view are
- * dropped by the draw API's cull against that clip (R4.2a).
+ * The children are exactly what the caller added (R12.18): the kicker and
+ * title are the panel's own parts, drawn in its header and never in the
+ * flow; the actions are the caller's own components, which the panel takes
+ * out of the flow and places in the header. With `layout: 'free'` nothing
+ * flows and every child sits at its `position` inside the content box.
+ *
+ * `pointerEvents` defaults to `auto` so a panel occludes what is beneath it.
+ * Scrolling is not the panel's: put a ScrollContainer inside it (R12.20).
  */
-export class Panel extends Container {
-	public scrollable = false;
-	private box: BoxStyle;
-	private scrollDirection: 'vertical' | 'horizontal' | 'both' = 'vertical';
-	private scrollOffsetX = 0;
-	private scrollOffsetY = 0;
-	private scrollExtentWidth = 0;
-	private scrollExtentHeight = 0;
-	private readonly contentInset: number;
-	/** `contentOffset`, rebuilt only when the scroll moves, so the walk allocates none per frame. */
-	private offsetCache: Vec2 | null = null;
+export class Panel extends Stack {
+	private box: PanelBox;
+	private readonly panelVariant: PanelVariant;
+	private readonly panelAccent: PanelAccent;
+	private readonly showCorners: boolean;
+	private readonly showGlow: boolean;
+	private readonly contentPadding: Sides;
+	private readonly headerInset: number;
+	private readonly headerHeight: number;
+	private readonly kickerText: Text | null;
+	private readonly titleText: Text | null;
+	private readonly actionItems: readonly Component[];
+	private readonly freeLayout: boolean;
 
-	/**
-	 * Create a new panel
-	 * @param options Optional configuration including style
-	 */
-	constructor(options?: PanelOptions) {
-		super(options);
+	constructor({
+		title,
+		kicker,
+		variant = 'panel',
+		accent = 'accent',
+		corners = false,
+		compact = false,
+		flush = false,
+		glow = false,
+		actions = [],
+		layout = 'stack',
+		style = {},
+		...options
+	}: PanelOptions = {}) {
+		validateStyle(style, PANEL_STYLE);
+		const box = panelBox(variant, style);
+		const inset = flush ? 0 : compact ? tokens.space.space_2 : tokens.space.space_4;
+		const requested = style.padding !== undefined
+			? resolvePadding(style.padding, { top: inset, right: inset, bottom: inset, left: inset })
+			: { top: inset, right: inset, bottom: inset, left: inset };
+		// R12.19: content is inset by the border and the corner radius, since
+		// the rounded clip is not implemented; `flush` and a smaller padding
+		// meet that edge rather than paint over it.
+		const edge = Math.max(box.borderWidth, box.radius);
+		const contentPadding = {
+			top: Math.max(requested.top, edge),
+			right: Math.max(requested.right, edge),
+			bottom: Math.max(requested.bottom, edge),
+			left: Math.max(requested.left, edge),
+		};
+		const hasHeader = title !== undefined || kicker !== undefined;
+		if (actions.length > 0 && !hasHeader) throw new Error('Panel: actions sit in the header, which needs a title or kicker (R12.19)');
+		const headerInset = compact ? tokens.space.space_1_5 : tokens.space.space_2;
+		const headerHeight = hasHeader
+			? headerInset * 2 + (kicker !== undefined ? KICKER_LINE : 0) + (title !== undefined ? TITLE_LINE : 0)
+			: 0;
+		super({
+			...options,
+			padding: { ...contentPadding, top: contentPadding.top + headerHeight },
+		});
 		this.componentType = 'Panel';
-		this.contentInset = Math.max(options?.padding ?? 0, 0);
+		this.panelVariant = variant;
+		this.panelAccent = accent;
+		this.showCorners = corners;
+		this.showGlow = glow;
+		this.contentPadding = contentPadding;
+		this.headerInset = headerInset;
+		this.headerHeight = headerHeight;
+		this.freeLayout = layout === 'free';
+		this.box = box;
+		if (style.opacity !== undefined) this.opacity = style.opacity;
 
-		// A zero is no value here, as it was when the background was a child
-		// Rectangle built with `||` defaults.
-		const style = options?.style;
-		if (style) validateStyle(style, boxAcceptance('Panel'));
-		this.box = resolveBoxStyle({
-			backgroundColor: style?.backgroundColor || '#333333cc',
-			borderColor: style?.borderColor || '#4d4d4d',
-			borderWidth: style?.borderWidth || 1,
-			borderRadius: style?.borderRadius || 5,
-			shadow: style?.shadow,
-		}, DEFAULT_BOX);
-
-		// Set scroll properties
-		if (options?.scrollable !== undefined) {
-			this.scrollable = options.scrollable;
-			// Automatically set overflow to hidden for scrollable panels
-			if (this.scrollable) {
-				this.setOverflow('hidden');
-			}
-		}
-		if (options?.scrollDirection !== undefined) {
-			this.scrollDirection = options.scrollDirection;
-		}
-		// A scroll viewport is a target in its own right, gaps between rows
-		// included, so a wheel anywhere over it finds it (R9.32).
-		if (this.scrollable && options?.pointerEvents === undefined) {
-			this.pointerEvents = 'auto';
-		}
+		this.kickerText = kicker !== undefined
+			? new Text(kicker, {
+				style: {
+					fontFamily: 'monospace',
+					fontSize: tokens.fontSize.fs_xs,
+					color: [...(accent === 'none' ? color.text_dim : this.accentColor)] as [number, number, number, number],
+					textTransform: 'uppercase',
+					letterSpacing: tokens.letterSpacing.ls_wide,
+				},
+				wrap: 'none',
+				textOverflow: 'ellipsis',
+			})
+			: null;
+		this.titleText = title !== undefined
+			? new Text(title, {
+				style: {
+					fontRole: 'display',
+					fontSize: tokens.fontSize.fs_md,
+					color: [...color.text_bright] as [number, number, number, number],
+					textTransform: 'uppercase',
+					letterSpacing: tokens.letterSpacing.ls_wide,
+				},
+				wrap: 'none',
+				textOverflow: 'ellipsis',
+			})
+			: null;
+		if (this.kickerText) this.addPart(this.kickerText);
+		if (this.titleText) this.addPart(this.titleText);
+		this.actionItems = actions;
+		for (const action of actions) this.addChild(action);
 	}
 
-	public get resolvedColors(): ResolvedColors {
-		return boxColors(this.box);
+	protected get defaultPointerEvents(): PointerEvents {
+		return 'auto';
 	}
 
-	public render(draw: DrawApi): void {
-		drawBox(draw, this.id, this.width, this.height, this.box);
+	public get variant(): PanelVariant {
+		return this.panelVariant;
 	}
 
-	/**
-	 * R4.9: what the walk, the hit test and the tree snapshot subtract from
-	 * children. The scroll position less the padding, so the padding is part
-	 * of the scrolled content (R4.13) and needs no second offset anywhere.
-	 */
-	public get contentOffset(): Vec2 {
-		if (!this.offsetCache) {
-			this.offsetCache = Object.freeze({ x: this.scrollOffsetX - this.contentInset, y: this.scrollOffsetY - this.contentInset });
-		}
-		return this.offsetCache;
+	public get accent(): PanelAccent {
+		return this.panelAccent;
 	}
 
-	/** The content inset from each edge (the `padding` option). */
-	public get padding(): number {
-		return this.contentInset;
+	public get title(): string | null {
+		return this.titleText?.getText() ?? null;
 	}
 
-	/**
-	 * R10.15: anchored children are placed against the box inside the
-	 * padding. Children already sit under the padding through
-	 * `contentOffset`, so the box starts at their origin.
-	 */
-	protected get anchorBox(): Rect {
-		const inset = this.contentInset;
-		return { x: 0, y: 0, width: this.innerWidth, height: Math.max(this.height - inset * 2, 0) };
+	public set title(title: string | null) {
+		if (!this.titleText) throw new Error('Panel: a panel built without a title has no header to put one in');
+		this.titleText.setText(title ?? '');
 	}
 
-	/** Width available to children: the box less the padding on both sides. */
+	public get kicker(): string | null {
+		return this.kickerText?.getText() ?? null;
+	}
+
+	public get actions(): readonly Component[] {
+		return this.actionItems;
+	}
+
+	/** The content inset from each edge, below the header (the style's `padding`). */
+	public get contentInset(): Sides {
+		return this.contentPadding;
+	}
+
+	/** The header band's height; zero without a title or kicker. */
+	public get header(): number {
+		return this.headerHeight;
+	}
+
+	/** Width available to the content: the box less the content inset on both sides. */
 	public get innerWidth(): number {
-		return Math.max(this.width - this.contentInset * 2, 0);
+		return Math.max(this.width - this.contentPadding.left - this.contentPadding.right, 0);
+	}
+
+	/** The header's parts and the actions are placed by the panel; in `free` layout nothing flows. */
+	public flows(child: Component): boolean {
+		if (child.isPart || this.actionItems.includes(child) || this.freeLayout) return false;
+		return super.flows(child);
+	}
+
+	protected anchorsChild(child: Component): boolean {
+		return super.anchorsChild(child) && !this.actionItems.includes(child);
+	}
+
+	protected layoutChildren(): void {
+		super.layoutChildren();
+		this.placeHeader();
 	}
 
 	/**
-	 * A padded panel clips inside its border and its corner radius, inset by
-	 * the larger of the two on every side: the padding scrolls with the
-	 * content (R4.13), so a clip at the content box would cut rows off inside
-	 * the scroll range, and one at the border box lets scrolled children paint
-	 * over the border and past the rounded corners `render` drew first. The
-	 * walk, hit test and snapshot all clip to a plain rect, so the radius is
-	 * cleared by inset rather than by R4.14's rounded clip. An unpadded panel
-	 * keeps the border-box clip it always had. Decision:
-	 * docs/AI_TECHNICAL_DECISIONS/panel-padding.md.
+	 * The clip sits inside the border and the corner radius, inset by the
+	 * larger of the two on every side, the same edge the content inset never
+	 * goes below, so content never paints over the border or past the rounded
+	 * corners `render` drew first. The walk, hit test and snapshot all clip
+	 * to a plain rect, so the radius is cleared by inset rather than by
+	 * R4.14's rounded clip. Clipping happens only when `overflow` is `hidden`.
+	 * Decision: docs/AI_TECHNICAL_DECISIONS/panel-padding.md.
 	 */
 	protected computeClipRect(): Rect {
-		const edge = this.contentInset > 0 ? Math.max(this.box.borderWidth, this.box.cornerRadius) : 0;
+		const edge = Math.max(this.box.borderWidth, this.box.radius);
 		const inset = Math.min(edge, this.width / 2, this.height / 2);
 		return { x: inset, y: inset, width: this.width - inset * 2, height: this.height - inset * 2 };
 	}
 
-	/**
-	 * Set scroll offset
-	 */
-	public setScrollOffset(x: number, y: number): this {
-		if (!this.scrollable) return this;
-
-		this.scrollTo(x, y);
-		return this;
+	/** R8.8: the corner ticks straddle the border; the glow and the raised shadow reach further. */
+	public get inkExtent(): number {
+		let extent = this.showCorners ? TICK_WIDTH / 2 : 0;
+		if (this.box.shadow) extent = Math.max(extent, shadowExtent(this.box.shadow));
+		if (this.showGlow) extent = Math.max(extent, shadowExtent(glowShadow(this.glowColor)));
+		return extent;
 	}
 
-	/**
-	 * Get scroll offset
-	 */
-	public getScrollOffset(): { x: number; y: number } {
-		return { x: this.scrollOffsetX, y: this.scrollOffsetY };
+	public get resolvedColors(): ResolvedColors {
+		return this.box.borderWidth > 0 ? { fill: this.box.fill, border: this.box.border } : { fill: this.box.fill };
 	}
 
-	/**
-	 * The furthest the scroll offset goes on each axis, 0 on an axis the
-	 * panel does not scroll: the content extent plus the padding on both
-	 * sides, less the box. What `scroll` clamps to, `canScroll` tests, and
-	 * the tree snapshot reports (R13.22).
-	 */
-	public get scrollRange(): Vec2 {
-		if (!this.scrollable) return { x: 0, y: 0 };
-		const vertical = this.scrollDirection !== 'horizontal';
-		const horizontal = this.scrollDirection !== 'vertical';
-		return {
-			x: horizontal ? Math.max(0, this.scrollExtentWidth + this.contentInset * 2 - this.width) : 0,
-			y: vertical ? Math.max(0, this.scrollExtentHeight + this.contentInset * 2 - this.height) : 0,
-		};
-	}
-
-	/**
-	 * Scroll by delta amount
-	 */
-	public scroll(deltaX: number, deltaY: number): this {
-		if (!this.scrollable) return this;
-
-		const range = this.scrollRange;
-		let x = this.scrollOffsetX;
-		let y = this.scrollOffsetY;
-		if (this.scrollDirection === 'vertical' || this.scrollDirection === 'both') {
-			y = Math.max(0, Math.min(range.y, y + deltaY));
+	public render(draw: DrawApi): void {
+		const { width, height } = this;
+		const box = this.box;
+		const radius = box.radius > 0 ? box.radius : undefined;
+		const rect = { x: 0, y: 0, width, height };
+		const glow = this.showGlow ? glowShadow(this.glowColor) : null;
+		// One shadow per rect: a glow on a raised panel gets its own.
+		if (glow && box.shadow) draw.drawRect({ rect, fill: CLEAR, radius, shadow: glow });
+		draw.drawRect({
+			id: this.id ?? undefined,
+			rect,
+			fill: box.fill,
+			radius,
+			border: box.borderWidth > 0 ? { color: box.border, width: box.borderWidth } : undefined,
+			shadow: box.shadow ?? glow ?? undefined,
+		});
+		if (this.headerHeight > 0) {
+			const hairline = tokens.borderWidth.bw_hair;
+			draw.drawRect({
+				rect: { x: box.borderWidth, y: this.headerHeight - hairline, width: width - box.borderWidth * 2, height: hairline },
+				fill: color.line_hairline,
+			});
 		}
-		if (this.scrollDirection === 'horizontal' || this.scrollDirection === 'both') {
-			x = Math.max(0, Math.min(range.x, x + deltaX));
+		if (this.showCorners && this.panelAccent !== 'none') this.drawCorners(draw);
+	}
+
+	private get accentColor(): RGBA {
+		return this.panelAccent === 'data' ? color.data : color.accent;
+	}
+
+	private get glowColor(): RGBA {
+		return this.panelAccent === 'data' ? color.data_glow : color.accent_glow;
+	}
+
+	/** Four L shapes centred on the border line, each two arms of `TICK` by `TICK_WIDTH`. */
+	private drawCorners(draw: DrawApi): void {
+		const { width, height } = this;
+		const half = this.box.borderWidth / 2;
+		const start = half - TICK_WIDTH / 2;
+		const fill = this.accentColor;
+		const corners: Array<[number, number, 1 | -1, 1 | -1]> = [
+			[start, start, 1, 1],
+			[width - start, start, -1, 1],
+			[width - start, height - start, -1, -1],
+			[start, height - start, 1, -1],
+		];
+		for (const [x, y, dx, dy] of corners) {
+			draw.drawRect({ rect: spanRect(x, y, TICK * dx, TICK_WIDTH * dy), fill });
+			draw.drawRect({ rect: spanRect(x, y, TICK_WIDTH * dx, TICK * dy), fill });
 		}
-		this.scrollTo(x, y);
-
-		return this;
 	}
 
-	/** The one write path for the scroll: the content moves, and so does the subtree's ink. */
-	private scrollTo(x: number, y: number): void {
-		if (x === this.scrollOffsetX && y === this.scrollOffsetY) return;
-		this.scrollOffsetX = x;
-		this.scrollOffsetY = y;
-		this.offsetCache = null;
-		this.invalidateInk();
-	}
-
-	/**
-	 * Set the content dimensions for scrolling
-	 * @param width Content width (defaults to panel width if not set)
-	 * @param height Content height (defaults to panel height if not set)
-	 */
-	public setContentSize(width?: number, height?: number): this {
-		if (width !== undefined) {
-			this.scrollExtentWidth = width;
+	/** Kicker over title at the left, actions right to left at the right, all inside the header band. */
+	private placeHeader(): void {
+		if (this.headerHeight === 0) return;
+		const left = Math.max(this.contentPadding.left, tokens.space.space_3);
+		const right = Math.max(this.contentPadding.right, tokens.space.space_3);
+		let actionsLeft = this.width - right;
+		for (let index = this.actionItems.length - 1; index >= 0; index--) {
+			const action = this.actionItems[index];
+			if (!action.visible) continue;
+			actionsLeft -= action.width + action.margin.left + action.margin.right;
+			action.setPosition(actionsLeft, Math.round((this.headerHeight - action.bounds.height) / 2));
+			actionsLeft -= tokens.space.space_2;
 		}
-		if (height !== undefined) {
-			this.scrollExtentHeight = height;
+		const textWidth = Math.max(actionsLeft - left, 0);
+		let y = this.headerInset;
+		if (this.kickerText) {
+			this.kickerText.setPosition(left, y);
+			this.kickerText.setSize(textWidth, KICKER_LINE);
+			y += KICKER_LINE;
 		}
-		return this;
-	}
-
-	/** A scrollable panel clips its content whatever its overflow says. */
-	public get clipsChildren(): boolean {
-		return (this.scrollable || this.getOverflow() === 'hidden') && this.width > 0 && this.height > 0;
-	}
-
-	/**
-	 * R12.20's `nearest`: scrolls by the least that brings the descendant's
-	 * box inside the clip, its start edge winning when it is larger than the
-	 * clip. Worked in this panel's local space, where a scroll of one unit
-	 * moves the content one unit, so a scaled ancestor changes nothing.
-	 */
-	public scrollIntoView(descendant: Component): void {
-		if (!this.scrollable) return;
-		const corners = descendant.screenQuad.map((point) => this.screenToLocal(point));
-		if (corners.some((corner) => corner === null)) return;
-		const xs = corners.map((corner) => (corner as Vec2).x);
-		const ys = corners.map((corner) => (corner as Vec2).y);
-		const clip = this.clipRect;
-		const deltaX = nearestDelta(Math.min(...xs), Math.max(...xs), clip.x, clip.x + clip.width);
-		const deltaY = nearestDelta(Math.min(...ys), Math.max(...ys), clip.y, clip.y + clip.height);
-		if (deltaX !== 0 || deltaY !== 0) this.scroll(deltaX, deltaY);
-	}
-
-	/**
-	 * R9.32: the dispatcher latches the innermost scroller that can move in
-	 * the wheel's direction, so a panel at its end passes a new gesture on.
-	 */
-	public canScroll(deltaX: number, deltaY: number): boolean {
-		if (!this.scrollable) return false;
-		const vertical = this.scrollDirection !== 'horizontal';
-		const horizontal = this.scrollDirection !== 'vertical';
-		const { x: maxX, y: maxY } = this.scrollRange;
-		return (vertical && ((deltaY > 0 && this.scrollOffsetY < maxY) || (deltaY < 0 && this.scrollOffsetY > 0)))
-			|| (horizontal && ((deltaX > 0 && this.scrollOffsetX < maxX) || (deltaX < 0 && this.scrollOffsetX > 0)));
-	}
-
-	/**
-	 * Wheel deltas arrive normalised to logical pixels (R9.3) and scroll by
-	 * exactly that much; the latched panel consumes them (R9.32).
-	 */
-	public handleEvent(event: AnyUiEvent): void {
-		super.handleEvent(event);
-		if (event.type !== 'wheel' || !this.scrollable || event.consumed) return;
-		this.scroll(event.deltaX, event.deltaY);
-		event.consume();
+		if (this.titleText) {
+			this.titleText.setPosition(left, y);
+			this.titleText.setSize(textWidth, TITLE_LINE);
+		}
 	}
 }
 
-/** How far to scroll so `[start, end]` sits inside `[min, max]`, moving the least; 0 when it already does. */
-function nearestDelta(start: number, end: number, min: number, max: number): number {
-	if (start < min) return start - min;
-	if (end > max) return Math.min(end - max, start - min);
-	return 0;
+/** The variant's box from tokens, with the instance style replacing what it names (R11.15). */
+function panelBox(variant: PanelVariant, style: StyleObject): PanelBox {
+	const fill = variant === 'raised' ? color.bg_panel_raised : variant === 'inset' ? color.bg_inset : color.bg_panel;
+	return {
+		fill: style.backgroundColor !== undefined ? resolveColor(style.backgroundColor) : fill,
+		border: style.borderColor !== undefined ? resolveColor(style.borderColor) : color.line_edge,
+		borderWidth: style.borderWidth !== undefined ? resolveLength(style.borderWidth, 'borderWidth') : tokens.borderWidth.bw,
+		radius: style.borderRadius !== undefined ? resolveLength(style.borderRadius, 'borderRadius') : tokens.radius.radius_panel,
+		shadow: style.shadow !== undefined ? resolveShadow(style.shadow) : variant === 'raised' ? resolveShadow('shadow_raised') : null,
+	};
+}
+
+/** A rect from a corner and a signed extent on each axis. */
+function spanRect(x: number, y: number, dx: number, dy: number): Rect {
+	return { x: Math.min(x, x + dx), y: Math.min(y, y + dy), width: Math.abs(dx), height: Math.abs(dy) };
 }

@@ -681,6 +681,12 @@ export abstract class Component {
 		placed.maxY += originY;
 	}
 
+	/** Something `computeClipRect` reads, other than the size, changed. */
+	protected invalidateClip(): void {
+		this.clipRectCache = undefined;
+		this.invalidateInk();
+	}
+
 	/** The content size changed: what depends on it is stale. */
 	private sizeChanged(): void {
 		this.clipRectCache = undefined;
@@ -903,7 +909,8 @@ export abstract class Component {
 
 	/**
 	 * The content box. An override may read the size and anything fixed at
-	 * construction, since `clipRect` keeps the answer until the size changes.
+	 * construction, since `clipRect` keeps the answer until the size changes;
+	 * one that reads anything else calls `invalidateClip` when it changes.
 	 */
 	protected computeClipRect(): Rect {
 		return { x: 0, y: 0, width: this.contentWidth, height: this.contentHeight };

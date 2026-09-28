@@ -1,5 +1,6 @@
 import { Component, ComponentOptions } from '../components/Component';
-import { Panel } from '../ui/Panel';
+import { Container } from '../components/Container';
+import { ScrollContainer } from '../ui/ScrollContainer';
 import type { MountContext } from '../components/MountContext';
 import { createTestContext } from '../components/testing';
 import type { PlatformInput } from './Dispatcher';
@@ -28,7 +29,7 @@ class Probe extends Component {
 	}
 }
 
-class Container extends Probe {
+class Group extends Probe {
 	protected get defaultPointerEvents(): 'passthrough' {
 		return 'passthrough';
 	}
@@ -79,8 +80,8 @@ function tabIds(): (string | null)[] {
 }
 
 /** A row of focusable probes 100 px wide, 20 px apart, in a root. */
-function row(ids: string[], options: Partial<ComponentOptions> = {}): { root: Container; items: Probe[] } {
-	const root = new Container({ id: 'root', width: 1000, height: 600 });
+function row(ids: string[], options: Partial<ComponentOptions> = {}): { root: Group; items: Probe[] } {
+	const root = new Group({ id: 'root', width: 1000, height: 600 });
 	const items = ids.map((id, index) => new Probe({ id, x: index * 120, y: 0, width: 100, height: 40, focusable: true, ...options }));
 	for (const item of items) root.addChild(item);
 	root.mount(context);
@@ -89,11 +90,11 @@ function row(ids: string[], options: Partial<ComponentOptions> = {}): { root: Co
 
 describe('tab order (R9.18, R9.19)', () => {
 	it('follows tree order, not the order components were added', () => {
-		const root = new Container({ id: 'root', width: 400, height: 400 });
+		const root = new Group({ id: 'root', width: 400, height: 400 });
 		root.mount(context);
 		root.addChild(new Probe({ id: 'c', focusable: true, width: 10, height: 10 }));
 		root.insertChild(0, new Probe({ id: 'a', focusable: true, width: 10, height: 10 }));
-		const middle = new Container({ id: 'middle', width: 10, height: 10 });
+		const middle = new Group({ id: 'middle', width: 10, height: 10 });
 		root.insertChild(1, middle);
 		middle.addChild(new Probe({ id: 'b', focusable: true, width: 10, height: 10 }));
 
@@ -101,7 +102,7 @@ describe('tab order (R9.18, R9.19)', () => {
 	});
 
 	it('puts tabIndex above 0 first, ascending, and leaves out tabIndex below 0', () => {
-		const root = new Container({ id: 'root', width: 400, height: 400 });
+		const root = new Group({ id: 'root', width: 400, height: 400 });
 		root.addChild(new Probe({ id: 'plain', focusable: true }));
 		root.addChild(new Probe({ id: 'second', focusable: true, tabIndex: 2 }));
 		root.addChild(new Probe({ id: 'skipped', focusable: true, tabIndex: -1 }));
@@ -196,8 +197,8 @@ describe('focus-visible (R9.23)', () => {
 
 describe('pointer focus (R9.23)', () => {
 	it('focuses the nearest focusable ancestor, so a press in a select\'s menu keeps the select focused', () => {
-		const root = new Container({ id: 'root', width: 400, height: 400 });
-		const select = new Container({ id: 'select', width: 200, height: 40, focusable: true });
+		const root = new Group({ id: 'root', width: 400, height: 400 });
+		const select = new Group({ id: 'select', width: 200, height: 40, focusable: true });
 		const menuItem = new Probe({ id: 'item', x: 0, y: 40, width: 200, height: 30 });
 		select.addChild(menuItem);
 		root.addChild(select);
@@ -225,7 +226,7 @@ describe('pointer focus (R9.23)', () => {
 describe('scopes (R9.20)', () => {
 	it('traps Tab in a pushed scope, focuses its first focusable, and restores focus on pop', () => {
 		const { root, items } = row(['a', 'b']);
-		const dialog = new Container({ id: 'dialog', x: 0, y: 100, width: 400, height: 200 });
+		const dialog = new Group({ id: 'dialog', x: 0, y: 100, width: 400, height: 200 });
 		dialog.addChild(new Probe({ id: 'ok', width: 50, height: 20, focusable: true }));
 		dialog.addChild(new Probe({ id: 'cancel', x: 60, width: 50, height: 20, focusable: true }));
 		root.addChild(dialog);
@@ -244,7 +245,7 @@ describe('scopes (R9.20)', () => {
 
 	it('pops itself when its root unmounts', () => {
 		const { root, items } = row(['a']);
-		const dialog = new Container({ id: 'dialog', x: 0, y: 100, width: 400, height: 200 });
+		const dialog = new Group({ id: 'dialog', x: 0, y: 100, width: 400, height: 200 });
 		dialog.addChild(new Probe({ id: 'ok', width: 50, height: 20, focusable: true }));
 		root.addChild(dialog);
 		context.focus.focus(items[0]);
@@ -284,7 +285,7 @@ describe('fixup (R9.21, R9.28)', () => {
 
 	it('moves focus to the active scope\'s first focusable', () => {
 		const { root } = row([]);
-		const dialog = new Container({ id: 'dialog', width: 400, height: 200 });
+		const dialog = new Group({ id: 'dialog', width: 400, height: 200 });
 		const ok = new Probe({ id: 'ok', width: 50, height: 20, focusable: true });
 		const cancel = new Probe({ id: 'cancel', x: 60, width: 50, height: 20, focusable: true });
 		dialog.addChild(ok);
@@ -310,10 +311,10 @@ describe('fixup (R9.21, R9.28)', () => {
 });
 
 describe('focus groups (R9.29)', () => {
-	function hand(): { root: Container; group: Container; cards: Probe[] } {
-		const root = new Container({ id: 'root', width: 1000, height: 600 });
+	function hand(): { root: Group; group: Group; cards: Probe[] } {
+		const root = new Group({ id: 'root', width: 1000, height: 600 });
 		root.addChild(new Probe({ id: 'before', x: 0, y: 300, width: 100, height: 40, focusable: true }));
-		const group = new Container({ id: 'group', x: 0, y: 100, width: 800, height: 100, focusGroup: { orientation: 'horizontal' } });
+		const group = new Group({ id: 'group', x: 0, y: 100, width: 800, height: 100, focusGroup: { orientation: 'horizontal' } });
 		const cards = ['one', 'two', 'three'].map((id, index) => new Probe({ id, x: index * 120, width: 100, height: 100, focusable: true }));
 		for (const card of cards) group.addChild(card);
 		root.addChild(group);
@@ -378,11 +379,12 @@ describe('focus groups (R9.29)', () => {
 });
 
 describe('scroll into view (R12.20)', () => {
-	function scroller(): { panel: Panel; rows: Probe[] } {
-		const panel = new Panel({ id: 'panel', width: 200, height: 100, scrollable: true });
+	function scroller(): { panel: ScrollContainer; rows: Probe[] } {
+		const panel = new ScrollContainer({ id: 'panel', width: 200, height: 100, contentHeight: 280 });
+		const content = new Container({ width: 200, height: 280 });
 		const rows = [0, 1, 2, 3, 4].map((index) => new Probe({ id: `row${index}`, y: index * 60, width: 200, height: 40, focusable: true }));
-		for (const row of rows) panel.addChild(row);
-		panel.setContentSize(200, 280);
+		for (const row of rows) content.addChild(row);
+		panel.addChild(content);
 		panel.mount(context);
 		return { panel, rows };
 	}
@@ -391,43 +393,44 @@ describe('scroll into view (R12.20)', () => {
 		const { panel } = scroller();
 		key('Tab');
 		key('Tab');
-		expect(panel.getScrollOffset().y).toBe(0);
+		expect(panel.scrollPosition).toBe(0);
 		key('Tab');
 		// row2 spans 120 to 160; the clip is 100 tall
 		expect(focusedId()).toBe('row2');
-		expect(panel.getScrollOffset().y).toBe(60);
+		expect(panel.scrollPosition).toBe(60);
 		key('Tab', { shift: true });
 		key('Tab', { shift: true });
-		expect(panel.getScrollOffset().y).toBe(0);
+		expect(panel.scrollPosition).toBe(0);
 	});
 
 	it('reads the placed origin, margin included, not the raw position', () => {
-		const panel = new Panel({ id: 'panel', width: 200, height: 100, scrollable: true });
+		const panel = new ScrollContainer({ id: 'panel', width: 200, height: 100, contentHeight: 300 });
+		const content = new Container({ width: 200, height: 300 });
 		const row = new Probe({ id: 'row', y: 50, margin: { top: 70 }, width: 200, height: 40, focusable: true });
-		panel.addChild(row);
-		panel.setContentSize(200, 300);
+		content.addChild(row);
+		panel.addChild(content);
 		panel.mount(context);
 		// The content box spans originY 120 to 160, though y is 50
 		expect(row.originY).toBe(120);
 		context.focus.focus(row);
-		expect(panel.getScrollOffset().y).toBe(60);
+		expect(panel.scrollPosition).toBe(60);
 	});
 
 	it('scrolls for programmatic focus, but not for a press', () => {
 		const { panel, rows } = scroller();
 		context.focus.focus(rows[4]);
-		expect(panel.getScrollOffset().y).toBe(180);
-		panel.setScrollOffset(0, 0);
+		expect(panel.scrollPosition).toBe(180);
+		panel.scrollToTop();
 		context.focus.focusFromPointer(rows[3]);
-		expect(panel.getScrollOffset().y).toBe(0);
+		expect(panel.scrollPosition).toBe(0);
 	});
 });
 
 describe('directional focus (R9.26)', () => {
-	function grid(): { root: Container; cells: Record<string, Probe> } {
+	function grid(): { root: Group; cells: Record<string, Probe> } {
 		// a b c
 		// d   e
-		const root = new Container({ id: 'root', width: 1000, height: 600 });
+		const root = new Group({ id: 'root', width: 1000, height: 600 });
 		const cells: Record<string, Probe> = {};
 		const place = (id: string, x: number, y: number): void => {
 			cells[id] = new Probe({ id, x, y, width: 100, height: 40, focusable: true });
@@ -517,10 +520,10 @@ describe('activate and cancel (R9.27)', () => {
 
 describe('scoped hotkeys (R9.15)', () => {
 	it('searches the focused root, then the other roots topmost first, then the scene', () => {
-		const lower = new Container({ id: 'lower', width: 100, height: 100 });
+		const lower = new Group({ id: 'lower', width: 100, height: 100 });
 		const field = new Probe({ id: 'field', width: 10, height: 10, focusable: true });
 		lower.addChild(field);
-		const upper = new Container({ id: 'upper', width: 100, height: 100 });
+		const upper = new Group({ id: 'upper', width: 100, height: 100 });
 		lower.mount(context);
 		upper.mount(context);
 		const fired: string[] = [];
@@ -541,8 +544,8 @@ describe('scoped hotkeys (R9.15)', () => {
 	});
 
 	it('never fires a hotkey of a root beneath a modal root, nor the scene\'s', () => {
-		const screen = new Container({ id: 'screen', width: 100, height: 100 });
-		const dialog = new Container({ id: 'dialog', width: 100, height: 100 });
+		const screen = new Group({ id: 'screen', width: 100, height: 100 });
+		const dialog = new Group({ id: 'dialog', width: 100, height: 100 });
 		dialog.modal = true;
 		screen.mount(context);
 		dialog.mount(context);
@@ -559,7 +562,7 @@ describe('scoped hotkeys (R9.15)', () => {
 	});
 
 	it('keeps a printable hotkey from firing while a text field is focused, and lets Escape and named keys through', () => {
-		const root = new Container({ id: 'root', width: 100, height: 100 });
+		const root = new Group({ id: 'root', width: 100, height: 100 });
 		const field = new Field({ id: 'field', width: 10, height: 10, focusable: true });
 		root.addChild(field);
 		root.mount(context);

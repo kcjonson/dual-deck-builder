@@ -103,7 +103,7 @@ export class Stack extends Container {
 	private stackPadding: Sides = ZERO_SIDES;
 	private stackDistribution: Distribution = 'start';
 	private stackCrossAlign: CrossAlign = 'start';
-	private box: BoxStyle | null = null;
+	private backdrop: BoxStyle | null = null;
 
 	constructor(options?: StackOptions) {
 		const { style, ...rest } = options ?? {};
@@ -111,7 +111,7 @@ export class Stack extends Container {
 		this.componentType = 'Stack';
 		if (style) {
 			validateBox(style);
-			this.box = resolveBoxStyle(style, NO_BOX);
+			this.backdrop = resolveBoxStyle(style, NO_BOX);
 			if (style.opacity !== undefined) this.opacity = style.opacity;
 		}
 		if (!options) return;
@@ -130,16 +130,16 @@ export class Stack extends Container {
 	// -- the box --------------------------------------------------------------
 
 	public get resolvedColors(): ResolvedColors | null {
-		return this.box && this.width > 0 && this.height > 0 ? boxColors(this.box) : null;
+		return this.backdrop && this.width > 0 && this.height > 0 ? boxColors(this.backdrop) : null;
 	}
 
 	public get inkExtent(): number {
-		return this.box ? boxInkExtent(this.box) : 0;
+		return this.backdrop ? boxInkExtent(this.backdrop) : 0;
 	}
 
 	public render(draw: DrawApi): void {
-		if (!this.box || this.width <= 0 || this.height <= 0) return;
-		drawBox(draw, this.id, this.width, this.height, this.box);
+		if (!this.backdrop || this.width <= 0 || this.height <= 0) return;
+		drawBox(draw, this.id, this.width, this.height, this.backdrop);
 	}
 
 	// -- properties (R10.2); every one invalidates layout ----------------------
@@ -258,7 +258,7 @@ export class Stack extends Container {
 			let total = 0;
 			let count = 0;
 			for (const child of this.getChildren()) {
-				if (!child.visible || child.positioned === 'absolute') continue;
+				if (!child.visible || !this.flows(child)) continue;
 				const least = shrinkFloor(child, axis, Infinity) + marginOn(child, axis);
 				total = along ? total + least : Math.max(total, least);
 				count += 1;
@@ -345,8 +345,20 @@ export class Stack extends Container {
 		};
 	}
 
+	/** Children out of the flow are placed by anchor and pivot (R10.15), a panel's header parts excepted. */
 	protected anchorsChild(child: Component): boolean {
-		return child.positioned === 'absolute';
+		return !this.flows(child) && !child.isPart;
+	}
+
+	/**
+	 * Whether `child` takes part in the flow (R10.11): every visible child but
+	 * an `absolute` one. A subclass that places some children itself (a
+	 * panel's header, R12.19) or lets them all sit where they were put says
+	 * so here, and those are sized against the content box like absolute
+	 * children and placed by anchor, or not at all for parts.
+	 */
+	public flows(child: Component): boolean {
+		return child.positioned !== 'absolute';
 	}
 
 	// -- passes ----------------------------------------------------------------
@@ -382,7 +394,7 @@ export class Stack extends Container {
 		const parent = this.parent;
 		if (!parent) return !(mode === 'fill' && this.isMounted);
 		if (!(parent instanceof Stack)) return true;
-		if (this.positioned === 'absolute') return mode !== 'fill';
+		if (!parent.flows(this)) return mode !== 'fill';
 		if (axis === parent.crossAxis) return !parent.stretches(this);
 		return mode !== 'fill' || parent.isHugLike(parent.mainAxis);
 	}
@@ -399,7 +411,7 @@ export class Stack extends Container {
 		const cross = this.crossAxis;
 		const slots: Slot[] = [];
 		for (const child of this.getChildren()) {
-			if (!child.visible || child.positioned === 'absolute') continue;
+			if (!child.visible || !this.flows(child)) continue;
 			slots.push({
 				child,
 				main: 0,
@@ -567,7 +579,7 @@ export class Stack extends Container {
 	private sizeAbsoluteChildren(): void {
 		const box = this.anchorBox;
 		for (const child of this.getChildren()) {
-			if (!child.visible || child.positioned !== 'absolute') continue;
+			if (!child.visible || this.flows(child) || child.isPart) continue;
 			const roomWidth = Math.max(box.width - marginOn(child, 'width'), 0);
 			const roomHeight = Math.max(box.height - marginOn(child, 'height'), 0);
 			const fillWidth = child.widthMode === 'fill';

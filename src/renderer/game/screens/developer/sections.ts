@@ -16,6 +16,8 @@ import { ButtonVariantsSection } from './ButtonVariantsSection';
 import { ListExamplesSection } from './ListExamplesSection';
 import { CheckboxExamplesSection } from './CheckboxExamplesSection';
 import { RadioExamplesSection } from './RadioExamplesSection';
+import { PanelExamplesSection } from './PanelExamplesSection';
+import { ScrollExamplesSection } from './ScrollExamplesSection';
 import { LeafExamplesSection } from './LeafExamplesSection';
 
 /**
@@ -134,6 +136,14 @@ export const developerSections: readonly DeveloperSection[] = [
 	{
 		name: 'radio-group',
 		build: ({ x, y, width }) => new RadioExamplesSection(x, y, width),
+	},
+	{
+		name: 'panels',
+		build: ({ x, y, width }) => new PanelExamplesSection(x, y, width),
+	},
+	{
+		name: 'scrolling',
+		build: ({ x, y, width }) => new ScrollExamplesSection(x, y, width),
 	},
 	{
 		name: 'leaves',
