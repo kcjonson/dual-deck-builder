@@ -2,7 +2,6 @@ import { DrawApi, DrawCommand, RecordingBackend, RGBA, TextureHandle, UNCLIPPED_
 import { Batcher, GeometryUpload, GroupShape } from '../draw/Batcher';
 import { ResidentTextureSet } from '../draw/ResidentTextureSet';
 import type { CharacterInfo } from './FontAtlas';
-import { LegacyPaintOrder } from './LegacyPaintOrder';
 import {
 	GlyphSource,
 	UBER_MODE,
@@ -655,50 +654,5 @@ describe('UberGeometryEncoder: one program for everything (R5.1)', () => {
 		expect(borderOutset({ color: RED, width: 4, position: 'center' })).toBe(2);
 		expect(borderOutset({ color: RED, width: 4, position: 'outside' })).toBe(4);
 		expect(premultiply([0.5, 1, 0, 0.5], [0, 0, 0, 0])).toEqual([0.25, 0.5, 0, 0.5]);
-	});
-});
-
-describe('LegacyPaintOrder (TEMPORARY, dies with the ordering re-baseline)', () => {
-	const order = (commands: readonly DrawCommand[]) => [...new LegacyPaintOrder().apply(commands)];
-
-	it('paints a domain as its shapes, then its text grouped by colour in first-seen order', () => {
-		const commands = record((api) => {
-			api.drawText({ id: 't1', text: 'A', position: { x: 0, y: 0 }, font: 'body', size: 12, color: RED });
-			api.drawRect({ id: 'r1', rect: { x: 0, y: 0, width: 4, height: 4 }, fill: RED });
-			api.drawText({ id: 't2', text: 'A', position: { x: 0, y: 0 }, font: 'body', size: 12, color: BLUE });
-			api.drawRect({ id: 'r2', rect: { x: 0, y: 0, width: 4, height: 4 }, fill: BLUE });
-			api.drawText({ id: 't3', text: 'A', position: { x: 0, y: 0 }, font: 'body', size: 12, color: RED });
-			api.pushOpacity(0.5);
-			// Faded red is its own colour, as it was TextRenderer's own key.
-			api.drawText({ id: 't4', text: 'A', position: { x: 0, y: 0 }, font: 'body', size: 12, color: RED });
-			api.popOpacity();
-		});
-		expect(order(commands).map((command) => command.id)).toEqual(['r1', 'r2', 't1', 't3', 't2', 't4']);
-	});
-
-	it('hoists text within each layer, never above a later layer', () => {
-		const commands = record((api) => {
-			api.drawText({ id: 'label', text: 'A', position: { x: 0, y: 0 }, font: 'body', size: 12, color: RED });
-			api.drawRect({ id: 'card', rect: { x: 0, y: 0, width: 4, height: 4 }, fill: RED });
-			api.pushLayer('popup');
-			api.drawText({ id: 'item', text: 'A', position: { x: 0, y: 0 }, font: 'body', size: 12, color: RED });
-			api.drawRect({ id: 'menu', rect: { x: 0, y: 0, width: 4, height: 4 }, fill: BLUE });
-			api.popLayer();
-			api.drawText({ id: 'late', text: 'A', position: { x: 0, y: 0 }, font: 'body', size: 12, color: BLUE });
-		});
-		expect(order(commands).map((command) => command.id)).toEqual(['card', 'label', 'late', 'menu', 'item']);
-	});
-
-	it('leaves a bordered circle as one command, since its border is part of its SDF', () => {
-		const commands = record((api) => {
-			api.drawCircle({ id: 'ringed', center: { x: 5, y: 6 }, radius: 3, fill: RED, border: { color: BLUE, width: 2 } });
-		});
-		expect(order(commands).map((command) => `${command.id}:${command.kind}`)).toEqual(['ringed:circle']);
-	});
-
-	it('reuses its list, so a result is only valid until the next apply', () => {
-		const paintOrder = new LegacyPaintOrder();
-		const commands = record((api) => api.drawRect({ rect: { x: 0, y: 0, width: 1, height: 1 } }));
-		expect(paintOrder.apply(commands)).toBe(paintOrder.apply(commands));
 	});
 });

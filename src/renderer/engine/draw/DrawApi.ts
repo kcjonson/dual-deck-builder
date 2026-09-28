@@ -143,35 +143,6 @@ export interface DrawApiOptions {
 	 */
 	strict?: boolean;
 	onDiagnostic?: (diagnostic: Diagnostic) => void;
-	/**
-	 * TEMPORARY, and the only concession this file makes to the legacy backend.
-	 * Deleted by the ordering re-baseline PR; see
-	 * docs/AI_TECHNICAL_DECISIONS/legacy-gl-backend.md.
-	 *
-	 * R2.2: "there are no modes to enter (no separate text batch to begin and
-	 * end). The sibling TypeScript engine had a text batch that opened in the
-	 * frame loop and flushed on scissor changes, which reordered text above
-	 * every shape drawn in the same clip scope." That engine is this one, and
-	 * the 26 committed screenshot goldens are pictures of exactly that bug.
-	 *
-	 * The WebGL2 backend reproduces the reordering by itself: `LegacyPaintOrder`
-	 * puts each domain's text after its shapes before the batcher sees it. What
-	 * no backend can reproduce is the BOUND: a backend never sees a push or a pop (see
-	 * `DrawBackend`), so it cannot know where a clip scope started. This flag
-	 * supplies that half by ending a domain at every clip push and pop, which is
-	 * where `Renderer.enableScissor` and `disableScissor` flushed.
-	 *
-	 * Measured, not assumed: with the flag off, the three chromium goldens whose
-	 * screens clip (developerScreen, cardShowcaseScreen, combatScreen) fail,
-	 * because text submitted before a clip survives to the end of the frame and
-	 * paints over content drawn inside it. The other eighteen have no clip and
-	 * are unaffected.
-	 *
-	 * It is a deliberate violation of R3.20 ("Nothing else flushes: not a
-	 * texture change, not a clip change"), which is why it is off by default and
-	 * set in exactly one place, `createDrawApi` in `rendering/WebGL2Backend.ts`.
-	 */
-	legacyTextOrder?: boolean;
 }
 
 export interface BeginFrameOptions {
@@ -231,8 +202,6 @@ export class DrawApi {
 	private readonly development: boolean;
 	private readonly strict: boolean;
 	private readonly onDiagnostic?: (diagnostic: Diagnostic) => void;
-	/** TEMPORARY. See `DrawApiOptions.legacyTextOrder`. */
-	private readonly legacyTextOrder: boolean;
 
 	private readonly counters = new DrawCounters();
 	private readonly recordedDiagnostics: Diagnostic[] = [];
@@ -258,13 +227,11 @@ export class DrawApi {
 		development = true,
 		strict = false,
 		onDiagnostic,
-		legacyTextOrder = false,
 	}: DrawApiOptions) {
 		this.backend = backend;
 		this.development = development;
 		this.strict = strict;
 		this.onDiagnostic = onDiagnostic;
-		this.legacyTextOrder = legacyTextOrder;
 	}
 
 	// -- inspection ---------------------------------------------------------
@@ -457,30 +424,16 @@ export class DrawApi {
 	 */
 	pushClipReset(): void {
 		if (!this.ensureFrame('pushClipReset')) return;
-		this.legacyTextOrderBarrier();
 		this.counters.countClipPush();
 		this.clips.push(CLIP_NONE);
 	}
 
 	popClip(): void {
 		if (!this.ensureFrame('popClip')) return;
-		this.legacyTextOrderBarrier();
 		this.popStack(this.clips, 'popClip');
 	}
 
-	/**
-	 * TEMPORARY. See `DrawApiOptions.legacyTextOrder`.
-	 *
-	 * Before the stack mutates, not after, because `Renderer.enableScissor`
-	 * flushed the pending text and only then called `gl.scissor`: the outgoing
-	 * scope's text painted under the outgoing scope's scissor box.
-	 */
-	private legacyTextOrderBarrier(): void {
-		if (this.legacyTextOrder) this.submitPending('barrier');
-	}
-
 	private pushClipInternal(rect: Rect, radius: number | null): void {
-		this.legacyTextOrderBarrier();
 		this.counters.countClipPush();
 		const current = this.transforms[this.transforms.length - 1];
 

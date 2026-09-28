@@ -118,7 +118,7 @@ function setupBackend(options: { vertexRingBytes?: number; indexRingBytes?: numb
 	} as unknown as Renderer;
 	const frameTimer = { recordDrawCall: jest.fn(), recordTextCharacters: jest.fn() } as unknown as FrameTimer;
 	const backend = new WebGL2Backend({ renderer, frameTimer, ...options });
-	const api = new DrawApi({ backend, development: true, legacyTextOrder: true });
+	const api = new DrawApi({ backend, development: true });
 
 	function frame(build: (draw: DrawApi) => void): GlCall[] {
 		const start = calls.length;
@@ -141,12 +141,14 @@ function someShapesAndText(draw: DrawApi): void {
 	draw.drawRect({ rect: { x: 10, y: 60, width: 100, height: 40 }, fill: WHITE, border: { color: WHITE, width: 2 } });
 }
 
-/** Three domains under `legacyTextOrder`: before, inside and after a clip. */
-function clippedTwice(draw: DrawApi): void {
+/** Three domains, cut by R3.20's explicit barrier, with a clip in the middle one. */
+function threeDomains(draw: DrawApi): void {
 	someShapesAndText(draw);
+	draw.flush();
 	draw.pushClip({ x: 0, y: 0, width: 50, height: 50 });
 	someShapesAndText(draw);
 	draw.popClip();
+	draw.flush();
 	someShapesAndText(draw);
 }
 
@@ -169,8 +171,8 @@ describe('WebGL2Backend', () => {
 
 	it('makes no synchronous call and no allocation inside a frame (R15.22, R15.11)', () => {
 		const { frame, named } = setupBackend();
-		frame(clippedTwice);
-		const calls = frame(clippedTwice);
+		frame(threeDomains);
+		const calls = frame(threeDomains);
 		for (const name of SYNCHRONOUS) {
 			expect(named(calls, name)).toEqual([]);
 		}
@@ -184,7 +186,7 @@ describe('WebGL2Backend', () => {
 	it('clears once per frame before any draw, and never uses the scissor (R4.1)', () => {
 		const { frame, constant } = setupBackend();
 		for (let index = 0; index < 2; index++) {
-			const calls = frame(clippedTwice);
+			const calls = frame(threeDomains);
 			const clear = calls.findIndex((call) => call.name === 'clear');
 			expect(calls.filter((call) => call.name === 'clear')).toHaveLength(1);
 			expect(clear).toBeLessThan(calls.findIndex((call) => call.name === 'drawElements'));
@@ -244,7 +246,7 @@ describe('WebGL2Backend', () => {
 
 	it('points the attributes once per upload, never per draw (R15.14)', () => {
 		const { frame, named } = setupBackend();
-		const calls = frame(clippedTwice);
+		const calls = frame(threeDomains);
 		const uploads = named(calls, 'bindVertexArray').filter((call) => call.args[0] !== null).length;
 		expect(uploads).toBe(3);
 		expect(named(calls, 'vertexAttribPointer')).toHaveLength(uploads * UBER_ATTRIBUTES.length);
@@ -252,16 +254,15 @@ describe('WebGL2Backend', () => {
 
 	it('draws each domain, shapes, borders and text together, in one GPU draw (R5.1)', () => {
 		const { frame, named } = setupBackend();
-		// Three domains, each ended by the temporary `legacyTextOrder`
-		// barrier; nothing inside a domain splits.
-		expect(named(frame(clippedTwice), 'drawElements')).toHaveLength(3);
+		// Three domains, each ended by a barrier; nothing inside a domain splits.
+		expect(named(frame(threeDomains), 'drawElements')).toHaveLength(3);
 	});
 
 	it('never splits on a clip change inside a domain (R4.1)', () => {
 		const { backend } = setupBackend();
 		const rect = { x: 0, y: 0, width: 10, height: 10 };
-		// Without `legacyTextOrder` a clip push is not a barrier, so this is
-		// one domain with three different clips in it.
+		// A clip push is not a barrier (R3.20), so this is one domain with
+		// three different clips in it.
 		const api = new DrawApi({ backend, development: true });
 		api.beginFrame({ viewport: { width: 800, height: 600 } });
 		api.drawRect({ rect, fill: WHITE });
@@ -293,8 +294,8 @@ describe('WebGL2Backend', () => {
 	it('binds the atlas and the placeholders once, and nothing on later frames (R5.20)', () => {
 		const { frame, named } = setupBackend();
 		// Unit 0 gets the atlas, units 1 to 7 the empty placeholder.
-		expect(named(frame(clippedTwice), 'bindTexture')).toHaveLength(8);
-		expect(named(frame(clippedTwice), 'bindTexture')).toHaveLength(0);
+		expect(named(frame(threeDomains), 'bindTexture')).toHaveLength(8);
+		expect(named(frame(threeDomains), 'bindTexture')).toHaveLength(0);
 	});
 
 	it('draws an image from a dynamic unit and puts the placeholder back at the end of the frame', () => {
@@ -313,13 +314,13 @@ describe('WebGL2Backend', () => {
 	it('grows a ring that cannot hold two frames and says so, instead of overwriting one', () => {
 		const warn = jest.spyOn(console, 'warn').mockImplementation(() => undefined);
 		try {
-			// `clippedTwice` is three uploads of 36 vertices at 128 bytes,
+			// `threeDomains` is three uploads of 36 vertices at 128 bytes,
 			// 13824 bytes a frame; a 14000-byte ring takes one frame and not
 			// the next beside it.
 			const { frame, named, constant } = setupBackend({ vertexRingBytes: 14000 });
-			const first = frame(clippedTwice);
+			const first = frame(threeDomains);
 			expect(named(first, 'bufferData')).toEqual([]);
-			const calls = frame(clippedTwice);
+			const calls = frame(threeDomains);
 			const grown = named(calls, 'bufferData').filter((call) => call.args[0] === constant('ARRAY_BUFFER'));
 			expect(grown).toHaveLength(1);
 			expect(grown[0].args[1]).toBeGreaterThanOrEqual(14000 * 2);
