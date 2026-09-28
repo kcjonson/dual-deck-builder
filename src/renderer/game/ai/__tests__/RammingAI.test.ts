@@ -1,8 +1,15 @@
 import { RammingAI } from '../RammingAI';
 import { createTestDriver, createTestVehicle } from './test-helpers';
-import { Card } from '../../mechanics/Card';
+import { Card, CardData } from '../../mechanics/Card';
 import { Battle } from '../../mechanics/Battle';
 import { Team, TeamType } from '../../mechanics/Team';
+import cardsFile from '../../data/cards.json';
+
+const realCard = (type: string): Card => {
+	const data = (cardsFile as unknown as { cards: CardData[] }).cards.find(candidate => candidate.type === type);
+	if (!data) throw new Error(`No card ${type} in cards.json`);
+	return new Card({ ...data, upgraded: false });
+};
 
 describe('RammingAI', () => {
 	let battle: Battle;
@@ -98,19 +105,7 @@ describe('RammingAI', () => {
 			// 1 + the test driver's 2 = 3, slower than both player vehicles (5)
 			enemyVehicle.baseSpeed = 1;
 
-			const speedCard = new Card({
-				type: 'nitro_boost',
-				name: 'Nitro Boost',
-				summary: 'Increase speed',
-				description: 'Increase speed',
-				cost: 1,
-				rarity: 'common',
-				targetType: 'self',
-				effects: [
-					{ type: 'speed', value: 3 }
-				],
-				tags: ['buff']
-			});
+			const speedCard = realCard('nitro_boost');
 
 			const attackCard = new Card({
 				type: 'gun_attack',
@@ -151,7 +146,7 @@ describe('RammingAI', () => {
 				rarity: 'common',
 				targetType: 'self',
 				effects: [
-					{ type: 'armor', value: 20 }
+					{ type: 'gain_armor', value: 20 }
 				],
 				tags: ['defense']
 			});
@@ -224,25 +219,15 @@ describe('RammingAI', () => {
 			expect(decision?.card).toBe(healCard);
 		});
 
-		it('should value a position change while not flanking', async () => {
+		it('should value a flank while not flanking', async () => {
 			const enemyVehicle = battle.enemyTeam.vehicles[0];
 			const enemyDriver = enemyVehicle.driver!;
 
 			expect(enemyVehicle.isFlanking).toBe(false);
+			// 5 + the test driver's 2 = 7 outruns the player's 5s, so the Flank is legal
+			enemyVehicle.baseSpeed = 5;
 
-			const positionCard = new Card({
-				type: 'charge_forward',
-				name: 'Charge Forward',
-				summary: 'Move to front',
-				description: 'Move to front',
-				cost: 1,
-				rarity: 'common',
-				targetType: 'self',
-				effects: [
-					{ type: 'move_to_position', target: 'front' }
-				],
-				tags: ['movement']
-			});
+			const positionCard = realCard('flank');
 
 			const attackCard = new Card({
 				type: 'gun_attack',
@@ -396,7 +381,7 @@ describe('RammingAI', () => {
 				rarity: 'common',
 				targetType: 'self',
 				effects: [
-					{ type: 'armor', value: 10 }
+					{ type: 'gain_armor', value: 10 }
 				],
 				tags: ['defense']
 			});
