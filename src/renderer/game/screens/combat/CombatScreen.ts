@@ -1,16 +1,24 @@
 import { Screen } from '../../core/Screen';
 import { ScreenManager } from '../../core/ScreenManager';
-import { Rectangle } from '../../../engine/components/Rectangle';
-import { Layer } from '../../../engine/components/Layer';
-import { Rect } from '../../../engine/draw/geometry';
+import { Stack } from '../../../engine/components/Stack';
 import { EnemyBattlefieldLayer, EnemyIntent } from './EnemyBattlefieldLayer';
 import { PlayerBattlefieldLayer } from './PlayerBattlefieldLayer';
 import { PlayerHandLayer } from './PlayerHandLayer';
-import { ResourceBarLayer } from './ResourceBarLayer';
+import { LOG_KEY, TopBarLayer } from './TopBarLayer';
+import { EndTurnColumn } from './EndTurnColumn';
 import { CombatLogLayer } from './CombatLogLayer';
 import { TurnPhaseDisplay, CombatPhase } from './TurnPhaseDisplay';
 import { CombatModel } from './CombatModel';
-import { CombatLayout, computeCombatLayout } from './CombatLayout';
+import {
+	DOCK_HEIGHT,
+	ENEMY_ROAD_WEIGHT,
+	LOG_DRAWER_WIDTH,
+	PLAYER_ROAD_WEIGHT,
+	STAGE_MAX_WIDTH,
+	computeCombatStage,
+} from './CombatLayout';
+import { ChromeStack } from './ChromeStack';
+import { DOCK_GRADIENT, Rgba, rgba } from './combatStyle';
 import { buildPlayerHandView } from './PlayerHandView';
 import { Driver, DriverRole } from '../../mechanics/Driver';
 import { assertDriverPair } from '../../mechanics/DriverPair';
@@ -25,17 +33,32 @@ import { CardLoader } from '../../core/CardLoader';
 import { DriverLoader } from '../../core/DriverLoader';
 import { BattleResultData } from '../battleResult/BattleResultScreen';
 
+/** Behind the stage, to the screen's edges (the mock's `.g-bg`). */
+const SCREEN_BACKGROUND: Rgba = [0.0824, 0.0863, 0.0941, 1];
+const BANNER_INSET = 12;
+/** The top bar's LOG key in either case, and F6, which it has always had. */
+const LOG_TOGGLE_KEYS = [LOG_KEY.toLowerCase(), LOG_KEY, 'F6'];
+/** Between the hands and the End Turn column. */
+const DOCK_GAP = 16;
 /**
- * Combat Screen implementing Game Flow Spec section 2
- * Layered implementation with proper coordinate management
+ * From the mock: tabs 8 below the dock's edge and cards ending 10 above the
+ * bottom, less the lift a hovered card rises by, which the fan keeps inside
+ * itself.
+ */
+const DOCK_PADDING = { top: 8, bottom: 5, left: 16, right: 16 };
+
+/**
+ * The combat screen, laid out per Battle Screen Design section 2
  */
 export class CombatScreen extends Screen {
-	// Layer components, built in onMount
-	private background!: Rectangle;
+	// Layer components, built in onMount. The stage holds everything else
+	// and is the one thing sized and scaled from the viewport.
+	private stage!: Stack;
+	private topBar!: TopBarLayer;
 	private enemyLayer!: EnemyBattlefieldLayer;
 	private battlefieldLayer!: PlayerBattlefieldLayer;
 	private handLayer!: PlayerHandLayer;
-	private resourceLayer!: ResourceBarLayer;
+	private endTurnColumn!: EndTurnColumn;
 	private combatLogLayer!: CombatLogLayer;
 	private turnPhaseDisplay!: TurnPhaseDisplay;
 	
@@ -56,6 +79,8 @@ export class CombatScreen extends Screen {
 	
 	// UI state
 	private combatLogVisible = false;
+	// The turn the screen last showed, for logging a new one
+	private shownTurn = 1;
 	// The hand slot of the card a keyboard player last chose, where focus
 	// goes back to once it is played or put back
 	private keyboardSlot = 0;
@@ -131,11 +156,7 @@ export class CombatScreen extends Screen {
 
 			// Initial UI update is handled by battleStarted event
 			
-			// Set initial turn phase
-			if (this.turnPhaseDisplay) {
-				this.turnPhaseDisplay.turn = this.battle.turn;
-				this.turnPhaseDisplay.phase = CombatPhase.COMBAT_START;
-			}
+			this.turnPhaseDisplay.phase = this.battle.isPlayerTurn ? CombatPhase.PLAYER_TURN : CombatPhase.ENEMY_TURN;
 			
 			// Log combat start
 			this.combatLog.addEntry('Combat Started!', CombatLogType.INFO);
@@ -160,22 +181,18 @@ export class CombatScreen extends Screen {
 		// Subscribe to battle events
 		this.unsubscribers.push(
 			this.battle.on('stateChanged', (state: BattleState) => {
-				const previousTurn = this.turnPhaseDisplay?.turn || 1;
+				const previousTurn = this.shownTurn;
 				this.updateUIFromBattle();
 				
-				// Update turn phase display
-				if (this.battle && this.turnPhaseDisplay) {
-					this.turnPhaseDisplay.turn = this.battle.turn;
-					this.turnPhaseDisplay.phase = state.isPlayerTurn ? 
-						CombatPhase.PLAYER_TURN : 
-						!state.isPlayerTurn && !state.battleOver ? CombatPhase.ENEMY_TURN :
-						state.battleOver ? CombatPhase.COMBAT_END :
-						CombatPhase.COMBAT_START;
-					
-					// Log turn changes
-					if (state.turn > previousTurn && state.isPlayerTurn) {
-						this.combatLog.addEntry(`Turn ${state.turn} - Player turn started`, CombatLogType.TURN);
-					}
+				this.turnPhaseDisplay.phase = state.isPlayerTurn ? 
+					CombatPhase.PLAYER_TURN : 
+					!state.isPlayerTurn && !state.battleOver ? CombatPhase.ENEMY_TURN :
+					state.battleOver ? CombatPhase.COMBAT_END :
+					CombatPhase.COMBAT_START;
+				
+				// Log turn changes
+				if (state.turn > previousTurn && state.isPlayerTurn) {
+					this.combatLog.addEntry(`Turn ${state.turn} - Player turn started`, CombatLogType.TURN);
 				}
 			})
 		);
@@ -341,16 +358,26 @@ export class CombatScreen extends Screen {
 		this.handLayer.setHand(buildPlayerHandView(this.playerDrivers, (driver, card) => battle.canPlayCard({ driver, card })));
 
 		this.playerDrivers.forEach((driver, index) => {
-			this.resourceLayer.setDriverData((index + 1) as 1 | 2, {
+			this.handLayer.setDriverData((index + 1) as 1 | 2, {
 				name: driver.metadata.name,
 				adrenaline: driver.adrenaline,
 				maxAdrenaline: driver.maxAdrenaline,
 				drawPileCount: driver.deck ? driver.deck.cards.length : 0,
 				discardPileCount: driver.discard.length,
-				fuel: index === 0 ? this.fuel : 0 // TODO: Track fuel per driver when implemented
+				passenger: driver.role === DriverRole.PASSENGER,
 			});
 		});
-		this.resourceLayer.setScrap(this.scrap);
+		this.shownTurn = battle.turn;
+		this.topBar.turn = battle.turn;
+		this.topBar.scrap = this.scrap;
+		this.topBar.fuel = this.fuel;
+		this.endTurnColumn.show({
+			turn: battle.turn,
+			playerTurn: battle.isPlayerTurn && !battle.battleOver,
+			unspentAdrenaline: this.playerDrivers
+				.filter(driver => driver.isAlive())
+				.reduce((total, driver) => total + driver.adrenaline, 0),
+		});
 
 		// Update enemy layer with enemy vehicles
 		if (this.enemyTeam) {
@@ -382,112 +409,146 @@ export class CombatScreen extends Screen {
 	}
 
 	/**
-	 * The layout for the screen's current size
-	 */
-	private get layout(): CombatLayout {
-		return computeCombatLayout({ width: this.rootLayer.getWidth(), height: this.rootLayer.getHeight() });
-	}
-
-	/**
-	 * Create the background and every layer where the layout puts them
+	 * Build the screen as stacks (Battle Screen Design, section 2): a stage
+	 * the viewport's size in logical pixels, holding a column capped at
+	 * 1600 and centred, of a 36 px top bar, the road filling what is left,
+	 * and a 228 px dock. The turn banner and the log drawer are anchored
+	 * over the road, so neither ever covers the dock.
 	 */
 	private createLayers(): void {
-		const layout = this.layout;
+		this.rootLayer.setBackgroundColor(SCREEN_BACKGROUND);
 
-		this.background = new Rectangle({
-			x: 0,
-			y: 0,
-			width: this.rootLayer.getWidth(),
-			height: this.rootLayer.getHeight(),
-			style: {
-				backgroundColor: '#1a1a1a', // Dark combat background
-			},
+		this.stage = new Stack({
+			id: 'combat_stage',
+			direction: 'horizontal',
+			distribution: 'center',
+			crossAlign: 'stretch',
 		});
-		this.rootLayer.addChild(this.background);
+		this.rootLayer.addChild(this.stage);
 
-		this.resourceLayer = new ResourceBarLayer({
-			id: 'combat_resource_bar',
-			...layout.resourceBar,
+		const bands = new Stack({
+			id: 'combat_bands',
+			direction: 'vertical',
+			crossAlign: 'stretch',
+			widthMode: 'fill',
+			heightMode: 'fill',
+			maxSize: { width: STAGE_MAX_WIDTH },
 		});
-		this.rootLayer.addChild(this.resourceLayer);
+		this.stage.addChild(bands);
+
+		this.topBar = new TopBarLayer({
+			id: 'combat_top_bar',
+			combatLog: this.combatLog,
+			onToggleLog: () => this.toggleCombatLog(),
+		});
+		bands.addChild(this.topBar);
+		bands.addChild(this.createRoad());
+		bands.addChild(this.createDock());
+	}
+
+	/** The raiders' band above the player's until the slot grid (DDB-134), with the banner and the log drawer over both. */
+	private createRoad(): Stack {
+		const road = new Stack({
+			id: 'combat_road',
+			direction: 'vertical',
+			crossAlign: 'stretch',
+			widthMode: 'fill',
+			heightMode: 'fill',
+		});
 
 		this.enemyLayer = new EnemyBattlefieldLayer({
 			id: 'combat_enemy_battlefield',
-			...layout.enemyBattlefield,
+			widthMode: 'fill',
+			heightMode: 'fill',
+			fillWeight: ENEMY_ROAD_WEIGHT,
 			combatData: this.combatModel,
 		});
-		this.rootLayer.addChild(this.enemyLayer);
+		road.addChild(this.enemyLayer);
 
 		this.battlefieldLayer = new PlayerBattlefieldLayer({
 			id: 'combat_player_battlefield',
-			...layout.playerBattlefield,
+			widthMode: 'fill',
+			heightMode: 'fill',
+			fillWeight: PLAYER_ROAD_WEIGHT,
 			combatData: this.combatModel,
 		});
-		this.rootLayer.addChild(this.battlefieldLayer);
+		road.addChild(this.battlefieldLayer);
 
-		this.handLayer = new PlayerHandLayer({
-			id: 'combat_player_hand',
-			...layout.hand,
-		});
-		this.rootLayer.addChild(this.handLayer);
-
+		// Centred on the road's height at its left edge, whatever fills the
+		// road, so the slot grid (DDB-134) can replace the two bands under it
 		this.turnPhaseDisplay = new TurnPhaseDisplay({
 			id: 'combat_turn_banner',
-			...layout.turnBanner,
+			positioned: 'absolute',
+			anchor: 'left',
+			x: BANNER_INSET,
+			zIndex: 1,
 		});
-		this.rootLayer.addChild(this.turnPhaseDisplay);
+		road.addChild(this.turnPhaseDisplay);
 
 		this.combatLogLayer = new CombatLogLayer({
 			id: 'combat_log',
-			...layout.combatLog,
+			positioned: 'absolute',
+			anchor: 'topRight',
+			width: LOG_DRAWER_WIDTH,
+			heightMode: 'fill',
+			zIndex: 1,
 			combatLog: this.combatLog,
 		});
-		this.rootLayer.addChild(this.combatLogLayer);
-
-		// Start with combat log hidden
 		this.combatLogLayer.setVisible(this.combatLogVisible);
+		road.addChild(this.combatLogLayer);
+
+		return road;
+	}
+
+	/** Both drivers' tabs and hands, then the End Turn column at the stage's right end. */
+	private createDock(): Stack {
+		const dock = new ChromeStack({
+			id: 'combat_dock',
+			direction: 'horizontal',
+			gap: DOCK_GAP,
+			padding: DOCK_PADDING,
+			crossAlign: 'stretch',
+			widthMode: 'fill',
+			height: DOCK_HEIGHT,
+			chrome: { fill: DOCK_GRADIENT, edge: { color: rgba('line_edge'), edges: { top: true } } },
+		});
+
+		this.handLayer = new PlayerHandLayer({
+			id: 'combat_player_hand',
+			widthMode: 'fill',
+			heightMode: 'fill',
+		});
+		dock.addChild(this.handLayer);
+
+		this.endTurnColumn = new EndTurnColumn({
+			id: 'combat_end_turn',
+			onEndTurn: () => this.endPlayerTurn(),
+		});
+		dock.addChild(this.endTurnColumn);
+
+		return dock;
 	}
 
 	/**
-	 * Move and size every layer to the layout for the current size
+	 * The one layout function's screen half, on mount and on every resize:
+	 * the stage takes the logical canvas for the viewport and scales it
+	 * back up to fill the screen. The stacks lay out everything inside it.
 	 */
 	private applyLayout(): void {
-		const layout = this.layout;
-		const place = (layer: Layer, { x, y, width, height }: Rect): void => {
-			layer.setPosition(x, y);
-			layer.setSize(width, height);
-		};
-
-		this.background.setSize(this.rootLayer.getWidth(), this.rootLayer.getHeight());
-		place(this.resourceLayer, layout.resourceBar);
-		place(this.enemyLayer, layout.enemyBattlefield);
-		place(this.battlefieldLayer, layout.playerBattlefield);
-		place(this.handLayer, layout.hand);
-		place(this.turnPhaseDisplay, layout.turnBanner);
-		place(this.combatLogLayer, layout.combatLog);
+		const { scale, width, height } = computeCombatStage({ width: this.rootLayer.getWidth(), height: this.rootLayer.getHeight() });
+		this.stage.setSize(width, height);
+		this.stage.transform = { scale, origin: [0, 0] };
 	}
 
 	/**
 	 * Set up layer interactions and callbacks
 	 */
 	private setupInteractions(): void {
-		// Hand layer interactions
-		this.handLayer.setOnCardHover((_card) => {
-			// Show card details on hover
-			// TODO: Implement card detail popup
-		});
-
-		// Use semantic events for card interactions
 		this.handLayer.setOnCardSelect((card) => {
 			this.onCardSelected(card);
 		});
 
-		// Resource layer interactions
-		this.resourceLayer.setOnEndTurn(() => {
-			this.endPlayerTurn();
-		});
-
-		// Escape cancels targeting and F6 toggles the combat log, from the
+		// Escape cancels targeting and L or F6 toggles the combat log, from the
 		// screen root's hotkey table, which keys reach after bubbling out of
 		// whatever is focused (R9.15)
 		const { hotkeys } = this.rootLayer;
@@ -498,9 +559,7 @@ export class CombatScreen extends Screen {
 				this.restoreKeyboardFocus();
 			}
 		});
-		hotkeys.register('F6', () => {
-			this.toggleCombatLog();
-		});
+		for (const key of LOG_TOGGLE_KEYS) hotkeys.register(key, () => this.toggleCombatLog());
 
 		// Removed global click handler - it was interfering with vehicle targeting
 	}
@@ -665,7 +724,7 @@ export class CombatScreen extends Screen {
 		const focus = this.context.focus;
 		if (!focus.focusVisible) return;
 		if (this.handLayer.focusNearSlot(this.keyboardSlot)) return;
-		focus.focus(this.resourceLayer.endTurn);
+		focus.focus(this.endTurnColumn.endTurn);
 	}
 	
 	/**
@@ -766,6 +825,7 @@ export class CombatScreen extends Screen {
 		const generation = ++this.mountGeneration;
 
 		this.createLayers();
+		this.applyLayout();
 		this.setupInteractions();
 		this.setupModelListeners();
 
@@ -815,7 +875,7 @@ export class CombatScreen extends Screen {
 		}
 
 		this.rootLayer.hotkeys.unregister('Escape');
-		this.rootLayer.hotkeys.unregister('F6');
+		for (const key of LOG_TOGGLE_KEYS) this.rootLayer.hotkeys.unregister(key);
 
 		// Unsubscribe from all events
 		this.unsubscribeAll();

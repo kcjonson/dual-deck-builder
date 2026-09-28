@@ -1,17 +1,16 @@
 import { Card } from '../../mechanics/Card';
-import { Driver, DriverRole } from '../../mechanics/Driver';
+import { Driver } from '../../mechanics/Driver';
 
 export type DriverSeat = 1 | 2;
 
 /**
  * What the hand layer draws: both drivers' cards side by side, the seat each
- * card belongs to, which of them can be played now, and each seat's label.
+ * card belongs to, and which of them can be played now.
  */
 export interface PlayerHandView {
 	cards: Card[];
 	seatOf: Map<string, DriverSeat>;
 	playable: Set<string>;
-	labels: Map<DriverSeat, string>;
 }
 
 /**
@@ -26,12 +25,10 @@ export function buildPlayerHandView(
 	drivers: readonly Driver[],
 	canPlay: (driver: Driver, card: Card) => boolean = (driver, card) => driver.canPlayCard(card)
 ): PlayerHandView {
-	const view: PlayerHandView = { cards: [], seatOf: new Map(), playable: new Set(), labels: new Map() };
+	const view: PlayerHandView = { cards: [], seatOf: new Map(), playable: new Set() };
 
 	drivers.forEach((driver, index) => {
 		const seat = (index + 1) as DriverSeat;
-		const passenger = driver.role === DriverRole.PASSENGER;
-		view.labels.set(seat, passenger ? `Driver ${seat} (passenger)` : `Driver ${seat}`);
 		if (!driver.isAlive()) return;
 
 		for (const card of driver.hand) {

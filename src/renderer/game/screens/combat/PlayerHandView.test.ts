@@ -35,8 +35,6 @@ describe('buildPlayerHandView', () => {
 
 		expect(view.cards).toEqual([...first.hand, ...second.hand]);
 		expect(view.cards.map(c => view.seatOf.get(c.id))).toEqual([1, 1, 2]);
-		expect(view.labels.get(1)).toBe('Driver 1 (passenger)');
-		expect(view.labels.get(2)).toBe('Driver 2');
 	});
 
 	test("a passenger's attack cards are shown but unplayable", () => {

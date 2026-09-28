@@ -23,7 +23,7 @@ export class CombatLogLayer extends Layer {
 	private readonly padding = 10;
 	private readonly fontSize = 14;
 
-	constructor(options: LayerOptions & { x: number; y: number; width: number; height: number; combatLog: CombatLog }) {
+	constructor(options: LayerOptions & { combatLog: CombatLog }) {
 		super(options);
 
 		this.combatLog = options.combatLog;

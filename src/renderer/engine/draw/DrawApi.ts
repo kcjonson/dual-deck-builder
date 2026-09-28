@@ -55,6 +55,7 @@ import {
 	copyVec2,
 	inflate,
 	intersects,
+	isAxisAligned,
 	transformedBounds,
 } from './geometry';
 import { LayerPartition } from './layerPartition';
@@ -452,13 +453,15 @@ export class DrawApi {
 		this.counters.countClipPush();
 		const translateOnly = this.transforms.translateOnly;
 
-		if (!translateOnly) {
+		if (!translateOnly && !isAxisAligned(this.transforms.matrix)) {
 			// R4.7: the axis-aligned bounds of the transformed rect is the
 			// first of the three permitted responses, and it under-clips, so
-			// the warning is required rather than polite.
+			// the warning is required rather than polite. A scale without
+			// rotation keeps the rect on the axes, where the bounds are exact
+			// and there is nothing to warn about (the scaled combat stage).
 			this.report(
 				'clip-under-non-translate-transform',
-				'pushClip under a rotated or non-uniformly scaled transform; the clip is the axis-aligned bounds of the transformed rect, which under-clips (R4.7)',
+				'pushClip under a rotated or skewed transform; the clip is the axis-aligned bounds of the transformed rect, which under-clips (R4.7)',
 			);
 		}
 
@@ -484,7 +487,8 @@ export class DrawApi {
 	 * `transformedBounds` of `rect` under the current transform, into the
 	 * reused scratch rect. The translate-only case, every clip the render walk
 	 * pushes, is the same arithmetic in place; a rotated clip is rare and
-	 * already reported (R4.7), so it may allocate.
+	 * already reported (R4.7), so it may allocate. A scale without rotation
+	 * (the combat stage) is every clip under it, so it is done in place too.
 	 */
 	private screenBounds(rect: Rect): ClipRect {
 		const out = this.clipScratch;
@@ -494,6 +498,17 @@ export class DrawApi {
 			out.minY = rect.y + matrix[5];
 			out.maxX = rect.x + rect.width + matrix[4];
 			out.maxY = rect.y + rect.height + matrix[5];
+			return out;
+		}
+		if (isAxisAligned(matrix)) {
+			const x0 = rect.x * matrix[0] + matrix[4];
+			const x1 = (rect.x + rect.width) * matrix[0] + matrix[4];
+			const y0 = rect.y * matrix[3] + matrix[5];
+			const y1 = (rect.y + rect.height) * matrix[3] + matrix[5];
+			out.minX = Math.min(x0, x1);
+			out.maxX = Math.max(x0, x1);
+			out.minY = Math.min(y0, y1);
+			out.maxY = Math.max(y0, y1);
 			return out;
 		}
 		const bounds = transformedBounds(matrix, rect);
