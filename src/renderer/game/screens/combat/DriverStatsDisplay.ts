@@ -14,6 +14,9 @@ export interface DriverResourceData {
 	fuel: number;
 }
 
+/** The name's 12 px line box (10 px at 1.2) with two pixels either side. */
+const NAME_BAND = 16;
+
 /**
  * Stat display references
  */
@@ -152,12 +155,15 @@ export class DriverStatsDisplay extends Layer {
 	 */
 	private layoutElements(): void {
 		const height = this.getHeight();
-		const iconSize = Math.floor(height * 0.6);
+		// The icons are submitted after the name and paint over it (chapter 3),
+		// so the name gets a band of its own above them: the icons stay
+		// vertically centred and shrink until that band is free.
+		const iconSize = Math.max(0, Math.min(Math.floor(height * 0.6), height - NAME_BAND * 2));
 		const smallIconSize = Math.floor(iconSize * 0.7);
 		const padding = 5;
 		let currentX = 0;
 
-		this.nameLabel.setPosition(currentX, Math.floor(height * 0.2));
+		this.nameLabel.setPosition(currentX, Math.max(0, Math.floor((height - iconSize) / 2) - NAME_BAND + 2));
 
 		for (const boltIcon of this.adrenalineIcons) {
 			boltIcon.setPosition(currentX, Math.floor((height - iconSize) / 2));

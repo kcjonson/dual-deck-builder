@@ -273,9 +273,8 @@ export class Game {
 		if (!this.isInitialized) return;
 		if (__DEV_TOOLS__) this.renders++;
 
-		// Opens the frame where beginTextBatch used to. Nothing below reaches GL:
-		// a draw call resolves its state onto a command and the command waits for
-		// a barrier (R2.4 to R2.7).
+		// Nothing below reaches GL: a draw call resolves its state onto a command
+		// and the command waits for a barrier or endFrame (R2.4 to R2.7).
 		this.draw.beginFrame(this.viewport.frame);
 
 		// Render the current screen via ScreenManager
@@ -290,12 +289,10 @@ export class Game {
 	 * the two as separate sections (R13.7). `endFrame` drains the last sort
 	 * domain and hands it to the backend, which is where it paints.
 	 *
-	 * What this moved: shapes used to reach GL at their draw sites inside
-	 * `render`, so the render section held most of the frame's submission and
-	 * this one held the text tail. Now `render` is CPU work only and every GPU
-	 * submission happens in a domain, at a clip boundary or here. No pixel
-	 * changes and no gate reads the split, but section timings on both pages
-	 * are no longer comparable with the phase 0 baseline.
+	 * Shapes used to reach GL at their draw sites inside `render`, so section
+	 * timings on both pages are not comparable with the phase 0 baseline. Now
+	 * `render` is CPU work only and, since a clip change is not a barrier
+	 * (R3.20), the whole frame is submitted here.
 	 */
 	public flush(): void {
 		if (!this.isInitialized) return;
