@@ -12,9 +12,9 @@ import { GpuWork, SplitCounts, SplitReason } from './stats';
  * the emit order, one draw group per draw call. This class turns that list into
  * as few GPU draws as the backend's pipeline allows:
  *
- * - Every group's vertices and indices are written into one shared buffer, in
- *   emit order, as one contiguous range per group, which is chapter 3.1's
- *   definition of a draw group.
+ * - Every group's instances are written into one shared buffer, in emit order,
+ *   as one contiguous range per group, which is chapter 3.1's definition of a
+ *   draw group.
  * - Consecutive groups share a GPU draw unless something forces a split, and
  *   every split carries its reason (R13.13): a texture outside the resident set
  *   with every dynamic unit taken (R5.20), or a blend mode that needs different
@@ -24,20 +24,26 @@ import { GpuWork, SplitCounts, SplitReason } from './stats';
  *   preserved across the boundary because uploads are drawn in order.
  *
  * WHY IT SITS BEHIND THE SEAM rather than in `DrawApi`. What a group's geometry
- * looks like is the backend's vertex format, and R5.4 leaves that layout open:
- * the WebGL2 backend writes the uber shader's 32-float vertices, and an
- * instanced layout would write instances. So the backend owns a `Batcher` and hands it a
- * `GeometryEncoder`; the batcher owns everything that is the same for every
- * backend, which is buffer growth, ranges, split decisions, slot selection and
- * the counters, so no two backends can count a split differently.
+ * looks like is the backend's instance format, and R5.4 leaves that layout
+ * open: the WebGL2 backend writes the uber shader's packed 104-byte instances.
+ * So the backend owns a `Batcher` and hands it a `GeometryEncoder`; the batcher
+ * owns everything that is the same for every backend, which is buffer growth,
+ * ranges, split decisions, slot selection and the counters, so no two backends
+ * can count a split differently.
  *
- * THE CLIP is per-draw data (R4.1): the encoder writes it into each vertex,
+ * INSTANCES, NOT VERTICES (R5.4). Every group is a run of fixed-size
+ * instances, each drawn as one quad; a triangle is a quad with two corners at
+ * the same point. The sink hands the encoder four typed views of one buffer
+ * (float32, uint32, uint16 and uint8), so an instance can mix full floats,
+ * half floats and normalised bytes. There is no index stream.
+ *
+ * THE CLIP is per-draw data (R4.1): the encoder writes it into each instance,
  * so it is not an input to any split decision here and no clip change can
  * cost a GPU draw.
  *
- * ALLOCATION. A steady-state frame allocates nothing here: the typed arrays
- * grow by doubling and are reused, GPU draw records are pooled, and the upload
- * handed to `execute` and the `GpuWork` returned from `flush` are the same two
+ * ALLOCATION. A steady-state frame allocates nothing here: the buffer grows by
+ * doubling and is reused, GPU draw records are pooled, and the upload handed
+ * to `execute` and the `GpuWork` returned from `flush` are the same two
  * objects every time. Both are therefore only valid until the next `flush`,
  * which is how their one consumer each (the backend's upload, and
  * `DrawCounters.addGpuWork`) already uses them. Only a drop or contract report
@@ -45,57 +51,59 @@ import { GpuWork, SplitCounts, SplitReason } from './stats';
  *
  * THE ENCODER CONTRACT is checked, not trusted, when `verify` is given. Every
  * group shares one buffer, so an encoder that writes one glyph more than it
- * reported overwrites the next group, and one that writes an index outside its
- * own vertices draws a neighbour's. With `verify`, each group is fenced before
- * `encode` (NaN in its floats, an out-of-range index in its indices, a
- * sentinel just past both) and any group whose fence is not exactly
- * overwritten is reported. It costs a pass over the group, so it is a
- * development build's check.
+ * reported overwrites the next group. With `verify`, each group's words and
+ * the word just past it are filled with `FENCE_WORD` before `encode`, and any
+ * group that leaves a fenced word in its range, writes the one past it, or
+ * writes NaN into a float lane is reported. It costs a pass over the group, so
+ * it is a development build's check.
  */
 
 /** What an encoder reports about a group before it is written. Reused; never retained. */
 export interface GroupShape {
-	vertices: number;
-	indices: number;
+	instances: number;
 	/** The one texture the group samples, or null for texture-agnostic modes (R5.20). */
 	texture: TextureKey | null;
 }
 
 /**
- * Where an encoder writes one group. `indices` are absolute within the upload,
- * so a group's local index `i` is written as `baseVertex + i`.
+ * Where an encoder writes one group: four views of the same bytes, and the
+ * word the group's first instance starts at. Instance `i` of the group starts
+ * at word `wordOffset + i * instanceWords`.
  */
 export interface GeometrySink {
-	readonly vertices: Float32Array;
-	readonly indices: Uint16Array | Uint32Array;
-	/** Float offset of the group's first vertex in `vertices`. */
-	readonly floatOffset: number;
-	/** Index of the group's first vertex within the upload. */
-	readonly baseVertex: number;
-	/** Offset of the group's first index in `indices`. */
-	readonly indexOffset: number;
+	readonly floats: Float32Array;
+	readonly words: Uint32Array;
+	readonly halves: Uint16Array;
+	readonly bytes: Uint8Array;
+	readonly wordOffset: number;
 }
 
 export interface GeometryEncoder {
-	readonly floatsPerVertex: number;
-	/** R5.4 requires 32-bit indices on the indexed path; 16-bit caps an upload at 65536 vertices. */
-	readonly indexType: 'uint16' | 'uint32';
+	/** Four-byte words per instance. */
+	readonly instanceWords: number;
+	/**
+	 * How many leading words of every instance are float32 lanes, which the
+	 * contract check reads for NaN. The rest are packed and read only for the
+	 * fence.
+	 */
+	readonly floatWords: number;
+	/** Vertices the GPU runs per instance, for R13.12's `vertices` and `triangles`. */
+	readonly verticesPerInstance: number;
 	/**
 	 * Fills `out` and returns true, or returns false when the backend cannot
 	 * draw this command at all. A false return is the encoder's to report; the
 	 * batcher skips the command and counts nothing for it.
 	 */
 	shape(command: DrawCommand, out: GroupShape): boolean;
-	/** Writes exactly the vertex and index counts `shape` reported; `verify` checks it. */
+	/** Writes exactly the instances `shape` reported; `verify` checks it. */
 	encode(command: DrawCommand, sink: GeometrySink, slot: number): void;
 }
 
 /** One GPU submission within an upload. */
 export interface GpuDraw {
-	/** In indices, from the start of the upload's index buffer. */
-	firstIndex: number;
-	indexCount: number;
-	vertexCount: number;
+	/** In instances, from the start of the upload. */
+	firstInstance: number;
+	instanceCount: number;
 	/**
 	 * The blend state this draw needs: `over` for both `over` and `additive`,
 	 * which differ only in the fragment's alpha (R5.22a).
@@ -107,13 +115,11 @@ export interface GpuDraw {
 	split: SplitReason | null;
 }
 
-/** One upload: a vertex range, an index range, and the draws over them. Valid until the next upload. */
+/** One upload: an instance range and the draws over it. Valid until the next upload. */
 export interface GeometryUpload {
-	readonly vertices: Float32Array;
-	readonly floatCount: number;
-	readonly vertexCount: number;
-	readonly indices: Uint16Array | Uint32Array;
-	readonly indexCount: number;
+	readonly bytes: Uint8Array;
+	readonly byteCount: number;
+	readonly instanceCount: number;
 	readonly draws: readonly GpuDraw[];
 	/** Draw groups written into this upload. */
 	readonly groups: number;
@@ -122,11 +128,8 @@ export interface GeometryUpload {
 export interface BatcherOptions {
 	encoder: GeometryEncoder;
 	textures: ResidentTextureSet;
-	/**
-	 * Vertex capacity of one upload. Defaults to the index type's range, since
-	 * a 16-bit index cannot address past 65536 vertices.
-	 */
-	maxVertices?: number;
+	/** Instance capacity of one upload. */
+	maxInstances?: number;
 	/** A group larger than an upload, or a texture with no unit to go on. */
 	onDrop?: (command: DrawCommand, reason: string) => void;
 	/**
@@ -137,19 +140,17 @@ export interface BatcherOptions {
 }
 
 interface SinkState extends GeometrySink {
-	vertices: Float32Array;
-	indices: Uint16Array | Uint32Array;
-	floatOffset: number;
-	baseVertex: number;
-	indexOffset: number;
+	floats: Float32Array;
+	words: Uint32Array;
+	halves: Uint16Array;
+	bytes: Uint8Array;
+	wordOffset: number;
 }
 
 interface UploadState extends GeometryUpload {
-	vertices: Float32Array;
-	floatCount: number;
-	vertexCount: number;
-	indices: Uint16Array | Uint32Array;
-	indexCount: number;
+	bytes: Uint8Array;
+	byteCount: number;
+	instanceCount: number;
 	groups: number;
 }
 
@@ -158,22 +159,28 @@ interface DomainWork extends GpuWork {
 	flushes: { bufferFull: number };
 }
 
-const INITIAL_VERTICES = 1024;
+const INITIAL_INSTANCES = 256;
+const DEFAULT_MAX_INSTANCES = 65536;
 
-/** The float written just past a group before `encode`; an encoder has no reason to write it. */
-const FLOAT_FENCE = Math.fround(-3.25e38);
+/**
+ * Written over a group before `encode`. No lane of any instance can hold it:
+ * as a float32 it is 2.35e-38, as two half floats it starts with a NaN, and as
+ * four bytes it is a premultiplied colour brighter than its alpha.
+ */
+export const FENCE_WORD = 0x00ffffff;
 
 export class Batcher {
 	private readonly encoder: GeometryEncoder;
 	private readonly textures: ResidentTextureSet;
-	private readonly maxVertices: number;
+	private readonly maxInstances: number;
 	private readonly onDrop?: (command: DrawCommand, reason: string) => void;
 	private readonly verify?: (command: DrawCommand, problem: string) => void;
 
 	private readonly sink: SinkState;
+	/** Instances written into the current upload. */
+	private instanceCount = 0;
 	private readonly shape: GroupShape = {
-		vertices: 0,
-		indices: 0,
+		instances: 0,
 		texture: null,
 	};
 
@@ -193,29 +200,21 @@ export class Batcher {
 		flushes: { bufferFull: 0 },
 	};
 
-	constructor({ encoder, textures, maxVertices, onDrop, verify }: BatcherOptions) {
+	constructor({ encoder, textures, maxInstances = DEFAULT_MAX_INSTANCES, onDrop, verify }: BatcherOptions) {
 		this.encoder = encoder;
 		this.textures = textures;
-		const addressable = encoder.indexType === 'uint16' ? 65536 : 2 ** 32;
-		this.maxVertices = Math.min(maxVertices ?? addressable, addressable);
-		if (this.maxVertices < 1) throw new Error('Batcher: maxVertices must be at least 1');
+		this.maxInstances = maxInstances;
+		if (!(this.maxInstances >= 1)) throw new Error('Batcher: maxInstances must be at least 1');
+		if (!(encoder.instanceWords >= 1)) throw new Error('Batcher: an instance is at least one word');
 		this.onDrop = onDrop;
 		this.verify = verify;
 
-		const vertices = Math.min(INITIAL_VERTICES, this.maxVertices);
-		this.sink = {
-			vertices: new Float32Array(vertices * encoder.floatsPerVertex),
-			indices: this.allocateIndices(vertices * 6),
-			floatOffset: 0,
-			baseVertex: 0,
-			indexOffset: 0,
-		};
+		// One instance of headroom for the contract check's fence.
+		this.sink = viewsOf(new ArrayBuffer((Math.min(INITIAL_INSTANCES, this.maxInstances) + 1) * encoder.instanceWords * 4));
 		this.upload = {
-			vertices: this.sink.vertices,
-			floatCount: 0,
-			vertexCount: 0,
-			indices: this.sink.indices,
-			indexCount: 0,
+			bytes: this.sink.bytes,
+			byteCount: 0,
+			instanceCount: 0,
 			draws: this.draws,
 			groups: 0,
 		};
@@ -237,25 +236,24 @@ export class Batcher {
 		this.resetUpload();
 		this.textures.releaseDynamic();
 		const shape = this.shape;
-		const floatsPerVertex = this.encoder.floatsPerVertex;
+		const instanceWords = this.encoder.instanceWords;
 
 		for (let commandIndex = 0; commandIndex < commands.length; commandIndex++) {
 			const command = commands[commandIndex];
-			shape.vertices = 0;
-			shape.indices = 0;
+			shape.instances = 0;
 			shape.texture = null;
 			if (!this.encoder.shape(command, shape)) continue;
-			if (shape.vertices === 0 || shape.indices === 0) continue;
+			if (shape.instances === 0) continue;
 
-			if (shape.vertices > this.maxVertices) {
+			if (shape.instances > this.maxInstances) {
 				this.onDrop?.(
 					command,
-					`a ${command.kind} group of ${shape.vertices} vertices is larger than one upload (${this.maxVertices})`,
+					`a ${command.kind} group of ${shape.instances} instances is larger than one upload (${this.maxInstances})`,
 				);
 				continue;
 			}
 
-			if (this.sink.baseVertex + shape.vertices > this.maxVertices) {
+			if (this.instanceCount + shape.instances > this.maxInstances) {
 				this.emitUpload(execute, work);
 				work.flushes.bufferFull += 1;
 				this.resetUpload();
@@ -294,21 +292,16 @@ export class Batcher {
 				}
 			}
 
-			// One vertex and one index of headroom for the contract check's fence.
-			this.ensureCapacity(
-				(this.sink.baseVertex + shape.vertices + 1) * floatsPerVertex,
-				this.sink.indexOffset + shape.indices + 1,
-			);
+			// One instance of headroom for the contract check's fence.
+			this.ensureCapacity((this.instanceCount + shape.instances + 1) * instanceWords);
 			if (this.verify) this.fence(shape);
 			this.encoder.encode(command, this.sink, slot);
 			if (this.verify) this.checkFence(this.verify, command, shape);
 
 			const draw = this.current as GpuDraw;
-			draw.indexCount += shape.indices;
-			draw.vertexCount += shape.vertices;
-			this.sink.baseVertex += shape.vertices;
-			this.sink.floatOffset += shape.vertices * floatsPerVertex;
-			this.sink.indexOffset += shape.indices;
+			draw.instanceCount += shape.instances;
+			this.instanceCount += shape.instances;
+			this.sink.wordOffset += shape.instances * instanceWords;
 			this.groups += 1;
 		}
 
@@ -325,9 +318,8 @@ export class Batcher {
 
 	private openDraw(blend: BlendMode, split: SplitReason | null): void {
 		const draw = this.drawPool[this.draws.length] ?? this.newDraw();
-		draw.firstIndex = this.sink.indexOffset;
-		draw.indexCount = 0;
-		draw.vertexCount = 0;
+		draw.firstInstance = this.instanceCount;
+		draw.instanceCount = 0;
 		draw.blend = blend;
 		draw.split = split;
 		draw.textures.length = 0;
@@ -347,9 +339,8 @@ export class Batcher {
 
 	private newDraw(): GpuDraw {
 		const draw: GpuDraw = {
-			firstIndex: 0,
-			indexCount: 0,
-			vertexCount: 0,
+			firstInstance: 0,
+			instanceCount: 0,
 			blend: 'over',
 			textures: [],
 			split: null,
@@ -362,22 +353,19 @@ export class Batcher {
 		this.closeDraw();
 		if (this.draws.length === 0) return;
 
-		const bytesPerIndex = this.encoder.indexType === 'uint16' ? 2 : 4;
 		const upload = this.upload;
-		upload.vertices = this.sink.vertices;
-		upload.floatCount = this.sink.floatOffset;
-		upload.vertexCount = this.sink.baseVertex;
-		upload.indices = this.sink.indices;
-		upload.indexCount = this.sink.indexOffset;
+		upload.bytes = this.sink.bytes;
+		upload.byteCount = this.sink.wordOffset * 4;
+		upload.instanceCount = this.instanceCount;
 		upload.groups = this.groups;
 		execute(upload);
 
+		const vertices = this.instanceCount * this.encoder.verticesPerInstance;
 		work.gpuDraws += this.draws.length;
-		work.vertices += this.sink.baseVertex;
-		for (let index = 0; index < this.draws.length; index++) {
-			work.triangles += Math.floor(this.draws[index].indexCount / 3);
-		}
-		work.bytesUploaded += this.sink.floatOffset * 4 + this.sink.indexOffset * bytesPerIndex;
+		work.instances += this.instanceCount;
+		work.vertices += vertices;
+		work.triangles += Math.floor(vertices / 3);
+		work.bytesUploaded += upload.byteCount;
 	}
 
 	private resetWork(): DomainWork {
@@ -395,17 +383,10 @@ export class Batcher {
 		return work;
 	}
 
-	/**
-	 * NaN in every float of the group, an index one past its vertices in every
-	 * index, and a sentinel in the first float and index after it. An encoder
-	 * that honours `shape` overwrites the first two exactly and leaves the third.
-	 */
+	/** `FENCE_WORD` over every word of the group and the one after it. */
 	private fence(shape: GroupShape): void {
-		const { vertices, indices, floatOffset, baseVertex, indexOffset } = this.sink;
-		const floatEnd = floatOffset + shape.vertices * this.encoder.floatsPerVertex;
-		vertices.fill(NaN, floatOffset, floatEnd);
-		vertices[floatEnd] = FLOAT_FENCE;
-		indices.fill(baseVertex + shape.vertices, indexOffset, indexOffset + shape.indices + 1);
+		const { words, wordOffset } = this.sink;
+		words.fill(FENCE_WORD, wordOffset, wordOffset + shape.instances * this.encoder.instanceWords + 1);
 	}
 
 	private checkFence(
@@ -413,57 +394,53 @@ export class Batcher {
 		command: DrawCommand,
 		shape: GroupShape,
 	): void {
-		const { vertices, indices, floatOffset, baseVertex, indexOffset } = this.sink;
-		const floatEnd = floatOffset + shape.vertices * this.encoder.floatsPerVertex;
-		const vertexEnd = baseVertex + shape.vertices;
-
-		// Read back rather than compared with `vertexEnd`: a 16-bit fence at a
-		// group ending on vertex 65536 wraps, and the stored value is the fence.
-		const indexFence = this.encoder.indexType === 'uint16' ? vertexEnd & 0xffff : vertexEnd;
-		if (vertices[floatEnd] !== FLOAT_FENCE || indices[indexOffset + shape.indices] !== indexFence) {
-			verify(command, `the encoder wrote past the ${shape.vertices} vertices and ${shape.indices} indices it reported`);
+		const { words, floats, wordOffset } = this.sink;
+		const { instanceWords, floatWords } = this.encoder;
+		const wordCount = shape.instances * instanceWords;
+		const wordEnd = wordOffset + wordCount;
+		if (words[wordEnd] !== FENCE_WORD) {
+			verify(command, `the encoder wrote past the ${shape.instances} instances it reported`);
 			return;
 		}
-		for (let index = floatOffset; index < floatEnd; index++) {
-			if (Number.isNaN(vertices[index])) {
-				verify(command, `the encoder left float ${index - floatOffset} of ${floatEnd - floatOffset} unwritten, or wrote NaN`);
+		for (let index = wordOffset; index < wordEnd; index++) {
+			if (words[index] === FENCE_WORD) {
+				verify(command, `the encoder left word ${index - wordOffset} of ${wordCount} unwritten`);
 				return;
 			}
-		}
-		for (let index = indexOffset; index < indexOffset + shape.indices; index++) {
-			const value = indices[index];
-			if (value < baseVertex || value >= vertexEnd) {
-				verify(command, `index ${index - indexOffset} is ${value}, outside the group's vertices ${baseVertex} to ${vertexEnd - 1}`);
+			if ((index - wordOffset) % instanceWords < floatWords && Number.isNaN(floats[index])) {
+				verify(command, `the encoder wrote NaN into word ${index - wordOffset} of ${wordCount}`);
 				return;
 			}
 		}
 	}
 
 	private resetUpload(): void {
-		this.sink.floatOffset = 0;
-		this.sink.baseVertex = 0;
-		this.sink.indexOffset = 0;
+		this.sink.wordOffset = 0;
+		this.instanceCount = 0;
 		this.draws.length = 0;
 		this.groups = 0;
 		this.current = null;
 	}
 
-	private ensureCapacity(floats: number, indices: number): void {
-		if (floats > this.sink.vertices.length) {
-			const grown = new Float32Array(Math.max(floats, this.sink.vertices.length * 2));
-			grown.set(this.sink.vertices.subarray(0, this.sink.floatOffset));
-			this.sink.vertices = grown;
-		}
-		if (indices > this.sink.indices.length) {
-			const grown = this.allocateIndices(Math.max(indices, this.sink.indices.length * 2));
-			grown.set(this.sink.indices.subarray(0, this.sink.indexOffset));
-			this.sink.indices = grown;
-		}
+	private ensureCapacity(words: number): void {
+		if (words <= this.sink.words.length) return;
+		const grown = viewsOf(new ArrayBuffer(Math.max(words, this.sink.words.length * 2) * 4));
+		grown.words.set(this.sink.words.subarray(0, this.sink.wordOffset));
+		this.sink.floats = grown.floats;
+		this.sink.words = grown.words;
+		this.sink.halves = grown.halves;
+		this.sink.bytes = grown.bytes;
 	}
+}
 
-	private allocateIndices(count: number): Uint16Array | Uint32Array {
-		return this.encoder.indexType === 'uint16' ? new Uint16Array(count) : new Uint32Array(count);
-	}
+function viewsOf(buffer: ArrayBuffer): SinkState {
+	return {
+		floats: new Float32Array(buffer),
+		words: new Uint32Array(buffer),
+		halves: new Uint16Array(buffer),
+		bytes: new Uint8Array(buffer),
+		wordOffset: 0,
+	};
 }
 
 /** R5.22a: `additive` is `over` with the fragment's alpha zeroed, so it needs no state of its own. */
