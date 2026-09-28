@@ -2,7 +2,8 @@ import { Screen } from '../../core/Screen';
 import { ScreenManager } from '../../core/ScreenManager';
 import { Button } from '../../../engine/ui/Button';
 import { Text } from '../../../engine/components/Text';
-import { Panel } from '../../../engine/ui/Panel';
+import { Layer } from '../../../engine/components/Layer';
+import { ScrollContainer } from '../../../engine/ui/ScrollContainer';
 import { Rectangle } from '../../../engine/components/Rectangle';
 
 // The sections are defined once, in sections.ts, so this screen and the
@@ -31,7 +32,9 @@ export class DeveloperScreen extends Screen {
 	private background: Rectangle;
 	private title: Text;
 	private backButton: Button;
-	private mainScrollContainer: Panel;
+	private mainScrollContainer: ScrollContainer;
+	/** The scroll container's one content child: the sections, placed by hand. */
+	private sectionColumn: Layer;
 	private sectionsBuilt = false;
 
 	/**
@@ -74,16 +77,15 @@ export class DeveloperScreen extends Screen {
 		this.rootLayer.addChild(this.backButton);
 
 		// One full-width scrollable container for every section
-		this.mainScrollContainer = new Panel({
+		this.mainScrollContainer = new ScrollContainer({
 			id: 'dev_scroll',
 			y: HEADER_HEIGHT,
-			scrollable: true,
-			scrollDirection: 'vertical',
-			overflow: 'hidden',
 			style: {
 				backgroundColor: '#262626', // Match the background
 			},
 		});
+		this.sectionColumn = new Layer({ id: 'dev_sections' });
+		this.mainScrollContainer.addChild(this.sectionColumn);
 		this.rootLayer.addChild(this.mainScrollContainer);
 	}
 
@@ -128,10 +130,10 @@ export class DeveloperScreen extends Screen {
 			// mounts
 			const section = definition.build({ x: margin, y: currentY, width: contentWidth });
 			currentY += section.getHeight() + sectionSpacing;
-			this.mainScrollContainer.addChild(section);
+			this.sectionColumn.addChild(section);
 		}
 
-		this.mainScrollContainer.setContentSize(this.rootLayer.width, currentY + 100);
+		this.sectionColumn.setSize(this.rootLayer.width, currentY + 100);
 	}
 
 	protected onResized(): void {
@@ -142,6 +144,6 @@ export class DeveloperScreen extends Screen {
 		// Clear any focus from input fields
 		this.context.focus.blur();
 
-		this.mainScrollContainer.setScrollOffset(0, 0);
+		this.mainScrollContainer.scrollToTop();
 	}
 }

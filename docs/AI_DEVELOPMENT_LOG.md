@@ -15,6 +15,18 @@ This document contains the chronological log of completed development tasks for 
 - Corners draw at one logical pixel per texel. Insets that cross inside the source are scaled down per axis; a destination smaller than two corners scales every corner by the smaller axis's factor, so corners keep their aspect (CSS border-image's rule). Zero insets drop their empty cells.
 - Tests: grid math in `nineSlice.test.ts`, encoder output in `UberGeometryEncoder.test.ts`, and a SwiftShader pixel test (corners stay 2x2 texels of pure colour, the pixels either side of every cell boundary are their own cell's colour, a fractional placement has no gap between cells). The `shading` gallery scene gained 5.10's nine-sliced image: a 24 px frame at one to one, sliced wide, stretched unsliced for contrast, and sliced shorter than its corners. The frame's art steps colour at the inset line, so the golden would show any bleed.
 
+## Catalog Wave A, panel and scrolling (2026-09-28)
+
+**What landed:** DDB-85's second PR (DDB-55 phase 5), R12.18 to R12.20, R12.37, R3.6a's popup close; closes DDB-32 and DDB-210.
+
+- `ui/Panel.ts` rewritten as a `Stack` on the closed style set with variants, header (kicker, title, hairline, actions), corners, glow, compact, flush, and `layout: 'stack' | 'free'`. Its scrolling is gone.
+- New `ui/ScrollContainer.ts` and `ui/Scrollbar.ts`. `Stack.flows(child)`, `Component.invalidateClip()`, `Dispatcher.contentMoved()`, `PopupService.scrolled()` with the `scroll` close reason.
+- The layout lint exempts a scroll container's direct children from rule 2.
+- Developer screen and card showcase on ScrollContainer; the combat log on ScrollContainer with reconciled lines that follow the newest entry.
+- Gallery scenes `panels` and `scrolling`.
+
+**How:** `ScrollContainer.test.ts` (worldsim's suite ported: max scroll, clamping, a resized viewport re-clamping; plus layout and the gutter, the fixed scrollbar and its thumb, the clip and ink, wheel latching, hover after a scroll by code, keys, thumb drag and track press without taking focus, `scrollIntoView` nearest and center, `scrollToBottom` across a layout, and popups closing), `Panel.test.ts`, `ScrollClip.test.ts` (the old panel clip suite on the new container), `CombatLogLayer.test.ts`, and the dispatcher, focus, snapshot, and cull suites moved onto ScrollContainer. In the browser: every existing gallery scene's text record matches its committed JSON, all scenes lint clean at 1440 by 882, and the lists scroll by wheel and thumb.
+
 ## Catalog Wave A, controls (2026-09-28)
 
 **What landed:** DDB-85's first PR (DDB-55 phase 5), R12.7, R12.8, R12.9, R12.34, R12.35.
