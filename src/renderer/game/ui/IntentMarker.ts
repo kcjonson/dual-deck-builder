@@ -1,5 +1,7 @@
 import { Component, ComponentOptions } from '../../engine/components/Component';
 import { Icon } from '../../engine/components/Icon';
+import { grownRect } from '../../engine/components/componentGeometry';
+import type { Rect } from '../../engine/draw/geometry';
 import type { DrawApi } from '../../engine/draw/DrawApi';
 import type { IconName } from '../../engine/text/icons';
 import { resolveFontRole } from '../../engine/text/fontRoles';
@@ -85,6 +87,15 @@ export class IntentMarker extends Component {
 			default:
 				return '?';
 		}
+	}
+
+	/**
+	 * The subtree cull's bound (DDB-184): the disc, grown by two ems of the
+	 * value's size, since an unmeasured value centred in the disc can run
+	 * past it on both sides.
+	 */
+	protected get cullInk(): Rect {
+		return grownRect(this.inkRect, VALUE_SIZE * 2);
 	}
 
 	public render(draw: DrawApi): void {

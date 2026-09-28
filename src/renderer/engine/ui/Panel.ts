@@ -45,6 +45,8 @@ export class Panel extends Layer {
 	private scrollExtentWidth = 0;
 	private scrollExtentHeight = 0;
 	private readonly contentInset: number;
+	/** `contentOffset`, rebuilt only when the scroll moves, so the walk allocates none per frame. */
+	private offsetCache: Vec2 | null = null;
 
 	/**
 	 * Create a new panel
@@ -98,7 +100,10 @@ export class Panel extends Layer {
 	 * of the scrolled content (R4.13) and needs no second offset anywhere.
 	 */
 	public get contentOffset(): Vec2 {
-		return { x: this.scrollOffsetX - this.contentInset, y: this.scrollOffsetY - this.contentInset };
+		if (!this.offsetCache) {
+			this.offsetCache = Object.freeze({ x: this.scrollOffsetX - this.contentInset, y: this.scrollOffsetY - this.contentInset });
+		}
+		return this.offsetCache;
 	}
 
 	/** The content inset from each edge (the `padding` option). */
@@ -132,7 +137,7 @@ export class Panel extends Layer {
 	 * keeps the border-box clip it always had. Decision:
 	 * docs/AI_TECHNICAL_DECISIONS/panel-padding.md.
 	 */
-	public get clipRect(): Rect {
+	protected computeClipRect(): Rect {
 		const edge = this.contentInset > 0 ? Math.max(this.box.borderWidth, this.box.cornerRadius) : 0;
 		const inset = Math.min(edge, this.width / 2, this.height / 2);
 		return { x: inset, y: inset, width: this.width - inset * 2, height: this.height - inset * 2 };
@@ -144,8 +149,7 @@ export class Panel extends Layer {
 	public setScrollOffset(x: number, y: number): this {
 		if (!this.scrollable) return this;
 
-		this.scrollOffsetX = x;
-		this.scrollOffsetY = y;
+		this.scrollTo(x, y);
 		return this;
 	}
 
@@ -162,18 +166,28 @@ export class Panel extends Layer {
 	public scroll(deltaX: number, deltaY: number): this {
 		if (!this.scrollable) return this;
 
+		let x = this.scrollOffsetX;
+		let y = this.scrollOffsetY;
 		if (this.scrollDirection === 'vertical' || this.scrollDirection === 'both') {
 			const maxScrollY = this.scrollExtentHeight + this.contentInset * 2 - this.height;
-			const newScrollY = this.scrollOffsetY + deltaY;
-			this.scrollOffsetY = Math.max(0, Math.min(maxScrollY, newScrollY));
+			y = Math.max(0, Math.min(maxScrollY, y + deltaY));
 		}
 		if (this.scrollDirection === 'horizontal' || this.scrollDirection === 'both') {
 			const maxScrollX = this.scrollExtentWidth + this.contentInset * 2 - this.width;
-			const newScrollX = this.scrollOffsetX + deltaX;
-			this.scrollOffsetX = Math.max(0, Math.min(maxScrollX, newScrollX));
+			x = Math.max(0, Math.min(maxScrollX, x + deltaX));
 		}
+		this.scrollTo(x, y);
 
 		return this;
+	}
+
+	/** The one write path for the scroll: the content moves, and so does the subtree's ink. */
+	private scrollTo(x: number, y: number): void {
+		if (x === this.scrollOffsetX && y === this.scrollOffsetY) return;
+		this.scrollOffsetX = x;
+		this.scrollOffsetY = y;
+		this.offsetCache = null;
+		this.invalidateInk();
 	}
 
 	/**

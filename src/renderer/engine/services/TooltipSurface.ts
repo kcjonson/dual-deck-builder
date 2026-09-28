@@ -1,6 +1,8 @@
 import { Component } from '../components/Component';
 import { Text } from '../components/Text';
+import type { BoxShadow } from '../draw/commands';
 import type { DrawApi } from '../draw/DrawApi';
+import { shadowExtent } from '../style/look';
 import { tokens } from '../theme/tokens';
 import type { TooltipSpec } from './tooltipSpec';
 
@@ -9,6 +11,14 @@ const PADDING_Y = tokens.space.space_2;
 const LINE_GAP = tokens.space.space_1;
 const HOTKEY_GAP = tokens.space.space_3;
 export const DEFAULT_TOOLTIP_MAX_WIDTH = 280;
+
+const RAISED = tokens.elevation.shadow_raised;
+const SURFACE_SHADOW: BoxShadow = {
+	color: RAISED.color,
+	blur: RAISED.blur,
+	spread: RAISED.spread,
+	offset: { x: RAISED.offset[0], y: RAISED.offset[1] },
+};
 
 /** A token colour as the mutable tuple a style takes. */
 function rgba(color: readonly number[]): [number, number, number, number] {
@@ -85,16 +95,20 @@ export class TooltipSurface extends Component {
 		this.setSize(Math.ceil(width + PADDING_X * 2), Math.ceil(y + PADDING_Y));
 	}
 
+	/** R8.8: the raised shadow reaches past the box. */
+	public get inkExtent(): number {
+		return shadowExtent(SURFACE_SHADOW);
+	}
+
 	public render(draw: DrawApi): void {
 		if (this.width <= 0 || this.height <= 0) return;
-		const shadow = tokens.elevation.shadow_raised;
 		draw.drawRect({
 			id: this.id ?? undefined,
 			rect: { x: 0, y: 0, width: this.width, height: this.height },
 			fill: tokens.color.bg_panel_raised,
 			radius: tokens.radius.radius_ui,
 			border: { color: tokens.color.line_edge, width: tokens.borderWidth.bw_hair },
-			shadow: { color: shadow.color, blur: shadow.blur, spread: shadow.spread, offset: { x: shadow.offset[0], y: shadow.offset[1] } },
+			shadow: SURFACE_SHADOW,
 		});
 	}
 }

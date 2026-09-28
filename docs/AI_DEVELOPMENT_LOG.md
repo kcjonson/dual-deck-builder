@@ -6,6 +6,17 @@ This document contains the chronological log of completed development tasks for 
 
 **Date correction (2026-08-22):** the repo's first commit is 2025-05-17, but many entries below carry dates in December 2024 or January 2025 — the AI that wrote them used its assumed date instead of the real one. Entries dated 2025-07-03 and 2025-07-02 have been corrected from "2025-01-03"/"2025-01-02" (verified against git history). Remaining Dec 2024 / Jan 2025 dates are wrong by roughly six months; the real work happened May–July 2025. Trust git history over these dates.
 
+## Culled subtrees skipped on a cached ink bound (2026-09-28)
+
+**What landed:** DDB-184 (DDB-55), R4.2a.
+
+- `Component.subtreeInk`: a conservative bound on the subtree's ink in the parent's space (own `cullInk` plus the walk's focus ring, every visible child's bound less the content offset, placed by origin and transform), cached and marked stale to the root by `invalidateInk` from every geometry setter, size change, anchor placement, `layer`, drag offset, focus-visible, `Panel`'s scroll and `invalidateLayout`. Null (never skipped) under a `layer` or a null `cullInk`.
+- `renderTree` skips a counted subtree whose bound misses the clip (grown by `SUBTREE_INK_OUTSET`, four device pixels) and adds its last walk's group count through `DrawApi.cullGroups`, so `apiDraws + culled` is unchanged.
+- `cullInk` overrides: `Text` (box plus measured overrun plus an em; null unmeasured), `Icon`, `ArmorBadge`, `IntentMarker`, `Circle` (the disc its radius draws), `DrawFixture` (null).
+- Development-only ink audit: `DrawApi.setInkBound` around each `render`, `ink-outside-bound` when a group leaves it.
+- No per-frame allocation for `clipRect`, `transformMatrix` or `Panel.contentOffset`. `MeasuringRecordingBackend` answers `textInk` through the new shared `runInk`.
+- No pixel moved (screenshot hashes against `main` at 84 screen and scroll states). Card showcase render median about 0.81 to 0.63 ms, developer 0.85 to 0.50 ms. [subtree-ink-cull.md](./AI_TECHNICAL_DECISIONS/subtree-ink-cull.md).
+
 ## Game code on the tree (2026-09-28)
 
 **What landed:** DDB-79 (DDB-55 phase 3), closing DDB-41.
