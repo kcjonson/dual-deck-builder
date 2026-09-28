@@ -16,9 +16,8 @@ class Probe extends Layer {
 		super({ id, width: 10, height: 10 });
 	}
 
-	protected onMount(context: MountContext): void {
+	protected onMount(_context: MountContext): void {
 		this.log.push(`mount ${this.id}`);
-		context.input.registerMouseDown(this, () => undefined);
 	}
 
 	protected onUnmount(): void {
@@ -34,15 +33,15 @@ class Probe extends Layer {
 	}
 }
 
+/** A mounted root is one the dispatcher hit-tests (R9.4). */
 function registered(context: MountContext, component: Component): boolean {
-	const maps = context.input as unknown as { mouseDownComponents: Map<unknown, unknown> };
-	return maps.mouseDownComponents.has(component);
+	return context.dispatcher.roots.includes(component);
 }
 
 describe('mount and unmount (R8.14, R8.15)', () => {
 	it('touches no service before mount, registers on mount, and releases on unmount', () => {
 		const context = createTestContext();
-		const register = jest.spyOn(context.input, 'registerMouseDown');
+		const register = jest.spyOn(context.dispatcher, 'addRoot');
 		const log: string[] = [];
 		const probe = new Probe(log, 'probe');
 
@@ -255,8 +254,7 @@ describe('upward invalidation and the layout phase (R8.16, R8.18)', () => {
 		root.layouts = 0;
 
 		root.setSize(20, 20);
-		const input = context.input as unknown as { processMouseOverOut(): void };
-		input.processMouseOverOut();
+		context.dispatcher.hitTest({ x: 15, y: 15 });
 
 		expect(root.layouts).toBe(1);
 		expect(context.frame.layoutPending).toBe(false);

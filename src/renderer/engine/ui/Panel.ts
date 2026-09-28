@@ -2,8 +2,7 @@ import type { Rect, Vec2 } from '../draw/geometry';
 import type { DrawApi } from '../draw/DrawApi';
 import { Layer, LayerOptions } from '../components/Layer';
 import { BoxStyle, drawBox, resolveBoxStyle } from '../components/Rectangle';
-import type { Interactive } from '../input/InputSystem';
-import type { MountContext } from '../components/MountContext';
+import type { AnyUiEvent } from '../input/events';
 
 /**
  * Panel creation options
@@ -36,7 +35,7 @@ const DEFAULT_BOX: BoxStyle = {
  * screen while the content moves (R4.10), and rows scrolled out of view are
  * dropped by the draw API's cull against that clip (R4.2a).
  */
-export class Panel extends Layer implements Interactive {
+export class Panel extends Layer {
 	public scrollable = false;
 	private box: BoxStyle;
 	private scrollDirection: 'vertical' | 'horizontal' | 'both' = 'vertical';
@@ -77,11 +76,10 @@ export class Panel extends Layer implements Interactive {
 		if (options?.scrollDirection !== undefined) {
 			this.scrollDirection = options.scrollDirection;
 		}
-	}
-
-	protected onMount({ input }: MountContext): void {
-		if (this.scrollable) {
-			input.registerWheel(this, (deltaX, deltaY) => this.onWheel(deltaX, deltaY));
+		// A scroll viewport is a target in its own right, gaps between rows
+		// included, so a wheel anywhere over it finds it (R9.32).
+		if (this.scrollable && options?.pointerEvents === undefined) {
+			this.pointerEvents = 'auto';
 		}
 	}
 
@@ -183,11 +181,28 @@ export class Panel extends Layer implements Interactive {
 		return (this.scrollable || this.getOverflow() === 'hidden') && this.width > 0 && this.height > 0;
 	}
 
-	public onWheel(deltaX: number, deltaY: number): void {
-		if (this.scrollable) {
-			// Convert wheel delta to scroll amount
-			const scrollAmount = 30; // pixels per wheel notch
-			this.scroll(deltaX * scrollAmount, deltaY * scrollAmount);
-		}
+	/**
+	 * R9.32: the dispatcher latches the innermost scroller that can move in
+	 * the wheel's direction, so a panel at its end passes a new gesture on.
+	 */
+	public canScroll(deltaX: number, deltaY: number): boolean {
+		if (!this.scrollable) return false;
+		const vertical = this.scrollDirection !== 'horizontal';
+		const horizontal = this.scrollDirection !== 'vertical';
+		const maxY = Math.max(0, this.scrollExtentHeight - this.height);
+		const maxX = Math.max(0, this.scrollExtentWidth - this.width);
+		return (vertical && ((deltaY > 0 && this.scrollOffsetY < maxY) || (deltaY < 0 && this.scrollOffsetY > 0)))
+			|| (horizontal && ((deltaX > 0 && this.scrollOffsetX < maxX) || (deltaX < 0 && this.scrollOffsetX > 0)));
+	}
+
+	/**
+	 * Wheel deltas arrive normalised to logical pixels (R9.3) and scroll by
+	 * exactly that much; the latched panel consumes them (R9.32).
+	 */
+	public handleEvent(event: AnyUiEvent): void {
+		super.handleEvent(event);
+		if (event.type !== 'wheel' || !this.scrollable || event.consumed) return;
+		this.scroll(event.deltaX, event.deltaY);
+		event.consume();
 	}
 }

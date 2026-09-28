@@ -1,6 +1,6 @@
 import { Component, ComponentOptions, PointerEvents } from '../components/Component';
 import { Icon } from '../components/Icon';
-import type { MountContext } from '../components/MountContext';
+import type { AnyUiEvent } from '../input/events';
 import { Rectangle } from '../components/Rectangle';
 import { Text } from '../components/Text';
 import type { IconName } from '../text/icons';
@@ -25,7 +25,6 @@ export class Button extends Component {
 	/** The icon and gap the label's box gives up on its left. */
 	private labelInset = 0;
 	private pressed = false;
-	private clickHandler: (() => void) | null = null;
 
 	// Button appearance states
 	private normalColor = '#3333cc';
@@ -91,11 +90,34 @@ export class Button extends Component {
 		if (this.icon) this.placeIcon(this.icon);
 	}
 
-	protected onMount({ input }: MountContext): void {
-		input.registerMouseOver(this, () => this.onMouseOver());
-		input.registerMouseOut(this, () => this.onMouseOut());
-		input.registerMouseDown(this, () => this.onMouseDown());
-		input.registerMouseUp(this, () => this.onMouseUp());
+	/**
+	 * R9.11's press, without capture: the click itself is the dispatcher's,
+	 * synthesised only when the press and the release both land on this
+	 * button (R9.31), and never while disabled (R9.5). The callbacks run
+	 * first, so `onClick` is the base class's callback property.
+	 */
+	public handleEvent(event: AnyUiEvent): void {
+		super.handleEvent(event);
+		switch (event.type) {
+			case 'pointerenter':
+				if (this.enabled) this.background.setFillColor(this.pressed ? this.pressedColor : this.hoverColor);
+				return;
+			case 'pointerleave':
+				this.pressed = false;
+				if (this.enabled) this.background.setFillColor(this.normalColor);
+				return;
+			case 'pointerdown':
+				if (event.button !== 0) return;
+				this.pressed = true;
+				this.background.setFillColor(this.pressedColor);
+				return;
+			case 'pointerup':
+			case 'pointercancel':
+				if (!this.pressed) return;
+				this.pressed = false;
+				if (this.enabled) this.background.setFillColor(this.hovered ? this.hoverColor : this.normalColor);
+				return;
+		}
 	}
 
 	/**
@@ -192,62 +214,6 @@ export class Button extends Component {
 		}
 
 		return this;
-	}
-
-	/**
-	 * Set the click handler
-	 * @param callback Function to call when the button is clicked
-	 */
-	public onClick(callback: () => void): this {
-		this.clickHandler = callback;
-		return this;
-	}
-
-	/**
-	 * Handle mouse over event
-	 */
-	private onMouseOver(): void {
-		if (this.enabled) {
-			this.setHovered(true);
-			this.background.setFillColor(this.hoverColor);
-		}
-	}
-
-	/**
-	 * Handle mouse out event
-	 */
-	private onMouseOut(): void {
-		if (this.enabled) {
-			this.setHovered(false);
-			this.pressed = false;
-			this.background.setFillColor(this.normalColor);
-		}
-	}
-
-	/**
-	 * Handle mouse down event
-	 */
-	private onMouseDown(): void {
-		if (this.enabled) {
-			this.pressed = true;
-			this.background.setFillColor(this.pressedColor);
-		}
-	}
-
-	/**
-	 * Handle mouse up event
-	 */
-	private onMouseUp(): void {
-		if (this.enabled && this.pressed && this.hovered) {
-			// Trigger click callback
-			if (this.clickHandler) {
-				this.clickHandler();
-			}
-
-			this.background.setFillColor(this.hoverColor);
-		}
-
-		this.pressed = false;
 	}
 
 	/**

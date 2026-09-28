@@ -169,9 +169,9 @@ export class DriverSelectionScreen extends Screen {
 			},
 		});
 		this.backButton.setPosition(30, 30);
-		this.backButton.onClick(() => {
+		this.backButton.onClick = () => {
 			ScreenManager.navigate('mainMenuScreen');
-		});
+		};
 		this.rootLayer.addChild(this.backButton);
 		
 		// Start Run button (disabled initially)
@@ -189,7 +189,7 @@ export class DriverSelectionScreen extends Screen {
 		);
 		this.startRunButton.setEnabled(false);
 		this.startRunButton.setFillColor('#666666'); // Grayed out initially
-		this.startRunButton.onClick(() => {
+		this.startRunButton.onClick = () => {
 			if (this.canStartRun && this.selectedDriver1 && this.selectedDriver2) {
 				// Navigate to combat with driver data
 				const combatData = {
@@ -197,7 +197,7 @@ export class DriverSelectionScreen extends Screen {
 				};
 				ScreenManager.navigate('combatScreen', combatData);
 			}
-		});
+		};
 		this.rootLayer.addChild(this.startRunButton);
 	}
 

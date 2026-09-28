@@ -25,10 +25,9 @@ class ButtonScreen extends Screen {
 	}
 }
 
-function registrationCount(context: MountContext): number {
-	const input = context.input as unknown as Record<string, Map<unknown, unknown> | Set<unknown>>;
-	return ['mouseOverComponents', 'mouseOutComponents', 'mouseDownComponents', 'mouseUpComponents']
-		.reduce((total, key) => total + input[key].size, 0);
+/** What a press on the button's spot reaches. */
+function hitAtButton(context: MountContext): unknown {
+	return context.dispatcher.hitTest({ x: 20, y: 20 });
 }
 
 describe('Screen lifecycle (R8.21, R8.22)', () => {
@@ -41,7 +40,8 @@ describe('Screen lifecycle (R8.21, R8.22)', () => {
 		expect(screen.root.getWidth()).toBe(800);
 		expect(screen.root.getHeight()).toBe(600);
 		expect(screen.button?.isMounted).toBe(true);
-		expect(registrationCount(context)).toBe(4);
+		expect(context.dispatcher.roots).toEqual([screen.root]);
+		expect(hitAtButton(context)).toBe(screen.button);
 	});
 
 	it('leaves nothing of the old screen registered when the next one mounts', () => {
@@ -54,10 +54,8 @@ describe('Screen lifecycle (R8.21, R8.22)', () => {
 		second.mount(context);
 
 		expect(first.button?.isMounted).toBe(false);
-		expect(registrationCount(context)).toBe(4);
-		const downs = (context.input as unknown as { mouseDownComponents: Map<unknown, unknown> }).mouseDownComponents;
-		expect(downs.has(first.button)).toBe(false);
-		expect(downs.has(second.button)).toBe(true);
+		expect(context.dispatcher.roots).toEqual([second.root]);
+		expect(hitAtButton(context)).toBe(second.button);
 	});
 
 	it('reports the new root through onLayout in the first layout phase, before any render', () => {
