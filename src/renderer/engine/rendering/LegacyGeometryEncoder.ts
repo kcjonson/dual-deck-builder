@@ -9,7 +9,6 @@ import {
 	RGBA,
 	RectCommand,
 	TextCommand,
-	transformPoint,
 } from '../draw';
 import { GeometryEncoder, GeometrySink, GroupShape } from '../draw/Batcher';
 import type { CharacterInfo } from './FontAtlas';
@@ -102,6 +101,11 @@ export class LegacyGeometryEncoder implements GeometryEncoder {
 	private readonly onUnpaintable: (kind: DrawCommandKind, detail: string) => void;
 	/** Reused for every model matrix, so a rect costs no allocation. */
 	private readonly model = mat4.create();
+	private readonly translate: [number, number, number] = [0, 0, 0];
+	private readonly scale: [number, number, number] = [1, 1, 1];
+	/** `fade`'s output for the fill and the stroke, so opacity costs no allocation. */
+	private readonly fadedFill: [number, number, number, number] = [0, 0, 0, 0];
+	private readonly fadedStroke: [number, number, number, number] = [0, 0, 0, 0];
 
 	constructor({ glyphs, onUnpaintable }: LegacyGeometryEncoderOptions) {
 		this.glyphs = glyphs;
@@ -129,8 +133,11 @@ export class LegacyGeometryEncoder implements GeometryEncoder {
 				if (command.points.length < 2) return false;
 				out.vertices = command.points.length;
 				out.indices = (command.points.length - 1 + (command.closed ? 1 : 0)) * 2;
+				// `width` is not read: GL lines are one pixel wide on every
+				// WebGL implementation this ships on (ANGLE's
+				// ALIASED_LINE_WIDTH_RANGE is [1, 1]), so a lineWidth call
+				// would only split draws for nothing. Capsules arrive with R2.10.
 				out.topology = 'lines';
-				out.lineWidth = command.width;
 				return true;
 			case 'text':
 				return this.shapeText(command, out);
@@ -174,10 +181,10 @@ export class LegacyGeometryEncoder implements GeometryEncoder {
 			rect.width / 2,
 			rect.height / 2,
 		);
-		const fill = fade(command.fill ?? WHITE, command.opacity);
+		const fill = fade(command.fill ?? WHITE, command.opacity, this.fadedFill);
 		// A width with no colour strokes black, which is what `drawQuad` did.
 		const strokeWidth = border ? border.width : 0;
-		const stroke = strokeWidth > 0 ? fade(border?.color ?? BLACK, command.opacity) : NO_STROKE;
+		const stroke = strokeWidth > 0 ? fade(border?.color ?? BLACK, command.opacity, this.fadedStroke) : NO_STROKE;
 
 		for (let corner = 0; corner < 4; corner++) {
 			writeVertex(
@@ -209,7 +216,7 @@ export class LegacyGeometryEncoder implements GeometryEncoder {
 			command.radius,
 			command.radius,
 		);
-		const fill = fade(command.fill ?? WHITE, command.opacity);
+		const fill = fade(command.fill ?? WHITE, command.opacity, this.fadedFill);
 		const angleStep = (2 * Math.PI) / CIRCLE_SEGMENTS;
 
 		writeVertex(sink.vertices, sink.floatOffset, 0, 0, 0, 0, model, 0, LEGACY_MODE_SHAPE, fill, NO_STROKE, 0, 0);
@@ -268,9 +275,10 @@ export class LegacyGeometryEncoder implements GeometryEncoder {
 	}
 
 	private encodePolygon(command: PolygonCommand, sink: GeometrySink): void {
-		const fill = fade(command.fill ?? WHITE, command.opacity);
+		const fill = fade(command.fill ?? WHITE, command.opacity, this.fadedFill);
 		const model = this.linearModel(command.transform);
-		command.points.forEach((point, index) => {
+		for (let index = 0; index < command.points.length; index++) {
+			const point = command.points[index];
 			writeVertex(
 				sink.vertices,
 				sink.floatOffset + index * LEGACY_VERTEX.floats,
@@ -286,7 +294,7 @@ export class LegacyGeometryEncoder implements GeometryEncoder {
 				0,
 				0,
 			);
-		});
+		}
 		const count = Math.floor((command.indices ? command.indices.length : command.points.length) / 3) * 3;
 		for (let index = 0; index < count; index++) {
 			sink.indices[sink.indexOffset + index] = sink.baseVertex + (command.indices ? command.indices[index] : index);
@@ -296,13 +304,14 @@ export class LegacyGeometryEncoder implements GeometryEncoder {
 	// -- polyline ---------------------------------------------------------
 
 	/**
-	 * `LINE_STRIP` and `LINE_LOOP` as indexed `LINES`, so several polylines of
-	 * one width share a draw. Each segment is rasterised half-open either way.
+	 * `LINE_STRIP` and `LINE_LOOP` as indexed `LINES`, so several polylines
+	 * share a draw. Each segment is rasterised half-open either way.
 	 */
 	private encodePolyline(command: PolylineCommand, sink: GeometrySink): void {
-		const color = fade(command.color, command.opacity);
+		const color = fade(command.color, command.opacity, this.fadedFill);
 		const model = this.linearModel(command.transform);
-		command.points.forEach((point, index) => {
+		for (let index = 0; index < command.points.length; index++) {
+			const point = command.points[index];
 			writeVertex(
 				sink.vertices,
 				sink.floatOffset + index * LEGACY_VERTEX.floats,
@@ -318,7 +327,7 @@ export class LegacyGeometryEncoder implements GeometryEncoder {
 				0,
 				0,
 			);
-		});
+		}
 		let offset = sink.indexOffset;
 		const last = command.points.length - 1;
 		for (let index = 0; index < last; index++) {
@@ -361,26 +370,31 @@ export class LegacyGeometryEncoder implements GeometryEncoder {
 		const position = command.position;
 		if (!position) return;
 		const glyphs = this.glyphs;
-		const color = fade(command.color, command.opacity);
+		const color = fade(command.color, command.opacity, this.fadedFill);
 
-		const anchor = transformPoint(command.transform, position.x, position.y);
+		// `transformPoint`, inlined so a run allocates no point. `measureText`
+		// still returns an object: it is `FontAtlas`'s, which chapter 6
+		// replaces, and it is the one allocation per text run left here.
+		const matrix = command.transform;
+		const anchorX = matrix[0] * position.x + matrix[2] * position.y + matrix[4];
+		const anchorY = matrix[1] * position.x + matrix[3] * position.y + matrix[5];
 		const scale = command.size / glyphs.getFontSize();
 		const metrics = glyphs.measureText(command.text);
 		const scaledWidth = metrics.width * scale;
 		const scaledHeight = metrics.height * scale;
 
-		let startX = anchor.x;
+		let startX = anchorX;
 		if (command.align === 'center') {
-			startX = anchor.x - scaledWidth / 2;
+			startX = anchorX - scaledWidth / 2;
 		} else if (command.align === 'right') {
-			startX = anchor.x - scaledWidth;
+			startX = anchorX - scaledWidth;
 		}
 
-		let startY = anchor.y;
+		let startY = anchorY;
 		if (command.verticalAlign === 'middle') {
-			startY = anchor.y - scaledHeight / 2;
+			startY = anchorY - scaledHeight / 2;
 		} else if (command.verticalAlign === 'bottom') {
-			startY = anchor.y - scaledHeight;
+			startY = anchorY - scaledHeight;
 		}
 
 		const model = IDENTITY_MODEL;
@@ -429,8 +443,12 @@ export class LegacyGeometryEncoder implements GeometryEncoder {
 	 */
 	private modelMatrix(transform: Mat2D, centerX: number, centerY: number, scaleX: number, scaleY: number): mat4 {
 		const out = this.linearModel(transform);
-		mat4.translate(out, out, [centerX, centerY, 0]);
-		mat4.scale(out, out, [scaleX, scaleY, 1]);
+		this.translate[0] = centerX;
+		this.translate[1] = centerY;
+		this.scale[0] = scaleX;
+		this.scale[1] = scaleY;
+		mat4.translate(out, out, this.translate);
+		mat4.scale(out, out, this.scale);
 		return out;
 	}
 
@@ -494,7 +512,16 @@ function writeVertex(
 	out[offset + 21] = shapeHeight;
 }
 
-/** R2.6 and R3.25: the opacity stack multiplies every alpha, borders included. */
-function fade(color: RGBA, opacity: number): RGBA {
-	return opacity === 1 ? color : [color[0], color[1], color[2], color[3] * opacity];
+/**
+ * R2.6 and R3.25: the opacity stack multiplies every alpha, borders included.
+ * Writes into `out` rather than allocating; the result is read before the
+ * scratch is used again.
+ */
+function fade(color: RGBA, opacity: number, out: [number, number, number, number]): RGBA {
+	if (opacity === 1) return color;
+	out[0] = color[0];
+	out[1] = color[1];
+	out[2] = color[2];
+	out[3] = color[3] * opacity;
+	return out;
 }

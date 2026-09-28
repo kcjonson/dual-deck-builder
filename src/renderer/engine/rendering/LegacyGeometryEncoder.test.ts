@@ -4,7 +4,12 @@ import { Batcher, GeometryUpload, GroupShape } from '../draw/Batcher';
 import { ResidentTextureSet } from '../draw/ResidentTextureSet';
 import type { CharacterInfo } from './FontAtlas';
 import { LEGACY_VERTEX, LegacyGeometryEncoder, GlyphSource } from './LegacyGeometryEncoder';
-import { legacyPaintOrder } from './LegacyGLBackend';
+import { LegacyPaintOrder } from './LegacyGLBackend';
+
+/** A fresh orderer's output, copied, since `apply` reuses its list. */
+function legacyPaintOrder(commands: readonly DrawCommand[]): DrawCommand[] {
+	return [...new LegacyPaintOrder().apply(commands)];
+}
 
 /**
  * The claim `LegacyGeometryEncoder` makes is that every float it writes is the
@@ -61,7 +66,15 @@ function setup() {
 		glyphs,
 		onUnpaintable: (kind, detail) => unpaintable.push(`${kind}: ${detail}`),
 	});
-	const batcher = new Batcher({ encoder, textures: new ResidentTextureSet({ units: 1, resident: [glyphs] }) });
+	// Every encoding in this file runs under the contract check, so an encoder
+	// that writes a count other than the one it reported fails here.
+	const batcher = new Batcher({
+		encoder,
+		textures: new ResidentTextureSet({ units: 1, resident: [glyphs] }),
+		verify: (command, problem) => {
+			throw new Error(`${command.kind}: ${problem}`);
+		},
+	});
 
 	function encode(commands: DrawCommand[]) {
 		const uploads: Array<{ floats: Float32Array; indices: number[]; upload: GeometryUpload }> = [];
@@ -251,7 +264,7 @@ describe('LegacyGeometryEncoder: text', () => {
 		const [command] = record((api) => {
 			api.drawText({ text: 'A', position: { x: 0, y: 0 }, font: 'body', size: 12, color: RED });
 		});
-		const shape: GroupShape = { vertices: 0, indices: 0, topology: 'triangles', lineWidth: 1, texture: null };
+		const shape: GroupShape = { vertices: 0, indices: 0, topology: 'triangles', texture: null };
 		expect(encoder.shape(command, shape)).toBe(true);
 		expect(shape.texture).toBe(glyphs);
 		expect(encoder.glyphTexture).toBe(glyphs);
@@ -350,6 +363,35 @@ describe('legacyPaintOrder (TEMPORARY, dies with the ordering re-baseline)', () 
 			api.popOpacity();
 		});
 		expect(legacyPaintOrder(commands).map((command) => command.id)).toEqual(['r1', 'r2', 't1', 't3', 't2', 't4']);
+	});
+
+	it('hoists text within each layer, never above a later layer', () => {
+		const commands = record((api) => {
+			api.drawText({ id: 'label', text: 'A', position: { x: 0, y: 0 }, font: 'body', size: 12, color: RED });
+			api.drawRect({ id: 'card', rect: { x: 0, y: 0, width: 4, height: 4 }, fill: RED });
+			api.pushLayer('popup');
+			api.drawText({ id: 'item', text: 'A', position: { x: 0, y: 0 }, font: 'body', size: 12, color: RED });
+			api.drawRect({ id: 'menu', rect: { x: 0, y: 0, width: 4, height: 4 }, fill: BLUE });
+			api.popLayer();
+			api.drawText({ id: 'late', text: 'A', position: { x: 0, y: 0 }, font: 'body', size: 12, color: BLUE });
+		});
+		// The partition already put popup after base; each layer is then
+		// shapes-then-text on its own.
+		expect(legacyPaintOrder(commands).map((command) => command.id)).toEqual([
+			'card', 'label', 'late', 'menu', 'item',
+		]);
+	});
+
+	it('reuses its list and outlines, so a result is only valid until the next apply', () => {
+		const order = new LegacyPaintOrder();
+		const commands = record((api) => {
+			api.drawCircle({ center: { x: 0, y: 0 }, radius: 3, fill: RED, border: { color: BLUE, width: 1 } });
+		});
+		const first = order.apply(commands);
+		const outline = first[1];
+		const second = order.apply(commands);
+		expect(second).toBe(first);
+		expect(second[1]).toBe(outline);
 	});
 
 	it('follows a bordered circle with its outline, and leaves a borderless one alone', () => {

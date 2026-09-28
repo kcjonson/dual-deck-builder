@@ -9,13 +9,11 @@ import {
 	DrawCommandKind,
 	FrameDescription,
 	GpuWork,
-	Mat2D,
 	PolylineCommand,
 	ResolvedClip,
 	TextCommand,
 	Vec2,
 	clipRectOf,
-	concat,
 } from '../draw';
 import { Batcher, GeometryUpload, GpuDraw } from '../draw/Batcher';
 import { ResidentTextureSet } from '../draw/ResidentTextureSet';
@@ -48,11 +46,11 @@ import { DEFAULT_FONT } from './fonts';
  * a text batch that opened in the frame loop and flushed on scissor changes,
  * which reordered text above every shape drawn in the same clip scope." That
  * engine is this one, and the 26 committed goldens are pictures of it. So
- * `submit` reorders each domain with `legacyPaintOrder` before the batcher sees
- * it: every text run in a domain paints above every shape in it, grouped by
- * colour as the old text batch grouped it. `DrawApiOptions.legacyTextOrder` supplies the other half, a domain
- * boundary at every clip push and pop, which is where the old text batch
- * flushed. Both are deleted by the ordering re-baseline PR.
+ * `submit` reorders each domain with `LegacyPaintOrder` before the batcher sees
+ * it: every text run paints above every shape of its own layer in that domain,
+ * grouped by colour as the old text batch grouped it.
+ * `DrawApiOptions.legacyTextOrder` supplies the other half, a domain boundary
+ * at every clip push and pop, which is where the old text batch flushed. Both are deleted by the ordering re-baseline PR.
  *
  * `RecordingBackend` reports the submitted order, which is the true one, so
  * until then two backends disagree about what a frame looked like. The warning
@@ -143,47 +141,156 @@ export function createLegacyDrawApi({ renderer, frameTimer }: LegacyGLBackendOpt
 	});
 }
 
+type MutablePolyline = { -readonly [K in keyof PolylineCommand]: PolylineCommand[K] };
+
 /**
  * A domain in the order the pre-batch path painted it, so the batcher can
- * merge it without moving a pixel: shapes in submission order, then text
- * grouped by colour, colours in order of first appearance and runs in
- * submission order within a colour. Pure and exported so the reordering the
- * goldens depend on is tested rather than described.
+ * merge it without moving a pixel. Within each run of one layer (the domain
+ * arrives already partitioned by R3.10, so a layer's groups are contiguous):
+ * the layer's shapes in submission order, then its text grouped by colour,
+ * colours in order of first appearance and runs in submission order within a
+ * colour. Layers stay in ladder order, so a `base` label never paints above a
+ * `popup` panel, which is chapter 3's first incident.
  *
  * Both halves are `TextRenderer`'s, which queued runs per colour and drew the
  * queues at the end of a batch. The colour grouping was measured rather than
  * assumed: with plain submission order the driver selection screen differs by
  * one level on a handful of glyph-edge pixels where differently coloured runs
  * overlap, below the golden tolerance but not byte-identical. With it, all six
- * reachable screens and all seven baselined gallery scenes are.
+ * reachable screens and all seven baselined gallery scenes are. Doing it per
+ * layer rather than per domain is where this departs from `TextRenderer`, which
+ * ignored layers; it moves no pixel today because every domain in the app is a
+ * single layer.
  *
  * A bordered circle becomes its fill and then its outline, because the legacy
  * outline is a GL line strip and cannot share a group with the fan.
+ *
+ * Everything it builds is reused from domain to domain: the ordered list, the
+ * colour table, the per-colour run lists and the outline commands. So the
+ * returned list and any outline in it are only valid until the next `apply`.
  */
-export function legacyPaintOrder(commands: readonly DrawCommand[], out: DrawCommand[] = []): DrawCommand[] {
-	out.length = 0;
-	for (const command of commands) {
-		if (command.kind === 'text') continue;
-		out.push(command);
-		if (command.kind === 'circle' && command.border && command.border.width > 0) {
-			out.push(circleOutline(command));
+export class LegacyPaintOrder {
+	private readonly ordered: DrawCommand[] = [];
+	/** Distinct faded colours of the current layer, four floats each. */
+	private readonly colours: number[] = [];
+	private readonly runsByColour: TextCommand[][] = [];
+	private readonly outlines: MutablePolyline[] = [];
+	private outlinesUsed = 0;
+
+	apply(commands: readonly DrawCommand[]): readonly DrawCommand[] {
+		const out = this.ordered;
+		out.length = 0;
+		this.outlinesUsed = 0;
+
+		let start = 0;
+		while (start < commands.length) {
+			const ordinal = commands[start].layerOrdinal;
+			let end = start + 1;
+			while (end < commands.length && commands[end].layerOrdinal === ordinal) end++;
+			this.orderLayer(commands, start, end);
+			start = end;
+		}
+		return out;
+	}
+
+	private orderLayer(commands: readonly DrawCommand[], start: number, end: number): void {
+		const out = this.ordered;
+		for (let index = start; index < end; index++) {
+			const command = commands[index];
+			if (command.kind === 'text') continue;
+			out.push(command);
+			if (command.kind === 'circle' && command.border && command.border.width > 0) {
+				out.push(this.circleOutline(command));
+			}
+		}
+
+		const colours = this.colours;
+		colours.length = 0;
+		let distinct = 0;
+		for (let index = start; index < end; index++) {
+			const command = commands[index];
+			if (command.kind !== 'text') continue;
+			// The key `TextRenderer` built: the faded colour.
+			const { color, opacity } = command;
+			const alpha = opacity === 1 ? color[3] : color[3] * opacity;
+			let slot = 0;
+			while (slot < distinct) {
+				const base = slot * 4;
+				if (colours[base] === color[0] && colours[base + 1] === color[1]
+					&& colours[base + 2] === color[2] && colours[base + 3] === alpha) break;
+				slot++;
+			}
+			if (slot === distinct) {
+				colours.push(color[0], color[1], color[2], alpha);
+				if (!this.runsByColour[slot]) this.runsByColour[slot] = [];
+				this.runsByColour[slot].length = 0;
+				distinct++;
+			}
+			this.runsByColour[slot].push(command);
+		}
+		for (let slot = 0; slot < distinct; slot++) {
+			const runs = this.runsByColour[slot];
+			for (let index = 0; index < runs.length; index++) out.push(runs[index]);
+			runs.length = 0;
 		}
 	}
 
-	const byColour = new Map<string, TextCommand[]>();
-	for (const command of commands) {
-		if (command.kind !== 'text') continue;
-		// The key `TextRenderer` built: the faded colour, joined.
-		const { color, opacity } = command;
-		const key = `${color[0]},${color[1]},${color[2]},${opacity === 1 ? color[3] : color[3] * opacity}`;
-		const runs = byColour.get(key);
-		if (runs) runs.push(command);
-		else byColour.set(key, [command]);
+	/**
+	 * A circle's border as the open line strip the old path drew over the unit
+	 * rim, under the circle's model (transform, then centre, then radius), in a
+	 * pooled command.
+	 */
+	private circleOutline(circle: CircleCommand): PolylineCommand {
+		const border = circle.border as NonNullable<CircleCommand['border']>;
+		let outline = this.outlines[this.outlinesUsed];
+		if (!outline) {
+			outline = {
+				id: null,
+				sequence: 0,
+				layer: circle.layer,
+				layerOrdinal: 0,
+				transform: [1, 0, 0, 1, 0, 0],
+				translateOnly: false,
+				clip: circle.clip,
+				opacity: 1,
+				blend: 'over',
+				group: 'primary',
+				kind: 'polyline',
+				points: UNIT_CIRCLE_RIM,
+				color: border.color,
+				width: border.width,
+				closed: false,
+				cap: 'butt',
+			};
+			this.outlines.push(outline);
+		}
+		this.outlinesUsed += 1;
+
+		// `concat(circle.transform, [r, 0, 0, r, cx, cy])`, into the pooled matrix.
+		const m = circle.transform;
+		const r = circle.radius;
+		const cx = circle.center.x;
+		const cy = circle.center.y;
+		const model = outline.transform as unknown as number[];
+		model[0] = m[0] * r;
+		model[1] = m[1] * r;
+		model[2] = m[2] * r;
+		model[3] = m[3] * r;
+		model[4] = m[0] * cx + m[2] * cy + m[4];
+		model[5] = m[1] * cx + m[3] * cy + m[5];
+
+		outline.id = circle.id;
+		outline.sequence = circle.sequence;
+		outline.layer = circle.layer;
+		outline.layerOrdinal = circle.layerOrdinal;
+		outline.clip = circle.clip;
+		outline.opacity = circle.opacity;
+		outline.blend = circle.blend;
+		outline.group = circle.group;
+		outline.color = border.color;
+		outline.width = border.width;
+		return outline;
 	}
-	for (const runs of byColour.values()) {
-		for (const run of runs) out.push(run);
-	}
-	return out;
 }
 
 export class LegacyGLBackend implements DrawBackend {
@@ -194,7 +301,7 @@ export class LegacyGLBackend implements DrawBackend {
 	private readonly gl: WebGLRenderingContext;
 	private readonly fontAtlas: FontAtlas;
 	private readonly batcher: Batcher;
-	private readonly ordered: DrawCommand[] = [];
+	private readonly paintOrder = new LegacyPaintOrder();
 
 	private readonly vertexBuffer: WebGLBuffer;
 	private readonly indexBuffer: WebGLBuffer;
@@ -236,6 +343,11 @@ export class LegacyGLBackend implements DrawBackend {
 			// submits an image, so there is no dynamic unit to hand out.
 			textures: new ResidentTextureSet({ units: 1, resident: [encoder.glyphTexture] }),
 			onDrop: (command, reason) => this.reportUnpaintable(command.kind, reason),
+			// A development build checks every group the encoder writes; the
+			// console error fails the screenshot harness's clean-console check.
+			verify: __DEV_TOOLS__
+				? (command, problem) => console.error(`LegacyGLBackend: ${command.kind} group: ${problem}`)
+				: undefined,
 		});
 
 		const vertexBuffer = this.gl.createBuffer();
@@ -257,8 +369,9 @@ export class LegacyGLBackend implements DrawBackend {
 	}
 
 	submit(batch: DrawBatch): GpuWork {
-		const ordered = legacyPaintOrder(batch.commands, this.ordered);
-		for (const command of ordered) {
+		const ordered = this.paintOrder.apply(batch.commands);
+		for (let index = 0; index < ordered.length; index++) {
+			const command = ordered[index];
 			if (command.kind === 'text') this.frameTimer.recordTextCharacters(command.text.length);
 		}
 
@@ -308,6 +421,10 @@ export class LegacyGLBackend implements DrawBackend {
 		}
 		const gl = this.gl;
 
+		// The two `subarray` views are the one allocation per upload left in
+		// this path. WebGL1's `bufferData` takes no source offset or length, so
+		// the only way to upload part of a reused array is a view of it; the
+		// WebGL2 backend passes `srcOffset` and `length` and needs none.
 		gl.bindBuffer(gl.ARRAY_BUFFER, this.vertexBuffer);
 		gl.bufferData(gl.ARRAY_BUFFER, upload.vertices.subarray(0, upload.floatCount), gl.DYNAMIC_DRAW);
 		gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, this.indexBuffer);
@@ -330,7 +447,7 @@ export class LegacyGLBackend implements DrawBackend {
 			binds = 1;
 		}
 
-		for (const draw of upload.draws) this.issue(draw);
+		for (let index = 0; index < upload.draws.length; index++) this.issue(upload.draws[index]);
 
 		for (const location of locations) {
 			if (location >= 0) gl.disableVertexAttribArray(location);
@@ -347,7 +464,6 @@ export class LegacyGLBackend implements DrawBackend {
 			console.error(`LegacyGLBackend: blend '${draw.blend}' is drawn as 'over' by the legacy program`);
 		}
 		this.applyClip(draw.scissor ?? NO_CLIP);
-		if (draw.topology === 'lines') gl.lineWidth(draw.lineWidth);
 		gl.drawElements(
 			draw.topology === 'lines' ? gl.LINES : gl.TRIANGLES,
 			draw.indexCount,
@@ -405,37 +521,3 @@ const UNIT_CIRCLE_RIM: readonly Vec2[] = Array.from({ length: CIRCLE_OUTLINE_SEG
 	const angle = (i * 2 * Math.PI) / CIRCLE_OUTLINE_SEGMENTS;
 	return { x: Math.cos(angle), y: Math.sin(angle) };
 });
-
-/**
- * A circle's border as the open line strip the old path drew over the unit
- * rim, under the circle's model (transform, then centre, then radius).
- */
-function circleOutline(circle: CircleCommand): PolylineCommand {
-	const border = circle.border as NonNullable<CircleCommand['border']>;
-	const model: Mat2D = concat(circle.transform, [
-		circle.radius,
-		0,
-		0,
-		circle.radius,
-		circle.center.x,
-		circle.center.y,
-	]);
-	return {
-		id: circle.id,
-		sequence: circle.sequence,
-		layer: circle.layer,
-		layerOrdinal: circle.layerOrdinal,
-		transform: model,
-		translateOnly: false,
-		clip: circle.clip,
-		opacity: circle.opacity,
-		blend: circle.blend,
-		group: circle.group,
-		kind: 'polyline',
-		points: UNIT_CIRCLE_RIM,
-		color: border.color,
-		width: border.width,
-		closed: false,
-		cap: 'butt',
-	};
-}
