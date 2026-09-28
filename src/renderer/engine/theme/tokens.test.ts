@@ -52,6 +52,35 @@ function expectedValue(value: unknown): unknown {
 	return value;
 }
 
+/**
+ * CIE76 distance a UI hue keeps from every legend colour. Around 2 is a just
+ * noticeable difference; 20 reads as a different colour at a glance, which is
+ * what "one hue, one meaning" needs.
+ */
+const MIN_LEGEND_DISTANCE = 20;
+
+function hexToRgba(hex: string): RGBA {
+	const channel = (offset: number) => parseInt(hex.slice(offset, offset + 2), 16) / 255;
+	return [channel(1), channel(3), channel(5), 1];
+}
+
+/** sRGB to CIE L*a*b* under D65. */
+function lab([red, green, blue]: RGBA): [number, number, number] {
+	const linear = (value: number) => (value <= 0.04045 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4);
+	const [r, g, b] = [linear(red), linear(green), linear(blue)];
+	const x = (0.4124 * r + 0.3576 * g + 0.1805 * b) / 0.95047;
+	const y = 0.2126 * r + 0.7152 * g + 0.0722 * b;
+	const z = (0.0193 * r + 0.1192 * g + 0.9505 * b) / 1.08883;
+	const f = (t: number) => (t > 216 / 24389 ? Math.cbrt(t) : (24389 / 27 * t + 16) / 116);
+	return [116 * f(y) - 16, 500 * (f(x) - f(y)), 200 * (f(y) - f(z))];
+}
+
+function labDistance(a: RGBA, b: RGBA): number {
+	const [l1, a1, b1] = lab(a);
+	const [l2, a2, b2] = lab(b);
+	return Math.hypot(l1 - l2, a1 - a2, b1 - b2);
+}
+
 function luminance([red, green, blue]: RGBA): number {
 	return 0.2126 * red + 0.7152 * green + 0.0722 * blue;
 }
@@ -244,16 +273,18 @@ describe('starting theme (11.2)', () => {
 		expect(color.accent_glow.slice(0, 3)).toEqual(color.accent.slice(0, 3));
 	});
 
-	it('gives data, ok, and crit hues no battle screen legend entry claims', () => {
-		// docs/design/battle-screen/index.html, "One hue, one meaning", and the rarity gems.
+	it('keeps data, ok, and crit a clear Lab distance from every battle screen legend colour', () => {
+		// docs/design/battle-screen/index.html, "One hue, one meaning": drivers,
+		// escort, raiders, structure, armor, HP, warnings, the rarity gems, and
+		// the debuff and non-attack intent lavenders. The nearest today is data
+		// to the debuff lavender at about 24.
 		const legend = [
 			'#f2a33a', '#3cc3c9', '#8f8a7e', '#d4513f', '#8fbf5c', '#a9bccd', '#e7727a',
-			'#9b978c', '#6fb3e0', '#e0c14f', '#d06ad8',
+			'#9b978c', '#6fb3e0', '#e0c14f', '#d06ad8', '#d3a6f0', '#c98ff0',
 		];
-		const toHex = (rgba: RGBA) =>
-			'#' + rgba.slice(0, 3).map((channel) => Math.round(channel * 255).toString(16).padStart(2, '0')).join('');
 		for (const hue of [color.data, color.status_ok, color.status_crit]) {
-			expect(legend).not.toContain(toHex(hue));
+			const nearest = Math.min(...legend.map((entry) => labDistance(hue, hexToRgba(entry))));
+			expect(nearest).toBeGreaterThanOrEqual(MIN_LEGEND_DISTANCE);
 		}
 	});
 

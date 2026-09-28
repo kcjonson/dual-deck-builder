@@ -116,7 +116,8 @@ Visible result: overlapping vehicles receive one click; scrolled-out or hidden c
 - [ ] Combat screen as the first stack consumer: a 36px top bar, the road filling the rest, and a 228px dock, on the 1280x720 logical reference with `s = min(W/1280, H/720)` floored at 0.8, per [Battle Screen Design](./Battle%20Screen%20Design.md) section 2; the log as an anchored absolute drawer; the second layout deleted.
 - [x] Token file, generator, committed `tokens.ts`, drift test (R11.1 to R11.4); the two-accent, five-surface, radius, spacing, type-role, and `control` tokens as the starting theme (11.2).
   DDB-83. The palette comes from the battle screen mock; format, sources, and departures are in [theme-tokens.md](../AI_TECHNICAL_DECISIONS/theme-tokens.md).
-- [ ] Framework-maintained state flags, layered state resolution, closed style property set rejected rather than ignored, override semantics, token-driven transitions (11.3, 11.4). `Button` and `Input` stop ignoring their style objects; the START RUN and END TURN colour hacks become variants.
+- [x] Framework-maintained state flags, layered state resolution, closed style property set rejected rather than ignored, override semantics, token-driven transitions (11.3, 11.4). `Button` and `Input` stop ignoring their style objects; the START RUN and END TURN colour hacks become variants.
+  DDB-84. `Button` and `Input` only; the other components move onto the closed set with the phase 5 catalog. See [style-states-and-variants.md](../AI_TECHNICAL_DECISIONS/style-states-and-variants.md).
 
 Visible result: every button changes appearance once (they ignore their styles today), so this phase is the third deliberate re-baseline; resizing the combat screen re-runs one layout.
 

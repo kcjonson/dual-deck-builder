@@ -13,9 +13,22 @@ This document contains the chronological log of completed development tasks for 
 - `engine/services/`: `Placement.ts` (`place` and `PlacementService`), `OverlayService.ts`, `PopupService.ts`, `TooltipService.ts` with `TooltipSurface.ts` and `tooltipSpec.ts`, `ClipboardService.ts`, `AssetService.ts`, and `testing.ts` (queue-driven input helpers for tests). All six are built by `createMountContext`; the pages pass `detectClipboard(window)` and `imageUrlLoader()`.
 - Dispatcher: root tiers (`scene`, `overlay`, `diagnostic`) with `raiseRoot`; `addObserver` with `pointerDown` (can swallow), `pointerMove`, `hoverChange`, `keyDown` (before the scene hotkeys) and `focusChange`; `capturing` and `hoverPoint`. `Component.mount(context, { tier })`, `Component.tooltip`, `Component.popupTrigger`. `UiFrame.requestTick` for services.
 - Pages: both render overlay roots after the scene and report them to the tree snapshot; the F5 overlay mounts as `diagnostic`; a screen change or gallery scene switch closes popups and overlays; viewport changes resize overlay roots. Electron's preload exposes `clipboard.readText`/`writeText` over IPC.
+- Review fixes: a swallowed press's release is swallowed too; placements apply a `constrained` size to popups (from `naturalSize`) and tooltips; `overlays.open` takes `inside` so a scrim press is outside a modal's panel; the Electron clipboard handlers answer only the app's own renderer frame.
 - Gallery: `overlays` scene (gallery-only, `galleryOnlyScenes`), with placement outcomes drawn against a frame and a live tooltip, card-preview tooltip and popup menu; `tests/visual/support/scenarios.ts` lists it.
 
 **How:** `Placement.test.ts`, `OverlayService.test.ts`, `PopupService.test.ts`, `TooltipService.test.ts` (state timing, tolerance, swap, fades, flips, never consumes, press suppression, capture and drag suppression, keyboard trigger, factory trees), `ClipboardService.test.ts`, `AssetService.test.ts`, `input/rootOrder.test.ts` (tiers, observers, `requestTick`); 2058 tests green. Driven in the gallery through `__dev.input`: hover swap to the card preview, outside press closing the menu, trigger reopening it, Escape closing it; `__ui.lint()` is 0 on the scene.
+
+## Style states, variants, and the closed style set (2026-09-28)
+
+**What landed:** DDB-84 (DDB-55 phase 4), R11.10 to R11.16. The third deliberate golden re-baseline.
+
+- `engine/style/`: `look.ts` (flags, `Look`, the R11.12 resolver), `styleObject.ts` (closed set, validation, value readers), `variants.ts` (`tone`, `size`, button and field layers), `LookTransition.ts` (R11.13 over the animator).
+- `Component` carries all nine R11.11 flags with `stateFlags` and `onStateChange`; `enabled` changes notify descendants; unmount clears the framework's four.
+- `Button` and `Input` take `tone`/`size`/`style`, validate the style, draw their own box, glow, and focus ring (`drawsOwnFocusRing`), report it all as `inkExtent`, and follow the look with their parts; the legacy colour setters are gone. START RUN is the accent variant; END TURN is the mock's bone button through a style object.
+- `treeSnapshot` reports the full flag set as `state` on every node.
+- `color.bg_pressed` token. The battle mock's legend gains the debuff and non-attack intent lavenders; the token hue test checks a CIE Lab distance of at least 20 against every legend colour instead of exact hex.
+
+**How:** `style/look.test.ts` (the 11.6 flag table, override semantics), `style/styleObject.test.ts`, `ui/Button.test.ts` (each accepted property changes the draw list, rejection, runtime restyle, transitions at `dur_fast` and `dur`, reversal, reduced motion, the ring), `Component.test.ts` flag tests, `widgetInput.test.ts` press tests through injected input. Goldens re-minted on CI. Details in [style-states-and-variants.md](./AI_TECHNICAL_DECISIONS/style-states-and-variants.md).
 
 ## Tree snapshot schema and the text record (2026-09-28)
 

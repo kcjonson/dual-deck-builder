@@ -55,17 +55,17 @@ describe('the parts a composite owns', () => {
 		expect(node.children).toEqual([]);
 	});
 
-	it('gives a Button a background rectangle and a label, and no children of its own', () => {
+	it('gives a Button a label, its box being its own draw, and no children of its own', () => {
 		const node = snapshotOf(new Button('End turn', { id: 'end_turn_button', width: 120, height: 40 }));
 
-		expect(partTypes(node)).toEqual(['Rectangle', 'Text']);
+		expect(partTypes(node)).toEqual(['Text']);
 		expect(node.children).toEqual([]);
 	});
 
-	it('gives an Input a background, a value, a placeholder and a cursor, and no children of its own', () => {
+	it('gives an Input a value, a placeholder and a cursor, its box being its own draw, and no children of its own', () => {
 		const node = snapshotOf(new Input('Driver name', { id: 'name_field', width: 200, height: 30 }));
 
-		expect(partTypes(node)).toEqual(['Rectangle', 'Text', 'Text', 'Rectangle']);
+		expect(partTypes(node)).toEqual(['Text', 'Text', 'Rectangle']);
 		expect(node.children).toEqual([]);
 	});
 
@@ -98,23 +98,23 @@ describe('what a caller adds is never a part', () => {
 		expect('parts' in node).toBe(false);
 	});
 
-	it('puts a Button child in children and leaves its two parts alone', () => {
+	it('puts a Button child in children and leaves its label alone', () => {
 		const button = new Button('End turn', { id: 'end_turn_button', width: 120, height: 40 });
 		button.addChild(new Layer({ id: 'cost_badge', width: 16, height: 16 }));
 
 		const node = snapshotOf(button);
 
-		expect(partTypes(node)).toEqual(['Rectangle', 'Text']);
+		expect(partTypes(node)).toEqual(['Text']);
 		expect(childIds(node)).toEqual(['cost_badge']);
 	});
 
-	it('puts an Input child in children and leaves its four parts alone', () => {
+	it('puts an Input child in children and leaves its three parts alone', () => {
 		const input = new Input('Driver name', { id: 'name_field', width: 200, height: 30 });
 		input.addChild(new Layer({ id: 'validation_icon', width: 16, height: 16 }));
 
 		const node = snapshotOf(input);
 
-		expect(partTypes(node)).toEqual(['Rectangle', 'Text', 'Text', 'Rectangle']);
+		expect(partTypes(node)).toEqual(['Text', 'Text', 'Rectangle']);
 		expect(childIds(node)).toEqual(['validation_icon']);
 	});
 
@@ -129,15 +129,15 @@ describe('what a caller adds is never a part', () => {
 	});
 
 	it('stops calling a removed part a part, so a re-added layer reports as a child', () => {
-		const button = new Button('End turn', { id: 'end_turn_button', width: 120, height: 40 });
-		const background = button.getChildren()[0];
+		const input = new Input('Driver name', { id: 'name_field', width: 200, height: 30 });
+		const caret = input.getChildren()[2];
 
-		button.removeChild(background);
-		button.addChild(background);
+		input.removeChild(caret);
+		input.addChild(caret);
 
-		const node = snapshotOf(button);
+		const node = snapshotOf(input);
 
-		expect(partTypes(node)).toEqual(['Text']);
+		expect(partTypes(node)).toEqual(['Text', 'Text']);
 		expect(node.children.map((child) => child.type)).toEqual(['Rectangle']);
 	});
 });

@@ -4,6 +4,7 @@ import { Rectangle } from '../components/Rectangle';
 import { Text } from '../components/Text';
 import { Panel } from '../ui/Panel';
 import { Button } from '../ui/Button';
+import { tokens } from '../theme/tokens';
 import { Input } from '../ui/Input';
 import { Circle } from '../components/Circle';
 import { SnapshotNode, SnapshotRect, treeSnapshot } from './treeSnapshot';
@@ -148,21 +149,19 @@ describe('treeSnapshot', () => {
 			expect(node.layer).toBe('base');
 			expect(node.enabled).toBe(true);
 			expect(node.opacity).toBe(1);
-			expect(node.state).toEqual({ hovered: false, focused: false });
+			expect(node.state).toEqual({ hovered: false, pressed: false, focused: false, focusVisible: false, selected: false, open: false, active: false, dropActive: false });
 			expect(node.inkBounds).toEqual(node.screenBounds);
 		});
 
-		it('reports enabled and only the two derivable state flags on a Component', () => {
+		it('reports enabled on its own and every other R11.11 flag in state', () => {
 			const rectangle = new Rectangle({ id: 'swatch', width: 10, height: 10 });
 			rectangle.setEnabled(false);
 
 			const node = treeSnapshot([rectangle], VIEWPORT).roots[0];
 
 			expect(node.enabled).toBe(false);
-			expect(node.state).toEqual({ hovered: false, focused: false });
-			for (const absent of ['pressed', 'focusVisible', 'selected', 'open', 'active', 'dropActive']) {
-				expect(absent in (node.state ?? {})).toBe(false);
-			}
+			expect(node.state).toEqual({ hovered: false, pressed: false, focused: false, focusVisible: false, selected: false, open: false, active: false, dropActive: false });
+			expect('enabled' in (node.state ?? {})).toBe(false);
 		});
 
 		it('reports value on an Input only', () => {
@@ -331,12 +330,12 @@ describe('treeSnapshot', () => {
 			expect('parts' in node).toBe(false);
 		});
 
-		it("reports a Button's background and label as parts and leaves it childless", () => {
+		it("reports a Button's label as a part and leaves it childless", () => {
 			const button = new Button('End turn', { id: 'end_turn_button', width: 100, height: 40 });
 
 			const node = treeSnapshot([button], VIEWPORT).roots[0];
 
-			expect(node.parts?.map((part) => part.type)).toEqual(['Rectangle', 'Text']);
+			expect(node.parts?.map((part) => part.type)).toEqual(['Text']);
 			expect(node.children).toEqual([]);
 		});
 
@@ -848,11 +847,28 @@ describe('treeSnapshot', () => {
 	});
 
 	describe('state and ink (R11.11, R8.8)', () => {
-		it('reports pressed on a Button, which maintains it, and nowhere else', () => {
-			const button = treeSnapshot([new Button('Go', { width: 80, height: 30 })], VIEWPORT).roots[0];
+		it('reports the flags as set, composed rather than ranked', () => {
+			const component = new Button('Go', { width: 80, height: 30 });
+			component.pressed = true;
+			component.selected = true;
+			component.setFocused(true);
+			component.focusVisible = true;
 
-			expect(button.state).toEqual({ hovered: false, focused: false, pressed: false });
-			expect('pressed' in (button.parts?.[0].state ?? {})).toBe(false);
+			const button = treeSnapshot([component], VIEWPORT).roots[0];
+
+			expect(button.state).toMatchObject({ pressed: true, selected: true, focused: true, focusVisible: true, hovered: false, open: false });
+		});
+
+		it('grows a focus-visible button\'s inkBounds past its bounds by the ring and the nudge (R8.8)', () => {
+			const component = new Button('Go', { x: 20, y: 20, width: 80, height: 30 });
+			component.setFocused(true);
+			component.focusVisible = true;
+
+			const node = treeSnapshot([component], VIEWPORT).roots[0];
+			const extent = tokens.control.focus_ring_offset + tokens.control.focus_ring_width + tokens.control.press_offset;
+
+			expect(node.screenBounds).toEqual({ x: 20, y: 20, w: 80, h: 30 });
+			expect(node.inkBounds).toEqual({ x: 20 - extent, y: 20 - extent, w: 80 + extent * 2, h: 30 + extent * 2 });
 		});
 
 		it("grows inkBounds past screenBounds by a centred stroke's outer half", () => {

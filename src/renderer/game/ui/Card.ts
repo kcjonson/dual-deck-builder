@@ -54,7 +54,6 @@ export class Card extends Layer {
 	private selectHandler: ((card: GameCard) => void) | null = null;
 	
 	// State
-	private selected = false;
 	private _enabled = true;
 
 	constructor({ id, x, y, data, size = CardSize.NORMAL, driverNumber }: { 

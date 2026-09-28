@@ -162,11 +162,9 @@ export class DriverSelectionScreen extends Screen {
 		this.backButton = new Button('Back to Menu', {
 			id: 'driver_select_back_button',
 			icon: 'arrow_back',
+			size: 'lg',
 			width: 200,
 			height: 50,
-			style: {
-				fontSize: 18,
-			},
 		});
 		this.backButton.setPosition(30, 30);
 		this.backButton.onClick = () => {
@@ -174,13 +172,16 @@ export class DriverSelectionScreen extends Screen {
 		};
 		this.rootLayer.addChild(this.backButton);
 		
-		// Start Run button (disabled initially)
+		// The primary action; disabled until two different drivers are picked,
+		// which the accent tone draws as its neutral disabled look.
 		this.startRunButton = new Button('START RUN', {
 			id: 'driver_select_start_run_button',
+			tone: 'accent',
+			size: 'lg',
 			width: 300,
 			height: 60,
 			style: {
-				fontSize: 24,
+				fontSize: 'fs_xl',
 			},
 		});
 		this.startRunButton.setPosition(
@@ -188,7 +189,6 @@ export class DriverSelectionScreen extends Screen {
 			Math.floor(screenHeight * 0.85)
 		);
 		this.startRunButton.setEnabled(false);
-		this.startRunButton.setFillColor('#666666'); // Grayed out initially
 		this.startRunButton.onClick = () => {
 			if (this.canStartRun && this.selectedDriver1 && this.selectedDriver2) {
 				// Navigate to combat with driver data
@@ -305,14 +305,7 @@ export class DriverSelectionScreen extends Screen {
 	 * Update start button state
 	 */
 	private updateStartButton(): void {
-		const canStart = this.canStartRun;
-		this.startRunButton.setEnabled(canStart);
-		
-		if (canStart) {
-			this.startRunButton.setFillColor('#4a8a4a'); // Green when enabled
-		} else {
-			this.startRunButton.setFillColor('#666666'); // Gray when disabled
-		}
+		this.startRunButton.setEnabled(this.canStartRun);
 	}
 
 

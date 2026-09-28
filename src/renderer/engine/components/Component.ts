@@ -18,6 +18,7 @@ import type { MountContext } from './MountContext';
 import type { AnyUiEvent, UiKeyEvent, UiPointerEvent, UiWheelEvent } from '../input/events';
 import type { RootTier } from '../input/Dispatcher';
 import { TooltipInput, TooltipSpec, normalizeTooltip } from '../services/tooltipSpec';
+import type { StateFlags } from '../style/look';
 
 /**
  * R8.29. `auto`: this box is a target and children are hit-tested.
@@ -129,6 +130,12 @@ export abstract class Component {
 	private tooltipSpec: TooltipSpec | null = null;
 	private hoverState = false;
 	private focusState = false;
+	private pressState = false;
+	private focusVisibleState = false;
+	private selectedState = false;
+	private openState = false;
+	private activeState = false;
+	private dropActiveState = false;
 	private parentComponent: Component | null = null;
 	private mountContext: MountContext | null = null;
 	/** This subtree has to be laid out: set here and on every ancestor up to the boundary (R8.18). */
@@ -868,8 +875,8 @@ export abstract class Component {
 	 * Detaches this subtree from its rooted tree, bottom-up: the children,
 	 * then the dispatcher's hold on it (a captor hears `pointercancel` here,
 	 * R9.10), then `onUnmount`, then update requests, pending layout, and the
-	 * tweens it owns. Hover and focus are cleared without callbacks (R9.21).
-	 * A no-op when not
+	 * tweens it owns. The framework's flags (hover, press, focus, and
+	 * focus-visible) are cleared without callbacks (R9.21). A no-op when not
 	 * mounted (R8.15).
 	 */
 	public unmount(): void {
@@ -884,6 +891,8 @@ export abstract class Component {
 		this.laidOutBounds = null;
 		this.hoverState = false;
 		this.focusState = false;
+		this.pressState = false;
+		this.focusVisibleState = false;
 	}
 
 	/**
@@ -1040,7 +1049,7 @@ export abstract class Component {
 		return false;
 	}
 
-	// -- interaction state ----------------------------------------------------
+	// -- interaction state (R11.11) --------------------------------------------
 
 	/**
 	 * The pointer is over it or over a descendant (R9.8). Maintained by the
@@ -1063,17 +1072,120 @@ export abstract class Component {
 		this.hoverState = hovered;
 		if (hovered) this.onHover();
 		else this.onUnhover();
+		this.onStateChange();
 	}
 
 	public isFocused(): boolean {
 		return this.focusState;
 	}
 
+	/** Losing focus loses focus-visible with it. */
 	public setFocused(focused: boolean): void {
 		if (this.focusState === focused) return;
 		this.focusState = focused;
+		if (!focused) this.focusVisibleState = false;
 		if (focused) this.onFocus();
 		else this.onBlur();
+		this.onStateChange();
+	}
+
+	/**
+	 * A press began on it and has not been released, cancelled, or left. The
+	 * framework's flag: whoever routes the press sets it (the widget itself
+	 * until the dispatcher owns presses).
+	 */
+	public get pressed(): boolean {
+		return this.pressState;
+	}
+
+	public set pressed(pressed: boolean) {
+		if (this.pressState === pressed) return;
+		this.pressState = pressed;
+		this.onStateChange();
+	}
+
+	/**
+	 * Focus arrived by keyboard, so the ring shows (R11.12 layer 6). The focus
+	 * manager sets it (DDB-76); it is only ever true while focused.
+	 */
+	public get focusVisible(): boolean {
+		return this.focusVisibleState;
+	}
+
+	public set focusVisible(visible: boolean) {
+		const value = visible && this.focusState;
+		if (this.focusVisibleState === value) return;
+		this.focusVisibleState = value;
+		this.onStateChange();
+	}
+
+	/**
+	 * True when this component draws its own focus ring from `focusVisible`
+	 * as one of its R11.12 state layers, so a generic ring drawn by the render
+	 * walk (DDB-76) must skip it. Button and Input answer true.
+	 */
+	public get drawsOwnFocusRing(): boolean {
+		return false;
+	}
+
+	/** The component's own flags (R11.11): a chosen tab or row, an open menu, a field taking keys, a live drop target. */
+	public get selected(): boolean {
+		return this.selectedState;
+	}
+
+	public set selected(selected: boolean) {
+		if (this.selectedState === selected) return;
+		this.selectedState = selected;
+		this.onStateChange();
+	}
+
+	public get open(): boolean {
+		return this.openState;
+	}
+
+	public set open(open: boolean) {
+		if (this.openState === open) return;
+		this.openState = open;
+		this.onStateChange();
+	}
+
+	public get active(): boolean {
+		return this.activeState;
+	}
+
+	public set active(active: boolean) {
+		if (this.activeState === active) return;
+		this.activeState = active;
+		this.onStateChange();
+	}
+
+	public get dropActive(): boolean {
+		return this.dropActiveState;
+	}
+
+	public set dropActive(dropActive: boolean) {
+		if (this.dropActiveState === dropActive) return;
+		this.dropActiveState = dropActive;
+		this.onStateChange();
+	}
+
+	/**
+	 * Every R11.11 flag at once, composing rather than ranked; `enabled` is
+	 * the effective one, so a disabled ancestor disables the look too. What
+	 * style resolution reads and the tree snapshot reports.
+	 */
+	public get stateFlags(): StateFlags {
+		return {
+			hovered: this.hoverState,
+			pressed: this.pressState,
+			focused: this.focusState,
+			focusVisible: this.focusVisibleState,
+			enabled: this.effectivelyEnabled,
+			selected: this.selectedState,
+			open: this.openState,
+			active: this.activeState,
+			dropActive: this.dropActiveState,
+		};
 	}
 
 	public isEnabled(): boolean {
@@ -1092,7 +1204,27 @@ export abstract class Component {
 		} else {
 			this.onEnabled();
 		}
+		this.notifyEnabledChange();
 		return this;
+	}
+
+	/**
+	 * Effective enabled state is inherited, so a change reaches every
+	 * descendant's look, and a press in progress anywhere beneath a newly
+	 * disabled ancestor ends: the release will not be delivered to it (R9.5).
+	 */
+	private notifyEnabledChange(): void {
+		if (!this.effectivelyEnabled) this.pressState = false;
+		this.onStateChange();
+		for (const child of this.children) child.notifyEnabledChange();
+	}
+
+	/**
+	 * After any R11.11 flag changes, here or, for `enabled`, on an ancestor.
+	 * Styled components re-resolve their look from `stateFlags` here.
+	 */
+	protected onStateChange(): void {
+		// Override in subclasses
 	}
 
 	protected onHover(): void {
