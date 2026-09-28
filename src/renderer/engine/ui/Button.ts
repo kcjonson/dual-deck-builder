@@ -1,9 +1,8 @@
-import { Component, ComponentOptions, PointerEvents, ResolvedColors } from '../components/Component';
+import type { ClickCallback, ComponentOptions, ResolvedColors } from '../components/Component';
 import { Icon } from '../components/Icon';
 import { Text } from '../components/Text';
 import type { DrawApi } from '../draw/DrawApi';
 import type { RGBA } from '../draw/geometry';
-import type { AnyUiEvent } from '../input/events';
 import type { IconName } from '../text/icons';
 import type { FontRole } from '../text/fontFaces';
 import { resolveFontRole } from '../text/fontRoles';
@@ -22,10 +21,27 @@ import {
 	validateStyle,
 } from '../style/styleObject';
 import { CONTROL_SIZES, ControlSize, Tone, buttonLayers } from '../style/variants';
+import { Pressable } from './Pressable';
+
+/** R12.7: where the icon sits against the label; `only` draws the icon alone, centred. */
+export type IconPosition = 'left' | 'right' | 'only';
 
 export interface ButtonOptions extends Omit<ComponentOptions, 'style'> {
-	/** R12.7's leading icon, drawn before the label; the pair is centred together. */
+	/** R12.7's icon, drawn beside the label as `iconPosition` says; the pair is centred together. */
 	icon?: IconName;
+	/** Default `left`. With `only` the label is kept (it names the button) but not drawn. */
+	iconPosition?: IconPosition;
+	/**
+	 * R12.7's ghost variant: no fill and no border at rest, the tone's colour
+	 * on the label, and the same hover, pressed, and focus layers as a filled
+	 * button (R11.12). For toolbars and quiet actions.
+	 */
+	ghost?: boolean;
+	/** R12.7's `block`: fills the parent stack's width (`widthMode: 'fill'`). */
+	block?: boolean;
+	/** R12.7's `disabled`: the constructor's form of `enabled: false`. */
+	disabled?: boolean;
+	onClick?: ClickCallback;
 	/** R11.10. `default` is the neutral raised button; `accent` is the primary action. */
 	tone?: Tone;
 	/** R11.10: height (unless `height` is given), label size, and icon size together. */
@@ -71,11 +87,13 @@ const ICON_GAP = 0.375;
  * glow, and the focus ring are this component's own draws; the label and
  * icon are parts that follow the look.
  */
-export class Button extends Component {
+export class Button extends Pressable {
 	private text: Text;
 	private icon: Icon | null = null;
-	/** The icon and gap the label's box gives up on its left. */
+	private iconSide: IconPosition;
+	/** The icon and gap the label's box gives up on the icon's side. */
 	private labelInset = 0;
+	private isGhost: boolean;
 	private buttonTone: Tone;
 	private buttonSize: ControlSize;
 	private styleObject: StyleObject;
@@ -85,16 +103,37 @@ export class Button extends Component {
 	/** Height comes from `size` until the caller gives one (R11.10). */
 	private heightFollowsSize: boolean;
 
-	constructor(label = '', { icon, tone = 'default', size = 'md', style = {}, ...options }: ButtonOptions = {}) {
+	constructor(label = '', {
+		icon,
+		iconPosition = 'left',
+		ghost = false,
+		block = false,
+		disabled = false,
+		onClick,
+		tone = 'default',
+		size = 'md',
+		style = {},
+		...options
+	}: ButtonOptions = {}) {
 		// R12.7: focusable unless told otherwise.
-		super({ focusable: true, ...options, height: options.height ?? CONTROL_SIZES[size].height });
+		super({
+			focusable: true,
+			...(block ? { widthMode: 'fill' } : {}),
+			...(disabled ? { enabled: false } : {}),
+			...options,
+			height: options.height ?? CONTROL_SIZES[size].height,
+		});
 		this.componentType = 'Button';
 		this.heightFollowsSize = options.height === undefined;
 		validateStyle(style, BUTTON_STYLE);
+		if (iconPosition === 'only' && !icon) throw new Error('Button: iconPosition "only" needs an icon (R12.7)');
+		this.iconSide = iconPosition;
+		this.isGhost = ghost;
 		this.buttonTone = tone;
 		this.buttonSize = size;
 		this.styleObject = style;
-		this.layers = buttonLayers(tone, style);
+		this.layers = buttonLayers(tone, style, ghost);
+		if (onClick) this.onClick = onClick;
 		this.padding = this.resolvePadding();
 		if (style.opacity !== undefined) this.opacity = style.opacity;
 
@@ -106,6 +145,7 @@ export class Button extends Component {
 			},
 		});
 		this.addPart(this.text);
+		if (iconPosition === 'only') this.text.visible = false;
 
 		if (icon) {
 			this.icon = new Icon({ glyph: icon, size: CONTROL_SIZES[size].iconSize });
@@ -121,11 +161,6 @@ export class Button extends Component {
 		this.placeLabel();
 	}
 
-	/** R8.29: the label and icon are internals, not targets. */
-	protected get defaultPointerEvents(): PointerEvents {
-		return 'unit';
-	}
-
 	public get tone(): Tone {
 		return this.buttonTone;
 	}
@@ -134,6 +169,20 @@ export class Button extends Component {
 		if (tone === this.buttonTone) return;
 		this.buttonTone = tone;
 		this.restyle();
+	}
+
+	public get ghost(): boolean {
+		return this.isGhost;
+	}
+
+	public set ghost(ghost: boolean) {
+		if (ghost === this.isGhost) return;
+		this.isGhost = ghost;
+		this.restyle();
+	}
+
+	public get iconPosition(): IconPosition {
+		return this.iconSide;
 	}
 
 	public get size(): ControlSize {
@@ -193,45 +242,18 @@ export class Button extends Component {
 		return { fill: look.fill, text: look.text, border: look.border };
 	}
 
-	/**
-	 * R9.11's press, without capture. The dispatcher maintains `hovered` and
-	 * synthesises the click only when press and release both land here, never
-	 * while disabled (R9.5, R9.31); this keeps `pressed`, the one framework
-	 * flag it does not own yet. The callbacks run first, so `onClick` is the
-	 * base class's callback property. `activate` from Enter or Space while
-	 * focused fires `onClick` too (R12.7), once per press, since the
-	 * dispatcher never repeats it (R9.27).
-	 */
-	public handleEvent(event: AnyUiEvent): void {
-		super.handleEvent(event);
-		switch (event.type) {
-			case 'activate':
-				event.consume();
-				this.onClick?.(event);
-				return;
-			case 'pointerleave':
-				this.pressed = false;
-				return;
-			case 'pointerdown':
-				if (event.button === 0 && this.enabled) this.pressed = true;
-				return;
-			case 'pointerup':
-			case 'pointercancel':
-				this.pressed = false;
-				return;
-		}
-	}
-
 	/** Mounting shows the current state at once; transitions start from there. */
 	protected onMount(): void {
 		this.transition.moveTo(this.targetLook, null);
 	}
 
 	protected onUnmount(): void {
+		super.onUnmount();
 		this.transition.moveTo(this.targetLook, null);
 	}
 
 	protected onStateChange(): void {
+		super.onStateChange();
 		this.transition.moveTo(this.targetLook, this.context?.animator ?? null);
 	}
 
@@ -289,7 +311,7 @@ export class Button extends Component {
 
 	/** Rebuilds everything the tone, size, and style decide, and moves the look there. */
 	private restyle(): void {
-		this.layers = buttonLayers(this.buttonTone, this.styleObject);
+		this.layers = buttonLayers(this.buttonTone, this.styleObject, this.isGhost);
 		this.padding = this.resolvePadding();
 		this.text.textStyle = this.labelStyle();
 		this.onStateChange();
@@ -330,23 +352,32 @@ export class Button extends Component {
 
 	/**
 	 * The label fills the padded box. With an icon, icon, gap and label are
-	 * centred as one group: the label's box gives up the icon and gap on its
-	 * left, which moves its centre right by half of them, and the icon sits
-	 * just before the label's left edge. The width is the label's own measure,
-	 * so its tracking and transform count (R12.7); the icon waits while the
-	 * label cannot be measured.
+	 * centred as one group: the label's box gives up the icon and gap on the
+	 * icon's side, which moves its centre away by half of them, and the icon
+	 * sits just outside the label's edge on that side. The width is the
+	 * label's own measure, so its tracking and transform count (R12.7); the
+	 * icon waits while the label cannot be measured. An icon-only button
+	 * centres the icon in the box.
 	 */
 	private placeLabel(): void {
 		const { top, right, bottom, left } = this.padding;
 		const icon = this.icon;
-		const labelWidth = this.text.measured?.width;
-		if (icon && labelWidth !== undefined) {
-			const gap = Math.round(this.text.getFontSize() * ICON_GAP);
-			const groupLeft = (this.width - (icon.size + gap + labelWidth)) / 2;
-			icon.setPosition(Math.round(groupLeft), Math.round(top + (this.height - top - bottom - icon.size) / 2));
-			this.labelInset = icon.size + gap;
+		const iconY = Math.round(top + (this.height - top - bottom - (icon?.size ?? 0)) / 2);
+		if (icon && this.iconSide === 'only') {
+			icon.setPosition(Math.round((this.width - icon.size) / 2), iconY);
+			this.labelInset = 0;
+		} else {
+			const labelWidth = this.text.measured?.width;
+			if (icon && labelWidth !== undefined) {
+				const gap = Math.round(this.text.getFontSize() * ICON_GAP);
+				const groupLeft = (this.width - (icon.size + gap + labelWidth)) / 2;
+				const iconX = this.iconSide === 'left' ? groupLeft : groupLeft + labelWidth + gap;
+				icon.setPosition(Math.round(iconX), iconY);
+				this.labelInset = icon.size + gap;
+			}
 		}
-		this.text.setPosition(left + this.labelInset, top);
+		const labelX = this.iconSide === 'left' ? left + this.labelInset : left;
+		this.text.setPosition(labelX, top);
 		this.text.setSize(Math.max(0, this.width - left - right - this.labelInset), Math.max(0, this.height - top - bottom));
 	}
 }

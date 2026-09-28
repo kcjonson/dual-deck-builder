@@ -232,6 +232,8 @@ export interface ActionEventInit {
 	timestamp: number;
 	target: Component;
 	source: ActionSource;
+	/** The key that produced it, for a keyboard action; null otherwise. */
+	key?: string | null;
 }
 
 /**
@@ -243,11 +245,19 @@ export interface ActionEventInit {
 export class UiActionEvent extends UiEvent {
 	public readonly type: ActionEventType;
 	public readonly source: ActionSource;
+	/**
+	 * `Enter`, ` `, or `Escape` for a keyboard action, null for any other
+	 * source. Only for the components the catalog lets tell Enter from Space
+	 * (a checkbox toggles on Space alone, R12.9); everything else treats
+	 * `activate` alike, whatever produced it.
+	 */
+	public readonly key: string | null;
 
 	constructor(init: ActionEventInit) {
 		super(init);
 		this.type = init.type;
 		this.source = init.source;
+		this.key = init.key ?? null;
 	}
 }
 

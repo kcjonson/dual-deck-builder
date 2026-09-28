@@ -744,7 +744,7 @@ export class Dispatcher {
 		const action = actionFor(input);
 		if (action && focused && focused.isMounted) {
 			if (action === 'activate') this.focus.showFocusVisible();
-			const event = new UiActionEvent({ type: action, timestamp: this.clock.now, target: focused, source: 'keyboard' });
+			const event = new UiActionEvent({ type: action, timestamp: this.clock.now, target: focused, source: 'keyboard', key: input.key });
 			this.bubble(event);
 			if (event.consumed) return;
 		}
