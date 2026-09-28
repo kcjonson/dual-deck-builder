@@ -15,6 +15,18 @@ import {
 	transformMatrix,
 } from './componentGeometry';
 import type { MountContext } from './MountContext';
+import {
+	AnchorInput,
+	Axis,
+	AxisLimits,
+	CrossAlign,
+	Fraction2,
+	Positioned,
+	Size,
+	SizeMode,
+	TOP_LEFT,
+	normalizeAnchor,
+} from './layoutTypes';
 import type { AnyUiEvent, UiDragEvent, UiKeyEvent, UiPointerEvent, UiWheelEvent } from '../input/events';
 import type { StateFlags } from '../style/look';
 
@@ -68,6 +80,24 @@ export interface ComponentOptions {
 	style?: Style;
 	/** Fired after a layout in which this component's bounds changed, including the first (R8.21). */
 	onLayout?: (bounds: Rect) => void;
+	/** R10.1's sizing modes. Absent takes the kind's default: `fixed`, or `hug` for text and stacks without a size. */
+	widthMode?: SizeMode;
+	heightMode?: SizeMode;
+	/** This component's share of a parent stack's main-axis leftover when it is `fill` (R10.3). Default 1. */
+	fillWeight?: number;
+	/** Clamps on the resolved content size, per axis (R10.4). */
+	minSize?: AxisLimits;
+	maxSize?: AxisLimits;
+	/** Width over height: an axis the parent does not assign is resolved from the one it does (R10.4). */
+	aspectRatio?: number;
+	/** Overrides the parent stack's `crossAlign` for this child (R10.4). */
+	alignSelf?: CrossAlign;
+	/** `absolute` leaves the parent stack's flow and is placed by `anchor` and `pivot` (R10.15). */
+	positioned?: Positioned;
+	/** A point of the parent's content box, as fractions or a named shorthand (R10.15). Default `topLeft`. */
+	anchor?: AnchorInput;
+	/** The point of this component's margin box placed on the anchor. Defaults to `anchor`. */
+	pivot?: AnchorInput;
 }
 
 export type PointerCallback = (event: UiPointerEvent) => void;
@@ -108,6 +138,13 @@ export abstract class Component {
 	private positionY = 0;
 	private contentWidth = 0;
 	private contentHeight = 0;
+	/**
+	 * The size this component was given, by construction or a setter, which
+	 * a layout assignment never overwrites: what a component with no content
+	 * to measure hugs to (R10.5).
+	 */
+	private givenWidth = 0;
+	private givenHeight = 0;
 	private ownVisible = true;
 	private ownEnabled = true;
 	private ownOpacity = 1;
@@ -139,15 +176,38 @@ export abstract class Component {
 	private [RECONCILE_KEY]: string | undefined;
 	/** Removed by `reconcileChildren` and still drawn while its exit runs. */
 	private exiting = false;
+	/** `cachedMeasure`'s results since the last invalidation; null until first used. */
+	private measureCache: Map<string, Size> | null = null;
+	private ownWidthMode: SizeMode;
+	private ownHeightMode: SizeMode;
+	private ownFillWeight = 1;
+	private ownMinSize: AxisLimits = NO_LIMITS;
+	private ownMaxSize: AxisLimits = NO_LIMITS;
+	private ownAspectRatio: number | null = null;
+	private ownAlignSelf: CrossAlign | null = null;
+	private ownPositioned: Positioned = 'flow';
+	private ownAnchor: Fraction2 = TOP_LEFT;
+	private ownPivot: Fraction2 | null = null;
+	/**
+	 * Where the parent's anchor placement moved the margin box, on top of
+	 * `position` (R10.15). Zero for a flow child of a stack, which receives its
+	 * placement through `position` itself (R10.11).
+	 */
+	private anchorShiftX = 0;
+	private anchorShiftY = 0;
 
 	constructor(options?: ComponentOptions) {
 		this.ownPointerEvents = this.defaultPointerEvents;
+		this.ownWidthMode = options?.widthMode ?? this.defaultSizeMode(options?.width);
+		this.ownHeightMode = options?.heightMode ?? this.defaultSizeMode(options?.height);
 		if (!options) return;
 		if (options.id !== undefined) this.componentId = options.id;
 		if (options.x !== undefined) this.positionX = options.x;
 		if (options.y !== undefined) this.positionY = options.y;
 		if (options.width !== undefined) this.contentWidth = options.width;
 		if (options.height !== undefined) this.contentHeight = options.height;
+		this.givenWidth = this.contentWidth;
+		this.givenHeight = this.contentHeight;
 		if (options.visible !== undefined) this.ownVisible = options.visible;
 		if (options.enabled !== undefined) this.ownEnabled = options.enabled;
 		if (options.opacity !== undefined) this.ownOpacity = options.opacity;
@@ -158,6 +218,14 @@ export abstract class Component {
 		if (options.pointerEvents !== undefined) this.ownPointerEvents = options.pointerEvents;
 		if (options.overflow !== undefined) this.setOverflow(options.overflow);
 		if (options.onLayout) this.onLayout = options.onLayout;
+		if (options.fillWeight !== undefined) this.ownFillWeight = options.fillWeight;
+		if (options.minSize !== undefined) this.ownMinSize = { ...options.minSize };
+		if (options.maxSize !== undefined) this.ownMaxSize = { ...options.maxSize };
+		if (options.aspectRatio !== undefined) this.ownAspectRatio = options.aspectRatio;
+		if (options.alignSelf !== undefined) this.ownAlignSelf = options.alignSelf;
+		if (options.positioned !== undefined) this.ownPositioned = options.positioned;
+		if (options.anchor !== undefined) this.ownAnchor = normalizeAnchor(options.anchor);
+		if (options.pivot !== undefined) this.ownPivot = normalizeAnchor(options.pivot);
 		if (options.style) this.applyStyle(options.style);
 	}
 
@@ -189,6 +257,14 @@ export abstract class Component {
 	 */
 	protected get defaultPointerEvents(): PointerEvents {
 		return 'auto';
+	}
+
+	/**
+	 * R10.1's per-kind default for an axis given its constructed size: `fixed`
+	 * for everything but text and stacks, which hug an axis given no size.
+	 */
+	protected defaultSizeMode(_size: number | undefined): SizeMode {
+		return 'fixed';
 	}
 
 	protected applyStyle(style: Style): void {
@@ -247,15 +323,39 @@ export abstract class Component {
 		this.positionY = value;
 	}
 
+	/**
+	 * Where the margin box sits in the parent's content box: `position` plus
+	 * the parent's anchor placement (R10.15). What the walk translates by.
+	 */
+	public get placedX(): number {
+		return this.positionX + this.anchorShiftX;
+	}
+
+	public get placedY(): number {
+		return this.positionY + this.anchorShiftY;
+	}
+
+	/**
+	 * The content box's origin in the parent's content box: the placed margin
+	 * box inset by the margin. The one answer the render walk, the hit test,
+	 * `screenMatrix` and the snapshot all read, so none of them can place a
+	 * component somewhere the others do not.
+	 */
+	public get originX(): number {
+		return this.placedX + this.ownMargin.left;
+	}
+
+	public get originY(): number {
+		return this.placedY + this.ownMargin.top;
+	}
+
 	/** Content width (R8.11). */
 	public get width(): number {
 		return this.contentWidth;
 	}
 
 	public set width(value: number) {
-		if (this.contentWidth === value) return;
-		this.contentWidth = value;
-		this.invalidateLayout();
+		this.storeSize({ width: value, height: this.contentHeight, axes: 'width' });
 	}
 
 	public get height(): number {
@@ -263,9 +363,29 @@ export abstract class Component {
 	}
 
 	public set height(value: number) {
-		if (this.contentHeight === value) return;
-		this.contentHeight = value;
-		this.invalidateLayout();
+		this.storeSize({ width: this.contentWidth, height: value, axes: 'height' });
+	}
+
+	/**
+	 * The one write path for a size the component is given (a constructor
+	 * option aside): records it as given, so `measure` hugs it, and as the
+	 * content size, and invalidates layout when either changed. `axes` limits
+	 * which axes count as given. `setSize` reports a change through
+	 * `onResized`; the single-axis accessors never have. Subclasses whose
+	 * accessors mean something more (Text, Stack) call this rather than the
+	 * base accessors.
+	 */
+	protected storeSize({ width, height, axes = 'both', notify = false }: StoreSizeOptions): void {
+		const givesWidth = axes !== 'height';
+		const givesHeight = axes !== 'width';
+		const resized = this.contentWidth !== width || this.contentHeight !== height;
+		const regiven = (givesWidth && this.givenWidth !== width) || (givesHeight && this.givenHeight !== height);
+		if (givesWidth) this.givenWidth = width;
+		if (givesHeight) this.givenHeight = height;
+		this.contentWidth = width;
+		this.contentHeight = height;
+		if (resized || regiven) this.invalidateLayout();
+		if (resized && notify) this.onResized();
 	}
 
 	public get margin(): Sides {
@@ -284,8 +404,8 @@ export abstract class Component {
 	public get bounds(): Rect {
 		const margin = this.ownMargin;
 		return {
-			x: this.positionX,
-			y: this.positionY,
+			x: this.placedX,
+			y: this.placedY,
 			width: this.contentWidth + margin.left + margin.right,
 			height: this.contentHeight + margin.top + margin.bottom,
 		};
@@ -364,11 +484,11 @@ export abstract class Component {
 	}
 
 	/**
-	 * Local (content box) to parent content box: the margin-box origin, the
-	 * margin inset, then this component's transform.
+	 * Local (content box) to parent content box: the margin-box origin (with
+	 * any anchor placement), the margin inset, then this component's transform.
 	 */
 	private get localMatrix(): Mat2D {
-		const origin = translation(this.positionX + this.ownMargin.left, this.positionY + this.ownMargin.top);
+		const origin = translation(this.originX, this.originY);
 		const own = this.transformMatrix;
 		return own ? concat(origin, own) : origin;
 	}
@@ -695,7 +815,16 @@ export abstract class Component {
 		// R8.15: adding to a mounted parent mounts at once.
 		if (this.mountContext && !child.mountContext) child.mount(this.mountContext);
 		this.invalidateLayout();
+		child.onParentChanged();
 		return this;
+	}
+
+	/**
+	 * Called after this component is inserted under a new parent. A size a
+	 * previous parent's layout assigned is that parent's; a text re-fits here.
+	 */
+	protected onParentChanged(): void {
+		// Override in subclasses
 	}
 
 	private isAncestorOf(node: Component): boolean {
@@ -718,8 +847,12 @@ export abstract class Component {
 		const from = this.children.indexOf(child);
 		if (from === -1) return this;
 		this.children.splice(from, 1);
-		this.children.splice(clampIndex(index, this.children.length), 0, child);
+		const to = clampIndex(index, this.children.length);
+		this.children.splice(to, 0, child);
+		if (to === from) return this;
 		this.orderView = null;
+		// Order is flow input for a stack (R10.18).
+		this.invalidateLayout();
 		return this;
 	}
 
@@ -848,6 +981,9 @@ export abstract class Component {
 	public mount(context: MountContext): void {
 		if (this.mountContext) return;
 		this.mountSubtree(context);
+		// A root sizes its `fill` axes from the viewport, so the frame
+		// re-lays it out when the viewport changes (R8.21).
+		if (!this.parentComponent) context.frame.addRoot(this);
 		// A root is hit-tested from here on, over the roots mounted before it (R9.4).
 		if (!this.parentComponent) context.dispatcher.addRoot(this);
 		// The first layout after mount reports every component's bounds through
@@ -858,7 +994,7 @@ export abstract class Component {
 	private mountSubtree(context: MountContext): void {
 		if (this.mountContext) return;
 		this.mountContext = context;
-		this.needsLayout = true;
+		this.markDirty();
 		this.onMount(context);
 		for (const child of this.children) child.mountSubtree(context);
 	}
@@ -936,48 +1072,334 @@ export abstract class Component {
 	 * hands the boundary to the frame's layout phase.
 	 */
 	public invalidateLayout(): void {
-		this.needsLayout = true;
+		this.markDirty();
 		const boundary = this.parentComponent ? this.parentComponent.markLayoutPath() : this;
 		this.mountContext?.frame.scheduleLayout(boundary);
 	}
 
 	private markLayoutPath(): Component {
-		this.needsLayout = true;
+		this.markDirty();
 		if (this.isRelayoutBoundary || !this.parentComponent) return this;
 		return this.parentComponent.markLayoutPath();
 	}
 
 	/**
 	 * Whether this component's own size is independent of its children, so a
-	 * change beneath it stops here. Every component is fixed-size until phase
-	 * 4's sizing modes, where `hug` and `fill` answer false.
+	 * change beneath it stops here: both sizing modes `fixed` (R8.18). A root
+	 * is a boundary whatever its modes, since there is nothing above it.
 	 */
 	protected get isRelayoutBoundary(): boolean {
-		return true;
+		return this.ownWidthMode === 'fixed' && this.ownHeightMode === 'fixed';
 	}
 
 	/**
 	 * Positions and sizes this component's children. The frame's layout pass
-	 * calls it top-down on dirty components; phase 4's Stack implements it.
+	 * calls it top-down on dirty components; Stack implements chapter 10's
+	 * passes here.
 	 */
 	protected layoutChildren(): void {
 		// A plain container leaves its children where they were put.
 	}
 
 	/**
-	 * The frame's layout pass over this subtree (R8.16, R8.18): dirty
-	 * components lay out their children, top-down; invisible subtrees are
-	 * skipped and stay dirty for when they are shown (R8.3); every component
-	 * whose bounds changed hears `onLayout`.
+	 * The frame's layout pass over this subtree (R8.16, R8.18): a root sizes
+	 * itself from the viewport on its `fill` axes (R8.21), dirty components lay
+	 * out their children and place anchored ones (R10.15), top-down; invisible
+	 * subtrees are skipped and stay dirty for when they are shown (R8.3);
+	 * every component whose bounds changed hears `onLayout`.
 	 */
 	public layoutSubtree(): void {
 		if (!this.visible) return;
+		if (!this.parentComponent) this.sizeFromViewport();
 		if (this.needsLayout) {
 			this.needsLayout = false;
 			this.layoutChildren();
+			this.placeAnchoredChildren();
 			for (const child of this.children) child.layoutSubtree();
 		}
 		this.reportLayout();
+	}
+
+	/**
+	 * R8.21: a root's layout box is the viewport, so a root with a `fill` axis
+	 * takes the viewport's logical size, less its margin, on that axis.
+	 */
+	private sizeFromViewport(): void {
+		const context = this.mountContext;
+		if (!context || (this.ownWidthMode !== 'fill' && this.ownHeightMode !== 'fill')) return;
+		const { width, height } = context.viewport.logical;
+		const margin = this.ownMargin;
+		this.applyLayoutSize(
+			this.ownWidthMode === 'fill' ? Math.max(width - margin.left - margin.right, 0) : this.contentWidth,
+			this.ownHeightMode === 'fill' ? Math.max(height - margin.top - margin.bottom, 0) : this.contentHeight,
+		);
+	}
+
+	/**
+	 * R10.15: `origin = box.origin + anchor * box.size - pivot * child.size +
+	 * position`, for every child this component anchors, against `anchorBox`.
+	 * With the default `topLeft` anchor and pivot the shift is zero, so a
+	 * child placed by hand stays exactly where `position` put it.
+	 */
+	private placeAnchoredChildren(): void {
+		const box = this.anchorBox;
+		for (const child of this.children) {
+			if (!this.anchorsChild(child)) {
+				child.anchorShiftX = 0;
+				child.anchorShiftY = 0;
+				continue;
+			}
+			const anchor = child.ownAnchor;
+			const pivot = child.pivot;
+			const margin = child.ownMargin;
+			const width = child.contentWidth + margin.left + margin.right;
+			const height = child.contentHeight + margin.top + margin.bottom;
+			child.anchorShiftX = box.x + anchor[0] * box.width - pivot[0] * width;
+			child.anchorShiftY = box.y + anchor[1] * box.height - pivot[1] * height;
+		}
+	}
+
+	/** The box anchored children are placed against, in this component's local space. */
+	protected get anchorBox(): Rect {
+		return { x: 0, y: 0, width: this.contentWidth, height: this.contentHeight };
+	}
+
+	/**
+	 * Whether `placeAnchoredChildren` places this child. Every child outside a
+	 * stack (R10.15); a stack answers only for its `absolute` children.
+	 */
+	protected anchorsChild(_child: Component): boolean {
+		return true;
+	}
+
+	// -- sizing (R8.1's layout protocol, R10.1, R10.4) -------------------------
+
+	public get widthMode(): SizeMode {
+		return this.ownWidthMode;
+	}
+
+	public set widthMode(value: SizeMode) {
+		if (this.ownWidthMode === value) return;
+		this.ownWidthMode = value;
+		this.invalidateLayout();
+	}
+
+	public get heightMode(): SizeMode {
+		return this.ownHeightMode;
+	}
+
+	public set heightMode(value: SizeMode) {
+		if (this.ownHeightMode === value) return;
+		this.ownHeightMode = value;
+		this.invalidateLayout();
+	}
+
+	public sizeMode(axis: Axis): SizeMode {
+		return axis === 'width' ? this.ownWidthMode : this.ownHeightMode;
+	}
+
+	/** Content size on one axis. */
+	public sizeOn(axis: Axis): number {
+		return axis === 'width' ? this.contentWidth : this.contentHeight;
+	}
+
+	public get fillWeight(): number {
+		return this.ownFillWeight;
+	}
+
+	public set fillWeight(value: number) {
+		if (this.ownFillWeight === value) return;
+		this.ownFillWeight = value;
+		this.invalidateLayout();
+	}
+
+	/** Explicit minimums; an absent axis falls back to `automaticMinSize` on a stack's main axis. */
+	public get minSize(): AxisLimits {
+		return this.ownMinSize;
+	}
+
+	public set minSize(value: AxisLimits) {
+		this.ownMinSize = { ...value };
+		this.invalidateLayout();
+	}
+
+	public get maxSize(): AxisLimits {
+		return this.ownMaxSize;
+	}
+
+	public set maxSize(value: AxisLimits) {
+		this.ownMaxSize = { ...value };
+		this.invalidateLayout();
+	}
+
+	/** Width over height, or null. */
+	public get aspectRatio(): number | null {
+		return this.ownAspectRatio;
+	}
+
+	public set aspectRatio(value: number | null) {
+		if (this.ownAspectRatio === value) return;
+		this.ownAspectRatio = value;
+		this.invalidateLayout();
+	}
+
+	public get alignSelf(): CrossAlign | null {
+		return this.ownAlignSelf;
+	}
+
+	public set alignSelf(value: CrossAlign | null) {
+		if (this.ownAlignSelf === value) return;
+		this.ownAlignSelf = value;
+		this.invalidateLayout();
+	}
+
+	public get positioned(): Positioned {
+		return this.ownPositioned;
+	}
+
+	public set positioned(value: Positioned) {
+		if (this.ownPositioned === value) return;
+		this.ownPositioned = value;
+		this.invalidateLayout();
+	}
+
+	public get anchor(): Fraction2 {
+		return this.ownAnchor;
+	}
+
+	public set anchor(value: AnchorInput) {
+		this.ownAnchor = normalizeAnchor(value);
+		this.invalidateLayout();
+	}
+
+	/** The effective pivot: the authored one, or the anchor (R10.15). */
+	public get pivot(): Fraction2 {
+		return this.ownPivot ?? this.ownAnchor;
+	}
+
+	public set pivot(value: AnchorInput | null) {
+		this.ownPivot = value === null ? null : normalizeAnchor(value);
+		this.invalidateLayout();
+	}
+
+	/**
+	 * The minimum a stack applies on its main axis when `minSize` leaves that
+	 * axis unset: CSS `min-width: auto` (R10.4). Zero except for text.
+	 */
+	public automaticMinSize(_axis: Axis): number {
+		return 0;
+	}
+
+	/**
+	 * The smallest this component can be on `axis` without overflowing its
+	 * own content: how far a stack may shrink it when the row or column runs
+	 * out of room (R10.7's shrink-to-fit, CSS min-content). A component with
+	 * nothing to reflow cannot shrink below the size it was given.
+	 */
+	public minContentSize(axis: Axis): number {
+		if (this.sizeMode(axis) === 'fixed') return this.sizeOn(axis);
+		return axis === 'width' ? this.givenWidth : this.givenHeight;
+	}
+
+	/**
+	 * Whether this component resolves its children's sizes in its own layout
+	 * (a stack). A child of one is assigned its size every pass and never
+	 * sizes itself.
+	 */
+	public get sizesChildren(): boolean {
+		return false;
+	}
+
+	/**
+	 * R8.1's `measure`: the content size this component takes with at most the
+	 * given space, before its parent's clamps. `definite` names an axis the
+	 * parent will assign exactly (a stretched cross axis), so the other axis
+	 * is measured at that size. A component with no content to measure
+	 * reports the size it was given, not one a layout assigned it, so a box
+	 * that was stretched once does not keep the stretch.
+	 */
+	public measure(availableWidth: number, availableHeight: number, definite: Axis | null = null): Size {
+		return {
+			width: definite === 'width' ? availableWidth : this.givenWidth,
+			height: definite === 'height' ? availableHeight : this.givenHeight,
+		};
+	}
+
+	/**
+	 * R8.1's `assignSize` (worldsim's `setLayoutSize`): the parent resolves this
+	 * component's content size for the current pass. NaN keeps an axis. It
+	 * never changes a sizing mode (R10.5) and does not invalidate upward, since
+	 * the parent doing the assigning is already laying out; a changed size
+	 * marks this subtree so its own children follow.
+	 */
+	public assignSize(width: number, height: number): void {
+		this.applyLayoutSize(
+			Number.isNaN(width) ? this.contentWidth : width,
+			Number.isNaN(height) ? this.contentHeight : height,
+		);
+	}
+
+	/**
+	 * Sets this component's own size from inside its own layout (a hug stack
+	 * with no stack above it). Nothing to mark here, since this layout is the
+	 * one running; the parent is invalidated, since it may anchor this box or
+	 * read its size to place something else.
+	 */
+	protected resizeInLayout(width: number, height: number): void {
+		if (this.contentWidth === width && this.contentHeight === height) return;
+		this.contentWidth = width;
+		this.contentHeight = height;
+		this.onResized();
+		// Only the parent's placement of this box can change (its anchors),
+		// so the parent alone is laid out again, not everything up to its
+		// boundary.
+		const parent = this.parentComponent;
+		if (parent) {
+			parent.needsLayout = true;
+			parent.mountContext?.frame.scheduleLayout(parent);
+		}
+	}
+
+	/**
+	 * Sets the content size as layout's result: no upward invalidation, and
+	 * `onResized` when it changed, as for any other resize. Returns whether
+	 * it changed.
+	 */
+	protected applyLayoutSize(width: number, height: number): boolean {
+		if (this.contentWidth === width && this.contentHeight === height) return false;
+		this.contentWidth = width;
+		this.contentHeight = height;
+		this.needsLayout = true;
+		this.onResized();
+		return true;
+	}
+
+	/**
+	 * Something this component's measurement reads changed: lay it out again
+	 * and forget what it measured. An assignment does not come through here,
+	 * since `measure` never reads an assigned size.
+	 */
+	private markDirty(): void {
+		this.needsLayout = true;
+		if (this.measureCache) this.measureCache.clear();
+	}
+
+	/**
+	 * `compute`'s answer for `key`, remembered until this component is next
+	 * invalidated. Nested hug stacks measure each other at the same
+	 * constraints over and over in one pass; this keeps a pass linear.
+	 */
+	protected cachedMeasure(key: string, compute: () => Size): Size {
+		let cache = this.measureCache;
+		if (!cache) {
+			cache = new Map();
+			this.measureCache = cache;
+		}
+		const hit = cache.get(key);
+		if (hit) return hit;
+		const size = compute();
+		cache.set(key, size);
+		return size;
 	}
 
 	private reportLayout(): void {
@@ -1290,14 +1712,11 @@ export abstract class Component {
 	}
 
 	public setSize(width: number, height: number): this {
-		const changed = this.contentWidth !== width || this.contentHeight !== height;
-		this.width = width;
-		this.height = height;
-		if (changed) this.onResized();
+		this.storeSize({ width, height, notify: true });
 		return this;
 	}
 
-	/** Called when `setSize` changes the size. */
+	/** Called when `setSize` or a layout assignment changes the content size. */
 	protected onResized(): void {
 		// Override in subclasses
 	}
@@ -1343,6 +1762,16 @@ export abstract class Component {
 }
 
 const ORIGIN: Vec2 = Object.freeze({ x: 0, y: 0 });
+
+const NO_LIMITS: AxisLimits = Object.freeze({});
+
+interface StoreSizeOptions {
+	width: number;
+	height: number;
+	axes?: Axis | 'both';
+	/** Fire `onResized` on a change, as `setSize` does. */
+	notify?: boolean;
+}
 
 function clampIndex(index: number, length: number): number {
 	return Math.max(0, Math.min(length, Math.floor(index)));

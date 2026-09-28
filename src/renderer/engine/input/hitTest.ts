@@ -97,9 +97,8 @@ class HitWalk {
 		// A root is never promoted: there is no inherited clip to reset.
 		const clipped = parentOrdinal >= 0 && ownOrdinal > inherited ? true : inClip;
 
-		const margin = component.margin;
-		const originX = component.x + margin.left;
-		const originY = component.y + margin.top;
+		const originX = component.originX;
+		const originY = component.originY;
 		let lx = px - originX;
 		let ly = py - originY;
 		let sx = ox + originX;
