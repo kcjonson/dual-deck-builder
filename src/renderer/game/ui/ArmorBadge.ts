@@ -98,10 +98,10 @@ export class ArmorBadge extends Component {
 
 	/** It hugs its value, so its size follows the measure: once per value. */
 	protected layoutChildren(): void {
-		if (this.label !== this.measuredLabel) this.measure();
+		if (this.label !== this.measuredLabel) this.measureLabel();
 	}
 
-	private measure(): void {
+	private measureLabel(): void {
 		const draw = this.context?.draw;
 		if (!draw || !draw.canMeasureText(VALUE_FONT)) return;
 		this.labelWidth = draw.measureText({

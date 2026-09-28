@@ -140,7 +140,7 @@ export class DeveloperScreen extends Screen {
 
 	protected onUnmount(): void {
 		// Clear any focus from input fields
-		this.context.dispatcher.focus(null);
+		this.context.focus.blur();
 
 		this.mainScrollContainer.setScrollOffset(0, 0);
 	}

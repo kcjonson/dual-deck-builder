@@ -219,14 +219,14 @@ export class SceneHost {
 	 * dropped the reference would leave every scene ever mounted hit-tested on
 	 * every mouse move. removeChild unmounts the subtree it detaches, and the
 	 * base class unregisters on unmount, so the maps stay flat across
-	 * switches. Focus is the one pointer that is not per-component
-	 * bookkeeping: unregisterComponent clears it only for the component it is
-	 * handed, and only if that component still holds it.
+	 * switches. Focus is blurred first rather than dropped by the unmount, so
+	 * a focused input hears its `blur` and stops its caret (R9.21 drops focus
+	 * on unmount without callbacks).
 	 */
 	public unmount(): void {
 		if (!this.mountedRoot) return;
 
-		this.context.dispatcher.focus(null);
+		this.context.focus.blur();
 		this.rootLayer.removeChild(this.mountedRoot);
 		this.mountedRoot = null;
 		this.mounted = null;

@@ -2,6 +2,7 @@ import { Animator } from '../animation/Animator';
 import { Clock } from '../animation/Clock';
 import type { DrawApi } from '../draw/DrawApi';
 import { Dispatcher } from '../input/Dispatcher';
+import type { FocusManager } from '../input/FocusManager';
 import type { DragService } from '../input/DragService';
 import { UiFrame } from './UiFrame';
 
@@ -20,7 +21,7 @@ export interface ViewportSource {
  * already releases what `dispatcher` and `frame` hold on it.
  *
  * Services arrive with the tasks that build them, as fields added here:
- * `focus` (DDB-76), and `popups`, `tooltips`, `placement`, `overlays`,
+ * `popups`, `tooltips`, `placement`, `overlays`,
  * `clipboard` and `assets` (DDB-78).
  */
 export interface MountContext {
@@ -28,6 +29,12 @@ export interface MountContext {
 	readonly draw: DrawApi;
 	/** Chapter 9's dispatcher: the input queue, hit testing, hover, capture, hotkeys. */
 	readonly dispatcher: Dispatcher;
+	/**
+	 * Chapter 9's focus manager (9.7): Tab order from the tree, scopes,
+	 * groups, directional focus, focus-visible. The dispatcher drives it from
+	 * input and the frame's layout ends with its fixup (R9.28).
+	 */
+	readonly focus: FocusManager;
 	readonly viewport: ViewportSource;
 	/** Update requests and layout invalidation for the frame (R8.16 to R8.18). */
 	readonly frame: UiFrame;
@@ -58,5 +65,7 @@ export function createMountContext({ draw, viewport, clock = new Clock() }: Moun
 	const animator = new Animator({ clock });
 	const frame = new UiFrame({ clock, animator });
 	const dispatcher = new Dispatcher({ frame, clock, pixelRatio: () => draw.devicePixelScale });
-	return { draw, dispatcher, viewport, frame, clock, animator, drag: dispatcher.drag };
+	const focus = dispatcher.focus;
+	frame.afterLayout(() => focus.fixup());
+	return { draw, dispatcher, focus, viewport, frame, clock, animator, drag: dispatcher.drag };
 }

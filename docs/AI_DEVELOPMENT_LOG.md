@@ -20,6 +20,32 @@ This document contains the chronological log of completed development tasks for 
 
 **How:** `SplashScreen.test.ts` (fade in, hold, fade out, navigate, settle at opacity 1, resize, unmount cancels), `Vehicle.test.ts` (parts kept across a driver's death and a resize, model subscription on mount and remount), `Card.test.ts` (lift by transform, disabled cards neither lift nor brighten), `DriverSelectionScreen.test.ts` (three resizes keep the same children and both drivers, one deck preview across overlapping loads), `Screen.test.ts`, `Component.test.ts` (overflow before size). Played in the browser: splash fade, menu to driver selection, cycling and resizing three times without losing the selection, START RUN, a self-targeted and an enemy-targeted card, END TURN, the combat log. Details in [game-code-on-the-tree.md](AI_TECHNICAL_DECISIONS/game-code-on-the-tree.md).
 
+## Focus manager and keyboard play (2026-09-28)
+
+**What landed:** DDB-76 (DDB-55 phase 3), chapter 9's focus half: R9.15 to R9.29, R11.12's focus ring, R12.7's keyboard activation.
+
+- `input/FocusManager.ts` as `context.focus` (built by the dispatcher): tree-derived, cached Tab order; `pushScope`/`popScope`; fixup after every layout through `UiFrame.afterLayout`; focus groups with `activeChild`; directional focus with explicit neighbours; the focus-visible modality. The dispatcher's focus seam is deleted.
+- Dispatcher key order: Tab, focused component and bubble, text-field ownership, `activate`/`cancel` (`UiActionEvent`), group and directional arrows, then per-root hotkey tables from the focused root down to a `modal` root, then the scene's. A press focuses the nearest focusable ancestor after its handlers, unless one called `preventFocus()`. `inputMode`.
+- `Component`: `focusable`, `tabIndex`, `focusGroup`, `activeChild`, `focusUp/Down/Left/Right`, `handlesTab`, `modal`, `acceptsText`, `canReceiveFocus()`, `focusVisible`, lazy `hotkeys`, `onFocus`/`onBlur` callbacks with `focus`/`blur` events. `renderTree` draws the ring from the `control` and `color.accent` tokens.
+- Button focusable with `activate` as click; Input `acceptsText`; hand cards focusable in a horizontal group; vehicles focusable only as target choices; combat moves keyboard focus to the first target and back to the hand; combat hotkeys on the screen root; Escape backs out of driver selection. The snapshot reports `state.focusVisible`.
+- After #95 (DDB-84): the focus manager is the only writer of `focused` and `focusVisible` (`setFocusState`, which calls `onStateChange()`); Button and Input draw their own ring (`drawsOwnFocusRing`) and the walk rings every other focusable; Input's editing state and the developer screen's ring demo moved onto focus events and `context.focus`. Focus by keyboard or code scrolls a scrollable Panel to show the component; removing a group's active child clears it; driver selection tabs Back first (`tabIndex: 1`, so paint and tree order are untouched).
+
+**How:** `FocusManager.test.ts` (chapter 9.11's focus, directional, and keyboard cases: tree order under out-of-order inserts, positive tabIndex, wrap, disabled and hidden skipped, scope trap and restore, unmount and hide fixup without and with callbacks, focus-visible after Tab, press, and programmatic focus, a press in a select's menu, preventFocus, groups, explicit neighbours, Escape to the root table, printable keys in a field, a modal root blocking lower tables, held Enter once), a ring test in `renderTree.test.ts`, Button keyboard activation in `widgetInput.test.ts`, and `CombatScreenKeyboard.test.ts` playing a card, aiming, cancelling, and ending the turn from keys through the injection hook. Driven in the browser through `__dev.input`: main menu by Tab and arrows, driver selection to START RUN, combat Tab to END TURN and the hand, arrows along it, Enter on Headshot moving focus to the raider, Enter playing it, Tab and Enter on END TURN into turn 2; a mouse click focuses without a ring.
+
+## Stack container and the chapter 10 conformance suite (2026-09-28)
+
+**What landed:** DDB-81 (DDB-55 phase 4), R10.1 to R10.18, R8.1's layout protocol, R8.21's viewport roots.
+
+- `components/Stack.ts`: the three passes with shrink-to-fit, the leftover shared by weight with clamps and one frozen re-run, safe distribution and alignment, absolute children sized against the content box. `components/layoutTypes.ts` holds the vocabulary.
+- `Component`: sizing modes and the chapter 10 child properties as options and accessors; `measure`, `assignSize`, `automaticMinSize`, `sizesChildren`; anchor placement after `layoutChildren` (stored apart from `position`, read through `placedX`/`placedY` by the render walk, `screenMatrix`, `bounds` and the snapshot); a root's `fill` axes from the viewport; relayout boundary is now "both modes fixed".
+- `Text`: modes replace the assigned flags; a stack's assignment is its box for the pass; shrink-to-fit `measure`; longest-word automatic minimum.
+- `UiFrame.viewportChanged()`, called by `Game` and the gallery on the viewport owner's change event.
+- Snapshot reports `stack: { direction, gap }` and uses `bounds` for anchored placement; lint rule 1 exempts overlap within a negative gap.
+- `Circle.assignSize` is a no-op (draws from its radius); `ArmorBadge.measure` renamed `measureLabel` to free the protocol name.
+- Tests: `Stack.test.ts` (worldsim's suite ported with its numbers, spec 10.9's additions, anchors, viewport roots, boundaries, the negative-gap lint case) and `Stack.text.test.ts` (real-metrics text cases). Gallery scene `stack`, lint clean; its golden is minted on CI.
+- Decision record: `docs/AI_TECHNICAL_DECISIONS/stack-layout.md`.
+- After review: one placed-origin accessor (`originX`/`originY`) read by the render walk, the dispatcher's hit test, `screenMatrix` and the snapshot; shrink-to-fit for nested stacks (proportional, floored at `minContentSize`); per-constraint measure cache (255 nested stacks: 65k measures to 763); `onResized` on layout assignment; one width source on Text; authored sizes fix a Stack axis; five ported cases tightened to worldsim's.
+
 ## Drag service (2026-09-28)
 
 **What landed:** DDB-77 (DDB-55 phase 3), R9.12a to R9.12e.

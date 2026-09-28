@@ -126,6 +126,19 @@ describe('DriverSelectionScreen: one driver per slot', () => {
 		}
 	});
 
+	it('tabs in reading order: Back, the two cycle buttons, START RUN (R9.18)', async () => {
+		const { screen } = await mountScreen();
+		context.focus.pushScope(screen.root);
+		expect(context.focus.tabOrder.map(component => component.id)).toEqual([
+			'driver_select_back_button',
+			'driver_panel_left_cycle_button',
+			'driver_panel_right_cycle_button',
+			'driver_select_start_run_button',
+		]);
+		context.focus.popScope(screen.root);
+		screen.unmount();
+	});
+
 	it('a remount after unmount starts clean with two different drivers', async () => {
 		const { screen, left, right } = await mountScreen();
 		// Leaves the right panel on the first driver, which a stale partner

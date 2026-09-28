@@ -294,11 +294,17 @@ export class Card extends Component {
 	 * Hover arrives through `onHover` and `onUnhover`, which the dispatcher
 	 * drives (R9.8); the press shades the frame, and the click is the
 	 * dispatcher's, synthesised when press and release both land on this card
-	 * (R9.31). A disabled card receives none of these (R9.5).
+	 * (R9.31). A disabled card receives none of these (R9.5). A focused card
+	 * treats `activate` (Enter or Space) as a click (R9.27); only the hand
+	 * makes its cards focusable.
 	 */
 	public handleEvent(event: AnyUiEvent): void {
 		super.handleEvent(event);
 		switch (event.type) {
+			case 'activate':
+				event.consume();
+				this.activate();
+				return;
 			case 'pointerdown':
 				if (event.button === 0) {
 					this.cardBorder.setFillColor(this.adjustBrightness(Card.getRarityColor(this.data.rarity), -20));

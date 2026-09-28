@@ -310,14 +310,28 @@ export class Vehicle extends Component {
 	/**
 	 * Hover focuses the vehicle for a targeting preview; a click on a
 	 * targetable vehicle is the target choice. `hovered` is already set when
-	 * the enter and leave arrive (R9.8).
+	 * the enter and leave arrive (R9.8). The keyboard does the same through
+	 * focus and `activate`: a vehicle is focusable only while it is a target
+	 * choice, so Tab and the arrows visit exactly the targets (R9.18, R9.26).
 	 */
 	public handleEvent(event: AnyUiEvent): void {
 		super.handleEvent(event);
 		switch (event.type) {
 			case 'click':
-				if (this.onClickCallback && this.isTargetable()) {
-					this.onClickCallback(this.vehicleData);
+				this.chooseAsTarget();
+				return;
+			case 'activate':
+				event.consume();
+				this.chooseAsTarget();
+				return;
+			case 'focus':
+				if (this.combatData && this.combatData.isTargeting) {
+					this.combatData.focusVehicle(this.vehicleData.id);
+				}
+				return;
+			case 'blur':
+				if (this.combatData && this.combatData.focusedVehicleId === this.vehicleData.id && !this.hovered) {
+					this.combatData.focusVehicle(null);
 				}
 				return;
 			case 'pointerenter':
@@ -332,6 +346,12 @@ export class Vehicle extends Component {
 				}
 				this.updateVisualState();
 				return;
+		}
+	}
+
+	private chooseAsTarget(): void {
+		if (this.onClickCallback && this.isTargetable()) {
+			this.onClickCallback(this.vehicleData);
 		}
 	}
 
@@ -393,6 +413,7 @@ export class Vehicle extends Component {
 		const targetable = this.isTargetable() || carrier;
 		const focused = this.isFocusedTarget() || carrier;
 		const targeting = this.combatData?.isTargeting || false;
+		this.focusable = targeting && this.onClickCallback !== null && this.isTargetable();
 
 		// Non-targetable vehicles get dimmed colors
 		if (!targetable && targeting) {
