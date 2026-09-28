@@ -72,9 +72,16 @@ off-screen parts pays for them. Median `render` section over 240 frames, Chromiu
 
 About half a millisecond on the showcase against a 16.7 ms budget; combat gets cheaper because the
 culled text is no longer encoded. The subtree skip was a second cull with its own edge rules and no
-counter, which is what R4.2a exists to replace. If a list ever makes the walk itself the problem, the
-fix is a container-level early out that asks the clip stack for its current rect and counts what it
-skips as `culled`, not a return to a private cull.
+counter, which is what R4.2a exists to replace.
+
+A bounds early-out on a layer's own box is not sound here. A `Layer` has no contract that its
+descendants stay inside it (`overflow` defaults to `visible`, and the lint's `child-outside-parent`
+rule exists because they don't), so a subtree whose box misses the clip can still draw inside it.
+Skipping on the box is the under-cull R4.2a forbids, and it bypasses `culled`. Skipping the children
+of a clipper whose clip goes empty is sound, but no clip nests in the app, so it never fires, and the
+skipped draws would go uncounted. The sound version needs a conservative subtree ink bound (R13.22's
+`inkBounds`) that the object model keeps current, plus a cached group count to add to `culled`.
+That is DDB-184, with the phase 3 and 4 object model and layout.
 
 ## What moved
 
