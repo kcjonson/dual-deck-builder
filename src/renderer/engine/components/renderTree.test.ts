@@ -134,6 +134,26 @@ describe('renderTree (R3.11, R8.1)', () => {
 		drawn.transform.forEach((value, index) => expect(value).toBeCloseTo(expected[index]));
 	});
 
+	it('draws the focus ring after the children, only while focus is visible and enabled (R11.12, R9.23)', () => {
+		const button = new Rectangle({ id: 'button', x: 10, y: 10, width: 100, height: 40 });
+		button.addChild(new Rectangle({ id: 'label', width: 20, height: 10 }));
+		const ring = (): DrawCommand | undefined => frame(button).find((command) => command.id === 'button.focus_ring');
+
+		expect(ring()).toBeUndefined();
+		button.setFocusState(true, false);
+		expect(ring()).toBeUndefined();
+
+		button.setFocusState(true, true);
+		const ids = frame(button).map((command) => command.id);
+		expect(ids).toEqual(['button', 'label', 'button.focus_ring']);
+		const drawn = rect(frame(button), 'button.focus_ring');
+		expect(drawn.rect).toEqual({ x: -2, y: -2, width: 104, height: 44 });
+		expect(drawn.border).toMatchObject({ width: 1, position: 'outside' });
+
+		button.enabled = false;
+		expect(ring()).toBeUndefined();
+	});
+
 	it('leaves every stack balanced', () => {
 		const root = new Layer({ width: 100, height: 100, overflow: 'hidden', opacity: 0.5, transform: { translate: [3, 4] } });
 		const raised = new Layer({ width: 50, height: 50, layer: 'raised', overflow: 'hidden' });

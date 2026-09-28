@@ -194,6 +194,11 @@ export class ResourceBarLayer extends Layer {
 	/**
 	 * Set end turn callback
 	 */
+	/** For the combat screen's keyboard focus: where it lands when the hand has nothing to play. */
+	public get endTurn(): Button {
+		return this.endTurnButton;
+	}
+
 	public setOnEndTurn(callback: () => void): void {
 		this.onEndTurn = callback;
 	}

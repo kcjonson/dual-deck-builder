@@ -15,7 +15,9 @@ import {
 	transformMatrix,
 } from './componentGeometry';
 import type { MountContext } from './MountContext';
-import type { AnyUiEvent, UiKeyEvent, UiPointerEvent, UiWheelEvent } from '../input/events';
+import type { AnyUiEvent, UiActionEvent, UiFocusEvent, UiKeyEvent, UiPointerEvent, UiWheelEvent } from '../input/events';
+import type { FocusDirection, FocusGroupConfig } from '../input/FocusManager';
+import { HotkeyTable } from '../input/HotkeyTable';
 
 /**
  * R8.29. `auto`: this box is a target and children are hit-tested.
@@ -31,7 +33,7 @@ export type Quad = readonly [Vec2, Vec2, Vec2, Vec2];
 
 /**
  * Named constructor arguments shared by every component (R8.2, R8.23).
- * Layout's sizing modes, focus, tooltips and the event callbacks arrive with
+ * Layout's sizing modes, tooltips and the drag callbacks arrive with
  * the phase that owns them (chapters 9 to 12).
  */
 export interface ComponentOptions {
@@ -56,9 +58,18 @@ export interface ComponentOptions {
 	style?: Style;
 	/** Fired after a layout in which this component's bounds changed, including the first (R8.21). */
 	onLayout?: (bounds: Rect) => void;
+	/** R9.18: takes focus from a press, Tab, arrows, or `focus()`. */
+	focusable?: boolean;
+	/** R9.18: above 0 comes first in Tab order, ascending; below 0 is focusable but never a Tab stop. */
+	tabIndex?: number;
+	/** R9.29: one Tab stop whose focusable descendants the arrows move between. `true` is both axes, no wrap. */
+	focusGroup?: boolean | Partial<FocusGroupConfig>;
 }
 
 export type PointerCallback = (event: UiPointerEvent) => void;
+/** A pointer click, or `activate` on a component that treats activation as a click (R12.7). */
+export type ClickCallback = (event: UiPointerEvent | UiActionEvent) => void;
+export type FocusCallback = (event: UiFocusEvent) => void;
 export type WheelCallback = (event: UiWheelEvent) => void;
 export type KeyCallback = (event: UiKeyEvent) => void;
 
@@ -106,6 +117,12 @@ export abstract class Component {
 	private ownOverflow: Overflow = 'visible';
 	private hoverState = false;
 	private focusState = false;
+	private focusVisibleState = false;
+	private ownFocusable = false;
+	private ownTabIndex = 0;
+	private ownFocusGroup: FocusGroupConfig | null = null;
+	private groupActiveChild: Component | null = null;
+	private hotkeyTable: HotkeyTable | null = null;
 	private parentComponent: Component | null = null;
 	private mountContext: MountContext | null = null;
 	/** This subtree has to be laid out: set here and on every ancestor up to the boundary (R8.18). */
@@ -137,6 +154,9 @@ export abstract class Component {
 		if (options.pointerEvents !== undefined) this.ownPointerEvents = options.pointerEvents;
 		if (options.overflow !== undefined) this.setOverflow(options.overflow);
 		if (options.onLayout) this.onLayout = options.onLayout;
+		if (options.focusable !== undefined) this.ownFocusable = options.focusable;
+		if (options.tabIndex !== undefined) this.ownTabIndex = options.tabIndex;
+		if (options.focusGroup !== undefined) this.ownFocusGroup = normalizeFocusGroup(options.focusGroup);
 		if (options.style) this.applyStyle(options.style);
 	}
 
@@ -144,18 +164,39 @@ export abstract class Component {
 	public onLayout: ((bounds: Rect) => void) | null = null;
 
 	// R8.2's input callbacks. `handleEvent` runs the one matching an event
-	// before the component's own handling; focus and drag callbacks arrive
-	// with DDB-76 and DDB-77.
+	// before the component's own handling; drag callbacks arrive with
+	// DDB-77.
 	public onPointerDown: PointerCallback | null = null;
 	public onPointerUp: PointerCallback | null = null;
 	public onPointerMove: PointerCallback | null = null;
 	public onPointerEnter: PointerCallback | null = null;
 	public onPointerLeave: PointerCallback | null = null;
-	public onClick: PointerCallback | null = null;
+	public onClick: ClickCallback | null = null;
 	public onContextMenu: PointerCallback | null = null;
 	public onWheel: WheelCallback | null = null;
 	public onKeyDown: KeyCallback | null = null;
 	public onKeyUp: KeyCallback | null = null;
+	public onFocus: FocusCallback | null = null;
+	public onBlur: FocusCallback | null = null;
+
+	/**
+	 * R9.26's explicit neighbours: where an arrow goes from here instead of
+	 * the geometric search, when that component can take focus.
+	 */
+	public focusUp: Component | null = null;
+	public focusDown: Component | null = null;
+	public focusLeft: Component | null = null;
+	public focusRight: Component | null = null;
+
+	/** R9.16: Tab reaches this component while it is focused instead of moving focus. */
+	public handlesTab = false;
+
+	/**
+	 * R9.15: a root that blocks what is beneath it. Hotkey tables of roots
+	 * mounted before it, and the scene's table, never fire while it is
+	 * mounted. The overlay service sets it on a modal's root.
+	 */
+	public modal = false;
 
 	/**
 	 * Whether a press here, or on a descendant, may start a drag (R9.12a).
@@ -633,6 +674,7 @@ export abstract class Component {
 		this.orderView = null;
 		// R8.15: adding to a mounted parent mounts at once.
 		if (this.mountContext && !child.mountContext) child.mount(this.mountContext);
+		this.invalidateFocusOrder();
 		this.invalidateLayout();
 		return this;
 	}
@@ -659,6 +701,7 @@ export abstract class Component {
 		this.children.splice(from, 1);
 		this.children.splice(clampIndex(index, this.children.length), 0, child);
 		this.orderView = null;
+		this.invalidateFocusOrder();
 		return this;
 	}
 
@@ -693,6 +736,7 @@ export abstract class Component {
 		child.ownedByParent = false;
 		child[RECONCILE_KEY] = undefined;
 		child.exiting = false;
+		this.invalidateFocusOrder();
 		this.invalidateLayout();
 		return true;
 	}
@@ -822,6 +866,7 @@ export abstract class Component {
 		this.laidOutBounds = null;
 		this.hoverState = false;
 		this.focusState = false;
+		this.focusVisibleState = false;
 	}
 
 	/**
@@ -966,6 +1011,12 @@ export abstract class Component {
 			case 'keyup':
 				this.onKeyUp?.(event);
 				return;
+			case 'focus':
+				this.onFocus?.(event);
+				return;
+			case 'blur':
+				this.onBlur?.(event);
+				return;
 		}
 	}
 
@@ -988,8 +1039,18 @@ export abstract class Component {
 		return this.hoverState;
 	}
 
+	/** Keys come here first (R9.15). Maintained by the focus manager, which calls `setFocusState`. */
 	public get focused(): boolean {
 		return this.focusState;
+	}
+
+	/**
+	 * Focused, and the focus came from the keyboard (R9.23, R11.11): the
+	 * render walk draws the focus ring exactly when this is true and the
+	 * component is enabled.
+	 */
+	public get focusVisible(): boolean {
+		return this.focusVisibleState;
 	}
 
 	public isHovered(): boolean {
@@ -1003,15 +1064,102 @@ export abstract class Component {
 		else this.onUnhover();
 	}
 
-	public isFocused(): boolean {
-		return this.focusState;
+	/**
+	 * The focus manager's half of `focused` and `focusVisible`. It delivers
+	 * the `focus` and `blur` events itself, in R9.22's order; nothing else
+	 * should call this.
+	 */
+	public setFocusState(focused: boolean, visible: boolean): void {
+		this.focusState = focused;
+		this.focusVisibleState = focused && visible;
 	}
 
-	public setFocused(focused: boolean): void {
-		if (this.focusState === focused) return;
-		this.focusState = focused;
-		if (focused) this.onFocus();
-		else this.onBlur();
+	// -- focus (R9.18 to R9.29) -----------------------------------------------
+
+	public get focusable(): boolean {
+		return this.ownFocusable;
+	}
+
+	public set focusable(value: boolean) {
+		if (this.ownFocusable === value) return;
+		this.ownFocusable = value;
+		this.invalidateFocusOrder();
+	}
+
+	public get tabIndex(): number {
+		return this.ownTabIndex;
+	}
+
+	public set tabIndex(value: number) {
+		if (this.ownTabIndex === value) return;
+		this.ownTabIndex = value;
+		this.invalidateFocusOrder();
+	}
+
+	/** R9.29's configuration when this container is a focus group, else null. */
+	public get focusGroup(): FocusGroupConfig | null {
+		return this.ownFocusGroup;
+	}
+
+	public set focusGroup(value: boolean | Partial<FocusGroupConfig> | null) {
+		this.ownFocusGroup = normalizeFocusGroup(value);
+		this.invalidateFocusOrder();
+	}
+
+	/** The member Tab enters a focus group at: the last one focused (R9.29). The focus manager keeps it. */
+	public get activeChild(): Component | null {
+		return this.groupActiveChild;
+	}
+
+	public set activeChild(value: Component | null) {
+		this.groupActiveChild = value;
+	}
+
+	/**
+	 * R9.15: this component takes text, so while it is focused it owns every
+	 * key but Tab, Escape, and Ctrl or Cmd chords; no hotkey, activation, or
+	 * arrow navigation sees them. Text fields override it.
+	 */
+	public get acceptsText(): boolean {
+		return false;
+	}
+
+	/** R9.18: focusable, mounted, and effectively visible and enabled. */
+	public canReceiveFocus(): boolean {
+		return this.ownFocusable && this.mountContext !== null && this.effectivelyVisible && this.effectivelyEnabled;
+	}
+
+	/** The explicit neighbour in `direction`, if one was set (R9.26). */
+	public focusNeighbour(direction: FocusDirection): Component | null {
+		switch (direction) {
+			case 'up':
+				return this.focusUp;
+			case 'down':
+				return this.focusDown;
+			case 'left':
+				return this.focusLeft;
+			case 'right':
+				return this.focusRight;
+		}
+	}
+
+	/**
+	 * This root's hotkey table (R9.15): searched after a key bubbles out of
+	 * the focused component in this tree, and for the topmost roots when
+	 * nothing is focused. Created on first use.
+	 */
+	public get hotkeys(): HotkeyTable {
+		if (!this.hotkeyTable) this.hotkeyTable = new HotkeyTable();
+		return this.hotkeyTable;
+	}
+
+	/** The table if one was ever created, for the dispatcher's search. */
+	public get ownHotkeys(): HotkeyTable | null {
+		return this.hotkeyTable;
+	}
+
+	private invalidateFocusOrder(): void {
+		this.mountContext?.focus.invalidateOrder();
 	}
 
 	public isEnabled(): boolean {
@@ -1024,8 +1172,8 @@ export abstract class Component {
 		if (!enabled) {
 			// Hover is the dispatcher's containment state and stays true under
 			// the pointer (R9.8); a disabled component shows it only through
-			// its disabled style (R9.5).
-			this.setFocused(false);
+			// its disabled style (R9.5). Focus moves off it at the end of the
+			// frame's layout (R9.28).
 			this.onDisabled();
 		} else {
 			this.onEnabled();
@@ -1038,14 +1186,6 @@ export abstract class Component {
 	}
 
 	protected onUnhover(): void {
-		// Override in subclasses
-	}
-
-	protected onFocus(): void {
-		// Override in subclasses
-	}
-
-	protected onBlur(): void {
 		// Override in subclasses
 	}
 
@@ -1139,6 +1279,12 @@ export abstract class Component {
 }
 
 const ORIGIN: Vec2 = Object.freeze({ x: 0, y: 0 });
+
+function normalizeFocusGroup(value: boolean | Partial<FocusGroupConfig> | null): FocusGroupConfig | null {
+	if (!value) return null;
+	const config = value === true ? {} : value;
+	return { orientation: config.orientation ?? 'both', wrap: config.wrap ?? false };
+}
 
 function clampIndex(index: number, length: number): number {
 	return Math.max(0, Math.min(length, Math.floor(index)));

@@ -143,8 +143,8 @@ describe('treeSnapshot', () => {
 			const node = treeSnapshot([rectangle], VIEWPORT).roots[0];
 
 			expect(node.enabled).toBe(false);
-			expect(node.state).toEqual({ hovered: false, focused: false });
-			for (const absent of ['pressed', 'focusVisible', 'selected', 'open', 'active', 'dropActive']) {
+			expect(node.state).toEqual({ hovered: false, focused: false, focusVisible: false });
+			for (const absent of ['pressed', 'selected', 'open', 'active', 'dropActive']) {
 				expect(absent in (node.state ?? {})).toBe(false);
 			}
 		});

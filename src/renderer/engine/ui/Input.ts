@@ -28,7 +28,7 @@ export class Input extends Component {
 	 * @param options Optional configuration including style
 	 */
 	constructor(placeholder = '', options?: ComponentOptions) {
-		super(options);
+		super({ focusable: true, ...options });
 		this.componentType = 'Input';
 
 		// Create background rectangle at local origin
@@ -102,17 +102,25 @@ export class Input extends Component {
 		this.updateCursorPosition();
 	}
 
+	/** R9.15: while focused, printable keys are this field's, never a hotkey's. */
+	public get acceptsText(): boolean {
+		return true;
+	}
+
 	/**
-	 * A press focuses the field through the dispatcher's focus seam, and a
-	 * press anywhere else blurs it (R9.23's fallback until DDB-76). Keys reach
-	 * it only while focused; the ones it handles are consumed, so they never
-	 * reach the hotkey table (R9.15).
+	 * A press focuses the field and a press anywhere else blurs it, through
+	 * the focus manager (R9.23). Keys reach it only while focused; the ones
+	 * it handles are consumed, and as a text field it keeps the rest from the
+	 * hotkey tables too (R9.15).
 	 */
 	public handleEvent(event: AnyUiEvent): void {
 		super.handleEvent(event);
 		switch (event.type) {
-			case 'pointerdown':
-				this.context?.dispatcher.focus(this);
+			case 'focus':
+				this.showFocus();
+				return;
+			case 'blur':
+				this.showBlur();
 				return;
 			case 'keydown':
 				// R9.15: bound modifier chords (copy, a menu shortcut) are not text.
@@ -235,7 +243,7 @@ export class Input extends Component {
 		return this;
 	}
 
-	protected onFocus(): void {
+	private showFocus(): void {
 		this.background.setFillColor(this.focusedColor);
 		this.background.setBorderColor([0.4, 0.4, 0.8, 1]);
 		this.cursor.setVisible(true);
@@ -243,7 +251,7 @@ export class Input extends Component {
 		this.requestUpdate();
 	}
 
-	protected onBlur(): void {
+	private showBlur(): void {
 		this.background.setFillColor(this.normalColor);
 		this.background.setBorderColor([0.3, 0.3, 0.3, 1]);
 		this.cursor.setVisible(false);
@@ -260,7 +268,7 @@ export class Input extends Component {
 			return true;
 		}
 		if (key === 'Enter') {
-			this.context?.dispatcher.focus(null);
+			this.context?.focus.blur();
 			return true;
 		}
 		if (key.length === 1) {

@@ -21,8 +21,11 @@ import { snapClipRect } from '../coords/snapping';
  * that is always present, because R13.22 states it is null when unset.
  *
  * Deliberately absent, because no backing property exists in this engine:
- * margin, zIndex, layer, opacity, transform, focusable, inkBounds, style,
- * text.measured, and state.{pressed,focusVisible,selected,open,active,dropActive}.
+ * margin, zIndex, layer, opacity, transform, inkBounds, style,
+ * text.measured, and state.{pressed,selected,open,active,dropActive}.
+ * `focusable` has a backing property since DDB-76 but stays out until
+ * DDB-80's schema: reporting it wakes the dormant lint rules that read it
+ * (unreachable-interactive, target-size), which is that task's call.
  * Emitting zIndex: 0 in particular would silently change what the layout lint's
  * sibling-overlap rule exempts.
  *
@@ -69,6 +72,8 @@ export interface SnapshotViewport {
 export interface SnapshotState {
 	hovered: boolean;
 	focused: boolean;
+	/** R9.23: focused from the keyboard, so the ring shows. */
+	focusVisible: boolean;
 }
 
 export interface SnapshotNode {
@@ -214,7 +219,7 @@ function serializeNode(
 		// merge; DDB-80's schema reports it on every node.
 		if (!(node instanceof Layer)) {
 			serialized.enabled = node.isEnabled();
-			serialized.state = { hovered: node.isHovered(), focused: node.isFocused() };
+			serialized.state = { hovered: node.isHovered(), focused: node.focused, focusVisible: node.focusVisible };
 		}
 
 		if (node instanceof Input) {

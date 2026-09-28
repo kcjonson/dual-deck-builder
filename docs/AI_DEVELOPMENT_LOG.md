@@ -6,6 +6,17 @@ This document contains the chronological log of completed development tasks for 
 
 **Date correction (2026-08-22):** the repo's first commit is 2025-05-17, but many entries below carry dates in December 2024 or January 2025 — the AI that wrote them used its assumed date instead of the real one. Entries dated 2025-07-03 and 2025-07-02 have been corrected from "2025-01-03"/"2025-01-02" (verified against git history). Remaining Dec 2024 / Jan 2025 dates are wrong by roughly six months; the real work happened May–July 2025. Trust git history over these dates.
 
+## Focus manager and keyboard play (2026-09-28)
+
+**What landed:** DDB-76 (DDB-55 phase 3), chapter 9's focus half: R9.15 to R9.29, R11.12's focus ring, R12.7's keyboard activation.
+
+- `input/FocusManager.ts` as `context.focus` (built by the dispatcher): tree-derived, cached Tab order; `pushScope`/`popScope`; fixup after every layout through `UiFrame.afterLayout`; focus groups with `activeChild`; directional focus with explicit neighbours; the focus-visible modality. The dispatcher's focus seam is deleted.
+- Dispatcher key order: Tab, focused component and bubble, text-field ownership, `activate`/`cancel` (`UiActionEvent`), group and directional arrows, then per-root hotkey tables from the focused root down to a `modal` root, then the scene's. A press focuses the nearest focusable ancestor after its handlers, unless one called `preventFocus()`. `inputMode`.
+- `Component`: `focusable`, `tabIndex`, `focusGroup`, `activeChild`, `focusUp/Down/Left/Right`, `handlesTab`, `modal`, `acceptsText`, `canReceiveFocus()`, `focusVisible`, lazy `hotkeys`, `onFocus`/`onBlur` callbacks with `focus`/`blur` events. `renderTree` draws the ring from the `control` and `color.accent` tokens.
+- Button focusable with `activate` as click; Input `acceptsText`; hand cards focusable in a horizontal group; vehicles focusable only as target choices; combat moves keyboard focus to the first target and back to the hand; combat hotkeys on the screen root; Escape backs out of driver selection. The snapshot reports `state.focusVisible`.
+
+**How:** `FocusManager.test.ts` (chapter 9.11's focus, directional, and keyboard cases: tree order under out-of-order inserts, positive tabIndex, wrap, disabled and hidden skipped, scope trap and restore, unmount and hide fixup without and with callbacks, focus-visible after Tab, press, and programmatic focus, a press in a select's menu, preventFocus, groups, explicit neighbours, Escape to the root table, printable keys in a field, a modal root blocking lower tables, held Enter once), a ring test in `renderTree.test.ts`, Button keyboard activation in `widgetInput.test.ts`, and `CombatScreenKeyboard.test.ts` playing a card, aiming, cancelling, and ending the turn from keys through the injection hook. Driven in the browser through `__dev.input`: main menu by Tab and arrows, driver selection to START RUN, combat Tab to END TURN and the hand, arrows along it, Enter on Headshot moving focus to the raider, Enter playing it, Tab and Enter on END TURN into turn 2; a mouse click focuses without a ring.
+
 ## Input dispatcher and Pointer Events adapter (2026-09-28)
 
 **What landed:** DDB-75 (DDB-55 phase 3), chapter 9's dispatch half: R9.1 to R9.11, R9.25, R9.30 to R9.32, R3.28, R4.12, R8.2's input callbacks.

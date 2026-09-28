@@ -381,6 +381,8 @@ export class DriverSelectionScreen extends Screen {
 	 * Handle screen mount - reload drivers
 	 */
 	protected onMount(): void {
+		// Escape goes back, as the Back button does (R9.15's root table)
+		this.rootLayer.hotkeys.register('Escape', () => ScreenManager.navigate('mainMenuScreen'));
 		// Reload drivers when screen is mounted
 		this.loadDrivers();
 	}

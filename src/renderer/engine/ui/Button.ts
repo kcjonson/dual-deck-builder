@@ -38,7 +38,8 @@ export class Button extends Component {
 	 * @param options Optional configuration including style
 	 */
 	constructor(label = '', options?: ButtonOptions) {
-		super(options);
+		// R12.7: focusable unless told otherwise.
+		super({ focusable: true, ...options });
 		this.componentType = 'Button';
 
 		// Create background rectangle at local origin
@@ -94,11 +95,17 @@ export class Button extends Component {
 	 * R9.11's press, without capture: the click itself is the dispatcher's,
 	 * synthesised only when the press and the release both land on this
 	 * button (R9.31), and never while disabled (R9.5). The callbacks run
-	 * first, so `onClick` is the base class's callback property.
+	 * first, so `onClick` is the base class's callback property. `activate`
+	 * from Enter or Space while focused fires `onClick` too (R12.7), once
+	 * per press, since the dispatcher never repeats it (R9.27).
 	 */
 	public handleEvent(event: AnyUiEvent): void {
 		super.handleEvent(event);
 		switch (event.type) {
+			case 'activate':
+				event.consume();
+				this.onClick?.(event);
+				return;
 			case 'pointerenter':
 				if (this.enabled) this.background.setFillColor(this.pressed ? this.pressedColor : this.hoverColor);
 				return;

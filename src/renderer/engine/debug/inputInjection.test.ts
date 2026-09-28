@@ -25,11 +25,13 @@ class Box extends Component {
 	public readonly wheels: Array<[number, number]> = [];
 
 	constructor() {
-		super({ id: 'box', x: 100, y: 100, width: 100, height: 100 });
+		super({ id: 'box', x: 100, y: 100, width: 100, height: 100, focusable: true });
 	}
 
 	public handleEvent(event: AnyUiEvent): void {
 		super.handleEvent(event);
+		// Focus follows a press now (R9.23); the seam under test is input delivery.
+		if (event.type === 'focus' || event.type === 'blur') return;
 		this.seen.push(event.type);
 		if (event.type === 'keydown') this.keys.push(event.key);
 		if (event.type === 'wheel') this.wheels.push([event.deltaX, event.deltaY]);
@@ -63,7 +65,7 @@ beforeEach(() => {
 	adapter.attach(canvas);
 	box = new Box();
 	box.mount(context);
-	context.dispatcher.focus(box);
+	context.focus.focus(box);
 });
 
 afterEach(() => {
