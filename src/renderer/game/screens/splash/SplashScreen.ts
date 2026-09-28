@@ -89,10 +89,11 @@ export class SplashScreen extends Screen {
 			centerY - this.logo.getHeight() / 2 - 50,
 		);
 
-		// Title and subtitle below the logo, centred across the screen
+		// Title below the logo and the subtitle under its line box, both centred
+		// across the screen
 		this.title.setPosition(0, centerY + 100);
 		this.title.setWidth(window.innerWidth);
-		this.subtitle.setPosition(0, centerY + 150);
+		this.subtitle.setPosition(0, this.title.getY() + this.title.getHeight());
 		this.subtitle.setWidth(window.innerWidth);
 	}
 

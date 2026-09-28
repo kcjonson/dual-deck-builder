@@ -155,12 +155,14 @@ export class Card extends Layer {
 		// Description with automatic text wrapping
 		// Skip description for mini cards
 		if (size !== CardSize.MINI) {
+			// Ends above the rarity line; a longer text ends in an ellipsis
+			const descriptionY = Math.floor(60 * scaleFactor);
 			this.description = new Text(data.displayDescription, {
 				id: this.childId('description'),
 				x: padding,
-				y: Math.floor(60 * scaleFactor),
+				y: descriptionY,
 				width: dimensions.width - padding * 2,
-				height: Math.floor(140 * scaleFactor),
+				height: dimensions.height - Math.floor(60 * scaleFactor) - Math.floor(4 * scaleFactor) - descriptionY,
 				style: {
 					fontSize: Math.floor(11 * scaleFactor),
 					color: '#cccccc',

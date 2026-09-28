@@ -52,6 +52,14 @@ describe('Card header (DDB-198)', () => {
 		expect(title.measured?.lines).toBe(2);
 	});
 
+	it('ends the description above the rarity line, however long it is', () => {
+		for (const data of cardData) {
+			const card = build(data, null);
+			const description = part(card, 'description');
+			expect(description.y + description.height).toBeLessThan(part(card, 'rarity').y);
+		}
+	});
+
 	it('centres the badge label and the cost in their boxes', () => {
 		const card = build(cardData[0], 2);
 		const badge = part(card, 'driver_badge');
