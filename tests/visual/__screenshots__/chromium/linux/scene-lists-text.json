@@ -1,0 +1,16 @@
+[
+{"path":"gallery_root/dev_section_lists/Text[0]","text":"Lists","rect":[53,53,45.39,33.6]},
+{"path":"gallery_root/dev_section_lists/dev_section_lists_rows/Stack[0]/Text[0]","text":"list: plain, selected, dim, indented, disabled, truncated","rect":[53,103,325.81,17.7]},
+{"path":"gallery_root/dev_section_lists/dev_section_lists_rows/Stack[0]/dev_list/dev_list_row_plain/Text[0]","text":"Scrapyard Hauler","rect":[61,126.7,262.8,26]},
+{"path":"gallery_root/dev_section_lists/dev_section_lists_rows/Stack[0]/dev_list/dev_list_row_plain/Text[1]","text":"12","rect":[331.8,126.7,13.2,26]},
+{"path":"gallery_root/dev_section_lists/dev_section_lists_rows/Stack[0]/dev_list/dev_list_row_selected/Text[0]","text":"Road Warden","rect":[61,152.7,269.4,26]},
+{"path":"gallery_root/dev_section_lists/dev_section_lists_rows/Stack[0]/dev_list/dev_list_row_selected/Text[1]","text":"8","rect":[338.4,152.7,6.6,26]},
+{"path":"gallery_root/dev_section_lists/dev_section_lists_rows/Stack[0]/dev_list/dev_list_row_dim/Text[0]","text":"Dust Runner","rect":[61,178.7,269.4,26]},
+{"path":"gallery_root/dev_section_lists/dev_section_lists_rows/Stack[0]/dev_list/dev_list_row_dim/Text[1]","text":"5","rect":[338.4,178.7,6.6,26]},
+{"path":"gallery_root/dev_section_lists/dev_section_lists_rows/Stack[0]/dev_list/dev_list_row_indent/Text[0]","text":"Armor plating","rect":[77,204.7,246.8,26]},
+{"path":"gallery_root/dev_section_lists/dev_section_lists_rows/Stack[0]/dev_list/dev_list_row_indent/Text[1]","text":"+2","rect":[331.8,204.7,13.2,26]},
+{"path":"gallery_root/dev_section_lists/dev_section_lists_rows/Stack[0]/dev_list/dev_list_row_disabled/Text[0]","text":"Locked blueprint","rect":[61,230.7,284,26]},
+{"path":"gallery_root/dev_section_lists/dev_section_lists_rows/Stack[0]/dev_list/dev_list_row_long/Text[0]","text":"A salvage manifest far too long for the row it sits in","rect":[61,256.7,262.8,26]},
+{"path":"gallery_root/dev_section_lists/dev_section_lists_rows/Stack[0]/dev_list/dev_list_row_long/Text[1]","text":"99","rect":[331.8,256.7,13.2,26]},
+{"path":"gallery_root/dev_section_lists/dev_section_lists_rows/Stack[1]/Text[0]","text":"toolbar: a horizontal focus group of ghost icon buttons","rect":[53,306.7,330.18,17.7]}
+]
