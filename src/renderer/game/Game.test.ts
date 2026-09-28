@@ -7,6 +7,7 @@ import { InputSystem } from '../engine/input/InputSystem';
 import { DrawApi, NullBackend } from '../engine/draw';
 import { FrameTimer } from '../engine/rendering/FrameTimer';
 import type { PerfSnapshot } from '../engine/rendering/FrameTimer';
+import type { GpuTimer } from '../engine/rendering/GpuTimer';
 import type { CanvasViewport, ViewportListener } from '../engine/rendering/CanvasViewport';
 import type { DeviceInfo } from '../engine/rendering/deviceInfo';
 
@@ -101,6 +102,8 @@ const device: DeviceInfo = {
 const draw = new DrawApi({ backend: new NullBackend(), development: false });
 
 let game: Game;
+/** Stands in for the GPU timer: the page only ever flips `enabled` and reads `stats`. */
+const gpuTimer = { enabled: false, stats: undefined } as unknown as GpuTimer;
 
 function app(): NonNullable<AppWindow['__app']> {
 	const installed = (window as AppWindow).__app;
@@ -113,7 +116,7 @@ function status(): GameStatus {
 }
 
 beforeAll(async () => {
-	game = new Game({ draw, frameTimer: new FrameTimer(), viewport, device });
+	game = new Game({ draw, frameTimer: new FrameTimer(), viewport, device, gpuTimer });
 	await game.init();
 });
 
@@ -188,6 +191,20 @@ describe('pause stops update and leaves render running', () => {
 		app().resume?.();
 		expect(InputSystem.getInstance().paused).toBe(false);
 		expect(status().inputPaused).toBe(false);
+	});
+});
+
+describe('F5 runs the GPU timer only while the overlay shows', () => {
+	function pressF5(): void {
+		document.body.dispatchEvent(new KeyboardEvent('keydown', { key: 'F5', bubbles: true }));
+	}
+
+	it('turns the timer on with the overlay and off again with it', () => {
+		expect(gpuTimer.enabled).toBe(false);
+		pressF5();
+		expect(gpuTimer.enabled).toBe(true);
+		pressF5();
+		expect(gpuTimer.enabled).toBe(false);
 	});
 });
 

@@ -1,14 +1,18 @@
 # phase7-gallery-gpu
 
-Captured 2026-09-28 from http://localhost:9092/gallery.html at 1440x882, headless Chrome with vsync on, so frame times are paced and only the GPU columns and the sections are costs, 1000 ms and 120 frames of settle, and 20 samples per scenario. Times in ms. Device: ANGLE (AMD, ANGLE Metal Renderer: AMD Radeon Pro 560X, Unspecified Version). GPU columns are timer-query GPU time over the valid samples (R13.16); a sample over three times its CPU frame is excluded and counted under GPU invalid (R13.18), and n/a with no invalid count means the extension is absent.
+Captured 2026-09-28 from http://localhost:9092/gallery.html at 1440x882, headless Chrome with vsync on, so frame times are paced and only the GPU columns and the sections are costs, 1000 ms and 120 frames of settle, and 20 samples per scenario. Times in ms. Device: ANGLE (AMD, ANGLE Metal Renderer: AMD Radeon Pro 560X, Unspecified Version).
 
-| Scenario | FPS | Frame median | Frame p99 | Frame max | Update max | Render max | Flush max | GPU median | GPU p99 | GPU max | GPU invalid | API draws | GPU draws | Triangles | Flushes |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| interactive-controls | 61 | 16.50 | 18.11 | 18.26 | 0.03 | 0.28 | 0.29 | 5.21 | 5.31 | 5.34 | 0 | 11 | 1 | 162 | endFrame 1 |
-| style-guide | 60 | 16.67 | 18.64 | 18.67 | 0.02 | 0.44 | 0.43 | 5.17 | 5.24 | 5.27 | 0 | 19 | 1 | 166 | endFrame 1 |
-| input-showcase | 60 | 16.57 | 18.57 | 18.70 | 0.04 | 0.47 | 0.42 | 5.25 | 5.33 | 5.36 | 0 | 15 | 1 | 322 | endFrame 1 |
-| rectangles | 60 | 16.75 | 18.41 | 18.69 | 0.03 | 0.24 | 0.16 | 5.03 | 5.12 | 5.15 | 0 | 7 | 1 | 48 | endFrame 1 |
-| buttons | 61 | 16.42 | 18.44 | 18.79 | 0.02 | 0.19 | 0.29 | 5.10 | 5.17 | 5.19 | 0 | 19 | 1 | 202 | endFrame 1 |
-| text | 59 | 16.86 | 18.53 | 18.66 | 0.03 | 0.18 | 1.19 | 5.78 | 5.86 | 5.87 | 0 | 31 | 1 | 1700 | endFrame 1 |
-| primitive-shapes | 61 | 16.37 | 18.56 | 18.79 | 0.02 | 0.23 | 0.43 | 5.33 | 5.42 | 5.43 | 0 | 21 | 17 | 204 | endFrame 1 |
-| nested-panels | 60 | 16.66 | 18.39 | 18.69 | 0.03 | 0.16 | 0.19 | 5.23 | 5.32 | 5.34 | 0 | 7 | 1 | 102 | endFrame 1 |
+GPU timer: on. GPU columns are timer-query GPU time over the valid samples (R13.16); a sample over three times the larger of its CPU frame and the median frame is excluded and counted under GPU invalid (R13.18). Fence latency is the fallback where the timer query extension is absent: submission to observed completion, an upper bound, never GPU time (R13.19).
+
+On ANGLE Metal every timed pass carries a floor: a query around a single clear read 1.39 ms, the same as around twenty clears, on a Radeon Pro 560X at 1440x882 with 4x MSAA. GPU time here includes that floor once per pass, so it overstates the work and compares only between runs with the same pass count on the same device.
+
+| Scenario | FPS | Frame median | Frame p99 | Frame max | Update max | Render max | Flush max | GPU median | GPU p99 | GPU max | GPU invalid | Fence latency | API draws | GPU draws | Triangles | Flushes |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| interactive-controls | 60 | 16.70 | 17.33 | 17.45 | 0.03 | 0.32 | 0.30 | 5.22 | 5.28 | 5.29 | 0 | n/a | 11 | 1 | 162 | endFrame 1 |
+| style-guide | 60 | 16.67 | 16.85 | 16.87 | 0.01 | 0.18 | 0.22 | 5.18 | 5.24 | 5.27 | 0 | n/a | 19 | 1 | 166 | endFrame 1 |
+| input-showcase | 61 | 16.51 | 18.52 | 18.77 | 0.03 | 0.23 | 0.36 | 5.26 | 5.31 | 5.32 | 0 | n/a | 15 | 1 | 322 | endFrame 1 |
+| rectangles | 61 | 16.31 | 18.70 | 18.74 | 0.01 | 0.16 | 0.15 | 5.04 | 5.08 | 5.11 | 0 | n/a | 7 | 1 | 48 | endFrame 1 |
+| buttons | 60 | 16.55 | 18.68 | 18.84 | 0.02 | 0.18 | 0.26 | 5.10 | 5.15 | 5.15 | 0 | n/a | 19 | 1 | 202 | endFrame 1 |
+| text | 60 | 16.73 | 18.69 | 18.71 | 0.02 | 0.19 | 0.92 | 5.77 | 5.85 | 5.85 | 0 | n/a | 31 | 1 | 1700 | endFrame 1 |
+| primitive-shapes | 59 | 16.85 | 18.70 | 18.71 | 0.02 | 0.22 | 0.31 | 5.32 | 5.40 | 5.41 | 0 | n/a | 21 | 17 | 204 | endFrame 1 |
+| nested-panels | 60 | 16.62 | 18.53 | 18.67 | 0.06 | 0.22 | 0.18 | 5.21 | 5.29 | 5.30 | 0 | n/a | 7 | 1 | 102 | endFrame 1 |

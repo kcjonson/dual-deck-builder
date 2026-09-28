@@ -83,8 +83,20 @@ export const MIN_FENCE_LATENCY_FRAMES = 1;
  */
 export const MAX_PENDING_FRAMES = 8;
 
-/** R13.18: a sample more than this multiple of its CPU frame time is invalid. */
+/**
+ * R13.18: a sample more than this multiple of its CPU frame time is invalid.
+ * The frame time it is held against is the larger of the frame's own interval
+ * and the median of the recent ones: after a hitch, rAF often fires a short
+ * catch-up frame, and a normal GPU sample on that frame would trip 3x its
+ * interval. Those are exactly the samples beside a hitch, which is what p99
+ * is there to see, so judging them by their own interval alone biases the
+ * window low. The median keeps the guard against worldsim's 352 ms reading on
+ * an 8 ms frame.
+ */
 export const INVALID_FRAME_MULTIPLE = 3;
+
+/** Recent CPU frame intervals the 3x rule takes its median over. */
+export const REFERENCE_FRAME_COUNT = 31;
 
 /** Resolved samples kept for the window statistics, as FrameTimer keeps frames. */
 export const GPU_WINDOW_SIZE = 120;
@@ -128,6 +140,8 @@ export class GpuTimer {
 	private openQuery: GpuQuery | null = null;
 	private frameIndex = 0;
 
+	private readonly intervals: number[] = [];
+	private intervalIndex = 0;
 	private readonly ring: (GpuSample | null)[] = new Array<GpuSample | null>(GPU_WINDOW_SIZE).fill(null);
 	private writeIndex = 0;
 	private newest: GpuSample | null = null;
@@ -164,8 +178,12 @@ export class GpuTimer {
 		if (this.openQuery !== null) this.endPass();
 		if (this.current !== null) this.endFrame();
 
-		if (this.previousPending !== null && this.previousStartMs !== null) {
-			this.previousPending.frameMs = startMs - this.previousStartMs;
+		if (this.previousStartMs !== null) {
+			const intervalMs = startMs - this.previousStartMs;
+			if (this.previousPending !== null) this.previousPending.frameMs = intervalMs;
+			if (this.intervals.length < REFERENCE_FRAME_COUNT) this.intervals.push(intervalMs);
+			else this.intervals[this.intervalIndex] = intervalMs;
+			this.intervalIndex = (this.intervalIndex + 1) % REFERENCE_FRAME_COUNT;
 		}
 		this.previousStartMs = startMs;
 		this.previousPending = null;
@@ -278,6 +296,7 @@ export class GpuTimer {
 		// Read after availability, before trusting any result: a disjoint event
 		// anywhere in the span makes every result in it suspect (R13.18).
 		const disjoint = this.device.disjoint();
+		const medianFrameMs = [...this.intervals].sort((a, b) => a - b)[this.intervals.length >> 1] ?? 0;
 		for (const frame of this.pending.splice(0, ready)) {
 			const passes: number[] = [];
 			let ms = 0;
@@ -287,7 +306,8 @@ export class GpuTimer {
 				ms += passMs;
 				this.pool.push(query);
 			}
-			const overFrame = frame.frameMs !== null && ms > frame.frameMs * INVALID_FRAME_MULTIPLE;
+			const overFrame = frame.frameMs !== null
+				&& ms > Math.max(frame.frameMs, medianFrameMs) * INVALID_FRAME_MULTIPLE;
 			this.record({ ms, passes, valid: !disjoint && !overFrame });
 		}
 	}
@@ -413,10 +433,16 @@ export class WebGL2QueryDevice implements GpuQueryDevice {
  * lost context invalidates what was in flight and a restored one re-acquires
  * the extension. Development builds only; the pages reach this through a
  * `require` inside `if (__DEV_TOOLS__)`.
+ *
+ * Built disabled. On ANGLE Metal every timed pass costs a render pass break,
+ * which lengthened an unthrottled main menu frame from about 4.9 to 6.9 ms, so
+ * leaving it on in every development session would break R13.1 for a number
+ * nobody is reading. The F5 overlay turns it on while shown, and a GPU capture
+ * turns it on through `window.__perf.gpuTimer(true)` (R13.2's runtime toggle).
  */
 export function createGpuTimer(renderer: Renderer): GpuTimer {
 	const device = new WebGL2QueryDevice({ gl: renderer.getContext() });
-	const timer = new GpuTimer({ device });
+	const timer = new GpuTimer({ device, enabled: false });
 	renderer.addContextListener({
 		lost: () => timer.contextLost(),
 		restored: () => device.acquire(),

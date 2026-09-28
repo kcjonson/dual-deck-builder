@@ -211,6 +211,31 @@ describe('GpuTimer', () => {
 		expect(timer.stats.maxMs).toBe(11);
 	});
 
+	it('judges a catch-up frame after a hitch by the median frame, not its own short interval', () => {
+		const { device, timer, frame, advance } = setup({ frameMs: 16 });
+		for (let index = 0; index < 10; index++) {
+			frame(1);
+			device.finishAll(5);
+		}
+		// A 100 ms hitch, then a 2 ms catch-up frame whose GPU sample is a normal 10 ms.
+		timer.beginFrame();
+		timer.beginPass();
+		timer.endPass();
+		timer.endFrame();
+		advance(100);
+		timer.beginFrame();
+		timer.beginPass();
+		timer.endPass();
+		timer.endFrame();
+		advance(2);
+		device.finishAll(10);
+		frame(1);
+		frame(1);
+		frame(1);
+		expect(timer.stats.invalidCount).toBe(0);
+		expect(timer.stats.maxMs).toBe(10);
+	});
+
 	it('takes p99 and max over valid samples only, across a bounded window', () => {
 		const { device, timer, frame } = setup();
 		for (let index = 0; index < GPU_WINDOW_SIZE + 10; index++) {

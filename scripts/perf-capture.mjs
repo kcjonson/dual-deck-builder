@@ -73,7 +73,10 @@ function parseArguments(argv) {
 		samples: 20,
 		chrome: null,
 		compare: null,
-		gpuTimer: 'on',
+		// Defaults to on for a paced run and off for an unthrottled one, where it
+		// collects almost nothing (see `vsync`) and still costs frame time: on
+		// ANGLE Metal it lengthened a main menu frame from 4.9 to 6.9 ms.
+		gpuTimer: null,
 		// R13.38 wants vsync off, and it is by default. `--vsync on` is the GPU
 		// capture: with the frame cap off, Chromium hands timer query results
 		// back hundreds of frames late (measured on ANGLE Metal: none of twelve
@@ -93,6 +96,7 @@ function parseArguments(argv) {
 			options.scenarios.push(argument);
 		}
 	}
+	options.gpuTimer ??= options.vsync === 'on' ? 'on' : 'off';
 	return options;
 }
 
@@ -183,10 +187,9 @@ for (let attempt = 0; ; attempt++) {
 
 console.error(await evaluate('JSON.stringify({ viewport: [innerWidth, innerHeight, devicePixelRatio] })'));
 
-// The GPU timer is on by default in a development build; setting it here keeps
-// a capture honest if someone switched it off in the page first, and
-// `--gpuTimer off` measures what the timer itself costs.
-const gpuTimer = await evaluate(`window.__perf.gpuTimer?.(${options.gpuTimer !== 'off'}) ?? null`);
+// Set explicitly either way, so the page's own state (the F5 overlay turns the
+// timer on) cannot leak into a capture.
+const gpuTimer = await evaluate(`window.__perf.gpuTimer?.(${options.gpuTimer === 'on'}) ?? null`);
 const device = await evaluate('window.__perf.snapshot().device');
 console.error(`device: ${device?.renderer ?? 'unknown'}; GPU timer: ${gpuTimer === null ? 'absent' : gpuTimer ? 'on' : 'off'}`);
 
@@ -235,10 +238,21 @@ const table = [
 			? 'vsync on, so frame times are paced and only the GPU columns and the sections are costs'
 			: 'vsync and the frame cap off (R13.38)'}, ${options.settleMs} ms and `
 		+ `${options.settleFrames} frames of settle, and `
-		+ `${options.samples} samples per scenario. Times in ms. Device: ${device?.renderer ?? 'unknown'}. `
-		+ `GPU columns are timer-query GPU time over the valid samples (R13.16); a sample over three times its `
-		+ `CPU frame is excluded and counted under GPU invalid (R13.18), and n/a with no invalid count means the `
-		+ `extension is absent.`,
+		+ `${options.samples} samples per scenario. Times in ms. Device: ${device?.renderer ?? 'unknown'}.`,
+	'',
+	`GPU timer: ${gpuTimer === null ? 'absent from the page' : gpuTimer ? 'on' : 'off'}. `
+		+ (gpuTimer
+			? 'GPU columns are timer-query GPU time over the valid samples (R13.16); a sample over three times the '
+				+ 'larger of its CPU frame and the median frame is excluded and counted under GPU invalid (R13.18). '
+				+ 'Fence latency is the fallback where the timer query extension is absent: submission to observed '
+				+ 'completion, an upper bound, never GPU time (R13.19).'
+			: 'GPU columns are n/a because nothing measured them, not because they are zero.'),
+	...(gpuTimer && /Metal/.test(device?.renderer ?? '')
+		? ['', 'On ANGLE Metal every timed pass carries a floor: a query around a single clear read 1.39 ms, the '
+			+ 'same as around twenty clears, on a Radeon Pro 560X at 1440x882 with 4x MSAA. GPU time here includes '
+			+ 'that floor once per pass, so it overstates the work and compares only between runs with the same '
+			+ 'pass count on the same device.']
+		: []),
 	'',
 	summaryTable(results),
 	'',

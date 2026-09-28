@@ -1,13 +1,15 @@
 # phase7-frame-baseline
 
-Captured 2026-09-28 from http://localhost:9092/ at 1440x882, headless Chrome with vsync and the frame cap off (R13.38), 1000 ms and 120 frames of settle, and 20 samples per scenario. Times in ms. Device: ANGLE (AMD, ANGLE Metal Renderer: AMD Radeon Pro 560X, Unspecified Version). GPU columns are timer-query GPU time over the valid samples (R13.16); a sample over three times its CPU frame is excluded and counted under GPU invalid (R13.18), and n/a with no invalid count means the extension is absent.
+Captured 2026-09-28 from http://localhost:9092/ at 1440x882, headless Chrome with vsync and the frame cap off (R13.38), 1000 ms and 120 frames of settle, and 20 samples per scenario. Times in ms. Device: ANGLE (AMD, ANGLE Metal Renderer: AMD Radeon Pro 560X, Unspecified Version).
 
-| Scenario | FPS | Frame median | Frame p99 | Frame max | Update max | Render max | Flush max | GPU median | GPU p99 | GPU max | GPU invalid | API draws | GPU draws | Triangles | Flushes |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| splashScreen | 194 | 5.14 | 10.71 | 10.74 | 0.04 | 5.34 | 5.69 | n/a | n/a | n/a | 8 | 4 | 1 | 78 | endFrame 1 |
-| mainMenuScreen | 189 | 5.29 | 11.20 | 12.37 | 0.06 | 6.96 | 6.53 | n/a | n/a | n/a | 0 | 12 | 1 | 150 | endFrame 1 |
-| developerScreen | 77 | 13.04 | 33.38 | 33.48 | 0.13 | 32.93 | 0.09 | n/a | n/a | n/a | 0 | 37 | 2 | 388 | barrier 2 |
-| cardShowcaseScreen | 111 | 9.02 | 15.44 | 15.78 | 0.31 | 15.43 | 0.02 | 5.70 | 5.80 | 5.80 | 0 | 288 | 2 | 6438 | barrier 2 |
-| driverSelectionScreen | 348 | 2.88 | 12.58 | 12.88 | 0.09 | 11.35 | 1.72 | 3.76 | 3.77 | 3.77 | 29 | 88 | 1 | 2040 | endFrame 1 |
-| combatScreen | 35 | 28.72 | 32.87 | 32.99 | 0.14 | 30.81 | 9.65 | 16.10 | 16.26 | 16.26 | 7 | 173 | 6 | 2118 | barrier 5, endFrame 1 |
-| battleResultScreen | 195 | 5.13 | 10.82 | 10.84 | 0.03 | 5.36 | 6.20 | n/a | 3.26 | 3.26 | 7 | 6 | 1 | 22 | endFrame 1 |
+GPU timer: off. GPU columns are n/a because nothing measured them, not because they are zero.
+
+| Scenario | FPS | Frame median | Frame p99 | Frame max | Update max | Render max | Flush max | GPU median | GPU p99 | GPU max | GPU invalid | Fence latency | API draws | GPU draws | Triangles | Flushes |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| splashScreen | 113 | 8.85 | 22.14 | 125.69 | 0.08 | 16.80 | 21.50 | n/a | n/a | n/a | 0 | n/a | 4 | 1 | 78 | endFrame 1 |
+| mainMenuScreen | 112 | 8.94 | 18.01 | 18.63 | 0.06 | 9.96 | 10.01 | n/a | n/a | n/a | 0 | n/a | 12 | 1 | 150 | endFrame 1 |
+| developerScreen | 65 | 15.32 | 31.32 | 40.96 | 0.09 | 30.91 | 0.03 | n/a | n/a | n/a | 0 | n/a | 37 | 2 | 388 | barrier 2 |
+| cardShowcaseScreen | 110 | 9.07 | 14.23 | 15.26 | 0.14 | 14.90 | 0.03 | n/a | n/a | n/a | 0 | n/a | 288 | 2 | 6438 | barrier 2 |
+| driverSelectionScreen | 137 | 7.29 | 11.33 | 11.41 | 0.06 | 10.48 | 0.78 | n/a | n/a | n/a | 0 | n/a | 88 | 1 | 2040 | endFrame 1 |
+| combatScreen | 38 | 26.08 | 30.70 | 31.03 | 0.06 | 30.67 | 7.87 | n/a | n/a | n/a | 0 | n/a | 173 | 6 | 2118 | barrier 5, endFrame 1 |
+| battleResultScreen | 198 | 5.05 | 9.97 | 10.14 | 0.02 | 4.69 | 5.49 | n/a | n/a | n/a | 0 | n/a | 6 | 1 | 22 | endFrame 1 |

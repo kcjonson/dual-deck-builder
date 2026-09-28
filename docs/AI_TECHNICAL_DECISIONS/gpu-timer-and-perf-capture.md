@@ -21,7 +21,7 @@ The GL spelling is behind a `GpuQueryDevice` interface (`WebGL2QueryDevice`), so
 ### Reading results
 
 - Frames are polled oldest first, no sooner than two frames after issue (R13.17), and polling stops at the first frame whose last query is not available: queries complete in order, so nothing newer can be ready. That is one availability read per pending frame per frame, one result read per query, and one `GPU_DISJOINT_EXT` read per frame that resolved anything, which is exactly R15.22's permitted list.
-- A disjoint read marks every sample resolved in that poll invalid. A sample over three times its own CPU frame interval is invalid. A lost context drops everything in flight and counts it invalid. Invalid samples stay visible as the newest sample (`valid: false`) but are excluded from `p99Ms`, `maxMs` and `sampleCount` (R13.18).
+- A disjoint read marks every sample resolved in that poll invalid. A sample over three times the larger of its own CPU frame interval and the median of the last 31 intervals is invalid; judging it by its own interval alone dropped the samples beside a hitch (rAF fires a short catch-up frame after a long one), which biased p99 and max low, the numbers p99 is there for. A lost context drops everything in flight and counts it invalid. Invalid samples stay visible as the newest sample (`valid: false`) but are excluded from `p99Ms`, `maxMs` and `sampleCount` (R13.18).
 - At most eight frames are in flight; past that a frame is simply not timed. See the unthrottled finding below for why that is normal rather than a fault.
 - `spanMs` is always null. A spanning query would nest the per-pass ones, and `queryCounterEXT` timestamps are zero-bit on most Chromium platforms.
 
@@ -31,7 +31,7 @@ Where the extension is absent (Firefox, Safari, SwiftShader in CI) the timer put
 
 ### Development builds only
 
-Both pages build the timer inside `if (__DEV_TOOLS__)` through a `require` DefinePlugin folds away, as they already do for the debug hooks. Checked: a production `build:web` bundle contains neither `TIME_ELAPSED_EXT` nor the DevTools track code. The timer defaults to on in development builds; `window.__perf.gpuTimer(false)` turns it off (R13.2's runtime toggle), which also empties its window.
+Both pages build the timer inside `if (__DEV_TOOLS__)` through a `require` DefinePlugin folds away, as they already do for the debug hooks. Checked: a production `build:web` bundle contains neither `TIME_ELAPSED_EXT` nor the DevTools track code. The timer is built disabled. On ANGLE Metal it costs frame time (an unthrottled main menu went from about 4.9 to 6.9 ms with it on, in review measurements), so leaving it on in every development session would break R13.1 for a number nobody reads. F5 turns it on with the overlay and off again with it, and `window.__perf.gpuTimer(on)` is R13.2's runtime toggle, which a GPU capture uses. Toggling also empties its window.
 
 ### Snapshot fields
 
@@ -49,30 +49,33 @@ The F5 overlay was already drawn through the renderer (a `Layer` of `Rectangle` 
 
 ### Capture script and tables
 
-`scripts/perf-table.ts` is the table logic as pure functions (R13.4), imported by `perf-capture.mjs` with Node's type stripping, which `merge-kerning.mjs` already relies on. Each capture now writes `perf-results/<label>.md` beside the JSON. `--compare <file>` appends R13.39's before/after table; `node scripts/perf-capture.mjs compare a.json b.json` prints it with no browser. With no scenarios named, it captures every screen or gallery scene the page offers. Windowed figures come from the last sample's window, which after the settle covers exactly the sampled frames; the one median is the frame median, taken over the samples' `frame.ms`, which are consecutive distinct frames.
+`scripts/perf-table.ts` is the table logic as pure functions (R13.4), imported by `perf-capture.mjs` with Node's type stripping, which `merge-kerning.mjs` already relies on. Each capture now writes `perf-results/<label>.md` beside the JSON. The table header states whether the GPU timer was on, and fence latency (R13.19) has its own labelled column so it is never read as GPU time. `--compare <file>` appends R13.39's before/after table; `node scripts/perf-capture.mjs compare a.json b.json` prints it with no browser. With no scenarios named, it captures every screen or gallery scene the page offers. Windowed figures come from the last sample's window, which after the settle covers exactly the sampled frames; the one median is the frame median, taken over the samples' `frame.ms`, which are consecutive distinct frames.
 
 Two capture changes came from measuring rather than reading:
 
 - **A wall-clock settle (`--settleMs`, default 1000) on top of 120 frames.** Unthrottled, 120 frames pass in a tenth of a second on a light screen, and the first second after mounting is not steady state: frames start at about 0.5 ms and settle to about 5 ms once the GPU queue fills and back-pressure reaches the CPU (it shows as time inside `render` and `flush`, where GL calls block). A capture of the first tenth of a second reported a 2000 FPS splash screen that does not exist.
 - **`--vsync on` for GPU captures.** With `--disable-frame-rate-limit --disable-gpu-vsync`, Chromium hands timer query results back hundreds of frames late: on ANGLE Metal, none of twelve queries in flight resolved within 300 frames, against the very next frame when paced. An unthrottled capture therefore collects almost no GPU samples, and the few it gets are from the first frames after a reset, which the 3x rule rejects because those frames are the fast transient ones. R13.38 says vsync off, and the CPU capture stays that way; GPU time is a separate, paced capture, and its table says so in its header.
 
+The GPU timer follows the vsync setting unless `--gpuTimer` says otherwise: on for a paced run, off for an unthrottled one, where it collects almost nothing and still costs frame time. The CPU baselines were captured with it off.
+
 The GPU window also outlives a scenario on an unthrottled page (a sample every few frames), so the script toggles the timer off and on after each navigation to empty it.
 
 ## Findings recorded with the baseline
 
-- **ANGLE Metal puts a floor under every timed pass.** An empty query reads 0; a query around one `clear` reads 1.39 ms, and around twenty clears the same 1.39 ms. A pass on this device is a Metal render pass with a 4x MSAA resolve and store of a 1440x882 target, and a timer query boundary appears to end the render pass, so each timed pass pays that cost whatever it draws. `gpu.ms` on this backend is therefore dominated by pass count, and the query itself adds passes an untimed frame would not have. Compare GPU figures only on the same device with the same pass count; the device string is in every snapshot and every table for this reason (R13.20). `antialias: false`, which DDB-64 brings, should lower the floor.
-- **Combat misses 60 FPS on this machine even paced**: frame median 26.9 ms, GPU 16.2 ms across seven passes. The CPU sections are small (render max 2.5 ms paced), so it is GPU-bound, and the pass floor above is most of it.
+- **ANGLE Metal puts a floor under every timed pass.** An empty query reads 0; a query around one `clear` reads 1.39 ms, and around twenty clears the same 1.39 ms. The likely reading is that a pass on this device pays a 4x MSAA resolve and store of the 1440x882 target, and that a query boundary splits the Metal render pass so each timed pass pays it; the split itself is not confirmed. Either way `gpu.ms` here overstates the work by at least 1.4 ms per timed pass, and compares only on the same device with the same pass count. The GPU tables carry this caveat in their header, and the device string is in every snapshot and table for this reason (R13.20). `antialias: false`, which DDB-64 brings, should lower the floor.
+- **Combat's slowness is not the timer and not the pass floor.** Combat runs at about 26 to 28 ms a frame, paced or not, with the timer on or off. Its passes read 2.0 to 2.9 ms each, above the floor, the timer accounts for 16 of a ~28 ms frame, and `sanity.unaccountedMs` is 24 to 27 ms of it, so the cost sits outside the frame loop's sections: the browser is waiting on the GPU after the rAF callback. Bisected across this epic's merges (DDB-195): it arrived with #70 (DDB-63, the WebGL2 backend), not the batcher or clip PRs, and it scales with the size of the index ring: a 256 KB index ring instead of about 1.1 MB puts combat back at 16.7 ms paced. The inflated per-pass readings on combat are probably mostly that cost, not rendering work. Fixing it is DDB-195's job, not this PR's.
+- **Unthrottled captures are noisy run to run.** Same build, same settings, back to back: a light scene can land on either side of the sub-millisecond transient the one second settle is meant to skip (splash has read 196 and 2198 FPS), and driver selection moved from 181 to 323 FPS. A single unthrottled run is good for spotting a large change on a heavy scene; a small delta on a light scene in a `--compare` table is noise until it survives a second capture. The paced GPU captures are stable to a few percent.
 
 ## Baselines
 
 In `perf-results/`, all four on one machine (a Mac with a Radeon Pro 560X, ANGLE Metal, headless Chrome, 1440x882 at ratio 1):
 
-- `phase7-frame-baseline` and `phase7-gallery-baseline`: vsync off (R13.38). The CPU baseline. GPU columns mostly n/a, for the reason above.
-- `phase7-frame-gpu` and `phase7-gallery-gpu`: vsync on. The GPU baseline; frame times are paced, the sections and GPU columns are costs.
+- `phase7-frame-baseline` and `phase7-gallery-baseline`: vsync off (R13.38), GPU timer off. The CPU baseline; GPU columns are n/a because nothing measured them.
+- `phase7-frame-gpu` and `phase7-gallery-gpu`: vsync on, GPU timer on. The GPU baseline; frame times are paced, the sections and GPU columns are costs, with the Metal floor above included. Combat's row is dominated by DDB-195 and will move when that is fixed.
 
 The phase 0 baseline was captured on a different machine before the `device` field existed, so no comparison table against it is committed; the next phase's capture on this machine compares against these with `--compare`.
 
 ## Trade-offs
 
-- The per-pass split is what R13.16 asks for, and on Metal it is also what distorts the measurement. A single query per frame would add one boundary instead of one per domain. R13.16 is a SHOULD; the spec's intent (attribute GPU time to submissions) is kept, and the distortion is documented and filed rather than hidden.
+- The per-pass split is what R13.16 asks for, and on Metal it probably also inflates the measurement, one floor per pass. A single query per frame would pay the floor once instead of once per domain. R13.16 is a SHOULD; the spec's intent (attribute GPU time to submissions) is kept, and the distortion is documented and filed rather than hidden.
 - The pending cap means an unthrottled run times a subset of frames. A bigger cap would not help (results are late, not lost) and would grow the pool.

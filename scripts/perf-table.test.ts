@@ -89,7 +89,16 @@ describe('summaryTable', () => {
 		const lines = summaryTable([CAPTURE]).split('\n');
 		expect(lines).toHaveLength(3);
 		expect(lines[0]).toMatch(/^\| Scenario \| FPS \|/);
-		expect(lines[2]).toBe('| combatScreen | 182 | 5.50 | 9.00 | 12.00 | 1.00 | 2.50 | 0.75 | 2.00 | 3.00 | 4.00 | 1 | 40 | 6 | 1200 | barrier 2, endFrame 1 |');
+		expect(lines[2]).toBe('| combatScreen | 182 | 5.50 | 9.00 | 12.00 | 1.00 | 2.50 | 0.75 | 2.00 | 3.00 | 4.00 | 1 | n/a | 40 | 6 | 1200 | barrier 2, endFrame 1 |');
+	});
+});
+
+describe('summaryTable under the fence fallback', () => {
+	it('prints the latency in its own column and leaves the GPU time columns n/a', () => {
+		const fence = { ...sample(4, null), gpu: { ms: null, valid: null, latencyMs: 17, source: 'fence', p99Ms: null, maxMs: null, invalidCount: 0 } };
+		const cells = summaryTable([{ scenario: 'x', samples: [fence] }]).split('\n')[2].split(' | ');
+		// Scenario, FPS, 6 frame and section columns, then GPU median, p99, max, invalid, fence latency.
+		expect(cells.slice(8, 13)).toEqual(['n/a', 'n/a', 'n/a', '0', '17.00']);
 	});
 });
 

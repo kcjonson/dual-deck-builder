@@ -244,6 +244,9 @@ export class Game {
 			if (event.key === 'F5') {
 				event.preventDefault();
 				this.developerOverlay.toggle();
+				// The GPU timer costs frame time on some drivers, so it runs
+				// only while someone is looking at what it reports.
+				if (this.gpuTimer) this.gpuTimer.enabled = this.developerOverlay.shown;
 			}
 			
 			// Example: Press Escape to go back to main menu
