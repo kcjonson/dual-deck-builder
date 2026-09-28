@@ -27,18 +27,28 @@ import { HairlineRectOptions, SnappedHairlineRect, snapHairlineRect, snapTextOri
 import type { TextLayout } from '../text/TextLayout';
 import { TextMetricsService } from '../text/TextMetricsService';
 import { DECORATION_THICKNESS, LineOrigin, decorationOffset, layoutInk, lineOrigin } from '../text/textPlacement';
+import { toHalf, toUnorm8 } from './packing';
 
 /**
- * Chapter 5's geometry: every draw command as vertices for the uber shader
- * (`src/assets/shaders/uber.vert` and `uber.frag`).
+ * Chapter 5's geometry: every draw command as packed instances for the uber
+ * shader (`src/assets/shaders/uber.vert` and `uber.frag`).
  *
- * R5.4 leaves the per-draw layout open and allows four vertices per quad with
- * per-vertex data. That is what this is: the batcher merges groups into one
- * shared vertex and index buffer, and a quad's four vertices carry the same
- * per-draw values except position, local position, texture coordinate and
- * fill (which varies per corner for R5.9's gradients). It costs upload
- * bandwidth against an instanced layout, and keeps one vertex format for quads
- * and for R5.17's flat polygons, which are not quads.
+ * R5.4's instanced shape. Every instance is one quad, drawn as six vertices
+ * from `gl_VertexID` with no index buffer: its four screen-space corners, the
+ * per-draw values the fragment stage needs, and a colour per corner. A
+ * rectangle, circle, shadow, image, glyph, line segment or decoration is one
+ * instance; a flat triangle of R5.17 is an instance whose last two corners are
+ * the same point (the quad's second triangle has no area), and each quad of
+ * its feather ring is an instance with four free corners. So flat polygons and
+ * SDF quads share one format, one buffer and one GPU draw, and the batcher's
+ * ranges are instance ranges.
+ *
+ * Corners, local extents and the clip stay float32, so every position the
+ * rasteriser and the SDF see is the float the per-vertex layout wrote before
+ * (DDB-191 moved no pixel through geometry). Colours are normalised bytes,
+ * radii and the shape values half floats, as R5.4 asks; `packing.ts` has the
+ * conversions. The clip is inline rather than in a per-flush table, which
+ * R5.4 also allows.
  *
  * What is resolved here, on the CPU, at submission (R5.28): the transform
  * (positions are screen space, logical pixels, R5.3), premultiplied colours
@@ -49,28 +59,41 @@ import { DECORATION_THICKNESS, LineOrigin, decorationOffset, layoutInk, lineOrig
  * the border compositing (R5.8), the shadow falloff (R5.12) and the clip test
  * (R4.4).
  *
- * The clip is per-draw data (R4.1): every vertex carries its draw's clip rect
- * in logical pixels, so a clip change never splits a GPU draw.
+ * The clip is per-draw data (R4.1): every instance carries its draw's clip
+ * rect in logical pixels, so a clip change never splits a GPU draw.
  */
 
-/** Vertex layout, in floats: 32 floats, 128 bytes, ten attributes. */
-export const UBER_VERTEX = {
-	position: 0,
-	local: 2,
-	halfSize: 4,
-	texCoord: 6,
-	radii: 8,
-	fill: 12,
-	border: 16,
-	clip: 20,
-	/** Border width, border outset, sigma (shadow) or screen pixel range (text), opacity. */
-	shape: 24,
-	/** Mode, texture slot, additive flag, text shadow blur in device pixels. */
-	mode: 28,
-	floats: 32,
+/** Instance layout, in 32-bit words: 26 words, 104 bytes, twelve attributes. */
+export const UBER_INSTANCE = {
+	/** f32 x8: the screen-space corners, top-left, top-right, bottom-right, bottom-left, x then y. */
+	corners: 0,
+	/**
+	 * f32 x4: half size, then the quad's extent from the shape centre in local
+	 * units, for the SDF modes; u0, v0, u1, v1 for `image` and `text`.
+	 */
+	geometry: 8,
+	/** f32 x4: minX, minY, maxX, maxY in logical pixels (R4.1). */
+	clip: 12,
+	/** f16 x4: corner radii, top-left, top-right, bottom-right, bottom-left; the atlas unit range for `text`. */
+	radii: 16,
+	/** rgba8 x4: the premultiplied fill at each corner. */
+	colors: 18,
+	/** rgba8: the premultiplied border. */
+	border: 22,
+	/**
+	 * f16 x4: border width (for `text`, the shadow run's blur in device
+	 * pixels), border outset, sigma (`shadow`) or screen distance range
+	 * (`text`), opacity.
+	 */
+	shape: 23,
+	/** u8 x4: mode, texture slot, flags (`UBER_FLAGS`), unused. */
+	mode: 25,
+	words: 26,
+	/** Words 0 to 15 are float32; the contract check reads them for NaN. */
+	floatWords: 16,
 } as const;
 
-/** R5.2's modes, as the fragment shader's constants. */
+/** R5.2's modes, as the shaders' constants. */
 export const UBER_MODE = {
 	flat: 0,
 	rect: 1,
@@ -80,19 +103,58 @@ export const UBER_MODE = {
 	text: 5,
 } as const;
 
-/** Attribute location, float offset and size; the locations are `uber.vert`'s. */
-export const UBER_ATTRIBUTES = [
-	{ location: 0, offset: UBER_VERTEX.position, size: 2 },
-	{ location: 1, offset: UBER_VERTEX.local, size: 2 },
-	{ location: 2, offset: UBER_VERTEX.halfSize, size: 2 },
-	{ location: 3, offset: UBER_VERTEX.texCoord, size: 2 },
-	{ location: 4, offset: UBER_VERTEX.radii, size: 4 },
-	{ location: 5, offset: UBER_VERTEX.fill, size: 4 },
-	{ location: 6, offset: UBER_VERTEX.border, size: 4 },
-	{ location: 7, offset: UBER_VERTEX.clip, size: 4 },
-	{ location: 8, offset: UBER_VERTEX.shape, size: 4 },
-	{ location: 9, offset: UBER_VERTEX.mode, size: 4 },
-] as const;
+/** Bits of the instance's flags byte. */
+export const UBER_FLAGS = {
+	/** R5.22a: the fragment's alpha is zeroed. */
+	additive: 1,
+} as const;
+
+export type UberAttributeType = 'float' | 'half' | 'unorm8' | 'uint8';
+
+export interface UberAttribute {
+	/** The `in` in `uber.vert`. */
+	name: string;
+	location: number;
+	/** Components; every attribute is a four-vector. */
+	size: 4;
+	type: UberAttributeType;
+	/** Bytes from the start of the instance. */
+	offset: number;
+}
+
+const attribute = (name: string, location: number, type: UberAttributeType, word: number): UberAttribute => ({
+	name,
+	location,
+	size: 4,
+	type,
+	offset: word * 4,
+});
+
+/**
+ * Every attribute is per instance (divisor 1). `uint8` is an integer
+ * attribute (`vertexAttribIPointer`); the rest go through
+ * `vertexAttribPointer`, `unorm8` normalised. The locations are `uber.vert`'s.
+ */
+export const UBER_ATTRIBUTES: readonly UberAttribute[] = [
+	attribute('aCorners01', 0, 'float', UBER_INSTANCE.corners),
+	attribute('aCorners23', 1, 'float', UBER_INSTANCE.corners + 4),
+	attribute('aGeometry', 2, 'float', UBER_INSTANCE.geometry),
+	attribute('aClip', 3, 'float', UBER_INSTANCE.clip),
+	attribute('aRadii', 4, 'half', UBER_INSTANCE.radii),
+	attribute('aColor0', 5, 'unorm8', UBER_INSTANCE.colors),
+	attribute('aColor1', 6, 'unorm8', UBER_INSTANCE.colors + 1),
+	attribute('aColor2', 7, 'unorm8', UBER_INSTANCE.colors + 2),
+	attribute('aColor3', 8, 'unorm8', UBER_INSTANCE.colors + 3),
+	attribute('aBorder', 9, 'unorm8', UBER_INSTANCE.border),
+	attribute('aShape', 10, 'half', UBER_INSTANCE.shape),
+	attribute('aMode', 11, 'uint8', UBER_INSTANCE.mode),
+];
+
+/** Bytes per instance. */
+export const UBER_STRIDE = UBER_INSTANCE.words * 4;
+
+/** Vertices per instance: two triangles from `gl_VertexID`, no index buffer. */
+export const UBER_VERTICES_PER_INSTANCE = 6;
 
 /** `TEXTURE_UNITS` in `uber.frag`. */
 export const UBER_TEXTURE_UNITS = 8;
@@ -109,19 +171,36 @@ const TRANSPARENT: RGBA = [0, 0, 0, 0];
 /** Quad corners in the order top-left, top-right, bottom-right, bottom-left. */
 const CORNER_X = [-1, 1, 1, -1] as const;
 const CORNER_Y = [-1, -1, 1, 1] as const;
-const QUAD_INDICES = [0, 1, 2, 0, 2, 3] as const;
 
+/** Word offsets of the fields, flattened for the hot path. */
+const CORNERS = UBER_INSTANCE.corners;
+const GEOMETRY = UBER_INSTANCE.geometry;
+const CLIP = UBER_INSTANCE.clip;
+const RADII_HALF = UBER_INSTANCE.radii * 2;
+const COLORS_BYTE = UBER_INSTANCE.colors * 4;
+const BORDER_BYTE = UBER_INSTANCE.border * 4;
+const SHAPE_HALF = UBER_INSTANCE.shape * 2;
+const MODE_BYTE = UBER_INSTANCE.mode * 4;
+const WORDS = UBER_INSTANCE.words;
 
 export class UberGeometryEncoder implements GeometryEncoder {
-	readonly floatsPerVertex = UBER_VERTEX.floats;
-	readonly indexType = 'uint32' as const;
+	readonly instanceWords = UBER_INSTANCE.words;
+	readonly floatWords = UBER_INSTANCE.floatWords;
+	readonly verticesPerInstance = UBER_VERTICES_PER_INSTANCE;
 
 	private readonly text: TextMetricsService;
 	/** Each font role's atlas texture, the key its groups report (R5.20). */
 	private readonly fontTextures = new Map<string, TextureKey>();
 	private readonly onUnpaintable: (kind: DrawCommandKind, detail: string) => void;
-	/** The per-draw floats every vertex of a group shares; copied, then patched per vertex. */
-	private readonly template = new Float32Array(UBER_VERTEX.floats);
+	/**
+	 * The per-draw words every instance of a group shares, through the same
+	 * four views the sink has; copied into each instance, then patched.
+	 */
+	private readonly template = new ArrayBuffer(UBER_INSTANCE.words * 4);
+	private readonly templateWords = new Uint32Array(this.template);
+	private readonly templateFloats = new Float32Array(this.template);
+	private readonly templateHalves = new Uint16Array(this.template);
+	private readonly templateBytes = new Uint8Array(this.template);
 	/** Premultiplied scratch colours, read before the next call overwrites them. */
 	private readonly fillScratch: [number, number, number, number] = [0, 0, 0, 0];
 	private readonly cornerScratch: [number, number, number, number] = [0, 0, 0, 0];
@@ -136,6 +215,8 @@ export class UberGeometryEncoder implements GeometryEncoder {
 	private readonly pointScratch = { x: 0, y: 0 };
 	/** R5.17: screen-space outline and outward offsets, grown and reused. */
 	private outline = new Float64Array(0);
+	/** R5.17: each point's premultiplied colour, four per point, grown and reused. */
+	private pointColors = new Float64Array(0);
 	private devicePixel = 1;
 	private ratioValue = 1;
 
@@ -172,25 +253,21 @@ export class UberGeometryEncoder implements GeometryEncoder {
 				if (command.rect.width + 2 * command.shadow.spread <= 0) return true;
 				if (command.rect.height + 2 * command.shadow.spread <= 0) return true;
 				if (isDegenerate(command.transform)) return true;
-				out.vertices = 4;
-				out.indices = 6;
+				out.instances = 1;
 				return true;
 			case 'rect':
 			case 'circle':
 				if (isDegenerate(command.transform)) return true;
-				out.vertices = 4;
-				out.indices = 6;
+				out.instances = 1;
 				return true;
 			case 'line':
 				if (command.width <= 0 || isDegenerate(command.transform)) return true;
-				out.vertices = 4;
-				out.indices = 6;
+				out.instances = 1;
 				return true;
 			case 'polyline': {
 				const segments = polylineSegments(command);
 				if (segments === 0 || command.width <= 0 || isDegenerate(command.transform)) return true;
-				out.vertices = segments * 4;
-				out.indices = segments * 6;
+				out.instances = segments;
 				return true;
 			}
 			case 'polygon':
@@ -250,7 +327,8 @@ export class UberGeometryEncoder implements GeometryEncoder {
 
 		this.begin(command, UBER_MODE.rect, -1);
 		this.setHalfSize(halfWidth, halfHeight);
-		this.setRadii(command.radius, halfWidth, halfHeight);
+		const limit = Math.min(halfWidth, halfHeight);
+		for (let corner = 0; corner < 4; corner++) this.setRadius(corner, clampedRadius(command.radius, corner, limit));
 		this.setBorder(width > 0 ? (border as Border).color : TRANSPARENT, width, outset);
 
 		const fill = command.gradient ? null : premultiply(command.fill ?? WHITE, this.fillScratch);
@@ -302,14 +380,13 @@ export class UberGeometryEncoder implements GeometryEncoder {
 
 		this.begin(command, UBER_MODE.shadow, -1);
 		this.setHalfSize(halfWidth, halfHeight);
-		this.setRadii(command.radius, rect.width / 2, rect.height / 2);
-		const radii = this.template;
+		const ownerLimit = Math.min(rect.width / 2, rect.height / 2);
 		const limit = Math.min(halfWidth, halfHeight);
 		for (let corner = 0; corner < 4; corner++) {
-			const index = UBER_VERTEX.radii + corner;
-			radii[index] = Math.min(limit, spreadRadius(radii[index], spread));
+			const owner = clampedRadius(command.radius, corner, ownerLimit);
+			this.setRadius(corner, Math.min(limit, spreadRadius(owner, spread)));
 		}
-		this.template[UBER_VERTEX.shape + 2] = sigma;
+		this.templateHalves[SHAPE_HALF + 2] = toHalf(sigma);
 
 		const fill = premultiply(shadow.color, this.fillScratch);
 		const pad = 3 * sigma;
@@ -385,31 +462,30 @@ export class UberGeometryEncoder implements GeometryEncoder {
 		const centerX = (startX + endX) / 2;
 		const centerY = (startY + endY) / 2;
 
-		const template = this.template;
-		template[UBER_VERTEX.halfSize] = halfLength;
-		template[UBER_VERTEX.halfSize + 1] = halfWidth;
+		this.setHalfSize(halfLength, halfWidth);
 		const fromRadius = roundFrom ? Math.min(halfWidth, halfLength) : 0;
 		const toRadius = roundTo ? Math.min(halfWidth, halfLength) : 0;
 		// Along the segment is local x, so the `from` end holds the left corners.
-		template[UBER_VERTEX.radii] = fromRadius;
-		template[UBER_VERTEX.radii + 1] = toRadius;
-		template[UBER_VERTEX.radii + 2] = toRadius;
-		template[UBER_VERTEX.radii + 3] = fromRadius;
+		this.setRadius(0, fromRadius);
+		this.setRadius(1, toRadius);
+		this.setRadius(2, toRadius);
+		this.setRadius(3, fromRadius);
 
 		const pad = this.localPixel(transform);
 		const extentX = halfLength + pad;
 		const extentY = halfWidth + pad;
 		const fill = premultiply(color, this.fillScratch);
-		const base = segmentIndex * 4;
+		const base = this.instance(sink, segmentIndex);
+		this.setExtent(sink, base, extentX, extentY);
 		for (let corner = 0; corner < 4; corner++) {
 			const localX = CORNER_X[corner] * extentX;
 			const localY = CORNER_Y[corner] * extentY;
 			// Local x along the segment, local y along its normal (-dirY, dirX).
 			const x = centerX + dirX * localX - dirY * localY;
 			const y = centerY + dirY * localX + dirX * localY;
-			this.vertex(sink, base + corner, transform, x, y, localX, localY, 0, 0, fill);
+			this.corner(sink, base, corner, transform, x, y);
+			this.color(sink, base, corner, fill);
 		}
-		writeQuadIndices(sink, segmentIndex * 6, base);
 	}
 
 	// -- polygon ----------------------------------------------------------
@@ -423,8 +499,8 @@ export class UberGeometryEncoder implements GeometryEncoder {
 		const indices = command.indices;
 		if (indices) {
 			for (const index of indices) {
-				// Out of range would address a neighbouring group's vertices in
-				// the shared buffer.
+				// Out of range would read past the points; a bare triangle list
+				// cannot be out of range.
 				if (index < 0 || index >= count || !Number.isInteger(index)) {
 					this.onUnpaintable('polygon', `polygon index ${index} is outside its ${count} points`);
 					return false;
@@ -435,65 +511,70 @@ export class UberGeometryEncoder implements GeometryEncoder {
 			this.onUnpaintable('polygon', `a polygon with ${count} points has ${command.colors.length} colours`);
 			return false;
 		}
-		const triangles = Math.floor((indices ? indices.length : count) / 3) * 3;
-		const feather = hasOutline(command);
-		out.vertices = count + (feather ? count : 0);
-		out.indices = triangles + (feather ? count * 6 : 0);
+		const triangles = Math.floor((indices ? indices.length : count) / 3);
+		out.instances = triangles + (hasOutline(command) ? count : 0);
 		return true;
 	}
 
 	/**
 	 * R5.17: `flat` triangles, then a feather ring one device pixel wide
-	 * around the outline, its inner edge the polygon's own vertices and its
-	 * outer vertices transparent. The ring is built on the whole outline, not
-	 * per triangle, so shared interior edges have no seam. It needs `points` to
-	 * be that outline (`DrawPolygonOptions`); an indexed list that is not one is
+	 * around the outline, its inner edge the polygon's own points and its
+	 * outer edge transparent. Each triangle is an instance with its third
+	 * corner repeated, and each quad of the ring an instance of its own, with
+	 * the corners and diagonal the indexed triangles had, so the rasteriser
+	 * covers the same pixels. The ring is built on the whole outline, not per
+	 * triangle, so shared interior edges have no seam. It needs `points` to be
+	 * that outline (`DrawPolygonOptions`); an indexed list that is not one is
 	 * drawn unfeathered rather than with a ring across its interior, and a bare
 	 * triangle list is feathered only when it is one triangle.
 	 */
 	private encodePolygon(command: PolygonCommand, sink: GeometrySink): void {
 		this.begin(command, UBER_MODE.flat, -1);
-		const { points, colors, transform } = command;
+		const { points, colors, transform, indices } = command;
 		const count = points.length;
 		const fill = colors ? null : premultiply(command.fill ?? WHITE, this.fillScratch);
 
 		if (this.outline.length < count * 4) this.outline = new Float64Array(count * 8);
+		if (this.pointColors.length < count * 4) this.pointColors = new Float64Array(count * 8);
 		const outline = this.outline;
+		const pointColors = this.pointColors;
 		for (let index = 0; index < count; index++) {
 			const point = points[index];
-			const x = transform[0] * point.x + transform[2] * point.y + transform[4];
-			const y = transform[1] * point.x + transform[3] * point.y + transform[5];
-			outline[index * 2] = x;
-			outline[index * 2 + 1] = y;
+			outline[index * 2] = transform[0] * point.x + transform[2] * point.y + transform[4];
+			outline[index * 2 + 1] = transform[1] * point.x + transform[3] * point.y + transform[5];
 			const color = fill ?? premultiply((colors as readonly RGBA[])[index], this.cornerScratch);
-			this.screenVertex(sink, index, x, y, color);
+			for (let channel = 0; channel < 4; channel++) pointColors[index * 4 + channel] = color[channel];
 		}
 
-		const triangles = Math.floor((command.indices ? command.indices.length : count) / 3) * 3;
-		for (let index = 0; index < triangles; index++) {
-			sink.indices[sink.indexOffset + index] = sink.baseVertex + (command.indices ? command.indices[index] : index);
+		const triangles = Math.floor((indices ? indices.length : count) / 3);
+		for (let triangle = 0; triangle < triangles; triangle++) {
+			const base = this.instance(sink, triangle);
+			for (let corner = 0; corner < 4; corner++) {
+				// The fourth corner repeats the third: the quad's second triangle has no area.
+				const vertex = triangle * 3 + Math.min(corner, 2);
+				const point = indices ? indices[vertex] : vertex;
+				this.screenCorner(sink, base, corner, outline[point * 2], outline[point * 2 + 1]);
+				this.pointColor(sink, base, corner, point);
+			}
 		}
 		if (!hasOutline(command)) return;
 
 		this.featherOffsets(count);
 		for (let index = 0; index < count; index++) {
-			const x = outline[index * 2] + outline[count * 2 + index * 2];
-			const y = outline[index * 2 + 1] + outline[count * 2 + index * 2 + 1];
-			this.screenVertex(sink, count + index, x, y, TRANSPARENT);
-		}
-		let offset = sink.indexOffset + triangles;
-		for (let index = 0; index < count; index++) {
 			const next = (index + 1) % count;
-			const inner = sink.baseVertex + index;
-			const innerNext = sink.baseVertex + next;
-			const outer = sink.baseVertex + count + index;
-			const outerNext = sink.baseVertex + count + next;
-			sink.indices[offset++] = inner;
-			sink.indices[offset++] = innerNext;
-			sink.indices[offset++] = outerNext;
-			sink.indices[offset++] = inner;
-			sink.indices[offset++] = outerNext;
-			sink.indices[offset++] = outer;
+			const base = this.instance(sink, triangles + index);
+			// Inner, inner next, outer next, outer: the two triangles the
+			// indexed ring drew, (0, 1, 2) and (0, 2, 3).
+			this.screenCorner(sink, base, 0, outline[index * 2], outline[index * 2 + 1]);
+			this.screenCorner(sink, base, 1, outline[next * 2], outline[next * 2 + 1]);
+			this.screenCorner(sink, base, 2, outline[next * 2] + outline[count * 2 + next * 2],
+				outline[next * 2 + 1] + outline[count * 2 + next * 2 + 1]);
+			this.screenCorner(sink, base, 3, outline[index * 2] + outline[count * 2 + index * 2],
+				outline[index * 2 + 1] + outline[count * 2 + index * 2 + 1]);
+			this.pointColor(sink, base, 0, index);
+			this.pointColor(sink, base, 1, next);
+			this.color(sink, base, 2, TRANSPARENT);
+			this.color(sink, base, 3, TRANSPARENT);
 		}
 	}
 
@@ -550,8 +631,7 @@ export class UberGeometryEncoder implements GeometryEncoder {
 			return false;
 		}
 		if (isDegenerate(command.transform)) return true;
-		out.vertices = 4;
-		out.indices = 6;
+		out.instances = 1;
 		out.texture = command.texture;
 		return true;
 	}
@@ -573,15 +653,14 @@ export class UberGeometryEncoder implements GeometryEncoder {
 			v1 = (source.y + source.height) * scaleV;
 		}
 		const tint = premultiply(command.tint ?? WHITE, this.fillScratch);
+		const base = this.instance(sink, 0);
+		this.setTexCoords(sink, base, u0, v0, u1, v1);
 		for (let corner = 0; corner < 4; corner++) {
-			const right = CORNER_X[corner] > 0;
-			const bottom = CORNER_Y[corner] > 0;
-			this.vertex(sink, corner, transform,
-				right ? rect.x + rect.width : rect.x,
-				bottom ? rect.y + rect.height : rect.y,
-				0, 0, right ? u1 : u0, bottom ? v1 : v0, tint);
+			this.corner(sink, base, corner, transform,
+				CORNER_X[corner] > 0 ? rect.x + rect.width : rect.x,
+				CORNER_Y[corner] > 0 ? rect.y + rect.height : rect.y);
+			this.color(sink, base, corner, tint);
 		}
-		writeQuadIndices(sink, 0, 0);
 	}
 
 	// -- text -------------------------------------------------------------
@@ -594,9 +673,7 @@ export class UberGeometryEncoder implements GeometryEncoder {
 			return false;
 		}
 		if (isDegenerate(command.transform)) return true;
-		const quads = layout.quadCount + this.decorationCount(command, layout);
-		out.vertices = quads * 4;
-		out.indices = quads * 6;
+		out.instances = layout.quadCount + this.decorationCount(command, layout);
 		out.texture = texture;
 		return true;
 	}
@@ -605,7 +682,7 @@ export class UberGeometryEncoder implements GeometryEncoder {
 	 * Chapter 6's glyph quads in `text` mode, from the same `TextLayout` that
 	 * `measureText` summarises (R6.8), so a measured width is a drawn width.
 	 *
-	 * Every vertex goes through the whole transform, so rotated and scaled text
+	 * Every corner goes through the whole transform, so rotated and scaled text
 	 * rotates and scales. Under a translate-only transform each line's origin
 	 * (its first pen position, on the baseline) is snapped to the device grid
 	 * and every glyph and decoration on the line moves by that one delta
@@ -613,11 +690,12 @@ export class UberGeometryEncoder implements GeometryEncoder {
 	 * on a device row. Under anything else nothing is snapped.
 	 *
 	 * The screen-space distance range (R6.5) is a per-draw constant under a
-	 * translate-only transform, written into `shape.z`; otherwise `shape.z` is
-	 * zero and the shader derives it from the texture coordinate's footprint,
-	 * with the atlas's unit range in `halfSize`. A shadow run's blur rides in
-	 * `mode.w`, read from the `mtsdf` alpha channel's true distance (R6.5,
-	 * R6.6); an atlas without one draws its shadow sharp.
+	 * translate-only transform, written into the third shape lane; otherwise
+	 * that lane is zero and the shader derives it from the texture
+	 * coordinate's footprint, with the atlas's unit range in the radii lanes.
+	 * A shadow run's blur rides in the first shape lane (text has no border),
+	 * read from the `mtsdf` alpha channel's true distance (R6.5, R6.6); an
+	 * atlas without one draws its shadow sharp.
 	 *
 	 * Decorations (R12.4) follow the glyphs in the same group, as `rect`-mode
 	 * quads one logical pixel thick, so they get the same edge ramp as any
@@ -631,17 +709,17 @@ export class UberGeometryEncoder implements GeometryEncoder {
 		const snap = command.translateOnly;
 
 		this.begin(command, UBER_MODE.text, slot);
-		const template = this.template;
-		template[UBER_VERTEX.shape + 2] = snap ? Math.max(1, (atlas.distanceRange * size * ratio) / atlas.size) : 0;
-		template[UBER_VERTEX.halfSize] = atlas.distanceRange / atlas.width;
-		template[UBER_VERTEX.halfSize + 1] = atlas.distanceRange / atlas.height;
-		template[UBER_VERTEX.mode + 3] = command.blur > 0 && atlas.type === 'mtsdf' ? command.blur * ratio : 0;
+		const halves = this.templateHalves;
+		halves[SHAPE_HALF] = toHalf(command.blur > 0 && atlas.type === 'mtsdf' ? command.blur * ratio : 0);
+		halves[SHAPE_HALF + 2] = toHalf(snap ? Math.max(1, (atlas.distanceRange * size * ratio) / atlas.size) : 0);
+		halves[RADII_HALF] = toHalf(atlas.distanceRange / atlas.width);
+		halves[RADII_HALF + 1] = toHalf(atlas.distanceRange / atlas.height);
 		const color = premultiply(command.color, this.fillScratch);
 
 		const origin = this.originScratch;
 		const texelU = 1 / atlas.width;
 		const texelV = 1 / atlas.height;
-		let vertexBase = 0;
+		let instance = 0;
 		for (let line = 0; line < layout.lines.length; line++) {
 			this.snappedOrigin(layout, command, line, origin);
 			const glyphs = layout.lines[line].glyphs;
@@ -654,24 +732,21 @@ export class UberGeometryEncoder implements GeometryEncoder {
 				const right = origin.x + x + plane.right * size;
 				const top = origin.y + plane.top * size;
 				const bottom = origin.y + plane.bottom * size;
-				const u0 = bounds.left * texelU;
-				const u1 = bounds.right * texelU;
-				const v0 = bounds.top * texelV;
-				const v1 = bounds.bottom * texelV;
-				this.vertex(sink, vertexBase, matrix, left, top, 0, 0, u0, v0, color);
-				this.vertex(sink, vertexBase + 1, matrix, right, top, 0, 0, u1, v0, color);
-				this.vertex(sink, vertexBase + 2, matrix, right, bottom, 0, 0, u1, v1, color);
-				this.vertex(sink, vertexBase + 3, matrix, left, bottom, 0, 0, u0, v1, color);
-				writeQuadIndices(sink, (vertexBase / 4) * 6, vertexBase);
-				vertexBase += 4;
+				const base = this.instance(sink, instance++);
+				this.setTexCoords(sink, base, bounds.left * texelU, bounds.top * texelV, bounds.right * texelU, bounds.bottom * texelV);
+				this.corner(sink, base, 0, matrix, left, top);
+				this.corner(sink, base, 1, matrix, right, top);
+				this.corner(sink, base, 2, matrix, right, bottom);
+				this.corner(sink, base, 3, matrix, left, bottom);
+				for (let corner = 0; corner < 4; corner++) this.color(sink, base, corner, color);
 			}
 		}
 
 		const offset = decorationOffset(layout, command.decoration);
 		if (offset === null) return;
-		template[UBER_VERTEX.mode] = UBER_MODE.rect;
-		template[UBER_VERTEX.mode + 3] = 0;
-		template[UBER_VERTEX.shape + 2] = 0;
+		this.templateBytes[MODE_BYTE] = UBER_MODE.rect;
+		halves.fill(0, SHAPE_HALF, SHAPE_HALF + 3);
+		halves.fill(0, RADII_HALF, RADII_HALF + 4);
 		for (let line = 0; line < layout.lines.length; line++) {
 			const width = layout.lines[line].width;
 			if (width <= 0) continue;
@@ -683,8 +758,7 @@ export class UberGeometryEncoder implements GeometryEncoder {
 				top = snapToDevice(top, ratio);
 				height = Math.max(1, Math.round(DECORATION_THICKNESS * ratio)) / ratio;
 			}
-			this.decorationQuad(sink, vertexBase, matrix, origin.x, top, width, height, color);
-			vertexBase += 4;
+			this.decorationQuad(sink, instance++, matrix, origin.x, top, width, height, color);
 		}
 	}
 
@@ -729,10 +803,10 @@ export class UberGeometryEncoder implements GeometryEncoder {
 		out.y += snapped.y - screenY;
 	}
 
-	/** A `rect`-mode quad for a decoration, inflated by R5.7's device pixel, at `vertexBase` within the group. */
+	/** A `rect`-mode quad for a decoration, inflated by R5.7's device pixel, as instance `instance` of the group. */
 	private decorationQuad(
 		sink: GeometrySink,
-		vertexBase: number,
+		instance: number,
 		transform: Mat2D,
 		x: number,
 		y: number,
@@ -743,56 +817,54 @@ export class UberGeometryEncoder implements GeometryEncoder {
 		const halfWidth = width / 2;
 		const halfHeight = height / 2;
 		this.setHalfSize(halfWidth, halfHeight);
-		const padX = this.devicePixel / Math.hypot(transform[0], transform[1]);
-		const padY = this.devicePixel / Math.hypot(transform[2], transform[3]);
+		const extentX = halfWidth + this.devicePixel / Math.hypot(transform[0], transform[1]);
+		const extentY = halfHeight + this.devicePixel / Math.hypot(transform[2], transform[3]);
+		const base = this.instance(sink, instance);
+		this.setExtent(sink, base, extentX, extentY);
 		for (let corner = 0; corner < 4; corner++) {
-			const localX = CORNER_X[corner] * (halfWidth + padX);
-			const localY = CORNER_Y[corner] * (halfHeight + padY);
-			this.vertex(sink, vertexBase + corner, transform, x + halfWidth + localX, y + halfHeight + localY, localX, localY, 0, 0, color);
+			const localX = CORNER_X[corner] * extentX;
+			const localY = CORNER_Y[corner] * extentY;
+			this.corner(sink, base, corner, transform, x + halfWidth + localX, y + halfHeight + localY);
+			this.color(sink, base, corner, color);
 		}
-		writeQuadIndices(sink, (vertexBase / 4) * 6, vertexBase);
 	}
 
-	// -- vertex writing ---------------------------------------------------
+	// -- instance writing -------------------------------------------------
 
-	/** Resets the shared floats for a new group: clip, opacity, mode, slot, additive. */
+	/** Resets the shared words for a new group: clip, opacity, mode, slot, flags. */
 	private begin(command: DrawCommand, mode: number, slot: number): void {
-		const template = this.template;
-		template.fill(0);
+		this.templateWords.fill(0);
+		const floats = this.templateFloats;
 		const clip = clipRectOf(command.clip);
-		template[UBER_VERTEX.clip] = clip.minX;
-		template[UBER_VERTEX.clip + 1] = clip.minY;
-		template[UBER_VERTEX.clip + 2] = clip.maxX;
-		template[UBER_VERTEX.clip + 3] = clip.maxY;
-		template[UBER_VERTEX.shape + 3] = command.opacity;
-		template[UBER_VERTEX.mode] = mode;
-		template[UBER_VERTEX.mode + 1] = Math.max(0, slot);
-		template[UBER_VERTEX.mode + 2] = command.blend === 'additive' ? 1 : 0;
+		floats[CLIP] = clip.minX;
+		floats[CLIP + 1] = clip.minY;
+		floats[CLIP + 2] = clip.maxX;
+		floats[CLIP + 3] = clip.maxY;
+		this.templateHalves[SHAPE_HALF + 3] = toHalf(command.opacity);
+		const bytes = this.templateBytes;
+		bytes[MODE_BYTE] = mode;
+		bytes[MODE_BYTE + 1] = Math.max(0, slot);
+		bytes[MODE_BYTE + 2] = command.blend === 'additive' ? UBER_FLAGS.additive : 0;
 	}
 
 	private setHalfSize(halfWidth: number, halfHeight: number): void {
-		this.template[UBER_VERTEX.halfSize] = halfWidth;
-		this.template[UBER_VERTEX.halfSize + 1] = halfHeight;
+		this.templateFloats[GEOMETRY] = halfWidth;
+		this.templateFloats[GEOMETRY + 1] = halfHeight;
 	}
 
-	/** R5.5 and R5.7a: four radii, each clamped to the smaller half extent. */
-	private setRadii(radius: CornerRadii | null, halfWidth: number, halfHeight: number): void {
-		const limit = Math.max(0, Math.min(halfWidth, halfHeight));
-		for (let corner = 0; corner < 4; corner++) {
-			const value = radius === null ? 0 : typeof radius === 'number' ? radius : radius[corner];
-			this.template[UBER_VERTEX.radii + corner] = Math.min(limit, Math.max(0, value));
-		}
+	private setRadius(corner: number, radius: number): void {
+		this.templateHalves[RADII_HALF + corner] = toHalf(radius);
 	}
 
 	private setBorder(color: RGBA, width: number, outset: number): void {
-		const template = this.template;
+		const bytes = this.templateBytes;
 		const alpha = color[3];
-		template[UBER_VERTEX.border] = color[0] * alpha;
-		template[UBER_VERTEX.border + 1] = color[1] * alpha;
-		template[UBER_VERTEX.border + 2] = color[2] * alpha;
-		template[UBER_VERTEX.border + 3] = alpha;
-		template[UBER_VERTEX.shape] = width;
-		template[UBER_VERTEX.shape + 1] = outset;
+		bytes[BORDER_BYTE] = toUnorm8(color[0] * alpha);
+		bytes[BORDER_BYTE + 1] = toUnorm8(color[1] * alpha);
+		bytes[BORDER_BYTE + 2] = toUnorm8(color[2] * alpha);
+		bytes[BORDER_BYTE + 3] = toUnorm8(alpha);
+		this.templateHalves[SHAPE_HALF] = toHalf(width);
+		this.templateHalves[SHAPE_HALF + 1] = toHalf(outset);
 	}
 
 	/**
@@ -814,10 +886,10 @@ export class UberGeometryEncoder implements GeometryEncoder {
 		halfWidth: number,
 		halfHeight: number,
 	): void {
-		const padX = this.devicePixel / Math.hypot(transform[0], transform[1]);
-		const padY = this.devicePixel / Math.hypot(transform[2], transform[3]);
-		const outerX = extentX + padX;
-		const outerY = extentY + padY;
+		const outerX = extentX + this.devicePixel / Math.hypot(transform[0], transform[1]);
+		const outerY = extentY + this.devicePixel / Math.hypot(transform[2], transform[3]);
+		const base = this.instance(sink, 0);
+		this.setExtent(sink, base, outerX, outerY);
 		for (let corner = 0; corner < 4; corner++) {
 			const localX = CORNER_X[corner] * outerX;
 			const localY = CORNER_Y[corner] * outerY;
@@ -825,53 +897,65 @@ export class UberGeometryEncoder implements GeometryEncoder {
 				? bilinear(gradient, halfWidth > 0 ? 0.5 + localX / (2 * halfWidth) : 0.5,
 					halfHeight > 0 ? 0.5 + localY / (2 * halfHeight) : 0.5, this.cornerScratch)
 				: (fill as RGBA);
-			this.vertex(sink, corner, transform, centerX + localX, centerY + localY, localX, localY, 0, 0, color);
+			this.corner(sink, base, corner, transform, centerX + localX, centerY + localY);
+			this.color(sink, base, corner, color);
 		}
-		writeQuadIndices(sink, 0, 0);
 	}
 
-	/** One vertex from a local-space point, through the command's transform. */
-	private vertex(
-		sink: GeometrySink,
-		index: number,
-		transform: Mat2D,
-		x: number,
-		y: number,
-		localX: number,
-		localY: number,
-		u: number,
-		v: number,
-		fill: RGBA,
-	): void {
-		const point = this.pointScratch;
-		point.x = transform[0] * x + transform[2] * y + transform[4];
-		point.y = transform[1] * x + transform[3] * y + transform[5];
-		const out = sink.vertices;
-		const offset = sink.floatOffset + index * UBER_VERTEX.floats;
-		out.set(this.template, offset);
-		out[offset] = point.x;
-		out[offset + 1] = point.y;
-		out[offset + UBER_VERTEX.local] = localX;
-		out[offset + UBER_VERTEX.local + 1] = localY;
-		out[offset + UBER_VERTEX.texCoord] = u;
-		out[offset + UBER_VERTEX.texCoord + 1] = v;
-		out[offset + UBER_VERTEX.fill] = fill[0];
-		out[offset + UBER_VERTEX.fill + 1] = fill[1];
-		out[offset + UBER_VERTEX.fill + 2] = fill[2];
-		out[offset + UBER_VERTEX.fill + 3] = fill[3];
+	/** Copies the template into instance `index` of the group; returns its first word. */
+	private instance(sink: GeometrySink, index: number): number {
+		const base = sink.wordOffset + index * WORDS;
+		sink.words.set(this.templateWords, base);
+		return base;
 	}
 
-	/** One vertex already in screen space. */
-	private screenVertex(sink: GeometrySink, index: number, x: number, y: number, fill: RGBA): void {
-		const out = sink.vertices;
-		const offset = sink.floatOffset + index * UBER_VERTEX.floats;
-		out.set(this.template, offset);
-		out[offset] = x;
-		out[offset + 1] = y;
-		out[offset + UBER_VERTEX.fill] = fill[0];
-		out[offset + UBER_VERTEX.fill + 1] = fill[1];
-		out[offset + UBER_VERTEX.fill + 2] = fill[2];
-		out[offset + UBER_VERTEX.fill + 3] = fill[3];
+	/**
+	 * The quad's extent from the shape centre in local units: the shader puts
+	 * corner `c` at local (`CORNER_X[c] * x`, `CORNER_Y[c] * y`).
+	 */
+	private setExtent(sink: GeometrySink, base: number, x: number, y: number): void {
+		sink.floats[base + GEOMETRY + 2] = x;
+		sink.floats[base + GEOMETRY + 3] = y;
+	}
+
+	private setTexCoords(sink: GeometrySink, base: number, u0: number, v0: number, u1: number, v1: number): void {
+		const floats = sink.floats;
+		floats[base + GEOMETRY] = u0;
+		floats[base + GEOMETRY + 1] = v0;
+		floats[base + GEOMETRY + 2] = u1;
+		floats[base + GEOMETRY + 3] = v1;
+	}
+
+	/** Corner `corner` from a local-space point, through the command's transform. */
+	private corner(sink: GeometrySink, base: number, corner: number, transform: Mat2D, x: number, y: number): void {
+		const offset = base + CORNERS + corner * 2;
+		sink.floats[offset] = transform[0] * x + transform[2] * y + transform[4];
+		sink.floats[offset + 1] = transform[1] * x + transform[3] * y + transform[5];
+	}
+
+	/** Corner `corner` already in screen space. */
+	private screenCorner(sink: GeometrySink, base: number, corner: number, x: number, y: number): void {
+		const offset = base + CORNERS + corner * 2;
+		sink.floats[offset] = x;
+		sink.floats[offset + 1] = y;
+	}
+
+	/** A premultiplied colour into corner `corner`'s bytes. */
+	private color(sink: GeometrySink, base: number, corner: number, color: RGBA): void {
+		const offset = base * 4 + COLORS_BYTE + corner * 4;
+		const bytes = sink.bytes;
+		bytes[offset] = toUnorm8(color[0]);
+		bytes[offset + 1] = toUnorm8(color[1]);
+		bytes[offset + 2] = toUnorm8(color[2]);
+		bytes[offset + 3] = toUnorm8(color[3]);
+	}
+
+	/** Point `point`'s premultiplied colour (`encodePolygon`) into corner `corner`. */
+	private pointColor(sink: GeometrySink, base: number, corner: number, point: number): void {
+		const offset = base * 4 + COLORS_BYTE + corner * 4;
+		const bytes = sink.bytes;
+		const colors = this.pointColors;
+		for (let channel = 0; channel < 4; channel++) bytes[offset + channel] = toUnorm8(colors[point * 4 + channel]);
 	}
 
 	/** One device pixel in local units, on the transform's tighter axis. */
@@ -893,6 +977,12 @@ export class UberGeometryEncoder implements GeometryEncoder {
 		}
 		return out;
 	}
+}
+
+/** R5.5 and R5.7a: corner `corner` of a radius, clamped to `limit` (the smaller half extent) and at zero. */
+function clampedRadius(radius: CornerRadii | null, corner: number, limit: number): number {
+	const value = radius === null ? 0 : typeof radius === 'number' ? radius : radius[corner];
+	return Math.min(Math.max(0, limit), Math.max(0, value));
 }
 
 /** R5.7: how far a border's outer edge sits outside the shape edge. */
@@ -942,12 +1032,6 @@ function bilinear(corners: number[], u: number, v: number, out: [number, number,
 	out[3] = Math.min(1, Math.max(0, out[3]));
 	for (let channel = 0; channel < 3; channel++) out[channel] = Math.min(out[3], Math.max(0, out[channel]));
 	return out;
-}
-
-function writeQuadIndices(sink: GeometrySink, indexOffset: number, vertexOffset: number): void {
-	const first = sink.indexOffset + indexOffset;
-	const base = sink.baseVertex + vertexOffset;
-	for (let index = 0; index < 6; index++) sink.indices[first + index] = base + QUAD_INDICES[index];
 }
 
 function hasRadius(radius: CornerRadii | null): boolean {
