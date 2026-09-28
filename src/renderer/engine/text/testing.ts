@@ -3,7 +3,7 @@ import type { FontAtlasOptions } from '../draw/DrawBackend';
 import type { FontAtlasHandle, MeasureTextOptions, TextMetrics } from '../draw/commands';
 import { RecordingBackend } from '../draw/RecordingBackend';
 import { FontAtlas, parseFontAtlas } from './FontAtlas';
-import { FONT_FACES, FontRole } from './fontFaces';
+import { ATLAS_ASSETS, AtlasRole, FontRole } from './fontFaces';
 import { TextMetricsService } from './TextMetricsService';
 
 /**
@@ -11,18 +11,23 @@ import { TextMetricsService } from './TextMetricsService';
  * imports this file.
  */
 
-const parsed = new Map<FontRole, FontAtlas>();
+const parsed = new Map<AtlasRole, FontAtlas>();
 
-/** A committed face's metrics, parsed once per role; a `FontAtlas` is immutable. */
-export function committedFontAtlas(role: FontRole): FontAtlas {
+/** A committed atlas's metrics, a face's or the icons', parsed once per role; a `FontAtlas` is immutable. */
+export function committedAtlas(role: AtlasRole): FontAtlas {
 	let atlas = parsed.get(role);
 	if (!atlas) {
-		const face = FONT_FACES.find((candidate) => candidate.role === role);
-		if (!face) throw new Error(`no committed face for role '${role}'`);
-		atlas = parseFontAtlas({ json: face.metrics, source: face.face, warn: () => undefined });
+		const asset = ATLAS_ASSETS.find((candidate) => candidate.role === role);
+		if (!asset) throw new Error(`no committed atlas for role '${role}'`);
+		atlas = parseFontAtlas({ json: asset.metrics, source: asset.face, warn: () => undefined });
 		parsed.set(role, atlas);
 	}
 	return atlas;
+}
+
+/** A committed face's metrics, parsed once per role. */
+export function committedFontAtlas(role: FontRole): FontAtlas {
+	return committedAtlas(role);
 }
 
 /**
@@ -77,6 +82,8 @@ export function syntheticFontAtlas(): FontAtlas {
  */
 export class MeasuringRecordingBackend extends RecordingBackend {
 	private readonly text = new TextMetricsService();
+	/** How many times `measureText` ran, for tests that check a component measures once. */
+	measureCalls = 0;
 
 	loadFontAtlas(options: FontAtlasOptions): FontAtlasHandle {
 		this.text.addAtlas({ name: options.name, atlas: options.atlas });
@@ -84,20 +91,22 @@ export class MeasuringRecordingBackend extends RecordingBackend {
 	}
 
 	measureText(options: MeasureTextOptions): TextMetrics {
+		this.measureCalls++;
 		return this.text.measure(options);
 	}
 }
 
 /**
- * A draw API over a `MeasuringRecordingBackend` with every committed role
- * loaded, for a test context that measures text (`createTestContext({ draw })`).
+ * A draw API over a `MeasuringRecordingBackend` with every committed atlas
+ * loaded (the three roles and the icons), for a test context that measures
+ * text (`createTestContext({ draw })`).
  */
 export function createMeasuringDrawApi(): { api: DrawApi; backend: MeasuringRecordingBackend } {
 	const backend = new MeasuringRecordingBackend({ maxFrames: 1 });
 	const api = new DrawApi({ backend });
-	for (const face of FONT_FACES) {
-		const texture = api.createTexture({ width: 1, height: 1, label: face.role });
-		api.loadFontAtlas({ name: face.role, atlas: committedFontAtlas(face.role), texture });
+	for (const asset of ATLAS_ASSETS) {
+		const texture = api.createTexture({ width: 1, height: 1, label: asset.role });
+		api.loadFontAtlas({ name: asset.role, atlas: committedAtlas(asset.role), texture });
 	}
 	return { api, backend };
 }

@@ -15,7 +15,7 @@ This document contains the chronological log of completed development tasks for 
 - `RendererContext.ts` deleted. `InputSystem` is an instance with the same method names, handlers bound once (so `detach` really removes them), and a `beforeHitTest` hook.
 - Button, Input, Panel, Card and Vehicle register in `onMount`; Input asks for updates while focused; CombatScreen, DeveloperScreen and the gallery host reach input through the context.
 - `Screen.mount(context, data)`, `ScreenManager.initialize(context)`, `Game` and `SceneHost` take the context; both loops run update, layout, render, flush, with the `layout` section timed.
-- `Text` measures through the context on mount and sizes both axes in one step; `text/testing.ts`'s `createMeasuringDrawApi` feeds a test context. `Card`, `DriverStatsDisplay`, `ResourceBarLayer` and `Vehicle` place what depends on a measured text in `layoutChildren`, `SplashScreen` in `onMount`; the synergy panel measures a tag's label before sizing its pill. `ShadingFixturesSection` creates its photo texture on mount.
+- `Text` measures through the context on mount and sizes both axes in one step; `text/testing.ts`'s `createMeasuringDrawApi` feeds a test context. `Card`, `DriverStatsDisplay`, `ResourceBarLayer` and `Vehicle` place what depends on a measured text in `layoutChildren`, `SplashScreen` in `onMount`; the synergy panel measures a tag's label before sizing its pill. `ShadingFixturesSection` creates its photo texture on mount. `Button` places its icon and `ArmorBadge` measures its value in `layoutChildren`, once per label.
 
 **How:** `lifecycle.test.ts` (no service touched before mount, mount and unmount order and idempotence, mount on add, same-root moves versus cross-root re-parenting, update on request, invisible and unmounted requests, text invalidating its boundary once, transform, zIndex, opacity and colour not invalidating, `onLayout` on first layout and on change, layout before a hit test) and `Screen.test.ts` (root sized from the viewport, nothing of the old screen registered after a switch, `onLayout` before the first render). Every existing test that touched the singletons now builds a context. All chromium visual specs pass against local captures of `main`, and a scripted click-through goes menu, driver selection, combat, END TURN with a clean console.
 
@@ -29,8 +29,22 @@ This document contains the chronological log of completed development tasks for 
 - `Panel` draws its own background through `Rectangle`'s `drawBox` and scrolls with `contentOffset`; `ScrollableContentLayer` and `getContentLayer` are gone, and the snapshot's Panel special case with them.
 - `InputSystem` asks `containsScreenPoint`, which skips invisible, faded and `pointerEvents: 'none'` components and inverts transforms.
 - `Card` and `Vehicle` use the base's hover state; `Card`'s `Layer.prototype.render` borrow is gone.
+- Merged with DDB-68, DDB-71 and DDB-72 as they landed: `DrawFixture` and `Text` draw in their own space; `Icon.drawGlyph` lets `ArmorBadge` and `IntentMarker` draw their icon as one of their own draws, in the same order as before; `Button` places its icon from its `render` hook until the layout phase exists; the F5 overlay's visibility is `visible`.
 
 **How:** `Component.test.ts` (properties, effective values, children, reconciliation, screen geometry under rotation and scale) and `renderTree.test.ts` (local draws, leaf children walked by the framework, skipped subtrees, zIndex order, opacity, clip and promotion, balanced stacks) on the recording backend. Every screen and gallery scene captured locally on `main` and on the branch passes the golden tolerance; the CI goldens are unchanged.
+
+## Icon atlas and the six symbol sites (2026-09-28)
+
+**What landed:** DDB-72 (DDB-55 phase 2), R12.6 and R12.7's button icon.
+
+- `src/assets/fonts/material-icons/`: Material Icons Regular (Apache 2.0, licence beside it), its `.codepoints`, and `icons.txt`, the list of icons the atlas holds.
+- `scripts/generate-icons.mjs` writes `text/icons.ts` (`ICON_CODE_POINTS`, `IconName`) and the charset; `build-fonts.(sh|ps1)` builds `material-icons.{png,json}` with the same msdf-atlas-gen parameters as the faces.
+- `fontFaces.ts`: `ICON_ATLAS` under the name `icons`, loaded with the faces through `ATLAS_ASSETS`, so it is validated at startup and resident beside them.
+- `components/Icon.ts`: `glyph`, `size`, `tint`, drawn in `text` mode centred in its box. `Button` takes `icon` and centres icon and label as a group.
+- The six sites: armor shield on the vehicle badge, shield and wrench intents, the fuel pump, the scrap gear, the back arrow. The armor badge (`game/ui/ArmorBadge.ts`) sizes itself to its measured value so shield ("10 SH12") fits beside the icon; the intent disc is `game/ui/IntentMarker.ts` with its value centred.
+- Gallery scene `icons`: every icon at three sizes, bare and on a fill, the button icon, the four intents, and armor with and without shield.
+
+**How:** `iconAssets.test.ts` (atlas parameters, PNG size, exactly the listed glyphs, em box, licence, `icons.ts` drift, generator errors), `Icon.test.ts` (draw command, defaults, accessors, hidden, one em wide, the button group), `EnemyBattlefieldLayer.test.ts` (which intents draw which icon), `vehicleBadges.test.ts` (the badge grows to fit shield, measures once per value; the marker centres icon and value). `scene-icons` minted; combat and driver selection re-minted over #82's Text model (run 36445296563), nothing else moved. The Visual provenance job now judges each changed baseline by its last setter, since merging main after main gained baselines tripped the per-commit rule (`visual-golden-harness.md`). Decision record: [icon-atlas.md](./AI_TECHNICAL_DECISIONS/icon-atlas.md).
 
 ## Text component on real metrics, estimate sites replaced (2026-09-28)
 
