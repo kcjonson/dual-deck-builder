@@ -1,7 +1,6 @@
 import type { DrawApi } from '../draw/DrawApi';
 import { Mat2D, Rect, Vec2, concat, invert, transformPoint, translation } from '../draw/geometry';
 import { LayerName, ROOT_LAYER, layerOrdinal } from '../draw/layers';
-import { InputSystem } from '../input/InputSystem';
 import { Style } from '../types/Style';
 import {
 	ComponentTransform,
@@ -14,6 +13,7 @@ import {
 	normalizeTransform,
 	transformMatrix,
 } from './componentGeometry';
+import type { MountContext } from './MountContext';
 
 /**
  * R8.29. `auto`: this box is a target and children are hit-tested.
@@ -52,6 +52,8 @@ export interface ComponentOptions {
 	/** Only valid when width and height are set. */
 	overflow?: Overflow;
 	style?: Style;
+	/** Fired after a layout in which this component's bounds changed, including the first (R8.21). */
+	onLayout?: (bounds: Rect) => void;
 }
 
 /**
@@ -99,6 +101,11 @@ export abstract class Component {
 	private hoverState = false;
 	private focusState = false;
 	private parentComponent: Component | null = null;
+	private mountContext: MountContext | null = null;
+	/** This subtree has to be laid out: set here and on every ancestor up to the boundary (R8.18). */
+	private needsLayout = false;
+	/** The bounds the last layout reported through `onLayout`; null until one ran. */
+	private laidOutBounds: Rect | null = null;
 	private ownedByParent = false;
 	/** R3.13's render-order view; null when a child or a zIndex changed. */
 	private orderView: readonly Component[] | null = null;
@@ -123,8 +130,12 @@ export abstract class Component {
 		if (options.transform !== undefined) this.ownTransform = normalizeTransform(options.transform);
 		if (options.pointerEvents !== undefined) this.ownPointerEvents = options.pointerEvents;
 		if (options.overflow !== undefined) this.setOverflow(options.overflow);
+		if (options.onLayout) this.onLayout = options.onLayout;
 		if (options.style) this.applyStyle(options.style);
 	}
+
+	/** R8.2's layout callback. A property, as every callback is (R8.25). */
+	public onLayout: ((bounds: Rect) => void) | null = null;
 
 	/**
 	 * R8.29's per-type default: `auto` for leaves and widgets. Containers say
@@ -196,7 +207,9 @@ export abstract class Component {
 	}
 
 	public set width(value: number) {
+		if (this.contentWidth === value) return;
 		this.contentWidth = value;
+		this.invalidateLayout();
 	}
 
 	public get height(): number {
@@ -204,7 +217,9 @@ export abstract class Component {
 	}
 
 	public set height(value: number) {
+		if (this.contentHeight === value) return;
 		this.contentHeight = value;
+		this.invalidateLayout();
 	}
 
 	public get margin(): Sides {
@@ -213,6 +228,7 @@ export abstract class Component {
 
 	public set margin(value: MarginInput) {
 		this.ownMargin = normalizeSides(value);
+		this.invalidateLayout();
 	}
 
 	/**
@@ -392,7 +408,9 @@ export abstract class Component {
 	}
 
 	public set visible(value: boolean) {
+		if (this.ownVisible === value) return;
 		this.ownVisible = value;
+		this.invalidateLayout();
 	}
 
 	public get enabled(): boolean {
@@ -548,7 +566,14 @@ export abstract class Component {
 			this.moveChild(child, index);
 			return this;
 		}
-		if (child.parentComponent) child.parentComponent.detachChild(child);
+		const previousParent = child.parentComponent;
+		if (previousParent) {
+			// R8.5: a move within one root keeps the subtree mounted; a move
+			// across roots is a removal first.
+			const sameRoot = previousParent.root === this.root;
+			previousParent.detachChild(child);
+			if (!sameRoot) child.unmount();
+		}
 		child.parentComponent = this;
 		// The mark belongs to the edge, not the node: a layer that was once
 		// someone's part and is re-added as an ordinary child is an ordinary
@@ -556,6 +581,9 @@ export abstract class Component {
 		child.ownedByParent = false;
 		this.children.splice(clampIndex(index, this.children.length), 0, child);
 		this.orderView = null;
+		// R8.15: adding to a mounted parent mounts at once.
+		if (this.mountContext && !child.mountContext) child.mount(this.mountContext);
+		this.invalidateLayout();
 		return this;
 	}
 
@@ -601,6 +629,7 @@ export abstract class Component {
 			child.ownedByParent = false;
 			child.unmount();
 		}
+		this.invalidateLayout();
 	}
 
 	private detachChild(child: Component): boolean {
@@ -614,6 +643,7 @@ export abstract class Component {
 		child.ownedByParent = false;
 		child[RECONCILE_KEY] = undefined;
 		child.exiting = false;
+		this.invalidateLayout();
 		return true;
 	}
 
@@ -687,21 +717,89 @@ export abstract class Component {
 		return null;
 	}
 
-	// -- lifecycle ------------------------------------------------------------
+	// -- lifecycle (R8.14 to R8.17, R8.28) ------------------------------------
+
+	public get isMounted(): boolean {
+		return this.mountContext !== null;
+	}
+
+	/** The services this component was mounted with; null while unmounted (R8.4). */
+	public get context(): MountContext | null {
+		return this.mountContext;
+	}
 
 	/**
-	 * Update method for game logic
-	 * @param dt Time since last update in seconds
+	 * Attaches this subtree to a rooted tree, top-down: `onMount` here, then
+	 * the children. A no-op when already mounted. Roots are mounted by their
+	 * owner (a screen, the gallery host); everything else is mounted by
+	 * `addChild` on a mounted parent.
 	 */
-	public update(dt: number): void {
-		for (const child of this.children) {
-			child.update(dt);
-		}
+	public mount(context: MountContext): void {
+		if (this.mountContext) return;
+		this.mountSubtree(context);
+		// The first layout after mount reports every component's bounds through
+		// `onLayout`, so geometry is known before the first render (R8.21).
+		this.invalidateLayout();
+	}
+
+	private mountSubtree(context: MountContext): void {
+		if (this.mountContext) return;
+		this.mountContext = context;
+		this.needsLayout = true;
+		this.onMount(context);
+		for (const child of this.children) child.mountSubtree(context);
+	}
+
+	/**
+	 * Detaches this subtree from its rooted tree, bottom-up: the children, then
+	 * `onUnmount` here, then everything the base registered (input, update
+	 * requests, pending layout). A no-op when not mounted (R8.15).
+	 */
+	public unmount(): void {
+		const context = this.mountContext;
+		if (!context) return;
+		for (const child of this.children) child.unmount();
+		this.onUnmount();
+		context.input.unregisterComponent(this);
+		context.frame.forget(this);
+		this.mountContext = null;
+		this.laidOutBounds = null;
+	}
+
+	/**
+	 * Registration goes here, never in the constructor (R8.14). The context is
+	 * also `this.context` from here until `onUnmount` returns.
+	 */
+	protected onMount(_context: MountContext): void {
+		// Override in subclasses
+	}
+
+	/** Release what `onMount` registered beyond input and update requests, which the base releases. */
+	protected onUnmount(): void {
+		// Override in subclasses
+	}
+
+	/**
+	 * R8.17: `update(dt)` on the next frame, once. Ignored while unmounted,
+	 * since nothing would run it.
+	 */
+	public requestUpdate(): void {
+		this.mountContext?.frame.requestUpdate(this);
+	}
+
+	/**
+	 * Called only on the frame after `requestUpdate`, in the update phase,
+	 * before layout. Components that animate request again from here.
+	 * @param _dt Seconds since the last frame, clamped (R13.9)
+	 */
+	public update(_dt: number): void {
+		// Override in subclasses
 	}
 
 	/**
 	 * Explicit size estimation, called by hand where a screen needs Text sizes
-	 * before the first render. Phase 4's measure and assign replace it.
+	 * before the first render. Phase 4's measure and assign replace it; it is
+	 * not the frame's layout pass, which is `layoutSubtree`.
 	 */
 	public layout(): void {
 		for (const child of this.children) {
@@ -710,14 +808,64 @@ export abstract class Component {
 	}
 
 	/**
-	 * Releases what the component registered, bottom-up. Safe to call on a
-	 * subtree that was never registered.
+	 * R8.18: something that affects size or position changed. Marks this
+	 * component and every ancestor up to the nearest relayout boundary, and
+	 * hands the boundary to the frame's layout phase.
 	 */
-	public unmount(): void {
-		for (const child of this.children) {
-			child.unmount();
+	public invalidateLayout(): void {
+		this.needsLayout = true;
+		const boundary = this.parentComponent ? this.parentComponent.markLayoutPath() : this;
+		this.mountContext?.frame.scheduleLayout(boundary);
+	}
+
+	private markLayoutPath(): Component {
+		this.needsLayout = true;
+		if (this.isRelayoutBoundary || !this.parentComponent) return this;
+		return this.parentComponent.markLayoutPath();
+	}
+
+	/**
+	 * Whether this component's own size is independent of its children, so a
+	 * change beneath it stops here. Every component is fixed-size until phase
+	 * 4's sizing modes, where `hug` and `fill` answer false.
+	 */
+	protected get isRelayoutBoundary(): boolean {
+		return true;
+	}
+
+	/**
+	 * Positions and sizes this component's children. The frame's layout pass
+	 * calls it top-down on dirty components; phase 4's Stack implements it.
+	 */
+	protected layoutChildren(): void {
+		// A plain container leaves its children where they were put.
+	}
+
+	/**
+	 * The frame's layout pass over this subtree (R8.16, R8.18): dirty
+	 * components lay out their children, top-down; invisible subtrees are
+	 * skipped and stay dirty for when they are shown (R8.3); every component
+	 * whose bounds changed hears `onLayout`.
+	 */
+	public layoutSubtree(): void {
+		if (!this.visible) return;
+		if (this.needsLayout) {
+			this.needsLayout = false;
+			this.layoutChildren();
+			for (const child of this.children) child.layoutSubtree();
 		}
-		InputSystem.unregisterComponent(this);
+		this.reportLayout();
+	}
+
+	private reportLayout(): void {
+		const bounds = this.bounds;
+		const previous = this.laidOutBounds;
+		if (previous && previous.x === bounds.x && previous.y === bounds.y
+			&& previous.width === bounds.width && previous.height === bounds.height) {
+			return;
+		}
+		this.laidOutBounds = bounds;
+		this.onLayout?.(bounds);
 	}
 
 	// -- interaction state ----------------------------------------------------

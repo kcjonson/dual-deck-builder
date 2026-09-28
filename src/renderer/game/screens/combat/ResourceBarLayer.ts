@@ -204,4 +204,9 @@ export class ResourceBarLayer extends Layer {
 	protected onResized(): void {
 		this.layoutElements();
 	}
+
+	/** The driver displays hug their measured values, so they are placed after they lay out. */
+	protected layoutChildren(): void {
+		this.layoutElements();
+	}
 }

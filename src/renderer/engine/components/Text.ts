@@ -8,7 +8,7 @@ import type {
 	TextWrap,
 } from '../draw/commands';
 import type { DrawApi } from '../draw/DrawApi';
-import { RendererContext } from '../rendering/RendererContext';
+import type { MountContext } from './MountContext';
 import type { FontRole } from '../text/fontFaces';
 import { resolveFontRole } from '../text/fontRoles';
 import { Style, StyleParser } from '../types/Style';
@@ -37,10 +37,12 @@ const OVERFLOW: Readonly<Record<NonNullable<Style['textOverflow']>, TextOverflow
  * metrics service, the same layout `drawText` draws (R6.8). Setting an axis
  * back to zero hugs it again.
  *
- * Measurement needs the draw API and a backend with the text's atlas. Built
- * before either exists (a unit test's tree on the null backend), a hugging
- * text keeps a zero size, the layout lint's `unmeasured-text`, and measures
- * the first time it renders somewhere that can. It never estimates.
+ * Measurement goes through the mount context's draw API (R1.6), on mount and
+ * on every change while mounted. Unmounted, or mounted on a backend without
+ * the text's atlas (a unit test's null backend), a hugging text keeps a zero
+ * size, the layout lint's `unmeasured-text`. It never estimates, and it never
+ * measures during render, where a size change would invalidate layout
+ * (R8.16).
  */
 export class Text extends Component {
 	private content: string;
@@ -115,6 +117,8 @@ export class Text extends Component {
 		if (text !== this.content) {
 			this.content = text;
 			this.measure();
+			// Content is measurement input even when both axes are assigned (R8.18).
+			this.invalidateLayout();
 		}
 		return this;
 	}
@@ -127,6 +131,7 @@ export class Text extends Component {
 		if (size !== this.fontSize) {
 			this.fontSize = size;
 			this.measure();
+			this.invalidateLayout();
 		}
 		return this;
 	}
@@ -152,25 +157,22 @@ export class Text extends Component {
 
 	/** Positive assigns the width; zero hugs the measured width again. */
 	public setWidth(width: number): this {
-		super.setWidth(width);
 		this.assignedWidth = width > 0;
-		this.measure();
+		this.fit(width, this.height);
 		return this;
 	}
 
 	/** Positive assigns the height; zero hugs the measured height again. */
 	public setHeight(height: number): this {
-		super.setHeight(height);
 		this.assignedHeight = height > 0;
-		this.measure();
+		this.fit(this.width, height);
 		return this;
 	}
 
 	public setSize(width: number, height: number): this {
-		super.setSize(width, height);
 		this.assignedWidth = width > 0;
 		this.assignedHeight = height > 0;
-		this.measure();
+		this.fit(width, height);
 		return this;
 	}
 
@@ -200,24 +202,42 @@ export class Text extends Component {
 	 * repeating one is a map lookup.
 	 */
 	private measure(): void {
-		const context = RendererContext.getInstance();
-		if (!context.hasDraw || !context.draw.canMeasureText(this.fontRole)) {
+		this.fit(this.width, this.height);
+	}
+
+	/**
+	 * Sizes both axes in one step: an assigned axis to the value given, a
+	 * hugging one to the measure, or zero while nothing can measure. One step,
+	 * because a hugging axis that passed through zero on its way to its
+	 * measure would invalidate layout for a size it never had (R8.18).
+	 */
+	private fit(width: number, height: number): void {
+		const metrics = this.layoutMetrics(this.assignedWidth ? width : undefined);
+		super.setSize(
+			this.assignedWidth ? width : (metrics?.width ?? 0),
+			this.assignedHeight ? height : (metrics?.height ?? 0),
+		);
+	}
+
+	/** The layout at a wrap width, through the mount context's draw API (R1.6); null when nothing can measure. */
+	private layoutMetrics(maxWidth: number | undefined): TextMetrics | null {
+		const draw = this.context?.draw;
+		if (!draw || !draw.canMeasureText(this.fontRole)) {
 			this.stale = true;
-			return;
+			return null;
 		}
-		this.metrics = context.draw.measureText({
+		this.metrics = draw.measureText({
 			text: this.content,
 			font: this.fontRole,
 			size: this.fontSize,
 			letterSpacing: this.letterSpacing,
 			textTransform: this.textTransform,
 			wrap: this.wrap,
-			maxWidth: this.assignedWidth ? this.width : undefined,
+			maxWidth,
 			lineHeight: this.lineHeight ?? undefined,
 		});
 		this.stale = false;
-		if (!this.assignedWidth) this.width = this.metrics.width;
-		if (!this.assignedHeight) this.height = this.metrics.height;
+		return this.metrics;
 	}
 
 	public layout(): void {
@@ -225,9 +245,16 @@ export class Text extends Component {
 		super.layout();
 	}
 
-	public render(draw: DrawApi): void {
-		if (this.stale) this.measure();
+	/**
+	 * Measurement comes through the mount context (R1.6), so a text measures
+	 * here the first time and hugs from then on; the size change invalidates
+	 * its relayout boundary, which lays out again before the first render.
+	 */
+	protected onMount(_context: MountContext): void {
+		this.measure();
+	}
 
+	public render(draw: DrawApi): void {
 		draw.drawText({
 			id: this.id ?? undefined,
 			text: this.content,

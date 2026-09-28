@@ -5,6 +5,7 @@ import { DriverSelectionScreen } from './DriverSelectionScreen';
 import { DriverPanel } from './DriverPanel';
 import type { Component } from '../../../engine/components/Component';
 import { Button } from '../../../engine/ui/Button';
+import { createTestContext } from '../../../engine/components/testing';
 import { DriverLoader } from '../../core/DriverLoader';
 import { Driver } from '../../mechanics/Driver';
 import { isSameDriver } from '../../mechanics/DriverPair';
@@ -38,13 +39,21 @@ function findById(layer: Component, id: string): Component | null {
 	return null;
 }
 
+
+/**
+ * Mounted the way the page mounts screens. The viewport follows the window,
+ * because these tests size the window and the screens still read it.
+ */
+const context = createTestContext({
+	viewport: { get logical() { return { width: window.innerWidth, height: window.innerHeight }; } },
+});
 function flushPromises(): Promise<void> {
 	return new Promise(resolve => setTimeout(resolve, 0));
 }
 
 async function mountScreen(): Promise<{ screen: DriverSelectionScreen; left: DriverPanel; right: DriverPanel; startRun: Button }> {
 	const screen = new DriverSelectionScreen();
-	screen.mount();
+	screen.mount(context);
 	await flushPromises();
 
 	const left = findById(screen.root, 'driver_select_panel_left');
@@ -125,7 +134,7 @@ describe('DriverSelectionScreen: one driver per slot', () => {
 		expect(screen.getSelectedDrivers().driver2?.archetype).toBe(rosterDrivers[0].archetype);
 
 		screen.unmount();
-		screen.mount();
+		screen.mount(context);
 		await flushPromises();
 
 		expectDifferentDrivers(screen);

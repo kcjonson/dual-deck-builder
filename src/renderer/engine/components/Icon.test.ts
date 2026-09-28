@@ -4,38 +4,43 @@
 import { DrawApi, TextCommand } from '../draw';
 import { ICON_ATLAS_ROLE } from '../text/fontFaces';
 import { ICON_CODE_POINTS } from '../text/icons';
-import { installMeasuringDrawApi, MeasuringRecordingBackend } from '../text/testing';
-import { tokens } from '../theme/tokens';
-import { Button } from '../ui/Button';
-import { Icon } from './Icon';
+import { createMeasuringDrawApi, MeasuringRecordingBackend } from '../text/testing';
+import type { MountContext } from './MountContext';
 import { Component } from './Component';
 import { Layer } from './Layer';
 import { renderTree } from './renderTree';
-
-/** A command's box in screen space: its local box through the walk's translation. */
-function screenBox(command: TextCommand): { x: number; y: number; width: number; height: number } {
-	const box = command.box ?? { x: NaN, y: NaN, width: NaN, height: NaN };
-	return { x: box.x + command.transform[4], y: box.y + command.transform[5], width: box.width, height: box.height };
-}
-
+import { createTestContext } from './testing';
+import { tokens } from '../theme/tokens';
+import { Button } from '../ui/Button';
+import { Icon } from './Icon';
 
 describe('Icon (R12.6)', () => {
 	let backend: MeasuringRecordingBackend;
 	let api: DrawApi;
+	let context: MountContext;
 
 	beforeEach(() => {
-		({ api, backend } = installMeasuringDrawApi());
+		({ api, backend } = createMeasuringDrawApi());
+		context = createTestContext({ draw: api });
 	});
 
 	function textCommands(): TextCommand[] {
 		return backend.commands.filter((command): command is TextCommand => command.kind === 'text');
 	}
 
-	/** Walks one frame of `root`, the way the page does. */
+	/** Mounts, lays out, and walks one frame of `root`, the way the page does. */
 	function frame(root: Component): void {
+		root.mount(context);
+		context.frame.layout();
 		api.beginFrame({ viewport: { width: 400, height: 200 } });
 		renderTree(root, api);
 		api.endFrame();
+	}
+
+	/** A command's box in screen space: its local box through the walk's translation. */
+	function screenBox(command: TextCommand): { x: number; y: number; width: number; height: number } {
+		const box = command.box ?? { x: NaN, y: NaN, width: NaN, height: NaN };
+		return { x: box.x + command.transform[4], y: box.y + command.transform[5], width: box.width, height: box.height };
 	}
 
 	it('draws its glyph from the icon atlas, centred in its box, in text mode', () => {
@@ -126,22 +131,23 @@ describe('Icon (R12.6)', () => {
 			expect(labelCentre - labelWidth / 2).toBeCloseTo(iconBox.x + iconBox.width + gap, 0);
 		});
 
-		it('keeps its placement when the button moves, and re-places after a label change', () => {
+		it('places in the layout phase, not again for a move, and again after a label change', () => {
 			const button = new Button('Back', { icon: 'arrow_back', width: 200, height: 50 });
-			button.setPosition(0, 0);
 			// Text measures itself too, so count the button's own placement.
 			const place = jest.spyOn(Button.prototype as unknown as { placeIcon: () => void }, 'placeIcon');
 			frame(button);
+			const placed = place.mock.calls.length;
+			expect(placed).toBeGreaterThan(0);
 			const first = textCommands().map(screenBox);
 
 			button.setPosition(0, 0);
-			frame(button);
-			expect(textCommands().map(screenBox)).toEqual(first);
-			expect(place).toHaveBeenCalledTimes(1);
+			context.frame.layout();
+			expect(place).toHaveBeenCalledTimes(placed);
 
 			button.setLabel('Back to Menu');
-			frame(button);
-			expect(place).toHaveBeenCalledTimes(2);
+			context.frame.layout();
+			expect(place.mock.calls.length).toBeGreaterThan(placed);
+			expect(first).toHaveLength(2);
 			place.mockRestore();
 		});
 

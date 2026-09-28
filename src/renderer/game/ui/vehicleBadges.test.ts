@@ -4,21 +4,27 @@
 import { DrawApi, RectCommand, TextCommand } from '../../engine/draw';
 import { ICON_ATLAS_ROLE } from '../../engine/text/fontFaces';
 import { ICON_CODE_POINTS } from '../../engine/text/icons';
-import { installMeasuringDrawApi, MeasuringRecordingBackend } from '../../engine/text/testing';
+import { createMeasuringDrawApi, MeasuringRecordingBackend } from '../../engine/text/testing';
+import type { Component } from '../../engine/components/Component';
+import type { MountContext } from '../../engine/components/MountContext';
+import { renderTree } from '../../engine/components/renderTree';
+import { createTestContext } from '../../engine/components/testing';
 import { ArmorBadge } from './ArmorBadge';
 import { IntentMarker } from './IntentMarker';
-import type { Component } from '../../engine/components/Component';
-import { renderTree } from '../../engine/components/renderTree';
 
 let backend: MeasuringRecordingBackend;
 let api: DrawApi;
+let context: MountContext;
 
 beforeEach(() => {
-	({ api, backend } = installMeasuringDrawApi());
+	({ api, backend } = createMeasuringDrawApi());
+	context = createTestContext({ draw: api });
 });
 
-/** Walks one frame of each root, the way the page does. */
+/** Lays out whatever changed, then walks one frame of each root, the way the page does. */
 function frame(...roots: Component[]): void {
+	for (const root of roots) root.mount(context);
+	context.frame.layout();
 	api.beginFrame({ viewport: { width: 400, height: 200 } });
 	for (const root of roots) renderTree(root, api);
 	api.endFrame();

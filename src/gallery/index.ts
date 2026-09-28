@@ -2,8 +2,7 @@ import { DrawApi } from '../renderer/engine/draw';
 import { Renderer, showStatusLine } from '../renderer/engine/rendering/Renderer';
 import { createDrawApi } from '../renderer/engine/rendering/WebGL2Backend';
 import { FrameLoop } from '../renderer/engine/rendering/FrameLoop';
-import { RendererContext } from '../renderer/engine/rendering/RendererContext';
-import { InputSystem } from '../renderer/engine/input/InputSystem';
+import { MountContext, createMountContext } from '../renderer/engine/components/MountContext';
 import { FrameTimer } from '../renderer/engine/rendering/FrameTimer';
 import { GpuTimer, createGpuTimer } from '../renderer/engine/rendering/GpuTimer';
 import { createDevToolsTracks } from '../renderer/engine/debug/devtoolsTracks';
@@ -29,7 +28,7 @@ import { SceneHost } from './SceneHost';
  * has to run against a development build.
  *
  * The bootstrap mirrors src/index.ts deliberately: the same renderer, the same
- * RendererContext singleton, the same InputSystem setup, the same backend, and
+ * mount context factory, the same input setup, the same backend, and
  * a frame loop with the same shape. A gallery that renders through a different
  * path would prove things about the gallery rather than about the game.
  */
@@ -40,6 +39,7 @@ class GalleryApplication {
 	private gpuTimer!: GpuTimer;
 	private host!: SceneHost;
 	private frameLoop!: FrameLoop;
+	private context!: MountContext;
 
 	public async init(): Promise<void> {
 		try {
@@ -54,21 +54,20 @@ class GalleryApplication {
 			this.renderer = new Renderer('game-canvas');
 			this.gpuTimer = createGpuTimer(this.renderer);
 
-			const canvas = document.getElementById('game-canvas') as HTMLCanvasElement;
-			InputSystem.getInstance().setup(canvas);
-
-			// Line for line what src/index.ts does, through the same factory.
+			// Line for line what src/index.ts does, through the same factories.
 			this.draw = createDrawApi({
 				renderer: this.renderer,
 				frameTimer: this.frameTimer,
 				gpuTimer: this.gpuTimer,
 				fontAtlases: await fontAtlases,
 			});
-			RendererContext.getInstance().draw = this.draw;
+			this.context = createMountContext({ draw: this.draw, viewport: this.renderer.viewport });
+			const canvas = this.renderer.canvas;
+			this.context.input.setup(canvas);
 
 			this.host = new SceneHost({
 				scenes: gallerySceneRegistry,
-				viewport: () => this.renderer.viewport.logical,
+				context: this.context,
 			});
 
 			this.mountFromLocation();
@@ -140,7 +139,7 @@ class GalleryApplication {
 		// R13.35, on the same canvas the InputSystem listens to. The gallery
 		// gets it for the same reason it gets the tree and the lint: a scripted
 		// run drives a scene the way it drives a screen.
-		installInputHooks(canvas);
+		installInputHooks({ canvas, input: this.context.input });
 
 		// R13.11's scene name is the gallery's own, which is the grouping key a
 		// per-scene capture (R13.38) writes into perf-results.
@@ -175,6 +174,10 @@ class GalleryApplication {
 		this.renderer.viewport.commit();
 		this.host.update(deltaTime);
 		this.frameTimer.endSection('update');
+
+		this.frameTimer.beginSection('layout');
+		this.host.layout();
+		this.frameTimer.endSection('layout');
 
 		this.frameTimer.beginSection('render');
 		// Clears the target too: the clear is the render pass's (R15.38).

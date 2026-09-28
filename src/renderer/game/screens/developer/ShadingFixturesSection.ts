@@ -1,7 +1,7 @@
 import { Panel } from '../../../engine/ui/Panel';
 import { Text } from '../../../engine/components/Text';
 import type { BlendMode, BorderPosition, BoxShadow, CornerRadii, DrawApi, RGBA, TextureHandle } from '../../../engine/draw';
-import { RendererContext } from '../../../engine/rendering/RendererContext';
+import type { MountContext } from '../../../engine/components/MountContext';
 import { DrawFixture, fixtureHeading, fixtureLabel } from './DrawFixture';
 
 const FIXTURE_TOP = 50;
@@ -52,12 +52,6 @@ export class ShadingFixturesSection extends Panel {
 		title.setPosition(0, 0);
 		this.addChild(title);
 
-		// Created here, outside any frame (R2.17), and uploaded through the
-		// metered queue at the next beginFrame; the photo row draws a
-		// placeholder until then.
-		const draw = RendererContext.getInstance().draw;
-		this.photo = draw.createTexture({ width: PHOTO_WIDTH, height: PHOTO_HEIGHT, label: 'shading fixture photo', source: photograph() });
-
 		this.addChild(new DrawFixture({
 			id: 'dev_fixture_shading',
 			x: 0,
@@ -65,13 +59,26 @@ export class ShadingFixturesSection extends Panel {
 			width,
 			height: FIXTURE_HEIGHT,
 			paint: (api) => this.paint(api),
-			release: () => {
-				if (this.photo) RendererContext.getInstance().draw.destroyTexture(this.photo);
-				this.photo = null;
-			},
 		}));
 
 		this.setSize(width, FIXTURE_TOP + FIXTURE_HEIGHT);
+	}
+
+	/**
+	 * The photo is a GPU resource, so it is made on mount and never in the
+	 * constructor (R8.14). Mount runs outside any frame (R2.17); the texture
+	 * uploads through the metered queue at the next beginFrame, and the photo
+	 * row draws a placeholder until then.
+	 */
+	protected onMount(context: MountContext): void {
+		super.onMount(context);
+		this.photo = context.draw.createTexture({ width: PHOTO_WIDTH, height: PHOTO_HEIGHT, label: 'shading fixture photo', source: photograph() });
+	}
+
+	protected onUnmount(): void {
+		if (this.photo) this.context?.draw.destroyTexture(this.photo);
+		this.photo = null;
+		super.onUnmount();
 	}
 
 	private paint(draw: DrawApi): void {

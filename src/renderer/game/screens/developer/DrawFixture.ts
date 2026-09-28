@@ -9,8 +9,6 @@ export interface DrawFixtureOptions {
 	height: number;
 	/** Draws in the fixture's own space: (0, 0) is its top-left corner. */
 	paint: (draw: DrawApi) => void;
-	/** Releases whatever `paint` holds (textures), once, when the fixture unmounts. */
-	release?: () => void;
 }
 
 /**
@@ -24,25 +22,16 @@ export interface DrawFixtureOptions {
  */
 export class DrawFixture extends Layer {
 	private readonly paint: (draw: DrawApi) => void;
-	private release: (() => void) | null;
 
-	constructor({ id, x, y, width, height, paint, release }: DrawFixtureOptions) {
+	constructor({ id, x, y, width, height, paint }: DrawFixtureOptions) {
 		super({ id, x, y, width, height });
 		this.componentType = 'DrawFixture';
 		this.paint = paint;
-		this.release = release ?? null;
 	}
 
 	/** The walk has already translated to the fixture's origin. */
 	public render(draw: DrawApi): void {
 		this.paint(draw);
-	}
-
-	public unmount(): void {
-		super.unmount();
-		const release = this.release;
-		this.release = null;
-		release?.();
 	}
 }
 

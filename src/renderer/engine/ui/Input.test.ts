@@ -3,7 +3,9 @@
  */
 import { Rectangle } from '../components/Rectangle';
 import { Text } from '../components/Text';
-import { installMeasuringDrawApi } from '../text/testing';
+import { createMeasuringDrawApi } from '../text/testing';
+import { createTestContext } from '../components/testing';
+import type { MountContext } from '../components/MountContext';
 import { Input } from './Input';
 
 function parts(input: Input): { value: Text; caret: Rectangle } {
@@ -13,12 +15,21 @@ function parts(input: Input): { value: Text; caret: Rectangle } {
 }
 
 describe('Input caret (R2.14)', () => {
+	let context: MountContext;
+
 	beforeAll(() => {
-		installMeasuringDrawApi();
+		context = createTestContext({ draw: createMeasuringDrawApi().api });
 	});
 
+	/** Mounted and laid out: the caret follows the value's measured layout. */
+	function mounted(input: Input): Input {
+		input.mount(context);
+		context.frame.layout();
+		return input;
+	}
+
 	it('sits after the last code point, at the pen position the value is drawn with', () => {
-		const input = new Input('placeholder', { width: 200, height: 30 });
+		const input = mounted(new Input('placeholder', { width: 200, height: 30 }));
 		input.setValue('Hello ');
 		const { value, caret } = parts(input);
 		const advances = value.measured?.advances ?? [];
@@ -30,7 +41,7 @@ describe('Input caret (R2.14)', () => {
 	});
 
 	it('spans the value line box, centred in the field', () => {
-		const input = new Input('', { width: 200, height: 30 });
+		const input = mounted(new Input('', { width: 200, height: 30 }));
 		const { value, caret } = parts(input);
 		const lineHeight = value.measured?.height ?? 0;
 

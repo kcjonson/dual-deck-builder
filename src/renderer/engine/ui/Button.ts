@@ -1,8 +1,8 @@
 import { Component, ComponentOptions, PointerEvents } from '../components/Component';
 import { Icon } from '../components/Icon';
+import type { MountContext } from '../components/MountContext';
 import { Rectangle } from '../components/Rectangle';
 import { Text } from '../components/Text';
-import { InputSystem } from '../input/InputSystem';
 import type { IconName } from '../text/icons';
 import { tokens } from '../theme/tokens';
 
@@ -22,8 +22,6 @@ export class Button extends Component {
 	private background: Rectangle;
 	private text: Text;
 	private icon: Icon | null = null;
-	/** The icon is placed against the label's measured width, which needs the draw API, so at the next render. */
-	private iconPlaced = false;
 	/** The icon and gap the label's box gives up on its left. */
 	private labelInset = 0;
 	private pressed = false;
@@ -77,9 +75,6 @@ export class Button extends Component {
 			this.icon = new Icon({ glyph: options.icon, size: this.iconSize, tint: tokens.color.text_bright });
 			this.addPart(this.icon);
 		}
-
-		// Setup event handling (this would be connected to the input system)
-		this.setupEvents();
 	}
 
 	/** R8.29: the label and background are internals, not targets. */
@@ -88,15 +83,19 @@ export class Button extends Component {
 	}
 
 	/**
-	 * Setup input event handling for the button
-	 * Registers this button with the global InputSystem for mouse events
+	 * The icon sits against the label's measured width, which exists from
+	 * mount (R1.6); the layout phase places it before the first render, and a
+	 * new label, font size, or size lays it out again (R8.18).
 	 */
-	private setupEvents(): void {
-		// Register event handlers with the global input system
-		InputSystem.registerMouseOver(this, () => this.onMouseOver());
-		InputSystem.registerMouseOut(this, () => this.onMouseOut());
-		InputSystem.registerMouseDown(this, () => this.onMouseDown());
-		InputSystem.registerMouseUp(this, () => this.onMouseUp());
+	protected layoutChildren(): void {
+		if (this.icon) this.placeIcon(this.icon);
+	}
+
+	protected onMount({ input }: MountContext): void {
+		input.registerMouseOver(this, () => this.onMouseOver());
+		input.registerMouseOut(this, () => this.onMouseOut());
+		input.registerMouseDown(this, () => this.onMouseDown());
+		input.registerMouseUp(this, () => this.onMouseUp());
 	}
 
 	/**
@@ -105,7 +104,6 @@ export class Button extends Component {
 	 */
 	public setLabel(text: string): this {
 		this.text.setText(text);
-		this.iconPlaced = false;
 		return this;
 	}
 
@@ -115,7 +113,6 @@ export class Button extends Component {
 	 */
 	public setFontSize(size: number): this {
 		this.text.setFontSize(size);
-		this.iconPlaced = false;
 		return this;
 	}
 
@@ -127,7 +124,6 @@ export class Button extends Component {
 
 		// Update the text position and size to match button
 		this.updateTextPosition();
-		this.iconPlaced = false;
 
 		return this;
 	}
@@ -166,12 +162,12 @@ export class Button extends Component {
 	 * Icon, gap and label are centred as one group: the label's box gives up
 	 * the icon and gap on its left, which moves its centre right by half of
 	 * them, and the icon sits just before the label's left edge. The width is
-	 * the label's own measure, so its tracking and transform count (R12.7).
-	 * False, and nothing moved, while the label cannot be measured yet.
+	 * the label's own measure, so its tracking and transform count (R12.7);
+	 * nothing moves while the label cannot be measured.
 	 */
-	private placeIcon(icon: Icon): boolean {
+	private placeIcon(icon: Icon): void {
 		const labelWidth = this.text.measured?.width;
-		if (labelWidth === undefined) return false;
+		if (labelWidth === undefined) return;
 		const iconSize = this.iconSize;
 		const gap = Math.round(this.text.getFontSize() * ICON_GAP);
 		const groupLeft = (this.width - (iconSize + gap + labelWidth)) / 2;
@@ -179,7 +175,6 @@ export class Button extends Component {
 		icon.setPosition(Math.round(groupLeft), Math.round((this.height - iconSize) / 2));
 		this.labelInset = iconSize + gap;
 		this.updateTextPosition();
-		return true;
 	}
 
 	/**
@@ -289,16 +284,5 @@ export class Button extends Component {
 	public setCornerRadius(radius: number): this {
 		this.background.setCornerRadius(radius);
 		return this;
-	}
-
-	/**
-	 * The button draws nothing of its own; this is where the icon is placed
-	 * against the label's measured width, before the walk visits them. The
-	 * frame's layout phase takes this over with the mount context.
-	 */
-	public render(): void {
-		if (this.icon && !this.iconPlaced) {
-			this.iconPlaced = this.placeIcon(this.icon);
-		}
 	}
 }
