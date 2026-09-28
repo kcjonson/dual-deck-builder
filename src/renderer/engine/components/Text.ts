@@ -1,7 +1,8 @@
 import { Component, ComponentOptions } from './Component';
 import { RendererContext } from '../rendering/RendererContext';
 import { RenderContext, DEFAULT_RENDER_CONTEXT } from '../rendering/RenderContext';
-import { DEFAULT_FONT } from '../rendering/fonts';
+import type { FontRole } from '../text/fontFaces';
+import { resolveFontRole } from '../text/fontRoles';
 import { Style, StyleParser } from '../types/Style';
 
 /**
@@ -15,6 +16,8 @@ export type TextOptions = ComponentOptions;
 export class Text extends Component {
 	private text: string;
 	private fontSize = 16;
+	/** R11.8's role, from the style's `fontFamily` and `fontWeight` through the theme table. */
+	private fontRole: FontRole = 'body';
 	private color: [number, number, number, number] = [1, 1, 1, 1];
 	private align: 'left' | 'center' | 'right' = 'left';
 	private baseline: 'top' | 'middle' | 'bottom' = 'top';
@@ -47,6 +50,9 @@ export class Text extends Component {
 	private applyTextStyle(style: Style): void {
 		if (style.fontSize !== undefined) {
 			this.fontSize = this.parseSize(style.fontSize);
+		}
+		if (style.fontFamily !== undefined || style.fontWeight !== undefined) {
+			this.fontRole = resolveFontRole({ family: style.fontFamily, weight: style.fontWeight });
 		}
 		if (style.color !== undefined) {
 			this.color = StyleParser.parseColor(style.color);
@@ -126,6 +132,11 @@ export class Text extends Component {
 	 */
 	public getFontSize(): number {
 		return this.fontSize;
+	}
+
+	/** The font role this text draws with (R11.8). */
+	get font(): FontRole {
+		return this.fontRole;
 	}
 
 	/**
@@ -246,15 +257,15 @@ export class Text extends Component {
 		
 		// Render each line separately. `position` and not `box`: `xPos` is
 		// already the alignment anchor this component computed from its own
-		// bounds, and the backend subtracts the measured extent from it the way
-		// `Renderer.drawText` did. R2.13's `box` is different arithmetic.
+		// bounds, and `verticalAlign` puts that edge of the line box on
+		// `lineY`. Real line boxes, and R2.13's `box`, are DDB-71's.
 		for (let i = 0; i < lines.length; i++) {
 			const lineY = yPos + (i * lineHeight);
 			draw.drawText({
 				id: this.id ?? undefined,
 				text: lines[i],
 				position: { x: xPos, y: lineY },
-				font: DEFAULT_FONT,
+				font: this.fontRole,
 				size: this.fontSize,
 				color: this.color,
 				align: this.align,

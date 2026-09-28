@@ -150,7 +150,8 @@ export class DriverSelectionScreen extends Screen {
 		const screenHeight = window.innerHeight;
 		
 		// Back button
-		this.backButton = new Button('← Back to Menu', {
+		// The back arrow returns as an icon with DDB-72; the atlas has no glyph for it (R6.3).
+		this.backButton = new Button('Back to Menu', {
 			id: 'driver_select_back_button',
 			width: 200,
 			height: 50,

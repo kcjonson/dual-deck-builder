@@ -1,6 +1,6 @@
 import { FontAtlasError } from './FontAtlas';
 import { FONT_FACES, FontFaceAsset } from './fontFaces';
-import { AtlasImage, loadFontAtlases } from './loadFontAtlases';
+import { AtlasImage, fontLoadFailureMessage, loadFontAtlases } from './loadFontAtlases';
 
 const body = FONT_FACES.find((entry) => entry.face === 'open-sans-regular') as FontFaceAsset;
 const face = (overrides: Partial<FontFaceAsset> = {}): FontFaceAsset => ({ ...body, ...overrides });
@@ -57,5 +57,14 @@ describe('loadFontAtlases', () => {
 		await expect(loadFontAtlases({ faces: [face(), face({ face: 'broken', metrics: {} })], loadImage }))
 			.rejects.toThrow('Font atlas broken: missing "atlas"');
 		expect(loadImage).not.toHaveBeenCalled();
+	});
+});
+
+describe('fontLoadFailureMessage', () => {
+	it('says what failed and what to do, for the page to show instead of a blank canvas', () => {
+		const message = fontLoadFailureMessage(new FontAtlasError('open-sans-regular', 'image failed to load (404)'));
+		expect(message).toBe(
+			"The game's fonts failed to load (Font atlas open-sans-regular: image failed to load (404)). Reload the page to try again.",
+		);
 	});
 });

@@ -10,9 +10,6 @@ const int MODE_SHADOW = 2;
 const int MODE_CIRCLE = 3;
 const int MODE_IMAGE = 4;
 const int MODE_TEXT = 5;
-// Temporary: the canvas-rasterised bitmap atlas, coverage in the red channel.
-// Replaced by MODE_TEXT with chapter 6's distance-field atlases (DDB-70).
-const int MODE_MASK = 6;
 
 // R5.20: a fixed set of units, selected per draw by slot. GLSL ES 3.00 cannot
 // index a sampler array dynamically, hence the switch in `sampleSlot`.
@@ -163,14 +160,28 @@ void main() {
 		// R5.18: premultiplied texels times a premultiplied tint.
 		color = sampleSlot(slot, vTexCoord, uvDx, uvDy) * vFill;
 	} else if (mode == MODE_TEXT) {
-		// R5.21: multi-channel distance field; vShape.z is the atlas range in
-		// device pixels at this glyph's size, computed at submission (R5.28).
-		vec3 texel = sampleSlot(slot, vTexCoord, uvDx, uvDy).rgb;
-		float alpha = clamp(vShape.z * (median3(texel) - 0.5) + 0.5, 0.0, 1.0);
-		color = vFill * alpha;
-		covered = alpha;
-	} else if (mode == MODE_MASK) {
-		float alpha = sampleSlot(slot, vTexCoord, uvDx, uvDy).r;
+		// R6.5: median-of-three MSDF coverage with the linear one-pixel ramp.
+		// vShape.z is the screen-space distance range in device pixels,
+		// computed at submission under a translate-only transform; zero
+		// means derive it here from the texture coordinate's footprint, with
+		// the atlas's unit range (range over atlas size) in vHalfSize, as
+		// msdfgen's reference shader does. Either way at least 1 (R6.4a).
+		vec4 texel = sampleSlot(slot, vTexCoord, uvDx, uvDy);
+		float range = vShape.z;
+		if (range <= 0.0) {
+			vec2 screenTexSize = vec2(1.0) / max(abs(uvDx) + abs(uvDy), vec2(1e-6));
+			range = max(0.5 * dot(vHalfSize, screenTexSize), 1.0);
+		}
+		float alpha;
+		if (vMode.w > 0.0) {
+			// R6.6's blurred shadow run: the mtsdf alpha channel is a true
+			// distance, so it stays smooth away from the outline, out to half
+			// the atlas range; vMode.w is the blur in device pixels.
+			float distance = (texel.a - 0.5) * range;
+			alpha = smoothstep(-vMode.w, vMode.w, distance);
+		} else {
+			alpha = clamp(range * (median3(texel.rgb) - 0.5) + 0.5, 0.0, 1.0);
+		}
 		color = vFill * alpha;
 		covered = alpha;
 	} else {

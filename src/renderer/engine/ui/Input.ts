@@ -181,16 +181,12 @@ export class Input extends Component {
 	private updateCursorPosition(): void {
 		if (!this.text || !this.cursor) return;
 		
-		// Get the renderer from the global context
-		const renderer = RendererContext.getInstance().getRenderer();
-		if (!renderer) return;
-		
-		// Get the font atlas to measure text
-		const fontAtlas = renderer.getFontAtlas();
-		if (!fontAtlas) return;
-		
-		// Measure the text width
-		const measurement = fontAtlas.measureText(this.value);
+		// Measured through the same glyph iteration the text is drawn with (R2.14).
+		const measurement = RendererContext.getInstance().draw.measureText({
+			text: this.value,
+			font: this.text.font,
+			size: this.text.getFontSize(),
+		});
 		
 		// Position cursor after the text with the same offset as the text
 		const textOffset = 10; // Same as text offset
