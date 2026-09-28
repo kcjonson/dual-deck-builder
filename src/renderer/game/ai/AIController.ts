@@ -72,8 +72,9 @@ export class AIController {
 	 * projection, so a later pick sees the board after an earlier flank or
 	 * speed change, this raider's or another's. The projection starts where
 	 * the enemy turn will as the board stands (Battle.projectEnemyTurnStart),
-	 * so a flanker expected to drop back plans from its reserved slot. With
-	 * no enemy AI set, raiders play their first playable card each time.
+	 * so a flanker expected to drop back plans from its reserved slot. A
+	 * stunned raider plans nothing. With no enemy AI set, raiders play their
+	 * first playable card each time.
 	 */
 	planEnemyTurn(): Map<Vehicle, PlannedAction[]> {
 		const team = this.battle.enemyTeam;
@@ -83,7 +84,7 @@ export class AIController {
 
 		for (const raider of team.vehicles) {
 			const driver = raider.driver;
-			if (raider.isOutOfFight || !driver) continue;
+			if (raider.isOutOfFight || raider.isStunned || !driver) continue;
 
 			board.actor = raider;
 			const actions: PlannedAction[] = [];
