@@ -6,6 +6,18 @@ This document contains the chronological log of completed development tasks for 
 
 **Date correction (2026-08-22):** the repo's first commit is 2025-05-17, but many entries below carry dates in December 2024 or January 2025 — the AI that wrote them used its assumed date instead of the real one. Entries dated 2025-07-03 and 2025-07-02 have been corrected from "2025-01-03"/"2025-01-02" (verified against git history). Remaining Dec 2024 / Jan 2025 dates are wrong by roughly six months; the real work happened May–July 2025. Trust git history over these dates.
 
+## Catalog Wave A, panel and scrolling (2026-09-28)
+
+**What landed:** DDB-85's second PR (DDB-55 phase 5), R12.18 to R12.20, R12.37, R3.6a's popup close; closes DDB-32 and DDB-210.
+
+- `ui/Panel.ts` rewritten as a `Stack` on the closed style set with variants, header (kicker, title, hairline, actions), corners, glow, compact, flush, and `layout: 'stack' | 'free'`. Its scrolling is gone.
+- New `ui/ScrollContainer.ts` and `ui/Scrollbar.ts`. `Stack.flows(child)`, `Component.invalidateClip()`, `Dispatcher.contentMoved()`, `PopupService.scrolled()` with the `scroll` close reason.
+- The layout lint exempts a scroll container's direct children from rule 2.
+- Developer screen and card showcase on ScrollContainer; the combat log on ScrollContainer with reconciled lines that follow the newest entry.
+- Gallery scenes `panels` and `scrolling`.
+
+**How:** `ScrollContainer.test.ts` (worldsim's suite ported: max scroll, clamping, a resized viewport re-clamping; plus layout and the gutter, the fixed scrollbar and its thumb, the clip and ink, wheel latching, hover after a scroll by code, keys, thumb drag and track press without taking focus, `scrollIntoView` nearest and center, `scrollToBottom` across a layout, and popups closing), `Panel.test.ts`, `ScrollClip.test.ts` (the old panel clip suite on the new container), `CombatLogLayer.test.ts`, and the dispatcher, focus, snapshot, and cull suites moved onto ScrollContainer. In the browser: every existing gallery scene's text record matches its committed JSON, all scenes lint clean at 1440 by 882, and the lists scroll by wheel and thumb.
+
 ## Catalog Wave A, controls (2026-09-28)
 
 **What landed:** DDB-85's first PR (DDB-55 phase 5), R12.7, R12.8, R12.9, R12.34, R12.35.
