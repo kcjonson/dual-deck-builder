@@ -54,6 +54,8 @@ export class SplashScreen extends Screen {
 			style: {
 				fontSize: 48,
 				color: '#ffffff',
+				textAlign: 'center',
+				whiteSpace: 'nowrap',
 			},
 		});
 		this.rootLayer.addChild(this.title);
@@ -64,11 +66,18 @@ export class SplashScreen extends Screen {
 			style: {
 				fontSize: 24,
 				color: '#cccccc',
+				textAlign: 'center',
+				whiteSpace: 'nowrap',
 			},
 		});
 		this.rootLayer.addChild(this.subtitle);
+	}
 
-		// Position elements
+	/**
+	 * Placed once mounted: the subtitle sits under the title's line box, which
+	 * the title measures through the mount context (R1.6).
+	 */
+	protected onMount(): void {
 		this.positionElements();
 	}
 
@@ -85,11 +94,12 @@ export class SplashScreen extends Screen {
 			centerY - this.logo.getHeight() / 2 - 50,
 		);
 
-		// Position title below the logo
-		this.title.setPosition(centerX, centerY + 100);
-
-		// Position subtitle below the title
-		this.subtitle.setPosition(centerX, centerY + 150);
+		// Title below the logo and the subtitle under its line box, both centred
+		// across the screen
+		this.title.setPosition(0, centerY + 100);
+		this.title.setWidth(window.innerWidth);
+		this.subtitle.setPosition(0, this.title.getY() + this.title.getHeight());
+		this.subtitle.setWidth(window.innerWidth);
 	}
 
 

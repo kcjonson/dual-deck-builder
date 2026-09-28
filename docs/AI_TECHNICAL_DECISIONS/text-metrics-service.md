@@ -34,7 +34,9 @@ There is no second loop to drift. The pen that decides where a line breaks is th
 
 `text/textPlacement.ts` turns a layout and R2.13's anchor or box into each line's pen origin. With a box, `top` and `bottom` put the first or last line box on the box edge (a line box is `lineHeight` tall with the face's ascent and descent centred in it); lines align per line (R6.15). Without a box, `position.y` is the first baseline (R2.13), which is the new default `verticalAlign: 'baseline'`, or a zero-height box for `top`, `middle` and `bottom`, which is how `Text` still calls it until DDB-71 gives it real line boxes.
 
-### Departure: `middle` centres the ascent plus descent, not the ascent alone
+### `middle` centres the ascent plus descent, not the ascent alone
+
+This began as a departure from R6.11 and the spec now says it: DDB-200 amended R6.11, R12.4 and the chapter 6 checklist row on 2026-09-28.
 
 R6.11 says vertical centring is computed on the font ascent. Taken literally that centres the span from the baseline to the ascender line, and both body and display faces have ascenders well above their caps (Open Sans 1.069 em against a 0.714 em cap height; Barlow Condensed 1.0 against 0.7), to leave room for accents. The first render did exactly that and every centred label in the game sat low: 16 px Open Sans caps 2.9 px below centre in a 30 px input, visibly on the bottom border in the interactive-controls scene. Centring the face's ascent plus descent (CSS's content area) puts the same caps 0.5 px low.
 

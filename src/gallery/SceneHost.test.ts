@@ -9,6 +9,7 @@ import { Input } from '../renderer/engine/ui/Input';
 import type { DrawApi } from '../renderer/engine/draw';
 import type { MountContext } from '../renderer/engine/components/MountContext';
 import { createTestContext } from '../renderer/engine/components/testing';
+import { createMeasuringDrawApi } from '../renderer/engine/text/testing';
 
 const VIEWPORT = { width: 1440, height: 882 };
 
@@ -133,10 +134,10 @@ describe('mounting', () => {
 		expect(makeHost(interactiveScenes).status().content).toBeNull();
 	});
 
-	// Text takes its size from Layer.layout(), which no frame ever calls, so
-	// without the host's layout pass every label reports w = h = 0 to the tree
-	// snapshot and the lint's zero-or-negative-size rule fires on all of them.
-	it('lays the scene out so text is not reported as zero-sized', () => {
+	// A Text sizes itself from the metrics service (R12.4), so a mounted scene's
+	// labels report their line boxes to the tree snapshot, not w = h = 0.
+	it('mounts text at its measured size', () => {
+		context = createTestContext({ draw: createMeasuringDrawApi().api, viewport: { logical: { ...VIEWPORT } } });
 		const host = makeHost(interactiveScenes);
 		host.mount('alpha');
 

@@ -52,6 +52,8 @@ export class MainMenuScreen extends Screen {
 			style: {
 				fontSize: 64,
 				color: '#ffffff',
+				textAlign: 'center',
+				whiteSpace: 'nowrap',
 			},
 		});
 		this.rootLayer.addChild(this.title);
@@ -214,8 +216,9 @@ export class MainMenuScreen extends Screen {
 		const centerX = window.innerWidth / 2;
 		const titleY = window.innerHeight * 0.2;
 
-		// Position title
-		this.title.setPosition(centerX, titleY);
+		// Title centred across the screen
+		this.title.setPosition(0, titleY);
+		this.title.setWidth(window.innerWidth);
 
 		// Position buttons
 		const buttonWidth = 300;

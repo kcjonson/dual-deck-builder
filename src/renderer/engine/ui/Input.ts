@@ -57,10 +57,9 @@ export class Input extends Component {
 				color: '#ffffff',
 				textAlign: 'left',
 				verticalAlign: 'middle',
+				whiteSpace: 'nowrap',
 			},
 		});
-		this.text.setAlign('left');
-		this.text.setBaseline('middle');
 		this.addPart(this.text);
 
 		// Create placeholder text at same position
@@ -73,19 +72,15 @@ export class Input extends Component {
 				color: '#808080',
 				textAlign: 'left',
 				verticalAlign: 'middle',
+				whiteSpace: 'nowrap',
 			},
 		});
-		this.placeholder.setAlign('left');
-		this.placeholder.setBaseline('middle');
 		this.placeholderText = placeholder;
 		this.addPart(this.placeholder);
 		
-		// Create cursor (initially hidden)
+		// Placed and sized from the text's metrics by updateCursorPosition
 		this.cursor = new Rectangle({
-			x: textOffset,
-			y: this.height * 0.2,
 			width: 2,
-			height: this.height * 0.6,
 			style: {
 				backgroundColor: '#ffffff',
 			},
@@ -99,12 +94,17 @@ export class Input extends Component {
 		return 'unit';
 	}
 
+	/**
+	 * The caret follows the text's measured layout, which exists once the text
+	 * has mounted and measured; its size change lays this out again (R8.18).
+	 */
+	protected layoutChildren(): void {
+		this.updateCursorPosition();
+	}
+
 	protected onMount({ input }: MountContext): void {
 		input.registerMouseDown(this, () => this.onMouseDown());
 		input.registerKeyDown(this, (key: string) => this.onKeyPress(key));
-		// A value set before mount had no draw API to measure its caret with;
-		// an empty one leaves the caret where the constructor put it.
-		if (this.value.length > 0) this.updateCursorPosition();
 	}
 
 	/**
@@ -139,6 +139,7 @@ export class Input extends Component {
 	public setFontSize(size: number): this {
 		this.text.setFontSize(size);
 		this.placeholder.setFontSize(size);
+		this.updateCursorPosition();
 		return this;
 	}
 
@@ -161,6 +162,7 @@ export class Input extends Component {
 		if (this.placeholder) {
 			this.placeholder.setSize(width - textOffset * 2, height);
 		}
+		this.updateCursorPosition();
 
 		return this;
 	}
@@ -173,22 +175,21 @@ export class Input extends Component {
 	}
 	
 	/**
-	 * Update the cursor position based on text width
+	 * The caret sits after the last code point, at the pen position the text's
+	 * own layout reports (R2.14), and spans the text's line box, which the
+	 * text centres in the field.
 	 */
 	private updateCursorPosition(): void {
-		const draw = this.context?.draw;
-		if (!this.text || !this.cursor || !draw) return;
+		if (!this.text || !this.cursor) return;
+		const measured = this.text.measured;
+		if (!measured) return;
 
-		// Measured through the same glyph iteration the text is drawn with (R2.14).
-		const measurement = draw.measureText({
-			text: this.value,
-			font: this.text.font,
-			size: this.text.getFontSize(),
-		});
-		
-		// Position cursor after the text with the same offset as the text
 		const textOffset = 10; // Same as text offset
-		this.cursor.setX(textOffset + measurement.width);
+		const advances = measured.advances;
+		const lineHeight = measured.height / Math.max(1, measured.lines);
+		this.cursor.setX(textOffset + (advances.length > 0 ? advances[advances.length - 1] : 0));
+		this.cursor.setY((this.text.getHeight() - lineHeight) / 2);
+		this.cursor.setHeight(lineHeight);
 	}
 
 	/**

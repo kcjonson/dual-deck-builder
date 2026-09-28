@@ -205,6 +205,9 @@ export class Vehicle extends Layer {
 		// Health text
 		this.healthText = new Text('', {
 			id: this.childId('structure_value'),
+			x: 0,
+			y: Math.floor(height * 0.73),
+			width,
 			style: {
 				fontSize: 9,
 				color: '#ffffff',
@@ -212,7 +215,6 @@ export class Vehicle extends Layer {
 				fontWeight: 'bold',
 			},
 		});
-		this.healthText.setPosition(Math.floor(width / 2), Math.floor(height * 0.73));
 		this.addChild(this.healthText);
 		
 		// Armor display and status container on same line
@@ -230,15 +232,21 @@ export class Vehicle extends Layer {
 		});
 		this.addChild(this.armorDisplay);
 		
+		// Centred in the badge
 		this.armorText = new Text('', {
 			id: this.childId('armor_value'),
+			x: this.armorDisplay.getX(),
+			y: this.armorDisplay.getY(),
+			width: this.armorDisplay.getWidth(),
+			height: this.armorDisplay.getHeight(),
 			style: {
 				fontSize: 8,
 				color: '#ffffff',
 				textAlign: 'center',
+				verticalAlign: 'middle',
+				whiteSpace: 'nowrap',
 			},
 		});
-		this.armorText.setPosition(Math.floor(width * 0.225), Math.floor(height * 0.84));
 		this.addChild(this.armorText);
 		
 		// An escort shows SPENT once it has acted this turn
@@ -249,12 +257,11 @@ export class Vehicle extends Layer {
 				style: {
 					fontSize: 9,
 					color: '#ffcc66',
-					textAlign: 'right',
 					fontWeight: 'bold',
 				},
 			});
-			this.spentChip.setPosition(Math.floor(width * 0.95), Math.floor(height * 0.05));
 			this.addChild(this.spentChip);
+			this.placeSpentChip();
 		}
 
 		// Status effect container (for future use)
@@ -366,6 +373,20 @@ export class Vehicle extends Layer {
 		this.updateVisualState();
 	}
 	
+	/** Right edge at 95 percent of the width, from the chip's measured width. */
+	private placeSpentChip(): void {
+		if (!this.spentChip) return;
+		this.spentChip.setPosition(
+			Math.floor(this.getWidth() * 0.95 - this.spentChip.getWidth()),
+			Math.floor(this.getHeight() * 0.05),
+		);
+	}
+
+	/** The chip measures on mount (R1.6); this places it before the first render. */
+	protected layoutChildren(): void {
+		this.placeSpentChip();
+	}
+
 	protected onMount({ input }: MountContext): void {
 		// Click handler
 		input.registerMouseDown(this, () => {

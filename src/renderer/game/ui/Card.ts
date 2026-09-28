@@ -23,6 +23,12 @@ const CARD_DIMENSIONS = {
 	[CardSize.LARGE]: { width: 240, height: 336 }
 } as const;
 
+/** A card title gets up to two lines, at the display face's own line height. */
+const TITLE_LINES = 2;
+const TITLE_LINE_HEIGHT = 1.2;
+/** Space between the title slot and the cost's digits. */
+const TITLE_COST_GAP = 4;
+
 /**
  * Visual component for displaying a card
  */
@@ -106,46 +112,56 @@ export class Card extends Layer {
 		// The badge paints over anything submitted before it (chapter 3), so the
 		// title starts past it rather than under it.
 		const titleX = hasDriverBadge ? badgeX + badgeSize + Math.floor(6 * scaleFactor) : padding;
+		const headerY = Math.floor(20 * scaleFactor);
+		const titleSize = Math.floor(14 * scaleFactor);
 
-		// Card name
-		this.name = new Text(data.displayName, {
-			id: this.childId('title'),
-			x: titleX,
-			y: Math.floor(20 * scaleFactor),
-			width: dimensions.width - titleX - Math.floor(48 * scaleFactor),
-			style: {
-				fontSize: Math.floor(14 * scaleFactor),
-				color: '#ffffff',
-				fontWeight: 'bold',
-				whiteSpace: 'nowrap',
-				textOverflow: 'ellipsis',
-			},
-		});
-		this.addChild(this.name);
-
-		// Cost
+		// Cost: hugs its digits, centred 30 px in from the right edge
 		this.cost = new Text(`${data.cost}`, {
 			id: this.childId('cost'),
-			x: dimensions.width - Math.floor(30 * scaleFactor),
-			y: Math.floor(20 * scaleFactor),
+			y: headerY,
 			style: {
 				fontSize: Math.floor(20 * scaleFactor),
 				color: '#ffaa00',
 				fontWeight: 'bold',
-				textAlign: 'center',
+				whiteSpace: 'nowrap',
 			},
 		});
+		this.cost.setX(dimensions.width - Math.floor(30 * scaleFactor) - this.cost.getWidth() / 2);
+
+		// Card name: runs up to the cost's measured left edge, wraps to a second
+		// line rather than under it, and a name that needs a third is cut with
+		// an ellipsis. Two line boxes end above the description.
+		this.name = new Text(data.displayName, {
+			id: this.childId('title'),
+			x: titleX,
+			y: headerY,
+			width: Math.floor(this.cost.getX() - TITLE_COST_GAP * scaleFactor - titleX),
+			height: Math.ceil(TITLE_LINES * titleSize * TITLE_LINE_HEIGHT),
+			style: {
+				fontSize: titleSize,
+				lineHeight: TITLE_LINE_HEIGHT,
+				color: '#ffffff',
+				fontWeight: 'bold',
+				textOverflow: 'ellipsis',
+			},
+		});
+		this.addChild(this.name);
 		this.addChild(this.cost);
 
 		// Description with automatic text wrapping
 		// Skip description for mini cards
 		if (size !== CardSize.MINI) {
-			this.description = new Text(data.displayDescription, {
+			// The face shows the summary (Card System Design 1.1); the full rules
+			// text is for the detail view. Keyword brackets become highlights
+			// with DDB-137, plain until then. The box ends above the rarity line
+			// and the ellipsis is only a backstop: no summary reaches it.
+			const descriptionY = Math.floor(60 * scaleFactor);
+			this.description = new Text(Card.faceText(data.displaySummary), {
 				id: this.childId('description'),
 				x: padding,
-				y: Math.floor(60 * scaleFactor),
+				y: descriptionY,
 				width: dimensions.width - padding * 2,
-				height: Math.floor(140 * scaleFactor),
+				height: dimensions.height - Math.floor(60 * scaleFactor) - Math.floor(4 * scaleFactor) - descriptionY,
 				style: {
 					fontSize: Math.floor(11 * scaleFactor),
 					color: '#cccccc',
@@ -216,14 +232,19 @@ export class Card extends Layer {
 			});
 			this.addChild(indicatorBg);
 			
+			// Centred in the badge
 			this.driverIndicator = new Text(`D${this.driverNumber}`, {
 				id: this.childId('driver_badge'),
-				x: Math.floor(22.5 * scaleFactor),
-				y: Math.floor(22.5 * scaleFactor),
+				x: badgeX,
+				y: badgeX,
+				width: badgeSize,
+				height: badgeSize,
 				style: {
 					fontSize: Math.floor(10 * scaleFactor),
 					color: '#ffffff',
 					textAlign: 'center',
+					verticalAlign: 'middle',
+					whiteSpace: 'nowrap',
 					fontWeight: 'bold',
 				},
 			});
@@ -421,6 +442,11 @@ export class Card extends Layer {
 	/**
 	 * Get color based on card rarity
 	 */
+	/** A summary as the face draws it: `[keyword]` brackets stripped. */
+	public static faceText(summary: string): string {
+		return summary.replace(/\[(.+?)\]/g, '$1');
+	}
+
 	private static getRarityColor(rarity: string): string {
 		switch (rarity) {
 			case 'starter':

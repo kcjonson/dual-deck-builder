@@ -115,44 +115,48 @@ export class TurnPhaseDisplay extends Layer {
 		this.addChild(this.background);
 		
 		// Turn counter
+		// Each line is centred across the display
 		this.turnText = new Text(`Turn ${this._turn}`, {
 			id: 'turn_counter',
 			x: 0,
-			y: 0,
+			y: height * 0.25,
+			width,
 			style: {
 				fontSize: 16,
 				color: '#ffffff',
-				textAlign: 'center'
+				textAlign: 'center',
+				whiteSpace: 'nowrap',
 			},
 		});
-		this.turnText.setPosition(width / 2, height * 0.25);
 		this.addChild(this.turnText);
 		
 		// Phase indicator
 		this.phaseText = new Text(this.getPhaseText(), {
 			id: 'turn_phase',
 			x: 0,
-			y: 0,
+			y: height * 0.5,
+			width,
 			style: {
 				fontSize: 20,
 				color: this.getPhaseColor(),
-				textAlign: 'center'
+				textAlign: 'center',
+				whiteSpace: 'nowrap',
 			},
 		});
-		this.phaseText.setPosition(width / 2, height * 0.5);
 		this.addChild(this.phaseText);
 		
 		// Active driver indicator (only shown during player turn)
 		this.activeDriverText = new Text('', {
 			x: 0,
-			y: 0,
+			y: height * 0.75,
+			width,
 			style: {
 				fontSize: 14,
 				color: '#cccccc',
-				textAlign: 'center'
+				textAlign: 'center',
+				whiteSpace: 'nowrap',
 			},
 		});
-		this.activeDriverText.setPosition(width / 2, height * 0.75);
 		this.addChild(this.activeDriverText);
 	}
 	

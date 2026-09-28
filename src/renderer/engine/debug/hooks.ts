@@ -19,10 +19,8 @@ import type { PerfSnapshot } from '../rendering/FrameTimer';
  * folds to `false` in a production build so the whole module drops out.
  *
  * `window.__ui.tree()` reads the live tree; it never mutates it, so no layout
- * pass is forced. Text sizes come from Layer.layout(), which the frame loop
- * never calls (Text.render only reads width and height, for alignment), so a
- * rendered frame is not sufficient: a Text that nothing sized explicitly and
- * that no screen ran layout over reports w = h = 0.
+ * pass is forced. A Text sizes itself from the metrics service whenever its
+ * content changes (R12.4), so its bounds are its line box without one.
  *
  * `window.__ui.lint()` runs R13.25's seven rules over that same document. It is
  * the identical pure function the unit tests call, per R13.4. Three of the

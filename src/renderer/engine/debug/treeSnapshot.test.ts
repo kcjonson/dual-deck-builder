@@ -6,6 +6,8 @@ import { Panel } from '../ui/Panel';
 import { Button } from '../ui/Button';
 import { Input } from '../ui/Input';
 import { SnapshotNode, treeSnapshot } from './treeSnapshot';
+import { createMeasuringDrawApi } from '../text/testing';
+import { createTestContext } from '../components/testing';
 
 const VIEWPORT = { width: 1440, height: 882 };
 
@@ -546,15 +548,16 @@ describe('treeSnapshot', () => {
 		});
 	});
 
-	describe('Text sizing after render (R13.21)', () => {
-		it('reports zero-sized text until layout runs, which is why a rendered frame is not enough', () => {
+	describe('Text sizing (R12.4, R13.21)', () => {
+		it('reports zero-sized text until it is mounted where it can measure', () => {
 			const text = new Text('End turn');
 
 			expect(treeSnapshot([text], VIEWPORT).roots[0].bounds).toEqual({ x: 0, y: 0, w: 0, h: 0 });
 
-			text.layout();
-
-			expect(treeSnapshot([text], VIEWPORT).roots[0].bounds.w).toBeGreaterThan(0);
+			text.mount(createTestContext({ draw: createMeasuringDrawApi().api }));
+			const bounds = treeSnapshot([text], VIEWPORT).roots[0].bounds;
+			expect(bounds.w).toBeGreaterThan(0);
+			expect(bounds.h).toBeGreaterThan(0);
 		});
 	});
 });

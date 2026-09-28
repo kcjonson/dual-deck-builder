@@ -72,6 +72,7 @@ export class BattleResultScreen extends Screen {
 			fontSize: 48,
 			color: '#ffffff',
 			textAlign: 'center',
+			whiteSpace: 'nowrap',
 			fontWeight: 'bold',
 		};
 		
@@ -86,6 +87,7 @@ export class BattleResultScreen extends Screen {
 			fontSize: 20,
 			color: '#aaaaaa',
 			textAlign: 'center',
+			whiteSpace: 'nowrap',
 		};
 		
 		this.subtitleText = new Text('', {
@@ -136,11 +138,11 @@ export class BattleResultScreen extends Screen {
 		const panelY = Math.floor((screenHeight - this.PANEL_HEIGHT) / 2);
 		this.panel.setPosition(panelX, panelY);
 		
-		// Title position (relative to panel)
-		this.titleText.setPosition(panelX + this.PANEL_WIDTH / 2, panelY + 80);
-		
-		// Subtitle position (relative to panel)
-		this.subtitleText.setPosition(panelX + this.PANEL_WIDTH / 2, panelY + 140);
+		// Title and subtitle, each centred across the panel
+		this.titleText.setPosition(panelX, panelY + 80);
+		this.titleText.setWidth(this.PANEL_WIDTH);
+		this.subtitleText.setPosition(panelX, panelY + 140);
+		this.subtitleText.setWidth(this.PANEL_WIDTH);
 		
 		// Continue button position (centered horizontally, near bottom of panel)
 		this.continueButton.setPosition(

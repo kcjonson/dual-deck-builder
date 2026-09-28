@@ -79,14 +79,18 @@ export class StyleGuideSection extends Panel {
 			colorBox.setPosition(colorX, colorY);
 			this.addChild(colorBox);
 
+			// Centred under its swatch
 			const colorLabel = new Text(color.name, {
+				x: colorX,
+				y: colorY + colorBoxSize + 5,
+				width: colorBoxSize,
 				style: {
 					fontSize: 12,
 					color: '#ffffff',
 					textAlign: 'center',
+					whiteSpace: 'nowrap',
 				},
 			});
-			colorLabel.setPosition(colorX + colorBoxSize / 2, colorY + colorBoxSize + 5);
 			this.addChild(colorLabel);
 
 			colorX += colorSpacing;
