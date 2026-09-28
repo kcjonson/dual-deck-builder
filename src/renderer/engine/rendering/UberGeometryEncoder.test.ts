@@ -239,6 +239,65 @@ describe('UberGeometryEncoder: rect (R5.5 to R5.10)', () => {
 	});
 });
 
+describe('UberGeometryEncoder: rect snapping (R7.8, R7.8a)', () => {
+	/** The snapped rect's screen edges, from the top-left vertex and the half size. */
+	function edges(floats: Float32Array, n = 0) {
+		const first = vertex(floats, n);
+		const centerX = first.position[0] - first.local[0];
+		const centerY = first.position[1] - first.local[1];
+		return close([centerX - first.halfSize[0], centerY - first.halfSize[1], centerX + first.halfSize[0], centerY + first.halfSize[1]]);
+	}
+
+	it('puts a translated hairline rect\'s edges and border on the device grid', () => {
+		const { draw } = setup(2);
+		const { floats } = draw((api) => {
+			api.pushTranslate(0.3, 10);
+			api.drawRect({ rect: { x: 10, y: 0.4, width: 50.1, height: 20 }, fill: RED, border: { color: BLUE, width: 0.6 } });
+			api.popTransform();
+		});
+		// 10.3 to 10.5, 10.4 to 10.5, 60.4 to 60.5, 30.4 to 30.5 at ratio 2.
+		expect(edges(floats)).toEqual([10.5, 10.5, 60.5, 30.5]);
+		// 0.6 logical is 1.2 device pixels, which rounds to one.
+		expect(vertex(floats, 0).borderWidth).toBe(0.5);
+	});
+
+	it('snaps a borderless rect, so two that abut at a fractional x share one edge', () => {
+		const { draw } = setup();
+		const { floats } = draw((api) => {
+			api.drawRect({ rect: { x: 0, y: 0, width: 20.3, height: 8 }, fill: RED });
+			api.drawRect({ rect: { x: 20.3, y: 0, width: 19.7, height: 8 }, fill: RED });
+		});
+		expect(edges(floats, 0)).toEqual([0, 0, 20, 8]);
+		expect(edges(floats, 4)).toEqual([20, 0, 40, 8]);
+		expect(vertex(floats, 0).borderWidth).toBe(0);
+	});
+
+	it('shifts a center hairline by half its width so the border covers one whole column', () => {
+		const { draw } = setup();
+		const { floats } = draw((api) => {
+			api.drawRect({ rect: { x: 10, y: 10, width: 20, height: 20 }, fill: RED, border: { color: BLUE, width: 1, position: 'center' } });
+		});
+		// The border straddles 10.5, covering column 10 from 10 to 11.
+		expect(edges(floats)).toEqual([10.5, 10.5, 30.5, 30.5]);
+		expect(vertex(floats, 0).outset).toBe(0.5);
+	});
+
+	it('leaves heavy borders, rounded corners and scaled or rotated rects to the coverage ramp (R7.9)', () => {
+		const { draw } = setup();
+		const { floats } = draw((api) => {
+			api.drawRect({ rect: { x: 0.3, y: 0.3, width: 10, height: 10 }, fill: RED, border: { color: BLUE, width: 2 } });
+			api.drawRect({ rect: { x: 0.3, y: 0.3, width: 10, height: 10 }, fill: RED, radius: [0, 0, 2, 0] });
+			api.pushTransform([2, 0, 0, 2, 0, 0]);
+			api.drawRect({ rect: { x: 0.3, y: 0.3, width: 10, height: 10 }, fill: RED });
+			api.popTransform();
+		});
+		expect(edges(floats, 0)).toEqual([0.3, 0.3, 10.3, 10.3]);
+		expect(edges(floats, 4)).toEqual([0.3, 0.3, 10.3, 10.3]);
+		expect(vertex(floats, 8).halfSize).toEqual(f32([5, 5]));
+		expect(close(vertex(floats, 8).position)).toEqual([-0.4, -0.4]);
+	});
+});
+
 describe('UberGeometryEncoder: shadow (R5.11 to R5.13)', () => {
 	it('grows radii by CSS\'s spread formula', () => {
 		expect(spreadRadius(10, 4)).toBe(14);
@@ -680,9 +739,9 @@ describe('UberGeometryEncoder: one program for everything (R5.1)', () => {
 	});
 
 	it('has the helpers the modes are built from', () => {
-		expect(borderOutset({ color: RED, width: 4 })).toBe(0);
-		expect(borderOutset({ color: RED, width: 4, position: 'center' })).toBe(2);
-		expect(borderOutset({ color: RED, width: 4, position: 'outside' })).toBe(4);
+		expect(borderOutset(undefined, 4)).toBe(0);
+		expect(borderOutset('center', 4)).toBe(2);
+		expect(borderOutset('outside', 4)).toBe(4);
 		expect(premultiply([0.5, 1, 0, 0.5], [0, 0, 0, 0])).toEqual([0.25, 0.5, 0, 0.5]);
 	});
 });

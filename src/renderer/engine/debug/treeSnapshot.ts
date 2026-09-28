@@ -6,6 +6,7 @@ import { Input } from '../ui/Input';
 import { CLIP_NONE, ClipState, intersectClip } from '../draw/clip';
 import { ClipRect, IDENTITY, Mat2D, RGBA, Rect, concat, isTranslateOnly, transformedBounds, translation } from '../draw/geometry';
 import { LayerName, ROOT_LAYER, layerOrdinal } from '../draw/layers';
+import { snapClipRect } from '../coords/snapping';
 
 /**
  * Serializes the live component tree to the JSON document of R13.22-R13.24.
@@ -44,7 +45,8 @@ import { LayerName, ROOT_LAYER, layerOrdinal } from '../draw/layers';
  * unscrolled space and the content offset inside it (R4.9, R4.10). So
  * `screenBounds`, `clip`, `layer` and `opacity` are what the renderer applied.
  * The clip arithmetic is the draw API's own (`intersectClip`,
- * `transformedBounds`), including R4.2's `empty` state, reported as a
+ * `transformedBounds`, and under a translation `snapClipRect` at the
+ * viewport's ratio, R7.8a), including R4.2's `empty` state, reported as a
  * zero-sized rect rather than dropped: a node clipped away entirely has a
  * clip, and it contains nothing.
  *
@@ -76,6 +78,12 @@ export interface SnapshotEdges {
 export interface SnapshotViewport {
 	width: number;
 	height: number;
+	/**
+	 * `dpr * uiScale` (R7.2), which the clips snap at. Read, never reported:
+	 * the document's viewport stays logical. 1 when absent, the draw API's own
+	 * default.
+	 */
+	ratio?: number;
 }
 
 /** R11.11's flags minus `enabled`, each present only where something maintains it. */
@@ -172,9 +180,9 @@ interface WalkContext {
 	layer: LayerName;
 	/** The parent's effective opacity. */
 	opacity: number;
+	/** R7.2's ratio, for R7.8a's clip snap. */
+	ratio: number;
 }
-
-const ROOT_CONTEXT: WalkContext = { matrix: IDENTITY, clip: CLIP_NONE, layer: ROOT_LAYER, opacity: 1 };
 
 /**
  * Non-finite geometry is reported as 0 rather than NaN or null. NaN does not
@@ -243,6 +251,12 @@ function screenRect(matrix: Mat2D, rect: Rect): SnapshotRect {
 	}
 	const bounds = fromClipRect(transformedBounds(matrix, rect));
 	return { x: finite(bounds.x), y: finite(bounds.y), w: finite(bounds.w), h: finite(bounds.h) };
+}
+
+/** A clip rect as `pushClip` leaves it: on the device grid under a translation (R7.8a). */
+function pushedClip(matrix: Mat2D, rect: Rect, ratio: number): ClipRect {
+	const bounds = transformedBounds(matrix, rect);
+	return isTranslateOnly(matrix) ? snapClipRect(bounds, ratio) : bounds;
 }
 
 function color(value: RGBA | undefined): number[] | undefined {
@@ -385,9 +399,10 @@ function serializeNode(
 				// offset applied inside it (R4.9, R4.10).
 				const childContext: WalkContext = {
 					matrix: offsetX !== 0 || offsetY !== 0 ? concat(matrix, translation(-offsetX, -offsetY)) : matrix,
-					clip: node.clipsChildren ? intersectClip(clip, transformedBounds(matrix, node.clipRect), null) : clip,
+					clip: node.clipsChildren ? intersectClip(clip, pushedClip(matrix, node.clipRect, context.ratio), null) : clip,
 					layer,
 					opacity,
+					ratio: context.ratio,
 				};
 				for (const child of children) {
 					if (!child) continue;
@@ -431,10 +446,12 @@ export function treeSnapshot(roots: readonly Component[], viewport: SnapshotView
 
 	// Walk-wide, so a node shared between two roots is expanded once.
 	const seen = new Set<Component>();
+	const ratio = typeof viewport?.ratio === 'number' && Number.isFinite(viewport.ratio) && viewport.ratio > 0 ? viewport.ratio : 1;
+	const rootContext: WalkContext = { matrix: IDENTITY, clip: CLIP_NONE, layer: ROOT_LAYER, opacity: 1, ratio };
 
 	for (const root of roots) {
 		if (!root) continue;
-		document.roots.push(serializeNode(root, ROOT_CONTEXT, new Set<Component>(), seen, 0));
+		document.roots.push(serializeNode(root, rootContext, new Set<Component>(), seen, 0));
 	}
 
 	return document;
