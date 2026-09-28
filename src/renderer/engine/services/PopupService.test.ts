@@ -62,6 +62,18 @@ describe('PopupService (R12.31)', () => {
 		expect(context.popups.open?.placement?.flipped).toBe(true);
 	});
 
+	it('shrinks a popup to a constrained placement, and places again from the size it asked for', () => {
+		const menu = box('tall', 0, 0, 150, 500);
+		const handle = context.popups.show({ popup: menu, trigger, anchor: trigger });
+		// Below the trigger: 600 - 8 - 144 = 448; above: 100 - 4 - 8 = 88.
+		expect(handle.placement?.constrained).toBe(true);
+		expect({ y: menu.y, height: menu.height }).toEqual({ y: 144, height: 448 });
+
+		context.popups.reposition(handle, { anchor: { x: 100, y: 40, width: 100, height: 40 } });
+		expect(handle.naturalSize).toEqual({ width: 150, height: 500 });
+		expect({ y: menu.y, height: menu.height }).toEqual({ y: 84, height: 500 });
+	});
+
 	it('closes the open popup when another opens: only one exclusive popup at a time', () => {
 		const first = openMenu();
 		const second = openMenu();

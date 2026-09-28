@@ -34,8 +34,14 @@ export interface PopupOptions {
 export class PopupHandle {
 	public readonly popup: Component;
 	public readonly trigger: Component | null;
-	/** Where the service placed it; null for a popup that was mounted already. */
+	/**
+	 * Where the service placed it; null for a popup that was mounted already.
+	 * Its size is the popup's: a `constrained` placement has shrunk the popup
+	 * to the room there, and a menu scrolls what no longer fits (R12.11).
+	 */
 	public placement: Placement | null = null;
+	/** The size the popup asked for when it opened; every placement starts from it, not from a shrunk size. */
+	public readonly naturalSize: { width: number; height: number };
 	/** The overlay root the service opened it in; null for one mounted inline. */
 	public readonly overlay: OverlayHandle | null;
 	private readonly service: PopupService;
@@ -48,6 +54,7 @@ export class PopupHandle {
 		this.trigger = options.trigger ?? null;
 		this.onClose = options.onClose ?? null;
 		this.overlay = overlay;
+		this.naturalSize = { width: options.popup.width, height: options.popup.height };
 	}
 
 	public get isOpen(): boolean {
@@ -128,7 +135,7 @@ export class PopupService implements InputObserver {
 		const popup = handle.popup;
 		const placement = this.placementService.place({
 			anchor,
-			size: { width: popup.width, height: popup.height },
+			size: handle.naturalSize,
 			side: options.side,
 			align: options.align,
 			offset: options.offset,
@@ -136,6 +143,7 @@ export class PopupService implements InputObserver {
 		handle.placement = placement;
 		popup.x = placement.x;
 		popup.y = placement.y;
+		popup.setSize(placement.width, placement.height);
 		popup.invalidateLayout();
 	}
 

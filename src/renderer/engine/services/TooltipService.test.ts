@@ -92,6 +92,18 @@ describe('TooltipService (R12.22)', () => {
 		expect(surface.x).toBe(800 - 8 - 200);
 	});
 
+	it('shrinks and clips a tooltip too tall for either side of the pointer', () => {
+		const tall = box('tall_owner', 100, 280, 100, 40);
+		tall.tooltip = { factory: () => box('tall_preview', 0, 0, 120, 400) };
+		scene.addChild(tall);
+		send(context, [pointer('move', 120, 290)]);
+		advance(context, DELAY + 16);
+		const surface = context.tooltips.surface as Rectangle;
+		// Below: 600 - 8 - 306 = 286; above: 290 - 16 - 8 = 266.
+		expect({ y: surface.y, height: surface.height }).toEqual({ y: 306, height: 286 });
+		expect(surface.clipsChildren).toBe(true);
+	});
+
 	it('ignores movement within hover_move_tolerance while waiting, and restarts the delay past it', () => {
 		send(context, [pointer('move', 120, 110)]);
 		advance(context, DELAY / 2);

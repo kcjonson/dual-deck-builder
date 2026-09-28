@@ -18,8 +18,15 @@ export interface OverlayOptions {
 	 * the `modal` layer.
 	 */
 	modal?: boolean;
-	/** A press outside the content dismisses it (R12.21, R12.33). */
+	/** A press outside `inside` dismisses it (R12.21, R12.33). */
 	dismissOnOutsidePress?: boolean;
+	/**
+	 * The surface a press has to land in to count as inside: the dialog panel
+	 * of content that also holds a full-viewport scrim, so a press on the
+	 * scrim is outside (R12.21). The content or a descendant of it; defaults
+	 * to the content.
+	 */
+	inside?: Component;
 	/** The dismissing press stops there. Defaults to `modal`: non-modal overlays never consume (R9.13). */
 	consumeOutsidePress?: boolean;
 	/** Escape dismisses it, topmost first (R9.24). */
@@ -45,6 +52,8 @@ export class OverlayHandle {
 	public readonly hotkeys = new HotkeyTable();
 	public readonly root: Layer;
 	public readonly content: Component;
+	/** What a press must land in to be inside (`OverlayOptions.inside`). */
+	public readonly inside: Component;
 	public readonly layer: LayerName;
 	public readonly modal: boolean;
 	public readonly dismissOnOutsidePress: boolean;
@@ -59,6 +68,7 @@ export class OverlayHandle {
 		this.service = service;
 		this.root = root;
 		this.content = content;
+		this.inside = options.inside ?? content;
 		this.layer = options.layer;
 		this.modal = options.modal ?? options.layer === 'modal';
 		this.dismissOnOutsidePress = options.dismissOnOutsidePress ?? false;
@@ -130,6 +140,9 @@ export class OverlayService implements InputObserver {
 		const context = this.context;
 		if (!context) throw new Error('OverlayService.open: the service is not bound to a mount context');
 		if (content.parent) throw new Error('OverlayService.open: the content already has a parent');
+		if (options.inside && !contains(content, options.inside)) {
+			throw new Error('OverlayService.open: `inside` must be the content or a descendant of it');
+		}
 
 		const { width, height } = this.viewport.logical;
 		this.opened += 1;
@@ -219,7 +232,7 @@ export class OverlayService implements InputObserver {
 		// A press a popup's close already took goes no further (R9.13).
 		if (swallowed || this.handles.length === 0) return false;
 		for (const handle of this.topmostFirst()) {
-			if (press.target && contains(handle.content, press.target)) return false;
+			if (press.target && contains(handle.inside, press.target)) return false;
 			if (handle.dismissOnOutsidePress) {
 				handle.dismiss('outside-press');
 				if (handle.consumeOutsidePress) return true;

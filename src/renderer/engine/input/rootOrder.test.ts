@@ -62,12 +62,13 @@ describe('input observers', () => {
 		const scene = new Layer({ id: 'scene', width: 400, height: 400 });
 		target = root('target');
 		target.onPointerDown = () => heard.push('down');
+		target.onPointerUp = () => heard.push('up');
 		target.onClick = () => heard.push('click');
 		scene.addChild(target);
 		scene.mount(context);
 	});
 
-	it('hears a press before delivery, and a swallowed press is neither delivered nor a click nor a focus change', () => {
+	it('hears a press before delivery, and a swallowed press delivers neither itself, its release, a click nor a focus change', () => {
 		const presses: (Component | null)[] = [];
 		context.dispatcher.focus(target);
 		context.dispatcher.addObserver({
@@ -96,7 +97,16 @@ describe('input observers', () => {
 		const remove = context.dispatcher.addObserver({ pointerDown: () => true });
 		remove();
 		send(context, [pointer('down', 50, 50), pointer('up', 50, 50)]);
-		expect(heard).toEqual(['down', 'click']);
+		expect(heard).toEqual(['down', 'up', 'click']);
+	});
+
+	it('delivers the release of the next press after a swallowed one', () => {
+		let swallow = true;
+		context.dispatcher.addObserver({ pointerDown: () => swallow });
+		send(context, [pointer('down', 50, 50), pointer('up', 50, 50)]);
+		swallow = false;
+		send(context, [pointer('down', 50, 50), pointer('up', 50, 50)]);
+		expect(heard).toEqual(['down', 'up', 'click']);
 	});
 
 	it('offers a key the focused chain declined before the scene hotkeys, and a consumed one goes no further', () => {

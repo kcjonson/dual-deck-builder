@@ -139,6 +139,11 @@ interface Press {
 	moved: boolean;
 	/** Cancelled or already a hold: no click (R9.31). */
 	spent: boolean;
+	/**
+	 * An observer swallowed it (a popup's outside press, R9.13): its release
+	 * is swallowed too, as a native menu eats the dismissing click whole.
+	 */
+	swallowed: boolean;
 }
 
 export interface DispatcherOptions {
@@ -534,6 +539,7 @@ export class Dispatcher {
 				startTime: this.clock.now,
 				moved: false,
 				spent: true,
+				swallowed: true,
 			});
 			return;
 		}
@@ -553,6 +559,7 @@ export class Dispatcher {
 			startTime: this.clock.now,
 			moved: false,
 			spent: false,
+			swallowed: false,
 		});
 		if (!target) return;
 
@@ -596,6 +603,10 @@ export class Dispatcher {
 		const press = this.presses.get(fields.pointerId);
 		this.presses.delete(fields.pointerId);
 
+		if (press?.swallowed) {
+			if (captor) this.releasePointer(fields.pointerId);
+			return;
+		}
 		if (target) this.bubble(this.pointerEvent('pointerup', target, fields));
 
 		// Movement past the threshold cancels the click only for a press that

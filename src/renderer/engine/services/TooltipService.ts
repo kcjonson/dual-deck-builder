@@ -297,6 +297,11 @@ export class TooltipService implements InputObserver, FrameTicker {
 		});
 		surface.x = placement.x;
 		surface.y = placement.y;
+		if (placement.constrained) {
+			// Shrunk to the room there: clipped rather than spilling off-screen.
+			surface.setSize(placement.width, placement.height);
+			surface.overflow = 'hidden';
+		}
 		surface.invalidateLayout();
 
 		if (fade) {

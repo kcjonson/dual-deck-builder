@@ -122,6 +122,31 @@ describe('OverlayService (R8.21)', () => {
 		expect(sceneClicks).toBe(0);
 	});
 
+	it('counts a press on a scrim as outside when `inside` names the panel, and consumes it (R12.21)', () => {
+		const dialog = new Layer({ id: 'dialog', width: 1440, height: 882 });
+		const scrim = box('scrim', 0, 0, 1440, 882);
+		const panel = box('panel', 500, 300, 400, 200);
+		let panelClicks = 0;
+		panel.onClick = () => {
+			panelClicks += 1;
+		};
+		dialog.addChild(scrim);
+		dialog.addChild(panel);
+		const handle = context.overlays.open(dialog, { layer: 'modal', inside: panel, dismissOnOutsidePress: true });
+
+		click(context, 600, 350);
+		expect(handle.isOpen).toBe(true);
+		expect(panelClicks).toBe(1);
+
+		click(context, 50, 50);
+		expect(handle.isOpen).toBe(false);
+		expect(sceneClicks).toBe(0);
+	});
+
+	it('refuses an `inside` that is not part of the content', () => {
+		expect(() => context.overlays.open(box('dialog', 0, 0), { layer: 'modal', inside: box('elsewhere', 0, 0) })).toThrow('`inside`');
+	});
+
 	it('asks onDismiss instead of closing, so a dialog can run its closing fade', () => {
 		const reasons: string[] = [];
 		const handle = context.overlays.open(box('dialog', 100, 100), {
