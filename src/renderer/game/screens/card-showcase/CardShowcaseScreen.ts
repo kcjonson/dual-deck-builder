@@ -11,7 +11,12 @@ import { CARD_RARITIES, Card as GameCard } from '../../mechanics/Card';
 /**
  * Screen for showcasing all available cards
  */
+/** The strips above and below the scroll panel: the title's and the back button's. */
+const HEADER_HEIGHT = 80;
+const FOOTER_HEIGHT = 80;
+
 export class CardShowcaseScreen extends Screen {
+	private background: Rectangle;
 	private title: Text;
 	private backButton: Button;
 	private cardsPanel: Panel;
@@ -24,17 +29,13 @@ export class CardShowcaseScreen extends Screen {
 
 		this.cardLoader = CardLoader.getInstance();
 
-		// Create background
-		const background = new Rectangle({
-			x: 0,
-			y: 0,
-			width: this.rootLayer.getWidth(),
-			height: this.rootLayer.getHeight(),
+		// Everything sized from the root is placed by positionElements
+		this.background = new Rectangle({
 			style: {
 				backgroundColor: '#1a1a33',
 			},
 		});
-		this.rootLayer.addChild(background);
+		this.rootLayer.addChild(this.background);
 
 		// Create title
 		this.title = new Text('Card Showcase', {
@@ -52,7 +53,6 @@ export class CardShowcaseScreen extends Screen {
 		// Create back button
 		this.backButton = new Button('Back to Main Menu', {
 			x: 50,
-			y: this.rootLayer.getHeight() - 80,
 			width: 200,
 			height: 50,
 		});
@@ -64,8 +64,7 @@ export class CardShowcaseScreen extends Screen {
 		// Create main scrollable container that holds all content
 		this.cardsPanel = new Panel({
 			id: 'showcase_scroll',
-			width: this.rootLayer.getWidth(),
-			height: this.rootLayer.getHeight() - 160, // Leave space for title (80) and back button (80)
+			y: HEADER_HEIGHT,
 			scrollable: true,
 			scrollDirection: 'vertical',
 			overflow: 'hidden',
@@ -73,10 +72,16 @@ export class CardShowcaseScreen extends Screen {
 				backgroundColor: '#1a1a33', // Match the background
 			},
 		});
-		this.cardsPanel.setPosition(0, 80); // Position below title
 		this.rootLayer.addChild(this.cardsPanel);
+	}
 
-		// Don't load cards in constructor - wait for onMount
+	/** The background, panel, and back button follow the root, which is the viewport. */
+	private positionElements(): void {
+		const width = this.rootLayer.width;
+		const height = this.rootLayer.height;
+		this.background.setSize(width, height);
+		this.cardsPanel.setSize(width, height - HEADER_HEIGHT - FOOTER_HEIGHT);
+		this.backButton.setY(height - FOOTER_HEIGHT);
 	}
 
 	/**
@@ -263,6 +268,7 @@ export class CardShowcaseScreen extends Screen {
 	 */
 	protected onMount(): void {
 		super.onMount();
+		this.positionElements();
 		// Load cards when screen becomes active
 		if (!this.cardsLoaded) {
 			this.loadCards();
@@ -291,30 +297,7 @@ export class CardShowcaseScreen extends Screen {
 	}
 
 
-	/**
-	 * Handle window resize
-	 */
 	protected onResized(): void {
-		// Update background size if needed
-		const background = this.rootLayer.getChildren()[0];
-		if (background instanceof Rectangle) {
-			background.setSize(this.rootLayer.getWidth(), this.rootLayer.getHeight());
-		}
-
-		// Force layout update on all children
-		this.rootLayer.layout();
-
-		// Update panel size
-		if (this.cardsPanel) {
-			this.cardsPanel.setSize(
-				this.rootLayer.getWidth(),
-				this.rootLayer.getHeight() - 160
-			);
-		}
-
-		// Reposition fixed elements
-		if (this.backButton) {
-			this.backButton.setPosition(50, this.rootLayer.getHeight() - 80);
-		}
+		this.positionElements();
 	}
 }

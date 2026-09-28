@@ -116,6 +116,19 @@ describe('effective values (R8.3)', () => {
 		popup.layer = null;
 		expect(popup.containsScreenPoint(65, 5)).toBe(false);
 	});
+
+	it('takes overflow before it has a size and clips once it gets one', () => {
+		const clipper = new Layer({ overflow: 'hidden' });
+		const child = new Rectangle({ x: 60, y: 0, width: 20, height: 20 });
+		clipper.addChild(child);
+
+		expect(clipper.overflow).toBe('hidden');
+		expect(clipper.clipsChildren).toBe(false);
+
+		clipper.setSize(50, 50);
+		expect(clipper.clipsChildren).toBe(true);
+		expect(child.containsScreenPoint(65, 5)).toBe(false);
+	});
 });
 
 describe('children (R8.5 to R8.7)', () => {

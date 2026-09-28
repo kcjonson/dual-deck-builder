@@ -10,54 +10,47 @@ import { Panel } from '../../../engine/ui/Panel';
  */
 export class CombatLogLayer extends Layer {
 	private combatLog: CombatLog;
+	private background: Rectangle;
+	private header: Rectangle;
+	private title: Text;
 	private panel: Panel;
 	private entryVisuals: Map<string, { text: Text, entry: CombatLogEntry }> = new Map();
 	private unsubscriber: (() => void) | null = null;
-	
+
 	// Display properties
 	private readonly entryHeight = 20;
+	private readonly headerHeight = 30;
 	private readonly padding = 10;
 	private readonly fontSize = 14;
-	
+
 	constructor(options: LayerOptions & { x: number; y: number; width: number; height: number; combatLog: CombatLog }) {
 		super(options);
-		
+
 		this.combatLog = options.combatLog;
-		
-		// Create background
-		const background = new Rectangle({
-			x: 0,
-			y: 0,
-			width: this.getWidth(),
-			height: this.getHeight(),
+
+		// Sized from the layer by placeChrome, in the layout phase
+		this.background = new Rectangle({
 			style: {
 				backgroundColor: 'rgba(0, 0, 0, 0.8)',
 				borderColor: '#4a4a5a',
 				borderWidth: 2,
 			},
 		});
-		this.addChild(background);
-		
-		// Create header
-		const header = new Rectangle({
-			x: 0,
-			y: 0,
-			width: this.getWidth(),
-			height: 30,
+		this.addChild(this.background);
+
+		this.header = new Rectangle({
+			height: this.headerHeight,
 			style: {
 				backgroundColor: '#2a2a3a',
 				borderColor: '#4a4a5a',
 				borderWidth: 1,
 			},
 		});
-		this.addChild(header);
-		
+		this.addChild(this.header);
+
 		// Centred in the header
-		const title = new Text('Combat Log', {
-			x: 0,
-			y: 0,
-			width: header.getWidth(),
-			height: header.getHeight(),
+		this.title = new Text('Combat Log', {
+			height: this.headerHeight,
 			style: {
 				fontSize: 16,
 				color: '#ffffff',
@@ -67,40 +60,52 @@ export class CombatLogLayer extends Layer {
 				fontWeight: 'bold',
 			},
 		});
-		this.addChild(title);
-		
-		// Create scrollable panel for entries
+		this.addChild(this.title);
+
+		// The entries' panel; not scrollable yet
 		this.panel = new Panel({
 			x: this.padding,
-			y: 35,
-			width: this.getWidth() - this.padding * 2,
-			height: this.getHeight() - 45,
+			y: this.headerHeight + 5,
 			style: {
 				backgroundColor: 'transparent',
 			},
 		});
 		this.addChild(this.panel);
-		
-		// Panel is not scrollable - no need to set content size
-		
-		// Subscribe to combat log events
-		this.subscribeToEvents();
-		
-		// Initial render of any existing entries
-		this.renderExistingEntries();
 	}
-	
+
 	/**
-	 * Subscribe to combat log model events
+	 * The model subscription is registered on mount and released on unmount
+	 * (R8.14), and the entries are rebuilt from the model, which may have
+	 * moved on while the layer was detached.
 	 */
-	private subscribeToEvents(): void {
-		// Subscribe to the change event - Model emits the full state
-		this.unsubscriber = this.combatLog.on('change', () => {
-			// For now, just re-render all entries
-			this.handleFullUpdate();
-		});
+	protected onMount(): void {
+		this.unsubscriber = this.combatLog.on('change', () => this.handleFullUpdate());
+		this.handleFullUpdate();
 	}
-	
+
+	/** The model subscription; input is released by the base. */
+	protected onUnmount(): void {
+		if (this.unsubscriber) {
+			this.unsubscriber();
+			this.unsubscriber = null;
+		}
+	}
+
+	/** The layout phase: the layer was sized (R8.18). */
+	protected layoutChildren(): void {
+		this.placeChrome();
+		this.updateLayout();
+	}
+
+	private placeChrome(): void {
+		const width = this.getWidth();
+		const height = this.getHeight();
+		this.background.setSize(width, height);
+		this.header.setWidth(width);
+		this.title.setWidth(width);
+		this.panel.setSize(width - this.padding * 2, height - this.headerHeight - 15);
+	}
+
 	/**
 	 * Render any existing entries in the combat log
 	 */
@@ -110,7 +115,7 @@ export class CombatLogLayer extends Layer {
 		});
 		this.updateLayout();
 	}
-	
+
 	/**
 	 * Handle full update by re-rendering all entries
 	 */
@@ -241,45 +246,5 @@ export class CombatLogLayer extends Layer {
 	 */
 	private scrollToBottom(): void {
 		// TODO: Implement scrolling when Panel supports it
-	}
-	
-	/** The log's model subscription; input is released by the base. */
-	protected onUnmount(): void {
-		if (this.unsubscriber) {
-			this.unsubscriber();
-			this.unsubscriber = null;
-		}
-	}
-	
-	/**
-	 * Handle resize
-	 */
-	protected onResized(): void {
-		// Update background
-		const background = this.children[0] as Rectangle;
-		if (background) {
-			background.setSize(this.getWidth(), this.getHeight());
-		}
-		
-		// Update header
-		const header = this.children[1] as Rectangle;
-		if (header) {
-			header.setWidth(this.getWidth());
-		}
-		
-		// Update title position
-		const title = this.children[2] as Text;
-		if (title) {
-			title.setPosition(Math.floor(this.getWidth() / 2), 15);
-		}
-		
-		// Update panel
-		if (this.panel) {
-			this.panel.setSize(
-				this.getWidth() - this.padding * 2,
-				this.getHeight() - 45
-			);
-			this.updateLayout();
-		}
 	}
 }

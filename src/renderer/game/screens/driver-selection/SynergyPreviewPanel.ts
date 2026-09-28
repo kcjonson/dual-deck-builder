@@ -6,6 +6,16 @@ import { DriverSynergy, SynergyAnalysis } from '../../mechanics/DriverSynergy';
 
 /** Horizontal padding inside a tag pill. */
 const TAG_PADDING = 5;
+const TAG_HEIGHT = 20;
+const TAG_SPACING = 5;
+const MAX_TAG_WIDTH = 80;
+
+/** A synergy tag: its label, the pill sized to it, and the pill's width. */
+interface TagPill {
+	label: Text;
+	pill: Rectangle;
+	width: number;
+}
 
 /**
  * Synergy preview panel for the Driver Selection Screen
@@ -18,21 +28,18 @@ export class SynergyPreviewPanel extends Layer {
 	private synergyDescription: Text | null = null;
 	private warningText: Text | null = null;
 	private tagsContainer: Layer | null = null;
+	private tagPills: TagPill[] = [];
 	
 	private currentSynergy: SynergyAnalysis | null = null;
 
 	/**
-	 * Create a new synergy preview panel
+	 * Create a new synergy preview panel. Its contents are placed from its
+	 * size in the layout phase, so a resize moves them rather than rebuilding.
 	 */
-	constructor(options: LayerOptions & { x: number; y: number; width: number; height: number }) {
+	constructor(options: LayerOptions) {
 		super(options);
-		
-		// Create background
+
 		this.background = new Rectangle({
-			x: 0,
-			y: 0,
-			width: this.getWidth(),
-			height: this.getHeight(),
 			style: {
 				backgroundColor: '#4a4a6a',
 				borderColor: '#6a6a8a',
@@ -41,12 +48,9 @@ export class SynergyPreviewPanel extends Layer {
 		});
 		this.addChild(this.background);
 		
-		// Create title
 		// Centred across the panel
 		this.titleText = new Text('Team Synergy', {
-			x: 0,
 			y: 25,
-			width: this.getWidth(),
 			style: {
 				fontSize: 20,
 				color: '#ffffff',
@@ -97,20 +101,16 @@ export class SynergyPreviewPanel extends Layer {
 		this.synergyDescription = null;
 		this.warningText = null;
 		this.tagsContainer = null;
+		this.tagPills = [];
 	}
 
 	/**
-	 * Create the synergy display content
+	 * Create the synergy display content; placeContents places it
 	 */
 	private createSynergyDisplay(): void {
 		if (!this.currentSynergy) return;
-		
-		const panelWidth = this.getWidth();
-		let currentY = 60; // Start below title
-		
-		// Synergy description
+
 		this.synergyDescription = new Text(this.currentSynergy.description, {
-			width: Math.floor(panelWidth * 0.9),
 			style: {
 				fontSize: 12,
 				color: this.getSynergyColor(this.currentSynergy.type),
@@ -118,14 +118,10 @@ export class SynergyPreviewPanel extends Layer {
 				whiteSpace: 'normal',
 			},
 		});
-		this.synergyDescription.setPosition(Math.floor(panelWidth * 0.05), currentY);
 		this.addChild(this.synergyDescription);
-		currentY += this.synergyDescription.getHeight() + 20;
-		
-		// Warning text if present
+
 		if (this.currentSynergy.warning) {
 			this.warningText = new Text(this.currentSynergy.warning, {
-				width: Math.floor(panelWidth * 0.9),
 				style: {
 					fontSize: 11,
 					color: '#ff6666',
@@ -134,44 +130,22 @@ export class SynergyPreviewPanel extends Layer {
 					fontWeight: 'bold',
 				},
 			});
-			this.warningText.setPosition(Math.floor(panelWidth * 0.05), currentY);
 			this.addChild(this.warningText);
-			currentY += this.warningText.getHeight() + 15;
 		}
-		
-		// Synergy tags
+
 		if (this.currentSynergy.tags.length > 0) {
-			this.createSynergyTags(currentY);
+			this.createSynergyTags(this.currentSynergy.tags);
 		}
+		this.placeContents();
 	}
 
-	/**
-	 * Create synergy tags display
-	 */
-	private createSynergyTags(startY: number): void {
-		if (!this.currentSynergy) return;
-		
-		this.tagsContainer = new Layer({
-			x: 0,
-			y: startY,
-			width: this.getWidth(),
-			height: this.getHeight() - startY,
-		});
-		this.addChild(this.tagsContainer);
-		
-		const panelWidth = this.getWidth();
-		const tagHeight = 20;
-		const tagSpacing = 5;
-		const maxTagWidth = 80;
-		
-		// Calculate layout for tags
-		let currentX = 10;
-		let currentRow = 0;
-		
-		for (const tag of this.currentSynergy.tags) {
-			// Measured at its hug width, then boxed in a pill that fits it, or
-			// truncated to the widest pill
-			const tagText = new Text(tag, {
+	private createSynergyTags(tags: readonly string[]): void {
+		const container = new Layer({});
+		this.tagsContainer = container;
+		this.addChild(container);
+
+		for (const tag of tags) {
+			const label = new Text(tag, {
 				style: {
 					fontSize: 10,
 					color: '#ffffff',
@@ -182,34 +156,76 @@ export class SynergyPreviewPanel extends Layer {
 					fontWeight: 'bold',
 				},
 			});
-			const tagBackground = new Rectangle({
+			const pill = new Rectangle({
 				style: {
 					backgroundColor: this.getTagColor(tag),
 					borderRadius: 10,
 				},
 			});
-			// Added before they are placed: the panel is mounted, so the label
-			// measures through the mount context as it is added (R1.6), and the
-			// pill is sized from that.
-			this.tagsContainer.addChild(tagBackground);
-			this.tagsContainer.addChild(tagText);
-			const tagWidth = Math.ceil(Math.min(maxTagWidth, tagText.getWidth() + TAG_PADDING * 2));
+			// Added before it is measured: the panel is mounted, so the label
+			// measures its hug width through the mount context as it is added
+			// (R1.6), and the pill fits that or truncates it to the widest pill.
+			container.addChild(pill);
+			container.addChild(label);
+			const width = Math.ceil(Math.min(MAX_TAG_WIDTH, label.getWidth() + TAG_PADDING * 2));
+			this.tagPills.push({ label, pill, width });
+		}
+	}
 
-			// Check if tag fits on current row
+	/** The frame's layout phase: the panel was sized, or what it holds changed (R8.18). */
+	protected layoutChildren(): void {
+		this.placeContents();
+	}
+
+	/**
+	 * The description, the warning under it, and the tags under that, all
+	 * from the panel's width; the wrapped texts' heights decide where the
+	 * next one starts.
+	 */
+	private placeContents(): void {
+		const panelWidth = this.getWidth();
+		const panelHeight = this.getHeight();
+
+		this.background.setSize(panelWidth, panelHeight);
+		this.titleText.setWidth(panelWidth);
+
+		let currentY = 60; // Start below title
+		if (this.synergyDescription) {
+			this.synergyDescription.setWidth(Math.floor(panelWidth * 0.9));
+			this.synergyDescription.setPosition(Math.floor(panelWidth * 0.05), currentY);
+			currentY += this.synergyDescription.getHeight() + 20;
+		}
+		if (this.warningText) {
+			this.warningText.setWidth(Math.floor(panelWidth * 0.9));
+			this.warningText.setPosition(Math.floor(panelWidth * 0.05), currentY);
+			currentY += this.warningText.getHeight() + 15;
+		}
+		if (this.tagsContainer) {
+			this.tagsContainer.setPosition(0, currentY);
+			this.tagsContainer.setSize(panelWidth, panelHeight - currentY);
+			this.placeTags(panelWidth);
+		}
+	}
+
+	/** Tags flow in rows across the panel's width. */
+	private placeTags(panelWidth: number): void {
+		let currentX = 10;
+		let currentRow = 0;
+		for (const { label, pill, width: tagWidth } of this.tagPills) {
 			if (currentX + tagWidth > panelWidth - 10) {
 				currentX = 10;
 				currentRow++;
 			}
-			const tagY = currentRow * (tagHeight + tagSpacing);
+			const tagY = currentRow * (TAG_HEIGHT + TAG_SPACING);
 
-			tagBackground.setPosition(currentX, tagY);
-			tagBackground.setSize(tagWidth, tagHeight);
+			pill.setPosition(currentX, tagY);
+			pill.setSize(tagWidth, TAG_HEIGHT);
 
 			// Centred in the pill, inside its padding
-			tagText.setPosition(currentX + TAG_PADDING, tagY);
-			tagText.setSize(tagWidth - TAG_PADDING * 2, tagHeight);
+			label.setPosition(currentX + TAG_PADDING, tagY);
+			label.setSize(tagWidth - TAG_PADDING * 2, TAG_HEIGHT);
 
-			currentX += tagWidth + tagSpacing;
+			currentX += tagWidth + TAG_SPACING;
 		}
 	}
 

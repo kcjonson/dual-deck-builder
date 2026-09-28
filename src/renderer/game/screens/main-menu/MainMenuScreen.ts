@@ -15,6 +15,8 @@ const BUILD_LABEL_MARGIN = 8;
 export class MainMenuScreen extends Screen {
 	private background: Rectangle;
 	private title: Text;
+	/** Stacked down the middle in this order. */
+	private buttons: Button[] = [];
 	private buildLabel: Text | null = null;
 	private isElectron = false;
 
@@ -34,12 +36,8 @@ export class MainMenuScreen extends Screen {
 		const electronWindow = window as ElectronWindow;
 		this.isElectron = electronWindow.electron?.isElectron === true;
 
-		// Create background
+		// Sized with the root in positionElements
 		this.background = new Rectangle({
-			x: 0,
-			y: 0,
-			width: window.innerWidth,
-			height: window.innerHeight,
 			style: {
 				backgroundColor: '#1a1a33',
 			},
@@ -58,11 +56,7 @@ export class MainMenuScreen extends Screen {
 		});
 		this.rootLayer.addChild(this.title);
 
-		// Create buttons
 		this.createButtons();
-
-		// Position elements
-		this.positionElements();
 	}
 
 	/**
@@ -71,8 +65,6 @@ export class MainMenuScreen extends Screen {
 	private createButtons(): void {
 		const buttonWidth = 300;
 		const buttonHeight = 60;
-		// Unused variable removed
-		// const buttonSpacing = 20;
 
 		// Start Game button
 		const startButton = new Button('Start Game', {
@@ -86,7 +78,7 @@ export class MainMenuScreen extends Screen {
 		startButton.onClick = () => {
 			ScreenManager.navigate('driverSelectionScreen');
 		};
-		this.rootLayer.addChild(startButton);
+		this.addButton(startButton);
 
 		// Settings button
 		const settingsButton = new Button('Settings', {
@@ -101,7 +93,7 @@ export class MainMenuScreen extends Screen {
 			// Settings not implemented yet
 			console.log('Settings not implemented');
 		};
-		this.rootLayer.addChild(settingsButton);
+		this.addButton(settingsButton);
 
 		// Credits button
 		const creditsButton = new Button('Credits', {
@@ -116,7 +108,7 @@ export class MainMenuScreen extends Screen {
 			// Credits not implemented yet
 			console.log('Credits not implemented');
 		};
-		this.rootLayer.addChild(creditsButton);
+		this.addButton(creditsButton);
 
 		// Card showcase button
 		const cardShowcaseButton = new Button('Card Showcase', {
@@ -130,7 +122,7 @@ export class MainMenuScreen extends Screen {
 		cardShowcaseButton.onClick = () => {
 			ScreenManager.navigate('cardShowcaseScreen');
 		};
-		this.rootLayer.addChild(cardShowcaseButton);
+		this.addButton(cardShowcaseButton);
 
 		// Developer button
 		const devButton = new Button('Developer Tools', {
@@ -144,7 +136,7 @@ export class MainMenuScreen extends Screen {
 		devButton.onClick = () => {
 			ScreenManager.navigate('developerScreen');
 		};
-		this.rootLayer.addChild(devButton);
+		this.addButton(devButton);
 
 		// Exit button (only for desktop)
 		const exitButton = new Button('Exit Game', {
@@ -163,16 +155,14 @@ export class MainMenuScreen extends Screen {
 		};
 
 		// Only show exit button in desktop mode
-		interface ElectronWindow extends Window {
-			electron?: {
-				isElectron: boolean;
-				[key: string]: unknown;
-			};
+		if (this.isElectron) {
+			this.addButton(exitButton);
 		}
-		const electronWindow = window as ElectronWindow;
-		if (electronWindow.electron && electronWindow.electron.isElectron === true) {
-			this.rootLayer.addChild(exitButton);
-		}
+	}
+
+	private addButton(button: Button): void {
+		this.buttons.push(button);
+		this.rootLayer.addChild(button);
 	}
 
 	/**
@@ -181,6 +171,8 @@ export class MainMenuScreen extends Screen {
 	 * which keeps the main menu goldens stable across commits.
 	 */
 	protected onMount(): void {
+		this.positionElements();
+
 		const label = formatBuildLabel({ sha: __BUILD_SHA__, number: __BUILD_NUMBER__ });
 		if (!label) return;
 
@@ -204,35 +196,30 @@ export class MainMenuScreen extends Screen {
 
 	private positionBuildLabel(): void {
 		this.buildLabel?.setPosition(
-			window.innerWidth - BUILD_LABEL_WIDTH - BUILD_LABEL_MARGIN,
-			window.innerHeight - BUILD_LABEL_HEIGHT - BUILD_LABEL_MARGIN,
+			this.rootLayer.width - BUILD_LABEL_WIDTH - BUILD_LABEL_MARGIN,
+			this.rootLayer.height - BUILD_LABEL_HEIGHT - BUILD_LABEL_MARGIN,
 		);
 	}
 
 	/**
-	 * Position the menu elements
+	 * Position the menu elements from the root's size, which is the viewport's
 	 */
 	private positionElements(): void {
-		const centerX = window.innerWidth / 2;
-		const titleY = window.innerHeight * 0.2;
+		const width = this.rootLayer.width;
+		const height = this.rootLayer.height;
+		const centerX = width / 2;
+
+		this.background.setSize(width, height);
 
 		// Title centred across the screen
-		this.title.setPosition(0, titleY);
-		this.title.setWidth(window.innerWidth);
+		this.title.setPosition(0, height * 0.2);
+		this.title.setWidth(width);
 
-		// Position buttons
 		const buttonWidth = 300;
 		const buttonHeight = 60;
 		const buttonSpacing = 20;
-		const startY = window.innerHeight * 0.4;
-
-		// Get all buttons
-		const buttons = this.rootLayer
-			.getChildren()
-			.filter((child) => child.getComponentType() === 'Button');
-
-		// Position each button
-		buttons.forEach((button, index) => {
+		const startY = height * 0.4;
+		this.buttons.forEach((button, index) => {
 			button.setPosition(
 				centerX - buttonWidth / 2,
 				startY + index * (buttonHeight + buttonSpacing),
@@ -240,15 +227,7 @@ export class MainMenuScreen extends Screen {
 		});
 	}
 
-
-	/**
-	 * Handle window resize
-	 */
 	protected onResized(): void {
-		// Update background size
-		this.background.setWidth(window.innerWidth);
-		this.background.setHeight(window.innerHeight);
-		
 		this.positionElements();
 		this.positionBuildLabel();
 	}
