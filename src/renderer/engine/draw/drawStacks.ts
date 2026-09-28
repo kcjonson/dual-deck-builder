@@ -1,4 +1,4 @@
-import { CLIP_EMPTY, CLIP_NONE, ClipState, ResolvedClip } from './clip';
+import { CLIP_EMPTY, CLIP_NONE, ClipState, ResolvedClip, intersectClipRectInto } from './clip';
 import { ClipRect, IDENTITY, Mat2D, isTranslateOnly } from './geometry';
 
 /**
@@ -170,9 +170,7 @@ export class ClipStack {
 
 	/**
 	 * R4.3: nesting is intersection, of the current clip with `screen`, which
-	 * is copied. The degenerate test is `>=` because R4.4's fragment test is
-	 * half-open, so a rect whose max is at or below its min keeps nothing and
-	 * is `empty`, not a zero-area rect a backend might still upload. R4.14:
+	 * is copied, by `intersectClip`'s own arithmetic. R4.14:
 	 * with a `radius` this level's rounded clip is `screen` itself and wins;
 	 * without one the innermost rounded clip below is kept, having already
 	 * contributed its bounding rect to the intersection.
@@ -184,19 +182,7 @@ export class ClipStack {
 			frame.state = CLIP_EMPTY;
 			return;
 		}
-		const merged = frame.live.rect;
-		if (current.kind === 'rect') {
-			merged.minX = Math.max(current.rect.minX, screen.minX);
-			merged.minY = Math.max(current.rect.minY, screen.minY);
-			merged.maxX = Math.min(current.rect.maxX, screen.maxX);
-			merged.maxY = Math.min(current.rect.maxY, screen.maxY);
-		} else {
-			merged.minX = screen.minX;
-			merged.minY = screen.minY;
-			merged.maxX = screen.maxX;
-			merged.maxY = screen.maxY;
-		}
-		if (merged.minX >= merged.maxX || merged.minY >= merged.maxY) {
+		if (!intersectClipRectInto(current, screen, frame.live.rect)) {
 			frame.state = CLIP_EMPTY;
 			return;
 		}

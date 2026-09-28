@@ -15,7 +15,7 @@ import {
 	shadowInk,
 } from './bounds';
 import { isSingleOutline } from './triangulate';
-import { snapToDevice } from '../coords/snapping';
+import { snapClipRectInto } from '../coords/snapping';
 import {
 	ClipState,
 	clipRectOf,
@@ -45,7 +45,6 @@ import {
 	TextureHandle,
 } from './commands';
 import {
-	IDENTITY,
 	Mat2D,
 	RGBA,
 	Rect,
@@ -226,7 +225,7 @@ export class DrawApi {
 	private ratio = 1;
 	private warnedNestedRoundedClip = false;
 	private inkBoundLocal: Rect | null = null;
-	private inkBoundMatrix: Mat2D = IDENTITY;
+	private readonly inkBoundMatrix: [number, number, number, number, number, number] = [1, 0, 0, 1, 0, 0];
 	private inkBoundScreen: ClipRect | null = null;
 	private warnedInkBound = false;
 
@@ -466,12 +465,7 @@ export class DrawApi {
 		// R7.8a: under a translation the clip goes onto the device grid, so R4.4's
 		// hard edge keeps or drops the same pixels as the content under it moves.
 		const screen = this.screenBounds(rect);
-		if (translateOnly) {
-			screen.minX = snapToDevice(screen.minX, this.ratio);
-			screen.minY = snapToDevice(screen.minY, this.ratio);
-			screen.maxX = snapToDevice(screen.maxX, this.ratio);
-			screen.maxY = snapToDevice(screen.maxY, this.ratio);
-		}
+		if (translateOnly) snapClipRectInto(screen, this.ratio, screen);
 
 		if (radius !== null && hasRoundedClip(this.clip) && !this.warnedNestedRoundedClip) {
 			// R4.14: once per frame. The outer rounded clip degrades to its
@@ -591,9 +585,11 @@ export class DrawApi {
 	setInkBound(local: Rect | null): void {
 		if (!this.development) return;
 		this.inkBoundLocal = local;
-		// Live, but safe until the bound is withdrawn: pushes under it write
-		// deeper levels, and the walk withdraws it before popping this one.
-		this.inkBoundMatrix = this.transforms.matrix;
+		// Copied, since the live matrix is overwritten by the next push at its
+		// depth, which an over-popping `render` would reach unreported.
+		const matrix = this.transforms.matrix;
+		const bound = this.inkBoundMatrix;
+		for (let index = 0; index < 6; index++) bound[index] = matrix[index];
 		this.inkBoundScreen = null;
 	}
 

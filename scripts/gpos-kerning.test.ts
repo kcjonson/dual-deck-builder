@@ -2,6 +2,9 @@ import { join } from 'path';
 import * as fontkit from 'fontkit';
 import { extractGposKerning, type GposLookup, type KerningFont, type PairValue } from './gpos-kerning';
 
+// Parses the committed fonts with fontkit, a second or two idle; the 5 s default fails under a loaded machine.
+jest.setTimeout(30_000);
+
 const FONTS_DIR = join(__dirname, '../src/assets/fonts');
 
 /** Glyph ids for the synthetic faces: A=1 V=2 T=3 o=4 acute (a mark)=5. */

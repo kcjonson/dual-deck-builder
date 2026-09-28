@@ -1,13 +1,15 @@
 import { DrawApi, RecordingBackend } from '../draw';
 import type { DrawCommand } from '../draw';
 import type { DrawApi as DrawApiType } from '../draw/DrawApi';
-import { createMeasuringDrawApi } from '../text/testing';
+import { ATLAS_ASSETS } from '../text/fontFaces';
+import { MeasuringRecordingBackend, committedAtlas, createMeasuringDrawApi } from '../text/testing';
 import { Button } from '../ui/Button';
 import { Panel } from '../ui/Panel';
 import { Circle } from './Circle';
 import type { Component } from './Component';
 import { Layer } from './Layer';
 import { Rectangle } from './Rectangle';
+import { Stack } from './Stack';
 import { Text } from './Text';
 import { renderTree } from './renderTree';
 import { createTestContext } from './testing';
@@ -399,6 +401,45 @@ describe('subtree cull (DDB-184, R4.2a)', () => {
 			expect(skipping).toEqual(counting);
 			expect(counting.culled).toBe(1);
 			expect(clip.walkedGroupCount).toBe(1);
+		});
+
+		it('a text in a stack that becomes measurable at an unchanged size (#104 review)', () => {
+			// The atlases load after mount, as a page's can, and the stack's
+			// `assignSize` measures without resizing the fixed box.
+			const recording = new MeasuringRecordingBackend({ maxFrames: 1 });
+			const draw = new DrawApi({ backend: recording, strict: true });
+			const clip = viewport();
+			const root = clip.parent as Layer;
+			const row = new Stack({ id: 'row', x: 210, y: 50 });
+			const text = new Text('Scrap the escort and keep rolling on', {
+				id: 'late-stack',
+				width: 40,
+				height: 20,
+				style: { fontSize: 16, whiteSpace: 'nowrap', textAlign: 'right' },
+			});
+			row.addChild(text);
+			clip.addChild(row);
+			const context = createTestContext({ draw });
+			root.mount(context);
+			context.frame.layout();
+			// Read while unmeasured, as the snapshot would.
+			expect(text.inkRect).toMatchObject({ width: 40, height: 20 });
+
+			for (const asset of ATLAS_ASSETS) {
+				const texture = draw.createTexture({ width: 1, height: 1, label: asset.role });
+				draw.loadFontAtlas({ name: asset.role, atlas: committedAtlas(asset.role), texture });
+			}
+			row.invalidateLayout();
+			context.frame.layout();
+
+			expect(text.width).toBe(40);
+			expect(text.currentMetrics?.width ?? 0).toBeGreaterThan(200);
+			// The box sits past the clip's right edge; only the run's left overrun is visible.
+			expect(text.inkRect.x).toBeLessThan(-150);
+			const counting = frame(root, draw, recording);
+			const skipping = frame(root, draw, recording);
+			expect(counting.drawn).toEqual(['late-stack:text']);
+			expect(skipping).toEqual(counting);
 		});
 
 		it('an unmeasured text, which has no bound and is never skipped', () => {

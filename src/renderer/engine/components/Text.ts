@@ -422,7 +422,14 @@ export class Text extends Component {
 		// Measured or not decides whether `cullInk` has a bound at all, and a
 		// first measure at an unchanged size invalidates nothing else, so the
 		// subtree would otherwise stay unbounded and never be skipped.
-		if (stale !== this.stale) this.invalidateInk();
+		// A different layout moves the run, and a stack's `assignSize` lays out
+		// here without `fit`, often at an unchanged size, so this is where the
+		// cached ink learns of it (a measure returns a fresh object each time,
+		// hence the comparison by value).
+		if (stale !== this.stale || (metrics !== null && !sameLayout(metrics, this.metrics))) {
+			this.inkDirty = true;
+			this.invalidateInk();
+		}
 		this.stale = stale;
 		if (metrics) this.metrics = metrics;
 		return metrics;
@@ -552,3 +559,12 @@ export class Text extends Component {
  * Zero would read as no wrap at all.
  */
 const NARROWEST_WRAP = 1e-3;
+
+/** Whether two measures describe the same lines, so the run lands in the same place. */
+function sameLayout(a: TextMetrics, b: TextMetrics | null): boolean {
+	if (!b || a.width !== b.width || a.height !== b.height || a.lines !== b.lines) return false;
+	for (let line = 0; line < a.lineWidths.length; line++) {
+		if (a.lineWidths[line] !== b.lineWidths[line]) return false;
+	}
+	return true;
+}
