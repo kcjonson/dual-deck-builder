@@ -28,12 +28,20 @@ Material Icons Regular from google/material-design-icons at `bd8cb85` (`font/Mat
 
 ## The six sites
 
-- Vehicle armor badge: a 12 px shield leads the badge, the value centres in the rest.
-- Enemy intent marker: an 18 px shield (defend) or wrench (repair) centred in the 30 px marker; attack and special still show text.
+- Vehicle armor badge: `game/ui/ArmorBadge.ts`, which draws its own fill, a 12 px shield and the value, and is as wide as those need (inset, icon, gap, measured value, inset), the old quarter of the plate at least. With the icon in a fixed-width badge, "5 SH3" (21.5 px at 8 px Open Sans) already ran onto the shield and "10 SH12" (30.7 px) out of both sides; the badge now grows instead, measured once per value change at the next render.
+- Enemy intent marker: `game/ui/IntentMarker.ts`, the disc with an 18 px shield (defend) or wrench (repair), or the attack value and the special "!", all centred. The value used to sit at a fixed point to the right of the disc's centre; it is centred now.
 - Driver fuel stat and the scrap readout: the pump and the gear at three quarters of their square, as the old symbol text was, with the value beside it.
 - Driver selection back button: `arrow_back` leading "Back to Menu".
 
+## Gallery
+
+The `icons` scene (`IconExamplesSection`) draws every icon at 12, 16 and 24 px, bare and on a badge fill, a button with a leading icon beside one without, the four intents, and the armor badge at 0, 5, "5 SH3" and "10 SH12". A new line in `icons.txt` appears there without touching the scene, and the scene's golden is where an icon's placement is checked by pixels.
+
 ## Consequences
+
+- The icon atlas is the fourth resident texture, so of `UBER_TEXTURE_UNITS` (8) four are left for images instead of five. Nothing draws images yet; the card art phase (R5.30, section 5's art pages in the resident set) has to budget for it.
+- Every icon is tinted `tokens.color.text_bright`. The mock tints the scrap gear `#c9b27a` and the armor shield `#a9bccd`; neither is a token (the nearest, `data_bright` and `accent_dim`, are other hues), so they wait for phase 4's combat restyle, which adds the palette the mock's HUD uses.
+- `Button` and `ArmorBadge` measure at render because there is no layout pass yet and unit tests build screens without a draw API. DDB-73 makes render emit draws only and replaces the `RendererContext` singleton; both placements move into its measure step then (noted on DDB-73).
 
 - Adding an icon is a line in `icons.txt` and a run of `build-fonts`; the atlas grows by a cell.
 - The mock's own glyphs are close but not identical (its fuel is a jerry can, Material's is a pump, which is also what the old U+26FD was). If the mock's art has to be exact, the route is a font built from its SVGs, which needs a font tool this repo does not have.

@@ -1,29 +1,22 @@
 /**
  * @jest-environment jsdom
  */
-import { DrawApi, RecordingBackend, TextCommand } from '../../../engine/draw';
+import { DrawApi, TextCommand } from '../../../engine/draw';
 import { RendererContext } from '../../../engine/rendering/RendererContext';
-import { parseFontAtlas } from '../../../engine/text/FontAtlas';
-import { ATLAS_ASSETS, ICON_ATLAS_ROLE } from '../../../engine/text/fontFaces';
+import { ICON_ATLAS_ROLE } from '../../../engine/text/fontFaces';
+import { MeasuringRecordingBackend } from '../../../engine/text/testing';
 import { ICON_CODE_POINTS } from '../../../engine/text/icons';
 import { Vehicle } from '../../mechanics/Vehicle';
 import { EnemyBattlefieldLayer, EnemyIntent } from './EnemyBattlefieldLayer';
 
 describe('EnemyBattlefieldLayer intent markers', () => {
-	let backend: RecordingBackend;
+	let backend: MeasuringRecordingBackend;
 	let api: DrawApi;
 	let layer: EnemyBattlefieldLayer;
 	let raider: Vehicle;
 
 	beforeEach(() => {
-		backend = new RecordingBackend({ maxFrames: 1 });
-		ATLAS_ASSETS.forEach((asset, index) => {
-			backend.loadFontAtlas({
-				name: asset.role,
-				atlas: parseFontAtlas({ json: asset.metrics, source: asset.face, warn: () => undefined }),
-				texture: { id: index + 1, width: 1, height: 1, label: null },
-			});
-		});
+		backend = new MeasuringRecordingBackend({ maxFrames: 1 });
 		api = new DrawApi({ backend });
 		RendererContext.getInstance().draw = api;
 

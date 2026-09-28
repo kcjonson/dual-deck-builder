@@ -1,78 +1,26 @@
 import { BattlefieldLayer, BattlefieldLayerOptions, LaneDecor } from './BattlefieldLayer';
 import { Vehicle as VehicleData } from '../../mechanics/Vehicle';
 import { Vehicle as VehicleUI } from '../../ui/Vehicle';
-import { Icon } from '../../../engine/components/Icon';
-import { Rectangle } from '../../../engine/components/Rectangle';
-import { Text } from '../../../engine/components/Text';
-import type { IconName } from '../../../engine/text/icons';
-import { tokens } from '../../../engine/theme/tokens';
+import { EnemyIntent, IntentMarker } from '../../ui/IntentMarker';
 
-/**
- * Enemy intent indicator types
- */
-export type IntentType = 'attack' | 'defend' | 'repair' | 'special';
-
-export interface EnemyIntent {
-	type: IntentType;
-	value?: number; // Damage amount, armor gain, etc.
-	description: string;
-}
+export type { EnemyIntent, IntentType } from '../../ui/IntentMarker';
 
 /**
  * Enemy-specific vehicle UI component
  */
 class EnemyVehicle extends VehicleUI {
-	private intentIndicator!: Rectangle;
-	private intentText!: Text;
-	private intentIcon!: Icon;
+	private intentMarker!: IntentMarker;
 	private intent: EnemyIntent | null = null;
 
 	protected createElements(): void {
 		super.createElements();
 
-		// Add intent indicator
-		const width = this.getWidth();
-		const height = this.getHeight();
-
-		const indicatorX = Math.floor(width * 0.7);
-		const indicatorY = Math.floor(height * 0.05);
-		const indicatorSize = 30;
-		this.intentIndicator = new Rectangle({
-			x: indicatorX,
-			y: indicatorY,
-			width: indicatorSize,
-			height: indicatorSize,
-			style: {
-				backgroundColor: '#aa4a4a',
-				borderColor: '#cc6a6a',
-				borderWidth: 2,
-				borderRadius: 15,
-			},
+		this.intentMarker = new IntentMarker({
+			x: Math.floor(this.getWidth() * 0.7),
+			y: Math.floor(this.getHeight() * 0.05),
+			size: 30,
 		});
-		this.addChild(this.intentIndicator);
-
-		this.intentText = new Text('!', {
-			style: {
-				fontSize: 16,
-				color: '#ffffff',
-				textAlign: 'center',
-				fontWeight: 'bold',
-			},
-		});
-		this.intentText.setPosition(Math.floor(width * 0.85), Math.floor(height * 0.2));
-		this.addChild(this.intentText);
-
-		// Defend and repair show an icon in the marker instead of a value
-		const iconSize = 18;
-		this.intentIcon = new Icon({
-			glyph: 'shield',
-			size: iconSize,
-			tint: tokens.color.text_bright,
-			x: indicatorX + (indicatorSize - iconSize) / 2,
-			y: indicatorY + (indicatorSize - iconSize) / 2,
-		});
-		this.intentIcon.setVisible(false);
-		this.addChild(this.intentIcon);
+		this.addChild(this.intentMarker);
 	}
 
 	protected getPortraitColor(): string {
@@ -93,7 +41,7 @@ class EnemyVehicle extends VehicleUI {
 	 */
 	public setIntent(intent: EnemyIntent | null): void {
 		this.intent = intent;
-		this.updateIntent();
+		this.intentMarker.intent = intent;
 	}
 
 	/**
@@ -101,77 +49,7 @@ class EnemyVehicle extends VehicleUI {
 	 */
 	protected onResized(): void {
 		super.onResized();
-		this.updateIntent();
-	}
-
-	/**
-	 * Update intent display
-	 */
-	private updateIntent(): void {
-		if (!this.intent) {
-			this.intentIndicator.setVisible(false);
-			this.intentText.setVisible(false);
-			this.intentIcon.setVisible(false);
-			return;
-		}
-
-		const icon = this.getIntentIcon(this.intent.type);
-		this.intentIndicator.setVisible(true);
-		this.intentIndicator.setFillColor(this.getIntentColor(this.intent.type));
-		this.intentText.setVisible(icon === null);
-		this.intentText.setText(this.getIntentDisplay(this.intent));
-		this.intentIcon.setVisible(icon !== null);
-		if (icon) this.intentIcon.glyph = icon;
-	}
-
-	/**
-	 * The icon an intent shows in place of text, or null for a text intent
-	 */
-	private getIntentIcon(intentType: IntentType): IconName | null {
-		switch (intentType) {
-			case 'defend':
-				return 'shield';
-			case 'repair':
-				return 'build';
-			default:
-				return null;
-		}
-	}
-
-	/**
-	 * Get color for intent type
-	 */
-	private getIntentColor(intentType: IntentType): string {
-		switch (intentType) {
-			case 'attack':
-				return '#cc4444';
-			case 'defend':
-				return '#4444cc';
-			case 'repair':
-				return '#44cc44';
-			case 'special':
-				return '#cc8844';
-			default:
-				return '#666666';
-		}
-	}
-
-	/**
-	 * Get display text for intent
-	 */
-	private getIntentDisplay(intent: EnemyIntent): string {
-		switch (intent.type) {
-			case 'attack':
-				return intent.value ? intent.value.toString() : '?';
-			// Defend and repair draw their icon instead (getIntentIcon)
-			case 'defend':
-			case 'repair':
-				return '';
-			case 'special':
-				return '!';
-			default:
-				return '?';
-		}
+		this.intentMarker.intent = this.intent;
 	}
 }
 

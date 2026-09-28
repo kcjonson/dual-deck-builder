@@ -7,11 +7,12 @@ import { ButtonExamplesSection } from './ButtonExamplesSection';
 import { TextExamplesSection } from './TextExamplesSection';
 import { PrimitiveShapesSection } from './PrimitiveShapesSection';
 import { NestedPanelsSection } from './NestedPanelsSection';
+import { IconExamplesSection } from './IconExamplesSection';
 
 /**
  * The developer screen's sections, defined once.
  *
- * DeveloperScreen stacks all eight in its scroll container and the gallery
+ * DeveloperScreen stacks all of them in its scroll container and the gallery
  * registry (`src/gallery/registry.ts`) wraps each one as a scene, so the screen
  * and the `?scene=` gallery cannot drift apart. The list lives here, beside the
  * sections it names, rather than in `src/gallery/`: the gallery is a
@@ -83,5 +84,9 @@ export const developerSections: readonly DeveloperSection[] = [
 	{
 		name: 'nested-panels',
 		build: ({ x, y, width }) => new NestedPanelsSection(x, y, width),
+	},
+	{
+		name: 'icons',
+		build: ({ x, y, width }) => new IconExamplesSection(x, y, width),
 	},
 ];

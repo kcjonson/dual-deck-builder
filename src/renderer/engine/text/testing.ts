@@ -1,5 +1,9 @@
 import { FontAtlas, parseFontAtlas } from './FontAtlas';
-import { FONT_FACES, FontRole } from './fontFaces';
+import { RecordingBackend } from '../draw/RecordingBackend';
+import type { RecordingBackendOptions } from '../draw/RecordingBackend';
+import type { FontAtlasHandle, FontAtlasOptions, MeasureTextOptions, TextMetrics } from '../draw';
+import { ATLAS_ASSETS, FONT_FACES, FontRole } from './fontFaces';
+import { TextMetricsService } from './TextMetricsService';
 
 /**
  * Fixtures for tests that lay text out in Node (R14.1). Nothing in the game
@@ -63,4 +67,36 @@ export function syntheticFontAtlas(): FontAtlas {
 			],
 		},
 	});
+}
+
+/**
+ * A recording backend that also answers `measureText`, from the same
+ * `TextMetricsService` the WebGL2 backend uses (R2.14), with every committed
+ * atlas loaded: the three faces and the icons. For components that size
+ * themselves from a measured label.
+ */
+export class MeasuringRecordingBackend extends RecordingBackend {
+	private readonly text = new TextMetricsService();
+	measureCalls = 0;
+
+	constructor(options: RecordingBackendOptions = {}) {
+		super(options);
+		ATLAS_ASSETS.forEach((asset, index) => {
+			this.loadFontAtlas({
+				name: asset.role,
+				atlas: parseFontAtlas({ json: asset.metrics, source: asset.face, warn: () => undefined }),
+				texture: { id: index + 1, width: 1, height: 1, label: null },
+			});
+		});
+	}
+
+	loadFontAtlas(options: FontAtlasOptions): FontAtlasHandle {
+		this.text.addAtlas({ name: options.name, atlas: options.atlas });
+		return super.loadFontAtlas(options);
+	}
+
+	measureText(options: MeasureTextOptions): TextMetrics {
+		this.measureCalls++;
+		return this.text.measure(options);
+	}
 }

@@ -1,6 +1,6 @@
 # Font atlases
 
-MSDF atlases for the three text roles of R11.8, one face each (R6.4), and the icon atlas (R12.6), built by `scripts/build-fonts.sh` (macOS, Linux) or `scripts/build-fonts.ps1` (Windows). The PNG and JSON pairs are committed, so neither CI nor a fresh checkout needs the generator; run the script only when a face or `charset.txt` changes, then commit what it writes.
+MSDF atlases for the three text roles of R11.8, one face each (R6.4), and the icon atlas (R12.6), built by `scripts/build-fonts.sh` (macOS, Linux) or `scripts/build-fonts.ps1` (Windows). The PNG and JSON pairs are committed, so neither CI nor a fresh checkout needs the generator; run the script only when a face, `charset.txt` or `icons.txt` changes, then commit what it writes (and `src/renderer/engine/text/icons.ts`).
 
 | Role | Face | Source | Licence | Atlas |
 |---|---|---|---|---|

@@ -1,11 +1,10 @@
-import { Icon } from '../../engine/components/Icon';
 import { Layer } from '../../engine/components/Layer';
 import { Rectangle } from '../../engine/components/Rectangle';
 import { Text } from '../../engine/components/Text';
 import { Vehicle as VehicleData } from '../mechanics/Vehicle';
 import { InputSystem } from '../../engine/input/InputSystem';
-import { tokens } from '../../engine/theme/tokens';
 import { CombatModel } from '../screens/combat/CombatModel';
+import { ArmorBadge } from './ArmorBadge';
 
 /**
  * Visual representation of a vehicle on the battlefield
@@ -22,9 +21,7 @@ export class Vehicle extends Layer {
 	protected healthBar!: Rectangle;
 	protected healthBarFill!: Rectangle;
 	protected healthText!: Text;
-	protected armorDisplay!: Rectangle;
-	protected armorText!: Text;
-	protected armorIcon!: Icon;
+	protected armorBadge!: ArmorBadge;
 	protected driverPortrait: Rectangle | null = null;
 	protected statusContainer: Layer | null = null;
 	protected spentChip: Text | null = null;
@@ -221,46 +218,14 @@ export class Vehicle extends Layer {
 		this.addChild(this.healthText);
 		
 		// Armor display and status container on same line
-		const armorX = Math.floor(width * 0.1);
-		const armorY = Math.floor(height * 0.82);
-		const armorWidth = Math.floor(width * 0.25);
-		this.armorDisplay = new Rectangle({
+		this.armorBadge = new ArmorBadge({
 			id: this.childId('armor_badge'),
-			x: armorX,
-			y: armorY,
-			width: armorWidth,
+			x: Math.floor(width * 0.1),
+			y: Math.floor(height * 0.82),
+			minWidth: Math.floor(width * 0.25),
 			height: 16,
-			style: {
-				backgroundColor: '#4a4a4a',
-				borderColor: '#8a8aaa',
-				borderWidth: 1,
-			},
 		});
-		this.addChild(this.armorDisplay);
-
-		// The shield leads the badge and the value centres in what is left
-		const armorIconSize = 12;
-		const armorIconRight = armorX + 3 + armorIconSize;
-		this.armorIcon = new Icon({
-			id: this.childId('armor_icon'),
-			glyph: 'shield',
-			size: armorIconSize,
-			tint: tokens.color.text_bright,
-			x: armorX + 3,
-			y: armorY + 2,
-		});
-		this.addChild(this.armorIcon);
-
-		this.armorText = new Text('', {
-			id: this.childId('armor_value'),
-			style: {
-				fontSize: 8,
-				color: '#ffffff',
-				textAlign: 'center',
-			},
-		});
-		this.armorText.setPosition(Math.floor((armorIconRight + armorX + armorWidth) / 2), Math.floor(height * 0.84));
-		this.addChild(this.armorText);
+		this.addChild(this.armorBadge);
 		
 		// An escort shows SPENT once it has acted this turn
 		this.spentChip = null;
@@ -313,12 +278,9 @@ export class Vehicle extends Layer {
 		this.healthBarFill.setFillColor(this.getHealthColor(healthPercentage));
 		this.healthText.setText(`${this.vehicleData.structure}/${this.vehicleData.maxStructure}`);
 		
-		// Update armor
-		// Shield, temporary armor on top, shows as "SH" and a second number
-		// while there is any.
-		const shield = this.vehicleData.shield ?? 0;
-		this.armorDisplay.setFillColor(this.vehicleData.armor > 0 || shield > 0 ? '#6a6aaa' : '#4a4a4a');
-		this.armorText.setText(shield > 0 ? `${this.vehicleData.armor} SH${shield}` : `${this.vehicleData.armor}`);
+		// Update armor; shield is temporary armor on top
+		this.armorBadge.armor = this.vehicleData.armor;
+		this.armorBadge.shield = this.vehicleData.shield ?? 0;
 
 		this.spentChip?.setVisible(Boolean(this.vehicleData.spent));
 	}

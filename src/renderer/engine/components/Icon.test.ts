@@ -1,47 +1,21 @@
 /**
  * @jest-environment jsdom
  */
-import { DrawApi, FontAtlasHandle, FontAtlasOptions, MeasureTextOptions, RecordingBackend, TextCommand, TextMetrics } from '../draw';
+import { DrawApi, TextCommand } from '../draw';
 import { RendererContext } from '../rendering/RendererContext';
-import { parseFontAtlas } from '../text/FontAtlas';
-import { ICON_ATLAS, ICON_ATLAS_ROLE } from '../text/fontFaces';
+import { ICON_ATLAS_ROLE } from '../text/fontFaces';
 import { ICON_CODE_POINTS } from '../text/icons';
-import { committedFontAtlas } from '../text/testing';
-import { TextMetricsService } from '../text/TextMetricsService';
+import { MeasuringRecordingBackend } from '../text/testing';
 import { tokens } from '../theme/tokens';
 import { Button } from '../ui/Button';
 import { Icon } from './Icon';
 
-/** A recording backend that also measures, from the same service `WebGL2Backend` uses (R2.14). */
-class MeasuringBackend extends RecordingBackend {
-	private readonly text = new TextMetricsService();
-
-	loadFontAtlas(options: FontAtlasOptions): FontAtlasHandle {
-		this.text.addAtlas({ name: options.name, atlas: options.atlas });
-		return super.loadFontAtlas(options);
-	}
-
-	measureText(options: MeasureTextOptions): TextMetrics {
-		return this.text.measure(options);
-	}
-}
-
 describe('Icon (R12.6)', () => {
-	let backend: MeasuringBackend;
+	let backend: MeasuringRecordingBackend;
 	let api: DrawApi;
 
 	beforeEach(() => {
-		backend = new MeasuringBackend({ maxFrames: 1 });
-		backend.loadFontAtlas({
-			name: 'body',
-			atlas: committedFontAtlas('body'),
-			texture: { id: 1, width: 1, height: 1, label: null },
-		});
-		backend.loadFontAtlas({
-			name: ICON_ATLAS_ROLE,
-			atlas: parseFontAtlas({ json: ICON_ATLAS.metrics, source: ICON_ATLAS.face }),
-			texture: { id: 2, width: 1, height: 1, label: null },
-		});
+		backend = new MeasuringRecordingBackend({ maxFrames: 1 });
 		api = new DrawApi({ backend });
 		RendererContext.getInstance().draw = api;
 	});
@@ -134,6 +108,23 @@ describe('Icon (R12.6)', () => {
 			expect(iconBox.y + iconBox.height / 2).toBeCloseTo(30 + 25, 0);
 			// The label is centred at an anchor half the icon and gap right of the button's centre.
 			expect(label.position?.x).toBeCloseTo(30 + 100 + (iconBox.width + gap) / 2);
+		});
+
+		it('keeps its placement when the button moves, and re-places after a label change', () => {
+			const button = new Button('Back', { icon: 'arrow_back', width: 200, height: 50 });
+			button.setPosition(0, 0);
+			const measure = jest.spyOn(api, 'measureText');
+			frame(() => button.render());
+			const first = textCommands().map((command) => command.box ?? command.position);
+
+			button.setPosition(0, 0);
+			frame(() => button.render());
+			expect(textCommands().map((command) => command.box ?? command.position)).toEqual(first);
+			expect(measure).toHaveBeenCalledTimes(1);
+
+			button.setLabel('Back to Menu');
+			frame(() => button.render());
+			expect(measure).toHaveBeenCalledTimes(2);
 		});
 
 		it('draws no icon without one', () => {

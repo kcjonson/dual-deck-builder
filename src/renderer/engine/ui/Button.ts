@@ -26,6 +26,8 @@ export class Button extends Component {
 	private icon: Icon | null = null;
 	/** The icon is placed against the label's measured width, which needs the draw API, so at the next render. */
 	private iconPlaced = false;
+	/** The icon and gap the label's box gives up on its left. */
+	private labelInset = 0;
 	private pressed = false;
 	private clickHandler: (() => void) | null = null;
 
@@ -124,6 +126,7 @@ export class Button extends Component {
 
 		// Update the text position and size to match button
 		this.updateTextPosition();
+		this.iconPlaced = false;
 
 		return this;
 	}
@@ -149,10 +152,9 @@ export class Button extends Component {
 		this.background.setPosition(0, 0);
 		this.background.setSize(this.width, this.height);
 
-		// Text centered within button (also at local origin since text centers itself)
-		this.text.setPosition(0, 0);
-		this.text.setSize(this.width, this.height);
-		this.iconPlaced = false;
+		// Text centred in what the icon leaves (all of it without one)
+		this.text.setPosition(this.labelInset, 0);
+		this.text.setSize(this.width - this.labelInset, this.height);
 	}
 
 	private get iconSize(): number {
@@ -176,8 +178,8 @@ export class Button extends Component {
 		const groupLeft = (this.width - (iconSize + gap + labelWidth)) / 2;
 		icon.size = iconSize;
 		icon.setPosition(Math.round(groupLeft), Math.round((this.height - iconSize) / 2));
-		this.text.setPosition(iconSize + gap, 0);
-		this.text.setSize(this.width - iconSize - gap, this.height);
+		this.labelInset = iconSize + gap;
+		this.updateTextPosition();
 	}
 
 	/**

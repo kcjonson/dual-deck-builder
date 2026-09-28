@@ -14,9 +14,10 @@ This document contains the chronological log of completed development tasks for 
 - `scripts/generate-icons.mjs` writes `text/icons.ts` (`ICON_CODE_POINTS`, `IconName`) and the charset; `build-fonts.(sh|ps1)` builds `material-icons.{png,json}` with the same msdf-atlas-gen parameters as the faces.
 - `fontFaces.ts`: `ICON_ATLAS` under the name `icons`, loaded with the faces through `ATLAS_ASSETS`, so it is validated at startup and resident beside them.
 - `components/Icon.ts`: `glyph`, `size`, `tint`, drawn in `text` mode centred in its box. `Button` takes `icon` and centres icon and label as a group.
-- The six sites: armor shield on the vehicle badge, shield and wrench intents, the fuel pump, the scrap gear, the back arrow.
+- The six sites: armor shield on the vehicle badge, shield and wrench intents, the fuel pump, the scrap gear, the back arrow. The armor badge (`game/ui/ArmorBadge.ts`) sizes itself to its measured value so shield ("10 SH12") fits beside the icon; the intent disc is `game/ui/IntentMarker.ts` with its value centred.
+- Gallery scene `icons`: every icon at three sizes, bare and on a fill, the button icon, the four intents, and armor with and without shield.
 
-**How:** `iconAssets.test.ts` (atlas parameters, PNG size, exactly the listed glyphs, em box, licence, `icons.ts` drift, generator errors), `Icon.test.ts` (draw command, defaults, accessors, hidden, one em wide, the button group), `EnemyBattlefieldLayer.test.ts` (which intents draw which icon). Combat and driver selection goldens re-minted on CI. Decision record: [icon-atlas.md](./AI_TECHNICAL_DECISIONS/icon-atlas.md).
+**How:** `iconAssets.test.ts` (atlas parameters, PNG size, exactly the listed glyphs, em box, licence, `icons.ts` drift, generator errors), `Icon.test.ts` (draw command, defaults, accessors, hidden, one em wide, the button group), `EnemyBattlefieldLayer.test.ts` (which intents draw which icon), `vehicleBadges.test.ts` (the badge grows to fit shield, measures once per value; the marker centres icon and value). Combat, driver selection and developer screen goldens re-minted on CI, `scene-icons` minted. Decision record: [icon-atlas.md](./AI_TECHNICAL_DECISIONS/icon-atlas.md).
 
 ## Paint order: text in submission order, reorder sites fixed (2026-09-28)
 
