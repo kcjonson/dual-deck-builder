@@ -6,6 +6,17 @@ This document contains the chronological log of completed development tasks for 
 
 **Date correction (2026-08-22):** the repo's first commit is 2025-05-17, but many entries below carry dates in December 2024 or January 2025 — the AI that wrote them used its assumed date instead of the real one. Entries dated 2025-07-03 and 2025-07-02 have been corrected from "2025-01-03"/"2025-01-02" (verified against git history). Remaining Dec 2024 / Jan 2025 dates are wrong by roughly six months; the real work happened May–July 2025. Trust git history over these dates.
 
+## Textures get an owner and the canvas a single viewport (2026-09-28)
+
+**What landed:** DDB-66 (DDB-55 phase 1), with DDB-186 (R15.3) alongside.
+
+- `gpu/TextureStore.ts`, R5.30 to R5.33's resource layer, GL-free over a `TextureDevice`: reference counts with the GPU free deferred to `endFrame` inside a frame, uploads queued and drained oldest first at `beginFrame` under a 2 MB budget (the first of a frame always goes), storage allocated at upload, `immediate` for UI atlases, and context loss and restore from `keepSource`, `reload()`, or empty storage. `rendering/WebGL2TextureDevice.ts` does `texStorage2D` and `texSubImage2D` on unit 31. `FontAtlas` creates through it; the null and recording backends hold one over `NULL_TEXTURE_DEVICE`. `DrawBackend.textures` replaces `createTexture`/`destroyTexture`; `DrawApi` gains `retainTexture`, `isTextureResident` and a `texture-not-live` diagnostic, and fills three R5.35 counters.
+- `coords/viewport.ts` and `rendering/CanvasViewport.ts`: R15.4's `ResizeObserver` sizing with its WebKit fallback and `matchMedia` watch, logical size from the framebuffer (R7.5), changes committed at the top of the frame (R7.3) and delivered to the GL viewport, then `ScreenManager.resize`, then the gallery host (R7.11). `windowFrame()`, the `Renderer` and `Screen` window listeners, and the gallery's are gone; `scissorBox` takes the frame's logical height.
+- `coords/snapping.ts`: `snapToDevice`, `snapTextOrigin`, `snapHairlineRect`, `snapClipRect`. The legacy encoder's per-glyph rounding goes through `snapToDevice` at the frame's ratio.
+- `rendering/deviceInfo.ts`: the three R15.3 extensions and the unmasked GPU identity, detected once and carried in the perf snapshot as `device`.
+
+**How:** Unit tests: `TextureStore` (16: ownership, deferral, the budget and its ordering, immediate uploads, loss and restore by each path, a decode that resolves after a second loss), `WebGL2TextureDevice` (4), `CanvasViewport` (9: both R15.4 paths, commit semantics, zoom, no observer, `uiScale`), `coords` (12: chapter 7's required numbers for ratio 2, UI scale 1.25 and the hairline rows), plus backend, draw API, `Renderer`, `Game` and encoder additions. `CombatScreen.test.ts` resizes through `Screen.resize` now that no screen listens to the window. No golden moves: at ratio 1 every change is an identity (`Math.round(x * 1) / 1`, `round(1440 * 1)`, `fb / 1`). Decision record: `docs/AI_TECHNICAL_DECISIONS/resource-layer-and-viewport.md`.
+
 ## Concave polygons fill inside their outline; primitive-shapes has a golden (2026-09-28)
 
 **What landed:** DDB-185 and the close-out of DDB-103.
