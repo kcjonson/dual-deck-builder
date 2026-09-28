@@ -40,6 +40,7 @@ interface SnapshotLike {
 	} | null;
 	renderer?: { glDrawCalls: number } | null;
 	device?: { renderer: string | null } | null;
+	hitches?: { longFrames: { count: number; maxMs: number | null } | null } | null;
 }
 
 export interface ScenarioCaptureLike {
@@ -68,6 +69,9 @@ export interface ScenarioSummary {
 	/** Non-zero flush reasons, e.g. "barrier 2, endFrame 1". */
 	flushes: string | null;
 	device: string | null;
+	/** R15.29's long frames in the last sample's window; null where unobserved. */
+	longFrames: number | null;
+	longFrameMaxMs: number | null;
 }
 
 export function median(values: readonly number[]): number | null {
@@ -116,6 +120,8 @@ export function summarizeScenario({ scenario, samples }: ScenarioCaptureLike): S
 		triangles: last.batcher?.triangles ?? null,
 		flushes: flushLine(last.batcher?.flushes),
 		device: last.device?.renderer ?? null,
+		longFrames: last.hitches?.longFrames?.count ?? null,
+		longFrameMaxMs: last.hitches?.longFrames?.maxMs ?? null,
 	};
 }
 
@@ -134,8 +140,14 @@ function row(cells: readonly string[]): string {
 const SUMMARY_HEADER = [
 	'Scenario', 'FPS', 'Frame median', 'Frame p99', 'Frame max', 'Update max', 'Render max', 'Flush max',
 	'GPU median', 'GPU p99', 'GPU max', 'GPU invalid', 'Fence latency', 'API draws', 'GPU draws', 'Triangles',
-	'Flushes',
+	'Flushes', 'Long frames',
 ];
+
+/** "2 (max 84.00)", "0", or n/a where the runtime observed none of them. */
+function longFrameCell(summary: ScenarioSummary): string {
+	if (summary.longFrames === null) return 'n/a';
+	return summary.longFrames > 0 ? `${summary.longFrames} (max ${ms(summary.longFrameMaxMs)})` : '0';
+}
 
 /** One run's table, all times in ms. */
 export function summaryTable(captures: readonly ScenarioCaptureLike[]): string {
@@ -163,6 +175,7 @@ export function summaryTable(captures: readonly ScenarioCaptureLike[]): string {
 			count(summary.gpuDraws),
 			count(summary.triangles),
 			summary.flushes ?? 'n/a',
+			longFrameCell(summary),
 		]));
 	}
 	return lines.join('\n');

@@ -75,7 +75,15 @@ export class Game {
 		this.viewport = viewport;
 		this.device = device;
 		this.gpuTimer = gpuTimer;
-		viewport.onChange(({ width, height }) => ScreenManager.resize(width, height));
+		// Off until F5, so nothing it draws reaches a golden.
+		this.developerOverlay = new DeveloperOverlay({
+			snapshot: this.perfSnapshot,
+			viewportWidth: viewport.logical.width,
+		});
+		viewport.onChange(({ width, height }) => {
+			ScreenManager.resize(width, height);
+			this.developerOverlay.viewportWidth = width;
+		});
 
 		// Check if running in Electron
 		interface ElectronWindow extends Window {
@@ -88,9 +96,6 @@ export class Game {
 		this.isElectron = electronWindow.electron?.isElectron === true;
 
 		console.log(`Running in ${this.isElectron ? 'Electron' : 'Browser'} mode`);
-		
-		// Off until F5, so nothing it draws reaches a golden.
-		this.developerOverlay = new DeveloperOverlay({ snapshot: this.perfSnapshot });
 	}
 
 	/**

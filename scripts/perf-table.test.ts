@@ -59,6 +59,9 @@ describe('summarizeScenario', () => {
 			triangles: 1200,
 			flushes: 'barrier 2, endFrame 1',
 			device: 'ANGLE (Apple, Metal)',
+			// No hitches block: a capture from before R15.29's observer.
+			longFrames: null,
+			longFrameMaxMs: null,
 		});
 	});
 
@@ -89,7 +92,20 @@ describe('summaryTable', () => {
 		const lines = summaryTable([CAPTURE]).split('\n');
 		expect(lines).toHaveLength(3);
 		expect(lines[0]).toMatch(/^\| Scenario \| FPS \|/);
-		expect(lines[2]).toBe('| combatScreen | 182 | 5.50 | 9.00 | 12.00 | 1.00 | 2.50 | 0.75 | 2.00 | 3.00 | 4.00 | 1 | n/a | 40 | 6 | 1200 | barrier 2, endFrame 1 |');
+		expect(lines[2]).toBe('| combatScreen | 182 | 5.50 | 9.00 | 12.00 | 1.00 | 2.50 | 0.75 | 2.00 | 3.00 | 4.00 | 1 | n/a | 40 | 6 | 1200 | barrier 2, endFrame 1 | n/a |');
+	});
+
+	it('prints the last window\'s long frames with their max, and a bare 0 for a clean window', () => {
+		const withHitches = (count: number, maxMs: number | null) => ({
+			...sample(4, 1),
+			hitches: { longFrames: { count, maxMs }, slowEvents: null },
+		});
+		const lines = summaryTable([
+			{ scenario: 'combatScreen', samples: [withHitches(0, null), withHitches(2, 84)] },
+			{ scenario: 'mainMenuScreen', samples: [withHitches(0, null)] },
+		]).split('\n');
+		expect(lines[2]).toMatch(/\| 2 \(max 84\.00\) \|$/);
+		expect(lines[3]).toMatch(/\| 0 \|$/);
 	});
 });
 

@@ -69,7 +69,7 @@ describe('the parts a composite owns', () => {
 	});
 
 	it('gives a DeveloperOverlay a background and a stats readout, and no children of its own', () => {
-		const node = snapshotOf(new DeveloperOverlay({ snapshot: () => new FrameTimer().snapshot() }));
+		const node = snapshotOf(new DeveloperOverlay({ snapshot: () => new FrameTimer().snapshot(), viewportWidth: 1440 }));
 
 		expect(partTypes(node)).toEqual(['Rectangle', 'Text']);
 		expect(node.children).toEqual([]);
@@ -121,7 +121,7 @@ describe('what a caller adds is never a part', () => {
 	});
 
 	it('puts a DeveloperOverlay child in children and leaves its two parts alone', () => {
-		const overlay = new DeveloperOverlay({ snapshot: () => new FrameTimer().snapshot() });
+		const overlay = new DeveloperOverlay({ snapshot: () => new FrameTimer().snapshot(), viewportWidth: 1440 });
 		overlay.addChild(new Layer({ id: 'gpu_readout', width: 100, height: 20 }));
 
 		const node = snapshotOf(overlay);
