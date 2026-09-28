@@ -59,7 +59,7 @@ Both bootstraps (`src/index.ts`, `src/gallery/index.ts`) await `loadFontAtlases`
 ## Consequences
 
 - Every golden moved: new faces, SDF edges, baselines from face metrics (text sits a few pixels lower than the canvas atlas's `textBaseline = 'top'` put it), and bold titles in the condensed display face.
-- The six symbol glyphs the screens used (armor, fuel, shield, wrench, gear, and the back arrow) are out of their strings. The engine draws an absent code point as the fallback glyph, as R6.3 requires, and that put U+FFFD diamonds on the combat HUD, where the canvas atlas had drawn nothing; removing the symbols restores the old look until the icon atlas (DDB-72, R12.6) brings them back as icons. Each site carries a comment naming DDB-72.
+- The six symbol glyphs the screens used (armor, fuel, shield, wrench, gear, and the back arrow) are out of their strings. The engine draws an absent code point as the fallback glyph, as R6.3 requires, and that put U+FFFD diamonds on the combat HUD, where the canvas atlas had drawn nothing; removing the symbols restored the old look until the icon atlas (DDB-72, R12.6) brought them back as icons; see [icon-atlas.md](./icon-atlas.md).
 - A font atlas that fails to load stops startup (there is no text without it, R2.18), and both pages say so in the status line `Renderer` uses for a lost device, rather than showing a blank canvas.
 - The raster fallback for sizes whose screen range falls below 1.5 device pixels (R6.4a, recommended) is not built. The screens use 8 and 9 px in seven places, whose screen range at ratio 1 (1.33 and 1.5 device pixels) is at or under that threshold; they render soft rather than wrong.
 - `measureText` works on the WebGL2 backend. The null and recording backends still refuse it.

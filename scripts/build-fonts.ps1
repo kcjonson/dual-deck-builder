@@ -1,6 +1,7 @@
-# Regenerates the MSDF font atlases under src/assets/fonts/ (spec section 5,
-# R6.2, R6.4a). Run by hand when a face or charset.txt changes, then commit the
-# PNG and JSON it writes; CI never runs this. See src/assets/fonts/README.md for
+# Regenerates the MSDF font atlases and the icon atlas under src/assets/fonts/
+# (spec section 5, R6.2, R6.4a, R12.6). Run by hand when a face, charset.txt or
+# icons.txt changes, then commit the PNG and JSON it writes and
+# src/renderer/engine/text/icons.ts; CI never runs this. See src/assets/fonts/README.md for
 # installing msdf-atlas-gen. macOS and Linux: scripts/build-fonts.sh.
 $ErrorActionPreference = 'Stop'
 
@@ -58,4 +59,33 @@ foreach ($Face in $Faces) {
 	}
 }
 
-Write-Host 'Done. Run npm test (fontAtlas tests validate the committed JSON) and commit src/assets/fonts/.'
+# The icon atlas (R12.6): the same parameters, the glyphs icons.txt names, and
+# no kerning. icons.ts is written first from the same list, so the code points
+# the module names are the ones the atlas holds.
+Write-Host '== material-icons (material-icons\MaterialIcons-Regular.ttf)'
+$IconScript = Join-Path $PSScriptRoot 'generate-icons.mjs'
+& node $IconScript
+if ($LASTEXITCODE -ne 0) {
+	Write-Error 'generate-icons failed'
+}
+$IconChars = (& node $IconScript --charset | Out-String).Trim()
+if ($LASTEXITCODE -ne 0) {
+	Write-Error 'generate-icons --charset failed'
+}
+& $Tool `
+	-font (Join-Path $FontsDir 'material-icons\MaterialIcons-Regular.ttf') `
+	-fontname 'Material Icons' `
+	-chars $IconChars `
+	-type mtsdf `
+	-size 48 `
+	-pxrange 8 `
+	-yorigin top `
+	-potr `
+	-format png `
+	-imageout (Join-Path $FontsDir 'material-icons.png') `
+	-json (Join-Path $FontsDir 'material-icons.json')
+if ($LASTEXITCODE -ne 0) {
+	Write-Error 'msdf-atlas-gen failed for material-icons'
+}
+
+Write-Host 'Done. Run npm test (fontAtlas and icon tests validate the committed JSON) and commit src/assets/fonts/ and src/renderer/engine/text/icons.ts.'

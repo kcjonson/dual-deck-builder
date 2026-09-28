@@ -1,8 +1,10 @@
+import { Icon } from '../../engine/components/Icon';
 import { Layer } from '../../engine/components/Layer';
 import { Rectangle } from '../../engine/components/Rectangle';
 import { Text } from '../../engine/components/Text';
 import { Vehicle as VehicleData } from '../mechanics/Vehicle';
 import { InputSystem } from '../../engine/input/InputSystem';
+import { tokens } from '../../engine/theme/tokens';
 import { CombatModel } from '../screens/combat/CombatModel';
 
 /**
@@ -22,6 +24,7 @@ export class Vehicle extends Layer {
 	protected healthText!: Text;
 	protected armorDisplay!: Rectangle;
 	protected armorText!: Text;
+	protected armorIcon!: Icon;
 	protected driverPortrait: Rectangle | null = null;
 	protected statusContainer: Layer | null = null;
 	protected spentChip: Text | null = null;
@@ -218,11 +221,14 @@ export class Vehicle extends Layer {
 		this.addChild(this.healthText);
 		
 		// Armor display and status container on same line
+		const armorX = Math.floor(width * 0.1);
+		const armorY = Math.floor(height * 0.82);
+		const armorWidth = Math.floor(width * 0.25);
 		this.armorDisplay = new Rectangle({
 			id: this.childId('armor_badge'),
-			x: Math.floor(width * 0.1),
-			y: Math.floor(height * 0.82),
-			width: Math.floor(width * 0.25),
+			x: armorX,
+			y: armorY,
+			width: armorWidth,
 			height: 16,
 			style: {
 				backgroundColor: '#4a4a4a',
@@ -231,7 +237,20 @@ export class Vehicle extends Layer {
 			},
 		});
 		this.addChild(this.armorDisplay);
-		
+
+		// The shield leads the badge and the value centres in what is left
+		const armorIconSize = 12;
+		const armorIconRight = armorX + 3 + armorIconSize;
+		this.armorIcon = new Icon({
+			id: this.childId('armor_icon'),
+			glyph: 'shield',
+			size: armorIconSize,
+			tint: tokens.color.text_bright,
+			x: armorX + 3,
+			y: armorY + 2,
+		});
+		this.addChild(this.armorIcon);
+
 		this.armorText = new Text('', {
 			id: this.childId('armor_value'),
 			style: {
@@ -240,7 +259,7 @@ export class Vehicle extends Layer {
 				textAlign: 'center',
 			},
 		});
-		this.armorText.setPosition(Math.floor(width * 0.225), Math.floor(height * 0.84));
+		this.armorText.setPosition(Math.floor((armorIconRight + armorX + armorWidth) / 2), Math.floor(height * 0.84));
 		this.addChild(this.armorText);
 		
 		// An escort shows SPENT once it has acted this turn
@@ -296,8 +315,7 @@ export class Vehicle extends Layer {
 		
 		// Update armor
 		// Shield, temporary armor on top, shows as "SH" and a second number
-		// while there is any. Plain ASCII: the font atlas has nothing else,
-		// and the armor symbol comes back as an icon with DDB-72.
+		// while there is any.
 		const shield = this.vehicleData.shield ?? 0;
 		this.armorDisplay.setFillColor(this.vehicleData.armor > 0 || shield > 0 ? '#6a6aaa' : '#4a4a4a');
 		this.armorText.setText(shield > 0 ? `${this.vehicleData.armor} SH${shield}` : `${this.vehicleData.armor}`);

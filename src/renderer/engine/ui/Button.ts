@@ -1,8 +1,21 @@
 import { Component, ComponentOptions } from '../components/Component';
+import { Icon } from '../components/Icon';
 import { Rectangle } from '../components/Rectangle';
 import { Text } from '../components/Text';
 import { InputSystem } from '../input/InputSystem';
+import { RendererContext } from '../rendering/RendererContext';
 import { RenderContext, DEFAULT_RENDER_CONTEXT } from '../rendering/RenderContext';
+import type { IconName } from '../text/icons';
+import { tokens } from '../theme/tokens';
+
+export interface ButtonOptions extends ComponentOptions {
+	/** R12.7's leading icon, drawn before the label; the pair is centred together. */
+	icon?: IconName;
+}
+
+/** The leading icon's em square and its gap to the label, as multiples of the label size. */
+const ICON_SCALE = 1.25;
+const ICON_GAP = 0.375;
 
 /**
  * Button UI component
@@ -10,6 +23,9 @@ import { RenderContext, DEFAULT_RENDER_CONTEXT } from '../rendering/RenderContex
 export class Button extends Component {
 	private background: Rectangle;
 	private text: Text;
+	private icon: Icon | null = null;
+	/** The icon is placed against the label's measured width, which needs the draw API, so at the next render. */
+	private iconPlaced = false;
 	private pressed = false;
 	private clickHandler: (() => void) | null = null;
 
@@ -24,7 +40,7 @@ export class Button extends Component {
 	 * @param label Text to display on the button
 	 * @param options Optional configuration including style
 	 */
-	constructor(label = '', options?: ComponentOptions) {
+	constructor(label = '', options?: ButtonOptions) {
 		super(options);
 		this.componentType = 'Button';
 
@@ -59,6 +75,11 @@ export class Button extends Component {
 		this.text.setBaseline('middle');
 		this.addPart(this.text);
 
+		if (options?.icon) {
+			this.icon = new Icon({ glyph: options.icon, size: this.iconSize, tint: tokens.color.text_bright });
+			this.addPart(this.icon);
+		}
+
 		// Setup event handling (this would be connected to the input system)
 		this.setupEvents();
 	}
@@ -81,6 +102,7 @@ export class Button extends Component {
 	 */
 	public setLabel(text: string): this {
 		this.text.setText(text);
+		this.iconPlaced = false;
 		return this;
 	}
 
@@ -90,6 +112,7 @@ export class Button extends Component {
 	 */
 	public setFontSize(size: number): this {
 		this.text.setFontSize(size);
+		this.iconPlaced = false;
 		return this;
 	}
 
@@ -129,6 +152,32 @@ export class Button extends Component {
 		// Text centered within button (also at local origin since text centers itself)
 		this.text.setPosition(0, 0);
 		this.text.setSize(this.width, this.height);
+		this.iconPlaced = false;
+	}
+
+	private get iconSize(): number {
+		return Math.round(this.text.getFontSize() * ICON_SCALE);
+	}
+
+	/**
+	 * Icon, gap and label are centred as one group: the label's box gives up
+	 * the icon and gap on its left, which moves its centre right by half of
+	 * them, and the icon sits just before the label's measured left edge
+	 * (R2.14, the same measure the label draws with).
+	 */
+	private placeIcon(icon: Icon): void {
+		const iconSize = this.iconSize;
+		const gap = Math.round(this.text.getFontSize() * ICON_GAP);
+		const labelWidth = RendererContext.getInstance().draw.measureText({
+			text: this.text.getText(),
+			font: this.text.font,
+			size: this.text.getFontSize(),
+		}).width;
+		const groupLeft = (this.width - (iconSize + gap + labelWidth)) / 2;
+		icon.size = iconSize;
+		icon.setPosition(Math.round(groupLeft), Math.round((this.height - iconSize) / 2));
+		this.text.setPosition(iconSize + gap, 0);
+		this.text.setSize(this.width - iconSize - gap, this.height);
 	}
 
 	/**
@@ -254,6 +303,11 @@ export class Button extends Component {
 		// Calculate screen position
 		const screenX = ctx.offsetX + this.x;
 		const screenY = ctx.offsetY + this.y;
+
+		if (this.icon && !this.iconPlaced) {
+			this.placeIcon(this.icon);
+			this.iconPlaced = true;
+		}
 
 		// Create child context with our position added
 		const childContext: RenderContext = {

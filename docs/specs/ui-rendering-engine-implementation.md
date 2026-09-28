@@ -87,7 +87,7 @@ Visible result: text can be covered by later shapes, rounded corners and borders
 - [x] Metrics service: shared measure and render iteration, kerning, letter spacing, transform, ascent centring, greedy wrap with `Intl.Segmenter`, ellipsis, decoration, measurement cache keyed on role (6.3, 6.4) (DDB-70; `middle` centres ascent plus descent, see [text-metrics-service.md](../AI_TECHNICAL_DECISIONS/text-metrics-service.md)).
 - [x] `text` mode (median of three, derivative range), run-origin snapping, text shadow (6.2, 6.5); the `mask` mode, `FontAtlas` canvas rasterisation, and the old text batching deleted (DDB-70).
 - [ ] `Text` component on real metrics: top-left line box, roles, `fontWeight` through the theme table, `fontFamily` alias, `nowrap` plus `ellipsis` truncates (R12.4); the estimate sites (`Text.layout`, wrapping, the synergy panel, driver stats, the input caret) replaced.
-- [ ] Icon atlas and the six symbol-glyph sites (R12.6).
+- [x] Icon atlas and the six symbol-glyph sites (R12.6). DDB-72: Material Icons (Apache 2.0) rather than section 5's Tabler or Lucide, for the mock's filled style; `components/Icon.ts`, and `Button`'s leading `icon`. See [icon-atlas.md](../AI_TECHNICAL_DECISIONS/icon-atlas.md).
 - [x] Electron packaged build smoke-tested for the asset path (R15.34): `scripts/smoke-electron-package.mjs` in both Electron Build jobs (DDB-69).
 
 Visible result: crisp text from 8 to 64 px in the new faces, centred titles centred (DDB-30), bold titles bold, symbols rendered; every measured layout shifts once and the goldens are re-baselined deliberately.
