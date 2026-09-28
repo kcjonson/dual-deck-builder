@@ -1,7 +1,6 @@
 import { TextureStore } from '../gpu/TextureStore';
 import { CanvasViewport } from './CanvasViewport';
 import { DeviceInfo, detectDevice } from './deviceInfo';
-import { FontAtlas } from './FontAtlas';
 import { WebGL2TextureDevice } from './WebGL2TextureDevice';
 
 /**
@@ -39,12 +38,12 @@ export interface ContextListener {
 
 /**
  * The device: a canvas, its WebGL2 context, the viewport that sizes it, the
- * texture store, context loss, and the font atlas.
+ * texture store, and context loss.
  *
  * It draws nothing and owns no pipeline state; `WebGL2Backend` does, and
  * listens here for a restored context so it can rebuild. The order on restore
  * is fixed: the drawing-buffer viewport and every texture first (they are this
- * class's, and the immediate ones, the atlas among them, are back before the
+ * class's, and the immediate ones, the font atlases among them, are back before the
  * restore returns), then the listeners in the order they registered, so a
  * backend constructed before the frame loop has its resources back before the
  * loop resumes.
@@ -58,7 +57,6 @@ export class Renderer {
 	/** R15.3, detected once. */
 	readonly device: DeviceInfo;
 	private readonly gl: WebGL2RenderingContext;
-	private readonly fontAtlas: FontAtlas;
 	private readonly listeners: ContextListener[] = [];
 	private lost = false;
 
@@ -76,7 +74,7 @@ export class Renderer {
 			// the page says so rather than showing a black canvas.
 			const message = 'This game needs WebGL2, and the browser did not provide it. '
 				+ 'Hardware acceleration may be off, or blocked after a graphics driver crash.';
-			showGpuStatus(message);
+			showStatusLine(message);
 			throw new Error(message);
 		}
 		this.gl = gl;
@@ -96,12 +94,6 @@ export class Renderer {
 		this.textures = new TextureStore({
 			device: new WebGL2TextureDevice({ gl }),
 			onDiagnostic: (message) => console.error(`TextureStore: ${message}`),
-		});
-		this.fontAtlas = new FontAtlas({
-			textures: this.textures,
-			fontFamily: 'Arial',
-			fontSize: 32,
-			ratio: this.viewport.state.ratio,
 		});
 	}
 
@@ -123,11 +115,6 @@ export class Renderer {
 		return this.gl;
 	}
 
-	/** Text measurement for `Input`'s caret, until chapter 6's `measureText`. */
-	public getFontAtlas(): FontAtlas {
-		return this.fontAtlas;
-	}
-
 	/** The GL viewport covers the whole backing store `CanvasViewport` sized. */
 	private applyDrawingBufferViewport = (): void => {
 		const { framebufferWidth, framebufferHeight } = this.viewport.state;
@@ -139,7 +126,7 @@ export class Renderer {
 		event.preventDefault();
 		this.lost = true;
 		this.textures.lose();
-		showGpuStatus('The graphics device was lost. Waiting for it to come back.');
+		showStatusLine('The graphics device was lost. Waiting for it to come back.');
 		for (const listener of [...this.listeners]) listener.lost?.();
 	};
 
@@ -154,10 +141,10 @@ export class Renderer {
 			this.textures.restore();
 			for (const listener of [...this.listeners]) listener.restored?.();
 		} catch (error) {
-			showGpuStatus('The graphics device came back, but the game could not rebuild on it. Reload the page to try again.');
+			showStatusLine('The graphics device came back, but the game could not rebuild on it. Reload the page to try again.');
 			throw error;
 		}
-		showGpuStatus(null);
+		showStatusLine(null);
 	};
 }
 
@@ -165,10 +152,10 @@ const GPU_STATUS_ID = 'gpu-status';
 
 /**
  * A DOM line over the canvas saying why nothing is drawing, or null to remove
- * it. Both pages share it through `Renderer`, so neither bootstrap has to
- * remember to.
+ * it. Both pages share it: `Renderer` for the device, the bootstraps for a
+ * font atlas that failed to load, so a failed start is never a blank canvas.
  */
-function showGpuStatus(message: string | null): void {
+export function showStatusLine(message: string | null): void {
 	let element = document.getElementById(GPU_STATUS_ID);
 	if (message === null) {
 		element?.remove();

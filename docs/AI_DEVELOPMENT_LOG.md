@@ -19,6 +19,19 @@ This document contains the chronological log of completed development tasks for 
 
 **How:** every screen and gallery scene captured locally on `main` and on the branch, first with only the deletion, then with the fixes, and diffed per pixel: four screens moved, all eight scenes and the splash and main menu stayed byte-identical. `perf-capture.mjs` against `main`: GPU draws combat 6 to 1, card showcase 2 to 1, developer 2 to 1, every screen now one. Goldens re-minted on CI with `update_mode=all`: combat, driver selection, developer and card showcase in both projects. Follow-up filed: DDB-198 (long card titles run under the cost digit). Decision record: [paint-order-rebaseline.md](./AI_TECHNICAL_DECISIONS/paint-order-rebaseline.md).
 
+## Text metrics service and the MTSDF text mode (2026-09-28)
+
+**What landed:** DDB-70 (DDB-55 phase 2), chapter 6 sections 6.2 to 6.5.
+
+- `text/TextLayout.ts`: the one glyph iteration measurement and rendering share (R6.8): kerning, letter spacing in em, uppercase before lookup, fallback glyph, default-ignorables skipped with their neighbours kerned across (the DDB-182 soft hyphen note), greedy wrap with R6.13's break opportunities plus the soft hyphen, grapheme breaks for scripts without spaces via `Intl.Segmenter`, ellipsis on single and wrapped lines.
+- `text/TextMetricsService.ts`: atlases by role, an LRU of layouts (R6.12), `measure`. `text/textPlacement.ts`: line origins for R2.13's anchor or box, decoration offsets, run ink. `text/fontRoles.ts`: `fontFamily` and `fontWeight` to a role through the typography tokens (R11.8).
+- `uber.frag`: `text` mode is median-of-three with the linear ramp, the range per draw or from derivatives, shadow blur from the alpha channel; `mask` mode deleted.
+- `UberGeometryEncoder`: glyph quads through the whole transform, each line's origin snapped under a translation (R6.16), decorations as `rect` quads; `textInk` from the layout.
+- `WebGL2Backend`: `loadFontAtlas` for real, the atlases as resident units, `measureText`. Both bootstraps await the atlases before building the draw API. `DrawApi.drawText` clips to the box for `overflow: 'clip'`; a bare `position` defaults to `verticalAlign: 'baseline'`; `decoration` and `lineHeight` options.
+- Deleted: `rendering/FontAtlas.ts`, `rendering/fonts.ts`, `Renderer.getFontAtlas`, `RendererContext.getRenderer`.
+
+**How:** `TextLayout.test.ts`, `TextMetricsService.test.ts`, `textPlacement.test.ts`, `fontRoles.test.ts`, and the encoder's text block rewritten (measured width equals drawn width, a doubled string lands one width later, snapping at ratio 2, rotation, shadow, decorations). `uberShader.spec.ts` checks the median, the derivative range under a scale, and the alpha-channel shadow on the real shader. Every golden re-minted on CI. `middle` alignment centres ascent plus descent rather than R6.11's ascent alone; the reasoning is in `docs/AI_TECHNICAL_DECISIONS/text-metrics-service.md`.
+
 ## Index buffer pool: combat back to 60 FPS on ANGLE Metal (2026-09-28)
 
 **What landed:** DDB-195. `rendering/IndexBufferPool.ts` replaces the index `StreamRing`: every upload writes its indices at offset 0 of its own element buffer. The slot is the smallest free one that fits, free once the frame that wrote it is two frames old, created at a power of two from 16 KB when none fits, never resized, and 24 are pre-created. `WebGL2Backend` binds the slot into the vertex array per upload and draws from `firstIndex * 4`; `reserve` is vertex-only.

@@ -6,9 +6,13 @@ import {
 	DrawBatch,
 	DrawCommandKind,
 	DrawTextOptions,
+	FontAtlasHandle,
+	FontAtlasOptions,
 	FrameDescription,
 	GpuWork,
+	MeasureTextOptions,
 	Rect,
+	TextMetrics,
 	TextureHandle,
 } from '../draw';
 import { Batcher, GeometryUpload, GpuDraw } from '../draw/Batcher';
@@ -16,7 +20,8 @@ import { ResidentTextureSet, TextureKey } from '../draw/ResidentTextureSet';
 import vertexSource from '../../../assets/shaders/uber.vert';
 import fragmentSource from '../../../assets/shaders/uber.frag';
 import type { TextureStore } from '../gpu/TextureStore';
-import { FontAtlas } from './FontAtlas';
+import type { LoadedFontAtlas } from '../text/loadFontAtlases';
+import { TextMetricsService } from '../text/TextMetricsService';
 import { FrameTimer } from './FrameTimer';
 import type { GpuTimer } from './GpuTimer';
 import { Renderer } from './Renderer';
@@ -24,7 +29,6 @@ import { IndexBufferPool } from './IndexBufferPool';
 import { StreamRing } from './StreamRing';
 import { UBER_ATTRIBUTES, UBER_TEXTURE_UNITS, UBER_VERTEX, UberGeometryEncoder } from './UberGeometryEncoder';
 import { compileProgram } from './program';
-import { DEFAULT_FONT } from './fonts';
 
 /**
  * Chapter 15's backend: a WebGL2 context, one uber shader (chapter 5), fed by
@@ -40,10 +44,13 @@ import { DEFAULT_FONT } from './fonts';
  *   `multiply` and `screen` are the only blend modes that change it, and the
  *   batcher splits a draw where they start and end (R5.22a).
  * - Textures sit on fixed units selected per draw by slot (R5.20): the font
- *   atlas on unit 0 for the whole frame, images on the dynamic units the
- *   batcher hands out. Every unit the shader declares holds a texture, a 1x1
- *   transparent placeholder when nothing else, so no sampler ever reads an
- *   empty unit.
+ *   role atlases on the first units for the whole frame (R6.4), images on the
+ *   dynamic units the batcher hands out. Every unit the shader declares holds
+ *   a texture, a 1x1 transparent placeholder when nothing else, so no sampler
+ *   ever reads an empty unit.
+ * - Text is laid out by one `TextMetricsService`, which answers
+ *   `measureText`, `textInk` and the encoder's glyph quads from the same
+ *   layout (R6.8).
  * - Vertex storage is one fixed-capacity buffer written at an advancing
  *   offset that wraps only onto a region at least two frames old (R5.27,
  *   R15.11, `StreamRing`). A frame that outgrows it grows it once, and says
@@ -88,6 +95,14 @@ export interface WebGL2BackendOptions {
 	indexSlotBytes?: number;
 }
 
+export interface CreateDrawApiOptions {
+	renderer: Renderer;
+	frameTimer: FrameTimer;
+	gpuTimer?: GpuTimer | null;
+	/** The font role atlases, loaded and validated, given to the backend before the first frame (R2.18). */
+	fontAtlases?: readonly LoadedFontAtlas[];
+}
+
 const STRIDE_BYTES = UBER_VERTEX.floats * 4;
 
 /**
@@ -109,13 +124,30 @@ const FRAME_SLOTS = 3;
  * options itself, so the two cannot drift, which is the failure mode that
  * would show up as a screenshot diff on the gallery scenes and nowhere else.
  *
+ * Each font atlas is uploaded raw (R6.4b) as an immediate texture that keeps
+ * its image for a context restore, then handed to the backend under its role,
+ * all before the draw API exists, so no frame can precede an atlas (R2.18).
+ *
  * Diagnostics go to `console.error` in a development build, which turns any
  * R2.1 finding into a red screenshot spec through the harness's
  * `expectCleanConsole`.
  */
-export function createDrawApi({ renderer, frameTimer, gpuTimer }: WebGL2BackendOptions): DrawApi {
+export function createDrawApi({ renderer, frameTimer, gpuTimer, fontAtlases = [] }: CreateDrawApiOptions): DrawApi {
+	const backend = new WebGL2Backend({ renderer, frameTimer, gpuTimer });
+	for (const { role, face, atlas, image } of fontAtlases) {
+		const texture = renderer.textures.create({
+			width: atlas.width,
+			height: atlas.height,
+			label: `font atlas ${face}`,
+			source: image,
+			content: 'mask',
+			keepSource: true,
+			immediate: true,
+		});
+		backend.loadFontAtlas({ name: role, atlas, texture });
+	}
 	return new DrawApi({
-		backend: new WebGL2Backend({ renderer, frameTimer, gpuTimer }),
+		backend,
 		development: __DEV_TOOLS__,
 		onDiagnostic: (diagnostic) => {
 			console.error(`draw: ${diagnostic.code}: ${diagnostic.message}`);
@@ -142,8 +174,11 @@ export class WebGL2Backend implements DrawBackend {
 	private readonly frameTimer: FrameTimer;
 	private readonly gpuTimer: GpuTimer | null;
 	private readonly gl: WebGL2RenderingContext;
-	private readonly fontAtlas: FontAtlas;
+	private readonly text = new TextMetricsService();
+	/** Font role to atlas texture, in load order; the resident set is these (R6.4). */
+	private readonly fontTextures = new Map<string, TextureHandle>();
 	private readonly encoder: UberGeometryEncoder;
+	private readonly residentTextures: ResidentTextureSet;
 	private readonly batcher: Batcher;
 	/** What every unit holds when nothing else is bound to it; the store restores it with the rest. */
 	private readonly placeholder: TextureHandle;
@@ -187,19 +222,19 @@ export class WebGL2Backend implements DrawBackend {
 		this.frameTimer = frameTimer;
 		this.gpuTimer = gpuTimer;
 		this.gl = renderer.getContext();
-		this.fontAtlas = renderer.getFontAtlas();
 
 		this.encoder = new UberGeometryEncoder({
-			glyphs: this.fontAtlas,
+			text: this.text,
 			onUnpaintable: (kind, detail) => this.reportUnpaintable(kind, detail),
 		});
+		// The font atlases join as they load (`loadFontAtlas`); the rest of the
+		// units are dynamic, handed to images as they arrive (R5.20).
+		this.residentTextures = new ResidentTextureSet({ units: UBER_TEXTURE_UNITS });
 		this.vertexRing = new StreamRing({ capacity: vertexRingBytes });
 		this.indexPool = new IndexBufferPool({ initialSlots: indexSlots, minCapacity: indexSlotBytes });
 		this.batcher = new Batcher({
 			encoder: this.encoder,
-			// The atlas on unit 0 for the whole frame; the rest are dynamic,
-			// handed to images as they arrive (R5.20).
-			textures: new ResidentTextureSet({ units: UBER_TEXTURE_UNITS, resident: [this.encoder.glyphTexture] }),
+			textures: this.residentTextures,
 			// An upload never exceeds a third of the vertex ring, so three
 			// frames of one upload each fit without growth.
 			maxVertices: Math.floor(vertexRingBytes / STRIDE_BYTES / 3),
@@ -229,12 +264,17 @@ export class WebGL2Backend implements DrawBackend {
 		return this.renderer.textures;
 	}
 
-	/** R2.18's precondition, answered by the atlas the `Renderer` builds in its constructor. */
+	/** R2.18's precondition: the roles `loadFontAtlas` has been given. */
 	get fontAtlasNames(): readonly string[] {
-		return [DEFAULT_FONT];
+		return this.text.names;
 	}
 
-	/** R4.2a per run, from the same glyph walk `encodeText` takes. */
+	/** R2.14 from the layout `encodeText` draws (R6.8). */
+	measureText(options: MeasureTextOptions): TextMetrics {
+		return this.text.measure(options);
+	}
+
+	/** R4.2a per run, from the same layout `encodeText` draws. */
 	textInk(options: DrawTextOptions): Rect | null {
 		return this.encoder.textInk(options);
 	}
@@ -282,7 +322,7 @@ export class WebGL2Backend implements DrawBackend {
 	 */
 	endFrame(): void {
 		const placeholder = this.textures.native(this.placeholder);
-		for (let unit = 1; unit < UBER_TEXTURE_UNITS; unit++) {
+		for (let unit = this.residentTextures.residentUnits; unit < UBER_TEXTURE_UNITS; unit++) {
 			if (this.boundUnits[unit] !== placeholder) this.bindUnit(unit, placeholder);
 		}
 		this.gpuTimer?.endFrame();
@@ -296,10 +336,18 @@ export class WebGL2Backend implements DrawBackend {
 		this.boundUnits.fill(null);
 	}
 
-	loadFontAtlas(): never {
-		throw new Error(
-			`WebGL2Backend: the only atlas is '${DEFAULT_FONT}', built by the Renderer; R11.8's roles arrive in phase 2`,
-		);
+	/**
+	 * A font role's metrics and atlas texture, between frames (R2.17). The
+	 * texture joins the resident set, so every role shares every flush (R6.4);
+	 * loading a role again replaces it and drops every cached layout (R6.12).
+	 */
+	loadFontAtlas({ name, atlas, texture }: FontAtlasOptions): FontAtlasHandle {
+		this.text.addAtlas({ name, atlas });
+		this.fontTextures.set(name, texture);
+		this.encoder.registerFontTexture(name, texture);
+		this.residentTextures.resident = [...this.fontTextures.values()];
+		this.boundUnits.fill(null);
+		return { id: texture.id, name };
 	}
 
 	// -- resources ----------------------------------------------------------
@@ -351,8 +399,8 @@ export class WebGL2Backend implements DrawBackend {
 	/**
 	 * R15.5. Everything created against the old context is gone, so the rings
 	 * start empty and every cached binding is forgotten. The textures, the
-	 * atlas and the placeholder among them, were restored by the store before
-	 * this runs.
+	 * font atlases and the placeholder among them, were restored by the store
+	 * before this runs.
 	 */
 	private restore(): void {
 		this.vertexRing.reset();
@@ -460,8 +508,8 @@ export class WebGL2Backend implements DrawBackend {
 
 	/**
 	 * Each unit to the texture the draw's bindings name, or the placeholder.
-	 * A unit already holding it is left alone, so the resident atlas binds
-	 * once and stays (R5.20), and a run of draws on the same images binds
+	 * A unit already holding it is left alone, so the resident atlases bind
+	 * once and stay (R5.20), and a run of draws on the same images binds
 	 * nothing.
 	 */
 	private bindTextures(bindings: readonly (TextureKey | null)[]): number {
@@ -474,8 +522,6 @@ export class WebGL2Backend implements DrawBackend {
 				// Nothing samples this unit in this draw; it only has to hold something.
 				if (this.boundUnits[unit] !== null) continue;
 				native = placeholder;
-			} else if (key === this.encoder.glyphTexture) {
-				native = this.fontAtlas.getTexture();
 			} else {
 				// A handle whose upload is still queued draws as the placeholder (R5.32).
 				native = this.textures.native(key as TextureHandle);

@@ -2,6 +2,7 @@ import { DrawApi, DrawApiOptions, Diagnostic, TEXT_MEASUREMENT_UNAVAILABLE } fro
 import { RecordingBackend } from './RecordingBackend';
 import { DrawCommand, DrawTextOptions, RectCommand, TextCommand, TextureHandle } from './commands';
 import { Rect } from './geometry';
+import { committedFontAtlas } from '../text/testing';
 
 const BLUE = [0.2, 0.4, 0.6, 1] as const;
 const RED = [1, 0, 0, 1] as const;
@@ -17,7 +18,7 @@ function harness(options: Partial<Omit<DrawApiOptions, 'backend'>> = {}): Harnes
 	const backend = new RecordingBackend({ maxFrames: 4 });
 	const api = new DrawApi({ backend, ...options });
 	const texture = api.createTexture({ width: 512, height: 512, label: 'atlas' });
-	api.loadFontAtlas({ name: 'body', metrics: {}, texture });
+	api.loadFontAtlas({ name: 'body', atlas: committedFontAtlas('body'), texture });
 	return { api, backend, texture };
 }
 
@@ -589,7 +590,7 @@ describe('clip stack (R2.5, R4.2, R4.7) and chapter 4.7 required tests', () => {
 
 		function inkHarness() {
 			const backend = new InkBackend({ maxFrames: 1 });
-			backend.loadFontAtlas({ name: 'body', metrics: {}, texture: { id: 1, width: 1, height: 1, label: null } });
+			backend.loadFontAtlas({ name: 'body', atlas: committedFontAtlas('body'), texture: { id: 1, width: 1, height: 1, label: null } });
 			return { api: new DrawApi({ backend }), backend };
 		}
 
@@ -630,13 +631,16 @@ describe('clip stack (R2.5, R4.2, R4.7) and chapter 4.7 required tests', () => {
 			expect(api.getStats().culled).toBe(1);
 		});
 
-		it('does not ask under no clip, or under a transform the extent cannot follow', () => {
+		it('does not ask under no clip, and culls a rotated run by its transformed extent', () => {
 			const { api, backend } = inkHarness();
 			api.beginFrame({ viewport: VIEWPORT, ratio: 1 });
 			api.drawText(run('unclipped', 5000, 5000));
 			api.pushClip(rect(0, 0, 100, 100));
 			api.pushTransform([0, 1, -1, 0, 0, 0]);
+			// Rotated a quarter turn, (5000, 5000) lands at (-5000, 5000).
 			api.drawText(run('rotated', 5000, 5000));
+			// And (10, -40) lands at (40, 10), inside the clip.
+			api.drawText(run('rotated in', 10, -40));
 			api.popTransform();
 			api.pushTranslate(-4990, -4990);
 			api.drawText(run('translated', 5000, 5000));
@@ -644,8 +648,21 @@ describe('clip stack (R2.5, R4.2, R4.7) and chapter 4.7 required tests', () => {
 			api.popClip();
 			api.endFrame();
 
-			expect(backend.ids).toEqual(['unclipped', 'rotated', 'translated']);
-			expect(backend.asked).toEqual(['row']);
+			expect(backend.ids).toEqual(['unclipped', 'rotated in', 'translated']);
+			expect(backend.asked).toEqual(['row', 'row', 'row']);
+		});
+
+		it("clips a run to its box when its overflow is 'clip', for that draw only (R6.14)", () => {
+			const { api, backend } = inkHarness();
+			api.beginFrame({ viewport: VIEWPORT, ratio: 1 });
+			api.pushTranslate(5, 0);
+			api.drawText(run('clipped', 0, 0, { position: undefined, box: rect(10, 20, 30, 40), overflow: 'clip' }));
+			api.drawText(run('free', 0, 0));
+			api.popTransform();
+			api.endFrame();
+
+			expect(backend.commands[0].clip).toEqual({ kind: 'rect', rect: { minX: 15, minY: 20, maxX: 45, maxY: 60 }, rounded: null });
+			expect(backend.commands[1].clip.kind).toBe('none');
 		});
 	});
 
@@ -1057,8 +1074,19 @@ describe('draw calls (R2.8 to R2.13)', () => {
 			maxWidth: null,
 			wrap: 'none',
 			overflow: 'visible',
+			decoration: 'none',
+			lineHeight: null,
 			blur: 0,
 		});
+	});
+
+	it('reads a bare position as the baseline by default (R2.13)', () => {
+		const { api, backend } = harness();
+		api.beginFrame({ viewport: VIEWPORT });
+		api.drawText({ text: 'Total', position: { x: 4, y: 20 }, font: 'body', size: 13, color: RED });
+		api.endFrame();
+
+		expect(backend.commands[0]).toMatchObject({ position: { x: 4, y: 20 }, box: null, verticalAlign: 'baseline' });
 	});
 });
 
@@ -1072,7 +1100,7 @@ describe('measureText (R2.14)', () => {
 
 	it('delegates to a backend that owns the glyph walk, so R6.8 is structural', () => {
 		const backend = new RecordingBackend();
-		const measured = { width: 42, height: 16, lines: 1, advances: [10, 20, 30, 42] };
+		const measured = { width: 42, height: 16, lines: 1, lineWidths: [42], advances: [10, 20, 30, 42] };
 		(backend as unknown as { measureText: () => typeof measured }).measureText = () => measured;
 		const api = new DrawApi({ backend });
 

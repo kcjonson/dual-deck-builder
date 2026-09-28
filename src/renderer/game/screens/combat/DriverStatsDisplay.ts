@@ -90,7 +90,8 @@ export class DriverStatsDisplay extends Layer {
 
 		this.drawPile = this.createStatDisplay('#4a4a6a', this.data.drawPileCount.toString());
 		this.discardPile = this.createStatDisplay('#6a4a4a', this.data.discardPileCount.toString());
-		this.fuel = this.createStatDisplay('#6a6a4a', this.data.fuel.toString(), '⛽');
+		// The fuel symbol is not text the atlas covers (R6.3); it returns as an icon with DDB-72.
+		this.fuel = this.createStatDisplay('#6a6a4a', this.data.fuel.toString());
 
 		this.layoutElements();
 	}

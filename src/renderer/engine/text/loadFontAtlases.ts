@@ -66,6 +66,15 @@ export async function loadImageElement(url: string): Promise<HTMLImageElement> {
 	return image;
 }
 
+/**
+ * What the page says when the atlases do not load: without them there is no
+ * text to draw (R2.18), so the game does not start, and says why rather than
+ * showing a blank canvas.
+ */
+export function fontLoadFailureMessage(error: unknown): string {
+	return `The game's fonts failed to load (${describe(error)}). Reload the page to try again.`;
+}
+
 function describe(error: unknown): string {
 	return error instanceof Error ? error.message : String(error);
 }

@@ -8,6 +8,7 @@ import {
 } from './commands';
 export type { TextureOptions } from '../gpu/TextureStore';
 import type { TextureStore } from '../gpu/TextureStore';
+import type { FontAtlas } from '../text/FontAtlas';
 import { Rect } from './geometry';
 import { FlushReason, GpuWork } from './stats';
 
@@ -76,8 +77,12 @@ export interface DrawBatch {
 export interface FontAtlasOptions {
 	/** The name `drawText`'s `font` field selects; R11.8's three roles. */
 	name: string;
-	/** msdf-atlas-gen's metrics schema (R6.2); the backend that renders text validates it. */
-	metrics: unknown;
+	/** The metrics, validated on load (R6.2). */
+	atlas: FontAtlas;
+	/**
+	 * The atlas image, uploaded raw (R6.4b). The backend keeps it resident for
+	 * as long as it draws text (R6.4, R5.20); the caller does not release it.
+	 */
 	texture: TextureHandle;
 }
 

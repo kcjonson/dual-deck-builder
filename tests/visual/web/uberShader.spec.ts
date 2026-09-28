@@ -5,6 +5,8 @@ import type { Page } from '@playwright/test';
 import { DrawApi, RecordingBackend, TextureHandle } from '../../../src/renderer/engine/draw';
 import { Batcher } from '../../../src/renderer/engine/draw/Batcher';
 import { ResidentTextureSet } from '../../../src/renderer/engine/draw/ResidentTextureSet';
+import { parseFontAtlas } from '../../../src/renderer/engine/text/FontAtlas';
+import { TextMetricsService } from '../../../src/renderer/engine/text/TextMetricsService';
 import {
 	UBER_ATTRIBUTES,
 	UBER_TEXTURE_UNITS,
@@ -48,18 +50,27 @@ interface UnitTexture {
 }
 
 /**
- * One 4x4 glyph, 'A', filling its whole atlas: the glyph quad is 4x4 device
- * pixels at size 16, so each pixel samples one texel at its centre. The
- * atlas is the font role's resident texture, on unit 0 as in the backend.
+ * One glyph, 'A', filling a 4x4 atlas: a quarter em square at 16 texels per
+ * em with a range of 4, so at size 16 and ratio 1 the glyph quad is 4x4
+ * device pixels, each sampling one texel at its centre, and the screen range
+ * is 4 (R6.5). The atlas is the font role's resident texture, on unit 0 as in
+ * the backend.
  */
-const GLYPHS = {
-	getCharacter: (char: string) => (char === 'A'
-		? { x: 0, y: 0, width: 1, height: 1, offsetX: 0, offsetY: 0, advance: 4 }
-		: null),
-	getFontSize: () => 16,
-	getAtlasSize: () => 4,
-	measureText: (text: string) => ({ width: text.length * 4, height: 4 }),
-};
+const GLYPH_ATLAS = parseFontAtlas({
+	source: 'one glyph',
+	json: {
+		atlas: { type: 'mtsdf', distanceRange: 4, distanceRangeMiddle: 0, size: 16, width: 4, height: 4, yOrigin: 'top' },
+		metrics: { emSize: 1, lineHeight: 1.25, ascender: -1, descender: 0.25 },
+		glyphs: [{
+			unicode: 0x41,
+			advance: 0.25,
+			planeBounds: { left: 0, top: -0.25, right: 0.25, bottom: 0 },
+			atlasBounds: { left: 0, top: 0, right: 4, bottom: 4 },
+		}],
+		kerning: [],
+	},
+});
+const GLYPH_TEXTURE: TextureHandle = { id: 1, width: 4, height: 4, label: 'glyph atlas' };
 
 interface Frame {
 	pixels: number[];
@@ -74,23 +85,26 @@ function encode(
 	prepare?: (api: DrawApi) => void,
 ): { floats: number[]; indices: number[] } {
 	const backend = new RecordingBackend({ maxFrames: 1 });
-	backend.loadFontAtlas({ name: 'body', metrics: null, texture: { id: 1, width: 4, height: 4, label: null } });
+	backend.loadFontAtlas({ name: 'body', atlas: GLYPH_ATLAS, texture: GLYPH_TEXTURE });
 	const api = new DrawApi({ backend, strict: true });
 	prepare?.(api);
 	api.beginFrame({ viewport: { width: target.width / target.ratio, height: target.height / target.ratio }, ratio: target.ratio });
 	build(api);
 	api.endFrame();
 
+	const text = new TextMetricsService();
+	text.addAtlas({ name: 'body', atlas: GLYPH_ATLAS });
 	const encoder = new UberGeometryEncoder({
-		glyphs: GLYPHS,
+		text,
 		onUnpaintable: (kind, detail) => {
 			throw new Error(`${kind}: ${detail}`);
 		},
 	});
+	encoder.registerFontTexture('body', GLYPH_TEXTURE);
 	encoder.ratio = target.ratio;
 	const batcher = new Batcher({
 		encoder,
-		textures: new ResidentTextureSet({ units: UBER_TEXTURE_UNITS, resident: [GLYPHS] }),
+		textures: new ResidentTextureSet({ units: UBER_TEXTURE_UNITS, resident: [GLYPH_TEXTURE] }),
 	});
 	let floats: number[] = [];
 	let indices: number[] = [];
@@ -377,23 +391,67 @@ test.describe('uber shader', () => {
 		expect(Math.abs(tinted[3] - 128)).toBeLessThanOrEqual(1);
 	});
 
-	test('draws a glyph in mask mode from the atlas red channel as coverage', async ({ page }) => {
-		// A 4x4 atlas: the left two columns fully covered, the right two half.
-		const texels: number[] = [];
+	/** A 4x4 atlas whose four columns hold the given RGBA texels, top to bottom alike. */
+	function columns(...texels: number[][]): number[] {
+		const out: number[] = [];
 		for (let row = 0; row < 4; row++) {
-			for (let column = 0; column < 4; column++) texels.push(column < 2 ? 255 : 128, 0, 0, 255);
+			for (let column = 0; column < 4; column++) out.push(...texels[column]);
 		}
-		const target: Target = { width: 10, height: 8, ratio: 1, clear: OPAQUE_BLACK, textures: [{ unit: 0, width: 4, height: 4, texels }] };
+		return out;
+	}
+
+	test('shades a glyph by the median of the three channels with the linear ramp (R6.5)', async ({ page }) => {
+		// Column 0: all three channels in, covered. Column 1: two of three in,
+		// still covered (the median). Column 2: one of three in, empty, where a
+		// max or a single channel would cover it. Column 3: all at 0.6, which a
+		// screen range of 4 ramps to 0.5 + 4 * 0.1.
+		const texels = columns([255, 255, 255, 255], [255, 0, 255, 255], [255, 0, 0, 255], [153, 153, 153, 255]);
+		const target: Target = { width: 8, height: 8, ratio: 1, clear: OPAQUE_BLACK, textures: [{ unit: 0, width: 4, height: 4, texels }] };
 		const frame = await render(page, target, (api) => {
-			api.drawText({ text: 'A', position: { x: 2, y: 2 }, font: 'body', size: 16, color: [0, 1, 0, 1] });
+			api.drawText({ text: 'A', position: { x: 2, y: 6 }, font: 'body', size: 16, color: [0, 1, 0, 1] });
 		});
 		expect(pixel(frame, 2, 3)).toEqual([0, 255, 0, 255]);
 		expect(pixel(frame, 3, 3)).toEqual([0, 255, 0, 255]);
-		const half = pixel(frame, 5, 3);
-		expect(Math.abs(half[1] - 128)).toBeLessThanOrEqual(1);
-		expect(half[3]).toBe(255);
+		expect(pixel(frame, 4, 3)).toEqual([0, 0, 0, 255]);
+		const ramp = pixel(frame, 5, 3);
+		expect(Math.abs(ramp[1] - 230)).toBeLessThanOrEqual(2);
 		expect(pixel(frame, 1, 3)).toEqual([0, 0, 0, 255]);
 		expect(pixel(frame, 6, 3)).toEqual([0, 0, 0, 255]);
+	});
+
+	test('derives the range from the texture footprint under a scale (R6.5)', async ({ page }) => {
+		// Every texel at 0.6. At scale 2 each texel spans two pixels, so the
+		// range doubles to 8 and 0.5 + 8 * 0.1 saturates; the per-draw
+		// constant of an unscaled draw would have left it at 0.9.
+		const texels = columns(...new Array(4).fill([153, 153, 153, 255]));
+		const target: Target = { width: 16, height: 16, ratio: 1, clear: OPAQUE_BLACK, textures: [{ unit: 0, width: 4, height: 4, texels }] };
+		const frame = await render(page, target, (api) => {
+			api.pushTransform([2, 0, 0, 2, 0, 0]);
+			api.drawText({ text: 'A', position: { x: 1, y: 6 }, font: 'body', size: 16, color: [0, 1, 0, 1] });
+			api.popTransform();
+		});
+		expect(pixel(frame, 4, 6)).toEqual([0, 255, 0, 255]);
+		expect(pixel(frame, 9, 10)).toEqual([0, 255, 0, 255]);
+	});
+
+	test('blurs a shadow run from the true distance in the alpha channel (R6.6)', async ({ page }) => {
+		// The colour channels say outside everywhere; the alpha channel says
+		// two device pixels inside in the left half and far outside in the
+		// right. A one-pixel blur reads only the alpha.
+		const texels = columns([0, 0, 0, 255], [0, 0, 0, 255], [0, 0, 0, 0], [0, 0, 0, 0]);
+		const target: Target = { width: 8, height: 8, ratio: 1, clear: OPAQUE_BLACK, textures: [{ unit: 0, width: 4, height: 4, texels }] };
+		const frame = await render(page, target, (api) => {
+			api.drawText({
+				text: 'A',
+				position: { x: 2, y: 6 },
+				font: 'body',
+				size: 16,
+				color: [0, 0, 0, 0],
+				shadow: { color: [0, 0, 1, 1], blur: 1 },
+			});
+		});
+		expect(pixel(frame, 2, 3)).toEqual([0, 0, 255, 255]);
+		expect(pixel(frame, 5, 3)).toEqual([0, 0, 0, 255]);
 	});
 
 	test('adds an additive draw without covering what is under it (R5.22a)', async ({ page }) => {

@@ -13,7 +13,7 @@ layout(location = 5) in vec4 aFill;     // premultiplied; per vertex for R5.9's 
 layout(location = 6) in vec4 aBorder;   // premultiplied
 layout(location = 7) in vec4 aClip;     // minX, minY, maxX, maxY (R4.1)
 layout(location = 8) in vec4 aShape;    // border width, border outset, sigma or pixel range, opacity
-layout(location = 9) in vec4 aMode;     // mode, texture slot, additive, unused
+layout(location = 9) in vec4 aMode;     // mode, texture slot, additive, text shadow blur
 
 layout(std140) uniform Frame {
 	mat4 uProjection;

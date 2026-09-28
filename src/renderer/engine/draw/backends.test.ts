@@ -5,6 +5,7 @@ import { RecordingBackend } from './RecordingBackend';
 import { FontAtlasHandle } from './commands';
 import { NULL_TEXTURE_DEVICE, TextureStore } from '../gpu/TextureStore';
 import { GpuWork } from './stats';
+import { committedFontAtlas } from '../text/testing';
 
 const BLUE = [0.2, 0.4, 0.6, 1] as const;
 const RED = [1, 0, 0, 1] as const;
@@ -47,7 +48,7 @@ describe('NullBackend (R2.21)', () => {
 		const backend = new NullBackend();
 		const api = new DrawApi({ backend });
 		const texture = api.createTexture({ width: 4, height: 4 });
-		api.loadFontAtlas({ name: 'body', metrics: {}, texture });
+		api.loadFontAtlas({ name: 'body', atlas: committedFontAtlas('body'), texture });
 
 		api.beginFrame({ viewport: VIEWPORT });
 		api.drawRect({ rect: { x: 0, y: 0, width: 10, height: 10 }, fill: BLUE, shadow: { color: RED } });
@@ -133,7 +134,7 @@ describe('NullBackend (R2.21)', () => {
 		const backend = new NullBackend();
 		const api = new DrawApi({ backend });
 		const texture = api.createTexture({ width: 64, height: 64, label: 'ui' });
-		api.loadFontAtlas({ name: 'mono', metrics: {}, texture });
+		api.loadFontAtlas({ name: 'mono', atlas: committedFontAtlas('mono'), texture });
 
 		expect(texture).toEqual({ id: 1, width: 64, height: 64, label: 'ui' });
 		expect(backend.fontAtlasNames).toEqual(['mono']);

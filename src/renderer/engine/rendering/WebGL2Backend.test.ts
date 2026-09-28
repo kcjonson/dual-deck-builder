@@ -1,6 +1,5 @@
 import { mat4 } from 'gl-matrix';
 import { DrawApi, RGBA } from '../draw';
-import type { CharacterInfo } from './FontAtlas';
 import type { FrameTimer } from './FrameTimer';
 import type { GpuTimer } from './GpuTimer';
 import type { ContextListener, Renderer } from './Renderer';
@@ -9,6 +8,7 @@ import { DEFAULT_INITIAL_INDEX_SLOTS } from './IndexBufferPool';
 import { UBER_ATTRIBUTES, UBER_MODE, UBER_VERTEX } from './UberGeometryEncoder';
 import { TextureStore } from '../gpu/TextureStore';
 import { WebGL2TextureDevice } from './WebGL2TextureDevice';
+import { committedFontAtlas } from '../text/testing';
 
 // -- the backend against a recording WebGL2 context ---------------------------
 
@@ -79,31 +79,6 @@ function fakeGl(): { gl: WebGL2RenderingContext; calls: GlCall[]; constant: (nam
 	return { gl: gl as WebGL2RenderingContext, calls, constant };
 }
 
-class FakeAtlas {
-	readonly texture = { texture: 'atlas' };
-	private readonly glyph: CharacterInfo = { x: 0, y: 0, width: 0.05, height: 0.05, offsetX: 0, offsetY: 0, advance: 10 };
-
-	getCharacter(char: string): CharacterInfo | null {
-		return char === ' ' ? null : this.glyph;
-	}
-
-	getFontSize(): number {
-		return 32;
-	}
-
-	getAtlasSize(): number {
-		return 512;
-	}
-
-	measureText(text: string): { width: number; height: number } {
-		return { width: text.length * 10, height: 38 };
-	}
-
-	getTexture(): unknown {
-		return this.texture;
-	}
-}
-
 const WHITE: RGBA = [1, 1, 1, 1];
 
 function setupBackend(options: { vertexRingBytes?: number; indexSlots?: number; indexSlotBytes?: number; timed?: boolean } = {}) {
@@ -119,7 +94,6 @@ function setupBackend(options: { vertexRingBytes?: number; indexSlots?: number; 
 	const renderer = {
 		getContext: () => gl,
 		textures: new TextureStore({ device: new WebGL2TextureDevice({ gl }) }),
-		getFontAtlas: () => new FakeAtlas(),
 		addContextListener: (listener: ContextListener) => {
 			listeners.push(listener);
 			return () => undefined;
@@ -127,7 +101,18 @@ function setupBackend(options: { vertexRingBytes?: number; indexSlots?: number; 
 	} as unknown as Renderer;
 	const frameTimer = { recordDrawCall: jest.fn(), recordTextCharacters: jest.fn() } as unknown as FrameTimer;
 	const backend = new WebGL2Backend({ renderer, frameTimer, gpuTimer, ...ringOptions });
-	const api = new DrawApi({ backend, development: true });
+	// The body role's real metrics over a stand-in image: the tests here are
+	// about GL calls, and glyph placement is the encoder's to test.
+	const atlasTexture = renderer.textures.create({
+		width: 2,
+		height: 2,
+		label: 'font atlas',
+		source: new Uint8Array(16),
+		content: 'mask',
+		immediate: true,
+	});
+	backend.loadFontAtlas({ name: 'body', atlas: committedFontAtlas('body'), texture: atlasTexture });
+	const api = new DrawApi({ backend, development: true, });
 
 	function frame(build: (draw: DrawApi) => void): GlCall[] {
 		const start = calls.length;
@@ -365,9 +350,8 @@ describe('WebGL2Backend', () => {
 		for (let offset = 0; offset < floatCount; offset += UBER_VERTEX.floats * 4) {
 			modes.push(vertices[offset + UBER_VERTEX.mode]);
 		}
-		const isText = (mode: number) => mode === UBER_MODE.text || mode === UBER_MODE.mask;
 		// Two glyph quads, then the rect's quad: nothing hoists text past it.
-		expect(modes.map((mode) => (isText(mode) ? 'text' : 'shape'))).toEqual(['text', 'text', 'shape']);
+		expect(modes.map((mode) => (mode === UBER_MODE.text ? 'text' : 'shape'))).toEqual(['text', 'text', 'shape']);
 		expect(named(calls, 'drawElements')).toHaveLength(1);
 	});
 
