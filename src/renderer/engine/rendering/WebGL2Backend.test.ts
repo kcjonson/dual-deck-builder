@@ -5,7 +5,7 @@ import type { FrameTimer } from './FrameTimer';
 import type { GpuTimer } from './GpuTimer';
 import type { ContextListener, Renderer } from './Renderer';
 import { WebGL2Backend } from './WebGL2Backend';
-import { UBER_ATTRIBUTES, UBER_VERTEX } from './UberGeometryEncoder';
+import { UBER_ATTRIBUTES, UBER_MODE, UBER_VERTEX } from './UberGeometryEncoder';
 import { TextureStore } from '../gpu/TextureStore';
 import { WebGL2TextureDevice } from './WebGL2TextureDevice';
 
@@ -288,6 +288,25 @@ describe('WebGL2Backend', () => {
 		const { frame, named } = setupBackend();
 		// Three domains, each ended by a barrier; nothing inside a domain splits.
 		expect(named(frame(threeDomains), 'drawElements')).toHaveLength(3);
+	});
+
+	it('paints in submission order: text drawn before an overlapping rect stays under it (chapter 3)', () => {
+		const { frame, named, constant } = setupBackend();
+		const calls = frame((draw) => {
+			draw.drawText({ text: 'Hi', position: { x: 20, y: 20 }, font: 'body', size: 16, color: WHITE });
+			draw.drawRect({ rect: { x: 10, y: 10, width: 100, height: 40 }, fill: WHITE });
+		});
+		const [write] = named(calls, 'bufferSubData').filter((call) => call.args[0] === constant('ARRAY_BUFFER'));
+		const vertices = write.args[2] as Float32Array;
+		const floatCount = write.args[4] as number;
+		const modes: number[] = [];
+		for (let offset = 0; offset < floatCount; offset += UBER_VERTEX.floats * 4) {
+			modes.push(vertices[offset + UBER_VERTEX.mode]);
+		}
+		const isText = (mode: number) => mode === UBER_MODE.text || mode === UBER_MODE.mask;
+		// Two glyph quads, then the rect's quad: nothing hoists text past it.
+		expect(modes.map((mode) => (isText(mode) ? 'text' : 'shape'))).toEqual(['text', 'text', 'shape']);
+		expect(named(calls, 'drawElements')).toHaveLength(1);
 	});
 
 	it('never splits on a clip change inside a domain (R4.1)', () => {

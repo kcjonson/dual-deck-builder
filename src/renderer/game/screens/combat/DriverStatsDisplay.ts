@@ -16,6 +16,7 @@ export interface DriverResourceData {
 
 /** The name's 12 px line box (10 px at 1.2) with two pixels either side. */
 const NAME_BAND = 16;
+const NAME_TOP = 2;
 
 /**
  * Stat display references
@@ -136,17 +137,27 @@ export class DriverStatsDisplay extends Layer {
 	 * Place a stat display with its icon's left edge at x
 	 */
 	private layoutStatDisplay({ icon, text, symbol }: StatDisplay, x: number, iconSize: number): void {
-		const height = this.getHeight();
-		icon.setPosition(x, Math.floor((height - iconSize) / 2));
+		const centerY = this.iconRowCenter;
+		icon.setPosition(x, Math.floor(centerY - iconSize / 2));
 		icon.setSize(iconSize, iconSize);
 		if (symbol) {
 			icon.setCornerRadius(Math.floor(iconSize / 4));
 			symbol.setFontSize(Math.floor(iconSize * 0.6));
-			symbol.setPosition(x + iconSize / 2, Math.floor(height / 2));
-			text.setPosition(x + iconSize + 10, Math.floor(height / 2));
+			symbol.setPosition(x + iconSize / 2, Math.floor(centerY));
+			text.setPosition(x + iconSize + 10, Math.floor(centerY));
 		} else {
-			text.setPosition(x + iconSize / 2, Math.floor(height / 2));
+			text.setPosition(x + iconSize / 2, Math.floor(centerY));
 		}
+	}
+
+	/**
+	 * The icons are submitted after the name and paint over it (chapter 3), so
+	 * the name has a band of its own on top and the icon row is centred in
+	 * what is left.
+	 */
+	private get iconRowCenter(): number {
+		const height = this.getHeight();
+		return NAME_BAND + (height - NAME_BAND) / 2;
 	}
 
 	/**
@@ -155,23 +166,22 @@ export class DriverStatsDisplay extends Layer {
 	 */
 	private layoutElements(): void {
 		const height = this.getHeight();
-		// The icons are submitted after the name and paint over it (chapter 3),
-		// so the name gets a band of its own above them: the icons stay
-		// vertically centred and shrink until that band is free.
-		const iconSize = Math.max(0, Math.min(Math.floor(height * 0.6), height - NAME_BAND * 2));
+		// Below the name's band, less a pixel either side of the row.
+		const iconSize = Math.max(0, Math.min(Math.floor(height * 0.6), height - NAME_BAND - 2));
 		const smallIconSize = Math.floor(iconSize * 0.7);
 		const padding = 5;
+		const centerY = this.iconRowCenter;
 		let currentX = 0;
 
-		this.nameLabel.setPosition(currentX, Math.max(0, Math.floor((height - iconSize) / 2) - NAME_BAND + 2));
+		this.nameLabel.setPosition(currentX, NAME_TOP);
 
 		for (const boltIcon of this.adrenalineIcons) {
-			boltIcon.setPosition(currentX, Math.floor((height - iconSize) / 2));
+			boltIcon.setPosition(currentX, Math.floor(centerY - iconSize / 2));
 			boltIcon.setSize(iconSize, iconSize);
 			currentX += iconSize + 2;
 		}
 
-		this.adrenalineText.setPosition(currentX + 10, Math.floor(height / 2));
+		this.adrenalineText.setPosition(currentX + 10, Math.floor(centerY));
 		currentX += 40;
 
 		for (const stat of [this.drawPile, this.discardPile, this.fuel]) {

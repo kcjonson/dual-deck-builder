@@ -17,6 +17,13 @@ on:
         description: 'Mint screenshot baselines on this runner and commit them (R14.5)'
         type: boolean
         default: false
+      update_mode:
+        description: 'Which baselines a mint rewrites: changed (only failing ones) or all (every captured one, for a deliberate re-baseline)'
+        type: choice
+        options:
+          - changed
+          - all
+        default: changed
 
 permissions:
   contents: read
@@ -184,10 +191,14 @@ jobs:
       - name: Build the Electron harness shell
         run: npm run build:harness:electron
 
+      # A bare --update-snapshots is `changed`: it rewrites only a baseline
+      # that fails, so a real change under the tolerance survives the mint.
+      # `all` rewrites every baseline the run captures.
       - name: Update baselines
         env:
           VISUAL_BASELINE_RUNNER: '1'
-        run: xvfb-run -a npx playwright test --update-snapshots
+          UPDATE_MODE: ${{ inputs.update_mode || 'changed' }}
+        run: xvfb-run -a npx playwright test --update-snapshots="$UPDATE_MODE"
 
       # This job is the bootstrap, so its report is the one that matters most:
       # if the first mint captures a wrong picture, this artifact is the only
