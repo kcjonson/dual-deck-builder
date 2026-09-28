@@ -457,7 +457,7 @@ describe('click (R9.31)', () => {
 		const shell = button();
 		draggable(shell);
 		send(pointer('down', 10, 20), pointer('move', 10 + dragThreshold('mouse'), 20), pointer('up', 10 + dragThreshold('mouse'), 20));
-		expect(only('click')).toEqual(['click:button', 'click:root']);
+		expect(only('click')).toEqual(['click:label', 'click:button', 'click:root']);
 	});
 
 	// Departure from R9.31: a player's click that wanders never goes missing

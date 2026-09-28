@@ -61,7 +61,13 @@ beforeEach(() => {
 	context = createTestContext();
 });
 
-function pointer(phase: 'down' | 'move' | 'up' | 'cancel', x: number, y: number, pointerType: PointerType = 'mouse'): PlatformInput {
+function pointer(
+	phase: 'down' | 'move' | 'up' | 'cancel',
+	x: number,
+	y: number,
+	pointerType: PointerType = 'mouse',
+	button = phase === 'move' ? -1 : 0,
+): PlatformInput {
 	return {
 		kind: 'pointer',
 		phase,
@@ -70,7 +76,7 @@ function pointer(phase: 'down' | 'move' | 'up' | 'cancel', x: number, y: number,
 		pointerId: 1,
 		pointerType,
 		isPrimary: true,
-		button: phase === 'move' ? -1 : 0,
+		button,
 		buttons: phase === 'down' || phase === 'move' ? 1 : 0,
 		pressure: phase === 'up' ? 0 : 0.5,
 		modifiers: NO_MODIFIERS,
@@ -150,6 +156,47 @@ describe('threshold (R9.12a)', () => {
 		expect(context.drag.isDragging).toBe(true);
 	});
 
+	it('starts only from the primary button: a right press stays a contextmenu', () => {
+		const { card } = table();
+		send(pointer('down', 50, 50, 'mouse', 2), pointer('move', 80, 90), pointer('up', 80, 90, 'mouse', 2));
+
+		expect(context.drag.isDragging).toBe(false);
+		expect(card.lastEnd).toBeNull();
+		expect(only('contextmenu')).toEqual(['contextmenu:card', 'contextmenu:root']);
+	});
+
+	it('never goes active from a touch that already fired its hold contextmenu', () => {
+		const { card } = table();
+		send(pointer('down', 50, 50, 'touch'));
+		context.clock.advance(600);
+		context.dispatcher.dispatchPending();
+		expect(only('contextmenu')).toEqual(['contextmenu:card', 'contextmenu:root']);
+
+		send(pointer('move', 200, 50, 'touch'), pointer('up', 200, 50, 'touch'));
+		expect(context.drag.isDragging).toBe(false);
+		expect(card.lastEnd).toBeNull();
+		expect(only(...DRAG_TYPES, 'click')).toEqual([]);
+	});
+
+	// #91's guarantee, with a drag source mounted beside the press.
+	it('still clicks a plain component beside a drag source however far the press wandered', () => {
+		const { other } = table();
+		other.onPointerDown = null;
+		send(pointer('down', 350, 250), pointer('move', 357, 250), pointer('move', 390, 290), pointer('up', 350, 250));
+
+		expect(only('click')).toEqual(['click:other', 'click:root']);
+		expect(context.drag.isDragging).toBe(false);
+	});
+
+	it('leaves the click on a child pressed inside a source whose drag never went active', () => {
+		const { card } = table();
+		const button = new Probe({ id: 'card_button', x: 10, y: 100, width: 40, height: 20 });
+		card.addChild(button);
+		send(pointer('down', 30, 115), pointer('move', 32, 115), pointer('up', 32, 115));
+
+		expect(only('click')).toEqual(['click:card_button', 'click:card', 'click:root']);
+	});
+
 	it('refuses a second drag while one is in progress', () => {
 		const { card } = table();
 		send(pointer('down', 50, 50));
@@ -165,7 +212,8 @@ describe('ghost and targeting (R9.12b)', () => {
 
 		expect(card.layer).toBe('drag');
 		expect(card.pointerEvents).toBe('none');
-		expect(card.transform.translate).toEqual([30, 40]);
+		expect(card.dragOffset).toEqual({ x: 30, y: 40 });
+		expect(card.transform.translate).toEqual([0, 0]);
 		expect(card.screenBounds).toEqual({ x: 40, y: 50, width: 100, height: 140 });
 	});
 
@@ -178,7 +226,7 @@ describe('ghost and targeting (R9.12b)', () => {
 
 		send(pointer('down', 40, 40), pointer('move', 100, 60));
 
-		expect(card.transform.translate).toEqual([30, 10]);
+		expect(card.dragOffset).toEqual({ x: 30, y: 10 });
 	});
 
 	it('puts the ghost back when the drag ends', () => {
@@ -191,6 +239,42 @@ describe('ghost and targeting (R9.12b)', () => {
 		expect(card.pointerEvents).toBe('auto');
 		expect(card.transform.rotate).toBe(0.1);
 		expect(card.transform.translate).toEqual([0, 0]);
+		expect(card.dragOffset).toBeNull();
+	});
+
+	it('lets a transform tween on the source run under the drag, and keeps where it got to', () => {
+		const { card } = table();
+		send(pointer('down', 50, 50), pointer('move', 80, 90));
+		context.animator.tween({
+			from: 1,
+			to: 2,
+			duration: 10,
+			ease: (t: number) => t,
+			owner: card,
+			onUpdate: (scale) => {
+				card.transform = { scale, origin: [0, 0] };
+			},
+		});
+		context.clock.advance(10);
+		context.animator.tick();
+		send(pointer('move', 90, 90));
+
+		expect(card.transform.scale).toBe(2);
+		// Scaled about its own corner, then carried by the drag.
+		expect(card.screenBounds).toEqual({ x: 50, y: 50, width: 200, height: 280 });
+
+		send(pointer('up', 90, 90));
+		expect(card.transform.scale).toBe(2);
+		expect(card.screenBounds).toEqual({ x: 10, y: 10, width: 200, height: 280 });
+	});
+
+	it('tells the source on dragend how far the ghost had travelled, to animate home from', () => {
+		const { card } = table();
+		const offsets: unknown[] = [];
+		card.onDragEnd = (event) => offsets.push(event.ghostOffset);
+		send(pointer('down', 50, 50), pointer('move', 80, 90), pointer('up', 80, 90));
+
+		expect(offsets).toEqual([{ x: 30, y: 40 }]);
 	});
 
 	it('delivers enter, over on each move, and leave to what is under the pointer, bubbling', () => {
@@ -269,6 +353,33 @@ describe('accept and drop (R9.12c)', () => {
 		expect(card.lastEnd).toEqual({ dropped: true, dropTarget: 'enemy' });
 		expect(enemy.dropActive).toBe(false);
 		expect(enemy.dropActiveChanges).toEqual([true, false]);
+	});
+
+	it('revokes dropActive when a dragover that accepted stops accepting', () => {
+		const { enemy } = table();
+		// Accepts only over the enemy's left half.
+		enemy.onDragOver = (event) => {
+			if ((event.local?.x ?? 100) < 50) event.accept();
+		};
+		send(pointer('down', 50, 50), pointer('move', 320, 80));
+		expect(enemy.dropActive).toBe(true);
+
+		send(pointer('move', 380, 80));
+		expect(enemy.dropActive).toBe(false);
+		expect(context.drag.canDrop).toBe(false);
+
+		send(pointer('move', 330, 80));
+		expect(enemy.dropActive).toBe(true);
+	});
+
+	it('lets an inner dragover accept over an outer dragenter one', () => {
+		const { enemy, portrait } = table();
+		enemy.accepts = 'dragenter';
+		portrait.accepts = 'dragover';
+		send(pointer('down', 50, 50), pointer('move', 320, 30));
+
+		expect(portrait.dropActive).toBe(true);
+		expect(enemy.dropActive).toBe(false);
 	});
 
 	it('accepts from dragover as well as dragenter', () => {
@@ -380,6 +491,55 @@ describe('cancellation (R9.12d)', () => {
 
 		send(pointer('move', 380, 280), pointer('up', 380, 280));
 		expect(card.lastEnd).toEqual({ dropped: true, dropTarget: 'other' });
+	});
+
+	it('does not click after a drag ended by losing capture', () => {
+		const { card } = table();
+		send(pointer('down', 50, 50), pointer('move', 380, 80));
+		context.dispatcher.releasePointer(1);
+		send(pointer('move', 385, 85), pointer('up', 385, 85));
+
+		expect(card.lastEnd).toEqual({ dropped: false, dropTarget: null });
+		expect(only('click')).toEqual([]);
+	});
+
+	it('does not click after a drag ended by its ghost unmounting', () => {
+		const { root, card } = table();
+		const ghost = new Probe({ id: 'ghost', x: 150, y: 250, width: 100, height: 140 });
+		root.addChild(ghost);
+		card.onPointerDown = (event) => {
+			context.drag.start({ event, source: card, data: null, ghost });
+		};
+		card.dragOnDown = false;
+		send(pointer('down', 50, 50), pointer('move', 380, 80));
+		expect(ghost.dragOffset).not.toBeNull();
+		root.removeChild(ghost);
+		send(pointer('move', 50, 50), pointer('up', 50, 50));
+
+		expect(card.lastEnd).toEqual({ dropped: false, dropTarget: null });
+		expect(only('click')).toEqual([]);
+	});
+
+	it('hears a cancel() from a dragenter fired by the release itself', () => {
+		const { card, other } = table();
+		other.accepts = 'dragenter';
+		other.onDragEnter = () => context.drag.cancel();
+		send(pointer('down', 50, 50), pointer('move', 380, 80), pointer('up', 380, 280));
+
+		expect(only('drop', 'click')).toEqual([]);
+		expect(card.lastEnd).toEqual({ dropped: false, dropTarget: null });
+	});
+
+	it('does not drop on a target that the release\'s own dragenter unmounted', () => {
+		const { root, card, other } = table();
+		other.accepts = 'dragenter';
+		other.onDragEnter = () => {
+			root.removeChild(other);
+		};
+		send(pointer('down', 50, 50), pointer('move', 380, 80), pointer('up', 380, 280));
+
+		expect(only('drop')).toEqual([]);
+		expect(card.lastEnd).toEqual({ dropped: false, dropTarget: null });
 	});
 
 	it('cancel() ends the drag, and the release that follows neither drops nor clicks', () => {

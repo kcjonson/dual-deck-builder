@@ -195,6 +195,8 @@ export interface DragEventInit {
 	dropped?: boolean;
 	/** `dragend` only: the component that accepted the drop, null when nothing did. */
 	dropTarget?: Component | null;
+	/** `dragend` only: how far the ghost had travelled, in its parent's space, when the drag ended. */
+	ghostOffset?: Vec2;
 }
 
 /**
@@ -212,6 +214,13 @@ export class UiDragEvent extends UiEvent {
 	public readonly pointerType: PointerType;
 	public readonly dropped: boolean;
 	public readonly dropTarget: Component | null;
+	/**
+	 * `dragend` only: the ghost's travel from where layout put it, in its
+	 * parent's space, when the drag ended. The ghost is back in place by the
+	 * time `dragend` fires; a source that animates home (R9.12c) tweens its
+	 * transform's translate from here to zero.
+	 */
+	public readonly ghostOffset: Vec2;
 	private acceptingComponent: Component | null = null;
 
 	constructor(init: DragEventInit) {
@@ -224,6 +233,7 @@ export class UiDragEvent extends UiEvent {
 		this.pointerType = init.pointerType;
 		this.dropped = init.dropped ?? false;
 		this.dropTarget = init.dropTarget ?? null;
+		this.ghostOffset = init.ghostOffset ?? { x: 0, y: 0 };
 	}
 
 	public get local(): Vec2 | null {

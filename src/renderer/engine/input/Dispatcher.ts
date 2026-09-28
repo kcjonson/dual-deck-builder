@@ -155,6 +155,10 @@ export class Dispatcher {
 					const press = this.presses.get(pointerId);
 					if (press) press.spent = true;
 				},
+				pressLive: (pointerId) => {
+					const press = this.presses.get(pointerId);
+					return press !== undefined && !press.spent;
+				},
 				get now() {
 					return clock.now;
 				},
@@ -469,6 +473,7 @@ export class Dispatcher {
 	}
 
 	private pointerMove(fields: PointerFields & { coalesced?: Vec2[] }): void {
+		this.drag.pointerMoving(fields.pointerId, { x: fields.x, y: fields.y });
 		const target = this.targetFor(fields);
 		this.trackHover(fields, target);
 

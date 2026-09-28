@@ -119,6 +119,8 @@ export abstract class Component {
 	private hoverState = false;
 	private focusState = false;
 	private dropActiveState = false;
+	/** Set while this component is a drag ghost (R9.12b): its travel in the parent's space. */
+	private dragGhostOffset: Vec2 | null = null;
 	private parentComponent: Component | null = null;
 	private mountContext: MountContext | null = null;
 	/** This subtree has to be laid out: set here and on every ancestor up to the boundary (R8.18). */
@@ -316,9 +318,35 @@ export abstract class Component {
 		this.ownTransform = normalizeTransform(value);
 	}
 
-	/** The transform as a matrix over the content box, or null for identity. */
+	/**
+	 * The transform as a matrix over the content box, or null for identity.
+	 * A drag ghost's offset is applied outside `transform`, so a tween on
+	 * `transform` keeps running while the ghost follows the pointer.
+	 */
 	public get transformMatrix(): Mat2D | null {
-		return transformMatrix(this.ownTransform, this.contentWidth, this.contentHeight);
+		const own = transformMatrix(this.ownTransform, this.contentWidth, this.contentHeight);
+		const ghost = this.dragGhostOffset;
+		if (!ghost) return own;
+		const lift = translation(ghost.x, ghost.y);
+		return own ? concat(lift, own) : lift;
+	}
+
+	/**
+	 * R9.12b: while the drag service moves this component as a ghost, its
+	 * offset from where layout put it, in the parent's content space; null
+	 * otherwise. A ghost draws and hit-tests on the `drag` layer with
+	 * `pointerEvents: none` and moves by this offset, all without touching
+	 * the component's own `layer`, `pointerEvents` or `transform`, which
+	 * read back as the ghost values and are the author's again when the drag
+	 * ends.
+	 */
+	public get dragOffset(): Vec2 | null {
+		return this.dragGhostOffset;
+	}
+
+	/** The drag service's: sets or clears the ghost state. */
+	public setDragOffset(offset: Vec2 | null): void {
+		this.dragGhostOffset = offset;
 	}
 
 	/**
@@ -414,7 +442,7 @@ export abstract class Component {
 
 	/** `pointerEvents: none` here or on any ancestor. */
 	private get pointerEventsBlocked(): boolean {
-		return this.ownPointerEvents === 'none' || (this.parentComponent?.pointerEventsBlocked ?? false);
+		return this.pointerEvents === 'none' || (this.parentComponent?.pointerEventsBlocked ?? false);
 	}
 
 	private insideAncestorClips(screenX: number, screenY: number, ratio = this.clipRatio): boolean {
@@ -504,9 +532,11 @@ export abstract class Component {
 		this.ownOpacity = value;
 	}
 
-	/** Own layer, or null to inherit (R3.6). */
+	/** Own layer, or null to inherit (R3.6); at least `drag` while a drag ghost. */
 	public get layer(): LayerName | null {
-		return this.ownLayer;
+		const own = this.ownLayer;
+		if (this.dragGhostOffset && (own === null || layerOrdinal(own) < layerOrdinal('drag'))) return 'drag';
+		return own;
 	}
 
 	public set layer(value: LayerName | null) {
@@ -524,8 +554,9 @@ export abstract class Component {
 		if (this.parentComponent) this.parentComponent.orderView = null;
 	}
 
+	/** `none` while a drag ghost, so the hit walk sees through it. */
 	public get pointerEvents(): PointerEvents {
-		return this.ownPointerEvents;
+		return this.dragGhostOffset ? 'none' : this.ownPointerEvents;
 	}
 
 	public set pointerEvents(value: PointerEvents) {
@@ -550,7 +581,7 @@ export abstract class Component {
 	/** `max(own, parent's effective)`, `base` at a root (R3.6). */
 	public get effectiveLayer(): LayerName {
 		const inherited = this.parentComponent ? this.parentComponent.effectiveLayer : ROOT_LAYER;
-		const own = this.ownLayer;
+		const own = this.layer;
 		return own !== null && layerOrdinal(own) > layerOrdinal(inherited) ? own : inherited;
 	}
 
@@ -559,7 +590,7 @@ export abstract class Component {
 	 * clip for this subtree (R3.8, R4.8).
 	 */
 	public get promoted(): boolean {
-		const own = this.ownLayer;
+		const own = this.layer;
 		if (own === null) return false;
 		const inherited = this.parentComponent ? this.parentComponent.effectiveLayer : ROOT_LAYER;
 		return layerOrdinal(own) > layerOrdinal(inherited);
@@ -847,6 +878,7 @@ export abstract class Component {
 		this.hoverState = false;
 		this.focusState = false;
 		this.dropActiveState = false;
+		this.dragGhostOffset = null;
 	}
 
 	/**

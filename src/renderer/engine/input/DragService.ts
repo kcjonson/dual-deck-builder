@@ -1,7 +1,5 @@
 import type { Vec2 } from '../draw/geometry';
-import type { LayerName } from '../draw/layers';
-import type { Component, PointerEvents } from '../components/Component';
-import type { ComponentTransform } from '../components/componentGeometry';
+import type { Component } from '../components/Component';
 import { tokens } from '../theme/tokens';
 import { DragEventType, PointerType, UiDragEvent, UiPointerEvent } from './events';
 import type { HitTestOptions } from './hitTest';
@@ -45,6 +43,8 @@ export interface DragHost {
 	captorOf(pointerId: number): Component | null;
 	/** The press on this pointer can no longer click (R9.31). */
 	spendPress(pointerId: number): void;
+	/** The pointer's press is down and can still click: not cancelled, not already a touch hold. */
+	pressLive(pointerId: number): boolean;
 	readonly now: number;
 }
 
@@ -60,34 +60,44 @@ interface Session {
 	active: boolean;
 	target: Component | null;
 	acceptor: Component | null;
-	/** The ghost's own values, put back when the drag ends. */
-	restore: { layer: LayerName | null; pointerEvents: PointerEvents; transform: ComponentTransform } | null;
+	/** A `dragover` on the current target accepted, so acceptance follows each `dragover` from here on. */
+	acceptsOnOver: boolean;
+	/** The ghost's travel in its parent's space. */
+	offset: Vec2;
 }
 
 /**
  * R9.12's drag and drop, one per dispatcher and reached as `context.drag`.
  *
  * A component starts a drag from its `pointerdown` handler with
- * `context.drag.start({ event, source, data })`; the service captures the
- * pointer for the source unless something already has. Until the pointer
- * moves past the threshold the press is still a candidate click, so a card
- * can be clicked to select and dragged to target (R9.12a). Past it the drag
- * is active: the ghost (the source unless given) is promoted to the `drag`
- * layer with `pointerEvents: none` and follows the pointer by a transform
- * translation, so layout never sees it, and every move hit-tests with the
- * ghost excluded and synthesises `dragleave` on what the pointer left,
- * `dragenter` on what it entered, then `dragover`, all bubbling (R9.12b).
+ * `context.drag.start({ event, source, data })`, primary button only. Until
+ * the pointer moves past the threshold the press is still a candidate click,
+ * so a card can be clicked to select and dragged to target (R9.12a); the
+ * pointer is not captured yet, so the click lands where it would have
+ * without the drag, on a button inside the card as much as on the card.
+ * Past the threshold the drag is active: the source captures the pointer
+ * unless something already has, the ghost (the source unless given) draws
+ * on the `drag` layer with `pointerEvents: none` and follows the pointer by
+ * an offset outside its own transform (`Component.dragOffset`), so layout
+ * never sees it and a transform tween keeps running under it, and every move
+ * hit-tests with the ghost excluded and synthesises `dragleave` on what the
+ * pointer left, `dragenter` on what it entered, then `dragover`, all
+ * bubbling (R9.12b). A press that already fired a touch-hold `contextmenu`
+ * never goes active.
  *
  * A component accepts by calling `event.accept()` as a `dragenter` or
- * `dragover` passes through it; it keeps `dropActive` until the pointer
- * leaves the component the enter was for (R9.12c). Release over an
- * accepting target fires `drop` at the component under the pointer,
- * bubbling to the acceptor, then `dragend { dropped: true, dropTarget }` on
- * the source; any other release fires `dragleave` there and
- * `dragend { dropped: false }`, as HTML does. `pointercancel`, loss of
- * capture, unmount of the source or ghost, and `cancel()` end it with
- * `dragend { dropped: false }` (R9.12d). A drag that never went active ends
- * silently and the dispatcher's click decides.
+ * `dragover` passes through it, the innermost caller winning (R9.12c).
+ * Acceptance on enter lasts while the pointer stays on that target; once a
+ * `dragover` on the target has accepted, acceptance follows each `dragover`,
+ * so a target that accepts by position accepts in `dragover` and stops by
+ * not calling it. The acceptor shows `dropActive`. Release over an acceptor
+ * fires `drop` at the component under the pointer, bubbling to the
+ * acceptor, then `dragend { dropped: true, dropTarget }` on the source; any
+ * other release fires `dragleave` there and `dragend { dropped: false }`, as
+ * HTML does. `pointercancel`, loss of capture, unmount of the source or
+ * ghost, and `cancel()` end it with `dragend { dropped: false }` (R9.12d).
+ * However it ends, an active drag's release is never a click. A drag that
+ * never went active ends silently and the dispatcher's click decides.
  *
  * One drag at a time: a second `start` while one is in progress is refused.
  * Tooltips read `isDragging` and `onDraggingChange` (R9.12e).
@@ -105,12 +115,11 @@ export class DragService {
 
 	/**
 	 * Begins a candidate drag on the press's pointer. False, with nothing
-	 * started, when the event is not a `pointerdown` or a drag is already in
-	 * progress.
+	 * started, when the event is not a primary-button `pointerdown` (a
+	 * right-click stays a `contextmenu`) or a drag is already in progress.
 	 */
 	public start({ event, source, data, ghost = source, threshold }: DragStartOptions): boolean {
-		if (event.type !== 'pointerdown' || this.session) return false;
-		if (!this.host.captorOf(event.pointerId)) this.host.capturePointer(source, event.pointerId);
+		if (event.type !== 'pointerdown' || event.button !== PRIMARY_BUTTON || this.session) return false;
 		this.session = {
 			pointerId: event.pointerId,
 			pointerType: event.pointerType,
@@ -123,7 +132,8 @@ export class DragService {
 			active: false,
 			target: null,
 			acceptor: null,
-			restore: null,
+			acceptsOnOver: false,
+			offset: ORIGIN,
 		};
 		return true;
 	}
@@ -171,15 +181,29 @@ export class DragService {
 
 	// -- the dispatcher's hooks -----------------------------------------------
 
-	/** After the `pointermove` is delivered: the threshold, the ghost, and targeting. */
+	/**
+	 * Before the `pointermove` is delivered: the threshold. A move that
+	 * crosses it activates the drag and captures the pointer first, so the
+	 * move itself already goes to the captor and hovers nothing else.
+	 */
+	public pointerMoving(pointerId: number, point: Vec2): void {
+		const session = this.session;
+		if (!session || session.pointerId !== pointerId || session.active) return;
+		if (Math.hypot(point.x - session.press.x, point.y - session.press.y) <= session.threshold) return;
+		// R9.30: a touch hold already answered this press with a
+		// `contextmenu`, or it was cancelled; it is not a drag.
+		if (!this.host.pressLive(pointerId)) {
+			this.session = null;
+			return;
+		}
+		this.activate(session);
+	}
+
+	/** After the `pointermove` is delivered: the ghost, and targeting. */
 	public pointerMove(pointerId: number, point: Vec2): void {
 		const session = this.session;
-		if (!session || session.pointerId !== pointerId) return;
+		if (!session?.active || session.pointerId !== pointerId) return;
 		session.position = point;
-		if (!session.active) {
-			if (Math.hypot(point.x - session.press.x, point.y - session.press.y) <= session.threshold) return;
-			this.activate(session);
-		}
 		this.followPointer(session);
 		this.retarget(session, true);
 	}
@@ -191,14 +215,21 @@ export class DragService {
 	public pointerUp(pointerId: number, point: Vec2): boolean {
 		const session = this.session;
 		if (!session || session.pointerId !== pointerId) return false;
-		this.session = null;
-		if (!session.active) return false;
+		if (!session.active) {
+			this.session = null;
+			return false;
+		}
 		session.position = point;
+		// The session stays current through the release's own enter and
+		// leave, so a handler there can still cancel the drag or unmount its
+		// target and be heard.
 		this.retarget(session, false);
+		if (this.session !== session) return true;
+		this.session = null;
 		this.restoreGhost(session);
 		const { target, acceptor } = session;
 		acceptor?.setDropActive(false);
-		if (target && acceptor) {
+		if (target?.isMounted && acceptor?.isMounted) {
 			this.host.bubble(this.event('drop', target, session));
 			this.end(session, true, acceptor);
 		} else {
@@ -253,40 +284,39 @@ export class DragService {
 
 	// -- internals ------------------------------------------------------------
 
+	/**
+	 * The drag goes active: the source takes the pointer so nothing under the
+	 * ghost hears the rest of the gesture as pointer events (R9.10), unless
+	 * something already holds it (a touch's implicit captor).
+	 */
 	private activate(session: Session): void {
 		session.active = true;
-		const ghost = session.ghost;
-		session.restore = { layer: ghost.layer, pointerEvents: ghost.pointerEvents, transform: ghost.transform };
-		ghost.layer = 'drag';
-		ghost.pointerEvents = 'none';
+		if (!this.host.captorOf(session.pointerId)) this.host.capturePointer(session.source, session.pointerId);
+		session.ghost.setDragOffset(ORIGIN);
 		this.notify(true);
 	}
 
 	/**
 	 * R9.12b: the ghost keeps the offset between it and the pointer at the
 	 * press. The pointer's travel is taken into the ghost's parent space and
-	 * added to its own translation, which is the outermost part of its
-	 * transform, so a rotated or scaled ghost moves without turning.
+	 * applied outside its transform, so a rotated or scaled ghost moves
+	 * without turning.
 	 */
 	private followPointer(session: Session): void {
-		const restore = session.restore;
-		if (!restore) return;
 		const parent = session.ghost.parent;
 		const from = parent ? parent.screenToLocal(session.press) : session.press;
 		const to = parent ? parent.screenToLocal(session.position) : session.position;
 		if (!from || !to) return;
-		const base = restore.transform;
-		session.ghost.transform = {
-			...base,
-			translate: [base.translate[0] + to.x - from.x, base.translate[1] + to.y - from.y],
-		};
+		session.offset = { x: to.x - from.x, y: to.y - from.y };
+		session.ghost.setDragOffset(session.offset);
 	}
 
 	/**
 	 * Hit-tests at the pointer with the ghost excluded. A change of target is
 	 * `dragleave` on the old one and `dragenter` on the new; `over` adds the
-	 * `dragover` a move delivers. Acceptance belongs to one target: it is
-	 * collected afresh on each enter and kept while the target stays.
+	 * `dragover` a move delivers. Acceptance belongs to one target: collected
+	 * afresh on each enter, kept while the target stays, and re-derived on
+	 * every `dragover` once one of them accepted.
 	 */
 	private retarget(session: Session, over: boolean): void {
 		const hit = this.host.hitTest(session.position, { exclude: session.ghost });
@@ -294,6 +324,7 @@ export class DragService {
 		if (hit !== session.target) {
 			const previous = session.target;
 			session.target = hit;
+			session.acceptsOnOver = false;
 			acceptor = null;
 			if (previous?.isMounted) this.host.bubble(this.event('dragleave', previous, session));
 			if (hit && session.active) {
@@ -305,11 +336,16 @@ export class DragService {
 		if (over && hit && session.active && session.target === hit) {
 			const dragover = this.event('dragover', hit, session);
 			this.host.bubble(dragover);
-			acceptor = acceptor ?? dragover.acceptedBy;
+			if (dragover.acceptedBy) {
+				session.acceptsOnOver = true;
+				acceptor = dragover.acceptedBy;
+			} else if (session.acceptsOnOver) {
+				acceptor = null;
+			}
 		}
-		// A handler may have cancelled the drag while it ran.
+		// A handler may have cancelled the drag, or unmounted what accepted, while it ran.
 		if (!session.active) return;
-		this.setAcceptor(session, acceptor);
+		this.setAcceptor(session, acceptor?.isMounted ? acceptor : null);
 	}
 
 	private setAcceptor(session: Session, acceptor: Component | null): void {
@@ -319,10 +355,15 @@ export class DragService {
 		acceptor?.setDropActive(true);
 	}
 
-	/** Ends a drag without a drop: `dragleave` on the target and `dragend { dropped: false }` if it was active. */
+	/**
+	 * Ends a drag without a drop: `dragleave` on the target and
+	 * `dragend { dropped: false }` if it was active, and the release that
+	 * follows is not a click (R9.30).
+	 */
 	private abandon(session: Session): void {
 		if (this.session === session) this.session = null;
 		if (!session.active) return;
+		this.host.spendPress(session.pointerId);
 		this.restoreGhost(session);
 		session.acceptor?.setDropActive(false);
 		session.acceptor = null;
@@ -340,13 +381,7 @@ export class DragService {
 	}
 
 	private restoreGhost(session: Session): void {
-		const restore = session.restore;
-		if (!restore) return;
-		session.restore = null;
-		const ghost = session.ghost;
-		ghost.layer = restore.layer;
-		ghost.pointerEvents = restore.pointerEvents;
-		ghost.transform = restore.transform;
+		session.ghost.setDragOffset(null);
 	}
 
 	private event(
@@ -366,6 +401,7 @@ export class DragService {
 			pointerType: session.pointerType,
 			dropped: end?.dropped,
 			dropTarget: end?.dropTarget,
+			ghostOffset: end ? session.offset : undefined,
 		});
 	}
 
@@ -379,3 +415,6 @@ export class DragService {
 		}
 	}
 }
+
+const PRIMARY_BUTTON = 0;
+const ORIGIN: Vec2 = Object.freeze({ x: 0, y: 0 });
