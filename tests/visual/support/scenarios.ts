@@ -63,19 +63,7 @@ export const SCREEN_SCENARIOS: readonly ScreenScenario[] = [
 	},
 ];
 
-/**
- * Every gallery scene, `?scene=` names.
- *
- * `primitive-shapes` is the one golden this harness refuses to mint. It was
- * DDB-103 first: the scene overran the old renderer's dynamic vertex buffer
- * and drew malformed circles. The batcher and the WebGL2 backend's fixed
- * rings removed that, and the scene's console is clean. It is DDB-185 now:
- * `Polygon` fills with a fan from vertex 0, so the concave star's fill spills
- * outside its outline. Committing a baseline of that would make the malformed
- * drawing the definition of correct, and the first person to fix it would be
- * told their fix is a visual regression, so the scene stays listed and stays
- * visibly unbaselined until DDB-185 lands.
- */
+/** Every gallery scene, `?scene=` names. */
 export const SCENE_SCENARIOS: readonly SceneScenario[] = [
 	{ scene: 'interactive-controls' },
 	{ scene: 'style-guide' },
@@ -83,9 +71,6 @@ export const SCENE_SCENARIOS: readonly SceneScenario[] = [
 	{ scene: 'rectangles' },
 	{ scene: 'buttons' },
 	{ scene: 'text' },
-	{
-		scene: 'primitive-shapes',
-		blockedBy: 'DDB-185: Polygon fills the concave star with a fan from vertex 0, so the fill spills outside its outline',
-	},
+	{ scene: 'primitive-shapes' },
 	{ scene: 'nested-panels' },
 ];
