@@ -46,7 +46,9 @@ export interface TweenHandle<T extends TweenValue> {
 	 * Heads for `to` from the current value (R8.28). Reversing towards where
 	 * the run came from takes only as long as the way back (CSS's reversing
 	 * shortening factor), so a quick hover in and out never snaps. Restarts a
-	 * finished tween, unless its owner has unmounted.
+	 * finished tween, unless its owner has unmounted. A no-op when a running
+	 * tween is already heading for `to`, or an idle one is already there, so a
+	 * component can retarget to its state every frame.
 	 */
 	retarget(to: T, options?: RetargetOptions): void;
 }
@@ -109,7 +111,7 @@ export class Animator {
 			// Nothing would ever cancel it. The value stays at `from`, unapplied.
 			return tween;
 		}
-		tween.start(options.from, checkedDuration(options.duration), options.ease);
+		tween.start(toArray(options.from), checkedDuration(options.duration), options.ease);
 		return tween;
 	}
 
@@ -200,13 +202,16 @@ class Tween<T extends TweenValue> implements TweenHandle<T> {
 	private readonly baseDuration: number;
 	private ease: EaseFunction;
 
-	private from: number[];
-	private to: number[];
+	/** Replaced, never mutated, so `reversingFrom` can hold an old one. */
+	private from: readonly number[];
+	private to: readonly number[];
+	/** The current value as numbers, rewritten in place each tick. */
+	private readonly values: number[];
 	private current: T;
 	private startedAt = 0;
 	private duration = 0;
 	/** Where the run started before any reversal, and how much reversals have shortened it (CSS Transitions, 3.1). */
-	private reversingFrom: number[];
+	private reversingFrom: readonly number[];
 	private shortening = 1;
 	private easedProgress = 0;
 
@@ -225,6 +230,7 @@ class Tween<T extends TweenValue> implements TweenHandle<T> {
 		if (this.from.length !== this.to.length) {
 			throw new Error(`Animator.tween: from has ${this.from.length} components and to has ${this.to.length}`);
 		}
+		this.values = [...this.from];
 		this.reversingFrom = this.from;
 		this.current = from;
 		this.baseDuration = duration ?? tokens.motion.dur;
@@ -245,16 +251,16 @@ class Tween<T extends TweenValue> implements TweenHandle<T> {
 		return this.runDone;
 	}
 
-	/** @internal */
-	public start(from: T, duration: number, ease: Ease | undefined): void {
+	/** @internal Starts a run from `from`, which the tween keeps. */
+	public start(from: readonly number[], duration: number, ease: Ease | undefined): void {
 		if (ease !== undefined) this.ease = resolveEase(ease);
-		this.from = toArray(from);
+		this.from = from;
 		this.duration = duration;
 		this.startedAt = this.animator.now;
 		this.easedProgress = 0;
 		this.isRunning = true;
 		this.animator.enlist(this as unknown as Tween<TweenValue>);
-		this.apply(this.from);
+		this.apply(from);
 	}
 
 	/** @internal */
@@ -266,8 +272,13 @@ class Tween<T extends TweenValue> implements TweenHandle<T> {
 			this.finish();
 			return;
 		}
-		this.easedProgress = this.ease(linearProgress);
-		this.apply(this.interpolate(this.easedProgress));
+		const progress = this.ease(linearProgress);
+		this.easedProgress = progress;
+		const { from, to, values } = this;
+		for (let i = 0; i < values.length; i++) {
+			values[i] = from[i] + (to[i] - from[i]) * progress;
+		}
+		this.publish();
 	}
 
 	/** @internal Jumps to `to` and completes. */
@@ -288,8 +299,12 @@ class Tween<T extends TweenValue> implements TweenHandle<T> {
 		if (target.length !== this.to.length) {
 			throw new Error(`TweenHandle.retarget: target has ${target.length} components, the tween has ${this.to.length}`);
 		}
+		// CSS leaves a running transition alone when its end value is asked
+		// for again, and starts nothing when the value is already there, so a
+		// component may retarget to its state every frame.
+		if (this.isRunning ? sameValue(target, this.to) : sameValue(target, this.values)) return;
 		const duration = checkedDuration(options.duration ?? this.baseDuration);
-		const current = toArray(this.current);
+		const current = [...this.values];
 
 		if (this.isRunning && sameValue(target, this.reversingFrom)) {
 			// CSS Transitions 3.1: a reversal starts its reversing-adjusted
@@ -302,7 +317,7 @@ class Tween<T extends TweenValue> implements TweenHandle<T> {
 			this.reversingFrom = current;
 		}
 		this.to = target;
-		this.start(fromArray(current, this.scalar) as T, duration * this.shortening, options.ease);
+		this.start(current, duration * this.shortening, options.ease);
 	}
 
 	private end(): void {
@@ -313,27 +328,23 @@ class Tween<T extends TweenValue> implements TweenHandle<T> {
 		settle?.();
 	}
 
-	private interpolate(progress: number): number[] {
-		const out = new Array<number>(this.from.length);
-		for (let i = 0; i < out.length; i++) {
-			out[i] = this.from[i] + (this.to[i] - this.from[i]) * progress;
-		}
-		return out;
+	private apply(source: readonly number[]): void {
+		for (let i = 0; i < this.values.length; i++) this.values[i] = source[i];
+		this.publish();
 	}
 
-	private apply(values: readonly number[]): void {
-		this.current = fromArray(values, this.scalar) as T;
+	/**
+	 * Hands `values` to `onUpdate`: a scalar as a number, with no allocation,
+	 * and an array as a copy, since a callback may keep the array it was given.
+	 */
+	private publish(): void {
+		this.current = (this.scalar ? this.values[0] : [...this.values]) as T;
 		this.onUpdate(this.current);
 	}
 }
 
 function toArray(value: TweenValue): number[] {
 	return typeof value === 'number' ? [value] : [...value];
-}
-
-/** A fresh value per call: a callback may keep the array it was handed. */
-function fromArray(values: readonly number[], scalar: boolean): TweenValue {
-	return scalar ? values[0] : [...values];
 }
 
 function sameValue(a: readonly number[], b: readonly number[]): boolean {

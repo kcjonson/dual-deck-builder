@@ -64,6 +64,11 @@ describe('Animator.tween (R8.28)', () => {
 
 		expect(seen[1]).toEqual([0.5, 0.25, 0, 0.5]);
 		expect(seen[1]).not.toBe(seen[0]);
+
+		// A kept array is the caller's: the next tick does not write into it.
+		frame(25);
+		expect(seen[1]).toEqual([0.5, 0.25, 0, 0.5]);
+		expect(seen[2]).toEqual([0.75, 0.375, 0, 0.25]);
 	});
 
 	it('ticks in creation order, and a tween started during a tick waits for the next', () => {
@@ -180,6 +185,66 @@ describe('retargeting (R8.28)', () => {
 		frame(87.5);
 		expect(value).toBe(100);
 		expect(handle.running).toBe(false);
+	});
+
+	it('leaves a running tween alone when retargeted to the target it already has', () => {
+		const { animator, frame } = setup();
+		let value = 0;
+		const onComplete = jest.fn();
+		const handle = animator.tween({ from: 0, to: 100, duration: 100, ease: linear, onUpdate: (next) => { value = next; }, onComplete });
+		frame(90);
+
+		handle.retarget(100);
+		expect(value).toBe(90);
+		frame(10);
+
+		expect(value).toBe(100);
+		expect(handle.running).toBe(false);
+		expect(onComplete).toHaveBeenCalledTimes(1);
+	});
+
+	it('starts nothing when an idle tween is retargeted to where it already is', () => {
+		const { animator, frame } = setup();
+		const onUpdate = jest.fn();
+		const onComplete = jest.fn();
+		const handle = animator.tween({ from: [0, 0], to: [1, 2], duration: 10, onUpdate, onComplete });
+		frame(10);
+		onUpdate.mockClear();
+
+		handle.retarget([1, 2]);
+		frame(10);
+
+		expect(handle.running).toBe(false);
+		expect(onUpdate).not.toHaveBeenCalled();
+		expect(onComplete).toHaveBeenCalledTimes(1);
+		expect(animator.active).toBe(0);
+	});
+
+	it('finishes on time and completes once when retargeted to the same target every frame', async () => {
+		const { animator, frame } = setup();
+		let value = 0;
+		const onComplete = jest.fn();
+		const handle = animator.tween({ from: 0, to: 1, duration: 100, onUpdate: (next) => { value = next; }, onComplete });
+		let settled = false;
+		void handle.done.then(() => { settled = true; });
+
+		let frames = 0;
+		for (; frames < 600 && handle.running; frames++) {
+			handle.retarget(1);
+			frame(10);
+		}
+		for (let extra = 0; extra < 100; extra++) {
+			handle.retarget(1);
+			frame(10);
+		}
+		await Promise.resolve();
+
+		expect(frames).toBe(10);
+		expect(value).toBe(1);
+		expect(handle.running).toBe(false);
+		expect(animator.active).toBe(0);
+		expect(onComplete).toHaveBeenCalledTimes(1);
+		expect(settled).toBe(true);
 	});
 
 	it('restarts a finished tween, once, even from its own completion', () => {
