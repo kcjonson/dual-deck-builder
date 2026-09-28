@@ -139,6 +139,11 @@ export type PlatformInput =
 	| { kind: 'key'; phase: 'down' | 'up'; key: string; repeat: boolean; modifiers: Modifiers }
 	| { kind: 'blur' };
 
+interface PointerIdentity {
+	pointerType: PointerType;
+	isPrimary: boolean;
+}
+
 interface Press {
 	/** Null when the press landed on nothing, or its target has since unmounted. */
 	target: Component | null;
@@ -225,6 +230,12 @@ export class Dispatcher {
 	private layoutVersionSeen = -1;
 	private readonly captures = new Map<number, Component>();
 	private readonly presses = new Map<number, Press>();
+	/**
+	 * The type and primacy each live pointer last reported (R9.1), for the
+	 * events the dispatcher synthesises: boundary events, cancels, and
+	 * capture loss. Kept while the pointer is pressed, captured, or hovering.
+	 */
+	private readonly identities = new Map<number, PointerIdentity>();
 	private mode: InputMode = 'pointer';
 	private latch: { scroller: Component; lastTime: number } | null = null;
 	private inputPaused = false;
@@ -505,6 +516,7 @@ export class Dispatcher {
 		this.hoverPosition = null;
 		this.captures.clear();
 		this.presses.clear();
+		this.identities.clear();
 		this.focus.reset();
 		this.latch = null;
 		this.hotkeys.clear();
@@ -515,6 +527,7 @@ export class Dispatcher {
 	private dispatchInput(input: PlatformInput): void {
 		switch (input.kind) {
 			case 'pointer':
+				this.rememberIdentity(input);
 				switch (input.phase) {
 					case 'down':
 						this.pointerDown(input);
@@ -524,9 +537,11 @@ export class Dispatcher {
 						return;
 					case 'up':
 						this.pointerUp(input);
+						this.forgetIdentity(input.pointerId);
 						return;
 					case 'cancel':
 						this.cancelPointer(input.pointerId);
+						this.forgetIdentity(input.pointerId);
 						return;
 				}
 				return;
@@ -535,6 +550,7 @@ export class Dispatcher {
 					this.hoverPosition = null;
 					this.setHoverTarget(null, input.pointerId);
 				}
+				this.forgetIdentity(input.pointerId);
 				return;
 			case 'wheel':
 				this.wheel(input);
@@ -546,6 +562,7 @@ export class Dispatcher {
 				// R9.10: window blur cancels every gesture in progress.
 				for (const pointerId of new Set([...this.presses.keys(), ...this.captures.keys()])) {
 					this.cancelPointer(pointerId);
+					this.forgetIdentity(pointerId);
 				}
 				return;
 		}
@@ -750,7 +767,9 @@ export class Dispatcher {
 	/** Records a hover-capable primary pointer's position and derives hover from its target. */
 	private trackHover(fields: PointerFields, target: Component | null): void {
 		if (!fields.isPrimary || fields.pointerType === 'touch') return;
+		const previous = this.hoverPosition;
 		this.hoverPosition = { pointerId: fields.pointerId, x: fields.x, y: fields.y };
+		if (previous && previous.pointerId !== fields.pointerId) this.forgetIdentity(previous.pointerId);
 		this.setHoverTarget(this.hoverTargetFor(fields.pointerId, fields.x, fields.y, target), fields.pointerId);
 	}
 
@@ -1040,15 +1059,35 @@ export class Dispatcher {
 		});
 	}
 
-	/** Synthetic fields for events that no platform event carries (cancel, leave, capture loss). */
+	private rememberIdentity(fields: PointerFields): void {
+		const identity = this.identities.get(fields.pointerId);
+		if (identity) {
+			identity.pointerType = fields.pointerType;
+			identity.isPrimary = fields.isPrimary;
+		} else {
+			this.identities.set(fields.pointerId, { pointerType: fields.pointerType, isPrimary: fields.isPrimary });
+		}
+	}
+
+	/** Drops a pointer's identity once nothing can still synthesise an event for it. */
+	private forgetIdentity(pointerId: number): void {
+		if (this.presses.has(pointerId) || this.captures.has(pointerId) || this.hoverPosition?.pointerId === pointerId) return;
+		this.identities.delete(pointerId);
+	}
+
+	/**
+	 * Synthetic fields for events that no platform event carries (cancel,
+	 * leave, capture loss), with the pointer's own type and primacy (R9.1).
+	 */
 	private lastPointerFields(pointerId: number, press?: Press, position?: { x: number; y: number }): PointerFields {
 		const at = position ?? (this.hoverPosition?.pointerId === pointerId ? this.hoverPosition : press) ?? { x: 0, y: 0 };
+		const identity = this.identities.get(pointerId);
 		return {
 			x: at.x,
 			y: at.y,
 			pointerId,
-			pointerType: press?.pointerType ?? 'mouse',
-			isPrimary: true,
+			pointerType: identity?.pointerType ?? press?.pointerType ?? 'mouse',
+			isPrimary: identity?.isPrimary ?? true,
 			button: -1,
 			buttons: 0,
 			pressure: 0,

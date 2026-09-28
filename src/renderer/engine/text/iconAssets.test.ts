@@ -6,6 +6,9 @@ import { parseFontAtlas } from './FontAtlas';
 import { ATLAS_ASSETS, FONT_FACES, ICON_ATLAS, ICON_ATLAS_ROLE } from './fontFaces';
 import { ICON_CODE_POINTS } from './icons';
 
+// Regenerates the icon table in a child process; the 5 s default fails under a loaded machine.
+jest.setTimeout(30_000);
+
 /**
  * The committed icon atlas and the generated `icons.ts` (R12.6), as
  * scripts/build-fonts wrote them.

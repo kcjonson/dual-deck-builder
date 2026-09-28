@@ -955,5 +955,27 @@ describe('treeSnapshot', () => {
 			expect(node.screenBounds).toEqual({ x: 10, y: 10, w: 40, h: 40 });
 			expect(node.inkBounds).toEqual({ x: 8, y: 8, w: 44, h: 44 });
 		});
+
+		it('grows a text\'s inkBounds over a run that overruns its box, on the side it runs to (DDB-214)', () => {
+			const text = measuredText('A label far too long for its box', {
+				x: 200,
+				y: 20,
+				width: 40,
+				height: 20,
+				style: { whiteSpace: 'nowrap', textAlign: 'right' },
+			});
+			const run = text.measured?.width ?? 0;
+			expect(run).toBeGreaterThan(100);
+
+			const right = treeSnapshot([text], VIEWPORT).roots[0].inkBounds;
+			expect(right?.x).toBeLessThan(240 - run);
+			expect((right?.x ?? 0) + (right?.w ?? 0)).toBeLessThan(244);
+
+			// Alignment moves the run without resizing anything, and the bound follows it.
+			text.setAlign('left');
+			const left = treeSnapshot([text], VIEWPORT).roots[0].inkBounds;
+			expect(left?.x).toBeGreaterThan(197);
+			expect((left?.x ?? 0) + (left?.w ?? 0)).toBeGreaterThan(200 + run);
+		});
 	});
 });

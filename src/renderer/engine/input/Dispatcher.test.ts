@@ -6,7 +6,7 @@ import { Panel } from '../ui/Panel';
 import { PlatformInput, TOUCH_HOLD_MS, WHEEL_LATCH_MS, WHEEL_LINE_PX } from './Dispatcher';
 import { dragThreshold } from './DragService';
 import type { AnyUiEvent, PointerType } from './events';
-import { NO_MODIFIERS } from './events';
+import { NO_MODIFIERS, UiPointerEvent } from './events';
 
 /**
  * Chapter 9.11's required tests for the dispatcher, driven through its queue
@@ -803,5 +803,65 @@ describe('the queue (R9.2)', () => {
 		mount(layer);
 		click(10, 20);
 		expect(seen).toEqual(['down', 'click at 10,20']);
+	});
+});
+
+describe('synthesised pointer fields (R9.1)', () => {
+	/** Records each pointer event as `type id pointerType primary|secondary`. */
+	class IdentityProbe extends Component {
+		public readonly seen: string[] = [];
+
+		public handleEvent(event: AnyUiEvent): void {
+			super.handleEvent(event);
+			if (!(event instanceof UiPointerEvent)) return;
+			this.seen.push(`${event.type} ${event.pointerId} ${event.pointerType} ${event.isPrimary ? 'primary' : 'secondary'}`);
+		}
+	}
+
+	function pad(): IdentityProbe {
+		const probe = new IdentityProbe({ id: 'pad', width: 200, height: 200 });
+		mount(probe);
+		return probe;
+	}
+
+	it('gives a pen\'s boundary events the pen\'s id and type', () => {
+		const probe = pad();
+		const pen = { pointerId: 7, pointerType: 'pen' as const };
+		click(50, 50, pen);
+		send({ kind: 'leave', pointerId: 7 });
+
+		expect(probe.seen).toContain('pointerenter 7 pen primary');
+		expect(probe.seen).toContain('pointerleave 7 pen primary');
+		expect(probe.seen.every((line) => line.includes(' 7 pen primary'))).toBe(true);
+	});
+
+	it('cancels a second touch as a non-primary touch', () => {
+		const probe = pad();
+		send(
+			pointer('down', 50, 50, { pointerId: 1, pointerType: 'touch' }),
+			pointer('down', 60, 60, { pointerId: 2, pointerType: 'touch', isPrimary: false }),
+			pointer('cancel', 60, 60, { pointerId: 2, pointerType: 'touch', isPrimary: false }),
+		);
+
+		expect(probe.seen).toContain('pointercancel 2 touch secondary');
+		expect(probe.seen).toContain('lostpointercapture 2 touch secondary');
+	});
+
+	it('reports a touch\'s capture loss after its release as a touch', () => {
+		const probe = pad();
+		const touch = { pointerId: 3, pointerType: 'touch' as const };
+		send(pointer('down', 50, 50, touch), pointer('up', 50, 50, touch));
+
+		expect(probe.seen).toContain('lostpointercapture 3 touch primary');
+	});
+
+	it('keeps a mouse\'s identity for its leave after the press ends', () => {
+		const probe = pad();
+		click(50, 50, { pointerId: 4 });
+		send({ kind: 'leave', pointerId: 4 });
+		send(pointer('move', 50, 50, { pointerId: 5, pointerType: 'pen' }));
+
+		expect(probe.seen).toContain('pointerleave 4 mouse primary');
+		expect(probe.seen).toContain('pointerenter 5 pen primary');
 	});
 });

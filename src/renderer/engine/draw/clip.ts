@@ -50,10 +50,6 @@ export type ResolvedClip = Exclude<ClipState, { kind: 'empty' }>;
 export const CLIP_NONE: ClipState = { kind: 'none' };
 export const CLIP_EMPTY: ClipState = { kind: 'empty' };
 
-export function resolveClip(state: ClipState): ResolvedClip | null {
-	return state.kind === 'empty' ? null : state;
-}
-
 /** The rect a backend uploads for any resolved state (R4.1). */
 export function clipRectOf(clip: ResolvedClip): ClipRect {
 	return clip.kind === 'none' ? UNCLIPPED_RECT : clip.rect;
@@ -72,22 +68,33 @@ export function intersectClip(
 ): ClipState {
 	if (current.kind === 'empty') return CLIP_EMPTY;
 
-	const merged: ClipRect =
-		current.kind === 'rect'
-			? {
-					minX: Math.max(current.rect.minX, rect.minX),
-					minY: Math.max(current.rect.minY, rect.minY),
-					maxX: Math.min(current.rect.maxX, rect.maxX),
-					maxY: Math.min(current.rect.maxY, rect.maxY),
-				}
-			: rect;
-
-	if (merged.minX >= merged.maxX || merged.minY >= merged.maxY) return CLIP_EMPTY;
+	const merged: ClipRect = { minX: 0, minY: 0, maxX: 0, maxY: 0 };
+	if (!intersectClipRectInto(current, rect, merged)) return CLIP_EMPTY;
 
 	// R4.14: the innermost rounded clip wins; an outer one has already
 	// contributed its bounding rect through `merged`.
 	const innermost = rounded ?? (current.kind === 'rect' ? current.rounded : null);
 	return { kind: 'rect', rect: merged, rounded: innermost };
+}
+
+/**
+ * `intersectClip`'s rect arithmetic, into `out`, which the draw API's pooled
+ * clip stack shares so the two cannot drift. `current` is `none` or `rect`.
+ * False when the result keeps nothing and the state is `empty`.
+ */
+export function intersectClipRectInto(current: ClipState, rect: ClipRect, out: ClipRect): boolean {
+	if (current.kind === 'rect') {
+		out.minX = Math.max(current.rect.minX, rect.minX);
+		out.minY = Math.max(current.rect.minY, rect.minY);
+		out.maxX = Math.min(current.rect.maxX, rect.maxX);
+		out.maxY = Math.min(current.rect.maxY, rect.maxY);
+	} else {
+		out.minX = rect.minX;
+		out.minY = rect.minY;
+		out.maxX = rect.maxX;
+		out.maxY = rect.maxY;
+	}
+	return out.minX < out.maxX && out.minY < out.maxY;
 }
 
 export function hasRoundedClip(state: ClipState): boolean {

@@ -56,13 +56,16 @@ walked, and recounted, the frame after it changes. A change that alters the grou
 invalidating (a colour, a run growing from empty) keeps the old count until the next walk; the counter is a
 diagnostic, and the pixels do not depend on it.
 
-**Text and the composites that draw text say how far their runs can reach.** `Text.cullInk` is its box
-grown on every side by how far the measured layout overruns it (so any alignment is covered) and by an em
-beyond that for side bearings, ascenders past a tight line height, decorations and the distance-field
-padding in the glyph quads. It does not rely on `overflow: clip`, since the audit below compares the
-unclipped run. `Icon`, `ArmorBadge` and `IntentMarker` grow their boxes by an em of their glyphs.
-`Circle.cullInk` covers the disc its radius draws, which a size given without `setRadius` does not change.
-`Text.inkRect` and so the snapshot's `inkBounds` are unchanged; the cull's slack is not ink.
+**Text and the composites that draw text say how far their runs can reach.** `Text.cullInk` is its
+`inkRect`: the box unioned with the run's measured ink, per side, from the same layout and placement
+`render` draws (`DrawApi.measureTextInk`, which is the backend's `textInk`, the extent R4.2a culls the run
+by). A nowrap run past a narrow box, wrapped lines past a fixed height and glyphs past a tight line height
+are all inside it, on the side their alignment sends them. It does not rely on `overflow: clip`, since the
+audit below compares the unclipped run. The same rect is the snapshot's `inkBounds`, and `inkExtent` is its
+furthest side (DDB-214). On a backend that measures text but offers no `textInk` the cull falls back to the
+box grown on every side by the layout's overrun and an em of slack. `Icon`, `ArmorBadge` and `IntentMarker`
+grow their boxes by an em of their glyphs. `Circle.cullInk` covers the disc its radius draws, which a size
+given without `setRadius` does not change.
 
 **A development build audits the promise the skip trusts.** Around each component's `render` (and the
 walk's focus ring) `renderTree` hands the draw API the component's own bound, `ownInkBound`, and the draw
