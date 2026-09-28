@@ -7,11 +7,14 @@ import { ButtonExamplesSection } from './ButtonExamplesSection';
 import { TextExamplesSection } from './TextExamplesSection';
 import { PrimitiveShapesSection } from './PrimitiveShapesSection';
 import { NestedPanelsSection } from './NestedPanelsSection';
+import { PaintOrderFixturesSection } from './PaintOrderFixturesSection';
+import { ClippingFixturesSection } from './ClippingFixturesSection';
+import { ShadingFixturesSection } from './ShadingFixturesSection';
 
 /**
  * The developer screen's sections, defined once.
  *
- * DeveloperScreen stacks all eight in its scroll container and the gallery
+ * DeveloperScreen stacks all of them in its scroll container and the gallery
  * registry (`src/gallery/registry.ts`) wraps each one as a scene, so the screen
  * and the `?scene=` gallery cannot drift apart. The list lives here, beside the
  * sections it names, rather than in `src/gallery/`: the gallery is a
@@ -42,7 +45,7 @@ export interface DeveloperSectionOptions {
 /**
  * Sections take positional (x, y, width) arguments; the builder wraps that in
  * the named form new code uses, so the list reads the same as the rest of the
- * codebase without rewriting eight constructors.
+ * codebase without rewriting the older constructors.
  */
 export type DeveloperSectionBuilder = (options: DeveloperSectionOptions) => Panel;
 
@@ -83,5 +86,19 @@ export const developerSections: readonly DeveloperSection[] = [
 	{
 		name: 'nested-panels',
 		build: ({ x, y, width }) => new NestedPanelsSection(x, y, width),
+	},
+	// The spec's rendering fixtures (3.12, 4.7, 5.10), drawn through the draw
+	// API rather than built from components.
+	{
+		name: 'paint-order',
+		build: ({ x, y, width }) => new PaintOrderFixturesSection(x, y, width),
+	},
+	{
+		name: 'clipping',
+		build: ({ x, y, width }) => new ClippingFixturesSection(x, y, width),
+	},
+	{
+		name: 'shading',
+		build: ({ x, y, width }) => new ShadingFixturesSection(x, y, width),
 	},
 ];
