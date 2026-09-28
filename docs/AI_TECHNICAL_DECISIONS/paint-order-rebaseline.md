@@ -115,33 +115,42 @@ driver (compare DDB-195's index-ring cost on combat).
 
 ## Goldens
 
-Re-minted on CI: `screen-combatScreen` (hand titles past the badges, badges whole, resource bar
-names in a band above the icons), `screen-driverSelectionScreen` (deck previews in one row inside
-each panel), `screen-developerScreen` (title 14 px higher) and `screen-cardShowcaseScreen` (125
-pixels where two cards' "COMMON" labels overlap their overflowing descriptions), in both the
-chromium and electron projects. Each old and new pair was diffed and every changed pixel falls in
-those regions. Unchanged: splash, main menu, all eight gallery scenes.
+The final mint (run 36432303207, `update_mode=all`) came after DDB-70's text metrics (#80) merged,
+so it is this change over the MTSDF text. Of 26 rewritten files, eight changed against `main`'s, and
+chromium and electron agree to the pixel count:
+
+- `screen-combatScreen`, 13741 px: hand titles past the D1/D2 badges, the badges whole, and the
+  resource bar's names in a band above full-size icons (rows 5 to 60 and the title row only).
+- `screen-driverSelectionScreen`, 36710 px: both deck previews one row inside the panel
+  (x 208 to 1289, y 567 to 796 only). The layout around them is identical to `main`'s golden (the
+  back button at 30,30, the panels at x 72), and it held still across all three of this branch's
+  mints, so the mount-timing shift seen in #80's review did not recur here.
+- `screen-developerScreen`, 6600 px: the title moves up so its line box ends above the scroll panel.
+  On `main` the new font's "p" descender crossed the panel's top border at 80 px; it no longer does.
+- `screen-cardShowcaseScreen`, 79 px: two cards' "COMMON" labels over their overflowing
+  descriptions, a text-over-text order change.
+
+Splash, main menu and all eight gallery scenes came out byte-identical to `main`'s.
 
 The showcase needed a change to the mint. `visual.yml` ran a bare `--update-snapshots`, which
 Playwright reads as `changed`: it rewrites only a baseline that fails, so a real 125-pixel change
 under the gate's 200-pixel budget survived the first mint and would have surfaced, unexplained, in
 some later PR's mint. The dispatch now takes `update_mode` (`changed` by default, or `all`), and
-this re-baseline was minted with `all` (run 36428901384), which rewrites every captured baseline.
-Only four files changed in that commit: the two showcase goldens (103 and 102 pixels, the "COMMON"
-overlap) and the two combat goldens (the resource bar's icons back at full size, rows 16 to 55
-only). The other 22 came out byte-identical, so the runner is deterministic across mints.
+this re-baseline was minted with `all`, which rewrites every captured baseline. The earlier
+all-mode mint before #80 (run 36428901384) rewrote 22 of 26 files byte-identically, so the runner
+is deterministic across mints and any file an `all` mint changes has really changed.
 
 ## Left open
 
-- Long card titles run under the cost digit, which stays on top and readable because it is
-  submitted later. Every combat hand card is badged, and with the title starting past the badge any
-  title over about 72 px collides: in the seeded turn 2 hand that is 6 of 8 cards (Armor Plating,
-  Ramming Speed three times, Precision Shot, Flanking Maneuver), and from `cards.json` the badged
-  collisions are Armor Plating, Covering Fire, Ramming Speed, Precision Shot and Rally the Convoy,
-  with Flanking Maneuver and Coordinated Attack colliding on `main` already and any upgraded
-  eleven-character name ("Nitro Boost+") joining them. On `main` the badge garbled the first letters
-  of every one of those titles instead. Titles are `nowrap` with an estimated width and never
-  truncate; measured ellipsis is DDB-71's, the card face follow-up is DDB-198, and a two-line title
-  (y 20 to about 54 fits above the description) is the cheapest interim fix if one is wanted first.
+- Long card titles on badged cards run under the cost digit, which stays on top and readable
+  because it is submitted later. Every combat hand card is badged, and the title starts at 41 px,
+  leaving about 72 px before the digit. With DDB-70's condensed display face (measured at 14 px
+  through `TextMetricsService`), four `cards.json` names are wider: Ramming Speed 77.6, Rally the
+  Convoy 79.1, Flanking Maneuver 90.3, Coordinated Attack 91.8; Precision Shot (68.6) and Armor
+  Plating (65.7) fit, and an upgrade's "+" pushes a 66 px name over. Unbadged cards (the showcase)
+  have 103 px and every name fits. Before #80 the estimated Arial widths made this 6 of 8 cards in a
+  turn 2 hand; it is now the Ramming Speed copies and Flanking Maneuver there. Titles are `nowrap`
+  and never truncate; measured ellipsis is DDB-71's, the card face follow-up is DDB-198, and a
+  two-line title (y 20 to about 54 fits above the description) is the cheapest interim fix.
 - DDB-196 (developer section titles sitting on their bordered panels) is layout, not order, and
   touches every section and gallery scene; left to its own change.
