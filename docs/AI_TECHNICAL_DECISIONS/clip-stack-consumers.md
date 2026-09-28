@@ -58,6 +58,24 @@ unscrolled position and hands the content layer the scrolled offset, which is R4
 now pinned by 4.7's fixture: content offset 100, a child at local y 150 draws at panel y 50 with the
 clip fixed on the panel.
 
+**The cull costs CPU on the card showcase, and that is the honest trade.** The panel's old cull
+skipped whole card subtrees by their bounds without walking them. The draw API's cull walks every
+subtree and rejects each group, text by a glyph walk, so a screen whose scroller holds hundreds of
+off-screen parts pays for them. Median `render` section over 240 frames, Chromium, 1440x882,
+`ddb-65-batcher` against this branch, two runs each:
+
+| Screen | Before | After | Groups drawn / culled after |
+|---|---|---|---|
+| card showcase | 1.22, 1.17 ms | 1.75, 1.72 ms | 145 / 524 |
+| developer | 0.36 ms | 0.56 ms | 37 / 98 |
+| combat | 1.06 ms | 0.90 ms | 135 / 71 |
+
+About half a millisecond on the showcase against a 16.7 ms budget; combat gets cheaper because the
+culled text is no longer encoded. The subtree skip was a second cull with its own edge rules and no
+counter, which is what R4.2a exists to replace. If a list ever makes the walk itself the problem, the
+fix is a container-level early out that asks the clip stack for its current rect and counts what it
+skips as `culled`, not a return to a private cull.
+
 ## What moved
 
 No pixel. All six reachable screens and all seven baselined gallery scenes hash identically against

@@ -325,7 +325,9 @@ export class Layer {
 	 * Whether this layer clips what it contains: the rect `render` pushes
 	 * around its children, and the one fact `render`, the tree snapshot and the
 	 * hit test all read, so the three cannot disagree about where a clip is.
-	 * A zero-sized clipper clips nothing.
+	 * A zero-sized clipper clips nothing. A subclass whose `render` does not
+	 * run this class's clip push must override it to match (`Component` does);
+	 * `Panel` overrides it because it pushes its own.
 	 */
 	public get clipsChildren(): boolean {
 		return this.overflow === 'hidden' && this.width > 0 && this.height > 0;

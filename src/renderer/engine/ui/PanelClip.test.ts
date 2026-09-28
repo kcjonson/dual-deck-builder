@@ -6,6 +6,7 @@ import { Layer } from '../components/Layer';
 import { Rectangle } from '../components/Rectangle';
 import { RendererContext } from '../rendering/RendererContext';
 import { treeSnapshot } from '../debug/treeSnapshot';
+import { InputSystem } from '../input/InputSystem';
 import { Panel } from './Panel';
 
 /**
@@ -134,6 +135,16 @@ describe('hit testing honours ancestor clips (R4.12)', () => {
 		expect(leaf.containsPoint(120, 10)).toBe(false);
 	});
 
+	it('does not treat a component as a clipper, because its render pushes no clip', () => {
+		const shape = new Rectangle({ id: 'shape', x: 0, y: 0, width: 10, height: 10 });
+		shape.setOverflow('hidden');
+		const inside = new Layer({ id: 'inside', x: 50, y: 50, width: 10, height: 10 });
+		shape.addChild(inside);
+
+		expect(shape.clipsChildren).toBe(false);
+		expect(inside.containsPoint(55, 55)).toBe(true);
+	});
+
 	it('is not gated by an ancestor that does not clip', () => {
 		const parent = new Layer({ id: 'parent', x: 0, y: 0, width: 10, height: 10 });
 		const child = new Layer({ id: 'child', x: 50, y: 50, width: 20, height: 20 });
@@ -179,5 +190,48 @@ describe('tree snapshot clips from the clip stack arithmetic (R13.22)', () => {
 			w: drawn.rect.maxX - drawn.rect.minX,
 			h: drawn.rect.maxY - drawn.rect.minY,
 		});
+	});
+});
+
+describe('a click right after a wheel scroll (R4.12 through the InputSystem)', () => {
+	let canvas: HTMLCanvasElement;
+
+	beforeEach(() => {
+		canvas = document.createElement('canvas');
+		document.body.appendChild(canvas);
+		InputSystem.getInstance().setup(canvas);
+	});
+
+	afterEach(() => {
+		InputSystem.getInstance().unmount();
+		document.body.removeChild(canvas);
+	});
+
+	it('goes to the row now under the pointer, not the one hovered before the scroll', () => {
+		// Rows 20 tall with no gap, in a 200x120 scrollable panel at the origin.
+		const root = new Layer({ id: 'root', width: 1440, height: 882 });
+		const panel = new Panel({ id: 'list', x: 0, y: 0, width: 200, height: 120, scrollable: true });
+		const pressed: string[] = [];
+		const rows: Rectangle[] = [];
+		for (let index = 0; index < 20; index++) {
+			const row = new Rectangle({ id: `row-${index}`, x: 0, y: index * 20, width: 180, height: 20 });
+			InputSystem.registerMouseDown(row, () => pressed.push(`row-${index}`));
+			panel.addChild(row);
+			rows.push(row);
+		}
+		panel.setContentSize(200, 400);
+		root.addChild(panel);
+
+		const at = { clientX: 50, clientY: 15, bubbles: true };
+		canvas.dispatchEvent(new MouseEvent('mousemove', at));
+		// One notch is 30 px, so panel y 15 is now content y 45: row 2. Row 0
+		// has left the clip; before the fix the click still went to it.
+		canvas.dispatchEvent(new WheelEvent('wheel', { ...at, deltaY: 1 }));
+		canvas.dispatchEvent(new MouseEvent('mousedown', at));
+
+		expect(panel.getScrollOffset().y).toBe(30);
+		expect(pressed).toEqual(['row-2']);
+		for (const row of rows) InputSystem.unregisterComponent(row);
+		InputSystem.unregisterComponent(panel);
 	});
 });
