@@ -15,8 +15,6 @@ class Application {
 	private game!: Game;
 	private frameTimer!: FrameTimer;
 	private frameLoop!: FrameLoop;
-	/** Loaded and validated, not yet drawn with; DDB-70 hands these to the backend. */
-	private fontAtlases!: Promise<LoadedFontAtlas[]>;
 
 	/**
 	 * Initialize the application
@@ -33,16 +31,15 @@ class Application {
 				}
 			});
 
-			this.fontAtlases = this.loadFonts();
+			// Decoded alongside the rest of startup, awaited before the draw
+			// API exists: text before its atlas is an error (R2.18).
+			const fontAtlases = this.loadFonts();
 
 			// Frame timing, section timing and the per-frame draw counters (R13.7).
 			this.frameTimer = new FrameTimer();
 
 			// Create the WebGL renderer
 			this.renderer = new Renderer('game-canvas');
-
-			// Set up the global renderer context
-			RendererContext.getInstance().setRenderer(this.renderer);
 
 			// Initialize the input system with the canvas
 			const canvas = document.getElementById('game-canvas') as HTMLCanvasElement;
@@ -51,7 +48,11 @@ class Application {
 			// The seam. Built through the shared factory rather than spelled
 			// here, so this page and the gallery cannot end up with differently
 			// configured draw APIs over the same renderer.
-			const draw = createDrawApi({ renderer: this.renderer, frameTimer: this.frameTimer });
+			const draw = createDrawApi({
+				renderer: this.renderer,
+				frameTimer: this.frameTimer,
+				fontAtlases: await fontAtlases,
+			});
 			RendererContext.getInstance().draw = draw;
 
 			// Create and initialize the game

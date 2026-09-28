@@ -1,7 +1,6 @@
 import { TextureStore } from '../gpu/TextureStore';
 import { CanvasViewport } from './CanvasViewport';
 import { DeviceInfo, detectDevice } from './deviceInfo';
-import { FontAtlas } from './FontAtlas';
 import { WebGL2TextureDevice } from './WebGL2TextureDevice';
 
 /**
@@ -39,12 +38,12 @@ export interface ContextListener {
 
 /**
  * The device: a canvas, its WebGL2 context, the viewport that sizes it, the
- * texture store, context loss, and the font atlas.
+ * texture store, and context loss.
  *
  * It draws nothing and owns no pipeline state; `WebGL2Backend` does, and
  * listens here for a restored context so it can rebuild. The order on restore
  * is fixed: the drawing-buffer viewport and every texture first (they are this
- * class's, and the immediate ones, the atlas among them, are back before the
+ * class's, and the immediate ones, the font atlases among them, are back before the
  * restore returns), then the listeners in the order they registered, so a
  * backend constructed before the frame loop has its resources back before the
  * loop resumes.
@@ -58,7 +57,6 @@ export class Renderer {
 	/** R15.3, detected once. */
 	readonly device: DeviceInfo;
 	private readonly gl: WebGL2RenderingContext;
-	private readonly fontAtlas: FontAtlas;
 	private readonly listeners: ContextListener[] = [];
 	private lost = false;
 
@@ -97,12 +95,6 @@ export class Renderer {
 			device: new WebGL2TextureDevice({ gl }),
 			onDiagnostic: (message) => console.error(`TextureStore: ${message}`),
 		});
-		this.fontAtlas = new FontAtlas({
-			textures: this.textures,
-			fontFamily: 'Arial',
-			fontSize: 32,
-			ratio: this.viewport.state.ratio,
-		});
 	}
 
 	/** True between `webglcontextlost` and `webglcontextrestored`. */
@@ -121,11 +113,6 @@ export class Renderer {
 
 	public getContext(): WebGL2RenderingContext {
 		return this.gl;
-	}
-
-	/** Text measurement for `Input`'s caret, until chapter 6's `measureText`. */
-	public getFontAtlas(): FontAtlas {
-		return this.fontAtlas;
 	}
 
 	/** The GL viewport covers the whole backing store `CanvasViewport` sized. */

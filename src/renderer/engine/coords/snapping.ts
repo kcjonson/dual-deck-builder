@@ -7,8 +7,7 @@ import type { ClipRect, Rect } from '../draw/geometry';
  * (R7.9), which the caller checks because only it knows the transform.
  *
  * At ratio 1 `snapToDevice` is exactly `Math.round`: `x * 1` and `r / 1` are
- * exact in floating point, which is why routing the legacy encoder's per-glyph
- * rounding through here moved no pixel in the goldens.
+ * exact in floating point.
  */
 
 /** A logical coordinate moved to the nearest device-pixel boundary. */
@@ -17,12 +16,19 @@ export function snapToDevice(value: number, ratio: number): number {
 }
 
 /**
- * R7.7's text run origin, the hook chapter 6's text path (R6.16) calls. Until
- * then the legacy encoder snaps each glyph through `snapToDevice`, which is
- * what it did in logical pixels before this module existed.
+ * R7.7's text run origin, which chapter 6's encoder snaps once per line
+ * (R6.16) and moves every glyph on the line by the same delta. Written into
+ * `out` so the encoder's per-line call allocates nothing.
  */
-export function snapTextOrigin(x: number, y: number, ratio: number): { x: number; y: number } {
-	return { x: snapToDevice(x, ratio), y: snapToDevice(y, ratio) };
+export function snapTextOrigin(
+	x: number,
+	y: number,
+	ratio: number,
+	out: { x: number; y: number } = { x: 0, y: 0 },
+): { x: number; y: number } {
+	out.x = snapToDevice(x, ratio);
+	out.y = snapToDevice(y, ratio);
+	return out;
 }
 
 export interface HairlineRectOptions {

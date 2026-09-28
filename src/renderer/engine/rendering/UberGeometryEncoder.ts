@@ -5,6 +5,7 @@ import {
 	CornerRadii,
 	DrawCommand,
 	DrawCommandKind,
+	DrawTextOptions,
 	ImageCommand,
 	Mat2D,
 	PolygonCommand,
@@ -13,17 +14,18 @@ import {
 	Rect,
 	RectCommand,
 	ShadowCommand,
-	TextAlign,
 	TextCommand,
 	Vec2,
-	VerticalAlign,
 	clipRectOf,
 } from '../draw';
 import { GeometryEncoder, GeometrySink, GroupShape } from '../draw/Batcher';
+import type { TextureKey } from '../draw/ResidentTextureSet';
 import { FEATHER_MITER_LIMIT } from '../draw/bounds';
 import { isSingleOutline } from '../draw/triangulate';
-import { snapToDevice } from '../coords/snapping';
-import type { CharacterInfo } from './FontAtlas';
+import { snapTextOrigin, snapToDevice } from '../coords/snapping';
+import type { TextLayout } from '../text/TextLayout';
+import { TextMetricsService } from '../text/TextMetricsService';
+import { DECORATION_THICKNESS, LineOrigin, decorationOffset, layoutInk, lineOrigin } from '../text/textPlacement';
 
 /**
  * Chapter 5's geometry: every draw command as vertices for the uber shader
@@ -60,9 +62,9 @@ export const UBER_VERTEX = {
 	fill: 12,
 	border: 16,
 	clip: 20,
-	/** Border width, border outset, sigma (shadow) or pixel range (text), opacity. */
+	/** Border width, border outset, sigma (shadow) or screen pixel range (text), opacity. */
 	shape: 24,
-	/** Mode, texture slot, additive flag, unused. */
+	/** Mode, texture slot, additive flag, text shadow blur in device pixels. */
 	mode: 28,
 	floats: 32,
 } as const;
@@ -75,8 +77,6 @@ export const UBER_MODE = {
 	circle: 3,
 	image: 4,
 	text: 5,
-	/** The canvas-rasterised bitmap atlas until chapter 6's distance fields (DDB-70). */
-	mask: 6,
 } as const;
 
 /** Attribute location, float offset and size; the locations are `uber.vert`'s. */
@@ -96,25 +96,9 @@ export const UBER_ATTRIBUTES = [
 /** `TEXTURE_UNITS` in `uber.frag`. */
 export const UBER_TEXTURE_UNITS = 8;
 
-/** The parts of a text run its placement depends on; a `TextCommand` and `DrawTextOptions` both fit. */
-export interface TextRun {
-	readonly text: string;
-	readonly position?: Vec2 | null;
-	readonly size: number;
-	readonly align?: TextAlign;
-	readonly verticalAlign?: VerticalAlign;
-}
-
-/** What the encoder needs from a font atlas. `FontAtlas` satisfies it; a test's fake does too. */
-export interface GlyphSource {
-	getCharacter(char: string): CharacterInfo | null;
-	getFontSize(): number;
-	getAtlasSize(): number;
-	measureText(text: string): { width: number; height: number };
-}
-
 export interface UberGeometryEncoderOptions {
-	glyphs: GlyphSource;
+	/** The glyph iteration every text group is laid out by (R6.8). */
+	text: TextMetricsService;
 	onUnpaintable: (kind: DrawCommandKind, detail: string) => void;
 }
 
@@ -131,7 +115,9 @@ export class UberGeometryEncoder implements GeometryEncoder {
 	readonly floatsPerVertex = UBER_VERTEX.floats;
 	readonly indexType = 'uint32' as const;
 
-	private readonly glyphs: GlyphSource;
+	private readonly text: TextMetricsService;
+	/** Each font role's atlas texture, the key its groups report (R5.20). */
+	private readonly fontTextures = new Map<string, TextureKey>();
 	private readonly onUnpaintable: (kind: DrawCommandKind, detail: string) => void;
 	/** The per-draw floats every vertex of a group shares; copied, then patched per vertex. */
 	private readonly template = new Float32Array(UBER_VERTEX.floats);
@@ -139,15 +125,19 @@ export class UberGeometryEncoder implements GeometryEncoder {
 	private readonly fillScratch: [number, number, number, number] = [0, 0, 0, 0];
 	private readonly cornerScratch: [number, number, number, number] = [0, 0, 0, 0];
 	private readonly gradientScratch: number[] = new Array(16).fill(0);
-	private readonly penScratch = { startX: 0, startY: 0, scale: 1 };
+	private readonly originScratch: LineOrigin = { x: 0, y: 0 };
+	private readonly snapScratch = { x: 0, y: 0 };
+	/** `shape` and `encode` see the same command back to back; its layout is looked up once. */
+	private layoutCommand: TextCommand | null = null;
+	private layoutResult: TextLayout | null = null;
 	private readonly pointScratch = { x: 0, y: 0 };
 	/** R5.17: screen-space outline and outward offsets, grown and reused. */
 	private outline = new Float64Array(0);
 	private devicePixel = 1;
 	private ratioValue = 1;
 
-	constructor({ glyphs, onUnpaintable }: UberGeometryEncoderOptions) {
-		this.glyphs = glyphs;
+	constructor({ text, onUnpaintable }: UberGeometryEncoderOptions) {
+		this.text = text;
 		this.onUnpaintable = onUnpaintable;
 	}
 
@@ -165,9 +155,11 @@ export class UberGeometryEncoder implements GeometryEncoder {
 		this.devicePixel = ratio > 0 ? 1 / ratio : 1;
 	}
 
-	/** The texture key text groups report; the backend makes it resident on unit 0. */
-	get glyphTexture(): GlyphSource {
-		return this.glyphs;
+	/** Names the texture a font role's text groups sample; the backend keeps it resident. */
+	registerFontTexture(font: string, texture: TextureKey): void {
+		this.fontTextures.set(font, texture);
+		this.layoutCommand = null;
+		this.layoutResult = null;
 	}
 
 	shape(command: DrawCommand, out: GroupShape): boolean {
@@ -561,131 +553,170 @@ export class UberGeometryEncoder implements GeometryEncoder {
 	// -- text -------------------------------------------------------------
 
 	private shapeText(command: TextCommand, out: GroupShape): boolean {
-		if (!command.position) {
-			// R2.13's alignment box needs chapter 6's line breaking to place a
-			// pen inside it; `Text` passes a position and this path is unused.
-			this.onUnpaintable('text', "drawText with a box and no position needs chapter 6's layout");
+		const layout = this.layoutOf(command);
+		const texture = this.fontTextures.get(command.font);
+		if (!layout || !texture) {
+			this.onUnpaintable('text', `drawText with font '${command.font}', which has no atlas`);
 			return false;
 		}
-		let glyphs = 0;
-		for (let i = 0; i < command.text.length; i++) {
-			if (this.glyphs.getCharacter(command.text[i])) glyphs += 1;
-		}
-		out.vertices = glyphs * 4;
-		out.indices = glyphs * 6;
-		out.texture = this.glyphs;
+		if (isDegenerate(command.transform)) return true;
+		const quads = layout.quadCount + this.decorationCount(command, layout);
+		out.vertices = quads * 4;
+		out.indices = quads * 6;
+		out.texture = texture;
 		return true;
 	}
 
 	/**
-	 * The bitmap atlas's glyph quads in `mask` mode. Placement is unchanged
-	 * from the legacy path: the transform moves the anchor only, the pen
-	 * starts where the alignment puts it, and each glyph is snapped to the
-	 * device grid. `blur` is not read: R3.17's shadow run needs a blurred
-	 * glyph pass the bitmap atlas cannot give, and nothing asks for one.
-	 * Chapter 6 replaces all of this with `text` mode (DDB-70).
+	 * Chapter 6's glyph quads in `text` mode, from the same `TextLayout` that
+	 * `measureText` summarises (R6.8), so a measured width is a drawn width.
+	 *
+	 * Every vertex goes through the whole transform, so rotated and scaled text
+	 * rotates and scales. Under a translate-only transform each line's origin
+	 * (its first pen position, on the baseline) is snapped to the device grid
+	 * and every glyph and decoration on the line moves by that one delta
+	 * (R6.16, R6.17): advances and kerning are untouched, and the baseline sits
+	 * on a device row. Under anything else nothing is snapped.
+	 *
+	 * The screen-space distance range (R6.5) is a per-draw constant under a
+	 * translate-only transform, written into `shape.z`; otherwise `shape.z` is
+	 * zero and the shader derives it from the texture coordinate's footprint,
+	 * with the atlas's unit range in `halfSize`. A shadow run's blur rides in
+	 * `mode.w`, read from the `mtsdf` alpha channel's true distance (R6.5,
+	 * R6.6); an atlas without one draws its shadow sharp.
+	 *
+	 * Decorations (R12.4) follow the glyphs in the same group, as `rect`-mode
+	 * quads one logical pixel thick, so they get the same edge ramp as any
+	 * rectangle.
 	 */
 	private encodeText(command: TextCommand, sink: GeometrySink, slot: number): void {
-		const position = command.position;
-		if (!position) return;
-		const glyphs = this.glyphs;
-		this.begin(command, UBER_MODE.mask, slot);
+		const layout = this.layoutOf(command) as TextLayout;
+		const { atlas, size } = layout;
+		const ratio = this.ratioValue;
+		const matrix = command.transform;
+		const snap = command.translateOnly;
+
+		this.begin(command, UBER_MODE.text, slot);
+		const template = this.template;
+		template[UBER_VERTEX.shape + 2] = snap ? Math.max(1, (atlas.distanceRange * size * ratio) / atlas.size) : 0;
+		template[UBER_VERTEX.halfSize] = atlas.distanceRange / atlas.width;
+		template[UBER_VERTEX.halfSize + 1] = atlas.distanceRange / atlas.height;
+		template[UBER_VERTEX.mode + 3] = command.blur > 0 && atlas.type === 'mtsdf' ? command.blur * ratio : 0;
 		const color = premultiply(command.color, this.fillScratch);
 
-		const matrix = command.transform;
-		const anchorX = matrix[0] * position.x + matrix[2] * position.y + matrix[4];
-		const anchorY = matrix[1] * position.x + matrix[3] * position.y + matrix[5];
-		const { startX, startY, scale } = this.pen(command, anchorX, anchorY);
-
-		const atlasSize = glyphs.getAtlasSize();
-		let currentX = startX;
-		let glyph = 0;
-		for (let i = 0; i < command.text.length; i++) {
-			const info = glyphs.getCharacter(command.text[i]);
-			if (!info) continue;
-
-			const charWidth = info.width * atlasSize * scale;
-			const charHeight = info.height * atlasSize * scale;
-			const pixelX = snapToDevice(currentX + info.offsetX * scale, this.ratioValue);
-			const pixelY = snapToDevice(startY + info.offsetY * scale, this.ratioValue);
-			const u0 = info.x;
-			const v0 = info.y;
-			const u1 = info.x + info.width;
-			const v1 = info.y + info.height;
-
-			const base = glyph * 4;
-			this.screenVertex(sink, base, pixelX, pixelY, color, u0, v0);
-			this.screenVertex(sink, base + 1, pixelX + charWidth, pixelY, color, u1, v0);
-			this.screenVertex(sink, base + 2, pixelX + charWidth, pixelY + charHeight, color, u1, v1);
-			this.screenVertex(sink, base + 3, pixelX, pixelY + charHeight, color, u0, v1);
-			writeQuadIndices(sink, glyph * 6, base);
-
-			currentX += info.advance * scale;
-			glyph += 1;
+		const origin = this.originScratch;
+		const texelU = 1 / atlas.width;
+		const texelV = 1 / atlas.height;
+		let vertexBase = 0;
+		for (let line = 0; line < layout.lines.length; line++) {
+			this.snappedOrigin(layout, command, line, origin);
+			const glyphs = layout.lines[line].glyphs;
+			for (let index = 0; index < glyphs.length; index++) {
+				const { glyph, x } = glyphs[index];
+				const plane = glyph.plane;
+				const bounds = glyph.atlas;
+				if (!plane || !bounds) continue;
+				const left = origin.x + x + plane.left * size;
+				const right = origin.x + x + plane.right * size;
+				const top = origin.y + plane.top * size;
+				const bottom = origin.y + plane.bottom * size;
+				const u0 = bounds.left * texelU;
+				const u1 = bounds.right * texelU;
+				const v0 = bounds.top * texelV;
+				const v1 = bounds.bottom * texelV;
+				this.vertex(sink, vertexBase, matrix, left, top, 0, 0, u0, v0, color);
+				this.vertex(sink, vertexBase + 1, matrix, right, top, 0, 0, u1, v0, color);
+				this.vertex(sink, vertexBase + 2, matrix, right, bottom, 0, 0, u1, v1, color);
+				this.vertex(sink, vertexBase + 3, matrix, left, bottom, 0, 0, u0, v1, color);
+				writeQuadIndices(sink, (vertexBase / 4) * 6, vertexBase);
+				vertexBase += 4;
+			}
 		}
+
+		const offset = decorationOffset(layout, command.decoration);
+		if (offset === null) return;
+		template[UBER_VERTEX.mode] = UBER_MODE.rect;
+		template[UBER_VERTEX.mode + 3] = 0;
+		template[UBER_VERTEX.shape + 2] = 0;
+		for (let line = 0; line < layout.lines.length; line++) {
+			const width = layout.lines[line].width;
+			if (width <= 0) continue;
+			this.snappedOrigin(layout, command, line, origin);
+			let top = origin.y + offset - DECORATION_THICKNESS / 2;
+			let height = DECORATION_THICKNESS;
+			if (snap) {
+				// The rule on whole device rows, at least one thick.
+				top = snapToDevice(top, ratio);
+				height = Math.max(1, Math.round(DECORATION_THICKNESS * ratio)) / ratio;
+			}
+			this.decorationQuad(sink, vertexBase, matrix, origin.x, top, width, height, color);
+			vertexBase += 4;
+		}
+	}
+
+	/** R4.2a's per-run extent, in the run's local space, from the layout `encodeText` draws. Null when it draws nothing. */
+	textInk(options: DrawTextOptions): Rect | null {
+		const layout = this.text.layout(options);
+		if (!layout) return null;
+		const ink = layoutInk(layout, options, options.decoration);
+		if (!ink) return null;
+		// R6.16's snap moves a line by at most half a device pixel.
+		return { x: ink.x - 1, y: ink.y - 1, width: ink.width + 2, height: ink.height + 2 };
+	}
+
+	private layoutOf(command: TextCommand): TextLayout | null {
+		if (command !== this.layoutCommand) {
+			this.layoutCommand = command;
+			this.layoutResult = this.text.layout(command);
+		}
+		return this.layoutResult;
+	}
+
+	private decorationCount(command: TextCommand, layout: TextLayout): number {
+		if (decorationOffset(layout, command.decoration) === null) return 0;
+		let count = 0;
+		for (let line = 0; line < layout.lines.length; line++) if (layout.lines[line].width > 0) count += 1;
+		return count;
 	}
 
 	/**
-	 * R4.2a's per-run extent, in the run's local space: the union of the glyph
-	 * quads `encodeText` would write for a pen anchored at `position`, grown by
-	 * one pixel because each glyph is snapped to device pixels after the
-	 * transform's translation is added, which can move it by up to one. Null
-	 * when the run has no position or no glyph, which leaves it uncullable
-	 * rather than guessed at.
+	 * A line's origin in local space, moved so that under a translate-only
+	 * transform it lands on the device grid (R6.16). One delta per line, applied
+	 * in local space, which under a translation is the same delta on screen.
 	 */
-	textInk(run: TextRun): Rect | null {
-		if (!run.position) return null;
-		const glyphs = this.glyphs;
-		const { startX, startY, scale } = this.pen(run, run.position.x, run.position.y);
-		const atlasSize = glyphs.getAtlasSize();
-		let minX = Infinity;
-		let minY = Infinity;
-		let maxX = -Infinity;
-		let maxY = -Infinity;
-		let currentX = startX;
-
-		for (let i = 0; i < run.text.length; i++) {
-			const info = glyphs.getCharacter(run.text[i]);
-			if (!info) continue;
-			const pixelX = snapToDevice(currentX + info.offsetX * scale, this.ratioValue);
-			const pixelY = snapToDevice(startY + info.offsetY * scale, this.ratioValue);
-			minX = Math.min(minX, pixelX);
-			minY = Math.min(minY, pixelY);
-			maxX = Math.max(maxX, pixelX + info.width * atlasSize * scale);
-			maxY = Math.max(maxY, pixelY + info.height * atlasSize * scale);
-			currentX += info.advance * scale;
-		}
-
-		if (minX === Infinity) return null;
-		return { x: minX - 1, y: minY - 1, width: maxX - minX + 2, height: maxY - minY + 2 };
+	private snappedOrigin(layout: TextLayout, command: TextCommand, line: number, out: LineOrigin): void {
+		lineOrigin(layout, command, line, out);
+		if (!command.translateOnly) return;
+		const matrix = command.transform;
+		const screenX = out.x + matrix[4];
+		const screenY = out.y + matrix[5];
+		const snapped = snapTextOrigin(screenX, screenY, this.ratioValue, this.snapScratch);
+		out.x += snapped.x - screenX;
+		out.y += snapped.y - screenY;
 	}
 
-	/** Where the pen starts and the atlas scale, in a reused object read before the next call. */
-	private pen(run: TextRun, anchorX: number, anchorY: number): { startX: number; startY: number; scale: number } {
-		const scale = run.size / this.glyphs.getFontSize();
-		const metrics = this.glyphs.measureText(run.text);
-		const scaledWidth = metrics.width * scale;
-		const scaledHeight = metrics.height * scale;
-
-		let startX = anchorX;
-		if (run.align === 'center') {
-			startX = anchorX - scaledWidth / 2;
-		} else if (run.align === 'right') {
-			startX = anchorX - scaledWidth;
+	/** A `rect`-mode quad for a decoration, inflated by R5.7's device pixel, at `vertexBase` within the group. */
+	private decorationQuad(
+		sink: GeometrySink,
+		vertexBase: number,
+		transform: Mat2D,
+		x: number,
+		y: number,
+		width: number,
+		height: number,
+		color: RGBA,
+	): void {
+		const halfWidth = width / 2;
+		const halfHeight = height / 2;
+		this.setHalfSize(halfWidth, halfHeight);
+		const padX = this.devicePixel / Math.hypot(transform[0], transform[1]);
+		const padY = this.devicePixel / Math.hypot(transform[2], transform[3]);
+		for (let corner = 0; corner < 4; corner++) {
+			const localX = CORNER_X[corner] * (halfWidth + padX);
+			const localY = CORNER_Y[corner] * (halfHeight + padY);
+			this.vertex(sink, vertexBase + corner, transform, x + halfWidth + localX, y + halfHeight + localY, localX, localY, 0, 0, color);
 		}
-
-		let startY = anchorY;
-		if (run.verticalAlign === 'middle') {
-			startY = anchorY - scaledHeight / 2;
-		} else if (run.verticalAlign === 'bottom') {
-			startY = anchorY - scaledHeight;
-		}
-
-		const pen = this.penScratch;
-		pen.startX = startX;
-		pen.startY = startY;
-		pen.scale = scale;
-		return pen;
+		writeQuadIndices(sink, (vertexBase / 4) * 6, vertexBase);
 	}
 
 	// -- vertex writing ---------------------------------------------------
@@ -797,14 +828,12 @@ export class UberGeometryEncoder implements GeometryEncoder {
 	}
 
 	/** One vertex already in screen space. */
-	private screenVertex(sink: GeometrySink, index: number, x: number, y: number, fill: RGBA, u = 0, v = 0): void {
+	private screenVertex(sink: GeometrySink, index: number, x: number, y: number, fill: RGBA): void {
 		const out = sink.vertices;
 		const offset = sink.floatOffset + index * UBER_VERTEX.floats;
 		out.set(this.template, offset);
 		out[offset] = x;
 		out[offset + 1] = y;
-		out[offset + UBER_VERTEX.texCoord] = u;
-		out[offset + UBER_VERTEX.texCoord + 1] = v;
 		out[offset + UBER_VERTEX.fill] = fill[0];
 		out[offset + UBER_VERTEX.fill + 1] = fill[1];
 		out[offset + UBER_VERTEX.fill + 2] = fill[2];

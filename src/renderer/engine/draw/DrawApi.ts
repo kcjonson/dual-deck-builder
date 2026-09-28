@@ -191,19 +191,18 @@ export interface BeginFrameOptions {
  * R2.14's actual requirement is not "return numbers", it is that measurement
  * "MUST use the same iteration as `drawText` so measured and rendered extents
  * agree" (R6.8). The only thing that can honour that is whatever owns the glyph
- * walk and the atlas metrics, which is a backend, and chapter 6's text layout
- * is phase 2. So `measureText` is declared with its real signature, delegated
- * to `DrawBackend.measureText`, and throws when no backend implements it.
+ * walk and the atlas metrics, which is a backend (the WebGL2 one, through its
+ * `TextMetricsService`). So `measureText` is delegated to
+ * `DrawBackend.measureText`, and throws when a backend does not implement it
+ * rather than substituting an estimate.
  *
  * A stub would not stay local. R13.25's `text-overflow` rule compares a
- * measured extent against a box, and `layoutLint.ts` already carries a live
- * `unmeasured-text` bucket holding exactly the nodes whose measurement does not
- * exist yet. A fabricated width would move those nodes out of that bucket early
- * and either invent violations or suppress real ones under a gate R13.29 checks
- * as `count === 0`. That is phase 0's "Verts: 5327.999999999999" one layer up.
+ * measured extent against a box, and a fabricated width would either invent
+ * violations or suppress real ones under a gate R13.29 checks as
+ * `count === 0`.
  */
 export const TEXT_MEASUREMENT_UNAVAILABLE =
-	'measureText: no backend supplied metrics. R2.14 requires measurement to share drawText\'s glyph iteration (R6.8), and chapter 6 text layout is phase 2, so there is nothing to return.';
+	'measureText: this backend supplies no metrics. R2.14 requires measurement to share drawText\'s glyph iteration (R6.8), and a backend that lays no text out has nothing honest to return.';
 
 interface TransformEntry {
 	readonly matrix: Mat2D;
@@ -733,10 +732,13 @@ export class DrawApi {
 	}
 
 	/**
-	 * R2.13. Glyph layout is chapter 6 and phase 2; a command carries the run
-	 * and its parameters, and it goes through exactly the same capture as a
-	 * rectangle, so text is in the same batch as shapes and there is no text
-	 * batch to open (R2.2).
+	 * R2.13. Glyph layout is chapter 6's and the backend's; a command carries
+	 * the run and its parameters, and it goes through exactly the same capture
+	 * as a rectangle, so text is in the same batch as shapes and there is no
+	 * text batch to open (R2.2).
+	 *
+	 * `overflow: 'clip'` with a box clips the run to the box through the clip
+	 * stack (R6.14), for this draw only.
 	 */
 	drawText(options: DrawTextOptions): void {
 		if (!this.ensureFrame('drawText')) return;
@@ -751,6 +753,16 @@ export class DrawApi {
 			);
 		}
 
+		const box = options.overflow === 'clip' ? options.box : undefined;
+		if (box) {
+			const transform = this.transforms[this.transforms.length - 1];
+			this.clips.push(intersectClip(this.clip, transformedBounds(transform.matrix, box), null));
+		}
+		this.emitText(options);
+		if (box) this.clips.pop();
+	}
+
+	private emitText(options: DrawTextOptions): void {
 		const ink = this.textInk(options);
 
 		if (options.shadow) {
@@ -781,19 +793,17 @@ export class DrawApi {
 	}
 
 	/**
-	 * R4.2a's per-run extent, when the backend can take it. Only under a
-	 * translate-only transform: the legacy backend places a run at its
-	 * transformed anchor without rotating the glyphs, so the transformed
-	 * bounds of a rotated run's local extent would not contain what it draws,
-	 * and a cull that can be wrong is worse than none.
+	 * R4.2a's per-run extent, when the backend can take it. Glyph quads go
+	 * through the whole transform, so the transformed bounds of the local
+	 * extent contain what a rotated or scaled run draws too.
 	 */
 	private textInk(options: DrawTextOptions): Rect | null {
-		if (!this.backend.textInk || !this.translateOnly) return null;
+		if (!this.backend.textInk) return null;
 		if (this.clip.kind !== 'rect') return null;
 		return this.backend.textInk(options);
 	}
 
-	/** R2.14, delegated and refused. See `TEXT_MEASUREMENT_UNAVAILABLE`. */
+	/** R2.14, delegated to the backend that owns the glyph walk. See `TEXT_MEASUREMENT_UNAVAILABLE`. */
 	measureText(options: MeasureTextOptions): TextMetrics {
 		if (!this.backend.measureText) {
 			throw new Error(`${TEXT_MEASUREMENT_UNAVAILABLE} Backend: '${this.backend.name}'.`);
@@ -1024,12 +1034,14 @@ function buildText(
 		size: options.size,
 		color: copyColor(color),
 		align: options.align ?? 'left',
-		verticalAlign: options.verticalAlign ?? 'top',
+		verticalAlign: options.verticalAlign ?? (options.box ? 'top' : 'baseline'),
 		letterSpacing: options.letterSpacing ?? 0,
 		textTransform: options.textTransform ?? 'none',
 		maxWidth: options.maxWidth ?? null,
 		wrap: options.wrap ?? 'none',
 		overflow: options.overflow ?? 'visible',
+		decoration: options.decoration ?? 'none',
+		lineHeight: options.lineHeight ?? null,
 		blur,
 	};
 }

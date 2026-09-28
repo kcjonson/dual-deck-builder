@@ -3,7 +3,7 @@
  */
 import { DrawApi, RecordingBackend } from '../draw';
 import { RendererContext } from '../rendering/RendererContext';
-import { DEFAULT_FONT } from '../rendering/fonts';
+import { committedFontAtlas } from '../text/testing';
 import { Layer } from './Layer';
 import { Rectangle } from './Rectangle';
 import { Text } from './Text';
@@ -32,8 +32,8 @@ describe('legacyTextOrder domain bounds (TEMPORARY)', () => {
 		backend = new RecordingBackend({ maxFrames: 1 });
 		// The atlas R2.18 checks against, so `text-before-atlas` stays silent.
 		backend.loadFontAtlas({
-			name: DEFAULT_FONT,
-			metrics: null,
+			name: 'body',
+			atlas: committedFontAtlas('body'),
 			texture: { id: 1, width: 1, height: 1, label: null },
 		});
 		const api = new DrawApi({ backend, legacyTextOrder });

@@ -5,6 +5,7 @@ import { FrameLoop } from '../renderer/engine/rendering/FrameLoop';
 import { RendererContext } from '../renderer/engine/rendering/RendererContext';
 import { InputSystem } from '../renderer/engine/input/InputSystem';
 import { FrameTimer } from '../renderer/engine/rendering/FrameTimer';
+import { loadFontAtlases, loadImageElement } from '../renderer/engine/text/loadFontAtlases';
 import { installDebugHooks, installAppHooks, installInputHooks, installPerfHooks } from '../renderer/engine/debug/hooks';
 import { CardLoader } from '../renderer/game/core/CardLoader';
 import { gallerySceneRegistry } from './registry';
@@ -35,17 +36,21 @@ class GalleryApplication {
 	private host!: SceneHost;
 	private frameLoop!: FrameLoop;
 
-	public init(): void {
+	public async init(): Promise<void> {
 		try {
+			const fontAtlases = loadFontAtlases({ loadImage: loadImageElement });
 			this.frameTimer = new FrameTimer();
 			this.renderer = new Renderer('game-canvas');
-			RendererContext.getInstance().setRenderer(this.renderer);
 
 			const canvas = document.getElementById('game-canvas') as HTMLCanvasElement;
 			InputSystem.getInstance().setup(canvas);
 
 			// Line for line what src/index.ts does, through the same factory.
-			this.draw = createDrawApi({ renderer: this.renderer, frameTimer: this.frameTimer });
+			this.draw = createDrawApi({
+				renderer: this.renderer,
+				frameTimer: this.frameTimer,
+				fontAtlases: await fontAtlases,
+			});
 			RendererContext.getInstance().draw = this.draw;
 
 			this.host = new SceneHost({

@@ -92,11 +92,17 @@ export interface FontAtlasHandle {
 }
 
 export type TextAlign = 'left' | 'center' | 'right';
-export type VerticalAlign = 'top' | 'middle' | 'bottom';
+/**
+ * `baseline` is R2.13's reading of a bare `position` (its y is the first
+ * baseline) and the default without a box; see `textPlacement.lineOrigin`.
+ */
+export type VerticalAlign = 'top' | 'middle' | 'bottom' | 'baseline';
 export type TextWrap = 'none' | 'word';
 export type TextOverflow = 'visible' | 'clip' | 'ellipsis';
 /** R6.9's pre-measurement transform. */
 export type TextTransform = 'none' | 'uppercase';
+/** R12.4: a one-pixel rule per line in the text colour, drawn after the glyphs. */
+export type TextDecoration = 'none' | 'underline' | 'strike';
 
 export interface TextShadow {
 	color: RGBA;
@@ -184,21 +190,28 @@ export interface DrawImageOptions extends CommonOptions {
 
 export interface DrawTextOptions extends CommonOptions {
 	text: string;
-	/** The alignment anchor and the baseline when `box` is absent (R2.13). */
+	/** The alignment anchor and, with the default `verticalAlign`, the first baseline when `box` is absent (R2.13). */
 	position?: Vec2;
-	/** R2.13's optional alignment box. */
+	/** R2.13's alignment box; its width is the wrap and ellipsis width unless `maxWidth` says otherwise. */
 	box?: Rect;
+	/** A font role (R11.8) whose atlas is loaded. */
 	font: string;
+	/** Logical pixels. */
 	size: number;
 	color: RGBA;
 	align?: TextAlign;
+	/** Defaults to `top` in a box and `baseline` at a position. */
 	verticalAlign?: VerticalAlign;
+	/** Em, between glyphs only (R6.9), the unit of the `letterSpacing` tokens. */
 	letterSpacing?: number;
 	textTransform?: TextTransform;
 	shadow?: TextShadow;
 	maxWidth?: number;
 	wrap?: TextWrap;
 	overflow?: TextOverflow;
+	decoration?: TextDecoration;
+	/** A multiple of `size`; defaults to the face's own line height (R6.10). */
+	lineHeight?: number;
 }
 
 export interface MeasureTextOptions {
@@ -209,14 +222,22 @@ export interface MeasureTextOptions {
 	textTransform?: TextTransform;
 	maxWidth?: number;
 	wrap?: TextWrap;
+	lineHeight?: number;
 }
 
-/** R2.14's return shape, declared so callers compile against the real contract. */
+/** R2.14's return shape. */
 export interface TextMetrics {
+	/** The widest line. */
 	width: number;
+	/** `lines * lineHeight` (R6.13). */
 	height: number;
 	lines: number;
-	/** Pen x after each glyph, in the same iteration order (R2.14, R6.8). */
+	/** Each line's width, in order (R6.13). */
+	lineWidths: readonly number[];
+	/**
+	 * For each code point of the transformed text, the pen x within its line
+	 * after it: a caret after code point `i` sits at `advances[i]` (R2.14).
+	 */
 	advances: readonly number[];
 }
 
@@ -336,6 +357,8 @@ export interface TextCommand extends ResolvedState {
 	readonly maxWidth: number | null;
 	readonly wrap: TextWrap;
 	readonly overflow: TextOverflow;
+	readonly decoration: TextDecoration;
+	readonly lineHeight: number | null;
 	/** Non-zero only on the shadow run of R3.17; the main run is never blurred. */
 	readonly blur: number;
 }
