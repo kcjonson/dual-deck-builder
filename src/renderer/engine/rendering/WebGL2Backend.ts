@@ -371,6 +371,11 @@ export class WebGL2Backend implements DrawBackend {
 		gl.uniform1iv(gl.getUniformLocation(program, 'uTextures[0]'), units);
 		gl.uniformBlockBinding(program, gl.getUniformBlockIndex(program, 'Frame'), FRAME_BLOCK_BINDING);
 
+		// Every flat varying is constant across an instance, so the convention
+		// cannot change a pixel. With the last-vertex default, the instanced
+		// draw cost about 1 ms more GPU time a frame on ANGLE Metal (Radeon Pro
+		// 560X) whatever its size, which fits ANGLE emulating that convention
+		// (DDB-191). Context state, so it is set again on a restored context.
 		const provoking = gl.getExtension('WEBGL_provoking_vertex') as ProvokingVertexExtension | null;
 		provoking?.provokingVertexWEBGL(provoking.FIRST_VERTEX_CONVENTION_WEBGL);
 

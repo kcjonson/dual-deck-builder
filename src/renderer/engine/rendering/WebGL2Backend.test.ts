@@ -57,7 +57,13 @@ function fakeGl(): { gl: WebGL2RenderingContext; calls: GlCall[]; constant: (nam
 		return value;
 	};
 	let objects = 0;
-	const answers: Record<string, () => unknown> = {
+	// WEBGL_provoking_vertex, recording into the same log as the context.
+	const provokingVertex = {
+		FIRST_VERTEX_CONVENTION_WEBGL: 0x8e4d,
+		provokingVertexWEBGL: (mode: number) => calls.push({ name: 'provokingVertexWEBGL', args: [mode], result: undefined }),
+	};
+	const answers: Record<string, (...args: unknown[]) => unknown> = {
+		getExtension: (name) => (name === 'WEBGL_provoking_vertex' ? provokingVertex : null),
 		getParameter: () => 256,
 		getProgramParameter: () => true,
 		getShaderParameter: () => true,
@@ -69,7 +75,7 @@ function fakeGl(): { gl: WebGL2RenderingContext; calls: GlCall[]; constant: (nam
 			if (/^[A-Z0-9_]+$/.test(property)) return constant(property);
 			return (...args: unknown[]) => {
 				let result: unknown;
-				if (answers[property]) result = answers[property]();
+				if (answers[property]) result = answers[property](...args);
 				else if (property.startsWith('create')) result = { object: property, id: ++objects };
 				calls.push({ name: property, args, result });
 				return result;
@@ -205,6 +211,18 @@ describe('WebGL2Backend', () => {
 		// Attribute 0 is an enabled array (R15.13).
 		expect(named(calls, 'enableVertexAttribArray').map((call) => call.args[0])).toContain(0);
 		expect(named(frame(threeDomains), 'vertexAttribDivisor')).toEqual([]);
+	});
+
+	it('takes the first vertex as provoking where the extension exists, at creation and on restore', () => {
+		const { calls, named, restore, frame } = setupBackend();
+		// Every flat varying is per instance, so either convention draws the
+		// same; the last-vertex default costs ANGLE Metal an index pass per
+		// non-indexed draw.
+		expect(named(calls, 'provokingVertexWEBGL').map((call) => call.args)).toEqual([[0x8e4d]]);
+		expect(named(frame(threeDomains), 'provokingVertexWEBGL')).toEqual([]);
+		const before = calls.length;
+		restore();
+		expect(named(calls.slice(before), 'provokingVertexWEBGL')).toHaveLength(1);
 	});
 
 	it('points the eight samplers at units 0 to 7 once, at creation (R5.20)', () => {
