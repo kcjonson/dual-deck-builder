@@ -18,7 +18,7 @@
  * inside the file itself. `cssOnly` tokens exist for a web prototype and are
  * left out of the module.
  */
-import { readFileSync, writeFileSync } from 'node:fs';
+import { readFileSync, realpathSync, writeFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -161,7 +161,8 @@ function createResolver(source) {
 
 	function lookup(reference, from) {
 		const [category, name, ...rest] = reference.split('.');
-		const token = rest.length === 0 && isPlainObject(source[category]) ? source[category][name] : undefined;
+		const known = rest.length === 0 && Object.hasOwn(source, category) && isPlainObject(source[category]) && Object.hasOwn(source[category], name);
+		const token = known ? source[category][name] : undefined;
 		if (!token) throw new TokenError(`${from}: alias "${reference}" names no token`);
 		if (token.cssOnly === true) throw new TokenError(`${from}: alias "${reference}" names a cssOnly token`);
 		return resolveToken(category, name);
@@ -342,7 +343,17 @@ function main(argv) {
 	return 0;
 }
 
-if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+/** Node resolves symlinks in `import.meta.url` but not in `argv[1]`, so compare real paths. */
+function isMainModule() {
+	if (!process.argv[1]) return false;
+	try {
+		return realpathSync(process.argv[1]) === realpathSync(fileURLToPath(import.meta.url));
+	} catch {
+		return false;
+	}
+}
+
+if (isMainModule()) {
 	try {
 		process.exitCode = main(process.argv.slice(2));
 	} catch (error) {

@@ -18,21 +18,22 @@ export const tokens = {
 		accent_dim: [0.2902, 0.2275, 0.0706, 1],
 		accent_contrast: [0.0667, 0.0706, 0.0784, 1],
 		accent_glow: [0.9373, 0.8235, 0.3529, 0.45],
-		data: [0.4353, 0.702, 0.8784, 1],
-		data_bright: [0.6314, 0.8078, 0.9216, 1],
-		data_dim: [0.1098, 0.2275, 0.3098, 1],
-		data_glow: [0.4353, 0.702, 0.8784, 0.45],
+		data: [0.5176, 0.6078, 0.9608, 1],
+		data_bright: [0.6863, 0.7451, 0.9765, 1],
+		data_dim: [0.1804, 0.2039, 0.298, 1],
+		data_glow: [0.5176, 0.6078, 0.9608, 0.45],
 		text_bright: [1, 1, 1, 1],
 		text: [0.9137, 0.8941, 0.8392, 1],
 		text_dim: [0.6392, 0.6196, 0.5725, 1],
 		text_faint: [0.4353, 0.4196, 0.3882, 1],
 		text_disabled: [0.3333, 0.3216, 0.298, 1],
-		status_ok: [0.5608, 0.749, 0.3608, 1],
+		status_ok: [0.3373, 0.8235, 0.6196, 1],
 		status_warn: [0.9373, 0.8235, 0.3529, 1], // = color.accent
-		status_crit: [0.8314, 0.3176, 0.2471, 1],
-		status_info: [0.4353, 0.702, 0.8784, 1], // = color.data
-		scrim: [0, 0, 0, 0.8],
+		status_crit: [0.9412, 0.4588, 0.702, 1],
+		status_info: [0.5176, 0.6078, 0.9608, 1], // = color.data
+		scrim: [0, 0, 0, 0.72],
 		shadow: [0, 0, 0, 0.5],
+		shadow_strong: [0, 0, 0, 0.8],
 	},
 	space: {
 		space_0_5: 2,
@@ -137,7 +138,7 @@ export const tokens = {
 			offset: [0, 0],
 		},
 		glow_data: {
-			color: [0.4353, 0.702, 0.8784, 0.45],
+			color: [0.5176, 0.6078, 0.9608, 0.45],
 			blur: 16,
 			spread: 2,
 			offset: [0, 0],
@@ -156,7 +157,7 @@ export const tokens = {
 		title_weight: 600, // = typography.weight_semibold
 		role_display: {
 			family: 'Barlow Condensed',
-			weights: [600, 700],
+			weights: [600],
 			titleTransform: 'uppercase',
 			titleLetterSpacing: 0.08,
 		},
@@ -169,7 +170,7 @@ export const tokens = {
 		},
 		role_mono: {
 			family: 'JetBrains Mono',
-			weights: [400, 600],
+			weights: [400],
 			transform: 'uppercase',
 			letterSpacing: 0.16,
 		},

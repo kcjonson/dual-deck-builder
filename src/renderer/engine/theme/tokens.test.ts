@@ -1,5 +1,5 @@
 import { spawnSync } from 'child_process';
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'fs';
+import { mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'fs';
 import { tmpdir } from 'os';
 import { join, resolve } from 'path';
 import { LAYER_NAMES } from '../draw/layers';
@@ -153,6 +153,13 @@ describe('generator rejects a bad token file', () => {
 			/radius\.radius_ui: alias "radius\.r_huge" names no token/,
 		],
 		[
+			'an alias to an inherited property',
+			(source) => {
+				source.radius.radius_ui = { alias: 'radius.constructor' };
+			},
+			/radius\.radius_ui: alias "radius\.constructor" names no token/,
+		],
+		[
 			'an alias cycle',
 			(source) => {
 				source.radius.radius_ui = { alias: 'radius.radius_panel' };
@@ -181,6 +188,15 @@ describe('generator rejects a bad token file', () => {
 		expect(result.status).toBe(2);
 		expect(result.stdout).toBe('');
 		expect(result.stderr).toMatch(message);
+	});
+
+	// Symlinks need a privilege on Windows; the guard's logic is platform-independent.
+	(process.platform === 'win32' ? it.skip : it)('still runs when invoked through a symlinked path', () => {
+		const link = join(directory, 'generate-tokens-link.mjs');
+		symlinkSync(generatorPath, link);
+		const result = spawnSync(process.execPath, [link, '--stdout'], { encoding: 'utf8' });
+		expect(result.status).toBe(0);
+		expect(result.stdout).toBe(readFileSync(modulePath, 'utf8').replace(/\r\n/g, '\n'));
 	});
 });
 
@@ -228,6 +244,19 @@ describe('starting theme (11.2)', () => {
 		expect(color.accent_glow.slice(0, 3)).toEqual(color.accent.slice(0, 3));
 	});
 
+	it('gives data, ok, and crit hues no battle screen legend entry claims', () => {
+		// docs/design/battle-screen/index.html, "One hue, one meaning", and the rarity gems.
+		const legend = [
+			'#f2a33a', '#3cc3c9', '#8f8a7e', '#d4513f', '#8fbf5c', '#a9bccd', '#e7727a',
+			'#9b978c', '#6fb3e0', '#e0c14f', '#d06ad8',
+		];
+		const toHex = (rgba: RGBA) =>
+			'#' + rgba.slice(0, 3).map((channel) => Math.round(channel * 255).toString(16).padStart(2, '0')).join('');
+		for (const hue of [color.data, color.status_ok, color.status_crit]) {
+			expect(legend).not.toContain(toHex(hue));
+		}
+	});
+
 	it('uses the R11.7 radius scale with structural surfaces on one small value', () => {
 		expect([radius.r_0, radius.r_xs, radius.r_sm, radius.r_md, radius.r_lg, radius.r_xl]).toEqual([0, 1, 2, 4, 8, 14]);
 		expect(radius.r_pill).toBeGreaterThanOrEqual(999);
@@ -236,7 +265,9 @@ describe('starting theme (11.2)', () => {
 	});
 
 	it('has three type roles with body bold falling back to display (R11.8)', () => {
-		expect(typography.role_display.weights).toContain(typography.weight_bold);
+		for (const role of [typography.role_display, typography.role_body, typography.role_mono]) {
+			expect(role.weights.length).toBeGreaterThan(0);
+		}
 		expect(typography.role_body.boldRole).toBe('display');
 		expect(typography.role_body.size).toBe(13);
 		expect(typography.role_body.lineHeight).toBe(1.4);

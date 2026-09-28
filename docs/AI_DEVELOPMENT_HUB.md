@@ -71,7 +71,7 @@ Open against the spec, for whoever writes PR 3:
 
 ## Phase 4: theme tokens (landed ahead of phases 2 and 3, 2026-09-28)
 
-DDB-83 put the token pipeline in with no consumers: `src/renderer/engine/theme/tokens.json` is the only source, `npm run tokens` (`scripts/generate-tokens.mjs`) writes the committed `tokens.ts`, and `tokens.test.ts` fails when the two disagree. The starting theme comes from the battle screen mock's palette, since the colours in today's screens are ad hoc and nothing there is two-accent or five-surface; the reasoning and a map from the common literals to tokens for DDB-84 are in [theme-tokens.md](./AI_TECHNICAL_DECISIONS/theme-tokens.md). No component reads a token yet, so no pixel moved. The type role families (Barlow Condensed, Open Sans, JetBrains Mono) are the mock's; the font pipeline (DDB-69) owns which faces actually load and whoever lands second reconciles `typography.role_*`.
+DDB-83 put the token pipeline in with no consumers: `src/renderer/engine/theme/tokens.json` is the only source, `npm run tokens` (`scripts/generate-tokens.mjs`) writes the committed `tokens.ts`, and `tokens.test.ts` fails when the two disagree. The starting theme comes from the battle screen mock's palette, since the colours in today's screens are ad hoc and nothing there is two-accent or five-surface; the reasoning and a map from the common literals to tokens for DDB-84 are in [theme-tokens.md](./AI_TECHNICAL_DECISIONS/theme-tokens.md). No component reads a token yet, so no pixel moved. The data, ok, and crit hues (periwinkle, mint, pink) are new, picked so no hue in the battle screen legend gets a second meaning. `typography.role_*` matches the faces DDB-69 ships.
 
 ## Current state (verified survey, 2026-08-22)
 
