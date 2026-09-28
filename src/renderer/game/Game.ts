@@ -182,7 +182,12 @@ export class Game {
 			// can group per scene, and the screen name is the game page's answer
 			// to what the gallery calls a scene.
 			installPerfHooks({
-				snapshot: () => this.frameTimer.snapshot({ scene: ScreenManager.getCurrentScreenName() }),
+				snapshot: () => this.frameTimer.snapshot({
+					scene: ScreenManager.getCurrentScreenName(),
+					// Null before the first frame: an unopened draw API's zeros
+					// would read as a measured empty frame (R13.5).
+					batcher: this.draw.frame > 0 ? this.draw.getStats() : null,
+				}),
 			});
 		}
 

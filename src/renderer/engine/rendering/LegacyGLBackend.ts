@@ -1,4 +1,3 @@
-import { mat4 } from 'gl-matrix';
 import {
 	BeginFrameOptions,
 	CircleCommand,
@@ -9,50 +8,54 @@ import {
 	DrawCommand,
 	DrawCommandKind,
 	FrameDescription,
-	Mat2D,
-	PolygonCommand,
+	GpuWork,
 	PolylineCommand,
-	RGBA,
-	RectCommand,
 	ResolvedClip,
 	TextCommand,
+	Vec2,
 	clipRectOf,
-	transformPoint,
 } from '../draw';
+import { Batcher, GeometryUpload, GpuDraw } from '../draw/Batcher';
+import { ResidentTextureSet } from '../draw/ResidentTextureSet';
+import { FontAtlas } from './FontAtlas';
 import { FrameTimer } from './FrameTimer';
+import { LEGACY_VERTEX, LegacyGeometryEncoder } from './LegacyGeometryEncoder';
 import { Renderer } from './Renderer';
-import { TextRenderer } from './TextRenderer';
+import { Shader } from './Shader';
 import { DEFAULT_FONT } from './fonts';
 
 /**
- * Phase 1's shim: the whole of the pre-spec WebGL drawing path, behind
- * `DrawBackend`.
+ * Phase 1's shim: the pre-spec WebGL1 program behind `DrawBackend`, now fed by
+ * the batcher.
  *
- * Every GL body here was moved out of `Renderer` rather than rewritten, so the
- * uniforms, the buffer traffic and the draw calls are the ones the 26 committed
- * screenshot goldens were minted from. `Renderer` keeps what makes it a device
- * (the canvas, the context, the resize handler, the projection and view
- * matrices, the font atlas) and has no drawing methods left, which is how
- * "nothing outside the backend calls `Renderer.draw*`" is enforced by there
- * being nothing to call.
+ * Each sort domain goes through `Batcher`: every draw group is written into one
+ * shared vertex buffer by `LegacyGeometryEncoder`, and consecutive groups share
+ * a `drawElements` until something forces a split. On the screens this game
+ * has, that is one GPU draw per domain, where the per-command path issued one
+ * per rectangle and one per text colour. The shader is the old one with its
+ * per-draw uniforms turned into per-vertex attributes, and the encoder writes
+ * the numbers the old uniforms held, which is why the goldens do not move.
  *
- * It dies with the WebGL2 backend of chapter 15. Deleting this file deletes the
- * legacy path.
+ * It dies with the WebGL2 backend of chapter 15. Deleting this file, the
+ * encoder, and the two legacy shader files deletes the legacy path; `Batcher`
+ * and `ResidentTextureSet` stay and take an instance encoder.
  *
  * WHAT THIS BACKEND DOES THAT NO OTHER BACKEND DOES, stated here because it is
  * the one place a reader could be misled. R2.2: "there are no modes to enter
  * (no separate text batch to begin and end). The sibling TypeScript engine had
  * a text batch that opened in the frame loop and flushed on scissor changes,
  * which reordered text above every shape drawn in the same clip scope." That
- * engine is this one. `TextRenderer` still holds runs until `flushText` at the
- * end of a batch, so every text run in a domain paints above every shape in it,
- * and the 26 committed goldens are pictures of that.
+ * engine is this one, and the 26 committed goldens are pictures of it. So
+ * `submit` reorders each domain with `LegacyPaintOrder` before the batcher sees
+ * it: every text run paints above every shape of its own layer in that domain,
+ * grouped by colour as the old text batch grouped it.
+ * `DrawApiOptions.legacyTextOrder` supplies the other half, a domain boundary
+ * at every clip push and pop, which is where the old text batch flushed. Both are deleted by the ordering re-baseline PR.
  *
- * `RecordingBackend` reports the submitted order, which is the true one, so for
- * the life of one PR two backends disagree about what a frame looked like. The
- * warning lives here rather than in `RecordingBackend.ts` because this is the
- * file that gets deleted; a caveat in a permanent file is a caveat somebody has
- * to remember to remove.
+ * `RecordingBackend` reports the submitted order, which is the true one, so
+ * until then two backends disagree about what a frame looked like. The warning
+ * lives here rather than in `RecordingBackend.ts` because this is the file that
+ * gets deleted.
  */
 
 export interface LegacyGLBackendOptions {
@@ -61,22 +64,31 @@ export interface LegacyGLBackendOptions {
 }
 
 const NO_CLIP: ResolvedClip = { kind: 'none' };
-const WHITE: RGBA = [1, 1, 1, 1];
-const BLACK: RGBA = [0, 0, 0, 1];
+
+/** The seven attributes of `vertex.glsl`, with their float offset and size. */
+const ATTRIBUTES: ReadonlyArray<{ name: string; offset: number; size: number }> = [
+	{ name: 'aPosition', offset: LEGACY_VERTEX.position, size: 2 },
+	{ name: 'aTexCoord', offset: LEGACY_VERTEX.texCoord, size: 2 },
+	{ name: 'aModelLinear', offset: LEGACY_VERTEX.modelLinear, size: 4 },
+	{ name: 'aModelTranslate', offset: LEGACY_VERTEX.modelTranslate, size: 4 },
+	{ name: 'aColor', offset: LEGACY_VERTEX.color, size: 4 },
+	{ name: 'aStrokeColor', offset: LEGACY_VERTEX.strokeColor, size: 4 },
+	{ name: 'aShapeSize', offset: LEGACY_VERTEX.shapeSize, size: 2 },
+];
+
+const STRIDE_BYTES = LEGACY_VERTEX.floats * 4;
 
 /**
  * A screen-space clip rect as a WebGL scissor box, in device pixels from the
  * bottom left.
  *
- * Lifted expression for expression out of the block being deleted from
- * `Layer.ts`, which read `screenX`, `screenY + height` and `canvas.height / dpr`
- * where this reads `minX`, `maxY` and `canvasHeightDevicePx / ratio`. It takes
- * the canvas height rather than `FrameDescription.viewport.height` on purpose:
- * that is what the old code measured against, so it reflects the last
- * `Renderer.resize` rather than this frame's `window.innerHeight`. The two
- * agree in every captured state; taking the one that already exists removes a
- * class of divergence for free. It switches to the frame's viewport when the
- * WebGL2 backend lands.
+ * Lifted expression for expression out of the block deleted from `Layer.ts`,
+ * which read `screenX`, `screenY + height` and `canvas.height / dpr` where this
+ * reads `minX`, `maxY` and `canvasHeightDevicePx / ratio`. It takes the canvas
+ * height rather than `FrameDescription.viewport.height` on purpose: that is
+ * what the old code measured against, so it reflects the last `Renderer.resize`
+ * rather than this frame's `window.innerHeight`. It switches to the frame's
+ * viewport when the WebGL2 backend lands.
  */
 export function scissorBox(
 	rect: ClipRect,
@@ -129,31 +141,186 @@ export function createLegacyDrawApi({ renderer, frameTimer }: LegacyGLBackendOpt
 	});
 }
 
+type MutablePolyline = { -readonly [K in keyof PolylineCommand]: PolylineCommand[K] };
+
+/**
+ * A domain in the order the pre-batch path painted it, so the batcher can
+ * merge it without moving a pixel. Within each run of one layer (the domain
+ * arrives already partitioned by R3.10, so a layer's groups are contiguous):
+ * the layer's shapes in submission order, then its text grouped by colour,
+ * colours in order of first appearance and runs in submission order within a
+ * colour. Layers stay in ladder order, so a `base` label never paints above a
+ * `popup` panel, which is chapter 3's first incident.
+ *
+ * Both halves are `TextRenderer`'s, which queued runs per colour and drew the
+ * queues at the end of a batch. The colour grouping was measured rather than
+ * assumed: with plain submission order the driver selection screen differs by
+ * one level on a handful of glyph-edge pixels where differently coloured runs
+ * overlap, below the golden tolerance but not byte-identical. With it, all six
+ * reachable screens and all seven baselined gallery scenes are. Doing it per
+ * layer rather than per domain is where this departs from `TextRenderer`, which
+ * ignored layers; it moves no pixel today because every domain in the app is a
+ * single layer.
+ *
+ * A bordered circle becomes its fill and then its outline, because the legacy
+ * outline is a GL line strip and cannot share a group with the fan.
+ *
+ * Everything it builds is reused from domain to domain: the ordered list, the
+ * colour table, the per-colour run lists and the outline commands. So the
+ * returned list and any outline in it are only valid until the next `apply`.
+ */
+export class LegacyPaintOrder {
+	private readonly ordered: DrawCommand[] = [];
+	/** Distinct faded colours of the current layer, four floats each. */
+	private readonly colours: number[] = [];
+	private readonly runsByColour: TextCommand[][] = [];
+	private readonly outlines: MutablePolyline[] = [];
+	private outlinesUsed = 0;
+
+	apply(commands: readonly DrawCommand[]): readonly DrawCommand[] {
+		const out = this.ordered;
+		out.length = 0;
+		this.outlinesUsed = 0;
+
+		let start = 0;
+		while (start < commands.length) {
+			const ordinal = commands[start].layerOrdinal;
+			let end = start + 1;
+			while (end < commands.length && commands[end].layerOrdinal === ordinal) end++;
+			this.orderLayer(commands, start, end);
+			start = end;
+		}
+		return out;
+	}
+
+	private orderLayer(commands: readonly DrawCommand[], start: number, end: number): void {
+		const out = this.ordered;
+		for (let index = start; index < end; index++) {
+			const command = commands[index];
+			if (command.kind === 'text') continue;
+			out.push(command);
+			if (command.kind === 'circle' && command.border && command.border.width > 0) {
+				out.push(this.circleOutline(command));
+			}
+		}
+
+		const colours = this.colours;
+		colours.length = 0;
+		let distinct = 0;
+		for (let index = start; index < end; index++) {
+			const command = commands[index];
+			if (command.kind !== 'text') continue;
+			// The key `TextRenderer` built: the faded colour.
+			const { color, opacity } = command;
+			const alpha = opacity === 1 ? color[3] : color[3] * opacity;
+			let slot = 0;
+			while (slot < distinct) {
+				const base = slot * 4;
+				if (colours[base] === color[0] && colours[base + 1] === color[1]
+					&& colours[base + 2] === color[2] && colours[base + 3] === alpha) break;
+				slot++;
+			}
+			if (slot === distinct) {
+				colours.push(color[0], color[1], color[2], alpha);
+				if (!this.runsByColour[slot]) this.runsByColour[slot] = [];
+				this.runsByColour[slot].length = 0;
+				distinct++;
+			}
+			this.runsByColour[slot].push(command);
+		}
+		for (let slot = 0; slot < distinct; slot++) {
+			const runs = this.runsByColour[slot];
+			for (let index = 0; index < runs.length; index++) out.push(runs[index]);
+			runs.length = 0;
+		}
+	}
+
+	/**
+	 * A circle's border as the open line strip the old path drew over the unit
+	 * rim, under the circle's model (transform, then centre, then radius), in a
+	 * pooled command.
+	 */
+	private circleOutline(circle: CircleCommand): PolylineCommand {
+		const border = circle.border as NonNullable<CircleCommand['border']>;
+		let outline = this.outlines[this.outlinesUsed];
+		if (!outline) {
+			outline = {
+				id: null,
+				sequence: 0,
+				layer: circle.layer,
+				layerOrdinal: 0,
+				transform: [1, 0, 0, 1, 0, 0],
+				translateOnly: false,
+				clip: circle.clip,
+				opacity: 1,
+				blend: 'over',
+				group: 'primary',
+				kind: 'polyline',
+				points: UNIT_CIRCLE_RIM,
+				color: border.color,
+				width: border.width,
+				closed: false,
+				cap: 'butt',
+			};
+			this.outlines.push(outline);
+		}
+		this.outlinesUsed += 1;
+
+		// `concat(circle.transform, [r, 0, 0, r, cx, cy])`, into the pooled matrix.
+		const m = circle.transform;
+		const r = circle.radius;
+		const cx = circle.center.x;
+		const cy = circle.center.y;
+		const model = outline.transform as unknown as number[];
+		model[0] = m[0] * r;
+		model[1] = m[1] * r;
+		model[2] = m[2] * r;
+		model[3] = m[3] * r;
+		model[4] = m[0] * cx + m[2] * cy + m[4];
+		model[5] = m[1] * cx + m[3] * cy + m[5];
+
+		outline.id = circle.id;
+		outline.sequence = circle.sequence;
+		outline.layer = circle.layer;
+		outline.layerOrdinal = circle.layerOrdinal;
+		outline.clip = circle.clip;
+		outline.opacity = circle.opacity;
+		outline.blend = circle.blend;
+		outline.group = circle.group;
+		outline.color = border.color;
+		outline.width = border.width;
+		return outline;
+	}
+}
+
 export class LegacyGLBackend implements DrawBackend {
 	readonly name = 'legacy-gl';
 
 	private readonly renderer: Renderer;
 	private readonly frameTimer: FrameTimer;
 	private readonly gl: WebGLRenderingContext;
-	private readonly textRenderer: TextRenderer;
+	private readonly fontAtlas: FontAtlas;
+	private readonly batcher: Batcher;
+	private readonly paintOrder = new LegacyPaintOrder();
 
-	private quadVertexBuffer: WebGLBuffer | null = null;
-	private quadIndexBuffer: WebGLBuffer | null = null;
-	private dynamicVertexBuffer: WebGLBuffer | null = null;
-	private dynamicIndexBuffer: WebGLBuffer | null = null;
-	private maxDynamicVertices = 1024; // Support up to 1024 vertices
+	private readonly vertexBuffer: WebGLBuffer;
+	private readonly indexBuffer: WebGLBuffer;
+	private attributeProgram: WebGLProgram | null = null;
+	private readonly attributeLocations: number[] = [];
 
 	/**
 	 * The clip the scissor box currently holds, or null for "unknown", which is
-	 * what `beginFrame` and `invalidateState` set so the next command
-	 * force-applies. Compared by reference: the draw API stamps one resolved
-	 * clip object on every command in a scope (R2.5), and every clip push and
-	 * pop ends a domain, so this fires exactly once per domain, at its first
-	 * command, which is where `enableScissor` fired.
+	 * what `beginFrame` and `invalidateState` set so the next draw force-applies.
+	 * Compared by reference: the draw API stamps one resolved clip object on
+	 * every command in a scope (R2.5), and the batcher splits a GPU draw where
+	 * that object changes.
 	 */
 	private appliedClip: ResolvedClip | null = null;
+	/** Whether the resident texture is on its unit for this frame (R5.20). */
+	private residentBound = false;
 	private frame: FrameDescription | null = null;
 	private readonly unpaintable = new Set<DrawCommandKind>();
+	private warnedBlend = false;
 
 	constructor({ renderer, frameTimer }: LegacyGLBackendOptions) {
 		this.renderer = renderer;
@@ -164,9 +331,30 @@ export class LegacyGLBackend implements DrawBackend {
 		if (!fontAtlas) {
 			throw new Error('LegacyGLBackend requires the renderer font atlas');
 		}
-		this.textRenderer = new TextRenderer(this.gl, fontAtlas, frameTimer);
+		this.fontAtlas = fontAtlas;
 
-		this.initializeBuffers();
+		const encoder = new LegacyGeometryEncoder({
+			glyphs: fontAtlas,
+			onUnpaintable: (kind, detail) => this.reportUnpaintable(kind, detail),
+		});
+		this.batcher = new Batcher({
+			encoder,
+			// One sampler in the legacy program, holding the one atlas. Nothing
+			// submits an image, so there is no dynamic unit to hand out.
+			textures: new ResidentTextureSet({ units: 1, resident: [encoder.glyphTexture] }),
+			onDrop: (command, reason) => this.reportUnpaintable(command.kind, reason),
+			// A development build checks every group the encoder writes; the
+			// console error fails the screenshot harness's clean-console check.
+			verify: __DEV_TOOLS__
+				? (command, problem) => console.error(`LegacyGLBackend: ${command.kind} group: ${problem}`)
+				: undefined,
+		});
+
+		const vertexBuffer = this.gl.createBuffer();
+		const indexBuffer = this.gl.createBuffer();
+		if (!vertexBuffer || !indexBuffer) throw new Error('LegacyGLBackend: could not create buffers');
+		this.vertexBuffer = vertexBuffer;
+		this.indexBuffer = indexBuffer;
 	}
 
 	/** R2.18's precondition, answered by the atlas the `Renderer` builds in its constructor. */
@@ -177,45 +365,35 @@ export class LegacyGLBackend implements DrawBackend {
 	beginFrame(frame: FrameDescription): void {
 		this.frame = frame;
 		this.appliedClip = null;
-		this.textRenderer.beginBatch();
+		this.residentBound = false;
 	}
 
-	/**
-	 * Shapes paint in submission order, then the batch's text.
-	 *
-	 * The reordering is `TextRenderer`'s, not this loop's: a text command queues
-	 * a run and `flushText` below draws all of them, so where a text command
-	 * sits in `commands` does not reach a pixel. Sorting the array here as well
-	 * was tried and removed; with the barrier in place the full chromium suite
-	 * passes either way, so it was machinery that changed nothing. What does
-	 * reach a pixel is where a batch ends, and that is `DrawApi`'s barrier.
-	 *
-	 * Returns null rather than a `GpuWork`, and the distinction matters: the
-	 * shape draws could be counted, but the text draws happen inside
-	 * `TextRenderer.flush` where this class cannot see them, so any number here
-	 * would omit most of a text-heavy frame. R13.5 prefers "nobody counted" to a
-	 * partial count, and `FrameTimer` still receives every `recordDrawCall` the
-	 * moved bodies always made, so no displayed number changes.
-	 */
-	submit(batch: DrawBatch): null {
-		for (const command of batch.commands) this.paint(command);
-		this.flushText();
-		return null;
+	submit(batch: DrawBatch): GpuWork {
+		const ordered = this.paintOrder.apply(batch.commands);
+		for (let index = 0; index < ordered.length; index++) {
+			const command = ordered[index];
+			if (command.kind === 'text') this.frameTimer.recordTextCharacters(command.text.length);
+		}
+
+		let residentBinds = 0;
+		const work = this.batcher.flush(ordered, (upload) => {
+			residentBinds += this.execute(upload);
+		});
+		work.textureBinds += residentBinds;
+		return work;
 	}
 
 	endFrame(): void {
-		// The last domain's text has already flushed under the last applied
-		// scissor, matching `disableScissor`'s flush-then-disable. This leaves
-		// the scissor off so the next frame's `clear()` covers the canvas.
+		// Leaves the scissor off so the next frame's `clear()` covers the canvas.
 		this.applyClip(NO_CLIP);
-		this.textRenderer.endBatch();
 		this.frame = null;
 	}
 
 	invalidateState(): void {
-		// The legacy path re-sets every uniform and re-binds every buffer on
-		// each draw, so the only tracked state is the scissor box.
+		// Every upload re-binds its buffers and attributes, so the only state
+		// carried between uploads is the scissor box and the resident texture.
 		this.appliedClip = null;
+		this.residentBound = false;
 	}
 
 	createTexture(): never {
@@ -232,29 +410,80 @@ export class LegacyGLBackend implements DrawBackend {
 		);
 	}
 
-	// -- painting -----------------------------------------------------------
+	// -- execution ----------------------------------------------------------
 
-	private paint(command: DrawCommand): void {
-		this.applyClip(command.clip);
-		switch (command.kind) {
-			case 'rect':
-				this.paintRect(command);
-				return;
-			case 'circle':
-				this.paintCircle(command);
-				return;
-			case 'polygon':
-				this.paintPolygon(command);
-				return;
-			case 'polyline':
-				this.paintPolyline(command);
-				return;
-			case 'text':
-				this.paintText(command);
-				return;
-			default:
-				this.reportUnpaintable(command.kind, `no legacy body for '${command.kind}' commands`);
+	/** Uploads once and issues the upload's draws in order. Returns resident texture binds made. */
+	private execute(upload: GeometryUpload): number {
+		const shader = this.renderer.shader;
+		if (!shader) {
+			console.error('No shader selected');
+			return 0;
 		}
+		const gl = this.gl;
+
+		// The two `subarray` views are the one allocation per upload left in
+		// this path. WebGL1's `bufferData` takes no source offset or length, so
+		// the only way to upload part of a reused array is a view of it; the
+		// WebGL2 backend passes `srcOffset` and `length` and needs none.
+		gl.bindBuffer(gl.ARRAY_BUFFER, this.vertexBuffer);
+		gl.bufferData(gl.ARRAY_BUFFER, upload.vertices.subarray(0, upload.floatCount), gl.DYNAMIC_DRAW);
+		gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, this.indexBuffer);
+		gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, upload.indices.subarray(0, upload.indexCount), gl.DYNAMIC_DRAW);
+
+		const locations = this.locations(shader);
+		for (let index = 0; index < ATTRIBUTES.length; index++) {
+			const location = locations[index];
+			if (location < 0) continue;
+			gl.enableVertexAttribArray(location);
+			gl.vertexAttribPointer(location, ATTRIBUTES[index].size, gl.FLOAT, false, STRIDE_BYTES, ATTRIBUTES[index].offset * 4);
+		}
+
+		let binds = 0;
+		if (!this.residentBound) {
+			gl.activeTexture(gl.TEXTURE0);
+			gl.bindTexture(gl.TEXTURE_2D, this.fontAtlas.getTexture());
+			shader.setInt('uTexture', 0);
+			this.residentBound = true;
+			binds = 1;
+		}
+
+		for (let index = 0; index < upload.draws.length; index++) this.issue(upload.draws[index]);
+
+		for (const location of locations) {
+			if (location >= 0) gl.disableVertexAttribArray(location);
+		}
+		return binds;
+	}
+
+	private issue(draw: GpuDraw): void {
+		const gl = this.gl;
+		if (draw.blend !== 'over' && !this.warnedBlend) {
+			// The legacy program is SRC_ALPHA over; nothing submits another
+			// mode, and premultiplied blending arrives with the uber shader.
+			this.warnedBlend = true;
+			console.error(`LegacyGLBackend: blend '${draw.blend}' is drawn as 'over' by the legacy program`);
+		}
+		this.applyClip(draw.scissor ?? NO_CLIP);
+		gl.drawElements(
+			draw.topology === 'lines' ? gl.LINES : gl.TRIANGLES,
+			draw.indexCount,
+			gl.UNSIGNED_SHORT,
+			draw.firstIndex * 2,
+		);
+		this.frameTimer.recordDrawCall(draw.vertexCount);
+	}
+
+	/** Looked up once per program rather than per draw, which the old bodies did. */
+	private locations(shader: Shader): number[] {
+		const program = shader.getProgram();
+		if (this.attributeProgram !== program) {
+			this.attributeProgram = program;
+			this.attributeLocations.length = 0;
+			for (const attribute of ATTRIBUTES) {
+				this.attributeLocations.push(this.gl.getAttribLocation(program, attribute.name));
+			}
+		}
+		return this.attributeLocations;
 	}
 
 	/**
@@ -283,384 +512,12 @@ export class LegacyGLBackend implements DrawBackend {
 		this.gl.enable(this.gl.SCISSOR_TEST);
 		this.gl.scissor(box.x, box.y, box.width, box.height);
 	}
-
-	private paintRect(command: RectCommand): void {
-		const { rect, border } = command;
-		const model = modelMatrix(
-			command.transform,
-			rect.x + rect.width / 2,
-			rect.y + rect.height / 2,
-			rect.width / 2,
-			rect.height / 2,
-		);
-		this.drawQuad(
-			model,
-			rect.width,
-			rect.height,
-			fade(command.fill ?? WHITE, command.opacity),
-			border ? fade(border.color, command.opacity) : undefined,
-			border ? border.width : 0,
-		);
-	}
-
-	/**
-	 * `Renderer.drawQuad`, with the texture and custom-texture-coordinate
-	 * branches dropped: `drawRectangle` was its only caller and passed neither,
-	 * so both were unreachable before the move.
-	 *
-	 * `radius` is not read. The fragment shader has no rounded-rect SDF (R5.5
-	 * arrives with the uber shader), and the border corners it draws are square
-	 * today; honouring the radius here would be a visual change, which this PR
-	 * does not make.
-	 */
-	private drawQuad(
-		model: mat4,
-		width: number,
-		height: number,
-		color: RGBA,
-		strokeColor: RGBA | undefined,
-		strokeWidth: number,
-	): void {
-		const shader = this.renderer.shader;
-		if (!shader) {
-			console.error('No shader selected');
-			return;
-		}
-
-		shader.setMatrix4('uModelMatrix', model);
-		shader.setVector4('uColor', color);
-
-		// A width with no colour strokes black, which is what `drawQuad` did and
-		// what several styles in this codebase rely on without saying so.
-		if (strokeWidth > 0) {
-			shader.setVector4('uStrokeColor', strokeColor ?? BLACK);
-			shader.setFloat('uStrokeWidth', strokeWidth);
-			shader.setVector2('uShapeSize', width, height);
-		} else {
-			shader.setFloat('uStrokeWidth', 0);
-		}
-
-		shader.setBool('uUseTexture', false);
-
-		this.gl.bindBuffer(this.gl.ARRAY_BUFFER, this.quadVertexBuffer);
-		this.gl.bindBuffer(this.gl.ELEMENT_ARRAY_BUFFER, this.quadIndexBuffer);
-
-		const positionAttribLocation = this.gl.getAttribLocation(shader.getProgram(), 'aPosition');
-		const texCoordAttribLocation = this.gl.getAttribLocation(shader.getProgram(), 'aTexCoord');
-
-		// Always 16: the quad buffer always carries texture coordinates, and the
-		// stroke branch of the fragment shader reads vTexCoord.
-		const stride = 16;
-
-		if (positionAttribLocation >= 0) {
-			this.gl.enableVertexAttribArray(positionAttribLocation);
-			this.gl.vertexAttribPointer(positionAttribLocation, 2, this.gl.FLOAT, false, stride, 0);
-		}
-		if (texCoordAttribLocation >= 0) {
-			this.gl.enableVertexAttribArray(texCoordAttribLocation);
-			this.gl.vertexAttribPointer(texCoordAttribLocation, 2, this.gl.FLOAT, false, stride, 8);
-		}
-
-		this.gl.drawElements(this.gl.TRIANGLES, 6, this.gl.UNSIGNED_SHORT, 0);
-		this.frameTimer.recordDrawCall(4); // 4 vertices for a quad
-
-		if (positionAttribLocation >= 0) {
-			this.gl.disableVertexAttribArray(positionAttribLocation);
-		}
-		if (texCoordAttribLocation >= 0) {
-			this.gl.disableVertexAttribArray(texCoordAttribLocation);
-		}
-	}
-
-	/** `Renderer.drawCircle`, moved. The stroke's `bufferData` is DDB-103 and is preserved. */
-	private paintCircle(command: CircleCommand): void {
-		const shader = this.renderer.shader;
-		if (!shader) {
-			console.error('No shader selected');
-			return;
-		}
-
-		const segments = 32; // Number of segments to approximate the circle
-		const angleStep = (2 * Math.PI) / segments;
-
-		const vertices: number[] = [0, 0]; // Center vertex
-		for (let i = 0; i <= segments; i++) {
-			const angle = i * angleStep;
-			vertices.push(Math.cos(angle), Math.sin(angle));
-		}
-
-		const indices: number[] = [];
-		for (let i = 1; i <= segments; i++) {
-			indices.push(0, i, i + 1);
-		}
-		// Close the circle
-		indices[indices.length - 1] = 1;
-
-		const model = modelMatrix(
-			command.transform,
-			command.center.x,
-			command.center.y,
-			command.radius,
-			command.radius,
-		);
-
-		shader.setMatrix4('uModelMatrix', model);
-		shader.setVector4('uColor', fade(command.fill ?? WHITE, command.opacity));
-		shader.setBool('uUseTexture', false);
-
-		this.gl.bindBuffer(this.gl.ARRAY_BUFFER, this.dynamicVertexBuffer);
-		this.gl.bufferSubData(this.gl.ARRAY_BUFFER, 0, new Float32Array(vertices));
-
-		this.gl.bindBuffer(this.gl.ELEMENT_ARRAY_BUFFER, this.dynamicIndexBuffer);
-		this.gl.bufferSubData(this.gl.ELEMENT_ARRAY_BUFFER, 0, new Uint16Array(indices));
-
-		const positionAttribLocation = this.gl.getAttribLocation(shader.getProgram(), 'aPosition');
-		this.gl.enableVertexAttribArray(positionAttribLocation);
-		this.gl.vertexAttribPointer(positionAttribLocation, 2, this.gl.FLOAT, false, 0, 0);
-
-		this.gl.drawElements(this.gl.TRIANGLES, indices.length, this.gl.UNSIGNED_SHORT, 0);
-		this.frameTimer.recordDrawCall(vertices.length / 2); // Each vertex has 2 components (x,y)
-
-		const border = command.border;
-		if (border && border.width > 0) {
-			const outlineVertices: number[] = [];
-			for (let i = 0; i <= segments; i++) {
-				const angle = i * angleStep;
-				outlineVertices.push(Math.cos(angle), Math.sin(angle));
-			}
-
-			// bufferData, not bufferSubData: this reallocates the shared dynamic
-			// buffer mid-frame and is the overrun DDB-103 tracks. Moved as it
-			// was, because fixing it here would change what primitive-shapes
-			// draws in the same commit that claims to change nothing.
-			this.gl.bufferData(this.gl.ARRAY_BUFFER, new Float32Array(outlineVertices), this.gl.STATIC_DRAW);
-
-			shader.setVector4('uColor', fade(border.color, command.opacity));
-			shader.setBool('uUseTexture', false);
-			this.gl.lineWidth(border.width);
-			this.gl.drawArrays(this.gl.LINE_STRIP, 0, outlineVertices.length / 2);
-			this.frameTimer.recordDrawCall(outlineVertices.length / 2);
-		}
-
-		this.gl.disableVertexAttribArray(positionAttribLocation);
-	}
-
-	/**
-	 * `Renderer.drawPolygon`'s fill. `triangulatePolygon` did not come with it:
-	 * R2.11 puts the triangle list on the command, so `Polygon` sends the same
-	 * fan the helper computed and a caller with a real tessellation can send
-	 * that instead.
-	 */
-	private paintPolygon(command: PolygonCommand): void {
-		const shader = this.renderer.shader;
-		if (!shader || command.points.length < 3) {
-			console.error('Invalid polygon parameters');
-			return;
-		}
-
-		const vertices: number[] = [];
-		for (const point of command.points) vertices.push(point.x, point.y);
-
-		const indices = command.indices ?? command.points.map((_, index) => index);
-
-		shader.setMatrix4('uModelMatrix', toMat4(command.transform));
-		shader.setVector4('uColor', fade(command.fill ?? WHITE, command.opacity));
-		shader.setBool('uUseTexture', false);
-
-		this.gl.bindBuffer(this.gl.ARRAY_BUFFER, this.dynamicVertexBuffer);
-		this.gl.bufferSubData(this.gl.ARRAY_BUFFER, 0, new Float32Array(vertices));
-
-		this.gl.bindBuffer(this.gl.ELEMENT_ARRAY_BUFFER, this.dynamicIndexBuffer);
-		this.gl.bufferSubData(this.gl.ELEMENT_ARRAY_BUFFER, 0, new Uint16Array(indices));
-
-		const positionAttribLocation = this.gl.getAttribLocation(shader.getProgram(), 'aPosition');
-		this.gl.enableVertexAttribArray(positionAttribLocation);
-		this.gl.vertexAttribPointer(positionAttribLocation, 2, this.gl.FLOAT, false, 0, 0);
-
-		this.gl.drawElements(this.gl.TRIANGLES, indices.length, this.gl.UNSIGNED_SHORT, 0);
-		this.frameTimer.recordDrawCall(command.points.length); // Polygon vertices
-
-		this.gl.disableVertexAttribArray(positionAttribLocation);
-	}
-
-	/**
-	 * The stroke half of `drawPolygon` and `drawTriangle`, which both drew a
-	 * `LINE_LOOP` over the fill's own vertices. As its own command it re-uploads
-	 * them; the bytes and the draw are the same, and core WebGL clamps
-	 * `lineWidth` to 1 either way.
-	 */
-	private paintPolyline(command: PolylineCommand): void {
-		const shader = this.renderer.shader;
-		if (!shader || command.points.length < 2) return;
-
-		const vertices: number[] = [];
-		for (const point of command.points) vertices.push(point.x, point.y);
-
-		shader.setMatrix4('uModelMatrix', toMat4(command.transform));
-		shader.setVector4('uColor', fade(command.color, command.opacity));
-		shader.setBool('uUseTexture', false);
-
-		this.gl.bindBuffer(this.gl.ARRAY_BUFFER, this.dynamicVertexBuffer);
-		this.gl.bufferSubData(this.gl.ARRAY_BUFFER, 0, new Float32Array(vertices));
-
-		const positionAttribLocation = this.gl.getAttribLocation(shader.getProgram(), 'aPosition');
-		this.gl.enableVertexAttribArray(positionAttribLocation);
-		this.gl.vertexAttribPointer(positionAttribLocation, 2, this.gl.FLOAT, false, 0, 0);
-
-		this.gl.lineWidth(command.width);
-		this.gl.drawArrays(command.closed ? this.gl.LINE_LOOP : this.gl.LINE_STRIP, 0, command.points.length);
-		this.frameTimer.recordDrawCall(command.points.length);
-
-		this.gl.disableVertexAttribArray(positionAttribLocation);
-	}
-
-	/**
-	 * `Renderer.drawText`'s alignment arithmetic, moved unchanged: measure at
-	 * the atlas's own size, scale, then shift the anchor by half or a whole
-	 * extent. `TextRenderer` receives the same pen position it received before,
-	 * computed by the same expressions in the same order.
-	 *
-	 * `blur` is not read. R3.17's shadow run needs a blurred glyph pass the
-	 * legacy shader does not have, and nothing in this codebase asks for one.
-	 */
-	private paintText(command: TextCommand): void {
-		const shader = this.renderer.shader;
-		if (!shader) {
-			console.error('No shader selected for text rendering');
-			return;
-		}
-
-		const fontAtlas = this.renderer.getFontAtlas();
-		if (!fontAtlas) {
-			console.warn('FontAtlas not initialized');
-			return;
-		}
-
-		if (!command.position) {
-			// R2.13's alignment box needs chapter 6's line breaking to place a
-			// pen inside it; `Text` passes a position and this path is unused.
-			this.reportUnpaintable('text', "drawText with a box and no position needs chapter 6's layout");
-			return;
-		}
-
-		const anchor = transformPoint(command.transform, command.position.x, command.position.y);
-		const scale = command.size / fontAtlas.getFontSize();
-		const textMetrics = fontAtlas.measureText(command.text);
-		const scaledWidth = textMetrics.width * scale;
-		const scaledHeight = textMetrics.height * scale;
-
-		let startX = anchor.x;
-		if (command.align === 'center') {
-			startX = anchor.x - scaledWidth / 2;
-		} else if (command.align === 'right') {
-			startX = anchor.x - scaledWidth;
-		}
-
-		let startY = anchor.y;
-		if (command.verticalAlign === 'middle') {
-			startY = anchor.y - scaledHeight / 2;
-		} else if (command.verticalAlign === 'bottom') {
-			startY = anchor.y - scaledHeight;
-		}
-
-		this.textRenderer.drawText(
-			shader,
-			command.text,
-			startX,
-			startY,
-			fade(command.color, command.opacity),
-			command.size,
-		);
-	}
-
-	/**
-	 * `Renderer.flushTextBatch`, moved. Once per batch, which is once per sort
-	 * domain, which is where `enableScissor` and `disableScissor` flushed.
-	 */
-	private flushText(): void {
-		const shader = this.renderer.shader;
-		if (!shader) return;
-		this.textRenderer.flush(
-			shader,
-			mat4.create(), // Identity matrix for model
-			this.renderer.view,
-			this.renderer.projection,
-		);
-	}
-
-	/** `Renderer.initializeBuffers`, moved with the geometry that uses it. */
-	private initializeBuffers(): void {
-		this.quadVertexBuffer = this.gl.createBuffer();
-		this.quadIndexBuffer = this.gl.createBuffer();
-
-		const quadVertices = new Float32Array([
-			// Position    // TexCoord
-			-1.0, -1.0,    0.0, 0.0,  // Bottom left
-			 1.0, -1.0,    1.0, 0.0,  // Bottom right
-			 1.0,  1.0,    1.0, 1.0,  // Top right
-			-1.0,  1.0,    0.0, 1.0   // Top left
-		]);
-
-		const quadIndices = new Uint16Array([
-			0, 1, 2,  // First triangle
-			0, 2, 3   // Second triangle
-		]);
-
-		this.gl.bindBuffer(this.gl.ARRAY_BUFFER, this.quadVertexBuffer);
-		this.gl.bufferData(this.gl.ARRAY_BUFFER, quadVertices, this.gl.STATIC_DRAW);
-
-		this.gl.bindBuffer(this.gl.ELEMENT_ARRAY_BUFFER, this.quadIndexBuffer);
-		this.gl.bufferData(this.gl.ELEMENT_ARRAY_BUFFER, quadIndices, this.gl.STATIC_DRAW);
-
-		this.dynamicVertexBuffer = this.gl.createBuffer();
-		this.dynamicIndexBuffer = this.gl.createBuffer();
-
-		this.gl.bindBuffer(this.gl.ARRAY_BUFFER, this.dynamicVertexBuffer);
-		this.gl.bufferData(this.gl.ARRAY_BUFFER, this.maxDynamicVertices * 2 * 4, this.gl.DYNAMIC_DRAW);
-
-		this.gl.bindBuffer(this.gl.ELEMENT_ARRAY_BUFFER, this.dynamicIndexBuffer);
-		this.gl.bufferData(this.gl.ELEMENT_ARRAY_BUFFER, this.maxDynamicVertices * 2, this.gl.DYNAMIC_DRAW);
-
-		this.gl.bindBuffer(this.gl.ARRAY_BUFFER, null);
-		this.gl.bindBuffer(this.gl.ELEMENT_ARRAY_BUFFER, null);
-	}
 }
 
-/**
- * R2.4's 2x3 as the shader's 4x4. Identity in, `mat4.create()` out, so the
- * uniform a rectangle uploads is the same bit pattern it uploaded before.
- */
-function toMat4(transform: Mat2D): mat4 {
-	const out = mat4.create();
-	out[0] = transform[0];
-	out[1] = transform[1];
-	out[4] = transform[2];
-	out[5] = transform[3];
-	out[12] = transform[4];
-	out[13] = transform[5];
-	return out;
-}
+const CIRCLE_OUTLINE_SEGMENTS = 32;
 
-/**
- * The translate-then-scale every legacy draw built by hand, with the resolved
- * transform underneath it. Under an identity transform `mat4.translate` and
- * `mat4.scale` see the same identity they saw when `mat4.create()` produced it,
- * so the arithmetic is unchanged rather than merely equivalent.
- */
-function modelMatrix(
-	transform: Mat2D,
-	centerX: number,
-	centerY: number,
-	scaleX: number,
-	scaleY: number,
-): mat4 {
-	const out = toMat4(transform);
-	mat4.translate(out, out, [centerX, centerY, 0]);
-	mat4.scale(out, out, [scaleX, scaleY, 1]);
-	return out;
-}
-
-/** R2.6 and R3.25: the opacity stack multiplies every alpha, borders included. */
-function fade(color: RGBA, opacity: number): RGBA {
-	return opacity === 1 ? color : [color[0], color[1], color[2], color[3] * opacity];
-}
+/** `Renderer.drawCircle`'s outline: 33 rim points, the first repeated, on the unit circle. */
+const UNIT_CIRCLE_RIM: readonly Vec2[] = Array.from({ length: CIRCLE_OUTLINE_SEGMENTS + 1 }, (_, i) => {
+	const angle = (i * 2 * Math.PI) / CIRCLE_OUTLINE_SEGMENTS;
+	return { x: Math.cos(angle), y: Math.sin(angle) };
+});

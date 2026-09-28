@@ -1,4 +1,5 @@
 import { FrameTimer, MAX_DELTA_SECONDS, SECTION_NAMES } from './FrameTimer';
+import { DrawApi, NullBackend } from '../draw';
 
 /**
  * The live half of the timer, driven by fake clocks so a frame can be made to
@@ -316,10 +317,18 @@ describe('the snapshot shape (R13.11)', () => {
 		expect(snapshot.memory.usedBytes).toBeNull();
 	});
 
-	it('leaves the batcher a placeholder rather than inventing counters (R13.12)', () => {
-		const { snapshot } = capture();
-
+	it('reports the batcher null unless the page hands over counters (R13.12)', () => {
+		const { timer, snapshot } = capture();
 		expect(snapshot.batcher).toBeNull();
+
+		const draw = new DrawApi({ backend: new NullBackend() });
+		draw.beginFrame({ viewport: { width: 10, height: 10 } });
+		draw.drawRect({ rect: { x: 0, y: 0, width: 5, height: 5 } });
+		draw.endFrame();
+		const stats = draw.getStats();
+
+		expect(timer.snapshot({ batcher: stats }).batcher).toBe(stats);
+		expect(stats.apiDraws).toBe(1);
 	});
 
 	it('carries the scene so a capture can group per scene', () => {

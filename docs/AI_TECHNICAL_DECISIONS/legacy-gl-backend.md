@@ -2,6 +2,13 @@
 
 DDB-55 phase 1, PR 3. Landed 2026-09-09.
 
+> Superseded in part by [batcher.md](./batcher.md) (2026-09-28): `TextRenderer` is deleted, text
+> goes through the batcher with shapes, and the text-last reordering this document calls dead code is
+> back as `legacyPaintOrder`, now with `TextRenderer`'s per-colour grouping, because without
+> `TextRenderer` nothing else defers text. `submit` returns a real `GpuWork`, and DDB-103's
+> circle-stroke overrun is gone. The `legacyTextOrder` barrier and its deletion list below are
+> unchanged.
+
 ## The problem
 
 PR 1 shipped `src/renderer/engine/draw/` with no consumers. This PR gives it one, and it has

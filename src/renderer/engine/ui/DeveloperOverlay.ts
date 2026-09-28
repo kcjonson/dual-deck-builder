@@ -4,6 +4,7 @@ import { Text } from '../components/Text';
 import type { SectionStats } from '../rendering/frameStats';
 import { FrameTimer } from '../rendering/FrameTimer';
 import { RenderContext } from '../rendering/RenderContext';
+import { RendererContext } from '../rendering/RendererContext';
 
 /** Null is "not measurable here", so it prints as n/a rather than as 0 (R13.5). */
 function milliseconds(value: number | null): string {
@@ -29,10 +30,10 @@ export class DeveloperOverlay extends Layer {
 			id: 'developer_overlay',
 			x: 0,
 			y: 0,
-			// Nine lines of 14px monospace, and the longest of them is the frame
+			// Ten lines of 14px monospace, and the longest of them is the frame
 			// line at about fifty characters.
 			width: 460,
-			height: 190,
+			height: 210,
 		});
 		
 		this.frameTimer = frameTimer;
@@ -129,6 +130,7 @@ export class DeveloperOverlay extends Layer {
 			`Flush: ${sectionLine(sections.flush)}`,
 			`Outside sections: ${milliseconds(sanity.unaccountedMs)}`,
 			`Draws: ${renderer.glDrawCalls}  Verts: ${renderer.vertices}  Text: ${renderer.textCharacters}`,
+			batcherLine(),
 		].join('\n');
 
 		this.performanceText.setText(text);
@@ -141,4 +143,19 @@ export class DeveloperOverlay extends Layer {
 		if (!this.overlayVisible) return;
 		super.render(context);
 	}
+}
+
+/**
+ * R13.12's two draw counts side by side, which is the number the batcher
+ * exists to move: API draw groups in, GPU draws out. Read between frames, so it
+ * is the last completed frame's.
+ */
+function batcherLine(): string {
+	const draw = RendererContext.getInstance().draw;
+	if (draw.frame === 0) return 'Batch: n/a';
+	const stats = draw.getStats();
+	const flushes = Object.values(stats.flushes).reduce((sum, count) => sum + count, 0);
+	const splits = stats.splits ? Object.values(stats.splits).reduce((sum, count) => sum + count, 0) : 0;
+	return `Batch: ${stats.apiDraws} groups -> ${stats.gpuDraws ?? 'n/a'} GPU  culled ${stats.culled}`
+		+ `  flushes ${flushes}  splits ${splits}`;
 }

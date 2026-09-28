@@ -122,7 +122,12 @@ class GalleryApplication {
 		// R13.11's scene name is the gallery's own, which is the grouping key a
 		// per-scene capture (R13.38) writes into perf-results.
 		installPerfHooks({
-			snapshot: () => this.frameTimer.snapshot({ scene: this.host.sceneName }),
+			snapshot: () => this.frameTimer.snapshot({
+				scene: this.host.sceneName,
+				// Null before the first frame: an unopened draw API's zeros
+				// would read as a measured empty frame (R13.5).
+				batcher: this.draw.frame > 0 ? this.draw.getStats() : null,
+			}),
 		});
 	}
 
