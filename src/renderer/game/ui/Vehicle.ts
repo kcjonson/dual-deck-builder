@@ -4,6 +4,7 @@ import { Text } from '../../engine/components/Text';
 import { Vehicle as VehicleData } from '../mechanics/Vehicle';
 import { InputSystem } from '../../engine/input/InputSystem';
 import { CombatModel } from '../screens/combat/CombatModel';
+import { ArmorBadge } from './ArmorBadge';
 
 /**
  * Visual representation of a vehicle on the battlefield
@@ -20,8 +21,7 @@ export class Vehicle extends Layer {
 	protected healthBar!: Rectangle;
 	protected healthBarFill!: Rectangle;
 	protected healthText!: Text;
-	protected armorDisplay!: Rectangle;
-	protected armorText!: Text;
+	protected armorBadge!: ArmorBadge;
 	protected driverPortrait: Rectangle | null = null;
 	protected statusContainer: Layer | null = null;
 	protected spentChip: Text | null = null;
@@ -219,36 +219,14 @@ export class Vehicle extends Layer {
 		this.addChild(this.healthText);
 		
 		// Armor display and status container on same line
-		this.armorDisplay = new Rectangle({
+		this.armorBadge = new ArmorBadge({
 			id: this.childId('armor_badge'),
 			x: Math.floor(width * 0.1),
 			y: Math.floor(height * 0.82),
-			width: Math.floor(width * 0.25),
+			minWidth: Math.floor(width * 0.25),
 			height: 16,
-			style: {
-				backgroundColor: '#4a4a4a',
-				borderColor: '#8a8aaa',
-				borderWidth: 1,
-			},
 		});
-		this.addChild(this.armorDisplay);
-		
-		// Centred in the badge
-		this.armorText = new Text('', {
-			id: this.childId('armor_value'),
-			x: this.armorDisplay.getX(),
-			y: this.armorDisplay.getY(),
-			width: this.armorDisplay.getWidth(),
-			height: this.armorDisplay.getHeight(),
-			style: {
-				fontSize: 8,
-				color: '#ffffff',
-				textAlign: 'center',
-				verticalAlign: 'middle',
-				whiteSpace: 'nowrap',
-			},
-		});
-		this.addChild(this.armorText);
+		this.addChild(this.armorBadge);
 		
 		// An escort shows SPENT once it has acted this turn
 		this.spentChip = null;
@@ -301,13 +279,9 @@ export class Vehicle extends Layer {
 		this.healthBarFill.setFillColor(this.getHealthColor(healthPercentage));
 		this.healthText.setText(`${this.vehicleData.structure}/${this.vehicleData.maxStructure}`);
 		
-		// Update armor
-		// Shield, temporary armor on top, shows as "SH" and a second number
-		// while there is any. Plain ASCII: the font atlas has nothing else,
-		// and the armor symbol comes back as an icon with DDB-72.
-		const shield = this.vehicleData.shield ?? 0;
-		this.armorDisplay.setFillColor(this.vehicleData.armor > 0 || shield > 0 ? '#6a6aaa' : '#4a4a4a');
-		this.armorText.setText(shield > 0 ? `${this.vehicleData.armor} SH${shield}` : `${this.vehicleData.armor}`);
+		// Update armor; shield is temporary armor on top
+		this.armorBadge.armor = this.vehicleData.armor;
+		this.armorBadge.shield = this.vehicleData.shield ?? 0;
 
 		this.spentChip?.setVisible(Boolean(this.vehicleData.spent));
 	}

@@ -1,6 +1,9 @@
+import { Icon } from '../../../engine/components/Icon';
 import { Layer, LayerOptions } from '../../../engine/components/Layer';
 import { Text } from '../../../engine/components/Text';
 import { Rectangle } from '../../../engine/components/Rectangle';
+import type { IconName } from '../../../engine/text/icons';
+import { tokens } from '../../../engine/theme/tokens';
 
 /**
  * Driver resource data
@@ -28,7 +31,7 @@ const SYMBOL_VALUE_GAP = 4;
 interface StatDisplay {
 	icon: Rectangle;
 	text: Text;
-	symbol?: Text;
+	symbol?: Icon;
 }
 
 /**
@@ -97,8 +100,7 @@ export class DriverStatsDisplay extends Layer {
 
 		this.drawPile = this.createStatDisplay('#4a4a6a', this.data.drawPileCount.toString());
 		this.discardPile = this.createStatDisplay('#6a4a4a', this.data.discardPileCount.toString());
-		// The fuel symbol is not text the atlas covers (R6.3); it returns as an icon with DDB-72.
-		this.fuel = this.createStatDisplay('#6a6a4a', this.data.fuel.toString());
+		this.fuel = this.createStatDisplay('#6a6a4a', this.data.fuel.toString(), 'local_gas_station');
 
 		this.layoutElements();
 	}
@@ -107,7 +109,7 @@ export class DriverStatsDisplay extends Layer {
 	 * Helper function to create a stat display (icon + text); layoutElements
 	 * places it
 	 */
-	private createStatDisplay(backgroundColor: string, value: string, symbol?: string): StatDisplay {
+	private createStatDisplay(backgroundColor: string, value: string, glyph?: IconName): StatDisplay {
 		const icon = new Rectangle({
 			style: {
 				backgroundColor,
@@ -117,18 +119,11 @@ export class DriverStatsDisplay extends Layer {
 		});
 		this.addChild(icon);
 
-		let symbolText: Text | undefined;
-		if (symbol) {
+		let symbol: Icon | undefined;
+		if (glyph) {
 			// The symbol sits in the icon and the value next to it
-			symbolText = new Text(symbol, {
-				style: {
-					color: '#ffffff',
-					textAlign: 'center',
-					verticalAlign: 'middle',
-					whiteSpace: 'nowrap',
-				},
-			});
-			this.addChild(symbolText);
+			symbol = new Icon({ glyph, size: 0, tint: tokens.color.text_bright });
+			this.addChild(symbol);
 		}
 
 		const text = new Text(value, {
@@ -142,7 +137,7 @@ export class DriverStatsDisplay extends Layer {
 		});
 		this.addChild(text);
 
-		return { icon, text, symbol: symbolText };
+		return { icon, text, symbol };
 	}
 
 	/**
@@ -160,9 +155,9 @@ export class DriverStatsDisplay extends Layer {
 			return x + iconSize;
 		}
 		icon.setCornerRadius(Math.floor(iconSize / 4));
-		symbol.setFontSize(Math.floor(iconSize * 0.6));
-		symbol.setPosition(x, iconY);
-		symbol.setSize(iconSize, iconSize);
+		const symbolSize = Math.floor(iconSize * 0.75);
+		symbol.size = symbolSize;
+		symbol.setPosition(x + (iconSize - symbolSize) / 2, iconY + (iconSize - symbolSize) / 2);
 		const valueX = x + iconSize + SYMBOL_VALUE_GAP;
 		text.setPosition(valueX, iconY);
 		text.setSize(0, iconSize);

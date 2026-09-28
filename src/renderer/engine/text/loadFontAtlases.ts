@@ -1,5 +1,5 @@
 import { FontAtlas, FontAtlasError, FontAtlasWarn, parseFontAtlas } from './FontAtlas';
-import { FONT_FACES, FontFaceAsset, FontRole } from './fontFaces';
+import { ATLAS_ASSETS, AtlasRole, FontFaceAsset } from './fontFaces';
 
 /** The part of a decoded image the loader checks; `HTMLImageElement` satisfies it. */
 export interface AtlasImage {
@@ -8,28 +8,28 @@ export interface AtlasImage {
 }
 
 export interface LoadedFontAtlas<Image extends AtlasImage = HTMLImageElement> {
-	readonly role: FontRole;
+	readonly role: AtlasRole;
 	readonly face: string;
 	readonly atlas: FontAtlas;
 	readonly image: Image;
 }
 
 interface LoadFontAtlasesOptions<Image extends AtlasImage> {
-	faces?: readonly FontFaceAsset[];
+	faces?: readonly FontFaceAsset<AtlasRole>[];
 	/** Decodes one atlas image. Injected so the loader is testable without a DOM (R14.1). */
 	loadImage: (url: string) => Promise<Image>;
 	warn?: FontAtlasWarn;
 }
 
 /**
- * Validates every face's metrics (R6.2), then decodes its atlas image and
+ * Validates every face's metrics (R6.2), the icon atlas's among them, then decodes its atlas image and
  * checks the image is the size the metrics describe, which is the one mistake
  * the JSON alone cannot catch: a PNG regenerated without its JSON, or the
  * other way round, would otherwise sample the wrong texels for every glyph.
  * Rejects with `FontAtlasError` on the first face that fails.
  */
 export async function loadFontAtlases<Image extends AtlasImage>({
-	faces = FONT_FACES,
+	faces = ATLAS_ASSETS,
 	loadImage,
 	warn,
 }: LoadFontAtlasesOptions<Image>): Promise<LoadedFontAtlas<Image>[]> {

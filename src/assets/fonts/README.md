@@ -1,6 +1,6 @@
 # Font atlases
 
-MSDF atlases for the three text roles of R11.8, one face each (R6.4), built by `scripts/build-fonts.sh` (macOS, Linux) or `scripts/build-fonts.ps1` (Windows). The PNG and JSON pairs are committed, so neither CI nor a fresh checkout needs the generator; run the script only when a face or `charset.txt` changes, then commit what it writes.
+MSDF atlases for the three text roles of R11.8, one face each (R6.4), and the icon atlas (R12.6), built by `scripts/build-fonts.sh` (macOS, Linux) or `scripts/build-fonts.ps1` (Windows). The PNG and JSON pairs are committed, so neither CI nor a fresh checkout needs the generator; run the script only when a face, `charset.txt` or `icons.txt` changes, then commit what it writes (and `src/renderer/engine/text/icons.ts`).
 
 | Role | Face | Source | Licence | Atlas |
 |---|---|---|---|---|
@@ -33,3 +33,7 @@ msdf-atlas-gen reads only the legacy `kern` table, and none of these faces has o
 A face may lack some of these: Open Sans has no U+2010 to U+2012, JetBrains Mono and Barlow Condensed have none of the typographic spaces, and Barlow Condensed has no U+FFFD. The generator warns about them and the loader (`src/renderer/engine/text/FontAtlas.ts`) substitutes the glyph a typesetter would use (a hyphen for a non-breaking hyphen) or, for a typographic space, a blank of its defined width. `fontAssets.test.ts` fails if any code point in the charset still resolves to nothing, so extending the charset means checking both faces cover it or adding a substitute.
 
 Symbols, arrows, and emoji are not text (R6.3); they belong in the icon atlas.
+
+## Icon atlas
+
+`material-icons.{png,json}` is R12.6's icon atlas, built by the same scripts with the same parameters and no kerning step, from [Material Icons](https://github.com/google/material-design-icons) Regular at commit `bd8cb85` (`font/MaterialIcons-Regular.ttf` and `.codepoints`), Apache License 2.0, `material-icons/LICENSE.txt`, which the builds ship beside the OFL files. The glyphs are the ones `icons.txt` names, by their Material name. The scripts first run `scripts/generate-icons.mjs`, which looks the names up in the `.codepoints` file and writes `src/renderer/engine/text/icons.ts`, then pass the same code points to msdf-atlas-gen, so the module and the atlas agree. To add an icon, add its name to `icons.txt`, run the script, and commit the atlas and `icons.ts`; `iconAssets.test.ts` fails if either is stale. Why Material Icons: `docs/AI_TECHNICAL_DECISIONS/icon-atlas.md`.
