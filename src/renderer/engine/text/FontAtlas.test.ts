@@ -247,6 +247,54 @@ describe('parseFontAtlas: coverage completion (R6.3)', () => {
 		expect(atlas.glyph(0x2012)).toBeUndefined();
 	});
 
+	describe('typographic spaces the face lacks', () => {
+		const withDigitAndStop = (): GlyphJson[] => [
+			...(atlasJson().glyphs as GlyphJson[]),
+			{ unicode: 0x30, advance: 0.55 },
+			{ unicode: 0x2E, advance: 0.22 },
+		];
+		const blank = (cp: number, advance: number) => ({ codePoint: cp, advance, plane: null, atlas: null });
+
+		it.each([
+			['en space', 0x2002, 1 / 2],
+			['em space', 0x2003, 1],
+			['three-per-em space', 0x2004, 1 / 3],
+			['four-per-em space', 0x2005, 1 / 4],
+			['six-per-em space', 0x2006, 1 / 6],
+			['thin space', 0x2009, 1 / 5],
+			['hair space', 0x200A, 1 / 10],
+		])('synthesizes the %s at its fraction of the em, not the word space', (_, cp, width) => {
+			const { atlas } = parse(atlasJson({ glyphs: withDigitAndStop() }));
+			expect(atlas.glyph(cp)).toEqual(blank(cp, width));
+		});
+
+		it('makes the figure space a digit wide', () => {
+			const { atlas } = parse(atlasJson({ glyphs: withDigitAndStop() }));
+			expect(atlas.glyph(0x2007)).toEqual(blank(0x2007, 0.55));
+		});
+
+		it('makes the punctuation space a full stop wide', () => {
+			const { atlas } = parse(atlasJson({ glyphs: withDigitAndStop() }));
+			expect(atlas.glyph(0x2008)).toEqual(blank(0x2008, 0.22));
+		});
+
+		it('leaves the figure space absent when the face has no digit to measure', () => {
+			const { atlas } = parse(atlasJson());
+			expect(atlas.glyph(0x2007)).toBeUndefined();
+		});
+
+		it('keeps a space the face has at the face\'s width', () => {
+			const glyphs = [...withDigitAndStop(), { unicode: 0x2003, advance: 0.9 }];
+			const { atlas } = parse(atlasJson({ glyphs }));
+			expect(atlas.glyph(0x2003)?.advance).toBe(0.9);
+		});
+
+		it('gives the narrow no-break space the synthesized thin space', () => {
+			const { atlas } = parse(atlasJson());
+			expect(atlas.glyph(0x202F)).toEqual(blank(0x202F, 1 / 5));
+		});
+	});
+
 	it('makes format characters zero-width even when the face gives them an advance', () => {
 		const glyphs = [...(atlasJson().glyphs as GlyphJson[]), { unicode: 0x200B, advance: 0.6 }];
 		const { atlas } = parse(atlasJson({ glyphs }));

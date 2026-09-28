@@ -66,25 +66,36 @@ export class FontAtlasError extends Error {
 }
 
 /**
- * Stand-ins for code points the charset asks for but a face does not carry,
- * tried in order, used only when the face lacks the code point itself. Each is
- * the glyph a typesetter would substitute (a non-breaking hyphen is a hyphen
- * that does not break; breaking is the wrap's business, R6.13, not the
+ * Widths of the typographic spaces, for a face that lacks them (JetBrains Mono
+ * and Barlow Condensed carry none). Each is synthesized as a blank glyph of its
+ * defined width rather than copied from U+0020, since the point of an em or
+ * figure space is its width: `em` is a fraction of the em, `glyph` borrows the
+ * advance of another code point (figure space is a digit wide, punctuation
+ * space a full stop). Thin and hair space have no single standard; these are
+ * the common typesetting values.
+ */
+export const SPACE_WIDTHS: ReadonlyMap<number, { readonly em: number } | { readonly glyph: number }> = new Map([
+	[0x2002, { em: 1 / 2 }],
+	[0x2003, { em: 1 }],
+	[0x2004, { em: 1 / 3 }],
+	[0x2005, { em: 1 / 4 }],
+	[0x2006, { em: 1 / 6 }],
+	[0x2007, { glyph: 0x0030 }],
+	[0x2008, { glyph: 0x002E }],
+	[0x2009, { em: 1 / 5 }],
+	[0x200A, { em: 1 / 10 }],
+]);
+
+/**
+ * Stand-ins for visible code points the charset asks for but a face does not
+ * carry, tried in order, used only when the face lacks the code point itself.
+ * Each is the glyph a typesetter would substitute (a non-breaking hyphen is a
+ * hyphen that does not break; breaking is the wrap's business, R6.13, not the
  * glyph's). Without these the R6.3 punctuation would render as the fallback
- * glyph in faces that simply omit it: Open Sans 3.000 has no U+2010, and
- * JetBrains Mono and Barlow Condensed have none of the typographic spaces.
- * Barlow Condensed has no U+FFFD either, which R6.3 lets fall back to `?`.
+ * glyph in faces that simply omit it: Open Sans 3.000 has no U+2010. Barlow
+ * Condensed has no U+FFFD either, which R6.3 lets fall back to `?`.
  */
 export const CODE_POINT_SUBSTITUTES: ReadonlyMap<number, readonly number[]> = new Map([
-	[0x2002, [0x0020]],
-	[0x2003, [0x0020]],
-	[0x2004, [0x0020]],
-	[0x2005, [0x0020]],
-	[0x2006, [0x0020]],
-	[0x2007, [0x0020]],
-	[0x2008, [0x0020]],
-	[0x2009, [0x0020]],
-	[0x200A, [0x2009, 0x0020]],
 	[0x2010, [0x002D]],
 	[0x2011, [0x2010, 0x002D]],
 	[0x2012, [0x2013]],
@@ -168,7 +179,7 @@ export class FontAtlas {
 		return this.kerningPairs.size;
 	}
 
-	/** Undefined when the face lacks the code point; the fallback glyph policy (R6.3) is the caller's. */
+	/** Undefined when neither the face nor a substitute covers the code point; the fallback glyph policy (R6.3) is the caller's. */
 	glyph(codePoint: number): FontGlyph | undefined {
 		return this.glyphs.get(codePoint);
 	}
@@ -353,6 +364,12 @@ function parseGlyph({ entry, flip, emSize, width, height }: ParseGlyphOptions): 
 }
 
 function applySubstitutes(glyphs: Map<number, FontGlyph>): void {
+	// Spaces first, so U+202F can fall back to a synthesized thin space.
+	for (const [target, width] of SPACE_WIDTHS) {
+		if (glyphs.has(target)) continue;
+		const advance = 'em' in width ? width.em : glyphs.get(width.glyph)?.advance;
+		if (advance !== undefined) glyphs.set(target, { codePoint: target, advance, plane: null, atlas: null });
+	}
 	// Resolved in insertion order so a substitute may itself be substituted
 	// (U+2011 tries U+2010, which a face may only have through U+002D).
 	for (const [target, candidates] of CODE_POINT_SUBSTITUTES) {
