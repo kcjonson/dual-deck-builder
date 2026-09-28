@@ -6,6 +6,15 @@ This document contains the chronological log of completed development tasks for 
 
 **Date correction (2026-08-22):** the repo's first commit is 2025-05-17, but many entries below carry dates in December 2024 or January 2025 — the AI that wrote them used its assumed date instead of the real one. Entries dated 2025-07-03 and 2025-07-02 have been corrected from "2025-01-03"/"2025-01-02" (verified against git history). Remaining Dec 2024 / Jan 2025 dates are wrong by roughly six months; the real work happened May–July 2025. Trust git history over these dates.
 
+## Concave polygons fill inside their outline; primitive-shapes has a golden (2026-09-28)
+
+**What landed:** DDB-185 and the close-out of DDB-103.
+
+- `draw/triangulate.ts`: `triangulatePolygon(points)` ear-clips a simple polygon in either winding into R2.11's index list, keeping the outline's winding per triangle, dropping collinear vertices instead of emitting zero-area triangles, and returning nothing for an outline with no area. Tolerances scale with the outline's extent. A self-crossing outline has no right answer; once no ear is left the remainder is fanned so the call ends. Exported from the draw module, since R2.11 makes tessellation the caller's job and game-side vector art needs the same tool.
+- `Polygon` computes its indices once when its outline changes (`setPoints`, `makeRegular`, `makeStar`) instead of a fan from vertex 0 on every frame. The fan was wrong for the gallery star: vertex 0 is the top tip, which cannot see the inner corners beside it, so two fan triangles landed outside the shape.
+- `primitive-shapes` is no longer `blockedBy` in `tests/visual/support/scenarios.ts`; its golden is minted on CI, both projects. The harness and lint-spec comments that explained the block in DDB-103's terms now say it generally.
+
+**How:** `draw/triangulate.test.ts` checks exact cover, not just triangle counts: every triangle is real and wound like the outline, areas sum to the outline's, and a 40x40 sample grid inside the outline is covered exactly once and outside not at all. Cases: convex quad and hexagon, the gallery star (and the old fan fails the same check), an L whose first vertex is reflex, a comb, clockwise and counter-clockwise stars, collinear midpoints on a square and on an L, pixel-scale input, degenerate input, and a bowtie that must still terminate. `components/Polygon.test.ts` checks through a recording backend that changing the outline refreshes the cached triangles and that a zero-area outline skips the fill but keeps its stroke. No other golden moves: `Polygon` has one importer, `PrimitiveShapesSection`.
 ## WebGL2 backend replaces the WebGL1 path (2026-09-28)
 
 **What landed:** DDB-63 (DDB-55 phase 1). `src/renderer/engine/rendering/WebGL2Backend.ts` is the live backend on both pages and `LegacyGLBackend.ts`, its WebGL1 context and `Shader.ts` are deleted. It reuses `Batcher` and `LegacyGeometryEncoder` (32-bit indices now), with the two shaders ported to GLSL ES 3.00 without changing their arithmetic.

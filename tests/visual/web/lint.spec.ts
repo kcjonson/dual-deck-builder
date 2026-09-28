@@ -38,28 +38,23 @@ import type { DevSurface } from '../support/harness';
  */
 
 /**
- * Every scene, including `primitive-shapes`, whose `blockedBy` is deliberately
- * ignored here.
+ * Every scene, with `blockedBy` deliberately ignored.
  *
- * DDB-103 blocks that scene's *screenshot*: the renderer overruns its dynamic
- * vertex buffer and draws malformed circles, and minting a baseline of that
- * would make the corrupt drawing the definition of correct. The overflow
- * corrupts vertices on their way to the GPU. It does not move a layer, so the
- * boxes `treeSnapshot` reports are the boxes the scene laid out, and the scene
- * lints 0 today. Skipping it here would drop a scene out of R13.29's gate for
- * a reason that does not apply to what this spec measures, and would leave it
- * ungated right through the DDB-103 fix - exactly when someone is editing it.
+ * A block is about a scene's *screenshot*: a golden that would make a wrong
+ * drawing the definition of correct. The boxes `treeSnapshot` reports are the
+ * boxes the scene laid out, whatever the GPU then drew, so skipping a blocked
+ * scene here would drop it out of R13.29's gate for a reason that does not
+ * apply to what this spec measures, and leave it ungated right while someone
+ * is fixing it.
  *
- * The one part of DDB-103 that does reach this file is the per-frame
- * `bufferSubData: buffer overflow` console error, which is why there is no
- * console assertion below. That gate belongs to the screenshot specs, which
- * already run every one of these scenes; repeating it here would only force
- * the same `blockedBy` skip back in through the side door. A page that failed
- * to boot cannot pass silently either, but `openScene` is not what stops it:
- * it waits on `__app.status()` and never reads the tree, so an empty snapshot
- * reaches the lint and comes back clean. The `MIN_NODES` assertion below is
- * what catches that, and it is there because the empty case was demonstrated
- * rather than imagined.
+ * There is no console assertion below for the same reason. That gate belongs
+ * to the screenshot specs, which already run every one of these scenes;
+ * repeating it here would only force the same `blockedBy` skip back in
+ * through the side door. A page that failed to boot cannot pass silently
+ * either, but `openScene` is not what stops it: it waits on `__app.status()`
+ * and never reads the tree, so an empty snapshot reaches the lint and comes
+ * back clean. The `MIN_NODES` assertion below is what catches that, and it is
+ * there because the empty case was demonstrated rather than imagined.
  */
 const LINT_SCENARIOS = SCENE_SCENARIOS;
 
