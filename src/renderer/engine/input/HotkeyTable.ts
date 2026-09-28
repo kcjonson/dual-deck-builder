@@ -16,7 +16,8 @@ export type HotkeyHandler = (stroke: KeyStroke) => void;
  *
  * The dispatcher holds the scene's table, searched last; every root has its
  * own (`Component.hotkeys`), searched from the focused root, then the other
- * roots topmost first, stopping at a `modal` root (DDB-76).
+ * roots topmost first, stopping at a `modal` root (DDB-76). The overlay
+ * service sets `modal` on a modal overlay's root (DDB-78).
  */
 export class HotkeyTable {
 	private readonly handlers = new Map<string, HotkeyHandler>();

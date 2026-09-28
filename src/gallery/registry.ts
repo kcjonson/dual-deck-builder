@@ -1,12 +1,15 @@
 import type { Panel } from '../renderer/engine/ui/Panel';
 import type { DeveloperSectionOptions } from '../renderer/game/screens/developer/sections';
 import { developerSections } from '../renderer/game/screens/developer/sections';
+import { OverlaysScene } from './scenes/OverlaysScene';
 
 /**
  * The gallery's scene registry (R13.30): one scene per developer-screen
  * section, wrapped from the single definition of that list in
- * `screens/developer/sections.ts`. The wrap is all this file does, so the
- * screen and the gallery cannot show different things.
+ * `screens/developer/sections.ts`, so the screen and the gallery cannot show
+ * different things; then the gallery's own scenes, which exist to exercise
+ * services a developer-screen section cannot (they open overlay roots over
+ * whatever hosts them).
  *
  * The list is imported rather than owned because the arrow has to point this
  * way. DeveloperScreen is a live game screen; the gallery is a development-only
@@ -24,7 +27,15 @@ export interface GalleryScene {
 	factory: SceneFactory;
 }
 
-export const gallerySceneRegistry: readonly GalleryScene[] = developerSections.map((section) => ({
-	name: section.name,
-	factory: section.build,
-}));
+/** Scenes only the gallery shows, after the developer sections. */
+export const galleryOnlyScenes: readonly GalleryScene[] = [
+	{ name: 'overlays', factory: (options) => new OverlaysScene(options) },
+];
+
+export const gallerySceneRegistry: readonly GalleryScene[] = [
+	...developerSections.map((section) => ({
+		name: section.name,
+		factory: section.build,
+	})),
+	...galleryOnlyScenes,
+];

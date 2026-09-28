@@ -45,6 +45,9 @@ interface ScopeIndex {
 	readonly all: readonly Component[];
 }
 
+/** A focus move, as the services hear it: the focused component, and whether its focus is visible (R9.23). */
+export type FocusChangeListener = (focused: Component | null, visible: boolean) => void;
+
 /**
  * Chapter 9's focus manager (9.7), one per mount context as `context.focus`.
  *
@@ -76,6 +79,9 @@ export class FocusManager {
 	private readonly indexCache = new Map<Component | null, ScopeIndex>();
 	/** Focus was dropped without callbacks (an unmount); the fixup moves it into the active scope. */
 	private lostFocus = false;
+	private readonly listeners: FocusChangeListener[] = [];
+	/** What the listeners last heard, so they hear each change once. */
+	private heard: { focused: Component | null; visible: boolean } = { focused: null, visible: false };
 
 	constructor({ clock, roots }: FocusManagerOptions) {
 		this.clock = clock;
@@ -94,6 +100,29 @@ export class FocusManager {
 	 */
 	public get focusVisible(): boolean {
 		return this.visibleModality;
+	}
+
+	/**
+	 * Hears every change of the focused component or of whether its focus is
+	 * visible, after the `blur` and `focus` events, including focus an
+	 * unmount dropped. The services' view: the popup service closes on focus
+	 * moving elsewhere (R9.14) and the tooltip service shows on visible focus
+	 * (R12.22). Returns the unsubscribe.
+	 */
+	public onFocusChange(listener: FocusChangeListener): () => void {
+		this.listeners.push(listener);
+		return () => {
+			const index = this.listeners.indexOf(listener);
+			if (index !== -1) this.listeners.splice(index, 1);
+		};
+	}
+
+	private notify(): void {
+		const focused = this.current;
+		const visible = focused !== null && this.visibleModality;
+		if (this.heard.focused === focused && this.heard.visible === visible) return;
+		this.heard = { focused, visible };
+		for (const listener of [...this.listeners]) listener(focused, visible);
 	}
 
 	/** The innermost pushed scope's root, or null when the whole tree is the scope. */
@@ -138,6 +167,7 @@ export class FocusManager {
 	public showFocusVisible(): void {
 		this.visibleModality = true;
 		this.current?.setFocusState(true, true);
+		this.notify();
 	}
 
 	/** The first component that can take focus in `root`'s Tab order, or null. */
@@ -348,6 +378,7 @@ export class FocusManager {
 		if (this.current === component) {
 			this.current = null;
 			this.lostFocus = true;
+			this.notify();
 		}
 		for (const scope of this.scopes) {
 			if (scope.restore === component) scope.restore = null;
@@ -362,6 +393,7 @@ export class FocusManager {
 		this.indexCache.clear();
 		this.lostFocus = false;
 		this.visibleModality = false;
+		this.heard = { focused: null, visible: false };
 	}
 
 	// -- internals ------------------------------------------------------------
@@ -384,6 +416,7 @@ export class FocusManager {
 			// R9.22's text-entry exception has nothing to switch here: the
 			// component draws its own caret whatever the modality.
 			next?.setFocusState(true, visible);
+			this.notify();
 			return;
 		}
 
@@ -414,6 +447,8 @@ export class FocusManager {
 				focusVisible: visible,
 			}));
 		}
+		// A focus handler that moved focus again has already notified.
+		if (this.current === next) this.notify();
 	}
 
 	/** A stop resolved to the component focus lands on: a group's active child or first member. */
