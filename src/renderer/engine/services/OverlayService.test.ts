@@ -210,6 +210,22 @@ describe('OverlayService (R8.21)', () => {
 		expect(context.focus.activeScope).toBeNull();
 	});
 
+	it('searches hotkeys by layer before open order: a popup opened first beats a lower-layer overlay opened after it', () => {
+		const heard: string[] = [];
+		const popup = context.overlays.open(box('menu', 0, 0), { layer: 'popup' });
+		popup.hotkeys.register('k', () => heard.push('popup'));
+		const panel = context.overlays.open(box('panel', 200, 200), { layer: 'overlay' });
+		panel.hotkeys.register('k', () => heard.push('panel'));
+		panel.hotkeys.register('j', () => heard.push('panel'));
+		send(context, [key('k'), key('j')]);
+		expect(heard).toEqual(['popup', 'panel']);
+
+		const later = context.overlays.open(box('later', 400, 400), { layer: 'overlay' });
+		later.hotkeys.register('j', () => heard.push('later'));
+		send(context, [key('j')]);
+		expect(heard).toEqual(['popup', 'panel', 'later']);
+	});
+
 	it('closes everything with closeAll', () => {
 		context.overlays.open(box('a', 0, 0), { layer: 'overlay' });
 		context.overlays.open(box('b', 0, 0), { layer: 'modal' });

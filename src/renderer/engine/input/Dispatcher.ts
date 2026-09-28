@@ -16,6 +16,7 @@ import {
 } from './events';
 import { FocusDirection, FocusManager, GroupKey } from './FocusManager';
 import { HitTestOptions, hitTest } from './hitTest';
+import { layerOrdinal } from '../draw/layers';
 import { HotkeyTable, KeyStroke } from './HotkeyTable';
 import { DragService, dragThreshold } from './DragService';
 
@@ -938,13 +939,18 @@ export class Dispatcher {
 	 * root from the topmost down, stopping at a modal root (whose own table
 	 * is searched), then the scene's table when no modal root is mounted.
 	 * With nothing focused the search starts at the topmost root.
+	 *
+	 * Topmost is paint order reversed: a higher layer first, then a later
+	 * root within a layer (R3.10, R3.15), which is also the order the
+	 * overlay service dismisses in. A popup opened before a lower-layer
+	 * overlay still hears keys first.
 	 */
 	private hotkeyTables(focused: Component | null): HotkeyTable[] {
-		const roots = this.rootList;
-		let floor = 0;
+		const topmostFirst = this.rootsTopmostFirst();
+		let floor = topmostFirst.length - 1;
 		let modal = false;
-		for (let index = roots.length - 1; index >= 0; index--) {
-			if (roots[index].modal) {
+		for (let index = 0; index < topmostFirst.length; index++) {
+			if (topmostFirst[index].modal) {
 				floor = index;
 				modal = true;
 				break;
@@ -952,13 +958,22 @@ export class Dispatcher {
 		}
 		const tables: HotkeyTable[] = [];
 		const focusedRoot = focused?.root ?? null;
-		if (focusedRoot && roots.indexOf(focusedRoot) >= floor && focusedRoot.ownHotkeys) tables.push(focusedRoot.ownHotkeys);
-		for (let index = roots.length - 1; index >= floor; index--) {
-			const root = roots[index];
+		const focusedAt = focusedRoot ? topmostFirst.indexOf(focusedRoot) : -1;
+		if (focusedRoot && focusedAt !== -1 && focusedAt <= floor && focusedRoot.ownHotkeys) tables.push(focusedRoot.ownHotkeys);
+		for (let index = 0; index <= floor; index++) {
+			const root = topmostFirst[index];
 			if (root !== focusedRoot && root.ownHotkeys) tables.push(root.ownHotkeys);
 		}
 		if (!modal) tables.push(this.hotkeys);
 		return tables;
+	}
+
+	/** The roots by layer, highest first, then latest first within a layer. */
+	private rootsTopmostFirst(): Component[] {
+		const roots = this.rootList;
+		const order = roots.map((root, index) => ({ root, index, ordinal: layerOrdinal(root.effectiveLayer) }));
+		order.sort((a, b) => (b.ordinal - a.ordinal) || (b.index - a.index));
+		return order.map((entry) => entry.root);
 	}
 
 	/**
