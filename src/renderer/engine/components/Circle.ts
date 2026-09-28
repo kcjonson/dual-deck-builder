@@ -29,6 +29,15 @@ export class Circle extends Component {
 	}
 
 	/**
+	 * A circle draws from its radius, so it cannot take a size layout assigns:
+	 * `fill` and `stretch` leave it at its own (worldsim's non-resizable leaf
+	 * contract). Wrap it in a container when it has to fill.
+	 */
+	public assignSize(_width: number, _height: number): void {
+		// Keeps its radius-derived size.
+	}
+
+	/**
 	 * Apply circle-specific style properties
 	 */
 	private applyCircleStyle(style: Style): void {

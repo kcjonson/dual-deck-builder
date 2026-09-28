@@ -6,6 +6,19 @@ This document contains the chronological log of completed development tasks for 
 
 **Date correction (2026-08-22):** the repo's first commit is 2025-05-17, but many entries below carry dates in December 2024 or January 2025 — the AI that wrote them used its assumed date instead of the real one. Entries dated 2025-07-03 and 2025-07-02 have been corrected from "2025-01-03"/"2025-01-02" (verified against git history). Remaining Dec 2024 / Jan 2025 dates are wrong by roughly six months; the real work happened May–July 2025. Trust git history over these dates.
 
+## Stack container and the chapter 10 conformance suite (2026-09-28)
+
+**What landed:** DDB-81 (DDB-55 phase 4), R10.1 to R10.18, R8.1's layout protocol, R8.21's viewport roots.
+
+- `components/Stack.ts`: the three passes with shrink-to-fit, the leftover shared by weight with clamps and one frozen re-run, safe distribution and alignment, absolute children sized against the content box. `components/layoutTypes.ts` holds the vocabulary.
+- `Component`: sizing modes and the chapter 10 child properties as options and accessors; `measure`, `assignSize`, `automaticMinSize`, `sizesChildren`; anchor placement after `layoutChildren` (stored apart from `position`, read through `placedX`/`placedY` by the render walk, `screenMatrix`, `bounds` and the snapshot); a root's `fill` axes from the viewport; relayout boundary is now "both modes fixed".
+- `Text`: modes replace the assigned flags; a stack's assignment is its box for the pass; shrink-to-fit `measure`; longest-word automatic minimum.
+- `UiFrame.viewportChanged()`, called by `Game` and the gallery on the viewport owner's change event.
+- Snapshot reports `stack: { direction, gap }` and uses `bounds` for anchored placement; lint rule 1 exempts overlap within a negative gap.
+- `Circle.assignSize` is a no-op (draws from its radius); `ArmorBadge.measure` renamed `measureLabel` to free the protocol name.
+- Tests: `Stack.test.ts` (worldsim's suite ported with its numbers, spec 10.9's additions, anchors, viewport roots, boundaries, the negative-gap lint case) and `Stack.text.test.ts` (real-metrics text cases). Gallery scene `stack`, lint clean; its golden is minted on CI.
+- Decision record: `docs/AI_TECHNICAL_DECISIONS/stack-layout.md`.
+
 ## Mount context, lifecycle, and frame order (2026-09-28)
 
 **What landed:** DDB-73's second PR (DDB-55 phase 3), R1.6, R8.14 to R8.18, R8.21, R8.22.

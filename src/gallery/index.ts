@@ -74,7 +74,10 @@ class GalleryApplication {
 			this.installHooks(canvas);
 
 			// R7.11: the viewport owner, not the window, says when the size changed.
-			this.renderer.viewport.onChange(() => this.host.resize());
+			this.renderer.viewport.onChange(() => {
+				this.context.frame.viewportChanged();
+				this.host.resize();
+			});
 
 			this.frameLoop = new FrameLoop({ tick: this.loop });
 			// A resize measured after this update's rAF runs its frame before paint.

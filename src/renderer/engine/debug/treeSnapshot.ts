@@ -1,6 +1,7 @@
 import { Layer } from '../components/Layer';
 import { Component } from '../components/Component';
 import { Panel } from '../ui/Panel';
+import { Stack } from '../components/Stack';
 import { Input } from '../ui/Input';
 import { CLIP_NONE, ClipState, intersectClip } from '../draw/clip';
 
@@ -63,6 +64,16 @@ export interface SnapshotState {
 	focused: boolean;
 }
 
+/**
+ * A stack container's flow: not a field R13.22 names, but R13.25.1's
+ * sibling-overlap allowance ("beyond what a negative stack gap allows") needs
+ * the gap, and the direction says which axis it applies to.
+ */
+export interface SnapshotStack {
+	direction: 'vertical' | 'horizontal';
+	gap: number;
+}
+
 export interface SnapshotNode {
 	id: string | null;
 	type: string;
@@ -74,6 +85,7 @@ export interface SnapshotNode {
 	enabled?: boolean;
 	state?: SnapshotState;
 	value?: string;
+	stack?: SnapshotStack;
 	/**
 	 * The owning component's own drawings (R8.1, R3.18), absent when it has
 	 * none. Not a field R13.22 names: R13.22 describes the tree R8.6 allows,
@@ -177,8 +189,10 @@ function serializeNode(
 	};
 
 	try {
-		const x = finite(node.x);
-		const y = finite(node.y);
+		// `bounds` rather than `x` and `y`: an anchored child's placement
+		// (R10.15) is its position plus the anchor's shift.
+		const x = finite(node.bounds.x);
+		const y = finite(node.bounds.y);
 		const w = finite(node.width);
 		const h = finite(node.height);
 		const screenX = context.offsetX + x;
@@ -209,6 +223,10 @@ function serializeNode(
 
 		if (node instanceof Input) {
 			serialized.value = node.getValue();
+		}
+
+		if (node instanceof Stack) {
+			serialized.stack = { direction: node.direction, gap: finite(node.gap) };
 		}
 
 		const innerClip = node.clipsChildren

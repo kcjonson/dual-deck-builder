@@ -9,6 +9,7 @@ import type {
 } from '../draw/commands';
 import type { DrawApi } from '../draw/DrawApi';
 import type { MountContext } from './MountContext';
+import type { Axis, Size, SizeMode } from './layoutTypes';
 import type { FontRole } from '../text/fontFaces';
 import { resolveFontRole } from '../text/fontRoles';
 import { Style, StyleParser } from '../types/Style';
@@ -28,14 +29,19 @@ const OVERFLOW: Readonly<Record<NonNullable<Style['textOverflow']>, TextOverflow
  * R12.4's text component. Its position is the top-left of its line box and
  * its bounds are that box; the draw API's baseline anchor never shows.
  *
- * Each axis is either assigned or hugged. An assigned width (a `width` option,
+ * Each axis is `fixed` or hugs (R10.1). A fixed width (a `width` option,
  * `setWidth` or `setSize` with a positive value) is the alignment box and,
  * unless `whiteSpace` is `nowrap`, the wrap width; `nowrap` with an ellipsis
- * truncates to it (R6.14). An assigned height is the box `verticalAlign`
- * places the lines in, and the height a wrapped ellipsis fits. An axis left at
- * zero hugs: it takes the measured width, or `lines * lineHeight`, from the
+ * truncates to it (R6.14). A fixed height is the box `verticalAlign` places
+ * the lines in, and the height a wrapped ellipsis fits. An axis left at zero
+ * hugs: it takes the measured width, or `lines * lineHeight`, from the
  * metrics service, the same layout `drawText` draws (R6.8). Setting an axis
  * back to zero hugs it again.
+ *
+ * Inside a stack, the stack's assignment is the box on a non-fixed axis for
+ * the pass (R10.13): a width assigned or constrained by the cross pass is the
+ * wrap width, and the height follows. Outside one, nothing assigns and the
+ * text hugs as above.
  *
  * Measurement goes through the mount context's draw API (R1.6), on mount and
  * on every change while mounted. Unmounted, or mounted on a backend without
@@ -59,8 +65,12 @@ export class Text extends Component {
 	private letterSpacing = 0;
 	private textTransform: TextTransform = 'none';
 	private decoration: TextDecoration = 'none';
-	private assignedWidth: boolean;
-	private assignedHeight: boolean;
+	/** The size a `fixed` axis holds; layout never changes it. */
+	private authoredWidth: number;
+	private authoredHeight: number;
+	/** The parent stack's assignment for the current pass, on non-fixed axes (R10.5). */
+	private layoutWidth: number | null = null;
+	private layoutHeight: number | null = null;
 	private metrics: TextMetrics | null = null;
 	private stale = true;
 
@@ -68,13 +78,18 @@ export class Text extends Component {
 		super(options);
 		this.content = text;
 		this.componentType = 'Text';
-		this.assignedWidth = this.width > 0;
-		this.assignedHeight = this.height > 0;
+		this.authoredWidth = this.width;
+		this.authoredHeight = this.height;
 
 		if (options?.style) {
 			this.applyTextStyle(options.style);
 		}
-		this.measure();
+		this.remeasure();
+	}
+
+	/** R10.1: text hugs an axis it was given no size on. */
+	protected defaultSizeMode(size: number | undefined): SizeMode {
+		return size !== undefined && size > 0 ? 'fixed' : 'hug';
 	}
 
 	private applyTextStyle(style: Style): void {
@@ -116,7 +131,7 @@ export class Text extends Component {
 	public setText(text: string): this {
 		if (text !== this.content) {
 			this.content = text;
-			this.measure();
+			this.remeasure();
 			// Content is measurement input even when both axes are assigned (R8.18).
 			this.invalidateLayout();
 		}
@@ -130,7 +145,7 @@ export class Text extends Component {
 	public setFontSize(size: number): this {
 		if (size !== this.fontSize) {
 			this.fontSize = size;
-			this.measure();
+			this.remeasure();
 			this.invalidateLayout();
 		}
 		return this;
@@ -155,24 +170,28 @@ export class Text extends Component {
 		return this;
 	}
 
-	/** Positive assigns the width; zero hugs the measured width again. */
+	/** Positive fixes the width; zero hugs the measured width again. */
 	public setWidth(width: number): this {
-		this.assignedWidth = width > 0;
-		this.fit(width, this.height);
+		this.authoredWidth = width;
+		this.widthMode = authoredMode(width, this.widthMode);
+		this.fit();
 		return this;
 	}
 
-	/** Positive assigns the height; zero hugs the measured height again. */
+	/** Positive fixes the height; zero hugs the measured height again. */
 	public setHeight(height: number): this {
-		this.assignedHeight = height > 0;
-		this.fit(this.width, height);
+		this.authoredHeight = height;
+		this.heightMode = authoredMode(height, this.heightMode);
+		this.fit();
 		return this;
 	}
 
 	public setSize(width: number, height: number): this {
-		this.assignedWidth = width > 0;
-		this.assignedHeight = height > 0;
-		this.fit(width, height);
+		this.authoredWidth = width;
+		this.authoredHeight = height;
+		this.widthMode = authoredMode(width, this.widthMode);
+		this.heightMode = authoredMode(height, this.heightMode);
+		this.fit();
 		return this;
 	}
 
@@ -188,12 +207,23 @@ export class Text extends Component {
 	 * a `nowrap` text will be truncated or overflow.
 	 */
 	get measured(): TextMetrics | null {
-		if (this.stale) this.measure();
+		if (this.stale) this.remeasure();
 		return this.metrics;
 	}
 
 	get wrap(): TextWrap {
-		return this.whiteSpace === 'normal' && this.assignedWidth ? 'word' : 'none';
+		return this.whiteSpace === 'normal' && this.boxWidth !== null ? 'word' : 'none';
+	}
+
+	/** The width the lines are laid out in: fixed, or the parent stack's for this pass; null hugs. */
+	private get boxWidth(): number | null {
+		if (this.widthMode === 'fixed') return this.authoredWidth;
+		return this.layoutWidth !== null && this.parent?.sizesChildren ? this.layoutWidth : null;
+	}
+
+	private get boxHeight(): number | null {
+		if (this.heightMode === 'fixed') return this.authoredHeight;
+		return this.layoutHeight !== null && this.parent?.sizesChildren ? this.layoutHeight : null;
 	}
 
 	/**
@@ -201,47 +231,115 @@ export class Text extends Component {
 	 * every change that moves a glyph; the layouts are cached (R6.12), so
 	 * repeating one is a map lookup.
 	 */
-	private measure(): void {
-		this.fit(this.width, this.height);
+	private remeasure(): void {
+		this.fit();
 	}
 
 	/**
-	 * Sizes both axes in one step: an assigned axis to the value given, a
-	 * hugging one to the measure, or zero while nothing can measure. One step,
-	 * because a hugging axis that passed through zero on its way to its
-	 * measure would invalidate layout for a size it never had (R8.18).
+	 * Sizes both axes in one step: a boxed axis to its box, a hugging one to
+	 * the measure, or zero while nothing can measure. One step, because a
+	 * hugging axis that passed through zero on its way to its measure would
+	 * invalidate layout for a size it never had (R8.18).
 	 */
-	private fit(width: number, height: number): void {
-		const metrics = this.layoutMetrics(this.assignedWidth ? width : undefined);
-		super.setSize(
-			this.assignedWidth ? width : (metrics?.width ?? 0),
-			this.assignedHeight ? height : (metrics?.height ?? 0),
-		);
+	private fit(): void {
+		const size = this.resolveSize();
+		super.setSize(size.width, size.height);
+	}
+
+	private resolveSize(): Size {
+		const boxWidth = this.boxWidth;
+		const boxHeight = this.boxHeight;
+		const metrics = this.layoutMetrics(boxWidth ?? undefined);
+		return {
+			width: boxWidth ?? metrics?.width ?? 0,
+			height: boxHeight ?? metrics?.height ?? 0,
+		};
 	}
 
 	/** The layout at a wrap width, through the mount context's draw API (R1.6); null when nothing can measure. */
 	private layoutMetrics(maxWidth: number | undefined): TextMetrics | null {
+		const metrics = this.metricsFor(maxWidth, this.wrap);
+		this.stale = metrics === null;
+		if (metrics) this.metrics = metrics;
+		return metrics;
+	}
+
+	/** A layout of this text, or null when nothing can measure it. Writes nothing. */
+	private metricsFor(maxWidth: number | undefined, wrap: TextWrap): TextMetrics | null {
 		const draw = this.context?.draw;
-		if (!draw || !draw.canMeasureText(this.fontRole)) {
-			this.stale = true;
-			return null;
-		}
-		this.metrics = draw.measureText({
+		if (!draw || !draw.canMeasureText(this.fontRole)) return null;
+		return draw.measureText({
 			text: this.content,
 			font: this.fontRole,
 			size: this.fontSize,
 			letterSpacing: this.letterSpacing,
 			textTransform: this.textTransform,
-			wrap: this.wrap,
+			wrap,
 			maxWidth,
 			lineHeight: this.lineHeight ?? undefined,
 		});
-		this.stale = false;
-		return this.metrics;
+	}
+
+	// -- the layout protocol (R8.1, R10.7, R10.13) ------------------------------
+
+	/**
+	 * Shrink-to-fit on a hugging width, as CSS auto-width items do: the
+	 * unwrapped width, or the space available if that is less, but never
+	 * below the longest word (R10.4's automatic minimum); the height is the
+	 * wrapped height at that width. Unmeasurable text reports its current size.
+	 */
+	public measure(availableWidth: number, availableHeight: number, definite: Axis | null = null): Size {
+		if (!this.context?.draw.canMeasureText(this.fontRole)) return { width: this.width, height: this.height };
+		let width: number;
+		if (this.widthMode === 'fixed') {
+			width = this.authoredWidth;
+		} else if (definite === 'width') {
+			width = availableWidth;
+		} else {
+			const intrinsic = this.metricsFor(undefined, 'none')?.width ?? 0;
+			width = Math.min(intrinsic, Math.max(this.automaticMinSize('width'), availableWidth));
+		}
+		let height: number;
+		if (this.heightMode === 'fixed') {
+			height = this.authoredHeight;
+		} else if (definite === 'height') {
+			height = availableHeight;
+		} else {
+			const wrap: TextWrap = this.whiteSpace === 'normal' ? 'word' : 'none';
+			height = this.metricsFor(width, wrap)?.height ?? 0;
+		}
+		return { width, height };
+	}
+
+	/** The box for this pass on each non-fixed axis; the text wraps to an assigned width. */
+	public assignSize(width: number, height: number): void {
+		if (!Number.isNaN(width) && this.widthMode !== 'fixed') this.layoutWidth = width;
+		if (!Number.isNaN(height) && this.heightMode !== 'fixed') this.layoutHeight = height;
+		const size = this.resolveSize();
+		this.applyLayoutSize(size.width, size.height);
+	}
+
+	/**
+	 * R10.4: CSS `min-width: auto`. The longest unbreakable word, or the whole
+	 * line when it cannot wrap; zero when it clips or ellipsises, since then it
+	 * may be as narrow as it is given.
+	 */
+	public automaticMinSize(axis: Axis): number {
+		if (axis !== 'width' || this.textOverflow !== 'visible') return 0;
+		if (this.whiteSpace === 'nowrap') return this.metricsFor(undefined, 'none')?.width ?? 0;
+		// Every break opportunity taken: each line is one word.
+		return this.metricsFor(NARROWEST_WRAP, 'word')?.width ?? 0;
+	}
+
+	/** The last stack's assignment belongs to that stack. */
+	protected onParentChanged(): void {
+		this.layoutWidth = null;
+		this.layoutHeight = null;
+		this.remeasure();
 	}
 
 	public layout(): void {
-		if (this.stale) this.measure();
+		if (this.stale) this.remeasure();
 		super.layout();
 	}
 
@@ -251,7 +349,7 @@ export class Text extends Component {
 	 * its relayout boundary, which lays out again before the first render.
 	 */
 	protected onMount(_context: MountContext): void {
-		this.measure();
+		this.remeasure();
 	}
 
 	public render(draw: DrawApi): void {
@@ -272,4 +370,16 @@ export class Text extends Component {
 			lineHeight: this.lineHeight ?? undefined,
 		});
 	}
+}
+
+/**
+ * A wrap width narrower than any glyph, so every break opportunity is taken.
+ * Zero would read as no wrap at all.
+ */
+const NARROWEST_WRAP = 1e-3;
+
+/** A positive authored size fixes the axis; zero hugs it again, or keeps `fill`. */
+function authoredMode(size: number, current: SizeMode): SizeMode {
+	if (size > 0) return 'fixed';
+	return current === 'fill' ? 'fill' : 'hug';
 }

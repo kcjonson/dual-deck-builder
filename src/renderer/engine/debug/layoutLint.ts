@@ -82,6 +82,8 @@ export interface LintNode {
 	focusable?: boolean;
 	pointerEvents?: string;
 	text?: LintText;
+	/** A stack container's direction and gap; see rule 1's negative-gap allowance. */
+	stack?: { direction?: string; gap?: number };
 	/**
 	 * The node's own drawings, which are not siblings of its children. See the
 	 * note on rule 1 in `walk` for what the distinction changes.
@@ -452,9 +454,22 @@ export function layoutLint(document: LintDocument, options: LintOptions | null =
 		];
 	};
 
+	/**
+	 * Rule 1's allowance: children of a stack with a negative gap may overlap
+	 * along its main axis by up to that gap (R10.2, R13.25.1).
+	 */
+	const negativeGapAllowance = (parent: Candidate | null): { axis: 'x' | 'y'; allowance: number } | null => {
+		const stack = parent?.node.stack;
+		if (!stack) return null;
+		const gap = num(stack.gap);
+		if (gap >= 0) return null;
+		return { axis: stack.direction === 'horizontal' ? 'x' : 'y', allowance: -gap };
+	};
+
 	/** Rule 1. Roots are a sibling group like any other (R13.27). */
-	const siblingOverlap = (group: readonly Candidate[]): void => {
+	const siblingOverlap = (group: readonly Candidate[], parent: Candidate | null): void => {
 		const rule = tally('sibling-overlap');
+		const negativeGap = negativeGapAllowance(parent);
 		for (let i = 0; i < group.length; i++) {
 			for (let j = i + 1; j < group.length; j++) {
 				const a = group[i];
@@ -468,14 +483,17 @@ export function layoutLint(document: LintDocument, options: LintOptions | null =
 				// greater than epsilon: an abutment gives 0, and an overlap of
 				// exactly epsilon is still within tolerance.
 				//
-				// R13.25.1's "beyond what a negative stack gap allows" is not
-				// computable here: R13.22 carries no container gap, so epsilon
-				// is the whole allowance. That extension belongs with the gap
-				// field, not with a guess.
 				const x = overlapOnAxis(a.screen.x, a.screen.w, b.screen.x, b.screen.w);
 				if (x <= EPSILON) continue;
 				const y = overlapOnAxis(a.screen.y, a.screen.h, b.screen.y, b.screen.h);
 				if (y <= EPSILON) continue;
+				// R13.25.1's "beyond what a negative stack gap allows": the
+				// snapshot carries a stack's gap, so an overlap along its main
+				// axis no deeper than the gap is the overlap the author asked for.
+				if (negativeGap && (negativeGap.axis === 'x' ? x : y) <= negativeGap.allowance + EPSILON) {
+					rule.exempt++;
+					continue;
+				}
 				report('sibling-overlap', a, b);
 			}
 		}
@@ -658,7 +676,7 @@ export function layoutLint(document: LintDocument, options: LintOptions | null =
 		depth: number,
 		siblings: boolean,
 	): void => {
-		if (siblings) siblingOverlap(group);
+		if (siblings) siblingOverlap(group, parent);
 		for (const candidate of group) {
 			if (parent) childOutsideParent(candidate, parent);
 			outsideViewport(candidate);
