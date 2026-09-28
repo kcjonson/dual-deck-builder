@@ -25,5 +25,5 @@
 {"path":"gallery_root/dev_section_scrolling/dev_scroll_line/Stack[2]/dev_scroll_outer/Stack[1]/dev_scroll_inner/dev_scroll_rows/Stack[4]/Text[0]","text":"Salvage lot 5","rect":[573,292.54,75.63,17.7]},
 {"path":"gallery_root/dev_section_scrolling/dev_scroll_line/Stack[2]/dev_scroll_outer/Stack[1]/Stack[2]/Text[0]","text":"Salvage lot 21","rect":[573,308.54,83.07,17.7]},
 {"path":"gallery_root/dev_section_scrolling/dev_scroll_line/Stack[3]/Text[0]","text":"a standalone horizontal scrollbar (R12.37)","rect":[829,103,251.17,17.7]},
-{"path":"gallery_root/dev_section_scrolling/dev_scroll_line/Stack[3]/Stack[1]/dev_strip_offset","text":"offset 390 of 780","rect":[829,140.7,122.4,15.84]}
+{"path":"gallery_root/dev_section_scrolling/dev_scroll_line/Stack[3]/Stack[1]/dev_strip_offset","text":"offset 390 of 780","rect":[829,158.7,122.4,15.84]}
 ]
