@@ -209,16 +209,25 @@ describe('subtree cull (DDB-184, R4.2a)', () => {
 	});
 
 	describe('never culls visible ink', () => {
+		interface SweepOptions {
+			draw?: DrawApi;
+			recording?: RecordingBackend;
+			mount?: boolean;
+			/** The axis to slide along; `y` unless said. */
+			axis?: 'x' | 'y';
+		}
+
 		/**
-		 * Slides `build`'s component down across the clip, from well above its
-		 * top edge to well below its bottom, a pixel at a time, and at every
-		 * step checks that the frame that may skip draws exactly what the
-		 * counting frame drew. Returns how many steps drew anything beyond
+		 * Slides `build`'s component down (or right) across the clip, from well
+		 * before its near edge to well past its far one, a pixel at a time, and
+		 * at every step checks that the frame that may skip draws exactly what
+		 * the counting frame drew. Returns how many steps drew anything beyond
 		 * what the box alone would: a box `h` tall is drawn at `201 + h`
 		 * offsets (R4.2a's one-pixel inflation included), so a larger count
 		 * shows the ink reaching past the box was exercised.
 		 */
-		function sweep(build: () => Component, options: { draw?: DrawApi; recording?: RecordingBackend; mount?: boolean } = {}): number {
+		function sweep(build: () => Component, options: SweepOptions = {}): number {
+			const axis = options.axis ?? 'y';
 			const draw = options.draw ?? api;
 			const recording = options.recording ?? backend;
 			const clip = viewport();
@@ -231,15 +240,15 @@ describe('subtree cull (DDB-184, R4.2a)', () => {
 				context.frame.layout();
 			}
 			let drawnSteps = 0;
-			for (let offset = -160; offset <= 260; offset += 1) {
-				subject.y = offset;
+			for (let offset = -320; offset <= 580; offset += 1) {
+				subject[axis] = offset;
 				const counting = frame(root, draw, recording);
 				const skipping = frame(root, draw, recording);
 				expect({ offset, ...skipping }).toEqual({ offset, ...counting });
 				if (counting.drawn.length > 0) drawnSteps++;
 			}
 			expect(draw.diagnostics.filter((diagnostic) => diagnostic.code === 'ink-outside-bound')).toEqual([]);
-			return drawnSteps - (201 + subject.height);
+			return drawnSteps - (201 + (axis === 'y' ? subject.height : subject.width));
 		}
 
 		it('a drop shadow declared through inkExtent', () => {
@@ -287,6 +296,87 @@ describe('subtree cull (DDB-184, R4.2a)', () => {
 			});
 			// A 20 px line in a 10 px box.
 			expect(sweep(make, { draw: measuring, recording, mount: true })).toBeGreaterThanOrEqual(5);
+		});
+
+		// DDB-214: the bound is the run's measured ink, per side, so each of
+		// these overruns on the side its alignment sends it to.
+		describe('a text whose run overruns its box (DDB-214)', () => {
+			function measuredSweep(make: () => Text, axis: 'x' | 'y'): { past: number; text: Text } {
+				const { api: measuring, backend: recording } = createMeasuringDrawApi();
+				let text: Text | null = null;
+				const past = sweep(() => (text = make()), { draw: measuring, recording, mount: true, axis });
+				return { past, text: text as unknown as Text };
+			}
+
+			it('a right-aligned nowrap run past the left of a narrow box', () => {
+				const { past, text } = measuredSweep(() => new Text('Scrap the escort and keep rolling', {
+					id: 'right',
+					width: 40,
+					height: 20,
+					style: { fontSize: 16, whiteSpace: 'nowrap', textAlign: 'right' },
+				}), 'x');
+				const run = text.measured?.width ?? 0;
+				expect(run).toBeGreaterThan(100);
+				expect(text.inkRect.x).toBeLessThan(40 - run);
+				expect(past).toBeGreaterThanOrEqual(Math.floor(text.inkRect.width - 40));
+			});
+
+			it('a centred nowrap run past both sides', () => {
+				const { past, text } = measuredSweep(() => new Text('Scrap the escort and keep rolling', {
+					id: 'centred',
+					width: 40,
+					height: 20,
+					style: { fontSize: 16, whiteSpace: 'nowrap', textAlign: 'center' },
+				}), 'x');
+				expect(text.inkRect.x).toBeLessThan(0);
+				expect(past).toBeGreaterThanOrEqual(Math.floor(text.inkRect.width - 40));
+				expect(text.inkRect.x + text.inkRect.width).toBeGreaterThan(40);
+			});
+
+			it('wrapped lines taller than a fixed height, centred on it', () => {
+				const { past, text } = measuredSweep(() => new Text('one two three four five six seven eight', {
+					id: 'tall',
+					width: 60,
+					height: 16,
+					style: { fontSize: 16, verticalAlign: 'middle' },
+				}), 'y');
+				expect(text.measured?.height ?? 0).toBeGreaterThan(60);
+				expect(past).toBeGreaterThanOrEqual(Math.floor(text.inkRect.height - 16));
+				expect(text.inkRect.y).toBeLessThan(0);
+				expect(text.inkRect.y + text.inkRect.height).toBeGreaterThan(16);
+			});
+
+			it('wrapped lines bottom-aligned in a short box, past its top', () => {
+				const { past, text } = measuredSweep(() => new Text('one two three four five six seven eight', {
+					id: 'bottom',
+					width: 60,
+					height: 16,
+					style: { fontSize: 16, verticalAlign: 'bottom' },
+				}), 'y');
+				expect(past).toBeGreaterThanOrEqual(Math.floor(text.inkRect.height - 16));
+				// The last line's box ends on the box's bottom, so the block's glyphs start above it.
+				expect(text.inkRect.y).toBeLessThan(16 - 60);
+			});
+
+			it('glyphs past a tight line height', () => {
+				const { past, text } = measuredSweep(() => new Text('Tall Glyphs', {
+					id: 'tight',
+					style: { fontSize: 32, lineHeight: 0.4 },
+				}), 'y');
+				expect(text.height).toBeLessThan(16);
+				expect(past).toBeGreaterThan(0);
+				expect(text.inkExtent).toBeGreaterThan(0);
+			});
+
+			it('a run inside its box keeps an ink bound no larger than its glyphs need', () => {
+				const text = new Text('Go', { width: 200, height: 40, style: { fontSize: 16 } });
+				text.mount(createTestContext({ draw: createMeasuringDrawApi().api }));
+				// The snap's pixel and the distance field's padding past the
+				// first glyph's left edge, nowhere near the old em of slack.
+				expect(text.inkExtent).toBeGreaterThan(0);
+				expect(text.inkExtent).toBeLessThan(4);
+				expect(text.inkRect).toEqual({ x: -text.inkExtent, y: 0, width: 200 + text.inkExtent, height: 40 });
+			});
 		});
 
 		it('a text that gains a bound once it measures, at an unchanged size', () => {

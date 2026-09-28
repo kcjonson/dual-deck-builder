@@ -24,4 +24,8 @@ module.exports = {
 	collectCoverageFrom: ['src/**/*.{js,ts}', '!src/**/*.d.ts', '!src/index.ts'],
 	verbose: true,
 	setupFilesAfterEnv: ['<rootDir>/jest.setup.js'],
+	// A timeout only has to catch a hang. The 5 s default fails the
+	// second-long font suites on a machine running several jest processes at
+	// once.
+	testTimeout: 30_000,
 };
