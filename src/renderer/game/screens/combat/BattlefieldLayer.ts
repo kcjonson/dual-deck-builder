@@ -16,7 +16,7 @@ export interface LaneDecor {
 	labels: [string, string, string];
 }
 
-export type BattlefieldLayerOptions = LayerOptions & { x: number; y: number; width: number; height: number; combatData?: CombatModel };
+export type BattlefieldLayerOptions = LayerOptions & { combatData?: CombatModel };
 
 const LANE_LABEL_Y = 20;
 const LANE_DIVIDER_TOP = 40;
@@ -198,7 +198,11 @@ export abstract class BattlefieldLayer extends Layer {
 	 */
 	protected layoutVehiclesInLane(vehicles: Vehicle[], lane: { x: number; y: number; width: number; height: number }): void {
 		const count = vehicles.length;
-		const cardWidth = this.getCardWidth();
+		// Two side by side narrow to share a lane that is too slim for both
+		const sideBySideSpacing = 20;
+		const cardWidth = count === 2
+			? Math.min(this.getCardWidth(), Math.floor((lane.width - sideBySideSpacing) / 2))
+			: this.getCardWidth();
 		const cardHeight = this.getCardHeight();
 		
 		vehicles.forEach((vehicle, index) => {
@@ -213,10 +217,9 @@ export abstract class BattlefieldLayer extends Layer {
 				y = lane.y + Math.floor((lane.height - cardHeight) / 2);
 			} else if (count === 2) {
 				// Side by side
-				const spacing = 20;
-				const totalWidth = 2 * cardWidth + spacing;
+				const totalWidth = 2 * cardWidth + sideBySideSpacing;
 				const startX = lane.x + Math.floor((lane.width - totalWidth) / 2);
-				x = startX + index * (cardWidth + spacing);
+				x = startX + index * (cardWidth + sideBySideSpacing);
 				y = lane.y + Math.floor((lane.height - cardHeight) / 2);
 			} else {
 				// Stack with overlap (max 3 per lane)

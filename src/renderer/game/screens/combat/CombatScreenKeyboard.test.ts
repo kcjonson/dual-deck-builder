@@ -14,7 +14,7 @@ import { PointerAdapter } from '../../../engine/input/PointerAdapter';
 
 /**
  * DDB-76: a fight played from the keyboard alone, through the injection hook
- * (R9.25). Tab reaches END TURN and the hand, Enter picks a card, focus goes
+ * (R9.25). Tab reaches the hand, then END TURN, Enter picks a card, focus goes
  * to the first target, Escape puts the card back, and Enter on a target
  * plays it.
  */
@@ -69,14 +69,16 @@ describe('CombatScreen from the keyboard', () => {
 		const focus = context.focus;
 		const model = combat['combatModel'];
 
+		// The dock reads left to right: the hand is one Tab stop, then END TURN
+		press('Tab');
+		expect(focus.focused).toBeInstanceOf(UICard);
+		expect(focus.focused?.focusVisible).toBe(true);
+		const firstCard = focus.focused;
 		press('Tab');
 		expect(focus.focused).toBeInstanceOf(Button);
 		expect(focus.focused?.id).toBe('end_turn_button');
-		expect(focus.focused?.focusVisible).toBe(true);
-
 		press('Tab');
-		expect(focus.focused).toBeInstanceOf(UICard);
-		const firstCard = focus.focused;
+		expect(focus.focused).toBe(firstCard);
 		press('ArrowRight');
 		expect(focus.focused).toBeInstanceOf(UICard);
 		expect(focus.focused).not.toBe(firstCard);
@@ -125,7 +127,9 @@ describe('CombatScreen from the keyboard', () => {
 		await flushPromises();
 
 		const endPlayerTurn = jest.spyOn(Battle.prototype, 'endPlayerTurn');
-		press('Tab', 'Enter');
+		press('Tab', 'Tab');
+		expect(context.focus.focused?.id).toBe('end_turn_button');
+		press('Enter');
 		expect(endPlayerTurn).toHaveBeenCalledTimes(1);
 
 		endPlayerTurn.mockRestore();

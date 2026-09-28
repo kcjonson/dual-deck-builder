@@ -14,6 +14,21 @@ This document contains the chronological log of completed development tasks for 
 - Corners draw at one logical pixel per texel. Insets that cross inside the source are scaled down per axis; a destination smaller than two corners scales every corner by the smaller axis's factor, so corners keep their aspect (CSS border-image's rule). Zero insets drop their empty cells.
 - Tests: grid math in `nineSlice.test.ts`, encoder output in `UberGeometryEncoder.test.ts`, and a SwiftShader pixel test (corners stay 2x2 texels of pure colour, a fractional placement has no gap between cells). The `shading` gallery scene gained 5.10's nine-sliced image: a 24 px frame at one to one, sliced wide, stretched unsliced for contrast, and sliced shorter than its corners.
 
+## Combat screen on stacks (2026-09-28)
+
+**What landed:** DDB-82 (DDB-55 phase 4), closing DDB-183 and the 800x450 resource bar note from #78.
+
+- `CombatLayout.ts` is Battle Screen Design section 2's numbers and `computeCombatStage` (`s = min(W/1280, H/720)`, held at 0.8 or above, over a `W/s` by `H/s` canvas). `CombatScreen` builds one `combat_stage` stack, sizes and scales it in `applyLayout` on mount and resize, and everything inside is placed by stacks: a column capped at 1600 and centred of the top bar (36), the road (fill), and the dock (228).
+- New: `TopBarLayer` (turn, last-log ticker, scrap, fuel, LOG button), `EndTurnColumn` (turn and whose move, END TURN, "N adrenaline unspent"), `DriverTab` (mark, name, passenger tag, adrenaline pips and count, draw and discard). Deleted: `ResourceBarLayer`, `DriverStatsDisplay`, `PlayerHandView.labels`. Fuel is shared, not per driver.
+- `PlayerHandLayer` is a row of two halves, each a tab over a fan; a fan's row is scaled to 128x180 cards and overlaps by a negative gap to fit its half (DDB-183). A lifted card takes `zIndex: 1`.
+- The raider and player battlefields share the road 23:40; the turn banner is anchored on the line between them, the log drawer `topRight` over the road, 320 wide.
+- Two side-by-side vehicles narrow to share a lane too slim for both. The turn banner shows the phase only, centred, and ignores the pointer.
+- `DrawApi.pushClip` warns under rotation or skew only (`isAxisAligned`), since an axis-aligned scale clips exactly.
+- Tab order is the hand, then END TURN; LOG is `tabIndex: -1`, and L (or F6) toggles the log.
+- Chrome from the mock after review: driver 1's mark a triangle and driver 2's a diamond (section 7), tabs capped at 470 with a 3 px driver-colour stripe, hairline edges and top radii, driver 2's tab mirrored, the dock a gradient with a top edge, the top bar a bottom hairline, LOG an outlined key with its L hint (`ChromeStack`). The banner centres on the road, independent of the band weights, and reads PLAYER TURN from the start of the fight.
+
+**How:** `CombatLayout.test.ts`; `CombatScreen.test.ts` (bands at three sizes including the 1600 cap, the drawer over the road only, END TURN after resize, seven cards a driver on screen and in their half at five sizes); `CombatScreenKeyboard.test.ts`; `DrawApi.test.ts` (quiet exact clip under a scale). A turn played through `window.__dev.input` at 1280x720 and 800x450: Headshot picked from its visible strip and aimed at the raider, END TURN, the raiders' turn, the log opened from LOG. Combat lint (with #101's interactivity rules) at 1440x882, 1280x720, 1920x1080, 1024x600 and 800x450 went from 282, 325, 258, 359, 401 to 215, 222, 230, 216, 237. Details in [combat-screen-stacks.md](AI_TECHNICAL_DECISIONS/combat-screen-stacks.md).
+
 ## Honest text ink, pooled draw stacks, real pointer identity (2026-09-28)
 
 **What landed:** DDB-212, DDB-213, DDB-214, DDB-215 (DDB-55 follow-ups).
