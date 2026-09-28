@@ -15,6 +15,8 @@ import { installDebugHooks, installAppHooks, installInputHooks, installPerfHooks
 import { CardLoader } from '../renderer/game/core/CardLoader';
 import { gallerySceneRegistry } from './registry';
 import { SceneHost } from './SceneHost';
+import { detectClipboard } from '../renderer/engine/services/ClipboardService';
+import { imageUrlLoader } from '../renderer/engine/services/AssetService';
 
 /**
  * The scene gallery (R13.30 to R13.33): a second application over the same
@@ -63,7 +65,12 @@ class GalleryApplication {
 				gpuTimer: this.gpuTimer,
 				fontAtlases: await fontAtlases,
 			});
-			this.context = createMountContext({ draw: this.draw, viewport: this.renderer.viewport });
+			this.context = createMountContext({
+				draw: this.draw,
+				viewport: this.renderer.viewport,
+				clipboard: detectClipboard(window),
+				assetLoader: imageUrlLoader(),
+			});
 			followReducedMotion(this.context.animator);
 			const canvas = this.renderer.canvas;
 			new PointerAdapter({ dispatcher: this.context.dispatcher }).attach(canvas);

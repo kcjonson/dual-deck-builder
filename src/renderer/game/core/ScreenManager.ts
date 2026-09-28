@@ -86,6 +86,9 @@ export class ScreenManager {
 			this.currentScreen = null;
 			this.currentScreenName = null;
 		}
+		// R8.22: nothing the outgoing screen opened above itself survives it.
+		context.popups.close();
+		context.overlays.closeAll();
 		
 		// Get screen constructor
 		const ScreenConstructor = this.screenConstructors.get(screenName);
