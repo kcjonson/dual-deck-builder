@@ -6,6 +6,19 @@ This document contains the chronological log of completed development tasks for 
 
 **Date correction (2026-08-22):** the repo's first commit is 2025-05-17, but many entries below carry dates in December 2024 or January 2025 — the AI that wrote them used its assumed date instead of the real one. Entries dated 2025-07-03 and 2025-07-02 have been corrected from "2025-01-03"/"2025-01-02" (verified against git history). Remaining Dec 2024 / Jan 2025 dates are wrong by roughly six months; the real work happened May–July 2025. Trust git history over these dates.
 
+## Component base and the framework render walk (2026-09-28)
+
+**What landed:** DDB-73's first PR (DDB-55 phase 3), R8.1 to R8.13, R8.26, R8.27, R8.29 and R3.11 to R3.13.
+
+- `components/Component.ts` is the base: R8.2's properties as accessors (per-side `margin`, `transform`, `pointerEvents`, `opacity`, `layer`, `zIndex`), effective visibility, enabled, opacity and layer, `parent` and `root`, `insertChild`, `moveChild`, `clearChildren`, `reconcileChildren`, `findById`, `renderOrder`, and screen geometry. `Layer` extends it and adds a background fill.
+- `components/renderTree.ts` walks the tree; every component's `render(draw)` draws in local space and no longer loops over its children. `RenderContext.ts` is deleted.
+- `components/componentGeometry.ts` holds margin sides and the transform matrix; `draw/geometry.ts` gains `invert`.
+- `Panel` draws its own background through `Rectangle`'s `drawBox` and scrolls with `contentOffset`; `ScrollableContentLayer` and `getContentLayer` are gone, and the snapshot's Panel special case with them.
+- `InputSystem` asks `containsScreenPoint`, which skips invisible, faded and `pointerEvents: 'none'` components and inverts transforms.
+- `Card` and `Vehicle` use the base's hover state; `Card`'s `Layer.prototype.render` borrow is gone.
+
+**How:** `Component.test.ts` (properties, effective values, children, reconciliation, screen geometry under rotation and scale) and `renderTree.test.ts` (local draws, leaf children walked by the framework, skipped subtrees, zIndex order, opacity, clip and promotion, balanced stacks) on the recording backend. Every screen and gallery scene captured locally on `main` and on the branch passes the golden tolerance; the CI goldens are unchanged.
+
 ## Paint order: text in submission order, reorder sites fixed (2026-09-28)
 
 **What landed:** DDB-67 (DDB-55 phase 1), the second deliberate re-baseline.
