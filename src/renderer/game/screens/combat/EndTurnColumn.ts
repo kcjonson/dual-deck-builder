@@ -1,0 +1,94 @@
+import { Stack, StackOptions } from '../../../engine/components/Stack';
+import { Text } from '../../../engine/components/Text';
+import type { StyleObject } from '../../../engine/style/styleObject';
+import { Button } from '../../../engine/ui/Button';
+import { rgba } from './combatStyle';
+import { END_TURN_COLUMN_WIDTH } from './CombatLayout';
+
+/**
+ * The battle screen mock's End Turn (`.endturn .btn`): a bone face with dark
+ * text, 21 px display tracked 0.1 em, white on hover with the warm accent at
+ * its edge, and the neutral surface with muted text while waiting. Not the
+ * accent tone: yellow is keywords and interaction, and the one big action
+ * reads apart from both.
+ */
+const END_TURN_STYLE: StyleObject = {
+	backgroundColor: 'text',
+	borderColor: 'text',
+	color: 'accent_contrast',
+	borderRadius: 'r_md',
+	fontSize: 21,
+	letterSpacing: 0.1,
+	hover: { backgroundColor: 'text_bright', borderColor: 'accent' },
+	disabled: { backgroundColor: 'bg_panel_raised', borderColor: 'line_edge', color: 'text_dim' },
+};
+const END_TURN_HEIGHT = 64;
+/** Where the column's content starts below the dock's top edge, from the mock. */
+const COLUMN_TOP = 18;
+
+/**
+ * The End Turn column at the right end of the dock (Battle Screen Design,
+ * section 4): the turn number above the button, and a warning under it
+ * while adrenaline is left unspent.
+ */
+export class EndTurnColumn extends Stack {
+	private readonly turnLabel: Text;
+	private readonly endTurnButton: Button;
+	private readonly warning: Text;
+
+	constructor({ onEndTurn, ...options }: StackOptions & { onEndTurn: () => void }) {
+		super({
+			direction: 'vertical',
+			gap: 8,
+			padding: { top: COLUMN_TOP },
+			crossAlign: 'stretch',
+			width: END_TURN_COLUMN_WIDTH,
+			heightMode: 'fill',
+			...options,
+		});
+
+		this.turnLabel = new Text('', {
+			id: 'end_turn_turn',
+			style: {
+				fontFamily: 'display',
+				fontSize: 13,
+				letterSpacing: 0.14,
+				textTransform: 'uppercase',
+				color: rgba('text_dim'),
+				textAlign: 'center',
+				whiteSpace: 'nowrap',
+			},
+		});
+		this.addChild(this.turnLabel);
+
+		this.endTurnButton = new Button('END TURN', {
+			id: 'end_turn_button',
+			size: 'lg',
+			width: END_TURN_COLUMN_WIDTH,
+			height: END_TURN_HEIGHT,
+			style: END_TURN_STYLE,
+		});
+		this.endTurnButton.onClick = onEndTurn;
+		this.addChild(this.endTurnButton);
+
+		this.warning = new Text('', {
+			id: 'end_turn_warning',
+			style: { fontFamily: 'mono', fontSize: 11, color: rgba('accent'), textAlign: 'center', whiteSpace: 'nowrap' },
+		});
+		this.addChild(this.warning);
+	}
+
+	/** For the combat screen's keyboard focus: where it lands when the hand has nothing to play. */
+	public get endTurn(): Button {
+		return this.endTurnButton;
+	}
+
+	/**
+	 * The turn and whose move it is above the button, and the adrenaline
+	 * the player would leave unspent under it
+	 */
+	public show({ turn, playerTurn, unspentAdrenaline }: { turn: number; playerTurn: boolean; unspentAdrenaline: number }): void {
+		this.turnLabel.setText(`Turn ${turn} · ${playerTurn ? 'Your move' : 'Raiders'}`);
+		this.warning.setText(playerTurn && unspentAdrenaline > 0 ? `${unspentAdrenaline} adrenaline unspent` : '');
+	}
+}

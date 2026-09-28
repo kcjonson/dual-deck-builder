@@ -95,9 +95,17 @@ export function isTranslateOnly(matrix: Mat2D): boolean {
 }
 
 /**
+ * No rotation or skew: a rect stays a rect with its edges on the axes, so its
+ * transformed bounds are exact. A scale, uniform or not, keeps it aligned.
+ */
+export function isAxisAligned(matrix: Mat2D): boolean {
+	return matrix[1] === 0 && matrix[2] === 0;
+}
+
+/**
  * The axis-aligned bounds of `rect` transformed by `matrix`. Exact under
- * translate-only transforms; under rotation or non-uniform scale this is
- * R4.7's first option, the documented approximation that under-clips.
+ * any axis-aligned transform (translation and scale); under rotation or skew
+ * this is R4.7's first option, the documented approximation that under-clips.
  */
 export function transformedBounds(matrix: Mat2D, rect: Rect): ClipRect {
 	if (isTranslateOnly(matrix)) {
