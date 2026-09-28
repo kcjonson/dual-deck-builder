@@ -2,7 +2,7 @@ import type { Rect } from '../draw/geometry';
 import type { Component } from './Component';
 import { MarginInput, Sides, ZERO_SIDES, normalizeSides } from './componentGeometry';
 import { Layer, LayerOptions } from './Layer';
-import { Axis, CrossAlign, Direction, Distribution, Size, SizeMode } from './layoutTypes';
+import { Axis, CrossAlign, Direction, Distribution, Size, SizeMode, authoredSizeMode } from './layoutTypes';
 
 export interface StackOptions extends LayerOptions {
 	direction?: Direction;
@@ -27,7 +27,24 @@ interface Slot {
 	fill: boolean;
 	/** Clamped during distribution, and fixed at that size for the re-run (R10.4). */
 	frozen: boolean;
+	/** Its cross size as measured, before a stretch to a hug cross extent. */
+	natural: number;
 }
+
+/** What `resolveFlow` knows about this pass's content box. */
+interface FlowBox {
+	/** The main axis is assigned (fixed, a share, a stretch): fill children share `mainLimit`. */
+	exactMain: boolean;
+	/** The most main-axis room there is, or null for none known; hug children shrink to fit it (R10.7). */
+	mainLimit: number | null;
+	/** The assigned cross size, or null for a hug cross axis. */
+	contentCross: number | null;
+	/** The room across that unstretched children shrink to fit. */
+	crossAvailable: number;
+}
+
+/** Overflow below this is float noise, not a reason to shrink anything. */
+const EPSILON = 1e-6;
 
 /**
  * Chapter 10's stack container: children in a row or a column, sized by their
@@ -51,7 +68,19 @@ interface Slot {
  * Nested stacks need no separate pass 0 (R10.6): `measure` recurses, so a
  * hug measurement is always taken from the current tree, and a stack child
  * lays out its own children right after this one assigns its size. A hug
- * axis is never frozen by an earlier pass (R10.5).
+ * axis is never frozen by an earlier pass (R10.5). Measurements are cached
+ * per constraint until the stack is next invalidated, so a pass costs one
+ * measurement per stack and constraint rather than one per ancestor.
+ *
+ * Shrink-to-fit reaches nested stacks: when a row or column has less main
+ * room than its children want, its non-fixed children shrink in proportion
+ * to their size, none below its minimum content (CSS flex-shrink with
+ * `min-width: auto`), and a shrunk child is measured again across, so a
+ * text in a hug row inside a narrow column wraps.
+ *
+ * `width`, `height` and `setSize` author a size: a positive value fixes that
+ * axis and zero makes it hug again, as for Text. Layout's own assignments go
+ * through `assignSize` and never change a mode.
  */
 export class Stack extends Layer {
 	private stackDirection: Direction = 'vertical';
@@ -144,9 +173,15 @@ export class Stack extends Layer {
 	/**
 	 * R10.12's hug measurement on every axis that is not `fixed` or `definite`,
 	 * with children measured against the space available (so wrapping text
-	 * reflows before it is summed); padding included, margin not.
+	 * reflows before it is summed) and the main axis shrunk to fit a finite
+	 * room (R10.7); padding included, margin not.
 	 */
 	public measure(availableWidth: number, availableHeight: number, definite: Axis | null = null): Size {
+		return this.cachedMeasure(`${availableWidth}|${availableHeight}|${definite}`,
+			() => this.computeMeasure(availableWidth, availableHeight, definite));
+	}
+
+	private computeMeasure(availableWidth: number, availableHeight: number, definite: Axis | null): Size {
 		const main = this.mainAxis;
 		const cross = this.crossAxis;
 		const available = (axis: Axis): number => (axis === 'width' ? availableWidth : availableHeight);
@@ -160,14 +195,42 @@ export class Stack extends Layer {
 			const padMain = this.paddingOn(main);
 			const padCross = this.paddingOn(cross);
 			const contentCross = crossSize === null ? null : Math.max(crossSize - padCross, 0);
-			const crossAvailable = contentCross ?? Math.max(available(cross) - padCross, 0);
-			const contentMain = mainSize === null ? null : Math.max(mainSize - padMain, 0);
+			const roomMain = mainSize ?? available(main);
 			const slots = this.flowSlots();
-			const resolvedCross = this.resolveFlow(slots, contentMain, contentCross, crossAvailable);
+			const resolvedCross = this.resolveFlow(slots, {
+				exactMain: mainSize !== null,
+				mainLimit: Number.isFinite(roomMain) ? Math.max(roomMain - padMain, 0) : null,
+				contentCross,
+				crossAvailable: contentCross ?? Math.max(available(cross) - padCross, 0),
+			});
 			if (mainSize === null) mainSize = this.hugMain(slots) + padMain;
 			if (crossSize === null) crossSize = resolvedCross + padCross;
 		}
 		return main === 'width' ? { width: mainSize, height: crossSize } : { width: crossSize, height: mainSize };
+	}
+
+	/**
+	 * The narrowest this stack's content allows on `axis`: along the flow,
+	 * every child at its minimum plus the gaps; across it, the widest
+	 * minimum; padding on top. What a parent stack shrinks it to at most.
+	 */
+	public minContentSize(axis: Axis): number {
+		if (this.sizeMode(axis) === 'fixed') return this.sizeOn(axis);
+		const size = this.cachedMeasure(`min|${axis}`, () => {
+			const along = axis === this.mainAxis;
+			let total = 0;
+			let count = 0;
+			for (const child of this.getChildren()) {
+				if (!child.visible || child.positioned === 'absolute') continue;
+				const least = shrinkFloor(child, axis, Infinity) + marginOn(child, axis);
+				total = along ? total + least : Math.max(total, least);
+				count += 1;
+			}
+			if (along) total += this.gapTotal(count);
+			const extent = Math.max(total, 0) + this.paddingOn(axis);
+			return { width: extent, height: extent };
+		});
+		return size.width;
 	}
 
 	protected layoutChildren(): void {
@@ -180,9 +243,15 @@ export class Stack extends Layer {
 		const contentCross = Math.max(this.sizeOn(cross) - this.paddingOn(cross), 0);
 
 		// On a hug main axis there is no leftover, and fill children keep their
-		// intrinsic size (R10.8).
+		// intrinsic size (R10.8); an assigned size narrower than that shrinks
+		// them to fit, as `measure` did.
 		const slots = this.flowSlots();
-		this.resolveFlow(slots, this.isHugLike(main) ? null : contentMain, contentCross, contentCross);
+		this.resolveFlow(slots, {
+			exactMain: !this.isHugLike(main),
+			mainLimit: contentMain,
+			contentCross,
+			crossAvailable: contentCross,
+		});
 
 		for (const slot of slots) {
 			const child = slot.child;
@@ -198,6 +267,34 @@ export class Stack extends Layer {
 
 		this.position(slots, contentMain, contentCross);
 		this.sizeAbsoluteChildren();
+	}
+
+	// -- authored size ---------------------------------------------------------
+
+	public get width(): number {
+		return super.width;
+	}
+
+	/** Positive fixes the width; zero hugs again. */
+	public set width(value: number) {
+		this.widthMode = authoredSizeMode(value, this.widthMode);
+		super.width = value;
+	}
+
+	public get height(): number {
+		return super.height;
+	}
+
+	/** Positive fixes the height; zero hugs again. */
+	public set height(value: number) {
+		this.heightMode = authoredSizeMode(value, this.heightMode);
+		super.height = value;
+	}
+
+	public setSize(width: number, height: number): this {
+		this.widthMode = authoredSizeMode(width, this.widthMode);
+		this.heightMode = authoredSizeMode(height, this.heightMode);
+		return super.setSize(width, height);
 	}
 
 	/** R10.15: the content box, inside the padding. */
@@ -275,6 +372,7 @@ export class Stack extends Layer {
 				stretched: this.stretches(child),
 				fill: false,
 				frozen: false,
+				natural: 0,
 			});
 		}
 		return slots;
@@ -282,13 +380,13 @@ export class Stack extends Layer {
 
 	/**
 	 * Passes 1 and 2 over the flow children, writing each slot's content
-	 * sizes. `contentMain` null is a hug main axis (no leftover, fill children
-	 * intrinsic); `contentCross` null is a hug cross axis, resolved here as the
-	 * widest child and returned.
+	 * sizes, then the shrink that fits them into `mainLimit`. Returns the
+	 * content cross size: `contentCross` when assigned, else the widest child.
 	 */
-	private resolveFlow(slots: Slot[], contentMain: number | null, contentCross: number | null, crossAvailable: number): number {
+	private resolveFlow(slots: Slot[], box: FlowBox): number {
 		const main = this.mainAxis;
 		const cross = this.crossAxis;
+		const { exactMain, mainLimit, contentCross, crossAvailable } = box;
 
 		// Pass 1: cross sizes. Stretched children take the content box when it
 		// is known; the rest measure against what is available and shrink to
@@ -306,11 +404,11 @@ export class Stack extends Layer {
 				const room = Math.max(crossAvailable - slot.crossMargin, 0);
 				slot.cross = clampTo(child, cross, measureOn(child, cross, room, Infinity, null)[cross], false);
 			}
+			slot.natural = slot.cross;
 		}
-		let resolvedCross = contentCross ?? crossExtent(slots);
-		if (contentCross === null) this.stretchTo(slots, resolvedCross);
+		if (contentCross === null) this.stretchTo(slots, crossExtent(slots));
 
-		// Pass 2: main sizes. Fill children on a resolved main axis share the
+		// Pass 2: main sizes. Fill children on an assigned main axis share the
 		// leftover; everything else is its own size or its measure at the
 		// cross size pass 1 settled.
 		let used = 0;
@@ -318,7 +416,7 @@ export class Stack extends Layer {
 		for (const slot of slots) {
 			const child = slot.child;
 			const mainMode = child.sizeMode(main);
-			slot.fill = mainMode === 'fill' && contentMain !== null;
+			slot.fill = mainMode === 'fill' && exactMain && mainLimit !== null;
 			if (mainMode === 'fixed') {
 				slot.main = child.sizeOn(main);
 			} else if (slot.fill) {
@@ -330,26 +428,43 @@ export class Stack extends Layer {
 			}
 			used += slot.fill ? slot.mainMargin : slot.main + slot.mainMargin;
 		}
-		if (contentMain !== null && slots.some((slot) => slot.fill)) {
-			const leftover = Math.max(contentMain - used - this.gapTotal(slots.length), 0);
+		const resized: Slot[] = [];
+		if (mainLimit !== null && slots.some((slot) => slot.fill)) {
+			const leftover = Math.max(mainLimit - used - this.gapTotal(slots.length), 0);
 			distribute(slots, main, leftover, totalWeight);
+			for (const slot of slots) if (slot.fill) resized.push(slot);
+		}
 
-			// A child whose main size came from the leftover has its cross size
-			// measured again at that size: a fill text in a row wraps to it.
-			for (const slot of slots) {
-				const child = slot.child;
-				if (!slot.fill || slot.stretched || child.sizeMode(cross) === 'fixed') continue;
-				const measuredCross = child.aspectRatio !== null
-					? fromRatio(child.aspectRatio, cross, slot.main)
-					: measureOn(child, main, slot.main, Math.max(crossAvailable - slot.crossMargin, 0), main)[cross];
-				slot.cross = clampTo(child, cross, measuredCross, false);
-			}
-			if (contentCross === null) {
-				resolvedCross = crossExtent(slots);
-				this.stretchTo(slots, resolvedCross);
+		// Shrink to fit (R10.7): past the room there is, non-fixed children
+		// give up space in proportion to their size, down to their minimum.
+		if (mainLimit !== null && Number.isFinite(mainLimit)) {
+			const overflow = this.flowLength(slots) - mainLimit;
+			if (overflow > EPSILON) {
+				for (const slot of shrink(slots, main, overflow)) {
+					if (!resized.includes(slot)) resized.push(slot);
+				}
 			}
 		}
-		return resolvedCross;
+
+		// A child whose main size changed from its measure (a leftover share,
+		// a shrink) is measured again across at that size: a text wraps to it.
+		for (const slot of resized) this.remeasureCross(slot, crossAvailable, contentCross !== null);
+		if (contentCross !== null) return contentCross;
+		const extent = crossExtent(slots);
+		this.stretchTo(slots, extent);
+		return extent;
+	}
+
+	private remeasureCross(slot: Slot, crossAvailable: number, crossAssigned: boolean): void {
+		const child = slot.child;
+		const main = this.mainAxis;
+		const cross = this.crossAxis;
+		if (child.sizeMode(cross) === 'fixed' || (slot.stretched && crossAssigned)) return;
+		const measured = child.aspectRatio !== null
+			? fromRatio(child.aspectRatio, cross, slot.main)
+			: measureOn(child, main, slot.main, Math.max(crossAvailable - slot.crossMargin, 0), main)[cross];
+		slot.natural = clampTo(child, cross, measured, false);
+		if (!slot.stretched) slot.cross = slot.natural;
 	}
 
 	private stretchTo(slots: readonly Slot[], contentCross: number): void {
@@ -439,11 +554,16 @@ export class Stack extends Layer {
 		return count > 1 ? this.stackGap * (count - 1) : 0;
 	}
 
-	/** R10.12: main sizes, margins, and gaps, never below zero. */
-	private hugMain(slots: readonly Slot[]): number {
+	/** Main sizes, margins, and gaps: what the flow spans, before any floor. */
+	private flowLength(slots: readonly Slot[]): number {
 		let total = this.gapTotal(slots.length);
 		for (const slot of slots) total += slot.main + slot.mainMargin;
-		return Math.max(total, 0);
+		return total;
+	}
+
+	/** R10.12: the flow's length, never below zero. */
+	private hugMain(slots: readonly Slot[]): number {
+		return Math.max(this.flowLength(slots), 0);
 	}
 }
 
@@ -452,11 +572,61 @@ function marginOn(child: Component, axis: Axis): number {
 	return axis === 'width' ? margin.left + margin.right : margin.top + margin.bottom;
 }
 
-/** The widest margin box across the flow: a hug cross axis (R10.12). */
+/**
+ * The widest margin box across the flow: a hug cross axis (R10.12). A
+ * stretched child counts at its measured size, not the stretch it was given.
+ */
 function crossExtent(slots: readonly Slot[]): number {
 	let extent = 0;
-	for (const slot of slots) extent = Math.max(extent, slot.cross + slot.crossMargin);
+	for (const slot of slots) extent = Math.max(extent, slot.natural + slot.crossMargin);
 	return extent;
+}
+
+/**
+ * The least a stack may shrink `child` to on `axis`: its size when fixed,
+ * else its explicit minimum or its minimum content, and never more than
+ * `basis`, the size it would otherwise take.
+ */
+function shrinkFloor(child: Component, axis: Axis, basis: number): number {
+	if (child.sizeMode(axis) === 'fixed') return child.sizeOn(axis);
+	const least = child.minSize[axis] ?? child.minContentSize(axis);
+	return Math.min(basis, least);
+}
+
+/**
+ * Takes `overflow` off the non-fixed children's main sizes in proportion to
+ * those sizes (CSS flex-shrink at the default factor, weighted by basis),
+ * freezing any that reach their floor and sharing the rest among the others
+ * until the overflow is gone or nothing can give. Returns the slots it moved.
+ */
+function shrink(slots: Slot[], main: Axis, overflow: number): Slot[] {
+	const active = slots.filter((slot) => slot.child.sizeMode(main) !== 'fixed' && slot.main > 0);
+	const floors = active.map((slot) => shrinkFloor(slot.child, main, slot.main));
+	const moved: Slot[] = [];
+	let remaining = overflow;
+	let open = active.map((_, index) => index);
+	while (remaining > EPSILON && open.length > 0) {
+		let basis = 0;
+		for (const index of open) basis += active[index].main;
+		if (basis <= 0) break;
+		const stillOpen: number[] = [];
+		let taken = 0;
+		for (const index of open) {
+			const slot = active[index];
+			const wanted = slot.main - (remaining * slot.main) / basis;
+			const next = Math.max(wanted, floors[index]);
+			taken += slot.main - next;
+			if (next !== slot.main && !moved.includes(slot)) moved.push(slot);
+			slot.main = next;
+			if (next > floors[index]) stillOpen.push(index);
+		}
+		remaining -= taken;
+		// Everyone took their full share: done. Otherwise the floored ones
+		// are out and the rest cover what they could not.
+		if (stillOpen.length === open.length) break;
+		open = stillOpen;
+	}
+	return moved;
 }
 
 /**

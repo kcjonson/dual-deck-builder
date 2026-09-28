@@ -32,10 +32,14 @@ function box(width: number, height: number, margin = 0, options: ComponentOption
 
 /**
  * Worldsim's WrappingMockComponent: like wrapped text, its height is its
- * area over its width. Fill width, hug height.
+ * area over its width. Fill width, hug height. As in worldsim it reports a
+ * height of 1 until its width is settled; here that is a `measure` with the
+ * width `definite`, which the stack only makes after the cross pass assigned
+ * it, so a stack that measured the main axis first would read 1.
  */
 class Wrapping extends Component {
 	private readonly area: number;
+	public readonly measuredAt: (number | null)[] = [];
 
 	constructor(area: number) {
 		super({ width: area, height: 1, widthMode: 'fill', heightMode: 'hug' });
@@ -43,8 +47,12 @@ class Wrapping extends Component {
 	}
 
 	public measure(availableWidth: number, _availableHeight: number, definite: Axis | null = null): Size {
-		const width = definite === 'width' ? availableWidth : Math.min(this.area, availableWidth);
-		return { width, height: this.heightAt(width) };
+		if (definite !== 'width') {
+			this.measuredAt.push(null);
+			return { width: this.width, height: 1 };
+		}
+		this.measuredAt.push(availableWidth);
+		return { width: availableWidth, height: this.heightAt(availableWidth) };
 	}
 
 	public assignSize(width: number, height: number): void {
@@ -229,6 +237,24 @@ describe('Stack characterization (worldsim A2 fixes)', () => {
 		expect(inner.height).toBe(300);
 	});
 
+	it('takes an assignment over its fixed size and keeps the mode (worldsim LayoutAdoptsBoundsPositionAndSize)', () => {
+		const layout = stack({ width: 100, height: 50, crossAlign: 'center' });
+		const child = box(50, 30);
+		layout.addChild(child);
+		const context = layOut(layout);
+
+		layout.setPosition(25, 35);
+		// A parent's pass assigns and then lays out; outside one, schedule it.
+		layout.assignSize(400, 300);
+		layout.invalidateLayout();
+		layOut(layout, context);
+
+		expect(layout.bounds).toEqual({ x: 25, y: 35, width: 400, height: 300 });
+		expect(layout.widthMode).toBe('fixed');
+		expect(layout.heightMode).toBe('fixed');
+		expect(child.x).toBe(175);
+	});
+
 	it('aligns against the parent-assigned size, not the hug size', () => {
 		const outer = stack({ width: 400, height: 300, crossAlign: 'stretch' });
 		const inner = stack({ crossAlign: 'center' });
@@ -384,7 +410,9 @@ describe('Stack distribution (worldsim, R10.9)', () => {
 		expect(distributionYs('spaceEvenly', 1, 30)).toEqual([135]);
 		expect(distributionYs('spaceEvenly', 2, 30)).toEqual([80, 190]);
 		const step = 200 / 6;
-		distributionYs('spaceEvenly', 5, 20).forEach((y, index) => {
+		const ys = distributionYs('spaceEvenly', 5, 20);
+		expect(ys).toHaveLength(5);
+		ys.forEach((y, index) => {
 			expect(y).toBeCloseTo(step * (index + 1) + 20 * index, 3);
 		});
 	});
@@ -581,15 +609,19 @@ describe('Stack resolved sizes (worldsim, R10.5)', () => {
 	it('takes an assignment of zero over its hug measurement, for the pass', () => {
 		const layout = stack();
 		layout.addChild(box(50, 30));
+		const context = layOut(layout);
 
-		expect(layout.measure(Infinity, Infinity)).toEqual({ width: 50, height: 30 });
+		// Unassigned, it reports what it hugs.
+		expect(layout.bounds).toEqual({ x: 0, y: 0, width: 50, height: 30 });
 		layout.assignSize(0, 0);
+		expect(layout.bounds).toEqual({ x: 0, y: 0, width: 0, height: 0 });
 		expect(layout.width).toBe(0);
 		expect(layout.height).toBe(0);
 
 		// R10.5, and where worldsim went wrong: the assignment is for one pass.
 		// Laid out on its own, the axis hugs again rather than staying frozen.
-		layOut(layout);
+		layout.invalidateLayout();
+		layOut(layout, context);
 		expect(layout.width).toBe(50);
 		expect(layout.height).toBe(30);
 		expect(layout.widthMode).toBe('hug');
@@ -631,6 +663,9 @@ describe('Stack wrap-aware sizing (worldsim, R10.7, R10.13)', () => {
 
 		expect(narrowChild.height).toBe(60);
 		expect(narrow.height).toBe(60);
+		// Its height was only ever read with its width settled at the column's.
+		expect(narrowChild.measuredAt.length).toBeGreaterThan(0);
+		expect(narrowChild.measuredAt.every((width) => width === 50)).toBe(true);
 	});
 
 	it('collapses a wrapping child assigned zero width instead of dividing by it', () => {
@@ -1014,5 +1049,205 @@ describe('Stack relayout boundaries (R8.18)', () => {
 			expect(context.frame.layoutPending).toBe(true);
 			context.frame.layout();
 		}
+	});
+});
+
+describe('Stack shrink-to-fit reaches nested stacks (R10.7)', () => {
+	/** A leaf that reflows like text: min content 10, height area / width. */
+	class Reflowing extends Component {
+		constructor(private readonly area: number, private readonly intrinsic: number, options: ComponentOptions = {}) {
+			super({ width: intrinsic, height: area / intrinsic, widthMode: 'hug', heightMode: 'hug', ...options });
+		}
+
+		public measure(availableWidth: number, _availableHeight: number, definite: Axis | null = null): Size {
+			const width = definite === 'width' ? availableWidth : Math.max(10, Math.min(this.intrinsic, availableWidth));
+			return { width, height: this.area / Math.max(width, 1e-9) };
+		}
+
+		public minContentSize(axis: Axis): number {
+			return axis === 'width' ? 10 : super.minContentSize(axis);
+		}
+
+		public assignSize(width: number, height: number): void {
+			super.assignSize(width, Number.isNaN(width) ? height : this.area / Math.max(width, 1e-9));
+		}
+	}
+
+	it.each(['start', 'center', 'end'] as const)('narrows a hug row in a %s-aligned 100 px column, and its content reflows', (crossAlign) => {
+		const column = stack({ width: 100, crossAlign });
+		const row = stack({ direction: 'horizontal' });
+		const icon = box(20, 20);
+		const label = new Reflowing(3000, 300);
+		row.addChild(icon).addChild(label);
+		column.addChild(row);
+		layOut(column);
+
+		expect(row.width).toBe(100);
+		expect(label.width).toBe(80);
+		expect(label.height).toBe(3000 / 80);
+		expect(row.height).toBe(3000 / 80);
+		expect(column.height).toBe(3000 / 80);
+		expect(label.x).toBe(20);
+	});
+
+	it('narrows a fill child of a hug row the same way', () => {
+		const column = stack({ width: 100 });
+		const row = stack({ direction: 'horizontal' });
+		const label = new Reflowing(3000, 300, { widthMode: 'fill' });
+		row.addChild(box(20, 20)).addChild(label);
+		column.addChild(row);
+		layOut(column);
+
+		expect(row.width).toBe(100);
+		expect(label.width).toBe(80);
+	});
+
+	it('shrinks siblings in proportion to their size, and stops each at its minimum content', () => {
+		const row = stack({ width: 100, height: 40, direction: 'horizontal' });
+		const wide = new Reflowing(600, 150);
+		const narrow = new Reflowing(600, 50);
+		row.addChild(wide).addChild(narrow);
+		layOut(row);
+		// 200 wanted, 100 there: each gives half.
+		expect(wide.width).toBe(75);
+		expect(narrow.width).toBe(25);
+
+		const tight = stack({ width: 40, height: 40, direction: 'horizontal' });
+		const first = new Reflowing(600, 150);
+		const second = new Reflowing(600, 50);
+		tight.addChild(first).addChild(second);
+		layOut(tight);
+		// Floors of 10 each: the row overflows rather than going below them.
+		expect(first.width).toBe(30);
+		expect(second.width).toBe(10);
+	});
+
+	it('leaves a row that fits alone, and fixed children are never shrunk', () => {
+		const column = stack({ width: 400 });
+		const row = stack({ direction: 'horizontal' });
+		const label = new Reflowing(3000, 300);
+		row.addChild(box(20, 20)).addChild(label);
+		column.addChild(row);
+		layOut(column);
+		expect(row.width).toBe(320);
+		expect(label.width).toBe(300);
+
+		const cramped = stack({ width: 30, direction: 'horizontal' });
+		const fixed = box(50, 20);
+		cramped.addChild(fixed);
+		layOut(cramped);
+		expect(fixed.width).toBe(50);
+	});
+
+	it('reports the minimum content of nested stacks', () => {
+		const row = stack({ direction: 'horizontal', gap: 4, padding: 2 });
+		row.addChild(box(20, 20)).addChild(new Reflowing(3000, 300));
+		const column = stack({ padding: 1 });
+		column.addChild(row).addChild(box(50, 10));
+
+		expect(row.minContentSize('width')).toBe(20 + 4 + 10 + 4);
+		expect(column.minContentSize('width')).toBe(50 + 2);
+	});
+});
+
+describe('Stack measurement cost', () => {
+	/** A binary tree of hug stacks, alternating direction, with hug leaves. */
+	function tree(depth: number, leaves: Rectangle[], vertical = true): Stack {
+		const node = stack({ direction: vertical ? 'vertical' : 'horizontal', gap: 1 });
+		for (let index = 0; index < 2; index++) {
+			if (depth <= 1) {
+				const leaf = box(10, 10, 0, { widthMode: 'hug', heightMode: 'hug' });
+				leaves.push(leaf);
+				node.addChild(leaf);
+			} else {
+				node.addChild(tree(depth - 1, leaves, !vertical));
+			}
+		}
+		return node;
+	}
+
+	it('lays out eight levels of nested hug stacks in linear measurements', () => {
+		const leaves: Rectangle[] = [];
+		const root = tree(8, leaves);
+		const measures = jest.spyOn(Stack.prototype as unknown as { computeMeasure(): Size }, 'computeMeasure');
+
+		const started = performance.now();
+		const context = layOut(root);
+		const elapsed = performance.now() - started;
+
+		// 255 stacks. Uncached this was N squared (65,025 at this size) and 1.6 s.
+		expect(measures.mock.calls.length).toBeLessThan(255 * 8);
+		expect(elapsed).toBeLessThan(500);
+
+		measures.mockClear();
+		leaves[0].height = 12;
+		const again = performance.now();
+		layOut(root, context);
+		expect(performance.now() - again).toBeLessThan(200);
+		// One leaf changed: only its ancestors measure again.
+		expect(measures.mock.calls.length).toBeLessThan(8 * 8);
+		expect(root.height).toBeGreaterThan(0);
+		measures.mockRestore();
+	});
+});
+
+describe('Stack sizes it assigns and authors (review)', () => {
+	it('fires onResized when layout assigns a new size, and not when it assigns the same one', () => {
+		class Resizing extends Layer {
+			public resizes = 0;
+
+			protected onResized(): void {
+				this.resizes += 1;
+			}
+		}
+		const row = stack({ width: 300, height: 40, direction: 'horizontal' });
+		const band = new Resizing({ widthMode: 'fill', height: 40 });
+		row.addChild(band);
+		const context = layOut(row);
+		expect(band.width).toBe(300);
+		expect(band.resizes).toBe(1);
+
+		row.gap = 0;
+		row.invalidateLayout();
+		layOut(row, context);
+		expect(band.resizes).toBe(1);
+
+		row.width = 200;
+		layOut(row, context);
+		expect(band.resizes).toBe(2);
+	});
+
+	it('fixes an axis given a size through setSize or the accessors, and hugs again at zero', () => {
+		const layout = stack();
+		layout.addChild(box(10, 10));
+		layout.setSize(300, 200);
+		expect(layout.widthMode).toBe('fixed');
+		expect(layout.heightMode).toBe('fixed');
+		const context = layOut(layout);
+		expect(layout.bounds).toEqual({ x: 0, y: 0, width: 300, height: 200 });
+
+		layout.width = 0;
+		layOut(layout, context);
+		expect(layout.widthMode).toBe('hug');
+		expect(layout.width).toBe(10);
+		expect(layout.height).toBe(200);
+
+		const fill = stack({ widthMode: 'fill' });
+		fill.width = 0;
+		expect(fill.widthMode).toBe('fill');
+	});
+
+	it('invalidates when a given size changes even if an assignment already matches it', () => {
+		const column = stack({ width: 200, height: 100, crossAlign: 'stretch' });
+		const child = box(50, 30, 0, { widthMode: 'hug' });
+		column.addChild(child);
+		const context = layOut(column);
+		expect(child.width).toBe(200);
+
+		// The given width becomes 200, the stretched width it already has.
+		child.width = 200;
+		column.crossAlign = 'start';
+		layOut(column, context);
+		expect(child.width).toBe(200);
 	});
 });

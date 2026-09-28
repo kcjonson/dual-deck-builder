@@ -9,7 +9,7 @@ import type {
 } from '../draw/commands';
 import type { DrawApi } from '../draw/DrawApi';
 import type { MountContext } from './MountContext';
-import type { Axis, Size, SizeMode } from './layoutTypes';
+import { Axis, Size, SizeMode, authoredSizeMode } from './layoutTypes';
 import type { FontRole } from '../text/fontFaces';
 import { resolveFontRole } from '../text/fontRoles';
 import { Style, StyleParser } from '../types/Style';
@@ -177,10 +177,30 @@ export class Text extends Component {
 		return this;
 	}
 
+	/**
+	 * The accessors mean what `setWidth` and `setHeight` mean, so an authored
+	 * size has one home: set through either, it survives the next re-fit.
+	 */
+	public get width(): number {
+		return super.width;
+	}
+
+	public set width(value: number) {
+		this.setWidth(value);
+	}
+
+	public get height(): number {
+		return super.height;
+	}
+
+	public set height(value: number) {
+		this.setHeight(value);
+	}
+
 	/** Positive fixes the width; zero hugs the measured width again. */
 	public setWidth(width: number): this {
 		this.authoredWidth = width;
-		this.widthMode = authoredMode(width, this.widthMode);
+		this.widthMode = authoredSizeMode(width, this.widthMode);
 		this.fit();
 		return this;
 	}
@@ -188,7 +208,7 @@ export class Text extends Component {
 	/** Positive fixes the height; zero hugs the measured height again. */
 	public setHeight(height: number): this {
 		this.authoredHeight = height;
-		this.heightMode = authoredMode(height, this.heightMode);
+		this.heightMode = authoredSizeMode(height, this.heightMode);
 		this.fit();
 		return this;
 	}
@@ -196,8 +216,8 @@ export class Text extends Component {
 	public setSize(width: number, height: number): this {
 		this.authoredWidth = width;
 		this.authoredHeight = height;
-		this.widthMode = authoredMode(width, this.widthMode);
-		this.heightMode = authoredMode(height, this.heightMode);
+		this.widthMode = authoredSizeMode(width, this.widthMode);
+		this.heightMode = authoredSizeMode(height, this.heightMode);
 		this.fit();
 		return this;
 	}
@@ -280,7 +300,7 @@ export class Text extends Component {
 	 */
 	private fit(): void {
 		const size = this.resolveSize();
-		super.setSize(size.width, size.height);
+		this.storeSize({ width: size.width, height: size.height, notify: true });
 	}
 
 	private resolveSize(): Size {
@@ -356,6 +376,12 @@ export class Text extends Component {
 		this.applyLayoutSize(size.width, size.height);
 	}
 
+	/** How narrow a stack may shrink it: its automatic minimum across, its height down. */
+	public minContentSize(axis: Axis): number {
+		if (axis === 'width') return this.widthMode === 'fixed' ? this.authoredWidth : this.automaticMinSize('width');
+		return this.height;
+	}
+
 	/**
 	 * R10.4: CSS `min-width: auto`. The longest unbreakable word, or the whole
 	 * line when it cannot wrap; zero when it clips or ellipsises, since then it
@@ -414,9 +440,3 @@ export class Text extends Component {
  * Zero would read as no wrap at all.
  */
 const NARROWEST_WRAP = 1e-3;
-
-/** A positive authored size fixes the axis; zero hugs it again, or keeps `fill`. */
-function authoredMode(size: number, current: SizeMode): SizeMode {
-	if (size > 0) return 'fixed';
-	return current === 'fill' ? 'fill' : 'hug';
-}

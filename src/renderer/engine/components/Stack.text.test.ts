@@ -62,6 +62,37 @@ describe('Text in a stack (R10.7, R10.13)', () => {
 		expect(text.widthMode).toBe('hug');
 	});
 
+	it('takes an assigned width exactly as its wrap width (worldsim TextLayoutSizeSetsWrapWidth)', () => {
+		const context = measuringContext();
+		const column = new Stack({ width: 120, crossAlign: 'stretch' });
+		const text = label(SENTENCE);
+		column.addChild(text);
+		layOut(column, context);
+
+		expect(text.width).toBe(120);
+		expect(text.wrap).toBe('word');
+		expect(text.height).toBeCloseTo(body(SENTENCE, 120).height, 5);
+		expect(text.widthMode).toBe('hug');
+	});
+
+	it('wraps a hug text in a hug row inside a narrow start-aligned column, instead of overflowing it', () => {
+		const context = measuringContext();
+		const column = new Stack({ width: 100 });
+		const row = new Stack({ direction: 'horizontal' });
+		const icon = new Rectangle({ width: 20, height: 20 });
+		const text = label(SENTENCE);
+		row.addChild(icon).addChild(text);
+		column.addChild(row);
+		layOut(column, context);
+
+		expect(body(SENTENCE).width).toBeGreaterThan(300);
+		expect(row.width).toBeLessThanOrEqual(100);
+		expect(text.width).toBeLessThanOrEqual(80);
+		expect(text.wrap).toBe('word');
+		expect(text.height).toBeCloseTo(body(SENTENCE, 80).height, 5);
+		expect(column.height).toBeCloseTo(text.height, 5);
+	});
+
 	it('keeps a short hug text at its own width rather than stretching it', () => {
 		const context = measuringContext();
 		const column = new Stack({ width: 300 });
@@ -155,6 +186,18 @@ describe('Text in a stack (R10.7, R10.13)', () => {
 		expect(panelPass).toHaveBeenCalledTimes(1);
 		expect(screenPass).not.toHaveBeenCalled();
 		expect(row.width).toBeCloseTo(body('Fuel reserves').width, 5);
+	});
+
+	it('keeps a width set through the accessor across a text change', () => {
+		const context = measuringContext();
+		const text = label(SENTENCE, { width: 200 });
+		text.mount(context);
+		text.width = 60;
+		text.setText('Convoy rolling');
+
+		expect(text.width).toBe(60);
+		expect(text.widthMode).toBe('fixed');
+		expect(text.wrap).toBe('word');
 	});
 
 	it('hugs unwrapped again once moved out of a stack', () => {

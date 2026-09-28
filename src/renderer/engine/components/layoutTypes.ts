@@ -72,3 +72,12 @@ export function normalizeAnchor(input: AnchorInput): Fraction2 {
 	if (typeof input === 'string') return NAMED_ANCHORS[input];
 	return input[0] === 0 && input[1] === 0 ? TOP_LEFT : Object.freeze([input[0], input[1]]) as Fraction2;
 }
+
+/**
+ * The mode an authored size gives an axis: positive fixes it, zero hugs it
+ * again, and `fill` stays `fill` (a fill axis has no authored size to keep).
+ */
+export function authoredSizeMode(size: number, current: SizeMode): SizeMode {
+	if (size > 0) return 'fixed';
+	return current === 'fill' ? 'fill' : 'hug';
+}

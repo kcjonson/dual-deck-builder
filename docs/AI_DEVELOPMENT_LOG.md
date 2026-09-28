@@ -18,6 +18,7 @@ This document contains the chronological log of completed development tasks for 
 - `Circle.assignSize` is a no-op (draws from its radius); `ArmorBadge.measure` renamed `measureLabel` to free the protocol name.
 - Tests: `Stack.test.ts` (worldsim's suite ported with its numbers, spec 10.9's additions, anchors, viewport roots, boundaries, the negative-gap lint case) and `Stack.text.test.ts` (real-metrics text cases). Gallery scene `stack`, lint clean; its golden is minted on CI.
 - Decision record: `docs/AI_TECHNICAL_DECISIONS/stack-layout.md`.
+- After review: one placed-origin accessor (`originX`/`originY`) read by the render walk, the dispatcher's hit test, `screenMatrix` and the snapshot; shrink-to-fit for nested stacks (proportional, floored at `minContentSize`); per-constraint measure cache (255 nested stacks: 65k measures to 763); `onResized` on layout assignment; one width source on Text; authored sizes fix a Stack axis; five ported cases tightened to worldsim's.
 
 ## Tree snapshot schema and the text record (2026-09-28)
 

@@ -166,6 +166,8 @@ export abstract class Component {
 	private [RECONCILE_KEY]: string | undefined;
 	/** Removed by `reconcileChildren` and still drawn while its exit runs. */
 	private exiting = false;
+	/** `cachedMeasure`'s results since the last invalidation; null until first used. */
+	private measureCache: Map<string, Size> | null = null;
 	private ownWidthMode: SizeMode;
 	private ownHeightMode: SizeMode;
 	private ownFillWeight = 1;
@@ -347,10 +349,7 @@ export abstract class Component {
 	}
 
 	public set width(value: number) {
-		this.givenWidth = value;
-		if (this.contentWidth === value) return;
-		this.contentWidth = value;
-		this.invalidateLayout();
+		this.storeSize({ width: value, height: this.contentHeight, axes: 'width' });
 	}
 
 	public get height(): number {
@@ -358,10 +357,29 @@ export abstract class Component {
 	}
 
 	public set height(value: number) {
-		this.givenHeight = value;
-		if (this.contentHeight === value) return;
-		this.contentHeight = value;
-		this.invalidateLayout();
+		this.storeSize({ width: this.contentWidth, height: value, axes: 'height' });
+	}
+
+	/**
+	 * The one write path for a size the component is given (a constructor
+	 * option aside): records it as given, so `measure` hugs it, and as the
+	 * content size, and invalidates layout when either changed. `axes` limits
+	 * which axes count as given. `setSize` reports a change through
+	 * `onResized`; the single-axis accessors never have. Subclasses whose
+	 * accessors mean something more (Text, Stack) call this rather than the
+	 * base accessors.
+	 */
+	protected storeSize({ width, height, axes = 'both', notify = false }: StoreSizeOptions): void {
+		const givesWidth = axes !== 'height';
+		const givesHeight = axes !== 'width';
+		const resized = this.contentWidth !== width || this.contentHeight !== height;
+		const regiven = (givesWidth && this.givenWidth !== width) || (givesHeight && this.givenHeight !== height);
+		if (givesWidth) this.givenWidth = width;
+		if (givesHeight) this.givenHeight = height;
+		this.contentWidth = width;
+		this.contentHeight = height;
+		if (resized || regiven) this.invalidateLayout();
+		if (resized && notify) this.onResized();
 	}
 
 	public get margin(): Sides {
@@ -937,7 +955,7 @@ export abstract class Component {
 	private mountSubtree(context: MountContext): void {
 		if (this.mountContext) return;
 		this.mountContext = context;
-		this.needsLayout = true;
+		this.markDirty();
 		this.onMount(context);
 		for (const child of this.children) child.mountSubtree(context);
 	}
@@ -1011,13 +1029,13 @@ export abstract class Component {
 	 * hands the boundary to the frame's layout phase.
 	 */
 	public invalidateLayout(): void {
-		this.needsLayout = true;
+		this.markDirty();
 		const boundary = this.parentComponent ? this.parentComponent.markLayoutPath() : this;
 		this.mountContext?.frame.scheduleLayout(boundary);
 	}
 
 	private markLayoutPath(): Component {
-		this.needsLayout = true;
+		this.markDirty();
 		if (this.isRelayoutBoundary || !this.parentComponent) return this;
 		return this.parentComponent.markLayoutPath();
 	}
@@ -1230,6 +1248,17 @@ export abstract class Component {
 	}
 
 	/**
+	 * The smallest this component can be on `axis` without overflowing its
+	 * own content: how far a stack may shrink it when the row or column runs
+	 * out of room (R10.7's shrink-to-fit, CSS min-content). A component with
+	 * nothing to reflow cannot shrink below the size it was given.
+	 */
+	public minContentSize(axis: Axis): number {
+		if (this.sizeMode(axis) === 'fixed') return this.sizeOn(axis);
+		return axis === 'width' ? this.givenWidth : this.givenHeight;
+	}
+
+	/**
 	 * Whether this component resolves its children's sizes in its own layout
 	 * (a stack). A child of one is assigned its size every pass and never
 	 * sizes itself.
@@ -1277,16 +1306,57 @@ export abstract class Component {
 		if (this.contentWidth === width && this.contentHeight === height) return;
 		this.contentWidth = width;
 		this.contentHeight = height;
-		this.parentComponent?.invalidateLayout();
+		this.onResized();
+		// Only the parent's placement of this box can change (its anchors),
+		// so the parent alone is laid out again, not everything up to its
+		// boundary.
+		const parent = this.parentComponent;
+		if (parent) {
+			parent.needsLayout = true;
+			parent.mountContext?.frame.scheduleLayout(parent);
+		}
 	}
 
-	/** Sets the content size as layout's result: no upward invalidation. Returns whether it changed. */
+	/**
+	 * Sets the content size as layout's result: no upward invalidation, and
+	 * `onResized` when it changed, as for any other resize. Returns whether
+	 * it changed.
+	 */
 	protected applyLayoutSize(width: number, height: number): boolean {
 		if (this.contentWidth === width && this.contentHeight === height) return false;
 		this.contentWidth = width;
 		this.contentHeight = height;
 		this.needsLayout = true;
+		this.onResized();
 		return true;
+	}
+
+	/**
+	 * Something this component's measurement reads changed: lay it out again
+	 * and forget what it measured. An assignment does not come through here,
+	 * since `measure` never reads an assigned size.
+	 */
+	private markDirty(): void {
+		this.needsLayout = true;
+		if (this.measureCache) this.measureCache.clear();
+	}
+
+	/**
+	 * `compute`'s answer for `key`, remembered until this component is next
+	 * invalidated. Nested hug stacks measure each other at the same
+	 * constraints over and over in one pass; this keeps a pass linear.
+	 */
+	protected cachedMeasure(key: string, compute: () => Size): Size {
+		let cache = this.measureCache;
+		if (!cache) {
+			cache = new Map();
+			this.measureCache = cache;
+		}
+		const hit = cache.get(key);
+		if (hit) return hit;
+		const size = compute();
+		cache.set(key, size);
+		return size;
 	}
 
 	private reportLayout(): void {
@@ -1460,14 +1530,11 @@ export abstract class Component {
 	}
 
 	public setSize(width: number, height: number): this {
-		const changed = this.contentWidth !== width || this.contentHeight !== height;
-		this.width = width;
-		this.height = height;
-		if (changed) this.onResized();
+		this.storeSize({ width, height, notify: true });
 		return this;
 	}
 
-	/** Called when `setSize` changes the size. */
+	/** Called when `setSize` or a layout assignment changes the content size. */
 	protected onResized(): void {
 		// Override in subclasses
 	}
@@ -1515,6 +1582,14 @@ export abstract class Component {
 const ORIGIN: Vec2 = Object.freeze({ x: 0, y: 0 });
 
 const NO_LIMITS: AxisLimits = Object.freeze({});
+
+interface StoreSizeOptions {
+	width: number;
+	height: number;
+	axes?: Axis | 'both';
+	/** Fire `onResized` on a change, as `setSize` does. */
+	notify?: boolean;
+}
 
 function clampIndex(index: number, length: number): number {
 	return Math.max(0, Math.min(length, Math.floor(index)));
