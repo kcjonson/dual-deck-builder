@@ -800,7 +800,8 @@ export abstract class Component {
 	/**
 	 * Detaches this subtree from its rooted tree, bottom-up: the children, then
 	 * `onUnmount` here, then everything the base registered (input, update
-	 * requests, pending layout). A no-op when not mounted (R8.15).
+	 * requests, pending layout) and the tweens it owns. A no-op when not
+	 * mounted (R8.15).
 	 */
 	public unmount(): void {
 		const context = this.mountContext;
@@ -809,6 +810,7 @@ export abstract class Component {
 		this.onUnmount();
 		context.input.unregisterComponent(this);
 		context.frame.forget(this);
+		context.animator.cancelOwnedBy(this);
 		this.mountContext = null;
 		this.laidOutBounds = null;
 	}
@@ -821,7 +823,7 @@ export abstract class Component {
 		// Override in subclasses
 	}
 
-	/** Release what `onMount` registered beyond input and update requests, which the base releases. */
+	/** Release what `onMount` registered beyond input, update requests and owned tweens, which the base releases. */
 	protected onUnmount(): void {
 		// Override in subclasses
 	}

@@ -66,6 +66,12 @@ export interface AppControlApi {
 	screens?(): string[];
 	pause?(): void;
 	resume?(): void;
+	/**
+	 * Runs every tween to its end and returns how many it finished (R13.37).
+	 * The update phase is skipped while paused, so this is how a paused
+	 * capture reaches where its animations land.
+	 */
+	settleAnimations?(): number;
 	/** Machine-readable control state, including the pause evidence counters. */
 	status?(): unknown;
 }
