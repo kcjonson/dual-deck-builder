@@ -6,6 +6,17 @@ This document contains the chronological log of completed development tasks for 
 
 **Date correction (2026-08-22):** the repo's first commit is 2025-05-17, but many entries below carry dates in December 2024 or January 2025 — the AI that wrote them used its assumed date instead of the real one. Entries dated 2025-07-03 and 2025-07-02 have been corrected from "2025-01-03"/"2025-01-02" (verified against git history). Remaining Dec 2024 / Jan 2025 dates are wrong by roughly six months; the real work happened May–July 2025. Trust git history over these dates.
 
+## Packed instances for the uber shader (2026-09-28)
+
+**What landed:** DDB-191 (DDB-55), R5.4.
+
+- `UberGeometryEncoder` writes one 104-byte instance per quad (`UBER_INSTANCE`, `UBER_ATTRIBUTES`): corners, geometry and clip as float32, radii and shape as half floats, per-corner fill and border as normalised bytes, mode, slot and flags as integer bytes. Flat triangles repeat their third corner; feather-ring quads have four free corners. `rendering/packing.ts` converts to half floats and to bytes the way a framebuffer write rounds.
+- `Batcher` takes instances: `GroupShape.instances`, a four-view byte sink, instance-range `GpuDraw`s, a word fence for the contract check, and `instances`, `vertices` and `triangles` counted from instances.
+- `WebGL2Backend`: one instance ring (4 MB), divisors of one set once in the vertex array, `drawArraysInstanced`, attributes re-pointed only at a split, `WEBGL_provoking_vertex` set to the first vertex. `IndexBufferPool` and its tests are deleted.
+- `uber.vert` builds the quad from `gl_VertexID` and selects each corner's position and colour; `uber.frag` is unchanged. `uberShader.spec.ts` draws the new layout.
+
+**How:** unit tests for the packing conversions, the layout's tiling, every encoder case against the instance bytes, the batcher contract, and the backend's calls (no element buffer, divisors, split pointers, provoking vertex). Screenshots pass against `main`'s goldens with no re-mint; strict local captures differ by one level at most (four pixels by two). Perf captures interleaved with `main` in `perf-results/ddb-191-ab-*`.
+
 ## Focus manager and keyboard play (2026-09-28)
 
 **What landed:** DDB-76 (DDB-55 phase 3), chapter 9's focus half: R9.15 to R9.29, R11.12's focus ring, R12.7's keyboard activation.
