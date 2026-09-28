@@ -23,14 +23,13 @@ import type { PerfSnapshot } from '../rendering/FrameTimer';
  * content changes (R12.4), so its bounds are its line box without one.
  *
  * `window.__ui.lint()` runs R13.25's seven rules over that same document. It is
- * the identical pure function the unit tests call, per R13.4. Three of the
- * seven cannot fire against today's snapshot (text-overflow wants
- * `text.measured`, unreachable-interactive and target-size want `focusable` or
- * `pointerEvents`); they report `dormant: true` in `rules[]` rather than a
- * silent pass. Expect a large `count` on the game screens: R13.25.1 exempts a
- * pair on differing zIndex or layer and the snapshot emits neither, so nothing
- * is exempted. R13.29's `count: 0` gate is the gallery's first, per the
- * implementation spec's ground rules.
+ * the identical pure function the unit tests call, per R13.4. Two of the seven
+ * cannot fire against today's snapshot (unreachable-interactive and
+ * target-size want `focusable`, which the focus manager backs); they report
+ * `dormant: true` in `rules[]` rather than a silent pass. Expect a large
+ * `count` on the game screens, which are not yet lint-clean. R13.29's
+ * `count: 0` gate is the gallery's first, per the implementation spec's ground
+ * rules.
  */
 
 export interface DebugRootSource {

@@ -104,7 +104,8 @@ Visible result: crisp text from 8 to 64 px in the new faces, centred titles cent
 - [ ] Drag service with `dragenter`, `dragover`, `dragleave`, `drop`, `dragend`, and `accept()` (R9.12).
 - [ ] Popup, tooltip, placement, overlay, clipboard, and asset-cache services in the mount context (12.8).
 - [ ] Game code moved onto the tree: `Card` and `Vehicle` extend the base and use `handleEvent` (no constructor registration, no render bypass, no child rebuild on resize); the ten `children[n]` sites become named fields; the three screens with window-size reads use the root; driver selection stops rebuilding on resize; the combat screen gets its one layout (phase 4 makes it a stack); the splash fades through root opacity (DDB-41).
-- [ ] Snapshot and lint move onto the new tree with the full R13.22 schema.
+- [x] Snapshot and lint move onto the new tree with the full R13.22 schema.
+  DDB-80. `focusable` and the phase 4 state flags wait on what backs them, `pointerEvents` is withheld until rules 6 and 7 say what counts as interactive, and `parts` stays until Button and Input draw their own parts; see [tree-snapshot-schema.md](../AI_TECHNICAL_DECISIONS/tree-snapshot-schema.md).
 
 Visible result: overlapping vehicles receive one click; scrolled-out or hidden components stop receiving clicks; a button is hovered over its label; drags survive leaving the widget; Tab moves focus; Escape reaches the combat screen; the splash fades.
 
