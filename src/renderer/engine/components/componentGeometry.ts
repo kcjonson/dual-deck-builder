@@ -1,4 +1,9 @@
-import { Mat2D, concat, translation } from '../draw/geometry';
+import { Mat2D, Rect, concat, translation } from '../draw/geometry';
+
+/** `rect` grown by `amount` on every side. */
+export function grownRect(rect: Rect, amount: number): Rect {
+	return { x: rect.x - amount, y: rect.y - amount, width: rect.width + amount * 2, height: rect.height + amount * 2 };
+}
 
 /** R8.2's per-side margin. A number is the uniform shorthand. */
 export interface Sides {

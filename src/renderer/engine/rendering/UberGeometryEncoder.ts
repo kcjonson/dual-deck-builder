@@ -26,7 +26,7 @@ import { isSingleOutline } from '../draw/triangulate';
 import { HairlineRectOptions, SnappedHairlineRect, snapHairlineRect, snapTextOrigin, snapToDevice } from '../coords/snapping';
 import type { TextLayout } from '../text/TextLayout';
 import { TextMetricsService } from '../text/TextMetricsService';
-import { DECORATION_THICKNESS, LineOrigin, decorationOffset, layoutInk, lineOrigin } from '../text/textPlacement';
+import { DECORATION_THICKNESS, LineOrigin, decorationOffset, lineOrigin, runInk } from '../text/textPlacement';
 import { toHalf, toUnorm8 } from './packing';
 
 /**
@@ -765,11 +765,7 @@ export class UberGeometryEncoder implements GeometryEncoder {
 	/** R4.2a's per-run extent, in the run's local space, from the layout `encodeText` draws. Null when it draws nothing. */
 	textInk(options: DrawTextOptions): Rect | null {
 		const layout = this.text.layout(options);
-		if (!layout) return null;
-		const ink = layoutInk(layout, options, options.decoration);
-		if (!ink) return null;
-		// R6.16's snap moves a line by at most half a device pixel.
-		return { x: ink.x - 1, y: ink.y - 1, width: ink.width + 2, height: ink.height + 2 };
+		return layout ? runInk(layout, options, options.decoration) : null;
 	}
 
 	private layoutOf(command: TextCommand): TextLayout | null {

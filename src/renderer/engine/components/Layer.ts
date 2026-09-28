@@ -24,6 +24,8 @@ export class Layer extends Component {
 	 * @param color RGBA color array [r, g, b, a] with values from 0-1
 	 */
 	public setBackgroundColor(color: [number, number, number, number] | null): this {
+		// Gaining or losing the background changes how many groups it draws.
+		if ((color === null) !== (this.backgroundColor === null)) this.invalidateInk();
 		this.backgroundColor = color;
 		return this;
 	}
