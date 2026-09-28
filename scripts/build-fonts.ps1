@@ -12,6 +12,12 @@ if (-not (Get-Command $Tool -ErrorAction SilentlyContinue)) {
 	Write-Error "msdf-atlas-gen not found. Download the pinned Windows release zip (see src/assets/fonts/README.md) and put it on PATH, or set MSDF_ATLAS_GEN to the exe."
 }
 
+# The kerning step reads the face with fontkit (a devDependency) and loads a
+# TypeScript module through Node's type stripping: npm ci, Node 22.18 or later.
+if (-not (Test-Path (Join-Path $PSScriptRoot '..\node_modules\fontkit'))) {
+	Write-Error 'fontkit not installed. Run npm ci first.'
+}
+
 # A different generator version produces different pixels for the same input,
 # so the committed atlases would churn for no reason.
 $VersionLine = (& $Tool -version 2>&1 | Select-Object -First 1) | Out-String
@@ -41,6 +47,14 @@ foreach ($Face in $Faces) {
 		-json (Join-Path $FontsDir "$($Face.Output).json")
 	if ($LASTEXITCODE -ne 0) {
 		Write-Error "msdf-atlas-gen failed for $($Face.Output)"
+	}
+	# msdf-atlas-gen reads only the legacy kern table; these faces kern in GPOS.
+	& node --disable-warning=ExperimentalWarning --disable-warning=MODULE_TYPELESS_PACKAGE_JSON `
+		(Join-Path $PSScriptRoot 'merge-kerning.mjs') `
+		(Join-Path $FontsDir $Face.Source) `
+		(Join-Path $FontsDir "$($Face.Output).json")
+	if ($LASTEXITCODE -ne 0) {
+		Write-Error "merge-kerning failed for $($Face.Output)"
 	}
 }
 

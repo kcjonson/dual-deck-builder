@@ -17,6 +17,6 @@
 			"@/*": ["src/*"]
 		}
 	},
-	"include": ["src/**/*", "electron/**/*.ts"],
+	"include": ["src/**/*", "electron/**/*.ts", "scripts/**/*.ts"],
 	"exclude": ["node_modules", "dist", "release"]
 }
