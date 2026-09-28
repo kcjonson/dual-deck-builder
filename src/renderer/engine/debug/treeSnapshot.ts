@@ -2,7 +2,7 @@ import { Component, PointerEvents } from '../components/Component';
 import { Text } from '../components/Text';
 import { Panel } from '../ui/Panel';
 import { Stack } from '../components/Stack';
-import { Input } from '../ui/Input';
+import { TextInput } from '../ui/TextInput';
 import { Checkable } from '../ui/Checkbox';
 import { CLIP_NONE, ClipState, intersectClip } from '../draw/clip';
 import { ClipRect, IDENTITY, Mat2D, RGBA, Rect, concat, isTranslateOnly, transformedBounds, translation } from '../draw/geometry';
@@ -189,7 +189,7 @@ export interface SnapshotNode {
 	/**
 	 * The owning component's own drawings (R8.1, R3.18), absent when it has
 	 * none. Not a field R13.22 names: R13.22 describes the tree R8.6 allows,
-	 * where a composite draws its own parts, and Button, Input and the
+	 * where a composite draws its own parts, and Button and the
 	 * developer overlay still build theirs from marked children. Reporting
 	 * them as `children` says they are siblings of what the caller added,
 	 * which is what R13.25's sibling-overlap rule then reports.
@@ -424,7 +424,7 @@ function serializeNode(
 		if (node instanceof Checkable) serialized.state.checked = node.checkedState;
 
 		if (node instanceof Text) serialized.text = snapshotText(node);
-		if (node instanceof Input) serialized.value = safeString(node.getValue()) ?? '';
+		if (node instanceof TextInput) serialized.value = safeString(node.displayText) ?? '';
 		if (node instanceof Stack) serialized.stack = { direction: node.direction, gap: finite(node.gap) };
 
 		const style = snapshotStyle(node);

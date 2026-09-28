@@ -7,7 +7,7 @@ import { createTestContext, injectNow } from '../components/testing';
 import { NO_MODIFIERS } from '../input/events';
 import { PointerAdapter } from '../input/PointerAdapter';
 import { Button } from './Button';
-import { Input } from './Input';
+import { TextInput } from './TextInput';
 
 /**
  * The engine widgets on the dispatcher, driven the way R9.25 asks: injected
@@ -172,9 +172,9 @@ describe('Button', () => {
 	});
 });
 
-describe('Input', () => {
-	function field(): Input {
-		const made = new Input('type here', { id: 'field', x: 100, y: 200, width: 200, height: 40 });
+describe('TextInput', () => {
+	function field(): TextInput {
+		const made = new TextInput({ placeholder: 'type here', id: 'field', x: 100, y: 200, width: 200, height: 40 });
 		root.addChild(made);
 		return made;
 	}
@@ -183,36 +183,39 @@ describe('Input', () => {
 		const made = field();
 		inject('click,150,220', 'keydown,h', 'keydown,i', 'keydown,Backspace', 'keydown,o');
 		expect(made.focused).toBe(true);
-		expect(made.getValue()).toBe('ho');
+		expect(made.value).toBe('ho');
 	});
 
 	it('ignores keys until focused', () => {
 		const made = field();
 		inject('keydown,x');
-		expect(made.getValue()).toBe('');
+		expect(made.value).toBe('');
 	});
 
-	it('loses focus on a press elsewhere, and on Enter', () => {
+	it('loses focus on a press elsewhere, and keeps it on Enter, which submits', () => {
 		const made = field();
+		const submitted: string[] = [];
+		made.onSubmit = (value) => submitted.push(value);
 		inject('click,150,220');
 		inject('click,600,500');
 		expect(made.focused).toBe(false);
 		expect(context.focus.focused).toBeNull();
 
-		inject('click,150,220', 'keydown,Enter');
-		expect(made.focused).toBe(false);
+		inject('click,150,220', 'keydown,k', 'keydown,Enter');
+		expect(made.focused).toBe(true);
+		expect(submitted).toEqual(['k']);
 	});
 
 	it('moves focus from one field to another in one press', () => {
 		const first = field();
-		const second = new Input('', { id: 'second', x: 100, y: 300, width: 200, height: 40 });
+		const second = new TextInput({ id: 'second', x: 100, y: 300, width: 200, height: 40 });
 		root.addChild(second);
 		inject('click,150,220');
 		inject('click,150,320', 'keydown,z');
 		expect(first.focused).toBe(false);
 		expect(second.focused).toBe(true);
-		expect(second.getValue()).toBe('z');
-		expect(first.getValue()).toBe('');
+		expect(second.value).toBe('z');
+		expect(first.value).toBe('');
 	});
 
 	it('lets Cmd and Ctrl chords through: no text, no prevented default (R9.15)', () => {
@@ -228,7 +231,7 @@ describe('Input', () => {
 		context.dispatcher.dispatchPending();
 
 		expect(copy.defaultPrevented).toBe(false);
-		expect(made.getValue()).toBe('a');
+		expect(made.value).toBe('a');
 		expect(made.focused).toBe(true);
 		// The chord passed the field and reached the hotkey table.
 		expect(fired).toEqual(['ctrl+s']);
@@ -240,7 +243,7 @@ describe('Input', () => {
 		context.dispatcher.hotkeys.register('q', (stroke) => fired.push(stroke.key));
 		context.dispatcher.hotkeys.register('F6', (stroke) => fired.push(stroke.key));
 		inject('click,150,220', 'keydown,q', 'keydown,F6');
-		expect(made.getValue()).toBe('q');
+		expect(made.value).toBe('q');
 		expect(fired).toEqual(['F6']);
 	});
 });

@@ -9,3 +9,5 @@ settings
 shield
 check
 remove
+expand_more
+expand_less

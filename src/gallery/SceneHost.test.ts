@@ -5,7 +5,7 @@ import type { Component } from '../renderer/engine/components/Component';
 import { Panel } from '../renderer/engine/ui/Panel';
 import { Button } from '../renderer/engine/ui/Button';
 import { Text } from '../renderer/engine/components/Text';
-import { Input } from '../renderer/engine/ui/Input';
+import { TextInput } from '../renderer/engine/ui/TextInput';
 import type { DrawApi } from '../renderer/engine/draw';
 import type { MountContext } from '../renderer/engine/components/MountContext';
 import { createTestContext } from '../renderer/engine/components/testing';
@@ -50,7 +50,7 @@ function interactiveScene(name: string, { x, y, width }: { x: number; y: number;
 	const panel = new Panel({ id: `scene_${name}`, width, height: 10, scrollable: true });
 	panel.setPosition(x, y);
 	panel.addChild(new Button('press me', { id: `${name}_button`, width: 120, height: 40 }));
-	panel.addChild(new Input('type here', { id: `${name}_input`, width: 200, height: 40 }));
+	panel.addChild(new TextInput({ placeholder: 'type here', id: `${name}_input`, width: 200, height: 40 }));
 	panel.addChild(new Text('unsized label', { id: `${name}_label` }));
 	panel.setSize(width, 260);
 	return panel;
@@ -162,7 +162,7 @@ describe('switching scenes', () => {
 	it('clears focus so a switched-away input does not keep the keyboard', () => {
 		const host = makeHost(interactiveScenes);
 		host.mount('alpha');
-		const input = findById(host.root, 'alpha_input') as Input;
+		const input = findById(host.root, 'alpha_input') as TextInput;
 		context.focus.focus(input);
 		expect(context.focus.focused).toBe(input);
 
@@ -412,7 +412,7 @@ describe('status and roots', () => {
 		expect(roots[0]).toBe(host.root);
 		expect(roots[0].id).toBe('gallery_root');
 		expect(roots[0].debugChildren[0].id).toBe('scene_alpha');
-		expect(findByType(roots[0], 'Input')).not.toBeNull();
+		expect(findByType(roots[0], 'TextInput')).not.toBeNull();
 	});
 
 	it('lists the scenes it can mount', () => {

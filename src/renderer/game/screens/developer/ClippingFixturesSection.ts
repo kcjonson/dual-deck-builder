@@ -1,5 +1,6 @@
 import { DeveloperSectionPanel } from './DeveloperSectionPanel';
 import { Text } from '../../../engine/components/Text';
+import { TextInput } from '../../../engine/ui/TextInput';
 import type { DrawApi, RGBA, Rect } from '../../../engine/draw';
 import { DrawFixture, fixtureHeading, fixtureLabel } from './DrawFixture';
 
@@ -11,6 +12,9 @@ const INK: RGBA = [0.1, 0.11, 0.13, 1];
 const PANEL: RGBA = [0.2, 0.22, 0.27, 1];
 const OUTLINE: RGBA = [0.95, 0.8, 0.3, 1];
 const CLEAR: RGBA = [0, 0, 0, 0];
+const LONG_TEXT = 'Scrap Hauler, Rust Runner and the Dustbowl Convoy';
+/** Where the overflowing field sits in its fixture cell. */
+const FIELD = { x: 20, y: 34, width: 300, height: 34 };
 
 /**
  * Chapter 4's gallery fixture (4.7), drawn through the draw API: nested rect
@@ -23,9 +27,9 @@ const CLEAR: RGBA = [0, 0, 0, 0];
  * make a wrong picture the golden. The rounded clip needs the per-draw SDF of
  * DDB-190 (a square clip would be baked in as correct); the stencil clip and
  * the oriented clip for rotated containers are optional and not implemented.
- * The overflowing text field is drawn as the draw calls a field makes, because
- * the `Input` component does not clip its text yet (the phase 5 TextInput,
- * DDB-86).
+ * The overflowing text field is the real TextInput (R12.10), laid over the
+ * fixture where the drawing leaves room for it: its value is scrolled to the
+ * caret at the end and clipped to the padded box on both sides.
  */
 export class ClippingFixturesSection extends DeveloperSectionPanel {
 	constructor(x: number, y: number, width: number) {
@@ -41,7 +45,7 @@ export class ClippingFixturesSection extends DeveloperSectionPanel {
 		title.setPosition(0, 0);
 		this.addChild(title);
 
-		this.addChild(new DrawFixture({
+		const fixture = new DrawFixture({
 			id: 'dev_fixture_clipping',
 			x: 0,
 			y: FIXTURE_TOP,
@@ -55,7 +59,17 @@ export class ClippingFixturesSection extends DeveloperSectionPanel {
 				everyPrimitive(draw, 880, 0);
 				overflowingText(draw, 880, 250);
 			},
+		});
+		// Inside the fixture it draws in, so it is part of the picture rather than a sibling over it.
+		fixture.addChild(new TextInput({
+			id: 'dev_fixture_clipping_field',
+			value: LONG_TEXT,
+			x: 880 + FIELD.x,
+			y: 250 + FIELD.y,
+			width: FIELD.width,
+			height: FIELD.height,
 		}));
+		this.addChild(fixture);
 
 		this.fitContentHeight(FIXTURE_TOP + FIXTURE_HEIGHT);
 	}
@@ -188,17 +202,15 @@ function everyPrimitive(draw: DrawApi, left: number, top: number): void {
 	outline(draw, clip);
 }
 
-/** A field's text clipped by its box, and the same run with R6.14's clip and ellipsis. */
+/**
+ * A field's text clipped by its box (the TextInput the section lays over
+ * `FIELD`), and the same run with R6.14's clip and ellipsis.
+ */
 function overflowingText(draw: DrawApi, left: number, top: number): void {
 	fixtureHeading(draw, 'Text longer than its box', left, top);
-	const long = 'Scrap Hauler, Rust Runner and the Dustbowl Convoy';
+	const long = LONG_TEXT;
 
-	const field = { x: left + 20, y: top + 34, width: 300, height: 34 };
-	draw.drawRect({ rect: field, fill: [0.12, 0.13, 0.16, 1], radius: 3, border: { color: [0.55, 0.6, 0.7, 1], width: 1 } });
-	const inner = { x: field.x + 10, y: field.y, width: field.width - 20, height: field.height };
-	draw.pushClip(inner);
-	draw.drawText({ text: long, box: inner, font: 'body', size: 16, color: WHITE, align: 'left', verticalAlign: 'middle', wrap: 'none' });
-	draw.popClip();
+	const field = { x: left + FIELD.x, y: top + FIELD.y, width: FIELD.width, height: FIELD.height };
 	fixtureLabel(draw, { text: 'field, clipped', box: { x: field.x + field.width + 10, y: field.y, width: 110, height: field.height }, color: [0.7, 0.72, 0.76, 1], align: 'left' });
 
 	const clipped = { x: left + 30, y: top + 84, width: 280, height: 30 };

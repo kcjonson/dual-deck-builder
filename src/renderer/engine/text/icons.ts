@@ -5,6 +5,8 @@ export const ICON_CODE_POINTS = {
 	arrow_back: 0xE5C4,
 	build: 0xE869,
 	check: 0xE5CA,
+	expand_less: 0xE5CE,
+	expand_more: 0xE5CF,
 	local_gas_station: 0xE546,
 	remove: 0xE15B,
 	settings: 0xE8B8,

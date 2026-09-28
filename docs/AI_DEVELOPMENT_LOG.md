@@ -6,6 +6,18 @@ This document contains the chronological log of completed development tasks for 
 
 **Date correction (2026-08-22):** the repo's first commit is 2025-05-17, but many entries below carry dates in December 2024 or January 2025 — the AI that wrote them used its assumed date instead of the real one. Entries dated 2025-07-03 and 2025-07-02 have been corrected from "2025-01-03"/"2025-01-02" (verified against git history). Remaining Dec 2024 / Jan 2025 dates are wrong by roughly six months; the real work happened May–July 2025. Trust git history over these dates.
 
+## Catalog Wave B, text entry (2026-09-28)
+
+**What landed:** DDB-86's first PR (DDB-55 phase 5), R12.10 and R12.36.
+
+- `ui/TextInput.ts` replaces `ui/Input.ts` (deleted with its test): the value as code points, caret and selection from `measureText` advances, press to place and drag (captured) to select, Shift with arrows, Home, End, and presses to extend, Backspace and Delete taking the selection first, Cmd or Ctrl with A, C, X, V through the clipboard service, paste stripped of control characters, `maxLength`, `validator(next, inserted)`, `password` (masked, never copied), `selectAllOnFocus`, `onSubmit` on Enter, Escape and Up and Down left unconsumed, a blink from the context clock, horizontal scroll to the caret, and everything clipped to the padded content box.
+- `ui/NumberInput.ts`: a TextInput part and a stepper column part; arrows, chevron presses, and the wheel (while focused) step; typed text commits on Enter or blur, clamped and rounded to `precision`.
+- The dispatcher claims Cmd/Ctrl+A from the browser while a text field is focused.
+- Tokens `color.bg_selection` and `control.caret_blink`; icons `expand_more` and `expand_less`.
+- `input-showcase` rebuilt as a catalog section; `interactive-controls` and the tests that built an `Input` moved to TextInput; the `clipping` scene's overflowing field is the real component.
+
+**How:** `ui/TextInput.test.ts`, 32 cases through injected input with the committed font metrics (caret placement against the advances, drag selection past the edge, keyboard selection, editing, maxLength and paste truncation, the validator per code point, Enter, Escape reaching the hotkeys, printable keys consumed, clipboard round trip, control characters stripped, password refusing copy, scroll to caret and back to zero, the clip rect, the blink, and NumberInput's clamping, stepping, commit, validator, wheel, and Tab stop). In the browser the three touched scenes lint clean, and typing, selecting, and stepping were tried by hand. Details in [component-catalog-wave-b.md](AI_TECHNICAL_DECISIONS/component-catalog-wave-b.md).
+
 ## Catalog Wave A, controls (2026-09-28)
 
 **What landed:** DDB-85's first PR (DDB-55 phase 5), R12.7, R12.8, R12.9, R12.34, R12.35.

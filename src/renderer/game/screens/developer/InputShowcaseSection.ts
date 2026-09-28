@@ -1,134 +1,56 @@
-import { DeveloperSectionPanel } from './DeveloperSectionPanel';
-import { Text } from '../../../engine/components/Text';
-import { Input } from '../../../engine/ui/Input';
+import { CatalogSection } from './CatalogSection';
+import { tokens } from '../../../engine/theme/tokens';
+import { NumberInput } from '../../../engine/ui/NumberInput';
+import { TextInput } from '../../../engine/ui/TextInput';
+
+const { control } = tokens;
 
 /**
- * Input showcase section for the developer screen
- * Demonstrates various input field configurations
+ * R12.10 and R12.36: text fields empty with a placeholder, filled, masked,
+ * and disabled; a value longer than its field, scrolled to the caret at its
+ * end and clipped to the padded box (chapter 4's overflowing-field fixture
+ * on the real component); the three sizes; an instance style; then number
+ * inputs, integer, stepped by a quarter, pinned at their maximum (the up
+ * chevron greyed), and disabled.
  */
-export class InputShowcaseSection extends DeveloperSectionPanel {
+export class InputShowcaseSection extends CatalogSection {
 	constructor(x: number, y: number, width: number) {
-		super({ id: 'dev_section_input_showcase', x, y, width });
+		super({ id: 'dev_section_input_showcase', title: 'Input Fields', x, y, width });
 
-		this.initializeContent();
-	}
+		this.addRow('text input: placeholder, value, password, disabled', this.line([
+			new TextInput({ id: 'dev_text_empty', placeholder: 'Driver name', width: 200 }),
+			new TextInput({ id: 'dev_text_filled', value: 'Rust Runner', width: 200 }),
+			new TextInput({ id: 'dev_text_password', value: 'hunter2', password: true, width: 160 }),
+			new TextInput({ id: 'dev_text_disabled', value: 'Locked', disabled: true, width: 160 }),
+		]), control.control_h_md);
 
-	private initializeContent(): void {
-		const sectionTitle = new Text('Input Fields', {
-			style: {
-				fontSize: 28,
-				color: '#ffffff',
-				fontWeight: 'bold',
-			},
-		});
-		sectionTitle.setPosition(0, 0);
-		this.addChild(sectionTitle);
+		this.addRow('overflow: scrolled to the caret at the end, clipped to the padded box', this.line([
+			new TextInput({ id: 'dev_text_overflow', value: 'Scrap Hauler, Rust Runner and the Dustbowl Convoy', width: 300 }),
+		]), control.control_h_md);
 
-		let currentY = 50;
+		this.addRow('sizes: sm, md, lg; instance style', this.line([
+			new TextInput({ placeholder: 'Small', size: 'sm', width: 140 }),
+			new TextInput({ placeholder: 'Medium', size: 'md', width: 140 }),
+			new TextInput({ placeholder: 'Large', size: 'lg', width: 140 }),
+			new TextInput({
+				id: 'dev_text_styled',
+				value: 'Custom style',
+				width: 200,
+				style: {
+					backgroundColor: 'bg_void',
+					color: 'status_ok',
+					borderColor: 'status_ok',
+					borderRadius: 'r_pill',
+					padding: { left: 'space_4', right: 'space_4' },
+				},
+			}),
+		]), control.control_h_lg);
 
-		// Basic input
-		const basicLabel = new Text('Basic Input:', {
-			style: {
-				fontSize: 16,
-				color: '#ffffff',
-			},
-		});
-		basicLabel.setPosition(20, currentY);
-		this.addChild(basicLabel);
-		currentY += 25;
-
-		const basicInput = new Input('Type something...', {
-			width: 300,
-			height: 35,
-		});
-		basicInput.setPosition(20, currentY);
-		this.addChild(basicInput);
-		currentY += 50;
-
-		// Styled input
-		const styledLabel = new Text('Styled Input:', {
-			style: {
-				fontSize: 16,
-				color: '#ffffff',
-			},
-		});
-		styledLabel.setPosition(20, currentY);
-		this.addChild(styledLabel);
-		currentY += 25;
-
-		const styledInput = new Input('Custom styled input', {
-			width: 300,
-			height: 40,
-			style: {
-				fontSize: 'fs_md',
-				backgroundColor: 'bg_void',
-				color: 'status_ok',
-				borderColor: 'status_ok',
-				borderWidth: 'bw_thick',
-				borderRadius: 'r_pill',
-				padding: { left: 'space_4', right: 'space_4' },
-			},
-		});
-		styledInput.setPosition(20, currentY);
-		this.addChild(styledInput);
-		currentY += 55;
-
-		// Pre-filled input
-		const prefilledLabel = new Text('Pre-filled Input:', {
-			style: {
-				fontSize: 16,
-				color: '#ffffff',
-			},
-		});
-		prefilledLabel.setPosition(20, currentY);
-		this.addChild(prefilledLabel);
-		currentY += 25;
-
-		const prefilledInput = new Input('This should not show', {
-			width: 300,
-			height: 35,
-		});
-		prefilledInput.setPosition(20, currentY);
-		prefilledInput.setValue('This input has initial text');
-		this.addChild(prefilledInput);
-		currentY += 50;
-
-		// Reactive display
-		const reactiveLabel = new Text('Reactive Display:', {
-			style: {
-				fontSize: 16,
-				color: '#ffffff',
-			},
-		});
-		reactiveLabel.setPosition(20, currentY);
-		this.addChild(reactiveLabel);
-
-		const displayText = new Text('Type in any input above', {
-			style: {
-				fontSize: 14,
-				color: '#ffcc00',
-			},
-		});
-		displayText.setPosition(200, currentY);
-		this.addChild(displayText);
-
-		// Set up reactive behavior
-		const updateDisplay = (source: string, value: string) => {
-			displayText.setText(`${source}: ${value}`);
-		};
-
-		basicInput.onChange((value: string) => updateDisplay('Basic', value));
-		styledInput.onChange((value: string) => updateDisplay('Styled', value));
-		prefilledInput.onChange((value: string) => updateDisplay('Pre-filled', value));
-
-		// Update our height based on content
-		this.fitContentHeight(currentY + 40);
-	}
-
-	/**
-	 * Get the height of this section
-	 */
-	public getHeight(): number {
-		return this.height;
+		this.addRow('number input: integer, step 0.25, at its max, disabled', this.line([
+			new NumberInput({ id: 'dev_number_int', value: 3, min: 0, max: 10, width: 110 }),
+			new NumberInput({ id: 'dev_number_step', value: 1.5, min: 0, max: 5, step: 0.25, width: 110 }),
+			new NumberInput({ id: 'dev_number_max', value: 10, min: 0, max: 10, width: 110 }),
+			new NumberInput({ id: 'dev_number_disabled', value: 7, disabled: true, width: 110 }),
+		]), control.control_h_md);
 	}
 }

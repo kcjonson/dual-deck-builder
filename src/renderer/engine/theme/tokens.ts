@@ -11,6 +11,7 @@ export const tokens = {
 		bg_hover: [1, 1, 1, 0.045],
 		bg_active: [0.9373, 0.8235, 0.3529, 0.1],
 		bg_pressed: [0, 0, 0, 0.16],
+		bg_selection: [0.9373, 0.8235, 0.3529, 0.25],
 		line_hairline: [0.9137, 0.8941, 0.8392, 0.1],
 		line_edge: [0.9137, 0.8941, 0.8392, 0.2],
 		line_strong: [0.9137, 0.8941, 0.8392, 0.36],
@@ -188,6 +189,7 @@ export const tokens = {
 		icon_lg: 20,
 		inset_field: 12, // = space.space_3
 		inset_row: 8, // = space.space_2
+		caret_blink: 500,
 		focus_ring_width: 1,
 		focus_ring_offset: 2,
 		press_offset: 1,

@@ -5,7 +5,7 @@ import { Text } from '../components/Text';
 import { Panel } from '../ui/Panel';
 import { Button } from '../ui/Button';
 import { tokens } from '../theme/tokens';
-import { Input } from '../ui/Input';
+import { TextInput } from '../ui/TextInput';
 import { Circle } from '../components/Circle';
 import { SnapshotNode, SnapshotRect, treeSnapshot } from './treeSnapshot';
 import { layoutLint } from './layoutLint';
@@ -198,8 +198,9 @@ describe('treeSnapshot', () => {
 			expect('enabled' in (node.state ?? {})).toBe(false);
 		});
 
-		it('reports value on an Input only', () => {
-			const input = new Input('type here', { id: 'name_field', width: 120, height: 30 });
+		it('reports value on a TextInput only, masked for a password', () => {
+			const input = new TextInput({ placeholder: 'type here', id: 'name_field', width: 120, height: 30 });
+			const password = new TextInput({ value: 'hunter2', password: true, width: 120, height: 30 });
 
 			const inputNode = treeSnapshot([input], VIEWPORT).roots[0];
 			const textNode = treeSnapshot([new Text('hello', { width: 40, height: 12 })], VIEWPORT).roots[0];
@@ -208,6 +209,7 @@ describe('treeSnapshot', () => {
 			expect('value' in inputNode).toBe(true);
 			expect(inputNode.value).toBe('');
 			expect('value' in textNode).toBe(false);
+			expect(treeSnapshot([password], VIEWPORT).roots[0].value).toBe('\u2022'.repeat(7));
 		});
 	});
 
@@ -654,7 +656,7 @@ describe('treeSnapshot', () => {
 			panel.setContentSize(300, 900);
 			panel.scroll(0, 40);
 			panel.addChild(new Text('Developer Tools', { id: 'dev_title', width: 200, height: 24 }));
-			panel.addChild(new Input('search', { id: 'dev_filter', width: 120, height: 30 }));
+			panel.addChild(new TextInput({ placeholder: 'search', id: 'dev_filter', width: 120, height: 30 }));
 
 			const document = treeSnapshot([panel], VIEWPORT);
 			const serialized = JSON.stringify(document);

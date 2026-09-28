@@ -1008,6 +1008,8 @@ export class Dispatcher {
 		if (key === 'Tab') return true;
 		const focused = this.keyTarget;
 		if (focused?.acceptsText && ownedByTextField(key, modifiers)) return true;
+		// Select-all is the field's (R9.17); left to the browser it selects the page.
+		if (focused?.acceptsText && (modifiers.ctrl || modifiers.meta) && key.toLowerCase() === 'a') return true;
 		if (NAVIGATION_KEYS.has(key) && (focused || ARROW_DIRECTIONS[key])) return true;
 		return this.hotkeyTables(focused).some((table) => table.has(key));
 	}
