@@ -288,8 +288,11 @@ describe('reconcileChildren (R8.27)', () => {
 	});
 
 	it('does not unmount an exiting child that was re-added elsewhere before its exit settled', async () => {
+		// One root, so the move is a same-root move that keeps the child (R8.5).
+		const root = new Layer();
 		const parent = new Layer();
 		const elsewhere = new Layer();
+		root.addChild(parent).addChild(elsewhere);
 		reconcile(parent, [{ key: 'a', label: '' }]);
 		const a = parent.getChildren()[0] as Probe;
 		const exit = deferredExit();
@@ -303,8 +306,10 @@ describe('reconcileChildren (R8.27)', () => {
 	});
 
 	it('forgets a moved child\'s key, so the new parent does not treat it as its own stale key', () => {
+		const root = new Layer();
 		const first = new Layer();
 		const second = new Layer();
+		root.addChild(first).addChild(second);
 		reconcile(first, [{ key: 'a', label: '' }]);
 		const a = first.getChildren()[0] as Probe;
 		second.addChild(a);
