@@ -1,6 +1,4 @@
-import { CircleCommand, DrawCommand, PolylineCommand, TextCommand, Vec2 } from '../draw';
-
-type MutablePolyline = { -readonly [K in keyof PolylineCommand]: PolylineCommand[K] };
+import { DrawCommand, TextCommand } from '../draw';
 
 /**
  * A domain in the order the pre-batch path painted it, so the batcher can
@@ -21,25 +19,19 @@ type MutablePolyline = { -readonly [K in keyof PolylineCommand]: PolylineCommand
  * ignored layers; it moves no pixel today because every domain in the app is a
  * single layer.
  *
- * A bordered circle becomes its fill and then its outline, because the legacy
- * outline is a GL line strip and cannot share a group with the fan.
- *
  * Everything it builds is reused from domain to domain: the ordered list, the
- * colour table, the per-colour run lists and the outline commands. So the
- * returned list and any outline in it are only valid until the next `apply`.
+ * colour table and the per-colour run lists. So the returned list is only
+ * valid until the next `apply`.
  */
 export class LegacyPaintOrder {
 	private readonly ordered: DrawCommand[] = [];
 	/** Distinct faded colours of the current layer, four floats each. */
 	private readonly colours: number[] = [];
 	private readonly runsByColour: TextCommand[][] = [];
-	private readonly outlines: MutablePolyline[] = [];
-	private outlinesUsed = 0;
 
 	apply(commands: readonly DrawCommand[]): readonly DrawCommand[] {
 		const out = this.ordered;
 		out.length = 0;
-		this.outlinesUsed = 0;
 
 		let start = 0;
 		while (start < commands.length) {
@@ -58,9 +50,6 @@ export class LegacyPaintOrder {
 			const command = commands[index];
 			if (command.kind === 'text') continue;
 			out.push(command);
-			if (command.kind === 'circle' && command.border && command.border.width > 0) {
-				out.push(this.circleOutline(command));
-			}
 		}
 
 		const colours = this.colours;
@@ -93,69 +82,4 @@ export class LegacyPaintOrder {
 			runs.length = 0;
 		}
 	}
-
-	/**
-	 * A circle's border as the open line strip the old path drew over the unit
-	 * rim, under the circle's model (transform, then centre, then radius), in a
-	 * pooled command.
-	 */
-	private circleOutline(circle: CircleCommand): PolylineCommand {
-		const border = circle.border as NonNullable<CircleCommand['border']>;
-		let outline = this.outlines[this.outlinesUsed];
-		if (!outline) {
-			outline = {
-				id: null,
-				sequence: 0,
-				layer: circle.layer,
-				layerOrdinal: 0,
-				transform: [1, 0, 0, 1, 0, 0],
-				translateOnly: false,
-				clip: circle.clip,
-				opacity: 1,
-				blend: 'over',
-				group: 'primary',
-				kind: 'polyline',
-				points: UNIT_CIRCLE_RIM,
-				color: border.color,
-				width: border.width,
-				closed: false,
-				cap: 'butt',
-			};
-			this.outlines.push(outline);
-		}
-		this.outlinesUsed += 1;
-
-		// `concat(circle.transform, [r, 0, 0, r, cx, cy])`, into the pooled matrix.
-		const m = circle.transform;
-		const r = circle.radius;
-		const cx = circle.center.x;
-		const cy = circle.center.y;
-		const model = outline.transform as unknown as number[];
-		model[0] = m[0] * r;
-		model[1] = m[1] * r;
-		model[2] = m[2] * r;
-		model[3] = m[3] * r;
-		model[4] = m[0] * cx + m[2] * cy + m[4];
-		model[5] = m[1] * cx + m[3] * cy + m[5];
-
-		outline.id = circle.id;
-		outline.sequence = circle.sequence;
-		outline.layer = circle.layer;
-		outline.layerOrdinal = circle.layerOrdinal;
-		outline.clip = circle.clip;
-		outline.opacity = circle.opacity;
-		outline.blend = circle.blend;
-		outline.group = circle.group;
-		outline.color = border.color;
-		outline.width = border.width;
-		return outline;
-	}
 }
-
-const CIRCLE_OUTLINE_SEGMENTS = 32;
-
-/** `Renderer.drawCircle`'s outline: 33 rim points, the first repeated, on the unit circle. */
-const UNIT_CIRCLE_RIM: readonly Vec2[] = Array.from({ length: CIRCLE_OUTLINE_SEGMENTS + 1 }, (_, i) => {
-	const angle = (i * 2 * Math.PI) / CIRCLE_OUTLINE_SEGMENTS;
-	return { x: Math.cos(angle), y: Math.sin(angle) };
-});

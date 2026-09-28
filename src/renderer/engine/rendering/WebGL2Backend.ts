@@ -1,6 +1,6 @@
 import { mat4 } from 'gl-matrix';
 import {
-	ClipRect,
+	BlendMode,
 	DrawApi,
 	DrawBackend,
 	DrawBatch,
@@ -9,29 +9,41 @@ import {
 	FrameDescription,
 	GpuWork,
 	Rect,
-	ResolvedClip,
-	clipRectOf,
+	TextureHandle,
 } from '../draw';
 import { Batcher, GeometryUpload, GpuDraw } from '../draw/Batcher';
-import { ResidentTextureSet } from '../draw/ResidentTextureSet';
-import vertexSource from '../../../assets/shaders/vertex.glsl';
-import fragmentSource from '../../../assets/shaders/fragment.glsl';
+import { ResidentTextureSet, TextureKey } from '../draw/ResidentTextureSet';
+import vertexSource from '../../../assets/shaders/uber.vert';
+import fragmentSource from '../../../assets/shaders/uber.frag';
 import type { TextureStore } from '../gpu/TextureStore';
 import { FontAtlas } from './FontAtlas';
 import { FrameTimer } from './FrameTimer';
 import type { GpuTimer } from './GpuTimer';
-import { LEGACY_VERTEX, LegacyGeometryEncoder } from './LegacyGeometryEncoder';
 import { LegacyPaintOrder } from './LegacyPaintOrder';
 import { Renderer } from './Renderer';
 import { StreamRing } from './StreamRing';
+import { UBER_ATTRIBUTES, UBER_TEXTURE_UNITS, UBER_VERTEX, UberGeometryEncoder } from './UberGeometryEncoder';
 import { compileProgram } from './program';
 import { DEFAULT_FONT } from './fonts';
 
 /**
- * Chapter 15's backend: a WebGL2 context, fed by the batcher.
+ * Chapter 15's backend: a WebGL2 context, one uber shader (chapter 5), fed by
+ * the batcher.
  *
- * What is chapter 15's here, and permanent:
- *
+ * - One program for every primitive (R5.1). The mode, the colours, the
+ *   border, the radii, the clip and the opacity are vertex data written by
+ *   `UberGeometryEncoder`, so none of them is GPU state and none splits a
+ *   draw. The clip in particular is tested per fragment (R4.1, R4.4); there
+ *   is no scissor.
+ * - Output is premultiplied and blended `ONE, ONE_MINUS_SRC_ALPHA` (R5.22,
+ *   R15.25). `additive` shares that state (the shader zeroes the alpha);
+ *   `multiply` and `screen` are the only blend modes that change it, and the
+ *   batcher splits a draw where they start and end (R5.22a).
+ * - Textures sit on fixed units selected per draw by slot (R5.20): the font
+ *   atlas on unit 0 for the whole frame, images on the dynamic units the
+ *   batcher hands out. Every unit the shader declares holds a texture, a 1x1
+ *   transparent placeholder when nothing else, so no sampler ever reads an
+ *   empty unit.
  * - Stream storage is one fixed-capacity vertex buffer and one index buffer,
  *   each written at an advancing offset that wraps only onto a region at least
  *   two frames old (R5.27, R15.11, `StreamRing`). `bufferData` runs once per
@@ -39,34 +51,21 @@ import { DEFAULT_FONT } from './fonts';
  *   upload, with a source offset and length, so an upload allocates nothing.
  *   A frame that outgrows the ring grows it once, and says so, rather than
  *   overwriting a region the GPU may still read.
- * - Per-frame uniform state (the projection and view) is a `std140` block in a
- *   ring of three 256-byte-aligned slots, written once per frame and selected
- *   with `bindBufferRange` (R15.15). Nothing is set per draw.
+ * - Per-frame uniform state (the projection) is a `std140` block in a ring of
+ *   three 256-byte-aligned slots, written once per frame and selected with
+ *   `bindBufferRange` (R15.15). Nothing is set per draw.
  * - One vertex array object, bound once per upload; attribute locations are
  *   fixed in the source, so nothing is looked up.
  * - No synchronous call in the frame (R15.22). The only queries this file
  *   makes (compile and link status, the uniform offset alignment, the block
- *   index) happen at creation and at context restore.
+ *   index, the sampler location) happen at creation and at context restore.
  * - Context loss (R15.5): `Renderer` stops the loop and this backend rebuilds
  *   its program, buffers, vertex array and uniform ring from their CPU-side
  *   descriptions on restore.
  * - Indices are 32-bit (R5.4); the upload cap is the ring's, not 65536.
  *
- * What is still the legacy program's, and goes with DDB-64: the shaders under
- * `src/assets/shaders/` (ported to GLSL ES 3.00 line for line, so the goldens
- * did not move), `LegacyGeometryEncoder`'s 22-float vertex, `LEGACY_PROGRAM`
- * below, the scissor clip (`clipIsState`), and SRC_ALPHA blending rather than
- * premultiplied (R15.25). The uber shader replaces the encoder, the program
- * and the attribute table; the rings, the uniform ring, the vertex array, the
- * loss handling and the batcher stay. `LegacyPaintOrder` and the
- * `legacyTextOrder` barrier go earlier, with the ordering re-baseline.
- *
- * Textures belong to the resource layer (`gpu/TextureStore.ts`, R5.30), which
- * the `Renderer` owns because it outlives this backend's resources across a
- * context loss; `textures` hands it to the draw API. The font atlas is its one
- * texture today. Images are not drawn until the uber shader has an `image`
- * mode, so nothing here resolves a handle yet; `textures.native` is how it
- * will.
+ * `LegacyPaintOrder` and the `legacyTextOrder` barrier are the ordering
+ * re-baseline's to delete, not this backend's.
  */
 
 export interface WebGL2BackendOptions {
@@ -84,70 +83,27 @@ export interface WebGL2BackendOptions {
 	indexRingBytes?: number;
 }
 
-/**
- * The legacy program's vertex layout, as attribute location, float offset and
- * size. The locations are the `layout(location = n)` in `vertex.glsl`.
- */
-const LEGACY_PROGRAM = {
-	sources: { vertex: vertexSource, fragment: fragmentSource },
-	strideBytes: LEGACY_VERTEX.floats * 4,
-	attributes: [
-		{ location: 0, offset: LEGACY_VERTEX.position, size: 2 },
-		{ location: 1, offset: LEGACY_VERTEX.texCoord, size: 2 },
-		{ location: 2, offset: LEGACY_VERTEX.modelLinear, size: 4 },
-		{ location: 3, offset: LEGACY_VERTEX.modelTranslate, size: 4 },
-		{ location: 4, offset: LEGACY_VERTEX.color, size: 4 },
-		{ location: 5, offset: LEGACY_VERTEX.strokeColor, size: 4 },
-		{ location: 6, offset: LEGACY_VERTEX.shapeSize, size: 2 },
-	],
-} as const;
+const STRIDE_BYTES = UBER_VERTEX.floats * 4;
 
 /**
- * The card showcase, the heaviest screen, uploads about 1.2 MB a frame at the
- * legacy vertex's 88 bytes; R5.27 wants three frames resident, and this is
- * twice that. A frame that needs more grows the ring once, and says so.
+ * The card showcase, the heaviest screen, uploads about 1.6 MB a frame at 128
+ * bytes a vertex; R5.27 wants three frames resident, and this is more than
+ * that. A frame that needs more grows the ring once, and says so.
  */
 const DEFAULT_VERTEX_RING_BYTES = 8 * 1024 * 1024;
 /**
- * Indices run at most three per vertex (a circle fan, a triangulated polygon)
- * at four bytes each, so the index ring holds as many vertices' worth as the
+ * Indices run at most three per vertex (a feathered polygon is under two) at
+ * four bytes each, so the index ring holds as many vertices' worth as the
  * vertex ring does and neither grows first.
  */
-const DEFAULT_INDEX_RING_BYTES = Math.ceil(DEFAULT_VERTEX_RING_BYTES / LEGACY_PROGRAM.strideBytes) * 3 * 4;
+const DEFAULT_INDEX_RING_BYTES = Math.ceil(DEFAULT_VERTEX_RING_BYTES / STRIDE_BYTES) * 3 * 4;
 
-/** `Frame` in `vertex.glsl`: two mat4s. */
-const FRAME_BLOCK_FLOATS = 32;
+/** `Frame` in `uber.vert`: the projection. */
+const FRAME_BLOCK_FLOATS = 16;
 const FRAME_BLOCK_BYTES = FRAME_BLOCK_FLOATS * 4;
 const FRAME_BLOCK_BINDING = 0;
 /** A slot is rewritten three frames after it was last written, past R5.27's two. */
 const FRAME_SLOTS = 3;
-
-const NO_CLIP: ResolvedClip = { kind: 'none' };
-
-/**
- * A screen-space clip rect as a WebGL scissor box, in device pixels from the
- * bottom left.
- *
- * Lifted expression for expression out of the block deleted from `Layer.ts`,
- * which read `screenX`, `screenY + height` and `canvas.height / dpr` where this
- * reads `minX`, `maxY` and `viewportHeight`. The flip needs the logical
- * height the drawing buffer divides back to, and since DDB-66 that is exactly
- * the frame's viewport: `CanvasViewport` defines the logical size as the
- * framebuffer over the ratio (R7.5), the same division `canvas.height / dpr`
- * performed, so the box and the projection agree at any ratio.
- */
-export function scissorBox(
-	rect: ClipRect,
-	ratio: number,
-	viewportHeight: number,
-): { x: number; y: number; width: number; height: number } {
-	return {
-		x: Math.floor(rect.minX * ratio),
-		y: Math.floor((viewportHeight - rect.maxY) * ratio),
-		width: Math.floor((rect.maxX - rect.minX) * ratio),
-		height: Math.floor((rect.maxY - rect.minY) * ratio),
-	};
-}
 
 /**
  * The seam, built the same way on both pages. Neither bootstrap spells the
@@ -192,18 +148,18 @@ export class WebGL2Backend implements DrawBackend {
 	private readonly gpuTimer: GpuTimer | null;
 	private readonly gl: WebGL2RenderingContext;
 	private readonly fontAtlas: FontAtlas;
-	private readonly encoder: LegacyGeometryEncoder;
+	private readonly encoder: UberGeometryEncoder;
 	private readonly batcher: Batcher;
 	private readonly paintOrder = new LegacyPaintOrder();
+	/** What every unit holds when nothing else is bound to it; the store restores it with the rest. */
+	private readonly placeholder: TextureHandle;
 
 	private readonly vertexRing: StreamRing;
 	private readonly indexRing: StreamRing;
 	private resources: GpuResources;
 
-	/** The frame block's CPU copy, and the matrices that fill it. */
+	/** The frame block's CPU copy, which is the projection. */
 	private readonly frameBlock = new Float32Array(FRAME_BLOCK_FLOATS);
-	private readonly projection = mat4.create();
-	private readonly view = mat4.create();
 	private projectionWidth = NaN;
 	private projectionHeight = NaN;
 	private frameSlotOffset = 0;
@@ -214,23 +170,16 @@ export class WebGL2Backend implements DrawBackend {
 	 * binds again instead of asking the GPU what it holds.
 	 */
 	private pipelineBound = false;
-	/** Blend and clear colour, which only a foreign pass or a new context changes. */
+	/** Blend enable and clear colour, which only a foreign pass or a new context changes. */
 	private fixedStateBound = false;
+	/** The blend function set, or null for "unknown". */
+	private appliedBlend: BlendMode | null = null;
 	/** The byte offset the vertex array's attribute pointers were last set at, or -1. */
 	private attributeBase = -1;
-	/**
-	 * The clip the scissor box currently holds, or null for "unknown". Compared
-	 * by reference: the draw API stamps one resolved clip object on every
-	 * command in a scope (R2.5), and the batcher splits a GPU draw where that
-	 * object changes.
-	 */
-	private appliedClip: ResolvedClip | null = null;
-	/** Whether the resident texture is on its unit for this frame (R5.20). */
-	private residentBound = false;
+	/** The texture each unit holds, as this backend last bound it; null for unknown. */
+	private readonly boundUnits: (WebGLTexture | null)[] = new Array(UBER_TEXTURE_UNITS).fill(null);
 
-	private frame: FrameDescription | null = null;
 	private readonly unpaintable = new Set<DrawCommandKind>();
-	private warnedBlend = false;
 
 	constructor({
 		renderer,
@@ -245,7 +194,7 @@ export class WebGL2Backend implements DrawBackend {
 		this.gl = renderer.getContext();
 		this.fontAtlas = renderer.getFontAtlas();
 
-		this.encoder = new LegacyGeometryEncoder({
+		this.encoder = new UberGeometryEncoder({
 			glyphs: this.fontAtlas,
 			onUnpaintable: (kind, detail) => this.reportUnpaintable(kind, detail),
 		});
@@ -253,12 +202,12 @@ export class WebGL2Backend implements DrawBackend {
 		this.indexRing = new StreamRing({ capacity: indexRingBytes });
 		this.batcher = new Batcher({
 			encoder: this.encoder,
-			// One sampler in the legacy program, holding the one atlas. Nothing
-			// submits an image, so there is no dynamic unit to hand out.
-			textures: new ResidentTextureSet({ units: 1, resident: [this.encoder.glyphTexture] }),
+			// The atlas on unit 0 for the whole frame; the rest are dynamic,
+			// handed to images as they arrive (R5.20).
+			textures: new ResidentTextureSet({ units: UBER_TEXTURE_UNITS, resident: [this.encoder.glyphTexture] }),
 			// An upload never exceeds a third of the vertex ring, so three
 			// frames of one upload each fit without growth.
-			maxVertices: Math.floor(vertexRingBytes / LEGACY_PROGRAM.strideBytes / 3),
+			maxVertices: Math.floor(vertexRingBytes / STRIDE_BYTES / 3),
 			onDrop: (command, reason) => this.reportUnpaintable(command.kind, reason),
 			// A development build checks every group the encoder writes; the
 			// console error fails the screenshot harness's clean-console check.
@@ -267,7 +216,15 @@ export class WebGL2Backend implements DrawBackend {
 				: undefined,
 		});
 
-		mat4.identity(this.view);
+		this.placeholder = renderer.textures.create({
+			width: 1,
+			height: 1,
+			label: 'empty texture unit',
+			source: new Uint8Array(4),
+			content: 'color',
+			keepSource: true,
+			immediate: true,
+		});
 		this.resources = this.createResources();
 		renderer.addContextListener({ restored: () => this.restore() });
 	}
@@ -287,24 +244,18 @@ export class WebGL2Backend implements DrawBackend {
 		return this.encoder.textInk(options);
 	}
 
-	/**
-	 * Opens the frame's one render pass: rings advanced, the frame block
-	 * written into this frame's slot, the scissor off, the target cleared.
-	 */
+	/** Opens the frame's one render pass: rings advanced, the frame block written into this frame's slot, the target cleared. */
 	beginFrame(frame: FrameDescription): void {
 		// The clear is the frame's first GPU pass (R13.16).
 		this.gpuTimer?.beginFrame();
 		this.gpuTimer?.beginPass();
-		this.frame = frame;
-		// R7.2: the ratio reaches the encoder per frame, for its snapping.
+		// R7.2: the ratio reaches the encoder per frame, for inflation, the
+		// feather and glyph snapping.
 		this.encoder.ratio = frame.ratio;
 		this.vertexRing.beginFrame(frame.frame);
 		this.indexRing.beginFrame(frame.frame);
-		this.residentBound = false;
 		this.writeFrameUniforms(frame);
 		this.bindPipeline();
-
-		this.applyClip(NO_CLIP);
 		this.gl.clear(this.gl.COLOR_BUFFER_BIT);
 		this.gpuTimer?.endPass();
 	}
@@ -316,29 +267,38 @@ export class WebGL2Backend implements DrawBackend {
 			if (command.kind === 'text') this.frameTimer.recordTextCharacters(command.text.length);
 		}
 
-		let residentBinds = 0;
+		let binds = 0;
 		// One sort domain is one GPU pass (R13.16).
 		this.gpuTimer?.beginPass();
 		const work = this.batcher.flush(ordered, (upload) => {
-			residentBinds += this.execute(upload);
+			binds += this.execute(upload);
 		});
 		this.gpuTimer?.endPass();
-		work.textureBinds += residentBinds;
+		// The batcher counted the dynamic units it handed out; what the GPU
+		// was actually asked to bind is this backend's count.
+		work.textureBinds = binds;
 		return work;
 	}
 
+	/**
+	 * Puts the placeholder back on every dynamic unit an image used, so a
+	 * texture released at the end of this frame is never left bound to a
+	 * unit the shader declares.
+	 */
 	endFrame(): void {
-		this.applyClip(NO_CLIP);
-		this.frame = null;
+		const placeholder = this.textures.native(this.placeholder);
+		for (let unit = 1; unit < UBER_TEXTURE_UNITS; unit++) {
+			if (this.boundUnits[unit] !== placeholder) this.bindUnit(unit, placeholder);
+		}
 		this.gpuTimer?.endFrame();
 	}
 
 	invalidateState(): void {
 		this.pipelineBound = false;
 		this.fixedStateBound = false;
+		this.appliedBlend = null;
 		this.attributeBase = -1;
-		this.appliedClip = null;
-		this.residentBound = false;
+		this.boundUnits.fill(null);
 	}
 
 	loadFontAtlas(): never {
@@ -352,17 +312,19 @@ export class WebGL2Backend implements DrawBackend {
 	/**
 	 * Program, vertex array, the two stream buffers at their ring capacity, and
 	 * the frame uniform ring. The synchronous queries here (link status, block
-	 * index, offset alignment) are why this runs only at construction and on a
-	 * restored context.
+	 * index, offset alignment, the sampler location) are why this runs only at
+	 * construction and on a restored context.
 	 */
 	private createResources(): GpuResources {
 		const gl = this.gl;
-		const program = compileProgram(gl, LEGACY_PROGRAM.sources);
+		const program = compileProgram(gl, { vertex: vertexSource, fragment: fragmentSource });
 
 		gl.useProgram(program);
 		// Samplers cannot live in a uniform block, and GLSL ES 3.00 has no
-		// `layout(binding)`, so the one sampler is pointed at unit 0 here, once.
-		gl.uniform1i(gl.getUniformLocation(program, 'uTexture'), 0);
+		// `layout(binding)`, so sampler n is pointed at unit n here, once.
+		const units = new Int32Array(UBER_TEXTURE_UNITS);
+		for (let unit = 0; unit < UBER_TEXTURE_UNITS; unit++) units[unit] = unit;
+		gl.uniform1iv(gl.getUniformLocation(program, 'uTextures[0]'), units);
 		gl.uniformBlockBinding(program, gl.getUniformBlockIndex(program, 'Frame'), FRAME_BLOCK_BINDING);
 
 		const alignment = gl.getParameter(gl.UNIFORM_BUFFER_OFFSET_ALIGNMENT) as number;
@@ -377,7 +339,7 @@ export class WebGL2Backend implements DrawBackend {
 		const vertexBuffer = createBuffer(gl);
 		gl.bindBuffer(gl.ARRAY_BUFFER, vertexBuffer);
 		gl.bufferData(gl.ARRAY_BUFFER, this.vertexRing.capacity, gl.DYNAMIC_DRAW);
-		for (const attribute of LEGACY_PROGRAM.attributes) gl.enableVertexAttribArray(attribute.location);
+		for (const attribute of UBER_ATTRIBUTES) gl.enableVertexAttribArray(attribute.location);
 		// The element buffer binding is vertex array state: bound once, here.
 		const indexBuffer = createBuffer(gl);
 		gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, indexBuffer);
@@ -389,8 +351,9 @@ export class WebGL2Backend implements DrawBackend {
 
 	/**
 	 * R15.5. Everything created against the old context is gone, so the rings
-	 * start empty and every cached binding is forgotten. The atlas texture was
-	 * re-uploaded by `Renderer` before this runs.
+	 * start empty and every cached binding is forgotten. The textures, the
+	 * atlas and the placeholder among them, were restored by the store before
+	 * this runs.
 	 */
 	private restore(): void {
 		this.resources = this.createResources();
@@ -402,14 +365,11 @@ export class WebGL2Backend implements DrawBackend {
 	private writeFrameUniforms(frame: FrameDescription): void {
 		const { width, height } = frame.viewport;
 		if (width !== this.projectionWidth || height !== this.projectionHeight) {
-			// The projection the WebGL1 renderer built in `resize`, from the
-			// same logical size, so the shader multiplies the same floats.
-			mat4.ortho(this.projection, 0, width, height, 0, -1.0, 1.0);
+			// Logical pixels, y down, origin top left (R7.1).
+			mat4.ortho(this.frameBlock, 0, width, height, 0, -1.0, 1.0);
 			this.projectionWidth = width;
 			this.projectionHeight = height;
 		}
-		this.frameBlock.set(this.projection, 0);
-		this.frameBlock.set(this.view, 16);
 
 		const gl = this.gl;
 		const { uniformBuffer, uniformStride } = this.resources;
@@ -424,15 +384,14 @@ export class WebGL2Backend implements DrawBackend {
 		if (this.pipelineBound) return;
 		const gl = this.gl;
 		if (!this.fixedStateBound) {
-			// SRC_ALPHA over until DDB-64's premultiplied output (R15.25), and
-			// the opaque clear R15.2 asks for. Set here rather than once at
-			// creation so a foreign pass that changed them and called
-			// `invalidateState` (R2.15) gets them back before the next draw.
+			// Set here rather than once at creation so a foreign pass that
+			// changed them and called `invalidateState` (R2.15) gets them back
+			// before the next draw. The clear is opaque (R15.2).
 			gl.enable(gl.BLEND);
-			gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
 			gl.clearColor(0.0, 0.0, 0.0, 1.0);
 			this.fixedStateBound = true;
 		}
+		this.applyBlend('over');
 		gl.useProgram(this.resources.program);
 		gl.bindBufferRange(
 			gl.UNIFORM_BUFFER,
@@ -446,7 +405,7 @@ export class WebGL2Backend implements DrawBackend {
 
 	// -- execution ----------------------------------------------------------
 
-	/** Uploads once into the rings and issues the upload's draws in order. Returns resident texture binds made. */
+	/** Uploads once into the rings and issues the upload's draws in order. Returns texture binds made. */
 	private execute(upload: GeometryUpload): number {
 		const gl = this.gl;
 		const vertexBytes = upload.floatCount * 4;
@@ -464,14 +423,13 @@ export class WebGL2Backend implements DrawBackend {
 		// Indices are relative to the upload's first vertex, so the pointers
 		// move with the upload. Once per upload, never per draw (R15.14).
 		if (vertexOffset !== this.attributeBase) {
-			const stride = LEGACY_PROGRAM.strideBytes;
-			for (const attribute of LEGACY_PROGRAM.attributes) {
+			for (const attribute of UBER_ATTRIBUTES) {
 				gl.vertexAttribPointer(
 					attribute.location,
 					attribute.size,
 					gl.FLOAT,
 					false,
-					stride,
+					STRIDE_BYTES,
 					vertexOffset + attribute.offset * 4,
 				);
 			}
@@ -479,34 +437,65 @@ export class WebGL2Backend implements DrawBackend {
 		}
 
 		let binds = 0;
-		if (!this.residentBound) {
-			gl.activeTexture(gl.TEXTURE0);
-			gl.bindTexture(gl.TEXTURE_2D, this.fontAtlas.getTexture());
-			this.residentBound = true;
-			binds = 1;
-		}
-
-		for (let index = 0; index < upload.draws.length; index++) this.issue(upload.draws[index], indexOffset);
+		for (let index = 0; index < upload.draws.length; index++) binds += this.issue(upload.draws[index], indexOffset);
 		gl.bindVertexArray(null);
 		return binds;
 	}
 
-	private issue(draw: GpuDraw, indexOffset: number): void {
+	private issue(draw: GpuDraw, indexOffset: number): number {
 		const gl = this.gl;
-		if (draw.blend !== 'over' && !this.warnedBlend) {
-			// The legacy program is SRC_ALPHA over; nothing submits another
-			// mode, and premultiplied blending arrives with the uber shader.
-			this.warnedBlend = true;
-			console.error(`WebGL2Backend: blend '${draw.blend}' is drawn as 'over' by the legacy program`);
-		}
-		this.applyClip(draw.scissor ?? NO_CLIP);
-		gl.drawElements(
-			draw.topology === 'lines' ? gl.LINES : gl.TRIANGLES,
-			draw.indexCount,
-			gl.UNSIGNED_INT,
-			indexOffset + draw.firstIndex * 4,
-		);
+		const binds = this.bindTextures(draw.textures);
+		this.applyBlend(draw.blend);
+		gl.drawElements(gl.TRIANGLES, draw.indexCount, gl.UNSIGNED_INT, indexOffset + draw.firstIndex * 4);
 		this.frameTimer.recordDrawCall(draw.vertexCount);
+		return binds;
+	}
+
+	/**
+	 * Each unit to the texture the draw's bindings name, or the placeholder.
+	 * A unit already holding it is left alone, so the resident atlas binds
+	 * once and stays (R5.20), and a run of draws on the same images binds
+	 * nothing.
+	 */
+	private bindTextures(bindings: readonly (TextureKey | null)[]): number {
+		const placeholder = this.textures.native(this.placeholder);
+		let binds = 0;
+		for (let unit = 0; unit < UBER_TEXTURE_UNITS; unit++) {
+			const key = bindings[unit] ?? null;
+			let native: WebGLTexture | null;
+			if (key === null) {
+				// Nothing samples this unit in this draw; it only has to hold something.
+				if (this.boundUnits[unit] !== null) continue;
+				native = placeholder;
+			} else if (key === this.encoder.glyphTexture) {
+				native = this.fontAtlas.getTexture();
+			} else {
+				// A handle whose upload is still queued draws as the placeholder (R5.32).
+				native = this.textures.native(key as TextureHandle);
+			}
+			binds += this.bindUnit(unit, native ?? placeholder);
+		}
+		return binds;
+	}
+
+	private bindUnit(unit: number, texture: WebGLTexture | null): number {
+		if (this.boundUnits[unit] === texture) return 0;
+		const gl = this.gl;
+		gl.activeTexture(gl.TEXTURE0 + unit);
+		gl.bindTexture(gl.TEXTURE_2D, texture);
+		this.boundUnits[unit] = texture;
+		return 1;
+	}
+
+	/** R5.22 and R5.22a: premultiplied `over` unless the draw asks for `multiply` or `screen`. */
+	private applyBlend(blend: BlendMode): void {
+		const state = blend === 'additive' ? 'over' : blend;
+		if (this.appliedBlend === state) return;
+		const gl = this.gl;
+		if (state === 'multiply') gl.blendFunc(gl.DST_COLOR, gl.ONE_MINUS_SRC_ALPHA);
+		else if (state === 'screen') gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_COLOR);
+		else gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
+		this.appliedBlend = state;
 	}
 
 	/**
@@ -544,30 +533,12 @@ export class WebGL2Backend implements DrawBackend {
 
 	/**
 	 * Once per kind per backend. A silent drop is what R2.1 and R2.18 keep
-	 * banning, and a message per command would be a flood; nothing in this
-	 * codebase submits a shadow, a line or an image, so this is the report that
-	 * says so when someone starts.
+	 * banning, and a message per command would be a flood.
 	 */
 	private reportUnpaintable(kind: DrawCommandKind, detail: string): void {
 		if (this.unpaintable.has(kind)) return;
 		this.unpaintable.add(kind);
 		console.error(`WebGL2Backend: ${detail}; nothing was drawn`);
-	}
-
-	private applyClip(clip: ResolvedClip): void {
-		if (this.appliedClip === clip) return;
-		this.appliedClip = clip;
-
-		if (clip.kind === 'none') {
-			this.gl.disable(this.gl.SCISSOR_TEST);
-			return;
-		}
-
-		// A rect clip only arrives on a command, and commands only inside a frame.
-		const frame = this.frame as FrameDescription;
-		const box = scissorBox(clipRectOf(clip), frame.ratio, frame.viewport.height);
-		this.gl.enable(this.gl.SCISSOR_TEST);
-		this.gl.scissor(box.x, box.y, box.width, box.height);
 	}
 }
 

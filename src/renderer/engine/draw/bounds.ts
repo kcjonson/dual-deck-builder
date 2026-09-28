@@ -19,12 +19,17 @@ import { ClipRect, Mat2D, Rect, Vec2, inflate, transformedBounds } from './geome
  * Guessing a width from `text.length * size` would be exactly the fabricated
  * number this project's phase 0 had to retract.
  *
- * The one-device-pixel inflation in `screenInk` is R5.7's: the quad extends at
- * least one device pixel past the outermost SDF edge so the outer half of the
- * coverage ramp rasterises. It also covers R5.17's polygon feather ring, which
- * is the same width. It is applied after the transform because a device pixel
- * is a screen-space quantity.
+ * The device-pixel inflation in `screenInk` is applied after the transform
+ * because a device pixel is a screen-space quantity. One device pixel is
+ * R5.7's: the quad extends that far past the outermost SDF edge so the outer
+ * half of the coverage ramp rasterises. A polygon needs more: R5.17's feather
+ * ring is one device pixel wide along each edge, but at a sharp vertex its
+ * miter reaches up to `FEATHER_MITER_LIMIT` device pixels out, and those
+ * pixels are visible, so a polygon's bound grows by that much instead.
  */
+
+/** How far, in device pixels, R5.17's feather miter may reach past a polygon vertex. */
+export const FEATHER_MITER_LIMIT = 4;
 
 /** R5.7: how far a border grows the shape's footprint outward. */
 function borderOutset(border: Border | null | undefined): number {
@@ -55,7 +60,8 @@ export function rectInk(rect: Rect, border: Border | null | undefined): Rect {
  */
 export function shadowInk(rect: Rect, shadow: BoxShadow): Rect {
 	const spread = shadow.spread ?? 0;
-	const blur = shadow.blur ?? 0;
+	// A negative blur draws as no blur; it must not shrink the bound.
+	const blur = Math.max(0, shadow.blur ?? 0);
 	const offset = shadow.offset ?? { x: 0, y: 0 };
 	const pad = Math.max(0, spread) + blur * 1.5;
 	return {
@@ -104,7 +110,8 @@ export function pointsInk(points: readonly Vec2[], width: number): Rect | null {
 	return { x: minX - half, y: minY - half, width: maxX - minX + width, height: maxY - minY + width };
 }
 
-export function screenInk(local: Rect, transform: Mat2D, ratio: number): ClipRect {
+/** `local` through `transform`, grown by `devicePixels` device pixels on every side. */
+export function screenInk(local: Rect, transform: Mat2D, ratio: number, devicePixels = 1): ClipRect {
 	const devicePixel = ratio > 0 ? 1 / ratio : 1;
-	return inflate(transformedBounds(transform, local), devicePixel);
+	return inflate(transformedBounds(transform, local), devicePixel * devicePixels);
 }

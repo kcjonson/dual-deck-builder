@@ -17,6 +17,20 @@ This document contains the chronological log of completed development tasks for 
 
 **Evidence:** unit tests for the timer against a scripted device (16), the track selection (9), the tables (8), the backend's pass bracketing, the snapshot fields and track emission, the `__perf` toggle, and F5 driving the timer; 1603 jest tests pass. A production `build:web` bundle contains no timer or track code. Baselines on one Mac (Radeon Pro 560X, ANGLE Metal): `perf-results/phase7-frame-baseline`, `phase7-gallery-baseline` (vsync off, timer off) and `phase7-frame-gpu`, `phase7-gallery-gpu` (paced, timer on). Measured along the way: Chromium returns timer results hundreds of frames late with the frame cap off, the first second after mounting is a sub-millisecond transient before GPU back-pressure sets in, and on ANGLE Metal a query around a single clear reads 1.39 ms, the same as around twenty, so each timed pass carries a floor. Combat at ~28 ms a frame was bisected to #70 (DDB-63): it scales with the index ring size, and a 256 KB index ring restores 60 FPS (DDB-195). Decision record: [gpu-timer-and-perf-capture.md](./AI_TECHNICAL_DECISIONS/gpu-timer-and-perf-capture.md).
 
+## Uber shader: one program, exact-coverage borders, the clip as data (2026-09-28)
+
+**What landed:** DDB-64 (DDB-55 phase 1), with DDB-65's per-draw clip.
+
+- `src/assets/shaders/uber.vert` and `uber.frag` replace `vertex.glsl` and `fragment.glsl`: modes `flat`, `rect`, `shadow`, `circle`, `image`, `text` (MSDF, unused until DDB-70) and a temporary `mask` for the bitmap atlas; R5.8's border compositing, R5.6's linear ramp, Wallace's erf shadow, premultiplied output, and R4.4's half-open clip test on the interpolated logical position.
+- `rendering/UberGeometryEncoder.ts` replaces `LegacyGeometryEncoder.ts`: transform on the CPU, premultiplied colours and gradients, clamped radii, border outsets, one device pixel of quad inflation, R5.11's shadow geometry, lines and polyline segments as oriented `rect` quads, R5.17's polygon feather ring, image quads.
+- `WebGL2Backend`: the uber program, premultiplied `over`, per-draw blend for `multiply` and `screen`, eight sampler units with the atlas resident and a placeholder on the rest; the scissor and `scissorBox` are gone. `Renderer` sets `antialias: false`.
+- `Batcher` and `stats.ts` lose `clipIsState`, topology and `topologyChange`; `clipChange` is a structural zero. `LegacyPaintOrder` no longer splits circle outlines out.
+- `Rectangle` passes its corner radius; `Triangle` and `Polygon` put their box into the points rather than a pushed transform, so stroke widths are pixels.
+
+**How:** `UberGeometryEncoder.test.ts` (42, including the paint-order tests moved from the deleted encoder test), rewritten `WebGL2Backend.test.ts` (no scissor call, clip on every vertex at ratio 2, blend state per mode, texture units), `Batcher.test.ts` for the reduced split reasons. `tests/visual/web/uberShader.spec.ts` runs the real shader in SwiftShader against chapter 4.7's fragment fixture and chapter 5.10's pixel tests. Every golden re-minted on CI; the before and after comparison, and GPU draw counts per screen (unchanged, with every screen at one draw once `legacyTextOrder` goes), are in `docs/AI_TECHNICAL_DECISIONS/uber-shader.md`.
+
+**Review follow-ups (same PR):** the R4.2a bound for a polygon grows by the feather miter's four device pixels, `shadowInk` clamps a negative blur, the indexed-polygon outline contract is written on `DrawPolygonOptions` and checked by `isSingleOutline` (unfeathered draw plus a `polygon-not-one-outline` diagnostic when it fails), and the pixel suite gained image, mask and additive cases. The combat golden's intent badge reads 15 where `main`'s said 5: `main`'s golden was stale and passed under the 200-pixel budget (DDB-197).
+
 ## Body face kerning: stay on unkerned Open Sans (2026-09-28)
 
 **What landed:** DDB-189, a decision with no asset change. Open Sans 3.000 stays the body face and ships with an empty `kerning[]`.

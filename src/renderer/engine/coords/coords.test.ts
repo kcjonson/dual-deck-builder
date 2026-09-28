@@ -33,7 +33,7 @@ describe('the logical viewport is defined from the framebuffer (R7.2, R7.5)', ()
 		expect(devicePixelsFromCss(0, 2)).toBe(1);
 
 		const viewport = resolveViewport({ framebufferWidth: 1441, framebufferHeight: 1103, dpr: 1.25 });
-		// The projection and the scissor divide the same device pixels by the same ratio.
+		// The projection and the clip rects divide the same device pixels by the same ratio.
 		expect(viewport.width * viewport.ratio).toBeCloseTo(1441, 10);
 	});
 
