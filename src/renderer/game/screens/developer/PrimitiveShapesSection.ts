@@ -1,4 +1,4 @@
-import { Panel } from '../../../engine/ui/Panel';
+import { DeveloperSectionPanel } from './DeveloperSectionPanel';
 import { Text } from '../../../engine/components/Text';
 import { Circle } from '../../../engine/components/Circle';
 import { Triangle } from '../../../engine/components/Triangle';
@@ -8,18 +8,10 @@ import { Polygon } from '../../../engine/components/Polygon';
  * Primitive shapes section for the developer screen
  * Demonstrates circles, triangles, and polygons
  */
-export class PrimitiveShapesSection extends Panel {
+export class PrimitiveShapesSection extends DeveloperSectionPanel {
 	constructor(x: number, y: number, width: number) {
-		super({
-			id: 'dev_section_primitive_shapes',
-			width,
-			height: 400, // Will be calculated based on content
-			style: {
-				backgroundColor: 'transparent',
-			},
-		});
+		super({ id: 'dev_section_primitive_shapes', x, y, width });
 
-		this.setPosition(x, y);
 		this.initializeContent();
 	}
 
@@ -214,7 +206,7 @@ export class PrimitiveShapesSection extends Panel {
 		this.addChild(diamond);
 
 		// Update our height based on content
-		this.setSize(this.width, polygonY + 100);
+		this.fitContentHeight(polygonY + 100);
 	}
 
 	/**

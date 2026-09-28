@@ -6,6 +6,7 @@ import { Component, ComponentOptions } from './Component';
 import { Layer } from './Layer';
 import type { MountContext } from './MountContext';
 import { Rectangle } from './Rectangle';
+import { Panel } from '../ui/Panel';
 import { Stack, StackOptions } from './Stack';
 import { renderTree } from './renderTree';
 import { createTestContext } from './testing';
@@ -858,6 +859,16 @@ describe('Stack additions (spec 10.9)', () => {
 
 		expect(plain.bounds).toEqual({ x: 12, y: 8, width: 40, height: 40 });
 		expect(corner.bounds).toEqual({ x: 260, y: 160, width: 40, height: 40 });
+	});
+
+	it('anchors inside a padded panel\'s padding', () => {
+		const panel = new Panel({ width: 300, height: 200, padding: 10 });
+		const corner = box(20, 20, 0, { anchor: 'bottomRight' });
+		panel.addChild(corner);
+		layOut(panel);
+
+		expect(corner.bounds).toEqual({ x: 260, y: 160, width: 20, height: 20 });
+		expect(corner.screenBounds).toEqual({ x: 270, y: 170, width: 20, height: 20 });
 	});
 
 	it('sizes absolute fill children to the content box', () => {

@@ -1,4 +1,4 @@
-import { Panel } from '../../../engine/ui/Panel';
+import { DeveloperSectionPanel } from './DeveloperSectionPanel';
 import { Component, ComponentOptions } from '../../../engine/components/Component';
 import { Rectangle } from '../../../engine/components/Rectangle';
 import { Stack, StackOptions } from '../../../engine/components/Stack';
@@ -39,18 +39,9 @@ function swatch(token: ColorToken, options: ComponentOptions): Rectangle {
  * Every box has a fixed size, so the section's height is known when the
  * constructor returns, as DeveloperScreen and the gallery host need.
  */
-export class StackExamplesSection extends Panel {
+export class StackExamplesSection extends DeveloperSectionPanel {
 	constructor(x: number, y: number, width: number) {
-		const rows = [56, 72, 72, 96];
-		const contentHeight = rows.reduce((total, box) => total + CAPTION_HEIGHT + CAPTION_GAP + box, 0)
-			+ ROW_GAP * (rows.length - 1);
-		super({
-			id: 'dev_section_stack',
-			width,
-			height: TITLE_HEIGHT + contentHeight,
-			style: { backgroundColor: 'transparent' },
-		});
-		this.setPosition(x, y);
+		super({ id: 'dev_section_stack', x, y, width });
 
 		const title = new Text('Stacks', { style: { fontSize: 28, color: '#ffffff', fontWeight: 'bold' } });
 		this.addChild(title);
@@ -82,6 +73,11 @@ export class StackExamplesSection extends Panel {
 			this.cell('pinned corner badge', this.badgeBox()),
 		]));
 		this.addChild(content);
+
+		const rows = [56, 72, 72, 96];
+		const contentHeight = rows.reduce((total, box) => total + CAPTION_HEIGHT + CAPTION_GAP + box, 0)
+			+ ROW_GAP * (rows.length - 1);
+		this.fitContentHeight(TITLE_HEIGHT + contentHeight);
 	}
 
 	private row(name: string, cells: Component[]): Stack {
