@@ -83,5 +83,6 @@ export const SCENE_SCENARIOS: readonly SceneScenario[] = [
 	{ scene: 'checkboxes' },
 	{ scene: 'radio-group' },
 	{ scene: 'menus' },
+	{ scene: 'slider-tabs' },
 	{ scene: 'overlays' },
 ];

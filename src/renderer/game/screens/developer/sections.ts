@@ -17,6 +17,7 @@ import { ListExamplesSection } from './ListExamplesSection';
 import { CheckboxExamplesSection } from './CheckboxExamplesSection';
 import { RadioExamplesSection } from './RadioExamplesSection';
 import { MenuExamplesSection } from './MenuExamplesSection';
+import { SliderTabsSection } from './SliderTabsSection';
 
 /**
  * The developer screen's sections, defined once.
@@ -138,5 +139,9 @@ export const developerSections: readonly DeveloperSection[] = [
 	{
 		name: 'menus',
 		build: ({ x, y, width }) => new MenuExamplesSection(x, y, width),
+	},
+	{
+		name: 'slider-tabs',
+		build: ({ x, y, width }) => new SliderTabsSection(x, y, width),
 	},
 ];

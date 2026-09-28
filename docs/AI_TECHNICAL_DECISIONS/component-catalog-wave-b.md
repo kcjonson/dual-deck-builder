@@ -6,7 +6,7 @@ Wave B lands as sequential pull requests by component group:
 
 1. Text entry: TextInput (R12.10) replacing the old `Input`, and NumberInput (R12.36).
 2. Menus: Menu (R12.11), Select (R12.12), DropdownButton (R12.13), ContextMenu (R12.14), on the popup and placement services; Menu's internal scrolling on DDB-85's ScrollContainer.
-3. Slider (R12.15), TabBar (R12.16), SegmentedControl (R12.17).
+3. Slider (R12.15), TabBar (R12.16), SegmentedControl (R12.17), with `LabelledPressable` under the last two.
 
 ## Text entry
 
@@ -44,14 +44,29 @@ All three open through the popup service, so one exclusive popup is open at a ti
 
 **Scrolling waits on ScrollContainer.** R12.11's "a menu taller than the rect the placement service returns scrolls internally" needs DDB-85's ScrollContainer (#105), which is not on `main` yet. Until it lands a menu clips its rows to its box (`overflow: 'hidden'`), so a menu shortened by `maxHeight` or by placement never draws past itself, and the rows past its edge are unreachable by pointer; the follow-up commit wraps the rows in a ScrollContainer.
 
+## Slider, tab bar, segmented control
+
+**Slider.** The math is R12.15's and exported as pure functions (`positionToValue`, `valueToPosition`, `snapToStep`) so the ported worldsim suite tests it without a component: `min * (max / min) ^ t` when logarithmic with positive bounds, linear otherwise, clamped, never NaN. A press within the thumb's hit radius (half the thumb plus `space_1`) grabs it and remembers where on the thumb it was grabbed, so grabbing does not jump the value; a press elsewhere jumps; both capture. Arrows step by `step`, or for a continuous slider by 1% of the track in position space, so a log slider steps evenly along its length. R12.15's controlled semantics replace worldsim's where they differ: a programmatic `value` clamps and snaps without firing (worldsim fired), and a user change fires once and never for an unmoved value. A `value` set from inside `onChange` stands without a second call, since nothing in `userSet` reads the value after the callback. The look is worldsim's: a 4 px pill in `bg_inset`, the accent fill to the thumb, a 14 px square thumb in `accent_bright` with the accent glow, the detent a 2 px `data` tick at 70%, and with a `label` a mono caps name column (at most 40% of the width, ellipsised) and a right value column as wide as the widest of the formatted min, max, and value, so the track does not shift as the value changes.
+
+**Tabs and segments share `LabelledPressable`:** a Pressable that draws one label in display caps with tracking from R11.12 layers, and hugs the label measured with that same face (R12.7's rule). Both are focus-group members whose group handles its own arrows, as RadioGroup does: the focus manager's group movement moves focus without selecting, and R12.16 and R12.17 move the selection with focus. New layer sets `tabLayers` (clear, dim text, bright when selected, hover wash with bright text, no pressed nudge) and `segmentLayers` (the tone's filled chip with contrast text when selected, the bright fill on hover, grey when disabled).
+
+**TabBar** is a horizontal Stack of `Tab`s over a hairline, the selected tab's 2 px accent underline drawn by the tab. Controlled when `selectedId` is given at construction (an unknown or disabled id shows nothing), uncontrolled otherwise (first enabled tab). Selection comes from the press machine's click, so a release over the pressed tab selects and a press that wanders to another tab selects neither. Tabs draw their focus ring inside, since they abut.
+
+**SegmentedControl** is a Component that places its segments itself (`sizesChildren`, `assignSize`, so a layout pass does not re-invalidate itself): equal widths from the widest label, or `segmentWidth`. Each segment is the size's full control height and the inset well grows `space_0_5` round them, rather than the segments shrinking inside a control-height well: shrunk, a small control's segments fell under the layout lint's target size. The selected chip glows in its tone.
+
 ## Departures
 
 - R12.10's "`char`" is the `keydown` of a one-code-point key: the dispatcher has no separate `char` event, and the key names the platform reports for printable keys are the characters.
 - Enter no longer blurs the field, which `Input` did; R12.10 has Enter fire `onSubmit` only.
 - Stepper buttons do not auto-repeat while held. R12.36 does not ask for it.
 - Menus are not focus groups (R12.34); their owners drive the highlight, as above.
+- A programmatic Slider `value` never fires `onChange`; worldsim's `setValue` did. R12.15 and the shared controlled-value rule win.
+- SegmentedControl is one control-height tall per segment plus the well's padding, not one control height overall.
 - A menu item's release selects only when the press began inside the menu; worldsim selected on any release over an item.
 
 ## Gallery
+
+`menus` and `slider-tabs` are the second and third PRs' scenes.
+
 
 `input-showcase` keeps its name and its "Input Fields" title (the developer screen's golden holds that scene's top 32 pixels), rebuilt as a catalog section: empty with a placeholder, filled, password, disabled; an overflowing value scrolled to its caret and clipped; the three sizes and an instance style; and number inputs at an integer, a quarter step, their maximum (the up chevron greyed), and disabled. The `clipping` scene's overflowing-field item is now the real TextInput, laid inside the fixture layer it is part of. The icon atlas gained `expand_more` and `expand_less` (Select's caret uses the first in the next PR); `remove`'s atlas cell moved, the other seven stayed put.
