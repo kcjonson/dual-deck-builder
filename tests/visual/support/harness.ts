@@ -72,13 +72,6 @@ const SETTLE_TIMEOUT_MS = 15_000;
 const RANDOM_SEED = 0x5eed1e57;
 
 /**
- * The dev surface as this harness uses it. Members are required here, unlike
- * the engine's own optional declarations: nothing below runs before the page
- * has been observed to install them, so "absent" is a failure with a name
- * rather than a case every call site has to re-handle. `Partial<DevSurface>`
- * is what the waits are written against.
- */
-/**
  * The part of `window.__ui.tree()` the harness reads. Stated here rather than
  * imported from `treeSnapshot.ts`, which would pull the engine, and its build
  * globals, into the test project's typecheck.
@@ -88,6 +81,13 @@ interface TreeSnapshot {
 	roots: { bounds: { x: number; y: number; w: number; h: number } }[];
 }
 
+/**
+ * The dev surface as this harness uses it. Members are required here, unlike
+ * the engine's own optional declarations: nothing below runs before the page
+ * has been observed to install them, so "absent" is a failure with a name
+ * rather than a case every call site has to re-handle. `Partial<DevSurface>`
+ * is what the waits are written against.
+ */
 export interface DevSurface {
 	__ui: { tree(): TreeSnapshot; lint(): LintResult };
 	__app: {
@@ -253,8 +253,14 @@ export async function settle(page: Page): Promise<void> {
 				&& viewport.width === size.width && viewport.height === size.height;
 		};
 		const frames = (): number => scope.__perf.snapshot().liveness.frameCount;
+		// Raced against a timer so the deadline still fires if frames stop,
+		// which is the case it most needs to report.
 		const nextFrame = (): Promise<void> => new Promise((resolve) => {
-			requestAnimationFrame(() => resolve());
+			const timer = setTimeout(resolve, Math.max(0, deadline - performance.now()));
+			requestAnimationFrame(() => {
+				clearTimeout(timer);
+				resolve();
+			});
 		});
 
 		const deadline = performance.now() + timeout;
@@ -390,7 +396,14 @@ export async function expectGolden(page: Page, testInfo: TestInfo, kind: 'screen
 	if (!expected) throw areaFailure ?? new Error(`${goldenPath} is missing after toHaveScreenshot`);
 
 	const actual = await page.screenshot({ animations: 'disabled', caret: 'hide', scale: 'css' });
-	const report = compareClusters({ expected, actual, threshold: VISUAL_THRESHOLD, joinRadius: GOLDEN_CLUSTER.joinRadius });
+	let report: DiffReport;
+	try {
+		report = compareClusters({ expected, actual, threshold: VISUAL_THRESHOLD, joinRadius: GOLDEN_CLUSTER.joinRadius });
+	} catch (error) {
+		// A size mismatch throws here, and Playwright has already failed the
+		// same capture with the better message.
+		throw areaFailure ?? error;
+	}
 	await writeFile(testInfo.outputPath('golden-diff.json'), JSON.stringify({ golden: file, ...report }, null, '\t'));
 	// Kept whenever anything differs, passing or not, so a nonzero report on
 	// a green run can be looked at rather than only counted.

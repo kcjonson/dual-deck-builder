@@ -401,7 +401,20 @@ local baselines (macOS, bit-exact across runs). "Largest" is the largest cluster
 | 8 px armour badge one digit changed (5 to 6) | 13 | 13 | missed | caught |
 | 10 px quantity badge one digit changed (x3 to x4) | 17 | 17 | missed | caught |
 
+| centred synergy text, final `.` dropped | 674 | 151 | caught | caught |
+| centred synergy text, final `.` to `,` | 0 | 0 | missed | missed |
+| centred "Starting Deck:" to "Starting Deck;" | 948 | 299 | caught | caught |
+| left-aligned card text, final `.` dropped ("Gain 8 Armor") | 2 | 1 | missed | missed |
+| left-aligned card text, `.` to `,` | 0 | 0 | missed | missed |
+| left-aligned vehicle label, `:` to `;` ("Driver;") | 0 | 0 | missed | missed |
+
 The +2 row is the threshold's cliff and is unchanged by design (the colour cliff section above).
-What still passes: a change whose densest region is 8 pixels or fewer, which at the smallest sizes
-on screen (8 and 9 px) is a digit pair whose glyphs differ in only a few pixels. That is the floor,
-and the tree snapshot is the tool for strings below it.
+
+Punctuation is the known miss. The centred rows are caught only because removing or widening a
+character re-centres the whole line; the change itself is not what fails. In place, a period, a
+comma and a colon at body sizes differ by a few pixels that pixelmatch mostly classes as
+anti-aliasing, so `.` to `,` and `:` to `;` produce zero differing pixels and a dropped trailing
+period two. No pixel budget reaches that without also failing on runner noise. The fix belongs in
+the tree snapshot, which holds every string: a text check against it is DDB-206, next to DDB-80's
+snapshot work. Beyond punctuation, what still passes is any change whose densest region is 8 pixels
+or fewer.
