@@ -35,8 +35,9 @@ const LABEL_GAP = tokens.space.space_2;
 /**
  * What Checkbox, Toggle, and a radio item share (R12.9, R12.35): a mark and
  * a label in one row, the whole row a single hit area and focus target
- * (`Pressable`), `checked` as the `selected` flag so the snapshot reports
- * it, and controlled-value semantics: setting `checked` never fires
+ * (`Pressable`), `checked` kept apart from R11.11's `selected` (which a
+ * focus group owns, so a checklist in a group is not corrupted by it) and
+ * reported in the snapshot's state, and controlled-value semantics: setting `checked` never fires
  * `onChange`; a user change fires it once, with the value already applied.
  * `click` and `activate` from Space press it; Enter does not (it is left
  * for a dialog's default action).
@@ -49,6 +50,7 @@ export abstract class Checkable extends Pressable {
 	public onChange: CheckedChangeCallback | null = null;
 
 	protected readonly label: Text;
+	private isChecked: boolean;
 	private controlSize: ControlSize;
 	private layers: LookLayers;
 	private readonly transition: LookTransition;
@@ -61,7 +63,7 @@ export abstract class Checkable extends Pressable {
 			height: options.height ?? CONTROL_SIZES[size].height,
 		});
 		this.controlSize = size;
-		this.selected = checked;
+		this.isChecked = checked;
 		this.layers = markLayers({ on: checked });
 		if (onChange) this.onChange = onChange;
 
@@ -82,12 +84,24 @@ export abstract class Checkable extends Pressable {
 	}
 
 	public get checked(): boolean {
-		return this.selected;
+		return this.isChecked;
 	}
 
 	/** Programmatic: never fires `onChange`. */
 	public set checked(checked: boolean) {
-		this.selected = checked;
+		if (checked === this.isChecked) return;
+		this.isChecked = checked;
+		this.onStateChange();
+	}
+
+	/** The snapshot's `checked`: `mixed` for an indeterminate checkbox. */
+	public get checkedState(): boolean | 'mixed' {
+		return this.isChecked;
+	}
+
+	/** The value is the control's own; a focus group's selection leaves it alone (R12.34). */
+	public get takesGroupSelection(): boolean {
+		return false;
 	}
 
 	public get size(): ControlSize {
@@ -124,7 +138,7 @@ export abstract class Checkable extends Pressable {
 
 	/** Whether the mark shows as on: `checked`, or a checkbox's indeterminate state. */
 	protected get markOn(): boolean {
-		return this.selected;
+		return this.isChecked;
 	}
 
 	/** R12.9: Space toggles, Enter does not. */
@@ -134,7 +148,7 @@ export abstract class Checkable extends Pressable {
 
 	/** The user's change: a checkbox or toggle flips; a radio item overrides this to only turn on. */
 	protected onPressed(event: UiPointerEvent | UiActionEvent): void {
-		this.commit(!this.selected, event);
+		this.commit(!this.isChecked, event);
 	}
 
 	/** Applies a user change and reports it once, after it is applied. */
@@ -145,7 +159,7 @@ export abstract class Checkable extends Pressable {
 
 	/** Sets the value as a user change does, before `onChange` hears it. */
 	protected applyUserChange(checked: boolean): void {
-		this.selected = checked;
+		this.checked = checked;
 	}
 
 	public measure(availableWidth: number, availableHeight: number, definite: Axis | null = null): Size {
@@ -238,9 +252,14 @@ export class Checkbox extends Checkable {
 	}
 
 	public set checked(checked: boolean) {
+		const changed = this.isIndeterminate;
 		this.isIndeterminate = false;
 		super.checked = checked;
-		this.onStateChange();
+		if (changed) this.onStateChange();
+	}
+
+	public get checkedState(): boolean | 'mixed' {
+		return this.isIndeterminate ? 'mixed' : this.checked;
 	}
 
 	public get indeterminate(): boolean {
@@ -260,12 +279,12 @@ export class Checkbox extends Checkable {
 	}
 
 	protected get markOn(): boolean {
-		return this.selected || this.isIndeterminate;
+		return this.checked || this.isIndeterminate;
 	}
 
 	/** Indeterminate becomes checked; otherwise it flips (R12.9). */
 	protected onPressed(event: UiPointerEvent | UiActionEvent): void {
-		this.commit(this.isIndeterminate ? true : !this.selected, event);
+		this.commit(this.isIndeterminate ? true : !this.checked, event);
 	}
 
 	protected applyUserChange(checked: boolean): void {

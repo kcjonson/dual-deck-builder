@@ -704,9 +704,9 @@ export class Dispatcher {
 		const fields = this.lastPointerFields(pointerId, press);
 		if (captor) {
 			this.captures.delete(pointerId);
-			if (captor.isMounted) {
-				this.deliverTo(captor, this.pointerEvent('pointercancel', captor, fields));
-			}
+			// Bubbling from the captor (R9.10), so an ancestor that shades on
+			// the press hears the gesture end too.
+			if (captor.isMounted) this.bubble(this.pointerEvent('pointercancel', captor, fields));
 			this.drag.pointerLost(pointerId);
 			this.deliverTo(captor, this.pointerEvent('lostpointercapture', captor, fields));
 			this.hoverStale = true;

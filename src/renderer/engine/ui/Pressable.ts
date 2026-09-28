@@ -37,8 +37,10 @@ export abstract class Pressable extends Component {
 
 	public handleEvent(event: AnyUiEvent): void {
 		if (event.type === 'click' && !this.releasedInside) {
-			// A captured release outside still reaches the captor as a click (R9.31).
-			event.consume();
+			// A captured release outside still reaches the captor as a click
+			// (R9.31): it is swallowed there. A click bubbling up from a
+			// pressable nested inside this one is that one's, and goes on.
+			if (event.target === this) event.consume();
 			return;
 		}
 		super.handleEvent(event);
@@ -55,6 +57,9 @@ export abstract class Pressable extends Component {
 				return;
 			case 'pointerdown':
 				if (event.button !== 0 || !this.effectivelyEnabled) return;
+				// The innermost pressable takes the press: one nested inside
+				// this one has captured it already on the way up.
+				if (this.context?.dispatcher.captorOf(event.pointerId)) return;
 				this.armed = true;
 				this.releasedInside = false;
 				this.pressed = true;
@@ -63,7 +68,14 @@ export abstract class Pressable extends Component {
 			case 'pointermove':
 			case 'pointerenter':
 			case 'pointerleave':
-				if (this.armed) this.pressed = event.type !== 'pointerleave' && this.isOver(event);
+				if (!this.armed) return;
+				// A press that became a drag is not a press any more (R9.12),
+				// whatever the ghost is, and it will not click.
+				if (this.context?.drag.isDragging) {
+					this.endPress();
+					return;
+				}
+				this.pressed = event.type !== 'pointerleave' && this.isOver(event);
 				return;
 			case 'pointerup':
 				this.releasedInside = this.armed && this.isOver(event);
@@ -75,6 +87,15 @@ export abstract class Pressable extends Component {
 				this.endPress();
 				return;
 		}
+	}
+
+	/**
+	 * Whether a focus group's selection includes this control (R12.34). A
+	 * control whose `selected` means something of its own says no, and the
+	 * group leaves it alone; the checkables keep their value apart anyway.
+	 */
+	public get takesGroupSelection(): boolean {
+		return true;
 	}
 
 	/** Whether this key's `activate` presses it; every key by default. */

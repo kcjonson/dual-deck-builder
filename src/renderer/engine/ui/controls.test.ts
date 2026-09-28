@@ -18,6 +18,7 @@ import { tokens } from '../theme/tokens';
 import { over } from '../style/look';
 import { Button } from './Button';
 import { Checkbox } from './Checkbox';
+import { treeSnapshot } from '../debug/treeSnapshot';
 import { FocusGroup } from './FocusGroup';
 import { ListRow } from './ListRow';
 import { RadioGroup } from './RadioGroup';
@@ -123,6 +124,63 @@ describe('Button press machine (R12.7)', () => {
 		expect(other).toHaveLength(0);
 	});
 
+	it('stops showing pressed once its press becomes a drag with a separate ghost (R9.12)', () => {
+		const ghost = new Layer({ id: 'ghost', x: 0, y: 0, width: 10, height: 10 });
+		root.addChild(ghost);
+		const { button: made, clicks } = button();
+		made.onPointerDown = (event) => {
+			context.drag.start({ event, source: made, ghost, data: 'x' });
+		};
+		inject('move,160,120', 'down,160,120');
+		expect(made.pressed).toBe(true);
+		inject('move,200,160');
+		expect(context.drag.isDragging).toBe(true);
+		inject('move,165,122', 'move,160,120');
+		expect(context.drag.isDragging).toBe(true);
+		expect(made.pressed).toBe(false);
+		inject('up,160,120');
+		expect(clicks).toHaveLength(0);
+		expect(context.dispatcher.captorOf(1)).toBeNull();
+	});
+
+	it('lets the innermost pressable take a press, and a click outside it still reach the outer one', () => {
+		const outerClicks: number[] = [];
+		const outer = new ListRow({ label: 'Row', x: 100, y: 300, width: 300, height: 40, pointerEvents: 'auto', onClick: () => outerClicks.push(1) });
+		const innerClicks: number[] = [];
+		const inner = new Button('Inner', { x: 200, y: 5, width: 80, height: 30, onClick: () => innerClicks.push(1) });
+		outer.addChild(inner);
+		root.addChild(outer);
+		context.frame.layout();
+		inject(`move,${centre(inner)}`, `down,${centre(inner)}`);
+		expect(context.dispatcher.captorOf(1)).toBe(inner);
+		expect(outer.pressed).toBe(false);
+		inject(`up,${centre(inner)}`);
+		expect(innerClicks).toHaveLength(1);
+		expect(outerClicks).toHaveLength(0);
+		inject('click,130,320');
+		expect(outerClicks).toHaveLength(1);
+		expect(innerClicks).toHaveLength(1);
+	});
+
+	it('bubbles a cancel from the captor, so an ancestor hears the gesture end (R9.10)', () => {
+		const holder = new Layer({ id: 'holder', width: 800, height: 600 });
+		const heard: string[] = [];
+		holder.onPointerDown = () => heard.push('down');
+		holder.handleEvent = ((base) => function (this: Layer, event) {
+			if (event.type === 'pointercancel') heard.push('cancel');
+			base.call(this, event);
+		})(holder.handleEvent);
+		root.addChild(holder);
+		const made = new Button('Go', { x: 100, y: 100, width: 120, height: 40 });
+		holder.addChild(made);
+		context.frame.layout();
+		inject('move,160,120', 'down,160,120');
+		window.dispatchEvent(new FocusEvent('blur'));
+		context.dispatcher.dispatchPending();
+		expect(heard).toEqual(['down', 'cancel']);
+		expect(made.pressed).toBe(false);
+	});
+
 	it('takes the R12.7 options: disabled, block, and onClick', () => {
 		const { button: made, clicks } = button({ disabled: true });
 		expect(made.enabled).toBe(false);
@@ -176,7 +234,7 @@ describe('Button press machine (R12.7)', () => {
 describe('ListRow (R12.8)', () => {
 	function list(): { group: FocusGroup; rows: ListRow[]; clicks: string[] } {
 		const clicks: string[] = [];
-		const group = new FocusGroup({ id: 'list', x: 20, y: 20, width: 240 });
+		const group = new FocusGroup({ id: 'list', x: 20, y: 20, width: 240, selection: 'single' });
 		const rows = ['Alpha', 'Beta', 'Gamma'].map((label, index) => new ListRow({
 			id: `row_${index}`,
 			label,
@@ -254,6 +312,7 @@ describe('FocusGroup (R12.34)', () => {
 			x: 20,
 			y: 20,
 			width: 200,
+			selection: 'single',
 			onSelect: (selected) => selections.push(selected.map((member) => (member as ListRow).labelText)),
 			onActivate: (member) => activations.push((member as ListRow).labelText),
 			...options,
@@ -329,11 +388,12 @@ describe('FocusGroup (R12.34)', () => {
 		expect(rows[1].selected).toBe(true);
 	});
 
-	it('selects nothing in none mode, and select() never fires onSelect', () => {
+	it('selects nothing by default or in none mode, and select() never fires onSelect', () => {
+		expect(new FocusGroup().selection).toBe('none');
 		const { rows, selections, group: made } = group({ selection: 'none' });
 		inject(`click,${centre(rows[0])}`);
 		expect(rows[0].selected).toBe(false);
-		const single = new FocusGroup();
+		const single = new FocusGroup({ selection: 'single' });
 		const a = new ListRow({ label: 'a' });
 		const b = new ListRow({ label: 'b' });
 		single.addChild(a);
@@ -344,6 +404,37 @@ describe('FocusGroup (R12.34)', () => {
 		expect(selections).toEqual([]);
 		expect(made.selection).toBe('none');
 	});
+
+	it('leaves a toolbar button unselected after a click, by default', () => {
+		const toolbar = new FocusGroup({ x: 20, y: 300, orientation: 'horizontal' });
+		const tool = new Button('Tool', { width: 80 });
+		toolbar.addChild(tool);
+		root.addChild(toolbar);
+		context.frame.layout();
+		inject(`click,${centre(tool)}`);
+		expect(tool.selected).toBe(false);
+	});
+
+	for (const selection of ['single', 'multiple', 'none'] as const) {
+		it(`keeps checkboxes' values their own in ${selection} mode`, () => {
+			const changes: string[] = [];
+			const checklist = new FocusGroup({ x: 20, y: 300, selection });
+			const a = new Checkbox({ label: 'A', checked: true, onChange: (checked) => changes.push(`A ${checked}`) });
+			const b = new Checkbox({ label: 'B', onChange: (checked) => changes.push(`B ${checked}`) });
+			checklist.addChild(a);
+			checklist.addChild(b);
+			root.addChild(checklist);
+			context.frame.layout();
+			inject(`click,${centre(b)}`);
+			expect([a.checked, b.checked]).toEqual([true, true]);
+			expect(changes).toEqual(['B true']);
+			inject(`click,${centre(a)}`);
+			expect([a.checked, b.checked]).toEqual([false, true]);
+			expect(changes).toEqual(['B true', 'A false']);
+			expect(checklist.selectedMembers).toEqual([]);
+			expect(a.selected || b.selected).toBe(false);
+		});
+	}
 
 	it('does not select on a press released outside the member', () => {
 		const { rows, selections } = group();
@@ -390,6 +481,15 @@ describe('Checkbox (R12.9)', () => {
 		expect(changes).toEqual([true]);
 		key(' ');
 		expect(changes).toEqual([true, false]);
+	});
+
+	it('reports its value in the snapshot state, mixed when indeterminate', () => {
+		const { box } = checkbox({ indeterminate: true });
+		const stateOf = () => treeSnapshot([root], { width: 800, height: 600 }).roots[0].children[0].state;
+		expect(stateOf()?.checked).toBe('mixed');
+		box.checked = true;
+		expect(stateOf()?.checked).toBe(true);
+		expect(stateOf()?.selected).toBe(false);
 	});
 
 	it('never fires onChange for a programmatic value', () => {

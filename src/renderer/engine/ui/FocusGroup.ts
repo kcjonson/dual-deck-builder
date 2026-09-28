@@ -3,6 +3,7 @@ import type { Direction } from '../components/layoutTypes';
 import { Stack, StackOptions } from '../components/Stack';
 import type { UiActionEvent, UiPointerEvent } from '../input/events';
 import { FocusGroupOrientation, groupMembers } from '../input/FocusManager';
+import { Pressable } from './Pressable';
 
 /** `none` leaves members alone; `single` keeps at most one selected; `multiple` toggles each. */
 export type SelectionMode = 'none' | 'single' | 'multiple';
@@ -17,7 +18,7 @@ export interface FocusGroupOptions extends StackOptions {
 	orientation?: FocusGroupOrientation;
 	/** Past the last member an arrow goes back to the first. Default false. */
 	wrap?: boolean;
-	/** Default `single`. */
+	/** Default `none`: a toolbar or a checklist selects nothing; a list says `single` or `multiple`. */
 	selection?: SelectionMode;
 	onSelect?: SelectCallback;
 	onActivate?: ActivateCallback;
@@ -27,7 +28,8 @@ export interface FocusGroupOptions extends StackOptions {
  * R12.34's focus group (a list): a stack that is one Tab stop (R9.29), whose
  * focusable descendants the arrows, Home, and End move between, entered at
  * the member last focused. A list of ListRows is one; so is a toolbar of
- * buttons.
+ * buttons (the default `selection: 'none'`, so a pressed tool does not
+ * stay selected).
  *
  * Selection is the group's, shown through each member's `selected` flag:
  * a click on a member, or `activate` on the focused one, selects it (and in
@@ -42,7 +44,7 @@ export class FocusGroup extends Stack {
 	public onActivate: ActivateCallback | null = null;
 	private selectionMode: SelectionMode;
 
-	constructor({ orientation = 'vertical', wrap = false, selection = 'single', onSelect, onActivate, direction, ...options }: FocusGroupOptions = {}) {
+	constructor({ orientation = 'vertical', wrap = false, selection = 'none', onSelect, onActivate, direction, ...options }: FocusGroupOptions = {}) {
 		super({ ...options, direction: direction ?? defaultDirection(orientation), focusGroup: { orientation, wrap } });
 		this.componentType = 'FocusGroup';
 		this.selectionMode = selection;
@@ -59,9 +61,14 @@ export class FocusGroup extends Stack {
 		return groupMembers(this);
 	}
 
+	/** The members the selection covers: every member but a control that keeps its own `selected` (a checkbox). */
+	public get selectableMembers(): Component[] {
+		return this.members.filter(takesSelection);
+	}
+
 	/** The selected members, in order. */
 	public get selectedMembers(): Component[] {
-		return this.members.filter((member) => member.selected);
+		return this.selectableMembers.filter((member) => member.selected);
 	}
 
 	/**
@@ -70,18 +77,20 @@ export class FocusGroup extends Stack {
 	 */
 	public select(members: readonly Component[]): void {
 		if (this.selectionMode === 'none') return;
-		const chosen = new Set(this.selectionMode === 'single' ? members.slice(0, 1) : members);
-		for (const member of this.members) member.selected = chosen.has(member);
-		const first = this.members.find((member) => chosen.has(member));
+		const selectable = this.selectableMembers;
+		const allowed = members.filter((member) => selectable.includes(member));
+		const chosen = new Set(this.selectionMode === 'single' ? allowed.slice(0, 1) : allowed);
+		for (const member of selectable) member.selected = chosen.has(member);
+		const first = selectable.find((member) => chosen.has(member));
 		if (first) this.activeChild = first;
 	}
 
 	public memberPressed(member: Component, event: UiPointerEvent | UiActionEvent): void {
 		if (!this.members.includes(member)) return;
-		if (this.selectionMode !== 'none') {
+		if (this.selectionMode !== 'none' && takesSelection(member)) {
 			const before = this.selectedMembers;
 			if (this.selectionMode === 'single') {
-				for (const other of this.members) other.selected = other === member;
+				for (const other of this.selectableMembers) other.selected = other === member;
 			} else {
 				member.selected = !member.selected;
 			}
@@ -91,6 +100,10 @@ export class FocusGroup extends Stack {
 		}
 		if (event.type === 'activate') this.onActivate?.(member, event);
 	}
+}
+
+function takesSelection(member: Component): boolean {
+	return !(member instanceof Pressable) || member.takesGroupSelection;
 }
 
 function defaultDirection(orientation: FocusGroupOrientation): Direction {

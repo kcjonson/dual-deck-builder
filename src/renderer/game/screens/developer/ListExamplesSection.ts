@@ -17,7 +17,7 @@ export class ListExamplesSection extends CatalogSection {
 	constructor(x: number, y: number, width: number) {
 		super({ id: 'dev_section_lists', title: 'Lists', x, y, width });
 
-		const list = new FocusGroup({ id: 'dev_list', width: 300 });
+		const list = new FocusGroup({ id: 'dev_list', width: 300, selection: 'single' });
 		list.setBackgroundColor([...tokens.color.bg_inset] as [number, number, number, number]);
 		const rows = [
 			new ListRow({ id: 'dev_list_row_plain', label: 'Scrapyard Hauler', trailing: '12' }),
@@ -30,7 +30,7 @@ export class ListExamplesSection extends CatalogSection {
 		rows.forEach((row) => list.addChild(row));
 		list.select([rows[1]]);
 
-		const toolbar = new FocusGroup({ id: 'dev_toolbar', orientation: 'horizontal', selection: 'none', gap: tokens.space.space_1 });
+		const toolbar = new FocusGroup({ id: 'dev_toolbar', orientation: 'horizontal', gap: tokens.space.space_1 });
 		const tools = [['arrow_back', 'Back'], ['build', 'Repair'], ['local_gas_station', 'Refuel'], ['settings', 'Settings']] as const;
 		for (const [glyph, label] of tools) {
 			toolbar.addChild(new Button(label, { icon: glyph, iconPosition: 'only', ghost: true, width: tokens.control.control_h_md }));
