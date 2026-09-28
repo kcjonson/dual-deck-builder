@@ -21,7 +21,7 @@ function fakeContext(): GlyphCanvasContext {
 	};
 }
 
-function setup({ family = 'ddb-synthetic' as string | null, canvas = true, idleFrames = 3 } = {}) {
+function setup({ family = 'ddb-synthetic' as string | null, canvas = true, idleFrames = 3, buildsPerFrame = 4 } = {}) {
 	const created: TextureOptions[] = [];
 	const released: number[] = [];
 	let nextId = 1;
@@ -42,6 +42,7 @@ function setup({ family = 'ddb-synthetic' as string | null, canvas = true, idleF
 			return made;
 		},
 		idleFrames,
+		buildsPerFrame,
 	});
 	return { atlases, created, released, canvases };
 }
@@ -49,43 +50,47 @@ function setup({ family = 'ddb-synthetic' as string | null, canvas = true, idleF
 describe('SmallTextAtlases (R6.4a)', () => {
 	const font = syntheticFontAtlas();
 
-	it('builds one immediate, colour texture per (role, size, ratio) and reuses it', () => {
+	it('builds one immediate, colour texture per (role, device font size) and reuses it', () => {
 		const { atlases, created } = setup();
-		atlases.beginFrame(1);
-		const first = atlases.glyphs('body', font, 8, 1);
-		const again = atlases.glyphs('body', font, 8, 1);
+		atlases.beginFrame();
+		const first = atlases.glyphs('body', font, 8);
+		const again = atlases.glyphs('body', font, 8);
 		expect(first).not.toBeNull();
 		expect(again).toBe(first);
 		expect(created).toHaveLength(1);
 		expect(created[0]).toMatchObject({ content: 'color', immediate: true, keepSource: true, width: first?.width, height: first?.height });
-		atlases.glyphs('body', font, 7, 1);
+		atlases.glyphs('body', font, 7);
 		expect(created).toHaveLength(2);
 		expect(atlases.size).toBe(2);
 	});
 
 	it('keeps the distance field while the role has no loaded face, or there is no canvas', () => {
-		expect(setup({ family: null }).atlases.glyphs('body', font, 8, 1)).toBeNull();
-		expect(setup().atlases.glyphs('display', font, 8, 1)).toBeNull();
-		expect(setup({ canvas: false }).atlases.glyphs('body', font, 8, 1)).toBeNull();
+		expect(setup({ family: null }).atlases.glyphs('body', font, 8)).toBeNull();
+		expect(setup().atlases.glyphs('display', font, 8)).toBeNull();
+		expect(setup({ canvas: false }).atlases.glyphs('body', font, 8)).toBeNull();
 	});
 
-	it('retires an atlas when the ratio changes', () => {
-		const { atlases, released } = setup();
-		atlases.beginFrame(1);
-		const atOne = atlases.glyphs('body', font, 8, 1);
-		atlases.beginFrame(2);
-		expect(released).toEqual([atOne?.texture.id]);
-		expect(atlases.size).toBe(0);
+	it('builds at most its budget a frame, and the rest on later frames', () => {
+		const { atlases, created } = setup({ buildsPerFrame: 2 });
+		atlases.beginFrame();
+		expect(atlases.glyphs('body', font, 6)).not.toBeNull();
+		expect(atlases.glyphs('body', font, 7)).not.toBeNull();
+		expect(atlases.glyphs('body', font, 8)).toBeNull();
+		// A built size is still served past the budget.
+		expect(atlases.glyphs('body', font, 6)).not.toBeNull();
+		atlases.beginFrame();
+		expect(atlases.glyphs('body', font, 8)).not.toBeNull();
+		expect(created).toHaveLength(3);
 	});
 
 	it('frees an atlas idle past its frame budget, and keeps one in use', () => {
 		const { atlases, released } = setup({ idleFrames: 3 });
-		atlases.beginFrame(1);
-		const idle = atlases.glyphs('body', font, 7, 1);
-		atlases.glyphs('body', font, 8, 1);
+		atlases.beginFrame();
+		const idle = atlases.glyphs('body', font, 7);
+		atlases.glyphs('body', font, 8);
 		for (let frame = 0; frame < 4; frame++) {
-			atlases.beginFrame(1);
-			atlases.glyphs('body', font, 8, 1);
+			atlases.beginFrame();
+			atlases.glyphs('body', font, 8);
 		}
 		expect(released).toEqual([idle?.texture.id]);
 		expect(atlases.size).toBe(1);
@@ -93,9 +98,9 @@ describe('SmallTextAtlases (R6.4a)', () => {
 
 	it('replans when a role is loaded again with another atlas', () => {
 		const { atlases, created, released } = setup();
-		atlases.beginFrame(1);
-		const before = atlases.glyphs('body', font, 8, 1);
-		const after = atlases.glyphs('body', syntheticFontAtlas(), 8, 1);
+		atlases.beginFrame();
+		const before = atlases.glyphs('body', font, 8);
+		const after = atlases.glyphs('body', syntheticFontAtlas(), 8);
 		expect(after).not.toBe(before);
 		expect(created).toHaveLength(2);
 		expect(released).toEqual([before?.texture.id]);
@@ -103,8 +108,8 @@ describe('SmallTextAtlases (R6.4a)', () => {
 
 	it('frees everything on clear', () => {
 		const { atlases, released } = setup();
-		atlases.glyphs('body', font, 8, 1);
-		atlases.glyphs('body', font, 7, 1);
+		atlases.glyphs('body', font, 8);
+		atlases.glyphs('body', font, 7);
 		atlases.clear();
 		expect(released).toHaveLength(2);
 		expect(atlases.size).toBe(0);

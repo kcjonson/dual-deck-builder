@@ -14,14 +14,31 @@ const GUTTER = 1;
 /** Widest atlas row, in texels; the height grows to fit. */
 const MAX_ROW_WIDTH = 512;
 
-/** R6.5's screen-space range, in device pixels, for a run at `size` logical px. */
-export function screenRange(atlas: FontAtlas, size: number, ratio: number): number {
-	return (atlas.distanceRange * size * ratio) / atlas.size;
+/**
+ * Raster atlases are built at device font sizes rounded to this step, so text
+ * under a changing scale (a zoom, a resize) reuses a handful of atlases
+ * rather than building one per frame. A quarter pixel of font size is under
+ * a tenth of a pixel of glyph size at the sizes the fallback serves.
+ */
+export const RASTER_SIZE_STEP = 0.25;
+
+/**
+ * R6.5's screen-space range, in device pixels, for a run at `size` logical px
+ * drawn at `scale` device pixels per logical pixel (the ratio, times any
+ * uniform scale the run is drawn under).
+ */
+export function screenRange(atlas: FontAtlas, size: number, scale: number): number {
+	return (atlas.distanceRange * size * scale) / atlas.size;
 }
 
-/** Whether R6.4a sends a run at this size and ratio to the raster fallback. */
-export function wantsRasterGlyphs(atlas: FontAtlas, size: number, ratio: number): boolean {
-	return screenRange(atlas, size, ratio) < RASTER_RANGE_THRESHOLD;
+/** Whether R6.4a sends a run at this size and scale to the raster fallback. */
+export function wantsRasterGlyphs(atlas: FontAtlas, size: number, scale: number): boolean {
+	return screenRange(atlas, size, scale) < RASTER_RANGE_THRESHOLD;
+}
+
+/** The device font size a raster atlas is built at for a run, on `RASTER_SIZE_STEP`. */
+export function rasterPixelSize(size: number, scale: number): number {
+	return Math.max(RASTER_SIZE_STEP, Math.round((size * scale) / RASTER_SIZE_STEP) * RASTER_SIZE_STEP);
 }
 
 /** One glyph's cell in a raster atlas. */
@@ -43,11 +60,11 @@ export interface RasterGlyphCell {
 	readonly top: number;
 }
 
-/** Where every glyph of one (face, size, ratio) goes, before anything is drawn. */
+/** Where every glyph of one face at one device font size goes, before anything is drawn. */
 export interface RasterGlyphPlan {
 	readonly width: number;
 	readonly height: number;
-	/** `size * ratio`: the font size the platform rasterises at, in device pixels. */
+	/** The font size the platform rasterises at, in device pixels. */
 	readonly pixelSize: number;
 	readonly cells: ReadonlyMap<number, RasterGlyphCell>;
 }
@@ -58,8 +75,7 @@ export interface RasterGlyphPlan {
  * by half the distance range) rounded out to whole device pixels, so the
  * platform's ink for the same outline lands inside it.
  */
-export function planRasterGlyphs(atlas: FontAtlas, size: number, ratio: number): RasterGlyphPlan {
-	const pixelSize = size * ratio;
+export function planRasterGlyphs(atlas: FontAtlas, pixelSize: number): RasterGlyphPlan {
 	const cells = new Map<number, RasterGlyphCell>();
 	let penX = GUTTER;
 	let penY = GUTTER;
@@ -98,7 +114,7 @@ export interface RasterGlyphAtlas {
 
 /** Hands the encoder a raster atlas for a run R6.4a sends to the fallback, or null to keep the distance field. */
 export interface RasterGlyphSource {
-	glyphs(font: string, atlas: FontAtlas, size: number, ratio: number): RasterGlyphAtlas | null;
+	glyphs(font: string, atlas: FontAtlas, pixelSize: number): RasterGlyphAtlas | null;
 }
 
 /** The part of `CanvasRenderingContext2D` the rasteriser uses, so it runs against a fake in tests. */

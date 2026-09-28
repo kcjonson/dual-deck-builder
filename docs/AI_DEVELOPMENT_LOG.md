@@ -10,10 +10,10 @@ This document contains the chronological log of completed development tasks for 
 
 **What landed:** DDB-199 (R6.4a, chapter 6.9, from DDB-70).
 
-- Runs whose screen-space range is under 1.5 device pixels (8 px and below at ratio 1) draw from a per-(role, size, ratio) atlas rasterised with the platform's 2D text API from the same TTFs the distance-field atlases were built from, as `image`-mode quads. Placement and measurement are still the distance-field layout; each glyph's pen rounds to a device pixel. `text/rasterGlyphs.ts` plans and draws the cells, `text/platformFaces.ts` registers the faces as `FontFace`s under private names, `rendering/SmallTextAtlases.ts` builds on first use and retires on ratio change or idleness. Substitute glyphs (R6.3) carry `outlineCodePoint` so the raster draws the outline the atlas holds.
-- Chosen over moving the seven literal 8 and 9 px combat sites to 11 px, which needs a combat card re-layout (DDB-217). 9 px sits exactly on the threshold and is unchanged.
+- Runs whose screen-space range is under 1.5 device pixels (under 9 device px) draw from an atlas rasterised with the platform's 2D text API at their device font size, from the same TTFs the distance-field atlases were built from, as `image`-mode quads. That includes runs under a uniform scale (the combat stage, scaled cards). Placement and measurement are still the distance-field layout; each glyph's pen rounds to a device pixel. `text/rasterGlyphs.ts` plans and draws the cells, `text/platformFaces.ts` registers the faces as `FontFace`s under private names, `rendering/SmallTextAtlases.ts` builds on first use (at most four a frame, sizes on a quarter pixel) and frees idle ones. Substitute glyphs (R6.3) carry `outlineCodePoint` so the raster draws the outline the atlas holds.
+- Chosen over moving `Vehicle`'s literal 8 and 9 px to 11 px, which needs a card re-layout (DDB-217). 9 device px sits exactly on the threshold and is unchanged.
 - 6.9's scored comparison is in `uberShader.spec.ts`: body at 10, 12, 13 px, field against platform, 0.64 to 0.72 of the platform's ink on macOS. A ratchet for now; stem darkening is DDB-218.
-- Font files are asset modules (URLs on the web, data URIs in Electron). The combat golden moves at the 8 px sites only.
+- Font files are asset modules (URLs on the web, data URIs in Electron). Goldens move for the card showcase, driver selection and `icons`; combat's 8 px lands on exactly 9 device px at 1440x882 and does not.
 
 ## Combat screen on stacks (2026-09-28)
 

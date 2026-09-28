@@ -771,9 +771,9 @@ describe('UberGeometryEncoder: small text from a raster atlas (R6.4a)', () => {
 		const requests: string[] = [];
 		return {
 			requests,
-			glyphs(font: string, atlas: FontAtlas, size: number, ratio: number): RasterGlyphAtlas {
-				requests.push(`${font} ${size} ${ratio}`);
-				const plan = planRasterGlyphs(atlas, size, ratio);
+			glyphs(font: string, atlas: FontAtlas, pixelSize: number): RasterGlyphAtlas {
+				requests.push(`${font} ${pixelSize}`);
+				const plan = planRasterGlyphs(atlas, pixelSize);
 				return { texture: { ...RASTER_TEXTURE, width: plan.width, height: plan.height }, width: plan.width, height: plan.height, cells: plan.cells };
 			},
 		};
@@ -785,9 +785,9 @@ describe('UberGeometryEncoder: small text from a raster atlas (R6.4a)', () => {
 		const upload = draw((api) => {
 			api.drawText({ text: 'Ab', position: { x: 10.3, y: 20.4 }, font: 'body', size: 8, color: BLUE });
 		});
-		expect(source.requests).toEqual(['body 8 1']);
+		expect(source.requests).toEqual(['body 8']);
 		expect(upload.count).toBe(2);
-		const plan = planRasterGlyphs(syntheticFontAtlas(), 8, 1);
+		const plan = planRasterGlyphs(syntheticFontAtlas(), 8);
 		const a = plan.cells.get(0x41);
 		if (!a) throw new Error('no cell for A');
 		const [first, second] = [instance(upload, 0), instance(upload, 1)];
@@ -843,21 +843,40 @@ describe('UberGeometryEncoder: small text from a raster atlas (R6.4a)', () => {
 		expect(source.requests).toEqual([]);
 	});
 
-	it('keeps the distance field for scaled or rotated text and for a blurred shadow run', () => {
+	it('rasterises a run under a uniform scale at its device size, placed through the scale', () => {
+		const source = rasterSource();
+		const { draw } = setup(1, source);
+		// A 16 px run on a half-scale stage is 8 device px: under the threshold.
+		const upload = draw((api) => {
+			api.pushTransform([0.5, 0, 0, 0.5, 3, 1]);
+			api.drawText({ text: 'Ab', position: { x: 10, y: 40 }, font: 'body', size: 16, color: RED });
+			api.popTransform();
+		});
+		expect(source.requests).toEqual(['body 8']);
+		// Pen (10, 40) is (8, 21) on screen; A's cell is 5 by 6 at 8 px, and b
+		// follows at (10 - 2) / 2 = 4 device px.
+		expect(instance(upload, 0).mode).toBe(UBER_MODE.image);
+		expect(instance(upload, 0).corners).toEqual([[8, 15], [13, 15], [13, 21], [8, 21]]);
+		expect(instance(upload, 1).corners[0]).toEqual([12, 15]);
+	});
+
+	it('keeps the distance field for rotated or unevenly scaled text and for a blurred shadow run', () => {
 		const source = rasterSource();
 		const { draw } = setup(1, source);
 		const upload = draw((api) => {
-			api.pushTransform([0.5, 0, 0, 0.5, 0, 0]);
+			api.pushTransform([0, 1, -1, 0, 0, 0]);
+			api.drawText({ text: 'A', position: { x: 0, y: 20 }, font: 'body', size: 8, color: RED });
+			api.popTransform();
+			api.pushTransform([0.5, 0, 0, 0.75, 0, 0]);
 			api.drawText({ text: 'A', position: { x: 0, y: 20 }, font: 'body', size: 8, color: RED });
 			api.popTransform();
 			api.drawText({ text: 'A', position: { x: 0, y: 40 }, font: 'body', size: 8, color: RED, shadow: { color: BLUE, blur: 2 } });
 		});
-		// The scaled run, the blurred shadow run, then the shadow's owner, which is sharp and small.
-		expect(upload.count).toBe(3);
-		expect(instance(upload, 0).mode).toBe(UBER_MODE.text);
-		expect(instance(upload, 1).mode).toBe(UBER_MODE.text);
-		expect(instance(upload, 2).mode).toBe(UBER_MODE.image);
-		expect(source.requests).toEqual(['body 8 1']);
+		// The rotated run, the uneven one, the blurred shadow run, then the
+		// shadow's owner, which is sharp and small.
+		expect(upload.count).toBe(4);
+		expect([0, 1, 2, 3].map((n) => instance(upload, n).mode)).toEqual([UBER_MODE.text, UBER_MODE.text, UBER_MODE.text, UBER_MODE.image]);
+		expect(source.requests).toEqual(['body 8']);
 	});
 
 	it('keeps the distance field while the source has no atlas to give', () => {

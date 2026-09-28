@@ -1,4 +1,4 @@
-import { GlyphCanvasContext, RASTER_RANGE_THRESHOLD, planRasterGlyphs, rasterizeGlyphs, screenRange, wantsRasterGlyphs } from './rasterGlyphs';
+import { GlyphCanvasContext, RASTER_RANGE_THRESHOLD, planRasterGlyphs, rasterPixelSize, rasterizeGlyphs, screenRange, wantsRasterGlyphs } from './rasterGlyphs';
 import { committedFontAtlas, syntheticFontAtlas } from './testing';
 
 describe('R6.4a threshold', () => {
@@ -22,16 +22,26 @@ describe('R6.4a threshold', () => {
 	});
 });
 
+describe('rasterPixelSize', () => {
+	it('rounds the device font size to a quarter pixel, so a zoom reuses a few atlases', () => {
+		expect(rasterPixelSize(8, 1)).toBe(8);
+		expect(rasterPixelSize(8, 0.625)).toBe(5);
+		expect(rasterPixelSize(9, 0.8)).toBe(7.25);
+		expect(rasterPixelSize(9, 0.81)).toBe(7.25);
+		expect(rasterPixelSize(0.01, 1)).toBe(0.25);
+	});
+});
+
 describe('planRasterGlyphs', () => {
 	it('gives every glyph with a plane a cell, and blanks none', () => {
-		const plan = planRasterGlyphs(syntheticFontAtlas(), 8, 1);
+		const plan = planRasterGlyphs(syntheticFontAtlas(), 8);
 		expect([...plan.cells.keys()].sort((a, b) => a - b)).toEqual([0x2D, 0x3F, 0x41, 0x62, 0x78, 0xAD, 0x2010, 0x2011, 0x2026, 0xFFFD]);
 		expect(plan.cells.has(0x20)).toBe(false);
 		expect(plan.pixelSize).toBe(8);
 	});
 
 	it('draws a substitute with the outline the atlas holds for it, not its own code point (R6.3)', () => {
-		const plan = planRasterGlyphs(syntheticFontAtlas(), 8, 1);
+		const plan = planRasterGlyphs(syntheticFontAtlas(), 8);
 		expect(plan.cells.get(0xFFFD)?.outlineCodePoint).toBe(0x3F);
 		expect(plan.cells.get(0x2011)?.outlineCodePoint).toBe(0x2D);
 		expect(plan.cells.get(0x41)?.outlineCodePoint).toBe(0x41);
@@ -39,15 +49,15 @@ describe('planRasterGlyphs', () => {
 
 	it('rounds each plane out to whole device pixels from the pen', () => {
 		// `A` is 0.625 em wide and 0.75 em tall above the baseline: 5 by 6 at 8 px.
-		const a = planRasterGlyphs(syntheticFontAtlas(), 8, 1).cells.get(0x41);
+		const a = planRasterGlyphs(syntheticFontAtlas(), 8).cells.get(0x41);
 		expect(a).toMatchObject({ left: 0, top: -6, width: 5, height: 6 });
 		// At 7 px it is 4.375 by 5.25, rounded out to 5 by 6.
-		const small = planRasterGlyphs(syntheticFontAtlas(), 7, 1).cells.get(0x41);
+		const small = planRasterGlyphs(syntheticFontAtlas(), 7).cells.get(0x41);
 		expect(small).toMatchObject({ left: 0, top: -6, width: 5, height: 6 });
 	});
 
 	it('packs the committed body face without overlap, inside the atlas, with a gutter', () => {
-		const plan = planRasterGlyphs(committedFontAtlas('body'), 8, 1);
+		const plan = planRasterGlyphs(committedFontAtlas('body'), 8);
 		expect(plan.cells.size).toBeGreaterThan(150);
 		expect(plan.width).toBeLessThanOrEqual(512);
 		const cells = [...plan.cells.values()];
@@ -70,7 +80,7 @@ describe('planRasterGlyphs', () => {
 
 describe('rasterizeGlyphs', () => {
 	it('draws each glyph in white at its cell, with its pen on a whole texel, clipped to the cell', () => {
-		const plan = planRasterGlyphs(syntheticFontAtlas(), 8, 1);
+		const plan = planRasterGlyphs(syntheticFontAtlas(), 8);
 		const calls: string[] = [];
 		const context: GlyphCanvasContext = {
 			font: '',

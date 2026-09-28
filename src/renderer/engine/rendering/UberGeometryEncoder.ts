@@ -27,7 +27,7 @@ import { HairlineRectOptions, SnappedHairlineRect, snapHairlineRect, snapTextOri
 import type { TextLayout } from '../text/TextLayout';
 import { TextMetricsService } from '../text/TextMetricsService';
 import { DECORATION_THICKNESS, LineOrigin, decorationOffset, lineOrigin, runInk } from '../text/textPlacement';
-import { RasterGlyphAtlas, RasterGlyphSource, wantsRasterGlyphs } from '../text/rasterGlyphs';
+import { RasterGlyphAtlas, RasterGlyphSource, rasterPixelSize, wantsRasterGlyphs } from '../text/rasterGlyphs';
 import { toHalf, toUnorm8 } from './packing';
 
 /**
@@ -688,16 +688,22 @@ export class UberGeometryEncoder implements GeometryEncoder {
 
 	/**
 	 * R6.4a: the raster atlas for a run whose screen range is under the
-	 * threshold, or null for the distance field. Only a run on the device
-	 * grid qualifies: a scaled or rotated one has no fixed pixel size to
-	 * rasterise at, and a blurred shadow run needs the `mtsdf` distance.
+	 * threshold, or null for the distance field. A run qualifies under a
+	 * translation or a uniform positive scale (a scaled stage, R7.2's
+	 * `uiScale` by transform), whose device font size is fixed; a rotated or
+	 * skewed run has no pixel grid to rasterise for, and a blurred shadow run
+	 * needs the `mtsdf` distance.
 	 */
 	private rasterOf(command: TextCommand, layout: TextLayout): RasterGlyphAtlas | null {
 		if (command === this.rasterCommand) return this.rasterResult;
 		let raster: RasterGlyphAtlas | null = null;
-		if (this.smallText && command.translateOnly && command.blur <= 0
-			&& wantsRasterGlyphs(layout.atlas, layout.size, this.ratioValue)) {
-			raster = this.smallText.glyphs(command.font, layout.atlas, layout.size, this.ratioValue);
+		const matrix = command.transform;
+		const scale = matrix[0];
+		if (this.smallText && command.blur <= 0 && matrix[1] === 0 && matrix[2] === 0 && matrix[3] === scale && scale > 0) {
+			const deviceScale = scale * this.ratioValue;
+			if (wantsRasterGlyphs(layout.atlas, layout.size, deviceScale)) {
+				raster = this.smallText.glyphs(command.font, layout.atlas, rasterPixelSize(layout.size, deviceScale));
+			}
 		}
 		this.rasterCommand = command;
 		this.rasterResult = raster;
@@ -779,11 +785,13 @@ export class UberGeometryEncoder implements GeometryEncoder {
 	/**
 	 * R6.4a's raster path: each glyph's cell from the run's raster atlas as an
 	 * `image`-mode quad, whose shader multiplies the premultiplied white
-	 * coverage by the text colour. Placement is the same layout's (R6.8), so
-	 * measurement does not change; each glyph's pen is rounded to a whole
-	 * device pixel, which R6.16 allows under 16 px, so a cell lands one texel
-	 * to one pixel as the platform drew it. Advances are untouched, so the
-	 * run's width is the measured one to within half a device pixel.
+	 * coverage by the text colour. Placement is the same layout's (R6.8),
+	 * taken to the screen through the run's translation and uniform scale, so
+	 * measurement does not change; each glyph's pen and each baseline is
+	 * rounded to a whole device pixel, which R6.16 allows under 16 px, so a
+	 * cell lands one texel to one pixel as the platform drew it. Advances are
+	 * untouched, so the run's width is the measured one to within half a
+	 * device pixel.
 	 */
 	private encodeRasterGlyphs(command: TextCommand, layout: TextLayout, raster: RasterGlyphAtlas, sink: GeometrySink, slot: number): void {
 		const ratio = this.ratioValue;
@@ -796,7 +804,7 @@ export class UberGeometryEncoder implements GeometryEncoder {
 		let instance = 0;
 		for (let line = 0; line < layout.lines.length; line++) {
 			this.snappedOrigin(layout, command, line, origin);
-			const baseline = Math.round((origin.y + matrix[5]) * ratio);
+			const baseline = Math.round((matrix[3] * origin.y + matrix[5]) * ratio);
 			const glyphs = layout.lines[line].glyphs;
 			for (let index = 0; index < glyphs.length; index++) {
 				const { glyph, x } = glyphs[index];
@@ -810,7 +818,7 @@ export class UberGeometryEncoder implements GeometryEncoder {
 					for (let corner = 0; corner < 4; corner++) this.screenCorner(sink, base, corner, 0, 0);
 					continue;
 				}
-				const pen = Math.round((origin.x + x + matrix[4]) * ratio);
+				const pen = Math.round((matrix[0] * (origin.x + x) + matrix[4]) * ratio);
 				const left = (pen + cell.left) / ratio;
 				const top = (baseline + cell.top) / ratio;
 				const right = left + cell.width / ratio;
