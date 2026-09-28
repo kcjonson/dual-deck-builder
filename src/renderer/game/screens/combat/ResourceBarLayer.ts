@@ -121,11 +121,11 @@ export class ResourceBarLayer extends Layer {
 				fontWeight: 'bold',
 			},
 		});
-		button.onClick(() => {
+		button.onClick = () => {
 			if (this.onEndTurn) {
 				this.onEndTurn();
 			}
-		});
+		};
 		this.addChild(button);
 		return button;
 	}

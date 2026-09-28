@@ -1,3 +1,5 @@
+import type { Animator } from '../animation/Animator';
+import type { Clock } from '../animation/Clock';
 import type { Component } from './Component';
 
 /**
@@ -8,17 +10,28 @@ const MAX_LAYOUT_PASSES = 8;
 
 /**
  * The per-frame half of the mount context (R8.16 to R8.18): who asked for
- * `update(dt)`, and which relayout boundaries are dirty.
+ * `update(dt)`, and which relayout boundaries are dirty. Its update phase is
+ * also where time moves: the clock advances and the animator ticks before any
+ * component updates (R8.28), so a paused shell, which skips `update`, stops
+ * every tween with it.
  *
  * The shell runs it in R8.16's order, `update` then `layout`, before render;
- * the input system calls `layout` on demand before a hit test so a pointer
+ * the dispatcher calls `layout` on demand before a hit test so a pointer
  * never lands on geometry from before a change. Render never runs layout.
  */
 export class UiFrame {
+	private readonly clock: Clock;
+	private readonly animator: Animator;
 	private requested = new Set<Component>();
 	/** The other half of a double buffer, so a frame's update allocates nothing. */
 	private spare = new Set<Component>();
 	private readonly dirty = new Set<Component>();
+	private layoutRuns = 0;
+
+	constructor({ clock, animator }: { clock: Clock; animator: Animator }) {
+		this.clock = clock;
+		this.animator = animator;
+	}
 
 	/**
 	 * R8.17: `update(dt)` on the next frame, once. A component that animates
@@ -40,11 +53,14 @@ export class UiFrame {
 	}
 
 	/**
-	 * Runs the requested set in request order. A component in an invisible
-	 * subtree is skipped and keeps its request, so it resumes when shown; one
-	 * unmounted since it asked is dropped.
+	 * Advances the clock by `dt` seconds and ticks the animator, then runs the
+	 * requested set in request order. A component in an invisible subtree is
+	 * skipped and keeps its request, so it resumes when shown; one unmounted
+	 * since it asked is dropped.
 	 */
 	public update(dt: number): void {
+		this.clock.advance(dt * 1000);
+		this.animator.tick();
 		if (this.requested.size === 0) return;
 		const due = this.requested;
 		this.requested = this.spare;
@@ -70,12 +86,22 @@ export class UiFrame {
 	}
 
 	/**
+	 * Counts layout calls that laid something out. The dispatcher compares it
+	 * across frames to re-derive hover when layout moved content under a
+	 * still pointer (R9.9).
+	 */
+	public get layoutVersion(): number {
+		return this.layoutRuns;
+	}
+
+	/**
 	 * Lays out every dirty boundary once, outermost first, so a boundary inside
 	 * another dirty one is done by the outer pass. Layout that invalidates
 	 * layout (an `onLayout` that resizes something) gets further passes, up to
 	 * a bound that turns a feedback loop into an error instead of a hang.
 	 */
 	public layout(): void {
+		if (this.dirty.size > 0) this.layoutRuns++;
 		for (let pass = 0; this.dirty.size > 0; pass++) {
 			if (pass === MAX_LAYOUT_PASSES) {
 				this.dirty.clear();

@@ -312,7 +312,7 @@ export class DriverPanel extends Layer {
 			Math.floor(panelWidth * 0.1),
 			selectorY
 		);
-		this.driverSelector.onClick(() => this.cycleDriver());
+		this.driverSelector.onClick = () => this.cycleDriver();
 		this.addChild(this.driverSelector);
 	}
 

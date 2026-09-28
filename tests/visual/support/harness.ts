@@ -41,15 +41,16 @@ import type { DiffReport } from './diffClusters';
  *    `measureUserAgentSpecificMemory` is `() => {}`; the dev server sets the
  *    cross-origin isolation headers, so `FrameTimer.requestMemorySample` takes
  *    the live branch, calls that stub, and throws on `undefined.then` - which
- *    means `window.__perf.snapshot()` fails on every clocked page. Nothing the
- *    phase 0 goldens capture reads `Date` (the only wall-clock reader is the
- *    frame timer's own snapshot timestamp), so the freeze costs nothing today.
- *    The clock becomes necessary the moment a spec wants a state behind a
- *    timer, PlayerHandLayer's 300 ms discard being the first; whoever needs it
- *    has to deal with that `performance` collision first. DDB-61's FrameTimer
- *    does take an injected clock, but neither entry point passes one - both
- *    call `new FrameTimer()` - so there is no route from a running page to a
- *    fixed-step render clock today regardless.
+ *    means `window.__perf.snapshot()` fails on every clocked page.
+ *
+ *    The engine's own clock is what makes the freeze sufficient (DDB-74). UI
+ *    code takes time only from the mount context's `clock` and `animator`
+ *    (lint forbids platform timers there), and the clock advances only in the
+ *    update phase the pause skips, so a paused page has no UI timer running
+ *    at all. What pausing alone would leave is a tween frozen on the frame it
+ *    started; `settle` runs every tween to its end through
+ *    `__app.settleAnimations()`, so a capture shows where an animation lands,
+ *    which does not depend on how many frames the page drew first.
  * 4. Seeded random (`seedRandom`) - kills draw order and model identity. See
  *    the note on that function.
  * 5. Wait-for-assets gate (`settle`) - kills the half-loaded frame. Two
@@ -93,6 +94,7 @@ export interface DevSurface {
 	__app: {
 		navigate(screen: string): boolean;
 		pause(): void;
+		settleAnimations(): number;
 		status(): {
 			screen?: string;
 			scene?: string;
@@ -186,9 +188,9 @@ export async function freezeApplication(page: Page): Promise<void> {
 
 /**
  * The wait-for-assets gate. Returns once the dev hooks exist, web fonts have
- * resolved, no data fetch is outstanding, the layout has settled at the fixed
- * viewport, and two frames later the layout still holds and the tree
- * serializes the same.
+ * resolved, no data fetch is outstanding, every tween has run to its end, the
+ * layout has settled at the fixed viewport, and two frames later the layout
+ * still holds, nothing new has animated, and the tree serializes the same.
  *
  * The `assetsReady` wait is the one that does the job the gate is named for.
  * The tree comparison cannot stand in for it: a screen whose `cards.json` has
@@ -227,6 +229,7 @@ export async function settle(page: Page): Promise<void> {
 		const scope = window as Partial<DevSurface>;
 		return typeof scope.__ui?.tree === 'function'
 			&& typeof scope.__app?.status === 'function'
+			&& typeof scope.__app?.settleAnimations === 'function'
 			&& typeof scope.__perf?.snapshot === 'function';
 	});
 
@@ -266,6 +269,10 @@ export async function settle(page: Page): Promise<void> {
 		const deadline = performance.now() + timeout;
 		let held = null as { tree: string; since: number } | null;
 		while (performance.now() < deadline) {
+			// Paused, nothing ticks the animator, so each pass runs whatever
+			// the last frame started to its end; a pass that had to finish
+			// something starts the count again.
+			if (scope.__app.settleAnimations() > 0) held = null;
 			if (agrees()) {
 				const tree = JSON.stringify(scope.__ui.tree());
 				if (held?.tree !== tree) held = { tree, since: frames() };
@@ -359,6 +366,85 @@ export function expectCleanConsole(log: ConsoleLog): void {
 /** The golden name, derived one way only so a spec cannot invent a second. */
 export function goldenName(kind: 'screen' | 'scene', name: string): string {
 	return `${kind}-${name}.png`;
+}
+
+/** The text snapshot's name beside the golden's, so the pair is one scenario's. */
+export function textSnapshotName(kind: 'screen' | 'scene', name: string): string {
+	return `${kind}-${name}-text.json`;
+}
+
+/**
+ * Every string on screen, checked against its committed record (DDB-206).
+ *
+ * The cluster rule cannot see punctuation: `.` to `,` and `:` to `;` at body
+ * sizes differ by a few pixels that pixelmatch classes as anti-aliasing, so
+ * they come back as zero differing pixels (the mutation table in
+ * docs/AI_TECHNICAL_DECISIONS/visual-golden-harness.md). The tree snapshot
+ * holds every Text node's string, so the strings are asserted directly: one
+ * line per text with its path, its content, and its rounded screen rect.
+ *
+ * The record keeps every string that is visible and not faded out through the
+ * whole ancestor chain, and not clipped or scrolled wholly out of the
+ * viewport. Those cuts drop text the scenario never draws, which the
+ * developer screen's scrolled-out sections are most of. Occlusion is not
+ * tested: a string painted over by an opaque sibling or a modal is still
+ * recorded, so changing it fails the scenario though its picture is the
+ * same. That is deliberate: a covered string is still one the product
+ * shows once whatever covers it goes away, and the tree has no opacity-aware
+ * occlusion test to make the cut honestly.
+ *
+ * The record lives beside the PNG under `__screenshots__`, named by the same
+ * template, so it is minted by the same dispatch and the provenance job holds
+ * it to the same rule: a pull request never carries a hand-written one.
+ */
+export async function expectTextSnapshot(page: Page, kind: 'screen' | 'scene', name: string): Promise<void> {
+	const lines = await page.evaluate(() => {
+		interface Rect { x: number; y: number; w: number; h: number }
+		interface Node {
+			id: string | null;
+			type: string;
+			visible: boolean;
+			opacity?: number;
+			screenBounds: Rect;
+			clip?: Rect;
+			text?: { content: string };
+			parts?: Node[];
+			children: Node[];
+		}
+		const document = (window as unknown as { __ui: { tree(): { viewport: { width: number; height: number }; roots: Node[] } } }).__ui.tree();
+		const viewport: Rect = { x: 0, y: 0, w: document.viewport.width, h: document.viewport.height };
+		const round = (value: number): number => Math.round(value * 100) / 100;
+		const meets = (a: Rect, b: Rect): boolean => a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h;
+		const out: string[] = [];
+
+		// The layout lint's path rule (R13.28): ids when present, Type[index]
+		// otherwise, parts and children numbered as one list.
+		const walk = (nodes: Node[], parentPath: string): void => {
+			const ids = new Map<string, number>();
+			for (const node of nodes) if (node.id) ids.set(node.id, (ids.get(node.id) ?? 0) + 1);
+			nodes.forEach((node, index) => {
+				if (!node.visible || node.opacity === 0) return;
+				const segment = node.id ? ((ids.get(node.id) ?? 0) > 1 ? `${node.id}[${index}]` : node.id) : `${node.type}[${index}]`;
+				const path = parentPath ? `${parentPath}/${segment}` : segment;
+				const box = node.screenBounds;
+				if (node.text && meets(box, node.clip ?? viewport) && meets(box, viewport)) {
+					out.push(JSON.stringify({
+						path,
+						text: node.text.content,
+						rect: [round(box.x), round(box.y), round(box.w), round(box.h)],
+					}));
+				}
+				walk([...(node.parts ?? []), ...node.children], path);
+			});
+		};
+		walk(document.roots, '');
+		return out;
+	});
+
+	expect(lines.length, `${kind} "${name}" shows no text at all, so its text record would check nothing`).toBeGreaterThan(0);
+	// Soft, and taken before the golden, so a change both checks see reports
+	// both: the string that changed here and the picture below.
+	expect.soft(`[\n${lines.join(',\n')}\n]\n`).toMatchSnapshot(textSnapshotName(kind, name));
 }
 
 /** The tree behind a red diff, attached to the report. */

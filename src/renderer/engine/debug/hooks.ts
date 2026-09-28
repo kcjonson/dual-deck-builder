@@ -23,14 +23,13 @@ import type { PerfSnapshot } from '../rendering/FrameTimer';
  * content changes (R12.4), so its bounds are its line box without one.
  *
  * `window.__ui.lint()` runs R13.25's seven rules over that same document. It is
- * the identical pure function the unit tests call, per R13.4. Three of the
- * seven cannot fire against today's snapshot (text-overflow wants
- * `text.measured`, unreachable-interactive and target-size want `focusable` or
- * `pointerEvents`); they report `dormant: true` in `rules[]` rather than a
- * silent pass. Expect a large `count` on the game screens: R13.25.1 exempts a
- * pair on differing zIndex or layer and the snapshot emits neither, so nothing
- * is exempted. R13.29's `count: 0` gate is the gallery's first, per the
- * implementation spec's ground rules.
+ * the identical pure function the unit tests call, per R13.4. Two of the seven
+ * cannot fire against today's snapshot (unreachable-interactive and
+ * target-size want `focusable`, which the focus manager backs); they report
+ * `dormant: true` in `rules[]` rather than a silent pass. Expect a large
+ * `count` on the game screens, which are not yet lint-clean. R13.29's
+ * `count: 0` gate is the gallery's first, per the implementation spec's ground
+ * rules.
  */
 
 export interface DebugRootSource {
@@ -67,6 +66,12 @@ export interface AppControlApi {
 	screens?(): string[];
 	pause?(): void;
 	resume?(): void;
+	/**
+	 * Runs every tween to its end and returns how many it finished (R13.37).
+	 * The update phase is skipped while paused, so this is how a paused
+	 * capture reaches where its animations land.
+	 */
+	settleAnimations?(): number;
 	/** Machine-readable control state, including the pause evidence counters. */
 	status?(): unknown;
 }
@@ -155,10 +160,10 @@ export function installAppHooks(api: AppControlApi): void {
 /**
  * Installs the development-only `window.__dev` surface (R13.35).
  *
- * The canvas and the input system are arguments rather than looked up: the
- * canvas is the element `InputSystem.setup` actually registered its listeners
- * on, the input system is the mount context's, and the two entry points
- * already hold both. Resolving `#game-canvas` here would be a second source of
+ * The canvas and the dispatcher are arguments rather than looked up: the
+ * canvas is the element `PointerAdapter.attach` actually registered its
+ * listeners on, the dispatcher is the mount context's, and the two entry
+ * points already hold both. Resolving `#game-canvas` here would be a second source of
  * truth that agrees until the day it does not.
  */
 export function installInputHooks(target: InjectionTarget): void {

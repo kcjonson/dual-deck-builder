@@ -13,31 +13,14 @@ import { createMeasuringDrawApi } from '../renderer/engine/text/testing';
 
 const VIEWPORT = { width: 1440, height: 882 };
 
-/**
- * The seven per-component maps InputSystem.unregisterComponent clears. They are
- * private, so this test reaches them through a cast: a public accessor would
- * exist for this test alone, and the leak it guards against (a scene switch
- * that detaches a subtree without unmounting it) is invisible from outside.
- */
-const REGISTRATION_MAPS = [
-	'mouseOverComponents',
-	'mouseOutComponents',
-	'mouseDownComponents',
-	'mouseUpComponents',
-	'wheelComponents',
-	'keyDownComponents',
-	'hoveredComponents',
-] as const;
-
 let context: MountContext;
 
-function registrations(): Array<{ size: number; clear(): void }> {
-	const system = context.input as unknown as Record<string, { size: number; clear(): void }>;
-	return REGISTRATION_MAPS.map((key) => system[key]);
-}
-
-function registrationCount(): number {
-	return registrations().reduce((total, map) => total + map.size, 0);
+/**
+ * What a press inside the scene's top-left corner reaches: the mounted
+ * scene's input, which is painted over its button, or nothing.
+ */
+function hitInScene(): Component | null {
+	return context.dispatcher.hitTest({ x: 50, y: 50 });
 }
 
 function findById(root: Component, id: string): Component | null {
@@ -149,27 +132,29 @@ describe('mounting', () => {
 });
 
 describe('switching scenes', () => {
-	// An Input registers a mouse-down and a keydown handler from its
-	// constructor and a scrollable Panel registers a wheel handler, so a switch
-	// that detached without unmounting would add a whole scene's worth of
-	// registrations every time and keep hit-testing scenes nobody can see.
-	it('does not grow the InputSystem registrations across repeated switches', () => {
+	// The dispatcher hit-tests the mounted tree, so a switch that detached a
+	// scene without unmounting it would leave it hit-testable and holding
+	// hover, focus, or a latched scroll.
+	it('hit-tests only the mounted scene across repeated switches', () => {
 		const host = makeHost(interactiveScenes);
 		host.mount('alpha');
-		const afterFirstMount = registrationCount();
-		expect(afterFirstMount).toBeGreaterThan(0);
+		expect(hitInScene()?.id).toBe('alpha_input');
 
 		for (let index = 0; index < 20; index++) {
-			host.mount(index % 2 === 0 ? 'beta' : 'alpha');
-			expect(registrationCount()).toBe(afterFirstMount);
+			const name = index % 2 === 0 ? 'beta' : 'alpha';
+			host.mount(name);
+			expect(context.dispatcher.roots).toEqual([host.root]);
+			expect(hitInScene()?.id).toBe(`${name}_input`);
 		}
 	});
 
-	it('leaves nothing registered after unmounting', () => {
+	it('leaves nothing hit-testable after unmounting', () => {
 		const host = makeHost(interactiveScenes);
 		host.mount('alpha');
+		const input = findById(host.root, 'alpha_input');
 		host.unmount();
-		expect(registrationCount()).toBe(0);
+		expect(hitInScene()).toBeNull();
+		expect(input?.isMounted).toBe(false);
 		expect(host.sceneName).toBeNull();
 		expect(host.root.getChildren()).toHaveLength(0);
 	});
@@ -178,11 +163,12 @@ describe('switching scenes', () => {
 		const host = makeHost(interactiveScenes);
 		host.mount('alpha');
 		const input = findById(host.root, 'alpha_input') as Input;
-		context.input.setFocus(input);
-		expect(context.input.getFocus()).toBe(input);
+		context.dispatcher.focus(input);
+		expect(context.dispatcher.focused).toBe(input);
 
 		host.mount('beta');
-		expect(context.input.getFocus()).toBeNull();
+		expect(context.dispatcher.focused).toBeNull();
+		expect(input.focused).toBe(false);
 	});
 
 	it('reload re-enters the scene, and does nothing when none is mounted', () => {
@@ -191,12 +177,14 @@ describe('switching scenes', () => {
 
 		host.mount('alpha');
 		const before = host.root.getChildren()[0];
-		const registered = registrationCount();
+		const hitBefore = hitInScene();
 
 		expect(host.reload()).toBe(true);
 		expect(host.sceneName).toBe('alpha');
 		expect(host.root.getChildren()[0]).not.toBe(before);
-		expect(registrationCount()).toBe(registered);
+		expect(before.isMounted).toBe(false);
+		expect(hitInScene()?.id).toBe('alpha_input');
+		expect(hitInScene()).not.toBe(hitBefore);
 	});
 
 });
@@ -396,18 +384,18 @@ describe('pause', () => {
 		expect(host.paused).toBe(false);
 	});
 
-	// R13.35: injected input is ignored while paused. Input reaches components
-	// from DOM listeners rather than from the frame loop, so pausing the loop
-	// alone would not stop it; the host has to gate the input system too.
-	it('gates the InputSystem, not just the loop', () => {
+	// R13.35: injected input is ignored while paused. The dispatcher drains
+	// its queue whether or not update runs, so the host gates the dispatcher
+	// too, not just the loop.
+	it('gates the dispatcher, not just the loop', () => {
 		const host = makeHost(countingScenes);
-		expect(context.input.paused).toBe(false);
+		expect(context.dispatcher.paused).toBe(false);
 
 		host.paused = true;
-		expect(context.input.paused).toBe(true);
+		expect(context.dispatcher.paused).toBe(true);
 
 		host.paused = false;
-		expect(context.input.paused).toBe(false);
+		expect(context.dispatcher.paused).toBe(false);
 	});
 });
 

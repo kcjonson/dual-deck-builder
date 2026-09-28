@@ -16,7 +16,7 @@ import { frameWindowStats } from './frameStats';
  * What this engine can honestly measure, and what it reports null (R13.5, and
  * the rule that null means "not measurable here", never zero):
  *
- * - `update`, `render` and `flush` are real. The frame loop brackets them, they
+ * - `input`, `update`, `render` and `flush` are real. The frame loop brackets them, they
  *   cannot overlap (see `beginSection`), and together they are the whole of the
  *   application's per-frame work. `flush` is R13.7's GPU submission: a draw
  *   call resolves state onto a command and nothing reaches GL until a sort
@@ -25,12 +25,10 @@ import { frameWindowStats } from './frameStats';
  *   is the whole frame's submission. Section numbers from before DDB-55 phase 1
  *   are not comparable: shapes used to submit at their draw sites, so `render`
  *   held nearly all of the frame's GL work.
- * - `input` is null. This engine dispatches input straight from DOM listeners
- *   on the canvas, so input handling happens between frames, not in a phase of
- *   one; a section here would read 0 forever while real input cost lands
- *   invisibly outside the loop. Slow input is attributed instead by the
- *   `event` observer behind `hitches` (R15.29), which sees only input over
- *   16 ms and so cannot stand in for a per-frame section.
+ * - `input` is the dispatcher draining the events queued since the last
+ *   frame (R8.16, R9.2), hit tests and handlers included. The platform
+ *   listeners only queue, so what runs between frames is a few pushes; slow
+ *   input still shows in the `event` observer behind `hitches` (R15.29).
  * - `layout` is the mount context's layout phase (R8.16): every dirty
  *   relayout boundary, between update and render. Screens that still call
  *   the legacy `layout()` size estimate do so inside update or mount, which

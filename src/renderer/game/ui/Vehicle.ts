@@ -2,7 +2,8 @@ import { Layer } from '../../engine/components/Layer';
 import { Rectangle } from '../../engine/components/Rectangle';
 import { Text } from '../../engine/components/Text';
 import { Vehicle as VehicleData } from '../mechanics/Vehicle';
-import type { MountContext } from '../../engine/components/MountContext';
+import type { PointerEvents } from '../../engine/components/Component';
+import type { AnyUiEvent } from '../../engine/input/events';
 import { CombatModel } from '../screens/combat/CombatModel';
 import { ArmorBadge } from './ArmorBadge';
 
@@ -361,34 +362,37 @@ export class Vehicle extends Layer {
 		this.placeSpentChip();
 	}
 
-	protected onMount({ input }: MountContext): void {
-		// Click handler
-		input.registerMouseDown(this, () => {
-			if (this.onClickCallback && this.isTargetable()) {
-				this.onClickCallback(this.vehicleData);
-			}
-		});
-		
-		// Hover handlers for visual feedback
-		input.registerMouseOver(this, () => {
-			if (!this.hovered) {
-				this.setHovered(true);
+	/** R8.29: the plate is one target; its portrait, bars, and text are internals. */
+	protected get defaultPointerEvents(): PointerEvents {
+		return 'unit';
+	}
+
+	/**
+	 * Hover focuses the vehicle for a targeting preview; a click on a
+	 * targetable vehicle is the target choice. `hovered` is already set when
+	 * the enter and leave arrive (R9.8).
+	 */
+	public handleEvent(event: AnyUiEvent): void {
+		super.handleEvent(event);
+		switch (event.type) {
+			case 'click':
+				if (this.onClickCallback && this.isTargetable()) {
+					this.onClickCallback(this.vehicleData);
+				}
+				return;
+			case 'pointerenter':
 				if (this.combatData && this.combatData.isTargeting) {
 					this.combatData.focusVehicle(this.vehicleData.id);
 				}
 				this.updateVisualState();
-			}
-		});
-		
-		input.registerMouseOut(this, () => {
-			if (this.hovered) {
-				this.setHovered(false);
+				return;
+			case 'pointerleave':
 				if (this.combatData && this.combatData.focusedVehicleId === this.vehicleData.id) {
 					this.combatData.focusVehicle(null);
 				}
 				this.updateVisualState();
-			}
-		});
+				return;
+		}
 	}
 	
 	/**

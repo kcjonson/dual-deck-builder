@@ -148,7 +148,13 @@ DDB-79 land, no component calls `addPart`, the field stops appearing, and DDB-80
 `isPart`, `SnapshotNode.parts`, `LintNode.parts`, the `siblings` parameter and this document. The
 `addPart` call sites are a greppable to-do list of the composites that must become direct draws, and
 `compositeParts.test.ts` pins the current four so a new one is a review question rather than a number
-somebody updates. A `parts` array still appearing after phase 3 means that migration is incomplete.
+somebody updates.
+
+Updated by DDB-80: Panel stopped calling `addPart` with DDB-73, but Button, Input and the F5 overlay
+still do, and they become direct draws with phase 5's catalog rather than in phase 3. So the removal
+moves with them, and DDB-80 kept `parts` while giving every node `zIndex` and its effective layer.
+Those fields do not change the argument above: every part sits at zIndex 0 in its owner's layer, so
+R13.25.1 would not exempt it (see [tree-snapshot-schema.md](./tree-snapshot-schema.md)).
 
 ## What stays open
 
