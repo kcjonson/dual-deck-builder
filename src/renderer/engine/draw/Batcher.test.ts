@@ -20,9 +20,10 @@ interface Spec {
 	clip?: ResolvedClip;
 	texture?: TextureKey;
 	topology?: Topology;
-	lineWidth?: number;
 	vertices?: number;
 	skip?: boolean;
+	/** Break the encoder contract for this group. */
+	breaks?: 'overrun' | 'underrun' | 'foreignIndex';
 }
 
 const FLOATS = 3;
@@ -61,13 +62,14 @@ class QuadEncoder implements GeometryEncoder {
 		out.vertices = spec.vertices ?? 4;
 		out.indices = 6;
 		out.topology = spec.topology ?? 'triangles';
-		out.lineWidth = spec.lineWidth ?? 1;
 		out.texture = spec.texture ?? null;
 		return true;
 	}
 
 	encode(command: DrawCommand, sink: GeometrySink, slot: number): void {
-		const vertices = this.specs.get(command.id ?? '')?.vertices ?? 4;
+		const spec = this.specs.get(command.id ?? '') as Spec;
+		const reported = spec.vertices ?? 4;
+		const vertices = spec.breaks === 'overrun' ? reported + 1 : spec.breaks === 'underrun' ? reported - 1 : reported;
 		for (let corner = 0; corner < vertices; corner++) {
 			const offset = sink.floatOffset + corner * FLOATS;
 			sink.vertices[offset] = command.sequence;
@@ -78,6 +80,7 @@ class QuadEncoder implements GeometryEncoder {
 		for (let index = 0; index < 6; index++) {
 			sink.indices[sink.indexOffset + index] = sink.baseVertex + local[index];
 		}
+		if (spec.breaks === 'foreignIndex') sink.indices[sink.indexOffset + 5] = sink.baseVertex + reported;
 	}
 }
 
@@ -102,15 +105,18 @@ function harness({
 	resident = [] as TextureKey[],
 	clipIsState = false,
 	maxVertices,
-}: { units?: number; resident?: TextureKey[]; clipIsState?: boolean; maxVertices?: number } = {}) {
+	verify = true,
+}: { units?: number; resident?: TextureKey[]; clipIsState?: boolean; maxVertices?: number; verify?: boolean } = {}) {
 	const encoder = new QuadEncoder(clipIsState);
 	const textures = new ResidentTextureSet({ units, resident });
 	const dropped: string[] = [];
+	const violations: string[] = [];
 	const batcher = new Batcher({
 		encoder,
 		textures,
 		maxVertices,
 		onDrop: (dropCommand, reason) => dropped.push(`${dropCommand.id}: ${reason}`),
+		verify: verify ? (bad, problem) => violations.push(`${bad.id}: ${problem}`) : undefined,
 	});
 
 	function run(specs: Spec[]) {
@@ -131,7 +137,7 @@ function harness({
 		return { uploads, work };
 	}
 
-	return { run, dropped, batcher, encoder };
+	return { run, dropped, violations, batcher, encoder };
 }
 
 /** The domain position of each vertex's group, in upload order. */
@@ -308,22 +314,22 @@ describe('Batcher: split reasons (R13.13)', () => {
 		expect(work.gpuDraws).toBe(3);
 	});
 
-	it('splits between triangles and lines, and between line widths', () => {
+	it('splits between triangles and lines, and merges consecutive line groups', () => {
 		const { run } = harness();
 		const { uploads, work } = run([
 			{ id: 'fill' },
-			{ id: 'outline', topology: 'lines', lineWidth: 1 },
-			{ id: 'outline2', topology: 'lines', lineWidth: 1 },
-			{ id: 'thick', topology: 'lines', lineWidth: 3 },
+			{ id: 'outline', topology: 'lines' },
+			{ id: 'outline2', topology: 'lines' },
+			{ id: 'fill2' },
 		]);
 		expect(uploads[0].draws.map((draw) => [draw.topology, draw.split])).toEqual([
 			['triangles', null],
 			['lines', 'topologyChange'],
-			['lines', 'topologyChange'],
+			['triangles', 'topologyChange'],
 		]);
 		expect(work.splits?.topologyChange).toBe(2);
 		// Line draws are not triangles.
-		expect(work.triangles).toBe(2);
+		expect(work.triangles).toBe(4);
 	});
 
 	it('reports the first reason in a fixed order when several change at once (R3.4)', () => {
@@ -355,6 +361,45 @@ describe('Batcher: the clip seam', () => {
 		expect(work.clipChanges).toBe(1);
 		// Not a split reason: R13.13 keeps clipChange as its own must-be-zero counter.
 		expect(Object.values(work.splits ?? {}).reduce((sum, count) => sum + count, 0)).toBe(0);
+	});
+});
+
+describe('Batcher: the encoder contract (verify)', () => {
+	it('is silent for an encoder that writes exactly what it reported', () => {
+		const { run, violations } = harness();
+		run(ids(20));
+		expect(violations).toEqual([]);
+	});
+
+	it.each([
+		['overrun', 'b: the encoder wrote past the 4 vertices and 6 indices it reported'],
+		['underrun', 'b: the encoder left float 9 of 12 unwritten, or wrote NaN'],
+		['foreignIndex', "b: index 5 is 8, outside the group's vertices 4 to 7"],
+	] as const)('reports an encoder that breaks it (%s)', (breaks, message) => {
+		const { run, violations } = harness();
+		run([{ id: 'a' }, { id: 'b', breaks }, { id: 'c' }]);
+		expect(violations).toEqual([message]);
+	});
+
+	it('costs nothing when not asked for', () => {
+		const { run, violations } = harness({ verify: false });
+		run([{ id: 'a', breaks: 'overrun' }]);
+		expect(violations).toEqual([]);
+	});
+});
+
+describe('Batcher: allocation', () => {
+	it('hands back the same upload and work objects every flush', () => {
+		const { batcher, encoder } = harness();
+		for (const spec of ids(3)) encoder.specs.set(spec.id, spec);
+		const commands = ids(3).map((spec, index) => command(spec, index));
+		const uploads: GeometryUpload[] = [];
+		const first = batcher.flush(commands, (upload) => uploads.push(upload));
+		const second = batcher.flush(commands, (upload) => uploads.push(upload));
+		expect(second).toBe(first);
+		expect(uploads[1]).toBe(uploads[0]);
+		// Reset, not accumulated.
+		expect(second.gpuDraws).toBe(1);
 	});
 });
 
