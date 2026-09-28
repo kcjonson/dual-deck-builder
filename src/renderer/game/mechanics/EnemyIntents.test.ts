@@ -1,11 +1,21 @@
 import { Battle } from './Battle';
-import { Card, CardEffect, TargetType } from './Card';
+import { Card, CardData, CardEffect, TargetType } from './Card';
 import { Driver } from './Driver';
 import { Intent, IntentTier, IntentType, formatIntentValue } from './Intent';
 import { RoadLane, RoadRow, RoadSlot } from './Road';
 import { Team, TeamType } from './Team';
 import { Vehicle } from './Vehicle';
 import { createTestDriver } from '../ai/__tests__/test-helpers';
+import cardsFile from '../data/cards.json';
+
+const cardData = (cardsFile as unknown as { cards: CardData[] }).cards;
+
+/** A fresh copy of a card as cards.json has it */
+const realCard = (type: string): Card => {
+	const data = cardData.find(candidate => candidate.type === type);
+	if (!data) throw new Error(`No card ${type} in cards.json`);
+	return new Card({ ...data });
+};
 
 const slot = (lane: RoadLane, row: RoadRow): RoadSlot => ({ lane, row });
 
@@ -576,6 +586,106 @@ describe('Enemy intents', () => {
 			giveHand(rig, [oilSlick()]);
 			expect(battle.playCard({ driver: driverOf(rig), cardIndex: 0, targetVehicle: ambusher })).toBe(true);
 			expect(ambusher.hasStatusEffect('speed_reduction')).toBe(true);
+		});
+	});
+
+	describe('a raider stunned by EMP Blast', () => {
+		let hauler: Vehicle;
+
+		// The Bike's driver plays the real card, so its duration is what cards.json says
+		const playEmp = (): void => {
+			giveHand(bike, [realCard('emp_blast')]);
+			expect(battle.playCard({ driver: driverOf(bike), cardIndex: 0 })).toBe(true);
+		};
+
+		beforeEach(() => {
+			hauler = createVehicle('Hauler', 2);
+			battle = createBattle([rig, bike], [buggy, hauler]);
+			giveHand(buggy, [pointBlank()]);
+			giveHand(hauler, [farShot()]);
+			battle.planEnemyTurn();
+			expect(battle.getIntents(buggy)).toEqual([expect.objectContaining({ description: 'Point Blank', target: rig.id })]);
+			expect(battle.getIntents(hauler)).toEqual([expect.objectContaining({ description: 'Far Shot', target: rig.id })]);
+		});
+
+		test('shows no intents and plays nothing on the enemy turn, and the log says it skipped', async () => {
+			playEmp();
+			expect(battle.getAllIntents().size).toBe(0);
+			await battle.endPlayerTurn();
+
+			expect(logLines(battle, 'card_played')).toEqual([expect.stringContaining('plays EMP Blast')]);
+			expect([rig.structure, bike.structure]).toEqual([20, 20]);
+			expect(logLines(battle, 'general')).toEqual(expect.arrayContaining([
+				'Buggy is stunned and skips its turn',
+				'Hauler is stunned and skips its turn'
+			]));
+		});
+
+		test('a raider whose driver the player killed after the EMP drops its plan for that, not the stun', async () => {
+			const headshot = card('Headshot', 'enemy_single', [{ type: 'damage', value: 100, target: 'driver', always_hits: true }]);
+			playEmp();
+			giveHand(rig, [headshot]);
+			expect(battle.playCard({ driver: driverOf(rig), cardIndex: 0, targetVehicle: buggy })).toBe(true);
+			expect(buggy.isOutOfFight).toBe(true);
+			await battle.endPlayerTurn();
+
+			const general = logLines(battle, 'general');
+			expect(general).toContain('Buggy lost its driver and drops its plan');
+			expect(general).not.toContain('Buggy is stunned and skips its turn');
+			expect(general).toContain('Hauler is stunned and skips its turn');
+		});
+
+		test('the preview has already dropped its intents when the play is announced', () => {
+			let shown: Map<Vehicle, unknown> | null = null;
+			battle.on('stateChanged', () => {
+				shown = battle.getAllIntents();
+			});
+
+			playEmp();
+
+			expect(shown).toEqual(new Map());
+		});
+
+		test('wears off at the start of the next player turn, so the raider plans and acts again', async () => {
+			playEmp();
+			await battle.endPlayerTurn();
+
+			// The unplayed cards were discarded and shuffle back in for the new hand
+			expect([buggy.isStunned, hauler.isStunned]).toEqual([false, false]);
+			expect(battle.getIntents(buggy)).toEqual([expect.objectContaining({ description: 'Point Blank', target: rig.id })]);
+			expect(battle.getIntents(hauler)).toEqual([expect.objectContaining({ description: 'Far Shot', target: rig.id })]);
+			battle.clearMessages();
+			await battle.endPlayerTurn();
+
+			expect(logLines(battle, 'general').filter(line => line.includes('stunned'))).toEqual([]);
+			expect(logLines(battle, 'card_played')).toEqual([
+				expect.stringContaining('Buggy Driver plays Point Blank'),
+				expect.stringContaining('Hauler Driver plays Far Shot')
+			]);
+			expect(rig.structure).toBe(16);
+		});
+
+		test('still drops back at the end of the player turn when outpaced on the shoulder', async () => {
+			// The Buggy (5) outran the Rig (3) onto the player shoulder, center,
+			// holding enemy outside center, where Far Shot still reaches the Rig
+			battle = createBattle([rig, bike], [buggy]);
+			buggy.set({
+				slot: slot(RoadLane.PLAYER_SHOULDER, RoadRow.CENTER),
+				flank: { reservedSlot: slot(RoadLane.ENEMY_OUTSIDE, RoadRow.CENTER), outran: rig }
+			});
+			giveHand(buggy, [farShot()]);
+			battle.planEnemyTurn();
+			expect(battle.getIntents(buggy)).toEqual([expect.objectContaining({ description: 'Far Shot', target: rig.id })]);
+
+			playEmp();
+			giveHand(rig, [nitro()]);
+			expect(battle.playCard({ driver: driverOf(rig), cardIndex: 0 })).toBe(true);
+			await battle.endPlayerTurn();
+
+			expect(buggy.slot).toEqual(slot(RoadLane.ENEMY_OUTSIDE, RoadRow.CENTER));
+			expect(buggy.flank).toBeNull();
+			expect(rig.structure).toBe(20);
+			expect(logLines(battle, 'general')).toContain('Buggy is stunned and skips its turn');
 		});
 	});
 });

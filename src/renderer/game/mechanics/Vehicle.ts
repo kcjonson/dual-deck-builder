@@ -348,6 +348,16 @@ export class Vehicle extends Model<VehicleData> {
 	}
 
 	/**
+	 * Stunned (EMP Blast): a raider skips its enemy turn. Statuses tick at
+	 * the start of the player's turn, so a duration 1 stun landed during the
+	 * player's turn covers exactly the enemy turn after it. Planning, the
+	 * preview, and play all read this.
+	 */
+	public get isStunned(): boolean {
+		return this.hasStatusEffect('stunned');
+	}
+
+	/**
 	 * Check if this vehicle can flank the target
 	 */
 	public canFlank(target: Vehicle): boolean {
