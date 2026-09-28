@@ -914,6 +914,35 @@ describe('emit order (R3.10) and chapter 3.12 required tests', () => {
 		expect(JSON.parse(JSON.stringify(backend.commands))).toStrictEqual(first);
 	});
 
+	it('emits a promoted popup declared under a base clip after every base group, unclipped (R3.8, R4.8)', () => {
+		const { api, backend } = harness();
+		api.beginFrame({ viewport: VIEWPORT });
+		api.drawRect({ rect: rect(0, 0, 400, 300), fill: BLUE, id: 'panel' });
+		api.pushClip(rect(10, 10, 200, 100));
+		api.pushTranslate(10, -40);
+		api.drawRect({ rect: rect(0, 50, 200, 20), fill: BLUE, id: 'row-1' });
+		api.pushLayer('popup');
+		api.pushClipReset();
+		api.drawRect({ rect: rect(0, 70, 120, 200), fill: RED, id: 'menu' });
+		api.popClip();
+		api.popLayer();
+		api.drawRect({ rect: rect(0, 70, 200, 20), fill: BLUE, id: 'row-2' });
+		api.popTransform();
+		api.popClip();
+		api.drawRect({ rect: rect(0, 280, 400, 20), fill: BLUE, id: 'footer' });
+		api.endFrame();
+
+		expect(backend.ids).toEqual(['panel', 'row-1', 'row-2', 'footer', 'menu']);
+		const commands = backend.commands as RectCommand[];
+		const menu = commands.find((command) => command.id === 'menu') as RectCommand;
+		expect(menu.layer).toBe('popup');
+		expect(menu.clip).toEqual({ kind: 'none' });
+		// The rows around it keep the scroller's clip; promotion reset only the menu's.
+		for (const id of ['row-1', 'row-2']) {
+			expect(commands.find((command) => command.id === id)?.clip.kind).toBe('rect');
+		}
+	});
+
 	it('numbers domains from zero and gives every group a dense sequence', () => {
 		const { api, backend } = harness();
 		api.beginFrame({ viewport: VIEWPORT });

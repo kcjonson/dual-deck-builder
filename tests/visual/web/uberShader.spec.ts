@@ -354,6 +354,19 @@ test.describe('uber shader', () => {
 		expect(pixel(frame, 20, 4)).toEqual([255, 255, 255, 255]);
 	});
 
+	test('shows no seam between two rects that abut at a fractional x once snapped (R5.10, R7.8a)', async ({ page }) => {
+		// Expected to fail until DDB-188 snaps shared edges at submission. Today
+		// each rect ramps its own edge, so the shared column is 0.3 covered by
+		// one and 0.7 by the other, and 0.7 over 0.3 composites to about 0.79,
+		// a visible seam. When this starts passing, drop the `fail` marker.
+		test.fail(true, 'DDB-188: R7.8a shared-edge snapping is not applied at submission yet');
+		const frame = await render(page, { width: 40, height: 8, ratio: 1, clear: OPAQUE_BLACK }, (api) => {
+			api.drawRect({ rect: { x: 0, y: 0, width: 20.3, height: 8 }, fill: [1, 1, 1, 1] });
+			api.drawRect({ rect: { x: 20.3, y: 0, width: 19.7, height: 8 }, fill: [1, 1, 1, 1] });
+		});
+		expect(pixel(frame, 20, 4)).toEqual([255, 255, 255, 255]);
+	});
+
 	test('rounds corners and anti-aliases a circle (R5.5, R5.15)', async ({ page }) => {
 		const frame = await render(page, { width: 40, height: 40, ratio: 1, clear: OPAQUE_BLACK }, (api) => {
 			api.drawRect({ rect: { x: 0, y: 0, width: 40, height: 20 }, radius: 10, fill: [1, 1, 1, 1] });
