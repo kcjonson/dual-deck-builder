@@ -10,6 +10,7 @@ import { OverlayService } from '../services/OverlayService';
 import { PlacementService } from '../services/Placement';
 import { PopupService } from '../services/PopupService';
 import { TooltipService } from '../services/TooltipService';
+import { Tooltip } from '../ui/Tooltip';
 import { UiFrame } from './UiFrame';
 
 /** The logical viewport a root is sized from (R7.11, R8.21). `CanvasViewport` is one. */
@@ -101,6 +102,7 @@ export function createMountContext({ draw, viewport, clock = new Clock(), clipbo
 		frame,
 		// R9.12e: tooltips stay hidden while a drag is active.
 		dragActive: () => drag.isDragging,
+		surface: (spec) => new Tooltip({ spec }),
 	});
 	const context: MountContext = {
 		draw,
