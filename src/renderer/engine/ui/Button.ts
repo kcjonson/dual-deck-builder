@@ -3,6 +3,7 @@ import { Icon } from '../components/Icon';
 import type { MountContext } from '../components/MountContext';
 import { Text } from '../components/Text';
 import type { DrawApi } from '../draw/DrawApi';
+import type { RGBA } from '../draw/geometry';
 import type { IconName } from '../text/icons';
 import type { FontRole } from '../text/fontFaces';
 import { resolveFontRole } from '../text/fontRoles';
@@ -31,6 +32,9 @@ export interface ButtonOptions extends Omit<ComponentOptions, 'style'> {
 	size?: ControlSize;
 	style?: StyleObject;
 }
+
+/** A rect's fill defaults to white, so an outline-only or shadow-only draw says clear. */
+const CLEAR: RGBA = [0, 0, 0, 0];
 
 /** R11.14: what a button renders. `cursor` waits for a cursor service to render it. */
 const BUTTON_STYLE: StyleAcceptance = {
@@ -225,7 +229,7 @@ export class Button extends Component {
 		const glow = look.glow[3] > 0 ? glowShadow(look.glow) : null;
 		// One shadow per rect: the glow rides on the box unless the style
 		// already gave it an elevation, in which case it gets its own.
-		if (glow && look.shadow) draw.drawRect({ rect, radius, shadow: glow });
+		if (glow && look.shadow) draw.drawRect({ rect, fill: CLEAR, radius, shadow: glow });
 		draw.drawRect({
 			id: this.id ?? undefined,
 			rect,
@@ -238,6 +242,7 @@ export class Button extends Component {
 			const offset = tokens.control.focus_ring_offset;
 			draw.drawRect({
 				rect: { x: -offset, y: rect.y - offset, width: this.width + offset * 2, height: this.height + offset * 2 },
+				fill: CLEAR,
 				radius: radius !== undefined ? radius + offset : undefined,
 				border: { color: look.focusRing, width: tokens.control.focus_ring_width, position: 'outside' },
 			});

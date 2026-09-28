@@ -208,7 +208,7 @@ describe('Button styling (R11)', () => {
 			const offset = tokens.control.focus_ring_offset;
 			expect(ring.rect).toEqual({ x: -offset, y: -offset, width: 100 + offset * 2, height: button.height + offset * 2 });
 			expect(ring.border).toEqual({ color: color.accent, width: tokens.control.focus_ring_width, position: 'outside' });
-			expect(ring.fill).toBeNull();
+			expect(ring.fill).toEqual([0, 0, 0, 0]);
 		});
 	});
 

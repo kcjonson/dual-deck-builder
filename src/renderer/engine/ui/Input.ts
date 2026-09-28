@@ -28,6 +28,9 @@ export interface InputOptions extends Omit<ComponentOptions, 'style'> {
 	style?: StyleObject;
 }
 
+/** A rect's fill defaults to white, so an outline-only or shadow-only draw says clear. */
+const CLEAR: RGBA = [0, 0, 0, 0];
+
 /** R11.14: what a text field renders. A field's text is left-aligned and unstyled beyond its face and size. */
 const INPUT_STYLE: StyleAcceptance = {
 	component: 'Input',
@@ -227,6 +230,7 @@ export class Input extends Component {
 			const offset = tokens.control.focus_ring_offset;
 			draw.drawRect({
 				rect: { x: -offset, y: -offset, width: this.width + offset * 2, height: this.height + offset * 2 },
+				fill: CLEAR,
 				radius: radius !== undefined ? radius + offset : undefined,
 				border: { color: look.focusRing, width: tokens.control.focus_ring_width, position: 'outside' },
 			});
@@ -252,13 +256,14 @@ export class Input extends Component {
 		const input = this.context?.input;
 		const currentFocus = input?.getFocus() ?? null;
 		if (currentFocus && currentFocus !== this && currentFocus instanceof Input) {
-			currentFocus.blur();
+			currentFocus.onMouseDownOutside();
 		}
 		this.setFocused(true);
 		input?.setFocus(this);
 	}
 
-	private blur(): void {
+	/** The input system calls this by name when a press lands anywhere else. */
+	private onMouseDownOutside(): void {
 		if (!this.focused) return;
 		this.setFocused(false);
 		this.context?.input.setFocus(null);
@@ -272,7 +277,7 @@ export class Input extends Component {
 				this.setValue(this.value.substring(0, this.value.length - 1));
 			}
 		} else if (key === 'Enter') {
-			this.blur();
+			this.onMouseDownOutside();
 		} else if (key.length === 1) {
 			if (this.value.length < this.maxLength) {
 				this.setValue(this.value + key);
