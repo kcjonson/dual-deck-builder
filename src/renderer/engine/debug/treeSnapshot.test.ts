@@ -302,12 +302,12 @@ describe('treeSnapshot', () => {
 			expect('parts' in node).toBe(false);
 		});
 
-		it("reports a Button's background and label as parts and leaves it childless", () => {
+		it("reports a Button's label as a part and leaves it childless", () => {
 			const button = new Button('End turn', { id: 'end_turn_button', width: 100, height: 40 });
 
 			const node = treeSnapshot([button], VIEWPORT).roots[0];
 
-			expect(node.parts?.map((part) => part.type)).toEqual(['Rectangle', 'Text']);
+			expect(node.parts?.map((part) => part.type)).toEqual(['Text']);
 			expect(node.children).toEqual([]);
 		});
 

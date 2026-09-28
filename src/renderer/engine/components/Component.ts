@@ -15,6 +15,7 @@ import {
 	transformMatrix,
 } from './componentGeometry';
 import type { MountContext } from './MountContext';
+import type { StateFlags } from '../style/look';
 
 /**
  * R8.29. `auto`: this box is a target and children are hit-tested.
@@ -101,6 +102,12 @@ export abstract class Component {
 	private ownOverflow: Overflow = 'visible';
 	private hoverState = false;
 	private focusState = false;
+	private pressState = false;
+	private focusVisibleState = false;
+	private selectedState = false;
+	private openState = false;
+	private activeState = false;
+	private dropActiveState = false;
 	private parentComponent: Component | null = null;
 	private mountContext: MountContext | null = null;
 	/** This subtree has to be laid out: set here and on every ancestor up to the boundary (R8.18). */
@@ -891,7 +898,7 @@ export abstract class Component {
 		this.onLayout?.(bounds);
 	}
 
-	// -- interaction state ----------------------------------------------------
+	// -- interaction state (R11.11) --------------------------------------------
 
 	/** The pointer is over it. Framework-maintained once the dispatcher lands (DDB-75). */
 	public get hovered(): boolean {
@@ -911,17 +918,111 @@ export abstract class Component {
 		this.hoverState = hovered;
 		if (hovered) this.onHover();
 		else this.onUnhover();
+		this.onStateChange();
 	}
 
 	public isFocused(): boolean {
 		return this.focusState;
 	}
 
+	/** Losing focus loses focus-visible with it. */
 	public setFocused(focused: boolean): void {
 		if (this.focusState === focused) return;
 		this.focusState = focused;
+		if (!focused) this.focusVisibleState = false;
 		if (focused) this.onFocus();
 		else this.onBlur();
+		this.onStateChange();
+	}
+
+	/**
+	 * A press began on it and has not been released, cancelled, or left. The
+	 * framework's flag: whoever routes the press sets it (the widget itself
+	 * until the dispatcher owns presses).
+	 */
+	public get pressed(): boolean {
+		return this.pressState;
+	}
+
+	public set pressed(pressed: boolean) {
+		if (this.pressState === pressed) return;
+		this.pressState = pressed;
+		this.onStateChange();
+	}
+
+	/**
+	 * Focus arrived by keyboard, so the ring shows (R11.12 layer 6). The focus
+	 * manager sets it (DDB-76); it is only ever true while focused.
+	 */
+	public get focusVisible(): boolean {
+		return this.focusVisibleState;
+	}
+
+	public set focusVisible(visible: boolean) {
+		const value = visible && this.focusState;
+		if (this.focusVisibleState === value) return;
+		this.focusVisibleState = value;
+		this.onStateChange();
+	}
+
+	/** The component's own flags (R11.11): a chosen tab or row, an open menu, a field taking keys, a live drop target. */
+	public get selected(): boolean {
+		return this.selectedState;
+	}
+
+	public set selected(selected: boolean) {
+		if (this.selectedState === selected) return;
+		this.selectedState = selected;
+		this.onStateChange();
+	}
+
+	public get open(): boolean {
+		return this.openState;
+	}
+
+	public set open(open: boolean) {
+		if (this.openState === open) return;
+		this.openState = open;
+		this.onStateChange();
+	}
+
+	public get active(): boolean {
+		return this.activeState;
+	}
+
+	public set active(active: boolean) {
+		if (this.activeState === active) return;
+		this.activeState = active;
+		this.onStateChange();
+	}
+
+	public get dropActive(): boolean {
+		return this.dropActiveState;
+	}
+
+	public set dropActive(dropActive: boolean) {
+		if (this.dropActiveState === dropActive) return;
+		this.dropActiveState = dropActive;
+		this.onStateChange();
+	}
+
+	/**
+	 * Every R11.11 flag at once, composing rather than ranked; `enabled` is
+	 * the effective one, so a disabled ancestor disables the look too. What
+	 * style resolution reads and the tree snapshot reports.
+	 */
+	public get stateFlags(): StateFlags {
+		return {
+			hovered: this.hoverState,
+			pressed: this.pressState,
+			focused: this.focusState,
+			focusVisible: this.focusVisibleState,
+			enabled: this.effectivelyEnabled,
+			selected: this.selectedState,
+			open: this.openState,
+			active: this.activeState,
+			dropActive: this.dropActiveState,
+		};
 	}
 
 	public isEnabled(): boolean {
@@ -934,11 +1035,27 @@ export abstract class Component {
 		if (!enabled) {
 			this.setHovered(false);
 			this.setFocused(false);
+			this.pressState = false;
 			this.onDisabled();
 		} else {
 			this.onEnabled();
 		}
+		this.notifyEnabledChange();
 		return this;
+	}
+
+	/** Effective enabled state is inherited, so a change reaches every descendant's look. */
+	private notifyEnabledChange(): void {
+		this.onStateChange();
+		for (const child of this.children) child.notifyEnabledChange();
+	}
+
+	/**
+	 * After any R11.11 flag changes, here or, for `enabled`, on an ancestor.
+	 * Styled components re-resolve their look from `stateFlags` here.
+	 */
+	protected onStateChange(): void {
+		// Override in subclasses
 	}
 
 	protected onHover(): void {

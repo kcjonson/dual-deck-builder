@@ -116,10 +116,8 @@ export class ResourceBarLayer extends Layer {
 	private createEndTurnButton(): Button {
 		const button = new Button('END TURN', {
 			id: 'end_turn_button',
-			style: {
-				fontSize: 12,
-				fontWeight: 'bold',
-			},
+			tone: 'accent',
+			size: 'sm',
 		});
 		button.onClick(() => {
 			if (this.onEndTurn) {

@@ -60,11 +60,13 @@ export class InputShowcaseSection extends DeveloperSectionPanel {
 			width: 300,
 			height: 40,
 			style: {
-				fontSize: 16,
-				backgroundColor: '#1a1a1a',
-				color: '#00ff00',
-				borderRadius: 20,
-				border: '2px solid #00ff00',
+				fontSize: 'fs_md',
+				backgroundColor: 'bg_void',
+				color: 'status_ok',
+				borderColor: 'status_ok',
+				borderWidth: 'bw_thick',
+				borderRadius: 'r_pill',
+				padding: { left: 'space_4', right: 'space_4' },
 			},
 		});
 		styledInput.setPosition(20, currentY);

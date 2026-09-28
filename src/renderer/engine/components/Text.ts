@@ -113,6 +113,17 @@ export class Text extends Component {
 		}
 	}
 
+	/**
+	 * Applies these style properties over the current ones, the same path as
+	 * construction (R11.16). Every text property can move a glyph, so it
+	 * measures again and invalidates layout.
+	 */
+	public set textStyle(style: Style) {
+		this.applyTextStyle(style);
+		this.measure();
+		this.invalidateLayout();
+	}
+
 	public setText(text: string): this {
 		if (text !== this.content) {
 			this.content = text;
