@@ -278,6 +278,25 @@ describe('layoutLint', () => {
 			]);
 		});
 
+		// R3.8: a raise resets the clip, so an open menu hangs past its select
+		// by design; R13.31's z-order fixture needs one and still lints clean.
+		it('lets off a child raised into another layer, and only that', () => {
+			const menu = (layer: string) => layoutLint(
+				doc([
+					node({
+						id: 'select',
+						bounds: box(0, 0, 200, 30),
+						layer: 'base',
+						children: [node({ id: 'menu', bounds: box(0, 32, 200, 150), layer })],
+					}),
+				]),
+			);
+
+			expect(forRule(menu('popup'), 'child-outside-parent')).toHaveLength(0);
+			expect(reportFor(menu('popup'), 'child-outside-parent').exempt).toBe(1);
+			expect(forRule(menu('base'), 'child-outside-parent')).toHaveLength(1);
+		});
+
 		it('does not report a child inside its parent, nor one over by less than epsilon', () => {
 			const result = layoutLint(
 				doc([
@@ -636,14 +655,14 @@ describe('layoutLint', () => {
 			]);
 		});
 
-		it('reports a pointerEvents auto node entirely covered by a sibling above it', () => {
+		it('reports a pointer-handling node entirely covered by a sibling above it', () => {
 			const result = layoutLint(
 				doc([
 					node({
 						id: 'root',
 						bounds: box(0, 0, 800, 800),
 						children: [
-							node({ id: 'button', type: 'Button', bounds: box(100, 100, 180, 44), pointerEvents: 'auto' }),
+							node({ id: 'button', type: 'Button', bounds: box(100, 100, 180, 44), pointerEvents: 'auto', handlesPointer: true }),
 							node({ id: 'preview', bounds: box(50, 50, 400, 400) }),
 						],
 					}),
@@ -669,7 +688,7 @@ describe('layoutLint', () => {
 						bounds: box(0, 0, 800, 800),
 						children: [
 							node({ id: 'backdrop', bounds: box(50, 50, 400, 400) }),
-							node({ id: 'button', type: 'Button', bounds: box(100, 100, 180, 44), pointerEvents: 'auto' }),
+							node({ id: 'button', type: 'Button', bounds: box(100, 100, 180, 44), pointerEvents: 'auto', handlesPointer: true }),
 						],
 					}),
 				]),
@@ -685,7 +704,7 @@ describe('layoutLint', () => {
 						id: 'root',
 						bounds: box(0, 0, 800, 800),
 						children: [
-							node({ id: 'button', type: 'Button', bounds: box(100, 100, 180, 44), pointerEvents: 'auto', clip: box(0, 0, 800, 800) }),
+							node({ id: 'button', type: 'Button', bounds: box(100, 100, 180, 44), pointerEvents: 'auto', handlesPointer: true, clip: box(0, 0, 800, 800) }),
 							node({ id: 'edge', bounds: box(260, 100, 400, 44) }),
 						],
 					}),
@@ -703,7 +722,7 @@ describe('layoutLint', () => {
 						id: 'root',
 						bounds: box(0, 0, 800, 800),
 						children: [
-							node({ id: 'button', type: 'Button', bounds: box(100, 100, 180, 44), pointerEvents: 'auto', layer: 'base' }),
+							node({ id: 'button', type: 'Button', bounds: box(100, 100, 180, 44), pointerEvents: 'auto', handlesPointer: true, layer: 'base' }),
 							node({ id: 'ghost', bounds: box(0, 0, 800, 800), pointerEvents: 'none' }),
 							node({ id: 'veil', bounds: box(0, 0, 800, 800), pointerEvents: 'passthrough' }),
 							node({ id: 'elsewhere', bounds: box(0, 0, 800, 800), layer: 'popup' }),
@@ -754,20 +773,164 @@ describe('layoutLint', () => {
 			expect(covered(0.5)).toHaveLength(1);
 		});
 
-		it('does not treat a passthrough or none component as interactive', () => {
+		it('does not treat a passthrough or none component as interactive, handlers or not', () => {
+			// A passthrough container with an onClick hears its children's
+			// bubbled clicks, but its own box is never a target.
 			const result = layoutLint(
-				doc([node({ id: 'decor', bounds: box(0, 900, 10, 10), pointerEvents: 'none', clip: box(0, 0, 100, 100) })]),
+				doc([
+					node({ id: 'decor', bounds: box(0, 900, 10, 10), pointerEvents: 'none', handlesPointer: true, clip: box(0, 0, 100, 100) }),
+					node({ id: 'row', bounds: box(0, 900, 10, 10), pointerEvents: 'passthrough', handlesPointer: true, clip: box(0, 0, 100, 100) }),
+				]),
 			);
 
 			expect(forRule(result, 'unreachable-interactive')).toHaveLength(0);
 			expect(reportFor(result, 'unreachable-interactive').evaluated).toBe(0);
 			expect(reportFor(result, 'unreachable-interactive').skippedMissingInput).toBe(0);
 		});
+
+		// DDB-208: R8.29 makes auto every leaf's default, so taken alone it
+		// made every label a control and the gallery read 106.
+		it('does not treat a leaf that takes hits but handles nothing as interactive', () => {
+			const result = layoutLint(
+				doc([
+					node({
+						id: 'label',
+						type: 'Text',
+						bounds: box(0, 900, 10, 10),
+						pointerEvents: 'auto',
+						handlesPointer: false,
+						focusable: false,
+						clip: box(0, 0, 100, 100),
+					}),
+				]),
+			);
+
+			expect(forRule(result, 'unreachable-interactive')).toHaveLength(0);
+			expect(forRule(result, 'target-size')).toHaveLength(0);
+			expect(reportFor(result, 'target-size').evaluated).toBe(0);
+			expect(reportFor(result, 'target-size').skippedMissingInput).toBe(0);
+		});
+
+		it('skips rather than guesses when a document carries pointerEvents and nothing else', () => {
+			const result = layoutLint(doc([node({ id: 'close', type: 'Button', bounds: box(0, 0, 16, 16), pointerEvents: 'unit' })]));
+
+			expect(forRule(result, 'target-size')).toHaveLength(0);
+			expect(reportFor(result, 'target-size').dormant).toBe(true);
+			expect(reportFor(result, 'target-size').missingInput).toEqual(['focusable', 'handlesPointer']);
+		});
+
+		it('takes a pointer handler with no declared pointerEvents as a target', () => {
+			const result = layoutLint(doc([node({ id: 'close', type: 'Button', bounds: box(0, 0, 16, 16), handlesPointer: true })]));
+
+			expect(forRule(result, 'target-size')).toHaveLength(1);
+		});
+
+		// A scroller's content outside its clip is scrolled away, not lost:
+		// the wheel brings it back and focus scrolls it in (R12.20).
+		it('lets off a control a scroll container has scrolled out of view', () => {
+			const scroller = (contentOffset?: { x: number; y: number }) => layoutLint(
+				doc([
+					node({
+						id: 'list',
+						bounds: box(0, 0, 400, 400),
+						contentOffset,
+						children: [
+							node({
+								id: 'rows',
+								bounds: box(0, 0, 400, 2000),
+								children: [
+									node({ id: 'row', type: 'Button', bounds: box(0, 900, 180, 44), focusable: true, clip: box(0, 0, 400, 400) }),
+								],
+							}),
+						],
+					}),
+				]),
+			);
+
+			expect(forRule(scroller({ x: 0, y: 0 }), 'unreachable-interactive')).toHaveLength(0);
+			expect(reportFor(scroller({ x: 0, y: 0 }), 'unreachable-interactive').exempt).toBe(1);
+			expect(forRule(scroller(), 'unreachable-interactive')).toHaveLength(1);
+		});
+
+		it('still checks a scrolled-out control for cover', () => {
+			const result = layoutLint(
+				doc([
+					node({
+						id: 'list',
+						bounds: box(0, 0, 400, 400),
+						contentOffset: { x: 0, y: 0 },
+						children: [
+							node({ id: 'row', type: 'Button', bounds: box(0, 900, 180, 44), focusable: true, clip: box(0, 0, 400, 400) }),
+							node({ id: 'cover', bounds: box(0, 880, 400, 100) }),
+						],
+					}),
+				]),
+			);
+
+			expect(forRule(result, 'unreachable-interactive').map((violation) => violation.otherPath)).toEqual(['list/cover']);
+		});
+
+		it('does not let off a scroller\'s own drawings, which do not scroll', () => {
+			const result = layoutLint(
+				doc([
+					node({
+						id: 'list',
+						bounds: box(0, 0, 400, 400),
+						contentOffset: { x: 0, y: 0 },
+						parts: [node({ id: 'grip', type: 'Button', bounds: box(0, 900, 30, 30), focusable: true, clip: box(0, 0, 400, 400) })],
+					}),
+				]),
+			);
+
+			expect(forRule(result, 'unreachable-interactive')).toHaveLength(1);
+		});
+
+		// Rule 1 keeps parts and children apart (R3.18); cover is a paint and
+		// hit question, so rule 6 compares across the two groups.
+		it('compares parts and children for cover, in submission order', () => {
+			const owner = (partZ: number) => layoutLint(
+				doc([
+					node({
+						id: 'owner',
+						bounds: box(0, 0, 400, 400),
+						parts: [node({ id: 'face', bounds: box(0, 0, 400, 400), zIndex: partZ })],
+						children: [node({ id: 'button', type: 'Button', bounds: box(100, 100, 180, 44), focusable: true, zIndex: 0 })],
+					}),
+				]),
+			);
+
+			// A part submits before the children, so at equal zIndex it is below.
+			expect(forRule(owner(0), 'unreachable-interactive')).toHaveLength(0);
+			expect(forRule(owner(1), 'unreachable-interactive')).toEqual([
+				{
+					rule: 'unreachable-interactive',
+					path: 'owner/button',
+					bounds: box(100, 100, 180, 44),
+					otherPath: 'owner/face',
+					otherBounds: box(0, 0, 400, 400),
+				},
+			]);
+		});
+
+		it('reports a child that covers an interactive part', () => {
+			const result = layoutLint(
+				doc([
+					node({
+						id: 'owner',
+						bounds: box(0, 0, 400, 400),
+						parts: [node({ id: 'close', type: 'Button', bounds: box(360, 0, 40, 40), focusable: true })],
+						children: [node({ id: 'content', bounds: box(0, 0, 400, 400) })],
+					}),
+				]),
+			);
+
+			expect(forRule(result, 'unreachable-interactive').map((violation) => violation.path)).toEqual(['owner/close']);
+		});
 	});
 
 	describe('rule 7: target-size (R13.25.7)', () => {
 		it('reports an interactive component under 24 by 24', () => {
-			const result = layoutLint(doc([node({ id: 'close', type: 'Button', bounds: box(0, 0, 16, 16), pointerEvents: 'unit' })]));
+			const result = layoutLint(doc([node({ id: 'close', type: 'Button', bounds: box(0, 0, 16, 16), pointerEvents: 'unit', handlesPointer: true })]));
 
 			expect(forRule(result, 'target-size')).toEqual([{ rule: 'target-size', path: 'close', bounds: box(0, 0, 16, 16) }]);
 		});
@@ -1206,8 +1369,8 @@ describe('layoutLint', () => {
 
 	describe('dormancy: a rule that cannot fire must not read as a pass', () => {
 		it('marks the three phase-0 dormant rules dormant and names the field they wanted', () => {
-			// A snapshot shaped like today's: no text.measured, no focusable, no
-			// pointerEvents anywhere.
+			// A snapshot shaped like phase 0's: no text.measured, no focusable,
+			// no handlesPointer anywhere.
 			const result = layoutLint(
 				doc([
 					node({
@@ -1230,7 +1393,7 @@ describe('layoutLint', () => {
 				expect(report.dormant).toBe(true);
 				expect(report.evaluated).toBe(0);
 				expect(report.skippedMissingInput).toBe(3);
-				expect(report.missingInput).toEqual(['focusable', 'pointerEvents']);
+				expect(report.missingInput).toEqual(['focusable', 'handlesPointer']);
 			}
 		});
 

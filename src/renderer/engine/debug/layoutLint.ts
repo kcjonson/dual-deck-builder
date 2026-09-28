@@ -85,6 +85,8 @@ export interface LintNode {
 	margin?: LintEdges;
 	focusable?: boolean;
 	pointerEvents?: string;
+	/** The component answers the pointer itself (treeSnapshot); see `isInteractive`. */
+	handlesPointer?: boolean;
 	text?: LintText;
 	/** A stack container's direction and gap; see rule 1's negative-gap allowance. */
 	stack?: { direction?: string; gap?: number };
@@ -201,9 +203,6 @@ const RULE_NAMES: readonly LintRuleName[] = [
 	'target-size',
 ];
 
-/** R13.25.6 and .7: what counts as interactive, in R8.29's vocabulary. */
-const INTERACTIVE_POINTER_EVENTS: readonly string[] = ['auto', 'unit'];
-
 /**
  * Rule 6's non-occluders. R8.29 gives `none` and `passthrough` different
  * subtree semantics, but both make the node's *own* box transparent to hits,
@@ -228,7 +227,7 @@ const MAX_DEPTH = 256;
 /** R6.14 and R12.4: overflow modes that make an over-long text deliberate. */
 const HANDLED_TEXT_OVERFLOW: readonly string[] = ['clip', 'ellipsis'];
 
-const MISSING_INTERACTIVITY = ['focusable', 'pointerEvents'];
+const MISSING_INTERACTIVITY = ['focusable', 'handlesPointer'];
 const MISSING_TEXT = ['text'];
 const MISSING_TEXT_MEASURE = ['text.measured'];
 
@@ -264,14 +263,33 @@ function escape(inner: LintRect, outer: LintRect): number {
 	);
 }
 
+/**
+ * R13.25.6 and .7's "interactive": focusable, or a component that answers the
+ * pointer and whose own box takes hits (`auto` or `unit`, or undeclared).
+ *
+ * R13.25.6 reads literally as focusable or `pointerEvents: auto | unit`, and
+ * R8.29 makes `auto` the default for every leaf, so the literal reading counts
+ * every label, icon and swatch as a control: measured with the snapshot
+ * emitting `pointerEvents`, the gallery went from 0 to 106 findings and the
+ * screens gained 1,064, and not one was a control (DDB-208). `pointerEvents`
+ * says whether a box takes hits, not whether anything listens, so the rule
+ * takes the handler from `handlesPointer` and keeps `pointerEvents` as the
+ * veto it is: a `passthrough` container with an onClick hears its children's
+ * bubbled clicks but its own box is never a target.
+ */
 function isInteractive(node: LintNode): boolean {
 	if (node.focusable === true) return true;
-	return typeof node.pointerEvents === 'string' && INTERACTIVE_POINTER_EVENTS.indexOf(node.pointerEvents) >= 0;
+	if (node.handlesPointer !== true) return false;
+	return typeof node.pointerEvents !== 'string' || TRANSPARENT_TO_HITS.indexOf(node.pointerEvents) < 0;
 }
 
-/** True only when the document actually says something about interactivity. */
+/**
+ * True only when the document says something about interactivity. A document
+ * carrying `pointerEvents` alone says whether boxes take hits, which is not
+ * the question, so it leaves the rules skipped rather than guessing.
+ */
 function declaresInteractivity(node: LintNode): boolean {
-	return typeof node.focusable === 'boolean' || typeof node.pointerEvents === 'string';
+	return typeof node.focusable === 'boolean' || typeof node.handlesPointer === 'boolean';
 }
 
 /**
@@ -330,6 +348,8 @@ interface Candidate {
 	index: number;
 	bounds: LintRect;
 	screen: LintRect;
+	/** Inside a scroll container's content, which scrolling can bring into view (rule 6). */
+	scrolled?: boolean;
 }
 
 /**
@@ -525,6 +545,8 @@ export function layoutLint(document: LintDocument, options: LintOptions | null =
 	 * parent's content box. Without a `margin` on the document the two boxes
 	 * coincide.
 	 *
+	 * One exemption, a child raised to another layer; see the comment inside.
+	 *
 	 * No exemption for a scroll container. R13.25.2 grants none, and the intent
 	 * signal that would carry one, `contentOffset`, sits on the Panel, whose
 	 * only children are a background sized to the panel and a content layer
@@ -533,6 +555,17 @@ export function layoutLint(document: LintDocument, options: LintOptions | null =
 	 */
 	const childOutsideParent = (child: Candidate, parent: Candidate): void => {
 		const rule = tally('child-outside-parent');
+		// A child in a different effective layer from its parent was raised
+		// out of it, and a raise resets the inherited clip (R3.8, R4.8): an
+		// open menu declared at its select hangs past the select, its row and
+		// the scroller around them on purpose. R13.31 asks for exactly that
+		// popup in the z-order fixture while R13.29 asks the fixture to lint
+		// clean, and R13.25.1 already reads a differing layer as declared
+		// intent, so it is read the same way here.
+		if (declaresDifferentLayer(child.node, parent.node)) {
+			rule.exempt++;
+			return;
+		}
 		rule.evaluated++;
 		if (escape(marginBox(child), parent.screen) > EPSILON) report('child-outside-parent', child, parent);
 	};
@@ -610,11 +643,14 @@ export function layoutLint(document: LintDocument, options: LintOptions | null =
 	};
 
 	/**
-	 * Rule 6. Dormant until the document says what is interactive: R13.22's
-	 * `focusable`, which the focus manager backs, or R8.29's `pointerEvents`,
-	 * which the snapshot deliberately leaves out for now (see treeSnapshot).
+	 * Rule 6. `cover` is everything painted under the same owner: its parts
+	 * and its children together, in submission order. Rule 1 keeps the two
+	 * apart because R3.18 prescribes how a composite's parts overlap one
+	 * another, but being covered is a question about paint and hits, and a
+	 * part that paints over a caller's button takes its clicks as surely as a
+	 * sibling would.
 	 */
-	const unreachableInteractive = (candidate: Candidate, group: readonly Candidate[]): void => {
+	const unreachableInteractive = (candidate: Candidate, cover: readonly Candidate[]): void => {
 		const rule = tally('unreachable-interactive');
 		if (!declaresInteractivity(candidate.node)) {
 			rule.skip(MISSING_INTERACTIVITY);
@@ -629,13 +665,22 @@ export function layoutLint(document: LintDocument, options: LintOptions | null =
 			const x = overlapOnAxis(candidate.screen.x, candidate.screen.w, clipped.x, clipped.w);
 			const y = overlapOnAxis(candidate.screen.y, candidate.screen.h, clipped.y, clipped.h);
 			// An empty intersection, not a thin one: a sliver is still a target.
+			// Scrolled out of a scroll container is not unreachable: the
+			// wheel brings it back, and focus scrolls it in (R12.20). The
+			// document says only that some ancestor clipped it, so a control
+			// under a scroller that an inner, non-scrolling clip hides is let
+			// off too; that is the price of not guessing which ancestor it was.
 			if (x <= 0 || y <= 0) {
-				report('unreachable-interactive', candidate);
-				return;
+				if (candidate.scrolled === true) {
+					rule.exempt++;
+				} else {
+					report('unreachable-interactive', candidate);
+					return;
+				}
 			}
 		}
 
-		for (const other of group) {
+		for (const other of cover) {
 			if (other === candidate) continue;
 			if (typeof other.node.pointerEvents === 'string' && TRANSPARENT_TO_HITS.indexOf(other.node.pointerEvents) >= 0) {
 				continue;
@@ -653,7 +698,7 @@ export function layoutLint(document: LintDocument, options: LintOptions | null =
 		}
 	};
 
-	/** Rule 7. Dormant for the same reason as rule 6. */
+	/** Rule 7, over the same candidates as rule 6. */
 	const targetSize = (candidate: Candidate): void => {
 		const rule = tally('target-size');
 		if (!declaresInteractivity(candidate.node)) {
@@ -700,21 +745,21 @@ export function layoutLint(document: LintDocument, options: LintOptions | null =
 	 *   viewport is reported, and recursion into a part is not cut, so a
 	 *   container part still lints its own contents.
 	 *
-	 *   Two rules are narrowed by this, not one, and the second is easy to
-	 *   miss. Rule 6 takes the same group, so a part covering an interactive
-	 *   child, or a child covering an interactive part, is no longer compared
-	 *   either. That is latent rather than live - rule 6 is dormant for want of
-	 *   `focusable` and `pointerEvents` - and has to be decided when the
-	 *   snapshot starts carrying them. The same gap in rule 1 is the
-	 *   named blind spot in the decision doc: a caller-added child painted over
-	 *   a composite's own label is invisible to the lint, and the scene's
-	 *   screenshot golden is what covers it today.
+	 *   Rule 1 is the only rule narrowed by this. Rule 6 is handed `cover`,
+	 *   the owner's parts and children together, because a part painted over
+	 *   an interactive child takes its hits (DDB-208). The gap that remains
+	 *   in rule 1 is the named blind spot in the decision doc: a caller-added
+	 *   child painted over a composite's own label is invisible to the lint,
+	 *   and the scene's screenshot golden is what covers it today.
+	 * @param cover The owner's parts and children in submission order, for
+	 *   rule 6; the group itself at the roots.
 	 */
 	const walk = (
 		group: readonly Candidate[],
 		parent: Candidate | null,
 		depth: number,
 		siblings: boolean,
+		cover: readonly Candidate[],
 	): void => {
 		if (siblings) siblingOverlap(group, parent);
 		for (const candidate of group) {
@@ -722,17 +767,23 @@ export function layoutLint(document: LintDocument, options: LintOptions | null =
 			outsideViewport(candidate);
 			zeroOrNegativeSize(candidate);
 			textOverflow(candidate);
-			unreachableInteractive(candidate, group);
+			unreachableInteractive(candidate, cover);
 			targetSize(candidate);
 			if (depth >= MAX_DEPTH || expanded.has(candidate.node)) continue;
 			expanded.add(candidate.node);
 			const [parts, children] = toGroups(candidate.node, candidate.path);
-			walk(parts, candidate, depth + 1, false);
-			walk(children, candidate, depth + 1, true);
+			// A scroller scrolls its children, not its own drawings.
+			const scrolls = candidate.node.contentOffset !== undefined && candidate.node.contentOffset !== null;
+			for (const part of parts) part.scrolled = candidate.scrolled;
+			for (const child of children) child.scrolled = candidate.scrolled === true || scrolls;
+			const owned = parts.length === 0 ? children : [...parts, ...children];
+			walk(parts, candidate, depth + 1, false, owned);
+			walk(children, candidate, depth + 1, true, owned);
 		}
 	};
 
-	walk(toCandidates(document?.roots, ''), null, 0, true);
+	const roots = toCandidates(document?.roots, '');
+	walk(roots, null, 0, true, roots);
 
 	const rules: LintRuleReport[] = RULE_NAMES.map((name) => {
 		const source = tally(name);

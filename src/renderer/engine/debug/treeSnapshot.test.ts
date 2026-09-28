@@ -136,9 +136,43 @@ describe('treeSnapshot', () => {
 		it('leaves out every field nothing in the engine backs yet', () => {
 			const node = treeSnapshot([new Layer({ id: 'plain', width: 10, height: 10 })], VIEWPORT).roots[0];
 
-			for (const absent of ['focusable', 'transform', 'text', 'value', 'style', 'clip', 'contentOffset']) {
+			for (const absent of ['transform', 'text', 'value', 'style', 'clip', 'contentOffset']) {
 				expect(absent in node).toBe(false);
 			}
+		});
+
+		// DDB-208: the lint's rules 6 and 7 read these three to find the
+		// controls, so they are on every node, false included.
+		it('reports focusable, pointerEvents and handlesPointer on every node', () => {
+			const node = treeSnapshot([new Layer({ id: 'plain', width: 10, height: 10 })], VIEWPORT).roots[0];
+
+			expect(node.focusable).toBe(false);
+			expect(node.pointerEvents).toBe('passthrough');
+			expect(node.handlesPointer).toBe(false);
+		});
+
+		it('tells a label that takes hits from a control that answers them', () => {
+			const label = new Text('Deck', { width: 40, height: 12 });
+			const swatch = new Rectangle({ width: 10, height: 10 });
+			swatch.onClick = () => undefined;
+			const button = new Button('Go', { width: 80, height: 32 });
+
+			const [labelNode, swatchNode, buttonNode] = treeSnapshot([label, swatch, button], VIEWPORT).roots;
+
+			expect(labelNode).toMatchObject({ pointerEvents: 'auto', handlesPointer: false, focusable: false });
+			expect(swatchNode).toMatchObject({ pointerEvents: 'auto', handlesPointer: true, focusable: false });
+			expect(buttonNode).toMatchObject({ pointerEvents: 'unit', handlesPointer: true, focusable: true });
+		});
+
+		it('reports a component\'s own pointerEvents, not an inherited block', () => {
+			const parent = new Layer({ width: 100, height: 100, pointerEvents: 'none' });
+			const child = new Rectangle({ width: 10, height: 10 });
+			parent.addChild(child);
+
+			const node = treeSnapshot([parent], VIEWPORT).roots[0];
+
+			expect(node.pointerEvents).toBe('none');
+			expect(node.children[0].pointerEvents).toBe('auto');
 		});
 
 		it('reports the base-backed fields on every node, a plain Layer included', () => {

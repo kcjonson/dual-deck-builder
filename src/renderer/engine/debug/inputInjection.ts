@@ -1,5 +1,5 @@
 import type { Dispatcher } from '../input/Dispatcher';
-import type { InjectedStep } from './inputScript';
+import type { InjectedPointerType, InjectedStep } from './inputScript';
 import { parseInputCommand } from './inputScript';
 
 /**
@@ -20,11 +20,25 @@ import { parseInputCommand } from './inputScript';
  * needs the effect synchronously (a unit test) calls the dispatcher's
  * `dispatchPending` itself.
  *
- * Pointer events are `PointerEvent`s with `pointerId` 1, `pointerType`
- * `mouse`, and `isPrimary`, where the runtime has the constructor. jsdom has
- * none, so there they are `MouseEvent`s carrying the pointer event's type
- * name, which reach the same listeners; the adapter reads the missing
- * pointer fields with those same defaults.
+ * Pointer events are `PointerEvent`s carrying the command's `pointerId` and
+ * `pointerType` (1 and `mouse` unless it names others, R9.25) where the
+ * runtime has the constructor. jsdom has none, so there they are
+ * `MouseEvent`s carrying the pointer event's type name, with the pointer
+ * fields defined on the instance, which reach the same listeners and read
+ * the same way.
+ *
+ * ## isPrimary
+ *
+ * The grammar has no field for it because the platform derives it, and so
+ * does this: a mouse is always primary, and a touch or pen pointer is
+ * primary when it went down while no other pointer of its type was down, and
+ * stays so until it lifts or cancels (Pointer Events, `isPrimary`). Only the
+ * primary pointer synthesises `click` (R9.1), so a second finger's tap
+ * clicks nothing, as on a real screen. That takes a little state per
+ * dispatcher across calls, kept in `pointerStates`, which also remembers
+ * where each pointer last was so `cancel` can be sent from there. The state
+ * follows injected input only; a real blur cancelling a gesture mid-script
+ * leaves a touch pointer counted as down until the script lifts it.
  *
  * ## Coordinates
  *
@@ -74,7 +88,7 @@ import { parseInputCommand } from './inputScript';
  */
 
 export interface InjectedEventResult {
-	/** The DOM event type dispatched: pointermove, pointerdown, pointerup, wheel, keydown, keyup. */
+	/** The DOM event type dispatched: pointermove, pointerdown, pointerup, pointercancel, wheel, keydown, keyup. */
 	type: string;
 	/** False only when there was nowhere to dispatch it, e.g. no document body for a key. */
 	dispatched: boolean;
@@ -118,51 +132,145 @@ function buttonsMask(button: number): number {
 	return BUTTONS_BIT[button] ?? 0;
 }
 
+interface PointerIdentity {
+	pointerId: number;
+	pointerType: InjectedPointerType;
+	isPrimary: boolean;
+}
+
+interface PointerEventFields extends PointerIdentity {
+	x: number;
+	y: number;
+	button: number;
+	buttons: number;
+}
+
 /**
- * A pointer event as the platform sends a mouse's: a real `PointerEvent`
- * where the runtime has one, otherwise a `MouseEvent` under the pointer
- * event's type name (see the module comment).
+ * A pointer event as the platform sends one: a real `PointerEvent` where the
+ * runtime has one, otherwise a `MouseEvent` under the pointer event's type
+ * name with the pointer fields defined on it (see the module comment).
  */
-function pointerEvent(
-	canvas: HTMLCanvasElement,
-	type: string,
-	x: number,
-	y: number,
-	button: number,
-	buttons: number,
-): MouseEvent {
+function pointerEvent(canvas: HTMLCanvasElement, type: string, fields: PointerEventFields): MouseEvent {
 	const rect = canvas.getBoundingClientRect();
 	const init = {
 		bubbles: true,
 		cancelable: true,
-		clientX: rect.left + x,
-		clientY: rect.top + y,
-		button,
-		buttons,
+		clientX: rect.left + fields.x,
+		clientY: rect.top + fields.y,
+		button: fields.button,
+		buttons: fields.buttons,
 	};
-	if (typeof PointerEvent === 'function') {
-		return new PointerEvent(type, { ...init, pointerId: 1, pointerType: 'mouse', isPrimary: true });
+	const identity = { pointerId: fields.pointerId, pointerType: fields.pointerType, isPrimary: fields.isPrimary };
+	if (typeof PointerEvent === 'function') return new PointerEvent(type, { ...init, ...identity });
+
+	const event = new MouseEvent(type, init);
+	for (const [name, value] of Object.entries(identity)) {
+		Object.defineProperty(event, name, { value, enumerable: true });
 	}
-	return new MouseEvent(type, init);
+	return event;
+}
+
+/** Where each injected pointer last was, and which pointer of each type is primary. */
+class InjectedPointers {
+	private readonly pressed = new Map<number, InjectedPointerType>();
+	private readonly primaryByType = new Map<InjectedPointerType, number>();
+	private readonly lastSeen = new Map<number, { x: number; y: number; pointerType: InjectedPointerType }>();
+
+	/**
+	 * Call before dispatching a `down`, so the press can claim primary. It
+	 * claims it only with no other pointer of its type down: a second finger
+	 * that lands after the first lifts, while a third is still down, is not
+	 * primary either.
+	 */
+	public press(pointerId: number, pointerType: InjectedPointerType): void {
+		if (this.pressed.has(pointerId)) return;
+		const othersDown = [...this.pressed.values()].includes(pointerType);
+		if (!othersDown) this.primaryByType.set(pointerType, pointerId);
+		this.pressed.set(pointerId, pointerType);
+	}
+
+	/** Call after dispatching an `up` or `cancel`. */
+	public lift(pointerId: number): void {
+		this.pressed.delete(pointerId);
+		for (const [type, primaryId] of this.primaryByType) {
+			if (primaryId === pointerId) this.primaryByType.delete(type);
+		}
+	}
+
+	/** A hovering pointer with nothing of its type down is the primary one, as a lone mouse is. */
+	public isPrimary(pointerId: number, pointerType: InjectedPointerType): boolean {
+		if (pointerType === 'mouse') return true;
+		const primaryId = this.primaryByType.get(pointerType);
+		return primaryId === undefined ? !this.pressed.has(pointerId) : primaryId === pointerId;
+	}
+
+	public identity(pointerId: number, pointerType: InjectedPointerType): PointerIdentity {
+		return { pointerId, pointerType, isPrimary: this.isPrimary(pointerId, pointerType) };
+	}
+
+	public moved(pointerId: number, x: number, y: number, pointerType: InjectedPointerType): void {
+		this.lastSeen.set(pointerId, { x, y, pointerType });
+	}
+
+	public last(pointerId: number): { x: number; y: number; pointerType: InjectedPointerType } {
+		return this.lastSeen.get(pointerId) ?? { x: 0, y: 0, pointerType: 'mouse' };
+	}
+}
+
+/** Per dispatcher, so the state lives as long as the input path it describes. */
+const pointerStates = new WeakMap<Dispatcher, InjectedPointers>();
+
+function pointersFor(dispatcher: Dispatcher): InjectedPointers {
+	let pointers = pointerStates.get(dispatcher);
+	if (!pointers) {
+		pointers = new InjectedPointers();
+		pointerStates.set(dispatcher, pointers);
+	}
+	return pointers;
 }
 
 function dispatchStep({ canvas, dispatcher }: InjectionTarget, step: InjectedStep): InjectedEventResult {
 	const swallowed = dispatcher.paused;
+	const pointers = pointersFor(dispatcher);
 
 	switch (step.kind) {
-		case 'move':
-			canvas.dispatchEvent(pointerEvent(canvas, 'pointermove', step.x, step.y, -1, 0));
-			return { type: 'pointermove', dispatched: true, swallowed };
-
-		case 'down':
+		case 'move': {
+			const identity = pointers.identity(step.pointerId, step.pointerType);
 			canvas.dispatchEvent(
-				pointerEvent(canvas, 'pointerdown', step.x, step.y, step.button, buttonsMask(step.button)),
+				pointerEvent(canvas, 'pointermove', { x: step.x, y: step.y, button: -1, buttons: 0, ...identity }),
 			);
-			return { type: 'pointerdown', dispatched: true, swallowed };
+			pointers.moved(step.pointerId, step.x, step.y, step.pointerType);
+			return { type: 'pointermove', dispatched: true, swallowed };
+		}
 
-		case 'up':
-			canvas.dispatchEvent(pointerEvent(canvas, 'pointerup', step.x, step.y, step.button, 0));
+		case 'down': {
+			pointers.press(step.pointerId, step.pointerType);
+			const identity = pointers.identity(step.pointerId, step.pointerType);
+			const buttons = buttonsMask(step.button);
+			canvas.dispatchEvent(
+				pointerEvent(canvas, 'pointerdown', { x: step.x, y: step.y, button: step.button, buttons, ...identity }),
+			);
+			pointers.moved(step.pointerId, step.x, step.y, step.pointerType);
+			return { type: 'pointerdown', dispatched: true, swallowed };
+		}
+
+		case 'up': {
+			const identity = pointers.identity(step.pointerId, step.pointerType);
+			canvas.dispatchEvent(
+				pointerEvent(canvas, 'pointerup', { x: step.x, y: step.y, button: step.button, buttons: 0, ...identity }),
+			);
+			pointers.moved(step.pointerId, step.x, step.y, step.pointerType);
+			pointers.lift(step.pointerId);
 			return { type: 'pointerup', dispatched: true, swallowed };
+		}
+
+		case 'cancel': {
+			const { x, y, pointerType } = pointers.last(step.pointerId);
+			const identity = pointers.identity(step.pointerId, pointerType);
+			canvas.dispatchEvent(pointerEvent(canvas, 'pointercancel', { x, y, button: -1, buttons: 0, ...identity }));
+			pointers.lift(step.pointerId);
+			return { type: 'pointercancel', dispatched: true, swallowed };
+		}
 
 		case 'scroll': {
 			const rect = canvas.getBoundingClientRect();

@@ -6,6 +6,16 @@ This document contains the chronological log of completed development tasks for 
 
 **Date correction (2026-08-22):** the repo's first commit is 2025-05-17, but many entries below carry dates in December 2024 or January 2025 — the AI that wrote them used its assumed date instead of the real one. Entries dated 2025-07-03 and 2025-07-02 have been corrected from "2025-01-03"/"2025-01-02" (verified against git history). Remaining Dec 2024 / Jan 2025 dates are wrong by roughly six months; the real work happened May–July 2025. Trust git history over these dates.
 
+## Dev tooling: paint order on components, pointer injection, lint interactivity (2026-09-28)
+
+**What landed:** DDB-205, DDB-207, DDB-208 (DDB-55), one PR.
+
+- DDB-205: `PaintOrderFixturesSection` rebuilt from components (a fixture-local `FixtureBox` and `BusyGround`, `Text`, a scrollable `Panel`, `Stack` columns) with `zIndex` and `layer` doing the ordering; `DrawFixture` stays for clipping and shading. `scene-paint-order` re-minted.
+- DDB-207: `inputScript.ts` parses `[,pointerId[,pointerType]]` after each pointer verb's existing fields and `cancel[,pointerId]`; `inputInjection.ts` dispatches them (defined on the event in jsdom), derives `isPrimary` per pointer type across calls, and sends `cancel` from the pointer's last position.
+- DDB-208: `Component.handlesPointer` (overridden by `Button`, `Card`, `Vehicle`); the snapshot emits `focusable`, `pointerEvents`, `handlesPointer`; the lint counts focusable or pointer-handling hit targets as interactive, rule 6 covers across parts and children and exempts scrolled-away content from its clip half, and rule 2 exempts a child raised into another layer. Chapter 13's R13.22, R13.25 and R13.35 amended.
+
+**How:** unit tests for the grammar (pointer fields, defaults, rejections, cancel), dispatch (fields through the adapter, second-touch non-primary with no click, cancel suppresses the click and targets only its pointer, touch implicit capture), snapshot fields, the lint changes, and the scene's paint order from a recording backend. Lint measured over saved trees of all 13 scenes and 6 screens through `main`'s lint and this one: gallery 0 (106 under the literal reading), screens 1,818 to 1,938 (+112 outside-viewport from the rebuilt fixture's nodes below the developer screen's fold, +8 DDB-108's stacked deck previews now caught by rule 6). Follow-up filed: DDB-212 (dispatcher's synthetic pointer fields). Decision record: [lint-interactivity.md](./AI_TECHNICAL_DECISIONS/lint-interactivity.md).
+
 ## Packed instances for the uber shader (2026-09-28)
 
 **What landed:** DDB-191 (DDB-55), R5.4.
