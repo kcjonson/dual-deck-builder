@@ -10,6 +10,7 @@ import { dragThreshold } from './DragService';
 import type { AnyUiEvent, PointerType } from './events';
 import { NO_MODIFIERS } from './events';
 import { PointerAdapter } from './PointerAdapter';
+import { Button } from '../ui/Button';
 
 /**
  * Chapter 9.11's drag tests (R9.12), driven through the dispatcher's queue
@@ -43,8 +44,12 @@ class Probe extends Component {
 		}
 	}
 
-	protected onDropActiveChange(active: boolean): void {
-		this.dropActiveChanges.push(active);
+	private lastDropActive = false;
+
+	protected onStateChange(): void {
+		if (this.dropActive === this.lastDropActive) return;
+		this.lastDropActive = this.dropActive;
+		this.dropActiveChanges.push(this.dropActive);
 	}
 }
 
@@ -562,6 +567,43 @@ describe('cancellation (R9.12d)', () => {
 
 		expect(only('click')).toEqual([]);
 		expect(card.lastEnd).toBeNull();
+	});
+});
+
+describe('pressed (R9.30, R11.11)', () => {
+	function draggableButton(): Button {
+		const { root } = table();
+		const button = new Button('Drag', { id: 'drag_button', x: 10, y: 200, width: 100 });
+		button.onPointerDown = (event) => {
+			context.drag.start({ event, source: button, data: null });
+		};
+		root.addChild(button);
+		return button;
+	}
+
+	it('comes off a button when its drag goes active, and stays off after a cancel', () => {
+		const button = draggableButton();
+		send(pointer('down', 30, 210));
+		expect(button.pressed).toBe(true);
+
+		send(pointer('move', 36, 210));
+		expect(context.drag.isDragging).toBe(true);
+		expect(button.pressed).toBe(false);
+
+		button.pressed = true;
+		context.drag.cancel();
+		expect(button.pressed).toBe(false);
+		send(pointer('move', 30, 210), pointer('up', 30, 210));
+		expect(button.pressed).toBe(false);
+	});
+
+	it('comes off a button whose drag ends by losing capture over it', () => {
+		const button = draggableButton();
+		send(pointer('down', 30, 210), pointer('move', 36, 210));
+		button.pressed = true;
+		context.dispatcher.releasePointer(1);
+
+		expect(button.pressed).toBe(false);
 	});
 });
 

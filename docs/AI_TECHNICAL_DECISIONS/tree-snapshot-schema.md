@@ -27,15 +27,15 @@ margin box it cannot see, a promoted popup it thinks is clipped, a text-overflow
 | `clip` | the walk's clip, reset at a promotion | when one applies |
 | `contentOffset` | `Component.contentOffset` | on a scroll container, or when nonzero |
 | `transform` | `Component.transform` | when not the identity |
-| `state` | hovered, focused and dropActive (the drag service's, DDB-77) on the base; `pressed` on Button | always; `pressed` on Button |
+| `state` | every R11.11 flag but `enabled`, from `Component.stateFlags` (DDB-84) | always |
 | `text` | `Text`: content, wrap, `currentMetrics`, `overflowOutcome` | on a Text; `measured` and `overflow` once measured |
 | `value` | `Input.getValue()` | on an Input |
 | `style` | `Component.resolvedColors` | when the component draws something |
 | `inkBounds` | `Component.inkRect` through the walk's matrix | always |
 | `parts` | the `addPart` mark | on Button, Input and the F5 overlay |
 
-Still omitted, because nothing backs them: `focusable` (the focus manager's) and R11.11's
-`focusVisible`, `selected`, `open` and `active` (phase 4's state resolution).
+Still omitted, because nothing backs it: `focusable` (the focus manager's). R11.11's other flags
+arrived with DDB-84's state resolution.
 
 ## Decisions
 

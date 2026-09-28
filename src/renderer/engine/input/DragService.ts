@@ -56,6 +56,8 @@ interface Session {
 	readonly data: unknown;
 	readonly threshold: number;
 	readonly press: Vec2;
+	/** What the `pointerdown` landed on: the source or a component inside it. */
+	readonly pressTarget: Component;
 	position: Vec2;
 	active: boolean;
 	target: Component | null;
@@ -128,6 +130,7 @@ export class DragService {
 			data,
 			threshold: threshold ?? dragThreshold(event.pointerType),
 			press: event.screen,
+			pressTarget: event.target,
 			position: event.screen,
 			active: false,
 			target: null,
@@ -228,7 +231,7 @@ export class DragService {
 		this.session = null;
 		this.restoreGhost(session);
 		const { target, acceptor } = session;
-		acceptor?.setDropActive(false);
+		if (acceptor) acceptor.dropActive = false;
 		if (target?.isMounted && acceptor?.isMounted) {
 			this.host.bubble(this.event('drop', target, session));
 			this.end(session, true, acceptor);
@@ -265,7 +268,7 @@ export class DragService {
 			return;
 		}
 		if (session.acceptor === component) {
-			component.setDropActive(false);
+			component.dropActive = false;
 			session.acceptor = null;
 		}
 		// The next refresh re-derives the target from the pointer.
@@ -277,7 +280,7 @@ export class DragService {
 		const session = this.session;
 		this.session = null;
 		if (!session?.active) return;
-		session.acceptor?.setDropActive(false);
+		if (session.acceptor) session.acceptor.dropActive = false;
 		this.restoreGhost(session);
 		this.notify(false);
 	}
@@ -293,6 +296,7 @@ export class DragService {
 		session.active = true;
 		if (!this.host.captorOf(session.pointerId)) this.host.capturePointer(session.source, session.pointerId);
 		session.ghost.setDragOffset(ORIGIN);
+		this.releasePressed(session);
 		this.notify(true);
 	}
 
@@ -350,9 +354,9 @@ export class DragService {
 
 	private setAcceptor(session: Session, acceptor: Component | null): void {
 		if (acceptor === session.acceptor) return;
-		session.acceptor?.setDropActive(false);
+		if (session.acceptor) session.acceptor.dropActive = false;
 		session.acceptor = acceptor;
-		acceptor?.setDropActive(true);
+		if (acceptor) acceptor.dropActive = true;
 	}
 
 	/**
@@ -365,7 +369,7 @@ export class DragService {
 		if (!session.active) return;
 		this.host.spendPress(session.pointerId);
 		this.restoreGhost(session);
-		session.acceptor?.setDropActive(false);
+		if (session.acceptor) session.acceptor.dropActive = false;
 		session.acceptor = null;
 		const target = session.target;
 		if (target?.isMounted) this.host.bubble(this.event('dragleave', target, session));
@@ -374,10 +378,23 @@ export class DragService {
 
 	private end(session: Session, dropped: boolean, dropTarget: Component | null): void {
 		session.active = false;
+		this.releasePressed(session);
 		if (session.source.isMounted) {
 			this.host.bubble(this.event('dragend', session.source, session, { dropped, dropTarget }));
 		}
 		this.notify(false);
+	}
+
+	/**
+	 * A drag is not a press: `pressed` comes off everything from the press
+	 * target up to the source when the drag goes active, and again however
+	 * it ends, in case a handler set it back in between (R9.30's reset).
+	 */
+	private releasePressed(session: Session): void {
+		for (let node: Component | null = session.pressTarget; node; node = node.parent) {
+			node.pressed = false;
+			if (node === session.source) return;
+		}
 	}
 
 	private restoreGhost(session: Session): void {
