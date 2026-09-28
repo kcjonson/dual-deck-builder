@@ -17,10 +17,8 @@ import {
 import { FocusDirection, FocusManager, GroupKey } from './FocusManager';
 import { HitTestOptions, hitTest } from './hitTest';
 import { HotkeyTable, KeyStroke } from './HotkeyTable';
+import { DragService, dragThreshold } from './DragService';
 
-/** R9.12a's tokens: movement under which a press is still a candidate click. */
-export const DRAG_THRESHOLD_MOUSE = 4;
-export const DRAG_THRESHOLD_TOUCH = 10;
 /** R9.32: a wheel event within this long of the last stays with the latched scroller. */
 export const WHEEL_LATCH_MS = 150;
 /** R9.30: a touch held this long under the drag threshold is a `contextmenu`. */
@@ -90,7 +88,7 @@ interface Press {
 	pointerType: PointerType;
 	/** Clock time of the press, for the touch hold (R9.30). */
 	startTime: number;
-	/** Moved past the drag threshold: no touch hold, and no click if the press is on a drag source. */
+	/** Moved past the drag threshold: no touch hold (R9.30). */
 	moved: boolean;
 	/** Cancelled or already a hold: no click (R9.31). */
 	spent: boolean;
@@ -135,14 +133,16 @@ export interface DispatcherOptions {
  * the other roots' from the topmost down to a modal root, then the scene's
  * (R9.15). Focus itself is `focus`, the `FocusManager` this dispatcher
  * drives: a press focuses the nearest focusable ancestor of its target
- * (R9.23). Drag and drop (DDB-77) builds on `capturePointer` and
- * `hitTest({ exclude })`.
+ * (R9.23). Drag and drop is `drag` (R9.12), built on capture and
+ * `hitTest({ exclude })` and fed from the pointer path here.
  */
 export class Dispatcher {
 	/** R9.15's scene hotkey table: the last one searched, and never while a modal root is mounted. */
 	public readonly hotkeys = new HotkeyTable();
 	/** Chapter 9's focus manager; the mount context exposes it as `focus`. */
 	public readonly focus: FocusManager;
+	/** R9.12's drag and drop, which the mount context hands out as `drag`. */
+	public readonly drag: DragService;
 
 	private readonly frame: UiFrame;
 	private readonly clock: Clock;
@@ -167,6 +167,25 @@ export class Dispatcher {
 		this.clock = clock;
 		this.pixelRatio = pixelRatio;
 		this.focus = new FocusManager({ clock, roots: () => this.rootList });
+		this.drag = new DragService({
+			host: {
+				hitTest: (point, options) => this.hit(point.x, point.y, options),
+				bubble: (event) => this.bubble(event),
+				capturePointer: (component, pointerId) => this.capturePointer(component, pointerId),
+				captorOf: (pointerId) => this.captorOf(pointerId),
+				spendPress: (pointerId) => {
+					const press = this.presses.get(pointerId);
+					if (press) press.spent = true;
+				},
+				pressLive: (pointerId) => {
+					const press = this.presses.get(pointerId);
+					return press !== undefined && !press.spent;
+				},
+				get now() {
+					return clock.now;
+				},
+			},
+		});
 	}
 
 	/**
@@ -276,6 +295,7 @@ export class Dispatcher {
 		try {
 			this.cancelInvalidCaptors();
 			this.refreshHover();
+			this.drag.refresh();
 			this.fireTouchHolds();
 			const batch = this.queue;
 			this.queue = [];
@@ -309,11 +329,15 @@ export class Dispatcher {
 		this.captures.set(pointerId, component);
 	}
 
-	/** Ends a capture: `lostpointercapture` on the captor, then hover from the current position. */
+	/**
+	 * Ends a capture: `lostpointercapture` on the captor, then hover from the
+	 * current position. A drag on the pointer ends with it (R9.12d).
+	 */
 	public releasePointer(pointerId: number): void {
 		const captor = this.captures.get(pointerId);
 		if (!captor) return;
 		this.captures.delete(pointerId);
+		this.drag.pointerLost(pointerId);
 		this.deliverTo(captor, this.pointerEvent('lostpointercapture', captor, this.lastPointerFields(pointerId)));
 		this.hoverStale = true;
 	}
@@ -353,6 +377,7 @@ export class Dispatcher {
 			if (captor !== component) continue;
 			this.cancelPointer(pointerId);
 		}
+		this.drag.forget(component);
 
 		for (const press of this.presses.values()) {
 			if (press.target === component) {
@@ -366,6 +391,7 @@ export class Dispatcher {
 
 	/** Detaches from everything: the shell's teardown. */
 	public reset(): void {
+		this.drag.reset();
 		this.queue = [];
 		this.rootList.length = 0;
 		this.hoverPath = [];
@@ -466,16 +492,17 @@ export class Dispatcher {
 	}
 
 	private pointerMove(fields: PointerFields & { coalesced?: Vec2[] }): void {
+		this.drag.pointerMoving(fields.pointerId, { x: fields.x, y: fields.y });
 		const target = this.targetFor(fields);
 		this.trackHover(fields, target);
 
 		const press = this.presses.get(fields.pointerId);
 		if (press && !press.moved) {
-			const threshold = press.pointerType === 'touch' ? DRAG_THRESHOLD_TOUCH : DRAG_THRESHOLD_MOUSE;
-			if (Math.hypot(fields.x - press.x, fields.y - press.y) > threshold) press.moved = true;
+			if (Math.hypot(fields.x - press.x, fields.y - press.y) > dragThreshold(press.pointerType)) press.moved = true;
 		}
 
 		if (target) this.bubble(this.pointerEvent('pointermove', target, fields, false, fields.coalesced));
+		this.drag.pointerMove(fields.pointerId, { x: fields.x, y: fields.y });
 	}
 
 	private pointerUp(fields: PointerFields): void {
@@ -488,10 +515,10 @@ export class Dispatcher {
 
 		if (target) this.bubble(this.pointerEvent('pointerup', target, fields));
 
-		// Movement past the threshold cancels the click only for a press that
-		// could have started a drag; anywhere else a press and release on the
-		// same component is a click however far it wandered, as in a browser.
-		const dragged = press ? press.moved && press.target !== null && withinDragSource(press.target) : false;
+		// A release that ends an active drag is its drop, never a click. A
+		// press that started no drag is a click however far it wandered, as
+		// in a browser; one whose drag never passed its threshold still is.
+		const dragged = this.drag.pointerUp(fields.pointerId, { x: fields.x, y: fields.y });
 		if (press && !press.spent && !dragged && press.target && fields.isPrimary) {
 			// R9.31: the captor, or the nearest common inclusive ancestor of
 			// where the press and the release landed.
@@ -523,10 +550,12 @@ export class Dispatcher {
 			if (captor.isMounted) {
 				this.deliverTo(captor, this.pointerEvent('pointercancel', captor, fields));
 			}
+			this.drag.pointerLost(pointerId);
 			this.deliverTo(captor, this.pointerEvent('lostpointercapture', captor, fields));
 			this.hoverStale = true;
-		} else if (press?.target?.isMounted) {
-			this.bubble(this.pointerEvent('pointercancel', press.target, fields));
+		} else {
+			if (press?.target?.isMounted) this.bubble(this.pointerEvent('pointercancel', press.target, fields));
+			this.drag.pointerLost(pointerId);
 		}
 	}
 
@@ -892,14 +921,6 @@ function actionFor(input: { key: string; repeat: boolean; modifiers: Modifiers }
 	if (input.key === 'Escape') return 'cancel';
 	if ((input.key === 'Enter' || input.key === ' ') && !input.repeat) return 'activate';
 	return null;
-}
-
-/** Whether a press on `component` could start a drag: it or an ancestor is a drag source (R9.12a). */
-function withinDragSource(component: Component): boolean {
-	for (let node: Component | null = component; node; node = node.parent) {
-		if (node.dragSource) return true;
-	}
-	return false;
 }
 
 /** Root first, `component` last. */

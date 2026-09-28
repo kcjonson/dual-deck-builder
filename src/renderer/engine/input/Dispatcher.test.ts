@@ -3,7 +3,8 @@ import { Layer } from '../components/Layer';
 import type { MountContext } from '../components/MountContext';
 import { createTestContext } from '../components/testing';
 import { Panel } from '../ui/Panel';
-import { DRAG_THRESHOLD_MOUSE, PlatformInput, TOUCH_HOLD_MS, WHEEL_LATCH_MS, WHEEL_LINE_PX } from './Dispatcher';
+import { PlatformInput, TOUCH_HOLD_MS, WHEEL_LATCH_MS, WHEEL_LINE_PX } from './Dispatcher';
+import { dragThreshold } from './DragService';
 import type { AnyUiEvent, PointerType } from './events';
 import { NO_MODIFIERS } from './events';
 
@@ -438,17 +439,24 @@ describe('click (R9.31)', () => {
 		expect(only('click')).toEqual(['click:button', 'click:root']);
 	});
 
+	/** Makes `shell` a drag source: each press on it starts a candidate drag (R9.12a). */
+	function draggable(shell: Probe): void {
+		shell.onPointerDown = (event) => {
+			context.drag.start({ event, source: shell, data: null });
+		};
+	}
+
 	it('synthesises no click once a press on a drag source moved past the threshold', () => {
 		const shell = button();
-		shell.dragSource = true;
-		send(pointer('down', 10, 20), pointer('move', 10 + DRAG_THRESHOLD_MOUSE + 1, 20), pointer('up', 10, 20));
+		draggable(shell);
+		send(pointer('down', 10, 20), pointer('move', 10 + dragThreshold('mouse') + 1, 20), pointer('up', 10, 20));
 		expect(only('click')).toEqual([]);
 	});
 
 	it('still clicks a drag source moved within the threshold', () => {
 		const shell = button();
-		shell.dragSource = true;
-		send(pointer('down', 10, 20), pointer('move', 10 + DRAG_THRESHOLD_MOUSE, 20), pointer('up', 10 + DRAG_THRESHOLD_MOUSE, 20));
+		draggable(shell);
+		send(pointer('down', 10, 20), pointer('move', 10 + dragThreshold('mouse'), 20), pointer('up', 10 + dragThreshold('mouse'), 20));
 		expect(only('click')).toEqual(['click:label', 'click:button', 'click:root']);
 	});
 

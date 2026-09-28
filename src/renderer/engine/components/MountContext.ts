@@ -3,6 +3,7 @@ import { Clock } from '../animation/Clock';
 import type { DrawApi } from '../draw/DrawApi';
 import { Dispatcher } from '../input/Dispatcher';
 import type { FocusManager } from '../input/FocusManager';
+import type { DragService } from '../input/DragService';
 import { UiFrame } from './UiFrame';
 
 /** The logical viewport a root is sized from (R7.11, R8.21). `CanvasViewport` is one. */
@@ -20,7 +21,7 @@ export interface ViewportSource {
  * already releases what `dispatcher` and `frame` hold on it.
  *
  * Services arrive with the tasks that build them, as fields added here:
- * `drag` (DDB-77), and `popups`, `tooltips`, `placement`, `overlays`,
+ * `popups`, `tooltips`, `placement`, `overlays`,
  * `clipboard` and `assets` (DDB-78).
  */
 export interface MountContext {
@@ -41,6 +42,8 @@ export interface MountContext {
 	readonly clock: Clock;
 	/** Tweens over `clock`, ticked in the update phase (R8.28). */
 	readonly animator: Animator;
+	/** R9.12's drag and drop: `start` from a `pointerdown`, and `isDragging` for tooltips (R9.12e). */
+	readonly drag: DragService;
 }
 
 export interface MountContextOptions {
@@ -64,5 +67,5 @@ export function createMountContext({ draw, viewport, clock = new Clock() }: Moun
 	const dispatcher = new Dispatcher({ frame, clock, pixelRatio: () => draw.devicePixelScale });
 	const focus = dispatcher.focus;
 	frame.afterLayout(() => focus.fixup());
-	return { draw, dispatcher, focus, viewport, frame, clock, animator };
+	return { draw, dispatcher, focus, viewport, frame, clock, animator, drag: dispatcher.drag };
 }

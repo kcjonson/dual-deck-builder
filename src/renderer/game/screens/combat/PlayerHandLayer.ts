@@ -7,7 +7,7 @@ import { DriverSeat, PlayerHandView } from './PlayerHandView';
 
 /**
  * Player hand layer, the combat screen band below the player battlefield
- * Displays hand of cards with hover effects and drag targeting
+ * Displays hand of cards with hover effects; a card is played by clicking it, then its target
  */
 export class PlayerHandLayer extends Layer {
 	private background: Rectangle;
