@@ -1,0 +1,8 @@
+[
+{"path":"gallery_root/dev_section_interactive_controls/Text[0]","text":"Interactive Controls","rect":[53,53,188.55,33.6]},
+{"path":"gallery_root/dev_section_interactive_controls/Text[2]","text":"Color (R,G,B,A):","rect":[73,223,112.09,21.79]},
+{"path":"gallery_root/dev_section_interactive_controls/Input[3]/Text[1]","text":"255,102,0,1","rect":[83,248,180,30]},
+{"path":"gallery_root/dev_section_interactive_controls/Text[4]","text":"Position (X,Y):","rect":[73,288,100.22,21.79]},
+{"path":"gallery_root/dev_section_interactive_controls/Input[5]/Text[1]","text":"20,50","rect":[83,313,130,30]},
+{"path":"gallery_root/dev_section_interactive_controls/Button[6]/Text[1]","text":"Apply All","rect":[233,313,100,30]}
+]

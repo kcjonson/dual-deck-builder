@@ -1,4 +1,4 @@
-import { Component, ComponentOptions, PointerEvents } from '../components/Component';
+import { Component, ComponentOptions, PointerEvents, ResolvedColors } from '../components/Component';
 import { Icon } from '../components/Icon';
 import type { AnyUiEvent } from '../input/events';
 import { Rectangle } from '../components/Rectangle';
@@ -24,7 +24,7 @@ export class Button extends Component {
 	private icon: Icon | null = null;
 	/** The icon and gap the label's box gives up on its left. */
 	private labelInset = 0;
-	private pressed = false;
+	private pressState = false;
 
 	// Button appearance states
 	private normalColor = '#3333cc';
@@ -77,6 +77,16 @@ export class Button extends Component {
 		}
 	}
 
+	/** The pointer went down on it and has not been released or left (R11.11's `pressed`). */
+	public get pressed(): boolean {
+		return this.pressState;
+	}
+
+	/** The background's fill and border and the label's colour, as they are drawn now. */
+	public get resolvedColors(): ResolvedColors {
+		return { ...this.background.resolvedColors, ...this.text.resolvedColors };
+	}
+
 	/** R8.29: the label and background are internals, not targets. */
 	protected get defaultPointerEvents(): PointerEvents {
 		return 'unit';
@@ -107,21 +117,21 @@ export class Button extends Component {
 				this.onClick?.(event);
 				return;
 			case 'pointerenter':
-				if (this.enabled) this.background.setFillColor(this.pressed ? this.pressedColor : this.hoverColor);
+				if (this.enabled) this.background.setFillColor(this.pressState ? this.pressedColor : this.hoverColor);
 				return;
 			case 'pointerleave':
-				this.pressed = false;
+				this.pressState = false;
 				if (this.enabled) this.background.setFillColor(this.normalColor);
 				return;
 			case 'pointerdown':
 				if (event.button !== 0) return;
-				this.pressed = true;
+				this.pressState = true;
 				this.background.setFillColor(this.pressedColor);
 				return;
 			case 'pointerup':
 			case 'pointercancel':
-				if (!this.pressed) return;
-				this.pressed = false;
+				if (!this.pressState) return;
+				this.pressState = false;
 				if (this.enabled) this.background.setFillColor(this.hovered ? this.hoverColor : this.normalColor);
 				return;
 		}

@@ -1,5 +1,5 @@
 import type { DrawApi } from '../draw/DrawApi';
-import { Mat2D, Rect, Vec2, concat, invert, isTranslateOnly, transformPoint, translation } from '../draw/geometry';
+import { Mat2D, RGBA, Rect, Vec2, concat, invert, isTranslateOnly, transformPoint, translation } from '../draw/geometry';
 import { snapClipRect } from '../coords/snapping';
 import { LayerName, ROOT_LAYER, layerOrdinal } from '../draw/layers';
 import { Style } from '../types/Style';
@@ -27,6 +27,17 @@ import { HotkeyTable } from '../input/HotkeyTable';
 export type PointerEvents = 'auto' | 'passthrough' | 'unit' | 'none';
 
 export type Overflow = 'visible' | 'hidden';
+
+/**
+ * R13.22's `style`: the colours a component draws with, after whatever state
+ * it is in has been applied. A key is absent when the component draws nothing
+ * of that kind.
+ */
+export interface ResolvedColors {
+	fill?: RGBA;
+	text?: RGBA;
+	border?: RGBA;
+}
 
 /** The four corners of a content box in screen space, clockwise from top-left. */
 export type Quad = readonly [Vec2, Vec2, Vec2, Vec2];
@@ -322,6 +333,21 @@ export abstract class Component {
 	 */
 	public get inkExtent(): number {
 		return 0;
+	}
+
+	/**
+	 * The content box grown by `inkExtent` on every side, in local space: the
+	 * most this component can cover, before any clip. Transformed by the
+	 * screen matrix it is the snapshot's `inkBounds` (R13.22).
+	 */
+	public get inkRect(): Rect {
+		const extent = Math.max(0, this.inkExtent);
+		return { x: -extent, y: -extent, width: this.contentWidth + extent * 2, height: this.contentHeight + extent * 2 };
+	}
+
+	/** What this component's own draws are coloured with right now; null when it draws nothing (R13.22's `style`). */
+	public get resolvedColors(): ResolvedColors | null {
+		return null;
 	}
 
 	public get transform(): ComponentTransform {

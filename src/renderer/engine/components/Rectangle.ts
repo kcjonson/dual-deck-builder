@@ -1,4 +1,4 @@
-import { Component, ComponentOptions } from './Component';
+import { Component, ComponentOptions, ResolvedColors } from './Component';
 import type { DrawApi } from '../draw/DrawApi';
 import { Style, StyleParser } from '../types/Style';
 
@@ -45,6 +45,13 @@ export function drawBox(draw: DrawApi, id: string | null, width: number, height:
 			? { color: box.borderColor ?? [0, 0, 0, 1], width: box.borderWidth }
 			: undefined,
 	});
+}
+
+/** The colours `drawBox` draws `box` with, for the tree snapshot (R13.22). */
+export function boxColors(box: BoxStyle): ResolvedColors {
+	return box.borderWidth > 0
+		? { fill: box.fill, border: box.borderColor ?? [0, 0, 0, 1] }
+		: { fill: box.fill };
 }
 
 function parseLength(size: string | number): number {
@@ -106,6 +113,10 @@ export class Rectangle extends Component {
 	public setCornerRadius(radius: number): this {
 		this.box.cornerRadius = radius;
 		return this;
+	}
+
+	public get resolvedColors(): ResolvedColors {
+		return boxColors(this.box);
 	}
 
 	public render(draw: DrawApi): void {
