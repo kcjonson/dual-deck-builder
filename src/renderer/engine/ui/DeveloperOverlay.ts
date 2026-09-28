@@ -168,11 +168,12 @@ export class DeveloperOverlay extends Layer {
 	/**
 	 * Draws the overlay as its own domain after the UI's (R3.21: the UI is the
 	 * last domain before any diagnostic overlay). Submitting last is not enough
-	 * inside one domain, because order there is by layer and the screen's text
-	 * can sit above the overlay's panel; a barrier puts every screen draw,
-	 * whatever its layer, beneath it. A layer would be the wrong tool: the
-	 * ladder is the UI's (R3.9), and even its top rung would tie with a screen
-	 * transition. The barrier only exists while the overlay is shown, so a
+	 * inside one domain, because a domain sorts by layer first (R3.10): any
+	 * screen draw pushed above `base` (a raised card, a modal, a targeting line
+	 * on `overlay`) would paint over an overlay drawn at `base`. A barrier puts
+	 * every screen draw, whatever its layer, beneath it. A layer would be the
+	 * wrong tool: the ladder is the UI's (R3.9), and even its top rung would
+	 * tie with a screen transition. The barrier only exists while the overlay is shown, so a
 	 * hidden overlay leaves the frame, its GPU pass count and every golden as
 	 * they were; a shown one adds one pass, which the GPU line counts.
 	 */

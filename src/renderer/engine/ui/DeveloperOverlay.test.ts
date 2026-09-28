@@ -49,9 +49,9 @@ describe('the overlay paints above every screen draw (R3.21)', () => {
 
 	/**
 	 * The main menu's shape: a background, then a title where the overlay
-	 * sits. Inside one domain the title's text is ordered after the overlay's
-	 * panel by the backend's paint order, which is how the title came to draw
-	 * over the overlay; this checks the overlay is a later domain instead.
+	 * sits. Order inside one domain is by layer, then submission (R3.10), so
+	 * submitting last only wins against `base` content; this checks the
+	 * overlay is a later domain, which wins against every layer.
 	 */
 	function frame(developerOverlay: DeveloperOverlay): void {
 		const screen = new Layer({ id: 'screen', width: 1440, height: 882 });

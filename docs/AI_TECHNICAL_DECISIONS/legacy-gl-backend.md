@@ -15,6 +15,10 @@ DDB-55 phase 1, PR 3. Landed 2026-09-09.
 > circle-stroke overrun is gone. The `legacyTextOrder` barrier and its deletion list below are
 > unchanged.
 
+> The deletion below happened (2026-09-28, DDB-67): `legacyTextOrder`, `LegacyPaintOrder` and
+> `legacyDrawOrder.test.ts` are gone, and the reorder sites got layout fixes in the same change; see
+> [paint-order-rebaseline.md](./paint-order-rebaseline.md).
+
 ## The problem
 
 PR 1 shipped `src/renderer/engine/draw/` with no consumers. This PR gives it one, and it has

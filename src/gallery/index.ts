@@ -183,9 +183,9 @@ class GalleryApplication {
 		this.frameTimer.endSection('render');
 
 		this.frameTimer.beginSection('flush');
-		// endFrame drains the last sort domain and the backend paints it, text
-		// included. A clip boundary inside the walk above ends a domain of its
-		// own, so this section is the tail rather than the whole frame.
+		// endFrame drains the frame's sort domain and the backend paints it, text
+		// included. A clip change is not a barrier (R3.20), so this section is
+		// the whole frame's submission.
 		this.draw.endFrame();
 		this.frameTimer.endSection('flush');
 
