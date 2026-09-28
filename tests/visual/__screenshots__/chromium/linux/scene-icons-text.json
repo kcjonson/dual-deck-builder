@@ -1,0 +1,11 @@
+[
+{"path":"gallery_root/dev_section_icons/Text[0]","text":"Icons","rect":[40,40,51.58,33.6]},
+{"path":"gallery_root/dev_section_icons/Text[1]","text":"12 px","rect":[60,102,35.54,19.07]},
+{"path":"gallery_root/dev_section_icons/Text[12]","text":"16 px","rect":[60,146,35.54,19.07]},
+{"path":"gallery_root/dev_section_icons/Text[23]","text":"24 px","rect":[60,190,35.54,19.07]},
+{"path":"gallery_root/dev_section_icons/Text[34]","text":"Buttons","rect":[60,247,51.29,19.07]},
+{"path":"gallery_root/dev_section_icons/dev_icons_button_with_icon/Text[1]","text":"Back to Menu","rect":[186,232,174,50]},
+{"path":"gallery_root/dev_section_icons/dev_icons_button_without_icon/Text[1]","text":"Back to Menu","rect":[380,232,200,50]},
+{"path":"gallery_root/dev_section_icons/Text[37]","text":"Intents","rect":[60,307,45.6,19.07]},
+{"path":"gallery_root/dev_section_icons/Text[42]","text":"Armor","rect":[60,352,41.68,19.07]}
+]

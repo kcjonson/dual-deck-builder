@@ -1,0 +1,22 @@
+[
+{"path":"gallery_root/dev_section_text/Text[0]","text":"Text Examples","rect":[40,40,139.64,33.6]},
+{"path":"gallery_root/dev_section_text/Text[1]","text":"Size 12px: The quick brown fox","rect":[60,90,172.21,16.34]},
+{"path":"gallery_root/dev_section_text/Text[2]","text":"Size 16px: The quick brown fox","rect":[60,112,229.61,21.79]},
+{"path":"gallery_root/dev_section_text/Text[3]","text":"Size 20px: The quick brown fox","rect":[60,138,287.01,27.24]},
+{"path":"gallery_root/dev_section_text/Text[4]","text":"Size 24px: The quick brown fox","rect":[60,168,344.41,32.68]},
+{"path":"gallery_root/dev_section_text/Text[5]","text":"Size 32px: The quick brown fox","rect":[60,202,459.22,43.58]},
+{"path":"gallery_root/dev_section_text/Text[6]","text":"Colored text examples","rect":[60,254,188.17,24.51]},
+{"path":"gallery_root/dev_section_text/Text[7]","text":"Success message style","rect":[60,279,187.24,24.51]},
+{"path":"gallery_root/dev_section_text/Text[8]","text":"Warning message style","rect":[60,304,192.2,24.51]},
+{"path":"gallery_root/dev_section_text/Text[9]","text":"Error message style","rect":[60,329,164.72,24.51]},
+{"path":"gallery_root/dev_section_text/Text[10]","text":"Text Alignment:","rect":[60,354,116.24,21.79]},
+{"path":"gallery_root/dev_section_text/Text[11]","text":"Left aligned (default)","rect":[60,379,440,21.79]},
+{"path":"gallery_root/dev_section_text/Text[12]","text":"Center aligned","rect":[500,379,440,21.79]},
+{"path":"gallery_root/dev_section_text/Text[13]","text":"Right aligned","rect":[940,379,440,21.79]},
+{"path":"gallery_root/dev_section_text/Text[14]","text":"Text Wrapping:","rect":[60,419,112.55,21.79]},
+{"path":"gallery_root/dev_section_text/Text[15]","text":"This is a long text that should wrap automatically when it exceeds the specified width. It demonstrates the normal text wrapping behavior.","rect":[60,444,300,80]},
+{"path":"gallery_root/dev_section_text/Text[16]","text":"This text should not wrap even if it is very long and exceeds the container width because whiteSpace is set to nowrap.","rect":[380,444,300,80]},
+{"path":"gallery_root/dev_section_text/Text[17]","text":"This is a demonstration of text overflow with ellipsis. When the text is too long to fit in the specified height, it will be truncated with ellipsis (...) to indicate there is more content.","rect":[60,544,250,40]},
+{"path":"gallery_root/dev_section_text/Text[18]","text":"Line height 1.0: This text has tight line spacing which makes it more compact but potentially harder to read.","rect":[340,544,200,60]},
+{"path":"gallery_root/dev_section_text/Text[19]","text":"Line height 1.8: This text has generous line spacing which makes it easier to read but takes more space.","rect":[560,544,200,80]}
+]

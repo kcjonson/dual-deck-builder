@@ -1,0 +1,13 @@
+[
+{"path":"gallery_root/dev_section_input_showcase/Text[0]","text":"Input Fields","rect":[40,40,112.08,33.6]},
+{"path":"gallery_root/dev_section_input_showcase/Text[1]","text":"Basic Input:","rect":[60,90,86.5,21.79]},
+{"path":"gallery_root/dev_section_input_showcase/Input[2]/Text[1]","text":"","rect":[70,115,280,35]},
+{"path":"gallery_root/dev_section_input_showcase/Input[2]/Text[2]","text":"Type something...","rect":[70,115,280,35]},
+{"path":"gallery_root/dev_section_input_showcase/Text[3]","text":"Styled Input:","rect":[60,165,93.25,21.79]},
+{"path":"gallery_root/dev_section_input_showcase/Input[4]/Text[1]","text":"","rect":[70,190,280,40]},
+{"path":"gallery_root/dev_section_input_showcase/Input[4]/Text[2]","text":"Custom styled input","rect":[70,190,280,40]},
+{"path":"gallery_root/dev_section_input_showcase/Text[5]","text":"Pre-filled Input:","rect":[60,245,114.52,21.79]},
+{"path":"gallery_root/dev_section_input_showcase/Input[6]/Text[1]","text":"This input has initial text","rect":[70,270,280,35]},
+{"path":"gallery_root/dev_section_input_showcase/Text[7]","text":"Reactive Display:","rect":[60,320,124.5,21.79]},
+{"path":"gallery_root/dev_section_input_showcase/Text[8]","text":"Type in any input above","rect":[240,320,155.08,19.07]}
+]

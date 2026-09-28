@@ -1,0 +1,12 @@
+[
+{"path":"gallery_root/dev_section_style_guide/Text[0]","text":"Style Guide","rect":[40,40,106.76,33.6]},
+{"path":"gallery_root/dev_section_style_guide/Text[1]","text":"Color Palette:","rect":[60,90,125.24,27.24]},
+{"path":"gallery_root/dev_section_style_guide/Text[3]","text":"Primary","rect":[60,185,60,16.34]},
+{"path":"gallery_root/dev_section_style_guide/Text[5]","text":"Secondary","rect":[130,185,60,16.34]},
+{"path":"gallery_root/dev_section_style_guide/Text[7]","text":"Success","rect":[200,185,60,16.34]},
+{"path":"gallery_root/dev_section_style_guide/Text[9]","text":"Warning","rect":[270,185,60,16.34]},
+{"path":"gallery_root/dev_section_style_guide/Text[11]","text":"Danger","rect":[60,275,60,16.34]},
+{"path":"gallery_root/dev_section_style_guide/Text[13]","text":"Info","rect":[130,275,60,16.34]},
+{"path":"gallery_root/dev_section_style_guide/Text[15]","text":"Dark","rect":[200,275,60,16.34]},
+{"path":"gallery_root/dev_section_style_guide/Text[17]","text":"Light","rect":[270,275,60,16.34]}
+]
