@@ -1,5 +1,5 @@
 import type { DrawApi } from '../draw/DrawApi';
-import { Component, ComponentOptions, PointerEvents } from './Component';
+import { Component, ComponentOptions, PointerEvents, ResolvedColors } from './Component';
 
 export type LayerOptions = ComponentOptions;
 
@@ -26,6 +26,12 @@ export class Layer extends Component {
 	public setBackgroundColor(color: [number, number, number, number] | null): this {
 		this.backgroundColor = color;
 		return this;
+	}
+
+	/** Null without a background, and while the zero-sized box draws nothing. */
+	public get resolvedColors(): ResolvedColors | null {
+		if (this.backgroundColor === null || this.width <= 0 || this.height <= 0) return null;
+		return { fill: this.backgroundColor };
 	}
 
 	public render(draw: DrawApi): void {

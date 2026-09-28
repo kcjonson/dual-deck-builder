@@ -425,6 +425,10 @@ character re-centres the whole line; the change itself is not what fails. In pla
 comma and a colon at body sizes differ by a few pixels that pixelmatch mostly classes as
 anti-aliasing, so `.` to `,` and `:` to `;` produce zero differing pixels and a dropped trailing
 period two. No pixel budget reaches that without also failing on runner noise. The fix belongs in
-the tree snapshot, which holds every string: a text check against it is DDB-206, next to DDB-80's
-snapshot work. Beyond punctuation, what still passes is any change whose densest region is 8 pixels
-or fewer.
+the tree snapshot, which holds every string, and is there now (DDB-206, landed with DDB-80): every
+gallery and screen spec also compares a per-scenario text record, one line per visible Text with its
+path, string and rect, against `<kind>-<name>-text.json` beside the golden, minted by the same
+dispatch. Five of the punctuation rows above were re-run against it and all five fail it, including
+the four the pixels miss; the table is
+in [tree-snapshot-schema.md](./tree-snapshot-schema.md). Beyond punctuation and strings, what still
+passes is any change whose densest region is 8 pixels or fewer.

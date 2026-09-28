@@ -1,0 +1,5 @@
+[
+{"path":"gallery_root/dev_section_nested_panels/Text[0]","text":"Panel Examples","rect":[53,53,151.28,33.6]},
+{"path":"gallery_root/dev_section_nested_panels/Panel[1]/Text[0]","text":"Nested Panel Content","rect":[93,123,203.14,27.24]},
+{"path":"gallery_root/dev_section_nested_panels/Panel[1]/Button[2]/Text[1]","text":"Nested Button","rect":[173,173,120,35]}
+]

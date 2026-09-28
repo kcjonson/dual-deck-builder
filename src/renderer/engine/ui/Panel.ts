@@ -1,7 +1,8 @@
 import type { Rect, Vec2 } from '../draw/geometry';
 import type { DrawApi } from '../draw/DrawApi';
 import { Layer, LayerOptions } from '../components/Layer';
-import { BoxStyle, drawBox, resolveBoxStyle } from '../components/Rectangle';
+import { BoxStyle, boxColors, drawBox, resolveBoxStyle } from '../components/Rectangle';
+import type { ResolvedColors } from '../components/Component';
 import type { AnyUiEvent } from '../input/events';
 
 /**
@@ -81,6 +82,10 @@ export class Panel extends Layer {
 		if (this.scrollable && options?.pointerEvents === undefined) {
 			this.pointerEvents = 'auto';
 		}
+	}
+
+	public get resolvedColors(): ResolvedColors {
+		return boxColors(this.box);
 	}
 
 	public render(draw: DrawApi): void {

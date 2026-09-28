@@ -8,7 +8,7 @@ import type { DevSurface } from '../support/harness';
  * R13.29's merge gate: `window.__ui.lint().count === 0` on every gallery scene.
  *
  * The gate is the gallery's and only the gallery's, per the implementation
- * spec's ground rules. The six game screens still report 1,002 violations
+ * spec's ground rules. The six game screens still report 1,681 violations
  * between them and a rule with a thousand known failures is a rule nobody
  * reads, so they stay out until each one migrates.
  *
