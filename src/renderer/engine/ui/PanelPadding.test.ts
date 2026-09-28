@@ -91,23 +91,39 @@ describe('Panel padding (R12.19)', () => {
 		expect(rectById('last').transform[5] + 10).toBe(20 + 120 - 13);
 	});
 
-	it('clips a padded scroller at the border\'s inner edge, in the walk, the hit test and the snapshot', () => {
+	it('clips a padded scroller inside its corner radius, in the walk, the hit test and the snapshot', () => {
+		// Panel's default radius is 5 and its default border 1, so the inset is 5.
 		const { panel, child, root } = padded({ scrollable: true });
-		expect(panel.clipRect).toEqual({ x: 1, y: 1, width: 198, height: 118 });
+		expect(panel.clipRect).toEqual({ x: 5, y: 5, width: 190, height: 110 });
 
 		frame(root);
 		expect(rectById('child').clip).toEqual({
 			kind: 'rect',
-			rect: { minX: 11, minY: 21, maxX: 209, maxY: 139 },
+			rect: { minX: 15, minY: 25, maxX: 205, maxY: 135 },
 			rounded: null,
 		});
 
 		child.setPosition(-13, -13);
-		expect(child.containsScreenPoint(10, 20)).toBe(false);
-		expect(child.containsScreenPoint(11, 21)).toBe(true);
+		expect(child.containsScreenPoint(14, 24)).toBe(false);
+		expect(child.containsScreenPoint(15, 25)).toBe(true);
 
 		const [snapshotRoot] = treeSnapshot([root], { width: 1440, height: 882 }).roots;
-		expect(snapshotRoot.children[0].children[0].clip).toEqual({ x: 11, y: 21, w: 198, h: 118 });
+		expect(snapshotRoot.children[0].children[0].clip).toEqual({ x: 15, y: 25, w: 190, h: 110 });
+	});
+
+	it('clips inside a border wider than the radius', () => {
+		const panel = new Panel({ width: 200, height: 120, padding: 13, scrollable: true, style: { borderWidth: 8, borderRadius: 3 } });
+		expect(panel.clipRect).toEqual({ x: 8, y: 8, width: 184, height: 104 });
+	});
+
+	it('clamps a horizontal padded scroll to the content plus both paddings (R4.13)', () => {
+		const panel = new Panel({ width: 200, height: 120, padding: 13, scrollable: true, scrollDirection: 'horizontal' });
+		panel.setContentSize(500, 94);
+		panel.scroll(10000, 0);
+		expect(panel.getScrollOffset()).toEqual({ x: 500 + 26 - 200, y: 0 });
+		expect(panel.contentOffset).toEqual({ x: 500 + 26 - 200 - 13, y: -13 });
+		panel.scroll(-10000, 0);
+		expect(panel.getScrollOffset().x).toBe(0);
 	});
 
 	it('defaults to no inset and the border-box clip', () => {

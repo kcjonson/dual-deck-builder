@@ -109,15 +109,20 @@ export class Panel extends Layer implements Interactive {
 	}
 
 	/**
-	 * A padded panel clips at its padding box, the border's inner edge, as CSS
-	 * does: the padding scrolls with the content (R4.13), so a clip at the
-	 * content box would cut rows off inside the scroll range, and one at the
-	 * border box lets scrolled children paint over the border `render` drew
-	 * first. An unpadded panel keeps the border-box clip it always had.
+	 * A padded panel clips inside its border and its corner radius, inset by
+	 * the larger of the two on every side: the padding scrolls with the
+	 * content (R4.13), so a clip at the content box would cut rows off inside
+	 * the scroll range, and one at the border box lets scrolled children paint
+	 * over the border and past the rounded corners `render` drew first. The
+	 * walk, hit test and snapshot all clip to a plain rect, so the radius is
+	 * cleared by inset rather than by R4.14's rounded clip. An unpadded panel
+	 * keeps the border-box clip it always had. Decision:
+	 * docs/AI_TECHNICAL_DECISIONS/panel-padding.md.
 	 */
 	public get clipRect(): Rect {
-		const border = this.contentInset > 0 ? Math.min(this.box.borderWidth, this.width / 2, this.height / 2) : 0;
-		return { x: border, y: border, width: this.width - border * 2, height: this.height - border * 2 };
+		const edge = this.contentInset > 0 ? Math.max(this.box.borderWidth, this.box.cornerRadius) : 0;
+		const inset = Math.min(edge, this.width / 2, this.height / 2);
+		return { x: inset, y: inset, width: this.width - inset * 2, height: this.height - inset * 2 };
 	}
 
 	/**

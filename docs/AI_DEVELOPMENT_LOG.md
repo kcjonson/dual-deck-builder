@@ -10,10 +10,10 @@ This document contains the chronological log of completed development tasks for 
 
 **What landed:** DDB-196 (DDB-55).
 
-- `Panel` has a `padding` option, expressed as `contentOffset` (scroll position less padding), the one value DDB-73's render walk, hit test and tree snapshot read, so children are placed inside the padding everywhere and the padding scrolls with the content (R4.13: scroll extent is content plus both paddings less the box). A padded panel clips at its padding box (the border's inner edge, as CSS does); unpadded panels keep the border-box clip. `treeSnapshot` now takes a clip from `clipRect` rather than the node's whole box, so snapshot, walk and hit test agree. `innerWidth` reports the width left for children.
+- `Panel` has a `padding` option, expressed as `contentOffset` (scroll position less padding), the one value DDB-73's render walk, hit test and tree snapshot read, so children are placed inside the padding everywhere and the padding scrolls with the content (R4.13: scroll extent is content plus both paddings less the box). A padded panel clips inside its border and corner radius, inset by `max(borderWidth, cornerRadius)`; unpadded panels keep the border-box clip. The departure from R4.9 is recorded in `AI_TECHNICAL_DECISIONS/panel-padding.md`. `treeSnapshot` now takes a clip from `clipRect` rather than the node's whole box, so snapshot, walk and hit test agree. `innerWidth` reports the width left for children.
 - `developer/DeveloperSectionPanel.ts` is the shared frame all twelve sections extend: transparent, `bw` border, inset `bw + space_3` (13 px), and `fitContentHeight` to size the frame around the content. Sections dropped their duplicated `super` blocks; the three draw fixtures, the text alignment columns and the nested panel use `innerWidth`.
 - `DeveloperScreen` subtracts both insets from its section spacing so the content pitch is what it was.
-- Tests: `engine/ui/PanelPadding.test.ts` (drawing, hit test, snapshot, scroll extent, padding-box clip in walk, hit test and snapshot, default). Lint: every scene 0, developer screen 186, both as on main with the same violation paths. Goldens re-minted with `update_mode=all`.
+- Tests: `engine/ui/PanelPadding.test.ts` (drawing, hit test, snapshot, vertical and horizontal scroll extent, radius-aware clip in walk, hit test and snapshot, default). Lint: every scene 0, developer screen 186, both as on main with the same violation paths. Goldens re-minted with `update_mode=all`.
 
 ## Pixel snapping at submission: hairlines, shared edges and clips (2026-09-28)
 
