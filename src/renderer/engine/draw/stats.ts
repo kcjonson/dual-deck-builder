@@ -39,14 +39,10 @@ import { LAYER_NAMES, LayerName } from './layers';
  *                it is a measurement rather than a tautology.
  * - `clipChange` / `shaderChange`: R13.13 requires these to exist and to read
  *                zero under this design. Clip is per-draw data (R4.1) and there
- *                is one uber shader (R5.1), so a non-zero value is a failure,
- *                which is the whole reason the counters are kept rather than
- *                deleted. `clipChange` is measured, not hard-wired: a backend
- *                that still lowers the clip to scissor state (the legacy GL
- *                backend, until the uber shader carries it per draw) splits a
- *                GPU draw where the clip changes and reports each one on
- *                `GpuWork.clipChanges`. It reads zero on every screen today
- *                only because a clip change is also a domain boundary there.
+ *                is one uber shader (R5.1), so neither has a code path that
+ *                could count one: the batcher's split decision does not look at
+ *                the clip, and there is no second program to switch to. They
+ *                are kept, as zeros, because R13.13 names them.
  *
  * What is null, and what fills it:
  *
@@ -73,16 +69,8 @@ import { LAYER_NAMES, LayerName } from './layers';
 export const FLUSH_REASONS = ['barrier', 'endFrame', 'targetChange', 'bufferFull'] as const;
 export type FlushReason = (typeof FLUSH_REASONS)[number];
 
-/**
- * R13.13's three reasons, plus `topologyChange`, which is not in the spec and
- * is not meant to outlive the legacy GL backend. That backend still draws
- * polylines and circle outlines as GL lines, which cannot share a draw with
- * triangles, so switching between the two is a real split with a real cause.
- * Under the uber shader lines are capsule quads (R2.10) and the count must read
- * zero, like `clipChange`. Named rather than folded into another reason so the
- * split totals still add up to `gpuDraws` minus uploads.
- */
-export const SPLIT_REASONS = ['textureSlotsExhausted', 'blendChange', 'stencilLevel', 'topologyChange'] as const;
+/** R13.13's three reasons. The split totals add up to `gpuDraws` minus uploads. */
+export const SPLIT_REASONS = ['textureSlotsExhausted', 'blendChange', 'stencilLevel'] as const;
 export type SplitReason = (typeof SPLIT_REASONS)[number];
 
 export type FlushCounts = Record<FlushReason, number>;
@@ -123,8 +111,6 @@ export interface GpuWork {
 	splits?: Partial<SplitCounts>;
 	/** Backend-caused flushes (R13.13); `barrier` and `endFrame` are the draw API's. */
 	flushes?: Partial<Pick<FlushCounts, 'targetChange' | 'bufferFull'>>;
-	/** GPU draws split because the clip was GPU state; must read zero once it is per-draw data (R4.1). */
-	clipChanges?: number;
 }
 
 export const NO_GPU_WORK: GpuWork = {
@@ -141,7 +127,7 @@ function zeroFlushes(): FlushCounts {
 }
 
 function zeroSplits(): SplitCounts {
-	return { textureSlotsExhausted: 0, blendChange: 0, stencilLevel: 0, topologyChange: 0 };
+	return { textureSlotsExhausted: 0, blendChange: 0, stencilLevel: 0 };
 }
 
 function zeroLayers(): LayerCounts {
@@ -160,7 +146,6 @@ export class DrawCounters {
 	private culled = 0;
 	private clipPushes = 0;
 	private reordered = 0;
-	private clipChanges = 0;
 	private flushes: FlushCounts = zeroFlushes();
 	private layers: LayerCounts = zeroLayers();
 	private gpu: GpuWork | null = null;
@@ -171,7 +156,6 @@ export class DrawCounters {
 		this.culled = 0;
 		this.clipPushes = 0;
 		this.reordered = 0;
-		this.clipChanges = 0;
 		this.flushes = zeroFlushes();
 		this.layers = zeroLayers();
 		this.gpu = null;
@@ -213,7 +197,6 @@ export class DrawCounters {
 			this.flushes.targetChange += work.flushes.targetChange ?? 0;
 			this.flushes.bufferFull += work.flushes.bufferFull ?? 0;
 		}
-		this.clipChanges += work.clipChanges ?? 0;
 
 		if (work.splits) {
 			const splits = this.splits ?? zeroSplits();
@@ -240,7 +223,7 @@ export class DrawCounters {
 			splits: this.splits ? { ...this.splits } : null,
 			groupsByLayer: { ...this.layers },
 			reorderedGroups: this.reordered,
-			clipChange: this.clipChanges,
+			clipChange: 0,
 			shaderChange: 0,
 			textureBinds: gpu ? gpu.textureBinds : null,
 			clipPushes: this.clipPushes,

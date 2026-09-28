@@ -164,3 +164,52 @@ function fanRemainder(
 		else triangles.push(a, c, b);
 	}
 }
+
+/**
+ * Whether `points`, in order, are one simple closed outline that `indices`
+ * covers exactly once: the outline has area, every triangle is wound like it,
+ * each outline edge is an edge of exactly one triangle, and the triangles'
+ * areas add up to the outline's. That is the shape R5.17's feather ring
+ * assumes, since the ring is built along `points` in order. A list of several
+ * separate shapes, or a self-crossing or hole-bridged outline, fails it.
+ * Linear, allocation-free, and unchanged by an affine transform, so it can be
+ * asked of local-space points every frame.
+ */
+export function isSingleOutline(points: readonly Vec2[], indices: readonly number[]): boolean {
+	const count = points.length;
+	if (count < 3 || indices.length < 3) return false;
+	const area = signedDoubleArea(points);
+	const tolerance = Math.max(areaTolerance(points) * count, Math.abs(area) * 1e-6);
+	if (Math.abs(area) <= tolerance) return false;
+
+	// Every outline edge must be walked exactly once, forwards, by the
+	// triangles. `triangulatePolygon` may drop a collinear vertex, so one
+	// triangle edge can walk a run of outline edges through such vertices.
+	let covered = 0;
+	let walked = 0;
+	for (let index = 0; index + 2 < indices.length; index += 3) {
+		for (let corner = 0; corner < 3; corner++) {
+			const from = indices[index + corner];
+			if (!(from >= 0 && from < count)) return false;
+			const to = indices[index + ((corner + 1) % 3)];
+			let next = (from + 1) % count;
+			let steps = 1;
+			while (next !== to && next !== from && isCollinear(points, next, tolerance)) {
+				next = (next + 1) % count;
+				steps += 1;
+			}
+			if (next === to) walked += steps;
+		}
+		const triangle = cross(points[indices[index]], points[indices[index + 1]], points[indices[index + 2]]);
+		if (triangle * area < -tolerance) return false;
+		covered += Math.abs(triangle);
+	}
+	return walked === count && Math.abs(covered - Math.abs(area)) <= tolerance;
+}
+
+function isCollinear(points: readonly Vec2[], index: number, tolerance: number): boolean {
+	const count = points.length;
+	const previous = points[(index + count - 1) % count];
+	const next = points[(index + 1) % count];
+	return Math.abs(cross(previous, points[index], next)) <= tolerance;
+}

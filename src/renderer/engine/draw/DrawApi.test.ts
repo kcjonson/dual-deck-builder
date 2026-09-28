@@ -538,6 +538,33 @@ describe('clip stack (R2.5, R4.2, R4.7) and chapter 4.7 required tests', () => {
 		expect(api.getStats().culled).toBe(1);
 	});
 
+	it('keeps a polygon whose feather miter reaches into the clip (R5.17)', () => {
+		const { api, backend } = harness();
+		api.beginFrame({ viewport: VIEWPORT });
+		api.pushClip(rect(0, 0, 10, 10));
+		// A spike whose tip is 3 px left of the clip: its miter can reach 4 px.
+		api.drawPolygon({ points: [{ x: -3, y: 5 }, { x: -40, y: 4 }, { x: -40, y: 6 }], fill: BLUE, id: 'spike' });
+		// 5 px away, past any miter.
+		api.drawPolygon({ points: [{ x: -5, y: 5 }, { x: -40, y: 4 }, { x: -40, y: 6 }], fill: BLUE, id: 'far' });
+		api.popClip();
+		api.endFrame();
+
+		expect(backend.ids).toEqual(['spike']);
+		expect(api.getStats().culled).toBe(1);
+	});
+
+	it('reports an indexed polygon that is not one outline (R5.17)', () => {
+		const { api } = harness();
+		api.beginFrame({ viewport: VIEWPORT });
+		// Two separate triangles in one list: the indices do not cover the outline the points trace.
+		const points = [{ x: 0, y: 0 }, { x: 10, y: 0 }, { x: 0, y: 10 }, { x: 20, y: 0 }, { x: 30, y: 0 }, { x: 20, y: 10 }];
+		api.drawPolygon({ points, indices: [0, 1, 2, 3, 4, 5], fill: BLUE });
+		api.drawPolygon({ points: points.slice(0, 3), indices: [0, 1, 2], fill: BLUE });
+		api.endFrame();
+
+		expect(api.diagnostics.map((diagnostic) => diagnostic.code)).toEqual(['polygon-not-one-outline']);
+	});
+
 	it('does not bounds-cull under an unclipped state, whose rect is R4.1 all-covering', () => {
 		const { api, backend } = harness();
 		api.beginFrame({ viewport: VIEWPORT });

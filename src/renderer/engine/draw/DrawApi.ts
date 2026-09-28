@@ -5,6 +5,7 @@ import {
 	TextureOptions,
 } from './DrawBackend';
 import {
+	FEATHER_MITER_LIMIT,
 	circleInk,
 	lineInk,
 	pointsInk,
@@ -12,6 +13,7 @@ import {
 	screenInk,
 	shadowInk,
 } from './bounds';
+import { isSingleOutline } from './triangulate';
 import {
 	CLIP_NONE,
 	ClipState,
@@ -116,6 +118,7 @@ export type DiagnosticCode =
 	| 'text-before-atlas'
 	| 'texture-upload-in-frame'
 	| 'texture-not-live'
+	| 'polygon-not-one-outline'
 	| 'foreign-draw-without-flush';
 
 export interface Diagnostic {
@@ -219,6 +222,8 @@ interface CaptureRequest {
 	 * `textInk`).
 	 */
 	ink: Rect | null;
+	/** Device pixels the drawn ink may reach past `ink` after the transform; 1 unless said. */
+	inkOutset?: number;
 }
 
 export class DrawApi {
@@ -677,8 +682,17 @@ export class DrawApi {
 			blend: options.blend,
 			group: 'primary',
 			ink: pointsInk(options.points, 0),
+			// R5.17's feather miter reaches past the points at a sharp vertex.
+			inkOutset: FEATHER_MITER_LIMIT,
 		});
 		if (!state) return;
+		if (options.indices && !isSingleOutline(options.points, options.indices)) {
+			this.report(
+				'polygon-not-one-outline',
+				`drawPolygon: ${options.points.length} points are not one simple outline covered once by their `
+					+ 'indices, so the polygon is drawn without its anti-aliasing feather (R5.17)',
+			);
+		}
 		this.emit({
 			...state,
 			kind: 'polygon',
@@ -838,7 +852,7 @@ export class DrawApi {
 	 *   clip rect. Skipped under `none`, whose rect is R4.1's all-covering one,
 	 *   and for text whose extent the backend cannot give (`textInk`).
 	 */
-	private capture({ id, blend, group, ink }: CaptureRequest): ResolvedState | null {
+	private capture({ id, blend, group, ink, inkOutset = 1 }: CaptureRequest): ResolvedState | null {
 		const clip = resolveClip(this.clip);
 		if (!clip) {
 			this.counters.countCulled();
@@ -848,7 +862,7 @@ export class DrawApi {
 		const transform = this.transforms[this.transforms.length - 1];
 
 		if (ink && clip.kind === 'rect') {
-			const bounds = screenInk(ink, transform.matrix, this.ratio);
+			const bounds = screenInk(ink, transform.matrix, this.ratio, inkOutset);
 			if (!intersects(bounds, clipRectOf(clip))) {
 				this.counters.countCulled();
 				return null;

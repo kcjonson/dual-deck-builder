@@ -57,8 +57,7 @@ export interface CanvasViewportOptions {
  *
  * The logical viewport is `framebuffer / (dpr * uiScale)` (R7.5), not the CSS
  * size. The two differ by under a device pixel at a fractional ratio, and the
- * one derived from the framebuffer is the one the projection and the scissor
- * box agree with.
+ * one derived from the framebuffer is the one the projection agrees with.
  */
 export class CanvasViewport {
 	private readonly canvas: ViewportCanvas;

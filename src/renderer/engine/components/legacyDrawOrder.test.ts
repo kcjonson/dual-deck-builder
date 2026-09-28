@@ -71,9 +71,9 @@ describe('legacyTextOrder domain bounds (TEMPORARY)', () => {
 		api.endFrame();
 
 		// Three domains: before the clip, inside it, after it. The text run
-		// submitted before the clip is in the first, so the backend's flush
-		// paints it before the scissor changes, which is what
-		// `Renderer.enableScissor` did.
+		// submitted before the clip is in the first, so it paints before
+		// anything inside the clip, which is the order the old scissor
+		// flush produced.
 		expect(domains()).toEqual([
 			['before', 'outside'],
 			['inside', 'insideText'],

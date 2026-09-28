@@ -145,6 +145,9 @@ draws nothing. A trailing partial triangle is dropped for the same reason.
 
 ## How this dies
 
+Done, both halves. The uber shader (DDB-64) deleted the encoder, the shader files, the
+`topologyChange` split reason and the scissor seam; see [uber-shader.md](./uber-shader.md).
+
 The WebGL2 backend (DDB-63) deleted `LegacyGLBackend.ts` and took over the batcher unchanged,
 with the same encoder on 32-bit indices; see [webgl2-backend.md](./webgl2-backend.md). With the uber
 shader (DDB-64): delete `LegacyGeometryEncoder.ts` and its test, the two files under

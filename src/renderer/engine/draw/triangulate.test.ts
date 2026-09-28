@@ -1,5 +1,5 @@
 import type { Vec2 } from './geometry';
-import { triangulatePolygon } from './triangulate';
+import { isSingleOutline, triangulatePolygon } from './triangulate';
 
 function star(tips: number, innerRadius: number): Vec2[] {
 	const points: Vec2[] = [];
@@ -224,5 +224,50 @@ describe('triangulatePolygon', () => {
 		const indices = triangulatePolygon(bowtie);
 		expect(indices.length % 3).toBe(0);
 		for (const index of indices) expect(index).toBeLessThan(bowtie.length);
+	});
+});
+
+describe('isSingleOutline (R5.17)', () => {
+	const square: Vec2[] = [{ x: 0, y: 0 }, { x: 10, y: 0 }, { x: 10, y: 10 }, { x: 0, y: 10 }];
+	const star: Vec2[] = Array.from({ length: 10 }, (_, i) => {
+		const angle = (i * Math.PI) / 5 - Math.PI / 2;
+		const radius = i % 2 === 0 ? 1 : 0.4;
+		return { x: Math.cos(angle) * radius, y: Math.sin(angle) * radius };
+	});
+
+	it('accepts what triangulatePolygon returns, in either winding', () => {
+		expect(isSingleOutline(square, triangulatePolygon(square))).toBe(true);
+		expect(isSingleOutline(star, triangulatePolygon(star))).toBe(true);
+		const reversed = [...star].reverse();
+		expect(isSingleOutline(reversed, triangulatePolygon(reversed))).toBe(true);
+	});
+
+	it('accepts an outline with collinear points that the triangulation skipped', () => {
+		const withMidpoints: Vec2[] = [
+			{ x: 0, y: 0 }, { x: 5, y: 0 }, { x: 10, y: 0 }, { x: 10, y: 5 }, { x: 10, y: 10 }, { x: 0, y: 10 },
+		];
+		expect(isSingleOutline(withMidpoints, triangulatePolygon(withMidpoints))).toBe(true);
+		const everyMidpoint: Vec2[] = [
+			{ x: 0, y: 0 }, { x: 1, y: 0 }, { x: 2, y: 0 }, { x: 2, y: 1 },
+			{ x: 2, y: 2 }, { x: 1, y: 2 }, { x: 0, y: 2 }, { x: 0, y: 1 },
+		];
+		expect(isSingleOutline(everyMidpoint, triangulatePolygon(everyMidpoint))).toBe(true);
+	});
+
+	it('rejects several shapes in one list', () => {
+		const two: Vec2[] = [{ x: 0, y: 0 }, { x: 10, y: 0 }, { x: 0, y: 10 }, { x: 20, y: 0 }, { x: 30, y: 0 }, { x: 20, y: 10 }];
+		expect(isSingleOutline(two, [0, 1, 2, 3, 4, 5])).toBe(false);
+	});
+
+	it('rejects indices that cover the outline twice, or only in part', () => {
+		expect(isSingleOutline(square, [0, 1, 2, 0, 2, 3, 0, 1, 2])).toBe(false);
+		expect(isSingleOutline(square, [0, 1, 2])).toBe(false);
+	});
+
+	it('rejects a self-crossing outline and one with no area', () => {
+		const bowtie: Vec2[] = [{ x: 0, y: 0 }, { x: 10, y: 10 }, { x: 10, y: 0 }, { x: 0, y: 10 }];
+		expect(isSingleOutline(bowtie, [0, 1, 2, 0, 2, 3])).toBe(false);
+		const line: Vec2[] = [{ x: 0, y: 0 }, { x: 5, y: 0 }, { x: 10, y: 0 }];
+		expect(isSingleOutline(line, [0, 1, 2])).toBe(false);
 	});
 });

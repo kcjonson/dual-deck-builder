@@ -146,7 +146,7 @@ accelerated 2D canvas; the atlas is replaced by chapter 6's MSDF atlases (DDB-70
 
 ## How the legacy half dies
 
-With DDB-64: delete `LegacyGeometryEncoder.ts` and its test, `LEGACY_PROGRAM`, the two files under
+Done in DDB-64; see [uber-shader.md](./uber-shader.md). What was planned: with DDB-64, delete `LegacyGeometryEncoder.ts` and its test, `LEGACY_PROGRAM`, the two files under
 `src/assets/shaders/`, the `topologyChange` split reason, and `CONTEXT_ATTRIBUTES.antialias`'s
 exception; set `clipIsState: false`. The rings, the uniform ring, the vertex array, `FrameLoop`, the
 loss handling and `Batcher` stay. `LegacyPaintOrder` goes earlier, with `legacyTextOrder`, in the

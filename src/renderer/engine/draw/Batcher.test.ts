@@ -1,4 +1,4 @@
-import { Batcher, GeometryEncoder, GeometrySink, GeometryUpload, GroupShape, Topology } from './Batcher';
+import { Batcher, GeometryEncoder, GeometrySink, GeometryUpload, GroupShape } from './Batcher';
 import { ResidentTextureSet, TextureKey } from './ResidentTextureSet';
 import { CLIP_NONE, ResolvedClip } from './clip';
 import { BlendMode, DrawCommand, RectCommand } from './commands';
@@ -19,7 +19,6 @@ interface Spec {
 	blend?: BlendMode;
 	clip?: ResolvedClip;
 	texture?: TextureKey;
-	topology?: Topology;
 	vertices?: number;
 	skip?: boolean;
 	/** Break the encoder contract for this group. */
@@ -54,14 +53,11 @@ class QuadEncoder implements GeometryEncoder {
 	readonly indexType = 'uint16' as const;
 	readonly specs = new Map<string, Spec>();
 
-	constructor(readonly clipIsState: boolean) {}
-
 	shape(command: DrawCommand, out: GroupShape): boolean {
 		const spec = this.specs.get(command.id ?? '') as Spec;
 		if (spec.skip) return false;
 		out.vertices = spec.vertices ?? 4;
 		out.indices = 6;
-		out.topology = spec.topology ?? 'triangles';
 		out.texture = spec.texture ?? null;
 		return true;
 	}
@@ -94,8 +90,6 @@ interface Captured {
 		split: string | null;
 		textures: (TextureKey | null)[];
 		blend: BlendMode;
-		topology: Topology;
-		scissor: ResolvedClip | null;
 	}>;
 	groups: number;
 }
@@ -103,11 +97,10 @@ interface Captured {
 function harness({
 	units = 4,
 	resident = [] as TextureKey[],
-	clipIsState = false,
 	maxVertices,
 	verify = true,
-}: { units?: number; resident?: TextureKey[]; clipIsState?: boolean; maxVertices?: number; verify?: boolean } = {}) {
-	const encoder = new QuadEncoder(clipIsState);
+}: { units?: number; resident?: TextureKey[]; maxVertices?: number; verify?: boolean } = {}) {
+	const encoder = new QuadEncoder();
 	const textures = new ResidentTextureSet({ units, resident });
 	const dropped: string[] = [];
 	const violations: string[] = [];
@@ -304,62 +297,47 @@ describe('Batcher: resident texture set (R5.20)', () => {
 describe('Batcher: split reasons (R13.13)', () => {
 	it('splits on a blend change and on the change back', () => {
 		const { run } = harness();
-		const { uploads, work } = run([{ id: 'a' }, { id: 'glow', blend: 'additive' }, { id: 'b' }]);
+		const { uploads, work } = run([{ id: 'a' }, { id: 'tint', blend: 'multiply' }, { id: 'b' }]);
 		expect(uploads[0].draws.map((draw) => [draw.blend, draw.split])).toEqual([
 			['over', null],
-			['additive', 'blendChange'],
+			['multiply', 'blendChange'],
 			['over', 'blendChange'],
 		]);
 		expect(work.splits?.blendChange).toBe(2);
 		expect(work.gpuDraws).toBe(3);
 	});
 
-	it('splits between triangles and lines, and merges consecutive line groups', () => {
+	it('never splits for additive, which shares over\'s blend state (R5.22a)', () => {
 		const { run } = harness();
-		const { uploads, work } = run([
-			{ id: 'fill' },
-			{ id: 'outline', topology: 'lines' },
-			{ id: 'outline2', topology: 'lines' },
-			{ id: 'fill2' },
-		]);
-		expect(uploads[0].draws.map((draw) => [draw.topology, draw.split])).toEqual([
-			['triangles', null],
-			['lines', 'topologyChange'],
-			['triangles', 'topologyChange'],
-		]);
-		expect(work.splits?.topologyChange).toBe(2);
-		// Line draws are not triangles.
-		expect(work.triangles).toBe(4);
+		const { uploads, work } = run([{ id: 'a' }, { id: 'glow', blend: 'additive' }, { id: 'b' }]);
+		expect(uploads[0].draws.map((draw) => [draw.blend, draw.split])).toEqual([['over', null]]);
+		expect(work.splits?.blendChange).toBe(0);
 	});
 
 	it('reports the first reason in a fixed order when several change at once (R3.4)', () => {
-		const { run } = harness();
-		const { uploads } = run([{ id: 'a' }, { id: 'b', blend: 'additive', topology: 'lines' }]);
+		const { run } = harness({ units: 2 });
+		const { uploads } = run([
+			{ id: 'a', texture: { first: 1 } },
+			{ id: 'b', blend: 'screen', texture: { second: 1 } },
+		]);
 		expect(uploads[0].draws[1].split).toBe('blendChange');
+	});
+
+	it('counts every draw\'s indices as triangles', () => {
+		const { run } = harness();
+		const { work } = run([{ id: 'a' }, { id: 'b', blend: 'screen' }]);
+		expect(work.triangles).toBe(4);
 	});
 });
 
-describe('Batcher: the clip seam', () => {
+describe('Batcher: the clip (R4.1)', () => {
 	const clipA: ResolvedClip = { kind: 'rect', rect: { minX: 0, minY: 0, maxX: 10, maxY: 10 }, rounded: null };
 	const clipB: ResolvedClip = { kind: 'rect', rect: { minX: 5, minY: 5, maxX: 10, maxY: 10 }, rounded: null };
 
-	it('never splits on a clip that travels as per-draw data (R4.1)', () => {
-		const { run } = harness({ clipIsState: false });
+	it('never splits on a clip change, since the clip travels as per-draw data', () => {
+		const { run } = harness();
 		const { uploads, work } = run([{ id: 'a', clip: clipA }, { id: 'b', clip: clipB }, { id: 'c' }]);
 		expect(uploads[0].draws).toHaveLength(1);
-		expect(uploads[0].draws[0].scissor).toBeNull();
-		expect(work.clipChanges).toBe(0);
-	});
-
-	it('splits and counts clipChange while a backend lowers the clip to scissor state', () => {
-		const { run } = harness({ clipIsState: true });
-		const { uploads, work } = run([{ id: 'a', clip: clipA }, { id: 'a2', clip: clipA }, { id: 'b', clip: clipB }]);
-		expect(uploads[0].draws.map((draw) => [draw.scissor, draw.split])).toEqual([
-			[clipA, null],
-			[clipB, 'clipChange'],
-		]);
-		expect(work.clipChanges).toBe(1);
-		// Not a split reason: R13.13 keeps clipChange as its own must-be-zero counter.
 		expect(Object.values(work.splits ?? {}).reduce((sum, count) => sum + count, 0)).toBe(0);
 	});
 });
@@ -408,7 +386,7 @@ describe('Batcher: determinism (R3.4)', () => {
 		const specs: Spec[] = [
 			{ id: 'a' },
 			{ id: 'b', blend: 'additive' },
-			{ id: 'c', topology: 'lines' },
+			{ id: 'c', blend: 'screen' },
 			{ id: 'd', texture: { any: 1 } },
 		];
 		const first = harness({ units: 2 }).run(specs);
