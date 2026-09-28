@@ -29,8 +29,11 @@ import { FlushReason, GpuWork } from './stats';
  * backends under `src/renderer/engine/gpu/` and describes that file as the
  * R15.38 seam: render passes as objects with attachments and clear operations,
  * immutable pipeline keys, bind groups, uniform blocks, async readback. That is
- * a different and lower seam than this one, one layer under the batcher, and it
- * arrives with the WebGL2 backend. Naming this `DrawBackend` in `draw/` leaves
+ * a different and lower seam than this one, one layer under the batcher. The
+ * WebGL2 backend did not split it out: with one program and one texture there
+ * is nothing for a pipeline key or a bind group to select between, so it waits
+ * for the resource layer (DDB-66) and the uber shader (DDB-64), which are the
+ * first to need them. Naming this `DrawBackend` in `draw/` leaves
  * `gpu/Backend.ts` free for R15.38 with no collision and no file move when the
  * fourth backend lands.
  *
@@ -39,15 +42,14 @@ import { FlushReason, GpuWork } from './stats';
  * - `NullBackend` (R2.21) accepts and counts, touches nothing.
  * - `RecordingBackend` (R2.22) keeps the arrays it was handed so a test can
  *   assert what would have been drawn and in what order.
- * - `LegacyGLBackend`, the pre-spec WebGL1 program: it hands the array to a
- *   `Batcher` with a per-vertex encoder, so a domain becomes one GPU draw
- *   unless something splits it.
+ * - `WebGL2Backend` (chapter 15): it hands the array to a `Batcher`, today
+ *   with the legacy program's per-vertex encoder, so a domain becomes one GPU
+ *   draw unless something splits it.
  *
- * And the one it has to fit later: the WebGL2 backend of chapter 15, which
- * hands the same array to the same `Batcher` with an instance encoder. The
- * batcher sits behind this seam rather than in front of it because what a
- * group's geometry looks like is the backend's vertex format (R5.4); see
- * `Batcher.ts`.
+ * And the change it has to absorb next: the uber shader (DDB-64), which hands
+ * the same array to the same `Batcher` with an instance encoder. The batcher
+ * sits behind this seam rather than in front of it because what a group's
+ * geometry looks like is the backend's vertex format (R5.4); see `Batcher.ts`.
  */
 
 export interface FrameDescription {

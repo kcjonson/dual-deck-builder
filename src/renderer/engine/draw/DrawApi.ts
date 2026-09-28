@@ -150,7 +150,7 @@ export interface DrawApiOptions {
 	 * every shape drawn in the same clip scope." That engine is this one, and
 	 * the 26 committed screenshot goldens are pictures of exactly that bug.
 	 *
-	 * `LegacyGLBackend` reproduces the reordering by itself: `legacyPaintOrder`
+	 * The WebGL2 backend reproduces the reordering by itself: `LegacyPaintOrder`
 	 * puts each domain's text after its shapes before the batcher sees it. What
 	 * no backend can reproduce is the BOUND: a backend never sees a push or a pop (see
 	 * `DrawBackend`), so it cannot know where a clip scope started. This flag
@@ -165,7 +165,7 @@ export interface DrawApiOptions {
 	 *
 	 * It is a deliberate violation of R3.20 ("Nothing else flushes: not a
 	 * texture change, not a clip change"), which is why it is off by default and
-	 * set in exactly one place, `createLegacyDrawApi`.
+	 * set in exactly one place, `createDrawApi` in `rendering/WebGL2Backend.ts`.
 	 */
 	legacyTextOrder?: boolean;
 }

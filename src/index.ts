@@ -1,13 +1,11 @@
 import { Renderer } from './renderer/engine/rendering/Renderer';
-import { createLegacyDrawApi } from './renderer/engine/rendering/LegacyGLBackend';
-import { Shader } from './renderer/engine/rendering/Shader';
+import { createDrawApi } from './renderer/engine/rendering/WebGL2Backend';
+import { FrameLoop } from './renderer/engine/rendering/FrameLoop';
 import { Game } from './renderer/game/Game';
 import { RendererContext } from './renderer/engine/rendering/RendererContext';
 import { InputSystem } from './renderer/engine/input/InputSystem';
 import { FrameTimer } from './renderer/engine/rendering/FrameTimer';
 import { LoadedFontAtlas, loadFontAtlases, loadImageElement } from './renderer/engine/text/loadFontAtlases';
-import vertexShaderSource from './assets/shaders/vertex.glsl';
-import fragmentShaderSource from './assets/shaders/fragment.glsl';
 
 /**
  * Main entry point for the application
@@ -16,6 +14,7 @@ class Application {
 	private renderer!: Renderer;
 	private game!: Game;
 	private frameTimer!: FrameTimer;
+	private frameLoop!: FrameLoop;
 	/** Loaded and validated, not yet drawn with; DDB-70 hands these to the backend. */
 	private fontAtlases!: Promise<LoadedFontAtlas[]>;
 
@@ -49,18 +48,10 @@ class Application {
 			const canvas = document.getElementById('game-canvas') as HTMLCanvasElement;
 			InputSystem.getInstance().setup(canvas);
 
-			// Create default shader
-			const shader = new Shader(
-				this.renderer.getContext(),
-				vertexShaderSource,
-				fragmentShaderSource,
-			);
-			this.renderer.useShader(shader);
-
 			// The seam. Built through the shared factory rather than spelled
 			// here, so this page and the gallery cannot end up with differently
 			// configured draw APIs over the same renderer.
-			const draw = createLegacyDrawApi({ renderer: this.renderer, frameTimer: this.frameTimer });
+			const draw = createDrawApi({ renderer: this.renderer, frameTimer: this.frameTimer });
 			RendererContext.getInstance().draw = draw;
 
 			// Create and initialize the game
@@ -79,8 +70,14 @@ class Application {
 				installInputHooks(canvas);
 			}
 
-			// Start the main loop
-			this.loop();
+			// Start the main loop. R15.5: it stops while the context is lost
+			// and resumes once the backend has rebuilt on restore.
+			this.frameLoop = new FrameLoop({ tick: this.loop });
+			this.renderer.addContextListener({
+				lost: () => this.frameLoop.stop(),
+				restored: () => this.frameLoop.start(),
+			});
+			this.frameLoop.start();
 
 			console.log('Initialization complete!');
 		} catch (error) {
@@ -128,7 +125,8 @@ class Application {
 	 *
 	 * The three sections are disjoint and exhaustive of the application's own
 	 * work (R13.7). The clear belongs inside render because it is a GL command
-	 * for the frame being drawn. Since DDB-55 phase 1 the render section is CPU
+	 * for the frame being drawn; it is the backend's `beginFrame`, which
+	 * `game.render` opens. Since DDB-55 phase 1 the render section is CPU
 	 * work plus whatever a clip boundary submits mid-walk, and flush is the last
 	 * sort domain; before it, render held every shape's GL submission.
 	 */
@@ -144,7 +142,6 @@ class Application {
 		this.frameTimer.endSection('update');
 
 		this.frameTimer.beginSection('render');
-		this.renderer.clear();
 		this.game.render();
 		this.frameTimer.endSection('render');
 
@@ -153,8 +150,6 @@ class Application {
 		this.frameTimer.endSection('flush');
 
 		this.frameTimer.endFrame();
-
-		requestAnimationFrame(this.loop);
 	};
 }
 

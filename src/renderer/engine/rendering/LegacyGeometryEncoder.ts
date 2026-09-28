@@ -46,10 +46,12 @@ import type { CharacterInfo } from './FontAtlas';
  * golden (only the developer screen's primitive shapes section, below the
  * fold), so fixing it moves no captured pixel.
  *
- * Dies with `LegacyGLBackend`; the uber shader has its own layout (R5.4).
+ * Dies with the uber shader (DDB-64), which has its own layout (R5.4). Indices
+ * are 32-bit since the WebGL2 backend (R5.4), so an upload is capped by the
+ * backend's ring rather than by 65536 vertices.
  */
 
-/** Vertex layout, in floats. 22 floats is 88 bytes and seven attributes, under WebGL1's guaranteed eight. */
+/** Vertex layout, in floats. 22 floats is 88 bytes and seven attributes. */
 export const LEGACY_VERTEX = {
 	position: 0,
 	texCoord: 2,
@@ -106,7 +108,7 @@ const QUAD_INDICES = [0, 1, 2, 0, 2, 3] as const;
 
 export class LegacyGeometryEncoder implements GeometryEncoder {
 	readonly floatsPerVertex = LEGACY_VERTEX.floats;
-	readonly indexType = 'uint16' as const;
+	readonly indexType = 'uint32' as const;
 	/** The scissor stays GPU state until DDB-64's shader carries the clip per draw (R4.1). */
 	readonly clipIsState = true;
 
