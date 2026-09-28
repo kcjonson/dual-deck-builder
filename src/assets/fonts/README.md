@@ -18,7 +18,13 @@ Every face has to ship with its licence file (R6.2), and the web and Electron bu
 - Windows: download `msdf-atlas-gen-1.4-win64.zip` from the [v1.4 release](https://github.com/Chlumsky/msdf-atlas-gen/releases/tag/v1.4), unzip it, and put the folder on `PATH` or point `MSDF_ATLAS_GEN` at the exe.
 - Linux: build the v1.4 tag from source with CMake as its README describes (no release binary exists), then set `MSDF_ATLAS_GEN` if it is not on `PATH`.
 
+The scripts also need `npm ci` and Node 22.18 or later for the kerning step below.
+
 Parameters (implementation spec section 5, R6.4a): `-type mtsdf -size 48 -pxrange 8 -yorigin top -potr`. The range-to-size ratio of 8/48 is the R6.4a minimum of 1/6, and the loader rejects an atlas below it. The output is deterministic: two runs with the same tool, face, and charset produce byte-identical files.
+
+## Kerning
+
+msdf-atlas-gen reads only the legacy `kern` table, and none of these faces has one. After each atlas, the scripts run `scripts/merge-kerning.mjs`, which reads the face's GPOS `kern` feature with fontkit and rewrites the JSON's `kerning` array (nothing else in the file) with every non-zero pair among the atlas's own code points. Barlow Condensed gets its pairs this way. Open Sans 3.000 has no kerning of any kind and JetBrains Mono is monospaced, so their arrays stay empty. No OFL Open Sans kerns (3.003, static and variable, is the same), and the battle screen mock renders the same unkerned face from Google Fonts, so body text is unkerned on purpose (DDB-189). `fontAssets.test.ts` fails if a committed array differs from what its face gives. Details in `docs/AI_TECHNICAL_DECISIONS/font-pipeline.md`.
 
 ## Charset
 

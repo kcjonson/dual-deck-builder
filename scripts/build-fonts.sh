@@ -6,11 +6,19 @@
 set -euo pipefail
 
 PINNED_VERSION="v1.4.0"
-FONTS_DIR="$(cd "$(dirname "$0")/../src/assets/fonts" && pwd)"
+SCRIPTS_DIR="$(cd "$(dirname "$0")" && pwd)"
+FONTS_DIR="$(cd "$SCRIPTS_DIR/../src/assets/fonts" && pwd)"
 TOOL="${MSDF_ATLAS_GEN:-msdf-atlas-gen}"
 
 if ! command -v "$TOOL" >/dev/null 2>&1; then
 	echo "msdf-atlas-gen not found. Install it (brew install msdf-atlas-gen) or set MSDF_ATLAS_GEN to its path." >&2
+	exit 1
+fi
+
+# The kerning step reads the face with fontkit (a devDependency) and loads a
+# TypeScript module through Node's type stripping: npm ci, Node 22.18 or later.
+if [[ ! -d "$SCRIPTS_DIR/../node_modules/fontkit" ]]; then
+	echo "fontkit not installed. Run npm ci first." >&2
 	exit 1
 fi
 
@@ -45,6 +53,9 @@ for face in "${FACES[@]}"; do
 		-format png \
 		-imageout "$FONTS_DIR/$output.png" \
 		-json "$FONTS_DIR/$output.json"
+	# msdf-atlas-gen reads only the legacy kern table; these faces kern in GPOS.
+	node --disable-warning=ExperimentalWarning --disable-warning=MODULE_TYPELESS_PACKAGE_JSON \
+		"$SCRIPTS_DIR/merge-kerning.mjs" "$FONTS_DIR/$source" "$FONTS_DIR/$output.json"
 done
 
 echo "Done. Run npm test (fontAtlas tests validate the committed JSON) and commit src/assets/fonts/."

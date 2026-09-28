@@ -18,6 +18,22 @@ This document contains the chronological log of completed development tasks for 
 
 **How:** `UberGeometryEncoder.test.ts` (42, including the paint-order tests moved from the deleted encoder test), rewritten `WebGL2Backend.test.ts` (no scissor call, clip on every vertex at ratio 2, blend state per mode, texture units), `Batcher.test.ts` for the reduced split reasons. `tests/visual/web/uberShader.spec.ts` runs the real shader in SwiftShader against chapter 4.7's fragment fixture and chapter 5.10's pixel tests. Every golden re-minted on CI; the before and after comparison, and GPU draw counts per screen (unchanged, with every screen at one draw once `legacyTextOrder` goes), are in `docs/AI_TECHNICAL_DECISIONS/uber-shader.md`.
 
+## Body face kerning: stay on unkerned Open Sans (2026-09-28)
+
+**What landed:** DDB-189, a decision with no asset change. Open Sans 3.000 stays the body face and ships with an empty `kerning[]`.
+
+**Why:** no OFL Open Sans has kerning (3.000 and 3.003, static and variable, carry GPOS `mark` and `mkmk` only; upstream issue googlefonts/opensans#4 is still open), and the woff2 Google Fonts serves the mock is 3.003 with identical outlines and advances for every atlas glyph it holds, so unkerned is the mock's look. Open Sans 1.10 kerns but is Apache 2.0 and a different drawing (214 of 225 outlines differ); Noto Sans kerns but sets 1.1% wider with every advance different. Measured on all card text at 13 px, 1.10's kerning would move 26 of 4468 pairs by 0.5 px or more (largest 1.69 px): small, not zero, so the reason is mock fidelity.
+
+**How:** fontkit inspection and shaping of each candidate, recorded in [font-pipeline.md](./AI_TECHNICAL_DECISIONS/font-pipeline.md#body-text-stays-unkerned-ddb-189). `src/assets/fonts/README.md` and the zero-pairs test in `fontAssets.test.ts` point at the decision. No pixel moves.
+
+## GPOS kerning in the font atlases (2026-09-28)
+
+**What landed:** DDB-182. `scripts/gpos-kerning.ts` resolves GPOS pair adjustment (lookup type 2, formats 1 and 2, through type 9 extensions) for the `kern` feature, and `scripts/merge-kerning.mjs` splices the result into an atlas JSON's `kerning[]` in msdf-atlas-gen's schema. `build-fonts.sh` and `.ps1` run it after each atlas. fontkit is a new devDependency. The loader drops, with a warning, a kerning pair naming a code point the atlas lacks, and a duplicate pair. jest and the root tsconfig now include `scripts/`.
+
+**Result:** `barlow-condensed-semibold.json` has 4982 pairs (`AV` -0.047 em, `Ta` -0.068, `LT` -0.067). Open Sans 3.000 has neither a `kern` table nor a GPOS `kern` feature, so it has none; follow-up DDB-189. JetBrains Mono has none, being monospaced. A full rebuild reproduced every PNG and the other two JSON files byte for byte. No pixel moves: the atlases are not drawn until DDB-70.
+
+**How:** synthetic-table unit tests for each resolution rule (format 1 miss falling through, class 0, lookups summing, extension, mark filtering, unsupported values failing, DFLT fallback, determinism), a cross-check against fontkit's shaper over all 2704 Barlow letter pairs, and a test that each committed `kerning[]` equals a fresh extraction from its face. Decisions in [font-pipeline.md](./AI_TECHNICAL_DECISIONS/font-pipeline.md#kerning).
+
 ## Textures get an owner and the canvas a single viewport (2026-09-28)
 
 **What landed:** DDB-66 (DDB-55 phase 1), with DDB-186 (R15.3) alongside.

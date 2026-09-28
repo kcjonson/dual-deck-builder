@@ -290,7 +290,19 @@ export function parseFontAtlas({ json, source, warn = defaultWarn }: ParseFontAt
 			warn(`Font atlas ${source}: dropped kerning[${index}]: needs unicode1, unicode2 and advance`);
 			return;
 		}
-		kerning.set(kerningKey(left, right), advance / emSize);
+		// Checked before substitutes are applied: a pair naming a code point the
+		// face lacks was built against some other charset or face.
+		const missing = [left, right].find((cp) => !glyphs.has(cp));
+		if (missing !== undefined) {
+			warn(`Font atlas ${source}: dropped kerning[${index}]: U+${hex(missing)} is not in the atlas`);
+			return;
+		}
+		const key = kerningKey(left, right);
+		if (kerning.has(key)) {
+			warn(`Font atlas ${source}: dropped kerning[${index}]: duplicate pair U+${hex(left)} U+${hex(right)}`);
+			return;
+		}
+		kerning.set(key, advance / emSize);
 	});
 
 	applySubstitutes(glyphs);

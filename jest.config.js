@@ -1,11 +1,11 @@
 module.exports = {
 	preset: 'ts-jest',
 	testEnvironment: 'node',
-	roots: ['<rootDir>/src'],
+	roots: ['<rootDir>/src', '<rootDir>/scripts'],
 	moduleFileExtensions: ['ts', 'js'],
 	testMatch: ['**/*.test.(ts|js)'],
 	// The Playwright specs live in tests/ and are already unreachable twice over
-	// (roots is src/, and they carry no .test. infix). This is the belt: the day
+	// (roots are src/ and scripts/, and they carry no .test. infix). This is the belt: the day
 	// roots widens, jest must still not try to run a spec that needs a browser.
 	testPathIgnorePatterns: ['/node_modules/', '<rootDir>/tests/', '<rootDir>/dist/'],
 	transform: {
