@@ -26,6 +26,8 @@ export class UiFrame {
 	/** The other half of a double buffer, so a frame's update allocates nothing. */
 	private spare = new Set<Component>();
 	private readonly dirty = new Set<Component>();
+	/** Mounted roots, for `viewportChanged`. */
+	private readonly roots = new Set<Component>();
 	private layoutRuns = 0;
 	private readonly layoutListeners: (() => void)[] = [];
 
@@ -47,6 +49,24 @@ export class UiFrame {
 		this.requested.delete(component);
 		this.spare.delete(component);
 		this.dirty.delete(component);
+		this.roots.delete(component);
+	}
+
+	/** Called by the base class when a root mounts. */
+	public addRoot(root: Component): void {
+		this.roots.add(root);
+	}
+
+	/**
+	 * The viewport's logical size changed. Every root sized from it (a `fill`
+	 * axis, R8.21) is invalidated, so the resize re-lays out through the same
+	 * path as the first layout, with no screen code involved.
+	 */
+	public viewportChanged(): void {
+		for (const root of this.roots) {
+			if (root.parent !== null) continue;
+			if (root.widthMode === 'fill' || root.heightMode === 'fill') root.invalidateLayout();
+		}
 	}
 
 	public get hasUpdateRequests(): boolean {

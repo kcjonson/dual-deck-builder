@@ -106,6 +106,16 @@ export class Panel extends Layer {
 		return this.contentInset;
 	}
 
+	/**
+	 * R10.15: anchored children are placed against the box inside the
+	 * padding. Children already sit under the padding through
+	 * `contentOffset`, so the box starts at their origin.
+	 */
+	protected get anchorBox(): Rect {
+		const inset = this.contentInset;
+		return { x: 0, y: 0, width: this.innerWidth, height: Math.max(this.height - inset * 2, 0) };
+	}
+
 	/** Width available to children: the box less the padding on both sides. */
 	public get innerWidth(): number {
 		return Math.max(this.width - this.contentInset * 2, 0);

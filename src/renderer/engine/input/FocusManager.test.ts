@@ -401,6 +401,18 @@ describe('scroll into view (R12.20)', () => {
 		expect(panel.getScrollOffset().y).toBe(0);
 	});
 
+	it('reads the placed origin, margin included, not the raw position', () => {
+		const panel = new Panel({ id: 'panel', width: 200, height: 100, scrollable: true });
+		const row = new Probe({ id: 'row', y: 50, margin: { top: 70 }, width: 200, height: 40, focusable: true });
+		panel.addChild(row);
+		panel.setContentSize(200, 300);
+		panel.mount(context);
+		// The content box spans originY 120 to 160, though y is 50
+		expect(row.originY).toBe(120);
+		context.focus.focus(row);
+		expect(panel.getScrollOffset().y).toBe(60);
+	});
+
 	it('scrolls for programmatic focus, but not for a press', () => {
 		const { panel, rows } = scroller();
 		context.focus.focus(rows[4]);

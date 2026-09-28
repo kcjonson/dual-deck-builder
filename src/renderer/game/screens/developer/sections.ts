@@ -11,6 +11,7 @@ import { PaintOrderFixturesSection } from './PaintOrderFixturesSection';
 import { ClippingFixturesSection } from './ClippingFixturesSection';
 import { ShadingFixturesSection } from './ShadingFixturesSection';
 import { IconExamplesSection } from './IconExamplesSection';
+import { StackExamplesSection } from './StackExamplesSection';
 
 /**
  * The developer screen's sections, defined once.
@@ -105,5 +106,10 @@ export const developerSections: readonly DeveloperSection[] = [
 	{
 		name: 'icons',
 		build: ({ x, y, width }) => new IconExamplesSection(x, y, width),
+	},
+	// Chapter 10's layout fixture (R13.31), laid out by stacks throughout.
+	{
+		name: 'stack',
+		build: ({ x, y, width }) => new StackExamplesSection(x, y, width),
 	},
 ];
