@@ -264,12 +264,10 @@ export async function openScene(page: Page, scene: string): Promise<void> {
 }
 
 /**
- * Assert the run was clean. There is no allow-list: the one scenario that
- * emits a known error, DDB-103's per-frame buffer overflow on the
- * primitive-shapes scene, is `test.fixme` and never reaches this call, so an
+ * Assert the run was clean. There is no allow-list: a scenario with a known
+ * error is `blockedBy`, so `test.fixme`, and never reaches this call. An
  * allowance would be dead code whose only effect is to make the next error
- * easy to normalise. It returns with the DDB-103 fix if that scene still needs
- * one afterwards.
+ * easy to normalise.
  */
 export function expectCleanConsole(log: ConsoleLog): void {
 	expect(log.errors, `console errors:\n${log.errors.join('\n')}`).toEqual([]);

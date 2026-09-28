@@ -63,18 +63,7 @@ export const SCREEN_SCENARIOS: readonly ScreenScenario[] = [
 	},
 ];
 
-/**
- * Every gallery scene, `?scene=` names.
- *
- * `primitive-shapes` is the one golden this harness refuses to mint. DDB-103:
- * the scene overruns the renderer's dynamic vertex buffer, logs
- * "bufferSubData: buffer overflow" on every frame, and draws malformed
- * circles. Committing a baseline of that would make the corrupt drawing the
- * definition of correct, and the first person to fix DDB-103 would be told
- * their fix is a visual regression. Fixing the buffer sizing is a renderer
- * change and out of phase 0's scope, so the scene stays listed and stays
- * visibly unbaselined until DDB-103 lands.
- */
+/** Every gallery scene, `?scene=` names. */
 export const SCENE_SCENARIOS: readonly SceneScenario[] = [
 	{ scene: 'interactive-controls' },
 	{ scene: 'style-guide' },
@@ -82,9 +71,6 @@ export const SCENE_SCENARIOS: readonly SceneScenario[] = [
 	{ scene: 'rectangles' },
 	{ scene: 'buttons' },
 	{ scene: 'text' },
-	{
-		scene: 'primitive-shapes',
-		blockedBy: 'DDB-103: overruns the dynamic vertex buffer, logs bufferSubData overflow every frame and draws malformed circles',
-	},
+	{ scene: 'primitive-shapes' },
 	{ scene: 'nested-panels' },
 ];
