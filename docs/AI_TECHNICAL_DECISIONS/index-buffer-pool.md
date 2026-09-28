@@ -1,5 +1,7 @@
 # Index storage as a pool of per-upload buffers (DDB-195)
 
+**Superseded by DDB-191.** The uber shader draws packed instances with `drawArraysInstanced` and has no index buffer, so `IndexBufferPool` is deleted ([packed-instance-layout.md](./packed-instance-layout.md)). The measurements below still describe ANGLE Metal: a future element buffer (a nine-slice mesh, a world renderer) should be sized per upload for the same reason.
+
 ## Problem
 
 Combat fell from 60 to about 36 FPS on a Mac with a Radeon Pro 560X (ANGLE Metal, Chrome) when the WebGL2 backend landed in #70 (DDB-63). Bisected across the epic's merges with the GPU timer off: 16.6 ms paced at 6e7f6ee, #68 and #69; 27.9 ms from #70 on. Paced, the missing time sat outside the frame loop's sections (the browser waiting on the GPU process); unthrottled, it showed up inside `render` and `flush`, where GL calls block.
