@@ -181,7 +181,7 @@ and the command's `translateOnly` flag and is where text snapping lives; the cli
 the shader see the same snapped rect. The tree snapshot and `Component`'s hit test build their clips
 from the tree rather than from the clip stack, so each snaps the same way: the snapshot at the
 `ratio` its viewport now carries (read, not reported), the hit test at the draw API's
-`devicePixelScale`. Paint, snapshot and hit test agree to the device pixel, including at x.5,
+`devicePixelScale`, reached through the mount context. Paint, snapshot and hit test agree to the device pixel, including at x.5,
 where R4.4's centre test and `round` break the tie in opposite directions. Both run only under a
 translate-only transform (R7.9). The rect is snapped in screen space and handed back to local space by the same
 delta, since under a translation the two differ by that translation alone.
