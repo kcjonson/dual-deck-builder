@@ -1,5 +1,5 @@
 import { DrawApi } from '../renderer/engine/draw';
-import { Renderer } from '../renderer/engine/rendering/Renderer';
+import { Renderer, showStatusLine } from '../renderer/engine/rendering/Renderer';
 import { createDrawApi } from '../renderer/engine/rendering/WebGL2Backend';
 import { FrameLoop } from '../renderer/engine/rendering/FrameLoop';
 import { RendererContext } from '../renderer/engine/rendering/RendererContext';
@@ -7,7 +7,8 @@ import { InputSystem } from '../renderer/engine/input/InputSystem';
 import { FrameTimer } from '../renderer/engine/rendering/FrameTimer';
 import { GpuTimer, createGpuTimer } from '../renderer/engine/rendering/GpuTimer';
 import { createDevToolsTracks } from '../renderer/engine/debug/devtoolsTracks';
-import { loadFontAtlases, loadImageElement } from '../renderer/engine/text/loadFontAtlases';
+import { FontAtlasError } from '../renderer/engine/text/FontAtlas';
+import { fontLoadFailureMessage, loadFontAtlases, loadImageElement } from '../renderer/engine/text/loadFontAtlases';
 import { installDebugHooks, installAppHooks, installInputHooks, installPerfHooks } from '../renderer/engine/debug/hooks';
 import { CardLoader } from '../renderer/game/core/CardLoader';
 import { gallerySceneRegistry } from './registry';
@@ -42,6 +43,9 @@ class GalleryApplication {
 	public async init(): Promise<void> {
 		try {
 			const fontAtlases = loadFontAtlases({ loadImage: loadImageElement });
+			// Handled here too, so a renderer that throws before the await
+			// below does not leave the load's rejection unhandled.
+			fontAtlases.catch(() => undefined);
 			// The gallery is a development-only bundle, so the DevTools track
 			// (R15.29) and the GPU timer (R13.16) need no build-time gate here.
 			this.frameTimer = new FrameTimer({ tracks: createDevToolsTracks() });
@@ -81,6 +85,7 @@ class GalleryApplication {
 			this.frameLoop.start();
 		} catch (error) {
 			console.error('Gallery failed to start:', error);
+			if (error instanceof FontAtlasError) showStatusLine(fontLoadFailureMessage(error));
 		}
 	}
 

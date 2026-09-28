@@ -196,16 +196,21 @@ export class SynergyPreviewPanel extends Layer {
 			});
 			this.tagsContainer.addChild(tagBackground);
 			
-			// Create tag text
+			// Tag text, centred in the pill's own box
 			const tagText = new Text(tag, {
+				x: currentX,
+				y: currentRow * (tagHeight + tagSpacing),
+				width: tagWidth,
+				height: tagHeight,
 				style: {
 					fontSize: 10,
 					color: '#ffffff',
 					textAlign: 'center',
+					verticalAlign: 'middle',
+					whiteSpace: 'nowrap',
 					fontWeight: 'bold',
 				},
 			});
-			tagText.setPosition(currentX + tagWidth / 2, currentRow * (tagHeight + tagSpacing) + tagHeight / 2);
 			this.tagsContainer.addChild(tagText);
 			
 			currentX += tagWidth + tagSpacing;

@@ -129,6 +129,14 @@ describe('wrapping (R6.13)', () => {
 		expect(result.lines[1].glyphs[0].x).toBe(0);
 	});
 
+	it('keeps a first line\'s leading spaces with its first word rather than breaking into an empty line', () => {
+		const result = layout('   AAAAAA', { wrap: 'word', maxWidth: 30 });
+		expect(lines(result).map((line) => [line.text, line.width])).toEqual([['   AAAAAA', 72]]);
+		expect(result.height).toBe(20);
+		// Still breaks once the line has ink.
+		expect(lines(layout('  AA AA', { wrap: 'word', maxWidth: 30 })).map((line) => line.text)).toEqual(['  AA ', 'AA']);
+	});
+
 	it('puts a word wider than the width on its own line and lets it overflow', () => {
 		const result = layout('A AAAAAA A', { wrap: 'word', maxWidth: 30 });
 		expect(lines(result).map((line) => [line.text, line.width])).toEqual([['A ', 10], ['AAAAAA ', 60], ['A', 10]]);
@@ -179,6 +187,23 @@ describe('ellipsis (R6.14)', () => {
 		const result = layout('AAAA', { overflow: 'ellipsis', maxWidth: 34 });
 		expect(lines(result)).toEqual([{ text: 'A…', xs: [0, 10], width: 26 }]);
 		expect(result.truncated).toBe(true);
+	});
+
+	it('spaces the ellipsis like any other glyph', () => {
+		// 0.25 em is 4 px: A at 0, the ellipsis at 14, 30 wide; a second A would need 44.
+		const result = layout('AAAA', { overflow: 'ellipsis', maxWidth: 40, letterSpacing: 0.25 });
+		expect(lines(result)).toEqual([{ text: 'A\u2026', xs: [0, 14], width: 30 }]);
+	});
+
+	it('truncates a long line to the same prefix a fresh layout of it places', () => {
+		const text = 'Ab '.repeat(400);
+		const result = layout(text, { overflow: 'ellipsis', maxWidth: 300 });
+		const [line] = result.lines;
+		const kept = line.glyphs.slice(0, -1).map((placed) => String.fromCodePoint(placed.glyph.codePoint)).join('');
+		const fresh = layout(kept);
+		expect(line.glyphs.slice(0, -1).map((placed) => placed.x)).toEqual(fresh.lines[0].glyphs.map((placed) => placed.x));
+		expect(line.width).toBeLessThanOrEqual(300);
+		expect(line.width + 20).toBeGreaterThan(300);
 	});
 
 	it('leaves a line that fits alone', () => {

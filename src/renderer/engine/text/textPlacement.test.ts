@@ -1,6 +1,6 @@
 import { LineOrigin, TextPlacement, decorationOffset, layoutInk, lineOrigin } from './textPlacement';
 import { layoutText } from './TextLayout';
-import { syntheticFontAtlas } from './testing';
+import { committedFontAtlas, syntheticFontAtlas } from './testing';
 
 /**
  * The synthetic atlas at 16 px: line height 20, ascent 16, descent 4, so the
@@ -63,6 +63,14 @@ describe('layoutInk and decorations', () => {
 	it('is null for a run that draws nothing', () => {
 		const layout = layoutText(atlas, { text: '   ', font: 'body', size: 16 });
 		expect(layoutInk(layout, { position: { x: 0, y: 0 } })).toBeNull();
+	});
+
+	it('measures the strike\'s x-height without the distance field margin in the plane bounds', () => {
+		// Open Sans's x-height is 1096 units of 2048, 0.535 em; the plane
+		// bounds of 'x' run a margin past it at both ends.
+		const openSans = committedFontAtlas('body');
+		const layout = layoutText(openSans, { text: 'x', font: 'body', size: 100 });
+		expect(decorationOffset(layout, 'strike')).toBeCloseTo(-100 * (1096 / 2048) / 2, 0);
 	});
 
 	it('puts the underline at the face position and the strike at half the x-height, and bounds them', () => {

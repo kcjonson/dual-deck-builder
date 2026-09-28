@@ -151,7 +151,7 @@ class Pen {
 	constructor(
 		private readonly atlas: FontAtlas,
 		readonly size: number,
-		private readonly spacing: number,
+		readonly spacing: number,
 	) {}
 
 	reset(): void {
@@ -370,6 +370,9 @@ function breakParagraph({ items, offset, pen, wrapWidth, atlas, lines, advances 
 		const placed: LaidOutGlyph[] = [];
 		const candidates: BreakCandidate[] = [];
 		let chosen: BreakCandidate | null = null;
+		// A break before the line's first ink would leave an empty line (the
+		// first line's leading spaces, say), so none is offered until then.
+		let inked = false;
 		let index = start;
 
 		for (; index < items.length; index++) {
@@ -377,12 +380,13 @@ function breakParagraph({ items, offset, pen, wrapWidth, atlas, lines, advances 
 			if (item.glyph) {
 				const x = pen.place(item.glyph, item.space);
 				placed.push({ glyph: item.glyph, x });
+				if (!item.space) inked = true;
 				if (!item.space && pen.x > wrapWidth + EPSILON && candidates.length > 0) {
 					chosen = choose(candidates, wrapWidth);
 					break;
 				}
 			}
-			if (item.breakAfter && index + 1 < items.length) {
+			if (inked && item.breakAfter && index + 1 < items.length) {
 				candidates.push(candidate({ index, item, pen, placed, softHyphenGlyph }));
 			}
 		}
@@ -465,27 +469,30 @@ interface TruncateOptions {
 /**
  * R6.14: keep the longest prefix of the line that leaves room for the
  * ellipsis glyph within `maxWidth`, dropping spaces the cut leaves at its end,
- * and place the ellipsis after it. The prefix is re-placed through the pen, so
- * the ellipsis is kerned and spaced like any other glyph.
+ * and place the ellipsis after it, kerned and spaced like any other glyph.
  */
 function truncateLine({ line, maxWidth, atlas, pen, force }: TruncateOptions): TextLine {
 	const ellipsisGlyph = atlas.glyph(ELLIPSIS);
 	if (!ellipsisGlyph) return line;
 	// A soft hyphen shown at the line end is not content; the ellipsis replaces it.
 	const content = line.hyphenated ? line.glyphs.slice(0, -1) : line.glyphs;
+	const { size, spacing } = pen;
 
-	for (let keep = force ? content.length : content.length - 1; keep >= 0; keep--) {
-		let end = keep;
+	// The kept prefix was placed by this pen from the line's start, so its
+	// positions stand; each cut only needs the ellipsis's own spacing and
+	// kerning. `end` only moves left, so the whole scan is linear.
+	let end = force ? content.length : content.length - 1;
+	for (let keep = end; keep >= 0; keep--) {
+		end = Math.min(end, keep);
 		while (end > 0 && isSpace(content[end - 1].glyph)) end -= 1;
-		pen.reset();
-		const glyphs: LaidOutGlyph[] = [];
-		for (let index = 0; index < end; index++) {
-			glyphs.push({ glyph: content[index].glyph, x: pen.place(content[index].glyph, false) });
+		let x = 0;
+		if (end > 0) {
+			const last = content[end - 1];
+			x = last.x + last.glyph.advance * size + spacing + atlas.kerning(last.glyph.codePoint, ELLIPSIS) * size;
 		}
-		const x = pen.place(ellipsisGlyph, false);
-		if (pen.x <= maxWidth + EPSILON || end === 0) {
-			glyphs.push({ glyph: ellipsisGlyph, x });
-			return { glyphs, width: pen.x, hyphenated: false };
+		const width = x + ellipsisGlyph.advance * size;
+		if (width <= maxWidth + EPSILON || end === 0) {
+			return { glyphs: [...content.slice(0, end), { glyph: ellipsisGlyph, x }], width, hyphenated: false };
 		}
 	}
 	return line;

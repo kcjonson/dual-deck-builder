@@ -26,8 +26,9 @@ There is no second loop to drift. The pen that decides where a line breaks is th
 - Missing code points draw and measure as U+FFFD, or `?` in a face without it (R6.3).
 - Default-ignorables (U+00AD, U+200B, U+2060, U+FEFF, and a stray CR) place nothing, take no letter spacing, and do not reset kerning, so neighbours kern across them. This is the DDB-182 review note: Barlow has 32 pairs against the soft hyphen, which apply only when it shows.
 - R6.13's break opportunities, greedy fill, trailing spaces hanging at a soft break, leading spaces dropped on a continuation line, an overlong word on its own line. Scripts written without spaces break between grapheme clusters, from `Intl.Segmenter` when the paragraph has such a script (it never supplies the other break opportunities). `tsconfig` gains `ES2022.Intl` for its types.
+- No break is offered before a line's first ink, so a first line's leading spaces stay with its first word instead of becoming an empty line.
 - The soft hyphen is also a break opportunity (UAX #14 has it; R6.13 lets an implementation go further than its list). Breaking there shows the face's U+00AD glyph at the line end, kerned against the glyph before it.
-- R6.14's ellipsis: a single line keeps the longest prefix that leaves room for U+2026; wrapped text keeps the lines that fit the box height and ellipsizes the last. `overflow: 'clip'` pushes the box onto the clip stack for that one draw.
+- R6.14's ellipsis: a single line keeps the longest prefix that leaves room for U+2026; wrapped text keeps the lines that fit the box height and ellipsizes the last. The cut reuses the prefix's pen positions, so it is linear in the line. `overflow: 'clip'` pushes the box onto the clip stack for that one draw.
 
 ### Placement
 
@@ -58,6 +59,7 @@ Both bootstraps (`src/index.ts`, `src/gallery/index.ts`) await `loadFontAtlases`
 ## Consequences
 
 - Every golden moved: new faces, SDF edges, baselines from face metrics (text sits a few pixels lower than the canvas atlas's `textBaseline = 'top'` put it), and bold titles in the condensed display face.
-- The six symbol glyphs the screens use (fuel, shield, wrench and the others, and the back arrow) now render as the fallback glyph where the canvas atlas drew nothing, as R6.3 requires. The icon atlas (R12.6) replaces them.
+- The six symbol glyphs the screens used (armor, fuel, shield, wrench, gear, and the back arrow) are out of their strings. The engine draws an absent code point as the fallback glyph, as R6.3 requires, and that put U+FFFD diamonds on the combat HUD, where the canvas atlas had drawn nothing; removing the symbols restores the old look until the icon atlas (DDB-72, R12.6) brings them back as icons. Each site carries a comment naming DDB-72.
+- A font atlas that fails to load stops startup (there is no text without it, R2.18), and both pages say so in the status line `Renderer` uses for a lost device, rather than showing a blank canvas.
 - The raster fallback for sizes whose screen range falls below 1.5 device pixels (R6.4a, recommended) is not built. The screens use 8 and 9 px in seven places, whose screen range at ratio 1 (1.33 and 1.5 device pixels) is at or under that threshold; they render soft rather than wrong.
 - `measureText` works on the WebGL2 backend. The null and recording backends still refuse it.

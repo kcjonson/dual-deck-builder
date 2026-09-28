@@ -1,4 +1,4 @@
-import { Renderer } from './renderer/engine/rendering/Renderer';
+import { Renderer, showStatusLine } from './renderer/engine/rendering/Renderer';
 import { createDrawApi } from './renderer/engine/rendering/WebGL2Backend';
 import { FrameLoop } from './renderer/engine/rendering/FrameLoop';
 import { Game } from './renderer/game/Game';
@@ -6,7 +6,13 @@ import { RendererContext } from './renderer/engine/rendering/RendererContext';
 import { InputSystem } from './renderer/engine/input/InputSystem';
 import { FrameTimer } from './renderer/engine/rendering/FrameTimer';
 import type { GpuTimer } from './renderer/engine/rendering/GpuTimer';
-import { LoadedFontAtlas, loadFontAtlases, loadImageElement } from './renderer/engine/text/loadFontAtlases';
+import { FontAtlasError } from './renderer/engine/text/FontAtlas';
+import {
+	LoadedFontAtlas,
+	fontLoadFailureMessage,
+	loadFontAtlases,
+	loadImageElement,
+} from './renderer/engine/text/loadFontAtlases';
 
 /**
  * Main entry point for the application
@@ -107,6 +113,7 @@ class Application {
 			console.log('Initialization complete!');
 		} catch (error) {
 			console.error('Failed to initialize application:', error);
+			if (error instanceof FontAtlasError) showStatusLine(fontLoadFailureMessage(error));
 		}
 	}
 

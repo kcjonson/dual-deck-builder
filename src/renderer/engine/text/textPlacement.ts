@@ -86,7 +86,11 @@ export function decorationOffset(layout: TextLayout, decoration: TextDecoration 
 	const { atlas, size } = layout;
 	if (decoration === 'underline') return (atlas.metrics.underlineY ?? 0.1) * size;
 	if (decoration === 'strike') {
-		const xHeight = -(atlas.glyph(0x78)?.plane?.top ?? -0.5);
+		// Plane bounds carry the distance field's margin on every side; `x`
+		// sits on the baseline, so the margin is its bottom, and top plus
+		// bottom is the x-height without it.
+		const plane = atlas.glyph(0x78)?.plane;
+		const xHeight = plane ? -(plane.top + plane.bottom) : 0.5;
 		return (-xHeight / 2) * size;
 	}
 	return null;

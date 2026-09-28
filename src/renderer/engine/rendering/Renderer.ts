@@ -74,7 +74,7 @@ export class Renderer {
 			// the page says so rather than showing a black canvas.
 			const message = 'This game needs WebGL2, and the browser did not provide it. '
 				+ 'Hardware acceleration may be off, or blocked after a graphics driver crash.';
-			showGpuStatus(message);
+			showStatusLine(message);
 			throw new Error(message);
 		}
 		this.gl = gl;
@@ -126,7 +126,7 @@ export class Renderer {
 		event.preventDefault();
 		this.lost = true;
 		this.textures.lose();
-		showGpuStatus('The graphics device was lost. Waiting for it to come back.');
+		showStatusLine('The graphics device was lost. Waiting for it to come back.');
 		for (const listener of [...this.listeners]) listener.lost?.();
 	};
 
@@ -141,10 +141,10 @@ export class Renderer {
 			this.textures.restore();
 			for (const listener of [...this.listeners]) listener.restored?.();
 		} catch (error) {
-			showGpuStatus('The graphics device came back, but the game could not rebuild on it. Reload the page to try again.');
+			showStatusLine('The graphics device came back, but the game could not rebuild on it. Reload the page to try again.');
 			throw error;
 		}
-		showGpuStatus(null);
+		showStatusLine(null);
 	};
 }
 
@@ -152,10 +152,10 @@ const GPU_STATUS_ID = 'gpu-status';
 
 /**
  * A DOM line over the canvas saying why nothing is drawing, or null to remove
- * it. Both pages share it through `Renderer`, so neither bootstrap has to
- * remember to.
+ * it. Both pages share it: `Renderer` for the device, the bootstraps for a
+ * font atlas that failed to load, so a failed start is never a blank canvas.
  */
-function showGpuStatus(message: string | null): void {
+export function showStatusLine(message: string | null): void {
 	let element = document.getElementById(GPU_STATUS_ID);
 	if (message === null) {
 		element?.remove();
