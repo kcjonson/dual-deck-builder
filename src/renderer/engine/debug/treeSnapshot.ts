@@ -2,6 +2,7 @@ import { Layer } from '../components/Layer';
 import { Component } from '../components/Component';
 import { Panel } from '../ui/Panel';
 import { Input } from '../ui/Input';
+import { CLIP_NONE, ClipState, intersectClip } from '../draw/clip';
 
 /**
  * Serializes the live Layer tree to the JSON document of R13.22-R13.24.
@@ -25,12 +26,12 @@ import { Input } from '../ui/Input';
  * sibling-overlap rule exempts.
  *
  * Clips are reported as the intersection of every clipping ancestor, which is
- * what R13.22's "effective values" asks for. The renderer does not yet agree:
- * Layer.render and Panel.render each save the previous SCISSOR_BOX and set
- * their own rect alone, replacing rather than intersecting it, so on a nested
- * clipper the reported clip is the intended clip and the drawn pixels are
- * wider. Phase 1's clip stack closes the gap; the intersection here is the
- * target and stays.
+ * what R13.22's "effective values" asks for, computed by the draw API's own
+ * clip stack arithmetic (`intersectClip`, R4.2 and R4.3) from the same
+ * `clipsChildren` fact `Layer.render` and `Panel.render` push from. So the
+ * reported clip is the one the renderer applied, including R4.2's `empty`
+ * state, which is reported as a zero-sized rect rather than dropped: a node
+ * clipped away entirely has a clip, and it contains nothing.
  *
  * R13.21 says the snapshot is taken after layout has run for the frame. This
  * engine has no layout phase in the frame loop, and Text sizes are only
@@ -100,8 +101,8 @@ const REPLACEMENT_CHARACTER = String.fromCharCode(0xfffd);
 interface WalkContext {
 	offsetX: number;
 	offsetY: number;
-	/** Effective clip contributed by ancestors, in logical space. */
-	clip?: SnapshotRect;
+	/** Effective clip contributed by ancestors, in logical space (R4.2's three states). */
+	clip: ClipState;
 }
 
 /**
@@ -143,13 +144,11 @@ function safeId(value: unknown): string | null {
 	return sanitized;
 }
 
-function intersect(a: SnapshotRect | undefined, b: SnapshotRect): SnapshotRect {
-	if (!a) return b;
-	const x = Math.max(a.x, b.x);
-	const y = Math.max(a.y, b.y);
-	const right = Math.min(a.x + a.w, b.x + b.w);
-	const bottom = Math.min(a.y + a.h, b.y + b.h);
-	return { x, y, w: Math.max(0, right - x), h: Math.max(0, bottom - y) };
+function snapshotClip(clip: ClipState): SnapshotRect | undefined {
+	if (clip.kind === 'none') return undefined;
+	if (clip.kind === 'empty') return { x: 0, y: 0, w: 0, h: 0 };
+	const { minX, minY, maxX, maxY } = clip.rect;
+	return { x: minX, y: minY, w: maxX - minX, h: maxY - minY };
 }
 
 /**
@@ -192,7 +191,8 @@ function serializeNode(
 		serialized.screenBounds = { x: screenX, y: screenY, w, h };
 		serialized.visible = node.isVisible() === true;
 
-		if (context.clip) serialized.clip = { ...context.clip };
+		const clip = snapshotClip(context.clip);
+		if (clip) serialized.clip = clip;
 
 		const panel = node instanceof Panel ? node : null;
 		const scroll = panel ? panel.getScrollOffset() : null;
@@ -210,12 +210,9 @@ function serializeNode(
 			serialized.value = node.getValue();
 		}
 
-		// Both Layer.render and Panel.render enable the scissor only when the
-		// box has real extent, so a zero-sized clipper clips nothing.
-		const clips = panel
-			? (panel.scrollable || panel.getOverflow() === 'hidden') && w > 0 && h > 0
-			: node.getOverflow() === 'hidden' && w > 0 && h > 0;
-		const innerClip = clips ? intersect(context.clip, { x: screenX, y: screenY, w, h }) : context.clip;
+		const innerClip = node.clipsChildren
+			? intersectClip(context.clip, { minX: screenX, minY: screenY, maxX: screenX + w, maxY: screenY + h }, null)
+			: context.clip;
 
 		// `ancestors` is per-path and catches cycles. `seen` is walk-wide and
 		// catches the other shape: Layer.addChild never detaches from a
@@ -285,7 +282,7 @@ export function treeSnapshot(roots: readonly Layer[], viewport: SnapshotViewport
 
 	for (const root of roots) {
 		if (!root) continue;
-		document.roots.push(serializeNode(root, { offsetX: 0, offsetY: 0 }, new Set<Layer>(), seen, 0));
+		document.roots.push(serializeNode(root, { offsetX: 0, offsetY: 0, clip: CLIP_NONE }, new Set<Layer>(), seen, 0));
 	}
 
 	return document;

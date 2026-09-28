@@ -12,12 +12,12 @@ import { ClipRect, Mat2D, Rect, Vec2, inflate, transformedBounds } from './geome
  * bounds including shadow padding and ink extent") is why each function grows
  * rather than fits.
  *
- * Text has no function here on purpose. A run's extent needs the glyph
- * iteration of R6.8, which is chapter 6 and phase 2, so `drawText` is never
- * bounds-culled and only an `empty` clip drops it. Guessing a width from
- * `text.length * size` would be exactly the fabricated number this project's
- * phase 0 had to retract. R4.2a's scrolled-list benefit is therefore only
- * partly realised until the text PR lands.
+ * Text has no function here on purpose. A run's extent needs a glyph walk,
+ * which only the object that owns the atlas can take, so it comes from
+ * `DrawBackend.textInk` when the backend offers one and is otherwise absent:
+ * such a run is never bounds-culled and only an `empty` clip drops it.
+ * Guessing a width from `text.length * size` would be exactly the fabricated
+ * number this project's phase 0 had to retract.
  *
  * The one-device-pixel inflation in `screenInk` is R5.7's: the quad extends at
  * least one device pixel past the outermost SDF edge so the outer half of the

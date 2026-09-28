@@ -7,9 +7,11 @@ import {
 	DrawBatch,
 	DrawCommand,
 	DrawCommandKind,
+	DrawTextOptions,
 	FrameDescription,
 	GpuWork,
 	PolylineCommand,
+	Rect,
 	ResolvedClip,
 	TextCommand,
 	Vec2,
@@ -301,6 +303,7 @@ export class LegacyGLBackend implements DrawBackend {
 	private readonly gl: WebGLRenderingContext;
 	private readonly fontAtlas: FontAtlas;
 	private readonly batcher: Batcher;
+	private readonly encoder: LegacyGeometryEncoder;
 	private readonly paintOrder = new LegacyPaintOrder();
 
 	private readonly vertexBuffer: WebGLBuffer;
@@ -337,6 +340,7 @@ export class LegacyGLBackend implements DrawBackend {
 			glyphs: fontAtlas,
 			onUnpaintable: (kind, detail) => this.reportUnpaintable(kind, detail),
 		});
+		this.encoder = encoder;
 		this.batcher = new Batcher({
 			encoder,
 			// One sampler in the legacy program, holding the one atlas. Nothing
@@ -360,6 +364,11 @@ export class LegacyGLBackend implements DrawBackend {
 	/** R2.18's precondition, answered by the atlas the `Renderer` builds in its constructor. */
 	get fontAtlasNames(): readonly string[] {
 		return [DEFAULT_FONT];
+	}
+
+	/** R4.2a per run, from the same glyph walk `encodeText` takes. */
+	textInk(options: DrawTextOptions): Rect | null {
+		return this.encoder.textInk(options);
 	}
 
 	beginFrame(frame: FrameDescription): void {

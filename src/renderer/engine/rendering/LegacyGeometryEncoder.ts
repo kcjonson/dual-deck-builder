@@ -7,8 +7,12 @@ import {
 	PolygonCommand,
 	PolylineCommand,
 	RGBA,
+	Rect,
 	RectCommand,
+	TextAlign,
 	TextCommand,
+	Vec2,
+	VerticalAlign,
 } from '../draw';
 import { GeometryEncoder, GeometrySink, GroupShape } from '../draw/Batcher';
 import type { CharacterInfo } from './FontAtlas';
@@ -65,6 +69,15 @@ export const LEGACY_VERTEX = {
 export const LEGACY_MODE_SHAPE = 0;
 export const LEGACY_MODE_GLYPH = 1;
 
+/** The parts of a text run its placement depends on; a `TextCommand` and `DrawTextOptions` both fit. */
+export interface TextRun {
+	readonly text: string;
+	readonly position?: Vec2 | null;
+	readonly size: number;
+	readonly align?: TextAlign;
+	readonly verticalAlign?: VerticalAlign;
+}
+
 /** What the encoder needs from a font atlas. `FontAtlas` satisfies it; a test's fake does too. */
 export interface GlyphSource {
 	getCharacter(char: string): CharacterInfo | null;
@@ -106,6 +119,7 @@ export class LegacyGeometryEncoder implements GeometryEncoder {
 	/** `fade`'s output for the fill and the stroke, so opacity costs no allocation. */
 	private readonly fadedFill: [number, number, number, number] = [0, 0, 0, 0];
 	private readonly fadedStroke: [number, number, number, number] = [0, 0, 0, 0];
+	private readonly penScratch = { startX: 0, startY: 0, scale: 1 };
 
 	constructor({ glyphs, onUnpaintable }: LegacyGeometryEncoderOptions) {
 		this.glyphs = glyphs;
@@ -378,24 +392,7 @@ export class LegacyGeometryEncoder implements GeometryEncoder {
 		const matrix = command.transform;
 		const anchorX = matrix[0] * position.x + matrix[2] * position.y + matrix[4];
 		const anchorY = matrix[1] * position.x + matrix[3] * position.y + matrix[5];
-		const scale = command.size / glyphs.getFontSize();
-		const metrics = glyphs.measureText(command.text);
-		const scaledWidth = metrics.width * scale;
-		const scaledHeight = metrics.height * scale;
-
-		let startX = anchorX;
-		if (command.align === 'center') {
-			startX = anchorX - scaledWidth / 2;
-		} else if (command.align === 'right') {
-			startX = anchorX - scaledWidth;
-		}
-
-		let startY = anchorY;
-		if (command.verticalAlign === 'middle') {
-			startY = anchorY - scaledHeight / 2;
-		} else if (command.verticalAlign === 'bottom') {
-			startY = anchorY - scaledHeight;
-		}
+		const { startX, startY, scale } = this.pen(command, anchorX, anchorY);
 
 		const model = IDENTITY_MODEL;
 		const mode = LEGACY_MODE_GLYPH + slot;
@@ -431,6 +428,72 @@ export class LegacyGeometryEncoder implements GeometryEncoder {
 			currentX += info.advance * scale;
 			glyph += 1;
 		}
+	}
+
+	/**
+	 * R4.2a's per-run extent, in the run's local space: the union of the glyph
+	 * quads `encodeText` would write for a pen anchored at `position`, grown by
+	 * one pixel because each glyph is rounded to whole pixels after the
+	 * transform's translation is added, which can move it by up to one. Null
+	 * when the run has no position or no glyph, which leaves it uncullable
+	 * rather than guessed at.
+	 */
+	textInk(run: TextRun): Rect | null {
+		if (!run.position) return null;
+		const glyphs = this.glyphs;
+		const { startX, startY, scale } = this.pen(run, run.position.x, run.position.y);
+		const atlasSize = glyphs.getAtlasSize();
+		let minX = Infinity;
+		let minY = Infinity;
+		let maxX = -Infinity;
+		let maxY = -Infinity;
+		let currentX = startX;
+
+		for (let i = 0; i < run.text.length; i++) {
+			const info = glyphs.getCharacter(run.text[i]);
+			if (!info) continue;
+			const pixelX = Math.round(currentX + info.offsetX * scale);
+			const pixelY = Math.round(startY + info.offsetY * scale);
+			minX = Math.min(minX, pixelX);
+			minY = Math.min(minY, pixelY);
+			maxX = Math.max(maxX, pixelX + info.width * atlasSize * scale);
+			maxY = Math.max(maxY, pixelY + info.height * atlasSize * scale);
+			currentX += info.advance * scale;
+		}
+
+		if (minX === Infinity) return null;
+		return { x: minX - 1, y: minY - 1, width: maxX - minX + 2, height: maxY - minY + 2 };
+	}
+
+	/**
+	 * `LegacyGLBackend.paintText`'s alignment: where the pen starts, and the
+	 * atlas scale, in a reused object that is read before the next call.
+	 */
+	private pen(run: TextRun, anchorX: number, anchorY: number): { startX: number; startY: number; scale: number } {
+		const scale = run.size / this.glyphs.getFontSize();
+		const metrics = this.glyphs.measureText(run.text);
+		const scaledWidth = metrics.width * scale;
+		const scaledHeight = metrics.height * scale;
+
+		let startX = anchorX;
+		if (run.align === 'center') {
+			startX = anchorX - scaledWidth / 2;
+		} else if (run.align === 'right') {
+			startX = anchorX - scaledWidth;
+		}
+
+		let startY = anchorY;
+		if (run.verticalAlign === 'middle') {
+			startY = anchorY - scaledHeight / 2;
+		} else if (run.verticalAlign === 'bottom') {
+			startY = anchorY - scaledHeight;
+		}
+
+		const pen = this.penScratch;
+		pen.startX = startX;
+		pen.startY = startY;
+		pen.scale = scale;
+		return pen;
 	}
 
 	// -- matrices ---------------------------------------------------------

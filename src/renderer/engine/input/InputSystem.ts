@@ -274,6 +274,12 @@ export class InputSystem {
 		if (InputSystem.DEBUG && !foundComponent) {
 			console.log(`[InputSystem] No component found to handle wheel event`);
 		}
+
+		// A scroll moves content under a pointer that did not move. The hover
+		// set is what mousedown dispatches to, so it is recomputed here rather
+		// than at the next mousemove, or a click right after a scroll lands on a
+		// row that just left the clip (R4.12) and misses the one that entered.
+		this.processMouseOverOut();
 	}
 	
 	/**

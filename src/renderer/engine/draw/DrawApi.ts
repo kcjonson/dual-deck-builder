@@ -213,8 +213,9 @@ interface CaptureRequest {
 	blend?: BlendMode;
 	group: DrawGroupRole;
 	/**
-	 * Conservative screen-space ink extent for R4.2a, or null for a primitive
-	 * whose extent this phase cannot derive (text, until R6.8's iteration).
+	 * Conservative local-space ink extent for R4.2a, or null for a primitive
+	 * whose extent cannot be derived (text, when the backend offers no
+	 * `textInk`).
 	 */
 	ink: Rect | null;
 }
@@ -724,25 +725,46 @@ export class DrawApi {
 			);
 		}
 
+		const ink = this.textInk(options);
+
 		if (options.shadow) {
 			// R3.17: the shadow run immediately precedes the main run.
+			const offset = options.shadow.offset ?? { x: 0, y: 0 };
+			const blur = options.shadow.blur ?? 0;
 			const state = this.capture({
 				id: options.id,
 				blend: options.blend,
 				group: 'shadow',
-				ink: null,
+				ink: ink
+					? {
+							x: ink.x + offset.x - blur,
+							y: ink.y + offset.y - blur,
+							width: ink.width + blur * 2,
+							height: ink.height + blur * 2,
+						}
+					: null,
 			});
 			if (state) {
-				const offset = options.shadow.offset ?? { x: 0, y: 0 };
-				this.emit(
-					buildText(state, options, options.shadow.color, offset, options.shadow.blur ?? 0),
-				);
+				this.emit(buildText(state, options, options.shadow.color, offset, blur));
 			}
 		}
 
-		const state = this.capture({ id: options.id, blend: options.blend, group: 'primary', ink: null });
+		const state = this.capture({ id: options.id, blend: options.blend, group: 'primary', ink });
 		if (!state) return;
 		this.emit(buildText(state, options, options.color, { x: 0, y: 0 }, 0));
+	}
+
+	/**
+	 * R4.2a's per-run extent, when the backend can take it. Only under a
+	 * translate-only transform: the legacy backend places a run at its
+	 * transformed anchor without rotating the glyphs, so the transformed
+	 * bounds of a rotated run's local extent would not contain what it draws,
+	 * and a cull that can be wrong is worse than none.
+	 */
+	private textInk(options: DrawTextOptions): Rect | null {
+		if (!this.backend.textInk || !this.translateOnly) return null;
+		if (this.clip.kind !== 'rect') return null;
+		return this.backend.textInk(options);
 	}
 
 	/** R2.14, delegated and refused. See `TEXT_MEASUREMENT_UNAVAILABLE`. */
@@ -786,7 +808,7 @@ export class DrawApi {
 	 *   the CPU and MUST NOT collapse to `none`.
 	 * - R4.2a's bounds test: the transformed ink extent does not intersect the
 	 *   clip rect. Skipped under `none`, whose rect is R4.1's all-covering one,
-	 *   and skipped for text, whose extent needs R6.8's glyph iteration.
+	 *   and for text whose extent the backend cannot give (`textInk`).
 	 */
 	private capture({ id, blend, group, ink }: CaptureRequest): ResolvedState | null {
 		const clip = resolveClip(this.clip);

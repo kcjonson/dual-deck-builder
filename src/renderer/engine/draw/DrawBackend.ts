@@ -1,10 +1,12 @@
 import {
 	DrawCommand,
+	DrawTextOptions,
 	FontAtlasHandle,
 	MeasureTextOptions,
 	TextMetrics,
 	TextureHandle,
 } from './commands';
+import { Rect } from './geometry';
 import { FlushReason, GpuWork } from './stats';
 
 /**
@@ -124,4 +126,15 @@ export interface DrawBackend {
 	 * backend omits it rather than substituting an estimate.
 	 */
 	measureText?(options: MeasureTextOptions): TextMetrics;
+
+	/**
+	 * R4.2a's per-run test for text: a conservative local-space extent of the
+	 * run as this backend would draw it, or null when it cannot say. Optional
+	 * for the same reason as `measureText`: the extent needs the glyph walk,
+	 * and only the object that owns the atlas can take it without guessing. A
+	 * backend that omits it leaves text exempt from the bounds cull, which is
+	 * correct, just slower. Distinct from `measureText` because this is ink for
+	 * a cull and carries none of R2.14's layout contract.
+	 */
+	textInk?(options: DrawTextOptions): Rect | null;
 }
