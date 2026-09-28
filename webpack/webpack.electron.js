@@ -71,6 +71,16 @@ const rendererConfig = merge(common, {
 	// contextIsolation is on and nodeIntegration off, so the renderer is a
 	// plain web app; target 'web' keeps it identical to the browser build.
 	target: 'web',
+	module: {
+		rules: [
+			// R15.34: a packaged page runs from file://, so atlas images are
+			// inlined as data URIs and no runtime file request exists.
+			{
+				test: /\.png$/,
+				type: 'asset/inline',
+			},
+		],
+	},
 	output: {
 		filename: '[name].[contenthash].js',
 		path: path.resolve(__dirname, '../dist/electron/renderer'),

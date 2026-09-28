@@ -83,12 +83,12 @@ Visible result: text can be covered by later shapes, rounded corners and borders
 
 ### Phase 2: text (chapter 6)
 
-- [ ] Font pipeline per section 5: faces, licences, `charset.txt`, `build-fonts` script, committed atlases, loader with R6.2 validation.
+- [x] Font pipeline per section 5: faces, licences, `charset.txt`, `build-fonts` script, committed atlases, loader with R6.2 validation (DDB-69: Barlow Condensed SemiBold, Open Sans, JetBrains Mono; see [font-pipeline.md](../AI_TECHNICAL_DECISIONS/font-pipeline.md)).
 - [ ] Metrics service: shared measure and render iteration, kerning, letter spacing, transform, ascent centring, greedy wrap with `Intl.Segmenter`, ellipsis, decoration, measurement cache keyed on role (6.3, 6.4).
 - [ ] `text` mode (median of three, derivative range), run-origin snapping, text shadow (6.2, 6.5); the `mask` mode, `FontAtlas` canvas rasterisation, and the old text batching deleted.
 - [ ] `Text` component on real metrics: top-left line box, roles, `fontWeight` through the theme table, `fontFamily` alias, `nowrap` plus `ellipsis` truncates (R12.4); the estimate sites (`Text.layout`, wrapping, the synergy panel, driver stats, the input caret) replaced.
 - [ ] Icon atlas and the six symbol-glyph sites (R12.6).
-- [ ] Electron packaged build smoke-tested for the asset path (R15.34).
+- [x] Electron packaged build smoke-tested for the asset path (R15.34): `scripts/smoke-electron-package.mjs` in both Electron Build jobs (DDB-69).
 
 Visible result: crisp text from 8 to 64 px in the new faces, centred titles centred (DDB-30), bold titles bold, symbols rendered; every measured layout shifts once and the goldens are re-baselined deliberately.
 

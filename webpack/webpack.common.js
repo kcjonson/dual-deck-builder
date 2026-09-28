@@ -87,6 +87,15 @@ module.exports = {
 				{
 					from: './src/assets',
 					to: 'assets',
+					// The atlases are bundled through imports (R15.34) and the
+					// TTFs and charset are build inputs; only the licences ship
+					// as files, below.
+					globOptions: { ignore: ['**/fonts/**'] },
+				},
+				{
+					from: 'fonts/*/OFL.txt',
+					context: './src/assets',
+					to: 'assets',
 				},
 				{
 					from: './src/renderer/game/data/cards.json',

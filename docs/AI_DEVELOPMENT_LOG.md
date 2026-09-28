@@ -6,6 +6,19 @@ This document contains the chronological log of completed development tasks for 
 
 **Date correction (2026-08-22):** the repo's first commit is 2025-05-17, but many entries below carry dates in December 2024 or January 2025 — the AI that wrote them used its assumed date instead of the real one. Entries dated 2025-07-03 and 2025-07-02 have been corrected from "2025-01-03"/"2025-01-02" (verified against git history). Remaining Dec 2024 / Jan 2025 dates are wrong by roughly six months; the real work happened May–July 2025. Trust git history over these dates.
 
+## Font pipeline: faces, build script, committed atlases, loader (2026-09-28)
+
+**What landed:** DDB-69, the first item of DDB-55 phase 2. No pixel changes; the atlases are loaded and validated, and DDB-70 draws with them.
+
+- Faces under `src/assets/fonts/` with their OFL texts: Barlow Condensed SemiBold 1.422 for display (the family the battle screen mock and DDB-83's tokens use), Open Sans Regular 3.000 (moved from `public/assets/fonts/`, where nothing referenced it) for body, JetBrains Mono Regular 2.304 for mono. `charset.txt` holds the R6.3 ranges; `README.md` there says how to install msdf-atlas-gen on each platform.
+- `scripts/build-fonts.sh` and `.ps1` run msdf-atlas-gen v1.4.0 (pinned; the scripts refuse another version) with `-type mtsdf -size 48 -pxrange 8 -yorigin top -potr`. Three atlases (512x512 for Barlow, 1024x512 for the others), committed. Byte-identical across runs.
+- `src/renderer/engine/text/FontAtlas.ts`: `parseFontAtlas` validates msdf-atlas-gen JSON (R6.2) and normalises it to y down and per em, honouring `yOrigin`. Structural problems and a range below R6.4a throw `FontAtlasError`; a glyph with one bound, bad numbers, or atlas bounds off the image is dropped with a warning; a glyph with neither bound is a blank (the space). Missing punctuation gets a typesetter's substitute, missing typographic spaces are synthesized at their defined widths, and U+200B, U+2060, U+FEFF are forced to zero width. R6.2 and R6.3 amended to match.
+- `fontFaces.ts` maps roles to bundled JSON and image modules; `loadFontAtlases.ts` validates, decodes, and checks each image's size against its metrics. `src/index.ts` starts it at boot and sets a `font-atlases-ready` or `font-atlases-failed` performance mark.
+- Webpack: PNG is `asset/resource` in the web build (under `assets/fonts/`) and `asset/inline` in the Electron renderer (R15.34). The font sources are no longer copied into `dist`; the OFL files are.
+- `scripts/smoke-electron-package.mjs` launches the packaged app from `release/` and fails unless it runs from `file://`, the ready mark appears, and no image is requested as a file. Added after packaging in both Electron Build jobs.
+
+**How:** 80 new tests in `src/renderer/engine/text/`: structural failures, glyph drops, `yOrigin` and `emSize` normalisation, kerning, substitution, and over the committed files (parameters, PNG size from the IHDR against the JSON, every charset code point resolving, licence files). Smoke test run locally against an `electron-builder --mac --dir` build: passes, and fails listing the PNG URLs with the Electron rule switched to `asset/resource`.
+
 ## AI strategies score the effect types cards actually use (2026-09-27)
 
 **What landed:** DDB-171. The strategies checked effect types no card in `cards.json` has (`speed`, `move_to_position`, `position_change`, plus `armor`, `draw`, `adrenaline`, and `status`, and the status names `nitro_boost`, `oil_slick`, and `caltrops`), so MCTS gave a real Flank and Nitro Boost its flat 0.5 for unknown effects and the other strategies carried dead branches.

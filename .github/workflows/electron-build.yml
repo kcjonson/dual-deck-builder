@@ -37,6 +37,11 @@ jobs:
     
     - name: Package Windows App
       run: npm run package:win
+
+    # R15.34: the packaged renderer runs from file:// out of the asar; check the
+    # font atlases load there without a file request.
+    - name: Smoke Test Packaged App
+      run: node scripts/smoke-electron-package.mjs
     
     - name: Upload Windows Build
       uses: actions/upload-artifact@v4
@@ -70,6 +75,11 @@ jobs:
     
     - name: Package macOS App
       run: npm run package:mac
+
+    # R15.34: the packaged renderer runs from file:// out of the asar; check the
+    # font atlases load there without a file request.
+    - name: Smoke Test Packaged App
+      run: node scripts/smoke-electron-package.mjs
     
     - name: Upload macOS Build
       uses: actions/upload-artifact@v4
