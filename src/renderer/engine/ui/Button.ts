@@ -86,7 +86,8 @@ export class Button extends Component {
 	private heightFollowsSize: boolean;
 
 	constructor(label = '', { icon, tone = 'default', size = 'md', style = {}, ...options }: ButtonOptions = {}) {
-		super({ ...options, height: options.height ?? CONTROL_SIZES[size].height });
+		// R12.7: focusable unless told otherwise.
+		super({ focusable: true, ...options, height: options.height ?? CONTROL_SIZES[size].height });
 		this.componentType = 'Button';
 		this.heightFollowsSize = options.height === undefined;
 		validateStyle(style, BUTTON_STYLE);
@@ -197,11 +198,17 @@ export class Button extends Component {
 	 * synthesises the click only when press and release both land here, never
 	 * while disabled (R9.5, R9.31); this keeps `pressed`, the one framework
 	 * flag it does not own yet. The callbacks run first, so `onClick` is the
-	 * base class's callback property.
+	 * base class's callback property. `activate` from Enter or Space while
+	 * focused fires `onClick` too (R12.7), once per press, since the
+	 * dispatcher never repeats it (R9.27).
 	 */
 	public handleEvent(event: AnyUiEvent): void {
 		super.handleEvent(event);
 		switch (event.type) {
+			case 'activate':
+				event.consume();
+				this.onClick?.(event);
+				return;
 			case 'pointerleave':
 				this.pressed = false;
 				return;

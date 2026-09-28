@@ -26,10 +26,16 @@ export type PointerEventType =
 
 export type KeyEventType = 'keydown' | 'keyup';
 
+/** R9.22: delivered to the one component whose focus changed, never bubbling. */
+export type FocusEventType = 'focus' | 'blur';
+
+/** R9.27's abstract actions: confirm and back, whatever produced them. */
+export type ActionEventType = 'activate' | 'cancel';
+
 /** R9.12's drag events, synthesised by the drag service. */
 export type DragEventType = 'dragenter' | 'dragover' | 'dragleave' | 'drop' | 'dragend';
 
-export type UiEventType = PointerEventType | 'wheel' | KeyEventType | DragEventType;
+export type UiEventType = PointerEventType | 'wheel' | KeyEventType | DragEventType | FocusEventType | ActionEventType;
 
 /**
  * R9.1's common fields. `target` is where dispatch started; `currentTarget`
@@ -93,6 +99,7 @@ export class UiPointerEvent extends UiEvent {
 	public readonly modifiers: Modifiers;
 	public readonly coalesced: readonly Vec2[];
 	private readonly captureHook: ((component: Component) => void) | null;
+	private focusPrevented = false;
 
 	constructor(init: PointerEventInit) {
 		super(init);
@@ -121,6 +128,19 @@ export class UiPointerEvent extends UiEvent {
 	 */
 	public capturePointer(): void {
 		this.captureHook?.(this.currentTarget);
+	}
+
+	/**
+	 * R9.23: a `pointerdown` handler that owns the press (a scrollbar, a drag
+	 * handle) leaves focus where it is instead of moving it to the pressed
+	 * component or clearing it.
+	 */
+	public preventFocus(): void {
+		this.focusPrevented = true;
+	}
+
+	public get isFocusPrevented(): boolean {
+		return this.focusPrevented;
 	}
 }
 
@@ -179,6 +199,58 @@ export class UiKeyEvent extends UiEvent {
 		this.modifiers = init.modifiers;
 	}
 }
+
+export interface FocusEventInit {
+	type: FocusEventType;
+	timestamp: number;
+	target: Component;
+	/** The component losing focus on a `focus`, gaining it on a `blur`; null when there is none. */
+	relatedTarget: Component | null;
+	/** Whether the ring shows for this focus (R9.23); false on every `blur`. */
+	focusVisible: boolean;
+}
+
+/** R9.22: `blur` on the component losing focus, then `focus` on the one gaining it. */
+export class UiFocusEvent extends UiEvent {
+	public readonly type: FocusEventType;
+	public readonly relatedTarget: Component | null;
+	public readonly focusVisible: boolean;
+
+	constructor(init: FocusEventInit) {
+		super(init);
+		this.type = init.type;
+		this.relatedTarget = init.relatedTarget;
+		this.focusVisible = init.focusVisible;
+	}
+}
+
+/** Where an action came from; components treat them all alike (R9.27). */
+export type ActionSource = 'keyboard' | 'controller' | 'injection';
+
+export interface ActionEventInit {
+	type: ActionEventType;
+	timestamp: number;
+	target: Component;
+	source: ActionSource;
+}
+
+/**
+ * R9.27: `activate` from the first Enter or Space of a press, `cancel` from
+ * Escape. Delivered to the focused component and bubbling, so a component
+ * handles confirm and back instead of checking key names. A held key never
+ * repeats an `activate`.
+ */
+export class UiActionEvent extends UiEvent {
+	public readonly type: ActionEventType;
+	public readonly source: ActionSource;
+
+	constructor(init: ActionEventInit) {
+		super(init);
+		this.type = init.type;
+		this.source = init.source;
+	}
+}
+
 
 export interface DragEventInit {
 	type: DragEventType;
@@ -256,4 +328,4 @@ export class UiDragEvent extends UiEvent {
 	}
 }
 
-export type AnyUiEvent = UiPointerEvent | UiWheelEvent | UiKeyEvent | UiDragEvent;
+export type AnyUiEvent = UiPointerEvent | UiWheelEvent | UiKeyEvent | UiDragEvent | UiFocusEvent | UiActionEvent;

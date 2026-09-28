@@ -2,7 +2,7 @@ import type { Rect, Vec2 } from '../draw/geometry';
 import type { DrawApi } from '../draw/DrawApi';
 import { Layer, LayerOptions } from '../components/Layer';
 import { BoxStyle, boxColors, drawBox, resolveBoxStyle } from '../components/Rectangle';
-import type { ResolvedColors } from '../components/Component';
+import type { Component, ResolvedColors } from '../components/Component';
 import type { AnyUiEvent } from '../input/events';
 
 /**
@@ -197,6 +197,24 @@ export class Panel extends Layer {
 	}
 
 	/**
+	 * R12.20's `nearest`: scrolls by the least that brings the descendant's
+	 * box inside the clip, its start edge winning when it is larger than the
+	 * clip. Worked in this panel's local space, where a scroll of one unit
+	 * moves the content one unit, so a scaled ancestor changes nothing.
+	 */
+	public scrollIntoView(descendant: Component): void {
+		if (!this.scrollable) return;
+		const corners = descendant.screenQuad.map((point) => this.screenToLocal(point));
+		if (corners.some((corner) => corner === null)) return;
+		const xs = corners.map((corner) => (corner as Vec2).x);
+		const ys = corners.map((corner) => (corner as Vec2).y);
+		const clip = this.clipRect;
+		const deltaX = nearestDelta(Math.min(...xs), Math.max(...xs), clip.x, clip.x + clip.width);
+		const deltaY = nearestDelta(Math.min(...ys), Math.max(...ys), clip.y, clip.y + clip.height);
+		if (deltaX !== 0 || deltaY !== 0) this.scroll(deltaX, deltaY);
+	}
+
+	/**
 	 * R9.32: the dispatcher latches the innermost scroller that can move in
 	 * the wheel's direction, so a panel at its end passes a new gesture on.
 	 */
@@ -220,4 +238,11 @@ export class Panel extends Layer {
 		this.scroll(event.deltaX, event.deltaY);
 		event.consume();
 	}
+}
+
+/** How far to scroll so `[start, end]` sits inside `[min, max]`, moving the least; 0 when it already does. */
+function nearestDelta(start: number, end: number, min: number, max: number): number {
+	if (start < min) return start - min;
+	if (end > max) return Math.min(end - max, start - min);
+	return 0;
 }

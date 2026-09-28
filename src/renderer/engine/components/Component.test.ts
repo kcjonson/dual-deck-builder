@@ -399,8 +399,7 @@ describe('state flags (R11.11)', () => {
 		const probe = new StateProbe();
 		probe.setHovered(true);
 		probe.pressed = true;
-		probe.setFocused(true);
-		probe.focusVisible = true;
+		probe.setFocusState(true, true);
 		probe.selected = true;
 		probe.open = true;
 		probe.active = true;
@@ -417,7 +416,7 @@ describe('state flags (R11.11)', () => {
 			active: true,
 			dropActive: true,
 		});
-		expect(probe.changes).toBe(8);
+		expect(probe.changes).toBe(7);
 	});
 
 	it('notifies only on a change', () => {
@@ -430,12 +429,11 @@ describe('state flags (R11.11)', () => {
 
 	it('holds focus-visible only while focused, and drops it with focus', () => {
 		const probe = new StateProbe();
-		probe.focusVisible = true;
+		probe.setFocusState(false, true);
 		expect(probe.focusVisible).toBe(false);
-		probe.setFocused(true);
-		probe.focusVisible = true;
+		probe.setFocusState(true, true);
 		expect(probe.focusVisible).toBe(true);
-		probe.setFocused(false);
+		probe.setFocusState(false, true);
 		expect(probe.focusVisible).toBe(false);
 	});
 

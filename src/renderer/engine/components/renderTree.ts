@@ -1,4 +1,6 @@
 import type { DrawApi } from '../draw/DrawApi';
+import type { RGBA } from '../draw/geometry';
+import { tokens } from '../theme/tokens';
 import type { Component } from './Component';
 
 /**
@@ -10,7 +12,8 @@ import type { Component } from './Component';
  * that raises it, the clip reset of R3.8; then `render`; then, around the
  * children only, its clip in its own unscrolled space and its content offset
  * inside that clip, so the clip stays put while the content moves (R4.9,
- * R4.10).
+ * R4.10); then, after the children, the focus ring when the component shows
+ * focus (R11.12).
  *
  * Invisible components and components at zero opacity are skipped whole
  * (R3.27). Nothing is pushed for a default: a component at the origin with no
@@ -58,9 +61,39 @@ export function renderTree(component: Component, draw: DrawApi): void {
 		if (clips) draw.popClip();
 	}
 
+	if (component.focusVisible && component.effectivelyEnabled && !component.drawsOwnFocusRing) drawFocusRing(component, draw);
+
 	if (promotes) draw.popClip();
 	if (layered) draw.popLayer();
 	if (fades) draw.popOpacity();
 	if (matrix) draw.popTransform();
 	if (translated) draw.popTransform();
+}
+
+const CLEAR: RGBA = [0, 0, 0, 0];
+
+/**
+ * R11.12's sixth layer: a `focus_ring_width` accent outline `focus_ring_offset`
+ * outside the content box, drawn after the children so nothing inside covers
+ * it and independent of every other state, so a keyboard player never loses
+ * it to a hover. Drawn only while `focusVisible` (R9.23), so a pointer never
+ * shows it, and only for a component that does not draw its own ring from
+ * its state layers (`drawsOwnFocusRing`): the fallback that gives cards,
+ * vehicles, and any other focusable without a resolved look a ring.
+ */
+function drawFocusRing(component: Component, draw: DrawApi): void {
+	const offset = tokens.control.focus_ring_offset;
+	draw.drawRect({
+		id: component.id !== null ? `${component.id}.focus_ring` : undefined,
+		rect: {
+			x: -offset,
+			y: -offset,
+			width: component.width + offset * 2,
+			height: component.height + offset * 2,
+		},
+		radius: tokens.radius.radius_ui + offset,
+		// A rect with no fill is white (R2.8's default); the ring is border only.
+		fill: CLEAR,
+		border: { color: tokens.color.accent, width: tokens.control.focus_ring_width, position: 'outside' },
+	});
 }

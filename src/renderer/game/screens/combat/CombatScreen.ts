@@ -56,6 +56,9 @@ export class CombatScreen extends Screen {
 	
 	// UI state
 	private combatLogVisible = false;
+	// The hand slot of the card a keyboard player last chose, where focus
+	// goes back to once it is played or put back
+	private keyboardSlot = 0;
 	
 	
 	// Event unsubscribe functions: battle and team events, and the combat model's
@@ -485,12 +488,14 @@ export class CombatScreen extends Screen {
 		});
 
 		// Escape cancels targeting and F6 toggles the combat log, from the
-		// hotkey table, since nothing in combat takes focus (R9.15)
-		const { hotkeys } = this.context.dispatcher;
+		// screen root's hotkey table, which keys reach after bubbling out of
+		// whatever is focused (R9.15)
+		const { hotkeys } = this.rootLayer;
 		hotkeys.register('Escape', () => {
 			if (this.combatModel.isTargeting) {
 				this.combatModel.cancelSelection();
 				this.handLayer.clearCardSelection();
+				this.restoreKeyboardFocus();
 			}
 		});
 		hotkeys.register('F6', () => {
@@ -569,6 +574,7 @@ export class CombatScreen extends Screen {
 
 		// Use combat model to handle selection
 		this.combatModel.selectCard(card, owningDriver);
+		this.keyboardSlot = Math.max(0, this.handLayer.slotOf(card));
 
 		// Check if card needs a target
 		const targetType = card.targetType;
@@ -583,6 +589,12 @@ export class CombatScreen extends Screen {
 			// Determine valid targets
 			const targetableIds = this.determineTargetableVehicles(card);
 			this.combatModel.targetableVehicleIds = targetableIds;
+
+			// A keyboard player goes straight to the first target; the targets
+			// are the only focusable vehicles now (R9.23: programmatic focus
+			// keeps the keyboard's visible ring)
+			const focus = this.context.focus;
+			if (focus.focusVisible && !focus.focusFirst(this.enemyLayer)) focus.focusFirst(this.battlefieldLayer);
 			
 			console.log(`Select target for ${card.displayName}, targetType: ${card.targetType}`);
 			console.log(`Targetable vehicle IDs:`, targetableIds);
@@ -640,6 +652,20 @@ export class CombatScreen extends Screen {
 			this.combatModel.cancelSelection();
 			this.handLayer.clearCardSelection();
 		}
+		this.restoreKeyboardFocus();
+	}
+
+	/**
+	 * After a keyboard player's card is played or put back, focus goes back
+	 * to the hand at the same slot, or to END TURN when nothing is playable.
+	 * The hand is rebuilt on every change, so the card focus was on is gone,
+	 * and a target vehicle stops being focusable when targeting ends.
+	 */
+	private restoreKeyboardFocus(): void {
+		const focus = this.context.focus;
+		if (!focus.focusVisible) return;
+		if (this.handLayer.focusNearSlot(this.keyboardSlot)) return;
+		focus.focus(this.resourceLayer.endTurn);
 	}
 	
 	/**
@@ -788,8 +814,8 @@ export class CombatScreen extends Screen {
 			this.rootLayer.removeChild(layer);
 		}
 
-		this.context.dispatcher.hotkeys.unregister('Escape');
-		this.context.dispatcher.hotkeys.unregister('F6');
+		this.rootLayer.hotkeys.unregister('Escape');
+		this.rootLayer.hotkeys.unregister('F6');
 
 		// Unsubscribe from all events
 		this.unsubscribeAll();
