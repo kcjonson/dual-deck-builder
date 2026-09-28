@@ -819,8 +819,12 @@ export abstract class Component {
 		const from = this.children.indexOf(child);
 		if (from === -1) return this;
 		this.children.splice(from, 1);
-		this.children.splice(clampIndex(index, this.children.length), 0, child);
+		const to = clampIndex(index, this.children.length);
+		this.children.splice(to, 0, child);
+		if (to === from) return this;
 		this.orderView = null;
+		// Order is flow input for a stack (R10.18).
+		this.invalidateLayout();
 		return this;
 	}
 

@@ -1251,3 +1251,43 @@ describe('Stack sizes it assigns and authors (review)', () => {
 		expect(child.width).toBe(200);
 	});
 });
+
+describe('Stack reorders (R10.18)', () => {
+	it('re-lays out when a child moves', () => {
+		const column = stack({ width: 100, height: 200 });
+		const first = box(50, 30);
+		const second = box(50, 40);
+		column.addChild(first).addChild(second);
+		const context = layOut(column);
+		expect([first.y, second.y]).toEqual([0, 30]);
+
+		column.moveChild(second, 0);
+		expect(context.frame.layoutPending).toBe(true);
+		layOut(column, context);
+		expect([second.y, first.y]).toEqual([0, 40]);
+
+		// A move to where it already is changes nothing and schedules nothing.
+		column.moveChild(second, 0);
+		expect(context.frame.layoutPending).toBe(false);
+	});
+
+	it('re-lays out after a keyed reorder, a, b to b, a', () => {
+		const column = stack({ width: 100, height: 200 });
+		const heights: Record<string, number> = { a: 30, b: 40 };
+		const reconcile = (keys: string[]) => column.reconcileChildren(keys, {
+			key: (key) => key,
+			create: (key) => box(50, heights[key], 0, { id: key }),
+		});
+		reconcile(['a', 'b']);
+		const context = layOut(column);
+		const a = column.findById('a') as Component;
+		const b = column.findById('b') as Component;
+		expect([a.y, b.y]).toEqual([0, 30]);
+
+		reconcile(['b', 'a']);
+		layOut(column, context);
+
+		expect(column.findById('a')).toBe(a);
+		expect([b.y, a.y]).toEqual([0, 40]);
+	});
+});
