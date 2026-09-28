@@ -7,7 +7,7 @@ import { createTestContext } from '../../engine/components/testing';
 import type { MountContext } from '../../engine/components/MountContext';
 import { Card as GameCard, CardData } from '../mechanics/Card';
 import cardsFile from '../data/cards.json';
-import { Card, CardSize } from './Card';
+import { CARD_LIFT, Card, CardSize } from './Card';
 
 const cardData = (cardsFile as unknown as { cards: CardData[] }).cards;
 
@@ -111,5 +111,43 @@ describe('Card header (DDB-198)', () => {
 		expect(badge.width).toBeGreaterThan(0);
 		expect(badge.height).toBe(badge.width);
 		expect(part(card, 'cost').width).toBeGreaterThan(0);
+	});
+});
+
+describe('Card state', () => {
+	beforeAll(() => {
+		context = createTestContext({ draw: createMeasuringDrawApi().api });
+	});
+
+	it('rises by its transform when hovered or selected, leaving its position to layout', () => {
+		const card = build(cardData[0], 1);
+		card.setPosition(40, 25);
+
+		card.setHovered(true);
+		expect(card.transform.translate).toEqual([0, -CARD_LIFT]);
+		expect(card.getY()).toBe(25);
+		card.setHovered(false);
+		expect(card.transform.translate).toEqual([0, 0]);
+
+		card.setSelected(true);
+		expect(card.transform.translate).toEqual([0, -CARD_LIFT]);
+		card.setSelected(false);
+		expect(card.getY()).toBe(25);
+	});
+
+	it('does not rise under the pointer while disabled, and dims through the base enabled flag', () => {
+		const card = build(cardData[0], 1);
+		const background = card.getChildren().find((child) => child.id === 'card_background');
+		const enabledFill = background?.resolvedColors?.fill;
+
+		card.enabled = false;
+		card.setHovered(true);
+		expect(card.effectivelyEnabled).toBe(false);
+		expect(card.transform.translate).toEqual([0, 0]);
+		expect(background?.resolvedColors?.fill).not.toEqual(enabledFill);
+
+		card.enabled = true;
+		expect(card.transform.translate).toEqual([0, -CARD_LIFT]);
+		expect(background?.resolvedColors?.fill).toEqual(enabledFill);
 	});
 });

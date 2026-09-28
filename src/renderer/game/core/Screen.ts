@@ -18,16 +18,10 @@ export abstract class Screen {
 	 */
 	constructor(id: string) {
 		this.id = id;
-		// Window-sized only because two screens still build UI in their
-		// constructors from this size; mount resizes it to the viewport the
-		// screen is mounted in (R8.21), and DDB-79 moves that UI to onMount.
-		this.rootLayer = new Layer({
-			id,
-			x: 0,
-			y: 0,
-			width: window.innerWidth,
-			height: window.innerHeight,
-		});
+		// Zero-sized until mount sizes it from the viewport (R8.21): nothing
+		// in a screen reads the window, and anything placed from the root's
+		// size is placed in onMount and onResized.
+		this.rootLayer = new Layer({ id });
 	}
 
 	/**

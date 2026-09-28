@@ -2,41 +2,37 @@ import { Screen } from '../../core/Screen';
 import { ScreenManager } from '../../core/ScreenManager';
 import { Text } from '../../../engine/components/Text';
 import { Rectangle } from '../../../engine/components/Rectangle';
+import { linear } from '../../../engine/animation/easing';
+
+/** Milliseconds on the mount context's clock (R8.28). */
+const FADE_IN_MS = 1000;
+const HOLD_MS = 2000;
+const FADE_OUT_MS = 1000;
 
 /**
- * Splash screen displayed when the game launches
+ * Splash screen displayed when the game launches: the whole screen fades in
+ * through its root's opacity, holds, fades out, and hands over to the main
+ * menu (R3.25's opacity multiplies down the tree, so one value fades it all).
  */
 export class SplashScreen extends Screen {
+	private background: Rectangle;
 	private logo: Rectangle;
 	private title: Text;
 	private subtitle: Text;
-	private fadeInTime = 1.0; // Time in seconds to fade in
-	private displayTime = 2.0; // Time in seconds to display the splash
-	private fadeOutTime = 1.0; // Time in seconds to fade out
-	private totalTime: number;
-	private currentTime = 0;
+	/** Clock time the fade-in finished, null before then. */
+	private shownAt: number | null = null;
+	private leaving = false;
 
-	/**
-	 * Create a new splash screen
-	 */
 	constructor() {
 		super('splashScreen');
 
-		this.totalTime = this.fadeInTime + this.displayTime + this.fadeOutTime;
-
-		// Set up the background
-		const background = new Rectangle({
-			x: 0,
-			y: 0,
-			width: window.innerWidth,
-			height: window.innerHeight,
+		this.background = new Rectangle({
 			style: {
 				backgroundColor: '#0d0d1a',
 			},
 		});
-		this.rootLayer.addChild(background);
+		this.rootLayer.addChild(this.background);
 
-		// Create logo
 		this.logo = new Rectangle({
 			id: 'splash_logo',
 			width: 300,
@@ -48,7 +44,6 @@ export class SplashScreen extends Screen {
 		});
 		this.rootLayer.addChild(this.logo);
 
-		// Create title text
 		this.title = new Text('Dual Deckbuilder', {
 			id: 'splash_title',
 			style: {
@@ -60,7 +55,6 @@ export class SplashScreen extends Screen {
 		});
 		this.rootLayer.addChild(this.title);
 
-		// Create subtitle text
 		this.subtitle = new Text('A Roguelike Card Game', {
 			id: 'splash_subtitle',
 			style: {
@@ -74,21 +68,39 @@ export class SplashScreen extends Screen {
 	}
 
 	/**
-	 * Placed once mounted: the subtitle sits under the title's line box, which
-	 * the title measures through the mount context (R1.6).
+	 * Placed once mounted, where the root has the viewport's size and the
+	 * title has measured its line box (R1.6), then faded in. The tween
+	 * belongs to the root, so leaving early cancels it; the hold is timed in
+	 * `onUpdate`, which a paused page never runs, so the screenshot harness
+	 * settles the fade-in and captures the screen at full opacity.
 	 */
 	protected onMount(): void {
+		this.shownAt = null;
+		this.leaving = false;
 		this.positionElements();
+		this.context.animator.tween({
+			from: 0,
+			to: 1,
+			duration: FADE_IN_MS,
+			ease: linear,
+			owner: this.rootLayer,
+			onUpdate: (opacity) => {
+				this.rootLayer.opacity = opacity;
+			},
+			onComplete: () => {
+				this.shownAt = this.context.clock.now;
+			},
+		});
 	}
 
-	/**
-	 * Position the splash screen elements
-	 */
 	private positionElements(): void {
-		const centerX = window.innerWidth / 2;
-		const centerY = window.innerHeight / 2;
+		const width = this.rootLayer.width;
+		const height = this.rootLayer.height;
+		const centerX = width / 2;
+		const centerY = height / 2;
 
-		// Position logo at the center
+		this.background.setSize(width, height);
+
 		this.logo.setPosition(
 			centerX - this.logo.getWidth() / 2,
 			centerY - this.logo.getHeight() / 2 - 50,
@@ -97,53 +109,30 @@ export class SplashScreen extends Screen {
 		// Title below the logo and the subtitle under its line box, both centred
 		// across the screen
 		this.title.setPosition(0, centerY + 100);
-		this.title.setWidth(window.innerWidth);
+		this.title.setWidth(width);
 		this.subtitle.setPosition(0, this.title.getY() + this.title.getHeight());
-		this.subtitle.setWidth(window.innerWidth);
+		this.subtitle.setWidth(width);
 	}
 
-
-	/**
-	 * Handle window resize
-	 */
 	protected onResized(): void {
 		this.positionElements();
 	}
 
-	/**
-	 * Update the splash screen
-	 * @param dt Time elapsed since last frame in seconds
-	 */
-	protected onUpdate(dt: number): void {
-		// Update timer
-		this.currentTime += dt;
+	protected onUpdate(): void {
+		if (this.shownAt === null || this.leaving) return;
+		if (this.context.clock.now - this.shownAt < HOLD_MS) return;
 
-		// Calculate opacity based on current phase
-		// TODO: Implement fade in/out animations when opacity support is added to components
-		// let opacity = 0;
-
-		if (this.currentTime < this.fadeInTime) {
-			// Fade in phase
-			// opacity = this.currentTime / this.fadeInTime;
-		} else if (this.currentTime < this.fadeInTime + this.displayTime) {
-			// Display phase
-			// opacity = 1;
-		} else if (this.currentTime < this.totalTime) {
-			// Fade out phase
-			// const fadeOutProgress =
-			//	(this.currentTime - this.fadeInTime - this.displayTime) / this.fadeOutTime;
-			// opacity = 1 - fadeOutProgress;
-		} else {
-			// Complete
-			// opacity = 0; // Animation complete
-
-			// Navigate to main menu
-			ScreenManager.navigate('mainMenuScreen');
-		}
-
-		// Update colors (keeping them solid for simplicity)
-		this.logo.setFillColor('#3366cc');
-		this.title.setColor('#ffffff');
-		this.subtitle.setColor('#cccccc');
+		this.leaving = true;
+		this.context.animator.tween({
+			from: 1,
+			to: 0,
+			duration: FADE_OUT_MS,
+			ease: linear,
+			owner: this.rootLayer,
+			onUpdate: (opacity) => {
+				this.rootLayer.opacity = opacity;
+			},
+			onComplete: () => ScreenManager.navigate('mainMenuScreen'),
+		});
 	}
 }

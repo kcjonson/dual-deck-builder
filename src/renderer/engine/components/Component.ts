@@ -30,6 +30,8 @@ import {
 import type { AnyUiEvent, UiActionEvent, UiDragEvent, UiFocusEvent, UiKeyEvent, UiPointerEvent, UiWheelEvent } from '../input/events';
 import type { FocusDirection, FocusGroupConfig } from '../input/FocusManager';
 import { HotkeyTable } from '../input/HotkeyTable';
+import type { RootTier } from '../input/Dispatcher';
+import { TooltipInput, TooltipSpec, normalizeTooltip } from '../services/tooltipSpec';
 import type { StateFlags } from '../style/look';
 
 /**
@@ -77,11 +79,15 @@ export interface ComponentOptions {
 	margin?: MarginInput;
 	transform?: TransformInput;
 	pointerEvents?: PointerEvents;
-	/** Only valid when width and height are set. */
+	/** Clips only once width and height are both positive. */
 	overflow?: Overflow;
 	style?: Style;
 	/** Fired after a layout in which this component's bounds changed, including the first (R8.21). */
 	onLayout?: (bounds: Rect) => void;
+	/** Shown by the tooltip service on hover (R12.22). */
+	tooltip?: TooltipInput | null;
+	/** A press here is not consumed by an open popup's outside-press close (R9.13). */
+	popupTrigger?: boolean;
 	/** R9.18: takes focus from a press, Tab, arrows, or `focus()`. */
 	focusable?: boolean;
 	/** R9.18: above 0 comes first in Tab order, ascending; below 0 is focusable but never a Tab stop. */
@@ -106,6 +112,11 @@ export interface ComponentOptions {
 	anchor?: AnchorInput;
 	/** The point of this component's margin box placed on the anchor. Defaults to `anchor`. */
 	pivot?: AnchorInput;
+}
+
+export interface RootMountOptions {
+	/** Where the root sits in paint and hit order; the overlay service passes `overlay`. */
+	tier?: RootTier;
 }
 
 export type PointerCallback = (event: UiPointerEvent) => void;
@@ -165,6 +176,7 @@ export abstract class Component {
 	private ownTransform: ComponentTransform = IDENTITY_TRANSFORM;
 	private ownPointerEvents: PointerEvents;
 	private ownOverflow: Overflow = 'visible';
+	private tooltipSpec: TooltipSpec | null = null;
 	private hoverState = false;
 	private focusState = false;
 	private pressState = false;
@@ -234,6 +246,8 @@ export abstract class Component {
 		if (options.pointerEvents !== undefined) this.ownPointerEvents = options.pointerEvents;
 		if (options.overflow !== undefined) this.setOverflow(options.overflow);
 		if (options.onLayout) this.onLayout = options.onLayout;
+		if (options.tooltip !== undefined) this.tooltipSpec = normalizeTooltip(options.tooltip);
+		if (options.popupTrigger !== undefined) this.popupTrigger = options.popupTrigger;
 		if (options.focusable !== undefined) this.ownFocusable = options.focusable;
 		if (options.tabIndex !== undefined) this.ownTabIndex = options.tabIndex;
 		if (options.focusGroup !== undefined) this.ownFocusGroup = normalizeFocusGroup(options.focusGroup);
@@ -302,6 +316,27 @@ export abstract class Component {
 	public onDragLeave: DragCallback | null = null;
 	public onDrop: DragCallback | null = null;
 	public onDragEnd: DragCallback | null = null;
+
+	/**
+	 * R9.13: a press on this component, or inside it, closes an open popup
+	 * without being consumed, so one press moves from one open select to
+	 * another. Selects, dropdown buttons, and anything else that opens a popup
+	 * set it.
+	 */
+	public popupTrigger = false;
+
+	/**
+	 * R12.22: what the tooltip service shows while the pointer rests on this
+	 * component, or on a descendant without a tooltip of its own. A string
+	 * is a title.
+	 */
+	public get tooltip(): TooltipSpec | null {
+		return this.tooltipSpec;
+	}
+
+	public set tooltip(value: TooltipInput | null) {
+		this.tooltipSpec = normalizeTooltip(value);
+	}
 
 	/**
 	 * R8.29's per-type default: `auto` for leaves and widgets. Containers say
@@ -1035,14 +1070,15 @@ export abstract class Component {
 	 * owner (a screen, the gallery host); everything else is mounted by
 	 * `addChild` on a mounted parent.
 	 */
-	public mount(context: MountContext): void {
+	public mount(context: MountContext, { tier = 'scene' }: RootMountOptions = {}): void {
 		if (this.mountContext) return;
 		this.mountSubtree(context);
 		// A root sizes its `fill` axes from the viewport, so the frame
 		// re-lays it out when the viewport changes (R8.21).
 		if (!this.parentComponent) context.frame.addRoot(this);
-		// A root is hit-tested from here on, over the roots mounted before it (R9.4).
-		if (!this.parentComponent) context.dispatcher.addRoot(this);
+		// A root is hit-tested from here on, over the roots of its tier mounted
+		// before it (R9.4, R3.15).
+		if (!this.parentComponent) context.dispatcher.addRoot(this, tier);
 		// The first layout after mount reports every component's bounds through
 		// `onLayout`, so geometry is known before the first render (R8.21).
 		this.invalidateLayout();
@@ -1905,12 +1941,12 @@ export abstract class Component {
 		return this.visible;
 	}
 
-	/** Requires width and height to be set; a zero-sized box has nothing to clip to. */
+	/**
+	 * A mode, not a clip: it may be set before the box has a size, which a
+	 * screen sizes from the viewport on mount. `clipsChildren` answers false
+	 * while the box is zero-sized, which has nothing to clip to.
+	 */
 	public setOverflow(overflow: Overflow): this {
-		if (overflow === 'hidden' && (this.contentWidth <= 0 || this.contentHeight <= 0)) {
-			console.warn(`${this.componentType}: overflow requires both width and height to be set`);
-			return this;
-		}
 		this.ownOverflow = overflow;
 		return this;
 	}

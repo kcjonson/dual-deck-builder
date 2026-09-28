@@ -32,7 +32,7 @@ const BORDER = StyleParser.parseColor('#8a8aaa');
  * and after every change of value (R8.18).
  */
 export class ArmorBadge extends Component {
-	private readonly minWidth: number;
+	private minimumWidth: number;
 	private readonly icon: Icon;
 	private armorValue = 0;
 	private shieldValue = 0;
@@ -44,7 +44,7 @@ export class ArmorBadge extends Component {
 	constructor({ minWidth, height, ...options }: ArmorBadgeOptions) {
 		super({ ...options, width: minWidth, height });
 		this.componentType = 'ArmorBadge';
-		this.minWidth = minWidth;
+		this.minimumWidth = minWidth;
 		this.icon = new Icon({
 			glyph: 'shield',
 			size: ICON_SIZE,
@@ -52,6 +52,18 @@ export class ArmorBadge extends Component {
 			x: LEFT_INSET,
 			y: Math.round((height - ICON_SIZE) / 2),
 		});
+	}
+
+	/** The narrowest the badge gets; a vehicle sets it from its own width. */
+	get minWidth(): number {
+		return this.minimumWidth;
+	}
+
+	set minWidth(minWidth: number) {
+		if (minWidth === this.minimumWidth) return;
+		this.minimumWidth = minWidth;
+		this.measuredLabel = null;
+		this.invalidateLayout();
 	}
 
 	get armor(): number {
@@ -98,7 +110,7 @@ export class ArmorBadge extends Component {
 			size: VALUE_SIZE,
 		}).width;
 		const contentWidth = Math.ceil(LEFT_INSET + ICON_SIZE + ICON_GAP + this.labelWidth + RIGHT_INSET);
-		const width = Math.max(this.minWidth, contentWidth);
+		const width = Math.max(this.minimumWidth, contentWidth);
 		if (width !== this.width) this.setSize(width, this.height);
 		this.measuredLabel = this.label;
 	}
