@@ -248,10 +248,12 @@ const table = [
 				+ 'completion, an upper bound, never GPU time (R13.19).'
 			: 'GPU columns are n/a because nothing measured them, not because they are zero.'),
 	...(gpuTimer && /Metal/.test(device?.renderer ?? '')
-		? ['', 'On ANGLE Metal every timed pass carries a floor: a query around a single clear read 1.39 ms, the '
-			+ 'same as around twenty clears, on a Radeon Pro 560X at 1440x882 with 4x MSAA. GPU time here includes '
-			+ 'that floor once per pass, so it overstates the work and compares only between runs with the same '
-			+ 'pass count on the same device.']
+		? ['', 'On ANGLE Metal the first timed pass of each frame carries the drawing buffer\'s clear and store '
+			+ 'whatever the pass draws: 1.26 ms paced on a Radeon Pro 560X at 1440x882 with antialias off, 0.04 ms '
+			+ 'at 128x128. It is paid once per frame and is work the frame does untimed too; later passes carry only '
+			+ 'their own draws. The per-pass floor measured before DDB-64 was the 4x MSAA resolve, which a query '
+			+ 'boundary made every pass pay. Paced GPU times are read at the clock a 60 FPS load leaves the GPU at: '
+			+ 'the same passes read about 2.7 times shorter unthrottled (DDB-193).']
 		: []),
 	'',
 	summaryTable(results),
