@@ -329,8 +329,8 @@ export class CombatScreen extends Screen {
 	 * Update UI layers with current battle state
 	 */
 	private updateUIFromBattle(): void {
-		// An unmounted screen's layers are detached; building cards on them
-		// would register those cards with the InputSystem again
+		// An unmounted screen's layers are detached, and nothing it builds on
+		// them would ever be shown
 		if (!this.isActive || !this.battle || !this.playerTeam || !this.enemyTeam) return;
 
 		// Both hands show whenever both drivers are alive, whichever vehicle they're in
@@ -484,16 +484,16 @@ export class CombatScreen extends Screen {
 			this.endPlayerTurn();
 		});
 
-		// Set up keyboard handler for ESC key during targeting
-		this.context.input.registerKeyDown(this.rootLayer, (key: string) => {
-			if (key === 'Escape' && this.combatModel.isTargeting) {
+		// Escape cancels targeting and F6 toggles the combat log, from the
+		// hotkey table, since nothing in combat takes focus (R9.15)
+		const { hotkeys } = this.context.dispatcher;
+		hotkeys.register('Escape', () => {
+			if (this.combatModel.isTargeting) {
 				this.combatModel.cancelSelection();
 				this.handLayer.clearCardSelection();
 			}
 		});
-		
-		// Register global F6 handler for combat log toggle
-		this.context.input.registerGlobalKeyDown('F6', () => {
+		hotkeys.register('F6', () => {
 			this.toggleCombatLog();
 		});
 
@@ -788,9 +788,8 @@ export class CombatScreen extends Screen {
 			this.rootLayer.removeChild(layer);
 		}
 
-		// Unregister global keyboard handler. The root's own keydown goes with
-		// its unmount, which the base class releases.
-		this.context.input.unregisterGlobalKeyDown('F6');
+		this.context.dispatcher.hotkeys.unregister('Escape');
+		this.context.dispatcher.hotkeys.unregister('F6');
 
 		// Unsubscribe from all events
 		this.unsubscribeAll();

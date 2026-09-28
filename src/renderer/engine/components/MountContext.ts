@@ -1,5 +1,5 @@
 import type { DrawApi } from '../draw/DrawApi';
-import { InputSystem } from '../input/InputSystem';
+import { Dispatcher } from '../input/Dispatcher';
 import { UiFrame } from './UiFrame';
 
 /** The logical viewport a root is sized from (R7.11, R8.21). `CanvasViewport` is one. */
@@ -14,18 +14,18 @@ export interface ViewportSource {
  *
  * Construction touches none of it (R8.14). A component gets the context in
  * `onMount` and releases what it registered in `onUnmount`; the base class
- * already unregisters it from `input` and `frame`.
+ * already releases what `dispatcher` and `frame` hold on it.
  *
  * Services arrive with the tasks that build them, as fields added here:
- * `clock` and `animator` (DDB-74), the dispatcher that replaces `input`
- * (DDB-75), `focus` (DDB-76), `drag` (DDB-77), and `popups`, `tooltips`,
- * `placement`, `overlays`, `clipboard` and `assets` (DDB-78).
+ * `clock` and `animator` (DDB-74), `focus` (DDB-76), `drag` (DDB-77), and
+ * `popups`, `tooltips`, `placement`, `overlays`, `clipboard` and `assets`
+ * (DDB-78).
  */
 export interface MountContext {
 	/** Chapter 2's draw API: drawing and `measureText`. */
 	readonly draw: DrawApi;
-	/** Pointer and key registration until the dispatcher replaces it (DDB-75). */
-	readonly input: InputSystem;
+	/** Chapter 9's dispatcher: the input queue, hit testing, hover, capture, hotkeys. */
+	readonly dispatcher: Dispatcher;
 	readonly viewport: ViewportSource;
 	/** Update requests and layout invalidation for the frame (R8.16 to R8.18). */
 	readonly frame: UiFrame;
@@ -38,10 +38,10 @@ export interface MountContextOptions {
 
 /**
  * The one way to build a context, for the two pages and for tests alike: the
- * input system lays out on demand before every hit test (R8.16).
+ * dispatcher lays out through `frame` on demand before every hit test (R8.16).
  */
 export function createMountContext({ draw, viewport }: MountContextOptions): MountContext {
 	const frame = new UiFrame();
-	const input = new InputSystem({ beforeHitTest: () => frame.layout() });
-	return { draw, input, viewport, frame };
+	const dispatcher = new Dispatcher({ frame });
+	return { draw, dispatcher, viewport, frame };
 }

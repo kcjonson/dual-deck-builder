@@ -72,9 +72,9 @@ export class DeveloperScreen extends Screen {
 				fontSize: 20,
 			},
 		});
-		this.backButton.onClick(() => {
+		this.backButton.onClick = () => {
 			ScreenManager.navigate('mainMenuScreen');
-		});
+		};
 		this.rootLayer.addChild(this.backButton);
 
 
@@ -179,7 +179,7 @@ export class DeveloperScreen extends Screen {
 	 */
 	protected onUnmount(): void {
 		// Clear any focus from input fields
-		this.context.input.setFocus(null);
+		this.context.dispatcher.focus(null);
 		
 		this.mainScrollContainer.setScrollOffset(0, 0);
 	}

@@ -26,7 +26,7 @@ export interface GameStatus {
 	/** Frames updated and rendered since init. Paused frames render but do not update. */
 	updates: number;
 	renders: number;
-	/** The InputSystem's own gate, which is what actually drops events (R13.35). */
+	/** The dispatcher's own gate, which is what actually drops events (R13.35). */
 	inputPaused: boolean;
 	viewport: { width: number; height: number };
 	/**
@@ -111,11 +111,11 @@ export class Game {
 	 * `lastTime` in the loop advances on paused frames, so resuming hands
 	 * `update` a normal delta instead of the whole pause.
 	 *
-	 * Input is not gated here. This engine dispatches straight from DOM
-	 * listeners, so a loop that skipped `update` would still see buttons pressed
-	 * and text typed; `InputSystem.paused` is the half that makes R13.35's
+	 * Input is not gated here. The dispatcher drains its queue in the loop's
+	 * input section whether or not `update` runs, so `Dispatcher.paused`,
+	 * which drops input at the queue, is the half that makes R13.35's
 	 * "injected input is ignored while paused" true, and it is the same flag the
-	 * gallery sets. The one listener outside the InputSystem is this class's own
+	 * gallery sets. The one listener outside the dispatcher is this class's own
 	 * document keydown shortcut, gated in `setupEventHandlers`.
 	 *
 	 * What pause does not stop: the resize path. The viewport commits at the
@@ -128,7 +128,7 @@ export class Game {
 
 	public set paused(value: boolean) {
 		this.isPaused = value;
-		this.context.input.paused = value;
+		this.context.dispatcher.paused = value;
 	}
 
 	/**
@@ -182,7 +182,7 @@ export class Game {
 					paused: this.isPaused,
 					updates: this.updates,
 					renders: this.renders,
-					inputPaused: this.context.input.paused,
+					inputPaused: this.context.dispatcher.paused,
 					viewport: this.viewport.logical,
 					assetsReady: !CardLoader.getInstance().loading,
 				}),
@@ -233,7 +233,7 @@ export class Game {
 		// For example, keyboard shortcuts for development
 		document.addEventListener('keydown', (event) => {
 			// These shortcuts navigate and toggle the overlay, and they are the one
-			// input path the InputSystem's pause gate does not cover, so leaving
+			// input path the dispatcher's pause gate does not cover, so leaving
 			// them live would let a keystroke change the screen underneath a paused
 			// capture and make status().paused a lie (R13.32, R13.35). Gating them
 			// changes what real keys do while paused, which is only reachable

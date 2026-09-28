@@ -1,7 +1,7 @@
 import { Component, ComponentOptions, PointerEvents } from '../components/Component';
 import { Rectangle } from '../components/Rectangle';
 import { Text } from '../components/Text';
-import type { MountContext } from '../components/MountContext';
+import type { AnyUiEvent } from '../input/events';
 
 /**
  * Input UI component for text input
@@ -102,9 +102,22 @@ export class Input extends Component {
 		this.updateCursorPosition();
 	}
 
-	protected onMount({ input }: MountContext): void {
-		input.registerMouseDown(this, () => this.onMouseDown());
-		input.registerKeyDown(this, (key: string) => this.onKeyPress(key));
+	/**
+	 * A press focuses the field through the dispatcher's focus seam, and a
+	 * press anywhere else blurs it (R9.23's fallback until DDB-76). Keys reach
+	 * it only while focused; the ones it handles are consumed, so they never
+	 * reach the hotkey table (R9.15).
+	 */
+	public handleEvent(event: AnyUiEvent): void {
+		super.handleEvent(event);
+		switch (event.type) {
+			case 'pointerdown':
+				this.context?.dispatcher.focus(this);
+				return;
+			case 'keydown':
+				if (this.handleKey(event.key)) event.consume();
+				return;
+		}
 	}
 
 	/**
@@ -221,69 +234,40 @@ export class Input extends Component {
 	}
 
 	protected onFocus(): void {
-		super.onFocus();
+		this.background.setFillColor(this.focusedColor);
+		this.background.setBorderColor([0.4, 0.4, 0.8, 1]);
+		this.cursor.setVisible(true);
+		this.cursorBlinkTimer = 0;
+		this.requestUpdate();
 	}
 
 	protected onBlur(): void {
-		super.onBlur();
+		this.background.setFillColor(this.normalColor);
+		this.background.setBorderColor([0.3, 0.3, 0.3, 1]);
+		this.cursor.setVisible(false);
 	}
 
-	/**
-	 * Handle mouse down event
-	 */
-	private onMouseDown(): void {
-		if (this.enabled) {
-			// First check if we need to blur another input
-			const input = this.context?.input;
-			const currentFocus = input?.getFocus() ?? null;
-			if (currentFocus && currentFocus !== this && 'onMouseDownOutside' in currentFocus && typeof (currentFocus as { onMouseDownOutside?: () => void }).onMouseDownOutside === 'function') {
-				(currentFocus as { onMouseDownOutside: () => void }).onMouseDownOutside();
-			}
-			
-			this.setFocused(true);
-			input?.setFocus(this);
-			this.background.setFillColor(this.focusedColor);
-			this.background.setBorderColor([0.4, 0.4, 0.8, 1]);
-			this.cursor.setVisible(true);
-			this.cursorBlinkTimer = 0;
-			this.requestUpdate();
-		}
-	}
-
-	/**
-	 * Handle mouse down outside the input (to lose focus)
-	 */
-	private onMouseDownOutside(): void {
-		if (this.focused) {
-			this.setFocused(false);
-			this.context?.input.setFocus(null);
-			this.background.setFillColor(this.normalColor);
-			this.background.setBorderColor([0.3, 0.3, 0.3, 1]);
-			this.cursor.setVisible(false);
-		}
-	}
-
-	/**
-	 * Handle key press event
-	 * @param key The key that was pressed
-	 */
-	private onKeyPress(key: string): void {
-		if (!this.focused || !this.enabled) return;
+	/** Edits the value for one key; false for a key the field does not use. */
+	private handleKey(key: string): boolean {
+		if (!this.focused || !this.enabled) return false;
 
 		if (key === 'Backspace') {
-			// Handle backspace
 			if (this.value.length > 0) {
 				this.setValue(this.value.substring(0, this.value.length - 1));
 			}
-		} else if (key === 'Enter') {
-			// Handle enter key (lose focus)
-			this.onMouseDownOutside();
-		} else if (key.length === 1) {
-			// Handle regular character input
+			return true;
+		}
+		if (key === 'Enter') {
+			this.context?.dispatcher.focus(null);
+			return true;
+		}
+		if (key.length === 1) {
 			if (this.value.length < this.maxLength) {
 				this.setValue(this.value + key);
 			}
+			return true;
 		}
+		return false;
 	}
 
 	/**

@@ -14,6 +14,7 @@ import {
 	transformMatrix,
 } from './componentGeometry';
 import type { MountContext } from './MountContext';
+import type { AnyUiEvent, UiKeyEvent, UiPointerEvent, UiWheelEvent } from '../input/events';
 
 /**
  * R8.29. `auto`: this box is a target and children are hit-tested.
@@ -55,6 +56,10 @@ export interface ComponentOptions {
 	/** Fired after a layout in which this component's bounds changed, including the first (R8.21). */
 	onLayout?: (bounds: Rect) => void;
 }
+
+export type PointerCallback = (event: UiPointerEvent) => void;
+export type WheelCallback = (event: UiWheelEvent) => void;
+export type KeyCallback = (event: UiKeyEvent) => void;
 
 /**
  * Keyed reconciliation callbacks (R8.27). `remove` may return a promise to
@@ -136,6 +141,20 @@ export abstract class Component {
 
 	/** R8.2's layout callback. A property, as every callback is (R8.25). */
 	public onLayout: ((bounds: Rect) => void) | null = null;
+
+	// R8.2's input callbacks. `handleEvent` runs the one matching an event
+	// before the component's own handling; focus and drag callbacks arrive
+	// with DDB-76 and DDB-77.
+	public onPointerDown: PointerCallback | null = null;
+	public onPointerUp: PointerCallback | null = null;
+	public onPointerMove: PointerCallback | null = null;
+	public onPointerEnter: PointerCallback | null = null;
+	public onPointerLeave: PointerCallback | null = null;
+	public onClick: PointerCallback | null = null;
+	public onContextMenu: PointerCallback | null = null;
+	public onWheel: WheelCallback | null = null;
+	public onKeyDown: KeyCallback | null = null;
+	public onKeyUp: KeyCallback | null = null;
 
 	/**
 	 * R8.29's per-type default: `auto` for leaves and widgets. Containers say
@@ -348,8 +367,9 @@ export abstract class Component {
 	 * content box through the inverse transform, and inside every clipping
 	 * ancestor up to a layer promotion, which resets the clip (R4.8, R4.12).
 	 *
-	 * Paint order and occlusion are the dispatcher's (DDB-75); this answers
-	 * for one component.
+	 * One component's geometry only: paint order, occlusion, `unit` and
+	 * `passthrough`, and disabled state are the dispatcher's hit walk
+	 * (`hitTest`), which is what decides where an event goes.
 	 */
 	public containsScreenPoint(screenX: number, screenY: number): boolean {
 		if (!this.effectivelyVisible || this.effectiveOpacity <= 0 || this.pointerEventsBlocked) return false;
@@ -737,6 +757,8 @@ export abstract class Component {
 	public mount(context: MountContext): void {
 		if (this.mountContext) return;
 		this.mountSubtree(context);
+		// A root is hit-tested from here on, in mount order (R9.4).
+		if (!this.parentComponent) context.dispatcher.addRoot(this);
 		// The first layout after mount reports every component's bounds through
 		// `onLayout`, so geometry is known before the first render (R8.21).
 		this.invalidateLayout();
@@ -751,19 +773,23 @@ export abstract class Component {
 	}
 
 	/**
-	 * Detaches this subtree from its rooted tree, bottom-up: the children, then
-	 * `onUnmount` here, then everything the base registered (input, update
-	 * requests, pending layout). A no-op when not mounted (R8.15).
+	 * Detaches this subtree from its rooted tree, bottom-up: the children,
+	 * then the dispatcher's hold on it (a captor hears `pointercancel` here,
+	 * R9.10), then `onUnmount`, then update requests and pending layout. Hover
+	 * and focus are cleared without callbacks (R9.21). A no-op when not
+	 * mounted (R8.15).
 	 */
 	public unmount(): void {
 		const context = this.mountContext;
 		if (!context) return;
 		for (const child of this.children) child.unmount();
+		context.dispatcher.forget(this);
 		this.onUnmount();
-		context.input.unregisterComponent(this);
 		context.frame.forget(this);
 		this.mountContext = null;
 		this.laidOutBounds = null;
+		this.hoverState = false;
+		this.focusState = false;
 	}
 
 	/**
@@ -774,7 +800,7 @@ export abstract class Component {
 		// Override in subclasses
 	}
 
-	/** Release what `onMount` registered beyond input and update requests, which the base releases. */
+	/** Release what `onMount` registered beyond dispatcher state and update requests, which the base releases. */
 	protected onUnmount(): void {
 		// Override in subclasses
 	}
@@ -868,9 +894,64 @@ export abstract class Component {
 		this.onLayout?.(bounds);
 	}
 
+	// -- input (R8.1, R8.2, chapter 9) ----------------------------------------
+
+	/**
+	 * Every event the dispatcher delivers to this component, as target or as
+	 * an ancestor it bubbles through (R9.6). The base runs the matching
+	 * callback property; composites override, call this first, then do their
+	 * own handling. `event.consume()` stops the bubble.
+	 */
+	public handleEvent(event: AnyUiEvent): void {
+		switch (event.type) {
+			case 'pointerdown':
+				this.onPointerDown?.(event);
+				return;
+			case 'pointerup':
+				this.onPointerUp?.(event);
+				return;
+			case 'pointermove':
+				this.onPointerMove?.(event);
+				return;
+			case 'pointerenter':
+				this.onPointerEnter?.(event);
+				return;
+			case 'pointerleave':
+				this.onPointerLeave?.(event);
+				return;
+			case 'click':
+				this.onClick?.(event);
+				return;
+			case 'contextmenu':
+				this.onContextMenu?.(event);
+				return;
+			case 'wheel':
+				this.onWheel?.(event);
+				return;
+			case 'keydown':
+				this.onKeyDown?.(event);
+				return;
+			case 'keyup':
+				this.onKeyUp?.(event);
+				return;
+		}
+	}
+
+	/**
+	 * R9.32: whether a wheel of these logical-pixel deltas would move this
+	 * component's content. The dispatcher latches the innermost scroller under
+	 * the pointer that answers true and sends it the wheel events.
+	 */
+	public canScroll(_deltaX: number, _deltaY: number): boolean {
+		return false;
+	}
+
 	// -- interaction state ----------------------------------------------------
 
-	/** The pointer is over it. Framework-maintained once the dispatcher lands (DDB-75). */
+	/**
+	 * The pointer is over it or over a descendant (R9.8). Maintained by the
+	 * dispatcher, which calls `setHovered`.
+	 */
 	public get hovered(): boolean {
 		return this.hoverState;
 	}
@@ -909,7 +990,9 @@ export abstract class Component {
 		if (this.ownEnabled === enabled) return this;
 		this.ownEnabled = enabled;
 		if (!enabled) {
-			this.setHovered(false);
+			// Hover is the dispatcher's containment state and stays true under
+			// the pointer (R9.8); a disabled component shows it only through
+			// its disabled style (R9.5).
 			this.setFocused(false);
 			this.onDisabled();
 		} else {
