@@ -675,13 +675,18 @@ export class UberGeometryEncoder implements GeometryEncoder {
 	 * R5.19: one image-mode quad per cell of the grid, in one group, row by
 	 * row. Neighbouring cells share their edge coordinates exactly, and image
 	 * mode has no edge ramp, so the rasteriser's fill rule leaves no seam and
-	 * no double-covered row between them.
+	 * no double-covered row between them. Each cell also carries half a
+	 * texel, for the shader's clamp to its own texels.
 	 */
 	private encodeSlicedImage(command: ImageCommand, slice: NineSlice, sink: GeometrySink): void {
 		const grid = this.sliceGrid(command, slice);
 		const { x, y, u, v } = grid;
 		const transform = command.transform;
 		const tint = premultiply(command.tint ?? WHITE, this.fillScratch);
+		// Half a texel in UV: the shader keeps each cell's samples that far
+		// inside its own rect, so filtering never reaches a neighbour.
+		this.templateHalves[SHAPE_HALF] = toHalf(0.5 / Math.max(1, command.texture.width));
+		this.templateHalves[SHAPE_HALF + 1] = toHalf(0.5 / Math.max(1, command.texture.height));
 		let instance = 0;
 		for (let row = 0; row < grid.rowCount; row++) {
 			const r = grid.rows[row];

@@ -78,6 +78,21 @@ describe('nineSliceGrid (R5.19)', () => {
 		expect(result.cells).toBe(1);
 	});
 
+	it('mirrors a negative-extent destination as an unsliced draw does, corners unscaled', () => {
+		const result = grid({ x: 110, y: 60, width: -100, height: -40 }, { top: 4, right: 8, bottom: 2, left: 6 });
+		// Edges run leftward and upward: the left inset lands at the right.
+		expect(result.x).toEqual([110, 104, 18, 10]);
+		expect(result.y).toEqual([60, 56, 22, 20]);
+		expect(result.u).toEqual([0, 6 / 32, 24 / 32, 1]);
+		expect(result.cells).toBe(9);
+	});
+
+	it('scales corners by the size of a negative extent, not by zero', () => {
+		const result = grid({ x: 24, y: 0, width: -24, height: 100 }, { top: 8, right: 16, bottom: 8, left: 16 });
+		expect(result.x).toEqual([24, 12, 12, 0]);
+		expect(result.cells).toBe(6);
+	});
+
 	it('draws nothing for an empty destination', () => {
 		expect(grid({ x: 0, y: 0, width: 0, height: 30 }, { top: 4, right: 4, bottom: 4, left: 4 }).cells).toBe(0);
 	});

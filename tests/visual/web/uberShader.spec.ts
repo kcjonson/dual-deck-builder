@@ -471,6 +471,15 @@ test.describe('uber shader', () => {
 		expect(pixel(frame, 15, 0)).toEqual(green);
 		expect(pixel(frame, 0, 10)).toEqual(green);
 		expect(pixel(frame, 15, 10)).toEqual(blue);
+		// Each stretched cell's pixels next to a neighbour are its own colour:
+		// linear filtering at the cell edge would blend in the neighbour's
+		// texel (about [118, 137, 0] at (2, 0) unclamped).
+		for (const [x, y] of [[2, 0], [27, 0], [2, 19], [27, 19], [0, 2], [1, 17], [29, 2], [28, 17]]) {
+			expect(pixel(frame, x, y)).toEqual(green);
+		}
+		for (const [x, y] of [[15, 2], [15, 17], [2, 10], [27, 10], [2, 2], [27, 17]]) {
+			expect(pixel(frame, x, y)).toEqual(blue);
+		}
 		expect(pixel(frame, 30, 10)[3]).toBe(0);
 
 		// Every pixel inside the fractional one is opaque: its cells meet at

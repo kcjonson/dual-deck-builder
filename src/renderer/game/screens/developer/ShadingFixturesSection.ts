@@ -18,6 +18,8 @@ const PHOTO_HEIGHT = 100;
 
 const FRAME_SIZE = 24;
 const FRAME_INSET = 8;
+const FRAME_BAND: RGBA = [0.12, 0.13, 0.16, 1];
+const FRAME_CENTRE: RGBA = [0.27, 0.3, 0.36, 1];
 
 /**
  * Chapter 5's visual fixture (5.10): corner radii, border widths in each
@@ -269,8 +271,10 @@ function nineSlices(draw: DrawApi, left: number, top: number, frame: TextureHand
 
 /**
  * Panel art for the nine-slice row, premultiplied: a rounded amber rim with a
- * dark keyline, a rivet in each corner, and a slate centre. The rounded
- * outline and the round rivets are what a stretched corner visibly squashes.
+ * dark keyline, a rivet in each corner, a dark band out to the inset line and
+ * a lighter centre inside it. The rounded outline and the round rivets are
+ * what a stretched corner visibly squashes; the colour step at the inset line
+ * is what filtering across a cell edge would smear into a ramp.
  * Generated, like the photograph, so the golden cannot drift with a codec.
  */
 function panelFrame(): Uint8Array {
@@ -287,7 +291,8 @@ function panelFrame(): Uint8Array {
 			const qy = Math.abs(py - half) - (half - outerRadius);
 			const distance = Math.hypot(Math.max(qx, 0), Math.max(qy, 0)) + Math.min(Math.max(qx, qy), 0) - outerRadius;
 			const coverage = Math.min(1, Math.max(0, 0.5 - distance));
-			let color: RGBA = distance > -3 ? AMBER : distance > -4 ? INK : SLATE;
+			const centre = x >= FRAME_INSET && x < FRAME_SIZE - FRAME_INSET && y >= FRAME_INSET && y < FRAME_SIZE - FRAME_INSET;
+			let color: RGBA = distance > -3 ? AMBER : distance > -4 ? INK : centre ? FRAME_CENTRE : FRAME_BAND;
 			for (const rx of rivets) {
 				for (const ry of rivets) {
 					if (Math.hypot(px - rx, py - ry) < 1.8) color = [0.86, 0.88, 0.92, 1];

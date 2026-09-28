@@ -10,6 +10,8 @@ import type { Rect } from './geometry';
  * `columns` and `rows` list the cells worth drawing, the ones with a
  * destination extent: a zero inset has no corner or edge to draw, and a
  * destination exactly the width of its two corners has no centre column.
+ * Edges run right to left (or bottom to top) for a negative destination
+ * extent, which mirrors the image.
  */
 export interface NineSliceGrid {
 	readonly x: Float64Array;
@@ -87,15 +89,19 @@ export function nineSliceGrid(source: NineSliceImage, slice: NineSlice, out: Nin
 	bottom *= fitY;
 
 	const cornerScale = Math.min(
-		fitFactor(left + right, Math.max(0, rect.width)),
-		fitFactor(top + bottom, Math.max(0, rect.height)),
+		fitFactor(left + right, Math.abs(rect.width)),
+		fitFactor(top + bottom, Math.abs(rect.height)),
 	);
 
+	// A negative destination extent runs its edges the other way, which
+	// mirrors the image exactly as an unsliced draw of the same rect does.
 	const signX = sourceWidth < 0 ? -1 : 1;
 	const signY = sourceHeight < 0 ? -1 : 1;
-	edges(out.x, rect.x, rect.width, left * cornerScale, right * cornerScale);
+	const destinationX = rect.width < 0 ? -1 : 1;
+	const destinationY = rect.height < 0 ? -1 : 1;
+	edges(out.x, rect.x, rect.width, destinationX * left * cornerScale, destinationX * right * cornerScale);
 	edges(out.u, sourceX / textureWidth, sourceWidth / textureWidth, (signX * left) / textureWidth, (signX * right) / textureWidth);
-	edges(out.y, rect.y, rect.height, top * cornerScale, bottom * cornerScale);
+	edges(out.y, rect.y, rect.height, destinationY * top * cornerScale, destinationY * bottom * cornerScale);
 	edges(out.v, sourceY / textureHeight, sourceHeight / textureHeight, (signY * top) / textureHeight, (signY * bottom) / textureHeight);
 
 	out.columnCount = spans(out.x, out.columns);
@@ -123,7 +129,7 @@ function edges(out: Float64Array, start: number, extent: number, near: number, f
 function spans(edges: Float64Array, out: Int8Array): number {
 	let count = 0;
 	for (let index = 0; index < 3; index++) {
-		if (edges[index + 1] - edges[index] > 0) out[count++] = index;
+		if (edges[index + 1] !== edges[index]) out[count++] = index;
 	}
 	return count;
 }

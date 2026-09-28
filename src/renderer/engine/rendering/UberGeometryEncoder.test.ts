@@ -594,6 +594,32 @@ describe('UberGeometryEncoder: nine-slice image (R5.19)', () => {
 		expect(quads[8].texCoords).toEqual(f32([0.8, 0.8, 1, 1]));
 	});
 
+	it('gives every cell half a texel in UV for the shader\'s clamp, and an unsliced image none', () => {
+		const { quads } = encodeSliced((api) => {
+			api.drawImage({ rect: { x: 0, y: 0, width: 60, height: 30 }, texture, slice: { top: 2, right: 2, bottom: 2, left: 2 } });
+		});
+		for (const quad of quads) {
+			// The texture is 20 by 10 texels.
+			expect(quad.borderWidth).toBeCloseTo(0.5 / 20, 4);
+			expect(quad.outset).toBeCloseTo(0.5 / 10, 4);
+		}
+		const { quads: unsliced } = encodeSliced((api) => {
+			api.drawImage({ rect: { x: 0, y: 0, width: 60, height: 30 }, texture });
+		});
+		expect(unsliced[0].borderWidth).toBe(0);
+		expect(unsliced[0].outset).toBe(0);
+	});
+
+	it('mirrors a negative-width sliced image like an unsliced one', () => {
+		const { quads } = encodeSliced((api) => {
+			api.drawImage({ rect: { x: 40, y: 0, width: -40, height: 10 }, texture, slice: { top: 2, right: 4, bottom: 2, left: 4 } });
+		});
+		expect(quads).toHaveLength(9);
+		// The top-left texture corner is drawn at the right end, running left.
+		expect(quads[0].corners).toEqual([[40, 0], [36, 0], [36, 2], [40, 2]]);
+		expect(quads[0].texCoords).toEqual(f32([0, 0, 0.2, 0.2]));
+	});
+
 	it('shares every cell edge exactly with its neighbour, so there is no seam', () => {
 		const { quads } = encodeSliced((api) => {
 			api.drawImage({ rect: { x: 10.3, y: 7.7, width: 61.9, height: 33.1 }, texture, slice: { top: 3, right: 3, bottom: 3, left: 3 } });
