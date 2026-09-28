@@ -37,6 +37,10 @@ export class Card extends Layer {
 	private size: CardSize;
 	private name: Text;
 	private cost: Text;
+	/** Where the cost's digits are centred, and where the title starts and stops short of them. */
+	private readonly costCentre: number;
+	private readonly titleX: number;
+	private readonly titleGap: number;
 	private description: Text | null = null;
 	private rarity: Text | null = null;
 	private tags: Text | null = null;
@@ -126,16 +130,18 @@ export class Card extends Layer {
 				whiteSpace: 'nowrap',
 			},
 		});
-		this.cost.setX(dimensions.width - Math.floor(30 * scaleFactor) - this.cost.getWidth() / 2);
+		this.costCentre = dimensions.width - Math.floor(30 * scaleFactor);
+		this.titleX = titleX;
+		this.titleGap = TITLE_COST_GAP * scaleFactor;
 
 		// Card name: runs up to the cost's measured left edge, wraps to a second
 		// line rather than under it, and a name that needs a third is cut with
-		// an ellipsis. Two line boxes end above the description.
+		// an ellipsis. Two line boxes end above the description. Both are
+		// placed by placeHeader once the cost has measured.
 		this.name = new Text(data.displayName, {
 			id: this.childId('title'),
 			x: titleX,
 			y: headerY,
-			width: Math.floor(this.cost.getX() - TITLE_COST_GAP * scaleFactor - titleX),
 			height: Math.ceil(TITLE_LINES * titleSize * TITLE_LINE_HEIGHT),
 			style: {
 				fontSize: titleSize,
@@ -147,6 +153,7 @@ export class Card extends Layer {
 		});
 		this.addChild(this.name);
 		this.addChild(this.cost);
+		this.placeHeader();
 
 		// Description with automatic text wrapping
 		// Skip description for mini cards
@@ -259,6 +266,21 @@ export class Card extends Layer {
 	 */
 	private childId(suffix: string): string | undefined {
 		return this.id === null ? undefined : `${this.id}_${suffix}`;
+	}
+
+	/**
+	 * The cost hugs its digits and the title runs up to their left edge, so
+	 * both are placed from the cost's measured width: on construction, and in
+	 * the layout phase once the cost has measured through the mount context
+	 * (R1.6, R8.18).
+	 */
+	private placeHeader(): void {
+		this.cost.setX(this.costCentre - this.cost.getWidth() / 2);
+		this.name.setWidth(Math.floor(this.cost.getX() - this.titleGap - this.titleX));
+	}
+
+	protected layoutChildren(): void {
+		this.placeHeader();
 	}
 
 	protected onMount({ input }: MountContext): void {
