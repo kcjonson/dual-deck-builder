@@ -10,6 +10,7 @@ import type { PerfSnapshot } from '../engine/rendering/FrameTimer';
 import type { GpuTimer } from '../engine/rendering/GpuTimer';
 import type { CanvasViewport, ViewportListener } from '../engine/rendering/CanvasViewport';
 import type { DeviceInfo } from '../engine/rendering/deviceInfo';
+import { DeveloperOverlay } from '../engine/ui/DeveloperOverlay';
 
 /**
  * R13.32's pause on the game page, driven through `window.__app` rather than
@@ -38,8 +39,17 @@ jest.mock('./core/ScreenManager', () => ({
 }));
 
 jest.mock('../engine/ui/DeveloperOverlay', () => ({
-	DeveloperOverlay: class {
+	DeveloperOverlay: class MockDeveloperOverlay {
+		/** The page builds one; the test reads its anchor back through this. */
+		public static instances: MockDeveloperOverlay[] = [];
 		public shown = false;
+		public viewportWidth: number;
+		public readonly constructedWidth: number;
+		constructor({ viewportWidth }: { viewportWidth: number }) {
+			this.viewportWidth = viewportWidth;
+			this.constructedWidth = viewportWidth;
+			MockDeveloperOverlay.instances.push(this);
+		}
 		public toggle(): void {
 			this.shown = !this.shown;
 		}
@@ -289,6 +299,16 @@ describe('the viewport owner, not the window, resizes the screen (R7.11)', () =>
 			listener({ width: 1280, height: 720, framebufferWidth: 2560, framebufferHeight: 1440, dpr: 2, uiScale: 1, ratio: 2 });
 		}
 		expect(screens.resize).toHaveBeenCalledWith(1280, 720);
+	});
+
+	it('anchors the F5 overlay to the viewport at startup and after every change', () => {
+		const [developerOverlay] = (DeveloperOverlay as unknown as { instances: { viewportWidth: number; constructedWidth: number }[] }).instances;
+		expect(developerOverlay.constructedWidth).toBe(1440);
+
+		for (const listener of viewportListeners) {
+			listener({ width: 1024, height: 768, framebufferWidth: 1024, framebufferHeight: 768, dpr: 1, uiScale: 1, ratio: 1 });
+		}
+		expect(developerOverlay.viewportWidth).toBe(1024);
 	});
 
 	it('reports the owner\'s logical size in status', () => {

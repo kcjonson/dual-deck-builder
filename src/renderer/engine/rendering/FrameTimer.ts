@@ -1,6 +1,7 @@
 import type { DrawStats } from '../draw';
 import type { DeviceInfo } from './deviceInfo';
 import type { TrackColor, TrackEmitter, TrackMode } from '../debug/devtoolsTracks';
+import type { HitchSource, HitchStats } from '../debug/hitchObserver';
 import type { FrameRecord, FrameStats, FrameSanity, SectionStats } from './frameStats';
 import { frameWindowStats } from './frameStats';
 
@@ -27,9 +28,9 @@ import { frameWindowStats } from './frameStats';
  * - `input` is null. This engine dispatches input straight from DOM listeners
  *   on the canvas, so input handling happens between frames, not in a phase of
  *   one; a section here would read 0 forever while real input cost lands
- *   invisibly outside the loop. Attributing it needs a PerformanceObserver on
- *   `event` entries, which the chapter 13 mapping table names and phase 0 does
- *   not build.
+ *   invisibly outside the loop. Slow input is attributed instead by the
+ *   `event` observer behind `hitches` (R15.29), which sees only input over
+ *   16 ms and so cannot stand in for a per-frame section.
  * - `layout` is the mount context's layout phase (R8.16): every dirty
  *   relayout boundary, between update and render. Screens that still call
  *   the legacy `layout()` size estimate do so inside update or mount, which
@@ -151,6 +152,13 @@ export interface PerfSnapshot {
 	device: DeviceInfo | null;
 	/** R15.29's DevTools track and how it is emitted; null where R15.42 finds no support. */
 	tracks: TrackMode | null;
+	/**
+	 * R15.29's long frames and slow input over the same frames as `frame`, from
+	 * `PerformanceObserver`. Null where no observer was supplied (production,
+	 * or a runtime with none of the entry types); inside, each block is null
+	 * where its entry type is unsupported. Additive, as `tracks` was.
+	 */
+	hitches: HitchStats | null;
 }
 
 /**
@@ -174,6 +182,13 @@ export interface FrameTimerOptions {
 	wallNow?: Clock;
 	/** R15.29: sections and frames mirrored to a DevTools track. Development builds only. */
 	tracks?: TrackEmitter | null;
+	/**
+	 * R15.29: long frames and slow input from `PerformanceObserver`, read over
+	 * the window's span. Development builds only. Its entries are on the
+	 * `performance.now()` timeline, so it only lines up with a timer on the
+	 * platform clock, which is the one both pages use.
+	 */
+	hitches?: HitchSource | null;
 }
 
 /** DevTools colours per section, so the three read apart at a glance. */
@@ -204,6 +219,7 @@ export class FrameTimer {
 	private readonly now: Clock;
 	private readonly wallNow: Clock;
 	private readonly tracks: TrackEmitter | null;
+	private readonly hitches: HitchSource | null;
 	private readonly ring: (FrameRecord | null)[];
 	private writeIndex = 0;
 	private recorded = 0;
@@ -232,12 +248,14 @@ export class FrameTimer {
 		now = platformClock,
 		wallNow = platformWallClock,
 		tracks = null,
+		hitches = null,
 	}: FrameTimerOptions = {}) {
 		this.budgetMs = budgetMs;
 		this.windowSize = Math.max(1, Math.floor(windowSize));
 		this.now = now;
 		this.wallNow = wallNow;
 		this.tracks = tracks;
+		this.hitches = hitches;
 		this.ring = new Array<FrameRecord | null>(this.windowSize).fill(null);
 	}
 
@@ -358,8 +376,9 @@ export class FrameTimer {
 		device?: DeviceInfo | null;
 		gpu?: GpuStats | null;
 	} = {}): PerfSnapshot {
+		const frames = this.orderedFrames();
 		const stats = frameWindowStats({
-			frames: this.orderedFrames(),
+			frames,
 			budgetMs: this.budgetMs,
 			windowSize: this.windowSize,
 		});
@@ -396,7 +415,20 @@ export class FrameTimer {
 			},
 			device,
 			tracks: this.tracks?.mode ?? null,
+			hitches: this.hitches?.stats(this.windowStartMs(frames)) ?? null,
 		};
+	}
+
+	/**
+	 * Where the window's oldest frame started, on the timer's clock. The records
+	 * are consecutive intervals ending at the newest frame start, so their sum
+	 * walks back to it exactly. Null before the first frame.
+	 */
+	private windowStartMs(frames: readonly FrameRecord[]): number | null {
+		if (this.lastFrameStartMs === null) return null;
+		let startMs = this.lastFrameStartMs;
+		for (const frame of frames) startMs -= frame.frameMs;
+		return startMs;
 	}
 
 	/** Oldest first, which is the order frameWindowStats reads. */

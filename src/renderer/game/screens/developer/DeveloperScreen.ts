@@ -6,7 +6,7 @@ import { Panel } from '../../../engine/ui/Panel';
 import { Rectangle } from '../../../engine/components/Rectangle';
 
 // The sections are defined once, in sections.ts, so this screen and the
-// ?scene= gallery show the same eight things (R13.30).
+// ?scene= gallery show the same things (R13.30).
 import { developerSections } from './sections';
 
 const TITLE_FONT_SIZE = 48;

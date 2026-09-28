@@ -73,4 +73,7 @@ export const SCENE_SCENARIOS: readonly SceneScenario[] = [
 	{ scene: 'text' },
 	{ scene: 'primitive-shapes' },
 	{ scene: 'nested-panels' },
+	{ scene: 'paint-order' },
+	{ scene: 'clipping' },
+	{ scene: 'shading' },
 ];

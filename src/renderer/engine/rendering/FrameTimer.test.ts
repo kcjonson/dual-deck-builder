@@ -1,5 +1,6 @@
 import { FrameTimer, MAX_DELTA_SECONDS, NO_GPU_STATS, SECTION_NAMES } from './FrameTimer';
 import type { TrackEmitter } from '../debug/devtoolsTracks';
+import type { HitchSource, HitchStats } from '../debug/hitchObserver';
 import { DrawApi, NullBackend } from '../draw';
 
 /**
@@ -283,7 +284,7 @@ describe('the snapshot shape (R13.11)', () => {
 
 		expect(Object.keys(snapshot)).toEqual([
 			'timestamp', 'scene', 'frame', 'sections', 'gpu', 'batcher', 'memory', 'renderer', 'sanity',
-			'liveness', 'device', 'tracks',
+			'liveness', 'device', 'tracks', 'hitches',
 		]);
 	});
 
@@ -328,6 +329,7 @@ describe('the snapshot shape (R13.11)', () => {
 		const { snapshot } = capture();
 
 		expect(snapshot.sections.input).toBeNull();
+		expect(snapshot.hitches).toBeNull();
 		expect(snapshot.sections.layout).toBeNull();
 		expect(snapshot.sections.present).toBeNull();
 		expect(snapshot.memory.usedBytes).toBeNull();
@@ -379,5 +381,48 @@ describe('the DevTools track (R15.29)', () => {
 			['frame', 0, 16, 'error'],
 		]);
 		expect(timer.snapshot().tracks).toBe('console.timeStamp');
+	});
+});
+
+describe('long frames and slow input (R15.29)', () => {
+	const EMPTY: HitchStats = { longFrames: null, slowEvents: null };
+
+	function recordingSource(): HitchSource & { since: (number | null)[] } {
+		const since: (number | null)[] = [];
+		return {
+			since,
+			stats(sinceMs) {
+				since.push(sinceMs);
+				return EMPTY;
+			},
+		};
+	}
+
+	it('asks for no window before the first frame', () => {
+		const source = recordingSource();
+		const timer = new FrameTimer({ now: () => clockMs, wallNow: () => wallMs, hitches: source });
+
+		expect(timer.snapshot().hitches).toBe(EMPTY);
+		expect(source.since).toEqual([null]);
+	});
+
+	it('reads the hitches over the span the frame window covers', () => {
+		const source = recordingSource();
+		const timer = new FrameTimer({ now: () => clockMs, wallNow: () => wallMs, hitches: source, windowSize: 2 });
+
+		advance(100);
+		runFrame(timer, { updateMs: 5 }); // starts at 100
+		advance(5);
+		runFrame(timer, { updateMs: 5 }); // starts at 110
+		advance(20);
+		runFrame(timer, { updateMs: 5 }); // starts at 135
+		timer.snapshot();
+
+		// Two frames of window: 100 to 110 fell out, 110 to 135 is the older
+		// of the two left, so the window opens at 110.
+		runFrame(timer); // starts at 140
+		timer.snapshot();
+
+		expect(source.since).toEqual([100, 110]);
 	});
 });

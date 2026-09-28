@@ -5,7 +5,7 @@ import { resolveScene } from './sceneSelection';
 /**
  * These assertions are about the properties a `?scene=` name has to hold, not
  * about how many scenes there are. Constructing a scene is deliberately absent:
- * two of the eight sections call Input.setValue in their constructors, and a
+ * two of the sections call Input.setValue in their constructors, and a
  * mounted Input measures its caret through the draw API, which throws without
  * a GL backend's metrics, so a factory can only be exercised in the browser
  * (R14.1 keeps the unit suite GPU-free). SceneHost.test.ts covers the mount and unmount discipline against
@@ -36,7 +36,7 @@ describe('gallery scene registry', () => {
 		}
 	});
 
-	// The screen and the gallery show the same eight things because there is
+	// The screen and the gallery show the same things because there is
 	// one list, in the game's own directory, and this file only wraps it.
 	it('wraps the developer section list one for one, in order', () => {
 		expect(gallerySceneRegistry.map((scene) => scene.name)).toEqual(developerSections.map((section) => section.name));
