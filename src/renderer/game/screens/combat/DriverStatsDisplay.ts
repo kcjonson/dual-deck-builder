@@ -216,6 +216,19 @@ export class DriverStatsDisplay extends Layer {
 	protected onResized(): void {
 		this.layoutElements();
 	}
+
+	/**
+	 * The frame's layout phase: the values measure on mount and on every
+	 * change (R1.6, R8.18), and this places the row from what they measured.
+	 */
+	protected layoutChildren(): void {
+		this.layoutElements();
+	}
+
+	/** It hugs its content, so a change inside reaches the bar that places it. */
+	protected get isRelayoutBoundary(): boolean {
+		return false;
+	}
 	
 	/**
 	 * Update display with new data

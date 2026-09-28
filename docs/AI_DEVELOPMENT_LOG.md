@@ -19,6 +19,20 @@ This document contains the chronological log of completed development tasks for 
 
 **How:** unit tests for the helper (center, borderless, sub-pixel, out param), the encoder (translated hairline at ratio 2, abutting pair, center border, and the three opt-outs) and the clip stack (snapped at every fractional scroll, not under a scale). Goldens re-minted on CI with `update_mode=all` and checked old against new.
 
+## Mount context, lifecycle, and frame order (2026-09-28)
+
+**What landed:** DDB-73's second PR (DDB-55 phase 3), R1.6, R8.14 to R8.18, R8.21, R8.22.
+
+- `components/MountContext.ts`: the context interface and `createMountContext`; `components/UiFrame.ts`: update requests and the layout phase; `components/testing.ts`: `createTestContext` over the null backend.
+- `Component`: `mount`, `unmount`, `onMount`, `onUnmount`, `isMounted`, `context`, `requestUpdate`, `invalidateLayout`, `layoutSubtree`, `onLayout`; size, margin, visibility and child changes invalidate; `update` no longer recurses.
+- `RendererContext.ts` deleted. `InputSystem` is an instance with the same method names, handlers bound once (so `detach` really removes them), and a `beforeHitTest` hook.
+- Button, Input, Panel, Card and Vehicle register in `onMount`; Input asks for updates while focused; CombatScreen, DeveloperScreen and the gallery host reach input through the context.
+- `Screen.mount(context, data)`, `ScreenManager.initialize(context)`, `Game` and `SceneHost` take the context; both loops run update, layout, render, flush, with the `layout` section timed.
+- `Text` measures through the context on mount and sizes both axes in one step; `text/testing.ts`'s `createMeasuringDrawApi` feeds a test context. `Card`, `DriverStatsDisplay`, `ResourceBarLayer` and `Vehicle` place what depends on a measured text in `layoutChildren`, `SplashScreen` in `onMount`; the synergy panel measures a tag's label before sizing its pill. `ShadingFixturesSection` creates its photo texture on mount. `Button` places its icon and `ArmorBadge` measures its value in `layoutChildren`, once per label.
+- Review fixes: `Text` no longer measures during render; `PlayerHandLayer` and `CardShowcaseScreen` drop manual unmounts that `removeChild`, `clearChildren` and the root's unmount already do; `lifecycle.test.ts` covers a hugging container's relayout converging in one layout call and the eight-pass limit throwing.
+
+**How:** `lifecycle.test.ts` (no service touched before mount, mount and unmount order and idempotence, mount on add, same-root moves versus cross-root re-parenting, update on request, invisible and unmounted requests, text invalidating its boundary once, transform, zIndex, opacity and colour not invalidating, `onLayout` on first layout and on change, layout before a hit test) and `Screen.test.ts` (root sized from the viewport, nothing of the old screen registered after a switch, `onLayout` before the first render). Every existing test that touched the singletons now builds a context. All chromium visual specs pass against local captures of `main`, and a scripted click-through goes menu, driver selection, combat, END TURN with a clean console.
+
 ## Component base and the framework render walk (2026-09-28)
 
 **What landed:** DDB-73's first PR (DDB-55 phase 3), R8.1 to R8.13, R8.26, R8.27, R8.29 and R3.11 to R3.13.

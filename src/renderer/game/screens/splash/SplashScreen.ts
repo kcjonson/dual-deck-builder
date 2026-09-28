@@ -71,8 +71,13 @@ export class SplashScreen extends Screen {
 			},
 		});
 		this.rootLayer.addChild(this.subtitle);
+	}
 
-		// Position elements
+	/**
+	 * Placed once mounted: the subtitle sits under the title's line box, which
+	 * the title measures through the mount context (R1.6).
+	 */
+	protected onMount(): void {
 		this.positionElements();
 	}
 

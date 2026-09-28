@@ -30,32 +30,27 @@ function makeTarget(): Target {
 }
 
 let canvas: HTMLCanvasElement;
+let input: InputSystem;
 let target: Target;
 
-// setup() once for the file, not per test: InputSystem.unmount passes freshly
-// bound handlers to removeEventListener, so nothing is ever removed and a
-// second setup() leaves two window keydown listeners delivering every key
-// twice. That is a pre-existing engine bug, not this feature's, and a test
-// that re-set-up per case would be measuring it.
 beforeAll(() => {
 	canvas = document.createElement('canvas');
 	document.body.appendChild(canvas);
-	InputSystem.getInstance().setup(canvas);
 });
 
 beforeEach(() => {
-	InputSystem.getInstance().paused = false;
+	input = new InputSystem();
+	input.setup(canvas);
 
 	target = makeTarget();
-	InputSystem.registerMouseOver(target, () => target.overs++);
-	InputSystem.registerMouseDown(target, () => target.downs++);
-	InputSystem.registerKeyDown(target, (key: string) => target.keys.push(key));
-	InputSystem.setFocus(target);
+	input.registerMouseOver(target, () => target.overs++);
+	input.registerMouseDown(target, () => target.downs++);
+	input.registerKeyDown(target, (key: string) => target.keys.push(key));
+	input.setFocus(target);
 });
 
 afterEach(() => {
-	InputSystem.unregisterComponent(target);
-	InputSystem.getInstance().paused = false;
+	input.detach();
 });
 
 function moveAndClick(): void {
@@ -74,7 +69,7 @@ it('dispatches mouse and key events while running', () => {
 });
 
 it('ignores mouse and key events while paused', () => {
-	InputSystem.getInstance().paused = true;
+	input.paused = true;
 
 	moveAndClick();
 	window.dispatchEvent(new KeyboardEvent('keydown', { key: 'a' }));
@@ -85,14 +80,25 @@ it('ignores mouse and key events while paused', () => {
 });
 
 it('delivers again after resuming, with no queued backlog from the pause', () => {
-	InputSystem.getInstance().paused = true;
+	input.paused = true;
 	moveAndClick();
 	window.dispatchEvent(new KeyboardEvent('keydown', { key: 'a' }));
 
-	InputSystem.getInstance().paused = false;
+	input.paused = false;
 	moveAndClick();
 	window.dispatchEvent(new KeyboardEvent('keydown', { key: 'b' }));
 
 	expect(target.downs).toBe(1);
 	expect(target.keys).toEqual(['b']);
+});
+
+it('removes its listeners on detach, so setting up again delivers each key once', () => {
+	input.detach();
+	input.setup(canvas);
+	input.registerKeyDown(target, (key: string) => target.keys.push(key));
+	input.setFocus(target);
+
+	window.dispatchEvent(new KeyboardEvent('keydown', { key: 'a' }));
+
+	expect(target.keys).toEqual(['a']);
 });

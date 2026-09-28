@@ -2,7 +2,9 @@
  * @jest-environment jsdom
  */
 import { Text } from '../../engine/components/Text';
-import { installMeasuringDrawApi } from '../../engine/text/testing';
+import { createMeasuringDrawApi } from '../../engine/text/testing';
+import { createTestContext } from '../../engine/components/testing';
+import type { MountContext } from '../../engine/components/MountContext';
 import { Card as GameCard, CardData } from '../mechanics/Card';
 import cardsFile from '../data/cards.json';
 import { Card, CardSize } from './Card';
@@ -15,14 +17,20 @@ function part(card: Card, suffix: string): Text {
 	return found;
 }
 
+let context: MountContext;
+
+/** Mounted and laid out, so its texts have measured through the context (R1.6). */
 function build(data: CardData, driverNumber: 1 | 2 | null, upgraded = false, size = CardSize.NORMAL): Card {
 	const model = new GameCard({ ...data, upgraded });
-	return new Card({ id: 'card', x: 0, y: 0, data: model, size, driverNumber });
+	const card = new Card({ id: 'card', x: 0, y: 0, data: model, size, driverNumber });
+	card.mount(context);
+	context.frame.layout();
+	return card;
 }
 
 describe('Card header (DDB-198)', () => {
 	beforeAll(() => {
-		installMeasuringDrawApi();
+		context = createTestContext({ draw: createMeasuringDrawApi().api });
 	});
 
 	it.each([1, null] as const)('fits every title from cards.json in its slot, badged or not (driver %p)', (driverNumber) => {

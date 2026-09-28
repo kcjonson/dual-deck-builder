@@ -3,20 +3,24 @@
  */
 import { DrawApi, TextCommand } from '../../../engine/draw';
 import { ICON_ATLAS_ROLE } from '../../../engine/text/fontFaces';
-import { installMeasuringDrawApi, MeasuringRecordingBackend } from '../../../engine/text/testing';
+import { createMeasuringDrawApi, MeasuringRecordingBackend } from '../../../engine/text/testing';
+import type { MountContext } from '../../../engine/components/MountContext';
+import { renderTree } from '../../../engine/components/renderTree';
+import { createTestContext } from '../../../engine/components/testing';
 import { ICON_CODE_POINTS } from '../../../engine/text/icons';
 import { Vehicle } from '../../mechanics/Vehicle';
 import { EnemyBattlefieldLayer, EnemyIntent } from './EnemyBattlefieldLayer';
-import { renderTree } from '../../../engine/components/renderTree';
 
 describe('EnemyBattlefieldLayer intent markers', () => {
 	let backend: MeasuringRecordingBackend;
 	let api: DrawApi;
+	let context: MountContext;
 	let layer: EnemyBattlefieldLayer;
 	let raider: Vehicle;
 
 	beforeEach(() => {
-		({ api, backend } = installMeasuringDrawApi());
+		({ api, backend } = createMeasuringDrawApi());
+		context = createTestContext({ draw: api });
 
 		raider = new Vehicle({
 			name: 'Rust Buggy',
@@ -34,10 +38,12 @@ describe('EnemyBattlefieldLayer intent markers', () => {
 		});
 		layer = new EnemyBattlefieldLayer({ id: 'enemies', x: 0, y: 0, width: 1440, height: 200 });
 		layer.setVehicles([raider]);
+		layer.mount(context);
 	});
 
 	/** The icon glyphs drawn in one frame, by name. */
 	function iconsDrawn(): string[] {
+		context.frame.layout();
 		api.beginFrame({ viewport: { width: 1440, height: 882 } });
 		renderTree(layer, api);
 		api.endFrame();

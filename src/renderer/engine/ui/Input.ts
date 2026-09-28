@@ -1,7 +1,7 @@
 import { Component, ComponentOptions, PointerEvents } from '../components/Component';
 import { Rectangle } from '../components/Rectangle';
 import { Text } from '../components/Text';
-import { InputSystem } from '../input/InputSystem';
+import type { MountContext } from '../components/MountContext';
 
 /**
  * Input UI component for text input
@@ -87,10 +87,6 @@ export class Input extends Component {
 		});
 		this.cursor.setVisible(false);
 		this.addPart(this.cursor);
-		this.updateCursorPosition();
-
-		// Setup event handling (this would be connected to the input system)
-		this.setupEvents();
 	}
 
 	/** R8.29: the text, placeholder and caret are internals, not targets. */
@@ -99,14 +95,16 @@ export class Input extends Component {
 	}
 
 	/**
-	 * Setup input event handling for the input field
+	 * The caret follows the text's measured layout, which exists once the text
+	 * has mounted and measured; its size change lays this out again (R8.18).
 	 */
-	private setupEvents(): void {
-		// Register mouse down handler for focusing
-		InputSystem.registerMouseDown(this, () => this.onMouseDown());
-		
-		// Register keyboard handler
-		InputSystem.registerKeyDown(this, (key: string) => this.onKeyPress(key));
+	protected layoutChildren(): void {
+		this.updateCursorPosition();
+	}
+
+	protected onMount({ input }: MountContext): void {
+		input.registerMouseDown(this, () => this.onMouseDown());
+		input.registerKeyDown(this, (key: string) => this.onKeyPress(key));
 	}
 
 	/**
@@ -236,17 +234,19 @@ export class Input extends Component {
 	private onMouseDown(): void {
 		if (this.enabled) {
 			// First check if we need to blur another input
-			const currentFocus = InputSystem.getFocus();
+			const input = this.context?.input;
+			const currentFocus = input?.getFocus() ?? null;
 			if (currentFocus && currentFocus !== this && 'onMouseDownOutside' in currentFocus && typeof (currentFocus as { onMouseDownOutside?: () => void }).onMouseDownOutside === 'function') {
 				(currentFocus as { onMouseDownOutside: () => void }).onMouseDownOutside();
 			}
 			
 			this.setFocused(true);
-			InputSystem.setFocus(this);
+			input?.setFocus(this);
 			this.background.setFillColor(this.focusedColor);
 			this.background.setBorderColor([0.4, 0.4, 0.8, 1]);
 			this.cursor.setVisible(true);
 			this.cursorBlinkTimer = 0;
+			this.requestUpdate();
 		}
 	}
 
@@ -256,7 +256,7 @@ export class Input extends Component {
 	private onMouseDownOutside(): void {
 		if (this.focused) {
 			this.setFocused(false);
-			InputSystem.setFocus(null);
+			this.context?.input.setFocus(null);
 			this.background.setFillColor(this.normalColor);
 			this.background.setBorderColor([0.3, 0.3, 0.3, 1]);
 			this.cursor.setVisible(false);
@@ -291,16 +291,15 @@ export class Input extends Component {
 	 * @param dt Delta time since last update
 	 */
 	public update(dt: number): void {
-		super.update(dt);
-		
-		// Handle cursor blinking when focused
+		// Blink only while focused; an unfocused input stops asking (R8.17).
 		if (this.focused && this.cursor) {
 			this.cursorBlinkTimer += dt;
-			
+
 			// Blink every 500ms
 			const blinkInterval = 0.5;
 			const visible = Math.floor(this.cursorBlinkTimer / blinkInterval) % 2 === 0;
 			this.cursor.setVisible(visible);
+			this.requestUpdate();
 		}
 	}
 	

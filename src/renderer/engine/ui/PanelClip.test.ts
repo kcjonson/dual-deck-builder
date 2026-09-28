@@ -5,9 +5,9 @@ import { DrawApi, RecordingBackend, RectCommand } from '../draw';
 import { Layer } from '../components/Layer';
 import { renderTree } from '../components/renderTree';
 import { Rectangle } from '../components/Rectangle';
-import { RendererContext } from '../rendering/RendererContext';
+import type { MountContext } from '../components/MountContext';
+import { createTestContext } from '../components/testing';
 import { treeSnapshot } from '../debug/treeSnapshot';
-import { InputSystem } from '../input/InputSystem';
 import { Panel } from './Panel';
 
 /**
@@ -23,7 +23,6 @@ let api: DrawApi;
 beforeEach(() => {
 	backend = new RecordingBackend({ maxFrames: 1 });
 	api = new DrawApi({ backend, strict: true });
-	RendererContext.getInstance().draw = api;
 });
 
 function frame(root: Layer): void {
@@ -130,6 +129,8 @@ describe('hit testing honours ancestor clips (R4.12)', () => {
 		const clipper = new Layer({ id: 'clipper', x: 10.3, y: 0, width: 20.3, height: 20, overflow: 'hidden' });
 		const child = new Layer({ id: 'child', x: -10, y: 0, width: 40, height: 20 });
 		clipper.addChild(child);
+		// The hit test reads the ratio the mounted tree's draw API last snapped at.
+		clipper.mount(createTestContext({ draw: api }));
 
 		// Ratio 1: the clip is x 10 to 31, so 10.1 hits and 30.8 hits although
 		// both are outside the unsnapped 10.3 to 30.6.
@@ -238,15 +239,17 @@ describe('tree snapshot clips from the clip stack arithmetic (R13.22)', () => {
 
 describe('a click right after a wheel scroll (R4.12 through the InputSystem)', () => {
 	let canvas: HTMLCanvasElement;
+	let context: MountContext;
 
 	beforeEach(() => {
 		canvas = document.createElement('canvas');
 		document.body.appendChild(canvas);
-		InputSystem.getInstance().setup(canvas);
+		context = createTestContext({ draw: api });
+		context.input.setup(canvas);
 	});
 
 	afterEach(() => {
-		InputSystem.getInstance().unmount();
+		context.input.detach();
 		document.body.removeChild(canvas);
 	});
 
@@ -258,12 +261,14 @@ describe('a click right after a wheel scroll (R4.12 through the InputSystem)', (
 		const rows: Rectangle[] = [];
 		for (let index = 0; index < 20; index++) {
 			const row = new Rectangle({ id: `row-${index}`, x: 0, y: index * 20, width: 180, height: 20 });
-			InputSystem.registerMouseDown(row, () => pressed.push(`row-${index}`));
+			context.input.registerMouseDown(row, () => pressed.push(`row-${index}`));
 			panel.addChild(row);
 			rows.push(row);
 		}
 		panel.setContentSize(200, 400);
 		root.addChild(panel);
+		// The panel registers its wheel handler on mount (R8.14).
+		root.mount(context);
 
 		const at = { clientX: 50, clientY: 15, bubbles: true };
 		canvas.dispatchEvent(new MouseEvent('mousemove', at));
@@ -274,7 +279,5 @@ describe('a click right after a wheel scroll (R4.12 through the InputSystem)', (
 
 		expect(panel.getScrollOffset().y).toBe(30);
 		expect(pressed).toEqual(['row-2']);
-		for (const row of rows) InputSystem.unregisterComponent(row);
-		InputSystem.unregisterComponent(panel);
 	});
 });

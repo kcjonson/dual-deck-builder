@@ -2,8 +2,7 @@ import { Renderer, showStatusLine } from './renderer/engine/rendering/Renderer';
 import { createDrawApi } from './renderer/engine/rendering/WebGL2Backend';
 import { FrameLoop } from './renderer/engine/rendering/FrameLoop';
 import { Game } from './renderer/game/Game';
-import { RendererContext } from './renderer/engine/rendering/RendererContext';
-import { InputSystem } from './renderer/engine/input/InputSystem';
+import { MountContext, createMountContext } from './renderer/engine/components/MountContext';
 import { FrameTimer } from './renderer/engine/rendering/FrameTimer';
 import type { GpuTimer } from './renderer/engine/rendering/GpuTimer';
 import { FontAtlasError } from './renderer/engine/text/FontAtlas';
@@ -22,6 +21,7 @@ class Application {
 	private game!: Game;
 	private frameTimer!: FrameTimer;
 	private frameLoop!: FrameLoop;
+	private context!: MountContext;
 
 	/**
 	 * Initialize the application
@@ -67,10 +67,6 @@ class Application {
 				? (require('./renderer/engine/rendering/GpuTimer') as typeof import('./renderer/engine/rendering/GpuTimer')).createGpuTimer(this.renderer)
 				: null;
 
-			// Initialize the input system with the canvas
-			const canvas = document.getElementById('game-canvas') as HTMLCanvasElement;
-			InputSystem.getInstance().setup(canvas);
-
 			// The seam. Built through the shared factory rather than spelled
 			// here, so this page and the gallery cannot end up with differently
 			// configured draw APIs over the same renderer.
@@ -80,11 +76,16 @@ class Application {
 				gpuTimer,
 				fontAtlases: await fontAtlases,
 			});
-			RendererContext.getInstance().draw = draw;
+
+			// R1.6: the one object every root is mounted with. Input listens on
+			// the canvas the renderer draws to.
+			this.context = createMountContext({ draw, viewport: this.renderer.viewport });
+			const canvas = this.renderer.canvas;
+			this.context.input.setup(canvas);
 
 			// Create and initialize the game
 			this.game = new Game({
-				draw,
+				context: this.context,
 				frameTimer: this.frameTimer,
 				viewport: this.renderer.viewport,
 				device: this.renderer.device,
@@ -101,7 +102,7 @@ class Application {
 				const { installInputHooks } = require('./renderer/engine/debug/hooks') as typeof import('./renderer/engine/debug/hooks');
 				// R13.35, on the same canvas InputSystem.setup just registered
 				// its listeners on, so injected events land on those listeners.
-				installInputHooks(canvas);
+				installInputHooks({ canvas, input: this.context.input });
 			}
 
 			// Start the main loop. R15.5: it stops while the context is lost
@@ -146,8 +147,8 @@ class Application {
 	 * Unmount resources before app shutdown
 	 */
 	public unmount(): void {
-		// Unmount the input system to remove event listeners
-		InputSystem.getInstance().unmount();
+		// Remove the input system's event listeners
+		this.context?.input.detach();
 
 		// Additional unmount as needed
 		console.log('Application resources unmounted');
@@ -160,8 +161,8 @@ class Application {
 	 * already clamped to 0.25 s (R13.9), so the timer owns both halves of the
 	 * frame interval and neither loop can compute it differently.
 	 *
-	 * The three sections are disjoint and exhaustive of the application's own
-	 * work (R13.7). The clear belongs inside render because it is a GL command
+	 * The four sections are disjoint and exhaustive of the application's own
+	 * work (R13.7), in R8.16's order: update, layout, render, flush. The clear belongs inside render because it is a GL command
 	 * for the frame being drawn; it is the backend's `beginFrame`, which
 	 * `game.render` opens. Since DDB-55 phase 1 the render section is CPU
 	 * work and flush is the frame's whole GL submission; before it, render
@@ -180,6 +181,10 @@ class Application {
 		this.renderer.viewport.commit();
 		this.game.update(deltaTime);
 		this.frameTimer.endSection('update');
+
+		this.frameTimer.beginSection('layout');
+		this.game.layout();
+		this.frameTimer.endSection('layout');
 
 		this.frameTimer.beginSection('render');
 		this.game.render();

@@ -43,38 +43,35 @@ function makeBox(): Box {
 }
 
 let canvas: HTMLCanvasElement;
+let input: InputSystem;
 let box: Box;
 
 beforeAll(() => {
 	canvas = document.createElement('canvas');
 	document.body.appendChild(canvas);
-	InputSystem.getInstance().setup(canvas);
 });
 
 beforeEach(() => {
-	InputSystem.getInstance().paused = false;
+	input = new InputSystem();
+	input.setup(canvas);
 
 	box = makeBox();
-	InputSystem.registerMouseOver(box, () => box.overs++);
-	InputSystem.registerMouseOut(box, () => box.outs++);
-	InputSystem.registerMouseDown(box, () => box.downs++);
-	InputSystem.registerMouseUp(box, () => box.ups++);
-	InputSystem.registerWheel(box, (dx, dy) => box.wheels.push([dx, dy]));
-	InputSystem.registerKeyDown(box, (key) => box.keys.push(key));
-	InputSystem.setFocus(box);
+	input.registerMouseOver(box, () => box.overs++);
+	input.registerMouseOut(box, () => box.outs++);
+	input.registerMouseDown(box, () => box.downs++);
+	input.registerMouseUp(box, () => box.ups++);
+	input.registerWheel(box, (dx, dy) => box.wheels.push([dx, dy]));
+	input.registerKeyDown(box, (key) => box.keys.push(key));
+	input.setFocus(box);
 });
 
 afterEach(() => {
-	InputSystem.unregisterComponent(box);
-	InputSystem.setFocus(null);
-	InputSystem.getInstance().paused = false;
-	// Park the pointer outside the box so the next test starts unhovered.
-	injectInput(canvas, ['move,0,0']);
+	input.detach();
 });
 
 describe('the seam', () => {
 	it('drives a click all the way to a registered handler', () => {
-		const result = injectInput(canvas, ['click,150,150']);
+		const result = injectInput({ canvas, input }, ['click,150,150']);
 
 		expect(box.overs).toBe(1);
 		expect(box.downs).toBe(1);
@@ -88,7 +85,7 @@ describe('the seam', () => {
 	});
 
 	it('runs several commands in order in one call', () => {
-		const result = injectInput(canvas, ['move,150,150', 'down,150,150', 'up,150,150']);
+		const result = injectInput({ canvas, input }, ['move,150,150', 'down,150,150', 'up,150,150']);
 
 		expect(box.overs).toBe(1);
 		expect(box.downs).toBe(1);
@@ -101,14 +98,14 @@ describe('the seam', () => {
 	});
 
 	it('leaves a component alone when the coordinates miss it', () => {
-		injectInput(canvas, ['click,10,10']);
+		injectInput({ canvas, input }, ['click,10,10']);
 
 		expect(box.overs).toBe(0);
 		expect(box.downs).toBe(0);
 	});
 
 	it('fires mouseout when the pointer leaves', () => {
-		injectInput(canvas, ['move,150,150', 'move,10,10']);
+		injectInput({ canvas, input }, ['move,150,150', 'move,10,10']);
 
 		expect(box.overs).toBe(1);
 		expect(box.outs).toBe(1);
@@ -128,7 +125,7 @@ describe('coordinates are logical pixels in the snapshot space (R7.1, R7.15)', (
 		});
 
 		try {
-			injectInput(canvas, ['click,150,150']);
+			injectInput({ canvas, input }, ['click,150,150']);
 		} finally {
 			canvas.getBoundingClientRect = originalRect;
 		}
@@ -140,7 +137,7 @@ describe('coordinates are logical pixels in the snapshot space (R7.1, R7.15)', (
 	});
 
 	it('accepts fractional coordinates', () => {
-		injectInput(canvas, ['click,100.5,199.5']);
+		injectInput({ canvas, input }, ['click,100.5,199.5']);
 
 		expect(box.downs).toBe(1);
 	});
@@ -154,7 +151,7 @@ describe('mouse buttons', () => {
 		};
 		canvas.addEventListener('mousedown', listener);
 
-		injectInput(canvas, ['move,150,150', 'down,150,150', 'down,150,150,2']);
+		injectInput({ canvas, input }, ['move,150,150', 'down,150,150', 'down,150,150,2']);
 		canvas.removeEventListener('mousedown', listener);
 
 		expect(buttons).toEqual([
@@ -169,7 +166,7 @@ describe('scroll', () => {
 	// mode. The InputSystem hands the raw deltas to the component, so what the
 	// handler sees is what was injected.
 	it('delivers the delta as vertical pixels to the component under the pointer', () => {
-		injectInput(canvas, ['move,150,150', 'scroll,150,150,100']);
+		injectInput({ canvas, input }, ['move,150,150', 'scroll,150,150,100']);
 
 		expect(box.wheels).toEqual([[0, 100]]);
 	});
@@ -179,7 +176,7 @@ describe('scroll', () => {
 		const listener = (event: Event) => modes.push((event as WheelEvent).deltaMode);
 		canvas.addEventListener('wheel', listener);
 
-		injectInput(canvas, ['move,150,150', 'scroll,150,150,-40']);
+		injectInput({ canvas, input }, ['move,150,150', 'scroll,150,150,-40']);
 		canvas.removeEventListener('wheel', listener);
 
 		expect(modes).toEqual([WheelEvent.DOM_DELTA_PIXEL]);
@@ -190,7 +187,7 @@ describe('scroll', () => {
 	// tracked pointer rather than by the event, so a scroll with no preceding
 	// move lands wherever the pointer already was. Documented, not papered over.
 	it('does not move the pointer, so it needs a move first', () => {
-		injectInput(canvas, ['move,10,10', 'scroll,150,150,100']);
+		injectInput({ canvas, input }, ['move,10,10', 'scroll,150,150,100']);
 
 		expect(box.wheels).toEqual([]);
 	});
@@ -198,7 +195,7 @@ describe('scroll', () => {
 
 describe('keys', () => {
 	it('reaches the focused component through the window listener', () => {
-		injectInput(canvas, ['keydown,Enter']);
+		injectInput({ canvas, input }, ['keydown,Enter']);
 
 		expect(box.keys).toEqual(['Enter']);
 	});
@@ -211,7 +208,7 @@ describe('keys', () => {
 		const listener = (event: Event) => seen.push((event as KeyboardEvent).key);
 		document.addEventListener('keydown', listener);
 
-		injectInput(canvas, ['keydown,F5']);
+		injectInput({ canvas, input }, ['keydown,F5']);
 		document.removeEventListener('keydown', listener);
 
 		expect(seen).toEqual(['F5']);
@@ -228,7 +225,7 @@ describe('keys', () => {
 		window.addEventListener('keydown', down);
 		window.addEventListener('keyup', up);
 
-		injectInput(canvas, ['keydown,a', 'keyup,a']);
+		injectInput({ canvas, input }, ['keydown,a', 'keyup,a']);
 		window.removeEventListener('keydown', down);
 		window.removeEventListener('keyup', up);
 
@@ -237,7 +234,7 @@ describe('keys', () => {
 	});
 
 	it('sends the key verbatim, so case and punctuation survive', () => {
-		injectInput(canvas, ['keydown,A', 'keydown,,', 'keydown, ']);
+		injectInput({ canvas, input }, ['keydown,A', 'keydown,,', 'keydown, ']);
 
 		expect(box.keys).toEqual(['A', ',', ' ']);
 	});
@@ -245,9 +242,9 @@ describe('keys', () => {
 
 describe('pause (R13.35)', () => {
 	it('ignores injected input while paused and says so', () => {
-		InputSystem.getInstance().paused = true;
+		input.paused = true;
 
-		const result = injectInput(canvas, ['click,150,150', 'keydown,Enter']);
+		const result = injectInput({ canvas, input }, ['click,150,150', 'keydown,Enter']);
 
 		expect(box.downs).toBe(0);
 		expect(box.keys).toEqual([]);
@@ -259,11 +256,11 @@ describe('pause (R13.35)', () => {
 	});
 
 	it('delivers again after resuming, with no backlog from the pause', () => {
-		InputSystem.getInstance().paused = true;
-		injectInput(canvas, ['click,150,150']);
+		input.paused = true;
+		injectInput({ canvas, input }, ['click,150,150']);
 
-		InputSystem.getInstance().paused = false;
-		const result = injectInput(canvas, ['click,150,150']);
+		input.paused = false;
+		const result = injectInput({ canvas, input }, ['click,150,150']);
 
 		expect(box.downs).toBe(1);
 		expect(result.paused).toBe(false);
@@ -273,7 +270,7 @@ describe('pause (R13.35)', () => {
 
 describe('bad input', () => {
 	it('reports a parse failure without throwing or dispatching', () => {
-		const result = injectInput(canvas, ['clik,150,150']);
+		const result = injectInput({ canvas, input }, ['clik,150,150']);
 
 		expect(box.downs).toBe(0);
 		expect(result.ok).toBe(false);
@@ -286,7 +283,7 @@ describe('bad input', () => {
 	});
 
 	it('runs the good commands either side of a bad one', () => {
-		const result = injectInput(canvas, ['move,150,150', 'down,nope,150', 'down,150,150']);
+		const result = injectInput({ canvas, input }, ['move,150,150', 'down,nope,150', 'down,150,150']);
 
 		expect(box.downs).toBe(1);
 		expect(result.ok).toBe(false);
@@ -294,7 +291,7 @@ describe('bad input', () => {
 	});
 
 	it('returns an empty, successful result for no commands', () => {
-		expect(injectInput(canvas, [])).toEqual({ ok: true, paused: false, commands: [] });
+		expect(injectInput({ canvas, input }, [])).toEqual({ ok: true, paused: false, commands: [] });
 	});
 });
 
@@ -307,7 +304,7 @@ describe('installInputHooks', () => {
 		const devWindow = window as DevWindow;
 		devWindow.__dev = { input: () => undefined, state: () => 'kept' };
 
-		installInputHooks(canvas);
+		installInputHooks({ canvas, input });
 
 		expect(typeof devWindow.__dev?.input).toBe('function');
 		expect(devWindow.__dev?.state?.()).toBe('kept');

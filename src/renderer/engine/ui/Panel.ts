@@ -2,7 +2,8 @@ import type { Vec2 } from '../draw/geometry';
 import type { DrawApi } from '../draw/DrawApi';
 import { Layer, LayerOptions } from '../components/Layer';
 import { BoxStyle, drawBox, resolveBoxStyle } from '../components/Rectangle';
-import { Interactive, InputSystem } from '../input/InputSystem';
+import type { Interactive } from '../input/InputSystem';
+import type { MountContext } from '../components/MountContext';
 
 /**
  * Panel creation options
@@ -68,12 +69,11 @@ export class Panel extends Layer implements Interactive {
 		if (options?.scrollDirection !== undefined) {
 			this.scrollDirection = options.scrollDirection;
 		}
+	}
 
-		// Register for wheel events if scrollable
+	protected onMount({ input }: MountContext): void {
 		if (this.scrollable) {
-			InputSystem.registerWheel(this as Interactive, (deltaX, deltaY) =>
-				this.onWheel(deltaX, deltaY),
-			);
+			input.registerWheel(this, (deltaX, deltaY) => this.onWheel(deltaX, deltaY));
 		}
 	}
 
