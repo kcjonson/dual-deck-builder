@@ -1,4 +1,5 @@
 import { Screen } from './Screen';
+import type { DrawApi } from '../../engine/draw/DrawApi';
 import { SplashScreen } from '../screens/splash/SplashScreen';
 import { MainMenuScreen } from '../screens/main-menu/MainMenuScreen';
 import { DeveloperScreen } from '../screens/developer/DeveloperScreen';
@@ -116,8 +117,8 @@ export class ScreenManager {
 	/**
 	 * Render the current screen
 	 */
-	static render(): void {
-		this.currentScreen?.render();
+	static render(draw: DrawApi): void {
+		this.currentScreen?.render(draw);
 	}
 	
 	/**

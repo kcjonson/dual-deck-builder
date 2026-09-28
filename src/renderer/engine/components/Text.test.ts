@@ -3,13 +3,14 @@ import { RendererContext } from '../rendering/RendererContext';
 import { committedFontAtlas, installMeasuringDrawApi, MeasuringRecordingBackend } from '../text/testing';
 import { layoutText } from '../text/TextLayout';
 import { Text } from './Text';
+import { renderTree } from './renderTree';
 
 const VIEWPORT = { width: 800, height: 600 };
 
 /** The one text command `text` emits, drawn at the root. */
 function drawn(api: DrawApi, backend: MeasuringRecordingBackend, text: Text): TextCommand {
 	api.beginFrame({ viewport: VIEWPORT });
-	text.render();
+	renderTree(text, api);
 	api.endFrame();
 	const commands = backend.commands.filter((command): command is TextCommand => command.kind === 'text');
 	expect(commands).toHaveLength(1);
@@ -48,7 +49,9 @@ describe('Text (R12.4)', () => {
 		expect(text.getHeight()).toBe(layout.lineHeight);
 
 		const command = drawn(api, backend, text);
-		expect(command.box).toEqual({ x: 10, y: 20, width: layout.width, height: layout.lineHeight });
+		// The box is the text's own, at its local origin; the walk's transform carries its position.
+		expect(command.box).toEqual({ x: 0, y: 0, width: layout.width, height: layout.lineHeight });
+		expect(command.transform).toEqual([1, 0, 0, 1, 10, 20]);
 		expect(command.verticalAlign).toBe('top');
 		expect(command.wrap).toBe('none');
 	});

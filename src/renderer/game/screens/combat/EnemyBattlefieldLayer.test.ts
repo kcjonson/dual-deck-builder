@@ -7,6 +7,7 @@ import { installMeasuringDrawApi, MeasuringRecordingBackend } from '../../../eng
 import { ICON_CODE_POINTS } from '../../../engine/text/icons';
 import { Vehicle } from '../../mechanics/Vehicle';
 import { EnemyBattlefieldLayer, EnemyIntent } from './EnemyBattlefieldLayer';
+import { renderTree } from '../../../engine/components/renderTree';
 
 describe('EnemyBattlefieldLayer intent markers', () => {
 	let backend: MeasuringRecordingBackend;
@@ -38,7 +39,7 @@ describe('EnemyBattlefieldLayer intent markers', () => {
 	/** The icon glyphs drawn in one frame, by name. */
 	function iconsDrawn(): string[] {
 		api.beginFrame({ viewport: { width: 1440, height: 882 } });
-		layer.render();
+		renderTree(layer, api);
 		api.endFrame();
 		const names = new Map(Object.entries(ICON_CODE_POINTS).map(([name, codePoint]) => [String.fromCodePoint(codePoint), name]));
 		return backend.commands

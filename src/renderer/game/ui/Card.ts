@@ -1,7 +1,7 @@
 import { Layer } from '../../engine/components/Layer';
+import type { PointerEvents } from '../../engine/components/Component';
 import { Text } from '../../engine/components/Text';
 import { Rectangle } from '../../engine/components/Rectangle';
-import { RenderContext } from '../../engine/rendering/RenderContext';
 import { InputSystem } from '../../engine/input/InputSystem';
 import { Card as GameCard } from '../mechanics/Card';
 
@@ -51,7 +51,6 @@ export class Card extends Layer {
 	
 	// State
 	private selected = false;
-	private hovered = false;
 	private _enabled = true;
 
 	constructor({ id, x, y, data, size = CardSize.NORMAL, driverNumber }: { 
@@ -276,13 +275,9 @@ export class Card extends Layer {
 		InputSystem.registerMouseUp(this, () => this.handleMouseUp());
 	}
 
-	/**
-	 * Card extends Layer rather than Component (it declares its own hovered and
-	 * _enabled), so it does not inherit Component's unregistering unmount.
-	 */
-	public unmount(): void {
-		InputSystem.unregisterComponent(this);
-		super.unmount();
+	/** R8.29: a card is one target; its text and frame are internals. */
+	protected get defaultPointerEvents(): PointerEvents {
+		return 'unit';
 	}
 
 	/**
@@ -290,7 +285,7 @@ export class Card extends Layer {
 	 */
 	private handleMouseOver(): void {
 		if (!this.enabled) return;
-		this.hovered = true;
+		this.setHovered(true);
 		this.updateVisuals();
 	}
 
@@ -298,7 +293,7 @@ export class Card extends Layer {
 	 * Handle mouse out
 	 */
 	private handleMouseOut(): void {
-		this.hovered = false;
+		this.setHovered(false);
 		this.updateVisuals();
 	}
 
@@ -483,14 +478,6 @@ export class Card extends Layer {
 	 */
 	public getData(): GameCard {
 		return this.data;
-	}
-
-	/**
-	 * Render the card component
-	 */
-	public render(context?: RenderContext): void {
-		// Use Layer's render method to handle children rendering
-		Layer.prototype.render.call(this, context);
 	}
 
 	/**

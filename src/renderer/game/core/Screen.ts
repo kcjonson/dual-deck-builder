@@ -1,4 +1,6 @@
 import { Layer } from '../../engine/components/Layer';
+import { renderTree } from '../../engine/components/renderTree';
+import type { DrawApi } from '../../engine/draw/DrawApi';
 
 /**
  * Base class for game screens
@@ -140,11 +142,10 @@ export abstract class Screen {
 	/**
 	 * Render the screen
 	 */
-	public render(): void {
+	public render(draw: DrawApi): void {
 		if (!this.isActive) return;
 
-		// Render the root layer (which renders all children)
-		this.rootLayer.render();
+		renderTree(this.rootLayer, draw);
 
 		// Call the screen-specific render handler
 		this.onRender();

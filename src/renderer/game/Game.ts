@@ -3,6 +3,7 @@ import type { CanvasViewport } from '../engine/rendering/CanvasViewport';
 import { FrameTimer, PerfSnapshot } from '../engine/rendering/FrameTimer';
 import type { GpuTimer } from '../engine/rendering/GpuTimer';
 import { DeveloperOverlay } from '../engine/ui/DeveloperOverlay';
+import { renderTree } from '../engine/components/renderTree';
 import { ScreenManager } from './core/ScreenManager';
 import { InputSystem } from '../engine/input/InputSystem';
 import { CardLoader } from './core/CardLoader';
@@ -296,10 +297,10 @@ export class Game {
 		this.draw.beginFrame(this.viewport.frame);
 
 		// Render the current screen via ScreenManager
-		ScreenManager.render();
+		ScreenManager.render(this.draw);
 
 		// Render developer overlay on top
-		this.developerOverlay.render();
+		renderTree(this.developerOverlay, this.draw);
 	}
 
 	/**

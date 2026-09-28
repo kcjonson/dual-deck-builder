@@ -1,13 +1,13 @@
 /**
  * @jest-environment jsdom
  */
-import { Layer } from '../../engine/components/Layer';
+import type { Component } from '../../engine/components/Component';
 import { Team, TeamType } from '../mechanics/Team';
 import { Vehicle as VehicleData, createDrivenVehicle } from '../mechanics/Vehicle';
 import { createTestDriver } from '../ai/__tests__/test-helpers';
 import { Vehicle } from './Vehicle';
 
-const partById = (plate: Layer, id: string): Layer | undefined =>
+const partById = (plate: Component, id: string): Component | undefined =>
 	plate.getChildren().find(child => child.id === id);
 
 describe('Vehicle plate', () => {

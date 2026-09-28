@@ -178,7 +178,7 @@ heard by the GL viewport first and the screens second. Nothing in the engine rea
 Where: the rect snap is in `UberGeometryEncoder.encodeRect`, which already had the frame's ratio
 and the command's `translateOnly` flag and is where text snapping lives; the clip snap is in
 `DrawApi.pushClip`, at the one place a clip is converted to screen space (R4.7), so the cull and
-the shader see the same snapped rect. The tree snapshot and `Layer`'s hit test build their clips
+the shader see the same snapped rect. The tree snapshot and `Component`'s hit test build their clips
 from the tree rather than from the clip stack, so each snaps the same way: the snapshot at the
 `ratio` its viewport now carries (read, not reported), the hit test at the draw API's
 `devicePixelScale`. Paint, snapshot and hit test agree to the device pixel, including at x.5,

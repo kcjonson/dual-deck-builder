@@ -1,7 +1,6 @@
 import { Component, ComponentOptions } from './Component';
 import type { RGBA } from '../draw';
-import { RendererContext } from '../rendering/RendererContext';
-import { RenderContext, DEFAULT_RENDER_CONTEXT } from '../rendering/RenderContext';
+import type { DrawApi } from '../draw/DrawApi';
 import { ICON_ATLAS_ROLE } from '../text/fontFaces';
 import { ICON_CODE_POINTS, IconName } from '../text/icons';
 import { tokens } from '../theme/tokens';
@@ -63,19 +62,22 @@ export class Icon extends Component {
 		this.glyphTint = tint;
 	}
 
-	public render(context?: RenderContext): void {
-		if (!this.visible) return;
+	public render(draw: DrawApi): void {
+		this.drawGlyph(draw, 0, 0);
+	}
 
-		const ctx = context || DEFAULT_RENDER_CONTEXT;
-		const screenX = ctx.offsetX + this.x;
-		const screenY = ctx.offsetY + this.y;
-
+	/**
+	 * The glyph with its box at (x, y) in the caller's space. A composite that
+	 * draws its own parts (R8.8) calls this from its `render` with the icon's
+	 * position, so the glyph is one of its own draws, in its own order.
+	 */
+	public drawGlyph(draw: DrawApi, x: number, y: number): void {
 		// The icon atlas's em box is the glyph's whole line (ascender 1,
 		// descender 0), so `middle` centres the design square in the box.
-		RendererContext.getInstance().draw.drawText({
+		draw.drawText({
 			id: this.id ?? undefined,
 			text: this.text,
-			box: { x: screenX, y: screenY, width: this.width, height: this.height },
+			box: { x, y, width: this.width, height: this.height },
 			font: ICON_ATLAS_ROLE,
 			size: this.glyphSize,
 			color: this.glyphTint,

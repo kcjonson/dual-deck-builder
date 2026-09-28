@@ -8,6 +8,16 @@ import { installMeasuringDrawApi, MeasuringRecordingBackend } from '../text/test
 import { tokens } from '../theme/tokens';
 import { Button } from '../ui/Button';
 import { Icon } from './Icon';
+import { Component } from './Component';
+import { Layer } from './Layer';
+import { renderTree } from './renderTree';
+
+/** A command's box in screen space: its local box through the walk's translation. */
+function screenBox(command: TextCommand): { x: number; y: number; width: number; height: number } {
+	const box = command.box ?? { x: NaN, y: NaN, width: NaN, height: NaN };
+	return { x: box.x + command.transform[4], y: box.y + command.transform[5], width: box.width, height: box.height };
+}
+
 
 describe('Icon (R12.6)', () => {
 	let backend: MeasuringRecordingBackend;
@@ -21,15 +31,18 @@ describe('Icon (R12.6)', () => {
 		return backend.commands.filter((command): command is TextCommand => command.kind === 'text');
 	}
 
-	function frame(draw: () => void): void {
+	/** Walks one frame of `root`, the way the page does. */
+	function frame(root: Component): void {
 		api.beginFrame({ viewport: { width: 400, height: 200 } });
-		draw();
+		renderTree(root, api);
 		api.endFrame();
 	}
 
 	it('draws its glyph from the icon atlas, centred in its box, in text mode', () => {
 		const icon = new Icon({ id: 'fuel', glyph: 'local_gas_station', size: 16, tint: tokens.color.accent, x: 10, y: 20 });
-		frame(() => icon.render({ offsetX: 100, offsetY: 50 }));
+		const holder = new Layer({ x: 100, y: 50 });
+		holder.addChild(icon);
+		frame(holder);
 
 		const [command] = textCommands();
 		expect(command).toMatchObject({
@@ -38,11 +51,12 @@ describe('Icon (R12.6)', () => {
 			font: ICON_ATLAS_ROLE,
 			size: 16,
 			color: tokens.color.accent,
-			box: { x: 110, y: 70, width: 16, height: 16 },
+			box: { x: 0, y: 0, width: 16, height: 16 },
 			align: 'center',
 			verticalAlign: 'middle',
 			wrap: 'none',
 		});
+		expect(screenBox(command)).toEqual({ x: 110, y: 70, width: 16, height: 16 });
 	});
 
 	it('defaults its box to its size and its tint to the text colour', () => {
@@ -53,7 +67,7 @@ describe('Icon (R12.6)', () => {
 
 	it('keeps an explicit box and centres the glyph in it', () => {
 		const icon = new Icon({ glyph: 'shield', size: 12, width: 30, height: 20 });
-		frame(() => icon.render());
+		frame(icon);
 		expect(textCommands()[0].box).toEqual({ x: 0, y: 0, width: 30, height: 20 });
 		expect(textCommands()[0].size).toBe(12);
 	});
@@ -63,7 +77,7 @@ describe('Icon (R12.6)', () => {
 		icon.glyph = 'build';
 		icon.size = 20;
 		icon.tint = tokens.color.data;
-		frame(() => icon.render());
+		frame(icon);
 
 		expect(textCommands()[0]).toMatchObject({
 			text: String.fromCodePoint(ICON_CODE_POINTS.build),
@@ -76,7 +90,7 @@ describe('Icon (R12.6)', () => {
 	it('draws nothing while hidden', () => {
 		const icon = new Icon({ glyph: 'shield', size: 12 });
 		icon.setVisible(false);
-		frame(() => icon.render());
+		frame(icon);
 		expect(textCommands()).toEqual([]);
 	});
 
@@ -90,7 +104,7 @@ describe('Icon (R12.6)', () => {
 		it('centres icon, gap and label together as one group', () => {
 			const button = new Button('Back to Menu', { id: 'back', icon: 'arrow_back', width: 200, height: 50 });
 			button.setPosition(30, 30);
-			frame(() => button.render());
+			frame(button);
 
 			const [label, icon] = textCommands();
 			expect(icon.font).toBe(ICON_ATLAS_ROLE);
@@ -98,14 +112,14 @@ describe('Icon (R12.6)', () => {
 			expect(icon.color).toEqual(tokens.color.text_bright);
 
 			const labelWidth = api.measureText({ text: 'Back to Menu', font: 'body', size: 16 }).width;
-			const iconBox = icon.box ?? { x: NaN, y: NaN, width: NaN, height: NaN };
+			const iconBox = screenBox(icon);
 			const gap = 6;
 			const groupLeft = 30 + (200 - (iconBox.width + gap + labelWidth)) / 2;
 			expect(iconBox.x).toBeCloseTo(groupLeft, 0);
 			expect(iconBox.y + iconBox.height / 2).toBeCloseTo(30 + 25, 0);
 			// The label centres in a box that gives up the icon and gap on its
 			// left, so its measured left edge sits one gap past the icon.
-			const labelBox = label.box ?? { x: NaN, y: NaN, width: NaN, height: NaN };
+			const labelBox = screenBox(label);
 			expect(label.align).toBe('center');
 			const labelCentre = labelBox.x + labelBox.width / 2;
 			expect(labelCentre).toBeCloseTo(30 + 100 + (iconBox.width + gap) / 2);
@@ -117,16 +131,16 @@ describe('Icon (R12.6)', () => {
 			button.setPosition(0, 0);
 			// Text measures itself too, so count the button's own placement.
 			const place = jest.spyOn(Button.prototype as unknown as { placeIcon: () => void }, 'placeIcon');
-			frame(() => button.render());
-			const first = textCommands().map((command) => command.box ?? command.position);
+			frame(button);
+			const first = textCommands().map(screenBox);
 
 			button.setPosition(0, 0);
-			frame(() => button.render());
-			expect(textCommands().map((command) => command.box ?? command.position)).toEqual(first);
+			frame(button);
+			expect(textCommands().map(screenBox)).toEqual(first);
 			expect(place).toHaveBeenCalledTimes(1);
 
 			button.setLabel('Back to Menu');
-			frame(() => button.render());
+			frame(button);
 			expect(place).toHaveBeenCalledTimes(2);
 			place.mockRestore();
 		});
@@ -134,7 +148,7 @@ describe('Icon (R12.6)', () => {
 		it('draws no icon without one', () => {
 			const button = new Button('Plain', { width: 100, height: 40 });
 			button.setPosition(0, 0);
-			frame(() => button.render());
+			frame(button);
 			expect(textCommands().map((command) => command.font)).toEqual(['body']);
 		});
 	});

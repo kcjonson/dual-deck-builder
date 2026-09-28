@@ -1,7 +1,6 @@
 import { Component, ComponentOptions } from '../../engine/components/Component';
 import { Icon } from '../../engine/components/Icon';
-import { RendererContext } from '../../engine/rendering/RendererContext';
-import { RenderContext, DEFAULT_RENDER_CONTEXT } from '../../engine/rendering/RenderContext';
+import type { DrawApi } from '../../engine/draw/DrawApi';
 import type { IconName } from '../../engine/text/icons';
 import { resolveFontRole } from '../../engine/text/fontRoles';
 import { tokens } from '../../engine/theme/tokens';
@@ -88,17 +87,12 @@ export class IntentMarker extends Component {
 		}
 	}
 
-	public render(context?: RenderContext): void {
-		if (!this.visible || !this.current) return;
-
-		const ctx = context || DEFAULT_RENDER_CONTEXT;
-		const screenX = ctx.offsetX + this.x;
-		const screenY = ctx.offsetY + this.y;
-		const draw = RendererContext.getInstance().draw;
+	public render(draw: DrawApi): void {
+		if (!this.current) return;
 
 		draw.drawRect({
 			id: this.id ?? undefined,
-			rect: { x: screenX, y: screenY, width: this.width, height: this.height },
+			rect: { x: 0, y: 0, width: this.width, height: this.height },
 			fill: StyleParser.parseColor(FILLS[this.current.type] ?? '#666666'),
 			radius: this.width / 2,
 			border: { color: BORDER, width: 2 },
@@ -106,12 +100,12 @@ export class IntentMarker extends Component {
 
 		const label = this.label;
 		if (label === null) {
-			this.icon.render({ offsetX: screenX, offsetY: screenY });
+			this.icon.drawGlyph(draw, this.icon.x, this.icon.y);
 			return;
 		}
 		draw.drawText({
 			text: label,
-			box: { x: screenX, y: screenY, width: this.width, height: this.height },
+			box: { x: 0, y: 0, width: this.width, height: this.height },
 			font: VALUE_FONT,
 			size: VALUE_SIZE,
 			color: tokens.color.text_bright,

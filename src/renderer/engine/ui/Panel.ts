@@ -1,37 +1,8 @@
+import type { Vec2 } from '../draw/geometry';
+import type { DrawApi } from '../draw/DrawApi';
 import { Layer, LayerOptions } from '../components/Layer';
-import { Rectangle } from '../components/Rectangle';
+import { BoxStyle, drawBox, resolveBoxStyle } from '../components/Rectangle';
 import { Interactive, InputSystem } from '../input/InputSystem';
-import { RenderContext, DEFAULT_RENDER_CONTEXT } from '../rendering/RenderContext';
-import { RendererContext } from '../rendering/RendererContext';
-
-/**
- * The panel's content layer: it moves with the scroll offset, which only hit
- * testing needs to know about. Drawing is plain `Layer.render`; what scrolls
- * out of view is culled by the draw API against the panel's clip (R4.2a).
- */
-class ScrollableContentLayer extends Layer {
-	private panel: Panel;
-
-	constructor(panel: Panel, options?: LayerOptions) {
-		super(options);
-		this.panel = panel;
-	}
-
-	/**
-	 * Override globalToLocal to account for panel's scroll offset
-	 */
-	public globalToLocal(globalX: number, globalY: number): { x: number; y: number } {
-		// Get the local coordinates from parent's perspective
-		const localCoords = super.globalToLocal(globalX, globalY);
-		
-		// Add the scroll offset to account for scrolled content
-		const scrollOffset = this.panel.getScrollOffset();
-		return {
-			x: localCoords.x + scrollOffset.x,
-			y: localCoords.y + scrollOffset.y
-		};
-	}
-}
 
 /**
  * Panel creation options
@@ -41,19 +12,31 @@ export interface PanelOptions extends LayerOptions {
 	scrollDirection?: 'vertical' | 'horizontal' | 'both';
 }
 
+const DEFAULT_BOX: BoxStyle = {
+	fill: [0.2, 0.2, 0.2, 0.8],
+	borderColor: [0x4d / 255, 0x4d / 255, 0x4d / 255, 1],
+	borderWidth: 1,
+	cornerRadius: 5,
+};
+
 /**
- * Panel UI component for creating UI containers with backgrounds
- * Panels are non-interactive containers that provide visual grouping
+ * A container with a background box, optionally scrolling its children.
+ *
+ * The background is the panel's own draw (R8.1) and the children are exactly
+ * what callers added (R8.6): there is no background child and no content
+ * layer. Scrolling is R4.9's pair, a clip at the panel's box and a
+ * `contentOffset` the walk applies inside it, so the clip stays fixed on
+ * screen while the content moves (R4.10), and rows scrolled out of view are
+ * dropped by the draw API's cull against that clip (R4.2a).
  */
 export class Panel extends Layer implements Interactive {
-	private background: Rectangle;
-	private contentLayer: Layer;
 	public scrollable = false;
+	private box: BoxStyle;
 	private scrollDirection: 'vertical' | 'horizontal' | 'both' = 'vertical';
 	private scrollOffsetX = 0;
 	private scrollOffsetY = 0;
-	private contentWidth = 0;
-	private contentHeight = 0;
+	private scrollExtentWidth = 0;
+	private scrollExtentHeight = 0;
 
 	/**
 	 * Create a new panel
@@ -62,6 +45,17 @@ export class Panel extends Layer implements Interactive {
 	constructor(options?: PanelOptions) {
 		super(options);
 		this.componentType = 'Panel';
+
+		// A zero is no value here, as it was when the background was a child
+		// Rectangle built with `||` defaults.
+		const style = options?.style;
+		this.box = resolveBoxStyle({
+			backgroundColor: style?.backgroundColor || '#333333cc',
+			borderColor: style?.borderColor || '#4d4d4d',
+			borderWidth: style?.borderWidth || 1,
+			borderRadius: style?.borderRadius || 5,
+			border: style?.border,
+		}, DEFAULT_BOX);
 
 		// Set scroll properties
 		if (options?.scrollable !== undefined) {
@@ -75,31 +69,6 @@ export class Panel extends Layer implements Interactive {
 			this.scrollDirection = options.scrollDirection;
 		}
 
-		// Create background rectangle as UI element (at local origin)
-		this.background = new Rectangle({
-			x: 0,
-			y: 0,
-			width: this.width || 200,
-			height: this.height || 100,
-			style: {
-				backgroundColor: options?.style?.backgroundColor || '#333333cc',
-				borderColor: options?.style?.borderColor || '#4d4d4d',
-				borderWidth: options?.style?.borderWidth || 1,
-				borderRadius: options?.style?.borderRadius || 5,
-				border: options?.style?.border,
-			},
-		});
-		this.addPart(this.background);
-
-		// Create content layer for user-added children (at local origin)
-		this.contentLayer = new ScrollableContentLayer(this, {
-			x: 0,
-			y: 0,
-			width: this.width || 200,
-			height: this.height || 100,
-		});
-		this.addPart(this.contentLayer);
-
 		// Register for wheel events if scrollable
 		if (this.scrollable) {
 			InputSystem.registerWheel(this as Interactive, (deltaX, deltaY) =>
@@ -108,48 +77,13 @@ export class Panel extends Layer implements Interactive {
 		}
 	}
 
-	/**
-	 * Override setSize to update background and content layer size
-	 */
-	public setSize(width: number, height: number): this {
-		super.setSize(width, height);
-		if (this.background) {
-			this.background.setSize(width, height);
-		}
-		if (this.contentLayer) {
-			this.contentLayer.setSize(width, height);
-		}
-		return this;
+	public render(draw: DrawApi): void {
+		drawBox(draw, this.id, this.width, this.height, this.box);
 	}
 
-	/**
-	 * Override addChild to add to content layer instead of directly to panel
-	 */
-	public addChild(child: Layer): this {
-		this.contentLayer.addChild(child);
-		return this;
-	}
-
-	/**
-	 * Override removeChild to remove from content layer
-	 */
-	public removeChild(child: Layer): boolean {
-		const result = this.contentLayer.removeChild(child);
-		return result;
-	}
-
-	/**
-	 * Override getChildren to return content layer children
-	 */
-	public getChildren(): Layer[] {
-		return this.contentLayer.getChildren();
-	}
-
-	/**
-	 * Get the content layer (for advanced use cases)
-	 */
-	public getContentLayer(): Layer {
-		return this.contentLayer;
+	/** R4.9: the scroll position, which the walk and the hit test both subtract from children. */
+	public get contentOffset(): Vec2 {
+		return { x: this.scrollOffsetX, y: this.scrollOffsetY };
 	}
 
 	/**
@@ -176,18 +110,15 @@ export class Panel extends Layer implements Interactive {
 	public scroll(deltaX: number, deltaY: number): this {
 		if (!this.scrollable) return this;
 
-
 		if (this.scrollDirection === 'vertical' || this.scrollDirection === 'both') {
-			const maxScrollY = this.contentHeight - this.height;
+			const maxScrollY = this.scrollExtentHeight - this.height;
 			const newScrollY = this.scrollOffsetY + deltaY;
-			const clampedY = Math.max(0, Math.min(maxScrollY, newScrollY));
-			this.scrollOffsetY = clampedY;
+			this.scrollOffsetY = Math.max(0, Math.min(maxScrollY, newScrollY));
 		}
 		if (this.scrollDirection === 'horizontal' || this.scrollDirection === 'both') {
-			const maxScrollX = this.contentWidth - this.width;
+			const maxScrollX = this.scrollExtentWidth - this.width;
 			const newScrollX = this.scrollOffsetX + deltaX;
-			const clampedX = Math.max(0, Math.min(maxScrollX, newScrollX));
-			this.scrollOffsetX = clampedX;
+			this.scrollOffsetX = Math.max(0, Math.min(maxScrollX, newScrollX));
 		}
 
 		return this;
@@ -200,10 +131,10 @@ export class Panel extends Layer implements Interactive {
 	 */
 	public setContentSize(width?: number, height?: number): this {
 		if (width !== undefined) {
-			this.contentWidth = width;
+			this.scrollExtentWidth = width;
 		}
 		if (height !== undefined) {
-			this.contentHeight = height;
+			this.scrollExtentHeight = height;
 		}
 		return this;
 	}
@@ -213,115 +144,11 @@ export class Panel extends Layer implements Interactive {
 		return (this.scrollable || this.getOverflow() === 'hidden') && this.width > 0 && this.height > 0;
 	}
 
-	/**
-	 * Layout method to position background and children
-	 */
-	public layout(): void {
-		// In local coordinates, background and content layer are at (0, 0)
-		// Background always at panel origin
-		if (this.background) {
-			this.background.setPosition(0, 0);
-			this.background.setSize(this.width, this.height);
-		}
-
-		// Content layer also at panel origin (scroll offset applied during render)
-		if (this.contentLayer) {
-			this.contentLayer.setPosition(0, 0);
-			this.contentLayer.setSize(this.width, this.height);
-		}
-
-		// Call parent layout for children (this will layout UI elements and content layer)
-		super.layout();
-	}
-
-	/**
-	 * Override render to handle scrolling transformation
-	 * @param context Render context with coordinate transforms
-	 */
-	public render(context?: RenderContext): void {
-		if (!this.visible) return;
-
-		// Use default context if none provided
-		const ctx = context || DEFAULT_RENDER_CONTEXT;
-
-		// Calculate screen position
-		const screenX = ctx.offsetX + this.x;
-		const screenY = ctx.offsetY + this.y;
-
-		// Create context for this panel's children (background and content layer)
-		const panelContext: RenderContext = {
-			offsetX: screenX,
-			offsetY: screenY,
-		};
-
-		// Render background at panel position (doesn't scroll)
-		if (this.background) {
-			this.background.render(panelContext);
-		}
-
-		// Create context for content layer with scroll offset
-		const contentContext: RenderContext = {
-			offsetX: screenX - this.scrollOffsetX,
-			offsetY: screenY - this.scrollOffsetY,
-		};
-
-		// The clip wraps the content layer and nothing else: this method walks
-		// `background` and `contentLayer` by hand rather than `this.children`
-		// (`addChild` redirects into the content layer), and the background must
-		// stay outside so a panel is not clipped against itself.
-		//
-		// Read once, before anything draws, so the push and the pop cannot
-		// disagree. The save-and-restore this replaced read the scissor box back
-		// from GL, which R15.22 names as prohibited; the clip stack knows what
-		// encloses this panel without asking.
-		const draw = this.clipsChildren ? RendererContext.getInstance().draw : null;
-
-		if (draw) {
-			draw.pushClip({ x: screenX, y: screenY, width: this.width, height: this.height });
-		}
-
-		// The content offset is applied here, after the clip rect was taken from
-		// the panel's own unscrolled position, so the clip stays fixed on screen
-		// while the content moves inside it (R4.9, R4.10). Rows scrolled out of
-		// view are dropped by the draw API's cull against that clip (R4.2a),
-		// and counted there as `culled`.
-		if (this.contentLayer) {
-			this.contentLayer.render(contentContext);
-		}
-
-		if (draw) {
-			draw.popClip();
-		}
-	}
-
-
-	// Interactive interface implementation
-	public onMouseDown(_x: number, _y: number): void {
-		// No-op for now
-	}
-
-	public onMouseUp(_x: number, _y: number): void {
-		// No-op for now
-	}
-
 	public onWheel(deltaX: number, deltaY: number): void {
 		if (this.scrollable) {
 			// Convert wheel delta to scroll amount
 			const scrollAmount = 30; // pixels per wheel notch
 			this.scroll(deltaX * scrollAmount, deltaY * scrollAmount);
 		}
-	}
-
-	/**
-	 * Unmount resources and event handlers
-	 */
-	public unmount(): void {
-		// Unregister from input system if scrollable
-		if (this.scrollable) {
-			InputSystem.unregisterComponent(this as Interactive);
-		}
-
-		// Call parent unmount
-		super.unmount();
 	}
 }

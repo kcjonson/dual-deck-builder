@@ -38,7 +38,7 @@ describe('Layer parts (R8.1)', () => {
 
 			panel.addPart(background);
 
-			expect(background.localToGlobal(0, 0)).toEqual({ x: 15, y: 27 });
+			expect(background.localToScreen({ x: 0, y: 0 })).toEqual({ x: 15, y: 27 });
 		});
 
 		it('returns the owner, so parts chain the way children do', () => {

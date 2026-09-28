@@ -7,8 +7,8 @@ import type {
 	TextTransform,
 	TextWrap,
 } from '../draw/commands';
+import type { DrawApi } from '../draw/DrawApi';
 import { RendererContext } from '../rendering/RendererContext';
-import { RenderContext, DEFAULT_RENDER_CONTEXT } from '../rendering/RenderContext';
 import type { FontRole } from '../text/fontFaces';
 import { resolveFontRole } from '../text/fontRoles';
 import { Style, StyleParser } from '../types/Style';
@@ -225,20 +225,13 @@ export class Text extends Component {
 		super.layout();
 	}
 
-	public render(context?: RenderContext): void {
-		if (!this.visible) return;
-
-		const ctx = context || DEFAULT_RENDER_CONTEXT;
-		const draw = RendererContext.getInstance().draw;
+	public render(draw: DrawApi): void {
 		if (this.stale) this.measure();
-
-		const screenX = ctx.offsetX + this.x;
-		const screenY = ctx.offsetY + this.y;
 
 		draw.drawText({
 			id: this.id ?? undefined,
 			text: this.content,
-			box: { x: screenX, y: screenY, width: this.width, height: this.height },
+			box: { x: 0, y: 0, width: this.width, height: this.height },
 			font: this.fontRole,
 			size: this.fontSize,
 			color: this.color,
@@ -251,15 +244,5 @@ export class Text extends Component {
 			decoration: this.decoration,
 			lineHeight: this.lineHeight ?? undefined,
 		});
-
-		const childContext: RenderContext = {
-			offsetX: screenX,
-			offsetY: screenY,
-		};
-		for (const child of this.children) {
-			if (child.isVisible()) {
-				child.render(childContext);
-			}
-		}
 	}
 }

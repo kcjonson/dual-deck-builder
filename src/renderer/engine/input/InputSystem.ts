@@ -7,7 +7,8 @@ type KeyboardHandler = (key: string) => void;
 
 // Interface for components that can receive input events
 export interface Interactive {
-	containsPoint(x: number, y: number): boolean;
+	/** Whether a viewport point, in logical pixels, lands on this target. */
+	containsScreenPoint(x: number, y: number): boolean;
 	onWheel?(deltaX: number, deltaY: number): void;
 }
 
@@ -259,7 +260,7 @@ export class InputSystem {
 		// Find components under mouse that can handle wheel events
 		let foundComponent = false;
 		for (const [component, handler] of this.wheelComponents) {
-			if (component.containsPoint(this.mouseX, this.mouseY)) {
+			if (component.containsScreenPoint(this.mouseX, this.mouseY)) {
 				if (InputSystem.DEBUG) {
 					console.log(
 						`[InputSystem] Wheel event handled by component:`,
@@ -328,7 +329,7 @@ export class InputSystem {
 		
 		// Check all interactive components
 		for (const component of allInteractiveComponents) {
-			if (component.containsPoint(this.mouseX, this.mouseY)) {
+			if (component.containsScreenPoint(this.mouseX, this.mouseY)) {
 				currentlyHovered.add(component);
 
 				// If this is a new hover and has mouseOver handler, trigger it
