@@ -6,7 +6,7 @@ import { PNG } from 'pngjs';
  *
  * `maxDiffPixels` counts differing pixels wherever they are, so any change
  * whose whole footprint is under the budget passes, and a changed number is
- * the canonical one: an intent badge going from 5 to 15 is about 108 pixels,
+ * the canonical one: an intent badge going from 5 to 15 is under 110 pixels,
  * which main's combat golden carried under a budget of 200 without anyone
  * noticing. What separates that from runner noise is shape rather than count.
  * Noise is scattered, a pixel here and there along glyph edges; a glyph change

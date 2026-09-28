@@ -62,7 +62,7 @@ export const VISUAL_THRESHOLD = 0.01;
  * The measurements behind both numbers are in the mutation table of
  * docs/AI_TECHNICAL_DECISIONS/visual-golden-harness.md.
  */
-export const GOLDEN_CLUSTER = { joinRadius: 2, maxClusterPixels: 12 };
+export const GOLDEN_CLUSTER = { joinRadius: 2, maxClusterPixels: 8 };
 
 /**
  * R14.5: baselines come from the CI runner image and local runs never update
@@ -166,6 +166,10 @@ export default defineConfig({
 			// viewport 200 wins, but a capture of a smaller region (an element
 			// shot, if one is ever added) would be far too loosely served by
 			// 200 px, and there the ratio binds.
+			//
+			// What 200 cannot see is a small dense change, a digit being the
+			// case that got through (DDB-197), so `GOLDEN_CLUSTER` above adds
+			// a limit on any one region of changed pixels.
 			//
 			// Widening either of these is not the fix for a flaky golden.
 			threshold: VISUAL_THRESHOLD,

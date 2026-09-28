@@ -6,6 +6,15 @@ This document contains the chronological log of completed development tasks for 
 
 **Date correction (2026-08-22):** the repo's first commit is 2025-05-17, but many entries below carry dates in December 2024 or January 2025 — the AI that wrote them used its assumed date instead of the real one. Entries dated 2025-07-03 and 2025-07-02 have been corrected from "2025-01-03"/"2025-01-02" (verified against git history). Remaining Dec 2024 / Jan 2025 dates are wrong by roughly six months; the real work happened May–July 2025. Trust git history over these dates.
 
+## Visual gate: cluster rule and settled-layout wait (2026-09-28)
+
+**What landed:** DDB-197 and DDB-201 (DDB-55 test harness).
+
+- `tests/visual/support/diffClusters.ts`: the pixelmatch mask at the suite's threshold, grouped into clusters by union-find with a join radius. `expectGolden` in the harness runs `toHaveScreenshot`, then fails any capture whose largest cluster exceeds `GOLDEN_CLUSTER.maxClusterPixels` (8, radius 2, in `playwright.config.ts`), writes `golden-diff.json` for every capture, and rewrites a cluster-rejected golden on a `changed` mint. All screen, scene and context-loss specs use it. `pixelmatch` 5 and `pngjs` are new dev dependencies; jest now also runs `tests/visual/support`.
+- `settle` polls inside one `page.evaluate`: the old tree comparison was an async `waitForFunction` predicate, which Playwright takes as truthy on the first poll, so it never compared anything. The new gate requires the window, the canvas box, its backing store and the committed viewport at 1440x882 and the tree unchanged for two counted frames, and `openScreen` asserts the screen root fills the viewport.
+
+**How:** 13 mutations run against local baselines (four digit changes the area budget missed are caught; +2 background shift still missed by the threshold). A 1300x800 resize just before `navigate` reproduced a screen built for a size the backing store had not reached; the new gate waits it out. On CI, 35 captures against `main`'s goldens differ by 0 pixels and three `update_mode=all` mints committed nothing. The driver-selection layout flip DDB-201 describes is not in any committed golden (checked pixel by pixel across all versions). 13 unit tests for the clustering.
+
 ## Phase 1 close-out: rendering fixtures, test gaps, perf re-capture (2026-09-28)
 
 **What landed:** DDB-68 (DDB-55 phase 1, its last task).
