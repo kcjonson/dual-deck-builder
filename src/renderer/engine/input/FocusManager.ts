@@ -542,7 +542,7 @@ function buildIndex(roots: readonly Component[]): ScopeIndex {
 }
 
 /** A group's members: focusable descendants in tree order, not inside a nested group. */
-function groupMembers(group: Component): Component[] {
+export function groupMembers(group: Component): Component[] {
 	const members: Component[] = [];
 	const walk = (node: Component): void => {
 		for (const child of node.getChildren()) {

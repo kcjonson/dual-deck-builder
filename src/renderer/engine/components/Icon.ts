@@ -26,7 +26,6 @@ export class Icon extends Component {
 	private glyphName: IconName;
 	private glyphSize: number;
 	private glyphTint: RGBA;
-	private text: string;
 
 	constructor({ glyph, size, tint = tokens.color.text, ...options }: IconOptions) {
 		super({ width: size, height: size, ...options });
@@ -34,7 +33,6 @@ export class Icon extends Component {
 		this.glyphName = glyph;
 		this.glyphSize = size;
 		this.glyphTint = tint;
-		this.text = String.fromCodePoint(ICON_CODE_POINTS[glyph]);
 	}
 
 	get glyph(): IconName {
@@ -43,7 +41,6 @@ export class Icon extends Component {
 
 	set glyph(glyph: IconName) {
 		this.glyphName = glyph;
-		this.text = String.fromCodePoint(ICON_CODE_POINTS[glyph]);
 	}
 
 	get size(): number {
@@ -83,18 +80,41 @@ export class Icon extends Component {
 	 * position, so the glyph is one of its own draws, in its own order.
 	 */
 	public drawGlyph(draw: DrawApi, x: number, y: number): void {
-		// The icon atlas's em box is the glyph's whole line (ascender 1,
-		// descender 0), so `middle` centres the design square in the box.
-		draw.drawText({
+		drawIcon(draw, {
 			id: this.id ?? undefined,
-			text: this.text,
-			box: { x, y, width: this.width, height: this.height },
-			font: ICON_ATLAS_ROLE,
+			glyph: this.glyphName,
 			size: this.glyphSize,
-			color: this.glyphTint,
-			align: 'center',
-			verticalAlign: 'middle',
-			wrap: 'none',
+			tint: this.glyphTint,
+			box: { x, y, width: this.width, height: this.height },
 		});
 	}
+}
+
+export interface DrawIconOptions {
+	id?: string;
+	glyph: IconName;
+	size: number;
+	tint: RGBA;
+	/** The glyph is centred in it. */
+	box: Rect;
+}
+
+/**
+ * One icon-atlas glyph as a draw of the caller's own (R8.8), for a control
+ * whose mark is an icon it does not keep as a child: a checkbox's check.
+ * The atlas's em box is the glyph's whole line (ascender 1, descender 0),
+ * so `middle` centres the design square in the box.
+ */
+export function drawIcon(draw: DrawApi, { id, glyph, size, tint, box }: DrawIconOptions): void {
+	draw.drawText({
+		id,
+		text: String.fromCodePoint(ICON_CODE_POINTS[glyph]),
+		box,
+		font: ICON_ATLAS_ROLE,
+		size,
+		color: tint,
+		align: 'center',
+		verticalAlign: 'middle',
+		wrap: 'none',
+	});
 }
