@@ -98,6 +98,12 @@ module.exports = {
 					to: 'assets',
 				},
 				{
+					// The icon font's Apache 2.0 licence, which the atlas carries.
+					from: 'fonts/*/LICENSE.txt',
+					context: './src/assets',
+					to: 'assets',
+				},
+				{
 					from: './src/renderer/game/data/cards.json',
 					to: 'cards.json',
 				},

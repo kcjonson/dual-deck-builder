@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
-# Regenerates the MSDF font atlases under src/assets/fonts/ (spec section 5,
-# R6.2, R6.4a). Run by hand when a face or charset.txt changes, then commit the
-# PNG and JSON it writes; CI never runs this. See src/assets/fonts/README.md for
+# Regenerates the MSDF font atlases and the icon atlas under src/assets/fonts/
+# (spec section 5, R6.2, R6.4a, R12.6). Run by hand when a face, charset.txt or
+# icons.txt changes, then commit the PNG and JSON it writes and
+# src/renderer/engine/text/icons.ts; CI never runs this. See src/assets/fonts/README.md for
 # installing msdf-atlas-gen. Windows: scripts/build-fonts.ps1.
 set -euo pipefail
 
@@ -58,4 +59,22 @@ for face in "${FACES[@]}"; do
 		"$SCRIPTS_DIR/merge-kerning.mjs" "$FONTS_DIR/$source" "$FONTS_DIR/$output.json"
 done
 
-echo "Done. Run npm test (fontAtlas tests validate the committed JSON) and commit src/assets/fonts/."
+# The icon atlas (R12.6): the same parameters, the glyphs icons.txt names, and
+# no kerning. icons.ts is written first from the same list, so the code points
+# the module names are the ones the atlas holds.
+echo "== material-icons (material-icons/MaterialIcons-Regular.ttf)"
+node "$SCRIPTS_DIR/generate-icons.mjs"
+"$TOOL" \
+	-font "$FONTS_DIR/material-icons/MaterialIcons-Regular.ttf" \
+	-fontname "Material Icons" \
+	-chars "$(node "$SCRIPTS_DIR/generate-icons.mjs" --charset)" \
+	-type mtsdf \
+	-size 48 \
+	-pxrange 8 \
+	-yorigin top \
+	-potr \
+	-format png \
+	-imageout "$FONTS_DIR/material-icons.png" \
+	-json "$FONTS_DIR/material-icons.json"
+
+echo "Done. Run npm test (fontAtlas and icon tests validate the committed JSON) and commit src/assets/fonts/ and src/renderer/engine/text/icons.ts."
