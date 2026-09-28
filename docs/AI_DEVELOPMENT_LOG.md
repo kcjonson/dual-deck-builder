@@ -17,6 +17,20 @@ This document contains the chronological log of completed development tasks for 
 
 **How:** unit tests for the packing conversions, the layout's tiling, every encoder case against the instance bytes, the batcher contract, and the backend's calls (no element buffer, divisors, split pointers, provoking vertex). Screenshots pass against `main`'s goldens with no re-mint; strict local captures differ by one level at most (four pixels by two). Perf captures interleaved with `main` in `perf-results/ddb-191-ab-*`.
 
+## Stack container and the chapter 10 conformance suite (2026-09-28)
+
+**What landed:** DDB-81 (DDB-55 phase 4), R10.1 to R10.18, R8.1's layout protocol, R8.21's viewport roots.
+
+- `components/Stack.ts`: the three passes with shrink-to-fit, the leftover shared by weight with clamps and one frozen re-run, safe distribution and alignment, absolute children sized against the content box. `components/layoutTypes.ts` holds the vocabulary.
+- `Component`: sizing modes and the chapter 10 child properties as options and accessors; `measure`, `assignSize`, `automaticMinSize`, `sizesChildren`; anchor placement after `layoutChildren` (stored apart from `position`, read through `placedX`/`placedY` by the render walk, `screenMatrix`, `bounds` and the snapshot); a root's `fill` axes from the viewport; relayout boundary is now "both modes fixed".
+- `Text`: modes replace the assigned flags; a stack's assignment is its box for the pass; shrink-to-fit `measure`; longest-word automatic minimum.
+- `UiFrame.viewportChanged()`, called by `Game` and the gallery on the viewport owner's change event.
+- Snapshot reports `stack: { direction, gap }` and uses `bounds` for anchored placement; lint rule 1 exempts overlap within a negative gap.
+- `Circle.assignSize` is a no-op (draws from its radius); `ArmorBadge.measure` renamed `measureLabel` to free the protocol name.
+- Tests: `Stack.test.ts` (worldsim's suite ported with its numbers, spec 10.9's additions, anchors, viewport roots, boundaries, the negative-gap lint case) and `Stack.text.test.ts` (real-metrics text cases). Gallery scene `stack`, lint clean; its golden is minted on CI.
+- Decision record: `docs/AI_TECHNICAL_DECISIONS/stack-layout.md`.
+- After review: one placed-origin accessor (`originX`/`originY`) read by the render walk, the dispatcher's hit test, `screenMatrix` and the snapshot; shrink-to-fit for nested stacks (proportional, floored at `minContentSize`); per-constraint measure cache (255 nested stacks: 65k measures to 763); `onResized` on layout assignment; one width source on Text; authored sizes fix a Stack axis; five ported cases tightened to worldsim's.
+
 ## Drag service (2026-09-28)
 
 **What landed:** DDB-77 (DDB-55 phase 3), R9.12a to R9.12e.
