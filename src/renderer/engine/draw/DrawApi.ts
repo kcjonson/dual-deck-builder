@@ -56,6 +56,7 @@ import {
 	copyRect,
 	copyVec2,
 	intersects,
+	isAxisAligned,
 	isTranslateOnly,
 	transformedBounds,
 	translation,
@@ -437,13 +438,15 @@ export class DrawApi {
 		this.counters.countClipPush();
 		const current = this.transforms[this.transforms.length - 1];
 
-		if (!current.translateOnly) {
+		if (!current.translateOnly && !isAxisAligned(current.matrix)) {
 			// R4.7: the axis-aligned bounds of the transformed rect is the
 			// first of the three permitted responses, and it under-clips, so
-			// the warning is required rather than polite.
+			// the warning is required rather than polite. A scale without
+			// rotation keeps the rect on the axes, where the bounds are exact
+			// and there is nothing to warn about (the scaled combat stage).
 			this.report(
 				'clip-under-non-translate-transform',
-				'pushClip under a rotated or non-uniformly scaled transform; the clip is the axis-aligned bounds of the transformed rect, which under-clips (R4.7)',
+				'pushClip under a rotated or skewed transform; the clip is the axis-aligned bounds of the transformed rect, which under-clips (R4.7)',
 			);
 		}
 
