@@ -4,7 +4,7 @@ import {
 	DevSurface,
 	captureConsole,
 	expectCleanConsole,
-	goldenName,
+	expectGolden,
 	openScreen,
 	prepare,
 	settle,
@@ -48,7 +48,7 @@ async function frameCount(page: Page): Promise<number> {
 	return page.evaluate(() => (window as unknown as DevSurface).__perf.snapshot().liveness.frameCount);
 }
 
-test('context loss stops the loop and a restore redraws the same frame', async ({ page }) => {
+test('context loss stops the loop and a restore redraws the same frame', async ({ page }, testInfo) => {
 	const log = captureConsole(page);
 	await prepare(page);
 	await openScreen(page, 'combatScreen');
@@ -65,6 +65,6 @@ test('context loss stops the loop and a restore redraws the same frame', async (
 	await expect(page.locator('#gpu-status')).toHaveCount(0);
 	await settle(page);
 
-	await expect(page).toHaveScreenshot(goldenName('screen', 'combatScreen'));
+	await expectGolden(page, testInfo, 'screen', 'combatScreen');
 	expectCleanConsole(log);
 });
