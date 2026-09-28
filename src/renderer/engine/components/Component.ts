@@ -15,7 +15,7 @@ import {
 	transformMatrix,
 } from './componentGeometry';
 import type { MountContext } from './MountContext';
-import type { AnyUiEvent, UiKeyEvent, UiPointerEvent, UiWheelEvent } from '../input/events';
+import type { AnyUiEvent, UiDragEvent, UiKeyEvent, UiPointerEvent, UiWheelEvent } from '../input/events';
 import type { StateFlags } from '../style/look';
 
 /**
@@ -73,6 +73,7 @@ export interface ComponentOptions {
 export type PointerCallback = (event: UiPointerEvent) => void;
 export type WheelCallback = (event: UiWheelEvent) => void;
 export type KeyCallback = (event: UiKeyEvent) => void;
+export type DragCallback = (event: UiDragEvent) => void;
 
 /**
  * Keyed reconciliation callbacks (R8.27). `remove` may return a promise to
@@ -124,6 +125,8 @@ export abstract class Component {
 	private openState = false;
 	private activeState = false;
 	private dropActiveState = false;
+	/** Set while this component is a drag ghost (R9.12b): its travel in the parent's space. */
+	private dragGhostOffset: Vec2 | null = null;
 	private parentComponent: Component | null = null;
 	private mountContext: MountContext | null = null;
 	/** This subtree has to be laid out: set here and on every ancestor up to the boundary (R8.18). */
@@ -162,8 +165,7 @@ export abstract class Component {
 	public onLayout: ((bounds: Rect) => void) | null = null;
 
 	// R8.2's input callbacks. `handleEvent` runs the one matching an event
-	// before the component's own handling; focus and drag callbacks arrive
-	// with DDB-76 and DDB-77.
+	// before the component's own handling; focus callbacks arrive with DDB-76.
 	public onPointerDown: PointerCallback | null = null;
 	public onPointerUp: PointerCallback | null = null;
 	public onPointerMove: PointerCallback | null = null;
@@ -174,15 +176,12 @@ export abstract class Component {
 	public onWheel: WheelCallback | null = null;
 	public onKeyDown: KeyCallback | null = null;
 	public onKeyUp: KeyCallback | null = null;
-
-	/**
-	 * Whether a press here, or on a descendant, may start a drag (R9.12a).
-	 * Only then does moving past the drag threshold cancel the click; a
-	 * press elsewhere clicks wherever it wandered, as long as it is released
-	 * on the same component. DDB-77's drag service sets it through
-	 * `context.drag.start`; until then it is set by hand.
-	 */
-	public dragSource = false;
+	/** R9.12's drag events: enter, over, leave and drop on targets, end on the source. */
+	public onDragEnter: DragCallback | null = null;
+	public onDragOver: DragCallback | null = null;
+	public onDragLeave: DragCallback | null = null;
+	public onDrop: DragCallback | null = null;
+	public onDragEnd: DragCallback | null = null;
 
 	/**
 	 * R8.29's per-type default: `auto` for leaves and widgets. Containers say
@@ -325,9 +324,35 @@ export abstract class Component {
 		this.ownTransform = normalizeTransform(value);
 	}
 
-	/** The transform as a matrix over the content box, or null for identity. */
+	/**
+	 * The transform as a matrix over the content box, or null for identity.
+	 * A drag ghost's offset is applied outside `transform`, so a tween on
+	 * `transform` keeps running while the ghost follows the pointer.
+	 */
 	public get transformMatrix(): Mat2D | null {
-		return transformMatrix(this.ownTransform, this.contentWidth, this.contentHeight);
+		const own = transformMatrix(this.ownTransform, this.contentWidth, this.contentHeight);
+		const ghost = this.dragGhostOffset;
+		if (!ghost) return own;
+		const lift = translation(ghost.x, ghost.y);
+		return own ? concat(lift, own) : lift;
+	}
+
+	/**
+	 * R9.12b: while the drag service moves this component as a ghost, its
+	 * offset from where layout put it, in the parent's content space; null
+	 * otherwise. A ghost draws and hit-tests on the `drag` layer with
+	 * `pointerEvents: none` and moves by this offset, all without touching
+	 * the component's own `layer`, `pointerEvents` or `transform`, which
+	 * read back as the ghost values and are the author's again when the drag
+	 * ends.
+	 */
+	public get dragOffset(): Vec2 | null {
+		return this.dragGhostOffset;
+	}
+
+	/** The drag service's: sets or clears the ghost state. */
+	public setDragOffset(offset: Vec2 | null): void {
+		this.dragGhostOffset = offset;
 	}
 
 	/**
@@ -423,7 +448,7 @@ export abstract class Component {
 
 	/** `pointerEvents: none` here or on any ancestor. */
 	private get pointerEventsBlocked(): boolean {
-		return this.ownPointerEvents === 'none' || (this.parentComponent?.pointerEventsBlocked ?? false);
+		return this.pointerEvents === 'none' || (this.parentComponent?.pointerEventsBlocked ?? false);
 	}
 
 	private insideAncestorClips(screenX: number, screenY: number, ratio = this.clipRatio): boolean {
@@ -513,9 +538,11 @@ export abstract class Component {
 		this.ownOpacity = value;
 	}
 
-	/** Own layer, or null to inherit (R3.6). */
+	/** Own layer, or null to inherit (R3.6); at least `drag` while a drag ghost. */
 	public get layer(): LayerName | null {
-		return this.ownLayer;
+		const own = this.ownLayer;
+		if (this.dragGhostOffset && (own === null || layerOrdinal(own) < layerOrdinal('drag'))) return 'drag';
+		return own;
 	}
 
 	public set layer(value: LayerName | null) {
@@ -533,8 +560,9 @@ export abstract class Component {
 		if (this.parentComponent) this.parentComponent.orderView = null;
 	}
 
+	/** `none` while a drag ghost, so the hit walk sees through it. */
 	public get pointerEvents(): PointerEvents {
-		return this.ownPointerEvents;
+		return this.dragGhostOffset ? 'none' : this.ownPointerEvents;
 	}
 
 	public set pointerEvents(value: PointerEvents) {
@@ -559,7 +587,7 @@ export abstract class Component {
 	/** `max(own, parent's effective)`, `base` at a root (R3.6). */
 	public get effectiveLayer(): LayerName {
 		const inherited = this.parentComponent ? this.parentComponent.effectiveLayer : ROOT_LAYER;
-		const own = this.ownLayer;
+		const own = this.layer;
 		return own !== null && layerOrdinal(own) > layerOrdinal(inherited) ? own : inherited;
 	}
 
@@ -568,7 +596,7 @@ export abstract class Component {
 	 * clip for this subtree (R3.8, R4.8).
 	 */
 	public get promoted(): boolean {
-		const own = this.ownLayer;
+		const own = this.layer;
 		if (own === null) return false;
 		const inherited = this.parentComponent ? this.parentComponent.effectiveLayer : ROOT_LAYER;
 		return layerOrdinal(own) > layerOrdinal(inherited);
@@ -857,6 +885,8 @@ export abstract class Component {
 		this.focusState = false;
 		this.pressState = false;
 		this.focusVisibleState = false;
+		this.dropActiveState = false;
+		this.dragGhostOffset = null;
 	}
 
 	/**
@@ -1001,6 +1031,21 @@ export abstract class Component {
 			case 'keyup':
 				this.onKeyUp?.(event);
 				return;
+			case 'dragenter':
+				this.onDragEnter?.(event);
+				return;
+			case 'dragover':
+				this.onDragOver?.(event);
+				return;
+			case 'dragleave':
+				this.onDragLeave?.(event);
+				return;
+			case 'drop':
+				this.onDrop?.(event);
+				return;
+			case 'dragend':
+				this.onDragEnd?.(event);
+				return;
 		}
 	}
 
@@ -1123,6 +1168,7 @@ export abstract class Component {
 		this.onStateChange();
 	}
 
+	/** R9.12c: accepted the drag under the pointer and would take the drop. The drag service sets it. */
 	public get dropActive(): boolean {
 		return this.dropActiveState;
 	}
