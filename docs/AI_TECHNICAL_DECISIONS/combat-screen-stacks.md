@@ -14,7 +14,7 @@ DDB-124 gave combat one layout function, but it was the old one: percentage band
 
 **The bands are a column.** `combat_bands` is a vertical stack, `fill` on both axes with `maxSize.width` 1600, inside the horizontal stage stack with `distribution: 'center'`, which is the cap-and-centre rule. Its children are the top bar (36 fixed), the road (`fill`), and the dock (228 fixed), all stretched across.
 
-**The road holds today's layers until the grid.** The raiders' and the player's battlefield layers share the road as `fill` children weighted 23 and 40, the proportions of the old bands, until the slot grid (DDB-134 under DDB-127) replaces both. The turn banner and the log drawer are `positioned: 'absolute'` children of the road: the banner anchored on the line between the two bands at the left edge, where no lane centres a vehicle; the drawer anchored `topRight`, 320 wide, `fill` on its height, so it covers the right of the road and never the dock or END TURN (section 6). Both carry `zIndex: 1`, since they paint over the road on purpose.
+**The road holds today's layers until the grid.** The raiders' and the player's battlefield layers share the road as `fill` children weighted 23 and 40, the proportions of the old bands, until the slot grid (DDB-134 under DDB-127) replaces both. The turn banner and the log drawer are `positioned: 'absolute'` children of the road: the banner anchored at the road's left edge, centred on its height, so nothing about it depends on the two bands the grid will replace; the drawer anchored `topRight`, 320 wide, `fill` on its height, so it covers the right of the road and never the dock or END TURN (section 6). Both carry `zIndex: 1`, since they paint over the road on purpose.
 
 **The top bar** is a row: the turn, a ticker of the last log entry (`fill`, one line, ellipsis), scrap and fuel with their icons, and a LOG button. The menu and the wave counter join it when the game has them. Fuel was shown per driver with a TODO; it is shared, as section 2 has it.
 
@@ -22,7 +22,9 @@ DDB-124 gave combat one layout function, but it was the old one: percentage band
 
 **The fan fits its half (DDB-183).** Cards are 128x180 in the design and 150x210 in `Card`'s own layout, so each fan's row is a horizontal stack scaled by 128/150 about its top centre and anchored to the fan's top centre. Its gap is 10 when the cards fit and otherwise the negative gap that spreads them across the half, floored to a whole card-space pixel, recomputed when the fan is resized or dealt. Every card starts inside its half at every size down to 800x450 with seven cards a driver; at the hand cap on 1280x720 about 67 logical px of each card shows, against the design's 68. A negative gap is also what R13.25.1 exempts, so the overlap is not a lint violation. A lifted card (hovered or selected) takes `zIndex: 1` so it paints and hit-tests above its neighbours.
 
-**Tab order follows the dock.** The hand is one Tab stop, then END TURN; the LOG button has `tabIndex: -1`, since F6 is the keyboard's way to the log. END TURN used to be first because the resource bar was at the top of the tree.
+**Tab order follows the dock.** The hand is one Tab stop, then END TURN; the LOG button has `tabIndex: -1`, since L (and F6, as before) is the keyboard's way to the log.
+
+**Chrome is one small stack.** `ChromeStack` draws the mock's panel chrome inside its own box: a flat or vertical-gradient ground, 1 px edges on the sides named (the outer rect showing past an inset ground, so the edge follows rounded corners), and a coloured top stripe. The top bar (bottom hairline), the dock (gradient `#131416` to `#0c0d0e`, top edge) and the driver tabs (3 px driver-colour stripe, edges on three sides, 3 px top radii) are all one. The tab's mark is a `Polygon`: a triangle for driver 1 and a diamond for driver 2, since a square is an escort's (section 7). Tabs fill their half up to 470 and hold to its outer edge (`alignSelf`), and driver 2's children are added in reverse, so its name sits at the outer end. END TURN used to be first because the resource bar was at the top of the tree.
 
 **R4.7's warning is for rotation and skew.** `pushClip` warned under any transform that was not a translation, which the scaled stage made fire every frame, and the visual harness fails a capture with a console error. Under a scale without rotation a rect stays on the axes and its transformed bounds are exact, so there is nothing approximate to warn about. `isAxisAligned` in `geometry.ts` gates the warning; `DrawApi.test.ts` covers the quiet, exact case.
 
@@ -33,7 +35,8 @@ DDB-124 gave combat one layout function, but it was the old one: percentage band
 - Road art does not run to the screen edges on 21:9 yet; the screen ground does, and the road is the stage's width.
 - `Card` is scaled rather than laid out at 128x180, so its type sizes are the old card's times 0.853 and its cost sits at the top right, where the next card in the fan covers it. The mock's card face (cost top left, short text, art strip) is phase 6's.
 - The log drawer's lines do not wrap or scroll yet (section 6); `CombatLogLayer` still places fixed 20 px rows in a `Panel`, which clips long lines. Scrolling arrives with the Wave A scroll container (DDB-85).
-- The banner is the old 200x40 phase box; section 6's banner that crosses the road on the enemy turn is phase 6's.
+- The banner is the old 200x40 phase box, now PLAYER TURN from the first frame rather than COMBAT START through turn 1; the mock shows no banner while planning and section 6's crosses the road on the enemy turn, which is DDB-139's.
+- The tab's pips are bars and its piles words, where the mock has bolt and pile icons, and it has no mod icons (DDB-136).
 
 ## Tests
 
@@ -42,5 +45,5 @@ DDB-124 gave combat one layout function, but it was the old one: percentage band
 ## Consequences
 
 - `ResourceBarLayer` and `DriverStatsDisplay` are deleted; `TopBarLayer`, `EndTurnColumn` and `DriverTab` replace them, and `PlayerHandView` no longer carries seat labels.
-- Combat lint, main against this branch, as `window.__ui.lint().count`: 1440x882 282 to 215, 1280x720 323 to 222, 1920x1080 258 to 230, 1024x600 357 to 216, 800x450 397 to 237. What is left is sibling overlap inside cards and vehicles (180 in the ten cards alone) and the battlefields' own backgrounds and labels, plus two parts of the raider's plate escaping it at 800x450; nothing is outside the viewport at any of the five sizes.
+- Combat lint, main against this branch, as `window.__ui.lint().count` with #101's interactivity rules: 1440x882 282 to 215, 1280x720 325 to 222, 1920x1080 258 to 230, 1024x600 359 to 216, 800x450 401 to 237. The LOG button is 30 logical tall so it stays a 24 px target at the 0.8 floor. What is left is sibling overlap inside cards and vehicles (180 in the ten cards alone) and the battlefields' own backgrounds and labels, plus two parts of the raider's plate escaping it at 800x450; nothing is outside the viewport at any of the five sizes.
 - DDB-134 onward replaces the road's two layers with the slot grid inside the same band; DDB-88 builds the dock's detail view and drag targeting on the halves and fans here.
