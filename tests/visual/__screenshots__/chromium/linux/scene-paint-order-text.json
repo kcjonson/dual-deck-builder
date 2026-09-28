@@ -1,6 +1,6 @@
 [
 {"path":"gallery_root/dev_section_paint_order/Text[0]","text":"Paint Order Fixtures","rect":[53,53,191.88,33.6]},
-{"path":"gallery_root/dev_section_paint_order/dev_paint_order_columns/Stack[0]/dev_paint_order_layers/Text[0]","text":"Container beats insertion order","rect":[53,103,219.94,20.43]},
+{"path":"gallery_root/dev_section_paint_order/dev_paint_order_columns/Stack[0]/dev_paint_order_layers/Text[0]","text":"Layer beats insertion order","rect":[53,103,189.28,20.43]},
 {"path":"gallery_root/dev_section_paint_order/dev_paint_order_columns/Stack[0]/dev_paint_order_layers/dev_paint_order_layers_body/Container[0]/Text[0]","text":"inserted top first","rect":[53,131.43,93.15,16.34]},
 {"path":"gallery_root/dev_section_paint_order/dev_paint_order_columns/Stack[0]/dev_paint_order_layers/dev_paint_order_layers_body/Container[0]/dev_po_layers_0_tooltip/Text[0]","text":"tooltip","rect":[117,235.43,124,20]},
 {"path":"gallery_root/dev_section_paint_order/dev_paint_order_columns/Stack[0]/dev_paint_order_layers/dev_paint_order_layers_body/Container[0]/dev_po_layers_0_popup/Text[0]","text":"popup","rect":[89,197.43,124,20]},
