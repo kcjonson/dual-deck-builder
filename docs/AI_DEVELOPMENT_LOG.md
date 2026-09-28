@@ -6,6 +6,17 @@ This document contains the chronological log of completed development tasks for 
 
 **Date correction (2026-08-22):** the repo's first commit is 2025-05-17, but many entries below carry dates in December 2024 or January 2025 — the AI that wrote them used its assumed date instead of the real one. Entries dated 2025-07-03 and 2025-07-02 have been corrected from "2025-01-03"/"2025-01-02" (verified against git history). Remaining Dec 2024 / Jan 2025 dates are wrong by roughly six months; the real work happened May–July 2025. Trust git history over these dates.
 
+## Paint order: text in submission order, reorder sites fixed (2026-09-28)
+
+**What landed:** DDB-67 (DDB-55 phase 1), the second deliberate re-baseline.
+
+- Deleted `DrawApiOptions.legacyTextOrder` (the clip-change barrier), `rendering/LegacyPaintOrder.ts` (text after shapes, grouped by colour) and `components/legacyDrawOrder.test.ts`. `WebGL2Backend.submit` hands the batcher the domain as submitted.
+- `DrawApi.test.ts`: the temporary describe became two contract tests, one domain across a clip push and pop, and text submitted before a clipped shape. `WebGL2Backend.test.ts` cuts its three-domain frame with explicit `flush()` barriers.
+- Reorder sites: `Card` starts the title past the driver badge; `DriverPanel` sizes the deck preview down to the cycle button, clips it there, and lays the deck in as many cards per row as fit; `DeveloperScreen` names its header and footer heights and ends the title's line box 6 px above the scroll panel; `DriverStatsDisplay` gives the driver name a 16 px band above the adrenaline icons.
+- Comments in `FrameTimer`, `Game`, `src/index.ts` and the gallery loop that described clip boundaries submitting mid-walk now say the flush section is the whole frame's submission.
+
+**How:** every screen and gallery scene captured locally on `main` and on the branch, first with only the deletion, then with the fixes, and diffed per pixel: four screens moved, all eight scenes and the splash and main menu stayed byte-identical. `perf-capture.mjs` against `main`: GPU draws combat 6 to 1, card showcase 2 to 1, developer 2 to 1, every screen now one. Goldens re-minted on CI. Decision record: [paint-order-rebaseline.md](./AI_TECHNICAL_DECISIONS/paint-order-rebaseline.md).
+
 ## GPU timer, DevTools tracks, and perf capture tables (2026-09-28)
 
 **What landed:** DDB-92 (DDB-55 phase 7).
