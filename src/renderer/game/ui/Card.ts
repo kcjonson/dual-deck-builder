@@ -381,7 +381,10 @@ export class Card extends Component {
 		} else {
 			this.cardBorder.setBorderWidth(0);
 		}
-		this.transform = this.selected || (this.hovered && enabled) ? LIFTED : RESTING;
+		const lifted = this.selected || (this.hovered && enabled);
+		this.transform = lifted ? LIFTED : RESTING;
+		// A lifted card in an overlapping fan paints over its neighbours
+		this.zIndex = lifted ? 1 : 0;
 		this.cardBackground.setFillColor(enabled ? '#2a2a3a' : '#1a1a2a');
 	}
 
