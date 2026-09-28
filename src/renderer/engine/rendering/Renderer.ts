@@ -137,9 +137,17 @@ export class Renderer {
 		this.lost = false;
 		this.gl.drawingBufferColorSpace = 'srgb';
 		this.resize();
-		this.fontAtlas.upload();
+		// The status line stays up until every rebuild has succeeded: a rebuild
+		// that throws (a compile failure on the new device, or the context lost
+		// again mid-restore) leaves the loop stopped, and the page has to say so.
+		try {
+			this.fontAtlas.upload();
+			for (const listener of [...this.listeners]) listener.restored?.();
+		} catch (error) {
+			showGpuStatus('The graphics device came back, but the game could not rebuild on it. Reload the page to try again.');
+			throw error;
+		}
 		showGpuStatus(null);
-		for (const listener of [...this.listeners]) listener.restored?.();
 	};
 }
 

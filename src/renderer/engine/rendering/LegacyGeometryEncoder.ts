@@ -36,7 +36,7 @@ import type { CharacterInfo } from './FontAtlas';
  *   divides by are the old `uColor`, `uStrokeColor`, `uStrokeWidth` and
  *   `uShapeSize`, now constant across the four vertices of their quad.
  * - A glyph is the quad `TextRenderer.buildVertexBufferForColor` wrote, from
- *   the pen position `LegacyGLBackend.paintText` computed, with an identity
+ *   the pen position the pre-batch text path computed (`pen` below), with an identity
  *   model, which is what `TextRenderer.flush` uploaded.
  *
  * The one deliberate difference: circles and polygons now carry a border width
@@ -376,9 +376,9 @@ export class LegacyGeometryEncoder implements GeometryEncoder {
 	}
 
 	/**
-	 * `LegacyGLBackend.paintText`'s alignment, then
+	 * The pre-batch alignment (`pen`), then
 	 * `TextRenderer.buildVertexBufferForColor`'s glyph loop, fused. The pen
-	 * starts where `paintText` put it and each glyph is rounded to whole pixels
+	 * starts where the old alignment put it and each glyph is rounded to whole pixels
 	 * exactly as before. `blur` is not read: R3.17's shadow run needs a blurred
 	 * glyph pass this shader does not have, and nothing asks for one.
 	 */
@@ -468,7 +468,7 @@ export class LegacyGeometryEncoder implements GeometryEncoder {
 	}
 
 	/**
-	 * `LegacyGLBackend.paintText`'s alignment: where the pen starts, and the
+	 * The alignment the pre-batch text path applied: where the pen starts, and the
 	 * atlas scale, in a reused object that is read before the next call.
 	 */
 	private pen(run: TextRun, anchorX: number, anchorY: number): { startX: number; startY: number; scale: number } {

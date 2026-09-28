@@ -98,8 +98,12 @@ const LEGACY_PROGRAM = {
  * twice that. A frame that needs more grows the ring once, and says so.
  */
 const DEFAULT_VERTEX_RING_BYTES = 8 * 1024 * 1024;
-/** Indices run at most three per vertex, at four bytes against the vertex's 88. */
-const DEFAULT_INDEX_RING_BYTES = 1024 * 1024;
+/**
+ * Indices run at most three per vertex (a circle fan, a triangulated polygon)
+ * at four bytes each, so the index ring holds as many vertices' worth as the
+ * vertex ring does and neither grows first.
+ */
+const DEFAULT_INDEX_RING_BYTES = Math.ceil(DEFAULT_VERTEX_RING_BYTES / LEGACY_PROGRAM.strideBytes) * 3 * 4;
 
 /** `Frame` in `vertex.glsl`: two mat4s. */
 const FRAME_BLOCK_FLOATS = 32;
@@ -212,6 +216,8 @@ export class WebGL2Backend implements DrawBackend {
 	 * binds again instead of asking the GPU what it holds.
 	 */
 	private pipelineBound = false;
+	/** Blend and clear colour, which only a foreign pass or a new context changes. */
+	private fixedStateBound = false;
 	/** The byte offset the vertex array's attribute pointers were last set at, or -1. */
 	private attributeBase = -1;
 	/**
@@ -314,6 +320,7 @@ export class WebGL2Backend implements DrawBackend {
 
 	invalidateState(): void {
 		this.pipelineBound = false;
+		this.fixedStateBound = false;
 		this.attributeBase = -1;
 		this.appliedClip = null;
 		this.residentBound = false;
@@ -370,12 +377,6 @@ export class WebGL2Backend implements DrawBackend {
 		gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, this.indexRing.capacity, gl.DYNAMIC_DRAW);
 		gl.bindVertexArray(null);
 
-		// Pipeline state that never changes: SRC_ALPHA over until DDB-64's
-		// premultiplied output (R15.25), and the opaque clear R15.2 asks for.
-		gl.enable(gl.BLEND);
-		gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
-		gl.clearColor(0.0, 0.0, 0.0, 1.0);
-
 		return { program, vertexArray, vertexBuffer, indexBuffer, uniformBuffer, uniformStride };
 	}
 
@@ -415,6 +416,16 @@ export class WebGL2Backend implements DrawBackend {
 	private bindPipeline(): void {
 		if (this.pipelineBound) return;
 		const gl = this.gl;
+		if (!this.fixedStateBound) {
+			// SRC_ALPHA over until DDB-64's premultiplied output (R15.25), and
+			// the opaque clear R15.2 asks for. Set here rather than once at
+			// creation so a foreign pass that changed them and called
+			// `invalidateState` (R2.15) gets them back before the next draw.
+			gl.enable(gl.BLEND);
+			gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+			gl.clearColor(0.0, 0.0, 0.0, 1.0);
+			this.fixedStateBound = true;
+		}
 		gl.useProgram(this.resources.program);
 		gl.bindBufferRange(
 			gl.UNIFORM_BUFFER,

@@ -40,6 +40,12 @@ positions so "how old is the region I am about to overwrite" is a subtraction. W
 the ring, the backend replaces the buffer at double size and logs it, rather than overwriting a live
 region; a ring that grows in steady state is a ring sized wrong, and the warning says so.
 
+There are no fences behind the two-frame rule, on purpose. Two frames is R5.27's number, not one
+measured with `fenceSync`, and it does not need to be: on WebGL a `bufferSubData` is ordered in the
+command stream, so overwriting a region the GPU is still reading costs ANGLE a copy or a stall and
+never draws a wrong picture. The age check is a performance rule, and a fence per frame to prove it
+would be a synchronisation cost bought to protect against a slowdown.
+
 Indices are relative to the upload's first vertex (the batcher's contract), so the attribute
 pointers move with the upload: seven `vertexAttribPointer` calls per upload, never per draw.
 Rewriting every index to be absolute within the ring was the alternative; it is a CPU pass over
@@ -96,6 +102,11 @@ golden.
   and restore only. `WebGL2Backend.test.ts` runs frames against a recording context and fails on any
   of R15.22's calls, on `bufferData`, `texImage2D` or a uniform setter inside a frame.
 - `DrawBackend.textInk` delegates to the encoder, as the legacy backend's did.
+- Blend state and the clear colour are set in `bindPipeline` behind their own dirty flag, so
+  `invalidateState` (R2.15) restores them for a foreign pass that changed them, and an ordinary
+  frame issues neither.
+- On restore, `Renderer` clears its status line only after every listener has rebuilt; a rebuild
+  that throws leaves the loop stopped and a "could not rebuild" line on screen.
 - `LegacyGLBackend.ts`, its WebGL1 context and `Shader.ts` are deleted.
 
 ## Departures
@@ -114,7 +125,7 @@ target size and per-flush slots arrive together with render targets.
 
 **R15.3 feature detection and R15.4 `ResizeObserver` sizing are not here.** Neither was in this
 task's scope; R15.4 changes how the backing store rounds at fractional ratios, a pixel change of its
-own. DDB-186.
+own. R15.3 is DDB-186; R15.4 is DDB-66, the resource and coordinate task.
 
 **The R15.38 device seam is not split out.** With one program and one texture there is nothing for a
 pipeline key or a bind group to select between; DDB-64 and DDB-66 are the first to need them.

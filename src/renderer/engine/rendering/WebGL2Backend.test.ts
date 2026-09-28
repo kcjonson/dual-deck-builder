@@ -350,6 +350,23 @@ describe('WebGL2Backend', () => {
 		expect(named(next, 'bindVertexArray')[0].args[0]).toBe(named(rebuilt, 'createVertexArray')[0].result);
 	});
 
+	it('sets blend and clear colour again after invalidateState, and not on an ordinary frame (R2.15)', () => {
+		const { frame, named, backend, constant } = setupBackend();
+		const fixedState = (calls: GlCall[]) => [
+			...named(calls, 'blendFunc'),
+			...named(calls, 'clearColor'),
+			...named(calls, 'enable').filter((call) => call.args[0] === constant('BLEND')),
+		];
+		expect(fixedState(frame(someShapesAndText))).toHaveLength(3);
+		expect(fixedState(frame(someShapesAndText))).toHaveLength(0);
+
+		backend.invalidateState();
+		const calls = frame(someShapesAndText);
+		expect(fixedState(calls)).toHaveLength(3);
+		const blend = calls.findIndex((call) => call.name === 'blendFunc');
+		expect(blend).toBeLessThan(calls.findIndex((call) => call.name === 'clear'));
+	});
+
 	it('answers R4.2a text ink from the encoder', () => {
 		const { backend } = setupBackend();
 		const ink = backend.textInk({ text: 'Hi', position: { x: 10, y: 20 }, font: 'body', size: 32, color: WHITE });
