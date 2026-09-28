@@ -13,7 +13,8 @@ describe('TextMetricsService', () => {
 		const text = service();
 		const measured = text.measure({ text: 'AbA', font: 'body', size: 16 });
 		const drawn = text.layout({ text: 'AbA', font: 'body', size: 16 });
-		expect(measured).toEqual({ width: 26, height: 20, lines: 1, lineWidths: [26], advances: [10, 16, 26] });
+		// Line height 20 with ascent 16 and descent 4: no leading, so the baseline is the ascent.
+		expect(measured).toEqual({ width: 26, height: 20, lines: 1, lineWidths: [26], advances: [10, 16, 26], baseline: 16 });
 		expect(drawn?.width).toBe(measured.width);
 	});
 

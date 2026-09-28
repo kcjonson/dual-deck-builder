@@ -5,6 +5,7 @@ import type {
 	TextDecoration,
 	TextMetrics,
 	TextOverflow,
+	TextShadow,
 	TextTransform,
 	TextWrap,
 } from '../draw/commands';
@@ -74,6 +75,7 @@ export class Text extends Component {
 	private letterSpacing = 0;
 	private textTransform: TextTransform = 'none';
 	private decoration: TextDecoration = 'none';
+	private textShadow: TextShadow | null = null;
 	/** The size a `fixed` axis holds; layout never changes it. */
 	private authoredWidth: number;
 	private authoredHeight: number;
@@ -199,6 +201,19 @@ export class Text extends Component {
 			this.runMoved();
 		}
 		return this;
+	}
+
+	/**
+	 * R12.4's `shadow`: a copy of the run drawn beneath it (R3.17), for text
+	 * over a fill, such as a meter's inline label (R12.24). Moves no glyph.
+	 */
+	public get shadow(): TextShadow | null {
+		return this.textShadow;
+	}
+
+	public set shadow(shadow: TextShadow | null) {
+		this.textShadow = shadow;
+		this.runMoved();
 	}
 
 	/** The run moved inside its box without changing size: only its ink is stale. */
@@ -550,6 +565,7 @@ export class Text extends Component {
 			textTransform: this.textTransform,
 			decoration: this.decoration,
 			lineHeight: this.lineHeight ?? undefined,
+			shadow: this.textShadow ?? undefined,
 		};
 	}
 }

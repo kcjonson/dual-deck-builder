@@ -60,6 +60,16 @@ const TONES: Readonly<Record<Exclude<Tone, 'default' | 'auto'>, TonePalette>> = 
 	crit: { fill: color.status_crit, bright: null, glow: withAlpha(color.status_crit, GLOW_ALPHA) },
 };
 
+/**
+ * A tone's own colour for a mark that is not a control (a meter's fill, a
+ * badge, a stat's value): the tone's fill, `text_dim` for `default`, and
+ * `auto` banded from `value` (R11.10).
+ */
+export function toneColor(tone: Tone, value = 1): RGBA {
+	if (tone === 'default') return color.text_dim;
+	return TONES[tone === 'auto' ? autoTone(value) : tone].fill;
+}
+
 /** The overlay a per-state override describes: colours only, each replacing (R11.15). */
 function overlayFrom(style: StyleProperties): LookOverlay {
 	const overlay: LookOverlay = {};

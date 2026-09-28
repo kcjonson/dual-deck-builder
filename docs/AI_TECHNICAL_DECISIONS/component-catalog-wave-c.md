@@ -4,7 +4,7 @@ Status: in progress, 2026-09-28, DDB-87 (DDB-55 phase 5). Chapter 12 of the [UI 
 
 Wave C lands as sequential pull requests by group:
 
-1. Overlays: Dialog (R12.21), Popover (R12.33), the Tooltip surface (R12.22), Toast and ToastStack (R12.23), and KeyCap (R12.29), which the tooltip's key hint uses. This document covers it.
+1. Overlays: Dialog (R12.21), Popover (R12.33), the Tooltip surface (R12.22), Toast and ToastStack (R12.23), and KeyCap (R12.29), which the tooltip's key hint uses.
 2. Display: ProgressBar, Counter, Badge, Avatar, Stat, Divider (R12.24 to R12.29, R12.39).
 3. TreeView (R12.25) and ScreenTransition (R12.38), the second for ScreenManager to adopt in DDB-90.
 
@@ -30,6 +30,16 @@ Wave C lands as sequential pull requests by group:
 
 **`LabelledLeaf`.** KeyCap (and Badge in the display PR) is a box around one measured label that hugs it; the shared base does R10.5's measure, the self-sizing outside a stack, and re-placing the label on resize. The label hugs its own width so its measure on mount invalidates the leaf.
 
+**Display components hug their measured text and animate on the animator.** ProgressBar's fill and Counter's number move over `dur_slow` as tweens, so reduced motion and the harness's settle land them at once, and a value set while unmounted is shown directly. ProgressBar's `tone: 'auto'` bands by the target value through `toneColor`, a new helper in `style/variants.ts` that gives every tone its own colour for marks that are not controls (meter fills, badges, stat values). Badge refuses `auto`, as Button does, since it has no value to band.
+
+**Stat's unit sits on the value's baseline from the measured runs.** `TextMetrics` gained `baseline` (half the leading plus the face's ascent, the first baseline below the top of the line box), which `TextMetricsService.metricsOf` fills from the layout it already has. Two runs of one role at different sizes then align exactly: `unit.y = value.y + value.baseline - unit.baseline`. The alternative, bottom-aligning two boxes, is off by the difference in descent.
+
+**Text gained `shadow` (R12.4).** An inline meter draws its label and value over the fill with the `text_shadow` elevation; `Text.shadow` passes it through to `drawText`, which already draws the shadow run (R3.17).
+
+**Avatar's rings are ink.** The mood ring and the selection ring are drawn outside the disc and reported as `inkExtent`, so avatars of one `size` line up by their discs whatever rings they carry. The hue is FNV-1a over the seed's UTF-16 code units modulo 360 at fixed saturation and lightness, so it is the same on every machine; `selected` is R11.11's flag.
+
+**Divider hugs across and fills along.** Horizontal by default: `fill` width in a stack, and a height that is the caption's line (or the hairline without one); vertical fills the height and refuses a caption.
+
 ## Departures
 
 - `Dialog.show` and `Popover.show` rather than R12.21's `open()` (above).
@@ -39,4 +49,4 @@ Wave C lands as sequential pull requests by group:
 
 ## Gallery
 
-Gallery-only scenes, since each opens overlay roots over its host: `dialog` (the modal open over its trigger), `popover` (a stat breakdown open against its button, and a row of key caps), `toasts` (one of each severity in the top-right stack). The `overlays` scene's tooltip is now the catalog Tooltip with a KeyCap, so its golden moves. The icon atlas gained `close`, `info`, `warning`, `error`, `chevron_right`, and `expand_more` (the last two for TreeView), so the `icons` scene moves.
+Display components are developer-screen sections, so they are scenes too: `meters` (ProgressBar and Counter) and `data-display` (Badge, Avatar, Stat, KeyCap, Divider). The overlay components have gallery-only scenes, since each opens overlay roots over its host: `dialog` (the modal open over its trigger), `popover` (a stat breakdown open against its button, and a row of key caps), `toasts` (one of each severity in the top-right stack). The `overlays` scene's tooltip is now the catalog Tooltip with a KeyCap, so its golden moves. The icon atlas gained `close`, `info`, `warning`, `error`, `chevron_right`, and `expand_more` (the last two for TreeView), so the `icons` scene moves.
