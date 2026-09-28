@@ -814,9 +814,11 @@ describe('UberGeometryEncoder: small text from a raster atlas (R6.4a)', () => {
 		expect(shape.texture).toMatchObject({ id: RASTER_TEXTURE.id });
 	});
 
-	it('rounds each glyph\'s pen to a device pixel and leaves the advances alone, so measurement is unchanged', () => {
+	it('puts each word\'s pens on whole pixels with its ends within half a pixel, so measurement is unchanged', () => {
 		const { draw } = setup(1, rasterSource());
-		// At 7 px A advances 4.375: pens 10, 14.375 and 18.75 round to 10, 14 and 19.
+		// At 7 px A advances 4.375: pens 10, 14.375 and 18.75. The ends round
+		// to 10 and 19; the advances tie, so the spare pixel goes where the
+		// middle pen stays nearest the layout.
 		const upload = draw((api) => {
 			api.drawText({ text: 'AAA', position: { x: 10, y: 20 }, font: 'body', size: 7, color: RED });
 		});
@@ -885,6 +887,17 @@ describe('UberGeometryEncoder: small text from a raster atlas (R6.4a)', () => {
 			api.drawText({ text: 'A', position: { x: 0, y: 20 }, font: 'body', size: 8, color: RED });
 		});
 		expect(instance(upload, 0).mode).toBe(UBER_MODE.text);
+	});
+
+	it('pins each word to the layout separately, across a space', () => {
+		const { draw } = setup(1, rasterSource());
+		// At 7 px: A 4.375, space 1.75. Pens 10, 14.375, then the second word
+		// at 20.5 and 24.875; each word rounds its own ends.
+		const upload = draw((api) => {
+			api.drawText({ text: 'AA AA', position: { x: 10, y: 20 }, font: 'body', size: 7, color: RED });
+		});
+		expect(upload.count).toBe(4);
+		expect([0, 1, 2, 3].map((n) => instance(upload, n).corners[0][0])).toEqual([10, 14, 21, 25]);
 	});
 
 	it('still draws decorations after the glyphs, as rect-mode rules', () => {

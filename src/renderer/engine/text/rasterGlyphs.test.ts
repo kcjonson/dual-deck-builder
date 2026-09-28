@@ -1,4 +1,4 @@
-import { GlyphCanvasContext, RASTER_RANGE_THRESHOLD, planRasterGlyphs, rasterPixelSize, rasterizeGlyphs, screenRange, wantsRasterGlyphs } from './rasterGlyphs';
+import { GlyphCanvasContext, RASTER_RANGE_THRESHOLD, evenWordPens, planRasterGlyphs, rasterPixelSize, rasterizeGlyphs, screenRange, wantsRasterGlyphs } from './rasterGlyphs';
 import { committedFontAtlas, syntheticFontAtlas } from './testing';
 
 describe('R6.4a threshold', () => {
@@ -19,6 +19,52 @@ describe('R6.4a threshold', () => {
 	it('keeps 8 px on the distance field at ratio 2, where it is 16 device pixels', () => {
 		expect(wantsRasterGlyphs(atlas, 8, 2)).toBe(false);
 		expect(wantsRasterGlyphs(atlas, 4, 2)).toBe(true);
+	});
+});
+
+describe('evenWordPens', () => {
+	function even(pens: number[]): number[] {
+		const out = new Float64Array(pens.length);
+		evenWordPens(Float64Array.from(pens), pens.length, out, new Uint8Array(pens.length * 2));
+		return Array.from(out);
+	}
+
+	it('rounds a single pen', () => {
+		expect(even([10.6])).toEqual([11]);
+	});
+
+	it('rounds both ends and gives every gap its advance rounded down or up', () => {
+		const pens = [0.3, 4.7, 9.1, 13.3, 17.9];
+		const result = even(pens);
+		expect(result[0]).toBe(0);
+		expect(result[4]).toBe(18);
+		for (let gap = 0; gap < 4; gap++) {
+			const advance = pens[gap + 1] - pens[gap];
+			expect([Math.floor(advance), Math.ceil(advance)]).toContain(result[gap + 1] - result[gap]);
+		}
+	});
+
+	it('gives the spare pixels to the advances with the largest fractions, not to whichever pen crosses a half', () => {
+		// Advances alternate 4.4 and 4.2 ("abab" and an a). Rounding each pen
+		// gives gaps 4, 5, 4, 4: the extra pixel after a b, by phase alone.
+		const pens = [0, 4.4, 8.6, 13, 17.2];
+		expect(pens.map(Math.round)).toEqual([0, 4, 9, 13, 17]);
+		expect(even(pens)).toEqual([0, 5, 9, 13, 17]);
+		// Two spare pixels among three 0.4 advances go to 0.4 ones, never to a 0.2 one.
+		const longer = even([0, 4.4, 8.6, 13, 17.2, 21.6, 25.8]);
+		const gaps = longer.slice(1).map((pen, index) => pen - longer[index]);
+		expect(gaps.filter((gap, index) => gap === 5 && index % 2 === 1)).toEqual([]);
+		expect(gaps.filter((gap) => gap === 5)).toHaveLength(2);
+	});
+
+	it('keeps every pen within a pixel of the layout for a long word', () => {
+		const pens = Array.from({ length: 20 }, (_, index) => 3.3 + index * 4.37 + (index % 3) * 0.05);
+		const result = even(pens);
+		result.forEach((pen, index) => expect(Math.abs(pen - pens[index])).toBeLessThan(1));
+		// Squeezed-then-stretched fractions, which unconstrained apportionment drifts several pixels on.
+		const lopsided = [0];
+		for (let index = 0; index < 20; index++) lopsided.push(lopsided[index] + (index < 10 ? 4.4 : 4.6));
+		even(lopsided).forEach((pen, index) => expect(Math.abs(pen - lopsided[index])).toBeLessThan(1));
 	});
 });
 

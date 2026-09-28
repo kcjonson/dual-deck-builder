@@ -41,6 +41,80 @@ export function rasterPixelSize(size: number, scale: number): number {
 	return Math.max(RASTER_SIZE_STEP, Math.round((size * scale) / RASTER_SIZE_STEP) * RASTER_SIZE_STEP);
 }
 
+/**
+ * Whole-device-pixel pens for one word of a raster run, so its glyphs sit one
+ * texel to one pixel with even gaps. `pens[0 .. count)` are the layout's pens
+ * in device pixels; `out` gets the whole-pixel ones.
+ *
+ * Rounding each pen alone makes a glyph's gap depend on the sub-pixel phase
+ * its pen lands on, so equal letters get unequal gaps ("attack" reads
+ * "atta ck"). Here each gap is its layout advance rounded down or up, chosen
+ * for the whole word at once to stay closest to the advances (the spare
+ * pixels go to the advances with the largest fractional parts, as hinted
+ * platform text rounds its advances), under two constraints: the first and
+ * last pens round to the nearest pixel, so a word starts and ends within half
+ * a pixel of where the layout and `measureText` put it (R6.8), and no pen
+ * strays a whole pixel from the layout, so a long word is never squeezed at
+ * one end and stretched at the other. Rounding each pen is always one such
+ * choice, so there is always a solution.
+ *
+ * A two-state dynamic program over the pens: each is its layout pen rounded
+ * down or up. `back` is scratch of at least `2 * count` entries.
+ */
+export function evenWordPens(pens: Float64Array, count: number, out: Float64Array, back: Uint8Array): void {
+	if (count <= 0) return;
+	const first = Math.round(pens[0]);
+	out[0] = first;
+	if (count === 1) return;
+	const last = Math.round(pens[count - 1]);
+
+	let cost0 = first === Math.floor(pens[0]) ? 0 : Infinity;
+	let cost1 = first === Math.floor(pens[0]) ? Infinity : 0;
+	for (let index = 1; index < count; index++) {
+		const pen = pens[index];
+		const previous = pens[index - 1];
+		const advance = pen - previous;
+		const floor = Math.floor(pen);
+		const previousFloor = Math.floor(previous);
+		let next0 = Infinity;
+		let next1 = Infinity;
+		for (let state = 0; state < 2; state++) {
+			const whole = floor + state;
+			if (Math.abs(whole - pen) >= 1) continue;
+			if (index === count - 1 && whole !== last) continue;
+			let best = Infinity;
+			let from = 0;
+			for (let before = 0; before < 2; before++) {
+				const prior = before === 0 ? cost0 : cost1;
+				if (prior === Infinity) continue;
+				const gap = whole - (previousFloor + before);
+				const error = gap - advance;
+				if (Math.abs(error) >= 1) continue;
+				const drift = whole - pen;
+				const total = prior + error * error + DRIFT_WEIGHT * drift * drift;
+				if (total < best) {
+					best = total;
+					from = before;
+				}
+			}
+			back[index * 2 + state] = from;
+			if (state === 0) next0 = best;
+			else next1 = best;
+		}
+		cost0 = next0;
+		cost1 = next1;
+	}
+
+	let state = last - Math.floor(pens[count - 1]);
+	for (let index = count - 1; index > 0; index--) {
+		out[index] = Math.floor(pens[index]) + state;
+		state = back[index * 2 + state];
+	}
+}
+
+/** How much a pen's distance from the layout counts against the gaps' distance from their advances. */
+const DRIFT_WEIGHT = 0.1;
+
 /** One glyph's cell in a raster atlas. */
 export interface RasterGlyphCell {
 	readonly codePoint: number;
