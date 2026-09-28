@@ -176,6 +176,7 @@ export class Game {
 				resume: () => {
 					this.paused = false;
 				},
+				settleAnimations: () => this.context.animator.settle(),
 				status: (): GameStatus => ({
 					screen: ScreenManager.getCurrentScreenName(),
 					screens: ScreenManager.screenNames,

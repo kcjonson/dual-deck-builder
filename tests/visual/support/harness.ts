@@ -41,15 +41,16 @@ import type { DiffReport } from './diffClusters';
  *    `measureUserAgentSpecificMemory` is `() => {}`; the dev server sets the
  *    cross-origin isolation headers, so `FrameTimer.requestMemorySample` takes
  *    the live branch, calls that stub, and throws on `undefined.then` - which
- *    means `window.__perf.snapshot()` fails on every clocked page. Nothing the
- *    phase 0 goldens capture reads `Date` (the only wall-clock reader is the
- *    frame timer's own snapshot timestamp), so the freeze costs nothing today.
- *    The clock becomes necessary the moment a spec wants a state behind a
- *    timer, PlayerHandLayer's 300 ms discard being the first; whoever needs it
- *    has to deal with that `performance` collision first. DDB-61's FrameTimer
- *    does take an injected clock, but neither entry point passes one - both
- *    call `new FrameTimer()` - so there is no route from a running page to a
- *    fixed-step render clock today regardless.
+ *    means `window.__perf.snapshot()` fails on every clocked page.
+ *
+ *    The engine's own clock is what makes the freeze sufficient (DDB-74). UI
+ *    code takes time only from the mount context's `clock` and `animator`
+ *    (lint forbids platform timers there), and the clock advances only in the
+ *    update phase the pause skips, so a paused page has no UI timer running
+ *    at all. What pausing alone would leave is a tween frozen on the frame it
+ *    started; `settle` runs every tween to its end through
+ *    `__app.settleAnimations()`, so a capture shows where an animation lands,
+ *    which does not depend on how many frames the page drew first.
  * 4. Seeded random (`seedRandom`) - kills draw order and model identity. See
  *    the note on that function.
  * 5. Wait-for-assets gate (`settle`) - kills the half-loaded frame. Two
@@ -93,6 +94,7 @@ export interface DevSurface {
 	__app: {
 		navigate(screen: string): boolean;
 		pause(): void;
+		settleAnimations(): number;
 		status(): {
 			screen?: string;
 			scene?: string;
@@ -186,9 +188,9 @@ export async function freezeApplication(page: Page): Promise<void> {
 
 /**
  * The wait-for-assets gate. Returns once the dev hooks exist, web fonts have
- * resolved, no data fetch is outstanding, the layout has settled at the fixed
- * viewport, and two frames later the layout still holds and the tree
- * serializes the same.
+ * resolved, no data fetch is outstanding, every tween has run to its end, the
+ * layout has settled at the fixed viewport, and two frames later the layout
+ * still holds, nothing new has animated, and the tree serializes the same.
  *
  * The `assetsReady` wait is the one that does the job the gate is named for.
  * The tree comparison cannot stand in for it: a screen whose `cards.json` has
@@ -227,6 +229,7 @@ export async function settle(page: Page): Promise<void> {
 		const scope = window as Partial<DevSurface>;
 		return typeof scope.__ui?.tree === 'function'
 			&& typeof scope.__app?.status === 'function'
+			&& typeof scope.__app?.settleAnimations === 'function'
 			&& typeof scope.__perf?.snapshot === 'function';
 	});
 
@@ -266,6 +269,10 @@ export async function settle(page: Page): Promise<void> {
 		const deadline = performance.now() + timeout;
 		let held = null as { tree: string; since: number } | null;
 		while (performance.now() < deadline) {
+			// Paused, nothing ticks the animator, so each pass runs whatever
+			// the last frame started to its end; a pass that had to finish
+			// something starts the count again.
+			if (scope.__app.settleAnimations() > 0) held = null;
 			if (agrees()) {
 				const tree = JSON.stringify(scope.__ui.tree());
 				if (held?.tree !== tree) held = { tree, since: frames() };
