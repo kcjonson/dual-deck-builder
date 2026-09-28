@@ -62,14 +62,16 @@ const LINT_SCENARIOS = SCENE_SCENARIOS;
  * The floor a scene's measured node count has to clear for its clean lint to
  * mean anything.
  *
- * Four, not the real per-scene counts. A tight bound would be a second
+ * Two, not the real per-scene counts. A tight bound would be a second
  * baseline to re-approve on every scene edit, and this is guarding against a
  * broken snapshot rather than tracking scene content: the failure it exists
- * for returns zero nodes, not three. The real counts are in
- * `perf-results/phase0-gallery-lint.json` and the smallest, `rectangles`,
- * evaluates 10.
+ * for returns zero nodes. Two is the host's root and the scene's container,
+ * so clearing it means some of the scene's own content reached the snapshot.
+ * The draw-fixture scenes are the smallest at four since a Panel stopped
+ * reporting a background and a content layer as parts (DDB-73); the other
+ * counts are in `perf-results/phase0-gallery-lint.json`.
  */
-const MIN_NODES = 4;
+const MIN_NODES = 2;
 
 /** How many violations the failure message spells out before it defers to the attachment. */
 const MESSAGE_LIMIT = 20;
