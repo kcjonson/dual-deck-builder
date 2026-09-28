@@ -7,7 +7,7 @@ import type { RGBA } from '../draw/geometry';
 import type { FontRole } from '../text/fontFaces';
 import { resolveFontRole } from '../text/fontRoles';
 import { tokens } from '../theme/tokens';
-import { Look, LookLayers, resolveLook } from '../style/look';
+import { Look, LookLayers, layersInkExtent, resolveLook } from '../style/look';
 import { LookTransition } from '../style/LookTransition';
 import {
 	Sides,
@@ -75,6 +75,8 @@ export class Input extends Component {
 	private layers: LookLayers;
 	private padding: Sides;
 	private readonly transition: LookTransition;
+	/** Height comes from `size` until the caller gives one (R11.10). */
+	private heightFollowsSize: boolean;
 
 	/**
 	 * @param placeholder Shown while the value is empty
@@ -82,6 +84,7 @@ export class Input extends Component {
 	constructor(placeholder = '', { size = 'md', style = {}, ...options }: InputOptions = {}) {
 		super({ ...options, height: options.height ?? CONTROL_SIZES[size].height });
 		this.componentType = 'Input';
+		this.heightFollowsSize = options.height === undefined;
 		validateStyle(style, INPUT_STYLE);
 		this.fieldSize = size;
 		this.styleObject = style;
@@ -122,9 +125,11 @@ export class Input extends Component {
 		return this.fieldSize;
 	}
 
+	/** Text size follows, and the height unless the caller has set one. */
 	public set size(size: ControlSize) {
 		if (size === this.fieldSize) return;
 		this.fieldSize = size;
+		if (this.heightFollowsSize) super.setSize(this.width, CONTROL_SIZES[size].height);
 		this.restyle();
 	}
 
@@ -135,9 +140,21 @@ export class Input extends Component {
 	/** R11.16: the same path as construction, and the same validation. */
 	public set style(style: StyleObject) {
 		validateStyle(style, INPUT_STYLE);
+		const previous = this.styleObject;
 		this.styleObject = style;
 		if (style.opacity !== undefined) this.opacity = style.opacity;
+		else if (previous.opacity !== undefined) this.opacity = 1;
 		this.restyle();
+	}
+
+	/** The ring is layer 6 of this component's own look (R11.12), not the render walk's. */
+	public get drawsOwnFocusRing(): boolean {
+		return true;
+	}
+
+	/** R8.8: the focus ring and the style's shadow. */
+	public get inkExtent(): number {
+		return layersInkExtent(this.layers);
 	}
 
 	/** The look drawn this frame, mid-transition included. */
@@ -184,7 +201,13 @@ export class Input extends Component {
 		this.transition.moveTo(this.targetLook, null);
 	}
 
+	/**
+	 * Unmount drops focus without `onBlur` (R9.21), so the editing state it
+	 * set goes here, before the look settles.
+	 */
 	protected onUnmount(): void {
+		this.active = false;
+		this.cursor.setVisible(false);
 		this.transition.moveTo(this.targetLook, null);
 	}
 
@@ -209,7 +232,9 @@ export class Input extends Component {
 		return this.value;
 	}
 
+	/** From here the height is the caller's, and a new `size` leaves it alone. */
 	public setSize(width: number, height: number): this {
+		this.heightFollowsSize = false;
 		super.setSize(width, height);
 		this.placeText();
 		return this;

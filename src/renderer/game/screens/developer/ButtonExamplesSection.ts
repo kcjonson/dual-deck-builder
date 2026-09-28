@@ -1,5 +1,6 @@
 import { DeveloperSectionPanel } from './DeveloperSectionPanel';
 import { Text } from '../../../engine/components/Text';
+import type { MountContext } from '../../../engine/components/MountContext';
 import { Button } from '../../../engine/ui/Button';
 
 /**
@@ -9,6 +10,7 @@ import { Button } from '../../../engine/ui/Button';
 export class ButtonExamplesSection extends DeveloperSectionPanel {
 	private clickCounter = 0;
 	private clickCountText!: Text;
+	private focusDemo!: Button;
 
 	constructor(x: number, y: number, width: number) {
 		super({ id: 'dev_section_buttons', x, y, width });
@@ -152,10 +154,10 @@ export class ButtonExamplesSection extends DeveloperSectionPanel {
 		const activeButton = new Button('Active', { width: 120, height: 40 });
 		activeButton.active = true;
 
-		// Keyboard focus: the ring sits outside the box, independent of the rest
+		// Keyboard focus: the ring sits outside the box, independent of the
+		// rest. Focused through the real focus path on mount, not by hand.
 		const focusedButton = new Button('Focus ring', { tone: 'accent', width: 120, height: 40 });
-		focusedButton.setFocused(true);
-		focusedButton.focusVisible = true;
+		this.focusDemo = focusedButton;
 
 		for (const button of [disabledButton, selectedButton, activeButton, focusedButton]) {
 			button.setPosition(buttonX, buttonY3);
@@ -166,6 +168,17 @@ export class ButtonExamplesSection extends DeveloperSectionPanel {
 
 		// Update our height based on content
 		this.fitContentHeight(buttonY3 + 60);
+	}
+
+	/**
+	 * Focus goes through the dispatcher, so this button is the one focused
+	 * component and a press elsewhere takes the ring away; focus-visible is
+	 * set as the flag the focus manager (DDB-76) will own, as if focus had
+	 * arrived by keyboard.
+	 */
+	protected onMount(context: MountContext): void {
+		context.dispatcher.focus(this.focusDemo);
+		this.focusDemo.focusVisible = true;
 	}
 
 	private incrementCounter(): void {

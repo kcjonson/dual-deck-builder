@@ -12,7 +12,7 @@ This document contains the chronological log of completed development tasks for 
 
 - `engine/style/`: `look.ts` (flags, `Look`, the R11.12 resolver), `styleObject.ts` (closed set, validation, value readers), `variants.ts` (`tone`, `size`, button and field layers), `LookTransition.ts` (R11.13 over the animator).
 - `Component` carries all nine R11.11 flags with `stateFlags` and `onStateChange`; `enabled` changes notify descendants; unmount clears the framework's four.
-- `Button` and `Input` take `tone`/`size`/`style`, validate the style, draw their own box, glow, and focus ring, and follow the look with their parts; the legacy colour setters are gone. START RUN and END TURN are accent variants.
+- `Button` and `Input` take `tone`/`size`/`style`, validate the style, draw their own box, glow, and focus ring (`drawsOwnFocusRing`), report it all as `inkExtent`, and follow the look with their parts; the legacy colour setters are gone. START RUN is the accent variant; END TURN is the mock's bone button through a style object.
 - `treeSnapshot` reports the full flag set as `state` on every node.
 - `color.bg_pressed` token. The battle mock's legend gains the debuff and non-attack intent lavenders; the token hue test checks a CIE Lab distance of at least 20 against every legend colour instead of exact hex.
 

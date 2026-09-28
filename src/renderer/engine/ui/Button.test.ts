@@ -131,6 +131,30 @@ describe('Button styling (R11)', () => {
 			expect(() => { button.style = { verticalAlign: 'top' } as unknown as StyleObject; }).toThrow();
 		});
 
+		it('resets opacity when a new style drops it', () => {
+			const button = new Button('Go', { style: { opacity: 0.5 } });
+			button.style = {};
+			expect(button.opacity).toBe(1);
+			const faded = new Button('Go', { opacity: 0.4 });
+			faded.style = { color: 'accent' };
+			expect(faded.opacity).toBe(0.4);
+		});
+
+		it('takes its height from size until the caller sets one', () => {
+			const button = new Button('Go', { width: 100 });
+			button.size = 'lg';
+			expect(button.height).toBe(tokens.control.control_h_lg);
+			const fixed = new Button('Go', { width: 100, height: 40 });
+			fixed.size = 'sm';
+			expect(fixed.height).toBe(40);
+			button.setSize(100, 50);
+			button.size = 'sm';
+			expect(button.height).toBe(50);
+			const input = new Input('', { width: 100 });
+			input.size = 'sm';
+			expect(input.height).toBe(tokens.control.control_h_sm);
+		});
+
 		it('switches tone at runtime', () => {
 			const button = mount(new Button('Go', { width: 100 }));
 			button.tone = 'ok';
@@ -223,6 +247,17 @@ describe('Button styling (R11)', () => {
 			expect(draw(input).rects[0].border?.color).toEqual(color.accent);
 			input.setFocused(false);
 			expect(input.active).toBe(false);
+		});
+
+		it('clears its editing state when unmounted while focused', () => {
+			const input = mount(new Input('Name', { width: 200 }));
+			context.dispatcher.focus(input);
+			expect(input.active).toBe(true);
+			input.unmount();
+			expect(input.active).toBe(false);
+			expect(input.focused).toBe(false);
+			mount(input);
+			expect(input.look.border).toEqual(color.line_edge);
 		});
 
 		it('draws its placeholder faint, and value and placeholder in the disabled colour when disabled', () => {

@@ -1,5 +1,5 @@
 import { tokens } from '../theme/tokens';
-import { RESTING_FLAGS, StateFlags, over, resolveLook } from './look';
+import { RESTING_FLAGS, StateFlags, glowShadow, layersInkExtent, over, resolveLook, shadowExtent } from './look';
 import { autoTone, buttonLayers, CONTROL_SIZES, fieldLayers } from './variants';
 
 const { color } = tokens;
@@ -31,7 +31,7 @@ describe('layered state resolution (R11.12)', () => {
 		['dropActive counts as layer 4', neutral, { dropActive: true }, { border: color.accent }],
 		['disabled: disabled text', neutral, { enabled: false }, { text: color.text_disabled, fill: color.bg_panel_raised }],
 		['disabled ignores hover and press', neutral, { enabled: false, hovered: true, pressed: true }, { fill: color.bg_panel_raised, offsetY: 0, glow: NO_GLOW }],
-		['disabled accent drops to the neutral surface', accent, { enabled: false, hovered: true }, { fill: color.bg_panel_raised, text: color.text_disabled, glow: NO_GLOW }],
+		['disabled accent drops to the neutral surface with muted text, as the mock\'s waiting End Turn', accent, { enabled: false, hovered: true }, { fill: color.bg_panel_raised, text: color.text_dim, glow: NO_GLOW }],
 		['disabled and active: the border lift survives, the wash does not', neutral, { enabled: false, active: true }, { border: color.accent, fill: color.bg_panel_raised }],
 		['disabled with focus-visible: no ring', neutral, { enabled: false, focused: true, focusVisible: true }, { focusRing: null }],
 	];
@@ -119,5 +119,29 @@ describe('over', () => {
 
 	it('leaves a transparent fill with just the wash', () => {
 		expect(over([0, 0, 0, 0], [1, 1, 1, 0.045])).toEqual([1, 1, 1, 0.045]);
+	});
+});
+
+describe('ink extent (R8.8)', () => {
+	const ring = tokens.control.focus_ring_offset + tokens.control.focus_ring_width;
+	const nudge = tokens.control.press_offset;
+
+	it('covers the focus ring and the press nudge on a neutral button', () => {
+		expect(layersInkExtent(buttonLayers('default', {}))).toBe(ring + nudge);
+	});
+
+	it('covers the hover glow on a filled tone', () => {
+		const glow = shadowExtent(glowShadow(color.accent_glow));
+		expect(glow).toBeGreaterThan(ring);
+		expect(layersInkExtent(buttonLayers('accent', {}))).toBe(glow + nudge);
+	});
+
+	it("covers the style's own shadow, offset included", () => {
+		const extent = layersInkExtent(buttonLayers('default', { shadow: { color: 'shadow', blur: 20, offset: { x: 0, y: 10 } } }));
+		expect(extent).toBe(20 * 1.5 + 10 + nudge);
+	});
+
+	it('covers only the ring on a field, which never nudges or glows', () => {
+		expect(layersInkExtent(fieldLayers({}))).toBe(ring);
 	});
 });

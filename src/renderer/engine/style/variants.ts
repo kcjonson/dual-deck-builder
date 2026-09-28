@@ -96,8 +96,8 @@ const ACTIVE: LookOverlay = { border: color.accent, wash: color.bg_active };
  * A button's layers for a tone and an instance style (R11.10, R11.12,
  * R11.15). `default` is a raised neutral surface; every other tone is filled
  * with its colour and dark text, brightens with a glow on hover, and drops to
- * the neutral surface when disabled, as the battle screen mock's waiting End
- * Turn does. An instance `backgroundColor` keeps the white hover wash rather
+ * the neutral surface with `text_dim` when disabled, as the battle screen
+ * mock's waiting End Turn does (`text_disabled` there would be about 1.6:1). An instance `backgroundColor` keeps the white hover wash rather
  * than the tone's bright fill, so the override still reads as hovered.
  */
 export function buttonLayers(tone: Tone, style: StyleObject): LookLayers {
@@ -131,7 +131,7 @@ export function buttonLayers(tone: Tone, style: StyleObject): LookLayers {
 	const disabled: LookOverlay = style.disabled
 		? overlayFrom(style.disabled)
 		: palette && style.backgroundColor === undefined
-			? { fill: neutral.fill, border: neutral.border, text: color.text_disabled }
+			? { fill: neutral.fill, border: neutral.border, text: color.text_dim }
 			: { text: color.text_disabled };
 
 	return {

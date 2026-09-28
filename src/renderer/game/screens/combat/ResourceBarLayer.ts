@@ -4,6 +4,7 @@ import { Text } from '../../../engine/components/Text';
 import { Rectangle } from '../../../engine/components/Rectangle';
 import { tokens } from '../../../engine/theme/tokens';
 import { Button } from '../../../engine/ui/Button';
+import type { StyleObject } from '../../../engine/style/styleObject';
 import { DriverStatsDisplay, DriverResourceData } from './DriverStatsDisplay';
 
 /**
@@ -16,8 +17,26 @@ interface ScrapDisplay {
 	label: Text;
 }
 
-const END_TURN_WIDTH = 120;
+const END_TURN_WIDTH = 150;
 const END_TURN_MARGIN = 10;
+/**
+ * The battle screen mock's End Turn (`.endturn .btn`): a bone face with dark
+ * text, 21 px display tracked 0.1 em, white on hover with the warm accent at
+ * its edge, and the neutral surface with muted text while waiting. Not the
+ * accent tone: yellow is keywords and interaction, and the one big action
+ * reads apart from both.
+ */
+const END_TURN_STYLE: StyleObject = {
+	backgroundColor: 'text',
+	borderColor: 'text',
+	color: 'accent_contrast',
+	borderRadius: 'r_md',
+	fontSize: 21,
+	letterSpacing: 0.1,
+	hover: { backgroundColor: 'text_bright', borderColor: 'accent' },
+	disabled: { backgroundColor: 'bg_panel_raised', borderColor: 'line_edge', color: 'text_dim' },
+};
+
 /** The scrap amount's box, centred 15 px past the icon. */
 const SCRAP_AMOUNT_WIDTH = 30;
 
@@ -116,8 +135,8 @@ export class ResourceBarLayer extends Layer {
 	private createEndTurnButton(): Button {
 		const button = new Button('END TURN', {
 			id: 'end_turn_button',
-			tone: 'accent',
-			size: 'sm',
+			size: 'lg',
+			style: END_TURN_STYLE,
 		});
 		button.onClick = () => {
 			if (this.onEndTurn) {

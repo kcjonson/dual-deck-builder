@@ -147,6 +147,34 @@ export function glowShadow(color: RGBA): BoxShadow {
 	return { color, blur, spread, offset: { x: 0, y: 0 } };
 }
 
+/**
+ * How far a box shadow can reach past its rect on any side, by the draw
+ * API's own conservative bound (`shadowInk`: spread plus 1.5 blur, moved by
+ * the offset).
+ */
+export function shadowExtent(shadow: BoxShadow): number {
+	const offset = shadow.offset ?? { x: 0, y: 0 };
+	return Math.max(0, shadow.spread ?? 0) + Math.max(0, shadow.blur ?? 0) * 1.5 + Math.max(Math.abs(offset.x), Math.abs(offset.y));
+}
+
+/**
+ * R8.8's `inkExtent` for a control drawn from these layers: the focus ring
+ * outside the box, the glow any state layer can raise, the style's own
+ * shadow, all of it moved by the pressed nudge. A maximum over every state,
+ * not the current one, so a clip sized from it never cuts a hover or a ring.
+ */
+export function layersInkExtent(layers: LookLayers): number {
+	const { focus_ring_offset, focus_ring_width } = tokens.control;
+	let extent = focus_ring_offset + focus_ring_width;
+	const glows = [layers.hover, layers.pressed, layers.active, layers.disabled].some((overlay) => overlay.glow && overlay.glow[3] > 0);
+	if (glows) extent = Math.max(extent, shadowExtent(glowShadow(tokens.color.accent_glow)));
+	for (const base of [layers.normal, layers.selected]) {
+		if (base.shadow) extent = Math.max(extent, shadowExtent(base.shadow));
+	}
+	const nudges = Math.max(layers.pressed.offsetY ?? 0, layers.hover.offsetY ?? 0, layers.active.offsetY ?? 0);
+	return extent + Math.max(0, nudges);
+}
+
 export function sameLook(a: Look, b: Look): boolean {
 	return sameColor(a.fill, b.fill)
 		&& sameColor(a.border, b.border)

@@ -8,7 +8,7 @@ import type { IconName } from '../text/icons';
 import type { FontRole } from '../text/fontFaces';
 import { resolveFontRole } from '../text/fontRoles';
 import { tokens } from '../theme/tokens';
-import { Look, LookLayers, glowShadow, resolveLook } from '../style/look';
+import { Look, LookLayers, glowShadow, layersInkExtent, resolveLook } from '../style/look';
 import { LookTransition } from '../style/LookTransition';
 import {
 	Sides,
@@ -82,10 +82,13 @@ export class Button extends Component {
 	private layers: LookLayers;
 	private padding: Sides;
 	private readonly transition: LookTransition;
+	/** Height comes from `size` until the caller gives one (R11.10). */
+	private heightFollowsSize: boolean;
 
 	constructor(label = '', { icon, tone = 'default', size = 'md', style = {}, ...options }: ButtonOptions = {}) {
 		super({ ...options, height: options.height ?? CONTROL_SIZES[size].height });
 		this.componentType = 'Button';
+		this.heightFollowsSize = options.height === undefined;
 		validateStyle(style, BUTTON_STYLE);
 		this.buttonTone = tone;
 		this.buttonSize = size;
@@ -136,11 +139,12 @@ export class Button extends Component {
 		return this.buttonSize;
 	}
 
-	/** Label size and icon size follow; the height is the caller's once it has been set. */
+	/** Label size and icon size follow, and the height unless the caller has set one. */
 	public set size(size: ControlSize) {
 		if (size === this.buttonSize) return;
 		this.buttonSize = size;
 		if (this.icon) this.icon.size = CONTROL_SIZES[size].iconSize;
+		if (this.heightFollowsSize) super.setSize(this.width, CONTROL_SIZES[size].height);
 		this.restyle();
 	}
 
@@ -151,9 +155,21 @@ export class Button extends Component {
 	/** R11.16: the same path as construction, and the same validation. */
 	public set style(style: StyleObject) {
 		validateStyle(style, BUTTON_STYLE);
+		const previous = this.styleObject;
 		this.styleObject = style;
 		if (style.opacity !== undefined) this.opacity = style.opacity;
+		else if (previous.opacity !== undefined) this.opacity = 1;
 		this.restyle();
+	}
+
+	/** The ring is layer 6 of this component's own look (R11.12), not the render walk's. */
+	public get drawsOwnFocusRing(): boolean {
+		return true;
+	}
+
+	/** R8.8: the ring, any glow a state can raise, the style's shadow, and the press nudge. */
+	public get inkExtent(): number {
+		return layersInkExtent(this.layers);
 	}
 
 	/** The look drawn this frame, mid-transition included. */
@@ -225,7 +241,9 @@ export class Button extends Component {
 		return this.text.getText();
 	}
 
+	/** From here the height is the caller's, and a new `size` leaves it alone. */
 	public setSize(width: number, height: number): this {
+		this.heightFollowsSize = false;
 		super.setSize(width, height);
 		this.placeLabel();
 		return this;

@@ -4,6 +4,7 @@ import { Rectangle } from '../components/Rectangle';
 import { Text } from '../components/Text';
 import { Panel } from '../ui/Panel';
 import { Button } from '../ui/Button';
+import { tokens } from '../theme/tokens';
 import { Input } from '../ui/Input';
 import { Circle } from '../components/Circle';
 import { SnapshotNode, SnapshotRect, treeSnapshot } from './treeSnapshot';
@@ -856,6 +857,18 @@ describe('treeSnapshot', () => {
 			const button = treeSnapshot([component], VIEWPORT).roots[0];
 
 			expect(button.state).toMatchObject({ pressed: true, selected: true, focused: true, focusVisible: true, hovered: false, open: false });
+		});
+
+		it('grows a focus-visible button\'s inkBounds past its bounds by the ring and the nudge (R8.8)', () => {
+			const component = new Button('Go', { x: 20, y: 20, width: 80, height: 30 });
+			component.setFocused(true);
+			component.focusVisible = true;
+
+			const node = treeSnapshot([component], VIEWPORT).roots[0];
+			const extent = tokens.control.focus_ring_offset + tokens.control.focus_ring_width + tokens.control.press_offset;
+
+			expect(node.screenBounds).toEqual({ x: 20, y: 20, w: 80, h: 30 });
+			expect(node.inkBounds).toEqual({ x: 20 - extent, y: 20 - extent, w: 80 + extent * 2, h: 30 + extent * 2 });
 		});
 
 		it("grows inkBounds past screenBounds by a centred stroke's outer half", () => {

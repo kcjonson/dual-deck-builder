@@ -1083,6 +1083,15 @@ export abstract class Component {
 		this.onStateChange();
 	}
 
+	/**
+	 * True when this component draws its own focus ring from `focusVisible`
+	 * as one of its R11.12 state layers, so a generic ring drawn by the render
+	 * walk (DDB-76) must skip it. Button and Input answer true.
+	 */
+	public get drawsOwnFocusRing(): boolean {
+		return false;
+	}
+
 	/** The component's own flags (R11.11): a chosen tab or row, an open menu, a field taking keys, a live drop target. */
 	public get selected(): boolean {
 		return this.selectedState;
@@ -1155,7 +1164,6 @@ export abstract class Component {
 			// the pointer (R9.8); a disabled component shows it only through
 			// its disabled style (R9.5).
 			this.setFocused(false);
-			this.pressState = false;
 			this.onDisabled();
 		} else {
 			this.onEnabled();
@@ -1164,8 +1172,13 @@ export abstract class Component {
 		return this;
 	}
 
-	/** Effective enabled state is inherited, so a change reaches every descendant's look. */
+	/**
+	 * Effective enabled state is inherited, so a change reaches every
+	 * descendant's look, and a press in progress anywhere beneath a newly
+	 * disabled ancestor ends: the release will not be delivered to it (R9.5).
+	 */
 	private notifyEnabledChange(): void {
+		if (!this.effectivelyEnabled) this.pressState = false;
 		this.onStateChange();
 		for (const child of this.children) child.notifyEnabledChange();
 	}
