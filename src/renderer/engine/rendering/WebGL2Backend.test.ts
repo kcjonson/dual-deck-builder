@@ -1,77 +1,12 @@
 import { mat4 } from 'gl-matrix';
-import { ClipRect, DrawApi, RGBA } from '../draw';
+import { DrawApi, RGBA } from '../draw';
 import type { CharacterInfo } from './FontAtlas';
 import type { FrameTimer } from './FrameTimer';
 import type { ContextListener, Renderer } from './Renderer';
-import { WebGL2Backend, scissorBox } from './WebGL2Backend';
+import { WebGL2Backend } from './WebGL2Backend';
+import { UBER_ATTRIBUTES, UBER_VERTEX } from './UberGeometryEncoder';
 import { TextureStore } from '../gpu/TextureStore';
 import { WebGL2TextureDevice } from './WebGL2TextureDevice';
-
-/**
- * The one arithmetic in `WebGL2Backend` that a golden depends on and a reader
- * cannot check by eye. No GL and no DOM: `scissorBox` is a pure function so it
- * can be tested at all (R14.1).
- *
- * The expected values are the expression the deleted `Layer.ts` block ran,
- * written out longhand rather than by calling the function under test:
- *
- *     webglX      = Math.floor(screenX * dpr)
- *     webglY      = Math.floor((canvas.height / dpr - screenY - height) * dpr)
- *     webglWidth  = Math.floor(width * dpr)
- *     webglHeight = Math.floor(height * dpr)
- *
- * `canvas.height / dpr` is now passed in as the logical viewport height,
- * which `resolveViewport` computes as that same division.
- */
-
-function clip(x: number, y: number, width: number, height: number): ClipRect {
-	return { minX: x, minY: y, maxX: x + width, maxY: y + height };
-}
-
-describe('scissorBox', () => {
-	it('converts the developer screen panel at ratio 1', () => {
-		// The real clip on developerScreen and cardShowcaseScreen, at the
-		// harness's pinned 1440x882 viewport and deviceScaleFactor 1.
-		expect(scissorBox(clip(0, 80, 1440, 722), 1, 882)).toEqual({
-			x: 0,
-			y: Math.floor(882 / 1 - 80 - 722),
-			width: 1440,
-			height: 722,
-		});
-	});
-
-	it('scales the box and the flip by the ratio', () => {
-		// Same logical rect on a 2x display: the canvas is twice as tall in
-		// device pixels, so the logical height it divides back to is unchanged.
-		expect(scissorBox(clip(0, 80, 1440, 722), 2, 1764 / 2)).toEqual({
-			x: 0,
-			y: Math.floor((1764 / 2 - 80 - 722) * 2),
-			width: 2880,
-			height: 1444,
-		});
-	});
-
-	it('floors each of the four components independently', () => {
-		const box = scissorBox(clip(10.6, 20.4, 100.7, 50.9), 1.5, 1323 / 1.5);
-		expect(box).toEqual({
-			x: Math.floor(10.6 * 1.5),
-			y: Math.floor((1323 / 1.5 - 20.4 - 50.9) * 1.5),
-			width: Math.floor(100.7 * 1.5),
-			height: Math.floor(50.9 * 1.5),
-		});
-		// Flooring width separately from x is what makes the box narrower than
-		// the rect rather than shifted, which is the behaviour the goldens hold.
-		expect(box.width).toBe(151);
-	});
-
-	it('puts a rect at the bottom of the canvas at scissor y zero', () => {
-		expect(scissorBox(clip(0, 800, 100, 82), 1, 882).y).toBe(0);
-	});
-
-	it('flips a rect at the top of the canvas to the far side', () => {
-		expect(scissorBox(clip(0, 0, 100, 100), 1, 882).y).toBe(782);
-	});
-});
 
 // -- the backend against a recording WebGL2 context ---------------------------
 
@@ -226,6 +161,12 @@ describe('WebGL2Backend', () => {
 		]);
 	});
 
+	it('points the eight samplers at units 0 to 7 once, at creation (R5.20)', () => {
+		const { calls, named } = setupBackend();
+		const [samplers] = named(calls, 'uniform1iv');
+		expect(Array.from(samplers.args[1] as Int32Array)).toEqual([0, 1, 2, 3, 4, 5, 6, 7]);
+	});
+
 	it('makes no synchronous call and no allocation inside a frame (R15.22, R15.11)', () => {
 		const { frame, named } = setupBackend();
 		frame(clippedTwice);
@@ -236,22 +177,19 @@ describe('WebGL2Backend', () => {
 		expect(named(calls, 'bufferData')).toEqual([]);
 		expect(named(calls, 'texImage2D')).toEqual([]);
 		expect(named(calls, 'uniform1i')).toEqual([]);
+		expect(named(calls, 'uniform1iv')).toEqual([]);
 		expect(named(calls, 'uniformMatrix4fv')).toEqual([]);
 	});
 
-	it('clears once per frame with the scissor off, before any draw', () => {
+	it('clears once per frame before any draw, and never uses the scissor (R4.1)', () => {
 		const { frame, constant } = setupBackend();
-		const scissor = (call: GlCall, name: string) => call.name === name && call.args[0] === constant('SCISSOR_TEST');
 		for (let index = 0; index < 2; index++) {
 			const calls = frame(clippedTwice);
 			const clear = calls.findIndex((call) => call.name === 'clear');
 			expect(calls.filter((call) => call.name === 'clear')).toHaveLength(1);
 			expect(clear).toBeLessThan(calls.findIndex((call) => call.name === 'drawElements'));
-			expect(calls.slice(0, clear).some((call) => scissor(call, 'enable'))).toBe(false);
-			// The clip frame one opened is closed again before its end, so frame
-			// two's clear needs no disable of its own.
-			const last = calls.filter((call) => scissor(call, 'enable') || scissor(call, 'disable')).at(-1);
-			expect(last?.name).toBe('disable');
+			expect(calls.filter((call) => call.name === 'scissor')).toEqual([]);
+			expect(calls.filter((call) => call.args[0] === constant('SCISSOR_TEST'))).toEqual([]);
 		}
 	});
 
@@ -264,20 +202,19 @@ describe('WebGL2Backend', () => {
 			expect(writes).toHaveLength(1);
 			const [range] = named(calls, 'bindBufferRange');
 			expect(range.args[3]).toBe(writes[0].args[1]);
-			expect(range.args[4]).toBe(128);
+			expect(range.args[4]).toBe(64);
 			slots.push(writes[0].args[1] as number);
 		}
 		expect(slots).toEqual([256, 512, 0, 256]);
 	});
 
-	it('puts the WebGL1 projection and an identity view in the frame block', () => {
+	it('puts the logical-pixel projection in the frame block', () => {
 		const { frame, named, constant } = setupBackend();
 		const calls = frame(someShapesAndText);
 		const write = named(calls, 'bufferSubData').find((call) => call.args[0] === constant('UNIFORM_BUFFER'));
 		const block = write?.args[2] as Float32Array;
 		const projection = mat4.ortho(mat4.create(), 0, 800, 600, 0, -1, 1);
-		expect(Array.from(block.subarray(0, 16))).toEqual(Array.from(projection));
-		expect(Array.from(block.subarray(16, 32))).toEqual(Array.from(mat4.create()));
+		expect(Array.from(block)).toEqual(Array.from(projection));
 	});
 
 	it('uploads each domain into the rings with a source range and draws 32-bit indices from its offset', () => {
@@ -300,6 +237,7 @@ describe('WebGL2Backend', () => {
 		expect(secondIndices.offset).toBe(firstIndices.length * 4);
 
 		const [draw] = named(second, 'drawElements');
+		expect(draw.args[0]).toBe(constant('TRIANGLES'));
 		expect(draw.args[2]).toBe(constant('UNSIGNED_INT'));
 		expect(draw.args[3]).toBe(secondIndices.offset);
 	});
@@ -309,27 +247,82 @@ describe('WebGL2Backend', () => {
 		const calls = frame(clippedTwice);
 		const uploads = named(calls, 'bindVertexArray').filter((call) => call.args[0] !== null).length;
 		expect(uploads).toBe(3);
-		expect(named(calls, 'vertexAttribPointer')).toHaveLength(uploads * 7);
+		expect(named(calls, 'vertexAttribPointer')).toHaveLength(uploads * UBER_ATTRIBUTES.length);
 	});
 
-	it('binds the atlas once per frame, not once per upload (R5.20)', () => {
+	it('draws each domain, shapes, borders and text together, in one GPU draw (R5.1)', () => {
 		const { frame, named } = setupBackend();
-		const calls = frame(clippedTwice);
-		expect(named(calls, 'bindTexture')).toHaveLength(1);
+		// Three domains, each ended by the temporary `legacyTextOrder`
+		// barrier; nothing inside a domain splits.
+		expect(named(frame(clippedTwice), 'drawElements')).toHaveLength(3);
+	});
+
+	it('never splits on a clip change inside a domain (R4.1)', () => {
+		const { backend } = setupBackend();
+		const rect = { x: 0, y: 0, width: 10, height: 10 };
+		// Without `legacyTextOrder` a clip push is not a barrier, so this is
+		// one domain with three different clips in it.
+		const api = new DrawApi({ backend, development: true });
+		api.beginFrame({ viewport: { width: 800, height: 600 } });
+		api.drawRect({ rect, fill: WHITE });
+		api.pushClip({ x: 0, y: 0, width: 5, height: 5 });
+		api.drawRect({ rect, fill: WHITE });
+		api.popClip();
+		api.drawRect({ rect, fill: WHITE });
+		api.endFrame();
+		expect(api.getStats().gpuDraws).toBe(1);
+		expect(api.getStats().clipChange).toBe(0);
+	});
+
+	it('carries the clip in logical pixels on every vertex, at any ratio (R4.1, R4.4)', () => {
+		const { calls, named, api, constant } = setupBackend();
+		const start = calls.length;
+		api.beginFrame({ viewport: { width: 400, height: 300 }, ratio: 2 });
+		api.pushClip({ x: 10, y: 20, width: 100, height: 50 });
+		api.drawRect({ rect: { x: 0, y: 0, width: 60, height: 60 }, fill: WHITE });
+		api.popClip();
+		api.endFrame();
+		const [write] = named(calls.slice(start), 'bufferSubData').filter((call) => call.args[0] === constant('ARRAY_BUFFER'));
+		const vertices = write.args[2] as Float32Array;
+		for (let vertex = 0; vertex < 4; vertex++) {
+			const offset = vertex * UBER_VERTEX.floats + UBER_VERTEX.clip;
+			expect(Array.from(vertices.subarray(offset, offset + 4))).toEqual([10, 20, 110, 70]);
+		}
+	});
+
+	it('binds the atlas and the placeholders once, and nothing on later frames (R5.20)', () => {
+		const { frame, named } = setupBackend();
+		// Unit 0 gets the atlas, units 1 to 7 the empty placeholder.
+		expect(named(frame(clippedTwice), 'bindTexture')).toHaveLength(8);
+		expect(named(frame(clippedTwice), 'bindTexture')).toHaveLength(0);
+	});
+
+	it('draws an image from a dynamic unit and puts the placeholder back at the end of the frame', () => {
+		const { frame, named, api, constant } = setupBackend();
+		const art = api.createTexture({ width: 2, height: 2, label: 'art', source: new Uint8Array(16) });
+		frame(someShapesAndText);
+		const calls = frame((draw) => {
+			draw.drawImage({ rect: { x: 0, y: 0, width: 20, height: 20 }, texture: art });
+		});
+		const units = named(calls, 'activeTexture').map((call) => (call.args[0] as number) - constant('TEXTURE0'));
+		// Unit 1 for the draw, then unit 1 again to restore the placeholder.
+		expect(units).toEqual([1, 1]);
+		expect(named(calls, 'drawElements')).toHaveLength(1);
 	});
 
 	it('grows a ring that cannot hold two frames and says so, instead of overwriting one', () => {
 		const warn = jest.spyOn(console, 'warn').mockImplementation(() => undefined);
 		try {
-			// `clippedTwice` is three uploads of 36 vertices, 9504 bytes a frame;
-			// a 9600-byte ring takes one frame and not the next beside it.
-			const { frame, named, constant } = setupBackend({ vertexRingBytes: 9600 });
+			// `clippedTwice` is three uploads of 36 vertices at 128 bytes,
+			// 13824 bytes a frame; a 14000-byte ring takes one frame and not
+			// the next beside it.
+			const { frame, named, constant } = setupBackend({ vertexRingBytes: 14000 });
 			const first = frame(clippedTwice);
 			expect(named(first, 'bufferData')).toEqual([]);
 			const calls = frame(clippedTwice);
 			const grown = named(calls, 'bufferData').filter((call) => call.args[0] === constant('ARRAY_BUFFER'));
 			expect(grown).toHaveLength(1);
-			expect(grown[0].args[1]).toBeGreaterThanOrEqual(9600 * 2);
+			expect(grown[0].args[1]).toBeGreaterThanOrEqual(14000 * 2);
 			expect(named(calls, 'deleteBuffer')).toHaveLength(1);
 			expect(warn).toHaveBeenCalledWith(expect.stringContaining('vertex ring grew'));
 		} finally {
@@ -353,16 +346,20 @@ describe('WebGL2Backend', () => {
 		// The frame binds the program the restore created, not the dead one.
 		expect(named(next, 'useProgram')[0].args[0]).toBe(named(rebuilt, 'createProgram')[0].result);
 		expect(named(next, 'bindVertexArray')[0].args[0]).toBe(named(rebuilt, 'createVertexArray')[0].result);
+		// And every unit again, since the old bindings died with the context.
+		expect(named(next, 'bindTexture')).toHaveLength(8);
 	});
 
-	it('sets blend and clear colour again after invalidateState, and not on an ordinary frame (R2.15)', () => {
+	it('blends premultiplied over, set again after invalidateState and not on an ordinary frame (R5.22, R2.15)', () => {
 		const { frame, named, backend, constant } = setupBackend();
 		const fixedState = (calls: GlCall[]) => [
 			...named(calls, 'blendFunc'),
 			...named(calls, 'clearColor'),
 			...named(calls, 'enable').filter((call) => call.args[0] === constant('BLEND')),
 		];
-		expect(fixedState(frame(someShapesAndText))).toHaveLength(3);
+		const first = frame(someShapesAndText);
+		expect(fixedState(first)).toHaveLength(3);
+		expect(named(first, 'blendFunc')[0].args).toEqual([constant('ONE'), constant('ONE_MINUS_SRC_ALPHA')]);
 		expect(fixedState(frame(someShapesAndText))).toHaveLength(0);
 
 		backend.invalidateState();
@@ -370,6 +367,23 @@ describe('WebGL2Backend', () => {
 		expect(fixedState(calls)).toHaveLength(3);
 		const blend = calls.findIndex((call) => call.name === 'blendFunc');
 		expect(blend).toBeLessThan(calls.findIndex((call) => call.name === 'clear'));
+	});
+
+	it('changes blend state for multiply and back, and not for additive (R5.22a)', () => {
+		const { frame, named, constant } = setupBackend();
+		frame(someShapesAndText);
+		const rect = { x: 0, y: 0, width: 10, height: 10 };
+		const calls = frame((draw) => {
+			draw.drawRect({ rect, fill: WHITE });
+			draw.drawRect({ rect, fill: WHITE, blend: 'additive' });
+			draw.drawRect({ rect, fill: WHITE, blend: 'multiply' });
+			draw.drawRect({ rect, fill: WHITE });
+		});
+		expect(named(calls, 'blendFunc').map((call) => call.args)).toEqual([
+			[constant('DST_COLOR'), constant('ONE_MINUS_SRC_ALPHA')],
+			[constant('ONE'), constant('ONE_MINUS_SRC_ALPHA')],
+		]);
+		expect(named(calls, 'drawElements')).toHaveLength(3);
 	});
 
 	it('uploads a queued texture at the top of the frame, before the clear, and not again (R5.32, R15.18)', () => {
@@ -384,18 +398,6 @@ describe('WebGL2Backend', () => {
 		expect(api.isTextureResident(art)).toBe(true);
 
 		expect(named(frame(someShapesAndText), 'texSubImage2D')).toEqual([]);
-	});
-
-	it('flips the scissor against the frame\'s logical height at ratio 2', () => {
-		const { calls, named, api } = setupBackend();
-		const start = calls.length;
-		api.beginFrame({ viewport: { width: 400, height: 300 }, ratio: 2 });
-		api.pushClip({ x: 10, y: 20, width: 100, height: 50 });
-		someShapesAndText(api);
-		api.popClip();
-		api.endFrame();
-		const [box] = named(calls.slice(start), 'scissor');
-		expect(box.args).toEqual([20, (300 - 70) * 2, 200, 100]);
 	});
 
 	it('answers R4.2a text ink from the encoder', () => {

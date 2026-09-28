@@ -6,6 +6,18 @@ This document contains the chronological log of completed development tasks for 
 
 **Date correction (2026-08-22):** the repo's first commit is 2025-05-17, but many entries below carry dates in December 2024 or January 2025 — the AI that wrote them used its assumed date instead of the real one. Entries dated 2025-07-03 and 2025-07-02 have been corrected from "2025-01-03"/"2025-01-02" (verified against git history). Remaining Dec 2024 / Jan 2025 dates are wrong by roughly six months; the real work happened May–July 2025. Trust git history over these dates.
 
+## Uber shader: one program, exact-coverage borders, the clip as data (2026-09-28)
+
+**What landed:** DDB-64 (DDB-55 phase 1), with DDB-65's per-draw clip.
+
+- `src/assets/shaders/uber.vert` and `uber.frag` replace `vertex.glsl` and `fragment.glsl`: modes `flat`, `rect`, `shadow`, `circle`, `image`, `text` (MSDF, unused until DDB-70) and a temporary `mask` for the bitmap atlas; R5.8's border compositing, R5.6's linear ramp, Wallace's erf shadow, premultiplied output, and R4.4's half-open clip test on the interpolated logical position.
+- `rendering/UberGeometryEncoder.ts` replaces `LegacyGeometryEncoder.ts`: transform on the CPU, premultiplied colours and gradients, clamped radii, border outsets, one device pixel of quad inflation, R5.11's shadow geometry, lines and polyline segments as oriented `rect` quads, R5.17's polygon feather ring, image quads.
+- `WebGL2Backend`: the uber program, premultiplied `over`, per-draw blend for `multiply` and `screen`, eight sampler units with the atlas resident and a placeholder on the rest; the scissor and `scissorBox` are gone. `Renderer` sets `antialias: false`.
+- `Batcher` and `stats.ts` lose `clipIsState`, topology and `topologyChange`; `clipChange` is a structural zero. `LegacyPaintOrder` no longer splits circle outlines out.
+- `Rectangle` passes its corner radius; `Triangle` and `Polygon` put their box into the points rather than a pushed transform, so stroke widths are pixels.
+
+**How:** `UberGeometryEncoder.test.ts` (42, including the paint-order tests moved from the deleted encoder test), rewritten `WebGL2Backend.test.ts` (no scissor call, clip on every vertex at ratio 2, blend state per mode, texture units), `Batcher.test.ts` for the reduced split reasons. `tests/visual/web/uberShader.spec.ts` runs the real shader in SwiftShader against chapter 4.7's fragment fixture and chapter 5.10's pixel tests. Every golden re-minted on CI; the before and after comparison, and GPU draw counts per screen (unchanged, with every screen at one draw once `legacyTextOrder` goes), are in `docs/AI_TECHNICAL_DECISIONS/uber-shader.md`.
+
 ## Textures get an owner and the canvas a single viewport (2026-09-28)
 
 **What landed:** DDB-66 (DDB-55 phase 1), with DDB-186 (R15.3) alongside.

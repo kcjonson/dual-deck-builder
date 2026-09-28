@@ -95,9 +95,8 @@ export class Circle extends Component {
 			center: { x: centerX, y: centerY },
 			radius: this.radius,
 			fill: this.fillColor,
-			// `center`, not the `inside` default: the legacy stroke is a line
-			// strip on the boundary, so half of it falls outside the radius and
-			// R4.2a's cull bound has to cover it.
+			// `center`, not the `inside` default: the stroke has always straddled
+			// the radius, so a circle keeps its outer size when it gains one.
 			border: this.strokeWidth > 0
 				? { color: this.strokeColor, width: this.strokeWidth, position: 'center' }
 				: undefined,

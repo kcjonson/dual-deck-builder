@@ -1,4 +1,3 @@
-import { ResolvedClip } from './clip';
 import { BlendMode, DrawCommand } from './commands';
 import { ResidentTextureSet, TextureKey } from './ResidentTextureSet';
 import { GpuWork, SplitCounts, SplitReason } from './stats';
@@ -18,28 +17,23 @@ import { GpuWork, SplitCounts, SplitReason } from './stats';
  *   definition of a draw group.
  * - Consecutive groups share a GPU draw unless something forces a split, and
  *   every split carries its reason (R13.13): a texture outside the resident set
- *   with every dynamic unit taken (R5.20), a blend change, or, for as long as
- *   the legacy backend exists, a switch between triangles and GL lines or a
- *   scissor clip change.
+ *   with every dynamic unit taken (R5.20), or a blend mode that needs different
+ *   blend state (R5.22a: `additive` shares `over`'s state and never splits).
  * - When a domain's geometry outgrows the backend's buffer the batcher uploads
  *   what it has and starts again, counted as a `bufferFull` flush. Emit order is
  *   preserved across the boundary because uploads are drawn in order.
  *
  * WHY IT SITS BEHIND THE SEAM rather than in `DrawApi`. What a group's geometry
  * looks like is the backend's vertex format, and R5.4 leaves that layout open:
- * the WebGL2 backend writes 22-float vertices for the legacy program, the uber
- * shader will write instances. So the backend owns a `Batcher` and hands it a
+ * the WebGL2 backend writes the uber shader's 32-float vertices, and an
+ * instanced layout would write instances. So the backend owns a `Batcher` and hands it a
  * `GeometryEncoder`; the batcher owns everything that is the same for every
  * backend, which is buffer growth, ranges, split decisions, slot selection and
  * the counters, so no two backends can count a split differently.
  *
- * THE CLIP SEAM. R4.1 makes the clip per-draw data, so under the uber shader
- * it is written into each vertex or instance by the encoder and never splits
- * anything (`clipIsState: false`). The legacy backend cannot do that until
- * DDB-64's shader exists, so it declares `clipIsState: true` and the batcher
- * splits wherever the resolved clip changes, reporting each split as a
- * `clipChange`, which R13.13 says must read zero under the final design. The
- * encoder flag is the one line that changes when the shader lands.
+ * THE CLIP is per-draw data (R4.1): the encoder writes it into each vertex,
+ * so it is not an input to any split decision here and no clip change can
+ * cost a GPU draw.
  *
  * ALLOCATION. A steady-state frame allocates nothing here: the typed arrays
  * grow by doubling and are reused, GPU draw records are pooled, and the upload
@@ -59,13 +53,10 @@ import { GpuWork, SplitCounts, SplitReason } from './stats';
  * development build's check.
  */
 
-export type Topology = 'triangles' | 'lines';
-
 /** What an encoder reports about a group before it is written. Reused; never retained. */
 export interface GroupShape {
 	vertices: number;
 	indices: number;
-	topology: Topology;
 	/** The one texture the group samples, or null for texture-agnostic modes (R5.20). */
 	texture: TextureKey | null;
 }
@@ -90,11 +81,6 @@ export interface GeometryEncoder {
 	/** R5.4 requires 32-bit indices on the indexed path; 16-bit caps an upload at 65536 vertices. */
 	readonly indexType: 'uint16' | 'uint32';
 	/**
-	 * True while a backend lowers the clip to GPU state (scissor) instead of
-	 * carrying it per draw (R4.1). See the class comment.
-	 */
-	readonly clipIsState: boolean;
-	/**
 	 * Fills `out` and returns true, or returns false when the backend cannot
 	 * draw this command at all. A false return is the encoder's to report; the
 	 * batcher skips the command and counts nothing for it.
@@ -110,14 +96,15 @@ export interface GpuDraw {
 	firstIndex: number;
 	indexCount: number;
 	vertexCount: number;
-	topology: Topology;
+	/**
+	 * The blend state this draw needs: `over` for both `over` and `additive`,
+	 * which differ only in the fragment's alpha (R5.22a).
+	 */
 	blend: BlendMode;
-	/** The clip a scissor-based backend applies; null when the clip is per-draw data. */
-	scissor: ResolvedClip | null;
 	/** Unit bindings this draw needs, resident units first (R5.20). */
 	readonly textures: (TextureKey | null)[];
 	/** Why this draw is not part of the one before it; null for an upload's first draw. */
-	split: SplitReason | 'clipChange' | null;
+	split: SplitReason | null;
 }
 
 /** One upload: a vertex range, an index range, and the draws over them. Valid until the next upload. */
@@ -169,7 +156,6 @@ interface UploadState extends GeometryUpload {
 interface DomainWork extends GpuWork {
 	splits: SplitCounts;
 	flushes: { bufferFull: number };
-	clipChanges: number;
 }
 
 const INITIAL_VERTICES = 1024;
@@ -188,7 +174,6 @@ export class Batcher {
 	private readonly shape: GroupShape = {
 		vertices: 0,
 		indices: 0,
-		topology: 'triangles',
 		texture: null,
 	};
 
@@ -204,9 +189,8 @@ export class Batcher {
 		instances: 0,
 		textureBinds: 0,
 		bytesUploaded: 0,
-		splits: { textureSlotsExhausted: 0, blendChange: 0, stencilLevel: 0, topologyChange: 0 },
+		splits: { textureSlotsExhausted: 0, blendChange: 0, stencilLevel: 0 },
 		flushes: { bufferFull: 0 },
-		clipChanges: 0,
 	};
 
 	constructor({ encoder, textures, maxVertices, onDrop, verify }: BatcherOptions) {
@@ -259,7 +243,6 @@ export class Batcher {
 			const command = commands[commandIndex];
 			shape.vertices = 0;
 			shape.indices = 0;
-			shape.topology = 'triangles';
 			shape.texture = null;
 			if (!this.encoder.shape(command, shape)) continue;
 			if (shape.vertices === 0 || shape.indices === 0) continue;
@@ -284,8 +267,8 @@ export class Batcher {
 			const texture = shape.texture;
 			const needsUnit = texture !== null && this.textures.slotOf(texture) === -1;
 			const exhausted = needsUnit && !this.textures.hasFreeUnit;
-			const scissor = this.encoder.clipIsState ? command.clip : null;
-			const reason = this.current === null ? null : this.splitReason(command.blend, shape, scissor, exhausted);
+			const blend = blendState(command.blend);
+			const reason = this.current === null ? null : this.splitReason(blend, exhausted);
 
 			if (this.current === null || reason !== null) {
 				if (exhausted) {
@@ -298,9 +281,8 @@ export class Batcher {
 				} else {
 					this.closeDraw();
 				}
-				this.openDraw(command.blend, shape, scissor, reason);
-				if (reason === 'clipChange') work.clipChanges += 1;
-				else if (reason !== null) work.splits[reason] += 1;
+				this.openDraw(blend, reason);
+				if (reason !== null) work.splits[reason] += 1;
 			}
 
 			let slot = -1;
@@ -334,33 +316,19 @@ export class Batcher {
 		return work;
 	}
 
-	private splitReason(
-		blend: BlendMode,
-		shape: GroupShape,
-		scissor: ResolvedClip | null,
-		exhausted: boolean,
-	): SplitReason | 'clipChange' | null {
+	private splitReason(blend: BlendMode, exhausted: boolean): SplitReason | null {
 		const current = this.current as GpuDraw;
 		if (blend !== current.blend) return 'blendChange';
-		if (shape.topology !== current.topology) return 'topologyChange';
-		if (scissor !== current.scissor) return 'clipChange';
 		if (exhausted) return 'textureSlotsExhausted';
 		return null;
 	}
 
-	private openDraw(
-		blend: BlendMode,
-		shape: GroupShape,
-		scissor: ResolvedClip | null,
-		split: SplitReason | 'clipChange' | null,
-	): void {
+	private openDraw(blend: BlendMode, split: SplitReason | null): void {
 		const draw = this.drawPool[this.draws.length] ?? this.newDraw();
 		draw.firstIndex = this.sink.indexOffset;
 		draw.indexCount = 0;
 		draw.vertexCount = 0;
-		draw.topology = shape.topology;
 		draw.blend = blend;
-		draw.scissor = scissor;
 		draw.split = split;
 		draw.textures.length = 0;
 		this.draws.push(draw);
@@ -382,9 +350,7 @@ export class Batcher {
 			firstIndex: 0,
 			indexCount: 0,
 			vertexCount: 0,
-			topology: 'triangles',
 			blend: 'over',
-			scissor: null,
 			textures: [],
 			split: null,
 		};
@@ -409,8 +375,7 @@ export class Batcher {
 		work.gpuDraws += this.draws.length;
 		work.vertices += this.sink.baseVertex;
 		for (let index = 0; index < this.draws.length; index++) {
-			const draw = this.draws[index];
-			if (draw.topology === 'triangles') work.triangles += Math.floor(draw.indexCount / 3);
+			work.triangles += Math.floor(this.draws[index].indexCount / 3);
 		}
 		work.bytesUploaded += this.sink.floatOffset * 4 + this.sink.indexOffset * bytesPerIndex;
 	}
@@ -426,9 +391,7 @@ export class Batcher {
 		work.splits.textureSlotsExhausted = 0;
 		work.splits.blendChange = 0;
 		work.splits.stencilLevel = 0;
-		work.splits.topologyChange = 0;
 		work.flushes.bufferFull = 0;
-		work.clipChanges = 0;
 		return work;
 	}
 
@@ -501,4 +464,9 @@ export class Batcher {
 	private allocateIndices(count: number): Uint16Array | Uint32Array {
 		return this.encoder.indexType === 'uint16' ? new Uint16Array(count) : new Uint32Array(count);
 	}
+}
+
+/** R5.22a: `additive` is `over` with the fragment's alpha zeroed, so it needs no state of its own. */
+function blendState(blend: BlendMode): BlendMode {
+	return blend === 'additive' ? 'over' : blend;
 }

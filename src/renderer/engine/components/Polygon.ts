@@ -14,6 +14,8 @@ export class Polygon extends Component {
 	private points: Vec2[] = [];
 	/** R2.11's triangle list, recomputed when the outline changes rather than per frame. */
 	private indices: number[] = [];
+	/** `points` on the component's box, rewritten each render; the draw API copies them. */
+	private boxPoints: { x: number; y: number }[] = [];
 
 	/**
 	 * Create a new polygon component
@@ -128,6 +130,7 @@ export class Polygon extends Component {
 
 	private set outline(points: [number, number][]) {
 		this.points = points.map(([x, y]) => ({ x, y }));
+		this.boxPoints = points.map(() => ({ x: 0, y: 0 }));
 		this.indices = triangulatePolygon(this.points);
 	}
 
@@ -145,33 +148,30 @@ export class Polygon extends Component {
 		const screenX = ctx.offsetX + this.x;
 		const screenY = ctx.offsetY + this.y;
 
-		// The box lives in the transform, not in the points; see Triangle.
+		// The box is applied to the points, not pushed as a transform; see Triangle.
+		const halfWidth = this.width / 2;
+		const halfHeight = this.height / 2;
+		for (let index = 0; index < this.points.length; index++) {
+			this.boxPoints[index].x = screenX + halfWidth + this.points[index].x * halfWidth;
+			this.boxPoints[index].y = screenY + halfHeight + this.points[index].y * halfHeight;
+		}
 		const draw = RendererContext.getInstance().draw;
-		draw.pushTransform([
-			this.width / 2,
-			0,
-			0,
-			this.height / 2,
-			screenX + this.width / 2,
-			screenY + this.height / 2,
-		]);
 		if (this.indices.length > 0) {
 			draw.drawPolygon({
 				id: this.id ?? undefined,
-				points: this.points,
+				points: this.boxPoints,
 				indices: this.indices,
 				fill: this.fillColor,
 			});
 		}
 		if (this.strokeWidth > 0) {
 			draw.drawPolyline({
-				points: this.points,
+				points: this.boxPoints,
 				color: this.strokeColor,
 				width: this.strokeWidth,
 				closed: true,
 			});
 		}
-		draw.popTransform();
 
 		// Create child context with our position added
 		const childContext: RenderContext = {

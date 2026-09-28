@@ -112,13 +112,11 @@ export class Rectangle extends Component {
 		const screenX = ctx.offsetX + this.x;
 		const screenY = ctx.offsetY + this.y;
 
-		// `cornerRadius` is deliberately not passed as `radius`: the current
-		// fragment shader has no rounded-rect SDF and draws square corners, so
-		// sending it would describe something the backend does not draw.
 		RendererContext.getInstance().draw.drawRect({
 			id: this.id ?? undefined,
 			rect: { x: screenX, y: screenY, width: this.width, height: this.height },
 			fill: this.fillColor,
+			radius: this.cornerRadius > 0 ? this.cornerRadius : undefined,
 			// Keyed off width alone, with a black fallback, because that is what
 			// the legacy stroke did with a width and no colour.
 			border: this.borderWidth > 0

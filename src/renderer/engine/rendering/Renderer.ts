@@ -5,19 +5,16 @@ import { FontAtlas } from './FontAtlas';
 import { WebGL2TextureDevice } from './WebGL2TextureDevice';
 
 /**
- * R15.2's context attributes, with one measured departure.
+ * R15.2's context attributes.
  *
- * `antialias` stays true. R15.2 and R5.29 want the context without MSAA
- * because anti-aliasing is analytic under the uber shader, but the legacy
- * program has no analytic edges and leans on the drawing buffer's
- * multisampling. Measured: with it off, 12 of the 13 committed chromium goldens
- * and the unbaselined primitive-shapes scene change (only `scene-rectangles`,
- * all axis-aligned whole pixels, holds). It turns off with DDB-64, in the
- * commit that makes coverage analytic and re-mints the goldens for that
- * reason.
+ * `antialias` is off (R5.29): the uber shader's coverage is analytic (R5.6),
+ * so every edge is anti-aliased in the fragment stage and multisampling would
+ * only cost memory and bandwidth. Polygons, which have no SDF, get R5.17's
+ * CPU feather ring instead.
  *
- * Everything else is R15.2 as written. `alpha` and `premultipliedAlpha` are
- * the defaults, spelled out so the next reader does not have to know that.
+ * `alpha` and `premultipliedAlpha` are the defaults, spelled out because the
+ * shader's output is premultiplied (R5.22) and the page composites the canvas
+ * as such.
  * `powerPreference: 'high-performance'` selects the discrete GPU on a
  * dual-GPU Mac, whose output differs from the integrated one; CI's SwiftShader
  * has one device, so the goldens cannot see it, but a local byte comparison
@@ -26,7 +23,7 @@ import { WebGL2TextureDevice } from './WebGL2TextureDevice';
 export const CONTEXT_ATTRIBUTES: Readonly<WebGLContextAttributes> = {
 	alpha: true,
 	premultipliedAlpha: true,
-	antialias: true,
+	antialias: false,
 	depth: false,
 	stencil: false,
 	preserveDrawingBuffer: false,
