@@ -46,6 +46,23 @@ describe('CombatLogLayer', () => {
 		expect(scroll.scrollPosition).toBe(scroll.maxScroll);
 	});
 
+	it('leaves a reader who scrolled up where they are, and follows again once they are back at the bottom', () => {
+		const { log, layer } = mounted();
+		for (let index = 0; index < 30; index++) log.addEntry(`Event ${index}`);
+		context.frame.layout();
+		const scroll = layer.scrollContainer;
+		scroll.scrollTo(0);
+		log.addEntry('new while reading');
+		context.frame.layout();
+		expect(scroll.scrollPosition).toBe(0);
+		scroll.scrollToBottom();
+		context.frame.layout();
+		log.addEntry('newest');
+		context.frame.layout();
+		expect(scroll.scrollPosition).toBe(scroll.maxScroll);
+		expect(scroll.atBottom).toBe(true);
+	});
+
 	it('keeps the lines it has when an entry is added, and drops the ones the log let go', () => {
 		const { log, layer } = mounted(3);
 		log.addEntry('one');

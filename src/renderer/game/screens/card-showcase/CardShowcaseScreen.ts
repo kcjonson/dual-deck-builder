@@ -171,18 +171,15 @@ export class CardShowcaseScreen extends Screen {
 		// Add spacing for rarity sections
 		currentY += cardDimensions.height + 40;
 
-		// Display cards by rarity
-		this.displayCardsByRarity(cards, currentY);
-
-		// Set content size for scrolling
-		const contentHeight = currentY + (cardDimensions.height * 5) + 100; // Rough estimate
+		// Display cards by rarity; the content ends where the last section does (DDB-216)
+		const contentHeight = this.displayCardsByRarity(cards, currentY) + margin;
 		this.cardsContent.setSize(this.rootLayer.getWidth(), contentHeight);
 	}
 
 	/**
-	 * Display cards organized by rarity
+	 * Display cards organized by rarity. Returns the y the last section ends at.
 	 */
-	private displayCardsByRarity(cards: GameCard[], startY: number): void {
+	private displayCardsByRarity(cards: GameCard[], startY: number): number {
 		const rarities = CARD_RARITIES;
 		const cardDimensions = Card.getDimensions();
 		const margin = 20;
@@ -247,6 +244,7 @@ export class CardShowcaseScreen extends Screen {
 			}
 			currentY += 20; // Extra spacing between rarity sections
 		}
+		return currentY;
 	}
 
 	/**

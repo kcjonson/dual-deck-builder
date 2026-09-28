@@ -21,18 +21,17 @@ export interface ScrollbarOptions extends Omit<ComponentOptions, 'style'> {
 }
 
 const { color } = tokens;
-/** The track's thickness across, and the gutter a scroll container keeps for it. */
+/** The track as drawn, across. */
 export const SCROLLBAR_THICKNESS = tokens.space.space_1_5;
-export const SCROLLBAR_GUTTER = SCROLLBAR_THICKNESS + tokens.space.space_1;
+/**
+ * The scrollbar's box across: R13.25.7's 24 px minimum target, with the thin
+ * track drawn centred in it. It is also the gutter a scroll container gives
+ * up for it, so the whole target lies beside the content, never over it.
+ */
+export const SCROLLBAR_BREADTH = tokens.space.space_6;
+export const SCROLLBAR_GUTTER = SCROLLBAR_BREADTH;
 /** The thumb never gets shorter than this, however long the content. */
 const MIN_THUMB = tokens.space.space_6;
-/**
- * How far past the thin track, on each side across it, a press still lands
- * on the scrollbar, so the target is R13.25.7's 24 px across while the track
- * draws at its thickness. It is the scrollbar's default margin on those two
- * sides, which is the spacing the lint's target-size rule reads.
- */
-export const SCROLLBAR_HIT_SLOP = (24 - SCROLLBAR_THICKNESS) / 2;
 
 /**
  * R12.37's standalone scrollbar: a track and a thumb bound to any
@@ -48,6 +47,9 @@ export const SCROLLBAR_HIT_SLOP = (24 - SCROLLBAR_THICKNESS) / 2;
  * pointer and keeps dragging. Neither takes focus (`preventFocus`, R9.23),
  * so a press on a scrollbar does not blur a field in the content.
  *
+ * Its box is the target, `SCROLLBAR_BREADTH` across by default, and the
+ * track and thumb draw `SCROLLBAR_THICKNESS` thick along its middle.
+ *
  * With nothing to scroll (`extent <= viewport`) it draws and hits nothing.
  */
 export class Scrollbar extends Component {
@@ -59,12 +61,9 @@ export class Scrollbar extends Component {
 
 	constructor({ orientation = 'vertical', range = { offset: 0, extent: 0, viewport: 0 }, onScroll, ...options }: ScrollbarOptions = {}) {
 		super({
-			margin: orientation === 'vertical'
-				? { left: SCROLLBAR_HIT_SLOP, right: SCROLLBAR_HIT_SLOP }
-				: { top: SCROLLBAR_HIT_SLOP, bottom: SCROLLBAR_HIT_SLOP },
 			...options,
-			width: options.width ?? (orientation === 'vertical' ? SCROLLBAR_THICKNESS : 0),
-			height: options.height ?? (orientation === 'horizontal' ? SCROLLBAR_THICKNESS : 0),
+			width: options.width ?? (orientation === 'vertical' ? SCROLLBAR_BREADTH : 0),
+			height: options.height ?? (orientation === 'horizontal' ? SCROLLBAR_BREADTH : 0),
 		});
 		this.componentType = 'Scrollbar';
 		this.axis = orientation;
@@ -109,12 +108,9 @@ export class Scrollbar extends Component {
 		return { start, length };
 	}
 
-	/** R8.12's override: the track, grown across into the margin (the hit slop). */
+	/** R8.12's override: the whole box, and only while there is something to scroll. */
 	public containsPoint(localX: number, localY: number): boolean {
-		if (!this.active) return false;
-		const margin = this.margin;
-		return localX >= -margin.left && localX < this.width + margin.right
-			&& localY >= -margin.top && localY < this.height + margin.bottom;
+		return this.active && super.containsPoint(localX, localY);
 	}
 
 	/** It acts on presses in `handleEvent`, with or without a caller callback (the lint's rules 6 and 7). */
@@ -130,16 +126,16 @@ export class Scrollbar extends Component {
 	public render(draw: DrawApi): void {
 		if (!this.active) return;
 		const vertical = this.axis === 'vertical';
-		const radius = (vertical ? this.width : this.height) / 2;
-		draw.drawRect({ id: this.id ?? undefined, rect: { x: 0, y: 0, width: this.width, height: this.height }, fill: color.line_hairline, radius });
+		const across = Math.min(SCROLLBAR_THICKNESS, vertical ? this.width : this.height);
+		const inset = ((vertical ? this.width : this.height) - across) / 2;
+		const radius = across / 2;
+		const along = vertical ? this.height : this.width;
+		const band = (start: number, length: number) => (vertical
+			? { x: inset, y: start, width: across, height: length }
+			: { x: start, y: inset, width: length, height: across });
+		draw.drawRect({ id: this.id ?? undefined, rect: band(0, along), fill: color.line_hairline, radius });
 		const { start, length } = this.thumb;
-		draw.drawRect({
-			rect: vertical
-				? { x: 0, y: start, width: this.width, height: length }
-				: { x: start, y: 0, width: length, height: this.height },
-			fill: this.thumbColor,
-			radius,
-		});
+		draw.drawRect({ rect: band(start, length), fill: this.thumbColor, radius });
 	}
 
 	public handleEvent(event: AnyUiEvent): void {

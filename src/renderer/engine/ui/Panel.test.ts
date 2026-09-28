@@ -123,9 +123,11 @@ describe('Panel content (R12.19)', () => {
 		expect(panel.innerWidth).toBe(200 - inset * 2);
 	});
 
-	it('uses a smaller inset when compact and none when flush', () => {
+	it('uses a smaller inset when compact, and when flush only the border and corner radius (R12.19)', () => {
 		expect(new Panel({ compact: true }).contentInset.left).toBe(tokens.space.space_2);
-		expect(new Panel({ flush: true }).contentInset.left).toBe(0);
+		const edge = Math.max(tokens.borderWidth.bw, tokens.radius.radius_panel);
+		expect(new Panel({ flush: true }).contentInset).toEqual({ top: edge, right: edge, bottom: edge, left: edge });
+		expect(new Panel({ style: { padding: 0, borderRadius: 8, borderWidth: 2 } }).contentInset.left).toBe(8);
 		expect(new Panel({ style: { padding: 13 } }).contentInset).toEqual({ top: 13, right: 13, bottom: 13, left: 13 });
 	});
 
@@ -155,7 +157,8 @@ describe('Panel content (R12.19)', () => {
 		expect(child.containsScreenPoint(15, 25)).toBe(true);
 		expect(new Panel({ width: 200, height: 120, style: { padding: 13, borderWidth: 8, borderRadius: 3 } }).clipRect)
 			.toEqual({ x: 8, y: 8, width: 184, height: 104 });
-		expect(new Panel({ width: 200, height: 120, flush: true }).clipRect).toEqual({ x: 0, y: 0, width: 200, height: 120 });
+		const edge = Math.max(tokens.borderWidth.bw, tokens.radius.radius_panel);
+		expect(new Panel({ width: 200, height: 120, flush: true }).clipRect).toEqual({ x: edge, y: edge, width: 200 - edge * 2, height: 120 - edge * 2 });
 	});
 
 	it('occludes what is beneath it (pointerEvents auto)', () => {

@@ -110,11 +110,13 @@ export class CombatLogLayer extends Layer {
 	}
 
 	/**
-	 * One line per entry, in the log's order, kept by entry id, then the
-	 * newest line in view: the scroll container settles at its end after the
-	 * layout the new lines cause.
+	 * One line per entry, in the log's order, kept by entry id. A reader at
+	 * the bottom follows the newest line (the scroll container settles at its
+	 * end after the layout the new lines cause); one who scrolled up to read
+	 * back stays where they are.
 	 */
 	private syncEntries(): void {
+		const following = this.scroller.atBottom;
 		this.entryList.reconcileChildren(this.combatLog.entries, {
 			key: (entry) => entry.id,
 			create: (entry) => new Text(this.getPrefixForEntry(entry) + entry.message, {
@@ -128,7 +130,7 @@ export class CombatLogLayer extends Layer {
 				},
 			}),
 		});
-		this.scroller.scrollToBottom();
+		if (following) this.scroller.scrollToBottom();
 	}
 
 	/**

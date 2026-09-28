@@ -13,7 +13,7 @@ import {
 	validateStyle,
 } from '../style/styleObject';
 import { tokens } from '../theme/tokens';
-import { SCROLLBAR_GUTTER, SCROLLBAR_THICKNESS, Scrollbar } from './Scrollbar';
+import { SCROLLBAR_GUTTER, Scrollbar } from './Scrollbar';
 
 export type ScrollBlock = 'nearest' | 'center';
 
@@ -139,6 +139,11 @@ export class ScrollContainer extends Component {
 		this.contentHeightOverride = height;
 		this.invalidateLayout();
 		this.applyScroll(this.scrollY);
+	}
+
+	/** At the end already, or with nothing to scroll: where a log that follows its newest line stays put. */
+	public get atBottom(): boolean {
+		return this.scrollY >= this.maxScroll - 1;
 	}
 
 	/** Whether the content is taller than the viewport, so the scrollbar shows. */
@@ -384,13 +389,11 @@ export class ScrollContainer extends Component {
 	private placeScrollbar(): void {
 		const bar = this.scrollbar;
 		const clip = this.clipRect;
-		const edge = Math.max(this.box.borderWidth, this.box.radius > 0 ? tokens.space.space_0_5 : 0);
 		bar.visible = this.overflows;
-		// Centred in the gutter at the right edge, and moved by the offset so
-		// it stays fixed on screen; the position is the margin box's, whose
-		// left margin is the hit slop.
-		bar.setPosition(this.width - edge - (SCROLLBAR_GUTTER + SCROLLBAR_THICKNESS) / 2 - bar.margin.left, clip.y + this.scrollY);
-		bar.setSize(SCROLLBAR_THICKNESS, clip.height);
+		// In the gutter the content gave up, inside the right padding, and
+		// moved by the offset so it stays fixed on screen.
+		bar.setPosition(this.width - this.padding.right - SCROLLBAR_GUTTER, clip.y + this.scrollY);
+		bar.setSize(SCROLLBAR_GUTTER, clip.height);
 		bar.range = { offset: this.scrollY, extent: this.scrollExtent, viewport: this.height };
 	}
 }

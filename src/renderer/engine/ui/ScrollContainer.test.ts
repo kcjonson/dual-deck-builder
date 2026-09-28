@@ -16,7 +16,7 @@ import type { PopupCloseReason } from '../services/PopupService';
 import { createMeasuringDrawApi, MeasuringRecordingBackend } from '../text/testing';
 import { tokens } from '../theme/tokens';
 import { Input } from './Input';
-import { SCROLLBAR_GUTTER, Scrollbar } from './Scrollbar';
+import { SCROLLBAR_BREADTH, SCROLLBAR_GUTTER, Scrollbar } from './Scrollbar';
 import { ScrollContainer, ScrollContainerOptions } from './ScrollContainer';
 
 /**
@@ -310,6 +310,33 @@ describe('ScrollContainer input (R9.32, R12.20)', () => {
 		expect(scroll.scrollPosition).toBeGreaterThan(0);
 	});
 
+	it('keeps the scrollbar inside the clip of a padded, bordered container, and draggable there', () => {
+		const { scroll } = mounted(600, { style: { padding: 8, borderWidth: 1 } });
+		const bar = scroll.bar.screenBounds;
+		const clip = scroll.clipRect;
+		expect(scroll.bar.x).toBeGreaterThanOrEqual(clip.x);
+		expect(scroll.bar.x + scroll.bar.width).toBeLessThanOrEqual(clip.x + clip.width);
+		const x = Math.round(bar.x + bar.width / 2);
+		const thumb = scroll.bar.thumb;
+		const grab = Math.round(bar.y + thumb.start + thumb.length / 2);
+		expect(scroll.bar.containsScreenPoint(x, grab)).toBe(true);
+		inject(`move,${x},${grab}`, `down,${x},${grab}`, `move,${x},${grab + 60}`, `up,${x},${grab + 60}`);
+		expect(scroll.scrollPosition).toBeGreaterThan(0);
+	});
+
+	it('gives the scrollbar a 24 px lane beside the content, never over it (R13.25.7)', () => {
+		const scroll = new ScrollContainer({ x: 0, y: 0, width: 200, height: 100 });
+		const list = rows(10);
+		scroll.addChild(list.stack);
+		root.addChild(scroll);
+		context.frame.layout();
+		expect(scroll.bar.width).toBe(SCROLLBAR_BREADTH);
+		const rowRight = list.items[0].screenBounds.x + list.items[0].width;
+		expect(rowRight).toBeLessThanOrEqual(scroll.bar.screenBounds.x);
+		expect(context.dispatcher.hitTest({ x: rowRight - 1, y: 10 })).toBe(list.items[0]);
+		expect(context.dispatcher.hitTest({ x: rowRight + 1, y: 10 })).toBe(scroll.bar);
+	});
+
 	it('drags the thumb with the pointer captured, mapping its travel to the scroll range', () => {
 		const { scroll } = mounted(600);
 		const bar = scroll.bar.screenBounds;
@@ -447,9 +474,9 @@ describe('Scrollbar (R12.37)', () => {
 		const bar = new Scrollbar({ id: 'bar', orientation: 'horizontal', x: 0, y: 500, width: 400, range: { offset: 0, extent: 800, viewport: 400 }, onScroll: (offset) => asked.push(offset) });
 		root.addChild(bar);
 		context.frame.layout();
-		expect(bar.height).toBe(tokens.space.space_1_5);
+		expect(bar.height).toBe(SCROLLBAR_BREADTH);
 		expect(bar.thumb).toEqual({ start: 0, length: 200 });
-		inject('move,100,503', 'down,100,503', 'move,200,503', 'up,200,503');
+		inject('move,100,512', 'down,100,512', 'move,200,512', 'up,200,512');
 		expect(asked).toEqual([200]);
 		expect(bar.range.offset).toBe(200);
 	});

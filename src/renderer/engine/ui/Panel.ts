@@ -121,10 +121,21 @@ export class Panel extends Stack {
 		...options
 	}: PanelOptions = {}) {
 		validateStyle(style, PANEL_STYLE);
+		const box = panelBox(variant, style);
 		const inset = flush ? 0 : compact ? tokens.space.space_2 : tokens.space.space_4;
-		const contentPadding = style.padding !== undefined
+		const requested = style.padding !== undefined
 			? resolvePadding(style.padding, { top: inset, right: inset, bottom: inset, left: inset })
 			: { top: inset, right: inset, bottom: inset, left: inset };
+		// R12.19: content is inset by the border and the corner radius, since
+		// the rounded clip is not implemented; `flush` and a smaller padding
+		// meet that edge rather than paint over it.
+		const edge = Math.max(box.borderWidth, box.radius);
+		const contentPadding = {
+			top: Math.max(requested.top, edge),
+			right: Math.max(requested.right, edge),
+			bottom: Math.max(requested.bottom, edge),
+			left: Math.max(requested.left, edge),
+		};
 		const hasHeader = title !== undefined || kicker !== undefined;
 		if (actions.length > 0 && !hasHeader) throw new Error('Panel: actions sit in the header, which needs a title or kicker (R12.19)');
 		const headerInset = compact ? tokens.space.space_1_5 : tokens.space.space_2;
@@ -144,7 +155,7 @@ export class Panel extends Stack {
 		this.headerInset = headerInset;
 		this.headerHeight = headerHeight;
 		this.freeLayout = layout === 'free';
-		this.box = panelBox(variant, style);
+		this.box = box;
 		if (style.opacity !== undefined) this.opacity = style.opacity;
 
 		this.kickerText = kicker !== undefined
@@ -239,17 +250,16 @@ export class Panel extends Stack {
 	}
 
 	/**
-	 * A padded panel clips inside its border and its corner radius, inset by
-	 * the larger of the two on every side, so content never paints over the
-	 * border or past the rounded corners `render` drew first. The walk, hit
-	 * test and snapshot all clip to a plain rect, so the radius is cleared by
-	 * inset rather than by R4.14's rounded clip. An unpadded panel keeps the
-	 * border-box clip. Clipping happens only when `overflow` is `hidden`.
+	 * The clip sits inside the border and the corner radius, inset by the
+	 * larger of the two on every side, the same edge the content inset never
+	 * goes below, so content never paints over the border or past the rounded
+	 * corners `render` drew first. The walk, hit test and snapshot all clip
+	 * to a plain rect, so the radius is cleared by inset rather than by
+	 * R4.14's rounded clip. Clipping happens only when `overflow` is `hidden`.
 	 * Decision: docs/AI_TECHNICAL_DECISIONS/panel-padding.md.
 	 */
 	protected computeClipRect(): Rect {
-		const padded = this.contentPadding.top + this.contentPadding.left + this.contentPadding.right + this.contentPadding.bottom > 0;
-		const edge = padded ? Math.max(this.box.borderWidth, this.box.radius) : 0;
+		const edge = Math.max(this.box.borderWidth, this.box.radius);
 		const inset = Math.min(edge, this.width / 2, this.height / 2);
 		return { x: inset, y: inset, width: this.width - inset * 2, height: this.height - inset * 2 };
 	}

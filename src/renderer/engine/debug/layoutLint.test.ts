@@ -370,6 +370,25 @@ describe('layoutLint', () => {
 			expect(reportFor(result, 'child-outside-parent').evaluated).toBe(2);
 		});
 
+		it('still reports a scroll container\'s child that escapes across, and a part of its own', () => {
+			const result = layoutLint(
+				doc([
+					node({
+						id: 'scroller',
+						type: 'ScrollContainer',
+						bounds: box(0, 0, 100, 100),
+						contentOffset: { x: 0, y: 0 },
+						scroll: { x: 0, y: 0, maxX: 0, maxY: 300 },
+						parts: [node({ id: 'bar', type: 'Scrollbar', bounds: box(90, 0, 24, 100) })],
+						children: [node({ id: 'content', type: 'Stack', bounds: box(0, 0, 108, 400) })],
+					}),
+				]),
+			);
+
+			expect(forRule(result, 'child-outside-parent').map((violation) => violation.path)).toEqual(['scroller/bar', 'scroller/content']);
+			expect(reportFor(result, 'child-outside-parent').exempt).toBe(0);
+		});
+
 		it('compares in screen space, so an offset parent does not make a contained child escape', () => {
 			const result = layoutLint(
 				doc([
