@@ -484,7 +484,23 @@ describe('clip stack (R2.5, R4.2, R4.7) and chapter 4.7 required tests', () => {
 		api.endFrame();
 	});
 
-	it('warns when a clip is pushed under a non-translate transform', () => {
+	it('clips exactly and quietly under a scale, which keeps the rect on the axes', () => {
+		const { api } = harness();
+		api.beginFrame({ viewport: VIEWPORT });
+		api.pushTransform([1.5, 0, 0, 1.5, 10, 20]);
+		api.pushClip(rect(0, 0, 10, 20));
+		expect(codes(api)).toEqual([]);
+		expect(api.clip).toEqual({
+			kind: 'rect',
+			rect: { minX: 10, minY: 20, maxX: 25, maxY: 50 },
+			rounded: null,
+		});
+		api.popClip();
+		api.popTransform();
+		api.endFrame();
+	});
+
+	it('warns when a clip is pushed under a rotating transform', () => {
 		const { api } = harness();
 		api.beginFrame({ viewport: VIEWPORT });
 		api.pushTransform([0, 1, -1, 0, 0, 0]);

@@ -37,10 +37,11 @@ function click(spot: string): void {
 	expect(injectNow({ canvas, dispatcher: context.dispatcher }, [`click,${spot}`]).ok).toBe(true);
 }
 
-/** The global centre of a layer, as `x,y` for a click */
-function centerOf(layer: Component): string {
-	const { x, y } = layer.localToScreen({ x: 0, y: 0 });
-	return `${Math.round(x + layer.getWidth() / 2)},${Math.round(y + layer.getHeight() / 2)}`;
+/** The centre of a component on screen, after the frame's layout, as `x,y` for a click */
+function centerOf(component: Component): string {
+	context.frame.layout();
+	const { x, y, width, height } = component.screenBounds;
+	return `${Math.round(x + width / 2)},${Math.round(y + height / 2)}`;
 }
 
 /** Hand cards still reachable by a click at any of the spots */
@@ -125,9 +126,6 @@ describe('CombatScreen: the fight ending leaves no combat cards behind', () => {
 		const headshot = CardLoader.getInstance().createCard('headshot');
 		if (!headshot) throw new Error('headshot should load');
 		raider.driver.set({ hitpoints: 1 });
-		// Last, not first: at this 1024 px viewport the first driver's hand
-		// starts off the left edge, outside the hand layer's clip, and R4.12
-		// makes a card there unclickable, as it is unseeable.
 		driver.set({
 			hand: [...driver.hand, headshot],
 			adrenaline: driver.maxAdrenaline,
@@ -177,7 +175,7 @@ describe('CombatScreen: the fight ending leaves no combat cards behind', () => {
 		const spots = cardSpots(combat);
 		expect(spots.length).toBeGreaterThan(0);
 
-		const endTurn = combat['resourceLayer']['endTurnButton'];
+		const endTurn = combat['endTurnColumn'].endTurn;
 		click(centerOf(endTurn));
 		await settle();
 
