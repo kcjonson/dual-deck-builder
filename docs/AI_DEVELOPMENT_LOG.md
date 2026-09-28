@@ -6,6 +6,17 @@ This document contains the chronological log of completed development tasks for 
 
 **Date correction (2026-08-22):** the repo's first commit is 2025-05-17, but many entries below carry dates in December 2024 or January 2025 — the AI that wrote them used its assumed date instead of the real one. Entries dated 2025-07-03 and 2025-07-02 have been corrected from "2025-01-03"/"2025-01-02" (verified against git history). Remaining Dec 2024 / Jan 2025 dates are wrong by roughly six months; the real work happened May–July 2025. Trust git history over these dates.
 
+## Catalog Wave C, tree view and screen transition (2026-09-28)
+
+**What landed:** DDB-87's third PR (DDB-55 phase 5), R12.25, R12.38, R8.22's transition sequence.
+
+- `ui/TreeView.ts`: lazy flattening keyed by node id or index path, culled rows reconciled by key, wheel scrolling with `canScroll`, keyboard cursor with Up, Down, Home, End, Left, Right, Enter and Space, chevron-column toggle, optional selection, `expandAll`, `collapseAll`, `expand`, `collapse`, `select`.
+- `ui/ScreenTransition.ts`: `run(context, swap)` fades out, swaps, lays out, fades in; blocks presses and hotkeys; retargets a second run.
+- `OverlayOptions.persistent`: survives `closeAll`.
+- Scenes `tree-view` (developer section) and `screen-transition` (gallery-only).
+
+**How:** `ui/TreeView.test.ts` (7) and `ui/ScreenTransition.test.ts` (6) through the dispatcher's queue and the frame clock, including a swap that runs ScreenManager's own closes. Both scenes lint clean in the browser.
+
 ## Catalog Wave C, display components (2026-09-28)
 
 **What landed:** DDB-87's second PR (DDB-55 phase 5), R12.24, R12.26 to R12.29, R12.39.

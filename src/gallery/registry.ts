@@ -5,6 +5,7 @@ import { DialogScene } from './scenes/DialogScene';
 import { OverlaysScene } from './scenes/OverlaysScene';
 import { PopoverScene } from './scenes/PopoverScene';
 import { ToastScene } from './scenes/ToastScene';
+import { TransitionScene } from './scenes/TransitionScene';
 
 /**
  * The gallery's scene registry (R13.30): one scene per developer-screen
@@ -36,6 +37,7 @@ export const galleryOnlyScenes: readonly GalleryScene[] = [
 	{ name: 'dialog', factory: (options) => new DialogScene(options) },
 	{ name: 'popover', factory: (options) => new PopoverScene(options) },
 	{ name: 'toasts', factory: (options) => new ToastScene(options) },
+	{ name: 'screen-transition', factory: (options) => new TransitionScene(options) },
 ];
 
 export const gallerySceneRegistry: readonly GalleryScene[] = [

@@ -1,6 +1,6 @@
 # Component catalog, Wave C
 
-Status: in progress, 2026-09-28, DDB-87 (DDB-55 phase 5). Chapter 12 of the [UI rendering spec](../ui-rendering-spec/12-component-catalog.md); built on [overlay-and-popup-services.md](./overlay-and-popup-services.md), [focus-manager.md](./focus-manager.md), [clock-and-animator.md](./clock-and-animator.md), and [component-catalog-wave-a.md](./component-catalog-wave-a.md).
+Status: implemented across three PRs, 2026-09-28, DDB-87 (DDB-55 phase 5). Chapter 12 of the [UI rendering spec](../ui-rendering-spec/12-component-catalog.md); built on [overlay-and-popup-services.md](./overlay-and-popup-services.md), [focus-manager.md](./focus-manager.md), [clock-and-animator.md](./clock-and-animator.md), and [component-catalog-wave-a.md](./component-catalog-wave-a.md).
 
 Wave C lands as sequential pull requests by group:
 
@@ -40,6 +40,10 @@ Wave C lands as sequential pull requests by group:
 
 **Divider hugs across and fills along.** Horizontal by default: `fill` width in a stack, and a height that is the caption's line (or the hairline without one); vertical fills the height and refuses a caption.
 
+**TreeView culls itself and keeps a cursor, not a focus per row.** R12.25 asks for rows outside a fixed height to be culled and clipped, so only the rows inside the view exist as components, reconciled by node key on every layout; the view clips them and scrolls on the wheel itself (`canScroll` for R9.32's latch) rather than through a ScrollContainer, which would have to hold every row to measure them. Since culled rows come and go, the view is the one Tab stop and keeps a keyboard cursor over its rows (ARIA's `aria-activedescendant` pattern): Up, Down, Home, End move it and scroll it into view, Right expands or steps in, Left collapses or steps out, Enter and Space select or toggle. A press left of the chevron column's end toggles; elsewhere it selects in a `selectable` tree and toggles in a view-only one. Rows are `Pressable`s that are not focusable; a row's `show` places its parts directly, since an invalidation from inside the tree's layout would mark the tree again.
+
+**ScreenTransition is persistent and modal.** R8.22's sequence runs inside the transition: fade out, `swap` (the caller's unmount and mount), `frame.layout()`, fade in, close. `swap` is where ScreenManager's `navigate` will run, and navigate closes every overlay; the new `persistent` overlay option keeps the transition's root out of `closeAll`. The quad fades by colour, so it takes presses from the first frame, and the root is modal, so no scene hotkey fires under it. A `run` during the fade out replaces the pending swap; one during the fade in heads back out from where it is. Each `run` returns a promise that settles when the transition is next idle. The harness's `settle` runs the whole chain, swap included, so a golden is the incoming scene with nothing over it. DDB-90 wires ScreenManager to it.
+
 ## Departures
 
 - `Dialog.show` and `Popover.show` rather than R12.21's `open()` (above).
@@ -49,4 +53,4 @@ Wave C lands as sequential pull requests by group:
 
 ## Gallery
 
-Display components are developer-screen sections, so they are scenes too: `meters` (ProgressBar and Counter) and `data-display` (Badge, Avatar, Stat, KeyCap, Divider). The overlay components have gallery-only scenes, since each opens overlay roots over its host: `dialog` (the modal open over its trigger), `popover` (a stat breakdown open against its button, and a row of key caps), `toasts` (one of each severity in the top-right stack). The `overlays` scene's tooltip is now the catalog Tooltip with a KeyCap, so its golden moves. The icon atlas gained `close`, `info`, `warning`, `error`, `chevron_right`, and `expand_more` (the last two for TreeView), so the `icons` scene moves.
+Display components are developer-screen sections, so they are scenes too: `meters` (ProgressBar and Counter) and `data-display` (Badge, Avatar, Stat, KeyCap, Divider). The overlay components have gallery-only scenes, since each opens overlay roots over its host: `dialog` (the modal open over its trigger), `popover` (a stat breakdown open against its button, and a row of key caps), `toasts` (one of each severity in the top-right stack). The `overlays` scene's tooltip is now the catalog Tooltip with a KeyCap, so its golden moves. `tree-view` is a developer section; `screen-transition` is gallery-only and shows the stage the transition lands on. The icon atlas gained `close`, `info`, `warning`, `error`, `chevron_right`, and `expand_more` (the last two for TreeView), so the `icons` scene moves.

@@ -46,6 +46,11 @@ export interface OverlayOptions {
 	 * dialog whose own box is its scrim, a screen transition's quad.
 	 */
 	fill?: boolean;
+	/**
+	 * Survives `closeAll`: a screen transition spans the scene change that
+	 * closes everything else (R8.22, R12.38). Closed only by its handle.
+	 */
+	persistent?: boolean;
 }
 
 /**
@@ -64,6 +69,7 @@ export class OverlayHandle {
 	public readonly consumeOutsidePress: boolean;
 	public readonly closeOnEscape: boolean;
 	public readonly fill: boolean;
+	public readonly persistent: boolean;
 	private readonly service: OverlayService;
 	private readonly onDismiss: ((reason: OverlayDismissReason) => void) | null;
 	private readonly onClose: (() => void) | null;
@@ -80,6 +86,7 @@ export class OverlayHandle {
 		this.consumeOutsidePress = options.consumeOutsidePress ?? this.modal;
 		this.closeOnEscape = options.closeOnEscape ?? false;
 		this.fill = options.fill ?? false;
+		this.persistent = options.persistent ?? false;
 		this.onDismiss = options.onDismiss ?? null;
 		this.onClose = options.onClose ?? null;
 	}
@@ -199,9 +206,12 @@ export class OverlayService implements InputObserver {
 		};
 	}
 
-	/** Closes every open root, newest first: a scene change (R8.22). */
+	/** Closes every open root but the persistent ones, newest first: a scene change (R8.22). */
 	public closeAll(): void {
-		for (let index = this.handles.length - 1; index >= 0; index--) this.handles[index]?.close();
+		for (let index = this.handles.length - 1; index >= 0; index--) {
+			const handle = this.handles[index];
+			if (handle && !handle.persistent) handle.close();
+		}
 	}
 
 	/** Re-sizes every root to the viewport; the shells call it where the viewport change lands (R7.3). */
