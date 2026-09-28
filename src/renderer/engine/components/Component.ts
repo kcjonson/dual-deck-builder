@@ -377,6 +377,31 @@ export abstract class Component {
 	}
 
 	/**
+	 * This component itself answers the pointer: a press, click, hover or
+	 * drop-target callback is set on it. Widgets that act on pointer events
+	 * in their own `handleEvent` override it to true.
+	 *
+	 * `pointerEvents` says whether the box takes hits, and R8.29 makes `auto`
+	 * the default for every leaf, so a label takes hits as much as a button
+	 * does. This is the other half, what the snapshot reports so the lint's
+	 * rules 6 and 7 can tell a control from a label (R13.25.6, R13.25.7).
+	 * Wheel and key callbacks are left out: a scroller is not a target, and
+	 * keyboard reach is `focusable`'s question.
+	 */
+	public get handlesPointer(): boolean {
+		return this.onPointerDown !== null
+			|| this.onPointerUp !== null
+			|| this.onPointerMove !== null
+			|| this.onPointerEnter !== null
+			|| this.onPointerLeave !== null
+			|| this.onClick !== null
+			|| this.onContextMenu !== null
+			|| this.onDragEnter !== null
+			|| this.onDragOver !== null
+			|| this.onDrop !== null;
+	}
+
+	/**
 	 * R10.1's per-kind default for an axis given its constructed size: `fixed`
 	 * for everything but text and stacks, which hug an axis given no size.
 	 */

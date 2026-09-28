@@ -35,6 +35,11 @@ export abstract class Pressable extends Component {
 		return 'unit';
 	}
 
+	/** Presses show on it whether or not a caller set onClick (the lint's rules 6 and 7). */
+	public get handlesPointer(): boolean {
+		return true;
+	}
+
 	public handleEvent(event: AnyUiEvent): void {
 		if (event.type === 'click' && !this.releasedInside) {
 			// A captured release outside still reaches the captor as a click
