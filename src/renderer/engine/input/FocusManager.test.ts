@@ -1,4 +1,5 @@
 import { Component, ComponentOptions } from '../components/Component';
+import { Panel } from '../ui/Panel';
 import type { MountContext } from '../components/MountContext';
 import { createTestContext } from '../components/testing';
 import type { PlatformInput } from './Dispatcher';
@@ -355,12 +356,58 @@ describe('focus groups (R9.29)', () => {
 		expect(focusedId()).toBe('after');
 	});
 
+	it('lets go of an active child that is removed, and enters at the first member', () => {
+		const { group, cards } = hand();
+		context.focus.focus(cards[2]);
+		expect(group.activeChild).toBe(cards[2]);
+		group.removeChild(cards[2]);
+		expect(group.activeChild).toBeNull();
+
+		context.focus.focus(cards[1]);
+		group.clearChildren();
+		expect(group.activeChild).toBeNull();
+	});
+
 	it('wraps when asked', () => {
 		const { group } = hand();
 		group.focusGroup = { orientation: 'horizontal', wrap: true };
 		context.focus.focus(group.getChildren()[2]);
 		key('ArrowRight');
 		expect(focusedId()).toBe('one');
+	});
+});
+
+describe('scroll into view (R12.20)', () => {
+	function scroller(): { panel: Panel; rows: Probe[] } {
+		const panel = new Panel({ id: 'panel', width: 200, height: 100, scrollable: true });
+		const rows = [0, 1, 2, 3, 4].map((index) => new Probe({ id: `row${index}`, y: index * 60, width: 200, height: 40, focusable: true }));
+		for (const row of rows) panel.addChild(row);
+		panel.setContentSize(200, 280);
+		panel.mount(context);
+		return { panel, rows };
+	}
+
+	it('scrolls the least that shows a component focused by keyboard, both ways', () => {
+		const { panel } = scroller();
+		key('Tab');
+		key('Tab');
+		expect(panel.getScrollOffset().y).toBe(0);
+		key('Tab');
+		// row2 spans 120 to 160; the clip is 100 tall
+		expect(focusedId()).toBe('row2');
+		expect(panel.getScrollOffset().y).toBe(60);
+		key('Tab', { shift: true });
+		key('Tab', { shift: true });
+		expect(panel.getScrollOffset().y).toBe(0);
+	});
+
+	it('scrolls for programmatic focus, but not for a press', () => {
+		const { panel, rows } = scroller();
+		context.focus.focus(rows[4]);
+		expect(panel.getScrollOffset().y).toBe(180);
+		panel.setScrollOffset(0, 0);
+		context.focus.focusFromPointer(rows[3]);
+		expect(panel.getScrollOffset().y).toBe(0);
 	});
 });
 

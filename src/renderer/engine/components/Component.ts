@@ -752,6 +752,7 @@ export abstract class Component {
 		for (const child of removed) {
 			child.parentComponent = null;
 			child.ownedByParent = false;
+			this.forgetActiveChild(child);
 			child.unmount();
 		}
 		this.invalidateLayout();
@@ -768,6 +769,7 @@ export abstract class Component {
 		child.ownedByParent = false;
 		child[RECONCILE_KEY] = undefined;
 		child.exiting = false;
+		this.forgetActiveChild(child);
 		this.invalidateFocusOrder();
 		this.invalidateLayout();
 		return true;
@@ -1054,6 +1056,16 @@ export abstract class Component {
 	}
 
 	/**
+	 * R12.20's `scrollIntoView` with `block: nearest`: a scroller moves the
+	 * least that brings `descendant`'s box inside its clip. The focus manager
+	 * asks every ancestor of a component focused by keyboard or code, inner
+	 * first, so focus never lands out of sight. Only scrollers act.
+	 */
+	public scrollIntoView(_descendant: Component): void {
+		// Not a scroller.
+	}
+
+	/**
 	 * R9.32: whether a wheel of these logical-pixel deltas would move this
 	 * component's content. The dispatcher latches the innermost scroller under
 	 * the pointer that answers true and sends it the wheel events.
@@ -1218,6 +1230,17 @@ export abstract class Component {
 	/** The table if one was ever created, for the dispatcher's search. */
 	public get ownHotkeys(): HotkeyTable | null {
 		return this.hotkeyTable;
+	}
+
+	/**
+	 * A focus group here or above whose active child was `removed` or inside
+	 * it lets go (R9.29), so a detached card is not kept alive and Tab enters
+	 * the group at its first member instead.
+	 */
+	private forgetActiveChild(removed: Component): void {
+		const active = this.groupActiveChild;
+		if (active && (active === removed || removed.isAncestorOf(active))) this.groupActiveChild = null;
+		this.parentComponent?.forgetActiveChild(removed);
 	}
 
 	private invalidateFocusOrder(): void {

@@ -170,7 +170,9 @@ export class DriverSelectionScreen extends Screen {
 		this.backButton.onClick = () => {
 			ScreenManager.navigate('mainMenuScreen');
 		};
-		this.rootLayer.addChild(this.backButton);
+		// Right after the title, so Tab reaches it first, in reading order
+		// (R9.18: tree order), though the panels are built before it
+		this.rootLayer.insertChild(this.rootLayer.getChildren().indexOf(this.titleText) + 1, this.backButton);
 		
 		// The primary action; disabled until two different drivers are picked,
 		// which the accent tone draws as its neutral disabled look.

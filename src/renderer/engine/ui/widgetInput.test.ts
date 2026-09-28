@@ -144,6 +144,26 @@ describe('Button', () => {
 		expect(clicks).toHaveLength(3);
 	});
 
+	it('clicks once when a click disables it and Enter comes twice in one frame, then loses focus at layout (R9.28)', () => {
+		const { button: made, clicks } = button();
+		made.onClick = () => {
+			clicks.push(1);
+			made.setEnabled(false);
+		};
+		inject('keydown,Tab', 'keyup,Tab');
+		for (const repeat of [false, false]) {
+			context.dispatcher.enqueue({ kind: 'key', phase: 'down', key: 'Enter', repeat, modifiers: NO_MODIFIERS });
+			context.dispatcher.enqueue({ kind: 'key', phase: 'up', key: 'Enter', repeat: false, modifiers: NO_MODIFIERS });
+		}
+		context.dispatcher.dispatchPending();
+		expect(clicks).toHaveLength(1);
+		expect(made.focused).toBe(true);
+
+		context.frame.layout();
+		expect(made.focused).toBe(false);
+		expect(context.focus.focused).toBeNull();
+	});
+
 	it('takes focus from a press without showing it (R9.23)', () => {
 		const { button: made } = button();
 		inject('click,160,120');

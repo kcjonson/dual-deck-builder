@@ -403,6 +403,9 @@ export class FocusManager {
 		}
 		if (next) {
 			next.setFocusState(true, visible);
+			// A press lands on something already in view; keyboard and code
+			// may not (R12.20).
+			if (reason !== 'pointer') revealInScrollers(next);
 			next.handleEvent(new UiFocusEvent({
 				type: 'focus',
 				timestamp: this.clock.now,
@@ -565,6 +568,11 @@ export function directionalScore(from: Rect, to: Rect, direction: FocusDirection
 	const overlap = Math.max(0, Math.min(fromCrossStart + fromCrossSize, toCrossStart + toCrossSize) - Math.max(fromCrossStart, toCrossStart));
 
 	return along + 2 * across - overlap;
+}
+
+/** Each scrolling ancestor, innermost first, brings `component` into its clip. */
+function revealInScrollers(component: Component): void {
+	for (let node = component.parent; node; node = node.parent) node.scrollIntoView(component);
 }
 
 function isInclusiveAncestor(ancestor: Component, node: Component): boolean {
