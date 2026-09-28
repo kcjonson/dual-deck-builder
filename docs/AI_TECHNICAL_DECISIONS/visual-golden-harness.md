@@ -264,7 +264,7 @@ expressing.
 | Time freeze | `window.__app.pause()` | splash auto-navigate, `PlayerHandLayer`'s 300 ms discard timer |
 | Seeded random | mulberry32 over `Math.random` via `addInitScript` | deck order after a reshuffle; nothing in a mounted screen today |
 | Wait for assets | `assetsReady` on `window.__app.status()`, false while CardLoader has a request outstanding | `cards.json` arriving mid-capture |
-| Wait for a still tree | hooks present, `document.fonts.ready`, `liveness.frameCount` advancing, tree identical across two frames | layout still settling when the shutter opens |
+| Wait for a settled layout | hooks present, `document.fonts.ready`, then the window, the canvas box, its backing store and the committed viewport all at 1440x882 and the tree unchanged for two counted frames (DDB-201) | a resize measured or committed after the screen built; layout still settling when the shutter opens |
 
 Those last two are separate rows because they were one row and the row was wrong. The two-frame
 comparison proves that the tree stopped changing and nothing more: a screen whose `cards.json`
@@ -275,6 +275,13 @@ showcase tree, where the loaded tree is 89,108. With the wait in place the same 
 and returns the full tree. The case that costs real money is the mint job, which runs
 `--update-snapshots` once and has no second run to disagree with it, so one slow fetch there
 commits the pre-data frame as the definition of correct and every correct run afterwards fails.
+
+The last row did not do what it said until DDB-201. The tree comparison was a `waitForFunction`
+with an async predicate, and `waitForFunction` tests the returned Promise for truthiness rather
+than awaiting it, so the predicate passed on its first poll and never compared anything
+(`waitForFunction(async () => false)` resolves at once; the sync form times out). Every golden
+before DDB-201 was taken three frames after `assetsReady` with no stillness check at all. See
+"The layout gate" below.
 
 1440x882 is the viewport the phase 0 frame baseline was captured at - the default in
 `scripts/perf-capture.mjs`, since the baseline JSON records samples and no viewport - so a
@@ -320,3 +327,104 @@ nothing on screen, for the batching and hardcoding reasons in the section above.
 The suite passes 26 of 26 (4 skipped) twice in a row at the committed values, with every baseline
 byte-identical afterwards. When a golden does start failing, the answer is to find what varies, not
 to raise these numbers.
+
+## The layout gate (DDB-201)
+
+Filed after DDB-70's re-mint, where a review read the driver-selection golden as having moved its
+whole layout between mints (back button at 0,0 then 30,30, panels at x 13 then 72) with no layout
+change. That flip is not in the history: every committed driver-selection golden in both projects,
+from the first mint (`670350c`) to `a49d605`, has the button's fill at (35, 35) and the left panel's
+border at x 72, which is what the code says. So there was no flip to explain. There was a gate
+that could not have caught one.
+
+What the capture could race is a resize. It reaches a screen in three steps: the window changes
+(and screens still read `innerWidth` when they build), the `ResizeObserver` measures the canvas box
+into a pending viewport, and the next frame commits it, resizing the backing store and calling
+`Screen.resize`, which on driver selection tears the screen down and rebuilds it. Reproduced by
+shrinking the viewport to 1300x800 just before `navigate`: at the moment the screen built, the
+window and canvas box were 1300x800 while the backing store and committed viewport were still
+1440x882. The old `settle` would have captured whatever came three frames after `assetsReady`,
+because its only stillness check, the two-frame tree comparison, never ran (see the note under the
+determinism table: an async `waitForFunction` predicate passes on its first poll).
+
+`settle` now polls inside one `page.evaluate` and returns only when the window, the canvas's CSS
+box, its backing store and the committed viewport (the tree snapshot's `viewport`, which is
+`CanvasViewport.logical`) all equal `FIXED_VIEWPORT`, and the tree has serialised the same for two
+frames counted on the frame timer; any disagreement or change restarts the count. It fails after
+15 s with the sizes it was stuck at. `openScreen` also asserts the screen's root layer is the
+viewport, since a root at another size is a screen that built before the last commit and never
+heard it. With the same 1300x800 reproduction, `settle` held until the viewport was restored and
+returned with everything at 1440x882. No engine hook was added: reading the CSS box directly is
+stronger than asking `CanvasViewport` whether a measurement is pending, since it also covers a
+resize the observer has not reported yet.
+
+Stability, measured on CI: a Screenshots run on the branch compared all 35 captures against
+`main`'s goldens, minted on other runner instances, and every one differed by 0 pixels. Three
+`update_mode=all` mints on the branch each rewrote every golden and each ended "Baselines
+unchanged", so the files are byte-identical across mints: runs 36443442482, 36444289171 and 36444931498.
+
+## The cluster rule (DDB-197)
+
+`maxDiffPixels: 200` counts differing pixels wherever they are, so any change with a footprint
+under 200 passes, and a changed number is the canonical case: DDB-64's re-mint found `main`'s
+combat golden reading 5 where the app drew 15. A game UI golden that cannot see a number change is
+missing the regression it exists for.
+
+Options on the ticket: per-scenario budgets near zero, a check of rendered strings against the tree
+snapshot, or a limit on the size of any connected region of changed pixels. The cluster limit is
+what landed. Per-scenario budgets still count area, so a digit on a noisy scenario hides under that
+scenario's allowance. The text check sees strings, not pixels, so it misses a glyph drawn wrong, and
+it needs a second committed golden per scenario. The cluster rule sees any dense change, text or
+not, and needs nothing new committed.
+
+`expectGolden` in `tests/visual/support/harness.ts` runs `toHaveScreenshot` as before, then takes the
+same frame again, marks the pixels pixelmatch counts as different (the suite's threshold,
+anti-aliased pixels excluded, so both checks agree on which pixels changed), and joins differing
+pixels within 2 of each other on both axes into clusters (`tests/visual/support/diffClusters.ts`).
+A capture fails when its largest cluster exceeds 8 pixels, whatever the total. The radius bridges
+the gaps between a glyph's strokes and between adjacent digits; scattered noise stays in one- and
+two-pixel clusters. Every capture writes `golden-diff.json` (total, cluster count, largest cluster
+and its bounds) to its output directory, which the workflow uploads, so the budget can be checked
+against real runs rather than re-guessed. On a `changed` mint the harness rewrites a golden the
+cluster rule rejects, since `toHaveScreenshot` only rewrites what it rejected itself.
+
+Why 8: the CI measurement above is 0 differing pixels on all 35 captures across runner instances,
+so the budget is headroom against a future wobble, not cover for a present one, and the smallest real
+change measured (a digit in the 8 px armour badge) is 13.
+
+The mutation table re-run with the cluster rule, one mutation at a time against this machine's
+local baselines (macOS, bit-exact across runs). "Largest" is the largest cluster at radius 2.
+
+| Mutation | Differing | Largest | Area (200) | Cluster (8) |
+|---|---|---|---|---|
+| 3 px shift of one 300x60 main-menu button | 919 | 280 | caught | caught |
+| button fill brightened 5% (`#3333cc` to `#3636d6`) | 79,045 | 15,981 | caught | caught |
+| `Button.normalColor` set to `hoverColor` | 79,317 | 16,004 | caught | caught |
+| dropped character in a button label ("Back to Men") | 380 | 161 | caught | caught |
+| one-character typo in the 64 px main-menu title | 248 | 126 | caught | caught |
+| 1 px font-size change on the 48 px driver-selection title | 1,172 | 137 | caught | caught |
+| 80x30 button removed (buttons scene) | 2,175 | 2,175 | caught | caught |
+| main-menu background +2 per channel | 0 | 0 | missed | missed |
+| main-menu background +3 per channel | 1,170,848 | 1,168,110 | caught | caught |
+| intent badge two digits to one (15 to 5, the DDB-64 case) | 74 | 70 | missed | caught |
+| intent badge one digit changed (15 to 16) | 42 | 42 | missed | caught |
+| 8 px armour badge one digit changed (5 to 6) | 13 | 13 | missed | caught |
+| 10 px quantity badge one digit changed (x3 to x4) | 17 | 17 | missed | caught |
+
+| centred synergy text, final `.` dropped | 674 | 151 | caught | caught |
+| centred synergy text, final `.` to `,` | 0 | 0 | missed | missed |
+| centred "Starting Deck:" to "Starting Deck;" | 948 | 299 | caught | caught |
+| left-aligned card text, final `.` dropped ("Gain 8 Armor") | 2 | 1 | missed | missed |
+| left-aligned card text, `.` to `,` | 0 | 0 | missed | missed |
+| left-aligned vehicle label, `:` to `;` ("Driver;") | 0 | 0 | missed | missed |
+
+The +2 row is the threshold's cliff and is unchanged by design (the colour cliff section above).
+
+Punctuation is the known miss. The centred rows are caught only because removing or widening a
+character re-centres the whole line; the change itself is not what fails. In place, a period, a
+comma and a colon at body sizes differ by a few pixels that pixelmatch mostly classes as
+anti-aliasing, so `.` to `,` and `:` to `;` produce zero differing pixels and a dropped trailing
+period two. No pixel budget reaches that without also failing on runner noise. The fix belongs in
+the tree snapshot, which holds every string: a text check against it is DDB-206, next to DDB-80's
+snapshot work. Beyond punctuation, what still passes is any change whose densest region is 8 pixels
+or fewer.
