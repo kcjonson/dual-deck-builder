@@ -307,6 +307,11 @@ export class Vehicle extends Component {
 		return 'unit';
 	}
 
+	/** A click chooses the vehicle as a target in handleEvent. */
+	public get handlesPointer(): boolean {
+		return true;
+	}
+
 	/**
 	 * Hover focuses the vehicle for a targeting preview; a click on a
 	 * targetable vehicle is the target choice. `hovered` is already set when

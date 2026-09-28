@@ -4,7 +4,7 @@
 import { Component } from '../components/Component';
 import type { MountContext } from '../components/MountContext';
 import { createTestContext } from '../components/testing';
-import type { AnyUiEvent } from '../input/events';
+import { AnyUiEvent, UiPointerEvent } from '../input/events';
 import { PointerAdapter } from '../input/PointerAdapter';
 import { InjectionResult, injectInput } from './inputInjection';
 import { installInputHooks } from './hooks';
@@ -23,6 +23,7 @@ class Box extends Component {
 	public readonly seen: string[] = [];
 	public readonly keys: string[] = [];
 	public readonly wheels: Array<[number, number]> = [];
+	public readonly pointers: Array<{ type: string; pointerId: number; pointerType: string; isPrimary: boolean }> = [];
 
 	constructor() {
 		super({ id: 'box', x: 100, y: 100, width: 100, height: 100, focusable: true });
@@ -35,6 +36,10 @@ class Box extends Component {
 		this.seen.push(event.type);
 		if (event.type === 'keydown') this.keys.push(event.key);
 		if (event.type === 'wheel') this.wheels.push([event.deltaX, event.deltaY]);
+		if (event instanceof UiPointerEvent) {
+			const { type, pointerId, pointerType, isPrimary } = event;
+			this.pointers.push({ type, pointerId, pointerType, isPrimary });
+		}
 	}
 
 	public count(type: string): number {
@@ -195,6 +200,138 @@ describe('mouse buttons', () => {
 	});
 });
 
+describe('pointer fields and cancel (R9.25)', () => {
+	/** `type pointerId pointerType isPrimary` for each pointer event the box hears. */
+	function pointerLog(): string[] {
+		return box.pointers.map(({ type, pointerId, pointerType, isPrimary }) =>
+			[type, pointerId, pointerType, isPrimary ? 'primary' : 'secondary'].join(' '),
+		);
+	}
+
+	it('defaults to pointer 1, a primary mouse', () => {
+		inject(['click,150,150']);
+
+		expect(pointerLog()).toContain('pointerdown 1 mouse primary');
+	});
+
+	it('carries the pointerId and pointerType through the adapter to the component', () => {
+		inject(['click,150,150,0,7,pen']);
+
+		// The synthesised pointerenter carries the pen's identity too (DDB-212).
+		expect(pointerLog()).toEqual([
+			'pointerenter 7 pen primary',
+			'pointermove 7 pen primary',
+			'pointerdown 7 pen primary',
+			'pointerup 7 pen primary',
+			'click 7 pen primary',
+		]);
+	});
+
+	// A second finger down while the first is still down is not primary, and
+	// R9.1 lets only the primary pointer click.
+	it('makes a second touch non-primary, so its tap does not click', () => {
+		inject(['down,150,150,0,1,touch', 'down,160,160,0,2,touch']);
+		inject(['up,160,160,0,2,touch']);
+
+		expect(pointerLog()).toContain('pointerdown 2 touch secondary');
+		expect(box.count('click')).toBe(0);
+
+		inject(['up,150,150,0,1,touch']);
+		expect(box.count('click')).toBe(1);
+	});
+
+	it('hands primary to the next touch only once every touch has lifted', () => {
+		inject(['down,150,150,0,1,touch', 'down,160,160,0,2,touch']);
+		inject(['up,150,150,0,1,touch']);
+		inject(['down,170,170,0,3,touch']);
+		inject(['up,160,160,0,2,touch', 'up,170,170,0,3,touch']);
+		inject(['down,150,150,0,4,touch']);
+
+		expect(pointerLog()).toContain('pointerdown 3 touch secondary');
+		expect(pointerLog()).toContain('pointerdown 4 touch primary');
+	});
+
+	it('keeps a mouse primary while a touch is down', () => {
+		inject(['down,150,150,0,2,touch', 'click,150,150']);
+
+		expect(pointerLog()).toContain('pointerdown 1 mouse primary');
+	});
+
+	it('cancels a press so no click follows the release', () => {
+		inject(['move,150,150', 'down,150,150', 'cancel']);
+		inject(['up,150,150']);
+
+		expect(box.count('pointercancel')).toBe(1);
+		expect(box.count('click')).toBe(0);
+	});
+
+	it('cancels only the named pointer', () => {
+		inject(['down,150,150,0,1,touch', 'down,160,160,0,2,touch', 'cancel,2']);
+		inject(['up,150,150,0,1,touch']);
+
+		expect(box.pointers.filter((pointer) => pointer.type === 'pointercancel').map((pointer) => pointer.pointerId)).toEqual([2]);
+		expect(box.count('click')).toBe(1);
+	});
+
+	it('sends cancel from where the pointer last was, as its own type', () => {
+		const seen: string[] = [];
+		const listener = (event: Event): void => {
+			const pointer = event as MouseEvent & { pointerType: string };
+			seen.push(`${pointer.clientX},${pointer.clientY} ${pointer.pointerType}`);
+		};
+		canvas.addEventListener('pointercancel', listener);
+
+		const result = inject(['down,150,160,0,4,touch', 'cancel,4']);
+		canvas.removeEventListener('pointercancel', listener);
+
+		expect(seen).toEqual(['150,160 touch']);
+		expect(result.commands[1].events).toEqual([{ type: 'pointercancel', dispatched: true, swallowed: false }]);
+	});
+
+	// A real pointer never changes type mid-gesture, so an up or a move that
+	// names no type is sent as the type its pointer went down as.
+	it('sends an up that names no type as its pointer\'s type', () => {
+		const types: string[] = [];
+		const listener = (event: Event): void => {
+			types.push(`${event.type} ${(event as MouseEvent & { pointerType: string }).pointerType}`);
+		};
+		canvas.addEventListener('pointerup', listener);
+		canvas.addEventListener('pointermove', listener);
+
+		inject(['down,150,150,0,2,touch', 'move,155,150,2', 'up,155,150,0,2']);
+		canvas.removeEventListener('pointerup', listener);
+		canvas.removeEventListener('pointermove', listener);
+
+		expect(types).toEqual(['pointermove touch', 'pointerup touch']);
+		// A pointer never seen is a mouse.
+		inject(['click,150,150,0,9']);
+		expect(pointerLog()).toContain('pointerdown 9 mouse primary');
+	});
+
+	it('refuses a cancel for a pointer it has never seen', () => {
+		const result = inject(['cancel,42']);
+
+		expect(result.ok).toBe(false);
+		expect(result.commands[0]).toEqual({
+			command: 'cancel,42',
+			ok: false,
+			error: 'cancel: no pointer 42 has moved or pressed yet',
+			events: [],
+		});
+		expect(box.count('pointercancel')).toBe(0);
+	});
+
+	// R9.10: a touch pointer is implicitly captured by its pointerdown
+	// target, so dragging off the box still releases on it.
+	it('gets the dispatcher to capture a touch implicitly', () => {
+		inject(['down,150,150,0,3,touch']);
+		inject(['move,10,10,3,touch']);
+		inject(['up,10,10,0,3,touch']);
+
+		expect(pointerLog()).toContain('pointerup 3 touch primary');
+	});
+});
+
 describe('scroll', () => {
 	// R9.3: the delta is logical pixels, dispatched as deltaY in DOM_DELTA_PIXEL
 	// mode, and pixel deltas pass through normalisation unchanged.
@@ -301,7 +438,7 @@ describe('bad input', () => {
 		expect(result.commands[0]).toEqual({
 			command: 'clik,150,150',
 			ok: false,
-			error: 'unknown command "clik" (expected move, down, up, click, scroll, keydown, keyup)',
+			error: 'unknown command "clik" (expected move, down, up, click, cancel, scroll, keydown, keyup)',
 			events: [],
 		});
 	});

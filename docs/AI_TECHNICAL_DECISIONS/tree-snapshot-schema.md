@@ -33,9 +33,10 @@ margin box it cannot see, a promoted popup it thinks is clipped, a text-overflow
 | `style` | `Component.resolvedColors` | when the component draws something |
 | `inkBounds` | `Component.inkRect` through the walk's matrix | always |
 | `parts` | the `addPart` mark | on Button, Input and the F5 overlay |
+| `focusable`, `pointerEvents`, `handlesPointer` | `Component.focusable`, its own `pointerEvents`, `Component.handlesPointer` | always (DDB-208) |
+| `scroll` | `Panel.getScrollOffset()` and `Panel.scrollRange` | on a scrollable Panel (DDB-208) |
 
-Still omitted, because nothing backs it: `focusable` (the focus manager's). R11.11's other flags
-arrived with DDB-84's state resolution.
+R11.11's other flags arrived with DDB-84's state resolution.
 
 ## Decisions
 
@@ -89,13 +90,10 @@ half their centred stroke as `inkExtent` (the draw layer's own cull bound says t
 else reads `inkExtent`, so no pixel or cull changes. DDB-184's cached subtree union of it is in
 [subtree-ink-cull.md](./subtree-ink-cull.md).
 
-**`pointerEvents` is backed and deliberately withheld.** R13.22 does not name it; the lint reads it
-as "interactive" for rules 6 and 7 (R13.25.6: focusable, or `pointerEvents` `auto` or `unit`); and
-R8.29 makes `auto` the default for every leaf. Measured with it emitted: the gallery goes from 0 to
-72 (target-size 59, unreachable-interactive 13; the icons scene alone reports 36 icons), the screens
-gain 945, and
-not one finding is a control. So rules 6 and 7 stay dormant for want of `focusable`, and what
-"interactive" means for them is a spec question filed separately rather than settled here.
+**`pointerEvents` was withheld here, and DDB-208 emitted it.** The lint read it as "interactive"
+for rules 6 and 7 and R8.29 makes `auto` every leaf's default, so emitting it alone counted every
+label as a control. DDB-208 emits it with `focusable` and `handlesPointer` and changes what the
+rules count; see [lint-interactivity.md](./lint-interactivity.md).
 
 **`parts` stays.** DDB-104's deletion trigger said DDB-80 removes `addPart` and `parts` once no
 component calls `addPart`. Panel no longer does (DDB-73); Button, Input and the F5 overlay still do,
@@ -153,4 +151,5 @@ A mint now writes 18 JSON files beside the 36 PNGs; `update_mode=changed` create
   per R13.22's own sentence that fields which do not apply are omitted.
 - `enabled` is the component's own value, like `visible`; R13.22 lists only layer, opacity and clip
   as effective.
-- `pointerEvents` is withheld and `parts` kept (above).
+- `parts` kept (above). `pointerEvents` and `handlesPointer` are additions R13.22 did not name until
+  DDB-208 amended it.
