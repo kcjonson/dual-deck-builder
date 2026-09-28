@@ -6,7 +6,8 @@ import { Layer } from '../components/Layer';
 import { renderTree } from '../components/renderTree';
 import { Rectangle } from '../components/Rectangle';
 import type { MountContext } from '../components/MountContext';
-import { createTestContext } from '../components/testing';
+import { createTestContext, injectNow } from '../components/testing';
+import { PointerAdapter } from '../input/PointerAdapter';
 import { treeSnapshot } from '../debug/treeSnapshot';
 import { Panel } from './Panel';
 
@@ -148,6 +149,27 @@ describe('hit testing honours ancestor clips (R4.12)', () => {
 		expect(child.containsScreenPoint(30.5, 5)).toBe(false);
 	});
 
+	it('gives the dispatcher\'s hit walk the same snapped edges (R7.8a)', () => {
+		const clipper = new Layer({ id: 'clipper', x: 10.3, y: 0, width: 20.3, height: 20, overflow: 'hidden' });
+		const child = new Rectangle({ id: 'child', x: -10, y: 0, width: 40, height: 20 });
+		clipper.addChild(child);
+		const context = createTestContext({ draw: api });
+		clipper.mount(context);
+		const at = (x: number): string | null => context.dispatcher.hitTest({ x, y: 5 })?.id ?? null;
+
+		frame(clipper);
+		expect(at(10.1)).toBe('child');
+		expect(at(30.8)).toBe('child');
+		expect(at(31)).toBeNull();
+
+		api.beginFrame({ viewport: { width: 1440, height: 882 }, ratio: 2 });
+		renderTree(clipper, api);
+		api.endFrame();
+		expect(at(10.4)).toBeNull();
+		expect(at(10.5)).toBe('child');
+		expect(at(30.5)).toBeNull();
+	});
+
 	it('intersects nested clips', () => {
 		const outer = new Layer({ id: 'outer', x: 0, y: 0, width: 100, height: 100, overflow: 'hidden' });
 		const inner = new Layer({ id: 'inner', x: 50, y: 0, width: 100, height: 100, overflow: 'hidden' });
@@ -237,19 +259,21 @@ describe('tree snapshot clips from the clip stack arithmetic (R13.22)', () => {
 	});
 });
 
-describe('a click right after a wheel scroll (R4.12 through the InputSystem)', () => {
+describe('a click right after a wheel scroll (R4.12 through the dispatcher)', () => {
 	let canvas: HTMLCanvasElement;
 	let context: MountContext;
+	let adapter: PointerAdapter;
 
 	beforeEach(() => {
 		canvas = document.createElement('canvas');
 		document.body.appendChild(canvas);
 		context = createTestContext({ draw: api });
-		context.input.setup(canvas);
+		adapter = new PointerAdapter({ dispatcher: context.dispatcher });
+		adapter.attach(canvas);
 	});
 
 	afterEach(() => {
-		context.input.detach();
+		adapter.detach();
 		document.body.removeChild(canvas);
 	});
 
@@ -258,26 +282,22 @@ describe('a click right after a wheel scroll (R4.12 through the InputSystem)', (
 		const root = new Layer({ id: 'root', width: 1440, height: 882 });
 		const panel = new Panel({ id: 'list', x: 0, y: 0, width: 200, height: 120, scrollable: true });
 		const pressed: string[] = [];
-		const rows: Rectangle[] = [];
 		for (let index = 0; index < 20; index++) {
 			const row = new Rectangle({ id: `row-${index}`, x: 0, y: index * 20, width: 180, height: 20 });
-			context.input.registerMouseDown(row, () => pressed.push(`row-${index}`));
+			row.onPointerDown = () => pressed.push(`row-${index}`);
 			panel.addChild(row);
-			rows.push(row);
 		}
 		panel.setContentSize(200, 400);
 		root.addChild(panel);
-		// The panel registers its wheel handler on mount (R8.14).
 		root.mount(context);
 
-		const at = { clientX: 50, clientY: 15, bubbles: true };
-		canvas.dispatchEvent(new MouseEvent('mousemove', at));
-		// One notch is 30 px, so panel y 15 is now content y 45: row 2. Row 0
-		// has left the clip; before the fix the click still went to it.
-		canvas.dispatchEvent(new WheelEvent('wheel', { ...at, deltaY: 1 }));
-		canvas.dispatchEvent(new MouseEvent('mousedown', at));
+		// Pixel deltas scroll by exactly that much (R9.3), so panel y 15 is now
+		// content y 45: row 2. Row 0 has left the clip.
+		injectNow({ canvas, dispatcher: context.dispatcher }, ['move,50,15', 'scroll,50,15,30', 'down,50,15']);
 
 		expect(panel.getScrollOffset().y).toBe(30);
 		expect(pressed).toEqual(['row-2']);
+		expect(root.findById('row-2')?.hovered).toBe(true);
+		expect(root.findById('row-0')?.hovered).toBe(false);
 	});
 });

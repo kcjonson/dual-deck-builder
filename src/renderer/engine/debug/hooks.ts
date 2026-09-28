@@ -160,10 +160,10 @@ export function installAppHooks(api: AppControlApi): void {
 /**
  * Installs the development-only `window.__dev` surface (R13.35).
  *
- * The canvas and the input system are arguments rather than looked up: the
- * canvas is the element `InputSystem.setup` actually registered its listeners
- * on, the input system is the mount context's, and the two entry points
- * already hold both. Resolving `#game-canvas` here would be a second source of
+ * The canvas and the dispatcher are arguments rather than looked up: the
+ * canvas is the element `PointerAdapter.attach` actually registered its
+ * listeners on, the dispatcher is the mount context's, and the two entry
+ * points already hold both. Resolving `#game-canvas` here would be a second source of
  * truth that agrees until the day it does not.
  */
 export function installInputHooks(target: InjectionTarget): void {

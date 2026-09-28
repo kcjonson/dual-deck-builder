@@ -60,9 +60,9 @@ export class CardShowcaseScreen extends Screen {
 				color: '#ffffff',
 			},
 		});
-		this.backButton.onClick(() => {
+		this.backButton.onClick = () => {
 			ScreenManager.navigate('mainMenuScreen');
-		});
+		};
 		this.rootLayer.addChild(this.backButton);
 
 		// Create main scrollable container that holds all content
