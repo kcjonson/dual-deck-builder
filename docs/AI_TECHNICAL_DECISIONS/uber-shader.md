@@ -165,7 +165,11 @@ attributable to chapter 5. DDB-188 applied them in `encodeRect` (see
 **R4.14's rounded clip** is not implemented: a rounded panel still clips its children to its
 square bounds, so a child that reaches into a rounded corner draws square over it. DDB-190.
 
-**R5.19 nine-slice** is refused with a report rather than drawn stretched. No caller yet.
+**R5.19 nine-slice** landed with DDB-203: `draw/nineSlice.ts` computes the grid (corners at one logical
+pixel per texel, insets fitted to the source per axis, and every corner scaled by one factor when the
+destination is smaller than two of them, CSS border-image's rule), and the encoder writes one `image`
+quad per cell with a destination extent, all in the image's group. No shader change: image mode has no
+edge ramp, so cells that share float edges meet with no seam.
 
 **R3.17's blurred text shadow** is still drawn unblurred: the bitmap atlas has nothing to blur.
 Chapter 6's distance fields fix it.

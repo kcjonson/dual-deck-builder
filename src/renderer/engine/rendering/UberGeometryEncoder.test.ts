@@ -550,12 +550,85 @@ describe('UberGeometryEncoder: image (R5.18)', () => {
 		expect(image.colors[0]).toEqual([128, 128, 128, 128]);
 	});
 
-	it('refuses a nine-slice image rather than stretching its corners', () => {
-		const { encode, unpaintable } = setup();
-		expect(encode(record((api) => {
-			api.drawImage({ rect: { x: 0, y: 0, width: 10, height: 10 }, texture, slice: { top: 1, right: 1, bottom: 1, left: 1 } });
-		}, 1, create)).uploads).toEqual([]);
-		expect(unpaintable).toEqual(['image: nine-slice images are not drawn yet']);
+});
+
+describe('UberGeometryEncoder: nine-slice image (R5.19)', () => {
+	let texture: TextureHandle;
+	const create = (api: DrawApi) => {
+		texture = api.createTexture({ width: 20, height: 10, label: 'frame' });
+	};
+
+	function encodeSliced(build: (api: DrawApi) => void) {
+		const { encoder } = setup();
+		const [command] = record(build, 1, create);
+		const shape: GroupShape = { instances: 0, texture: null };
+		expect(encoder.shape(command, shape)).toBe(true);
+		const buffer = new ArrayBuffer(UBER_STRIDE * Math.max(1, shape.instances));
+		const sink = {
+			floats: new Float32Array(buffer),
+			words: new Uint32Array(buffer),
+			halves: new Uint16Array(buffer),
+			bytes: new Uint8Array(buffer),
+			wordOffset: 0,
+		};
+		encoder.encode(command, sink, 1);
+		return { shape, quads: Array.from({ length: shape.instances }, (_, n) => instance({ data: sink.bytes }, n)) };
+	}
+
+	it('writes nine image quads, row by row, corners unscaled and edges stretched along one axis', () => {
+		const { shape, quads } = encodeSliced((api) => {
+			api.drawImage({ rect: { x: 10, y: 10, width: 100, height: 50 }, texture, slice: { top: 2, right: 4, bottom: 2, left: 4 } });
+		});
+		expect(shape).toEqual({ instances: 9, texture });
+		expect(quads.map((quad) => quad.mode)).toEqual(new Array(9).fill(UBER_MODE.image));
+		// Top-left corner: 4 by 2 logical pixels, the texture's 4 by 2 texels.
+		expect(quads[0].corners).toEqual([[10, 10], [14, 10], [14, 12], [10, 12]]);
+		expect(quads[0].texCoords).toEqual(f32([0, 0, 0.2, 0.2]));
+		// Top edge: stretched across, one texel row band tall.
+		expect(quads[1].corners).toEqual([[14, 10], [106, 10], [106, 12], [14, 12]]);
+		expect(quads[1].texCoords).toEqual(f32([0.2, 0, 0.8, 0.2]));
+		// Centre: stretched both ways.
+		expect(quads[4].corners).toEqual([[14, 12], [106, 12], [106, 58], [14, 58]]);
+		// Bottom-right corner, same size as the top-left.
+		expect(quads[8].corners).toEqual([[106, 58], [110, 58], [110, 60], [106, 60]]);
+		expect(quads[8].texCoords).toEqual(f32([0.8, 0.8, 1, 1]));
+	});
+
+	it('shares every cell edge exactly with its neighbour, so there is no seam', () => {
+		const { quads } = encodeSliced((api) => {
+			api.drawImage({ rect: { x: 10.3, y: 7.7, width: 61.9, height: 33.1 }, texture, slice: { top: 3, right: 3, bottom: 3, left: 3 } });
+		});
+		for (let row = 0; row < 3; row++) {
+			for (let column = 0; column < 2; column++) {
+				const left = quads[row * 3 + column];
+				const right = quads[row * 3 + column + 1];
+				expect(right.corners[0]).toEqual(left.corners[1]);
+				expect(right.corners[3]).toEqual(left.corners[2]);
+			}
+		}
+	});
+
+	it('sends the grid through the transform and tints every cell', () => {
+		const { quads } = encodeSliced((api) => {
+			api.pushTransform([2, 0, 0, 2, 5, 0]);
+			api.drawImage({ rect: { x: 0, y: 0, width: 20, height: 10 }, texture, slice: { top: 2, right: 2, bottom: 2, left: 2 }, tint: [1, 0, 0, 0.5] });
+			api.popTransform();
+		});
+		expect(quads[0].corners).toEqual([[5, 0], [9, 0], [9, 4], [5, 4]]);
+		expect(quads[8].corners).toEqual([[41, 16], [45, 16], [45, 20], [41, 20]]);
+		for (const quad of quads) expect(quad.colors[0]).toEqual(pm([1, 0, 0, 0.5]));
+	});
+
+	it('draws only the cells with area, and merges into the group with its neighbours', () => {
+		const { encode } = setup();
+		const { uploads, work } = encode(record((api) => {
+			api.drawRect({ rect: { x: 0, y: 0, width: 5, height: 5 }, fill: RED });
+			api.drawImage({ rect: { x: 0, y: 0, width: 40, height: 10 }, texture, slice: { top: 0, right: 4, bottom: 0, left: 4 } });
+			api.drawRect({ rect: { x: 0, y: 0, width: 5, height: 5 }, fill: RED });
+		}, 1, create));
+		expect(uploads).toHaveLength(1);
+		expect(uploads[0].count).toBe(1 + 3 + 1);
+		expect(work.gpuDraws).toBe(1);
 	});
 });
 

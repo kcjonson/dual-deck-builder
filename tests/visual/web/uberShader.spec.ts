@@ -439,6 +439,47 @@ test.describe('uber shader', () => {
 		expect(Math.abs(tinted[3] - 128)).toBeLessThanOrEqual(1);
 	});
 
+	test('keeps nine-slice corners at their texel size and leaves no gap between cells (R5.19)', async ({ page }) => {
+		// A 6x6 frame with 2-texel insets: red corners, green edges, a blue centre.
+		const red = [255, 0, 0, 255];
+		const green = [0, 255, 0, 255];
+		const blue = [0, 0, 255, 255];
+		const texels: number[] = [];
+		for (let row = 0; row < 6; row++) {
+			for (let column = 0; column < 6; column++) {
+				const edgeX = column < 2 || column > 3;
+				const edgeY = row < 2 || row > 3;
+				texels.push(...(edgeX && edgeY ? red : edgeX || edgeY ? green : blue));
+			}
+		}
+		const created: { frame?: TextureHandle } = {};
+		const prepare = (api: DrawApi) => {
+			created.frame = api.createTexture({ width: 6, height: 6, label: 'frame' });
+		};
+		const target: Target = { width: 40, height: 48, ratio: 1, clear: TRANSPARENT, textures: [{ unit: 1, width: 6, height: 6, texels }] };
+		const slice = { top: 2, right: 2, bottom: 2, left: 2 };
+		const frame = await render(page, target, (api) => {
+			api.drawImage({ rect: { x: 0, y: 0, width: 30, height: 20 }, texture: created.frame as TextureHandle, slice });
+			api.drawImage({ rect: { x: 3.3, y: 24.6, width: 27.9, height: 17.7 }, texture: created.frame as TextureHandle, slice });
+		}, prepare);
+
+		// Each corner is 2x2 device pixels of pure red at every scale; stretched
+		// unsliced, the 30 px image would spread each corner texel over 5 columns.
+		for (const [x, y] of [[0, 0], [1, 1], [28, 0], [29, 1], [0, 18], [1, 19], [28, 18], [29, 19]]) {
+			expect(pixel(frame, x, y)).toEqual(red);
+		}
+		expect(pixel(frame, 15, 0)).toEqual(green);
+		expect(pixel(frame, 0, 10)).toEqual(green);
+		expect(pixel(frame, 15, 10)).toEqual(blue);
+		expect(pixel(frame, 30, 10)[3]).toBe(0);
+
+		// Every pixel inside the fractional one is opaque: its cells meet at
+		// fractional edges with no gap, since image mode has no edge ramp.
+		for (let y = 26; y < 42; y++) {
+			for (let x = 4; x < 31; x++) expect(pixel(frame, x, y)[3]).toBe(255);
+		}
+	});
+
 	/** A 4x4 atlas whose four columns hold the given RGBA texels, top to bottom alike. */
 	function columns(...texels: number[][]): number[] {
 		const out: number[] = [];

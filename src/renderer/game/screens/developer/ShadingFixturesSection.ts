@@ -1,6 +1,6 @@
 import { DeveloperSectionPanel } from './DeveloperSectionPanel';
 import { Text } from '../../../engine/components/Text';
-import type { BlendMode, BorderPosition, BoxShadow, CornerRadii, DrawApi, RGBA, TextureHandle } from '../../../engine/draw';
+import type { BlendMode, BorderPosition, BoxShadow, CornerRadii, DrawApi, RGBA, Rect, TextureHandle } from '../../../engine/draw';
 import type { MountContext } from '../../../engine/components/MountContext';
 import { DrawFixture, fixtureHeading, fixtureLabel } from './DrawFixture';
 
@@ -16,20 +16,20 @@ const INK: RGBA = [0.1, 0.11, 0.13, 1];
 const PHOTO_WIDTH = 160;
 const PHOTO_HEIGHT = 100;
 
+const FRAME_SIZE = 24;
+const FRAME_INSET = 8;
+
 /**
  * Chapter 5's visual fixture (5.10): corner radii, border widths in each
  * position, gradients including to transparent, shadows at blur 0, 8 and 24
  * with both spreads, a glow, bordered circles, 1 and 3 px lines, text over
- * every one of them, and the four blend modes over a photograph. The pixel
- * tests in `tests/visual/web/uberShader.spec.ts` check the same rules as
- * numbers; this is the picture a person reviews.
- *
- * The nine-sliced image of 5.10's list is left out because the encoder
- * refuses a sliced image (R5.19 has no implementation yet), and a fixture
- * that logs an unpaintable draw cannot pass the clean-console gate.
+ * every one of them, the four blend modes over a photograph, and a
+ * nine-sliced image. The pixel tests in `tests/visual/web/uberShader.spec.ts`
+ * check the same rules as numbers; this is the picture a person reviews.
  */
 export class ShadingFixturesSection extends DeveloperSectionPanel {
 	private photo: TextureHandle | null = null;
+	private frame: TextureHandle | null = null;
 
 	constructor(x: number, y: number, width: number) {
 		super({ id: 'dev_section_shading', x, y, width });
@@ -65,11 +65,14 @@ export class ShadingFixturesSection extends DeveloperSectionPanel {
 	protected onMount(context: MountContext): void {
 		super.onMount(context);
 		this.photo = context.draw.createTexture({ width: PHOTO_WIDTH, height: PHOTO_HEIGHT, label: 'shading fixture photo', source: photograph() });
+		this.frame = context.draw.createTexture({ width: FRAME_SIZE, height: FRAME_SIZE, label: 'shading fixture frame', source: panelFrame() });
 	}
 
 	protected onUnmount(): void {
 		if (this.photo) this.context?.draw.destroyTexture(this.photo);
+		if (this.frame) this.context?.draw.destroyTexture(this.frame);
 		this.photo = null;
+		this.frame = null;
 		super.onUnmount();
 	}
 
@@ -81,6 +84,7 @@ export class ShadingFixturesSection extends DeveloperSectionPanel {
 		lines(draw, 720, 240);
 		shadows(draw, 372);
 		blends(draw, 516, this.photo);
+		nineSlices(draw, 1040, 516, this.frame);
 	}
 }
 
@@ -239,6 +243,64 @@ function blends(draw: DrawApi, top: number, photo: TextureHandle | null): void {
 			verticalAlign: 'top',
 		});
 	});
+}
+
+function nineSlices(draw: DrawApi, left: number, top: number, frame: TextureHandle | null): void {
+	fixtureHeading(draw, 'Nine-slice: 24 px frame, 8 px insets', left, top);
+	const slice = { top: FRAME_INSET, right: FRAME_INSET, bottom: FRAME_INSET, left: FRAME_INSET };
+	const cases: { rect: Rect; label?: string; sliced: boolean }[] = [
+		// The source at one to one, for reference.
+		{ rect: { x: left, y: top + 30, width: FRAME_SIZE, height: FRAME_SIZE }, sliced: false },
+		{ rect: { x: left + 36, y: top + 26, width: 180, height: 52 }, label: 'sliced', sliced: true },
+		// The same frame stretched without a slice: its corners go oval.
+		{ rect: { x: left, y: top + 88, width: 100, height: 40 }, label: 'stretched', sliced: false },
+		// Shorter than two corners, so every corner scales by 12 / 16.
+		{ rect: { x: left + 116, y: top + 102, width: 100, height: 12 }, sliced: true },
+	];
+	for (const { rect, label, sliced } of cases) {
+		if (frame && draw.isTextureResident(frame)) {
+			draw.drawImage({ rect, texture: frame, slice: sliced ? slice : undefined });
+		} else {
+			draw.drawRect({ rect, fill: SLATE });
+		}
+		if (label) fixtureLabel(draw, { text: label, box: rect });
+	}
+}
+
+/**
+ * Panel art for the nine-slice row, premultiplied: a rounded amber rim with a
+ * dark keyline, a rivet in each corner, and a slate centre. The rounded
+ * outline and the round rivets are what a stretched corner visibly squashes.
+ * Generated, like the photograph, so the golden cannot drift with a codec.
+ */
+function panelFrame(): Uint8Array {
+	const texels = new Uint8Array(FRAME_SIZE * FRAME_SIZE * 4);
+	const half = FRAME_SIZE / 2;
+	const outerRadius = 7;
+	const rivets = [5.5, FRAME_SIZE - 5.5];
+	for (let y = 0; y < FRAME_SIZE; y++) {
+		for (let x = 0; x < FRAME_SIZE; x++) {
+			const px = x + 0.5;
+			const py = y + 0.5;
+			// Signed distance to the rounded outline, negative inside.
+			const qx = Math.abs(px - half) - (half - outerRadius);
+			const qy = Math.abs(py - half) - (half - outerRadius);
+			const distance = Math.hypot(Math.max(qx, 0), Math.max(qy, 0)) + Math.min(Math.max(qx, qy), 0) - outerRadius;
+			const coverage = Math.min(1, Math.max(0, 0.5 - distance));
+			let color: RGBA = distance > -3 ? AMBER : distance > -4 ? INK : SLATE;
+			for (const rx of rivets) {
+				for (const ry of rivets) {
+					if (Math.hypot(px - rx, py - ry) < 1.8) color = [0.86, 0.88, 0.92, 1];
+				}
+			}
+			const offset = (y * FRAME_SIZE + x) * 4;
+			texels[offset] = Math.round(color[0] * coverage * 255);
+			texels[offset + 1] = Math.round(color[1] * coverage * 255);
+			texels[offset + 2] = Math.round(color[2] * coverage * 255);
+			texels[offset + 3] = Math.round(coverage * 255);
+		}
+	}
+	return texels;
 }
 
 /**
