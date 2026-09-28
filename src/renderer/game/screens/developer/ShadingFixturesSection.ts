@@ -1,4 +1,4 @@
-import { Panel } from '../../../engine/ui/Panel';
+import { DeveloperSectionPanel } from './DeveloperSectionPanel';
 import { Text } from '../../../engine/components/Text';
 import type { BlendMode, BorderPosition, BoxShadow, CornerRadii, DrawApi, RGBA, TextureHandle } from '../../../engine/draw';
 import { RendererContext } from '../../../engine/rendering/RendererContext';
@@ -28,19 +28,11 @@ const PHOTO_HEIGHT = 100;
  * refuses a sliced image (R5.19 has no implementation yet), and a fixture
  * that logs an unpaintable draw cannot pass the clean-console gate.
  */
-export class ShadingFixturesSection extends Panel {
+export class ShadingFixturesSection extends DeveloperSectionPanel {
 	private photo: TextureHandle | null = null;
 
 	constructor(x: number, y: number, width: number) {
-		super({
-			id: 'dev_section_shading',
-			width,
-			height: FIXTURE_TOP + FIXTURE_HEIGHT,
-			style: {
-				backgroundColor: 'transparent',
-			},
-		});
-		this.setPosition(x, y);
+		super({ id: 'dev_section_shading', x, y, width });
 
 		const title = new Text('Shading Fixtures', {
 			style: {
@@ -62,7 +54,7 @@ export class ShadingFixturesSection extends Panel {
 			id: 'dev_fixture_shading',
 			x: 0,
 			y: FIXTURE_TOP,
-			width,
+			width: this.innerWidth,
 			height: FIXTURE_HEIGHT,
 			paint: (api) => this.paint(api),
 			release: () => {
@@ -71,7 +63,7 @@ export class ShadingFixturesSection extends Panel {
 			},
 		}));
 
-		this.setSize(width, FIXTURE_TOP + FIXTURE_HEIGHT);
+		this.fitContentHeight(FIXTURE_TOP + FIXTURE_HEIGHT);
 	}
 
 	private paint(draw: DrawApi): void {

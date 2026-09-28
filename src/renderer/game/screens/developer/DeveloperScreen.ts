@@ -9,6 +9,7 @@ import { InputSystem } from '../../../engine/input/InputSystem';
 // The sections are defined once, in sections.ts, so this screen and the
 // ?scene= gallery show the same things (R13.30).
 import { developerSections } from './sections';
+import { SECTION_INSET } from './DeveloperSectionPanel';
 
 const TITLE_FONT_SIZE = 48;
 const TITLE_LINE_HEIGHT = 1.2;
@@ -123,7 +124,9 @@ export class DeveloperScreen extends Screen {
 
 		// Layout parameters for full-width vertical sections
 		let currentY = 40;
-		const sectionSpacing = 80;
+		// Sections' content stays 80 apart; the inset each frame adds above and
+		// below its content comes out of that gap rather than on top of it.
+		const sectionSpacing = 80 - SECTION_INSET * 2;
 		const margin = 40;
 		const contentWidth = this.rootLayer.getWidth() - margin * 2;
 

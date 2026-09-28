@@ -1,4 +1,4 @@
-import { Panel } from '../../../engine/ui/Panel';
+import { DeveloperSectionPanel } from './DeveloperSectionPanel';
 import { Text } from '../../../engine/components/Text';
 import type { DrawApi, LayerName, RGBA, Rect } from '../../../engine/draw';
 import { DrawFixture, fixtureHeading, fixtureLabel } from './DrawFixture';
@@ -34,17 +34,9 @@ const LAYER_COLOURS: Partial<Record<LayerName, RGBA>> = {
  * sibling order inside a layer, and a promoted subtree as `pushLayer` plus
  * `pushClipReset` (R3.8, R4.8).
  */
-export class PaintOrderFixturesSection extends Panel {
+export class PaintOrderFixturesSection extends DeveloperSectionPanel {
 	constructor(x: number, y: number, width: number) {
-		super({
-			id: 'dev_section_paint_order',
-			width,
-			height: FIXTURE_TOP + FIXTURE_HEIGHT,
-			style: {
-				backgroundColor: 'transparent',
-			},
-		});
-		this.setPosition(x, y);
+		super({ id: 'dev_section_paint_order', x, y, width });
 
 		const title = new Text('Paint Order Fixtures', {
 			style: {
@@ -60,7 +52,7 @@ export class PaintOrderFixturesSection extends Panel {
 			id: 'dev_fixture_paint_order',
 			x: 0,
 			y: FIXTURE_TOP,
-			width,
+			width: this.innerWidth,
 			height: FIXTURE_HEIGHT,
 			paint: (draw) => {
 				ladder(draw, 0, 0);
@@ -71,7 +63,7 @@ export class PaintOrderFixturesSection extends Panel {
 			},
 		}));
 
-		this.setSize(width, FIXTURE_TOP + FIXTURE_HEIGHT);
+		this.fitContentHeight(FIXTURE_TOP + FIXTURE_HEIGHT);
 	}
 }
 

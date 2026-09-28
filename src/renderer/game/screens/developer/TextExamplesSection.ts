@@ -1,22 +1,14 @@
-import { Panel } from '../../../engine/ui/Panel';
+import { DeveloperSectionPanel } from './DeveloperSectionPanel';
 import { Text } from '../../../engine/components/Text';
 
 /**
  * Text examples section for the developer screen
  * Demonstrates various text styling options
  */
-export class TextExamplesSection extends Panel {
+export class TextExamplesSection extends DeveloperSectionPanel {
 	constructor(x: number, y: number, width: number) {
-		super({
-			id: 'dev_section_text',
-			width,
-			height: 200, // Will be calculated based on content
-			style: {
-				backgroundColor: 'transparent',
-			},
-		});
+		super({ id: 'dev_section_text', x, y, width });
 
-		this.setPosition(x, y);
 		this.initializeContent();
 	}
 
@@ -106,7 +98,7 @@ export class TextExamplesSection extends Panel {
 		// sample drew a text width past the section and off the viewport, and
 		// three boxes spanning the row would all overlap each other; a column
 		// each is the layout the three samples are demonstrating.
-		const alignColumn = (this.width - 40) / 3;
+		const alignColumn = (this.innerWidth - 40) / 3;
 
 		const leftText = new Text('Left aligned (default)', {
 			width: alignColumn,
@@ -228,7 +220,7 @@ export class TextExamplesSection extends Panel {
 		currentY += 100;
 
 		// Update our height based on content
-		this.setSize(this.width, currentY + 20);
+		this.fitContentHeight(currentY + 20);
 	}
 
 	/**

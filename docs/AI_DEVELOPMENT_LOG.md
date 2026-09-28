@@ -6,6 +6,15 @@ This document contains the chronological log of completed development tasks for 
 
 **Date correction (2026-08-22):** the repo's first commit is 2025-05-17, but many entries below carry dates in December 2024 or January 2025 — the AI that wrote them used its assumed date instead of the real one. Entries dated 2025-07-03 and 2025-07-02 have been corrected from "2025-01-03"/"2025-01-02" (verified against git history). Remaining Dec 2024 / Jan 2025 dates are wrong by roughly six months; the real work happened May–July 2025. Trust git history over these dates.
 
+## Developer section titles inset inside their frames (2026-09-28)
+
+**What landed:** DDB-196 (DDB-55).
+
+- `Panel` has a `padding` option: the content layer sits at the content box and is sized to it through construction, `setSize` and `layout`, scroll limits are measured against it, and `innerWidth` reports its width. Border box, clip and background are unchanged.
+- `developer/DeveloperSectionPanel.ts` is the shared frame all twelve sections extend: transparent, `bw` border, inset `bw + space_3` (13 px), and `fitContentHeight` to size the frame around the content. Sections dropped their duplicated `super` blocks; the three draw fixtures, the text alignment columns and the nested panel use `innerWidth`.
+- `DeveloperScreen` subtracts both insets from its section spacing so the content pitch is what it was.
+- Tests: `engine/ui/PanelPadding.test.ts` (drawing, hit test, snapshot, scroll, resize, default). Lint: every scene 0, developer screen 208, both as before. Goldens re-minted with `update_mode=all`.
+
 ## Visual gate: cluster rule and settled-layout wait (2026-09-28)
 
 **What landed:** DDB-197 and DDB-201 (DDB-55 test harness).

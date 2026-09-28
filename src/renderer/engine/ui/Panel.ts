@@ -39,6 +39,12 @@ class ScrollableContentLayer extends Layer {
 export interface PanelOptions extends LayerOptions {
 	scrollable?: boolean;
 	scrollDirection?: 'vertical' | 'horizontal' | 'both';
+	/**
+	 * Inset of the content box from every edge (R12.19). Children added with
+	 * `addChild` are placed against the content box, so (0, 0) is clear of the
+	 * border rather than on it. The panel's own size stays the border box.
+	 */
+	padding?: number;
 }
 
 /**
@@ -54,6 +60,7 @@ export class Panel extends Layer implements Interactive {
 	private scrollOffsetY = 0;
 	private contentWidth = 0;
 	private contentHeight = 0;
+	private readonly contentInset: number;
 
 	/**
 	 * Create a new panel
@@ -62,6 +69,7 @@ export class Panel extends Layer implements Interactive {
 	constructor(options?: PanelOptions) {
 		super(options);
 		this.componentType = 'Panel';
+		this.contentInset = Math.max(options?.padding ?? 0, 0);
 
 		// Set scroll properties
 		if (options?.scrollable !== undefined) {
@@ -91,13 +99,8 @@ export class Panel extends Layer implements Interactive {
 		});
 		this.addPart(this.background);
 
-		// Create content layer for user-added children (at local origin)
-		this.contentLayer = new ScrollableContentLayer(this, {
-			x: 0,
-			y: 0,
-			width: this.width || 200,
-			height: this.height || 100,
-		});
+		// Content layer for user-added children, at the content box
+		this.contentLayer = new ScrollableContentLayer(this, this.contentBox(this.width || 200, this.height || 100));
 		this.addPart(this.contentLayer);
 
 		// Register for wheel events if scrollable
@@ -117,9 +120,25 @@ export class Panel extends Layer implements Interactive {
 			this.background.setSize(width, height);
 		}
 		if (this.contentLayer) {
-			this.contentLayer.setSize(width, height);
+			const box = this.contentBox(width, height);
+			this.contentLayer.setSize(box.width, box.height);
 		}
 		return this;
+	}
+
+	/** The content inset from each edge (the `padding` option). */
+	public get padding(): number {
+		return this.contentInset;
+	}
+
+	/** Width of the content box: the panel's width less the padding on both sides. */
+	public get innerWidth(): number {
+		return this.contentBox(this.width, this.height).width;
+	}
+
+	private contentBox(width: number, height: number): { x: number; y: number; width: number; height: number } {
+		const inset = this.contentInset;
+		return { x: inset, y: inset, width: Math.max(width - inset * 2, 0), height: Math.max(height - inset * 2, 0) };
 	}
 
 	/**
@@ -177,14 +196,15 @@ export class Panel extends Layer implements Interactive {
 		if (!this.scrollable) return this;
 
 
+		const viewport = this.contentBox(this.width, this.height);
 		if (this.scrollDirection === 'vertical' || this.scrollDirection === 'both') {
-			const maxScrollY = this.contentHeight - this.height;
+			const maxScrollY = this.contentHeight - viewport.height;
 			const newScrollY = this.scrollOffsetY + deltaY;
 			const clampedY = Math.max(0, Math.min(maxScrollY, newScrollY));
 			this.scrollOffsetY = clampedY;
 		}
 		if (this.scrollDirection === 'horizontal' || this.scrollDirection === 'both') {
-			const maxScrollX = this.contentWidth - this.width;
+			const maxScrollX = this.contentWidth - viewport.width;
 			const newScrollX = this.scrollOffsetX + deltaX;
 			const clampedX = Math.max(0, Math.min(maxScrollX, newScrollX));
 			this.scrollOffsetX = clampedX;
@@ -224,10 +244,11 @@ export class Panel extends Layer implements Interactive {
 			this.background.setSize(this.width, this.height);
 		}
 
-		// Content layer also at panel origin (scroll offset applied during render)
+		// Content layer at the content box (scroll offset applied during render)
 		if (this.contentLayer) {
-			this.contentLayer.setPosition(0, 0);
-			this.contentLayer.setSize(this.width, this.height);
+			const box = this.contentBox(this.width, this.height);
+			this.contentLayer.setPosition(box.x, box.y);
+			this.contentLayer.setSize(box.width, box.height);
 		}
 
 		// Call parent layout for children (this will layout UI elements and content layer)

@@ -1,4 +1,5 @@
 import { Panel } from '../../../engine/ui/Panel';
+import { DeveloperSectionPanel } from './DeveloperSectionPanel';
 import { Text } from '../../../engine/components/Text';
 import { Rectangle } from '../../../engine/components/Rectangle';
 import { Button } from '../../../engine/ui/Button';
@@ -7,19 +8,11 @@ import { Button } from '../../../engine/ui/Button';
  * Nested panels section for the developer screen
  * Demonstrates panel composition and nesting
  */
-export class NestedPanelsSection extends Panel {
+export class NestedPanelsSection extends DeveloperSectionPanel {
 	constructor(x: number, y: number, width: number) {
-		super({
-			id: 'dev_section_nested_panels',
-			width,
-			height: 200, // Will be calculated based on content
-			style: {
-				backgroundColor: 'transparent',
-			},
-		});
+		super({ id: 'dev_section_nested_panels', x, y, width });
 
-		this.setPosition(x, y);
-		this.initializeContent(width);
+		this.initializeContent(this.innerWidth);
 	}
 
 	private initializeContent(width: number): void {
@@ -78,7 +71,7 @@ export class NestedPanelsSection extends Panel {
 		currentY += 170;
 
 		// Update our height based on content
-		this.setSize(this.width, currentY);
+		this.fitContentHeight(currentY);
 	}
 
 	/**

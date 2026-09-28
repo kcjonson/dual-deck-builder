@@ -1,4 +1,4 @@
-import { Panel } from '../../../engine/ui/Panel';
+import { DeveloperSectionPanel } from './DeveloperSectionPanel';
 import { Text } from '../../../engine/components/Text';
 import type { DrawApi, RGBA, Rect } from '../../../engine/draw';
 import { DrawFixture, fixtureHeading, fixtureLabel } from './DrawFixture';
@@ -27,17 +27,9 @@ const CLEAR: RGBA = [0, 0, 0, 0];
  * makes, because the `Input` component does not clip its text yet (the
  * phase 5 TextInput, DDB-86).
  */
-export class ClippingFixturesSection extends Panel {
+export class ClippingFixturesSection extends DeveloperSectionPanel {
 	constructor(x: number, y: number, width: number) {
-		super({
-			id: 'dev_section_clipping',
-			width,
-			height: FIXTURE_TOP + FIXTURE_HEIGHT,
-			style: {
-				backgroundColor: 'transparent',
-			},
-		});
-		this.setPosition(x, y);
+		super({ id: 'dev_section_clipping', x, y, width });
 
 		const title = new Text('Clipping Fixtures', {
 			style: {
@@ -53,7 +45,7 @@ export class ClippingFixturesSection extends Panel {
 			id: 'dev_fixture_clipping',
 			x: 0,
 			y: FIXTURE_TOP,
-			width,
+			width: this.innerWidth,
 			height: FIXTURE_HEIGHT,
 			paint: (draw) => {
 				nested(draw, 0, 0);
@@ -64,7 +56,7 @@ export class ClippingFixturesSection extends Panel {
 			},
 		}));
 
-		this.setSize(width, FIXTURE_TOP + FIXTURE_HEIGHT);
+		this.fitContentHeight(FIXTURE_TOP + FIXTURE_HEIGHT);
 	}
 }
 
