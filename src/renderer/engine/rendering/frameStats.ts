@@ -116,7 +116,7 @@ export interface FrameWindowStatsOptions {
  * frame at n = 1. An interpolated percentile would invent a frame time that
  * never happened, and the point of p99 here is to name a frame that did.
  */
-function percentile99(sorted: readonly number[]): number | null {
+export function nearestRankP99(sorted: readonly number[]): number | null {
 	if (sorted.length === 0) return null;
 	const rank = Math.ceil(sorted.length * 0.99) - 1;
 	return sorted[Math.min(sorted.length - 1, Math.max(0, rank))];
@@ -185,7 +185,7 @@ export function frameWindowStats({ frames, budgetMs, windowSize }: FrameWindowSt
 			ms: last !== null ? last.frameMs : null,
 			minMs,
 			maxMs,
-			p99Ms: percentile99(sorted),
+			p99Ms: nearestRankP99(sorted),
 			histogram,
 			spikesOverBudget,
 			spikesOver2xBudget,

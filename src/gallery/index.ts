@@ -5,6 +5,8 @@ import { FrameLoop } from '../renderer/engine/rendering/FrameLoop';
 import { RendererContext } from '../renderer/engine/rendering/RendererContext';
 import { InputSystem } from '../renderer/engine/input/InputSystem';
 import { FrameTimer } from '../renderer/engine/rendering/FrameTimer';
+import { GpuTimer, createGpuTimer } from '../renderer/engine/rendering/GpuTimer';
+import { createDevToolsTracks } from '../renderer/engine/debug/devtoolsTracks';
 import { loadFontAtlases, loadImageElement } from '../renderer/engine/text/loadFontAtlases';
 import { installDebugHooks, installAppHooks, installInputHooks, installPerfHooks } from '../renderer/engine/debug/hooks';
 import { CardLoader } from '../renderer/game/core/CardLoader';
@@ -33,14 +35,18 @@ class GalleryApplication {
 	private renderer!: Renderer;
 	private draw!: DrawApi;
 	private frameTimer!: FrameTimer;
+	private gpuTimer!: GpuTimer;
 	private host!: SceneHost;
 	private frameLoop!: FrameLoop;
 
 	public async init(): Promise<void> {
 		try {
 			const fontAtlases = loadFontAtlases({ loadImage: loadImageElement });
-			this.frameTimer = new FrameTimer();
+			// The gallery is a development-only bundle, so the DevTools track
+			// (R15.29) and the GPU timer (R13.16) need no build-time gate here.
+			this.frameTimer = new FrameTimer({ tracks: createDevToolsTracks() });
 			this.renderer = new Renderer('game-canvas');
+			this.gpuTimer = createGpuTimer(this.renderer);
 
 			const canvas = document.getElementById('game-canvas') as HTMLCanvasElement;
 			InputSystem.getInstance().setup(canvas);
@@ -49,6 +55,7 @@ class GalleryApplication {
 			this.draw = createDrawApi({
 				renderer: this.renderer,
 				frameTimer: this.frameTimer,
+				gpuTimer: this.gpuTimer,
 				fontAtlases: await fontAtlases,
 			});
 			RendererContext.getInstance().draw = this.draw;
@@ -137,7 +144,9 @@ class GalleryApplication {
 				// Null before the first frame: an unopened draw API's zeros
 				// would read as a measured empty frame (R13.5).
 				batcher: this.draw.frame > 0 ? this.draw.getStats() : null,
+				gpu: this.gpuTimer.stats,
 			}),
+			gpuTimer: this.gpuTimer,
 		});
 	}
 

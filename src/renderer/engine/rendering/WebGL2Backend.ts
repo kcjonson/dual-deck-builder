@@ -23,6 +23,7 @@ import type { TextureStore } from '../gpu/TextureStore';
 import type { LoadedFontAtlas } from '../text/loadFontAtlases';
 import { TextMetricsService } from '../text/TextMetricsService';
 import { FrameTimer } from './FrameTimer';
+import type { GpuTimer } from './GpuTimer';
 import { LegacyPaintOrder } from './LegacyPaintOrder';
 import { Renderer } from './Renderer';
 import { StreamRing } from './StreamRing';
@@ -77,6 +78,12 @@ import { compileProgram } from './program';
 export interface WebGL2BackendOptions {
 	renderer: Renderer;
 	frameTimer: FrameTimer;
+	/**
+	 * R13.16's per-pass GPU timer, development builds only. The backend's whole
+	 * contract with it is to bracket the frame and each GPU submission; it
+	 * never reads a result.
+	 */
+	gpuTimer?: GpuTimer | null;
 	/** Initial vertex ring capacity in bytes. */
 	vertexRingBytes?: number;
 	/** Initial index ring capacity in bytes. */
@@ -86,6 +93,7 @@ export interface WebGL2BackendOptions {
 export interface CreateDrawApiOptions {
 	renderer: Renderer;
 	frameTimer: FrameTimer;
+	gpuTimer?: GpuTimer | null;
 	/** The font role atlases, loaded and validated, given to the backend before the first frame (R2.18). */
 	fontAtlases?: readonly LoadedFontAtlas[];
 }
@@ -129,8 +137,8 @@ const FRAME_SLOTS = 3;
  * `legacyTextOrder` is the one temporary option and this is its only caller;
  * see `DrawApiOptions.legacyTextOrder` for what it does and when it dies.
  */
-export function createDrawApi({ renderer, frameTimer, fontAtlases = [] }: CreateDrawApiOptions): DrawApi {
-	const backend = new WebGL2Backend({ renderer, frameTimer });
+export function createDrawApi({ renderer, frameTimer, gpuTimer, fontAtlases = [] }: CreateDrawApiOptions): DrawApi {
+	const backend = new WebGL2Backend({ renderer, frameTimer, gpuTimer });
 	for (const { role, face, atlas, image } of fontAtlases) {
 		const texture = renderer.textures.create({
 			width: atlas.width,
@@ -169,6 +177,7 @@ export class WebGL2Backend implements DrawBackend {
 
 	private readonly renderer: Renderer;
 	private readonly frameTimer: FrameTimer;
+	private readonly gpuTimer: GpuTimer | null;
 	private readonly gl: WebGL2RenderingContext;
 	private readonly text = new TextMetricsService();
 	/** Font role to atlas texture, in load order; the resident set is these (R6.4). */
@@ -210,11 +219,13 @@ export class WebGL2Backend implements DrawBackend {
 	constructor({
 		renderer,
 		frameTimer,
+		gpuTimer = null,
 		vertexRingBytes = DEFAULT_VERTEX_RING_BYTES,
 		indexRingBytes = DEFAULT_INDEX_RING_BYTES,
 	}: WebGL2BackendOptions) {
 		this.renderer = renderer;
 		this.frameTimer = frameTimer;
+		this.gpuTimer = gpuTimer;
 		this.gl = renderer.getContext();
 
 		this.encoder = new UberGeometryEncoder({
@@ -275,6 +286,9 @@ export class WebGL2Backend implements DrawBackend {
 
 	/** Opens the frame's one render pass: rings advanced, the frame block written into this frame's slot, the target cleared. */
 	beginFrame(frame: FrameDescription): void {
+		// The clear is the frame's first GPU pass (R13.16).
+		this.gpuTimer?.beginFrame();
+		this.gpuTimer?.beginPass();
 		// R7.2: the ratio reaches the encoder per frame, for inflation, the
 		// feather and glyph snapping.
 		this.encoder.ratio = frame.ratio;
@@ -283,6 +297,7 @@ export class WebGL2Backend implements DrawBackend {
 		this.writeFrameUniforms(frame);
 		this.bindPipeline();
 		this.gl.clear(this.gl.COLOR_BUFFER_BIT);
+		this.gpuTimer?.endPass();
 	}
 
 	submit(batch: DrawBatch): GpuWork {
@@ -293,9 +308,12 @@ export class WebGL2Backend implements DrawBackend {
 		}
 
 		let binds = 0;
+		// One sort domain is one GPU pass (R13.16).
+		this.gpuTimer?.beginPass();
 		const work = this.batcher.flush(ordered, (upload) => {
 			binds += this.execute(upload);
 		});
+		this.gpuTimer?.endPass();
 		// The batcher counted the dynamic units it handed out; what the GPU
 		// was actually asked to bind is this backend's count.
 		work.textureBinds = binds;
@@ -312,6 +330,7 @@ export class WebGL2Backend implements DrawBackend {
 		for (let unit = this.residentTextures.residentUnits; unit < UBER_TEXTURE_UNITS; unit++) {
 			if (this.boundUnits[unit] !== placeholder) this.bindUnit(unit, placeholder);
 		}
+		this.gpuTimer?.endFrame();
 	}
 
 	invalidateState(): void {

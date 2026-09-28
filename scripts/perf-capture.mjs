@@ -2,10 +2,20 @@
  * R13.38's capture script: drive a development build through a fixed list of
  * scenarios, sample `window.__perf.snapshot()` N times per scenario after a
  * settle period, and write `perf-results/<label>.json` as
- * `[ { "scenario", "samples": [snapshot...] } ]`.
+ * `[ { "scenario", "samples": [snapshot...] } ]`, with the run's table beside
+ * it as `perf-results/<label>.md`.
  *
  *   node scripts/perf-capture.mjs --label phase0-frame-baseline \
  *     --url http://localhost:9061/ splashScreen mainMenuScreen
+ *
+ * With no scenarios named it captures every one the page offers: each screen
+ * on the game page (`__app.screens()`), each scene in the gallery
+ * (`__app.status().scenes`). `--compare <file>` adds R13.39's before/after
+ * table against an earlier capture to the output, and
+ *
+ *   node scripts/perf-capture.mjs compare perf-results/a.json perf-results/b.json
+ *
+ * prints that table for two existing files without launching anything.
  *
  * It drives headless Chrome over the DevTools protocol with no dependencies
  * beyond Node's own WebSocket, for two reasons. The first is that it has to be
@@ -16,6 +26,8 @@
  * that is a launch flag rather than an in-page call, and killing the browser at
  * the end is what restores it. Frame times here are therefore unthrottled: they
  * say how much of the budget a scene costs, not what a vsync-paced run displays.
+ * The exception is `--vsync on`, which is how GPU time is captured; see the
+ * option for why an unthrottled run cannot collect it.
  *
  * The chapter 13 mapping table names Playwright as the browser answer. When a
  * Playwright harness lands it should replace this file rather than run beside
@@ -25,9 +37,19 @@
  * `__app.scene` (gallery), whichever the page installed.
  */
 import { spawn } from 'node:child_process';
-import { writeFileSync, mkdirSync, existsSync } from 'node:fs';
+import { writeFileSync, mkdirSync, existsSync, readFileSync } from 'node:fs';
 import { dirname, resolve, join } from 'node:path';
 import { tmpdir } from 'node:os';
+import { comparisonTable, summaryTable } from './perf-table.ts';
+
+const readCapture = (path) => JSON.parse(readFileSync(resolve(path), 'utf8'));
+
+if (process.argv[2] === 'compare') {
+	const [before, after] = process.argv.slice(3);
+	if (!before || !after) throw new Error('compare takes two capture files: before.json after.json');
+	console.log(comparisonTable(readCapture(before), readCapture(after)));
+	process.exit(0);
+}
 
 const CHROME_CANDIDATES = [
 	'C:/Program Files/Google/Chrome/Application/chrome.exe',
@@ -44,8 +66,23 @@ function parseArguments(argv) {
 		width: 1440,
 		height: 882,
 		settleFrames: 120,
+		// Wall-clock settle on top of the frame count. Unthrottled, 120 frames
+		// pass in a tenth of a second on a light screen, before a lazily loaded
+		// asset lands and before Chromium has handed back a single GPU result.
+		settleMs: 1000,
 		samples: 20,
 		chrome: null,
+		compare: null,
+		// Defaults to on for a paced run and off for an unthrottled one, where it
+		// collects almost nothing (see `vsync`) and still costs frame time: on
+		// ANGLE Metal it lengthened a main menu frame from 4.9 to 6.9 ms.
+		gpuTimer: null,
+		// R13.38 wants vsync off, and it is by default. `--vsync on` is the GPU
+		// capture: with the frame cap off, Chromium hands timer query results
+		// back hundreds of frames late (measured on ANGLE Metal: none of twelve
+		// in flight resolved within 300 frames, against the next frame when
+		// paced), so an unthrottled run collects almost no GPU samples.
+		vsync: 'off',
 		scenarios: [],
 	};
 	for (let index = 0; index < argv.length; index++) {
@@ -59,7 +96,7 @@ function parseArguments(argv) {
 			options.scenarios.push(argument);
 		}
 	}
-	if (options.scenarios.length === 0) throw new Error('name at least one scenario');
+	options.gpuTimer ??= options.vsync === 'on' ? 'on' : 'off';
 	return options;
 }
 
@@ -73,15 +110,17 @@ const chrome = spawn(options.chrome ?? CHROME_CANDIDATES.find((path) => existsSy
 	'--force-device-scale-factor=1',
 	// R13.38: vsync and the frame cap are off for the capture. Killing the
 	// browser at the end is what restores them.
-	'--disable-frame-rate-limit',
-	'--disable-gpu-vsync',
+	...(options.vsync === 'on' ? [] : ['--disable-frame-rate-limit', '--disable-gpu-vsync']),
 	'--no-first-run',
 	'--no-default-browser-check',
 	// Its own profile, so a capture neither waits on nor disturbs the browser
 	// the person running it already has open.
-	`--user-data-dir=${join(tmpdir(), 'ddb-perf-capture-profile')}`,
+	`--user-data-dir=${join(tmpdir(), `ddb-perf-capture-profile-${options.port}`)}`,
 	options.url,
 ], { stdio: 'ignore' });
+// A capture that throws must not leave a headless browser holding the port
+// and the profile, which the next run would then fail to open.
+process.on('exit', () => chrome.kill());
 
 async function debuggerUrl() {
 	for (let attempt = 0; attempt < 60; attempt++) {
@@ -148,6 +187,17 @@ for (let attempt = 0; ; attempt++) {
 
 console.error(await evaluate('JSON.stringify({ viewport: [innerWidth, innerHeight, devicePixelRatio] })'));
 
+// Set explicitly either way, so the page's own state (the F5 overlay turns the
+// timer on) cannot leak into a capture.
+const gpuTimer = await evaluate(`window.__perf.gpuTimer?.(${options.gpuTimer === 'on'}) ?? null`);
+const device = await evaluate('window.__perf.snapshot().device');
+console.error(`device: ${device?.renderer ?? 'unknown'}; GPU timer: ${gpuTimer === null ? 'absent' : gpuTimer ? 'on' : 'off'}`);
+
+if (options.scenarios.length === 0) {
+	options.scenarios = await evaluate('window.__app.screens?.() ?? window.__app.status?.().scenes ?? []');
+	if (options.scenarios.length === 0) throw new Error('name at least one scenario; the page offers none');
+}
+
 const results = [];
 for (const scenario of options.scenarios) {
 	const mounted = await evaluate(
@@ -157,6 +207,11 @@ for (const scenario of options.scenarios) {
 		console.error(`skipped ${scenario}: the page does not know it`);
 		continue;
 	}
+	// The GPU window resolves a sample every few frames on an unthrottled page,
+	// so it outlives the frame window and would carry the previous scenario's
+	// samples into this one's p99. Toggling the timer empties it.
+	if (gpuTimer) await evaluate('window.__perf.gpuTimer(false), window.__perf.gpuTimer(true)');
+	await sleep(options.settleMs);
 	const capture = await evaluate(`window.__perf.capture(${JSON.stringify({
 		scenario,
 		settleFrames: options.settleFrames,
@@ -165,7 +220,8 @@ for (const scenario of options.scenarios) {
 	const last = capture.samples[capture.samples.length - 1];
 	console.error(`${scenario}: frame p99 ${last.frame.p99Ms} ms, max ${last.frame.maxMs} ms, `
 		+ `render max ${last.sections.render?.maxMs} ms, update max ${last.sections.update?.maxMs} ms, `
-		+ `${last.renderer.glDrawCalls} draws, ${last.sanity.framesWithSectionsOverSpan} section overlaps`);
+		+ `${last.renderer.glDrawCalls} draws, ${last.sanity.framesWithSectionsOverSpan} section overlaps, `
+		+ `GPU ${last.gpu.source ?? 'n/a'} p99 ${last.gpu.p99Ms} ms, latency ${last.gpu.latencyMs} ms`);
 	results.push(capture);
 }
 
@@ -173,6 +229,41 @@ const out = resolve(`perf-results/${options.label}.json`);
 mkdirSync(dirname(out), { recursive: true });
 writeFileSync(out, `${JSON.stringify(results, null, '\t')}\n`);
 console.error(`wrote ${out}`);
+
+const table = [
+	`# ${options.label}`,
+	'',
+	`Captured ${new Date().toISOString().slice(0, 10)} from ${options.url} at ${options.width}x${options.height}, `
+		+ `headless Chrome with ${options.vsync === 'on'
+			? 'vsync on, so frame times are paced and only the GPU columns and the sections are costs'
+			: 'vsync and the frame cap off (R13.38)'}, ${options.settleMs} ms and `
+		+ `${options.settleFrames} frames of settle, and `
+		+ `${options.samples} samples per scenario. Times in ms. Device: ${device?.renderer ?? 'unknown'}.`,
+	'',
+	`GPU timer: ${gpuTimer === null ? 'absent from the page' : gpuTimer ? 'on' : 'off'}. `
+		+ (gpuTimer
+			? 'GPU columns are timer-query GPU time over the valid samples (R13.16); a sample over three times the '
+				+ 'larger of its CPU frame and the median frame is excluded and counted under GPU invalid (R13.18). '
+				+ 'Fence latency is the fallback where the timer query extension is absent: submission to observed '
+				+ 'completion, an upper bound, never GPU time (R13.19).'
+			: 'GPU columns are n/a because nothing measured them, not because they are zero.'),
+	...(gpuTimer && /Metal/.test(device?.renderer ?? '')
+		? ['', 'On ANGLE Metal every timed pass carries a floor: a query around a single clear read 1.39 ms, the '
+			+ 'same as around twenty clears, on a Radeon Pro 560X at 1440x882 with 4x MSAA. GPU time here includes '
+			+ 'that floor once per pass, so it overstates the work and compares only between runs with the same '
+			+ 'pass count on the same device.']
+		: []),
+	'',
+	summaryTable(results),
+	'',
+];
+if (options.compare) {
+	table.push(`## Against ${options.compare}`, '', comparisonTable(readCapture(options.compare), results), '');
+}
+const tableOut = out.replace(/\.json$/, '.md');
+writeFileSync(tableOut, table.join('\n'));
+console.log(table.join('\n'));
+console.error(`wrote ${tableOut}`);
 
 socket.close();
 chrome.kill();
