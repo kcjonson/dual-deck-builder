@@ -246,6 +246,47 @@ describe('LegacyGeometryEncoder: text', () => {
 		}
 	});
 
+	it.each([
+		[0, 0, 'left', 'top'],
+		[0.4, 0.6, 'center', 'middle'],
+		[3.5, -2.5, 'right', 'bottom'],
+	] as const)('reports an ink extent that contains every glyph it draws (translate %s, %s)', (dx, dy, align, verticalAlign) => {
+		const { encoder, encode } = setup();
+		const options = { text: 'bAb?A', position: { x: 60.3, y: 40.7 }, font: 'body', size: 21, color: RED, align, verticalAlign };
+		const [{ floats }] = encode(record((api) => {
+			api.pushTranslate(dx, dy);
+			api.drawText(options);
+			api.popTransform();
+		})).uploads;
+
+		const ink = encoder.textInk(options);
+		if (!ink) throw new Error('a run with glyphs has an extent');
+		let minX = Infinity;
+		let minY = Infinity;
+		let maxX = -Infinity;
+		let maxY = -Infinity;
+		for (let n = 0; n < floats.length / V.floats; n++) {
+			const [x, y] = vertex(floats, n).position;
+			minX = Math.min(minX, x - dx);
+			minY = Math.min(minY, y - dy);
+			maxX = Math.max(maxX, x - dx);
+			maxY = Math.max(maxY, y - dy);
+		}
+		// Contains what was drawn, and is no more than the rounding slack wider.
+		expect(ink.x).toBeLessThanOrEqual(minX);
+		expect(ink.y).toBeLessThanOrEqual(minY);
+		expect(ink.x + ink.width).toBeGreaterThanOrEqual(maxX);
+		expect(ink.y + ink.height).toBeGreaterThanOrEqual(maxY);
+		expect(minX - ink.x).toBeLessThanOrEqual(2);
+		expect(ink.x + ink.width - maxX).toBeLessThanOrEqual(2);
+	});
+
+	it('has no extent for a run it would not draw', () => {
+		const { encoder } = setup();
+		expect(encoder.textInk({ text: '??', position: { x: 0, y: 0 }, size: 12 })).toBeNull();
+		expect(encoder.textInk({ text: 'A', position: null, size: 12 })).toBeNull();
+	});
+
 	it('samples the atlas it was built with, which is the resident texture', () => {
 		const { encoder, glyphs } = setup();
 		const [command] = record((api) => {

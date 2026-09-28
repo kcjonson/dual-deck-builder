@@ -5,7 +5,9 @@ import { RenderContext, DEFAULT_RENDER_CONTEXT } from '../rendering/RenderContex
 import { RendererContext } from '../rendering/RendererContext';
 
 /**
- * Custom content layer that handles scroll offset for child hit testing
+ * The panel's content layer: it moves with the scroll offset, which only hit
+ * testing needs to know about. Drawing is plain `Layer.render`; what scrolls
+ * out of view is culled by the draw API against the panel's clip (R4.2a).
  */
 class ScrollableContentLayer extends Layer {
 	private panel: Panel;
@@ -28,58 +30,6 @@ class ScrollableContentLayer extends Layer {
 			x: localCoords.x + scrollOffset.x,
 			y: localCoords.y + scrollOffset.y
 		};
-	}
-
-	/**
-	 * Override render to implement CPU-side culling
-	 */
-	public render(context?: RenderContext): void {
-		if (!this.visible) return;
-
-		const ctx = context || DEFAULT_RENDER_CONTEXT;
-		const screenX = ctx.offsetX + this.x;
-		const screenY = ctx.offsetY + this.y;
-
-		// Create child context
-		const childContext: RenderContext = {
-			offsetX: screenX,
-			offsetY: screenY,
-		};
-
-		// Only do CPU culling if parent panel has overflow hidden and is scrollable
-		if (this.panel.getOverflow() === 'hidden' && this.panel.scrollable) {
-			// Get scroll offset and viewport bounds
-			const scrollOffset = this.panel.getScrollOffset();
-			const viewportLeft = scrollOffset.x;
-			const viewportTop = scrollOffset.y;
-			const viewportRight = viewportLeft + this.panel.width;
-			const viewportBottom = viewportTop + this.panel.height;
-
-			// Render only visible children (CPU-side culling)
-			for (const child of this.children) {
-				if (!child.isVisible()) continue;
-
-				// Calculate child bounds in content space
-				const childLeft = child.x;
-				const childTop = child.y;
-				const childRight = childLeft + child.width;
-				const childBottom = childTop + child.height;
-
-				// Skip children that are completely outside the viewport
-				if (childRight < viewportLeft || 
-					childLeft > viewportRight ||
-					childBottom < viewportTop ||
-					childTop > viewportBottom) {
-					continue;
-				}
-
-				// Render children that are at least partially visible
-				child.render(childContext);
-			}
-		} else {
-			// Normal rendering without culling
-			super.render(context);
-		}
 	}
 }
 
@@ -258,6 +208,11 @@ export class Panel extends Layer implements Interactive {
 		return this;
 	}
 
+	/** A scrollable panel clips its content whatever its overflow says. */
+	public get clipsChildren(): boolean {
+		return (this.scrollable || this.getOverflow() === 'hidden') && this.width > 0 && this.height > 0;
+	}
+
 	/**
 	 * Layout method to position background and children
 	 */
@@ -319,16 +274,17 @@ export class Panel extends Layer implements Interactive {
 		// disagree. The save-and-restore this replaced read the scissor box back
 		// from GL, which R15.22 names as prohibited; the clip stack knows what
 		// encloses this panel without asking.
-		const clips = (this.scrollable || this.getOverflow() === 'hidden')
-			&& this.width > 0
-			&& this.height > 0;
-		const draw = clips ? RendererContext.getInstance().draw : null;
+		const draw = this.clipsChildren ? RendererContext.getInstance().draw : null;
 
 		if (draw) {
 			draw.pushClip({ x: screenX, y: screenY, width: this.width, height: this.height });
 		}
 
-		// Render content layer with scrolled context (CPU culling happens inside)
+		// The content offset is applied here, after the clip rect was taken from
+		// the panel's own unscrolled position, so the clip stays fixed on screen
+		// while the content moves inside it (R4.9, R4.10). Rows scrolled out of
+		// view are dropped by the draw API's cull against that clip (R4.2a),
+		// and counted there as `culled`.
 		if (this.contentLayer) {
 			this.contentLayer.render(contentContext);
 		}

@@ -6,6 +6,17 @@ This document contains the chronological log of completed development tasks for 
 
 **Date correction (2026-08-22):** the repo's first commit is 2025-05-17, but many entries below carry dates in December 2024 or January 2025 — the AI that wrote them used its assumed date instead of the real one. Entries dated 2025-07-03 and 2025-07-02 have been corrected from "2025-01-03"/"2025-01-02" (verified against git history). Remaining Dec 2024 / Jan 2025 dates are wrong by roughly six months; the real work happened May–July 2025. Trust git history over these dates.
 
+## The clip stack's consumers: cull, snapshot, hit test (2026-09-28)
+
+**What landed:** DDB-65's fourth and last PR (DDB-55 phase 1), stacked on the batcher.
+
+- `Layer.clipsChildren` (overridden by `Panel`) is the single test of whether a layer clips, read by `Layer.render`, `Panel.render`, `treeSnapshot` and the hit test.
+- `Panel`'s `ScrollableContentLayer.render` cull is deleted; R4.2a's cull in the draw API does the job and counts it. `DrawBackend.textInk` (optional) lets text be culled per run; `LegacyGeometryEncoder.textInk` unions the glyph quads from the same pen and glyph walk it draws with, grown by a pixel. Asked only under a rect clip and a translate-only transform.
+- `treeSnapshot` carries a `ClipState` and intersects with `intersectClip`; an empty intersection is a zero-sized rect.
+- R4.12: `Layer.containsPoint` rejects a point outside any clipping ancestor, half-open, each ancestor asked in local space so a panel's scroll is removed (R4.11). Promotion's clip reset for hits and reverse-paint-order dispatch are left to phase 3 (DDB-75).
+
+**How:** `ui/PanelClip.test.ts` covers 4.7's offset-before-clip fixture, a 500-row scrolled panel emitting only the rows in view with the rest counted culled, the background staying outside its own panel's clip, the hit test (scrolled-out row, clip edge, nested clips, non-clipping ancestor), the empty snapshot clip, and the snapshot's clip equalling the clip the recording backend got. Text cull tests on a backend with `textInk`; encoder extent tests that the reported ink contains every glyph drawn under three translations. Removing the hit-test gate fails three tests. `CombatScreenTeardown` now clicks a card that is on screen at its 1024 px viewport. Pixels byte-identical against `main` on six screens and seven gallery scenes. Decision record: `docs/AI_TECHNICAL_DECISIONS/clip-stack-consumers.md`.
+
 ## The batcher: one GPU draw per sort domain (2026-09-28)
 
 **What landed:** DDB-65's third PR (DDB-55 phase 1). The back half of chapter 3's batcher, and the legacy backend moved onto it.

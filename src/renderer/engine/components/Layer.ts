@@ -318,8 +318,41 @@ export class Layer {
 			localPoint.y >= 0 &&
 			localPoint.y <= this.height;
 
+		return contains && this.insideAncestorClips(x, y);
+	}
 
-		return contains;
+	/**
+	 * Whether this layer clips what it contains: the rect `render` pushes
+	 * around its children, and the one fact `render`, the tree snapshot and the
+	 * hit test all read, so the three cannot disagree about where a clip is.
+	 * A zero-sized clipper clips nothing.
+	 */
+	public get clipsChildren(): boolean {
+		return this.overflow === 'hidden' && this.width > 0 && this.height > 0;
+	}
+
+	/**
+	 * R4.12: a point outside any ancestor's clip hits nothing, so a row
+	 * scrolled out of a panel is not clickable although its bounds still
+	 * exist. Each clipping ancestor is asked in its own local space, which is
+	 * where `globalToLocal` already removes a panel's scroll (R4.11), and the
+	 * test is half-open like the fragment test it mirrors (R4.4).
+	 *
+	 * What this does not do yet: honour layer promotion's clip reset (R4.8),
+	 * because components have no layer to be promoted into until phase 3's
+	 * object model, and walk hits in reverse paint order (R3.28), which is
+	 * DDB-75's dispatcher. Nothing in the app promotes, so the first is not a
+	 * gap anyone can reach today.
+	 */
+	protected insideAncestorClips(x: number, y: number): boolean {
+		for (let ancestor = this.parent; ancestor; ancestor = ancestor.parent) {
+			if (!ancestor.clipsChildren) continue;
+			const local = ancestor.globalToLocal(x, y);
+			if (local.x < 0 || local.x >= ancestor.width || local.y < 0 || local.y >= ancestor.height) {
+				return false;
+			}
+		}
+		return true;
 	}
 
 	/**
@@ -436,7 +469,7 @@ export class Layer {
 		// resizes this layer during the walk cannot leave the push and the pop
 		// disagreeing about whether a clip is open.
 		const hasBackground = this.backgroundColor !== null && this.width > 0 && this.height > 0;
-		const clips = this.overflow === 'hidden' && this.width > 0 && this.height > 0;
+		const clips = this.clipsChildren;
 
 		// R4.7 converts the rect through the current transform at push time and
 		// the clip stack intersects it with whatever encloses it (R4.3), so

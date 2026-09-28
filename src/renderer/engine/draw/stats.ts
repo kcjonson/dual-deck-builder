@@ -19,8 +19,8 @@ import { LAYER_NAMES, LayerName } from './layers';
  *                frame asked for.
  * - `culled`     draws dropped on the CPU by the clip: R4.2's `empty` state and
  *                R4.2a's bounds rejection, both counted where they happen. Text
- *                is exempt from the bounds test until R6.8's glyph iteration
- *                exists, which `bounds.ts` states and a test asserts.
+ *                is bounds-tested per run only when the backend can give its
+ *                extent (`DrawBackend.textInk`); `bounds.ts` says why.
  * - `clipPushes` counted at `pushClip`, `pushClipRounded` and `pushClipReset`
  *                (R4.17).
  * - `flushes`    `barrier` and `endFrame` are caused here and counted here.
