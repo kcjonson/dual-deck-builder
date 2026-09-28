@@ -371,6 +371,9 @@ export class WebGL2Backend implements DrawBackend {
 		gl.uniform1iv(gl.getUniformLocation(program, 'uTextures[0]'), units);
 		gl.uniformBlockBinding(program, gl.getUniformBlockIndex(program, 'Frame'), FRAME_BLOCK_BINDING);
 
+		const provoking = gl.getExtension('WEBGL_provoking_vertex') as ProvokingVertexExtension | null;
+		provoking?.provokingVertexWEBGL(provoking.FIRST_VERTEX_CONVENTION_WEBGL);
+
 		const alignment = gl.getParameter(gl.UNIFORM_BUFFER_OFFSET_ALIGNMENT) as number;
 		const uniformStride = alignUp(FRAME_BLOCK_BYTES, Math.max(256, alignment));
 		const uniformBuffer = createBuffer(gl);
@@ -576,6 +579,11 @@ export class WebGL2Backend implements DrawBackend {
 		this.unpaintable.add(kind);
 		console.error(`WebGL2Backend: ${detail}; nothing was drawn`);
 	}
+}
+
+interface ProvokingVertexExtension {
+	readonly FIRST_VERTEX_CONVENTION_WEBGL: number;
+	provokingVertexWEBGL(mode: number): void;
 }
 
 function glType(gl: WebGL2RenderingContext, type: UberAttributeType): number {
