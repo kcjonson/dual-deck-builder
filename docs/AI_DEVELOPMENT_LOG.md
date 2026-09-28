@@ -19,6 +19,14 @@ This document contains the chronological log of completed development tasks for 
 
 **How:** every screen and gallery scene captured locally on `main` and on the branch, first with only the deletion, then with the fixes, and diffed per pixel: four screens moved, all eight scenes and the splash and main menu stayed byte-identical. `perf-capture.mjs` against `main`: GPU draws combat 6 to 1, card showcase 2 to 1, developer 2 to 1, every screen now one. Goldens re-minted on CI with `update_mode=all`: combat, driver selection, developer and card showcase in both projects. Follow-up filed: DDB-198 (long card titles run under the cost digit). Decision record: [paint-order-rebaseline.md](./AI_TECHNICAL_DECISIONS/paint-order-rebaseline.md).
 
+## Index buffer pool: combat back to 60 FPS on ANGLE Metal (2026-09-28)
+
+**What landed:** DDB-195. `rendering/IndexBufferPool.ts` replaces the index `StreamRing`: every upload writes its indices at offset 0 of its own element buffer. The slot is the smallest free one that fits, free once the frame that wrote it is two frames old, created at a power of two from 16 KB when none fits, never resized, and 24 are pre-created. `WebGL2Backend` binds the slot into the vertex array per upload and draws from `firstIndex * 4`; `reserve` is vertex-only.
+
+**Why:** combat went from 16.6 to 27.9 ms a frame with #70 (bisected over 6e7f6ee, #66, #68, #69, #70 and main). A paced probe showed the cause: a `drawElements` reading an element buffer written since its last draw costs in proportion to the whole buffer (4 MB: 26.4 ms; 256 KB: 16.6 ms). It is triggered by the draw, not the write; it is the same for 16-bit indices; it is not copy-on-write; and orphaning is worse. After #76 the ring was 786 KB and under the cliff, but a 4 MB ring still took combat to 32.7 ms.
+
+**Evidence:** combat 16.6 to 16.8 ms paced and 4.9 to 8.4 ms unthrottled, against 16.6 / 10.4 before #70. The same pool with 4 MB slots measured 30.5 ms, so the per-upload sizing is what fixes it. Unit tests: `IndexBufferPool` (9: distinct slots per upload, two-frame reuse, creation instead of overwrite, power-of-two sizing, smallest fit, no creation after a steady frame is seen, reset, frame order) and backend (a distinct slot per domain with none reused in the next frame, a larger slot created once and never again, restore recreating the initial slots). 1641 jest tests pass. Decision record: [index-buffer-pool.md](./AI_TECHNICAL_DECISIONS/index-buffer-pool.md).
+
 ## GPU timer, DevTools tracks, and perf capture tables (2026-09-28)
 
 **What landed:** DDB-92 (DDB-55 phase 7).
