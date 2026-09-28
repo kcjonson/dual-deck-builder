@@ -69,6 +69,10 @@ Open against the spec, for whoever writes PR 3:
 - **Backends live under `draw/` and the interface is `DrawBackend`.** The recon note put them under `engine/gpu/`, but the file it names there is R15.38's device seam (render passes, pipeline keys, bind groups), which arrives with WebGL2; `gpu/Backend.ts` is left free for it.
 - **`Renderer.drawTriangle` is absorbed into `drawPolygon`** (three points, no indices) and gets no counterpart, per the delete-legacy convention. `Triangle.ts` is live and PR 3 has to move it.
 
+## Phase 4: theme tokens (landed ahead of phases 2 and 3, 2026-09-28)
+
+DDB-83 put the token pipeline in with no consumers: `src/renderer/engine/theme/tokens.json` is the only source, `npm run tokens` (`scripts/generate-tokens.mjs`) writes the committed `tokens.ts`, and `tokens.test.ts` fails when the two disagree. The starting theme comes from the battle screen mock's palette, since the colours in today's screens are ad hoc and nothing there is two-accent or five-surface; the reasoning and a map from the common literals to tokens for DDB-84 are in [theme-tokens.md](./AI_TECHNICAL_DECISIONS/theme-tokens.md). No component reads a token yet, so no pixel moved. The type role families (Barlow Condensed, Open Sans, JetBrains Mono) are the mock's; the font pipeline (DDB-69) owns which faces actually load and whoever lands second reconciles `typography.role_*`.
+
 ## Current state (verified survey, 2026-08-22)
 
 Development stopped 2025-07-03. On 2026-08-22 the whole project was re-surveyed: `npm test` (128/128 pass), `npm run lint` (0 errors, 9 warnings), `npm run build:web` (compiles), plus a live click-through of the running game and a full code audit. Everything below is verified against the code or the running app, not carried forward from old status notes.

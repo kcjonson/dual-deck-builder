@@ -22,6 +22,7 @@
 		"test:debug": "node --inspect-brk ./node_modules/jest/bin/jest.js --runInBand",
 		"test:visual": "playwright test",
 		"typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p tsconfig.tests.json",
+		"tokens": "node scripts/generate-tokens.mjs",
 		"test:visual:chromium": "playwright test --project chromium",
 		"build:harness:electron": "cross-env NODE_ENV=development webpack --config webpack/webpack.electron.js --config-name main --config-name preload --output-path .playwright-build/electron",
 		"deploy": "gh-pages -d dist/web"
