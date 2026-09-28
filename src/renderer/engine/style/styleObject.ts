@@ -7,7 +7,6 @@ import { tokens } from '../theme/tokens';
 import type { ColorToken, ElevationToken } from '../theme/tokens';
 
 export type { Sides };
-import { StyleParser } from '../types/Style';
 
 /**
  * R11.14's closed set. Every key has one meaning on every component that
@@ -148,19 +147,33 @@ function checkProperties(style: StyleProperties, acceptance: StyleAcceptance, st
 const COLOR_TOKENS = tokens.color as Readonly<Record<string, RGBA>>;
 
 /**
- * A colour value as floats. A token name reads the theme; the CSS forms go
- * through the parser. A string that is neither throws, where the old parser
- * turned it into white without a word.
+ * A colour value as floats. A token name reads the theme; `transparent`,
+ * `#rgb`, `#rrggbb`, `#rrggbbaa`, `rgb()`, and `rgba()` are parsed. A string
+ * that is none of them throws, where the old parser turned it into white
+ * without a word.
  */
 export function resolveColor(value: ColorValue): RGBA {
 	if (typeof value !== 'string') return value;
 	const token = COLOR_TOKENS[value];
 	if (token) return token;
-	const text = value.trim().toLowerCase();
-	if (text === 'transparent' || /^#([0-9a-f]{3}|[0-9a-f]{6}|[0-9a-f]{8})$/.test(text) || /^rgba?\([^)]+\)$/.test(text)) {
-		return StyleParser.parseColor(text);
+	const parsed = parseCssColor(value.trim().toLowerCase());
+	if (!parsed) throw new Error(`style: "${value}" is not a colour token or a CSS colour`);
+	return parsed;
+}
+
+function parseCssColor(text: string): RGBA | null {
+	if (text === 'transparent') return [0, 0, 0, 0];
+	const hex = /^#([0-9a-f]{3}|[0-9a-f]{6}|[0-9a-f]{8})$/.exec(text);
+	if (hex) {
+		const digits = hex[1].length === 3 ? [...hex[1]].map((digit) => digit + digit).join('') : hex[1];
+		const channel = (index: number): number => parseInt(digits.slice(index * 2, index * 2 + 2), 16) / 255;
+		return [channel(0), channel(1), channel(2), digits.length === 8 ? channel(3) : 1];
 	}
-	throw new Error(`style: "${value}" is not a colour token or a CSS colour`);
+	const functional = /^rgba?\(([^)]+)\)$/.exec(text);
+	if (!functional) return null;
+	const values = functional[1].split(',').map((part) => parseFloat(part.trim()));
+	if (values.length < 3 || values.length > 4 || values.some((part) => !Number.isFinite(part))) return null;
+	return [values[0] / 255, values[1] / 255, values[2] / 255, values.length === 4 ? values[3] : 1];
 }
 
 type LengthCategory = 'space' | 'radius' | 'borderWidth' | 'fontSize' | 'control';

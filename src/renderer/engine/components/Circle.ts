@@ -1,28 +1,30 @@
-import { Component, ComponentOptions, ResolvedColors } from './Component';
+import { Component, ResolvedColors } from './Component';
 import type { DrawApi } from '../draw/DrawApi';
-import type { Rect } from '../draw/geometry';
-import { Style, StyleParser } from '../types/Style';
+import type { RGBA, Rect } from '../draw/geometry';
+import { ColorValue, resolveColor } from '../style/styleObject';
+import { ShapeOptions, resolveShapeStyle } from './shapeStyle';
 
 /**
  * Circle component for rendering circles
  */
 export class Circle extends Component {
-	private fillColor: [number, number, number, number] = [1, 1, 1, 1];
-	private strokeColor: [number, number, number, number] = [0, 0, 0, 1];
-	private strokeWidth = 0;
+	private fillColor: RGBA;
+	private strokeColor: RGBA;
+	private strokeWidth: number;
 	private radius = 50;
 
 	/**
 	 * Create a new circle component
 	 * @param options Optional configuration including style
 	 */
-	constructor(options?: ComponentOptions) {
+	constructor({ style = {}, ...options }: ShapeOptions = {}) {
 		super(options);
+		const shape = resolveShapeStyle('Circle', style);
+		this.fillColor = shape.fill;
+		this.strokeColor = shape.stroke;
+		this.strokeWidth = shape.strokeWidth;
+		if (style.opacity !== undefined) this.opacity = style.opacity;
 		this.componentType = 'Circle';
-
-		if (options?.style) {
-			this.applyCircleStyle(options.style);
-		}
 
 		// Set default size based on radius
 		if (this.width === 0) this.width = this.radius * 2;
@@ -39,26 +41,11 @@ export class Circle extends Component {
 	}
 
 	/**
-	 * Apply circle-specific style properties
-	 */
-	private applyCircleStyle(style: Style): void {
-		if (style.backgroundColor !== undefined) {
-			this.fillColor = StyleParser.parseColor(style.backgroundColor);
-		}
-		if (style.borderColor !== undefined) {
-			this.strokeColor = StyleParser.parseColor(style.borderColor);
-		}
-		if (style.borderWidth !== undefined) {
-			this.strokeWidth = this.parseSize(style.borderWidth);
-		}
-	}
-
-	/**
 	 * Set the circle's fill color
 	 * @param color Color value (hex string or RGBA array)
 	 */
-	public setFillColor(color: string | [number, number, number, number]): this {
-		this.fillColor = StyleParser.parseColor(color);
+	public setFillColor(color: ColorValue): this {
+		this.fillColor = resolveColor(color);
 		return this;
 	}
 
@@ -66,8 +53,8 @@ export class Circle extends Component {
 	 * Set the circle's stroke color
 	 * @param color Color value (hex string or RGBA array)
 	 */
-	public setStrokeColor(color: string | [number, number, number, number]): this {
-		this.strokeColor = StyleParser.parseColor(color);
+	public setStrokeColor(color: ColorValue): this {
+		this.strokeColor = resolveColor(color);
 		return this;
 	}
 

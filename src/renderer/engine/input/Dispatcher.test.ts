@@ -1,5 +1,5 @@
 import { Component, ComponentOptions } from '../components/Component';
-import { Layer } from '../components/Layer';
+import { Container } from '../components/Container';
 import type { MountContext } from '../components/MountContext';
 import { createTestContext } from '../components/testing';
 import { Panel } from '../ui/Panel';
@@ -33,7 +33,7 @@ class Probe extends Component {
 	}
 }
 
-class Container extends Probe {
+class Group extends Probe {
 	protected get defaultPointerEvents(): 'passthrough' {
 		return 'passthrough';
 	}
@@ -114,7 +114,7 @@ function only(type: string): string[] {
 
 describe('hit order (R9.4, R3.28)', () => {
 	it('picks the later of two overlapping siblings', () => {
-		const root = new Container({ id: 'root', width: 400, height: 400 });
+		const root = new Group({ id: 'root', width: 400, height: 400 });
 		root.addChild(new Probe({ id: 'a', x: 0, y: 0, width: 100, height: 100 }));
 		root.addChild(new Probe({ id: 'b', x: 50, y: 50, width: 100, height: 100 }));
 		mount(root);
@@ -124,7 +124,7 @@ describe('hit order (R9.4, R3.28)', () => {
 	});
 
 	it('follows zIndex, which is paint order, over insertion order', () => {
-		const root = new Container({ id: 'root', width: 400, height: 400 });
+		const root = new Group({ id: 'root', width: 400, height: 400 });
 		root.addChild(new Probe({ id: 'raised', x: 0, y: 0, width: 100, height: 100, zIndex: 1 }));
 		root.addChild(new Probe({ id: 'later', x: 0, y: 0, width: 100, height: 100 }));
 		mount(root);
@@ -135,7 +135,7 @@ describe('hit order (R9.4, R3.28)', () => {
 	// 3.12: a popup promoted from early in the walk still paints, and so hits,
 	// over base content submitted after it.
 	it('sends a click in the overlap to a promoted popup over later base content', () => {
-		const root = new Container({ id: 'root', width: 400, height: 400 });
+		const root = new Group({ id: 'root', width: 400, height: 400 });
 		const trigger = new Probe({ id: 'trigger', x: 0, y: 0, width: 50, height: 50 });
 		trigger.addChild(new Probe({ id: 'popup', x: 0, y: 50, width: 150, height: 100, layer: 'popup' }));
 		root.addChild(trigger);
@@ -162,7 +162,7 @@ describe('hit order (R9.4, R3.28)', () => {
 
 	// 4.7, second half: R4.8's clip reset honoured by the hit walk.
 	it('lets a promoted popup declared inside a clip receive a click outside that clip', () => {
-		const root = new Container({ id: 'root', width: 400, height: 400 });
+		const root = new Group({ id: 'root', width: 400, height: 400 });
 		const clipper = new Probe({ id: 'clipper', x: 0, y: 0, width: 100, height: 100, overflow: 'hidden' });
 		clipper.addChild(new Probe({ id: 'clipped', x: 50, y: 50, width: 100, height: 100 }));
 		clipper.addChild(new Probe({ id: 'popup', x: 50, y: 150, width: 100, height: 100, layer: 'popup' }));
@@ -176,7 +176,7 @@ describe('hit order (R9.4, R3.28)', () => {
 	});
 
 	it('hits a disabled button, which occludes, but does not click it (R9.5)', () => {
-		const root = new Container({ id: 'root', width: 400, height: 400 });
+		const root = new Group({ id: 'root', width: 400, height: 400 });
 		const under = new Probe({ id: 'under', x: 0, y: 0, width: 100, height: 100 });
 		const button = new Probe({ id: 'button', x: 0, y: 0, width: 100, height: 100, enabled: false });
 		root.addChild(under);
@@ -191,8 +191,8 @@ describe('hit order (R9.4, R3.28)', () => {
 	});
 
 	it('skips a disabled container\'s subtree for delivery but not for targeting (R8.3)', () => {
-		const root = new Container({ id: 'root', width: 400, height: 400 });
-		const disabled = new Container({ id: 'disabled', width: 200, height: 200, enabled: false });
+		const root = new Group({ id: 'root', width: 400, height: 400 });
+		const disabled = new Group({ id: 'disabled', width: 200, height: 200, enabled: false });
 		disabled.addChild(new Probe({ id: 'inner', width: 100, height: 100 }));
 		root.addChild(disabled);
 		mount(root);
@@ -204,8 +204,8 @@ describe('hit order (R9.4, R3.28)', () => {
 	});
 
 	it('does not hit a passthrough container\'s own box, only its children', () => {
-		const root = new Container({ id: 'root', width: 400, height: 400 });
-		const container = new Container({ id: 'container', x: 0, y: 0, width: 200, height: 200 });
+		const root = new Group({ id: 'root', width: 400, height: 400 });
+		const container = new Group({ id: 'container', x: 0, y: 0, width: 200, height: 200 });
 		container.addChild(new Probe({ id: 'child', x: 20, y: 20, width: 50, height: 50 }));
 		root.addChild(container);
 		mount(root);
@@ -215,7 +215,7 @@ describe('hit order (R9.4, R3.28)', () => {
 	});
 
 	it('reports a unit widget, not its label, as the target', () => {
-		const root = new Container({ id: 'root', width: 400, height: 400 });
+		const root = new Group({ id: 'root', width: 400, height: 400 });
 		const widget = new Probe({ id: 'widget', width: 100, height: 40, pointerEvents: 'unit' });
 		widget.addChild(new Probe({ id: 'label', x: 10, y: 10, width: 80, height: 20 }));
 		root.addChild(widget);
@@ -225,7 +225,7 @@ describe('hit order (R9.4, R3.28)', () => {
 	});
 
 	it('ignores a pointerEvents none ghost and everything under it', () => {
-		const root = new Container({ id: 'root', width: 400, height: 400 });
+		const root = new Group({ id: 'root', width: 400, height: 400 });
 		root.addChild(new Probe({ id: 'target', width: 100, height: 100 }));
 		const ghost = new Probe({ id: 'ghost', width: 100, height: 100, pointerEvents: 'none' });
 		ghost.addChild(new Probe({ id: 'ghost-part', width: 100, height: 100 }));
@@ -236,7 +236,7 @@ describe('hit order (R9.4, R3.28)', () => {
 	});
 
 	it('hits a rotated card within its rotated quad only', () => {
-		const root = new Container({ id: 'root', width: 400, height: 400 });
+		const root = new Group({ id: 'root', width: 400, height: 400 });
 		// A 100x100 square about its centre (150, 150), turned 45 degrees: a
 		// diamond reaching 150 +- 70.7 on each axis.
 		root.addChild(new Probe({ id: 'card', x: 100, y: 100, width: 100, height: 100, transform: { rotate: Math.PI / 4 } }));
@@ -247,7 +247,7 @@ describe('hit order (R9.4, R3.28)', () => {
 	});
 
 	it('skips invisible and zero-opacity components as if they were not there (R3.27)', () => {
-		const root = new Container({ id: 'root', width: 400, height: 400 });
+		const root = new Group({ id: 'root', width: 400, height: 400 });
 		root.addChild(new Probe({ id: 'under', width: 100, height: 100 }));
 		root.addChild(new Probe({ id: 'hidden', width: 100, height: 100, visible: false }));
 		root.addChild(new Probe({ id: 'faded', width: 100, height: 100, opacity: 0 }));
@@ -257,7 +257,7 @@ describe('hit order (R9.4, R3.28)', () => {
 	});
 
 	it('excludes a subtree on request, as the drag service will for its ghost', () => {
-		const root = new Container({ id: 'root', width: 400, height: 400 });
+		const root = new Group({ id: 'root', width: 400, height: 400 });
 		root.addChild(new Probe({ id: 'under', width: 100, height: 100 }));
 		const ghost = new Probe({ id: 'ghost', width: 100, height: 100 });
 		root.addChild(ghost);
@@ -279,7 +279,7 @@ describe('hit order (R9.4, R3.28)', () => {
 
 describe('bubble (R9.6)', () => {
 	function dialog(): { dialog: Probe; content: Probe } {
-		const root = new Container({ id: 'root', width: 400, height: 400 });
+		const root = new Group({ id: 'root', width: 400, height: 400 });
 		const shell = new Probe({ id: 'dialog', width: 200, height: 200 });
 		const content = new Probe({ id: 'content', x: 10, y: 10, width: 100, height: 100 });
 		shell.addChild(content);
@@ -302,7 +302,7 @@ describe('bubble (R9.6)', () => {
 	});
 
 	it('blocks with a scrim at opacity 0.01 from its first frame (R9.7)', () => {
-		const root = new Container({ id: 'root', width: 400, height: 400 });
+		const root = new Group({ id: 'root', width: 400, height: 400 });
 		root.addChild(new Probe({ id: 'button', width: 100, height: 100 }));
 		const scrim = new Probe({ id: 'scrim', width: 400, height: 400, opacity: 0.01, layer: 'modal' });
 		scrim.consumes = 'pointerdown';
@@ -316,7 +316,7 @@ describe('bubble (R9.6)', () => {
 
 describe('enter, leave, and hovered (R9.8, R9.9)', () => {
 	it('moving from A to B leaves A, then enters B', () => {
-		const root = new Container({ id: 'root', width: 400, height: 400 });
+		const root = new Group({ id: 'root', width: 400, height: 400 });
 		const a = new Probe({ id: 'a', x: 0, y: 0, width: 100, height: 100 });
 		const b = new Probe({ id: 'b', x: 100, y: 0, width: 100, height: 100 });
 		root.addChild(a);
@@ -337,7 +337,7 @@ describe('enter, leave, and hovered (R9.8, R9.9)', () => {
 	});
 
 	it('leaves innermost first and enters outermost first, without bubbling', () => {
-		const root = new Container({ id: 'root', width: 400, height: 400 });
+		const root = new Group({ id: 'root', width: 400, height: 400 });
 		const outer = new Probe({ id: 'outer', width: 200, height: 200 });
 		const inner = new Probe({ id: 'inner', width: 100, height: 100 });
 		outer.addChild(inner);
@@ -353,7 +353,7 @@ describe('enter, leave, and hovered (R9.8, R9.9)', () => {
 	});
 
 	it('keeps a button hovered while the pointer is over its label', () => {
-		const root = new Container({ id: 'root', width: 400, height: 400 });
+		const root = new Group({ id: 'root', width: 400, height: 400 });
 		const button = new Probe({ id: 'button', width: 100, height: 40 });
 		const label = new Probe({ id: 'label', x: 10, y: 10, width: 80, height: 20 });
 		button.addChild(label);
@@ -382,7 +382,7 @@ describe('enter, leave, and hovered (R9.8, R9.9)', () => {
 	});
 
 	it('updates hover when layout moves content under a still pointer', () => {
-		const root = new Container({ id: 'root', width: 400, height: 400 });
+		const root = new Group({ id: 'root', width: 400, height: 400 });
 		const box = new Probe({ id: 'box', width: 100, height: 100 });
 		root.addChild(box);
 		mount(root);
@@ -405,7 +405,7 @@ describe('enter, leave, and hovered (R9.8, R9.9)', () => {
 	});
 
 	it('drops a hovered component that unmounts without a leave, and hovers what is now there', () => {
-		const root = new Container({ id: 'root', width: 400, height: 400 });
+		const root = new Group({ id: 'root', width: 400, height: 400 });
 		const under = new Probe({ id: 'under', width: 100, height: 100 });
 		const over = new Probe({ id: 'over', width: 100, height: 100 });
 		root.addChild(under);
@@ -424,7 +424,7 @@ describe('enter, leave, and hovered (R9.8, R9.9)', () => {
 
 describe('click (R9.31)', () => {
 	function button(): Probe {
-		const root = new Container({ id: 'root', width: 400, height: 400 });
+		const root = new Group({ id: 'root', width: 400, height: 400 });
 		const shell = new Probe({ id: 'button', width: 100, height: 40 });
 		shell.addChild(new Probe({ id: 'label', x: 0, y: 0, width: 50, height: 40 }));
 		shell.addChild(new Probe({ id: 'icon', x: 50, y: 0, width: 50, height: 40 }));
@@ -498,7 +498,7 @@ describe('click (R9.31)', () => {
 
 describe('capture (R9.10)', () => {
 	function slider(): { track: Probe; thumb: Probe } {
-		const root = new Container({ id: 'root', width: 400, height: 400 });
+		const root = new Group({ id: 'root', width: 400, height: 400 });
 		const track = new Probe({ id: 'track', width: 200, height: 20 });
 		const thumb = new Probe({ id: 'thumb', width: 20, height: 20 });
 		thumb.captureOnDown = true;
@@ -559,7 +559,7 @@ describe('capture (R9.10)', () => {
 	});
 
 	it('captures a touch implicitly at its press target, which is never hovered', () => {
-		const root = new Container({ id: 'root', width: 400, height: 400 });
+		const root = new Group({ id: 'root', width: 400, height: 400 });
 		const pad = new Probe({ id: 'pad', width: 100, height: 100 });
 		root.addChild(pad);
 		root.addChild(new Probe({ id: 'elsewhere', x: 200, y: 0, width: 100, height: 100 }));
@@ -577,7 +577,7 @@ describe('capture (R9.10)', () => {
 
 describe('touch hold (R9.30)', () => {
 	function pad(): Probe {
-		const root = new Container({ id: 'root', width: 400, height: 400 });
+		const root = new Group({ id: 'root', width: 400, height: 400 });
 		const target = new Probe({ id: 'pad', width: 100, height: 100 });
 		root.addChild(target);
 		mount(root);
@@ -679,7 +679,7 @@ describe('wheel (R9.3, R9.32)', () => {
 
 describe('keys (R9.15)', () => {
 	it('delivers to the focused component, bubbles, and falls through to the hotkey table', () => {
-		const root = new Container({ id: 'root', width: 400, height: 400 });
+		const root = new Group({ id: 'root', width: 400, height: 400 });
 		const field = new Probe({ id: 'field', width: 100, height: 40, focusable: true });
 		root.addChild(field);
 		mount(root);
@@ -716,7 +716,7 @@ describe('keys (R9.15)', () => {
 	});
 
 	it('clears focus on a press outside the focused component, with onBlur', () => {
-		const root = new Container({ id: 'root', width: 400, height: 400 });
+		const root = new Group({ id: 'root', width: 400, height: 400 });
 		const field = new Probe({ id: 'field', width: 100, height: 40, focusable: true });
 		root.addChild(field);
 		root.addChild(new Probe({ id: 'other', x: 200, y: 0, width: 100, height: 40 }));
@@ -794,7 +794,7 @@ describe('the queue (R9.2)', () => {
 	});
 
 	it('runs the callback properties before the component\'s own handling (R8.2)', () => {
-		const layer = new Layer({ id: 'layer', width: 100, height: 100, pointerEvents: 'auto' });
+		const layer = new Container({ id: 'layer', width: 100, height: 100, pointerEvents: 'auto' });
 		const seen: string[] = [];
 		layer.onPointerDown = () => seen.push('down');
 		layer.onClick = (event) => {

@@ -1,7 +1,7 @@
 import { Clock } from '../animation/Clock';
 import { linear } from '../animation/easing';
 import { Component } from './Component';
-import { Layer } from './Layer';
+import { Container } from './Container';
 import { Rectangle } from './Rectangle';
 import { createTestContext } from './testing';
 
@@ -57,8 +57,8 @@ describe('clock and animator in the mount context (R8.28)', () => {
 
 	it('cancels the tweens of every component in a subtree that unmounts (R8.15)', () => {
 		const context = createTestContext();
-		const root = new Layer();
-		const panel = new Layer();
+		const root = new Container();
+		const panel = new Container();
 		const leaf = new Rectangle();
 		root.addChild(panel);
 		panel.addChild(leaf);
@@ -78,7 +78,7 @@ describe('clock and animator in the mount context (R8.28)', () => {
 
 	it('drives a reconciled exit: the child stays until its tween is done (R8.27)', async () => {
 		const context = createTestContext();
-		const list = new Layer();
+		const list = new Container();
 		list.mount(context);
 		const reconcile = (items: string[]): void => list.reconcileChildren(items, {
 			key: (item) => item,
@@ -109,7 +109,7 @@ describe('clock and animator in the mount context (R8.28)', () => {
 
 	it('still detaches an exiting child whose tween was cancelled', async () => {
 		const context = createTestContext();
-		const list = new Layer();
+		const list = new Container();
 		list.mount(context);
 		const reconcile = (items: string[]): void => list.reconcileChildren(items, {
 			key: (item) => item,

@@ -1,4 +1,4 @@
-import { Layer } from '../../engine/components/Layer';
+import { Container } from '../../engine/components/Container';
 import { renderTree } from '../../engine/components/renderTree';
 import type { DrawApi } from '../../engine/draw/DrawApi';
 import type { MountContext } from '../../engine/components/MountContext';
@@ -8,7 +8,7 @@ import type { MountContext } from '../../engine/components/MountContext';
  */
 export abstract class Screen {
 	protected id: string;
-	protected rootLayer: Layer;
+	protected rootLayer: Container;
 	protected isActive = false;
 	private mountContext: MountContext | null = null;
 
@@ -21,7 +21,7 @@ export abstract class Screen {
 		// Zero-sized until mount sizes it from the viewport (R8.21): nothing
 		// in a screen reads the window, and anything placed from the root's
 		// size is placed in onMount and onResized.
-		this.rootLayer = new Layer({ id });
+		this.rootLayer = new Container({ id });
 	}
 
 	/**
@@ -34,7 +34,7 @@ export abstract class Screen {
 	/**
 	 * The screen's root layer, for the dev tree snapshot.
 	 */
-	public get root(): Layer {
+	public get root(): Container {
 		return this.rootLayer;
 	}
 

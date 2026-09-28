@@ -35,7 +35,8 @@ export class NestedPanelsSection extends DeveloperSectionPanel {
 			style: {
 				backgroundColor: '#333333e6',
 				borderRadius: 8,
-				border: '2px solid #555555',
+				borderWidth: 2,
+				borderColor: '#555555',
 			},
 		});
 		nestedPanel.setPosition(20, currentY);

@@ -2,7 +2,7 @@
  * @jest-environment jsdom
  */
 import { DrawApi, RecordingBackend, RectCommand } from '../draw';
-import { Layer } from '../components/Layer';
+import { Container } from '../components/Container';
 import { renderTree } from '../components/renderTree';
 import { Rectangle } from '../components/Rectangle';
 import { treeSnapshot } from '../debug/treeSnapshot';
@@ -22,7 +22,7 @@ beforeEach(() => {
 	api = new DrawApi({ backend, strict: true });
 });
 
-function frame(root: Layer): void {
+function frame(root: Container): void {
 	api.beginFrame({ viewport: { width: 1440, height: 882 }, ratio: 1 });
 	renderTree(root, api);
 	api.endFrame();
@@ -35,8 +35,8 @@ function rectById(id: string): RectCommand {
 }
 
 /** A panel at (10, 20), 200 by 120, padding 13, with a 30 by 10 child at (0, 0). */
-function padded(options: { scrollable?: boolean } = {}): { panel: Panel; child: Rectangle; root: Layer } {
-	const root = new Layer({ id: 'root', width: 1440, height: 882 });
+function padded(options: { scrollable?: boolean } = {}): { panel: Panel; child: Rectangle; root: Container } {
+	const root = new Container({ id: 'root', width: 1440, height: 882 });
 	const panel = new Panel({ id: 'panel', x: 10, y: 20, width: 200, height: 120, padding: 13, ...options });
 	const child = new Rectangle({ id: 'child', x: 0, y: 0, width: 30, height: 10 });
 	panel.addChild(child);

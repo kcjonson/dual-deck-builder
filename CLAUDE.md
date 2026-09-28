@@ -16,7 +16,7 @@
 src/
 ├── renderer/
 │   ├── engine/           # Reusable game engine components
-│   │   ├── components/   # Base UI components (Rectangle, Text, Layer)
+│   │   ├── components/   # Base UI components (Rectangle, Text, Container, Stack)
 │   │   ├── rendering/    # WebGL rendering system
 │   │   ├── input/        # Input handling system
 │   │   └── ui/          # Higher-level UI components (Button, Panel, Input)

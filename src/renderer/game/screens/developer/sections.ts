@@ -16,6 +16,7 @@ import { ButtonVariantsSection } from './ButtonVariantsSection';
 import { ListExamplesSection } from './ListExamplesSection';
 import { CheckboxExamplesSection } from './CheckboxExamplesSection';
 import { RadioExamplesSection } from './RadioExamplesSection';
+import { LeafExamplesSection } from './LeafExamplesSection';
 
 /**
  * The developer screen's sections, defined once.
@@ -133,5 +134,9 @@ export const developerSections: readonly DeveloperSection[] = [
 	{
 		name: 'radio-group',
 		build: ({ x, y, width }) => new RadioExamplesSection(x, y, width),
+	},
+	{
+		name: 'leaves',
+		build: ({ x, y, width }) => new LeafExamplesSection(x, y, width),
 	},
 ];

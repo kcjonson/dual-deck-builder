@@ -1,14 +1,15 @@
 import type { Rect, Vec2 } from '../draw/geometry';
 import type { DrawApi } from '../draw/DrawApi';
-import { Layer, LayerOptions } from '../components/Layer';
-import { BoxStyle, boxColors, drawBox, resolveBoxStyle } from '../components/Rectangle';
+import { Container, ContainerOptions } from '../components/Container';
+import { BoxStyle, BoxStyleObject, boxAcceptance, boxColors, drawBox, resolveBoxStyle } from '../components/Rectangle';
+import { validateStyle } from '../style/styleObject';
 import type { Component, ResolvedColors } from '../components/Component';
 import type { AnyUiEvent } from '../input/events';
 
 /**
  * Panel creation options
  */
-export interface PanelOptions extends LayerOptions {
+export interface PanelOptions extends ContainerOptions {
 	scrollable?: boolean;
 	scrollDirection?: 'vertical' | 'horizontal' | 'both';
 	/**
@@ -17,6 +18,8 @@ export interface PanelOptions extends LayerOptions {
 	 * on it; the panel's own size stays the border box.
 	 */
 	padding?: number;
+	/** R11.14's box properties. */
+	style?: BoxStyleObject;
 }
 
 const DEFAULT_BOX: BoxStyle = {
@@ -24,6 +27,7 @@ const DEFAULT_BOX: BoxStyle = {
 	borderColor: [0x4d / 255, 0x4d / 255, 0x4d / 255, 1],
 	borderWidth: 1,
 	cornerRadius: 5,
+	shadow: null,
 };
 
 /**
@@ -36,7 +40,7 @@ const DEFAULT_BOX: BoxStyle = {
  * screen while the content moves (R4.10), and rows scrolled out of view are
  * dropped by the draw API's cull against that clip (R4.2a).
  */
-export class Panel extends Layer {
+export class Panel extends Container {
 	public scrollable = false;
 	private box: BoxStyle;
 	private scrollDirection: 'vertical' | 'horizontal' | 'both' = 'vertical';
@@ -60,12 +64,13 @@ export class Panel extends Layer {
 		// A zero is no value here, as it was when the background was a child
 		// Rectangle built with `||` defaults.
 		const style = options?.style;
+		if (style) validateStyle(style, boxAcceptance('Panel'));
 		this.box = resolveBoxStyle({
 			backgroundColor: style?.backgroundColor || '#333333cc',
 			borderColor: style?.borderColor || '#4d4d4d',
 			borderWidth: style?.borderWidth || 1,
 			borderRadius: style?.borderRadius || 5,
-			border: style?.border,
+			shadow: style?.shadow,
 		}, DEFAULT_BOX);
 
 		// Set scroll properties

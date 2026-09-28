@@ -97,9 +97,7 @@ export class StackExamplesSection extends DeveloperSectionPanel {
 
 	/** A demo box: a fixed-size stack on the inset surface. */
 	private demo(height: number, options: StackOptions): Stack {
-		const box = new Stack({ width: CELL_WIDTH, height, padding: PAD, ...options });
-		box.setBackgroundColor(rgba('bg_inset'));
-		return box;
+		return new Stack({ width: CELL_WIDTH, height, padding: PAD, style: { backgroundColor: 'bg_inset' }, ...options });
 	}
 
 	private distributionBox(distribution: Distribution): Stack {
@@ -179,8 +177,7 @@ export class StackExamplesSection extends DeveloperSectionPanel {
 	private nestedBox(): Stack {
 		const box = this.demo(72, { crossAlign: 'stretch', gap: 6 });
 		for (const tokensInRow of [['accent', 'data'], ['status_ok', 'accent', 'data']] as ColorToken[][]) {
-			const row = new Stack({ direction: 'horizontal', gap: 6, padding: 3 });
-			row.setBackgroundColor(rgba('bg_panel_raised'));
+			const row = new Stack({ direction: 'horizontal', gap: 6, padding: 3, style: { backgroundColor: 'bg_panel_raised' } });
 			tokensInRow.forEach((token) => row.addChild(swatch(token, { width: 18, height: 18 })));
 			box.addChild(row);
 		}

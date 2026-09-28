@@ -1,4 +1,4 @@
-import { Layer, LayerOptions } from '../../../engine/components/Layer';
+import { Container, ContainerOptions } from '../../../engine/components/Container';
 import { Rectangle } from '../../../engine/components/Rectangle';
 import { Text } from '../../../engine/components/Text';
 import { CombatLog, CombatLogEntry, CombatLogType } from '../../mechanics/CombatLog';
@@ -8,7 +8,7 @@ import { Panel } from '../../../engine/ui/Panel';
  * Combat log display layer showing recent battle events
  * Fixed to properly handle Model change events
  */
-export class CombatLogLayer extends Layer {
+export class CombatLogLayer extends Container {
 	private combatLog: CombatLog;
 	private background: Rectangle;
 	private header: Rectangle;
@@ -23,7 +23,7 @@ export class CombatLogLayer extends Layer {
 	private readonly padding = 10;
 	private readonly fontSize = 14;
 
-	constructor(options: LayerOptions & { combatLog: CombatLog }) {
+	constructor(options: ContainerOptions & { combatLog: CombatLog }) {
 		super(options);
 
 		this.combatLog = options.combatLog;
@@ -55,10 +55,10 @@ export class CombatLogLayer extends Layer {
 				fontSize: 16,
 				color: '#ffffff',
 				textAlign: 'center',
-				verticalAlign: 'middle',
-				whiteSpace: 'nowrap',
 				fontWeight: 'bold',
 			},
+			verticalAlign: 'middle',
+			wrap: 'none',
 		});
 		this.addChild(this.title);
 

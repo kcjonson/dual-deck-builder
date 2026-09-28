@@ -49,7 +49,7 @@ export class TooltipSurface extends Component {
 			? new Text(spec.title, { id: 'tooltip_title', style: { fontSize: tokens.fontSize.fs_base, fontWeight: 'bold', color: rgba(tokens.color.text_bright) } })
 			: null;
 		this.hotkey = spec.hotkey
-			? new Text(spec.hotkey, { id: 'tooltip_hotkey', style: { fontSize: tokens.fontSize.fs_xs, fontFamily: 'mono', color: rgba(tokens.color.text_faint) } })
+			? new Text(spec.hotkey, { id: 'tooltip_hotkey', style: { fontSize: tokens.fontSize.fs_xs, fontRole: 'mono', color: rgba(tokens.color.text_faint) } })
 			: null;
 		this.description = spec.description
 			? new Text(spec.description, { id: 'tooltip_description', style: { fontSize: tokens.fontSize.fs_sm, color: rgba(tokens.color.text_dim) } })

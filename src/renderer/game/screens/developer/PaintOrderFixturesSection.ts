@@ -1,6 +1,6 @@
 import { DeveloperSectionPanel } from './DeveloperSectionPanel';
 import { Component, ComponentOptions } from '../../../engine/components/Component';
-import { Layer } from '../../../engine/components/Layer';
+import { Container } from '../../../engine/components/Container';
 import { Rectangle } from '../../../engine/components/Rectangle';
 import { Stack } from '../../../engine/components/Stack';
 import { Text } from '../../../engine/components/Text';
@@ -72,7 +72,8 @@ class FixtureBox extends Component {
 			y: labelAlign === 'left' ? 4 : 0,
 			width: this.width - inset * 2,
 			height: labelAlign === 'left' ? 20 : this.height,
-			style: { fontSize: labelSize, color: styleColor(labelColor), textAlign: labelAlign, verticalAlign: 'middle' },
+			style: { fontSize: labelSize, color: (labelColor), textAlign: labelAlign },
+			verticalAlign: 'middle',
 		}));
 	}
 
@@ -114,15 +115,10 @@ class BusyGround extends Component {
 	}
 }
 
-/** Style takes a mutable tuple; the draw API's RGBA is readonly. */
-function styleColor(color: RGBA): [number, number, number, number] {
-	return [color[0], color[1], color[2], color[3]];
-}
-
 /** A label; given a height, it is centred in it, as the fixture's row and item labels are. */
 function text(content: string, color: RGBA, size: number, options: ComponentOptions = {}): Text {
 	const verticalAlign = options.height !== undefined ? 'middle' : 'top';
-	return new Text(content, { ...options, style: { fontSize: size, color: styleColor(color), verticalAlign } });
+	return new Text(content, { ...options, style: { fontSize: size, color }, verticalAlign });
 }
 
 /** A card whose colour names the layer it asks for (R3.5). */
@@ -140,10 +136,10 @@ function layerCard(layer: keyof typeof LAYER_COLOURS, options: ComponentOptions,
 }
 
 /** A heading over a fixed-size body the caller fills. */
-function group(id: string, heading: string, bodyHeight: number, fill: (body: Layer) => void): Stack {
+function group(id: string, heading: string, bodyHeight: number, fill: (body: Container) => void): Stack {
 	const column = new Stack({ id, gap: HEADING_GAP });
 	column.addChild(text(heading, HEADING, 15));
-	const body = new Layer({ id: `${id}_body`, width: COLUMN_WIDTH, height: bodyHeight });
+	const body = new Container({ id: `${id}_body`, width: COLUMN_WIDTH, height: bodyHeight });
 	fill(body);
 	column.addChild(body);
 	return column;
@@ -178,7 +174,7 @@ export class PaintOrderFixturesSection extends DeveloperSectionPanel {
 
 		const columns = new Stack({ id: 'dev_paint_order_columns', y: TITLE_HEIGHT, direction: 'horizontal', gap: COLUMN_GAP });
 		const first = new Stack({ gap: GROUP_GAP });
-		first.addChild(group('dev_paint_order_layers', 'Layer beats insertion order', 190, layerLadder));
+		first.addChild(group('dev_paint_order_layers', 'Container beats insertion order', 190, layerLadder));
 		first.addChild(group('dev_paint_order_zindex', 'One layer: zIndex beats insertion order', 208, zIndexLadder));
 		const second = new Stack({ gap: GROUP_GAP });
 		second.addChild(group('dev_paint_order_shadow', 'A shadowed panel over a busy background', 180, shadowOverBusyGround));
@@ -193,14 +189,14 @@ export class PaintOrderFixturesSection extends DeveloperSectionPanel {
 }
 
 /** The same three cards inserted top-down and bottom-up come out identical. */
-function layerLadder(body: Layer): void {
+function layerLadder(body: Container): void {
 	const ladders: { order: ('base' | 'popup' | 'tooltip')[]; caption: string }[] = [
 		{ order: ['tooltip', 'popup', 'base'], caption: 'inserted top first' },
 		{ order: ['base', 'popup', 'tooltip'], caption: 'inserted base first' },
 	];
 	const steps = { base: 0, popup: 1, tooltip: 2 };
 	ladders.forEach(({ order, caption }, index) => {
-		const column = new Layer({ x: index * 220, width: 200, height: 190 });
+		const column = new Container({ x: index * 220, width: 200, height: 190 });
 		column.addChild(text(caption, CAPTION, 12));
 		for (const layer of order) {
 			const step = steps[layer];
@@ -214,13 +210,13 @@ function layerLadder(body: Layer): void {
  * Siblings at zIndex -1, 0, 1 and 2, inserted ascending and descending: the
  * sorted render view puts both columns back in the same order (R3.12).
  */
-function zIndexLadder(body: Layer): void {
+function zIndexLadder(body: Container): void {
 	const ladders: { order: number[]; caption: string }[] = [
 		{ order: [-1, 0, 1, 2], caption: 'inserted z -1 first' },
 		{ order: [2, 1, 0, -1], caption: 'inserted z 2 first' },
 	];
 	ladders.forEach(({ order, caption }, index) => {
-		const column = new Layer({ x: index * 220, width: 200, height: 208 });
+		const column = new Container({ x: index * 220, width: 200, height: 208 });
 		column.addChild(text(caption, CAPTION, 12));
 		for (const zIndex of order) {
 			const step = zIndex + 1;
@@ -244,7 +240,7 @@ function zIndexLadder(body: Layer): void {
 }
 
 /** The panel is the ground's child, so it paints after the stripes, its shadow first (R3.16). */
-function shadowOverBusyGround(body: Layer): void {
+function shadowOverBusyGround(body: Container): void {
 	const ground = new BusyGround({ id: 'dev_po_ground', width: COLUMN_WIDTH, height: 180 });
 	ground.addChild(new FixtureBox({
 		id: 'dev_po_shadowed',
@@ -266,14 +262,14 @@ function shadowOverBusyGround(body: Layer): void {
  * inserted after it and resets the scroller's clip, so it hangs out of the
  * viewport (R3.8, R4.8).
  */
-function popupInScroller(body: Layer): void {
+function popupInScroller(body: Container): void {
 	const rowHeight = 30;
 	const scroller = new Panel({
 		id: 'dev_paint_order_scroll',
 		width: COLUMN_WIDTH,
 		height: 180,
 		scrollable: true,
-		style: { backgroundColor: styleColor(PANEL), borderColor: styleColor(PANEL) },
+		style: { backgroundColor: (PANEL), borderColor: (PANEL) },
 	});
 	for (let row = 0; row < 6; row++) {
 		const rowBox = new FixtureBox({
@@ -314,7 +310,7 @@ function popupInScroller(body: Layer): void {
  * reports, which the gallery's clean-console gate would fail; renderTree's
  * tests cover the clamp.
  */
-function modalStack(body: Layer): void {
+function modalStack(body: Container): void {
 	const dialog = { x: 50, y: 60, width: 320, height: 190 };
 	const select = { x: 30, y: 70, width: 260, height: 30 };
 	// Menus hang flush from their selects: rule 2 lets a raised child off only while it touches its parent.
@@ -326,7 +322,7 @@ function modalStack(body: Layer): void {
 	body.addChild(layerCard('tooltip', { id: 'dev_po_tooltip', x: menuLeft + 150, y: menuY + 170, width: 150, height: 44 }));
 	body.addChild(layerCard('toast', { id: 'dev_po_toast', x: 20, y: 440 - 90, width: 380, height: 70 }));
 
-	const modal = new Layer({ id: 'dev_paint_order_modal_layer', width: COLUMN_WIDTH, height: 440, layer: 'modal' });
+	const modal = new Container({ id: 'dev_paint_order_modal_layer', width: COLUMN_WIDTH, height: 440, layer: 'modal' });
 	modal.addChild(new Rectangle({ id: 'dev_po_scrim', width: COLUMN_WIDTH, height: 440, style: { backgroundColor: [0, 0, 0, 0.55] } }));
 	const dialogBox = new FixtureBox({
 		...dialog,

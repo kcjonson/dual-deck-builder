@@ -53,11 +53,11 @@ export class DeveloperScreen extends Screen {
 			y: TITLE_TOP,
 			style: {
 				fontSize: TITLE_FONT_SIZE,
-				lineHeight: TITLE_LINE_HEIGHT,
 				color: '#ffffff',
 				textAlign: 'center',
-				whiteSpace: 'nowrap',
 			},
+			lineHeight: TITLE_LINE_HEIGHT,
+			wrap: 'none',
 		});
 		this.rootLayer.addChild(this.title);
 
