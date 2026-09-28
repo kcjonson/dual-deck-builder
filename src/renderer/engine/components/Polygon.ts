@@ -1,6 +1,5 @@
 import { Component, ComponentOptions } from './Component';
-import { RendererContext } from '../rendering/RendererContext';
-import { RenderContext, DEFAULT_RENDER_CONTEXT } from '../rendering/RenderContext';
+import type { DrawApi } from '../draw/DrawApi';
 import { Style, StyleParser } from '../types/Style';
 import { triangulatePolygon, type Vec2 } from '../draw';
 
@@ -134,28 +133,16 @@ export class Polygon extends Component {
 		this.indices = triangulatePolygon(this.points);
 	}
 
-	/**
-	 * Render the polygon
-	 * @param context Render context with coordinate transforms
-	 */
-	public render(context?: RenderContext): void {
-		if (!this.visible || this.points.length < 3) return;
-
-		// Use default context if none provided
-		const ctx = context || DEFAULT_RENDER_CONTEXT;
-
-		// Calculate screen position
-		const screenX = ctx.offsetX + this.x;
-		const screenY = ctx.offsetY + this.y;
+	public render(draw: DrawApi): void {
+		if (this.points.length < 3) return;
 
 		// The box is applied to the points, not pushed as a transform; see Triangle.
 		const halfWidth = this.width / 2;
 		const halfHeight = this.height / 2;
 		for (let index = 0; index < this.points.length; index++) {
-			this.boxPoints[index].x = screenX + halfWidth + this.points[index].x * halfWidth;
-			this.boxPoints[index].y = screenY + halfHeight + this.points[index].y * halfHeight;
+			this.boxPoints[index].x = halfWidth + this.points[index].x * halfWidth;
+			this.boxPoints[index].y = halfHeight + this.points[index].y * halfHeight;
 		}
-		const draw = RendererContext.getInstance().draw;
 		if (this.indices.length > 0) {
 			draw.drawPolygon({
 				id: this.id ?? undefined,
@@ -171,19 +158,6 @@ export class Polygon extends Component {
 				width: this.strokeWidth,
 				closed: true,
 			});
-		}
-
-		// Create child context with our position added
-		const childContext: RenderContext = {
-			offsetX: screenX,
-			offsetY: screenY,
-		};
-
-		// Render children with transformed context
-		for (const child of this.children) {
-			if (child.isVisible()) {
-				child.render(childContext);
-			}
 		}
 	}
 }

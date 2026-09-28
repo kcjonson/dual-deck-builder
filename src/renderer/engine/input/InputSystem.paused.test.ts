@@ -22,7 +22,7 @@ interface Target extends Interactive {
 
 function makeTarget(): Target {
 	return {
-		containsPoint: () => true,
+		containsScreenPoint: () => true,
 		overs: 0,
 		downs: 0,
 		keys: [],

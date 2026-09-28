@@ -1,9 +1,8 @@
-import { Component, ComponentOptions } from '../components/Component';
+import { Component, ComponentOptions, PointerEvents } from '../components/Component';
 import { Icon } from '../components/Icon';
 import { Rectangle } from '../components/Rectangle';
 import { Text } from '../components/Text';
 import { InputSystem } from '../input/InputSystem';
-import { RenderContext, DEFAULT_RENDER_CONTEXT } from '../rendering/RenderContext';
 import type { IconName } from '../text/icons';
 import { tokens } from '../theme/tokens';
 
@@ -81,6 +80,11 @@ export class Button extends Component {
 
 		// Setup event handling (this would be connected to the input system)
 		this.setupEvents();
+	}
+
+	/** R8.29: the label and background are internals, not targets. */
+	protected get defaultPointerEvents(): PointerEvents {
+		return 'unit';
 	}
 
 	/**
@@ -288,47 +292,13 @@ export class Button extends Component {
 	}
 
 	/**
-	 * Render this component
-	 * This is required by the Component abstract class
-	 * @param context Render context with coordinate transforms
+	 * The button draws nothing of its own; this is where the icon is placed
+	 * against the label's measured width, before the walk visits them. The
+	 * frame's layout phase takes this over with the mount context.
 	 */
-	public render(context?: RenderContext): void {
-		if (!this.visible) return;
-
-		// Use default context if none provided
-		const ctx = context || DEFAULT_RENDER_CONTEXT;
-
-		// Calculate screen position
-		const screenX = ctx.offsetX + this.x;
-		const screenY = ctx.offsetY + this.y;
-
+	public render(): void {
 		if (this.icon && !this.iconPlaced) {
 			this.iconPlaced = this.placeIcon(this.icon);
 		}
-
-		// Create child context with our position added
-		const childContext: RenderContext = {
-			offsetX: screenX,
-			offsetY: screenY,
-		};
-
-		// Render children with transformed context
-		for (const child of this.children) {
-			if (child.isVisible()) {
-				child.render(childContext);
-			}
-		}
-	}
-
-	/**
-	 * Unmount the button and clean up resources and event handlers
-	 * Should be called when the button is removed
-	 */
-	public unmount(): void {
-		// Unregister from input system to prevent memory leaks
-		InputSystem.unregisterComponent(this);
-		
-		// Call parent unmount to handle children
-		super.unmount();
 	}
 }

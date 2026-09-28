@@ -1,6 +1,7 @@
 import { SceneHost } from './SceneHost';
 import type { GalleryScene } from './registry';
 import { Layer } from '../renderer/engine/components/Layer';
+import type { Component } from '../renderer/engine/components/Component';
 import { Panel } from '../renderer/engine/ui/Panel';
 import { Button } from '../renderer/engine/ui/Button';
 import { Text } from '../renderer/engine/components/Text';
@@ -39,7 +40,7 @@ function registrationCount(): number {
 	return registrations().reduce((total, map) => total + map.size, 0);
 }
 
-function findById(root: Layer, id: string): Layer | null {
+function findById(root: Component, id: string): Component | null {
 	if (root.id === id) return root;
 	for (const child of root.debugChildren) {
 		const found = findById(child, id);
@@ -48,7 +49,7 @@ function findById(root: Layer, id: string): Layer | null {
 	return null;
 }
 
-function findByType(root: Layer, type: string): Layer | null {
+function findByType(root: Component, type: string): Component | null {
 	if (root.getComponentType() === type) return root;
 	for (const child of root.debugChildren) {
 		const found = findByType(child, type);
@@ -82,9 +83,9 @@ class CountingLayer extends Layer {
 		super.update(deltaTime);
 	}
 
-	public render(): void {
+	public render(draw: DrawApi): void {
 		this.renders++;
-		super.render();
+		super.render(draw);
 	}
 }
 
@@ -342,6 +343,7 @@ describe('resolution', () => {
 
 describe('pause', () => {
 	let countingScene: CountingLayer;
+	let draw: DrawApi;
 
 	const countingScenes: GalleryScene[] = [
 		{
@@ -357,10 +359,11 @@ describe('pause', () => {
 		// R14.1: the whole render path runs with no canvas and no GL over the
 		// null backend, so a scene that grows a background or a clip keeps
 		// working here instead of failing on a stub that answers nothing.
-		RendererContext.getInstance().draw = new DrawApi({
+		draw = new DrawApi({
 			backend: new NullBackend(),
 			development: false,
 		});
+		RendererContext.getInstance().draw = draw;
 	});
 
 	it('skips update and keeps rendering', () => {
@@ -368,14 +371,14 @@ describe('pause', () => {
 		host.mount('counting');
 
 		host.update(0.016);
-		host.render();
+		host.render(draw);
 		expect(countingScene.updates).toBe(1);
 		expect(countingScene.renders).toBe(1);
 
 		host.paused = true;
 		for (let index = 0; index < 5; index++) {
 			host.update(0.016);
-			host.render();
+			host.render(draw);
 		}
 
 		expect(countingScene.updates).toBe(1);

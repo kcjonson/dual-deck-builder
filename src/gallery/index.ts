@@ -179,7 +179,7 @@ class GalleryApplication {
 		this.frameTimer.beginSection('render');
 		// Clears the target too: the clear is the render pass's (R15.38).
 		this.draw.beginFrame(this.renderer.viewport.frame);
-		this.host.render();
+		this.host.render(this.draw);
 		this.frameTimer.endSection('render');
 
 		this.frameTimer.beginSection('flush');

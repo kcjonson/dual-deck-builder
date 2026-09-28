@@ -1,7 +1,6 @@
 /**
  * @jest-environment jsdom
  */
-import { Layer } from '../../engine/components/Layer';
 import { Text } from '../../engine/components/Text';
 import { installMeasuringDrawApi } from '../../engine/text/testing';
 import { Card as GameCard, CardData } from '../mechanics/Card';
@@ -11,7 +10,7 @@ import { Card, CardSize } from './Card';
 const cardData = (cardsFile as unknown as { cards: CardData[] }).cards;
 
 function part(card: Card, suffix: string): Text {
-	const found = card.getChildren().find((child: Layer) => child.id === `card_${suffix}`);
+	const found = card.getChildren().find((child) => child.id === `card_${suffix}`);
 	if (!(found instanceof Text)) throw new Error(`no ${suffix}`);
 	return found;
 }

@@ -153,18 +153,16 @@ function snapshotClip(clip: ClipState): SnapshotRect | undefined {
 }
 
 /**
- * Mirrors Layer.render / Panel.render rather than calling localToGlobal.
- * localToGlobal walks the parent chain and does not subtract Panel scroll,
- * while Panel.render hands its content layer an offset that does
- * (Panel.ts: `offsetX: screenX - this.scrollOffsetX`). Re-accumulating along
- * the render path is the only way screenBounds is right inside a scroll
- * container, so this walk special-cases the Panel subtraction the same way.
+ * Re-accumulates offsets, content offsets and clips along the render walk's
+ * path (`renderTree`), so screenBounds and clip are what was drawn, scroll
+ * included. Transforms are not applied yet; the R13.22 schema that carries
+ * them is DDB-80's.
  */
 function serializeNode(
-	node: Layer,
+	node: Component,
 	context: WalkContext,
-	ancestors: Set<Layer>,
-	seen: Set<Layer>,
+	ancestors: Set<Component>,
+	seen: Set<Component>,
 	depth: number,
 ): SnapshotNode {
 	// Filled in place so a throw partway through still reports the id, bounds
@@ -202,7 +200,9 @@ function serializeNode(
 			serialized.contentOffset = { x: finite(scroll.x), y: finite(scroll.y) };
 		}
 
-		if (node instanceof Component) {
+		// Containers report no interaction state, as before the base class
+		// merge; DDB-80's schema reports it on every node.
+		if (!(node instanceof Layer)) {
 			serialized.enabled = node.isEnabled();
 			serialized.state = { hovered: node.isHovered(), focused: node.isFocused() };
 		}
@@ -216,9 +216,10 @@ function serializeNode(
 			: context.clip;
 
 		// `ancestors` is per-path and catches cycles. `seen` is walk-wide and
-		// catches the other shape: Layer.addChild never detaches from a
-		// previous parent, so one instance can sit in two children arrays and
-		// a diamond expands exponentially. A repeat is emitted once more as a
+		// catches the other shape: addChild detaches from a previous parent,
+		// but the array getChildren returns can still be pushed to directly,
+		// so one instance can sit in two children arrays and a diamond
+		// expands exponentially. A repeat is emitted once more as a
 		// childless stub rather than re-expanded, because an OOM inside the
 		// frame is a worse failure than the throw R13.24 forbids.
 		if (depth >= MAX_DEPTH || ancestors.has(node) || seen.has(node)) return serialized;
@@ -228,18 +229,16 @@ function serializeNode(
 		try {
 			const children = node.debugChildren;
 			if (Array.isArray(children)) {
-				const contentLayer = panel ? panel.getContentLayer() : null;
+				// The walk pushes the clip in the unscrolled space and applies the
+				// content offset inside it (R4.9, R4.10).
+				const offset = node.contentOffset;
+				const childContext: WalkContext = {
+					offsetX: screenX - finite(offset?.x),
+					offsetY: screenY - finite(offset?.y),
+					clip: innerClip,
+				};
 				for (const child of children) {
 					if (!child) continue;
-					// Panel.render draws the background before enabling the
-					// scissor and only the content layer scrolls, so the two
-					// implicit children do not share a context.
-					const isScrolledContent = contentLayer !== null && child === contentLayer;
-					const childContext: WalkContext = {
-						offsetX: isScrolledContent && scroll ? screenX - finite(scroll.x) : screenX,
-						offsetY: isScrolledContent && scroll ? screenY - finite(scroll.y) : screenY,
-						clip: panel && !isScrolledContent ? context.clip : innerClip,
-					};
 					const serializedChild = serializeNode(child, childContext, ancestors, seen, depth + 1);
 					if (child.isPart === true) {
 						if (!serialized.parts) serialized.parts = [];
@@ -270,7 +269,7 @@ function serializeNode(
  * @param roots Root layers: the active screen plus any visible overlay.
  * @param viewport Logical viewport size in CSS pixels.
  */
-export function treeSnapshot(roots: readonly Layer[], viewport: SnapshotViewport): SnapshotDocument {
+export function treeSnapshot(roots: readonly Component[], viewport: SnapshotViewport): SnapshotDocument {
 	const document: SnapshotDocument = {
 		viewport: { width: finite(viewport?.width), height: finite(viewport?.height) },
 		roots: [],
@@ -279,11 +278,11 @@ export function treeSnapshot(roots: readonly Layer[], viewport: SnapshotViewport
 	if (!Array.isArray(roots)) return document;
 
 	// Walk-wide, so a node shared between two roots is expanded once.
-	const seen = new Set<Layer>();
+	const seen = new Set<Component>();
 
 	for (const root of roots) {
 		if (!root) continue;
-		document.roots.push(serializeNode(root, { offsetX: 0, offsetY: 0, clip: CLIP_NONE }, new Set<Layer>(), seen, 0));
+		document.roots.push(serializeNode(root, { offsetX: 0, offsetY: 0, clip: CLIP_NONE }, new Set<Component>(), seen, 0));
 	}
 
 	return document;

@@ -1,7 +1,5 @@
 import { Layer } from '../../../engine/components/Layer';
 import type { DrawApi, RGBA, Rect, TextAlign } from '../../../engine/draw';
-import { DEFAULT_RENDER_CONTEXT, RenderContext } from '../../../engine/rendering/RenderContext';
-import { RendererContext } from '../../../engine/rendering/RendererContext';
 
 export interface DrawFixtureOptions {
 	id: string;
@@ -35,13 +33,9 @@ export class DrawFixture extends Layer {
 		this.release = release ?? null;
 	}
 
-	public render(context?: RenderContext): void {
-		if (!this.visible) return;
-		const ctx = context ?? DEFAULT_RENDER_CONTEXT;
-		const draw = RendererContext.getInstance().draw;
-		draw.pushTranslate(ctx.offsetX + this.x, ctx.offsetY + this.y);
+	/** The walk has already translated to the fixture's origin. */
+	public render(draw: DrawApi): void {
 		this.paint(draw);
-		draw.popTransform();
 	}
 
 	public unmount(): void {

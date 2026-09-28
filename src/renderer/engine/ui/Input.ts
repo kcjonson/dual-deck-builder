@@ -1,7 +1,6 @@
-import { Component, ComponentOptions } from '../components/Component';
+import { Component, ComponentOptions, PointerEvents } from '../components/Component';
 import { Rectangle } from '../components/Rectangle';
 import { Text } from '../components/Text';
-import { RenderContext, DEFAULT_RENDER_CONTEXT } from '../rendering/RenderContext';
 import { InputSystem } from '../input/InputSystem';
 
 /**
@@ -92,6 +91,11 @@ export class Input extends Component {
 
 		// Setup event handling (this would be connected to the input system)
 		this.setupEvents();
+	}
+
+	/** R8.29: the text, placeholder and caret are internals, not targets. */
+	protected get defaultPointerEvents(): PointerEvents {
+		return 'unit';
 	}
 
 	/**
@@ -301,34 +305,6 @@ export class Input extends Component {
 	}
 	
 	/**
-	 * Render this component
-	 * @param context Render context with coordinate transforms
-	 */
-	public render(context?: RenderContext): void {
-		if (!this.visible) return;
-
-		// Use default context if none provided
-		const ctx = context || DEFAULT_RENDER_CONTEXT;
-
-		// Calculate screen position
-		const screenX = ctx.offsetX + this.x;
-		const screenY = ctx.offsetY + this.y;
-
-		// Create child context with our position added
-		const childContext: RenderContext = {
-			offsetX: screenX,
-			offsetY: screenY,
-		};
-
-		// Render children with transformed context
-		for (const child of this.children) {
-			if (child.isVisible()) {
-				child.render(childContext);
-			}
-		}
-	}
-
-	/**
 	 * Set the fill color of the input background
 	 * @param color Color value (hex string or RGBA array)
 	 */
@@ -362,16 +338,5 @@ export class Input extends Component {
 	public setCornerRadius(radius: number): this {
 		this.background.setCornerRadius(radius);
 		return this;
-	}
-
-	/**
-	 * Unmount resources and event handlers
-	 */
-	public unmount(): void {
-		// Unregister from input system
-		InputSystem.unregisterComponent(this);
-
-		// Call parent unmount
-		super.unmount();
 	}
 }

@@ -3,6 +3,7 @@
  */
 import { DrawApi, RecordingBackend, RectCommand } from '../draw';
 import { Layer } from '../components/Layer';
+import { renderTree } from '../components/renderTree';
 import { Rectangle } from '../components/Rectangle';
 import { RendererContext } from '../rendering/RendererContext';
 import { treeSnapshot } from '../debug/treeSnapshot';
@@ -27,7 +28,7 @@ beforeEach(() => {
 
 function frame(root: Layer): void {
 	api.beginFrame({ viewport: { width: 1440, height: 882 }, ratio: 1 });
-	root.render();
+	renderTree(root, api);
 	api.endFrame();
 }
 
@@ -61,7 +62,9 @@ describe('Panel content offset before clip (R4.9, R4.10)', () => {
 		frame(root);
 
 		const child = rectById('child');
-		expect(child.rect.y).toBe(20 + 50);
+		// Drawn at its local origin; the walk's transform carries it to the screen.
+		expect(child.rect.y).toBe(0);
+		expect(child.transform[5]).toBe(20 + 50);
 		expect(child.clip).toEqual({
 			kind: 'rect',
 			rect: { minX: 10, minY: 20, maxX: 210, maxY: 120 },
@@ -91,7 +94,7 @@ describe('Panel cull through the draw API (R4.2a)', () => {
 		panel.scroll(0, 30);
 		frame(root);
 
-		const background = backend.commands.find((command) => command.kind === 'rect' && command.id === null);
+		const background = backend.commands.find((command) => command.kind === 'rect' && command.id === 'list');
 		expect(background?.clip).toEqual({ kind: 'none' });
 	});
 });
@@ -107,8 +110,8 @@ describe('hit testing honours ancestor clips (R4.12)', () => {
 		// Row 0 is still at panel-local (0, 0); scrolled, it sits 120 px above
 		// the panel's top edge, where nothing is drawn. Row 10 has scrolled
 		// into the top of the window.
-		expect(hidden.containsPoint(20, 20 - 120 + 5)).toBe(false);
-		expect(shown.containsPoint(20, 20 + 5)).toBe(true);
+		expect(hidden.containsScreenPoint(20, 20 - 120 + 5)).toBe(false);
+		expect(shown.containsScreenPoint(20, 20 + 5)).toBe(true);
 	});
 
 	it('rejects the clip edge itself, which the fragment test does not keep (R4.4)', () => {
@@ -118,9 +121,9 @@ describe('hit testing honours ancestor clips (R4.12)', () => {
 		clipper.addChild(child);
 		root.addChild(clipper);
 
-		expect(child.containsPoint(99, 99)).toBe(true);
-		expect(child.containsPoint(100, 60)).toBe(false);
-		expect(child.containsPoint(120, 120)).toBe(false);
+		expect(child.containsScreenPoint(99, 99)).toBe(true);
+		expect(child.containsScreenPoint(100, 60)).toBe(false);
+		expect(child.containsScreenPoint(120, 120)).toBe(false);
 	});
 
 	it('intersects nested clips', () => {
@@ -130,26 +133,26 @@ describe('hit testing honours ancestor clips (R4.12)', () => {
 		inner.addChild(leaf);
 		outer.addChild(inner);
 
-		expect(leaf.containsPoint(75, 10)).toBe(true);
+		expect(leaf.containsScreenPoint(75, 10)).toBe(true);
 		// Inside inner and leaf, outside outer.
-		expect(leaf.containsPoint(120, 10)).toBe(false);
+		expect(leaf.containsScreenPoint(120, 10)).toBe(false);
 	});
 
-	it('does not treat a component as a clipper, because its render pushes no clip', () => {
+	it('clips under any component whose overflow is hidden, since the walk pushes the clip for all of them', () => {
 		const shape = new Rectangle({ id: 'shape', x: 0, y: 0, width: 10, height: 10 });
 		shape.setOverflow('hidden');
 		const inside = new Layer({ id: 'inside', x: 50, y: 50, width: 10, height: 10 });
 		shape.addChild(inside);
 
-		expect(shape.clipsChildren).toBe(false);
-		expect(inside.containsPoint(55, 55)).toBe(true);
+		expect(shape.clipsChildren).toBe(true);
+		expect(inside.containsScreenPoint(55, 55)).toBe(false);
 	});
 
 	it('is not gated by an ancestor that does not clip', () => {
 		const parent = new Layer({ id: 'parent', x: 0, y: 0, width: 10, height: 10 });
 		const child = new Layer({ id: 'child', x: 50, y: 50, width: 20, height: 20 });
 		parent.addChild(child);
-		expect(child.containsPoint(60, 60)).toBe(true);
+		expect(child.containsScreenPoint(60, 60)).toBe(true);
 	});
 });
 

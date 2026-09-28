@@ -5,7 +5,7 @@ import { DeveloperOverlay, hitchLines } from './DeveloperOverlay';
 import { FrameTimer } from '../rendering/FrameTimer';
 import { EVENT_THRESHOLD_MS } from '../debug/hitchObserver';
 import { DrawApi, RecordingBackend } from '../draw';
-import { RendererContext } from '../rendering/RendererContext';
+import { renderTree } from '../components/renderTree';
 import { committedFontAtlas } from '../text/testing';
 import { Layer } from '../components/Layer';
 import { Rectangle } from '../components/Rectangle';
@@ -44,7 +44,6 @@ describe('the overlay paints above every screen draw (R3.21)', () => {
 			texture: { id: 1, width: 1, height: 1, label: null },
 		});
 		draw = new DrawApi({ backend });
-		RendererContext.getInstance().draw = draw;
 	});
 
 	/**
@@ -59,9 +58,9 @@ describe('the overlay paints above every screen draw (R3.21)', () => {
 		screen.addChild(new Text('Dual Deckbuilder', { id: 'title', x: 1000, y: 20 }));
 
 		draw.beginFrame({ viewport: { width: 1440, height: 882 }, ratio: 1 });
-		screen.render();
+		renderTree(screen, draw);
 		developerOverlay.update();
-		developerOverlay.render();
+		renderTree(developerOverlay, draw);
 		draw.endFrame();
 	}
 
