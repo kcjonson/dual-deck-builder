@@ -24,7 +24,7 @@ Parameters (implementation spec section 5, R6.4a): `-type mtsdf -size 48 -pxrang
 
 ## Kerning
 
-msdf-atlas-gen reads only the legacy `kern` table, and none of these faces has one. After each atlas, the scripts run `scripts/merge-kerning.mjs`, which reads the face's GPOS `kern` feature with fontkit and rewrites the JSON's `kerning` array (nothing else in the file) with every non-zero pair among the atlas's own code points. Barlow Condensed gets its pairs this way. Open Sans 3.000 has no kerning of any kind and JetBrains Mono is monospaced, so their arrays stay empty. `fontAssets.test.ts` fails if a committed array differs from what its face gives. Details in `docs/AI_TECHNICAL_DECISIONS/font-pipeline.md`.
+msdf-atlas-gen reads only the legacy `kern` table, and none of these faces has one. After each atlas, the scripts run `scripts/merge-kerning.mjs`, which reads the face's GPOS `kern` feature with fontkit and rewrites the JSON's `kerning` array (nothing else in the file) with every non-zero pair among the atlas's own code points. Barlow Condensed gets its pairs this way. Open Sans 3.000 has no kerning of any kind and JetBrains Mono is monospaced, so their arrays stay empty. No OFL Open Sans kerns (3.003, static and variable, is the same), and the battle screen mock renders the same unkerned face from Google Fonts, so body text is unkerned on purpose (DDB-189). `fontAssets.test.ts` fails if a committed array differs from what its face gives. Details in `docs/AI_TECHNICAL_DECISIONS/font-pipeline.md`.
 
 ## Charset
 
