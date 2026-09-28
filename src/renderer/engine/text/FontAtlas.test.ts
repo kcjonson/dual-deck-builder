@@ -225,6 +225,33 @@ describe('parseFontAtlas: kerning', () => {
 		expect(warnings[0]).toMatch(/dropped kerning\[0\]/);
 		expect(atlas.kerningPairCount).toBe(0);
 	});
+
+	it('drops a pair naming a code point the atlas has no glyph for', () => {
+		const { atlas, warnings } = parse(atlasJson({
+			kerning: [
+				{ unicode1: 0x41, unicode2: 0x56, advance: -0.05 },
+				// U+2010 resolves through a substitute, but the face itself never had it.
+				{ unicode1: 0x2010, unicode2: 0x41, advance: -0.02 },
+			],
+		}));
+		expect(warnings).toEqual([
+			'Font atlas test: dropped kerning[0]: U+0056 is not in the atlas',
+			'Font atlas test: dropped kerning[1]: U+2010 is not in the atlas',
+		]);
+		expect(atlas.kerningPairCount).toBe(0);
+		expect(atlas.kerning(0x2010, 0x41)).toBe(0);
+	});
+
+	it('keeps the first of two entries for the same pair', () => {
+		const { atlas, warnings } = parse(atlasJson({
+			kerning: [
+				{ unicode1: 0x41, unicode2: 0x2D, advance: -0.04 },
+				{ unicode1: 0x41, unicode2: 0x2D, advance: -0.08 },
+			],
+		}));
+		expect(warnings).toEqual(['Font atlas test: dropped kerning[1]: duplicate pair U+0041 U+002D']);
+		expect(atlas.kerning(0x41, 0x2D)).toBe(-0.04);
+	});
 });
 
 describe('parseFontAtlas: coverage completion (R6.3)', () => {

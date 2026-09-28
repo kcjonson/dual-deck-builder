@@ -33,7 +33,23 @@ The loader converts everything to one convention so no consumer checks `yOrigin`
 
 ### Kerning
 
-All three committed atlases have zero kerning pairs. JetBrains Mono is monospaced; Open Sans 3.000 and Barlow Condensed keep their kerning in GPOS, and msdf-atlas-gen reads only the legacy `kern` table. The loader reads `kerning[]` and the tests cover it, so R6.9 works for any face that has a `kern` table, but body and display text are unkerned until a GPOS extraction step exists. Filed as a follow-up.
+msdf-atlas-gen v1.4 reads only the legacy `kern` table (through FreeType), and none of the three faces has one, so DDB-69 committed three atlases with zero pairs. DDB-182 added a step after each atlas: `scripts/merge-kerning.mjs` opens the face with fontkit, `scripts/gpos-kerning.ts` resolves GPOS pair adjustment for every ordered pair of the code points the atlas holds, and the result replaces the JSON's `kerning[]` in msdf-atlas-gen's own shape (`unicode1`, `unicode2`, `advance` in em), which the loader already read. What that turned up per face:
+
+- Barlow Condensed SemiBold: a `kern` feature over two pair adjustment lookups (one direct, one through type 9 extensions), format 1 exceptions ahead of format 2 class kerning. 4982 non-zero pairs over its 212 glyphs.
+- Open Sans 3.000: no kerning at all. No `kern` table, and its GPOS holds only `mark` and `mkmk`. The premise that it kerns in GPOS was wrong for this build; fontkit's own shaper confirms `AV` and `To` come out unkerned. Body text stays unkerned until the face changes (DDB-189).
+- JetBrains Mono: monospaced, no `kern` feature, as expected.
+
+How the resolution works: the lookups the `kern` feature names under `latn` (else `DFLT`) default language system, in lookup-list order, adjustments summed across lookups, and within one lookup the first subtable that applies wins. A format 1 subtable that covers the first glyph but lists no record for the second does not apply, so the next subtable is tried; format 2 applies whenever the first glyph is covered, with unlisted glyphs in class 0. Lookup flags that skip a glyph class (via GDEF) mean no pair, since a shaper would kern across that glyph instead. Only the first glyph's x advance fits the pen model the loader and R6.8 use, so any other non-zero value (placement, y advance, second-glyph values) fails the build rather than being dropped, and a contextual kern lookup (types 7 and 8) is reported as skipped. A test runs fontkit's shaper over all 2704 letter pairs in Barlow Condensed and requires the extraction to agree with it; another requires every committed `kerning[]` to equal a fresh extraction from its face, so a face swapped without regenerating fails.
+
+Library: fontkit over opentype.js. opentype.js 2.0.0 was tried first and does not parse GPOS extension lookups (type 9), which is where half of Barlow's kerning lives. fontkit resolves them and ships a shaper to test against. It is a devDependency used only by the hand-run build and the tests, never bundled.
+
+Why a Node step and not fontTools: the repo has no Python dependency, and the extraction is small enough to test in jest with the rest of the loader. The core is TypeScript (`scripts/gpos-kerning.ts`) so jest and `tsc` check it; the `.mjs` entry loads it through Node's type stripping (Node 22.18 or later, which the build scripts' users need anyway for `npm ci`), so the file stays erasable syntax. jest's roots and the root tsconfig now include `scripts/`.
+
+Determinism: code points are deduplicated and sorted, pairs come out in (left, right) order, and only the `kerning` array is spliced into the file, because re-serialising msdf-atlas-gen's 17-digit floats through `JSON.stringify` would rewrite every glyph's text. The merge checks that the rest of the parsed file is unchanged. A full `build-fonts.sh` run reproduced all three PNGs and the Open Sans and JetBrains Mono JSON byte for byte, and running the merge twice gives the same file.
+
+Cost: Barlow's JSON grows from 49 KB to 288 KB, and it is bundled as a module (R15.34), so `main.js` grows by about 240 KB (28 KB gzipped). Dropping pairs under 0.01 em would remove about a third of them; not done, because the loss would be invisible only at small sizes and display text is the large size. If bundle size matters later, the answer is a class-based form of `kerning[]` behind a converter, which R6.2 allows.
+
+The loader now also drops, with a warning, a pair naming a code point the atlas has no glyph for (checked before substitutes, so a stand-in never inherits another glyph's kerning) and the second of two entries for the same pair.
 
 ### Loading at startup, not drawing
 

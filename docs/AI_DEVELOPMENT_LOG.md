@@ -6,6 +6,14 @@ This document contains the chronological log of completed development tasks for 
 
 **Date correction (2026-08-22):** the repo's first commit is 2025-05-17, but many entries below carry dates in December 2024 or January 2025 — the AI that wrote them used its assumed date instead of the real one. Entries dated 2025-07-03 and 2025-07-02 have been corrected from "2025-01-03"/"2025-01-02" (verified against git history). Remaining Dec 2024 / Jan 2025 dates are wrong by roughly six months; the real work happened May–July 2025. Trust git history over these dates.
 
+## GPOS kerning in the font atlases (2026-09-28)
+
+**What landed:** DDB-182. `scripts/gpos-kerning.ts` resolves GPOS pair adjustment (lookup type 2, formats 1 and 2, through type 9 extensions) for the `kern` feature, and `scripts/merge-kerning.mjs` splices the result into an atlas JSON's `kerning[]` in msdf-atlas-gen's schema. `build-fonts.sh` and `.ps1` run it after each atlas. fontkit is a new devDependency. The loader drops, with a warning, a kerning pair naming a code point the atlas lacks, and a duplicate pair. jest and the root tsconfig now include `scripts/`.
+
+**Result:** `barlow-condensed-semibold.json` has 4982 pairs (`AV` -0.047 em, `Ta` -0.068, `LT` -0.067). Open Sans 3.000 has neither a `kern` table nor a GPOS `kern` feature, so it has none; follow-up DDB-189. JetBrains Mono has none, being monospaced. A full rebuild reproduced every PNG and the other two JSON files byte for byte. No pixel moves: the atlases are not drawn until DDB-70.
+
+**How:** synthetic-table unit tests for each resolution rule (format 1 miss falling through, class 0, lookups summing, extension, mark filtering, unsupported values failing, DFLT fallback, determinism), a cross-check against fontkit's shaper over all 2704 Barlow letter pairs, and a test that each committed `kerning[]` equals a fresh extraction from its face. Decisions in [font-pipeline.md](./AI_TECHNICAL_DECISIONS/font-pipeline.md#kerning).
+
 ## Electron visual flake: atlas decode rejected by navigation, not a load failure (2026-09-28)
 
 **What landed:** DDB-187. `tests/visual/electron/shell.spec.ts` waits, in `beforeEach`, for the boot page's `font-atlases-ready` or `font-atlases-failed` mark and asserts it is ready before any test navigates.

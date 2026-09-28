@@ -1,5 +1,7 @@
 import { readFileSync } from 'fs';
 import { join } from 'path';
+import * as fontkit from 'fontkit';
+import { extractGposKerning, type KerningFont } from '../../../../scripts/gpos-kerning';
 import { parseFontAtlas } from './FontAtlas';
 import { FONT_FACES } from './fontFaces';
 
@@ -84,6 +86,39 @@ describe.each(FONT_FACES.map((face) => [face.face, face] as const))('committed a
 		expect(atlas.glyph(0x20)?.advance).toBeGreaterThan(0);
 		expect(atlas.glyph(0x3F)?.atlas).not.toBeNull();
 		expect(atlas.glyph(0x200B)?.advance).toBe(0);
+	});
+});
+
+/** Each atlas's source face, as scripts/build-fonts pairs them. */
+const SOURCE_FACES: Readonly<Record<string, string>> = {
+	'barlow-condensed-semibold': 'barlow-condensed/BarlowCondensed-SemiBold.ttf',
+	'open-sans-regular': 'open-sans/OpenSans-Regular.ttf',
+	'jetbrains-mono-regular': 'jetbrains-mono/JetBrainsMono-Regular.ttf',
+};
+
+describe('committed kerning (R6.9)', () => {
+	const atlases = new Map(FONT_FACES.map((face) => [face.face, parseFontAtlas({ json: face.metrics, source: face.face })]));
+
+	it.each(FONT_FACES.map((face) => [face.face, face] as const))('%s holds exactly what its face\'s GPOS kern feature gives', (name, face) => {
+		const font = fontkit.openSync(join(FONTS_DIR, SOURCE_FACES[name])) as unknown as KerningFont;
+		const metrics = face.metrics as { glyphs: { unicode: number }[]; kerning: unknown[] };
+		const { pairs } = extractGposKerning({ font, codePoints: metrics.glyphs.map((glyph) => glyph.unicode) });
+		expect(metrics.kerning).toEqual(pairs);
+	});
+
+	it('kerns the display face\'s classic pairs', () => {
+		const display = atlases.get('barlow-condensed-semibold');
+		const kern = (pair: string) => display?.kerning(pair.codePointAt(0) ?? 0, pair.codePointAt(1) ?? 0);
+		expect(display?.kerningPairCount).toBeGreaterThan(1000);
+		expect(kern('AV')).toBe(-0.047);
+		expect(kern('Ta')).toBe(-0.068);
+		expect(kern('LT')).toBe(-0.067);
+		expect(kern('HH')).toBe(0);
+	});
+
+	it('has no pairs for Open Sans 3.000 or JetBrains Mono, whose faces carry no kerning', () => {
+		expect(atlases.get('open-sans-regular')?.kerningPairCount).toBe(0);
+		expect(atlases.get('jetbrains-mono-regular')?.kerningPairCount).toBe(0);
 	});
 });
 
