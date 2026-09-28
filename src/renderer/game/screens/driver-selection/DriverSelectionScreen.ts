@@ -161,6 +161,9 @@ export class DriverSelectionScreen extends Screen {
 		// Back button
 		this.backButton = new Button('Back to Menu', {
 			id: 'driver_select_back_button',
+			// Tab reaches it first, as it reads, though the panels are built
+			// before it (R9.18: a positive tabIndex leads the order)
+			tabIndex: 1,
 			icon: 'arrow_back',
 			size: 'lg',
 			width: 200,
@@ -170,9 +173,7 @@ export class DriverSelectionScreen extends Screen {
 		this.backButton.onClick = () => {
 			ScreenManager.navigate('mainMenuScreen');
 		};
-		// Right after the title, so Tab reaches it first, in reading order
-		// (R9.18: tree order), though the panels are built before it
-		this.rootLayer.insertChild(this.rootLayer.getChildren().indexOf(this.titleText) + 1, this.backButton);
+		this.rootLayer.addChild(this.backButton);
 		
 		// The primary action; disabled until two different drivers are picked,
 		// which the accent tone draws as its neutral disabled look.
