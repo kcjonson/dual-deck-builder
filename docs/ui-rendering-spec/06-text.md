@@ -1,6 +1,6 @@
 # 6. Text
 
-Status: draft 4 (2026-09-07; revised after all five reviews, see chapter 17). R6.2 and R6.3 amended 2026-09-28 to match the font loader (DDB-69): bound-less blanks, stand-in glyphs, zero-width format characters.
+Status: draft 4 (2026-09-07; revised after all five reviews, see chapter 17). R6.2 and R6.3 amended 2026-09-28 to match the font loader (DDB-69): bound-less blanks, stand-in glyphs, zero-width format characters. R6.11 amended 2026-09-28 (DDB-200) to centre on the ascent plus descent, as the metrics service (DDB-70) does.
 
 Text is most of what a UI draws and where most of its visible quality lives. The requirements: crisp at every size and device pixel ratio, batched with shapes in the same sort, measured exactly as rendered, and wrapped and aligned by one shared algorithm. Worldsim's MSDF pipeline meets these after two rounds of fixes (run snapping, unified measurement, atlas validation), and those fixes are rules here. The sibling TypeScript engine's canvas-rasterised 32 px bitmap atlas, scaled bilinearly to 8 px and 64 px, is the anti-pattern this chapter exists to retire. The graphics review corrected the atlas parameters (the first draft's range failed msdfgen's own minimum below 16 px on ratio-1 displays), added the small-size raster fallback, and replaced the wrapping rule with explicit break opportunities.
 
@@ -27,7 +27,7 @@ Rules are numbered R6.n.
 - R6.8 One glyph iteration serves both measurement and rendering: the same advance, kerning, letter spacing, transform, and fallback rules. `measureText` of a string equals the horizontal extent `drawText` produces, and a string drawn twice end to end lands its second copy exactly one measured width later. Worldsim's centred and right-aligned text drifted until this was enforced.
 - R6.9 Letter spacing is added between glyphs only (not after the last); text transform (uppercase) is applied before measurement; kerning pairs from the metrics file are applied when present (a specification addition; worldsim's font renderer reads no kerning table).
 - R6.10 Sizes: a text draw specifies its size in logical pixels; the implementation scales the atlas metrics (which are stored per em) by `size / em`. Line height defaults to the font's line height times the `lineHeight` token and MAY be overridden per draw.
-- R6.11 Vertical alignment inside a box is computed on the font ascent, not on the measured glyph bounds, so lines with and without descenders sit on the same baseline. This is worldsim's convention and every component in its catalog relies on it.
+- R6.11 Vertical alignment inside a box is computed on the font's ascent and descent (the face's content area, as in CSS), not on the measured glyph bounds, so lines with and without descenders sit on the same baseline. `middle` centres the block from the first line's ascender line to the last line's descender line. This is worldsim's convention and every component in its catalog relies on it; worldsim centres the ascent alone, which puts centred labels low in faces whose ascenders leave room for accents above the caps (Open Sans's 1.069 em ascender centres 16 px caps 2.9 px low in a 30 px field, against 0.5 px for ascent plus descent).
 - R6.12 Measurement results are cached keyed on (face, role, text, size, letter spacing, transform, wrap width) with a bounded LRU; the cache is invalidated when the atlas changes.
 
 ## 6.4 Wrapping and overflow
@@ -71,7 +71,7 @@ MSDF gives one atlas for every size, crisp edges under scaling and animation, an
 | Size-independent glyph source with the R6.4a range ratio, validated msdf-atlas-gen metrics, fallback glyph, licensed faces | required |
 | Median-of-three MSDF shading with the linear ramp and clamped range, premultiplied output | required |
 | Shared measure and render iteration; kerning, letter spacing, transform | required |
-| Ascent-based vertical centring | required |
+| Vertical centring on the face's ascent and descent | required |
 | Greedy wrap with the normative break opportunities, ellipsis, per-line alignment | required |
 | Run-origin pixel snapping under translate-only transforms | required |
 | Text in the same batch and sort, culled per run | required |

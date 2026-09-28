@@ -10,6 +10,7 @@ import { NestedPanelsSection } from './NestedPanelsSection';
 import { PaintOrderFixturesSection } from './PaintOrderFixturesSection';
 import { ClippingFixturesSection } from './ClippingFixturesSection';
 import { ShadingFixturesSection } from './ShadingFixturesSection';
+import { IconExamplesSection } from './IconExamplesSection';
 
 /**
  * The developer screen's sections, defined once.
@@ -100,5 +101,9 @@ export const developerSections: readonly DeveloperSection[] = [
 	{
 		name: 'shading',
 		build: ({ x, y, width }) => new ShadingFixturesSection(x, y, width),
+	},
+	{
+		name: 'icons',
+		build: ({ x, y, width }) => new IconExamplesSection(x, y, width),
 	},
 ];

@@ -76,4 +76,5 @@ export const SCENE_SCENARIOS: readonly SceneScenario[] = [
 	{ scene: 'paint-order' },
 	{ scene: 'clipping' },
 	{ scene: 'shading' },
+	{ scene: 'icons' },
 ];

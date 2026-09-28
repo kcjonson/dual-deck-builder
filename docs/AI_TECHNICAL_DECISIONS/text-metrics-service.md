@@ -34,7 +34,9 @@ There is no second loop to drift. The pen that decides where a line breaks is th
 
 `text/textPlacement.ts` turns a layout and R2.13's anchor or box into each line's pen origin. With a box, `top` and `bottom` put the first or last line box on the box edge (a line box is `lineHeight` tall with the face's ascent and descent centred in it); lines align per line (R6.15). Without a box, `position.y` is the first baseline (R2.13), which is the new default `verticalAlign: 'baseline'`, or a zero-height box for `top`, `middle` and `bottom`, which is how `Text` still calls it until DDB-71 gives it real line boxes.
 
-### Departure: `middle` centres the ascent plus descent, not the ascent alone
+### `middle` centres the ascent plus descent, not the ascent alone
+
+This began as a departure from R6.11 and the spec now says it: DDB-200 amended R6.11, R12.4 and the chapter 6 checklist row on 2026-09-28.
 
 R6.11 says vertical centring is computed on the font ascent. Taken literally that centres the span from the baseline to the ascender line, and both body and display faces have ascenders well above their caps (Open Sans 1.069 em against a 0.714 em cap height; Barlow Condensed 1.0 against 0.7), to leave room for accents. The first render did exactly that and every centred label in the game sat low: 16 px Open Sans caps 2.9 px below centre in a 30 px input, visibly on the bottom border in the interactive-controls scene. Centring the face's ascent plus descent (CSS's content area) puts the same caps 0.5 px low.
 
@@ -59,7 +61,7 @@ Both bootstraps (`src/index.ts`, `src/gallery/index.ts`) await `loadFontAtlases`
 ## Consequences
 
 - Every golden moved: new faces, SDF edges, baselines from face metrics (text sits a few pixels lower than the canvas atlas's `textBaseline = 'top'` put it), and bold titles in the condensed display face.
-- The six symbol glyphs the screens used (armor, fuel, shield, wrench, gear, and the back arrow) are out of their strings. The engine draws an absent code point as the fallback glyph, as R6.3 requires, and that put U+FFFD diamonds on the combat HUD, where the canvas atlas had drawn nothing; removing the symbols restores the old look until the icon atlas (DDB-72, R12.6) brings them back as icons. Each site carries a comment naming DDB-72.
+- The six symbol glyphs the screens used (armor, fuel, shield, wrench, gear, and the back arrow) are out of their strings. The engine draws an absent code point as the fallback glyph, as R6.3 requires, and that put U+FFFD diamonds on the combat HUD, where the canvas atlas had drawn nothing; removing the symbols restored the old look until the icon atlas (DDB-72, R12.6) brought them back as icons; see [icon-atlas.md](./icon-atlas.md).
 - A font atlas that fails to load stops startup (there is no text without it, R2.18), and both pages say so in the status line `Renderer` uses for a lost device, rather than showing a blank canvas.
 - The raster fallback for sizes whose screen range falls below 1.5 device pixels (R6.4a, recommended) is not built. The screens use 8 and 9 px in seven places, whose screen range at ratio 1 (1.33 and 1.5 device pixels) is at or under that threshold; they render soft rather than wrong.
 - `measureText` works on the WebGL2 backend. The null and recording backends still refuse it.

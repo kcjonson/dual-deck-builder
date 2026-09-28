@@ -33,4 +33,9 @@ export class RendererContext {
 	public set draw(api: DrawApi) {
 		this.drawApi = api;
 	}
+
+	/** Whether `draw` is set. A component built before the draw API exists (a unit test's tree) checks this rather than catching. */
+	public get hasDraw(): boolean {
+		return this.drawApi !== null;
+	}
 }

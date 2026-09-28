@@ -1,59 +1,26 @@
 import { BattlefieldLayer, BattlefieldLayerOptions, LaneDecor } from './BattlefieldLayer';
 import { Vehicle as VehicleData } from '../../mechanics/Vehicle';
 import { Vehicle as VehicleUI } from '../../ui/Vehicle';
-import { Rectangle } from '../../../engine/components/Rectangle';
-import { Text } from '../../../engine/components/Text';
+import { EnemyIntent, IntentMarker } from '../../ui/IntentMarker';
 
-/**
- * Enemy intent indicator types
- */
-export type IntentType = 'attack' | 'defend' | 'repair' | 'special';
-
-export interface EnemyIntent {
-	type: IntentType;
-	value?: number; // Damage amount, armor gain, etc.
-	description: string;
-}
+export type { EnemyIntent, IntentType } from '../../ui/IntentMarker';
 
 /**
  * Enemy-specific vehicle UI component
  */
 class EnemyVehicle extends VehicleUI {
-	private intentIndicator!: Rectangle;
-	private intentText!: Text;
+	private intentMarker!: IntentMarker;
 	private intent: EnemyIntent | null = null;
 
 	protected createElements(): void {
 		super.createElements();
 
-		// Add intent indicator
-		const width = this.getWidth();
-		const height = this.getHeight();
-
-		this.intentIndicator = new Rectangle({
-			x: Math.floor(width * 0.7),
-			y: Math.floor(height * 0.05),
-			width: 30,
-			height: 30,
-			style: {
-				backgroundColor: '#aa4a4a',
-				borderColor: '#cc6a6a',
-				borderWidth: 2,
-				borderRadius: 15,
-			},
+		this.intentMarker = new IntentMarker({
+			x: Math.floor(this.getWidth() * 0.7),
+			y: Math.floor(this.getHeight() * 0.05),
+			size: 30,
 		});
-		this.addChild(this.intentIndicator);
-
-		this.intentText = new Text('!', {
-			style: {
-				fontSize: 16,
-				color: '#ffffff',
-				textAlign: 'center',
-				fontWeight: 'bold',
-			},
-		});
-		this.intentText.setPosition(Math.floor(width * 0.85), Math.floor(height * 0.2));
-		this.addChild(this.intentText);
+		this.addChild(this.intentMarker);
 	}
 
 	protected getPortraitColor(): string {
@@ -74,7 +41,7 @@ class EnemyVehicle extends VehicleUI {
 	 */
 	public setIntent(intent: EnemyIntent | null): void {
 		this.intent = intent;
-		this.updateIntent();
+		this.intentMarker.intent = intent;
 	}
 
 	/**
@@ -82,60 +49,7 @@ class EnemyVehicle extends VehicleUI {
 	 */
 	protected onResized(): void {
 		super.onResized();
-		this.updateIntent();
-	}
-
-	/**
-	 * Update intent display
-	 */
-	private updateIntent(): void {
-		if (!this.intent) {
-			this.intentIndicator.setVisible(false);
-			this.intentText.setVisible(false);
-			return;
-		}
-
-		this.intentIndicator.setVisible(true);
-		this.intentText.setVisible(true);
-		this.intentIndicator.setFillColor(this.getIntentColor(this.intent.type));
-		this.intentText.setText(this.getIntentDisplay(this.intent));
-	}
-
-	/**
-	 * Get color for intent type
-	 */
-	private getIntentColor(intentType: IntentType): string {
-		switch (intentType) {
-			case 'attack':
-				return '#cc4444';
-			case 'defend':
-				return '#4444cc';
-			case 'repair':
-				return '#44cc44';
-			case 'special':
-				return '#cc8844';
-			default:
-				return '#666666';
-		}
-	}
-
-	/**
-	 * Get display text for intent
-	 */
-	private getIntentDisplay(intent: EnemyIntent): string {
-		switch (intent.type) {
-			case 'attack':
-				return intent.value ? intent.value.toString() : '?';
-			// The shield and wrench symbols are not text the atlas covers
-			// (R6.3); the badge colour carries the intent until DDB-72's icons.
-			case 'defend':
-			case 'repair':
-				return '';
-			case 'special':
-				return '!';
-			default:
-				return '?';
-		}
+		this.intentMarker.intent = this.intent;
 	}
 }
 

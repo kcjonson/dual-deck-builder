@@ -1,6 +1,9 @@
+import { Icon } from '../../../engine/components/Icon';
 import { Layer, LayerOptions } from '../../../engine/components/Layer';
 import { Text } from '../../../engine/components/Text';
 import { Rectangle } from '../../../engine/components/Rectangle';
+import type { IconName } from '../../../engine/text/icons';
+import { tokens } from '../../../engine/theme/tokens';
 
 /**
  * Driver resource data
@@ -14,9 +17,13 @@ export interface DriverResourceData {
 	fuel: number;
 }
 
-/** The name's 12 px line box (10 px at 1.2) with two pixels either side. */
+/** The name's line box (10 px Open Sans, 13.6 px) with a pixel or two either side. */
 const NAME_BAND = 16;
 const NAME_TOP = 2;
+/** Space either side of the adrenaline readout. */
+const ADRENALINE_GAP = 6;
+/** Space after the value beside a stat's symbol. */
+const SYMBOL_VALUE_GAP = 4;
 
 /**
  * Stat display references
@@ -24,7 +31,7 @@ const NAME_TOP = 2;
 interface StatDisplay {
 	icon: Rectangle;
 	text: Text;
-	symbol?: Text;
+	symbol?: Icon;
 }
 
 /**
@@ -51,7 +58,7 @@ export class DriverStatsDisplay extends Layer {
 		fuel: 0
 	};
 	
-	constructor(options: LayerOptions & { x: number; y: number; width: number; height: number; driverNumber: 1 | 2 }) {
+	constructor(options: LayerOptions & { height: number; driverNumber: 1 | 2 }) {
 		super(options);
 
 		this.driverNumber = options.driverNumber;
@@ -78,20 +85,22 @@ export class DriverStatsDisplay extends Layer {
 			return boltIcon;
 		});
 
+		// Hugs its width, which holds still as the count changes: Open Sans's
+		// digits share one advance
 		this.adrenalineText = new Text(`${this.data.adrenaline}/${this.data.maxAdrenaline}`, {
 			id: `driver${this.driverNumber}_adrenaline_value`,
 			style: {
 				fontSize: 10,
 				color: '#ffffff',
-				textAlign: 'center',
+				verticalAlign: 'middle',
+				whiteSpace: 'nowrap',
 			},
 		});
 		this.addChild(this.adrenalineText);
 
 		this.drawPile = this.createStatDisplay('#4a4a6a', this.data.drawPileCount.toString());
 		this.discardPile = this.createStatDisplay('#6a4a4a', this.data.discardPileCount.toString());
-		// The fuel symbol is not text the atlas covers (R6.3); it returns as an icon with DDB-72.
-		this.fuel = this.createStatDisplay('#6a6a4a', this.data.fuel.toString());
+		this.fuel = this.createStatDisplay('#6a6a4a', this.data.fuel.toString(), 'local_gas_station');
 
 		this.layoutElements();
 	}
@@ -100,7 +109,7 @@ export class DriverStatsDisplay extends Layer {
 	 * Helper function to create a stat display (icon + text); layoutElements
 	 * places it
 	 */
-	private createStatDisplay(backgroundColor: string, value: string, symbol?: string): StatDisplay {
+	private createStatDisplay(backgroundColor: string, value: string, glyph?: IconName): StatDisplay {
 		const icon = new Rectangle({
 			style: {
 				backgroundColor,
@@ -110,45 +119,49 @@ export class DriverStatsDisplay extends Layer {
 		});
 		this.addChild(icon);
 
-		let symbolText: Text | undefined;
-		if (symbol) {
+		let symbol: Icon | undefined;
+		if (glyph) {
 			// The symbol sits in the icon and the value next to it
-			symbolText = new Text(symbol, {
-				style: {
-					color: '#ffffff',
-					textAlign: 'center',
-				},
-			});
-			this.addChild(symbolText);
+			symbol = new Icon({ glyph, size: 0, tint: tokens.color.text_bright });
+			this.addChild(symbol);
 		}
 
 		const text = new Text(value, {
 			style: {
 				fontSize: 8,
 				color: '#ffffff',
-				textAlign: 'center',
+				textAlign: symbol ? 'left' : 'center',
+				verticalAlign: 'middle',
+				whiteSpace: 'nowrap',
 			},
 		});
 		this.addChild(text);
 
-		return { icon, text, symbol: symbolText };
+		return { icon, text, symbol };
 	}
 
 	/**
-	 * Place a stat display with its icon's left edge at x
+	 * Place a stat display with its icon's left edge at x; returns its right
+	 * edge. The value is centred in the icon, or beside it when the icon holds
+	 * a symbol.
 	 */
-	private layoutStatDisplay({ icon, text, symbol }: StatDisplay, x: number, iconSize: number): void {
-		const centerY = this.iconRowCenter;
-		icon.setPosition(x, Math.floor(centerY - iconSize / 2));
+	private layoutStatDisplay({ icon, text, symbol }: StatDisplay, x: number, iconSize: number): number {
+		const iconY = Math.floor(this.iconRowCenter - iconSize / 2);
+		icon.setPosition(x, iconY);
 		icon.setSize(iconSize, iconSize);
-		if (symbol) {
-			icon.setCornerRadius(Math.floor(iconSize / 4));
-			symbol.setFontSize(Math.floor(iconSize * 0.6));
-			symbol.setPosition(x + iconSize / 2, Math.floor(centerY));
-			text.setPosition(x + iconSize + 10, Math.floor(centerY));
-		} else {
-			text.setPosition(x + iconSize / 2, Math.floor(centerY));
+		if (!symbol) {
+			text.setPosition(x, iconY);
+			text.setSize(iconSize, iconSize);
+			return x + iconSize;
 		}
+		icon.setCornerRadius(Math.floor(iconSize / 4));
+		const symbolSize = Math.floor(iconSize * 0.75);
+		symbol.size = symbolSize;
+		symbol.setPosition(x + (iconSize - symbolSize) / 2, iconY + (iconSize - symbolSize) / 2);
+		const valueX = x + iconSize + SYMBOL_VALUE_GAP;
+		text.setPosition(valueX, iconY);
+		text.setSize(0, iconSize);
+		return valueX + text.getWidth();
 	}
 
 	/**
@@ -182,13 +195,19 @@ export class DriverStatsDisplay extends Layer {
 			currentX += iconSize + 2;
 		}
 
-		this.adrenalineText.setPosition(currentX + 10, Math.floor(centerY));
-		currentX += 40;
+		currentX += ADRENALINE_GAP;
+		this.adrenalineText.setPosition(currentX, Math.floor(centerY - iconSize / 2));
+		this.adrenalineText.setSize(0, iconSize);
+		currentX += this.adrenalineText.getWidth() + ADRENALINE_GAP;
 
-		for (const stat of [this.drawPile, this.discardPile, this.fuel]) {
-			this.layoutStatDisplay(stat, currentX, smallIconSize);
-			currentX += smallIconSize + padding;
-		}
+		const stats = [this.drawPile, this.discardPile, this.fuel];
+		stats.forEach((stat, index) => {
+			currentX = this.layoutStatDisplay(stat, currentX, smallIconSize);
+			if (index < stats.length - 1) currentX += padding;
+		});
+
+		// Hugs its content, so the bar lays out from what was measured
+		this.width = currentX;
 	}
 
 	/**
@@ -240,15 +259,5 @@ export class DriverStatsDisplay extends Layer {
 		if (data.fuel !== undefined) {
 			this.fuel.text.setText(data.fuel.toString());
 		}
-	}
-	
-	/**
-	 * Get the width needed for this display
-	 */
-	public static getRequiredWidth(maxAdrenaline = 3): number {
-		// Rough calculation: name + adrenaline icons + text + 3 stats
-		const iconSize = 30;
-		const smallIconSize = 21;
-		return (iconSize + 2) * maxAdrenaline + 40 + (smallIconSize + 5) * 2 + (smallIconSize + 20);
 	}
 }

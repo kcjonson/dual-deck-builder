@@ -3,7 +3,6 @@ import { Rectangle } from '../components/Rectangle';
 import { Text } from '../components/Text';
 import { RenderContext, DEFAULT_RENDER_CONTEXT } from '../rendering/RenderContext';
 import { InputSystem } from '../input/InputSystem';
-import { RendererContext } from '../rendering/RendererContext';
 
 /**
  * Input UI component for text input
@@ -59,10 +58,9 @@ export class Input extends Component {
 				color: '#ffffff',
 				textAlign: 'left',
 				verticalAlign: 'middle',
+				whiteSpace: 'nowrap',
 			},
 		});
-		this.text.setAlign('left');
-		this.text.setBaseline('middle');
 		this.addPart(this.text);
 
 		// Create placeholder text at same position
@@ -75,25 +73,22 @@ export class Input extends Component {
 				color: '#808080',
 				textAlign: 'left',
 				verticalAlign: 'middle',
+				whiteSpace: 'nowrap',
 			},
 		});
-		this.placeholder.setAlign('left');
-		this.placeholder.setBaseline('middle');
 		this.placeholderText = placeholder;
 		this.addPart(this.placeholder);
 		
-		// Create cursor (initially hidden)
+		// Placed and sized from the text's metrics by updateCursorPosition
 		this.cursor = new Rectangle({
-			x: textOffset,
-			y: this.height * 0.2,
 			width: 2,
-			height: this.height * 0.6,
 			style: {
 				backgroundColor: '#ffffff',
 			},
 		});
 		this.cursor.setVisible(false);
 		this.addPart(this.cursor);
+		this.updateCursorPosition();
 
 		// Setup event handling (this would be connected to the input system)
 		this.setupEvents();
@@ -142,6 +137,7 @@ export class Input extends Component {
 	public setFontSize(size: number): this {
 		this.text.setFontSize(size);
 		this.placeholder.setFontSize(size);
+		this.updateCursorPosition();
 		return this;
 	}
 
@@ -164,6 +160,7 @@ export class Input extends Component {
 		if (this.placeholder) {
 			this.placeholder.setSize(width - textOffset * 2, height);
 		}
+		this.updateCursorPosition();
 
 		return this;
 	}
@@ -176,21 +173,21 @@ export class Input extends Component {
 	}
 	
 	/**
-	 * Update the cursor position based on text width
+	 * The caret sits after the last code point, at the pen position the text's
+	 * own layout reports (R2.14), and spans the text's line box, which the
+	 * text centres in the field.
 	 */
 	private updateCursorPosition(): void {
 		if (!this.text || !this.cursor) return;
-		
-		// Measured through the same glyph iteration the text is drawn with (R2.14).
-		const measurement = RendererContext.getInstance().draw.measureText({
-			text: this.value,
-			font: this.text.font,
-			size: this.text.getFontSize(),
-		});
-		
-		// Position cursor after the text with the same offset as the text
+		const measured = this.text.measured;
+		if (!measured) return;
+
 		const textOffset = 10; // Same as text offset
-		this.cursor.setX(textOffset + measurement.width);
+		const advances = measured.advances;
+		const lineHeight = measured.height / Math.max(1, measured.lines);
+		this.cursor.setX(textOffset + (advances.length > 0 ? advances[advances.length - 1] : 0));
+		this.cursor.setY((this.text.getHeight() - lineHeight) / 2);
+		this.cursor.setHeight(lineHeight);
 	}
 
 	/**
