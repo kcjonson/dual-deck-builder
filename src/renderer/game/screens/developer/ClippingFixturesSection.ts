@@ -15,17 +15,17 @@ const CLEAR: RGBA = [0, 0, 0, 0];
 /**
  * Chapter 4's gallery fixture (4.7), drawn through the draw API: nested rect
  * clips intersecting, a disjoint pair producing `empty`, a content offset
- * applied before a fixed clip, every primitive kind cut by one clip, and text
- * too long for its box.
+ * applied before a fixed clip, a clip edge that agrees with its content as a
+ * viewport slides by fractions of a pixel (R7.8a), every primitive kind cut
+ * by one clip, and text too long for its box.
  *
- * Four items of 4.7's list are not here, each because drawing it today would
+ * Three items of 4.7's list are not here, each because drawing it today would
  * make a wrong picture the golden. The rounded clip needs the per-draw SDF of
- * DDB-190 (a square clip would be baked in as correct); the snapped clip edge
- * under an animated offset needs R7.8a's clip snapping (DDB-188); the stencil
- * clip and the oriented clip for rotated containers are optional and not
- * implemented. The overflowing text field is drawn as the draw calls a field
- * makes, because the `Input` component does not clip its text yet (the
- * phase 5 TextInput, DDB-86).
+ * DDB-190 (a square clip would be baked in as correct); the stencil clip and
+ * the oriented clip for rotated containers are optional and not implemented.
+ * The overflowing text field is drawn as the draw calls a field makes, because
+ * the `Input` component does not clip its text yet (the phase 5 TextInput,
+ * DDB-86).
  */
 export class ClippingFixturesSection extends Panel {
 	constructor(x: number, y: number, width: number) {
@@ -59,6 +59,7 @@ export class ClippingFixturesSection extends Panel {
 				nested(draw, 0, 0);
 				disjoint(draw, 0, 250);
 				contentOffset(draw, 440, 0);
+				snappedClipEdge(draw, 440, 250);
 				everyPrimitive(draw, 880, 0);
 				overflowingText(draw, 880, 250);
 			},
@@ -139,6 +140,44 @@ function contentOffset(draw: DrawApi, left: number, top: number): void {
 		color: [0.7, 0.72, 0.76, 1],
 		align: 'left',
 	});
+}
+
+/**
+ * 4.7's animated content offset with a snapped clip edge, as four frames of a
+ * viewport sliding by a quarter pixel a frame while its content scrolls. Each
+ * frame outlines the viewport with a hairline, which R7.8 puts on the device
+ * grid, and fills it with content cut by the viewport's clip.
+ *
+ * What the golden proves is that the clip and the content agree on where the
+ * edge is in every frame, including the one at x.5. R4.4 keeps a pixel by its
+ * centre, which breaks the x.5 tie the other way from `round`: unsnapped, that
+ * frame's clip would keep the column left of the outline's inner edge (over
+ * the outline) and drop the last column inside it (a dark gap), and the frames
+ * either side would not. Snapped at push (R7.8a), the content meets the
+ * outline on all four sides in all four frames.
+ */
+function snappedClipEdge(draw: DrawApi, left: number, top: number): void {
+	fixtureHeading(draw, 'Clip and content edges agree as a viewport slides', left, top);
+	const frames = [0, 0.25, 0.5, 0.75];
+	for (let index = 0; index < frames.length; index++) {
+		const slide = frames[index];
+		const scroll = index * 7.3;
+		const viewport = { x: left + index * 96 + slide, y: top + 40 + slide, width: 80, height: 120 };
+		draw.drawRect({ rect: viewport, fill: CLEAR, border: { color: OUTLINE, width: 1, position: 'outside' } });
+		draw.pushClip(viewport);
+		draw.pushTranslate(viewport.x, viewport.y - scroll);
+		for (let row = 0; row < 8; row++) {
+			const colour: RGBA = row % 2 === 0 ? [0.3, 0.5, 0.85, 1] : [0.9, 0.55, 0.2, 1];
+			draw.drawRect({ rect: { x: -10, y: row * 20, width: 100, height: 20 }, fill: colour });
+		}
+		draw.popTransform();
+		draw.popClip();
+		fixtureLabel(draw, {
+			text: `x +${slide}, scroll ${scroll.toFixed(1)}`,
+			box: { x: viewport.x, y: viewport.y + viewport.height + 6, width: viewport.width, height: 18 },
+			color: [0.7, 0.72, 0.76, 1],
+		});
+	}
 }
 
 /** Rects, shadows, gradients, circles, lines, polygons and text all stop at one clip edge. */

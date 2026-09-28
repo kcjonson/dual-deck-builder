@@ -42,6 +42,6 @@ export interface MountContextOptions {
  */
 export function createMountContext({ draw, viewport }: MountContextOptions): MountContext {
 	const frame = new UiFrame();
-	const dispatcher = new Dispatcher({ frame });
+	const dispatcher = new Dispatcher({ frame, pixelRatio: () => draw.devicePixelScale });
 	return { draw, dispatcher, viewport, frame };
 }

@@ -16,6 +16,18 @@ This document contains the chronological log of completed development tasks for 
 - Both loops drain the queue in a timed `input` section; `UiFrame.layoutVersion` lets hover follow layout. The injection hook dispatches pointer events at the adapter; `components/testing.ts` has `injectNow`.
 
 **How:** `Dispatcher.test.ts` (chapter 9.11's hit order including 3.12's promoted popup and 4.7's popup inside a clip, bubble, scrim, enter and leave order, hover after scroll and layout, click on the common ancestor and the threshold, capture and its cancellations, touch, wheel line and page modes, latching, Shift, keys and hotkeys, coalescing, pause, handler isolation), `widgetInput.test.ts` (Button, Input and the adapter through injection), and the existing screen, gallery, injection and teardown tests moved from registration maps to hit tests. An audit hit-tested every Button, Card, Vehicle, Input and scrollable Panel on six screens and found none occluded. Driven in the browser through `__dev.input` and real pointer and wheel events: menu, driver cycling, START RUN, a targeted card played on an enemy, Escape cancelling targeting, END TURN into turn 2, F6, the developer screen's inputs, Apply and scroll, the card showcase, and the gallery's input scene, with a clean console.
+## Pixel snapping at submission: hairlines, shared edges and clips (2026-09-28)
+
+**What landed:** DDB-188 (DDB-55).
+
+- `coords/snapping.ts`: `snapHairlineRect` takes the border position and writes into an `out` object. A `center` border snaps its outer edge (the rect edge on a grid shifted by half the snapped width); a borderless rect snaps its edges and stays borderless; a rect narrower than a device pixel keeps the pixel its centre is in.
+- `UberGeometryEncoder.encodeRect`: under `translateOnly`, a rect with no radius and a hairline or no border is snapped in screen space and written back in local space; the border outset follows the snapped width. `borderOutset` now takes a position and a width.
+- `DrawApi.pushClip`: the screen-space clip goes through `snapClipRect` under a translation (R7.8a), so the cull, the snapshot and the shader agree.
+- `ClippingFixturesSection`: 4.7's snapped clip edge under an animated offset, as four frames of a viewport sliding by a quarter pixel with its content scrolling, outlined by a hairline. At the x.5 frame an unsnapped clip keeps the column over the outline and drops the last one inside it; snapped, clip and content meet the outline in every frame.
+- `treeSnapshot` snaps its clips at a `ratio` its viewport now carries (the hooks pass the committed ratio), and `Component.containsScreenPoint` snaps each clipping ancestor under a translation at the draw API's ratio, so paint, snapshot and hit test agree at fractional positions.
+- `uberShader.spec.ts`: the fractional abutting-rects case passes and lost its `test.fail`; new GPU checks for chapter 7's 1 px border at y 10.4 on device rows 21 and 22 at ratio 2, and a 1 px center border on one column. The two coverage-ramp tests moved under a scale, where nothing snaps.
+
+**How:** unit tests for the helper (center, borderless, sub-pixel, out param), the encoder (translated hairline at ratio 2, abutting pair, center border, and the three opt-outs) and the clip stack (snapped at every fractional scroll, not under a scale). Goldens re-minted on CI with `update_mode=all` and checked old against new.
 
 ## Mount context, lifecycle, and frame order (2026-09-28)
 

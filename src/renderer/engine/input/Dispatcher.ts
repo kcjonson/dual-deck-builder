@@ -80,6 +80,8 @@ export interface DispatcherOptions {
 	 * that moved content under a still pointer (R9.9).
 	 */
 	frame: UiFrame;
+	/** `dpr * uiScale` for clip snapping in the hit walk (R7.8a); 1 when absent. */
+	pixelRatio?: () => number;
 }
 
 /**
@@ -109,6 +111,7 @@ export class Dispatcher {
 	public readonly hotkeys = new HotkeyTable();
 
 	private readonly frame: UiFrame;
+	private readonly pixelRatio: () => number;
 	private queue: PlatformInput[] = [];
 	private readonly rootList: Component[] = [];
 	/** The hovered chain, outermost first: the target and every ancestor (R9.8). */
@@ -124,8 +127,15 @@ export class Dispatcher {
 	private inputPaused = false;
 	private dispatching = false;
 
-	constructor({ frame }: DispatcherOptions) {
+	constructor({ frame, pixelRatio = () => 1 }: DispatcherOptions) {
 		this.frame = frame;
+		this.pixelRatio = pixelRatio;
+	}
+
+	/** Lays out on demand, then walks the roots (R9.2, R9.4). */
+	private hit(x: number, y: number, options?: HitTestOptions): Component | null {
+		this.frame.layout();
+		return hitTest(this.rootList, x, y, { ratio: this.pixelRatio(), ...options });
 	}
 
 	// -- roots ----------------------------------------------------------------
@@ -224,8 +234,7 @@ export class Dispatcher {
 	 * there would target. Lays out first, like every dispatch-time hit test.
 	 */
 	public hitTest(point: Vec2, options?: HitTestOptions): Component | null {
-		this.frame.layout();
-		return hitTest(this.rootList, point.x, point.y, options);
+		return this.hit(point.x, point.y, options);
 	}
 
 	// -- capture (R9.10) ------------------------------------------------------
@@ -362,8 +371,7 @@ export class Dispatcher {
 	private targetFor(fields: PointerFields): Component | null {
 		const captor = this.captures.get(fields.pointerId);
 		if (captor) return captor;
-		this.frame.layout();
-		return hitTest(this.rootList, fields.x, fields.y);
+		return this.hit(fields.x, fields.y);
 	}
 
 	private pointerDown(fields: PointerFields): void {
@@ -510,10 +518,9 @@ export class Dispatcher {
 			if (this.hoverPath.length > 0) this.setHoverTarget(null, 1);
 			return;
 		}
-		this.frame.layout();
-		// The layout just run may itself have bumped the version.
+		const hit = this.captures.has(position.pointerId) ? null : this.hit(position.x, position.y);
+		// The layout the hit test ran may itself have bumped the version.
 		this.layoutVersionSeen = this.frame.layoutVersion;
-		const hit = this.captures.has(position.pointerId) ? null : hitTest(this.rootList, position.x, position.y);
 		this.setHoverTarget(this.hoverTargetFor(position.pointerId, position.x, position.y, hit), position.pointerId);
 	}
 
@@ -554,8 +561,7 @@ export class Dispatcher {
 			scroller = latch.scroller;
 		} else {
 			this.latch = null;
-			this.frame.layout();
-			hit = hitTest(this.rootList, input.x, input.y);
+			hit = this.hit(input.x, input.y);
 			for (let node = hit; node; node = node.parent) {
 				const [dx, dy] = normaliseWheel(input, node);
 				if (node.effectivelyEnabled && node.canScroll(dx, dy)) {
