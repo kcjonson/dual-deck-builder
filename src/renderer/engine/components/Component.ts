@@ -1294,7 +1294,8 @@ export abstract class Component {
 		this.pressState = false;
 		this.focusVisibleState = false;
 		this.dropActiveState = false;
-		this.dragGhostOffset = null;
+		// Through the setter, so the cached matrix and ink drop the ghost's offset too.
+		this.setDragOffset(null);
 	}
 
 	/**

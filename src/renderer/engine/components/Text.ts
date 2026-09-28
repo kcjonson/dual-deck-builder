@@ -351,7 +351,12 @@ export class Text extends Component {
 	/** The layout at a wrap width, through the mount context's draw API (R1.6); null when nothing can measure. */
 	private layoutMetrics(maxWidth: number | undefined): TextMetrics | null {
 		const metrics = this.metricsFor(maxWidth, this.wrap);
-		this.stale = metrics === null;
+		const stale = metrics === null;
+		// Measured or not decides whether `cullInk` has a bound at all, and a
+		// first measure at an unchanged size invalidates nothing else, so the
+		// subtree would otherwise stay unbounded and never be skipped.
+		if (stale !== this.stale) this.invalidateInk();
+		this.stale = stale;
 		if (metrics) this.metrics = metrics;
 		return metrics;
 	}

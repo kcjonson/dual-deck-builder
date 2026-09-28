@@ -289,6 +289,28 @@ describe('subtree cull (DDB-184, R4.2a)', () => {
 			expect(sweep(make, { draw: measuring, recording, mount: true })).toBeGreaterThanOrEqual(5);
 		});
 
+		it('a text that gains a bound once it measures, at an unchanged size', () => {
+			const { api: measuring, backend: recording } = createMeasuringDrawApi();
+			const clip = viewport();
+			const root = clip.parent as Layer;
+			const text = new Text('Convoy', { id: 'late', y: 400, width: 60, height: 20, style: { fontSize: 16 } });
+			clip.addChild(text);
+			// Cached while unmeasured: no bound.
+			expect(text.subtreeInk).toBeNull();
+
+			const context = createTestContext({ draw: measuring });
+			root.mount(context);
+			context.frame.layout();
+
+			expect(text.width).toBe(60);
+			expect(text.subtreeInk).not.toBeNull();
+			const counting = frame(root, measuring, recording);
+			const skipping = frame(root, measuring, recording);
+			expect(skipping).toEqual(counting);
+			expect(counting.culled).toBe(1);
+			expect(clip.walkedGroupCount).toBe(1);
+		});
+
 		it('an unmeasured text, which has no bound and is never skipped', () => {
 			// Not strict: a text drawn with no atlas loaded is reported (R2.18).
 			const lenient = new DrawApi({ backend, development: false });
@@ -351,6 +373,22 @@ describe('the walk allocates no geometry per frame (#85 review)', () => {
 		card.setDragOffset(null);
 		card.transform = {};
 		expect(card.transformMatrix).toBeNull();
+	});
+
+	it('drops a drag ghost\'s offset from the cached matrix when the ghost unmounts', () => {
+		const root = new Layer({ width: 400, height: 400 });
+		const card = new Rectangle({ width: 100, height: 20 });
+		root.addChild(card);
+		root.mount(createTestContext());
+		card.setDragOffset({ x: 30, y: 0 });
+		expect(card.transformMatrix?.[4]).toBe(30);
+
+		root.removeChild(card);
+		root.addChild(card);
+
+		expect(card.dragOffset).toBeNull();
+		expect(card.transformMatrix).toBeNull();
+		expect(card.subtreeInk).toEqual({ minX: 0, minY: 0, maxX: 100, maxY: 20 });
 	});
 
 	it('keeps one Panel content offset until the scroll moves', () => {

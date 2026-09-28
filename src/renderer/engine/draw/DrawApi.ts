@@ -553,6 +553,11 @@ export class DrawApi {
 		this.counters.countCulled(groups);
 	}
 
+	/** Whether `setInkBound` does anything: development builds only, so a production walk never builds the rect. */
+	get auditsInk(): boolean {
+		return this.development;
+	}
+
 	/**
 	 * The local rect, under the current transform, that the caller promises
 	 * its next draws stay inside; null withdraws the promise. The render walk
@@ -562,11 +567,6 @@ export class DrawApi {
 	 * Checked only where the cull computes ink anyway, under a rect clip,
 	 * which is also the only place a skip can happen. A no-op otherwise.
 	 */
-	/** Whether `setInkBound` does anything: development builds only, so a production walk never builds the rect. */
-	get auditsInk(): boolean {
-		return this.development;
-	}
-
 	setInkBound(local: Rect | null): void {
 		if (!this.development) return;
 		this.inkBoundLocal = local;
