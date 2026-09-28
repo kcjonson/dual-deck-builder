@@ -57,9 +57,9 @@ export interface ComponentOptions {
 }
 
 /**
- * Keyed reconciliation callbacks (R8.27). `remove` may defer the unmount by
- * returning a promise, so an exit animation can finish first; the child is out
- * of the children list at once either way.
+ * Keyed reconciliation callbacks (R8.27). `remove` may return a promise to
+ * run an exit animation: the child stays in the list, still drawn, after the
+ * reconciled children and out of key matching, until the promise settles.
  */
 export interface ReconcileOptions<Item, Child extends Component> {
 	key: (item: Item) => string;
@@ -110,6 +110,8 @@ export abstract class Component {
 	/** R3.13's render-order view; null when a child or a zIndex changed. */
 	private orderView: readonly Component[] | null = null;
 	private [RECONCILE_KEY]: string | undefined;
+	/** Removed by `reconcileChildren` and still drawn while its exit runs. */
+	private exiting = false;
 
 	constructor(options?: ComponentOptions) {
 		this.ownPointerEvents = this.defaultPointerEvents;
@@ -552,7 +554,15 @@ export abstract class Component {
 	 * it first.
 	 */
 	public insertChild(index: number, child: Component): this {
+		// A child under itself or its own descendant is a parent loop, and
+		// every upward walk (root, screenMatrix, effective values) would
+		// recurse without end.
+		if (child === this || child.isAncestorOf(this)) {
+			throw new Error(`insertChild: ${child.componentType} cannot be added under itself or its own descendant`);
+		}
 		if (child.parentComponent === this) {
+			// Re-adding an exiting child keeps it (R8.27's exit is abandoned).
+			child.exiting = false;
 			this.moveChild(child, index);
 			return this;
 		}
@@ -575,6 +585,11 @@ export abstract class Component {
 		if (this.mountContext && !child.mountContext) child.mount(this.mountContext);
 		this.invalidateLayout();
 		return this;
+	}
+
+	private isAncestorOf(node: Component): boolean {
+		const parent = node.parentComponent;
+		return parent !== null && (parent === this || this.isAncestorOf(parent));
 	}
 
 	/** One of this component's own drawings (R8.8), marked for the lint. */
@@ -623,7 +638,11 @@ export abstract class Component {
 		this.children.splice(index, 1);
 		this.orderView = null;
 		child.parentComponent = null;
+		// Like the part mark, key and exit belong to the edge: a keyed child
+		// moved elsewhere is not the new parent's reconciled child.
 		child.ownedByParent = false;
+		child[RECONCILE_KEY] = undefined;
+		child.exiting = false;
 		this.invalidateLayout();
 		return true;
 	}
@@ -632,9 +651,12 @@ export abstract class Component {
 	 * R8.27: a keyed diff of this component's children against `items`.
 	 * Children this call created are tracked by key; kept keys are updated in
 	 * place and moved into item order without unmounting, new keys are
-	 * created, and keys no longer present leave the list at once and unmount
-	 * once `remove` settles. Children added by other means are left alone and
-	 * sort after the reconciled ones.
+	 * created, and keys no longer present are removed. A removal whose
+	 * `remove` returns a promise stays in the list, drawn after everything
+	 * else and out of key matching, so its exit animation shows, and is
+	 * detached and unmounted when the promise settles, unless it was re-added
+	 * somewhere in the meantime. Children added by other means are left alone
+	 * and sort after the reconciled ones.
 	 */
 	public reconcileChildren<Item, Child extends Component>(
 		items: readonly Item[],
@@ -643,40 +665,45 @@ export abstract class Component {
 		const existing = new Map<string, Child>();
 		for (const child of this.children) {
 			const childKey = child[RECONCILE_KEY];
-			if (childKey !== undefined) existing.set(childKey, child as Child);
+			if (childKey !== undefined && !child.exiting) existing.set(childKey, child as Child);
 		}
 
 		const ordered: Child[] = [];
+		const keys: string[] = [];
 		const seen = new Set<string>();
 		for (const item of items) {
 			const itemKey = key(item);
 			if (seen.has(itemKey)) throw new Error(`reconcileChildren: duplicate key "${itemKey}"`);
 			seen.add(itemKey);
-			let child = existing.get(itemKey);
-			if (child) {
-				update?.(child, item);
-			} else {
-				child = create(item);
-				child[RECONCILE_KEY] = itemKey;
-			}
-			ordered.push(child);
+			const child = existing.get(itemKey);
+			if (child) update?.(child, item);
+			ordered.push(child ?? create(item));
+			keys.push(itemKey);
 		}
 
 		for (const [childKey, child] of existing) {
 			if (seen.has(childKey)) continue;
-			this.detachChild(child);
 			child[RECONCILE_KEY] = undefined;
 			const pending = remove?.(child);
-			if (pending) {
-				pending.then(() => child.unmount(), () => child.unmount());
-			} else {
-				child.unmount();
+			if (!pending) {
+				this.removeChild(child);
+				continue;
 			}
+			child.exiting = true;
+			this.moveChild(child, this.children.length);
+			const finish = (): void => {
+				// Only if it is still this list's exiting child: one re-added
+				// elsewhere, or already removed, is not ours to unmount.
+				if (child.parentComponent === this && child.exiting) this.removeChild(child);
+			};
+			pending.then(finish, finish);
 		}
 
 		ordered.forEach((child, index) => {
 			if (child.parentComponent === this) this.moveChild(child, index);
 			else this.insertChild(index, child);
+			// After insertion, which clears a key a created child brought from elsewhere.
+			child[RECONCILE_KEY] = keys[index];
 		});
 	}
 

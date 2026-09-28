@@ -37,10 +37,12 @@ const OVERFLOW: Readonly<Record<NonNullable<Style['textOverflow']>, TextOverflow
  * metrics service, the same layout `drawText` draws (R6.8). Setting an axis
  * back to zero hugs it again.
  *
- * Measurement needs the draw API and a backend with the text's atlas. Built
- * before either exists (a unit test's tree on the null backend), a hugging
- * text keeps a zero size, the layout lint's `unmeasured-text`, and measures
- * the first time it renders somewhere that can. It never estimates.
+ * Measurement goes through the mount context's draw API (R1.6), on mount and
+ * on every change while mounted. Unmounted, or mounted on a backend without
+ * the text's atlas (a unit test's null backend), a hugging text keeps a zero
+ * size, the layout lint's `unmeasured-text`. It never estimates, and it never
+ * measures during render, where a size change would invalidate layout
+ * (R8.16).
  */
 export class Text extends Component {
 	private content: string;
@@ -253,8 +255,6 @@ export class Text extends Component {
 	}
 
 	public render(draw: DrawApi): void {
-		if (this.stale) this.measure();
-
 		draw.drawText({
 			id: this.id ?? undefined,
 			text: this.content,

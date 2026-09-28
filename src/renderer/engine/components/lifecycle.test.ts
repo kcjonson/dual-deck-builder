@@ -5,6 +5,7 @@ import type { MountContext } from './MountContext';
 import { Rectangle } from './Rectangle';
 import { Text } from './Text';
 import { createTestContext } from './testing';
+import { createMeasuringDrawApi } from '../text/testing';
 
 /** Records its lifecycle calls into a shared log, so order across a tree is visible. */
 class Probe extends Layer {
@@ -258,6 +259,81 @@ describe('upward invalidation and the layout phase (R8.16, R8.18)', () => {
 		input.processMouseOverOut();
 
 		expect(root.layouts).toBe(1);
+		expect(context.frame.layoutPending).toBe(false);
+	});
+});
+
+describe('hugging containers and the layout passes (R8.18)', () => {
+	/** Hugs its label: not a relayout boundary, and sizes itself from the label in the layout phase. */
+	class Chip extends Layer {
+		public readonly label: Text;
+
+		constructor(text: string) {
+			super({ height: 20 });
+			this.label = new Text(text, { style: { fontSize: 14 } });
+			this.addChild(this.label);
+		}
+
+		protected get isRelayoutBoundary(): boolean {
+			return false;
+		}
+
+		protected layoutChildren(): void {
+			this.setSize(this.label.getWidth() + 8, 20);
+		}
+	}
+
+	/** Places its chips in a row from their widths, as ResourceBarLayer places its displays. */
+	class Row extends Layer {
+		public passes = 0;
+
+		constructor(public readonly chips: Chip[]) {
+			super({ width: 800, height: 20 });
+			for (const chip of chips) this.addChild(chip);
+		}
+
+		protected layoutChildren(): void {
+			this.passes += 1;
+			let x = 0;
+			for (const chip of this.chips) {
+				chip.setPosition(x, 0);
+				x += chip.getWidth() + 4;
+			}
+		}
+	}
+
+	it('propagates a change through a hugging child to the row, and settles in one layout call', () => {
+		const context = createTestContext({ draw: createMeasuringDrawApi().api });
+		const row = new Row([new Chip('Fuel'), new Chip('Scrap')]);
+		const root = new Layer({ width: 800, height: 600 });
+		root.addChild(row);
+		root.mount(context);
+		context.frame.layout();
+
+		const [first, second] = row.chips;
+		expect(first.getWidth()).toBe(first.label.getWidth() + 8);
+		expect(second.x).toBe(first.getWidth() + 4);
+
+		const before = second.x;
+		first.label.setText('Fuel reserves');
+		context.frame.layout();
+
+		expect(context.frame.layoutPending).toBe(false);
+		expect(first.getWidth()).toBe(first.label.getWidth() + 8);
+		expect(second.x).toBe(first.getWidth() + 4);
+		expect(second.x).toBeGreaterThan(before);
+		// The row laid out from the chip's old width, the chip's new width
+		// re-marked it, and a second pass placed the chips again.
+		expect(row.passes).toBeGreaterThanOrEqual(2);
+	});
+
+	it('throws rather than hangs when layout keeps invalidating itself', () => {
+		const context = createTestContext();
+		const restless = new Layer({ width: 10, height: 10 });
+		restless.onLayout = () => restless.setSize(restless.getWidth() + 1, 10);
+		restless.mount(context);
+
+		expect(() => context.frame.layout()).toThrow('still invalid after 8 passes');
 		expect(context.frame.layoutPending).toBe(false);
 	});
 });

@@ -133,6 +133,20 @@ describe('children (R8.5 to R8.7)', () => {
 		expect(child.root).toBe(second);
 	});
 
+	it('refuses to add a component under itself or its own descendant', () => {
+		const root = new Layer({ id: 'root' });
+		const branch = new Layer({ id: 'branch' });
+		const leaf = new Layer({ id: 'leaf' });
+		root.addChild(branch);
+		branch.addChild(leaf);
+
+		expect(() => root.addChild(root)).toThrow('under itself or its own descendant');
+		expect(() => leaf.addChild(root)).toThrow('under itself or its own descendant');
+		expect(() => branch.insertChild(0, root)).toThrow('under itself or its own descendant');
+		expect(root.parent).toBeNull();
+		expect(ids(leaf.getChildren())).toEqual([]);
+	});
+
 	it('inserts at an index and moves a child it already holds without detaching it', () => {
 		const parent = new Layer();
 		const a = new Layer({ id: 'a' });
@@ -234,24 +248,77 @@ describe('reconcileChildren (R8.27)', () => {
 		expect((a as Probe).unmounts).toBe(0);
 	});
 
-	it('takes a removed key out at once and unmounts it when remove settles', async () => {
+	/** A `remove` whose exit animation finishes when the test says so. */
+	function deferredExit(): { remove: () => Promise<void>; finish: () => Promise<void> } {
+		let resolve: () => void = () => undefined;
+		const exit = new Promise<void>((done) => {
+			resolve = done;
+		});
+		return {
+			remove: () => exit,
+			finish: async () => {
+				resolve();
+				await exit;
+				await Promise.resolve();
+			},
+		};
+	}
+
+	it('keeps a removed key drawn after the others until its exit settles, then unmounts it', async () => {
 		const parent = new Layer();
 		reconcile(parent, [{ key: 'a', label: '' }, { key: 'b', label: '' }]);
 		const b = parent.getChildren()[1] as Probe;
+		const exit = deferredExit();
 
-		let finish: () => void = () => undefined;
-		const exit = new Promise<void>((resolve) => {
-			finish = resolve;
-		});
-		reconcile(parent, [{ key: 'a', label: '' }], () => exit);
+		reconcile(parent, [{ key: 'c', label: '' }, { key: 'a', label: '' }], exit.remove);
 
-		expect(ids(parent.getChildren())).toEqual(['a']);
+		// Still in the list, and so still rendered, for the exit animation (R8.27).
+		expect(ids(parent.getChildren())).toEqual(['c', 'a', 'b']);
 		expect(b.unmounts).toBe(0);
 
-		finish();
-		await exit;
-		await Promise.resolve();
+		// Out of key matching: the same key returning is a new child.
+		const { created } = reconcile(parent, [{ key: 'c', label: '' }, { key: 'a', label: '' }, { key: 'b', label: '' }]);
+		expect(created).toEqual(['b']);
+		expect(parent.getChildren().filter((child) => child.id === 'b')).toHaveLength(2);
+
+		await exit.finish();
 		expect(b.unmounts).toBe(1);
+		expect(b.parent).toBeNull();
+		expect(ids(parent.getChildren())).toEqual(['c', 'a', 'b']);
+	});
+
+	it('does not unmount an exiting child that was re-added elsewhere before its exit settled', async () => {
+		// One root, so the move is a same-root move that keeps the child (R8.5).
+		const root = new Layer();
+		const parent = new Layer();
+		const elsewhere = new Layer();
+		root.addChild(parent).addChild(elsewhere);
+		reconcile(parent, [{ key: 'a', label: '' }]);
+		const a = parent.getChildren()[0] as Probe;
+		const exit = deferredExit();
+
+		reconcile(parent, [], exit.remove);
+		elsewhere.addChild(a);
+		await exit.finish();
+
+		expect(a.parent).toBe(elsewhere);
+		expect(a.unmounts).toBe(0);
+	});
+
+	it('forgets a moved child\'s key, so the new parent does not treat it as its own stale key', () => {
+		const root = new Layer();
+		const first = new Layer();
+		const second = new Layer();
+		root.addChild(first).addChild(second);
+		reconcile(first, [{ key: 'a', label: '' }]);
+		const a = first.getChildren()[0] as Probe;
+		second.addChild(a);
+
+		reconcile(second, [{ key: 'z', label: '' }]);
+
+		expect(a.parent).toBe(second);
+		expect(a.unmounts).toBe(0);
+		expect(ids(second.getChildren())).toEqual(['z', 'a']);
 	});
 
 	it('leaves children it did not create alone and refuses duplicate keys', () => {

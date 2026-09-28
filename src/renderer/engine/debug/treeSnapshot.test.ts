@@ -362,7 +362,8 @@ describe('treeSnapshot', () => {
 			const a = new Layer({ id: 'a', width: 10, height: 10 });
 			const b = new Layer({ id: 'b', width: 10, height: 10 });
 			a.addChild(b);
-			b.addChild(a);
+			// addChild refuses a loop, so only a direct push can make one.
+			b.getChildren().push(a);
 
 			const root = treeSnapshot([a], VIEWPORT).roots[0];
 
@@ -372,8 +373,8 @@ describe('treeSnapshot', () => {
 		});
 
 		it('emits a node reachable by two paths once more as a stub instead of re-expanding it', () => {
-			// Layer.addChild never detaches from a previous parent, so one
-			// instance can sit in two children arrays. The ancestor set is
+			// addChild re-parents, but a caller writing to getChildren()
+			// directly can put one instance in two children arrays. The ancestor set is
 			// per-path and would let this diamond expand to 2 ** 19 - 1 nodes.
 			const depth = 18;
 			const root = new Layer({ id: 'root', width: 10, height: 10 });

@@ -144,11 +144,8 @@ export class PlayerHandLayer extends Layer {
 	 * Clear all card visual elements
 	 */
 	private clearCardElements(): void {
-		this.cardElements.forEach(cardElement => {
-			// Unmount the card to unregister from InputSystem
-			cardElement.unmount();
-			this.removeChild(cardElement);
-		});
+		// removeChild unmounts, which releases each card's input registrations.
+		this.cardElements.forEach(cardElement => this.removeChild(cardElement));
 		this.cardElements = [];
 	}
 

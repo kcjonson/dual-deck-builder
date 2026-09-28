@@ -278,20 +278,12 @@ export class CardShowcaseScreen extends Screen {
 	 * Handle screen unmount
 	 */
 	protected onUnmount(): void {
-		// Unmount all card components to unregister from InputSystem
-		this.cardComponents.forEach(card => {
-			card.unmount();
-		});
+		// Cleared so a remount loads the cards again; clearChildren unmounts
+		// them, and the root's unmount releases the rest (the back button).
 		this.cardComponents = [];
-		
-		// Clear the panel - remove all children
-		const children = [...this.cardsPanel.getChildren()];
-		children.forEach(child => this.cardsPanel.removeChild(child));
+		this.cardsPanel.clearChildren();
 		this.cardsLoaded = false;
-		
-		// Unmount button
-		this.backButton.unmount();
-		
+
 		super.onUnmount();
 	}
 
