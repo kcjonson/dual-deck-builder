@@ -9,6 +9,7 @@ import { UBER_ATTRIBUTES, UBER_MODE, UBER_VERTEX } from './UberGeometryEncoder';
 import { TextureStore } from '../gpu/TextureStore';
 import { WebGL2TextureDevice } from './WebGL2TextureDevice';
 import { committedFontAtlas } from '../text/testing';
+import type { FontRole } from '../text/fontFaces';
 
 // -- the backend against a recording WebGL2 context ---------------------------
 
@@ -81,9 +82,18 @@ function fakeGl(): { gl: WebGL2RenderingContext; calls: GlCall[]; constant: (nam
 
 const WHITE: RGBA = [1, 1, 1, 1];
 
-function setupBackend(options: { vertexRingBytes?: number; indexSlots?: number; indexSlotBytes?: number; timed?: boolean } = {}) {
+interface SetupOptions {
+	vertexRingBytes?: number;
+	indexSlots?: number;
+	indexSlotBytes?: number;
+	timed?: boolean;
+	/** Font roles to load, each as its own resident atlas. */
+	roles?: FontRole[];
+}
+
+function setupBackend(options: SetupOptions = {}) {
 	const { gl, calls, constant } = fakeGl();
-	const { timed, ...ringOptions } = options;
+	const { timed, roles = ['body'], ...ringOptions } = options;
 	// The timer's four calls land in the same log as the GL calls, so a test
 	// can see what each pass bracketed.
 	const timerCall = (name: string) => () => calls.push({ name: `timer.${name}`, args: [], result: undefined });
@@ -101,17 +111,19 @@ function setupBackend(options: { vertexRingBytes?: number; indexSlots?: number; 
 	} as unknown as Renderer;
 	const frameTimer = { recordDrawCall: jest.fn(), recordTextCharacters: jest.fn() } as unknown as FrameTimer;
 	const backend = new WebGL2Backend({ renderer, frameTimer, gpuTimer, ...ringOptions });
-	// The body role's real metrics over a stand-in image: the tests here are
+	// Each role's real metrics over a stand-in image: the tests here are
 	// about GL calls, and glyph placement is the encoder's to test.
-	const atlasTexture = renderer.textures.create({
-		width: 2,
-		height: 2,
-		label: 'font atlas',
-		source: new Uint8Array(16),
-		content: 'mask',
-		immediate: true,
-	});
-	backend.loadFontAtlas({ name: 'body', atlas: committedFontAtlas('body'), texture: atlasTexture });
+	for (const role of roles) {
+		const atlasTexture = renderer.textures.create({
+			width: 2,
+			height: 2,
+			label: `font atlas ${role}`,
+			source: new Uint8Array(16),
+			content: 'mask',
+			immediate: true,
+		});
+		backend.loadFontAtlas({ name: role, atlas: committedFontAtlas(role), texture: atlasTexture });
+	}
 	const api = new DrawApi({ backend, development: true, });
 
 	function frame(build: (draw: DrawApi) => void): GlCall[] {
@@ -497,6 +509,73 @@ describe('WebGL2Backend', () => {
 		expect(api.isTextureResident(art)).toBe(true);
 
 		expect(named(frame(someShapesAndText), 'texSubImage2D')).toEqual([]);
+	});
+
+	describe('chapter 5.10 batch tests', () => {
+		it('draws a mixed screen as one group per call and one GPU draw per flush', () => {
+			const { frame, named, api } = setupBackend({ roles: ['display', 'body', 'mono'] });
+			const art = api.createTexture({ width: 2, height: 2, label: 'art', source: new Uint8Array(16) });
+			const RED: RGBA = [1, 0, 0, 1];
+			const CLEAR: RGBA = [1, 0, 0, 0];
+			const screen = (draw: DrawApi): void => {
+				draw.drawRect({ rect: { x: 0, y: 0, width: 800, height: 600 }, fill: [0.1, 0.1, 0.1, 1] });
+				draw.drawRect({ rect: { x: 20, y: 20, width: 200, height: 120 }, fill: WHITE, radius: 8, shadow: { color: [0, 0, 0, 0.5], blur: 12 } });
+				draw.drawRect({ rect: { x: 240, y: 20, width: 200, height: 120 }, gradient: [RED, RED, CLEAR, CLEAR] });
+				draw.drawRect({ rect: { x: 460, y: 20, width: 120, height: 40 }, fill: WHITE, border: { color: RED, width: 2, position: 'center' } });
+				draw.drawCircle({ center: { x: 60, y: 200 }, radius: 24, fill: RED, border: { color: WHITE, width: 2 } });
+				draw.drawLine({ from: { x: 100, y: 200 }, to: { x: 300, y: 220 }, color: WHITE, width: 3 });
+				draw.drawText({ text: 'WASTELAND', position: { x: 20, y: 280 }, font: 'display', size: 32, color: WHITE });
+				draw.drawText({ text: 'Body copy', position: { x: 20, y: 320 }, font: 'body', size: 14, color: WHITE });
+				draw.drawText({ text: '12/20', position: { x: 20, y: 350 }, font: 'mono', size: 12, color: WHITE });
+				draw.drawImage({ rect: { x: 300, y: 260, width: 64, height: 64 }, texture: art });
+			};
+			frame(screen);
+			const calls = frame(screen);
+			const stats = api.getStats();
+			// Ten calls, one of them shadowed: eleven groups, none split.
+			expect(stats.apiDraws).toBe(11);
+			expect(stats.gpuDraws).toBe(1);
+			expect(stats.splits).toEqual(expect.objectContaining({ textureSlotsExhausted: 0, blendChange: 0 }));
+			expect(named(calls, 'drawElements')).toHaveLength(1);
+		});
+
+		it('never writes a vertex range or an index slot the previous frame may still read, with four flushes a frame (R5.27)', () => {
+			const { frame, named, constant } = setupBackend();
+			const fourDomains = (draw: DrawApi): void => {
+				for (let domain = 0; domain < 4; domain++) {
+					if (domain > 0) draw.flush();
+					someShapesAndText(draw);
+				}
+			};
+			interface Range { start: number; end: number }
+			const vertexRanges = (calls: GlCall[]): Range[] => named(calls, 'bufferSubData')
+				.filter((call) => call.args[0] === constant('ARRAY_BUFFER'))
+				.map((call) => {
+					const start = call.args[1] as number;
+					return { start, end: start + (call.args[4] as number) * 4 };
+				});
+			const elementBuffers = (calls: GlCall[]): unknown[] => named(calls, 'bindBuffer')
+				.filter((call) => call.args[0] === constant('ELEMENT_ARRAY_BUFFER'))
+				.map((call) => call.args[1]);
+			const overlaps = (a: Range, b: Range): boolean => a.start < b.end && b.start < a.end;
+
+			const frames = Array.from({ length: 6 }, () => frame(fourDomains));
+			const ranges = frames.map(vertexRanges);
+			const slots = frames.map(elementBuffers);
+			for (let index = 0; index < frames.length; index++) {
+				expect(ranges[index]).toHaveLength(4);
+				expect(new Set(slots[index]).size).toBe(4);
+				// Inside a frame the four uploads sit side by side.
+				for (let a = 0; a < 4; a++) {
+					for (let b = a + 1; b < 4; b++) expect(overlaps(ranges[index][a], ranges[index][b])).toBe(false);
+				}
+				if (index === 0) continue;
+				for (const range of ranges[index]) {
+					expect(ranges[index - 1].some((previous) => overlaps(range, previous))).toBe(false);
+				}
+				expect(slots[index].filter((slot) => slots[index - 1].includes(slot))).toEqual([]);
+			}
+		});
 	});
 
 	it('answers R4.2a text ink from the encoder', () => {
