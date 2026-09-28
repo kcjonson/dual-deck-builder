@@ -48,7 +48,12 @@ export interface CanvasViewportOptions {
  * (R7.3: a change takes effect at the next `beginFrame`): the backing store
  * is resized there, which clears it, so it happens just before it is drawn
  * rather than between a frame and its presentation; then every listener
- * hears the new viewport, which is where screens resize their roots.
+ * hears the new viewport, which is where screens resize their roots. The
+ * pages run that frame straight from the observer (`onPending`), so a resize
+ * never presents a stretched frame.
+ *
+ * The device-pixel box is checked against the CSS box times the ratio before
+ * it is used, since an emulated ratio makes the two disagree; see `propose`.
  *
  * The logical viewport is `framebuffer / (dpr * uiScale)` (R7.5), not the CSS
  * size. The two differ by under a device pixel at a fractional ratio, and the
@@ -63,6 +68,12 @@ export class CanvasViewport {
 	private readonly observer: ResizeObserver | null;
 	/** Whether the observer reports device pixels; otherwise they are rounded from CSS pixels. */
 	private exactDevicePixels = false;
+	/**
+	 * Called when a measurement lands that differs from the committed
+	 * viewport. The pages run a frame from it (`FrameLoop.runNow`), so the
+	 * resized frame presents in the same rendering update as the resize.
+	 */
+	onPending: (() => void) | null = null;
 
 	private committed: ViewportState;
 	private pending: ViewportState | null = null;
@@ -165,22 +176,53 @@ export class CanvasViewport {
 	private handleResize = (entries: ResizeObserverEntry[]): void => {
 		const entry = entries[entries.length - 1];
 		if (!entry) return;
-		const dpr = this.dpr;
+		const css = entry.contentBoxSize?.[0];
+		const cssWidth = css ? css.inlineSize : entry.contentRect.width;
+		const cssHeight = css ? css.blockSize : entry.contentRect.height;
 		const device = this.exactDevicePixels ? entry.devicePixelContentBoxSize?.[0] : undefined;
-		if (device) {
+		this.propose(cssWidth, cssHeight, device ? { width: device.inlineSize, height: device.blockSize } : null);
+	};
+
+	/**
+	 * The device-pixel box is trusted only when it agrees with the CSS box at
+	 * the current `devicePixelRatio`, to within a pixel of rounding. Chromium
+	 * reports it from the compositor's real scale factor, and emulation
+	 * (Playwright's `deviceScaleFactor`, DevTools device mode) changes
+	 * `devicePixelRatio` without changing that: headless at a forced ratio of
+	 * 2 reports a device box equal to the CSS box, and a headed Retina window
+	 * forced to 1 reports twice it. Either way `fb / dpr` would stop being the
+	 * CSS size the screens still lay out in, so the CSS size times the ratio,
+	 * rounded, wins.
+	 */
+	private propose(cssWidth: number, cssHeight: number, device: { width: number; height: number } | null): void {
+		const dpr = this.dpr;
+		if (
+			device !== null
+			&& Math.abs(device.width - cssWidth * dpr) <= 1
+			&& Math.abs(device.height - cssHeight * dpr) <= 1
+		) {
 			this.pending = resolveViewport({
-				framebufferWidth: Math.max(1, device.inlineSize),
-				framebufferHeight: Math.max(1, device.blockSize),
+				framebufferWidth: Math.max(1, device.width),
+				framebufferHeight: Math.max(1, device.height),
 				dpr,
 				uiScale: this.uiScale,
 			});
-			return;
+		} else {
+			this.pending = this.fromCss(cssWidth, cssHeight, dpr);
 		}
-		const css = entry.contentBoxSize?.[0];
-		this.pending = css
-			? this.fromCss(css.inlineSize, css.blockSize, dpr)
-			: this.fromCss(entry.contentRect.width, entry.contentRect.height, dpr);
-	};
+		this.announcePending();
+	}
+
+	/**
+	 * R7.3 lets a change wait for the next frame, but the observer runs after
+	 * this frame's rAF callbacks, so waiting for the loop would present one
+	 * frame of the old backing store stretched over the new box on every
+	 * resize step. `onPending` lets the page run that next frame now, before
+	 * paint.
+	 */
+	private announcePending(): void {
+		if (this.pending && !sameViewport(this.pending, this.committed)) this.onPending?.();
+	}
 
 	private watchResolution(): void {
 		this.resolution?.removeEventListener('change', this.handleResolutionChange);
@@ -189,22 +231,17 @@ export class CanvasViewport {
 	}
 
 	/**
-	 * The ratio changed. With exact device pixels the framebuffer is still the
-	 * last one observed (if it changed too, the observer reports that); only
-	 * the ratio it is divided by is new. Without them, the framebuffer is
-	 * rounded again from the CSS box.
+	 * The ratio changed. Browser zoom changes it without changing the device
+	 * pixels, which the device-pixel box does not report, so the last known
+	 * device pixels are offered again and checked against the CSS box at the
+	 * new ratio the same way an observer entry is.
 	 */
 	private handleResolutionChange = (): void => {
-		const dpr = this.dpr;
 		const base = this.pending ?? this.committed;
-		this.pending = this.exactDevicePixels
-			? resolveViewport({
-				framebufferWidth: base.framebufferWidth,
-				framebufferHeight: base.framebufferHeight,
-				dpr,
-				uiScale: this.uiScale,
-			})
-			: this.fromCss(this.canvas.clientWidth, this.canvas.clientHeight, dpr);
+		const device = this.exactDevicePixels
+			? { width: base.framebufferWidth, height: base.framebufferHeight }
+			: null;
 		this.watchResolution();
+		this.propose(this.canvas.clientWidth, this.canvas.clientHeight, device);
 	};
 }

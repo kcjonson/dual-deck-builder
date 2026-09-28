@@ -165,6 +165,58 @@ describe('metered uploads (R5.32)', () => {
 	});
 });
 
+describe('a failed upload (R5.32)', () => {
+	/** A device that throws for the texture labelled `bad`, in allocate or in upload. */
+	function failingSetup(failIn: 'allocate' | 'upload') {
+		const { device, store, diagnostics } = setup();
+		const allocate = device.allocate.bind(device);
+		const upload = device.upload.bind(device);
+		device.allocate = (description) => {
+			if (failIn === 'allocate' && description.label === 'bad') throw new Error('no context');
+			return allocate(description);
+		};
+		device.upload = (texture, description) => {
+			if (failIn === 'upload' && description.label === 'bad') throw new Error('bitmap closed');
+			upload(texture, description);
+		};
+		return { device, store, diagnostics };
+	}
+
+	it('uploads the rest of the queue, releases the failed storage, and does not retry every frame', () => {
+		const { device, store, diagnostics } = failingSetup('upload');
+		const first = store.create({ width: 2, height: 2, label: 'first', source: texels(2) });
+		const bad = store.create({ width: 2, height: 2, label: 'bad', source: texels(2) });
+		const last = store.create({ width: 2, height: 2, label: 'last', source: texels(2) });
+
+		expect(() => store.beginFrame()).not.toThrow();
+		expect([store.isResident(first), store.isResident(bad), store.isResident(last)]).toEqual([true, false, true]);
+		expect(store.stats).toMatchObject({ pendingUploads: 0, lostTextures: 1, residentTextureBytes: 32 });
+		expect(device.textures.find((texture) => texture.label === 'bad')?.released).toBe(true);
+		expect(diagnostics).toEqual(["texture 'bad' could not be uploaded: Error: bitmap closed"]);
+		store.endFrame();
+
+		device.log.length = 0;
+		store.beginFrame();
+		expect(device.log).toEqual([]);
+	});
+
+	it('leaks nothing when allocation throws, and retries a kept source on restore', () => {
+		const { device, store } = failingSetup('allocate');
+		const bad = store.create({ width: 2, height: 2, label: 'bad', source: texels(2), keepSource: true });
+		store.beginFrame();
+		store.endFrame();
+		expect(store.isResident(bad)).toBe(false);
+		expect(device.textures).toEqual([]);
+
+		device.allocate = (description) => ({ id: 99, label: description.label, uploads: 0, released: false });
+		store.lose();
+		store.restore();
+		store.beginFrame();
+		expect(store.isResident(bad)).toBe(true);
+		expect(store.stats.lostTextures).toBe(0);
+	});
+});
+
 describe('context loss (R5.33, R15.5)', () => {
 	it('uploads kept sources again and allocates empty textures again, in creation order', () => {
 		const { device, store } = setup();

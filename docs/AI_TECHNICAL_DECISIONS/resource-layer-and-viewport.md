@@ -60,7 +60,19 @@ records a pending measurement; `commit()` at the start of each loop tick resizes
 (which clears it, so it happens right before it is drawn), sets the GL viewport, and then tells
 the listeners, which is where screens resize their roots and the gallery re-enters its scene.
 Resizing inside the callback would clear a frame that had already been drawn and might present
-it empty.
+it empty. But observer callbacks run after the update's rAF callbacks, so waiting for the loop
+presented one stretched frame per resize step where `main`'s window `resize` event presented none
+(measured in review). The pages therefore run a frame straight from the observer
+(`CanvasViewport.onPending` calls `FrameLoop.runNow`); that frame commits, resizes, draws and
+presents before paint.
+
+**When to trust the device-pixel box.** Only when it agrees with the CSS box times
+`devicePixelRatio` to within a pixel. Chromium reports the box from the compositor's real scale
+factor, and emulation changes `devicePixelRatio` without changing it: headless at a forced ratio
+of 2 reports the CSS size, and a headed Retina window forced to 1 reports twice it. Trusting the
+box there gave a 720x441 and a 2880x1764 logical viewport respectively (found in review, not by
+the goldens, which run headless at 1). On disagreement the CSS size times the ratio, rounded, wins;
+the resolution-change path offers the last device pixels to the same check.
 
 ## Decision
 

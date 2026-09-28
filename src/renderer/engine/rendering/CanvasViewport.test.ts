@@ -148,6 +148,10 @@ describe('CanvasViewport (R15.4, R7.3, R7.11)', () => {
 		const viewport = new CanvasViewport({ canvas, platform });
 		expect(platform.queries).toEqual(['(resolution: 1dppx)']);
 
+		// Zoom to 200%: the CSS box halves, the device pixels do not change,
+		// and no observer entry arrives.
+		canvas.clientWidth = 500;
+		canvas.clientHeight = 250;
 		platform.changeResolution(2);
 		viewport.commit();
 		expect(canvas.width).toBe(1000);
@@ -168,6 +172,56 @@ describe('CanvasViewport (R15.4, R7.3, R7.11)', () => {
 		viewport.commit();
 		expect([canvas.width, canvas.height]).toEqual([1500, 750]);
 		expect(viewport.state).toMatchObject({ width: 1000, height: 500, ratio: 1.5 });
+	});
+
+	it('rejects a device box equal to the CSS box when the ratio says 2 (emulated ratio, headless)', () => {
+		const canvas = fakeCanvas(1440, 882);
+		const platform = fakeWindow({ dpr: 2, deviceBox: true });
+		const viewport = new CanvasViewport({ canvas, platform });
+
+		platform.resize(1440, 882, { width: 1440, height: 882 });
+		viewport.commit();
+		expect([canvas.width, canvas.height]).toEqual([2880, 1764]);
+		expect(viewport.state).toMatchObject({ width: 1440, height: 882, ratio: 2 });
+	});
+
+	it('rejects a device box twice the CSS box when the ratio says 1 (emulated ratio on a Retina display)', () => {
+		const canvas = fakeCanvas(1440, 882);
+		const platform = fakeWindow({ dpr: 1, deviceBox: true });
+		const viewport = new CanvasViewport({ canvas, platform });
+
+		platform.resize(1280, 720, { width: 2560, height: 1440 });
+		viewport.commit();
+		expect([canvas.width, canvas.height]).toEqual([1280, 720]);
+		expect(viewport.state).toMatchObject({ width: 1280, height: 720, ratio: 1 });
+	});
+
+	it('rejects the reused device pixels on a ratio change when they disagree with the CSS box', () => {
+		const canvas = fakeCanvas(1000, 500);
+		const platform = fakeWindow({ dpr: 1, deviceBox: true });
+		const viewport = new CanvasViewport({ canvas, platform });
+
+		// An emulated ratio change: the CSS box stays, so 1000 device pixels
+		// at ratio 2 would be a 500-wide logical viewport over a 1000-wide box.
+		platform.changeResolution(2);
+		viewport.commit();
+		expect(canvas.width).toBe(2000);
+		expect(viewport.state).toMatchObject({ width: 1000, ratio: 2 });
+	});
+
+	it('asks the page for a frame when a new size is pending, and only then', () => {
+		const canvas = fakeCanvas(800, 600);
+		const platform = fakeWindow({ dpr: 1, deviceBox: true });
+		const viewport = new CanvasViewport({ canvas, platform });
+		const onPending = jest.fn(() => viewport.commit());
+		viewport.onPending = onPending;
+
+		platform.resize(800, 600, { width: 800, height: 600 });
+		expect(onPending).not.toHaveBeenCalled();
+
+		platform.resize(1024, 768, { width: 1024, height: 768 });
+		expect(onPending).toHaveBeenCalledTimes(1);
+		expect(canvas.width).toBe(1024);
 	});
 
 	it('works with no ResizeObserver at all, through the resolution query', () => {

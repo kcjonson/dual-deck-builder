@@ -43,6 +43,23 @@ export class FrameLoop {
 		this.cancelFrame(this.handle);
 	}
 
+	/**
+	 * One tick now, outside the rAF schedule, when the loop is running; the
+	 * scheduled frame still comes. For a callback that runs after this
+	 * update's rAF callbacks but before paint (a `ResizeObserver`), where
+	 * waiting for the next rAF would present a stale frame. A tick that throws
+	 * stops the loop, as it does from rAF.
+	 */
+	runNow(): void {
+		if (!this.active) return;
+		try {
+			this.tick();
+		} catch (error) {
+			this.stop();
+			throw error;
+		}
+	}
+
 	private frame = (): void => {
 		if (!this.active) return;
 		this.tick();

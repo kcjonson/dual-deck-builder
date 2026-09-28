@@ -29,7 +29,9 @@ import type { TextureHandle } from '../draw/commands';
  * rebuilds each texture from what it was told to keep: the source itself when
  * `keepSource` is set, a fresh decode through `reload`, or nothing at all for
  * a texture that never had contents. A texture with contents and neither of
- * the first two cannot come back, and says so. Keeping CPU copies is opt-in:
+ * the first two cannot come back, and says so. An upload that throws loses
+ * that one texture (and releases its storage); the rest of the queue goes on,
+ * and a restore retries it if it kept its source or can reload. Keeping CPU copies is opt-in:
  * the art a card game carries is too large to hold twice by default.
  *
  * Deferred, with the reason in the decision record: the card-art texture array
@@ -249,14 +251,14 @@ export class TextureStore<Native> {
 		this.uploadedThisFrame = 0;
 		if (this.deviceLost || this.queue.length === 0) return;
 
-		let drained = 0;
-		while (drained < this.queue.length) {
-			const record = this.queue[drained];
+		// Each record leaves the queue before its upload runs, so a failure
+		// cannot leave uploaded records queued or retry itself every frame.
+		while (this.queue.length > 0) {
+			const record = this.queue[0];
 			if (this.uploadedThisFrame > 0 && this.uploadedThisFrame + record.bytes > this.uploadBudgetBytes) break;
+			this.queue.shift();
 			this.upload(record);
-			drained += 1;
 		}
-		this.queue.splice(0, drained);
 	}
 
 	/** Frees what was released during the frame, now that nothing can name it. */
@@ -290,7 +292,12 @@ export class TextureStore<Native> {
 	restore(): void {
 		this.deviceLost = false;
 		for (const record of this.records.values()) {
-			if (record.state === 'lost') continue;
+			if (record.state === 'lost') {
+				// A texture whose upload failed still has a way back if it kept
+				// its source or can reload; one lost with the context does not.
+				if (record.source === null && !record.reload) continue;
+				this.lost -= 1;
+			}
 			// A texture still decoding from the previous restore decodes again:
 			// that result carries the old generation and will be dropped.
 			if (record.source !== null || !record.hasContents) {
@@ -298,7 +305,7 @@ export class TextureStore<Native> {
 			} else if (record.reload) {
 				this.reloadSource(record);
 			} else {
-				this.markLost(record, 'had no kept source and no reload');
+				this.markLost(record, 'was lost with the context and had no kept source and no reload');
 			}
 		}
 	}
@@ -325,7 +332,12 @@ export class TextureStore<Native> {
 		record.state = 'pending';
 		if (this.deviceLost) return;
 		if (record.source === null) {
-			record.native = this.device.allocate(record.description);
+			try {
+				record.native = this.device.allocate(record.description);
+			} catch (error) {
+				this.markLost(record, `could not be allocated: ${String(error)}`);
+				return;
+			}
 			this.residentBytes += record.bytes;
 			record.state = 'resident';
 		} else if (record.immediate) {
@@ -335,11 +347,24 @@ export class TextureStore<Native> {
 		}
 	}
 
+	/**
+	 * A failure is contained to the one texture: `allocate` throws between a
+	 * real context loss and its event, and `texSubImage2D` throws on a closed
+	 * `ImageBitmap` or a tainted canvas. The storage is released, the texture
+	 * is reported lost, and the source stays so a restore can try again.
+	 */
 	private upload(record: TextureRecord<Native>): void {
 		const source = record.source;
 		if (source === null) return;
-		const native = this.device.allocate(record.description);
-		this.device.upload(native, record.description, source);
+		let native: Native | null = null;
+		try {
+			native = this.device.allocate(record.description);
+			this.device.upload(native, record.description, source);
+		} catch (error) {
+			if (native !== null) this.device.release(native);
+			this.markLost(record, `could not be uploaded: ${String(error)}`);
+			return;
+		}
 		record.native = native;
 		record.state = 'resident';
 		if (!record.keepSource) record.source = null;
@@ -356,7 +381,7 @@ export class TextureStore<Native> {
 		try {
 			decoding = reload();
 		} catch (error) {
-			this.markLost(record, `could not be reloaded: ${String(error)}`);
+			this.markLost(record, `was lost with the context and could not be reloaded: ${String(error)}`);
 			return;
 		}
 		decoding.then(
@@ -368,16 +393,16 @@ export class TextureStore<Native> {
 			},
 			(error: unknown) => {
 				if (this.records.get(record.handle.id) !== record || generation !== this.generation) return;
-				this.markLost(record, `could not be reloaded: ${String(error)}`);
+				this.markLost(record, `was lost with the context and could not be reloaded: ${String(error)}`);
 			},
 		);
 	}
 
-	private markLost(record: TextureRecord<Native>, why: string): void {
+	private markLost(record: TextureRecord<Native>, what: string): void {
 		record.state = 'lost';
 		this.lost += 1;
 		const name = record.handle.label ? `'${record.handle.label}'` : `${record.handle.id}`;
-		this.onDiagnostic(`texture ${name} was lost with the context and ${why}`);
+		this.onDiagnostic(`texture ${name} ${what}`);
 	}
 
 	private freeStorage(record: TextureRecord<Native>): void {

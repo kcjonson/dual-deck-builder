@@ -78,6 +78,8 @@ class Application {
 			// Start the main loop. R15.5: it stops while the context is lost
 			// and resumes once the backend has rebuilt on restore.
 			this.frameLoop = new FrameLoop({ tick: this.loop });
+			// A resize measured after this update's rAF runs its frame before paint.
+			this.renderer.viewport.onPending = () => this.frameLoop.runNow();
 			this.renderer.addContextListener({
 				lost: () => this.frameLoop.stop(),
 				restored: () => this.frameLoop.start(),

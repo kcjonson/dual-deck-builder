@@ -60,6 +60,8 @@ class GalleryApplication {
 			this.renderer.viewport.onChange(() => this.host.resize());
 
 			this.frameLoop = new FrameLoop({ tick: this.loop });
+			// A resize measured after this update's rAF runs its frame before paint.
+			this.renderer.viewport.onPending = () => this.frameLoop.runNow();
 			this.renderer.addContextListener({
 				lost: () => this.frameLoop.stop(),
 				restored: () => this.frameLoop.start(),

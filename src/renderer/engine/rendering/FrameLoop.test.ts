@@ -70,3 +70,32 @@ describe('FrameLoop', () => {
 		expect(frames.pending()).toBe(0);
 	});
 });
+
+describe('FrameLoop.runNow', () => {
+	it('ticks immediately only while running, and keeps the scheduled frame', () => {
+		const tick = jest.fn();
+		const requestFrame = jest.fn(() => 1);
+		const loop = new FrameLoop({ tick, requestFrame, cancelFrame: jest.fn() });
+
+		loop.runNow();
+		expect(tick).not.toHaveBeenCalled();
+
+		loop.start();
+		loop.runNow();
+		expect(tick).toHaveBeenCalledTimes(1);
+		expect(requestFrame).toHaveBeenCalledTimes(1);
+	});
+
+	it('stops the loop when the tick throws', () => {
+		const loop = new FrameLoop({
+			tick: () => {
+				throw new Error('boom');
+			},
+			requestFrame: () => 1,
+			cancelFrame: jest.fn(),
+		});
+		loop.start();
+		expect(() => loop.runNow()).toThrow('boom');
+		expect(loop.running).toBe(false);
+	});
+});
