@@ -540,7 +540,11 @@ describe('WebGL2Backend', () => {
 		});
 
 		it('never writes a vertex range or an index slot the previous frame may still read, with four flushes a frame (R5.27)', () => {
-			const { frame, named, constant } = setupBackend();
+			// Four uploads of 36 vertices at 128 bytes are 18432 bytes a frame, so
+			// a 60000-byte ring holds three frames and the fourth has to wrap onto
+			// the first; eight index slots hold two frames of four uploads, so the
+			// third frame has to reuse the first's slots.
+			const { frame, named, constant } = setupBackend({ vertexRingBytes: 60000, indexSlots: 8, indexSlotBytes: 1024 });
 			const fourDomains = (draw: DrawApi): void => {
 				for (let domain = 0; domain < 4; domain++) {
 					if (domain > 0) draw.flush();
@@ -575,6 +579,20 @@ describe('WebGL2Backend', () => {
 				}
 				expect(slots[index].filter((slot) => slots[index - 1].includes(slot))).toEqual([]);
 			}
+
+			// The wrap happened, into the region three frames old, and nothing grew
+			// to avoid it.
+			// The wrap happened (mid-frame, onto offset 0, which frame 0 wrote and
+			// is three frames old by then), and nothing grew to avoid it.
+			const sequence = ranges.flat();
+			const wraps = sequence.flatMap((range, index) => (index > 0 && range.start < sequence[index - 1].start ? [index] : []));
+			expect(wraps.length).toBeGreaterThan(0);
+			expect(sequence[wraps[0]].start).toBe(0);
+			expect(Math.floor(wraps[0] / 4)).toBe(3);
+			expect(slots[2]).toEqual(expect.arrayContaining(slots[0]));
+			expect(new Set(slots.flat()).size).toBe(8);
+			const grown = frames.flatMap((calls) => named(calls, 'bufferData'));
+			expect(grown).toEqual([]);
 		});
 	});
 
