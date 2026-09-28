@@ -174,7 +174,7 @@ export class PaintOrderFixturesSection extends DeveloperSectionPanel {
 
 		const columns = new Stack({ id: 'dev_paint_order_columns', y: TITLE_HEIGHT, direction: 'horizontal', gap: COLUMN_GAP });
 		const first = new Stack({ gap: GROUP_GAP });
-		first.addChild(group('dev_paint_order_layers', 'Container beats insertion order', 190, layerLadder));
+		first.addChild(group('dev_paint_order_layers', 'Layer beats insertion order', 190, layerLadder));
 		first.addChild(group('dev_paint_order_zindex', 'One layer: zIndex beats insertion order', 208, zIndexLadder));
 		const second = new Stack({ gap: GROUP_GAP });
 		second.addChild(group('dev_paint_order_shadow', 'A shadowed panel over a busy background', 180, shadowOverBusyGround));
