@@ -114,11 +114,12 @@ describe('Icon (R12.6)', () => {
 			const [label, icon] = textCommands();
 			expect(icon.font).toBe(ICON_ATLAS_ROLE);
 			expect(icon.text).toBe(String.fromCodePoint(ICON_CODE_POINTS.arrow_back));
-			expect(icon.color).toEqual(tokens.color.text_bright);
+			expect(icon.color).toEqual(tokens.color.text);
+			expect(icon.size).toBe(tokens.control.icon_md);
 
-			const labelWidth = api.measureText({ text: 'Back to Menu', font: 'body', size: 16 }).width;
+			const labelWidth = api.measureText({ text: 'Back to Menu', font: 'display', size: tokens.control.control_fs_md }).width;
 			const iconBox = screenBox(icon);
-			const gap = 6;
+			const gap = Math.round(tokens.control.control_fs_md * 0.375);
 			const groupLeft = 30 + (200 - (iconBox.width + gap + labelWidth)) / 2;
 			expect(iconBox.x).toBeCloseTo(groupLeft, 0);
 			expect(iconBox.y + iconBox.height / 2).toBeCloseTo(30 + 25, 0);
@@ -134,7 +135,7 @@ describe('Icon (R12.6)', () => {
 		it('places in the layout phase, not again for a move, and again after a label change', () => {
 			const button = new Button('Back', { icon: 'arrow_back', width: 200, height: 50 });
 			// Text measures itself too, so count the button's own placement.
-			const place = jest.spyOn(Button.prototype as unknown as { placeIcon: () => void }, 'placeIcon');
+			const place = jest.spyOn(Button.prototype as unknown as { placeLabel: () => void }, 'placeLabel');
 			frame(button);
 			const placed = place.mock.calls.length;
 			expect(placed).toBeGreaterThan(0);
@@ -155,7 +156,7 @@ describe('Icon (R12.6)', () => {
 			const button = new Button('Plain', { width: 100, height: 40 });
 			button.setPosition(0, 0);
 			frame(button);
-			expect(textCommands().map((command) => command.font)).toEqual(['body']);
+			expect(textCommands().map((command) => command.font)).toEqual(['display']);
 		});
 	});
 });
