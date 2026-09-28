@@ -136,10 +136,9 @@ What moves at other ratios, and why it is the correction rather than a regressio
 
 ## Departures
 
-**R7.8 hairline and R7.8a clip snapping are functions, not applied.** Both are recommended rather
-than required, the legacy program draws borders as geometry rather than as an SDF, and applying
-them moves pixels at fractional positions on screens that have them. DDB-64's encoder writes the
-rect instance and is where they belong; filed as DDB-188.
+**R7.8 hairline and R7.8a clip snapping landed later, in DDB-188.** They were functions only
+here, because the legacy program drew borders as geometry and applying them moves pixels at
+fractional positions. See "Applying R7.8 and R7.8a" below.
 
 **R7.8's threshold.** The rule says a border "at or below 1 logical pixel"; chapter 7's required
 test snaps a 1.3 px border at ratio 1 to one row, which the rule as written would not touch. The
@@ -173,3 +172,42 @@ budget and loss handling already; what it adds is the array, the packer and evic
 A resize is one path: `ResizeObserver` or `matchMedia`, pending, committed at a frame boundary,
 heard by the GL viewport first and the screens second. Nothing in the engine reads
 `devicePixelRatio` except `CanvasViewport`.
+
+## Applying R7.8 and R7.8a (DDB-188)
+
+Where: the rect snap is in `UberGeometryEncoder.encodeRect`, which already had the frame's ratio
+and the command's `translateOnly` flag and is where text snapping lives; the clip snap is in
+`DrawApi.pushClip`, at the one place a clip is converted to screen space (R4.7), so the cull, the
+tree snapshot and the shader all see the same snapped rect. Both run only under a translate-only
+transform (R7.9). The rect is snapped in screen space and handed back to local space by the same
+delta, since under a translation the two differ by that translation alone.
+
+**Borderless rects count.** R7.8 covers a rect whose border is "at or below 1 logical pixel", and
+zero is. That is also the only reading that makes R7.8a's shared edges work: the encoder sees one
+command at a time and cannot tell which rects abut, but two rects that meet at x 20.3 both round
+20.3 the same way whoever draws them, so the seam goes away without either knowing about the
+other. The cost is that every square-cornered, hairline-or-borderless rect under a translation now
+moves in whole device pixels as it animates, which is what text already does (R6.16). Rounded
+rects and heavier borders keep their fractional edges and the coverage ramp.
+
+**The center border.** R7.8 snaps edges, which puts an `inside` or `outside` hairline on whole
+device pixels (its width is whole device pixels, so its other edge lands too), but a `center`
+border straddles the edge by half its width and would be left across two half-covered pixels. The
+helper snaps the border's outer edge instead: the rect edge moves onto a grid shifted by half the
+snapped border width, so a 1 px center border at ratio 1 puts the edge on x.5 and the border on one
+whole column. At ratio 2 the shift is a whole device pixel and the result is the plain snap. The
+edge still moves by at most half a device pixel.
+
+**Thin rects keep a pixel.** Snapping each edge independently rounds a rect narrower than a device
+pixel to nothing at some offsets (10.6 to 11.1 becomes 11 to 11), so a hairline divider drawn as a
+fill would blink out as it moved. Such a rect keeps the one device pixel its centre falls in. The
+edge can then move by up to a device pixel, past R7.8's half, which is the lesser defect.
+
+**Not snapped:** shadows (their owner snaps, the shadow keeps its fractional offset and ramps
+anyway), images, lines and circles. R7.8 names rectangles only.
+
+**Pixels.** Every golden with a square rect or a clip at a fractional position moved; each change is
+an edge that ramped over two device pixels now sitting on one, or a hairline that was two
+half-covered rows now one solid row, with nothing moving by more than a device pixel. The PR lists
+what moved per golden.
+

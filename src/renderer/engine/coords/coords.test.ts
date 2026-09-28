@@ -90,6 +90,45 @@ describe('pixel snapping (R7.7 to R7.8a)', () => {
 		expect(snapHairlineRect({ rect: { x: 0, y: 0, width: 10, height: 10 }, borderWidth: 1, radius: 4, ratio: 1 })).toBeNull();
 	});
 
+	it('puts a 1 px center border on one whole device row by snapping on a grid shifted by half of it', () => {
+		const at1 = hairline({ rect: { x: 10, y: 10, width: 20, height: 20 }, borderWidth: 1, position: 'center', ratio: 1 });
+		// The edge lands on 10.5 and the border on row 10, where snapping the
+		// edge itself would leave it half on rows 9 and 10.
+		expect(at1.rect.y).toBe(10.5);
+		expect(deviceRows(at1.rect.y - at1.borderWidth / 2, at1.borderWidth, 1)).toEqual([10]);
+		expect(at1.rect.height).toBe(20);
+
+		// At ratio 2 the border is two device rows, so the shift is a whole device pixel.
+		const at2 = hairline({ rect: { x: 0, y: 10.4, width: 100, height: 20 }, borderWidth: 1, position: 'center', ratio: 2 });
+		expect(deviceRows(at2.rect.y - at2.borderWidth / 2, at2.borderWidth, 2)).toEqual([20, 21]);
+
+		// An outside border needs no shift: its outer edge is a whole width out.
+		const outside = hairline({ rect: { x: 0, y: 10.4, width: 100, height: 20 }, borderWidth: 1, position: 'outside', ratio: 1 });
+		expect(outside.rect.y).toBe(10);
+	});
+
+	it('snaps a borderless rect and keeps it borderless (R7.8a shared edges)', () => {
+		const left = hairline({ rect: { x: 0, y: 0, width: 20.3, height: 8 }, borderWidth: 0, ratio: 1 });
+		const right = hairline({ rect: { x: 20.3, y: 0, width: 19.7, height: 8 }, borderWidth: 0, ratio: 1 });
+		expect(left.rect.x + left.rect.width).toBe(right.rect.x);
+		expect(left.borderWidth).toBe(0);
+	});
+
+	it('keeps a rect narrower than a device pixel at one device pixel, where its centre is', () => {
+		// 10.6 to 11.1 rounds both edges to 11, which would draw nothing.
+		const thin = hairline({ rect: { x: 10.6, y: 0, width: 0.5, height: 4 }, borderWidth: 0, ratio: 1 });
+		expect(thin.rect.x).toBe(10);
+		expect(thin.rect.width).toBe(1);
+		const zero = hairline({ rect: { x: 10.6, y: 0, width: 0, height: 4 }, borderWidth: 0, ratio: 1 });
+		expect(zero.rect.width).toBe(0);
+	});
+
+	it('writes into the object it is handed', () => {
+		const out = { rect: { x: 0, y: 0, width: 0, height: 0 }, borderWidth: 0 };
+		expect(snapHairlineRect({ rect: { x: 1.2, y: 0, width: 4, height: 4 }, borderWidth: 1, ratio: 1 }, out)).toBe(out);
+		expect(out.rect.x).toBe(1);
+	});
+
 	it('snaps clip edges so two abutting clips share one device edge', () => {
 		const left = snapClipRect({ minX: 0, minY: 0, maxX: 10.3, maxY: 5 }, 2);
 		const right = snapClipRect({ minX: 10.3, minY: 0, maxX: 20, maxY: 5 }, 2);

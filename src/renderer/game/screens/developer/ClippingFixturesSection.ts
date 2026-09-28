@@ -15,17 +15,17 @@ const CLEAR: RGBA = [0, 0, 0, 0];
 /**
  * Chapter 4's gallery fixture (4.7), drawn through the draw API: nested rect
  * clips intersecting, a disjoint pair producing `empty`, a content offset
- * applied before a fixed clip, every primitive kind cut by one clip, and text
- * too long for its box.
+ * applied before a fixed clip, a clip edge snapped under fractional content
+ * offsets (R7.8a), every primitive kind cut by one clip, and text too long for
+ * its box.
  *
- * Four items of 4.7's list are not here, each because drawing it today would
+ * Three items of 4.7's list are not here, each because drawing it today would
  * make a wrong picture the golden. The rounded clip needs the per-draw SDF of
- * DDB-190 (a square clip would be baked in as correct); the snapped clip edge
- * under an animated offset needs R7.8a's clip snapping (DDB-188); the stencil
- * clip and the oriented clip for rotated containers are optional and not
- * implemented. The overflowing text field is drawn as the draw calls a field
- * makes, because the `Input` component does not clip its text yet (the
- * phase 5 TextInput, DDB-86).
+ * DDB-190 (a square clip would be baked in as correct); the stencil clip and
+ * the oriented clip for rotated containers are optional and not implemented.
+ * The overflowing text field is drawn as the draw calls a field makes, because
+ * the `Input` component does not clip its text yet (the phase 5 TextInput,
+ * DDB-86).
  */
 export class ClippingFixturesSection extends Panel {
 	constructor(x: number, y: number, width: number) {
@@ -59,6 +59,7 @@ export class ClippingFixturesSection extends Panel {
 				nested(draw, 0, 0);
 				disjoint(draw, 0, 250);
 				contentOffset(draw, 440, 0);
+				snappedClipEdge(draw, 440, 250);
 				everyPrimitive(draw, 880, 0);
 				overflowingText(draw, 880, 250);
 			},
@@ -139,6 +140,36 @@ function contentOffset(draw: DrawApi, left: number, top: number): void {
 		color: [0.7, 0.72, 0.76, 1],
 		align: 'left',
 	});
+}
+
+/**
+ * 4.7's animated content offset with a snapped clip edge, as four frames of the
+ * animation side by side: viewports at a fractional x, their content scrolled
+ * by a fraction more each time. The clip goes onto the device grid at push
+ * (R7.8a), so every frame keeps and drops the same columns and rows, where an
+ * unsnapped edge would flip a pixel between frames (the shimmer of R4.4).
+ */
+function snappedClipEdge(draw: DrawApi, left: number, top: number): void {
+	fixtureHeading(draw, 'Clip edges stay put under a fractional scroll', left, top);
+	const offsets = [0, 7.3, 14.6, 21.9];
+	for (let index = 0; index < offsets.length; index++) {
+		const offset = offsets[index];
+		const viewport = { x: left + 0.4 + index * 96, y: top + 40.6, width: 80.3, height: 120 };
+		draw.drawRect({ rect: viewport, fill: PANEL });
+		draw.pushClip(viewport);
+		draw.pushTranslate(viewport.x, viewport.y - offset);
+		for (let row = 0; row < 8; row++) {
+			const colour: RGBA = row % 2 === 0 ? [0.3, 0.5, 0.85, 1] : [0.9, 0.55, 0.2, 1];
+			draw.drawRect({ rect: { x: -10, y: row * 20, width: 100.3, height: 20 }, fill: colour });
+		}
+		draw.popTransform();
+		draw.popClip();
+		fixtureLabel(draw, {
+			text: `scroll ${offset}`,
+			box: { x: viewport.x, y: viewport.y + viewport.height + 6, width: viewport.width, height: 18 },
+			color: [0.7, 0.72, 0.76, 1],
+		});
+	}
 }
 
 /** Rects, shadows, gradients, circles, lines, polygons and text all stop at one clip edge. */

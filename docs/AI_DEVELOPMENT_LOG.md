@@ -6,6 +6,18 @@ This document contains the chronological log of completed development tasks for 
 
 **Date correction (2026-08-22):** the repo's first commit is 2025-05-17, but many entries below carry dates in December 2024 or January 2025 — the AI that wrote them used its assumed date instead of the real one. Entries dated 2025-07-03 and 2025-07-02 have been corrected from "2025-01-03"/"2025-01-02" (verified against git history). Remaining Dec 2024 / Jan 2025 dates are wrong by roughly six months; the real work happened May–July 2025. Trust git history over these dates.
 
+## Pixel snapping at submission: hairlines, shared edges and clips (2026-09-28)
+
+**What landed:** DDB-188 (DDB-55).
+
+- `coords/snapping.ts`: `snapHairlineRect` takes the border position and writes into an `out` object. A `center` border snaps its outer edge (the rect edge on a grid shifted by half the snapped width); a borderless rect snaps its edges and stays borderless; a rect narrower than a device pixel keeps the pixel its centre is in.
+- `UberGeometryEncoder.encodeRect`: under `translateOnly`, a rect with no radius and a hairline or no border is snapped in screen space and written back in local space; the border outset follows the snapped width. `borderOutset` now takes a position and a width.
+- `DrawApi.pushClip`: the screen-space clip goes through `snapClipRect` under a translation (R7.8a), so the cull, the snapshot and the shader agree.
+- `ClippingFixturesSection`: 4.7's snapped clip edge under an animated offset, as four viewports at a fractional x scrolled 0, 7.3, 14.6 and 21.9.
+- `uberShader.spec.ts`: the fractional abutting-rects case passes and lost its `test.fail`; new GPU checks for chapter 7's 1 px border at y 10.4 on device rows 21 and 22 at ratio 2, and a 1 px center border on one column. The two coverage-ramp tests moved under a scale, where nothing snaps.
+
+**How:** unit tests for the helper (center, borderless, sub-pixel, out param), the encoder (translated hairline at ratio 2, abutting pair, center border, and the three opt-outs) and the clip stack (snapped at every fractional scroll, not under a scale). Goldens re-minted on CI with `update_mode=all` and checked old against new.
+
 ## Phase 1 close-out: rendering fixtures, test gaps, perf re-capture (2026-09-28)
 
 **What landed:** DDB-68 (DDB-55 phase 1, its last task).
