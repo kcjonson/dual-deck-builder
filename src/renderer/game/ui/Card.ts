@@ -101,13 +101,19 @@ export class Card extends Layer {
 		// Scale factors for different card sizes
 		const scaleFactor = size === CardSize.MINI ? 0.35 : size === CardSize.LARGE ? 1.2 : 1;
 		const padding = Math.floor(12 * scaleFactor);
-		
+		const hasDriverBadge = this.driverNumber !== null && size !== CardSize.MINI;
+		const badgeX = Math.floor(10 * scaleFactor);
+		const badgeSize = Math.floor(25 * scaleFactor);
+		// The badge paints over anything submitted before it (chapter 3), so the
+		// title starts past it rather than under it.
+		const titleX = hasDriverBadge ? badgeX + badgeSize + Math.floor(6 * scaleFactor) : padding;
+
 		// Card name
 		this.name = new Text(data.displayName, {
 			id: this.childId('title'),
-			x: padding,
+			x: titleX,
 			y: Math.floor(20 * scaleFactor),
-			width: dimensions.width - Math.floor(60 * scaleFactor),
+			width: dimensions.width - titleX - Math.floor(48 * scaleFactor),
 			style: {
 				fontSize: Math.floor(14 * scaleFactor),
 				color: '#ffffff',
@@ -195,13 +201,13 @@ export class Card extends Layer {
 		}
 
 		// Driver indicator (if specified)
-		if (this.driverNumber && size !== CardSize.MINI) {
+		if (hasDriverBadge) {
 			const indicatorBg = new Rectangle({
 				id: this.childId('driver_badge_background'),
-				x: Math.floor(10 * scaleFactor),
-				y: Math.floor(10 * scaleFactor),
-				width: Math.floor(25 * scaleFactor),
-				height: Math.floor(25 * scaleFactor),
+				x: badgeX,
+				y: badgeX,
+				width: badgeSize,
+				height: badgeSize,
 				style: {
 					backgroundColor: this.driverNumber === 1 ? '#4a4a8a' : '#4a8a4a',
 					borderRadius: Math.floor(12.5 * scaleFactor),

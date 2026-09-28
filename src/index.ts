@@ -159,8 +159,8 @@ class Application {
 	 * work (R13.7). The clear belongs inside render because it is a GL command
 	 * for the frame being drawn; it is the backend's `beginFrame`, which
 	 * `game.render` opens. Since DDB-55 phase 1 the render section is CPU
-	 * work plus whatever a clip boundary submits mid-walk, and flush is the last
-	 * sort domain; before it, render held every shape's GL submission.
+	 * work and flush is the frame's whole GL submission; before it, render
+	 * held every shape's.
 	 */
 	private loop = (): void => {
 		const deltaTime = this.frameTimer.beginFrame();
