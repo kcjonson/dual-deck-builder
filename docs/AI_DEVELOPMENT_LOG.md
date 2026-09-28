@@ -6,6 +6,20 @@ This document contains the chronological log of completed development tasks for 
 
 **Date correction (2026-08-22):** the repo's first commit is 2025-05-17, but many entries below carry dates in December 2024 or January 2025 — the AI that wrote them used its assumed date instead of the real one. Entries dated 2025-07-03 and 2025-07-02 have been corrected from "2025-01-03"/"2025-01-02" (verified against git history). Remaining Dec 2024 / Jan 2025 dates are wrong by roughly six months; the real work happened May–July 2025. Trust git history over these dates.
 
+## Combat screen on stacks (2026-09-28)
+
+**What landed:** DDB-82 (DDB-55 phase 4), closing DDB-183 and the 800x450 resource bar note from #78.
+
+- `CombatLayout.ts` is Battle Screen Design section 2's numbers and `computeCombatStage` (`s = min(W/1280, H/720)`, held at 0.8 or above, over a `W/s` by `H/s` canvas). `CombatScreen` builds one `combat_stage` stack, sizes and scales it in `applyLayout` on mount and resize, and everything inside is placed by stacks: a column capped at 1600 and centred of the top bar (36), the road (fill), and the dock (228).
+- New: `TopBarLayer` (turn, last-log ticker, scrap, fuel, LOG button), `EndTurnColumn` (turn and whose move, END TURN, "N adrenaline unspent"), `DriverTab` (mark, name, passenger tag, adrenaline pips and count, draw and discard). Deleted: `ResourceBarLayer`, `DriverStatsDisplay`, `PlayerHandView.labels`. Fuel is shared, not per driver.
+- `PlayerHandLayer` is a row of two halves, each a tab over a fan; a fan's row is scaled to 128x180 cards and overlaps by a negative gap to fit its half (DDB-183). A lifted card takes `zIndex: 1`.
+- The raider and player battlefields share the road 23:40; the turn banner is anchored on the line between them, the log drawer `topRight` over the road, 320 wide.
+- Two side-by-side vehicles narrow to share a lane too slim for both. The turn banner shows the phase only, centred, and ignores the pointer.
+- `DrawApi.pushClip` warns under rotation or skew only (`isAxisAligned`), since an axis-aligned scale clips exactly.
+- Tab order is the hand, then END TURN; LOG is `tabIndex: -1` beside F6.
+
+**How:** `CombatLayout.test.ts`; `CombatScreen.test.ts` (bands at three sizes including the 1600 cap, the drawer over the road only, END TURN after resize, seven cards a driver on screen and in their half at five sizes); `CombatScreenKeyboard.test.ts`; `DrawApi.test.ts` (quiet exact clip under a scale). A turn played through `window.__dev.input` at 1280x720 and 800x450: Headshot picked from its visible strip and aimed at the raider, END TURN, the raiders' turn, the log opened from LOG. Combat lint at 1440x882, 1280x720, 1920x1080, 1024x600 and 800x450 went from 282, 323, 258, 357, 397 to 215, 222, 230, 216, 237. Details in [combat-screen-stacks.md](AI_TECHNICAL_DECISIONS/combat-screen-stacks.md).
+
 ## Game code on the tree (2026-09-28)
 
 **What landed:** DDB-79 (DDB-55 phase 3), closing DDB-41.
