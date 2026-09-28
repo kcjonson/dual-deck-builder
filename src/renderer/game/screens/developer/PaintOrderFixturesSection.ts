@@ -6,6 +6,7 @@ import { Stack } from '../../../engine/components/Stack';
 import { Text } from '../../../engine/components/Text';
 import { Panel } from '../../../engine/ui/Panel';
 import type { BoxShadow, DrawApi, RGBA } from '../../../engine/draw';
+import { shadowInk } from '../../../engine/draw/bounds';
 
 const TITLE_HEIGHT = 50;
 /** Room below the columns for the scroller's menu, which hangs out of its clip by design. */
@@ -75,10 +76,12 @@ class FixtureBox extends Component {
 		}));
 	}
 
+	/** The draw layer's own shadow bound, so the subtree cull (R4.2a) never drops a visible shadow. */
 	public get inkExtent(): number {
 		const shadow = this.shadow;
 		if (!shadow) return 0;
-		return (shadow.blur ?? 0) + (shadow.spread ?? 0) + Math.max(Math.abs(shadow.offset?.x ?? 0), Math.abs(shadow.offset?.y ?? 0));
+		const ink = shadowInk({ x: 0, y: 0, width: this.width, height: this.height }, shadow);
+		return Math.max(0, -ink.x, -ink.y, ink.x + ink.width - this.width, ink.y + ink.height - this.height);
 	}
 
 	public render(draw: DrawApi): void {
