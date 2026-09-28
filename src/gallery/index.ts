@@ -7,6 +7,7 @@ import { InputSystem } from '../renderer/engine/input/InputSystem';
 import { FrameTimer } from '../renderer/engine/rendering/FrameTimer';
 import { GpuTimer, createGpuTimer } from '../renderer/engine/rendering/GpuTimer';
 import { createDevToolsTracks } from '../renderer/engine/debug/devtoolsTracks';
+import { createHitchObserver } from '../renderer/engine/debug/hitchObserver';
 import { FontAtlasError } from '../renderer/engine/text/FontAtlas';
 import { fontLoadFailureMessage, loadFontAtlases, loadImageElement } from '../renderer/engine/text/loadFontAtlases';
 import { installDebugHooks, installAppHooks, installInputHooks, installPerfHooks } from '../renderer/engine/debug/hooks';
@@ -46,9 +47,10 @@ class GalleryApplication {
 			// Handled here too, so a renderer that throws before the await
 			// below does not leave the load's rejection unhandled.
 			fontAtlases.catch(() => undefined);
-			// The gallery is a development-only bundle, so the DevTools track
-			// (R15.29) and the GPU timer (R13.16) need no build-time gate here.
-			this.frameTimer = new FrameTimer({ tracks: createDevToolsTracks() });
+			// The gallery is a development-only bundle, so the DevTools track and
+			// the hitch observer (R15.29) and the GPU timer (R13.16) need no
+			// build-time gate here.
+			this.frameTimer = new FrameTimer({ tracks: createDevToolsTracks(), hitches: createHitchObserver() });
 			this.renderer = new Renderer('game-canvas');
 			this.gpuTimer = createGpuTimer(this.renderer);
 
