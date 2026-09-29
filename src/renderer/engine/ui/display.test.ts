@@ -75,6 +75,28 @@ describe('ProgressBar (R12.24)', () => {
 		expect(bar.displayedValue).toBe(0.8);
 	});
 
+	it('shows the target after being unmounted mid-fill and mounted again', () => {
+		const bar = mount(new ProgressBar({ value: 0 }));
+		bar.value = 1;
+		advance(context, tokens.motion.dur_slow / 2);
+		root.removeChild(bar);
+		mount(bar);
+		advance(context, tokens.motion.dur_slow * 4);
+		expect(bar.displayedValue).toBe(1);
+	});
+
+	it('gains a value line when given one after construction', () => {
+		const bar = mount(new ProgressBar({ value: 0.25 }));
+		const bare = bar.height;
+		bar.valueText = (value) => `${Math.round(value * 8)} / 8`;
+		context.frame.layout();
+		expect(bar.height).toBeGreaterThan(bare);
+		expect(bar.getChildren().map((child) => (child as unknown as { getText(): string }).getText())).toEqual(['2 / 8']);
+		bar.valueText = null;
+		context.frame.layout();
+		expect(bar.height).toBe(bare);
+	});
+
 	it('clamps the value to 0..1', () => {
 		const bar = mount(new ProgressBar({ value: 3 }));
 		expect(bar.value).toBe(1);
@@ -132,6 +154,16 @@ describe('Counter (R12.39)', () => {
 		expect(Math.abs(counter.displayedValue - reached)).toBeLessThan(50);
 		advance(context, tokens.motion.dur_slow * 2);
 		expect(counter.getText()).toBe('50');
+	});
+
+	it('shows the target after being unmounted mid-count and mounted again', () => {
+		const counter = mount(new Counter({ value: 0 }));
+		counter.value = 100;
+		advance(context, tokens.motion.dur_slow / 2);
+		root.removeChild(counter);
+		mount(counter);
+		advance(context, tokens.motion.dur_slow * 4);
+		expect(counter.getText()).toBe('100');
 	});
 
 	it('jumps when unmounted or under reduced motion', () => {

@@ -23,6 +23,7 @@ export const DIALOG_WIDTHS: Readonly<Record<DialogSize, number>> = { sm: 360, md
 /** R12.21's emphasised entrance: the panel grows from this scale and rises this far. */
 export const DIALOG_ENTRANCE_SCALE = 0.96;
 export const DIALOG_ENTRANCE_RISE = tokens.space.space_2;
+const PANEL_OPACITY_FLOOR = 0.001;
 
 export interface DialogOptions {
 	id?: string;
@@ -375,7 +376,10 @@ export class Dialog extends Component {
 
 	private applyProgress(progress: number): void {
 		this.progressValue = progress;
-		this.panel.opacity = progress;
+		// Never quite 0: R3.27 takes a transparent component out of hit
+		// testing, and a press on the frame `show` ran must land inside the
+		// panel, not on the scrim as outside. A thousandth of alpha draws nothing.
+		this.panel.opacity = Math.max(progress, PANEL_OPACITY_FLOOR);
 		const entrance = 1 - progress;
 		this.panel.transform = {
 			scale: DIALOG_ENTRANCE_SCALE + (1 - DIALOG_ENTRANCE_SCALE) * progress,

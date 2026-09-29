@@ -12,7 +12,7 @@ Wave C lands as sequential pull requests by group:
 
 **The dialog is its own scrim.** A modal overlay needs a full-viewport surface that takes presses, and the panel on top of it. Two siblings (a scrim and a panel) would overlap by construction and fail the lint's rule 1, so the dialog component is the viewport-sized box: it draws the scrim in its own `render`, and the panel is its part, centred by R10.15's anchor. The overlay service gained a `fill` option that sizes the content to the viewport at open and on every `resize`, which is what makes that work (a root's children are not sized by the root). The panel is the service's `inside`, so a press on the scrim is outside: it closes the dialog only with `dismissOnOutsidePress`, and the modal consumes it either way (R12.21).
 
-**First-frame blocking comes from the colour, not the opacity.** R3.27 skips a subtree at opacity 0, hits included, so a scrim faded in through `opacity` would let the first frame's press through to the scene. The scrim's fade is its colour's alpha; the dialog component stays at opacity 1 and takes every press from the frame it opens (R3.29). The panel fades through `opacity` with the emphasised entrance (scale 0.96, 8 px rise) in its `transform`.
+**First-frame blocking comes from the colour, not the opacity.** R3.27 skips a subtree at opacity 0, hits included, so a scrim faded in through `opacity` would let the first frame's press through to the scene. The scrim's fade is its colour's alpha; the dialog component stays at opacity 1 and takes every press from the frame it opens (R3.29). The panel fades through `opacity` with the emphasised entrance (scale 0.96, 8 px rise) in its `transform`, floored at a thousandth so a press on the frame `show` ran still lands inside it rather than on the scrim (review of #109).
 
 **`show`, not `open`.** R12.21 names the method `open()`, but `open` is R11.11's state flag on every component. `Dialog.show(context)` opens it (and sets the `open` flag while it is anything but closed); `close()` runs the fade. The same goes for `Popover.show`. The context is passed in because a dialog is not mounted before it opens: whatever opens it (a screen, a button handler) has one.
 
@@ -44,6 +44,7 @@ Wave C lands as sequential pull requests by group:
 
 - `Dialog.show` and `Popover.show` rather than R12.21's `open()` (above).
 - R12.21's ported worldsim suite (18 cases) is not available here; `ui/Dialog.test.ts` covers the same ground in 21 cases of its own: lifecycle, the `open()`/`close()` guards, dismissal defaults modal and not, first-frame blocking, focus trapping and restore, and hotkeys beneath a modal.
+- R12.23 has the stack report the envelope of its *live* toasts as its bounds. A toast fading out keeps its slot, and so its place in the envelope, until it has finished, so the others do not jump mid-fade; the stack closes up once it leaves.
 - A dialog whose content is taller than the viewport is clipped, not scrolled: put a ScrollContainer (#105) in the content.
 - The Dialog draws its own panel rather than composing R12.19's Panel, which is being rewritten in #105 concurrently; once that lands the header can be shared.
 

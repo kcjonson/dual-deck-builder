@@ -332,10 +332,20 @@ export class Text extends Component {
 			const draw = this.context?.draw;
 			const run = this.currentMetrics && draw ? draw.measureTextInk(this.drawOptions()) : null;
 			if (run) {
-				const minX = Math.min(0, run.x);
-				const minY = Math.min(0, run.y);
-				const maxX = Math.max(width, run.x + run.width);
-				const maxY = Math.max(height, run.y + run.height);
+				let minX = Math.min(0, run.x);
+				let minY = Math.min(0, run.y);
+				let maxX = Math.max(width, run.x + run.width);
+				let maxY = Math.max(height, run.y + run.height);
+				const shadow = this.textShadow;
+				if (shadow) {
+					// The shadow run's ink, as `DrawApi.emitText` places it.
+					const offset = shadow.offset ?? { x: 0, y: 0 };
+					const blur = shadow.blur ?? 0;
+					minX = Math.min(minX, run.x + offset.x - blur);
+					minY = Math.min(minY, run.y + offset.y - blur);
+					maxX = Math.max(maxX, run.x + run.width + offset.x + blur);
+					maxY = Math.max(maxY, run.y + run.height + offset.y + blur);
+				}
 				this.cachedInk = Object.freeze({ x: minX, y: minY, width: maxX - minX, height: maxY - minY });
 			} else {
 				this.cachedInk = null;
@@ -375,7 +385,11 @@ export class Text extends Component {
 		if (this.context?.draw.canMeasureTextInk) return this.inkRect;
 		const spillX = Math.max(0, metrics.width - this.width);
 		const spillY = Math.max(0, metrics.height - this.height);
-		const slack = Math.max(0, this.fontSize);
+		const shadow = this.textShadow;
+		const shadowReach = shadow
+			? Math.max(Math.abs(shadow.offset?.x ?? 0), Math.abs(shadow.offset?.y ?? 0)) + (shadow.blur ?? 0)
+			: 0;
+		const slack = Math.max(0, this.fontSize) + shadowReach;
 		return {
 			x: -spillX - slack,
 			y: -spillY - slack,
