@@ -2,6 +2,8 @@
 
 DDB-196 (DDB-55). 2026-09-28. Builds on [component-base-and-render-walk.md](./component-base-and-render-walk.md).
 
+Superseded in part by [panel-and-scroll-container.md](./panel-and-scroll-container.md) (DDB-85): the panel no longer scrolls, and its inset is a stack's padding placed by layout rather than a content offset. The clip inside the border and radius described here still holds.
+
 ## The problem
 
 Every developer section, and so every gallery scene, placed its title at (0, 0) of a bordered `Panel`. Since the uber shader drew borders at their real width, the glyphs sat on the border and the corner. The fix belongs to `Panel`: R12.19 says a panel's content is inset, and without a content inset every caller has to hand-offset its children.

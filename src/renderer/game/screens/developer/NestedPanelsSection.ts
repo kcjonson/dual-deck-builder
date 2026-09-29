@@ -32,10 +32,16 @@ export class NestedPanelsSection extends DeveloperSectionPanel {
 		const nestedPanel = new Panel({
 			width: Math.min(width - 40, 600),
 			height: 150,
+			layout: 'free',
 			style: {
 				backgroundColor: '#333333e6',
 				borderRadius: 8,
-				border: '2px solid #555555',
+				borderWidth: 2,
+				borderColor: '#555555',
+				// The content inset never goes below the 8 px corner radius
+				// (R12.19), so the children below are placed 8 short of where
+				// they sit.
+				padding: 0,
 			},
 		});
 		nestedPanel.setPosition(20, currentY);
@@ -46,7 +52,7 @@ export class NestedPanelsSection extends DeveloperSectionPanel {
 				color: '#ffffff',
 			},
 		});
-		nestedPanelTitle.setPosition(20, 20);
+		nestedPanelTitle.setPosition(12, 12);
 		nestedPanel.addChild(nestedPanelTitle);
 
 		const nestedRect = new Rectangle({
@@ -57,14 +63,14 @@ export class NestedPanelsSection extends DeveloperSectionPanel {
 				borderRadius: 30,
 			},
 		});
-		nestedRect.setPosition(20, 60);
+		nestedRect.setPosition(12, 52);
 		nestedPanel.addChild(nestedRect);
 
 		const nestedButton = new Button('Nested Button', {
 			width: 120,
 			height: 35,
 		});
-		nestedButton.setPosition(100, 70);
+		nestedButton.setPosition(92, 62);
 		nestedPanel.addChild(nestedButton);
 
 		this.addChild(nestedPanel);

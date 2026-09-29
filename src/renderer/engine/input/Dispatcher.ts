@@ -303,6 +303,15 @@ export class Dispatcher {
 		this.focus.invalidateOrder();
 	}
 
+	/**
+	 * Something moved content under a still pointer without a layout (a
+	 * scroll by code or by key): hover is derived again at the next dispatch
+	 * (R9.9).
+	 */
+	public contentMoved(): void {
+		this.hoverStale = true;
+	}
+
 	/** Moves a root to the end of its tier: painted and hit over the rest of it (R3.6a's `bringToFront`). */
 	public raiseRoot(root: Component): void {
 		const tier = this.rootTiers.get(root);

@@ -567,16 +567,18 @@ export function layoutLint(document: LintDocument, options: LintOptions | null =
 	 * parent's content box. Without a `margin` on the document the two boxes
 	 * coincide.
 	 *
-	 * One exemption, a raised child that touches its parent; see the comment
-	 * inside.
-	 *
-	 * No exemption for a scroll container. R13.25.2 grants none, and the intent
-	 * signal that would carry one, `contentOffset`, sits on the Panel, whose
-	 * only children are a background sized to the panel and a content layer
-	 * sized to the panel. The rows that actually overflow are a level below it
-	 * and would never have been reached by a parent-side test anyway.
+	 * Two exemptions. A raised child that touches its parent; see the comment
+	 * inside. And one R13.25.2 does not state: a caller's child of a scroll
+	 * container (the node that carries `scroll`) past it on an axis the
+	 * container scrolls. A ScrollContainer's content is taller than it by
+	 * definition (R12.20) and clipped to it; an escape across, on an axis it
+	 * cannot scroll, is still reported, as is any part of the container's own
+	 * (its scrollbar), and what overflows inside the content is compared
+	 * against the content, one level down. Recorded as a departure in
+	 * panel-and-scroll-container.md.
+	 * @param isChild False for one of the parent's parts.
 	 */
-	const childOutsideParent = (child: Candidate, parent: Candidate): void => {
+	const childOutsideParent = (child: Candidate, parent: Candidate, isChild: boolean): void => {
 		const rule = tally('child-outside-parent');
 		// A child in a different effective layer from its parent was raised
 		// out of it, and a raise resets the inherited clip (R3.8, R4.8): an
@@ -594,7 +596,19 @@ export function layoutLint(document: LintDocument, options: LintOptions | null =
 			return;
 		}
 		rule.evaluated++;
-		if (escape(box, parent.screen) > EPSILON) report('child-outside-parent', child, parent);
+		if (escape(box, parent.screen) <= EPSILON) return;
+		const scroll = parent.node.scroll;
+		if (isChild && scroll !== undefined) {
+			const outer = parent.screen;
+			const acrossX = Math.max(outer.x - box.x, box.x + box.w - (outer.x + outer.w));
+			const acrossY = Math.max(outer.y - box.y, box.y + box.h - (outer.y + outer.h));
+			const unscrolledEscape = Math.max(num(scroll.maxX) > 0 ? -Infinity : acrossX, num(scroll.maxY) > 0 ? -Infinity : acrossY);
+			if (unscrolledEscape <= EPSILON) {
+				rule.exempt++;
+				return;
+			}
+		}
+		report('child-outside-parent', child, parent);
 	};
 
 	/**
@@ -867,7 +881,7 @@ export function layoutLint(document: LintDocument, options: LintOptions | null =
 	): void => {
 		if (siblings) siblingOverlap(group, parent);
 		for (const candidate of group) {
-			if (parent) childOutsideParent(candidate, parent);
+			if (parent) childOutsideParent(candidate, parent, siblings);
 			outsideViewport(candidate);
 			zeroOrNegativeSize(candidate);
 			textOverflow(candidate);
