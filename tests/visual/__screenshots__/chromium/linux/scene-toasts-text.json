@@ -1,0 +1,11 @@
+[
+{"path":"gallery_root/gallery_scene_toasts/Text[0]","text":"Toasts","rect":[53,53,63.84,33.6]},
+{"path":"gallery_root/gallery_scene_toasts/Text[1]","text":"Info, warning, and critical in a corner stack; hover pauses the countdown, the X or a click dismisses.","rect":[53,103,643.49,19.07]},
+{"path":"gallery_root/gallery_scene_toasts/toasts_push/Text[0]","text":"Push a toast","rect":[65,137,136,34]},
+{"path":"toast_stack_root/toast_stack/toast_critical/Stack[1]/toast_critical_title","text":"Hull breached","rect":[1143,28,71.01,18]},
+{"path":"toast_stack_root/toast_stack/toast_critical/Stack[1]/toast_critical_message","text":"The Rammer takes double damage until it is repaired.","rect":[1143,48,239,32.68]},
+{"path":"toast_stack_root/toast_stack/toast_warning/Stack[1]/toast_warning_title","text":"Fuel low","rect":[1143,112.68,42.14,18]},
+{"path":"toast_stack_root/toast_stack/toast_warning/Stack[1]/toast_warning_message","text":"The lead vehicle has two turns of fuel left.","rect":[1143,132.68,231.87,16.34]},
+{"path":"toast_stack_root/toast_stack/toast_info/Stack[1]/toast_info_title","text":"Scavenged parts","rect":[1143,181.03,86.34,18]},
+{"path":"toast_stack_root/toast_stack/toast_info/Stack[1]/toast_info_message","text":"Two wrenches and a fuel can added to the trunk.","rect":[1143,201.03,239,32.68]}
+]

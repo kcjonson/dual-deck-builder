@@ -85,4 +85,7 @@ export const SCENE_SCENARIOS: readonly SceneScenario[] = [
 	{ scene: 'panels' },
 	{ scene: 'scrolling' },
 	{ scene: 'overlays' },
+	{ scene: 'dialog' },
+	{ scene: 'popover' },
+	{ scene: 'toasts' },
 ];
