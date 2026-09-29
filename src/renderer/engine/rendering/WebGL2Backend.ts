@@ -317,6 +317,7 @@ export class WebGL2Backend implements DrawBackend {
 		// R7.2: the ratio reaches the encoder per frame, for inflation, the
 		// feather and glyph snapping.
 		this.encoder.ratio = frame.ratio;
+		this.encoder.beginFrame();
 		this.smallText?.beginFrame();
 		this.instanceRing.beginFrame(frame.frame);
 		this.writeFrameUniforms(frame);

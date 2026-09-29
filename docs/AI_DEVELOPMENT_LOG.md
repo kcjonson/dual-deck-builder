@@ -16,6 +16,16 @@ This document contains the chronological log of completed development tasks for 
 
 **How:** `HandFan.test.ts` (poses), `Card.test.ts` (tweened lift, fan pose, raised layer, the kept strip, full text fits every `LARGE` face), `TooltipService.test.ts` (owner placement, `ownerRect`, immediate focus), `CombatScreenHand.test.ts` (the preview at 1280x720 and 800x450, a swap mid-lift, immediate focus, the fan's turns), and the seven-cards-on-screen suite passing with the lean. Hover, preview, and keyboard focus checked in headless Chromium at 1280x720 and 800x450.
 
+## Raster glyph page stops thrashing; buttons golden focus is deterministic (2026-09-28)
+
+**What landed:** DDB-223 and DDB-222 (DDB-55 follow-ups from #108 and #110).
+
+- `RasterGlyphPage` stamps each size with the frame a run last asked for it. A full page starts over only when some size has gone unused for two frames (or a reloaded role left cells behind); a page full of glyphs in use is kept, its overflow runs stay on the distance field steadily, and it warns once. Before, a live set bigger than the page cleared and refilled every frame.
+- The encoder's R6.4a hysteresis is keyed on font and raster pixel size (the quarter-pixel device size), held while that size was drawn raster this frame or the last, aged by a new `UberGeometryEncoder.beginFrame`. Runs a raster size apart no longer share state.
+- The buttons scene's focus-ring demo focuses as it mounts (press-style focus plus `showFocusVisible`, so no reveal scrolls the developer screen) instead of on its first update, which the gallery harness's pause could beat.
+
+**How:** `RasterGlyphPage.test.ts` runs the review's case (twelve sizes on a 64 px page, 1 ms a pass, 3 ms budget): it settles by the fourth frame with no reset and no run changing path after. Encoder tests cover hover at the threshold, expiry and the 1.47/1.5 pair. `ButtonExamplesSection.test.ts` checks the ring with no update and no scroll. Two `update_mode=all` mints produced byte-identical goldens.
+
 ## Catalog Wave C, tree view and screen transition (2026-09-28)
 
 **What landed:** DDB-87's third PR (DDB-55 phase 5), R12.25, R12.38, R8.22's transition sequence.
