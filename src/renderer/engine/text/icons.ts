@@ -5,10 +5,16 @@ export const ICON_CODE_POINTS = {
 	arrow_back: 0xE5C4,
 	build: 0xE869,
 	check: 0xE5CA,
+	chevron_right: 0xE5CC,
+	close: 0xE5CD,
+	error: 0xE000,
+	expand_more: 0xE5CF,
+	info: 0xE88E,
 	local_gas_station: 0xE546,
 	remove: 0xE15B,
 	settings: 0xE8B8,
 	shield: 0xE9E0,
+	warning: 0xE002,
 } as const;
 
 export type IconName = keyof typeof ICON_CODE_POINTS;

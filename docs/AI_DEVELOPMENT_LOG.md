@@ -18,6 +18,21 @@ This document contains the chronological log of completed development tasks for 
 - DDB-219 folded in: the first cut rounded each pen to a whole pixel and read "atta ck" on the card footers; whole-pixel advances per word did not fix it (a 2.5 px `t` must alternate 2 and 3), quarter-pixel phases did.
 - Font files are asset modules (URLs on the web, about 550 KB; data URIs in Electron, about 730 KB of the renderer bundle), loaded at startup. Goldens moved for the card showcase, the combat hand's card footers and `icons`; combat's 8 px HP lands on exactly 9 device px at 1440x882 and does not.
 
+## Catalog Wave C, overlays (2026-09-28)
+
+**What landed:** DDB-87's first PR (DDB-55 phase 5), R12.21, R12.22, R12.23, R12.29 (KeyCap), R12.33.
+
+- `ui/Dialog.ts`: `closed`, `opening`, `open`, `closing` through the animator; modal scrim drawn by the dialog itself and faded by colour so it blocks from the first frame; X, Escape (only when open), and opt-in outside-press dismissal; `initialFocus` or the first focusable in the content, footer, then the X.
+- `ui/Popover.ts`: placed against a component or a point, flip and shrink by the placement service, non-consuming outside press, Escape, focus to its first focusable with no scope, `reposition` and `anchoredTo`.
+- `ui/Tooltip.ts` replaces `services/TooltipSurface.ts` (deleted); the tooltip service's `surface` option is required and passed by `createMountContext`, and any surface is laid out on mount before placement.
+- `ui/Toast.ts`: `Toast` and `ToastStack` (corner, capacity, severity counts, age-ordered `zIndex`).
+- `ui/KeyCap.ts` on the new `ui/LabelledLeaf.ts`; `ui/surfaces.ts` for the elevation shadows.
+- `OverlayOptions.fill`: content sized to the viewport at open and on resize.
+- Icon atlas: `close`, `info`, `warning`, `error`, `chevron_right`, `expand_more`.
+- Gallery-only scenes `dialog`, `popover`, `toasts`.
+
+**How:** `Dialog.test.ts` (21), `Popover.test.ts` (10), `Toast.test.ts` (16), and `Tooltip.test.ts` (6) drive everything through the dispatcher's queue on the frame clock; the new scenes and `overlays` lint clean in the browser.
+
 ## Nine-slice images (2026-09-28)
 
 **What landed:** DDB-203 (R5.19, from DDB-68).

@@ -1,7 +1,10 @@
 import type { Panel } from '../renderer/engine/ui/Panel';
 import type { DeveloperSectionOptions } from '../renderer/game/screens/developer/sections';
 import { developerSections } from '../renderer/game/screens/developer/sections';
+import { DialogScene } from './scenes/DialogScene';
 import { OverlaysScene } from './scenes/OverlaysScene';
+import { PopoverScene } from './scenes/PopoverScene';
+import { ToastScene } from './scenes/ToastScene';
 
 /**
  * The gallery's scene registry (R13.30): one scene per developer-screen
@@ -30,6 +33,9 @@ export interface GalleryScene {
 /** Scenes only the gallery shows, after the developer sections. */
 export const galleryOnlyScenes: readonly GalleryScene[] = [
 	{ name: 'overlays', factory: (options) => new OverlaysScene(options) },
+	{ name: 'dialog', factory: (options) => new DialogScene(options) },
+	{ name: 'popover', factory: (options) => new PopoverScene(options) },
+	{ name: 'toasts', factory: (options) => new ToastScene(options) },
 ];
 
 export const gallerySceneRegistry: readonly GalleryScene[] = [
