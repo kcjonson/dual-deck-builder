@@ -1,0 +1,21 @@
+[
+{"path":"gallery_root/dev_section_panels/Text[0]","text":"Panels","rect":[53,53,63.76,33.6]},
+{"path":"gallery_root/dev_section_panels/dev_panels_rows/Stack[0]/Text[0]","text":"variants: panel, raised, inset; header with kicker and actions","rect":[53,103,360.6,17.7]},
+{"path":"gallery_root/dev_section_panels/dev_panels_rows/Stack[0]/Stack[1]/dev_panel_plain/Text[0]","text":"Garage","rect":[69,134.7,188,21]},
+{"path":"gallery_root/dev_section_panels/dev_panels_rows/Stack[0]/Stack[1]/dev_panel_plain/Text[1]","text":"The panel variant: bg_panel, an edge line.","rect":[69,179.7,188,35.41]},
+{"path":"gallery_root/dev_section_panels/dev_panels_rows/Stack[0]/Stack[1]/dev_panel_raised/Text[0]","text":"Driver 1","rect":[313,134.7,124,15]},
+{"path":"gallery_root/dev_section_panels/dev_panels_rows/Stack[0]/Stack[1]/dev_panel_raised/Text[1]","text":"Road Warrior","rect":[313,149.7,124,21]},
+{"path":"gallery_root/dev_section_panels/dev_panels_rows/Stack[0]/Stack[1]/dev_panel_raised/Button[2]/Text[0]","text":"Swap","rect":[457,139.7,32,26]},
+{"path":"gallery_root/dev_section_panels/dev_panels_rows/Stack[0]/Stack[1]/dev_panel_raised/Text[3]","text":"Raised, with the raised shadow and an action in the header.","rect":[313,194.7,188,35.41]},
+{"path":"gallery_root/dev_section_panels/dev_panels_rows/Stack[0]/Stack[1]/dev_panel_inset/Text[0]","text":"Stash","rect":[557,134.7,188,21]},
+{"path":"gallery_root/dev_section_panels/dev_panels_rows/Stack[0]/Stack[1]/dev_panel_inset/Text[1]","text":"Inset: a well below the panel surface.","rect":[557,179.7,188,35.41]},
+{"path":"gallery_root/dev_section_panels/dev_panels_rows/Stack[1]/Text[0]","text":"compact, flush, corner ticks, glow","rect":[53,300.7,200.87,17.7]},
+{"path":"gallery_root/dev_section_panels/dev_panels_rows/Stack[1]/Stack[1]/dev_panel_compact/Text[0]","text":"Compact","rect":[65,330.41,196,21]},
+{"path":"gallery_root/dev_section_panels/dev_panels_rows/Stack[1]/Stack[1]/dev_panel_compact/Text[1]","text":"A smaller header and inset.","rect":[61,365.41,204,17.7]},
+{"path":"gallery_root/dev_section_panels/dev_panels_rows/Stack[1]/Stack[1]/dev_panel_flush/Text[0]","text":"Flush: content meets the border.","rect":[299,326.41,216,17.7]},
+{"path":"gallery_root/dev_section_panels/dev_panels_rows/Stack[1]/Stack[1]/dev_panel_corners/Text[0]","text":"Target","rect":[557,332.41,188,15]},
+{"path":"gallery_root/dev_section_panels/dev_panels_rows/Stack[1]/Stack[1]/dev_panel_corners/Text[1]","text":"Rust Buggy","rect":[557,347.41,188,21]},
+{"path":"gallery_root/dev_section_panels/dev_panels_rows/Stack[1]/Stack[1]/dev_panel_corners/Text[2]","text":"Bracket ticks in the accent.","rect":[557,392.41,188,17.7]},
+{"path":"gallery_root/dev_section_panels/dev_panels_rows/Stack[1]/Stack[1]/dev_panel_glow/Text[0]","text":"Selected","rect":[801,332.41,188,21]},
+{"path":"gallery_root/dev_section_panels/dev_panels_rows/Stack[1]/Stack[1]/dev_panel_glow/Text[1]","text":"The data accent, glowing.","rect":[801,377.41,188,17.7]}
+]
