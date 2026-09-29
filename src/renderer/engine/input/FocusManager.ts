@@ -140,6 +140,14 @@ export class FocusManager {
 	 */
 	public focus(component: Component | null, reason: FocusReason = 'programmatic'): boolean {
 		if (component && !component.canReceiveFocus()) return false;
+		const scope = this.scopes[this.scopes.length - 1];
+		if (component && scope && !isInclusiveAncestor(scope.root, component)) {
+			// R9.20: nothing outside the active scope takes focus, so keys never
+			// reach what a modal covers (a screen mounting under a transition).
+			// The request is kept: it is where focus goes when the scope pops.
+			scope.restore = component;
+			return false;
+		}
 		this.setFocus(component, reason);
 		return true;
 	}

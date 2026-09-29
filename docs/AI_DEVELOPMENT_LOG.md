@@ -15,6 +15,52 @@ This document contains the chronological log of completed development tasks for 
 - The buttons scene's focus-ring demo focuses as it mounts (press-style focus plus `showFocusVisible`, so no reveal scrolls the developer screen) instead of on its first update, which the gallery harness's pause could beat.
 
 **How:** `RasterGlyphPage.test.ts` runs the review's case (twelve sizes on a 64 px page, 1 ms a pass, 3 ms budget): it settles by the fourth frame with no reset and no run changing path after. Encoder tests cover hover at the threshold, expiry and the 1.47/1.5 pair. `ButtonExamplesSection.test.ts` checks the ring with no update and no scroll. Two `update_mode=all` mints produced byte-identical goldens.
+## Catalog Wave C, tree view and screen transition (2026-09-28)
+
+**What landed:** DDB-87's third PR (DDB-55 phase 5), R12.25, R12.38, R8.22's transition sequence.
+
+- `ui/TreeView.ts`: lazy flattening keyed by node id or index path, culled rows reconciled by key, wheel scrolling with `canScroll`, keyboard cursor with Up, Down, Home, End, Left, Right, Enter and Space, chevron-column toggle, optional selection, `expandAll`, `collapseAll`, `expand`, `collapse`, `select`.
+- `ui/ScreenTransition.ts`: `run(context, swap)` fades out, swaps, lays out, fades in; blocks presses and hotkeys; retargets a second run.
+- `OverlayOptions.persistent`: survives `closeAll`.
+- Scenes `tree-view` (developer section) and `screen-transition` (gallery-only).
+
+- Review fixes (#113): TreeView's rows are virtualised inside a ScrollContainer (latch, scrollbar, Page Up and Down), the cursor's row is `active`, a collapse moves the cursor to the nearest visible ancestor, and the selection survives folding. A throwing swap ends the transition uncovered and rejects its runs; a run from inside a swap is chained; `FocusManager.focus` refuses components outside the active scope and keeps them as the scope's restore target, so the incoming scene takes no keys until the fade ends.
+
+**How:** `ui/TreeView.test.ts` (13) and `ui/ScreenTransition.test.ts` (10) through the dispatcher's queue and the frame clock, including a swap that runs ScreenManager's own closes, one that throws, and a wheel overshoot inside an outer scroller. Both scenes lint clean in the browser.
+
+## Catalog Wave C, display components (2026-09-28)
+
+**What landed:** DDB-87's second PR (DDB-55 phase 5), R12.24, R12.26 to R12.29, R12.39.
+
+- `ui/ProgressBar.ts`, `ui/Counter.ts`, `ui/Badge.ts`, `ui/Avatar.ts`, `ui/Stat.ts`, `ui/Divider.ts`.
+- `TextMetrics.baseline`, filled by `metricsOf`; `Text.shadow` passed to `drawText`; `toneColor` in `style/variants.ts`; `CatalogSection.line` takes any gap.
+- Developer sections, and so gallery scenes, `meters` and `data-display`.
+
+- Review fixes (#109, #111): Counter and ProgressBar show their target when mounted again after an unmount cut a count short; `Text.shadow` is part of the text's measured ink and cull bound, so the subtree cull never drops a visible shadow; `ProgressBar.valueText` builds the value line when the bar had none; a dialog's panel is never fully transparent, so a press on it the frame it opens is inside; a hovered toast asks for no frames and a fading one takes no clicks.
+
+**How:** `ui/display.test.ts` (26) with the committed font metrics and a recording backend: auto banding, fill and counter tweens with retargeting and reduced motion, segmented cells, the badge pill and dot, FNV-1a against known hashes, mood bands, rings as ink, the unit's baseline equal to the value's, and the divider's caption break. Both scenes lint clean in the browser.
+## Catalog Wave B, menus (2026-09-28)
+
+**What landed:** DDB-86's second PR (DDB-55 phase 5), R12.11 to R12.14.
+
+- `ui/Menu.ts`: a raised surface and one `MenuRows` part that draws and hit-tests the rows (items, separators, shortcut hints, disabled items), hover on move, a press inside consumed with `preventFocus`, selection on a release whose press began inside; `moveHover`, `hoverEdge`, `selectHovered` for owners; `maxHeight`; the rows scroll in a ScrollContainer when the menu is shorter than they are, and a keyboard highlight (or the opening one) is brought into view.
+- `ui/Select.ts`, `ui/DropdownButton.ts` (a Button with a trailing caret), `ui/ContextMenu.ts` (a Menu with `openAt`, taking focus while open and giving it back), all opened through the popup service.
+- `ui/controlBox.ts`: the field box and outside ring TextInput and Select share.
+- Gallery scene `menus`.
+
+**How:** `ui/menus.test.ts`, 36 cases through injected input (worldsim's Menu, Select, DropdownButton, and ContextMenu behaviour, plus separators, shortcuts, `maxHeight`, focus kept through a press in the list, switching between selects in one press, the captured opening press, R9.13's primary and secondary outside presses, wheel scrolling of a capped menu and selection after it, keyboard reveal, a placement-shortened select list opening with its value in view). The scene lints clean in the browser with a select and a context menu open.
+
+## Catalog Wave B, text entry (2026-09-28)
+
+**What landed:** DDB-86's first PR (DDB-55 phase 5), R12.10 and R12.36.
+
+- `ui/TextInput.ts` replaces `ui/Input.ts` (deleted with its test): the value as code points, caret and selection from `measureText` advances, press to place and drag (captured) to select, Shift with arrows, Home, End, and presses to extend, Backspace and Delete taking the selection first, Cmd or Ctrl with A, C, X, V through the clipboard service, paste stripped of control characters, `maxLength`, `validator(next, inserted)`, `password` (masked, never copied), `selectAllOnFocus`, `onSubmit` on Enter, Escape and Up and Down left unconsumed, a blink from the context clock, horizontal scroll to the caret, and everything clipped to the padded content box.
+- `ui/NumberInput.ts`: a TextInput part and a stepper column part; arrows, chevron presses, and the wheel (while focused) step; typed text commits on Enter or blur, clamped and rounded to `precision`.
+- The dispatcher claims Cmd/Ctrl+A from the browser while a text field is focused.
+- Tokens `color.bg_selection` and `control.caret_blink`; icons `expand_more` and `expand_less`.
+- `input-showcase` rebuilt as a catalog section; `interactive-controls` and the tests that built an `Input` moved to TextInput; the `clipping` scene's overflowing field is the real component.
+
+**How:** `ui/TextInput.test.ts`, 32 cases through injected input with the committed font metrics (caret placement against the advances, drag selection past the edge, keyboard selection, editing, maxLength and paste truncation, the validator per code point, Enter, Escape reaching the hotkeys, printable keys consumed, clipboard round trip, control characters stripped, password refusing copy, scroll to caret and back to zero, the clip rect, the blink, and NumberInput's clamping, stepping, commit, validator, wheel, and Tab stop). In the browser the three touched scenes lint clean, and typing, selecting, and stepping were tried by hand. Details in [component-catalog-wave-b.md](AI_TECHNICAL_DECISIONS/component-catalog-wave-b.md).
 
 ## Small-text raster fallback and the scored small-size gate (2026-09-28)
 

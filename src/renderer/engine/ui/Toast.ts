@@ -191,6 +191,11 @@ export class Toast extends Stack {
 	public handleEvent(event: AnyUiEvent): void {
 		// The X's click is the X's own: it dismisses without `onClick`.
 		if (event.type === 'click' && event.target && contains(this.closeButton, event.target)) return;
+		// A toast on its way out is not clicked any more (R12.23's onClick is a live toast's).
+		if (event.type === 'click' && !this.live) {
+			event.consume();
+			return;
+		}
 		super.handleEvent(event);
 		if (event.type === 'click') {
 			event.consume();
@@ -198,15 +203,23 @@ export class Toast extends Stack {
 		}
 	}
 
-	/** The countdown, on the frame's dt, while visible and not hovered. */
+	/**
+	 * The countdown, on the frame's dt, while visible and not hovered. A
+	 * hovered toast asks for no frames; leaving it starts the count again.
+	 */
 	public update(dt: number): void {
-		if (this.stateValue !== 'visible' || this.autoDismissMs <= 0) return;
-		if (!this.hovered) this.remainingMs -= dt * 1000;
+		if (this.stateValue !== 'visible' || this.autoDismissMs <= 0 || this.hovered) return;
+		this.remainingMs -= dt * 1000;
 		if (this.remainingMs <= 0) {
 			this.dismiss('timeout');
 			return;
 		}
 		this.requestUpdate();
+	}
+
+	protected onUnhover(): void {
+		super.onUnhover();
+		if (this.stateValue === 'visible') this.requestUpdate();
 	}
 
 	/** @internal The stack sets the side it slides in from before mounting it. */

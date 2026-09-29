@@ -217,7 +217,7 @@ export class SceneHost {
 	 *
 	 * A scene switch is a teardown path the developer screen never exercises:
 	 * it builds its sections once and lives until the screen does. Two of the
-	 * sections construct Inputs, and an Input registers a mouse-down and a
+	 * sections construct text fields, and a field registers a mouse-down and a
 	 * keydown handler with the input system on mount, so a switch that merely
 	 * dropped the reference would leave every scene ever mounted hit-tested on
 	 * every mouse move. removeChild unmounts the subtree it detaches, and the

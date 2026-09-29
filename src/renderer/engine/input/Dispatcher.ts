@@ -1017,6 +1017,8 @@ export class Dispatcher {
 		if (key === 'Tab') return true;
 		const focused = this.keyTarget;
 		if (focused?.acceptsText && ownedByTextField(key, modifiers)) return true;
+		// Select-all is the field's (R9.17); left to the browser it selects the page.
+		if (focused?.acceptsText && (modifiers.ctrl || modifiers.meta) && key.toLowerCase() === 'a') return true;
 		if (NAVIGATION_KEYS.has(key) && (focused || ARROW_DIRECTIONS[key])) return true;
 		return this.hotkeyTables(focused).some((table) => table.has(key));
 	}
@@ -1131,10 +1133,13 @@ export function normaliseWheel(
  * R9.15: what a focused text field keeps from activation, navigation, and
  * the hotkey tables whether or not it consumed it: printable keys and the
  * editing and caret keys. Tab and Escape leave it, as do Cmd and Ctrl chords
- * (copy, a menu shortcut) and named keys such as F6, which are not text.
+ * (copy, a menu shortcut) and named keys such as F6, which are not text. A
+ * character typed under Ctrl+Alt is AltGr's on Windows, and is text.
  */
 function ownedByTextField(key: string, modifiers: Modifiers): boolean {
-	if (modifiers.ctrl || modifiers.meta) return false;
+	// AltGr is Ctrl+Alt on Windows: a character it makes is text (R15.39).
+	const altGraph = modifiers.ctrl && modifiers.alt && !modifiers.meta && [...key].length === 1;
+	if ((modifiers.ctrl || modifiers.meta) && !altGraph) return false;
 	if (key === 'Escape') return false;
 	return [...key].length === 1 || NAVIGATION_KEYS.has(key) || key === 'Backspace' || key === 'Delete';
 }

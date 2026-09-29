@@ -5,6 +5,7 @@ import type {
 	TextDecoration,
 	TextMetrics,
 	TextOverflow,
+	TextShadow,
 	TextTransform,
 	TextWrap,
 } from '../draw/commands';
@@ -124,6 +125,7 @@ export class Text extends Component {
 	private letterSpacing = 0;
 	private textTransform: TextTransform = 'none';
 	private decoration: TextDecoration = 'none';
+	private textShadow: TextShadow | null = null;
 	/** The size a `fixed` axis holds; layout never changes it. */
 	private authoredWidth: number;
 	private authoredHeight: number;
@@ -251,6 +253,19 @@ export class Text extends Component {
 		return this;
 	}
 
+	/**
+	 * R12.4's `shadow`: a copy of the run drawn beneath it (R3.17), for text
+	 * over a fill, such as a meter's inline label (R12.24). Moves no glyph.
+	 */
+	public get shadow(): TextShadow | null {
+		return this.textShadow;
+	}
+
+	public set shadow(shadow: TextShadow | null) {
+		this.textShadow = shadow;
+		this.runMoved();
+	}
+
 	/** The run moved inside its box without changing size: only its ink is stale. */
 	private runMoved(): void {
 		this.inkDirty = true;
@@ -367,10 +382,20 @@ export class Text extends Component {
 			const draw = this.context?.draw;
 			const run = this.currentMetrics && draw ? draw.measureTextInk(this.drawOptions()) : null;
 			if (run) {
-				const minX = Math.min(0, run.x);
-				const minY = Math.min(0, run.y);
-				const maxX = Math.max(width, run.x + run.width);
-				const maxY = Math.max(height, run.y + run.height);
+				let minX = Math.min(0, run.x);
+				let minY = Math.min(0, run.y);
+				let maxX = Math.max(width, run.x + run.width);
+				let maxY = Math.max(height, run.y + run.height);
+				const shadow = this.textShadow;
+				if (shadow) {
+					// The shadow run's ink, as `DrawApi.emitText` places it.
+					const offset = shadow.offset ?? { x: 0, y: 0 };
+					const blur = shadow.blur ?? 0;
+					minX = Math.min(minX, run.x + offset.x - blur);
+					minY = Math.min(minY, run.y + offset.y - blur);
+					maxX = Math.max(maxX, run.x + run.width + offset.x + blur);
+					maxY = Math.max(maxY, run.y + run.height + offset.y + blur);
+				}
 				this.cachedInk = Object.freeze({ x: minX, y: minY, width: maxX - minX, height: maxY - minY });
 			} else {
 				this.cachedInk = null;
@@ -410,7 +435,11 @@ export class Text extends Component {
 		if (this.context?.draw.canMeasureTextInk) return this.inkRect;
 		const spillX = Math.max(0, metrics.width - this.width);
 		const spillY = Math.max(0, metrics.height - this.height);
-		const slack = Math.max(0, this.fontSize);
+		const shadow = this.textShadow;
+		const shadowReach = shadow
+			? Math.max(Math.abs(shadow.offset?.x ?? 0), Math.abs(shadow.offset?.y ?? 0)) + (shadow.blur ?? 0)
+			: 0;
+		const slack = Math.max(0, this.fontSize) + shadowReach;
 		return {
 			x: -spillX - slack,
 			y: -spillY - slack,
@@ -600,6 +629,7 @@ export class Text extends Component {
 			textTransform: this.textTransform,
 			decoration: this.decoration,
 			lineHeight: this.lineHeight ?? undefined,
+			shadow: this.textShadow ?? undefined,
 		};
 	}
 }

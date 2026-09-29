@@ -15,7 +15,7 @@ import { PointerAdapter } from '../input/PointerAdapter';
 import type { PopupCloseReason } from '../services/PopupService';
 import { createMeasuringDrawApi, MeasuringRecordingBackend } from '../text/testing';
 import { tokens } from '../theme/tokens';
-import { Input } from './Input';
+import { TextInput } from './TextInput';
 import { SCROLLBAR_BREADTH, SCROLLBAR_GUTTER, Scrollbar } from './Scrollbar';
 import { ScrollContainer, ScrollContainerOptions } from './ScrollContainer';
 
@@ -216,7 +216,7 @@ describe('ScrollContainer layout and paint', () => {
 		const boxed = new ScrollContainer({ width: 200, height: 100, style: { borderWidth: 1, borderRadius: 4 } });
 		expect(boxed.clipRect).toEqual({ x: 4, y: 4, width: 192, height: 92 });
 		const padded = new ScrollContainer({ x: 0, y: 0, width: 200, height: 100, style: { padding: 8 } });
-		const inky = new Input('x', { width: 100, height: 30 });
+		const inky = new TextInput({ value: 'x', width: 100, height: 30 });
 		padded.addChild(inky);
 		root.addChild(padded);
 		context.frame.layout();
@@ -297,7 +297,7 @@ describe('ScrollContainer input (R9.32, R12.20)', () => {
 	it('leaves Home and End to a focused field inside, but pages from it', () => {
 		const scroll = new ScrollContainer({ x: 0, y: 0, width: 300, height: 100 });
 		const column = new Stack({ gap: 400 });
-		const field = new Input('text', { width: 200, height: 30 });
+		const field = new TextInput({ placeholder: 'text', width: 200, height: 30 });
 		column.addChild(field);
 		column.addChild(new Rectangle({ width: 10, height: 400 }));
 		scroll.addChild(column);
@@ -357,7 +357,7 @@ describe('ScrollContainer input (R9.32, R12.20)', () => {
 	it('jumps the thumb to a track press, and neither press takes focus from a field inside (R9.23)', () => {
 		const scroll = new ScrollContainer({ x: 0, y: 0, width: 300, height: 300 });
 		const column = new Stack();
-		const field = new Input('text', { width: 200, height: 30 });
+		const field = new TextInput({ placeholder: 'text', width: 200, height: 30 });
 		column.addChild(field);
 		column.addChild(new Rectangle({ width: 10, height: 900 }));
 		scroll.addChild(column);
