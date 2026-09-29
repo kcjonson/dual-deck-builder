@@ -1,7 +1,7 @@
 import { DeveloperSectionPanel } from './DeveloperSectionPanel';
 import { Text } from '../../../engine/components/Text';
 import { Rectangle } from '../../../engine/components/Rectangle';
-import { Input } from '../../../engine/ui/Input';
+import { TextInput } from '../../../engine/ui/TextInput';
 import { Button } from '../../../engine/ui/Button';
 
 /**
@@ -54,21 +54,23 @@ export class InteractiveControlsSection extends DeveloperSectionPanel {
 		this.addChild(colorLabel);
 		currentY += 25;
 
-		const colorInput = new Input('e.g., 255,102,0,1', {
+		const colorInput = new TextInput({
+			placeholder: 'e.g., 255,102,0,1',
+			value: '255,102,0,1',
+			x: 20,
+			y: currentY,
 			width: 200,
 			height: 30,
 			style: {
 				fontSize: 14,
 			},
-		});
-		colorInput.setPosition(20, currentY);
-		colorInput.setValue('255,102,0,1');
-		colorInput.onChange((value: string) => {
-			const parts = value.split(',').map((v) => parseFloat(v.trim()));
-			if (parts.length === 4 && parts.every((v) => !isNaN(v))) {
-				const [r, g, b, a] = parts;
-				this.demoRectangle.setFillColor([r / 255, g / 255, b / 255, a]);
-			}
+			onChange: (value) => {
+				const parts = value.split(',').map((v) => parseFloat(v.trim()));
+				if (parts.length === 4 && parts.every((v) => !isNaN(v))) {
+					const [r, g, b, a] = parts;
+					this.demoRectangle.setFillColor([r / 255, g / 255, b / 255, a]);
+				}
+			},
 		});
 		this.addChild(colorInput);
 		currentY += 40;
@@ -84,21 +86,23 @@ export class InteractiveControlsSection extends DeveloperSectionPanel {
 		this.addChild(positionLabel);
 		currentY += 25;
 
-		const positionInput = new Input('e.g., 20,50', {
+		const positionInput = new TextInput({
+			placeholder: 'e.g., 20,50',
+			value: '20,50',
+			x: 20,
+			y: currentY,
 			width: 150,
 			height: 30,
 			style: {
 				fontSize: 14,
 			},
-		});
-		positionInput.setPosition(20, currentY);
-		positionInput.setValue('20,50');
-		positionInput.onChange((value: string) => {
-			const parts = value.split(',').map((v) => parseInt(v.trim()));
-			if (parts.length === 2 && parts.every((v) => !isNaN(v))) {
-				const [x, y] = parts;
-				this.demoRectangle.setPosition(x, y);
-			}
+			onChange: (value) => {
+				const parts = value.split(',').map((v) => parseInt(v.trim()));
+				if (parts.length === 2 && parts.every((v) => !isNaN(v))) {
+					const [x, y] = parts;
+					this.demoRectangle.setPosition(x, y);
+				}
+			},
 		});
 		this.addChild(positionInput);
 
@@ -110,8 +114,8 @@ export class InteractiveControlsSection extends DeveloperSectionPanel {
 		updateButton.setPosition(180, currentY);
 		updateButton.onClick = () => {
 			// Force update all inputs
-			const colorValue = colorInput.getValue();
-			const posValue = positionInput.getValue();
+			const colorValue = colorInput.value;
+			const posValue = positionInput.value;
 			
 			// Re-apply the values
 			const colorParts = colorValue.split(',').map((v) => parseFloat(v.trim()));

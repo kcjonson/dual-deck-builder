@@ -1908,7 +1908,7 @@ export abstract class Component {
 
 	/**
 	 * True when this component draws its own focus ring from `focusVisible`
-	 * as one of its R11.12 state layers (Button and Input do), so the render
+	 * as one of its R11.12 state layers (Button and TextInput do), so the render
 	 * walk's token ring, the fallback for focusables without a resolved look,
 	 * skips it and nothing gets two rings.
 	 */
