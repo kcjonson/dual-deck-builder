@@ -80,7 +80,7 @@ export class DeveloperOverlay extends Container {
 			style: {
 				fontSize: 14,
 				color: '#00FF00',
-				fontFamily: 'monospace',
+				fontRole: 'mono',
 			},
 		});
 		this.addPart(this.performanceText);

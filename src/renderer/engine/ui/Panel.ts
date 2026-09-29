@@ -161,7 +161,7 @@ export class Panel extends Stack {
 		this.kickerText = kicker !== undefined
 			? new Text(kicker, {
 				style: {
-					fontFamily: 'monospace',
+					fontRole: 'mono',
 					fontSize: tokens.fontSize.fs_xs,
 					color: [...(accent === 'none' ? color.text_dim : this.accentColor)] as [number, number, number, number],
 					textTransform: 'uppercase',

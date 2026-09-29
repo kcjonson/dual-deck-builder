@@ -95,7 +95,7 @@ export class ScrollExamplesSection extends DeveloperSectionPanel {
 	 */
 	private strip(): Stack {
 		const column = new Stack({ gap: tokens.space.space_2 });
-		const readout = new Text('offset 390 of 780', { id: 'dev_strip_offset', style: { fontSize: tokens.fontSize.fs_sm, fontFamily: 'monospace', color: rgba('text') } });
+		const readout = new Text('offset 390 of 780', { id: 'dev_strip_offset', style: { fontSize: tokens.fontSize.fs_sm, fontRole: 'mono', color: rgba('text') } });
 		const bar = new Scrollbar({ id: 'dev_strip_bar', orientation: 'horizontal', width: STRIP_VIEW, range: { offset: 390, extent: STRIP_EXTENT, viewport: STRIP_VIEW } });
 		bar.onScroll = (offset) => {
 			bar.range = { offset, extent: STRIP_EXTENT, viewport: STRIP_VIEW };
