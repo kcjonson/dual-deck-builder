@@ -103,6 +103,8 @@ export class ScreenManager {
 		// Mount new screen
 		console.log(`ScreenManager: Mounting new screen ${screenName}`);
 		screen.mount(context, data);
+		// Its first frame builds all its small text at once (R6.4a).
+		context.draw.prewarmText();
 		this.currentScreen = screen;
 		this.currentScreenName = screenName;
 	}
