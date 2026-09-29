@@ -3,7 +3,7 @@ import { layoutLint } from '../debug/layoutLint';
 import { treeSnapshot } from '../debug/treeSnapshot';
 import { Circle } from './Circle';
 import { Component, ComponentOptions } from './Component';
-import { Layer } from './Layer';
+import { Container } from './Container';
 import type { MountContext } from './MountContext';
 import { Rectangle } from './Rectangle';
 import { Panel } from '../ui/Panel';
@@ -761,7 +761,7 @@ describe('Stack additions (spec 10.9)', () => {
 
 	it('lets the lint accept the overlap a negative gap asks for, and no more (R13.25.1)', () => {
 		const lintHand = (gap: number, nudge: number): string[] => {
-			const root = new Layer({ width: 800, height: 600 });
+			const root = new Container({ width: 800, height: 600 });
 			const hand = stack({ x: 100, y: 100, direction: 'horizontal', gap });
 			const cards = [box(60, 90), box(60, 90), box(60, 90)];
 			cards.forEach((card) => hand.addChild(card));
@@ -920,7 +920,7 @@ describe('Stack additions (spec 10.9)', () => {
 	});
 
 	it('anchors the children of a plain container too, at the default top-left with no shift', () => {
-		const root = new Layer({ width: 300, height: 200 });
+		const root = new Container({ width: 300, height: 200 });
 		const plain = box(40, 40, 0, { x: 12, y: 8 });
 		const corner = box(40, 40, 0, { anchor: 'bottomRight' });
 		root.addChild(plain).addChild(corner);
@@ -950,7 +950,7 @@ describe('Stack additions (spec 10.9)', () => {
 	});
 
 	it('invalidates up to a hug ancestor and stops at a fixed boundary (R10.18, R8.18)', () => {
-		const screen = new Layer({ width: 800, height: 600 });
+		const screen = new Container({ width: 800, height: 600 });
 		const panel = stack({ width: 400, height: 300 });
 		const inner = stack();
 		const leaf = box(50, 30, 0, { heightMode: 'hug' });
@@ -976,7 +976,7 @@ describe('Stack additions (spec 10.9)', () => {
 	});
 
 	it('lets a hug stack in a plain container size itself and be anchored at its new size', () => {
-		const root = new Layer({ width: 300, height: 200 });
+		const root = new Container({ width: 300, height: 200 });
 		const toolbar = stack({ direction: 'horizontal', gap: 4, anchor: 'bottomRight' });
 		toolbar.addChild(box(40, 20)).addChild(box(40, 20));
 		root.addChild(toolbar);
@@ -1015,7 +1015,7 @@ describe('Stack roots sized from the viewport (R8.21, R10.16)', () => {
 
 	it('leaves fixed roots alone on a viewport change', () => {
 		const context = createTestContext();
-		const root = new Layer({ width: 300, height: 200 });
+		const root = new Container({ width: 300, height: 200 });
 		layOut(root, context);
 
 		context.frame.viewportChanged();
@@ -1190,7 +1190,7 @@ describe('Stack measurement cost', () => {
 
 describe('Stack sizes it assigns and authors (review)', () => {
 	it('fires onResized when layout assigns a new size, and not when it assigns the same one', () => {
-		class Resizing extends Layer {
+		class Resizing extends Container {
 			public resizes = 0;
 
 			protected onResized(): void {

@@ -178,27 +178,27 @@ export class Dialog extends Component {
 			? new Text(kicker, {
 				id: `${id}_kicker`,
 				style: {
-					fontFamily: 'mono',
+					fontRole: 'mono',
 					fontSize: tokens.fontSize.fs_xs,
 					color: rgba(color.accent),
 					textTransform: 'uppercase',
 					letterSpacing: tokens.letterSpacing.ls_wide,
-					whiteSpace: 'nowrap',
-					textOverflow: 'ellipsis',
 				},
+				wrap: 'none',
+				textOverflow: 'ellipsis',
 			})
 			: null;
 		this.titleText = new Text(title, {
 			id: `${id}_title`,
 			style: {
-				fontFamily: 'display',
+				fontRole: 'display',
 				fontSize: tokens.fontSize.fs_lg,
 				color: rgba(color.text_bright),
 				textTransform: 'uppercase',
 				letterSpacing: tokens.letterSpacing.ls_wide,
-				whiteSpace: 'nowrap',
-				textOverflow: 'ellipsis',
 			},
+			wrap: 'none',
+			textOverflow: 'ellipsis',
 		});
 		if (this.kickerText) heading.addPart(this.kickerText);
 		heading.addPart(this.titleText);

@@ -1,5 +1,5 @@
 import type { Component } from '../components/Component';
-import { Layer } from '../components/Layer';
+import { Container } from '../components/Container';
 import type { MountContext } from '../components/MountContext';
 import { Rectangle } from '../components/Rectangle';
 import { createTestContext } from '../components/testing';
@@ -59,7 +59,7 @@ describe('input observers', () => {
 
 	beforeEach(() => {
 		heard = [];
-		const scene = new Layer({ id: 'scene', width: 400, height: 400 });
+		const scene = new Container({ id: 'scene', width: 400, height: 400 });
 		target = root('target');
 		target.onPointerDown = () => heard.push('down');
 		target.onPointerUp = () => heard.push('up');
@@ -141,7 +141,7 @@ describe('input observers', () => {
 describe('FocusManager.onFocusChange', () => {
 	it('reports each change of the focused component and of its visibility once, including an unmount', () => {
 		const heard: string[] = [];
-		const scene = new Layer({ id: 'scene', width: 400, height: 400 });
+		const scene = new Container({ id: 'scene', width: 400, height: 400 });
 		const a = root('a');
 		const b = root('b', 200, 0);
 		a.focusable = true;

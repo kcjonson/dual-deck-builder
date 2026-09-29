@@ -1,4 +1,4 @@
-import { Layer, LayerOptions } from '../../../engine/components/Layer';
+import { Container, ContainerOptions } from '../../../engine/components/Container';
 import { Text } from '../../../engine/components/Text';
 import { Rectangle } from '../../../engine/components/Rectangle';
 import { Driver } from '../../mechanics/Driver';
@@ -22,12 +22,12 @@ interface TagPill {
  * Implements the center panel from Game Flow Spec 1.2
  * Shows synergy hints between selected drivers
  */
-export class SynergyPreviewPanel extends Layer {
+export class SynergyPreviewPanel extends Container {
 	private background: Rectangle;
 	private titleText: Text;
 	private synergyDescription: Text | null = null;
 	private warningText: Text | null = null;
-	private tagsContainer: Layer | null = null;
+	private tagsContainer: Container | null = null;
 	private tagPills: TagPill[] = [];
 	
 	private currentSynergy: SynergyAnalysis | null = null;
@@ -36,7 +36,7 @@ export class SynergyPreviewPanel extends Layer {
 	 * Create a new synergy preview panel. Its contents are placed from its
 	 * size in the layout phase, so a resize moves them rather than rebuilding.
 	 */
-	constructor(options: LayerOptions) {
+	constructor(options: ContainerOptions) {
 		super(options);
 
 		this.background = new Rectangle({
@@ -55,9 +55,9 @@ export class SynergyPreviewPanel extends Layer {
 				fontSize: 20,
 				color: '#ffffff',
 				textAlign: 'center',
-				whiteSpace: 'nowrap',
 				fontWeight: 'bold',
 			},
+			wrap: 'none',
 		});
 		this.addChild(this.titleText);
 		
@@ -115,8 +115,8 @@ export class SynergyPreviewPanel extends Layer {
 				fontSize: 12,
 				color: this.getSynergyColor(this.currentSynergy.type),
 				textAlign: 'center',
-				whiteSpace: 'normal',
 			},
+			wrap: 'word',
 		});
 		this.addChild(this.synergyDescription);
 
@@ -126,9 +126,9 @@ export class SynergyPreviewPanel extends Layer {
 					fontSize: 11,
 					color: '#ff6666',
 					textAlign: 'center',
-					whiteSpace: 'normal',
 					fontWeight: 'bold',
 				},
+				wrap: 'word',
 			});
 			this.addChild(this.warningText);
 		}
@@ -140,7 +140,7 @@ export class SynergyPreviewPanel extends Layer {
 	}
 
 	private createSynergyTags(tags: readonly string[]): void {
-		const container = new Layer({});
+		const container = new Container({});
 		this.tagsContainer = container;
 		this.addChild(container);
 
@@ -150,11 +150,11 @@ export class SynergyPreviewPanel extends Layer {
 					fontSize: 10,
 					color: '#ffffff',
 					textAlign: 'center',
-					verticalAlign: 'middle',
-					whiteSpace: 'nowrap',
-					textOverflow: 'ellipsis',
 					fontWeight: 'bold',
 				},
+				verticalAlign: 'middle',
+				wrap: 'none',
+				textOverflow: 'ellipsis',
 			});
 			const pill = new Rectangle({
 				style: {

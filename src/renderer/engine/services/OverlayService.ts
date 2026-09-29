@@ -1,5 +1,5 @@
 import type { Component } from '../components/Component';
-import { Layer } from '../components/Layer';
+import { Container } from '../components/Container';
 import type { MountContext, ViewportSource } from '../components/MountContext';
 import { renderTree } from '../components/renderTree';
 import type { DrawApi } from '../draw/DrawApi';
@@ -56,7 +56,7 @@ export interface OverlayOptions {
  * viewport change resizes the root with no code in the content (R8.21).
  */
 export class OverlayHandle {
-	public readonly root: Layer;
+	public readonly root: Container;
 	public readonly content: Component;
 	/** What a press must land in to be inside (`OverlayOptions.inside`). */
 	public readonly inside: Component;
@@ -71,7 +71,7 @@ export class OverlayHandle {
 	private readonly onClose: (() => void) | null;
 	private open = true;
 
-	constructor({ service, root, content, options }: { service: OverlayService; root: Layer; content: Component; options: OverlayOptions }) {
+	constructor({ service, root, content, options }: { service: OverlayService; root: Container; content: Component; options: OverlayOptions }) {
 		this.service = service;
 		this.root = root;
 		this.content = content;
@@ -159,7 +159,7 @@ export class OverlayService implements InputObserver {
 
 		const { width, height } = this.viewport.logical;
 		this.opened += 1;
-		const root = new Layer({
+		const root = new Container({
 			id: options.id ?? `overlay_${options.layer}_${this.opened}`,
 			x: 0,
 			y: 0,
@@ -180,7 +180,7 @@ export class OverlayService implements InputObserver {
 	}
 
 	/** Open roots in paint order: open order, `bringToFront` moving one to the end. */
-	public get roots(): readonly Layer[] {
+	public get roots(): readonly Container[] {
 		return this.handles.map((handle) => handle.root);
 	}
 

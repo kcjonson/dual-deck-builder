@@ -2,8 +2,9 @@ import { DrawApi, RecordingBackend } from '../draw';
 import type { DrawCommand, RectCommand } from '../draw';
 import type { DrawApi as DrawApiType } from '../draw/DrawApi';
 import { Component } from './Component';
-import { Layer } from './Layer';
+import { Container } from './Container';
 import { Rectangle } from './Rectangle';
+import { Stack } from './Stack';
 import { renderTree } from './renderTree';
 
 let backend: RecordingBackend;
@@ -39,7 +40,7 @@ class Badge extends Rectangle {
 
 describe('renderTree (R3.11, R8.1)', () => {
 	it('draws each component in its local space under its origin', () => {
-		const root = new Layer({ id: 'root', x: 10, y: 20, width: 300, height: 300 });
+		const root = new Container({ id: 'root', x: 10, y: 20, width: 300, height: 300 });
 		const box = new Rectangle({ id: 'box', x: 5, y: 7, width: 30, height: 40 });
 		root.addChild(box);
 
@@ -61,7 +62,7 @@ describe('renderTree (R3.11, R8.1)', () => {
 	});
 
 	it('skips invisible and fully transparent subtrees entirely (R3.27)', () => {
-		const root = new Layer({ width: 100, height: 100 });
+		const root = new Container({ width: 100, height: 100 });
 		const hidden = new Rectangle({ id: 'hidden', width: 10, height: 10, visible: false });
 		hidden.addChild(new Rectangle({ id: 'hidden_child', width: 5, height: 5 }));
 		const faded = new Rectangle({ id: 'faded', width: 10, height: 10, opacity: 0 });
@@ -72,8 +73,7 @@ describe('renderTree (R3.11, R8.1)', () => {
 	});
 
 	it('paints siblings in zIndex order after the parent\'s own draws (R3.12)', () => {
-		const root = new Layer({ width: 100, height: 100 });
-		root.setBackgroundColor([0, 0, 0, 1]);
+		const root = new Stack({ width: 100, height: 100, style: { backgroundColor: [0, 0, 0, 1] } });
 		root.addChild(new Rectangle({ id: 'top', width: 10, height: 10, zIndex: 2 }));
 		root.addChild(new Rectangle({ id: 'first', width: 10, height: 10 }));
 		root.addChild(new Rectangle({ id: 'under', width: 10, height: 10, zIndex: -1 }));
@@ -85,7 +85,7 @@ describe('renderTree (R3.11, R8.1)', () => {
 	});
 
 	it('multiplies opacity down the tree onto every draw (R3.25)', () => {
-		const root = new Layer({ width: 100, height: 100, opacity: 0.5 });
+		const root = new Container({ width: 100, height: 100, opacity: 0.5 });
 		const child = new Rectangle({ id: 'child', width: 10, height: 10, opacity: 0.5 });
 		root.addChild(child);
 
@@ -93,8 +93,7 @@ describe('renderTree (R3.11, R8.1)', () => {
 	});
 
 	it('clips children, not the clipper\'s own draw, and offsets content inside the clip (R4.9, R4.10)', () => {
-		const root = new Layer({ id: 'root', x: 10, y: 10, width: 100, height: 100, overflow: 'hidden' });
-		root.setBackgroundColor([0, 0, 0, 1]);
+		const root = new Stack({ id: 'root', x: 10, y: 10, width: 100, height: 100, overflow: 'hidden', style: { backgroundColor: [0, 0, 0, 1] } });
 		const child = new Rectangle({ id: 'child', x: 0, y: 20, width: 10, height: 10 });
 		root.addChild(child);
 
@@ -109,7 +108,7 @@ describe('renderTree (R3.11, R8.1)', () => {
 	});
 
 	it('raises a promoted subtree to its layer and resets the inherited clip (R3.8, R4.8)', () => {
-		const root = new Layer({ width: 50, height: 50, overflow: 'hidden' });
+		const root = new Container({ width: 50, height: 50, overflow: 'hidden' });
 		const popup = new Rectangle({ id: 'popup', x: 60, y: 0, width: 20, height: 20, layer: 'popup' });
 		const inside = new Rectangle({ id: 'inside', width: 10, height: 10 });
 		root.addChild(popup).addChild(inside);
@@ -127,7 +126,7 @@ describe('renderTree (R3.11, R8.1)', () => {
 	// reports it, which is why no gallery scene can show it.
 	it('keeps a child that asks for a lower layer in its ancestor\'s, and reports it (R3.6)', () => {
 		const lenient = new DrawApi({ backend });
-		const modal = new Layer({ width: 100, height: 100, layer: 'modal' });
+		const modal = new Container({ width: 100, height: 100, layer: 'modal' });
 		modal.addChild(new Rectangle({ id: 'lowered', width: 10, height: 10, layer: 'base' }));
 
 		lenient.beginFrame({ viewport: { width: 800, height: 600 }, ratio: 1 });
@@ -139,7 +138,7 @@ describe('renderTree (R3.11, R8.1)', () => {
 	});
 
 	it('pushes a rotated transform about the content box centre, matching screenMatrix (R8.26)', () => {
-		const root = new Layer({ width: 400, height: 400 });
+		const root = new Container({ width: 400, height: 400 });
 		const card = new Rectangle({ id: 'card', x: 100, y: 100, width: 100, height: 20, transform: { rotate: Math.PI / 2 } });
 		root.addChild(card);
 
@@ -182,8 +181,8 @@ describe('renderTree (R3.11, R8.1)', () => {
 	});
 
 	it('leaves every stack balanced', () => {
-		const root = new Layer({ width: 100, height: 100, overflow: 'hidden', opacity: 0.5, transform: { translate: [3, 4] } });
-		const raised = new Layer({ width: 50, height: 50, layer: 'raised', overflow: 'hidden' });
+		const root = new Container({ width: 100, height: 100, overflow: 'hidden', opacity: 0.5, transform: { translate: [3, 4] } });
+		const raised = new Container({ width: 50, height: 50, layer: 'raised', overflow: 'hidden' });
 		raised.addChild(new Rectangle({ width: 10, height: 10 }));
 		root.addChild(raised);
 

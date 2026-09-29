@@ -1,4 +1,4 @@
-import type { Layer } from '../components/Layer';
+import type { Container } from '../components/Container';
 import type { SnapshotDocument, SnapshotViewport } from './treeSnapshot';
 import { treeSnapshot } from './treeSnapshot';
 import type { LintOptions, LintResult } from './layoutLint';
@@ -34,7 +34,7 @@ import type { PerfSnapshot } from '../rendering/FrameTimer';
 
 export interface DebugRootSource {
 	/** Active screen root plus any visible overlay. Nothing closed or hidden. */
-	roots(): Layer[];
+	roots(): Container[];
 	/** Logical viewport in CSS pixels (R7.1). */
 	viewport(): SnapshotViewport;
 }

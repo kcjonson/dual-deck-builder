@@ -2,7 +2,7 @@
  * @jest-environment jsdom
  */
 import { DrawApi, RecordingBackend, RectCommand } from '../draw';
-import { Layer } from '../components/Layer';
+import { Container } from '../components/Container';
 import { renderTree } from '../components/renderTree';
 import { Rectangle } from '../components/Rectangle';
 import type { MountContext } from '../components/MountContext';
@@ -14,7 +14,7 @@ import { ScrollContainer } from './ScrollContainer';
 /**
  * Chapter 4.7's required component-level cases: offset before clip, the cull of
  * a long scrolled list, and the hit test. All through the real
- * `ScrollContainer` and `Layer` render paths into a recording backend, so what is asserted is what
+ * `ScrollContainer` and `Container` render paths into a recording backend, so what is asserted is what
  * the draw API was actually handed.
  */
 
@@ -26,7 +26,7 @@ beforeEach(() => {
 	api = new DrawApi({ backend, strict: true });
 });
 
-function frame(root: Layer): void {
+function frame(root: Container): void {
 	api.beginFrame({ viewport: { width: 1440, height: 882 }, ratio: 1 });
 	renderTree(root, api);
 	api.endFrame();
@@ -43,10 +43,10 @@ function rectById(id: string): RectCommand {
  * a 12 px pitch in one content layer. The content height is given, since
  * nothing here runs a layout.
  */
-function scroller(rows: number): { panel: ScrollContainer; content: Layer; root: Layer } {
-	const root = new Layer({ id: 'root', width: 1440, height: 882 });
+function scroller(rows: number): { panel: ScrollContainer; content: Container; root: Container } {
+	const root = new Container({ id: 'root', width: 1440, height: 882 });
 	const panel = new ScrollContainer({ id: 'list', x: 10, y: 20, width: 200, height: 120, contentHeight: rows * 12, style: { backgroundColor: '#333333' } });
-	const content = new Layer({ id: 'content', width: 180, height: rows * 12 });
+	const content = new Container({ id: 'content', width: 180, height: rows * 12 });
 	for (let index = 0; index < rows; index++) {
 		content.addChild(new Rectangle({ id: `row-${index}`, x: 0, y: index * 12, width: 180, height: 10 }));
 	}
@@ -57,9 +57,9 @@ function scroller(rows: number): { panel: ScrollContainer; content: Layer; root:
 
 describe('ScrollContainer content offset before clip (R4.9, R4.10)', () => {
 	it('keeps the clip fixed while a child at local y 150 renders at panel y 50', () => {
-		const root = new Layer({ id: 'root', width: 1440, height: 882 });
+		const root = new Container({ id: 'root', width: 1440, height: 882 });
 		const panel = new ScrollContainer({ id: 'panel', x: 10, y: 20, width: 200, height: 100, contentHeight: 400 });
-		const content = new Layer({ width: 200, height: 400 });
+		const content = new Container({ width: 200, height: 400 });
 		content.addChild(new Rectangle({ id: 'child', x: 0, y: 150, width: 50, height: 20 }));
 		panel.addChild(content);
 		panel.scrollBy(100);
@@ -121,9 +121,9 @@ describe('hit testing honours ancestor clips (R4.12)', () => {
 	});
 
 	it('rejects the clip edge itself, which the fragment test does not keep (R4.4)', () => {
-		const root = new Layer({ id: 'root', width: 400, height: 400 });
-		const clipper = new Layer({ id: 'clipper', x: 0, y: 0, width: 100, height: 100, overflow: 'hidden' });
-		const child = new Layer({ id: 'child', x: 50, y: 50, width: 100, height: 100 });
+		const root = new Container({ id: 'root', width: 400, height: 400 });
+		const clipper = new Container({ id: 'clipper', x: 0, y: 0, width: 100, height: 100, overflow: 'hidden' });
+		const child = new Container({ id: 'child', x: 50, y: 50, width: 100, height: 100 });
 		clipper.addChild(child);
 		root.addChild(clipper);
 
@@ -133,8 +133,8 @@ describe('hit testing honours ancestor clips (R4.12)', () => {
 	});
 
 	it('tests against the snapped clip edges the renderer applied, at its ratio (R7.8a)', () => {
-		const clipper = new Layer({ id: 'clipper', x: 10.3, y: 0, width: 20.3, height: 20, overflow: 'hidden' });
-		const child = new Layer({ id: 'child', x: -10, y: 0, width: 40, height: 20 });
+		const clipper = new Container({ id: 'clipper', x: 10.3, y: 0, width: 20.3, height: 20, overflow: 'hidden' });
+		const child = new Container({ id: 'child', x: -10, y: 0, width: 40, height: 20 });
 		clipper.addChild(child);
 		// The hit test reads the ratio the mounted tree's draw API last snapped at.
 		clipper.mount(createTestContext({ draw: api }));
@@ -156,7 +156,7 @@ describe('hit testing honours ancestor clips (R4.12)', () => {
 	});
 
 	it('gives the dispatcher\'s hit walk the same snapped edges (R7.8a)', () => {
-		const clipper = new Layer({ id: 'clipper', x: 10.3, y: 0, width: 20.3, height: 20, overflow: 'hidden' });
+		const clipper = new Container({ id: 'clipper', x: 10.3, y: 0, width: 20.3, height: 20, overflow: 'hidden' });
 		const child = new Rectangle({ id: 'child', x: -10, y: 0, width: 40, height: 20 });
 		clipper.addChild(child);
 		const context = createTestContext({ draw: api });
@@ -177,9 +177,9 @@ describe('hit testing honours ancestor clips (R4.12)', () => {
 	});
 
 	it('intersects nested clips', () => {
-		const outer = new Layer({ id: 'outer', x: 0, y: 0, width: 100, height: 100, overflow: 'hidden' });
-		const inner = new Layer({ id: 'inner', x: 50, y: 0, width: 100, height: 100, overflow: 'hidden' });
-		const leaf = new Layer({ id: 'leaf', x: 0, y: 0, width: 100, height: 100 });
+		const outer = new Container({ id: 'outer', x: 0, y: 0, width: 100, height: 100, overflow: 'hidden' });
+		const inner = new Container({ id: 'inner', x: 50, y: 0, width: 100, height: 100, overflow: 'hidden' });
+		const leaf = new Container({ id: 'leaf', x: 0, y: 0, width: 100, height: 100 });
 		inner.addChild(leaf);
 		outer.addChild(inner);
 
@@ -191,7 +191,7 @@ describe('hit testing honours ancestor clips (R4.12)', () => {
 	it('clips under any component whose overflow is hidden, since the walk pushes the clip for all of them', () => {
 		const shape = new Rectangle({ id: 'shape', x: 0, y: 0, width: 10, height: 10 });
 		shape.setOverflow('hidden');
-		const inside = new Layer({ id: 'inside', x: 50, y: 50, width: 10, height: 10 });
+		const inside = new Container({ id: 'inside', x: 50, y: 50, width: 10, height: 10 });
 		shape.addChild(inside);
 
 		expect(shape.clipsChildren).toBe(true);
@@ -199,8 +199,8 @@ describe('hit testing honours ancestor clips (R4.12)', () => {
 	});
 
 	it('is not gated by an ancestor that does not clip', () => {
-		const parent = new Layer({ id: 'parent', x: 0, y: 0, width: 10, height: 10 });
-		const child = new Layer({ id: 'child', x: 50, y: 50, width: 20, height: 20 });
+		const parent = new Container({ id: 'parent', x: 0, y: 0, width: 10, height: 10 });
+		const child = new Container({ id: 'child', x: 50, y: 50, width: 20, height: 20 });
 		parent.addChild(child);
 		expect(child.containsScreenPoint(60, 60)).toBe(true);
 	});
@@ -208,9 +208,9 @@ describe('hit testing honours ancestor clips (R4.12)', () => {
 
 describe('tree snapshot clips from the clip stack arithmetic (R13.22)', () => {
 	it('reports a clip intersected down to nothing as a zero-sized rect, not as no clip (R4.2)', () => {
-		const outer = new Layer({ id: 'outer', x: 0, y: 0, width: 100, height: 100, overflow: 'hidden' });
-		const inner = new Layer({ id: 'inner', x: 200, y: 0, width: 100, height: 100, overflow: 'hidden' });
-		const leaf = new Layer({ id: 'leaf', width: 5, height: 5 });
+		const outer = new Container({ id: 'outer', x: 0, y: 0, width: 100, height: 100, overflow: 'hidden' });
+		const inner = new Container({ id: 'inner', x: 200, y: 0, width: 100, height: 100, overflow: 'hidden' });
+		const leaf = new Container({ id: 'leaf', width: 5, height: 5 });
 		inner.addChild(leaf);
 		outer.addChild(inner);
 
@@ -221,7 +221,7 @@ describe('tree snapshot clips from the clip stack arithmetic (R13.22)', () => {
 	});
 
 	it('reports the snapped clip the renderer applied at a fractional position and ratio 2 (R7.8a)', () => {
-		const clipper = new Layer({ id: 'clipper', x: 10.3, y: 5.1, width: 20.3, height: 20.7, overflow: 'hidden' });
+		const clipper = new Container({ id: 'clipper', x: 10.3, y: 5.1, width: 20.3, height: 20.7, overflow: 'hidden' });
 		clipper.addChild(new Rectangle({ id: 'fill', x: 0, y: 0, width: 40, height: 40 }));
 		api.beginFrame({ viewport: { width: 1440, height: 882 }, ratio: 2 });
 		renderTree(clipper, api);
@@ -285,9 +285,9 @@ describe('a click right after a wheel scroll (R4.12 through the dispatcher)', ()
 
 	it('goes to the row now under the pointer, not the one hovered before the scroll', () => {
 		// Rows 20 tall with no gap, in a 200x120 scrollable panel at the origin.
-		const root = new Layer({ id: 'root', width: 1440, height: 882 });
+		const root = new Container({ id: 'root', width: 1440, height: 882 });
 		const panel = new ScrollContainer({ id: 'list', x: 0, y: 0, width: 200, height: 120 });
-		const content = new Layer({ width: 180, height: 400 });
+		const content = new Container({ width: 180, height: 400 });
 		const pressed: string[] = [];
 		for (let index = 0; index < 20; index++) {
 			const row = new Rectangle({ id: `row-${index}`, x: 0, y: index * 20, width: 180, height: 20 });

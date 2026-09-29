@@ -1,5 +1,5 @@
 import { Clock } from '../animation/Clock';
-import { Layer } from '../components/Layer';
+import { Container } from '../components/Container';
 import type { MountContext } from '../components/MountContext';
 import { Rectangle } from '../components/Rectangle';
 import { createTestContext } from '../components/testing';
@@ -11,14 +11,14 @@ import { Popover, PopoverOptions } from './Popover';
 /** R12.33: anchored, non-modal, dismissed by a press it never consumes. */
 
 let context: MountContext;
-let scene: Layer;
+let scene: Container;
 let anchor: Button;
 let other: Button;
 let otherClicks: number;
 
 beforeEach(() => {
 	context = createTestContext({ viewport: { logical: { width: 800, height: 600 } }, clock: new Clock() });
-	scene = new Layer({ id: 'scene', width: 800, height: 600 });
+	scene = new Container({ id: 'scene', width: 800, height: 600 });
 	anchor = new Button('Inspect', { id: 'anchor', x: 100, y: 100, width: 100, height: 34 });
 	otherClicks = 0;
 	other = new Button('Other', { id: 'other', x: 500, y: 400, width: 100, height: 34, onClick: () => { otherClicks += 1; } });

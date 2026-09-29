@@ -3,7 +3,7 @@
  */
 import { Clock } from '../animation/Clock';
 import type { Component } from '../components/Component';
-import { Layer } from '../components/Layer';
+import { Container } from '../components/Container';
 import type { MountContext } from '../components/MountContext';
 import { renderTree } from '../components/renderTree';
 import { Stack } from '../components/Stack';
@@ -37,7 +37,7 @@ let canvas: HTMLCanvasElement;
 let context: MountContext;
 let adapter: PointerAdapter;
 let backend: MeasuringRecordingBackend;
-let root: Layer;
+let root: Container;
 
 function inject(...commands: string[]): void {
 	expect(injectNow({ canvas, dispatcher: context.dispatcher }, commands).ok).toBe(true);
@@ -70,7 +70,7 @@ beforeEach(() => {
 	context = createTestContext({ draw: measuring.api, clock: new Clock() });
 	adapter = new PointerAdapter({ dispatcher: context.dispatcher });
 	adapter.attach(canvas);
-	root = new Layer({ id: 'root', width: 800, height: 600 });
+	root = new Container({ id: 'root', width: 800, height: 600 });
 	root.mount(context);
 });
 
@@ -125,7 +125,7 @@ describe('Button press machine (R12.7)', () => {
 	});
 
 	it('stops showing pressed once its press becomes a drag with a separate ghost (R9.12)', () => {
-		const ghost = new Layer({ id: 'ghost', x: 0, y: 0, width: 10, height: 10 });
+		const ghost = new Container({ id: 'ghost', x: 0, y: 0, width: 10, height: 10 });
 		root.addChild(ghost);
 		const { button: made, clicks } = button();
 		made.onPointerDown = (event) => {
@@ -163,10 +163,10 @@ describe('Button press machine (R12.7)', () => {
 	});
 
 	it('bubbles a cancel from the captor, so an ancestor hears the gesture end (R9.10)', () => {
-		const holder = new Layer({ id: 'holder', width: 800, height: 600 });
+		const holder = new Container({ id: 'holder', width: 800, height: 600 });
 		const heard: string[] = [];
 		holder.onPointerDown = () => heard.push('down');
-		holder.handleEvent = ((base) => function (this: Layer, event) {
+		holder.handleEvent = ((base) => function (this: Container, event) {
 			if (event.type === 'pointercancel') heard.push('cancel');
 			base.call(this, event);
 		})(holder.handleEvent);
