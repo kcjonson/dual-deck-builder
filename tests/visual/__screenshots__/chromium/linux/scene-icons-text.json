@@ -1,11 +1,11 @@
 [
 {"path":"gallery_root/dev_section_icons/Text[0]","text":"Icons","rect":[53,53,51.58,33.6]},
 {"path":"gallery_root/dev_section_icons/Text[1]","text":"12 px","rect":[73,115,35.54,19.07]},
-{"path":"gallery_root/dev_section_icons/Text[16]","text":"16 px","rect":[73,159,35.54,19.07]},
-{"path":"gallery_root/dev_section_icons/Text[31]","text":"24 px","rect":[73,203,35.54,19.07]},
-{"path":"gallery_root/dev_section_icons/Text[46]","text":"Buttons","rect":[73,260,51.29,19.07]},
+{"path":"gallery_root/dev_section_icons/Text[28]","text":"16 px","rect":[73,159,35.54,19.07]},
+{"path":"gallery_root/dev_section_icons/Text[55]","text":"24 px","rect":[73,203,35.54,19.07]},
+{"path":"gallery_root/dev_section_icons/Text[82]","text":"Buttons","rect":[73,260,51.29,19.07]},
 {"path":"gallery_root/dev_section_icons/dev_icons_button_with_icon/Text[0]","text":"Back to Menu","rect":[207,245,154,50]},
 {"path":"gallery_root/dev_section_icons/dev_icons_button_without_icon/Text[0]","text":"Back to Menu","rect":[405,245,176,50]},
-{"path":"gallery_root/dev_section_icons/Text[49]","text":"Intents","rect":[73,320,45.6,19.07]},
-{"path":"gallery_root/dev_section_icons/Text[54]","text":"Armor","rect":[73,365,41.68,19.07]}
+{"path":"gallery_root/dev_section_icons/Text[85]","text":"Intents","rect":[73,320,45.6,19.07]},
+{"path":"gallery_root/dev_section_icons/Text[90]","text":"Armor","rect":[73,365,41.68,19.07]}
 ]

@@ -9,3 +9,9 @@ settings
 shield
 check
 remove
+close
+info
+warning
+error
+chevron_right
+expand_more
