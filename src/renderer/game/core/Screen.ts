@@ -1,4 +1,7 @@
 import { Layer } from '../../engine/components/Layer';
+import { renderTree } from '../../engine/components/renderTree';
+import type { DrawApi } from '../../engine/draw/DrawApi';
+import type { MountContext } from '../../engine/components/MountContext';
 
 /**
  * Base class for game screens
@@ -7,9 +10,7 @@ export abstract class Screen {
 	protected id: string;
 	protected rootLayer: Layer;
 	protected isActive = false;
-	
-	// Resize handler reference for unmount
-	private resizeHandler: (() => void) | null = null;
+	private mountContext: MountContext | null = null;
 
 	/**
 	 * Create a new screen
@@ -17,15 +18,10 @@ export abstract class Screen {
 	 */
 	constructor(id: string) {
 		this.id = id;
-		this.rootLayer = new Layer({
-			id,
-			x: 0,
-			y: 0,
-			width: window.innerWidth,
-			height: window.innerHeight,
-		});
-
-		// Don't add resize listener in constructor - let mount/unmount handle it
+		// Zero-sized until mount sizes it from the viewport (R8.21): nothing
+		// in a screen reads the window, and anything placed from the root's
+		// size is placed in onMount and onResized.
+		this.rootLayer = new Layer({ id });
 	}
 
 	/**
@@ -43,16 +39,27 @@ export abstract class Screen {
 	}
 
 	/**
-	 * Mount the screen (make it active)
+	 * The services this screen was mounted with. Only valid between `mount`
+	 * and `unmount`, which is when every hook runs.
+	 */
+	protected get context(): MountContext {
+		if (!this.mountContext) throw new Error(`Screen ${this.id} is not mounted`);
+		return this.mountContext;
+	}
+
+	/**
+	 * Mount the screen: size and mount its root with the context, then run
+	 * `onMount`, so everything it builds is mounted as it is added (R8.15).
+	 * @param context The mount context every component in the screen receives
 	 * @param data Optional data to pass to the screen
 	 */
-	public mount(data?: unknown): void {
+	public mount(context: MountContext, data?: unknown): void {
+		this.mountContext = context;
 		this.isActive = true;
-		
-		// Create and add resize listener
-		this.resizeHandler = this.handleResize.bind(this);
-		window.addEventListener('resize', this.resizeHandler);
-		
+		const { width, height } = context.viewport.logical;
+		this.rootLayer.setSize(width, height);
+		this.rootLayer.mount(context);
+
 		// Call onMount - handle both sync and async versions
 		try {
 			const mountResult = this.onMount(data);
@@ -72,17 +79,12 @@ export abstract class Screen {
 	 */
 	public unmount(): void {
 		this.isActive = false;
-		
-		// Remove resize listener
-		if (this.resizeHandler) {
-			window.removeEventListener('resize', this.resizeHandler);
-			this.resizeHandler = null;
-		}
-		
+
 		this.onUnmount();
-		
-		// Unmount all child components to prevent input system leaks
+
+		// Releases every registration in the tree (R8.22).
 		this.rootLayer.unmount();
+		this.mountContext = null;
 	}
 
 	/**
@@ -93,11 +95,12 @@ export abstract class Screen {
 	}
 	
 	/**
-	 * Handle window resize events
+	 * The viewport changed (R7.11). The application shell is the one owner and
+	 * calls this through `ScreenManager.resize`, at the top of the frame the new
+	 * size takes effect in; a screen no longer listens to the window itself.
 	 */
-	private handleResize(): void {
-		// Update the root layer size
-		this.rootLayer.setSize(window.innerWidth, window.innerHeight);
+	public resize(width: number, height: number): void {
+		this.rootLayer.setSize(width, height);
 
 		// Call the screen-specific resize handler
 		this.onResized();
@@ -135,10 +138,7 @@ export abstract class Screen {
 	public update(dt: number): void {
 		if (!this.isActive) return;
 
-		// Update the root layer (which updates all children)
-		this.rootLayer.update(dt);
-
-		// Call the screen-specific update handler
+		// Components are updated by the frame, on request (R8.17).
 		this.onUpdate(dt);
 	}
 
@@ -154,11 +154,10 @@ export abstract class Screen {
 	/**
 	 * Render the screen
 	 */
-	public render(): void {
+	public render(draw: DrawApi): void {
 		if (!this.isActive) return;
 
-		// Render the root layer (which renders all children)
-		this.rootLayer.render();
+		renderTree(this.rootLayer, draw);
 
 		// Call the screen-specific render handler
 		this.onRender();

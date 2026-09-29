@@ -1,16 +1,70 @@
-import { Component, ComponentOptions } from './Component';
-import { RendererContext } from '../rendering/RendererContext';
-import { RenderContext, DEFAULT_RENDER_CONTEXT } from '../rendering/RenderContext';
+import { Component, ComponentOptions, ResolvedColors } from './Component';
+import type { DrawApi } from '../draw/DrawApi';
 import { Style, StyleParser } from '../types/Style';
+
+type Color = [number, number, number, number];
+
+/** A filled, optionally bordered and rounded box: what Rectangle draws and Panel draws behind its children. */
+export interface BoxStyle {
+	fill: Color;
+	borderColor: Color | null;
+	borderWidth: number;
+	cornerRadius: number;
+}
+
+/** `base` with whichever box properties `style` sets, the `border` shorthand last. */
+export function resolveBoxStyle(style: Style, base: BoxStyle): BoxStyle {
+	const box = { ...base };
+	if (style.backgroundColor !== undefined) box.fill = StyleParser.parseColor(style.backgroundColor);
+	if (style.borderColor !== undefined) box.borderColor = StyleParser.parseColor(style.borderColor);
+	if (style.borderWidth !== undefined) box.borderWidth = parseLength(style.borderWidth);
+	if (style.borderRadius !== undefined) box.cornerRadius = parseLength(style.borderRadius);
+	// Shorthand, e.g. "2px solid #ffffff"
+	if (style.border !== undefined) {
+		for (const part of style.border.split(' ')) {
+			if (part.endsWith('px')) {
+				box.borderWidth = parseFloat(part.slice(0, -2));
+			} else if (part.startsWith('#') || part.startsWith('rgb')) {
+				box.borderColor = StyleParser.parseColor(part);
+			}
+		}
+	}
+	return box;
+}
+
+/** The box as one draw over `width` by `height` at the local origin. */
+export function drawBox(draw: DrawApi, id: string | null, width: number, height: number, box: BoxStyle): void {
+	draw.drawRect({
+		id: id ?? undefined,
+		rect: { x: 0, y: 0, width, height },
+		fill: box.fill,
+		radius: box.cornerRadius > 0 ? box.cornerRadius : undefined,
+		// Keyed off width alone, with a black fallback, because that is what
+		// the legacy stroke did with a width and no colour.
+		border: box.borderWidth > 0
+			? { color: box.borderColor ?? [0, 0, 0, 1], width: box.borderWidth }
+			: undefined,
+	});
+}
+
+/** The colours `drawBox` draws `box` with, for the tree snapshot (R13.22). */
+export function boxColors(box: BoxStyle): ResolvedColors {
+	return box.borderWidth > 0
+		? { fill: box.fill, border: box.borderColor ?? [0, 0, 0, 1] }
+		: { fill: box.fill };
+}
+
+function parseLength(size: string | number): number {
+	if (typeof size === 'number') return size;
+	if (size.endsWith('px')) return parseFloat(size.slice(0, -2));
+	return parseFloat(size) || 0;
+}
 
 /**
  * Rectangle component for rendering rectangles
  */
 export class Rectangle extends Component {
-	protected fillColor: [number, number, number, number] = [1, 1, 1, 1];
-	protected borderColor: [number, number, number, number] | null = null;
-	protected borderWidth = 0;
-	protected cornerRadius = 0;
+	private box: BoxStyle = { fill: [1, 1, 1, 1], borderColor: null, borderWidth: 0, cornerRadius: 0 };
 
 	/**
 	 * Create a new rectangle
@@ -21,44 +75,7 @@ export class Rectangle extends Component {
 		this.componentType = 'Rectangle';
 
 		if (options?.style) {
-			this.applyRectangleStyle(options.style);
-		}
-	}
-
-	/**
-	 * Apply rectangle-specific style properties
-	 */
-	protected applyRectangleStyle(style: Style): void {
-		if (style.backgroundColor !== undefined) {
-			this.fillColor = StyleParser.parseColor(style.backgroundColor);
-		}
-		if (style.borderColor !== undefined) {
-			this.borderColor = StyleParser.parseColor(style.borderColor);
-		}
-		if (style.borderWidth !== undefined) {
-			this.borderWidth = this.parseSize(style.borderWidth);
-		}
-		if (style.borderRadius !== undefined) {
-			this.cornerRadius = this.parseSize(style.borderRadius);
-		}
-
-		// Handle shorthand border property
-		if (style.border !== undefined) {
-			this.parseBorderShorthand(style.border);
-		}
-	}
-
-	/**
-	 * Parse border shorthand (e.g., "2px solid #ffffff")
-	 */
-	private parseBorderShorthand(border: string): void {
-		const parts = border.split(' ');
-		for (const part of parts) {
-			if (part.endsWith('px')) {
-				this.borderWidth = parseFloat(part.slice(0, -2));
-			} else if (part.startsWith('#') || part.startsWith('rgb')) {
-				this.borderColor = StyleParser.parseColor(part);
-			}
+			this.box = resolveBoxStyle(options.style, this.box);
 		}
 	}
 
@@ -66,8 +83,8 @@ export class Rectangle extends Component {
 	 * Set the fill color of the rectangle
 	 * @param color Color value (hex string or RGBA array)
 	 */
-	public setFillColor(color: string | [number, number, number, number]): this {
-		this.fillColor = StyleParser.parseColor(color);
+	public setFillColor(color: string | Color): this {
+		this.box.fill = StyleParser.parseColor(color);
 		return this;
 	}
 
@@ -75,8 +92,8 @@ export class Rectangle extends Component {
 	 * Set the border color of the rectangle
 	 * @param color Color value (hex string or RGBA array) or null
 	 */
-	public setBorderColor(color: string | [number, number, number, number] | null): this {
-		this.borderColor = color ? StyleParser.parseColor(color) : null;
+	public setBorderColor(color: string | Color | null): this {
+		this.box.borderColor = color ? StyleParser.parseColor(color) : null;
 		return this;
 	}
 
@@ -85,7 +102,7 @@ export class Rectangle extends Component {
 	 * @param width Border width in pixels
 	 */
 	public setBorderWidth(width: number): this {
-		this.borderWidth = width;
+		this.box.borderWidth = width;
 		return this;
 	}
 
@@ -94,49 +111,15 @@ export class Rectangle extends Component {
 	 * @param radius Corner radius in pixels
 	 */
 	public setCornerRadius(radius: number): this {
-		this.cornerRadius = radius;
+		this.box.cornerRadius = radius;
 		return this;
 	}
 
-	/**
-	 * Render the rectangle
-	 * @param context Render context with coordinate transforms
-	 */
-	public render(context?: RenderContext): void {
-		if (!this.visible) return;
+	public get resolvedColors(): ResolvedColors {
+		return boxColors(this.box);
+	}
 
-		// Use default context if none provided
-		const ctx = context || DEFAULT_RENDER_CONTEXT;
-
-		// Calculate screen position
-		const screenX = ctx.offsetX + this.x;
-		const screenY = ctx.offsetY + this.y;
-
-		// `cornerRadius` is deliberately not passed as `radius`: the current
-		// fragment shader has no rounded-rect SDF and draws square corners, so
-		// sending it would describe something the backend does not draw.
-		RendererContext.getInstance().draw.drawRect({
-			id: this.id ?? undefined,
-			rect: { x: screenX, y: screenY, width: this.width, height: this.height },
-			fill: this.fillColor,
-			// Keyed off width alone, with a black fallback, because that is what
-			// the legacy stroke did with a width and no colour.
-			border: this.borderWidth > 0
-				? { color: this.borderColor ?? [0, 0, 0, 1], width: this.borderWidth }
-				: undefined,
-		});
-
-		// Create child context with our position added
-		const childContext: RenderContext = {
-			offsetX: screenX,
-			offsetY: screenY,
-		};
-
-		// Render children with transformed context
-		for (const child of this.children) {
-			if (child.isVisible()) {
-				child.render(childContext);
-			}
-		}
+	public render(draw: DrawApi): void {
+		drawBox(draw, this.id, this.width, this.height, this.box);
 	}
 }

@@ -1,12 +1,21 @@
-import { Renderer } from './renderer/engine/rendering/Renderer';
-import { createLegacyDrawApi } from './renderer/engine/rendering/LegacyGLBackend';
-import { Shader } from './renderer/engine/rendering/Shader';
+import { Renderer, showStatusLine } from './renderer/engine/rendering/Renderer';
+import { createDrawApi } from './renderer/engine/rendering/WebGL2Backend';
+import { FrameLoop } from './renderer/engine/rendering/FrameLoop';
 import { Game } from './renderer/game/Game';
-import { RendererContext } from './renderer/engine/rendering/RendererContext';
-import { InputSystem } from './renderer/engine/input/InputSystem';
+import { MountContext, createMountContext } from './renderer/engine/components/MountContext';
+import { followReducedMotion } from './renderer/engine/rendering/reducedMotion';
 import { FrameTimer } from './renderer/engine/rendering/FrameTimer';
-import vertexShaderSource from './assets/shaders/vertex.glsl';
-import fragmentShaderSource from './assets/shaders/fragment.glsl';
+import { PointerAdapter } from './renderer/engine/input/PointerAdapter';
+import { detectClipboard } from './renderer/engine/services/ClipboardService';
+import { imageUrlLoader } from './renderer/engine/services/AssetService';
+import type { GpuTimer } from './renderer/engine/rendering/GpuTimer';
+import { FontAtlasError } from './renderer/engine/text/FontAtlas';
+import {
+	LoadedFontAtlas,
+	fontLoadFailureMessage,
+	loadFontAtlases,
+	loadImageElement,
+} from './renderer/engine/text/loadFontAtlases';
 
 /**
  * Main entry point for the application
@@ -15,6 +24,9 @@ class Application {
 	private renderer!: Renderer;
 	private game!: Game;
 	private frameTimer!: FrameTimer;
+	private frameLoop!: FrameLoop;
+	private context!: MountContext;
+	private inputAdapter: PointerAdapter | null = null;
 
 	/**
 	 * Initialize the application
@@ -31,35 +43,66 @@ class Application {
 				}
 			});
 
+			// Decoded alongside the rest of startup, awaited before the draw
+			// API exists: text before its atlas is an error (R2.18).
+			const fontAtlases = this.loadFonts();
+
 			// Frame timing, section timing and the per-frame draw counters (R13.7).
-			this.frameTimer = new FrameTimer();
+			// A development build mirrors the sections to a DevTools track and
+			// observes long frames and slow input (R15.29); the requires sit in
+			// branches DefinePlugin folds away.
+			this.frameTimer = new FrameTimer({
+				tracks: __DEV_TOOLS__
+					// eslint-disable-next-line @typescript-eslint/no-var-requires
+					? (require('./renderer/engine/debug/devtoolsTracks') as typeof import('./renderer/engine/debug/devtoolsTracks')).createDevToolsTracks()
+					: null,
+				hitches: __DEV_TOOLS__
+					// eslint-disable-next-line @typescript-eslint/no-var-requires
+					? (require('./renderer/engine/debug/hitchObserver') as typeof import('./renderer/engine/debug/hitchObserver')).createHitchObserver()
+					: null,
+			});
 
 			// Create the WebGL renderer
 			this.renderer = new Renderer('game-canvas');
 
-			// Set up the global renderer context
-			RendererContext.getInstance().setRenderer(this.renderer);
-
-			// Initialize the input system with the canvas
-			const canvas = document.getElementById('game-canvas') as HTMLCanvasElement;
-			InputSystem.getInstance().setup(canvas);
-
-			// Create default shader
-			const shader = new Shader(
-				this.renderer.getContext(),
-				vertexShaderSource,
-				fragmentShaderSource,
-			);
-			this.renderer.useShader(shader);
+			// R13.16's GPU timer. Development builds only: production issues no
+			// query at all (R15.22).
+			const gpuTimer: GpuTimer | null = __DEV_TOOLS__
+				// eslint-disable-next-line @typescript-eslint/no-var-requires
+				? (require('./renderer/engine/rendering/GpuTimer') as typeof import('./renderer/engine/rendering/GpuTimer')).createGpuTimer(this.renderer)
+				: null;
 
 			// The seam. Built through the shared factory rather than spelled
 			// here, so this page and the gallery cannot end up with differently
 			// configured draw APIs over the same renderer.
-			const draw = createLegacyDrawApi({ renderer: this.renderer, frameTimer: this.frameTimer });
-			RendererContext.getInstance().draw = draw;
+			const draw = createDrawApi({
+				renderer: this.renderer,
+				frameTimer: this.frameTimer,
+				gpuTimer,
+				fontAtlases: await fontAtlases,
+			});
+
+			// R1.6: the one object every root is mounted with. The pointer
+			// adapter feeds its dispatcher from the canvas the renderer draws to.
+			this.context = createMountContext({
+				draw,
+				viewport: this.renderer.viewport,
+				clipboard: detectClipboard(window),
+				assetLoader: imageUrlLoader(),
+			});
+			followReducedMotion(this.context.animator);
+			const canvas = this.renderer.canvas;
+			this.inputAdapter = new PointerAdapter({ dispatcher: this.context.dispatcher });
+			this.inputAdapter.attach(canvas);
 
 			// Create and initialize the game
-			this.game = new Game({ draw, frameTimer: this.frameTimer });
+			this.game = new Game({
+				context: this.context,
+				frameTimer: this.frameTimer,
+				viewport: this.renderer.viewport,
+				device: this.renderer.device,
+				gpuTimer,
+			});
 			await this.game.init();
 
 			if (__DEV_TOOLS__) {
@@ -69,26 +112,55 @@ class Application {
 				// DefinePlugin has folded to false (R13.2).
 				// eslint-disable-next-line @typescript-eslint/no-var-requires
 				const { installInputHooks } = require('./renderer/engine/debug/hooks') as typeof import('./renderer/engine/debug/hooks');
-				// R13.35, on the same canvas InputSystem.setup just registered
-				// its listeners on, so injected events land on those listeners.
-				installInputHooks(canvas);
+				// R13.35, on the same canvas the adapter just registered its
+				// listeners on, so injected events land on those listeners.
+				installInputHooks({ canvas, dispatcher: this.context.dispatcher });
 			}
 
-			// Start the main loop
-			this.loop();
+			// Start the main loop. R15.5: it stops while the context is lost
+			// and resumes once the backend has rebuilt on restore.
+			this.frameLoop = new FrameLoop({ tick: this.loop });
+			// A resize measured after this update's rAF runs its frame before paint.
+			this.renderer.viewport.onPending = () => this.frameLoop.runNow();
+			this.renderer.addContextListener({
+				lost: () => this.frameLoop.stop(),
+				restored: () => this.frameLoop.start(),
+			});
+			this.frameLoop.start();
 
 			console.log('Initialization complete!');
 		} catch (error) {
 			console.error('Failed to initialize application:', error);
+			if (error instanceof FontAtlasError) showStatusLine(fontLoadFailureMessage(error));
 		}
+	}
+
+	/**
+	 * Starts decoding the font atlases alongside the rest of startup. The two
+	 * marks are the outcome as a packaged build reports it: the smoke test in
+	 * scripts/smoke-electron-package.mjs waits on them to check the atlases
+	 * load from file:// (R15.34), where a production bundle has no dev hooks.
+	 */
+	private loadFonts(): Promise<LoadedFontAtlas[]> {
+		const loading = loadFontAtlases({ loadImage: loadImageElement });
+		loading.then(
+			(atlases) => {
+				performance.mark('font-atlases-ready', { detail: { faces: atlases.map((loaded) => loaded.face) } });
+			},
+			(error: unknown) => {
+				console.error('Font atlases failed to load:', error);
+				performance.mark('font-atlases-failed', { detail: { message: String(error) } });
+			},
+		);
+		return loading;
 	}
 
 	/**
 	 * Unmount resources before app shutdown
 	 */
 	public unmount(): void {
-		// Unmount the input system to remove event listeners
-		InputSystem.getInstance().unmount();
+		// Remove the pointer adapter's event listeners
+		this.inputAdapter?.detach();
 
 		// Additional unmount as needed
 		console.log('Application resources unmounted');
@@ -101,11 +173,12 @@ class Application {
 	 * already clamped to 0.25 s (R13.9), so the timer owns both halves of the
 	 * frame interval and neither loop can compute it differently.
 	 *
-	 * The three sections are disjoint and exhaustive of the application's own
-	 * work (R13.7). The clear belongs inside render because it is a GL command
-	 * for the frame being drawn. Since DDB-55 phase 1 the render section is CPU
-	 * work plus whatever a clip boundary submits mid-walk, and flush is the last
-	 * sort domain; before it, render held every shape's GL submission.
+	 * The five sections are disjoint and exhaustive of the application's own
+	 * work (R13.7), in R8.16's order: input, update, layout, render, flush. The clear belongs inside render because it is a GL command
+	 * for the frame being drawn; it is the backend's `beginFrame`, which
+	 * `game.render` opens. Since DDB-55 phase 1 the render section is CPU
+	 * work and flush is the frame's whole GL submission; before it, render
+	 * held every shape's.
 	 */
 	private loop = (): void => {
 		const deltaTime = this.frameTimer.beginFrame();
@@ -114,12 +187,24 @@ class Application {
 		// paused page keeps clearing and rendering and a capture still gets a
 		// frame; the timer's frame start advances on paused frames too, so
 		// resume hands update a normal delta instead of the whole pause.
+		// R9.2: the input queued since the last frame, against current
+		// geometry. Paused pages queue nothing (R13.35).
+		this.frameTimer.beginSection('input');
+		this.context.dispatcher.dispatchPending();
+		this.frameTimer.endSection('input');
+
 		this.frameTimer.beginSection('update');
+		// R7.3: a resize takes effect here, at the top of the frame, and the
+		// screens hear about it before they update.
+		this.renderer.viewport.commit();
 		this.game.update(deltaTime);
 		this.frameTimer.endSection('update');
 
+		this.frameTimer.beginSection('layout');
+		this.game.layout();
+		this.frameTimer.endSection('layout');
+
 		this.frameTimer.beginSection('render');
-		this.renderer.clear();
 		this.game.render();
 		this.frameTimer.endSection('render');
 
@@ -128,8 +213,6 @@ class Application {
 		this.frameTimer.endSection('flush');
 
 		this.frameTimer.endFrame();
-
-		requestAnimationFrame(this.loop);
 	};
 }
 

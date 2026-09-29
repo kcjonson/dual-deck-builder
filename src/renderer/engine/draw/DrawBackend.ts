@@ -1,10 +1,15 @@
 import {
 	DrawCommand,
+	DrawTextOptions,
 	FontAtlasHandle,
 	MeasureTextOptions,
 	TextMetrics,
 	TextureHandle,
 } from './commands';
+export type { TextureOptions } from '../gpu/TextureStore';
+import type { TextureStore } from '../gpu/TextureStore';
+import type { FontAtlas } from '../text/FontAtlas';
+import { Rect } from './geometry';
 import { FlushReason, GpuWork } from './stats';
 
 /**
@@ -27,8 +32,12 @@ import { FlushReason, GpuWork } from './stats';
  * backends under `src/renderer/engine/gpu/` and describes that file as the
  * R15.38 seam: render passes as objects with attachments and clear operations,
  * immutable pipeline keys, bind groups, uniform blocks, async readback. That is
- * a different and lower seam than this one, one layer under the batcher, and it
- * arrives with the WebGL2 backend. Naming this `DrawBackend` in `draw/` leaves
+ * a different and lower seam than this one, one layer under the batcher. The
+ * WebGL2 backend did not split it out: with one program and one texture there
+ * is nothing for a pipeline key or a bind group to select between. The
+ * resource layer (DDB-66) landed as `gpu/TextureStore.ts` without needing one
+ * either, since it binds nothing for drawing; the uber shader (DDB-64) is the
+ * first that will. Naming this `DrawBackend` in `draw/` leaves
  * `gpu/Backend.ts` free for R15.38 with no collision and no file move when the
  * fourth backend lands.
  *
@@ -37,12 +46,14 @@ import { FlushReason, GpuWork } from './stats';
  * - `NullBackend` (R2.21) accepts and counts, touches nothing.
  * - `RecordingBackend` (R2.22) keeps the arrays it was handed so a test can
  *   assert what would have been drawn and in what order.
- * - `LegacyGLBackend`, next PR, whose body is today's `Renderer`: it walks the
- *   array and issues one GL draw per command, which is what the current shader
- *   forces (one unit quad times a per-draw model matrix).
+ * - `WebGL2Backend` (chapter 15): it hands the array to a `Batcher`, today
+ *   with the legacy program's per-vertex encoder, so a domain becomes one GPU
+ *   draw unless something splits it.
  *
- * And the one it has to fit later: the WebGL2 backend of chapter 15, which
- * packs the same array into an instance buffer. Nothing here presumes either.
+ * And the change it has to absorb next: the uber shader (DDB-64), which hands
+ * the same array to the same `Batcher` with an instance encoder. The batcher
+ * sits behind this seam rather than in front of it because what a group's
+ * geometry looks like is the backend's vertex format (R5.4); see `Batcher.ts`.
  */
 
 export interface FrameDescription {
@@ -63,19 +74,15 @@ export interface DrawBatch {
 	readonly commands: readonly DrawCommand[];
 }
 
-export interface TextureOptions {
-	width: number;
-	height: number;
-	/** Premultiplied RGBA8 (R5.18). */
-	pixels?: Uint8Array;
-	label?: string;
-}
-
 export interface FontAtlasOptions {
 	/** The name `drawText`'s `font` field selects; R11.8's three roles. */
 	name: string;
-	/** msdf-atlas-gen's metrics schema (R6.2); the backend that renders text validates it. */
-	metrics: unknown;
+	/** The metrics, validated on load (R6.2). */
+	atlas: FontAtlas;
+	/**
+	 * The atlas image, uploaded raw (R6.4b). The backend keeps it resident for
+	 * as long as it draws text (R6.4, R5.20); the caller does not release it.
+	 */
 	texture: TextureHandle;
 }
 
@@ -103,10 +110,16 @@ export interface DrawBackend {
 	 */
 	invalidateState(): void;
 
-	// -- resources (R2.17, R2.18) -------------------------------------------
+	// -- resources (R2.17, R2.18, R5.30) ------------------------------------
 
-	createTexture(options: TextureOptions): TextureHandle;
-	destroyTexture(handle: TextureHandle): void;
+	/**
+	 * R5.30's resource layer. The draw API creates, retains and releases
+	 * through it and drives its frame (uploads at `beginFrame`, deferred frees
+	 * after `endFrame`); the backend resolves a handle to its own texture
+	 * object with `native` when it draws. The null and recording backends
+	 * hold one over `NULL_TEXTURE_DEVICE`, so they count textures too.
+	 */
+	readonly textures: TextureStore<unknown>;
 	loadFontAtlas(options: FontAtlasOptions): FontAtlasHandle;
 	/** Atlases loaded so far. R2.18's precondition is checked against this. */
 	readonly fontAtlasNames: readonly string[];
@@ -121,4 +134,15 @@ export interface DrawBackend {
 	 * backend omits it rather than substituting an estimate.
 	 */
 	measureText?(options: MeasureTextOptions): TextMetrics;
+
+	/**
+	 * R4.2a's per-run test for text: a conservative local-space extent of the
+	 * run as this backend would draw it, or null when it cannot say. Optional
+	 * for the same reason as `measureText`: the extent needs the glyph walk,
+	 * and only the object that owns the atlas can take it without guessing. A
+	 * backend that omits it leaves text exempt from the bounds cull, which is
+	 * correct, just slower. Distinct from `measureText` because this is ink for
+	 * a cull and carries none of R2.14's layout contract.
+	 */
+	textInk?(options: DrawTextOptions): Rect | null;
 }

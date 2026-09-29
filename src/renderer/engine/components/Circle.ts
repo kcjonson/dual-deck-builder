@@ -1,6 +1,6 @@
-import { Component, ComponentOptions } from './Component';
-import { RendererContext } from '../rendering/RendererContext';
-import { RenderContext, DEFAULT_RENDER_CONTEXT } from '../rendering/RenderContext';
+import { Component, ComponentOptions, ResolvedColors } from './Component';
+import type { DrawApi } from '../draw/DrawApi';
+import type { Rect } from '../draw/geometry';
 import { Style, StyleParser } from '../types/Style';
 
 /**
@@ -27,6 +27,15 @@ export class Circle extends Component {
 		// Set default size based on radius
 		if (this.width === 0) this.width = this.radius * 2;
 		if (this.height === 0) this.height = this.radius * 2;
+	}
+
+	/**
+	 * A circle draws from its radius, so it cannot take a size layout assigns:
+	 * `fill` and `stretch` leave it at its own (worldsim's non-resizable leaf
+	 * contract). Wrap it in a container when it has to fill.
+	 */
+	public assignSize(_width: number, _height: number): void {
+		// Keeps its radius-derived size.
 	}
 
 	/**
@@ -67,53 +76,50 @@ export class Circle extends Component {
 	 * @param radius Circle radius in pixels
 	 */
 	public setRadius(radius: number): this {
+		if (radius !== this.radius) this.invalidateInk();
 		this.radius = radius;
 		this.setSize(radius * 2, radius * 2);
 		return this;
 	}
 
+	/** The stroke is centred on the outline, so half of it lands outside the box (R8.8). */
+	public get inkExtent(): number {
+		return this.strokeWidth > 0 ? this.strokeWidth / 2 : 0;
+	}
+
 	/**
-	 * Render the circle
-	 * @param context Render context with coordinate transforms
+	 * The subtree cull's bound (DDB-184): the box, and the disc `render`
+	 * draws from its radius, which a size given without `setRadius` does not
+	 * change, so the two can differ.
 	 */
-	public render(context?: RenderContext): void {
-		if (!this.visible) return;
+	protected get cullInk(): Rect {
+		const box = this.inkRect;
+		const extent = this.radius * 2 + this.inkExtent;
+		const minX = Math.min(box.x, -this.inkExtent);
+		const minY = Math.min(box.y, -this.inkExtent);
+		return {
+			x: minX,
+			y: minY,
+			width: Math.max(box.x + box.width, extent) - minX,
+			height: Math.max(box.y + box.height, extent) - minY,
+		};
+	}
 
-		// Use default context if none provided
-		const ctx = context || DEFAULT_RENDER_CONTEXT;
+	public get resolvedColors(): ResolvedColors {
+		return this.strokeWidth > 0 ? { fill: this.fillColor, border: this.strokeColor } : { fill: this.fillColor };
+	}
 
-		// Calculate screen position
-		const screenX = ctx.offsetX + this.x;
-		const screenY = ctx.offsetY + this.y;
-
-		// Calculate center position
-		const centerX = screenX + this.radius;
-		const centerY = screenY + this.radius;
-
-		RendererContext.getInstance().draw.drawCircle({
+	public render(draw: DrawApi): void {
+		draw.drawCircle({
 			id: this.id ?? undefined,
-			center: { x: centerX, y: centerY },
+			center: { x: this.radius, y: this.radius },
 			radius: this.radius,
 			fill: this.fillColor,
-			// `center`, not the `inside` default: the legacy stroke is a line
-			// strip on the boundary, so half of it falls outside the radius and
-			// R4.2a's cull bound has to cover it.
+			// `center`, not the `inside` default: the stroke has always straddled
+			// the radius, so a circle keeps its outer size when it gains one.
 			border: this.strokeWidth > 0
 				? { color: this.strokeColor, width: this.strokeWidth, position: 'center' }
 				: undefined,
 		});
-
-		// Create child context with our position added
-		const childContext: RenderContext = {
-			offsetX: screenX,
-			offsetY: screenY,
-		};
-
-		// Render children with transformed context
-		for (const child of this.children) {
-			if (child.isVisible()) {
-				child.render(childContext);
-			}
-		}
 	}
 }

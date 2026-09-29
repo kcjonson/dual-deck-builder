@@ -6,6 +6,487 @@ This document contains the chronological log of completed development tasks for 
 
 **Date correction (2026-08-22):** the repo's first commit is 2025-05-17, but many entries below carry dates in December 2024 or January 2025 — the AI that wrote them used its assumed date instead of the real one. Entries dated 2025-07-03 and 2025-07-02 have been corrected from "2025-01-03"/"2025-01-02" (verified against git history). Remaining Dec 2024 / Jan 2025 dates are wrong by roughly six months; the real work happened May–July 2025. Trust git history over these dates.
 
+## Catalog Wave C, overlays (2026-09-28)
+
+**What landed:** DDB-87's first PR (DDB-55 phase 5), R12.21, R12.22, R12.23, R12.29 (KeyCap), R12.33.
+
+- `ui/Dialog.ts`: `closed`, `opening`, `open`, `closing` through the animator; modal scrim drawn by the dialog itself and faded by colour so it blocks from the first frame; X, Escape (only when open), and opt-in outside-press dismissal; `initialFocus` or the first focusable in the content, footer, then the X.
+- `ui/Popover.ts`: placed against a component or a point, flip and shrink by the placement service, non-consuming outside press, Escape, focus to its first focusable with no scope, `reposition` and `anchoredTo`.
+- `ui/Tooltip.ts` replaces `services/TooltipSurface.ts` (deleted); the tooltip service's `surface` option is required and passed by `createMountContext`, and any surface is laid out on mount before placement.
+- `ui/Toast.ts`: `Toast` and `ToastStack` (corner, capacity, severity counts, age-ordered `zIndex`).
+- `ui/KeyCap.ts` on the new `ui/LabelledLeaf.ts`; `ui/surfaces.ts` for the elevation shadows.
+- `OverlayOptions.fill`: content sized to the viewport at open and on resize.
+- Icon atlas: `close`, `info`, `warning`, `error`, `chevron_right`, `expand_more`.
+- Gallery-only scenes `dialog`, `popover`, `toasts`.
+
+**How:** `Dialog.test.ts` (21), `Popover.test.ts` (10), `Toast.test.ts` (16), and `Tooltip.test.ts` (6) drive everything through the dispatcher's queue on the frame clock; the new scenes and `overlays` lint clean in the browser.
+
+## Nine-slice images (2026-09-28)
+
+**What landed:** DDB-203 (R5.19, from DDB-68).
+
+- `drawImage({ slice })` draws instead of reporting `nine-slice images are not drawn yet`. `draw/nineSlice.ts` turns the insets (texture pixels, measured in from the source rect) into four column and four row edges in destination pixels and texture coordinates; `UberGeometryEncoder` writes one `image`-mode quad per cell with area, row by row, in the image's one group, so a sliced panel costs no extra draw or split.
+- Each cell samples only its own texels: the fragment stage clamps its UV to the cell's rect inset by half a texel, from a half-texel inset the encoder puts in the image mode's unused shape lanes. Without it, linear filtering smeared the neighbouring cell's colour across stretched edges (review of #106). A negative-extent destination mirrors, like an unsliced draw.
+- Corners draw at one logical pixel per texel. Insets that cross inside the source are scaled down per axis; a destination smaller than two corners scales every corner by the smaller axis's factor, so corners keep their aspect (CSS border-image's rule). Zero insets drop their empty cells.
+- Tests: grid math in `nineSlice.test.ts`, encoder output in `UberGeometryEncoder.test.ts`, and a SwiftShader pixel test (corners stay 2x2 texels of pure colour, the pixels either side of every cell boundary are their own cell's colour, a fractional placement has no gap between cells). The `shading` gallery scene gained 5.10's nine-sliced image: a 24 px frame at one to one, sliced wide, stretched unsliced for contrast, and sliced shorter than its corners. The frame's art steps colour at the inset line, so the golden would show any bleed.
+
+## Catalog Wave A, panel and scrolling (2026-09-28)
+
+**What landed:** DDB-85's second PR (DDB-55 phase 5), R12.18 to R12.20, R12.37, R3.6a's popup close; closes DDB-32 and DDB-210.
+
+- `ui/Panel.ts` rewritten as a `Stack` on the closed style set with variants, header (kicker, title, hairline, actions), corners, glow, compact, flush, and `layout: 'stack' | 'free'`. Its scrolling is gone.
+- New `ui/ScrollContainer.ts` and `ui/Scrollbar.ts`. `Stack.flows(child)`, `Component.invalidateClip()`, `Dispatcher.contentMoved()`, `PopupService.scrolled()` with the `scroll` close reason.
+- The layout lint exempts a scroll container's direct children from rule 2.
+- Developer screen and card showcase on ScrollContainer; the combat log on ScrollContainer with reconciled lines that follow the newest entry.
+- Gallery scenes `panels` and `scrolling`.
+
+**How:** `ScrollContainer.test.ts` (worldsim's suite ported: max scroll, clamping, a resized viewport re-clamping; plus layout and the gutter, the fixed scrollbar and its thumb, the clip and ink, wheel latching, hover after a scroll by code, keys, thumb drag and track press without taking focus, `scrollIntoView` nearest and center, `scrollToBottom` across a layout, and popups closing), `Panel.test.ts`, `ScrollClip.test.ts` (the old panel clip suite on the new container), `CombatLogLayer.test.ts`, and the dispatcher, focus, snapshot, and cull suites moved onto ScrollContainer. In the browser: every existing gallery scene's text record matches its committed JSON, all scenes lint clean at 1440 by 882, and the lists scroll by wheel and thumb.
+
+## Catalog Wave A, controls (2026-09-28)
+
+**What landed:** DDB-85's first PR (DDB-55 phase 5), R12.7, R12.8, R12.9, R12.34, R12.35.
+
+- `ui/Pressable.ts`: the shared press machine (capture on press, `pressed` tracks the pointer, click only when released inside, `activate` presses, `acceptsActivation` and `onPressed` hooks, the focus group hears presses through the new `Component.memberPressed`).
+- `Button` extends it; new options `iconPosition`, `ghost` (`ghostLayers` in `style/variants.ts`), `block`, `disabled`, `onClick`.
+- New `ListRow`, `Checkbox` (and the shared `Checkable`, whose `checked` is its own field, apart from the group-owned `selected`, and is reported as `state.checked`, `mixed` when indeterminate), `Toggle`, `RadioGroup` with `Radio`, `FocusGroup` (selection `none` by default); `rowLayers` and `markLayers` in `style/variants.ts`; `drawIcon` in `components/Icon.ts`; `groupMembers` exported from the focus manager.
+- `UiActionEvent.key` carries the key behind a keyboard `activate` or `cancel`. A captured `pointercancel` bubbles from the captor (R9.10). The innermost pressable takes a press; a press that becomes a drag stops showing pressed.
+- Icon atlas: `check` and `remove` added; the five existing glyphs keep their atlas cells, so nothing already drawn moved.
+- Gallery: `CatalogSection` plus `button-variants`, `lists`, `checkboxes`, `radio-group`.
+
+**How:** `ui/controls.test.ts` drives every control through injected input on a mounted root with the committed font metrics (press machine, capture, release outside, options, list selection single, multiple, and none, Tab stops and group re-entry, Space versus Enter, controlled values, indeterminate, toggle slide and reduced motion, radio arrows skipping disabled and wrapping). All four scenes lint clean in the browser, clicked and arrowed through by hand.
+
+## Combat screen on stacks (2026-09-28)
+
+**What landed:** DDB-82 (DDB-55 phase 4), closing DDB-183 and the 800x450 resource bar note from #78.
+
+- `CombatLayout.ts` is Battle Screen Design section 2's numbers and `computeCombatStage` (`s = min(W/1280, H/720)`, held at 0.8 or above, over a `W/s` by `H/s` canvas). `CombatScreen` builds one `combat_stage` stack, sizes and scales it in `applyLayout` on mount and resize, and everything inside is placed by stacks: a column capped at 1600 and centred of the top bar (36), the road (fill), and the dock (228).
+- New: `TopBarLayer` (turn, last-log ticker, scrap, fuel, LOG button), `EndTurnColumn` (turn and whose move, END TURN, "N adrenaline unspent"), `DriverTab` (mark, name, passenger tag, adrenaline pips and count, draw and discard). Deleted: `ResourceBarLayer`, `DriverStatsDisplay`, `PlayerHandView.labels`. Fuel is shared, not per driver.
+- `PlayerHandLayer` is a row of two halves, each a tab over a fan; a fan's row is scaled to 128x180 cards and overlaps by a negative gap to fit its half (DDB-183). A lifted card takes `zIndex: 1`.
+- The raider and player battlefields share the road 23:40; the turn banner is anchored on the line between them, the log drawer `topRight` over the road, 320 wide.
+- Two side-by-side vehicles narrow to share a lane too slim for both. The turn banner shows the phase only, centred, and ignores the pointer.
+- `DrawApi.pushClip` warns under rotation or skew only (`isAxisAligned`), since an axis-aligned scale clips exactly.
+- Tab order is the hand, then END TURN; LOG is `tabIndex: -1`, and L (or F6) toggles the log.
+- Chrome from the mock after review: driver 1's mark a triangle and driver 2's a diamond (section 7), tabs capped at 470 with a 3 px driver-colour stripe, hairline edges and top radii, driver 2's tab mirrored, the dock a gradient with a top edge, the top bar a bottom hairline, LOG an outlined key with its L hint (`ChromeStack`). The banner centres on the road, independent of the band weights, and reads PLAYER TURN from the start of the fight.
+
+**How:** `CombatLayout.test.ts`; `CombatScreen.test.ts` (bands at three sizes including the 1600 cap, the drawer over the road only, END TURN after resize, seven cards a driver on screen and in their half at five sizes); `CombatScreenKeyboard.test.ts`; `DrawApi.test.ts` (quiet exact clip under a scale). A turn played through `window.__dev.input` at 1280x720 and 800x450: Headshot picked from its visible strip and aimed at the raider, END TURN, the raiders' turn, the log opened from LOG. Combat lint (with #101's interactivity rules) at 1440x882, 1280x720, 1920x1080, 1024x600 and 800x450 went from 282, 325, 258, 359, 401 to 215, 222, 230, 216, 237. Details in [combat-screen-stacks.md](AI_TECHNICAL_DECISIONS/combat-screen-stacks.md).
+
+## Honest text ink, pooled draw stacks, real pointer identity (2026-09-28)
+
+**What landed:** DDB-212, DDB-213, DDB-214, DDB-215 (DDB-55 follow-ups).
+
+- `Text.inkRect` is the box unioned with the run's ink from the layout `render` draws, through the new `DrawApi.measureTextInk` (the backend's `textInk`); `inkExtent` is its furthest side and `cullInk` reuses it, replacing DDB-184's box-plus-overrun-plus-an-em. Cached until text, style, alignment or size changes; `setAlign` and `setVerticalAlign` now invalidate ink. The em fallback stays for a backend without `textInk`.
+- `drawStacks.ts`: `TransformStack`, `ClipStack`, `NumberStack` and `ValueStack` replace the arrays of fresh entries. A push overwrites a pooled level in place; `capture` takes one immutable copy of the transform and clip per push it draws under. 500 frames of 1,000 pushes went from about 68 MB allocated to nothing measurable after warm-up.
+- `Dispatcher` remembers each live pointer's `pointerType` and `isPrimary` and uses them for `pointerenter`, `pointerleave`, `pointercancel` and `lostpointercapture`, dropping them once nothing can synthesise an event for the pointer.
+- Stack's depth-8 test drops its wall-clock bounds. The font, icon and card-face suites set a 30 s timeout of their own and the baseline provenance suite 120 s; the 5 s default stays for everything else. `intersectClipRectInto` and `snapClipRectInto` are the in-place arithmetic the clip stack and `intersectClip`/`snapClipRect` share; `resolveClip` is gone. A text's cached ink is refreshed whenever its layout changes, including a stack's `assignSize` at an unchanged size (review).
+
+**How:** sweeps in `subtreeCull.test.ts` for right-aligned, centred, tall, bottom-aligned and tight-line-height text (each fails with a box-only bound), a snapshot `inkBounds` test that follows `setAlign`, pooled-stack identity and capture tests in `DrawApi.test.ts`, and synthesised-field tests in `Dispatcher.test.ts`. No pixel moved.
+
+## Dev tooling: paint order on components, pointer injection, lint interactivity (2026-09-28)
+
+**What landed:** DDB-205, DDB-207, DDB-208 (DDB-55), one PR.
+
+- DDB-205: `PaintOrderFixturesSection` rebuilt from components (a fixture-local `FixtureBox` and `BusyGround`, `Text`, a scrollable `Panel`, `Stack` columns) with `zIndex` and `layer` doing the ordering; `DrawFixture` stays for clipping and shading. `scene-paint-order` re-minted.
+- DDB-207: `inputScript.ts` parses `[,pointerId[,pointerType]]` after each pointer verb's existing fields and `cancel[,pointerId]`; `inputInjection.ts` dispatches them (defined on the event in jsdom), derives `isPrimary` per pointer type across calls, and sends `cancel` from the pointer's last position.
+- DDB-208: `Component.handlesPointer` (overridden by `Button`, `Card`, `Vehicle`); the snapshot emits `focusable`, `pointerEvents`, `handlesPointer`; the snapshot's `scroll` (offset and range) on scroll containers only; the lint counts focusable or pointer-handling hit targets as interactive, rule 6 covers across parts and children, rules 3 and 6 let off content a scroller's range brings into view (keyed on `scroll`, never on `contentOffset`, which padded panels also carry), and rule 2 exempts a raised child only while it touches its parent. `Panel.scrollRange` is what `scroll` and `canScroll` clamp to. Injection: an omitted `pointerType` takes the pointer's own, and `cancel` for an unseen pointer is an error. Chapter 13's R13.22, R13.25 and R13.35 amended.
+
+**How:** unit tests for the grammar (pointer fields, defaults, rejections, cancel), dispatch (fields through the adapter, second-touch non-primary with no click, cancel suppresses the click and targets only its pointer, touch implicit capture), snapshot fields, the lint changes, and the scene's paint order from a recording backend. Lint measured over saved trees of all 14 scenes and 6 screens: gallery 0 (146 under the literal reading), screens 1,722 on `main` to 1,190 (developer 323 to 14; card showcase 1,020 to 797, of which 49 are DDB-216's unreachable cards). Follow-ups filed: DDB-212 (dispatcher's synthetic pointer fields), DDB-216 (card showcase scroll range). Decision record: [lint-interactivity.md](./AI_TECHNICAL_DECISIONS/lint-interactivity.md).
+
+## Culled subtrees skipped on a cached ink bound (2026-09-28)
+
+**What landed:** DDB-184 (DDB-55), R4.2a.
+
+- `Component.subtreeInk`: a conservative bound on the subtree's ink in the parent's space (own `cullInk` plus the walk's focus ring, every visible child's bound less the content offset, placed by origin and transform), cached and marked stale to the root by `invalidateInk` from every geometry setter, size change, anchor placement, `layer`, drag offset, focus-visible, `Panel`'s scroll and `invalidateLayout`. Null (never skipped) under a `layer` or a null `cullInk`.
+- `renderTree` skips a counted subtree whose bound misses the clip (grown by `SUBTREE_INK_OUTSET`, four device pixels) and adds its last walk's group count through `DrawApi.cullGroups`, so `apiDraws + culled` is unchanged.
+- `cullInk` overrides: `Text` (box plus measured overrun plus an em; null unmeasured), `Icon`, `ArmorBadge`, `IntentMarker`, `Circle` (the disc its radius draws), `DrawFixture` (null).
+- Development-only ink audit: `DrawApi.setInkBound` around each `render`, `ink-outside-bound` when a group leaves it.
+- No per-frame allocation for `clipRect`, `transformMatrix` or `Panel.contentOffset`. `MeasuringRecordingBackend` answers `textInk` through the new shared `runInk`.
+- No pixel moved (screenshot hashes against `main` at 84 screen and scroll states). Card showcase render median about 0.81 to 0.63 ms, developer 0.85 to 0.50 ms. [subtree-ink-cull.md](./AI_TECHNICAL_DECISIONS/subtree-ink-cull.md).
+
+## Game code on the tree (2026-09-28)
+
+**What landed:** DDB-79 (DDB-55 phase 3), closing DDB-41.
+
+- `Screen` no longer reads the window: its root is zero-sized until mount sizes it from `context.viewport`. Splash, main menu, developer, card showcase and driver selection place their elements from the root in `onMount` and `onResized`.
+- Driver selection stops rebuilding on resize. `DriverPanel` and `SynergyPreviewPanel` place their contents from their own size in `layoutChildren`; the confirmation line is one persistent text shown when both drivers are picked; drivers load once, on mount.
+- The deck preview clears after the card data arrives and a stale build gives way, so the left panel's deck is no longer drawn three times.
+- `Card` and `Vehicle` extend `Component`. `Card` uses the base's `enabled` and `onStateChange`, lifting by transform; the hand places cards where the old `y % 10` test left them. `Vehicle` builds every part once, hides the driver row and SPENT chip by data, places parts in `layoutChildren`, and subscribes to the combat model on mount. `EnemyVehicle` places its intent marker the same way.
+- `CombatLogLayer` holds its chrome as named fields, places it in `layoutChildren` (fixing the resize that moved the centred title to half the width), and subscribes on mount. Main menu buttons and the card showcase background are named fields.
+- The splash fades in, holds on the clock, and fades out through its root's opacity with the animator, then goes to the main menu.
+- `Component.setOverflow` accepts `hidden` before a size; `clipsChildren` still waits for one. `ArmorBadge.minWidth` is settable. Dead code: `PlayerHandLayer.getCardAtPosition`, `Vehicle.getDisplayName`/`getNameFontSize`.
+
+**How:** `SplashScreen.test.ts` (fade in, hold, fade out, navigate, settle at opacity 1, resize, unmount cancels), `Vehicle.test.ts` (parts kept across a driver's death and a resize, model subscription on mount and remount), `Card.test.ts` (lift by transform, disabled cards neither lift nor brighten), `DriverSelectionScreen.test.ts` (three resizes keep the same children and both drivers, one deck preview across overlapping loads), `Screen.test.ts`, `Component.test.ts` (overflow before size). Played in the browser: splash fade, menu to driver selection, cycling and resizing three times without losing the selection, START RUN, a self-targeted and an enemy-targeted card, END TURN, the combat log. Details in [game-code-on-the-tree.md](AI_TECHNICAL_DECISIONS/game-code-on-the-tree.md).
+
+## Overlay, popup, tooltip, placement, clipboard and asset services (2026-09-28)
+
+**What landed:** DDB-78 (DDB-55 phase 3), R12.30 to R12.32 with R12.22, R8.21, R3.6a, R3.15, R9.13 to R9.15.
+
+- `engine/services/`: `Placement.ts` (`place` and `PlacementService`), `OverlayService.ts`, `PopupService.ts`, `TooltipService.ts` with `TooltipSurface.ts` and `tooltipSpec.ts`, `ClipboardService.ts`, `AssetService.ts`, and `testing.ts` (queue-driven input helpers for tests). All six are built by `createMountContext`; the pages pass `detectClipboard(window)` and `imageUrlLoader()`.
+- Dispatcher: root tiers (`scene`, `overlay`, `diagnostic`) with `raiseRoot`; `addObserver` with `pointerDown` (can swallow), `pointerMove`, `hoverChange`, `keyDown` (before the scene hotkeys) and `focusChange`; `capturing` and `hoverPoint`. `Component.mount(context, { tier })`, `Component.tooltip`, `Component.popupTrigger`. `UiFrame.requestTick` for services.
+- Pages: both render overlay roots after the scene and report them to the tree snapshot; the F5 overlay mounts as `diagnostic`; a screen change or gallery scene switch closes popups and overlays; viewport changes resize overlay roots. Electron's preload exposes `clipboard.readText`/`writeText` over IPC.
+- On DDB-76 and DDB-77: overlay hotkeys are the root's own `hotkeys` and a modal overlay sets `root.modal` and pushes a focus scope; `FocusManager.onFocusChange` feeds the popup focus-loss close and the tooltip keyboard trigger (visible focus only); `tooltips.dragActive` reads `context.drag.isDragging`; the dispatcher's `focusChange` observer hook is gone with `Dispatcher.focus()`.
+- Review fixes: a swallowed press's release is swallowed too; placements apply a `constrained` size to popups (from `naturalSize`) and tooltips; `overlays.open` takes `inside` so a scrim press is outside a modal's panel; the Electron clipboard handlers answer only the app's own renderer frame.
+- Gallery: `overlays` scene (gallery-only, `galleryOnlyScenes`), with placement outcomes drawn against a frame and a live tooltip, card-preview tooltip and popup menu; `tests/visual/support/scenarios.ts` lists it.
+
+**How:** `Placement.test.ts`, `OverlayService.test.ts`, `PopupService.test.ts`, `TooltipService.test.ts` (state timing, tolerance, swap, fades, flips, never consumes, press suppression, capture and drag suppression, keyboard trigger, factory trees), `ClipboardService.test.ts`, `AssetService.test.ts`, `input/rootOrder.test.ts` (tiers, observers, `requestTick`); 2058 tests green. Driven in the gallery through `__dev.input`: hover swap to the card preview, outside press closing the menu, trigger reopening it, Escape closing it; `__ui.lint()` is 0 on the scene.
+
+## Packed instances for the uber shader (2026-09-28)
+
+**What landed:** DDB-191 (DDB-55), R5.4.
+
+- `UberGeometryEncoder` writes one 104-byte instance per quad (`UBER_INSTANCE`, `UBER_ATTRIBUTES`): corners, geometry and clip as float32, radii and shape as half floats, per-corner fill and border as normalised bytes, mode, slot and flags as integer bytes. Flat triangles repeat their third corner; feather-ring quads have four free corners. `rendering/packing.ts` converts to half floats and to bytes the way a framebuffer write rounds.
+- `Batcher` takes instances: `GroupShape.instances`, a four-view byte sink, instance-range `GpuDraw`s, a word fence for the contract check, and `instances`, `vertices` and `triangles` counted from instances.
+- `WebGL2Backend`: one instance ring (4 MB), divisors of one set once in the vertex array, `drawArraysInstanced`, attributes re-pointed only at a split, `WEBGL_provoking_vertex` set to the first vertex. `IndexBufferPool` and its tests are deleted.
+- `uber.vert` builds the quad from `gl_VertexID` and selects each corner's position and colour; `uber.frag` is unchanged. `uberShader.spec.ts` draws the new layout.
+
+**How:** unit tests for the packing conversions, the layout's tiling, every encoder case against the instance bytes, the batcher contract, and the backend's calls (no element buffer, divisors, split pointers, provoking vertex). Screenshots pass against `main`'s goldens with no re-mint; strict local captures differ by one level at most (four pixels by two). Perf captures interleaved with `main` in `perf-results/ddb-191-ab-*`.
+
+## Focus manager and keyboard play (2026-09-28)
+
+**What landed:** DDB-76 (DDB-55 phase 3), chapter 9's focus half: R9.15 to R9.29, R11.12's focus ring, R12.7's keyboard activation.
+
+- `input/FocusManager.ts` as `context.focus` (built by the dispatcher): tree-derived, cached Tab order; `pushScope`/`popScope`; fixup after every layout through `UiFrame.afterLayout`; focus groups with `activeChild`; directional focus with explicit neighbours; the focus-visible modality. The dispatcher's focus seam is deleted.
+- Dispatcher key order: Tab, focused component and bubble, text-field ownership, `activate`/`cancel` (`UiActionEvent`), group and directional arrows, then per-root hotkey tables from the focused root down to a `modal` root, then the scene's. A press focuses the nearest focusable ancestor after its handlers, unless one called `preventFocus()`. `inputMode`.
+- `Component`: `focusable`, `tabIndex`, `focusGroup`, `activeChild`, `focusUp/Down/Left/Right`, `handlesTab`, `modal`, `acceptsText`, `canReceiveFocus()`, `focusVisible`, lazy `hotkeys`, `onFocus`/`onBlur` callbacks with `focus`/`blur` events. `renderTree` draws the ring from the `control` and `color.accent` tokens.
+- Button focusable with `activate` as click; Input `acceptsText`; hand cards focusable in a horizontal group; vehicles focusable only as target choices; combat moves keyboard focus to the first target and back to the hand; combat hotkeys on the screen root; Escape backs out of driver selection. The snapshot reports `state.focusVisible`.
+- After #95 (DDB-84): the focus manager is the only writer of `focused` and `focusVisible` (`setFocusState`, which calls `onStateChange()`); Button and Input draw their own ring (`drawsOwnFocusRing`) and the walk rings every other focusable; Input's editing state and the developer screen's ring demo moved onto focus events and `context.focus`. Focus by keyboard or code scrolls a scrollable Panel to show the component; removing a group's active child clears it; driver selection tabs Back first (`tabIndex: 1`, so paint and tree order are untouched).
+
+**How:** `FocusManager.test.ts` (chapter 9.11's focus, directional, and keyboard cases: tree order under out-of-order inserts, positive tabIndex, wrap, disabled and hidden skipped, scope trap and restore, unmount and hide fixup without and with callbacks, focus-visible after Tab, press, and programmatic focus, a press in a select's menu, preventFocus, groups, explicit neighbours, Escape to the root table, printable keys in a field, a modal root blocking lower tables, held Enter once), a ring test in `renderTree.test.ts`, Button keyboard activation in `widgetInput.test.ts`, and `CombatScreenKeyboard.test.ts` playing a card, aiming, cancelling, and ending the turn from keys through the injection hook. Driven in the browser through `__dev.input`: main menu by Tab and arrows, driver selection to START RUN, combat Tab to END TURN and the hand, arrows along it, Enter on Headshot moving focus to the raider, Enter playing it, Tab and Enter on END TURN into turn 2; a mouse click focuses without a ring.
+
+## Stack container and the chapter 10 conformance suite (2026-09-28)
+
+**What landed:** DDB-81 (DDB-55 phase 4), R10.1 to R10.18, R8.1's layout protocol, R8.21's viewport roots.
+
+- `components/Stack.ts`: the three passes with shrink-to-fit, the leftover shared by weight with clamps and one frozen re-run, safe distribution and alignment, absolute children sized against the content box. `components/layoutTypes.ts` holds the vocabulary.
+- `Component`: sizing modes and the chapter 10 child properties as options and accessors; `measure`, `assignSize`, `automaticMinSize`, `sizesChildren`; anchor placement after `layoutChildren` (stored apart from `position`, read through `placedX`/`placedY` by the render walk, `screenMatrix`, `bounds` and the snapshot); a root's `fill` axes from the viewport; relayout boundary is now "both modes fixed".
+- `Text`: modes replace the assigned flags; a stack's assignment is its box for the pass; shrink-to-fit `measure`; longest-word automatic minimum.
+- `UiFrame.viewportChanged()`, called by `Game` and the gallery on the viewport owner's change event.
+- Snapshot reports `stack: { direction, gap }` and uses `bounds` for anchored placement; lint rule 1 exempts overlap within a negative gap.
+- `Circle.assignSize` is a no-op (draws from its radius); `ArmorBadge.measure` renamed `measureLabel` to free the protocol name.
+- Tests: `Stack.test.ts` (worldsim's suite ported with its numbers, spec 10.9's additions, anchors, viewport roots, boundaries, the negative-gap lint case) and `Stack.text.test.ts` (real-metrics text cases). Gallery scene `stack`, lint clean; its golden is minted on CI.
+- Decision record: `docs/AI_TECHNICAL_DECISIONS/stack-layout.md`.
+- After review: one placed-origin accessor (`originX`/`originY`) read by the render walk, the dispatcher's hit test, `screenMatrix` and the snapshot; shrink-to-fit for nested stacks (proportional, floored at `minContentSize`); per-constraint measure cache (255 nested stacks: 65k measures to 763); `onResized` on layout assignment; one width source on Text; authored sizes fix a Stack axis; five ported cases tightened to worldsim's.
+
+## Drag service (2026-09-28)
+
+**What landed:** DDB-77 (DDB-55 phase 3), R9.12a to R9.12e.
+
+- `input/DragService.ts`: `start`, the token threshold (`dragThreshold`), ghost promotion to the `drag` layer following the pointer by transform, targeting with the ghost excluded, `dragenter`/`dragover`/`dragleave`/`drop`/`dragend`, `accept()`, cancellation, `cancel()`, and `isDragging`/`onDraggingChange`/`current`/`canDrop` for readers such as the tooltip service. `UiDragEvent` in `input/events.ts`.
+- The dispatcher builds the service and feeds it from move, up, cancel, capture release, unmount and each frame's re-target; `MountContext.drag`. `Component` gains the five drag callbacks and `dragOffset`, and the drag service drives DDB-84's `dropActive` flag; `dragSource` and `DRAG_THRESHOLD_MOUSE`/`_TOUCH` are deleted.
+- No game code drags yet; the hand layer's comment that said it did is corrected.
+- Review round: an active drag spends its press however it ends (capture loss and ghost unmount no longer click); the release re-targets before the drag is dropped, so a release-time `cancel()` or unmount is heard; `dragover` acceptance is re-derived once a `dragover` accepted; `start` is primary-button only; a touch hold that fired `contextmenu` never drags; capture waits for activation so a candidate drag never moves a click; the ghost moves by `Component.dragOffset`, outside its transform, so transform tweens keep running, and `dragend` carries `ghostOffset`. After merging DDB-84, `pressed` comes off the press target through the source when a drag goes active and again when it ends.
+
+**How:** `DragService.test.ts` (41 tests: threshold per pointer type and given, second start refused, ghost promotion, offset and restore, a scaled parent, enter/over/leave order with bubbling, the captured enemy that hears no `pointerenter` but does hear `dragenter`, re-targeting under a still pointer, accept on enter and on over, an ancestor accepting for a child, `dropActive` moving between targets, drop and undropped ends, cancel, blur, capture release, unmount of source and target, `cancel()` before and after the threshold, the dragging listener, and a full drag through the injection hook). The dispatcher's drag-source click tests now start a real drag. Driven in the browser through `__dev.input`: menu, START RUN, a card pressed with a 30 px wander and released on itself still selected it, Headshot played on the raider, Escape cancelled targeting, END TURN into turn 2, clean console.
+
+## Style states, variants, and the closed style set (2026-09-28)
+
+**What landed:** DDB-84 (DDB-55 phase 4), R11.10 to R11.16. The third deliberate golden re-baseline.
+
+- `engine/style/`: `look.ts` (flags, `Look`, the R11.12 resolver), `styleObject.ts` (closed set, validation, value readers), `variants.ts` (`tone`, `size`, button and field layers), `LookTransition.ts` (R11.13 over the animator).
+- `Component` carries all nine R11.11 flags with `stateFlags` and `onStateChange`; `enabled` changes notify descendants; unmount clears the framework's four.
+- `Button` and `Input` take `tone`/`size`/`style`, validate the style, draw their own box, glow, and focus ring (`drawsOwnFocusRing`), report it all as `inkExtent`, and follow the look with their parts; the legacy colour setters are gone. START RUN is the accent variant; END TURN is the mock's bone button through a style object.
+- `treeSnapshot` reports the full flag set as `state` on every node.
+- `color.bg_pressed` token. The battle mock's legend gains the debuff and non-attack intent lavenders; the token hue test checks a CIE Lab distance of at least 20 against every legend colour instead of exact hex.
+
+**How:** `style/look.test.ts` (the 11.6 flag table, override semantics), `style/styleObject.test.ts`, `ui/Button.test.ts` (each accepted property changes the draw list, rejection, runtime restyle, transitions at `dur_fast` and `dur`, reversal, reduced motion, the ring), `Component.test.ts` flag tests, `widgetInput.test.ts` press tests through injected input. Goldens re-minted on CI. Details in [style-states-and-variants.md](./AI_TECHNICAL_DECISIONS/style-states-and-variants.md).
+
+## Tree snapshot schema and the text record (2026-09-28)
+
+**What landed:** DDB-80 (DDB-55 phase 3) with DDB-206, R13.21 to R13.28.
+
+- `debug/treeSnapshot.ts` walks with a matrix per node (origin, margin, transform, scroll), the clip reset at a promotion, and the effective layer and opacity, and emits margin, zIndex, layer, opacity, transform, state (plus `pressed` on Button), text, style and inkBounds.
+- `Component` gains `resolvedColors` and `inkRect`; Rectangle, Panel, Layer, Circle, Triangle, Polygon, Icon, Text, Button and Input report their colours; the three stroked shapes report half the stroke as `inkExtent`.
+- `Text` gains `currentMetrics` (never measures) and `overflowOutcome`; `Button` gains `pressed`.
+- `debug/layoutLint.ts`: rule 5 compares the measurement with the local content box; a sibling at zero opacity does not occlude for rule 6; stale phase notes updated.
+- `tests/visual/support/harness.ts`: `expectTextSnapshot`, called by the gallery and screen specs before the golden, against `<kind>-<name>-text.json` beside the PNG.
+- `perf-results/phase3-snapshot-lint.json`: per-scenario lint before and after.
+
+**How:** `treeSnapshot.test.ts` (margin box and content box, transformed bounds, agreement with every component's `screenBounds` through margins, transforms, scroll and parts, transformed clips, zIndex and promotion, R13.25.1 exemption through a real tree, opacity, text measure and outcomes, the reader not measuring, text-overflow live, style, pressed, ink) and `layoutLint.test.ts` (local content box for rule 5, zero-opacity occluder). Lint before and after captured on every scene and screen: no count moved. Five punctuation mutations run against local baselines: the text record caught all five, the pixels one.
+
+## Input dispatcher and Pointer Events adapter (2026-09-28)
+
+**What landed:** DDB-75 (DDB-55 phase 3), chapter 9's dispatch half: R9.1 to R9.11, R9.25, R9.30 to R9.32, R3.28, R4.12, R8.2's input callbacks.
+
+- `input/Dispatcher.ts` (queue, hit test, bubble, hover, click, capture, wheel latching, key routing, focus seam), `input/hitTest.ts`, `input/events.ts`, `input/HotkeyTable.ts`, `input/PointerAdapter.ts`. `InputSystem.ts` and its tests are deleted; `MountContext.input` is now `dispatcher`.
+- `Component.handleEvent` with `onPointerDown`, `onPointerUp`, `onPointerMove`, `onPointerEnter`, `onPointerLeave`, `onClick`, `onContextMenu`, `onWheel`, `onKeyDown`, `onKeyUp`; `canScroll`; roots register with the dispatcher on mount; unmount releases capture, hover and focus. `setEnabled(false)` no longer clears hover, which is the dispatcher's.
+- Button, Card, Vehicle, Input and Panel handle events in `handleEvent`; `Button.onClick` is the base property (call sites assign it); Vehicle is `unit`; a scrollable Panel is `auto` and scrolls by the normalised delta; combat's Escape and F6 are hotkeys; the F5 overlay is `pointerEvents: 'none'`.
+- Both loops drain the queue in a timed `input` section; `UiFrame.layoutVersion` lets hover follow layout. Timing reads the context clock (DDB-74): event timestamps, the 150 ms wheel latch, and R9.30's 500 ms touch-hold `contextmenu`. The injection hook dispatches pointer events at the adapter; `components/testing.ts` has `injectNow`.
+
+**How:** `Dispatcher.test.ts` (chapter 9.11's hit order including 3.12's promoted popup and 4.7's popup inside a clip, bubble, scrim, enter and leave order, hover after scroll and layout, click on the common ancestor, the threshold on drag sources only, pause abandoning a held press, Cmd and Ctrl chords through a focused field, capture and its cancellations, touch, wheel line and page modes, latching, Shift, keys and hotkeys, coalescing, pause, handler isolation), `widgetInput.test.ts` (Button, Input and the adapter through injection), and the existing screen, gallery, injection and teardown tests moved from registration maps to hit tests. An audit hit-tested every Button, Card, Vehicle, Input and scrollable Panel on six screens and found none occluded. Driven in the browser through `__dev.input` and real pointer and wheel events: menu, driver cycling, START RUN, a targeted card played on an enemy, Escape cancelling targeting, END TURN into turn 2, F6, the developer screen's inputs, Apply and scroll, the card showcase, and the gallery's input scene, with a clean console.
+
+## Clock and animator (2026-09-28)
+
+**What landed:** DDB-74 (DDB-55 phase 3), R8.28 with R8.15's tween cancellation and R11.13's reduced-motion collapse.
+
+- `engine/animation/Clock.ts`, `Animator.ts`, `easing.ts`: a frame clock in milliseconds that only moves when advanced (and not at all while frozen), tweens over numbers and number arrays with token defaults, CSS `cubic-bezier` eases, retargeting with CSS's reversing shortening factor, reduced motion, owner cancellation, `settle`, and a `done` promise that settles on completion or cancel.
+- `MountContext` gains `clock` and `animator`; `createMountContext` and `createTestContext` take an optional clock. `UiFrame.update` advances the clock and ticks the animator before component updates. `Component.unmount` cancels the tweens it owns.
+- `engine/rendering/reducedMotion.ts` follows `prefers-reduced-motion` on both pages. `window.__app.settleAnimations()` on both pages; the visual harness's `settle` calls it every pass.
+- `.eslintrc.js` forbids platform timers and wall-clock reads (`Date.now`, `performance.now`) in UI and engine-core directories, `game/*.ts` included. `PlayerHandLayer.animateCardToDiscard` (an uncalled `setTimeout`) and the empty `fanCards` are deleted.
+
+**How:** `Clock.test.ts`, `easing.test.ts` (against a bisection solve), `Animator.test.ts` (order, defaults, arrays, reduced motion in flight, retarget, same-target retargets (running, idle, and every frame for 700 frames completing once and on time), single and compounded reversals, restart from a completion, cancel, owners, `done`, settle and its runaway guard), `components/animation.test.ts` (clock and tick before component updates, no motion without an update phase, injected and frozen clocks, subtree unmount cancelling, a reconciled exit driven by `done`, a cancelled exit still detaching), `reducedMotion.test.ts`. Every chromium visual spec passes against local captures of `main` with zero differing pixels.
+
+## Developer section titles inset inside their frames (2026-09-28)
+
+**What landed:** DDB-196 (DDB-55).
+
+- `Panel` has a `padding` option, expressed as `contentOffset` (scroll position less padding), the one value DDB-73's render walk, hit test and tree snapshot read, so children are placed inside the padding everywhere and the padding scrolls with the content (R4.13: scroll extent is content plus both paddings less the box). A padded panel clips inside its border and corner radius, inset by `max(borderWidth, cornerRadius)`; unpadded panels keep the border-box clip. The departure from R4.9 is recorded in `AI_TECHNICAL_DECISIONS/panel-padding.md`. `treeSnapshot` now takes a clip from `clipRect` rather than the node's whole box, so snapshot, walk and hit test agree. `innerWidth` reports the width left for children.
+- `developer/DeveloperSectionPanel.ts` is the shared frame all twelve sections extend: transparent, `bw` border, inset `bw + space_3` (13 px), and `fitContentHeight` to size the frame around the content. Sections dropped their duplicated `super` blocks; the three draw fixtures, the text alignment columns and the nested panel use `innerWidth`.
+- `DeveloperScreen` subtracts both insets from its section spacing so the content pitch is what it was.
+- Tests: `engine/ui/PanelPadding.test.ts` (drawing, hit test, snapshot, vertical and horizontal scroll extent, radius-aware clip in walk, hit test and snapshot, default). Lint: every scene 0, developer screen 186, both as on main with the same violation paths. Goldens re-minted with `update_mode=all`.
+
+## Pixel snapping at submission: hairlines, shared edges and clips (2026-09-28)
+
+**What landed:** DDB-188 (DDB-55).
+
+- `coords/snapping.ts`: `snapHairlineRect` takes the border position and writes into an `out` object. A `center` border snaps its outer edge (the rect edge on a grid shifted by half the snapped width); a borderless rect snaps its edges and stays borderless; a rect narrower than a device pixel keeps the pixel its centre is in.
+- `UberGeometryEncoder.encodeRect`: under `translateOnly`, a rect with no radius and a hairline or no border is snapped in screen space and written back in local space; the border outset follows the snapped width. `borderOutset` now takes a position and a width.
+- `DrawApi.pushClip`: the screen-space clip goes through `snapClipRect` under a translation (R7.8a), so the cull, the snapshot and the shader agree.
+- `ClippingFixturesSection`: 4.7's snapped clip edge under an animated offset, as four frames of a viewport sliding by a quarter pixel with its content scrolling, outlined by a hairline. At the x.5 frame an unsnapped clip keeps the column over the outline and drops the last one inside it; snapped, clip and content meet the outline in every frame.
+- `treeSnapshot` snaps its clips at a `ratio` its viewport now carries (the hooks pass the committed ratio), and `Component.containsScreenPoint` snaps each clipping ancestor under a translation at the draw API's ratio, so paint, snapshot and hit test agree at fractional positions.
+- `uberShader.spec.ts`: the fractional abutting-rects case passes and lost its `test.fail`; new GPU checks for chapter 7's 1 px border at y 10.4 on device rows 21 and 22 at ratio 2, and a 1 px center border on one column. The two coverage-ramp tests moved under a scale, where nothing snaps.
+
+**How:** unit tests for the helper (center, borderless, sub-pixel, out param), the encoder (translated hairline at ratio 2, abutting pair, center border, and the three opt-outs) and the clip stack (snapped at every fractional scroll, not under a scale). Goldens re-minted on CI with `update_mode=all` and checked old against new.
+
+## Mount context, lifecycle, and frame order (2026-09-28)
+
+**What landed:** DDB-73's second PR (DDB-55 phase 3), R1.6, R8.14 to R8.18, R8.21, R8.22.
+
+- `components/MountContext.ts`: the context interface and `createMountContext`; `components/UiFrame.ts`: update requests and the layout phase; `components/testing.ts`: `createTestContext` over the null backend.
+- `Component`: `mount`, `unmount`, `onMount`, `onUnmount`, `isMounted`, `context`, `requestUpdate`, `invalidateLayout`, `layoutSubtree`, `onLayout`; size, margin, visibility and child changes invalidate; `update` no longer recurses.
+- `RendererContext.ts` deleted. `InputSystem` is an instance with the same method names, handlers bound once (so `detach` really removes them), and a `beforeHitTest` hook.
+- Button, Input, Panel, Card and Vehicle register in `onMount`; Input asks for updates while focused; CombatScreen, DeveloperScreen and the gallery host reach input through the context.
+- `Screen.mount(context, data)`, `ScreenManager.initialize(context)`, `Game` and `SceneHost` take the context; both loops run update, layout, render, flush, with the `layout` section timed.
+- `Text` measures through the context on mount and sizes both axes in one step; `text/testing.ts`'s `createMeasuringDrawApi` feeds a test context. `Card`, `DriverStatsDisplay`, `ResourceBarLayer` and `Vehicle` place what depends on a measured text in `layoutChildren`, `SplashScreen` in `onMount`; the synergy panel measures a tag's label before sizing its pill. `ShadingFixturesSection` creates its photo texture on mount. `Button` places its icon and `ArmorBadge` measures its value in `layoutChildren`, once per label.
+- Review fixes: `Text` no longer measures during render; `PlayerHandLayer` and `CardShowcaseScreen` drop manual unmounts that `removeChild`, `clearChildren` and the root's unmount already do; `lifecycle.test.ts` covers a hugging container's relayout converging in one layout call and the eight-pass limit throwing.
+
+**How:** `lifecycle.test.ts` (no service touched before mount, mount and unmount order and idempotence, mount on add, same-root moves versus cross-root re-parenting, update on request, invisible and unmounted requests, text invalidating its boundary once, transform, zIndex, opacity and colour not invalidating, `onLayout` on first layout and on change, layout before a hit test) and `Screen.test.ts` (root sized from the viewport, nothing of the old screen registered after a switch, `onLayout` before the first render). Every existing test that touched the singletons now builds a context. All chromium visual specs pass against local captures of `main`, and a scripted click-through goes menu, driver selection, combat, END TURN with a clean console.
+
+## Component base and the framework render walk (2026-09-28)
+
+**What landed:** DDB-73's first PR (DDB-55 phase 3), R8.1 to R8.13, R8.26, R8.27, R8.29 and R3.11 to R3.13.
+
+- `components/Component.ts` is the base: R8.2's properties as accessors (per-side `margin`, `transform`, `pointerEvents`, `opacity`, `layer`, `zIndex`), effective visibility, enabled, opacity and layer, `parent` and `root`, `insertChild`, `moveChild`, `clearChildren`, `reconcileChildren`, `findById`, `renderOrder`, and screen geometry. `Layer` extends it and adds a background fill.
+- `components/renderTree.ts` walks the tree; every component's `render(draw)` draws in local space and no longer loops over its children. `RenderContext.ts` is deleted.
+- `components/componentGeometry.ts` holds margin sides and the transform matrix; `draw/geometry.ts` gains `invert`.
+- `Panel` draws its own background through `Rectangle`'s `drawBox` and scrolls with `contentOffset`; `ScrollableContentLayer` and `getContentLayer` are gone, and the snapshot's Panel special case with them.
+- `InputSystem` asks `containsScreenPoint`, which skips invisible, faded and `pointerEvents: 'none'` components and inverts transforms.
+- `Card` and `Vehicle` use the base's hover state; `Card`'s `Layer.prototype.render` borrow is gone.
+- Review fixes: adding a component under itself or a descendant throws; a reconciled removal with an exit promise stays in the list, drawn, until it settles, and is not unmounted if re-added elsewhere; detaching clears the reconcile key.
+- Merged with DDB-68, DDB-71 and DDB-72 as they landed: `DrawFixture` and `Text` draw in their own space; `Icon.drawGlyph` lets `ArmorBadge` and `IntentMarker` draw their icon as one of their own draws, in the same order as before; `Button` places its icon from its `render` hook until the layout phase exists; the F5 overlay's visibility is `visible`.
+
+**How:** `Component.test.ts` (properties, effective values, children, reconciliation, screen geometry under rotation and scale) and `renderTree.test.ts` (local draws, leaf children walked by the framework, skipped subtrees, zIndex order, opacity, clip and promotion, balanced stacks) on the recording backend. Every screen and gallery scene captured locally on `main` and on the branch passes the golden tolerance; the CI goldens are unchanged.
+
+## Visual gate: cluster rule and settled-layout wait (2026-09-28)
+
+**What landed:** DDB-197 and DDB-201 (DDB-55 test harness).
+
+- `tests/visual/support/diffClusters.ts`: the pixelmatch mask at the suite's threshold, grouped into clusters by union-find with a join radius. `expectGolden` in the harness runs `toHaveScreenshot`, then fails any capture whose largest cluster exceeds `GOLDEN_CLUSTER.maxClusterPixels` (8, radius 2, in `playwright.config.ts`), writes `golden-diff.json` for every capture, and rewrites a cluster-rejected golden on a `changed` mint. All screen, scene and context-loss specs use it. `pixelmatch` 5 and `pngjs` are new dev dependencies; jest now also runs `tests/visual/support`.
+- `settle` polls inside one `page.evaluate`: the old tree comparison was an async `waitForFunction` predicate, which Playwright takes as truthy on the first poll, so it never compared anything. The new gate requires the window, the canvas box, its backing store and the committed viewport at 1440x882 and the tree unchanged for two counted frames, and `openScreen` asserts the screen root fills the viewport.
+
+**How:** 19 mutations run against local baselines (four digit changes the area budget missed are caught; the +2 background shift and in-place punctuation changes are recorded misses, DDB-206 for the latter). A 1300x800 resize just before `navigate` reproduced a screen built for a size the backing store had not reached; the new gate waits it out. On CI, 35 captures against `main`'s goldens differ by 0 pixels and three `update_mode=all` mints committed nothing. The driver-selection layout flip DDB-201 describes is not in any committed golden (checked pixel by pixel across all versions). 13 unit tests for the clustering.
+
+## Icon atlas and the six symbol sites (2026-09-28)
+
+**What landed:** DDB-72 (DDB-55 phase 2), R12.6 and R12.7's button icon.
+
+- `src/assets/fonts/material-icons/`: Material Icons Regular (Apache 2.0, licence beside it), its `.codepoints`, and `icons.txt`, the list of icons the atlas holds.
+- `scripts/generate-icons.mjs` writes `text/icons.ts` (`ICON_CODE_POINTS`, `IconName`) and the charset; `build-fonts.(sh|ps1)` builds `material-icons.{png,json}` with the same msdf-atlas-gen parameters as the faces.
+- `fontFaces.ts`: `ICON_ATLAS` under the name `icons`, loaded with the faces through `ATLAS_ASSETS`, so it is validated at startup and resident beside them.
+- `components/Icon.ts`: `glyph`, `size`, `tint`, drawn in `text` mode centred in its box. `Button` takes `icon` and centres icon and label as a group.
+- The six sites: armor shield on the vehicle badge, shield and wrench intents, the fuel pump, the scrap gear, the back arrow. The armor badge (`game/ui/ArmorBadge.ts`) sizes itself to its measured value so shield ("10 SH12") fits beside the icon; the intent disc is `game/ui/IntentMarker.ts` with its value centred.
+- Gallery scene `icons`: every icon at three sizes, bare and on a fill, the button icon, the four intents, and armor with and without shield.
+
+**How:** `iconAssets.test.ts` (atlas parameters, PNG size, exactly the listed glyphs, em box, licence, `icons.ts` drift, generator errors), `Icon.test.ts` (draw command, defaults, accessors, hidden, one em wide, the button group), `EnemyBattlefieldLayer.test.ts` (which intents draw which icon), `vehicleBadges.test.ts` (the badge grows to fit shield, measures once per value; the marker centres icon and value). `scene-icons` minted; combat and driver selection re-minted over #82's Text model (run 36445296563), nothing else moved. The Visual provenance job now judges each changed baseline by its last setter, since merging main after main gained baselines tripped the per-commit rule (`visual-golden-harness.md`). Decision record: [icon-atlas.md](./AI_TECHNICAL_DECISIONS/icon-atlas.md).
+
+## Text component on real metrics, estimate sites replaced (2026-09-28)
+
+**What landed:** DDB-71 (DDB-55 phase 2), with DDB-198 and DDB-200. The third deliberate re-baseline.
+
+- `components/Text.ts` rewritten to R12.4: position is the top-left of the line box, each axis assigned or hugged from `measureText`, one `drawText` with R2.13's box, so wrap, ellipsis and clip come from the layout. `letterSpacing`, `textTransform` and `textDecoration` in `Style`; line height defaults to the face's. `setBaseline` became `setVerticalAlign`.
+- `DrawApi.canMeasureText` and `RendererContext.hasDraw`; a text that cannot measure yet stays zero-sized and measures on its first render.
+- `text/testing.ts`: `MeasuringRecordingBackend` and `installMeasuringDrawApi` for component tests.
+- Estimate sites replaced: `Text.layout`, the synergy panel, the driver stats (`getRequiredWidth` deleted, the display hugs), the input caret. About thirty anchored labels given real boxes; main menu, splash, developer and driver-selection titles centred.
+- `Card`: the cost hugs its digits and the title runs to them, wrapping to a second line only when it must (DDB-198); the face shows the summary with brackets stripped instead of cutting rules text, in a box that ends above the rarity line. `cards.test.ts` measures summaries on the face instead of counting characters (DDB-202). `DriverSelectionScreen`: the synergy panel fits the gap between the driver panels.
+- R6.11, R12.4 and the chapter 6 checklist say ascent plus descent (DDB-200).
+- Tests: `Text.test.ts`, `Card.test.ts` (every title fits its slot, nothing on any face is cut), `Input.test.ts`; the snapshot and gallery tests that pinned the old zero-until-layout behaviour now pin measurement.
+
+**How:** every screen and scene captured locally before and after and read side by side; the three that showed problems the new metrics exposed (description over the rarity line, synergy panel over the flavour text, splash subtitle inside the title's line box) were fixed and recaptured. Decision record: [text-component-metrics.md](./AI_TECHNICAL_DECISIONS/text-component-metrics.md).
+
+## Phase 1 close-out: rendering fixtures, test gaps, perf re-capture (2026-09-28)
+
+**What landed:** DDB-68 (DDB-55 phase 1, its last task).
+
+- `screens/developer/DrawFixture.ts`: a `Layer` that paints through the draw API in its own space, plus caption helpers. The tree snapshot sees one node, so a fixture's deliberate overlaps stay out of the sibling-overlap lint.
+- Three new sections and gallery scenes: `PaintOrderFixturesSection` (3.12's fixture: ladder against submission order, one layer in both orders, a shadowed panel over a busy ground, a popup promoted out of a clipped scroller, a modal with an open select menu under a toast and a tooltip), `ClippingFixturesSection` (4.7's: nested and disjoint clips, content offset before a fixed clip, every primitive cut by one clip, text too long for its box) and `ShadingFixturesSection` (5.10's: radii, border widths and positions, gradients over a checker, bordered circles, lines, shadows and glows, the four blend modes over a generated landscape texture).
+- `DrawApi.test.ts`: promotion with base groups submitted after the popup. `WebGL2Backend.test.ts`: `roles` option on the fake backend, and 5.10's mixed-screen and four-flush ring tests. `uberShader.spec.ts`: the fractional abutting-rects case as `test.fail` for DDB-188.
+- Docs: phase 1's checklist ticked with a note per item, the coordinates line corrected (R7.8 and R7.8a were never applied), and the phase 1 result recorded under it.
+- Captures: `perf-results/phase1-frame-final.{json,md}` and `phase1-gallery-final.{json,md}`, compared against the phase 7 baselines.
+
+**How:** the three scenes rendered locally in the chromium project first and checked by eye, including the per-corner radius order; lint zero on all three through `lint.spec.ts`. Goldens minted on CI with `update_mode=changed`. Filed DDB-203 (nine-slice); notes on DDB-73, DDB-75, DDB-188 and DDB-190 for the tests and fixture items they now own.
+
+## Perf follow-ups: long frames and slow input, the overlay's anchor, the Metal floor re-measured (2026-09-28)
+
+**What landed:** DDB-192, DDB-193, DDB-194 (DDB-55 phase 7).
+
+- `debug/hitchObserver.ts` (DDB-192, R15.29's second half): `PerformanceObserver` on `long-animation-frame` (or `longtask` where LoAF is absent, as on Electron 25) and `event` with `durationThreshold: 16`, feature-detected through `supportedEntryTypes`, into two rings sized to twice the frame window, with a `saturated` flag when one overwrote an entry still in the window. `FrameTimer` takes it as an injected `HitchSource` and the snapshot gains `hitches` (`longFrames` with the worst frame's longest script, `slowEvents` with the worst input's delay, handler and presentation split), counted over the frame window's own span; null where unsupported. The F5 overlay shows both and the capture table has a "Long frames (worst window)" column taken across every sample. `input` stays null, since event entries only exist past the threshold. Development builds only.
+- The F5 overlay (DDB-194) anchors to `CanvasViewport`'s logical width, set at construction and on every committed viewport change, instead of reading `window.innerWidth` once. While shown it is its own domain after a `flush()` (R3.21), so no screen draw can paint over it whatever its layer; before DDB-67 the main menu title did, through the since-deleted text-after-shapes ordering.
+- DDB-193: a clear-only probe on the same Radeon Pro 560X shows the per-pass floor was the 4x MSAA resolve (every timed pass paid 1.6 to 1.9 ms with multisampling on). With `antialias: false` later passes read their own work (0.04 ms for a 1-pixel draw), and what remains is one 1.26 ms full-target clear and store per frame in the first timed pass, which is real work and scales with the target (0.04 ms at 128x128). Per-pass queries stay; a single Metal query per frame is not needed. The four phase 7 baselines were recaptured after DDB-64 and DDB-195 with a comparison against the DDB-92 captures, and the capture header states the frame cost instead of the floor.
+
+**Evidence:** unit tests for the observer against a scripted `PerformanceObserver` (14: detection, LoAF preferred over long tasks, null blocks, the window, ring bounds, script attribution, the 8 ms rounding clamp), the overlay's anchor, its domain after the UI (checked to fail without the barrier) and hitch lines (7), `FrameTimer`'s window span (2), `Game` re-anchoring the overlay on a viewport change, ring saturation, and the table's worst-window column; 1718 jest tests pass after merging DDB-67. `scripts/timer-floor-probe.mjs` produces the DDB-193 table, with single-query controls that tie the MSAA floor to the query boundary. In the browser the overlay moved with a 800 to 1100 px resize and showed a slow `pointerdown`. Captures: the GPU medians fell 35 to 65 percent against DDB-92 (combat 16.2 to 4.6 ms paced, 38 to 737 FPS unthrottled, with DDB-67's single domain), unthrottled frames hold under a millisecond on light scenes after an 8 s settle, the timer still costs frame time unthrottled on combat but three off/on pairs could not size it on this shared machine, and paced GPU times read about 2.7 times longer than unthrottled because the GPU idles at 60 FPS. Decision record: [gpu-timer-and-perf-capture.md](./AI_TECHNICAL_DECISIONS/gpu-timer-and-perf-capture.md).
+
+## Paint order: text in submission order, reorder sites fixed (2026-09-28)
+
+**What landed:** DDB-67 (DDB-55 phase 1), the second deliberate re-baseline.
+
+- Deleted `DrawApiOptions.legacyTextOrder` (the clip-change barrier), `rendering/LegacyPaintOrder.ts` (text after shapes, grouped by colour) and `components/legacyDrawOrder.test.ts`. `WebGL2Backend.submit` hands the batcher the domain as submitted.
+- `DrawApi.test.ts`: the temporary describe became two contract tests, one domain across a clip push and pop, and text submitted before a clipped shape. `WebGL2Backend.test.ts` cuts its three-domain frame with explicit `flush()` barriers.
+- Reorder sites: `Card` starts the title past the driver badge; `DriverPanel` sizes the deck preview down to the cycle button, clips it there, and lays the deck in as many cards per row as fit; `DeveloperScreen` names its header and footer heights and ends the title's line box 6 px above the scroll panel; `DriverStatsDisplay` gives the driver name a 16 px band on top and centres the icons below it at their old size.
+- `visual.yml`'s dispatch takes `update_mode` (`changed` or `all`); this re-baseline minted with `all`, since `changed` leaves a real change under the tolerance in place.
+- `WebGL2Backend.test.ts` pins chapter 3 at the backend: text drawn before an overlapping rect is encoded before it.
+- Comments in `FrameTimer`, `Game`, `src/index.ts` and the gallery loop that described clip boundaries submitting mid-walk now say the flush section is the whole frame's submission.
+
+**How:** every screen and gallery scene captured locally on `main` and on the branch, first with only the deletion, then with the fixes, and diffed per pixel: four screens moved, all eight scenes and the splash and main menu stayed byte-identical. `perf-capture.mjs` against `main`: GPU draws combat 6 to 1, card showcase 2 to 1, developer 2 to 1, every screen now one. Goldens re-minted on CI with `update_mode=all`: combat, driver selection, developer and card showcase in both projects. Follow-up filed: DDB-198 (long card titles run under the cost digit). Decision record: [paint-order-rebaseline.md](./AI_TECHNICAL_DECISIONS/paint-order-rebaseline.md).
+
+## Text metrics service and the MTSDF text mode (2026-09-28)
+
+**What landed:** DDB-70 (DDB-55 phase 2), chapter 6 sections 6.2 to 6.5.
+
+- `text/TextLayout.ts`: the one glyph iteration measurement and rendering share (R6.8): kerning, letter spacing in em, uppercase before lookup, fallback glyph, default-ignorables skipped with their neighbours kerned across (the DDB-182 soft hyphen note), greedy wrap with R6.13's break opportunities plus the soft hyphen, grapheme breaks for scripts without spaces via `Intl.Segmenter`, ellipsis on single and wrapped lines.
+- `text/TextMetricsService.ts`: atlases by role, an LRU of layouts (R6.12), `measure`. `text/textPlacement.ts`: line origins for R2.13's anchor or box, decoration offsets, run ink. `text/fontRoles.ts`: `fontFamily` and `fontWeight` to a role through the typography tokens (R11.8).
+- `uber.frag`: `text` mode is median-of-three with the linear ramp, the range per draw or from derivatives, shadow blur from the alpha channel; `mask` mode deleted.
+- `UberGeometryEncoder`: glyph quads through the whole transform, each line's origin snapped under a translation (R6.16), decorations as `rect` quads; `textInk` from the layout.
+- `WebGL2Backend`: `loadFontAtlas` for real, the atlases as resident units, `measureText`. Both bootstraps await the atlases before building the draw API. `DrawApi.drawText` clips to the box for `overflow: 'clip'`; a bare `position` defaults to `verticalAlign: 'baseline'`; `decoration` and `lineHeight` options.
+- Deleted: `rendering/FontAtlas.ts`, `rendering/fonts.ts`, `Renderer.getFontAtlas`, `RendererContext.getRenderer`.
+
+**How:** `TextLayout.test.ts`, `TextMetricsService.test.ts`, `textPlacement.test.ts`, `fontRoles.test.ts`, and the encoder's text block rewritten (measured width equals drawn width, a doubled string lands one width later, snapping at ratio 2, rotation, shadow, decorations). `uberShader.spec.ts` checks the median, the derivative range under a scale, and the alpha-channel shadow on the real shader. Every golden re-minted on CI. `middle` alignment centres ascent plus descent rather than R6.11's ascent alone; the reasoning is in `docs/AI_TECHNICAL_DECISIONS/text-metrics-service.md`.
+
+## Index buffer pool: combat back to 60 FPS on ANGLE Metal (2026-09-28)
+
+**What landed:** DDB-195. `rendering/IndexBufferPool.ts` replaces the index `StreamRing`: every upload writes its indices at offset 0 of its own element buffer. The slot is the smallest free one that fits, free once the frame that wrote it is two frames old, created at a power of two from 16 KB when none fits, never resized, and 24 are pre-created. `WebGL2Backend` binds the slot into the vertex array per upload and draws from `firstIndex * 4`; `reserve` is vertex-only.
+
+**Why:** combat went from 16.6 to 27.9 ms a frame with #70 (bisected over 6e7f6ee, #66, #68, #69, #70 and main). A paced probe showed the cause: a `drawElements` reading an element buffer written since its last draw costs in proportion to the whole buffer (4 MB: 26.4 ms; 256 KB: 16.6 ms). It is triggered by the draw, not the write; it is the same for 16-bit indices; it is not copy-on-write; and orphaning is worse. After #76 the ring was 786 KB and under the cliff, but a 4 MB ring still took combat to 32.7 ms.
+
+**Evidence:** combat 16.6 to 16.8 ms paced and 4.9 to 8.4 ms unthrottled, against 16.6 / 10.4 before #70. The same pool with 4 MB slots measured 30.5 ms, so the per-upload sizing is what fixes it. Unit tests: `IndexBufferPool` (9: distinct slots per upload, two-frame reuse, creation instead of overwrite, power-of-two sizing, smallest fit, no creation after a steady frame is seen, reset, frame order) and backend (a distinct slot per domain with none reused in the next frame, a larger slot created once and never again, restore recreating the initial slots). 1641 jest tests pass. Decision record: [index-buffer-pool.md](./AI_TECHNICAL_DECISIONS/index-buffer-pool.md).
+
+## GPU timer, DevTools tracks, and perf capture tables (2026-09-28)
+
+**What landed:** DDB-92 (DDB-55 phase 7).
+
+- `rendering/GpuTimer.ts`: one `TIME_ELAPSED_EXT` query per GPU pass, never nested, polled oldest first no sooner than two frames after issue and never awaited (R13.16, R13.17, R15.22's permitted calls only); samples invalid on a disjoint event, over three times their CPU frame, or across a lost context, and excluded from the window (R13.18); a per-frame fence reported as `gpu.latencyMs` where the extension is absent (R13.19, R15.23); a query pool and an eight-frame cap on what is in flight. `WebGL2Backend` brackets the clear and each `submit` and never reads a result. Development builds only, and built disabled: F5 turns it on with the overlay, and `window.__perf.gpuTimer(on)` is the runtime toggle. The 3x rule judges a sample against the larger of its own interval and the median frame, so samples beside a hitch are not dropped.
+- `debug/devtoolsTracks.ts`: frame sections and frames on a DevTools custom track, `console.timeStamp` from Chromium 134, `performance.measure` with `detail.devtools` from 128 (cleared after each call), nothing on Electron 25 (R15.29, R15.42). The snapshot reports which as `tracks`.
+- `FrameTimer`: `gpu` is live, with `source`, `p99Ms`, `maxMs`, `sampleCount`, `invalidCount` after R13.11's five fields; the F5 overlay reads the page's snapshot function and shows GPU time or fence latency, the worst section, the device, and the track mode.
+- `scripts/perf-table.ts` and `perf-capture.mjs`: a markdown table beside every capture, `--compare` and a `compare` subcommand for R13.39, all scenarios when none are named, a one second wall-clock settle, `--vsync on` for GPU captures, the GPU timer on only for those (`--gpuTimer` overrides), the timer state and the Metal floor stated in each table header, and a fence latency column.
+
+**Evidence:** unit tests for the timer against a scripted device (16), the track selection (9), the tables (8), the backend's pass bracketing, the snapshot fields and track emission, the `__perf` toggle, and F5 driving the timer; 1603 jest tests pass. A production `build:web` bundle contains no timer or track code. Baselines on one Mac (Radeon Pro 560X, ANGLE Metal): `perf-results/phase7-frame-baseline`, `phase7-gallery-baseline` (vsync off, timer off) and `phase7-frame-gpu`, `phase7-gallery-gpu` (paced, timer on). Measured along the way: Chromium returns timer results hundreds of frames late with the frame cap off, the first second after mounting is a sub-millisecond transient before GPU back-pressure sets in, and on ANGLE Metal a query around a single clear reads 1.39 ms, the same as around twenty, so each timed pass carries a floor. Combat at ~28 ms a frame was bisected to #70 (DDB-63): it scales with the index ring size, and a 256 KB index ring restores 60 FPS (DDB-195). Decision record: [gpu-timer-and-perf-capture.md](./AI_TECHNICAL_DECISIONS/gpu-timer-and-perf-capture.md).
+
+## Uber shader: one program, exact-coverage borders, the clip as data (2026-09-28)
+
+**What landed:** DDB-64 (DDB-55 phase 1), with DDB-65's per-draw clip.
+
+- `src/assets/shaders/uber.vert` and `uber.frag` replace `vertex.glsl` and `fragment.glsl`: modes `flat`, `rect`, `shadow`, `circle`, `image`, `text` (MSDF, unused until DDB-70) and a temporary `mask` for the bitmap atlas; R5.8's border compositing, R5.6's linear ramp, Wallace's erf shadow, premultiplied output, and R4.4's half-open clip test on the interpolated logical position.
+- `rendering/UberGeometryEncoder.ts` replaces `LegacyGeometryEncoder.ts`: transform on the CPU, premultiplied colours and gradients, clamped radii, border outsets, one device pixel of quad inflation, R5.11's shadow geometry, lines and polyline segments as oriented `rect` quads, R5.17's polygon feather ring, image quads.
+- `WebGL2Backend`: the uber program, premultiplied `over`, per-draw blend for `multiply` and `screen`, eight sampler units with the atlas resident and a placeholder on the rest; the scissor and `scissorBox` are gone. `Renderer` sets `antialias: false`.
+- `Batcher` and `stats.ts` lose `clipIsState`, topology and `topologyChange`; `clipChange` is a structural zero. `LegacyPaintOrder` no longer splits circle outlines out.
+- `Rectangle` passes its corner radius; `Triangle` and `Polygon` put their box into the points rather than a pushed transform, so stroke widths are pixels.
+
+**How:** `UberGeometryEncoder.test.ts` (42, including the paint-order tests moved from the deleted encoder test), rewritten `WebGL2Backend.test.ts` (no scissor call, clip on every vertex at ratio 2, blend state per mode, texture units), `Batcher.test.ts` for the reduced split reasons. `tests/visual/web/uberShader.spec.ts` runs the real shader in SwiftShader against chapter 4.7's fragment fixture and chapter 5.10's pixel tests. Every golden re-minted on CI; the before and after comparison, and GPU draw counts per screen (unchanged, with every screen at one draw once `legacyTextOrder` goes), are in `docs/AI_TECHNICAL_DECISIONS/uber-shader.md`.
+
+**Review follow-ups (same PR):** the R4.2a bound for a polygon grows by the feather miter's four device pixels, `shadowInk` clamps a negative blur, the indexed-polygon outline contract is written on `DrawPolygonOptions` and checked by `isSingleOutline` (unfeathered draw plus a `polygon-not-one-outline` diagnostic when it fails), and the pixel suite gained image, mask and additive cases. The combat golden's intent badge reads 15 where `main`'s said 5: `main`'s golden was stale and passed under the 200-pixel budget (DDB-197).
+
+## Body face kerning: stay on unkerned Open Sans (2026-09-28)
+
+**What landed:** DDB-189, a decision with no asset change. Open Sans 3.000 stays the body face and ships with an empty `kerning[]`.
+
+**Why:** no OFL Open Sans has kerning (3.000 and 3.003, static and variable, carry GPOS `mark` and `mkmk` only; upstream issue googlefonts/opensans#4 is still open), and the woff2 Google Fonts serves the mock is 3.003 with identical outlines and advances for every atlas glyph it holds, so unkerned is the mock's look. Open Sans 1.10 kerns but is Apache 2.0 and a different drawing (214 of 225 outlines differ); Noto Sans kerns but sets 1.1% wider with every advance different. Measured on all card text at 13 px, 1.10's kerning would move 26 of 4468 pairs by 0.5 px or more (largest 1.69 px): small, not zero, so the reason is mock fidelity.
+
+**How:** fontkit inspection and shaping of each candidate, recorded in [font-pipeline.md](./AI_TECHNICAL_DECISIONS/font-pipeline.md#body-text-stays-unkerned-ddb-189). `src/assets/fonts/README.md` and the zero-pairs test in `fontAssets.test.ts` point at the decision. No pixel moves.
+
+## GPOS kerning in the font atlases (2026-09-28)
+
+**What landed:** DDB-182. `scripts/gpos-kerning.ts` resolves GPOS pair adjustment (lookup type 2, formats 1 and 2, through type 9 extensions) for the `kern` feature, and `scripts/merge-kerning.mjs` splices the result into an atlas JSON's `kerning[]` in msdf-atlas-gen's schema. `build-fonts.sh` and `.ps1` run it after each atlas. fontkit is a new devDependency. The loader drops, with a warning, a kerning pair naming a code point the atlas lacks, and a duplicate pair. jest and the root tsconfig now include `scripts/`.
+
+**Result:** `barlow-condensed-semibold.json` has 4982 pairs (`AV` -0.047 em, `Ta` -0.068, `LT` -0.067). Open Sans 3.000 has neither a `kern` table nor a GPOS `kern` feature, so it has none; follow-up DDB-189. JetBrains Mono has none, being monospaced. A full rebuild reproduced every PNG and the other two JSON files byte for byte. No pixel moves: the atlases are not drawn until DDB-70.
+
+**How:** synthetic-table unit tests for each resolution rule (format 1 miss falling through, class 0, lookups summing, extension, mark filtering, unsupported values failing, DFLT fallback, determinism), a cross-check against fontkit's shaper over all 2704 Barlow letter pairs, and a test that each committed `kerning[]` equals a fresh extraction from its face. Decisions in [font-pipeline.md](./AI_TECHNICAL_DECISIONS/font-pipeline.md#kerning).
+
+## Textures get an owner and the canvas a single viewport (2026-09-28)
+
+**What landed:** DDB-66 (DDB-55 phase 1), with DDB-186 (R15.3) alongside.
+
+- `gpu/TextureStore.ts`, R5.30 to R5.33's resource layer, GL-free over a `TextureDevice`: reference counts with the GPU free deferred to `endFrame` inside a frame, uploads queued and drained oldest first at `beginFrame` under a 2 MB budget (the first of a frame always goes), storage allocated at upload, `immediate` for UI atlases, and context loss and restore from `keepSource`, `reload()`, or empty storage. `rendering/WebGL2TextureDevice.ts` does `texStorage2D` and `texSubImage2D` on unit 31. `FontAtlas` creates through it; the null and recording backends hold one over `NULL_TEXTURE_DEVICE`. `DrawBackend.textures` replaces `createTexture`/`destroyTexture`; `DrawApi` gains `retainTexture`, `isTextureResident` and a `texture-not-live` diagnostic, and fills three R5.35 counters.
+- `coords/viewport.ts` and `rendering/CanvasViewport.ts`: R15.4's `ResizeObserver` sizing with its WebKit fallback and `matchMedia` watch, logical size from the framebuffer (R7.5), changes committed at the top of the frame (R7.3) and delivered to the GL viewport, then `ScreenManager.resize`, then the gallery host (R7.11). `windowFrame()`, the `Renderer` and `Screen` window listeners, and the gallery's are gone; `scissorBox` takes the frame's logical height.
+- `coords/snapping.ts`: `snapToDevice`, `snapTextOrigin`, `snapHairlineRect`, `snapClipRect`. The legacy encoder's per-glyph rounding goes through `snapToDevice` at the frame's ratio.
+- `rendering/deviceInfo.ts`: the three R15.3 extensions and the unmasked GPU identity, detected once and carried in the perf snapshot as `device`.
+
+**How:** Unit tests: `TextureStore` (18: ownership, deferral, the budget and its ordering, immediate uploads, an upload that throws mid-drain, loss and restore by each path, a decode that resolves after a second loss), `WebGL2TextureDevice` (4), `CanvasViewport` (13: both R15.4 paths, a device-pixel box that disagrees with an emulated ratio in either direction, commit semantics and the pre-paint frame, zoom, no observer, `uiScale`), `coords` (12: chapter 7's required numbers for ratio 2, UI scale 1.25 and the hairline rows), plus backend, draw API, `Renderer`, `Game` and encoder additions. `CombatScreen.test.ts` resizes through `Screen.resize` now that no screen listens to the window. No golden moves: at ratio 1 every change is an identity (`Math.round(x * 1) / 1`, `round(1440 * 1)`, `fb / 1`). Decision record: `docs/AI_TECHNICAL_DECISIONS/resource-layer-and-viewport.md`.
+
+## Electron visual flake: atlas decode rejected by navigation, not a load failure (2026-09-28)
+
+**What landed:** DDB-187. `tests/visual/electron/shell.spec.ts` waits, in `beforeEach`, for the boot page's `font-atlases-ready` or `font-atlases-failed` mark and asserts it is ready before any test navigates.
+
+**Why:** the Electron window loads the renderer on its own at launch, and that boot page starts decoding the three atlases. Every test then `goto`s its scene or screen on the same `Page`. When the navigation lands while a `decode()` is in flight, Chromium rejects it with "The source image cannot be decoded.", the dying page's `console.error` reaches the listener `captureConsole` attached to that `Page`, and the clean-console gate fails the attempt; the retry passes because the timing moves. The chromium project never saw it because its context starts blank. Nothing in the loader, the atlases or the webpack inlining was at fault (the electron project runs the dev server, so the inline data URIs are not even on this path).
+
+**Evidence:** a local sweep that launched Electron and navigated N ms after `firstWindow` failed at 40, 50, 60, 75 and 80 ms and was clean at 0 to 30 and 100 ms and up, 5 of 20 runs; the same sweep with the boot wait was clean 20 of 20. The electron project passes locally (14 passed, 1 skipped) with no pixel change, since the wait happens before any capture and the captured page is unchanged.
+
+## Concave polygons fill inside their outline; primitive-shapes has a golden (2026-09-28)
+
+**What landed:** DDB-185 and the close-out of DDB-103.
+
+- `draw/triangulate.ts`: `triangulatePolygon(points)` ear-clips a simple polygon in either winding into R2.11's index list, keeping the outline's winding per triangle, dropping collinear vertices instead of emitting zero-area triangles, and returning nothing for an outline with no area. Tolerances scale with the outline's extent. A self-crossing outline has no right answer; once no ear is left the remainder is fanned so the call ends. Exported from the draw module, since R2.11 makes tessellation the caller's job and game-side vector art needs the same tool.
+- `Polygon` computes its indices once when its outline changes (`setPoints`, `makeRegular`, `makeStar`) instead of a fan from vertex 0 on every frame. The fan was wrong for the gallery star: vertex 0 is the top tip, which cannot see the inner corners beside it, so two fan triangles landed outside the shape.
+- `primitive-shapes` is no longer `blockedBy` in `tests/visual/support/scenarios.ts`; its golden is minted on CI, both projects. The harness and lint-spec comments that explained the block in DDB-103's terms now say it generally.
+
+**How:** `draw/triangulate.test.ts` checks exact cover, not just triangle counts: every triangle is real and wound like the outline, areas sum to the outline's, and a 40x40 sample grid inside the outline is covered exactly once and outside not at all. Cases: convex quad and hexagon, the gallery star (and the old fan fails the same check), an L whose first vertex is reflex, a comb, clockwise and counter-clockwise stars, collinear midpoints on a square and on an L, pixel-scale input, degenerate input, and a bowtie that must still terminate. `components/Polygon.test.ts` checks through a recording backend that changing the outline refreshes the cached triangles and that a zero-area outline skips the fill but keeps its stroke. No other golden moves: `Polygon` has one importer, `PrimitiveShapesSection`.
+## WebGL2 backend replaces the WebGL1 path (2026-09-28)
+
+**What landed:** DDB-63 (DDB-55 phase 1). `src/renderer/engine/rendering/WebGL2Backend.ts` is the live backend on both pages and `LegacyGLBackend.ts`, its WebGL1 context and `Shader.ts` are deleted. It reuses `Batcher` and `LegacyGeometryEncoder` (32-bit indices now), with the two shaders ported to GLSL ES 3.00 without changing their arithmetic.
+
+**How:** `Renderer` creates a WebGL2 context with R15.2's attributes (except `antialias`, measured to move 12 of 13 goldens with the legacy program, kept until DDB-64), handles `webglcontextlost`/`webglcontextrestored`, and shows a DOM status line when the context is missing or lost. `StreamRing` places each upload in a fixed-capacity vertex or index buffer at an advancing offset that never overwrites a region younger than two frames, growing the buffer once with a warning if a frame needs more. The projection and view live in a `std140` block, one 256-byte-aligned slot per frame in a ring of three, bound with `bindBufferRange`. `FontAtlas` uploads with `texStorage2D` and `texSubImage2D` and re-uploads on restore. `FrameLoop` replaces both hand-written rAF loops so R15.5 can cancel it. `LegacyPaintOrder` moved to its own file unchanged; `createLegacyDrawApi` is `createDrawApi`.
+
+**Evidence:** byte-identical screenshots against `main` for six screens and eight gallery scenes, under SwiftShader at ratio 1 and hardware Metal at ratio 2 (with `powerPreference` held at default for the hardware run, since `high-performance` selects the discrete GPU). New unit tests: `StreamRing` (8), `FrameLoop` (4), and `WebGL2Backend` against a recording context (12: no R15.22 call, no `bufferData`, `texImage2D` or uniform setter inside a frame, rotating uniform slots, ring offsets and growth, attribute pointers per upload, rebuild on restore, blend state back after `invalidateState`), plus `Renderer` under jsdom (2: the status line clears only after every rebuild, and stays up with an error when one throws). New Playwright spec `contextLoss.spec.ts`. Follow-ups filed: DDB-185 (concave `Polygon` fill, now the `primitive-shapes` golden's blocker) and DDB-186 (R15.3); R15.4 went to DDB-66, which already owned it. Decision record: `docs/AI_TECHNICAL_DECISIONS/webgl2-backend.md`.
+
+## The clip stack's consumers: cull, snapshot, hit test (2026-09-28)
+
+**What landed:** DDB-65's fourth and last PR (DDB-55 phase 1), stacked on the batcher.
+
+- `Layer.clipsChildren` (overridden by `Panel`) is the single test of whether a layer clips, read by `Layer.render`, `Panel.render`, `treeSnapshot` and the hit test.
+- `Panel`'s `ScrollableContentLayer.render` cull is deleted; R4.2a's cull in the draw API does the job and counts it. `DrawBackend.textInk` (optional) lets text be culled per run; `LegacyGeometryEncoder.textInk` unions the glyph quads from the same pen and glyph walk it draws with, grown by a pixel. Asked only under a rect clip and a translate-only transform.
+- `treeSnapshot` carries a `ClipState` and intersects with `intersectClip`; an empty intersection is a zero-sized rect.
+- R4.12: `Layer.containsPoint` rejects a point outside any clipping ancestor, half-open, each ancestor asked in local space so a panel's scroll is removed (R4.11). Promotion's clip reset for hits and reverse-paint-order dispatch are left to phase 3 (DDB-75).
+
+**How:** `ui/PanelClip.test.ts` covers 4.7's offset-before-clip fixture, a 500-row scrolled panel emitting only the rows in view with the rest counted culled, the background staying outside its own panel's clip, the hit test (scrolled-out row, clip edge, nested clips, non-clipping ancestor), the empty snapshot clip, and the snapshot's clip equalling the clip the recording backend got. Text cull tests on a backend with `textInk`; encoder extent tests that the reported ink contains every glyph drawn under three translations. Removing the hit-test gate fails three tests. `CombatScreenTeardown` now clicks a card that is on screen at its 1024 px viewport. Pixels byte-identical against `main` on six screens and seven gallery scenes. Decision record: `docs/AI_TECHNICAL_DECISIONS/clip-stack-consumers.md`.
+
+## The batcher: one GPU draw per sort domain (2026-09-28)
+
+**What landed:** DDB-65's third PR (DDB-55 phase 1). The back half of chapter 3's batcher, and the legacy backend moved onto it.
+
+- `draw/Batcher.ts`: merges a sorted domain into one shared vertex and index upload, one contiguous range per draw group, and splits a GPU draw only for a reason (blend, topology, scissor clip, `textureSlotsExhausted`). A domain that outgrows the upload starts another, counted as a `bufferFull` flush. It sits behind the backend seam because the vertex format is the backend's (R5.4); the WebGL2 backend will compose it with an instance encoder.
+- `draw/ResidentTextureSet.ts`: R5.20's fixed resident units plus dynamic units; only exhaustion splits.
+- `rendering/LegacyGeometryEncoder.ts` and both legacy shaders: the per-draw uniforms (model matrix, colour, border colour and width, shape size) are per-vertex attributes, with the model matrix built by the same `gl-matrix` calls and multiplied in the same order, so the GPU sees the same floats. Text glyphs share the buffer. `TextRenderer.ts` deleted.
+- `LegacyGLBackend`: `LegacyPaintOrder` puts each layer's text after that layer's shapes, grouped by colour as `TextRenderer` did; one upload per domain; the font atlas bound once per frame; `submit` returns real `GpuWork`.
+- Stats: `GpuWork` carries backend-caused flushes and clip changes, `DrawStats.clipChange` is measured, `topologyChange` added as a legacy-only split reason. `PerfSnapshot.batcher` is `DrawApi.getStats()` on both pages; the F5 overlay shows groups in and GPU draws out.
+- Circles and polygons no longer inherit a previous rect's border uniform, and DDB-103's circle-outline buffer overrun is gone by construction; only the unbaselined primitive-shapes scene draws either.
+
+**How:** 18 batcher tests (merging, growth, upload capacity, resident and dynamic slots, every split reason, the clip seam, determinism, draw-record reuse), 5 resident-set tests, 18 encoder tests whose expectations are the deleted code's expressions written longhand, plus stats, FrameTimer and Game snapshot tests. Pixel check: `main` and this branch served side by side in Chromium at 1440x882, canvases hashed inside a paused frame; all six screens and seven baselined gallery scenes identical. Plain submission order for text differed by one level on driver selection, which is why the colour grouping stays. GPU draws: combat 91 to 6, showcase 61 to 2, developer 19 to 2, main menu 7 to 1, with `batcher.gpuDraws` equal to `renderer.glDrawCalls` on each. Decision record: `docs/AI_TECHNICAL_DECISIONS/batcher.md`.
+
+## Theme token file, generator, and drift test (2026-09-28)
+
+**What landed:** DDB-83, phase 4 of DDB-55. `src/renderer/engine/theme/tokens.json` holds every R11.3 category (colour, space, radius, border width, font size, line height, letter spacing, motion, layer, elevation, typography, control); `npm run tokens` runs `scripts/generate-tokens.mjs` to write the committed `tokens.ts`; `tokens.test.ts` fails when the committed module differs from a fresh generation. The starting theme is the battle screen mock's palette: five asphalt surfaces, bone text and lines, yellow as the warm accent (the drivers own amber and teal). Data, ok, and crit are new hues (periwinkle, mint, pink), since every hue in the mock's "one hue, one meaning" legend already has a job; Battle Screen Design section 7 and the mock legend list them now. Aliases (`status_warn` is `accent`, `radius_ui` is `r_sm`, glow colours, role sizes) resolve in the generator. Nothing reads the tokens yet, so no pixel moved; DDB-84 migrates components. Format choices, palette sources, departures from worldsim's defaults, and a literal-to-token map for DDB-84 are in [theme-tokens.md](./AI_TECHNICAL_DECISIONS/theme-tokens.md).
+
+**How:** 25 tests: the byte-for-byte drift check (line endings ignored, for Windows checkouts); the 11.6 round trip (every token with the file's value, the three css-only font stacks absent, nothing extra); ten generator rejections (colour or easing disagreeing with its css form, unknown or missing category, duplicate leaf name, dangling alias, alias to an inherited property, alias cycle, value plus alias, a string in a numeric category); the script run through a symlink; and the 11.2 structure as assertions (surface ordering by luminance with inset below panel, line alphas in one tint, warm and cool accents with warn and info aliased, data, ok, and crit off the legend, the radius scale, the three roles, control heights and fonts, nothing below 11 px, the motion values, the layer ladder in order). Hand-editing a value in `tokens.ts` fails the drift test and `--check`.
+
+## Font pipeline: faces, build script, committed atlases, loader (2026-09-28)
+
+**What landed:** DDB-69, the first item of DDB-55 phase 2. No pixel changes; the atlases are loaded and validated, and DDB-70 draws with them.
+
+- Faces under `src/assets/fonts/` with their OFL texts: Barlow Condensed SemiBold 1.422 for display (the family the battle screen mock and DDB-83's tokens use), Open Sans Regular 3.000 (moved from `public/assets/fonts/`, where nothing referenced it) for body, JetBrains Mono Regular 2.304 for mono. `charset.txt` holds the R6.3 ranges; `README.md` there says how to install msdf-atlas-gen on each platform.
+- `scripts/build-fonts.sh` and `.ps1` run msdf-atlas-gen v1.4.0 (pinned; the scripts refuse another version) with `-type mtsdf -size 48 -pxrange 8 -yorigin top -potr`. Three atlases (512x512 for Barlow, 1024x512 for the others), committed. Byte-identical across runs.
+- `src/renderer/engine/text/FontAtlas.ts`: `parseFontAtlas` validates msdf-atlas-gen JSON (R6.2) and normalises it to y down and per em, honouring `yOrigin`. Structural problems and a range below R6.4a throw `FontAtlasError`; a glyph with one bound, bad numbers, or atlas bounds off the image is dropped with a warning; a glyph with neither bound is a blank (the space). Missing punctuation gets a typesetter's substitute, missing typographic spaces are synthesized at their defined widths, and U+200B, U+2060, U+FEFF are forced to zero width. R6.2 and R6.3 amended to match.
+- `fontFaces.ts` maps roles to bundled JSON and image modules; `loadFontAtlases.ts` validates, decodes, and checks each image's size against its metrics. `src/index.ts` starts it at boot and sets a `font-atlases-ready` or `font-atlases-failed` performance mark.
+- Webpack: PNG is `asset/resource` in the web build (under `assets/fonts/`) and `asset/inline` in the Electron renderer (R15.34). The font sources are no longer copied into `dist`; the OFL files are.
+- `scripts/smoke-electron-package.mjs` launches the packaged app from `release/` and fails unless it runs from `file://`, the ready mark appears, and no image is requested as a file. Added after packaging in both Electron Build jobs.
+
+**How:** 80 new tests in `src/renderer/engine/text/`: structural failures, glyph drops, `yOrigin` and `emSize` normalisation, kerning, substitution, and over the committed files (parameters, PNG size from the IHDR against the JSON, every charset code point resolving, licence files). Smoke test run locally against an `electron-builder --mac --dir` build: passes, and fails listing the PNG URLs with the Electron rule switched to `asset/resource`.
+
 ## AI strategies score the effect types cards actually use (2026-09-27)
 
 **What landed:** DDB-171. The strategies checked effect types no card in `cards.json` has (`speed`, `move_to_position`, `position_change`, plus `armor`, `draw`, `adrenaline`, and `status`, and the status names `nitro_boost`, `oil_slick`, and `caltrops`), so MCTS gave a real Flank and Nitro Boost its flat 0.5 for unknown effects and the other strategies carried dead branches.

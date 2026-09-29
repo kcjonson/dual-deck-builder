@@ -1,4 +1,4 @@
-import { Panel } from '../../../engine/ui/Panel';
+import { DeveloperSectionPanel } from './DeveloperSectionPanel';
 import { Text } from '../../../engine/components/Text';
 import { Rectangle } from '../../../engine/components/Rectangle';
 
@@ -6,18 +6,10 @@ import { Rectangle } from '../../../engine/components/Rectangle';
  * Style guide section for the developer screen
  * Displays color palettes and theme examples
  */
-export class StyleGuideSection extends Panel {
+export class StyleGuideSection extends DeveloperSectionPanel {
 	constructor(x: number, y: number, width: number) {
-		super({
-			id: 'dev_section_style_guide',
-			width,
-			height: 200, // Will be calculated based on content
-			style: {
-				backgroundColor: 'transparent',
-			},
-		});
+		super({ id: 'dev_section_style_guide', x, y, width });
 
-		this.setPosition(x, y);
 		this.initializeContent();
 	}
 
@@ -79,21 +71,25 @@ export class StyleGuideSection extends Panel {
 			colorBox.setPosition(colorX, colorY);
 			this.addChild(colorBox);
 
+			// Centred under its swatch
 			const colorLabel = new Text(color.name, {
+				x: colorX,
+				y: colorY + colorBoxSize + 5,
+				width: colorBoxSize,
 				style: {
 					fontSize: 12,
 					color: '#ffffff',
 					textAlign: 'center',
+					whiteSpace: 'nowrap',
 				},
 			});
-			colorLabel.setPosition(colorX + colorBoxSize / 2, colorY + colorBoxSize + 5);
 			this.addChild(colorLabel);
 
 			colorX += colorSpacing;
 		});
 
 		// Update our height based on content
-		this.setSize(this.width, colorY + colorBoxSize + 40);
+		this.fitContentHeight(colorY + colorBoxSize + 40);
 	}
 
 	/**

@@ -1,4 +1,4 @@
-import { Panel } from '../../../engine/ui/Panel';
+import { DeveloperSectionPanel } from './DeveloperSectionPanel';
 import { Text } from '../../../engine/components/Text';
 import { Button } from '../../../engine/ui/Button';
 
@@ -6,21 +6,14 @@ import { Button } from '../../../engine/ui/Button';
  * Button examples section for the developer screen
  * Demonstrates various button styles and states
  */
-export class ButtonExamplesSection extends Panel {
+export class ButtonExamplesSection extends DeveloperSectionPanel {
 	private clickCounter = 0;
 	private clickCountText!: Text;
+	private focusDemo!: Button;
 
 	constructor(x: number, y: number, width: number) {
-		super({
-			id: 'dev_section_buttons',
-			width,
-			height: 200, // Will be calculated based on content
-			style: {
-				backgroundColor: 'transparent',
-			},
-		});
+		super({ id: 'dev_section_buttons', x, y, width });
 
-		this.setPosition(x, y);
 		this.initializeContent();
 	}
 
@@ -53,63 +46,44 @@ export class ButtonExamplesSection extends Panel {
 		const buttonSpacing = 130;
 		let buttonX = 20;
 
-		// Primary button
+		// Primary: the accent tone (R11.10)
 		const primaryButton = new Button('Primary', {
+			tone: 'accent',
 			width: 120,
 			height: 40,
-			style: {
-				fontSize: 16,
-				backgroundColor: '#3366ff',
-				borderRadius: 4,
-			},
 		});
 		primaryButton.setPosition(buttonX, buttonY1);
-		primaryButton.onClick(() => this.incrementCounter());
+		primaryButton.onClick = () => this.incrementCounter();
 		this.addChild(primaryButton);
 		buttonX += buttonSpacing;
 
-		// Secondary button
+		// Secondary: the default, neutral tone
 		const secondaryButton = new Button('Secondary', {
 			width: 120,
 			height: 40,
-			style: {
-				fontSize: 16,
-				backgroundColor: '#666666',
-				borderRadius: 4,
-			},
 		});
 		secondaryButton.setPosition(buttonX, buttonY1);
-		secondaryButton.onClick(() => this.incrementCounter());
+		secondaryButton.onClick = () => this.incrementCounter();
 		this.addChild(secondaryButton);
 		buttonX += buttonSpacing;
 
-		// Success button
 		const successButton = new Button('Success', {
+			tone: 'ok',
 			width: 120,
 			height: 40,
-			style: {
-				fontSize: 16,
-				backgroundColor: '#00cc66',
-				borderRadius: 4,
-			},
 		});
 		successButton.setPosition(buttonX, buttonY1);
-		successButton.onClick(() => this.incrementCounter());
+		successButton.onClick = () => this.incrementCounter();
 		this.addChild(successButton);
 		buttonX += buttonSpacing;
 
-		// Danger button
 		const dangerButton = new Button('Danger', {
+			tone: 'crit',
 			width: 120,
 			height: 40,
-			style: {
-				fontSize: 16,
-				backgroundColor: '#ff3333',
-				borderRadius: 4,
-			},
 		});
 		dangerButton.setPosition(buttonX, buttonY1);
-		dangerButton.onClick(() => this.incrementCounter());
+		dangerButton.onClick = () => this.incrementCounter();
 		this.addChild(dangerButton);
 
 		// Second row of buttons
@@ -117,69 +91,97 @@ export class ButtonExamplesSection extends Panel {
 		const buttonY2 = currentY;
 		buttonX = 20;
 
-		// Rounded button
+		// Style overrides on top of a tone (R11.15): the radius from a token
 		const roundedButton = new Button('Rounded', {
+			tone: 'data',
 			width: 120,
 			height: 40,
 			style: {
-				fontSize: 16,
-				backgroundColor: '#ff6600',
-				borderRadius: 20,
+				borderRadius: 'r_pill',
 			},
 		});
 		roundedButton.setPosition(buttonX, buttonY2);
-		roundedButton.onClick(() => this.incrementCounter());
+		roundedButton.onClick = () => this.incrementCounter();
 		this.addChild(roundedButton);
 		buttonX += buttonSpacing;
 
-		// Outlined button
+		// A transparent fill still takes the hover wash and pressed nudge
 		const outlinedButton = new Button('Outlined', {
 			width: 120,
 			height: 40,
 			style: {
-				fontSize: 16,
-				backgroundColor: '#00000000',
-				border: '2px solid #33ccff',
-				color: '#33ccff',
-				borderRadius: 4,
+				backgroundColor: 'transparent',
+				borderColor: 'data',
+				color: 'data',
 			},
 		});
 		outlinedButton.setPosition(buttonX, buttonY2);
-		outlinedButton.onClick(() => this.incrementCounter());
+		outlinedButton.onClick = () => this.incrementCounter();
 		this.addChild(outlinedButton);
 		buttonX += buttonSpacing;
 
-		// Small button
+		// Sizes set height, label, and icon together (R11.10)
 		const smallButton = new Button('Small', {
+			size: 'sm',
 			width: 80,
-			height: 30,
-			style: {
-				fontSize: 14,
-				backgroundColor: '#9933ff',
-				borderRadius: 3,
-			},
 		});
-		smallButton.setPosition(buttonX, buttonY2 + 5);
-		smallButton.onClick(() => this.incrementCounter());
+		smallButton.setPosition(buttonX, buttonY2 + 7);
+		smallButton.onClick = () => this.incrementCounter();
 		this.addChild(smallButton);
 		buttonX += 90;
 
-		// Large button
 		const largeButton = new Button('Large Button', {
+			tone: 'accent',
+			size: 'lg',
 			width: 150,
-			height: 50,
-			style: {
-				fontSize: 18,
-				backgroundColor: '#ff9900',
-				borderRadius: 8,
-			},
 		});
-		largeButton.setPosition(buttonX, buttonY2 - 5);
-		largeButton.onClick(() => this.incrementCounter());
+		largeButton.setPosition(buttonX, buttonY2 - 3);
+		largeButton.onClick = () => this.incrementCounter();
 		this.addChild(largeButton);
 
+		// Third row: R11.11 flags held on, so the gallery shows the state layers
+		currentY += 60;
+		const buttonY3 = currentY;
+		buttonX = 20;
+
+		const disabledButton = new Button('Disabled', { tone: 'accent', width: 120, height: 40 });
+		disabledButton.setEnabled(false);
+
+		const selectedButton = new Button('Selected', { width: 120, height: 40 });
+		selectedButton.selected = true;
+
+		const activeButton = new Button('Active', { width: 120, height: 40 });
+		activeButton.active = true;
+
+		// Keyboard focus: the ring sits outside the box, independent of the
+		// rest. Focused through the real focus path on mount, not by hand.
+		const focusedButton = new Button('Focus ring', { tone: 'accent', width: 120, height: 40 });
+		this.focusDemo = focusedButton;
+
+		for (const button of [disabledButton, selectedButton, activeButton, focusedButton]) {
+			button.setPosition(buttonX, buttonY3);
+			button.onClick = () => this.incrementCounter();
+			this.addChild(button);
+			buttonX += buttonSpacing;
+		}
+
 		// Update our height based on content
-		this.setSize(this.width, buttonY2 + 60);
+		this.fitContentHeight(buttonY3 + 60);
+	}
+
+	/**
+	 * Focuses the demo button as keyboard navigation would, so it shows its
+	 * ring; a press elsewhere takes it away. From the first update rather than
+	 * here, since `onMount` runs before the children mount and the focus
+	 * manager refuses a component that is not mounted yet.
+	 */
+	protected onMount(): void {
+		this.requestUpdate();
+	}
+
+	public update(dt: number): void {
+		super.update(dt);
+		this.context?.focus.focus(this.focusDemo, 'keyboard');
 	}
 
 	private incrementCounter(): void {

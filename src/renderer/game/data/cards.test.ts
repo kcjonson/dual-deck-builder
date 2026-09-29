@@ -1,6 +1,11 @@
 import { Card, CardData, CardEffect } from '../mechanics/Card';
 import { EFFECT_TARGETS } from '../mechanics/EffectTargets';
 import cardsFile from './cards.json';
+import { Text } from '../../engine/components/Text';
+import { createMeasuringDrawApi } from '../../engine/text/testing';
+import { createTestContext } from '../../engine/components/testing';
+import type { MountContext } from '../../engine/components/MountContext';
+import { Card as UICard, CardSize } from '../ui/Card';
 
 /**
  * Card data check (Card System Design 1.1, Battle Screen Design 5 and 8).
@@ -10,12 +15,24 @@ import cardsFile from './cards.json';
 // Full text in the detail view, measured at about 357 characters with a two-line name.
 const DESCRIPTION_MAX_CHARS = 330;
 
-// Stand-in for "three lines of 12px text in a 114px box" until phase 2 text
-// measurement lands and this becomes a real wrap check. Counted as rendered,
-// so keyword brackets don't count. The longest current summary is 59.
-const SUMMARY_MAX_CHARS = 60;
+// The card face's short text gets three lines (Battle Screen Design, card
+// text table), measured as the face draws it: the description part of a
+// NORMAL card, with the committed faces. The design's 12 px in 114 px is the
+// redesigned face's budget; three summaries need a fourth line there
+// (DDB-204), so this checks the face that ships.
+const SUMMARY_MAX_LINES = 3;
 
-const renderedSummary = (text: string): string => text.replace(/\[(.+?)\]/g, '$1');
+let context: MountContext;
+
+const summaryLines = (summary: string): number => {
+	const face = new UICard({ x: 0, y: 0, data: new Card({ ...cards[0], summary }), size: CardSize.NORMAL });
+	// Mounted, so its texts measure through the context (R1.6).
+	face.mount(context);
+	const text = face.getChildren().find((child) => child instanceof Text && child.getText() === UICard.faceText(summary));
+	const measured = text instanceof Text ? text.measured : null;
+	if (!measured) throw new Error('summary text could not be measured');
+	return measured.lines;
+};
 
 const cards = (cardsFile as unknown as { cards: CardData[] }).cards;
 
@@ -31,12 +48,16 @@ const texts = cards.flatMap((data) =>
 );
 
 describe('card data check', () => {
+	beforeAll(() => {
+		context = createTestContext({ draw: createMeasuringDrawApi().api });
+	});
+
 	it.each(texts)('$label description fits the detail view', ({ description }) => {
 		expect(description.length).toBeLessThanOrEqual(DESCRIPTION_MAX_CHARS);
 	});
 
-	it.each(texts)('$label summary fits the card face', ({ summary }) => {
-		expect(renderedSummary(summary).length).toBeLessThanOrEqual(SUMMARY_MAX_CHARS);
+	it.each(texts)('$label summary fits the card face in three lines', ({ summary }) => {
+		expect(summaryLines(summary)).toBeLessThanOrEqual(SUMMARY_MAX_LINES);
 	});
 
 	it.each(texts)('$label has no unfilled {variables}', ({ summary, description }) => {
@@ -72,9 +93,9 @@ describe('card data check', () => {
 		expect(upgraded.displayDescription).toContain('(+1 to defender\'s evade)');
 	});
 
-	it('the summary proxy rejects full rules text used as a summary', () => {
+	it('the summary check rejects full rules text used as a summary', () => {
 		const headshot = texts.find((t) => t.label === 'headshot');
 		expect(headshot).toBeDefined();
-		expect(renderedSummary(headshot?.description ?? '').length).toBeGreaterThan(SUMMARY_MAX_CHARS);
+		expect(summaryLines(headshot?.description ?? '')).toBeGreaterThan(SUMMARY_MAX_LINES);
 	});
 });

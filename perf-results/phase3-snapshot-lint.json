@@ -1,0 +1,1184 @@
+{
+	"label": "phase3-snapshot-lint",
+	"capturedAt": "2026-09-28",
+	"spec": "R13.21-R13.29 over the full R13.22 schema (DDB-80), shape per R13.38",
+	"build": "webpack dev server, __DEV_TOOLS__ true, chromium under Playwright, harness settle",
+	"viewport": {
+		"width": 1440,
+		"height": 882,
+		"devicePixelRatio": 1
+	},
+	"note": "countBefore is main at dc095bd (phase 0 schema on the DDB-73 tree); count is this branch. Gallery scenes are the R13.29 gate and must stay 0. Screens are not gated. No count moved: text-overflow is now evaluated on every measured Text and finds nothing unhandled; no component sets zIndex or layer yet, so R13.25.1 exempts nothing on these trees; unreachable-interactive and target-size stay dormant for want of focusable.",
+	"entries": [
+		{
+			"scenario": "interactive-controls",
+			"kind": "scene",
+			"nodeCount": 19,
+			"countBefore": 0,
+			"count": 0,
+			"rules": [
+				{
+					"rule": "sibling-overlap",
+					"violations": 0,
+					"evaluated": 21,
+					"exempt": 0,
+					"skippedMissingInput": 0,
+					"dormant": false
+				},
+				{
+					"rule": "child-outside-parent",
+					"violations": 0,
+					"evaluated": 14,
+					"exempt": 0,
+					"skippedMissingInput": 0,
+					"dormant": false
+				},
+				{
+					"rule": "outside-viewport",
+					"violations": 0,
+					"evaluated": 15,
+					"exempt": 0,
+					"skippedMissingInput": 0,
+					"dormant": false
+				},
+				{
+					"rule": "zero-or-negative-size",
+					"violations": 0,
+					"evaluated": 15,
+					"exempt": 0,
+					"skippedMissingInput": 0,
+					"dormant": false
+				},
+				{
+					"rule": "text-overflow",
+					"violations": 0,
+					"evaluated": 6,
+					"exempt": 0,
+					"skippedMissingInput": 0,
+					"dormant": false
+				},
+				{
+					"rule": "unreachable-interactive",
+					"violations": 0,
+					"evaluated": 0,
+					"exempt": 0,
+					"skippedMissingInput": 15,
+					"dormant": true
+				},
+				{
+					"rule": "target-size",
+					"violations": 0,
+					"evaluated": 0,
+					"exempt": 0,
+					"skippedMissingInput": 15,
+					"dormant": true
+				}
+			]
+		},
+		{
+			"scenario": "style-guide",
+			"kind": "scene",
+			"nodeCount": 20,
+			"countBefore": 0,
+			"count": 0,
+			"rules": [
+				{
+					"rule": "sibling-overlap",
+					"violations": 0,
+					"evaluated": 153,
+					"exempt": 0,
+					"skippedMissingInput": 0,
+					"dormant": false
+				},
+				{
+					"rule": "child-outside-parent",
+					"violations": 0,
+					"evaluated": 19,
+					"exempt": 0,
+					"skippedMissingInput": 0,
+					"dormant": false
+				},
+				{
+					"rule": "outside-viewport",
+					"violations": 0,
+					"evaluated": 20,
+					"exempt": 0,
+					"skippedMissingInput": 0,
+					"dormant": false
+				},
+				{
+					"rule": "zero-or-negative-size",
+					"violations": 0,
+					"evaluated": 20,
+					"exempt": 0,
+					"skippedMissingInput": 0,
+					"dormant": false
+				},
+				{
+					"rule": "text-overflow",
+					"violations": 0,
+					"evaluated": 10,
+					"exempt": 0,
+					"skippedMissingInput": 0,
+					"dormant": false
+				},
+				{
+					"rule": "unreachable-interactive",
+					"violations": 0,
+					"evaluated": 0,
+					"exempt": 0,
+					"skippedMissingInput": 20,
+					"dormant": true
+				},
+				{
+					"rule": "target-size",
+					"violations": 0,
+					"evaluated": 0,
+					"exempt": 0,
+					"skippedMissingInput": 20,
+					"dormant": true
+				}
+			]
+		},
+		{
+			"scenario": "input-showcase",
+			"kind": "scene",
+			"nodeCount": 23,
+			"countBefore": 0,
+			"count": 0,
+			"rules": [
+				{
+					"rule": "sibling-overlap",
+					"violations": 0,
+					"evaluated": 36,
+					"exempt": 0,
+					"skippedMissingInput": 0,
+					"dormant": false
+				},
+				{
+					"rule": "child-outside-parent",
+					"violations": 0,
+					"evaluated": 18,
+					"exempt": 0,
+					"skippedMissingInput": 0,
+					"dormant": false
+				},
+				{
+					"rule": "outside-viewport",
+					"violations": 0,
+					"evaluated": 19,
+					"exempt": 0,
+					"skippedMissingInput": 0,
+					"dormant": false
+				},
+				{
+					"rule": "zero-or-negative-size",
+					"violations": 0,
+					"evaluated": 19,
+					"exempt": 0,
+					"skippedMissingInput": 0,
+					"dormant": false
+				},
+				{
+					"rule": "text-overflow",
+					"violations": 0,
+					"evaluated": 11,
+					"exempt": 0,
+					"skippedMissingInput": 0,
+					"dormant": false
+				},
+				{
+					"rule": "unreachable-interactive",
+					"violations": 0,
+					"evaluated": 0,
+					"exempt": 0,
+					"skippedMissingInput": 19,
+					"dormant": true
+				},
+				{
+					"rule": "target-size",
+					"violations": 0,
+					"evaluated": 0,
+					"exempt": 0,
+					"skippedMissingInput": 19,
+					"dormant": true
+				}
+			]
+		},
+		{
+			"scenario": "rectangles",
+			"kind": "scene",
+			"nodeCount": 8,
+			"countBefore": 0,
+			"count": 0,
+			"rules": [
+				{
+					"rule": "sibling-overlap",
+					"violations": 0,
+					"evaluated": 15,
+					"exempt": 0,
+					"skippedMissingInput": 0,
+					"dormant": false
+				},
+				{
+					"rule": "child-outside-parent",
+					"violations": 0,
+					"evaluated": 7,
+					"exempt": 0,
+					"skippedMissingInput": 0,
+					"dormant": false
+				},
+				{
+					"rule": "outside-viewport",
+					"violations": 0,
+					"evaluated": 8,
+					"exempt": 0,
+					"skippedMissingInput": 0,
+					"dormant": false
+				},
+				{
+					"rule": "zero-or-negative-size",
+					"violations": 0,
+					"evaluated": 8,
+					"exempt": 0,
+					"skippedMissingInput": 0,
+					"dormant": false
+				},
+				{
+					"rule": "text-overflow",
+					"violations": 0,
+					"evaluated": 1,
+					"exempt": 0,
+					"skippedMissingInput": 0,
+					"dormant": false
+				},
+				{
+					"rule": "unreachable-interactive",
+					"violations": 0,
+					"evaluated": 0,
+					"exempt": 0,
+					"skippedMissingInput": 8,
+					"dormant": true
+				},
+				{
+					"rule": "target-size",
+					"violations": 0,
+					"evaluated": 0,
+					"exempt": 0,
+					"skippedMissingInput": 8,
+					"dormant": true
+				}
+			]
+		},
+		{
+			"scenario": "buttons",
+			"kind": "scene",
+			"nodeCount": 28,
+			"countBefore": 0,
+			"count": 0,
+			"rules": [
+				{
+					"rule": "sibling-overlap",
+					"violations": 0,
+					"evaluated": 45,
+					"exempt": 0,
+					"skippedMissingInput": 0,
+					"dormant": false
+				},
+				{
+					"rule": "child-outside-parent",
+					"violations": 0,
+					"evaluated": 27,
+					"exempt": 0,
+					"skippedMissingInput": 0,
+					"dormant": false
+				},
+				{
+					"rule": "outside-viewport",
+					"violations": 0,
+					"evaluated": 28,
+					"exempt": 0,
+					"skippedMissingInput": 0,
+					"dormant": false
+				},
+				{
+					"rule": "zero-or-negative-size",
+					"violations": 0,
+					"evaluated": 28,
+					"exempt": 0,
+					"skippedMissingInput": 0,
+					"dormant": false
+				},
+				{
+					"rule": "text-overflow",
+					"violations": 0,
+					"evaluated": 10,
+					"exempt": 0,
+					"skippedMissingInput": 0,
+					"dormant": false
+				},
+				{
+					"rule": "unreachable-interactive",
+					"violations": 0,
+					"evaluated": 0,
+					"exempt": 0,
+					"skippedMissingInput": 28,
+					"dormant": true
+				},
+				{
+					"rule": "target-size",
+					"violations": 0,
+					"evaluated": 0,
+					"exempt": 0,
+					"skippedMissingInput": 28,
+					"dormant": true
+				}
+			]
+		},
+		{
+			"scenario": "text",
+			"kind": "scene",
+			"nodeCount": 22,
+			"countBefore": 0,
+			"count": 0,
+			"rules": [
+				{
+					"rule": "sibling-overlap",
+					"violations": 0,
+					"evaluated": 190,
+					"exempt": 0,
+					"skippedMissingInput": 0,
+					"dormant": false
+				},
+				{
+					"rule": "child-outside-parent",
+					"violations": 0,
+					"evaluated": 21,
+					"exempt": 0,
+					"skippedMissingInput": 0,
+					"dormant": false
+				},
+				{
+					"rule": "outside-viewport",
+					"violations": 0,
+					"evaluated": 22,
+					"exempt": 0,
+					"skippedMissingInput": 0,
+					"dormant": false
+				},
+				{
+					"rule": "zero-or-negative-size",
+					"violations": 0,
+					"evaluated": 22,
+					"exempt": 0,
+					"skippedMissingInput": 0,
+					"dormant": false
+				},
+				{
+					"rule": "text-overflow",
+					"violations": 0,
+					"evaluated": 12,
+					"exempt": 8,
+					"skippedMissingInput": 0,
+					"dormant": false
+				},
+				{
+					"rule": "unreachable-interactive",
+					"violations": 0,
+					"evaluated": 0,
+					"exempt": 0,
+					"skippedMissingInput": 22,
+					"dormant": true
+				},
+				{
+					"rule": "target-size",
+					"violations": 0,
+					"evaluated": 0,
+					"exempt": 0,
+					"skippedMissingInput": 22,
+					"dormant": true
+				}
+			]
+		},
+		{
+			"scenario": "primitive-shapes",
+			"kind": "scene",
+			"nodeCount": 16,
+			"countBefore": 0,
+			"count": 0,
+			"rules": [
+				{
+					"rule": "sibling-overlap",
+					"violations": 0,
+					"evaluated": 91,
+					"exempt": 0,
+					"skippedMissingInput": 0,
+					"dormant": false
+				},
+				{
+					"rule": "child-outside-parent",
+					"violations": 0,
+					"evaluated": 15,
+					"exempt": 0,
+					"skippedMissingInput": 0,
+					"dormant": false
+				},
+				{
+					"rule": "outside-viewport",
+					"violations": 0,
+					"evaluated": 16,
+					"exempt": 0,
+					"skippedMissingInput": 0,
+					"dormant": false
+				},
+				{
+					"rule": "zero-or-negative-size",
+					"violations": 0,
+					"evaluated": 16,
+					"exempt": 0,
+					"skippedMissingInput": 0,
+					"dormant": false
+				},
+				{
+					"rule": "text-overflow",
+					"violations": 0,
+					"evaluated": 4,
+					"exempt": 0,
+					"skippedMissingInput": 0,
+					"dormant": false
+				},
+				{
+					"rule": "unreachable-interactive",
+					"violations": 0,
+					"evaluated": 0,
+					"exempt": 0,
+					"skippedMissingInput": 16,
+					"dormant": true
+				},
+				{
+					"rule": "target-size",
+					"violations": 0,
+					"evaluated": 0,
+					"exempt": 0,
+					"skippedMissingInput": 16,
+					"dormant": true
+				}
+			]
+		},
+		{
+			"scenario": "nested-panels",
+			"kind": "scene",
+			"nodeCount": 9,
+			"countBefore": 0,
+			"count": 0,
+			"rules": [
+				{
+					"rule": "sibling-overlap",
+					"violations": 0,
+					"evaluated": 4,
+					"exempt": 0,
+					"skippedMissingInput": 0,
+					"dormant": false
+				},
+				{
+					"rule": "child-outside-parent",
+					"violations": 0,
+					"evaluated": 8,
+					"exempt": 0,
+					"skippedMissingInput": 0,
+					"dormant": false
+				},
+				{
+					"rule": "outside-viewport",
+					"violations": 0,
+					"evaluated": 9,
+					"exempt": 0,
+					"skippedMissingInput": 0,
+					"dormant": false
+				},
+				{
+					"rule": "zero-or-negative-size",
+					"violations": 0,
+					"evaluated": 9,
+					"exempt": 0,
+					"skippedMissingInput": 0,
+					"dormant": false
+				},
+				{
+					"rule": "text-overflow",
+					"violations": 0,
+					"evaluated": 3,
+					"exempt": 0,
+					"skippedMissingInput": 0,
+					"dormant": false
+				},
+				{
+					"rule": "unreachable-interactive",
+					"violations": 0,
+					"evaluated": 0,
+					"exempt": 0,
+					"skippedMissingInput": 9,
+					"dormant": true
+				},
+				{
+					"rule": "target-size",
+					"violations": 0,
+					"evaluated": 0,
+					"exempt": 0,
+					"skippedMissingInput": 9,
+					"dormant": true
+				}
+			]
+		},
+		{
+			"scenario": "paint-order",
+			"kind": "scene",
+			"nodeCount": 4,
+			"countBefore": 0,
+			"count": 0,
+			"rules": [
+				{
+					"rule": "sibling-overlap",
+					"violations": 0,
+					"evaluated": 1,
+					"exempt": 0,
+					"skippedMissingInput": 0,
+					"dormant": false
+				},
+				{
+					"rule": "child-outside-parent",
+					"violations": 0,
+					"evaluated": 3,
+					"exempt": 0,
+					"skippedMissingInput": 0,
+					"dormant": false
+				},
+				{
+					"rule": "outside-viewport",
+					"violations": 0,
+					"evaluated": 4,
+					"exempt": 0,
+					"skippedMissingInput": 0,
+					"dormant": false
+				},
+				{
+					"rule": "zero-or-negative-size",
+					"violations": 0,
+					"evaluated": 4,
+					"exempt": 0,
+					"skippedMissingInput": 0,
+					"dormant": false
+				},
+				{
+					"rule": "text-overflow",
+					"violations": 0,
+					"evaluated": 1,
+					"exempt": 0,
+					"skippedMissingInput": 0,
+					"dormant": false
+				},
+				{
+					"rule": "unreachable-interactive",
+					"violations": 0,
+					"evaluated": 0,
+					"exempt": 0,
+					"skippedMissingInput": 4,
+					"dormant": true
+				},
+				{
+					"rule": "target-size",
+					"violations": 0,
+					"evaluated": 0,
+					"exempt": 0,
+					"skippedMissingInput": 4,
+					"dormant": true
+				}
+			]
+		},
+		{
+			"scenario": "clipping",
+			"kind": "scene",
+			"nodeCount": 4,
+			"countBefore": 0,
+			"count": 0,
+			"rules": [
+				{
+					"rule": "sibling-overlap",
+					"violations": 0,
+					"evaluated": 1,
+					"exempt": 0,
+					"skippedMissingInput": 0,
+					"dormant": false
+				},
+				{
+					"rule": "child-outside-parent",
+					"violations": 0,
+					"evaluated": 3,
+					"exempt": 0,
+					"skippedMissingInput": 0,
+					"dormant": false
+				},
+				{
+					"rule": "outside-viewport",
+					"violations": 0,
+					"evaluated": 4,
+					"exempt": 0,
+					"skippedMissingInput": 0,
+					"dormant": false
+				},
+				{
+					"rule": "zero-or-negative-size",
+					"violations": 0,
+					"evaluated": 4,
+					"exempt": 0,
+					"skippedMissingInput": 0,
+					"dormant": false
+				},
+				{
+					"rule": "text-overflow",
+					"violations": 0,
+					"evaluated": 1,
+					"exempt": 0,
+					"skippedMissingInput": 0,
+					"dormant": false
+				},
+				{
+					"rule": "unreachable-interactive",
+					"violations": 0,
+					"evaluated": 0,
+					"exempt": 0,
+					"skippedMissingInput": 4,
+					"dormant": true
+				},
+				{
+					"rule": "target-size",
+					"violations": 0,
+					"evaluated": 0,
+					"exempt": 0,
+					"skippedMissingInput": 4,
+					"dormant": true
+				}
+			]
+		},
+		{
+			"scenario": "shading",
+			"kind": "scene",
+			"nodeCount": 4,
+			"countBefore": 0,
+			"count": 0,
+			"rules": [
+				{
+					"rule": "sibling-overlap",
+					"violations": 0,
+					"evaluated": 1,
+					"exempt": 0,
+					"skippedMissingInput": 0,
+					"dormant": false
+				},
+				{
+					"rule": "child-outside-parent",
+					"violations": 0,
+					"evaluated": 3,
+					"exempt": 0,
+					"skippedMissingInput": 0,
+					"dormant": false
+				},
+				{
+					"rule": "outside-viewport",
+					"violations": 0,
+					"evaluated": 4,
+					"exempt": 0,
+					"skippedMissingInput": 0,
+					"dormant": false
+				},
+				{
+					"rule": "zero-or-negative-size",
+					"violations": 0,
+					"evaluated": 4,
+					"exempt": 0,
+					"skippedMissingInput": 0,
+					"dormant": false
+				},
+				{
+					"rule": "text-overflow",
+					"violations": 0,
+					"evaluated": 1,
+					"exempt": 0,
+					"skippedMissingInput": 0,
+					"dormant": false
+				},
+				{
+					"rule": "unreachable-interactive",
+					"violations": 0,
+					"evaluated": 0,
+					"exempt": 0,
+					"skippedMissingInput": 4,
+					"dormant": true
+				},
+				{
+					"rule": "target-size",
+					"violations": 0,
+					"evaluated": 0,
+					"exempt": 0,
+					"skippedMissingInput": 4,
+					"dormant": true
+				}
+			]
+		},
+		{
+			"scenario": "icons",
+			"kind": "scene",
+			"nodeCount": 69,
+			"countBefore": 0,
+			"count": 0,
+			"rules": [
+				{
+					"rule": "sibling-overlap",
+					"violations": 0,
+					"evaluated": 1081,
+					"exempt": 0,
+					"skippedMissingInput": 0,
+					"dormant": false
+				},
+				{
+					"rule": "child-outside-parent",
+					"violations": 0,
+					"evaluated": 68,
+					"exempt": 0,
+					"skippedMissingInput": 0,
+					"dormant": false
+				},
+				{
+					"rule": "outside-viewport",
+					"violations": 0,
+					"evaluated": 69,
+					"exempt": 0,
+					"skippedMissingInput": 0,
+					"dormant": false
+				},
+				{
+					"rule": "zero-or-negative-size",
+					"violations": 0,
+					"evaluated": 69,
+					"exempt": 0,
+					"skippedMissingInput": 0,
+					"dormant": false
+				},
+				{
+					"rule": "text-overflow",
+					"violations": 0,
+					"evaluated": 9,
+					"exempt": 0,
+					"skippedMissingInput": 0,
+					"dormant": false
+				},
+				{
+					"rule": "unreachable-interactive",
+					"violations": 0,
+					"evaluated": 0,
+					"exempt": 0,
+					"skippedMissingInput": 69,
+					"dormant": true
+				},
+				{
+					"rule": "target-size",
+					"violations": 0,
+					"evaluated": 0,
+					"exempt": 0,
+					"skippedMissingInput": 69,
+					"dormant": true
+				}
+			]
+		},
+		{
+			"scenario": "splashScreen",
+			"kind": "screen",
+			"nodeCount": 5,
+			"countBefore": 3,
+			"count": 3,
+			"rules": [
+				{
+					"rule": "sibling-overlap",
+					"violations": 3,
+					"evaluated": 6,
+					"exempt": 0,
+					"skippedMissingInput": 0,
+					"dormant": false
+				},
+				{
+					"rule": "child-outside-parent",
+					"violations": 0,
+					"evaluated": 4,
+					"exempt": 0,
+					"skippedMissingInput": 0,
+					"dormant": false
+				},
+				{
+					"rule": "outside-viewport",
+					"violations": 0,
+					"evaluated": 5,
+					"exempt": 0,
+					"skippedMissingInput": 0,
+					"dormant": false
+				},
+				{
+					"rule": "zero-or-negative-size",
+					"violations": 0,
+					"evaluated": 5,
+					"exempt": 0,
+					"skippedMissingInput": 0,
+					"dormant": false
+				},
+				{
+					"rule": "text-overflow",
+					"violations": 0,
+					"evaluated": 2,
+					"exempt": 0,
+					"skippedMissingInput": 0,
+					"dormant": false
+				},
+				{
+					"rule": "unreachable-interactive",
+					"violations": 0,
+					"evaluated": 0,
+					"exempt": 0,
+					"skippedMissingInput": 5,
+					"dormant": true
+				},
+				{
+					"rule": "target-size",
+					"violations": 0,
+					"evaluated": 0,
+					"exempt": 0,
+					"skippedMissingInput": 5,
+					"dormant": true
+				}
+			]
+		},
+		{
+			"scenario": "mainMenuScreen",
+			"kind": "screen",
+			"nodeCount": 18,
+			"countBefore": 6,
+			"count": 6,
+			"rules": [
+				{
+					"rule": "sibling-overlap",
+					"violations": 6,
+					"evaluated": 21,
+					"exempt": 0,
+					"skippedMissingInput": 0,
+					"dormant": false
+				},
+				{
+					"rule": "child-outside-parent",
+					"violations": 0,
+					"evaluated": 17,
+					"exempt": 0,
+					"skippedMissingInput": 0,
+					"dormant": false
+				},
+				{
+					"rule": "outside-viewport",
+					"violations": 0,
+					"evaluated": 18,
+					"exempt": 0,
+					"skippedMissingInput": 0,
+					"dormant": false
+				},
+				{
+					"rule": "zero-or-negative-size",
+					"violations": 0,
+					"evaluated": 18,
+					"exempt": 0,
+					"skippedMissingInput": 0,
+					"dormant": false
+				},
+				{
+					"rule": "text-overflow",
+					"violations": 0,
+					"evaluated": 6,
+					"exempt": 0,
+					"skippedMissingInput": 0,
+					"dormant": false
+				},
+				{
+					"rule": "unreachable-interactive",
+					"violations": 0,
+					"evaluated": 0,
+					"exempt": 0,
+					"skippedMissingInput": 18,
+					"dormant": true
+				},
+				{
+					"rule": "target-size",
+					"violations": 0,
+					"evaluated": 0,
+					"exempt": 0,
+					"skippedMissingInput": 18,
+					"dormant": true
+				}
+			]
+		},
+		{
+			"scenario": "developerScreen",
+			"kind": "screen",
+			"nodeCount": 221,
+			"countBefore": 186,
+			"count": 186,
+			"rules": [
+				{
+					"rule": "sibling-overlap",
+					"violations": 3,
+					"evaluated": 1711,
+					"exempt": 0,
+					"skippedMissingInput": 0,
+					"dormant": false
+				},
+				{
+					"rule": "child-outside-parent",
+					"violations": 10,
+					"evaluated": 212,
+					"exempt": 0,
+					"skippedMissingInput": 0,
+					"dormant": false
+				},
+				{
+					"rule": "outside-viewport",
+					"violations": 173,
+					"evaluated": 213,
+					"exempt": 0,
+					"skippedMissingInput": 0,
+					"dormant": false
+				},
+				{
+					"rule": "zero-or-negative-size",
+					"violations": 0,
+					"evaluated": 213,
+					"exempt": 0,
+					"skippedMissingInput": 0,
+					"dormant": false
+				},
+				{
+					"rule": "text-overflow",
+					"violations": 0,
+					"evaluated": 71,
+					"exempt": 8,
+					"skippedMissingInput": 0,
+					"dormant": false
+				},
+				{
+					"rule": "unreachable-interactive",
+					"violations": 0,
+					"evaluated": 0,
+					"exempt": 0,
+					"skippedMissingInput": 213,
+					"dormant": true
+				},
+				{
+					"rule": "target-size",
+					"violations": 0,
+					"evaluated": 0,
+					"exempt": 0,
+					"skippedMissingInput": 213,
+					"dormant": true
+				}
+			]
+		},
+		{
+			"scenario": "cardShowcaseScreen",
+			"kind": "screen",
+			"nodeCount": 499,
+			"countBefore": 1020,
+			"count": 1020,
+			"rules": [
+				{
+					"rule": "sibling-overlap",
+					"violations": 705,
+					"evaluated": 3288,
+					"exempt": 0,
+					"skippedMissingInput": 0,
+					"dormant": false
+				},
+				{
+					"rule": "child-outside-parent",
+					"violations": 43,
+					"evaluated": 498,
+					"exempt": 0,
+					"skippedMissingInput": 0,
+					"dormant": false
+				},
+				{
+					"rule": "outside-viewport",
+					"violations": 272,
+					"evaluated": 499,
+					"exempt": 0,
+					"skippedMissingInput": 0,
+					"dormant": false
+				},
+				{
+					"rule": "zero-or-negative-size",
+					"violations": 0,
+					"evaluated": 499,
+					"exempt": 0,
+					"skippedMissingInput": 0,
+					"dormant": false
+				},
+				{
+					"rule": "text-overflow",
+					"violations": 0,
+					"evaluated": 224,
+					"exempt": 108,
+					"skippedMissingInput": 0,
+					"dormant": false
+				},
+				{
+					"rule": "unreachable-interactive",
+					"violations": 0,
+					"evaluated": 0,
+					"exempt": 0,
+					"skippedMissingInput": 499,
+					"dormant": true
+				},
+				{
+					"rule": "target-size",
+					"violations": 0,
+					"evaluated": 0,
+					"exempt": 0,
+					"skippedMissingInput": 499,
+					"dormant": true
+				}
+			]
+		},
+		{
+			"scenario": "driverSelectionScreen",
+			"kind": "screen",
+			"nodeCount": 152,
+			"countBefore": 184,
+			"count": 184,
+			"rules": [
+				{
+					"rule": "sibling-overlap",
+					"violations": 184,
+					"evaluated": 568,
+					"exempt": 0,
+					"skippedMissingInput": 0,
+					"dormant": false
+				},
+				{
+					"rule": "child-outside-parent",
+					"violations": 0,
+					"evaluated": 151,
+					"exempt": 0,
+					"skippedMissingInput": 0,
+					"dormant": false
+				},
+				{
+					"rule": "outside-viewport",
+					"violations": 0,
+					"evaluated": 152,
+					"exempt": 0,
+					"skippedMissingInput": 0,
+					"dormant": false
+				},
+				{
+					"rule": "zero-or-negative-size",
+					"violations": 0,
+					"evaluated": 152,
+					"exempt": 0,
+					"skippedMissingInput": 0,
+					"dormant": false
+				},
+				{
+					"rule": "text-overflow",
+					"violations": 0,
+					"evaluated": 52,
+					"exempt": 21,
+					"skippedMissingInput": 0,
+					"dormant": false
+				},
+				{
+					"rule": "unreachable-interactive",
+					"violations": 0,
+					"evaluated": 0,
+					"exempt": 0,
+					"skippedMissingInput": 152,
+					"dormant": true
+				},
+				{
+					"rule": "target-size",
+					"violations": 0,
+					"evaluated": 0,
+					"exempt": 0,
+					"skippedMissingInput": 152,
+					"dormant": true
+				}
+			]
+		},
+		{
+			"scenario": "combatScreen",
+			"kind": "screen",
+			"nodeCount": 212,
+			"countBefore": 282,
+			"count": 282,
+			"rules": [
+				{
+					"rule": "sibling-overlap",
+					"violations": 250,
+					"evaluated": 913,
+					"exempt": 0,
+					"skippedMissingInput": 0,
+					"dormant": false
+				},
+				{
+					"rule": "child-outside-parent",
+					"violations": 13,
+					"evaluated": 203,
+					"exempt": 0,
+					"skippedMissingInput": 0,
+					"dormant": false
+				},
+				{
+					"rule": "outside-viewport",
+					"violations": 19,
+					"evaluated": 204,
+					"exempt": 0,
+					"skippedMissingInput": 0,
+					"dormant": false
+				},
+				{
+					"rule": "zero-or-negative-size",
+					"violations": 0,
+					"evaluated": 204,
+					"exempt": 0,
+					"skippedMissingInput": 0,
+					"dormant": false
+				},
+				{
+					"rule": "text-overflow",
+					"violations": 0,
+					"evaluated": 79,
+					"exempt": 26,
+					"skippedMissingInput": 0,
+					"dormant": false
+				},
+				{
+					"rule": "unreachable-interactive",
+					"violations": 0,
+					"evaluated": 0,
+					"exempt": 0,
+					"skippedMissingInput": 204,
+					"dormant": true
+				},
+				{
+					"rule": "target-size",
+					"violations": 0,
+					"evaluated": 0,
+					"exempt": 0,
+					"skippedMissingInput": 204,
+					"dormant": true
+				}
+			]
+		}
+	]
+}

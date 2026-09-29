@@ -1,3 +1,4 @@
+import type { TextureStoreStats } from '../gpu/TextureStore';
 import { LAYER_NAMES, LayerName } from './layers';
 
 /**
@@ -19,14 +20,16 @@ import { LAYER_NAMES, LayerName } from './layers';
  *                frame asked for.
  * - `culled`     draws dropped on the CPU by the clip: R4.2's `empty` state and
  *                R4.2a's bounds rejection, both counted where they happen. Text
- *                is exempt from the bounds test until R6.8's glyph iteration
- *                exists, which `bounds.ts` states and a test asserts.
+ *                is bounds-tested per run only when the backend can give its
+ *                extent (`DrawBackend.textInk`); `bounds.ts` says why. A
+ *                subtree the render walk skips whole (its cached ink misses
+ *                the clip) adds the groups it asked for on its last walk.
  * - `clipPushes` counted at `pushClip`, `pushClipRounded` and `pushClipReset`
  *                (R4.17).
  * - `flushes`    `barrier` and `endFrame` are caused here and counted here.
- *                `targetChange` and `bufferFull` are backend-caused and this
- *                seam gives a backend no way to cause one, so the count of such
- *                flushes really is zero rather than unmeasured.
+ *                `targetChange` and `bufferFull` are backend-caused and arrive
+ *                on `GpuWork.flushes`: the batcher starts a new upload when a
+ *                domain's geometry outgrows the backend's buffer, and says so.
  * - `groupsByLayer` counted at emission, every one of R3.5's nine bands present
  *                with an explicit zero, because "how many groups in modal" has
  *                a real answer of zero. R13.13 calls this the number that
@@ -38,9 +41,10 @@ import { LAYER_NAMES, LayerName } from './layers';
  *                it is a measurement rather than a tautology.
  * - `clipChange` / `shaderChange`: R13.13 requires these to exist and to read
  *                zero under this design. Clip is per-draw data (R4.1) and there
- *                is one uber shader (R5.1), so a non-zero value is a failure,
- *                which is the whole reason the counters are kept rather than
- *                deleted.
+ *                is one uber shader (R5.1), so neither has a code path that
+ *                could count one: the batcher's split decision does not look at
+ *                the clip, and there is no second program to switch to. They
+ *                are kept, as zeros, because R13.13 names them.
  *
  * What is null, and what fills it:
  *
@@ -54,15 +58,20 @@ import { LAYER_NAMES, LayerName } from './layers';
  *   rect became. A backend that reports nothing leaves them null for the frame.
  *   The null and recording backends report real zeros: they rasterise nothing,
  *   so zero draws, zero vertices and zero uploaded bytes is what happened.
- * - `residentTextureBytes`, `pendingUploads`, `evictions`, `targetSwitches` are
- *   R13.14's resource-layer counters. R5.30 to R5.35's resource manager is a
- *   later PR; `createTexture` here forwards to a backend and keeps no residency
- *   accounting, so there is nothing to ask.
+ * - `targetSwitches` is R13.14's render-target counter. Render targets and
+ *   their pool (R5.34) arrive with their first consumer, group opacity; until
+ *   then nothing switches targets and nothing counts it.
+ *
+ * What the resource layer fills (`gpu/TextureStore.ts`, read when the stats are
+ * taken): `residentTextureBytes`, `pendingUploads`, and `evictions`, which is a
+ * measured zero because nothing evicts before the phase 6 residency budget.
+ * The frame's texture uploads join `bytesUploaded` beside the geometry.
  */
 
 export const FLUSH_REASONS = ['barrier', 'endFrame', 'targetChange', 'bufferFull'] as const;
 export type FlushReason = (typeof FLUSH_REASONS)[number];
 
+/** R13.13's three reasons. The split totals add up to `gpuDraws` minus uploads. */
 export const SPLIT_REASONS = ['textureSlotsExhausted', 'blendChange', 'stencilLevel'] as const;
 export type SplitReason = (typeof SPLIT_REASONS)[number];
 
@@ -102,6 +111,8 @@ export interface GpuWork {
 	textureBinds: number;
 	bytesUploaded: number;
 	splits?: Partial<SplitCounts>;
+	/** Backend-caused flushes (R13.13); `barrier` and `endFrame` are the draw API's. */
+	flushes?: Partial<Pick<FlushCounts, 'targetChange' | 'bufferFull'>>;
 }
 
 export const NO_GPU_WORK: GpuWork = {
@@ -158,8 +169,14 @@ export class DrawCounters {
 		this.layers[layer] += 1;
 	}
 
-	countCulled(): void {
-		this.culled += 1;
+	/** One group by default; the render walk passes a skipped subtree's whole count. */
+	countCulled(groups = 1): void {
+		this.culled += groups;
+	}
+
+	/** `apiDraws + culled` so far this frame: every group asked for, drawn or not. */
+	get requested(): number {
+		return this.apiDraws + this.culled;
 	}
 
 	countClipPush(): void {
@@ -184,6 +201,11 @@ export class DrawCounters {
 		total.bytesUploaded += work.bytesUploaded;
 		this.gpu = total;
 
+		if (work.flushes) {
+			this.flushes.targetChange += work.flushes.targetChange ?? 0;
+			this.flushes.bufferFull += work.flushes.bufferFull ?? 0;
+		}
+
 		if (work.splits) {
 			const splits = this.splits ?? zeroSplits();
 			for (const reason of SPLIT_REASONS) splits[reason] += work.splits[reason] ?? 0;
@@ -191,7 +213,11 @@ export class DrawCounters {
 		}
 	}
 
-	snapshot(): DrawStats {
+	/**
+	 * @param resources The resource layer's counters at the moment the stats
+	 *   are taken; absent, its fields read null.
+	 */
+	snapshot(resources?: TextureStoreStats): DrawStats {
 		const gpu = this.gpu;
 		return {
 			apiDraws: this.apiDraws,
@@ -209,10 +235,12 @@ export class DrawCounters {
 			shaderChange: 0,
 			textureBinds: gpu ? gpu.textureBinds : null,
 			clipPushes: this.clipPushes,
-			bytesUploaded: gpu ? gpu.bytesUploaded : null,
-			residentTextureBytes: null,
-			pendingUploads: null,
-			evictions: null,
+			// Null follows the geometry: a backend that cannot attribute its GPU
+			// work leaves the total unknown, whatever the textures added.
+			bytesUploaded: gpu ? gpu.bytesUploaded + (resources?.bytesUploaded ?? 0) : null,
+			residentTextureBytes: resources ? resources.residentTextureBytes : null,
+			pendingUploads: resources ? resources.pendingUploads : null,
+			evictions: resources ? resources.evictions : null,
 			targetSwitches: null,
 		};
 	}

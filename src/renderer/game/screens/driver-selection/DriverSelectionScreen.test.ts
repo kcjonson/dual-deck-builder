@@ -3,8 +3,10 @@
  */
 import { DriverSelectionScreen } from './DriverSelectionScreen';
 import { DriverPanel } from './DriverPanel';
-import { Layer } from '../../../engine/components/Layer';
+import type { Component } from '../../../engine/components/Component';
 import { Button } from '../../../engine/ui/Button';
+import { Text } from '../../../engine/components/Text';
+import { createTestContext } from '../../../engine/components/testing';
 import { DriverLoader } from '../../core/DriverLoader';
 import { Driver } from '../../mechanics/Driver';
 import { isSameDriver } from '../../mechanics/DriverPair';
@@ -15,11 +17,16 @@ import { isSameDriver } from '../../mechanics/DriverPair';
  * screen and panels; only the card data fetch and screen routing are stubbed.
  */
 
+/** The card data loads at once unless a test says it is still in flight. */
+const mockCards = { loaded: true };
 jest.mock('../../core/CardLoader', () => ({
 	CardLoader: {
 		getInstance: () => ({
-			isLoaded: () => true,
-			loadCards: async () => undefined,
+			isLoaded: () => mockCards.loaded,
+			loadCards: async () => {
+				await Promise.resolve();
+				mockCards.loaded = true;
+			},
 			getAllCardsAsMap: () => new Map(),
 		}),
 	},
@@ -29,7 +36,7 @@ jest.mock('../../core/ScreenManager', () => ({
 	ScreenManager: { navigate: jest.fn() },
 }));
 
-function findById(layer: Layer, id: string): Layer | null {
+function findById(layer: Component, id: string): Component | null {
 	if (layer.id === id) return layer;
 	for (const child of layer.getChildren()) {
 		const found = findById(child, id);
@@ -38,13 +45,16 @@ function findById(layer: Layer, id: string): Layer | null {
 	return null;
 }
 
+
+/** Mounted the way the page mounts screens, at the harness's fixed viewport. */
+const context = createTestContext();
 function flushPromises(): Promise<void> {
 	return new Promise(resolve => setTimeout(resolve, 0));
 }
 
 async function mountScreen(): Promise<{ screen: DriverSelectionScreen; left: DriverPanel; right: DriverPanel; startRun: Button }> {
 	const screen = new DriverSelectionScreen();
-	screen.mount();
+	screen.mount(context);
 	await flushPromises();
 
 	const left = findById(screen.root, 'driver_select_panel_left');
@@ -116,6 +126,19 @@ describe('DriverSelectionScreen: one driver per slot', () => {
 		}
 	});
 
+	it('tabs in reading order: Back, the two cycle buttons, START RUN (R9.18)', async () => {
+		const { screen } = await mountScreen();
+		context.focus.pushScope(screen.root);
+		expect(context.focus.tabOrder.map(component => component.id)).toEqual([
+			'driver_select_back_button',
+			'driver_panel_left_cycle_button',
+			'driver_panel_right_cycle_button',
+			'driver_select_start_run_button',
+		]);
+		context.focus.popScope(screen.root);
+		screen.unmount();
+	});
+
 	it('a remount after unmount starts clean with two different drivers', async () => {
 		const { screen, left, right } = await mountScreen();
 		// Leaves the right panel on the first driver, which a stale partner
@@ -125,10 +148,44 @@ describe('DriverSelectionScreen: one driver per slot', () => {
 		expect(screen.getSelectedDrivers().driver2?.archetype).toBe(rosterDrivers[0].archetype);
 
 		screen.unmount();
-		screen.mount();
+		screen.mount(context);
 		await flushPromises();
 
 		expectDifferentDrivers(screen);
 		expect(left.getSelectedDriver()?.archetype).toBe(rosterDrivers[0].archetype);
+	});
+
+	it('a resize moves the same panels and keeps both drivers, never rebuilding', async () => {
+		const { screen, left, right, startRun } = await mountScreen();
+		left.cycleDriver();
+		const before = screen.getSelectedDrivers();
+		const children = [...screen.root.getChildren()];
+
+		for (const [width, height] of [[1024, 700], [1920, 1080], [800, 600]]) {
+			screen.resize(width, height);
+			context.frame.layout();
+
+			expect(screen.root.getChildren()).toEqual(children);
+			expect(screen.getSelectedDrivers()).toEqual(before);
+			expect(left.getSelectedDriver()).toBe(before.driver1);
+			expect(right.getSelectedDriver()).toBe(before.driver2);
+			expect(startRun.isEnabled()).toBe(true);
+			expect(left.getWidth()).toBe(Math.floor(width * 0.35));
+			expect(right.getX()).toBe(Math.floor(width * 0.6));
+			expect(startRun.getY()).toBe(Math.floor(height * 0.85));
+		}
+	});
+
+	it('builds one starting deck preview when selections overlap a card load', async () => {
+		const { screen, left } = await mountScreen();
+		mockCards.loaded = false;
+		left.cycleDriver();
+		left.cycleDriver();
+		await flushPromises();
+
+		const preview = findById(left, 'driver_panel_left_deck_preview');
+		const titles = preview?.getChildren().filter(child => child instanceof Text && child.getText() === 'Starting Deck:');
+		expect(titles).toHaveLength(1);
+		expect(left.getSelectedDriver()).toBe(screen.getSelectedDrivers().driver1);
 	});
 });

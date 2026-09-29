@@ -1,104 +1,71 @@
 import { Layer, LayerOptions } from '../../../engine/components/Layer';
-import { Rectangle } from '../../../engine/components/Rectangle';
-import { Text } from '../../../engine/components/Text';
-import { Card as UICard, CardSize } from '../../ui/Card';
+import { Stack, StackOptions } from '../../../engine/components/Stack';
+import { CARD_LIFT, Card as UICard, CardSize } from '../../ui/Card';
 import { Card } from '../../mechanics/Card';
 import { DriverSeat, PlayerHandView } from './PlayerHandView';
+import { DriverResourceData, DriverTab } from './DriverTab';
+
+const CARD_DIMENSIONS = UICard.getDimensions(CardSize.NORMAL);
+/**
+ * Hand cards are 128x180 on the battle screen (section 4). The card face is
+ * laid out at 150x210, so the fan scales it rather than laying it out again.
+ */
+export const HAND_CARD_SCALE = 128 / CARD_DIMENSIONS.width;
+/** Between cards when a half has room for them, in the card's own units. */
+const NATURAL_CARD_GAP = 10;
+/** Between the two drivers' halves. */
+const HALF_GAP = 20;
 
 /**
- * Player hand layer, the combat screen band below the player battlefield
- * Displays hand of cards with hover effects and drag targeting
+ * Player hand layer, the dock's hand area: each driver owns half, with
+ * their tab above a fan of their cards. A card is played by clicking it,
+ * then its target.
  */
-export class PlayerHandLayer extends Layer {
-	private background: Rectangle;
+export class PlayerHandLayer extends Stack {
 	private handCards: Card[] = [];
 	private cardElements: UICard[] = [];
 	private playableCardIds: Set<string> = new Set();
-	private seatLabels: Map<DriverSeat, string> = new Map();
-	
-	// Card layout settings
-	private readonly CARD_SIZE = CardSize.NORMAL;
-	private readonly CARD_DIMENSIONS = UICard.getDimensions(CardSize.NORMAL);
-	private readonly CARD_SPACING = 10;
-	private readonly HOVER_LIFT = 20;
-	
+	private readonly halves: Record<DriverSeat, HandHalf>;
+
 	// Callbacks
-	private onCardHover: ((card: Card | null) => void) | null = null;
-	private onCardClick: ((card: Card) => void) | null = null;
 	private onCardSelect: ((card: Card) => void) | null = null;
-	
+
 	// Selection state
 	private selectedCard: Card | null = null; // The card player has selected to play (waiting for target)
 	private targetingMode = false;
 	private cardDriverMap: Map<string, DriverSeat> = new Map();
-	
-	// Driver grouping visuals
-	private driverDivider: Rectangle | null = null;
-	private driver1Label: Text | null = null;
-	private driver2Label: Text | null = null;
 
-	/**
-	 * Create player hand layer
-	 */
-	constructor(options: LayerOptions & { x: number; y: number; width: number; height: number }) {
-		super(options);
-
-		// Hand background
-		this.background = new Rectangle({
-			style: {
-				backgroundColor: '#2a2a3a', // Visible hand area background
-				borderColor: '#3a3a4a',
-				borderWidth: 1,
-			},
+	constructor(options: StackOptions = {}) {
+		super({
+			direction: 'horizontal',
+			gap: HALF_GAP,
+			crossAlign: 'stretch',
+			// R9.29: the hand is one Tab stop; Left and Right move between its cards.
+			focusGroup: { orientation: 'horizontal' },
+			...options,
 		});
-		this.addChild(this.background);
-
-		this.layoutElements();
+		this.halves = {
+			1: new HandHalf({ seat: 1 }),
+			2: new HandHalf({ seat: 2 }),
+		};
+		this.addChild(this.halves[1]);
+		this.addChild(this.halves[2]);
 	}
 
 	/**
-	 * Show both drivers' cards, grouped by seat, with the unplayable ones
-	 * disabled
+	 * Show both drivers' cards, each in its driver's half, with the
+	 * unplayable ones disabled
 	 */
-	public setHand({ cards, seatOf, playable, labels }: PlayerHandView): void {
+	public setHand({ cards, seatOf, playable }: PlayerHandView): void {
 		this.handCards = cards;
 		this.cardDriverMap = seatOf;
 		this.playableCardIds = playable;
-		this.seatLabels = labels;
 		this.createCardElements();
 	}
 
-	/**
-	 * Add a card to the hand
-	 */
-	public addCard(card: Card): void {
-		this.handCards.push(card);
-		this.createCardElements();
-	}
-
-	/**
-	 * Remove a card from the hand
-	 */
-	public removeCard(card: Card): void {
-		const index = this.handCards.findIndex(c => c.id === card.id);
-		if (index >= 0) {
-			this.handCards.splice(index, 1);
-			this.createCardElements();
-		}
-	}
-
-	/**
-	 * Set card hover callback
-	 */
-	public setOnCardHover(callback: (card: Card | null) => void): void {
-		this.onCardHover = callback;
-	}
-
-	/**
-	 * Set card click callback (legacy)
-	 */
-	public setOnCardClick(callback: (card: Card) => void): void {
-		this.onCardClick = callback;
+	/** A driver's tab: name, passenger tag, adrenaline, and pile counts. */
+	public setDriverData(seat: DriverSeat, data: Partial<DriverResourceData>): void {
+		this.halves[seat].tab.setData(data);
 	}
 
 	/**
@@ -117,13 +84,6 @@ export class PlayerHandLayer extends Layer {
 	}
 
 	/**
-	 * Get selected card
-	 */
-	public getSelectedCard(): Card | null {
-		return this.selectedCard;
-	}
-
-	/**
 	 * Set targeting mode
 	 */
 	public setTargetingMode(targeting: boolean): void {
@@ -139,77 +99,41 @@ export class PlayerHandLayer extends Layer {
 		this.targetingMode = false;
 		this.updateCardSelectionVisuals();
 	}
-	
-	/**
-	 * Clear all card visual elements
-	 */
-	private clearCardElements(): void {
-		this.cardElements.forEach(cardElement => {
-			// Unmount the card to unregister from InputSystem
-			cardElement.unmount();
-			this.removeChild(cardElement);
-		});
-		this.cardElements = [];
-	}
 
 	/**
-	 * Create visual elements for all cards in hand
+	 * Build a card element per card in the hand, in hand order, and deal
+	 * each into its driver's fan
 	 */
 	private createCardElements(): void {
-		this.clearCardElements();
-		
-		if (this.handCards.length === 0) return;
-
-		this.handCards.forEach((card, index) => {
-			const driverNumber = this.cardDriverMap.get(card.id) || null;
+		// Every fan is dealt again, which unmounts the cards it held and so
+		// releases their input registrations.
+		this.cardElements = this.handCards.map((card, index) => {
 			// Model ids re-roll every load, so the id is the hand slot plus the
 			// card type. The slot carries uniqueness on its own, since a type
 			// can repeat in a hand; the whole string still varies between runs
 			// because the shuffle decides which type lands in which slot.
 			const cardElement = new UICard({
 				id: `hand_card_${index}_${card.type}`,
-				x: 0, // Will be positioned by layoutCardElements
+				x: 0,
 				y: 0,
 				data: card,
-				size: this.CARD_SIZE,
-				driverNumber: driverNumber,
+				size: CardSize.NORMAL,
+				driverNumber: this.cardDriverMap.get(card.id) ?? null,
 			});
-
-			// Set up card interactivity
-			this.setupCardInteractivity(cardElement, card);
-			
-			this.cardElements.push(cardElement);
-			this.addChild(cardElement);
+			cardElement.focusable = true;
+			cardElement.setOnSelect(() => {
+				if (this.canPlayCard(card) && this.onCardSelect) {
+					this.onCardSelect(card);
+				}
+			});
+			return cardElement;
 		});
-		
-		// Layout the newly created cards
-		this.layoutCardElements();
 
-		this.updateCardPlayability();
+		for (const seat of [1, 2] as const) {
+			this.halves[seat].fan.setCards(this.cardElements.filter((_element, index) => this.cardDriverMap.get(this.handCards[index].id) === seat));
+		}
+		this.updateCardSelectionVisuals();
 	}
-
-	/**
-	 * Set up mouse interactivity for a card
-	 */
-	private setupCardInteractivity(cardElement: UICard, card: Card): void {
-		// Set up legacy click handler
-		cardElement.setOnClick((_cardData) => {
-			if (this.canPlayCard(card) && this.onCardClick) {
-				this.onCardClick(card);
-			}
-		});
-
-		// Set up semantic select handler
-		cardElement.setOnSelect((_cardData) => {
-			if (this.canPlayCard(card) && this.onCardSelect) {
-				this.onCardSelect(card);
-			}
-		});
-		
-		// Update enabled state based on playability
-		cardElement.enabled = this.canPlayCard(card);
-	}
-
 
 	/**
 	 * Whether the card's driver can play it now: adrenaline, and no attacks
@@ -220,84 +144,38 @@ export class PlayerHandLayer extends Layer {
 	}
 
 	/**
-	 * Update visual playability of all cards
-	 */
-	private updateCardPlayability(): void {
-		this.cardElements.forEach((cardElement, index) => {
-			const card = this.handCards[index];
-			const playable = this.canPlayCard(card);
-			cardElement.enabled = playable;
-		});
-	}
-
-	/**
-	 * Update card selection visuals based on current state
+	 * While targeting only the selected card stays enabled, and it shows as
+	 * selected; otherwise each card is enabled when it can be played
 	 */
 	private updateCardSelectionVisuals(): void {
 		this.cardElements.forEach((cardElement, index) => {
 			const card = this.handCards[index];
-			
-			if (this.targetingMode) {
-				// During targeting mode
-				if (this.selectedCard && card.id === this.selectedCard.id) {
-					// Selected card - show as selected
-					cardElement.setSelected(true);
-					cardElement.enabled = true;
-				} else {
-					// Other cards - disable during targeting
-					cardElement.setSelected(false);
-					cardElement.enabled = false;
-				}
-			} else {
-				// Normal mode - clear selection, show normal playability
-				cardElement.setSelected(false);
-				cardElement.enabled = this.canPlayCard(card);
-			}
+			const selected = this.targetingMode && this.selectedCard !== null && card.id === this.selectedCard.id;
+			cardElement.setSelected(selected);
+			cardElement.enabled = this.targetingMode ? selected : this.canPlayCard(card);
 		});
 	}
 
-	/**
-	 * Get card at screen position
-	 */
-	public getCardAtPosition(x: number, y: number): Card | null {
-		// Convert to local coordinates
-		const localPos = this.globalToLocal(x, y);
-		
-		for (let i = 0; i < this.cardElements.length; i++) {
-			const cardElement = this.cardElements[i];
-			if (localPos.x >= cardElement.getX() && 
-				localPos.x <= cardElement.getX() + cardElement.getWidth() &&
-				localPos.y >= cardElement.getY() && 
-				localPos.y <= cardElement.getY() + cardElement.getHeight()) {
-				return this.handCards[i];
-			}
-		}
-		
-		return null;
+	/** The slot `card` holds in the hand, or -1. */
+	public slotOf(card: Card): number {
+		return this.handCards.findIndex(held => held.id === card.id);
 	}
 
 	/**
-	 * Animate card to discard pile
+	 * Focuses the card that can take focus nearest `slot`, at or after it
+	 * first, for a keyboard player whose card was just played or put back:
+	 * the hand is rebuilt on every change, so the focused card is gone.
+	 * False when no card can take focus.
 	 */
-	public animateCardToDiscard(card: Card, _discardX: number, _discardY: number): void {
-		const cardIndex = this.handCards.findIndex(c => c.id === card.id);
-		if (cardIndex >= 0) {
-			// const cardElement = this.cardElements[cardIndex]; // For future animation use
-			
-			// TODO: Add tween animation to move card to discard pile
-			// For now, just remove it
-			setTimeout(() => {
-				this.removeCard(card);
-			}, 300);
+	public focusNearSlot(slot: number): boolean {
+		const focus = this.context?.focus;
+		if (!focus) return false;
+		const after = this.cardElements.slice(Math.max(0, slot));
+		const before = this.cardElements.slice(0, Math.max(0, slot)).reverse();
+		for (const cardElement of [...after, ...before]) {
+			if (focus.focus(cardElement)) return true;
 		}
-	}
-
-	/**
-	 * Fan out cards in hand
-	 */
-	private fanCards(): void {
-		// TODO: Implement card fanning for better visual presentation
-		// This would slightly rotate and offset cards for a more natural hand look
+		return false;
 	}
 
 	/**
@@ -317,144 +195,72 @@ export class PlayerHandLayer extends Layer {
 		}
 		return null;
 	}
-	
-	/**
-	 * Handle layer resize
-	 */
+}
+
+/**
+ * One driver's half of the hand: their tab, and their fan below it.
+ */
+class HandHalf extends Stack {
+	public readonly tab: DriverTab;
+	public readonly fan: HandFan;
+
+	constructor({ seat }: { seat: DriverSeat }) {
+		super({ direction: 'vertical', crossAlign: 'stretch', widthMode: 'fill', heightMode: 'fill' });
+		this.tab = new DriverTab({ id: `driver${seat}_tab`, seat });
+		this.fan = new HandFan({ id: `driver${seat}_hand`, widthMode: 'fill', heightMode: 'fill' });
+		this.addChild(this.tab);
+		this.addChild(this.fan);
+	}
+}
+
+/**
+ * A driver's cards in a row, centred in the half and scaled to hand size.
+ * The row overlaps its cards through a negative gap when they would not
+ * otherwise fit, so however many cards a driver holds, every one of them
+ * starts inside the half (DDB-183) and shows its left edge: cost, badge,
+ * and the start of its name.
+ */
+class HandFan extends Layer {
+	private readonly row: Stack;
+	private cards: UICard[] = [];
+
+	constructor(options: LayerOptions) {
+		super(options);
+		// Scaled about its top centre and hung from the fan's top centre, a
+		// lift below the top so a hovered card rises inside the fan
+		this.row = new Stack({
+			direction: 'horizontal',
+			gap: NATURAL_CARD_GAP,
+			anchor: 'top',
+			y: CARD_LIFT * HAND_CARD_SCALE,
+			transform: { scale: HAND_CARD_SCALE, origin: [0.5, 0] },
+		});
+		this.addChild(this.row);
+	}
+
+	public setCards(cards: UICard[]): void {
+		for (const card of this.cards) this.row.removeChild(card);
+		this.cards = cards;
+		for (const card of cards) this.row.addChild(card);
+		this.fitCards();
+	}
+
 	protected onResized(): void {
-		this.layoutElements();
+		this.fitCards();
 	}
 
 	/**
-	 * Size the background and place the cards for the layer's current size,
-	 * on construction and on every resize
+	 * The gap that fits the row into the fan's width: the natural gap when
+	 * there is room, otherwise the overlap that spreads the cards across it.
 	 */
-	private layoutElements(): void {
-		// Clips cards that extend beyond the layer; a layer can only clip once it has a size
-		if (this.getWidth() > 0 && this.getHeight() > 0) {
-			this.setOverflow('hidden');
+	private fitCards(): void {
+		const count = this.cards.length;
+		if (count < 2) {
+			this.row.gap = NATURAL_CARD_GAP;
+			return;
 		}
-		this.background.setSize(this.getWidth(), this.getHeight());
-
-		// Re-layout existing cards without recreating them. The visuals pass
-		// follows as it does when the hand is dealt, because Card.updateVisuals
-		// also moves the card (its lift reset nudges y off a multiple of 10).
-		this.layoutCardElements();
-		this.updateCardSelectionVisuals();
-	}
-
-	/**
-	 * Layout existing card elements without recreating them
-	 */
-	private layoutCardElements(): void {
-		if (this.cardElements.length === 0) return;
-		
-		const layerWidth = this.getWidth();
-		const layerHeight = this.getHeight();
-		
-		// Group cards by driver
-		const driver1Cards: { card: UICard; index: number }[] = [];
-		const driver2Cards: { card: UICard; index: number }[] = [];
-		
-		this.cardElements.forEach((cardElement, index) => {
-			const card = this.handCards[index];
-			const driverNumber = this.cardDriverMap.get(card.id);
-			if (driverNumber === 1) {
-				driver1Cards.push({ card: cardElement, index });
-			} else if (driverNumber === 2) {
-				driver2Cards.push({ card: cardElement, index });
-			}
-		});
-		
-		// Calculate positions
-		const verticalPadding = 10;
-		const dividerWidth = 2;
-		const dividerGap = 20;
-		const labelHeight = 15;
-		
-		// Calculate total width needed
-		const driver1Width = driver1Cards.length > 0 ? 
-			driver1Cards.length * this.CARD_DIMENSIONS.width + (driver1Cards.length - 1) * this.CARD_SPACING : 0;
-		const driver2Width = driver2Cards.length > 0 ? 
-			driver2Cards.length * this.CARD_DIMENSIONS.width + (driver2Cards.length - 1) * this.CARD_SPACING : 0;
-		const totalWidth = driver1Width + (driver1Cards.length > 0 && driver2Cards.length > 0 ? dividerGap : 0) + driver2Width;
-		
-		const startX = Math.floor((layerWidth - totalWidth) / 2);
-		const cardY = verticalPadding + labelHeight;
-		
-		// Remove old divider and labels
-		if (this.driverDivider) {
-			this.removeChild(this.driverDivider);
-			this.driverDivider = null;
-		}
-		if (this.driver1Label) {
-			this.removeChild(this.driver1Label);
-			this.driver1Label = null;
-		}
-		if (this.driver2Label) {
-			this.removeChild(this.driver2Label);
-			this.driver2Label = null;
-		}
-		
-		// Create divider first but don't add it yet
-		let divider: Rectangle | null = null;
-		if (driver1Cards.length > 0 && driver2Cards.length > 0) {
-			const dividerX = startX + driver1Width + dividerGap / 2 - dividerWidth / 2;
-			divider = new Rectangle({
-				x: dividerX,
-				y: verticalPadding,
-				width: dividerWidth,
-				height: layerHeight - verticalPadding * 2,
-				style: {
-					backgroundColor: '#4a4a5a',
-				},
-			});
-		}
-		
-		// Add divider first so it appears behind cards
-		if (divider) {
-			this.driverDivider = divider;
-			this.addChild(this.driverDivider);
-		}
-		
-		// Layout driver 1 cards
-		let currentX = startX;
-		driver1Cards.forEach(({ card }, i) => {
-			const x = currentX + i * (this.CARD_DIMENSIONS.width + this.CARD_SPACING);
-			card.setPosition(x, cardY);
-		});
-		
-		// Add driver 1 label
-		if (driver1Cards.length > 0) {
-			this.driver1Label = new Text(this.seatLabels.get(1) ?? 'Driver 1', {
-				style: {
-					fontSize: 10,
-					color: '#8a8aff',
-					textAlign: 'center',
-				},
-			});
-			this.driver1Label.setPosition(startX + driver1Width / 2, verticalPadding);
-			this.addChild(this.driver1Label);
-		}
-		
-		// Layout driver 2 cards
-		currentX = startX + driver1Width + (driver1Cards.length > 0 && driver2Cards.length > 0 ? dividerGap : 0);
-		driver2Cards.forEach(({ card }, i) => {
-			const x = currentX + i * (this.CARD_DIMENSIONS.width + this.CARD_SPACING);
-			card.setPosition(x, cardY);
-		});
-		
-		// Add driver 2 label
-		if (driver2Cards.length > 0) {
-			this.driver2Label = new Text(this.seatLabels.get(2) ?? 'Driver 2', {
-				style: {
-					fontSize: 10,
-					color: '#88ff88',
-					textAlign: 'center',
-				},
-			});
-			this.driver2Label.setPosition(currentX + driver2Width / 2, verticalPadding);
-			this.addChild(this.driver2Label);
-		}
+		const room = this.getWidth() / HAND_CARD_SCALE;
+		const spread = (room - count * CARD_DIMENSIONS.width) / (count - 1);
+		this.row.gap = Math.min(NATURAL_CARD_GAP, Math.floor(spread));
 	}
 }

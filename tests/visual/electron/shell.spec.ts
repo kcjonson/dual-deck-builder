@@ -8,7 +8,7 @@ import {
 	attachTree,
 	captureConsole,
 	expectCleanConsole,
-	goldenName,
+	expectGolden,
 	openScene,
 	openScreen,
 	prepare,
@@ -84,6 +84,20 @@ test.describe('electron shell', () => {
 			(size) => window.innerWidth === size.width && window.innerHeight === size.height,
 			FIXED_VIEWPORT,
 		);
+
+		// The window boots the app on its own before any test navigates, and
+		// that boot decodes the font atlases. Navigating while a decode is in
+		// flight makes Chromium reject it ("The source image cannot be
+		// decoded."), and the dying page's console.error lands on this same
+		// Page, inside the test's console gate (DDB-187). Letting the boot
+		// finish first removes the race; asserting the outcome keeps a real
+		// load failure on the boot page loud instead of unobserved.
+		const bootFonts = await page.waitForFunction(() => {
+			const [failed] = performance.getEntriesByName('font-atlases-failed') as PerformanceMark[];
+			if (failed) return `failed: ${(failed.detail as { message: string }).message}`;
+			return performance.getEntriesByName('font-atlases-ready').length > 0 ? 'ready' : false;
+		});
+		expect(await bootFonts.jsonValue(), 'the boot page should load its font atlases').toBe('ready');
 	});
 
 	test.afterEach(async () => {
@@ -98,7 +112,7 @@ test.describe('electron shell', () => {
 			await prepare(page);
 			await openScreen(page, scenario.screen);
 
-			await expect(page).toHaveScreenshot(goldenName('screen', scenario.screen));
+			await expectGolden(page, testInfo, 'screen', scenario.screen);
 
 			await attachTree(page, testInfo);
 			expectCleanConsole(log);
@@ -113,7 +127,7 @@ test.describe('electron shell', () => {
 			await prepare(page);
 			await openScene(page, scenario.scene);
 
-			await expect(page).toHaveScreenshot(goldenName('scene', scenario.scene));
+			await expectGolden(page, testInfo, 'scene', scenario.scene);
 
 			await attachTree(page, testInfo);
 			expectCleanConsole(log);

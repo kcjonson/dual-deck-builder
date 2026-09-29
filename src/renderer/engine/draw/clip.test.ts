@@ -6,7 +6,7 @@ import {
 	clipRectOf,
 	hasRoundedClip,
 	intersectClip,
-	resolveClip,
+	intersectClipRectInto,
 } from './clip';
 import { ClipRect } from './geometry';
 
@@ -48,18 +48,20 @@ describe('clip (R4.2, R4.3, R4.14)', () => {
 	it('stays empty under any later push and never collapses to none', () => {
 		const nested = intersectClip(CLIP_EMPTY, rect(-1000, -1000, 1000, 1000), null);
 		expect(nested).toEqual(CLIP_EMPTY);
-		expect(resolveClip(nested)).toBeNull();
-	});
-
-	it('drops the draw for empty and keeps the kind for none', () => {
-		expect(resolveClip(CLIP_EMPTY)).toBeNull();
-		expect(resolveClip(CLIP_NONE)).toEqual({ kind: 'none' });
 	});
 
 	it('gives an unclipped draw R4.1 all-covering rect', () => {
-		const resolved = resolveClip(CLIP_NONE);
-		expect(resolved).not.toBeNull();
-		expect(clipRectOf(resolved as Exclude<ClipState, { kind: 'empty' }>)).toEqual(UNCLIPPED_RECT);
+		expect(clipRectOf(CLIP_NONE as Exclude<ClipState, { kind: 'empty' }>)).toEqual(UNCLIPPED_RECT);
+	});
+
+	it('intersects in place with the same arithmetic, the half-open edge included', () => {
+		const outer = intersectClip(CLIP_NONE, rect(0, 0, 100, 100), null);
+		const out = rect(0, 0, 0, 0);
+		expect(intersectClipRectInto(outer, rect(50, -10, 200, 60), out)).toBe(true);
+		expect(out).toEqual(rect(50, 0, 100, 60));
+		expect(intersectClipRectInto(outer, rect(100, 0, 200, 100), out)).toBe(false);
+		expect(intersectClipRectInto(CLIP_NONE, rect(5, 6, 7, 8), out)).toBe(true);
+		expect(out).toEqual(rect(5, 6, 7, 8));
 	});
 
 	describe('rounded nesting (R4.14)', () => {

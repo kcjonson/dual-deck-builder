@@ -5,6 +5,8 @@ import {
 	TextureOptions,
 } from './DrawBackend';
 import {
+	FEATHER_MITER_LIMIT,
+	SUBTREE_INK_OUTSET,
 	circleInk,
 	lineInk,
 	pointsInk,
@@ -12,14 +14,14 @@ import {
 	screenInk,
 	shadowInk,
 } from './bounds';
+import { isSingleOutline } from './triangulate';
+import { snapClipRectInto } from '../coords/snapping';
 import {
-	CLIP_NONE,
 	ClipState,
 	clipRectOf,
 	hasRoundedClip,
-	intersectClip,
-	resolveClip,
 } from './clip';
+import { ClipStack, NumberStack, TransformStack, ValueStack } from './drawStacks';
 import {
 	BlendMode,
 	Border,
@@ -43,19 +45,18 @@ import {
 	TextureHandle,
 } from './commands';
 import {
-	IDENTITY,
 	Mat2D,
 	RGBA,
 	Rect,
 	Vec2,
-	concat,
+	ClipRect,
 	copyColor,
 	copyRect,
 	copyVec2,
+	inflate,
 	intersects,
-	isTranslateOnly,
+	isAxisAligned,
 	transformedBounds,
-	translation,
 } from './geometry';
 import { LayerPartition } from './layerPartition';
 import { LayerName, ROOT_LAYER, layerOrdinal } from './layers';
@@ -88,9 +89,11 @@ import { DrawCounters, DrawStats, FlushReason, GpuWork } from './stats';
  * WHAT ORDERING HAPPENS HERE, and what does not. R3.10's stable per-layer
  * partition runs before submission, so the array a backend receives is already
  * in emit order and R2.22's "sorted draw list" is true for every backend rather
- * than for whichever one implemented a sort. The batcher proper is still a
- * later PR: nothing here merges geometry, drops a group as occluded, splits a
- * GPU submission, or looks at a texture.
+ * than for whichever one implemented a sort. This is the front half of the
+ * batcher. The back half, which merges geometry into GPU draws, selects texture
+ * slots, and splits a submission with a reason, is `Batcher`, owned by the
+ * backend because it writes the backend's vertex format. Nothing here drops a
+ * group as occluded (R3.2 is a MAY and `occluded` stays null).
  *
  * WHAT IT COSTS. One object per draw group per frame, plus the copies. The
  * heaviest screen in this game submits 96 draws at a p99 of 1.02 ms against a
@@ -100,6 +103,12 @@ import { DrawCounters, DrawStats, FlushReason, GpuWork } from './stats';
  * proves otherwise, and it should not be taken pre-emptively: pooling is
  * exactly what would destroy the inert, outlives-the-call property the
  * recording backend and the partition depend on.
+ *
+ * The state stacks are the exception, because nothing outlives a push but
+ * what a command captured: each level is a pooled frame the next push at that
+ * depth overwrites, and the transform and clip are copied once per push, at
+ * the first capture under it, and shared by every command after it
+ * (`drawStacks.ts`, DDB-215). A push nothing draws under costs nothing.
  */
 
 export type DiagnosticCode =
@@ -113,7 +122,10 @@ export type DiagnosticCode =
 	| 'opacity-out-of-range'
 	| 'text-before-atlas'
 	| 'texture-upload-in-frame'
-	| 'foreign-draw-without-flush';
+	| 'texture-not-live'
+	| 'polygon-not-one-outline'
+	| 'foreign-draw-without-flush'
+	| 'ink-outside-bound';
 
 export interface Diagnostic {
 	code: DiagnosticCode;
@@ -137,35 +149,6 @@ export interface DrawApiOptions {
 	 */
 	strict?: boolean;
 	onDiagnostic?: (diagnostic: Diagnostic) => void;
-	/**
-	 * TEMPORARY, and the only concession this file makes to the legacy backend.
-	 * Deleted by the ordering re-baseline PR; see
-	 * docs/AI_TECHNICAL_DECISIONS/legacy-gl-backend.md.
-	 *
-	 * R2.2: "there are no modes to enter (no separate text batch to begin and
-	 * end). The sibling TypeScript engine had a text batch that opened in the
-	 * frame loop and flushed on scissor changes, which reordered text above
-	 * every shape drawn in the same clip scope." That engine is this one, and
-	 * the 26 committed screenshot goldens are pictures of exactly that bug.
-	 *
-	 * `TextRenderer` reproduces the reordering by itself, because
-	 * `LegacyGLBackend` keeps it and flushes it once per batch. What no backend
-	 * can reproduce is the BOUND: a backend never sees a push or a pop (see
-	 * `DrawBackend`), so it cannot know where a clip scope started. This flag
-	 * supplies that half by ending a domain at every clip push and pop, which is
-	 * where `Renderer.enableScissor` and `disableScissor` flushed.
-	 *
-	 * Measured, not assumed: with the flag off, the three chromium goldens whose
-	 * screens clip (developerScreen, cardShowcaseScreen, combatScreen) fail,
-	 * because text submitted before a clip survives to the end of the frame and
-	 * paints over content drawn inside it. The other eighteen have no clip and
-	 * are unaffected.
-	 *
-	 * It is a deliberate violation of R3.20 ("Nothing else flushes: not a
-	 * texture change, not a clip change"), which is why it is off by default and
-	 * set in exactly one place, `createLegacyDrawApi`.
-	 */
-	legacyTextOrder?: boolean;
 }
 
 export interface BeginFrameOptions {
@@ -185,36 +168,34 @@ export interface BeginFrameOptions {
  * R2.14's actual requirement is not "return numbers", it is that measurement
  * "MUST use the same iteration as `drawText` so measured and rendered extents
  * agree" (R6.8). The only thing that can honour that is whatever owns the glyph
- * walk and the atlas metrics, which is a backend, and chapter 6's text layout
- * is phase 2. So `measureText` is declared with its real signature, delegated
- * to `DrawBackend.measureText`, and throws when no backend implements it.
+ * walk and the atlas metrics, which is a backend (the WebGL2 one, through its
+ * `TextMetricsService`). So `measureText` is delegated to
+ * `DrawBackend.measureText`, and throws when a backend does not implement it
+ * rather than substituting an estimate.
  *
  * A stub would not stay local. R13.25's `text-overflow` rule compares a
- * measured extent against a box, and `layoutLint.ts` already carries a live
- * `unmeasured-text` bucket holding exactly the nodes whose measurement does not
- * exist yet. A fabricated width would move those nodes out of that bucket early
- * and either invent violations or suppress real ones under a gate R13.29 checks
- * as `count === 0`. That is phase 0's "Verts: 5327.999999999999" one layer up.
+ * measured extent against a box, and a fabricated width would either invent
+ * violations or suppress real ones under a gate R13.29 checks as
+ * `count === 0`.
  */
 export const TEXT_MEASUREMENT_UNAVAILABLE =
-	'measureText: no backend supplied metrics. R2.14 requires measurement to share drawText\'s glyph iteration (R6.8), and chapter 6 text layout is phase 2, so there is nothing to return.';
+	'measureText: this backend supplies no metrics. R2.14 requires measurement to share drawText\'s glyph iteration (R6.8), and a backend that lays no text out has nothing honest to return.';
 
-interface TransformEntry {
-	readonly matrix: Mat2D;
-	readonly translateOnly: boolean;
-}
-
-const ROOT_TRANSFORM: TransformEntry = { matrix: IDENTITY, translateOnly: true };
+/** Screen-space slack for float error in the ink audit, far below a pixel. */
+const INK_AUDIT_EPSILON = 1e-3;
 
 interface CaptureRequest {
 	id?: string;
 	blend?: BlendMode;
 	group: DrawGroupRole;
 	/**
-	 * Conservative screen-space ink extent for R4.2a, or null for a primitive
-	 * whose extent this phase cannot derive (text, until R6.8's iteration).
+	 * Conservative local-space ink extent for R4.2a, or null for a primitive
+	 * whose extent cannot be derived (text, when the backend offers no
+	 * `textInk`).
 	 */
 	ink: Rect | null;
+	/** Device pixels the drawn ink may reach past `ink` after the transform; 1 unless said. */
+	inkOutset?: number;
 }
 
 export class DrawApi {
@@ -222,17 +203,18 @@ export class DrawApi {
 	private readonly development: boolean;
 	private readonly strict: boolean;
 	private readonly onDiagnostic?: (diagnostic: Diagnostic) => void;
-	/** TEMPORARY. See `DrawApiOptions.legacyTextOrder`. */
-	private readonly legacyTextOrder: boolean;
 
 	private readonly counters = new DrawCounters();
 	private readonly recordedDiagnostics: Diagnostic[] = [];
 	private readonly partition = new LayerPartition<DrawCommand>();
 
-	private transforms: TransformEntry[] = [ROOT_TRANSFORM];
-	private clips: ClipState[] = [CLIP_NONE];
-	private opacities: number[] = [1];
-	private layerStack: LayerName[] = [ROOT_LAYER];
+	/** R2.4 to R2.7's stacks, pooled so a push allocates nothing once warm (DDB-215). */
+	private readonly transforms = new TransformStack();
+	private readonly clips = new ClipStack();
+	private readonly opacities = new NumberStack({ root: 1 });
+	private readonly layerStack = new ValueStack<LayerName>({ root: ROOT_LAYER });
+	/** The screen rect a clip push computes, reused; the clip stack copies it. */
+	private readonly clipScratch: ClipRect = { minX: 0, minY: 0, maxX: 0, maxY: 0 };
 
 	private frameOpen = false;
 	private frameIndex = 0;
@@ -243,19 +225,21 @@ export class DrawApi {
 	private viewportHeight = 0;
 	private ratio = 1;
 	private warnedNestedRoundedClip = false;
+	private inkBoundLocal: Rect | null = null;
+	private readonly inkBoundMatrix: [number, number, number, number, number, number] = [1, 0, 0, 1, 0, 0];
+	private inkBoundScreen: ClipRect | null = null;
+	private warnedInkBound = false;
 
 	constructor({
 		backend,
 		development = true,
 		strict = false,
 		onDiagnostic,
-		legacyTextOrder = false,
 	}: DrawApiOptions) {
 		this.backend = backend;
 		this.development = development;
 		this.strict = strict;
 		this.onDiagnostic = onDiagnostic;
-		this.legacyTextOrder = legacyTextOrder;
 	}
 
 	// -- inspection ---------------------------------------------------------
@@ -268,26 +252,29 @@ export class DrawApi {
 		return this.frameIndex;
 	}
 
-	/** The current local-to-screen matrix (R2.4). */
+	/**
+	 * The current local-to-screen matrix (R2.4). Live: the next push at this
+	 * depth overwrites it, so read it on the spot and copy it to keep it.
+	 */
 	get transform(): Mat2D {
-		return this.transforms[this.transforms.length - 1].matrix;
+		return this.transforms.matrix;
 	}
 
 	get translateOnly(): boolean {
-		return this.transforms[this.transforms.length - 1].translateOnly;
+		return this.transforms.translateOnly;
 	}
 
-	/** The current clip, in screen space, in all three of R4.2's states. */
+	/** The current clip, in screen space, in all three of R4.2's states. Live, as `transform` is. */
 	get clip(): ClipState {
-		return this.clips[this.clips.length - 1];
+		return this.clips.state;
 	}
 
 	get opacity(): number {
-		return this.opacities[this.opacities.length - 1];
+		return this.opacities.value;
 	}
 
 	get layer(): LayerName {
-		return this.layerStack[this.layerStack.length - 1];
+		return this.layerStack.value;
 	}
 
 	/** The logical viewport of the open frame (R7.1); R4.1's target rect when `none` grows one. */
@@ -298,6 +285,15 @@ export class DrawApi {
 	/** `dpr * uiScale` for the open frame (R7.2). */
 	get devicePixelScale(): number {
 		return this.ratio;
+	}
+
+	/**
+	 * R4.2a's `apiDraws + culled` so far this frame: every group asked for,
+	 * drawn or dropped. The render walk reads it around a subtree to learn
+	 * the subtree's count without allocating a stats snapshot.
+	 */
+	get groupsRequested(): number {
+		return this.counters.requested;
 	}
 
 	/** Groups accumulated since the last barrier. */
@@ -312,7 +308,7 @@ export class DrawApi {
 
 	/** R2.19. Current frame while one is open, last frame otherwise. */
 	getStats(): DrawStats {
-		return this.counters.snapshot();
+		return this.counters.snapshot(this.backend.textures.stats);
 	}
 
 	// -- frame lifecycle (R2.1 to R2.3) -------------------------------------
@@ -329,10 +325,13 @@ export class DrawApi {
 		this.sequence = 0;
 		this.domainFirstSequence = 0;
 		this.warnedNestedRoundedClip = false;
-		this.transforms = [ROOT_TRANSFORM];
-		this.clips = [CLIP_NONE];
-		this.opacities = [1];
-		this.layerStack = [ROOT_LAYER];
+		this.warnedInkBound = false;
+		this.inkBoundLocal = null;
+		this.inkBoundScreen = null;
+		this.transforms.reset();
+		this.clips.reset();
+		this.opacities.reset();
+		this.layerStack.reset();
 		this.counters.reset();
 		this.recordedDiagnostics.length = 0;
 		if (reopened) {
@@ -343,6 +342,8 @@ export class DrawApi {
 				'beginFrame called while a frame was open; the previous frame is discarded',
 			);
 		}
+		// R5.32: the metered uploads, before anything this frame can draw.
+		this.backend.textures.beginFrame();
 		this.backend.beginFrame({
 			viewport: { width: this.viewportWidth, height: this.viewportHeight },
 			ratio: this.ratio,
@@ -362,6 +363,9 @@ export class DrawApi {
 		this.submitPending('endFrame');
 		this.frameOpen = false;
 		this.backend.endFrame();
+		// Textures released during the frame are freed now that every command
+		// that could name them has been submitted.
+		this.backend.textures.endFrame();
 	}
 
 	// -- foreign draws (R2.15, R2.16) ---------------------------------------
@@ -394,25 +398,18 @@ export class DrawApi {
 
 	pushTransform(matrix: Mat2D): void {
 		if (!this.ensureFrame('pushTransform')) return;
-		this.pushMatrix(concat(this.transform, matrix));
+		this.transforms.push(matrix);
 	}
 
 	/** The common case, and the one R2.4 requires be tracked as translate-only. */
 	pushTranslate(dx: number, dy: number): void {
 		if (!this.ensureFrame('pushTranslate')) return;
-		this.pushMatrix(concat(this.transform, translation(dx, dy)));
+		this.transforms.pushTranslate(dx, dy);
 	}
 
 	popTransform(): void {
 		if (!this.ensureFrame('popTransform')) return;
-		this.popStack(this.transforms, 'popTransform');
-	}
-
-	private pushMatrix(matrix: Mat2D): void {
-		// R2.4's flag is decided once, here, from the concatenated result, so a
-		// draw never re-tests it and a scale under its own inverse gets the
-		// cheap snapping path back instead of staying false for the scope.
-		this.transforms.push({ matrix, translateOnly: isTranslateOnly(matrix) });
+		if (!this.transforms.pop()) this.reportEmptyPop('popTransform');
 	}
 
 	// -- clip stack (R2.5, R4.2, R4.7) --------------------------------------
@@ -443,47 +440,37 @@ export class DrawApi {
 	 */
 	pushClipReset(): void {
 		if (!this.ensureFrame('pushClipReset')) return;
-		this.legacyTextOrderBarrier();
 		this.counters.countClipPush();
-		this.clips.push(CLIP_NONE);
+		this.clips.pushNone();
 	}
 
 	popClip(): void {
 		if (!this.ensureFrame('popClip')) return;
-		this.legacyTextOrderBarrier();
-		this.popStack(this.clips, 'popClip');
-	}
-
-	/**
-	 * TEMPORARY. See `DrawApiOptions.legacyTextOrder`.
-	 *
-	 * Before the stack mutates, not after, because `Renderer.enableScissor`
-	 * flushed the pending text and only then called `gl.scissor`: the outgoing
-	 * scope's text painted under the outgoing scope's scissor box.
-	 */
-	private legacyTextOrderBarrier(): void {
-		if (this.legacyTextOrder) this.submitPending('barrier');
+		if (!this.clips.pop()) this.reportEmptyPop('popClip');
 	}
 
 	private pushClipInternal(rect: Rect, radius: number | null): void {
-		this.legacyTextOrderBarrier();
 		this.counters.countClipPush();
-		const current = this.transforms[this.transforms.length - 1];
+		const translateOnly = this.transforms.translateOnly;
 
-		if (!current.translateOnly) {
+		if (!translateOnly && !isAxisAligned(this.transforms.matrix)) {
 			// R4.7: the axis-aligned bounds of the transformed rect is the
 			// first of the three permitted responses, and it under-clips, so
-			// the warning is required rather than polite.
+			// the warning is required rather than polite. A scale without
+			// rotation keeps the rect on the axes, where the bounds are exact
+			// and there is nothing to warn about (the scaled combat stage).
 			this.report(
 				'clip-under-non-translate-transform',
-				'pushClip under a rotated or non-uniformly scaled transform; the clip is the axis-aligned bounds of the transformed rect, which under-clips (R4.7)',
+				'pushClip under a rotated or skewed transform; the clip is the axis-aligned bounds of the transformed rect, which under-clips (R4.7)',
 			);
 		}
 
-		const screen = transformedBounds(current.matrix, rect);
-		const rounded = radius === null ? null : { rect: screen, radius };
+		// R7.8a: under a translation the clip goes onto the device grid, so R4.4's
+		// hard edge keeps or drops the same pixels as the content under it moves.
+		const screen = this.screenBounds(rect);
+		if (translateOnly) snapClipRectInto(screen, this.ratio, screen);
 
-		if (rounded && hasRoundedClip(this.clip) && !this.warnedNestedRoundedClip) {
+		if (radius !== null && hasRoundedClip(this.clip) && !this.warnedNestedRoundedClip) {
 			// R4.14: once per frame. The outer rounded clip degrades to its
 			// bounding rect, so content can show in its corners.
 			this.warnedNestedRoundedClip = true;
@@ -493,7 +480,43 @@ export class DrawApi {
 			);
 		}
 
-		this.clips.push(intersectClip(this.clip, screen, rounded));
+		this.clips.push(screen, radius);
+	}
+
+	/**
+	 * `transformedBounds` of `rect` under the current transform, into the
+	 * reused scratch rect. The translate-only case, every clip the render walk
+	 * pushes, is the same arithmetic in place; a rotated clip is rare and
+	 * already reported (R4.7), so it may allocate. A scale without rotation
+	 * (the combat stage) is every clip under it, so it is done in place too.
+	 */
+	private screenBounds(rect: Rect): ClipRect {
+		const out = this.clipScratch;
+		const matrix = this.transforms.matrix;
+		if (this.transforms.translateOnly) {
+			out.minX = rect.x + matrix[4];
+			out.minY = rect.y + matrix[5];
+			out.maxX = rect.x + rect.width + matrix[4];
+			out.maxY = rect.y + rect.height + matrix[5];
+			return out;
+		}
+		if (isAxisAligned(matrix)) {
+			const x0 = rect.x * matrix[0] + matrix[4];
+			const x1 = (rect.x + rect.width) * matrix[0] + matrix[4];
+			const y0 = rect.y * matrix[3] + matrix[5];
+			const y1 = (rect.y + rect.height) * matrix[3] + matrix[5];
+			out.minX = Math.min(x0, x1);
+			out.maxX = Math.max(x0, x1);
+			out.minY = Math.min(y0, y1);
+			out.maxY = Math.max(y0, y1);
+			return out;
+		}
+		const bounds = transformedBounds(matrix, rect);
+		out.minX = bounds.minX;
+		out.minY = bounds.minY;
+		out.maxX = bounds.maxX;
+		out.maxY = bounds.maxY;
+		return out;
 	}
 
 	// -- opacity stack (R2.6) -----------------------------------------------
@@ -509,7 +532,7 @@ export class DrawApi {
 
 	popOpacity(): void {
 		if (!this.ensureFrame('popOpacity')) return;
-		this.popStack(this.opacities, 'popOpacity');
+		if (!this.opacities.pop()) this.reportEmptyPop('popOpacity');
 	}
 
 	// -- layer stack (R2.7, R3.6) -------------------------------------------
@@ -544,7 +567,45 @@ export class DrawApi {
 
 	popLayer(): void {
 		if (!this.ensureFrame('popLayer')) return;
-		this.popStack(this.layerStack, 'popLayer');
+		if (!this.layerStack.pop()) this.reportEmptyPop('popLayer');
+	}
+
+	// -- subtree cull (R4.2a, DDB-184) ---------------------------------------
+
+	/**
+	 * Counts as culled the groups of a subtree the caller skipped whole
+	 * because its conservative ink missed the clip, so that `apiDraws +
+	 * culled` still counts every group the frame asked for (R4.2a). The
+	 * render walk passes the count from the subtree's last walk.
+	 */
+	cullGroups(groups: number): void {
+		if (!this.ensureFrame('cullGroups')) return;
+		this.counters.countCulled(groups);
+	}
+
+	/** Whether `setInkBound` does anything: development builds only, so a production walk never builds the rect. */
+	get auditsInk(): boolean {
+		return this.development;
+	}
+
+	/**
+	 * The local rect, under the current transform, that the caller promises
+	 * its next draws stay inside; null withdraws the promise. The render walk
+	 * sets a component's `cullInk` around its `render`, since a subtree skip
+	 * trusts exactly that promise. In a development build a group whose cull
+	 * ink leaves the rect is reported once a frame as `ink-outside-bound`.
+	 * Checked only where the cull computes ink anyway, under a rect clip,
+	 * which is also the only place a skip can happen. A no-op otherwise.
+	 */
+	setInkBound(local: Rect | null): void {
+		if (!this.development) return;
+		this.inkBoundLocal = local;
+		// Copied, since the live matrix is overwritten by the next push at its
+		// depth, which an over-popping `render` would reach unreported.
+		const matrix = this.transforms.matrix;
+		const bound = this.inkBoundMatrix;
+		for (let index = 0; index < 6; index++) bound[index] = matrix[index];
+		this.inkBoundScreen = null;
 	}
 
 	// -- draw calls (R2.8 to R2.13) -----------------------------------------
@@ -668,8 +729,17 @@ export class DrawApi {
 			blend: options.blend,
 			group: 'primary',
 			ink: pointsInk(options.points, 0),
+			// R5.17's feather miter reaches past the points at a sharp vertex.
+			inkOutset: FEATHER_MITER_LIMIT,
 		});
 		if (!state) return;
+		if (options.indices && !isSingleOutline(options.points, options.indices)) {
+			this.report(
+				'polygon-not-one-outline',
+				`drawPolygon: ${options.points.length} points are not one simple outline covered once by their `
+					+ 'indices, so the polygon is drawn without its anti-aliasing feather (R5.17)',
+			);
+		}
 		this.emit({
 			...state,
 			kind: 'polygon',
@@ -682,6 +752,12 @@ export class DrawApi {
 
 	drawImage(options: DrawImageOptions): void {
 		if (!this.ensureFrame('drawImage')) return;
+		if (!this.backend.textures.isLive(options.texture)) {
+			// A released handle names nothing, and a later texture may reuse
+			// nothing of it; drawing it would be drawing garbage (R5.30).
+			this.report('texture-not-live', `drawImage with texture ${options.texture.id}, which was released`);
+			return;
+		}
 		const state = this.capture({
 			id: options.id,
 			blend: options.blend,
@@ -704,10 +780,13 @@ export class DrawApi {
 	}
 
 	/**
-	 * R2.13. Glyph layout is chapter 6 and phase 2; a command carries the run
-	 * and its parameters, and it goes through exactly the same capture as a
-	 * rectangle, so text is in the same batch as shapes and there is no text
-	 * batch to open (R2.2).
+	 * R2.13. Glyph layout is chapter 6's and the backend's; a command carries
+	 * the run and its parameters, and it goes through exactly the same capture
+	 * as a rectangle, so text is in the same batch as shapes and there is no
+	 * text batch to open (R2.2).
+	 *
+	 * `overflow: 'clip'` with a box clips the run to the box through the clip
+	 * stack (R6.14), for this draw only.
 	 */
 	drawText(options: DrawTextOptions): void {
 		if (!this.ensureFrame('drawText')) return;
@@ -722,28 +801,78 @@ export class DrawApi {
 			);
 		}
 
+		const box = options.overflow === 'clip' ? options.box : undefined;
+		if (box) this.clips.push(this.screenBounds(box), null);
+		this.emitText(options);
+		if (box) this.clips.pop();
+	}
+
+	private emitText(options: DrawTextOptions): void {
+		const ink = this.textInk(options);
+
 		if (options.shadow) {
 			// R3.17: the shadow run immediately precedes the main run.
+			const offset = options.shadow.offset ?? { x: 0, y: 0 };
+			const blur = options.shadow.blur ?? 0;
 			const state = this.capture({
 				id: options.id,
 				blend: options.blend,
 				group: 'shadow',
-				ink: null,
+				ink: ink
+					? {
+							x: ink.x + offset.x - blur,
+							y: ink.y + offset.y - blur,
+							width: ink.width + blur * 2,
+							height: ink.height + blur * 2,
+						}
+					: null,
 			});
 			if (state) {
-				const offset = options.shadow.offset ?? { x: 0, y: 0 };
-				this.emit(
-					buildText(state, options, options.shadow.color, offset, options.shadow.blur ?? 0),
-				);
+				this.emit(buildText(state, options, options.shadow.color, offset, blur));
 			}
 		}
 
-		const state = this.capture({ id: options.id, blend: options.blend, group: 'primary', ink: null });
+		const state = this.capture({ id: options.id, blend: options.blend, group: 'primary', ink });
 		if (!state) return;
 		this.emit(buildText(state, options, options.color, { x: 0, y: 0 }, 0));
 	}
 
-	/** R2.14, delegated and refused. See `TEXT_MEASUREMENT_UNAVAILABLE`. */
+	/**
+	 * R4.2a's per-run extent, when the backend can take it. Glyph quads go
+	 * through the whole transform, so the transformed bounds of the local
+	 * extent contain what a rotated or scaled run draws too.
+	 */
+	private textInk(options: DrawTextOptions): Rect | null {
+		if (!this.backend.textInk) return null;
+		if (this.clip.kind !== 'rect') return null;
+		return this.backend.textInk(options);
+	}
+
+	/**
+	 * Whether `measureText` can answer for `font`: the backend lays text out
+	 * and has that role's atlas. A component that sizes itself from its text
+	 * asks this first and stays unmeasured when the answer is no (the null and
+	 * recording backends), rather than guessing a width.
+	 */
+	canMeasureText(font: string): boolean {
+		return this.backend.measureText !== undefined && this.backend.fontAtlasNames.includes(font);
+	}
+
+	/** Whether `measureTextInk` can answer: the backend offers `textInk`. */
+	get canMeasureTextInk(): boolean {
+		return this.backend.textInk !== undefined;
+	}
+
+	/**
+	 * The local extent `drawText(options)` would cover, the same rect R4.2a
+	 * culls the run by, whatever the clip. Null when the run draws nothing or
+	 * the backend cannot say (`canMeasureTextInk`).
+	 */
+	measureTextInk(options: DrawTextOptions): Rect | null {
+		return this.backend.textInk?.(options) ?? null;
+	}
+
+	/** R2.14, delegated to the backend that owns the glyph walk. See `TEXT_MEASUREMENT_UNAVAILABLE`. */
 	measureText(options: MeasureTextOptions): TextMetrics {
 		if (!this.backend.measureText) {
 			throw new Error(`${TEXT_MEASUREMENT_UNAVAILABLE} Backend: '${this.backend.name}'.`);
@@ -751,8 +880,14 @@ export class DrawApi {
 		return this.backend.measureText(options);
 	}
 
-	// -- resources (R2.17, R2.18) -------------------------------------------
+	// -- resources (R2.17, R2.18, R5.30) ------------------------------------
 
+	/**
+	 * A texture with one reference, owned by the caller. With a source it is
+	 * queued and uploaded under the per-frame budget (R5.32) unless it asks to
+	 * be immediate; until then `isTextureResident` is false and the caller
+	 * draws its placeholder.
+	 */
 	createTexture(options: TextureOptions): TextureHandle {
 		if (this.frameOpen) {
 			// R2.17: uploads happen outside the frame or at beginFrame, never
@@ -762,11 +897,21 @@ export class DrawApi {
 				'createTexture inside a frame; uploads happen outside it or at beginFrame (R2.17)',
 			);
 		}
-		return this.backend.createTexture(options);
+		return this.backend.textures.create(options);
 	}
 
+	/** A second holder of the same texture. Each `retainTexture` is paired with a `destroyTexture`. */
+	retainTexture(handle: TextureHandle): TextureHandle {
+		return this.backend.textures.retain(handle);
+	}
+
+	/** Drops the caller's reference; the texture is freed with the last one (R5.30). */
 	destroyTexture(handle: TextureHandle): void {
-		this.backend.destroyTexture(handle);
+		this.backend.textures.release(handle);
+	}
+
+	isTextureResident(handle: TextureHandle): boolean {
+		return this.backend.textures.isResident(handle);
 	}
 
 	loadFontAtlas(options: FontAtlasOptions): FontAtlasHandle {
@@ -784,19 +929,18 @@ export class DrawApi {
 	 *   the CPU and MUST NOT collapse to `none`.
 	 * - R4.2a's bounds test: the transformed ink extent does not intersect the
 	 *   clip rect. Skipped under `none`, whose rect is R4.1's all-covering one,
-	 *   and skipped for text, whose extent needs R6.8's glyph iteration.
+	 *   and for text whose extent the backend cannot give (`textInk`).
 	 */
-	private capture({ id, blend, group, ink }: CaptureRequest): ResolvedState | null {
-		const clip = resolveClip(this.clip);
+	private capture({ id, blend, group, ink, inkOutset = 1 }: CaptureRequest): ResolvedState | null {
+		const clip = this.clips.captured();
 		if (!clip) {
 			this.counters.countCulled();
 			return null;
 		}
 
-		const transform = this.transforms[this.transforms.length - 1];
-
 		if (ink && clip.kind === 'rect') {
-			const bounds = screenInk(ink, transform.matrix, this.ratio);
+			const bounds = screenInk(ink, this.transforms.matrix, this.ratio, inkOutset);
+			if (this.inkBoundLocal) this.auditInk(id, bounds);
 			if (!intersects(bounds, clipRectOf(clip))) {
 				this.counters.countCulled();
 				return null;
@@ -810,13 +954,34 @@ export class DrawApi {
 			sequence: this.sequence++,
 			layer,
 			layerOrdinal: layerOrdinal(layer),
-			transform: transform.matrix,
-			translateOnly: transform.translateOnly,
+			transform: this.transforms.captured(),
+			translateOnly: this.transforms.translateOnly,
 			clip,
 			opacity: this.opacity,
 			blend: blend ?? 'over',
 			group,
 		};
+	}
+
+	private auditInk(id: string | undefined, bounds: ClipRect): void {
+		const local = this.inkBoundLocal;
+		if (!local || this.warnedInkBound) return;
+		let bound = this.inkBoundScreen;
+		if (!bound) {
+			const devicePixel = this.ratio > 0 ? 1 / this.ratio : 1;
+			bound = inflate(transformedBounds(this.inkBoundMatrix, local), devicePixel * SUBTREE_INK_OUTSET);
+			this.inkBoundScreen = bound;
+		}
+		if (bounds.minX >= bound.minX - INK_AUDIT_EPSILON && bounds.minY >= bound.minY - INK_AUDIT_EPSILON
+			&& bounds.maxX <= bound.maxX + INK_AUDIT_EPSILON && bounds.maxY <= bound.maxY + INK_AUDIT_EPSILON) {
+			return;
+		}
+		this.warnedInkBound = true;
+		const format = (rect: ClipRect): string => `[${rect.minX.toFixed(1)}, ${rect.minY.toFixed(1)}, ${rect.maxX.toFixed(1)}, ${rect.maxY.toFixed(1)}]`;
+		this.report(
+			'ink-outside-bound',
+			`${id ?? 'a group'} draws at ${format(bounds)}, outside its component's cull ink ${format(bound)}; a subtree skip (R4.2a) would drop it while visible. Grow the component's inkExtent or cullInk.`,
+		);
 	}
 
 	private emit(command: DrawCommand): void {
@@ -854,20 +1019,16 @@ export class DrawApi {
 		if (work) this.counters.addGpuWork(work);
 	}
 
-	private popStack(stack: unknown[], call: string): void {
-		if (stack.length <= 1) {
-			this.report('pop-empty-stack', `${call} with nothing pushed`);
-			return;
-		}
-		stack.pop();
+	private reportEmptyPop(call: string): void {
+		this.report('pop-empty-stack', `${call} with nothing pushed`);
 	}
 
 	private checkBalanced(): void {
 		const unbalanced: string[] = [];
-		if (this.transforms.length > 1) unbalanced.push(`transform x${this.transforms.length - 1}`);
-		if (this.clips.length > 1) unbalanced.push(`clip x${this.clips.length - 1}`);
-		if (this.opacities.length > 1) unbalanced.push(`opacity x${this.opacities.length - 1}`);
-		if (this.layerStack.length > 1) unbalanced.push(`layer x${this.layerStack.length - 1}`);
+		if (this.transforms.pushed > 0) unbalanced.push(`transform x${this.transforms.pushed}`);
+		if (this.clips.pushed > 0) unbalanced.push(`clip x${this.clips.pushed}`);
+		if (this.opacities.pushed > 0) unbalanced.push(`opacity x${this.opacities.pushed}`);
+		if (this.layerStack.pushed > 0) unbalanced.push(`layer x${this.layerStack.pushed}`);
 		if (unbalanced.length > 0) {
 			this.report('unbalanced-stack', `endFrame with unpopped state: ${unbalanced.join(', ')}`);
 		}
@@ -958,12 +1119,14 @@ function buildText(
 		size: options.size,
 		color: copyColor(color),
 		align: options.align ?? 'left',
-		verticalAlign: options.verticalAlign ?? 'top',
+		verticalAlign: options.verticalAlign ?? (options.box ? 'top' : 'baseline'),
 		letterSpacing: options.letterSpacing ?? 0,
 		textTransform: options.textTransform ?? 'none',
 		maxWidth: options.maxWidth ?? null,
 		wrap: options.wrap ?? 'none',
 		overflow: options.overflow ?? 'visible',
+		decoration: options.decoration ?? 'none',
+		lineHeight: options.lineHeight ?? null,
 		blur,
 	};
 }

@@ -1,15 +1,12 @@
-import { gallerySceneRegistry } from './registry';
+import { galleryOnlyScenes, gallerySceneRegistry } from './registry';
 import { developerSections } from '../renderer/game/screens/developer/sections';
 import { resolveScene } from './sceneSelection';
 
 /**
  * These assertions are about the properties a `?scene=` name has to hold, not
- * about how many scenes there are. Constructing a scene is deliberately absent:
- * two of the eight sections call Input.setValue in their constructors, which
- * measures text through RendererContext and throws without a GL renderer, so a
- * factory can only be exercised in the browser (R14.1 keeps the unit suite
- * GPU-free). SceneHost.test.ts covers the mount and unmount discipline against
- * synthetic scenes instead.
+ * about how many scenes there are. Constructing a scene is left to the
+ * browser suite, which renders every one against a golden; SceneHost.test.ts
+ * covers the mount and unmount discipline against synthetic scenes.
  */
 describe('gallery scene registry', () => {
 	it('has scenes', () => {
@@ -36,12 +33,15 @@ describe('gallery scene registry', () => {
 		}
 	});
 
-	// The screen and the gallery show the same eight things because there is
+	// The screen and the gallery show the same things because there is
 	// one list, in the game's own directory, and this file only wraps it.
-	it('wraps the developer section list one for one, in order', () => {
-		expect(gallerySceneRegistry.map((scene) => scene.name)).toEqual(developerSections.map((section) => section.name));
-		for (const [index, scene] of gallerySceneRegistry.entries()) {
-			expect(scene.factory).toBe(developerSections[index].build);
+	it('wraps the developer section list one for one, in order, then the gallery-only scenes', () => {
+		expect(gallerySceneRegistry.map((scene) => scene.name)).toEqual([
+			...developerSections.map((section) => section.name),
+			...galleryOnlyScenes.map((scene) => scene.name),
+		]);
+		for (const [index, section] of developerSections.entries()) {
+			expect(gallerySceneRegistry[index].factory).toBe(section.build);
 		}
 	});
 

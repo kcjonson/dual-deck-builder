@@ -1,4 +1,4 @@
-import { Panel } from '../../../engine/ui/Panel';
+import { DeveloperSectionPanel } from './DeveloperSectionPanel';
 import { Text } from '../../../engine/components/Text';
 import { Rectangle } from '../../../engine/components/Rectangle';
 import { Input } from '../../../engine/ui/Input';
@@ -8,20 +8,12 @@ import { Button } from '../../../engine/ui/Button';
  * Interactive controls section for the developer screen
  * Demonstrates dynamic property changes through input controls
  */
-export class InteractiveControlsSection extends Panel {
+export class InteractiveControlsSection extends DeveloperSectionPanel {
 	private demoRectangle!: Rectangle;
 
 	constructor(x: number, y: number, width: number) {
-		super({
-			id: 'dev_section_interactive_controls',
-			width,
-			height: 350, // Will be calculated based on content
-			style: {
-				backgroundColor: 'transparent',
-			},
-		});
+		super({ id: 'dev_section_interactive_controls', x, y, width });
 
-		this.setPosition(x, y);
 		this.initializeContent();
 	}
 
@@ -75,7 +67,7 @@ export class InteractiveControlsSection extends Panel {
 			const parts = value.split(',').map((v) => parseFloat(v.trim()));
 			if (parts.length === 4 && parts.every((v) => !isNaN(v))) {
 				const [r, g, b, a] = parts;
-				this.demoRectangle.setBackgroundColor([r / 255, g / 255, b / 255, a]);
+				this.demoRectangle.setFillColor([r / 255, g / 255, b / 255, a]);
 			}
 		});
 		this.addChild(colorInput);
@@ -116,7 +108,7 @@ export class InteractiveControlsSection extends Panel {
 			height: 30,
 		});
 		updateButton.setPosition(180, currentY);
-		updateButton.onClick(() => {
+		updateButton.onClick = () => {
 			// Force update all inputs
 			const colorValue = colorInput.getValue();
 			const posValue = positionInput.getValue();
@@ -125,7 +117,7 @@ export class InteractiveControlsSection extends Panel {
 			const colorParts = colorValue.split(',').map((v) => parseFloat(v.trim()));
 			if (colorParts.length === 4 && colorParts.every((v) => !isNaN(v))) {
 				const [r, g, b, a] = colorParts;
-				this.demoRectangle.setBackgroundColor([r / 255, g / 255, b / 255, a]);
+				this.demoRectangle.setFillColor([r / 255, g / 255, b / 255, a]);
 			}
 			
 			const posParts = posValue.split(',').map((v) => parseInt(v.trim()));
@@ -133,11 +125,11 @@ export class InteractiveControlsSection extends Panel {
 				const [x, y] = posParts;
 				this.demoRectangle.setPosition(x, y);
 			}
-		});
+		};
 		this.addChild(updateButton);
 
 		// Update our height based on content
-		this.setSize(this.width, currentY + 40);
+		this.fitContentHeight(currentY + 40);
 	}
 
 	/**

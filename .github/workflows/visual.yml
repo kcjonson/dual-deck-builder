@@ -17,6 +17,13 @@ on:
         description: 'Mint screenshot baselines on this runner and commit them (R14.5)'
         type: boolean
         default: false
+      update_mode:
+        description: 'Which baselines a mint rewrites: changed (only failing ones) or all (every captured one, for a deliberate re-baseline)'
+        type: choice
+        options:
+          - changed
+          - all
+        default: changed
 
 permissions:
   contents: read
@@ -56,27 +63,10 @@ jobs:
           BASE_REF: ${{ github.base_ref }}
         run: |
           git fetch --no-tags origin "$BASE_REF"
-          changed=$(git diff --name-only "origin/$BASE_REF...HEAD" -- 'tests/visual/__screenshots__' || true)
-          if [ -z "$changed" ]; then
-            echo "No baseline files touched."
-            exit 0
-          fi
-          echo "Baseline files touched by this pull request:"
-          echo "$changed"
-          # Two dots, not three: the diff wants the merge base, the log wants
-          # the commits this branch adds on top of it.
-          offenders=$(git log --format='%H %s' "origin/$BASE_REF..HEAD" -- 'tests/visual/__screenshots__' \
-            | grep -vF '[visual-baseline]' || true)
-          if [ -n "$offenders" ]; then
-            echo
-            echo "R14.5: screenshot baselines are produced by the CI runner image only."
-            echo "These commits changed a baseline without coming from the Visual workflow:"
-            echo "$offenders"
-            echo
-            echo "Run this workflow with update_baselines=true on this branch instead."
-            exit 1
-          fi
-          echo "Every baseline change came from a [visual-baseline] commit."
+          # Per changed file, the last setter has to be this workflow's mint
+          # commit; the script says why, and scripts/check-baseline-provenance.test.ts
+          # runs it against the merge, revert and hand-edit cases.
+          bash scripts/check-baseline-provenance.sh "origin/$BASE_REF"
 
   visual:
     # Baselined and blocking as of run 34310762573, which minted the twenty-six
@@ -184,10 +174,14 @@ jobs:
       - name: Build the Electron harness shell
         run: npm run build:harness:electron
 
+      # A bare --update-snapshots is `changed`: it rewrites only a baseline
+      # that fails, so a real change under the tolerance survives the mint.
+      # `all` rewrites every baseline the run captures.
       - name: Update baselines
         env:
           VISUAL_BASELINE_RUNNER: '1'
-        run: xvfb-run -a npx playwright test --update-snapshots
+          UPDATE_MODE: ${{ inputs.update_mode || 'changed' }}
+        run: xvfb-run -a npx playwright test --update-snapshots="$UPDATE_MODE"
 
       # This job is the bootstrap, so its report is the one that matters most:
       # if the first mint captures a wrong picture, this artifact is the only

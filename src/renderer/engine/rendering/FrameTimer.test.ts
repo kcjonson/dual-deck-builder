@@ -1,4 +1,7 @@
-import { FrameTimer, MAX_DELTA_SECONDS, SECTION_NAMES } from './FrameTimer';
+import { FrameTimer, MAX_DELTA_SECONDS, NO_GPU_STATS, SECTION_NAMES } from './FrameTimer';
+import type { TrackEmitter } from '../debug/devtoolsTracks';
+import type { HitchSource, HitchStats } from '../debug/hitchObserver';
+import { DrawApi, NullBackend } from '../draw';
 
 /**
  * The live half of the timer, driven by fake clocks so a frame can be made to
@@ -281,7 +284,7 @@ describe('the snapshot shape (R13.11)', () => {
 
 		expect(Object.keys(snapshot)).toEqual([
 			'timestamp', 'scene', 'frame', 'sections', 'gpu', 'batcher', 'memory', 'renderer', 'sanity',
-			'liveness',
+			'liveness', 'device', 'tracks', 'hitches',
 		]);
 	});
 
@@ -301,25 +304,49 @@ describe('the snapshot shape (R13.11)', () => {
 		expect(Object.keys(snapshot.sections)).toEqual([...SECTION_NAMES]);
 	});
 
-	it('carries the normative gpu fields, all null until phase 7', () => {
+	it('carries the normative gpu fields first, all null without a GPU timer', () => {
 		const { snapshot } = capture();
 
-		expect(snapshot.gpu).toEqual({ ms: null, valid: null, passes: null, spanMs: null, latencyMs: null });
+		expect(Object.keys(snapshot.gpu).slice(0, 5)).toEqual(['ms', 'valid', 'passes', 'spanMs', 'latencyMs']);
+		expect(snapshot.gpu).toEqual(NO_GPU_STATS);
+		expect(snapshot.gpu.source).toBeNull();
+	});
+
+	it('reports the GPU figures the page hands over (R13.16)', () => {
+		const { timer } = capture();
+		const gpu = { ...NO_GPU_STATS, ms: 2.5, valid: true, passes: [0.5, 2], source: 'timerQuery' as const, sampleCount: 1 };
+
+		expect(timer.snapshot({ gpu }).gpu).toEqual(gpu);
+	});
+
+	it('reports no DevTools track unless one was given (R15.42)', () => {
+		const { snapshot } = capture();
+
+		expect(snapshot.tracks).toBeNull();
 	});
 
 	it('reports null, never zero, for what this platform cannot measure (R13.5)', () => {
 		const { snapshot } = capture();
 
 		expect(snapshot.sections.input).toBeNull();
+		expect(snapshot.hitches).toBeNull();
 		expect(snapshot.sections.layout).toBeNull();
 		expect(snapshot.sections.present).toBeNull();
 		expect(snapshot.memory.usedBytes).toBeNull();
 	});
 
-	it('leaves the batcher a placeholder rather than inventing counters (R13.12)', () => {
-		const { snapshot } = capture();
-
+	it('reports the batcher null unless the page hands over counters (R13.12)', () => {
+		const { timer, snapshot } = capture();
 		expect(snapshot.batcher).toBeNull();
+
+		const draw = new DrawApi({ backend: new NullBackend() });
+		draw.beginFrame({ viewport: { width: 10, height: 10 } });
+		draw.drawRect({ rect: { x: 0, y: 0, width: 5, height: 5 } });
+		draw.endFrame();
+		const stats = draw.getStats();
+
+		expect(timer.snapshot({ batcher: stats }).batcher).toBe(stats);
+		expect(stats.apiDraws).toBe(1);
 	});
 
 	it('carries the scene so a capture can group per scene', () => {
@@ -333,5 +360,69 @@ describe('the snapshot shape (R13.11)', () => {
 		const { snapshot } = capture();
 
 		expect(JSON.parse(JSON.stringify(snapshot))).toEqual(snapshot);
+	});
+});
+
+describe('the DevTools track (R15.29)', () => {
+	it('mirrors each section and each completed frame as a track entry on the timer\'s clock', () => {
+		const emit = jest.fn();
+		const tracks: TrackEmitter = { mode: 'console.timeStamp', emit };
+		const timer = new FrameTimer({ now: () => clockMs, wallNow: () => wallMs, tracks, budgetMs: 10 });
+
+		runFrame(timer, { updateMs: 1, renderMs: 2, flushMs: 3 });
+		advance(10);
+		timer.beginFrame();
+
+		expect(emit.mock.calls).toEqual([
+			['update', 0, 1, 'primary'],
+			['render', 1, 3, 'secondary'],
+			['flush', 3, 6, 'tertiary'],
+			// 16 ms against a 10 ms budget.
+			['frame', 0, 16, 'error'],
+		]);
+		expect(timer.snapshot().tracks).toBe('console.timeStamp');
+	});
+});
+
+describe('long frames and slow input (R15.29)', () => {
+	const EMPTY: HitchStats = { longFrames: null, slowEvents: null };
+
+	function recordingSource(): HitchSource & { since: (number | null)[] } {
+		const since: (number | null)[] = [];
+		return {
+			since,
+			stats(sinceMs) {
+				since.push(sinceMs);
+				return EMPTY;
+			},
+		};
+	}
+
+	it('asks for no window before the first frame', () => {
+		const source = recordingSource();
+		const timer = new FrameTimer({ now: () => clockMs, wallNow: () => wallMs, hitches: source });
+
+		expect(timer.snapshot().hitches).toBe(EMPTY);
+		expect(source.since).toEqual([null]);
+	});
+
+	it('reads the hitches over the span the frame window covers', () => {
+		const source = recordingSource();
+		const timer = new FrameTimer({ now: () => clockMs, wallNow: () => wallMs, hitches: source, windowSize: 2 });
+
+		advance(100);
+		runFrame(timer, { updateMs: 5 }); // starts at 100
+		advance(5);
+		runFrame(timer, { updateMs: 5 }); // starts at 110
+		advance(20);
+		runFrame(timer, { updateMs: 5 }); // starts at 135
+		timer.snapshot();
+
+		// Two frames of window: 100 to 110 fell out, 110 to 135 is the older
+		// of the two left, so the window opens at 110.
+		runFrame(timer); // starts at 140
+		timer.snapshot();
+
+		expect(source.since).toEqual([100, 110]);
 	});
 });

@@ -1,180 +1,138 @@
 import { Layer, LayerOptions } from '../../../engine/components/Layer';
 import { Rectangle } from '../../../engine/components/Rectangle';
+import { Stack } from '../../../engine/components/Stack';
 import { Text } from '../../../engine/components/Text';
+import { ScrollContainer } from '../../../engine/ui/ScrollContainer';
 import { CombatLog, CombatLogEntry, CombatLogType } from '../../mechanics/CombatLog';
-import { Panel } from '../../../engine/ui/Panel';
 
 /**
- * Combat log display layer showing recent battle events
- * Fixed to properly handle Model change events
+ * The combat log drawer: a header, and the entries in a scroll container
+ * that follows the newest entry (DDB-32). Entries are reconciled by id
+ * (R8.27), so a change adds the new line and drops the ones the log's
+ * rolling buffer dropped, rather than rebuilding every line.
  */
 export class CombatLogLayer extends Layer {
 	private combatLog: CombatLog;
-	private panel: Panel;
-	private entryVisuals: Map<string, { text: Text, entry: CombatLogEntry }> = new Map();
+	private background: Rectangle;
+	private header: Rectangle;
+	private title: Text;
+	private scroller: ScrollContainer;
+	private entryList: Stack;
 	private unsubscriber: (() => void) | null = null;
-	
+
 	// Display properties
 	private readonly entryHeight = 20;
+	private readonly headerHeight = 30;
 	private readonly padding = 10;
 	private readonly fontSize = 14;
-	
-	constructor(options: LayerOptions & { x: number; y: number; width: number; height: number; combatLog: CombatLog }) {
+
+	constructor(options: LayerOptions & { combatLog: CombatLog }) {
 		super(options);
-		
+
 		this.combatLog = options.combatLog;
-		
-		// Create background
-		const background = new Rectangle({
-			x: 0,
-			y: 0,
-			width: this.getWidth(),
-			height: this.getHeight(),
+
+		// Sized from the layer in the layout phase
+		this.background = new Rectangle({
 			style: {
 				backgroundColor: 'rgba(0, 0, 0, 0.8)',
 				borderColor: '#4a4a5a',
 				borderWidth: 2,
 			},
 		});
-		this.addChild(background);
-		
-		// Create header
-		const header = new Rectangle({
-			x: 0,
-			y: 0,
-			width: this.getWidth(),
-			height: 30,
+		this.addChild(this.background);
+
+		this.header = new Rectangle({
+			height: this.headerHeight,
 			style: {
 				backgroundColor: '#2a2a3a',
 				borderColor: '#4a4a5a',
 				borderWidth: 1,
 			},
 		});
-		this.addChild(header);
-		
-		const title = new Text('Combat Log', {
+		this.addChild(this.header);
+
+		// Centred in the header
+		this.title = new Text('Combat Log', {
+			height: this.headerHeight,
 			style: {
 				fontSize: 16,
 				color: '#ffffff',
 				textAlign: 'center',
+				verticalAlign: 'middle',
+				whiteSpace: 'nowrap',
 				fontWeight: 'bold',
 			},
 		});
-		title.setPosition(Math.floor(this.getWidth() / 2), 15);
-		this.addChild(title);
-		
-		// Create scrollable panel for entries
-		this.panel = new Panel({
+		this.addChild(this.title);
+
+		this.scroller = new ScrollContainer({
+			id: 'combat_log_scroll',
 			x: this.padding,
-			y: 35,
-			width: this.getWidth() - this.padding * 2,
-			height: this.getHeight() - 45,
-			style: {
-				backgroundColor: 'transparent',
-			},
+			y: this.headerHeight + 5,
+			style: { padding: { top: 4, bottom: 4 } },
 		});
-		this.addChild(this.panel);
-		
-		// Panel is not scrollable - no need to set content size
-		
-		// Subscribe to combat log events
-		this.subscribeToEvents();
-		
-		// Initial render of any existing entries
-		this.renderExistingEntries();
+		this.entryList = new Stack({ id: 'combat_log_entries', padding: { left: 5, right: 5 } });
+		this.scroller.addChild(this.entryList);
+		this.addChild(this.scroller);
 	}
-	
-	/**
-	 * Subscribe to combat log model events
-	 */
-	private subscribeToEvents(): void {
-		// Subscribe to the change event - Model emits the full state
-		this.unsubscriber = this.combatLog.on('change', () => {
-			// For now, just re-render all entries
-			this.handleFullUpdate();
-		});
+
+	/** The scroll container the entries are in. */
+	public get scrollContainer(): ScrollContainer {
+		return this.scroller;
 	}
-	
+
 	/**
-	 * Render any existing entries in the combat log
+	 * The model subscription is registered on mount and released on unmount
+	 * (R8.14), and the entries are reconciled with the model, which may have
+	 * moved on while the layer was detached.
 	 */
-	private renderExistingEntries(): void {
-		this.combatLog.entries.forEach((entry, index) => {
-			this.createEntryVisual(entry, index);
-		});
-		this.updateLayout();
+	protected onMount(): void {
+		this.unsubscriber = this.combatLog.on('change', () => this.syncEntries());
+		this.syncEntries();
 	}
-	
-	/**
-	 * Handle full update by re-rendering all entries
-	 */
-	private handleFullUpdate(): void {
-		// Clear existing visuals
-		this.entryVisuals.forEach(visual => {
-			this.panel.removeChild(visual.text);
-		});
-		this.entryVisuals.clear();
-		
-		// Re-render all entries
-		this.renderExistingEntries();
-		
-		// Scroll to bottom to show latest entries
-		this.scrollToBottom();
-	}
-	
-	/**
-	 * Create visual representation of a log entry
-	 */
-	private createEntryVisual(entry: CombatLogEntry, _index: number): void {
-		// Skip if entry already exists
-		if (this.entryVisuals.has(entry.id)) {
-			return;
+
+	/** The model subscription; input is released by the base. */
+	protected onUnmount(): void {
+		if (this.unsubscriber) {
+			this.unsubscriber();
+			this.unsubscriber = null;
 		}
-		
-		const color = this.getColorForEntry(entry);
-		const prefix = this.getPrefixForEntry(entry);
-		const fullText = prefix + entry.message;
-		
-		const text = new Text(fullText, {
-			style: {
-				fontSize: this.fontSize,
-				color: color,
-				textAlign: 'left',
-			},
-		});
-		
-		// Position will be set by updateLayout
-		this.panel.addChild(text);
-		
-		// Store the visual
-		this.entryVisuals.set(entry.id, { text, entry });
 	}
-	
+
+	/** The layout phase: the layer was sized (R8.18). */
+	protected layoutChildren(): void {
+		const width = this.getWidth();
+		const height = this.getHeight();
+		this.background.setSize(width, height);
+		this.header.setWidth(width);
+		this.title.setWidth(width);
+		this.scroller.setSize(width - this.padding * 2, height - this.headerHeight - 15);
+	}
+
 	/**
-	 * Update layout of all entries
+	 * One line per entry, in the log's order, kept by entry id. A reader at
+	 * the bottom follows the newest line (the scroll container settles at its
+	 * end after the layout the new lines cause); one who scrolled up to read
+	 * back stays where they are.
 	 */
-	private updateLayout(): void {
-		// Get entries in order
-		const orderedEntries = Array.from(this.entryVisuals.values())
-			.sort((a, b) => {
-				const indexA = this.combatLog.entries.indexOf(a.entry);
-				const indexB = this.combatLog.entries.indexOf(b.entry);
-				return indexA - indexB;
-			});
-		
-		// Position each entry
-		orderedEntries.forEach((visual, index) => {
-			visual.text.setPosition(5, index * this.entryHeight + this.fontSize);
+	private syncEntries(): void {
+		const following = this.scroller.atBottom;
+		this.entryList.reconcileChildren(this.combatLog.entries, {
+			key: (entry) => entry.id,
+			create: (entry) => new Text(this.getPrefixForEntry(entry) + entry.message, {
+				height: this.entryHeight,
+				style: {
+					fontSize: this.fontSize,
+					color: this.getColorForEntry(entry),
+					textAlign: 'left',
+					whiteSpace: 'nowrap',
+					textOverflow: 'ellipsis',
+				},
+			}),
 		});
-		
-		// Update panel content size for scrolling
-		const totalHeight = Math.max(
-			orderedEntries.length * this.entryHeight,
-			this.panel.getHeight()
-		);
-		this.panel.setContentSize(this.panel.getWidth(), totalHeight);
+		if (following) this.scroller.scrollToBottom();
 	}
-	
+
 	/**
 	 * Get color for entry based on type
 	 */
@@ -228,56 +186,5 @@ export class CombatLogLayer extends Layer {
 		}
 		
 		return prefix;
-	}
-	
-	/**
-	 * Scroll to bottom of log
-	 */
-	private scrollToBottom(): void {
-		// TODO: Implement scrolling when Panel supports it
-	}
-	
-	/**
-	 * Unmount event subscriptions
-	 */
-	public unmount(): void {
-		if (this.unsubscriber) {
-			this.unsubscriber();
-			this.unsubscriber = null;
-		}
-
-		super.unmount();
-	}
-	
-	/**
-	 * Handle resize
-	 */
-	protected onResized(): void {
-		// Update background
-		const background = this.children[0] as Rectangle;
-		if (background) {
-			background.setSize(this.getWidth(), this.getHeight());
-		}
-		
-		// Update header
-		const header = this.children[1] as Rectangle;
-		if (header) {
-			header.setWidth(this.getWidth());
-		}
-		
-		// Update title position
-		const title = this.children[2] as Text;
-		if (title) {
-			title.setPosition(Math.floor(this.getWidth() / 2), 15);
-		}
-		
-		// Update panel
-		if (this.panel) {
-			this.panel.setSize(
-				this.getWidth() - this.padding * 2,
-				this.getHeight() - 45
-			);
-			this.updateLayout();
-		}
 	}
 }

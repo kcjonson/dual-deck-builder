@@ -1,10 +1,11 @@
-import { expect, test } from '@playwright/test';
+import { test } from '@playwright/test';
 import { SCREEN_SCENARIOS } from '../support/scenarios';
 import {
 	attachTree,
 	captureConsole,
 	expectCleanConsole,
-	goldenName,
+	expectGolden,
+	expectTextSnapshot,
 	openScreen,
 	prepare,
 } from '../support/harness';
@@ -28,7 +29,8 @@ test.describe('game screens', () => {
 			await prepare(page);
 			await openScreen(page, scenario.screen);
 
-			await expect(page).toHaveScreenshot(goldenName('screen', scenario.screen));
+			await expectTextSnapshot(page, 'screen', scenario.screen);
+			await expectGolden(page, testInfo, 'screen', scenario.screen);
 
 			await attachTree(page, testInfo);
 			expectCleanConsole(log);

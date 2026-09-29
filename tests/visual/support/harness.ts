@@ -1,7 +1,10 @@
+import { readFile, writeFile } from 'node:fs/promises';
 import type { ConsoleMessage, Page, TestInfo } from '@playwright/test';
 import { expect } from '@playwright/test';
-import { BASE_URL } from '../../../playwright.config';
+import { BASE_URL, FIXED_VIEWPORT, GOLDEN_CLUSTER, VISUAL_THRESHOLD } from '../../../playwright.config';
 import type { LintResult } from '../../../src/renderer/engine/debug/layoutLint';
+import { compareClusters, diffImage } from './diffClusters';
+import type { DiffReport } from './diffClusters';
 
 /**
  * R13.37's deterministic capture controls, in one place so both projects get
@@ -38,15 +41,16 @@ import type { LintResult } from '../../../src/renderer/engine/debug/layoutLint';
  *    `measureUserAgentSpecificMemory` is `() => {}`; the dev server sets the
  *    cross-origin isolation headers, so `FrameTimer.requestMemorySample` takes
  *    the live branch, calls that stub, and throws on `undefined.then` - which
- *    means `window.__perf.snapshot()` fails on every clocked page. Nothing the
- *    phase 0 goldens capture reads `Date` (the only wall-clock reader is the
- *    frame timer's own snapshot timestamp), so the freeze costs nothing today.
- *    The clock becomes necessary the moment a spec wants a state behind a
- *    timer, PlayerHandLayer's 300 ms discard being the first; whoever needs it
- *    has to deal with that `performance` collision first. DDB-61's FrameTimer
- *    does take an injected clock, but neither entry point passes one - both
- *    call `new FrameTimer()` - so there is no route from a running page to a
- *    fixed-step render clock today regardless.
+ *    means `window.__perf.snapshot()` fails on every clocked page.
+ *
+ *    The engine's own clock is what makes the freeze sufficient (DDB-74). UI
+ *    code takes time only from the mount context's `clock` and `animator`
+ *    (lint forbids platform timers there), and the clock advances only in the
+ *    update phase the pause skips, so a paused page has no UI timer running
+ *    at all. What pausing alone would leave is a tween frozen on the frame it
+ *    started; `settle` runs every tween to its end through
+ *    `__app.settleAnimations()`, so a capture shows where an animation lands,
+ *    which does not depend on how many frames the page drew first.
  * 4. Seeded random (`seedRandom`) - kills draw order and model identity. See
  *    the note on that function.
  * 5. Wait-for-assets gate (`settle`) - kills the half-loaded frame. Two
@@ -58,8 +62,25 @@ import type { LintResult } from '../../../src/renderer/engine/debug/layoutLint';
  *    as a finished one, so it catches settling layout and not late data.
  */
 
+/**
+ * How long `settle` waits for the layout and the tree to hold still. Well
+ * under the 60 s test timeout, so a page that never settles fails with the
+ * sizes it was stuck at rather than as an anonymous timeout.
+ */
+const SETTLE_TIMEOUT_MS = 15_000;
+
 /** Changing this reshuffles every deck and invalidates every golden. */
 const RANDOM_SEED = 0x5eed1e57;
+
+/**
+ * The part of `window.__ui.tree()` the harness reads. Stated here rather than
+ * imported from `treeSnapshot.ts`, which would pull the engine, and its build
+ * globals, into the test project's typecheck.
+ */
+interface TreeSnapshot {
+	viewport: { width: number; height: number };
+	roots: { bounds: { x: number; y: number; w: number; h: number } }[];
+}
 
 /**
  * The dev surface as this harness uses it. Members are required here, unlike
@@ -69,10 +90,11 @@ const RANDOM_SEED = 0x5eed1e57;
  * is what the waits are written against.
  */
 export interface DevSurface {
-	__ui: { tree(): unknown; lint(): LintResult };
+	__ui: { tree(): TreeSnapshot; lint(): LintResult };
 	__app: {
 		navigate(screen: string): boolean;
 		pause(): void;
+		settleAnimations(): number;
 		status(): {
 			screen?: string;
 			scene?: string;
@@ -166,8 +188,9 @@ export async function freezeApplication(page: Page): Promise<void> {
 
 /**
  * The wait-for-assets gate. Returns once the dev hooks exist, web fonts have
- * resolved, no data fetch is outstanding, the frame loop has advanced, and two
- * consecutive frames serialize to the same tree.
+ * resolved, no data fetch is outstanding, every tween has run to its end, the
+ * layout has settled at the fixed viewport, and two frames later the layout
+ * still holds, nothing new has animated, and the tree serializes the same.
  *
  * The `assetsReady` wait is the one that does the job the gate is named for.
  * The tree comparison cannot stand in for it: a screen whose `cards.json` has
@@ -180,12 +203,33 @@ export async function freezeApplication(page: Page): Promise<void> {
  * `assetsReady === true` is required explicitly rather than tested for
  * falsiness, so a page that never installed the field fails the gate instead
  * of passing it by omission.
+ *
+ * The layout half is DDB-201's, and it names the sizes a capture depends on
+ * rather than inferring them from a still tree. A resize reaches a screen in
+ * three steps: the window changes (and screens still read `innerWidth` when
+ * they build), the `ResizeObserver` measures the canvas box into a pending
+ * viewport, and the next frame commits it, resizing the backing store and
+ * calling `Screen.resize`, which on driver selection tears the whole screen
+ * down and rebuilds it. A capture between the first step and the last is a
+ * screen laid out for a size the golden is not at. So the gate requires all of
+ * them to agree with `FIXED_VIEWPORT` at once: the window, the canvas's CSS
+ * box, its backing store, and the committed viewport, read from the tree
+ * snapshot (which is `CanvasViewport.logical`). Checking the CSS box directly
+ * is stronger than asking the engine whether a measurement is pending, since
+ * it also covers a resize the observer has not reported yet.
+ *
+ * Agreement is then held across at least two frames, counted on the frame
+ * timer rather than assumed from `requestAnimationFrame`, so any screen that
+ * heard a commit has rebuilt and drawn, and the tree (viewport included) must
+ * serialize the same for all of those frames; any disagreement or change
+ * starts the count again.
  */
 export async function settle(page: Page): Promise<void> {
 	await page.waitForFunction(() => {
 		const scope = window as Partial<DevSurface>;
 		return typeof scope.__ui?.tree === 'function'
 			&& typeof scope.__app?.status === 'function'
+			&& typeof scope.__app?.settleAnimations === 'function'
 			&& typeof scope.__perf?.snapshot === 'function';
 	});
 
@@ -195,24 +239,64 @@ export async function settle(page: Page): Promise<void> {
 		() => (window as unknown as DevSurface).__app.status().assetsReady === true,
 	);
 
-	const before = await frameCount(page);
-	await page.waitForFunction(
-		(minimum: number) => (window as unknown as DevSurface).__perf.snapshot().liveness.frameCount > minimum,
-		before + 2,
-	);
-
-	await page.waitForFunction(async () => {
+	// One evaluate that polls in the page, not a `waitForFunction`: that
+	// takes an async predicate's Promise as its truthy answer and returns on
+	// the first poll, which is how the two-frame tree comparison this replaces
+	// passed on every capture without comparing anything (DDB-201).
+	const outcome = await page.evaluate(async ({ size, timeout }) => {
 		const scope = window as unknown as DevSurface;
-		const first = JSON.stringify(scope.__ui.tree());
-		await new Promise<void>((resolve) => {
-			requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
+		const canvas = document.getElementById('game-canvas') as HTMLCanvasElement | null;
+		const agrees = (): boolean => {
+			if (!canvas) return false;
+			const ratio = window.devicePixelRatio;
+			const { viewport } = scope.__ui.tree();
+			return window.innerWidth === size.width && window.innerHeight === size.height
+				&& canvas.clientWidth === size.width && canvas.clientHeight === size.height
+				&& canvas.width === Math.round(size.width * ratio) && canvas.height === Math.round(size.height * ratio)
+				&& viewport.width === size.width && viewport.height === size.height;
+		};
+		const frames = (): number => scope.__perf.snapshot().liveness.frameCount;
+		// Raced against a timer so the deadline still fires if frames stop,
+		// which is the case it most needs to report.
+		const nextFrame = (): Promise<void> => new Promise((resolve) => {
+			const timer = setTimeout(resolve, Math.max(0, deadline - performance.now()));
+			requestAnimationFrame(() => {
+				clearTimeout(timer);
+				resolve();
+			});
 		});
-		return JSON.stringify(scope.__ui.tree()) === first;
-	});
-}
 
-async function frameCount(page: Page): Promise<number> {
-	return page.evaluate(() => (window as unknown as DevSurface).__perf.snapshot().liveness.frameCount);
+		const deadline = performance.now() + timeout;
+		let held = null as { tree: string; since: number } | null;
+		while (performance.now() < deadline) {
+			// Paused, nothing ticks the animator, so each pass runs whatever
+			// the last frame started to its end; a pass that had to finish
+			// something starts the count again.
+			if (scope.__app.settleAnimations() > 0) held = null;
+			if (agrees()) {
+				const tree = JSON.stringify(scope.__ui.tree());
+				if (held?.tree !== tree) held = { tree, since: frames() };
+				else if (frames() >= held.since + 2) return null;
+			} else {
+				held = null;
+			}
+			await nextFrame();
+		}
+		return {
+			window: [window.innerWidth, window.innerHeight],
+			canvasBox: canvas ? [canvas.clientWidth, canvas.clientHeight] : null,
+			backingStore: canvas ? [canvas.width, canvas.height] : null,
+			viewport: scope.__ui.tree().viewport,
+			layoutAgreed: held !== null,
+		};
+	}, { size: FIXED_VIEWPORT, timeout: SETTLE_TIMEOUT_MS });
+
+	if (outcome) {
+		throw new Error(
+			`The layout did not settle at ${FIXED_VIEWPORT.width}x${FIXED_VIEWPORT.height} `
+				+ `within ${SETTLE_TIMEOUT_MS} ms: ${JSON.stringify(outcome)}`,
+		);
+	}
 }
 
 /**
@@ -242,6 +326,12 @@ export async function openScreen(page: Page, screen: string): Promise<void> {
 	const status = await page.evaluate(() => (window as unknown as DevSurface).__app.status());
 	expect(status.screen).toBe(screen);
 	expect(status.paused).toBe(true);
+
+	// Every screen's root layer is the viewport, and `Screen.resize` is what
+	// keeps it so; a root at any other size is a screen that built before the
+	// last commit and never heard it (DDB-201).
+	const root = await page.evaluate(() => (window as unknown as DevSurface).__ui.tree().roots[0]?.bounds);
+	expect(root, `${screen}'s root layer should fill the viewport`).toEqual({ x: 0, y: 0, w: FIXED_VIEWPORT.width, h: FIXED_VIEWPORT.height });
 }
 
 /**
@@ -264,12 +354,10 @@ export async function openScene(page: Page, scene: string): Promise<void> {
 }
 
 /**
- * Assert the run was clean. There is no allow-list: the one scenario that
- * emits a known error, DDB-103's per-frame buffer overflow on the
- * primitive-shapes scene, is `test.fixme` and never reaches this call, so an
+ * Assert the run was clean. There is no allow-list: a scenario with a known
+ * error is `blockedBy`, so `test.fixme`, and never reaches this call. An
  * allowance would be dead code whose only effect is to make the next error
- * easy to normalise. It returns with the DDB-103 fix if that scene still needs
- * one afterwards.
+ * easy to normalise.
  */
 export function expectCleanConsole(log: ConsoleLog): void {
 	expect(log.errors, `console errors:\n${log.errors.join('\n')}`).toEqual([]);
@@ -280,8 +368,160 @@ export function goldenName(kind: 'screen' | 'scene', name: string): string {
 	return `${kind}-${name}.png`;
 }
 
+/** The text snapshot's name beside the golden's, so the pair is one scenario's. */
+export function textSnapshotName(kind: 'screen' | 'scene', name: string): string {
+	return `${kind}-${name}-text.json`;
+}
+
+/**
+ * Every string on screen, checked against its committed record (DDB-206).
+ *
+ * The cluster rule cannot see punctuation: `.` to `,` and `:` to `;` at body
+ * sizes differ by a few pixels that pixelmatch classes as anti-aliasing, so
+ * they come back as zero differing pixels (the mutation table in
+ * docs/AI_TECHNICAL_DECISIONS/visual-golden-harness.md). The tree snapshot
+ * holds every Text node's string, so the strings are asserted directly: one
+ * line per text with its path, its content, and its rounded screen rect.
+ *
+ * The record keeps every string that is visible and not faded out through the
+ * whole ancestor chain, and not clipped or scrolled wholly out of the
+ * viewport. Those cuts drop text the scenario never draws, which the
+ * developer screen's scrolled-out sections are most of. Occlusion is not
+ * tested: a string painted over by an opaque sibling or a modal is still
+ * recorded, so changing it fails the scenario though its picture is the
+ * same. That is deliberate: a covered string is still one the product
+ * shows once whatever covers it goes away, and the tree has no opacity-aware
+ * occlusion test to make the cut honestly.
+ *
+ * The record lives beside the PNG under `__screenshots__`, named by the same
+ * template, so it is minted by the same dispatch and the provenance job holds
+ * it to the same rule: a pull request never carries a hand-written one.
+ */
+export async function expectTextSnapshot(page: Page, kind: 'screen' | 'scene', name: string): Promise<void> {
+	const lines = await page.evaluate(() => {
+		interface Rect { x: number; y: number; w: number; h: number }
+		interface Node {
+			id: string | null;
+			type: string;
+			visible: boolean;
+			opacity?: number;
+			screenBounds: Rect;
+			clip?: Rect;
+			text?: { content: string };
+			parts?: Node[];
+			children: Node[];
+		}
+		const document = (window as unknown as { __ui: { tree(): { viewport: { width: number; height: number }; roots: Node[] } } }).__ui.tree();
+		const viewport: Rect = { x: 0, y: 0, w: document.viewport.width, h: document.viewport.height };
+		const round = (value: number): number => Math.round(value * 100) / 100;
+		const meets = (a: Rect, b: Rect): boolean => a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h;
+		const out: string[] = [];
+
+		// The layout lint's path rule (R13.28): ids when present, Type[index]
+		// otherwise, parts and children numbered as one list.
+		const walk = (nodes: Node[], parentPath: string): void => {
+			const ids = new Map<string, number>();
+			for (const node of nodes) if (node.id) ids.set(node.id, (ids.get(node.id) ?? 0) + 1);
+			nodes.forEach((node, index) => {
+				if (!node.visible || node.opacity === 0) return;
+				const segment = node.id ? ((ids.get(node.id) ?? 0) > 1 ? `${node.id}[${index}]` : node.id) : `${node.type}[${index}]`;
+				const path = parentPath ? `${parentPath}/${segment}` : segment;
+				const box = node.screenBounds;
+				if (node.text && meets(box, node.clip ?? viewport) && meets(box, viewport)) {
+					out.push(JSON.stringify({
+						path,
+						text: node.text.content,
+						rect: [round(box.x), round(box.y), round(box.w), round(box.h)],
+					}));
+				}
+				walk([...(node.parts ?? []), ...node.children], path);
+			});
+		};
+		walk(document.roots, '');
+		return out;
+	});
+
+	expect(lines.length, `${kind} "${name}" shows no text at all, so its text record would check nothing`).toBeGreaterThan(0);
+	// Soft, and taken before the golden, so a change both checks see reports
+	// both: the string that changed here and the picture below.
+	expect.soft(`[\n${lines.join(',\n')}\n]\n`).toMatchSnapshot(textSnapshotName(kind, name));
+}
+
 /** The tree behind a red diff, attached to the report. */
 export async function attachTree(page: Page, testInfo: TestInfo): Promise<void> {
 	const tree = await page.evaluate(() => JSON.stringify((window as unknown as DevSurface).__ui.tree(), null, '\t'));
 	await testInfo.attach('tree.json', { body: tree, contentType: 'application/json' });
+}
+
+/**
+ * Compare the page against its golden: Playwright's area budget first, then
+ * the cluster rule (DDB-197), which fails a capture whose differing pixels
+ * include one dense region larger than `GOLDEN_CLUSTER.maxClusterPixels` even
+ * when the total is under `maxDiffPixels`. See `diffClusters.ts` for why.
+ *
+ * The cluster report is taken whether or not the area check passed and written
+ * to the test's output directory as `golden-diff.json` (uploaded with the
+ * report on CI), so every run records how far each capture was from its golden
+ * on both measures. That file is the cross-runner variance measurement the
+ * budgets are justified against, taken on every run rather than once.
+ *
+ * The comparison runs against a second capture, which is the same frame:
+ * the page is paused and settled, and consecutive captures are bit-exact.
+ *
+ * On a mint, a golden the cluster rule rejects is rewritten here, because
+ * `--update-snapshots=changed` only rewrites what `toHaveScreenshot` itself
+ * rejected, and a golden this rule fails would otherwise survive the mint that
+ * was run to replace it. `all` has already rewritten it and compares clean.
+ */
+export async function expectGolden(page: Page, testInfo: TestInfo, kind: 'screen' | 'scene', name: string): Promise<void> {
+	const file = goldenName(kind, name);
+	const areaFailure = await expect(page).toHaveScreenshot(file).then(() => null, (error: unknown) => error);
+
+	const goldenPath = testInfo.snapshotPath(file, { kind: 'screenshot' });
+	const expected = await readFile(goldenPath).catch(() => null);
+	if (!expected) throw areaFailure ?? new Error(`${goldenPath} is missing after toHaveScreenshot`);
+
+	const actual = await page.screenshot({ animations: 'disabled', caret: 'hide', scale: 'css' });
+	let report: DiffReport;
+	try {
+		report = compareClusters({ expected, actual, threshold: VISUAL_THRESHOLD, joinRadius: GOLDEN_CLUSTER.joinRadius });
+	} catch (error) {
+		// A size mismatch throws here, and Playwright has already failed the
+		// same capture with the better message.
+		throw areaFailure ?? error;
+	}
+	await writeFile(testInfo.outputPath('golden-diff.json'), JSON.stringify({ golden: file, ...report }, null, '\t'));
+	// Kept whenever anything differs, passing or not, so a nonzero report on
+	// a green run can be looked at rather than only counted.
+	if (report.differing > 0) await writeFile(testInfo.outputPath(file.replace(/\.png$/, '-actual.png')), actual);
+	testInfo.annotations.push({ type: 'golden-diff', description: describeDiff(report) });
+
+	if (areaFailure) throw areaFailure;
+
+	const largest = report.largest;
+	if (!largest || largest.size <= GOLDEN_CLUSTER.maxClusterPixels) return;
+
+	const updateMode = testInfo.config.updateSnapshots;
+	if (updateMode === 'changed' || updateMode === 'all') {
+		await writeFile(goldenPath, actual);
+		testInfo.annotations.push({ type: 'golden-rewritten', description: `cluster rule: ${describeDiff(report)}` });
+		return;
+	}
+
+	await testInfo.attach(file.replace(/\.png$/, '-actual.png'), { body: actual, contentType: 'image/png' });
+	await testInfo.attach(file.replace(/\.png$/, '-diff.png'), {
+		body: diffImage({ expected, actual, threshold: VISUAL_THRESHOLD }),
+		contentType: 'image/png',
+	});
+	const { x, y, w, h } = largest.bounds;
+	throw new Error(
+		`${file}: ${largest.size} differing pixels form one region at x ${x}, y ${y}, ${w}x${h}, `
+			+ `over the cluster budget of ${GOLDEN_CLUSTER.maxClusterPixels} `
+			+ `(${report.differing} differing in total, under the area budget). `
+			+ 'A dense change this size is content, not noise: a changed number or glyph, a moved or missing element.',
+	);
+}
+
+function describeDiff(report: DiffReport): string {
+	return `${report.differing} px differ in ${report.clusters} clusters, largest ${report.largest?.size ?? 0} px`;
 }

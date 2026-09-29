@@ -1,7 +1,7 @@
-import { Component, ComponentOptions } from './Component';
-import { RendererContext } from '../rendering/RendererContext';
-import { RenderContext, DEFAULT_RENDER_CONTEXT } from '../rendering/RenderContext';
+import { Component, ComponentOptions, ResolvedColors } from './Component';
+import type { DrawApi } from '../draw/DrawApi';
 import { Style, StyleParser } from '../types/Style';
+import { triangulatePolygon, type Vec2 } from '../draw';
 
 /**
  * Polygon component for rendering arbitrary polygons
@@ -10,7 +10,11 @@ export class Polygon extends Component {
 	private fillColor: [number, number, number, number] = [1, 1, 1, 1];
 	private strokeColor: [number, number, number, number] = [0, 0, 0, 1];
 	private strokeWidth = 0;
-	private points: [number, number][] = [];
+	private points: Vec2[] = [];
+	/** R2.11's triangle list, recomputed when the outline changes rather than per frame. */
+	private indices: number[] = [];
+	/** `points` on the component's box, rewritten each render; the draw API copies them. */
+	private boxPoints: { x: number; y: number }[] = [];
 
 	/**
 	 * Create a new polygon component
@@ -71,7 +75,7 @@ export class Polygon extends Component {
 		if (points.length < 3) {
 			throw new Error('Polygon must have at least 3 points');
 		}
-		this.points = points;
+		this.outline = points;
 		return this;
 	}
 
@@ -94,7 +98,7 @@ export class Polygon extends Component {
 			points.push([x, y]);
 		}
 
-		this.points = points;
+		this.outline = points;
 		return this;
 	}
 
@@ -119,66 +123,50 @@ export class Polygon extends Component {
 			vertices.push([x, y]);
 		}
 
-		this.points = vertices;
+		this.outline = vertices;
 		return this;
 	}
 
-	/**
-	 * Render the polygon
-	 * @param context Render context with coordinate transforms
-	 */
-	public render(context?: RenderContext): void {
-		if (!this.visible || this.points.length < 3) return;
+	private set outline(points: [number, number][]) {
+		this.points = points.map(([x, y]) => ({ x, y }));
+		this.boxPoints = points.map(() => ({ x: 0, y: 0 }));
+		this.indices = triangulatePolygon(this.points);
+	}
 
-		// Use default context if none provided
-		const ctx = context || DEFAULT_RENDER_CONTEXT;
+	/** The stroke is centred on the outline, so half of it lands outside the box (R8.8). */
+	public get inkExtent(): number {
+		return this.strokeWidth > 0 ? this.strokeWidth / 2 : 0;
+	}
 
-		// Calculate screen position
-		const screenX = ctx.offsetX + this.x;
-		const screenY = ctx.offsetY + this.y;
+	public get resolvedColors(): ResolvedColors {
+		return this.strokeWidth > 0 ? { fill: this.fillColor, border: this.strokeColor } : { fill: this.fillColor };
+	}
 
-		// The fan `Renderer.triangulatePolygon` computed, sent explicitly:
-		// R2.11 reads an absent index list as "the points already are a
-		// triangle list", which a ring of five is not.
-		const indices: number[] = [];
-		for (let corner = 1; corner < this.points.length - 1; corner++) {
-			indices.push(0, corner, corner + 1);
+	public render(draw: DrawApi): void {
+		if (this.points.length < 3) return;
+
+		// The box is applied to the points, not pushed as a transform; see Triangle.
+		const halfWidth = this.width / 2;
+		const halfHeight = this.height / 2;
+		for (let index = 0; index < this.points.length; index++) {
+			this.boxPoints[index].x = halfWidth + this.points[index].x * halfWidth;
+			this.boxPoints[index].y = halfHeight + this.points[index].y * halfHeight;
 		}
-
-		const points = this.points.map(([x, y]) => ({ x, y }));
-
-		// The box lives in the transform, not in the points; see Triangle.
-		const draw = RendererContext.getInstance().draw;
-		draw.pushTransform([
-			this.width / 2,
-			0,
-			0,
-			this.height / 2,
-			screenX + this.width / 2,
-			screenY + this.height / 2,
-		]);
-		draw.drawPolygon({ id: this.id ?? undefined, points, indices, fill: this.fillColor });
+		if (this.indices.length > 0) {
+			draw.drawPolygon({
+				id: this.id ?? undefined,
+				points: this.boxPoints,
+				indices: this.indices,
+				fill: this.fillColor,
+			});
+		}
 		if (this.strokeWidth > 0) {
 			draw.drawPolyline({
-				points,
+				points: this.boxPoints,
 				color: this.strokeColor,
 				width: this.strokeWidth,
 				closed: true,
 			});
-		}
-		draw.popTransform();
-
-		// Create child context with our position added
-		const childContext: RenderContext = {
-			offsetX: screenX,
-			offsetY: screenY,
-		};
-
-		// Render children with transformed context
-		for (const child of this.children) {
-			if (child.isVisible()) {
-				child.render(childContext);
-			}
 		}
 	}
 }

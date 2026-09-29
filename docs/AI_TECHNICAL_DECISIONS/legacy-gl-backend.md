@@ -2,6 +2,23 @@
 
 DDB-55 phase 1, PR 3. Landed 2026-09-09.
 
+> `LegacyGLBackend` itself is deleted (2026-09-28, DDB-63): the WebGL2 backend replaced it as the live
+> path with byte-identical pixels; see [webgl2-backend.md](./webgl2-backend.md). `scissorBox`,
+> `windowFrame` and the draw API factory (now `createDrawApi`) live in `WebGL2Backend.ts`, and
+> `LegacyPaintOrder` in its own file. The `legacyTextOrder` deletion list below still applies, with
+> those paths.
+
+> Superseded in part by [batcher.md](./batcher.md) (2026-09-28): `TextRenderer` is deleted, text
+> goes through the batcher with shapes, and the text-last reordering this document calls dead code is
+> back as `legacyPaintOrder`, now with `TextRenderer`'s per-colour grouping, because without
+> `TextRenderer` nothing else defers text. `submit` returns a real `GpuWork`, and DDB-103's
+> circle-stroke overrun is gone. The `legacyTextOrder` barrier and its deletion list below are
+> unchanged.
+
+> The deletion below happened (2026-09-28, DDB-67): `legacyTextOrder`, `LegacyPaintOrder` and
+> `legacyDrawOrder.test.ts` are gone, and the reorder sites got layout fixes in the same change; see
+> [paint-order-rebaseline.md](./paint-order-rebaseline.md).
+
 ## The problem
 
 PR 1 shipped `src/renderer/engine/draw/` with no consumers. This PR gives it one, and it has

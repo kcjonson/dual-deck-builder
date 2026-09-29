@@ -1,11 +1,14 @@
 import { DrawApi } from '../engine/draw';
-import { windowFrame } from '../engine/rendering/LegacyGLBackend';
-import { FrameTimer } from '../engine/rendering/FrameTimer';
+import type { CanvasViewport } from '../engine/rendering/CanvasViewport';
+import { FrameTimer, PerfSnapshot } from '../engine/rendering/FrameTimer';
+import type { GpuTimer } from '../engine/rendering/GpuTimer';
 import { DeveloperOverlay } from '../engine/ui/DeveloperOverlay';
+import { renderTree } from '../engine/components/renderTree';
 import { ScreenManager } from './core/ScreenManager';
-import { InputSystem } from '../engine/input/InputSystem';
+import type { MountContext } from '../engine/components/MountContext';
 import { CardLoader } from './core/CardLoader';
 import type { Layer } from '../engine/components/Layer';
+import type { DeviceInfo } from '../engine/rendering/deviceInfo';
 
 /**
  * What `window.__app.status()` answers on the game page (R13.3, R13.32). The
@@ -23,7 +26,7 @@ export interface GameStatus {
 	/** Frames updated and rendered since init. Paused frames render but do not update. */
 	updates: number;
 	renders: number;
-	/** The InputSystem's own gate, which is what actually drops events (R13.35). */
+	/** The dispatcher's own gate, which is what actually drops events (R13.35). */
 	inputPaused: boolean;
 	viewport: { width: number; height: number };
 	/**
@@ -38,18 +41,28 @@ export interface GameStatus {
 }
 
 export interface GameOptions {
-	/** The draw API of chapter 2; the game page never sees a backend. */
-	draw: DrawApi;
+	/** R1.6's services, the draw API and input among them; every root mounts with it. */
+	context: MountContext;
 	/** Frame timing and per-frame draw counters (R13.7). */
 	frameTimer: FrameTimer;
+	/** R7.11's viewport owner; the game reads its size and hears its changes, never the window's. */
+	viewport: CanvasViewport;
+	/** R15.3 and R13.20's device identity, for the perf snapshot. */
+	device: DeviceInfo;
+	/** R13.16's GPU timer; null in a production build, which has none. */
+	gpuTimer?: GpuTimer | null;
 }
 
 /**
  * Main game class responsible for managing game state and high-level systems
  */
 export class Game {
+	private readonly context: MountContext;
 	private draw: DrawApi;
 	private frameTimer: FrameTimer;
+	private viewport: CanvasViewport;
+	private device: DeviceInfo;
+	private gpuTimer: GpuTimer | null;
 	private developerOverlay: DeveloperOverlay;
 	private isElectron = false;
 	private isInitialized = false;
@@ -58,9 +71,25 @@ export class Game {
 	private updates = 0;
 	private renders = 0;
 
-	constructor({ draw, frameTimer }: GameOptions) {
-		this.draw = draw;
+	constructor({ context, frameTimer, viewport, device, gpuTimer = null }: GameOptions) {
+		this.context = context;
+		this.draw = context.draw;
 		this.frameTimer = frameTimer;
+		this.viewport = viewport;
+		this.device = device;
+		this.gpuTimer = gpuTimer;
+		// Off until F5, so nothing it draws reaches a golden.
+		this.developerOverlay = new DeveloperOverlay({
+			snapshot: this.perfSnapshot,
+			viewportWidth: viewport.logical.width,
+		});
+		viewport.onChange(({ width, height }) => {
+			// Roots sized from the viewport re-lay out on their own (R8.21).
+			this.context.frame.viewportChanged();
+			ScreenManager.resize(width, height);
+			this.context.overlays.resize();
+			this.developerOverlay.viewportWidth = width;
+		});
 
 		// Check if running in Electron
 		interface ElectronWindow extends Window {
@@ -73,9 +102,6 @@ export class Game {
 		this.isElectron = electronWindow.electron?.isElectron === true;
 
 		console.log(`Running in ${this.isElectron ? 'Electron' : 'Browser'} mode`);
-		
-		// Create developer overlay
-		this.developerOverlay = new DeveloperOverlay(this.frameTimer);
 	}
 
 	/**
@@ -88,16 +114,16 @@ export class Game {
 	 * `lastTime` in the loop advances on paused frames, so resuming hands
 	 * `update` a normal delta instead of the whole pause.
 	 *
-	 * Input is not gated here. This engine dispatches straight from DOM
-	 * listeners, so a loop that skipped `update` would still see buttons pressed
-	 * and text typed; `InputSystem.paused` is the half that makes R13.35's
+	 * Input is not gated here. The dispatcher drains its queue in the loop's
+	 * input section whether or not `update` runs, so `Dispatcher.paused`,
+	 * which drops input at the queue, is the half that makes R13.35's
 	 * "injected input is ignored while paused" true, and it is the same flag the
-	 * gallery sets. The one listener outside the InputSystem is this class's own
+	 * gallery sets. The one listener outside the dispatcher is this class's own
 	 * document keydown shortcut, gated in `setupEventHandlers`.
 	 *
-	 * What pause does not stop: the window resize path. `Renderer.handleResize`
-	 * and `Screen.onResized` still run, so a window resized while paused
-	 * reflows the mounted screen.
+	 * What pause does not stop: the resize path. The viewport commits at the
+	 * top of every frame, paused or not, and `Screen.onResized` runs, so a
+	 * window resized while paused reflows the mounted screen.
 	 */
 	public get paused(): boolean {
 		return this.isPaused;
@@ -105,7 +131,7 @@ export class Game {
 
 	public set paused(value: boolean) {
 		this.isPaused = value;
-		InputSystem.getInstance().paused = value;
+		this.context.dispatcher.paused = value;
 	}
 
 	/**
@@ -113,7 +139,10 @@ export class Game {
 	 */
 	public async init(): Promise<void> {
 		// Initialize the ScreenManager
-		ScreenManager.initialize();
+		ScreenManager.initialize(this.context);
+		// A root of its own, drawn after the screen and its overlays as a
+		// diagnostic domain (R3.21), so it is hit-tested last too.
+		this.developerOverlay.mount(this.context, { tier: 'diagnostic' });
 
 		// Start with the splash screen
 		ScreenManager.navigate('splashScreen');
@@ -151,14 +180,15 @@ export class Game {
 				resume: () => {
 					this.paused = false;
 				},
+				settleAnimations: () => this.context.animator.settle(),
 				status: (): GameStatus => ({
 					screen: ScreenManager.getCurrentScreenName(),
 					screens: ScreenManager.screenNames,
 					paused: this.isPaused,
 					updates: this.updates,
 					renders: this.renders,
-					inputPaused: InputSystem.getInstance().paused,
-					viewport: { width: window.innerWidth, height: window.innerHeight },
+					inputPaused: this.context.dispatcher.paused,
+					viewport: this.viewport.logical,
 					assetsReady: !CardLoader.getInstance().loading,
 				}),
 			});
@@ -173,21 +203,33 @@ export class Game {
 					const roots: Layer[] = [];
 					const screen = ScreenManager.activeScreen;
 					if (screen) roots.push(screen.root);
+					roots.push(...this.context.overlays.roots);
 					if (this.developerOverlay.shown) roots.push(this.developerOverlay);
 					return roots;
 				},
-				viewport: () => ({ width: window.innerWidth, height: window.innerHeight }),
+				viewport: () => ({ ...this.viewport.logical, ratio: this.viewport.state.ratio }),
 			});
-			// R13.11 wants the snapshot to carry the active screen so a capture
-			// can group per scene, and the screen name is the game page's answer
-			// to what the gallery calls a scene.
-			installPerfHooks({
-				snapshot: () => this.frameTimer.snapshot({ scene: ScreenManager.getCurrentScreenName() }),
-			});
+			installPerfHooks({ snapshot: this.perfSnapshot, gpuTimer: this.gpuTimer });
 		}
 
 		this.isInitialized = true;
 	}
+
+	/**
+	 * R13.11's snapshot with everything this page owns folded in. The F5
+	 * overlay and `window.__perf` both read this one function, so what a person
+	 * sees and what a capture records cannot disagree (R13.3). R13.11 wants the
+	 * active screen on it so a capture can group per scene, and the screen name
+	 * is the game page's answer to what the gallery calls a scene.
+	 */
+	private perfSnapshot = (): PerfSnapshot => this.frameTimer.snapshot({
+		scene: ScreenManager.getCurrentScreenName(),
+		device: this.device,
+		// Null before the first frame: an unopened draw API's zeros would read
+		// as a measured empty frame (R13.5).
+		batcher: this.draw.frame > 0 ? this.draw.getStats() : null,
+		gpu: this.gpuTimer?.stats ?? null,
+	});
 
 	/**
 	 * Set up global event handlers
@@ -197,7 +239,7 @@ export class Game {
 		// For example, keyboard shortcuts for development
 		document.addEventListener('keydown', (event) => {
 			// These shortcuts navigate and toggle the overlay, and they are the one
-			// input path the InputSystem's pause gate does not cover, so leaving
+			// input path the dispatcher's pause gate does not cover, so leaving
 			// them live would let a keystroke change the screen underneath a paused
 			// capture and make status().paused a lie (R13.32, R13.35). Gating them
 			// changes what real keys do while paused, which is only reachable
@@ -218,6 +260,9 @@ export class Game {
 			if (event.key === 'F5') {
 				event.preventDefault();
 				this.developerOverlay.toggle();
+				// The GPU timer costs frame time on some drivers, so it runs
+				// only while someone is looking at what it reports.
+				if (this.gpuTimer) this.gpuTimer.enabled = this.developerOverlay.shown;
 			}
 			
 			// Example: Press Escape to go back to main menu
@@ -243,11 +288,23 @@ export class Game {
 		if (__DEV_TOOLS__ && this.isPaused) return;
 		if (__DEV_TOOLS__) this.updates++;
 
-		// Update the current screen via ScreenManager
+		// R8.17: the components that asked for this frame, then the screen's
+		// own game logic.
+		this.context.frame.update(dt);
 		ScreenManager.update(dt);
 		
 		// Update developer overlay
 		this.developerOverlay.update();
+	}
+
+	/**
+	 * R8.16's layout phase, after update and before render: every dirty
+	 * relayout boundary once. It runs while paused too, so a resize during a
+	 * capture still reflows the frame render is about to present.
+	 */
+	public layout(): void {
+		if (!this.isInitialized) return;
+		this.context.frame.layout();
 	}
 
 	/**
@@ -257,16 +314,17 @@ export class Game {
 		if (!this.isInitialized) return;
 		if (__DEV_TOOLS__) this.renders++;
 
-		// Opens the frame where beginTextBatch used to. Nothing below reaches GL:
-		// a draw call resolves its state onto a command and the command waits for
-		// a barrier (R2.4 to R2.7).
-		this.draw.beginFrame(windowFrame());
+		// Nothing below reaches GL: a draw call resolves its state onto a command
+		// and the command waits for a barrier or endFrame (R2.4 to R2.7).
+		this.draw.beginFrame(this.viewport.frame);
 
-		// Render the current screen via ScreenManager
-		ScreenManager.render();
+		// Render the current screen via ScreenManager, then the roots opened
+		// above it in open order (R3.15, R8.21)
+		ScreenManager.render(this.draw);
+		this.context.overlays.render(this.draw);
 
 		// Render developer overlay on top
-		this.developerOverlay.render();
+		renderTree(this.developerOverlay, this.draw);
 	}
 
 	/**
@@ -274,12 +332,10 @@ export class Game {
 	 * the two as separate sections (R13.7). `endFrame` drains the last sort
 	 * domain and hands it to the backend, which is where it paints.
 	 *
-	 * What this moved: shapes used to reach GL at their draw sites inside
-	 * `render`, so the render section held most of the frame's submission and
-	 * this one held the text tail. Now `render` is CPU work only and every GPU
-	 * submission happens in a domain, at a clip boundary or here. No pixel
-	 * changes and no gate reads the split, but section timings on both pages
-	 * are no longer comparable with the phase 0 baseline.
+	 * Shapes used to reach GL at their draw sites inside `render`, so section
+	 * timings on both pages are not comparable with the phase 0 baseline. Now
+	 * `render` is CPU work only and, since a clip change is not a barrier
+	 * (R3.20), the whole frame is submitted here.
 	 */
 	public flush(): void {
 		if (!this.isInitialized) return;

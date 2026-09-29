@@ -6,6 +6,7 @@
  * other three composites do not care which environment they get.
  */
 import { Layer } from '../components/Layer';
+import type { Component } from '../components/Component';
 import { FrameTimer } from '../rendering/FrameTimer';
 import { Button } from '../ui/Button';
 import { DeveloperOverlay } from '../ui/DeveloperOverlay';
@@ -15,7 +16,7 @@ import { SnapshotNode, treeSnapshot } from './treeSnapshot';
 
 const VIEWPORT = { width: 1440, height: 882 };
 
-function snapshotOf(layer: Layer): SnapshotNode {
+function snapshotOf(layer: Component): SnapshotNode {
 	return treeSnapshot([layer], VIEWPORT).roots[0];
 }
 
@@ -47,29 +48,29 @@ function childIds(node: SnapshotNode): (string | null)[] {
  * caller-added child swap places with a background and still read as 2.
  */
 describe('the parts a composite owns', () => {
-	it('gives a Panel a background rectangle and a content layer, and no children of its own', () => {
+	it('gives a Panel no parts: its background is its own draw, not a child (R8.1, R8.6)', () => {
 		const node = snapshotOf(new Panel({ id: 'inventory_panel', width: 300, height: 200 }));
 
-		expect(partTypes(node)).toEqual(['Rectangle', 'Layer']);
+		expect('parts' in node).toBe(false);
 		expect(node.children).toEqual([]);
 	});
 
-	it('gives a Button a background rectangle and a label, and no children of its own', () => {
+	it('gives a Button a label, its box being its own draw, and no children of its own', () => {
 		const node = snapshotOf(new Button('End turn', { id: 'end_turn_button', width: 120, height: 40 }));
 
-		expect(partTypes(node)).toEqual(['Rectangle', 'Text']);
+		expect(partTypes(node)).toEqual(['Text']);
 		expect(node.children).toEqual([]);
 	});
 
-	it('gives an Input a background, a value, a placeholder and a cursor, and no children of its own', () => {
+	it('gives an Input a value, a placeholder and a cursor, its box being its own draw, and no children of its own', () => {
 		const node = snapshotOf(new Input('Driver name', { id: 'name_field', width: 200, height: 30 }));
 
-		expect(partTypes(node)).toEqual(['Rectangle', 'Text', 'Text', 'Rectangle']);
+		expect(partTypes(node)).toEqual(['Text', 'Text', 'Rectangle']);
 		expect(node.children).toEqual([]);
 	});
 
 	it('gives a DeveloperOverlay a background and a stats readout, and no children of its own', () => {
-		const node = snapshotOf(new DeveloperOverlay(new FrameTimer()));
+		const node = snapshotOf(new DeveloperOverlay({ snapshot: () => new FrameTimer().snapshot(), viewportWidth: 1440 }));
 
 		expect(partTypes(node)).toEqual(['Rectangle', 'Text']);
 		expect(node.children).toEqual([]);
@@ -87,41 +88,38 @@ describe('the parts a composite owns', () => {
 });
 
 describe('what a caller adds is never a part', () => {
-	it('routes a Panel child into the content layer, which is a part, while the child is not', () => {
+	it('keeps a Panel child where the caller put it, directly under the panel', () => {
 		const panel = new Panel({ id: 'inventory_panel', width: 300, height: 200 });
 		panel.addChild(new Layer({ id: 'inventory_row', width: 200, height: 30 }));
 
 		const node = snapshotOf(panel);
-		const contentLayer = (node.parts ?? [])[1];
 
-		expect(node.children).toEqual([]);
-		expect(partTypes(node)).toEqual(['Rectangle', 'Layer']);
-		expect(childIds(contentLayer)).toEqual(['inventory_row']);
-		expect('parts' in contentLayer).toBe(false);
+		expect(childIds(node)).toEqual(['inventory_row']);
+		expect('parts' in node).toBe(false);
 	});
 
-	it('puts a Button child in children and leaves its two parts alone', () => {
+	it('puts a Button child in children and leaves its label alone', () => {
 		const button = new Button('End turn', { id: 'end_turn_button', width: 120, height: 40 });
 		button.addChild(new Layer({ id: 'cost_badge', width: 16, height: 16 }));
 
 		const node = snapshotOf(button);
 
-		expect(partTypes(node)).toEqual(['Rectangle', 'Text']);
+		expect(partTypes(node)).toEqual(['Text']);
 		expect(childIds(node)).toEqual(['cost_badge']);
 	});
 
-	it('puts an Input child in children and leaves its four parts alone', () => {
+	it('puts an Input child in children and leaves its three parts alone', () => {
 		const input = new Input('Driver name', { id: 'name_field', width: 200, height: 30 });
 		input.addChild(new Layer({ id: 'validation_icon', width: 16, height: 16 }));
 
 		const node = snapshotOf(input);
 
-		expect(partTypes(node)).toEqual(['Rectangle', 'Text', 'Text', 'Rectangle']);
+		expect(partTypes(node)).toEqual(['Text', 'Text', 'Rectangle']);
 		expect(childIds(node)).toEqual(['validation_icon']);
 	});
 
 	it('puts a DeveloperOverlay child in children and leaves its two parts alone', () => {
-		const overlay = new DeveloperOverlay(new FrameTimer());
+		const overlay = new DeveloperOverlay({ snapshot: () => new FrameTimer().snapshot(), viewportWidth: 1440 });
 		overlay.addChild(new Layer({ id: 'gpu_readout', width: 100, height: 20 }));
 
 		const node = snapshotOf(overlay);
@@ -131,15 +129,15 @@ describe('what a caller adds is never a part', () => {
 	});
 
 	it('stops calling a removed part a part, so a re-added layer reports as a child', () => {
-		const button = new Button('End turn', { id: 'end_turn_button', width: 120, height: 40 });
-		const background = button.getChildren()[0];
+		const input = new Input('Driver name', { id: 'name_field', width: 200, height: 30 });
+		const caret = input.getChildren()[2];
 
-		button.removeChild(background);
-		button.addChild(background);
+		input.removeChild(caret);
+		input.addChild(caret);
 
-		const node = snapshotOf(button);
+		const node = snapshotOf(input);
 
-		expect(partTypes(node)).toEqual(['Text']);
+		expect(partTypes(node)).toEqual(['Text', 'Text']);
 		expect(node.children.map((child) => child.type)).toEqual(['Rectangle']);
 	});
 });

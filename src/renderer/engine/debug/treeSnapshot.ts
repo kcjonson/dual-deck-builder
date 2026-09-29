@@ -1,10 +1,16 @@
-import { Layer } from '../components/Layer';
-import { Component } from '../components/Component';
-import { Panel } from '../ui/Panel';
+import { Component, PointerEvents } from '../components/Component';
+import { Text } from '../components/Text';
+import { ScrollContainer } from '../ui/ScrollContainer';
+import { Stack } from '../components/Stack';
 import { Input } from '../ui/Input';
+import { Checkable } from '../ui/Checkbox';
+import { CLIP_NONE, ClipState, intersectClip } from '../draw/clip';
+import { ClipRect, IDENTITY, Mat2D, RGBA, Rect, concat, isTranslateOnly, transformedBounds, translation } from '../draw/geometry';
+import { LayerName, ROOT_LAYER, layerOrdinal } from '../draw/layers';
+import { snapClipRect } from '../coords/snapping';
 
 /**
- * Serializes the live Layer tree to the JSON document of R13.22-R13.24.
+ * Serializes the live component tree to the JSON document of R13.22-R13.24.
  *
  * Pure function over the tree: no GL context, no DOM, no window. The roots and
  * the viewport are arguments so the same code runs in Jest and in the browser
@@ -18,25 +24,37 @@ import { Input } from '../ui/Input';
  * means "the field applies but the value is unknown". `id` is the one field
  * that is always present, because R13.22 states it is null when unset.
  *
- * Deliberately absent, because no backing property exists in this engine:
- * margin, zIndex, layer, opacity, transform, focusable, inkBounds, style,
- * text.measured, and state.{pressed,focusVisible,selected,open,active,dropActive}.
- * Emitting zIndex: 0 in particular would silently change what the layout lint's
- * sibling-overlap rule exempts.
+ * Backed on every node since the component base (DDB-73): margin, zIndex, the
+ * effective layer, enabled, the effective opacity, inkBounds, and every
+ * R11.11 state flag (the base carries them all since DDB-84). Backed where a
+ * component has them: clip, contentOffset, transform, text, value, style.
  *
- * Clips are reported as the intersection of every clipping ancestor, which is
- * what R13.22's "effective values" asks for. The renderer does not yet agree:
- * Layer.render and Panel.render each save the previous SCISSOR_BOX and set
- * their own rect alone, replacing rather than intersecting it, so on a nested
- * clipper the reported clip is the intended clip and the drawn pixels are
- * wider. Phase 1's clip stack closes the gap; the intersection here is the
- * target and stays.
+ * Interaction, on every node: `focusable` (R13.22), `pointerEvents` (R8.29's
+ * own value, which R13.22 does not name but the lint's occlusion test reads),
+ * and `handlesPointer`, which is not in R13.22 either. R8.29 makes `auto` the
+ * default for every leaf, so `pointerEvents` alone counts every label and
+ * swatch as a hit target; `handlesPointer` says whether the component answers
+ * the pointer, and the lint's rules 6 and 7 read that with `focusable` to find
+ * the controls (see Component.handlesPointer and
+ * docs/AI_TECHNICAL_DECISIONS/tree-snapshot-schema.md).
  *
- * R13.21 says the snapshot is taken after layout has run for the frame. This
- * engine has no layout phase in the frame loop, and Text sizes are only
- * populated by Layer.layout(), which the loop never calls. The read hook does
- * NOT run layout: a reader must not mutate the tree it observes. Read the
- * snapshot after at least one rendered frame.
+ * The walk mirrors `renderTree` step for step: origin (position plus margin),
+ * transform, opacity, layer and the clip reset a promotion brings (R3.8,
+ * R4.8), then, around the children only, the clip in the component's own
+ * unscrolled space and the content offset inside it (R4.9, R4.10). So
+ * `screenBounds`, `clip`, `layer` and `opacity` are what the renderer applied.
+ * The clip arithmetic is the draw API's own: `intersectClip`, whose rect
+ * intersection the draw API's clip stack shares (`intersectClipRectInto`),
+ * `transformedBounds`, and under a translation `snapClipRect` at the
+ * viewport's ratio (R7.8a, the same `snapClipRectInto` the draw API snaps a
+ * push with), including R4.2's `empty` state, reported as a
+ * zero-sized rect rather than dropped: a node clipped away entirely has a
+ * clip, and it contains nothing.
+ *
+ * R13.21 says the snapshot is taken after layout has run for the frame. The
+ * read hook does NOT run layout, and does not measure text either: a reader
+ * must not mutate the tree it observes. Read the snapshot after at least one
+ * rendered frame.
  */
 
 export interface SnapshotRect {
@@ -51,34 +69,129 @@ export interface SnapshotPoint {
 	y: number;
 }
 
+export interface SnapshotEdges {
+	top: number;
+	right: number;
+	bottom: number;
+	left: number;
+}
+
 export interface SnapshotViewport {
 	width: number;
 	height: number;
+	/**
+	 * `dpr * uiScale` (R7.2), which the clips snap at. Read, never reported:
+	 * the document's viewport stays logical. 1 when absent, the draw API's own
+	 * default.
+	 */
+	ratio?: number;
 }
 
+/** R11.11's flags minus `enabled`, which is its own field. */
 export interface SnapshotState {
 	hovered: boolean;
+	pressed: boolean;
 	focused: boolean;
+	focusVisible: boolean;
+	selected: boolean;
+	open: boolean;
+	active: boolean;
+	dropActive: boolean;
+	/** A checkbox, toggle, or radio's value (R12.9, R12.35): `mixed` for an indeterminate checkbox. Absent elsewhere. */
+	checked?: boolean | 'mixed';
+}
+
+export interface SnapshotTransform {
+	rotate: number;
+	scale: number | [number, number];
+	translate: [number, number];
+	origin: [number, number];
+}
+
+export interface SnapshotTextMeasure {
+	w: number;
+	h: number;
+	lines: number;
+}
+
+export interface SnapshotText {
+	content: string;
+	/** The laid-out extent, absent until something has measured it. */
+	measured?: SnapshotTextMeasure;
+	/** What happened to a text that ran past its box; absent with `measured`. */
+	overflow?: 'none' | 'clip' | 'ellipsis' | 'visible';
+	/** The wrap mode it was laid out with, which the lint's text-overflow rule reads. */
+	wrap: 'none' | 'word';
+}
+
+export interface SnapshotStyle {
+	fill?: number[];
+	text?: number[];
+	border?: number[];
+}
+
+/**
+ * A stack container's flow: not a field R13.22 names, but R13.25.1's
+ * sibling-overlap allowance ("beyond what a negative stack gap allows") needs
+ * the gap, and the direction says which axis it applies to.
+ */
+export interface SnapshotStack {
+	direction: 'vertical' | 'horizontal';
+	gap: number;
+}
+
+/**
+ * A scroll container's position and range (R13.22, amended by DDB-208):
+ * `x` and `y` are the scroll offset, `maxX` and `maxY` the furthest it goes,
+ * 0 on an axis that does not scroll. Emitted only by a real scroller, which
+ * is what the lint's rules 3 and 6 key on: `contentOffset` is not that
+ * signal on its own.
+ */
+export interface SnapshotScroll {
+	x: number;
+	y: number;
+	maxX: number;
+	maxY: number;
 }
 
 export interface SnapshotNode {
 	id: string | null;
 	type: string;
+	/** The margin box in the parent's content-box space. */
 	bounds: SnapshotRect;
+	/** The content box in the viewport, after offsets and transforms (its axis-aligned bounds under rotation). */
 	screenBounds: SnapshotRect;
+	margin?: SnapshotEdges;
+	zIndex?: number;
+	/** The effective layer (R3.6). */
+	layer?: LayerName;
 	visible: boolean;
+	enabled?: boolean;
+	focusable?: boolean;
+	/** The component's own R8.29 value, not inherited: `none` above it still blocks it. */
+	pointerEvents?: PointerEvents;
+	/** The component answers the pointer itself: not in R13.22, see the module comment. */
+	handlesPointer?: boolean;
+	/** The effective opacity (R3.25). */
+	opacity?: number;
 	clip?: SnapshotRect;
 	contentOffset?: SnapshotPoint;
-	enabled?: boolean;
+	scroll?: SnapshotScroll;
+	transform?: SnapshotTransform;
 	state?: SnapshotState;
+	text?: SnapshotText;
 	value?: string;
+	style?: SnapshotStyle;
+	/** The content box grown by `inkExtent`, in the viewport, before any clip (R8.8). */
+	inkBounds?: SnapshotRect;
+	stack?: SnapshotStack;
 	/**
 	 * The owning component's own drawings (R8.1, R3.18), absent when it has
 	 * none. Not a field R13.22 names: R13.22 describes the tree R8.6 allows,
-	 * where a container never inserts a background or a content layer, and
-	 * this engine's composites do. Reporting them as `children` says they are
-	 * siblings of what the caller added, which is what R13.25's
-	 * sibling-overlap rule then reports.
+	 * where a composite draws its own parts, and Button, Input and the
+	 * developer overlay still build theirs from marked children. Reporting
+	 * them as `children` says they are siblings of what the caller added,
+	 * which is what R13.25's sibling-overlap rule then reports.
 	 */
 	parts?: SnapshotNode[];
 	children: SnapshotNode[];
@@ -98,10 +211,16 @@ const MAX_DEPTH = 256;
 const REPLACEMENT_CHARACTER = String.fromCharCode(0xfffd);
 
 interface WalkContext {
-	offsetX: number;
-	offsetY: number;
-	/** Effective clip contributed by ancestors, in logical space. */
-	clip?: SnapshotRect;
+	/** The parent's content space, scroll included, to the viewport. */
+	matrix: Mat2D;
+	/** Effective clip on the parent's children, in logical space (R4.2's three states). */
+	clip: ClipState;
+	/** The parent's effective layer; `base` above a root (R3.6). */
+	layer: LayerName;
+	/** The parent's effective opacity. */
+	opacity: number;
+	/** R7.2's ratio, for R7.8a's clip snap. */
+	ratio: number;
 }
 
 /**
@@ -117,9 +236,10 @@ function finite(value: unknown): number {
 /**
  * Ids reach here from application code, so they can be any runtime value.
  * Anything that is not a string becomes null, and unpaired surrogates are
- * replaced so the document survives JSON.stringify (R13.24).
+ * replaced so the document survives JSON.stringify (R13.24). Text content goes
+ * through the same path.
  */
-function safeId(value: unknown): string | null {
+function safeString(value: unknown): string | null {
 	if (typeof value !== 'string') return null;
 
 	let sanitized = '';
@@ -143,28 +263,85 @@ function safeId(value: unknown): string | null {
 	return sanitized;
 }
 
-function intersect(a: SnapshotRect | undefined, b: SnapshotRect): SnapshotRect {
-	if (!a) return b;
-	const x = Math.max(a.x, b.x);
-	const y = Math.max(a.y, b.y);
-	const right = Math.min(a.x + a.w, b.x + b.w);
-	const bottom = Math.min(a.y + a.h, b.y + b.h);
-	return { x, y, w: Math.max(0, right - x), h: Math.max(0, bottom - y) };
+function fromClipRect(rect: ClipRect): SnapshotRect {
+	return { x: rect.minX, y: rect.minY, w: rect.maxX - rect.minX, h: rect.maxY - rect.minY };
+}
+
+function snapshotClip(clip: ClipState): SnapshotRect | undefined {
+	if (clip.kind === 'none') return undefined;
+	if (clip.kind === 'empty') return { x: 0, y: 0, w: 0, h: 0 };
+	return fromClipRect(clip.rect);
 }
 
 /**
- * Mirrors Layer.render / Panel.render rather than calling localToGlobal.
- * localToGlobal walks the parent chain and does not subtract Panel scroll,
- * while Panel.render hands its content layer an offset that does
- * (Panel.ts: `offsetX: screenX - this.scrollOffsetX`). Re-accumulating along
- * the render path is the only way screenBounds is right inside a scroll
- * container, so this walk special-cases the Panel subtraction the same way.
+ * A local rect through `matrix`, with non-finite results zeroed rather than
+ * propagated. Under a translation the size is carried over rather than
+ * recovered as `max - min`, which drifts in the last bit and would make a
+ * text measured to exactly its box read as a hair wider than it.
  */
+function screenRect(matrix: Mat2D, rect: Rect): SnapshotRect {
+	if (isTranslateOnly(matrix)) {
+		return {
+			x: finite(rect.x + matrix[4]),
+			y: finite(rect.y + matrix[5]),
+			w: finite(rect.width),
+			h: finite(rect.height),
+		};
+	}
+	const bounds = fromClipRect(transformedBounds(matrix, rect));
+	return { x: finite(bounds.x), y: finite(bounds.y), w: finite(bounds.w), h: finite(bounds.h) };
+}
+
+/** A clip rect as `pushClip` leaves it: on the device grid under a translation (R7.8a). */
+function pushedClip(matrix: Mat2D, rect: Rect, ratio: number): ClipRect {
+	const bounds = transformedBounds(matrix, rect);
+	return isTranslateOnly(matrix) ? snapClipRect(bounds, ratio) : bounds;
+}
+
+function color(value: RGBA | undefined): number[] | undefined {
+	return value ? [finite(value[0]), finite(value[1]), finite(value[2]), finite(value[3])] : undefined;
+}
+
+function snapshotStyle(node: Component): SnapshotStyle | undefined {
+	const colors = node.resolvedColors;
+	if (!colors) return undefined;
+	const style: SnapshotStyle = {};
+	const fill = color(colors.fill);
+	const text = color(colors.text);
+	const border = color(colors.border);
+	if (fill) style.fill = fill;
+	if (text) style.text = text;
+	if (border) style.border = border;
+	return fill || text || border ? style : undefined;
+}
+
+function snapshotText(node: Text): SnapshotText {
+	const text: SnapshotText = { content: safeString(node.getText()) ?? '', wrap: node.wrap };
+	const metrics = node.currentMetrics;
+	const outcome = node.overflowOutcome;
+	if (metrics && outcome) {
+		text.measured = { w: finite(metrics.width), h: finite(metrics.height), lines: finite(metrics.lines) };
+		text.overflow = outcome;
+	}
+	return text;
+}
+
+function snapshotTransform(node: Component): SnapshotTransform | undefined {
+	if (!node.transformMatrix) return undefined;
+	const { rotate, scale, translate, origin } = node.transform;
+	return {
+		rotate: finite(rotate),
+		scale: typeof scale === 'number' ? finite(scale) : [finite(scale[0]), finite(scale[1])],
+		translate: [finite(translate[0]), finite(translate[1])],
+		origin: [finite(origin[0]), finite(origin[1])],
+	};
+}
+
 function serializeNode(
-	node: Layer,
+	node: Component,
 	context: WalkContext,
-	ancestors: Set<Layer>,
-	seen: Set<Layer>,
+	ancestors: Set<Component>,
+	seen: Set<Component>,
 	depth: number,
 ): SnapshotNode {
 	// Filled in place so a throw partway through still reports the id, bounds
@@ -179,48 +356,84 @@ function serializeNode(
 	};
 
 	try {
-		const x = finite(node.x);
-		const y = finite(node.y);
+		serialized.id = safeString(node.id);
+		serialized.type = typeof node.getComponentType === 'function' ? String(node.getComponentType()) : 'Unknown';
+
+		// The placed margin box: position plus any anchor shift (R10.15).
+		const x = finite(node.placedX);
+		const y = finite(node.placedY);
 		const w = finite(node.width);
 		const h = finite(node.height);
-		const screenX = context.offsetX + x;
-		const screenY = context.offsetY + y;
+		const margin = node.margin;
+		const edges: SnapshotEdges = {
+			top: finite(margin.top),
+			right: finite(margin.right),
+			bottom: finite(margin.bottom),
+			left: finite(margin.left),
+		};
 
-		serialized.id = safeId(node.id);
-		serialized.type = typeof node.getComponentType === 'function' ? String(node.getComponentType()) : 'Unknown';
-		serialized.bounds = { x, y, w, h };
-		serialized.screenBounds = { x: screenX, y: screenY, w, h };
-		serialized.visible = node.isVisible() === true;
+		// Origin, then transform: `renderTree`'s order, and `localMatrix`'s,
+		// from the one placed-origin accessor they all read.
+		const origin = translation(finite(node.originX), finite(node.originY));
+		const own = node.transformMatrix;
+		const matrix = concat(context.matrix, own ? concat(origin, own) : origin);
 
-		if (context.clip) serialized.clip = { ...context.clip };
+		serialized.bounds = { x, y, w: w + edges.left + edges.right, h: h + edges.top + edges.bottom };
+		serialized.screenBounds = screenRect(matrix, { x: 0, y: 0, width: w, height: h });
+		serialized.margin = edges;
+		serialized.zIndex = finite(node.zIndex);
 
-		const panel = node instanceof Panel ? node : null;
-		const scroll = panel ? panel.getScrollOffset() : null;
+		// R3.6: max(own, inherited). A raise resets the inherited clip for
+		// this component's own draws as well as its children's (R3.8).
+		const ownLayer = node.layer;
+		const promoted = ownLayer !== null && layerOrdinal(ownLayer) > layerOrdinal(context.layer);
+		const layer = promoted ? ownLayer : context.layer;
+		const clip = promoted ? CLIP_NONE : context.clip;
+		serialized.layer = layer;
 
-		if (panel && panel.scrollable && scroll) {
-			serialized.contentOffset = { x: finite(scroll.x), y: finite(scroll.y) };
+		serialized.visible = node.visible === true;
+		serialized.enabled = node.enabled === true;
+		serialized.focusable = node.focusable === true;
+		serialized.pointerEvents = node.pointerEvents;
+		serialized.handlesPointer = node.handlesPointer === true;
+
+		const opacity = context.opacity * finite(node.opacity);
+		serialized.opacity = opacity;
+
+		const reportedClip = snapshotClip(clip);
+		if (reportedClip) serialized.clip = reportedClip;
+
+		const offset = node.contentOffset;
+		const offsetX = finite(offset?.x);
+		const offsetY = finite(offset?.y);
+		if (node instanceof ScrollContainer || offsetX !== 0 || offsetY !== 0) {
+			serialized.contentOffset = { x: offsetX, y: offsetY };
+		}
+		if (node instanceof ScrollContainer) {
+			serialized.scroll = { x: 0, y: finite(node.scrollPosition), maxX: 0, maxY: finite(node.maxScroll) };
 		}
 
-		if (node instanceof Component) {
-			serialized.enabled = node.isEnabled();
-			serialized.state = { hovered: node.isHovered(), focused: node.isFocused() };
-		}
+		const transform = snapshotTransform(node);
+		if (transform) serialized.transform = transform;
 
-		if (node instanceof Input) {
-			serialized.value = node.getValue();
-		}
+		const { hovered, pressed, focused, focusVisible, selected, open, active, dropActive } = node.stateFlags;
+		serialized.state = { hovered, pressed, focused, focusVisible, selected, open, active, dropActive };
+		if (node instanceof Checkable) serialized.state.checked = node.checkedState;
 
-		// Both Layer.render and Panel.render enable the scissor only when the
-		// box has real extent, so a zero-sized clipper clips nothing.
-		const clips = panel
-			? (panel.scrollable || panel.getOverflow() === 'hidden') && w > 0 && h > 0
-			: node.getOverflow() === 'hidden' && w > 0 && h > 0;
-		const innerClip = clips ? intersect(context.clip, { x: screenX, y: screenY, w, h }) : context.clip;
+		if (node instanceof Text) serialized.text = snapshotText(node);
+		if (node instanceof Input) serialized.value = safeString(node.getValue()) ?? '';
+		if (node instanceof Stack) serialized.stack = { direction: node.direction, gap: finite(node.gap) };
+
+		const style = snapshotStyle(node);
+		if (style) serialized.style = style;
+
+		serialized.inkBounds = screenRect(matrix, node.inkRect);
 
 		// `ancestors` is per-path and catches cycles. `seen` is walk-wide and
-		// catches the other shape: Layer.addChild never detaches from a
-		// previous parent, so one instance can sit in two children arrays and
-		// a diamond expands exponentially. A repeat is emitted once more as a
+		// catches the other shape: addChild detaches from a previous parent,
+		// but the array getChildren returns can still be pushed to directly,
+		// so one instance can sit in two children arrays and a diamond
+		// expands exponentially. A repeat is emitted once more as a
 		// childless stub rather than re-expanded, because an OOM inside the
 		// frame is a worse failure than the throw R13.24 forbids.
 		if (depth >= MAX_DEPTH || ancestors.has(node) || seen.has(node)) return serialized;
@@ -229,19 +442,18 @@ function serializeNode(
 		ancestors.add(node);
 		try {
 			const children = node.debugChildren;
-			if (Array.isArray(children)) {
-				const contentLayer = panel ? panel.getContentLayer() : null;
+			if (Array.isArray(children) && children.length > 0) {
+				// The clip is pushed in the unscrolled space and the content
+				// offset applied inside it (R4.9, R4.10).
+				const childContext: WalkContext = {
+					matrix: offsetX !== 0 || offsetY !== 0 ? concat(matrix, translation(-offsetX, -offsetY)) : matrix,
+					clip: node.clipsChildren ? intersectClip(clip, pushedClip(matrix, node.clipRect, context.ratio), null) : clip,
+					layer,
+					opacity,
+					ratio: context.ratio,
+				};
 				for (const child of children) {
 					if (!child) continue;
-					// Panel.render draws the background before enabling the
-					// scissor and only the content layer scrolls, so the two
-					// implicit children do not share a context.
-					const isScrolledContent = contentLayer !== null && child === contentLayer;
-					const childContext: WalkContext = {
-						offsetX: isScrolledContent && scroll ? screenX - finite(scroll.x) : screenX,
-						offsetY: isScrolledContent && scroll ? screenY - finite(scroll.y) : screenY,
-						clip: panel && !isScrolledContent ? context.clip : innerClip,
-					};
 					const serializedChild = serializeNode(child, childContext, ancestors, seen, depth + 1);
 					if (child.isPart === true) {
 						if (!serialized.parts) serialized.parts = [];
@@ -269,10 +481,10 @@ function serializeNode(
 
 /**
  * Serialize the roots to the R13.23 document.
- * @param roots Root layers: the active screen plus any visible overlay.
+ * @param roots Root components: the active screen plus any visible overlay.
  * @param viewport Logical viewport size in CSS pixels.
  */
-export function treeSnapshot(roots: readonly Layer[], viewport: SnapshotViewport): SnapshotDocument {
+export function treeSnapshot(roots: readonly Component[], viewport: SnapshotViewport): SnapshotDocument {
 	const document: SnapshotDocument = {
 		viewport: { width: finite(viewport?.width), height: finite(viewport?.height) },
 		roots: [],
@@ -281,11 +493,13 @@ export function treeSnapshot(roots: readonly Layer[], viewport: SnapshotViewport
 	if (!Array.isArray(roots)) return document;
 
 	// Walk-wide, so a node shared between two roots is expanded once.
-	const seen = new Set<Layer>();
+	const seen = new Set<Component>();
+	const ratio = typeof viewport?.ratio === 'number' && Number.isFinite(viewport.ratio) && viewport.ratio > 0 ? viewport.ratio : 1;
+	const rootContext: WalkContext = { matrix: IDENTITY, clip: CLIP_NONE, layer: ROOT_LAYER, opacity: 1, ratio };
 
 	for (const root of roots) {
 		if (!root) continue;
-		document.roots.push(serializeNode(root, { offsetX: 0, offsetY: 0 }, new Set<Layer>(), seen, 0));
+		document.roots.push(serializeNode(root, rootContext, new Set<Component>(), seen, 0));
 	}
 
 	return document;

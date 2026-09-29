@@ -9,10 +9,10 @@ import { DriverLoader } from '../../core/DriverLoader';
 import { Driver } from '../../mechanics/Driver';
 import { Deck } from '../../mechanics/Deck';
 import { Battle } from '../../mechanics/Battle';
-import { computeCombatLayout } from './CombatLayout';
+import { DOCK_HEIGHT, LOG_DRAWER_WIDTH, TOP_BAR_HEIGHT } from './CombatLayout';
 import { SnapshotNode, SnapshotRect, treeSnapshot } from '../../../engine/debug/treeSnapshot';
-import { InputSystem } from '../../../engine/input/InputSystem';
-import { injectInput } from '../../../engine/debug/inputInjection';
+import { createTestContext, injectNow } from '../../../engine/components/testing';
+import { PointerAdapter } from '../../../engine/input/PointerAdapter';
 
 /**
  * DDB-157: START RUN used to hand DriverLoader's template drivers straight to
@@ -24,8 +24,61 @@ jest.mock('../../core/ScreenManager', () => ({
 	ScreenManager: { navigate: jest.fn() },
 }));
 
+
+/**
+ * Mounted the way the page mounts screens. The viewport follows the window,
+ * because these tests size the window and the screens still read it.
+ */
+const context = createTestContext({
+	viewport: { get logical() { return { width: window.innerWidth, height: window.innerHeight }; } },
+});
 function flushPromises(): Promise<void> {
 	return new Promise(resolve => setTimeout(resolve, 0));
+}
+
+async function settle(): Promise<void> {
+	await flushPromises();
+	await flushPromises();
+}
+
+function setViewport(width: number, height: number): void {
+	Object.defineProperty(window, 'innerWidth', { configurable: true, writable: true, value: width });
+	Object.defineProperty(window, 'innerHeight', { configurable: true, writable: true, value: height });
+}
+
+/** The screen's tree after the frame's layout, which is where the stacks place everything. */
+function snapshot(combat: CombatScreen): SnapshotNode {
+	context.frame.layout();
+	return treeSnapshot([combat.root], { width: window.innerWidth, height: window.innerHeight }).roots[0];
+}
+
+function allIds(node: SnapshotNode): string[] {
+	const children = [...(node.parts ?? []), ...node.children];
+	return [...(node.id ? [node.id] : []), ...children.flatMap(allIds)];
+}
+
+function findNode(node: SnapshotNode, id: string): SnapshotNode | null {
+	if (node.id === id) return node;
+	for (const child of [...(node.parts ?? []), ...node.children]) {
+		const found = findNode(child, id);
+		if (found) return found;
+	}
+	return null;
+}
+
+function endTurnBounds(combat: CombatScreen): SnapshotRect {
+	const button = findNode(snapshot(combat), 'end_turn_button');
+	if (!button) throw new Error('the combat screen should have an END TURN button');
+	return button.screenBounds;
+}
+
+function expectInsideViewport({ x, y, w, h }: SnapshotRect): void {
+	expect(w).toBeGreaterThan(0);
+	expect(h).toBeGreaterThan(0);
+	expect(x).toBeGreaterThanOrEqual(0);
+	expect(y).toBeGreaterThanOrEqual(0);
+	expect(x + w).toBeLessThanOrEqual(window.innerWidth + 1e-6);
+	expect(y + h).toBeLessThanOrEqual(window.innerHeight + 1e-6);
 }
 
 /**
@@ -34,7 +87,7 @@ function flushPromises(): Promise<void> {
  */
 async function startCombat(drivers: Driver[]): Promise<CombatScreen> {
 	const combat = new CombatScreen();
-	combat.mount({ drivers });
+	combat.mount(context, { drivers });
 	await flushPromises();
 	await flushPromises();
 	return combat;
@@ -45,7 +98,7 @@ async function startCombat(drivers: Driver[]): Promise<CombatScreen> {
  */
 async function selectDrivers(): Promise<Driver[]> {
 	const selection = new DriverSelectionScreen();
-	selection.mount();
+	selection.mount(context);
 	await flushPromises();
 	const { driver1, driver2 } = selection.getSelectedDrivers();
 	selection.unmount();
@@ -137,7 +190,7 @@ describe('CombatScreen: each run starts from fresh drivers', () => {
 
 	it('the dev fallback (no drivers passed) never fights the templates either', async () => {
 		const combat = new CombatScreen();
-		combat.mount();
+		combat.mount(context);
 		await flushPromises();
 		await flushPromises();
 
@@ -155,57 +208,32 @@ describe('CombatScreen: each run starts from fresh drivers', () => {
 /**
  * DDB-124: mount stacked the bands one way and resize another, and END TURN
  * never moved on resize, so a bar built while the viewport read 0 wide left
- * it at x=-130 for the rest of the fight.
+ * it at x=-130 for the rest of the fight. DDB-82 put the screen on stacks:
+ * a 36 px top bar, the road, and a 228 px dock on a 1280x720 reference,
+ * scaled to the viewport.
  */
 describe('CombatScreen: one layout for mount and resize', () => {
 	const canvas = document.createElement('canvas');
 
+	const adapter = new PointerAdapter({ dispatcher: context.dispatcher });
+
 	beforeAll(() => {
 		document.body.appendChild(canvas);
-		InputSystem.getInstance().setup(canvas);
+		adapter.attach(canvas);
 	});
 
-	function setViewport(width: number, height: number): void {
-		Object.defineProperty(window, 'innerWidth', { configurable: true, writable: true, value: width });
-		Object.defineProperty(window, 'innerHeight', { configurable: true, writable: true, value: height });
-	}
+	afterAll(() => {
+		adapter.detach();
+	});
 
-	function resizeViewport(width: number, height: number): void {
+	/**
+	 * What the application shell does on a resize (R7.11): the viewport owner
+	 * calls the mounted screen through `ScreenManager.resize`, and the frame
+	 * lays out before the next draw.
+	 */
+	function resizeViewport(combat: CombatScreen, width: number, height: number): void {
 		setViewport(width, height);
-		window.dispatchEvent(new Event('resize'));
-	}
-
-	function snapshot(combat: CombatScreen): SnapshotNode {
-		return treeSnapshot([combat.root], { width: window.innerWidth, height: window.innerHeight }).roots[0];
-	}
-
-	function allIds(node: SnapshotNode): string[] {
-		const children = [...(node.parts ?? []), ...node.children];
-		return [...(node.id ? [node.id] : []), ...children.flatMap(allIds)];
-	}
-
-	function findNode(node: SnapshotNode, id: string): SnapshotNode | null {
-		if (node.id === id) return node;
-		for (const child of [...(node.parts ?? []), ...node.children]) {
-			const found = findNode(child, id);
-			if (found) return found;
-		}
-		return null;
-	}
-
-	function endTurnBounds(combat: CombatScreen): SnapshotRect {
-		const button = findNode(snapshot(combat), 'end_turn_button');
-		if (!button) throw new Error('the combat screen should have an END TURN button');
-		return button.screenBounds;
-	}
-
-	function expectInsideViewport({ x, y, w, h }: SnapshotRect): void {
-		expect(w).toBeGreaterThan(0);
-		expect(h).toBeGreaterThan(0);
-		expect(x).toBeGreaterThanOrEqual(0);
-		expect(y).toBeGreaterThanOrEqual(0);
-		expect(x + w).toBeLessThanOrEqual(window.innerWidth);
-		expect(y + h).toBeLessThanOrEqual(window.innerHeight);
+		combat.resize(width, height);
 	}
 
 	/**
@@ -215,13 +243,8 @@ describe('CombatScreen: one layout for mount and resize', () => {
 	 */
 	function mountBare(): CombatScreen {
 		const combat = new CombatScreen();
-		combat.mount();
+		combat.mount(context);
 		return combat;
-	}
-
-	async function settle(): Promise<void> {
-		await flushPromises();
-		await flushPromises();
 	}
 
 	beforeEach(() => setViewport(1024, 768));
@@ -231,7 +254,7 @@ describe('CombatScreen: one layout for mount and resize', () => {
 		[1440, 882],
 	])('a screen resized to %ix%i matches one mounted at that size', async (width, height) => {
 		const resized = mountBare();
-		resizeViewport(width, height);
+		resizeViewport(resized, width, height);
 		const afterResize = snapshot(resized);
 
 		const mounted = mountBare();
@@ -249,29 +272,56 @@ describe('CombatScreen: one layout for mount and resize', () => {
 		expect(allIds(atMount).some(id => id.startsWith('hand_card_'))).toBe(true);
 		expect(allIds(atMount).some(id => id.startsWith('enemy_vehicle_'))).toBe(true);
 
-		resizeViewport(1280, 720);
-		resizeViewport(1024, 768);
+		resizeViewport(combat, 1280, 720);
+		resizeViewport(combat, 1024, 768);
 		expect(snapshot(combat)).toEqual(atMount);
 
 		combat.unmount();
 	});
 
-	it('mount puts every band where the layout says', async () => {
+	it.each([
+		// s 0.8, the floor, over a 1280x960 logical canvas
+		[1024, 768, 0.8, 0],
+		// s 1.5, 1706.7 logical wide, so the stage caps at 1600 and centres
+		[2560, 1080, 1.5, (2560 / 1.5 - 1600) / 2 * 1.5],
+		// s held at 0.8 below the reference: a 1000x562.5 canvas
+		[800, 450, 0.8, 0],
+	])('at %ix%i the bands are 36 and 228 logical at s %f, and fill the stage', async (width, height, scale, left) => {
+		setViewport(width, height);
 		const combat = mountBare();
-		const layout = computeCombatLayout({ width: 1024, height: 768 });
 		const root = snapshot(combat);
-		const bands: Array<[string, keyof typeof layout]> = [
-			['combat_resource_bar', 'resourceBar'],
-			['combat_enemy_battlefield', 'enemyBattlefield'],
-			['combat_player_battlefield', 'playerBattlefield'],
-			['combat_player_hand', 'hand'],
-			['combat_turn_banner', 'turnBanner'],
-			['combat_log', 'combatLog'],
-		];
-		for (const [id, key] of bands) {
-			const { x, y, width, height } = layout[key];
-			expect(findNode(root, id)?.screenBounds).toEqual({ x, y, w: width, h: height });
-		}
+		const bounds = (id: string): SnapshotRect => {
+			const node = findNode(root, id);
+			if (!node) throw new Error(`the combat screen should have ${id}`);
+			return node.screenBounds;
+		};
+		const stageWidth = width - left * 2;
+		const top = bounds('combat_top_bar');
+		const road = bounds('combat_road');
+		const dock = bounds('combat_dock');
+
+		expect(top.x).toBeCloseTo(left);
+		expect(top.w).toBeCloseTo(stageWidth);
+		expect(top.y).toBeCloseTo(0);
+		expect(top.h).toBeCloseTo(TOP_BAR_HEIGHT * scale);
+		expect(road.y).toBeCloseTo(top.y + top.h);
+		expect(road.h).toBeCloseTo(height - (TOP_BAR_HEIGHT + DOCK_HEIGHT) * scale);
+		expect(dock.y).toBeCloseTo(road.y + road.h);
+		expect(dock.h).toBeCloseTo(DOCK_HEIGHT * scale);
+		expect(dock.w).toBeCloseTo(stageWidth);
+
+		await settle();
+		combat.unmount();
+	});
+
+	it('the log drawer covers the right of the road and none of the dock', async () => {
+		setViewport(1280, 720);
+		const combat = mountBare();
+		combat['toggleCombatLog']();
+		const root = snapshot(combat);
+		const log = findNode(root, 'combat_log')?.screenBounds;
+		const road = findNode(root, 'combat_road')?.screenBounds;
+		expect(log).toEqual({ x: 1280 - LOG_DRAWER_WIDTH, y: road?.y, w: LOG_DRAWER_WIDTH, h: road?.h });
 
 		await settle();
 		combat.unmount();
@@ -281,10 +331,11 @@ describe('CombatScreen: one layout for mount and resize', () => {
 		const combat = mountBare();
 		expectInsideViewport(endTurnBounds(combat));
 
-		resizeViewport(1280, 720);
+		resizeViewport(combat, 1280, 720);
 		const { x, w } = endTurnBounds(combat);
 		expectInsideViewport(endTurnBounds(combat));
-		expect(x + w).toBe(1280 - 10);
+		// The dock's right padding, at the reference scale
+		expect(x + w).toBe(1280 - 16);
 
 		await settle();
 		combat.unmount();
@@ -294,7 +345,7 @@ describe('CombatScreen: one layout for mount and resize', () => {
 		setViewport(0, 0);
 		const combat = mountBare();
 
-		resizeViewport(1024, 768);
+		resizeViewport(combat, 1024, 768);
 		expectInsideViewport(endTurnBounds(combat));
 
 		await settle();
@@ -306,14 +357,72 @@ describe('CombatScreen: one layout for mount and resize', () => {
 		await settle();
 		expect(combat.getBattleState()?.isPlayerTurn).toBe(true);
 
-		resizeViewport(1280, 720);
+		resizeViewport(combat, 1280, 720);
 		const { x, y, w, h } = endTurnBounds(combat);
 		const endPlayerTurn = jest.spyOn(Battle.prototype, 'endPlayerTurn');
-		expect(injectInput(canvas, [`click,${Math.round(x + w / 2)},${Math.round(y + h / 2)}`]).ok).toBe(true);
+		expect(injectNow({ canvas, dispatcher: context.dispatcher }, [`click,${Math.round(x + w / 2)},${Math.round(y + h / 2)}`]).ok).toBe(true);
 		expect(endPlayerTurn).toHaveBeenCalledTimes(1);
 
 		await settle();
 		endPlayerTurn.mockRestore();
+		combat.unmount();
+	});
+});
+
+/**
+ * DDB-183: the hand was laid out at its natural width and centred, so at
+ * 1024 px the first driver's first card started at x = -368, unseeable and
+ * unclickable. Each driver now owns half the dock and their fan overlaps to
+ * fit it, up to the hand cap.
+ */
+describe('CombatScreen: every card in the hand is on screen', () => {
+	it.each([
+		[1024, 768],
+		[1024, 600],
+		[800, 450],
+		[1280, 720],
+		[1920, 1080],
+	])('at %ix%i, seven cards a driver', async (width, height) => {
+		setViewport(width, height);
+		const combat = new CombatScreen();
+		combat.mount(context);
+		await settle();
+
+		const drivers: Driver[] = combat['playerDrivers'];
+		for (const driver of drivers) {
+			const hand = [...driver.hand];
+			while (hand.length < 7) {
+				const card = CardLoader.getInstance().createCard('repair_kit');
+				if (!card) throw new Error('repair_kit should load');
+				hand.push(card);
+			}
+			driver.set({ hand });
+		}
+		combat['updateUIFromBattle']();
+		context.frame.layout();
+
+		const root = snapshot(combat);
+		const halves = [1, 2].map(seat => {
+			const node = findNode(root, `driver${seat}_hand`);
+			if (!node) throw new Error(`driver ${seat} should have a hand`);
+			return node.screenBounds;
+		});
+		drivers.forEach((driver, index) => {
+			const half = halves[index];
+			const lefts: number[] = [];
+			for (const card of driver.hand) {
+				const element = combat['handLayer'].getCardElementByCard(card);
+				if (!element) throw new Error('every card in the hand should have an element');
+				const { x, y, width: w, height: h } = element.screenBounds;
+				expectInsideViewport({ x, y, w, h });
+				expect(x).toBeGreaterThanOrEqual(half.x - 0.01);
+				expect(x + w).toBeLessThanOrEqual(half.x + half.w + 0.01);
+				lefts.push(x);
+			}
+			// Each card shows a strip of its own left of the next one
+			lefts.slice(1).forEach((x, card) => expect(x - lefts[card]).toBeGreaterThan(30));
+		});
+
 		combat.unmount();
 	});
 });
@@ -326,26 +435,22 @@ describe('CombatScreen: one layout for mount and resize', () => {
 describe('CombatScreen: mount and unmount', () => {
 	const canvas = document.createElement('canvas');
 
+	const adapter = new PointerAdapter({ dispatcher: context.dispatcher });
+
 	beforeAll(() => {
 		document.body.appendChild(canvas);
-		InputSystem.getInstance().setup(canvas);
+		adapter.attach(canvas);
 	});
 
-	beforeEach(() => {
-		Object.defineProperty(window, 'innerWidth', { configurable: true, writable: true, value: 1024 });
-		Object.defineProperty(window, 'innerHeight', { configurable: true, writable: true, value: 768 });
+	afterAll(() => {
+		adapter.detach();
 	});
 
-	async function settle(): Promise<void> {
-		await flushPromises();
-		await flushPromises();
-	}
+	beforeEach(() => setViewport(1024, 768));
 
-	/** Every handler of every kind the InputSystem holds */
-	function inputRegistrations(): number {
-		const input = InputSystem.getInstance() as unknown as Record<string, Map<unknown, unknown>>;
-		return ['mouseOverComponents', 'mouseOutComponents', 'mouseDownComponents', 'mouseUpComponents', 'wheelComponents', 'keyDownComponents', 'globalKeyDownHandlers']
-			.reduce((total, key) => total + input[key].size, 0);
+	/** What the dispatcher holds for the screen: its root and its hotkeys */
+	function inputRegistrations(): { roots: number; hotkeys: number } {
+		return { roots: context.dispatcher.roots.length, hotkeys: context.dispatcher.hotkeys.size };
 	}
 
 	function modelListeners(combat: CombatScreen): number {
@@ -355,7 +460,7 @@ describe('CombatScreen: mount and unmount', () => {
 
 	it('a remount builds the same layers and listeners as the first mount, and END TURN fires once', async () => {
 		const combat = new CombatScreen();
-		combat.mount();
+		combat.mount(context);
 		await settle();
 		const firstMount = {
 			layers: combat.root.getChildren().length,
@@ -364,7 +469,7 @@ describe('CombatScreen: mount and unmount', () => {
 		};
 
 		combat.unmount();
-		combat.mount();
+		combat.mount(context);
 		await settle();
 		expect({
 			layers: combat.root.getChildren().length,
@@ -373,7 +478,8 @@ describe('CombatScreen: mount and unmount', () => {
 		}).toEqual(firstMount);
 
 		const endPlayerTurn = jest.spyOn(Battle.prototype, 'endPlayerTurn');
-		expect(injectInput(canvas, ['click,954,26']).ok).toBe(true);
+		const { x, y, w, h } = endTurnBounds(combat);
+		expect(injectNow({ canvas, dispatcher: context.dispatcher }, [`click,${Math.round(x + w / 2)},${Math.round(y + h / 2)}`]).ok).toBe(true);
 		expect(endPlayerTurn).toHaveBeenCalledTimes(1);
 
 		await settle();
@@ -389,12 +495,12 @@ describe('CombatScreen: mount and unmount', () => {
 		const before = inputRegistrations();
 
 		const combat = new CombatScreen();
-		combat.mount(data);
+		combat.mount(context, data);
 		combat.unmount();
 		await settle();
 
 		expect(combat.getBattleState()).toBeNull();
-		expect(inputRegistrations()).toBe(before);
+		expect(inputRegistrations()).toEqual(before);
 		expect(modelListeners(combat)).toBe(0);
 	});
 });

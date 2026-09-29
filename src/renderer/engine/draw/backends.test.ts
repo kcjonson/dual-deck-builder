@@ -2,8 +2,10 @@ import { DrawApi } from './DrawApi';
 import { DrawBackend, DrawBatch, FrameDescription } from './DrawBackend';
 import { NullBackend } from './NullBackend';
 import { RecordingBackend } from './RecordingBackend';
-import { FontAtlasHandle, TextureHandle } from './commands';
+import { FontAtlasHandle } from './commands';
+import { NULL_TEXTURE_DEVICE, TextureStore } from '../gpu/TextureStore';
 import { GpuWork } from './stats';
+import { committedFontAtlas } from '../text/testing';
 
 const BLUE = [0.2, 0.4, 0.6, 1] as const;
 const RED = [1, 0, 0, 1] as const;
@@ -34,13 +36,7 @@ class SilentBackend implements DrawBackend {
 		// Accepted and ignored.
 	}
 
-	createTexture(): TextureHandle {
-		return { id: 1, width: 1, height: 1, label: null };
-	}
-
-	destroyTexture(): void {
-		// Accepted and ignored.
-	}
+	readonly textures = new TextureStore({ device: NULL_TEXTURE_DEVICE });
 
 	loadFontAtlas(): FontAtlasHandle {
 		return { id: 1, name: 'body' };
@@ -52,7 +48,7 @@ describe('NullBackend (R2.21)', () => {
 		const backend = new NullBackend();
 		const api = new DrawApi({ backend });
 		const texture = api.createTexture({ width: 4, height: 4 });
-		api.loadFontAtlas({ name: 'body', metrics: {}, texture });
+		api.loadFontAtlas({ name: 'body', atlas: committedFontAtlas('body'), texture });
 
 		api.beginFrame({ viewport: VIEWPORT });
 		api.drawRect({ rect: { x: 0, y: 0, width: 10, height: 10 }, fill: BLUE, shadow: { color: RED } });
@@ -88,9 +84,41 @@ describe('NullBackend (R2.21)', () => {
 		const api = new DrawApi({ backend });
 		const texture = api.createTexture({ width: 2, height: 2 });
 		api.invalidateState();
+		expect(backend.textures.stats.liveTextures).toBe(1);
 		api.destroyTexture(texture);
 
 		expect(backend.invalidateStateCount).toBe(1);
+		expect(backend.textures.stats.liveTextures).toBe(0);
+	});
+
+	it('counts textures by reference, and frees one with its last holder (R5.30)', () => {
+		const backend = new NullBackend();
+		const api = new DrawApi({ backend });
+		const texture = api.createTexture({ width: 4, height: 4 });
+		api.retainTexture(texture);
+		api.destroyTexture(texture);
+		expect(backend.textures.isLive(texture)).toBe(true);
+		api.destroyTexture(texture);
+		expect(backend.textures.isLive(texture)).toBe(false);
+	});
+
+	it('meters an upload into the frame it lands in and reports it in the stats (R5.32, R5.35)', () => {
+		const backend = new NullBackend();
+		const api = new DrawApi({ backend });
+		const texture = api.createTexture({ width: 8, height: 8, source: new Uint8Array(8 * 8 * 4) });
+		expect(api.isTextureResident(texture)).toBe(false);
+		expect(api.getStats().pendingUploads).toBe(1);
+
+		api.beginFrame({ viewport: VIEWPORT });
+		api.drawRect({ rect: { x: 0, y: 0, width: 10, height: 10 }, fill: BLUE });
+		api.endFrame();
+		expect(api.isTextureResident(texture)).toBe(true);
+		const stats = api.getStats();
+		expect(stats.bytesUploaded).toBe(256);
+		expect(stats.residentTextureBytes).toBe(256);
+		expect(stats.pendingUploads).toBe(0);
+		expect(stats.evictions).toBe(0);
+		expect(stats.targetSwitches).toBeNull();
 	});
 
 	it('receives the viewport and ratio of the frame', () => {
@@ -106,7 +134,7 @@ describe('NullBackend (R2.21)', () => {
 		const backend = new NullBackend();
 		const api = new DrawApi({ backend });
 		const texture = api.createTexture({ width: 64, height: 64, label: 'ui' });
-		api.loadFontAtlas({ name: 'mono', metrics: {}, texture });
+		api.loadFontAtlas({ name: 'mono', atlas: committedFontAtlas('mono'), texture });
 
 		expect(texture).toEqual({ id: 1, width: 64, height: 64, label: 'ui' });
 		expect(backend.fontAtlasNames).toEqual(['mono']);
@@ -128,6 +156,8 @@ describe('a backend that cannot attribute its work leaves the counters null', ()
 		expect(stats.instances).toBeNull();
 		expect(stats.textureBinds).toBeNull();
 		expect(stats.bytesUploaded).toBeNull();
+		// The resource layer still answers for itself.
+		expect(stats.residentTextureBytes).toBe(0);
 		expect(stats.splits).toBeNull();
 	});
 
@@ -148,6 +178,30 @@ describe('a backend that cannot attribute its work leaves the counters null', ()
 		const stats = api.getStats();
 		expect(stats.gpuDraws).toBe(2);
 		expect(stats.splits).toEqual({ textureSlotsExhausted: 0, blendChange: 1, stencilLevel: 0 });
+	});
+
+	it('folds backend-caused flushes into the frame, and keeps clipChange at zero (R13.13)', () => {
+		const api = new DrawApi({ backend: new SilentBackend() });
+		api.beginFrame({ viewport: VIEWPORT });
+		api.reportForeignDraws({
+			gpuDraws: 3,
+			vertices: 12,
+			triangles: 6,
+			instances: 0,
+			textureBinds: 0,
+			bytesUploaded: 64,
+			flushes: { bufferFull: 2 },
+		});
+		api.endFrame();
+
+		const stats = api.getStats();
+		expect(stats.flushes).toEqual({ barrier: 0, endFrame: 0, targetChange: 0, bufferFull: 2 });
+		// The clip is per-draw data (R4.1): nothing can split on it.
+		expect(stats.clipChange).toBe(0);
+
+		api.beginFrame({ viewport: VIEWPORT });
+		api.endFrame();
+		expect(api.getStats().flushes.bufferFull).toBe(0);
 	});
 });
 

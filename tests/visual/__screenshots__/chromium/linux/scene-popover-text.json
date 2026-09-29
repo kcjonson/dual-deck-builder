@@ -1,0 +1,22 @@
+[
+{"path":"gallery_root/gallery_scene_popover/Text[0]","text":"Popover and key caps","rect":[53,53,212.1,33.6]},
+{"path":"gallery_root/gallery_scene_popover/Text[1]","text":"Anchored and non-modal: a press outside closes it and still reaches what it landed on.","rect":[53,103,559.17,19.07]},
+{"path":"gallery_root/gallery_scene_popover/popover_damage/Text[0]","text":"Damage","rect":[65,149,126,34]},
+{"path":"gallery_root/gallery_scene_popover/popover_armor/Text[0]","text":"Armor","rect":[235,149,126,34]},
+{"path":"gallery_root/gallery_scene_popover/popover_key_caps/Text[0]","text":"Key caps","rect":[53,376.15,52.75,17.7]},
+{"path":"gallery_root/gallery_scene_popover/popover_key_caps/key_cap_r/Text[0]","text":"R","rect":[123.75,376,6.6,16]},
+{"path":"gallery_root/gallery_scene_popover/popover_key_caps/key_cap_esc/Text[0]","text":"Esc","rect":[151.75,376,19.8,16]},
+{"path":"gallery_root/gallery_scene_popover/popover_key_caps/key_cap_shift/Text[0]","text":"Shift","rect":[191.75,376,33,16]},
+{"path":"gallery_root/gallery_scene_popover/popover_key_caps/key_cap_tab/Text[0]","text":"Tab","rect":[244.75,376,19.8,16]},
+{"path":"gallery_root/gallery_scene_popover/popover_key_caps/key_cap_md_space/Text[0]","text":"Space","rect":[284.75,373,36,22]},
+{"path":"gallery_root/gallery_scene_popover/popover_key_caps/key_cap_md_enter/Text[0]","text":"Enter","rect":[340.75,373,36,22]},
+{"path":"popover_damage_popover_root/popover_damage_popover/Stack[0]/Text[0]","text":"Damage","rect":[65,201,41.25,18]},
+{"path":"popover_damage_popover_root/popover_damage_popover/Stack[0]/Stack[1]/Text[0]","text":"Base damage","rect":[65,225,75.04,16.34]},
+{"path":"popover_damage_popover_root/popover_damage_popover/Stack[0]/Stack[1]/Text[1]","text":"4","rect":[237.8,225,7.2,15.84]},
+{"path":"popover_damage_popover_root/popover_damage_popover/Stack[0]/Stack[2]/Text[0]","text":"Rammer plating","rect":[65,247.34,89.27,16.34]},
+{"path":"popover_damage_popover_root/popover_damage_popover/Stack[0]/Stack[2]/Text[1]","text":"+2","rect":[230.6,247.34,14.4,15.84]},
+{"path":"popover_damage_popover_root/popover_damage_popover/Stack[0]/Stack[3]/Text[0]","text":"Driver: Rook","rect":[65,269.68,68.7,16.34]},
+{"path":"popover_damage_popover_root/popover_damage_popover/Stack[0]/Stack[3]/Text[1]","text":"+1","rect":[230.6,269.68,14.4,15.84]},
+{"path":"popover_damage_popover_root/popover_damage_popover/Stack[0]/Stack[4]/Text[0]","text":"Target shielded","rect":[65,292.03,86.13,16.34]},
+{"path":"popover_damage_popover_root/popover_damage_popover/Stack[0]/Stack[4]/Text[1]","text":"-3","rect":[230.6,292.03,14.4,15.84]}
+]

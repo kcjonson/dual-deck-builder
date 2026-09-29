@@ -2,6 +2,7 @@ import { Layer, LayerOptions } from '../../../engine/components/Layer';
 import { Rectangle } from '../../../engine/components/Rectangle';
 import { Text } from '../../../engine/components/Text';
 import { Vehicle, VehicleData } from '../../mechanics/Vehicle';
+import { Vehicle as VehicleUI } from '../../ui/Vehicle';
 import { LaneKind, ROW_ORDER, laneKind } from '../../mechanics/Road';
 import { CombatModel } from './CombatModel';
 
@@ -15,7 +16,7 @@ export interface LaneDecor {
 	labels: [string, string, string];
 }
 
-export type BattlefieldLayerOptions = LayerOptions & { x: number; y: number; width: number; height: number; combatData?: CombatModel };
+export type BattlefieldLayerOptions = LayerOptions & { combatData?: CombatModel };
 
 const LANE_LABEL_Y = 20;
 const LANE_DIVIDER_TOP = 40;
@@ -29,7 +30,7 @@ const LANE_DIVIDER_WIDTH = 2;
  */
 export abstract class BattlefieldLayer extends Layer {
 	protected vehicles: Vehicle[] = [];
-	protected vehicleCards: Map<string, Layer> = new Map();
+	protected vehicleCards: Map<string, VehicleUI> = new Map();
 
 	// Lane containers
 	protected lanes: Map<LaneKind, {
@@ -65,6 +66,7 @@ export abstract class BattlefieldLayer extends Layer {
 					fontSize: 14,
 					color: decor.labelColor,
 					textAlign: 'center',
+					whiteSpace: 'nowrap',
 					fontWeight: 'bold',
 				},
 			});
@@ -94,7 +96,9 @@ export abstract class BattlefieldLayer extends Layer {
 			divider.setSize(LANE_DIVIDER_WIDTH, laneHeight - LANE_DIVIDER_TOP);
 		});
 		this.laneLabels.forEach((label, index) => {
-			label.setPosition(Math.floor(laneWidth * index + laneWidth / 2), LANE_LABEL_Y);
+			// Centred across its lane
+			label.setPosition(laneWidth * index, LANE_LABEL_Y);
+			label.setWidth(laneWidth);
 		});
 
 		// Define lanes from left to right: shoulder, outside, inside
@@ -194,7 +198,11 @@ export abstract class BattlefieldLayer extends Layer {
 	 */
 	protected layoutVehiclesInLane(vehicles: Vehicle[], lane: { x: number; y: number; width: number; height: number }): void {
 		const count = vehicles.length;
-		const cardWidth = this.getCardWidth();
+		// Two side by side narrow to share a lane that is too slim for both
+		const sideBySideSpacing = 20;
+		const cardWidth = count === 2
+			? Math.min(this.getCardWidth(), Math.floor((lane.width - sideBySideSpacing) / 2))
+			: this.getCardWidth();
 		const cardHeight = this.getCardHeight();
 		
 		vehicles.forEach((vehicle, index) => {
@@ -209,10 +217,9 @@ export abstract class BattlefieldLayer extends Layer {
 				y = lane.y + Math.floor((lane.height - cardHeight) / 2);
 			} else if (count === 2) {
 				// Side by side
-				const spacing = 20;
-				const totalWidth = 2 * cardWidth + spacing;
+				const totalWidth = 2 * cardWidth + sideBySideSpacing;
 				const startX = lane.x + Math.floor((lane.width - totalWidth) / 2);
-				x = startX + index * (cardWidth + spacing);
+				x = startX + index * (cardWidth + sideBySideSpacing);
 				y = lane.y + Math.floor((lane.height - cardHeight) / 2);
 			} else {
 				// Stack with overlap (max 3 per lane)
@@ -237,12 +244,12 @@ export abstract class BattlefieldLayer extends Layer {
 	/**
 	 * Create a vehicle card display component
 	 */
-	protected abstract createVehicleCard(vehicle: Vehicle): Layer;
+	protected abstract createVehicleCard(vehicle: Vehicle): VehicleUI;
 	
 	/**
 	 * Update an existing vehicle card with new data
 	 */
-	protected abstract updateVehicleCard(vehicle: Vehicle, card: Layer): void;
+	protected abstract updateVehicleCard(vehicle: Vehicle, card: VehicleUI): void;
 	
 	/**
 	 * Handle resize

@@ -1,0 +1,17 @@
+# The icon atlas's glyphs (R12.6): one Material Icons name per line, as
+# material-icons/MaterialIcons-Regular.codepoints spells it. After editing, run
+# scripts/build-fonts (it regenerates src/renderer/engine/text/icons.ts and the
+# atlas) and commit what it writes.
+arrow_back
+build
+local_gas_station
+settings
+shield
+check
+remove
+close
+info
+warning
+error
+chevron_right
+expand_more

@@ -1,12 +1,11 @@
-import { Component, ComponentOptions } from './Component';
-import { RendererContext } from '../rendering/RendererContext';
-import { RenderContext, DEFAULT_RENDER_CONTEXT } from '../rendering/RenderContext';
+import { Component, ComponentOptions, ResolvedColors } from './Component';
+import type { DrawApi } from '../draw/DrawApi';
 import { Style, StyleParser } from '../types/Style';
 
 /**
- * The unit triangle `Renderer.drawTriangle` drew, in the box-local space the
- * pushed transform maps onto the component's rectangle. Three points and no
- * index list is already R2.11's triangle list.
+ * The unit triangle, in a box-local space from -1 to 1 on each axis that
+ * `render` maps onto the component's rectangle. Three points and no index
+ * list is already R2.11's triangle list.
  */
 const TRIANGLE_POINTS = [
 	{ x: 0, y: 1 },
@@ -21,6 +20,8 @@ export class Triangle extends Component {
 	private fillColor: [number, number, number, number] = [1, 1, 1, 1];
 	private strokeColor: [number, number, number, number] = [0, 0, 0, 1];
 	private strokeWidth = 0;
+	/** `TRIANGLE_POINTS` on the component's box, rewritten each render; the draw API copies them. */
+	private readonly boxPoints = TRIANGLE_POINTS.map(() => ({ x: 0, y: 0 }));
 
 	/**
 	 * Create a new triangle component
@@ -72,54 +73,32 @@ export class Triangle extends Component {
 		return this;
 	}
 
-	/**
-	 * Render the triangle
-	 * @param context Render context with coordinate transforms
-	 */
-	public render(context?: RenderContext): void {
-		if (!this.visible) return;
+	/** The stroke is centred on the outline, so half of it lands outside the box (R8.8). */
+	public get inkExtent(): number {
+		return this.strokeWidth > 0 ? this.strokeWidth / 2 : 0;
+	}
 
-		// Use default context if none provided
-		const ctx = context || DEFAULT_RENDER_CONTEXT;
+	public get resolvedColors(): ResolvedColors {
+		return this.strokeWidth > 0 ? { fill: this.fillColor, border: this.strokeColor } : { fill: this.fillColor };
+	}
 
-		// Calculate screen position
-		const screenX = ctx.offsetX + this.x;
-		const screenY = ctx.offsetY + this.y;
-
-		// The box goes in the transform rather than into the points, so the
-		// matrix the shader receives is the translate-then-scale the legacy
-		// draw built and no vertex multiply moves from the GPU to the CPU.
-		const draw = RendererContext.getInstance().draw;
-		draw.pushTransform([
-			this.width / 2,
-			0,
-			0,
-			this.height / 2,
-			screenX + this.width / 2,
-			screenY + this.height / 2,
-		]);
-		draw.drawPolygon({ id: this.id ?? undefined, points: TRIANGLE_POINTS, fill: this.fillColor });
+	public render(draw: DrawApi): void {
+		// The box is applied to the points rather than pushed as a transform, so
+		// the stroke width stays in pixels instead of scaling with the box.
+		const halfWidth = this.width / 2;
+		const halfHeight = this.height / 2;
+		for (let index = 0; index < TRIANGLE_POINTS.length; index++) {
+			this.boxPoints[index].x = halfWidth + TRIANGLE_POINTS[index].x * halfWidth;
+			this.boxPoints[index].y = halfHeight + TRIANGLE_POINTS[index].y * halfHeight;
+		}
+		draw.drawPolygon({ id: this.id ?? undefined, points: this.boxPoints, fill: this.fillColor });
 		if (this.strokeWidth > 0) {
 			draw.drawPolyline({
-				points: TRIANGLE_POINTS,
+				points: this.boxPoints,
 				color: this.strokeColor,
 				width: this.strokeWidth,
 				closed: true,
 			});
-		}
-		draw.popTransform();
-
-		// Create child context with our position added
-		const childContext: RenderContext = {
-			offsetX: screenX,
-			offsetY: screenY,
-		};
-
-		// Render children with transformed context
-		for (const child of this.children) {
-			if (child.isVisible()) {
-				child.render(childContext);
-			}
 		}
 	}
 }

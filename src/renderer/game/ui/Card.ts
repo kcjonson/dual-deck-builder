@@ -1,8 +1,7 @@
-import { Layer } from '../../engine/components/Layer';
+import { Component, PointerEvents } from '../../engine/components/Component';
 import { Text } from '../../engine/components/Text';
 import { Rectangle } from '../../engine/components/Rectangle';
-import { RenderContext } from '../../engine/rendering/RenderContext';
-import { InputSystem } from '../../engine/input/InputSystem';
+import type { AnyUiEvent } from '../../engine/input/events';
 import { Card as GameCard } from '../mechanics/Card';
 
 /**
@@ -23,14 +22,30 @@ const CARD_DIMENSIONS = {
 	[CardSize.LARGE]: { width: 240, height: 336 }
 } as const;
 
+/** A card title gets up to two lines, at the display face's own line height. */
+const TITLE_LINES = 2;
+const TITLE_LINE_HEIGHT = 1.2;
+/** Space between the title slot and the cost's digits. */
+const TITLE_COST_GAP = 4;
+/** How far a hovered or selected card rises, through its transform so layout never sees it (R8.26). */
+export const CARD_LIFT = 5;
+const LIFTED = { translate: [0, -CARD_LIFT] as const };
+const RESTING = {};
+
 /**
- * Visual component for displaying a card
+ * Visual component for displaying a card. One composite target (R8.29):
+ * its frame and text are parts, and every state it shows (hovered,
+ * selected, disabled, pressed) comes from the framework's flags.
  */
-export class Card extends Layer {
+export class Card extends Component {
 	private data: GameCard;
 	private size: CardSize;
 	private name: Text;
 	private cost: Text;
+	/** Where the cost's digits are centred, and where the title starts and stops short of them. */
+	private readonly costCentre: number;
+	private readonly titleX: number;
+	private readonly titleGap: number;
 	private description: Text | null = null;
 	private rarity: Text | null = null;
 	private tags: Text | null = null;
@@ -42,11 +57,6 @@ export class Card extends Layer {
 	// Event callbacks
 	private clickHandler: ((card: GameCard) => void) | null = null;
 	private selectHandler: ((card: GameCard) => void) | null = null;
-	
-	// State
-	private selected = false;
-	private hovered = false;
-	private _enabled = true;
 
 	constructor({ id, x, y, data, size = CardSize.NORMAL, driverNumber }: { 
 		id?: string;
@@ -64,6 +74,7 @@ export class Card extends Layer {
 			width: dimensions.width,
 			height: dimensions.height,
 		});
+		this.componentType = 'Card';
 
 		this.data = data;
 		this.size = size;
@@ -101,46 +112,65 @@ export class Card extends Layer {
 		// Scale factors for different card sizes
 		const scaleFactor = size === CardSize.MINI ? 0.35 : size === CardSize.LARGE ? 1.2 : 1;
 		const padding = Math.floor(12 * scaleFactor);
-		
-		// Card name
-		this.name = new Text(data.displayName, {
-			id: this.childId('title'),
-			x: padding,
-			y: Math.floor(20 * scaleFactor),
-			width: dimensions.width - Math.floor(60 * scaleFactor),
-			style: {
-				fontSize: Math.floor(14 * scaleFactor),
-				color: '#ffffff',
-				fontWeight: 'bold',
-				whiteSpace: 'nowrap',
-				textOverflow: 'ellipsis',
-			},
-		});
-		this.addChild(this.name);
+		const hasDriverBadge = this.driverNumber !== null && size !== CardSize.MINI;
+		const badgeX = Math.floor(10 * scaleFactor);
+		const badgeSize = Math.floor(25 * scaleFactor);
+		// The badge paints over anything submitted before it (chapter 3), so the
+		// title starts past it rather than under it.
+		const titleX = hasDriverBadge ? badgeX + badgeSize + Math.floor(6 * scaleFactor) : padding;
+		const headerY = Math.floor(20 * scaleFactor);
+		const titleSize = Math.floor(14 * scaleFactor);
 
-		// Cost
+		// Cost: hugs its digits, centred 30 px in from the right edge
 		this.cost = new Text(`${data.cost}`, {
 			id: this.childId('cost'),
-			x: dimensions.width - Math.floor(30 * scaleFactor),
-			y: Math.floor(20 * scaleFactor),
+			y: headerY,
 			style: {
 				fontSize: Math.floor(20 * scaleFactor),
 				color: '#ffaa00',
 				fontWeight: 'bold',
-				textAlign: 'center',
+				whiteSpace: 'nowrap',
 			},
 		});
+		this.costCentre = dimensions.width - Math.floor(30 * scaleFactor);
+		this.titleX = titleX;
+		this.titleGap = TITLE_COST_GAP * scaleFactor;
+
+		// Card name: runs up to the cost's measured left edge, wraps to a second
+		// line rather than under it, and a name that needs a third is cut with
+		// an ellipsis. Two line boxes end above the description. Both are
+		// placed by placeHeader once the cost has measured.
+		this.name = new Text(data.displayName, {
+			id: this.childId('title'),
+			x: titleX,
+			y: headerY,
+			height: Math.ceil(TITLE_LINES * titleSize * TITLE_LINE_HEIGHT),
+			style: {
+				fontSize: titleSize,
+				lineHeight: TITLE_LINE_HEIGHT,
+				color: '#ffffff',
+				fontWeight: 'bold',
+				textOverflow: 'ellipsis',
+			},
+		});
+		this.addChild(this.name);
 		this.addChild(this.cost);
+		this.placeHeader();
 
 		// Description with automatic text wrapping
 		// Skip description for mini cards
 		if (size !== CardSize.MINI) {
-			this.description = new Text(data.displayDescription, {
+			// The face shows the summary (Card System Design 1.1); the full rules
+			// text is for the detail view. Keyword brackets become highlights
+			// with DDB-137, plain until then. The box ends above the rarity line
+			// and the ellipsis is only a backstop: no summary reaches it.
+			const descriptionY = Math.floor(60 * scaleFactor);
+			this.description = new Text(Card.faceText(data.displaySummary), {
 				id: this.childId('description'),
 				x: padding,
-				y: Math.floor(60 * scaleFactor),
+				y: descriptionY,
 				width: dimensions.width - padding * 2,
-				height: Math.floor(140 * scaleFactor),
+				height: dimensions.height - Math.floor(60 * scaleFactor) - Math.floor(4 * scaleFactor) - descriptionY,
 				style: {
 					fontSize: Math.floor(11 * scaleFactor),
 					color: '#cccccc',
@@ -195,13 +225,13 @@ export class Card extends Layer {
 		}
 
 		// Driver indicator (if specified)
-		if (this.driverNumber && size !== CardSize.MINI) {
+		if (hasDriverBadge) {
 			const indicatorBg = new Rectangle({
 				id: this.childId('driver_badge_background'),
-				x: Math.floor(10 * scaleFactor),
-				y: Math.floor(10 * scaleFactor),
-				width: Math.floor(25 * scaleFactor),
-				height: Math.floor(25 * scaleFactor),
+				x: badgeX,
+				y: badgeX,
+				width: badgeSize,
+				height: badgeSize,
 				style: {
 					backgroundColor: this.driverNumber === 1 ? '#4a4a8a' : '#4a8a4a',
 					borderRadius: Math.floor(12.5 * scaleFactor),
@@ -211,22 +241,24 @@ export class Card extends Layer {
 			});
 			this.addChild(indicatorBg);
 			
+			// Centred in the badge
 			this.driverIndicator = new Text(`D${this.driverNumber}`, {
 				id: this.childId('driver_badge'),
-				x: Math.floor(22.5 * scaleFactor),
-				y: Math.floor(22.5 * scaleFactor),
+				x: badgeX,
+				y: badgeX,
+				width: badgeSize,
+				height: badgeSize,
 				style: {
 					fontSize: Math.floor(10 * scaleFactor),
 					color: '#ffffff',
 					textAlign: 'center',
+					verticalAlign: 'middle',
+					whiteSpace: 'nowrap',
 					fontWeight: 'bold',
 				},
 			});
 			this.addChild(this.driverIndicator);
 		}
-
-		// Setup event handling
-		this.setupEvents();
 	}
 
 	/**
@@ -239,74 +271,66 @@ export class Card extends Layer {
 	}
 
 	/**
-	 * Setup mouse event handling
+	 * The cost hugs its digits and the title runs up to their left edge, so
+	 * both are placed from the cost's measured width: on construction, and in
+	 * the layout phase once the cost has measured through the mount context
+	 * (R1.6, R8.18).
 	 */
-	private setupEvents(): void {
-		// Register event handlers with the global input system
-		InputSystem.registerMouseOver(this, () => this.handleMouseOver());
-		InputSystem.registerMouseOut(this, () => this.handleMouseOut());
-		InputSystem.registerMouseDown(this, () => this.handleMouseDown());
-		InputSystem.registerMouseUp(this, () => this.handleMouseUp());
+	private placeHeader(): void {
+		this.cost.setX(this.costCentre - this.cost.getWidth() / 2);
+		this.name.setWidth(Math.floor(this.cost.getX() - this.titleGap - this.titleX));
+	}
+
+	protected layoutChildren(): void {
+		this.placeHeader();
+	}
+
+	/** R8.29: a card is one target; its text and frame are internals. */
+	protected get defaultPointerEvents(): PointerEvents {
+		return 'unit';
+	}
+
+	/** A card acts on press and click in handleEvent, with or without a caller callback. */
+	public get handlesPointer(): boolean {
+		return true;
 	}
 
 	/**
-	 * Card extends Layer rather than Component (it declares its own hovered and
-	 * _enabled), so it does not inherit Component's unregistering unmount.
+	 * Hover arrives through `onHover` and `onUnhover`, which the dispatcher
+	 * drives (R9.8); the press shades the frame, and the click is the
+	 * dispatcher's, synthesised when press and release both land on this card
+	 * (R9.31). A disabled card receives none of these (R9.5). A focused card
+	 * treats `activate` (Enter or Space) as a click (R9.27); only the hand
+	 * makes its cards focusable.
 	 */
-	public unmount(): void {
-		InputSystem.unregisterComponent(this);
-		super.unmount();
+	public handleEvent(event: AnyUiEvent): void {
+		super.handleEvent(event);
+		switch (event.type) {
+			case 'activate':
+				event.consume();
+				this.activate();
+				return;
+			case 'pointerdown':
+				if (event.button === 0) {
+					this.cardBorder.setFillColor(this.adjustBrightness(Card.getRarityColor(this.data.rarity), -20));
+				}
+				return;
+			case 'pointerup':
+			case 'pointerleave':
+			case 'pointercancel':
+				this.cardBorder.setFillColor(Card.getRarityColor(this.data.rarity));
+				return;
+			case 'click':
+				this.activate();
+				return;
+		}
 	}
 
-	/**
-	 * Handle mouse over
-	 */
-	private handleMouseOver(): void {
-		if (!this.enabled) return;
-		this.hovered = true;
-		this.updateVisuals();
-	}
-
-	/**
-	 * Handle mouse out
-	 */
-	private handleMouseOut(): void {
-		this.hovered = false;
-		this.updateVisuals();
-	}
-
-	/**
-	 * Handle mouse down
-	 */
-	private handleMouseDown(): void {
-		if (!this.enabled) return;
-		// Visual feedback for press
-		this.cardBorder.setFillColor(this.adjustBrightness(Card.getRarityColor(this.data.rarity), -20));
-	}
-
-	/**
-	 * Handle mouse up
-	 */
-	private handleMouseUp(): void {
-		if (!this.enabled) return;
-		
-		// Reset visual
-		this.cardBorder.setFillColor(Card.getRarityColor(this.data.rarity));
-		
-		// Trigger click (InputSystem already verified mouse is over component)
-		this.onClick();
-	}
-
-	/**
-	 * Handle click event - maps to semantic events
-	 */
-	private onClick(): void {
-		// Legacy click handler for backwards compatibility
+	/** A click, as the two semantic callbacks. */
+	private activate(): void {
 		if (this.clickHandler) {
 			this.clickHandler(this.data);
 		}
-		
-		// Primary semantic event: select the card
 		if (this.selectHandler) {
 			this.selectHandler(this.data);
 		}
@@ -331,7 +355,6 @@ export class Card extends Layer {
 	 */
 	public setSelected(selected: boolean): void {
 		this.selected = selected;
-		this.updateVisuals();
 	}
 
 	/**
@@ -340,73 +363,29 @@ export class Card extends Layer {
 	public isSelected(): boolean {
 		return this.selected;
 	}
-	
-	/**
-	 * Set enabled state
-	 */
-	public set enabled(value: boolean) {
-		this._enabled = value;
-		this.updateVisuals();
-		if (value) {
-			this.onEnabled();
-		} else {
-			this.onDisabled();
-		}
-	}
-	
-	/**
-	 * Get enabled state
-	 */
-	public get enabled(): boolean {
-		return this._enabled;
-	}
 
 	/**
-	 * Override hover lifecycle methods to update visuals
+	 * Hover, selection, and enabled state, the last inherited (R8.3): a
+	 * selected card, or a hovered one that can be played, rises and takes a
+	 * glow; a disabled card dims. The dispatcher keeps `hovered` true over a
+	 * disabled card (R9.8), so the glow checks enabled itself.
 	 */
-	protected onHover(): void {
-		this.updateVisuals();
-	}
-
-	protected onUnhover(): void {
-		this.updateVisuals();
-	}
-
-	/**
-	 * Update card visuals based on current state
-	 */
-	private updateVisuals(): void {
-		// Reset position first
-		if (this.getY() % 10 !== 0) { // Simple check if lifted
-			this.setY(this.getY() + 5);
-		}
-
+	protected onStateChange(): void {
+		const enabled = this.effectivelyEnabled;
 		if (this.selected) {
-			// Selected state - blue glow and lift
 			this.cardBorder.setBorderWidth(3);
 			this.cardBorder.setBorderColor('#00aaff');
-			this.setY(this.getY() - 5);
-		} else if (this.hovered && this.enabled) {
-			// Hovered state - white glow and lift
+		} else if (this.hovered && enabled) {
 			this.cardBorder.setBorderWidth(3);
 			this.cardBorder.setBorderColor('#ffffff');
-			this.setY(this.getY() - 5);
 		} else {
-			// Normal state
 			this.cardBorder.setBorderWidth(0);
 		}
-	}
-
-	/**
-	 * Override enabled lifecycle methods to update visuals
-	 */
-	protected onEnabled(): void {
-		this.cardBackground.setFillColor('#2a2a3a');
-	}
-
-	protected onDisabled(): void {
-		// Dim the card when disabled
-		this.cardBackground.setFillColor('#1a1a2a');
+		const lifted = this.selected || (this.hovered && enabled);
+		this.transform = lifted ? LIFTED : RESTING;
+		// A lifted card in an overlapping fan paints over its neighbours
+		this.zIndex = lifted ? 1 : 0;
+		this.cardBackground.setFillColor(enabled ? '#2a2a3a' : '#1a1a2a');
 	}
 
 	/**
@@ -422,6 +401,11 @@ export class Card extends Layer {
 			return `#${r.toString(16).padStart(2, '0')}${g.toString(16).padStart(2, '0')}${b.toString(16).padStart(2, '0')}`;
 		}
 		return color;
+	}
+
+	/** A summary as the face draws it: `[keyword]` brackets stripped. */
+	public static faceText(summary: string): string {
+		return summary.replace(/\[(.+?)\]/g, '$1');
 	}
 
 	/**
@@ -451,14 +435,6 @@ export class Card extends Layer {
 	 */
 	public getData(): GameCard {
 		return this.data;
-	}
-
-	/**
-	 * Render the card component
-	 */
-	public render(context?: RenderContext): void {
-		// Use Layer's render method to handle children rendering
-		Layer.prototype.render.call(this, context);
 	}
 
 	/**

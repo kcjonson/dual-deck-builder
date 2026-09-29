@@ -3,7 +3,7 @@ import type { SnapshotDocument, SnapshotViewport } from './treeSnapshot';
 import { treeSnapshot } from './treeSnapshot';
 import type { LintOptions, LintResult } from './layoutLint';
 import { layoutLint } from './layoutLint';
-import type { InjectionResult } from './inputInjection';
+import type { InjectionResult, InjectionTarget } from './inputInjection';
 import { injectInput } from './inputInjection';
 import type { ScenarioCapture } from './perfCapture';
 import { capturePerfSamples } from './perfCapture';
@@ -19,20 +19,17 @@ import type { PerfSnapshot } from '../rendering/FrameTimer';
  * folds to `false` in a production build so the whole module drops out.
  *
  * `window.__ui.tree()` reads the live tree; it never mutates it, so no layout
- * pass is forced. Text sizes come from Layer.layout(), which the frame loop
- * never calls (Text.render only reads width and height, for alignment), so a
- * rendered frame is not sufficient: a Text that nothing sized explicitly and
- * that no screen ran layout over reports w = h = 0.
+ * pass is forced. A Text sizes itself from the metrics service whenever its
+ * content changes (R12.4), so its bounds are its line box without one.
  *
  * `window.__ui.lint()` runs R13.25's seven rules over that same document. It is
- * the identical pure function the unit tests call, per R13.4. Three of the
- * seven cannot fire against today's snapshot (text-overflow wants
- * `text.measured`, unreachable-interactive and target-size want `focusable` or
- * `pointerEvents`); they report `dormant: true` in `rules[]` rather than a
- * silent pass. Expect a large `count` on the game screens: R13.25.1 exempts a
- * pair on differing zIndex or layer and the snapshot emits neither, so nothing
- * is exempted. R13.29's `count: 0` gate is the gallery's first, per the
- * implementation spec's ground rules.
+ * the identical pure function the unit tests call, per R13.4. Two of the seven
+ * cannot fire against today's snapshot (unreachable-interactive and
+ * target-size want `focusable`, which the focus manager backs); they report
+ * `dormant: true` in `rules[]` rather than a silent pass. Expect a large
+ * `count` on the game screens, which are not yet lint-clean. R13.29's
+ * `count: 0` gate is the gallery's first, per the implementation spec's ground
+ * rules.
  */
 
 export interface DebugRootSource {
@@ -69,6 +66,12 @@ export interface AppControlApi {
 	screens?(): string[];
 	pause?(): void;
 	resume?(): void;
+	/**
+	 * Runs every tween to its end and returns how many it finished (R13.37).
+	 * The update phase is skipped while paused, so this is how a paused
+	 * capture reaches where its animations land.
+	 */
+	settleAnimations?(): number;
 	/** Machine-readable control state, including the pause evidence counters. */
 	status?(): unknown;
 }
@@ -107,11 +110,19 @@ export interface PerfApi {
 		settleFrames?: number;
 		samples?: number;
 	}): Promise<ScenarioCapture<PerfSnapshot>>;
+	/**
+	 * R13.2's runtime toggle for the GPU timer. With an argument it sets the
+	 * state; either way it returns the state now, or null on a page without a
+	 * timer.
+	 */
+	gpuTimer(enabled?: boolean): boolean | null;
 }
 
 export interface PerfSnapshotSource {
 	/** The live frame timer's snapshot, carrying the active scene (R13.11). */
 	snapshot(): PerfSnapshot;
+	/** The page's GPU timer, for the toggle; absent or null where there is none. */
+	gpuTimer?: { enabled: boolean } | null;
 }
 
 interface DebugWindow extends Window {
@@ -149,18 +160,19 @@ export function installAppHooks(api: AppControlApi): void {
 /**
  * Installs the development-only `window.__dev` surface (R13.35).
  *
- * The canvas is an argument rather than looked up by id: it is the element
- * `InputSystem.setup` actually registered its listeners on, and the two entry
- * points already hold it. Resolving `#game-canvas` here would be a second
- * source of truth that agrees until the day it does not.
+ * The canvas and the dispatcher are arguments rather than looked up: the
+ * canvas is the element `PointerAdapter.attach` actually registered its
+ * listeners on, the dispatcher is the mount context's, and the two entry
+ * points already hold both. Resolving `#game-canvas` here would be a second source of
+ * truth that agrees until the day it does not.
  */
-export function installInputHooks(canvas: HTMLCanvasElement): void {
+export function installInputHooks(target: InjectionTarget): void {
 	if (!__DEV_TOOLS__) return;
 	if (typeof window === 'undefined') return;
 
 	const debugWindow = window as DebugWindow;
 	const api: DevToolsApi = {
-		input: (...commands: string[]) => injectInput(canvas, commands),
+		input: (...commands: string[]) => injectInput(target, commands),
 	};
 
 	debugWindow.__dev = { ...debugWindow.__dev, ...api };
@@ -182,6 +194,12 @@ export function installPerfHooks(source: PerfSnapshotSource): void {
 	const api: PerfApi = {
 		snapshot: () => source.snapshot(),
 		capture: (options) => capturePerfSamples({ ...options, snapshot: () => source.snapshot() }),
+		gpuTimer: (enabled?: boolean) => {
+			const timer = source.gpuTimer;
+			if (!timer) return null;
+			if (enabled !== undefined) timer.enabled = enabled;
+			return timer.enabled;
+		},
 	};
 
 	debugWindow.__perf = { ...debugWindow.__perf, ...api };

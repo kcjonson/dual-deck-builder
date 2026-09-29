@@ -3,10 +3,14 @@
  */
 import { Game, GameStatus } from './Game';
 import { ScreenManager } from './core/ScreenManager';
-import { InputSystem } from '../engine/input/InputSystem';
+import { createTestContext } from '../engine/components/testing';
 import { DrawApi, NullBackend } from '../engine/draw';
 import { FrameTimer } from '../engine/rendering/FrameTimer';
 import type { PerfSnapshot } from '../engine/rendering/FrameTimer';
+import type { GpuTimer } from '../engine/rendering/GpuTimer';
+import type { CanvasViewport, ViewportListener } from '../engine/rendering/CanvasViewport';
+import type { DeviceInfo } from '../engine/rendering/deviceInfo';
+import { DeveloperOverlay } from '../engine/ui/DeveloperOverlay';
 
 /**
  * R13.32's pause on the game page, driven through `window.__app` rather than
@@ -30,14 +34,27 @@ jest.mock('./core/ScreenManager', () => ({
 		getCurrentScreenName: jest.fn(() => 'mainMenuScreen'),
 		update: jest.fn(),
 		render: jest.fn(),
+		resize: jest.fn(),
 	},
 }));
 
 jest.mock('../engine/ui/DeveloperOverlay', () => ({
-	DeveloperOverlay: class {
+	DeveloperOverlay: class MockDeveloperOverlay {
+		/** The page builds one; the test reads its anchor back through this. */
+		public static instances: MockDeveloperOverlay[] = [];
 		public shown = false;
+		public viewportWidth: number;
+		public readonly constructedWidth: number;
+		constructor({ viewportWidth }: { viewportWidth: number }) {
+			this.viewportWidth = viewportWidth;
+			this.constructedWidth = viewportWidth;
+			MockDeveloperOverlay.instances.push(this);
+		}
 		public toggle(): void {
 			this.shown = !this.shown;
+		}
+		public mount(): void {
+			/* a root with nothing to register */
 		}
 		public update(): void {
 			/* no drawing in a test */
@@ -68,6 +85,28 @@ const screens = ScreenManager as unknown as {
 	navigate: jest.Mock;
 	update: jest.Mock;
 	render: jest.Mock;
+	resize: jest.Mock;
+};
+
+/**
+ * The viewport owner's surface as `Game` uses it: a size to report and a
+ * change to hear. `CanvasViewport.test.ts` covers the measuring.
+ */
+const viewportListeners: ViewportListener[] = [];
+const viewport = {
+	logical: { width: 1440, height: 882 },
+	frame: { viewport: { width: 1440, height: 882 }, ratio: 1 },
+	onChange: (listener: ViewportListener) => {
+		viewportListeners.push(listener);
+		return () => undefined;
+	},
+} as unknown as CanvasViewport;
+
+const device: DeviceInfo = {
+	backend: 'webgl2',
+	vendor: 'Test Vendor',
+	renderer: 'Test Renderer',
+	features: { timerQuery: false, parallelShaderCompile: true, debugRendererInfo: true },
 };
 
 // A real draw API over R2.21's null backend rather than five no-op lambdas:
@@ -76,6 +115,9 @@ const screens = ScreenManager as unknown as {
 const draw = new DrawApi({ backend: new NullBackend(), development: false });
 
 let game: Game;
+const context = createTestContext({ draw, viewport });
+/** Stands in for the GPU timer: the page only ever flips `enabled` and reads `stats`. */
+const gpuTimer = { enabled: false, stats: undefined } as unknown as GpuTimer;
 
 function app(): NonNullable<AppWindow['__app']> {
 	const installed = (window as AppWindow).__app;
@@ -88,7 +130,7 @@ function status(): GameStatus {
 }
 
 beforeAll(async () => {
-	game = new Game({ draw, frameTimer: new FrameTimer() });
+	game = new Game({ context, frameTimer: new FrameTimer(), viewport, device, gpuTimer });
 	await game.init();
 });
 
@@ -155,19 +197,33 @@ describe('pause stops update and leaves render running', () => {
 		expect(screens.update).toHaveBeenCalledWith(0.016);
 	});
 
-	it('sets the InputSystem gate, which is what actually drops events (R13.35)', () => {
+	it('sets the dispatcher gate, which is what actually drops events (R13.35)', () => {
 		app().pause?.();
-		expect(InputSystem.getInstance().paused).toBe(true);
+		expect(context.dispatcher.paused).toBe(true);
 		expect(status().inputPaused).toBe(true);
 
 		app().resume?.();
-		expect(InputSystem.getInstance().paused).toBe(false);
+		expect(context.dispatcher.paused).toBe(false);
 		expect(status().inputPaused).toBe(false);
 	});
 });
 
+describe('F5 runs the GPU timer only while the overlay shows', () => {
+	function pressF5(): void {
+		document.body.dispatchEvent(new KeyboardEvent('keydown', { key: 'F5', bubbles: true }));
+	}
+
+	it('turns the timer on with the overlay and off again with it', () => {
+		expect(gpuTimer.enabled).toBe(false);
+		pressF5();
+		expect(gpuTimer.enabled).toBe(true);
+		pressF5();
+		expect(gpuTimer.enabled).toBe(false);
+	});
+});
+
 describe('the document keydown shortcut is gated by pause too', () => {
-	// F12 and F5 sit on a raw document listener, outside the InputSystem, so
+	// F12 and F5 sit on a raw document listener, outside the dispatcher, so
 	// the pause gate there does not reach them. Ungated they would navigate
 	// out from under a paused capture. Gating changes what a real key does
 	// while paused, which is only reachable in a development build.
@@ -220,7 +276,42 @@ describe('window.__perf on the game page (R13.11, R15.37)', () => {
 		expect(snapshot.frame.p99Ms).toBeNull();
 		expect(snapshot.sections.update).toBeNull();
 		expect(snapshot.gpu.ms).toBeNull();
-		expect(snapshot.batcher).toBeNull();
 		expect(snapshot.memory.usedBytes).toBeNull();
+	});
+
+	it('carries the device the renderer detected (R15.3, R13.20)', () => {
+		expect(perf().snapshot().device).toEqual(device);
+	});
+
+	it('carries the draw API counters for the last completed frame (R13.12)', () => {
+		game.render();
+		game.flush();
+
+		const { batcher } = perf().snapshot();
+		expect(batcher).not.toBeNull();
+		expect(batcher).toEqual(draw.getStats());
+	});
+});
+
+describe('the viewport owner, not the window, resizes the screen (R7.11)', () => {
+	it('hands a committed viewport to the mounted screen', () => {
+		for (const listener of viewportListeners) {
+			listener({ width: 1280, height: 720, framebufferWidth: 2560, framebufferHeight: 1440, dpr: 2, uiScale: 1, ratio: 2 });
+		}
+		expect(screens.resize).toHaveBeenCalledWith(1280, 720);
+	});
+
+	it('anchors the F5 overlay to the viewport at startup and after every change', () => {
+		const [developerOverlay] = (DeveloperOverlay as unknown as { instances: { viewportWidth: number; constructedWidth: number }[] }).instances;
+		expect(developerOverlay.constructedWidth).toBe(1440);
+
+		for (const listener of viewportListeners) {
+			listener({ width: 1024, height: 768, framebufferWidth: 1024, framebufferHeight: 768, dpr: 1, uiScale: 1, ratio: 1 });
+		}
+		expect(developerOverlay.viewportWidth).toBe(1024);
+	});
+
+	it('reports the owner\'s logical size in status', () => {
+		expect(status().viewport).toEqual({ width: 1440, height: 882 });
 	});
 });

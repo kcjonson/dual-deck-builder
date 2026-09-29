@@ -1,7 +1,8 @@
 import { DrawApi, DrawApiOptions, Diagnostic, TEXT_MEASUREMENT_UNAVAILABLE } from './DrawApi';
 import { RecordingBackend } from './RecordingBackend';
-import { DrawCommand, RectCommand, TextCommand, TextureHandle } from './commands';
+import { DrawCommand, DrawTextOptions, RectCommand, TextCommand, TextureHandle } from './commands';
 import { Rect } from './geometry';
+import { committedFontAtlas } from '../text/testing';
 
 const BLUE = [0.2, 0.4, 0.6, 1] as const;
 const RED = [1, 0, 0, 1] as const;
@@ -17,7 +18,7 @@ function harness(options: Partial<Omit<DrawApiOptions, 'backend'>> = {}): Harnes
 	const backend = new RecordingBackend({ maxFrames: 4 });
 	const api = new DrawApi({ backend, ...options });
 	const texture = api.createTexture({ width: 512, height: 512, label: 'atlas' });
-	api.loadFontAtlas({ name: 'body', metrics: {}, texture });
+	api.loadFontAtlas({ name: 'body', atlas: committedFontAtlas('body'), texture });
 	return { api, backend, texture };
 }
 
@@ -449,7 +450,57 @@ describe('clip stack (R2.5, R4.2, R4.7) and chapter 4.7 required tests', () => {
 		api.endFrame();
 	});
 
-	it('warns when a clip is pushed under a non-translate transform', () => {
+	it('snaps a clip to the device grid under a translation, whatever the content offset (R7.8a)', () => {
+		const { api } = harness();
+		api.beginFrame({ viewport: VIEWPORT, ratio: 2 });
+		// A panel at a fractional x with its content scrolled by a fraction: the
+		// clip lands on the same device edges at every offset, so it does not shimmer.
+		for (const offset of [0, 0.3, 0.7]) {
+			api.pushTranslate(10.3 + offset, 0);
+			api.pushClip(rect(-offset, 5.1, 20, 20));
+			expect(api.clip).toEqual({
+				kind: 'rect',
+				rect: { minX: 10.5, minY: 5, maxX: 30.5, maxY: 25 },
+				rounded: null,
+			});
+			api.popClip();
+			api.popTransform();
+		}
+		api.endFrame();
+	});
+
+	it('does not snap a clip pushed under a scale (R7.9)', () => {
+		const { api } = harness();
+		api.beginFrame({ viewport: VIEWPORT });
+		api.pushTransform([2, 0, 0, 2, 0, 0]);
+		api.pushClip(rect(0.1, 0.1, 10, 10));
+		expect(api.clip).toEqual({
+			kind: 'rect',
+			rect: { minX: 0.2, minY: 0.2, maxX: 20.2, maxY: 20.2 },
+			rounded: null,
+		});
+		api.popClip();
+		api.popTransform();
+		api.endFrame();
+	});
+
+	it('clips exactly and quietly under a scale, which keeps the rect on the axes', () => {
+		const { api } = harness();
+		api.beginFrame({ viewport: VIEWPORT });
+		api.pushTransform([1.5, 0, 0, 1.5, 10, 20]);
+		api.pushClip(rect(0, 0, 10, 20));
+		expect(codes(api)).toEqual([]);
+		expect(api.clip).toEqual({
+			kind: 'rect',
+			rect: { minX: 10, minY: 20, maxX: 25, maxY: 50 },
+			rounded: null,
+		});
+		api.popClip();
+		api.popTransform();
+		api.endFrame();
+	});
+
+	it('warns when a clip is pushed under a rotating transform', () => {
 		const { api } = harness();
 		api.beginFrame({ viewport: VIEWPORT });
 		api.pushTransform([0, 1, -1, 0, 0, 0]);
@@ -525,7 +576,7 @@ describe('clip stack (R2.5, R4.2, R4.7) and chapter 4.7 required tests', () => {
 		expect(stats.apiDraws + stats.culled).toBe(500);
 	});
 
-	it('never bounds-culls text, because a run extent needs R6.8 glyph iteration', () => {
+	it('does not bounds-cull text when the backend cannot give a run extent', () => {
 		const { api, backend } = harness();
 		api.beginFrame({ viewport: VIEWPORT });
 		api.pushClip(rect(0, 0, 10, 10));
@@ -538,6 +589,33 @@ describe('clip stack (R2.5, R4.2, R4.7) and chapter 4.7 required tests', () => {
 		expect(api.getStats().culled).toBe(1);
 	});
 
+	it('keeps a polygon whose feather miter reaches into the clip (R5.17)', () => {
+		const { api, backend } = harness();
+		api.beginFrame({ viewport: VIEWPORT });
+		api.pushClip(rect(0, 0, 10, 10));
+		// A spike whose tip is 3 px left of the clip: its miter can reach 4 px.
+		api.drawPolygon({ points: [{ x: -3, y: 5 }, { x: -40, y: 4 }, { x: -40, y: 6 }], fill: BLUE, id: 'spike' });
+		// 5 px away, past any miter.
+		api.drawPolygon({ points: [{ x: -5, y: 5 }, { x: -40, y: 4 }, { x: -40, y: 6 }], fill: BLUE, id: 'far' });
+		api.popClip();
+		api.endFrame();
+
+		expect(backend.ids).toEqual(['spike']);
+		expect(api.getStats().culled).toBe(1);
+	});
+
+	it('reports an indexed polygon that is not one outline (R5.17)', () => {
+		const { api } = harness();
+		api.beginFrame({ viewport: VIEWPORT });
+		// Two separate triangles in one list: the indices do not cover the outline the points trace.
+		const points = [{ x: 0, y: 0 }, { x: 10, y: 0 }, { x: 0, y: 10 }, { x: 20, y: 0 }, { x: 30, y: 0 }, { x: 20, y: 10 }];
+		api.drawPolygon({ points, indices: [0, 1, 2, 3, 4, 5], fill: BLUE });
+		api.drawPolygon({ points: points.slice(0, 3), indices: [0, 1, 2], fill: BLUE });
+		api.endFrame();
+
+		expect(api.diagnostics.map((diagnostic) => diagnostic.code)).toEqual(['polygon-not-one-outline']);
+	});
+
 	it('does not bounds-cull under an unclipped state, whose rect is R4.1 all-covering', () => {
 		const { api, backend } = harness();
 		api.beginFrame({ viewport: VIEWPORT });
@@ -546,6 +624,96 @@ describe('clip stack (R2.5, R4.2, R4.7) and chapter 4.7 required tests', () => {
 
 		expect(backend.ids).toEqual(['offscreen']);
 		expect(api.getStats().culled).toBe(0);
+	});
+
+	describe('text, when the backend gives a run extent (DrawBackend.textInk)', () => {
+		/** Every run is 10 px per character wide and 12 px tall from its position. */
+		class InkBackend extends RecordingBackend {
+			readonly asked: string[] = [];
+
+			textInk(options: DrawTextOptions): Rect | null {
+				this.asked.push(options.text);
+				if (!options.position) return null;
+				return { x: options.position.x, y: options.position.y, width: options.text.length * 10, height: 12 };
+			}
+		}
+
+		function inkHarness() {
+			const backend = new InkBackend({ maxFrames: 1 });
+			backend.loadFontAtlas({ name: 'body', atlas: committedFontAtlas('body'), texture: { id: 1, width: 1, height: 1, label: null } });
+			return { api: new DrawApi({ backend }), backend };
+		}
+
+		const run = (id: string, x: number, y: number, extra: Partial<DrawTextOptions> = {}): DrawTextOptions => ({
+			id,
+			text: 'row',
+			position: { x, y },
+			font: 'body',
+			size: 12,
+			color: RED,
+			...extra,
+		});
+
+		it('culls a run outside the clip per run, and counts it (R4.2a)', () => {
+			const { api, backend } = inkHarness();
+			api.beginFrame({ viewport: VIEWPORT, ratio: 1 });
+			api.pushClip(rect(0, 0, 100, 100));
+			api.drawText(run('inside', 10, 10));
+			api.drawText(run('straddles', 95, 95));
+			api.drawText(run('below', 10, 200));
+			api.popClip();
+			api.endFrame();
+
+			expect(backend.ids).toEqual(['inside', 'straddles']);
+			expect(api.getStats().culled).toBe(1);
+		});
+
+		it('tests the shadow run at its own offset', () => {
+			const { api, backend } = inkHarness();
+			api.beginFrame({ viewport: VIEWPORT, ratio: 1 });
+			api.pushClip(rect(0, 0, 100, 100));
+			// The run is below the clip; its shadow is lifted back into it.
+			api.drawText(run('lifted', 10, 110, { shadow: { color: BLUE, offset: { x: 0, y: -50 } } }));
+			api.popClip();
+			api.endFrame();
+
+			expect(backend.commands.map((command) => command.group)).toEqual(['shadow']);
+			expect(api.getStats().culled).toBe(1);
+		});
+
+		it('does not ask under no clip, and culls a rotated run by its transformed extent', () => {
+			const { api, backend } = inkHarness();
+			api.beginFrame({ viewport: VIEWPORT, ratio: 1 });
+			api.drawText(run('unclipped', 5000, 5000));
+			api.pushClip(rect(0, 0, 100, 100));
+			api.pushTransform([0, 1, -1, 0, 0, 0]);
+			// Rotated a quarter turn, (5000, 5000) lands at (-5000, 5000).
+			api.drawText(run('rotated', 5000, 5000));
+			// And (10, -40) lands at (40, 10), inside the clip.
+			api.drawText(run('rotated in', 10, -40));
+			api.popTransform();
+			api.pushTranslate(-4990, -4990);
+			api.drawText(run('translated', 5000, 5000));
+			api.popTransform();
+			api.popClip();
+			api.endFrame();
+
+			expect(backend.ids).toEqual(['unclipped', 'rotated in', 'translated']);
+			expect(backend.asked).toEqual(['row', 'row', 'row']);
+		});
+
+		it("clips a run to its box when its overflow is 'clip', for that draw only (R6.14)", () => {
+			const { api, backend } = inkHarness();
+			api.beginFrame({ viewport: VIEWPORT, ratio: 1 });
+			api.pushTranslate(5, 0);
+			api.drawText(run('clipped', 0, 0, { position: undefined, box: rect(10, 20, 30, 40), overflow: 'clip' }));
+			api.drawText(run('free', 0, 0));
+			api.popTransform();
+			api.endFrame();
+
+			expect(backend.commands[0].clip).toEqual({ kind: 'rect', rect: { minX: 15, minY: 20, maxX: 45, maxY: 60 }, rounded: null });
+			expect(backend.commands[1].clip.kind).toBe('none');
+		});
 	});
 
 	it('culls a shadow and its owner independently', () => {
@@ -796,6 +964,35 @@ describe('emit order (R3.10) and chapter 3.12 required tests', () => {
 		expect(JSON.parse(JSON.stringify(backend.commands))).toStrictEqual(first);
 	});
 
+	it('emits a promoted popup declared under a base clip after every base group, unclipped (R3.8, R4.8)', () => {
+		const { api, backend } = harness();
+		api.beginFrame({ viewport: VIEWPORT });
+		api.drawRect({ rect: rect(0, 0, 400, 300), fill: BLUE, id: 'panel' });
+		api.pushClip(rect(10, 10, 200, 100));
+		api.pushTranslate(10, -40);
+		api.drawRect({ rect: rect(0, 50, 200, 20), fill: BLUE, id: 'row-1' });
+		api.pushLayer('popup');
+		api.pushClipReset();
+		api.drawRect({ rect: rect(0, 70, 120, 200), fill: RED, id: 'menu' });
+		api.popClip();
+		api.popLayer();
+		api.drawRect({ rect: rect(0, 70, 200, 20), fill: BLUE, id: 'row-2' });
+		api.popTransform();
+		api.popClip();
+		api.drawRect({ rect: rect(0, 280, 400, 20), fill: BLUE, id: 'footer' });
+		api.endFrame();
+
+		expect(backend.ids).toEqual(['panel', 'row-1', 'row-2', 'footer', 'menu']);
+		const commands = backend.commands as RectCommand[];
+		const menu = commands.find((command) => command.id === 'menu') as RectCommand;
+		expect(menu.layer).toBe('popup');
+		expect(menu.clip).toEqual({ kind: 'none' });
+		// The rows around it keep the scroller's clip; promotion reset only the menu's.
+		for (const id of ['row-1', 'row-2']) {
+			expect(commands.find((command) => command.id === id)?.clip.kind).toBe('rect');
+		}
+	});
+
 	it('numbers domains from zero and gives every group a dense sequence', () => {
 		const { api, backend } = harness();
 		api.beginFrame({ viewport: VIEWPORT });
@@ -956,8 +1153,19 @@ describe('draw calls (R2.8 to R2.13)', () => {
 			maxWidth: null,
 			wrap: 'none',
 			overflow: 'visible',
+			decoration: 'none',
+			lineHeight: null,
 			blur: 0,
 		});
+	});
+
+	it('reads a bare position as the baseline by default (R2.13)', () => {
+		const { api, backend } = harness();
+		api.beginFrame({ viewport: VIEWPORT });
+		api.drawText({ text: 'Total', position: { x: 4, y: 20 }, font: 'body', size: 13, color: RED });
+		api.endFrame();
+
+		expect(backend.commands[0]).toMatchObject({ position: { x: 4, y: 20 }, box: null, verticalAlign: 'baseline' });
 	});
 });
 
@@ -971,7 +1179,7 @@ describe('measureText (R2.14)', () => {
 
 	it('delegates to a backend that owns the glyph walk, so R6.8 is structural', () => {
 		const backend = new RecordingBackend();
-		const measured = { width: 42, height: 16, lines: 1, advances: [10, 20, 30, 42] };
+		const measured = { width: 42, height: 16, lines: 1, lineWidths: [42], advances: [10, 20, 30, 42] };
 		(backend as unknown as { measureText: () => typeof measured }).measureText = () => measured;
 		const api = new DrawApi({ backend });
 
@@ -1077,6 +1285,18 @@ describe('resources (R2.17, R2.18)', () => {
 		const { api, texture } = harness();
 		expect(() => api.destroyTexture(texture)).not.toThrow();
 	});
+
+	it('drops and reports a draw of a released texture (R5.30)', () => {
+		const { api, backend } = harness();
+		const art = api.createTexture({ width: 4, height: 4, label: 'art' });
+		api.destroyTexture(art);
+		api.beginFrame({ viewport: VIEWPORT });
+		api.drawImage({ rect: rect(0, 0, 4, 4), texture: art, id: 'stale' });
+		api.endFrame();
+
+		expect(codes(api)).toEqual(['texture-not-live']);
+		expect(backend.ids).toEqual([]);
+	});
 });
 
 describe('getStats (R2.19, R13.12 to R13.15)', () => {
@@ -1168,15 +1388,17 @@ describe('getStats (R2.19, R13.12 to R13.15)', () => {
 		expect(stats.shaderChange).toBe(0);
 	});
 
-	it('leaves the resource counters null, because R5.30 resource layer is a later PR', () => {
+	it('reads the resource counters from the resource layer, and leaves target switches null (R5.35)', () => {
 		const { api } = harness();
 		api.beginFrame({ viewport: VIEWPORT });
 		api.endFrame();
 
 		const stats = api.getStats();
-		expect(stats.residentTextureBytes).toBeNull();
-		expect(stats.pendingUploads).toBeNull();
-		expect(stats.evictions).toBeNull();
+		// The harness's 512-square atlas, allocated empty.
+		expect(stats.residentTextureBytes).toBe(512 * 512 * 4);
+		expect(stats.pendingUploads).toBe(0);
+		expect(stats.evictions).toBe(0);
+		// No render targets exist until group opacity (R5.34).
 		expect(stats.targetSwitches).toBeNull();
 	});
 
@@ -1190,28 +1412,9 @@ describe('getStats (R2.19, R13.12 to R13.15)', () => {
 	});
 });
 
-/**
- * TEMPORARY, deleted with the ordering re-baseline PR. `legacyTextOrder` is the
- * one option in this file that exists to preserve a bug rather than a rule; see
- * `DrawApiOptions.legacyTextOrder` and
- * docs/AI_TECHNICAL_DECISIONS/legacy-gl-backend.md.
- */
-describe('legacyTextOrder (TEMPORARY)', () => {
-	it('is off by default, so a clip change flushes nothing (R3.20)', () => {
+describe('R3.20: a clip change is not a barrier', () => {
+	it('keeps one domain across a clip push and pop', () => {
 		const { api, backend } = harness();
-		api.beginFrame({ viewport: VIEWPORT });
-		api.drawRect({ rect: rect(0, 0, 10, 10), fill: BLUE, id: 'before' });
-		api.pushClip(rect(0, 0, 5, 5));
-		api.drawRect({ rect: rect(0, 0, 5, 5), fill: RED, id: 'inside' });
-		api.popClip();
-		api.endFrame();
-
-		expect(backend.batches).toHaveLength(1);
-		expect(backend.ids).toEqual(['before', 'inside']);
-	});
-
-	it('ends a domain at every clip push and pop when it is on', () => {
-		const { api, backend } = harness({ legacyTextOrder: true });
 		api.beginFrame({ viewport: VIEWPORT });
 		api.drawRect({ rect: rect(0, 0, 10, 10), fill: BLUE, id: 'before' });
 		api.pushClip(rect(0, 0, 5, 5));
@@ -1220,33 +1423,18 @@ describe('legacyTextOrder (TEMPORARY)', () => {
 		api.drawRect({ rect: rect(0, 0, 10, 10), fill: BLUE, id: 'after' });
 		api.endFrame();
 
-		expect(backend.batches.map((batch) => batch.commands.map((command) => command.id))).toEqual([
-			['before'],
-			['inside'],
-			['after'],
-		]);
-		expect(backend.batches.map((batch) => batch.reason)).toEqual(['barrier', 'barrier', 'endFrame']);
+		expect(backend.batches).toHaveLength(1);
+		expect(backend.ids).toEqual(['before', 'inside', 'after']);
+		expect(api.getStats().flushes).toMatchObject({ barrier: 0, endFrame: 1 });
 	});
 
-	it('counts those barriers as flushes so the number is not silently free', () => {
-		const { api } = harness({ legacyTextOrder: true });
-		api.beginFrame({ viewport: VIEWPORT });
-		api.drawRect({ rect: rect(0, 0, 10, 10), fill: BLUE });
-		api.pushClip(rect(0, 0, 5, 5));
-		api.drawRect({ rect: rect(0, 0, 5, 5), fill: RED });
-		api.popClip();
-		api.endFrame();
-
-		expect(api.getStats().flushes).toMatchObject({ barrier: 2, endFrame: 0 });
-	});
-
-	it('leaves submission order alone inside a domain', () => {
-		// Only LegacyGLBackend paints text late, and only because TextRenderer
-		// defers it. The API keeps reporting what was actually submitted.
-		const { api, backend } = harness({ legacyTextOrder: true });
+	it('submits text where it was drawn, so a later shape covers it (R2.2)', () => {
+		const { api, backend } = harness();
 		api.beginFrame({ viewport: VIEWPORT });
 		api.drawText({ text: 'a', position: { x: 0, y: 0 }, font: 'body', size: 12, color: RED, id: 'text' });
+		api.pushClip(rect(0, 0, 5, 5));
 		api.drawRect({ rect: rect(0, 0, 10, 10), fill: BLUE, id: 'rect' });
+		api.popClip();
 		api.endFrame();
 
 		expect(backend.ids).toEqual(['text', 'rect']);
@@ -1269,5 +1457,124 @@ describe('R14.1: the module runs with no DOM and no GL', () => {
 
 		const commands: readonly DrawCommand[] = backend.commands;
 		expect(commands).toHaveLength(3);
+	});
+});
+
+describe('pooled stacks (DDB-215)', () => {
+	/** A card-shaped frame: nested translates, a clip, a rounded clip, an opacity and a layer, with `draw` at the deepest level. */
+	function pushFrame(api: DrawApi, x: number, draw?: () => void): void {
+		api.pushTranslate(x, 20);
+		api.pushClip(rect(0, 0, 200, 100));
+		api.pushTransform([2, 0, 0, 2, 5, 5]);
+		api.pushOpacity(0.5);
+		api.pushLayer('overlay');
+		api.pushClipRounded(rect(0, 0, 40, 40), 6);
+		draw?.();
+		api.popClip();
+		api.popLayer();
+		api.popOpacity();
+		api.popTransform();
+		api.popClip();
+		api.popTransform();
+	}
+
+	/** The live transform and clip at every depth `pushFrame` reaches. */
+	function levels(api: DrawApi, x: number): object[] {
+		const seen: object[] = [];
+		const record = (): void => {
+			seen.push(api.transform, api.clip);
+		};
+		api.pushTranslate(x, 20);
+		record();
+		api.pushClip(rect(0, 0, 200, 100));
+		record();
+		api.pushTransform([2, 0, 0, 2, 5, 5]);
+		record();
+		api.pushClipRounded(rect(0, 0, 40, 40), 6);
+		record();
+		api.popClip();
+		api.popTransform();
+		api.popClip();
+		api.popTransform();
+		return seen;
+	}
+
+	it('reuses the same stack frames across frames and between siblings, so a push allocates nothing once warm', () => {
+		const { api } = harness();
+		const distinct = new Set<object>();
+		let first: object[] = [];
+		for (let frame = 0; frame < 50; frame++) {
+			api.beginFrame({ viewport: VIEWPORT });
+			for (let sibling = 0; sibling < 4; sibling++) {
+				const seen = levels(api, sibling * 50 + frame);
+				if (frame === 0 && sibling === 0) first = seen;
+				for (const object of seen) distinct.add(object);
+				seen.forEach((object, index) => expect(object).toBe(first[index]));
+			}
+			api.endFrame();
+		}
+		// Two pushed transform levels, two pushed clip levels and the root's
+		// `none`, and nothing new in 200 walks at different offsets: the pool
+		// is as deep as the nesting and no deeper.
+		expect(distinct.size).toBe(5);
+		expect(codes(api)).not.toContain('unbalanced-stack');
+	});
+
+	it('shares one captured transform and clip between draws under one push', () => {
+		const { api, backend } = harness();
+		api.beginFrame({ viewport: VIEWPORT });
+		pushFrame(api, 10, () => {
+			api.drawRect({ rect: rect(0, 0, 10, 10), fill: BLUE, id: 'a' });
+			api.drawRect({ rect: rect(10, 0, 10, 10), fill: RED, id: 'b' });
+		});
+		api.endFrame();
+
+		const [a, b] = backend.commands;
+		expect(a.transform).toBe(b.transform);
+		expect(a.clip).toBe(b.clip);
+		// Captured, never the live level: the next push there cannot reach it.
+		expect(a.transform).not.toBe(api.transform);
+	});
+
+	it('keeps what a command captured when a later push overwrites its level, in the frame and after it', () => {
+		const { api, backend } = harness();
+		api.beginFrame({ viewport: VIEWPORT });
+		pushFrame(api, 10, () => api.drawRect({ rect: rect(0, 0, 10, 10), fill: BLUE, id: 'first' }));
+		pushFrame(api, 300, () => api.drawRect({ rect: rect(0, 0, 10, 10), fill: BLUE, id: 'second' }));
+		api.endFrame();
+		const [first, second] = backend.commands;
+		const snapshot = JSON.parse(JSON.stringify(first));
+
+		api.beginFrame({ viewport: VIEWPORT });
+		pushFrame(api, 600);
+		api.endFrame();
+
+		expect(JSON.parse(JSON.stringify(first))).toEqual(snapshot);
+		expect(first.transform).toEqual([2, 0, 0, 2, 15, 25]);
+		expect(second.transform).toEqual([2, 0, 0, 2, 305, 25]);
+		expect(first.clip).toEqual({
+			kind: 'rect',
+			rect: { minX: 15, minY: 25, maxX: 95, maxY: 105 },
+			rounded: { rect: { minX: 15, minY: 25, maxX: 95, maxY: 105 }, radius: 6 },
+		});
+		expect(first.opacity).toBe(0.5);
+		expect(first.layer).toBe('overlay');
+	});
+
+	it('carries an outer rounded clip into a plain clip pushed inside it', () => {
+		const { api, backend } = harness();
+		api.beginFrame({ viewport: VIEWPORT });
+		api.pushClipRounded(rect(0, 0, 100, 100), 8);
+		api.pushClip(rect(10, 10, 200, 200));
+		api.drawRect({ rect: rect(0, 0, 10, 10), fill: BLUE });
+		api.popClip();
+		api.popClip();
+		api.endFrame();
+
+		expect(backend.commands[0].clip).toEqual({
+			kind: 'rect',
+			rect: { minX: 10, minY: 10, maxX: 100, maxY: 100 },
+			rounded: { rect: { minX: 0, minY: 0, maxX: 100, maxY: 100 }, radius: 8 },
+		});
 	});
 });

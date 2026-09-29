@@ -1,4 +1,5 @@
 import { Panel } from '../../../engine/ui/Panel';
+import { DeveloperSectionPanel } from './DeveloperSectionPanel';
 import { Text } from '../../../engine/components/Text';
 import { Rectangle } from '../../../engine/components/Rectangle';
 import { Button } from '../../../engine/ui/Button';
@@ -7,19 +8,11 @@ import { Button } from '../../../engine/ui/Button';
  * Nested panels section for the developer screen
  * Demonstrates panel composition and nesting
  */
-export class NestedPanelsSection extends Panel {
+export class NestedPanelsSection extends DeveloperSectionPanel {
 	constructor(x: number, y: number, width: number) {
-		super({
-			id: 'dev_section_nested_panels',
-			width,
-			height: 200, // Will be calculated based on content
-			style: {
-				backgroundColor: 'transparent',
-			},
-		});
+		super({ id: 'dev_section_nested_panels', x, y, width });
 
-		this.setPosition(x, y);
-		this.initializeContent(width);
+		this.initializeContent(this.innerWidth);
 	}
 
 	private initializeContent(width: number): void {
@@ -39,10 +32,16 @@ export class NestedPanelsSection extends Panel {
 		const nestedPanel = new Panel({
 			width: Math.min(width - 40, 600),
 			height: 150,
+			layout: 'free',
 			style: {
 				backgroundColor: '#333333e6',
 				borderRadius: 8,
-				border: '2px solid #555555',
+				borderWidth: 2,
+				borderColor: '#555555',
+				// The content inset never goes below the 8 px corner radius
+				// (R12.19), so the children below are placed 8 short of where
+				// they sit.
+				padding: 0,
 			},
 		});
 		nestedPanel.setPosition(20, currentY);
@@ -53,7 +52,7 @@ export class NestedPanelsSection extends Panel {
 				color: '#ffffff',
 			},
 		});
-		nestedPanelTitle.setPosition(20, 20);
+		nestedPanelTitle.setPosition(12, 12);
 		nestedPanel.addChild(nestedPanelTitle);
 
 		const nestedRect = new Rectangle({
@@ -64,21 +63,21 @@ export class NestedPanelsSection extends Panel {
 				borderRadius: 30,
 			},
 		});
-		nestedRect.setPosition(20, 60);
+		nestedRect.setPosition(12, 52);
 		nestedPanel.addChild(nestedRect);
 
 		const nestedButton = new Button('Nested Button', {
 			width: 120,
 			height: 35,
 		});
-		nestedButton.setPosition(100, 70);
+		nestedButton.setPosition(92, 62);
 		nestedPanel.addChild(nestedButton);
 
 		this.addChild(nestedPanel);
 		currentY += 170;
 
 		// Update our height based on content
-		this.setSize(this.width, currentY);
+		this.fitContentHeight(currentY);
 	}
 
 	/**
