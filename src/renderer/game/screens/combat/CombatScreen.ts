@@ -41,9 +41,9 @@ const LOG_TOGGLE_KEYS = [LOG_KEY.toLowerCase(), LOG_KEY, 'F6'];
 /** Between the hands and the End Turn column. */
 const DOCK_GAP = 16;
 /**
- * From the mock: tabs 8 below the dock's edge and cards ending 10 above the
- * bottom, less the lift a hovered card rises by, which the fan keeps inside
- * itself.
+ * From the mock: tabs 8 below the dock's edge, cards 38 below it and ending
+ * 10 above the bottom, their edge cards dropping 5 into that. A lifted card
+ * rises over the tab on the raised layer.
  */
 const DOCK_PADDING = { top: 8, bottom: 5, left: 16, right: 16 };
 
