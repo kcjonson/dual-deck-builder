@@ -1,4 +1,4 @@
-import { TexelSource, TextureDescription, TextureDevice } from '../gpu/TextureStore';
+import { TexelSource, TextureDescription, TextureDevice, TextureRegion } from '../gpu/TextureStore';
 
 /**
  * WebGL2 has at least 32 combined texture units (the ES 3.0 minimum for
@@ -57,6 +57,16 @@ export class WebGL2TextureDevice implements TextureDevice<WebGLTexture> {
 		} else {
 			gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, 0, gl.RGBA, gl.UNSIGNED_BYTE, source);
 		}
+		gl.bindTexture(gl.TEXTURE_2D, null);
+	}
+
+	uploadRegion(texture: WebGLTexture, { x, y, width, height }: TextureRegion, texels: Uint8Array): void {
+		const gl = this.gl;
+		gl.activeTexture(gl.TEXTURE0 + UPLOAD_UNIT);
+		gl.bindTexture(gl.TEXTURE_2D, texture);
+		gl.pixelStorei(gl.UNPACK_COLORSPACE_CONVERSION_WEBGL, gl.NONE);
+		gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, false);
+		gl.texSubImage2D(gl.TEXTURE_2D, 0, x, y, width, height, gl.RGBA, gl.UNSIGNED_BYTE, texels);
 		gl.bindTexture(gl.TEXTURE_2D, null);
 	}
 
