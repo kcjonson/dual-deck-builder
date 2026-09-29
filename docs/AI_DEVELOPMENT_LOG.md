@@ -16,6 +16,15 @@ This document contains the chronological log of completed development tasks for 
 - DDB-219 folded in: the first cut rounded each pen to a whole pixel and read "atta ck" on the card footers; whole-pixel advances per word did not fix it (a 2.5 px `t` must alternate 2 and 3), quarter-pixel phases did.
 - Font files are asset modules (URLs on the web, data URIs in Electron). Goldens moved for the card showcase, the combat hand's card footers and `icons`; combat's 8 px HP lands on exactly 9 device px at 1440x882 and does not.
 
+## Nine-slice images (2026-09-28)
+
+**What landed:** DDB-203 (R5.19, from DDB-68).
+
+- `drawImage({ slice })` draws instead of reporting `nine-slice images are not drawn yet`. `draw/nineSlice.ts` turns the insets (texture pixels, measured in from the source rect) into four column and four row edges in destination pixels and texture coordinates; `UberGeometryEncoder` writes one `image`-mode quad per cell with area, row by row, in the image's one group, so a sliced panel costs no extra draw or split.
+- Each cell samples only its own texels: the fragment stage clamps its UV to the cell's rect inset by half a texel, from a half-texel inset the encoder puts in the image mode's unused shape lanes. Without it, linear filtering smeared the neighbouring cell's colour across stretched edges (review of #106). A negative-extent destination mirrors, like an unsliced draw.
+- Corners draw at one logical pixel per texel. Insets that cross inside the source are scaled down per axis; a destination smaller than two corners scales every corner by the smaller axis's factor, so corners keep their aspect (CSS border-image's rule). Zero insets drop their empty cells.
+- Tests: grid math in `nineSlice.test.ts`, encoder output in `UberGeometryEncoder.test.ts`, and a SwiftShader pixel test (corners stay 2x2 texels of pure colour, the pixels either side of every cell boundary are their own cell's colour, a fractional placement has no gap between cells). The `shading` gallery scene gained 5.10's nine-sliced image: a 24 px frame at one to one, sliced wide, stretched unsliced for contrast, and sliced shorter than its corners. The frame's art steps colour at the inset line, so the golden would show any bleed.
+
 ## Catalog Wave A, panel and scrolling (2026-09-28)
 
 **What landed:** DDB-85's second PR (DDB-55 phase 5), R12.18 to R12.20, R12.37, R3.6a's popup close; closes DDB-32 and DDB-210.

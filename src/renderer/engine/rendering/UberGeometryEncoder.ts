@@ -9,6 +9,7 @@ import {
 	DrawTextOptions,
 	ImageCommand,
 	Mat2D,
+	NineSlice,
 	PolygonCommand,
 	PolylineCommand,
 	RGBA,
@@ -22,6 +23,7 @@ import {
 import { GeometryEncoder, GeometrySink, GroupShape } from '../draw/Batcher';
 import type { TextureKey } from '../draw/ResidentTextureSet';
 import { FEATHER_MITER_LIMIT } from '../draw/bounds';
+import { NineSliceGrid, createNineSliceGrid, nineSliceCellCount, nineSliceGrid } from '../draw/nineSlice';
 import { isSingleOutline } from '../draw/triangulate';
 import { HairlineRectOptions, SnappedHairlineRect, snapHairlineRect, snapTextOrigin, snapToDevice } from '../coords/snapping';
 import type { TextLayout } from '../text/TextLayout';
@@ -221,6 +223,7 @@ export class UberGeometryEncoder implements GeometryEncoder {
 	private rasterResult: RasterGlyphAtlas | null = null;
 	private readonly rasterPenScratch = { pixel: 0, phase: 0 };
 	private readonly pointScratch = { x: 0, y: 0 };
+	private readonly sliceScratch: NineSliceGrid = createNineSliceGrid();
 	/** R5.17: screen-space outline and outward offsets, grown and reused. */
 	private outline = new Float64Array(0);
 	/** R5.17: each point's premultiplied colour, four per point, grown and reused. */
@@ -633,21 +636,26 @@ export class UberGeometryEncoder implements GeometryEncoder {
 	// -- image ------------------------------------------------------------
 
 	private shapeImage(command: ImageCommand, out: GroupShape): boolean {
-		if (command.slice) {
-			// R5.19 is a SHOULD with no caller yet; drawing the image unsliced
-			// would stretch its corners, which is the one thing a slice is for.
-			this.onUnpaintable('image', 'nine-slice images are not drawn yet');
-			return false;
-		}
 		if (isDegenerate(command.transform)) return true;
-		out.instances = 1;
+		const instances = command.slice ? nineSliceCellCount(this.sliceGrid(command, command.slice)) : 1;
+		if (instances === 0) return true;
+		out.instances = instances;
 		out.texture = command.texture;
 		return true;
+	}
+
+	/** R5.19's grid for a sliced image, into the encoder's one scratch grid. */
+	private sliceGrid(command: ImageCommand, slice: NineSlice): NineSliceGrid {
+		return nineSliceGrid(command, slice, this.sliceScratch);
 	}
 
 	private encodeImage(command: ImageCommand, sink: GeometrySink, slot: number): void {
 		const { rect, texture, transform } = command;
 		this.begin(command, UBER_MODE.image, slot);
+		if (command.slice) {
+			this.encodeSlicedImage(command, command.slice, sink);
+			return;
+		}
 		const source = command.sourceRect;
 		let u0 = 0;
 		let v0 = 0;
@@ -669,6 +677,38 @@ export class UberGeometryEncoder implements GeometryEncoder {
 				CORNER_X[corner] > 0 ? rect.x + rect.width : rect.x,
 				CORNER_Y[corner] > 0 ? rect.y + rect.height : rect.y);
 			this.color(sink, base, corner, tint);
+		}
+	}
+
+	/**
+	 * R5.19: one image-mode quad per cell of the grid, in one group, row by
+	 * row. Neighbouring cells share their edge coordinates exactly, and image
+	 * mode has no edge ramp, so the rasteriser's fill rule leaves no seam and
+	 * no double-covered row between them. Each cell also carries half a
+	 * texel, for the shader's clamp to its own texels.
+	 */
+	private encodeSlicedImage(command: ImageCommand, slice: NineSlice, sink: GeometrySink): void {
+		const grid = this.sliceGrid(command, slice);
+		const { x, y, u, v } = grid;
+		const transform = command.transform;
+		const tint = premultiply(command.tint ?? WHITE, this.fillScratch);
+		// Half a texel in UV: the shader keeps each cell's samples that far
+		// inside its own rect, so filtering never reaches a neighbour.
+		this.templateHalves[SHAPE_HALF] = toHalf(0.5 / Math.max(1, command.texture.width));
+		this.templateHalves[SHAPE_HALF + 1] = toHalf(0.5 / Math.max(1, command.texture.height));
+		let instance = 0;
+		for (let row = 0; row < grid.rowCount; row++) {
+			const r = grid.rows[row];
+			for (let column = 0; column < grid.columnCount; column++) {
+				const c = grid.columns[column];
+				const base = this.instance(sink, instance++);
+				this.setTexCoords(sink, base, u[c], v[r], u[c + 1], v[r + 1]);
+				this.corner(sink, base, 0, transform, x[c], y[r]);
+				this.corner(sink, base, 1, transform, x[c + 1], y[r]);
+				this.corner(sink, base, 2, transform, x[c + 1], y[r + 1]);
+				this.corner(sink, base, 3, transform, x[c], y[r + 1]);
+				for (let corner = 0; corner < 4; corner++) this.color(sink, base, corner, tint);
+			}
 		}
 	}
 
