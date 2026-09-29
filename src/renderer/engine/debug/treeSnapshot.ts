@@ -183,6 +183,8 @@ export interface SnapshotNode {
 	value?: string;
 	/** A text field's placeholder, shown while its value is empty. */
 	placeholder?: string;
+	/** Strings a component draws itself, not through a Text node (`Component.drawnText`). */
+	labels?: string[];
 	style?: SnapshotStyle;
 	/** The content box grown by `inkExtent`, in the viewport, before any clip (R8.8). */
 	inkBounds?: SnapshotRect;
@@ -423,6 +425,8 @@ function serializeNode(
 		if (node instanceof Checkable) serialized.state.checked = node.checkedState;
 
 		if (node instanceof Text) serialized.text = snapshotText(node);
+		const drawn = node.drawnText;
+		if (drawn && drawn.length > 0) serialized.labels = drawn.map((label) => safeString(label) ?? '');
 		if (node instanceof TextInput) {
 			serialized.value = safeString(node.displayText) ?? '';
 			if (node.placeholder !== '') serialized.placeholder = safeString(node.placeholder) ?? '';

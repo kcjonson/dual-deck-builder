@@ -145,6 +145,11 @@ export class Select extends Component {
 		return this.menu;
 	}
 
+	/** The label or placeholder it draws (the text record, DDB-206). */
+	public get drawnText(): readonly string[] {
+		return [this.selectedLabel];
+	}
+
 	public get look(): Look {
 		return this.transition.look;
 	}

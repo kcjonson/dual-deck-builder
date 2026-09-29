@@ -75,6 +75,11 @@ class MenuRows extends Component {
 		return true;
 	}
 
+	/** Each item's label, and its shortcut after a tab (the text record, DDB-206). */
+	public get drawnText(): readonly string[] {
+		return this.menu.items.filter((item) => !item.separator).map((item) => (item.shortcut ? `${item.label ?? ''}\t${item.shortcut}` : item.label ?? ''));
+	}
+
 	/** R12.11: hover follows the pointer (not consumed); a press is taken; a release on an enabled item selects. */
 	public handleEvent(event: AnyUiEvent): void {
 		super.handleEvent(event);

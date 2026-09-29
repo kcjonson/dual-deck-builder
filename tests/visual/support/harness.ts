@@ -380,8 +380,9 @@ export function textSnapshotName(kind: 'screen' | 'scene', name: string): string
  * sizes differ by a few pixels that pixelmatch classes as anti-aliasing, so
  * they come back as zero differing pixels (the mutation table in
  * docs/AI_TECHNICAL_DECISIONS/visual-golden-harness.md). The tree snapshot
- * holds every Text node's string, and every text field's value (masked for a
- * password) or, while it is empty, its placeholder, so the strings are
+ * holds every Text node's string, every text field's value (masked for a
+ * password) or, while it is empty, its placeholder, and the strings a
+ * component draws itself (`labels`, joined with ` | `), so the strings are
  * asserted directly: one line per text with its path, its content, and its
  * rounded screen rect.
  *
@@ -413,6 +414,8 @@ export async function expectTextSnapshot(page: Page, kind: 'screen' | 'scene', n
 			/** A text field's value, masked for a password, and its placeholder. */
 			value?: string;
 			placeholder?: string;
+			/** Strings a component draws itself (a select's label, a menu's rows). */
+			labels?: string[];
 			parts?: Node[];
 			children: Node[];
 		}
@@ -433,7 +436,7 @@ export async function expectTextSnapshot(page: Page, kind: 'screen' | 'scene', n
 				const path = parentPath ? `${parentPath}/${segment}` : segment;
 				const box = node.screenBounds;
 				// A text field draws its value (or its placeholder) itself, with no Text node.
-				const shown = node.text?.content ?? (node.value ? node.value : node.placeholder);
+				const shown = node.text?.content ?? (node.value ? node.value : node.placeholder) ?? node.labels?.join(' | ');
 				if (shown && meets(box, node.clip ?? viewport) && meets(box, viewport)) {
 					out.push(JSON.stringify({
 						path,
