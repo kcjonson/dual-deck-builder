@@ -872,6 +872,15 @@ export class DrawApi {
 		return this.backend.textInk?.(options) ?? null;
 	}
 
+	/**
+	 * Called when a screen or scene has just mounted: the next frame builds
+	 * all the small text it draws rather than spreading it over frames under
+	 * the backend's budget (R6.4a, `DrawBackend.prewarmText`).
+	 */
+	prewarmText(): void {
+		this.backend.prewarmText?.();
+	}
+
 	/** R2.14, delegated to the backend that owns the glyph walk. See `TEXT_MEASUREMENT_UNAVAILABLE`. */
 	measureText(options: MeasureTextOptions): TextMetrics {
 		if (!this.backend.measureText) {

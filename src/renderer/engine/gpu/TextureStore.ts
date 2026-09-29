@@ -72,6 +72,14 @@ export interface TextureOptions {
 	immediate?: boolean;
 }
 
+/** Texels, from the top-left corner. */
+export interface TextureRegion {
+	readonly x: number;
+	readonly y: number;
+	readonly width: number;
+	readonly height: number;
+}
+
 export interface TextureDescription {
 	readonly width: number;
 	readonly height: number;
@@ -85,6 +93,8 @@ export interface TextureDevice<Native> {
 	allocate(description: TextureDescription): Native;
 	/** The whole texture, from `source`. Never re-specifies the storage. */
 	upload(texture: Native, description: TextureDescription, source: TexelSource): void;
+	/** `region` of the texture from tightly packed RGBA8 `texels`, as given (premultiplied already for colour). */
+	uploadRegion(texture: Native, region: TextureRegion, texels: Uint8Array): void;
 	release(texture: Native): void;
 }
 
@@ -92,6 +102,7 @@ export interface TextureDevice<Native> {
 export const NULL_TEXTURE_DEVICE: TextureDevice<true> = {
 	allocate: () => true,
 	upload: () => undefined,
+	uploadRegion: () => undefined,
 	release: () => undefined,
 };
 
@@ -243,6 +254,46 @@ export class TextureStore<Native> {
 	native(handle: TextureHandle): Native | null {
 		const record = this.records.get(handle.id);
 		return record?.state === 'resident' ? record.native : null;
+	}
+
+	/**
+	 * Rewrites `region` of a live texture from tightly packed RGBA8 `texels`
+	 * now, for a texture that is filled a piece at a time (R6.4a's raster
+	 * glyph page). The write lands in the kept source too, when the texture
+	 * keeps a `Uint8Array` one, so a restored context uploads the texture as
+	 * it stands. A texture not yet resident, or a lost device, gets only that.
+	 * Uploads bind a unit no draw samples, so a write between two flushes
+	 * disturbs nothing the backend has bound, and draws already issued keep
+	 * the texels they were issued with.
+	 */
+	writeRegion(handle: TextureHandle, region: TextureRegion, texels: Uint8Array): void {
+		const record = this.recordOf(handle);
+		const { width, height } = record.description;
+		if (!Number.isInteger(region.x) || !Number.isInteger(region.y) || !Number.isInteger(region.width) || !Number.isInteger(region.height)
+			|| region.x < 0 || region.y < 0 || region.width < 1 || region.height < 1
+			|| region.x + region.width > width || region.y + region.height > height) {
+			throw new Error(`TextureStore: region ${JSON.stringify(region)} is not inside the ${width} by ${height} texture`);
+		}
+		if (texels.length !== region.width * region.height * 4) {
+			throw new Error(`TextureStore: a ${region.width} by ${region.height} region is ${region.width * region.height * 4} bytes, the texels have ${texels.length}`);
+		}
+		const kept = record.source;
+		if (kept instanceof Uint8Array) {
+			for (let row = 0; row < region.height; row++) {
+				kept.set(
+					texels.subarray(row * region.width * 4, (row + 1) * region.width * 4),
+					((region.y + row) * width + region.x) * 4,
+				);
+			}
+		}
+		if (this.deviceLost || record.state !== 'resident' || record.native === null) return;
+		try {
+			this.device.uploadRegion(record.native, region, texels);
+		} catch (error) {
+			this.onDiagnostic(`texture ${record.handle.label ?? record.handle.id} region could not be uploaded: ${String(error)}`);
+			return;
+		}
+		this.uploadedThisFrame += texels.length;
 	}
 
 	/** Drains the upload queue under the byte budget (R5.32). A lost device uploads nothing. */
