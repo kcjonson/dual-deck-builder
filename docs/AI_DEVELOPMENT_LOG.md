@@ -17,6 +17,17 @@ This document contains the chronological log of completed development tasks for 
 - Review fixes (#109, #111): Counter and ProgressBar show their target when mounted again after an unmount cut a count short; `Text.shadow` is part of the text's measured ink and cull bound, so the subtree cull never drops a visible shadow; `ProgressBar.valueText` builds the value line when the bar had none; a dialog's panel is never fully transparent, so a press on it the frame it opens is inside; a hovered toast asks for no frames and a fading one takes no clicks.
 
 **How:** `ui/display.test.ts` (26) with the committed font metrics and a recording backend: auto banding, fill and counter tweens with retargeting and reduced motion, segmented cells, the badge pill and dot, FNV-1a against known hashes, mood bands, rings as ink, the unit's baseline equal to the value's, and the divider's caption break. Both scenes lint clean in the browser.
+## Catalog Wave B, menus (2026-09-28)
+
+**What landed:** DDB-86's second PR (DDB-55 phase 5), R12.11 to R12.14.
+
+- `ui/Menu.ts`: a raised surface and one `MenuRows` part that draws and hit-tests the rows (items, separators, shortcut hints, disabled items), hover on move, a press inside consumed with `preventFocus`, selection on a release whose press began inside; `moveHover`, `hoverEdge`, `selectHovered` for owners; `maxHeight`; the rows scroll in a ScrollContainer when the menu is shorter than they are, and a keyboard highlight (or the opening one) is brought into view.
+- `ui/Select.ts`, `ui/DropdownButton.ts` (a Button with a trailing caret), `ui/ContextMenu.ts` (a Menu with `openAt`, taking focus while open and giving it back), all opened through the popup service.
+- `ui/controlBox.ts`: the field box and outside ring TextInput and Select share.
+- Gallery scene `menus`.
+
+**How:** `ui/menus.test.ts`, 36 cases through injected input (worldsim's Menu, Select, DropdownButton, and ContextMenu behaviour, plus separators, shortcuts, `maxHeight`, focus kept through a press in the list, switching between selects in one press, the captured opening press, R9.13's primary and secondary outside presses, wheel scrolling of a capped menu and selection after it, keyboard reveal, a placement-shortened select list opening with its value in view). The scene lints clean in the browser with a select and a context menu open.
+
 ## Catalog Wave B, text entry (2026-09-28)
 
 **What landed:** DDB-86's first PR (DDB-55 phase 5), R12.10 and R12.36.
