@@ -1925,6 +1925,16 @@ export abstract class Component {
 		return false;
 	}
 
+	/**
+	 * The strings this component draws itself rather than through a Text
+	 * node (a select's label, a menu's rows, a slider's value), for the tree
+	 * snapshot's `labels` and so for the visual text record (DDB-206). Null
+	 * when it draws no text of its own.
+	 */
+	public get drawnText(): readonly string[] | null {
+		return null;
+	}
+
 	/** R9.18: focusable, mounted, and effectively visible and enabled. */
 	public canReceiveFocus(): boolean {
 		return this.ownFocusable && this.mountContext !== null && this.effectivelyVisible && this.effectivelyEnabled;

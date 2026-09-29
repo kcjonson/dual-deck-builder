@@ -19,6 +19,7 @@ import { RadioExamplesSection } from './RadioExamplesSection';
 import { PanelExamplesSection } from './PanelExamplesSection';
 import { ScrollExamplesSection } from './ScrollExamplesSection';
 import { LeafExamplesSection } from './LeafExamplesSection';
+import { MenuExamplesSection } from './MenuExamplesSection';
 
 /**
  * The developer screen's sections, defined once.
@@ -148,5 +149,9 @@ export const developerSections: readonly DeveloperSection[] = [
 	{
 		name: 'leaves',
 		build: ({ x, y, width }) => new LeafExamplesSection(x, y, width),
+	},
+	{
+		name: 'menus',
+		build: ({ x, y, width }) => new MenuExamplesSection(x, y, width),
 	},
 ];
