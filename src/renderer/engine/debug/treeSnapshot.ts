@@ -1,6 +1,6 @@
 import { Component, PointerEvents } from '../components/Component';
 import { Text } from '../components/Text';
-import { Panel } from '../ui/Panel';
+import { ScrollContainer } from '../ui/ScrollContainer';
 import { Stack } from '../components/Stack';
 import { TextInput } from '../ui/TextInput';
 import { Checkable } from '../ui/Checkbox';
@@ -145,8 +145,7 @@ export interface SnapshotStack {
  * `x` and `y` are the scroll offset, `maxX` and `maxY` the furthest it goes,
  * 0 on an axis that does not scroll. Emitted only by a real scroller, which
  * is what the lint's rules 3 and 6 key on: `contentOffset` is not that
- * signal, because a padded panel that never scrolls reports its padding
- * there too.
+ * signal on its own.
  */
 export interface SnapshotScroll {
 	x: number;
@@ -182,6 +181,8 @@ export interface SnapshotNode {
 	state?: SnapshotState;
 	text?: SnapshotText;
 	value?: string;
+	/** A text field's placeholder, shown while its value is empty. */
+	placeholder?: string;
 	style?: SnapshotStyle;
 	/** The content box grown by `inkExtent`, in the viewport, before any clip (R8.8). */
 	inkBounds?: SnapshotRect;
@@ -407,13 +408,11 @@ function serializeNode(
 		const offset = node.contentOffset;
 		const offsetX = finite(offset?.x);
 		const offsetY = finite(offset?.y);
-		if ((node instanceof Panel && node.scrollable) || offsetX !== 0 || offsetY !== 0) {
+		if (node instanceof ScrollContainer || offsetX !== 0 || offsetY !== 0) {
 			serialized.contentOffset = { x: offsetX, y: offsetY };
 		}
-		if (node instanceof Panel && node.scrollable) {
-			const position = node.getScrollOffset();
-			const range = node.scrollRange;
-			serialized.scroll = { x: finite(position.x), y: finite(position.y), maxX: finite(range.x), maxY: finite(range.y) };
+		if (node instanceof ScrollContainer) {
+			serialized.scroll = { x: 0, y: finite(node.scrollPosition), maxX: 0, maxY: finite(node.maxScroll) };
 		}
 
 		const transform = snapshotTransform(node);
@@ -424,7 +423,10 @@ function serializeNode(
 		if (node instanceof Checkable) serialized.state.checked = node.checkedState;
 
 		if (node instanceof Text) serialized.text = snapshotText(node);
-		if (node instanceof TextInput) serialized.value = safeString(node.displayText) ?? '';
+		if (node instanceof TextInput) {
+			serialized.value = safeString(node.displayText) ?? '';
+			if (node.placeholder !== '') serialized.placeholder = safeString(node.placeholder) ?? '';
+		}
 		if (node instanceof Stack) serialized.stack = { direction: node.direction, gap: finite(node.gap) };
 
 		const style = snapshotStyle(node);

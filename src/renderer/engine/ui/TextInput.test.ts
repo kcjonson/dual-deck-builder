@@ -222,6 +222,24 @@ describe('TextInput editing (R12.10)', () => {
 		expect(changes).toEqual(['Scre', 'Screw', 'crew', 'cre', '']);
 	});
 
+	it('treats an astral code point as one caret step, one character of maxLength, and one Backspace', () => {
+		const car = '\u{1F697}';
+		const made = field({ value: `a${car}b`, maxLength: 4 });
+		expect(made.caretIndex).toBe(3);
+		inject(`click,${FIELD_X + 4},${MIDDLE_Y}`);
+		press('End');
+		press('ArrowLeft');
+		expect(made.caretIndex).toBe(2);
+		press('ArrowLeft', { shift: true });
+		expect(made.selectedText).toBe(car);
+		press('ArrowRight');
+		press('Backspace');
+		expect(made.value).toBe('ab');
+		type(`${car}${car}${car}`);
+		expect(made.value).toBe(`a${car}${car}b`);
+		expect(made.value).not.toMatch(/[\uD800-\uDBFF](?![\uDC00-\uDFFF])/);
+	});
+
 	it('never fires onChange for a programmatic value, and keeps it within maxLength', () => {
 		const changes: string[] = [];
 		const made = field({ value: 'abc', maxLength: 4, onChange: (value) => changes.push(value) });
@@ -342,6 +360,42 @@ describe('TextInput clipboard (R12.10, R9.17)', () => {
 		expect(made.displayText).toBe('•'.repeat(7));
 		const texts = commands().filter((command): command is TextCommand => command.kind === 'text');
 		expect(texts.map((text) => text.text)).toEqual(['•'.repeat(7)]);
+	});
+
+	it('pastes nothing and reports no error when the clipboard refuses', async () => {
+		const made = field({ value: 'kept' });
+		jest.spyOn(context.clipboard, 'readText').mockRejectedValue(new Error('denied'));
+		jest.spyOn(context.clipboard, 'writeText').mockRejectedValue(new Error('denied'));
+		const unhandled = jest.fn();
+		process.on('unhandledRejection', unhandled);
+		try {
+			inject(`click,${FIELD_X + 4},${MIDDLE_Y}`);
+			press('a', { ctrl: true });
+			press('c', { ctrl: true });
+			press('v', { ctrl: true });
+			await settle();
+			await settle();
+		} finally {
+			process.off('unhandledRejection', unhandled);
+		}
+		expect(made.value).toBe('kept');
+		expect(unhandled).not.toHaveBeenCalled();
+	});
+
+	it('types the character AltGr makes, which Windows reports as Ctrl+Alt, and keeps it from the hotkeys', () => {
+		const made = field();
+		const heard: string[] = [];
+		context.dispatcher.hotkeys.register('@', () => heard.push('hotkey'));
+		inject(`click,${FIELD_X + 4},${MIDDLE_Y}`);
+		press('@', { ctrl: true, alt: true });
+		press('€', { ctrl: true, alt: true });
+		expect(made.value).toBe('@€');
+		expect(heard).toEqual([]);
+		expect(context.dispatcher.claimsKey('@', { ...NO_MODIFIERS, ctrl: true, alt: true })).toBe(true);
+		// Ctrl+Alt with a named key is still a chord: Ctrl+Left goes to the start.
+		press('ArrowLeft', { ctrl: true, alt: true });
+		expect(made.caretIndex).toBe(0);
+		expect(made.value).toBe('@\u20AC');
 	});
 
 	it('lets other Cmd and Ctrl chords through to the hotkeys', () => {

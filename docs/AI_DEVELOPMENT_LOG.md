@@ -20,12 +20,12 @@ This document contains the chronological log of completed development tasks for 
 
 **What landed:** DDB-86's second PR (DDB-55 phase 5), R12.11 to R12.14.
 
-- `ui/Menu.ts`: a raised surface and one `MenuRows` part that draws and hit-tests the rows (items, separators, shortcut hints, disabled items), hover on move, a press inside consumed with `preventFocus`, selection on a release whose press began inside; `moveHover`, `hoverEdge`, `selectHovered` for owners; `maxHeight`, clipping until ScrollContainer lands.
+- `ui/Menu.ts`: a raised surface and one `MenuRows` part that draws and hit-tests the rows (items, separators, shortcut hints, disabled items), hover on move, a press inside consumed with `preventFocus`, selection on a release whose press began inside; `moveHover`, `hoverEdge`, `selectHovered` for owners; `maxHeight`; the rows scroll in a ScrollContainer when the menu is shorter than they are, and a keyboard highlight (or the opening one) is brought into view.
 - `ui/Select.ts`, `ui/DropdownButton.ts` (a Button with a trailing caret), `ui/ContextMenu.ts` (a Menu with `openAt`, taking focus while open and giving it back), all opened through the popup service.
 - `ui/controlBox.ts`: the field box and outside ring TextInput and Select share.
 - Gallery scene `menus`.
 
-**How:** `ui/menus.test.ts`, 33 cases through injected input (worldsim's Menu, Select, DropdownButton, and ContextMenu behaviour, plus separators, shortcuts, `maxHeight`, focus kept through a press in the list, switching between selects in one press, the captured opening press, R9.13's primary and secondary outside presses). The scene lints clean in the browser with a select and a context menu open.
+**How:** `ui/menus.test.ts`, 36 cases through injected input (worldsim's Menu, Select, DropdownButton, and ContextMenu behaviour, plus separators, shortcuts, `maxHeight`, focus kept through a press in the list, switching between selects in one press, the captured opening press, R9.13's primary and secondary outside presses, wheel scrolling of a capped menu and selection after it, keyboard reveal, a placement-shortened select list opening with its value in view). The scene lints clean in the browser with a select and a context menu open.
 
 ## Catalog Wave B, text entry (2026-09-28)
 
@@ -38,6 +38,27 @@ This document contains the chronological log of completed development tasks for 
 - `input-showcase` rebuilt as a catalog section; `interactive-controls` and the tests that built an `Input` moved to TextInput; the `clipping` scene's overflowing field is the real component.
 
 **How:** `ui/TextInput.test.ts`, 32 cases through injected input with the committed font metrics (caret placement against the advances, drag selection past the edge, keyboard selection, editing, maxLength and paste truncation, the validator per code point, Enter, Escape reaching the hotkeys, printable keys consumed, clipboard round trip, control characters stripped, password refusing copy, scroll to caret and back to zero, the clip rect, the blink, and NumberInput's clamping, stepping, commit, validator, wheel, and Tab stop). In the browser the three touched scenes lint clean, and typing, selecting, and stepping were tried by hand. Details in [component-catalog-wave-b.md](AI_TECHNICAL_DECISIONS/component-catalog-wave-b.md).
+
+## Nine-slice images (2026-09-28)
+
+**What landed:** DDB-203 (R5.19, from DDB-68).
+
+- `drawImage({ slice })` draws instead of reporting `nine-slice images are not drawn yet`. `draw/nineSlice.ts` turns the insets (texture pixels, measured in from the source rect) into four column and four row edges in destination pixels and texture coordinates; `UberGeometryEncoder` writes one `image`-mode quad per cell with area, row by row, in the image's one group, so a sliced panel costs no extra draw or split.
+- Each cell samples only its own texels: the fragment stage clamps its UV to the cell's rect inset by half a texel, from a half-texel inset the encoder puts in the image mode's unused shape lanes. Without it, linear filtering smeared the neighbouring cell's colour across stretched edges (review of #106). A negative-extent destination mirrors, like an unsliced draw.
+- Corners draw at one logical pixel per texel. Insets that cross inside the source are scaled down per axis; a destination smaller than two corners scales every corner by the smaller axis's factor, so corners keep their aspect (CSS border-image's rule). Zero insets drop their empty cells.
+- Tests: grid math in `nineSlice.test.ts`, encoder output in `UberGeometryEncoder.test.ts`, and a SwiftShader pixel test (corners stay 2x2 texels of pure colour, the pixels either side of every cell boundary are their own cell's colour, a fractional placement has no gap between cells). The `shading` gallery scene gained 5.10's nine-sliced image: a 24 px frame at one to one, sliced wide, stretched unsliced for contrast, and sliced shorter than its corners. The frame's art steps colour at the inset line, so the golden would show any bleed.
+
+## Catalog Wave A, panel and scrolling (2026-09-28)
+
+**What landed:** DDB-85's second PR (DDB-55 phase 5), R12.18 to R12.20, R12.37, R3.6a's popup close; closes DDB-32 and DDB-210.
+
+- `ui/Panel.ts` rewritten as a `Stack` on the closed style set with variants, header (kicker, title, hairline, actions), corners, glow, compact, flush, and `layout: 'stack' | 'free'`. Its scrolling is gone.
+- New `ui/ScrollContainer.ts` and `ui/Scrollbar.ts`. `Stack.flows(child)`, `Component.invalidateClip()`, `Dispatcher.contentMoved()`, `PopupService.scrolled()` with the `scroll` close reason.
+- The layout lint exempts a scroll container's direct children from rule 2.
+- Developer screen and card showcase on ScrollContainer; the combat log on ScrollContainer with reconciled lines that follow the newest entry.
+- Gallery scenes `panels` and `scrolling`.
+
+**How:** `ScrollContainer.test.ts` (worldsim's suite ported: max scroll, clamping, a resized viewport re-clamping; plus layout and the gutter, the fixed scrollbar and its thumb, the clip and ink, wheel latching, hover after a scroll by code, keys, thumb drag and track press without taking focus, `scrollIntoView` nearest and center, `scrollToBottom` across a layout, and popups closing), `Panel.test.ts`, `ScrollClip.test.ts` (the old panel clip suite on the new container), `CombatLogLayer.test.ts`, and the dispatcher, focus, snapshot, and cull suites moved onto ScrollContainer. In the browser: every existing gallery scene's text record matches its committed JSON, all scenes lint clean at 1440 by 882, and the lists scroll by wheel and thumb.
 
 ## Catalog Wave A, controls (2026-09-28)
 
