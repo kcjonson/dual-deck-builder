@@ -15,7 +15,9 @@ This document contains the chronological log of completed development tasks for 
 - `OverlayOptions.persistent`: survives `closeAll`.
 - Scenes `tree-view` (developer section) and `screen-transition` (gallery-only).
 
-**How:** `ui/TreeView.test.ts` (7) and `ui/ScreenTransition.test.ts` (6) through the dispatcher's queue and the frame clock, including a swap that runs ScreenManager's own closes. Both scenes lint clean in the browser.
+- Review fixes (#113): TreeView's rows are virtualised inside a ScrollContainer (latch, scrollbar, Page Up and Down), the cursor's row is `active`, a collapse moves the cursor to the nearest visible ancestor, and the selection survives folding. A throwing swap ends the transition uncovered and rejects its runs; a run from inside a swap is chained; `FocusManager.focus` refuses components outside the active scope and keeps them as the scope's restore target, so the incoming scene takes no keys until the fade ends.
+
+**How:** `ui/TreeView.test.ts` (13) and `ui/ScreenTransition.test.ts` (10) through the dispatcher's queue and the frame clock, including a swap that runs ScreenManager's own closes, one that throws, and a wheel overshoot inside an outer scroller. Both scenes lint clean in the browser.
 
 ## Catalog Wave C, display components (2026-09-28)
 
