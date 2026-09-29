@@ -22,6 +22,7 @@ import { LeafExamplesSection } from './LeafExamplesSection';
 import { MenuExamplesSection } from './MenuExamplesSection';
 import { MeterExamplesSection } from './MeterExamplesSection';
 import { DataDisplaySection } from './DataDisplaySection';
+import { TreeExamplesSection } from './TreeExamplesSection';
 
 /**
  * The developer screen's sections, defined once.
@@ -163,5 +164,9 @@ export const developerSections: readonly DeveloperSection[] = [
 	{
 		name: 'data-display',
 		build: ({ x, y, width }) => new DataDisplaySection(x, y, width),
+	},
+	{
+		name: 'tree-view',
+		build: ({ x, y, width }) => new TreeExamplesSection(x, y, width),
 	},
 ];
