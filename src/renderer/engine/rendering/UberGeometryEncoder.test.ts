@@ -1056,6 +1056,27 @@ describe('UberGeometryEncoder: small text from raster glyphs (R6.4a)', () => {
 		expect(modeAt(9.4 / 8)).toBe('field');
 	});
 
+	it('does not hand the hysteresis to a run of the same size at another scale', () => {
+		const source = rasterSource();
+		const { encoder } = setup(1, source);
+		const [small, stage] = record((api) => {
+			// 8 px on a card at 7 device px, then 8 px on a stage at 9 device px.
+			api.pushTransform([0.875, 0, 0, 0.875, 0, 0]);
+			api.drawText({ text: 'A', position: { x: 0, y: 20 }, font: 'body', size: 8, color: RED });
+			api.popTransform();
+			api.pushTransform([1.125, 0, 0, 1.125, 0, 0]);
+			api.drawText({ text: 'A', position: { x: 0, y: 40 }, font: 'body', size: 8, color: RED });
+			api.popTransform();
+		});
+		const textureOf = (command: DrawCommand) => {
+			const shape: GroupShape = { instances: 0, texture: null };
+			encoder.shape(command, shape);
+			return (shape.texture as TextureHandle | null)?.id;
+		};
+		expect(textureOf(small)).toBe(RASTER_PAGE_ID);
+		expect(textureOf(stage)).not.toBe(RASTER_PAGE_ID);
+	});
+
 	it('still draws decorations after the glyphs, as rect-mode rules', () => {
 		const { draw } = setup(1, rasterSource());
 		const upload = draw((api) => {

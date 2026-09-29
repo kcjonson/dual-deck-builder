@@ -29,7 +29,16 @@ import { HairlineRectOptions, SnappedHairlineRect, snapHairlineRect, snapTextOri
 import type { TextLayout } from '../text/TextLayout';
 import { TextMetricsService } from '../text/TextMetricsService';
 import { DECORATION_THICKNESS, LineOrigin, decorationOffset, lineOrigin, runInk } from '../text/textPlacement';
-import { RasterGlyphCell, RasterGlyphRun, RasterGlyphSource, rasterPen, rasterPixelSize, wantsRasterGlyphs } from '../text/rasterGlyphs';
+import {
+	RASTER_RANGE_HYSTERESIS,
+	RASTER_RANGE_THRESHOLD,
+	RasterGlyphCell,
+	RasterGlyphRun,
+	RasterGlyphSource,
+	rasterPen,
+	rasterPixelSize,
+	wantsRasterGlyphs,
+} from '../text/rasterGlyphs';
 import { toHalf, toUnorm8 } from './packing';
 
 /**
@@ -171,6 +180,8 @@ export interface UberGeometryEncoderOptions {
 }
 
 const WHITE: RGBA = [1, 1, 1, 1];
+/** The hysteresis band as a ratio of device scales: a range of 1.6 over 1.5. */
+const HYSTERESIS_SCALE = (RASTER_RANGE_THRESHOLD + RASTER_RANGE_HYSTERESIS) / RASTER_RANGE_THRESHOLD;
 const TRANSPARENT: RGBA = [0, 0, 0, 0];
 
 /** Quad corners in the order top-left, top-right, bottom-right, bottom-left. */
@@ -222,12 +233,16 @@ export class UberGeometryEncoder implements GeometryEncoder {
 	private rasterCommand: TextCommand | null = null;
 	private rasterResult: RasterGlyphRun | null = null;
 	/**
-	 * R6.4a's hysteresis: the logical sizes of each font that are on the
-	 * raster path, which stay there until their range passes the threshold
-	 * by `RASTER_RANGE_HYSTERESIS`. Keyed on font and size rather than on the
-	 * command, which is new every frame.
+	 * R6.4a's hysteresis: for each font and logical size on the raster path,
+	 * the device scale it was last drawn at there. A run of that font and size
+	 * at about that scale (within the hysteresis band's ratio) stays on the
+	 * raster until its range passes the threshold by `RASTER_RANGE_HYSTERESIS`,
+	 * so one run zooming across the threshold does not flicker. Keyed on font,
+	 * size and scale rather than on the command, which is new every frame; the
+	 * scale keeps a run of the same size at another scale (8 px on a card and
+	 * 8 px on the stage) from inheriting the state.
 	 */
-	private readonly rasterSizes = new Map<string, Set<number>>();
+	private readonly rasterScales = new Map<string, Map<number, number>>();
 	private readonly rasterPenScratch = { pixel: 0, phase: 0 };
 	private readonly pointScratch = { x: 0, y: 0 };
 	private readonly sliceScratch: NineSliceGrid = createNineSliceGrid();
@@ -750,17 +765,18 @@ export class UberGeometryEncoder implements GeometryEncoder {
 		const scale = matrix[0];
 		if (this.smallText && command.blur <= 0 && matrix[1] === 0 && matrix[2] === 0 && matrix[3] === scale && scale > 0) {
 			const deviceScale = scale * this.ratioValue;
-			let sizes = this.rasterSizes.get(command.font);
-			const already = sizes?.has(layout.size) ?? false;
+			let scales = this.rasterScales.get(command.font);
+			const last = scales?.get(layout.size);
+			const already = last !== undefined && deviceScale <= last * HYSTERESIS_SCALE && deviceScale >= last / HYSTERESIS_SCALE;
 			if (wantsRasterGlyphs(layout.atlas, layout.size, deviceScale, already)) {
-				if (!sizes) {
-					sizes = new Set();
-					this.rasterSizes.set(command.font, sizes);
+				if (!scales) {
+					scales = new Map();
+					this.rasterScales.set(command.font, scales);
 				}
-				sizes.add(layout.size);
+				scales.set(layout.size, deviceScale);
 				raster = this.smallText.glyphs(command.font, layout, rasterPixelSize(layout.size, deviceScale));
 			} else if (already) {
-				sizes?.delete(layout.size);
+				scales?.delete(layout.size);
 			}
 		}
 		this.rasterCommand = command;
