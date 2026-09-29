@@ -146,19 +146,26 @@ function checkProperties(style: StyleProperties, acceptance: StyleAcceptance, st
 
 const COLOR_TOKENS = tokens.color as Readonly<Record<string, RGBA>>;
 
+/** What an unparseable colour draws as in a production build: loud, so it is noticed and reported. */
+export const INVALID_COLOR: RGBA = [1, 0, 1, 1];
+
 /**
  * A colour value as floats. A token name reads the theme; `transparent`,
  * `#rgb`, `#rrggbb`, `#rrggbbaa`, `rgb()`, and `rgba()` are parsed. A string
- * that is none of them throws, where the old parser turned it into white
- * without a word.
+ * that is none of them throws in a development build, as an unknown style
+ * key does (R11.14); a production build warns and draws magenta rather than
+ * take the screen down. The old parser turned it into white without a word.
  */
 export function resolveColor(value: ColorValue): RGBA {
 	if (typeof value !== 'string') return value;
 	const token = COLOR_TOKENS[value];
 	if (token) return token;
 	const parsed = parseCssColor(value.trim().toLowerCase());
-	if (!parsed) throw new Error(`style: "${value}" is not a colour token or a CSS colour`);
-	return parsed;
+	if (parsed) return parsed;
+	const message = `style: "${value}" is not a colour token or a CSS colour`;
+	if (isDevelopmentBuild()) throw new Error(message);
+	console.warn(message);
+	return INVALID_COLOR;
 }
 
 function parseCssColor(text: string): RGBA | null {

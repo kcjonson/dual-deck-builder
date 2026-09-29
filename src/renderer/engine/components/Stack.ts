@@ -104,16 +104,13 @@ export class Stack extends Container {
 	private stackDistribution: Distribution = 'start';
 	private stackCrossAlign: CrossAlign = 'start';
 	private backdrop: BoxStyle | null = null;
+	private backdropStyle: BoxStyleObject = {};
 
 	constructor(options?: StackOptions) {
 		const { style, ...rest } = options ?? {};
 		super(rest);
 		this.componentType = 'Stack';
-		if (style) {
-			validateBox(style);
-			this.backdrop = resolveBoxStyle(style, NO_BOX);
-			if (style.opacity !== undefined) this.opacity = style.opacity;
-		}
+		if (style) this.style = style;
 		if (!options) return;
 		if (options.direction !== undefined) this.stackDirection = options.direction;
 		if (options.gap !== undefined) this.stackGap = options.gap;
@@ -128,6 +125,19 @@ export class Stack extends Container {
 	}
 
 	// -- the box --------------------------------------------------------------
+
+	public get style(): BoxStyleObject {
+		return this.backdropStyle;
+	}
+
+	/** R11.16: construction's path and validation; the new style replaces the old one whole, and `{}` draws nothing. */
+	public set style(style: BoxStyleObject) {
+		validateBox(style);
+		this.backdropStyle = style;
+		this.backdrop = Object.keys(style).length > 0 ? resolveBoxStyle(style, NO_BOX) : null;
+		if (style.opacity !== undefined) this.opacity = style.opacity;
+		this.invalidateInk();
+	}
 
 	public get resolvedColors(): ResolvedColors | null {
 		return this.backdrop && this.width > 0 && this.height > 0 ? boxColors(this.backdrop) : null;

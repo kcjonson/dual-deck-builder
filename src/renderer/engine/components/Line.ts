@@ -18,6 +18,7 @@ export interface LineOptions extends Omit<ComponentOptions, 'style' | 'width' | 
 	style?: LineStyleObject;
 }
 
+const WHITE: RGBA = [1, 1, 1, 1];
 const LINE_STYLE = { component: 'Line', properties: new Set<StyleProperty>(['color', 'opacity']), states: new Set<never>() };
 
 /**
@@ -34,18 +35,31 @@ export class Line extends Component {
 	private lineThickness: number;
 	private lineCap: LineCap;
 	private lineColor: RGBA;
+	private styleObject: LineStyleObject;
 
 	constructor({ start, end, thickness = 1, cap = 'butt', style = {}, ...options }: LineOptions) {
 		super(options);
 		this.componentType = 'Line';
-		validateStyle(style, LINE_STYLE);
+		this.styleObject = {};
+		this.lineColor = WHITE;
+		this.style = style;
 		this.from = { ...start };
 		this.to = { ...end };
 		this.lineThickness = thickness;
 		this.lineCap = cap;
-		this.lineColor = style.color !== undefined ? resolveColor(style.color) : [1, 1, 1, 1];
-		if (style.opacity !== undefined) this.opacity = style.opacity;
 		this.fitBox();
+	}
+
+	public get style(): LineStyleObject {
+		return this.styleObject;
+	}
+
+	/** R11.16: construction's path and validation; the new style replaces the old one whole. */
+	public set style(style: LineStyleObject) {
+		validateStyle(style, LINE_STYLE);
+		this.styleObject = style;
+		this.lineColor = style.color !== undefined ? resolveColor(style.color) : WHITE;
+		if (style.opacity !== undefined) this.opacity = style.opacity;
 	}
 
 	public get start(): Vec2 {

@@ -1,7 +1,7 @@
 import { DrawApi, RecordingBackend } from '../draw';
 import type { DrawCommand, ImageCommand, LineCommand, RectCommand, TextCommand } from '../draw';
 import { tokens } from '../theme/tokens';
-import { resolveColor } from '../style/styleObject';
+import { INVALID_COLOR, resolveColor } from '../style/styleObject';
 import { Circle } from './Circle';
 import { Container } from './Container';
 import { Image, fitRects } from './Image';
@@ -73,6 +73,44 @@ describe('the closed style set on the leaves (R11.14)', () => {
 		expect(rect.inkExtent).toBeGreaterThan(0);
 		rect.style = { backgroundColor: 'accent' };
 		expect((draw(rect).find((command) => command.id === 'box') as RectCommand).fill).toEqual(tokens.color.accent);
+	});
+
+	it('replaces the whole style from every leaf\'s style setter, as construction does (R11.16)', () => {
+		const text = new Text('x', { style: { color: 'accent', fontSize: 20 } });
+		text.style = { fontSize: 12 };
+		expect(text.style).toEqual({ fontSize: 12 });
+		expect(text.resolvedColors.text).toEqual([1, 1, 1, 1]);
+		const rect = new Rectangle({ style: { backgroundColor: 'accent', borderWidth: 2 } });
+		rect.style = { backgroundColor: 'data' };
+		expect(rect.resolvedColors).toEqual({ fill: tokens.color.data });
+		const circle = new Circle({ style: { backgroundColor: 'accent', borderWidth: 2 } });
+		circle.style = { backgroundColor: 'data' };
+		expect(circle.resolvedColors).toEqual({ fill: tokens.color.data });
+		const line = new Line({ start: { x: 0, y: 0 }, end: { x: 1, y: 1 }, style: { color: 'accent' } });
+		line.style = {};
+		expect(line.color).toEqual([1, 1, 1, 1]);
+		const image = new Image({ style: { backgroundColor: 'accent' } });
+		image.style = {};
+		expect(image.resolvedColors).toBeNull();
+		const stack = new Stack({ width: 10, height: 10, style: { backgroundColor: 'accent' } });
+		stack.style = {};
+		expect(stack.resolvedColors).toBeNull();
+		expect(() => {
+			stack.style = { color: 'text' } as never;
+		}).toThrow(/does not render/);
+	});
+
+	it('warns and draws magenta for a colour it cannot parse in a production build, rather than throw', () => {
+		const previous = process.env.NODE_ENV;
+		const warn = jest.spyOn(console, 'warn').mockImplementation(() => undefined);
+		process.env.NODE_ENV = 'production';
+		try {
+			expect(resolveColor('accnet')).toEqual(INVALID_COLOR);
+			expect(warn).toHaveBeenCalledWith(expect.stringMatching(/not a colour/));
+		} finally {
+			process.env.NODE_ENV = previous;
+			warn.mockRestore();
+		}
 	});
 
 	it('takes text layout as options, not style: vertical alignment, wrap, overflow, line height', () => {
@@ -174,6 +212,33 @@ describe('Image (R12.5)', () => {
 			expect(image.texture).toBeNull();
 			expect(draw(image)).toEqual([]);
 			image.unmount();
+		});
+
+		it('releases the old key and acquires the new one when src changes while mounted', async () => {
+			const image = new Image({ width: 32, height: 32, src: 'cards/raider.png' });
+			image.mount(context);
+			expect(context.assets.stats.entries).toBe(1);
+			image.src = 'cards/buggy.png';
+			expect(context.assets.stats.entries).toBe(1);
+			expect(context.assets.peek('cards/raider.png')).toBeNull();
+			resolveLoad?.();
+			await Promise.resolve();
+			await Promise.resolve();
+			expect(image.texture).toBe(context.assets.peek('cards/buggy.png'));
+			image.src = null;
+			expect(context.assets.stats.entries).toBe(0);
+			image.unmount();
+		});
+
+		it('acquires again on a remount, after releasing on unmount', () => {
+			const image = new Image({ width: 32, height: 32, src: 'cards/raider.png' });
+			image.mount(context);
+			image.unmount();
+			expect(context.assets.stats.entries).toBe(0);
+			image.mount(context);
+			expect(context.assets.stats.entries).toBe(1);
+			image.unmount();
+			expect(context.assets.stats.entries).toBe(0);
 		});
 
 		it('refuses both a key and a texture', () => {

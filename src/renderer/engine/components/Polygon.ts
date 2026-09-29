@@ -2,7 +2,7 @@ import { Component, ResolvedColors } from './Component';
 import type { DrawApi } from '../draw/DrawApi';
 import type { RGBA } from '../draw/geometry';
 import { ColorValue, resolveColor } from '../style/styleObject';
-import { ShapeOptions, resolveShapeStyle } from './shapeStyle';
+import { ShapeOptions, ShapeStyleObject, resolveShapeStyle } from './shapeStyle';
 import { triangulatePolygon, type Vec2 } from '../draw';
 
 /**
@@ -12,6 +12,7 @@ export class Polygon extends Component {
 	private fillColor: RGBA;
 	private strokeColor: RGBA;
 	private strokeWidth: number;
+	private styleObject: ShapeStyleObject;
 	private points: Vec2[] = [];
 	/** R2.11's triangle list, recomputed when the outline changes rather than per frame. */
 	private indices: number[] = [];
@@ -24,6 +25,7 @@ export class Polygon extends Component {
 	 */
 	constructor({ style = {}, ...options }: ShapeOptions = {}) {
 		super(options);
+		this.styleObject = style;
 		const shape = resolveShapeStyle('Polygon', style);
 		this.fillColor = shape.fill;
 		this.strokeColor = shape.stroke;
@@ -35,6 +37,21 @@ export class Polygon extends Component {
 		if (this.width === 0) this.width = 100;
 		if (this.height === 0) this.height = 100;
 
+	}
+
+	public get style(): ShapeStyleObject {
+		return this.styleObject;
+	}
+
+	/** R11.16: construction's path and validation; the new style replaces the old one whole. */
+	public set style(style: ShapeStyleObject) {
+		const shape = resolveShapeStyle('Polygon', style);
+		this.styleObject = style;
+		this.fillColor = shape.fill;
+		this.strokeColor = shape.stroke;
+		this.strokeWidth = shape.strokeWidth;
+		if (style.opacity !== undefined) this.opacity = style.opacity;
+		this.invalidateInk();
 	}
 
 	/**

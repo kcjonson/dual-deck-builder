@@ -2,7 +2,7 @@ import { Component, ResolvedColors } from './Component';
 import type { DrawApi } from '../draw/DrawApi';
 import type { RGBA, Rect } from '../draw/geometry';
 import { ColorValue, resolveColor } from '../style/styleObject';
-import { ShapeOptions, resolveShapeStyle } from './shapeStyle';
+import { ShapeOptions, ShapeStyleObject, resolveShapeStyle } from './shapeStyle';
 
 /**
  * Circle component for rendering circles
@@ -11,6 +11,7 @@ export class Circle extends Component {
 	private fillColor: RGBA;
 	private strokeColor: RGBA;
 	private strokeWidth: number;
+	private styleObject: ShapeStyleObject;
 	private radius = 50;
 
 	/**
@@ -19,6 +20,7 @@ export class Circle extends Component {
 	 */
 	constructor({ style = {}, ...options }: ShapeOptions = {}) {
 		super(options);
+		this.styleObject = style;
 		const shape = resolveShapeStyle('Circle', style);
 		this.fillColor = shape.fill;
 		this.strokeColor = shape.stroke;
@@ -38,6 +40,21 @@ export class Circle extends Component {
 	 */
 	public assignSize(_width: number, _height: number): void {
 		// Keeps its radius-derived size.
+	}
+
+	public get style(): ShapeStyleObject {
+		return this.styleObject;
+	}
+
+	/** R11.16: construction's path and validation; the new style replaces the old one whole. */
+	public set style(style: ShapeStyleObject) {
+		const shape = resolveShapeStyle('Circle', style);
+		this.styleObject = style;
+		this.fillColor = shape.fill;
+		this.strokeColor = shape.stroke;
+		this.strokeWidth = shape.strokeWidth;
+		if (style.opacity !== undefined) this.opacity = style.opacity;
+		this.invalidateInk();
 	}
 
 	/**

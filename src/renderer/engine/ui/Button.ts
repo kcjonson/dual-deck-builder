@@ -311,7 +311,10 @@ export class Button extends Pressable {
 	private restyle(): void {
 		this.layers = buttonLayers(this.buttonTone, this.styleObject, this.isGhost);
 		this.padding = this.resolvePadding();
+		// A new style replaces the label's whole (R11.16), colour included, so
+		// the look's colour goes back on before any transition moves it.
 		this.text.style = this.labelStyle();
+		this.followLook(this.transition.look);
 		this.onStateChange();
 		this.invalidateLayout();
 	}

@@ -46,18 +46,29 @@ export class Image extends Component {
 	private frameRect: Rect | null;
 	private imageTint: RGBA;
 	private imageFit: ImageFit;
-	private placeholder: RGBA | null;
+	private placeholder: RGBA | null = null;
+	private styleObject: ImageStyleObject = {};
 
 	constructor({ src, texture = null, sourceRect = null, tint, fit = 'fill', style = {}, ...options }: ImageOptions = {}) {
 		super(options);
 		this.componentType = 'Image';
-		validateStyle(style, IMAGE_STYLE);
 		if (src !== undefined && texture) throw new Error('Image: give `src` or `texture`, not both (R12.5)');
 		this.source = src ?? null;
 		this.ownTexture = texture;
 		this.frameRect = sourceRect ? { ...sourceRect } : null;
 		this.imageTint = tint !== undefined ? resolveColor(tint) : WHITE;
 		this.imageFit = fit;
+		this.style = style;
+	}
+
+	public get style(): ImageStyleObject {
+		return this.styleObject;
+	}
+
+	/** R11.16: construction's path and validation; the new style replaces the old one whole. */
+	public set style(style: ImageStyleObject) {
+		validateStyle(style, IMAGE_STYLE);
+		this.styleObject = style;
 		this.placeholder = style.backgroundColor !== undefined ? resolveColor(style.backgroundColor) : null;
 		if (style.opacity !== undefined) this.opacity = style.opacity;
 	}

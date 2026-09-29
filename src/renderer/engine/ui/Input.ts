@@ -336,8 +336,10 @@ export class Input extends Component {
 		this.layers = fieldLayers(this.styleObject);
 		this.padding = this.resolvePadding();
 		const textStyle = this.textStyle();
+		// A new style replaces the texts' whole (R11.16), colour included.
 		this.text.style = textStyle;
 		this.placeholder.style = textStyle;
+		this.followLook(this.transition.look);
 		this.onStateChange();
 		this.invalidateLayout();
 	}

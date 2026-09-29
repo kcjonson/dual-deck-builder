@@ -5,7 +5,7 @@ Status: decided 2026-09-28 with DDB-85's third PR (DDB-55 phase 5, Wave A), whic
 ## What changed
 
 - The legacy `Style` type (`engine/types/Style.ts`) and its `StyleParser` are deleted. `ComponentOptions` has no `style`; each component that renders style properties declares its own subset of R11.14's set, validates it at construction and in its `style` setter, and rejects the rest.
-- Colours: `resolveColor` in `style/styleObject.ts` parses `transparent`, `#rgb`, `#rrggbb`, `#rrggbbaa`, `rgb()`, and `rgba()` itself, reads token names, accepts float arrays, and throws on anything else. The old parser drew an unknown string as white.
+- Colours: `resolveColor` in `style/styleObject.ts` parses `transparent`, `#rgb`, `#rrggbb`, `#rrggbbaa`, `rgb()`, and `rgba()` itself, reads token names, and accepts float arrays. A string it cannot read throws in a development build and in production warns and draws magenta (`INVALID_COLOR`), the same split `validateStyle` makes for unknown keys; a typo in a new call site is caught in development and never takes a screen down in a player's build. The old parser drew it as white.
 - `Rectangle` (R12.1): `backgroundColor`, `borderColor`, `borderWidth`, `borderRadius`, `opacity`, `shadow`. The shadow is new (R12.1 lists it) and counts as ink.
 - `Circle`, `Triangle`, `Polygon`: `backgroundColor`, `borderColor`, `borderWidth`, `opacity` (`components/shapeStyle.ts`).
 - `Text` (R12.4): `color`, `fontSize`, `fontRole`, `fontFamily`, `fontWeight`, `letterSpacing`, `textTransform`, `textAlign`, `textDecoration`, `opacity`. What R12.4 names as text properties rather than style are options now: `verticalAlign`, `wrap` (`word` or `none`, was `whiteSpace`), `textOverflow` (`visible`, `clip`, `ellipsis`; was `textOverflow` in the style with `hidden` for clip), and `lineHeight`. `textStyle` is gone for the `style` setter and a `layoutOptions` setter.
@@ -14,6 +14,8 @@ Status: decided 2026-09-28 with DDB-85's third PR (DDB-55 phase 5, Wave A), whic
 - Every call site in the game moved over. The mechanical part (moving `verticalAlign`, `whiteSpace`, `textOverflow`, and `lineHeight` out of style objects, expanding the `border` shorthand, dropping `px` strings) was done by a one-off script; the rest by hand. `fontFamily: 'display' | 'mono' | 'body'` became `fontRole`.
 
 ## Decisions
+
+**Every `style` setter replaces.** R11.16 wants runtime style changes on construction's path. Each leaf (and Stack, Line, Image) has a `style` getter and setter, and the setter validates and then resolves the new object over the component's defaults, exactly as the constructor does: a property the new style leaves out goes back to its default, not to its previous value. Button and Input re-apply their look's colour to their labels after a restyle for that reason. The older single-value setters (`setFillColor`, `setColor`) still change one value and leave `style` as it was; they are for code that animates or recolours, and go with phase 6's accessor rename.
 
 **Each component owns its subset.** R11.14 says a component that accepts a property must render it and one that does not must reject it. A TypeScript `Pick` of `StyleProperties` per component makes most mistakes compile errors, and `validateStyle` catches the rest at run time (a legacy key throws in development builds; an accepted-elsewhere key throws always).
 

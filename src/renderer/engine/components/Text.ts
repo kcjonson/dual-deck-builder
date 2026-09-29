@@ -26,6 +26,9 @@ import {
 	validateStyle,
 } from '../style/styleObject';
 
+const DEFAULT_FONT_SIZE = 16;
+const WHITE: RGBA = [1, 1, 1, 1];
+
 /** R11.14's properties a text renders. */
 export type TextStyleObject = Pick<
 	StyleProperties,
@@ -107,10 +110,11 @@ export type TextOverflowOutcome = 'none' | 'clip' | 'ellipsis' | 'visible';
  */
 export class Text extends Component {
 	private content: string;
-	private fontSize = 16;
+	private fontSize = DEFAULT_FONT_SIZE;
+	private styleObject: TextStyleObject = {};
 	/** R11.8's role, from the style's `fontFamily` and `fontWeight` through the theme table. */
 	private fontRole: FontRole = 'body';
-	private color: RGBA = [1, 1, 1, 1];
+	private color: RGBA = WHITE;
 	private align: TextAlign = 'left';
 	private verticalAlign: TextVerticalAlign = 'top';
 	/** A multiple of `fontSize`; null is the face's own (R6.10). */
@@ -151,18 +155,23 @@ export class Text extends Component {
 		return size !== undefined && size > 0 ? 'fixed' : 'hug';
 	}
 
-	/** R11.14: validated, then applied over the current values. */
+	/**
+	 * R11.14 and R11.16: validated, then resolved over the defaults, so a new
+	 * style replaces the old one whole, as construction does. A property the
+	 * style leaves out goes back to its default.
+	 */
 	private applyTextStyle(style: TextStyleObject): void {
 		validateStyle(style, TEXT_STYLE);
-		if (style.fontSize !== undefined) this.fontSize = resolveLength(style.fontSize, 'fontSize');
-		if (style.fontRole !== undefined || style.fontFamily !== undefined || style.fontWeight !== undefined) {
-			this.fontRole = resolveFontRole({ family: style.fontRole ?? style.fontFamily, weight: style.fontWeight });
-		}
-		if (style.color !== undefined) this.color = resolveColor(style.color);
-		if (style.textAlign !== undefined) this.align = style.textAlign;
-		if (style.letterSpacing !== undefined) this.letterSpacing = resolveLetterSpacing(style.letterSpacing);
-		if (style.textTransform !== undefined) this.textTransform = style.textTransform;
-		if (style.textDecoration !== undefined) this.decoration = style.textDecoration;
+		this.styleObject = style;
+		this.fontSize = style.fontSize !== undefined ? resolveLength(style.fontSize, 'fontSize') : DEFAULT_FONT_SIZE;
+		this.fontRole = style.fontRole !== undefined || style.fontFamily !== undefined || style.fontWeight !== undefined
+			? resolveFontRole({ family: style.fontRole ?? style.fontFamily, weight: style.fontWeight })
+			: 'body';
+		this.color = style.color !== undefined ? resolveColor(style.color) : WHITE;
+		this.align = style.textAlign ?? 'left';
+		this.letterSpacing = style.letterSpacing !== undefined ? resolveLetterSpacing(style.letterSpacing) : 0;
+		this.textTransform = style.textTransform ?? 'none';
+		this.decoration = style.textDecoration ?? 'none';
 		if (style.opacity !== undefined) this.opacity = style.opacity;
 	}
 
@@ -173,10 +182,13 @@ export class Text extends Component {
 		if (lineHeight !== undefined) this.lineHeight = lineHeight;
 	}
 
+	public get style(): TextStyleObject {
+		return this.styleObject;
+	}
+
 	/**
-	 * Applies these style properties over the current ones, the same path as
-	 * construction (R11.16). Every text property can move a glyph, so it
-	 * measures again and invalidates layout.
+	 * Replaces the style, the same path as construction (R11.16). Every text
+	 * property can move a glyph, so it measures again and invalidates layout.
 	 */
 	public set style(style: TextStyleObject) {
 		this.applyTextStyle(style);

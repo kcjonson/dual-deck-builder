@@ -2,7 +2,7 @@ import { Component, ResolvedColors } from './Component';
 import type { DrawApi } from '../draw/DrawApi';
 import type { RGBA } from '../draw/geometry';
 import { ColorValue, resolveColor } from '../style/styleObject';
-import { ShapeOptions, resolveShapeStyle } from './shapeStyle';
+import { ShapeOptions, ShapeStyleObject, resolveShapeStyle } from './shapeStyle';
 
 /**
  * The unit triangle, in a box-local space from -1 to 1 on each axis that
@@ -22,6 +22,7 @@ export class Triangle extends Component {
 	private fillColor: RGBA;
 	private strokeColor: RGBA;
 	private strokeWidth: number;
+	private styleObject: ShapeStyleObject;
 	/** `TRIANGLE_POINTS` on the component's box, rewritten each render; the draw API copies them. */
 	private readonly boxPoints = TRIANGLE_POINTS.map(() => ({ x: 0, y: 0 }));
 
@@ -31,6 +32,7 @@ export class Triangle extends Component {
 	 */
 	constructor({ style = {}, ...options }: ShapeOptions = {}) {
 		super(options);
+		this.styleObject = style;
 		const shape = resolveShapeStyle('Triangle', style);
 		this.fillColor = shape.fill;
 		this.strokeColor = shape.stroke;
@@ -42,6 +44,21 @@ export class Triangle extends Component {
 		if (this.width === 0) this.width = 100;
 		if (this.height === 0) this.height = 100;
 
+	}
+
+	public get style(): ShapeStyleObject {
+		return this.styleObject;
+	}
+
+	/** R11.16: construction's path and validation; the new style replaces the old one whole. */
+	public set style(style: ShapeStyleObject) {
+		const shape = resolveShapeStyle('Triangle', style);
+		this.styleObject = style;
+		this.fillColor = shape.fill;
+		this.strokeColor = shape.stroke;
+		this.strokeWidth = shape.strokeWidth;
+		if (style.opacity !== undefined) this.opacity = style.opacity;
+		this.invalidateInk();
 	}
 
 	/**
