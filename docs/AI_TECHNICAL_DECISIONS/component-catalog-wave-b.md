@@ -42,7 +42,7 @@ Wave B lands as sequential pull requests by component group:
 
 All three open through the popup service, so one exclusive popup is open at a time, a press on another `popupTrigger` switches in one press, and focus leaving closes the menu (R9.14).
 
-**Scrolling waits on ScrollContainer.** R12.11's "a menu taller than the rect the placement service returns scrolls internally" needs DDB-85's ScrollContainer (#105), which is not on `main` yet. Until it lands a menu clips its rows to its box (`overflow: 'hidden'`), so a menu shortened by `maxHeight` or by placement never draws past itself, and the rows past its edge are unreachable by pointer; the follow-up commit wraps the rows in a ScrollContainer.
+**Scrolling is a ScrollContainer.** The rows sit in a ScrollContainer (R12.20) inside the surface's padding, so a menu shorter than its rows, whether from `maxHeight` or from a placement the popup service shrank (`constrained`), scrolls internally (R12.11) with the shared scrollbar, R9.32's wheel latching, and the clip. A highlight the keys move is scrolled into view the least distance, and so is the highlight a menu opens with (a select's current value), once the scroller has measured the rows. The popup service does not close a popup for a scroll inside it (#105's `scrolled` rule).
 
 ## Departures
 

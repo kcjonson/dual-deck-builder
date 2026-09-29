@@ -6,6 +6,7 @@ import { shadowExtent } from '../style/look';
 import { resolveShadow } from '../style/styleObject';
 import { CONTROL_SIZES, ControlSize } from '../style/variants';
 import { tokens } from '../theme/tokens';
+import { ScrollContainer } from './ScrollContainer';
 
 /**
  * R12.11's item: a label that selects, or a separator. `shortcut` is a hint
@@ -60,7 +61,8 @@ class MenuRows extends Component {
 	private armed = false;
 
 	constructor({ menu }: { menu: Menu }) {
-		super({});
+		// The scroll container gives it its width; its height is the rows'.
+		super({ widthMode: 'fill', heightMode: 'fixed' });
 		this.componentType = 'MenuRows';
 		this.menu = menu;
 	}
@@ -168,6 +170,24 @@ class MenuRows extends Component {
 }
 
 /**
+ * The menu's viewport onto its rows: a ScrollContainer (R12.20) that lets the
+ * menu bring a highlighted row into view once it has measured them.
+ */
+class MenuScroll extends ScrollContainer {
+	private readonly menu: Menu;
+
+	constructor({ id, menu }: { id?: string; menu: Menu }) {
+		super({ id });
+		this.menu = menu;
+	}
+
+	protected layoutChildren(): void {
+		super.layoutChildren();
+		this.menu.scrollerLaidOut();
+	}
+}
+
+/**
  * R12.11's menu, the building block Select, DropdownButton, and ContextMenu
  * open: a raised surface of rows, each an item or a separator, with an
  * optional shortcut hint. It has no positioning of its own; its owner opens
@@ -184,6 +204,10 @@ export class Menu extends Component {
 	public onSelect: ((item: MenuItem, index: number) => void) | null;
 
 	protected readonly rows: MenuRows;
+	/** R12.11: the rows scroll inside it when the menu is shorter than they are. */
+	private readonly scroller: MenuScroll;
+	/** A highlight moved by the keys before the scroller had laid out, to bring into view once it has. */
+	private revealPending = false;
 	private menuItems: MenuItem[];
 	private highlighted: number;
 	private cap: number;
@@ -193,8 +217,7 @@ export class Menu extends Component {
 	private rowsHeight = 0;
 
 	constructor({ items = [], width = DEFAULT_WIDTH, hoveredIndex = -1, maxHeight = Number.POSITIVE_INFINITY, size = 'sm', onSelect = null, ...options }: MenuOptions = {}) {
-		// Rows past a shortened menu are clipped; internal scrolling comes with ScrollContainer (#105).
-		super({ ...options, width, overflow: 'hidden' });
+		super({ ...options, width });
 		this.componentType = 'Menu';
 		this.menuItems = items;
 		this.highlighted = hoveredIndex;
@@ -202,7 +225,10 @@ export class Menu extends Component {
 		this.menuSize = size;
 		this.onSelect = onSelect;
 		this.rows = new MenuRows({ menu: this });
-		this.addPart(this.rows);
+		this.scroller = new MenuScroll({ id: options.id ? `${options.id}.scroll` : undefined, menu: this });
+		this.scroller.addChild(this.rows);
+		this.addPart(this.scroller);
+		this.revealPending = hoveredIndex !== -1;
 		this.measureRows();
 		this.fitHeight();
 	}
@@ -290,6 +316,7 @@ export class Menu extends Component {
 			}
 			if (isSelectable(this.menuItems[index])) {
 				this.highlighted = index;
+				this.revealHovered();
 				return true;
 			}
 		}
@@ -300,6 +327,40 @@ export class Menu extends Component {
 	public hoverEdge(edge: 'first' | 'last'): void {
 		this.highlighted = -1;
 		this.moveHover(edge === 'first' ? 1 : -1);
+	}
+
+	/** How far the rows are scrolled, in logical pixels. */
+	public get scrollOffset(): number {
+		return this.scroller.scrollPosition;
+	}
+
+	/** Whether the rows are taller than the menu, so they scroll. */
+	public get scrolls(): boolean {
+		return this.scroller.overflows;
+	}
+
+	/**
+	 * Scrolls the highlighted row into view, the least distance; before the
+	 * scroller has laid out, once it has. Keyboard moves call it; a pointer
+	 * hover is over its row already.
+	 */
+	public revealHovered(): void {
+		if (this.highlighted === -1) return;
+		if (this.scroller.scrollHeight <= 0) {
+			this.revealPending = true;
+			return;
+		}
+		this.revealPending = false;
+		const row = this.rowRect(this.highlighted);
+		const top = this.scroller.scrollPosition;
+		const viewport = this.scroller.height;
+		if (row.y < top) this.scroller.scrollTo(row.y);
+		else if (row.y + row.height > top + viewport) this.scroller.scrollTo(row.y + row.height - viewport);
+	}
+
+	/** Called by the scroller after each layout. */
+	public scrollerLaidOut(): void {
+		if (this.revealPending) this.revealHovered();
 	}
 
 	/** Selects the highlighted item; false when there is none. */
@@ -372,9 +433,10 @@ export class Menu extends Component {
 		this.placeRows();
 	}
 
-	/** The rows sit inside the padding; a menu shorter than its rows clips them. */
+	/** The scroller fills the menu inside the padding; the rows are as tall as they are. */
 	private placeRows(): void {
-		this.rows.setPosition(0, PAD);
-		this.rows.setSize(this.width, this.rowsHeight);
+		this.scroller.setPosition(0, PAD);
+		this.scroller.setSize(this.width, Math.max(0, this.height - PAD * 2));
+		this.rows.height = this.rowsHeight;
 	}
 }

@@ -18,6 +18,8 @@ const VEHICLES: SelectOption[] = [
 	{ label: 'Tin Can', value: 'can', enabled: false },
 ];
 
+const CONVOY: SelectOption[] = Array.from({ length: 20 }, (_, index) => ({ label: `Rig ${index + 1}`, value: `rig_${index + 1}` }));
+
 const ACTIONS: MenuItem[] = [
 	{ label: 'Inspect', shortcut: 'I' },
 	{ label: 'Repair', shortcut: 'R' },
@@ -44,7 +46,8 @@ export class MenuExamplesSection extends CatalogSection {
 		menu.hoveredIndex = 1;
 		this.addRow('menu: shortcuts, a disabled item, a separator, the second row highlighted', this.line([menu]), menu.height);
 
-		this.addRow('select: a value, a placeholder, disabled (the fourth option is disabled)', this.line([
+		this.addRow('select: twenty options scrolling in 160 px; a value, a placeholder, disabled (their fourth option is disabled)', this.line([
+			new Select({ id: 'dev_select_long', options: CONVOY, value: 'rig_9', maxMenuHeight: 160, width: 200 }),
 			new Select({ id: 'dev_select_value', options: VEHICLES, value: 'runner', width: 200 }),
 			new Select({ id: 'dev_select_empty', options: VEHICLES, placeholder: 'Pick a vehicle', width: 200 }),
 			new Select({ id: 'dev_select_disabled', options: VEHICLES, value: 'hauler', disabled: true, width: 200 }),

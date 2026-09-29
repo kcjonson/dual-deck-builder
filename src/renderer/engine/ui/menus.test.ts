@@ -64,6 +64,13 @@ function rowCentre(menu: Menu, index: number): string {
 	return `${Math.round(box.x + row.width / 2)},${Math.round(box.y + PAD + row.y + row.height / 2)}`;
 }
 
+function wheel(target: { screenBounds: { x: number; y: number; width: number; height: number } }, deltaY: number): void {
+	const box = target.screenBounds;
+	context.dispatcher.enqueue({ kind: 'wheel', x: box.x + box.width / 2, y: box.y + box.height / 2, deltaX: 0, deltaY, deltaMode: 0, modifiers: NO_MODIFIERS });
+	context.dispatcher.dispatchPending();
+	layout();
+}
+
 function draws(): readonly DrawCommand[] {
 	const api = context.draw;
 	api.beginFrame({ viewport: VIEWPORT });
@@ -127,17 +134,40 @@ describe('Menu (R12.11)', () => {
 		expect(capped.height).toBe(ROW + PAD * 2);
 	});
 
-	it('clips its rows to its box when capped shorter than they are', () => {
-		const made = menu({ items: items('a', 'b', 'c', 'd').items, maxHeight: 60 });
-		expect(made.clipsChildren).toBe(true);
-		const texts = draws().filter((command): command is TextCommand => command.kind === 'text');
-		// Every row is cut at the menu's edge; a row wholly past it is culled.
-		expect(texts.find((text) => text.text === 'a')?.clip).toMatchObject({ kind: 'rect', rect: { minY: made.screenBounds.y, maxY: made.screenBounds.y + 60 } });
-		expect(texts.some((text) => text.text === 'd')).toBe(false);
+	it('scrolls its rows inside a ScrollContainer when capped shorter than they are', () => {
+		const labels = ['a', 'b', 'c', 'd', 'e', 'f'];
+		const { items: list, picked } = items(...labels);
+		const made = menu({ items: list, maxHeight: 80 });
+		expect(made.scrolls).toBe(true);
+		// A row past the viewport is clipped out and culled.
+		const visible = () => draws().filter((command): command is TextCommand => command.kind === 'text').map((text) => text.text);
+		expect(visible()).not.toContain('f');
+		// The wheel over the rows scrolls them, and the row now under the pointer selects.
+		wheel(made, 200);
+		expect(made.scrollOffset).toBeGreaterThan(0);
+		expect(visible()).toContain('f');
+		const box = made.screenBounds;
+		inject(`click,${Math.round(box.x + 40)},${Math.round(box.y + box.height - PAD - ROW / 2)}`);
+		expect(picked).toEqual(['f']);
+	});
+
+	it('brings a row highlighted by the keys into view, and the opening highlight too', () => {
+		const labels = ['a', 'b', 'c', 'd', 'e', 'f'];
+		const made = menu({ items: items(...labels).items, maxHeight: 80 });
+		expect(made.scrollOffset).toBe(0);
+		made.hoverEdge('last');
+		expect(made.scrollOffset).toBe(ROW * 6 - (80 - PAD * 2));
+		made.moveHover(1);
+		expect(made.hoveredIndex).toBe(0);
+		expect(made.scrollOffset).toBe(0);
+		const opened = new Menu({ id: 'opened', x: 400, y: 100, items: items(...labels).items, maxHeight: 80, hoveredIndex: 4 });
+		root.addChild(opened);
+		layout();
+		expect(opened.scrollOffset).toBe(ROW * 5 - (80 - PAD * 2));
 	});
 
 	it('finds rows by y and reports their bounds', () => {
-		const made = new Menu({ width: 150, items: [{ label: 'a' }, { separator: true }, { label: 'b' }] });
+		const made = menu({ width: 150, items: [{ label: 'a' }, { separator: true }, { label: 'b' }] });
 		expect(made.indexAt(0)).toBe(0);
 		expect(made.indexAt(ROW + 1)).toBe(1);
 		expect(made.indexAt(ROW + space.space_2 + 1)).toBe(2);
@@ -371,6 +401,19 @@ describe('Select (R12.12)', () => {
 		made.options = [];
 		inject(`click,${centre(made)}`);
 		expect(made.openMenu).toBeNull();
+	});
+
+	it('scrolls a list the placement cut short, with the current value in view', () => {
+		const many = Array.from({ length: 30 }, (_, index) => ({ label: `Vehicle ${index}`, value: `v${index}` }));
+		const { made } = select({ options: many, value: 'v25', maxMenuHeight: 2000 });
+		inject(`click,${centre(made)}`);
+		layout();
+		const menu = made.openMenu as Menu;
+		expect(menu.height).toBeLessThan(menu.naturalHeight);
+		expect(menu.scrolls).toBe(true);
+		const row = menu.rowRect(25);
+		expect(row.y).toBeGreaterThanOrEqual(menu.scrollOffset);
+		expect(row.y + row.height).toBeLessThanOrEqual(menu.scrollOffset + menu.height - PAD * 2);
 	});
 
 	it('lifts its border to the accent while open', () => {
