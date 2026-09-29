@@ -1908,7 +1908,7 @@ export abstract class Component {
 
 	/**
 	 * True when this component draws its own focus ring from `focusVisible`
-	 * as one of its R11.12 state layers (Button and Input do), so the render
+	 * as one of its R11.12 state layers (Button and TextInput do), so the render
 	 * walk's token ring, the fallback for focusables without a resolved look,
 	 * skips it and nothing gets two rings.
 	 */
@@ -1923,6 +1923,16 @@ export abstract class Component {
 	 */
 	public get acceptsText(): boolean {
 		return false;
+	}
+
+	/**
+	 * The strings this component draws itself rather than through a Text
+	 * node (a select's label, a menu's rows, a slider's value), for the tree
+	 * snapshot's `labels` and so for the visual text record (DDB-206). Null
+	 * when it draws no text of its own.
+	 */
+	public get drawnText(): readonly string[] | null {
+		return null;
 	}
 
 	/** R9.18: focusable, mounted, and effectively visible and enabled. */

@@ -288,6 +288,17 @@ describe('subtree cull (DDB-184, R4.2a)', () => {
 			expect(sweep(make, { draw: measuring, recording, mount: true })).toBeGreaterThanOrEqual(50);
 		});
 
+		it('a text drop shadow offset well past the run (R12.4)', () => {
+			const { api: measuring, backend: recording } = createMeasuringDrawApi();
+			const make = (): Component => {
+				const text = new Text('Shadowed', { id: 'shadowed_text', style: { fontSize: 16 } });
+				text.shadow = { color: [0, 0, 0, 1], offset: { x: 0, y: 12 }, blur: 4 };
+				return text;
+			};
+			// 12 down and 4 of blur below the run; 4 of blur above it.
+			expect(sweep(make, { draw: measuring, recording, mount: true })).toBeGreaterThanOrEqual(12);
+		});
+
 		it('a text that runs past its box', () => {
 			const { api: measuring, backend: recording } = createMeasuringDrawApi();
 			const make = (): Component => new Text('Scrap the escort and the convoy keeps rolling on and on', {

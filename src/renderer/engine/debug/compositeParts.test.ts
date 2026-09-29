@@ -9,9 +9,10 @@ import { Container } from '../components/Container';
 import type { Component } from '../components/Component';
 import { FrameTimer } from '../rendering/FrameTimer';
 import { Button } from '../ui/Button';
+import { NumberInput } from '../ui/NumberInput';
 import { DeveloperOverlay } from '../ui/DeveloperOverlay';
-import { Input } from '../ui/Input';
 import { Panel } from '../ui/Panel';
+import { TextInput } from '../ui/TextInput';
 import { SnapshotNode, treeSnapshot } from './treeSnapshot';
 
 const VIEWPORT = { width: 1440, height: 882 };
@@ -62,10 +63,17 @@ describe('the parts a composite owns', () => {
 		expect(node.children).toEqual([]);
 	});
 
-	it('gives an Input a value, a placeholder and a cursor, its box being its own draw, and no children of its own', () => {
-		const node = snapshotOf(new Input('Driver name', { id: 'name_field', width: 200, height: 30 }));
+	it('gives a TextInput no parts: its box, text, selection and caret are its own draws (R12.10)', () => {
+		const node = snapshotOf(new TextInput({ placeholder: 'Driver name', id: 'name_field', width: 200, height: 30 }));
 
-		expect(partTypes(node)).toEqual(['Text', 'Text', 'Rectangle']);
+		expect('parts' in node).toBe(false);
+		expect(node.children).toEqual([]);
+	});
+
+	it('gives a NumberInput its field and its steppers, and no children of its own (R12.36)', () => {
+		const node = snapshotOf(new NumberInput({ id: 'fuel', width: 120 }));
+
+		expect(partTypes(node)).toEqual(['TextInput', 'NumberStepper']);
 		expect(node.children).toEqual([]);
 	});
 
@@ -108,13 +116,13 @@ describe('what a caller adds is never a part', () => {
 		expect(childIds(node)).toEqual(['cost_badge']);
 	});
 
-	it('puts an Input child in children and leaves its three parts alone', () => {
-		const input = new Input('Driver name', { id: 'name_field', width: 200, height: 30 });
+	it('puts a TextInput child in children', () => {
+		const input = new TextInput({ placeholder: 'Driver name', id: 'name_field', width: 200, height: 30 });
 		input.addChild(new Container({ id: 'validation_icon', width: 16, height: 16 }));
 
 		const node = snapshotOf(input);
 
-		expect(partTypes(node)).toEqual(['Text', 'Text', 'Rectangle']);
+		expect('parts' in node).toBe(false);
 		expect(childIds(node)).toEqual(['validation_icon']);
 	});
 
@@ -129,15 +137,15 @@ describe('what a caller adds is never a part', () => {
 	});
 
 	it('stops calling a removed part a part, so a re-added layer reports as a child', () => {
-		const input = new Input('Driver name', { id: 'name_field', width: 200, height: 30 });
-		const caret = input.getChildren()[2];
+		const stepper = new NumberInput({ id: 'fuel', width: 120 });
+		const steppers = stepper.getChildren()[1];
 
-		input.removeChild(caret);
-		input.addChild(caret);
+		stepper.removeChild(steppers);
+		stepper.addChild(steppers);
 
-		const node = snapshotOf(input);
+		const node = snapshotOf(stepper);
 
-		expect(partTypes(node)).toEqual(['Text', 'Text']);
-		expect(node.children.map((child) => child.type)).toEqual(['Rectangle']);
+		expect(partTypes(node)).toEqual(['TextInput']);
+		expect(node.children.map((child) => child.type)).toEqual(['NumberStepper']);
 	});
 });

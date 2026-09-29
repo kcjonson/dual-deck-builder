@@ -45,6 +45,9 @@ const OFFSET = tokens.space.space_1_5;
  * The surface is a padded column stack around the caller's content, sized
  * from it; fades in over `dur_fast` and closes at once. Tooltip is the
  * non-interactive special case (R12.22).
+ *
+ * Opened from inside a modal dialog it needs `layer: 'popup'`: `overlay` is
+ * below `modal` (R3.5), so it would sit under the dialog's scrim.
  */
 export class Popover extends Stack {
 	public onClose: (() => void) | null = null;
