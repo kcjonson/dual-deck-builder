@@ -30,8 +30,6 @@ import type { TextLayout } from '../text/TextLayout';
 import { TextMetricsService } from '../text/TextMetricsService';
 import { DECORATION_THICKNESS, LineOrigin, decorationOffset, lineOrigin, runInk } from '../text/textPlacement';
 import {
-	RASTER_RANGE_HYSTERESIS,
-	RASTER_RANGE_THRESHOLD,
 	RasterGlyphCell,
 	RasterGlyphRun,
 	RasterGlyphSource,
@@ -180,8 +178,6 @@ export interface UberGeometryEncoderOptions {
 }
 
 const WHITE: RGBA = [1, 1, 1, 1];
-/** The hysteresis band as a ratio of device scales: a range of 1.6 over 1.5. */
-const HYSTERESIS_SCALE = (RASTER_RANGE_THRESHOLD + RASTER_RANGE_HYSTERESIS) / RASTER_RANGE_THRESHOLD;
 const TRANSPARENT: RGBA = [0, 0, 0, 0];
 
 /** Quad corners in the order top-left, top-right, bottom-right, bottom-left. */
@@ -233,16 +229,20 @@ export class UberGeometryEncoder implements GeometryEncoder {
 	private rasterCommand: TextCommand | null = null;
 	private rasterResult: RasterGlyphRun | null = null;
 	/**
-	 * R6.4a's hysteresis: for each font and logical size on the raster path,
-	 * the device scale it was last drawn at there. A run of that font and size
-	 * at about that scale (within the hysteresis band's ratio) stays on the
-	 * raster until its range passes the threshold by `RASTER_RANGE_HYSTERESIS`,
-	 * so one run zooming across the threshold does not flicker. Keyed on font,
-	 * size and scale rather than on the command, which is new every frame; the
-	 * scale keeps a run of the same size at another scale (8 px on a card and
-	 * 8 px on the stage) from inheriting the state.
+	 * R6.4a's hysteresis: for each font, the frame each raster pixel size
+	 * (`rasterPixelSize`, the device size on a quarter-pixel step) was last
+	 * drawn from the raster. A run at a size drawn there this frame or the
+	 * last stays there until its range passes the threshold by
+	 * `RASTER_RANGE_HYSTERESIS`, so a run hovering at the threshold does not
+	 * flicker. Keyed on the size the glyphs are built at rather than on the
+	 * command, which is new every frame: runs that share the state share the
+	 * glyphs, so they look alike, and a run a quarter pixel away (8 px on a
+	 * card and 8 px on a slightly larger stage) keeps its own. The threshold
+	 * with the committed atlases is 9 device px, the middle of a step, so the
+	 * state covers an eighth of a pixel either side of it.
 	 */
-	private readonly rasterScales = new Map<string, Map<number, number>>();
+	private readonly rasterFrames = new Map<string, Map<number, number>>();
+	private frame = 0;
 	private readonly rasterPenScratch = { pixel: 0, phase: 0 };
 	private readonly pointScratch = { x: 0, y: 0 };
 	private readonly sliceScratch: NineSliceGrid = createNineSliceGrid();
@@ -271,6 +271,11 @@ export class UberGeometryEncoder implements GeometryEncoder {
 	set ratio(ratio: number) {
 		this.ratioValue = ratio;
 		this.devicePixel = ratio > 0 ? 1 / ratio : 1;
+	}
+
+	/** Between frames: ages R6.4a's hysteresis state, so a size that went unused starts over. */
+	beginFrame(): void {
+		this.frame += 1;
 	}
 
 	/** Names the texture a font role's text groups sample; the backend keeps it resident. */
@@ -765,18 +770,17 @@ export class UberGeometryEncoder implements GeometryEncoder {
 		const scale = matrix[0];
 		if (this.smallText && command.blur <= 0 && matrix[1] === 0 && matrix[2] === 0 && matrix[3] === scale && scale > 0) {
 			const deviceScale = scale * this.ratioValue;
-			let scales = this.rasterScales.get(command.font);
-			const last = scales?.get(layout.size);
-			const already = last !== undefined && deviceScale <= last * HYSTERESIS_SCALE && deviceScale >= last / HYSTERESIS_SCALE;
+			const pixelSize = rasterPixelSize(layout.size, deviceScale);
+			let frames = this.rasterFrames.get(command.font);
+			const last = frames?.get(pixelSize);
+			const already = last !== undefined && last >= this.frame - 1;
 			if (wantsRasterGlyphs(layout.atlas, layout.size, deviceScale, already)) {
-				if (!scales) {
-					scales = new Map();
-					this.rasterScales.set(command.font, scales);
+				if (!frames) {
+					frames = new Map();
+					this.rasterFrames.set(command.font, frames);
 				}
-				scales.set(layout.size, deviceScale);
-				raster = this.smallText.glyphs(command.font, layout, rasterPixelSize(layout.size, deviceScale));
-			} else if (already) {
-				scales?.delete(layout.size);
+				frames.set(pixelSize, this.frame);
+				raster = this.smallText.glyphs(command.font, layout, pixelSize);
 			}
 		}
 		this.rasterCommand = command;

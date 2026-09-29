@@ -6,6 +6,16 @@ This document contains the chronological log of completed development tasks for 
 
 **Date correction (2026-08-22):** the repo's first commit is 2025-05-17, but many entries below carry dates in December 2024 or January 2025 — the AI that wrote them used its assumed date instead of the real one. Entries dated 2025-07-03 and 2025-07-02 have been corrected from "2025-01-03"/"2025-01-02" (verified against git history). Remaining Dec 2024 / Jan 2025 dates are wrong by roughly six months; the real work happened May–July 2025. Trust git history over these dates.
 
+## Raster glyph page stops thrashing; buttons golden focus is deterministic (2026-09-28)
+
+**What landed:** DDB-223 and DDB-222 (DDB-55 follow-ups from #108 and #110).
+
+- `RasterGlyphPage` stamps each size with the frame a run last asked for it. A full page starts over only when some size has gone unused for two frames (or a reloaded role left cells behind); a page full of glyphs in use is kept, its overflow runs stay on the distance field steadily, and it warns once. Before, a live set bigger than the page cleared and refilled every frame.
+- The encoder's R6.4a hysteresis is keyed on font and raster pixel size (the quarter-pixel device size), held while that size was drawn raster this frame or the last, aged by a new `UberGeometryEncoder.beginFrame`. Runs a raster size apart no longer share state.
+- The buttons scene's focus-ring demo focuses as it mounts (press-style focus plus `showFocusVisible`, so no reveal scrolls the developer screen) instead of on its first update, which the gallery harness's pause could beat.
+
+**How:** `RasterGlyphPage.test.ts` runs the review's case (twelve sizes on a 64 px page, 1 ms a pass, 3 ms budget): it settles by the fourth frame with no reset and no run changing path after. Encoder tests cover hover at the threshold, expiry and the 1.47/1.5 pair. `ButtonExamplesSection.test.ts` checks the ring with no update and no scroll. Two `update_mode=all` mints produced byte-identical goldens.
+
 ## Small-text raster fallback and the scored small-size gate (2026-09-28)
 
 **What landed:** DDB-199 (R6.4a, chapter 6.9, from DDB-70).

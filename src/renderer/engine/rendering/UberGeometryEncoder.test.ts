@@ -1035,7 +1035,7 @@ describe('UberGeometryEncoder: small text from raster glyphs (R6.4a)', () => {
 		expect([0, 1, 2].map((n) => drawnPen(instance(upload, n), a, run))).toEqual([10, 12.5, 15]);
 	});
 
-	it('keeps a size on the raster until its range passes the threshold by the hysteresis', () => {
+	it('keeps a raster size on the raster while a run hovers at the threshold, until it goes unused', () => {
 		const source = rasterSource();
 		const { encoder } = setup(1, source);
 		const modeAt = (scale: number) => {
@@ -1048,12 +1048,45 @@ describe('UberGeometryEncoder: small text from raster glyphs (R6.4a)', () => {
 			encoder.shape(command, shape);
 			return (shape.texture as TextureHandle | null)?.id === RASTER_PAGE_ID ? 'raster' : 'field';
 		};
-		// Range 1.5 at 9 device px, 1.6 at 9.6.
+		// Range 1.5 at 9 device px. 8.9 to 9.1 are all rasterised at 9.
 		expect(modeAt(9.1 / 8)).toBe('field');
 		expect(modeAt(8.9 / 8)).toBe('raster');
-		expect(modeAt(9.4 / 8)).toBe('raster');
-		expect(modeAt(9.7 / 8)).toBe('field');
-		expect(modeAt(9.4 / 8)).toBe('field');
+		expect(modeAt(9.1 / 8)).toBe('raster');
+		encoder.beginFrame();
+		expect(modeAt(9.05 / 8)).toBe('raster');
+		// 9.25 is another raster size, with no state of its own.
+		expect(modeAt(9.2 / 8)).toBe('field');
+		// The next frame keeps it; a frame without it lets it go.
+		encoder.beginFrame();
+		expect(modeAt(9.1 / 8)).toBe('raster');
+		encoder.beginFrame();
+		encoder.beginFrame();
+		expect(modeAt(9.1 / 8)).toBe('field');
+	});
+
+	it('does not hand the hysteresis to a run a raster size away (#108 review)', () => {
+		const source = rasterSource();
+		const { encoder } = setup(1, source);
+		// 8 px at range 1.47 (8.82 device px, rasterised at 8.75) and at exactly
+		// 1.5 (9 device px), drawn together frame after frame.
+		const [under, at] = record((api) => {
+			api.pushTransform([8.82 / 8, 0, 0, 8.82 / 8, 0, 0]);
+			api.drawText({ text: 'A', position: { x: 0, y: 20 }, font: 'body', size: 8, color: RED });
+			api.popTransform();
+			api.pushTransform([9 / 8, 0, 0, 9 / 8, 0, 0]);
+			api.drawText({ text: 'A', position: { x: 0, y: 40 }, font: 'body', size: 8, color: RED });
+			api.popTransform();
+		});
+		const textureOf = (command: DrawCommand) => {
+			const shape: GroupShape = { instances: 0, texture: null };
+			encoder.shape(command, shape);
+			return (shape.texture as TextureHandle | null)?.id;
+		};
+		for (let frame = 0; frame < 3; frame++) {
+			encoder.beginFrame();
+			expect(textureOf(under)).toBe(RASTER_PAGE_ID);
+			expect(textureOf(at)).not.toBe(RASTER_PAGE_ID);
+		}
 	});
 
 	it('does not hand the hysteresis to a run of the same size at another scale', () => {

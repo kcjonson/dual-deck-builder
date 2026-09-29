@@ -30,6 +30,8 @@ export interface RasterGlyphPageOptions {
 	/** The page in texels. */
 	width?: number;
 	height?: number;
+	/** Receives the one warning when the page fills with glyphs all in use. Defaults to console.warn. */
+	warn?: (message: string) => void;
 }
 
 interface SizeEntry {
@@ -38,6 +40,8 @@ interface SizeEntry {
 	readonly cells: Map<number, RasterGlyphCell>;
 	/** Handed to the encoder as is, so a run costs no allocation once its glyphs are in. */
 	readonly run: RasterGlyphRun;
+	/** The frame a run last asked for this size. */
+	lastUsed: number;
 }
 
 interface Shelf {
@@ -52,8 +56,10 @@ interface Shelf {
  * alone (small-text-raster-fallback.md).
  */
 const DEFAULT_BUDGET_MS = 3;
-/** 4 MB, four phase cells a glyph. When it fills it starts over, so this is also the cap. */
+/** 4 MB, four phase cells a glyph. Nothing grows past it, so this is also the cap. */
 const DEFAULT_SIZE = 1024;
+/** A size no run has asked for in this many frames is dead space a full page can win back. */
+const STALE_FRAMES = 2;
 
 /**
  * R6.4a's raster glyphs, all fonts and sizes on one shared page texture, so a
@@ -70,10 +76,15 @@ const DEFAULT_SIZE = 1024;
  * raster already and never pops from soft to sharp. A resize stays on the
  * budget, so a window drag does not stutter; its new sizes can take a frame.
  *
- * The page is the cap on memory: when it fills, the run that did not fit
- * draws from the field and the page starts over at the next frame, the
- * glyphs that frame asks for rasterised again. The texels live in the page's
- * kept source too, so a restored context uploads the page as it stands.
+ * The page is the cap on memory. When it fills, the run that did not fit
+ * draws from the field, and at the next frame the page starts over only if
+ * it holds dead space: a size no run asked for in `STALE_FRAMES` frames, or
+ * cells a reloaded role left behind. The glyphs that frame asks for are
+ * rasterised again. A page full of glyphs still in use is kept as it is, and
+ * the runs that did not fit stay on the field, steadily, until the set in use
+ * changes; starting over would evict glyphs the next frame needs and never
+ * settle. That case warns once. The texels live in the page's kept source
+ * too, so a restored context uploads the page as it stands.
  */
 export class RasterGlyphPage implements RasterGlyphSource {
 	private readonly textures: RasterGlyphPageOptions['textures'];
@@ -83,6 +94,7 @@ export class RasterGlyphPage implements RasterGlyphSource {
 	private readonly budgetMs: number;
 	private readonly width: number;
 	private readonly height: number;
+	private readonly warn: (message: string) => void;
 
 	private texture: TextureHandle | null = null;
 	private canvas: GlyphCanvasContext | null | undefined = undefined;
@@ -95,6 +107,10 @@ export class RasterGlyphPage implements RasterGlyphSource {
 	private prewarmRequested = false;
 	private resetCount = 0;
 	private glyphCount = 0;
+	private frame = 0;
+	/** Cells on the page that no size references, left by a reloaded role. */
+	private orphanedCells = 0;
+	private warned = false;
 	/** Scratch for a run's missing glyphs, reused. */
 	private readonly missing: { codePoint: number; toRasterize: GlyphToRasterize }[] = [];
 	private readonly missingCodePoints = new Set<number>();
@@ -107,6 +123,7 @@ export class RasterGlyphPage implements RasterGlyphSource {
 		budgetMs = DEFAULT_BUDGET_MS,
 		width = DEFAULT_SIZE,
 		height = DEFAULT_SIZE,
+		warn = (message) => console.warn(message),
 	}: RasterGlyphPageOptions) {
 		this.textures = textures;
 		this.familyOf = familyOf;
@@ -115,11 +132,17 @@ export class RasterGlyphPage implements RasterGlyphSource {
 		this.budgetMs = budgetMs;
 		this.width = width;
 		this.height = height;
+		this.warn = warn;
 	}
 
 	/** Glyphs on the page now. */
 	get glyphsOnPage(): number {
 		return this.glyphCount;
+	}
+
+	/** Whether the page is full: runs with glyphs not on it draw from the field. */
+	get isFull(): boolean {
+		return this.full;
 	}
 
 	/** Times the page filled and started over. */
@@ -132,15 +155,22 @@ export class RasterGlyphPage implements RasterGlyphSource {
 		this.prewarmRequested = true;
 	}
 
-	/** Between frames: starts a full page over, and renews the budget. */
+	/** Between frames: starts a full page with dead space over, and renews the budget. */
 	beginFrame(): void {
+		this.frame += 1;
 		if (this.full) {
-			this.sizes.clear();
-			this.shelves = [];
-			this.nextShelfY = RASTER_GUTTER;
-			this.glyphCount = 0;
-			this.full = false;
-			this.resetCount += 1;
+			if (this.hasDeadSpace()) {
+				this.sizes.clear();
+				this.shelves = [];
+				this.nextShelfY = RASTER_GUTTER;
+				this.glyphCount = 0;
+				this.orphanedCells = 0;
+				this.full = false;
+				this.resetCount += 1;
+			} else if (!this.warned) {
+				this.warned = true;
+				this.warn(`RasterGlyphPage: the ${this.width}x${this.height} page is full of glyphs in use; small text that does not fit draws from the distance field`);
+			}
 		}
 		this.spentMs = 0;
 		this.unbudgeted = this.prewarmRequested;
@@ -151,7 +181,7 @@ export class RasterGlyphPage implements RasterGlyphSource {
 		const family = this.familyOf(font);
 		if (!family) return null;
 		const entry = this.entry(font, layout.atlas, pixelSize);
-		if (!entry) return null;
+		entry.lastUsed = this.frame;
 
 		const missing = this.missing;
 		const seen = this.missingCodePoints;
@@ -195,17 +225,28 @@ export class RasterGlyphPage implements RasterGlyphSource {
 		return complete ? entry.run : null;
 	}
 
-	private entry(font: string, atlas: FontAtlas, pixelSize: number): SizeEntry | null {
+	private entry(font: string, atlas: FontAtlas, pixelSize: number): SizeEntry {
 		const key = `${font}\u0000${pixelSize}`;
 		const existing = this.sizes.get(key);
 		if (existing && existing.atlas === atlas) return existing;
 		// A role loaded again measures with new metrics; its old cells stay on
 		// the page, unreferenced, until the page next starts over.
+		if (existing) this.orphanedCells += existing.cells.size;
 		const texture = this.ensureTexture();
 		const cells = new Map<number, RasterGlyphCell>();
-		const entry: SizeEntry = { atlas, cells, run: { texture, width: this.width, height: this.height, cells } };
+		const entry: SizeEntry = { atlas, cells, run: { texture, width: this.width, height: this.height, cells }, lastUsed: this.frame };
 		this.sizes.set(key, entry);
 		return entry;
+	}
+
+	/** Whether starting over would win anything back: orphaned cells, or a size with cells no run has asked for lately. */
+	private hasDeadSpace(): boolean {
+		if (this.orphanedCells > 0) return true;
+		const staleBefore = this.frame - STALE_FRAMES;
+		for (const entry of this.sizes.values()) {
+			if (entry.lastUsed < staleBefore && entry.cells.size > 0) return true;
+		}
+		return false;
 	}
 
 	private ensureTexture(): TextureHandle {
