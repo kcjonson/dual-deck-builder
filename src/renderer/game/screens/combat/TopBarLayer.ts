@@ -1,23 +1,21 @@
 import { Icon } from '../../../engine/components/Icon';
 import { Stack, StackOptions } from '../../../engine/components/Stack';
-import { Text } from '../../../engine/components/Text';
+import { Text, TextStyleObject } from '../../../engine/components/Text';
 import type { IconName } from '../../../engine/text/icons';
 import { tokens } from '../../../engine/theme/tokens';
 import { Button } from '../../../engine/ui/Button';
-import type { Style } from '../../../engine/types/Style';
 import type { StyleObject } from '../../../engine/style/styleObject';
 import { CombatLog } from '../../mechanics/CombatLog';
 import { ChromeStack } from './ChromeStack';
 import { TOP_BAR_BACKGROUND, rgba } from './combatStyle';
 import { TOP_BAR_HEIGHT } from './CombatLayout';
 
-const LABEL_STYLE: Style = {
-	fontFamily: 'display',
+const LABEL_STYLE: TextStyleObject = {
+	fontRole: 'display',
 	fontSize: 14,
 	letterSpacing: 0.06,
 	textTransform: 'uppercase',
 	color: rgba('text'),
-	whiteSpace: 'nowrap',
 };
 const RESOURCE_ICON_SIZE = 16;
 const LOG_BUTTON_WIDTH = 62;
@@ -64,7 +62,7 @@ export class TopBarLayer extends ChromeStack {
 		});
 		this.combatLog = combatLog;
 
-		this.turnLabel = new Text('', { id: 'combat_turn', style: LABEL_STYLE });
+		this.turnLabel = new Text('', { id: 'combat_turn', style: LABEL_STYLE, wrap: 'none' });
 		this.addChild(this.turnLabel);
 
 		// Takes the room the rest leave, and gives it up first
@@ -75,9 +73,9 @@ export class TopBarLayer extends ChromeStack {
 				fontSize: 12,
 				color: rgba('text_dim'),
 				textAlign: 'center',
-				whiteSpace: 'nowrap',
-				textOverflow: 'ellipsis',
 			},
+			wrap: 'none',
+			textOverflow: 'ellipsis',
 		});
 		this.addChild(this.ticker);
 
@@ -97,7 +95,8 @@ export class TopBarLayer extends ChromeStack {
 		this.logButton.addChild(new Text(LOG_KEY, {
 			anchor: 'right',
 			x: -8,
-			style: { fontFamily: 'mono', fontSize: 10, color: rgba('text_faint'), whiteSpace: 'nowrap' },
+			style: { fontRole: 'mono', fontSize: 10, color: rgba('text_faint') },
+			wrap: 'none',
 		}));
 		this.addChild(this.logButton);
 	}
@@ -106,7 +105,7 @@ export class TopBarLayer extends ChromeStack {
 	private addResource(glyph: IconName, id: string): Text {
 		const group = new Stack({ direction: 'horizontal', gap: 6, crossAlign: 'center' });
 		group.addChild(new Icon({ glyph, size: RESOURCE_ICON_SIZE, tint: tokens.color.text_dim }));
-		const value = new Text('0', { id, style: LABEL_STYLE });
+		const value = new Text('0', { id, style: LABEL_STYLE, wrap: 'none' });
 		group.addChild(value);
 		this.addChild(group);
 		return value;

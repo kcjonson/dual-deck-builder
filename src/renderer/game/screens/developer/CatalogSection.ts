@@ -42,7 +42,7 @@ export abstract class CatalogSection extends DeveloperSectionPanel {
 	}
 
 	/** A row of controls, centred across. */
-	protected line(children: Component[], gap = tokens.space.space_6): Stack {
+	protected line(children: Component[], gap: number = tokens.space.space_6): Stack {
 		const line = new Stack({ direction: 'horizontal', gap, crossAlign: 'center' });
 		children.forEach((child) => line.addChild(child));
 		return line;

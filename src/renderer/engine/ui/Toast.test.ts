@@ -1,5 +1,5 @@
 import { Clock } from '../animation/Clock';
-import { Layer } from '../components/Layer';
+import { Container } from '../components/Container';
 import type { MountContext } from '../components/MountContext';
 import { createTestContext } from '../components/testing';
 import { advance, click, pointer, send } from '../services/testing';
@@ -13,12 +13,12 @@ const DISMISS_MS = tokens.motion.dur_slow + 32;
 const MARGIN = tokens.space.space_4;
 
 let context: MountContext;
-let scene: Layer;
+let scene: Container;
 let stack: ToastStack;
 
 beforeEach(() => {
 	context = createTestContext({ viewport: { logical: { width: 800, height: 600 } }, clock: new Clock() });
-	scene = new Layer({ id: 'scene', width: 800, height: 600 });
+	scene = new Container({ id: 'scene', width: 800, height: 600 });
 	scene.mount(context);
 	stack = new ToastStack();
 	stack.attach(context);

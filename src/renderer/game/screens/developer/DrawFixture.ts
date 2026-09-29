@@ -1,4 +1,4 @@
-import { Layer } from '../../../engine/components/Layer';
+import { Container } from '../../../engine/components/Container';
 import type { DrawApi, RGBA, Rect, TextAlign } from '../../../engine/draw';
 
 export interface DrawFixtureOptions {
@@ -21,7 +21,7 @@ export interface DrawFixtureOptions {
  * gate without the fixture's deliberately overlapping shapes reading as
  * sibling overlaps.
  */
-export class DrawFixture extends Layer {
+export class DrawFixture extends Container {
 	private readonly paint: (draw: DrawApi) => void;
 
 	constructor({ id, x, y, width, height, paint }: DrawFixtureOptions) {

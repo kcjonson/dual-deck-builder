@@ -1,7 +1,7 @@
 /**
  * @jest-environment jsdom
  */
-import { Layer } from '../components/Layer';
+import { Container } from '../components/Container';
 import type { MountContext } from '../components/MountContext';
 import { createTestContext, injectNow } from '../components/testing';
 import { NO_MODIFIERS } from '../input/events';
@@ -17,7 +17,7 @@ import { TextInput } from './TextInput';
 let canvas: HTMLCanvasElement;
 let context: MountContext;
 let adapter: PointerAdapter;
-let root: Layer;
+let root: Container;
 
 function inject(...commands: string[]): void {
 	expect(injectNow({ canvas, dispatcher: context.dispatcher }, commands).ok).toBe(true);
@@ -29,7 +29,7 @@ beforeEach(() => {
 	context = createTestContext();
 	adapter = new PointerAdapter({ dispatcher: context.dispatcher });
 	adapter.attach(canvas);
-	root = new Layer({ id: 'root', width: 800, height: 600 });
+	root = new Container({ id: 'root', width: 800, height: 600 });
 	root.mount(context);
 });
 
@@ -83,7 +83,7 @@ describe('Button', () => {
 	});
 
 	it('drops pressed when an ancestor is disabled mid-press, and stays unpressed when it is enabled again', () => {
-		const holder = new Layer({ id: 'holder', width: 800, height: 600 });
+		const holder = new Container({ id: 'holder', width: 800, height: 600 });
 		root.addChild(holder);
 		const made = new Button('Go', { x: 100, y: 100, width: 120, height: 40 });
 		holder.addChild(made);

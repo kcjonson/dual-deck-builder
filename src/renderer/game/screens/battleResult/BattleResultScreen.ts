@@ -4,7 +4,7 @@ import { Rectangle } from '../../../engine/components/Rectangle';
 import { Text } from '../../../engine/components/Text';
 import { Button } from '../../../engine/ui/Button';
 import { BattleState } from '../../mechanics/Battle';
-import { Style } from '../../../engine/types/Style';
+import type { TextStyleObject } from '../../../engine/components/Text';
 
 /**
  * Data passed to the battle result screen
@@ -68,30 +68,30 @@ export class BattleResultScreen extends Screen {
 		this.rootLayer.addChild(this.panel);
 		
 		// Title (will be updated based on victory/defeat)
-		const titleStyle: Style = {
+		const titleStyle: TextStyleObject = {
 			fontSize: 48,
 			color: '#ffffff',
 			textAlign: 'center',
-			whiteSpace: 'nowrap',
 			fontWeight: 'bold',
 		};
 		
 		this.titleText = new Text('', {
 			id: 'result_title',
 			style: titleStyle,
+			wrap: 'none',
 		});
 		this.rootLayer.addChild(this.titleText);
 		
 		// Subtitle
-		const subtitleStyle: Style = {
+		const subtitleStyle: TextStyleObject = {
 			fontSize: 20,
 			color: '#aaaaaa',
 			textAlign: 'center',
-			whiteSpace: 'nowrap',
 		};
 		
 		this.subtitleText = new Text('', {
 			style: subtitleStyle,
+			wrap: 'none',
 		});
 		this.rootLayer.addChild(this.subtitleText);
 		

@@ -20,7 +20,7 @@ import type { DiffReport } from './diffClusters';
  * 2. Fixed device pixel ratio (`deviceScaleFactor: 1`) - kills glyph raster
  *    and backing-store differences. FontAtlas scales its 2D context by
  *    devicePixelRatio, Renderer.resize sizes the drawing buffer by it, and
- *    Layer and Panel scale their scissor rectangles by it.
+ *    Container and Panel scale their scissor rectangles by it.
  * 3. A time freeze, through the engine's own pause seam (`freezeApplication`)
  *    - kills animation phase. R13.37 asks for a time freeze *or* a fixed-step
  *    hook; `window.__app.pause()` (R13.32) is the freeze, and it is the right

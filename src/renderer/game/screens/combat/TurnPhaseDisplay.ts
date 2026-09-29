@@ -1,4 +1,4 @@
-import { Layer, LayerOptions } from '../../../engine/components/Layer';
+import { Container, ContainerOptions } from '../../../engine/components/Container';
 import { Text } from '../../../engine/components/Text';
 import { Rectangle } from '../../../engine/components/Rectangle';
 
@@ -37,12 +37,12 @@ export const TURN_BANNER_HEIGHT = 40;
  * The turn banner over the road: which phase the fight is in. The turn
  * number is on the top bar and above END TURN.
  */
-export class TurnPhaseDisplay extends Layer {
+export class TurnPhaseDisplay extends Container {
 	private readonly background: Rectangle;
 	private readonly phaseText: Text;
 	private currentPhase = CombatPhase.COMBAT_START;
 
-	constructor(options: LayerOptions = {}) {
+	constructor(options: ContainerOptions = {}) {
 		super({ width: TURN_BANNER_WIDTH, height: TURN_BANNER_HEIGHT, pointerEvents: 'none', ...options });
 
 		this.background = new Rectangle({
@@ -66,9 +66,9 @@ export class TurnPhaseDisplay extends Layer {
 				fontSize: 20,
 				color: PHASE_COLOR[this.currentPhase],
 				textAlign: 'center',
-				verticalAlign: 'middle',
-				whiteSpace: 'nowrap',
 			},
+			verticalAlign: 'middle',
+			wrap: 'none',
 		});
 		this.addChild(this.phaseText);
 	}

@@ -1,6 +1,8 @@
-import { Component, ComponentOptions, ResolvedColors } from './Component';
+import { Component, ResolvedColors } from './Component';
 import type { DrawApi } from '../draw/DrawApi';
-import { Style, StyleParser } from '../types/Style';
+import type { RGBA } from '../draw/geometry';
+import { ColorValue, resolveColor } from '../style/styleObject';
+import { ShapeOptions, ShapeStyleObject, resolveShapeStyle } from './shapeStyle';
 
 /**
  * The unit triangle, in a box-local space from -1 to 1 on each axis that
@@ -17,9 +19,10 @@ const TRIANGLE_POINTS = [
  * Triangle component for rendering triangles
  */
 export class Triangle extends Component {
-	private fillColor: [number, number, number, number] = [1, 1, 1, 1];
-	private strokeColor: [number, number, number, number] = [0, 0, 0, 1];
-	private strokeWidth = 0;
+	private fillColor: RGBA;
+	private strokeColor: RGBA;
+	private strokeWidth: number;
+	private styleObject: ShapeStyleObject;
 	/** `TRIANGLE_POINTS` on the component's box, rewritten each render; the draw API copies them. */
 	private readonly boxPoints = TRIANGLE_POINTS.map(() => ({ x: 0, y: 0 }));
 
@@ -27,40 +30,43 @@ export class Triangle extends Component {
 	 * Create a new triangle component
 	 * @param options Optional configuration including style
 	 */
-	constructor(options?: ComponentOptions) {
+	constructor({ style = {}, ...options }: ShapeOptions = {}) {
 		super(options);
+		this.styleObject = style;
+		const shape = resolveShapeStyle('Triangle', style);
+		this.fillColor = shape.fill;
+		this.strokeColor = shape.stroke;
+		this.strokeWidth = shape.strokeWidth;
+		if (style.opacity !== undefined) this.opacity = style.opacity;
 		this.componentType = 'Triangle';
 
 		// Set default size if not provided
 		if (this.width === 0) this.width = 100;
 		if (this.height === 0) this.height = 100;
 
-		if (options?.style) {
-			this.applyTriangleStyle(options.style);
-		}
 	}
 
-	/**
-	 * Apply triangle-specific style properties
-	 */
-	private applyTriangleStyle(style: Style): void {
-		if (style.backgroundColor !== undefined) {
-			this.fillColor = StyleParser.parseColor(style.backgroundColor);
-		}
-		if (style.borderColor !== undefined) {
-			this.strokeColor = StyleParser.parseColor(style.borderColor);
-		}
-		if (style.borderWidth !== undefined) {
-			this.strokeWidth = this.parseSize(style.borderWidth);
-		}
+	public get style(): ShapeStyleObject {
+		return this.styleObject;
+	}
+
+	/** R11.16: construction's path and validation; the new style replaces the old one whole. */
+	public set style(style: ShapeStyleObject) {
+		const shape = resolveShapeStyle('Triangle', style);
+		this.styleObject = style;
+		this.fillColor = shape.fill;
+		this.strokeColor = shape.stroke;
+		this.strokeWidth = shape.strokeWidth;
+		if (style.opacity !== undefined) this.opacity = style.opacity;
+		this.invalidateInk();
 	}
 
 	/**
 	 * Set the triangle's fill color
 	 * @param color Color value (hex string or RGBA array)
 	 */
-	public setFillColor(color: string | [number, number, number, number]): this {
-		this.fillColor = StyleParser.parseColor(color);
+	public setFillColor(color: ColorValue): this {
+		this.fillColor = resolveColor(color);
 		return this;
 	}
 
@@ -68,8 +74,8 @@ export class Triangle extends Component {
 	 * Set the triangle's stroke color
 	 * @param color Color value (hex string or RGBA array)
 	 */
-	public setStrokeColor(color: string | [number, number, number, number]): this {
-		this.strokeColor = StyleParser.parseColor(color);
+	public setStrokeColor(color: ColorValue): this {
+		this.strokeColor = resolveColor(color);
 		return this;
 	}
 

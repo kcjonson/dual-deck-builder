@@ -1,0 +1,5 @@
+[
+{"path":"gallery_root/dev_section_leaves/Text[0]","text":"Lines and Images","rect":[53,53,168.5,33.6]},
+{"path":"gallery_root/dev_section_leaves/dev_section_leaves_rows/Stack[0]/Text[0]","text":"line: 1, 2, 3, 4, 6, 8 px; butt and round caps alternate","rect":[53,103,313.23,17.7]},
+{"path":"gallery_root/dev_section_leaves/dev_section_leaves_rows/Stack[1]/Text[0]","text":"image: fill, contain, cover, none; frame 2 of 2; tinted; placeholder","rect":[53,210.7,388.7,17.7]}
+]

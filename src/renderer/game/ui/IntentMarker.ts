@@ -6,7 +6,7 @@ import type { DrawApi } from '../../engine/draw/DrawApi';
 import type { IconName } from '../../engine/text/icons';
 import { resolveFontRole } from '../../engine/text/fontRoles';
 import { tokens } from '../../engine/theme/tokens';
-import { StyleParser } from '../../engine/types/Style';
+import { resolveColor } from '../../engine/style/styleObject';
 
 /**
  * Enemy intent indicator types
@@ -27,7 +27,7 @@ export interface IntentMarkerOptions extends ComponentOptions {
 const ICON_SCALE = 0.6;
 const VALUE_SIZE = 16;
 const VALUE_FONT = resolveFontRole({ weight: 'bold' });
-const BORDER = StyleParser.parseColor('#cc6a6a');
+const BORDER = resolveColor('#cc6a6a');
 
 const FILLS: Readonly<Record<IntentType, string>> = {
 	attack: '#cc4444',
@@ -104,7 +104,7 @@ export class IntentMarker extends Component {
 		draw.drawRect({
 			id: this.id ?? undefined,
 			rect: { x: 0, y: 0, width: this.width, height: this.height },
-			fill: StyleParser.parseColor(FILLS[this.current.type] ?? '#666666'),
+			fill: resolveColor(FILLS[this.current.type] ?? '#666666'),
 			radius: this.width / 2,
 			border: { color: BORDER, width: 2 },
 		});

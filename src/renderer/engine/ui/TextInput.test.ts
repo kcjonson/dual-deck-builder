@@ -2,7 +2,7 @@
  * @jest-environment jsdom
  */
 import { Clock } from '../animation/Clock';
-import { Layer } from '../components/Layer';
+import { Container } from '../components/Container';
 import type { MountContext } from '../components/MountContext';
 import { renderTree } from '../components/renderTree';
 import { createTestContext, injectNow } from '../components/testing';
@@ -32,7 +32,7 @@ let context: MountContext;
 let adapter: PointerAdapter;
 let backend: MeasuringRecordingBackend;
 let clock: Clock;
-let root: Layer;
+let root: Container;
 
 function inject(...commands: string[]): void {
 	expect(injectNow({ canvas, dispatcher: context.dispatcher }, commands).ok).toBe(true);
@@ -90,7 +90,7 @@ beforeEach(() => {
 	context = createTestContext({ draw: measuring.api, clock });
 	adapter = new PointerAdapter({ dispatcher: context.dispatcher });
 	adapter.attach(canvas);
-	root = new Layer({ id: 'root', width: 800, height: 600 });
+	root = new Container({ id: 'root', width: 800, height: 600 });
 	root.mount(context);
 });
 
