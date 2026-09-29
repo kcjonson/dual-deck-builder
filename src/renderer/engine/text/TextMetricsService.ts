@@ -121,6 +121,7 @@ export function metricsOf(layout: TextLayout): TextMetrics {
 		lines: layout.lines.length,
 		lineWidths: layout.lines.map((line) => line.width),
 		advances: layout.advances,
+		baseline: (layout.lineHeight - layout.ascent - layout.descent) / 2 + layout.ascent,
 	};
 }
 

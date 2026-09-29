@@ -6,6 +6,17 @@ This document contains the chronological log of completed development tasks for 
 
 **Date correction (2026-08-22):** the repo's first commit is 2025-05-17, but many entries below carry dates in December 2024 or January 2025 — the AI that wrote them used its assumed date instead of the real one. Entries dated 2025-07-03 and 2025-07-02 have been corrected from "2025-01-03"/"2025-01-02" (verified against git history). Remaining Dec 2024 / Jan 2025 dates are wrong by roughly six months; the real work happened May–July 2025. Trust git history over these dates.
 
+## Catalog Wave C, display components (2026-09-28)
+
+**What landed:** DDB-87's second PR (DDB-55 phase 5), R12.24, R12.26 to R12.29, R12.39.
+
+- `ui/ProgressBar.ts`, `ui/Counter.ts`, `ui/Badge.ts`, `ui/Avatar.ts`, `ui/Stat.ts`, `ui/Divider.ts`.
+- `TextMetrics.baseline`, filled by `metricsOf`; `Text.shadow` passed to `drawText`; `toneColor` in `style/variants.ts`; `CatalogSection.line` takes any gap.
+- Developer sections, and so gallery scenes, `meters` and `data-display`.
+
+- Review fixes (#109, #111): Counter and ProgressBar show their target when mounted again after an unmount cut a count short; `Text.shadow` is part of the text's measured ink and cull bound, so the subtree cull never drops a visible shadow; `ProgressBar.valueText` builds the value line when the bar had none; a dialog's panel is never fully transparent, so a press on it the frame it opens is inside; a hovered toast asks for no frames and a fading one takes no clicks.
+
+**How:** `ui/display.test.ts` (26) with the committed font metrics and a recording backend: auto banding, fill and counter tweens with retargeting and reduced motion, segmented cells, the badge pill and dot, FNV-1a against known hashes, mood bands, rings as ink, the unit's baseline equal to the value's, and the divider's caption break. Both scenes lint clean in the browser.
 ## Catalog Wave B, menus (2026-09-28)
 
 **What landed:** DDB-86's second PR (DDB-55 phase 5), R12.11 to R12.14.

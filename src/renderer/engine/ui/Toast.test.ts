@@ -75,6 +75,28 @@ describe('Toast lifecycle (R12.23)', () => {
 		expect(toast.state).toBe('dismissing');
 	});
 
+	it('asks for no frames while hovered, and counts again once the pointer leaves', () => {
+		const toast = push({ autoDismiss: 1 });
+		advance(context, APPEAR_MS);
+		send(context, [pointer('move', ...centre(toast))]);
+		advance(context, 32);
+		expect(context.frame.hasUpdateRequests).toBe(false);
+		send(context, [pointer('move', 20, 500)]);
+		expect(context.frame.hasUpdateRequests).toBe(true);
+		advance(context, 1100);
+		expect(toast.state).toBe('dismissing');
+	});
+
+	it('does not fire onClick on a toast already fading out', () => {
+		const clicks: number[] = [];
+		const toast = push({ onClick: () => clicks.push(1) });
+		advance(context, APPEAR_MS);
+		toast.dismiss();
+		advance(context, 16);
+		click(context, toast.screenBounds.x + 30, toast.screenBounds.y + 12);
+		expect(clicks).toEqual([]);
+	});
+
 	it('stays until dismissed when autoDismiss is 0', () => {
 		const toast = push({ autoDismiss: 0 });
 		advance(context, 60000);

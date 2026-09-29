@@ -20,6 +20,8 @@ import { PanelExamplesSection } from './PanelExamplesSection';
 import { ScrollExamplesSection } from './ScrollExamplesSection';
 import { LeafExamplesSection } from './LeafExamplesSection';
 import { MenuExamplesSection } from './MenuExamplesSection';
+import { MeterExamplesSection } from './MeterExamplesSection';
+import { DataDisplaySection } from './DataDisplaySection';
 
 /**
  * The developer screen's sections, defined once.
@@ -153,5 +155,13 @@ export const developerSections: readonly DeveloperSection[] = [
 	{
 		name: 'menus',
 		build: ({ x, y, width }) => new MenuExamplesSection(x, y, width),
+	},
+	{
+		name: 'meters',
+		build: ({ x, y, width }) => new MeterExamplesSection(x, y, width),
+	},
+	{
+		name: 'data-display',
+		build: ({ x, y, width }) => new DataDisplaySection(x, y, width),
 	},
 ];
