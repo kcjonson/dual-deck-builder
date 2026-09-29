@@ -134,4 +134,74 @@ describe('ScreenTransition (R12.38)', () => {
 		expect(ran).toEqual(['swap', 'again']);
 		expect(transition.phase).toBe('idle');
 	});
+
+	it('ends uncovered and released when the swap throws, rejecting the run and logging', async () => {
+		const logged = jest.spyOn(console, 'error').mockImplementation(() => undefined);
+		const failure = new Error('screen constructor threw');
+		const done = transition.run(context, () => {
+			throw failure;
+		});
+		advance(context, FADE_MS);
+		expect(transition.phase).toBe('idle');
+		expect(transition.progress).toBe(0);
+		expect(context.overlays.roots).toHaveLength(0);
+		await expect(done).rejects.toBe(failure);
+		expect(logged).toHaveBeenCalled();
+		click(context, 70, 40);
+		expect(clicks).toBe(1);
+
+		// And the next run works as normal.
+		const ran: string[] = [];
+		const next = transition.run(context, () => ran.push('next'));
+		advance(context, FADE_MS * 2);
+		await next;
+		expect(ran).toEqual(['next']);
+		logged.mockRestore();
+	});
+
+	it('runs a run queued from inside the swap straight after it, still covered', async () => {
+		const ran: string[] = [];
+		const first = transition.run(context, () => {
+			ran.push('first');
+			void transition.run(context, () => ran.push('redirect'));
+		});
+		advance(context, FADE_MS);
+		expect(ran).toEqual(['first', 'redirect']);
+		expect(transition.phase).toBe('in');
+		advance(context, FADE_MS);
+		await first;
+		expect(transition.phase).toBe('idle');
+	});
+
+	it('gives up on a swap that keeps queueing itself', async () => {
+		const logged = jest.spyOn(console, 'error').mockImplementation(() => undefined);
+		const loop = (): void => {
+			void transition.run(context, loop);
+		};
+		const done = transition.run(context, loop);
+		advance(context, FADE_MS);
+		await expect(done).rejects.toThrow(/keeps redirecting/);
+		expect(transition.phase).toBe('idle');
+		logged.mockRestore();
+	});
+
+	it('keeps keys from the incoming scene until it is done, then focuses what the scene asked for', () => {
+		let pressed = 0;
+		void transition.run(context, () => {
+			navigate('combat')();
+			const go = scene.findById('combat_go') as Button;
+			go.onClick = () => { pressed += 1; };
+			context.focus.focus(go, 'keyboard');
+		});
+		advance(context, FADE_MS);
+		expect(transition.phase).toBe('in');
+		expect(context.focus.focused).toBeNull();
+		send(context, [key('Enter')]);
+		expect(pressed).toBe(0);
+		advance(context, FADE_MS);
+		expect(transition.phase).toBe('idle');
+		expect(context.focus.focused?.id).toBe('combat_go');
+		send(context, [key('Enter')]);
+		expect(pressed).toBe(1);
+	});
 });

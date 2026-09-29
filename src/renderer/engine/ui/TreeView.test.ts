@@ -6,7 +6,9 @@ import { createTestContext } from '../components/testing';
 import { NO_MODIFIERS } from '../input/events';
 import { click, key, send } from '../services/testing';
 import { tokens } from '../theme/tokens';
+import { ScrollContainer } from './ScrollContainer';
 import { TreeNode, TreeView, TreeViewOptions } from './TreeView';
+import { Stack } from '../components/Stack';
 
 /** R12.25: flattening, the chevron column, selection, the keyboard, culling, and the wheel. */
 
@@ -127,7 +129,8 @@ describe('TreeView (R12.25)', () => {
 	it('culls rows outside its height and clips the rest', () => {
 		const many: TreeNode[] = Array.from({ length: 40 }, (_, index) => ({ label: `Part ${index}` }));
 		const view = tree({ nodes: many, height: ROW * 5 });
-		expect(view.clipsChildren).toBe(true);
+		expect(view.scrollContainer.clipsChildren).toBe(true);
+		expect(view.scrollContainer.bar.visible).toBe(true);
 		expect(view.visibleRows).toHaveLength(5);
 		view.scrollTo(ROW * 2.5);
 		context.frame.layout();
@@ -147,5 +150,86 @@ describe('TreeView (R12.25)', () => {
 		expect(view.scrollOffset).toBe(0);
 		send(context, [key('End')]);
 		expect(view.scrollOffset).toBe(view.maxScroll);
+	});
+
+	it('keeps a latched wheel gesture at its end instead of scrolling the page around it (R9.32)', () => {
+		const many: TreeNode[] = Array.from({ length: 40 }, (_, index) => ({ label: `Part ${index}` }));
+		const page = new ScrollContainer({ id: 'page', x: 0, y: 0, width: 800, height: 300 });
+		const column = new Stack({ direction: 'vertical', width: 780 });
+		const view = new TreeView({ id: 'tree', nodes: many, width: 300, height: ROW * 5 });
+		column.addChild(view);
+		column.addChild(new Stack({ width: 700, height: 900 }));
+		page.addChild(column);
+		root.addChild(page);
+		context.frame.layout();
+		const x = 150;
+		const y = ROW * 2;
+		const wheelAt = (deltaY: number): void => {
+			context.dispatcher.enqueue({ kind: 'wheel', x, y, deltaX: 0, deltaY, deltaMode: 0, modifiers: NO_MODIFIERS });
+			context.dispatcher.dispatchPending();
+			context.frame.layout();
+		};
+		wheelAt(100000);
+		expect(view.scrollOffset).toBe(view.maxScroll);
+		wheelAt(100);
+		expect(page.scrollPosition).toBe(0);
+	});
+
+	it('pages the cursor by a viewport with Page Up and Page Down', () => {
+		const many: TreeNode[] = Array.from({ length: 40 }, (_, index) => ({ label: `Part ${index}` }));
+		const view = tree({ nodes: many, height: ROW * 5 });
+		context.focus.focus(view, 'keyboard');
+		send(context, [key('PageDown')]);
+		expect(view.cursor?.node.label).toBe('Part 4');
+		send(context, [key('PageDown')]);
+		expect(view.cursor?.node.label).toBe('Part 8');
+		expect(view.scrollOffset).toBe(ROW * 9 - ROW * 5);
+		send(context, [key('PageUp')]);
+		expect(view.cursor?.node.label).toBe('Part 4');
+	});
+
+	it('moves the cursor to the nearest visible ancestor when a collapse hides its row', () => {
+		const view = tree();
+		view.expandAll();
+		context.focus.focus(view, 'keyboard');
+		send(context, [key('ArrowDown'), key('ArrowDown'), key('ArrowDown')]);
+		expect(view.cursor?.node.label).toBe('Ram spike');
+		view.collapse(view.rows[1].key);
+		expect(view.cursor?.node.label).toBe('Rammer');
+		view.collapseAll();
+		expect(view.cursor?.node.label).toBe('Convoy');
+	});
+
+	it('keeps the selection when its row is folded away, and drops it when new nodes lack it', () => {
+		const view = tree({ selectable: true });
+		view.expandAll();
+		const key2 = view.rows.find((row) => row.node.label === 'Plating')?.key ?? '';
+		view.select(key2);
+		view.collapseAll();
+		expect(view.selectedNode?.label).toBe('Plating');
+		view.nodes = [{ label: 'Salvage' }];
+		expect(view.selectedKey).toBeNull();
+		expect(view.selectedNode).toBeNull();
+	});
+
+	it('marks the cursor\'s row active while the tree is focused, for the snapshot', () => {
+		const view = tree();
+		context.frame.layout();
+		expect(view.visibleRows.some((row) => row.active)).toBe(false);
+		context.focus.focus(view, 'keyboard');
+		send(context, [key('ArrowDown')]);
+		const active = view.visibleRows.filter((row) => row.active);
+		expect(active).toHaveLength(1);
+		expect(active[0].stateFlags.active).toBe(true);
+		expect((active[0] as Component & { item: { node: TreeNode } }).item.node.label).toBe('Rammer');
+		context.focus.blur();
+		context.frame.layout();
+		expect(view.visibleRows.some((row) => row.active)).toBe(false);
+	});
+
+	it('is focused by a press on a row, not its scroll container', () => {
+		const view = tree();
+		click(context, ...rowPoint(view, 2));
+		expect(context.focus.focused).toBe(view);
 	});
 });

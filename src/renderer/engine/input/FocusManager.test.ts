@@ -243,6 +243,20 @@ describe('scopes (R9.20)', () => {
 		expect(focusedId()).toBe('b');
 	});
 
+	it('refuses focus outside the active scope and gives it that focus when the scope pops', () => {
+		const { root, items } = row(['a', 'b']);
+		const dialog = new Container({ id: 'dialog', x: 0, y: 100, width: 400, height: 200 });
+		dialog.addChild(new Probe({ id: 'ok', width: 50, height: 20, focusable: true }));
+		root.addChild(dialog);
+		context.focus.focus(items[0]);
+		context.focus.pushScope(dialog);
+
+		expect(context.focus.focus(items[1])).toBe(false);
+		expect(focusedId()).toBe('ok');
+		context.focus.popScope(dialog);
+		expect(focusedId()).toBe('b');
+	});
+
 	it('pops itself when its root unmounts', () => {
 		const { root, items } = row(['a']);
 		const dialog = new Container({ id: 'dialog', x: 0, y: 100, width: 400, height: 200 });

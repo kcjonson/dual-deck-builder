@@ -1,5 +1,6 @@
 import { Component, ComponentOptions, PointerEvents, ResolvedColors } from '../components/Component';
 import { Icon } from '../components/Icon';
+import type { Size } from '../components/layoutTypes';
 import { Text } from '../components/Text';
 import type { DrawApi } from '../draw/DrawApi';
 import type { AnyUiEvent, UiActionEvent, UiKeyEvent, UiPointerEvent } from '../input/events';
@@ -8,6 +9,7 @@ import { LookTransition } from '../style/LookTransition';
 import { rowLayers } from '../style/variants';
 import { tokens } from '../theme/tokens';
 import { Pressable } from './Pressable';
+import { ScrollContainer } from './ScrollContainer';
 import { CLEAR, rgba } from './surfaces';
 
 /** R12.25's node: a label, an optional count, children, and whether it starts expanded. */
@@ -86,13 +88,17 @@ class TreeRow extends Pressable {
 		this.show(item);
 	}
 
-	/** The keyboard cursor: drawn as an inside ring while the tree shows focus. */
+	/**
+	 * The keyboard cursor: R11.11's `active` while the tree is focused, so
+	 * the snapshot reports it, and an inside ring while focus is visible.
+	 */
 	public get cursor(): boolean {
 		return this.isCursor;
 	}
 
 	public set cursor(cursor: boolean) {
 		this.isCursor = cursor;
+		this.active = cursor && this.tree.focused;
 	}
 
 	/** Where the chevron column ends, in the row's space: a press left of it toggles. */
@@ -185,23 +191,69 @@ class TreeRow extends Pressable {
 	}
 }
 
+
+/**
+ * The scroll container's content: a column exactly as tall as every visible
+ * row, holding only the rows inside the container's viewport. It lays out
+ * after the container has measured it and clamped the scroll, so the window
+ * it culls to is the current one.
+ */
+class TreeRows extends Component {
+	private readonly tree: TreeView;
+	/** Laying out: a scroll it causes itself (revealing the cursor) needs no second pass. */
+	public laying = false;
+
+	constructor({ tree, id }: { tree: TreeView; id: string }) {
+		super({ id, widthMode: 'fill', heightMode: 'hug' });
+		this.componentType = 'TreeRows';
+		this.tree = tree;
+	}
+
+	protected get defaultPointerEvents(): PointerEvents {
+		return 'passthrough';
+	}
+
+	public measure(availableWidth: number): Size {
+		return { width: availableWidth, height: this.tree.rows.length * this.tree.rowHeight };
+	}
+
+	protected layoutChildren(): void {
+		this.laying = true;
+		try {
+			this.tree.layoutRows(this);
+		} finally {
+			this.laying = false;
+		}
+	}
+}
+
 /**
  * R12.25's tree view: `nodes` flattened into rows (rebuilt lazily when the
  * expansion changes), each with a chevron column that toggles, a label, and
- * a trailing count. Only the rows inside the view's fixed height exist as
- * components, and the view clips them; the wheel scrolls it.
+ * a trailing count.
+ *
+ * Scrolling is a ScrollContainer's (R12.20): the wheel with R9.32's latch,
+ * the Scrollbar (R12.37) while the rows overflow, and the popup close on
+ * scroll. The tree virtualises inside it: the content is a column as tall as
+ * every row, and only the rows inside the viewport exist as components,
+ * culled again whenever the container scrolls.
  *
  * It is one Tab stop and keeps a keyboard cursor over its rows (the
  * `aria-activedescendant` pattern rather than a focus per row, since culled
- * rows come and go): Up and Down move it, Home and End go to the ends,
- * Right expands a collapsed row or steps into an expanded one, Left
- * collapses an expanded row or steps out to the parent, Enter and Space
- * select (when `selectable`) or toggle. A press on the chevron column
- * toggles; one elsewhere selects, or toggles in a view-only tree.
+ * rows come and go); the cursor's row carries R11.11's `active` flag while
+ * the tree is focused, so the snapshot shows it. Up and Down move it, Page
+ * Up and Page Down by a viewport, Home and End to the ends, Right expands a
+ * collapsed row or steps into an expanded one, Left collapses an expanded
+ * row or steps out to the parent, Enter and Space select (when
+ * `selectable`) or toggle; the cursor is kept in view. A press on the
+ * chevron column toggles; one elsewhere selects, or toggles in a view-only
+ * tree.
  *
  * `expandAll`, `collapseAll`, `expand`, `collapse`, and `select` are
  * programmatic and fire nothing; user changes fire `onExpand`, `onCollapse`,
- * and `onSelect` once, after they are applied.
+ * and `onSelect` once, after they are applied. A collapse that hides the
+ * cursor's row moves the cursor to its nearest visible ancestor; the
+ * selection survives being folded away.
  */
 export class TreeView extends Component {
 	public onExpand: TreeNodeCallback | null = null;
@@ -216,10 +268,13 @@ export class TreeView extends Component {
 	private flat: TreeRowItem[] | null = null;
 	private selectedRowKey: string | null = null;
 	private cursorIndex = 0;
-	private scrollTop = 0;
+	/** A row to bring into view at the next layout, once the container knows the new extent. */
+	private revealIndex: number | null = null;
+	private readonly scroller: ScrollContainer;
+	private readonly rowLayer: TreeRows;
 
 	constructor({ nodes, rowHeight = tokens.control.control_h_sm, indent = tokens.space.space_4, selectable = false, onExpand, onCollapse, onSelect, ...options }: TreeViewOptions) {
-		super({ focusable: true, overflow: 'hidden', ...options });
+		super({ focusable: true, ...options });
 		this.componentType = 'TreeView';
 		this.nodeList = nodes;
 		this.rowHeightValue = rowHeight;
@@ -229,15 +284,21 @@ export class TreeView extends Component {
 		if (onCollapse) this.onCollapse = onCollapse;
 		if (onSelect) this.onSelect = onSelect;
 		this.seedExpansion(nodes, '');
-	}
 
-	/** The view is the target between and below rows too: a wheel anywhere over it scrolls it. */
-	protected get defaultPointerEvents(): PointerEvents {
-		return 'auto';
-	}
-
-	public get handlesPointer(): boolean {
-		return true;
+		const id = this.id ?? 'tree';
+		// Not focusable: a press anywhere in the tree focuses the tree itself.
+		this.scroller = new ScrollContainer({
+			id: `${id}_scroll`,
+			width: this.width,
+			height: this.height,
+			focusable: false,
+			onScroll: () => {
+				if (!this.rowLayer.laying) this.rowLayer.invalidateLayout();
+			},
+		});
+		this.rowLayer = new TreeRows({ tree: this, id: `${id}_rows` });
+		this.scroller.addChild(this.rowLayer);
+		this.addPart(this.scroller);
 	}
 
 	/** The rows draw the cursor ring inside the view's clip. */
@@ -249,11 +310,12 @@ export class TreeView extends Component {
 		return this.nodeList;
 	}
 
-	/** New data: expansion is seeded again from the nodes, the selection kept when its key survives. */
+	/** New data: expansion is seeded again from the nodes; the selection is kept only when its key survives. */
 	public set nodes(nodes: readonly TreeNode[]) {
 		this.nodeList = nodes;
 		this.expandedKeys.clear();
 		this.seedExpansion(nodes, '');
+		if (this.selectedRowKey !== null && !this.findNode(this.selectedRowKey)) this.selectedRowKey = null;
 		this.rebuild();
 	}
 
@@ -280,8 +342,9 @@ export class TreeView extends Component {
 		return this.selectedRowKey;
 	}
 
+	/** The selected node, whether or not its row is showing. */
 	public get selectedNode(): TreeNode | null {
-		return this.rows.find((row) => row.key === this.selectedRowKey)?.node ?? null;
+		return this.selectedRowKey === null ? null : this.findNode(this.selectedRowKey);
 	}
 
 	/** The keyboard cursor's row. */
@@ -291,16 +354,20 @@ export class TreeView extends Component {
 
 	/** The rows that exist as components now: the ones inside the view. */
 	public get visibleRows(): readonly Component[] {
-		return this.getChildren();
+		return this.rowLayer.getChildren();
+	}
+
+	/** The scroll container the rows live in (R12.20). */
+	public get scrollContainer(): ScrollContainer {
+		return this.scroller;
 	}
 
 	public get scrollOffset(): number {
-		return this.scrollTop;
+		return this.scroller.scrollPosition;
 	}
 
-	/** How far the rows scroll: their height less the view's. */
 	public get maxScroll(): number {
-		return Math.max(0, this.rows.length * this.rowHeightValue - this.height);
+		return this.scroller.maxScroll;
 	}
 
 	public isExpanded(key: string): boolean {
@@ -337,34 +404,21 @@ export class TreeView extends Component {
 	}
 
 	public scrollTo(offset: number): void {
-		const clamped = Math.max(0, Math.min(this.maxScroll, offset));
-		if (clamped === this.scrollTop) return;
-		this.scrollTop = clamped;
-		this.invalidateLayout();
-	}
-
-	public canScroll(_deltaX: number, deltaY: number): boolean {
-		return (deltaY > 0 && this.scrollTop < this.maxScroll) || (deltaY < 0 && this.scrollTop > 0);
+		this.scroller.scrollTo(offset);
 	}
 
 	public get resolvedColors(): ResolvedColors {
-		return { fill: color.bg_inset };
+		return { fill: color.bg_inset, border: color.line_edge };
 	}
 
 	public handleEvent(event: AnyUiEvent): void {
 		super.handleEvent(event);
-		if (event.consumed) return;
-		if (event.type === 'wheel') {
-			if (!this.canScroll(event.deltaX, event.deltaY)) return;
-			this.scrollTo(this.scrollTop + event.deltaY);
-			event.consume();
-			return;
-		}
-		if (event.type === 'keydown' && event.target === this) {
+		if (event.consumed || event.target !== this) return;
+		if (event.type === 'keydown') {
 			if (this.keyPressed(event)) event.consume();
 			return;
 		}
-		if (event.type === 'activate' && event.target === this) {
+		if (event.type === 'activate') {
 			const row = this.cursor;
 			if (!row) return;
 			event.consume();
@@ -382,27 +436,44 @@ export class TreeView extends Component {
 
 	protected onStateChange(): void {
 		super.onStateChange();
-		// The cursor ring follows focus and its visibility.
+		// The cursor's `active` flag and ring follow focus and its visibility.
 		this.refreshRows();
 	}
 
-	/** Culls to the rows inside the view and places them at the scroll. */
-	protected layoutChildren(): void {
-		this.scrollTop = Math.min(this.scrollTop, this.maxScroll);
-		const rows = this.rows;
+	protected onResized(): void {
+		super.onResized();
+		if (this.scroller) this.scroller.setSize(this.width, this.height);
+	}
+
+	/**
+	 * @internal Called from the row column's layout, after the container has
+	 * measured it and clamped the scroll: reveals the cursor if asked, then
+	 * keeps only the rows inside the viewport, placed in the column.
+	 */
+	public layoutRows(column: TreeRows): void {
 		const height = this.rowHeightValue;
-		const first = Math.max(0, Math.floor(this.scrollTop / height));
-		const last = Math.min(rows.length, Math.ceil((this.scrollTop + this.height) / height));
-		const shown = rows.slice(first, last);
-		this.reconcileChildren<TreeRowItem, TreeRow>(shown, {
+		const viewport = this.scroller.height;
+		if (this.revealIndex !== null) {
+			const top = this.revealIndex * height;
+			const position = this.scroller.scrollPosition;
+			if (top < position) this.scroller.scrollTo(top);
+			else if (top + height > position + viewport) this.scroller.scrollTo(top + height - viewport);
+			this.revealIndex = null;
+		}
+		const rows = this.rows;
+		const scrollTop = this.scroller.scrollPosition;
+		const first = Math.max(0, Math.floor(scrollTop / height));
+		const last = Math.min(rows.length, Math.ceil((scrollTop + viewport) / height));
+		const id = this.id ?? 'tree';
+		column.reconcileChildren<TreeRowItem, TreeRow>(rows.slice(first, last), {
 			key: (item) => item.key,
 			// Keys are paths joined by `/`, which a snapshot path would split.
-			create: (item) => new TreeRow({ tree: this, item, id: `${this.id ?? 'tree'}_row_${item.key.replace(/\//g, '_')}` }),
+			create: (item) => new TreeRow({ tree: this, item, id: `${id}_row_${item.key.replace(/\//g, '_')}` }),
 			update: (child, item) => child.show(item),
 		});
-		(this.getChildren() as TreeRow[]).forEach((child, index) => {
-			child.setPosition(0, (first + index) * height - this.scrollTop);
-			child.setSize(this.width, height);
+		(column.getChildren() as TreeRow[]).forEach((child, index) => {
+			child.setPosition(0, (first + index) * height);
+			child.setSize(column.width, height);
 			child.cursor = first + index === this.cursorIndex;
 		});
 	}
@@ -445,12 +516,19 @@ export class TreeView extends Component {
 		const rows = this.rows;
 		const row = rows[this.cursorIndex];
 		if (!row) return false;
+		const page = Math.max(1, Math.floor(this.scroller.height / this.rowHeightValue) - 1);
 		switch (event.key) {
 			case 'ArrowUp':
 				this.moveCursor(this.cursorIndex - 1);
 				return true;
 			case 'ArrowDown':
 				this.moveCursor(this.cursorIndex + 1);
+				return true;
+			case 'PageUp':
+				this.moveCursor(this.cursorIndex - page);
+				return true;
+			case 'PageDown':
+				this.moveCursor(this.cursorIndex + page);
 				return true;
 			case 'Home':
 				this.moveCursor(0);
@@ -472,30 +550,48 @@ export class TreeView extends Component {
 		}
 	}
 
-	/** Moves the cursor, scrolling it into view. */
+	/** Moves the cursor and brings its row into view at the next layout. */
 	private moveCursor(index: number): void {
-		const clamped = Math.max(0, Math.min(this.rows.length - 1, index));
-		this.cursorIndex = clamped;
-		const top = clamped * this.rowHeightValue;
-		if (top < this.scrollTop) this.scrollTo(top);
-		else if (top + this.rowHeightValue > this.scrollTop + this.height) this.scrollTo(top + this.rowHeightValue - this.height);
+		this.cursorIndex = Math.max(0, Math.min(this.rows.length - 1, index));
+		this.revealIndex = this.cursorIndex;
 		this.refreshRows();
 	}
 
-	/** The expansion changed: flatten again, keep the cursor on its row where it can. */
+	/**
+	 * The expansion changed: flatten again, and keep the cursor on its row,
+	 * or on the nearest ancestor still showing when a collapse hid it.
+	 */
 	private rebuild(): void {
-		const cursorKey = this.flat?.[this.cursorIndex]?.key ?? null;
+		const previous = this.flat;
 		this.flat = null;
-		if (cursorKey !== null) {
-			const index = this.rows.findIndex((row) => row.key === cursorKey);
-			if (index !== -1) this.cursorIndex = index;
+		if (previous) {
+			const rows = this.rows;
+			for (let index = this.cursorIndex; index >= 0 && index < previous.length; index = previous[index].parent) {
+				const survivor = rows.findIndex((row) => row.key === previous[index].key);
+				if (survivor !== -1) {
+					this.cursorIndex = survivor;
+					break;
+				}
+				if (previous[index].parent < 0) {
+					this.cursorIndex = 0;
+					break;
+				}
+			}
 		}
-		this.invalidateLayout();
+		this.rowLayer.invalidateLayout();
 	}
 
 	/** Rows re-read the selection, the cursor, and the chevrons without being rebuilt. */
 	private refreshRows(): void {
-		this.invalidateLayout();
+		this.rowLayer?.invalidateLayout();
+	}
+
+	private findNode(key: string): TreeNode | null {
+		let found: TreeNode | null = null;
+		this.walk(this.nodeList, '', (node, nodeKey) => {
+			if (!found && nodeKey === key) found = node;
+		});
+		return found;
 	}
 
 	private seedExpansion(nodes: readonly TreeNode[], prefix: string): void {
