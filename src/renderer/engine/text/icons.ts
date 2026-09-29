@@ -8,6 +8,7 @@ export const ICON_CODE_POINTS = {
 	chevron_right: 0xE5CC,
 	close: 0xE5CD,
 	error: 0xE000,
+	expand_less: 0xE5CE,
 	expand_more: 0xE5CF,
 	info: 0xE88E,
 	local_gas_station: 0xE546,

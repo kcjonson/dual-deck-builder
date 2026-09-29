@@ -11,7 +11,7 @@ import { tokens } from '../theme/tokens';
 import { over } from '../style/look';
 import type { StyleObject } from '../style/styleObject';
 import { Button } from './Button';
-import { Input } from './Input';
+import { TextInput } from './TextInput';
 
 const { color } = tokens;
 
@@ -25,13 +25,13 @@ describe('Button styling (R11)', () => {
 		context = createTestContext({ draw: api, clock: new Clock() });
 	});
 
-	function mount<T extends Button | Input>(component: T): T {
+	function mount<T extends Button | TextInput>(component: T): T {
 		component.mount(context);
 		context.frame.layout();
 		return component;
 	}
 
-	function draw(component: Button | Input): { rects: RectCommand[]; texts: TextCommand[] } {
+	function draw(component: Button | TextInput): { rects: RectCommand[]; texts: TextCommand[] } {
 		const commands = frameCommands(component);
 		return {
 			rects: commands.filter((command): command is RectCommand => command.kind === 'rect'),
@@ -39,7 +39,7 @@ describe('Button styling (R11)', () => {
 		};
 	}
 
-	function frameCommands(component: Button | Input): typeof backend.commands {
+	function frameCommands(component: Button | TextInput): typeof backend.commands {
 		api.beginFrame({ viewport: { width: 400, height: 200 } });
 		renderTree(component, api);
 		api.endFrame();
@@ -117,7 +117,7 @@ describe('Button styling (R11)', () => {
 		it('throws on an unknown key and on a property it does not render', () => {
 			expect(() => new Button('Go', { style: { border: '1px solid red' } as StyleObject })).toThrow(/not a style property/);
 			expect(() => new Button('Go', { style: { cursor: 'pointer' } })).toThrow(/does not render/);
-			expect(() => new Input('', { style: { textAlign: 'center' } })).toThrow(/does not render/);
+			expect(() => new TextInput({ style: { textAlign: 'center' } })).toThrow(/does not render/);
 		});
 
 		it('restyles at runtime through the same accessor, and validates it', () => {
@@ -150,7 +150,7 @@ describe('Button styling (R11)', () => {
 			button.setSize(100, 50);
 			button.size = 'sm';
 			expect(button.height).toBe(50);
-			const input = new Input('', { width: 100 });
+			const input = new TextInput({ width: 100 });
 			input.size = 'sm';
 			expect(input.height).toBe(tokens.control.control_h_sm);
 		});
@@ -235,9 +235,9 @@ describe('Button styling (R11)', () => {
 		});
 	});
 
-	describe('Input', () => {
+	describe('TextInput', () => {
 		it('draws an inset well and lifts its border to the accent while focused', () => {
-			const input = mount(new Input('Name', { width: 200 }));
+			const input = mount(new TextInput({ placeholder: 'Name', width: 200 }));
 			expect(input.height).toBe(tokens.control.control_h_md);
 			expect(draw(input).rects[0]).toMatchObject({ fill: color.bg_inset, border: { color: color.line_edge } });
 			context.focus.focus(input);
@@ -249,7 +249,7 @@ describe('Button styling (R11)', () => {
 		});
 
 		it('clears its editing state when unmounted while focused', () => {
-			const input = mount(new Input('Name', { width: 200 }));
+			const input = mount(new TextInput({ placeholder: 'Name', width: 200 }));
 			context.focus.focus(input);
 			expect(input.active).toBe(true);
 			input.unmount();
@@ -260,13 +260,13 @@ describe('Button styling (R11)', () => {
 		});
 
 		it('draws its placeholder faint, and value and placeholder in the disabled colour when disabled', () => {
-			const input = mount(new Input('Name', { width: 200 }));
+			const input = mount(new TextInput({ placeholder: 'Name', width: 200 }));
 			const textOf = (content: string) => draw(input).texts.find((text) => text.text === content);
 			expect(textOf('Name')?.color).toEqual(color.text_faint);
 			input.setEnabled(false);
 			advance(tokens.motion.dur_fast);
 			expect(textOf('Name')?.color).toEqual(color.text_disabled);
-			input.setValue('x');
+			input.value = 'x';
 			expect(textOf('x')?.color).toEqual(color.text_disabled);
 		});
 	});
