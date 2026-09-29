@@ -181,6 +181,8 @@ export interface SnapshotNode {
 	state?: SnapshotState;
 	text?: SnapshotText;
 	value?: string;
+	/** A text field's placeholder, shown while its value is empty. */
+	placeholder?: string;
 	style?: SnapshotStyle;
 	/** The content box grown by `inkExtent`, in the viewport, before any clip (R8.8). */
 	inkBounds?: SnapshotRect;
@@ -421,7 +423,10 @@ function serializeNode(
 		if (node instanceof Checkable) serialized.state.checked = node.checkedState;
 
 		if (node instanceof Text) serialized.text = snapshotText(node);
-		if (node instanceof TextInput) serialized.value = safeString(node.displayText) ?? '';
+		if (node instanceof TextInput) {
+			serialized.value = safeString(node.displayText) ?? '';
+			if (node.placeholder !== '') serialized.placeholder = safeString(node.placeholder) ?? '';
+		}
 		if (node instanceof Stack) serialized.stack = { direction: node.direction, gap: finite(node.gap) };
 
 		const style = snapshotStyle(node);

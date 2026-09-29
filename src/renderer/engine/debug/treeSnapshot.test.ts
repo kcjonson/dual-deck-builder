@@ -211,6 +211,8 @@ describe('treeSnapshot', () => {
 			expect(inputNode.value).toBe('');
 			expect('value' in textNode).toBe(false);
 			expect(treeSnapshot([password], VIEWPORT).roots[0].value).toBe('\u2022'.repeat(7));
+			expect(inputNode.placeholder).toBe('type here');
+			expect('placeholder' in treeSnapshot([password], VIEWPORT).roots[0]).toBe(false);
 		});
 	});
 
