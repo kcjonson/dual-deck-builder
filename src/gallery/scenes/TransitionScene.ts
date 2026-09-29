@@ -91,7 +91,7 @@ export class TransitionScene extends DeveloperSectionPanel {
 			id: 'transition_stage_title',
 			x: tokens.space.space_4,
 			y: tokens.space.space_4,
-			style: { fontFamily: 'display', fontSize: tokens.fontSize.fs_xl, color: rgba(tokens.color.text_bright), textTransform: 'uppercase' },
+			style: { fontRole: 'display', fontSize: tokens.fontSize.fs_xl, color: rgba(tokens.color.text_bright), textTransform: 'uppercase' },
 		}));
 		return stage;
 	}

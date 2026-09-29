@@ -1,6 +1,6 @@
 import { Clock } from '../animation/Clock';
 import type { Component } from '../components/Component';
-import { Layer } from '../components/Layer';
+import { Container } from '../components/Container';
 import type { MountContext } from '../components/MountContext';
 import { createTestContext } from '../components/testing';
 import { NO_MODIFIERS } from '../input/events';
@@ -29,11 +29,11 @@ const NODES: readonly TreeNode[] = [
 ];
 
 let context: MountContext;
-let root: Layer;
+let root: Container;
 
 beforeEach(() => {
 	context = createTestContext({ viewport: { logical: { width: 800, height: 600 } }, clock: new Clock() });
-	root = new Layer({ id: 'root', width: 800, height: 600 });
+	root = new Container({ id: 'root', width: 800, height: 600 });
 	root.mount(context);
 });
 

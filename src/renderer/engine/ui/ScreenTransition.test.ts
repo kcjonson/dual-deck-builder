@@ -1,5 +1,5 @@
 import { Clock } from '../animation/Clock';
-import { Layer } from '../components/Layer';
+import { Container } from '../components/Container';
 import type { MountContext } from '../components/MountContext';
 import { createTestContext } from '../components/testing';
 import { advance, click, key, send } from '../services/testing';
@@ -14,12 +14,12 @@ import { ScreenTransition } from './ScreenTransition';
 const FADE_MS = tokens.motion.dur + 32;
 
 let context: MountContext;
-let scene: Layer;
+let scene: Container;
 let clicks: number;
 let transition: ScreenTransition;
 
-function mountScene(id: string): Layer {
-	const layer = new Layer({ id, width: 800, height: 600 });
+function mountScene(id: string): Container {
+	const layer = new Container({ id, width: 800, height: 600 });
 	layer.addChild(new Button('Go', { id: `${id}_go`, x: 20, y: 20, width: 100, height: 40, onClick: () => { clicks += 1; } }));
 	layer.mount(context);
 	return layer;
