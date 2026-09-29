@@ -61,6 +61,11 @@ export abstract class LabelledPressable extends Pressable {
 		this.invalidateLayout();
 	}
 
+	/** The label it draws (the text record, DDB-206). */
+	public get drawnText(): readonly string[] {
+		return [this.labelText];
+	}
+
 	public get look(): Look {
 		return this.transition.look;
 	}

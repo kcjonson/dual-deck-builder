@@ -248,6 +248,7 @@ describe('Slider (R12.15)', () => {
 		expect(commands.some((command) => command.kind === 'shadow')).toBe(true);
 		expect(texts.map((text) => text.text)).toEqual(['Volume', '25%']);
 		expect(texts[0]).toMatchObject({ font: 'mono', textTransform: 'uppercase' });
+		expect(made.drawnText).toEqual(['Volume', '25%']);
 	});
 });
 
@@ -275,6 +276,7 @@ describe('TabBar (R12.16)', () => {
 		const measured = context.draw.measureText({ text: 'Garage', font: 'display', size: control.control_fs_md, letterSpacing: tokens.letterSpacing.ls_wide, textTransform: 'uppercase', wrap: 'none' });
 		expect(garage.width).toBe(Math.ceil(measured.width) + control.inset_field * 2);
 		expect(garage.height).toBe(control.control_h_md);
+		expect(garage.drawnText).toEqual(['Garage']);
 	});
 
 	it('shows no selection for an unknown or disabled id when controlled', () => {

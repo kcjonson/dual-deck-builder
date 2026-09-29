@@ -226,6 +226,13 @@ export class Slider extends Component {
 		return { left, right: Math.max(left, right), y: this.height / 2 };
 	}
 
+	/** Its label and formatted value, when it draws them (the text record, DDB-206). */
+	public get drawnText(): readonly string[] | null {
+		if (!this.labelText) return null;
+		const value = this.formattedValue;
+		return value ? [this.labelText, value] : [this.labelText];
+	}
+
 	/** R8.8: the thumb's glow. */
 	public get inkExtent(): number {
 		return shadowExtent(THUMB_GLOW);
