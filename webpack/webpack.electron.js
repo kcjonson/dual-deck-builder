@@ -73,10 +73,11 @@ const rendererConfig = merge(common, {
 	target: 'web',
 	module: {
 		rules: [
-			// R15.34: a packaged page runs from file://, so atlas images are
-			// inlined as data URIs and no runtime file request exists.
+			// R15.34: a packaged page runs from file://, so atlas images and
+			// the raster fallback's font files are inlined as data URIs and no
+			// runtime file request exists.
 			{
-				test: /\.png$/,
+				test: /\.(png|ttf)$/,
 				type: 'asset/inline',
 			},
 		],

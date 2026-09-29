@@ -145,4 +145,12 @@ export interface DrawBackend {
 	 * a cull and carries none of R2.14's layout contract.
 	 */
 	textInk?(options: DrawTextOptions): Rect | null;
+
+	/**
+	 * R6.4a: a backend that rasterises small text under a per-frame time
+	 * budget lets the next frame build everything it needs, so a screen's
+	 * first frame never draws small text soft and then sharpens. Optional:
+	 * a backend with no such budget has nothing to lift.
+	 */
+	prewarmText?(): void;
 }
