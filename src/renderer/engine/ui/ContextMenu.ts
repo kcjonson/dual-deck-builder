@@ -4,7 +4,7 @@ import type { Vec2 } from '../draw/geometry';
 import type { AnyUiEvent, UiPointerEvent } from '../input/events';
 import { pointAnchor } from '../services/Placement';
 import type { PopupCloseReason, PopupHandle } from '../services/PopupService';
-import { Menu, MenuOptions } from './Menu';
+import { Menu, MenuOptions, isSelectable } from './Menu';
 
 export interface ContextMenuOptions extends MenuOptions {
 	/** Heard once each time it closes, whatever closed it. */
@@ -66,7 +66,6 @@ export class ContextMenu extends Menu {
 		if (!context) throw new Error('ContextMenu.openAt: pass `from` (a mounted component) or the opening press');
 		if (this.handle) this.close();
 		this.hoveredIndex = -1;
-		const focused = context.focus.focused;
 		const handle = context.popups.show({
 			popup: this,
 			anchor: pointAnchor(point),
@@ -82,7 +81,9 @@ export class ContextMenu extends Menu {
 		});
 		this.handle = handle;
 		this.openedIn = context;
-		this.returnFocus = focused;
+		// Read after `show`: another context menu it replaced has given focus
+		// back to its owner by now, and that owner is the one to return to.
+		this.returnFocus = context.focus.focused;
 		context.focus.focus(this, keyboard ? 'keyboard' : 'pointer');
 		if (keyboard) this.hoverEdge('first');
 	}
@@ -91,11 +92,14 @@ export class ContextMenu extends Menu {
 		this.handle?.close();
 	}
 
-	/** Selecting closes it. */
+	/**
+	 * Selecting closes it first, as Select and DropdownButton do, so an item
+	 * that moves focus (a field to rename into, a dialog) keeps it.
+	 */
 	public select(index: number): boolean {
-		if (!super.select(index)) return false;
+		if (!isSelectable(this.items[index])) return false;
 		this.close();
-		return true;
+		return super.select(index);
 	}
 
 	public handleEvent(event: AnyUiEvent): void {
@@ -129,11 +133,17 @@ export class ContextMenu extends Menu {
 		}
 	}
 
+	/**
+	 * Focus goes back only while the menu still has it: held, or dropped by
+	 * its own unmount. Focus that moved elsewhere (Tab, a press, an item's
+	 * callback, a dialog's scope) stays where it went.
+	 */
 	private restoreFocus(): void {
 		const previous = this.returnFocus;
 		this.returnFocus = null;
 		const focus = this.openedIn?.focus;
 		if (!focus) return;
+		if (focus.focused !== null && focus.focused !== this) return;
 		if (previous && previous.isMounted && previous.canReceiveFocus()) focus.focus(previous, 'programmatic');
 		else if (focus.focused === this) focus.blur();
 	}
