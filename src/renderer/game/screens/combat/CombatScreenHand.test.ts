@@ -6,14 +6,19 @@ import { CombatScreen } from './CombatScreen';
 import { CardLoader } from '../../core/CardLoader';
 import { DriverLoader } from '../../core/DriverLoader';
 import { Card as UICard, CardSize } from '../../ui/Card';
-import { createTestContext } from '../../../engine/components/testing';
+import { createTestContext, injectNow } from '../../../engine/components/testing';
 import { Clock } from '../../../engine/animation/Clock';
 import { advance, pointer, send } from '../../../engine/services/testing';
 import { tokens } from '../../../engine/theme/tokens';
+import { PointerAdapter } from '../../../engine/input/PointerAdapter';
+import { Battle } from '../../mechanics/Battle';
+import { Card } from '../../mechanics/Card';
+import type { Rect } from '../../../engine/draw/geometry';
 
 /**
  * DDB-88: the hand as a fan. A hand card previews large, with its full
- * rules text, over the card.
+ * rules text, over the card, and plays by being dragged onto its target
+ * as well as by click-then-target.
  */
 
 jest.mock('../../core/ScreenManager', () => ({
@@ -25,6 +30,8 @@ const context = createTestContext({
 	clock: new Clock(),
 });
 const originalFetch = global.fetch;
+const canvas = document.createElement('canvas');
+const adapter = new PointerAdapter({ dispatcher: context.dispatcher });
 
 function flushPromises(): Promise<void> {
 	return new Promise(resolve => setTimeout(resolve, 0));
@@ -54,9 +61,12 @@ beforeAll(async () => {
 	global.fetch = jest.fn().mockResolvedValue({ ok: true, statusText: 'OK', json: async () => cardsFile }) as unknown as typeof fetch;
 	await CardLoader.getInstance().loadCards();
 	await DriverLoader.getInstance().loadDrivers();
+	document.body.appendChild(canvas);
+	adapter.attach(canvas);
 });
 
 afterAll(() => {
+	adapter.detach();
 	global.fetch = originalFetch;
 	jest.restoreAllMocks();
 });
@@ -168,3 +178,158 @@ function previewTexts(component: { getChildren(): readonly unknown[] } | null | 
 	}
 	return found;
 }
+
+function inject(...commands: string[]): void {
+	expect(injectNow({ canvas, dispatcher: context.dispatcher }, commands).ok).toBe(true);
+	context.frame.layout();
+}
+
+function centreOf({ x, y, width, height }: Rect): [number, number] {
+	return [Math.round(x + width / 2), Math.round(y + height / 2)];
+}
+
+/** Presses at `from`, moves there in steps past the drag threshold, and optionally releases. */
+function drag(from: [number, number], to: [number, number], { release = true } = {}): void {
+	inject(`move,${from[0]},${from[1]}`, `down,${from[0]},${from[1]}`);
+	for (let step = 1; step <= 6; step++) {
+		const x = Math.round(from[0] + ((to[0] - from[0]) * step) / 6);
+		const y = Math.round(from[1] + ((to[1] - from[1]) * step) / 6);
+		inject(`move,${x},${y}`);
+	}
+	if (release) inject(`up,${to[0]},${to[1]}`);
+}
+
+/** A strip of the card its right-hand neighbour doesn't cover. */
+function grabPoint(card: UICard): [number, number] {
+	const { x, y, height } = card.screenBounds;
+	return [Math.round(x + 12), Math.round(y + height / 2)];
+}
+
+/** The first card in the hand whose target type is one of `types`, dealt in if the hand lacks one. */
+function handCard(combat: CombatScreen, types: string[], fallback: string): UICard {
+	const found = handCards(combat).find(card => types.includes(card.getData().targetType));
+	if (found) return found;
+	const [driver] = combat['playerDrivers'];
+	const card = CardLoader.getInstance().createCard(fallback) as Card;
+	driver.set({ hand: [card, ...driver.hand] });
+	combat['updateUIFromBattle']();
+	context.frame.layout();
+	return handCards(combat)[0];
+}
+
+function vehicleBounds(combat: CombatScreen, layer: 'enemyLayer' | 'battlefieldLayer'): Rect {
+	const [vehicle] = [...combat[layer]['vehicleCards'].values()];
+	return vehicle.screenBounds;
+}
+
+describe('CombatScreen drag to play', () => {
+	beforeEach(() => setViewport(1280, 720));
+
+	it('plays a card dropped on a raider, drawing the line while it is dragged', async () => {
+		const combat = await startCombat();
+		const card = handCard(combat, ['enemy_single'], 'headshot');
+		const data = card.getData();
+		const playCard = jest.spyOn(Battle.prototype, 'playCard');
+		const target = centreOf(vehicleBounds(combat, 'enemyLayer'));
+
+		drag(grabPoint(card), target, { release: false });
+		expect(context.drag.isDragging).toBe(true);
+		expect(context.drag.canDrop).toBe(true);
+		expect(combat['fx'].aiming).toBe(true);
+		expect(combat['combatModel'].selectedCard).toBe(data);
+		inject(`up,${target[0]},${target[1]}`);
+
+		expect(playCard).toHaveBeenCalledTimes(1);
+		const [{ targetVehicle }] = playCard.mock.calls[0];
+		expect(targetVehicle?.id).toBe(combat['enemyTeam']?.vehicles[0].id);
+		expect(combat['fx'].aiming).toBe(false);
+		expect(combat['combatModel'].selectedCard).toBeNull();
+
+		playCard.mockRestore();
+		combat.unmount();
+	});
+
+	it('puts the card back when it is dropped somewhere that is not its target', async () => {
+		const combat = await startCombat();
+		const card = handCard(combat, ['enemy_single'], 'headshot');
+		const playCard = jest.spyOn(Battle.prototype, 'playCard');
+
+		// Your own vehicle is not a Headshot target, and the road does not take a targeted card
+		drag(grabPoint(card), centreOf(vehicleBounds(combat, 'battlefieldLayer')));
+		expect(playCard).not.toHaveBeenCalled();
+		expect(combat['combatModel'].selectedCard).toBeNull();
+		expect(combat['combatModel'].isTargeting).toBe(false);
+		expect(card.isSelected()).toBe(false);
+		expect(combat['fx'].aiming).toBe(false);
+
+		playCard.mockRestore();
+		combat.unmount();
+	});
+
+	it('plays a card with no target when it lands anywhere on the road', async () => {
+		const combat = await startCombat();
+		const card = handCard(combat, ['self', 'both_drivers', 'enemy_all'], 'repair_kit');
+		const playCard = jest.spyOn(Battle.prototype, 'playCard');
+
+		drag(grabPoint(card), [640, 250]);
+		expect(playCard).toHaveBeenCalledTimes(1);
+		expect(playCard.mock.calls[0][0].targetVehicle).toBeUndefined();
+
+		playCard.mockRestore();
+		combat.unmount();
+	});
+
+	it('cancels on Escape mid-drag, and the release plays nothing', async () => {
+		const combat = await startCombat();
+		const card = handCard(combat, ['enemy_single'], 'headshot');
+		const playCard = jest.spyOn(Battle.prototype, 'playCard');
+		const target = centreOf(vehicleBounds(combat, 'enemyLayer'));
+
+		drag(grabPoint(card), target, { release: false });
+		inject('keydown,Escape', 'keyup,Escape');
+		expect(context.drag.isDragging).toBe(false);
+		expect(combat['combatModel'].selectedCard).toBeNull();
+		inject(`up,${target[0]},${target[1]}`);
+		expect(playCard).not.toHaveBeenCalled();
+
+		playCard.mockRestore();
+		combat.unmount();
+	});
+
+	it('still plays by click-then-target, since a press that never moves is a click', async () => {
+		const combat = await startCombat();
+		const card = handCard(combat, ['enemy_single'], 'headshot');
+		const playCard = jest.spyOn(Battle.prototype, 'playCard');
+
+		const [cx, cy] = grabPoint(card);
+		inject(`click,${cx},${cy}`);
+		expect(combat['combatModel'].isTargeting).toBe(true);
+		const [tx, ty] = centreOf(vehicleBounds(combat, 'enemyLayer'));
+		inject(`click,${tx},${ty}`);
+		expect(playCard).toHaveBeenCalledTimes(1);
+
+		playCard.mockRestore();
+		combat.unmount();
+	});
+});
+
+describe('CombatScreen drag to play, cancelled by the other button', () => {
+	beforeEach(() => setViewport(1280, 720));
+
+	it('cancels on a right-click mid-drag', async () => {
+		const combat = await startCombat();
+		const card = handCard(combat, ['enemy_single'], 'headshot');
+		const playCard = jest.spyOn(Battle.prototype, 'playCard');
+		const target = centreOf(vehicleBounds(combat, 'enemyLayer'));
+
+		drag(grabPoint(card), target, { release: false });
+		inject(`down,${target[0]},${target[1]},2`);
+		expect(context.drag.isDragging).toBe(false);
+		expect(combat['combatModel'].selectedCard).toBeNull();
+		inject(`up,${target[0]},${target[1]},2`, `up,${target[0]},${target[1]}`);
+		expect(playCard).not.toHaveBeenCalled();
+
+		playCard.mockRestore();
+		combat.unmount();
+	});
+});
