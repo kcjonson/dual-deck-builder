@@ -1,4 +1,5 @@
 import type { Component } from '../components/Component';
+import type { Rect } from '../draw/geometry';
 import type { PlacementAlign, PlacementSide } from './Placement';
 
 /**
@@ -12,6 +13,12 @@ export interface TooltipPlacement {
 	anchor?: 'pointer' | 'owner';
 	side?: PlacementSide;
 	align?: PlacementAlign;
+	/**
+	 * With `anchor: 'owner'`, the rect to place against instead of the
+	 * owner's live `screenBounds`: for an owner mid-animation, where it
+	 * will settle.
+	 */
+	ownerRect?: () => Rect;
 }
 
 /**
@@ -29,6 +36,8 @@ export interface TooltipSpec {
 	/** The widest the text wraps at, in logical pixels. */
 	maxWidth?: number;
 	placement?: TooltipPlacement;
+	/** Keyboard focus shows it at once rather than after `tooltip_delay`. */
+	immediateOnFocus?: boolean;
 }
 
 /** A bare string is a title. */

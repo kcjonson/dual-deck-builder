@@ -237,6 +237,10 @@ export class TooltipService implements InputObserver, FrameTicker {
 			this.present(false);
 			return;
 		}
+		if (trigger === 'focus' && owner.tooltip?.immediateOnFocus && !this.blocked) {
+			this.present(true);
+			return;
+		}
 		this.removeSurface();
 		if (this.blocked) {
 			this.stateValue = 'suppressed';
@@ -298,7 +302,7 @@ export class TooltipService implements InputObserver, FrameTicker {
 		if (surface.width <= 0 || surface.height <= 0) sizeToChildren(surface);
 
 		const point = spec.placement?.anchor === 'owner' ? null : this.point;
-		const anchor: Rect = point ? pointAnchor(point) : owner.screenBounds;
+		const anchor: Rect = point ? pointAnchor(point) : spec.placement?.ownerRect?.() ?? owner.screenBounds;
 		const placement = this.placementService.place({
 			anchor,
 			size: { width: surface.width, height: surface.height },

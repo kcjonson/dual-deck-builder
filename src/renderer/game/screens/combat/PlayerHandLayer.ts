@@ -117,10 +117,13 @@ export class PlayerHandLayer extends Stack {
 			cardElement.focusable = true;
 			// R12.22's factory: the pointer resting on a card, or keyboard
 			// focus reaching it, shows it large with its full rules text, centred
-			// over the card so it never covers the rest of the hand
+			// over the card so it never covers the rest of the hand. A swap
+			// between cards places it before the new card has finished rising,
+			// so it goes against the card's lifted pose
 			cardElement.tooltip = {
 				factory: () => this.createCardPreview(card, cardElement.driver),
-				placement: { anchor: 'owner', side: 'top', align: 'center' },
+				placement: { anchor: 'owner', side: 'top', align: 'center', ownerRect: () => cardElement.liftedScreenBounds },
+				immediateOnFocus: true,
 			};
 			cardElement.setOnSelect(() => {
 				if (this.canPlayCard(card) && this.onCardSelect) {

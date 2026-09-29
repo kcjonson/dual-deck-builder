@@ -293,4 +293,30 @@ describe('TooltipService (R12.22)', () => {
 		expect(surface.x).toBe(300 + 50 - 100);
 		expect(surface.y).toBe(400 - TOOLTIP_ANCHOR_OFFSET - 280);
 	});
+
+	it('places against the rect the spec gives for its owner, where the owner will settle', () => {
+		const card = box('card', 300, 400, 100, 140);
+		card.tooltip = {
+			factory: () => box('preview', 0, 0, 200, 280),
+			placement: { anchor: 'owner', side: 'top', align: 'center', ownerRect: () => ({ x: 300, y: 380, width: 100, height: 140 }) },
+		};
+		scene.addChild(card);
+		context.tooltips.show(card, { fade: false });
+		expect(context.tooltips.surface?.y).toBe(380 - TOOLTIP_ANCHOR_OFFSET - 280);
+	});
+
+	it('shows at once on keyboard focus when the spec asks, and after the delay otherwise', () => {
+		const card = box('card', 300, 400, 100, 140);
+		card.tooltip = { title: 'Card', immediateOnFocus: true };
+		scene.addChild(card);
+		context.tooltips.focusVisibleChange(card);
+		expect(context.tooltips.state).toBe('showing');
+
+		context.tooltips.focusVisibleChange(save);
+		expect(context.tooltips.state).toBe('visible');
+		context.tooltips.focusVisibleChange(null);
+		advance(context, 1000);
+		context.tooltips.focusVisibleChange(save);
+		expect(context.tooltips.state).toBe('waiting');
+	});
 });

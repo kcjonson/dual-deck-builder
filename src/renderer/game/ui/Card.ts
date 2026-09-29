@@ -4,6 +4,8 @@ import { Rectangle } from '../../engine/components/Rectangle';
 import type { AnyUiEvent } from '../../engine/input/events';
 import type { TweenHandle } from '../../engine/animation/Animator';
 import { tokens } from '../../engine/theme/tokens';
+import { normalizeTransform, transformMatrix } from '../../engine/components/componentGeometry';
+import { Rect, concat, invert, transformPoint } from '../../engine/draw/geometry';
 import { Card as GameCard } from '../mechanics/Card';
 
 /**
@@ -33,6 +35,9 @@ const TITLE_COST_GAP = 4;
 export const CARD_LIFT = 14;
 /** A lifted card grows a little, about its bottom edge, so it reads as picked up. */
 const LIFT_SCALE = 1.04;
+const BOTTOM_CENTRE: readonly [number, number] = [0.5, 1];
+/** The pose a lift settles at, whatever the fan pose it rose from. */
+const LIFTED_TRANSFORM = normalizeTransform({ translate: [0, -CARD_LIFT], scale: LIFT_SCALE, origin: BOTTOM_CENTRE });
 
 /**
  * Where a card rests in a fan: turned about its bottom centre by `rotate`
@@ -71,6 +76,12 @@ export class Card extends Component {
 	/** 0 resting in its pose, 1 lifted; tweened on the animator while mounted. */
 	private liftAmount = 0;
 	private liftTween: TweenHandle<number> | null = null;
+	private readonly liftInput: { rotate: number; translate: readonly [number, number]; scale: number; origin: readonly [number, number] } = {
+		rotate: 0,
+		translate: [0, 0],
+		scale: 1,
+		origin: BOTTOM_CENTRE,
+	};
 
 	// Event callbacks
 	private clickHandler: ((card: GameCard) => void) | null = null;
@@ -416,6 +427,31 @@ export class Card extends Component {
 		this.applyLift(this.liftAmount);
 	}
 
+	/**
+	 * Where the card is on screen once fully lifted, while it may still be on
+	 * its way up: anything placed against it (the preview) clears the card
+	 * where it will settle, not where the tween has it this frame.
+	 */
+	public get liftedScreenBounds(): Rect {
+		let matrix = this.screenMatrix;
+		const current = transformMatrix(this.transform, this.width, this.height);
+		const inverse = current ? invert(current) : null;
+		if (inverse) matrix = concat(matrix, inverse);
+		const lifted = transformMatrix(LIFTED_TRANSFORM, this.width, this.height);
+		if (lifted) matrix = concat(matrix, lifted);
+		const corners = [
+			transformPoint(matrix, 0, 0),
+			transformPoint(matrix, this.width, 0),
+			transformPoint(matrix, this.width, this.height),
+			transformPoint(matrix, 0, this.height),
+		];
+		const xs = corners.map((corner) => corner.x);
+		const ys = corners.map((corner) => corner.y);
+		const x = Math.min(...xs);
+		const y = Math.min(...ys);
+		return { x, y, width: Math.max(...xs) - x, height: Math.max(...ys) - y };
+	}
+
 	/** Whether the card is up out of its fan, or on its way up. */
 	public get lifted(): boolean {
 		return this.liftAmount > 0;
@@ -455,12 +491,14 @@ export class Card extends Component {
 	private applyLift(amount: number): void {
 		this.liftAmount = amount;
 		const rest = 1 - amount;
-		this.transform = {
-			rotate: this.pose.rotate * rest,
-			translate: [0, this.pose.drop * rest - CARD_LIFT * amount],
-			scale: 1 + (LIFT_SCALE - 1) * amount,
-			origin: [0.5, 1],
-		};
+		// The setter copies into a frozen transform, so the input can be
+		// reused across tween frames; the translate tuple is kept by
+		// reference, so it has to be fresh.
+		const input = this.liftInput;
+		input.rotate = this.pose.rotate * rest;
+		input.translate = [0, this.pose.drop * rest - CARD_LIFT * amount];
+		input.scale = 1 + (LIFT_SCALE - 1) * amount;
+		this.transform = input;
 		this.layer = amount > 0 ? 'raised' : null;
 		this.zIndex = amount > 0 ? 1 : 0;
 	}
