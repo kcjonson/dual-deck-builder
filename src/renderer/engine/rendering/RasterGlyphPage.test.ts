@@ -24,6 +24,7 @@ function setup({ family = 'ddb-test' as string | null, budgetMs = 3, width = 256
 	const created: TextureOptions[] = [];
 	const writes: TextureRegion[] = [];
 	const drawn: string[] = [];
+	const warnings: string[] = [];
 	let clock = 0;
 	let canvases = 0;
 	const page = new RasterGlyphPage({
@@ -49,6 +50,7 @@ function setup({ family = 'ddb-test' as string | null, budgetMs = 3, width = 256
 		budgetMs,
 		width,
 		height,
+		warn: (message) => warnings.push(message),
 	});
 	const text = new TextMetricsService();
 	text.addAtlas({ name: 'body', atlas: syntheticFontAtlas() });
@@ -57,7 +59,7 @@ function setup({ family = 'ddb-test' as string | null, budgetMs = 3, width = 256
 		if (!result) throw new Error('no layout');
 		return result;
 	};
-	return { page, created, writes, drawn, layout, canvases: () => canvases };
+	return { page, created, writes, drawn, warnings, layout, canvases: () => canvases };
 }
 
 describe('RasterGlyphPage (R6.4a)', () => {
@@ -130,17 +132,50 @@ describe('RasterGlyphPage (R6.4a)', () => {
 		expect(page.glyphs('body', layout('b'), 7)).toBeNull();
 	});
 
-	it('starts over when full: the run that did not fit waits a frame on the field', () => {
+	it('starts a full page over once a size on it has gone unused for two frames', () => {
 		// Room for a few 8 px glyphs only.
-		const { page, layout } = setup({ width: 64, height: 16 });
+		const { page, layout, warnings } = setup({ width: 64, height: 16 });
 		page.beginFrame();
 		expect(page.glyphs('body', layout('A'), 8)).not.toBeNull();
 		expect(page.glyphs('body', layout('bx?'), 8)).toBeNull();
-		expect(page.resets).toBe(0);
+		expect(page.isFull).toBe(true);
+		// The screen moves on to 7 px text: 8 px is still in use a frame later,
+		// so the page is kept, and the new size waits on the field.
+		for (let frame = 0; frame < 2; frame++) {
+			page.beginFrame();
+			expect(page.resets).toBe(0);
+			expect(page.glyphs('body', layout('b'), 7)).toBeNull();
+		}
 		page.beginFrame();
 		expect(page.resets).toBe(1);
 		expect(page.glyphsOnPage).toBe(0);
-		expect(page.glyphs('body', layout('b'), 8)).not.toBeNull();
+		expect(page.glyphs('body', layout('b'), 7)).not.toBeNull();
+		// The frame after the fill, every size on it was in use.
+		expect(warnings).toHaveLength(1);
+	});
+
+	it('keeps a page full of glyphs in use, the overflow steadily on the field, and warns once', () => {
+		// The #108 review's case: twelve sizes of "AbA" on a tiny page, 1 ms a
+		// rasterising pass against a 3 ms budget, so the page fills over a few
+		// frames and the set in use never fits.
+		const { page, layout, warnings } = setup({ width: 64, height: 64, budgetMs: 3, cost: 1 });
+		const sizes = [6, 6.25, 6.5, 6.75, 7, 7.25, 7.5, 7.75, 8, 8.25, 8.5, 8.75];
+		const frames: string[] = [];
+		for (let frame = 0; frame < 20; frame++) {
+			page.beginFrame();
+			frames.push(sizes.map((size) => (page.glyphs('body', layout('AbA', size), size) ? 'R' : 'f')).join(''));
+		}
+		const settled = frames.findIndex((frame, index) => index > 0 && frame === frames[index - 1]);
+		expect(settled).toBeGreaterThan(0);
+		// Once full it neither starts over nor flips a run between the paths.
+		expect(page.resets).toBe(0);
+		expect(new Set(frames.slice(settled - 1)).size).toBe(1);
+		expect(frames[frames.length - 1]).toMatch(/^R+f+$/);
+		expect(warnings).toHaveLength(1);
+		const onPage = page.glyphsOnPage;
+		page.beginFrame();
+		for (const size of sizes) page.glyphs('body', layout('AbA', size), size);
+		expect(page.glyphsOnPage).toBe(onPage);
 	});
 
 	it('starts a size over when its role is loaded again with another atlas', () => {
