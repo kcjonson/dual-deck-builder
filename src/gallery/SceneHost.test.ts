@@ -47,7 +47,7 @@ function findByType(root: Component, type: string): Component | null {
  * real sections have and the reason a registry entry cannot carry a size.
  */
 function interactiveScene(name: string, { x, y, width }: { x: number; y: number; width: number }): Panel {
-	const panel = new Panel({ id: `scene_${name}`, width, height: 10, scrollable: true });
+	const panel = new Panel({ id: `scene_${name}`, width, height: 10, layout: 'free', flush: true });
 	panel.setPosition(x, y);
 	panel.addChild(new Button('press me', { id: `${name}_button`, width: 120, height: 40 }));
 	panel.addChild(new Input('type here', { id: `${name}_input`, width: 200, height: 40 }));

@@ -1,5 +1,6 @@
 import { Component, ComponentOptions } from '../components/Component';
-import { Panel } from '../ui/Panel';
+import { Layer } from '../components/Layer';
+import { ScrollContainer } from '../ui/ScrollContainer';
 import type { MountContext } from '../components/MountContext';
 import { createTestContext } from '../components/testing';
 import type { PlatformInput } from './Dispatcher';
@@ -378,11 +379,12 @@ describe('focus groups (R9.29)', () => {
 });
 
 describe('scroll into view (R12.20)', () => {
-	function scroller(): { panel: Panel; rows: Probe[] } {
-		const panel = new Panel({ id: 'panel', width: 200, height: 100, scrollable: true });
+	function scroller(): { panel: ScrollContainer; rows: Probe[] } {
+		const panel = new ScrollContainer({ id: 'panel', width: 200, height: 100, contentHeight: 280 });
+		const content = new Layer({ width: 200, height: 280 });
 		const rows = [0, 1, 2, 3, 4].map((index) => new Probe({ id: `row${index}`, y: index * 60, width: 200, height: 40, focusable: true }));
-		for (const row of rows) panel.addChild(row);
-		panel.setContentSize(200, 280);
+		for (const row of rows) content.addChild(row);
+		panel.addChild(content);
 		panel.mount(context);
 		return { panel, rows };
 	}
@@ -391,35 +393,36 @@ describe('scroll into view (R12.20)', () => {
 		const { panel } = scroller();
 		key('Tab');
 		key('Tab');
-		expect(panel.getScrollOffset().y).toBe(0);
+		expect(panel.scrollPosition).toBe(0);
 		key('Tab');
 		// row2 spans 120 to 160; the clip is 100 tall
 		expect(focusedId()).toBe('row2');
-		expect(panel.getScrollOffset().y).toBe(60);
+		expect(panel.scrollPosition).toBe(60);
 		key('Tab', { shift: true });
 		key('Tab', { shift: true });
-		expect(panel.getScrollOffset().y).toBe(0);
+		expect(panel.scrollPosition).toBe(0);
 	});
 
 	it('reads the placed origin, margin included, not the raw position', () => {
-		const panel = new Panel({ id: 'panel', width: 200, height: 100, scrollable: true });
+		const panel = new ScrollContainer({ id: 'panel', width: 200, height: 100, contentHeight: 300 });
+		const content = new Layer({ width: 200, height: 300 });
 		const row = new Probe({ id: 'row', y: 50, margin: { top: 70 }, width: 200, height: 40, focusable: true });
-		panel.addChild(row);
-		panel.setContentSize(200, 300);
+		content.addChild(row);
+		panel.addChild(content);
 		panel.mount(context);
 		// The content box spans originY 120 to 160, though y is 50
 		expect(row.originY).toBe(120);
 		context.focus.focus(row);
-		expect(panel.getScrollOffset().y).toBe(60);
+		expect(panel.scrollPosition).toBe(60);
 	});
 
 	it('scrolls for programmatic focus, but not for a press', () => {
 		const { panel, rows } = scroller();
 		context.focus.focus(rows[4]);
-		expect(panel.getScrollOffset().y).toBe(180);
-		panel.setScrollOffset(0, 0);
+		expect(panel.scrollPosition).toBe(180);
+		panel.scrollToTop();
 		context.focus.focusFromPointer(rows[3]);
-		expect(panel.getScrollOffset().y).toBe(0);
+		expect(panel.scrollPosition).toBe(0);
 	});
 });
 
