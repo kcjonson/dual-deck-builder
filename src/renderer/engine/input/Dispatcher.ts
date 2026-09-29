@@ -303,6 +303,15 @@ export class Dispatcher {
 		this.focus.invalidateOrder();
 	}
 
+	/**
+	 * Something moved content under a still pointer without a layout (a
+	 * scroll by code or by key): hover is derived again at the next dispatch
+	 * (R9.9).
+	 */
+	public contentMoved(): void {
+		this.hoverStale = true;
+	}
+
 	/** Moves a root to the end of its tier: painted and hit over the rest of it (R3.6a's `bringToFront`). */
 	public raiseRoot(root: Component): void {
 		const tier = this.rootTiers.get(root);
@@ -1124,10 +1133,13 @@ export function normaliseWheel(
  * R9.15: what a focused text field keeps from activation, navigation, and
  * the hotkey tables whether or not it consumed it: printable keys and the
  * editing and caret keys. Tab and Escape leave it, as do Cmd and Ctrl chords
- * (copy, a menu shortcut) and named keys such as F6, which are not text.
+ * (copy, a menu shortcut) and named keys such as F6, which are not text. A
+ * character typed under Ctrl+Alt is AltGr's on Windows, and is text.
  */
 function ownedByTextField(key: string, modifiers: Modifiers): boolean {
-	if (modifiers.ctrl || modifiers.meta) return false;
+	// AltGr is Ctrl+Alt on Windows: a character it makes is text (R15.39).
+	const altGraph = modifiers.ctrl && modifiers.alt && !modifiers.meta && [...key].length === 1;
+	if ((modifiers.ctrl || modifiers.meta) && !altGraph) return false;
 	if (key === 'Escape') return false;
 	return [...key].length === 1 || NAVIGATION_KEYS.has(key) || key === 'Backspace' || key === 'Delete';
 }

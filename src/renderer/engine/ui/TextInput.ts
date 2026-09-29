@@ -2,7 +2,7 @@ import { Component, ComponentOptions, PointerEvents, ResolvedColors } from '../c
 import type { MountContext } from '../components/MountContext';
 import type { DrawApi } from '../draw/DrawApi';
 import type { Rect } from '../draw/geometry';
-import type { AnyUiEvent, UiKeyEvent, UiPointerEvent } from '../input/events';
+import type { AnyUiEvent, Modifiers, UiKeyEvent, UiPointerEvent } from '../input/events';
 import type { FontRole } from '../text/fontFaces';
 import { resolveFontRole } from '../text/fontRoles';
 import { tokens } from '../theme/tokens';
@@ -142,7 +142,16 @@ export class TextInput extends Component {
 	private heightFollowsSize: boolean;
 	private trailingRoom = 0;
 	/** The last measurement, keyed by what was measured. */
-	private measuredKey = '';
+	/**
+	 * Bumped whenever what the run measures to can change (the code points,
+	 * the mask, the face, a new mount), so the measurement and the display
+	 * string are rebuilt once per change rather than on every read.
+	 */
+	private textGeneration = 0;
+	private measuredGeneration = -1;
+	private displayGeneration = -1;
+	private display = '';
+	private face: TextFace;
 	private measuredAdvances: readonly number[] = [];
 	private measuredLineHeight = 0;
 
@@ -174,6 +183,7 @@ export class TextInput extends Component {
 		this.styleObject = style;
 		this.layers = fieldLayers(style);
 		this.padding = this.resolvePadding();
+		this.face = this.resolveFace();
 		if (style.opacity !== undefined) this.opacity = style.opacity;
 		this.limit = maxLength !== undefined && maxLength >= 0 ? Math.floor(maxLength) : Number.POSITIVE_INFINITY;
 		this.codePoints = [...value].slice(0, this.limit);
@@ -213,13 +223,18 @@ export class TextInput extends Component {
 		const next = [...value].slice(0, this.limit);
 		if (next.join('') === this.value) return;
 		this.codePoints = next;
+		this.textChanged();
 		this.caret = this.selectionAnchor = next.length;
 		this.afterCaretMove();
 	}
 
 	/** What the field draws: the value, or a bullet per code point for a password. */
 	public get displayText(): string {
-		return this.masked ? MASK.repeat(this.codePoints.length) : this.value;
+		if (this.displayGeneration !== this.textGeneration) {
+			this.display = this.masked ? MASK.repeat(this.codePoints.length) : this.codePoints.join('');
+			this.displayGeneration = this.textGeneration;
+		}
+		return this.display;
 	}
 
 	public get placeholder(): string {
@@ -239,6 +254,7 @@ export class TextInput extends Component {
 		this.limit = maxLength >= 0 ? Math.floor(maxLength) : Number.POSITIVE_INFINITY;
 		if (this.codePoints.length > this.limit) {
 			this.codePoints = this.codePoints.slice(0, this.limit);
+			this.textChanged();
 			this.caret = Math.min(this.caret, this.limit);
 			this.selectionAnchor = Math.min(this.selectionAnchor, this.limit);
 			this.afterCaretMove();
@@ -251,6 +267,7 @@ export class TextInput extends Component {
 
 	public set password(password: boolean) {
 		this.masked = password;
+		this.textChanged();
 		this.afterCaretMove();
 	}
 
@@ -398,6 +415,8 @@ export class TextInput extends Component {
 
 	protected onMount(_context: MountContext): void {
 		this.transition.moveTo(this.targetLook, null);
+		// A new draw API may measure where the last one could not.
+		this.textChanged();
 		this.updateScroll();
 	}
 
@@ -447,7 +466,8 @@ export class TextInput extends Component {
 	/** One key; true when the field used it. */
 	private handleKey(event: UiKeyEvent): boolean {
 		const { key, modifiers } = event;
-		const command = modifiers.ctrl || modifiers.meta;
+		// AltGr arrives as Ctrl+Alt on Windows; the character it makes is text, not a chord.
+		const command = (modifiers.ctrl || modifiers.meta) && !isAltGraphText(key, modifiers);
 		const extend = modifiers.shift;
 		if (command) {
 			switch (key.toLowerCase()) {
@@ -519,15 +539,22 @@ export class TextInput extends Component {
 	public copy(): void {
 		const text = this.selectedText;
 		if (this.masked || text === '') return;
-		void this.context?.clipboard.writeText(text);
+		this.writeClipboard(text);
 	}
 
 	public cut(): void {
 		const text = this.selectedText;
 		if (this.masked || text === '') return;
-		void this.context?.clipboard.writeText(text);
+		this.writeClipboard(text);
 		const { start, end } = this.selection;
 		this.replace(start, end, '');
+	}
+
+	/** A refused write loses the copy outside the game; it is not an error. */
+	private writeClipboard(text: string): void {
+		const clipboard = this.context?.clipboard;
+		if (!clipboard) return;
+		clipboard.writeText(text).catch(() => undefined);
 	}
 
 	/**
@@ -538,7 +565,13 @@ export class TextInput extends Component {
 	public async paste(): Promise<void> {
 		const clipboard = this.context?.clipboard;
 		if (!clipboard) return;
-		const text = await clipboard.readText();
+		let text: string;
+		try {
+			text = await clipboard.readText();
+		} catch {
+			// A refused read (a denied permission, an unfocused document) pastes nothing.
+			return;
+		}
 		if (!this.isMounted || !this.effectivelyEnabled) return;
 		const { start, end } = this.selection;
 		this.replace(start, end, text);
@@ -568,6 +601,7 @@ export class TextInput extends Component {
 			if (this.validator && !this.validator(candidate, '')) return;
 		}
 		this.codePoints = [...before, ...inserted, ...after];
+		this.textChanged();
 		const caret = before.length + inserted.length;
 		this.selectionAnchor = this.caret = caret;
 		this.afterCaretMove();
@@ -587,11 +621,11 @@ export class TextInput extends Component {
 	/** The boundary nearest to `localX` in the field's box. */
 	private indexAt(localX: number): number {
 		const x = localX - this.padding.left + this.scrollX;
-		const count = this.codePoints.length;
+		const advances = this.advances();
 		let best = 0;
 		let bestDistance = Math.abs(x);
-		for (let index = 1; index <= count; index++) {
-			const distance = Math.abs(x - this.boundaryX(index));
+		for (let index = 1; index <= advances.length; index++) {
+			const distance = Math.abs(x - advances[index - 1]);
 			if (distance < bestDistance) {
 				best = index;
 				bestDistance = distance;
@@ -628,7 +662,7 @@ export class TextInput extends Component {
 	 */
 	protected get cullInk(): Rect {
 		const ink = this.inkRect;
-		const slack = this.textStyle().fontSize;
+		const slack = this.face.fontSize;
 		const left = Math.min(ink.x, this.padding.left - this.scrollX - slack);
 		const right = Math.max(ink.x + ink.width, this.padding.left - this.scrollX + this.inkRunWidth + slack);
 		return { x: left, y: ink.y, width: right - left, height: ink.height };
@@ -637,6 +671,11 @@ export class TextInput extends Component {
 	private afterCaretMove(): void {
 		this.updateScroll();
 		this.restartBlink();
+	}
+
+	/** What the run measures to may have changed. */
+	private textChanged(): void {
+		this.textGeneration++;
 	}
 
 	private restartBlink(): void {
@@ -661,17 +700,16 @@ export class TextInput extends Component {
 	}
 
 	private measureText(): void {
+		if (this.measuredGeneration === this.textGeneration) return;
 		const draw = this.context?.draw;
-		const { role, fontSize, letterSpacing } = this.textStyle();
-		const text = this.displayText;
-		const key = `${role}|${fontSize}|${letterSpacing}|${text}`;
-		if (key === this.measuredKey) return;
+		const { role, fontSize, letterSpacing } = this.face;
 		if (!draw || !draw.canMeasureText(role)) {
 			this.measuredAdvances = [];
 			this.measuredLineHeight = fontSize;
 			return;
 		}
-		this.measuredKey = key;
+		this.measuredGeneration = this.textGeneration;
+		const text = this.displayText;
 		const metrics = draw.measureText({ text: text === '' ? ' ' : text, font: role, size: fontSize, letterSpacing, wrap: 'none' });
 		this.measuredAdvances = text === '' ? [] : metrics.advances;
 		this.measuredLineHeight = metrics.height / Math.max(1, metrics.lines);
@@ -685,7 +723,7 @@ export class TextInput extends Component {
 
 		const box = this.contentBox;
 		if (box.width <= 0 || box.height <= 0) return;
-		const { role, fontSize, letterSpacing } = this.textStyle();
+		const { role, fontSize, letterSpacing } = this.face;
 		const lineHeight = this.lineHeight;
 		const lineTop = box.y + (box.height - lineHeight) / 2;
 		const text = this.displayText;
@@ -739,13 +777,14 @@ export class TextInput extends Component {
 	private restyle(): void {
 		this.layers = fieldLayers(this.styleObject);
 		this.padding = this.resolvePadding();
-		this.measuredKey = '';
+		this.face = this.resolveFace();
+		this.textChanged();
 		this.onStateChange();
 		this.updateScroll();
 		this.invalidateLayout();
 	}
 
-	private textStyle(): { role: FontRole; fontSize: number; letterSpacing: number } {
+	private resolveFace(): TextFace {
 		const style = this.styleObject;
 		let role: FontRole = style.fontRole ?? (style.fontFamily !== undefined ? fontRoleOfFamily(style.fontFamily, 'TextInput') : 'body');
 		if (style.fontWeight !== undefined) role = resolveFontRole({ family: role, weight: style.fontWeight });
@@ -770,6 +809,21 @@ export class TextInput extends Component {
 		this.padding = this.resolvePadding();
 		this.updateScroll();
 	}
+}
+
+interface TextFace {
+	role: FontRole;
+	fontSize: number;
+	letterSpacing: number;
+}
+
+/**
+ * R9.15: Windows reports AltGr as Ctrl+Alt, so AltGr+Q on a German layout is
+ * `@` with both set. A one-code-point key under Ctrl+Alt (and not Meta) is
+ * the character a layout made, which a field types.
+ */
+export function isAltGraphText(key: string, modifiers: Modifiers): boolean {
+	return modifiers.ctrl && modifiers.alt && !modifiers.meta && [...key].length === 1;
 }
 
 function clamp(value: number, min: number, max: number): number {
