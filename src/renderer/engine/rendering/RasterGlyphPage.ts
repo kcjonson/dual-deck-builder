@@ -46,9 +46,13 @@ interface Shelf {
 	x: number;
 }
 
-/** About two thirds of a millisecond per dozen glyphs; a frame of new small text stays well inside it. */
+/**
+ * A window drag across the combat screen, new sizes every frame, peaks at
+ * about 4.7 ms render plus flush with this against 2 ms on the distance field
+ * alone (small-text-raster-fallback.md).
+ */
 const DEFAULT_BUDGET_MS = 3;
-/** 4 MB: every size the combat screen uses at 800x500, several times over. */
+/** 4 MB, four phase cells a glyph. When it fills it starts over, so this is also the cap. */
 const DEFAULT_SIZE = 1024;
 
 /**

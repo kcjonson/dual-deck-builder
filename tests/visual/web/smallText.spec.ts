@@ -30,7 +30,7 @@ async function combatAt(page: Page, width: number, height: number): Promise<Batc
 	// Enough frames for the viewport to commit, the screen to lay out at it,
 	// and the prewarmed frame to rasterise its small text.
 	return page.evaluate(async ({ width, height }) => {
-		const scope = window as unknown as DevSurface & { __perf: { snapshot(): { batcher: Batcher | null } } };
+		const scope = window as unknown as { __perf: { snapshot(): { batcher: Batcher | null } } };
 		const frame = () => new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
 		const canvas = document.getElementById('game-canvas') as HTMLCanvasElement;
 		for (let waited = 0; waited < 600 && (canvas.clientWidth !== width || canvas.clientHeight !== height); waited++) await frame();
