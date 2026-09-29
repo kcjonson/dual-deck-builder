@@ -23,9 +23,9 @@ function part(card: Card, suffix: string): Text {
 let context: MountContext;
 
 /** Mounted and laid out, so its texts have measured through the context (R1.6). */
-function build(data: CardData, driverNumber: 1 | 2 | null, upgraded = false, size = CardSize.NORMAL): Card {
+function build(data: CardData, driverNumber: 1 | 2 | null, upgraded = false, size = CardSize.NORMAL, fullText = false): Card {
 	const model = new GameCard({ ...data, upgraded });
-	const card = new Card({ id: 'card', x: 0, y: 0, data: model, size, driverNumber });
+	const card = new Card({ id: 'card', x: 0, y: 0, data: model, size, driverNumber, fullText });
 	card.mount(context);
 	context.frame.layout();
 	return card;
@@ -63,16 +63,21 @@ describe('Card header (DDB-198)', () => {
 		}
 	});
 
-	it('cuts nothing on any card face, NORMAL or LARGE, badged or not, upgraded or not', () => {
-		for (const size of [CardSize.NORMAL, CardSize.LARGE]) {
+	it('cuts nothing on any card face, NORMAL or LARGE, badged or not, upgraded or not, or the full text in a LARGE preview', () => {
+		const faces = [
+			{ size: CardSize.NORMAL, fullText: false },
+			{ size: CardSize.LARGE, fullText: false },
+			{ size: CardSize.LARGE, fullText: true },
+		];
+		for (const { size, fullText } of faces) {
 			for (const driverNumber of [1, null] as const) {
 				for (const data of cardData) {
 					for (const upgraded of [false, true]) {
-						const card = build(data, driverNumber, upgraded, size);
+						const card = build(data, driverNumber, upgraded, size, fullText);
 						for (const child of card.getChildren()) {
 							if (!(child instanceof Text)) continue;
 							const measured = child.measured;
-							const label = `${data.name}${upgraded ? '+' : ''} ${size} ${child.id}`;
+							const label = `${data.name}${upgraded ? '+' : ''} ${size}${fullText ? ' full' : ''} ${child.id}`;
 							expect([label, measured]).not.toEqual([label, null]);
 							// No ellipsis or clip can fire: the laid-out text fits its box.
 							expect([label, (measured?.width ?? 0) <= child.width + 1e-6]).toEqual([label, true]);
@@ -127,15 +132,59 @@ describe('Card state', () => {
 		card.setPosition(40, 25);
 
 		card.setHovered(true);
+		context.animator.settle();
 		expect(card.transform.translate).toEqual([0, -CARD_LIFT]);
 		expect(card.getY()).toBe(25);
 		card.setHovered(false);
+		context.animator.settle();
 		expect(card.transform.translate).toEqual([0, 0]);
 
 		card.setSelected(true);
+		context.animator.settle();
 		expect(card.transform.translate).toEqual([0, -CARD_LIFT]);
 		card.setSelected(false);
+		context.animator.settle();
 		expect(card.getY()).toBe(25);
+	});
+
+	it('eases up on the animator rather than jumping', () => {
+		const card = build(cardData[0], 1);
+		card.setHovered(true);
+		// The tween starts from where the card rests
+		expect(card.transform.translate).toEqual([0, 0]);
+		expect(context.animator.settle()).toBeGreaterThan(0);
+		expect(card.transform.translate).toEqual([0, -CARD_LIFT]);
+	});
+
+	it('straightens out of its fan pose when lifted, and paints raised over its neighbours', () => {
+		const card = build(cardData[0], 1);
+		card.fanPose = { rotate: 0.03, drop: 4 };
+		expect(card.transform.rotate).toBe(0.03);
+		expect(card.transform.translate).toEqual([0, 4]);
+		expect(card.transform.origin).toEqual([0.5, 1]);
+		expect(card.layer).toBeNull();
+
+		card.setHovered(true);
+		context.animator.settle();
+		expect(card.transform.rotate).toBe(0);
+		expect(card.transform.scale).toBeGreaterThan(1);
+		expect(card.layer).toBe('raised');
+		expect(card.zIndex).toBe(1);
+
+		card.setHovered(false);
+		context.animator.settle();
+		expect(card.transform.rotate).toBe(0.03);
+		expect(card.layer).toBeNull();
+		expect(card.zIndex).toBe(0);
+	});
+
+	it('keeps the strip it rose out of while lifted, so the pointer on its bottom edge holds it up', () => {
+		const card = build(cardData[0], 1);
+		const below = card.height + CARD_LIFT / 2;
+		expect(card.containsPoint(10, below)).toBe(false);
+		card.setHovered(true);
+		context.animator.settle();
+		expect(card.containsPoint(10, below)).toBe(true);
 	});
 
 	it('does not rise under the pointer while disabled, and dims through the base enabled flag', () => {
@@ -145,12 +194,23 @@ describe('Card state', () => {
 
 		card.enabled = false;
 		card.setHovered(true);
+		context.animator.settle();
 		expect(card.effectivelyEnabled).toBe(false);
 		expect(card.transform.translate).toEqual([0, 0]);
 		expect(background?.resolvedColors?.fill).not.toEqual(enabledFill);
 
 		card.enabled = true;
+		context.animator.settle();
 		expect(card.transform.translate).toEqual([0, -CARD_LIFT]);
 		expect(background?.resolvedColors?.fill).toEqual(enabledFill);
+	});
+
+	it('shows the full rules text when asked, and the summary otherwise', () => {
+		const data = cardData.find((entry) => entry.summary !== entry.description) ?? cardData[0];
+		const model = new GameCard({ ...data });
+		const full = new Card({ id: 'card', x: 0, y: 0, data: model, size: CardSize.LARGE, fullText: true });
+		const face = new Card({ id: 'card', x: 0, y: 0, data: model, size: CardSize.LARGE });
+		expect(part(full, 'description').getText()).toBe(model.displayDescription);
+		expect(part(face, 'description').getText()).toBe(Card.faceText(model.displaySummary));
 	});
 });

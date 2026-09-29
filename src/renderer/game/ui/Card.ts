@@ -2,6 +2,8 @@ import { Component, PointerEvents } from '../../engine/components/Component';
 import { Text } from '../../engine/components/Text';
 import { Rectangle } from '../../engine/components/Rectangle';
 import type { AnyUiEvent } from '../../engine/input/events';
+import type { TweenHandle } from '../../engine/animation/Animator';
+import { tokens } from '../../engine/theme/tokens';
 import { Card as GameCard } from '../mechanics/Card';
 
 /**
@@ -28,9 +30,20 @@ const TITLE_LINE_HEIGHT = 1.2;
 /** Space between the title slot and the cost's digits. */
 const TITLE_COST_GAP = 4;
 /** How far a hovered or selected card rises, through its transform so layout never sees it (R8.26). */
-export const CARD_LIFT = 5;
-const LIFTED = { translate: [0, -CARD_LIFT] as const };
-const RESTING = {};
+export const CARD_LIFT = 14;
+/** A lifted card grows a little, about its bottom edge, so it reads as picked up. */
+const LIFT_SCALE = 1.04;
+
+/**
+ * Where a card rests in a fan: turned about its bottom centre by `rotate`
+ * radians and dropped by `drop`, in its own units. Lifting straightens it.
+ */
+export interface FanPose {
+	rotate: number;
+	drop: number;
+}
+
+const UNFANNED: FanPose = Object.freeze({ rotate: 0, drop: 0 });
 
 /**
  * Visual component for displaying a card. One composite target (R8.29):
@@ -54,17 +67,24 @@ export class Card extends Component {
 	private driverIndicator: Text | null = null;
 	private driverNumber: 1 | 2 | null = null;
 
+	private pose: FanPose = UNFANNED;
+	/** 0 resting in its pose, 1 lifted; tweened on the animator while mounted. */
+	private liftAmount = 0;
+	private liftTween: TweenHandle<number> | null = null;
+
 	// Event callbacks
 	private clickHandler: ((card: GameCard) => void) | null = null;
 	private selectHandler: ((card: GameCard) => void) | null = null;
 
-	constructor({ id, x, y, data, size = CardSize.NORMAL, driverNumber }: { 
+	constructor({ id, x, y, data, size = CardSize.NORMAL, driverNumber, fullText = false }: {
 		id?: string;
-		x: number; 
-		y: number; 
-		data: GameCard; 
+		x: number;
+		y: number;
+		data: GameCard;
 		size?: CardSize;
 		driverNumber?: 1 | 2 | null;
+		/** The full rules text in place of the summary: a preview, which has the room. */
+		fullText?: boolean;
 	}) {
 		const dimensions = CARD_DIMENSIONS[size];
 		super({
@@ -165,7 +185,7 @@ export class Card extends Component {
 			// with DDB-137, plain until then. The box ends above the rarity line
 			// and the ellipsis is only a backstop: no summary reaches it.
 			const descriptionY = Math.floor(60 * scaleFactor);
-			this.description = new Text(Card.faceText(data.displaySummary), {
+			this.description = new Text(fullText ? data.displayDescription : Card.faceText(data.displaySummary), {
 				id: this.childId('description'),
 				x: padding,
 				y: descriptionY,
@@ -365,9 +385,9 @@ export class Card extends Component {
 	}
 
 	/**
-	 * Hover, selection, and enabled state, the last inherited (R8.3): a
-	 * selected card, or a hovered one that can be played, rises and takes a
-	 * glow; a disabled card dims. The dispatcher keeps `hovered` true over a
+	 * Hover, focus, selection, and enabled state, the last inherited (R8.3):
+	 * a selected card, or a hovered or keyboard-focused one that can be
+	 * played, rises, and all but focus take a glow; a disabled card dims. The dispatcher keeps `hovered` true over a
 	 * disabled card (R9.8), so the glow checks enabled itself.
 	 */
 	protected onStateChange(): void {
@@ -381,11 +401,84 @@ export class Card extends Component {
 		} else {
 			this.cardBorder.setBorderWidth(0);
 		}
-		const lifted = this.selected || (this.hovered && enabled);
-		this.transform = lifted ? LIFTED : RESTING;
-		// A lifted card in an overlapping fan paints over its neighbours
-		this.zIndex = lifted ? 1 : 0;
+		// Keyboard focus lifts a card as the pointer does, so its ring clears its neighbours
+		this.liftTo(this.selected || ((this.hovered || this.focusVisible) && enabled) ? 1 : 0);
 		this.cardBackground.setFillColor(enabled ? '#2a2a3a' : '#1a1a2a');
+	}
+
+	/** Where the card rests in its fan; a lifted card straightens out of it. */
+	public get fanPose(): FanPose {
+		return this.pose;
+	}
+
+	public set fanPose(pose: FanPose) {
+		this.pose = pose;
+		this.applyLift(this.liftAmount);
+	}
+
+	/** Whether the card is up out of its fan, or on its way up. */
+	public get lifted(): boolean {
+		return this.liftAmount > 0;
+	}
+
+	/**
+	 * Rises or settles on the animator (R8.28's retarget, so a quick pass over
+	 * the hand never snaps), or at once while unmounted.
+	 */
+	private liftTo(target: number): void {
+		const animator = this.context?.animator;
+		if (!animator) {
+			this.liftTween?.cancel();
+			this.liftTween = null;
+			this.applyLift(target);
+			return;
+		}
+		if (this.liftTween) {
+			this.liftTween.retarget(target);
+			return;
+		}
+		if (this.liftAmount === target) return;
+		this.liftTween = animator.tween({
+			from: this.liftAmount,
+			to: target,
+			duration: tokens.motion.dur_fast,
+			owner: this,
+			onUpdate: (value) => this.applyLift(value),
+		});
+	}
+
+	/**
+	 * The fan pose blended toward the lifted one. A card that is up at all
+	 * paints and hit-tests on the `raised` layer, over its neighbours and
+	 * the driver tab above it, and first among its siblings.
+	 */
+	private applyLift(amount: number): void {
+		this.liftAmount = amount;
+		const rest = 1 - amount;
+		this.transform = {
+			rotate: this.pose.rotate * rest,
+			translate: [0, this.pose.drop * rest - CARD_LIFT * amount],
+			scale: 1 + (LIFT_SCALE - 1) * amount,
+			origin: [0.5, 1],
+		};
+		this.layer = amount > 0 ? 'raised' : null;
+		this.zIndex = amount > 0 ? 1 : 0;
+	}
+
+	/**
+	 * A lifted card keeps the strip it rose out of, so a pointer resting on
+	 * its bottom edge doesn't drop it, see it slide back under, and lift it
+	 * again.
+	 */
+	public containsPoint(localX: number, localY: number): boolean {
+		const reach = this.liftAmount > 0 ? CARD_LIFT : 0;
+		return localX >= 0 && localX < this.width && localY >= 0 && localY < this.height + reach;
+	}
+
+	/** Drops the lift tween with the card: the base cancels it on unmount. */
+	protected onUnmount(): void {
+		this.liftTween = null;
+		super.onUnmount();
 	}
 
 	/**

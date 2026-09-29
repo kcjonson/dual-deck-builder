@@ -6,6 +6,16 @@ This document contains the chronological log of completed development tasks for 
 
 **Date correction (2026-08-22):** the repo's first commit is 2025-05-17, but many entries below carry dates in December 2024 or January 2025 — the AI that wrote them used its assumed date instead of the real one. Entries dated 2025-07-03 and 2025-07-02 have been corrected from "2025-01-03"/"2025-01-02" (verified against git history). Remaining Dec 2024 / Jan 2025 dates are wrong by roughly six months; the real work happened May–July 2025. Trust git history over these dates.
 
+## Combat hand fan, hover lift, and card previews (2026-09-28)
+
+**What landed:** DDB-88's first PR (DDB-55 phase 6), the hand half: closes DDB-28 and DDB-29.
+
+- `screens/combat/HandFan.ts` (out of `PlayerHandLayer`): the mock's fan. Each card turns 0.9 degrees per step from the middle (0.5 past seven) about its bottom centre and drops along an arc capped at 5 logical, through its own transform (`Card.fanPose`); the negative-gap row leaves room for the edge cards' lean, so every card stays inside its half. The row hangs at the mock's 38 below the dock edge.
+- `Card` lifts on the animator (`dur_fast`, retargeted so a sweep over the hand never snaps): hovered, keyboard-focused, or selected, it straightens, rises 14, grows 4%, and paints and hit-tests on the `raised` layer with `zIndex` 1. While lifted it keeps the strip it rose out of in `containsPoint`, so a pointer on its bottom edge doesn't flicker it.
+- Hand cards preview through the tooltip factory: the card at `LARGE` with its full rules text (`Card`'s new `fullText`), scaled by the stage scale, centred above the card. `TooltipSpec.placement` (anchor `owner` or `pointer`, side, align) is new in the tooltip service; the default is still below-right of the pointer.
+
+**How:** `HandFan.test.ts` (poses), `Card.test.ts` (tweened lift, fan pose, raised layer, the kept strip, full text fits every `LARGE` face), `TooltipService.test.ts` (owner placement), `CombatScreenHand.test.ts` (the preview at 1280x720 and 800x450, the fan's turns), and the seven-cards-on-screen suite passing with the lean. Hover, preview, and keyboard focus checked in headless Chromium at 1280x720 and 800x450.
+
 ## Catalog Wave A, leaves on the closed style set (2026-09-28)
 
 **What landed:** DDB-85's third PR (DDB-55 phase 5), R11.14 to R11.16 for every leaf, R12.1 to R12.5, R12.18; closes DDB-209.

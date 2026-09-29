@@ -1,18 +1,12 @@
-import { Container, ContainerOptions } from '../../../engine/components/Container';
 import { Stack, StackOptions } from '../../../engine/components/Stack';
-import { CARD_LIFT, Card as UICard, CardSize } from '../../ui/Card';
+import { Container } from '../../../engine/components/Container';
+import type { Component } from '../../../engine/components/Component';
+import { Card as UICard, CardSize } from '../../ui/Card';
 import { Card } from '../../mechanics/Card';
 import { DriverSeat, PlayerHandView } from './PlayerHandView';
 import { DriverResourceData, DriverTab } from './DriverTab';
+import { HandFan } from './HandFan';
 
-const CARD_DIMENSIONS = UICard.getDimensions(CardSize.NORMAL);
-/**
- * Hand cards are 128x180 on the battle screen (section 4). The card face is
- * laid out at 150x210, so the fan scales it rather than laying it out again.
- */
-export const HAND_CARD_SCALE = 128 / CARD_DIMENSIONS.width;
-/** Between cards when a half has room for them, in the card's own units. */
-const NATURAL_CARD_GAP = 10;
 /** Between the two drivers' halves. */
 const HALF_GAP = 20;
 
@@ -121,6 +115,13 @@ export class PlayerHandLayer extends Stack {
 				driverNumber: this.cardDriverMap.get(card.id) ?? null,
 			});
 			cardElement.focusable = true;
+			// R12.22's factory: the pointer resting on a card, or keyboard
+			// focus reaching it, shows it large with its full rules text, centred
+			// over the card so it never covers the rest of the hand
+			cardElement.tooltip = {
+				factory: () => this.createCardPreview(card, cardElement.driver),
+				placement: { anchor: 'owner', side: 'top', align: 'center' },
+			};
 			cardElement.setOnSelect(() => {
 				if (this.canPlayCard(card) && this.onCardSelect) {
 					this.onCardSelect(card);
@@ -133,6 +134,33 @@ export class PlayerHandLayer extends Stack {
 			this.halves[seat].fan.setCards(this.cardElements.filter((_element, index) => this.cardDriverMap.get(this.handCards[index].id) === seat));
 		}
 		this.updateCardSelectionVisuals();
+	}
+
+	/**
+	 * A hand card at preview size with its full rules text, scaled by the
+	 * combat stage's scale so it keeps its size relative to the hand. The
+	 * tooltip root is in viewport pixels, outside the stage's transform.
+	 * The pinnable detail view of section 5 replaces it (DDB-137).
+	 */
+	private createCardPreview(card: Card, driverNumber: DriverSeat | null): Component {
+		const { width, height } = UICard.getDimensions(CardSize.LARGE);
+		const matrix = this.screenMatrix;
+		const stageScale = Math.hypot(matrix[0], matrix[1]);
+		// The outer box is the scaled size, which the tooltip places; the
+		// card owns its own transform for its lift, so a frame scales it
+		const preview = new Container({ id: 'card_preview', width: width * stageScale, height: height * stageScale });
+		const frame = new Container({ width, height, transform: { scale: stageScale, origin: [0, 0] } });
+		preview.addChild(frame);
+		frame.addChild(new UICard({
+			id: 'card_preview_face',
+			x: 0,
+			y: 0,
+			data: card,
+			size: CardSize.LARGE,
+			driverNumber,
+			fullText: true,
+		}));
+		return preview;
 	}
 
 	/**
@@ -210,57 +238,5 @@ class HandHalf extends Stack {
 		this.fan = new HandFan({ id: `driver${seat}_hand`, widthMode: 'fill', heightMode: 'fill' });
 		this.addChild(this.tab);
 		this.addChild(this.fan);
-	}
-}
-
-/**
- * A driver's cards in a row, centred in the half and scaled to hand size.
- * The row overlaps its cards through a negative gap when they would not
- * otherwise fit, so however many cards a driver holds, every one of them
- * starts inside the half (DDB-183) and shows its left edge: cost, badge,
- * and the start of its name.
- */
-class HandFan extends Container {
-	private readonly row: Stack;
-	private cards: UICard[] = [];
-
-	constructor(options: ContainerOptions) {
-		super(options);
-		// Scaled about its top centre and hung from the fan's top centre, a
-		// lift below the top so a hovered card rises inside the fan
-		this.row = new Stack({
-			direction: 'horizontal',
-			gap: NATURAL_CARD_GAP,
-			anchor: 'top',
-			y: CARD_LIFT * HAND_CARD_SCALE,
-			transform: { scale: HAND_CARD_SCALE, origin: [0.5, 0] },
-		});
-		this.addChild(this.row);
-	}
-
-	public setCards(cards: UICard[]): void {
-		for (const card of this.cards) this.row.removeChild(card);
-		this.cards = cards;
-		for (const card of cards) this.row.addChild(card);
-		this.fitCards();
-	}
-
-	protected onResized(): void {
-		this.fitCards();
-	}
-
-	/**
-	 * The gap that fits the row into the fan's width: the natural gap when
-	 * there is room, otherwise the overlap that spreads the cards across it.
-	 */
-	private fitCards(): void {
-		const count = this.cards.length;
-		if (count < 2) {
-			this.row.gap = NATURAL_CARD_GAP;
-			return;
-		}
-		const room = this.getWidth() / HAND_CARD_SCALE;
-		const spread = (room - count * CARD_DIMENSIONS.width) / (count - 1);
-		this.row.gap = Math.min(NATURAL_CARD_GAP, Math.floor(spread));
 	}
 }

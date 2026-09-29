@@ -1,4 +1,18 @@
 import type { Component } from '../components/Component';
+import type { PlacementAlign, PlacementSide } from './Placement';
+
+/**
+ * Where the tooltip goes when it isn't the default below-right of the
+ * pointer (R12.22's "default"): against the owner's bounds rather than the
+ * pointer, on a side and alignment of its choosing. Flip and clamp still
+ * apply.
+ */
+export interface TooltipPlacement {
+	/** `pointer` (the default) or the owner's `screenBounds`. */
+	anchor?: 'pointer' | 'owner';
+	side?: PlacementSide;
+	align?: PlacementAlign;
+}
 
 /**
  * What a component declares through its `tooltip` property (R12.22): text
@@ -14,6 +28,7 @@ export interface TooltipSpec {
 	factory?: () => Component;
 	/** The widest the text wraps at, in logical pixels. */
 	maxWidth?: number;
+	placement?: TooltipPlacement;
 }
 
 /** A bare string is a title. */

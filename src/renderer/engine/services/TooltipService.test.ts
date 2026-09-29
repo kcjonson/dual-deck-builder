@@ -278,4 +278,19 @@ describe('TooltipService (R12.22)', () => {
 		context.tooltips.show(load, { fade: false });
 		expect({ width: tree.width, height: tree.height }).toEqual({ width: 100, height: 50 });
 	});
+
+	it('places against its owner when the spec asks, whatever the pointer does', () => {
+		const card = box('card', 300, 400, 100, 140);
+		card.tooltip = {
+			factory: () => box('preview', 0, 0, 200, 280),
+			placement: { anchor: 'owner', side: 'top', align: 'center' },
+		};
+		scene.addChild(card);
+		send(context, [pointer('move', 310, 530)]);
+		advance(context, DELAY + 16);
+		const surface = context.tooltips.surface as Rectangle;
+		expect(surface.id).toBe('preview');
+		expect(surface.x).toBe(300 + 50 - 100);
+		expect(surface.y).toBe(400 - TOOLTIP_ANCHOR_OFFSET - 280);
+	});
 });
