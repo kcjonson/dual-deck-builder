@@ -6,7 +6,7 @@ import { createTestContext } from '../components/testing';
 import type { UiPointerEvent } from '../input/events';
 import { tokens } from '../theme/tokens';
 import { TOOLTIP_ANCHOR_OFFSET, TOOLTIP_POINTER_OFFSET } from './TooltipService';
-import { TooltipSurface } from './TooltipSurface';
+import { Tooltip } from '../ui/Tooltip';
 import { advance, key, pointer, send } from './testing';
 
 const DELAY = tokens.control.tooltip_delay;
@@ -53,7 +53,7 @@ describe('TooltipService (R12.22)', () => {
 		advance(context, 40);
 		expect(context.tooltips.state).toBe('showing');
 		const surface = context.tooltips.surface;
-		expect(surface).toBeInstanceOf(TooltipSurface);
+		expect(surface).toBeInstanceOf(Tooltip);
 		expect(surface?.opacity).toBeGreaterThanOrEqual(0);
 		expect(surface?.opacity).toBeLessThan(1);
 
@@ -76,7 +76,7 @@ describe('TooltipService (R12.22)', () => {
 	it('places below-right of the pointer', () => {
 		send(context, [pointer('move', 120, 110)]);
 		advance(context, DELAY + 16);
-		const surface = context.tooltips.surface as TooltipSurface;
+		const surface = context.tooltips.surface as Tooltip;
 		expect({ x: surface.x, y: surface.y }).toEqual({ x: 120, y: 110 + TOOLTIP_POINTER_OFFSET });
 	});
 
@@ -196,7 +196,7 @@ describe('TooltipService (R12.22)', () => {
 	it('shows from keyboard focus, anchored below the owner, and hides when focus leaves', () => {
 		context.tooltips.focusVisibleChange(save);
 		advance(context, DELAY + 16);
-		const surface = context.tooltips.surface as TooltipSurface;
+		const surface = context.tooltips.surface as Tooltip;
 		expect(context.tooltips.trigger).toBe('focus');
 		expect({ x: surface.x, y: surface.y }).toEqual({ x: 100, y: 140 + TOOLTIP_ANCHOR_OFFSET });
 

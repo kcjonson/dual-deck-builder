@@ -18,6 +18,21 @@ This document contains the chronological log of completed development tasks for 
 
 **How:** `components/leaves.test.ts` (rejection per leaf, colour parsing, rectangle box and shadow, text options, container without visuals, stack box, line geometry, image fit maths, sprite frame and tint, asset cache residency and release, failed load). The whole suite passes unchanged otherwise; every gallery scene lints clean at 1440 by 882.
 
+## Catalog Wave C, overlays (2026-09-28)
+
+**What landed:** DDB-87's first PR (DDB-55 phase 5), R12.21, R12.22, R12.23, R12.29 (KeyCap), R12.33.
+
+- `ui/Dialog.ts`: `closed`, `opening`, `open`, `closing` through the animator; modal scrim drawn by the dialog itself and faded by colour so it blocks from the first frame; X, Escape (only when open), and opt-in outside-press dismissal; `initialFocus` or the first focusable in the content, footer, then the X.
+- `ui/Popover.ts`: placed against a component or a point, flip and shrink by the placement service, non-consuming outside press, Escape, focus to its first focusable with no scope, `reposition` and `anchoredTo`.
+- `ui/Tooltip.ts` replaces `services/TooltipSurface.ts` (deleted); the tooltip service's `surface` option is required and passed by `createMountContext`, and any surface is laid out on mount before placement.
+- `ui/Toast.ts`: `Toast` and `ToastStack` (corner, capacity, severity counts, age-ordered `zIndex`).
+- `ui/KeyCap.ts` on the new `ui/LabelledLeaf.ts`; `ui/surfaces.ts` for the elevation shadows.
+- `OverlayOptions.fill`: content sized to the viewport at open and on resize.
+- Icon atlas: `close`, `info`, `warning`, `error`, `chevron_right`, `expand_more`.
+- Gallery-only scenes `dialog`, `popover`, `toasts`.
+
+**How:** `Dialog.test.ts` (21), `Popover.test.ts` (10), `Toast.test.ts` (16), and `Tooltip.test.ts` (6) drive everything through the dispatcher's queue on the frame clock; the new scenes and `overlays` lint clean in the browser.
+
 ## Nine-slice images (2026-09-28)
 
 **What landed:** DDB-203 (R5.19, from DDB-68).

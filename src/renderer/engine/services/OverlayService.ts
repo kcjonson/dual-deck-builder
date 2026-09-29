@@ -41,6 +41,11 @@ export interface OverlayOptions {
 	onClose?: () => void;
 	/** Names the root in the tree snapshot. */
 	id?: string;
+	/**
+	 * The content takes the viewport's size, at open and on every resize: a
+	 * dialog whose own box is its scrim, a screen transition's quad.
+	 */
+	fill?: boolean;
 }
 
 /**
@@ -58,6 +63,7 @@ export class OverlayHandle {
 	public readonly dismissOnOutsidePress: boolean;
 	public readonly consumeOutsidePress: boolean;
 	public readonly closeOnEscape: boolean;
+	public readonly fill: boolean;
 	private readonly service: OverlayService;
 	private readonly onDismiss: ((reason: OverlayDismissReason) => void) | null;
 	private readonly onClose: (() => void) | null;
@@ -73,6 +79,7 @@ export class OverlayHandle {
 		this.dismissOnOutsidePress = options.dismissOnOutsidePress ?? false;
 		this.consumeOutsidePress = options.consumeOutsidePress ?? this.modal;
 		this.closeOnEscape = options.closeOnEscape ?? false;
+		this.fill = options.fill ?? false;
 		this.onDismiss = options.onDismiss ?? null;
 		this.onClose = options.onClose ?? null;
 	}
@@ -158,6 +165,7 @@ export class OverlayService implements InputObserver {
 			height,
 			layer: options.layer,
 		});
+		if (options.fill) content.setSize(width, height);
 		root.addChild(content);
 		const handle = new OverlayHandle({ service: this, root, content, options });
 		root.modal = handle.modal;
@@ -199,7 +207,10 @@ export class OverlayService implements InputObserver {
 	/** Re-sizes every root to the viewport; the shells call it where the viewport change lands (R7.3). */
 	public resize(): void {
 		const { width, height } = this.viewport.logical;
-		for (const handle of this.handles) handle.root.setSize(width, height);
+		for (const handle of this.handles) {
+			handle.root.setSize(width, height);
+			if (handle.fill) handle.content.setSize(width, height);
+		}
 	}
 
 	/** The overlay roots' paint, after the scene's own roots and before any diagnostic domain (R3.15, R3.21). */
