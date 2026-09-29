@@ -29,6 +29,17 @@ This document contains the chronological log of completed development tasks for 
 
 **How:** `ui/TextInput.test.ts`, 32 cases through injected input with the committed font metrics (caret placement against the advances, drag selection past the edge, keyboard selection, editing, maxLength and paste truncation, the validator per code point, Enter, Escape reaching the hotkeys, printable keys consumed, clipboard round trip, control characters stripped, password refusing copy, scroll to caret and back to zero, the clip rect, the blink, and NumberInput's clamping, stepping, commit, validator, wheel, and Tab stop). In the browser the three touched scenes lint clean, and typing, selecting, and stepping were tried by hand. Details in [component-catalog-wave-b.md](AI_TECHNICAL_DECISIONS/component-catalog-wave-b.md).
 
+## Small-text raster fallback and the scored small-size gate (2026-09-28)
+
+**What landed:** DDB-199 (R6.4a, chapter 6.9, from DDB-70).
+
+- Runs whose screen-space range is under 1.5 device pixels (under 9 device px) draw from glyphs rasterised with the platform's 2D text API at their device font size, from the same TTFs the distance-field atlases were built from, as `image`-mode quads. That includes runs under a uniform scale (the combat stage, scaled cards). Placement and measurement are still the distance-field layout; each glyph is drawn from one of four quarter-pixel phase variants, box-filtered from a 4x-wide rasterisation, so spacing matches the layout to an eighth of a pixel.
+- All roles and sizes share one 1024 by 1024 page (`rendering/RasterGlyphPage.ts`), filled per glyph on demand through the texture store's new `writeRegion`, under a 3 ms per-frame budget that `DrawApi.prewarmText` lifts for the frame after a screen or scene mounts. Combat at 1000x620 stays one GPU draw with no slot split (`smallText.spec.ts`); a window drag across combat peaks at 4.7 ms render plus flush against 44.5 ms for the first cut's atlas per size. The page starts over when full. A size stays on the raster until its range passes 1.6 (hysteresis).
+- `text/rasterGlyphs.ts` boxes and rasterises glyphs, `text/platformFaces.ts` registers the faces as `FontFace`s under private names. Substitute glyphs (R6.3) carry `outlineCodePoint` so the raster draws the outline the atlas holds.
+- Chosen over moving `Vehicle`'s literal 8 and 9 px to 11 px, which needs a card re-layout (DDB-217). 9 device px sits exactly on the threshold and is unchanged.
+- 6.9's scored comparison is in `uberShader.spec.ts`: body at 10, 12, 13 px, field against platform. On the Linux runner the field has 0.95 to 1.0 of the platform's ink but its stems vary with sub-pixel phase (0.17 to 0.24 against 0); macOS CoreText is a third heavier. A ratchet for now; DDB-218.
+- DDB-219 folded in: the first cut rounded each pen to a whole pixel and read "atta ck" on the card footers; whole-pixel advances per word did not fix it (a 2.5 px `t` must alternate 2 and 3), quarter-pixel phases did.
+- Font files are asset modules (URLs on the web, about 550 KB; data URIs in Electron, about 730 KB of the renderer bundle), loaded at startup. Goldens moved for the card showcase, the combat hand's card footers and `icons`; combat's 8 px HP lands on exactly 9 device px at 1440x882 and does not.
 ## Catalog Wave A, leaves on the closed style set (2026-09-28)
 
 **What landed:** DDB-85's third PR (DDB-55 phase 5), R11.14 to R11.16 for every leaf, R12.1 to R12.5, R12.18; closes DDB-209.

@@ -24,6 +24,10 @@ class FakeDevice implements TextureDevice<FakeTexture> {
 		this.log.push(`upload ${description.label} ${description.content}`);
 	}
 
+	uploadRegion(texture: FakeTexture, region: { x: number; y: number; width: number; height: number }): void {
+		this.log.push(`region ${texture.label} ${region.x} ${region.y} ${region.width} ${region.height}`);
+	}
+
 	release(texture: FakeTexture): void {
 		texture.released = true;
 		this.log.push(`release ${texture.label}`);
@@ -334,5 +338,40 @@ describe('context loss (R5.33, R15.5)', () => {
 
 		store.restore();
 		expect(store.isResident(handle)).toBe(true);
+	});
+});
+
+describe('region writes (R6.4a raster glyph page)', () => {
+	function page(store: TextureStore<FakeTexture>, source: Uint8Array) {
+		return store.create({ width: 4, height: 4, label: 'page', source, keepSource: true, immediate: true });
+	}
+
+	it('uploads the region now, and writes it into the kept source for a restore', () => {
+		const { device, store } = setup();
+		const source = texels(4);
+		const handle = page(store, source);
+		store.writeRegion(handle, { x: 1, y: 2, width: 2, height: 1 }, new Uint8Array([1, 1, 1, 1, 2, 2, 2, 2]));
+		expect(device.log).toContain('region page 1 2 2 1');
+		expect(Array.from(source.slice((2 * 4 + 1) * 4, (2 * 4 + 3) * 4))).toEqual([1, 1, 1, 1, 2, 2, 2, 2]);
+		expect(source[0]).toBe(0);
+	});
+
+	it('keeps a write made while the device is lost, and restores it with the texture', () => {
+		const { device, store } = setup();
+		const source = texels(4);
+		const handle = page(store, source);
+		store.lose();
+		store.writeRegion(handle, { x: 0, y: 0, width: 1, height: 1 }, new Uint8Array([9, 9, 9, 9]));
+		expect(device.log.filter((line) => line.startsWith('region'))).toEqual([]);
+		expect(source[0]).toBe(9);
+		store.restore();
+		expect(store.isResident(handle)).toBe(true);
+	});
+
+	it('refuses a region outside the texture or texels of the wrong size', () => {
+		const { store } = setup();
+		const handle = page(store, texels(4));
+		expect(() => store.writeRegion(handle, { x: 3, y: 0, width: 2, height: 1 }, new Uint8Array(8))).toThrow(/not inside/);
+		expect(() => store.writeRegion(handle, { x: 0, y: 0, width: 2, height: 1 }, new Uint8Array(4))).toThrow(/bytes/);
 	});
 });

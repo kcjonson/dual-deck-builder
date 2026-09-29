@@ -257,9 +257,10 @@ describe('parseFontAtlas: kerning', () => {
 describe('parseFontAtlas: coverage completion (R6.3)', () => {
 	it('substitutes an absent hyphen with the hyphen-minus', () => {
 		const { atlas } = parse(atlasJson());
-		expect(atlas.glyph(0x2010)).toEqual({ ...atlas.glyph(0x2D), codePoint: 0x2010 });
+		expect(atlas.glyph(0x2010)).toEqual({ ...atlas.glyph(0x2D), codePoint: 0x2010, outlineCodePoint: 0x2D });
 		// U+2011 tries U+2010 first, which only exists here as a substitute itself.
 		expect(atlas.glyph(0x2011)?.advance).toBe(0.3);
+		expect(atlas.glyph(0x2011)?.outlineCodePoint).toBe(0x2D);
 	});
 
 	it('never replaces a glyph the face has', () => {

@@ -29,6 +29,16 @@ import { HairlineRectOptions, SnappedHairlineRect, snapHairlineRect, snapTextOri
 import type { TextLayout } from '../text/TextLayout';
 import { TextMetricsService } from '../text/TextMetricsService';
 import { DECORATION_THICKNESS, LineOrigin, decorationOffset, lineOrigin, runInk } from '../text/textPlacement';
+import {
+	RASTER_RANGE_HYSTERESIS,
+	RASTER_RANGE_THRESHOLD,
+	RasterGlyphCell,
+	RasterGlyphRun,
+	RasterGlyphSource,
+	rasterPen,
+	rasterPixelSize,
+	wantsRasterGlyphs,
+} from '../text/rasterGlyphs';
 import { toHalf, toUnorm8 } from './packing';
 
 /**
@@ -165,9 +175,13 @@ export interface UberGeometryEncoderOptions {
 	/** The glyph iteration every text group is laid out by (R6.8). */
 	text: TextMetricsService;
 	onUnpaintable: (kind: DrawCommandKind, detail: string) => void;
+	/** R6.4a's raster glyphs for runs too small for the distance field. Absent, every run is `text` mode. */
+	smallText?: RasterGlyphSource | null;
 }
 
 const WHITE: RGBA = [1, 1, 1, 1];
+/** The hysteresis band as a ratio of device scales: a range of 1.6 over 1.5. */
+const HYSTERESIS_SCALE = (RASTER_RANGE_THRESHOLD + RASTER_RANGE_HYSTERESIS) / RASTER_RANGE_THRESHOLD;
 const TRANSPARENT: RGBA = [0, 0, 0, 0];
 
 /** Quad corners in the order top-left, top-right, bottom-right, bottom-left. */
@@ -214,6 +228,22 @@ export class UberGeometryEncoder implements GeometryEncoder {
 	/** `shape` and `encode` see the same command back to back; its layout is looked up once. */
 	private layoutCommand: TextCommand | null = null;
 	private layoutResult: TextLayout | null = null;
+	private readonly smallText: RasterGlyphSource | null;
+	/** Likewise the raster glyphs `shape` chose, so `encode` draws from the texture its group reported. */
+	private rasterCommand: TextCommand | null = null;
+	private rasterResult: RasterGlyphRun | null = null;
+	/**
+	 * R6.4a's hysteresis: for each font and logical size on the raster path,
+	 * the device scale it was last drawn at there. A run of that font and size
+	 * at about that scale (within the hysteresis band's ratio) stays on the
+	 * raster until its range passes the threshold by `RASTER_RANGE_HYSTERESIS`,
+	 * so one run zooming across the threshold does not flicker. Keyed on font,
+	 * size and scale rather than on the command, which is new every frame; the
+	 * scale keeps a run of the same size at another scale (8 px on a card and
+	 * 8 px on the stage) from inheriting the state.
+	 */
+	private readonly rasterScales = new Map<string, Map<number, number>>();
+	private readonly rasterPenScratch = { pixel: 0, phase: 0 };
 	private readonly pointScratch = { x: 0, y: 0 };
 	private readonly sliceScratch: NineSliceGrid = createNineSliceGrid();
 	/** R5.17: screen-space outline and outward offsets, grown and reused. */
@@ -223,9 +253,10 @@ export class UberGeometryEncoder implements GeometryEncoder {
 	private devicePixel = 1;
 	private ratioValue = 1;
 
-	constructor({ text, onUnpaintable }: UberGeometryEncoderOptions) {
+	constructor({ text, onUnpaintable, smallText = null }: UberGeometryEncoderOptions) {
 		this.text = text;
 		this.onUnpaintable = onUnpaintable;
+		this.smallText = smallText;
 	}
 
 	/**
@@ -714,8 +745,43 @@ export class UberGeometryEncoder implements GeometryEncoder {
 		}
 		if (isDegenerate(command.transform)) return true;
 		out.instances = layout.quadCount + this.decorationCount(command, layout);
-		out.texture = texture;
+		out.texture = this.rasterOf(command, layout)?.texture ?? texture;
 		return true;
+	}
+
+	/**
+	 * R6.4a: the raster glyphs for a run whose screen range is under the
+	 * threshold (with `RASTER_RANGE_HYSTERESIS` for a size already there), or
+	 * null for the distance field. A run qualifies under a
+	 * translation or a uniform positive scale (a scaled stage, R7.2's
+	 * `uiScale` by transform), whose device font size is fixed; a rotated or
+	 * skewed run has no pixel grid to rasterise for, and a blurred shadow run
+	 * needs the `mtsdf` distance.
+	 */
+	private rasterOf(command: TextCommand, layout: TextLayout): RasterGlyphRun | null {
+		if (command === this.rasterCommand) return this.rasterResult;
+		let raster: RasterGlyphRun | null = null;
+		const matrix = command.transform;
+		const scale = matrix[0];
+		if (this.smallText && command.blur <= 0 && matrix[1] === 0 && matrix[2] === 0 && matrix[3] === scale && scale > 0) {
+			const deviceScale = scale * this.ratioValue;
+			let scales = this.rasterScales.get(command.font);
+			const last = scales?.get(layout.size);
+			const already = last !== undefined && deviceScale <= last * HYSTERESIS_SCALE && deviceScale >= last / HYSTERESIS_SCALE;
+			if (wantsRasterGlyphs(layout.atlas, layout.size, deviceScale, already)) {
+				if (!scales) {
+					scales = new Map();
+					this.rasterScales.set(command.font, scales);
+				}
+				scales.set(layout.size, deviceScale);
+				raster = this.smallText.glyphs(command.font, layout, rasterPixelSize(layout.size, deviceScale));
+			} else if (already) {
+				scales?.delete(layout.size);
+			}
+		}
+		this.rasterCommand = command;
+		this.rasterResult = raster;
+		return raster;
 	}
 
 	/**
@@ -743,6 +809,12 @@ export class UberGeometryEncoder implements GeometryEncoder {
 	 */
 	private encodeText(command: TextCommand, sink: GeometrySink, slot: number): void {
 		const layout = this.layoutOf(command) as TextLayout;
+		const raster = this.rasterOf(command, layout);
+		if (raster) {
+			this.encodeRasterGlyphs(command, layout, raster, sink, slot);
+			this.encodeDecorations(command, layout, sink, layout.quadCount);
+			return;
+		}
 		const { atlas, size } = layout;
 		const ratio = this.ratioValue;
 		const matrix = command.transform;
@@ -781,9 +853,85 @@ export class UberGeometryEncoder implements GeometryEncoder {
 				for (let corner = 0; corner < 4; corner++) this.color(sink, base, corner, color);
 			}
 		}
+		this.encodeDecorations(command, layout, sink, instance);
+	}
 
+	/**
+	 * R6.4a's raster path: each glyph's cell from the shared raster page as an
+	 * `image`-mode quad, whose shader multiplies the premultiplied white
+	 * coverage by the text colour. Placement is the same layout's (R6.8),
+	 * taken to the screen through the run's translation and uniform scale, so
+	 * measurement does not change. Each baseline lands on a whole device row;
+	 * each pen goes to its nearest quarter pixel, drawn as the whole pixel's
+	 * cell in that phase (`rasterPen`), so a cell is one texel to one pixel and
+	 * glyphs keep the layout's spacing to within an eighth of a pixel.
+	 */
+	private encodeRasterGlyphs(command: TextCommand, layout: TextLayout, raster: RasterGlyphRun, sink: GeometrySink, slot: number): void {
+		const ratio = this.ratioValue;
+		const matrix = command.transform;
+		this.begin(command, UBER_MODE.image, slot);
+		const color = premultiply(command.color, this.fillScratch);
+		const origin = this.originScratch;
+		const pen = this.rasterPenScratch;
+		let instance = 0;
+		for (let line = 0; line < layout.lines.length; line++) {
+			this.snappedOrigin(layout, command, line, origin);
+			const baseline = Math.round((matrix[3] * origin.y + matrix[5]) * ratio);
+			const glyphs = layout.lines[line].glyphs;
+			for (let index = 0; index < glyphs.length; index++) {
+				const { glyph, x } = glyphs[index];
+				if (!glyph.plane || !glyph.atlas) continue;
+				rasterPen((matrix[0] * (origin.x + x) + matrix[4]) * ratio, pen);
+				this.rasterGlyphQuad(sink, instance++, raster, raster.cells.get(glyph.codePoint), pen.pixel, pen.phase, baseline, ratio, color);
+			}
+		}
+	}
+
+	/** One raster glyph at a whole-pixel pen, in a phase, on a whole-pixel baseline, all in device pixels. */
+	private rasterGlyphQuad(
+		sink: GeometrySink,
+		instance: number,
+		raster: RasterGlyphRun,
+		cell: RasterGlyphCell | undefined,
+		pen: number,
+		phase: number,
+		baseline: number,
+		ratio: number,
+		color: RGBA,
+	): void {
+		const base = this.instance(sink, instance);
+		if (!cell) {
+			// Every glyph with a plane has a cell; a quad the count promised
+			// is still written, empty.
+			this.setTexCoords(sink, base, 0, 0, 0, 0);
+			for (let corner = 0; corner < 4; corner++) this.screenCorner(sink, base, corner, 0, 0);
+			return;
+		}
+		const left = (pen + cell.left) / ratio;
+		const top = (baseline + cell.top) / ratio;
+		const right = left + cell.width / ratio;
+		const bottom = top + cell.height / ratio;
+		const cellX = cell.x + phase * cell.stride;
+		this.setTexCoords(sink, base, cellX / raster.width, cell.y / raster.height,
+			(cellX + cell.width) / raster.width, (cell.y + cell.height) / raster.height);
+		this.screenCorner(sink, base, 0, left, top);
+		this.screenCorner(sink, base, 1, right, top);
+		this.screenCorner(sink, base, 2, right, bottom);
+		this.screenCorner(sink, base, 3, left, bottom);
+		for (let corner = 0; corner < 4; corner++) this.color(sink, base, corner, color);
+	}
+
+	/** R12.4's rules after a run's glyphs, from instance `first` of its group. */
+	private encodeDecorations(command: TextCommand, layout: TextLayout, sink: GeometrySink, first: number): void {
 		const offset = decorationOffset(layout, command.decoration);
 		if (offset === null) return;
+		const ratio = this.ratioValue;
+		const matrix = command.transform;
+		const snap = command.translateOnly;
+		const color = premultiply(command.color, this.fillScratch);
+		const origin = this.originScratch;
+		const halves = this.templateHalves;
+		let instance = first;
 		this.templateBytes[MODE_BYTE] = UBER_MODE.rect;
 		halves.fill(0, SHAPE_HALF, SHAPE_HALF + 3);
 		halves.fill(0, RADII_HALF, RADII_HALF + 4);
