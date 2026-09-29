@@ -165,7 +165,18 @@ attributable to chapter 5. DDB-188 applied them in `encodeRect` (see
 **R4.14's rounded clip** is not implemented: a rounded panel still clips its children to its
 square bounds, so a child that reaches into a rounded corner draws square over it. DDB-190.
 
-**R5.19 nine-slice** is refused with a report rather than drawn stretched. No caller yet.
+**R5.19 nine-slice** landed with DDB-203: `draw/nineSlice.ts` computes the grid (corners at one logical
+pixel per texel, insets fitted to the source per axis, and every corner scaled by one factor when the
+destination is smaller than two of them, CSS border-image's rule), and the encoder writes one `image`
+quad per cell with a destination extent, all in the image's group. Image mode has no edge ramp, so cells
+that share float edges meet with no seam. What it does need is a sampling clamp: at a cell's inner edge
+linear filtering blends in the neighbouring cell's texel, and in a stretched cell that blend is smeared
+over half a stretched texel (a 10 px ramp of border colour inside a 20x-stretched panel centre). Sliced
+cells carry half a texel in UV in the image mode's unused shape lanes and their UV rect reaches the
+fragment stage through the flat `vRadii`; the image branch clamps to that rect inset by half a texel (its
+midpoint for a cell under a texel wide). Texel centres of a 1:1 corner are never moved, and an unsliced
+image carries no inset and is not clamped, so its pixels are unchanged. A negative destination extent runs
+the grid's edges the other way and mirrors, as an unsliced draw does.
 
 **R3.17's blurred text shadow** is still drawn unblurred: the bitmap atlas has nothing to blur.
 Chapter 6's distance fields fix it.
