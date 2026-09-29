@@ -19,6 +19,7 @@ import { RadioExamplesSection } from './RadioExamplesSection';
 import { PanelExamplesSection } from './PanelExamplesSection';
 import { ScrollExamplesSection } from './ScrollExamplesSection';
 import { LeafExamplesSection } from './LeafExamplesSection';
+import { MenuExamplesSection } from './MenuExamplesSection';
 import { MeterExamplesSection } from './MeterExamplesSection';
 import { DataDisplaySection } from './DataDisplaySection';
 import { TreeExamplesSection } from './TreeExamplesSection';
@@ -151,6 +152,10 @@ export const developerSections: readonly DeveloperSection[] = [
 	{
 		name: 'leaves',
 		build: ({ x, y, width }) => new LeafExamplesSection(x, y, width),
+	},
+	{
+		name: 'menus',
+		build: ({ x, y, width }) => new MenuExamplesSection(x, y, width),
 	},
 	{
 		name: 'meters',
