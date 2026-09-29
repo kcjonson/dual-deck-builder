@@ -68,7 +68,9 @@ export abstract class Checkable extends Pressable {
 		if (onChange) this.onChange = onChange;
 
 		this.label = new Text(label, {
-			style: { fontFamily: 'body', fontSize: CONTROL_SIZES[size].fontSize, verticalAlign: 'middle', whiteSpace: 'nowrap' },
+			style: { fontRole: 'body', fontSize: CONTROL_SIZES[size].fontSize },
+			verticalAlign: 'middle',
+			wrap: 'none',
 		});
 		this.addPart(this.label);
 		if (!label) this.label.visible = false;

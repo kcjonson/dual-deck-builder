@@ -65,7 +65,8 @@ export class StyleGuideSection extends DeveloperSectionPanel {
 				style: {
 					backgroundColor: color.value,
 					borderRadius: 8,
-					border: '2px solid #ffffff',
+					borderWidth: 2,
+					borderColor: '#ffffff',
 				},
 			});
 			colorBox.setPosition(colorX, colorY);
@@ -80,8 +81,8 @@ export class StyleGuideSection extends DeveloperSectionPanel {
 					fontSize: 12,
 					color: '#ffffff',
 					textAlign: 'center',
-					whiteSpace: 'nowrap',
 				},
+				wrap: 'none',
 			});
 			this.addChild(colorLabel);
 

@@ -3,7 +3,7 @@ import { ScreenManager } from '../../core/ScreenManager';
 import { Button } from '../../../engine/ui/Button';
 import { Text } from '../../../engine/components/Text';
 import { Rectangle } from '../../../engine/components/Rectangle';
-import { Layer } from '../../../engine/components/Layer';
+import { Container } from '../../../engine/components/Container';
 import { ScrollContainer } from '../../../engine/ui/ScrollContainer';
 import { Card } from '../../ui/Card';
 import { CardLoader } from '../../core/CardLoader';
@@ -22,7 +22,7 @@ export class CardShowcaseScreen extends Screen {
 	private backButton: Button;
 	private cardsPanel: ScrollContainer;
 	/** The scroll container's one content child: the titles and cards, placed by hand. */
-	private cardsContent: Layer;
+	private cardsContent: Container;
 	private cardLoader: CardLoader;
 	private cardComponents: Card[] = [];
 	private cardsLoaded = false;
@@ -72,7 +72,7 @@ export class CardShowcaseScreen extends Screen {
 				backgroundColor: '#1a1a33', // Match the background
 			},
 		});
-		this.cardsContent = new Layer({ id: 'showcase_cards' });
+		this.cardsContent = new Container({ id: 'showcase_cards' });
 		this.cardsPanel.addChild(this.cardsContent);
 		this.rootLayer.addChild(this.cardsPanel);
 	}

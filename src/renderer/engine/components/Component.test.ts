@@ -1,5 +1,5 @@
 import { Component } from './Component';
-import { Layer } from './Layer';
+import { Container } from './Container';
 import { Rectangle } from './Rectangle';
 
 /** A leaf that counts unmounts, so a test can see removeChild release it. */
@@ -33,17 +33,17 @@ describe('Component properties (R8.2)', () => {
 
 	it('defaults pointerEvents by kind: leaves auto, containers passthrough (R8.29)', () => {
 		expect(new Rectangle().pointerEvents).toBe('auto');
-		expect(new Layer().pointerEvents).toBe('passthrough');
-		expect(new Layer({ pointerEvents: 'none' }).pointerEvents).toBe('none');
+		expect(new Container().pointerEvents).toBe('passthrough');
+		expect(new Container({ pointerEvents: 'none' }).pointerEvents).toBe('none');
 	});
 
 	it('expands a number margin to all four sides and keeps per-side values', () => {
-		expect(new Layer({ margin: 4 }).margin).toEqual({ top: 4, right: 4, bottom: 4, left: 4 });
-		expect(new Layer({ margin: { left: 3, top: 1 } }).margin).toEqual({ top: 1, right: 0, bottom: 0, left: 3 });
+		expect(new Container({ margin: 4 }).margin).toEqual({ top: 4, right: 4, bottom: 4, left: 4 });
+		expect(new Container({ margin: { left: 3, top: 1 } }).margin).toEqual({ top: 1, right: 0, bottom: 0, left: 3 });
 	});
 
 	it('reports the margin box as bounds and hit-tests the content box (R8.10 to R8.12)', () => {
-		const root = new Layer({ width: 400, height: 400 });
+		const root = new Container({ width: 400, height: 400 });
 		const box = new Rectangle({ x: 10, y: 20, width: 50, height: 30, margin: { top: 5, left: 7, right: 2, bottom: 1 } });
 		root.addChild(box);
 
@@ -60,8 +60,8 @@ describe('Component properties (R8.2)', () => {
 
 describe('effective values (R8.3)', () => {
 	it('derives visibility, enabled, opacity and layer from the ancestors', () => {
-		const root = new Layer({ opacity: 0.5 });
-		const middle = new Layer({ opacity: 0.5, layer: 'raised' });
+		const root = new Container({ opacity: 0.5 });
+		const middle = new Container({ opacity: 0.5, layer: 'raised' });
 		const leaf = new Rectangle({ opacity: 0.5 });
 		root.addChild(middle);
 		middle.addChild(leaf);
@@ -79,8 +79,8 @@ describe('effective values (R8.3)', () => {
 	});
 
 	it('keeps the higher of own and inherited layer, so a subtree never paints beneath its ancestor (R3.6)', () => {
-		const parent = new Layer({ layer: 'overlay' });
-		const child = new Layer({ layer: 'raised' });
+		const parent = new Container({ layer: 'overlay' });
+		const child = new Container({ layer: 'raised' });
 		parent.addChild(child);
 
 		expect(child.effectiveLayer).toBe('overlay');
@@ -88,7 +88,7 @@ describe('effective values (R8.3)', () => {
 	});
 
 	it('does not hit an invisible subtree, a faded one, or one under pointerEvents none (R3.27, R8.29)', () => {
-		const root = new Layer({ width: 100, height: 100 });
+		const root = new Container({ width: 100, height: 100 });
 		const leaf = new Rectangle({ width: 10, height: 10 });
 		root.addChild(leaf);
 		expect(leaf.containsScreenPoint(5, 5)).toBe(true);
@@ -106,7 +106,7 @@ describe('effective values (R8.3)', () => {
 	});
 
 	it('lets a promoted child escape its ancestor clip for hit testing, as it does for paint (R4.8)', () => {
-		const clipper = new Layer({ width: 50, height: 50, overflow: 'hidden' });
+		const clipper = new Container({ width: 50, height: 50, overflow: 'hidden' });
 		const popup = new Rectangle({ x: 60, y: 0, width: 20, height: 20, layer: 'popup' });
 		clipper.addChild(popup);
 
@@ -118,7 +118,7 @@ describe('effective values (R8.3)', () => {
 	});
 
 	it('takes overflow before it has a size and clips once it gets one', () => {
-		const clipper = new Layer({ overflow: 'hidden' });
+		const clipper = new Container({ overflow: 'hidden' });
 		const child = new Rectangle({ x: 60, y: 0, width: 20, height: 20 });
 		clipper.addChild(child);
 
@@ -133,9 +133,9 @@ describe('effective values (R8.3)', () => {
 
 describe('children (R8.5 to R8.7)', () => {
 	it('keeps one parent per child and re-parents on add', () => {
-		const first = new Layer();
-		const second = new Layer();
-		const child = new Layer({ id: 'child' });
+		const first = new Container();
+		const second = new Container();
+		const child = new Container({ id: 'child' });
 
 		first.addChild(child);
 		second.addChild(child);
@@ -147,9 +147,9 @@ describe('children (R8.5 to R8.7)', () => {
 	});
 
 	it('refuses to add a component under itself or its own descendant', () => {
-		const root = new Layer({ id: 'root' });
-		const branch = new Layer({ id: 'branch' });
-		const leaf = new Layer({ id: 'leaf' });
+		const root = new Container({ id: 'root' });
+		const branch = new Container({ id: 'branch' });
+		const leaf = new Container({ id: 'leaf' });
 		root.addChild(branch);
 		branch.addChild(leaf);
 
@@ -161,10 +161,10 @@ describe('children (R8.5 to R8.7)', () => {
 	});
 
 	it('inserts at an index and moves a child it already holds without detaching it', () => {
-		const parent = new Layer();
-		const a = new Layer({ id: 'a' });
-		const b = new Layer({ id: 'b' });
-		const c = new Layer({ id: 'c' });
+		const parent = new Container();
+		const a = new Container({ id: 'a' });
+		const b = new Container({ id: 'b' });
+		const c = new Container({ id: 'c' });
 		parent.addChild(a).addChild(b);
 		parent.insertChild(0, c);
 		expect(ids(parent.getChildren())).toEqual(['c', 'a', 'b']);
@@ -180,7 +180,7 @@ describe('children (R8.5 to R8.7)', () => {
 	});
 
 	it('unmounts on removeChild and clearChildren', () => {
-		const parent = new Layer();
+		const parent = new Container();
 		const kept = new Probe({ id: 'kept' });
 		const removed = new Probe({ id: 'removed' });
 		parent.addChild(kept).addChild(removed);
@@ -197,11 +197,11 @@ describe('children (R8.5 to R8.7)', () => {
 	});
 
 	it('orders the render view by zIndex, stably, without touching the children list (R3.12, R3.13)', () => {
-		const parent = new Layer();
-		const background = new Layer({ id: 'background' });
-		const raised = new Layer({ id: 'raised', zIndex: 1 });
-		const content = new Layer({ id: 'content' });
-		const under = new Layer({ id: 'under', zIndex: -1 });
+		const parent = new Container();
+		const background = new Container({ id: 'background' });
+		const raised = new Container({ id: 'raised', zIndex: 1 });
+		const content = new Container({ id: 'content' });
+		const under = new Container({ id: 'under', zIndex: -1 });
 		parent.addChild(background).addChild(raised).addChild(content).addChild(under);
 
 		expect(ids(parent.renderOrder)).toEqual(['under', 'background', 'content', 'raised']);
@@ -212,8 +212,8 @@ describe('children (R8.5 to R8.7)', () => {
 	});
 
 	it('finds a descendant by id (R8.4)', () => {
-		const root = new Layer({ id: 'root' });
-		const branch = new Layer({ id: 'branch' });
+		const root = new Container({ id: 'root' });
+		const branch = new Container({ id: 'branch' });
 		const leaf = new Rectangle({ id: 'leaf' });
 		root.addChild(branch);
 		branch.addChild(leaf);
@@ -229,7 +229,7 @@ describe('reconcileChildren (R8.27)', () => {
 		label: string;
 	}
 
-	function reconcile(parent: Layer, rows: Row[], remove?: (child: Probe) => void | Promise<void>): { created: string[]; updated: string[] } {
+	function reconcile(parent: Container, rows: Row[], remove?: (child: Probe) => void | Promise<void>): { created: string[]; updated: string[] } {
 		const created: string[] = [];
 		const updated: string[] = [];
 		parent.reconcileChildren(rows, {
@@ -245,7 +245,7 @@ describe('reconcileChildren (R8.27)', () => {
 	}
 
 	it('keeps matching keys in place, creates new ones, and follows the item order', () => {
-		const parent = new Layer();
+		const parent = new Container();
 		reconcile(parent, [{ key: 'a', label: '' }, { key: 'b', label: '' }]);
 		const [a, b] = parent.getChildren();
 		a.setHovered(true);
@@ -278,7 +278,7 @@ describe('reconcileChildren (R8.27)', () => {
 	}
 
 	it('keeps a removed key drawn after the others until its exit settles, then unmounts it', async () => {
-		const parent = new Layer();
+		const parent = new Container();
 		reconcile(parent, [{ key: 'a', label: '' }, { key: 'b', label: '' }]);
 		const b = parent.getChildren()[1] as Probe;
 		const exit = deferredExit();
@@ -302,9 +302,9 @@ describe('reconcileChildren (R8.27)', () => {
 
 	it('does not unmount an exiting child that was re-added elsewhere before its exit settled', async () => {
 		// One root, so the move is a same-root move that keeps the child (R8.5).
-		const root = new Layer();
-		const parent = new Layer();
-		const elsewhere = new Layer();
+		const root = new Container();
+		const parent = new Container();
+		const elsewhere = new Container();
 		root.addChild(parent).addChild(elsewhere);
 		reconcile(parent, [{ key: 'a', label: '' }]);
 		const a = parent.getChildren()[0] as Probe;
@@ -319,9 +319,9 @@ describe('reconcileChildren (R8.27)', () => {
 	});
 
 	it('forgets a moved child\'s key, so the new parent does not treat it as its own stale key', () => {
-		const root = new Layer();
-		const first = new Layer();
-		const second = new Layer();
+		const root = new Container();
+		const first = new Container();
+		const second = new Container();
 		root.addChild(first).addChild(second);
 		reconcile(first, [{ key: 'a', label: '' }]);
 		const a = first.getChildren()[0] as Probe;
@@ -335,8 +335,8 @@ describe('reconcileChildren (R8.27)', () => {
 	});
 
 	it('leaves children it did not create alone and refuses duplicate keys', () => {
-		const parent = new Layer();
-		const header = new Layer({ id: 'header' });
+		const parent = new Container();
+		const header = new Container({ id: 'header' });
 		parent.addChild(header);
 
 		reconcile(parent, [{ key: 'a', label: '' }]);
@@ -351,8 +351,8 @@ describe('reconcileChildren (R8.27)', () => {
 
 describe('screen geometry (R8.13, R8.26)', () => {
 	it('accumulates origins and content offsets, and round-trips a point', () => {
-		const root = new Layer({ x: 10, y: 10, width: 500, height: 500 });
-		const middle = new Layer({ x: 20, y: 30, width: 200, height: 200 });
+		const root = new Container({ x: 10, y: 10, width: 500, height: 500 });
+		const middle = new Container({ x: 20, y: 30, width: 200, height: 200 });
 		const leaf = new Rectangle({ x: 5, y: 5, width: 10, height: 10 });
 		root.addChild(middle);
 		middle.addChild(leaf);
@@ -363,7 +363,7 @@ describe('screen geometry (R8.13, R8.26)', () => {
 	});
 
 	it('rotates about the content box centre, reports the axis-aligned bounds, and hit-tests through the inverse', () => {
-		const root = new Layer({ width: 400, height: 400 });
+		const root = new Container({ width: 400, height: 400 });
 		const card = new Rectangle({ x: 100, y: 100, width: 100, height: 20, transform: { rotate: Math.PI / 2 } });
 		root.addChild(card);
 
@@ -399,7 +399,7 @@ describe('screen geometry (R8.13, R8.26)', () => {
 });
 
 /** Counts state notifications, as a styled component would re-resolve on each. */
-class StateProbe extends Layer {
+class StateProbe extends Container {
 	public changes = 0;
 
 	protected onStateChange(): void {

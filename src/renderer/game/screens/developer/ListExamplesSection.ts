@@ -17,8 +17,7 @@ export class ListExamplesSection extends CatalogSection {
 	constructor(x: number, y: number, width: number) {
 		super({ id: 'dev_section_lists', title: 'Lists', x, y, width });
 
-		const list = new FocusGroup({ id: 'dev_list', width: 300, selection: 'single' });
-		list.setBackgroundColor([...tokens.color.bg_inset] as [number, number, number, number]);
+		const list = new FocusGroup({ id: 'dev_list', width: 300, selection: 'single', style: { backgroundColor: 'bg_inset' } });
 		const rows = [
 			new ListRow({ id: 'dev_list_row_plain', label: 'Scrapyard Hauler', trailing: '12' }),
 			new ListRow({ id: 'dev_list_row_selected', label: 'Road Warden', trailing: '8' }),

@@ -45,12 +45,12 @@ export class KeyCap extends LabelledLeaf {
 		const metrics = METRICS[size];
 		super({ ...options, height: options.height ?? metrics.height }, new Text(label, {
 			style: {
-				fontFamily: 'mono',
+				fontRole: 'mono',
 				fontSize: metrics.fontSize,
 				color: rgba(color.text),
-				verticalAlign: 'middle',
-				whiteSpace: 'nowrap',
 			},
+			verticalAlign: 'middle',
+			wrap: 'none',
 		}));
 		this.componentType = 'KeyCap';
 		this.metrics = metrics;

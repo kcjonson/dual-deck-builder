@@ -107,7 +107,9 @@ export class Toast extends Stack {
 		const text = new Stack({ direction: 'vertical', gap: tokens.space.space_0_5, widthMode: 'fill' });
 		this.titleText = new Text(title, {
 			id: id ? `${id}_title` : undefined,
-			style: { fontFamily: 'display', fontSize: tokens.fontSize.fs_md, color: rgba(color.text_bright), whiteSpace: 'nowrap', textOverflow: 'ellipsis' },
+			style: { fontRole: 'display', fontSize: tokens.fontSize.fs_md, color: rgba(color.text_bright) },
+			wrap: 'none',
+			textOverflow: 'ellipsis',
 		});
 		text.addPart(this.titleText);
 		this.messageText = message

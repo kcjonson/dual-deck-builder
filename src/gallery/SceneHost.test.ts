@@ -1,6 +1,6 @@
 import { SceneHost } from './SceneHost';
 import type { GalleryScene } from './registry';
-import { Layer } from '../renderer/engine/components/Layer';
+import { Container } from '../renderer/engine/components/Container';
 import type { Component } from '../renderer/engine/components/Component';
 import { Panel } from '../renderer/engine/ui/Panel';
 import { Button } from '../renderer/engine/ui/Button';
@@ -57,7 +57,7 @@ function interactiveScene(name: string, { x, y, width }: { x: number; y: number;
 }
 
 /** Counts the calls SceneHost makes into the tree. */
-class CountingLayer extends Layer {
+class CountingLayer extends Container {
 	public updates = 0;
 	public renders = 0;
 

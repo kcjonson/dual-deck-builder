@@ -3,7 +3,7 @@ import { Icon } from '../../engine/components/Icon';
 import { grownRect } from '../../engine/components/componentGeometry';
 import type { Rect } from '../../engine/draw/geometry';
 import type { DrawApi } from '../../engine/draw/DrawApi';
-import { StyleParser } from '../../engine/types/Style';
+import { resolveColor } from '../../engine/style/styleObject';
 import { tokens } from '../../engine/theme/tokens';
 
 export interface ArmorBadgeOptions extends ComponentOptions {
@@ -19,9 +19,9 @@ const RIGHT_INSET = 4;
 const VALUE_SIZE = 8;
 const VALUE_FONT = 'body';
 
-const FILL_ACTIVE = StyleParser.parseColor('#6a6aaa');
-const FILL_EMPTY = StyleParser.parseColor('#4a4a4a');
-const BORDER = StyleParser.parseColor('#8a8aaa');
+const FILL_ACTIVE = resolveColor('#6a6aaa');
+const FILL_EMPTY = resolveColor('#4a4a4a');
+const BORDER = resolveColor('#8a8aaa');
 
 /**
  * A vehicle's armor: a shield icon and the armor value, with shield (temporary

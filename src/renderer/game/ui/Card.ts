@@ -129,8 +129,8 @@ export class Card extends Component {
 				fontSize: Math.floor(20 * scaleFactor),
 				color: '#ffaa00',
 				fontWeight: 'bold',
-				whiteSpace: 'nowrap',
 			},
+			wrap: 'none',
 		});
 		this.costCentre = dimensions.width - Math.floor(30 * scaleFactor);
 		this.titleX = titleX;
@@ -147,11 +147,11 @@ export class Card extends Component {
 			height: Math.ceil(TITLE_LINES * titleSize * TITLE_LINE_HEIGHT),
 			style: {
 				fontSize: titleSize,
-				lineHeight: TITLE_LINE_HEIGHT,
 				color: '#ffffff',
 				fontWeight: 'bold',
-				textOverflow: 'ellipsis',
 			},
+			lineHeight: TITLE_LINE_HEIGHT,
+			textOverflow: 'ellipsis',
 		});
 		this.addChild(this.name);
 		this.addChild(this.cost);
@@ -174,9 +174,9 @@ export class Card extends Component {
 				style: {
 					fontSize: Math.floor(11 * scaleFactor),
 					color: '#cccccc',
-					lineHeight: 1.4,
-					textOverflow: 'ellipsis',
 				},
+				lineHeight: 1.4,
+				textOverflow: 'ellipsis',
 			});
 			this.addChild(this.description);
 		}
@@ -205,9 +205,9 @@ export class Card extends Component {
 				style: {
 					fontSize: Math.floor(8 * scaleFactor),
 					color: '#888888',
-					textOverflow: 'ellipsis',
-					whiteSpace: 'nowrap',
 				},
+				textOverflow: 'ellipsis',
+				wrap: 'none',
 			});
 			this.addChild(this.tags);
 
@@ -252,10 +252,10 @@ export class Card extends Component {
 					fontSize: Math.floor(10 * scaleFactor),
 					color: '#ffffff',
 					textAlign: 'center',
-					verticalAlign: 'middle',
-					whiteSpace: 'nowrap',
 					fontWeight: 'bold',
 				},
+				verticalAlign: 'middle',
+				wrap: 'none',
 			});
 			this.addChild(this.driverIndicator);
 		}

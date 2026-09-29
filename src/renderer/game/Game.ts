@@ -7,7 +7,7 @@ import { renderTree } from '../engine/components/renderTree';
 import { ScreenManager } from './core/ScreenManager';
 import type { MountContext } from '../engine/components/MountContext';
 import { CardLoader } from './core/CardLoader';
-import type { Layer } from '../engine/components/Layer';
+import type { Container } from '../engine/components/Container';
 import type { DeviceInfo } from '../engine/rendering/deviceInfo';
 
 /**
@@ -200,7 +200,7 @@ export class Game {
 				// Roots are the mounted screen plus the developer overlay, and
 				// only while the overlay is actually drawn (R13.21).
 				roots: () => {
-					const roots: Layer[] = [];
+					const roots: Container[] = [];
 					const screen = ScreenManager.activeScreen;
 					if (screen) roots.push(screen.root);
 					roots.push(...this.context.overlays.roots);
