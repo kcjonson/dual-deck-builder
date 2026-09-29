@@ -1,7 +1,12 @@
 [
 {"path":"gallery_root/dev_section_menus/Text[0]","text":"Menus and Selects","rect":[53,53,177.91,33.6]},
 {"path":"gallery_root/dev_section_menus/dev_section_menus_rows/Stack[0]/Text[0]","text":"menu: shortcuts, a disabled item, a separator, the second row highlighted","rect":[53,103,445.69,17.7]},
+{"path":"gallery_root/dev_section_menus/dev_section_menus_rows/Stack[0]/Stack[1]/dev_menu_inline/dev_menu_inline.scroll/MenuRows[1]","text":"Inspect\tI | Repair\tR | Refuel\tF | Scrap vehicle\tDEL","rect":[53,130.7,220,112]},
 {"path":"gallery_root/dev_section_menus/dev_section_menus_rows/Stack[1]/Text[0]","text":"select: twenty options scrolling in 160 px; a value, a placeholder, disabled (their fourth option is disabled)","rect":[53,270.7,631.92,17.7]},
+{"path":"gallery_root/dev_section_menus/dev_section_menus_rows/Stack[1]/Stack[1]/dev_select_long","text":"Rig 9","rect":[53,294.41,200,34]},
+{"path":"gallery_root/dev_section_menus/dev_section_menus_rows/Stack[1]/Stack[1]/dev_select_value","text":"Rust Runner","rect":[277,294.41,200,34]},
+{"path":"gallery_root/dev_section_menus/dev_section_menus_rows/Stack[1]/Stack[1]/dev_select_empty","text":"Pick a vehicle","rect":[501,294.41,200,34]},
+{"path":"gallery_root/dev_section_menus/dev_section_menus_rows/Stack[1]/Stack[1]/dev_select_disabled","text":"Scrap Hauler","rect":[725,294.41,200,34]},
 {"path":"gallery_root/dev_section_menus/dev_section_menus_rows/Stack[2]/Text[0]","text":"dropdown button: opens down, opens up, accent tone, disabled","rect":[53,352.41,387.05,17.7]},
 {"path":"gallery_root/dev_section_menus/dev_section_menus_rows/Stack[2]/Stack[1]/dev_dropdown/Text[0]","text":"Actions","rect":[65,376.11,94,34]},
 {"path":"gallery_root/dev_section_menus/dev_section_menus_rows/Stack[2]/Stack[1]/dev_dropdown_up/Text[0]","text":"Upward","rect":[229,376.11,94,34]},
