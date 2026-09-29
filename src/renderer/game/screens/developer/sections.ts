@@ -18,6 +18,7 @@ import { CheckboxExamplesSection } from './CheckboxExamplesSection';
 import { RadioExamplesSection } from './RadioExamplesSection';
 import { PanelExamplesSection } from './PanelExamplesSection';
 import { ScrollExamplesSection } from './ScrollExamplesSection';
+import { LeafExamplesSection } from './LeafExamplesSection';
 import { MenuExamplesSection } from './MenuExamplesSection';
 
 /**
@@ -144,6 +145,10 @@ export const developerSections: readonly DeveloperSection[] = [
 	{
 		name: 'scrolling',
 		build: ({ x, y, width }) => new ScrollExamplesSection(x, y, width),
+	},
+	{
+		name: 'leaves',
+		build: ({ x, y, width }) => new LeafExamplesSection(x, y, width),
 	},
 	{
 		name: 'menus',

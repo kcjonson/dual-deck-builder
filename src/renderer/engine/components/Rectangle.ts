@@ -1,38 +1,54 @@
 import { Component, ComponentOptions, ResolvedColors } from './Component';
+import type { BoxShadow } from '../draw/commands';
 import type { DrawApi } from '../draw/DrawApi';
-import { Style, StyleParser } from '../types/Style';
+import type { RGBA } from '../draw/geometry';
+import { shadowExtent } from '../style/look';
+import {
+	ColorValue,
+	StyleAcceptance,
+	StyleProperties,
+	StyleProperty,
+	resolveColor,
+	resolveLength,
+	resolveShadow,
+	validateStyle,
+} from '../style/styleObject';
 
-type Color = [number, number, number, number];
+/** R11.14's properties a box renders: what Rectangle, and a stack's background, accept. */
+export type BoxStyleObject = Pick<StyleProperties, 'backgroundColor' | 'borderColor' | 'borderWidth' | 'borderRadius' | 'opacity' | 'shadow'>;
 
-/** A filled, optionally bordered and rounded box: what Rectangle draws and Panel draws behind its children. */
+export interface RectangleOptions extends Omit<ComponentOptions, 'style'> {
+	style?: BoxStyleObject;
+}
+
+/** A filled, optionally bordered, rounded, and shadowed box. */
 export interface BoxStyle {
-	fill: Color;
-	borderColor: Color | null;
+	fill: RGBA;
+	borderColor: RGBA | null;
 	borderWidth: number;
 	cornerRadius: number;
+	shadow: BoxShadow | null;
 }
 
-/** `base` with whichever box properties `style` sets, the `border` shorthand last. */
-export function resolveBoxStyle(style: Style, base: BoxStyle): BoxStyle {
-	const box = { ...base };
-	if (style.backgroundColor !== undefined) box.fill = StyleParser.parseColor(style.backgroundColor);
-	if (style.borderColor !== undefined) box.borderColor = StyleParser.parseColor(style.borderColor);
-	if (style.borderWidth !== undefined) box.borderWidth = parseLength(style.borderWidth);
-	if (style.borderRadius !== undefined) box.cornerRadius = parseLength(style.borderRadius);
-	// Shorthand, e.g. "2px solid #ffffff"
-	if (style.border !== undefined) {
-		for (const part of style.border.split(' ')) {
-			if (part.endsWith('px')) {
-				box.borderWidth = parseFloat(part.slice(0, -2));
-			} else if (part.startsWith('#') || part.startsWith('rgb')) {
-				box.borderColor = StyleParser.parseColor(part);
-			}
-		}
-	}
-	return box;
+const BOX_PROPERTIES = new Set<StyleProperty>(['backgroundColor', 'borderColor', 'borderWidth', 'borderRadius', 'opacity', 'shadow']);
+
+/** R11.14: what a component drawing a box accepts, named for messages. */
+export function boxAcceptance(component: string): StyleAcceptance {
+	return { component, properties: BOX_PROPERTIES, states: new Set() };
 }
 
-/** The box as one draw over `width` by `height` at the local origin. */
+/** `base` with whichever box properties `style` sets (R11.15's instance step). */
+export function resolveBoxStyle(style: BoxStyleObject, base: BoxStyle): BoxStyle {
+	return {
+		fill: style.backgroundColor !== undefined ? resolveColor(style.backgroundColor) : base.fill,
+		borderColor: style.borderColor !== undefined ? resolveColor(style.borderColor) : base.borderColor,
+		borderWidth: style.borderWidth !== undefined ? resolveLength(style.borderWidth, 'borderWidth') : base.borderWidth,
+		cornerRadius: style.borderRadius !== undefined ? resolveLength(style.borderRadius, 'borderRadius') : base.cornerRadius,
+		shadow: style.shadow !== undefined ? resolveShadow(style.shadow) : base.shadow,
+	};
+}
+
+/** The box as one draw over `width` by `height` at the local origin (two with a shadow, R12.1). */
 export function drawBox(draw: DrawApi, id: string | null, width: number, height: number, box: BoxStyle): void {
 	draw.drawRect({
 		id: id ?? undefined,
@@ -44,6 +60,7 @@ export function drawBox(draw: DrawApi, id: string | null, width: number, height:
 		border: box.borderWidth > 0
 			? { color: box.borderColor ?? [0, 0, 0, 1], width: box.borderWidth }
 			: undefined,
+		shadow: box.shadow ?? undefined,
 	});
 }
 
@@ -54,65 +71,66 @@ export function boxColors(box: BoxStyle): ResolvedColors {
 		: { fill: box.fill };
 }
 
-function parseLength(size: string | number): number {
-	if (typeof size === 'number') return size;
-	if (size.endsWith('px')) return parseFloat(size.slice(0, -2));
-	return parseFloat(size) || 0;
+/** How far a box's own draws reach past it: its shadow (R8.8). */
+export function boxInkExtent(box: BoxStyle): number {
+	return box.shadow ? shadowExtent(box.shadow) : 0;
 }
 
+const DEFAULT_BOX: BoxStyle = { fill: [1, 1, 1, 1], borderColor: null, borderWidth: 0, cornerRadius: 0, shadow: null };
+
 /**
- * Rectangle component for rendering rectangles
+ * R12.1's rectangle on R11.14's closed set: `backgroundColor`, `borderColor`,
+ * `borderWidth`, `borderRadius`, `opacity`, and `shadow`, each rendered; any
+ * other key is rejected at construction. Resizable by layout.
  */
 export class Rectangle extends Component {
-	private box: BoxStyle = { fill: [1, 1, 1, 1], borderColor: null, borderWidth: 0, cornerRadius: 0 };
+	private box: BoxStyle;
+	private styleObject: BoxStyleObject;
 
-	/**
-	 * Create a new rectangle
-	 * @param options Optional configuration including style
-	 */
-	constructor(options?: ComponentOptions) {
+	constructor({ style = {}, ...options }: RectangleOptions = {}) {
 		super(options);
 		this.componentType = 'Rectangle';
-
-		if (options?.style) {
-			this.box = resolveBoxStyle(options.style, this.box);
-		}
+		validateStyle(style, boxAcceptance('Rectangle'));
+		this.styleObject = style;
+		this.box = resolveBoxStyle(style, DEFAULT_BOX);
+		if (style.opacity !== undefined) this.opacity = style.opacity;
 	}
 
-	/**
-	 * Set the fill color of the rectangle
-	 * @param color Color value (hex string or RGBA array)
-	 */
-	public setFillColor(color: string | Color): this {
-		this.box.fill = StyleParser.parseColor(color);
+	public get style(): BoxStyleObject {
+		return this.styleObject;
+	}
+
+	/** R11.16: construction's path, and its validation; paint only. */
+	public set style(style: BoxStyleObject) {
+		validateStyle(style, boxAcceptance('Rectangle'));
+		this.styleObject = style;
+		this.box = resolveBoxStyle(style, DEFAULT_BOX);
+		if (style.opacity !== undefined) this.opacity = style.opacity;
+		this.invalidateInk();
+	}
+
+	public setFillColor(color: ColorValue): this {
+		this.box = { ...this.box, fill: resolveColor(color) };
 		return this;
 	}
 
-	/**
-	 * Set the border color of the rectangle
-	 * @param color Color value (hex string or RGBA array) or null
-	 */
-	public setBorderColor(color: string | Color | null): this {
-		this.box.borderColor = color ? StyleParser.parseColor(color) : null;
+	public setBorderColor(color: ColorValue | null): this {
+		this.box = { ...this.box, borderColor: color ? resolveColor(color) : null };
 		return this;
 	}
 
-	/**
-	 * Set the border width of the rectangle
-	 * @param width Border width in pixels
-	 */
 	public setBorderWidth(width: number): this {
-		this.box.borderWidth = width;
+		this.box = { ...this.box, borderWidth: width };
 		return this;
 	}
 
-	/**
-	 * Set the corner radius of the rectangle
-	 * @param radius Corner radius in pixels
-	 */
 	public setCornerRadius(radius: number): this {
-		this.box.cornerRadius = radius;
+		this.box = { ...this.box, cornerRadius: radius };
 		return this;
+	}
+
+	public get inkExtent(): number {
+		return boxInkExtent(this.box);
 	}
 
 	public get resolvedColors(): ResolvedColors {

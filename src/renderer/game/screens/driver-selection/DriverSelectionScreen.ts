@@ -73,9 +73,9 @@ export class DriverSelectionScreen extends Screen {
 				fontSize: 48,
 				color: '#ffffff',
 				textAlign: 'center',
-				whiteSpace: 'nowrap',
 				fontWeight: 'bold',
 			},
+			wrap: 'none',
 		});
 		this.rootLayer.addChild(this.titleText);
 	}
@@ -175,8 +175,8 @@ export class DriverSelectionScreen extends Screen {
 				fontSize: 16,
 				color: '#cccccc',
 				textAlign: 'center',
-				whiteSpace: 'nowrap',
 			},
+			wrap: 'none',
 		});
 		this.rootLayer.addChild(this.confirmationText);
 	}

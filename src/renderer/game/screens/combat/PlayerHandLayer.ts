@@ -1,4 +1,4 @@
-import { Layer, LayerOptions } from '../../../engine/components/Layer';
+import { Container, ContainerOptions } from '../../../engine/components/Container';
 import { Stack, StackOptions } from '../../../engine/components/Stack';
 import { CARD_LIFT, Card as UICard, CardSize } from '../../ui/Card';
 import { Card } from '../../mechanics/Card';
@@ -220,11 +220,11 @@ class HandHalf extends Stack {
  * starts inside the half (DDB-183) and shows its left edge: cost, badge,
  * and the start of its name.
  */
-class HandFan extends Layer {
+class HandFan extends Container {
 	private readonly row: Stack;
 	private cards: UICard[] = [];
 
-	constructor(options: LayerOptions) {
+	constructor(options: ContainerOptions) {
 		super(options);
 		// Scaled about its top centre and hung from the fan's top centre, a
 		// lift below the top so a hovered card rises inside the fan

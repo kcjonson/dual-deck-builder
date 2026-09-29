@@ -2,7 +2,7 @@
  * @jest-environment jsdom
  */
 import { Clock } from '../animation/Clock';
-import { Layer } from '../components/Layer';
+import { Container } from '../components/Container';
 import type { MountContext } from '../components/MountContext';
 import { createTestContext, injectNow } from '../components/testing';
 import { renderTree } from '../components/renderTree';
@@ -36,7 +36,7 @@ let canvas: HTMLCanvasElement;
 let context: MountContext;
 let adapter: PointerAdapter;
 let backend: MeasuringRecordingBackend;
-let root: Layer;
+let root: Container;
 
 function inject(...commands: string[]): void {
 	expect(injectNow({ canvas, dispatcher: context.dispatcher }, commands).ok).toBe(true);
@@ -96,7 +96,7 @@ beforeEach(() => {
 	context = createTestContext({ draw: measuring.api, clock: new Clock(), viewport: { logical: VIEWPORT } });
 	adapter = new PointerAdapter({ dispatcher: context.dispatcher });
 	adapter.attach(canvas);
-	root = new Layer({ id: 'root', width: VIEWPORT.width, height: VIEWPORT.height });
+	root = new Container({ id: 'root', width: VIEWPORT.width, height: VIEWPORT.height });
 	root.mount(context);
 });
 
@@ -524,7 +524,7 @@ describe('ContextMenu (R12.14)', () => {
 		const closes: string[] = [];
 		const menu = new ContextMenu({ id: 'context', items: [...list, ...extra], onClose: (reason) => closes.push(reason) });
 		// The scene's backdrop: something under the pointer to receive `contextmenu`.
-		const scene = new Layer({ id: 'scene', width: VIEWPORT.width, height: VIEWPORT.height, pointerEvents: 'auto' });
+		const scene = new Container({ id: 'scene', width: VIEWPORT.width, height: VIEWPORT.height, pointerEvents: 'auto' });
 		scene.onContextMenu = (event) => menu.openAt(event.screen, { from: scene });
 		root.addChild(scene);
 		layout();
@@ -580,7 +580,7 @@ describe('ContextMenu (R12.14)', () => {
 	it('captures the opening press, so its release selects nothing', () => {
 		const { items: list, picked } = items('Inspect', 'Repair');
 		const menu = new ContextMenu({ items: list });
-		const scene = new Layer({ id: 'scene', width: VIEWPORT.width, height: VIEWPORT.height, pointerEvents: 'auto' });
+		const scene = new Container({ id: 'scene', width: VIEWPORT.width, height: VIEWPORT.height, pointerEvents: 'auto' });
 		scene.onPointerDown = (event) => {
 			if (event.button === 0) menu.openAt(event.screen, { press: event });
 		};

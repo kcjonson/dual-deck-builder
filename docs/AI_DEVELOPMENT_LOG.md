@@ -29,6 +29,18 @@ This document contains the chronological log of completed development tasks for 
 
 **How:** `ui/TextInput.test.ts`, 32 cases through injected input with the committed font metrics (caret placement against the advances, drag selection past the edge, keyboard selection, editing, maxLength and paste truncation, the validator per code point, Enter, Escape reaching the hotkeys, printable keys consumed, clipboard round trip, control characters stripped, password refusing copy, scroll to caret and back to zero, the clip rect, the blink, and NumberInput's clamping, stepping, commit, validator, wheel, and Tab stop). In the browser the three touched scenes lint clean, and typing, selecting, and stepping were tried by hand. Details in [component-catalog-wave-b.md](AI_TECHNICAL_DECISIONS/component-catalog-wave-b.md).
 
+## Catalog Wave A, leaves on the closed style set (2026-09-28)
+
+**What landed:** DDB-85's third PR (DDB-55 phase 5), R11.14 to R11.16 for every leaf, R12.1 to R12.5, R12.18; closes DDB-209.
+
+- `engine/types/Style.ts` deleted; `ComponentOptions.style` and `Component.applyStyle` gone; colour parsing in `resolveColor`.
+- Per-component style subsets with validation: `Rectangle` (box, now with `shadow`), `Circle`/`Triangle`/`Polygon` (`components/shapeStyle.ts`), `Text` (typography); Text's `verticalAlign`, `wrap`, `textOverflow`, `lineHeight` are options, and `style`/`layoutOptions` setters replace `textStyle`.
+- New `components/Line.ts` and `components/Image.ts`.
+- `components/Layer.ts` renamed `components/Container.ts`, visuals removed; `Stack` accepts a box `style`.
+- Every call site converted (a one-off script for the moved keys, the `border` shorthand, and `px` strings; the rest by hand). Gallery scene `leaves`.
+
+**How:** `components/leaves.test.ts` (rejection per leaf, colour parsing, rectangle box and shadow, text options, container without visuals, stack box, line geometry, image fit maths, sprite frame and tint, asset cache residency and release, failed load). The whole suite passes unchanged otherwise; every gallery scene lints clean at 1440 by 882.
+
 ## Catalog Wave C, overlays (2026-09-28)
 
 **What landed:** DDB-87's first PR (DDB-55 phase 5), R12.21, R12.22, R12.23, R12.29 (KeyCap), R12.33.

@@ -1,4 +1,4 @@
-import { Layer } from '../components/Layer';
+import { Container } from '../components/Container';
 import type { MountContext } from '../components/MountContext';
 import { Rectangle } from '../components/Rectangle';
 import { createTestContext } from '../components/testing';
@@ -6,7 +6,7 @@ import type { PopupCloseReason } from './PopupService';
 import { click, key, send } from './testing';
 
 let context: MountContext;
-let scene: Layer;
+let scene: Container;
 let trigger: Rectangle;
 let otherTrigger: Rectangle;
 let background: Rectangle;
@@ -19,7 +19,7 @@ function box(id: string, x: number, y: number, width = 100, height = 40): Rectan
 beforeEach(() => {
 	context = createTestContext({ viewport: { logical: { width: 800, height: 600 } } });
 	log = [];
-	scene = new Layer({ id: 'scene', width: 800, height: 600 });
+	scene = new Container({ id: 'scene', width: 800, height: 600 });
 	background = box('background', 0, 0, 800, 600);
 	background.onClick = () => log.push('background:click');
 	background.onPointerDown = () => log.push('background:down');

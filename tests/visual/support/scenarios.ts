@@ -84,6 +84,7 @@ export const SCENE_SCENARIOS: readonly SceneScenario[] = [
 	{ scene: 'radio-group' },
 	{ scene: 'panels' },
 	{ scene: 'scrolling' },
+	{ scene: 'leaves' },
 	{ scene: 'menus' },
 	{ scene: 'overlays' },
 	{ scene: 'dialog' },
