@@ -1,0 +1,19 @@
+[
+{"path":"gallery_root/dev_section_tree/Text[0]","text":"Tree View","rect":[53,53,94.5,33.6]},
+{"path":"gallery_root/dev_section_tree/dev_section_tree_rows/Stack[0]/Text[0]","text":"selectable, two levels open, one branch folded","rect":[53,103,279.55,17.7]},
+{"path":"gallery_root/dev_section_tree/dev_section_tree_rows/Stack[0]/dev_tree/dev_tree_row_convoy/Text[1]","text":"Convoy","rect":[81,126.7,269.4,26]},
+{"path":"gallery_root/dev_section_tree/dev_section_tree_rows/Stack[0]/dev_tree/dev_tree_row_convoy/Text[2]","text":"3","rect":[358.4,126.7,6.6,26]},
+{"path":"gallery_root/dev_section_tree/dev_section_tree_rows/Stack[0]/dev_tree/dev_tree_row_rammer/Text[1]","text":"Rammer","rect":[97,152.7,253.4,26]},
+{"path":"gallery_root/dev_section_tree/dev_section_tree_rows/Stack[0]/dev_tree/dev_tree_row_rammer/Text[2]","text":"3","rect":[358.4,152.7,6.6,26]},
+{"path":"gallery_root/dev_section_tree/dev_section_tree_rows/Stack[0]/dev_tree/dev_tree_row_plating/Text[1]","text":"Reinforced plating","rect":[113,178.7,252,26]},
+{"path":"gallery_root/dev_section_tree/dev_section_tree_rows/Stack[0]/dev_tree/dev_tree_row_spike/Text[1]","text":"Ram spike","rect":[113,204.7,252,26]},
+{"path":"gallery_root/dev_section_tree/dev_section_tree_rows/Stack[0]/dev_tree/dev_tree_row_nitro/Text[1]","text":"Nitro tank","rect":[113,230.7,252,26]},
+{"path":"gallery_root/dev_section_tree/dev_section_tree_rows/Stack[0]/dev_tree/dev_tree_row_outrider/Text[1]","text":"Outrider","rect":[97,256.7,253.4,26]},
+{"path":"gallery_root/dev_section_tree/dev_section_tree_rows/Stack[0]/dev_tree/dev_tree_row_outrider/Text[2]","text":"2","rect":[358.4,256.7,6.6,26]},
+{"path":"gallery_root/dev_section_tree/dev_section_tree_rows/Stack[0]/dev_tree/dev_tree_row_hauler/Text[1]","text":"Hauler","rect":[97,282.7,253.4,26]},
+{"path":"gallery_root/dev_section_tree/dev_section_tree_rows/Stack[0]/dev_tree/dev_tree_row_hauler/Text[2]","text":"1","rect":[358.4,282.7,6.6,26]},
+{"path":"gallery_root/dev_section_tree/dev_section_tree_rows/Stack[0]/dev_tree/dev_tree_row_raiders/Text[1]","text":"Raiders","rect":[81,308.7,269.4,26]},
+{"path":"gallery_root/dev_section_tree/dev_section_tree_rows/Stack[0]/dev_tree/dev_tree_row_raiders/Text[2]","text":"2","rect":[358.4,308.7,6.6,26]},
+{"path":"gallery_root/dev_section_tree/dev_section_tree_rows/Stack[0]/dev_tree/dev_tree_row_trunk/Text[1]","text":"Trunk","rect":[81,334.7,262.8,26]},
+{"path":"gallery_root/dev_section_tree/dev_section_tree_rows/Stack[0]/dev_tree/dev_tree_row_trunk/Text[2]","text":"14","rect":[351.8,334.7,13.2,26]}
+]
