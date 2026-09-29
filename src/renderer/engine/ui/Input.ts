@@ -1,6 +1,6 @@
 import { Component, ComponentOptions, PointerEvents, ResolvedColors } from '../components/Component';
 import { Rectangle } from '../components/Rectangle';
-import { Text } from '../components/Text';
+import { Text, TextStyleObject } from '../components/Text';
 import type { DrawApi } from '../draw/DrawApi';
 import type { AnyUiEvent } from '../input/events';
 import type { RGBA } from '../draw/geometry';
@@ -92,11 +92,11 @@ export class Input extends Component {
 		this.padding = this.resolvePadding();
 		if (style.opacity !== undefined) this.opacity = style.opacity;
 
-		const textStyle = { ...this.textStyle(), textAlign: 'left', verticalAlign: 'middle', whiteSpace: 'nowrap' } as const;
-		this.text = new Text('', { style: textStyle });
+		const textStyle: TextStyleObject = { ...this.textStyle(), textAlign: 'left' };
+		this.text = new Text('', { style: textStyle, verticalAlign: 'middle', wrap: 'none' });
 		this.addPart(this.text);
 
-		this.placeholder = new Text(placeholder, { style: textStyle });
+		this.placeholder = new Text(placeholder, { style: textStyle, verticalAlign: 'middle', wrap: 'none' });
 		this.addPart(this.placeholder);
 
 		// Placed and sized from the text's metrics by updateCursorPosition
@@ -336,21 +336,23 @@ export class Input extends Component {
 		this.layers = fieldLayers(this.styleObject);
 		this.padding = this.resolvePadding();
 		const textStyle = this.textStyle();
-		this.text.textStyle = textStyle;
-		this.placeholder.textStyle = textStyle;
+		// A new style replaces the texts' whole (R11.16), colour included.
+		this.text.style = textStyle;
+		this.placeholder.style = textStyle;
+		this.followLook(this.transition.look);
 		this.onStateChange();
 		this.invalidateLayout();
 	}
 
-	private textStyle() {
+	private textStyle(): TextStyleObject {
 		const style = this.styleObject;
 		let role: FontRole = style.fontRole ?? (style.fontFamily !== undefined ? fontRoleOfFamily(style.fontFamily, 'Input') : 'body');
 		if (style.fontWeight !== undefined) role = resolveFontRole({ family: role, weight: style.fontWeight });
 		return {
-			fontFamily: role,
+			fontRole: role,
 			fontSize: style.fontSize !== undefined ? resolveLength(style.fontSize, 'fontSize') : CONTROL_SIZES[this.fieldSize].fontSize,
 			letterSpacing: style.letterSpacing !== undefined ? resolveLetterSpacing(style.letterSpacing) : 0,
-		} as const;
+		};
 	}
 
 	/** R11.9: 12 px horizontal inset inside fields. */

@@ -44,13 +44,13 @@ export class MeterExamplesSection extends CatalogSection {
 			id: 'dev_counter_scrap',
 			value: 1240,
 			format: (value) => Math.round(value).toLocaleString('en-US'),
-			style: { fontFamily: 'display', fontSize: tokens.fontSize.fs_2xl, color: [...tokens.color.text_bright] as [number, number, number, number] },
+			style: { fontRole: 'display', fontSize: tokens.fontSize.fs_2xl, color: [...tokens.color.text_bright] as [number, number, number, number] },
 		}));
 		counters.addChild(new Counter({
 			id: 'dev_counter_hp',
 			value: 17,
 			format: (value) => `${Math.round(value)} HP`,
-			style: { fontFamily: 'mono', fontSize: tokens.fontSize.fs_md, color: [...tokens.color.status_ok] as [number, number, number, number] },
+			style: { fontRole: 'mono', fontSize: tokens.fontSize.fs_md, color: [...tokens.color.status_ok] as [number, number, number, number] },
 		}));
 		this.addRow('counters: display and mono', counters, 40);
 	}

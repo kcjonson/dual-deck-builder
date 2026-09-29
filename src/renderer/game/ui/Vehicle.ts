@@ -1,5 +1,5 @@
 import { Component, ComponentOptions, PointerEvents } from '../../engine/components/Component';
-import { Layer } from '../../engine/components/Layer';
+import { Container } from '../../engine/components/Container';
 import { Rectangle } from '../../engine/components/Rectangle';
 import { Text } from '../../engine/components/Text';
 import { Vehicle as VehicleData } from '../mechanics/Vehicle';
@@ -41,7 +41,7 @@ export class Vehicle extends Component {
 	protected healthText: Text;
 	protected armorBadge: ArmorBadge;
 	protected spentChip: Text;
-	protected statusContainer: Layer;
+	protected statusContainer: Container;
 
 	// References
 	private combatData: CombatModel | null = null;
@@ -105,8 +105,8 @@ export class Vehicle extends Component {
 				color: '#ffffff',
 				textAlign: 'center',
 				fontWeight: 'bold',
-				whiteSpace: 'normal',
 			},
+			wrap: 'word',
 		});
 		this.addChild(this.nameText);
 
@@ -160,7 +160,7 @@ export class Vehicle extends Component {
 		this.addChild(this.spentChip);
 
 		// Status effect container (for future use)
-		this.statusContainer = new Layer({
+		this.statusContainer = new Container({
 			id: this.childId('status_container'),
 			height: 16,
 		});

@@ -2,7 +2,7 @@ import { Screen } from '../../core/Screen';
 import { ScreenManager } from '../../core/ScreenManager';
 import { Button } from '../../../engine/ui/Button';
 import { Text } from '../../../engine/components/Text';
-import { Layer } from '../../../engine/components/Layer';
+import { Container } from '../../../engine/components/Container';
 import { ScrollContainer } from '../../../engine/ui/ScrollContainer';
 import { Rectangle } from '../../../engine/components/Rectangle';
 
@@ -34,7 +34,7 @@ export class DeveloperScreen extends Screen {
 	private backButton: Button;
 	private mainScrollContainer: ScrollContainer;
 	/** The scroll container's one content child: the sections, placed by hand. */
-	private sectionColumn: Layer;
+	private sectionColumn: Container;
 	private sectionsBuilt = false;
 
 	/**
@@ -56,11 +56,11 @@ export class DeveloperScreen extends Screen {
 			y: TITLE_TOP,
 			style: {
 				fontSize: TITLE_FONT_SIZE,
-				lineHeight: TITLE_LINE_HEIGHT,
 				color: '#ffffff',
 				textAlign: 'center',
-				whiteSpace: 'nowrap',
 			},
+			lineHeight: TITLE_LINE_HEIGHT,
+			wrap: 'none',
 		});
 		this.rootLayer.addChild(this.title);
 
@@ -84,7 +84,7 @@ export class DeveloperScreen extends Screen {
 				backgroundColor: '#262626', // Match the background
 			},
 		});
-		this.sectionColumn = new Layer({ id: 'dev_sections' });
+		this.sectionColumn = new Container({ id: 'dev_sections' });
 		this.mainScrollContainer.addChild(this.sectionColumn);
 		this.rootLayer.addChild(this.mainScrollContainer);
 	}

@@ -51,8 +51,8 @@ export class MainMenuScreen extends Screen {
 				fontSize: 64,
 				color: '#ffffff',
 				textAlign: 'center',
-				whiteSpace: 'nowrap',
 			},
+			wrap: 'none',
 		});
 		this.rootLayer.addChild(this.title);
 
@@ -186,9 +186,9 @@ export class MainMenuScreen extends Screen {
 				fontSize: 12,
 				color: '#6b6b8f',
 				textAlign: 'right',
-				verticalAlign: 'bottom',
-				whiteSpace: 'nowrap',
 			},
+			verticalAlign: 'bottom',
+			wrap: 'none',
 		});
 		this.rootLayer.addChild(this.buildLabel);
 		this.positionBuildLabel();

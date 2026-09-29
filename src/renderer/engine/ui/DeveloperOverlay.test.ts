@@ -7,7 +7,7 @@ import { EVENT_THRESHOLD_MS } from '../debug/hitchObserver';
 import { DrawApi, RecordingBackend } from '../draw';
 import { renderTree } from '../components/renderTree';
 import { committedFontAtlas } from '../text/testing';
-import { Layer } from '../components/Layer';
+import { Container } from '../components/Container';
 import { Rectangle } from '../components/Rectangle';
 import { Text } from '../components/Text';
 
@@ -53,7 +53,7 @@ describe('the overlay paints above every screen draw (R3.21)', () => {
 	 * overlay is a later domain, which wins against every layer.
 	 */
 	function frame(developerOverlay: DeveloperOverlay): void {
-		const screen = new Layer({ id: 'screen', width: 1440, height: 882 });
+		const screen = new Container({ id: 'screen', width: 1440, height: 882 });
 		screen.addChild(new Rectangle({ id: 'screen_background', width: 1440, height: 882 }));
 		screen.addChild(new Text('Dual Deckbuilder', { id: 'title', x: 1000, y: 20 }));
 

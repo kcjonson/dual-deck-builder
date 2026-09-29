@@ -15,7 +15,6 @@ import {
 } from '../draw/geometry';
 import { snapClipRect } from '../coords/snapping';
 import { LayerName, ROOT_LAYER, layerOrdinal } from '../draw/layers';
-import { Style } from '../types/Style';
 import {
 	ComponentTransform,
 	IDENTITY_TRANSFORM,
@@ -95,7 +94,6 @@ export interface ComponentOptions {
 	pointerEvents?: PointerEvents;
 	/** Clips only once width and height are both positive. */
 	overflow?: Overflow;
-	style?: Style;
 	/** Fired after a layout in which this component's bounds changed, including the first (R8.21). */
 	onLayout?: (bounds: Rect) => void;
 	/** Shown by the tooltip service on hover (R12.22). */
@@ -289,7 +287,6 @@ export abstract class Component {
 		if (options.positioned !== undefined) this.ownPositioned = options.positioned;
 		if (options.anchor !== undefined) this.ownAnchor = normalizeAnchor(options.anchor);
 		if (options.pivot !== undefined) this.ownPivot = normalizeAnchor(options.pivot);
-		if (options.style) this.applyStyle(options.style);
 	}
 
 	/**
@@ -407,23 +404,6 @@ export abstract class Component {
 	 */
 	protected defaultSizeMode(_size: number | undefined): SizeMode {
 		return 'fixed';
-	}
-
-	protected applyStyle(style: Style): void {
-		if (style.visibility !== undefined) {
-			this.ownVisible = style.visibility === 'visible';
-		}
-		if (style.display !== undefined) {
-			this.ownVisible = style.display !== 'none';
-		}
-	}
-
-	protected parseSize(size: string | number): number {
-		if (typeof size === 'number') return size;
-		if (typeof size === 'string' && size.endsWith('px')) {
-			return parseFloat(size.slice(0, -2));
-		}
-		return parseFloat(size as string) || 0;
 	}
 
 	// -- identity (R8.4) ------------------------------------------------------

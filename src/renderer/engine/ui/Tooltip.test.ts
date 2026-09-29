@@ -1,5 +1,5 @@
 import { Clock } from '../animation/Clock';
-import { Layer } from '../components/Layer';
+import { Container } from '../components/Container';
 import type { MountContext } from '../components/MountContext';
 import { Rectangle } from '../components/Rectangle';
 import { createTestContext } from '../components/testing';
@@ -18,11 +18,11 @@ import { DEFAULT_TOOLTIP_MAX_WIDTH, Tooltip } from './Tooltip';
 const LONG = 'Refills every mounted weapon on the active vehicle, spends the driver\'s remaining fuel, and ends the turn at once.';
 
 let context: MountContext;
-let scene: Layer;
+let scene: Container;
 
 beforeEach(() => {
 	context = createTestContext({ draw: createMeasuringDrawApi().api, viewport: { logical: { width: 800, height: 600 } }, clock: new Clock() });
-	scene = new Layer({ id: 'scene', width: 800, height: 600 });
+	scene = new Container({ id: 'scene', width: 800, height: 600 });
 	scene.mount(context);
 });
 

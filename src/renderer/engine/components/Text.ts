@@ -15,9 +15,64 @@ import { Axis, Size, SizeMode, authoredSizeMode } from './layoutTypes';
 import type { Rect } from '../draw/geometry';
 import type { FontRole } from '../text/fontFaces';
 import { resolveFontRole } from '../text/fontRoles';
-import { Style, StyleParser } from '../types/Style';
+import type { RGBA } from '../draw/geometry';
+import {
+	ColorValue,
+	StyleAcceptance,
+	StyleProperties,
+	StyleProperty,
+	resolveColor,
+	resolveLength,
+	resolveLetterSpacing,
+	validateStyle,
+} from '../style/styleObject';
 
-export type TextOptions = ComponentOptions;
+const DEFAULT_FONT_SIZE = 16;
+const WHITE: RGBA = [1, 1, 1, 1];
+
+/** R11.14's properties a text renders. */
+export type TextStyleObject = Pick<
+	StyleProperties,
+	'color' | 'fontSize' | 'fontRole' | 'fontFamily' | 'fontWeight' | 'letterSpacing' | 'textTransform' | 'textAlign' | 'textDecoration' | 'opacity'
+>;
+
+const TEXT_STYLE: StyleAcceptance = {
+	component: 'Text',
+	properties: new Set<StyleProperty>([
+		'color',
+		'fontSize',
+		'fontRole',
+		'fontFamily',
+		'fontWeight',
+		'letterSpacing',
+		'textTransform',
+		'textAlign',
+		'textDecoration',
+		'opacity',
+	]),
+	states: new Set(),
+};
+
+/**
+ * R12.4's text properties that are not style: where the lines sit in the box,
+ * whether they wrap, what an overrun does, and the line height.
+ */
+export interface TextLayoutOptions {
+	verticalAlign?: TextVerticalAlign;
+	/** `word` (the default) wraps at the box width; `none` keeps one line. */
+	wrap?: TextWrap;
+	/**
+	 * R12.4's `overflow` (default `visible`), named for text since the base
+	 * `overflow` is whether a component clips its children.
+	 */
+	textOverflow?: TextOverflow;
+	/** A multiple of `fontSize`; absent is the face's own line height (R6.10). */
+	lineHeight?: number;
+}
+
+export interface TextOptions extends Omit<ComponentOptions, 'style'>, TextLayoutOptions {
+	style?: TextStyleObject;
+}
 
 /** R12.4's vertical alignment inside the text's own box. */
 export type TextVerticalAlign = 'top' | 'middle' | 'bottom';
@@ -29,19 +84,13 @@ export type TextVerticalAlign = 'top' | 'middle' | 'bottom';
  */
 export type TextOverflowOutcome = 'none' | 'clip' | 'ellipsis' | 'visible';
 
-const OVERFLOW: Readonly<Record<NonNullable<Style['textOverflow']>, TextOverflow>> = {
-	visible: 'visible',
-	hidden: 'clip',
-	ellipsis: 'ellipsis',
-};
-
 /**
  * R12.4's text component. Its position is the top-left of its line box and
  * its bounds are that box; the draw API's baseline anchor never shows.
  *
  * Each axis is `fixed` or hugs (R10.1). A fixed width (a `width` option,
  * `setWidth` or `setSize` with a positive value) is the alignment box and,
- * unless `whiteSpace` is `nowrap`, the wrap width; `nowrap` with an ellipsis
+ * unless `wrap` is `none`, the wrap width; `none` with an ellipsis
  * truncates to it (R6.14). A fixed height is the box `verticalAlign` places
  * the lines in, and the height a wrapped ellipsis fits. An axis left at zero
  * hugs: it takes the measured width, or `lines * lineHeight`, from the
@@ -62,15 +111,16 @@ const OVERFLOW: Readonly<Record<NonNullable<Style['textOverflow']>, TextOverflow
  */
 export class Text extends Component {
 	private content: string;
-	private fontSize = 16;
+	private fontSize = DEFAULT_FONT_SIZE;
+	private styleObject: TextStyleObject = {};
 	/** R11.8's role, from the style's `fontFamily` and `fontWeight` through the theme table. */
 	private fontRole: FontRole = 'body';
-	private color: [number, number, number, number] = [1, 1, 1, 1];
+	private color: RGBA = WHITE;
 	private align: TextAlign = 'left';
 	private verticalAlign: TextVerticalAlign = 'top';
 	/** A multiple of `fontSize`; null is the face's own (R6.10). */
 	private lineHeight: number | null = null;
-	private whiteSpace: 'normal' | 'nowrap' = 'normal';
+	private wrapMode: TextWrap = 'word';
 	private textOverflow: TextOverflow = 'visible';
 	private letterSpacing = 0;
 	private textTransform: TextTransform = 'none';
@@ -90,16 +140,15 @@ export class Text extends Component {
 	private inkHeight = Number.NaN;
 	private inkDirty = true;
 
-	constructor(text = '', options?: TextOptions) {
+	constructor(text = '', { style, verticalAlign, wrap, textOverflow, lineHeight, ...options }: TextOptions = {}) {
 		super(options);
 		this.content = text;
 		this.componentType = 'Text';
 		this.authoredWidth = this.width;
 		this.authoredHeight = this.height;
 
-		if (options?.style) {
-			this.applyTextStyle(options.style);
-		}
+		if (style) this.applyTextStyle(style);
+		this.applyLayoutOptions({ verticalAlign, wrap, textOverflow, lineHeight });
 		this.remeasure();
 	}
 
@@ -108,49 +157,50 @@ export class Text extends Component {
 		return size !== undefined && size > 0 ? 'fixed' : 'hug';
 	}
 
-	private applyTextStyle(style: Style): void {
-		if (style.fontSize !== undefined) {
-			this.fontSize = this.parseSize(style.fontSize);
-		}
-		if (style.fontFamily !== undefined || style.fontWeight !== undefined) {
-			this.fontRole = resolveFontRole({ family: style.fontFamily, weight: style.fontWeight });
-		}
-		if (style.color !== undefined) {
-			this.color = StyleParser.parseColor(style.color);
-		}
-		if (style.textAlign !== undefined) {
-			this.align = style.textAlign;
-		}
-		if (style.verticalAlign !== undefined) {
-			this.verticalAlign = style.verticalAlign;
-		}
-		if (style.lineHeight !== undefined) {
-			this.lineHeight = style.lineHeight;
-		}
-		if (style.whiteSpace !== undefined) {
-			this.whiteSpace = style.whiteSpace;
-		}
-		if (style.textOverflow !== undefined) {
-			this.textOverflow = OVERFLOW[style.textOverflow];
-		}
-		if (style.letterSpacing !== undefined) {
-			this.letterSpacing = style.letterSpacing;
-		}
-		if (style.textTransform !== undefined) {
-			this.textTransform = style.textTransform;
-		}
-		if (style.textDecoration !== undefined) {
-			this.decoration = style.textDecoration;
-		}
+	/**
+	 * R11.14 and R11.16: validated, then resolved over the defaults, so a new
+	 * style replaces the old one whole, as construction does. A property the
+	 * style leaves out goes back to its default.
+	 */
+	private applyTextStyle(style: TextStyleObject): void {
+		validateStyle(style, TEXT_STYLE);
+		this.styleObject = style;
+		this.fontSize = style.fontSize !== undefined ? resolveLength(style.fontSize, 'fontSize') : DEFAULT_FONT_SIZE;
+		this.fontRole = style.fontRole !== undefined || style.fontFamily !== undefined || style.fontWeight !== undefined
+			? resolveFontRole({ family: style.fontRole ?? style.fontFamily, weight: style.fontWeight })
+			: 'body';
+		this.color = style.color !== undefined ? resolveColor(style.color) : WHITE;
+		this.align = style.textAlign ?? 'left';
+		this.letterSpacing = style.letterSpacing !== undefined ? resolveLetterSpacing(style.letterSpacing) : 0;
+		this.textTransform = style.textTransform ?? 'none';
+		this.decoration = style.textDecoration ?? 'none';
+		if (style.opacity !== undefined) this.opacity = style.opacity;
+	}
+
+	private applyLayoutOptions({ verticalAlign, wrap, textOverflow, lineHeight }: TextLayoutOptions): void {
+		if (verticalAlign !== undefined) this.verticalAlign = verticalAlign;
+		if (wrap !== undefined) this.wrapMode = wrap;
+		if (textOverflow !== undefined) this.textOverflow = textOverflow;
+		if (lineHeight !== undefined) this.lineHeight = lineHeight;
+	}
+
+	public get style(): TextStyleObject {
+		return this.styleObject;
 	}
 
 	/**
-	 * Applies these style properties over the current ones, the same path as
-	 * construction (R11.16). Every text property can move a glyph, so it
-	 * measures again and invalidates layout.
+	 * Replaces the style, the same path as construction (R11.16). Every text
+	 * property can move a glyph, so it measures again and invalidates layout.
 	 */
-	public set textStyle(style: Style) {
+	public set style(style: TextStyleObject) {
 		this.applyTextStyle(style);
+		this.remeasure();
+		this.invalidateLayout();
+	}
+
+	/** The layout options, applied over the current ones; measures again like `style`. */
+	public set layoutOptions(options: TextLayoutOptions) {
+		this.applyLayoutOptions(options);
 		this.remeasure();
 		this.invalidateLayout();
 	}
@@ -182,8 +232,8 @@ export class Text extends Component {
 		return this.fontSize;
 	}
 
-	public setColor(color: string | [number, number, number, number]): this {
-		this.color = StyleParser.parseColor(color);
+	public setColor(color: ColorValue): this {
+		this.color = resolveColor(color);
 		return this;
 	}
 
@@ -399,7 +449,7 @@ export class Text extends Component {
 	}
 
 	get wrap(): TextWrap {
-		return this.whiteSpace === 'normal' && this.boxWidth !== null ? 'word' : 'none';
+		return this.wrapMode === 'word' && this.boxWidth !== null ? 'word' : 'none';
 	}
 
 	/** The width the lines are laid out in: fixed, or the parent stack's for this pass; null hugs. */
@@ -505,7 +555,7 @@ export class Text extends Component {
 		} else if (definite === 'height') {
 			height = availableHeight;
 		} else {
-			const wrap: TextWrap = this.whiteSpace === 'normal' ? 'word' : 'none';
+			const wrap: TextWrap = this.wrapMode;
 			height = this.metricsFor(width, wrap)?.height ?? 0;
 		}
 		return { width, height };
@@ -532,7 +582,7 @@ export class Text extends Component {
 	 */
 	public automaticMinSize(axis: Axis): number {
 		if (axis !== 'width' || this.textOverflow !== 'visible') return 0;
-		if (this.whiteSpace === 'nowrap') return this.metricsFor(undefined, 'none')?.width ?? 0;
+		if (this.wrapMode === 'none') return this.metricsFor(undefined, 'none')?.width ?? 0;
 		// Every break opportunity taken: each line is one word.
 		return this.metricsFor(NARROWEST_WRAP, 'word')?.width ?? 0;
 	}

@@ -58,14 +58,14 @@ export class Badge extends LabelledLeaf {
 		const look = badgeLook(tone, outline);
 		super({ ...options, height: options.height ?? BADGE_HEIGHT }, new Text(label, {
 			style: {
-				fontFamily: 'mono',
+				fontRole: 'mono',
 				fontSize: tokens.fontSize.fs_xs,
 				color: rgba(look.text),
 				textTransform: 'uppercase',
 				letterSpacing: tokens.letterSpacing.ls_wide,
-				verticalAlign: 'middle',
-				whiteSpace: 'nowrap',
 			},
+			verticalAlign: 'middle',
+			wrap: 'none',
 		}));
 		this.componentType = 'Badge';
 		this.toneValue = tone;

@@ -1,4 +1,4 @@
-import { Layer, LayerOptions } from '../../../engine/components/Layer';
+import { Container, ContainerOptions } from '../../../engine/components/Container';
 import { Rectangle } from '../../../engine/components/Rectangle';
 import { Text } from '../../../engine/components/Text';
 import { Vehicle, VehicleData } from '../../mechanics/Vehicle';
@@ -16,7 +16,7 @@ export interface LaneDecor {
 	labels: [string, string, string];
 }
 
-export type BattlefieldLayerOptions = LayerOptions & { combatData?: CombatModel };
+export type BattlefieldLayerOptions = ContainerOptions & { combatData?: CombatModel };
 
 const LANE_LABEL_Y = 20;
 const LANE_DIVIDER_TOP = 40;
@@ -28,7 +28,7 @@ const LANE_DIVIDER_WIDTH = 2;
  * three columns (shoulder, outside, inside), a stand-in until the road view
  * (DDB-134) draws the real grid.
  */
-export abstract class BattlefieldLayer extends Layer {
+export abstract class BattlefieldLayer extends Container {
 	protected vehicles: Vehicle[] = [];
 	protected vehicleCards: Map<string, VehicleUI> = new Map();
 
@@ -66,9 +66,9 @@ export abstract class BattlefieldLayer extends Layer {
 					fontSize: 14,
 					color: decor.labelColor,
 					textAlign: 'center',
-					whiteSpace: 'nowrap',
 					fontWeight: 'bold',
 				},
+				wrap: 'none',
 			});
 			this.addChild(text);
 			return text;

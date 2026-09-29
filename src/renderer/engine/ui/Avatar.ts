@@ -87,13 +87,13 @@ export class Avatar extends Component {
 			width: size,
 			height: size,
 			style: {
-				fontFamily: 'display',
+				fontRole: 'display',
 				fontSize: Math.round(size * 0.42),
 				color: rgba(color.text_bright),
 				textAlign: 'center',
-				verticalAlign: 'middle',
-				whiteSpace: 'nowrap',
 			},
+			verticalAlign: 'middle',
+			wrap: 'none',
 		});
 		this.addPart(this.initials);
 		if (selected) this.selected = true;

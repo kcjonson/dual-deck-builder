@@ -1,10 +1,18 @@
 import type { Rect } from '../draw/geometry';
-import type { Component } from './Component';
+import type { Component, ResolvedColors } from './Component';
+import type { DrawApi } from '../draw/DrawApi';
+import { BoxStyle, BoxStyleObject, boxAcceptance, boxColors, boxInkExtent, drawBox, resolveBoxStyle } from './Rectangle';
 import { MarginInput, Sides, ZERO_SIDES, normalizeSides } from './componentGeometry';
-import { Layer, LayerOptions } from './Layer';
+import { Container, ContainerOptions } from './Container';
+import { validateStyle } from '../style/styleObject';
 import { Axis, CrossAlign, Direction, Distribution, Size, SizeMode, authoredSizeMode } from './layoutTypes';
 
-export interface StackOptions extends LayerOptions {
+export interface StackOptions extends ContainerOptions {
+	/**
+	 * A box drawn behind the children, on R11.14's box properties. Absent
+	 * draws nothing: a stack is a layout container first (R12.18).
+	 */
+	style?: BoxStyleObject;
 	direction?: Direction;
 	/** Space between flow children on the main axis. Negative overlaps them (R10.2). */
 	gap?: number;
@@ -43,13 +51,20 @@ interface FlowBox {
 	crossAvailable: number;
 }
 
+/** A stack's box before its style: clear, no border. */
+const NO_BOX: BoxStyle = { fill: [0, 0, 0, 0], borderColor: null, borderWidth: 0, cornerRadius: 0, shadow: null };
+
+function validateBox(style: BoxStyleObject): void {
+	validateStyle(style, boxAcceptance('Stack'));
+}
+
 /** Overflow below this is float noise, not a reason to shrink anything. */
 const EPSILON = 1e-6;
 
 /**
  * Chapter 10's stack container: children in a row or a column, sized by their
  * modes (fixed, hug, fill with weights) and placed by distribution and cross
- * alignment, with a background like any Layer and no other visuals.
+ * alignment, with an optional box behind them (`style`) and no other visuals.
  *
  * One layout pass, run by the frame on a dirty stack (R8.16):
  *
@@ -82,16 +97,20 @@ const EPSILON = 1e-6;
  * axis and zero makes it hug again, as for Text. Layout's own assignments go
  * through `assignSize` and never change a mode.
  */
-export class Stack extends Layer {
+export class Stack extends Container {
 	private stackDirection: Direction = 'vertical';
 	private stackGap = 0;
 	private stackPadding: Sides = ZERO_SIDES;
 	private stackDistribution: Distribution = 'start';
 	private stackCrossAlign: CrossAlign = 'start';
+	private backdrop: BoxStyle | null = null;
+	private backdropStyle: BoxStyleObject = {};
 
 	constructor(options?: StackOptions) {
-		super(options);
+		const { style, ...rest } = options ?? {};
+		super(rest);
 		this.componentType = 'Stack';
+		if (style) this.style = style;
 		if (!options) return;
 		if (options.direction !== undefined) this.stackDirection = options.direction;
 		if (options.gap !== undefined) this.stackGap = options.gap;
@@ -103,6 +122,34 @@ export class Stack extends Layer {
 	/** R10.1: a stack constructed with no size on an axis hugs that axis. */
 	protected defaultSizeMode(size: number | undefined): SizeMode {
 		return size !== undefined && size > 0 ? 'fixed' : 'hug';
+	}
+
+	// -- the box --------------------------------------------------------------
+
+	public get style(): BoxStyleObject {
+		return this.backdropStyle;
+	}
+
+	/** R11.16: construction's path and validation; the new style replaces the old one whole, and `{}` draws nothing. */
+	public set style(style: BoxStyleObject) {
+		validateBox(style);
+		this.backdropStyle = style;
+		this.backdrop = Object.keys(style).length > 0 ? resolveBoxStyle(style, NO_BOX) : null;
+		if (style.opacity !== undefined) this.opacity = style.opacity;
+		this.invalidateInk();
+	}
+
+	public get resolvedColors(): ResolvedColors | null {
+		return this.backdrop && this.width > 0 && this.height > 0 ? boxColors(this.backdrop) : null;
+	}
+
+	public get inkExtent(): number {
+		return this.backdrop ? boxInkExtent(this.backdrop) : 0;
+	}
+
+	public render(draw: DrawApi): void {
+		if (!this.backdrop || this.width <= 0 || this.height <= 0) return;
+		drawBox(draw, this.id, this.width, this.height, this.backdrop);
 	}
 
 	// -- properties (R10.2); every one invalidates layout ----------------------

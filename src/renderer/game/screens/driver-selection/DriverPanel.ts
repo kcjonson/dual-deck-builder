@@ -1,4 +1,4 @@
-import { Layer, LayerOptions } from '../../../engine/components/Layer';
+import { Container, ContainerOptions } from '../../../engine/components/Container';
 import { Text } from '../../../engine/components/Text';
 import { Rectangle } from '../../../engine/components/Rectangle';
 import { Button } from '../../../engine/ui/Button';
@@ -22,7 +22,7 @@ interface DeckEntry {
  * Driver selection panel for the Driver Selection Screen
  * Implements the left/right panel layout from Game Flow Spec 1.2
  */
-export class DriverPanel extends Layer {
+export class DriverPanel extends Container {
 	private panelSide: 'left' | 'right';
 	private idPrefix: string;
 	private isEmpty = true;
@@ -39,7 +39,7 @@ export class DriverPanel extends Layer {
 	private vehicleName: Text | null = null;
 	private specialtyTag: Text | null = null;
 	private flavorText: Text | null = null;
-	private startingDeckContainer: Layer | null = null;
+	private startingDeckContainer: Container | null = null;
 	private deckTitle: Text | null = null;
 	private driverSelector: Button | null = null;
 	private deckEntries: DeckEntry[] = [];
@@ -53,7 +53,7 @@ export class DriverPanel extends Layer {
 	 * Create a new driver panel. Its contents are placed from its size in the
 	 * layout phase, so the screen resizes it rather than rebuilding it.
 	 */
-	constructor(side: 'left' | 'right', options: LayerOptions) {
+	constructor(side: 'left' | 'right', options: ContainerOptions) {
 		super(options);
 
 		this.panelSide = side;
@@ -165,9 +165,9 @@ export class DriverPanel extends Layer {
 				fontSize: 24,
 				color: '#888888',
 				textAlign: 'center',
-				verticalAlign: 'middle',
-				whiteSpace: 'nowrap',
 			},
+			verticalAlign: 'middle',
+			wrap: 'none',
 		});
 		
 		this.addChild(this.emptyStateText);
@@ -229,9 +229,9 @@ export class DriverPanel extends Layer {
 				fontSize: 20,
 				color: '#ffffff',
 				textAlign: 'center',
-				whiteSpace: 'nowrap',
 				fontWeight: 'bold',
 			},
+			wrap: 'none',
 		});
 		this.addChild(this.driverName);
 
@@ -241,8 +241,8 @@ export class DriverPanel extends Layer {
 				fontSize: 14,
 				color: '#cccccc',
 				textAlign: 'center',
-				whiteSpace: 'nowrap',
 			},
+			wrap: 'none',
 		});
 		this.addChild(this.vehicleName);
 
@@ -252,9 +252,9 @@ export class DriverPanel extends Layer {
 				fontSize: 16,
 				color: '#ffaa00',
 				textAlign: 'center',
-				whiteSpace: 'nowrap',
 				fontWeight: 'bold',
 			},
+			wrap: 'none',
 		});
 		this.addChild(this.specialtyTag);
 
@@ -263,15 +263,15 @@ export class DriverPanel extends Layer {
 				fontSize: 12,
 				color: '#aaaaaa',
 				textAlign: 'center',
-				whiteSpace: 'normal',
 			},
+			wrap: 'word',
 		});
 		this.addChild(this.flavorText);
 
 		// The deck preview fills the space down to the selector and clips
 		// there. It is submitted before the selector, so anything it drew past
 		// that line would now sit under the button rather than over it.
-		this.startingDeckContainer = new Layer({
+		this.startingDeckContainer = new Container({
 			id: `${this.idPrefix}deck_preview`,
 			overflow: 'hidden',
 		});
@@ -398,9 +398,9 @@ export class DriverPanel extends Layer {
 				fontSize: 16,
 				color: '#ffffff',
 				textAlign: 'center',
-				whiteSpace: 'nowrap',
 				fontWeight: 'bold',
 			},
+			wrap: 'none',
 		});
 		container.addChild(this.deckTitle);
 

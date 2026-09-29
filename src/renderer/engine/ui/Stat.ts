@@ -51,20 +51,22 @@ export class Stat extends Component {
 		const valueSize = VALUE_SIZE[size];
 		this.labelText = new Text(label, {
 			style: {
-				fontFamily: 'mono',
+				fontRole: 'mono',
 				fontSize: tokens.fontSize.fs_xs,
 				color: rgba(color.text_dim),
 				textTransform: 'uppercase',
 				letterSpacing: tokens.letterSpacing.ls_wide,
-				whiteSpace: 'nowrap',
 			},
+			wrap: 'none',
 		});
 		this.valueText = new Text(String(value), {
-			style: { fontFamily: 'display', fontSize: valueSize, color: rgba(this.valueColor(value)), whiteSpace: 'nowrap' },
+			style: { fontRole: 'display', fontSize: valueSize, color: rgba(this.valueColor(value)) },
+			wrap: 'none',
 		});
 		this.unitText = unit !== undefined
 			? new Text(unit, {
-				style: { fontFamily: 'display', fontSize: Math.round(valueSize * UNIT_SCALE), color: rgba(color.text_dim), whiteSpace: 'nowrap' },
+				style: { fontRole: 'display', fontSize: Math.round(valueSize * UNIT_SCALE), color: rgba(color.text_dim) },
+				wrap: 'none',
 			})
 			: null;
 		this.addPart(this.labelText);

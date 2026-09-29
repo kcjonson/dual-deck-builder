@@ -1,5 +1,5 @@
 import { Clock } from '../animation/Clock';
-import { Layer } from '../components/Layer';
+import { Container } from '../components/Container';
 import type { MountContext } from '../components/MountContext';
 import { renderTree } from '../components/renderTree';
 import { Stack } from '../components/Stack';
@@ -24,13 +24,13 @@ const { color } = tokens;
 
 let context: MountContext;
 let backend: MeasuringRecordingBackend;
-let root: Layer;
+let root: Container;
 
 beforeEach(() => {
 	const measuring = createMeasuringDrawApi();
 	backend = measuring.backend;
 	context = createTestContext({ draw: measuring.api, viewport: { logical: { width: 800, height: 600 } }, clock: new Clock() });
-	root = new Layer({ id: 'root', width: 800, height: 600 });
+	root = new Container({ id: 'root', width: 800, height: 600 });
 	root.mount(context);
 });
 
@@ -42,7 +42,7 @@ function draws(): readonly (RectCommand | CircleCommand | TextCommand)[] {
 	return backend.commands as readonly (RectCommand | CircleCommand | TextCommand)[];
 }
 
-function mount<T extends Layer | import('../components/Component').Component>(component: T): T {
+function mount<T extends Container | import('../components/Component').Component>(component: T): T {
 	root.addChild(component);
 	context.frame.layout();
 	return component;

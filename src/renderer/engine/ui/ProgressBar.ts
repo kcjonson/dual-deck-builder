@@ -85,7 +85,9 @@ export class ProgressBar extends Component {
 		const textColor = rgba(inline ? color.text_bright : color.text_dim);
 		this.labelText = label !== undefined
 			? new Text(label, {
-				style: { fontSize: tokens.fontSize.fs_sm, color: textColor, whiteSpace: 'nowrap', verticalAlign: 'middle' },
+				style: { fontSize: tokens.fontSize.fs_sm, color: textColor },
+				wrap: 'none',
+				verticalAlign: 'middle',
 			})
 			: null;
 		if (this.labelText) {
@@ -239,7 +241,9 @@ export class ProgressBar extends Component {
 
 	private addValueLabel(): void {
 		const label = new Text('', {
-			style: { fontFamily: 'mono', fontSize: tokens.fontSize.fs_sm, color: rgba(this.inline ? color.text_bright : color.text), whiteSpace: 'nowrap', verticalAlign: 'middle' },
+			style: { fontRole: 'mono', fontSize: tokens.fontSize.fs_sm, color: rgba(this.inline ? color.text_bright : color.text) },
+			wrap: 'none',
+			verticalAlign: 'middle',
 		});
 		if (this.inline) label.shadow = TEXT_SHADOW;
 		this.valueLabel = label;

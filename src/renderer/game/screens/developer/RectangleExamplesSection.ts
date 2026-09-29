@@ -62,7 +62,8 @@ export class RectangleExamplesSection extends DeveloperSectionPanel {
 			height: 80,
 			style: {
 				backgroundColor: '#00cc66',
-				border: '4px solid #ffffff',
+				borderWidth: 4,
+				borderColor: '#ffffff',
 				borderRadius: 8,
 			},
 		});
@@ -77,7 +78,8 @@ export class RectangleExamplesSection extends DeveloperSectionPanel {
 			style: {
 				backgroundColor: '#ff333380',
 				borderRadius: 20,
-				border: '2px solid #ff3333',
+				borderWidth: 2,
+				borderColor: '#ff3333',
 			},
 		});
 		transparentRect.setPosition(rectX, rectY);
@@ -91,7 +93,8 @@ export class RectangleExamplesSection extends DeveloperSectionPanel {
 			style: {
 				backgroundColor: '#33ccff',
 				borderRadius: 40,
-				border: '3px solid #0099ff',
+				borderWidth: 3,
+				borderColor: '#0099ff',
 			},
 		});
 		circleRect.setPosition(rectX, rectY);

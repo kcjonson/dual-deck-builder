@@ -44,13 +44,13 @@ export class Divider extends Component {
 		this.captionText = caption !== undefined
 			? new Text(caption, {
 				style: {
-					fontFamily: 'mono',
+					fontRole: 'mono',
 					fontSize: tokens.fontSize.fs_xs,
 					color: rgba(color.text_faint),
 					textTransform: 'uppercase',
 					letterSpacing: tokens.letterSpacing.ls_wide,
-					whiteSpace: 'nowrap',
 				},
+				wrap: 'none',
 			})
 			: null;
 		if (this.captionText) this.addPart(this.captionText);

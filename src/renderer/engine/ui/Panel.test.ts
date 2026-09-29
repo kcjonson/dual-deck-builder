@@ -3,7 +3,7 @@
  */
 import { Clock } from '../animation/Clock';
 import type { DrawCommand, RectCommand, ShadowCommand, TextCommand } from '../draw';
-import { Layer } from '../components/Layer';
+import { Container } from '../components/Container';
 import type { MountContext } from '../components/MountContext';
 import { renderTree } from '../components/renderTree';
 import { Rectangle } from '../components/Rectangle';
@@ -25,13 +25,13 @@ const { color } = tokens;
 
 let backend: MeasuringRecordingBackend;
 let context: MountContext;
-let root: Layer;
+let root: Container;
 
 beforeEach(() => {
 	const measuring = createMeasuringDrawApi();
 	backend = measuring.backend;
 	context = createTestContext({ draw: measuring.api, clock: new Clock() });
-	root = new Layer({ id: 'root', width: 1440, height: 882 });
+	root = new Container({ id: 'root', width: 1440, height: 882 });
 	root.mount(context);
 });
 
