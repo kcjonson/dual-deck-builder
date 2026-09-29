@@ -29,7 +29,7 @@ import { HairlineRectOptions, SnappedHairlineRect, snapHairlineRect, snapTextOri
 import type { TextLayout } from '../text/TextLayout';
 import { TextMetricsService } from '../text/TextMetricsService';
 import { DECORATION_THICKNESS, LineOrigin, decorationOffset, lineOrigin, runInk } from '../text/textPlacement';
-import { RasterGlyphAtlas, RasterGlyphCell, RasterGlyphSource, rasterPen, rasterPixelSize, wantsRasterGlyphs } from '../text/rasterGlyphs';
+import { RasterGlyphCell, RasterGlyphRun, RasterGlyphSource, rasterPen, rasterPixelSize, wantsRasterGlyphs } from '../text/rasterGlyphs';
 import { toHalf, toUnorm8 } from './packing';
 
 /**
@@ -166,7 +166,7 @@ export interface UberGeometryEncoderOptions {
 	/** The glyph iteration every text group is laid out by (R6.8). */
 	text: TextMetricsService;
 	onUnpaintable: (kind: DrawCommandKind, detail: string) => void;
-	/** R6.4a's raster atlases for runs too small for the distance field. Absent, every run is `text` mode. */
+	/** R6.4a's raster glyphs for runs too small for the distance field. Absent, every run is `text` mode. */
 	smallText?: RasterGlyphSource | null;
 }
 
@@ -218,9 +218,16 @@ export class UberGeometryEncoder implements GeometryEncoder {
 	private layoutCommand: TextCommand | null = null;
 	private layoutResult: TextLayout | null = null;
 	private readonly smallText: RasterGlyphSource | null;
-	/** Likewise the raster atlas `shape` chose, so `encode` draws from the texture its group reported. */
+	/** Likewise the raster glyphs `shape` chose, so `encode` draws from the texture its group reported. */
 	private rasterCommand: TextCommand | null = null;
-	private rasterResult: RasterGlyphAtlas | null = null;
+	private rasterResult: RasterGlyphRun | null = null;
+	/**
+	 * R6.4a's hysteresis: the logical sizes of each font that are on the
+	 * raster path, which stay there until their range passes the threshold
+	 * by `RASTER_RANGE_HYSTERESIS`. Keyed on font and size rather than on the
+	 * command, which is new every frame.
+	 */
+	private readonly rasterSizes = new Map<string, Set<number>>();
 	private readonly rasterPenScratch = { pixel: 0, phase: 0 };
 	private readonly pointScratch = { x: 0, y: 0 };
 	private readonly sliceScratch: NineSliceGrid = createNineSliceGrid();
@@ -728,22 +735,32 @@ export class UberGeometryEncoder implements GeometryEncoder {
 	}
 
 	/**
-	 * R6.4a: the raster atlas for a run whose screen range is under the
-	 * threshold, or null for the distance field. A run qualifies under a
+	 * R6.4a: the raster glyphs for a run whose screen range is under the
+	 * threshold (with `RASTER_RANGE_HYSTERESIS` for a size already there), or
+	 * null for the distance field. A run qualifies under a
 	 * translation or a uniform positive scale (a scaled stage, R7.2's
 	 * `uiScale` by transform), whose device font size is fixed; a rotated or
 	 * skewed run has no pixel grid to rasterise for, and a blurred shadow run
 	 * needs the `mtsdf` distance.
 	 */
-	private rasterOf(command: TextCommand, layout: TextLayout): RasterGlyphAtlas | null {
+	private rasterOf(command: TextCommand, layout: TextLayout): RasterGlyphRun | null {
 		if (command === this.rasterCommand) return this.rasterResult;
-		let raster: RasterGlyphAtlas | null = null;
+		let raster: RasterGlyphRun | null = null;
 		const matrix = command.transform;
 		const scale = matrix[0];
 		if (this.smallText && command.blur <= 0 && matrix[1] === 0 && matrix[2] === 0 && matrix[3] === scale && scale > 0) {
 			const deviceScale = scale * this.ratioValue;
-			if (wantsRasterGlyphs(layout.atlas, layout.size, deviceScale)) {
-				raster = this.smallText.glyphs(command.font, layout.atlas, rasterPixelSize(layout.size, deviceScale));
+			let sizes = this.rasterSizes.get(command.font);
+			const already = sizes?.has(layout.size) ?? false;
+			if (wantsRasterGlyphs(layout.atlas, layout.size, deviceScale, already)) {
+				if (!sizes) {
+					sizes = new Set();
+					this.rasterSizes.set(command.font, sizes);
+				}
+				sizes.add(layout.size);
+				raster = this.smallText.glyphs(command.font, layout, rasterPixelSize(layout.size, deviceScale));
+			} else if (already) {
+				sizes?.delete(layout.size);
 			}
 		}
 		this.rasterCommand = command;
@@ -824,7 +841,7 @@ export class UberGeometryEncoder implements GeometryEncoder {
 	}
 
 	/**
-	 * R6.4a's raster path: each glyph's cell from the run's raster atlas as an
+	 * R6.4a's raster path: each glyph's cell from the shared raster page as an
 	 * `image`-mode quad, whose shader multiplies the premultiplied white
 	 * coverage by the text colour. Placement is the same layout's (R6.8),
 	 * taken to the screen through the run's translation and uniform scale, so
@@ -833,7 +850,7 @@ export class UberGeometryEncoder implements GeometryEncoder {
 	 * cell in that phase (`rasterPen`), so a cell is one texel to one pixel and
 	 * glyphs keep the layout's spacing to within an eighth of a pixel.
 	 */
-	private encodeRasterGlyphs(command: TextCommand, layout: TextLayout, raster: RasterGlyphAtlas, sink: GeometrySink, slot: number): void {
+	private encodeRasterGlyphs(command: TextCommand, layout: TextLayout, raster: RasterGlyphRun, sink: GeometrySink, slot: number): void {
 		const ratio = this.ratioValue;
 		const matrix = command.transform;
 		this.begin(command, UBER_MODE.image, slot);
@@ -858,7 +875,7 @@ export class UberGeometryEncoder implements GeometryEncoder {
 	private rasterGlyphQuad(
 		sink: GeometrySink,
 		instance: number,
-		raster: RasterGlyphAtlas,
+		raster: RasterGlyphRun,
 		cell: RasterGlyphCell | undefined,
 		pen: number,
 		phase: number,

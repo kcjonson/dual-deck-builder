@@ -27,7 +27,7 @@ import { FrameTimer } from './FrameTimer';
 import type { GpuTimer } from './GpuTimer';
 import { Renderer } from './Renderer';
 import type { GlyphCanvasContext } from '../text/rasterGlyphs';
-import { SmallTextAtlases, createDocumentGlyphCanvas } from './SmallTextAtlases';
+import { RasterGlyphPage, createDocumentGlyphCanvas } from './RasterGlyphPage';
 import { StreamRing } from './StreamRing';
 import {
 	UBER_ATTRIBUTES,
@@ -108,7 +108,7 @@ export interface WebGL2BackendOptions {
 	 */
 	rasterFaces?: { familyOf(role: string): string | null } | null;
 	/** The canvas the fallback rasterises into; the DOM's by default. */
-	createGlyphCanvas?: (width: number, height: number) => GlyphCanvasContext | null;
+	createGlyphCanvas?: () => GlyphCanvasContext | null;
 }
 
 export interface CreateDrawApiOptions {
@@ -197,7 +197,7 @@ export class WebGL2Backend implements DrawBackend {
 	private readonly fontTextures = new Map<string, TextureHandle>();
 	private readonly encoder: UberGeometryEncoder;
 	/** R6.4a's raster atlases, or null without platform faces. */
-	private readonly smallText: SmallTextAtlases | null;
+	private readonly smallText: RasterGlyphPage | null;
 	private readonly residentTextures: ResidentTextureSet;
 	private readonly batcher: Batcher;
 	/** What every unit holds when nothing else is bound to it; the store restores it with the rest. */
@@ -245,10 +245,11 @@ export class WebGL2Backend implements DrawBackend {
 		this.gl = renderer.getContext();
 
 		this.smallText = rasterFaces
-			? new SmallTextAtlases({
+			? new RasterGlyphPage({
 				textures: renderer.textures,
 				familyOf: (role) => rasterFaces.familyOf(role),
 				createCanvas: createGlyphCanvas,
+				now: () => performance.now(),
 			})
 			: null;
 		this.encoder = new UberGeometryEncoder({
@@ -355,6 +356,11 @@ export class WebGL2Backend implements DrawBackend {
 			if (this.boundUnits[unit] !== placeholder) this.bindUnit(unit, placeholder);
 		}
 		this.gpuTimer?.endFrame();
+	}
+
+	/** R6.4a: the next frame may rasterise all the small text it needs, however long that takes. */
+	prewarmText(): void {
+		this.smallText?.prewarm();
 	}
 
 	invalidateState(): void {

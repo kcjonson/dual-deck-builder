@@ -176,6 +176,8 @@ export class SceneHost {
 		if (!scene) return false;
 
 		this.unmount();
+		// The scene's first frame builds all its small text at once (R6.4a).
+		this.context.draw.prewarmText();
 
 		const viewport = this.readViewport();
 		this.rootLayer.setSize(viewport.width, viewport.height);

@@ -78,6 +78,21 @@ describe('WebGL2TextureDevice (R15.18, R15.19)', () => {
 		expect(conversion.map((call) => call.args[1])).toEqual([constant('NONE'), constant('NONE'), constant('NONE')]);
 	});
 
+	it('writes a region with texSubImage2D on the upload unit, as given, never re-specifying storage', () => {
+		const { gl, calls, constant } = recordingGl();
+		const device = new WebGL2TextureDevice({ gl });
+		const texture = device.allocate(COLOR);
+		const texels = new Uint8Array(2 * 1 * 4);
+		device.uploadRegion(texture, { x: 1, y: 1, width: 2, height: 1 }, texels);
+		const [sub] = calls.filter((call) => call.name === 'texSubImage2D');
+		expect(sub.args).toEqual([constant('TEXTURE_2D'), 0, 1, 1, 2, 1, constant('RGBA'), constant('UNSIGNED_BYTE'), texels]);
+		expect(calls.some((call) => call.name === 'texImage2D')).toBe(false);
+		const premultiply = calls.filter((call) => call.name === 'pixelStorei' && call.args[0] === constant('UNPACK_PREMULTIPLY_ALPHA_WEBGL'));
+		expect(premultiply.map((call) => call.args[1])).toEqual([false]);
+		expect(calls.filter((call) => call.name === 'activeTexture').map((call) => call.args[0])).toEqual([constant('TEXTURE0') + 31, constant('TEXTURE0') + 31]);
+		expect(calls.filter((call) => call.name === 'bindTexture').at(-1)?.args[1]).toBeNull();
+	});
+
 	it('deletes a texture the store frees', () => {
 		const { gl, calls } = recordingGl();
 		const store = new TextureStore({ device: new WebGL2TextureDevice({ gl }) });
