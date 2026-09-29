@@ -157,8 +157,20 @@ void main() {
 		color = vFill * alpha;
 		covered = alpha;
 	} else if (mode == MODE_IMAGE) {
-		// R5.18: premultiplied texels times a premultiplied tint.
-		color = sampleSlot(slot, vTexCoord, uvDx, uvDy) * vFill;
+		// R5.18: premultiplied texels times a premultiplied tint. A nine-slice
+		// cell (R5.19) carries half a texel in UV in vShape.xy and its rect in
+		// vRadii, and samples only its own texels: at a cell's edge, linear
+		// filtering would otherwise blend in the neighbouring cell's texel,
+		// smeared over half a stretched texel. A cell under a texel wide
+		// samples its midpoint. Texel centres of a 1:1 cell are never moved.
+		vec2 uv = vTexCoord;
+		if (vShape.x > 0.0 || vShape.y > 0.0) {
+			vec2 low = min(vRadii.xy, vRadii.zw);
+			vec2 high = max(vRadii.xy, vRadii.zw);
+			vec2 middle = 0.5 * (low + high);
+			uv = clamp(uv, min(low + vShape.xy, middle), max(high - vShape.xy, middle));
+		}
+		color = sampleSlot(slot, uv, uvDx, uvDy) * vFill;
 	} else if (mode == MODE_TEXT) {
 		// R6.5: median-of-three MSDF coverage with the linear one-pixel ramp.
 		// vShape.z is the screen-space distance range in device pixels,

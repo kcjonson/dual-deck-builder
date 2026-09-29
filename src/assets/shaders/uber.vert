@@ -73,7 +73,8 @@ void main() {
 		vTexCoord = vec2(right ? aGeometry.z : aGeometry.x, bottom ? aGeometry.w : aGeometry.y);
 		vLocal = vec2(0.0);
 		vHalfSize = text ? aRadii.xy : vec2(0.0);
-		vRadii = vec4(0.0);
+		// Image mode: the cell's own texture rect, for R5.19's sampling clamp.
+		vRadii = text ? vec4(0.0) : aGeometry;
 	} else {
 		vTexCoord = vec2(0.0);
 		vLocal = vec2(right ? 1.0 : -1.0, bottom ? 1.0 : -1.0) * aGeometry.zw;
