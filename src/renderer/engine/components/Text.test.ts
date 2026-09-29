@@ -4,7 +4,7 @@ import type { MountContext } from './MountContext';
 import { createTestContext } from './testing';
 import { layoutText } from '../text/TextLayout';
 import { Text } from './Text';
-import { Layer } from './Layer';
+import { Container } from './Container';
 import { renderTree } from './renderTree';
 
 const VIEWPORT = { width: 800, height: 600 };
@@ -41,7 +41,7 @@ describe('Text measures through the mount context (R1.6)', () => {
 
 	it('invalidates its parent when mounting gives it a size, so the parent lays out before render', () => {
 		const context = createTestContext({ draw: createMeasuringDrawApi().api });
-		const row = new Layer({ width: 300, height: 20 });
+		const row = new Container({ width: 300, height: 20 });
 		const seen: number[] = [];
 		const label = new Text('Scrap', { style: { fontSize: 16 }, onLayout: (bounds) => seen.push(bounds.width) });
 		row.addChild(label);
@@ -114,7 +114,7 @@ describe('Text (R12.4)', () => {
 	it('truncates a nowrap text to its assigned width with an ellipsis', () => {
 		const text = mounted(new Text('Flanking Maneuver', {
 			width: 40,
-			style: { fontSize: 14, whiteSpace: 'nowrap', textOverflow: 'ellipsis' },
+			style: { fontSize: 14 }, wrap: 'none', textOverflow: 'ellipsis',
 		}));
 		expect(text.measured?.lines).toBe(1);
 		expect(text.measured?.width).toBeGreaterThan(40);
@@ -126,7 +126,7 @@ describe('Text (R12.4)', () => {
 	});
 
 	it('maps textOverflow hidden to a clip', () => {
-		const text = mounted(new Text('clipped', { width: 20, style: { textOverflow: 'hidden', whiteSpace: 'nowrap' } }));
+		const text = mounted(new Text('clipped', { width: 20, textOverflow: 'clip', wrap: 'none' }));
 		expect(drawn(api, backend, text).overflow).toBe('clip');
 	});
 
@@ -134,7 +134,7 @@ describe('Text (R12.4)', () => {
 		const text = mounted(new Text('OK', {
 			width: 100,
 			height: 40,
-			style: { textAlign: 'center', verticalAlign: 'middle' },
+			style: { textAlign: 'center' }, verticalAlign: 'middle',
 		}));
 		const command = drawn(api, backend, text);
 		expect(command.box).toEqual({ x: 0, y: 0, width: 100, height: 40 });
@@ -157,7 +157,7 @@ describe('Text (R12.4)', () => {
 
 	it('passes letter spacing, transform, decoration and line height through to the draw', () => {
 		const text = mounted(new Text('kicker', {
-			style: { letterSpacing: 0.16, textTransform: 'uppercase', textDecoration: 'underline', lineHeight: 1.5, fontSize: 10 },
+			style: { letterSpacing: 0.16, textTransform: 'uppercase', textDecoration: 'underline', fontSize: 10 }, lineHeight: 1.5,
 		}));
 		expect(text.getHeight()).toBe(15);
 		const command = drawn(api, backend, text);

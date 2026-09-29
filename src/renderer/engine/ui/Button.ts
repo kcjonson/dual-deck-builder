@@ -1,6 +1,6 @@
 import type { ClickCallback, ComponentOptions, ResolvedColors } from '../components/Component';
 import { Icon } from '../components/Icon';
-import { Text } from '../components/Text';
+import { Text, TextStyleObject } from '../components/Text';
 import type { DrawApi } from '../draw/DrawApi';
 import type { RGBA } from '../draw/geometry';
 import type { IconName } from '../text/icons';
@@ -138,11 +138,9 @@ export class Button extends Pressable {
 		if (style.opacity !== undefined) this.opacity = style.opacity;
 
 		this.text = new Text(label, {
-			style: {
-				...this.labelStyle(),
-				verticalAlign: 'middle',
-				whiteSpace: 'nowrap',
-			},
+			style: this.labelStyle(),
+			verticalAlign: 'middle',
+			wrap: 'none',
 		});
 		this.addPart(this.text);
 		if (iconPosition === 'only') this.text.visible = false;
@@ -313,23 +311,26 @@ export class Button extends Pressable {
 	private restyle(): void {
 		this.layers = buttonLayers(this.buttonTone, this.styleObject, this.isGhost);
 		this.padding = this.resolvePadding();
-		this.text.textStyle = this.labelStyle();
+		// A new style replaces the label's whole (R11.16), colour included, so
+		// the look's colour goes back on before any transition moves it.
+		this.text.style = this.labelStyle();
+		this.followLook(this.transition.look);
 		this.onStateChange();
 		this.invalidateLayout();
 	}
 
-	private labelStyle() {
+	private labelStyle(): TextStyleObject {
 		const style = this.styleObject;
 		let role: FontRole = style.fontRole ?? (style.fontFamily !== undefined ? fontRoleOfFamily(style.fontFamily, 'Button') : 'display');
 		if (style.fontWeight !== undefined) role = resolveFontRole({ family: role, weight: style.fontWeight });
 		return {
-			fontFamily: role,
+			fontRole: role,
 			fontSize: style.fontSize !== undefined ? resolveLength(style.fontSize, 'fontSize') : CONTROL_SIZES[this.buttonSize].fontSize,
 			letterSpacing: style.letterSpacing !== undefined ? resolveLetterSpacing(style.letterSpacing) : 0,
 			textTransform: style.textTransform ?? 'none',
 			textDecoration: style.textDecoration ?? 'none',
 			textAlign: style.textAlign ?? 'center',
-		} as const;
+		};
 	}
 
 	/** R11.9: a control's horizontal inset is `inset_field` unless the style says otherwise. */

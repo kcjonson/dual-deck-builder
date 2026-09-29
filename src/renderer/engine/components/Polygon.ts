@@ -1,15 +1,18 @@
-import { Component, ComponentOptions, ResolvedColors } from './Component';
+import { Component, ResolvedColors } from './Component';
 import type { DrawApi } from '../draw/DrawApi';
-import { Style, StyleParser } from '../types/Style';
+import type { RGBA } from '../draw/geometry';
+import { ColorValue, resolveColor } from '../style/styleObject';
+import { ShapeOptions, ShapeStyleObject, resolveShapeStyle } from './shapeStyle';
 import { triangulatePolygon, type Vec2 } from '../draw';
 
 /**
  * Polygon component for rendering arbitrary polygons
  */
 export class Polygon extends Component {
-	private fillColor: [number, number, number, number] = [1, 1, 1, 1];
-	private strokeColor: [number, number, number, number] = [0, 0, 0, 1];
-	private strokeWidth = 0;
+	private fillColor: RGBA;
+	private strokeColor: RGBA;
+	private strokeWidth: number;
+	private styleObject: ShapeStyleObject;
 	private points: Vec2[] = [];
 	/** R2.11's triangle list, recomputed when the outline changes rather than per frame. */
 	private indices: number[] = [];
@@ -20,40 +23,43 @@ export class Polygon extends Component {
 	 * Create a new polygon component
 	 * @param options Optional configuration including style
 	 */
-	constructor(options?: ComponentOptions) {
+	constructor({ style = {}, ...options }: ShapeOptions = {}) {
 		super(options);
+		this.styleObject = style;
+		const shape = resolveShapeStyle('Polygon', style);
+		this.fillColor = shape.fill;
+		this.strokeColor = shape.stroke;
+		this.strokeWidth = shape.strokeWidth;
+		if (style.opacity !== undefined) this.opacity = style.opacity;
 		this.componentType = 'Polygon';
 
 		// Set default size if not provided
 		if (this.width === 0) this.width = 100;
 		if (this.height === 0) this.height = 100;
 
-		if (options?.style) {
-			this.applyPolygonStyle(options.style);
-		}
 	}
 
-	/**
-	 * Apply polygon-specific style properties
-	 */
-	private applyPolygonStyle(style: Style): void {
-		if (style.backgroundColor !== undefined) {
-			this.fillColor = StyleParser.parseColor(style.backgroundColor);
-		}
-		if (style.borderColor !== undefined) {
-			this.strokeColor = StyleParser.parseColor(style.borderColor);
-		}
-		if (style.borderWidth !== undefined) {
-			this.strokeWidth = this.parseSize(style.borderWidth);
-		}
+	public get style(): ShapeStyleObject {
+		return this.styleObject;
+	}
+
+	/** R11.16: construction's path and validation; the new style replaces the old one whole. */
+	public set style(style: ShapeStyleObject) {
+		const shape = resolveShapeStyle('Polygon', style);
+		this.styleObject = style;
+		this.fillColor = shape.fill;
+		this.strokeColor = shape.stroke;
+		this.strokeWidth = shape.strokeWidth;
+		if (style.opacity !== undefined) this.opacity = style.opacity;
+		this.invalidateInk();
 	}
 
 	/**
 	 * Set the polygon's fill color
 	 * @param color Color value (hex string or RGBA array)
 	 */
-	public setFillColor(color: string | [number, number, number, number]): this {
-		this.fillColor = StyleParser.parseColor(color);
+	public setFillColor(color: ColorValue): this {
+		this.fillColor = resolveColor(color);
 		return this;
 	}
 
@@ -61,8 +67,8 @@ export class Polygon extends Component {
 	 * Set the polygon's stroke color
 	 * @param color Color value (hex string or RGBA array)
 	 */
-	public setStrokeColor(color: string | [number, number, number, number]): this {
-		this.strokeColor = StyleParser.parseColor(color);
+	public setStrokeColor(color: ColorValue): this {
+		this.strokeColor = resolveColor(color);
 		return this;
 	}
 

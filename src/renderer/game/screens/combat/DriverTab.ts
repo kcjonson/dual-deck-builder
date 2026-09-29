@@ -1,5 +1,5 @@
 import type { Component } from '../../../engine/components/Component';
-import { Layer } from '../../../engine/components/Layer';
+import { Container } from '../../../engine/components/Container';
 import { Polygon } from '../../../engine/components/Polygon';
 import { Rectangle } from '../../../engine/components/Rectangle';
 import { Stack, StackOptions } from '../../../engine/components/Stack';
@@ -95,28 +95,30 @@ export class DriverTab extends ChromeStack {
 		this.nameLabel = new Text('', {
 			id: `driver${seat}_tab_name`,
 			style: {
-				fontFamily: 'display',
+				fontRole: 'display',
 				fontSize: 15,
 				letterSpacing: 0.06,
 				textTransform: 'uppercase',
 				color: rgba('text'),
-				whiteSpace: 'nowrap',
-				textOverflow: 'ellipsis',
 			},
+			wrap: 'none',
+			textOverflow: 'ellipsis',
 		});
 
 		this.passengerTag = new Text('PASSENGER', {
 			visible: false,
-			style: { fontFamily: 'mono', fontSize: 11, color: rgba('text_dim'), whiteSpace: 'nowrap' },
+			style: { fontRole: 'mono', fontSize: 11, color: rgba('text_dim') },
+			wrap: 'none',
 		});
 
 		// Takes whatever the row leaves, so the counts sit at the far end
-		const spacer = new Layer({ widthMode: 'fill', heightMode: 'fill' });
+		const spacer = new Container({ widthMode: 'fill', heightMode: 'fill' });
 
 		this.pipRow = new Stack({ direction: 'horizontal', gap: 2, crossAlign: 'center' });
 		this.adrenalineValue = new Text('', {
 			id: `driver${seat}_adrenaline_value`,
-			style: { fontFamily: 'display', fontSize: 15, color, whiteSpace: 'nowrap' },
+			style: { fontRole: 'display', fontSize: 15, color },
+			wrap: 'none',
 		});
 		const adrenaline = new Stack({ direction: 'horizontal', gap: 4, crossAlign: 'center' });
 		const adrenalineParts: Component[] = [this.pipRow, this.adrenalineValue];
@@ -124,7 +126,8 @@ export class DriverTab extends ChromeStack {
 
 		this.piles = new Text('', {
 			id: `driver${seat}_piles`,
-			style: { fontFamily: 'mono', fontSize: 12, color: rgba('text_dim'), whiteSpace: 'nowrap' },
+			style: { fontRole: 'mono', fontSize: 12, color: rgba('text_dim') },
+			wrap: 'none',
 		});
 
 		const parts: Component[] = [mark, this.nameLabel, this.passengerTag, spacer, adrenaline, this.piles];

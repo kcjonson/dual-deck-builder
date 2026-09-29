@@ -1116,7 +1116,7 @@ describe('layoutLint', () => {
 						type: 'Panel',
 						bounds: box(0, 0, 200, 100),
 						parts: [node({ id: 'background', type: 'Rectangle', bounds: box(0, 0, 200, 100) })],
-						children: [node({ id: 'content', type: 'Layer', bounds: box(0, 0, 200, 100) })],
+						children: [node({ id: 'content', type: 'Container', bounds: box(0, 0, 200, 100) })],
 					}),
 				]),
 			);
@@ -1223,7 +1223,7 @@ describe('layoutLint', () => {
 						parts: [
 							node({
 								id: 'content',
-								type: 'Layer',
+								type: 'Container',
 								bounds: box(0, 0, 200, 200),
 								children: [node({ id: 'a', bounds: box(0, 0, 100, 100) }), node({ id: 'b', bounds: box(50, 50, 100, 100) })],
 							}),
@@ -1256,7 +1256,7 @@ describe('layoutLint', () => {
 						bounds: box(0, 0, 200, 100),
 						children: [
 							node({ id: 'background', type: 'Rectangle', bounds: box(0, 0, 200, 100) }),
-							node({ id: 'content', type: 'Layer', bounds: box(0, 0, 200, 100) }),
+							node({ id: 'content', type: 'Container', bounds: box(0, 0, 200, 100) }),
 							node({ id: 'label', type: 'Text', bounds: box(10, 10, 90, 20) }),
 						],
 					}),
@@ -1349,7 +1349,7 @@ describe('layoutLint', () => {
 			const result = layoutLint(
 				doc([
 					node({
-						type: 'Layer',
+						type: 'Container',
 						bounds: box(0, 0, 500, 500),
 						children: [
 							node({
@@ -1363,7 +1363,7 @@ describe('layoutLint', () => {
 				]),
 			);
 
-			expect(forRule(result, 'zero-or-negative-size')[0].path).toBe('Layer[0]/hud/Text[1]');
+			expect(forRule(result, 'zero-or-negative-size')[0].path).toBe('Container[0]/hud/Text[1]');
 		});
 
 		it('indexes by position in the parent, counting invisible siblings', () => {
@@ -1497,7 +1497,7 @@ describe('layoutLint', () => {
 				doc([
 					node({
 						id: 'screen',
-						type: 'Layer',
+						type: 'Container',
 						bounds: box(0, 0, 500, 500),
 						children: [node({ id: 'title', type: 'Text', bounds: box(10, 10, 90, 0) }), node({ type: 'Button', bounds: box(10, 40, 180, 44) })],
 					}),
@@ -1580,7 +1580,7 @@ describe('layoutLint', () => {
 		});
 
 		it('expands a node that appears in two places once, and still lints it in both', () => {
-			// Layer.addChild never detaches from a previous parent, so one
+			// Container.addChild never detaches from a previous parent, so one
 			// instance can sit in two children arrays; without a walk-wide
 			// guard a deep diamond expands exponentially.
 			const shared = node({

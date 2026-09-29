@@ -51,7 +51,7 @@ const DOCK_PADDING = { top: 8, bottom: 5, left: 16, right: 16 };
  * The combat screen, laid out per Battle Screen Design section 2
  */
 export class CombatScreen extends Screen {
-	// Layer components, built in onMount. The stage holds everything else
+	// Container components, built in onMount. The stage holds everything else
 	// and is the one thing sized and scaled from the viewport.
 	private stage!: Stack;
 	private topBar!: TopBarLayer;
@@ -416,10 +416,10 @@ export class CombatScreen extends Screen {
 	 * over the road, so neither ever covers the dock.
 	 */
 	private createLayers(): void {
-		this.rootLayer.setBackgroundColor(SCREEN_BACKGROUND);
-
+		// The stage is the viewport's size, so its box is the screen's background.
 		this.stage = new Stack({
 			id: 'combat_stage',
+			style: { backgroundColor: SCREEN_BACKGROUND },
 			direction: 'horizontal',
 			distribution: 'center',
 			crossAlign: 'stretch',

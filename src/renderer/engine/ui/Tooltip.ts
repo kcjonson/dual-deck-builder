@@ -51,7 +51,8 @@ export class Tooltip extends Stack {
 		this.titleText = spec.title
 			? new Text(spec.title, {
 				id: 'tooltip_title',
-				style: { fontFamily: 'display', fontSize: tokens.fontSize.fs_base, color: rgba(color.text_bright), whiteSpace: 'nowrap' },
+				style: { fontRole: 'display', fontSize: tokens.fontSize.fs_base, color: rgba(color.text_bright) },
+				wrap: 'none',
 			})
 			: null;
 		this.hotkeyCap = spec.hotkey ? new KeyCap({ id: 'tooltip_hotkey', label: spec.hotkey }) : null;

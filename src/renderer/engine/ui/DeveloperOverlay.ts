@@ -1,4 +1,4 @@
-import { Layer } from '../components/Layer';
+import { Container } from '../components/Container';
 import { Rectangle } from '../components/Rectangle';
 import { Text } from '../components/Text';
 import type { SectionStats } from '../rendering/frameStats';
@@ -34,7 +34,7 @@ export interface DeveloperOverlayOptions {
  * off until toggled so nothing it draws reaches a golden. Every figure on it
  * comes from one `PerfSnapshot`, which is the object a capture records.
  */
-export class DeveloperOverlay extends Layer {
+export class DeveloperOverlay extends Container {
 	private background: Rectangle;
 	private performanceText: Text;
 	private readonly snapshot: () => PerfSnapshot;
@@ -80,7 +80,7 @@ export class DeveloperOverlay extends Layer {
 			style: {
 				fontSize: 14,
 				color: '#00FF00',
-				fontFamily: 'monospace',
+				fontRole: 'mono',
 			},
 		});
 		this.addPart(this.performanceText);

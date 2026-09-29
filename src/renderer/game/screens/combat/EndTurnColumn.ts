@@ -50,14 +50,14 @@ export class EndTurnColumn extends Stack {
 		this.turnLabel = new Text('', {
 			id: 'end_turn_turn',
 			style: {
-				fontFamily: 'display',
+				fontRole: 'display',
 				fontSize: 13,
 				letterSpacing: 0.14,
 				textTransform: 'uppercase',
 				color: rgba('text_dim'),
 				textAlign: 'center',
-				whiteSpace: 'nowrap',
 			},
+			wrap: 'none',
 		});
 		this.addChild(this.turnLabel);
 
@@ -73,7 +73,8 @@ export class EndTurnColumn extends Stack {
 
 		this.warning = new Text('', {
 			id: 'end_turn_warning',
-			style: { fontFamily: 'mono', fontSize: 11, color: rgba('accent'), textAlign: 'center', whiteSpace: 'nowrap' },
+			style: { fontRole: 'mono', fontSize: 11, color: rgba('accent'), textAlign: 'center' },
+			wrap: 'none',
 		});
 		this.addChild(this.warning);
 	}

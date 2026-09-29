@@ -50,8 +50,8 @@ export class SplashScreen extends Screen {
 				fontSize: 48,
 				color: '#ffffff',
 				textAlign: 'center',
-				whiteSpace: 'nowrap',
 			},
+			wrap: 'none',
 		});
 		this.rootLayer.addChild(this.title);
 
@@ -61,8 +61,8 @@ export class SplashScreen extends Screen {
 				fontSize: 24,
 				color: '#cccccc',
 				textAlign: 'center',
-				whiteSpace: 'nowrap',
 			},
+			wrap: 'none',
 		});
 		this.rootLayer.addChild(this.subtitle);
 	}

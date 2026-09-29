@@ -1,4 +1,4 @@
-import { Layer } from '../components/Layer';
+import { Container } from '../components/Container';
 import type { MountContext } from '../components/MountContext';
 import { Rectangle } from '../components/Rectangle';
 import { createTestContext } from '../components/testing';
@@ -6,7 +6,7 @@ import { DrawApi, RecordingBackend } from '../draw';
 import { click, key, send, pointer } from './testing';
 
 let context: MountContext;
-let scene: Layer;
+let scene: Container;
 let sceneClicks: number;
 
 function box(id: string, x: number, y: number, width = 100, height = 100): Rectangle {
@@ -15,7 +15,7 @@ function box(id: string, x: number, y: number, width = 100, height = 100): Recta
 
 beforeEach(() => {
 	context = createTestContext();
-	scene = new Layer({ id: 'scene', width: 1440, height: 882 });
+	scene = new Container({ id: 'scene', width: 1440, height: 882 });
 	const target = box('scene_target', 0, 0, 1440, 882);
 	sceneClicks = 0;
 	target.onClick = () => {
@@ -40,7 +40,7 @@ describe('OverlayService (R8.21)', () => {
 
 	it('keeps overlay roots after scene roots mounted later (R3.15)', () => {
 		const handle = context.overlays.open(box('popover', 10, 10), { layer: 'base' });
-		const late = new Layer({ id: 'late', width: 10, height: 10 });
+		const late = new Container({ id: 'late', width: 10, height: 10 });
 		late.mount(context);
 
 		expect(context.dispatcher.roots).toEqual([scene, late, handle.root]);
@@ -123,7 +123,7 @@ describe('OverlayService (R8.21)', () => {
 	});
 
 	it('counts a press on a scrim as outside when `inside` names the panel, and consumes it (R12.21)', () => {
-		const dialog = new Layer({ id: 'dialog', width: 1440, height: 882 });
+		const dialog = new Container({ id: 'dialog', width: 1440, height: 882 });
 		const scrim = box('scrim', 0, 0, 1440, 882);
 		const panel = box('panel', 500, 300, 400, 200);
 		let panelClicks = 0;
@@ -187,7 +187,7 @@ describe('OverlayService (R8.21)', () => {
 		scene.addChild(behind);
 		context.focus.focus(behind);
 
-		const dialog = new Layer({ id: 'dialog', width: 400, height: 300 });
+		const dialog = new Container({ id: 'dialog', width: 400, height: 300 });
 		const ok = box('ok', 10, 10, 80, 30);
 		ok.focusable = true;
 		dialog.addChild(ok);

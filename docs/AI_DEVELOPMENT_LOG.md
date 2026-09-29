@@ -6,6 +6,18 @@ This document contains the chronological log of completed development tasks for 
 
 **Date correction (2026-08-22):** the repo's first commit is 2025-05-17, but many entries below carry dates in December 2024 or January 2025 — the AI that wrote them used its assumed date instead of the real one. Entries dated 2025-07-03 and 2025-07-02 have been corrected from "2025-01-03"/"2025-01-02" (verified against git history). Remaining Dec 2024 / Jan 2025 dates are wrong by roughly six months; the real work happened May–July 2025. Trust git history over these dates.
 
+## Catalog Wave A, leaves on the closed style set (2026-09-28)
+
+**What landed:** DDB-85's third PR (DDB-55 phase 5), R11.14 to R11.16 for every leaf, R12.1 to R12.5, R12.18; closes DDB-209.
+
+- `engine/types/Style.ts` deleted; `ComponentOptions.style` and `Component.applyStyle` gone; colour parsing in `resolveColor`.
+- Per-component style subsets with validation: `Rectangle` (box, now with `shadow`), `Circle`/`Triangle`/`Polygon` (`components/shapeStyle.ts`), `Text` (typography); Text's `verticalAlign`, `wrap`, `textOverflow`, `lineHeight` are options, and `style`/`layoutOptions` setters replace `textStyle`.
+- New `components/Line.ts` and `components/Image.ts`.
+- `components/Layer.ts` renamed `components/Container.ts`, visuals removed; `Stack` accepts a box `style`.
+- Every call site converted (a one-off script for the moved keys, the `border` shorthand, and `px` strings; the rest by hand). Gallery scene `leaves`.
+
+**How:** `components/leaves.test.ts` (rejection per leaf, colour parsing, rectangle box and shadow, text options, container without visuals, stack box, line geometry, image fit maths, sprite frame and tint, asset cache residency and release, failed load). The whole suite passes unchanged otherwise; every gallery scene lints clean at 1440 by 882.
+
 ## Catalog Wave C, overlays (2026-09-28)
 
 **What landed:** DDB-87's first PR (DDB-55 phase 5), R12.21, R12.22, R12.23, R12.29 (KeyCap), R12.33.

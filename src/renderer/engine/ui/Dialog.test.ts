@@ -1,5 +1,5 @@
 import { Clock } from '../animation/Clock';
-import { Layer } from '../components/Layer';
+import { Container } from '../components/Container';
 import type { MountContext } from '../components/MountContext';
 import { createTestContext } from '../components/testing';
 import { advance, click, key, pointer, send } from '../services/testing';
@@ -17,13 +17,13 @@ const OPEN_MS = tokens.motion.dur + 32;
 const CLOSE_MS = tokens.motion.dur_fast + 32;
 
 let context: MountContext;
-let scene: Layer;
+let scene: Container;
 let sceneButton: Button;
 let sceneClicks: number;
 
 beforeEach(() => {
 	context = createTestContext({ viewport: { logical: { width: 800, height: 600 } }, clock: new Clock() });
-	scene = new Layer({ id: 'scene', width: 800, height: 600 });
+	scene = new Container({ id: 'scene', width: 800, height: 600 });
 	sceneClicks = 0;
 	// Top left, well clear of a centred panel.
 	sceneButton = new Button('Scene', { id: 'scene_button', x: 20, y: 20, width: 100, height: 40, onClick: () => { sceneClicks += 1; } });

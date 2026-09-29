@@ -84,11 +84,11 @@ export class PopoverScene extends DeveloperSectionPanel {
 /** Label and value per row, the value right-aligned in a mono column. */
 function breakdown(title: string, stats: readonly Stat[]): Component {
 	const column = new Stack({ direction: 'vertical', gap: tokens.space.space_1_5 });
-	column.addChild(new Text(title, { style: { fontFamily: 'display', fontSize: tokens.fontSize.fs_md, color: rgba(tokens.color.text_bright), textTransform: 'uppercase' } }));
+	column.addChild(new Text(title, { style: { fontRole: 'display', fontSize: tokens.fontSize.fs_md, color: rgba(tokens.color.text_bright), textTransform: 'uppercase' } }));
 	for (const [label, value] of stats) {
 		const row = new Stack({ direction: 'horizontal', width: 180, distribution: 'spaceBetween' });
 		row.addChild(new Text(label, { style: { fontSize: tokens.fontSize.fs_sm, color: rgba(tokens.color.text_dim) } }));
-		row.addChild(new Text(value, { style: { fontFamily: 'mono', fontSize: tokens.fontSize.fs_sm, color: rgba(tokens.color.text) } }));
+		row.addChild(new Text(value, { style: { fontRole: 'mono', fontSize: tokens.fontSize.fs_sm, color: rgba(tokens.color.text) } }));
 		column.addChild(row);
 	}
 	return column;
