@@ -43,6 +43,12 @@ export interface FontGlyph {
 	readonly plane: GlyphBounds | null;
 	/** Texels in the atlas image, y down from the top-left corner. Null for a blank glyph. */
 	readonly atlas: GlyphBounds | null;
+	/**
+	 * The code point whose outline this glyph is, when it stands in for one
+	 * the face lacks (`CODE_POINT_SUBSTITUTES`); absent, its own. The raster
+	 * fallback draws this one (R6.4a), so it rasterises what the atlas holds.
+	 */
+	readonly outlineCodePoint?: number;
 }
 
 export interface FontMetrics {
@@ -389,7 +395,9 @@ function applySubstitutes(glyphs: Map<number, FontGlyph>): void {
 		for (const candidate of candidates) {
 			const source = glyphs.get(candidate);
 			if (source) {
-				glyphs.set(target, { ...source, codePoint: target });
+				glyphs.set(target, source.plane
+					? { ...source, codePoint: target, outlineCodePoint: source.outlineCodePoint ?? source.codePoint }
+					: { ...source, codePoint: target });
 				break;
 			}
 		}

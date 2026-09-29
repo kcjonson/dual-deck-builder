@@ -6,6 +6,9 @@ import jetBrainsMonoRegularMetrics from '../../../assets/fonts/jetbrains-mono-re
 import jetBrainsMonoRegularImage from '../../../assets/fonts/jetbrains-mono-regular.png';
 import materialIconsMetrics from '../../../assets/fonts/material-icons.json';
 import materialIconsImage from '../../../assets/fonts/material-icons.png';
+import barlowCondensedSemiBoldFont from '../../../assets/fonts/barlow-condensed/BarlowCondensed-SemiBold.ttf';
+import openSansRegularFont from '../../../assets/fonts/open-sans/OpenSans-Regular.ttf';
+import jetBrainsMonoRegularFont from '../../../assets/fonts/jetbrains-mono/JetBrainsMono-Regular.ttf';
 
 /** R11.8's three roles. */
 export type FontRole = 'display' | 'body' | 'mono';
@@ -28,6 +31,13 @@ export interface FontFaceAsset<Role extends AtlasRole = FontRole> {
 	 * never requests a file for it (R15.34).
 	 */
 	readonly imageUrl: string;
+	/**
+	 * The face's font file as a bundler asset module, which the atlas was
+	 * built from. R6.4a's raster fallback draws sizes too small for the
+	 * distance field with it through the platform's 2D text API. Absent for
+	 * the icon atlas, whose small sizes stay on the distance field.
+	 */
+	readonly fontUrl?: string;
 }
 
 /**
@@ -40,18 +50,21 @@ export const FONT_FACES: readonly FontFaceAsset[] = [
 		face: 'barlow-condensed-semibold',
 		metrics: barlowCondensedSemiBoldMetrics,
 		imageUrl: barlowCondensedSemiBoldImage,
+		fontUrl: barlowCondensedSemiBoldFont,
 	},
 	{
 		role: 'body',
 		face: 'open-sans-regular',
 		metrics: openSansRegularMetrics,
 		imageUrl: openSansRegularImage,
+		fontUrl: openSansRegularFont,
 	},
 	{
 		role: 'mono',
 		face: 'jetbrains-mono-regular',
 		metrics: jetBrainsMonoRegularMetrics,
 		imageUrl: jetBrainsMonoRegularImage,
+		fontUrl: jetBrainsMonoRegularFont,
 	},
 ];
 

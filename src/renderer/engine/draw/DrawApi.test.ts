@@ -1578,3 +1578,15 @@ describe('pooled stacks (DDB-215)', () => {
 		});
 	});
 });
+
+describe('DrawApi.prewarmText (R6.4a)', () => {
+	it('asks a backend that budgets small text to lift the budget for the next frame, and is a no-op otherwise', () => {
+		const backend: RecordingBackend & { prewarmText?: () => void } = new RecordingBackend({ maxFrames: 1 });
+		const api = new DrawApi({ backend });
+		expect(() => api.prewarmText()).not.toThrow();
+		const prewarm = jest.fn();
+		backend.prewarmText = prewarm;
+		api.prewarmText();
+		expect(prewarm).toHaveBeenCalledTimes(1);
+	});
+});
