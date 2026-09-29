@@ -11,6 +11,7 @@ import { Modifiers, NO_MODIFIERS } from '../input/events';
 import { PointerAdapter } from '../input/PointerAdapter';
 import { createMeasuringDrawApi, MeasuringRecordingBackend } from '../text/testing';
 import { tokens } from '../theme/tokens';
+import { treeSnapshot } from '../debug/treeSnapshot';
 import { Button } from './Button';
 import { ContextMenu } from './ContextMenu';
 import { DropdownButton } from './DropdownButton';
@@ -414,6 +415,24 @@ describe('Select (R12.12)', () => {
 		const row = menu.rowRect(25);
 		expect(row.y).toBeGreaterThanOrEqual(menu.scrollOffset);
 		expect(row.y + row.height).toBeLessThanOrEqual(menu.scrollOffset + menu.height - PAD * 2);
+	});
+
+	it('reports the label it draws, and its menu the rows, for the text record', () => {
+		const { made } = select({ value: 'runner' });
+		inject(`click,${centre(made)}`);
+		const find = (node: ReturnType<typeof treeSnapshot>['roots'][number], id: string): typeof node | null => {
+			if (node.id === id) return node;
+			for (const child of [...(node.parts ?? []), ...node.children]) {
+				const found = find(child, id);
+				if (found) return found;
+			}
+			return null;
+		};
+		const roots = treeSnapshot(context.dispatcher.roots, VIEWPORT).roots;
+		expect(roots.map((node) => find(node, 'vehicle')).find(Boolean)?.labels).toEqual(['Rust Runner']);
+		const menu = roots.map((node) => find(node, 'vehicle_menu')).find(Boolean);
+		const rows = menu && [...(menu.parts ?? []), ...menu.children].flatMap((node) => [node, ...node.children]).find((node) => node.labels);
+		expect(rows?.labels).toEqual(['Scrap Hauler', 'Rust Runner', 'Dust Devil']);
 	});
 
 	it('lifts its border to the accent while open', () => {
