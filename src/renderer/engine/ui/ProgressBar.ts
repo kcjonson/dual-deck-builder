@@ -1,6 +1,7 @@
 import type { TweenHandle } from '../animation/Animator';
 import { Component, ComponentOptions, ResolvedColors } from '../components/Component';
 import type { Axis, Size, SizeMode } from '../components/layoutTypes';
+import type { MountContext } from '../components/MountContext';
 import { Text } from '../components/Text';
 import type { TextShadow } from '../draw/commands';
 import type { DrawApi } from '../draw/DrawApi';
@@ -67,7 +68,7 @@ export class ProgressBar extends Component {
 	private readonly inline: boolean;
 	private valueFormat: MeterValueText | null;
 	private readonly labelText: Text | null;
-	private readonly valueLabel: Text | null;
+	private valueLabel: Text | null = null;
 	private fill: TweenHandle<number> | null = null;
 
 	constructor({ value = 0, tone = 'auto', label, valueText, size = 'md', segmented = 0, inline = false, ...options }: ProgressBarOptions = {}) {
@@ -87,16 +88,11 @@ export class ProgressBar extends Component {
 				style: { fontSize: tokens.fontSize.fs_sm, color: textColor, whiteSpace: 'nowrap', verticalAlign: 'middle' },
 			})
 			: null;
-		this.valueLabel = valueText !== undefined
-			? new Text('', {
-				style: { fontFamily: 'mono', fontSize: tokens.fontSize.fs_sm, color: rgba(inline ? color.text_bright : color.text), whiteSpace: 'nowrap', verticalAlign: 'middle' },
-			})
-			: null;
-		for (const text of [this.labelText, this.valueLabel]) {
-			if (!text) continue;
-			if (inline) text.shadow = TEXT_SHADOW;
-			this.addPart(text);
+		if (this.labelText) {
+			if (inline) this.labelText.shadow = TEXT_SHADOW;
+			this.addPart(this.labelText);
 		}
+		if (valueText !== undefined) this.addValueLabel();
 		this.formatValue();
 		this.place();
 	}
@@ -139,6 +135,16 @@ export class ProgressBar extends Component {
 		});
 	}
 
+	/** An unmount cancels the fill where it was (R8.15); mounting again shows the target. */
+	protected onMount(context: MountContext): void {
+		super.onMount(context);
+		this.fill = null;
+		if (this.shown !== this.target) {
+			this.shown = this.target;
+			this.invalidateInk();
+		}
+	}
+
 	/** Where the fill is now, mid-animation included. */
 	public get displayedValue(): number {
 		return this.shown;
@@ -156,9 +162,13 @@ export class ProgressBar extends Component {
 		return this.valueFormat;
 	}
 
+	/** A bar built without a value line gains one; null hides it again. */
 	public set valueText(valueText: MeterValueText | null) {
 		this.valueFormat = valueText;
+		if (valueText !== null && !this.valueLabel) this.addValueLabel();
+		if (this.valueLabel) this.valueLabel.visible = valueText !== null;
 		this.formatValue();
+		this.invalidateLayout();
 	}
 
 	/** The fill's colour now: the tone, banded by the target value when `auto`. */
@@ -211,7 +221,7 @@ export class ProgressBar extends Component {
 
 	private get lineHeight(): number {
 		if (this.inline) return 0;
-		const heights = [this.labelText, this.valueLabel].map((text) => (text ? text.height : 0));
+		const heights = [this.labelText, this.valueLabel].map((text) => (text?.visible ? text.height : 0));
 		return Math.max(0, ...heights);
 	}
 
@@ -225,6 +235,15 @@ export class ProgressBar extends Component {
 		if (this.inline) return { x: 0, y: 0, width: this.width, height: this.height };
 		const height = TRACK_HEIGHT[this.sizeValue];
 		return { x: 0, y: this.height - height, width: this.width, height };
+	}
+
+	private addValueLabel(): void {
+		const label = new Text('', {
+			style: { fontFamily: 'mono', fontSize: tokens.fontSize.fs_sm, color: rgba(this.inline ? color.text_bright : color.text), whiteSpace: 'nowrap', verticalAlign: 'middle' },
+		});
+		if (this.inline) label.shadow = TEXT_SHADOW;
+		this.valueLabel = label;
+		this.addPart(label);
 	}
 
 	private formatValue(): void {

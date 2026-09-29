@@ -43,7 +43,9 @@ export interface OverlayOptions {
 	id?: string;
 	/**
 	 * The content takes the viewport's size, at open and on every resize: a
-	 * dialog whose own box is its scrim, a screen transition's quad.
+	 * dialog whose own box is its scrim, a screen transition's quad. A
+	 * `setSize` by the service, unrelated to R10.1's `fill` sizing mode,
+	 * which only a parent stack or a root reads.
 	 */
 	fill?: boolean;
 	/**

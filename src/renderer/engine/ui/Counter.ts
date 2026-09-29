@@ -1,4 +1,5 @@
 import type { TweenHandle } from '../animation/Animator';
+import type { MountContext } from '../components/MountContext';
 import { Text, TextOptions } from '../components/Text';
 import { tokens } from '../theme/tokens';
 
@@ -76,6 +77,16 @@ export class Counter extends Text {
 	public set format(format: CounterFormat) {
 		this.formatter = format;
 		this.setText(format(this.shown));
+	}
+
+	/**
+	 * An unmount cancels the count where it was (R8.15); mounting again shows
+	 * the value it was heading for, not the number it stopped on.
+	 */
+	protected onMount(context: MountContext): void {
+		super.onMount(context);
+		this.tween = null;
+		if (this.shown !== this.target) this.show(this.target);
 	}
 
 	private show(value: number): void {

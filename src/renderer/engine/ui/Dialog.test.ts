@@ -2,6 +2,7 @@ import { Clock } from '../animation/Clock';
 import { Layer } from '../components/Layer';
 import type { MountContext } from '../components/MountContext';
 import { createTestContext } from '../components/testing';
+import { NO_MODIFIERS } from '../input/events';
 import { advance, click, key, pointer, send } from '../services/testing';
 import { tokens } from '../theme/tokens';
 import { Button } from './Button';
@@ -320,5 +321,59 @@ describe('Dialog layout and focus (R12.21, R9.20)', () => {
 		click(context, ...centre(confirm));
 		expect(confirmed).toBe(1);
 		expect(dialog.state).toBe('closing');
+	});
+
+	it('wraps Shift+Tab from the first control back through the X to the last action', () => {
+		const { dialog, field, confirm } = build();
+		openFully(dialog);
+		expect(context.focus.focused).toBe(field);
+		const shiftTab = { kind: 'key' as const, phase: 'down' as const, key: 'Tab', repeat: false, modifiers: { ...NO_MODIFIERS, shift: true } };
+		send(context, [shiftTab]);
+		expect(context.focus.focused).toBe(dialog.closeControl);
+		send(context, [shiftTab]);
+		expect(context.focus.focused).toBe(confirm);
+	});
+
+	it('nests: Tab and Escape stay with the inner dialog, and focus walks back out as each closes', () => {
+		sceneButton.focusable = true;
+		context.focus.focus(sceneButton);
+		const outer = build();
+		openFully(outer.dialog);
+		const inner = build();
+		inner.dialog = new Dialog({ id: 'inner', title: 'Sure?', content: inner.field, footer: [inner.cancel, inner.confirm] });
+		openFully(inner.dialog);
+		for (let press = 0; press < 5; press += 1) {
+			send(context, [key('Tab')]);
+			expect([inner.dialog.closeControl, inner.field, inner.cancel, inner.confirm]).toContain(context.focus.focused);
+		}
+		send(context, [key('Escape')]);
+		advance(context, CLOSE_MS);
+		expect(inner.dialog.state).toBe('closed');
+		expect(outer.dialog.state).toBe('open');
+		expect(context.focus.focused).toBe(outer.field);
+		outer.dialog.close();
+		advance(context, CLOSE_MS);
+		expect(context.focus.focused).toBe(sceneButton);
+	});
+
+	it('closes cleanly when the control that opened it was unmounted meanwhile', () => {
+		sceneButton.focusable = true;
+		context.focus.focus(sceneButton);
+		const { dialog } = build();
+		openFully(dialog);
+		scene.removeChild(sceneButton);
+		dialog.close();
+		advance(context, CLOSE_MS);
+		expect(dialog.state).toBe('closed');
+		expect(context.focus.focused).toBeNull();
+	});
+
+	it('counts a press on the panel as inside on the very frame it opens', () => {
+		const { dialog } = build({ dismissOnOutsidePress: true });
+		dialog.show(context);
+		context.frame.layout();
+		const panel = dialog.surface.screenBounds;
+		click(context, panel.x + panel.width / 2, panel.y + panel.height / 2);
+		expect(dialog.state).not.toBe('closing');
 	});
 });
