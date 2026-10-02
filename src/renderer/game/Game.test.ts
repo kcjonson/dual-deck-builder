@@ -13,7 +13,9 @@ import type { DeviceInfo } from '../engine/rendering/deviceInfo';
 import { DeveloperOverlay } from '../engine/ui/DeveloperOverlay';
 import { ReducedMotion } from '../engine/rendering/reducedMotion';
 import { GameSettings } from './core/GameSettings';
-import { HotkeyTable } from '../engine/input/HotkeyTable';
+import { Container } from '../engine/components/Container';
+import { PointerAdapter } from '../engine/input/PointerAdapter';
+import { advance, key, send } from '../engine/services/testing';
 
 /**
  * R13.32's pause on the game page, driven through `window.__app` rather than
@@ -35,39 +37,38 @@ jest.mock('./core/ScreenManager', () => ({
 		screenNames: ['splashScreen', 'mainMenuScreen', 'developerScreen'],
 		activeScreen: null,
 		getCurrentScreenName: jest.fn(() => 'mainMenuScreen'),
-		transitioning: false,
 		update: jest.fn(),
 		render: jest.fn(),
 		resize: jest.fn(),
 	},
 }));
 
-jest.mock('../engine/ui/DeveloperOverlay', () => ({
-	DeveloperOverlay: class MockDeveloperOverlay {
-		/** The page builds one; the test reads its anchor back through this. */
-		public static instances: MockDeveloperOverlay[] = [];
-		public shown = false;
-		public viewportWidth: number;
-		public readonly constructedWidth: number;
-		constructor({ viewportWidth }: { viewportWidth: number }) {
-			this.viewportWidth = viewportWidth;
-			this.constructedWidth = viewportWidth;
-			MockDeveloperOverlay.instances.push(this);
-		}
-		public toggle(): void {
-			this.shown = !this.shown;
-		}
-		public mount(): void {
-			/* a root with nothing to register */
-		}
-		public update(): void {
-			/* no drawing in a test */
-		}
-		public render(): void {
-			/* no drawing in a test */
-		}
-	},
-}));
+jest.mock('../engine/ui/DeveloperOverlay', () => {
+	// A real root, so F5 sits on a real hotkey table in the dispatcher's
+	// search, and nothing else: the real overlay draws a perf readout.
+	const { Container } = jest.requireActual('../engine/components/Container') as typeof import('../engine/components/Container');
+	return {
+		DeveloperOverlay: class MockDeveloperOverlay extends Container {
+			/** The page builds one; the test reads its anchor back through this. */
+			public static instances: MockDeveloperOverlay[] = [];
+			public shown = false;
+			public viewportWidth: number;
+			public readonly constructedWidth: number;
+			constructor({ viewportWidth }: { viewportWidth: number }) {
+				super({ id: 'developer_overlay', width: 10, height: 10, visible: false });
+				this.viewportWidth = viewportWidth;
+				this.constructedWidth = viewportWidth;
+				MockDeveloperOverlay.instances.push(this);
+			}
+			public toggle(): void {
+				this.shown = !this.shown;
+			}
+			public update(): void {
+				/* no drawing in a test */
+			}
+		},
+	};
+});
 
 interface AppWindow extends Window {
 	__app?: {
@@ -218,133 +219,108 @@ describe('pause stops update and leaves render running', () => {
 });
 
 describe('F5 runs the GPU timer only while the overlay shows', () => {
-	function pressF5(): void {
-		document.body.dispatchEvent(new KeyboardEvent('keydown', { key: 'F5', bubbles: true }));
-	}
-
-	it('turns the timer on with the overlay and off again with it', () => {
+	it('turns the timer on with the overlay and off again with it, and ignores a held key', () => {
 		expect(gpuTimer.enabled).toBe(false);
-		pressF5();
+		send(context, [key('F5')]);
 		expect(gpuTimer.enabled).toBe(true);
-		pressF5();
+		send(context, [{ kind: 'key', phase: 'down', key: 'F5', repeat: true, modifiers: { shift: false, ctrl: false, alt: false, meta: false } }]);
+		expect(gpuTimer.enabled).toBe(true);
+		send(context, [key('F5')]);
 		expect(gpuTimer.enabled).toBe(false);
 	});
 });
 
-describe('the document keydown shortcut is gated by pause too', () => {
-	// F12 and F5 sit on a raw document listener, outside the dispatcher, so
-	// the pause gate there does not reach them. Ungated they would navigate
-	// out from under a paused capture. Gating changes what a real key does
-	// while paused, which is only reachable in a development build.
-	function pressF12(): void {
-		document.body.dispatchEvent(new KeyboardEvent('keydown', { key: 'F12', bubbles: true }));
-	}
-
+describe('F12 is a scene hotkey, so pause holds it (R13.35)', () => {
 	it('navigates while running', () => {
-		pressF12();
+		send(context, [key('F12')]);
 
 		expect(screens.navigate).toHaveBeenCalledWith('developerScreen');
 	});
 
 	it('does nothing while paused', () => {
 		app().pause?.();
-		pressF12();
+		send(context, [key('F12')]);
 
 		expect(screens.navigate).not.toHaveBeenCalled();
 	});
 
 	it('navigates again after resume', () => {
 		app().pause?.();
-		pressF12();
+		send(context, [key('F12')]);
 		app().resume?.();
-		pressF12();
+		send(context, [key('F12')]);
 
 		expect(screens.navigate).toHaveBeenCalledTimes(1);
 	});
+
+	it('goes back to the menu from the developer screen', () => {
+		const manager = ScreenManager as unknown as { getCurrentScreenName: jest.Mock };
+		manager.getCurrentScreenName.mockReturnValueOnce('developerScreen');
+		send(context, [key('F12')]);
+
+		expect(screens.navigate).toHaveBeenCalledWith('mainMenuScreen', undefined, { restoreFocus: true });
+	});
 });
 
-describe('the document keydown shortcut while a screen transition runs (R12.38)', () => {
-	// The transition blocks input in the dispatcher; this listener is outside
-	// it, so it checks for itself. F5 is diagnostic and stays live.
-	const manager = ScreenManager as unknown as { transitioning: boolean; getCurrentScreenName: jest.Mock };
-	function press(key: string): void {
-		document.body.dispatchEvent(new KeyboardEvent('keydown', { key, bubbles: true }));
-	}
+describe('the page hotkeys under a modal root, such as a screen transition (R12.38)', () => {
+	// The transition is a modal overlay root, so the scene's F12 is held
+	// while it runs; the F5 overlay is a diagnostic root, searched first.
+	let cover: Container;
 
 	beforeEach(() => {
-		manager.getCurrentScreenName.mockReturnValue('developerScreen');
+		cover = new Container({ id: 'transition_stand_in', width: 10, height: 10, layer: 'transition' });
+		cover.modal = true;
+		cover.mount(context, { tier: 'overlay' });
 	});
 
 	afterEach(() => {
-		manager.transitioning = false;
-		manager.getCurrentScreenName.mockReturnValue('mainMenuScreen');
+		cover.unmount();
 	});
 
-	it('navigates on F12 and Escape when no transition runs', () => {
-		press('F12');
-		press('Escape');
-
-		expect(screens.navigate).toHaveBeenCalledTimes(2);
-	});
-
-	it('ignores F12 and Escape while one runs, and still toggles the overlay on F5', () => {
-		manager.transitioning = true;
+	it('ignores F12 and still toggles the overlay on F5', () => {
 		const [overlay] = (DeveloperOverlay as unknown as { instances: { shown: boolean }[] }).instances;
 		const shown = overlay.shown;
-		press('F12');
-		press('Escape');
-		press('F5');
+		send(context, [key('F12'), key('F5')]);
 
 		expect(screens.navigate).not.toHaveBeenCalled();
 		expect(overlay.shown).toBe(!shown);
-		press('F5');
+		send(context, [key('F5')]);
 	});
 });
 
-describe('the document Escape steps aside for a screen that registers its own (R9.15)', () => {
-	// Combat and driver selection put Escape on their root's hotkeys, which
-	// run through the dispatcher after an open Select or popup has had the
-	// key. This listener runs outside it, so it has to leave those screens
-	// alone or Escape on an open Select would leave the screen.
-	const manager = ScreenManager as unknown as { activeScreen: unknown; getCurrentScreenName: jest.Mock };
-	function pressEscape(): void {
-		document.body.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
-	}
-
-	function screenWithHotkey(key: string): { root: { ownHotkeys: HotkeyTable } } {
-		const table = new HotkeyTable();
-		table.register(key, () => undefined);
-		return { root: { ownHotkeys: table } };
-	}
+describe('the page hotkeys come through the platform adapter (R15.39)', () => {
+	let adapter: PointerAdapter;
 
 	beforeEach(() => {
-		manager.getCurrentScreenName.mockReturnValue('driverSelectionScreen');
+		adapter = new PointerAdapter({ dispatcher: context.dispatcher });
+		adapter.attach(document.createElement('canvas'));
 	});
 
 	afterEach(() => {
-		manager.activeScreen = null;
-		manager.getCurrentScreenName.mockReturnValue('mainMenuScreen');
+		adapter.detach();
 	});
 
-	it('goes back to the main menu from a screen without its own Escape', () => {
-		manager.activeScreen = screenWithHotkey('F1');
-		pressEscape();
+	function press(init: KeyboardEventInit): void {
+		window.dispatchEvent(new KeyboardEvent('keydown', init));
+		advance(context, 16);
+	}
 
-		expect(screens.navigate).toHaveBeenCalledWith('mainMenuScreen');
+	it('fires F12 from a real keydown', () => {
+		press({ key: 'F12' });
+
+		expect(screens.navigate).toHaveBeenCalledWith('developerScreen');
 	});
 
-	it('does nothing on a screen whose root registers Escape', () => {
-		manager.activeScreen = screenWithHotkey('Escape');
-		pressEscape();
+	it('never fires on a keydown an input method is composing', () => {
+		press({ key: 'F12', isComposing: true });
+		press({ key: 'F12', keyCode: 229 } as KeyboardEventInit);
 
 		expect(screens.navigate).not.toHaveBeenCalled();
 	});
 
-	it('does nothing on the main menu or the splash screen', () => {
-		for (const name of ['mainMenuScreen', 'splashScreen']) {
-			manager.getCurrentScreenName.mockReturnValue(name);
-			pressEscape();
-		}
+	it('has no listener of its own: a key the adapter does not see does nothing', () => {
+		adapter.detach();
+		press({ key: 'F12' });
 
 		expect(screens.navigate).not.toHaveBeenCalled();
 	});

@@ -7,7 +7,7 @@ import { ScreenManager } from './ScreenManager';
 import { Clock } from '../../engine/animation/Clock';
 import type { MountContext } from '../../engine/components/MountContext';
 import { createTestContext } from '../../engine/components/testing';
-import { advance, key, send } from '../../engine/services/testing';
+import { advance, click, key, send } from '../../engine/services/testing';
 import { tokens } from '../../engine/theme/tokens';
 import type { BattleResultData } from '../screens/battleResult/BattleResultScreen';
 import { MainMenuScreen } from '../screens/main-menu/MainMenuScreen';
@@ -34,6 +34,17 @@ beforeEach(() => {
 	ScreenManager.navigate('mainMenuScreen', undefined, { immediate: true });
 	context.frame.layout();
 });
+
+function focusOn(id: string): void {
+	context.focus.focus(ScreenManager.activeScreen?.root.findById(id) ?? null);
+}
+
+function clickOn(id: string): void {
+	const target = ScreenManager.activeScreen?.root.findById(id);
+	if (!target) throw new Error(`no ${id} on ${ScreenManager.getCurrentScreenName()}`);
+	const { x, y, width, height } = target.screenBounds;
+	click(context, x + width / 2, y + height / 2);
+}
 
 describe('ScreenManager.navigate', () => {
 	it('swaps at once when immediate, with no transition', () => {
@@ -117,7 +128,9 @@ describe('ScreenManager.navigate', () => {
 	it.each([
 		['settings', 1, 'Escape', 'main_menu_settings_button'],
 		['credits', 2, 'Enter', 'main_menu_credits_button'],
-	])('returns focus to the button that opened %s', (_screen, down, leave, opener) => {
+		['card showcase', 3, 'Escape', 'main_menu_card_showcase_button'],
+		['developer tools', 4, 'Enter', 'main_menu_developer_button'],
+	])('returns focus to the button that opened %s, with the ring a keyboard round trip shows', (_screen, down, leave, opener) => {
 		advance(context, FADE_MS * 2);
 		send(context, Array.from({ length: down }, () => key('ArrowDown')));
 		expect(context.focus.focused?.id).toBe(opener);
@@ -127,11 +140,52 @@ describe('ScreenManager.navigate', () => {
 		advance(context, FADE_MS * 2);
 		expect(ScreenManager.getCurrentScreenName()).toBe('mainMenuScreen');
 		expect(context.focus.focused?.id).toBe(opener);
+		expect(context.focus.focusVisible).toBe(true);
+	});
+
+	it('returns focus without a ring after a pointer round trip (R9.23)', () => {
+		advance(context, FADE_MS * 2);
+		clickOn('main_menu_settings_button');
+		advance(context, FADE_MS * 2);
+		expect(ScreenManager.getCurrentScreenName()).toBe('settingsScreen');
+		clickOn('settings_back_button');
+		advance(context, FADE_MS * 2);
+		expect(ScreenManager.getCurrentScreenName()).toBe('mainMenuScreen');
+		expect(context.focus.focused?.id).toBe('main_menu_settings_button');
+		expect(context.focus.focusVisible).toBe(false);
+	});
+
+	it('leaves the screen\'s own first focus when the opener can\'t take focus in the new mount', () => {
+		focusOn('main_menu_settings_button');
+		ScreenManager.navigate('settingsScreen', undefined, { immediate: true });
+		const prototype = MainMenuScreen.prototype as unknown as { onMount: () => void };
+		const onMount = prototype.onMount;
+		const disable = jest.spyOn(prototype, 'onMount').mockImplementationOnce(function (this: MainMenuScreen) {
+			onMount.call(this);
+			this.root.findById('main_menu_settings_button')?.setEnabled(false);
+		});
+		ScreenManager.navigate('mainMenuScreen', undefined, { restoreFocus: true });
+		advance(context, FADE_MS * 2);
+		expect(disable).toHaveBeenCalled();
+		expect(context.focus.focused?.id).toBe('main_menu_start_button');
+		disable.mockRestore();
+	});
+
+	it('uses a remembered focus once: a later leave it did not record restores nothing', () => {
+		focusOn('main_menu_settings_button');
+		ScreenManager.navigate('settingsScreen', undefined, { immediate: true });
+		// Back to the menu without a restore, then away again while the fade
+		// in still covers it, which the recorder skips
+		ScreenManager.navigate('mainMenuScreen');
+		advance(context, FADE_MS + 16);
+		expect(ScreenManager.transitioning).toBe(true);
+		ScreenManager.navigate('settingsScreen', undefined, { immediate: true });
+		ScreenManager.navigate('mainMenuScreen', undefined, { immediate: true, restoreFocus: true });
+		expect(context.focus.focused?.id).toBe('main_menu_start_button');
 	});
 
 	it('restores focus only when asked, and only what the screen had when left', () => {
-		const settings = ScreenManager.activeScreen?.root.findById('main_menu_settings_button') ?? null;
-		context.focus.focus(settings);
+		focusOn('main_menu_settings_button');
 		ScreenManager.navigate('settingsScreen', undefined, { immediate: true });
 		ScreenManager.navigate('mainMenuScreen', undefined, { immediate: true });
 		expect(context.focus.focused?.id).toBe('main_menu_start_button');

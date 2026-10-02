@@ -23,7 +23,8 @@ const BACK_WIDTH = 200;
  * Back. Each section is the same factory the gallery mounts as a scene,
  * stretched to the column's width, so a resize reflows the sections through
  * layout with nothing rebuilt. Focus starts on Back; Page Up and Page Down
- * scroll and Escape returns to the menu.
+ * scroll, and Escape and Back return to the menu with focus on whatever had
+ * it there, Developer Tools when the menu opened it.
  */
 export class DeveloperScreen extends Screen {
 	private readonly stack: Stack;
@@ -76,8 +77,8 @@ export class DeveloperScreen extends Screen {
 
 		const { hotkeys } = this.rootLayer;
 		hotkeys.register('Escape', () => this.back());
-		hotkeys.register('PageDown', () => this.scroller?.scrollBy(this.scroller.height));
-		hotkeys.register('PageUp', () => this.scroller?.scrollBy(-(this.scroller?.height ?? 0)));
+		hotkeys.register('PageDown', () => this.scroller?.scrollByPages(1));
+		hotkeys.register('PageUp', () => this.scroller?.scrollByPages(-1));
 		this.context.focus.focus(back);
 	}
 
@@ -89,6 +90,6 @@ export class DeveloperScreen extends Screen {
 	}
 
 	private back(): void {
-		ScreenManager.navigate('mainMenuScreen');
+		ScreenManager.navigate('mainMenuScreen', undefined, { restoreFocus: true });
 	}
 }
