@@ -69,19 +69,22 @@ export class OverlaysScene extends DeveloperSectionPanel {
 	constructor({ x, y, width }: SceneFactoryOptions) {
 		super({ id: 'gallery_scene_overlays', title: 'Overlays', contentHeight: FRAME.y + FRAME.height, x, y, width });
 
-		this.addChild(new Text('Placement against the framed bounds: preferred side, flip, shift along the edge, constrain to the room.', {
+		this.addChild(new Text({
+			text: 'Placement against the framed bounds: preferred side, flip, shift along the edge, constrain to the room.',
 			y: 50,
 			style: { fontSize: 14, color: rgba(tokens.color.text_dim) },
 		}));
 		this.addChild(this.buildPlacementFrame());
 
-		this.addChild(new Text('Live services: hover a button for its tooltip; the menu opens from its trigger.', {
+		this.addChild(new Text({
+			text: 'Live services: hover a button for its tooltip; the menu opens from its trigger.',
 			x: LIVE_X,
 			y: FRAME.y,
 			style: { fontSize: 14, color: rgba(tokens.color.text_dim) },
 		}));
 
-		this.hoverButton = new Button('Hover me', {
+		this.hoverButton = new Button({
+			label: 'Hover me',
 			id: 'overlays_hover',
 			x: LIVE_X,
 			y: BUTTON_Y,
@@ -95,7 +98,8 @@ export class OverlaysScene extends DeveloperSectionPanel {
 		});
 		this.addChild(this.hoverButton);
 
-		this.addChild(new Button('Card preview', {
+		this.addChild(new Button({
+			label: 'Card preview',
 			id: 'overlays_card',
 			x: LIVE_X + BUTTON_WIDTH + BUTTON_GAP,
 			y: BUTTON_Y,
@@ -104,7 +108,8 @@ export class OverlaysScene extends DeveloperSectionPanel {
 			tooltip: { factory: buildCardPreview },
 		}));
 
-		this.menuButton = new Button('Open menu', {
+		this.menuButton = new Button({
+			label: 'Open menu',
 			id: 'overlays_menu_trigger',
 			x: LIVE_X + (BUTTON_WIDTH + BUTTON_GAP) * 2,
 			y: BUTTON_Y,
@@ -174,7 +179,7 @@ export class OverlaysScene extends DeveloperSectionPanel {
 				style: { backgroundColor: rgba(tokens.color.data_dim), borderColor: rgba(tokens.color.data), borderWidth: 1, borderRadius: tokens.radius.r_sm },
 			});
 			const label = placed.flipped ? `flipped to ${placed.side}` : placed.constrained ? 'constrained' : placed.x !== entry.anchor.x ? 'shifted' : placed.side;
-			box.addChild(new Text(label, { x: 8, y: 8, style: { fontSize: 12, color: rgba(tokens.color.text_bright) } }));
+			box.addChild(new Text({ text: label, x: 8, y: 8, style: { fontSize: 12, color: rgba(tokens.color.text_bright) } }));
 			frame.addChild(box);
 		}
 		return frame;
@@ -195,7 +200,8 @@ function buildMenu(): Rectangle {
 		},
 	});
 	MENU_ITEMS.forEach((item, index) => {
-		menu.addChild(new Text(item, {
+		menu.addChild(new Text({
+			text: item,
 			id: `overlays_menu_${item.toLowerCase()}`,
 			x: 12,
 			y: 4 + index * MENU_ROW + 5,
@@ -218,9 +224,10 @@ function buildCardPreview(): Component {
 			borderRadius: tokens.radius.r_md,
 		},
 	});
-	card.addChild(new Text('Ram', { x: 12, y: 10, style: { fontSize: 18, fontWeight: 'bold', color: rgba(tokens.color.text_bright) } }));
+	card.addChild(new Text({ text: 'Ram', x: 12, y: 10, style: { fontSize: 18, fontWeight: 'bold', color: rgba(tokens.color.text_bright) } }));
 	card.addChild(new Rectangle({ x: 12, y: 44, width: 116, height: 80, style: { backgroundColor: rgba(tokens.color.accent_dim) } }));
-	card.addChild(new Text('Deal 6 damage to the vehicle ahead.', {
+	card.addChild(new Text({
+		text: 'Deal 6 damage to the vehicle ahead.',
 		x: 12,
 		y: 134,
 		width: 116,

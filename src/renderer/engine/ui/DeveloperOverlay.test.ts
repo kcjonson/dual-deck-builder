@@ -19,8 +19,8 @@ describe('the overlay\'s anchor (R7.11)', () => {
 	it('sits ten logical pixels in from the top-right corner of the viewport it was given', () => {
 		const developerOverlay = overlay(1440);
 
-		expect(developerOverlay.getX()).toBe(1440 - developerOverlay.getWidth() - 10);
-		expect(developerOverlay.getY()).toBe(10);
+		expect(developerOverlay.x).toBe(1440 - developerOverlay.width - 10);
+		expect(developerOverlay.y).toBe(10);
 	});
 
 	it('follows a new viewport width rather than staying where the first one put it', () => {
@@ -28,7 +28,7 @@ describe('the overlay\'s anchor (R7.11)', () => {
 		developerOverlay.viewportWidth = 900;
 
 		expect(developerOverlay.viewportWidth).toBe(900);
-		expect(developerOverlay.getX()).toBe(900 - developerOverlay.getWidth() - 10);
+		expect(developerOverlay.x).toBe(900 - developerOverlay.width - 10);
 	});
 });
 
@@ -55,7 +55,7 @@ describe('the overlay paints above every screen draw (R3.21)', () => {
 	function frame(developerOverlay: DeveloperOverlay): void {
 		const screen = new Container({ id: 'screen', width: 1440, height: 882 });
 		screen.addChild(new Rectangle({ id: 'screen_background', width: 1440, height: 882 }));
-		screen.addChild(new Text('Dual Deckbuilder', { id: 'title', x: 1000, y: 20 }));
+		screen.addChild(new Text({ text: 'Dual Deckbuilder', id: 'title', x: 1000, y: 20 }));
 
 		draw.beginFrame({ viewport: { width: 1440, height: 882 }, ratio: 1 });
 		renderTree(screen, draw);

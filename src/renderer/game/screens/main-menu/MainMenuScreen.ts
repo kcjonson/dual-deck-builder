@@ -41,7 +41,8 @@ export class MainMenuScreen extends Screen {
 	}
 
 	protected onMount(): void {
-		this.stack.addChild(new Text('Dual Deckbuilder', {
+		this.stack.addChild(new Text({
+			text: 'Dual Deckbuilder',
 			id: 'main_menu_title',
 			style: {
 				fontRole: 'display',
@@ -58,7 +59,8 @@ export class MainMenuScreen extends Screen {
 		// none, which keeps the main menu goldens stable across commits.
 		const label = formatBuildLabel({ sha: __BUILD_SHA__, number: __BUILD_NUMBER__ });
 		if (label) {
-			this.stack.addChild(new Text(label, {
+			this.stack.addChild(new Text({
+				text: label,
 				id: 'main_menu_build_label',
 				positioned: 'absolute',
 				anchor: 'bottomRight',
@@ -88,7 +90,8 @@ export class MainMenuScreen extends Screen {
 			gap: tokens.space.space_4,
 		});
 
-		this.startButton = new Button('Start Game', {
+		this.startButton = new Button({
+			label: 'Start Game',
 			id: 'main_menu_start_button',
 			tone: 'accent',
 			size: 'lg',
@@ -96,25 +99,29 @@ export class MainMenuScreen extends Screen {
 			onClick: () => ScreenManager.navigate('driverSelectionScreen'),
 		});
 		menu.addChild(this.startButton);
-		menu.addChild(new Button('Settings', {
+		menu.addChild(new Button({
+			label: 'Settings',
 			id: 'main_menu_settings_button',
 			size: 'lg',
 			block: true,
 			onClick: () => ScreenManager.navigate('settingsScreen'),
 		}));
-		menu.addChild(new Button('Credits', {
+		menu.addChild(new Button({
+			label: 'Credits',
 			id: 'main_menu_credits_button',
 			size: 'lg',
 			block: true,
 			onClick: () => ScreenManager.navigate('creditsScreen'),
 		}));
-		menu.addChild(new Button('Card Showcase', {
+		menu.addChild(new Button({
+			label: 'Card Showcase',
 			id: 'main_menu_card_showcase_button',
 			size: 'lg',
 			block: true,
 			onClick: () => ScreenManager.navigate('cardShowcaseScreen'),
 		}));
-		menu.addChild(new Button('Developer Tools', {
+		menu.addChild(new Button({
+			label: 'Developer Tools',
 			id: 'main_menu_developer_button',
 			size: 'lg',
 			block: true,
@@ -123,7 +130,8 @@ export class MainMenuScreen extends Screen {
 
 		// Only the desktop build can quit
 		if ((window as ElectronWindow).electron?.isElectron === true) {
-			menu.addChild(new Button('Exit Game', {
+			menu.addChild(new Button({
+				label: 'Exit Game',
 				id: 'main_menu_exit_button',
 				size: 'lg',
 				block: true,

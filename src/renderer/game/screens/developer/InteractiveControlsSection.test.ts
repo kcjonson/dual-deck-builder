@@ -10,7 +10,7 @@ import { InteractiveControlsSection } from './InteractiveControlsSection';
 function demoIn(section: InteractiveControlsSection): { stage: Component; rectangle: Component } {
 	const stage = section.findById('dev_controls_stage');
 	if (!stage) throw new Error('the stage should be mounted');
-	return { stage, rectangle: stage.getChildren()[0] };
+	return { stage, rectangle: stage.children[0] };
 }
 
 function expectInside(stage: Component, rectangle: Component): void {

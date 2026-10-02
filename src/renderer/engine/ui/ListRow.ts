@@ -52,7 +52,8 @@ export class ListRow extends Pressable {
 		this.selected = selected;
 		if (onClick) this.onClick = onClick;
 
-		this.label = new Text(label, {
+		this.label = new Text({
+			text: label,
 			style: { fontRole: 'body', fontSize: 'fs_base' },
 			verticalAlign: 'middle',
 			wrap: 'none',
@@ -60,7 +61,8 @@ export class ListRow extends Pressable {
 		});
 		this.addPart(this.label);
 		this.trailingText = trailing !== undefined
-			? new Text(trailing, {
+			? new Text({
+				text: trailing,
 				style: { fontRole: 'mono', fontSize: 'fs_xs', color: 'text_dim' },
 				verticalAlign: 'middle',
 				wrap: 'none',
@@ -79,15 +81,15 @@ export class ListRow extends Pressable {
 	}
 
 	public get labelText(): string {
-		return this.label.getText();
+		return this.label.text;
 	}
 
 	public set labelText(text: string) {
-		this.label.setText(text);
+		this.label.text = text;
 	}
 
 	public get trailing(): string | null {
-		return this.trailingText?.getText() ?? null;
+		return this.trailingText?.text ?? null;
 	}
 
 	public get dim(): boolean {
@@ -166,7 +168,7 @@ export class ListRow extends Pressable {
 	}
 
 	private followLook(look: Look): void {
-		this.label.setColor([...look.text] as [number, number, number, number]);
+		this.label.color = [...look.text] as [number, number, number, number];
 	}
 
 	/**
@@ -179,7 +181,7 @@ export class ListRow extends Pressable {
 		let right = this.width - inset;
 		const trailing = this.trailingText;
 		if (trailing) {
-			trailing.setHeight(this.height);
+			trailing.height = this.height;
 			trailing.setPosition(right - trailing.width, 0);
 			right -= trailing.width + inset;
 		}

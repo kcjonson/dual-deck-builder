@@ -59,7 +59,8 @@ export class BattleResultScreen extends Screen {
 			gap: tokens.space.space_4,
 			style: { padding: 'space_12' },
 		});
-		panel.addChild(new Text(victory ? 'VICTORY!' : 'DEFEAT!', {
+		panel.addChild(new Text({
+			text: victory ? 'VICTORY!' : 'DEFEAT!',
 			id: 'result_title',
 			style: {
 				fontRole: 'display',
@@ -69,7 +70,8 @@ export class BattleResultScreen extends Screen {
 			},
 			wrap: 'none',
 		}));
-		panel.addChild(new Text(victory ? 'All enemies have been defeated!' : 'Your vehicles have been destroyed!', {
+		panel.addChild(new Text({
+			text: victory ? 'All enemies have been defeated!' : 'Your vehicles have been destroyed!',
 			id: 'result_subtitle',
 			style: {
 				fontSize: 'fs_lg',
@@ -79,7 +81,8 @@ export class BattleResultScreen extends Screen {
 			wrap: 'none',
 		}));
 
-		const continueButton = new Button('Continue', {
+		const continueButton = new Button({
+			label: 'Continue',
 			id: 'result_continue_button',
 			tone: 'accent',
 			size: 'lg',

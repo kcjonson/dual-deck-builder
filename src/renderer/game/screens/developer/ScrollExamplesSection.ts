@@ -30,7 +30,7 @@ function listRow(index: number): Component {
 		padding: { left: 8 },
 		style: { backgroundColor: index % 2 === 0 ? 'bg_panel' : 'bg_inset' },
 	});
-	row.addChild(new Text(`Salvage lot ${index + 1}`, { style: { fontSize: tokens.fontSize.fs_base, color: rgba('text') } }));
+	row.addChild(new Text({ text: `Salvage lot ${index + 1}`, style: { fontSize: tokens.fontSize.fs_base, color: rgba('text') } }));
 	return row;
 }
 
@@ -67,7 +67,7 @@ export class ScrollExamplesSection extends DeveloperSectionPanel {
 
 		const outer = new ScrollContainer({ id: 'dev_scroll_outer', width: 240, height: VIEW_HEIGHT, style: { borderWidth: 1, borderColor: 'line_edge', padding: 8 } });
 		const outerColumn = new Stack({ gap: 8 });
-		outerColumn.addChild(new Text('Outer: wheel here scrolls the page of lots.', { widthMode: 'fill', style: { fontSize: tokens.fontSize.fs_sm, color: rgba('text_dim') } }));
+		outerColumn.addChild(new Text({ text: 'Outer: wheel here scrolls the page of lots.', widthMode: 'fill', style: { fontSize: tokens.fontSize.fs_sm, color: rgba('text_dim') } }));
 		const inner = new ScrollContainer({ id: 'dev_scroll_inner', width: 200, height: 120, style: { borderWidth: 1, borderColor: 'accent_dim' } });
 		inner.addChild(list(8));
 		outerColumn.addChild(inner);
@@ -81,7 +81,7 @@ export class ScrollExamplesSection extends DeveloperSectionPanel {
 
 	private cell(text: string, view: Component): Stack {
 		const cell = new Stack({ gap: CAPTION_GAP });
-		cell.addChild(new Text(text, { style: { fontSize: 13, color: rgba('text_dim') } }));
+		cell.addChild(new Text({ text, style: { fontSize: 13, color: rgba('text_dim') } }));
 		cell.addChild(view);
 		return cell;
 	}
@@ -92,11 +92,11 @@ export class ScrollExamplesSection extends DeveloperSectionPanel {
 	 */
 	private strip(): Stack {
 		const column = new Stack({ gap: tokens.space.space_2 });
-		const readout = new Text('offset 390 of 780', { id: 'dev_strip_offset', style: { fontSize: tokens.fontSize.fs_sm, fontRole: 'mono', color: rgba('text') } });
+		const readout = new Text({ text: 'offset 390 of 780', id: 'dev_strip_offset', style: { fontSize: tokens.fontSize.fs_sm, fontRole: 'mono', color: rgba('text') } });
 		const bar = new Scrollbar({ id: 'dev_strip_bar', orientation: 'horizontal', width: STRIP_VIEW, range: { offset: 390, extent: STRIP_EXTENT, viewport: STRIP_VIEW } });
 		bar.onScroll = (offset) => {
 			bar.range = { offset, extent: STRIP_EXTENT, viewport: STRIP_VIEW };
-			readout.setText(`offset ${Math.round(offset)} of ${STRIP_EXTENT - STRIP_VIEW}`);
+			readout.text = `offset ${Math.round(offset)} of ${STRIP_EXTENT - STRIP_VIEW}`;
 		};
 		column.addChild(bar);
 		column.addChild(readout);

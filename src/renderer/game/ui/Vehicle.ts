@@ -12,13 +12,14 @@ import { resolveFontRole } from '../../engine/text/fontRoles';
 import { tokens } from '../../engine/theme/tokens';
 import { ArmorBadge } from './ArmorBadge';
 
-export interface VehicleOptions extends ComponentOptions {
+export interface VehicleOptions extends Omit<ComponentOptions, 'onClick'> {
 	x: number;
 	y: number;
 	width: number;
 	height: number;
 	vehicleData: VehicleData;
 	combatData?: CombatModel;
+	/** Choosing the vehicle as a target, with its data; not the component's own `onClick`. */
 	onClick?: (vehicle: VehicleData) => void;
 }
 
@@ -82,18 +83,18 @@ export class Vehicle extends Component {
 
 	private modelUnsubscribers: (() => void)[] = [];
 
-	constructor(args: VehicleOptions) {
+	constructor({ onClick, ...args }: VehicleOptions) {
 		super(args);
 		this.componentType = 'Vehicle';
 		this.vehicleData = args.vehicleData;
 		this.combatData = args.combatData || null;
-		this.onClickCallback = args.onClick || null;
+		this.onClickCallback = onClick || null;
 
-		this.portraitBorder.color = resolveColor(this.getBorderColor());
+		this.portraitBorder.color = resolveColor(this.borderColor);
 		this.portraitDraw = {
 			id: this.id ?? undefined,
 			rect: emptyRect(),
-			fill: resolveColor(this.getPortraitColor()),
+			fill: resolveColor(this.portraitColor),
 			border: this.portraitBorder,
 		};
 
@@ -108,7 +109,8 @@ export class Vehicle extends Component {
 		});
 		this.addChild(this.driverPortrait);
 
-		this.driverNameText = new Text('', {
+		this.driverNameText = new Text({
+			text: '',
 			id: this.childId('driver_name'),
 			style: {
 				fontSize: TEXT_SIZE,
@@ -121,7 +123,8 @@ export class Vehicle extends Component {
 		});
 		this.addChild(this.driverNameText);
 
-		this.driverHpText = new Text('', {
+		this.driverHpText = new Text({
+			text: '',
 			id: this.childId('driver_hp'),
 			style: {
 				fontSize: TEXT_SIZE,
@@ -133,7 +136,8 @@ export class Vehicle extends Component {
 		this.addChild(this.driverHpText);
 
 		// Just the vehicle's name; the driver's is on its own row
-		this.nameText = new Text('', {
+		this.nameText = new Text({
+			text: '',
 			id: this.childId('name'),
 			style: {
 				fontSize: TEXT_SIZE,
@@ -147,7 +151,8 @@ export class Vehicle extends Component {
 		});
 		this.addChild(this.nameText);
 
-		this.healthText = new Text('', {
+		this.healthText = new Text({
+			text: '',
 			id: this.childId('structure_value'),
 			style: {
 				fontSize: TEXT_SIZE,
@@ -167,7 +172,8 @@ export class Vehicle extends Component {
 		});
 		this.addChild(this.armorBadge);
 
-		this.spentChip = new Text('SPENT', {
+		this.spentChip = new Text({
+			text: 'SPENT',
 			id: this.childId('spent_chip'),
 			style: {
 				fontSize: TEXT_SIZE,
@@ -222,14 +228,14 @@ export class Vehicle extends Component {
 	 * additions after calling this.
 	 */
 	protected placeElements(): void {
-		const width = this.getWidth();
-		const height = this.getHeight();
+		const width = this.width;
+		const height = this.height;
 		const contentWidth = width - INSET_X * 2;
 
 		// From the bottom: the armor row, the structure row over it, and the
 		// portrait takes what is left
 		const badgeY = height - ROW_GAP - BADGE_HEIGHT;
-		const structureHeight = Math.max(STRUCTURE_BAR_HEIGHT, Math.ceil(this.healthText.getHeight()));
+		const structureHeight = Math.max(STRUCTURE_BAR_HEIGHT, Math.ceil(this.healthText.height));
 		const structureY = badgeY - ROW_GAP - structureHeight;
 		const portrait = this.portraitDraw.rect;
 		portrait.width = width;
@@ -240,12 +246,12 @@ export class Vehicle extends Component {
 		this.driverPortrait.setPosition(INSET_X, INSET_Y);
 		this.driverPortrait.setSize(driverPortraitSize, driverPortraitSize);
 		const driverNameX = INSET_X + driverPortraitSize + GAP;
-		this.driverNameText.setWidth(width - INSET_X - driverNameX);
-		this.driverNameText.setPosition(driverNameX, INSET_Y + Math.round((driverPortraitSize - this.driverNameText.getHeight()) / 2));
+		this.driverNameText.width = width - INSET_X - driverNameX;
+		this.driverNameText.setPosition(driverNameX, INSET_Y + Math.round((driverPortraitSize - this.driverNameText.height) / 2));
 		this.driverHpText.setPosition(INSET_X, INSET_Y + driverPortraitSize + ROW_GAP);
 
-		this.nameText.setWidth(contentWidth);
-		this.nameText.setPosition(INSET_X, Math.floor(portrait.height - INSET_Y - this.nameText.getHeight()));
+		this.nameText.width = contentWidth;
+		this.nameText.setPosition(INSET_X, Math.floor(portrait.height - INSET_Y - this.nameText.height));
 
 		// The value right-aligned beside the track, in a column as wide as the
 		// full value, so the track keeps its width as the structure falls
@@ -256,17 +262,17 @@ export class Vehicle extends Component {
 		track.width = contentWidth - (valueWidth > 0 ? valueWidth + GAP : 0);
 		track.height = STRUCTURE_BAR_HEIGHT;
 		this.placeHealthFill();
-		this.healthText.setWidth(valueWidth);
-		this.healthText.setPosition(width - INSET_X - valueWidth, track.y + (STRUCTURE_BAR_HEIGHT - this.healthText.getHeight()) / 2);
+		this.healthText.width = valueWidth;
+		this.healthText.setPosition(width - INSET_X - valueWidth, track.y + (STRUCTURE_BAR_HEIGHT - this.healthText.height) / 2);
 
 		this.armorBadge.setPosition(INSET_X, badgeY);
 		this.armorBadge.minWidth = Math.floor(width * 0.25);
 
 		// Right edge at the inset, from the chip's measured width
-		this.spentChip.setPosition(width - INSET_X - this.spentChip.getWidth(), INSET_Y);
+		this.spentChip.setPosition(width - INSET_X - this.spentChip.width, INSET_Y);
 
 		this.statusContainer.setPosition(Math.floor(width * 0.4), badgeY);
-		this.statusContainer.setWidth(Math.floor(width * 0.5));
+		this.statusContainer.width = Math.floor(width * 0.5);
 	}
 
 	/**
@@ -297,7 +303,7 @@ export class Vehicle extends Component {
 
 	/** The portrait panel is the plate's fill and border (R13.22). */
 	public get resolvedColors(): ResolvedColors {
-		return { fill: this.portraitDraw.fill ?? resolveColor(this.getPortraitColor()), border: this.portraitBorder.color };
+		return { fill: this.portraitDraw.fill ?? resolveColor(this.portraitColor), border: this.portraitBorder.color };
 	}
 
 	/** The portrait panel and the structure track, in the plate's own space. */
@@ -314,26 +320,26 @@ export class Vehicle extends Component {
 	 */
 	protected updateVisuals(): void {
 		const data = this.vehicleData;
-		this.nameText.setText(data.name);
+		this.nameText.text = data.name;
 
 		const driver = data.driver;
-		this.driverPortrait.setVisible(Boolean(driver));
-		this.driverNameText.setVisible(Boolean(driver));
-		this.driverHpText.setVisible(Boolean(driver));
+		this.driverPortrait.visible = Boolean(driver);
+		this.driverNameText.visible = Boolean(driver);
+		this.driverHpText.visible = Boolean(driver);
 		if (driver) {
-			this.driverNameText.setText(driver.metadata.name);
-			this.driverHpText.setText(`HP: ${driver.hitpoints}/${driver.maxHitpoints}`);
+			this.driverNameText.text = driver.metadata.name;
+			this.driverHpText.text = `HP: ${driver.hitpoints}/${driver.maxHitpoints}`;
 		}
 
 		this.placeHealthFill();
-		this.healthText.setText(`${data.structure}/${data.maxStructure}`);
+		this.healthText.text = `${data.structure}/${data.maxStructure}`;
 
 		// Shield is temporary armor on top
 		this.armorBadge.armor = data.armor;
 		this.armorBadge.shield = data.shield ?? 0;
 
 		// An escort shows SPENT once it has acted this turn
-		this.spentChip.setVisible(Boolean(data.isEscort && data.spent));
+		this.spentChip.visible = Boolean(data.isEscort && data.spent);
 	}
 
 	/**
@@ -348,14 +354,14 @@ export class Vehicle extends Component {
 	/**
 	 * Get portrait background color - can be overridden
 	 */
-	protected getPortraitColor(): string {
+	protected get portraitColor(): string {
 		return '#5a4a3a';
 	}
 
 	/**
 	 * Get border color - can be overridden
 	 */
-	protected getBorderColor(): string {
+	protected get borderColor(): string {
 		return '#7a6a5a';
 	}
 
@@ -525,24 +531,24 @@ export class Vehicle extends Component {
 		this.focusable = targeting && this.onClickCallback !== null && this.isTargetable();
 
 		// Non-targetable vehicles get dimmed colors
-		this.portraitDraw.fill = resolveColor(!targetable && targeting ? '#3a3a3a' : this.getPortraitColor());
+		this.portraitDraw.fill = resolveColor(!targetable && targeting ? '#3a3a3a' : this.portraitColor);
 
 		if (focused && targetable) {
 			this.portraitBorder.width = 4;
-			this.portraitBorder.color = resolveColor(this.getFocusedBorderColor());
+			this.portraitBorder.color = resolveColor(this.focusedBorderColor);
 		} else if (this.hovered && targetable) {
 			this.portraitBorder.width = 4;
-			this.portraitBorder.color = resolveColor(this.getBorderColor());
+			this.portraitBorder.color = resolveColor(this.borderColor);
 		} else {
 			this.portraitBorder.width = 3;
-			this.portraitBorder.color = resolveColor(this.getBorderColor());
+			this.portraitBorder.color = resolveColor(this.borderColor);
 		}
 	}
 
 	/**
 	 * Get border color for focused state - can be overridden
 	 */
-	protected getFocusedBorderColor(): string {
+	protected get focusedBorderColor(): string {
 		return '#88ff88'; // Default green for focused targets
 	}
 }

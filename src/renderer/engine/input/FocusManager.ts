@@ -550,14 +550,14 @@ function buildIndex(roots: readonly Component[]): ScopeIndex {
 	const walk = (node: Component, inGroup: boolean): void => {
 		if (node.focusGroup) {
 			if (!inGroup && node.tabIndex >= 0) (node.tabIndex > 0 ? positive : ordinary).push(node);
-			for (const child of node.getChildren()) walk(child, true);
+			for (const child of node.children) walk(child, true);
 			return;
 		}
 		if (node.focusable && node.tabIndex >= 0) {
 			all.push(node);
 			if (!inGroup) (node.tabIndex > 0 ? positive : ordinary).push(node);
 		}
-		for (const child of node.getChildren()) walk(child, inGroup);
+		for (const child of node.children) walk(child, inGroup);
 	};
 	for (const root of roots) walk(root, false);
 
@@ -570,7 +570,7 @@ function buildIndex(roots: readonly Component[]): ScopeIndex {
 export function groupMembers(group: Component): Component[] {
 	const members: Component[] = [];
 	const walk = (node: Component): void => {
-		for (const child of node.getChildren()) {
+		for (const child of node.children) {
 			if (child.focusGroup) continue;
 			if (child.focusable) members.push(child);
 			walk(child);

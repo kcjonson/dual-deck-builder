@@ -76,8 +76,8 @@ const UNFANNED: FanPose = Object.freeze({ rotate: 0, drop: 0, order: 0 });
  * selected, disabled, pressed) comes from the framework's flags.
  */
 export class Card extends Component {
-	private data: GameCard;
-	private size: CardSize;
+	private model: GameCard;
+	private cardSize: CardSize;
 	private name: Text;
 	private cost: Text;
 	/** Where the cost's digits are centred, and where the title starts and stops short of them. */
@@ -113,8 +113,8 @@ export class Card extends Component {
 	};
 
 	// Event callbacks
-	private clickHandler: ((card: GameCard) => void) | null = null;
-	private selectHandler: ((card: GameCard) => void) | null = null;
+	/** A click or `activate` on the card, with the card it shows (R8.25). */
+	public onSelect: ((card: GameCard) => void) | null = null;
 
 	constructor({ id, x, y, data, size = CardSize.NORMAL, driverNumber, fullText = false }: {
 		id?: string;
@@ -136,8 +136,8 @@ export class Card extends Component {
 		});
 		this.componentType = 'Card';
 
-		this.data = data;
-		this.size = size;
+		this.model = data;
+		this.cardSize = size;
 		this.driverNumber = driverNumber || null;
 
 		// The rarity rim, with the face inset inside it
@@ -168,7 +168,8 @@ export class Card extends Component {
 		const titleSize = Math.floor(14 * scaleFactor);
 
 		// Cost: hugs its digits, centred 30 px in from the right edge
-		this.cost = new Text(`${data.cost}`, {
+		this.cost = new Text({
+			text: `${data.cost}`,
 			id: this.childId('cost'),
 			y: headerY,
 			style: {
@@ -186,7 +187,8 @@ export class Card extends Component {
 		// line rather than under it, and a name that needs a third is cut with
 		// an ellipsis. Two line boxes end above the description. Both are
 		// placed by placeHeader once the cost has measured.
-		this.name = new Text(data.displayName, {
+		this.name = new Text({
+			text: data.displayName,
 			id: this.childId('title'),
 			x: titleX,
 			y: headerY,
@@ -211,7 +213,8 @@ export class Card extends Component {
 			// with DDB-137, plain until then. The box ends above the rarity line
 			// and the ellipsis is only a backstop: no summary reaches it.
 			const descriptionY = Math.floor(60 * scaleFactor);
-			this.description = new Text(fullText ? data.displayDescription : Card.faceText(data.displaySummary), {
+			this.description = new Text({
+				text: fullText ? data.displayDescription : Card.faceText(data.displaySummary),
 				id: this.childId('description'),
 				x: padding,
 				y: descriptionY,
@@ -229,7 +232,8 @@ export class Card extends Component {
 
 		// Rarity - only show on normal and large cards
 		if (size !== CardSize.MINI) {
-			this.rarity = new Text(data.rarity.toUpperCase(), {
+			this.rarity = new Text({
+				text: data.rarity.toUpperCase(),
 				id: this.childId('rarity'),
 				x: padding,
 				y: dimensions.height - Math.floor(60 * scaleFactor),
@@ -243,7 +247,8 @@ export class Card extends Component {
 
 			// Tags
 			const tagsStr = data.tags.join(', ');
-			this.tags = new Text(tagsStr, {
+			this.tags = new Text({
+				text: tagsStr,
 				id: this.childId('tags'),
 				x: padding,
 				y: dimensions.height - Math.floor(35 * scaleFactor),
@@ -258,7 +263,8 @@ export class Card extends Component {
 			this.addChild(this.tags);
 
 			// Target type
-			const targetText = new Text(data.targetType, {
+			const targetText = new Text({
+				text: data.targetType,
 				id: this.childId('target_type'),
 				x: padding,
 				y: dimensions.height - Math.floor(20 * scaleFactor),
@@ -280,7 +286,8 @@ export class Card extends Component {
 			};
 
 			// Centred in the badge
-			this.driverIndicator = new Text(`D${this.driverNumber}`, {
+			this.driverIndicator = new Text({
+				text: `D${this.driverNumber}`,
 				id: this.childId('driver_badge'),
 				x: badgeX,
 				y: badgeX,
@@ -315,8 +322,8 @@ export class Card extends Component {
 	 * (R1.6, R8.18).
 	 */
 	private placeHeader(): void {
-		this.cost.setX(this.costCentre - this.cost.getWidth() / 2);
-		this.name.setWidth(Math.floor(this.cost.getX() - this.titleGap - this.titleX));
+		this.cost.x = this.costCentre - this.cost.width / 2;
+		this.name.width = Math.floor(this.cost.x - this.titleGap - this.titleX);
 	}
 
 	protected layoutChildren(): void {
@@ -364,42 +371,9 @@ export class Card extends Component {
 		}
 	}
 
-	/** A click, as the two semantic callbacks. */
+	/** A click, as the select callback. */
 	private activate(): void {
-		if (this.clickHandler) {
-			this.clickHandler(this.data);
-		}
-		if (this.selectHandler) {
-			this.selectHandler(this.data);
-		}
-	}
-
-	/**
-	 * Set click handler (legacy - prefer semantic handlers)
-	 */
-	public setOnClick(handler: (card: GameCard) => void): void {
-		this.clickHandler = handler;
-	}
-
-	/**
-	 * Set semantic event handlers
-	 */
-	public setOnSelect(handler: (card: GameCard) => void): void {
-		this.selectHandler = handler;
-	}
-
-	/**
-	 * Set selected state
-	 */
-	public setSelected(selected: boolean): void {
-		this.selected = selected;
-	}
-
-	/**
-	 * Get selected state
-	 */
-	public isSelected(): boolean {
-		return this.selected;
+		this.onSelect?.(this.model);
 	}
 
 	/**
@@ -563,11 +537,9 @@ export class Card extends Component {
 		return RARITY_COLORS[rarity];
 	}
 
-	/**
-	 * Get the card data
-	 */
-	public getData(): GameCard {
-		return this.data;
+	/** The card this shows. */
+	public get data(): GameCard {
+		return this.model;
 	}
 
 	/**
@@ -577,31 +549,21 @@ export class Card extends Component {
 		return CARD_DIMENSIONS[size];
 	}
 	
-	/**
-	 * Get the current size of this card
-	 */
-	public getSize(): CardSize {
-		return this.size;
+	/** The size variant this card was built at. */
+	public get size(): CardSize {
+		return this.cardSize;
 	}
 	
-	/**
-	 * Set driver number and update indicator
-	 */
-	public setDriverNumber(driverNumber: 1 | 2 | null): void {
-		if (this.driverNumber === driverNumber) return;
-		
-		this.driverNumber = driverNumber;
-		
-		// Update visual indicator if needed
-		if (this.driverIndicator) {
-			this.driverIndicator.setText(driverNumber ? `D${driverNumber}` : '');
-		}
-	}
-	
-	/**
-	 * Get driver number
-	 */
+	/** The driver seat the badge shows; null for none. */
 	public get driver(): 1 | 2 | null {
 		return this.driverNumber;
+	}
+
+	public set driver(driverNumber: 1 | 2 | null) {
+		if (this.driverNumber === driverNumber) return;
+		this.driverNumber = driverNumber;
+		if (this.driverIndicator) {
+			this.driverIndicator.text = driverNumber ? `D${driverNumber}` : '';
+		}
 	}
 }

@@ -84,7 +84,7 @@ export class IntentMarker extends Component {
 			x: (size - iconSize) / 2,
 			y: (size - iconSize) / 2,
 		});
-		this.setVisible(false);
+		this.visible = false;
 	}
 
 	get intent(): EnemyIntent | null {
@@ -93,7 +93,7 @@ export class IntentMarker extends Component {
 
 	set intent(intent: EnemyIntent | null) {
 		this.current = intent;
-		this.setVisible(intent !== null);
+		this.visible = intent !== null;
 		const glyph = intent ? ICONS[intent.type] : undefined;
 		if (glyph) this.icon.glyph = glyph;
 		this.tooltip = intent && intent.type !== 'overflow' ? { title: intent.description, description: intent.detail } : null;

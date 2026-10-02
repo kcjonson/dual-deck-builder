@@ -4,7 +4,7 @@ import { Container } from './Container';
 import type { MountContext } from './MountContext';
 import { Rectangle } from './Rectangle';
 import { Stack } from './Stack';
-import { Text } from './Text';
+import { Text, TextOptions } from './Text';
 import { createTestContext } from './testing';
 
 /**
@@ -29,8 +29,8 @@ function body(text: string, maxWidth?: number): ReturnType<typeof layoutText> {
 	});
 }
 
-function label(text: string, style: ConstructorParameters<typeof Text>[1] = {}): Text {
-	return new Text(text, { ...style, style: { fontSize: 16, ...style.style } });
+function label(text: string, style: TextOptions = {}): Text {
+	return new Text({ text, ...style, style: { fontSize: 16, ...style.style } });
 }
 
 function layOut(root: Container, context: MountContext): void {
@@ -156,7 +156,7 @@ describe('Text in a stack (R10.7, R10.13)', () => {
 		layOut(outer, context);
 		const before = inner.width;
 
-		text.setText('Hull integrity critical');
+		text.text = 'Hull integrity critical';
 		layOut(outer, context);
 
 		expect(inner.width).toBeCloseTo(body('Hull integrity critical').width + 8, 5);
@@ -179,7 +179,7 @@ describe('Text in a stack (R10.7, R10.13)', () => {
 		const panelPass = jest.spyOn(panel as unknown as { layoutChildren(): void }, 'layoutChildren');
 		const rowPass = jest.spyOn(row as unknown as { layoutChildren(): void }, 'layoutChildren');
 
-		text.setText('Fuel reserves');
+		text.text = 'Fuel reserves';
 		layOut(screen, context);
 
 		expect(rowPass).toHaveBeenCalledTimes(1);
@@ -193,7 +193,7 @@ describe('Text in a stack (R10.7, R10.13)', () => {
 		const text = label(SENTENCE, { width: 200 });
 		text.mount(context);
 		text.width = 60;
-		text.setText('Convoy rolling');
+		text.text = 'Convoy rolling';
 
 		expect(text.width).toBe(60);
 		expect(text.widthMode).toBe('fixed');

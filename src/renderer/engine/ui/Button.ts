@@ -27,6 +27,8 @@ import { Pressable } from './Pressable';
 export type IconPosition = 'left' | 'right' | 'only';
 
 export interface ButtonOptions extends Omit<ComponentOptions, 'style'> {
+	/** The label. Default empty; with `iconPosition: 'only'` it names the button without being drawn. */
+	label?: string;
 	/** R12.7's icon, drawn beside the label as `iconPosition` says; the pair is centred together. */
 	icon?: IconName;
 	/** Default `left`. With `only` the label is kept (it names the button) but not drawn. */
@@ -103,7 +105,8 @@ export class Button extends Pressable {
 	/** Height comes from `size` until the caller gives one (R11.10). */
 	private heightFollowsSize: boolean;
 
-	constructor(label = '', {
+	constructor({
+		label = '',
 		icon,
 		iconPosition = 'left',
 		ghost = false,
@@ -137,7 +140,8 @@ export class Button extends Pressable {
 		this.padding = this.resolvePadding();
 		if (style.opacity !== undefined) this.opacity = style.opacity;
 
-		this.text = new Text(label, {
+		this.text = new Text({
+			text: label,
 			style: this.labelStyle(),
 			verticalAlign: 'middle',
 			wrap: 'none',
@@ -255,17 +259,13 @@ export class Button extends Pressable {
 		this.transition.moveTo(this.targetLook, this.context?.animator ?? null);
 	}
 
-	/**
-	 * Set the button's label text
-	 * @param text Button label text
-	 */
-	public setLabel(text: string): this {
-		this.text.setText(text);
-		return this;
+	/** The button's label text. */
+	public get label(): string {
+		return this.text.text;
 	}
 
-	public getLabel(): string {
-		return this.text.getText();
+	public set label(text: string) {
+		this.text.text = text;
 	}
 
 	/** From here the height is the caller's, and a new `size` leaves it alone. */
@@ -342,7 +342,7 @@ export class Button extends Pressable {
 
 	/** The label and icon take the look's text colour and follow the pressed nudge. */
 	private followLook(look: Look): void {
-		this.text.setColor([...look.text] as [number, number, number, number]);
+		this.text.color = [...look.text] as [number, number, number, number];
 		if (this.icon) this.icon.tint = look.text;
 		const nudge = look.offsetY;
 		if (this.text.transform.translate[1] !== nudge) {
@@ -370,7 +370,7 @@ export class Button extends Pressable {
 		} else {
 			const labelWidth = this.text.measured?.width;
 			if (icon && labelWidth !== undefined) {
-				const gap = Math.round(this.text.getFontSize() * ICON_GAP);
+				const gap = Math.round(this.text.fontSize * ICON_GAP);
 				const groupLeft = (this.width - (icon.size + gap + labelWidth)) / 2;
 				const iconX = this.iconSide === 'left' ? groupLeft : groupLeft + labelWidth + gap;
 				icon.setPosition(Math.round(iconX), iconY);

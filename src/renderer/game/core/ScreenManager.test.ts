@@ -162,7 +162,8 @@ describe('ScreenManager.navigate', () => {
 		const onMount = prototype.onMount;
 		const disable = jest.spyOn(prototype, 'onMount').mockImplementationOnce(function (this: MainMenuScreen) {
 			onMount.call(this);
-			this.root.findById('main_menu_settings_button')?.setEnabled(false);
+			const settings = this.root.findById('main_menu_settings_button');
+			if (settings) settings.enabled = false;
 		});
 		ScreenManager.navigate('mainMenuScreen', undefined, { restoreFocus: true });
 		advance(context, FADE_MS * 2);

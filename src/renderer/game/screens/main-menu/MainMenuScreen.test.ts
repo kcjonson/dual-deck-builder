@@ -49,22 +49,22 @@ describe('MainMenuScreen', () => {
 	it('centres the column in the viewport and follows a resize with no screen code', () => {
 		const menu = screen.root.findById('main_menu_buttons');
 		if (!menu) throw new Error('the menu should be mounted');
-		expect(screen.root.getWidth()).toBe(1280);
-		expect(menu.getX()).toBe((1280 - menu.getWidth()) / 2);
+		expect(screen.root.width).toBe(1280);
+		expect(menu.x).toBe((1280 - menu.width) / 2);
 
 		viewport.logical = { width: 1024, height: 600 };
 		context.frame.viewportChanged();
 		context.frame.layout();
-		expect(screen.root.getHeight()).toBe(600);
-		expect(menu.getX()).toBe((1024 - menu.getWidth()) / 2);
-		expect(menu.getY()).toBeGreaterThanOrEqual(0);
-		expect(menu.getY() + menu.getHeight()).toBeLessThanOrEqual(600);
+		expect(screen.root.height).toBe(600);
+		expect(menu.x).toBe((1024 - menu.width) / 2);
+		expect(menu.y).toBeGreaterThanOrEqual(0);
+		expect(menu.y + menu.height).toBeLessThanOrEqual(600);
 	});
 
 	it('builds nothing twice across a remount', () => {
 		screen.unmount();
 		screen.mount(context);
-		expect(screen.root.getChildren().filter((child) => child.id === 'main_menu_buttons')).toHaveLength(1);
+		expect(screen.root.children.filter((child) => child.id === 'main_menu_buttons')).toHaveLength(1);
 		expect(context.focus.focused?.id).toBe('main_menu_start_button');
 	});
 });

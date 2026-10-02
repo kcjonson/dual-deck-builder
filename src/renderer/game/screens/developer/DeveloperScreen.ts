@@ -45,7 +45,8 @@ export class DeveloperScreen extends Screen {
 	}
 
 	protected onMount(): void {
-		this.stack.addChild(new Text('Developer Tools', {
+		this.stack.addChild(new Text({
+			text: 'Developer Tools',
 			id: 'dev_title',
 			style: {
 				fontRole: 'display',
@@ -69,7 +70,8 @@ export class DeveloperScreen extends Screen {
 		this.scroller.addChild(column);
 		this.stack.addChild(this.scroller);
 
-		const back = new Button('Back to Menu', {
+		const back = new Button({
+			label: 'Back to Menu',
 			id: 'dev_back_button',
 			icon: 'arrow_back',
 			size: 'lg',

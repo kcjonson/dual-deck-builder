@@ -33,7 +33,7 @@ function findById(root: Component, id: string): Component | null {
 }
 
 function findByType(root: Component, type: string): Component | null {
-	if (root.getComponentType() === type) return root;
+	if (root.componentType === type) return root;
 	for (const child of root.debugChildren) {
 		const found = findByType(child, type);
 		if (found) return found;
@@ -48,9 +48,9 @@ function findByType(root: Component, type: string): Component | null {
 function interactiveScene(name: string, { x = 0, y = 0, width = 0 }: SceneFactoryOptions): Panel {
 	const panel = new Panel({ id: `scene_${name}`, width, height: 10, layout: 'free', flush: true });
 	panel.setPosition(x, y);
-	panel.addChild(new Button('press me', { id: `${name}_button`, width: 120, height: 40 }));
+	panel.addChild(new Button({ label: 'press me', id: `${name}_button`, width: 120, height: 40 }));
 	panel.addChild(new TextInput({ placeholder: 'type here', id: `${name}_input`, width: 200, height: 40 }));
-	panel.addChild(new Text('unsized label', { id: `${name}_label` }));
+	panel.addChild(new Text({ text: 'unsized label', id: `${name}_label` }));
 	panel.setSize(width, 260);
 	return panel;
 }
@@ -93,7 +93,7 @@ describe('mounting', () => {
 		const host = makeHost(interactiveScenes);
 		expect(host.mount('beta')).toBe(true);
 		expect(host.sceneName).toBe('beta');
-		expect(host.root.getChildren()).toHaveLength(1);
+		expect(host.root.children).toHaveLength(1);
 	});
 
 	it('rejects an unknown name and leaves the mounted scene alone', () => {
@@ -101,7 +101,7 @@ describe('mounting', () => {
 		host.mount('alpha');
 		expect(host.mount('gamma')).toBe(false);
 		expect(host.sceneName).toBe('alpha');
-		expect(host.root.getChildren()).toHaveLength(1);
+		expect(host.root.children).toHaveLength(1);
 	});
 
 	// The height exists only once the constructor has run, so the host reads it
@@ -125,8 +125,8 @@ describe('mounting', () => {
 
 		const label = findById(host.root, 'alpha_label');
 		expect(label).not.toBeNull();
-		expect(label?.getWidth()).toBeGreaterThan(0);
-		expect(label?.getHeight()).toBeGreaterThan(0);
+		expect(label?.width).toBeGreaterThan(0);
+		expect(label?.height).toBeGreaterThan(0);
 	});
 });
 
@@ -155,7 +155,7 @@ describe('switching scenes', () => {
 		expect(hitInScene()).toBeNull();
 		expect(input?.isMounted).toBe(false);
 		expect(host.sceneName).toBeNull();
-		expect(host.root.getChildren()).toHaveLength(0);
+		expect(host.root.children).toHaveLength(0);
 	});
 
 	it('clears focus so a switched-away input does not keep the keyboard', () => {
@@ -175,12 +175,12 @@ describe('switching scenes', () => {
 		expect(host.reload()).toBe(false);
 
 		host.mount('alpha');
-		const before = host.root.getChildren()[0];
+		const before = host.root.children[0];
 		const hitBefore = hitInScene();
 
 		expect(host.reload()).toBe(true);
 		expect(host.sceneName).toBe('alpha');
-		expect(host.root.getChildren()[0]).not.toBe(before);
+		expect(host.root.children[0]).not.toBe(before);
 		expect(before.isMounted).toBe(false);
 		expect(hitInScene()?.id).toBe('alpha_input');
 		expect(hitInScene()).not.toBe(hitBefore);
@@ -203,7 +203,7 @@ describe('resize', () => {
 		viewport.width = 900;
 		host.resize();
 		expect(host.status().content?.width).toBe(820);
-		expect(host.root.getWidth()).toBe(900);
+		expect(host.root.width).toBe(900);
 	});
 
 	// The browser fires resize for a zoom, a devicePixelRatio change, and on
@@ -212,25 +212,25 @@ describe('resize', () => {
 	it('does not re-enter when the viewport did not change', () => {
 		const host = resizableHost({ width: 1440, height: 882 });
 		host.mount('alpha');
-		const before = host.root.getChildren()[0];
+		const before = host.root.children[0];
 
 		host.resize();
 		host.resize();
 
-		expect(host.root.getChildren()[0]).toBe(before);
+		expect(host.root.children[0]).toBe(before);
 	});
 
 	it('re-enters when only the height changed', () => {
 		const viewport = { width: 1440, height: 882 };
 		const host = resizableHost(viewport);
 		host.mount('alpha');
-		const before = host.root.getChildren()[0];
+		const before = host.root.children[0];
 
 		viewport.height = 600;
 		host.resize();
 
-		expect(host.root.getChildren()[0]).not.toBe(before);
-		expect(host.root.getHeight()).toBe(600);
+		expect(host.root.children[0]).not.toBe(before);
+		expect(host.root.height).toBe(600);
 	});
 
 	// R13.32 pause and R13.35 injected input both promise a still scene. A
@@ -239,30 +239,30 @@ describe('resize', () => {
 		const viewport = { width: 1440, height: 882 };
 		const host = resizableHost(viewport);
 		host.mount('alpha');
-		const before = host.root.getChildren()[0];
+		const before = host.root.children[0];
 
 		host.paused = true;
 		viewport.width = 900;
 		host.resize();
 
-		expect(host.root.getChildren()[0]).toBe(before);
+		expect(host.root.children[0]).toBe(before);
 		expect(host.status().content?.width).toBe(1360);
 
 		host.paused = false;
 
-		expect(host.root.getChildren()[0]).not.toBe(before);
+		expect(host.root.children[0]).not.toBe(before);
 		expect(host.status().content?.width).toBe(820);
 	});
 
 	it('does not re-enter on resume when the window never moved', () => {
 		const host = resizableHost({ width: 1440, height: 882 });
 		host.mount('alpha');
-		const before = host.root.getChildren()[0];
+		const before = host.root.children[0];
 
 		host.paused = true;
 		host.paused = false;
 
-		expect(host.root.getChildren()[0]).toBe(before);
+		expect(host.root.children[0]).toBe(before);
 	});
 
 	it('keeps the root current when nothing is mounted', () => {
@@ -272,7 +272,7 @@ describe('resize', () => {
 		viewport.width = 640;
 		host.resize();
 
-		expect(host.root.getWidth()).toBe(640);
+		expect(host.root.width).toBe(640);
 		expect(host.sceneName).toBeNull();
 	});
 });

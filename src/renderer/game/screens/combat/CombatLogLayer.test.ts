@@ -32,7 +32,7 @@ function mounted(maxEntries = 30): { log: CombatLog; layer: CombatLogLayer } {
 }
 
 function lines(layer: CombatLogLayer): Text[] {
-	return (layer.scrollContainer.content?.getChildren() ?? []) as Text[];
+	return (layer.scrollContainer.content?.children ?? []) as Text[];
 }
 
 describe('CombatLogLayer', () => {
@@ -41,7 +41,7 @@ describe('CombatLogLayer', () => {
 		for (let index = 0; index < 20; index++) log.addEntry(`Event ${index}`);
 		context.frame.layout();
 		const scroll = layer.scrollContainer;
-		expect(lines(layer).map((line) => line.getText())).toEqual(Array.from({ length: 20 }, (_unused, index) => `Event ${index}`));
+		expect(lines(layer).map((line) => line.text)).toEqual(Array.from({ length: 20 }, (_unused, index) => `Event ${index}`));
 		expect(scroll.overflows).toBe(true);
 		expect(scroll.scrollPosition).toBe(scroll.maxScroll);
 	});
@@ -70,7 +70,7 @@ describe('CombatLogLayer', () => {
 		const [, second] = lines(layer);
 		log.addEntry('three');
 		log.addEntry('four');
-		expect(lines(layer).map((line) => line.getText())).toEqual(['two', 'three', 'four']);
+		expect(lines(layer).map((line) => line.text)).toEqual(['two', 'three', 'four']);
 		expect(lines(layer)[0]).toBe(second);
 	});
 });

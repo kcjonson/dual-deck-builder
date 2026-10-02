@@ -18,6 +18,19 @@ function ids(components: readonly Component[]): (string | null)[] {
 }
 
 describe('Component properties (R8.2)', () => {
+	it("takes R8.2's input and drag callbacks from its options", () => {
+		const onPointerDown = jest.fn();
+		const onKeyDown = jest.fn();
+		const onDrop = jest.fn();
+		const box = new Rectangle({ onPointerDown, onKeyDown, onDrop });
+		expect(box.onPointerDown).toBe(onPointerDown);
+		expect(box.onKeyDown).toBe(onKeyDown);
+		expect(box.onDrop).toBe(onDrop);
+		// Ones not given stay unset
+		expect(box.onClick).toBeNull();
+		expect(box.onBlur).toBeNull();
+	});
+
 	it('defaults every property the spec lists', () => {
 		const component = new Rectangle();
 
@@ -73,7 +86,7 @@ describe('effective values (R8.3)', () => {
 		expect(leaf.effectivelyEnabled).toBe(true);
 
 		middle.visible = false;
-		root.setEnabled(false);
+		root.enabled = false;
 		expect(leaf.effectivelyVisible).toBe(false);
 		expect(leaf.effectivelyEnabled).toBe(false);
 		expect(leaf.visible).toBe(true);
@@ -145,8 +158,8 @@ describe('children (R8.5 to R8.7)', () => {
 		second.addChild(child);
 
 		expect(child.parent).toBe(second);
-		expect(first.getChildren()).toEqual([]);
-		expect(second.getChildren()).toEqual([child]);
+		expect(first.children).toEqual([]);
+		expect(second.children).toEqual([child]);
 		expect(child.root).toBe(second);
 	});
 
@@ -161,7 +174,7 @@ describe('children (R8.5 to R8.7)', () => {
 		expect(() => leaf.addChild(root)).toThrow('under itself or its own descendant');
 		expect(() => branch.insertChild(0, root)).toThrow('under itself or its own descendant');
 		expect(root.parent).toBeNull();
-		expect(ids(leaf.getChildren())).toEqual([]);
+		expect(ids(leaf.children)).toEqual([]);
 	});
 
 	it('inserts at an index and moves a child it already holds without detaching it', () => {
@@ -171,16 +184,16 @@ describe('children (R8.5 to R8.7)', () => {
 		const c = new Container({ id: 'c' });
 		parent.addChild(a).addChild(b);
 		parent.insertChild(0, c);
-		expect(ids(parent.getChildren())).toEqual(['c', 'a', 'b']);
+		expect(ids(parent.children)).toEqual(['c', 'a', 'b']);
 
-		b.setHovered(true);
+		b.hovered = true;
 		parent.moveChild(b, 0);
-		expect(ids(parent.getChildren())).toEqual(['b', 'c', 'a']);
+		expect(ids(parent.children)).toEqual(['b', 'c', 'a']);
 		expect(b.hovered).toBe(true);
 		expect(b.parent).toBe(parent);
 
 		parent.insertChild(99, b);
-		expect(ids(parent.getChildren())).toEqual(['c', 'a', 'b']);
+		expect(ids(parent.children)).toEqual(['c', 'a', 'b']);
 	});
 
 	it('unmounts on removeChild and clearChildren', () => {
@@ -197,7 +210,7 @@ describe('children (R8.5 to R8.7)', () => {
 		parent.clearChildren();
 		expect(kept.unmounts).toBe(1);
 		expect(kept.parent).toBeNull();
-		expect(parent.getChildren()).toEqual([]);
+		expect(parent.children).toEqual([]);
 	});
 
 	it('orders the render view by zIndex, stably, without touching the children list (R3.12, R3.13)', () => {
@@ -209,7 +222,7 @@ describe('children (R8.5 to R8.7)', () => {
 		parent.addChild(background).addChild(raised).addChild(content).addChild(under);
 
 		expect(ids(parent.renderOrder)).toEqual(['under', 'background', 'content', 'raised']);
-		expect(ids(parent.getChildren())).toEqual(['background', 'raised', 'content', 'under']);
+		expect(ids(parent.children)).toEqual(['background', 'raised', 'content', 'under']);
 
 		raised.zIndex = 0;
 		expect(ids(parent.renderOrder)).toEqual(['under', 'background', 'raised', 'content']);
@@ -251,16 +264,16 @@ describe('reconcileChildren (R8.27)', () => {
 	it('keeps matching keys in place, creates new ones, and follows the item order', () => {
 		const parent = new Container();
 		reconcile(parent, [{ key: 'a', label: '' }, { key: 'b', label: '' }]);
-		const [a, b] = parent.getChildren();
-		a.setHovered(true);
+		const [a, b] = parent.children;
+		a.hovered = true;
 
 		const { created, updated } = reconcile(parent, [{ key: 'c', label: '' }, { key: 'b', label: '' }, { key: 'a', label: '' }]);
 
 		expect(created).toEqual(['c']);
 		expect(updated).toEqual(['b', 'a']);
-		expect(ids(parent.getChildren())).toEqual(['c', 'b', 'a']);
-		expect(parent.getChildren()[1]).toBe(b);
-		expect(parent.getChildren()[2]).toBe(a);
+		expect(ids(parent.children)).toEqual(['c', 'b', 'a']);
+		expect(parent.children[1]).toBe(b);
+		expect(parent.children[2]).toBe(a);
 		expect(a.hovered).toBe(true);
 		expect((a as Probe).unmounts).toBe(0);
 	});
@@ -284,24 +297,24 @@ describe('reconcileChildren (R8.27)', () => {
 	it('keeps a removed key drawn after the others until its exit settles, then unmounts it', async () => {
 		const parent = new Container();
 		reconcile(parent, [{ key: 'a', label: '' }, { key: 'b', label: '' }]);
-		const b = parent.getChildren()[1] as Probe;
+		const b = parent.children[1] as Probe;
 		const exit = deferredExit();
 
 		reconcile(parent, [{ key: 'c', label: '' }, { key: 'a', label: '' }], exit.remove);
 
 		// Still in the list, and so still rendered, for the exit animation (R8.27).
-		expect(ids(parent.getChildren())).toEqual(['c', 'a', 'b']);
+		expect(ids(parent.children)).toEqual(['c', 'a', 'b']);
 		expect(b.unmounts).toBe(0);
 
 		// Out of key matching: the same key returning is a new child.
 		const { created } = reconcile(parent, [{ key: 'c', label: '' }, { key: 'a', label: '' }, { key: 'b', label: '' }]);
 		expect(created).toEqual(['b']);
-		expect(parent.getChildren().filter((child) => child.id === 'b')).toHaveLength(2);
+		expect(parent.children.filter((child) => child.id === 'b')).toHaveLength(2);
 
 		await exit.finish();
 		expect(b.unmounts).toBe(1);
 		expect(b.parent).toBeNull();
-		expect(ids(parent.getChildren())).toEqual(['c', 'a', 'b']);
+		expect(ids(parent.children)).toEqual(['c', 'a', 'b']);
 	});
 
 	it('does not unmount an exiting child that was re-added elsewhere before its exit settled', async () => {
@@ -311,7 +324,7 @@ describe('reconcileChildren (R8.27)', () => {
 		const elsewhere = new Container();
 		root.addChild(parent).addChild(elsewhere);
 		reconcile(parent, [{ key: 'a', label: '' }]);
-		const a = parent.getChildren()[0] as Probe;
+		const a = parent.children[0] as Probe;
 		const exit = deferredExit();
 
 		reconcile(parent, [], exit.remove);
@@ -328,14 +341,14 @@ describe('reconcileChildren (R8.27)', () => {
 		const second = new Container();
 		root.addChild(first).addChild(second);
 		reconcile(first, [{ key: 'a', label: '' }]);
-		const a = first.getChildren()[0] as Probe;
+		const a = first.children[0] as Probe;
 		second.addChild(a);
 
 		reconcile(second, [{ key: 'z', label: '' }]);
 
 		expect(a.parent).toBe(second);
 		expect(a.unmounts).toBe(0);
-		expect(ids(second.getChildren())).toEqual(['z', 'a']);
+		expect(ids(second.children)).toEqual(['z', 'a']);
 	});
 
 	it('leaves children it did not create alone and refuses duplicate keys', () => {
@@ -344,10 +357,10 @@ describe('reconcileChildren (R8.27)', () => {
 		parent.addChild(header);
 
 		reconcile(parent, [{ key: 'a', label: '' }]);
-		expect(ids(parent.getChildren())).toEqual(['a', 'header']);
+		expect(ids(parent.children)).toEqual(['a', 'header']);
 
 		reconcile(parent, []);
-		expect(ids(parent.getChildren())).toEqual(['header']);
+		expect(ids(parent.children)).toEqual(['header']);
 
 		expect(() => reconcile(parent, [{ key: 'x', label: '' }, { key: 'x', label: '' }])).toThrow('duplicate key');
 	});
@@ -459,7 +472,7 @@ class StateProbe extends Container {
 describe('state flags (R11.11)', () => {
 	it('carries every flag, composing rather than ranked', () => {
 		const probe = new StateProbe();
-		probe.setHovered(true);
+		probe.hovered = true;
 		probe.pressed = true;
 		probe.setFocusState(true, true);
 		probe.selected = true;
@@ -485,7 +498,7 @@ describe('state flags (R11.11)', () => {
 		const probe = new StateProbe();
 		probe.selected = false;
 		probe.pressed = false;
-		probe.setHovered(false);
+		probe.hovered = false;
 		expect(probe.changes).toBe(0);
 	});
 
@@ -504,7 +517,7 @@ describe('state flags (R11.11)', () => {
 		const child = new StateProbe();
 		parent.addChild(child);
 
-		parent.setEnabled(false);
+		parent.enabled = false;
 
 		expect(child.enabled).toBe(true);
 		expect(child.stateFlags.enabled).toBe(false);
@@ -514,7 +527,7 @@ describe('state flags (R11.11)', () => {
 	it('clears pressed when disabled', () => {
 		const probe = new StateProbe();
 		probe.pressed = true;
-		probe.setEnabled(false);
+		probe.enabled = false;
 		expect(probe.pressed).toBe(false);
 	});
 });

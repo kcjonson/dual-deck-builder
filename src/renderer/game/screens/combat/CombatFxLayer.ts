@@ -84,8 +84,12 @@ export class AimReticle extends Component {
 		return this.aimed;
 	}
 
-	public setDragOffset(offset: Vec2 | null): void {
-		super.setDragOffset(offset);
+	public get dragOffset(): Vec2 | null {
+		return super.dragOffset;
+	}
+
+	public set dragOffset(offset: Vec2 | null) {
+		super.dragOffset = offset;
 		if (!offset) return;
 		this.aimed.x = this.x + offset.x + this.centrePoint.x;
 		this.aimed.y = this.y + offset.y + this.centrePoint.y;
@@ -317,7 +321,7 @@ export class CombatFxLayer extends Container {
 
 	/** The line covers the layer, so it always has the room to draw in. */
 	protected onResized(): void {
-		this.arrow.setSize(this.getWidth(), this.getHeight());
+		this.arrow.setSize(this.width, this.height);
 	}
 
 	/**
@@ -354,7 +358,7 @@ export class CombatFxLayer extends Container {
 
 	/** The numbers on screen now, oldest first. */
 	public get floatingNumbers(): FloatingNumber[] {
-		return this.getChildren().filter((child): child is FloatingNumber => child instanceof FloatingNumber);
+		return this.children.filter((child): child is FloatingNumber => child instanceof FloatingNumber);
 	}
 
 	/**
@@ -386,7 +390,7 @@ export class CombatFxLayer extends Container {
 		}
 		this.addChild(new DiscardFlight({
 			id: `combat_discard_flight_${this.flights++}`,
-			card: card.getData(),
+			card: card.data,
 			driverNumber: card.driver,
 			start: { centre, rotate, scale: Math.hypot(dx, dy) },
 			to,
@@ -407,7 +411,7 @@ export class CombatFxLayer extends Container {
 
 	/** Cards on their way to a discard pile now. */
 	public get discardFlights(): DiscardFlight[] {
-		return this.getChildren().filter((child): child is DiscardFlight => child instanceof DiscardFlight);
+		return this.children.filter((child): child is DiscardFlight => child instanceof DiscardFlight);
 	}
 
 	/**
@@ -466,7 +470,8 @@ export class FloatingNumber extends Text {
 		onExpire?: ((number: FloatingNumber) => void) | null;
 		held?: boolean;
 	}) {
-		super(text, {
+		super({
+			text,
 			id,
 			// Over the line and the reticle, and a later number over an earlier one
 			zIndex: NUMBER_Z_INDEX,

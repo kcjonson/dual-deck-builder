@@ -83,7 +83,7 @@ export class FlowWrap extends Container {
 		if (this.sizeMode(axis) === 'fixed') return this.sizeOn(axis);
 		if (axis === 'height') return this.rowsHeight(this.width);
 		let widest = 0;
-		for (const item of this.getChildren()) {
+		for (const item of this.children) {
 			if (item.visible) widest = Math.max(widest, item.measure(Infinity, Infinity).width + item.margin.left + item.margin.right);
 		}
 		return widest;
@@ -102,7 +102,7 @@ export class FlowWrap extends Container {
 			const height = this.heightMode === 'fixed' ? this.height : this.clampToLimits('height', this.rowsHeight(width));
 			this.resizeInLayout(width, height);
 		}
-		const items = this.getChildren();
+		const items = this.children;
 		const width = this.width;
 		let rowStart = 0;
 		let y = 0;
@@ -125,7 +125,7 @@ export class FlowWrap extends Container {
 
 	/** The rows' total height at `width`. */
 	private rowsHeight(width: number): number {
-		const items = this.getChildren();
+		const items = this.children;
 		let rowStart = 0;
 		let total = 0;
 		let rows = 0;
@@ -142,7 +142,7 @@ export class FlowWrap extends Container {
 
 	/** The widest row at `width`. */
 	private widestRow(width: number): number {
-		const items = this.getChildren();
+		const items = this.children;
 		let rowStart = 0;
 		let widest = 0;
 		while (rowStart < items.length) {
@@ -160,7 +160,7 @@ export class FlowWrap extends Container {
 	 * rather than looping forever.
 	 */
 	private scanRow(start: number, width: number): { end: number; rowWidth: number; rowHeight: number } {
-		const items = this.getChildren();
+		const items = this.children;
 		let rowWidth = 0;
 		let rowHeight = 0;
 		let count = 0;

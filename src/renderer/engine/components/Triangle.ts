@@ -19,8 +19,8 @@ const TRIANGLE_POINTS = [
  * Triangle component for rendering triangles
  */
 export class Triangle extends Component {
-	private fillColor: RGBA;
-	private strokeColor: RGBA;
+	private ownFill: RGBA;
+	private ownStroke: RGBA;
 	private strokeWidth: number;
 	private styleObject: ShapeStyleObject;
 	/** `TRIANGLE_POINTS` on the component's box, rewritten each render; the draw API copies them. */
@@ -34,8 +34,8 @@ export class Triangle extends Component {
 		super(options);
 		this.styleObject = style;
 		const shape = resolveShapeStyle('Triangle', style);
-		this.fillColor = shape.fill;
-		this.strokeColor = shape.stroke;
+		this.ownFill = shape.fill;
+		this.ownStroke = shape.stroke;
 		this.strokeWidth = shape.strokeWidth;
 		if (style.opacity !== undefined) this.opacity = style.opacity;
 		this.componentType = 'Triangle';
@@ -54,29 +54,29 @@ export class Triangle extends Component {
 	public set style(style: ShapeStyleObject) {
 		const shape = resolveShapeStyle('Triangle', style);
 		this.styleObject = style;
-		this.fillColor = shape.fill;
-		this.strokeColor = shape.stroke;
+		this.ownFill = shape.fill;
+		this.ownStroke = shape.stroke;
 		this.strokeWidth = shape.strokeWidth;
 		if (style.opacity !== undefined) this.opacity = style.opacity;
 		this.invalidateInk();
 	}
 
-	/**
-	 * Set the triangle's fill color
-	 * @param color Color value (hex string or RGBA array)
-	 */
-	public setFillColor(color: ColorValue): this {
-		this.fillColor = resolveColor(color);
-		return this;
+	/** The fill color. */
+	public get fillColor(): RGBA {
+		return this.ownFill;
 	}
 
-	/**
-	 * Set the triangle's stroke color
-	 * @param color Color value (hex string or RGBA array)
-	 */
-	public setStrokeColor(color: ColorValue): this {
-		this.strokeColor = resolveColor(color);
-		return this;
+	public set fillColor(color: ColorValue) {
+		this.ownFill = resolveColor(color);
+	}
+
+	/** The stroke color. */
+	public get strokeColor(): RGBA {
+		return this.ownStroke;
+	}
+
+	public set strokeColor(color: ColorValue) {
+		this.ownStroke = resolveColor(color);
 	}
 
 	/** The stroke is centred on the outline, so half of it lands outside the box (R8.8). */
@@ -85,7 +85,7 @@ export class Triangle extends Component {
 	}
 
 	public get resolvedColors(): ResolvedColors {
-		return this.strokeWidth > 0 ? { fill: this.fillColor, border: this.strokeColor } : { fill: this.fillColor };
+		return this.strokeWidth > 0 ? { fill: this.ownFill, border: this.ownStroke } : { fill: this.ownFill };
 	}
 
 	public render(draw: DrawApi): void {
@@ -97,11 +97,11 @@ export class Triangle extends Component {
 			this.boxPoints[index].x = halfWidth + TRIANGLE_POINTS[index].x * halfWidth;
 			this.boxPoints[index].y = halfHeight + TRIANGLE_POINTS[index].y * halfHeight;
 		}
-		draw.drawPolygon({ id: this.id ?? undefined, points: this.boxPoints, fill: this.fillColor });
+		draw.drawPolygon({ id: this.id ?? undefined, points: this.boxPoints, fill: this.ownFill });
 		if (this.strokeWidth > 0) {
 			draw.drawPolyline({
 				points: this.boxPoints,
-				color: this.strokeColor,
+				color: this.ownStroke,
 				width: this.strokeWidth,
 				closed: true,
 			});

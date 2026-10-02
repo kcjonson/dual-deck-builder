@@ -41,7 +41,7 @@ describe('KeyCap (R12.29)', () => {
 		context.frame.layout();
 		expect(short.width).toBe(short.height);
 		expect(long.width).toBeGreaterThan(short.width);
-		expect(long.width).toBe(Math.ceil(long.getChildren()[0].width) + tokens.space.space_1 * 2);
+		expect(long.width).toBe(Math.ceil(long.children[0].width) + tokens.space.space_1 * 2);
 	});
 
 	it('follows a new label', () => {

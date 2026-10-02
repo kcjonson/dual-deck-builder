@@ -269,7 +269,11 @@ describe('subtree cull (DDB-184, R4.2a)', () => {
 		});
 
 		it('a centred circle stroke', () => {
-			expect(sweep(() => new Circle({ id: 'ring', style: { borderWidth: 6 } }).setRadius(10))).toBe(6);
+			expect(sweep(() => {
+				const ring = new Circle({ id: 'ring', style: { borderWidth: 6 } });
+				ring.radius = 10;
+				return ring;
+			})).toBe(6);
 		});
 
 		it('a circle given a size its radius does not match', () => {
@@ -280,8 +284,8 @@ describe('subtree cull (DDB-184, R4.2a)', () => {
 		it('an accent button\'s hover glow, focus ring and label', () => {
 			const { api: measuring, backend: recording } = createMeasuringDrawApi();
 			const make = (): Component => {
-				const button = new Button('Go', { id: 'go', tone: 'accent', width: 100 });
-				button.setHovered(true);
+				const button = new Button({ label: 'Go', id: 'go', tone: 'accent', width: 100 });
+				button.hovered = true;
 				return button;
 			};
 			// The glow's 26 px on each side.
@@ -291,7 +295,7 @@ describe('subtree cull (DDB-184, R4.2a)', () => {
 		it('a text drop shadow offset well past the run (R12.4)', () => {
 			const { api: measuring, backend: recording } = createMeasuringDrawApi();
 			const make = (): Component => {
-				const text = new Text('Shadowed', { id: 'shadowed_text', style: { fontSize: 16 } });
+				const text = new Text({ text: 'Shadowed', id: 'shadowed_text', style: { fontSize: 16 } });
 				text.shadow = { color: [0, 0, 0, 1], offset: { x: 0, y: 12 }, blur: 4 };
 				return text;
 			};
@@ -301,7 +305,8 @@ describe('subtree cull (DDB-184, R4.2a)', () => {
 
 		it('a text that runs past its box', () => {
 			const { api: measuring, backend: recording } = createMeasuringDrawApi();
-			const make = (): Component => new Text('Scrap the escort and the convoy keeps rolling on and on', {
+			const make = (): Component => new Text({
+				text: 'Scrap the escort and the convoy keeps rolling on and on',
 				id: 'spill',
 				width: 40,
 				height: 10,
@@ -322,7 +327,8 @@ describe('subtree cull (DDB-184, R4.2a)', () => {
 			}
 
 			it('a right-aligned nowrap run past the left of a narrow box', () => {
-				const { past, text } = measuredSweep(() => new Text('Scrap the escort and keep rolling', {
+				const { past, text } = measuredSweep(() => new Text({
+					text: 'Scrap the escort and keep rolling',
 					id: 'right',
 					width: 40,
 					height: 20,
@@ -335,7 +341,8 @@ describe('subtree cull (DDB-184, R4.2a)', () => {
 			});
 
 			it('a centred nowrap run past both sides', () => {
-				const { past, text } = measuredSweep(() => new Text('Scrap the escort and keep rolling', {
+				const { past, text } = measuredSweep(() => new Text({
+					text: 'Scrap the escort and keep rolling',
 					id: 'centred',
 					width: 40,
 					height: 20,
@@ -347,7 +354,8 @@ describe('subtree cull (DDB-184, R4.2a)', () => {
 			});
 
 			it('wrapped lines taller than a fixed height, centred on it', () => {
-				const { past, text } = measuredSweep(() => new Text('one two three four five six seven eight', {
+				const { past, text } = measuredSweep(() => new Text({
+					text: 'one two three four five six seven eight',
 					id: 'tall',
 					width: 60,
 					height: 16,
@@ -360,7 +368,8 @@ describe('subtree cull (DDB-184, R4.2a)', () => {
 			});
 
 			it('wrapped lines bottom-aligned in a short box, past its top', () => {
-				const { past, text } = measuredSweep(() => new Text('one two three four five six seven eight', {
+				const { past, text } = measuredSweep(() => new Text({
+					text: 'one two three four five six seven eight',
 					id: 'bottom',
 					width: 60,
 					height: 16,
@@ -372,7 +381,8 @@ describe('subtree cull (DDB-184, R4.2a)', () => {
 			});
 
 			it('glyphs past a tight line height', () => {
-				const { past, text } = measuredSweep(() => new Text('Tall Glyphs', {
+				const { past, text } = measuredSweep(() => new Text({
+					text: 'Tall Glyphs',
 					id: 'tight',
 					style: { fontSize: 32 }, lineHeight: 0.4,
 				}), 'y');
@@ -382,7 +392,7 @@ describe('subtree cull (DDB-184, R4.2a)', () => {
 			});
 
 			it('a run inside its box keeps an ink bound no larger than its glyphs need', () => {
-				const text = new Text('Go', { width: 200, height: 40, style: { fontSize: 16 } });
+				const text = new Text({ text: 'Go', width: 200, height: 40, style: { fontSize: 16 } });
 				text.mount(createTestContext({ draw: createMeasuringDrawApi().api }));
 				// The snap's pixel and the distance field's padding past the
 				// first glyph's left edge, nowhere near the old em of slack.
@@ -396,7 +406,7 @@ describe('subtree cull (DDB-184, R4.2a)', () => {
 			const { api: measuring, backend: recording } = createMeasuringDrawApi();
 			const clip = viewport();
 			const root = clip.parent as Container;
-			const text = new Text('Convoy', { id: 'late', y: 400, width: 60, height: 20, style: { fontSize: 16 } });
+			const text = new Text({ text: 'Convoy', id: 'late', y: 400, width: 60, height: 20, style: { fontSize: 16 } });
 			clip.addChild(text);
 			// Cached while unmeasured: no bound.
 			expect(text.subtreeInk).toBeNull();
@@ -422,7 +432,8 @@ describe('subtree cull (DDB-184, R4.2a)', () => {
 			const clip = viewport();
 			const root = clip.parent as Container;
 			const row = new Stack({ id: 'row', x: 210, y: 50 });
-			const text = new Text('Scrap the escort and keep rolling on', {
+			const text = new Text({
+				text: 'Scrap the escort and keep rolling on',
 				id: 'late-stack',
 				width: 40,
 				height: 20,
@@ -456,7 +467,7 @@ describe('subtree cull (DDB-184, R4.2a)', () => {
 		it('an unmeasured text, which has no bound and is never skipped', () => {
 			// Not strict: a text drawn with no atlas loaded is reported (R2.18).
 			const lenient = new DrawApi({ backend, development: false });
-			const text = new Text('unmeasured', { id: 'unmeasured', width: 40, height: 10 });
+			const text = new Text({ text: 'unmeasured', id: 'unmeasured', width: 40, height: 10 });
 			const clip = viewport();
 			text.y = 1000;
 			clip.addChild(text);
@@ -509,10 +520,10 @@ describe('the walk allocates no geometry per frame (#85 review)', () => {
 		expect(resized).not.toBe(matrix);
 		expect(resized?.[5]).toBeCloseTo(-30);
 
-		card.setDragOffset({ x: 5, y: 0 });
+		card.dragOffset = { x: 5, y: 0 };
 		expect(card.transformMatrix?.[4]).toBeCloseTo((resized?.[4] ?? 0) + 5);
 
-		card.setDragOffset(null);
+		card.dragOffset = null;
 		card.transform = {};
 		expect(card.transformMatrix).toBeNull();
 	});
@@ -522,7 +533,7 @@ describe('the walk allocates no geometry per frame (#85 review)', () => {
 		const card = new Rectangle({ width: 100, height: 20 });
 		root.addChild(card);
 		root.mount(createTestContext());
-		card.setDragOffset({ x: 30, y: 0 });
+		card.dragOffset = { x: 30, y: 0 };
 		expect(card.transformMatrix?.[4]).toBe(30);
 
 		root.removeChild(card);

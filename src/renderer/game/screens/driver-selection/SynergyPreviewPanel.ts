@@ -1,7 +1,7 @@
 import { Stack, StackOptions } from '../../../engine/components/Stack';
 import { Text } from '../../../engine/components/Text';
 import { Driver } from '../../mechanics/Driver';
-import { DriverSynergy, SynergyAnalysis } from '../../mechanics/DriverSynergy';
+import { DriverSynergy } from '../../mechanics/DriverSynergy';
 import { FlowWrap } from '../../ui/FlowWrap';
 
 const TAG_HEIGHT = 20;
@@ -35,7 +35,6 @@ export class SynergyPreviewPanel extends Stack {
 	private readonly warningText: Text;
 	private readonly tags: FlowWrap;
 
-	private currentSynergy: SynergyAnalysis | null = null;
 
 	constructor(options: StackOptions) {
 		super({
@@ -51,7 +50,8 @@ export class SynergyPreviewPanel extends Stack {
 			...options,
 		});
 
-		this.addChild(new Text('Team Synergy', {
+		this.addChild(new Text({
+			text: 'Team Synergy',
 			style: {
 				fontSize: 20,
 				color: '#ffffff',
@@ -62,7 +62,8 @@ export class SynergyPreviewPanel extends Stack {
 			textOverflow: 'ellipsis',
 		}));
 
-		this.synergyDescription = new Text('', {
+		this.synergyDescription = new Text({
+			text: '',
 			id: 'driver_select_synergy_description',
 			style: {
 				fontSize: 12,
@@ -72,7 +73,8 @@ export class SynergyPreviewPanel extends Stack {
 		});
 		this.addChild(this.synergyDescription);
 
-		this.warningText = new Text('', {
+		this.warningText = new Text({
+			text: '',
 			visible: false,
 			style: {
 				fontSize: 11,
@@ -92,7 +94,7 @@ export class SynergyPreviewPanel extends Stack {
 		this.addChild(this.tags);
 
 		// Initially hidden
-		this.setVisible(false);
+		this.visible = false;
 	}
 
 	/**
@@ -100,24 +102,22 @@ export class SynergyPreviewPanel extends Stack {
 	 */
 	public updateSynergy(driver1: Driver | null, driver2: Driver | null): void {
 		if (!driver1 || !driver2) {
-			this.currentSynergy = null;
 			this.tags.clearChildren();
-			this.setVisible(false);
+			this.visible = false;
 			return;
 		}
 
 		const synergy = DriverSynergy.analyzeSynergy(driver1, driver2);
-		this.currentSynergy = synergy;
 
-		this.synergyDescription.setText(synergy.description);
-		this.synergyDescription.setColor(this.getSynergyColor(synergy.type));
-		this.warningText.setText(synergy.warning ?? '');
-		this.warningText.setVisible(Boolean(synergy.warning));
+		this.synergyDescription.text = synergy.description;
+		this.synergyDescription.color = this.getSynergyColor(synergy.type);
+		this.warningText.text = synergy.warning ?? '';
+		this.warningText.visible = Boolean(synergy.warning);
 
 		this.tags.clearChildren();
 		for (const tag of synergy.tags) this.tags.addChild(this.createTagPill(tag));
 
-		this.setVisible(true);
+		this.visible = true;
 	}
 
 	/** A pill hugging its label, the label truncating past the widest a tag gets. */
@@ -133,7 +133,8 @@ export class SynergyPreviewPanel extends Stack {
 				borderRadius: TAG_HEIGHT / 2,
 			},
 		});
-		pill.addChild(new Text(tag, {
+		pill.addChild(new Text({
+			text: tag,
 			maxSize: { width: MAX_TAG_LABEL_WIDTH },
 			style: {
 				fontSize: 10,
@@ -181,12 +182,5 @@ export class SynergyPreviewPanel extends Stack {
 		};
 
 		return tagColors[tag] || '#888888';
-	}
-
-	/**
-	 * Get current synergy analysis
-	 */
-	public getCurrentSynergy(): SynergyAnalysis | null {
-		return this.currentSynergy;
 	}
 }

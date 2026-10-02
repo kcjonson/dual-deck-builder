@@ -33,7 +33,7 @@ const LANE_DIVIDER_WIDTH = 2;
  * over a sibling rectangle; hits pass through to the plates.
  */
 export abstract class BattlefieldLayer extends Component {
-	protected vehicles: Vehicle[] = [];
+	protected shownVehicles: Vehicle[] = [];
 	protected vehicleCards: Map<string, VehicleUI> = new Map();
 
 	// Lane containers
@@ -61,7 +61,8 @@ export abstract class BattlefieldLayer extends Component {
 		const dividerColor = resolveColor(decor.dividerColor);
 		this.dividerDraws = [0, 1].map(() => ({ rect: { x: 0, y: 0, width: 0, height: 0 }, fill: dividerColor }));
 		this.laneLabels = decor.labels.map(label => {
-			const text = new Text(label, {
+			const text = new Text({
+				text: label,
 				style: {
 					fontSize: 14,
 					color: decor.labelColor,
@@ -82,15 +83,15 @@ export abstract class BattlefieldLayer extends Component {
 	 * the layer's current size, on construction and on every resize
 	 */
 	protected layoutLanes(): void {
-		const laneWidth = Math.floor(this.getWidth() / 3);
-		const laneHeight = this.getHeight();
+		const laneWidth = Math.floor(this.width / 3);
+		const laneHeight = this.height;
 
 		// Keeps content within layer bounds; a layer can only clip once it has a size
-		if (this.getWidth() > 0 && laneHeight > 0) {
-			this.setOverflow('hidden');
+		if (this.width > 0 && laneHeight > 0) {
+			this.overflow = 'hidden';
 		}
 
-		this.backgroundDraw.rect = { x: 0, y: 0, width: this.getWidth(), height: laneHeight };
+		this.backgroundDraw.rect = { x: 0, y: 0, width: this.width, height: laneHeight };
 		this.dividerDraws.forEach((divider, index) => {
 			divider.rect = {
 				x: laneWidth * (index + 1) - LANE_DIVIDER_WIDTH / 2,
@@ -102,7 +103,7 @@ export abstract class BattlefieldLayer extends Component {
 		this.laneLabels.forEach((label, index) => {
 			// Centred across its lane
 			label.setPosition(laneWidth * index, LANE_LABEL_Y);
-			label.setWidth(laneWidth);
+			label.width = laneWidth;
 		});
 
 		// Define lanes from left to right: shoulder, outside, inside
@@ -147,8 +148,12 @@ export abstract class BattlefieldLayer extends Component {
 	 * Set vehicles to display
 	 * Receives pure Vehicle models from game state
 	 */
-	public setVehicles(vehicles: Vehicle[]): void {
-		this.vehicles = vehicles;
+	public get vehicles(): Vehicle[] {
+		return this.shownVehicles;
+	}
+
+	public set vehicles(vehicles: Vehicle[]) {
+		this.shownVehicles = vehicles;
 		this.updateVehicleCards();
 		this.layoutVehicles();
 	}
@@ -158,7 +163,7 @@ export abstract class BattlefieldLayer extends Component {
 	 */
 	protected updateVehicleCards(): void {
 		// Remove cards for vehicles that no longer exist
-		const currentVehicleIds = new Set(this.vehicles.map(v => v.id));
+		const currentVehicleIds = new Set(this.shownVehicles.map(v => v.id));
 		for (const [vehicleId, card] of this.vehicleCards) {
 			if (!currentVehicleIds.has(vehicleId)) {
 				this.removeChild(card);
@@ -167,7 +172,7 @@ export abstract class BattlefieldLayer extends Component {
 		}
 		
 		// Create cards for new vehicles
-		for (const vehicle of this.vehicles) {
+		for (const vehicle of this.shownVehicles) {
 			if (!this.vehicleCards.has(vehicle.id)) {
 				const card = this.createVehicleCard(vehicle);
 				this.vehicleCards.set(vehicle.id, card);
@@ -198,7 +203,7 @@ export abstract class BattlefieldLayer extends Component {
 		const vehiclesByLane = new Map<LaneKind, Vehicle[]>([['shoulder', []], ['outside', []], ['inside', []]]);
 		const rowOrder = (vehicle: Vehicle): number => (vehicle.slot ? ROW_ORDER.indexOf(vehicle.slot.row) : 0);
 		
-		for (const vehicle of [...this.vehicles].sort((a, b) => rowOrder(a) - rowOrder(b))) {
+		for (const vehicle of [...this.shownVehicles].sort((a, b) => rowOrder(a) - rowOrder(b))) {
 			if (!vehicle.slot) continue;
 			vehiclesByLane.get(laneKind(vehicle.slot.lane))?.push(vehicle);
 		}
@@ -220,9 +225,9 @@ export abstract class BattlefieldLayer extends Component {
 		// Two side by side narrow to share a lane that is too slim for both
 		const sideBySideSpacing = 20;
 		const cardWidth = count === 2
-			? Math.min(this.getCardWidth(), Math.floor((lane.width - sideBySideSpacing) / 2))
-			: this.getCardWidth();
-		const cardHeight = this.getCardHeight();
+			? Math.min(this.cardWidth, Math.floor((lane.width - sideBySideSpacing) / 2))
+			: this.cardWidth;
+		const cardHeight = this.cardHeight;
 		
 		vehicles.forEach((vehicle, index) => {
 			const card = this.vehicleCards.get(vehicle.id);
@@ -257,8 +262,8 @@ export abstract class BattlefieldLayer extends Component {
 	/**
 	 * Get card dimensions
 	 */
-	protected abstract getCardWidth(): number;
-	protected abstract getCardHeight(): number;
+	protected abstract get cardWidth(): number;
+	protected abstract get cardHeight(): number;
 	
 	/**
 	 * Create a vehicle card display component

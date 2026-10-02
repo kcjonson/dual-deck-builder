@@ -83,7 +83,7 @@ afterEach(() => {
 describe('Button press machine (R12.7)', () => {
 	function button(options = {}): { button: Button; clicks: number[] } {
 		const clicks: number[] = [];
-		const made = new Button('Go', { id: 'go', x: 100, y: 100, width: 120, height: 40, onClick: () => clicks.push(1), ...options });
+		const made = new Button({ label: 'Go', id: 'go', x: 100, y: 100, width: 120, height: 40, onClick: () => clicks.push(1), ...options });
 		root.addChild(made);
 		context.frame.layout();
 		return { button: made, clicks };
@@ -117,7 +117,7 @@ describe('Button press machine (R12.7)', () => {
 
 	it('does not let a released-outside press click a button beneath the release', () => {
 		const other: number[] = [];
-		root.addChild(new Button('Other', { x: 300, y: 100, width: 120, height: 40, onClick: () => other.push(1) }));
+		root.addChild(new Button({ label: 'Other', x: 300, y: 100, width: 120, height: 40, onClick: () => other.push(1) }));
 		const { clicks } = button();
 		inject('move,160,120', 'down,160,120', 'move,360,120', 'up,360,120');
 		expect(clicks).toHaveLength(0);
@@ -147,7 +147,7 @@ describe('Button press machine (R12.7)', () => {
 		const outerClicks: number[] = [];
 		const outer = new ListRow({ label: 'Row', x: 100, y: 300, width: 300, height: 40, pointerEvents: 'auto', onClick: () => outerClicks.push(1) });
 		const innerClicks: number[] = [];
-		const inner = new Button('Inner', { x: 200, y: 5, width: 80, height: 30, onClick: () => innerClicks.push(1) });
+		const inner = new Button({ label: 'Inner', x: 200, y: 5, width: 80, height: 30, onClick: () => innerClicks.push(1) });
 		outer.addChild(inner);
 		root.addChild(outer);
 		context.frame.layout();
@@ -171,7 +171,7 @@ describe('Button press machine (R12.7)', () => {
 			base.call(this, event);
 		})(holder.handleEvent);
 		root.addChild(holder);
-		const made = new Button('Go', { x: 100, y: 100, width: 120, height: 40 });
+		const made = new Button({ label: 'Go', x: 100, y: 100, width: 120, height: 40 });
 		holder.addChild(made);
 		context.frame.layout();
 		inject('move,160,120', 'down,160,120');
@@ -187,7 +187,7 @@ describe('Button press machine (R12.7)', () => {
 		inject('click,160,120');
 		expect(clicks).toHaveLength(0);
 		const stack = new Stack({ width: 300, crossAlign: 'start' });
-		const block = new Button('Wide', { block: true });
+		const block = new Button({ label: 'Wide', block: true });
 		stack.addChild(block);
 		root.addChild(stack);
 		context.frame.layout();
@@ -196,12 +196,12 @@ describe('Button press machine (R12.7)', () => {
 	});
 
 	it('places the icon after the label with iconPosition right, and alone, centred, with only', () => {
-		const right = new Button('Next', { x: 0, y: 0, width: 160, icon: 'settings', iconPosition: 'right' });
-		const only = new Button('Settings', { x: 0, y: 50, width: 40, icon: 'settings', iconPosition: 'only' });
+		const right = new Button({ label: 'Next', x: 0, y: 0, width: 160, icon: 'settings', iconPosition: 'right' });
+		const only = new Button({ label: 'Settings', x: 0, y: 50, width: 40, icon: 'settings', iconPosition: 'only' });
 		root.addChild(right);
 		root.addChild(only);
 		context.frame.layout();
-		const [label, icon] = right.getChildren() as [Text, Component];
+		const [label, icon] = right.children as [Text, Component];
 		const measured = label.measured?.width ?? 0;
 		const glyphsEnd = label.x + label.width / 2 + measured / 2;
 		expect(icon.x).toBeGreaterThanOrEqual(Math.floor(glyphsEnd));
@@ -211,13 +211,13 @@ describe('Button press machine (R12.7)', () => {
 		expect(right.iconPosition).toBe('right');
 		const texts = commands().filter((command): command is TextCommand => command.kind === 'text');
 		expect(texts.some((text) => text.text === 'Settings')).toBe(false);
-		const onlyIcon = only.getChildren()[1];
+		const onlyIcon = only.children[1];
 		expect(onlyIcon.x + onlyIcon.width / 2).toBe(20);
-		expect(() => new Button('X', { iconPosition: 'only' })).toThrow(/needs an icon/);
+		expect(() => new Button({ label: 'X', iconPosition: 'only' })).toThrow(/needs an icon/);
 	});
 
 	it('draws a ghost clear with the tone colour on its label, and washes it on hover', () => {
-		const ghost = new Button('Quiet', { id: 'ghost', x: 100, y: 100, width: 120, ghost: true, tone: 'accent' });
+		const ghost = new Button({ label: 'Quiet', id: 'ghost', x: 100, y: 100, width: 120, ghost: true, tone: 'accent' });
 		root.addChild(ghost);
 		context.frame.layout();
 		let rect = commands().find((command): command is RectCommand => command.kind === 'rect' && command.id === 'ghost') as RectCommand;
@@ -254,7 +254,7 @@ describe('ListRow (R12.8)', () => {
 		const texts = commands().filter((command): command is TextCommand => command.kind === 'text');
 		expect(texts.find((text) => text.text === 'Alpha')).toMatchObject({ font: 'body', align: 'left' });
 		expect(texts.find((text) => text.text === '1')).toMatchObject({ font: 'mono', color: color.text_dim });
-		const [label, trailing] = rows[0].getChildren();
+		const [label, trailing] = rows[0].children;
 		expect(label.x).toBe(tokens.control.inset_row);
 		expect(trailing.x + trailing.width).toBeCloseTo(240 - tokens.control.inset_row);
 		expect(label.x + label.width).toBeLessThanOrEqual(trailing.x);
@@ -320,9 +320,9 @@ describe('FocusGroup (R12.34)', () => {
 		const rows = ['One', 'Two', 'Three'].map((label) => new ListRow({ label }));
 		rows.forEach((row) => made.addChild(row));
 		// Level with the list's top, so no arrow from inside it can reach them directionally.
-		root.addChild(new Button('Before', { x: 400, y: 0, width: 80 }));
+		root.addChild(new Button({ label: 'Before', x: 400, y: 0, width: 80 }));
 		root.addChild(made);
-		root.addChild(new Button('After', { x: 500, y: 0, width: 80 }));
+		root.addChild(new Button({ label: 'After', x: 500, y: 0, width: 80 }));
 		context.frame.layout();
 		return { group: made, rows, selections, activations };
 	}
@@ -407,7 +407,7 @@ describe('FocusGroup (R12.34)', () => {
 
 	it('leaves a toolbar button unselected after a click, by default', () => {
 		const toolbar = new FocusGroup({ x: 20, y: 300, orientation: 'horizontal' });
-		const tool = new Button('Tool', { width: 80 });
+		const tool = new Button({ label: 'Tool', width: 80 });
 		toolbar.addChild(tool);
 		root.addChild(toolbar);
 		context.frame.layout();
@@ -581,7 +581,7 @@ describe('RadioGroup (R12.35)', () => {
 			],
 			onChange: (next) => changes.push(next),
 		});
-		root.addChild(new Button('Before', { x: 400, y: 20, width: 80 }));
+		root.addChild(new Button({ label: 'Before', x: 400, y: 20, width: 80 }));
 		root.addChild(group);
 		context.frame.layout();
 		return { group, changes };

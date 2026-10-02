@@ -24,21 +24,23 @@ const HALF_GAP = 20;
  * then its target, or by dragging it onto its target.
  */
 export class PlayerHandLayer extends Stack {
-	private handCards: Card[] = [];
+	private dealtCards: Card[] = [];
 	private cardElements: UICard[] = [];
 	private playableCardIds: Set<string> = new Set();
 	private readonly halves: Record<DriverSeat, HandHalf>;
 
 	// Callbacks
-	private onCardSelect: ((card: Card) => void) | null = null;
+	/** A card clicked or activated in the hand (R8.25). */
+	public onCardSelect: ((card: Card) => void) | null = null;
 	private onCardPress: ((card: Card, element: UICard, event: UiPointerEvent) => void) | null = null;
 	private onCardDragEnd: ((card: Card, event: UiDragEvent) => void) | null = null;
 	private onOtherButton: (() => void) | null = null;
-	private onCardsLeave: ((leaving: LeavingCard[]) => void) | null = null;
+	/** Cards gone from the hand since the last deal, told before the hand deals again. */
+	public onCardsLeave: ((leaving: LeavingCard[]) => void) | null = null;
 
 	// Selection state
-	private selectedCard: Card | null = null; // The card player has selected to play (waiting for target)
-	private targetingMode = false;
+	private heldCard: Card | null = null; // The card player has selected to play (waiting for target)
+	private targeting = false;
 	private cardDriverMap: Map<string, DriverSeat> = new Map();
 
 	constructor(options: StackOptions = {}) {
@@ -62,27 +64,22 @@ export class PlayerHandLayer extends Stack {
 	 * Show both drivers' cards, each in its driver's half, with the
 	 * unplayable ones disabled
 	 */
-	public setHand({ cards, seatOf, playable }: PlayerHandView): void {
+	public set hand({ cards, seatOf, playable }: PlayerHandView) {
 		// Cards that left since the last deal, while their elements still sit
 		// in the fan, so whoever listens can see where they were
 		if (this.onCardsLeave) {
 			const staying = new Set(cards);
 			const leaving: LeavingCard[] = [];
-			this.handCards.forEach((card, index) => {
+			this.dealtCards.forEach((card, index) => {
 				const element = this.cardElements[index];
 				if (!staying.has(card) && element?.isMounted) leaving.push({ card, element, seat: this.cardDriverMap.get(card.id) ?? null });
 			});
 			if (leaving.length > 0) this.onCardsLeave(leaving);
 		}
-		this.handCards = cards;
+		this.dealtCards = cards;
 		this.cardDriverMap = seatOf;
 		this.playableCardIds = playable;
 		this.createCardElements();
-	}
-
-	/** Cards gone from the hand since the last `setHand`, told before the hand deals again. */
-	public setOnCardsLeave(callback: ((leaving: LeavingCard[]) => void) | null): void {
-		this.onCardsLeave = callback;
 	}
 
 	/** The half a card in the hand is dealt to. */
@@ -101,13 +98,6 @@ export class PlayerHandLayer extends Stack {
 	}
 
 	/**
-	 * Set card select callback (semantic)
-	 */
-	public setOnCardSelect(callback: (card: Card) => void): void {
-		this.onCardSelect = callback;
-	}
-
-	/**
 	 * A primary press on a card, which may grow into a drag to play it; how
 	 * that drag ended; and any other button on a card, pressed or chorded
 	 * onto the held one (R9.30), which cancels a drag
@@ -122,19 +112,23 @@ export class PlayerHandLayer extends Stack {
 		this.onOtherButton = otherButton;
 	}
 
-	/**
-	 * Set card selection state
-	 */
-	public setCardSelected(card: Card | null): void {
-		this.selectedCard = card;
+	/** The card picked to play, waiting for its target. */
+	public get selectedCard(): Card | null {
+		return this.heldCard;
+	}
+
+	public set selectedCard(card: Card | null) {
+		this.heldCard = card;
 		this.updateCardSelectionVisuals();
 	}
 
-	/**
-	 * Set targeting mode
-	 */
-	public setTargetingMode(targeting: boolean): void {
-		this.targetingMode = targeting;
+	/** Whether a picked card is waiting for its target. */
+	public get targetingMode(): boolean {
+		return this.targeting;
+	}
+
+	public set targetingMode(targeting: boolean) {
+		this.targeting = targeting;
 		this.updateCardSelectionVisuals();
 	}
 
@@ -142,8 +136,8 @@ export class PlayerHandLayer extends Stack {
 	 * Clear card selection
 	 */
 	public clearCardSelection(): void {
-		this.selectedCard = null;
-		this.targetingMode = false;
+		this.heldCard = null;
+		this.targeting = false;
 		this.updateCardSelectionVisuals();
 	}
 
@@ -154,7 +148,7 @@ export class PlayerHandLayer extends Stack {
 	private createCardElements(): void {
 		// Every fan is dealt again, which unmounts the cards it held and so
 		// releases their input registrations.
-		this.cardElements = this.handCards.map((card, index) => {
+		this.cardElements = this.dealtCards.map((card, index) => {
 			// Model ids re-roll every load, so the id is the hand slot plus the
 			// card type. The slot carries uniqueness on its own, since a type
 			// can repeat in a hand; the whole string still varies between runs
@@ -186,16 +180,16 @@ export class PlayerHandLayer extends Stack {
 				if (event.button > 0) this.onOtherButton?.();
 			};
 			cardElement.onDragEnd = (event) => this.onCardDragEnd?.(card, event);
-			cardElement.setOnSelect(() => {
+			cardElement.onSelect = () => {
 				if (this.canPlayCard(card) && this.onCardSelect) {
 					this.onCardSelect(card);
 				}
-			});
+			};
 			return cardElement;
 		});
 
 		for (const seat of [1, 2] as const) {
-			this.halves[seat].fan.setCards(this.cardElements.filter((_element, index) => this.cardDriverMap.get(this.handCards[index].id) === seat));
+			this.halves[seat].fan.cards = this.cardElements.filter((_element, index) => this.cardDriverMap.get(this.dealtCards[index].id) === seat);
 		}
 		this.updateCardSelectionVisuals();
 	}
@@ -241,16 +235,16 @@ export class PlayerHandLayer extends Stack {
 	 */
 	private updateCardSelectionVisuals(): void {
 		this.cardElements.forEach((cardElement, index) => {
-			const card = this.handCards[index];
-			const selected = this.targetingMode && this.selectedCard !== null && card.id === this.selectedCard.id;
-			cardElement.setSelected(selected);
-			cardElement.enabled = this.targetingMode ? selected : this.canPlayCard(card);
+			const card = this.dealtCards[index];
+			const selected = this.targeting && this.heldCard !== null && card.id === this.heldCard.id;
+			cardElement.selected = selected;
+			cardElement.enabled = this.targeting ? selected : this.canPlayCard(card);
 		});
 	}
 
 	/** The slot `card` holds in the hand, or -1. */
 	public slotOf(card: Card): number {
-		return this.handCards.findIndex(held => held.id === card.id);
+		return this.dealtCards.findIndex(held => held.id === card.id);
 	}
 
 	/**
@@ -270,18 +264,16 @@ export class PlayerHandLayer extends Stack {
 		return false;
 	}
 
-	/**
-	 * Get current hand cards
-	 */
-	public getHandCards(): Card[] {
-		return [...this.handCards];
+	/** The cards in the hand, a copy. */
+	public get handCards(): Card[] {
+		return [...this.dealtCards];
 	}
 
 	/**
 	 * Get the UI card element for a given card
 	 */
 	public getCardElementByCard(card: Card): UICard | null {
-		const cardIndex = this.handCards.findIndex(c => c.id === card.id);
+		const cardIndex = this.dealtCards.findIndex(c => c.id === card.id);
 		if (cardIndex >= 0 && cardIndex < this.cardElements.length) {
 			return this.cardElements[cardIndex];
 		}

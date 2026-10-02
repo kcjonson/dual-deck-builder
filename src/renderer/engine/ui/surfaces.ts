@@ -2,7 +2,7 @@ import type { BoxShadow } from '../draw/commands';
 import type { RGBA, Rect } from '../draw/geometry';
 import { resolveShadow } from '../style/styleObject';
 
-/** A token colour as the mutable tuple a Text style and `setColor` take. */
+/** A token colour as the mutable tuple a Text style and `color` take. */
 export function rgba(color: RGBA): [number, number, number, number] {
 	return [color[0], color[1], color[2], color[3]];
 }

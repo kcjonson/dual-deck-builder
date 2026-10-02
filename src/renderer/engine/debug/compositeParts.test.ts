@@ -57,7 +57,7 @@ describe('the parts a composite owns', () => {
 	});
 
 	it('gives a Button a label, its box being its own draw, and no children of its own', () => {
-		const node = snapshotOf(new Button('End turn', { id: 'end_turn_button', width: 120, height: 40 }));
+		const node = snapshotOf(new Button({ label: 'End turn', id: 'end_turn_button', width: 120, height: 40 }));
 
 		expect(partTypes(node)).toEqual(['Text']);
 		expect(node.children).toEqual([]);
@@ -107,7 +107,7 @@ describe('what a caller adds is never a part', () => {
 	});
 
 	it('puts a Button child in children and leaves its label alone', () => {
-		const button = new Button('End turn', { id: 'end_turn_button', width: 120, height: 40 });
+		const button = new Button({ label: 'End turn', id: 'end_turn_button', width: 120, height: 40 });
 		button.addChild(new Container({ id: 'cost_badge', width: 16, height: 16 }));
 
 		const node = snapshotOf(button);
@@ -138,7 +138,7 @@ describe('what a caller adds is never a part', () => {
 
 	it('stops calling a removed part a part, so a re-added layer reports as a child', () => {
 		const stepper = new NumberInput({ id: 'fuel', width: 120 });
-		const steppers = stepper.getChildren()[1];
+		const steppers = stepper.children[1];
 
 		stepper.removeChild(steppers);
 		stepper.addChild(steppers);

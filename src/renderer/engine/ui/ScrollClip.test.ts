@@ -111,8 +111,8 @@ describe('hit testing honours ancestor clips (R4.12)', () => {
 		panel.scrollBy(120);
 		frame(root);
 
-		const hidden = content.getChildren()[0];
-		const shown = content.getChildren()[10];
+		const hidden = content.children[0];
+		const shown = content.children[10];
 		// Row 0 is still at panel-local (0, 0); scrolled, it sits 120 px above
 		// the panel's top edge, where nothing is drawn. Row 10 has scrolled
 		// into the top of the window.
@@ -190,7 +190,7 @@ describe('hit testing honours ancestor clips (R4.12)', () => {
 
 	it('clips under any component whose overflow is hidden, since the walk pushes the clip for all of them', () => {
 		const shape = new Rectangle({ id: 'shape', x: 0, y: 0, width: 10, height: 10 });
-		shape.setOverflow('hidden');
+		shape.overflow = 'hidden';
 		const inside = new Container({ id: 'inside', x: 50, y: 50, width: 10, height: 10 });
 		shape.addChild(inside);
 

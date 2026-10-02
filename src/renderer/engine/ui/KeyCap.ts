@@ -43,7 +43,8 @@ export class KeyCap extends LabelledLeaf {
 
 	constructor({ label, size = 'sm', ...options }: KeyCapOptions) {
 		const metrics = METRICS[size];
-		super({ ...options, height: options.height ?? metrics.height }, new Text(label, {
+		super({ ...options, height: options.height ?? metrics.height }, new Text({
+			text: label,
 			style: {
 				fontRole: 'mono',
 				fontSize: metrics.fontSize,
@@ -58,11 +59,11 @@ export class KeyCap extends LabelledLeaf {
 	}
 
 	public get labelText(): string {
-		return this.label.getText();
+		return this.label.text;
 	}
 
 	public set labelText(text: string) {
-		this.label.setText(text);
+		this.label.text = text;
 	}
 
 	public get resolvedColors(): ResolvedColors {
@@ -95,7 +96,7 @@ export class KeyCap extends LabelledLeaf {
 	/** Centred on the face, which is the box less the extrusion. */
 	protected placeLabel(): void {
 		if (!this.metrics) return;
-		this.label.setHeight(this.height - this.metrics.depth);
+		this.label.height = this.height - this.metrics.depth;
 		this.label.setPosition(Math.round((this.width - this.label.width) / 2), 0);
 	}
 }

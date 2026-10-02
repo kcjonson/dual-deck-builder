@@ -34,7 +34,7 @@ The leaves go last, not first, because moving them onto the closed set rewrites 
 
 - `cursor` (R12.7's `pointer` default) is still not accepted: there is no cursor service, as DDB-84 recorded.
 - "No click after a drag-threshold move" (R12.7's test list) follows the dispatcher's departure: a wandering press that ends on the button clicks.
-- Button's label is still the positional first argument (`new Button('Go', { ... })`); the named form comes with phase 6's accessor rename. The new controls take named options only.
+- Button's label was the positional first argument (`new Button('Go', { ... })`) until phase 6's accessor rename (DDB-91, DDB-245) made it `new Button({ label: 'Go', ... })`. The new controls take named options only.
 
 ## Gallery
 

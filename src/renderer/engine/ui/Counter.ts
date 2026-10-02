@@ -5,7 +5,7 @@ import { tokens } from '../theme/tokens';
 
 export type CounterFormat = (value: number) => string;
 
-export interface CounterOptions extends TextOptions {
+export interface CounterOptions extends Omit<TextOptions, 'text'> {
 	value?: number;
 	/** The shown number as text; whole numbers by default. Given every in-between value while it counts. */
 	format?: CounterFormat;
@@ -30,7 +30,7 @@ export class Counter extends Text {
 	private tween: TweenHandle<number> | null = null;
 
 	constructor({ value = 0, format = WHOLE, duration = tokens.motion.dur_slow, ...options }: CounterOptions = {}) {
-		super(format(value), options);
+		super({ text: format(value), ...options });
 		this.componentType = 'Counter';
 		this.target = value;
 		this.shown = value;
@@ -76,7 +76,7 @@ export class Counter extends Text {
 
 	public set format(format: CounterFormat) {
 		this.formatter = format;
-		this.setText(format(this.shown));
+		this.text = format(this.shown);
 	}
 
 	/**
@@ -91,6 +91,6 @@ export class Counter extends Text {
 
 	private show(value: number): void {
 		this.shown = value;
-		this.setText(this.formatter(value));
+		this.text = this.formatter(value);
 	}
 }

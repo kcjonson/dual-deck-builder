@@ -43,8 +43,8 @@ describe('CreditsScreen', () => {
 		if (!list) throw new Error('the list should be mounted');
 		const texts: string[] = [];
 		const walk = (node: typeof list): void => {
-			if (node instanceof Text) texts.push(node.getText());
-			for (const child of node.getChildren()) walk(child);
+			if (node instanceof Text) texts.push(node.text);
+			for (const child of node.children) walk(child);
 		};
 		walk(list);
 		for (const section of CREDITS) {
@@ -63,9 +63,9 @@ describe('CreditsScreen', () => {
 		const panel = screen.root.findById('credits_panel');
 		const back = screen.root.findById('credits_back_button');
 		if (!panel || !back) throw new Error('the panel and Back should be mounted');
-		expect(panel.getX()).toBe((1024 - panel.getWidth()) / 2);
-		expect(back.getY() + back.getHeight()).toBeLessThanOrEqual(600);
-		expect(panel.getY() + panel.getHeight()).toBeLessThanOrEqual(back.getY());
+		expect(panel.x).toBe((1024 - panel.width) / 2);
+		expect(back.y + back.height).toBeLessThanOrEqual(600);
+		expect(panel.y + panel.height).toBeLessThanOrEqual(back.y);
 	});
 
 	it('scrolls the list from Back with Page Down, Page Up, Home, and End', () => {

@@ -84,7 +84,8 @@ export class DriverSelectionScreen extends Screen {
 			gap: 16,
 		});
 
-		const backButton = new Button('Back to Menu', {
+		const backButton = new Button({
+			label: 'Back to Menu',
 			id: 'driver_select_back_button',
 			// Tab reaches it first, as it reads (R9.18: a positive tabIndex
 			// leads the order)
@@ -97,7 +98,8 @@ export class DriverSelectionScreen extends Screen {
 		backButton.onClick = () => this.back();
 		header.addChild(backButton);
 
-		header.addChild(new Text('Choose Your Drivers', {
+		header.addChild(new Text({
+			text: 'Choose Your Drivers',
 			id: 'driver_select_title',
 			widthMode: 'fill',
 			style: {
@@ -130,11 +132,11 @@ export class DriverSelectionScreen extends Screen {
 			widthMode: 'fill',
 			fillWeight: PANEL_WEIGHT,
 		});
-		this.leftDriverPanel.setOnDriverChanged((driver) => {
+		this.leftDriverPanel.onDriverChanged = (driver) => {
 			this.selectedDriver1 = driver;
 			this.rightDriverPanel.partnerDriver = driver;
 			this.onDriver1Changed();
-		});
+		};
 		body.addChild(this.leftDriverPanel);
 
 		const synergyColumn = new Stack({
@@ -158,11 +160,11 @@ export class DriverSelectionScreen extends Screen {
 			widthMode: 'fill',
 			fillWeight: PANEL_WEIGHT,
 		});
-		this.rightDriverPanel.setOnDriverChanged((driver) => {
+		this.rightDriverPanel.onDriverChanged = (driver) => {
 			this.selectedDriver2 = driver;
 			this.leftDriverPanel.partnerDriver = driver;
 			this.onDriver2Changed();
-		});
+		};
 		body.addChild(this.rightDriverPanel);
 
 		return body;
@@ -182,7 +184,8 @@ export class DriverSelectionScreen extends Screen {
 			crossAlign: 'center',
 		});
 
-		this.confirmationText = new Text('', {
+		this.confirmationText = new Text({
+			text: '',
 			id: 'driver_select_confirmation',
 			widthMode: 'fill',
 			style: {
@@ -196,7 +199,8 @@ export class DriverSelectionScreen extends Screen {
 
 		// The primary action; disabled until two different drivers are picked,
 		// which the accent tone draws as its neutral disabled look.
-		this.startRunButton = new Button('START RUN', {
+		this.startRunButton = new Button({
+			label: 'START RUN',
 			id: 'driver_select_start_run_button',
 			tone: 'accent',
 			size: 'lg',
@@ -206,7 +210,7 @@ export class DriverSelectionScreen extends Screen {
 				fontSize: 'fs_xl',
 			},
 		});
-		this.startRunButton.setEnabled(false);
+		this.startRunButton.enabled = false;
 		this.startRunButton.onClick = () => {
 			if (this.canStartRun && this.selectedDriver1 && this.selectedDriver2) {
 				// Navigate to combat with driver data
@@ -243,9 +247,9 @@ export class DriverSelectionScreen extends Screen {
 			if (this.availableDrivers.length > 0) {
 				// Right panel gets drivers first but stays empty until the left
 				// panel picks, which activates it on a different driver
-				this.rightDriverPanel.setAvailableDrivers(this.availableDrivers);
+				this.rightDriverPanel.availableDrivers = this.availableDrivers;
 
-				this.leftDriverPanel.setAvailableDrivers(this.availableDrivers);
+				this.leftDriverPanel.availableDrivers = this.availableDrivers;
 				this.leftDriverPanel.activate();
 			}
 
@@ -259,7 +263,7 @@ export class DriverSelectionScreen extends Screen {
 	 */
 	private onDriver1Changed(): void {
 		// When first driver is selected, activate the second panel
-		if (this.selectedDriver1 && this.rightDriverPanel.getIsEmpty()) {
+		if (this.selectedDriver1 && this.rightDriverPanel.isEmpty) {
 			this.rightDriverPanel.activate();
 		}
 
@@ -290,9 +294,9 @@ export class DriverSelectionScreen extends Screen {
 	private updateConfirmationText(): void {
 		const first = this.selectedDriver1;
 		const second = this.selectedDriver2;
-		this.confirmationText.setText(first && second
+		this.confirmationText.text = first && second
 			? `Ready to enter the wasteland with ${first.metadata.name} and ${second.metadata.name}`
-			: '');
+			: '';
 	}
 
 	/**
@@ -307,14 +311,12 @@ export class DriverSelectionScreen extends Screen {
 	 * Update start button state
 	 */
 	private updateStartButton(): void {
-		this.startRunButton.setEnabled(this.canStartRun);
+		this.startRunButton.enabled = this.canStartRun;
 	}
 
 
-	/**
-	 * Get the selected drivers
-	 */
-	public getSelectedDrivers(): { driver1: Driver | null; driver2: Driver | null } {
+	/** The drivers chosen in each panel. */
+	public get selectedDrivers(): { driver1: Driver | null; driver2: Driver | null } {
 		return {
 			driver1: this.selectedDriver1,
 			driver2: this.selectedDriver2,

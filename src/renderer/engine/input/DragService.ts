@@ -295,7 +295,7 @@ export class DragService {
 	private activate(session: Session): void {
 		session.active = true;
 		if (!this.host.captorOf(session.pointerId)) this.host.capturePointer(session.source, session.pointerId);
-		session.ghost.setDragOffset(ORIGIN);
+		session.ghost.dragOffset = ORIGIN;
 		this.releasePressed(session);
 		this.notify(true);
 	}
@@ -312,7 +312,7 @@ export class DragService {
 		const to = parent ? parent.screenToLocal(session.position) : session.position;
 		if (!from || !to) return;
 		session.offset = { x: to.x - from.x, y: to.y - from.y };
-		session.ghost.setDragOffset(session.offset);
+		session.ghost.dragOffset = session.offset;
 	}
 
 	/**
@@ -398,7 +398,7 @@ export class DragService {
 	}
 
 	private restoreGhost(session: Session): void {
-		session.ghost.setDragOffset(null);
+		session.ghost.dragOffset = null;
 	}
 
 	private event(

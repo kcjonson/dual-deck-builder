@@ -573,7 +573,7 @@ describe('cancellation (R9.12d)', () => {
 describe('pressed (R9.30, R11.11)', () => {
 	function draggableButton(): Button {
 		const { root } = table();
-		const button = new Button('Drag', { id: 'drag_button', x: 10, y: 200, width: 100 });
+		const button = new Button({ label: 'Drag', id: 'drag_button', x: 10, y: 200, width: 100 });
 		button.onPointerDown = (event) => {
 			context.drag.start({ event, source: button, data: null });
 		};

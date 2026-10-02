@@ -84,7 +84,8 @@ export class ProgressBar extends Component {
 
 		const textColor = rgba(inline ? color.text_bright : color.text_dim);
 		this.labelText = label !== undefined
-			? new Text(label, {
+			? new Text({
+				text: label,
 				style: { fontSize: tokens.fontSize.fs_sm, color: textColor },
 				wrap: 'none',
 				verticalAlign: 'middle',
@@ -240,7 +241,8 @@ export class ProgressBar extends Component {
 	}
 
 	private addValueLabel(): void {
-		const label = new Text('', {
+		const label = new Text({
+			text: '',
 			style: { fontRole: 'mono', fontSize: tokens.fontSize.fs_sm, color: rgba(this.inline ? color.text_bright : color.text) },
 			wrap: 'none',
 			verticalAlign: 'middle',
@@ -253,7 +255,7 @@ export class ProgressBar extends Component {
 	private formatValue(): void {
 		if (!this.valueLabel) return;
 		const format = this.valueFormat;
-		this.valueLabel.setText(typeof format === 'function' ? format(this.target) : format ?? '');
+		this.valueLabel.text = typeof format === 'function' ? format(this.target) : format ?? '';
 	}
 
 	/** Label left and value right, on the line above the track or inside it. */
@@ -263,11 +265,11 @@ export class ProgressBar extends Component {
 		const lineHeight = this.inline ? this.height : this.lineHeight;
 		const valueWidth = this.valueLabel ? this.valueLabel.width : 0;
 		if (this.valueLabel) {
-			this.valueLabel.setHeight(lineHeight);
+			this.valueLabel.height = lineHeight;
 			this.valueLabel.setPosition(Math.round(this.width - inset - valueWidth), lineY);
 		}
 		if (this.labelText) {
-			this.labelText.setHeight(lineHeight);
+			this.labelText.height = lineHeight;
 			this.labelText.setPosition(inset, lineY);
 		}
 	}

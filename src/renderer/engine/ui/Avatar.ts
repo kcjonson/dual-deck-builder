@@ -83,7 +83,8 @@ export class Avatar extends Component {
 		this.diameter = size;
 		this.moodValue = mood;
 		this.hue = hslToRgba(fnv1a(seed) % 360, SATURATION, LIGHTNESS);
-		this.initials = new Text(initialsOf(seed), {
+		this.initials = new Text({
+			text: initialsOf(seed),
 			width: size,
 			height: size,
 			style: {
@@ -106,7 +107,7 @@ export class Avatar extends Component {
 	public set seed(seed: string) {
 		this.seedValue = seed;
 		this.hue = hslToRgba(fnv1a(seed) % 360, SATURATION, LIGHTNESS);
-		this.initials.setText(initialsOf(seed));
+		this.initials.text = initialsOf(seed);
 	}
 
 	public get discColor(): RGBA {
@@ -114,7 +115,7 @@ export class Avatar extends Component {
 	}
 
 	public get initialsText(): string {
-		return this.initials.getText();
+		return this.initials.text;
 	}
 
 	public get mood(): number | null {

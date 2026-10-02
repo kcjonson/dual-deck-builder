@@ -42,7 +42,7 @@ afterEach(() => {
 describe('Button', () => {
 	function button(): { button: Button; clicks: number[] } {
 		const clicks: number[] = [];
-		const made = new Button('Go', { id: 'go', x: 100, y: 100, width: 120, height: 40 });
+		const made = new Button({ label: 'Go', id: 'go', x: 100, y: 100, width: 120, height: 40 });
 		made.onClick = () => clicks.push(1);
 		root.addChild(made);
 		return { button: made, clicks };
@@ -85,20 +85,20 @@ describe('Button', () => {
 	it('drops pressed when an ancestor is disabled mid-press, and stays unpressed when it is enabled again', () => {
 		const holder = new Container({ id: 'holder', width: 800, height: 600 });
 		root.addChild(holder);
-		const made = new Button('Go', { x: 100, y: 100, width: 120, height: 40 });
+		const made = new Button({ label: 'Go', x: 100, y: 100, width: 120, height: 40 });
 		holder.addChild(made);
 		inject('move,160,120', 'down,160,120');
 		expect(made.pressed).toBe(true);
-		holder.setEnabled(false);
+		holder.enabled = false;
 		expect(made.pressed).toBe(false);
 		inject('up,160,120');
-		holder.setEnabled(true);
+		holder.enabled = true;
 		expect(made.pressed).toBe(false);
 	});
 
 	it('is not pressed while disabled', () => {
 		const { button: made } = button();
-		made.setEnabled(false);
+		made.enabled = false;
 		inject('move,160,120', 'down,160,120');
 		expect(made.pressed).toBe(false);
 	});
@@ -113,14 +113,14 @@ describe('Button', () => {
 
 	it('does not click while disabled (R9.5)', () => {
 		const { button: made, clicks } = button();
-		made.setEnabled(false);
+		made.enabled = false;
 		inject('click,160,120');
 		expect(clicks).toHaveLength(0);
 	});
 
 	it('takes the click over a button painted beneath it, once', () => {
 		const under: number[] = [];
-		const lower = new Button('Under', { id: 'under', x: 100, y: 100, width: 120, height: 40 });
+		const lower = new Button({ label: 'Under', id: 'under', x: 100, y: 100, width: 120, height: 40 });
 		lower.onClick = () => under.push(1);
 		root.addChild(lower);
 		const { clicks } = button();
@@ -148,7 +148,7 @@ describe('Button', () => {
 		const { button: made, clicks } = button();
 		made.onClick = () => {
 			clicks.push(1);
-			made.setEnabled(false);
+			made.enabled = false;
 		};
 		inject('keydown,Tab', 'keyup,Tab');
 		for (const repeat of [false, false]) {
@@ -300,7 +300,7 @@ describe('PointerAdapter', () => {
 
 	it('queues a window blur, which cancels a press in progress', () => {
 		const clicks: number[] = [];
-		const made = new Button('Go', { x: 0, y: 0, width: 100, height: 40 });
+		const made = new Button({ label: 'Go', x: 0, y: 0, width: 100, height: 40 });
 		made.onClick = () => clicks.push(1);
 		root.addChild(made);
 

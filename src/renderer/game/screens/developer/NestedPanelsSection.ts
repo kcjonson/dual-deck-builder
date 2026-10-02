@@ -27,10 +27,10 @@ export class NestedPanelsSection extends DeveloperSectionPanel {
 				padding: 12,
 			},
 		});
-		nested.addChild(new Text('Nested Panel Content', { style: { fontSize: 20, color: 'text_bright' } }));
+		nested.addChild(new Text({ text: 'Nested Panel Content', style: { fontSize: 20, color: 'text_bright' } }));
 		const row = new Stack({ direction: 'horizontal', gap: 20, crossAlign: 'center' });
 		row.addChild(new Rectangle({ width: 60, height: 60, style: { backgroundColor: '#ff4080', borderRadius: 30 } }));
-		row.addChild(new Button('Nested Button', { width: 120, height: 35 }));
+		row.addChild(new Button({ label: 'Nested Button', width: 120, height: 35 }));
 		nested.addChild(row);
 
 		const column = new Stack({ padding: { left: 20, right: 20 }, widthMode: 'fill' });

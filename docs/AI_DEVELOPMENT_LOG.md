@@ -6,6 +6,18 @@ This document contains the chronological log of completed development tasks for 
 
 **Date correction (2026-08-22):** the repo's first commit is 2025-05-17, but many entries below carry dates in December 2024 or January 2025 — the AI that wrote them used its assumed date instead of the real one. Entries dated 2025-07-03 and 2025-07-02 have been corrected from "2025-01-03"/"2025-01-02" (verified against git history). Remaining Dec 2024 / Jan 2025 dates are wrong by roughly six months; the real work happened May–July 2025. Trust git history over these dates.
 
+## The accessor rename (2026-10-02)
+
+**What landed:** DDB-91's second PR and DDB-245 (DDB-55, phase 6, R8.23). Mechanical; no behaviour or pixel change.
+
+- Component: `getX/getY/getWidth/getHeight`, `setX/setY/setWidth/setHeight`, `setVisible/isVisible`, `setOverflow/getOverflow`, `setEnabled/isEnabled`, `getChildren`, `getComponentType`, `setHovered`, `setDragOffset` became the accessors `x`, `y`, `width`, `height`, `visible`, `overflow`, `enabled`, `children`, `componentType` (protected setter), `hovered`, `dragOffset`. `setPosition` and `setSize` stay: they set two values at once.
+- Leaves: a text's `text`, `fontSize`, `color`, `align`, `verticalAlign`; the shapes' `fillColor`, `strokeColor`, `radius`, `points`; a rectangle's `fillColor`, `borderColor`, `borderWidth`, `cornerRadius`; a button's `label`. `Text`, `Panel`, and `AimReticle` override the accessors where they overrode the methods.
+- Game components: `Card` (`data`, `size`, `driver`, `onSelect` as a callback property; the unused click handler deleted), the vehicle plate's and battlefield layers' template hooks as protected getters, `BattlefieldLayer.vehicles`, `HandFan.cards`, `PlayerHandLayer` (`hand`, `selectedCard`, `targetingMode`, `handCards`, callbacks as properties), `DriverPanel`, `CombatScreen.battleState`, `DriverSelectionScreen.selectedDrivers`. Three never-called getters deleted.
+- `new Text({ text })`, `new Button({ label })`, `new DropdownButton({ label })`; `ComponentOptions` takes R8.2's input and drag callbacks. The vehicle plate keeps its own `onClick` (a target choice) out of the component's.
+- Done by two TypeScript-language-service codemods (call sites by symbol, so a mechanics `getX` was never touched), then the declarations by hand.
+
+**How:** `npm test`, `npm run lint`, CI's visual suite with no golden moved.
+
 ## Developer sections on stacks, reflowing on resize (2026-10-02)
 
 **What landed:** DDB-235, DDB-236, and DDB-239 (DDB-55), one PR.

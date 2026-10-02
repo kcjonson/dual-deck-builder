@@ -52,7 +52,8 @@ export class CombatLogLayer extends Container {
 		this.addChild(this.header);
 
 		// Centred in the header
-		this.title = new Text('Combat Log', {
+		this.title = new Text({
+			text: 'Combat Log',
 			height: this.headerHeight,
 			style: {
 				fontSize: 16,
@@ -101,11 +102,11 @@ export class CombatLogLayer extends Container {
 
 	/** The layout phase: the layer was sized (R8.18). */
 	protected layoutChildren(): void {
-		const width = this.getWidth();
-		const height = this.getHeight();
+		const width = this.width;
+		const height = this.height;
 		this.background.setSize(width, height);
-		this.header.setWidth(width);
-		this.title.setWidth(width);
+		this.header.width = width;
+		this.title.width = width;
 		this.scroller.setSize(width - this.padding * 2, height - this.headerHeight - 15);
 	}
 
@@ -119,7 +120,8 @@ export class CombatLogLayer extends Container {
 		const following = this.scroller.atBottom;
 		this.entryList.reconcileChildren(this.combatLog.entries, {
 			key: (entry) => entry.id,
-			create: (entry) => new Text(this.getPrefixForEntry(entry) + entry.message, {
+			create: (entry) => new Text({
+				text: this.getPrefixForEntry(entry) + entry.message,
 				height: this.entryHeight,
 				style: {
 					fontSize: this.fontSize,

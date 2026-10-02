@@ -53,7 +53,8 @@ export class Tooltip extends Stack {
 		this.componentType = 'Tooltip';
 
 		this.titleText = spec.title
-			? new Text(spec.title, {
+			? new Text({
+				text: spec.title,
 				id: 'tooltip_title',
 				style: { fontRole: 'display', fontSize: tokens.fontSize.fs_base, color: rgba(color.text_bright) },
 				wrap: 'none',
@@ -68,7 +69,8 @@ export class Tooltip extends Stack {
 		}
 
 		this.descriptionText = spec.description
-			? new Text(spec.description, {
+			? new Text({
+				text: spec.description,
 				id: 'tooltip_description',
 				// The stack measures its own hug width unconstrained and then
 				// clamps it; the text's own limit is what makes it wrap.
@@ -84,11 +86,11 @@ export class Tooltip extends Stack {
 	}
 
 	public get title(): string | null {
-		return this.titleText?.getText() ?? null;
+		return this.titleText?.text ?? null;
 	}
 
 	public get description(): string | null {
-		return this.descriptionText?.getText() ?? null;
+		return this.descriptionText?.text ?? null;
 	}
 
 	public get hotkey(): string | null {

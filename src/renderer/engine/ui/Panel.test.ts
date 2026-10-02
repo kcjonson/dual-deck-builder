@@ -217,20 +217,20 @@ describe('Panel header (R12.19)', () => {
 		expect(hairline?.rect.y).toBe(panel.header - tokens.borderWidth.bw_hair);
 		expect(content.screenBounds.y).toBe(20 + panel.header + tokens.space.space_4);
 		// The header's parts are the panel's own, not flowed content.
-		expect(panel.getChildren().filter((child) => child.isPart)).toHaveLength(2);
+		expect(panel.children.filter((child) => child.isPart)).toHaveLength(2);
 		expect(panel.flows(content)).toBe(true);
 	});
 
 	it('lays out actions right to left at the header\'s right end, out of the flow', () => {
-		const close = new Button('Close', { id: 'close', width: 60, size: 'sm' });
-		const pin = new Button('Pin', { id: 'pin', width: 40, size: 'sm' });
+		const close = new Button({ label: 'Close', id: 'close', width: 60, size: 'sm' });
+		const pin = new Button({ label: 'Pin', id: 'pin', width: 40, size: 'sm' });
 		const panel = mount({ title: 'Card', actions: [pin, close] });
 		expect(close.screenBounds.x + close.width).toBe(10 + 200 - tokens.space.space_4);
 		expect(pin.screenBounds.x + pin.width).toBe(close.screenBounds.x - tokens.space.space_2);
 		expect(Math.abs(close.screenBounds.y + close.height / 2 - (20 + panel.header / 2))).toBeLessThanOrEqual(0.5);
 		expect(panel.flows(close)).toBe(false);
 		expect(panel.actions).toEqual([pin, close]);
-		expect(() => new Panel({ actions: [new Button('x')] })).toThrow(/needs a title or kicker/);
+		expect(() => new Panel({ actions: [new Button({ label: 'x' })] })).toThrow(/needs a title or kicker/);
 	});
 
 	it('updates its title in place', () => {

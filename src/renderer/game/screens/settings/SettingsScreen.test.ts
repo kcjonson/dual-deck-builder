@@ -90,13 +90,13 @@ describe('SettingsScreen', () => {
 		const panel = screen.root.findById('settings_motion_panel');
 		const back = screen.root.findById('settings_back_button');
 		if (!panel || !back) throw new Error('the panel and Back should be mounted');
-		expect(panel.getX()).toBe((1024 - panel.getWidth()) / 2);
-		expect(back.getY() + back.getHeight()).toBeLessThanOrEqual(600);
+		expect(panel.x).toBe((1024 - panel.width) / 2);
+		expect(back.y + back.height).toBeLessThanOrEqual(600);
 	});
 
 	it('builds nothing twice across a remount', () => {
 		screen.unmount();
 		screen.mount(context);
-		expect(screen.root.getChildren().filter((child) => child.id === 'settings_motion_panel')).toHaveLength(1);
+		expect(screen.root.children.filter((child) => child.id === 'settings_motion_panel')).toHaveLength(1);
 	});
 });

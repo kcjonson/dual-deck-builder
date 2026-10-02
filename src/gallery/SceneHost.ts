@@ -91,7 +91,7 @@ export class SceneHost {
 	 * The roots R13.33 hands to the tree snapshot and the layout lint: the
 	 * viewport-sized container, with the scene beneath it, then whatever the
 	 * scene opened through the overlay service (R8.21). The
-	 * serializer walks `debugChildren` rather than `getChildren`, which is what
+	 * serializer walks `debugChildren` rather than `children`, which is what
 	 * makes a Panel scene report its background and content layer instead of
 	 * the content layer's children one level too shallow.
 	 */
@@ -315,7 +315,7 @@ export class SceneHost {
 			updates: this.updates,
 			renders: this.renders,
 			content: this.mountedRoot
-				? { width: this.mountedRoot.getWidth(), height: this.mountedRoot.getHeight() }
+				? { width: this.mountedRoot.width, height: this.mountedRoot.height }
 				: null,
 			viewport: this.readViewport(),
 		};

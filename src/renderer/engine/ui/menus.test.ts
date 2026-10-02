@@ -15,7 +15,7 @@ import { treeSnapshot } from '../debug/treeSnapshot';
 import { Button } from './Button';
 import { ContextMenu } from './ContextMenu';
 import { Dialog } from './Dialog';
-import { DropdownButton } from './DropdownButton';
+import { DropdownButton, DropdownButtonOptions } from './DropdownButton';
 import { Menu, MenuItem } from './Menu';
 import { Select, SelectOption } from './Select';
 import { TextInput } from './TextInput';
@@ -156,7 +156,7 @@ describe('Menu (R12.11)', () => {
 
 	it('reports only the rows in view for the text record', () => {
 		const made = menu({ items: items('a', 'b', 'c', 'd', 'e', 'f').items, maxHeight: 80 });
-		const rows = made.getChildren()[0].getChildren().find((child) => child.drawnText) as { drawnText: readonly string[] };
+		const rows = made.children[0].children.find((child) => child.drawnText) as { drawnText: readonly string[] };
 		expect(rows.drawnText).toEqual(['a', 'b', 'c']);
 		wheel(made, 400);
 		expect(rows.drawnText).toEqual(['d', 'e', 'f']);
@@ -379,7 +379,7 @@ describe('Select (R12.12)', () => {
 	it('closes on a press outside, which is consumed', () => {
 		const { made } = select();
 		const clicks: number[] = [];
-		root.addChild(new Button('Go', { id: 'go', x: 500, y: 400, width: 100, onClick: () => clicks.push(1) }));
+		root.addChild(new Button({ label: 'Go', id: 'go', x: 500, y: 400, width: 100, onClick: () => clicks.push(1) }));
 		layout();
 		inject(`click,${centre(made)}`);
 		inject('click,550,417');
@@ -401,7 +401,7 @@ describe('Select (R12.12)', () => {
 
 	it('keeps focus through a press in its menu, and closes when focus moves away', () => {
 		const { made } = select();
-		root.addChild(new Button('Next', { id: 'next', x: 500, y: 400, width: 100 }));
+		root.addChild(new Button({ label: 'Next', id: 'next', x: 500, y: 400, width: 100 }));
 		layout();
 		inject(`click,${centre(made)}`);
 		const menu = made.openMenu as Menu;
@@ -494,9 +494,9 @@ describe('Select (R12.12)', () => {
 });
 
 describe('DropdownButton (R12.13)', () => {
-	function dropdown(options: ConstructorParameters<typeof DropdownButton>[1] = {}): { made: DropdownButton; picked: string[] } {
+	function dropdown(options: DropdownButtonOptions = {}): { made: DropdownButton; picked: string[] } {
 		const { items: list, picked } = items('Repair', 'Refuel', 'Scrap');
-		const made = new DropdownButton('Actions', { id: 'actions', x: 100, y: 300, width: 140, items: list, ...options });
+		const made = new DropdownButton({ label: 'Actions', id: 'actions', x: 100, y: 300, width: 140, items: list, ...options });
 		root.addChild(made);
 		layout();
 		return { made, picked };
@@ -545,7 +545,7 @@ describe('DropdownButton (R12.13)', () => {
 		expect(made.openMenu).toBeNull();
 
 		const clicks: number[] = [];
-		root.addChild(new Button('Go', { x: 500, y: 500, width: 100, onClick: () => clicks.push(1) }));
+		root.addChild(new Button({ label: 'Go', x: 500, y: 500, width: 100, onClick: () => clicks.push(1) }));
 		layout();
 		inject(`click,${centre(made)}`, 'click,550,517');
 		expect(made.openMenu).toBeNull();
@@ -615,7 +615,7 @@ describe('ContextMenu (R12.14)', () => {
 
 	it('selects with a click, closes, fires onClose, and gives focus back', () => {
 		const { menu, picked, closes } = contextMenu();
-		const field = new Button('Field', { id: 'field', x: 200, y: 150, width: 100 });
+		const field = new Button({ label: 'Field', id: 'field', x: 200, y: 150, width: 100 });
 		root.findById('scene')?.addChild(field);
 		layout();
 		// A secondary press focuses what it lands on (R9.23), and the menu hands focus back to it.
@@ -631,7 +631,7 @@ describe('ContextMenu (R12.14)', () => {
 
 	it('leaves focus where an item moved it: a field to rename into', () => {
 		const field = new TextInput({ id: 'rename', x: 500, y: 500, width: 200 });
-		const owner = new Button('Rig', { id: 'rig', x: 200, y: 150, width: 100 });
+		const owner = new Button({ label: 'Rig', id: 'rig', x: 200, y: 150, width: 100 });
 		const menu = new ContextMenu({ items: [{ label: 'Rename', onSelect: () => context.focus.focus(field, 'programmatic') }] });
 		root.addChild(field);
 		root.addChild(owner);
@@ -645,7 +645,7 @@ describe('ContextMenu (R12.14)', () => {
 	});
 
 	it('leaves focus where an item moved it: a modal dialog it opens', () => {
-		const owner = new Button('Rig', { id: 'rig', x: 200, y: 150, width: 100 });
+		const owner = new Button({ label: 'Rig', id: 'rig', x: 200, y: 150, width: 100 });
 		const confirm = new TextInput({ id: 'confirm_name', width: 200 });
 		const dialog = new Dialog({ id: 'scrap_dialog', title: 'Scrap vehicle?', content: confirm, initialFocus: confirm });
 		const menu = new ContextMenu({ items: [{ label: 'Scrap', onSelect: () => dialog.show(context) }] });
@@ -663,7 +663,7 @@ describe('ContextMenu (R12.14)', () => {
 	});
 
 	it('returns focus to the original owner when one context menu replaces another', () => {
-		const owner = new Button('Rig', { id: 'rig', x: 500, y: 500, width: 100 });
+		const owner = new Button({ label: 'Rig', id: 'rig', x: 500, y: 500, width: 100 });
 		root.addChild(owner);
 		layout();
 		context.focus.focus(owner);
@@ -706,7 +706,7 @@ describe('ContextMenu (R12.14)', () => {
 
 	it('hands focus back with its ring after a menu opened by a press is driven from the keys and closed on Escape (DDB-229)', () => {
 		const { menu } = contextMenu();
-		const field = new Button('Field', { id: 'field', x: 200, y: 150, width: 100 });
+		const field = new Button({ label: 'Field', id: 'field', x: 200, y: 150, width: 100 });
 		root.findById('scene')?.addChild(field);
 		layout();
 		inject(`click,${centre(field)},2`);
@@ -745,7 +745,7 @@ describe('ContextMenu (R12.14)', () => {
 	it('closes on a primary press outside, which is consumed', () => {
 		const { menu, closes } = contextMenu();
 		const clicks: number[] = [];
-		root.addChild(new Button('Go', { x: 500, y: 500, width: 100, onClick: () => clicks.push(1) }));
+		root.addChild(new Button({ label: 'Go', x: 500, y: 500, width: 100, onClick: () => clicks.push(1) }));
 		layout();
 		inject('click,200,150,2');
 		inject('click,550,517');

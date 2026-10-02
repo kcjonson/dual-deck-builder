@@ -156,7 +156,7 @@ export class ScrollContainer extends Component {
 
 	/** The one content child: the first child the caller added. */
 	public get content(): Component | null {
-		return this.getChildren().find((child) => !child.isPart) ?? null;
+		return this.children.find((child) => !child.isPart) ?? null;
 	}
 
 	/** The standalone scrollbar this container drives (R12.37). */
@@ -335,7 +335,7 @@ export class ScrollContainer extends Component {
 	protected layoutChildren(): void {
 		if (this.heightMode === 'hug' && !this.parent?.sizesChildren) this.resizeInLayout(this.width, this.clampToLimits('height', this.hugHeight(this.width)));
 		let ink = 0;
-		for (const child of this.getChildren()) if (!child.isPart) ink = Math.max(ink, child.inkExtent);
+		for (const child of this.children) if (!child.isPart) ink = Math.max(ink, child.inkExtent);
 		if (ink !== this.childInk) {
 			this.childInk = ink;
 			this.invalidateClip();

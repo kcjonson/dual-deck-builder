@@ -84,7 +84,7 @@ describe('HandFan overlap', () => {
 			y: 0,
 			data: new GameCard(cardData[index % cardData.length]),
 		}));
-		fan.setCards(cards);
+		fan.cards = cards;
 		context.frame.layout();
 		return { fan, cards, root };
 	}
@@ -121,10 +121,10 @@ describe('HandFan overlap', () => {
 
 	it('hides the row when the hand is empty, so nothing reports a zero size', () => {
 		const { fan, root } = mountFan(532, 3);
-		fan.setCards([]);
-		const [row] = fan.getChildren();
+		fan.cards = [];
+		const [row] = fan.children;
 		expect(row.visible).toBe(false);
-		fan.setCards([new UICard({ x: 0, y: 0, data: new GameCard(cardData[0]) })]);
+		fan.cards = [new UICard({ x: 0, y: 0, data: new GameCard(cardData[0]) })];
 		expect(row.visible).toBe(true);
 		root.unmount();
 	});

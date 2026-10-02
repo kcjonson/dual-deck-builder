@@ -18,7 +18,7 @@ class ButtonScreen extends Screen {
 	}
 
 	protected onMount(): void {
-		this.button = new Button('Go', { id: `${this.id}_go`, x: 10, y: 10, width: 80, height: 30 });
+		this.button = new Button({ label: 'Go', id: `${this.id}_go`, x: 10, y: 10, width: 80, height: 30 });
 		this.rootLayer.addChild(this.button);
 	}
 }
@@ -33,12 +33,12 @@ describe('Screen lifecycle (R8.21, R8.22)', () => {
 		const context = createTestContext({ viewport: { logical: { width: 800, height: 600 } } });
 		const screen = new ButtonScreen('first');
 		// Nothing reads the window: the root has no size until it mounts
-		expect(screen.root.getWidth()).toBe(0);
+		expect(screen.root.width).toBe(0);
 
 		screen.mount(context);
 
-		expect(screen.root.getWidth()).toBe(800);
-		expect(screen.root.getHeight()).toBe(600);
+		expect(screen.root.width).toBe(800);
+		expect(screen.root.height).toBe(600);
 		expect(screen.button?.isMounted).toBe(true);
 		expect(context.dispatcher.roots).toEqual([screen.root]);
 		expect(hitAtButton(context)).toBe(screen.button);

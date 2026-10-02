@@ -833,12 +833,12 @@ export class Dispatcher {
 		const fields = this.lastPointerFields(pointerId, undefined, position ?? undefined);
 		for (let index = previous.length - 1; index >= shared; index--) {
 			const left = previous[index];
-			left.setHovered(false);
+			left.hovered = false;
 			if (left.isMounted) this.deliverTo(left, this.pointerEvent('pointerleave', left, fields));
 		}
 		for (let index = shared; index < next.length; index++) {
 			const entered = next[index];
-			entered.setHovered(true);
+			entered.hovered = true;
 			this.deliverTo(entered, this.pointerEvent('pointerenter', entered, fields));
 		}
 		const hovered = next.length > 0 ? next[next.length - 1] : null;

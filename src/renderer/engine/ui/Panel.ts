@@ -153,7 +153,8 @@ export class Panel extends Stack {
 		if (style.opacity !== undefined) this.opacity = style.opacity;
 
 		this.kickerText = kicker !== undefined
-			? new Text(kicker, {
+			? new Text({
+				text: kicker,
 				style: {
 					fontRole: 'mono',
 					fontSize: tokens.fontSize.fs_xs,
@@ -166,7 +167,8 @@ export class Panel extends Stack {
 			})
 			: null;
 		this.titleText = title !== undefined
-			? new Text(title, {
+			? new Text({
+				text: title,
 				style: {
 					fontRole: 'display',
 					fontSize: tokens.fontSize.fs_md,
@@ -197,16 +199,16 @@ export class Panel extends Stack {
 	}
 
 	public get title(): string | null {
-		return this.titleText?.getText() ?? null;
+		return this.titleText?.text ?? null;
 	}
 
 	public set title(title: string | null) {
 		if (!this.titleText) throw new Error('Panel: a panel built without a title has no header to put one in');
-		this.titleText.setText(title ?? '');
+		this.titleText.text = title ?? '';
 	}
 
 	public get kicker(): string | null {
-		return this.kickerText?.getText() ?? null;
+		return this.kickerText?.text ?? null;
 	}
 
 	public get actions(): readonly Component[] {
@@ -261,16 +263,19 @@ export class Panel extends Stack {
 	}
 
 	/** A clipping panel clears its corners with the rounded clip; one that does not, by inset (R12.19). */
-	public setOverflow(overflow: Overflow): this {
-		super.setOverflow(overflow);
+	public get overflow(): Overflow {
+		return super.overflow;
+	}
+
+	public set overflow(overflow: Overflow) {
+		super.overflow = overflow;
 		// Component's constructor sets it before this class has its fields.
-		if (this.requestedPadding === undefined) return this;
+		if (this.requestedPadding === undefined) return;
 		const inset = contentInsetFor(this.requestedPadding, this.box, overflow === 'hidden');
 		if (!sameSides(inset, this.contentPadding)) {
 			this.contentPadding = inset;
 			this.padding = { ...inset, top: inset.top + this.headerHeight };
 		}
-		return this;
 	}
 
 	/** R8.8: the corner ticks straddle the border; the glow and the raised shadow reach further. */

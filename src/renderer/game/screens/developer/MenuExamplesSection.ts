@@ -53,10 +53,10 @@ export class MenuExamplesSection extends CatalogSection {
 		]));
 
 		this.addRow('dropdown button: opens down, opens up, accent tone, disabled', this.line([
-			new DropdownButton('Actions', { id: 'dev_dropdown', items: ACTIONS, width: 140 }),
-			new DropdownButton('Upward', { id: 'dev_dropdown_up', items: ACTIONS, openUpward: true, width: 140, menuWidth: MENU_WIDTH }),
-			new DropdownButton('Deploy', { id: 'dev_dropdown_accent', items: ACTIONS, tone: 'accent', width: 140, menuWidth: MENU_WIDTH }),
-			new DropdownButton('Locked', { items: ACTIONS, disabled: true, width: 140 }),
+			new DropdownButton({ label: 'Actions', id: 'dev_dropdown', items: ACTIONS, width: 140 }),
+			new DropdownButton({ label: 'Upward', id: 'dev_dropdown_up', items: ACTIONS, openUpward: true, width: 140, menuWidth: MENU_WIDTH }),
+			new DropdownButton({ label: 'Deploy', id: 'dev_dropdown_accent', items: ACTIONS, tone: 'accent', width: 140, menuWidth: MENU_WIDTH }),
+			new DropdownButton({ label: 'Locked', items: ACTIONS, disabled: true, width: 140 }),
 		]));
 
 		this.addRow('context menu: right-click or touch-hold the pad', this.contextPad());
@@ -71,7 +71,7 @@ export class MenuExamplesSection extends CatalogSection {
 			padding: space.space_3,
 			style: { backgroundColor: 'bg_inset' },
 		});
-		pad.addChild(new Text('Right-click here', { style: { fontSize: control.control_fs_sm, color: 'text_faint' } }));
+		pad.addChild(new Text({ text: 'Right-click here', style: { fontSize: control.control_fs_sm, color: 'text_faint' } }));
 		const menu = new ContextMenu({ id: 'dev_context_menu', items: ACTIONS, width: MENU_WIDTH });
 		pad.onContextMenu = (event) => menu.openAt(event.screen, { from: pad });
 		return pad;

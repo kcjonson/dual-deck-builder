@@ -57,7 +57,7 @@ export class InteractiveControlsSection extends DeveloperSectionPanel {
 			style: { fontSize: 14 },
 			onChange: (value) => this.applyPosition(value),
 		});
-		const apply = new Button('Apply All', { width: 100, height: 30 });
+		const apply = new Button({ label: 'Apply All', width: 100, height: 30 });
 		apply.onClick = () => {
 			this.applyColor(this.colorInput.value);
 			this.applyPosition(this.positionInput.value);
@@ -77,7 +77,7 @@ export class InteractiveControlsSection extends DeveloperSectionPanel {
 		const parts = value.split(',').map((part) => parseFloat(part.trim()));
 		if (parts.length !== 4 || parts.some((part) => isNaN(part))) return;
 		const [r, g, b, a] = parts;
-		this.demoRectangle.setFillColor([r / 255, g / 255, b / 255, a]);
+		this.demoRectangle.fillColor = [r / 255, g / 255, b / 255, a];
 	}
 
 	private applyPosition(value: string): void {
@@ -99,7 +99,7 @@ export class InteractiveControlsSection extends DeveloperSectionPanel {
 /** A label over its control. */
 function field(label: string, control: Component): Stack {
 	const group = new Stack({ gap: 5 });
-	group.addChild(new Text(label, { style: { fontSize: 16, color: 'text_bright' } }));
+	group.addChild(new Text({ text: label, style: { fontSize: 16, color: 'text_bright' } }));
 	group.addChild(control);
 	return group;
 }

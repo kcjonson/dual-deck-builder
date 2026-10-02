@@ -332,7 +332,7 @@ describe('Stack gap and padding (worldsim, R10.2, R10.12)', () => {
 	it('leaves a leaf that cannot resize at its own size under fill and stretch', () => {
 		const layout = stack({ width: 200, height: 300, crossAlign: 'stretch' });
 		const circle = new Circle({ widthMode: 'fill' });
-		circle.setRadius(20);
+		circle.radius = 20;
 		layout.addChild(circle);
 		layOut(layout);
 

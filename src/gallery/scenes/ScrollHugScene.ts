@@ -30,7 +30,7 @@ function row(index: number): Component {
 		padding: { left: 8 },
 		style: { backgroundColor: index % 2 === 0 ? 'bg_panel' : 'bg_panel_raised' },
 	});
-	made.addChild(new Text(`Salvage lot ${index + 1}`, { style: { fontSize: tokens.fontSize.fs_base, color: rgba(tokens.color.text) } }));
+	made.addChild(new Text({ text: `Salvage lot ${index + 1}`, style: { fontSize: tokens.fontSize.fs_base, color: rgba(tokens.color.text) } }));
 	return made;
 }
 
@@ -50,7 +50,7 @@ function band(label: string): Component {
 		padding: { left: 8 },
 		style: { backgroundColor: 'bg_void' },
 	});
-	made.addChild(new Text(label, { style: { fontSize: tokens.fontSize.fs_sm, color: rgba(tokens.color.text_dim) } }));
+	made.addChild(new Text({ text: label, style: { fontSize: tokens.fontSize.fs_sm, color: rgba(tokens.color.text_dim) } }));
 	return made;
 }
 
@@ -68,7 +68,8 @@ export class ScrollHugScene extends DeveloperSectionPanel {
 	constructor({ x, y, width }: SceneFactoryOptions) {
 		super({ id: 'gallery_scene_scroll_hug', title: 'Hug-height scrolling', contentHeight: CONTENT_HEIGHT, x, y, width });
 
-		this.addChild(new Text('heightMode hug: as tall as the content, shrinking to the room a column has and scrolling past it.', {
+		this.addChild(new Text({
+			text: 'heightMode hug: as tall as the content, shrinking to the room a column has and scrolling past it.',
 			y: 50,
 			style: { fontSize: 14, color: rgba(tokens.color.text_dim) },
 		}));
@@ -107,6 +108,6 @@ export class ScrollHugScene extends DeveloperSectionPanel {
 	}
 
 	private addCaption(index: number, caption: string): void {
-		this.addChild(new Text(caption, { x: (CELL_WIDTH + CELL_GAP) * index, y: CAPTION_Y, style: { fontSize: 13, color: rgba(tokens.color.text_dim) } }));
+		this.addChild(new Text({ text: caption, x: (CELL_WIDTH + CELL_GAP) * index, y: CAPTION_Y, style: { fontSize: 13, color: rgba(tokens.color.text_dim) } }));
 	}
 }

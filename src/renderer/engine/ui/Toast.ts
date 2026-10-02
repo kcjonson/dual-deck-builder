@@ -105,7 +105,8 @@ export class Toast extends Stack {
 		const icon = new Icon({ id: id ? `${id}_icon` : undefined, glyph: look.icon, size: iconSize, tint: look.color, margin: { top: 1 } });
 
 		const text = new Stack({ direction: 'vertical', gap: tokens.space.space_0_5, widthMode: 'fill' });
-		this.titleText = new Text(title, {
+		this.titleText = new Text({
+			text: title,
 			id: id ? `${id}_title` : undefined,
 			style: { fontRole: 'display', fontSize: tokens.fontSize.fs_md, color: rgba(color.text_bright) },
 			wrap: 'none',
@@ -113,11 +114,12 @@ export class Toast extends Stack {
 		});
 		text.addPart(this.titleText);
 		this.messageText = message
-			? new Text(message, { id: id ? `${id}_message` : undefined, style: { fontSize: tokens.fontSize.fs_sm, color: rgba(color.text_dim) } })
+			? new Text({ text: message, id: id ? `${id}_message` : undefined, style: { fontSize: tokens.fontSize.fs_sm, color: rgba(color.text_dim) } })
 			: null;
 		if (this.messageText) text.addPart(this.messageText);
 
-		this.closeButton = new Button('Dismiss', {
+		this.closeButton = new Button({
+			label: 'Dismiss',
 			id: id ? `${id}_close` : undefined,
 			icon: 'close',
 			iconPosition: 'only',
@@ -151,11 +153,11 @@ export class Toast extends Stack {
 	}
 
 	public get title(): string {
-		return this.titleText.getText();
+		return this.titleText.text;
 	}
 
 	public get message(): string | null {
-		return this.messageText?.getText() ?? null;
+		return this.messageText?.text ?? null;
 	}
 
 	/** Live: appearing or visible, not on its way out. */
@@ -389,7 +391,7 @@ export class ToastStack extends Stack {
 		toast.slideFrom = this.isLeft ? -1 : 1;
 		toast.onFinished = (finished) => this.removeToast(finished);
 		this.visible = true;
-		this.insertChild(this.isTop ? 0 : this.getChildren().length, toast);
+		this.insertChild(this.isTop ? 0 : this.children.length, toast);
 		return toast;
 	}
 
@@ -413,7 +415,7 @@ export class ToastStack extends Stack {
 	}
 
 	private toastsByAge(): Toast[] {
-		const toasts = this.getChildren().filter((child): child is Toast => child instanceof Toast);
+		const toasts = this.children.filter((child): child is Toast => child instanceof Toast);
 		return toasts.sort((a, b) => a.zIndex - b.zIndex);
 	}
 
@@ -425,6 +427,6 @@ export class ToastStack extends Stack {
 
 	private removeToast(toast: Toast): void {
 		this.removeChild(toast);
-		if (this.getChildren().length === 0) this.visible = false;
+		if (this.children.length === 0) this.visible = false;
 	}
 }
