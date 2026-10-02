@@ -265,7 +265,7 @@ export class WebGL2Backend implements DrawBackend {
 			onUnpaintable: (kind, detail) => this.reportUnpaintable(kind, detail),
 			smallText: this.smallText,
 			onRoundedClipOverflow: () =>
-				console.error('WebGL2Backend: more rounded clips in one frame than the table holds; the rest clip to their bounding rect (R4.14)'),
+				console.error('WebGL2Backend: more rounded clips in one frame than the table holds; the rest clip to their bounding rect until a frame fits (R4.14)'),
 		});
 		// The font atlases join as they load (`loadFontAtlas`); the rest of the
 		// units are dynamic, handed to images as they arrive (R5.20).

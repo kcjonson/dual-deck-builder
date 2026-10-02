@@ -154,6 +154,14 @@ function someShapesAndText(draw: DrawApi): void {
 	draw.drawRect({ rect: { x: 10, y: 60, width: 100, height: 40 }, fill: WHITE, border: { color: WHITE, width: 2 } });
 }
 
+/** Each instance's rounded clip index (the mode word's byte 3) in an instance upload, from its source offset. */
+function roundedIndices(write: GlCall): number[] {
+	const bytes = write.args[2] as Uint8Array;
+	const from = write.args[3] as number;
+	const instances = (write.args[4] as number) / UBER_STRIDE;
+	return Array.from({ length: instances }, (_, instance) => bytes[from + instance * UBER_STRIDE + UBER_INSTANCE.mode * 4 + 3]);
+}
+
 /** Three domains, cut by R3.20's explicit barrier, with a clip in the middle one. */
 function threeDomains(draw: DrawApi): void {
 	someShapesAndText(draw);
@@ -442,12 +450,46 @@ describe('WebGL2Backend', () => {
 		api.endFrame();
 		expect(api.getStats().gpuDraws).toBe(1);
 		const [write] = named(calls.slice(start), 'bufferSubData').filter((call) => call.args[0] === constant('ARRAY_BUFFER'));
-		const bytes = write.args[2] as Uint8Array;
-		const instances = (write.args[4] as number) / UBER_STRIDE;
-		const roundedIndex = (instance: number) => bytes[bytes.byteOffset + instance * UBER_STRIDE + UBER_INSTANCE.mode * 4 + 3];
-		const indices = Array.from({ length: instances }, (_, instance) => roundedIndex(instance));
 		// The unclipped rect, the rect and two glyphs under the first clip, the rect under the second.
-		expect(indices).toEqual([0, 1, 1, 1, 2]);
+		expect(roundedIndices(write)).toEqual([0, 1, 1, 1, 2]);
+	});
+
+	it('draws a frame past the table\'s 255 entries with the rest square, inside the slot, and says so once (R4.14)', () => {
+		const { calls, named, api, constant } = setupBackend();
+		const error = jest.spyOn(console, 'error').mockImplementation(() => undefined);
+		try {
+			const overflowingFrame = (): GlCall[] => {
+				const start = calls.length;
+				api.beginFrame({ viewport: { width: 800, height: 600 } });
+				for (let clip = 0; clip < 256; clip++) {
+					api.pushClipRounded({ x: clip, y: 0, width: 100, height: 100 }, 6);
+					api.drawRect({ rect: { x: 0, y: 0, width: 400, height: 100 }, fill: WHITE });
+					api.popClip();
+				}
+				api.endFrame();
+				return calls.slice(start);
+			};
+			const first = overflowingFrame();
+			overflowingFrame();
+			expect(error).toHaveBeenCalledTimes(1);
+
+			const [write] = named(first, 'bufferSubData').filter((call) => call.args[0] === constant('ARRAY_BUFFER'));
+			const indices = roundedIndices(write);
+			expect(indices).toHaveLength(256);
+			expect(indices[254]).toBe(255);
+			expect(indices[255]).toBe(0);
+
+			const [projection, ...table] = named(first, 'bufferSubData').filter((call) => call.args[0] === constant('UNIFORM_BUFFER'));
+			const slot = projection.args[1] as number;
+			const written = table.reduce((sum, call) => sum + (call.args[4] as number) * 4, 0);
+			expect(written).toBe(255 * 32);
+			for (const call of table) {
+				const end = (call.args[1] as number) + (call.args[4] as number) * 4;
+				expect(end).toBeLessThanOrEqual(slot + FRAME_BLOCK_BYTES);
+			}
+		} finally {
+			error.mockRestore();
+		}
 	});
 
 	it('binds the atlas and the placeholders once, and nothing on later frames (R5.20)', () => {

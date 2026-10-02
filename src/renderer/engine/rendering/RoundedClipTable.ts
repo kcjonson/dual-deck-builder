@@ -9,7 +9,11 @@ export const ROUNDED_CLIP_FLOATS = 8;
 export interface RoundedClipTableOptions {
 	/** Entries before `indexOf` answers 0; `ROUNDED_CLIP_CAPACITY` unless a test wants fewer. */
 	capacity?: number;
-	/** Once per frame, when a rounded clip did not fit and its draws clip to the bounding rect. */
+	/**
+	 * When a frame first runs out of entries; the draws that did not fit clip
+	 * to their bounding rect. Once per overflow episode: not again until a
+	 * frame fits.
+	 */
 	onOverflow?: (() => void) | null;
 }
 
@@ -31,7 +35,10 @@ export class RoundedClipTable {
 	private countValue = 0;
 	private lastClip: RoundedClip | null = null;
 	private lastIndex = 0;
+	/** This frame ran out of entries. */
 	private overflowed = false;
+	/** The current run of overflowing frames has been reported. */
+	private reported = false;
 	private readonly onOverflow: (() => void) | null;
 
 	constructor({ capacity = ROUNDED_CLIP_CAPACITY, onOverflow = null }: RoundedClipTableOptions = {}) {
@@ -45,11 +52,12 @@ export class RoundedClipTable {
 		return this.countValue;
 	}
 
-	/** Between frames: every index handed out is void. */
+	/** Between frames: every index handed out is void. A frame that fitted re-arms the overflow report. */
 	reset(): void {
 		this.countValue = 0;
 		this.lastClip = null;
 		this.lastIndex = 0;
+		if (!this.overflowed) this.reported = false;
 		this.overflowed = false;
 	}
 
@@ -90,9 +98,12 @@ export class RoundedClipTable {
 				floats[base + 4] = radius;
 				this.countValue += 1;
 				index = this.countValue;
-			} else if (!this.overflowed) {
+			} else {
 				this.overflowed = true;
-				this.onOverflow?.();
+				if (!this.reported) {
+					this.reported = true;
+					this.onOverflow?.();
+				}
 			}
 		}
 		this.lastClip = clip;
