@@ -6,6 +6,17 @@ This document contains the chronological log of completed development tasks for 
 
 **Date correction (2026-08-22):** the repo's first commit is 2025-05-17, but many entries below carry dates in December 2024 or January 2025 — the AI that wrote them used its assumed date instead of the real one. Entries dated 2025-07-03 and 2025-07-02 have been corrected from "2025-01-03"/"2025-01-02" (verified against git history). Remaining Dec 2024 / Jan 2025 dates are wrong by roughly six months; the real work happened May–July 2025. Trust git history over these dates.
 
+## Road view polish: slot outlines, swerve timing, header spacing (2026-10-02)
+
+**What landed:** DDB-257 (DDB-127), the non-blocking findings from the #139 review.
+
+- `RoadView`'s empty-slot outlines go through `dashedOutlineTriangles` (the legal-target dashes from DDB-138) into one triangle list per side's colour. The view's own draws at 1280x720 with five vehicles went from 765 `drawRect` + 2 `drawPolygon` to 37 + 4; at 1600x700, 1063 + 2 to 49 + 4. The side dashes now start one gap below the corner dash (7 px, was 6), as the targeting outline's do.
+- A swerving token's outlines switch when it lands: tokens keep the slot they last landed in, and `land` rebuilds the lists when it changes.
+- Shoulder headers spaced 0.12em like the other lanes, as the mock renders them.
+- [road-view.md](./AI_TECHNICAL_DECISIONS/road-view.md) corrected: commands copy their geometry each frame, polygon points included, so the lists still cost a copy; what went was the per-call cost.
+
+**How:** RoadView unit tests for the two-list outlines, the swerve timing, and the header spacing; draw calls counted by spying on `DrawApi` over one `RoadView.render`; road-bearing goldens re-minted for the header spacing and dash phase.
+
 ## Targeting: ranges, legal targets, outlines, ghost, hit check, cancel (2026-10-02)
 
 **What landed:** DDB-138 (DDB-127), Battle Screen Design section 6's targeting state; closes DDB-111 and the screen half of DDB-114.
