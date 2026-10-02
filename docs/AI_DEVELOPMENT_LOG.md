@@ -20,6 +20,16 @@ This document contains the chronological log of completed development tasks for 
 - Decision record: [split-dock.md](./AI_TECHNICAL_DECISIONS/split-dock.md).
 
 **How:** unit tests for the tab, the fan's reconcile, the hand view, and the screen's dock (both hands at the cap with six mods and adrenaline past six, a passenger, a crash-out, and a pin across a deal, lint zero at 1024x600 and 1440x882); played turns at 1280x720 and 1024x600 through `__dev.input` by click-then-target, drag, keyboard, and END TURN, lint zero throughout.
+## Road view polish: slot outlines, swerve timing, header spacing (2026-10-02)
+
+**What landed:** DDB-257 (DDB-127), the non-blocking findings from the #139 review.
+
+- `RoadView`'s empty-slot outlines go through `dashedOutlineTriangles` (the legal-target dashes from DDB-138) into one triangle list per side's colour. The view's own draws at 1280x720 with five vehicles went from 765 `drawRect` + 2 `drawPolygon` to 37 + 4; at 1600x700, 1063 + 2 to 49 + 4. The side dashes now start one gap below the corner dash (7 px, was 6), as the targeting outline's do.
+- A swerving token's outlines switch when it lands: tokens keep the slot they last landed in, and `land` rebuilds the lists when it changes.
+- Shoulder headers spaced 0.12em like the other lanes, as the mock renders them.
+- [road-view.md](./AI_TECHNICAL_DECISIONS/road-view.md) corrected: commands copy their geometry each frame, polygon points included, so the lists still cost a copy; what went was the per-call cost.
+
+**How:** RoadView unit tests for the two-list outlines, the swerve timing, and the header spacing; draw calls counted by spying on `DrawApi` over one `RoadView.render`; road-bearing goldens re-minted for the header spacing and dash phase.
 
 ## Targeting: ranges, legal targets, outlines, ghost, hit check, cancel (2026-10-02)
 
