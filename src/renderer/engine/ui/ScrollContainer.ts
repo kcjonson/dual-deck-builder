@@ -173,6 +173,14 @@ export class ScrollContainer extends Component {
 		this.scrollTo(this.scrollY + delta);
 	}
 
+	/**
+	 * Page Up and Page Down's distance, `pages` of them: the clip's height
+	 * less one scroll step, so a line of the last page stays in view.
+	 */
+	public scrollByPages(pages: number): void {
+		this.scrollBy(pages * Math.max(this.clipRect.height - tokens.space.scroll_step, tokens.space.scroll_step));
+	}
+
 	public scrollToTop(): void {
 		this.scrollTo(0);
 	}
@@ -382,13 +390,12 @@ export class ScrollContainer extends Component {
 	private handleKey(event: UiKeyEvent): boolean {
 		const { ctrl, meta, alt, shift } = event.modifiers;
 		if (ctrl || meta || alt || shift) return false;
-		const page = Math.max(this.clipRect.height - tokens.space.scroll_step, tokens.space.scroll_step);
 		switch (event.key) {
 			case 'PageDown':
-				this.scrollBy(page);
+				this.scrollByPages(1);
 				return true;
 			case 'PageUp':
-				this.scrollBy(-page);
+				this.scrollByPages(-1);
 				return true;
 		}
 		// The rest only when the container itself is focused, so a list or a

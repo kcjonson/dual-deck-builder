@@ -56,7 +56,7 @@ describe('CreditsScreen', () => {
 	it.each(['Enter', 'Escape'])('focuses Back on mount, and %p returns to the menu', (name) => {
 		expect(context.focus.focused?.id).toBe('credits_back_button');
 		send(context, [key(name)]);
-		expect(navigate).toHaveBeenCalledWith('mainMenuScreen');
+		expect(navigate).toHaveBeenCalledWith('mainMenuScreen', undefined, { restoreFocus: true });
 	});
 
 	it('keeps the panel between the title and Back inside a 1024 by 600 viewport', () => {
@@ -73,14 +73,29 @@ describe('CreditsScreen', () => {
 		list.scrollHeight = list.height * 3;
 		context.frame.layout();
 		send(context, [key('PageDown')]);
-		expect(list.scrollPosition).toBe(list.height);
+		const page = list.scrollPosition;
+		expect(page).toBeGreaterThan(0);
 		send(context, [key('End')]);
 		expect(list.scrollPosition).toBe(list.maxScroll);
 		send(context, [key('PageUp')]);
-		expect(list.scrollPosition).toBe(list.maxScroll - list.height);
+		expect(list.scrollPosition).toBe(list.maxScroll - page);
 		send(context, [key('Home')]);
 		expect(list.scrollPosition).toBe(0);
 		expect(context.focus.focused?.id).toBe('credits_back_button');
+	});
+
+	it('pages the same distance whether Back or the list has focus', () => {
+		const list = scroller();
+		list.scrollHeight = list.height * 3;
+		context.frame.layout();
+		send(context, [key('PageDown')]);
+		const fromBack = list.scrollPosition;
+		list.scrollToTop();
+		context.focus.focus(list);
+		send(context, [key('PageDown')]);
+		expect(list.scrollPosition).toBe(fromBack);
+		send(context, [key('PageUp')]);
+		expect(list.scrollPosition).toBe(0);
 	});
 
 	it('releases its keys on unmount', () => {

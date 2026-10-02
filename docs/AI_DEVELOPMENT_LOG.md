@@ -18,6 +18,17 @@ This document contains the chronological log of completed development tasks for 
 - Decision record: [component-rounded-clip.md](./AI_TECHNICAL_DECISIONS/component-rounded-clip.md).
 
 **How:** clip tests for the drop rule (corner pixel centres, ratio), DrawApi tests that a clear nesting does not warn and a real one does, backend tests for the fresh slot and for ring growth, Panel, ScrollContainer, ScrollClip and snapshot tests for the clip, its radius, corner hits in both hit walks, and the zero-sized cases; goldens re-minted with `all`.
+## Settings and credits polish (2026-10-02)
+
+**What landed:** DDB-232 (DDB-55), the open items from the #126 review.
+
+- `ScreenManager.navigate` notes the focused id on the screen it leaves; `{ restoreFocus: true }` focuses it again after the next mount there. Settings and Credits go back with it, so the menu lands on the button that opened them.
+- `GameSettings` keeps the stored record it read and saves its known values over it, so keys a newer build wrote survive.
+- `ScrollContainer.scrollByPages` is Page Up and Page Down's distance; the credits hotkeys use it, so the page is the same whether Back or the list has focus.
+- `credits.test.ts` checks the icon set's holder against the face's own copyright string and the game's licence line against `LICENSE`.
+- The credits-at-a-scrolling-size lint item was covered by #130.
+
+**How:** `ScreenManager.test.ts` plays menu to Settings and Credits and back by keyboard; tests for unknown keys and the paging distance.
 ## Every screen at lint zero with a golden, at two sizes (2026-10-02)
 
 **What landed:** DDB-91's first PR (DDB-55, phase 6), closing DDB-230.
