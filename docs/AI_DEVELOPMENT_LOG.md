@@ -18,6 +18,19 @@ This document contains the chronological log of completed development tasks for 
 - Decision record: [combat-hand-and-targeting.md](./AI_TECHNICAL_DECISIONS/combat-hand-and-targeting.md), covering this and the fan PR.
 
 **How:** `CombatScreenHand.test.ts` drives drags through the injection hook (drop on a raider and the line's ends, drop on your own vehicle, a no-target card cancelled on the road and played on its driver's vehicle, Escape, right-click, click-then-target) and checks the numbers' anchor, rise, fade, stacking, the reduced-motion hold, and that a dragged card pops one per hit or miss; `Battle.test.ts` checks the hit events; `CombatFxLayer.test.ts` covers the curve, dot spacing, and head. Played a turn in headless Chromium at 1280x720 and 800x450 through `window.__dev.input`: drag, click-then-target, keyboard, END TURN.
+## Driver selection on stacks, with a Select and a scrolling deck preview (2026-10-01)
+
+**What landed:** DDB-89 (DDB-55 phase 6). Closes DDB-31, and with it DDB-101, DDB-102 and DDB-108.
+
+- `DriverSelectionScreen` is one page stack: header (Back, title), body (panels and the synergy column), footer (START RUN with the summary beside it). A resize sizes the page and nothing else; the stacks reflow.
+- `DriverPanel` and `SynergyPreviewPanel` extend `Stack`. The panel's elements are built once and toggled between the empty state and the driver; the deck preview and synergy tags rebuild only when the driver changes.
+- Driver choice is the catalog `Select`, the partner's driver disabled, replacing the cycle button. Mouse and keyboard (Down opens, arrows move, Enter picks, Escape closes).
+- `ScrollContainer` takes `heightMode: 'hug'`: it measures as its content plus padding and shrinks to its `minSize` in a short column, scrolling the rest. The panel's flavour text and starting deck live in one, so 1024x600 scrolls them instead of losing the preview.
+- `game/ui/FlowWrap.ts` wraps fixed or hug items into rows at the width it is given; the deck's mini cards and the synergy tags use it. Quantities are `Badge`s under each card, off the cost digit.
+- Synergy tags pick dark or white text by the fill's luma, so the yellow, green and cyan tags read.
+- `Game`'s document-level Escape listener now defers to a screen whose root registers Escape, which fixed Escape on an open Select navigating to the main menu.
+
+**How:** `DriverSelectionScreen.test.ts` (Select options and partner disabling, keyboard pick, Escape on an open Select, tab order, resize at 1024x600, 1280x720 and 1920x1080 without rebuilding, the scroller's room above the Select, scrolling at 1024x600, badges under their cards, the card-load race), `FlowWrap.test.ts`, and four hug-height cases in `ScrollContainer.test.ts`. Played in headless Chromium through `window.__dev.input` at 1024x600: picked the right driver with a click, the left with the keyboard, wheel-scrolled the deck, started a run into combat.
 
 ## Combat hand fan, hover lift, and card previews (2026-09-28)
 

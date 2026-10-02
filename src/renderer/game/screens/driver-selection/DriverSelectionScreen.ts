@@ -1,74 +1,93 @@
 import { Screen } from '../../core/Screen';
 import { ScreenManager } from '../../core/ScreenManager';
 import { Button } from '../../../engine/ui/Button';
+import { Container } from '../../../engine/components/Container';
+import { Stack } from '../../../engine/components/Stack';
 import { Text } from '../../../engine/components/Text';
-import { Rectangle } from '../../../engine/components/Rectangle';
 import { Driver } from '../../mechanics/Driver';
 import { isSameDriver } from '../../mechanics/DriverPair';
 import { DriverLoader } from '../../core/DriverLoader';
 import { DriverPanel } from './DriverPanel';
 import { SynergyPreviewPanel } from './SynergyPreviewPanel';
 
-/** Space between the synergy panel and each driver panel. */
-const SYNERGY_MARGIN = 10;
+const BACK_BUTTON_WIDTH = 200;
+/** The driver panels' share of the body's width against the synergy column's. */
+const PANEL_WEIGHT = 35;
+const SYNERGY_WEIGHT = 18;
+const START_RUN_WIDTH = 300;
 
 /**
  * Driver Selection Screen implementing Game Flow Spec section 1.2
  * Sequential driver selection with synergy preview
+ *
+ * One page stack the viewport's size: a header row (Back, the title), the
+ * body (the two driver panels with the synergy panel centred in the column
+ * between them), and START RUN with its summary beside it. The panels take
+ * whatever height the header and footer leave, so a resize sizes the page
+ * and the stacks lay the rest out again; nothing is rebuilt.
  */
 export class DriverSelectionScreen extends Screen {
 	private selectedDriver1: Driver | null = null;
 	private selectedDriver2: Driver | null = null;
 	private availableDrivers: Driver[] = [];
-	
-	// UI components
-	private background!: Rectangle;
+
+	private readonly page: Stack;
 	private leftDriverPanel!: DriverPanel;
 	private rightDriverPanel!: DriverPanel;
 	private synergyPanel!: SynergyPreviewPanel;
-	
-	// Control elements
-	private titleText!: Text;
 	private confirmationText!: Text;
 	private startRunButton!: Button;
-	private backButton!: Button;
-	
 
 	/**
 	 * Create a new driver selection screen. Its elements are built once;
-	 * placeElements sizes and places them from the root on mount and on
-	 * every resize, so a resize keeps the selection.
+	 * the page is sized from the root on mount and on every resize, so a
+	 * resize keeps the selection.
 	 */
 	constructor() {
 		super('driverSelectionScreen');
 
-		this.createBackground();
-		this.createTitle();
-		this.createDriverPanels();
-		this.createSynergyPanel();
-		this.createControls();
-		this.createConfirmationArea();
-	}
-
-	/**
-	 * Create the background
-	 */
-	private createBackground(): void {
-		this.background = new Rectangle({
-			style: {
-				backgroundColor: '#2a2a4a', // Darker than main menu
-			},
+		this.page = new Stack({
+			id: 'driver_select_page',
+			direction: 'vertical',
+			padding: { top: 24, bottom: 24, left: 48, right: 48 },
+			gap: 16,
+			crossAlign: 'stretch',
+			style: { backgroundColor: '#2a2a4a' },
 		});
-		this.rootLayer.addChild(this.background);
+		this.rootLayer.addChild(this.page);
+
+		this.page.addChild(this.createHeader());
+		this.page.addChild(this.createBody());
+		this.page.addChild(this.createFooter());
 	}
 
-	/**
-	 * Create the title
-	 */
-	private createTitle(): void {
-		// Centred across the screen
-		this.titleText = new Text('Choose Your Drivers', {
+	/** Back at the left, the title centred: a spacer the button's width balances the row. */
+	private createHeader(): Stack {
+		const header = new Stack({
+			id: 'driver_select_header',
+			direction: 'horizontal',
+			crossAlign: 'center',
+			gap: 16,
+		});
+
+		const backButton = new Button('Back to Menu', {
+			id: 'driver_select_back_button',
+			// Tab reaches it first, as it reads (R9.18: a positive tabIndex
+			// leads the order)
+			tabIndex: 1,
+			icon: 'arrow_back',
+			size: 'lg',
+			width: BACK_BUTTON_WIDTH,
+			height: 50,
+		});
+		backButton.onClick = () => {
+			ScreenManager.navigate('mainMenuScreen');
+		};
+		header.addChild(backButton);
+
+		header.addChild(new Text('Choose Your Drivers', {
 			id: 'driver_select_title',
+			widthMode: 'fill',
 			style: {
 				fontSize: 48,
 				color: '#ffffff',
@@ -76,76 +95,100 @@ export class DriverSelectionScreen extends Screen {
 				fontWeight: 'bold',
 			},
 			wrap: 'none',
-		});
-		this.rootLayer.addChild(this.titleText);
+			textOverflow: 'ellipsis',
+		}));
+
+		header.addChild(new Container({ width: BACK_BUTTON_WIDTH, height: 1 }));
+		return header;
 	}
 
-	/**
-	 * Create the driver selection panels
-	 */
-	private createDriverPanels(): void {
-		// Left panel - First driver selection
-		this.leftDriverPanel = new DriverPanel('left', {
+	/** The two driver panels, and the synergy panel centred in the column between them. */
+	private createBody(): Stack {
+		const body = new Stack({
+			id: 'driver_select_body',
+			direction: 'horizontal',
+			gap: 16,
+			crossAlign: 'stretch',
+			heightMode: 'fill',
+		});
+
+		this.leftDriverPanel = new DriverPanel({
 			id: 'driver_select_panel_left',
+			side: 'left',
+			widthMode: 'fill',
+			fillWeight: PANEL_WEIGHT,
 		});
 		this.leftDriverPanel.setOnDriverChanged((driver) => {
 			this.selectedDriver1 = driver;
 			this.rightDriverPanel.partnerDriver = driver;
 			this.onDriver1Changed();
 		});
-		this.rootLayer.addChild(this.leftDriverPanel);
+		body.addChild(this.leftDriverPanel);
+
+		const synergyColumn = new Stack({
+			id: 'driver_select_synergy_column',
+			direction: 'vertical',
+			distribution: 'center',
+			crossAlign: 'stretch',
+			widthMode: 'fill',
+			fillWeight: SYNERGY_WEIGHT,
+		});
+		this.synergyPanel = new SynergyPreviewPanel({
+			id: 'driver_select_synergy_panel',
+		});
+		synergyColumn.addChild(this.synergyPanel);
+		body.addChild(synergyColumn);
 
 		// Right panel - Second driver selection (initially empty)
-		this.rightDriverPanel = new DriverPanel('right', {
+		this.rightDriverPanel = new DriverPanel({
 			id: 'driver_select_panel_right',
+			side: 'right',
+			widthMode: 'fill',
+			fillWeight: PANEL_WEIGHT,
 		});
 		this.rightDriverPanel.setOnDriverChanged((driver) => {
 			this.selectedDriver2 = driver;
 			this.leftDriverPanel.partnerDriver = driver;
 			this.onDriver2Changed();
 		});
-		this.rootLayer.addChild(this.rightDriverPanel);
+		body.addChild(this.rightDriverPanel);
+
+		return body;
 	}
 
 	/**
-	 * Create the synergy preview panel
+	 * START RUN centred at the foot, and the summary next to it once both
+	 * drivers are picked (Game Flow Spec 1.2's confirmation): the summary takes
+	 * the room left of the button, the same room on the right stays empty so
+	 * the button keeps the middle, and an empty summary moves nothing.
 	 */
-	private createSynergyPanel(): void {
-		this.synergyPanel = new SynergyPreviewPanel({
-			id: 'driver_select_synergy_panel',
+	private createFooter(): Stack {
+		const footer = new Stack({
+			id: 'driver_select_footer',
+			direction: 'horizontal',
+			gap: 16,
+			crossAlign: 'center',
 		});
-		this.rootLayer.addChild(this.synergyPanel);
-	}
 
-	/**
-	 * Create control buttons
-	 */
-	private createControls(): void {
-
-		// Back button
-		this.backButton = new Button('Back to Menu', {
-			id: 'driver_select_back_button',
-			// Tab reaches it first, as it reads, though the panels are built
-			// before it (R9.18: a positive tabIndex leads the order)
-			tabIndex: 1,
-			icon: 'arrow_back',
-			size: 'lg',
-			width: 200,
-			height: 50,
+		this.confirmationText = new Text('', {
+			id: 'driver_select_confirmation',
+			widthMode: 'fill',
+			style: {
+				fontSize: 16,
+				color: '#cccccc',
+				textAlign: 'right',
+			},
+			wrap: 'word',
 		});
-		this.backButton.setPosition(30, 30);
-		this.backButton.onClick = () => {
-			ScreenManager.navigate('mainMenuScreen');
-		};
-		this.rootLayer.addChild(this.backButton);
-		
+		footer.addChild(this.confirmationText);
+
 		// The primary action; disabled until two different drivers are picked,
 		// which the accent tone draws as its neutral disabled look.
 		this.startRunButton = new Button('START RUN', {
 			id: 'driver_select_start_run_button',
 			tone: 'accent',
 			size: 'lg',
-			width: 300,
+			width: START_RUN_WIDTH,
 			height: 60,
 			style: {
 				fontSize: 'fs_xl',
@@ -161,66 +204,15 @@ export class DriverSelectionScreen extends Screen {
 				ScreenManager.navigate('combatScreen', combatData);
 			}
 		};
-		this.rootLayer.addChild(this.startRunButton);
+		footer.addChild(this.startRunButton);
+
+		footer.addChild(new Container({ widthMode: 'fill', height: 1 }));
+		return footer;
 	}
 
-	/**
-	 * The confirmation line, centred across the screen just above the start
-	 * button; shown once both drivers are selected
-	 */
-	private createConfirmationArea(): void {
-		this.confirmationText = new Text('', {
-			visible: false,
-			style: {
-				fontSize: 16,
-				color: '#cccccc',
-				textAlign: 'center',
-			},
-			wrap: 'none',
-		});
-		this.rootLayer.addChild(this.confirmationText);
-	}
-
-	/**
-	 * Everything from the root's size, which is the viewport's: the panels
-	 * take 35 percent of the width each with the synergy panel in the gap
-	 * between them, and the title and controls sit above and below.
-	 */
-	private placeElements(): void {
-		const screenWidth = this.rootLayer.width;
-		const screenHeight = this.rootLayer.height;
-
-		this.background.setSize(screenWidth, screenHeight);
-
-		this.titleText.setPosition(0, screenHeight * 0.08);
-		this.titleText.setWidth(screenWidth);
-
-		const panelWidth = Math.floor(screenWidth * 0.35);
-		const panelHeight = Math.floor(screenHeight * 0.6);
-		const panelY = Math.floor(screenHeight * 0.2); // Start below title
-		this.leftDriverPanel.setPosition(Math.floor(screenWidth * 0.05), panelY);
-		this.leftDriverPanel.setSize(panelWidth, panelHeight);
-		this.rightDriverPanel.setPosition(Math.floor(screenWidth * 0.6), panelY);
-		this.rightDriverPanel.setSize(panelWidth, panelHeight);
-
-		// The gap between the driver panels (40% to 60% of the width), less a
-		// margin either side. It used to be 25% wide and overlap both panels,
-		// and it is submitted after them, so it covered the ends of the left
-		// panel's flavour text.
-		const gapStart = Math.floor(screenWidth * 0.4);
-		this.synergyPanel.setPosition(gapStart + SYNERGY_MARGIN, Math.floor(screenHeight * 0.55));
-		this.synergyPanel.setSize(
-			Math.floor(screenWidth * 0.6) - gapStart - SYNERGY_MARGIN * 2,
-			Math.floor(screenHeight * 0.2),
-		);
-
-		this.startRunButton.setPosition(
-			Math.floor(screenWidth / 2 - 150),
-			Math.floor(screenHeight * 0.85),
-		);
-
-		this.confirmationText.setPosition(0, Math.floor(screenHeight * 0.8));
-		this.confirmationText.setWidth(screenWidth);
+	/** The page is the viewport's size; its stacks place everything in it. */
+	private sizePage(): void {
+		this.page.setSize(this.rootLayer.width, this.rootLayer.height);
 	}
 
 	/**
@@ -230,18 +222,18 @@ export class DriverSelectionScreen extends Screen {
 		try {
 			const driverLoader = DriverLoader.getInstance();
 			await driverLoader.loadDrivers();
-			
+
 			this.availableDrivers = driverLoader.getUnlockedDrivers();
-			
+
 			if (this.availableDrivers.length > 0) {
 				// Right panel gets drivers first but stays empty until the left
 				// panel picks, which activates it on a different driver
 				this.rightDriverPanel.setAvailableDrivers(this.availableDrivers);
-				
+
 				this.leftDriverPanel.setAvailableDrivers(this.availableDrivers);
 				this.leftDriverPanel.activate();
 			}
-			
+
 		} catch (error) {
 			console.error('Failed to load drivers:', error);
 		}
@@ -255,7 +247,7 @@ export class DriverSelectionScreen extends Screen {
 		if (this.selectedDriver1 && this.rightDriverPanel.getIsEmpty()) {
 			this.rightDriverPanel.activate();
 		}
-		
+
 		this.updateSynergyDisplay();
 		this.updateConfirmationText();
 		this.updateStartButton();
@@ -278,15 +270,14 @@ export class DriverSelectionScreen extends Screen {
 	}
 
 	/**
-	 * Show the confirmation line only when both drivers are selected
+	 * The summary beside START RUN once both drivers are selected
 	 */
 	private updateConfirmationText(): void {
 		const first = this.selectedDriver1;
 		const second = this.selectedDriver2;
-		this.confirmationText.setVisible(first !== null && second !== null);
-		if (first && second) {
-			this.confirmationText.setText(`Ready to enter the wasteland with ${first.metadata.name} and ${second.metadata.name}`);
-		}
+		this.confirmationText.setText(first && second
+			? `Ready to enter the wasteland with ${first.metadata.name} and ${second.metadata.name}`
+			: '');
 	}
 
 	/**
@@ -316,11 +307,11 @@ export class DriverSelectionScreen extends Screen {
 	}
 
 	/**
-	 * The viewport changed: the same elements move and resize, and the
-	 * panels lay their contents out again in the layout phase (R8.18)
+	 * The viewport changed: the page takes the new size and its stacks lay
+	 * everything out again in the layout phase (R8.18)
 	 */
 	protected onResized(): void {
-		this.placeElements();
+		this.sizePage();
 	}
 
 	/**
@@ -330,14 +321,14 @@ export class DriverSelectionScreen extends Screen {
 		// Reset driver selections
 		this.selectedDriver1 = null;
 		this.selectedDriver2 = null;
-		
+
 		// Reset both panels to initial state
 		this.leftDriverPanel.reset();
 		this.rightDriverPanel.reset();
-		
+
 		// Clear synergy display
 		this.synergyPanel.updateSynergy(null, null);
-		
+
 		// Reset UI elements
 		this.updateConfirmationText();
 		this.updateStartButton();
@@ -347,7 +338,7 @@ export class DriverSelectionScreen extends Screen {
 	 * Handle screen mount - reload drivers
 	 */
 	protected onMount(): void {
-		this.placeElements();
+		this.sizePage();
 		// Escape goes back, as the Back button does (R9.15's root table)
 		this.rootLayer.hotkeys.register('Escape', () => ScreenManager.navigate('mainMenuScreen'));
 		// Reload drivers when screen is mounted
