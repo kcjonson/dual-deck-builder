@@ -1,0 +1,21 @@
+[
+{"path":"gallery_root/gallery_scene_rounded_clip/Text[0]","text":"Rounded clips on components","rect":[53,53,289.07,33.6]},
+{"path":"gallery_root/gallery_scene_rounded_clip/Text[1]","text":"clipRadius: the clip at the border's inner edge, its corner concentric with the background's.","rect":[53,103,586.2,19.07]},
+{"path":"gallery_root/gallery_scene_rounded_clip/Text[2]","text":"clipping panel, flush fill","rect":[53,137,138.25,17.7]},
+{"path":"gallery_root/gallery_scene_rounded_clip/Text[4]","text":"rounded scroller, scrolled","rect":[277,137,154.51,17.7]},
+{"path":"gallery_root/gallery_scene_rounded_clip/rounded_clip_scroll/rounded_clip_scroll_rows/Stack[3]/Text[0]","text":"Salvage lot 4","rect":[285,157.83,69.81,16.34]},
+{"path":"gallery_root/gallery_scene_rounded_clip/rounded_clip_scroll/rounded_clip_scroll_rows/Stack[4]/Text[0]","text":"Salvage lot 5","rect":[285,181.83,69.81,16.34]},
+{"path":"gallery_root/gallery_scene_rounded_clip/rounded_clip_scroll/rounded_clip_scroll_rows/Stack[5]/Text[0]","text":"Salvage lot 6","rect":[285,205.83,69.81,16.34]},
+{"path":"gallery_root/gallery_scene_rounded_clip/rounded_clip_scroll/rounded_clip_scroll_rows/Stack[6]/Text[0]","text":"Salvage lot 7","rect":[285,229.83,69.81,16.34]},
+{"path":"gallery_root/gallery_scene_rounded_clip/rounded_clip_scroll/rounded_clip_scroll_rows/Stack[7]/Text[0]","text":"Salvage lot 8","rect":[285,253.83,69.81,16.34]},
+{"path":"gallery_root/gallery_scene_rounded_clip/rounded_clip_scroll/rounded_clip_scroll_rows/Stack[8]/Text[0]","text":"Salvage lot 9","rect":[285,277.83,69.81,16.34]},
+{"path":"gallery_root/gallery_scene_rounded_clip/rounded_clip_scroll/rounded_clip_scroll_rows/Stack[9]/Text[0]","text":"Salvage lot 10","rect":[285,301.83,76.68,16.34]},
+{"path":"gallery_root/gallery_scene_rounded_clip/Text[6]","text":"nested, clear of the corners","rect":[501,137,165.81,17.7]},
+{"path":"gallery_root/gallery_scene_rounded_clip/rounded_clip_outer/rounded_clip_inner/rounded_clip_inner_rows/Stack[0]/Text[0]","text":"Salvage lot 1","rect":[525,182.83,69.81,16.34]},
+{"path":"gallery_root/gallery_scene_rounded_clip/rounded_clip_outer/rounded_clip_inner/rounded_clip_inner_rows/Stack[1]/Text[0]","text":"Salvage lot 2","rect":[525,206.83,69.81,16.34]},
+{"path":"gallery_root/gallery_scene_rounded_clip/rounded_clip_outer/rounded_clip_inner/rounded_clip_inner_rows/Stack[2]/Text[0]","text":"Salvage lot 3","rect":[525,230.83,69.81,16.34]},
+{"path":"gallery_root/gallery_scene_rounded_clip/rounded_clip_outer/rounded_clip_inner/rounded_clip_inner_rows/Stack[3]/Text[0]","text":"Salvage lot 4","rect":[525,254.83,69.81,16.34]},
+{"path":"gallery_root/gallery_scene_rounded_clip/rounded_clip_outer/rounded_clip_inner/rounded_clip_inner_rows/Stack[4]/Text[0]","text":"Salvage lot 5","rect":[525,278.83,69.81,16.34]},
+{"path":"gallery_root/gallery_scene_rounded_clip/rounded_clip_outer/rounded_clip_inner/rounded_clip_inner_rows/Stack[5]/Text[0]","text":"Salvage lot 6","rect":[525,302.83,69.81,16.34]},
+{"path":"gallery_root/gallery_scene_rounded_clip/Text[8]","text":"two domains, two tables","rect":[725,137,147.62,17.7]}
+]
