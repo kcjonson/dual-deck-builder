@@ -1,5 +1,5 @@
 [
-{"path":"gallery_root/gallery_scene_toasts/Text[0]","text":"Toasts","rect":[53,53,63.84,33.6]},
+{"path":"gallery_root/gallery_scene_toasts/Text[0]","text":"Toasts","rect":[53,53,63.84,50]},
 {"path":"gallery_root/gallery_scene_toasts/Text[1]","text":"Info, warning, and critical in a corner stack; hover pauses the countdown, the X or a click dismisses.","rect":[53,103,643.49,19.07]},
 {"path":"gallery_root/gallery_scene_toasts/toasts_push/Text[0]","text":"Push a toast","rect":[65,137,136,34]},
 {"path":"toast_stack_root/toast_stack/toast_critical/Stack[1]/toast_critical_title","text":"Hull breached","rect":[1143,28,71.01,18]},

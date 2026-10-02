@@ -1,5 +1,5 @@
 [
-{"path":"gallery_root/dev_section_stack/Text[0]","text":"Stacks","rect":[53,53,63.78,33.6]},
+{"path":"gallery_root/dev_section_stack/Text[0]","text":"Stacks","rect":[53,53,63.78,50]},
 {"path":"gallery_root/dev_section_stack/dev_stack_rows/dev_stack_row_distribution/Stack[0]/Text[0]","text":"start","rect":[53,103,28,17.7]},
 {"path":"gallery_root/dev_section_stack/dev_stack_rows/dev_stack_row_distribution/Stack[1]/Text[0]","text":"center","rect":[277,103,38.75,17.7]},
 {"path":"gallery_root/dev_section_stack/dev_stack_rows/dev_stack_row_distribution/Stack[2]/Text[0]","text":"end","rect":[501,103,23.23,17.7]},

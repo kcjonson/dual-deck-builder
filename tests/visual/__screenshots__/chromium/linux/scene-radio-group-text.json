@@ -1,5 +1,5 @@
 [
-{"path":"gallery_root/dev_section_radio_group/Text[0]","text":"Radio Groups","rect":[53,53,127.43,33.6]},
+{"path":"gallery_root/dev_section_radio_group/Text[0]","text":"Radio Groups","rect":[53,53,127.43,50]},
 {"path":"gallery_root/dev_section_radio_group/dev_section_radio_group_rows/Stack[0]/Text[0]","text":"vertical, with a selection and a disabled option","rect":[53,103,278.95,17.7]},
 {"path":"gallery_root/dev_section_radio_group/dev_section_radio_group_rows/Stack[0]/dev_radio_difficulty/Radio[0]/Text[0]","text":"Easy","rect":[77,126.7,31.33,34]},
 {"path":"gallery_root/dev_section_radio_group/dev_section_radio_group_rows/Stack[0]/dev_radio_difficulty/Radio[1]/Text[0]","text":"Normal","rect":[77,164.7,52.46,34]},

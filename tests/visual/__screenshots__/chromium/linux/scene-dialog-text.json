@@ -1,5 +1,5 @@
 [
-{"path":"gallery_root/gallery_scene_dialog/Text[0]","text":"Dialog","rect":[53,53,59.02,33.6]},
+{"path":"gallery_root/gallery_scene_dialog/Text[0]","text":"Dialog","rect":[53,53,59.02,50]},
 {"path":"gallery_root/gallery_scene_dialog/Text[1]","text":"Modal: a scrim that takes every press, a focus scope, Escape and the X close it, a stray click does not.","rect":[53,103,651.12,19.07]},
 {"path":"gallery_root/gallery_scene_dialog/dialog_trigger/Text[0]","text":"Abandon run","rect":[65,137,136,34]},
 {"path":"dialog_abandon_run_root/dialog_abandon_run/dialog_abandon_run_panel/Text[0]","text":"Run in progress","rect":[556,351.44,294,15]},

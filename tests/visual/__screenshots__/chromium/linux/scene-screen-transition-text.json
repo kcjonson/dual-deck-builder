@@ -1,5 +1,5 @@
 [
-{"path":"gallery_root/gallery_scene_transition/Text[0]","text":"Screen transition","rect":[53,53,163.88,33.6]},
+{"path":"gallery_root/gallery_scene_transition/Text[0]","text":"Screen transition","rect":[53,53,163.88,50]},
 {"path":"gallery_root/gallery_scene_transition/Text[1]","text":"Fade out, swap, lay out once, fade in; input is blocked until it has finished.","rect":[53,103,477.69,19.07]},
 {"path":"gallery_root/gallery_scene_transition/transition_replay/Text[0]","text":"Run it again","rect":[569,149,136,34]},
 {"path":"gallery_root/gallery_scene_transition/transition_stage/transition_stage_title","text":"Driver selection","rect":[69,165,137.94,26.4]}

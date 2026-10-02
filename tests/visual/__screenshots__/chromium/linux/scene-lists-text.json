@@ -1,5 +1,5 @@
 [
-{"path":"gallery_root/dev_section_lists/Text[0]","text":"Lists","rect":[53,53,45.39,33.6]},
+{"path":"gallery_root/dev_section_lists/Text[0]","text":"Lists","rect":[53,53,45.39,50]},
 {"path":"gallery_root/dev_section_lists/dev_section_lists_rows/Stack[0]/Text[0]","text":"list: plain, selected, dim, indented, disabled, truncated","rect":[53,103,325.81,17.7]},
 {"path":"gallery_root/dev_section_lists/dev_section_lists_rows/Stack[0]/dev_list/dev_list_row_plain/Text[0]","text":"Scrapyard Hauler","rect":[61,126.7,262.8,26]},
 {"path":"gallery_root/dev_section_lists/dev_section_lists_rows/Stack[0]/dev_list/dev_list_row_plain/Text[1]","text":"12","rect":[331.8,126.7,13.2,26]},

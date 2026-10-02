@@ -1,5 +1,5 @@
 [
-{"path":"gallery_root/dev_section_data_display/Text[0]","text":"Badges, Avatars, Stats","rect":[53,53,213.78,33.6]},
+{"path":"gallery_root/dev_section_data_display/Text[0]","text":"Badges, Avatars, Stats","rect":[53,53,213.78,50]},
 {"path":"gallery_root/dev_section_data_display/dev_section_data_display_rows/Stack[0]/Text[0]","text":"badges: default, accent, data, ok, warn, crit; outlined; with a dot","rect":[53,103,382.38,17.7]},
 {"path":"gallery_root/dev_section_data_display/dev_section_data_display_rows/Stack[0]/Stack[1]/dev_badge_default/Text[0]","text":"Idle","rect":[59,126.7,29.04,18]},
 {"path":"gallery_root/dev_section_data_display/dev_section_data_display_rows/Stack[0]/Stack[1]/Badge[1]/Text[0]","text":"Active","rect":[109,126.7,44,18]},
