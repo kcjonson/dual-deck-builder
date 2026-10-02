@@ -146,6 +146,7 @@ Waves, each landing with its gallery scene, behaviour tests, and lint zero:
 - [x] Settings and credits screens (DDB-38) as the first screens authored entirely on the new catalog (dialog, checkbox, slider, select).
   DDB-38. Settings offers only reduced motion (a SegmentedControl in a Panel), the one setting with a working effect, persisted by a minimal `GameSettings` store; no dialog, checkbox, slider, or select is needed until a setting calls for one. Credits is a Panel holding a ScrollContainer of repo-sourced credits. Both are in the lint gate with goldens. See [settings-store-and-screens.md](../AI_TECHNICAL_DECISIONS/settings-store-and-screens.md).
 - [ ] Every screen at lint zero with a golden; the developer screen's sections are gallery scenes on the new components; the accessor rename landed as its own mechanical PR.
+  DDB-91, first half: every screen lints to zero and has a golden at 1440x882 and at 1024x600, the battle result once per outcome (the dev navigate hook now carries the screen's data). `Card`, `Vehicle` and the battlefield halves draw their own frames; the hand fan declares its overlap with `zIndex`; the card showcase and developer screens are root stacks, the developer screen a column of the gallery's scene factories, and the sections that assumed a 1,320 px width wrap. See [screens-at-lint-zero.md](../AI_TECHNICAL_DECISIONS/screens-at-lint-zero.md). The accessor rename is the second PR.
 
 ### Phase 7: observability completion and conformance
 
