@@ -3,7 +3,7 @@ import { Container } from '../../engine/components/Container';
 import { Rectangle } from '../../engine/components/Rectangle';
 import { Text } from '../../engine/components/Text';
 import { Vehicle as VehicleData } from '../mechanics/Vehicle';
-import type { AnyUiEvent } from '../../engine/input/events';
+import type { AnyUiEvent, UiDragEvent } from '../../engine/input/events';
 import { CombatModel } from '../screens/combat/CombatModel';
 import { ArmorBadge } from './ArmorBadge';
 
@@ -355,21 +355,38 @@ export class Vehicle extends Component {
 			// (a target, or one a no-target card acts on) accepts it, lights up
 			// as the pointer's target, and is chosen by the drop
 			case 'dragenter':
-				if (this.combatData && this.isTargetable()) {
-					event.accept();
-					this.combatData.focusVehicle(this.vehicleData.id);
-				}
+				this.dragEntered(event);
 				return;
 			case 'dragleave':
-				if (this.combatData && this.combatData.focusedVehicleId === this.vehicleData.id) {
-					this.combatData.focusVehicle(null);
-				}
+				this.dragLeft();
 				return;
 			case 'drop':
-				event.consume();
-				this.chooseAsTarget();
+				this.dropped(event);
 				return;
 		}
+	}
+
+	/**
+	 * A dragged card arriving: taken here when it can land on this vehicle.
+	 * Public so something that stands for the vehicle outside its box (its
+	 * intent row) can take a drop as the vehicle would.
+	 */
+	public dragEntered(event: UiDragEvent): void {
+		if (this.combatData && this.isTargetable()) {
+			event.accept();
+			this.combatData.focusVehicle(this.vehicleData.id);
+		}
+	}
+
+	public dragLeft(): void {
+		if (this.combatData && this.combatData.focusedVehicleId === this.vehicleData.id) {
+			this.combatData.focusVehicle(null);
+		}
+	}
+
+	public dropped(event: UiDragEvent): void {
+		event.consume();
+		this.chooseAsTarget();
 	}
 
 	/** `dropActive`, set while a dragged card would land here, lights the plate. */

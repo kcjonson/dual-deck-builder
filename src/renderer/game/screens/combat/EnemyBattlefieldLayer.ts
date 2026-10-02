@@ -1,40 +1,23 @@
 import { BattlefieldLayer, BattlefieldLayerOptions, LaneDecor } from './BattlefieldLayer';
 import { Vehicle as VehicleData } from '../../mechanics/Vehicle';
-import { Vehicle as VehicleUI, VehicleOptions } from '../../ui/Vehicle';
-import { EnemyIntent, IntentMarker } from '../../ui/IntentMarker';
+import { Vehicle as VehicleUI } from '../../ui/Vehicle';
+import { EnemyIntent, IntentRow } from '../../ui/IntentMarker';
 
 export type { EnemyIntent, IntentType } from '../../ui/IntentMarker';
+
+const INTENT_MARKER_SIZE = 30;
+const INTENT_INSET = 6;
 
 /**
  * Enemy-specific vehicle UI component
  */
 class EnemyVehicle extends VehicleUI {
-	private intentMarker: IntentMarker;
-
-	constructor(options: VehicleOptions) {
-		super(options);
-		this.intentMarker = new IntentMarker({ size: 30 });
-		this.addChild(this.intentMarker);
-	}
-
-	protected placeElements(): void {
-		super.placeElements();
-		this.intentMarker.setPosition(Math.floor(this.getWidth() * 0.7), Math.floor(this.getHeight() * 0.05));
-	}
-
 	protected getPortraitColor(): string {
 		return '#4a3a3a'; // Enemy red tint
 	}
 
 	protected getBorderColor(): string {
 		return '#6a5a5a'; // Enemy red border
-	}
-
-	/**
-	 * Set enemy intent
-	 */
-	public setIntent(intent: EnemyIntent | null): void {
-		this.intentMarker.intent = intent;
 	}
 }
 
@@ -51,8 +34,14 @@ const ENEMY_LANE_DECOR: LaneDecor = {
  * Shows enemy vehicles with intent indicators
  */
 export class EnemyBattlefieldLayer extends BattlefieldLayer {
-	// Map of vehicle IDs to their intents
-	private vehicleIntents: Map<string, EnemyIntent> = new Map();
+	// Each raider's planned intents, by vehicle id
+	private vehicleIntents: Map<string, readonly EnemyIntent[]> = new Map();
+	/**
+	 * Each raider's plan beside its plate. Siblings of the plates, not their
+	 * children: a plate is one hit target (`unit`), so nothing inside it is
+	 * ever hovered, and the discs need their tooltips.
+	 */
+	private intentRows: Map<string, IntentRow> = new Map();
 
 	constructor(options: BattlefieldLayerOptions) {
 		super({ ...options, laneDecor: ENEMY_LANE_DECOR });
@@ -73,7 +62,7 @@ export class EnemyBattlefieldLayer extends BattlefieldLayer {
 	 * Create a vehicle display component
 	 */
 	protected createVehicleCard(vehicle: VehicleData): VehicleUI {
-		const enemyVehicle = new EnemyVehicle({
+		return new EnemyVehicle({
 			id: `enemy_vehicle_${this.slotId(vehicle)}`,
 			x: 0,
 			y: 0,
@@ -86,53 +75,58 @@ export class EnemyBattlefieldLayer extends BattlefieldLayer {
 				this.combatData?.targetVehicle(v);
 			}
 		});
-
-		// Set intent if we have one for this vehicle
-		const intent = this.vehicleIntents.get(vehicle.id);
-		if (intent) {
-			enemyVehicle.setIntent(intent);
-		}
-
-		return enemyVehicle;
 	}
 
 	/**
 	 * Update an existing vehicle display
 	 */
 	protected updateVehicleCard(vehicle: VehicleData, card: VehicleUI): void {
-		// Update the data
 		card.data = vehicle;
+	}
 
-		// Update intent if it's an enemy vehicle
-		if (card instanceof EnemyVehicle) {
-			const intent = this.vehicleIntents.get(vehicle.id);
-			card.setIntent(intent || null);
+	/** A row per plate, made and dropped with the plates. */
+	protected updateVehicleCards(): void {
+		super.updateVehicleCards();
+		for (const [vehicleId, row] of this.intentRows) {
+			if (this.vehicleCards.has(vehicleId)) continue;
+			this.removeChild(row);
+			this.intentRows.delete(vehicleId);
+		}
+		for (const [vehicleId, plate] of this.vehicleCards) {
+			if (this.intentRows.has(vehicleId)) continue;
+			const row = new IntentRow({ id: plate.id ? `${plate.id}_intents` : undefined, markerSize: INTENT_MARKER_SIZE, zIndex: 1 });
+			row.intents = this.vehicleIntents.get(vehicleId) ?? [];
+			// The plan is part of its raider as a drop target: a card let go
+			// on a disc lands on the raider, as one on the plate does
+			row.onDragEnter = (event) => plate.dragEntered(event);
+			row.onDragLeave = () => plate.dragLeft();
+			row.onDrop = (event) => plate.dropped(event);
+			this.intentRows.set(vehicleId, row);
+			this.addChild(row);
 		}
 	}
 
-	/**
-	 * Set intent for a specific vehicle
-	 */
-	public setVehicleIntent(vehicleId: string, intent: EnemyIntent): void {
-		this.vehicleIntents.set(vehicleId, intent);
-		
-		// Update the vehicle card if it exists
-		const card = this.vehicleCards.get(vehicleId);
-		if (card && card instanceof EnemyVehicle) {
-			card.setIntent(intent);
+	/** Beside each plate's top right corner, outside it, so a plan of three never covers the driver's name or the lane label. */
+	protected layoutVehicles(): void {
+		super.layoutVehicles();
+		for (const [vehicleId, row] of this.intentRows) {
+			const plate = this.vehicleCards.get(vehicleId);
+			if (!plate) continue;
+			const { x, y, width } = plate.bounds;
+			row.setPosition(x + width + INTENT_INSET, y);
 		}
 	}
 
-	/**
-	 * Clear intent for a specific vehicle
-	 */
-	public clearVehicleIntent(vehicleId: string): void {
-		this.vehicleIntents.delete(vehicleId);
-		
-		// Update the vehicle card if it exists
-		const card = this.vehicleCards.get(vehicleId);
-		if (card && card instanceof EnemyVehicle) {
-			card.setIntent(null);
-		}
+	/** A raider's plan for the enemy turn, in order; empty clears it. */
+	public setVehicleIntents(vehicleId: string, intents: readonly EnemyIntent[]): void {
+		if (intents.length === 0) this.vehicleIntents.delete(vehicleId);
+		else this.vehicleIntents.set(vehicleId, intents);
+		const row = this.intentRows.get(vehicleId);
+		if (row) row.intents = intents;
+	}
+
+	/** The row showing a raider's plan, while the raider is on the road. */
+	public intentRowOf(vehicleId: string): IntentRow | null {
+		return this.intentRows.get(vehicleId) ?? null;
 	}
 }
