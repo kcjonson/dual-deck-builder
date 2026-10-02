@@ -91,7 +91,37 @@ const HEAVY: PillLook = { border: resolveColor('#ff5a44'), fill: resolveColor('#
 const POP_FROM = 0.4;
 const POP_ORIGIN: readonly [number, number] = [0.5, 0.5];
 
-/** What a pill prints after its icon: an attack's or a defence's value, "?" when hidden; debuffs and buffs print none. */
+/**
+ * The short names a debuff or buff pill prints (the mock's "Slow", "Jam"),
+ * kept to five letters so two pills and "+N" fit the token. A status with
+ * none here prints no label; its tooltip still names it.
+ */
+const STATUS_LABELS: Readonly<Record<string, string>> = {
+	speed_reduction: 'Slow',
+	slow: 'Slow',
+	oil_slick: 'Oil',
+	caltrops: 'Spike',
+	permanent_speed_loss: 'Slow',
+	vulnerable: 'Vuln',
+	stunned: 'Stun',
+	burn: 'Burn',
+	death_mark: 'Mark',
+	speed_boost: 'Fast',
+	speed_plus: 'Fast',
+	nitro_boost: 'Nitro',
+	damage_bonus: 'Dmg+',
+	triple_damage: 'Dmgx3',
+	flank: 'Flank',
+	draw: 'Draw',
+	adrenaline: 'Adr+',
+};
+
+/** A debuff's or buff's status as its pill prints it, or undefined for one with no short name. */
+export function statusLabel(status: string | null): string | undefined {
+	return status === null ? undefined : STATUS_LABELS[status];
+}
+
+/** What a pill prints after its icon: a value, "?" when hidden, a debuff's or buff's short name. */
 function labelOf(intent: EnemyIntent): string | null {
 	switch (intent.type) {
 		case 'attack':
@@ -103,7 +133,7 @@ function labelOf(intent: EnemyIntent): string | null {
 		case 'overflow':
 			return `+${intent.value ?? 0}`;
 		default:
-			return null;
+			return intent.valueText ?? null;
 	}
 }
 
@@ -125,6 +155,8 @@ export class IntentPill extends Component {
 	private printed: string | null = null;
 	private look: PillLook = LOOKS.special;
 	private standsFor: readonly EnemyIntent[] = [];
+	/** `[intent]` for a pill that shows one, kept so reading it allocates nothing. */
+	private own: EnemyIntent[] = [];
 	private readonly bodyDraw: DrawRectOptions & { rect: { x: number; y: number; width: number; height: number } } = {
 		rect: { x: 0, y: 0, width: 0, height: INTENT_PILL_HEIGHT },
 		fill: GROUND,
@@ -177,6 +209,7 @@ export class IntentPill extends Component {
 			this.tooltip = null;
 			return;
 		}
+		if (intent.type !== 'overflow') this.own = [intent];
 		const width = IntentPill.widthOf(intent);
 		if (width !== this.width) this.setSize(width, INTENT_PILL_HEIGHT);
 		this.look = lookOf(intent);
@@ -192,13 +225,19 @@ export class IntentPill extends Component {
 
 	/** The intents this pill stands for: its own, or for "+N" the ones it collapses. */
 	get represents(): readonly EnemyIntent[] {
-		if (this.current && this.current.type !== 'overflow') return [this.current];
+		if (this.current && this.current.type !== 'overflow') return this.own;
 		return this.standsFor;
 	}
+
 
 	set represents(intents: readonly EnemyIntent[]) {
 		this.standsFor = intents;
 		if (this.current?.type === 'overflow') this.intent = this.current;
+	}
+
+	/** Shrinking out of a changed plan, no longer part of it. */
+	get leaving(): boolean {
+		return this['exiting'];
 	}
 
 	/** The text the pill prints, or null when it prints none. */
@@ -355,9 +394,9 @@ export class IntentRow extends Stack {
 		return this.plan;
 	}
 
-	/** The pills on the row now, leaving ones excluded. */
+	/** The pills on the row now, leaving ones excluded. Allocates; a paint walks `children` instead. */
 	public get pills(): IntentPill[] {
-		return this.children.filter((child): child is IntentPill => child instanceof IntentPill && !child['exiting']);
+		return this.children.filter((child): child is IntentPill => child instanceof IntentPill && !child.leaving);
 	}
 
 	/** Two, unless two and the "+N" would run past the row's width; then one. */

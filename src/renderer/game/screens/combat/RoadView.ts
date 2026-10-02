@@ -103,6 +103,7 @@ export class RoadView extends Component {
 	private readonly roadTokens = new Map<string, RoadToken>();
 	private readonly plannedIntents = new Map<string, readonly EnemyIntent[]>();
 	private actingId: string | null = null;
+	private readonly raiders: VehicleUI[] = [];
 	private readonly laneHeads: Text[];
 	private readonly rowLabels: Text[];
 	private readonly fixedChildren: number;
@@ -204,11 +205,9 @@ export class RoadView extends Component {
 		return this.roadTokens.get(vehicleId)?.view.intentsRow ?? null;
 	}
 
-	/** Every raider's token on the road, in tree order. */
-	public get raiderViews(): VehicleUI[] {
-		const views: VehicleUI[] = [];
-		for (const token of this.roadTokens.values()) if (token.side === 'enemy') views.push(token.view);
-		return views;
+	/** Every raider's token on the road; one list, rebuilt only when a token comes or goes. */
+	public get raiderViews(): readonly VehicleUI[] {
+		return this.raiders;
 	}
 
 	/** The raider acting on screen now, which glows (section 6), by id; null for none. */
@@ -268,7 +267,11 @@ export class RoadView extends Component {
 			occupancyChanged = true;
 		}
 		if (created) this.orderTokens(enemy, player);
-		if (occupancyChanged) this.buildSlotOutlines();
+		if (occupancyChanged) {
+			this.buildSlotOutlines();
+			this.raiders.length = 0;
+			for (const token of this.roadTokens.values()) if (token.side === 'enemy') this.raiders.push(token.view);
+		}
 	}
 
 	/** A raider's plan for the enemy turn, in order; empty clears it. */

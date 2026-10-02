@@ -89,7 +89,7 @@ export class CombatRoadSection extends CatalogSection {
 			{ type: 'attack', value: 4, description: 'Shoot', target: 'driver2' },
 		]);
 		road.setVehicleIntents(brute.id, [{ type: 'attack', value: 15, description: 'Ram', target: 'both' }]);
-		road.setVehicleIntents(flanker.id, [{ type: 'debuff', description: 'Spikes', target: 'escort' }]);
+		road.setVehicleIntents(flanker.id, [{ type: 'debuff', valueText: 'Spike', description: 'Caltrops', target: 'escort' }]);
 
 		this.addRow(
 			'six lanes by three rows, a flanker on each shoulder, empty slots outlined',

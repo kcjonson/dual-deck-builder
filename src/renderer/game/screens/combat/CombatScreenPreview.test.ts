@@ -157,42 +157,53 @@ describe('CombatScreen end-turn preview', () => {
 });
 
 describe('CombatScreen enemy turn presentation', () => {
-	it('drops the dock 60 and greys it on the animator, parked only while it is down', async () => {
+	it('drops the hands 60 and greys them on the animator, parked only while down, with End Turn and the dock in place', async () => {
 		const combat = await startCombat();
-		const dock = combat['dock'];
+		const hands = combat['handLayer'];
 		const scrim = combat['dockScrim'];
-		expect(dock.parkOffset).toBeNull();
+		const endTurn = combat['endTurnColumn'].endTurn;
+		const dockAt = combat['dock'].screenBounds.y;
+		const endTurnAt = endTurn.screenBounds.y;
+		const handsAt = hands.screenBounds.y;
+		expect(hands.parkOffset).toBeNull();
 		expect(scrim.visible).toBe(false);
 
 		combat['endPlayerTurn']();
 		advance(context, 16);
-		expect(dock.parkOffset?.y).toBeGreaterThan(0);
-		expect(dock.parkOffset?.y).toBeLessThan(DOCK_DROP);
+		expect(hands.parkOffset?.y).toBeGreaterThan(0);
+		expect(hands.parkOffset?.y).toBeLessThan(DOCK_DROP);
 		advance(context, tokens.motion.dur);
-		expect(dock.parkOffset).toEqual({ x: 0, y: DOCK_DROP });
+		expect(hands.parkOffset).toEqual({ x: 0, y: DOCK_DROP });
 		expect(scrim.parkOffset).toEqual({ x: 0, y: DOCK_DROP });
 		expect(scrim.visible).toBe(true);
 		expect(scrim.opacity).toBe(1);
-		expect(dock.effectivelyEnabled).toBe(false);
+		// The scrim covers the hands, not End Turn
+		expect(scrim.screenBounds).toEqual(hands.screenBounds);
+		expect(scrim.screenBounds.x + scrim.screenBounds.width).toBeLessThanOrEqual(endTurn.screenBounds.x);
+		expect(hands.screenBounds.y).toBeCloseTo(handsAt + DOCK_DROP, 6);
+		expect(combat['dock'].screenBounds.y).toBe(dockAt);
+		expect(endTurn.screenBounds.y).toBe(endTurnAt);
+		expect(endTurn.label).toBe('WAIT');
+		expect(combat['dock'].effectivelyEnabled).toBe(false);
 
 		finishEnemyTurn(combat);
 		advance(context, tokens.motion.dur + 16);
-		expect(dock.parkOffset).toBeNull();
+		expect(hands.parkOffset).toBeNull();
 		expect(scrim.visible).toBe(false);
 		combat.unmount();
 	});
 
-	it('snaps the dock down and back under reduced motion', async () => {
+	it('snaps the hands down and back under reduced motion', async () => {
 		context.animator.reducedMotion = true;
 		const combat = await startCombat();
 		combat['endPlayerTurn']();
-		expect(combat['dock'].parkOffset).toEqual({ x: 0, y: DOCK_DROP });
+		expect(combat['handLayer'].parkOffset).toEqual({ x: 0, y: DOCK_DROP });
 		finishEnemyTurn(combat);
-		expect(combat['dock'].parkOffset).toBeNull();
+		expect(combat['handLayer'].parkOffset).toBeNull();
 		combat.unmount();
 	});
 
-	it('lints the dropped dock where it rests, and the landed one with no park at all', async () => {
+	it('lints the dropped hands where they rest, and the landed ones with no park at all', async () => {
 		context.animator.reducedMotion = true;
 		const combat = await startCombat();
 		const viewport = { width: 1280, height: 720 };
@@ -212,7 +223,7 @@ describe('CombatScreen enemy turn presentation', () => {
 		// Without the declaration the same drop would be reported
 		const undeclared = (node: SnapshotNode): SnapshotNode => ({ ...node, parked: undefined, parts: node.parts?.map(undeclared), children: node.children.map(undeclared) });
 		const reported = layoutLint({ ...dropped, roots: dropped.roots.map(undeclared) }).violations
-			.filter((violation) => violation.rule === 'outside-viewport' && /combat_dock/.test(violation.path));
+			.filter((violation) => violation.rule === 'child-outside-parent' && /combat_dock/.test(violation.path));
 		expect(reported.length).toBeGreaterThan(0);
 
 		finishEnemyTurn(combat);
@@ -222,20 +233,32 @@ describe('CombatScreen enemy turn presentation', () => {
 		combat.unmount();
 	});
 
-	it('takes no input while dropped', async () => {
+	it('takes no input while dropped: a tab\'s piles and End Turn do nothing', async () => {
 		context.animator.reducedMotion = true;
 		const combat = await startCombat();
-		const [driver] = combat['playerDrivers'];
-		combat['endPlayerTurn']();
 		const layer = combat['handLayer'];
-		const card = layer.handCards.map(handCard => layer.getCardElementByCard(handCard)).find(element => element !== null);
-		const before = [...driver.hand];
-		if (card) {
-			const { x, y, width } = card.screenBounds;
-			click(context, x + width / 2, y + 10);
-		}
-		expect(combat['combatModel'].selectedCard).toBeNull();
-		expect(driver.hand).toEqual(before);
+		const opened = jest.fn();
+		layer.onOpenPiles = opened;
+		combat['endPlayerTurn']();
+		context.frame.layout();
+		const pacer = combat['enemyTurnPacer'];
+		const start = jest.spyOn(pacer as NonNullable<typeof pacer>, 'start');
+
+		const piles = layer.pilesOf(1).screenBounds;
+		click(context, piles.x + piles.width / 2, piles.y + piles.height / 2);
+		expect(opened).not.toHaveBeenCalled();
+
+		const endTurn = combat['endTurnColumn'].endTurn.screenBounds;
+		click(context, endTurn.x + endTurn.width / 2, endTurn.y + endTurn.height / 2);
+		expect(start).not.toHaveBeenCalled();
+		expect(combat['battle']?.enemyTurnInProgress).toBe(true);
+
+		// The same click on the tab reaches it once the hands are back
+		finishEnemyTurn(combat);
+		context.frame.layout();
+		const back = layer.pilesOf(1).screenBounds;
+		click(context, back.x + back.width / 2, back.y + back.height / 2);
+		expect(opened).toHaveBeenCalledTimes(1);
 		combat.unmount();
 	});
 
@@ -246,9 +269,48 @@ describe('CombatScreen enemy turn presentation', () => {
 		expect(view?.acting).toBe(false);
 		combat['endPlayerTurn']();
 		advance(context, ENEMY_TURN_LEAD_IN + 32);
-		if (combat['actingRaider']) expect(combat['road'].vehicleView(combat['actingRaider'].id)?.acting).toBe(true);
+		const acting = combat['actingRaider'];
+		expect(acting).not.toBeNull();
+		expect(combat['road'].vehicleView(acting?.id ?? '')?.acting).toBe(true);
 		finishEnemyTurn(combat);
 		expect(combat['road'].vehicleView(raider.id)?.acting ?? false).toBe(false);
+		combat.unmount();
+	});
+
+	it('starts a hit\'s number under the banner when the banner is across its plate', async () => {
+		context.animator.reducedMotion = true;
+		const combat = await startCombat();
+		combat['endPlayerTurn']();
+		advance(context, ENEMY_TURN_LEAD_IN + 32);
+		const banner = combat['turnBanner'];
+		expect(banner.visible).toBe(true);
+		const band = banner.screenBounds;
+		const numbers = combat['fx'].floatingNumbers;
+		expect(numbers.length).toBeGreaterThan(0);
+		for (const number of numbers) expect(number.screenBounds.y).toBeGreaterThanOrEqual(band.y + band.height - 0.5);
+		combat.unmount();
+	});
+});
+
+describe('CombatScreen log drawer and the preview', () => {
+	it('draws the open log over the preview: same layer, ordered by zIndex', async () => {
+		const combat = await startCombat();
+		const preview = combat['intentPreview'];
+		const log = combat['combatLogLayer'];
+		expect(preview.parent).toBe(log.parent);
+		expect(preview.layer).toBe(log.layer);
+		expect(preview.zIndex).toBeLessThan(log.zIndex);
+		combat['toggleCombatLog']();
+		const at = endTurnCentre(combat);
+		send(context, [pointer('move', at.x, at.y)]);
+		expect(preview.showing).toBe(true);
+		const snapshot = treeSnapshot([combat['rootLayer']], { width: 1280, height: 720 });
+		const find = (node: SnapshotNode, id: string): SnapshotNode | null =>
+			node.id === id ? node : [...(node.parts ?? []), ...node.children].reduce<SnapshotNode | null>((found, child) => found ?? find(child, id), null);
+		const previewNode = find(snapshot.roots[0], 'combat_end_turn_preview');
+		const logNode = find(snapshot.roots[0], 'combat_log');
+		expect(previewNode?.layer).toBe(logNode?.layer);
+		expect(previewNode?.zIndex ?? 0).toBeLessThan(logNode?.zIndex ?? 0);
 		combat.unmount();
 	});
 });

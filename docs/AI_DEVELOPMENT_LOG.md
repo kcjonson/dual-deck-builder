@@ -12,10 +12,12 @@ This document contains the chronological log of completed development tasks for 
 
 - `game/ui/IntentPill.ts` replaces `IntentMarker.ts`: pills with icon, value ("6x3" for a multi-hit, "?" when the tier hides it), and target mark, the heavy tier at 12 and up counting every hit. `IntentRow` shows two then "+N", or one then "+N" when two won't fit the token's width; "+N" has a tooltip listing what it collapses. `CombatScreen.intentPillOf` adds hits and the vehicles each intent lands on.
 - `EndTurnPreview` over the road: while End Turn has the pointer or visible keyboard focus on your turn, a dashed line from each pill to every plate it lands on and the incoming total in a chip on your tokens ("-8+?" with a hidden attack). `EndTurnColumn.previewing` is End Turn's only change.
-- Enemy turn: the dock drops 60 and greys under a scrim on the animator, snapping under reduced motion; the acting raider's plate glows (`Vehicle.acting`, cull ink grown by the shadow's bound); the banner already crossed only the road.
+- Enemy turn: the hands drop 60 and grey under a scrim on the animator, snapping under reduced motion, End Turn staying put at WAIT; the acting raider's plate glows (`Vehicle.acting`, cull ink grown by the shadow's bound); the banner already crossed only the road.
 - Engine: `Component.parkOffset` (R8.30), reported by the snapshot as `parked`; the layout lint checks a parked subtree where it rests (R13.25.2, R13.25.3 amended), so the dropped dock lints clean and a real escape at rest is still caught.
 - Goldens: new `screen-combatScreen-endTurnPreview` at both gate sizes; `screen-combatScreen-enemyTurn` now captures the first raider acting under reduced motion; `vehicle-tokens`, `combat-road` and `icons` show pills; `combat-road` is also linted at 1024x600.
 - Record: [intent-pills-and-enemy-turn-presentation.md](./AI_TECHNICAL_DECISIONS/intent-pills-and-enemy-turn-presentation.md).
+- Review round: the preview sits in the road band's own layer under the log drawer by `zIndex`, so an open log covers it; a frame of the preview allocates nothing; only the hands (tabs and cards) drop and grey, End Turn and the dock's ground stay put as in the mock; debuff and buff pills print a short name (Slow, Stun, Vuln); a hit's number starts under the banner when the banner is across its plate; the gallery draws the acting glow in the open.
+
 ## Card face and pinnable detail view (2026-10-02)
 
 **What landed:** DDB-137 (DDB-127), folding in DDB-204 and DDB-172. Closes the card-detail part of DDB-34 (DDB-28 was already closed by DDB-88).

@@ -74,7 +74,8 @@ function galleryVehicle({ name, structure, armor, speed, driver, passenger, stat
  * has, held still for a golden: both drivers' marks and an escort's,
  * raiders whose intents carry each target mark, a passenger row, more
  * statuses than the row holds, a long name cut with an ellipsis, a wreck
- * and an unmanned raider, the targeting outlines and dimming, and the
+ * and an unmanned raider, the targeting outlines and dimming, the acting
+ * raider's glow, and the
  * token filling slots at x1, x1.12, and x1.25.
  */
 export class VehicleTokensSection extends CatalogSection {
@@ -109,7 +110,7 @@ export class VehicleTokensSection extends CatalogSection {
 			[{ type: 'attack', value: 12, description: 'Spray', target: 'both' }],
 			[
 				{ type: 'attack', value: 5, description: 'Sideswipe', target: 'escort' },
-				{ type: 'debuff', description: 'Oil', target: 'driver2' },
+				{ type: 'debuff', valueText: 'Oil', description: 'Oil Slick', target: 'driver2' },
 			],
 		];
 		raiders.tokens.forEach((token, index) => {
@@ -127,7 +128,7 @@ export class VehicleTokensSection extends CatalogSection {
 		hidden.tokens[1].intents = [
 			{ type: 'attack', value: 8, hits: 3, valueText: '8x3', description: 'Chain Sweep', target: 'both' },
 			{ type: 'attack', value: 12, hits: 2, valueText: '12x2', description: 'Twin Ram', target: 'both' },
-			{ type: 'debuff', description: 'Jam', target: 'driver1' },
+			{ type: 'debuff', valueText: 'Slow', description: 'Jam', target: 'driver1' },
 		];
 		this.cell('an elite hides its values; two wide pills give way to one and +N', hidden.row);
 
@@ -170,6 +171,12 @@ export class VehicleTokensSection extends CatalogSection {
 		model.targetableVehicleIds = [valid.id, aimed.id];
 		model.focusedVehicleId = aimed.id;
 		this.cell('targeting: in reach, aimed at, out of reach', this.tokens('dev_tokens_targeting', 'raider', [valid, aimed, outOfReach], model).row);
+
+		const actor = galleryVehicle({ name: 'Rust Buggy', structure: [22, 30], armor: 5, speed: 3, driver: { name: 'Wasteland Raider', hp: [30, 30] } });
+		const acting = this.tokens('dev_tokens_acting', 'raider', [actor]);
+		acting.tokens[0].intents = [{ type: 'attack', value: 8, description: 'Ram', target: 'driver1' }];
+		acting.tokens[0].acting = true;
+		this.cell('the raider acting in the enemy turn glows', acting.row);
 
 		this.cell('filling a slot: x1, x1.12, x1.25 (the cap)', this.fitRow());
 	}

@@ -77,10 +77,12 @@ export function incomingLabel({ damage, hidden }: IncomingDamage): string | null
  * attack will reach shows the incoming total. The keyboard's way to read
  * the raiders' plan, since the pills themselves take no focus.
  *
- * Covers the road over its tokens, on the overlay layer, and never a
+ * Covers the road over its tokens, in the road band's own layer, ordered
+ * by `zIndex` under the log drawer so an open log covers it, and never a
  * target. Everything is read from the road's tokens at paint time, so it
  * follows a swerve or a rescale with no bookkeeping, into buffers it
- * reuses; the totals are worked out when the plan changes (`refresh`).
+ * reuses, and a frame of it allocates nothing; the totals are worked out
+ * when the plan changes (`refresh`).
  */
 export class EndTurnPreview extends Component {
 	private readonly road: RoadView;
@@ -112,7 +114,7 @@ export class EndTurnPreview extends Component {
 	};
 
 	constructor({ road, isPreviewing, ...options }: ComponentOptions & { road: RoadView; isPreviewing: () => boolean }) {
-		super({ pointerEvents: 'none', layer: 'overlay', ...options });
+		super({ pointerEvents: 'none', ...options });
 		this.componentType = 'EndTurnPreview';
 		this.road = road;
 		this.isPreviewing = isPreviewing;
@@ -151,7 +153,9 @@ export class EndTurnPreview extends Component {
 		if (!space || !this.showing) return;
 		for (const raider of this.road.raiderViews) {
 			if (!raider.isMounted || raider.isWrecked) continue;
-			for (const pill of raider.intentsRow.pills) this.drawLinesFrom(draw, pill, space);
+			for (const child of raider.intentsRow.children) {
+				if (child instanceof IntentPill && !child.leaving) this.drawLinesFrom(draw, child, space);
+			}
 		}
 		for (const [vehicleId, label] of this.labels) {
 			const view = this.road.vehicleView(vehicleId);
