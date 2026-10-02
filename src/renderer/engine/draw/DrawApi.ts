@@ -480,7 +480,7 @@ export class DrawApi {
 			);
 		}
 
-		this.clips.push(screen, radius);
+		this.clips.push(screen, radius === null || translateOnly ? radius : radius * clipRadiusScale(this.transforms.matrix));
 	}
 
 	/**
@@ -1067,6 +1067,14 @@ export class DrawApi {
 function copyRadii(radius: CornerRadii | undefined): CornerRadii | null {
 	if (radius === undefined) return null;
 	return typeof radius === 'number' ? radius : [radius[0], radius[1], radius[2], radius[3]];
+}
+
+/**
+ * R4.14's radius in screen space: the smaller axis scale, so under a
+ * non-uniform scale the corner never rounds past the narrower side's arc.
+ */
+function clipRadiusScale(matrix: Mat2D): number {
+	return Math.min(Math.hypot(matrix[0], matrix[1]), Math.hypot(matrix[2], matrix[3]));
 }
 
 function copyBorder(border: Border | undefined): Border | null {

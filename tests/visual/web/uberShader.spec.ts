@@ -10,6 +10,7 @@ import { FontAtlas, parseFontAtlas } from '../../../src/renderer/engine/text/Fon
 import { TextMetricsService } from '../../../src/renderer/engine/text/TextMetricsService';
 import {
 	UBER_ATTRIBUTES,
+	UBER_FRAME_BLOCK,
 	UBER_STRIDE,
 	UBER_TEXTURE_UNITS,
 	UBER_VERTICES_PER_INSTANCE,
@@ -43,6 +44,8 @@ interface Target {
 	clear: [number, number, number, number];
 	/** Textures to put on units before drawing, RGBA8 texels uploaded as given. */
 	textures?: UnitTexture[];
+	/** Draw API diagnostics the drawing is expected to raise; each must be raised. Any other still throws. */
+	expectDiagnostics?: string[];
 }
 
 interface UnitTexture {
@@ -95,14 +98,26 @@ function encode(
 	build: (api: DrawApi) => void,
 	prepare?: (api: DrawApi) => void,
 	font: BodyFont = GLYPH_FONT,
-): { bytes: number[]; instances: number } {
+): { bytes: number[]; instances: number; roundedClips: number[] } {
 	const backend = new RecordingBackend({ maxFrames: 1 });
 	backend.loadFontAtlas({ name: 'body', atlas: font.atlas, texture: font.texture });
-	const api = new DrawApi({ backend, strict: true });
+	const expected = target.expectDiagnostics ?? [];
+	const raised = new Set<string>();
+	const api = new DrawApi({
+		backend,
+		strict: expected.length === 0,
+		onDiagnostic: ({ code, message }) => {
+			if (!expected.includes(code)) throw new Error(`${code}: ${message}`);
+			raised.add(code);
+		},
+	});
 	prepare?.(api);
 	api.beginFrame({ viewport: { width: target.width / target.ratio, height: target.height / target.ratio }, ratio: target.ratio });
 	build(api);
 	api.endFrame();
+	for (const code of expected) {
+		if (!raised.has(code)) throw new Error(`expected the draw API to report ${code}`);
+	}
 
 	const text = new TextMetricsService();
 	text.addAtlas({ name: 'body', atlas: font.atlas });
@@ -126,7 +141,10 @@ function encode(
 		bytes = Array.from(upload.bytes.subarray(0, upload.byteCount));
 		instances = upload.instanceCount;
 	});
-	return { bytes, instances };
+	// R4.14's table, which the backend puts in the frame block behind the projection.
+	const table = encoder.roundedClips;
+	const roundedClips = Array.from(table.floats.subarray(0, table.count * 8));
+	return { bytes, instances, roundedClips };
 }
 
 async function render(
@@ -137,7 +155,7 @@ async function render(
 	font?: BodyFont,
 ): Promise<Frame> {
 	const geometry = encode(target, build, prepare, font);
-	return page.evaluate(({ target, geometry, sources, attributes, stride, verticesPerInstance, units }) => {
+	return page.evaluate(({ target, geometry, sources, attributes, stride, verticesPerInstance, units, frameBlock }) => {
 		const canvas = document.createElement('canvas');
 		canvas.width = target.width;
 		canvas.height = target.height;
@@ -182,18 +200,21 @@ async function render(
 		}
 		gl.uniform1iv(gl.getUniformLocation(program, 'uTextures[0]'), unitIndices);
 
-		// The frame block: an orthographic projection of the logical viewport, y down.
+		// The frame block: an orthographic projection of the logical viewport,
+		// y down, then the rounded clip table.
 		const width = target.width / target.ratio;
 		const height = target.height / target.ratio;
-		const projection = new Float32Array([
+		const block = new Float32Array(frameBlock.floats);
+		block.set([
 			2 / width, 0, 0, 0,
 			0, -2 / height, 0, 0,
 			0, 0, -1, 0,
 			-1, 1, 0, 1,
-		]);
+		], frameBlock.projection);
+		block.set(geometry.roundedClips, frameBlock.roundedClips);
 		const uniforms = gl.createBuffer();
 		gl.bindBuffer(gl.UNIFORM_BUFFER, uniforms);
-		gl.bufferData(gl.UNIFORM_BUFFER, projection, gl.STATIC_DRAW);
+		gl.bufferData(gl.UNIFORM_BUFFER, block, gl.STATIC_DRAW);
 		gl.uniformBlockBinding(program, gl.getUniformBlockIndex(program, 'Frame'), 0);
 		gl.bindBufferBase(gl.UNIFORM_BUFFER, 0, uniforms);
 
@@ -232,6 +253,7 @@ async function render(
 		stride: UBER_STRIDE,
 		verticesPerInstance: UBER_VERTICES_PER_INSTANCE,
 		units: UBER_TEXTURE_UNITS,
+		frameBlock: { ...UBER_FRAME_BLOCK },
 	});
 }
 
@@ -264,6 +286,62 @@ test.describe('uber shader', () => {
 			expect(pixel(frame, 40, 40)).toEqual([0, 0, 0, 255]);
 			expect(pixel(frame, 39, 39)).toEqual([255, 255, 255, 255]);
 		}
+	});
+
+	test('rounds a clip\'s corners with an anti-aliased edge and keeps its straight edges whole (4.7, R4.14)', async ({ page }) => {
+		for (const ratio of [1, 2]) {
+			const frame = await render(page, { width: 40 * ratio, height: 40 * ratio, ratio, clear: OPAQUE_BLACK }, (api) => {
+				api.pushClipRounded({ x: 10, y: 10, width: 20, height: 20 }, 8);
+				api.drawRect({ rect: { x: 0, y: 0, width: 40, height: 40 }, fill: [1, 1, 1, 1] });
+				api.popClip();
+			});
+			const at = (x: number, y: number) => pixel(frame, Math.floor(x * ratio), Math.floor(y * ratio))[0];
+			// The corner's own pixel is outside the arc, centred 8 px in from it.
+			expect(at(10.25, 10.25)).toBe(0);
+			expect(at(29.75, 29.75)).toBe(0);
+			// Along the straight edges, the first pixel inside is whole.
+			expect(at(10.25, 20)).toBe(255);
+			expect(at(20, 10.25)).toBe(255);
+			expect(at(29.75, 20)).toBe(255);
+			// Inside the arc is whole, and the arc itself is partly covered.
+			expect(at(14, 14)).toBe(255);
+			const arc = 18 - 8 / Math.SQRT2;
+			const ramp = at(arc, arc);
+			expect(ramp).toBeGreaterThan(40);
+			expect(ramp).toBeLessThan(215);
+		}
+	});
+
+	test('clips text to a rounded clip too, in the same draw (R4.5, R4.14)', async ({ page }) => {
+		const frame = await render(page, { width: 16, height: 16, ratio: 1, clear: OPAQUE_BLACK, textures: [{ unit: 0, width: 4, height: 4, texels: new Array(64).fill(255) }] }, (api) => {
+			api.pushClipRounded({ x: 4, y: 4, width: 4, height: 4 }, 2);
+			api.drawText({ text: 'A', position: { x: 4, y: 8 }, font: 'body', size: 16, color: [1, 1, 1, 1] });
+			api.popClip();
+		});
+		// The glyph fills the clip; its corners are cut by a 2 px radius.
+		expect(pixel(frame, 4, 4)[0]).toBeLessThan(128);
+		expect(pixel(frame, 7, 7)[0]).toBeLessThan(128);
+		expect(pixel(frame, 5, 6)[0]).toBe(255);
+		expect(pixel(frame, 6, 5)[0]).toBe(255);
+	});
+
+	test('nests rounded clips with the inner radius and the outer bounding rect (4.7, R4.14)', async ({ page }) => {
+		const target: Target = { width: 80, height: 80, ratio: 1, clear: OPAQUE_BLACK, expectDiagnostics: ['nested-rounded-clip'] };
+		const frame = await render(page, target, (api) => {
+			api.pushClipRounded({ x: 10, y: 10, width: 50, height: 50 }, 20);
+			api.pushClipRounded({ x: 0, y: 0, width: 40, height: 40 }, 6);
+			api.drawRect({ rect: { x: 0, y: 0, width: 80, height: 80 }, fill: [1, 1, 1, 1] });
+			api.popClip();
+			api.popClip();
+		});
+		// The outer clip's corner, which its 20 px radius would cut, shows: it
+		// contributes only its bounding rect.
+		expect(pixel(frame, 10, 10)[0]).toBe(255);
+		expect(pixel(frame, 9, 20)[0]).toBe(0);
+		// The inner clip's corner inside the intersection is rounded.
+		expect(pixel(frame, 39, 39)[0]).toBe(0);
+		expect(pixel(frame, 35, 35)[0]).toBe(255);
+		expect(pixel(frame, 39, 20)[0]).toBe(255);
 	});
 
 	test('ramps a fractional edge over exactly one device pixel on each side (R5.6, R5.7)', async ({ page }) => {

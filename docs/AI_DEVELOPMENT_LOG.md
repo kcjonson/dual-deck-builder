@@ -6,6 +6,20 @@ This document contains the chronological log of completed development tasks for 
 
 **Date correction (2026-08-22):** the repo's first commit is 2025-05-17, but many entries below carry dates in December 2024 or January 2025 — the AI that wrote them used its assumed date instead of the real one. Entries dated 2025-07-03 and 2025-07-02 have been corrected from "2025-01-03"/"2025-01-02" (verified against git history). Remaining Dec 2024 / Jan 2025 dates are wrong by roughly six months; the real work happened May–July 2025. Trust git history over these dates.
 
+## The rounded clip in the uber shader (2026-10-02)
+
+**What landed:** DDB-190 (DDB-55), R4.14. `pushClipRounded` draws round instead of square.
+
+- `rendering/RoundedClipTable.ts`: the frame's rounded clips (centre, half size, radius clamped to the half extent), deduplicated against the last clip and the last entry, 255 a frame, reported once if it overflows.
+- `UberGeometryEncoder.begin` writes the draw's table index into the mode word's unused byte; the table resets at `beginFrame`. `UBER_FRAME_BLOCK` describes the frame uniform block, which is the projection and then the table.
+- `WebGL2Backend` sizes the frame slots for the block (8,448 bytes each) and appends the entries an upload added before its draws, counting them in `bytesUploaded`.
+- `uber.vert` reads the entry into flat varyings; `uber.frag` multiplies colour and coverage by a rounded-box SDF on `vPosition` ramped over one device pixel.
+- `DrawApi.pushClipRounded` scales the radius by the transform's smaller axis scale.
+- Gallery `clipping` gains three rounded-clip fixtures.
+- Decision record: [rounded-clip.md](./AI_TECHNICAL_DECISIONS/rounded-clip.md). Follow-up DDB-231 for Panel and ScrollContainer.
+
+**How:** `RoundedClipTable.test.ts`; backend tests for the table's upload order and that rounded clips split nothing; a DrawApi test for radius scaling; uber shader pixel tests for the corner cut at ratios 1 and 2, a glyph under a rounded clip, and 4.7's nested case.
+
 ## Catalog Wave B, slider, tabs, and segments (2026-10-01)
 
 **What landed:** DDB-86's third PR (DDB-55 phase 5), R12.15 to R12.17. Built on 2026-09-28 before #110, merged up to main and moved onto its API.

@@ -162,8 +162,9 @@ bandwidth figure is above. DDB-191 replaced it with 104-byte packed instances, o
 attributable to chapter 5. DDB-188 applied them in `encodeRect` (see
 [resource-layer-and-viewport.md](./resource-layer-and-viewport.md)).
 
-**R4.14's rounded clip** is not implemented: a rounded panel still clips its children to its
-square bounds, so a child that reaches into a rounded corner draws square over it. DDB-190.
+**R4.14's rounded clip** was left out of this re-baseline. DDB-190 added it as a per-frame table
+in the frame uniform block, indexed by the instance's spare mode byte
+([rounded-clip.md](./rounded-clip.md)).
 
 **R5.19 nine-slice** landed with DDB-203: `draw/nineSlice.ts` computes the grid (corners at one logical
 pixel per texel, insets fitted to the source per axis, and every corner scaled by one factor when the

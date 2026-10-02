@@ -38,6 +38,7 @@ import {
 	wantsRasterGlyphs,
 } from '../text/rasterGlyphs';
 import { toHalf, toUnorm8 } from './packing';
+import { ROUNDED_CLIP_CAPACITY, ROUNDED_CLIP_FLOATS, RoundedClipTable } from './RoundedClipTable';
 
 /**
  * Chapter 5's geometry: every draw command as packed instances for the uber
@@ -70,7 +71,11 @@ import { toHalf, toUnorm8 } from './packing';
  * (R4.4).
  *
  * The clip is per-draw data (R4.1): every instance carries its draw's clip
- * rect in logical pixels, so a clip change never splits a GPU draw.
+ * rect in logical pixels, so a clip change never splits a GPU draw. R4.14's
+ * rounded clip is per-draw data too, but through a table: the instance holds
+ * a byte index into the frame's `RoundedClipTable`, which the backend keeps
+ * in the frame uniform block (`UBER_FRAME_BLOCK`), so the 104 bytes do not
+ * grow for a clip most draws do not have.
  */
 
 /** Instance layout, in 32-bit words: 26 words, 104 bytes, twelve attributes. */
@@ -96,11 +101,22 @@ export const UBER_INSTANCE = {
 	 * (`text`), opacity.
 	 */
 	shape: 23,
-	/** u8 x4: mode, texture slot, flags (`UBER_FLAGS`), unused. */
+	/** u8 x4: mode, texture slot, flags (`UBER_FLAGS`), rounded clip (`RoundedClipTable` entry plus one, 0 for none). */
 	mode: 25,
 	words: 26,
 	/** Words 0 to 15 are float32; the contract check reads them for NaN. */
 	floatWords: 16,
+} as const;
+
+/**
+ * `Frame` in `uber.vert`, in floats: the projection, then the frame's rounded
+ * clips (R4.14), `ROUNDED_CLIP_FLOATS` each, as `uRoundedClips` (two vec4s an
+ * entry). The table's size is the shader's `ROUNDED_CLIP_VECTORS` halved.
+ */
+export const UBER_FRAME_BLOCK = {
+	projection: 0,
+	roundedClips: 16,
+	floats: 16 + ROUNDED_CLIP_CAPACITY * ROUNDED_CLIP_FLOATS,
 } as const;
 
 /** R5.2's modes, as the shaders' constants. */
@@ -175,6 +191,8 @@ export interface UberGeometryEncoderOptions {
 	onUnpaintable: (kind: DrawCommandKind, detail: string) => void;
 	/** R6.4a's raster glyphs for runs too small for the distance field. Absent, every run is `text` mode. */
 	smallText?: RasterGlyphSource | null;
+	/** Once per frame, when more rounded clips than the table holds were drawn and the rest clip square. */
+	onRoundedClipOverflow?: (() => void) | null;
 }
 
 const WHITE: RGBA = [1, 1, 1, 1];
@@ -252,11 +270,14 @@ export class UberGeometryEncoder implements GeometryEncoder {
 	private pointColors = new Float64Array(0);
 	private devicePixel = 1;
 	private ratioValue = 1;
+	/** R4.14: the frame's rounded clips, which instances index. */
+	readonly roundedClips: RoundedClipTable;
 
-	constructor({ text, onUnpaintable, smallText = null }: UberGeometryEncoderOptions) {
+	constructor({ text, onUnpaintable, smallText = null, onRoundedClipOverflow = null }: UberGeometryEncoderOptions) {
 		this.text = text;
 		this.onUnpaintable = onUnpaintable;
 		this.smallText = smallText;
+		this.roundedClips = new RoundedClipTable({ onOverflow: onRoundedClipOverflow });
 	}
 
 	/**
@@ -273,9 +294,10 @@ export class UberGeometryEncoder implements GeometryEncoder {
 		this.devicePixel = ratio > 0 ? 1 / ratio : 1;
 	}
 
-	/** Between frames: ages R6.4a's hysteresis state, so a size that went unused starts over. */
+	/** Between frames: ages R6.4a's hysteresis state, so a size that went unused starts over, and empties the rounded clips. */
 	beginFrame(): void {
 		this.frame += 1;
+		this.roundedClips.reset();
 	}
 
 	/** Names the texture a font role's text groups sample; the backend keeps it resident. */
@@ -1019,20 +1041,22 @@ export class UberGeometryEncoder implements GeometryEncoder {
 
 	// -- instance writing -------------------------------------------------
 
-	/** Resets the shared words for a new group: clip, opacity, mode, slot, flags. */
+	/** Resets the shared words for a new group: clip, rounded clip, opacity, mode, slot, flags. */
 	private begin(command: DrawCommand, mode: number, slot: number): void {
 		this.templateWords.fill(0);
 		const floats = this.templateFloats;
-		const clip = clipRectOf(command.clip);
-		floats[CLIP] = clip.minX;
-		floats[CLIP + 1] = clip.minY;
-		floats[CLIP + 2] = clip.maxX;
-		floats[CLIP + 3] = clip.maxY;
+		const clip = command.clip;
+		const rect = clipRectOf(clip);
+		floats[CLIP] = rect.minX;
+		floats[CLIP + 1] = rect.minY;
+		floats[CLIP + 2] = rect.maxX;
+		floats[CLIP + 3] = rect.maxY;
 		this.templateHalves[SHAPE_HALF + 3] = toHalf(command.opacity);
 		const bytes = this.templateBytes;
 		bytes[MODE_BYTE] = mode;
 		bytes[MODE_BYTE + 1] = Math.max(0, slot);
 		bytes[MODE_BYTE + 2] = command.blend === 'additive' ? UBER_FLAGS.additive : 0;
+		bytes[MODE_BYTE + 3] = clip.kind === 'rect' && clip.rounded !== null ? this.roundedClips.indexOf(clip.rounded) : 0;
 	}
 
 	private setHalfSize(halfWidth: number, halfHeight: number): void {

@@ -4,7 +4,7 @@ import type { FrameTimer } from './FrameTimer';
 import type { GpuTimer } from './GpuTimer';
 import type { ContextListener, Renderer } from './Renderer';
 import { WebGL2Backend } from './WebGL2Backend';
-import { UBER_ATTRIBUTES, UBER_INSTANCE, UBER_MODE, UBER_STRIDE } from './UberGeometryEncoder';
+import { UBER_ATTRIBUTES, UBER_FRAME_BLOCK, UBER_INSTANCE, UBER_MODE, UBER_STRIDE } from './UberGeometryEncoder';
 import { TextureStore } from '../gpu/TextureStore';
 import { WebGL2TextureDevice } from './WebGL2TextureDevice';
 import { committedFontAtlas } from '../text/testing';
@@ -86,6 +86,10 @@ function fakeGl(): { gl: WebGL2RenderingContext; calls: GlCall[]; constant: (nam
 }
 
 const WHITE: RGBA = [1, 1, 1, 1];
+
+/** The frame block, projection and rounded clip table, and the 256-aligned slot it sits in. */
+const FRAME_BLOCK_BYTES = UBER_FRAME_BLOCK.floats * 4;
+const FRAME_SLOT_BYTES = Math.ceil(FRAME_BLOCK_BYTES / 256) * 256;
 
 interface SetupOptions {
 	instanceRingBytes?: number;
@@ -190,7 +194,7 @@ describe('WebGL2Backend', () => {
 		const { calls, constant, named } = setupBackend({ instanceRingBytes: 3 * 1024 * 1024 });
 		const sizes = named(calls, 'bufferData').map((call) => [call.args[0], call.args[1]]);
 		expect(sizes).toEqual([
-			[constant('UNIFORM_BUFFER'), 256 * 3],
+			[constant('UNIFORM_BUFFER'), FRAME_SLOT_BYTES * 3],
 			[constant('ARRAY_BUFFER'), 3 * 1024 * 1024],
 		]);
 	});
@@ -266,10 +270,10 @@ describe('WebGL2Backend', () => {
 			expect(writes).toHaveLength(1);
 			const [range] = named(calls, 'bindBufferRange');
 			expect(range.args[3]).toBe(writes[0].args[1]);
-			expect(range.args[4]).toBe(64);
+			expect(range.args[4]).toBe(FRAME_BLOCK_BYTES);
 			slots.push(writes[0].args[1] as number);
 		}
-		expect(slots).toEqual([256, 512, 0, 256]);
+		expect(slots).toEqual([FRAME_SLOT_BYTES, 2 * FRAME_SLOT_BYTES, 0, FRAME_SLOT_BYTES]);
 	});
 
 	it('puts the logical-pixel projection in the frame block', () => {
@@ -387,6 +391,63 @@ describe('WebGL2Backend', () => {
 		const floats = new Float32Array(bytes.buffer, bytes.byteOffset, (write.args[4] as number) / 4);
 		expect(floats.length).toBe(UBER_INSTANCE.words);
 		expect(Array.from(floats.subarray(UBER_INSTANCE.clip, UBER_INSTANCE.clip + 4))).toEqual([10, 20, 110, 70]);
+	});
+
+	it('appends each new rounded clip to the frame slot behind the projection, before the draw that reads it (R4.14)', () => {
+		const { frame, named, constant } = setupBackend();
+		const rect = { x: 0, y: 0, width: 100, height: 100 };
+		const calls = frame((draw) => {
+			draw.pushClipRounded({ x: 10, y: 20, width: 60, height: 40 }, 8);
+			draw.drawRect({ rect, fill: WHITE });
+			draw.drawText({ text: 'Hi', position: { x: 12, y: 30 }, font: 'body', size: 16, color: WHITE });
+			draw.popClip();
+			draw.flush();
+			draw.pushClipRounded({ x: 30, y: 30, width: 20, height: 20 }, 4);
+			draw.drawRect({ rect, fill: WHITE });
+			draw.popClip();
+			draw.flush();
+			draw.drawRect({ rect, fill: WHITE });
+		});
+		const uniforms = named(calls, 'bufferSubData').filter((call) => call.args[0] === constant('UNIFORM_BUFFER'));
+		// The projection, then one entry per domain that brought a new clip; the third brought none.
+		expect(uniforms).toHaveLength(3);
+		const slot = uniforms[0].args[1] as number;
+		const entryBytes = 8 * 4;
+		expect(uniforms[1].args[1]).toBe(slot + UBER_FRAME_BLOCK.roundedClips * 4);
+		expect(uniforms[2].args[1]).toBe(slot + UBER_FRAME_BLOCK.roundedClips * 4 + entryBytes);
+		const table = uniforms[1].args[2] as Float32Array;
+		expect(Array.from(table.subarray(0, 5))).toEqual([40, 40, 30, 20, 8]);
+		expect([uniforms[1].args[3], uniforms[1].args[4], uniforms[2].args[3], uniforms[2].args[4]]).toEqual([0, 8, 8, 8]);
+		// Each entry lands before the draw of the domain that refers to it.
+		const draws = calls.map((call, index) => (call.name === 'drawArraysInstanced' ? index : -1)).filter((index) => index >= 0);
+		expect(draws).toHaveLength(3);
+		expect(calls.indexOf(uniforms[1])).toBeLessThan(draws[0]);
+		expect(calls.indexOf(uniforms[2])).toBeGreaterThan(draws[0]);
+		expect(calls.indexOf(uniforms[2])).toBeLessThan(draws[1]);
+	});
+
+	it('marks every instance under a rounded clip with its entry, and splits nothing for it (R4.14)', () => {
+		const { calls, named, api, constant } = setupBackend();
+		const start = calls.length;
+		const rect = { x: 0, y: 0, width: 100, height: 100 };
+		api.beginFrame({ viewport: { width: 400, height: 300 } });
+		api.drawRect({ rect, fill: WHITE });
+		api.pushClipRounded({ x: 10, y: 10, width: 50, height: 50 }, 6);
+		api.drawRect({ rect, fill: WHITE });
+		api.drawText({ text: 'Hi', position: { x: 12, y: 30 }, font: 'body', size: 16, color: WHITE });
+		api.popClip();
+		api.pushClipRounded({ x: 20, y: 20, width: 50, height: 50 }, 6);
+		api.drawRect({ rect, fill: WHITE });
+		api.popClip();
+		api.endFrame();
+		expect(api.getStats().gpuDraws).toBe(1);
+		const [write] = named(calls.slice(start), 'bufferSubData').filter((call) => call.args[0] === constant('ARRAY_BUFFER'));
+		const bytes = write.args[2] as Uint8Array;
+		const instances = (write.args[4] as number) / UBER_STRIDE;
+		const roundedIndex = (instance: number) => bytes[bytes.byteOffset + instance * UBER_STRIDE + UBER_INSTANCE.mode * 4 + 3];
+		const indices = Array.from({ length: instances }, (_, instance) => roundedIndex(instance));
+		// The unclipped rect, the rect and two glyphs under the first clip, the rect under the second.
+		expect(indices).toEqual([0, 1, 1, 1, 2]);
 	});
 
 	it('binds the atlas and the placeholders once, and nothing on later frames (R5.20)', () => {

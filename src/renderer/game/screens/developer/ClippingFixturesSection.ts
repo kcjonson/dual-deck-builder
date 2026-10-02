@@ -5,7 +5,7 @@ import type { DrawApi, RGBA, Rect } from '../../../engine/draw';
 import { DrawFixture, fixtureHeading, fixtureLabel } from './DrawFixture';
 
 const FIXTURE_TOP = 50;
-const FIXTURE_HEIGHT = 450;
+const FIXTURE_HEIGHT = 700;
 
 const WHITE: RGBA = [1, 1, 1, 1];
 const INK: RGBA = [0.1, 0.11, 0.13, 1];
@@ -21,12 +21,14 @@ const FIELD = { x: 20, y: 34, width: 300, height: 34 };
  * clips intersecting, a disjoint pair producing `empty`, a content offset
  * applied before a fixed clip, a clip edge that agrees with its content as a
  * viewport slides by fractions of a pixel (R7.8a), every primitive kind cut
- * by one clip, and text too long for its box.
+ * by one clip, text too long for its box, and R4.14's rounded clip: every
+ * primitive cut at its corners, a square scroll clip inside a rounded one,
+ * and a circular avatar mask.
  *
- * Three items of 4.7's list are not here, each because drawing it today would
- * make a wrong picture the golden. The rounded clip needs the per-draw SDF of
- * DDB-190 (a square clip would be baked in as correct); the stencil clip and
- * the oriented clip for rotated containers are optional and not implemented.
+ * Nested rounded clips are not here: the draw API's once-a-frame warning for
+ * them is a console error in the gallery, and the pixel half of that case is
+ * in `tests/visual/web/uberShader.spec.ts`. The stencil clip and the oriented
+ * clip for rotated containers are optional and not implemented.
  * The overflowing text field is the real TextInput (R12.10), laid over the
  * fixture where the drawing leaves room for it: its value is scrolled to the
  * caret at the end and clipped to the padded box on both sides.
@@ -58,6 +60,9 @@ export class ClippingFixturesSection extends DeveloperSectionPanel {
 				snappedClipEdge(draw, 440, 250);
 				everyPrimitive(draw, 880, 0);
 				overflowingText(draw, 880, 250);
+				roundedClip(draw, 0, 500);
+				squareInsideRounded(draw, 440, 500);
+				avatarMask(draw, 880, 500);
 			},
 		});
 		// Inside the fixture it draws in, so it is part of the picture rather than a sibling over it.
@@ -222,4 +227,77 @@ function overflowingText(draw: DrawApi, left: number, top: number): void {
 	draw.drawRect({ rect: ellipsis, fill: CLEAR, border: { color: [0.4, 0.42, 0.48, 1], width: 1, position: 'outside' } });
 	draw.drawText({ text: long, box: ellipsis, font: 'body', size: 16, color: WHITE, align: 'left', verticalAlign: 'middle', wrap: 'none', overflow: 'ellipsis' });
 	fixtureLabel(draw, { text: "overflow 'ellipsis'", box: { x: left + 330, y: ellipsis.y, width: 120, height: ellipsis.height }, color: [0.7, 0.72, 0.76, 1], align: 'left' });
+}
+
+/** R4.14: every primitive kind cut at a rounded clip's corners, and only there. */
+function roundedClip(draw: DrawApi, left: number, top: number): void {
+	fixtureHeading(draw, 'A rounded clip cuts every primitive at its corners', left, top);
+	const clip = { x: left + 20, y: top + 34, width: 360, height: 150 };
+	const radius = 28;
+	draw.pushClipRounded(clip, radius);
+	draw.drawRect({ rect: { x: left, y: top + 20, width: 400, height: 180 }, fill: PANEL });
+	stripes(draw, { x: left, y: top + 20, width: 120, height: 180 }, [0.3, 0.75, 0.95, 1]);
+	draw.drawCircle({ center: { x: clip.x + clip.width - 10, y: clip.y + 10 }, radius: 48, fill: [0.9, 0.42, 0.2, 1], border: { color: WHITE, width: 3 } });
+	draw.drawRect({
+		rect: { x: clip.x + 150, y: clip.y + clip.height - 50, width: 240, height: 70 },
+		gradient: [[0.95, 0.85, 0.2, 1], [0.95, 0.3, 0.2, 1], [0.25, 0.8, 0.4, 1], [0.2, 0.5, 0.95, 1]],
+	});
+	draw.drawLine({ from: { x: left, y: top + 200 }, to: { x: left + 400, y: top + 20 }, color: WHITE, width: 3 });
+	draw.drawText({ text: 'Text runs into the corner', position: { x: clip.x - 30, y: clip.y + clip.height - 6 }, font: 'body', size: 18, color: WHITE });
+	draw.popClip();
+	draw.drawRect({ rect: clip, fill: CLEAR, radius, border: { color: OUTLINE, width: 1, position: 'outside' } });
+}
+
+/**
+ * A rounded panel with a square scroll clip inside it, the shape of a
+ * scrolling list in a rounded container: the inner clip keeps the outer
+ * radius (R4.14 carries the innermost rounded clip through plain ones), so
+ * rows scrolled into the corners are cut round.
+ */
+function squareInsideRounded(draw: DrawApi, left: number, top: number): void {
+	fixtureHeading(draw, 'A square scroll clip inside a rounded one keeps its corners', left, top);
+	const panel = { x: left, y: top + 34, width: 380, height: 150 };
+	const viewport = { x: panel.x, y: panel.y + 30, width: panel.width, height: panel.height - 30 };
+	const rowHeight = 40;
+	draw.pushClipRounded(panel, 20);
+	draw.drawRect({ rect: panel, fill: PANEL });
+	fixtureLabel(draw, { text: 'header, outside the scroll clip', box: { x: panel.x + 16, y: panel.y, width: panel.width - 32, height: 30 }, color: [0.7, 0.72, 0.76, 1], align: 'left' });
+	draw.pushClip(viewport);
+	draw.pushTranslate(viewport.x, viewport.y - 25);
+	for (let row = 0; row < 5; row++) {
+		const colour: RGBA = row % 2 === 0 ? [0.3, 0.5, 0.85, 1] : [0.9, 0.55, 0.2, 1];
+		const rect = { x: 0, y: row * rowHeight, width: viewport.width, height: rowHeight };
+		draw.drawRect({ rect, fill: colour });
+		fixtureLabel(draw, { text: `row ${row}`, box: rect, color: row % 2 === 0 ? WHITE : INK });
+	}
+	draw.popTransform();
+	draw.popClip();
+	draw.popClip();
+	draw.drawRect({ rect: panel, fill: CLEAR, radius: 20, border: { color: OUTLINE, width: 1, position: 'outside' } });
+}
+
+/**
+ * A radius of half the size makes the clip a circle, the avatar mask R4.14
+ * names; a radius past half the height clamps to a capsule (R5.5).
+ */
+function avatarMask(draw: DrawApi, left: number, top: number): void {
+	fixtureHeading(draw, 'A circular mask and a clamped capsule', left, top);
+	const avatar = { x: left + 20, y: top + 40, width: 140, height: 140 };
+	draw.pushClipRounded(avatar, 70);
+	draw.drawRect({ rect: avatar, gradient: [[0.95, 0.3, 0.2, 1], [0.95, 0.85, 0.2, 1], [0.2, 0.5, 0.95, 1], [0.25, 0.8, 0.4, 1]] });
+	stripes(draw, { x: avatar.x, y: avatar.y + 90, width: avatar.width, height: 50 }, [0.1, 0.11, 0.13, 0.7]);
+	fixtureLabel(draw, { text: 'avatar', box: { x: avatar.x, y: avatar.y + 20, width: avatar.width, height: 30 }, color: INK, size: 18 });
+	draw.popClip();
+
+	const capsule = { x: left + 190, y: top + 80, width: 200, height: 60 };
+	draw.pushClipRounded(capsule, 100);
+	draw.drawRect({ rect: capsule, fill: PANEL });
+	stripes(draw, capsule, [0.3, 0.75, 0.95, 0.35]);
+	fixtureLabel(draw, { text: 'radius 100, clamped to 30', box: capsule, color: WHITE });
+	draw.popClip();
+	fixtureLabel(draw, {
+		text: 'no outline: the edge is the clip',
+		box: { x: capsule.x, y: capsule.y + capsule.height + 8, width: capsule.width, height: 18 },
+		color: [0.7, 0.72, 0.76, 1],
+	});
 }
