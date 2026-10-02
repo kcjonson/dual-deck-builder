@@ -91,4 +91,19 @@ describe('Tooltip surface (R12.22)', () => {
 		expect(surface?.height).toBeGreaterThan(40);
 		expect(surface?.pointerEvents).toBe('none');
 	});
+
+	it('clips at the border\'s inner edge, the corner concentric, when shrunk to the room (R4.14)', () => {
+		const owner = new Rectangle({ id: 'owner', x: 100, y: 280, width: 100, height: 40 });
+		owner.tooltip = { title: 'Reload', description: [LONG, LONG, LONG, LONG, LONG].join(' '), maxWidth: 120 };
+		scene.addChild(owner);
+		send(context, [pointer('move', 120, 290)]);
+		advance(context, tokens.control.tooltip_delay + tokens.motion.dur_fast + 32);
+		const surface = context.tooltips.surface as Tooltip;
+		expect(surface.clipsChildren).toBe(true);
+		const border = tokens.borderWidth.bw_hair;
+		expect(surface.clipRect).toEqual({ x: border, y: border, width: surface.width - border * 2, height: surface.height - border * 2 });
+		expect(surface.clipRadius).toBe(tokens.radius.radius_ui - border);
+		const snapshot = JSON.stringify(treeSnapshot(context.overlays.roots, { width: 800, height: 600 }));
+		expect(snapshot).toContain(`"roundedClip":{"x":${surface.x + border},"y":${surface.y + border}`);
+	});
 });

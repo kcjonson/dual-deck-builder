@@ -131,4 +131,12 @@ describe('Popover (R12.33)', () => {
 		expect(made.clipsChildren).toBe(true);
 		expect(made.height).toBeLessThan(600);
 	});
+
+	it('clips a shrunk surface at the border\'s inner edge, the corner concentric with the background\'s (R4.14)', () => {
+		const made = new Popover({ content: new Rectangle({ width: 160, height: 700 }), anchor });
+		made.show(context);
+		const border = tokens.borderWidth.bw;
+		expect(made.clipRect).toEqual({ x: border, y: border, width: made.width - border * 2, height: made.height - border * 2 });
+		expect(made.clipRadius).toBe(tokens.radius.radius_panel - border);
+	});
 });

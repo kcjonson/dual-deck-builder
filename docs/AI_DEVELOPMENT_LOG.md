@@ -14,6 +14,15 @@ This document contains the chronological log of completed development tasks for 
 - Added a sibling engine column to section 14.7: unit, behaviour, pixel, and golden layers yes; lint-zero gate partial (not a required check); perf comparison no.
 - Filed the gaps as DDB-242 to DDB-255 under DDB-55, and pointed the chapter 15 card fetch at the existing DDB-52.
 - Ticked phase 7's re-score checkbox in the implementation spec with the counts and task keys.
+## Popover and tooltip clip at the border, menu rows inside it (2026-10-02)
+
+**What landed:** DDB-240 (DDB-55).
+
+- Popover and Tooltip override `computeClipRect` and `clipRadius` with `borderClipRect` and `borderClipRadius` (new in `ui/surfaces.ts`): when placement shrinks either and it clips, the clip is the box inset by the border with the background's corner concentric inside it, instead of a plain rect at the box edge that let cut content paint over the border and corners.
+- Menu places its row ScrollContainer inside the 1 px side borders, so a hovered row's wash no longer tints them; `PAD` keeps rows and the scrollbar clear of the corners, so the menu needs no rounded clip of its own. Select, DropdownButton, and ContextMenu get it through Menu.
+- Decision notes added to [component-rounded-clip.md](./AI_TECHNICAL_DECISIONS/component-rounded-clip.md).
+
+**How:** Popover and Tooltip tests for the constrained clip rect, radius, and the snapshot's `roundedClip`; a menu test that the hover wash sits inside the border and below `PAD`; menus and overlays goldens re-minted.
 
 ## Escape on every screen's root, focus back to the menu opener (2026-10-02)
 
