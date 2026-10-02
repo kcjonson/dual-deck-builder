@@ -1,7 +1,8 @@
 import { expect, test } from '@playwright/test';
 import type { LintRect, LintResult, LintViolation } from '../../../src/renderer/engine/debug/layoutLint';
 import { SCENE_SCENARIOS, SCREEN_SCENARIOS } from '../support/scenarios';
-import { attachTree, openScene, openScreen, prepare } from '../support/harness';
+import { attachTree, openScene, openScreen, prepare, settle } from '../support/harness';
+import { FIXED_VIEWPORT, SHORT_VIEWPORT } from '../../../playwright.config';
 import type { DevSurface } from '../support/harness';
 
 /**
@@ -180,5 +181,32 @@ test.describe('screen layout lint', () => {
 			expect(measured?.evaluated ?? 0, `screen "${screen}" linted an empty tree`).toBeGreaterThan(MIN_NODES);
 			expect(result.count, formatResult(`screen "${screen}"`, result)).toBe(0);
 		});
+	}
+});
+
+/**
+ * The developer screen builds its sections once and reflows them through
+ * layout (DDB-235); before that, mounting wide and shrinking the window took
+ * it from 0 to 133. Mounted at one gate size and resized live to the other
+ * and back, it has to stay clean at each.
+ */
+test('developer screen layout lint across a live resize', async ({ page }, testInfo) => {
+	await page.setViewportSize(FIXED_VIEWPORT);
+	await prepare(page);
+	await openScreen(page, 'developerScreen');
+
+	for (const size of [SHORT_VIEWPORT, FIXED_VIEWPORT]) {
+		await page.setViewportSize(size);
+		await settle(page, size);
+		const result = await page.evaluate(() => (window as unknown as DevSurface).__ui.lint());
+		if (result.count > 0) {
+			await testInfo.attach(`lint-${size.width}x${size.height}.json`, {
+				body: JSON.stringify(result, null, '\t'),
+				contentType: 'application/json',
+			});
+		}
+		const measured = result.rules.find((rule) => rule.rule === 'outside-viewport');
+		expect(measured?.evaluated ?? 0, 'the developer screen linted an empty tree').toBeGreaterThan(MIN_NODES);
+		expect(result.count, formatResult(`developer screen resized to ${size.width}x${size.height}`, result)).toBe(0);
 	}
 });

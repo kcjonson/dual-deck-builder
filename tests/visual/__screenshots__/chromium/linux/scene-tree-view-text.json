@@ -1,5 +1,5 @@
 [
-{"path":"gallery_root/dev_section_tree/Text[0]","text":"Tree View","rect":[53,53,94.5,33.6]},
+{"path":"gallery_root/dev_section_tree/Text[0]","text":"Tree View","rect":[53,53,94.5,50]},
 {"path":"gallery_root/dev_section_tree/dev_section_tree_rows/Stack[0]/Text[0]","text":"selectable, two levels open, one branch folded","rect":[53,103,279.55,17.7]},
 {"path":"gallery_root/dev_section_tree/dev_section_tree_rows/Stack[0]/dev_tree/dev_tree_scroll/dev_tree_rows/dev_tree_row_convoy/Text[1]","text":"Convoy","rect":[81,126.7,269.4,26]},
 {"path":"gallery_root/dev_section_tree/dev_section_tree_rows/Stack[0]/dev_tree/dev_tree_scroll/dev_tree_rows/dev_tree_row_convoy/Text[2]","text":"3","rect":[358.4,126.7,6.6,26]},

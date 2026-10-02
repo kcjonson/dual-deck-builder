@@ -1,11 +1,16 @@
 [
-{"path":"gallery_root/dev_section_icons/Text[0]","text":"Icons","rect":[53,53,51.58,33.6]},
-{"path":"gallery_root/dev_section_icons/Text[1]","text":"12 px","rect":[73,115,35.54,19.07]},
-{"path":"gallery_root/dev_section_icons/Text[30]","text":"16 px","rect":[73,159,35.54,19.07]},
-{"path":"gallery_root/dev_section_icons/Text[59]","text":"24 px","rect":[73,203,35.54,19.07]},
-{"path":"gallery_root/dev_section_icons/Text[88]","text":"Buttons","rect":[73,260,51.29,19.07]},
-{"path":"gallery_root/dev_section_icons/dev_icons_button_with_icon/Text[0]","text":"Back to Menu","rect":[207,245,154,50]},
-{"path":"gallery_root/dev_section_icons/dev_icons_button_without_icon/Text[0]","text":"Back to Menu","rect":[405,245,176,50]},
-{"path":"gallery_root/dev_section_icons/Text[91]","text":"Intents","rect":[73,320,45.6,19.07]},
-{"path":"gallery_root/dev_section_icons/Text[96]","text":"Armor","rect":[73,365,41.68,19.07]}
+{"path":"gallery_root/dev_section_icons/Text[0]","text":"Icons","rect":[53,53,51.58,50]},
+{"path":"gallery_root/dev_section_icons/Stack[1]/dev_icons_grids/Stack[0]/Text[0]","text":"bare","rect":[73,103,27.79,17.7]},
+{"path":"gallery_root/dev_section_icons/Stack[1]/dev_icons_grids/Stack[0]/Stack[1]/Text[0]","text":"12 px","rect":[73,137.17,70,19.07]},
+{"path":"gallery_root/dev_section_icons/Stack[1]/dev_icons_grids/Stack[0]/Stack[2]/Text[0]","text":"16 px","rect":[73,185.17,70,19.07]},
+{"path":"gallery_root/dev_section_icons/Stack[1]/dev_icons_grids/Stack[0]/Stack[3]/Text[0]","text":"24 px","rect":[73,233.17,70,19.07]},
+{"path":"gallery_root/dev_section_icons/Stack[1]/dev_icons_grids/Stack[1]/Text[0]","text":"on a badge fill","rect":[727,103,84.86,17.7]},
+{"path":"gallery_root/dev_section_icons/Stack[1]/dev_icons_grids/Stack[1]/Stack[1]/Text[0]","text":"12 px","rect":[727,137.17,70,19.07]},
+{"path":"gallery_root/dev_section_icons/Stack[1]/dev_icons_grids/Stack[1]/Stack[2]/Text[0]","text":"16 px","rect":[727,185.17,70,19.07]},
+{"path":"gallery_root/dev_section_icons/Stack[1]/dev_icons_grids/Stack[1]/Stack[3]/Text[0]","text":"24 px","rect":[727,233.17,70,19.07]},
+{"path":"gallery_root/dev_section_icons/Stack[1]/Stack[1]/Text[0]","text":"Buttons","rect":[73,290.17,70,19.07]},
+{"path":"gallery_root/dev_section_icons/Stack[1]/Stack[1]/Stack[1]/dev_icons_button_with_icon/Text[0]","text":"Back to Menu","rect":[177,274.7,154,50]},
+{"path":"gallery_root/dev_section_icons/Stack[1]/Stack[1]/Stack[1]/dev_icons_button_without_icon/Text[0]","text":"Back to Menu","rect":[375,274.7,176,50]},
+{"path":"gallery_root/dev_section_icons/Stack[1]/Stack[2]/Text[0]","text":"Intents","rect":[73,340.17,70,19.07]},
+{"path":"gallery_root/dev_section_icons/Stack[1]/Stack[3]/Text[0]","text":"Armor","rect":[73,374.7,70,19.07]}
 ]

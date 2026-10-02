@@ -1,4 +1,6 @@
 import { Panel } from '../../../engine/ui/Panel';
+import { Text } from '../../../engine/components/Text';
+import type { Axis, Size } from '../../../engine/components/layoutTypes';
 import { tokens } from '../../../engine/theme/tokens';
 
 const SECTION_BORDER_WIDTH = tokens.borderWidth.bw;
@@ -10,36 +12,47 @@ const SECTION_BORDER_WIDTH = tokens.borderWidth.bw;
  */
 export const SECTION_INSET = SECTION_BORDER_WIDTH + tokens.space.space_3;
 
-export interface DeveloperSectionPanelOptions {
+/** The title's row: the content below it starts this far down. */
+export const SECTION_TITLE_HEIGHT = 50;
+
+/** What a section's builder takes (sections.ts); every field is optional. */
+export interface DeveloperSectionOptions {
+	x?: number;
+	y?: number;
+	/**
+	 * The section's outer width, border included, as the gallery gives it.
+	 * Absent, the section hugs, and the developer screen's column stretches
+	 * it to the column's width.
+	 */
+	width?: number;
+}
+
+export interface DeveloperSectionPanelOptions extends DeveloperSectionOptions {
 	id: string;
-	x: number;
-	y: number;
-	/** The section's outer width, border included. */
-	width: number;
+	title: string;
+	/**
+	 * For the gallery-only scenes that still place their content by hand:
+	 * the height of that content. The frame is then fixed at it and nothing
+	 * flows. Absent, the content is a column and the frame hugs it.
+	 */
+	contentHeight?: number;
 }
 
 /**
  * The bordered frame every developer section (and so every gallery scene)
- * draws in. Children are placed against the content box, so a section lays
- * out from (0, 0) inside `innerWidth` and reports its content height through
- * `fitContentHeight`.
+ * draws in: the title, then the section's content as a column inside the
+ * inset, the frame as tall as the column at whatever width it is given. A
+ * section built once reflows when its width changes, with nothing rebuilt.
  */
 export class DeveloperSectionPanel extends Panel {
-	constructor({ id, x, y, width }: DeveloperSectionPanelOptions) {
+	constructor({ id, title, x = 0, y = 0, width, contentHeight }: DeveloperSectionPanelOptions) {
 		super({
 			id,
 			x,
 			y,
 			width,
-			// Replaced by fitContentHeight once the section knows its content.
-			height: SECTION_INSET * 2,
-			// A section is the size it computed, in the developer screen's
-			// column as in the gallery: its content is placed by hand, so
-			// there is nothing for a parent stack to measure.
-			widthMode: 'fixed',
-			heightMode: 'fixed',
-			// Sections place their content by hand.
-			layout: 'free',
+			height: contentHeight !== undefined ? contentHeight + SECTION_INSET * 2 : undefined,
+			layout: contentHeight !== undefined ? 'free' : 'stack',
 			// The frame the sections have always had, rather than a themed panel.
 			style: {
 				backgroundColor: 'transparent',
@@ -49,35 +62,21 @@ export class DeveloperSectionPanel extends Panel {
 				padding: SECTION_INSET,
 			},
 		});
+		this.addChild(new Text(title, {
+			height: SECTION_TITLE_HEIGHT,
+			style: { fontSize: tokens.fontSize.fs_2xl, color: 'text_bright', fontWeight: 'bold' },
+		}));
 	}
 
-	/** The width a section lays its content out in: its own, less the inset either side. */
-	protected get sectionContentWidth(): number {
-		return this.width - SECTION_INSET * 2;
+	/**
+	 * A hugged height rounds up to a whole pixel. Text heights are fractional,
+	 * and the frame's 1 px border has a radius, so the draw layer leaves it
+	 * unsnapped (R7.8): at a fractional bottom edge it blurs across two rows.
+	 * The frame is its own size to choose; nothing in layout is rounded.
+	 */
+	public measure(availableWidth: number, availableHeight: number, definite: Axis | null = null): Size {
+		const size = super.measure(availableWidth, availableHeight, definite);
+		if (this.heightMode !== 'hug' || definite === 'height' || Number.isInteger(size.height)) return size;
+		return { width: size.width, height: Math.ceil(size.height) };
 	}
-
-	/** Size the frame to hold `contentHeight` of content plus the inset above and below it. */
-	protected fitContentHeight(contentHeight: number): void {
-		this.setSize(this.width, contentHeight + SECTION_INSET * 2);
-	}
-}
-
-/**
- * How many lines a FlowWrap `available` wide breaks items `widths` wide into,
- * breaking as it does: a new line whenever the next item would pass the
- * width, and at least one item a line. A section's height has to be known
- * when its constructor returns (sections.ts), before anything is laid out.
- */
-export function wrappedLineCount(widths: readonly number[], available: number, gap: number): number {
-	let lines = 0;
-	let lineWidth = 0;
-	for (const width of widths) {
-		if (lines === 0 || lineWidth + gap + width > available) {
-			lines += 1;
-			lineWidth = width;
-		} else {
-			lineWidth += gap + width;
-		}
-	}
-	return lines;
 }

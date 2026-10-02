@@ -1,15 +1,15 @@
-import { DeveloperSectionPanel } from './DeveloperSectionPanel';
-import { Text } from '../../../engine/components/Text';
+import { DeveloperSectionPanel, DeveloperSectionOptions } from './DeveloperSectionPanel';
+import { FlowWrap } from '../../ui/FlowWrap';
 import { TextInput } from '../../../engine/ui/TextInput';
 import type { DrawApi, RGBA, Rect } from '../../../engine/draw';
 import { DrawFixture, fixtureHeading, fixtureLabel } from './DrawFixture';
 
-const FIXTURE_TOP = 50;
-/** A cell's pitch; each cell draws in the first 400 or so of it. */
+/**
+ * A cell's pitch; each draws in the first 400 by 250 or so of it, so the
+ * cells sit edge to edge, three to a row in the gallery.
+ */
 const CELL_WIDTH = 440;
 const CELL_HEIGHT = 250;
-/** Below the last row of cells, which ends this much short of its pitch. */
-const CELL_GAP = 50;
 
 const WHITE: RGBA = [1, 1, 1, 1];
 const INK: RGBA = [0.1, 0.11, 0.13, 1];
@@ -31,62 +31,37 @@ type Cell = (draw: DrawApi, left: number, top: number) => void;
  * primitive cut at its corners, a square scroll clip inside a rounded one,
  * and a circular avatar mask.
  *
+ * Each case is a fixture cell of its own, and the cells wrap at the section's
+ * width: three to a row in the gallery, two in the developer screen at a
+ * narrow window.
+ *
  * Nested rounded clips are not here: the draw API's once-a-frame warning for
  * them is a console error in the gallery, and the pixel half of that case is
  * in `tests/visual/web/uberShader.spec.ts`. The stencil clip and the oriented
  * clip for rotated containers are optional and not implemented.
- * The overflowing text field is the real TextInput (R12.10), laid over the
- * fixture where the drawing leaves room for it: its value is scrolled to the
+ * The overflowing text field is the real TextInput (R12.10), laid over its
+ * cell where the drawing leaves room for it: its value is scrolled to the
  * caret at the end and clipped to the padded box on both sides.
  */
 export class ClippingFixturesSection extends DeveloperSectionPanel {
-	constructor(x: number, y: number, width: number) {
-		super({ id: 'dev_section_clipping', x, y, width });
+	constructor(options: DeveloperSectionOptions = {}) {
+		super({ id: 'dev_section_clipping', title: 'Clipping Fixtures', ...options });
 
-		const title = new Text('Clipping Fixtures', {
-			style: {
-				fontSize: 28,
-				color: '#ffffff',
-				fontWeight: 'bold',
-			},
-		});
-		title.setPosition(0, 0);
-		this.addChild(title);
-
-		// The cells three to a row, or two where the section is narrower than three
-		const columns = this.sectionContentWidth >= CELL_WIDTH * 3 ? 3 : 2;
-		const rows = Math.ceil(CELLS.length / columns);
-		const cellAt = (index: number): { left: number; top: number } => ({
-			left: (index % columns) * CELL_WIDTH,
-			top: Math.floor(index / columns) * CELL_HEIGHT,
-		});
-		const fixtureHeight = rows * CELL_HEIGHT - CELL_GAP;
-		const fixture = new DrawFixture({
-			id: 'dev_fixture_clipping',
-			x: 0,
-			y: FIXTURE_TOP,
-			width: this.innerWidth,
-			height: fixtureHeight,
-			paint: (draw) => {
-				CELLS.forEach((cell, index) => {
-					const { left, top } = cellAt(index);
-					cell(draw, left, top);
-				});
-			},
-		});
-		// Inside the fixture it draws in, so it is part of the picture rather than a sibling over it.
-		const textCell = cellAt(CELLS.indexOf(overflowingText));
-		fixture.addChild(new TextInput({
-			id: 'dev_fixture_clipping_field',
-			value: LONG_TEXT,
-			x: textCell.left + FIELD.x,
-			y: textCell.top + FIELD.y,
-			width: FIELD.width,
-			height: FIELD.height,
-		}));
-		this.addChild(fixture);
-
-		this.fitContentHeight(FIXTURE_TOP + fixtureHeight);
+		const cells = new FlowWrap({ id: 'dev_fixture_clipping', widthMode: 'fill' });
+		for (const { name, paint } of CELLS) {
+			const cell = new DrawFixture({
+				id: `dev_fixture_clipping_${name}`,
+				width: CELL_WIDTH,
+				height: CELL_HEIGHT,
+				paint: (draw) => paint(draw, 0, 0),
+			});
+			// Inside the cell it draws in, so it is part of the picture rather than a sibling over it.
+			if (paint === overflowingText) {
+				cell.addChild(new TextInput({ id: 'dev_fixture_clipping_field', value: LONG_TEXT, ...FIELD }));
+			}
+			cells.addChild(cell);
+		}
+		this.addChild(cells);
 	}
 }
 
@@ -312,9 +287,15 @@ function avatarMask(draw: DrawApi, left: number, top: number): void {
 	});
 }
 
-/** In reading order: three to a row where the section is wide enough, two where it is not. */
-const CELLS: readonly Cell[] = [
-	nested, contentOffset, everyPrimitive,
-	disjoint, snappedClipEdge, overflowingText,
-	roundedClip, squareInsideRounded, avatarMask,
+/** In reading order. */
+const CELLS: readonly { name: string; paint: Cell }[] = [
+	{ name: 'nested', paint: nested },
+	{ name: 'content_offset', paint: contentOffset },
+	{ name: 'every_primitive', paint: everyPrimitive },
+	{ name: 'disjoint', paint: disjoint },
+	{ name: 'snapped_edge', paint: snappedClipEdge },
+	{ name: 'overflowing_text', paint: overflowingText },
+	{ name: 'rounded', paint: roundedClip },
+	{ name: 'square_in_rounded', paint: squareInsideRounded },
+	{ name: 'avatar_mask', paint: avatarMask },
 ];

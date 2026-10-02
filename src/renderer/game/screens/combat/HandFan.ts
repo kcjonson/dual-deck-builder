@@ -91,7 +91,14 @@ export class HandFan extends Container {
 			card.fanPose = poses[index];
 			this.row.addChild(card);
 		});
+		// An empty row would hug to nothing, a zero-size box the lint reports.
+		this.row.visible = cards.length > 0;
 		this.fitCards();
+	}
+
+	/** The row's gap: the natural one, or the overlap that fits the cards in. */
+	public get cardGap(): number {
+		return this.row.gap;
 	}
 
 	protected onResized(): void {

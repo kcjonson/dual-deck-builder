@@ -1,4 +1,4 @@
-import { DeveloperSectionPanel, wrappedLineCount } from './DeveloperSectionPanel';
+import { DeveloperSectionPanel, DeveloperSectionOptions } from './DeveloperSectionPanel';
 import { FlowWrap } from '../../ui/FlowWrap';
 import { Component, ComponentOptions } from '../../../engine/components/Component';
 import { Container } from '../../../engine/components/Container';
@@ -9,7 +9,6 @@ import { ScrollContainer } from '../../../engine/ui/ScrollContainer';
 import type { BoxShadow, DrawApi, RGBA } from '../../../engine/draw';
 import { shadowInk } from '../../../engine/draw/bounds';
 
-const TITLE_HEIGHT = 50;
 /** Room below the columns for the scroller's menu, which hangs out of its clip by design. */
 const FIXTURE_HEIGHT = 520;
 const COLUMN_WIDTH = 420;
@@ -162,33 +161,31 @@ function group(id: string, heading: string, bodyHeight: number, fill: (body: Con
  * pair, and the tie-break is pinned by renderTree's and Component's tests.
  */
 export class PaintOrderFixturesSection extends DeveloperSectionPanel {
-	constructor(x: number, y: number, width: number) {
-		super({ id: 'dev_section_paint_order', x, y, width });
-
-		this.addChild(new Text('Paint Order Fixtures', {
-			style: {
-				fontSize: 28,
-				color: '#ffffff',
-				fontWeight: 'bold',
-			},
-		}));
+	constructor(options: DeveloperSectionOptions = {}) {
+		super({ id: 'dev_section_paint_order', title: 'Paint Order Fixtures', ...options });
 
 		// The three columns wrap at the section's width
-		const columns = new FlowWrap({ id: 'dev_paint_order_columns', y: TITLE_HEIGHT, width: this.sectionContentWidth, gap: COLUMN_GAP, rowGap: GROUP_GAP });
-		const first = new Stack({ gap: GROUP_GAP });
-		first.addChild(group('dev_paint_order_layers', 'Layer beats insertion order', 190, layerLadder));
-		first.addChild(group('dev_paint_order_zindex', 'One layer: zIndex beats insertion order', 208, zIndexLadder));
-		const second = new Stack({ gap: GROUP_GAP });
-		second.addChild(group('dev_paint_order_shadow', 'A shadowed panel over a busy background', 180, shadowOverBusyGround));
-		second.addChild(group('dev_paint_order_scroller', 'A popup declared inside a scroll container', 180, popupInScroller));
-		columns.addChild(first);
-		columns.addChild(second);
-		columns.addChild(group('dev_paint_order_modal', 'Modal, open select menu, toast and tooltip', 440, modalStack));
+		const columns = new FlowWrap({ id: 'dev_paint_order_columns', widthMode: 'fill', gap: COLUMN_GAP, rowGap: GROUP_GAP });
+		columns.addChild(fixtureColumn([
+			group('dev_paint_order_layers', 'Layer beats insertion order', 190, layerLadder),
+			group('dev_paint_order_zindex', 'One layer: zIndex beats insertion order', 208, zIndexLadder),
+		]));
+		columns.addChild(fixtureColumn([
+			group('dev_paint_order_shadow', 'A shadowed panel over a busy background', 180, shadowOverBusyGround),
+			group('dev_paint_order_scroller', 'A popup declared inside a scroll container', 180, popupInScroller),
+		]));
+		columns.addChild(fixtureColumn([
+			group('dev_paint_order_modal', 'Modal, open select menu, toast and tooltip', 440, modalStack),
+		]));
 		this.addChild(columns);
-
-		const lines = wrappedLineCount([COLUMN_WIDTH, COLUMN_WIDTH, COLUMN_WIDTH], this.sectionContentWidth, COLUMN_GAP);
-		this.fitContentHeight(TITLE_HEIGHT + lines * FIXTURE_HEIGHT + (lines - 1) * GROUP_GAP);
 	}
+}
+
+/** A column of groups, all of `FIXTURE_HEIGHT`, which leaves the scroller's menu its room. */
+function fixtureColumn(groups: Stack[]): Stack {
+	const column = new Stack({ gap: GROUP_GAP, height: FIXTURE_HEIGHT });
+	for (const item of groups) column.addChild(item);
+	return column;
 }
 
 /** The same three cards inserted top-down and bottom-up come out identical. */

@@ -1,5 +1,5 @@
 [
-{"path":"gallery_root/dev_section_button_variants/Text[0]","text":"Button Variants","rect":[53,53,147.48,33.6]},
+{"path":"gallery_root/dev_section_button_variants/Text[0]","text":"Button Variants","rect":[53,53,147.48,50]},
 {"path":"gallery_root/dev_section_button_variants/dev_section_button_variants_rows/Stack[0]/Text[0]","text":"iconPosition: left, right, only (md and sm)","rect":[53,103,247.01,17.7]},
 {"path":"gallery_root/dev_section_button_variants/dev_section_button_variants_rows/Stack[0]/Stack[1]/dev_button_icon_left/Text[0]","text":"Back","rect":[87,126.7,74,34]},
 {"path":"gallery_root/dev_section_button_variants/dev_section_button_variants_rows/Stack[0]/Stack[1]/dev_button_icon_right/Text[0]","text":"Settings","rect":[209,126.7,94,34]},

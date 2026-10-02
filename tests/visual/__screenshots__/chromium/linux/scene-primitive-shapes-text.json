@@ -1,6 +1,6 @@
 [
-{"path":"gallery_root/dev_section_primitive_shapes/Text[0]","text":"Primitive Shapes","rect":[53,53,161.28,33.6]},
-{"path":"gallery_root/dev_section_primitive_shapes/Text[1]","text":"Circles:","rect":[73,103,66.46,27.24]},
-{"path":"gallery_root/dev_section_primitive_shapes/Text[5]","text":"Triangles:","rect":[73,203,89.54,27.24]},
-{"path":"gallery_root/dev_section_primitive_shapes/Text[9]","text":"Polygons:","rect":[73,303,89.07,27.24]}
+{"path":"gallery_root/dev_section_primitive_shapes/Text[0]","text":"Primitive Shapes","rect":[53,53,161.28,50]},
+{"path":"gallery_root/dev_section_primitive_shapes/Stack[1]/Stack[0]/Text[0]","text":"Circles:","rect":[73,103,66.46,27.24]},
+{"path":"gallery_root/dev_section_primitive_shapes/Stack[1]/Stack[1]/Text[0]","text":"Triangles:","rect":[73,230.24,89.54,27.24]},
+{"path":"gallery_root/dev_section_primitive_shapes/Stack[1]/Stack[2]/Text[0]","text":"Polygons:","rect":[73,357.47,89.07,27.24]}
 ]

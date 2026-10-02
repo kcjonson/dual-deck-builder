@@ -1,5 +1,5 @@
 [
-{"path":"gallery_root/gallery_scene_scroll_hug/Text[0]","text":"Hug-height scrolling","rect":[53,53,194.57,33.6]},
+{"path":"gallery_root/gallery_scene_scroll_hug/Text[0]","text":"Hug-height scrolling","rect":[53,53,194.57,50]},
 {"path":"gallery_root/gallery_scene_scroll_hug/Text[1]","text":"heightMode hug: as tall as the content, shrinking to the room a column has and scrolling past it.","rect":[53,103,622.43,19.07]},
 {"path":"gallery_root/gallery_scene_scroll_hug/Text[2]","text":"a column with room","rect":[53,137,121.61,17.7]},
 {"path":"gallery_root/gallery_scene_scroll_hug/scroll_hug_roomy/Stack[0]/Text[0]","text":"Header","rect":[61,170.83,41.24,16.34]},

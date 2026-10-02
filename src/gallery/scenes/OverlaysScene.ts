@@ -67,9 +67,8 @@ export class OverlaysScene extends DeveloperSectionPanel {
 	private demoOpened = false;
 
 	constructor({ x, y, width }: SceneFactoryOptions) {
-		super({ id: 'gallery_scene_overlays', x, y, width });
+		super({ id: 'gallery_scene_overlays', title: 'Overlays', contentHeight: FRAME.y + FRAME.height, x, y, width });
 
-		this.addChild(new Text('Overlays', { style: { fontSize: 28, color: '#ffffff', fontWeight: 'bold' } }));
 		this.addChild(new Text('Placement against the framed bounds: preferred side, flip, shift along the edge, constrain to the room.', {
 			y: 50,
 			style: { fontSize: 14, color: rgba(tokens.color.text_dim) },
@@ -123,8 +122,6 @@ export class OverlaysScene extends DeveloperSectionPanel {
 			this.openMenu();
 			this.context?.tooltips.show(this.hoverButton, { fade: false });
 		};
-
-		this.fitContentHeight(FRAME.y + FRAME.height);
 	}
 
 	protected onUnmount(): void {

@@ -38,9 +38,8 @@ export class TransitionScene extends DeveloperSectionPanel {
 	private started = false;
 
 	constructor({ x, y, width }: SceneFactoryOptions) {
-		super({ id: 'gallery_scene_transition', x, y, width });
+		super({ id: 'gallery_scene_transition', title: 'Screen transition', contentHeight: CONTENT_HEIGHT, x, y, width });
 
-		this.addChild(new Text('Screen transition', { style: { fontSize: 28, color: '#ffffff', fontWeight: 'bold' } }));
 		this.addChild(new Text('Fade out, swap, lay out once, fade in; input is blocked until it has finished.', {
 			y: 50,
 			style: { fontSize: 14, color: rgba(tokens.color.text_dim) },
@@ -57,8 +56,6 @@ export class TransitionScene extends DeveloperSectionPanel {
 			this.started = true;
 			this.runTransition();
 		};
-
-		this.fitContentHeight(CONTENT_HEIGHT);
 	}
 
 	protected onUnmount(): void {

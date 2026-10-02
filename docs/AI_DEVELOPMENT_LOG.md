@@ -6,6 +6,17 @@ This document contains the chronological log of completed development tasks for 
 
 **Date correction (2026-08-22):** the repo's first commit is 2025-05-17, but many entries below carry dates in December 2024 or January 2025 — the AI that wrote them used its assumed date instead of the real one. Entries dated 2025-07-03 and 2025-07-02 have been corrected from "2025-01-03"/"2025-01-02" (verified against git history). Remaining Dec 2024 / Jan 2025 dates are wrong by roughly six months; the real work happened May–July 2025. Trust git history over these dates.
 
+## Developer sections on stacks, reflowing on resize (2026-10-02)
+
+**What landed:** DDB-235, DDB-236, and DDB-239 (DDB-55), one PR.
+
+- `DeveloperSectionPanel` is a stack-layout Panel on named options (`id`, `title`, optional `x`, `y`, `width`) that hugs its content; the developer screen's column stretches every section, so a resize reflows them with nothing rebuilt. `fitContentHeight`, `sectionContentWidth`, and `wrappedLineCount` are deleted. Gallery-only scenes keep hand placement through `contentHeight`.
+- Interactive controls, style guide, rectangles, buttons, text, primitive shapes, nested panels, and icons rebuilt from stacks and FlowWraps; `CatalogSection.addRow` loses its height argument; every builder is `(options) => new Section(options)`.
+- Clipping and shading fixtures are fixed-size `DrawFixture` tiles in FlowWraps; shading's tiles land where the single drawing put them at 1440 and wrap at 1024.
+- `HandFan` hides its empty row and exposes `cardGap`; the fan overlap is bounded by test for 2 to 10 cards. Developer screen on `bg_base` and the display face; `Card.colorForRarity` replaces the showcase's copy of the rarity colours. The spec's combat line names zIndex as fan order and the raised layer as the lift.
+- Decision record: [developer-sections-on-stacks.md](./AI_TECHNICAL_DECISIONS/developer-sections-on-stacks.md).
+
+**How:** `DeveloperScreen.test.ts` mounts at 1440x882, resizes to 1024x600 and back, and lints zero with the same section instances; a Playwright lint test does the same live resize in the browser; the full chromium lint spec (53 tests) passes locally, every gallery scene at zero.
 ## Phase 7 deferred items classified and recorded (2026-10-02)
 
 **What landed:** DDB-94 (DDB-55), docs only.

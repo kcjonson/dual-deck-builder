@@ -3,8 +3,8 @@ import type { DrawApi, RGBA, Rect, TextAlign } from '../../../engine/draw';
 
 export interface DrawFixtureOptions {
 	id: string;
-	x: number;
-	y: number;
+	x?: number;
+	y?: number;
 	width: number;
 	height: number;
 	/** Draws in the fixture's own space: (0, 0) is its top-left corner. */
@@ -19,7 +19,8 @@ export interface DrawFixtureOptions {
  * fixture moved onto components once they had `zIndex` and `layer` (DDB-205). The tree
  * snapshot sees one node with its bounds, so the scene stays inside the lint
  * gate without the fixture's deliberately overlapping shapes reading as
- * sibling overlaps.
+ * sibling overlaps. A fixture is a fixed-size tile; a scene that reflows lays
+ * its tiles out with a FlowWrap rather than placing drawings by width.
  */
 export class DrawFixture extends Container {
 	private readonly paint: (draw: DrawApi) => void;

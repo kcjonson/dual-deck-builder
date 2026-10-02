@@ -8,19 +8,10 @@ import { tokens } from '../../../engine/theme/tokens';
 import { Card } from '../../ui/Card';
 import { FlowWrap } from '../../ui/FlowWrap';
 import { CardLoader } from '../../core/CardLoader';
-import { CARD_RARITIES, CardRarity, Card as GameCard } from '../../mechanics/Card';
+import { CARD_RARITIES, Card as GameCard } from '../../mechanics/Card';
 
 const CARD_GAP = 20;
 const BACK_WIDTH = 200;
-
-const RARITY_COLORS: Record<CardRarity, string> = {
-	starter: '#666666',
-	common: '#ffffff',
-	uncommon: '#00aa00',
-	rare: '#0088ff',
-	legendary: '#ff8800',
-	signature: '#cc66ff',
-};
 
 /**
  * Every card in the game: a root stack with the title, a scroll container
@@ -132,7 +123,7 @@ export class CardShowcaseScreen extends Screen {
 			list.addChild(this.group({
 				id: `showcase_${rarity}`,
 				heading: `${rarity.toUpperCase()} (${rarityCards.length})`,
-				color: RARITY_COLORS[rarity],
+				color: Card.colorForRarity(rarity),
 				cards: rarityCards.map((card) => new Card({ id: `showcase_${rarity}_card_${card.type}`, x: 0, y: 0, data: card })),
 			}));
 		}

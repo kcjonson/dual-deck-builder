@@ -27,9 +27,8 @@ export class ToastScene extends DeveloperSectionPanel {
 	private pushed = 0;
 
 	constructor({ x, y, width }: SceneFactoryOptions) {
-		super({ id: 'gallery_scene_toasts', x, y, width });
+		super({ id: 'gallery_scene_toasts', title: 'Toasts', contentHeight: CONTENT_HEIGHT, x, y, width });
 
-		this.addChild(new Text('Toasts', { style: { fontSize: 28, color: '#ffffff', fontWeight: 'bold' } }));
 		this.addChild(new Text('Info, warning, and critical in a corner stack; hover pauses the countdown, the X or a click dismisses.', {
 			y: 50,
 			style: { fontSize: 14, color: rgba(tokens.color.text_dim) },
@@ -47,8 +46,6 @@ export class ToastScene extends DeveloperSectionPanel {
 		this.onLayout = () => {
 			if (this.context) this.stack.attach(this.context);
 		};
-
-		this.fitContentHeight(CONTENT_HEIGHT);
 	}
 
 	protected onUnmount(): void {

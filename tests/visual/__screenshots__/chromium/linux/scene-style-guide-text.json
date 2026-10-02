@@ -1,12 +1,12 @@
 [
-{"path":"gallery_root/dev_section_style_guide/Text[0]","text":"Style Guide","rect":[53,53,106.76,33.6]},
-{"path":"gallery_root/dev_section_style_guide/Text[1]","text":"Color Palette:","rect":[73,103,125.24,27.24]},
-{"path":"gallery_root/dev_section_style_guide/Text[3]","text":"Primary","rect":[73,198,60,16.34]},
-{"path":"gallery_root/dev_section_style_guide/Text[5]","text":"Secondary","rect":[143,198,60,16.34]},
-{"path":"gallery_root/dev_section_style_guide/Text[7]","text":"Success","rect":[213,198,60,16.34]},
-{"path":"gallery_root/dev_section_style_guide/Text[9]","text":"Warning","rect":[283,198,60,16.34]},
-{"path":"gallery_root/dev_section_style_guide/Text[11]","text":"Danger","rect":[73,288,60,16.34]},
-{"path":"gallery_root/dev_section_style_guide/Text[13]","text":"Info","rect":[143,288,60,16.34]},
-{"path":"gallery_root/dev_section_style_guide/Text[15]","text":"Dark","rect":[213,288,60,16.34]},
-{"path":"gallery_root/dev_section_style_guide/Text[17]","text":"Light","rect":[283,288,60,16.34]}
+{"path":"gallery_root/dev_section_style_guide/Text[0]","text":"Style Guide","rect":[53,53,106.76,50]},
+{"path":"gallery_root/dev_section_style_guide/Stack[1]/Text[0]","text":"Color Palette:","rect":[73,103,125.24,27.24]},
+{"path":"gallery_root/dev_section_style_guide/Stack[1]/Stack[1]/Stack[0]/Stack[0]/Text[1]","text":"Primary","rect":[73,205.24,60,16.34]},
+{"path":"gallery_root/dev_section_style_guide/Stack[1]/Stack[1]/Stack[0]/Stack[1]/Text[1]","text":"Secondary","rect":[143,205.24,60,16.34]},
+{"path":"gallery_root/dev_section_style_guide/Stack[1]/Stack[1]/Stack[0]/Stack[2]/Text[1]","text":"Success","rect":[213,205.24,60,16.34]},
+{"path":"gallery_root/dev_section_style_guide/Stack[1]/Stack[1]/Stack[0]/Stack[3]/Text[1]","text":"Warning","rect":[283,205.24,60,16.34]},
+{"path":"gallery_root/dev_section_style_guide/Stack[1]/Stack[1]/Stack[1]/Stack[0]/Text[1]","text":"Danger","rect":[73,296.58,60,16.34]},
+{"path":"gallery_root/dev_section_style_guide/Stack[1]/Stack[1]/Stack[1]/Stack[1]/Text[1]","text":"Info","rect":[143,296.58,60,16.34]},
+{"path":"gallery_root/dev_section_style_guide/Stack[1]/Stack[1]/Stack[1]/Stack[2]/Text[1]","text":"Dark","rect":[213,296.58,60,16.34]},
+{"path":"gallery_root/dev_section_style_guide/Stack[1]/Stack[1]/Stack[1]/Stack[3]/Text[1]","text":"Light","rect":[283,296.58,60,16.34]}
 ]

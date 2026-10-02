@@ -189,11 +189,9 @@ export class SceneHost {
 		});
 		this.rootLayer.addChild(sceneRoot);
 
-		// The scene's height exists only from here on: the section computes it
-		// from its content and calls setSize on the last line of its
-		// constructor. Anything that needs the extent (status().content, and
-		// through it a capture that sizes the window to the scene) reads it
-		// after the factory returns, never from the registry entry.
+		// A section hugs its content, so its height exists from the first
+		// layout pass on. Anything that needs the extent (status().content)
+		// reads it after a frame, never from the registry entry.
 
 		// Text carries no size until layout() runs: Text.layout estimates an
 		// extent from fontSize only when width and height are still 0, and the
@@ -252,9 +250,9 @@ export class SceneHost {
 	}
 
 	/**
-	 * Re-enter on a genuine resize. A section lays itself out from the width it
-	 * was constructed with and has no reflow path, so re-entering is the only
-	 * way the scene matches the new window; the alternative is a scene that
+	 * Re-enter on a genuine resize. A scene is given a fixed width when it is
+	 * built, and the gallery-only scenes place their content by hand, so
+	 * re-entering is how the scene matches the new window; the alternative is a scene that
 	 * keeps the old width and quietly disagrees with the viewport the snapshot
 	 * reports.
 	 *

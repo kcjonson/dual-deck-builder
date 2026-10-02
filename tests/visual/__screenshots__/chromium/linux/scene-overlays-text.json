@@ -1,5 +1,5 @@
 [
-{"path":"gallery_root/gallery_scene_overlays/Text[0]","text":"Overlays","rect":[53,53,83.33,33.6]},
+{"path":"gallery_root/gallery_scene_overlays/Text[0]","text":"Overlays","rect":[53,53,83.33,50]},
 {"path":"gallery_root/gallery_scene_overlays/Text[1]","text":"Placement against the framed bounds: preferred side, flip, shift along the edge, constrain to the room.","rect":[53,103,665.53,19.07]},
 {"path":"gallery_root/gallery_scene_overlays/overlays_frame/placed_preferred/Text[0]","text":"bottom","rect":[121,213,41.44,16.34]},
 {"path":"gallery_root/gallery_scene_overlays/overlays_frame/placed_flipped/Text[0]","text":"flipped to top","rect":[341,291,75.43,16.34]},

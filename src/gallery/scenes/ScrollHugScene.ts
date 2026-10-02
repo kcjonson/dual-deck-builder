@@ -66,9 +66,8 @@ function band(label: string): Component {
  */
 export class ScrollHugScene extends DeveloperSectionPanel {
 	constructor({ x, y, width }: SceneFactoryOptions) {
-		super({ id: 'gallery_scene_scroll_hug', x, y, width });
+		super({ id: 'gallery_scene_scroll_hug', title: 'Hug-height scrolling', contentHeight: CONTENT_HEIGHT, x, y, width });
 
-		this.addChild(new Text('Hug-height scrolling', { style: { fontSize: 28, color: '#ffffff', fontWeight: 'bold' } }));
 		this.addChild(new Text('heightMode hug: as tall as the content, shrinking to the room a column has and scrolling past it.', {
 			y: 50,
 			style: { fontSize: 14, color: rgba(tokens.color.text_dim) },
@@ -88,8 +87,6 @@ export class ScrollHugScene extends DeveloperSectionPanel {
 		this.addChild(loose);
 		this.addCaption(2, `outside a stack, max ${LIMIT}`);
 		this.addCaption(3, `outside a stack, min ${LIMIT}`);
-
-		this.fitContentHeight(CONTENT_HEIGHT);
 	}
 
 	/** A fixed column: a header, the hugging scroller over `rows` rows, a footer. */

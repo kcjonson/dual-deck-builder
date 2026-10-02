@@ -1,5 +1,5 @@
 [
-{"path":"gallery_root/gallery_scene_popover/Text[0]","text":"Popover and key caps","rect":[53,53,212.1,33.6]},
+{"path":"gallery_root/gallery_scene_popover/Text[0]","text":"Popover and key caps","rect":[53,53,212.1,50]},
 {"path":"gallery_root/gallery_scene_popover/Text[1]","text":"Anchored and non-modal: a press outside closes it and still reaches what it landed on.","rect":[53,103,559.17,19.07]},
 {"path":"gallery_root/gallery_scene_popover/popover_damage/Text[0]","text":"Damage","rect":[65,149,126,34]},
 {"path":"gallery_root/gallery_scene_popover/popover_armor/Text[0]","text":"Armor","rect":[235,149,126,34]},

@@ -1,4 +1,4 @@
-import { DeveloperSectionPanel, wrappedLineCount } from './DeveloperSectionPanel';
+import { DeveloperSectionPanel, DeveloperSectionOptions } from './DeveloperSectionPanel';
 import { FlowWrap } from '../../ui/FlowWrap';
 import type { Component } from '../../../engine/components/Component';
 import { Stack } from '../../../engine/components/Stack';
@@ -7,21 +7,17 @@ import { tokens } from '../../../engine/theme/tokens';
 import { Button } from '../../../engine/ui/Button';
 import { Panel, PanelOptions } from '../../../engine/ui/Panel';
 
-type Rgba = [number, number, number, number];
-
-const TITLE_HEIGHT = 50;
-const CAPTION_HEIGHT = 20;
 const CAPTION_GAP = 6;
 const ROW_GAP = 24;
 const PANEL_WIDTH = 220;
 const PANEL_HEIGHT = 150;
 
 function caption(text: string): Text {
-	return new Text(text, { style: { fontSize: 13, color: [...tokens.color.text_dim] as Rgba } });
+	return new Text(text, { style: { fontSize: tokens.fontSize.fs_base, color: 'text_dim' } });
 }
 
 function body(text: string): Text {
-	return new Text(text, { style: { fontSize: tokens.fontSize.fs_base, color: [...tokens.color.text] as Rgba } });
+	return new Text(text, { widthMode: 'fill', style: { fontSize: tokens.fontSize.fs_base, color: 'text' } });
 }
 
 /**
@@ -31,53 +27,43 @@ function body(text: string): Text {
  * panel's children, placed by it.
  */
 export class PanelExamplesSection extends DeveloperSectionPanel {
-	constructor(x: number, y: number, width: number) {
-		super({ id: 'dev_section_panels', x, y, width });
+	constructor(options: DeveloperSectionOptions = {}) {
+		super({ id: 'dev_section_panels', title: 'Panels', ...options });
 
-		this.addChild(new Text('Panels', { style: { fontSize: 28, color: '#ffffff', fontWeight: 'bold' } }));
-
-		const rows = new Stack({ id: 'dev_panels_rows', y: TITLE_HEIGHT, gap: ROW_GAP });
-		rows.addChild(this.row('variants: panel, raised, inset; header with kicker and actions', [
-			this.panel('dev_panel_plain', { title: 'Garage' }, 'The panel variant: bg_panel, an edge line.'),
-			this.panel('dev_panel_raised', {
+		const rows = new Stack({ id: 'dev_panels_rows', gap: ROW_GAP, widthMode: 'fill' });
+		rows.addChild(row('variants: panel, raised, inset; header with kicker and actions', [
+			panel('dev_panel_plain', { title: 'Garage' }, 'The panel variant: bg_panel, an edge line.'),
+			panel('dev_panel_raised', {
 				variant: 'raised',
 				kicker: 'Driver 1',
 				title: 'Road Warrior',
 				actions: [new Button('Swap', { size: 'sm', width: 56 })],
 			}, 'Raised, with the raised shadow and an action in the header.'),
-			this.panel('dev_panel_inset', { variant: 'inset', title: 'Stash' }, 'Inset: a well below the panel surface.'),
+			panel('dev_panel_inset', { variant: 'inset', title: 'Stash' }, 'Inset: a well below the panel surface.'),
 		]));
-		rows.addChild(this.row('compact, flush, corner ticks, glow', [
-			this.panel('dev_panel_compact', { compact: true, title: 'Compact' }, 'A smaller header and inset.'),
-			this.panel('dev_panel_flush', { flush: true }, 'Flush: content meets the border.'),
-			this.panel('dev_panel_corners', { corners: true, kicker: 'Target', title: 'Rust Buggy' }, 'Bracket ticks in the accent.'),
-			this.panel('dev_panel_glow', { corners: true, glow: true, accent: 'data', title: 'Selected' }, 'The data accent, glowing.'),
+		rows.addChild(row('compact, flush, corner ticks, glow', [
+			panel('dev_panel_compact', { compact: true, title: 'Compact' }, 'A smaller header and inset.'),
+			panel('dev_panel_flush', { flush: true }, 'Flush: content meets the border.'),
+			panel('dev_panel_corners', { corners: true, kicker: 'Target', title: 'Rust Buggy' }, 'Bracket ticks in the accent.'),
+			panel('dev_panel_glow', { corners: true, glow: true, accent: 'data', title: 'Selected' }, 'The data accent, glowing.'),
 		]));
 		this.addChild(rows);
-
-		this.fitContentHeight(TITLE_HEIGHT + this.rowsHeight + ROW_GAP * (rows.getChildren().length - 1));
 	}
+}
 
-	/** The rows' heights so far, each wrapping its panels at the section's width. */
-	private rowsHeight = 0;
+/** A caption over panels that wrap at the section's width. */
+function row(text: string, panels: Component[]): Stack {
+	const column = new Stack({ gap: CAPTION_GAP, widthMode: 'fill' });
+	column.addChild(caption(text));
+	const gap = tokens.space.space_6;
+	const line = new FlowWrap({ widthMode: 'fill', gap, rowGap: gap });
+	panels.forEach((item) => line.addChild(item));
+	column.addChild(line);
+	return column;
+}
 
-	private row(text: string, panels: Component[]): Stack {
-		const row = new Stack({ gap: CAPTION_GAP });
-		row.addChild(caption(text));
-		const gap = tokens.space.space_6;
-		const line = new FlowWrap({ width: this.sectionContentWidth, gap, rowGap: gap });
-		panels.forEach((panel) => line.addChild(panel));
-		row.addChild(line);
-		const lines = wrappedLineCount(panels.map(() => PANEL_WIDTH), this.sectionContentWidth, gap);
-		this.rowsHeight += CAPTION_HEIGHT + CAPTION_GAP + lines * PANEL_HEIGHT + (lines - 1) * gap;
-		return row;
-	}
-
-	private panel(id: string, options: PanelOptions, text: string): Panel {
-		const panel = new Panel({ id, width: PANEL_WIDTH, height: PANEL_HEIGHT, gap: tokens.space.space_2, ...options });
-		const content = body(text);
-		content.widthMode = 'fill';
-		panel.addChild(content);
-		return panel;
-	}
+function panel(id: string, options: PanelOptions, text: string): Panel {
+	const box = new Panel({ id, width: PANEL_WIDTH, height: PANEL_HEIGHT, gap: tokens.space.space_2, ...options });
+	box.addChild(body(text));
+	return box;
 }

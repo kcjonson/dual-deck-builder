@@ -1,11 +1,8 @@
-import { DeveloperSectionPanel } from './DeveloperSectionPanel';
-import { Text } from '../../../engine/components/Text';
+import { DeveloperSectionPanel, DeveloperSectionOptions } from './DeveloperSectionPanel';
+import { FlowWrap } from '../../ui/FlowWrap';
 import type { BlendMode, BorderPosition, BoxShadow, CornerRadii, DrawApi, RGBA, Rect, TextureHandle } from '../../../engine/draw';
 import type { MountContext } from '../../../engine/components/MountContext';
 import { DrawFixture, fixtureHeading, fixtureLabel } from './DrawFixture';
-
-const FIXTURE_TOP = 50;
-const FIXTURE_HEIGHT = 680;
 
 const BLUE: RGBA = [0.24, 0.44, 0.85, 1];
 const SLATE: RGBA = [0.18, 0.2, 0.24, 1];
@@ -15,11 +12,36 @@ const INK: RGBA = [0.1, 0.11, 0.13, 1];
 
 const PHOTO_WIDTH = 160;
 const PHOTO_HEIGHT = 100;
+/** A blend tile's photograph, and the pitch between them. */
+const BLEND_WIDTH = PHOTO_WIDTH * 1.5;
+const BLEND_HEIGHT = PHOTO_HEIGHT * 1.25;
+const BLEND_PITCH = BLEND_WIDTH + 20;
+const BLENDS_FIRST: readonly BlendMode[] = ['over', 'additive'];
+const BLENDS_SECOND: readonly BlendMode[] = ['multiply', 'screen'];
 
 const FRAME_SIZE = 24;
 const FRAME_INSET = 8;
 const FRAME_BAND: RGBA = [0.12, 0.13, 0.16, 1];
 const FRAME_CENTRE: RGBA = [0.27, 0.3, 0.36, 1];
+
+/** A border case's pitch; three positions to a tile. */
+const BORDER_PITCH = 128;
+const BORDER_POSITIONS: readonly BorderPosition[] = ['inside', 'center', 'outside'];
+
+type Paint = (draw: DrawApi) => void;
+
+interface Tile {
+	name: string;
+	/** The tile's pitch: its drawing and the room before the next tile. */
+	width: number;
+	paint: Paint;
+}
+
+interface Row {
+	/** The row's pitch down to the next one. */
+	height: number;
+	tiles: Tile[];
+}
 
 /**
  * Chapter 5's visual fixture (5.10): corner radii, border widths in each
@@ -28,34 +50,51 @@ const FRAME_CENTRE: RGBA = [0.27, 0.3, 0.36, 1];
  * every one of them, the four blend modes over a photograph, and a
  * nine-sliced image. The pixel tests in `tests/visual/web/uberShader.spec.ts`
  * check the same rules as numbers; this is the picture a person reviews.
+ *
+ * Each group is a fixture tile carrying its own pitch, five rows of them,
+ * each row wrapping at the section's width. In the gallery every row fits on
+ * one line, and the tiles land where the single drawing they replace put
+ * them; at a narrow window the wide groups (borders, shadows, blends) break
+ * between their cases.
  */
 export class ShadingFixturesSection extends DeveloperSectionPanel {
 	private photo: TextureHandle | null = null;
 	private frame: TextureHandle | null = null;
 
-	constructor(x: number, y: number, width: number) {
-		super({ id: 'dev_section_shading', x, y, width });
+	constructor(options: DeveloperSectionOptions = {}) {
+		super({ id: 'dev_section_shading', title: 'Shading Fixtures', ...options });
 
-		const title = new Text('Shading Fixtures', {
-			style: {
-				fontSize: 28,
-				color: '#ffffff',
-				fontWeight: 'bold',
-			},
+		const rows: Row[] = [
+			{ height: 120, tiles: [
+				{ name: 'radii', width: 700, paint: radii },
+				{ name: 'circles', width: 380, paint: circles },
+			] },
+			{ height: 120, tiles: [1, 2, 6].map((width, index) => ({
+				name: `borders_${width}`,
+				width: BORDER_PITCH * BORDER_POSITIONS.length,
+				paint: (draw: DrawApi) => borders(draw, width, index === 0),
+			})) },
+			{ height: 132, tiles: [
+				{ name: 'gradients', width: 720, paint: gradients },
+				{ name: 'lines', width: 380, paint: lines },
+			] },
+			{ height: 144, tiles: [
+				{ name: 'shadows', width: 840, paint: shadows },
+				{ name: 'glows', width: 420, paint: glows },
+			] },
+			{ height: 164, tiles: [
+				{ name: 'blends_over', width: BLEND_PITCH * 2, paint: (draw) => blends(draw, BLENDS_FIRST, true, this.photo) },
+				{ name: 'blends_multiply', width: BLEND_PITCH * 2, paint: (draw) => blends(draw, BLENDS_SECOND, false, this.photo) },
+				{ name: 'nine_slice', width: 260, paint: (draw) => nineSlices(draw, this.frame) },
+			] },
+		];
+		rows.forEach(({ height, tiles }, index) => {
+			const row = new FlowWrap({ id: `dev_fixture_shading_row_${index}`, widthMode: 'fill' });
+			for (const { name, width, paint } of tiles) {
+				row.addChild(new DrawFixture({ id: `dev_fixture_shading_${name}`, width, height, paint }));
+			}
+			this.addChild(row);
 		});
-		title.setPosition(0, 0);
-		this.addChild(title);
-
-		this.addChild(new DrawFixture({
-			id: 'dev_fixture_shading',
-			x: 0,
-			y: FIXTURE_TOP,
-			width: this.innerWidth,
-			height: FIXTURE_HEIGHT,
-			paint: (api) => this.paint(api),
-		}));
-
-		this.fitContentHeight(FIXTURE_TOP + FIXTURE_HEIGHT);
 	}
 
 	/**
@@ -77,21 +116,10 @@ export class ShadingFixturesSection extends DeveloperSectionPanel {
 		this.frame = null;
 		super.onUnmount();
 	}
-
-	private paint(draw: DrawApi): void {
-		radii(draw, 0);
-		circles(draw, 700, 0);
-		borders(draw, 120);
-		gradients(draw, 240);
-		lines(draw, 720, 240);
-		shadows(draw, 372);
-		blends(draw, 516, this.photo);
-		nineSlices(draw, 1040, 516, this.frame);
-	}
 }
 
-function radii(draw: DrawApi, top: number): void {
-	fixtureHeading(draw, 'Corner radius 0, 4, 12, over half the height, per corner', 0, top);
+function radii(draw: DrawApi): void {
+	fixtureHeading(draw, 'Corner radius 0, 4, 12, over half the height, per corner', 0, 0);
 	const cases: { radius: CornerRadii; label: string }[] = [
 		{ radius: 0, label: '0' },
 		{ radius: 4, label: '4' },
@@ -100,34 +128,29 @@ function radii(draw: DrawApi, top: number): void {
 		{ radius: [0, 28, 8, 36], label: '0 28 8 36' },
 	];
 	cases.forEach(({ radius, label }, index) => {
-		const box = { x: index * 134, y: top + 26, width: 120, height: 72 };
+		const box = { x: index * 134, y: 26, width: 120, height: 72 };
 		draw.drawRect({ rect: box, fill: BLUE, radius });
 		fixtureLabel(draw, { text: label, box });
 	});
 }
 
-function circles(draw: DrawApi, left: number, top: number): void {
-	fixtureHeading(draw, 'Circles with inside, center and outside borders', left, top);
-	const positions: BorderPosition[] = ['inside', 'center', 'outside'];
-	positions.forEach((position, index) => {
-		const center = { x: left + 40 + index * 100, y: top + 62 };
+function circles(draw: DrawApi): void {
+	fixtureHeading(draw, 'Circles with inside, center and outside borders', 0, 0);
+	BORDER_POSITIONS.forEach((position, index) => {
+		const center = { x: 40 + index * 100, y: 62 };
 		draw.drawCircle({ center, radius: 32, fill: [0.9, 0.42, 0.2, 1], border: { color: WHITE, width: 4, position } });
 		fixtureLabel(draw, { text: position, box: { x: center.x - 32, y: center.y - 10, width: 64, height: 20 } });
 	});
 }
 
-function borders(draw: DrawApi, top: number): void {
-	fixtureHeading(draw, 'Borders 1, 2 and 6 px, inside, center and outside', 0, top);
-	const positions: BorderPosition[] = ['inside', 'center', 'outside'];
-	let index = 0;
-	for (const width of [1, 2, 6]) {
-		for (const position of positions) {
-			const box = { x: 6 + index * 128, y: top + 32, width: 110, height: 62 };
-			draw.drawRect({ rect: box, fill: SLATE, border: { color: AMBER, width, position } });
-			fixtureLabel(draw, { text: `${width} ${position}`, box });
-			index++;
-		}
-	}
+/** One border width in each position; the first tile carries the group's heading. */
+function borders(draw: DrawApi, width: number, heading: boolean): void {
+	if (heading) fixtureHeading(draw, 'Borders 1, 2 and 6 px, inside, center and outside', 0, 0);
+	BORDER_POSITIONS.forEach((position, index) => {
+		const box = { x: 6 + index * BORDER_PITCH, y: 32, width: 110, height: 62 };
+		draw.drawRect({ rect: box, fill: SLATE, border: { color: AMBER, width, position } });
+		fixtureLabel(draw, { text: `${width} ${position}`, box });
+	});
 }
 
 function checker(draw: DrawApi, x: number, y: number, width: number, height: number): void {
@@ -143,13 +166,13 @@ function checker(draw: DrawApi, x: number, y: number, width: number, height: num
 	}
 }
 
-function gradients(draw: DrawApi, top: number): void {
-	fixtureHeading(draw, 'Gradients: to transparent over a checker, four corners, radius', 0, top);
+function gradients(draw: DrawApi): void {
+	fixtureHeading(draw, 'Gradients: to transparent over a checker, four corners, radius', 0, 0);
 	const red: RGBA = [0.9, 0.1, 0.1, 1];
 	const clearRed: RGBA = [0.9, 0.1, 0.1, 0];
 	const white: RGBA = [1, 1, 1, 1];
 	const clearWhite: RGBA = [1, 1, 1, 0];
-	const y = top + 26;
+	const y = 26;
 
 	const first = { x: 0, y, width: 150, height: 90 };
 	checker(draw, first.x, first.y, first.width, first.height);
@@ -175,20 +198,20 @@ function gradients(draw: DrawApi, top: number): void {
 	fixtureLabel(draw, { text: 'rounded, bordered', box: fourth });
 }
 
-function lines(draw: DrawApi, left: number, top: number): void {
-	fixtureHeading(draw, 'Lines 1 and 3 px, butt and round caps', left, top);
-	const y = top + 36;
-	draw.drawLine({ from: { x: left, y }, to: { x: left + 200, y }, color: WHITE, width: 1 });
-	draw.drawLine({ from: { x: left, y: y + 20 }, to: { x: left + 200, y: y + 20 }, color: WHITE, width: 3 });
-	draw.drawLine({ from: { x: left + 6, y: y + 42 }, to: { x: left + 194, y: y + 42 }, color: AMBER, width: 3, cap: 'round' });
-	draw.drawLine({ from: { x: left + 230, y }, to: { x: left + 330, y: y + 70 }, color: WHITE, width: 1 });
-	draw.drawLine({ from: { x: left + 260, y }, to: { x: left + 360, y: y + 70 }, color: WHITE, width: 3 });
-	fixtureLabel(draw, { text: 'text over lines', box: { x: left + 220, y: y + 20, width: 160, height: 20 } });
+function lines(draw: DrawApi): void {
+	fixtureHeading(draw, 'Lines 1 and 3 px, butt and round caps', 0, 0);
+	const y = 36;
+	draw.drawLine({ from: { x: 0, y }, to: { x: 200, y }, color: WHITE, width: 1 });
+	draw.drawLine({ from: { x: 0, y: y + 20 }, to: { x: 200, y: y + 20 }, color: WHITE, width: 3 });
+	draw.drawLine({ from: { x: 6, y: y + 42 }, to: { x: 194, y: y + 42 }, color: AMBER, width: 3, cap: 'round' });
+	draw.drawLine({ from: { x: 230, y }, to: { x: 330, y: y + 70 }, color: WHITE, width: 1 });
+	draw.drawLine({ from: { x: 260, y }, to: { x: 360, y: y + 70 }, color: WHITE, width: 3 });
+	fixtureLabel(draw, { text: 'text over lines', box: { x: 220, y: y + 20, width: 160, height: 20 } });
 }
 
-function shadows(draw: DrawApi, top: number): void {
-	fixtureHeading(draw, 'Shadows: blur 0, 8, 24; spread 8 and -8; glows', 0, top);
-	const y = top + 26;
+function shadows(draw: DrawApi): void {
+	fixtureHeading(draw, 'Shadows: blur 0, 8, 24; spread 8 and -8; glows', 0, 0);
+	const y = 26;
 	// A light strip, so a dark shadow has something to fall on.
 	draw.drawRect({ rect: { x: 0, y, width: 820, height: 110 }, fill: [0.82, 0.84, 0.86, 1] });
 	const cases: { shadow: BoxShadow; label: string }[] = [
@@ -203,28 +226,31 @@ function shadows(draw: DrawApi, top: number): void {
 		draw.drawRect({ rect: box, fill: [0.98, 0.98, 0.98, 1], radius: 6, shadow });
 		fixtureLabel(draw, { text: label, box, color: INK });
 	});
+}
 
-	// Glows on a dark ground: a coloured shadow with no offset, and the same
-	// one added rather than composited.
-	draw.drawRect({ rect: { x: 840, y, width: 420, height: 110 }, fill: [0.06, 0.07, 0.09, 1] });
-	const glows: { blend: BlendMode; label: string }[] = [
+/**
+ * Glows on a dark ground: a coloured shadow with no offset, and the same one
+ * added rather than composited. Under the shadows' heading, which names them.
+ */
+function glows(draw: DrawApi): void {
+	const y = 26;
+	draw.drawRect({ rect: { x: 0, y, width: 420, height: 110 }, fill: [0.06, 0.07, 0.09, 1] });
+	const cases: { blend: BlendMode; label: string }[] = [
 		{ blend: 'over', label: 'glow' },
 		{ blend: 'additive', label: 'additive glow' },
 	];
-	glows.forEach(({ blend, label }, index) => {
-		const box = { x: 880 + index * 200, y: y + 30, width: 140, height: 50 };
+	cases.forEach(({ blend, label }, index) => {
+		const box = { x: 40 + index * 200, y: y + 30, width: 140, height: 50 };
 		draw.drawRect({ rect: box, fill: [0.12, 0.14, 0.18, 1], radius: 10, shadow: { color: [0.25, 0.85, 1, 0.9], blur: 18, spread: 3 }, blend });
 		fixtureLabel(draw, { text: label, box });
 	});
 }
 
-function blends(draw: DrawApi, top: number, photo: TextureHandle | null): void {
-	fixtureHeading(draw, 'Blend modes over a photograph: over, additive, multiply, screen', 0, top);
-	const modes: BlendMode[] = ['over', 'additive', 'multiply', 'screen'];
-	const width = PHOTO_WIDTH * 1.5;
-	const height = PHOTO_HEIGHT * 1.25;
+/** Two of the blend modes; the first tile carries the group's heading. */
+function blends(draw: DrawApi, modes: readonly BlendMode[], heading: boolean, photo: TextureHandle | null): void {
+	if (heading) fixtureHeading(draw, 'Blend modes over a photograph: over, additive, multiply, screen', 0, 0);
 	modes.forEach((blend, index) => {
-		const rect = { x: index * (width + 20), y: top + 26, width, height };
+		const rect = { x: index * BLEND_PITCH, y: 26, width: BLEND_WIDTH, height: BLEND_HEIGHT };
 		if (photo && draw.isTextureResident(photo)) {
 			draw.drawImage({ rect, texture: photo });
 		} else {
@@ -232,11 +258,11 @@ function blends(draw: DrawApi, top: number, photo: TextureHandle | null): void {
 		}
 		// The swatch covers the right half, so each tile shows the photo with
 		// and without it.
-		const swatch = { x: rect.x + width / 2, y: rect.y, width: width / 2, height };
+		const swatch = { x: rect.x + BLEND_WIDTH / 2, y: rect.y, width: BLEND_WIDTH / 2, height: BLEND_HEIGHT };
 		draw.drawRect({ rect: swatch, fill: [0.95, 0.45, 0.2, 0.75], blend });
 		draw.drawText({
 			text: blend,
-			box: { x: rect.x + 8, y: rect.y + 6, width: width - 16, height: 20 },
+			box: { x: rect.x + 8, y: rect.y + 6, width: BLEND_WIDTH - 16, height: 20 },
 			font: 'body',
 			size: 14,
 			color: WHITE,
@@ -247,17 +273,17 @@ function blends(draw: DrawApi, top: number, photo: TextureHandle | null): void {
 	});
 }
 
-function nineSlices(draw: DrawApi, left: number, top: number, frame: TextureHandle | null): void {
-	fixtureHeading(draw, 'Nine-slice: 24 px frame, 8 px insets', left, top);
+function nineSlices(draw: DrawApi, frame: TextureHandle | null): void {
+	fixtureHeading(draw, 'Nine-slice: 24 px frame, 8 px insets', 0, 0);
 	const slice = { top: FRAME_INSET, right: FRAME_INSET, bottom: FRAME_INSET, left: FRAME_INSET };
 	const cases: { rect: Rect; label?: string; sliced: boolean }[] = [
 		// The source at one to one, for reference.
-		{ rect: { x: left, y: top + 30, width: FRAME_SIZE, height: FRAME_SIZE }, sliced: false },
-		{ rect: { x: left + 36, y: top + 26, width: 180, height: 52 }, label: 'sliced', sliced: true },
+		{ rect: { x: 0, y: 30, width: FRAME_SIZE, height: FRAME_SIZE }, sliced: false },
+		{ rect: { x: 36, y: 26, width: 180, height: 52 }, label: 'sliced', sliced: true },
 		// The same frame stretched without a slice: its corners go oval.
-		{ rect: { x: left, y: top + 88, width: 100, height: 40 }, label: 'stretched', sliced: false },
+		{ rect: { x: 0, y: 88, width: 100, height: 40 }, label: 'stretched', sliced: false },
 		// Shorter than two corners, so every corner scales by 12 / 16.
-		{ rect: { x: left + 116, y: top + 102, width: 100, height: 12 }, sliced: true },
+		{ rect: { x: 116, y: 102, width: 100, height: 12 }, sliced: true },
 	];
 	for (const { rect, label, sliced } of cases) {
 		if (frame && draw.isTextureResident(frame)) {

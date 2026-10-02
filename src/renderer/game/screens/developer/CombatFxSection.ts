@@ -1,4 +1,5 @@
 import { CatalogSection } from './CatalogSection';
+import type { DeveloperSectionOptions } from './DeveloperSectionPanel';
 import { Container } from '../../../engine/components/Container';
 import { Rectangle } from '../../../engine/components/Rectangle';
 import { AimReticle, FloatingNumber, TargetingArrow } from '../combat/CombatFxLayer';
@@ -17,8 +18,8 @@ const NUMBERS_HEIGHT = 60;
  * the dots, the head, the ring, and the numbers' type and shadow.
  */
 export class CombatFxSection extends CatalogSection {
-	constructor(x: number, y: number, width: number) {
-		super({ id: 'dev_section_combat_fx', title: 'Combat Effects', x, y, width });
+	constructor(options: DeveloperSectionOptions = {}) {
+		super({ id: 'dev_section_combat_fx', title: 'Combat Effects', ...options });
 
 		// The arrow finds both ends through the tree, from its layer's parent
 		// down, so it sits in a layer beside the card as it does in combat
@@ -40,7 +41,7 @@ export class CombatFxSection extends CatalogSection {
 		layer.addChild(reticle);
 		aim.addChild(card);
 		aim.addChild(layer);
-		this.addRow('the targeting line, card to reticle, off target', aim, AIM_HEIGHT);
+		this.addRow('the targeting line, card to reticle, off target', aim);
 
 		const numbers = new Container({ id: 'dev_combat_numbers', width: AIM_WIDTH, height: NUMBERS_HEIGHT });
 		[
@@ -50,6 +51,6 @@ export class CombatFxSection extends CatalogSection {
 		].forEach(({ text, kind }, index) => {
 			numbers.addChild(new FloatingNumber({ id: `dev_combat_number_${index}`, text, kind, x: index * 140, y: 10, held: true }));
 		});
-		this.addRow('floating numbers: a hit, a bigger hit, a miss', numbers, NUMBERS_HEIGHT);
+		this.addRow('floating numbers: a hit, a bigger hit, a miss', numbers);
 	}
 }
