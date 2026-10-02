@@ -1,4 +1,4 @@
 [
-{"path":"splashScreen/splash_title","text":"Dual Deckbuilder","rect":[0,541,1440,65.37]},
-{"path":"splashScreen/splash_subtitle","text":"A Roguelike Card Game","rect":[0,606.37,1440,32.68]}
+{"path":"splashScreen/splash_title","text":"Dual Deckbuilder","rect":[569.46,530.82,301.08,62.4]},
+{"path":"splashScreen/splash_subtitle","text":"A Roguelike Card Game","rect":[599.92,593.22,240.15,29.96]}
 ]
