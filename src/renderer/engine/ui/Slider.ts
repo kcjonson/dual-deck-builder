@@ -110,8 +110,11 @@ const DETENT_COLOR: RGBA = [tokens.color.data[0], tokens.color.data[1], tokens.c
  * - A press within the thumb's hit radius grabs it (keeping where on the
  *   thumb it was grabbed); a press elsewhere on the track jumps there. Either
  *   way the pointer is captured and the drag follows it off the slider.
- * - Left and Down step down, Right and Up step up, by `step` or 1% of the
- *   track; Home and End go to the ends.
+ * - Left steps down and Right steps up, by `step` or 1% of the track, and
+ *   are consumed at the ends too, so a held key never runs off the slider;
+ *   Home and End go to the ends. Up and Down cross the track, so they go
+ *   unconsumed to directional focus and a column of sliders is walked with
+ *   them (R9.24).
  * - `value` set programmatically is clamped and snapped silently; a user
  *   change fires `onChange` once with the value applied, and never for a
  *   value that did not move; a `value` set from inside `onChange` stands
@@ -431,11 +434,9 @@ export class Slider extends Component {
 		if (!this.effectivelyEnabled || modifiers.ctrl || modifiers.meta || modifiers.alt) return false;
 		switch (event.key) {
 			case 'ArrowLeft':
-			case 'ArrowDown':
 				this.stepBy(-1);
 				return true;
 			case 'ArrowRight':
-			case 'ArrowUp':
 				this.stepBy(1);
 				return true;
 			case 'Home':
