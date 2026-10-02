@@ -10,7 +10,7 @@ import type { MountContext } from '../../engine/components/MountContext';
 import { renderTree } from '../../engine/components/renderTree';
 import { createTestContext } from '../../engine/components/testing';
 import { ArmorBadge } from './ArmorBadge';
-import { IntentMarker } from './IntentMarker';
+import { EnemyIntent, IntentMarker, IntentRow } from './IntentMarker';
 
 let backend: MeasuringRecordingBackend;
 let api: DrawApi;
@@ -126,5 +126,60 @@ describe('IntentMarker', () => {
 		marker.intent = null;
 		frame(marker);
 		expect(backend.commands).toEqual([]);
+	});
+});
+
+describe('IntentRow', () => {
+	const attack = (value: number): EnemyIntent => ({ type: 'attack', value, description: 'Ram', detail: `${value} damage on the Rig` });
+	const markers = (row: IntentRow): IntentMarker[] => row.getChildren().filter((child): child is IntentMarker => child instanceof IntentMarker);
+	const settle = async (): Promise<void> => {
+		context.animator.settle();
+		await Promise.resolve();
+		await Promise.resolve();
+	};
+
+	it('shows two intents, then "+N" for the rest, each with its line as a tooltip', () => {
+		const row = new IntentRow({ id: 'row', markerSize: 30 });
+		row.intents = [attack(8), { type: 'defend', value: 6, description: 'Brace' }, attack(4), { type: 'debuff', description: 'Jam' }];
+		frame(row);
+		const shown = markers(row);
+		expect(shown.map(marker => marker.label)).toEqual(['8', null, '+2']);
+		expect(shown[0].tooltip).toEqual({ title: 'Ram', description: '8 damage on the Rig' });
+		expect(shown[2].tooltip).toBeNull();
+	});
+
+	it('grows a changed plan\'s new markers in and shrinks the old ones out, and leaves a plan that holds alone', async () => {
+		const row = new IntentRow({ id: 'row', markerSize: 30 });
+		row.mount(context);
+		row.intents = [attack(8)];
+		const [first] = markers(row);
+		expect(first.transform.scale).toBe(0.4);
+		await settle();
+		expect(first.transform.scale).toBe(1);
+
+		row.intents = [attack(8)];
+		expect(markers(row)).toEqual([first]);
+
+		row.intents = [attack(12)];
+		// An exit is drawn after the rest, so the new marker comes first
+		const [replacement, leaving] = markers(row);
+		expect(leaving).toBe(first);
+		expect(first['exiting']).toBe(true);
+		expect(replacement.label).toBe('12');
+		await settle();
+		expect(markers(row)).toEqual([replacement]);
+		expect(first.isMounted).toBe(false);
+	});
+
+	it('neither grows nor shrinks under reduced motion', async () => {
+		context.animator.reducedMotion = true;
+		const row = new IntentRow({ id: 'row', markerSize: 30 });
+		row.mount(context);
+		row.intents = [attack(8)];
+		const [first] = markers(row);
+		expect(first.transform.scale).toBe(1);
+		row.intents = [attack(12)];
+		await Promise.resolve();
+		expect(markers(row).map(marker => marker.label)).toEqual(['12']);
 	});
 });

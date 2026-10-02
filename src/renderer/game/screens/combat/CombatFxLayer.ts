@@ -8,6 +8,8 @@ import type { DrawCircleOptions, DrawPolygonOptions } from '../../../engine/draw
 import type { RGBA, Rect, Vec2 } from '../../../engine/draw/geometry';
 import { resolveColor } from '../../../engine/style/styleObject';
 import { DAMAGE_NUMBER_COLOR, MISS_NUMBER_COLOR } from './combatStyle';
+import { DiscardFlight } from './DiscardFlight';
+import type { Card as UICard } from '../../ui/Card';
 
 /** The mock's targeting line: round dots 5 across every 12, and a head 16 long. */
 const DOT_RADIUS = 2.5;
@@ -41,6 +43,8 @@ const NUMBER_STACK_STEP = 28;
 /** Down from the top of the vehicle's box, where the number starts. */
 const NUMBER_INSET = 8;
 const NUMBER_Z_INDEX = 2;
+/** In from the right end of a driver's pile counts, to the discard count. */
+const PILE_COUNT_INSET = 10;
 const NUMBER_SHADOW = { color: resolveColor('#000000'), offset: { x: 0, y: 2 }, blur: 4 };
 const easeOutQuad = (progress: number): number => 1 - (1 - progress) * (1 - progress);
 
@@ -283,6 +287,7 @@ export class CombatFxLayer extends Container {
 	private readonly arrow: TargetingArrow;
 	/** Numbers still rising, per anchor, so a second hit stacks under the first. */
 	private readonly risingPerAnchor = new Map<string, number>();
+	private flights = 0;
 
 	constructor(options: ContainerOptions = {}) {
 		super({ layer: 'overlay', pointerEvents: 'none', ...options });
@@ -328,6 +333,49 @@ export class CombatFxLayer extends Container {
 	/** The numbers on screen now, oldest first. */
 	public get floatingNumbers(): FloatingNumber[] {
 		return this.getChildren().filter((child): child is FloatingNumber => child instanceof FloatingNumber);
+	}
+
+	/**
+	 * Sends a copy of `card` from where it sat in the hand to the pile
+	 * `pile` counts, unless reduced motion is on. Read from the hand before
+	 * the hand deals again, so `card` is still in place.
+	 */
+	public flyToDiscard({ card, pile }: { card: UICard; pile: Component }): void {
+		const animator = this.context?.animator;
+		if (!animator || animator.reducedMotion || !this.isMounted) return;
+		const centre = { x: 0, y: 0 };
+		const across = { x: 0, y: 0 };
+		const to = { x: 0, y: 0 };
+		if (!this.mapIn(card, card.width / 2, card.height / 2, centre)) return;
+		if (!this.mapIn(card, card.width / 2 + 1, card.height / 2, across)) return;
+		// The right end of "DISCARD n", where the count is
+		if (!this.mapIn(pile, Math.max(0, pile.width - PILE_COUNT_INSET), pile.height / 2, to)) return;
+		const dx = across.x - centre.x;
+		const dy = across.y - centre.y;
+		this.addChild(new DiscardFlight({
+			id: `combat_discard_flight_${this.flights++}`,
+			card: card.getData(),
+			driverNumber: card.driver,
+			start: { centre, rotate: Math.atan2(dy, dx), scale: Math.hypot(dx, dy) },
+			to,
+			onLanded: (flight) => this.removeChild(flight),
+		}));
+	}
+
+	/** The fx-layer point of `point` in `component`, through the stage both hang from. */
+	private mapIn(component: Component, x: number, y: number, out: Vec2): boolean {
+		const stage = this.parent;
+		out.x = x;
+		out.y = y;
+		if (!stage || !component.localToAncestorInto(out, stage, out)) return false;
+		out.x -= this.originX;
+		out.y -= this.originY;
+		return true;
+	}
+
+	/** Cards on their way to a discard pile now. */
+	public get discardFlights(): DiscardFlight[] {
+		return this.getChildren().filter((child): child is DiscardFlight => child instanceof DiscardFlight);
 	}
 
 	/**

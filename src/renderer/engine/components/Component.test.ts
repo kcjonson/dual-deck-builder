@@ -1,6 +1,7 @@
 import { Component } from './Component';
 import { Container } from './Container';
 import { Rectangle } from './Rectangle';
+import { ScrollContainer } from '../ui/ScrollContainer';
 
 /** A leaf that counts unmounts, so a test can see removeChild release it. */
 class Probe extends Rectangle {
@@ -404,6 +405,28 @@ describe('screen geometry (R8.13, R8.26)', () => {
 		out.x = -1;
 		expect(card.localToAncestorInto(point, stranger, out)).toBe(false);
 		expect(out.x).toBe(-1);
+	});
+
+	it('takes a scrolled ancestor\'s content offset off the point, as screenMatrix does', () => {
+		const root = new Container({ width: 800, height: 600 });
+		const scroll = new ScrollContainer({ x: 30, y: 40, width: 200, height: 100 });
+		scroll.scrollHeight = 1000;
+		const leaf = new Rectangle({ x: 5, y: 300, width: 20, height: 20, transform: { rotate: 0.2 } });
+		scroll.addChild(leaf);
+		root.addChild(scroll);
+		const point = { x: 10, y: 0 };
+		const out = { x: 0, y: 0 };
+
+		expect(leaf.localToAncestorInto(point, root, out)).toBe(true);
+		const unscrolled = { ...out };
+		scroll.scrollTo(250);
+		expect(scroll.contentOffset.y).toBe(250);
+		expect(leaf.localToAncestorInto(point, root, out)).toBe(true);
+		expect(out.x).toBeCloseTo(unscrolled.x, 9);
+		expect(out.y).toBeCloseTo(unscrolled.y - 250, 9);
+		const viaScreen = root.screenToLocal(leaf.localToScreen(point));
+		expect(out.x).toBeCloseTo(viaScreen?.x ?? NaN, 9);
+		expect(out.y).toBeCloseTo(viaScreen?.y ?? NaN, 9);
 	});
 
 	it('ignores the transform in bounds, which is layout (R8.26)', () => {

@@ -1,25 +1,33 @@
 import { BattlefieldLayer, BattlefieldLayerOptions, LaneDecor } from './BattlefieldLayer';
 import { Vehicle as VehicleData } from '../../mechanics/Vehicle';
 import { Vehicle as VehicleUI, VehicleOptions } from '../../ui/Vehicle';
-import { EnemyIntent, IntentMarker } from '../../ui/IntentMarker';
+import { EnemyIntent, IntentRow } from '../../ui/IntentMarker';
 
 export type { EnemyIntent, IntentType } from '../../ui/IntentMarker';
+
+const INTENT_MARKER_SIZE = 30;
+const INTENT_INSET = 6;
 
 /**
  * Enemy-specific vehicle UI component
  */
 class EnemyVehicle extends VehicleUI {
-	private intentMarker: IntentMarker;
+	private readonly intentRow: IntentRow;
 
 	constructor(options: VehicleOptions) {
 		super(options);
-		this.intentMarker = new IntentMarker({ size: 30 });
-		this.addChild(this.intentMarker);
-	}
-
-	protected placeElements(): void {
-		super.placeElements();
-		this.intentMarker.setPosition(Math.floor(this.getWidth() * 0.7), Math.floor(this.getHeight() * 0.05));
+		// Beside the plate's top right corner, outside it, so a plan of
+		// three never covers the driver's name or the lane label above
+		this.intentRow = new IntentRow({
+			id: options.id ? `${options.id}_intents` : undefined,
+			markerSize: INTENT_MARKER_SIZE,
+			positioned: 'absolute',
+			anchor: 'topRight',
+			pivot: 'topLeft',
+			x: INTENT_INSET,
+			zIndex: 1,
+		});
+		this.addChild(this.intentRow);
 	}
 
 	protected getPortraitColor(): string {
@@ -30,11 +38,9 @@ class EnemyVehicle extends VehicleUI {
 		return '#6a5a5a'; // Enemy red border
 	}
 
-	/**
-	 * Set enemy intent
-	 */
-	public setIntent(intent: EnemyIntent | null): void {
-		this.intentMarker.intent = intent;
+	/** Everything the raider plans this turn, in order. */
+	public setIntents(intents: readonly EnemyIntent[]): void {
+		this.intentRow.intents = intents;
 	}
 }
 
@@ -51,8 +57,8 @@ const ENEMY_LANE_DECOR: LaneDecor = {
  * Shows enemy vehicles with intent indicators
  */
 export class EnemyBattlefieldLayer extends BattlefieldLayer {
-	// Map of vehicle IDs to their intents
-	private vehicleIntents: Map<string, EnemyIntent> = new Map();
+	// Each raider's planned intents, by vehicle id
+	private vehicleIntents: Map<string, readonly EnemyIntent[]> = new Map();
 
 	constructor(options: BattlefieldLayerOptions) {
 		super({ ...options, laneDecor: ENEMY_LANE_DECOR });
@@ -86,13 +92,7 @@ export class EnemyBattlefieldLayer extends BattlefieldLayer {
 				this.combatData?.targetVehicle(v);
 			}
 		});
-
-		// Set intent if we have one for this vehicle
-		const intent = this.vehicleIntents.get(vehicle.id);
-		if (intent) {
-			enemyVehicle.setIntent(intent);
-		}
-
+		enemyVehicle.setIntents(this.vehicleIntents.get(vehicle.id) ?? []);
 		return enemyVehicle;
 	}
 
@@ -100,39 +100,15 @@ export class EnemyBattlefieldLayer extends BattlefieldLayer {
 	 * Update an existing vehicle display
 	 */
 	protected updateVehicleCard(vehicle: VehicleData, card: VehicleUI): void {
-		// Update the data
 		card.data = vehicle;
-
-		// Update intent if it's an enemy vehicle
-		if (card instanceof EnemyVehicle) {
-			const intent = this.vehicleIntents.get(vehicle.id);
-			card.setIntent(intent || null);
-		}
+		if (card instanceof EnemyVehicle) card.setIntents(this.vehicleIntents.get(vehicle.id) ?? []);
 	}
 
-	/**
-	 * Set intent for a specific vehicle
-	 */
-	public setVehicleIntent(vehicleId: string, intent: EnemyIntent): void {
-		this.vehicleIntents.set(vehicleId, intent);
-		
-		// Update the vehicle card if it exists
+	/** A raider's plan for the enemy turn, in order; empty clears it. */
+	public setVehicleIntents(vehicleId: string, intents: readonly EnemyIntent[]): void {
+		if (intents.length === 0) this.vehicleIntents.delete(vehicleId);
+		else this.vehicleIntents.set(vehicleId, intents);
 		const card = this.vehicleCards.get(vehicleId);
-		if (card && card instanceof EnemyVehicle) {
-			card.setIntent(intent);
-		}
-	}
-
-	/**
-	 * Clear intent for a specific vehicle
-	 */
-	public clearVehicleIntent(vehicleId: string): void {
-		this.vehicleIntents.delete(vehicleId);
-		
-		// Update the vehicle card if it exists
-		const card = this.vehicleCards.get(vehicleId);
-		if (card && card instanceof EnemyVehicle) {
-			card.setIntent(null);
-		}
+		if (card instanceof EnemyVehicle) card.setIntents(intents);
 	}
 }
