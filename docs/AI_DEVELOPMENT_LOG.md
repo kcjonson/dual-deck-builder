@@ -17,6 +17,16 @@ This document contains the chronological log of completed development tasks for 
 - Goldens: new `screen-combatScreen-endTurnPreview` at both gate sizes; `screen-combatScreen-enemyTurn` now captures the first raider acting under reduced motion; `vehicle-tokens`, `combat-road` and `icons` show pills; `combat-road` is also linted at 1024x600.
 - Record: [intent-pills-and-enemy-turn-presentation.md](./AI_TECHNICAL_DECISIONS/intent-pills-and-enemy-turn-presentation.md).
 - Review round: the preview sits in the road band's own layer under the log drawer by `zIndex`, so an open log covers it; a frame of the preview allocates nothing; only the hands (tabs and cards) drop and grey, End Turn and the dock's ground stay put as in the mock; debuff and buff pills print a short name (Slow, Stun, Vuln); a hit's number starts under the banner when the banner is across its plate; the gallery draws the acting glow in the open.
+## Road view polish: slot outlines, swerve timing, header spacing (2026-10-02)
+
+**What landed:** DDB-257 (DDB-127), the non-blocking findings from the #139 review.
+
+- `RoadView`'s empty-slot outlines go through `dashedOutlineTriangles` (the legal-target dashes from DDB-138) into one triangle list per side's colour. The view's own draws at 1280x720 with five vehicles went from 765 `drawRect` + 2 `drawPolygon` to 37 + 4; at 1600x700, 1063 + 2 to 49 + 4. The side dashes now start one gap below the corner dash (7 px, was 6), as the targeting outline's do.
+- A swerving token's outlines switch when it lands: tokens keep the slot they last landed in, and `land` rebuilds the lists when it changes.
+- Shoulder headers spaced 0.12em like the other lanes, as the mock renders them.
+- [road-view.md](./AI_TECHNICAL_DECISIONS/road-view.md) corrected: commands copy their geometry each frame, polygon points included, so the lists still cost a copy; what went was the per-call cost.
+
+**How:** RoadView unit tests for the two-list outlines, the swerve timing, and the header spacing; draw calls counted by spying on `DrawApi` over one `RoadView.render`; road-bearing goldens re-minted for the header spacing and dash phase.
 
 ## Targeting: ranges, legal targets, outlines, ghost, hit check, cancel (2026-10-02)
 

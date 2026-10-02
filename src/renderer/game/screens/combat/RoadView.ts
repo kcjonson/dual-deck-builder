@@ -21,7 +21,7 @@ import {
 	roadSlotRect,
 } from './CombatLayout';
 import { ROAD_STYLE, Rgba, rgba } from './combatStyle';
-import { HatchOptions, hatchTriangles } from '../../ui/stripes';
+import { DashOptions, HatchOptions, dashedOutlineTriangles, hatchTriangles } from '../../ui/stripes';
 import type { RangeLabel } from '../../ui/RangeChip';
 import type { AimLosses } from '../../mechanics/AimPreview';
 
@@ -30,8 +30,7 @@ export type { EnemyIntent, IntentType } from '../../ui/IntentPill';
 /** An empty slot's outline sits this far inside its cell (the mock's `.slot`). */
 const SLOT_OUTLINE_INSET_X = 6;
 const SLOT_OUTLINE_INSET_Y = 4;
-const SLOT_DASH = 6;
-const SLOT_GAP = 6;
+const SLOT_DASH: DashOptions = { width: 1, dash: 6, gap: 6 };
 /** The lane lines' dashes, 26 on and 26 off; the centre line is twice as wide. */
 const LANE_DASH = 26;
 const LANE_LINE_WIDTH = 2;
@@ -69,6 +68,8 @@ interface RoadToken {
 	view: VehicleUI;
 	/** Where it sits, or is swerving to. */
 	slot: RoadSlot;
+	/** The slot it last landed in, whose outline it hides until it lands somewhere else. */
+	landed: RoadSlot;
 	/** The slot-sized rect it's in now: its slot's, or between two mid-swerve. */
 	readonly at: RoadRect;
 	readonly from: Vec2;
@@ -93,7 +94,8 @@ export type RoadViewOptions = ComponentOptions & {
  * one to the other on the animator, which reduced motion lands at once.
  *
  * The ground is the view's own draws, created on resize (and the empty-slot
- * outlines when occupancy changes) and only replayed each frame. The road
+ * outlines when a token arrives, leaves, or lands) and only replayed each
+ * frame. The road
  * art runs `bleed` past each side, to the screen's edges where the stage is
  * capped (section 2: the road runs on, the UI does not).
  */
@@ -116,8 +118,12 @@ export class RoadView extends Component {
 	private readonly laneTints: DrawRectOptions[] = [];
 	private readonly laneLines: DrawRectOptions[] = [];
 	private readonly headerStrip: DrawRectOptions[] = [];
-	// Rebuilt when a slot fills or empties
-	private readonly slotOutlines: DrawRectOptions[] = [];
+	// Rebuilt when a token arrives, leaves, or lands: one triangle list per side's colour
+	private readonly slotOutlines: readonly (DrawPolygonOptions & { points: Vec2[] })[] = [
+		{ points: [], fill: ROAD_STYLE.slotOutline },
+		{ points: [], fill: ROAD_STYLE.raiderSlotOutline },
+	];
+	private readonly dashScratch: Vec2[] = [];
 
 	constructor({ combatData, seatOf, ...options }: RoadViewOptions) {
 		super(options);
@@ -138,7 +144,7 @@ export class RoadView extends Component {
 				style: {
 					fontRole: 'display',
 					fontSize: 12,
-					letterSpacing: isShoulder(lane) ? 0.06 : 0.12,
+					letterSpacing: 0.12,
 					textTransform: 'uppercase',
 					textAlign: 'center',
 					color: look.side === 'enemy' ? ROAD_STYLE.raiderHeaderLabel : ROAD_STYLE.headerLabel,
@@ -254,10 +260,8 @@ export class RoadView extends Component {
 			}
 			token.vehicle = vehicle;
 			token.view.data = vehicle;
-			if (!sameSlot(token.slot, slot)) {
-				this.swerveTo(token, slot);
-				occupancyChanged = true;
-			}
+			// Its outlines follow when it lands
+			if (!sameSlot(token.slot, slot)) this.swerveTo(token, slot);
 		};
 		for (const vehicle of enemy) show(vehicle, 'enemy');
 		for (const vehicle of player) show(vehicle, 'player');
@@ -332,6 +336,7 @@ export class RoadView extends Component {
 			side,
 			view,
 			slot,
+			landed: slot,
 			at: { x: 0, y: 0, width: 0, height: 0 },
 			from: { x: 0, y: 0 },
 			to: { x: 0, y: 0, width: 0, height: 0 },
@@ -357,13 +362,16 @@ export class RoadView extends Component {
 		}
 	}
 
-	/** Straight into its slot, ending any swerve. */
+	/** Straight into its slot, ending any swerve; the slot it left shows its outline again. */
 	private land(token: RoadToken): void {
 		token.swerve?.cancel();
 		token.swerve = null;
 		this.raise(token, false);
 		roadSlotRect(this.currentLayout, token.slot, token.at);
 		this.placeToken(token);
+		if (sameSlot(token.landed, token.slot)) return;
+		token.landed = token.slot;
+		this.buildSlotOutlines();
 	}
 
 	private swerveTo(token: RoadToken, slot: RoadSlot): void {
@@ -480,25 +488,31 @@ export class RoadView extends Component {
 		);
 	}
 
-	/** A faint dashed outline in every slot nobody is in or headed for, so the grid reads as a board. */
+	/**
+	 * A faint dashed outline in every slot nobody has landed in, so the grid
+	 * reads as a board; a swerving token keeps its old slot's outline hidden
+	 * until it lands. Each side's colour is one triangle list, so the
+	 * outlines cost two draws however many slots are empty.
+	 */
 	private buildSlotOutlines(): void {
-		this.slotOutlines.length = 0;
+		const [player, raider] = this.slotOutlines;
+		player.points.length = 0;
+		raider.points.length = 0;
 		const layout = this.currentLayout;
 		if (layout.slotWidth <= SLOT_OUTLINE_INSET_X * 2 || layout.slotHeight <= SLOT_OUTLINE_INSET_Y * 2) return;
 		const taken = new Set<string>();
-		for (const token of this.roadTokens.values()) taken.add(`${token.slot.lane}:${token.slot.row}`);
+		for (const token of this.roadTokens.values()) taken.add(`${token.landed.lane}:${token.landed.row}`);
 		const cell: RoadRect = { x: 0, y: 0, width: 0, height: 0 };
 		for (const { lane } of layout.lanes) {
-			const fill = LANE_LOOKS[lane].side === 'enemy' ? ROAD_STYLE.raiderSlotOutline : ROAD_STYLE.slotOutline;
+			const points = LANE_LOOKS[lane].side === 'enemy' ? raider.points : player.points;
 			for (const { row } of layout.rows) {
 				if (taken.has(`${lane}:${row}`)) continue;
 				roadSlotRect(layout, { lane, row }, cell);
-				dashedOutline({
-					x: cell.x + SLOT_OUTLINE_INSET_X,
-					y: cell.y + SLOT_OUTLINE_INSET_Y,
-					width: cell.width - SLOT_OUTLINE_INSET_X * 2,
-					height: cell.height - SLOT_OUTLINE_INSET_Y * 2,
-				}, fill, this.slotOutlines);
+				cell.x += SLOT_OUTLINE_INSET_X;
+				cell.y += SLOT_OUTLINE_INSET_Y;
+				cell.width -= SLOT_OUTLINE_INSET_X * 2;
+				cell.height -= SLOT_OUTLINE_INSET_Y * 2;
+				for (const point of dashedOutlineTriangles(cell, SLOT_DASH, this.dashScratch)) points.push(point);
 			}
 		}
 	}
@@ -508,21 +522,9 @@ export class RoadView extends Component {
 		for (const hatch of this.hatches) draw.drawPolygon(hatch);
 		for (const tint of this.laneTints) draw.drawRect(tint);
 		for (const line of this.laneLines) draw.drawRect(line);
-		for (const dash of this.slotOutlines) draw.drawRect(dash);
+		for (const outline of this.slotOutlines) {
+			if (outline.points.length > 0) draw.drawPolygon(outline);
+		}
 		for (const strip of this.headerStrip) draw.drawRect(strip);
-	}
-}
-
-/** A 1 px dashed rectangle as dash rects, appended to `out`. */
-function dashedOutline(rect: Rect, fill: Rgba, out: DrawRectOptions[]): void {
-	const right = rect.x + rect.width - 1;
-	const bottom = rect.y + rect.height - 1;
-	for (let x = rect.x; x < rect.x + rect.width; x += SLOT_DASH + SLOT_GAP) {
-		const length = Math.min(SLOT_DASH, rect.x + rect.width - x);
-		out.push({ rect: { x, y: rect.y, width: length, height: 1 }, fill }, { rect: { x, y: bottom, width: length, height: 1 }, fill });
-	}
-	for (let y = rect.y + SLOT_DASH; y < bottom; y += SLOT_DASH + SLOT_GAP) {
-		const length = Math.min(SLOT_DASH, bottom - y);
-		out.push({ rect: { x: rect.x, y, width: 1, height: length }, fill }, { rect: { x: right, y, width: 1, height: length }, fill });
 	}
 }

@@ -2,6 +2,7 @@
  * @jest-environment jsdom
  */
 import { DrawApi, TextCommand } from '../../../engine/draw';
+import type { Text } from '../../../engine/components/Text';
 import { ICON_ATLAS_ROLE } from '../../../engine/text/fontFaces';
 import { createMeasuringDrawApi, MeasuringRecordingBackend } from '../../../engine/text/testing';
 import type { MountContext } from '../../../engine/components/MountContext';
@@ -106,6 +107,13 @@ describe('RoadView', () => {
 		expect(order.indexOf('enemy_vehicle_enemy_inside_center')).toBeLessThan(order.indexOf('player_vehicle_player_inside_center'));
 	});
 
+	it('spaces the shoulder headers like the lanes\' (the mock\'s 0.12em)', () => {
+		for (const lane of [RoadLane.PLAYER_SHOULDER, RoadLane.PLAYER_INSIDE, RoadLane.ENEMY_SHOULDER]) {
+			const head = road.findById(`road_head_${lane}`) as Text;
+			expect(head.style.letterSpacing).toBe(0.12);
+		}
+	});
+
 	it('names each token from the slot it arrives in', () => {
 		expect(road.vehicleView(raider.id)?.id).toBe('enemy_vehicle_enemy_inside_center');
 		expect(road.vehicleView(rig.id)?.id).toBe('player_vehicle_player_inside_center');
@@ -164,6 +172,21 @@ describe('RoadView', () => {
 			expect(tokenCentre(rig.id).y).toBeCloseTo(end.y);
 		});
 
+		it('moves the empty-slot outlines when it lands, not when it sets off', () => {
+			frame();
+			expect(isOutlined(RIG_SLOT)).toBe(false);
+			expect(isOutlined(target)).toBe(true);
+			move();
+			advance(context, SWERVE_DURATION / 2);
+			frame();
+			expect(isOutlined(RIG_SLOT)).toBe(false);
+			expect(isOutlined(target)).toBe(true);
+			advance(context, SWERVE_DURATION);
+			frame();
+			expect(isOutlined(RIG_SLOT)).toBe(true);
+			expect(isOutlined(target)).toBe(false);
+		});
+
 		it('lands at once under reduced motion', () => {
 			context.animator.reducedMotion = true;
 			move();
@@ -185,21 +208,33 @@ describe('RoadView', () => {
 		});
 	});
 
+	function polygonsFilled(fill: readonly number[]): (readonly { x: number; y: number }[])[] {
+		return backend.commands.flatMap((command) => (
+			command.kind === 'polygon' && command.fill !== null && command.fill.every((value, index) => Math.abs(value - fill[index]) < 1e-6) ? [command.points] : []
+		));
+	}
+
+	/** Empty slots drawn, from where their outline's top-left dash starts. */
+	function outlinedSlots(): number {
+		const points = [...polygonsFilled(ROAD_STYLE.slotOutline), ...polygonsFilled(ROAD_STYLE.raiderSlotOutline)].flat();
+		const corners = new Set<string>();
+		for (const slot of road.roadLayout.lanes.flatMap(({ lane }) => road.roadLayout.rows.map(({ row }) => road.slotRect({ lane, row })))) {
+			if (points.some((point) => Math.abs(point.x - (slot.x + 6)) < 1e-6 && Math.abs(point.y - (slot.y + 4)) < 1e-6)) corners.add(`${slot.x}:${slot.y}`);
+		}
+		return corners.size;
+	}
+
+	function isOutlined(slot: RoadSlot): boolean {
+		const rect = road.slotRect(slot);
+		const points = [...polygonsFilled(ROAD_STYLE.slotOutline), ...polygonsFilled(ROAD_STYLE.raiderSlotOutline)].flat();
+		return points.some((point) => Math.abs(point.x - (rect.x + 6)) < 1e-6 && Math.abs(point.y - (rect.y + 4)) < 1e-6);
+	}
+
 	describe('the ground', () => {
 		function rectsFilled(fill: readonly number[]): { x: number; y: number; width: number; height: number }[] {
 			return backend.commands
 				.filter((command) => command.kind === 'rect' && command.fill !== null && command.fill.every((value, index) => Math.abs(value - fill[index]) < 1e-6))
 				.map((command) => (command.kind === 'rect' ? command.rect : { x: 0, y: 0, width: 0, height: 0 }));
-		}
-
-		/** Empty slots drawn, from where their outline's top-left dash starts. */
-		function outlinedSlots(): number {
-			const outlines = [...rectsFilled(ROAD_STYLE.slotOutline), ...rectsFilled(ROAD_STYLE.raiderSlotOutline)];
-			const corners = new Set<string>();
-			for (const slot of road.roadLayout.lanes.flatMap(({ lane }) => road.roadLayout.rows.map(({ row }) => road.slotRect({ lane, row })))) {
-				if (outlines.some((dash) => Math.abs(dash.x - (slot.x + 6)) < 1e-6 && Math.abs(dash.y - (slot.y + 4)) < 1e-6)) corners.add(`${slot.x}:${slot.y}`);
-			}
-			return corners.size;
 		}
 
 		it('outlines every slot nobody is in', () => {
@@ -208,6 +243,14 @@ describe('RoadView', () => {
 			road.showVehicles({ player: [], enemy: [] });
 			frame();
 			expect(outlinedSlots()).toBe(18);
+		});
+
+		it('draws the outlines as one triangle list per side\'s colour, however many slots are empty', () => {
+			road.showVehicles({ player: [], enemy: [] });
+			frame();
+			const outlines = polygonsFilled(ROAD_STYLE.slotOutline).concat(polygonsFilled(ROAD_STYLE.raiderSlotOutline));
+			expect(outlines).toHaveLength(2);
+			for (const points of outlines) expect(points.length % 3).toBe(0);
 		});
 
 		it('draws the centre line between the two inside lanes, dashed and twice as wide as the others', () => {
