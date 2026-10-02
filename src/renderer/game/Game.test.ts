@@ -11,6 +11,8 @@ import type { GpuTimer } from '../engine/rendering/GpuTimer';
 import type { CanvasViewport, ViewportListener } from '../engine/rendering/CanvasViewport';
 import type { DeviceInfo } from '../engine/rendering/deviceInfo';
 import { DeveloperOverlay } from '../engine/ui/DeveloperOverlay';
+import { ReducedMotion } from '../engine/rendering/reducedMotion';
+import { GameSettings } from './core/GameSettings';
 
 /**
  * R13.32's pause on the game page, driven through `window.__app` rather than
@@ -352,5 +354,22 @@ describe('the viewport owner, not the window, resizes the screen (R7.11)', () =>
 
 	it('reports the owner\'s logical size in status', () => {
 		expect(status().viewport).toEqual({ width: 1440, height: 882 });
+	});
+});
+
+describe('the motion setting drives reduced motion (R11.13, DDB-38)', () => {
+	it('applies the stored setting at startup and every change after it', () => {
+		const settings = new GameSettings();
+		settings.motion = 'reduced';
+		const reducedMotion = new ReducedMotion({ animator: context.animator, preference: null });
+		new Game({ context, frameTimer: new FrameTimer(), viewport, device, reducedMotion, settings });
+		expect(reducedMotion.override).toBe(true);
+		expect(context.animator.reducedMotion).toBe(true);
+
+		settings.motion = 'full';
+		expect(context.animator.reducedMotion).toBe(false);
+		settings.motion = 'system';
+		expect(reducedMotion.override).toBeNull();
+		reducedMotion.dispose();
 	});
 });
