@@ -1,0 +1,8 @@
+[
+{"path":"gallery_root/dev_section_combat_fx/Text[0]","text":"Combat Effects","rect":[53,53,145.6,33.6]},
+{"path":"gallery_root/dev_section_combat_fx/dev_section_combat_fx_rows/Stack[0]/Text[0]","text":"the targeting line, card to reticle, off target","rect":[53,103,255.82,17.7]},
+{"path":"gallery_root/dev_section_combat_fx/dev_section_combat_fx_rows/Stack[1]/Text[0]","text":"floating numbers: a hit, a bigger hit, a miss","rect":[53,390.7,256.67,17.7]},
+{"path":"gallery_root/dev_section_combat_fx/dev_section_combat_fx_rows/Stack[1]/dev_combat_numbers/dev_combat_number_0","text":"-6","rect":[53,424.41,120,36]},
+{"path":"gallery_root/dev_section_combat_fx/dev_section_combat_fx_rows/Stack[1]/dev_combat_numbers/dev_combat_number_1","text":"-15","rect":[193,424.41,120,36]},
+{"path":"gallery_root/dev_section_combat_fx/dev_section_combat_fx_rows/Stack[1]/dev_combat_numbers/dev_combat_number_2","text":"MISS","rect":[333,424.41,120,36]}
+]
