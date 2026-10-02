@@ -372,6 +372,28 @@ describe('CombatScreen drag to play', () => {
 describe('CombatScreen drag to play, then to the pile', () => {
 	beforeEach(() => setViewport(1280, 720));
 
+	it('lands a card dropped on a raider\'s intent disc on that raider', async () => {
+		const combat = await startCombat();
+		const card = handCard(combat, ['enemy_single'], 'headshot');
+		const [raider] = combat['enemyTeam']?.vehicles ?? [];
+		context.animator.settle();
+		context.frame.layout();
+		const [disc] = combat['enemyLayer'].intentRowOf(raider.id)?.getChildren() ?? [];
+		if (!disc) throw new Error('the raider should plan something');
+		const playCard = jest.spyOn(Battle.prototype, 'playCard');
+		const target = centreOf(disc.screenBounds);
+
+		drag(grabPoint(card), target, { release: false });
+		expect(context.drag.canDrop).toBe(true);
+		expect(combat['combatModel'].focusedVehicleId).toBe(raider.id);
+		inject(`up,${target[0]},${target[1]}`);
+		expect(playCard).toHaveBeenCalledTimes(1);
+		expect(playCard.mock.calls[0][0].targetVehicle?.id).toBe(raider.id);
+
+		playCard.mockRestore();
+		combat.unmount();
+	});
+
 	it('sends a card played by a drop to its pile from where it was dropped, not from its slot', async () => {
 		const combat = await startCombat();
 		const card = handCard(combat, ['enemy_single'], 'headshot');

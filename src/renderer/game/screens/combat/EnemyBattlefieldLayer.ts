@@ -96,6 +96,11 @@ export class EnemyBattlefieldLayer extends BattlefieldLayer {
 			if (this.intentRows.has(vehicleId)) continue;
 			const row = new IntentRow({ id: plate.id ? `${plate.id}_intents` : undefined, markerSize: INTENT_MARKER_SIZE, zIndex: 1 });
 			row.intents = this.vehicleIntents.get(vehicleId) ?? [];
+			// The plan is part of its raider as a drop target: a card let go
+			// on a disc lands on the raider, as one on the plate does
+			row.onDragEnter = (event) => plate.dragEntered(event);
+			row.onDragLeave = () => plate.dragLeft();
+			row.onDrop = (event) => plate.dropped(event);
 			this.intentRows.set(vehicleId, row);
 			this.addChild(row);
 		}
