@@ -785,6 +785,32 @@ describe('CombatScreen targeting (DDB-138)', () => {
 		combat.unmount();
 	});
 
+	it.each([
+		[1280, 720],
+		[1024, 600],
+	])('at %ix%i, keeps the hit check on screen for the leftmost card in the hand', async (width, height) => {
+		setViewport(width, height);
+		const combat = await startCombat();
+		const { raider } = raiderToken(combat);
+		const card = dealTo(combat, 1, 'headshot');
+		const fx = combat['fx'];
+		const [cx, cy] = grabPoint(card);
+		inject(`click,${cx},${cy}`);
+		combat['combatModel'].focusVehicle(raider.id);
+		expect(fx.hitCheckText).not.toBeNull();
+
+		const chip = fx['hitCheck'];
+		chip.render({ drawRect: jest.fn(), drawText: jest.fn() } as unknown as DrawApi);
+		const box = chip['box'].rect;
+		// Centred on the card it would start left of the stage
+		const cardCentre = card.localToScreen({ x: card.width / 2, y: 0 }).x / (fx.screenBounds.width / fx.width);
+		expect(cardCentre - box.width / 2).toBeLessThan(0);
+		expect(box.x).toBe(0);
+		expect(box.x + box.width).toBeLessThanOrEqual(fx.width);
+
+		combat.unmount();
+	});
+
 	it('cancels click-then-target on a click that lands on no target (DDB-111)', async () => {
 		const combat = await startCombat();
 		const card = dealTo(combat, 1, 'headshot');

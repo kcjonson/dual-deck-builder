@@ -43,5 +43,9 @@ Escape and a right-click mid-drag already cancelled (DDB-88). The stage is now a
 ## Consequences
 
 - The mid-drag state has its own gallery scene, `combat-targeting`, captured and linted at both gate sizes; `SceneScenario.shortViewport` adds the short viewport for scenes standing in for a screen state.
-- Range chips sit on raiders only, as the mock puts them; empty enemy slots show nothing.
+- Range chips sit on raiders only, as the mock puts them; empty enemy slots show nothing. Section 6 now says so, and says the ghost goes on each bar the hit takes from.
+- The hit check is clamped inside the stage, so the hand's leftmost card keeps its verdict on screen; the gallery scene has a card at its left edge for the golden. The lint gate can't see it, since like the aim line it is ink on a layer-sized component.
+- END TURN puts an aimed card back first, so no chip, outline, or hit check rides into the paced enemy turn.
+- `splitDamage` in `mechanics/Vehicle.ts` is the one vehicle-hit split, used by `takeDamage` and the preview; `Battle.getVehicleForDriver` is public for the preview's actor.
+- Not yet matched to the mock: the source vehicle lighting up in its driver's colour (`owner-lit`) while a card is aimed, and the desaturation on dimmed tokens (`saturate(0.4)`; the dim here is opacity only). Filed as a follow-up.
 - `road-view.md` said a polygon's points are copied per frame where a rect's are not; both are copied. The empty-slot outlines are still rects (DDB-257).

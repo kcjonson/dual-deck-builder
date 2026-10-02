@@ -1,6 +1,7 @@
 import type { Battle } from './Battle';
 import type { Card, CardEffect } from './Card';
 import type { Driver } from './Driver';
+import { splitDamage } from './Vehicle';
 import type { Vehicle } from './Vehicle';
 import { cardRange } from './BoardProjection';
 import { EffectRecipient, effectRecipientOf, isCasterAction, landsOnTarget, rollsToHit } from './EffectTargets';
@@ -88,8 +89,7 @@ function aimActor({ battle, driver, card, target }: { battle: Battle; driver: Dr
 		const ready = battle.playerTeam.escorts.filter(escort => escort.isReady);
 		return target.slot ? nearestTo({ to: target.slot, candidates: ready, slotOf: escort => escort.slot }) : null;
 	}
-	const vehicles = [...battle.playerTeam.vehicles, ...battle.enemyTeam.vehicles];
-	return vehicles.find(vehicle => vehicle.driver === driver || vehicle.passenger === driver) ?? null;
+	return battle.getVehicleForDriver(driver);
 }
 
 function landsOnTargetEffect(effect: CardEffect, card: Card): boolean {
@@ -107,8 +107,9 @@ function attackTypeOf(effect: CardEffect): string {
 
 /**
  * Each damage effect that lands on the target, in card order, on a scratch
- * copy of its shield, armor, structure, and crew's HP, as Vehicle.takeDamage
- * and Battle.applyDamage take it. An effect past its own range does nothing.
+ * copy of its shield, armor, structure, and crew's HP, split by the rule
+ * Vehicle.takeDamage uses (`splitDamage`) after Battle.applyDamage's
+ * modifiers. An effect past its own range does nothing.
  */
 function projectLosses({ battle, card, actor, target, range }: { battle: Battle; card: Card; actor: Vehicle | null; target: Vehicle; range: number | null }): AimLosses {
 	let shield = target.shield ?? 0;
@@ -137,17 +138,12 @@ function projectLosses({ battle, card, actor, target, range }: { battle: Battle;
 			continue;
 		}
 
-		const soaked = Math.min(damage, shield);
-		shield -= soaked;
-		const armored = Math.min(damage - soaked, armor);
-		armor -= armored;
-		const remaining = damage - soaked - armored;
-		if (remaining <= 0) continue;
-		const aboard = (driverHp > 0 ? 1 : 0) + (passengerHp > 0 ? 1 : 0);
-		const half = Math.ceil(remaining / 2);
-		structure = Math.max(0, structure - (aboard > 0 ? half : remaining));
-		if (driverHp > 0) driverHp = Math.max(0, driverHp - half);
-		if (passengerHp > 0) passengerHp = Math.max(0, passengerHp - half);
+		const split = splitDamage({ damage, shield, armor, occupied: driverHp > 0 || passengerHp > 0 });
+		shield -= split.shield;
+		armor -= split.armor;
+		structure = Math.max(0, structure - split.structure);
+		if (driverHp > 0) driverHp = Math.max(0, driverHp - split.perOccupant);
+		if (passengerHp > 0) passengerHp = Math.max(0, passengerHp - split.perOccupant);
 	}
 
 	return {

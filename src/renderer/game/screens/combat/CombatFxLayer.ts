@@ -419,7 +419,10 @@ export class HitCheckChip extends Component {
 		this.cardPoint.x = card.width / 2;
 		this.cardPoint.y = Math.min(HIT_CARD_Y, card.height);
 		if (!card.localToAncestorInto(this.cardPoint, space, this.at)) return;
-		const left = Math.round(this.at.x - layer.originX - this.originX - this.chipWidth / 2);
+		// Centred on the card, but held inside the layer, which is the stage:
+		// the hand's edge cards would otherwise push the verdict off screen
+		const centred = Math.round(this.at.x - layer.originX - this.originX - this.chipWidth / 2);
+		const left = Math.max(0, Math.min(centred, this.width - this.chipWidth));
 		const top = Math.round(this.at.y - layer.originY - this.originY);
 		this.box.rect.x = left;
 		this.box.rect.y = top;

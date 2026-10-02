@@ -1063,6 +1063,10 @@ export class CombatScreen extends Screen {
 	private endPlayerTurn(): void {
 		if (!this.battle?.isPlayerTurn || this.battle.battleOver || this.enemyTurnPacer?.running) return;
 
+		// A card still aimed (picked with the keyboard, then Tab to END TURN)
+		// goes back, so no range, outline, or hit check rides into the enemy turn
+		this.cancelAim();
+
 		console.log('Ending player turn...');
 		this.battle.endPlayerTurn({ stepEnemyTurn: true });
 		if (!this.isActive) return;

@@ -8,6 +8,7 @@ import type { DrawPolygonOptions, DrawRectOptions, DrawTextOptions } from '../..
 import type { RGBA, Rect, Vec2 } from '../../engine/draw/geometry';
 import { triangulatePolygon } from '../../engine/draw';
 import { resolveColor } from '../../engine/style/styleObject';
+import { shadowExtent } from '../../engine/style/look';
 import { tokens } from '../../engine/theme/tokens';
 import type { Driver } from '../mechanics/Driver';
 import { Vehicle as VehicleData } from '../mechanics/Vehicle';
@@ -688,7 +689,7 @@ export class Vehicle extends Component {
 
 	/** The intents row and the outline reach past the token's box, the target's glow further. */
 	protected get cullInk(): Rect {
-		return grownRect(this.inkRect, this.outlineStyle === 'solid' ? TARGET_GLOW_BLUR * 1.5 : OUTLINE_OFFSET + 3);
+		return grownRect(this.inkRect, this.outlineStyle === 'solid' ? shadowExtent(this.glowShadow) : OUTLINE_OFFSET + 3);
 	}
 
 	public render(draw: DrawApi): void {

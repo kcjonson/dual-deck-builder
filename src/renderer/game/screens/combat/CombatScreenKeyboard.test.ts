@@ -120,6 +120,46 @@ describe('CombatScreen from the keyboard', () => {
 		combat.unmount();
 	});
 
+	it('puts an aimed card back when END TURN is pressed, so nothing aimed rides into the enemy turn (DDB-138)', async () => {
+		const combat = new CombatScreen();
+		combat.mount(context);
+		await flushPromises();
+		await flushPromises();
+		const focus = context.focus;
+		const model = combat['combatModel'];
+		const [driver] = combat['playerDrivers'];
+		const headshot = CardLoader.getInstance().createCard('headshot');
+		if (!headshot) throw new Error('headshot should load');
+		driver.set({ hand: [headshot, ...driver.hand], adrenaline: driver.maxAdrenaline });
+		combat['updateUIFromBattle']();
+		context.frame.layout();
+
+		press('Tab');
+		const card = combat['handLayer'].getCardElementByCard(headshot);
+		if (!card) throw new Error('headshot should be dealt');
+		focus.focus(card);
+		press('Enter');
+		expect(model.isTargeting).toBe(true);
+		const [raider] = combat['enemyTeam']?.vehicles ?? [];
+		const token = combat['road'].vehicleView(raider.id);
+		expect(token?.rangeLabel).not.toBeNull();
+
+		// While targeting, Tab visits the card, END TURN, and the target
+		for (let step = 0; step < 4 && focus.focused?.id !== 'end_turn_button'; step++) press('Tab');
+		expect(focus.focused?.id).toBe('end_turn_button');
+		press('Enter');
+
+		expect(combat['battle']?.enemyTurnInProgress).toBe(true);
+		expect(model.isTargeting).toBe(false);
+		expect(model.selectedCard).toBeNull();
+		expect(token?.rangeLabel).toBeNull();
+		expect(token?.damageGhost).toBeNull();
+		expect(token?.['outlineStyle']).toBe('none');
+		expect(combat['fx'].hitCheckText).toBeNull();
+
+		combat.unmount();
+	});
+
 	it('ends the turn from END TURN with Enter', async () => {
 		const combat = new CombatScreen();
 		combat.mount(context);

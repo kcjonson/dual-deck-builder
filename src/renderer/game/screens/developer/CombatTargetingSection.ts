@@ -14,14 +14,20 @@ import { CombatModel } from '../combat/CombatModel';
 import { RoadView } from '../combat/RoadView';
 import { AimReticle, HitCheckChip, TargetingArrow, hitCheckText } from '../combat/CombatFxLayer';
 
-/** The road band at the 1280x720 reference, with a hand card standing beside it. */
+/**
+ * The road band at the 1280x720 reference, with a hand card standing on
+ * each side of it: one at the frame's left edge, where a centred hit check
+ * would start off the stage, and one past the road's right end.
+ */
 const ROAD_WIDTH = COMBAT_REFERENCE_WIDTH;
 const ROAD_HEIGHT = COMBAT_REFERENCE_HEIGHT - TOP_BAR_HEIGHT - DOCK_HEIGHT;
 const CARD_WIDTH = 128;
 const CARD_HEIGHT = 180;
-const CARD_X = ROAD_WIDTH + 32;
+const CARD_GAP = 32;
+const ROAD_X = CARD_WIDTH + CARD_GAP;
+const CARD_X = ROAD_X + ROAD_WIDTH + CARD_GAP;
 const CARD_Y = ROAD_HEIGHT - CARD_HEIGHT - 12;
-/** Room past the card for the hit check, which is wider than it. */
+/** Room past the right card for the hit check, which is wider than it. */
 const FRAME_WIDTH = CARD_X + CARD_WIDTH + 64;
 const FRAME_HEIGHT = ROAD_HEIGHT;
 /** Headshot and Far Shoot reach two. */
@@ -71,8 +77,10 @@ class ScaledFrame extends Component {
  * Screen Design section 6): every raider's range chip from the Rig's slot,
  * the raiders out of reach dimmed, the ones in reach outlined in red
  * dashes, the one under the pointer in a solid outline with its glow and a
- * striped ghost on the bars the hit takes from, and the hit check riding
- * with the card, which stands beside the road here rather than in a dock.
+ * striped ghost on both bars the hit splits across, and the hit check
+ * riding with the card, which stands beside the road here rather than in a
+ * dock. A second card at the frame's left edge carries a failing check,
+ * held inside the frame as the stage holds the hand's leftmost card's.
  * The ranges come from the road's own `slotRange`, the chip's text from the
  * screen's own `hitCheckText`.
  */
@@ -82,7 +90,7 @@ export class CombatTargetingSection extends CatalogSection {
 
 		const seats = new Map<Driver, 1 | 2>();
 		const model = new CombatModel();
-		const road = new RoadView({ id: 'dev_targeting_road', width: ROAD_WIDTH, height: ROAD_HEIGHT, combatData: model, seatOf: (driver) => seats.get(driver) ?? null });
+		const road = new RoadView({ id: 'dev_targeting_road', x: ROAD_X, width: ROAD_WIDTH, height: ROAD_HEIGHT, combatData: model, seatOf: (driver) => seats.get(driver) ?? null });
 
 		const rig = vehicle('Apocalypse Rig', { lane: RoadLane.PLAYER_INSIDE, row: RoadRow.CENTER }, [40, 40], [30, 30]);
 		const bike = vehicle('Lightning Bike', { lane: RoadLane.PLAYER_INSIDE, row: RoadRow.BEHIND }, [25, 25], [24, 24]);
@@ -112,16 +120,26 @@ export class CombatTargetingSection extends CatalogSection {
 		model.focusedVehicleId = buggy.id;
 		road.showRanges(labels);
 
-		// Headshot on the Buggy's driver: Gunnery 7 against Evade 4, harder by 2
+		// A shot on the Buggy, Gunnery 7 against Evade 4 made harder by 2: past
+		// its armor the hit splits between structure and the driver
 		const preview: AimPreview = {
 			actor: rig,
 			range: slotRange(source, buggy.slot as RoadSlot),
 			reach: REACH,
 			lands: true,
 			check: { skill: 'gunnery', attack: 7, evade: 4, modifier: 2, hits: true },
-			losses: { structure: 0, driver: 6, passenger: 0 },
+			losses: { structure: 4, driver: 4, passenger: 0 },
 		};
 		road.showDamageGhost(buggy.id, preview.losses);
+		// The left card's shot on the Crawler fails its check: MISS, no ghost
+		const miss: AimPreview = {
+			actor: rig,
+			range: slotRange(source, crawler.slot as RoadSlot),
+			reach: REACH,
+			lands: true,
+			check: { skill: 'gunnery', attack: 3, evade: 4, modifier: 0, hits: false },
+			losses: { structure: 0, driver: 0, passenger: 0 },
+		};
 
 		const frame = new Container({ id: 'dev_targeting_frame', width: FRAME_WIDTH, height: FRAME_HEIGHT });
 		const card = new Rectangle({
@@ -131,6 +149,14 @@ export class CombatTargetingSection extends CatalogSection {
 			width: CARD_WIDTH,
 			height: CARD_HEIGHT,
 			style: { backgroundColor: '#1d1f22', borderColor: '#3cc3c9', borderWidth: 2, borderRadius: 6 },
+		});
+		const edgeCard = new Rectangle({
+			id: 'dev_targeting_edge_card',
+			x: 0,
+			y: CARD_Y,
+			width: CARD_WIDTH,
+			height: CARD_HEIGHT,
+			style: { backgroundColor: '#1d1f22', borderColor: '#f2a33a', borderWidth: 2, borderRadius: 6 },
 		});
 		const layer = new Container({ id: 'dev_targeting_fx', width: FRAME_WIDTH, height: FRAME_HEIGHT, pointerEvents: 'none', zIndex: 1 });
 		const reticle = new AimReticle({ id: 'dev_targeting_reticle' });
@@ -142,24 +168,31 @@ export class CombatTargetingSection extends CatalogSection {
 			const plate = token.plateRect;
 			const scale = token.tokenScale;
 			reticle.setPosition(
-				token.x + (plate.x + plate.width - 16) * scale - reticle.centre.x,
+				ROAD_X + token.x + (plate.x + plate.width - 16) * scale - reticle.centre.x,
 				token.y + (plate.y + 13) * scale - reticle.centre.y,
 			);
 		}
 		const arrow = new TargetingArrow({ id: 'dev_targeting_line', reticle, width: FRAME_WIDTH, height: FRAME_HEIGHT });
 		arrow.pinnedOnTarget = true;
 		arrow.source = card;
-		const hitCheck = new HitCheckChip({ id: 'dev_targeting_hit_check', width: FRAME_WIDTH, height: FRAME_HEIGHT });
+		// Only one check shows at a time in combat, where it covers the stage;
+		// here each covers its own side of the frame, and the edge card's
+		// clamps to the frame's left edge as the stage's would
+		const hitCheck = new HitCheckChip({ id: 'dev_targeting_hit_check', x: ROAD_X, width: FRAME_WIDTH - ROAD_X, height: FRAME_HEIGHT });
 		hitCheck.show(card, hitCheckText(preview));
+		const edgeCheck = new HitCheckChip({ id: 'dev_targeting_edge_hit_check', width: ROAD_X, height: FRAME_HEIGHT });
+		edgeCheck.show(edgeCard, hitCheckText(miss));
 		layer.addChild(arrow);
 		layer.addChild(reticle);
 		layer.addChild(hitCheck);
+		layer.addChild(edgeCheck);
 		frame.addChild(road);
+		frame.addChild(edgeCard);
 		frame.addChild(card);
 		frame.addChild(layer);
 
 		this.addRow(
-			'a card dragged onto a raider: ranges, out of reach dimmed, legal dashed, the target solid with its damage ghost, the hit check',
+			'a card dragged onto a raider: ranges, out of reach dimmed, legal dashed, the target solid with its damage ghost, the hit check; a miss at the left edge',
 			new ScaledFrame({ id: 'dev_targeting_scaled', widthMode: 'fill', content: frame }),
 			{ fill: true },
 		);
