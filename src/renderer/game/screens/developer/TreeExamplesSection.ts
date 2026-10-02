@@ -1,4 +1,5 @@
 import { CatalogSection } from './CatalogSection';
+import type { DeveloperSectionOptions } from './DeveloperSectionPanel';
 import { tokens } from '../../../engine/theme/tokens';
 import { TreeNode, TreeView } from '../../../engine/ui/TreeView';
 
@@ -38,10 +39,10 @@ const CONVOY: readonly TreeNode[] = [
  * fold it.
  */
 export class TreeExamplesSection extends CatalogSection {
-	constructor(x: number, y: number, width: number) {
-		super({ id: 'dev_section_tree', title: 'Tree View', x, y, width });
+	constructor(options: DeveloperSectionOptions = {}) {
+		super({ id: 'dev_section_tree', title: 'Tree View', ...options });
 		const tree = new TreeView({ id: 'dev_tree', nodes: CONVOY, width: 320, height: ROW * VISIBLE_ROWS, selectable: true });
 		tree.select('spike');
-		this.addRow('selectable, two levels open, one branch folded', tree, ROW * VISIBLE_ROWS);
+		this.addRow('selectable, two levels open, one branch folded', tree);
 	}
 }

@@ -1,145 +1,87 @@
-import { DeveloperSectionPanel } from './DeveloperSectionPanel';
-import { Text } from '../../../engine/components/Text';
+import { DeveloperSectionPanel, DeveloperSectionOptions } from './DeveloperSectionPanel';
+import type { Component } from '../../../engine/components/Component';
+import { Container } from '../../../engine/components/Container';
 import { Rectangle } from '../../../engine/components/Rectangle';
+import { Stack } from '../../../engine/components/Stack';
+import { Text } from '../../../engine/components/Text';
 import { TextInput } from '../../../engine/ui/TextInput';
 import { Button } from '../../../engine/ui/Button';
 
+const DEMO_SIZE = 100;
+
 /**
- * Interactive controls section for the developer screen
- * Demonstrates dynamic property changes through input controls
+ * Property changes driven by text fields: a rectangle's colour as R,G,B,A and
+ * its position inside its stage as X,Y, applied as the fields change or all
+ * at once with the button.
  */
 export class InteractiveControlsSection extends DeveloperSectionPanel {
-	private demoRectangle!: Rectangle;
+	private readonly demoRectangle: Rectangle;
+	private readonly colorInput: TextInput;
+	private readonly positionInput: TextInput;
 
-	constructor(x: number, y: number, width: number) {
-		super({ id: 'dev_section_interactive_controls', x, y, width });
+	constructor(options: DeveloperSectionOptions = {}) {
+		super({ id: 'dev_section_interactive_controls', title: 'Interactive Controls', ...options });
 
-		this.initializeContent();
-	}
-
-	private initializeContent(): void {
-		const sectionTitle = new Text('Interactive Controls', {
-			style: {
-				fontSize: 28,
-				color: '#ffffff',
-				fontWeight: 'bold',
-			},
-		});
-		sectionTitle.setPosition(0, 0);
-		this.addChild(sectionTitle);
-
-		let currentY = 50;
-
-		// Create demo rectangle to control
+		// The rectangle moves by hand inside a stage of its own, out of the flow.
+		const stage = new Container({ id: 'dev_controls_stage', widthMode: 'fill', height: DEMO_SIZE });
 		this.demoRectangle = new Rectangle({
-			width: 100,
-			height: 100,
-			style: {
-				backgroundColor: '#ff6600',
-				borderRadius: 10,
-			},
+			width: DEMO_SIZE,
+			height: DEMO_SIZE,
+			style: { backgroundColor: '#ff6600', borderRadius: 10 },
 		});
-		this.demoRectangle.setPosition(20, currentY);
-		this.addChild(this.demoRectangle);
-		currentY += 120;
+		stage.addChild(this.demoRectangle);
 
-		// Color controls
-		const colorLabel = new Text('Color (R,G,B,A):', {
-			style: {
-				fontSize: 16,
-				color: '#ffffff',
-			},
-		});
-		colorLabel.setPosition(20, currentY);
-		this.addChild(colorLabel);
-		currentY += 25;
-
-		const colorInput = new TextInput({
+		this.colorInput = new TextInput({
 			placeholder: 'e.g., 255,102,0,1',
 			value: '255,102,0,1',
-			x: 20,
-			y: currentY,
 			width: 200,
 			height: 30,
-			style: {
-				fontSize: 14,
-			},
-			onChange: (value) => {
-				const parts = value.split(',').map((v) => parseFloat(v.trim()));
-				if (parts.length === 4 && parts.every((v) => !isNaN(v))) {
-					const [r, g, b, a] = parts;
-					this.demoRectangle.setFillColor([r / 255, g / 255, b / 255, a]);
-				}
-			},
+			style: { fontSize: 14 },
+			onChange: (value) => this.applyColor(value),
 		});
-		this.addChild(colorInput);
-		currentY += 40;
-
-		// Position controls
-		const positionLabel = new Text('Position (X,Y):', {
-			style: {
-				fontSize: 16,
-				color: '#ffffff',
-			},
-		});
-		positionLabel.setPosition(20, currentY);
-		this.addChild(positionLabel);
-		currentY += 25;
-
-		const positionInput = new TextInput({
-			placeholder: 'e.g., 20,50',
-			value: '20,50',
-			x: 20,
-			y: currentY,
+		this.positionInput = new TextInput({
+			placeholder: 'e.g., 0,0',
+			value: '0,0',
 			width: 150,
 			height: 30,
-			style: {
-				fontSize: 14,
-			},
-			onChange: (value) => {
-				const parts = value.split(',').map((v) => parseInt(v.trim()));
-				if (parts.length === 2 && parts.every((v) => !isNaN(v))) {
-					const [x, y] = parts;
-					this.demoRectangle.setPosition(x, y);
-				}
-			},
+			style: { fontSize: 14 },
+			onChange: (value) => this.applyPosition(value),
 		});
-		this.addChild(positionInput);
-
-		// Update button
-		const updateButton = new Button('Apply All', {
-			width: 100,
-			height: 30,
-		});
-		updateButton.setPosition(180, currentY);
-		updateButton.onClick = () => {
-			// Force update all inputs
-			const colorValue = colorInput.value;
-			const posValue = positionInput.value;
-			
-			// Re-apply the values
-			const colorParts = colorValue.split(',').map((v) => parseFloat(v.trim()));
-			if (colorParts.length === 4 && colorParts.every((v) => !isNaN(v))) {
-				const [r, g, b, a] = colorParts;
-				this.demoRectangle.setFillColor([r / 255, g / 255, b / 255, a]);
-			}
-			
-			const posParts = posValue.split(',').map((v) => parseInt(v.trim()));
-			if (posParts.length === 2 && posParts.every((v) => !isNaN(v))) {
-				const [x, y] = posParts;
-				this.demoRectangle.setPosition(x, y);
-			}
+		const apply = new Button('Apply All', { width: 100, height: 30 });
+		apply.onClick = () => {
+			this.applyColor(this.colorInput.value);
+			this.applyPosition(this.positionInput.value);
 		};
-		this.addChild(updateButton);
+		const positionRow = new Stack({ direction: 'horizontal', gap: 10 });
+		positionRow.addChild(this.positionInput);
+		positionRow.addChild(apply);
 
-		// Update our height based on content
-		this.fitContentHeight(currentY + 40);
+		const column = new Stack({ gap: 20, padding: { left: 20 }, widthMode: 'fill' });
+		column.addChild(stage);
+		column.addChild(field('Color (R,G,B,A):', this.colorInput));
+		column.addChild(field('Position (X,Y):', positionRow));
+		this.addChild(column);
 	}
 
-	/**
-	 * Get the height of this section
-	 */
-	public getHeight(): number {
-		return this.height;
+	private applyColor(value: string): void {
+		const parts = value.split(',').map((part) => parseFloat(part.trim()));
+		if (parts.length !== 4 || parts.some((part) => isNaN(part))) return;
+		const [r, g, b, a] = parts;
+		this.demoRectangle.setFillColor([r / 255, g / 255, b / 255, a]);
 	}
+
+	private applyPosition(value: string): void {
+		const parts = value.split(',').map((part) => parseInt(part.trim(), 10));
+		if (parts.length !== 2 || parts.some((part) => isNaN(part))) return;
+		const [x, y] = parts;
+		this.demoRectangle.setPosition(x, y);
+	}
+}
+
+/** A label over its control. */
+function field(label: string, control: Component): Stack {
+	const group = new Stack({ gap: 5 });
+	group.addChild(new Text(label, { style: { fontSize: 16, color: 'text_bright' } }));
+	group.addChild(control);
+	return group;
 }

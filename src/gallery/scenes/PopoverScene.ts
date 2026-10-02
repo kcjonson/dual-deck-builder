@@ -36,9 +36,8 @@ export class PopoverScene extends DeveloperSectionPanel {
 	private opened = false;
 
 	constructor({ x, y, width }: SceneFactoryOptions) {
-		super({ id: 'gallery_scene_popover', x, y, width });
+		super({ id: 'gallery_scene_popover', title: 'Popover and key caps', contentHeight: CONTENT_HEIGHT, x, y, width });
 
-		this.addChild(new Text('Popover and key caps', { style: { fontSize: 28, color: '#ffffff', fontWeight: 'bold' } }));
 		this.addChild(new Text('Anchored and non-modal: a press outside closes it and still reaches what it landed on.', {
 			y: 50,
 			style: { fontSize: 14, color: rgba(tokens.color.text_dim) },
@@ -63,8 +62,6 @@ export class PopoverScene extends DeveloperSectionPanel {
 			this.opened = true;
 			this.openBreakdown(damage, BREAKDOWN, 'bottom');
 		};
-
-		this.fitContentHeight(CONTENT_HEIGHT);
 	}
 
 	protected onUnmount(): void {

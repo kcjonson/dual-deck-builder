@@ -1,4 +1,5 @@
 import type { Panel } from '../../../engine/ui/Panel';
+import type { DeveloperSectionOptions } from './DeveloperSectionPanel';
 import { InteractiveControlsSection } from './InteractiveControlsSection';
 import { StyleGuideSection } from './StyleGuideSection';
 import { InputShowcaseSection } from './InputShowcaseSection';
@@ -44,24 +45,15 @@ import { SliderTabsSection } from './SliderTabsSection';
  * mirror the `dev_section_*` ids the sections already carry, which keeps a
  * scene name and the node id it selects derivable from each other.
  *
- * An entry carries no size and no viewport. A section computes its own height
- * from its content and publishes it with setSize on the last line of its
- * constructor, so the height does not exist until the builder has returned;
- * both callers read it there. A width in the entry would be a second answer to
- * a question the container already answers.
+ * An entry carries no size and no viewport. A section is laid out by stacks
+ * and hugs its content at the width it is given: the gallery fixes it, and
+ * the developer screen's column stretches it, so a resize reflows it. A width
+ * in the entry would be a second answer to a question the container already
+ * answers.
  */
 
-export interface DeveloperSectionOptions {
-	x: number;
-	y: number;
-	width: number;
-}
+export type { DeveloperSectionOptions };
 
-/**
- * Sections take positional (x, y, width) arguments; the builder wraps that in
- * the named form new code uses, so the list reads the same as the rest of the
- * codebase without rewriting the older constructors.
- */
 export type DeveloperSectionBuilder = (options: DeveloperSectionOptions) => Panel;
 
 export interface DeveloperSection {
@@ -72,112 +64,112 @@ export interface DeveloperSection {
 export const developerSections: readonly DeveloperSection[] = [
 	{
 		name: 'interactive-controls',
-		build: ({ x, y, width }) => new InteractiveControlsSection(x, y, width),
+		build: (options) => new InteractiveControlsSection(options),
 	},
 	{
 		name: 'style-guide',
-		build: ({ x, y, width }) => new StyleGuideSection(x, y, width),
+		build: (options) => new StyleGuideSection(options),
 	},
 	{
 		name: 'input-showcase',
-		build: ({ x, y, width }) => new InputShowcaseSection(x, y, width),
+		build: (options) => new InputShowcaseSection(options),
 	},
 	{
 		name: 'rectangles',
-		build: ({ x, y, width }) => new RectangleExamplesSection(x, y, width),
+		build: (options) => new RectangleExamplesSection(options),
 	},
 	{
 		name: 'buttons',
-		build: ({ x, y, width }) => new ButtonExamplesSection(x, y, width),
+		build: (options) => new ButtonExamplesSection(options),
 	},
 	{
 		name: 'text',
-		build: ({ x, y, width }) => new TextExamplesSection(x, y, width),
+		build: (options) => new TextExamplesSection(options),
 	},
 	{
 		name: 'primitive-shapes',
-		build: ({ x, y, width }) => new PrimitiveShapesSection(x, y, width),
+		build: (options) => new PrimitiveShapesSection(options),
 	},
 	{
 		name: 'nested-panels',
-		build: ({ x, y, width }) => new NestedPanelsSection(x, y, width),
+		build: (options) => new NestedPanelsSection(options),
 	},
 	// The spec's rendering fixtures (3.12, 4.7, 5.10). Paint order is built
 	// from components, so it proves the tree's ordering; clipping and shading
 	// are drawn through the draw API rather than built from components.
 	{
 		name: 'paint-order',
-		build: ({ x, y, width }) => new PaintOrderFixturesSection(x, y, width),
+		build: (options) => new PaintOrderFixturesSection(options),
 	},
 	{
 		name: 'clipping',
-		build: ({ x, y, width }) => new ClippingFixturesSection(x, y, width),
+		build: (options) => new ClippingFixturesSection(options),
 	},
 	{
 		name: 'shading',
-		build: ({ x, y, width }) => new ShadingFixturesSection(x, y, width),
+		build: (options) => new ShadingFixturesSection(options),
 	},
 	{
 		name: 'icons',
-		build: ({ x, y, width }) => new IconExamplesSection(x, y, width),
+		build: (options) => new IconExamplesSection(options),
 	},
 	// Chapter 10's layout fixture (R13.31), laid out by stacks throughout.
 	{
 		name: 'stack',
-		build: ({ x, y, width }) => new StackExamplesSection(x, y, width),
+		build: (options) => new StackExamplesSection(options),
 	},
 	// Chapter 12's component catalog (phase 5), one scene per component group.
 	{
 		name: 'button-variants',
-		build: ({ x, y, width }) => new ButtonVariantsSection(x, y, width),
+		build: (options) => new ButtonVariantsSection(options),
 	},
 	{
 		name: 'lists',
-		build: ({ x, y, width }) => new ListExamplesSection(x, y, width),
+		build: (options) => new ListExamplesSection(options),
 	},
 	{
 		name: 'checkboxes',
-		build: ({ x, y, width }) => new CheckboxExamplesSection(x, y, width),
+		build: (options) => new CheckboxExamplesSection(options),
 	},
 	{
 		name: 'radio-group',
-		build: ({ x, y, width }) => new RadioExamplesSection(x, y, width),
+		build: (options) => new RadioExamplesSection(options),
 	},
 	{
 		name: 'panels',
-		build: ({ x, y, width }) => new PanelExamplesSection(x, y, width),
+		build: (options) => new PanelExamplesSection(options),
 	},
 	{
 		name: 'scrolling',
-		build: ({ x, y, width }) => new ScrollExamplesSection(x, y, width),
+		build: (options) => new ScrollExamplesSection(options),
 	},
 	{
 		name: 'leaves',
-		build: ({ x, y, width }) => new LeafExamplesSection(x, y, width),
+		build: (options) => new LeafExamplesSection(options),
 	},
 	{
 		name: 'menus',
-		build: ({ x, y, width }) => new MenuExamplesSection(x, y, width),
+		build: (options) => new MenuExamplesSection(options),
 	},
 	{
 		name: 'meters',
-		build: ({ x, y, width }) => new MeterExamplesSection(x, y, width),
+		build: (options) => new MeterExamplesSection(options),
 	},
 	{
 		name: 'data-display',
-		build: ({ x, y, width }) => new DataDisplaySection(x, y, width),
+		build: (options) => new DataDisplaySection(options),
 	},
 	{
 		name: 'tree-view',
-		build: ({ x, y, width }) => new TreeExamplesSection(x, y, width),
+		build: (options) => new TreeExamplesSection(options),
 	},
 	// The combat screen's overlay effects held still (DDB-88)
 	{
 		name: 'combat-fx',
-		build: ({ x, y, width }) => new CombatFxSection(x, y, width),
+		build: (options) => new CombatFxSection(options),
 	},
 	{
 		name: 'slider-tabs',
-		build: ({ x, y, width }) => new SliderTabsSection(x, y, width),
+		build: (options) => new SliderTabsSection(options),
 	},
 ];

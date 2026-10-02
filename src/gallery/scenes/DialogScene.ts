@@ -22,9 +22,8 @@ export class DialogScene extends DeveloperSectionPanel {
 	private opened = false;
 
 	constructor({ x, y, width }: SceneFactoryOptions) {
-		super({ id: 'gallery_scene_dialog', x, y, width });
+		super({ id: 'gallery_scene_dialog', title: 'Dialog', contentHeight: CONTENT_HEIGHT, x, y, width });
 
-		this.addChild(new Text('Dialog', { style: { fontSize: 28, color: '#ffffff', fontWeight: 'bold' } }));
 		this.addChild(new Text('Modal: a scrim that takes every press, a focus scope, Escape and the X close it, a stray click does not.', {
 			y: 50,
 			style: { fontSize: 14, color: rgba(tokens.color.text_dim) },
@@ -55,8 +54,6 @@ export class DialogScene extends DeveloperSectionPanel {
 			this.opened = true;
 			this.openDialog();
 		};
-
-		this.fitContentHeight(CONTENT_HEIGHT);
 	}
 
 	protected onUnmount(): void {

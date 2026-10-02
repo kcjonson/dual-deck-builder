@@ -9,7 +9,7 @@ import type { TweenHandle } from '../../engine/animation/Animator';
 import { tokens } from '../../engine/theme/tokens';
 import { normalizeTransform, transformMatrix } from '../../engine/components/componentGeometry';
 import { Rect, concat, invert, transformPoint } from '../../engine/draw/geometry';
-import { Card as GameCard } from '../mechanics/Card';
+import { CardRarity, Card as GameCard } from '../mechanics/Card';
 
 /**
  * Card size variants for different UI contexts
@@ -57,6 +57,14 @@ export interface FanPose {
 
 const FACE_COLOR = '#2a2a3a';
 const DISABLED_FACE_COLOR = '#1a1a2a';
+const RARITY_COLORS: Record<CardRarity, string> = {
+	starter: '#666666',
+	common: '#ffffff',
+	uncommon: '#00aa00',
+	rare: '#0088ff',
+	legendary: '#ff8800',
+	signature: '#cc66ff',
+};
 const HOVER_OUTLINE = resolveColor('#ffffff');
 const SELECTED_OUTLINE = resolveColor('#00aaff');
 
@@ -133,7 +141,7 @@ export class Card extends Component {
 		this.driverNumber = driverNumber || null;
 
 		// The rarity rim, with the face inset inside it
-		this.rarityColor = Card.getRarityColor(data.rarity);
+		this.rarityColor = Card.colorForRarity(data.rarity);
 		const borderWidth = size === CardSize.MINI ? 2 : 4;
 		this.frameDraw = {
 			id: id ?? undefined,
@@ -227,7 +235,7 @@ export class Card extends Component {
 				y: dimensions.height - Math.floor(60 * scaleFactor),
 				style: {
 					fontSize: Math.floor(10 * scaleFactor),
-					color: Card.getRarityColor(data.rarity),
+					color: Card.colorForRarity(data.rarity),
 					fontWeight: 'bold',
 				},
 			});
@@ -550,26 +558,9 @@ export class Card extends Component {
 		return summary.replace(/\[(.+?)\]/g, '$1');
 	}
 
-	/**
-	 * Get color based on card rarity
-	 */
-	private static getRarityColor(rarity: string): string {
-		switch (rarity) {
-			case 'starter':
-				return '#666666';
-			case 'common':
-				return '#ffffff';
-			case 'uncommon':
-				return '#00aa00';
-			case 'rare':
-				return '#0088ff';
-			case 'legendary':
-				return '#ff8800';
-			case 'signature':
-				return '#cc66ff';
-			default:
-				return '#ffffff';
-		}
+	/** A rarity's colour: the card's rim and its rarity line, and the card showcase's group headings. */
+	public static colorForRarity(rarity: CardRarity): string {
+		return RARITY_COLORS[rarity];
 	}
 
 	/**

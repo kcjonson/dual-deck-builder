@@ -1,4 +1,4 @@
-import { DeveloperSectionPanel, wrappedLineCount } from './DeveloperSectionPanel';
+import { DeveloperSectionPanel, DeveloperSectionOptions } from './DeveloperSectionPanel';
 import { FlowWrap } from '../../ui/FlowWrap';
 import { ComponentOptions } from '../../../engine/components/Component';
 import { Rectangle } from '../../../engine/components/Rectangle';
@@ -12,10 +12,7 @@ type Rgba = [number, number, number, number];
 const CELL_WIDTH = 200;
 const CELL_GAP = 24;
 const ROW_GAP = 24;
-/** Room for a one-line 13 px caption; captions hug, this is only the section's height budget. */
-const CAPTION_HEIGHT = 20;
 const CAPTION_GAP = 6;
-const TITLE_HEIGHT = 50;
 const PAD = 8;
 
 const DISTRIBUTIONS: readonly Distribution[] = ['start', 'center', 'end', 'spaceBetween', 'spaceAround', 'spaceEvenly'];
@@ -36,27 +33,19 @@ function swatch(token: ColorToken, options: ComponentOptions): Rectangle {
  * absolute children placed by anchor. The section itself is laid out by
  * stacks: rows of captioned cells that wrap at the section's width, each
  * cell a column of a caption and a demo box with its own stack inside.
- *
- * Every box has a fixed size, so the section's height is known when the
- * constructor returns, as DeveloperScreen and the gallery host need.
  */
 export class StackExamplesSection extends DeveloperSectionPanel {
-	constructor(x: number, y: number, width: number) {
-		super({ id: 'dev_section_stack', x, y, width });
+	constructor(options: DeveloperSectionOptions = {}) {
+		super({ id: 'dev_section_stack', title: 'Stacks', ...options });
 
-		const title = new Text('Stacks', { style: { fontSize: 28, color: '#ffffff', fontWeight: 'bold' } });
-		this.addChild(title);
-
-		const content = new Stack({ id: 'dev_stack_rows', y: TITLE_HEIGHT, gap: ROW_GAP });
-		const rows: { name: string; box: number; cells: { cell: Stack; width: number }[] }[] = [
+		const content = new Stack({ id: 'dev_stack_rows', gap: ROW_GAP, widthMode: 'fill' });
+		const rows: { name: string; cells: Stack[] }[] = [
 			{
 				name: 'distribution',
-				box: 56,
 				cells: DISTRIBUTIONS.map((distribution) => this.cell(distribution, this.distributionBox(distribution))),
 			},
 			{
 				name: 'align',
-				box: 72,
 				cells: [
 					...(['start', 'center', 'end', 'stretch'] as const).map((crossAlign) => this.cell(
 						`crossAlign ${crossAlign}`,
@@ -68,7 +57,6 @@ export class StackExamplesSection extends DeveloperSectionPanel {
 			},
 			{
 				name: 'sizing',
-				box: 72,
 				cells: [
 					this.cell('fixed, hug, fill', this.modesBox()),
 					this.cell('fill weights 25 / 40 / 35', this.weightsBox()),
@@ -80,7 +68,6 @@ export class StackExamplesSection extends DeveloperSectionPanel {
 			},
 			{
 				name: 'absolute',
-				box: 96,
 				cells: [
 					this.cell('absolute: anchor and pivot', this.anchoredBox(), CELL_WIDTH * 2 + CELL_GAP),
 					this.cell('bands 25 / 40 / 20 / 5', this.bandsBox()),
@@ -91,27 +78,21 @@ export class StackExamplesSection extends DeveloperSectionPanel {
 
 		// Each row of cells wraps at the section's width, a line per row of
 		// cells where they all fit
-		let contentHeight = 0;
-		rows.forEach(({ name, box, cells }, index) => {
-			const row = new FlowWrap({ id: `dev_stack_row_${name}`, width: this.sectionContentWidth, gap: CELL_GAP, rowGap: ROW_GAP });
-			cells.forEach(({ cell }) => row.addChild(cell));
+		for (const { name, cells } of rows) {
+			const row = new FlowWrap({ id: `dev_stack_row_${name}`, widthMode: 'fill', gap: CELL_GAP, rowGap: ROW_GAP });
+			cells.forEach((cell) => row.addChild(cell));
 			content.addChild(row);
-			const lines = wrappedLineCount(cells.map(({ width }) => width), this.sectionContentWidth, CELL_GAP);
-			if (index > 0) contentHeight += ROW_GAP;
-			contentHeight += lines * (CAPTION_HEIGHT + CAPTION_GAP + box) + (lines - 1) * ROW_GAP;
-		});
+		}
 		this.addChild(content);
-
-		this.fitContentHeight(TITLE_HEIGHT + contentHeight);
 	}
 
 	/** A caption over a demo box, both hugging a column of the box's width. */
-	private cell(caption: string, demo: Stack, width = CELL_WIDTH): { cell: Stack; width: number } {
+	private cell(caption: string, demo: Stack, width = CELL_WIDTH): Stack {
 		const cell = new Stack({ gap: CAPTION_GAP });
 		cell.addChild(new Text(caption, { style: { fontSize: 13, color: rgba('text_dim') } }));
 		demo.setWidth(width);
 		cell.addChild(demo);
-		return { cell, width };
+		return cell;
 	}
 
 	/** A demo box: a fixed-size stack on the inset surface. */
@@ -229,9 +210,5 @@ export class StackExamplesSection extends DeveloperSectionPanel {
 		box.addChild(swatch('data', { width: 64, height: 12 }));
 		box.addChild(swatch('status_crit', { width: 18, height: 18, positioned: 'absolute', anchor: 'topRight' }));
 		return box;
-	}
-
-	public getHeight(): number {
-		return this.height;
 	}
 }

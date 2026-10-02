@@ -30,13 +30,13 @@ The row also gains padding equal to how far the edge card's corners reach past i
 
 Both follow DDB-90's pattern: a fill root stack with the title, a fill `ScrollContainer`, and Back, built in `onMount` and cleared in `onUnmount`, with Escape and Page Up/Down on the root and focus on Back. The showcase's cards flow through `FlowWrap` in groups (all cards, then each rarity) instead of being placed on a hand-computed grid. The showcase now uses the theme (`bg_base`, the display face) like the other menu screens.
 
-The developer screen's column is a `Stack` of the same section factories the gallery mounts as scenes, so each section is one gallery scene and the screen is just all of them in a column. Sections are built at the column's width when the screen mounts (the viewport's width less the margins and scrollbar), and `DeveloperSectionPanel` is fixed size on both axes, since its content is placed by hand and there is nothing for a parent stack to measure.
+The developer screen's column is a `Stack` of the same section factories the gallery mounts as scenes, so each section is one gallery scene and the screen is just all of them in a column. The column stretches each section to its width, and a section hugs its content, so a resize reflows the sections with nothing rebuilt; see [developer-sections-on-stacks.md](developer-sections-on-stacks.md) (DDB-235). This PR first built them at the mount-time width, fixed on both axes.
 
 ### Sections reflow at narrower widths
 
-Six sections assumed about 1,320 px of width: icons, stacks, paint order, scrolling, panels, and the clipping fixture. They now wrap: the stack, paint order, scrolling, and panel rows through `FlowWrap`, the icon badges under the bare glyphs instead of beside them, and the clipping fixture's nine cells two to a row instead of three. A section's height still has to be known when its constructor returns, so `wrappedLineCount` predicts FlowWrap's line breaks from the item widths. At 1440x882 in the gallery every one of them lays out as before except paint order, whose column gap went from 40 to 30 so its three columns fit the gallery's 1,334 px content width without wrapping.
+Six sections assumed about 1,320 px of width: icons, stacks, paint order, scrolling, panels, and the clipping fixture. They now wrap: the stack, paint order, scrolling, and panel rows through `FlowWrap`, the icon badges under the bare glyphs instead of beside them, and the clipping fixture's nine cells two to a row instead of three. At 1440x882 in the gallery every one of them lays out as before except paint order, whose column gap went from 40 to 30 so its three columns fit the gallery's 1,334 px content width without wrapping.
 
-The shading fixture still draws at fixed coordinates out to about 1,300 px. It has no children, so it lints clean, and at a narrow width its ink is clipped by the developer screen's scroll container. Reflowing it means reflowing every row of R5's fixtures and was left alone.
+The shading fixture drew at fixed coordinates out to about 1,300 px and was left alone here; DDB-236 split it into fixed-size tiles in FlowWraps, so it wraps at a narrow width too.
 
 ### A short window joins the gate: 1024x600
 

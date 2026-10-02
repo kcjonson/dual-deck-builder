@@ -1,11 +1,12 @@
 import { CatalogSection } from './CatalogSection';
+import type { DeveloperSectionOptions } from './DeveloperSectionPanel';
 import { Stack } from '../../../engine/components/Stack';
 import { tokens } from '../../../engine/theme/tokens';
 import { SegmentedControl } from '../../../engine/ui/SegmentedControl';
 import { Slider } from '../../../engine/ui/Slider';
 import { TabBar } from '../../../engine/ui/TabBar';
 
-const { control, space } = tokens;
+const { space } = tokens;
 
 const percent = (value: number): string => `${Math.round(value * 100)}%`;
 
@@ -20,8 +21,8 @@ const VALUE_WIDTH = 48;
  * tones, at a fixed segment width, and disabled.
  */
 export class SliderTabsSection extends CatalogSection {
-	constructor(x: number, y: number, width: number) {
-		super({ id: 'dev_section_slider_tabs', title: 'Sliders, Tabs, and Segments', x, y, width });
+	constructor(options: DeveloperSectionOptions = {}) {
+		super({ id: 'dev_section_slider_tabs', title: 'Sliders, Tabs, and Segments', ...options });
 
 		const sliders = new Stack({ gap: space.space_2 });
 		sliders.addChild(new Slider({ id: 'dev_slider_plain', value: 0.35, width: 320 }));
@@ -40,7 +41,7 @@ export class SliderTabsSection extends CatalogSection {
 			width: 420,
 		}));
 		sliders.addChild(new Slider({ id: 'dev_slider_disabled', label: 'Locked', value: 0.5, valueFormatter: percent, disabled: true, labelWidth: LABEL_WIDTH, valueWidth: VALUE_WIDTH, width: 420 }));
-		this.addRow('slider: continuous; stepped with label and value; log scale with a detent at 1x; disabled; shared column widths', sliders, control.control_h_md * 4 + space.space_2 * 3);
+		this.addRow('slider: continuous; stepped with label and value; log scale with a detent at 1x; disabled; shared column widths', sliders);
 
 		const bars = new Stack({ gap: space.space_4 });
 		bars.addChild(new TabBar({
@@ -62,7 +63,7 @@ export class SliderTabsSection extends CatalogSection {
 				{ id: 'loot', label: 'Loot' },
 			],
 		}));
-		this.addRow('tab bar: first enabled tab selected, a disabled tab; controlled, small', bars, control.control_h_md + control.control_h_sm + space.space_4);
+		this.addRow('tab bar: first enabled tab selected, a disabled tab; controlled, small', bars);
 
 		this.addRow('segmented: accent; data tone; fixed segment width; disabled', this.line([
 			new SegmentedControl({
@@ -103,6 +104,6 @@ export class SliderTabsSection extends CatalogSection {
 				],
 				selected: 'on',
 			}),
-		]), control.control_h_md + space.space_0_5 * 2);
+		]));
 	}
 }

@@ -16,7 +16,7 @@ function focusedIn(root: Component): Component {
 describe('ButtonExamplesSection focus-ring demo (DDB-222)', () => {
 	it('shows the ring from mount, before any update, so a capture cannot race it', () => {
 		const context = createTestContext();
-		const section = new ButtonExamplesSection(0, 0, 1360);
+		const section = new ButtonExamplesSection({ width: 1360 });
 		section.mount(context);
 		const button = focusedIn(section);
 		expect(button.focusVisible).toBe(true);
@@ -29,7 +29,7 @@ describe('ButtonExamplesSection focus-ring demo (DDB-222)', () => {
 		const scroller = new ScrollContainer({ x: 0, y: 0, width: 1440, height: 200, contentHeight: 3000 });
 		scroller.mount(context);
 		scroller.layout();
-		scroller.addChild(new ButtonExamplesSection(0, 2000, 1360));
+		scroller.addChild(new ButtonExamplesSection({ y: 2000, width: 1360 }));
 		const button = focusedIn(scroller);
 		expect(button.focusVisible).toBe(true);
 		expect(scroller.scrollPosition).toBe(0);

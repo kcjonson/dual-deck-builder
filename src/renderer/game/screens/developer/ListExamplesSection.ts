@@ -1,10 +1,9 @@
 import { CatalogSection } from './CatalogSection';
+import type { DeveloperSectionOptions } from './DeveloperSectionPanel';
 import { tokens } from '../../../engine/theme/tokens';
 import { Button } from '../../../engine/ui/Button';
 import { FocusGroup } from '../../../engine/ui/FocusGroup';
 import { ListRow } from '../../../engine/ui/ListRow';
-
-const ROW_HEIGHT = tokens.control.control_h_sm;
 
 /**
  * R12.8's list row inside R12.34's focus group: plain, selected (the wash
@@ -14,8 +13,8 @@ const ROW_HEIGHT = tokens.control.control_h_sm;
  * ghost buttons: a toolbar with no selection.
  */
 export class ListExamplesSection extends CatalogSection {
-	constructor(x: number, y: number, width: number) {
-		super({ id: 'dev_section_lists', title: 'Lists', x, y, width });
+	constructor(options: DeveloperSectionOptions = {}) {
+		super({ id: 'dev_section_lists', title: 'Lists', ...options });
 
 		const list = new FocusGroup({ id: 'dev_list', width: 300, selection: 'single', style: { backgroundColor: 'bg_inset' } });
 		const rows = [
@@ -35,7 +34,7 @@ export class ListExamplesSection extends CatalogSection {
 			toolbar.addChild(new Button(label, { icon: glyph, iconPosition: 'only', ghost: true, width: tokens.control.control_h_md }));
 		}
 
-		this.addRow('list: plain, selected, dim, indented, disabled, truncated', list, ROW_HEIGHT * rows.length);
-		this.addRow('toolbar: a horizontal focus group of ghost icon buttons', toolbar, tokens.control.control_h_md);
+		this.addRow('list: plain, selected, dim, indented, disabled, truncated', list);
+		this.addRow('toolbar: a horizontal focus group of ghost icon buttons', toolbar);
 	}
 }

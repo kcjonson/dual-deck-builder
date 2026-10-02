@@ -1,8 +1,9 @@
 import { CatalogSection } from './CatalogSection';
+import type { DeveloperSectionOptions } from './DeveloperSectionPanel';
 import { Stack } from '../../../engine/components/Stack';
 import { tokens } from '../../../engine/theme/tokens';
 import { Avatar } from '../../../engine/ui/Avatar';
-import { BADGE_HEIGHT, Badge } from '../../../engine/ui/Badge';
+import { Badge } from '../../../engine/ui/Badge';
 import { Divider } from '../../../engine/ui/Divider';
 import { KeyCap } from '../../../engine/ui/KeyCap';
 import { Stat } from '../../../engine/ui/Stat';
@@ -14,8 +15,8 @@ import { Stat } from '../../../engine/ui/Stat';
  * dividers plain and captioned.
  */
 export class DataDisplaySection extends CatalogSection {
-	constructor(x: number, y: number, width: number) {
-		super({ id: 'dev_section_data_display', title: 'Badges, Avatars, Stats', x, y, width });
+	constructor(options: DeveloperSectionOptions = {}) {
+		super({ id: 'dev_section_data_display', title: 'Badges, Avatars, Stats', ...options });
 
 		this.addRow('badges: default, accent, data, ok, warn, crit; outlined; with a dot', this.line([
 			new Badge({ id: 'dev_badge_default', label: 'Idle' }),
@@ -28,7 +29,7 @@ export class DataDisplaySection extends CatalogSection {
 			new Badge({ label: 'Draft', outline: true }),
 			new Badge({ id: 'dev_badge_dot', label: 'Online', tone: 'ok', dot: true, outline: true }),
 			new Badge({ id: 'dev_badge_dot_alone', label: '', tone: 'crit', dot: true }),
-		], tokens.space.space_2), BADGE_HEIGHT);
+		], tokens.space.space_2));
 
 		const avatarSize = 40;
 		this.addRow('avatars: mood crit, warn, ok; none; selected', this.line([
@@ -38,7 +39,7 @@ export class DataDisplaySection extends CatalogSection {
 			new Avatar({ seed: 'Scrap King', size: avatarSize }),
 			new Avatar({ id: 'dev_avatar_selected', seed: 'Ada Kestrel', size: avatarSize, mood: 0.6, selected: true }),
 			new Avatar({ seed: 'Wren', size: 24 }),
-		], tokens.space.space_4), avatarSize);
+		], tokens.space.space_4));
 
 		const stats = new Stack({ direction: 'horizontal', gap: tokens.space.space_10, crossAlign: 'end' });
 		stats.addChild(new Stat({ id: 'dev_stat_speed', label: 'Top speed', value: 142, unit: 'km/h', size: 'lg' }));
@@ -46,17 +47,17 @@ export class DataDisplaySection extends CatalogSection {
 		stats.addChild(new Stat({ label: 'Hull', value: 0.2, size: 'md', tone: 'auto' }));
 		stats.addChild(new Stat({ label: 'Scrap', value: 1240, size: 'sm' }));
 		stats.addChild(new Stat({ label: 'Turn', value: 7, size: 'sm', align: 'right', width: 80 }));
-		this.addRow('stats: lg with unit, md toned, auto, sm, right-aligned', stats, 64);
+		this.addRow('stats: lg with unit, md toned, auto, sm, right-aligned', stats);
 
 		this.addRow('key caps', this.line([
 			new KeyCap({ label: 'R' }),
 			new KeyCap({ label: 'Esc' }),
 			new KeyCap({ label: 'Space', size: 'md' }),
-		], tokens.space.space_2), 24);
+		], tokens.space.space_2));
 
 		const dividers = new Stack({ direction: 'vertical', gap: tokens.space.space_4, width: 480, crossAlign: 'stretch' });
 		dividers.addChild(new Divider({ id: 'dev_divider_plain' }));
 		dividers.addChild(new Divider({ id: 'dev_divider_caption', caption: 'Escorts' }));
-		this.addRow('dividers: plain and captioned', dividers, 40);
+		this.addRow('dividers: plain and captioned', dividers);
 	}
 }

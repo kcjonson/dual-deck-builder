@@ -1,4 +1,5 @@
 import { CatalogSection } from './CatalogSection';
+import type { DeveloperSectionOptions } from './DeveloperSectionPanel';
 import { Container } from '../../../engine/components/Container';
 import { Image, ImageFit } from '../../../engine/components/Image';
 import { Line } from '../../../engine/components/Line';
@@ -41,8 +42,8 @@ export class LeafExamplesSection extends CatalogSection {
 	private readonly images: Image[] = [];
 	private art: TextureHandle | null = null;
 
-	constructor(x: number, y: number, width: number) {
-		super({ id: 'dev_section_leaves', title: 'Lines and Images', x, y, width });
+	constructor(options: DeveloperSectionOptions = {}) {
+		super({ id: 'dev_section_leaves', title: 'Lines and Images', ...options });
 
 		const lines = new Container({ id: 'dev_lines', width: 560, height: 60 });
 		const tones: ColorToken[] = ['text', 'accent', 'data', 'status_ok', 'status_crit', 'text_dim'];
@@ -58,14 +59,14 @@ export class LeafExamplesSection extends CatalogSection {
 				style: { color: tones[index] },
 			}));
 		});
-		this.addRow('line: 1, 2, 3, 4, 6, 8 px; butt and round caps alternate', lines, 60);
+		this.addRow('line: 1, 2, 3, 4, 6, 8 px; butt and round caps alternate', lines);
 
 		const fits: ImageFit[] = ['fill', 'contain', 'cover', 'none'];
 		const tiles = fits.map((fit) => this.image(`dev_image_${fit}`, { fit }));
 		tiles.push(this.image('dev_image_frame', { sourceRect: { x: 16, y: 0, width: 16, height: 16 }, fit: 'contain' }));
 		tiles.push(this.image('dev_image_tint', { tint: 'accent', fit: 'contain' }));
 		tiles.push(new Image({ id: 'dev_image_placeholder', width: TILE_WIDTH, height: TILE_HEIGHT, style: { backgroundColor: 'bg_inset' } }));
-		this.addRow('image: fill, contain, cover, none; frame 2 of 2; tinted; placeholder', this.line(tiles, tokens.space.space_4), TILE_HEIGHT);
+		this.addRow('image: fill, contain, cover, none; frame 2 of 2; tinted; placeholder', this.line(tiles, tokens.space.space_4));
 	}
 
 	protected onMount(context: MountContext): void {

@@ -1,5 +1,5 @@
 import { SceneHost } from './SceneHost';
-import type { GalleryScene } from './registry';
+import type { GalleryScene, SceneFactoryOptions } from './registry';
 import { Container } from '../renderer/engine/components/Container';
 import type { Component } from '../renderer/engine/components/Component';
 import { Panel } from '../renderer/engine/ui/Panel';
@@ -43,10 +43,9 @@ function findByType(root: Component, type: string): Component | null {
 
 /**
  * Stands in for a developer section: a Panel that builds interactive children
- * and only then announces how tall it turned out, which is the shape all eight
- * real sections have and the reason a registry entry cannot carry a size.
+ * and only then sizes itself, so a registry entry cannot carry a size.
  */
-function interactiveScene(name: string, { x, y, width }: { x: number; y: number; width: number }): Panel {
+function interactiveScene(name: string, { x = 0, y = 0, width = 0 }: SceneFactoryOptions): Panel {
 	const panel = new Panel({ id: `scene_${name}`, width, height: 10, layout: 'free', flush: true });
 	panel.setPosition(x, y);
 	panel.addChild(new Button('press me', { id: `${name}_button`, width: 120, height: 40 }));

@@ -4,7 +4,6 @@ import { Stack } from '../../../engine/components/Stack';
 import { Text } from '../../../engine/components/Text';
 import { Button } from '../../../engine/ui/Button';
 import { ScrollContainer } from '../../../engine/ui/ScrollContainer';
-import { SCROLLBAR_GUTTER } from '../../../engine/ui/Scrollbar';
 import { tokens } from '../../../engine/theme/tokens';
 
 // The sections are defined once, in sections.ts, so this screen and the
@@ -21,9 +20,10 @@ const BACK_WIDTH = 200;
 /**
  * Every gallery scene in one scrolling column, reachable in game with F12:
  * a root stack with the title, a scroll container holding the sections, and
- * Back. Each section is the same factory the gallery mounts as a scene, built
- * at the column's width when the screen mounts. Focus starts on Back;
- * Page Up and Page Down scroll and Escape returns to the menu.
+ * Back. Each section is the same factory the gallery mounts as a scene,
+ * stretched to the column's width, so a resize reflows the sections through
+ * layout with nothing rebuilt. Focus starts on Back; Page Up and Page Down
+ * scroll and Escape returns to the menu.
  */
 export class DeveloperScreen extends Screen {
 	private readonly stack: Stack;
@@ -37,7 +37,7 @@ export class DeveloperScreen extends Screen {
 			crossAlign: 'center',
 			gap: tokens.space.space_4,
 			padding: { top: tokens.space.space_4, bottom: tokens.space.space_4 },
-			style: { backgroundColor: '#262626' },
+			style: { backgroundColor: 'bg_base' },
 		});
 		super('developerScreen', { root });
 		this.stack = root;
@@ -47,24 +47,15 @@ export class DeveloperScreen extends Screen {
 		this.stack.addChild(new Text('Developer Tools', {
 			id: 'dev_title',
 			style: {
-				fontSize: 48,
-				color: '#ffffff',
-				textAlign: 'center',
+				fontRole: 'display',
+				fontSize: 'fs_4xl',
+				color: 'text_bright',
 			},
-			lineHeight: 1.2,
 			wrap: 'none',
 		}));
 
-		// Sections lay themselves out from the width they are built at, so
-		// they take the column's as the screen mounts: the viewport's (the
-		// fill root has not been laid out yet), less the margins and the
-		// scrollbar the column is sure to need
-		const viewportWidth = this.context.viewport.logical.width;
-		const sectionWidth = Math.max(0, viewportWidth - SECTION_MARGIN * 2 - SCROLLBAR_GUTTER);
-		const column = new Stack({ id: 'dev_sections', gap: SECTION_GAP, padding: SECTION_MARGIN });
-		for (const definition of developerSections) {
-			column.addChild(definition.build({ x: 0, y: 0, width: sectionWidth }));
-		}
+		const column = new Stack({ id: 'dev_sections', gap: SECTION_GAP, padding: SECTION_MARGIN, crossAlign: 'stretch' });
+		for (const definition of developerSections) column.addChild(definition.build({}));
 		this.scroller = new ScrollContainer({
 			id: 'dev_scroll',
 			widthMode: 'fill',

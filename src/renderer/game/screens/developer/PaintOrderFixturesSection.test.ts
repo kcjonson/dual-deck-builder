@@ -15,7 +15,7 @@ let commands: DrawCommand[];
 
 beforeAll(() => {
 	const { api, backend } = createMeasuringDrawApi();
-	const section = new PaintOrderFixturesSection(0, 0, 1360);
+	const section = new PaintOrderFixturesSection({ width: 1360 });
 	section.mount(createTestContext({ draw: api }));
 	api.beginFrame({ viewport: { width: 1440, height: 882 }, ratio: 1 });
 	renderTree(section, api);

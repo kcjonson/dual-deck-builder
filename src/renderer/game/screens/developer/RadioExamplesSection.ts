@@ -1,4 +1,5 @@
 import { CatalogSection } from './CatalogSection';
+import type { DeveloperSectionOptions } from './DeveloperSectionPanel';
 import { tokens } from '../../../engine/theme/tokens';
 import { RadioGroup } from '../../../engine/ui/RadioGroup';
 
@@ -8,9 +9,8 @@ import { RadioGroup } from '../../../engine/ui/RadioGroup';
  * arrows move the selection.
  */
 export class RadioExamplesSection extends CatalogSection {
-	constructor(x: number, y: number, width: number) {
-		super({ id: 'dev_section_radio_group', title: 'Radio Groups', x, y, width });
-		const md = tokens.control.control_h_md;
+	constructor(options: DeveloperSectionOptions = {}) {
+		super({ id: 'dev_section_radio_group', title: 'Radio Groups', ...options });
 
 		const difficulty = new RadioGroup({
 			id: 'dev_radio_difficulty',
@@ -22,7 +22,7 @@ export class RadioExamplesSection extends CatalogSection {
 				{ label: 'Brutal', value: 'brutal' },
 			],
 		});
-		this.addRow('vertical, with a selection and a disabled option', difficulty, md * 4 + tokens.space.space_1 * 3);
+		this.addRow('vertical, with a selection and a disabled option', difficulty);
 
 		const quality = new RadioGroup({
 			id: 'dev_radio_quality',
@@ -34,6 +34,6 @@ export class RadioExamplesSection extends CatalogSection {
 				{ label: 'High', value: 'high' },
 			],
 		});
-		this.addRow('horizontal, nothing selected', quality, md);
+		this.addRow('horizontal, nothing selected', quality);
 	}
 }
