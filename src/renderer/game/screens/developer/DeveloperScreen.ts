@@ -23,7 +23,8 @@ const BACK_WIDTH = 200;
  * a root stack with the title, a scroll container holding the sections, and
  * Back. Each section is the same factory the gallery mounts as a scene, built
  * at the column's width when the screen mounts. Focus starts on Back;
- * Page Up and Page Down scroll and Escape returns to the menu.
+ * Page Up and Page Down scroll, and Escape and Back return to the menu with
+ * focus on whatever had it there, Developer Tools when the menu opened it.
  */
 export class DeveloperScreen extends Screen {
 	private readonly stack: Stack;
@@ -98,6 +99,6 @@ export class DeveloperScreen extends Screen {
 	}
 
 	private back(): void {
-		ScreenManager.navigate('mainMenuScreen');
+		ScreenManager.navigate('mainMenuScreen', undefined, { restoreFocus: true });
 	}
 }

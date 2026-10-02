@@ -72,8 +72,7 @@ function flushPromises(): Promise<void> {
 	return new Promise(resolve => setTimeout(resolve, 0));
 }
 
-async function mountScreen(): Promise<{ screen: DriverSelectionScreen; left: DriverPanel; right: DriverPanel; startRun: Button }> {
-	const screen = new DriverSelectionScreen();
+async function mountScreen(screen = new DriverSelectionScreen()): Promise<{ screen: DriverSelectionScreen; left: DriverPanel; right: DriverPanel; startRun: Button }> {
 	screen.mount(context);
 	await flushPromises();
 	context.frame.layout();
@@ -210,7 +209,7 @@ describe('DriverSelectionScreen: one driver per slot', () => {
 		expect(navigate).not.toHaveBeenCalled();
 
 		press('Escape');
-		expect(navigate).toHaveBeenCalledWith('mainMenuScreen');
+		expect(navigate).toHaveBeenCalledWith('mainMenuScreen', undefined, { restoreFocus: true });
 	});
 
 	it('tabs in reading order: Back, the two driver Selects, START RUN (R9.18)', async () => {
@@ -235,11 +234,23 @@ describe('DriverSelectionScreen: one driver per slot', () => {
 		expect(screen.getSelectedDrivers().driver2?.archetype).toBe(rosterDrivers[0].archetype);
 
 		screen.unmount();
-		screen.mount(context);
-		await flushPromises();
+		const remounted = await mountScreen(screen);
 
+		expect(remounted.left).not.toBe(left);
 		expectDifferentDrivers(screen);
-		expect(left.getSelectedDriver()?.archetype).toBe(rosterDrivers[0].archetype);
+		expect(remounted.left.getSelectedDriver()?.archetype).toBe(rosterDrivers[0].archetype);
+	});
+
+	it('builds nothing until it mounts, and takes its Escape with it when it unmounts', async () => {
+		const screen = new DriverSelectionScreen();
+		expect(screen.root.getChildren()).toHaveLength(0);
+
+		await mountScreen(screen);
+		expect(screen.root.ownHotkeys?.has('Escape')).toBe(true);
+
+		screen.unmount();
+		expect(screen.root.ownHotkeys?.has('Escape') ?? false).toBe(false);
+		expect(screen.root.getChildren()).toHaveLength(0);
 	});
 
 	it('a resize lays the same panels out again and keeps both drivers, never rebuilding', async () => {

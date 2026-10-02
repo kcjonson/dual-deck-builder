@@ -6,6 +6,19 @@ This document contains the chronological log of completed development tasks for 
 
 **Date correction (2026-08-22):** the repo's first commit is 2025-05-17, but many entries below carry dates in December 2024 or January 2025 — the AI that wrote them used its assumed date instead of the real one. Entries dated 2025-07-03 and 2025-07-02 have been corrected from "2025-01-03"/"2025-01-02" (verified against git history). Remaining Dec 2024 / Jan 2025 dates are wrong by roughly six months; the real work happened May–July 2025. Trust git history over these dates.
 
+## Escape on every screen's root, focus back to the menu opener (2026-10-02)
+
+**What landed:** DDB-225 and DDB-238 (DDB-55), one PR.
+
+- `Game`'s document keydown listener is gone. Every screen already registered Escape on its root; F12 moved to the dispatcher's scene table and F5 to the developer overlay root's own table, so both come through `PointerAdapter` (a composing keydown fires neither, R15.39), pause drops them, and a transition holds F12. Held keys don't repeat the toggles.
+- The dispatcher searches diagnostic-tier roots first for hotkeys, ahead of any modal, so F5 stays live under a transition or a dialog as it did before.
+- `DriverSelectionScreen` builds its page in `onMount`, clears it and unregisters Escape in `onUnmount`, and drops a roster load that finishes after it left. Back and Escape go to the menu with `restoreFocus`.
+- Card Showcase and Developer Tools go back with `restoreFocus`, so the menu lands on the button that opened them.
+- `ScreenManager` reads and deletes a screen's remembered focus whenever it mounts that screen, so a leave the recorder skipped can't restore an older id.
+- R12.20 lists `scrollByPages(n)` and its page distance. The Settings doc comment is rewrapped.
+
+**How:** `Game.test.ts` drives F5 and F12 through the dispatcher, under a modal root, and through a real `PointerAdapter` with composing keydowns; a dispatcher test for the diagnostic root above a modal; `ScreenManager.test.ts` round trips to all four menu screens by keyboard (ring shown) and Settings by pointer (no ring), a disabled opener, and the one-shot memory; driver selection tests for the onMount build and Escape unregistering. Played every screen's Escape through `window.__dev.input` in a browser.
+
 ## Settings and credits polish (2026-10-02)
 
 **What landed:** DDB-232 (DDB-55), the open items from the #126 review.
