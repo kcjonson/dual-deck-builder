@@ -24,3 +24,5 @@ local_fire_department
 flash_on
 my_location
 gps_fixed
+style
+exit_to_app
