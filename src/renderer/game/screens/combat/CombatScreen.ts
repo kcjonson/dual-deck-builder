@@ -7,7 +7,7 @@ import { PlayerHandLayer } from './PlayerHandLayer';
 import { LOG_KEY, TopBarLayer } from './TopBarLayer';
 import { EndTurnColumn } from './EndTurnColumn';
 import { CombatLogLayer } from './CombatLogLayer';
-import { TurnPhaseDisplay, CombatPhase } from './TurnPhaseDisplay';
+import { TurnBanner } from './TurnBanner';
 import { CombatModel } from './CombatModel';
 import {
 	DOCK_HEIGHT,
@@ -29,7 +29,7 @@ import { RoadLane, RoadRow } from '../../mechanics/Road';
 import { Team, TeamType } from '../../mechanics/Team';
 import { Battle, BattleState, BattleMessage, HitEvent } from '../../mechanics/Battle';
 import { Card } from '../../mechanics/Card';
-import { IntentType } from '../../mechanics/Intent';
+import { Intent, IntentType, formatIntentValue } from '../../mechanics/Intent';
 import { CardLoader } from '../../core/CardLoader';
 import { DriverLoader } from '../../core/DriverLoader';
 import { BattleResultData } from '../battleResult/BattleResultScreen';
@@ -38,7 +38,6 @@ import type { UiPointerEvent } from '../../../engine/input/events';
 
 /** Behind the stage, to the screen's edges (the mock's `.g-bg`). */
 const SCREEN_BACKGROUND: Rgba = [0.0824, 0.0863, 0.0941, 1];
-const BANNER_INSET = 12;
 /** What a hand card carries through a drag (R9.12's `data`). */
 interface HandCardDrag {
 	kind: 'hand-card';
@@ -73,7 +72,7 @@ export class CombatScreen extends Screen {
 	private handLayer!: PlayerHandLayer;
 	private endTurnColumn!: EndTurnColumn;
 	private combatLogLayer!: CombatLogLayer;
-	private turnPhaseDisplay!: TurnPhaseDisplay;
+	private turnBanner!: TurnBanner;
 	private fx!: CombatFxLayer;
 	
 	// Combat UI model
@@ -104,6 +103,8 @@ export class CombatScreen extends Screen {
 	private unsubscribers: (() => void)[] = [];
 	private modelUnsubscribers: (() => void)[] = [];
 	private dragUnsubscribe: (() => void) | null = null;
+	/** Cards already sent to a pile by `handDiscarded`, which the next deal won't fly again. */
+	private readonly flownCards = new Set<Card>();
 
 	// Bumped on every mount and unmount, so a load that finishes after its
 	// mount has ended knows to stop
@@ -171,7 +172,7 @@ export class CombatScreen extends Screen {
 
 			// Initial UI update is handled by battleStarted event
 			
-			this.turnPhaseDisplay.phase = this.battle.isPlayerTurn ? CombatPhase.PLAYER_TURN : CombatPhase.ENEMY_TURN;
+			this.turnBanner.announce(this.battle.isPlayerTurn ? 'player' : 'enemy');
 			
 			// Log combat start
 			this.combatLog.addEntry('Combat Started!', CombatLogType.INFO);
@@ -198,16 +199,16 @@ export class CombatScreen extends Screen {
 			this.battle.on('stateChanged', (state: BattleState) => {
 				const previousTurn = this.shownTurn;
 				this.updateUIFromBattle();
-				
-				this.turnPhaseDisplay.phase = state.isPlayerTurn ? 
-					CombatPhase.PLAYER_TURN : 
-					!state.isPlayerTurn && !state.battleOver ? CombatPhase.ENEMY_TURN :
-					state.battleOver ? CombatPhase.COMBAT_END :
-					CombatPhase.COMBAT_START;
-				
-				// Log turn changes
-				if (state.turn > previousTurn && state.isPlayerTurn) {
+
+				// A new turn of yours: logged, and the banner says so once the
+				// enemy's has had its turn on screen
+				// The hand dealt for the new turn has been shown, so a card the
+				// end of the last one flew and the draw dealt straight back is
+				// an ordinary hand card again
+				this.flownCards.clear();
+				if (state.turn > previousTurn && state.isPlayerTurn && !state.battleOver) {
 					this.combatLog.addEntry(`Turn ${state.turn} - Player turn started`, CombatLogType.TURN);
+					this.turnBanner.announce('player');
 				}
 			})
 		);
@@ -267,6 +268,7 @@ export class CombatScreen extends Screen {
 		this.unsubscribers.push(
 			this.battle.on('turnEnded', (event: { team: string }) => {
 				if (event.team === 'player') {
+					this.turnBanner.announce('enemy');
 					this.combatLog.addEntry('Player turn ended', CombatLogType.TURN);
 					this.combatLog.addEntry('Enemy turn started', CombatLogType.TURN);
 				}
@@ -281,6 +283,11 @@ export class CombatScreen extends Screen {
 			})
 		);
 		
+		// The end of the turn sends each driver's hand to the discard (DDB-37)
+		for (const driver of this.playerDrivers) {
+			this.unsubscribers.push(driver.on('handDiscarded', (cards: readonly Card[]) => this.flyDiscardedHand(driver, cards)));
+		}
+
 		// Subscribe to player team changes
 		if (this.playerTeam) {
 			this.unsubscribers.push(
@@ -417,20 +424,11 @@ export class CombatScreen extends Screen {
 			// Pass the Vehicle[] directly
 			this.enemyLayer.setVehicles(this.enemyTeam.vehicles);
 			
-			// Show each raider's first planned intent until the intent pills land (DDB-33)
+			// Every raider's plan, two markers and then "+N", until the intent
+			// pills land (DDB-139)
 			const intents = this.battle?.getAllIntents();
 			this.enemyTeam.vehicles.forEach(vehicle => {
-				const [planned] = intents?.get(vehicle) ?? [];
-				if (!planned) {
-					this.enemyLayer.clearVehicleIntent(vehicle.id);
-					return;
-				}
-				const intent: EnemyIntent = {
-					type: planned.type === IntentType.ATTACK ? 'attack' : planned.type === IntentType.DEFEND ? 'defend' : 'special',
-					value: planned.amount ?? undefined,
-					description: planned.description
-				};
-				this.enemyLayer.setVehicleIntent(vehicle.id, intent);
+				this.enemyLayer.setVehicleIntents(vehicle.id, (intents?.get(vehicle) ?? []).map(intent => this.intentMarkerOf(intent)));
 			});
 		}
 
@@ -438,6 +436,27 @@ export class CombatScreen extends Screen {
 		if (this.playerTeam) {
 			// Pass the Vehicle[] directly
 			this.battlefieldLayer.setVehicles(this.playerTeam.vehicles);
+		}
+	}
+
+	/** A planned intent as its marker shows it, with the tooltip's line. */
+	private intentMarkerOf(intent: Intent): EnemyIntent {
+		const value = formatIntentValue(intent);
+		const target = intent.target === 'both'
+			? 'both of your vehicles'
+			: this.playerTeam?.vehicles.find(vehicle => vehicle.id === intent.target)?.name ?? null;
+		const on = target ? ` on ${target}` : '';
+		switch (intent.type) {
+			case IntentType.ATTACK:
+				return { type: 'attack', value: intent.amount ?? undefined, valueText: value, description: intent.description, detail: `${value} damage${on}` };
+			case IntentType.DEFEND:
+				return { type: 'defend', value: intent.amount ?? undefined, description: intent.description, detail: `${value} armor` };
+			case IntentType.DEBUFF:
+				return { type: 'debuff', description: intent.description, detail: `${value}${on}` };
+			case IntentType.BUFF:
+				return { type: 'buff', description: intent.description, detail: value };
+			default:
+				return { type: 'special', description: intent.description, detail: 'Hidden' };
 		}
 	}
 
@@ -511,16 +530,18 @@ export class CombatScreen extends Screen {
 		});
 		road.addChild(this.battlefieldLayer);
 
-		// Centred on the road's height at its left edge, whatever fills the
-		// road, so the slot grid (DDB-134) can replace the two bands under it
-		this.turnPhaseDisplay = new TurnPhaseDisplay({
+		// Across the middle of the road and only the road (section 6), over
+		// the vehicles and the log drawer, whatever fills the road, so the
+		// slot grid (DDB-134) can replace the two bands under it
+		this.turnBanner = new TurnBanner({
 			id: 'combat_turn_banner',
 			positioned: 'absolute',
-			anchor: 'left',
-			x: BANNER_INSET,
-			zIndex: 1,
+			anchor: 'center',
+			widthMode: 'fill',
+			layer: 'overlay',
+			zIndex: 2,
 		});
-		road.addChild(this.turnPhaseDisplay);
+		road.addChild(this.turnBanner);
 
 		this.combatLogLayer = new CombatLogLayer({
 			id: 'combat_log',
@@ -597,6 +618,19 @@ export class CombatScreen extends Screen {
 		});
 		this.dragUnsubscribe = this.context.drag.onDraggingChange((dragging) => this.dragChanged(dragging));
 
+		// A card that went to its driver's discard pile flies there (DDB-37);
+		// an exhausted one, or one taken out of the deck, just goes. The hand
+		// hears of it after the next draw, which may already have shuffled
+		// the discard back into the deck, so the deck counts as the pile too.
+		// One played by a drop leaves from where it was dropped.
+		this.handLayer.setOnCardsLeave((leaving) => {
+			for (const { card, element, seat } of leaving) {
+				if (this.flownCards.delete(card)) continue;
+				if (!seat || !this.playerDrivers.some(driver => this.wentToDiscard(driver, card))) continue;
+				this.fx.flyToDiscard({ card: element, pile: this.handLayer.pilesOf(seat), droppedAtReticle: this.fx.aimingFrom === element });
+			}
+		});
+
 		// Escape cancels targeting and L or F6 toggles the combat log, from the
 		// screen root's hotkey table, which keys reach after bubbling out of
 		// whatever is focused (R9.15)
@@ -613,6 +647,28 @@ export class CombatScreen extends Screen {
 		// Removed global click handler - it was interfering with vehicle targeting
 	}
 	
+	/**
+	 * A driver's whole hand going to the discard at the end of the turn,
+	 * told before it leaves the hand, so every card flies from its place
+	 * even when the draw that follows shuffles the pile into the deck and
+	 * deals some of the same cards straight back.
+	 */
+	private flyDiscardedHand(driver: Driver, cards: readonly Card[]): void {
+		const seat = (this.playerDrivers.indexOf(driver) + 1) as 1 | 2;
+		if (seat !== 1 && seat !== 2) return;
+		for (const card of cards) {
+			const element = this.handLayer.getCardElementByCard(card);
+			if (!element?.isMounted) continue;
+			this.flownCards.add(card);
+			this.fx.flyToDiscard({ card: element, pile: this.handLayer.pilesOf(this.handLayer.seatOf(card) ?? seat) });
+		}
+	}
+
+	/** In the discard, or shuffled from it back into the deck; not exhausted, not removed. */
+	private wentToDiscard(driver: Driver, card: Card): boolean {
+		return driver.discard.includes(card) || (driver.deck?.cards.includes(card) ?? false);
+	}
+
 	/**
 	 * Set up combat model listeners
 	 */

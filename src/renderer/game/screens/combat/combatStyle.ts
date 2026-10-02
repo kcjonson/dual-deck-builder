@@ -29,6 +29,12 @@ export const TOP_BAR_BACKGROUND = hexRgba('#0e0f10');
 export const DOCK_GRADIENT: readonly [Rgba, Rgba] = [hexRgba('#131416'), hexRgba('#0c0d0e')];
 export const DRIVER_TAB_BACKGROUND = hexRgba('#17191b');
 
+/** The mock's `--bone`: End Turn's face, the player's banner type, a miss. */
+export const BONE = '#e9e4d6';
+
 /** The mock's `.dmgpop` for a hit; a miss says so in bone. */
 export const DAMAGE_NUMBER_COLOR = '#ff8a78';
-export const MISS_NUMBER_COLOR = '#e9e4d6';
+export const MISS_NUMBER_COLOR = BONE;
+
+/** The player's turn banner: a neutral dark band, since red is the raiders'. */
+export const TURN_BANNER_PLAYER_BAND = hexRgba('#202326', 0.92);

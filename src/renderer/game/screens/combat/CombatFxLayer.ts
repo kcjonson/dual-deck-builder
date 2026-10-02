@@ -8,6 +8,8 @@ import type { DrawCircleOptions, DrawPolygonOptions } from '../../../engine/draw
 import type { RGBA, Rect, Vec2 } from '../../../engine/draw/geometry';
 import { resolveColor } from '../../../engine/style/styleObject';
 import { DAMAGE_NUMBER_COLOR, MISS_NUMBER_COLOR } from './combatStyle';
+import { DiscardFlight } from './DiscardFlight';
+import type { Card as UICard } from '../../ui/Card';
 
 /** The mock's targeting line: round dots 5 across every 12, and a head 16 long. */
 const DOT_RADIUS = 2.5;
@@ -41,6 +43,8 @@ const NUMBER_STACK_STEP = 28;
 /** Down from the top of the vehicle's box, where the number starts. */
 const NUMBER_INSET = 8;
 const NUMBER_Z_INDEX = 2;
+/** In from the right end of a driver's pile counts, to the discard count. */
+const PILE_COUNT_INSET = 10;
 const NUMBER_SHADOW = { color: resolveColor('#000000'), offset: { x: 0, y: 2 }, blur: 4 };
 const easeOutQuad = (progress: number): number => 1 - (1 - progress) * (1 - progress);
 
@@ -51,6 +55,7 @@ const easeOutQuad = (progress: number): number => 1 - (1 - progress) * (1 - prog
  */
 export class AimReticle extends Component {
 	private readonly centrePoint: Vec2 = { x: RETICLE_SIZE / 2, y: RETICLE_SIZE / 2 };
+	private readonly aimed: Vec2 = { x: 0, y: 0 };
 	private readonly ring: DrawCircleOptions = {
 		center: this.centrePoint,
 		radius: RETICLE_SIZE / 2 - RETICLE_RING / 2,
@@ -68,6 +73,22 @@ export class AimReticle extends Component {
 	/** Where the pointer is, in the reticle's own space. */
 	public get centre(): Vec2 {
 		return this.centrePoint;
+	}
+
+	/**
+	 * Where the drag service last moved it, in its parent's space: the drop
+	 * point, read during the drop, after the service has already put the
+	 * ghost back.
+	 */
+	public get lastAim(): Vec2 {
+		return this.aimed;
+	}
+
+	public setDragOffset(offset: Vec2 | null): void {
+		super.setDragOffset(offset);
+		if (!offset) return;
+		this.aimed.x = this.x + offset.x + this.centrePoint.x;
+		this.aimed.y = this.y + offset.y + this.centrePoint.y;
 	}
 
 	public get resolvedColors(): ResolvedColors {
@@ -283,6 +304,7 @@ export class CombatFxLayer extends Container {
 	private readonly arrow: TargetingArrow;
 	/** Numbers still rising, per anchor, so a second hit stacks under the first. */
 	private readonly risingPerAnchor = new Map<string, number>();
+	private flights = 0;
 
 	constructor(options: ContainerOptions = {}) {
 		super({ layer: 'overlay', pointerEvents: 'none', ...options });
@@ -325,9 +347,67 @@ export class CombatFxLayer extends Container {
 		return this.arrow.source !== null;
 	}
 
+	/** The card the line runs from; through a drop, until the drag service says the drag is over. */
+	public get aimingFrom(): Component | null {
+		return this.arrow.source;
+	}
+
 	/** The numbers on screen now, oldest first. */
 	public get floatingNumbers(): FloatingNumber[] {
 		return this.getChildren().filter((child): child is FloatingNumber => child instanceof FloatingNumber);
+	}
+
+	/**
+	 * Sends a copy of `card` from where it sat in the hand, or from the
+	 * reticle when it was dropped there, to the pile `pile` counts, unless
+	 * reduced motion is on. Read from the hand before the hand deals again,
+	 * so `card` is still in place.
+	 */
+	public flyToDiscard({ card, pile, droppedAtReticle = false }: { card: UICard; pile: Component; droppedAtReticle?: boolean }): void {
+		const animator = this.context?.animator;
+		if (!animator || animator.reducedMotion || !this.isMounted) return;
+		const centre = { x: 0, y: 0 };
+		const across = { x: 0, y: 0 };
+		const to = { x: 0, y: 0 };
+		if (!this.mapIn(card, card.width / 2, card.height / 2, centre)) return;
+		if (!this.mapIn(card, card.width / 2 + 1, card.height / 2, across)) return;
+		// The right end of "DISCARD n", where the count is
+		if (!this.mapIn(pile, Math.max(0, pile.width - PILE_COUNT_INSET), pile.height / 2, to)) return;
+		const dx = across.x - centre.x;
+		const dy = across.y - centre.y;
+		let rotate = Math.atan2(dy, dx);
+		// A card played by a drop leaves from where it landed, upright: the
+		// card stayed lifted in the hand while the reticle went to the target,
+		// so the target is where the player last aimed it
+		if (droppedAtReticle) {
+			centre.x = this.reticle.lastAim.x;
+			centre.y = this.reticle.lastAim.y;
+			rotate = 0;
+		}
+		this.addChild(new DiscardFlight({
+			id: `combat_discard_flight_${this.flights++}`,
+			card: card.getData(),
+			driverNumber: card.driver,
+			start: { centre, rotate, scale: Math.hypot(dx, dy) },
+			to,
+			onLanded: (flight) => this.removeChild(flight),
+		}));
+	}
+
+	/** The fx-layer point of `point` in `component`, through the stage both hang from. */
+	private mapIn(component: Component, x: number, y: number, out: Vec2): boolean {
+		const stage = this.parent;
+		out.x = x;
+		out.y = y;
+		if (!stage || !component.localToAncestorInto(out, stage, out)) return false;
+		out.x -= this.originX;
+		out.y -= this.originY;
+		return true;
+	}
+
+	/** Cards on their way to a discard pile now. */
+	public get discardFlights(): DiscardFlight[] {
+		return this.getChildren().filter((child): child is DiscardFlight => child instanceof DiscardFlight);
 	}
 
 	/**
