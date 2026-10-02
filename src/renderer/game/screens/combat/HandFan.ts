@@ -4,8 +4,9 @@ import { Card as UICard, CardSize, FanPose } from '../../ui/Card';
 
 const CARD_DIMENSIONS = UICard.getDimensions(CardSize.NORMAL);
 /**
- * Hand cards are 128x180 on the battle screen (section 4). The card face is
- * laid out at 150x210, so the fan scales it rather than laying it out again.
+ * Hand cards are 128x180 on the battle screen (section 4), which is the
+ * face's own size since DDB-137, so the fan no longer scales it. Kept as a
+ * scale so DDB-136's dock can size the hand without relaying the face.
  */
 export const HAND_CARD_SCALE = 128 / CARD_DIMENSIONS.width;
 /** Between cards when a half has room for them, in the card's own units. */

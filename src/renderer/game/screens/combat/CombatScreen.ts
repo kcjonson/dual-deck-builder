@@ -22,6 +22,8 @@ import {
 import { ChromeStack } from './ChromeStack';
 import { CombatFxLayer } from './CombatFxLayer';
 import { DOCK_GRADIENT, DOCK_SCRIM, Rgba, rgba } from './combatStyle';
+import { openPileDialog } from '../../ui/CardPileView';
+import { INSPECT_KEYS, inspectHotkey } from '../../ui/cardInspect';
 import { buildPlayerHandView } from './PlayerHandView';
 import { TargetMark, seatMark } from '../../ui/targetMarks';
 import { Driver, DriverRole } from '../../mechanics/Driver';
@@ -693,8 +695,18 @@ export class CombatScreen extends Screen {
 		};
 		this.handLayer.setOnCardDrag({
 			press: (card, element, event) => this.pressCard(card, element, event),
+			// Any other button cancels, a drag or a click-then-target choice
+			// alike (section 6), and that press pins no card
 			otherButton: () => {
-				if (this.context.drag.isDragging) this.context.drag.cancel();
+				if (this.context.drag.isDragging) {
+					this.context.drag.cancel();
+					return true;
+				}
+				if (this.combatModel.isTargeting) {
+					this.putCardBack();
+					return true;
+				}
+				return false;
 			},
 			end: (card, event) => {
 				// Dropped off a target, on the dock, or cancelled: the card goes back
@@ -702,6 +714,19 @@ export class CombatScreen extends Screen {
 			},
 		});
 		this.dragUnsubscribe = this.context.drag.onDraggingChange((dragging) => this.dragChanged(dragging));
+
+		// A driver's tab opens their draw and discard piles, each card
+		// inspectable with the hand's detail view (section 5)
+		this.handLayer.onOpenPiles = (seat) => {
+			const driver = this.playerDrivers[seat - 1];
+			if (!driver || this.context.drag.isDragging) return;
+			openPileDialog(this.context, {
+				driverName: driver.metadata.name,
+				driver: seat,
+				drawPile: driver.deck?.cards ?? [],
+				discardPile: driver.discard,
+			});
+		};
 
 		// A card that went to its driver's discard pile flies there (DDB-37);
 		// an exhausted one, or one taken out of the deck, just goes. The hand
@@ -716,7 +741,7 @@ export class CombatScreen extends Screen {
 			}
 		};
 
-		// Escape cancels targeting and L or F6 toggles the combat log, from the
+		// Escape cancels targeting, L or F6 toggles the combat log, and I pins a card, from the
 		// screen root's hotkey table, which keys reach after bubbling out of
 		// whatever is focused (R9.15)
 		const { hotkeys } = this.rootLayer;
@@ -728,6 +753,10 @@ export class CombatScreen extends Screen {
 			}
 		});
 		for (const key of LOG_TOGGLE_KEYS) hotkeys.register(key, () => this.toggleCombatLog());
+		// I pins the detail view of the card being read, or lets it go
+		// (section 5); the controller's inspect button maps here once there
+		// is controller input
+		for (const key of INSPECT_KEYS) hotkeys.register(key, () => inspectHotkey(this.context));
 
 		// Removed global click handler - it was interfering with vehicle targeting
 	}

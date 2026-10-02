@@ -11,6 +11,8 @@ export interface PlayerHandView {
 	cards: Card[];
 	seatOf: Map<string, DriverSeat>;
 	playable: Set<string>;
+	/** Cards whose driver can't pay their cost now: their cost turns dark red (section 6). */
+	unaffordable: Set<string>;
 }
 
 /**
@@ -25,7 +27,7 @@ export function buildPlayerHandView(
 	drivers: readonly Driver[],
 	canPlay: (driver: Driver, card: Card) => boolean = (driver, card) => driver.canPlayCard(card)
 ): PlayerHandView {
-	const view: PlayerHandView = { cards: [], seatOf: new Map(), playable: new Set() };
+	const view: PlayerHandView = { cards: [], seatOf: new Map(), playable: new Set(), unaffordable: new Set() };
 
 	drivers.forEach((driver, index) => {
 		const seat = (index + 1) as DriverSeat;
@@ -37,6 +39,7 @@ export function buildPlayerHandView(
 			if (canPlay(driver, card)) {
 				view.playable.add(card.id);
 			}
+			if (card.cost > driver.adrenaline) view.unaffordable.add(card.id);
 		}
 	});
 

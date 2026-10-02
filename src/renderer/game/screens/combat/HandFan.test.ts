@@ -39,10 +39,10 @@ describe('fanPoses', () => {
 		expect(fanReach({ rotate: 0, drop: 0, order: 0 })).toEqual({ top: 0, right: 0, bottom: 0, left: 0 });
 		const [edge] = fanPoses(5);
 		const reach = fanReach(edge);
-		// 1.8 degrees: the top corner leans about 6.6 out, the bottom one swings 2.4 down
+		// 1.8 degrees on a 128x180 card: the top corner leans about 5.6 out, the bottom one swings 2 down
 		expect(reach.left).toBe(reach.right);
-		expect(reach.left).toBe(7);
-		expect(reach.bottom).toBe(Math.ceil(75 * Math.sin(1.8 * DEGREE) + edge.drop));
+		expect(reach.left).toBe(6);
+		expect(reach.bottom).toBe(Math.ceil(64 * Math.sin(1.8 * DEGREE) + edge.drop));
 	});
 
 	it('turns a crowded hand more gently', () => {

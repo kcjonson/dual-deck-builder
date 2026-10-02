@@ -121,6 +121,10 @@ export const SCENE_SCENARIOS: readonly SceneScenario[] = [
 	{ scene: 'combat-fx' },
 	{ scene: 'combat-log', lintShort: true },
 	{ scene: 'slider-tabs' },
+	{ scene: 'card-faces', lintShort: true },
+	{ scene: 'card-detail', lintShort: true },
+	{ scene: 'card-detail-pinned', lintShort: true },
+	{ scene: 'card-detail-cap', lintShort: true },
 	{ scene: 'overlays' },
 	{ scene: 'dialog' },
 	{ scene: 'popover' },
@@ -131,4 +135,7 @@ export const SCENE_SCENARIOS: readonly SceneScenario[] = [
 	// Gated at both sizes, as the combat screen is: the intent pills' heavy tier, multi-hit, and "+N" (DDB-139)
 	{ scene: 'combat-road', lintShort: true },
 	{ scene: 'vehicle-tokens' },
+	{ scene: 'card-pile-draw', lintShort: true },
+	{ scene: 'card-pile-discard', lintShort: true },
+	{ scene: 'card-reward', lintShort: true },
 ];

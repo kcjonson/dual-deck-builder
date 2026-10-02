@@ -58,6 +58,17 @@ describe('buildPlayerHandView', () => {
 		expect(view.playable.has(dear.id)).toBe(false);
 	});
 
+	test('marks only the cards a driver can\'t pay for as unaffordable, not a passenger\'s attacks', () => {
+		const [shot, dear] = [farShot(), card('Big Armor', [{ type: 'gain_armor', value: 9 }], 4)];
+		first.set({ hand: [shot, dear], adrenaline: 3, role: DriverRole.PASSENGER });
+
+		const view = buildPlayerHandView([first, second]);
+
+		expect(view.playable.has(shot.id)).toBe(false);
+		expect(view.unaffordable.has(shot.id)).toBe(false);
+		expect(view.unaffordable.has(dear.id)).toBe(true);
+	});
+
 	test('a dead driver has no hand to show, and the other keeps their seat', () => {
 		first.set({ hand: [armorUp()], hitpoints: 0 });
 		second.set({ hand: [armorUp()] });
