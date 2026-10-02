@@ -14,7 +14,7 @@ This document contains the chronological log of completed development tasks for 
 - `DriverTab` per the mock: the name and tag fill what's left so the name ellipsizes; mod chips (18 px, a 12 px icon by kind, named on hover, three and "+N" past four, none while a passenger); `flash_on` bolts from the maximum, lit from the outer end, one bolt and the count past six; the piles as `style` and `exit_to_app` icons with counts. Only the piles open the pile dialog now, at the tab's full height so they stay a 24 px target at the 0.8 floor; the mods get their tooltips.
 - `HandFan` reconciles its row (`reconcileChildren`) and `PlayerHandLayer` keeps each card's element while the card stays, so a pinned detail view, a lift, and focus survive a deal. Ids are a build count plus type, the slot on the first deal. `HAND_CARD_SCALE` is gone (it was 1); the natural gap is the mock's 8.
 - DDB-167: `Team.isAboard`; `buildPlayerHandView({ drivers, canPlay, crashedOut })` leaves a crashed-out driver's cards out, their tab says CRASHED OUT without adrenaline or mods, their half shows a one-line note, and the unspent warning skips them.
-- End Turn: "raiders acting" while they act, and the warning at the mock's 12 on 15, wrapping inside the column.
+- End Turn: the warning at the mock's 12 on 15, wrapping inside the column; the label keeps "Raiders", since the mock's "raiders acting" overflows 148 px.
 - `Vehicle.mods` (`{ name, kind }`), and two icons in the atlas.
 - Goldens: new `combat-dock` and `combat-dock-crashed-out`, in the lint gate at both sizes; the combat screens and the icons scene move.
 - Decision record: [split-dock.md](./AI_TECHNICAL_DECISIONS/split-dock.md).

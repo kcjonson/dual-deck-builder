@@ -96,7 +96,7 @@ export class EndTurnColumn extends Stack {
 	 * button says WAIT and the dock that holds it is locked (section 6).
 	 */
 	public show({ turn, playerTurn, waiting, unspentAdrenaline }: { turn: number; playerTurn: boolean; waiting: boolean; unspentAdrenaline: number }): void {
-		this.turnLabel.text = `Turn ${turn} · ${playerTurn ? 'Your move' : 'Raiders acting'}`;
+		this.turnLabel.text = `Turn ${turn} · ${playerTurn ? 'Your move' : 'Raiders'}`;
 		this.endTurnButton.label = waiting ? 'WAIT' : 'END TURN';
 		this.warning.text = playerTurn && unspentAdrenaline > 0 ? `${unspentAdrenaline} adrenaline unspent` : '';
 	}

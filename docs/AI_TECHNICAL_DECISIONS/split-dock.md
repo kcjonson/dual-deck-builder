@@ -22,10 +22,11 @@ PR 103 (DDB-82) built the frame: a `HandHalf` per driver with a `DriverTab` over
 
 **A crashed-out driver's half has no hand (DDB-167).** `Team.isAboard(driver)` says whether a driver holds a seat; a living driver who doesn't crashed out. `buildPlayerHandView` leaves their cards out (it takes named options now), the tab says CRASHED OUT with no adrenaline or mods, the fan gives way to a one-line note ("No free seat after the wreck: out of this fight"), and their adrenaline no longer counts toward the unspent warning.
 
-**End Turn.** Checked against the mock: 148 wide, 26 below the dock's edge, the turn label above (now "raiders acting" while they act, as the mock reads), the 64 px button, and the warning under it at 12 on 15. The warning wraps inside the column, since two pools past six can make "16 adrenaline unspent" wider than 148.
+**End Turn.** Checked against the mock: 148 wide, 26 below the dock's edge, the turn label above, the 64 px button, and the warning under it at 12 on 15. The warning wraps inside the column, since two pools past six can make "16 adrenaline unspent" wider than 148.
 
 ## Departures
 
 - The mock shows "SPACE" under END TURN; the game has no Space binding for it (Space activates the focused control), so the hint isn't drawn.
+- The turn label reads "Turn N · Raiders" while they act, not the mock's "raiders acting": at 13 px tracked 0.14 em that runs past the 148 px column (the lint's text-overflow).
 - The pile icons are Material's nearest glyphs rather than the mock's own drawings.
 - Mod icons are per kind, not per mod, until mods carry art of their own.
