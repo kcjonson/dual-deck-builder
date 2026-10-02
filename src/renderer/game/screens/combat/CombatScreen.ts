@@ -438,7 +438,8 @@ export class CombatScreen extends Screen {
 		this.topBar.scrap = this.scrap;
 		this.topBar.fuel = this.fuel;
 		// The dock is locked while the raiders act (section 6); DDB-139 drops and greys it
-		const waiting = battle.enemyTurnInProgress;
+		// Locked too once the fight is over, through the transition out
+		const waiting = battle.enemyTurnInProgress || battle.battleOver;
 		this.dock.enabled = !waiting;
 		this.endTurnColumn.show({
 			turn: battle.turn,
@@ -984,7 +985,8 @@ export class CombatScreen extends Screen {
 		this.battle.endPlayerTurn({ stepEnemyTurn: true });
 		if (!this.isActive) return;
 		this.updateUIFromBattle();
-		this.enemyTurnPacer?.start(ENEMY_TURN_LEAD_IN);
+		// From when ENEMY TURN shows, which waits for a banner already up to leave
+		this.enemyTurnPacer?.start(this.turnBanner.timeToNext + ENEMY_TURN_LEAD_IN);
 	}
 
 	/**
@@ -1001,12 +1003,14 @@ export class CombatScreen extends Screen {
 		do {
 			step = battle.stepEnemyTurn();
 		} while (step?.outcome === 'dropped');
-		// A loss ends the battle, which navigates away and unmounts this screen
 		if (!this.isActive) return null;
 
 		this.enemyActing = step?.raider ?? null;
 		if (step?.outcome === 'fizzled' && step.target) this.popHitNumber({ vehicle: step.target, damage: null });
 		this.updateUIFromBattle();
+		// A loss ends the battle, which navigates away through the transition;
+		// the screen stays up, locked, under the fade and takes no more beats
+		if (battle.battleOver) return null;
 		if (step) return ENEMY_ACTION_BEAT;
 		this.restoreKeyboardFocus();
 		return null;

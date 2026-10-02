@@ -5,7 +5,7 @@ import cardsFile from '../../data/cards.json';
 import { CombatScreen, ENEMY_ACTION_BEAT, ENEMY_TURN_LEAD_IN } from './CombatScreen';
 import { CardLoader } from '../../core/CardLoader';
 import { DriverLoader } from '../../core/DriverLoader';
-import { Card } from '../../mechanics/Card';
+import { Card, CardEffect } from '../../mechanics/Card';
 import { Battle } from '../../mechanics/Battle';
 import { Card as UICard } from '../../ui/Card';
 import { IntentMarker } from '../../ui/IntentMarker';
@@ -273,7 +273,7 @@ describe('CombatScreen discard flights', () => {
  */
 describe('CombatScreen enemy turn', () => {
 	/** A 2-damage shot that can't miss and reaches anywhere. */
-	const jab = (type: string): Card => new Card({
+	const jab = (type: string, effect: Partial<CardEffect> = {}): Card => new Card({
 		type,
 		name: type,
 		summary: type,
@@ -281,25 +281,27 @@ describe('CombatScreen enemy turn', () => {
 		rarity: 'common',
 		cost: 1,
 		targetType: 'enemy_single',
-		effects: [{ type: 'damage', value: 2, always_hits: true }],
+		effects: [{ type: 'damage', value: 2, always_hits: true, ...effect }],
 		tags: [],
 	});
 
-	/** The raider plans two shots that can't miss. */
-	async function startRiggedCombat(): Promise<CombatScreen> {
+	/** The raider plans these cards (two shots that can't miss unless told otherwise). */
+	async function startRiggedCombat(hand: Card[] = [jab('jab_one'), jab('jab_two')], { waitOutBanner = true } = {}): Promise<CombatScreen> {
 		const combat = await startCombat();
 		const battle = combat['battle'];
 		const raider = combat['enemyTeam']?.vehicles[0];
 		if (!battle || !raider?.driver) throw new Error('the dev fight should field a driven raider');
-		const hand = [jab('jab_one'), jab('jab_two')];
 		raider.driver.set({ hand, adrenaline: raider.driver.maxAdrenaline });
 		battle.planEnemyTurn();
 		expect(battle.getPlan(raider).map(action => action.card)).toEqual(expect.arrayContaining(hand));
-		expect(battle.getPlan(raider)).toHaveLength(2);
+		expect(battle.getPlan(raider)).toHaveLength(hand.length);
 		combat['updateUIFromBattle']();
-		advance(context, TURN_BANNER_LIFETIME + 16);
+		if (waitOutBanner) advance(context, TURN_BANNER_LIFETIME + 16);
 		return combat;
 	}
+
+	const floatingNumbers = (combat: CombatScreen): Text[] =>
+		combat['fx'].children.filter((child): child is Text => child.componentType === 'FloatingNumber');
 
 	function expectDockLocked(combat: CombatScreen, locked: boolean): void {
 		const endTurn = combat['endTurnColumn'].endTurn;
@@ -382,6 +384,69 @@ describe('CombatScreen enemy turn', () => {
 		expect(numbers.map(number => number.text)).toEqual(['MISS']);
 		stepEnemyTurn.mockRestore();
 		finishEnemyTurn(combat);
+		combat.unmount();
+	});
+	it('stacks three quick hits on one vehicle in free slots with ids of their own, under reduced motion', async () => {
+		context.animator.reducedMotion = true;
+		const combat = await startRiggedCombat([jab('jab_one'), jab('jab_two'), jab('jab_three')]);
+		const targets = new Set<string>();
+		combat['battle']?.on('hitLanded', ({ vehicle }: { vehicle: { id: string } }) => targets.add(vehicle.id));
+		combat['endPlayerTurn']();
+		let most = 0;
+		for (let frames = 0; combat['battle']?.enemyTurnInProgress && frames < 400; frames++) {
+			advance(context, 16);
+			const numbers = floatingNumbers(combat);
+			most = Math.max(most, numbers.length);
+			expect(new Set(numbers.map(number => number.id)).size).toBe(numbers.length);
+			expect(new Set(numbers.map(number => `${number.x},${number.y}`)).size).toBe(numbers.length);
+		}
+		expect(targets.size).toBe(1);
+		expect(most).toBe(2);
+		combat.unmount();
+	});
+
+	it('times the first action from when ENEMY TURN shows, after a YOUR TURN still up has left', async () => {
+		const combat = await startRiggedCombat(undefined, { waitOutBanner: false });
+		const banner = combat['turnBanner'];
+		advance(context, 16);
+		expect(banner.text).toBe('YOUR TURN');
+		combat['endPlayerTurn']();
+		let shownAt = -1;
+		let firstHitAt = -1;
+		for (let elapsed = 16; firstHitAt < 0 && elapsed < 4000; elapsed += 16) {
+			advance(context, 16);
+			if (shownAt < 0 && banner.text === 'ENEMY TURN') shownAt = elapsed;
+			if (floatingNumbers(combat).length > 0) firstHitAt = elapsed;
+		}
+		expect(shownAt).toBeGreaterThan(0);
+		expect(firstHitAt - shownAt).toBeGreaterThanOrEqual(ENEMY_TURN_LEAD_IN - 16);
+		expect(firstHitAt - shownAt).toBeLessThanOrEqual(ENEMY_TURN_LEAD_IN + 32);
+		finishEnemyTurn(combat);
+		combat.unmount();
+	});
+
+	it('stays locked, with no more beats, when a step loses the fight', async () => {
+		const headshot = jab('headshot', { value: 999, target: 'driver' });
+		const combat = await startCombat();
+		const [rigDriver, bikeDriver] = combat['playerDrivers'];
+		const playerTeam = combat['playerTeam'];
+		const bike = playerTeam?.vehicles.find(vehicle => vehicle.driver === bikeDriver);
+		if (!playerTeam || !bike) throw new Error('the second driver should be driving');
+		bikeDriver.set({ hitpoints: 0 });
+		playerTeam.handleDriverDeath(bike);
+		const raider = combat['enemyTeam']?.vehicles[0];
+		raider?.driver?.set({ hand: [headshot, jab('jab_two')], adrenaline: raider.driver.maxAdrenaline });
+		combat['battle']?.planEnemyTurn();
+		advance(context, TURN_BANNER_LIFETIME + 16);
+		expect(rigDriver.isAlive()).toBe(true);
+
+		combat['endPlayerTurn']();
+		advance(context, ENEMY_TURN_LEAD_IN + 32);
+		expect(combat['battle']?.battleOver).toBe(true);
+		expect(combat['enemyTurnPacer']?.running).toBe(false);
+		expectDockLocked(combat, true);
+		advance(context, ENEMY_ACTION_BEAT * 2);
+		expectDockLocked(combat, true);
 		combat.unmount();
 	});
 });
