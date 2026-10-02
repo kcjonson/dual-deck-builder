@@ -1,7 +1,7 @@
 /**
  * @jest-environment jsdom
  */
-import { Battle } from './Battle';
+import { Battle, HitEvent } from './Battle';
 import { Team, TeamType } from './Team';
 import { Vehicle } from './Vehicle';
 import { RoadLane, RoadRow } from './Road';
@@ -742,12 +742,23 @@ describe('Battle', () => {
 			
 			// Clear messages before playing card
 			battle.clearMessages();
+			const hits: HitEvent[] = [];
+			const unsubscribe = battle.on('hitLanded', (hit: HitEvent) => hits.push(hit));
 			
 			battle.playCard({
 				driver: playerDriver1,
 				cardIndex: 0,
 				targetVehicle: enemyVehicle
 			});
+			unsubscribe();
+
+			// Each hit tells the screen where it landed and what it dealt, the
+			// self damage on the caster's own vehicle included
+			expect(hits.map(hit => [hit.vehicle, hit.damage])).toEqual([
+				[enemyVehicle, expect.any(Number)],
+				[playerVehicle1, 3],
+			]);
+			expect(hits[0].damage).toBeGreaterThanOrEqual(10);
 			
 			// Enemy should take damage
 			expect(enemyVehicle.structure).toBeLessThan(enemyInitialStructure);
@@ -987,12 +998,16 @@ describe('Battle', () => {
 			
 			// Clear messages before test
 			battle.clearMessages();
+			const misses: HitEvent[] = [];
+			const unsubscribe = battle.on('hitMissed', (hit: HitEvent) => misses.push(hit));
 			
 			battle.playCard({
 				driver: playerDriver1,
 				cardIndex: 0,
 				targetVehicle: enemyVehicle
 			});
+			unsubscribe();
+			expect(misses).toEqual([{ vehicle: enemyVehicle, damage: null }]);
 			
 			// Should miss and not apply status
 			const missMessage = battle.getMessages().find(m => 

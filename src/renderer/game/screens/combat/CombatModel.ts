@@ -118,8 +118,9 @@ export class CombatModel extends Model<CombatModelData> {
 			targetableIds: this.targetableVehicleIds
 		});
 		
-		// Only allow targeting if we're in targeting mode and the vehicle is targetable
-		if (!this.isTargeting || !this.isVehicleTargetable(vehicle.id)) {
+		// Only a vehicle the selected card can land on: a target while
+		// targeting, or one a dragged card with no target is dropped on
+		if (!this.isVehicleTargetable(vehicle.id)) {
 			console.log('Target validation failed');
 			return;
 		}

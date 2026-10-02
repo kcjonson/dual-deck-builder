@@ -351,7 +351,30 @@ export class Vehicle extends Component {
 				}
 				this.updateVisualState();
 				return;
+			// A card dragged from the hand (R9.12): a vehicle it can land on
+			// (a target, or one a no-target card acts on) accepts it, lights up
+			// as the pointer's target, and is chosen by the drop
+			case 'dragenter':
+				if (this.combatData && this.isTargetable()) {
+					event.accept();
+					this.combatData.focusVehicle(this.vehicleData.id);
+				}
+				return;
+			case 'dragleave':
+				if (this.combatData && this.combatData.focusedVehicleId === this.vehicleData.id) {
+					this.combatData.focusVehicle(null);
+				}
+				return;
+			case 'drop':
+				event.consume();
+				this.chooseAsTarget();
+				return;
 		}
+	}
+
+	/** `dropActive`, set while a dragged card would land here, lights the plate. */
+	protected onStateChange(): void {
+		if (this.portrait) this.updateVisualState();
 	}
 
 	private chooseAsTarget(): void {
@@ -416,7 +439,7 @@ export class Vehicle extends Component {
 	private updateVisualState(): void {
 		const carrier = this.isOrderCarrier();
 		const targetable = this.isTargetable() || carrier;
-		const focused = this.isFocusedTarget() || carrier;
+		const focused = this.isFocusedTarget() || carrier || this.dropActive;
 		const targeting = this.combatData?.isTargeting || false;
 		this.focusable = targeting && this.onClickCallback !== null && this.isTargetable();
 

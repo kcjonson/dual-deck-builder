@@ -89,6 +89,7 @@ export const SCENE_SCENARIOS: readonly SceneScenario[] = [
 	{ scene: 'meters' },
 	{ scene: 'data-display' },
 	{ scene: 'tree-view' },
+	{ scene: 'combat-fx' },
 	{ scene: 'overlays' },
 	{ scene: 'dialog' },
 	{ scene: 'popover' },

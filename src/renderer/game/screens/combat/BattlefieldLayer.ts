@@ -124,6 +124,11 @@ export abstract class BattlefieldLayer extends Container {
 		});
 	}
 	
+	/** The plate showing a vehicle, while it's on this side of the road. */
+	public vehicleView(vehicleId: string): VehicleUI | null {
+		return this.vehicleCards.get(vehicleId) ?? null;
+	}
+
 	/**
 	 * Set vehicles to display
 	 * Receives pure Vehicle models from game state
