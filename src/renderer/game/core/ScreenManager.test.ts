@@ -114,6 +114,34 @@ describe('ScreenManager.navigate', () => {
 		redirect.mockRestore();
 	});
 
+	it.each([
+		['settings', 1, 'Escape', 'main_menu_settings_button'],
+		['credits', 2, 'Enter', 'main_menu_credits_button'],
+	])('returns focus to the button that opened %s', (_screen, down, leave, opener) => {
+		advance(context, FADE_MS * 2);
+		send(context, Array.from({ length: down }, () => key('ArrowDown')));
+		expect(context.focus.focused?.id).toBe(opener);
+		send(context, [key('Enter')]);
+		advance(context, FADE_MS * 2);
+		send(context, [key(leave)]);
+		advance(context, FADE_MS * 2);
+		expect(ScreenManager.getCurrentScreenName()).toBe('mainMenuScreen');
+		expect(context.focus.focused?.id).toBe(opener);
+	});
+
+	it('restores focus only when asked, and only what the screen had when left', () => {
+		const settings = ScreenManager.activeScreen?.root.findById('main_menu_settings_button') ?? null;
+		context.focus.focus(settings);
+		ScreenManager.navigate('settingsScreen', undefined, { immediate: true });
+		ScreenManager.navigate('mainMenuScreen', undefined, { immediate: true });
+		expect(context.focus.focused?.id).toBe('main_menu_start_button');
+
+		context.focus.blur();
+		ScreenManager.navigate('settingsScreen', undefined, { immediate: true });
+		ScreenManager.navigate('mainMenuScreen', undefined, { immediate: true, restoreFocus: true });
+		expect(context.focus.focused?.id).toBe('main_menu_start_button');
+	});
+
 	it('runs the whole transition at once under reduced motion', () => {
 		context.animator.reducedMotion = true;
 		ScreenManager.navigate('battleResultScreen', VICTORY);

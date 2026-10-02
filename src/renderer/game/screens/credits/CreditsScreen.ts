@@ -17,7 +17,8 @@ const BACK_WIDTH = 200;
  * title and Back leave, so a short viewport scrolls the list rather than
  * pushing Back off screen. Focus starts on Back; Page Up, Page Down, Home,
  * and End scroll the list from there (root hotkeys, R9.15), and a press on
- * the list focuses it for the arrows as well. Escape returns to the menu.
+ * the list focuses it for the arrows as well. Escape and Back return to the
+ * menu with focus on Credits again.
  */
 export class CreditsScreen extends Screen {
 	private readonly stack: Stack;
@@ -83,8 +84,9 @@ export class CreditsScreen extends Screen {
 
 		const { hotkeys } = this.rootLayer;
 		hotkeys.register('Escape', () => this.back());
-		hotkeys.register('PageDown', () => this.scroller?.scrollBy(this.scroller.height));
-		hotkeys.register('PageUp', () => this.scroller?.scrollBy(-(this.scroller?.height ?? 0)));
+		// The list's own page, so the distance is the same whether it or Back has focus.
+		hotkeys.register('PageDown', () => this.scroller?.scrollByPages(1));
+		hotkeys.register('PageUp', () => this.scroller?.scrollByPages(-1));
 		hotkeys.register('Home', () => this.scroller?.scrollToTop());
 		hotkeys.register('End', () => this.scroller?.scrollToBottom());
 		this.context.focus.focus(back);
@@ -97,8 +99,9 @@ export class CreditsScreen extends Screen {
 		this.scroller = null;
 	}
 
+	/** To the menu, focus back on the button that opened this screen. */
 	private back(): void {
-		ScreenManager.navigate('mainMenuScreen');
+		ScreenManager.navigate('mainMenuScreen', undefined, { restoreFocus: true });
 	}
 }
 

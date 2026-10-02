@@ -6,6 +6,17 @@ This document contains the chronological log of completed development tasks for 
 
 **Date correction (2026-08-22):** the repo's first commit is 2025-05-17, but many entries below carry dates in December 2024 or January 2025 — the AI that wrote them used its assumed date instead of the real one. Entries dated 2025-07-03 and 2025-07-02 have been corrected from "2025-01-03"/"2025-01-02" (verified against git history). Remaining Dec 2024 / Jan 2025 dates are wrong by roughly six months; the real work happened May–July 2025. Trust git history over these dates.
 
+## Settings and credits polish (2026-10-02)
+
+**What landed:** DDB-232 (DDB-55), the open items from the #126 review.
+
+- `ScreenManager.navigate` notes the focused id on the screen it leaves; `{ restoreFocus: true }` focuses it again after the next mount there. Settings and Credits go back with it, so the menu lands on the button that opened them.
+- `GameSettings` keeps the stored record it read and saves its known values over it, so keys a newer build wrote survive.
+- `ScrollContainer.scrollByPages` is Page Up and Page Down's distance; the credits hotkeys use it, so the page is the same whether Back or the list has focus.
+- `credits.test.ts` checks the icon set's holder against the face's own copyright string and the game's licence line against `LICENSE`.
+- The credits-at-a-scrolling-size lint item was covered by #130.
+
+**How:** `ScreenManager.test.ts` plays menu to Settings and Credits and back by keyboard; tests for unknown keys and the paging distance.
 ## The rounded clip in the uber shader (2026-10-02)
 
 **What landed:** DDB-190 (DDB-55), R4.14. `pushClipRounded` draws round instead of square.

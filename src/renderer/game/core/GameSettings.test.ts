@@ -48,6 +48,14 @@ describe('GameSettings', () => {
 		expect(new GameSettings({ storage: mapStorage({ [KEY]: raw }) }).motion).toBe('system');
 	});
 
+	it('keeps keys this build does not know when it saves', () => {
+		const newer = { motion: 'full', volume: 0.4, keybinds: { pause: 'P' } };
+		const storage = mapStorage({ [KEY]: JSON.stringify(newer) });
+		const settings = new GameSettings({ storage });
+		settings.motion = 'reduced';
+		expect(JSON.parse(storage.data.get(KEY) ?? '{}')).toEqual({ ...newer, motion: 'reduced' });
+	});
+
 	it('keeps working for the session when storage throws', () => {
 		const warn = jest.spyOn(console, 'warn').mockImplementation(() => undefined);
 		const settings = new GameSettings({
