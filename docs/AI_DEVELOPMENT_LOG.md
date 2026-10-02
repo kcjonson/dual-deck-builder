@@ -6,6 +6,17 @@ This document contains the chronological log of completed development tasks for 
 
 **Date correction (2026-08-22):** the repo's first commit is 2025-05-17, but many entries below carry dates in December 2024 or January 2025 — the AI that wrote them used its assumed date instead of the real one. Entries dated 2025-07-03 and 2025-07-02 have been corrected from "2025-01-03"/"2025-01-02" (verified against git history). Remaining Dec 2024 / Jan 2025 dates are wrong by roughly six months; the real work happened May–July 2025. Trust git history over these dates.
 
+## Combat turn banner, whole intent plans, and discard flights (2026-10-02)
+
+**What landed:** DDB-88's third and last PR (DDB-55 phase 6): the turn banner (DDB-30), every planned intent over its raider, and the discard animation (DDB-37).
+
+- `TurnBanner` replaces the phase box: the mock's band across the road only, on `overlay`, for 1100 ms on each turn change (YOUR TURN at the start, ENEMY TURN then YOUR TURN after END TURN, queued). The countdown is on the frame clock; the slide and fade are tweens, so under reduced motion it holds still for its time.
+- `IntentRow` beside each raider's plate shows the whole plan, two discs then "+N", reconciled by place, type, and value so a changed plan grows and shrinks on the animator. Buff and debuff have their own colour and chevron; each disc's tooltip says what it does to whom.
+- `PlayerHandLayer.setHand` reports cards the new deal drops; one that went to discard flies there as a `DiscardFlight` in the fx layer, from its pose in the fan to the DISCARD count. None under reduced motion.
+- After review: discs are siblings of the plates (a plate is one hit target, so its children were never hovered); the hand's end-of-turn discard flies from `Driver`'s new `handDiscarded` event, before the draw can reshuffle; a dropped card flies from the drop point; banner changes coalesce to the latest pair, and only the words slide; a card dropped on a raider's intent disc lands on that raider.
+- Re-review nits from #118: a scrolled-ancestor case for `localToAncestorInto`, and the dev log's missing blank line.
+
+**How:** `CombatScreenTurn.test.ts` (banner placement, queue, slide, reduced-motion hold; intents per raider; a played card's flight from the hand to the pile, the whole hand at END TURN, none under reduced motion), `vehicleBadges.test.ts` (two then "+N", tooltips, grow and shrink, reduced motion), `EnemyBattlefieldLayer.test.ts`, `Component.test.ts`. Played a full turn, enemy turn included, in headless Chromium through `window.__dev.input`.
 ## Dialog on Panel, and the focus ring after Escape (2026-10-02)
 
 **What landed:** DDB-221 and DDB-229 (DDB-55 catalog follow-ups).
@@ -58,6 +69,7 @@ This document contains the chronological log of completed development tasks for 
 - Decision record: [combat-hand-and-targeting.md](./AI_TECHNICAL_DECISIONS/combat-hand-and-targeting.md), covering this and the fan PR.
 
 **How:** `CombatScreenHand.test.ts` drives drags through the injection hook (drop on a raider and the line's ends, drop on your own vehicle, a no-target card cancelled on the road and played on its driver's vehicle, Escape, right-click, click-then-target) and checks the numbers' anchor, rise, fade, stacking, the reduced-motion hold, and that a dragged card pops one per hit or miss; `Battle.test.ts` checks the hit events; `CombatFxLayer.test.ts` covers the curve, dot spacing, and head. Played a turn in headless Chromium at 1280x720 and 800x450 through `window.__dev.input`: drag, click-then-target, keyboard, END TURN.
+
 ## Driver selection on stacks, with a Select and a scrolling deck preview (2026-10-01)
 
 **What landed:** DDB-89 (DDB-55 phase 6). Closes DDB-31, and with it DDB-101, DDB-102 and DDB-108.
