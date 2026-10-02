@@ -31,7 +31,7 @@ export class ListExamplesSection extends CatalogSection {
 		const toolbar = new FocusGroup({ id: 'dev_toolbar', orientation: 'horizontal', gap: tokens.space.space_1 });
 		const tools = [['arrow_back', 'Back'], ['build', 'Repair'], ['local_gas_station', 'Refuel'], ['settings', 'Settings']] as const;
 		for (const [glyph, label] of tools) {
-			toolbar.addChild(new Button(label, { icon: glyph, iconPosition: 'only', ghost: true, width: tokens.control.control_h_md }));
+			toolbar.addChild(new Button({ label, icon: glyph, iconPosition: 'only', ghost: true, width: tokens.control.control_h_md }));
 		}
 
 		this.addRow('list: plain, selected, dim, indented, disabled, truncated', list);

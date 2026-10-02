@@ -24,21 +24,23 @@ export class DialogScene extends DeveloperSectionPanel {
 	constructor({ x, y, width }: SceneFactoryOptions) {
 		super({ id: 'gallery_scene_dialog', title: 'Dialog', contentHeight: CONTENT_HEIGHT, x, y, width });
 
-		this.addChild(new Text('Modal: a scrim that takes every press, a focus scope, Escape and the X close it, a stray click does not.', {
+		this.addChild(new Text({
+			text: 'Modal: a scrim that takes every press, a focus scope, Escape and the X close it, a stray click does not.',
 			y: 50,
 			style: { fontSize: 14, color: rgba(tokens.color.text_dim) },
 		}));
-		const trigger = new Button('Abandon run', { id: 'dialog_trigger', y: 84, width: 160, tone: 'crit' });
+		const trigger = new Button({ label: 'Abandon run', id: 'dialog_trigger', y: 84, width: 160, tone: 'crit' });
 		this.addChild(trigger);
 
-		const cancel = new Button('Keep driving', { id: 'dialog_cancel', width: 140 });
-		const abandon = new Button('Abandon run', { id: 'dialog_abandon', width: 140, tone: 'crit' });
+		const cancel = new Button({ label: 'Keep driving', id: 'dialog_cancel', width: 140 });
+		const abandon = new Button({ label: 'Abandon run', id: 'dialog_abandon', width: 140, tone: 'crit' });
 		this.dialog = new Dialog({
 			id: 'dialog_abandon_run',
 			kicker: 'Run in progress',
 			title: 'Abandon run?',
 			size: 'sm',
-			content: new Text('Both drivers leave the road and the run ends here. Scrap and fuel carried are lost; unlocks already earned are kept.', {
+			content: new Text({
+				text: 'Both drivers leave the road and the run ends here. Scrap and fuel carried are lost; unlocks already earned are kept.',
 				id: 'dialog_message',
 				style: { fontSize: tokens.fontSize.fs_base, color: rgba(tokens.color.text) },
 			}),

@@ -20,7 +20,7 @@ let transition: ScreenTransition;
 
 function mountScene(id: string): Container {
 	const layer = new Container({ id, width: 800, height: 600 });
-	layer.addChild(new Button('Go', { id: `${id}_go`, x: 20, y: 20, width: 100, height: 40, onClick: () => { clicks += 1; } }));
+	layer.addChild(new Button({ label: 'Go', id: `${id}_go`, x: 20, y: 20, width: 100, height: 40, onClick: () => { clicks += 1; } }));
 	layer.mount(context);
 	return layer;
 }

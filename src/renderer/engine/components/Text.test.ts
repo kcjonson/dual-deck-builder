@@ -21,7 +21,7 @@ function drawn(api: DrawApi, backend: MeasuringRecordingBackend, text: Text): Te
 
 describe('Text measures through the mount context (R1.6)', () => {
 	it('keeps a zero hug size until it is mounted, then hugs its measured line box', () => {
-		const text = new Text('End turn', { style: { fontSize: 16 } });
+		const text = new Text({ text: 'End turn', style: { fontSize: 16 } });
 		expect(text.width).toBe(0);
 		expect(text.height).toBe(0);
 		expect(text.measured).toBeNull();
@@ -32,7 +32,7 @@ describe('Text measures through the mount context (R1.6)', () => {
 	});
 
 	it('stays unmeasured on a backend without metrics, and never estimates', () => {
-		const text = new Text('End turn', { style: { fontSize: 16 } });
+		const text = new Text({ text: 'End turn', style: { fontSize: 16 } });
 		text.mount(createTestContext({ draw: new DrawApi({ backend: new NullBackend() }) }));
 
 		expect(text.width).toBe(0);
@@ -43,7 +43,7 @@ describe('Text measures through the mount context (R1.6)', () => {
 		const context = createTestContext({ draw: createMeasuringDrawApi().api });
 		const row = new Container({ width: 300, height: 20 });
 		const seen: number[] = [];
-		const label = new Text('Scrap', { style: { fontSize: 16 }, onLayout: (bounds) => seen.push(bounds.width) });
+		const label = new Text({ text: 'Scrap', style: { fontSize: 16 }, onLayout: (bounds) => seen.push(bounds.width) });
 		row.addChild(label);
 
 		row.mount(context);
@@ -71,7 +71,7 @@ describe('Text (R12.4)', () => {
 	}
 
 	it('hugs its measured line box and draws it from the top-left', () => {
-		const text = mounted(new Text('End turn', { x: 10, y: 20, style: { fontSize: 16 } }));
+		const text = mounted(new Text({ text: 'End turn', x: 10, y: 20, style: { fontSize: 16 } }));
 		const layout = layoutText(committedFontAtlas('body'), { text: 'End turn', font: 'body', size: 16 });
 
 		expect(text.width).toBe(layout.width);
@@ -86,7 +86,7 @@ describe('Text (R12.4)', () => {
 	});
 
 	it('re-hugs when its text or size changes', () => {
-		const text = mounted(new Text('A', { style: { fontSize: 16 } }));
+		const text = mounted(new Text({ text: 'A', style: { fontSize: 16 } }));
 		const narrow = text.width;
 		text.text = 'A much longer label';
 		expect(text.width).toBeGreaterThan(narrow);
@@ -98,7 +98,7 @@ describe('Text (R12.4)', () => {
 	});
 
 	it('wraps at an assigned width and hugs the wrapped height', () => {
-		const text = mounted(new Text('the quick brown fox jumps over the lazy dog', { width: 90, style: { fontSize: 14 } }));
+		const text = mounted(new Text({ text: 'the quick brown fox jumps over the lazy dog', width: 90, style: { fontSize: 14 } }));
 		const metrics = text.measured;
 		expect(metrics).not.toBeNull();
 		expect(metrics?.lines).toBeGreaterThan(1);
@@ -112,7 +112,8 @@ describe('Text (R12.4)', () => {
 	});
 
 	it('truncates a nowrap text to its assigned width with an ellipsis', () => {
-		const text = mounted(new Text('Flanking Maneuver', {
+		const text = mounted(new Text({
+			text: 'Flanking Maneuver',
 			width: 40,
 			style: { fontSize: 14 }, wrap: 'none', textOverflow: 'ellipsis',
 		}));
@@ -126,12 +127,13 @@ describe('Text (R12.4)', () => {
 	});
 
 	it('maps textOverflow hidden to a clip', () => {
-		const text = mounted(new Text('clipped', { width: 20, textOverflow: 'clip', wrap: 'none' }));
+		const text = mounted(new Text({ text: 'clipped', width: 20, textOverflow: 'clip', wrap: 'none' }));
 		expect(drawn(api, backend, text).overflow).toBe('clip');
 	});
 
 	it('aligns within an assigned box', () => {
-		const text = mounted(new Text('OK', {
+		const text = mounted(new Text({
+			text: 'OK',
 			width: 100,
 			height: 40,
 			style: { textAlign: 'center' }, verticalAlign: 'middle',
@@ -143,20 +145,21 @@ describe('Text (R12.4)', () => {
 	});
 
 	it('hugs again when an axis is set back to zero', () => {
-		const text = mounted(new Text('Hug', { width: 200, height: 50 }));
+		const text = mounted(new Text({ text: 'Hug', width: 200, height: 50 }));
 		text.setSize(0, 0);
 		expect(text.width).toBe(text.measured?.width);
 		expect(text.height).toBe(text.measured?.height);
 	});
 
 	it('resolves fontWeight through the theme table (R11.8)', () => {
-		expect(mounted(new Text('Title', { style: { fontWeight: 'bold' } })).font).toBe('display');
-		expect(mounted(new Text('Body')).font).toBe('body');
-		expect(mounted(new Text('42', { style: { fontFamily: 'monospace' } })).font).toBe('mono');
+		expect(mounted(new Text({ text: 'Title', style: { fontWeight: 'bold' } })).font).toBe('display');
+		expect(mounted(new Text({ text: 'Body' })).font).toBe('body');
+		expect(mounted(new Text({ text: '42', style: { fontFamily: 'monospace' } })).font).toBe('mono');
 	});
 
 	it('passes letter spacing, transform, decoration and line height through to the draw', () => {
-		const text = mounted(new Text('kicker', {
+		const text = mounted(new Text({
+			text: 'kicker',
 			style: { letterSpacing: 0.16, textTransform: 'uppercase', textDecoration: 'underline', fontSize: 10 }, lineHeight: 1.5,
 		}));
 		expect(text.height).toBe(15);
@@ -165,7 +168,7 @@ describe('Text (R12.4)', () => {
 		expect(command.textTransform).toBe('uppercase');
 		expect(command.decoration).toBe('underline');
 		// Uppercase is measured, not just drawn (R6.9): the hug width is the capitals'.
-		const lower = mounted(new Text('kicker', { style: { letterSpacing: 0.16, fontSize: 10 } }));
+		const lower = mounted(new Text({ text: 'kicker', style: { letterSpacing: 0.16, fontSize: 10 } }));
 		expect(text.width).toBeGreaterThan(lower.width);
 	});
 });

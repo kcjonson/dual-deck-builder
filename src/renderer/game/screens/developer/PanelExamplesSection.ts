@@ -13,11 +13,11 @@ const PANEL_WIDTH = 220;
 const PANEL_HEIGHT = 150;
 
 function caption(text: string): Text {
-	return new Text(text, { style: { fontSize: tokens.fontSize.fs_base, color: 'text_dim' } });
+	return new Text({ text, style: { fontSize: tokens.fontSize.fs_base, color: 'text_dim' } });
 }
 
 function body(text: string): Text {
-	return new Text(text, { widthMode: 'fill', style: { fontSize: tokens.fontSize.fs_base, color: 'text' } });
+	return new Text({ text, widthMode: 'fill', style: { fontSize: tokens.fontSize.fs_base, color: 'text' } });
 }
 
 /**
@@ -37,7 +37,7 @@ export class PanelExamplesSection extends DeveloperSectionPanel {
 				variant: 'raised',
 				kicker: 'Driver 1',
 				title: 'Road Warrior',
-				actions: [new Button('Swap', { size: 'sm', width: 56 })],
+				actions: [new Button({ label: 'Swap', size: 'sm', width: 56 })],
 			}, 'Raised, with the raised shadow and an action in the header.'),
 			panel('dev_panel_inset', { variant: 'inset', title: 'Stash' }, 'Inset: a well below the panel surface.'),
 		]));

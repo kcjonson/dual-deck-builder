@@ -67,7 +67,8 @@ export abstract class Checkable extends Pressable {
 		this.layers = markLayers({ on: checked });
 		if (onChange) this.onChange = onChange;
 
-		this.label = new Text(label, {
+		this.label = new Text({
+			text: label,
 			style: { fontRole: 'body', fontSize: CONTROL_SIZES[size].fontSize },
 			verticalAlign: 'middle',
 			wrap: 'none',

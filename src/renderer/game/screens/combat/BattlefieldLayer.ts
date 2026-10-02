@@ -61,7 +61,8 @@ export abstract class BattlefieldLayer extends Component {
 		const dividerColor = resolveColor(decor.dividerColor);
 		this.dividerDraws = [0, 1].map(() => ({ rect: { x: 0, y: 0, width: 0, height: 0 }, fill: dividerColor }));
 		this.laneLabels = decor.labels.map(label => {
-			const text = new Text(label, {
+			const text = new Text({
+				text: label,
 				style: {
 					fontSize: 14,
 					color: decor.labelColor,

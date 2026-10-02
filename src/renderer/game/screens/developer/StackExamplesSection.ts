@@ -89,7 +89,7 @@ export class StackExamplesSection extends DeveloperSectionPanel {
 	/** A caption over a demo box, both hugging a column of the box's width. */
 	private cell(caption: string, demo: Stack, width = CELL_WIDTH): Stack {
 		const cell = new Stack({ gap: CAPTION_GAP });
-		cell.addChild(new Text(caption, { style: { fontSize: 13, color: rgba('text_dim') } }));
+		cell.addChild(new Text({ text: caption, style: { fontSize: 13, color: rgba('text_dim') } }));
 		demo.width = width;
 		cell.addChild(demo);
 		return cell;
@@ -140,7 +140,7 @@ export class StackExamplesSection extends DeveloperSectionPanel {
 	private modesBox(): Stack {
 		const box = this.demo(72, { direction: 'horizontal', crossAlign: 'center', gap: 8 });
 		box.addChild(swatch('accent', { width: 32, height: 32 }));
-		box.addChild(new Text('hug', { style: { fontSize: 13, color: rgba('text') } }));
+		box.addChild(new Text({ text: 'hug', style: { fontSize: 13, color: rgba('text') } }));
 		box.addChild(swatch('data', { height: 32, widthMode: 'fill' }));
 		return box;
 	}
@@ -168,7 +168,8 @@ export class StackExamplesSection extends DeveloperSectionPanel {
 
 	private wrapBox(): Stack {
 		const box = this.demo(72, {});
-		box.addChild(new Text('A hug text shrinks to fit and wraps where the column ends.', {
+		box.addChild(new Text({
+			text: 'A hug text shrinks to fit and wraps where the column ends.',
 			style: { fontSize: 13, color: rgba('text') },
 		}));
 		return box;
@@ -189,7 +190,8 @@ export class StackExamplesSection extends DeveloperSectionPanel {
 		for (const anchor of ANCHORS) {
 			box.addChild(swatch('accent', { width: 14, height: 14, positioned: 'absolute', anchor }));
 		}
-		box.addChild(new Text('center', {
+		box.addChild(new Text({
+			text: 'center',
 			positioned: 'absolute',
 			anchor: 'center',
 			style: { fontSize: 13, color: rgba('text') },
@@ -206,7 +208,7 @@ export class StackExamplesSection extends DeveloperSectionPanel {
 
 	private badgeBox(): Stack {
 		const box = this.demo(96, { gap: 6 });
-		box.addChild(new Text('Scout', { style: { fontSize: 13, color: rgba('text') } }));
+		box.addChild(new Text({ text: 'Scout', style: { fontSize: 13, color: rgba('text') } }));
 		box.addChild(swatch('data', { width: 64, height: 12 }));
 		box.addChild(swatch('status_crit', { width: 18, height: 18, positioned: 'absolute', anchor: 'topRight' }));
 		return box;

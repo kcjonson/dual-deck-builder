@@ -48,9 +48,9 @@ function findByType(root: Component, type: string): Component | null {
 function interactiveScene(name: string, { x = 0, y = 0, width = 0 }: SceneFactoryOptions): Panel {
 	const panel = new Panel({ id: `scene_${name}`, width, height: 10, layout: 'free', flush: true });
 	panel.setPosition(x, y);
-	panel.addChild(new Button('press me', { id: `${name}_button`, width: 120, height: 40 }));
+	panel.addChild(new Button({ label: 'press me', id: `${name}_button`, width: 120, height: 40 }));
 	panel.addChild(new TextInput({ placeholder: 'type here', id: `${name}_input`, width: 200, height: 40 }));
-	panel.addChild(new Text('unsized label', { id: `${name}_label` }));
+	panel.addChild(new Text({ text: 'unsized label', id: `${name}_label` }));
 	panel.setSize(width, 260);
 	return panel;
 }

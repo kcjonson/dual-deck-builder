@@ -50,7 +50,8 @@ export class SettingsScreen extends Screen {
 	}
 
 	protected onMount(): void {
-		this.stack.addChild(new Text('Settings', {
+		this.stack.addChild(new Text({
+			text: 'Settings',
 			id: 'settings_title',
 			style: {
 				fontRole: 'display',
@@ -71,7 +72,8 @@ export class SettingsScreen extends Screen {
 		});
 		this.stack.addChild(this.createMotionPanel(motion));
 
-		this.stack.addChild(new Button('Back', {
+		this.stack.addChild(new Button({
+			label: 'Back',
 			id: 'settings_back_button',
 			icon: 'arrow_back',
 			size: 'lg',
@@ -104,7 +106,8 @@ export class SettingsScreen extends Screen {
 			crossAlign: 'center',
 			gap: tokens.space.space_4,
 		});
-		row.addChild(new Text('Reduce motion', {
+		row.addChild(new Text({
+			text: 'Reduce motion',
 			id: 'settings_motion_label',
 			widthMode: 'fill',
 			style: { fontSize: 'fs_md', color: 'text_bright' },
@@ -113,8 +116,8 @@ export class SettingsScreen extends Screen {
 		row.addChild(motion);
 		panel.addChild(row);
 		panel.addChild(new Text(
-			'System follows your device\'s reduced motion setting. Reduced finishes every animation at once: screen fades, card movement, and combat effects.',
 			{
+				text: 'System follows your device\'s reduced motion setting. Reduced finishes every animation at once: screen fades, card movement, and combat effects.',
 				id: 'settings_motion_hint',
 				style: { fontSize: 'fs_base', color: 'text_dim' },
 			},

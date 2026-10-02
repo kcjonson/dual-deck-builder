@@ -23,7 +23,7 @@ export abstract class CatalogSection extends DeveloperSectionPanel {
 	/** A caption over `content`. */
 	protected addRow(caption: string, content: Component): void {
 		const row = new Stack({ gap: CAPTION_GAP });
-		row.addChild(new Text(caption, { style: { fontSize: tokens.fontSize.fs_base, color: 'text_dim' } }));
+		row.addChild(new Text({ text: caption, style: { fontSize: tokens.fontSize.fs_base, color: 'text_dim' } }));
 		row.addChild(content);
 		this.rows.addChild(row);
 	}

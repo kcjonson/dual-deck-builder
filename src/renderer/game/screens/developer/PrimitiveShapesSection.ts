@@ -50,7 +50,7 @@ export class PrimitiveShapesSection extends DeveloperSectionPanel {
 /** A label over a row of shapes, centred across it. */
 function group(label: string, shapes: Component[]): Stack {
 	const column = new Stack({ gap: 10 });
-	column.addChild(new Text(label, { style: { fontSize: 20, color: 'text_bright' } }));
+	column.addChild(new Text({ text: label, style: { fontSize: 20, color: 'text_bright' } }));
 	const row = new Stack({ direction: 'horizontal', gap: 20, crossAlign: 'center' });
 	for (const shape of shapes) row.addChild(shape);
 	column.addChild(row);

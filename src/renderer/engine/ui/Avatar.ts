@@ -83,7 +83,8 @@ export class Avatar extends Component {
 		this.diameter = size;
 		this.moodValue = mood;
 		this.hue = hslToRgba(fnv1a(seed) % 360, SATURATION, LIGHTNESS);
-		this.initials = new Text(initialsOf(seed), {
+		this.initials = new Text({
+			text: initialsOf(seed),
 			width: size,
 			height: size,
 			style: {

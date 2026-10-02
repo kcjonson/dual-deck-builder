@@ -67,7 +67,8 @@ class FixtureBox extends Component {
 		this.shadow = shadow;
 		if (label === undefined) return;
 		const inset = labelAlign === 'left' ? 8 : 0;
-		this.addChild(new Text(label, {
+		this.addChild(new Text({
+			text: label,
 			x: inset,
 			y: labelAlign === 'left' ? 4 : 0,
 			width: this.width - inset * 2,
@@ -118,7 +119,7 @@ class BusyGround extends Component {
 /** A label; given a height, it is centred in it, as the fixture's row and item labels are. */
 function text(content: string, color: RGBA, size: number, options: ComponentOptions = {}): Text {
 	const verticalAlign = options.height !== undefined ? 'middle' : 'top';
-	return new Text(content, { ...options, style: { fontSize: size, color }, verticalAlign });
+	return new Text({ text: content, ...options, style: { fontSize: size, color }, verticalAlign });
 }
 
 /** A card whose colour names the layer it asks for (R3.5). */

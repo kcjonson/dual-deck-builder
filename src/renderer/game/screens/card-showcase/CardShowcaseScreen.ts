@@ -43,7 +43,8 @@ export class CardShowcaseScreen extends Screen {
 	}
 
 	protected onMount(): void {
-		this.stack.addChild(new Text('Card Showcase', {
+		this.stack.addChild(new Text({
+			text: 'Card Showcase',
 			id: 'showcase_title',
 			style: {
 				fontRole: 'display',
@@ -62,7 +63,8 @@ export class CardShowcaseScreen extends Screen {
 		this.scroller.addChild(this.list);
 		this.stack.addChild(this.scroller);
 
-		const back = new Button('Back to Main Menu', {
+		const back = new Button({
+			label: 'Back to Main Menu',
 			id: 'showcase_back_button',
 			icon: 'arrow_back',
 			size: 'lg',
@@ -97,7 +99,8 @@ export class CardShowcaseScreen extends Screen {
 		} catch (error) {
 			console.error('Failed to load cards:', error);
 			if (generation !== this.generation) return;
-			this.list?.addChild(new Text('Failed to load cards. Check console for details.', {
+			this.list?.addChild(new Text({
+				text: 'Failed to load cards. Check console for details.',
 				style: { fontSize: 'fs_lg', color: 'status_crit' },
 			}));
 		}
@@ -132,7 +135,8 @@ export class CardShowcaseScreen extends Screen {
 	/** A heading over its cards, wrapped across the list's width. */
 	private group({ id, heading, color, cards }: { id: string; heading: string; color: string; cards: Card[] }): Stack {
 		const group = new Stack({ id, crossAlign: 'stretch', gap: tokens.space.space_3 });
-		group.addChild(new Text(heading, {
+		group.addChild(new Text({
+			text: heading,
 			style: { fontRole: 'display', fontSize: 'fs_xl', color },
 			wrap: 'none',
 		}));

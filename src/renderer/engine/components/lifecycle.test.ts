@@ -176,7 +176,7 @@ describe('upward invalidation and the layout phase (R8.16, R8.18)', () => {
 		const context = createTestContext();
 		const root = new Probe([], 'root');
 		const panel = new Probe([], 'panel');
-		const label = new Text('score', { width: 40, height: 12 });
+		const label = new Text({ text: 'score', width: 40, height: 12 });
 		root.addChild(panel);
 		panel.addChild(label);
 		root.mount(context);
@@ -268,7 +268,7 @@ describe('hugging containers and the layout passes (R8.18)', () => {
 
 		constructor(text: string) {
 			super({ height: 20 });
-			this.label = new Text(text, { style: { fontSize: 14 } });
+			this.label = new Text({ text, style: { fontSize: 14 } });
 			this.addChild(this.label);
 		}
 

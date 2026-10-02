@@ -78,7 +78,8 @@ export class DriverPanel extends Stack {
 		this.panelSide = side;
 		this.idPrefix = `driver_panel_${side}_`;
 
-		this.emptyStateText = new Text(side === 'left' ? 'Choose Your First Driver' : 'Choose Your Second Driver', {
+		this.emptyStateText = new Text({
+			text: side === 'left' ? 'Choose Your First Driver' : 'Choose Your Second Driver',
 			widthMode: 'fill',
 			heightMode: 'fill',
 			style: {
@@ -115,7 +116,8 @@ export class DriverPanel extends Stack {
 		}));
 
 		// The name, vehicle and specialty are centred across the panel
-		this.driverName = this.addLine(this.details, new Text('', {
+		this.driverName = this.addLine(this.details, new Text({
+			text: '',
 			id: `${this.idPrefix}driver_name`,
 			style: {
 				fontSize: 20,
@@ -126,7 +128,8 @@ export class DriverPanel extends Stack {
 			wrap: 'none',
 			textOverflow: 'ellipsis',
 		}));
-		this.vehicleName = this.addLine(this.details, new Text('', {
+		this.vehicleName = this.addLine(this.details, new Text({
+			text: '',
 			style: {
 				fontSize: 14,
 				color: '#cccccc',
@@ -135,7 +138,8 @@ export class DriverPanel extends Stack {
 			wrap: 'none',
 			textOverflow: 'ellipsis',
 		}));
-		this.specialtyTag = this.addLine(this.details, new Text('', {
+		this.specialtyTag = this.addLine(this.details, new Text({
+			text: '',
 			style: {
 				fontSize: 16,
 				color: '#ffaa00',
@@ -163,7 +167,8 @@ export class DriverPanel extends Stack {
 		this.deckScroll.addChild(body);
 		this.details.addChild(this.deckScroll);
 
-		this.flavorText = this.addLine(body, new Text('', {
+		this.flavorText = this.addLine(body, new Text({
+			text: '',
 			style: {
 				fontSize: 12,
 				color: '#aaaaaa',
@@ -171,7 +176,8 @@ export class DriverPanel extends Stack {
 			},
 			wrap: 'word',
 		}));
-		this.addLine(body, new Text('Starting Deck:', {
+		this.addLine(body, new Text({
+			text: 'Starting Deck:',
 			margin: { top: 4 },
 			style: {
 				fontSize: 16,

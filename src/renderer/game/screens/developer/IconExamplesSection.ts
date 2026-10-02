@@ -41,8 +41,8 @@ export class IconExamplesSection extends DeveloperSectionPanel {
 		column.addChild(grids);
 
 		column.addChild(labelledRow('Buttons', [
-			new Button('Back to Menu', { id: 'dev_icons_button_with_icon', icon: 'arrow_back', width: 200, height: 50 }),
-			new Button('Back to Menu', { id: 'dev_icons_button_without_icon', width: 200, height: 50 }),
+			new Button({ label: 'Back to Menu', id: 'dev_icons_button_with_icon', icon: 'arrow_back', width: 200, height: 50 }),
+			new Button({ label: 'Back to Menu', id: 'dev_icons_button_without_icon', width: 200, height: 50 }),
 		], 20));
 
 		const intents: EnemyIntent[] = [
@@ -75,7 +75,7 @@ export class IconExamplesSection extends DeveloperSectionPanel {
  */
 function grid(caption: string, names: readonly IconName[], make: (glyph: IconName, size: number) => Component, extra: number): Stack {
 	const block = new Stack({ gap: 4 });
-	block.addChild(new Text(caption, { style: { fontSize: tokens.fontSize.fs_base, color: 'text_dim' } }));
+	block.addChild(new Text({ text: caption, style: { fontSize: tokens.fontSize.fs_base, color: 'text_dim' } }));
 	for (const size of ICON_SIZES) {
 		const glyphs = new Stack({ direction: 'horizontal', gap: ICON_PITCH - size - extra, crossAlign: 'center', height: ROW_HEIGHT });
 		for (const glyph of names) glyphs.addChild(make(glyph, size));
@@ -104,7 +104,7 @@ function badge(glyph: IconName, size: number): Rectangle {
 /** A label in the left column, then `items` in a row, centred across. */
 function labelledRow(label: string, items: Component[], gap: number): Stack {
 	const row = new Stack({ direction: 'horizontal', crossAlign: 'center' });
-	row.addChild(new Text(label, { width: LABEL_WIDTH, style: { fontSize: 14, color: '#cccccc' } }));
+	row.addChild(new Text({ text: label, width: LABEL_WIDTH, style: { fontSize: 14, color: '#cccccc' } }));
 	const content = new Stack({ direction: 'horizontal', gap, crossAlign: 'center' });
 	for (const item of items) content.addChild(item);
 	row.addChild(content);

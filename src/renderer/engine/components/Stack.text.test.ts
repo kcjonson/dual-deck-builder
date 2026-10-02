@@ -4,7 +4,7 @@ import { Container } from './Container';
 import type { MountContext } from './MountContext';
 import { Rectangle } from './Rectangle';
 import { Stack } from './Stack';
-import { Text } from './Text';
+import { Text, TextOptions } from './Text';
 import { createTestContext } from './testing';
 
 /**
@@ -29,8 +29,8 @@ function body(text: string, maxWidth?: number): ReturnType<typeof layoutText> {
 	});
 }
 
-function label(text: string, style: ConstructorParameters<typeof Text>[1] = {}): Text {
-	return new Text(text, { ...style, style: { fontSize: 16, ...style.style } });
+function label(text: string, style: TextOptions = {}): Text {
+	return new Text({ text, ...style, style: { fontSize: 16, ...style.style } });
 }
 
 function layOut(root: Container, context: MountContext): void {

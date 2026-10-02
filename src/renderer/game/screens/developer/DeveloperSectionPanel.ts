@@ -62,7 +62,8 @@ export class DeveloperSectionPanel extends Panel {
 				padding: SECTION_INSET,
 			},
 		});
-		this.addChild(new Text(title, {
+		this.addChild(new Text({
+			text: title,
 			height: SECTION_TITLE_HEIGHT,
 			style: { fontSize: tokens.fontSize.fs_2xl, color: 'text_bright', fontWeight: 'bold' },
 		}));

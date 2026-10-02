@@ -84,7 +84,8 @@ export class DriverSelectionScreen extends Screen {
 			gap: 16,
 		});
 
-		const backButton = new Button('Back to Menu', {
+		const backButton = new Button({
+			label: 'Back to Menu',
 			id: 'driver_select_back_button',
 			// Tab reaches it first, as it reads (R9.18: a positive tabIndex
 			// leads the order)
@@ -97,7 +98,8 @@ export class DriverSelectionScreen extends Screen {
 		backButton.onClick = () => this.back();
 		header.addChild(backButton);
 
-		header.addChild(new Text('Choose Your Drivers', {
+		header.addChild(new Text({
+			text: 'Choose Your Drivers',
 			id: 'driver_select_title',
 			widthMode: 'fill',
 			style: {
@@ -182,7 +184,8 @@ export class DriverSelectionScreen extends Screen {
 			crossAlign: 'center',
 		});
 
-		this.confirmationText = new Text('', {
+		this.confirmationText = new Text({
+			text: '',
 			id: 'driver_select_confirmation',
 			widthMode: 'fill',
 			style: {
@@ -196,7 +199,8 @@ export class DriverSelectionScreen extends Screen {
 
 		// The primary action; disabled until two different drivers are picked,
 		// which the accent tone draws as its neutral disabled look.
-		this.startRunButton = new Button('START RUN', {
+		this.startRunButton = new Button({
+			label: 'START RUN',
 			id: 'driver_select_start_run_button',
 			tone: 'accent',
 			size: 'lg',

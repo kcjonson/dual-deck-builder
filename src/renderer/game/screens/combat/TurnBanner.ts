@@ -74,7 +74,8 @@ export class TurnBanner extends Component {
 	constructor(options: ComponentOptions = {}) {
 		super({ height: TURN_BANNER_HEIGHT, pointerEvents: 'none', ...options });
 		this.componentType = 'TurnBanner';
-		this.label = new Text('', {
+		this.label = new Text({
+			text: '',
 			id: options.id ? `${options.id}_text` : undefined,
 			height: TURN_BANNER_HEIGHT,
 			wrap: 'none',

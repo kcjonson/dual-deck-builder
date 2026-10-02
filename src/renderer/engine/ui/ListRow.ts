@@ -52,7 +52,8 @@ export class ListRow extends Pressable {
 		this.selected = selected;
 		if (onClick) this.onClick = onClick;
 
-		this.label = new Text(label, {
+		this.label = new Text({
+			text: label,
 			style: { fontRole: 'body', fontSize: 'fs_base' },
 			verticalAlign: 'middle',
 			wrap: 'none',
@@ -60,7 +61,8 @@ export class ListRow extends Pressable {
 		});
 		this.addPart(this.label);
 		this.trailingText = trailing !== undefined
-			? new Text(trailing, {
+			? new Text({
+				text: trailing,
 				style: { fontRole: 'mono', fontSize: 'fs_xs', color: 'text_dim' },
 				verticalAlign: 'middle',
 				wrap: 'none',

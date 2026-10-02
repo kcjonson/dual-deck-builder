@@ -30,7 +30,7 @@ export class Counter extends Text {
 	private tween: TweenHandle<number> | null = null;
 
 	constructor({ value = 0, format = WHOLE, duration = tokens.motion.dur_slow, ...options }: CounterOptions = {}) {
-		super(format(value), options);
+		super({ text: format(value), ...options });
 		this.componentType = 'Counter';
 		this.target = value;
 		this.shown = value;

@@ -71,6 +71,8 @@ export interface TextLayoutOptions {
 }
 
 export interface TextOptions extends Omit<ComponentOptions, 'style'>, TextLayoutOptions {
+	/** The string drawn. Default empty. */
+	text?: string;
 	style?: TextStyleObject;
 }
 
@@ -140,7 +142,7 @@ export class Text extends Component {
 	private inkHeight = Number.NaN;
 	private inkDirty = true;
 
-	constructor(text = '', { style, verticalAlign, wrap, textOverflow, lineHeight, ...options }: TextOptions = {}) {
+	constructor({ text = '', style, verticalAlign, wrap, textOverflow, lineHeight, ...options }: TextOptions = {}) {
 		super(options);
 		this.content = text;
 		this.componentType = 'Text';

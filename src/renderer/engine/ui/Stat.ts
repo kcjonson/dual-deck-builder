@@ -49,7 +49,8 @@ export class Stat extends Component {
 		this.toneValue = tone;
 		this.alignment = align;
 		const valueSize = VALUE_SIZE[size];
-		this.labelText = new Text(label, {
+		this.labelText = new Text({
+			text: label,
 			style: {
 				fontRole: 'mono',
 				fontSize: tokens.fontSize.fs_xs,
@@ -59,12 +60,14 @@ export class Stat extends Component {
 			},
 			wrap: 'none',
 		});
-		this.valueText = new Text(String(value), {
+		this.valueText = new Text({
+			text: String(value),
 			style: { fontRole: 'display', fontSize: valueSize, color: rgba(this.valueColor(value)) },
 			wrap: 'none',
 		});
 		this.unitText = unit !== undefined
-			? new Text(unit, {
+			? new Text({
+				text: unit,
 				style: { fontRole: 'display', fontSize: Math.round(valueSize * UNIT_SCALE), color: rgba(color.text_dim) },
 				wrap: 'none',
 			})

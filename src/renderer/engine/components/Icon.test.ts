@@ -107,7 +107,7 @@ describe('Icon (R12.6)', () => {
 
 	describe('as a button\'s leading icon (R12.7)', () => {
 		it('centres icon, gap and label together as one group', () => {
-			const button = new Button('Back to Menu', { id: 'back', icon: 'arrow_back', width: 200, height: 50 });
+			const button = new Button({ label: 'Back to Menu', id: 'back', icon: 'arrow_back', width: 200, height: 50 });
 			button.setPosition(30, 30);
 			frame(button);
 
@@ -133,7 +133,7 @@ describe('Icon (R12.6)', () => {
 		});
 
 		it('places in the layout phase, not again for a move, and again after a label change', () => {
-			const button = new Button('Back', { icon: 'arrow_back', width: 200, height: 50 });
+			const button = new Button({ label: 'Back', icon: 'arrow_back', width: 200, height: 50 });
 			// Text measures itself too, so count the button's own placement.
 			const place = jest.spyOn(Button.prototype as unknown as { placeLabel: () => void }, 'placeLabel');
 			frame(button);
@@ -153,7 +153,7 @@ describe('Icon (R12.6)', () => {
 		});
 
 		it('draws no icon without one', () => {
-			const button = new Button('Plain', { width: 100, height: 40 });
+			const button = new Button({ label: 'Plain', width: 100, height: 40 });
 			button.setPosition(0, 0);
 			frame(button);
 			expect(textCommands().map((command) => command.font)).toEqual(['display']);

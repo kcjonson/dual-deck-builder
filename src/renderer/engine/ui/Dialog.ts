@@ -144,7 +144,8 @@ export class Dialog extends Component {
 		this.initialFocus = initialFocus ?? null;
 		if (onClose) this.onClose = onClose;
 
-		this.closeButton = new Button('Close', {
+		this.closeButton = new Button({
+			label: 'Close',
 			id: `${id}_close`,
 			icon: 'close',
 			iconPosition: 'only',

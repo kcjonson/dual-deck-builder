@@ -62,11 +62,12 @@ export class TopBarLayer extends ChromeStack {
 		});
 		this.combatLog = combatLog;
 
-		this.turnLabel = new Text('', { id: 'combat_turn', style: LABEL_STYLE, wrap: 'none' });
+		this.turnLabel = new Text({ text: '', id: 'combat_turn', style: LABEL_STYLE, wrap: 'none' });
 		this.addChild(this.turnLabel);
 
 		// Takes the room the rest leave, and gives it up first
-		this.ticker = new Text('', {
+		this.ticker = new Text({
+			text: '',
 			id: 'combat_ticker',
 			widthMode: 'fill',
 			style: {
@@ -83,7 +84,8 @@ export class TopBarLayer extends ChromeStack {
 		this.fuelValue = this.addResource('local_gas_station', 'combat_fuel');
 
 		// The L key is the keyboard's way to the log, so the button is no Tab stop
-		this.logButton = new Button('LOG', {
+		this.logButton = new Button({
+			label: 'LOG',
 			id: 'combat_log_toggle',
 			size: 'sm',
 			width: LOG_BUTTON_WIDTH,
@@ -92,7 +94,8 @@ export class TopBarLayer extends ChromeStack {
 			style: LOG_BUTTON_STYLE,
 		});
 		this.logButton.onClick = onToggleLog;
-		this.logButton.addChild(new Text(LOG_KEY, {
+		this.logButton.addChild(new Text({
+			text: LOG_KEY,
 			anchor: 'right',
 			x: -8,
 			style: { fontRole: 'mono', fontSize: 10, color: rgba('text_faint') },
@@ -105,7 +108,7 @@ export class TopBarLayer extends ChromeStack {
 	private addResource(glyph: IconName, id: string): Text {
 		const group = new Stack({ direction: 'horizontal', gap: 6, crossAlign: 'center' });
 		group.addChild(new Icon({ glyph, size: RESOURCE_ICON_SIZE, tint: tokens.color.text_dim }));
-		const value = new Text('0', { id, style: LABEL_STYLE, wrap: 'none' });
+		const value = new Text({ text: '0', id, style: LABEL_STYLE, wrap: 'none' });
 		group.addChild(value);
 		this.addChild(group);
 		return value;

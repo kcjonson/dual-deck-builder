@@ -38,20 +38,21 @@ export class PopoverScene extends DeveloperSectionPanel {
 	constructor({ x, y, width }: SceneFactoryOptions) {
 		super({ id: 'gallery_scene_popover', title: 'Popover and key caps', contentHeight: CONTENT_HEIGHT, x, y, width });
 
-		this.addChild(new Text('Anchored and non-modal: a press outside closes it and still reaches what it landed on.', {
+		this.addChild(new Text({
+			text: 'Anchored and non-modal: a press outside closes it and still reaches what it landed on.',
 			y: 50,
 			style: { fontSize: 14, color: rgba(tokens.color.text_dim) },
 		}));
 
-		const damage = new Button('Damage', { id: 'popover_damage', x: 0, y: ROW_Y, width: BUTTON_WIDTH });
-		const armor = new Button('Armor', { id: 'popover_armor', x: BUTTON_WIDTH + BUTTON_GAP, y: ROW_Y, width: BUTTON_WIDTH });
+		const damage = new Button({ label: 'Damage', id: 'popover_damage', x: 0, y: ROW_Y, width: BUTTON_WIDTH });
+		const armor = new Button({ label: 'Armor', id: 'popover_armor', x: BUTTON_WIDTH + BUTTON_GAP, y: ROW_Y, width: BUTTON_WIDTH });
 		damage.onClick = () => this.openBreakdown(damage, BREAKDOWN, 'bottom');
 		armor.onClick = () => this.openBreakdown(armor, [['Hull', '6'], ['Shield', '+2']], 'right');
 		this.addChild(damage);
 		this.addChild(armor);
 
 		const caps = new Stack({ id: 'popover_key_caps', x: 0, y: 320, direction: 'horizontal', gap: tokens.space.space_3, crossAlign: 'center' });
-		caps.addChild(new Text('Key caps', { style: { fontSize: 13, color: rgba(tokens.color.text_dim) } }));
+		caps.addChild(new Text({ text: 'Key caps', style: { fontSize: 13, color: rgba(tokens.color.text_dim) } }));
 		for (const label of ['R', 'Esc', 'Shift', 'Tab']) caps.addChild(new KeyCap({ id: `key_cap_${label.toLowerCase()}`, label }));
 		caps.addChild(new KeyCap({ id: 'key_cap_md_space', label: 'Space', size: 'md' }));
 		caps.addChild(new KeyCap({ id: 'key_cap_md_enter', label: 'Enter', size: 'md' }));
@@ -81,11 +82,11 @@ export class PopoverScene extends DeveloperSectionPanel {
 /** Label and value per row, the value right-aligned in a mono column. */
 function breakdown(title: string, stats: readonly Stat[]): Component {
 	const column = new Stack({ direction: 'vertical', gap: tokens.space.space_1_5 });
-	column.addChild(new Text(title, { style: { fontRole: 'display', fontSize: tokens.fontSize.fs_md, color: rgba(tokens.color.text_bright), textTransform: 'uppercase' } }));
+	column.addChild(new Text({ text: title, style: { fontRole: 'display', fontSize: tokens.fontSize.fs_md, color: rgba(tokens.color.text_bright), textTransform: 'uppercase' } }));
 	for (const [label, value] of stats) {
 		const row = new Stack({ direction: 'horizontal', width: 180, distribution: 'spaceBetween' });
-		row.addChild(new Text(label, { style: { fontSize: tokens.fontSize.fs_sm, color: rgba(tokens.color.text_dim) } }));
-		row.addChild(new Text(value, { style: { fontRole: 'mono', fontSize: tokens.fontSize.fs_sm, color: rgba(tokens.color.text) } }));
+		row.addChild(new Text({ text: label, style: { fontSize: tokens.fontSize.fs_sm, color: rgba(tokens.color.text_dim) } }));
+		row.addChild(new Text({ text: value, style: { fontRole: 'mono', fontSize: tokens.fontSize.fs_sm, color: rgba(tokens.color.text) } }));
 		column.addChild(row);
 	}
 	return column;

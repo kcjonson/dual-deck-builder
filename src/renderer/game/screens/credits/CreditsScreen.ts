@@ -39,7 +39,8 @@ export class CreditsScreen extends Screen {
 	}
 
 	protected onMount(): void {
-		this.stack.addChild(new Text('Credits', {
+		this.stack.addChild(new Text({
+			text: 'Credits',
 			id: 'credits_title',
 			style: {
 				fontRole: 'display',
@@ -73,7 +74,8 @@ export class CreditsScreen extends Screen {
 		panel.addChild(this.scroller);
 		this.stack.addChild(panel);
 
-		const back = new Button('Back', {
+		const back = new Button({
+			label: 'Back',
 			id: 'credits_back_button',
 			icon: 'arrow_back',
 			size: 'lg',
@@ -108,7 +110,8 @@ export class CreditsScreen extends Screen {
 /** A section: its heading, then each entry's name over its lines. */
 function createSection(section: CreditSection): Stack {
 	const stack = new Stack({ crossAlign: 'stretch', gap: tokens.space.space_2 });
-	stack.addChild(new Text(section.heading, {
+	stack.addChild(new Text({
+		text: section.heading,
 		style: {
 			fontRole: 'display',
 			fontSize: 'fs_lg',
@@ -120,9 +123,9 @@ function createSection(section: CreditSection): Stack {
 	}));
 	for (const entry of section.entries) {
 		const block = new Stack({ crossAlign: 'stretch', gap: tokens.space.space_0_5 });
-		block.addChild(new Text(entry.name, { style: { fontSize: 'fs_md', color: 'text_bright' } }));
+		block.addChild(new Text({ text: entry.name, style: { fontSize: 'fs_md', color: 'text_bright' } }));
 		for (const line of entry.lines) {
-			block.addChild(new Text(line, { style: { fontSize: 'fs_base', color: 'text_dim' } }));
+			block.addChild(new Text({ text: line, style: { fontSize: 'fs_base', color: 'text_dim' } }));
 		}
 		stack.addChild(block);
 	}

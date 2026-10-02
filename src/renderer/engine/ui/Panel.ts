@@ -153,7 +153,8 @@ export class Panel extends Stack {
 		if (style.opacity !== undefined) this.opacity = style.opacity;
 
 		this.kickerText = kicker !== undefined
-			? new Text(kicker, {
+			? new Text({
+				text: kicker,
 				style: {
 					fontRole: 'mono',
 					fontSize: tokens.fontSize.fs_xs,
@@ -166,7 +167,8 @@ export class Panel extends Stack {
 			})
 			: null;
 		this.titleText = title !== undefined
-			? new Text(title, {
+			? new Text({
+				text: title,
 				style: {
 					fontRole: 'display',
 					fontSize: tokens.fontSize.fs_md,

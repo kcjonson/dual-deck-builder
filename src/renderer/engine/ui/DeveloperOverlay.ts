@@ -74,7 +74,8 @@ export class DeveloperOverlay extends Container {
 		this.addPart(this.background);
 		
 		// Performance stats text
-		this.performanceText = new Text('', {
+		this.performanceText = new Text({
+			text: '',
 			x: 10,
 			y: 10,
 			style: {

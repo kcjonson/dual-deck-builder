@@ -60,7 +60,8 @@ export class SplashScreen extends Screen {
 				borderRadius: 'r_xl',
 			},
 		}));
-		this.stack.addChild(new Text('Dual Deckbuilder', {
+		this.stack.addChild(new Text({
+			text: 'Dual Deckbuilder',
 			id: 'splash_title',
 			style: {
 				fontRole: 'display',
@@ -70,7 +71,8 @@ export class SplashScreen extends Screen {
 			},
 			wrap: 'none',
 		}));
-		this.stack.addChild(new Text('A Roguelike Card Game', {
+		this.stack.addChild(new Text({
+			text: 'A Roguelike Card Game',
 			id: 'splash_subtitle',
 			style: {
 				fontSize: 'fs_xl',

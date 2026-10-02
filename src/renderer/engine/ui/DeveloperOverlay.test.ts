@@ -55,7 +55,7 @@ describe('the overlay paints above every screen draw (R3.21)', () => {
 	function frame(developerOverlay: DeveloperOverlay): void {
 		const screen = new Container({ id: 'screen', width: 1440, height: 882 });
 		screen.addChild(new Rectangle({ id: 'screen_background', width: 1440, height: 882 }));
-		screen.addChild(new Text('Dual Deckbuilder', { id: 'title', x: 1000, y: 20 }));
+		screen.addChild(new Text({ text: 'Dual Deckbuilder', id: 'title', x: 1000, y: 20 }));
 
 		draw.beginFrame({ viewport: { width: 1440, height: 882 }, ratio: 1 });
 		renderTree(screen, draw);

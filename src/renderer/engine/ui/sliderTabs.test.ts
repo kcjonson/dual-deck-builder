@@ -198,7 +198,7 @@ describe('Slider (R12.15)', () => {
 
 	it('leaves Up and Down to directional focus, and holds Left and Right at its ends (R9.24)', () => {
 		const { made, changes } = slider({ value: 0 });
-		const below = new Button('Below', { x: 100, y: 200, width: 80 });
+		const below = new Button({ label: 'Below', x: 100, y: 200, width: 80 });
 		root.addChild(below);
 		context.frame.layout();
 		press('Tab');
@@ -492,7 +492,7 @@ describe('SegmentedControl (R12.17)', () => {
 
 	it('leaves Up and Down to directional focus, and goes to the ends with Home and End (R9.24)', () => {
 		const { control: made, changes } = segmented();
-		const below = new Button('Below', { x: 100, y: 200, width: 80 });
+		const below = new Button({ label: 'Below', x: 100, y: 200, width: 80 });
 		root.addChild(below);
 		context.frame.layout();
 		press('Tab');

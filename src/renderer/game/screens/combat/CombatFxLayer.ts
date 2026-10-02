@@ -470,7 +470,8 @@ export class FloatingNumber extends Text {
 		onExpire?: ((number: FloatingNumber) => void) | null;
 		held?: boolean;
 	}) {
-		super(text, {
+		super({
+			text,
 			id,
 			// Over the line and the reticle, and a later number over an earlier one
 			zIndex: NUMBER_Z_INDEX,

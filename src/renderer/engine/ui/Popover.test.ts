@@ -19,9 +19,9 @@ let otherClicks: number;
 beforeEach(() => {
 	context = createTestContext({ viewport: { logical: { width: 800, height: 600 } }, clock: new Clock() });
 	scene = new Container({ id: 'scene', width: 800, height: 600 });
-	anchor = new Button('Inspect', { id: 'anchor', x: 100, y: 100, width: 100, height: 34 });
+	anchor = new Button({ label: 'Inspect', id: 'anchor', x: 100, y: 100, width: 100, height: 34 });
 	otherClicks = 0;
-	other = new Button('Other', { id: 'other', x: 500, y: 400, width: 100, height: 34, onClick: () => { otherClicks += 1; } });
+	other = new Button({ label: 'Other', id: 'other', x: 500, y: 400, width: 100, height: 34, onClick: () => { otherClicks += 1; } });
 	scene.addChild(anchor);
 	scene.addChild(other);
 	scene.mount(context);
@@ -107,7 +107,7 @@ describe('Popover (R12.33)', () => {
 		expect(context.focus.focused).toBe(anchor);
 		plain.close();
 
-		const action = new Button('Pin', { id: 'pin', width: 80 });
+		const action = new Button({ label: 'Pin', id: 'pin', width: 80 });
 		const interactive = new Popover({ content: action, anchor });
 		interactive.show(context);
 		expect(context.focus.focused).toBe(action);

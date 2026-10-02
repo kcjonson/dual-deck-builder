@@ -168,7 +168,8 @@ export class Card extends Component {
 		const titleSize = Math.floor(14 * scaleFactor);
 
 		// Cost: hugs its digits, centred 30 px in from the right edge
-		this.cost = new Text(`${data.cost}`, {
+		this.cost = new Text({
+			text: `${data.cost}`,
 			id: this.childId('cost'),
 			y: headerY,
 			style: {
@@ -186,7 +187,8 @@ export class Card extends Component {
 		// line rather than under it, and a name that needs a third is cut with
 		// an ellipsis. Two line boxes end above the description. Both are
 		// placed by placeHeader once the cost has measured.
-		this.name = new Text(data.displayName, {
+		this.name = new Text({
+			text: data.displayName,
 			id: this.childId('title'),
 			x: titleX,
 			y: headerY,
@@ -211,7 +213,8 @@ export class Card extends Component {
 			// with DDB-137, plain until then. The box ends above the rarity line
 			// and the ellipsis is only a backstop: no summary reaches it.
 			const descriptionY = Math.floor(60 * scaleFactor);
-			this.description = new Text(fullText ? data.displayDescription : Card.faceText(data.displaySummary), {
+			this.description = new Text({
+				text: fullText ? data.displayDescription : Card.faceText(data.displaySummary),
 				id: this.childId('description'),
 				x: padding,
 				y: descriptionY,
@@ -229,7 +232,8 @@ export class Card extends Component {
 
 		// Rarity - only show on normal and large cards
 		if (size !== CardSize.MINI) {
-			this.rarity = new Text(data.rarity.toUpperCase(), {
+			this.rarity = new Text({
+				text: data.rarity.toUpperCase(),
 				id: this.childId('rarity'),
 				x: padding,
 				y: dimensions.height - Math.floor(60 * scaleFactor),
@@ -243,7 +247,8 @@ export class Card extends Component {
 
 			// Tags
 			const tagsStr = data.tags.join(', ');
-			this.tags = new Text(tagsStr, {
+			this.tags = new Text({
+				text: tagsStr,
 				id: this.childId('tags'),
 				x: padding,
 				y: dimensions.height - Math.floor(35 * scaleFactor),
@@ -258,7 +263,8 @@ export class Card extends Component {
 			this.addChild(this.tags);
 
 			// Target type
-			const targetText = new Text(data.targetType, {
+			const targetText = new Text({
+				text: data.targetType,
 				id: this.childId('target_type'),
 				x: padding,
 				y: dimensions.height - Math.floor(20 * scaleFactor),
@@ -280,7 +286,8 @@ export class Card extends Component {
 			};
 
 			// Centred in the badge
-			this.driverIndicator = new Text(`D${this.driverNumber}`, {
+			this.driverIndicator = new Text({
+				text: `D${this.driverNumber}`,
 				id: this.childId('driver_badge'),
 				x: badgeX,
 				y: badgeX,

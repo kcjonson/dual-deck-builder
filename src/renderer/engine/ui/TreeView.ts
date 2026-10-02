@@ -75,13 +75,15 @@ class TreeRow extends Pressable {
 		this.tree = tree;
 		this.item = item;
 		this.chevron = new Icon({ glyph: 'chevron_right', size: CHEVRON, tint: color.text_dim });
-		this.label = new Text('', {
+		this.label = new Text({
+			text: '',
 			style: { fontRole: 'body', fontSize: tokens.fontSize.fs_base },
 			verticalAlign: 'middle',
 			wrap: 'none',
 			textOverflow: 'ellipsis',
 		});
-		this.countText = new Text('', {
+		this.countText = new Text({
+			text: '',
 			style: { fontRole: 'mono', fontSize: tokens.fontSize.fs_xs, color: rgba(color.text_dim) },
 			verticalAlign: 'middle',
 			wrap: 'none',

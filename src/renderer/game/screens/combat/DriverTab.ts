@@ -92,7 +92,8 @@ export class DriverTab extends ChromeStack {
 		const mark = new Polygon({ width: MARK_SIZE, height: MARK_SIZE, style: { backgroundColor: color } });
 		mark.points = MARK_OUTLINES[seat];
 
-		this.nameLabel = new Text('', {
+		this.nameLabel = new Text({
+			text: '',
 			id: `driver${seat}_tab_name`,
 			style: {
 				fontRole: 'display',
@@ -105,7 +106,8 @@ export class DriverTab extends ChromeStack {
 			textOverflow: 'ellipsis',
 		});
 
-		this.passengerTag = new Text('PASSENGER', {
+		this.passengerTag = new Text({
+			text: 'PASSENGER',
 			visible: false,
 			style: { fontRole: 'mono', fontSize: 11, color: rgba('text_dim') },
 			wrap: 'none',
@@ -115,7 +117,8 @@ export class DriverTab extends ChromeStack {
 		const spacer = new Container({ widthMode: 'fill', heightMode: 'fill' });
 
 		this.pipRow = new Stack({ direction: 'horizontal', gap: 2, crossAlign: 'center' });
-		this.adrenalineValue = new Text('', {
+		this.adrenalineValue = new Text({
+			text: '',
 			id: `driver${seat}_adrenaline_value`,
 			style: { fontRole: 'display', fontSize: 15, color },
 			wrap: 'none',
@@ -124,7 +127,8 @@ export class DriverTab extends ChromeStack {
 		const adrenalineParts: Component[] = [this.pipRow, this.adrenalineValue];
 		for (const part of seat === 1 ? adrenalineParts : adrenalineParts.reverse()) adrenaline.addChild(part);
 
-		this.pilesLabel = new Text('', {
+		this.pilesLabel = new Text({
+			text: '',
 			id: `driver${seat}_piles`,
 			style: { fontRole: 'mono', fontSize: 12, color: rgba('text_dim') },
 			wrap: 'none',

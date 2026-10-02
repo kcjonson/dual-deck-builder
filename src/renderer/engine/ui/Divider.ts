@@ -42,7 +42,8 @@ export class Divider extends Component {
 		this.componentType = 'Divider';
 		this.orientation = orientation;
 		this.captionText = caption !== undefined
-			? new Text(caption, {
+			? new Text({
+				text: caption,
 				style: {
 					fontRole: 'mono',
 					fontSize: tokens.fontSize.fs_xs,

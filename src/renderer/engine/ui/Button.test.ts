@@ -53,7 +53,7 @@ describe('Button styling (R11)', () => {
 
 	describe('variants', () => {
 		it('draws the default tone from tokens: raised surface, edge line, text colour, display label', () => {
-			const button = mount(new Button('Go', { id: 'go', width: 100 }));
+			const button = mount(new Button({ label: 'Go', id: 'go', width: 100 }));
 			const { rects, texts } = draw(button);
 			expect(button.height).toBe(tokens.control.control_h_md);
 			expect(rects[0]).toMatchObject({ id: 'go', fill: color.bg_panel_raised, border: { color: color.line_edge, width: 1 } });
@@ -61,23 +61,23 @@ describe('Button styling (R11)', () => {
 		});
 
 		it('fills the accent tone with dark text', () => {
-			const { rects, texts } = draw(mount(new Button('Go', { tone: 'accent', width: 100 })));
+			const { rects, texts } = draw(mount(new Button({ label: 'Go', tone: 'accent', width: 100 })));
 			expect(rects[0].fill).toEqual(color.accent);
 			expect(texts[0].color).toEqual(color.accent_contrast);
 		});
 
 		it('takes height, label size, and icon size from size, and keeps an explicit height', () => {
-			const large = mount(new Button('Go', { size: 'lg', icon: 'arrow_back', width: 160 }));
+			const large = mount(new Button({ label: 'Go', size: 'lg', icon: 'arrow_back', width: 160 }));
 			const { texts } = draw(large);
 			expect(large.height).toBe(tokens.control.control_h_lg);
 			expect(texts.map((text) => text.size)).toEqual([tokens.control.control_fs_lg, tokens.control.icon_lg]);
-			expect(new Button('Go', { size: 'sm', height: 40 }).height).toBe(40);
+			expect(new Button({ label: 'Go', size: 'sm', height: 40 }).height).toBe(40);
 		});
 	});
 
 	describe('style object (R11.14)', () => {
-		const base = (): { rects: RectCommand[]; texts: TextCommand[] } => draw(mount(new Button('Go', { width: 100 })));
-		const styled = (style: StyleObject) => draw(mount(new Button('Go', { width: 100, style })));
+		const base = (): { rects: RectCommand[]; texts: TextCommand[] } => draw(mount(new Button({ label: 'Go', width: 100 })));
+		const styled = (style: StyleObject) => draw(mount(new Button({ label: 'Go', width: 100, style })));
 
 		// Each accepted property changes the recorded draw list against a
 		// baseline, the unstyled button unless the case names another.
@@ -106,22 +106,22 @@ describe('Button styling (R11)', () => {
 		});
 
 		it('renders shadow as the box shadow group', () => {
-			const button = mount(new Button('Go', { width: 100, style: { shadow: 'shadow_raised' } }));
+			const button = mount(new Button({ label: 'Go', width: 100, style: { shadow: 'shadow_raised' } }));
 			expect(frameCommands(button).map((command) => command.kind)).toContain('shadow');
 		});
 
 		it('renders opacity through the component', () => {
-			expect(new Button('Go', { style: { opacity: 0.5 } }).opacity).toBe(0.5);
+			expect(new Button({ label: 'Go', style: { opacity: 0.5 } }).opacity).toBe(0.5);
 		});
 
 		it('throws on an unknown key and on a property it does not render', () => {
-			expect(() => new Button('Go', { style: { border: '1px solid red' } as StyleObject })).toThrow(/not a style property/);
-			expect(() => new Button('Go', { style: { cursor: 'pointer' } })).toThrow(/does not render/);
+			expect(() => new Button({ label: 'Go', style: { border: '1px solid red' } as StyleObject })).toThrow(/not a style property/);
+			expect(() => new Button({ label: 'Go', style: { cursor: 'pointer' } })).toThrow(/does not render/);
 			expect(() => new TextInput({ style: { textAlign: 'center' } })).toThrow(/does not render/);
 		});
 
 		it('restyles at runtime through the same accessor, and validates it', () => {
-			const button = mount(new Button('Go', { width: 100 }));
+			const button = mount(new Button({ label: 'Go', width: 100 }));
 			button.style = { backgroundColor: 'status_crit', fontSize: 'fs_lg' };
 			advance(tokens.motion.dur_fast);
 			context.frame.layout();
@@ -132,19 +132,19 @@ describe('Button styling (R11)', () => {
 		});
 
 		it('resets opacity when a new style drops it', () => {
-			const button = new Button('Go', { style: { opacity: 0.5 } });
+			const button = new Button({ label: 'Go', style: { opacity: 0.5 } });
 			button.style = {};
 			expect(button.opacity).toBe(1);
-			const faded = new Button('Go', { opacity: 0.4 });
+			const faded = new Button({ label: 'Go', opacity: 0.4 });
 			faded.style = { color: 'accent' };
 			expect(faded.opacity).toBe(0.4);
 		});
 
 		it('takes its height from size until the caller sets one', () => {
-			const button = new Button('Go', { width: 100 });
+			const button = new Button({ label: 'Go', width: 100 });
 			button.size = 'lg';
 			expect(button.height).toBe(tokens.control.control_h_lg);
-			const fixed = new Button('Go', { width: 100, height: 40 });
+			const fixed = new Button({ label: 'Go', width: 100, height: 40 });
 			fixed.size = 'sm';
 			expect(fixed.height).toBe(40);
 			button.setSize(100, 50);
@@ -156,7 +156,7 @@ describe('Button styling (R11)', () => {
 		});
 
 		it('switches tone at runtime', () => {
-			const button = mount(new Button('Go', { width: 100 }));
+			const button = mount(new Button({ label: 'Go', width: 100 }));
 			button.tone = 'ok';
 			advance(tokens.motion.dur_fast);
 			expect(draw(button).rects[0].fill).toEqual(color.status_ok);
@@ -167,7 +167,7 @@ describe('Button styling (R11)', () => {
 		const hoverFill = over(color.bg_panel_raised, color.bg_hover);
 
 		it('reaches the hover fill at dur_fast', () => {
-			const button = mount(new Button('Go', { width: 100 }));
+			const button = mount(new Button({ label: 'Go', width: 100 }));
 			button.hovered = true;
 			advance(tokens.motion.dur_fast / 2);
 			const midway = button.look.fill;
@@ -179,7 +179,7 @@ describe('Button styling (R11)', () => {
 		});
 
 		it('reverses from the current value when the hover ends mid-way', () => {
-			const button = mount(new Button('Go', { width: 100 }));
+			const button = mount(new Button({ label: 'Go', width: 100 }));
 			button.hovered = true;
 			advance(tokens.motion.dur_fast / 2);
 			const midway = button.look.fill[0];
@@ -192,7 +192,7 @@ describe('Button styling (R11)', () => {
 		});
 
 		it('moves the glow over dur, slower than the colour', () => {
-			const button = mount(new Button('Go', { tone: 'accent', width: 100 }));
+			const button = mount(new Button({ label: 'Go', tone: 'accent', width: 100 }));
 			button.hovered = true;
 			advance(tokens.motion.dur_fast);
 			expect(button.look.fill).toEqual(color.accent_bright);
@@ -202,7 +202,7 @@ describe('Button styling (R11)', () => {
 		});
 
 		it('nudges the box and label down while pressed', () => {
-			const button = mount(new Button('Go', { width: 100 }));
+			const button = mount(new Button({ label: 'Go', width: 100 }));
 			button.pressed = true;
 			advance(tokens.motion.dur_fast);
 			const { rects, texts } = draw(button);
@@ -212,20 +212,20 @@ describe('Button styling (R11)', () => {
 
 		it('is immediate under reduced motion', () => {
 			context.animator.reducedMotion = true;
-			const button = mount(new Button('Go', { width: 100 }));
+			const button = mount(new Button({ label: 'Go', width: 100 }));
 			button.hovered = true;
 			advance(1);
 			expect(button.look.fill).toEqual(hoverFill);
 		});
 
 		it('snaps while unmounted, where there is no animator', () => {
-			const button = new Button('Go', { width: 100 });
+			const button = new Button({ label: 'Go', width: 100 });
 			button.hovered = true;
 			expect(button.look.fill).toEqual(hoverFill);
 		});
 
 		it('shows the focus ring at once, outside the box at the ring offset', () => {
-			const button = mount(new Button('Go', { width: 100 }));
+			const button = mount(new Button({ label: 'Go', width: 100 }));
 			context.focus.focus(button, 'keyboard');
 			const ring = draw(button).rects[1];
 			const offset = tokens.control.focus_ring_offset;

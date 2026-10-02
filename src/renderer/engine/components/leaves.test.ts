@@ -43,8 +43,8 @@ describe('the closed style set on the leaves (R11.14)', () => {
 		expect(() => new Circle({ style: { borderRadius: 4 } as never })).toThrow(/does not render/);
 		expect(() => new Triangle({ style: { shadow: 'shadow_raised' } as never })).toThrow(/does not render/);
 		expect(() => new Polygon({ style: { fontSize: 12 } as never })).toThrow(/does not render/);
-		expect(() => new Text('x', { style: { backgroundColor: 'accent' } as never })).toThrow(/does not render/);
-		expect(() => new Text('x', { style: { verticalAlign: 'middle' } as never })).toThrow(/not a style property/);
+		expect(() => new Text({ text: 'x', style: { backgroundColor: 'accent' } as never })).toThrow(/does not render/);
+		expect(() => new Text({ text: 'x', style: { verticalAlign: 'middle' } as never })).toThrow(/not a style property/);
 		expect(() => new Stack({ style: { color: 'text' } as never })).toThrow(/does not render/);
 		expect(() => new Line({ start: { x: 0, y: 0 }, end: { x: 1, y: 1 }, style: { borderWidth: 1 } as never })).toThrow(/does not render/);
 		expect(() => new Image({ style: { borderColor: 'accent' } as never })).toThrow(/does not render/);
@@ -76,7 +76,7 @@ describe('the closed style set on the leaves (R11.14)', () => {
 	});
 
 	it('replaces the whole style from every leaf\'s style setter, as construction does (R11.16)', () => {
-		const text = new Text('x', { style: { color: 'accent', fontSize: 20 } });
+		const text = new Text({ text: 'x', style: { color: 'accent', fontSize: 20 } });
 		text.style = { fontSize: 12 };
 		expect(text.style).toEqual({ fontSize: 12 });
 		expect(text.resolvedColors.text).toEqual([1, 1, 1, 1]);
@@ -114,7 +114,7 @@ describe('the closed style set on the leaves (R11.14)', () => {
 	});
 
 	it('takes text layout as options, not style: vertical alignment, wrap, overflow, line height', () => {
-		const text = new Text('Hello', { width: 100, height: 40, style: { fontRole: 'mono', fontSize: 'fs_lg', color: 'accent' }, verticalAlign: 'middle', wrap: 'none', textOverflow: 'ellipsis', lineHeight: 1.2 });
+		const text = new Text({ text: 'Hello', width: 100, height: 40, style: { fontRole: 'mono', fontSize: 'fs_lg', color: 'accent' }, verticalAlign: 'middle', wrap: 'none', textOverflow: 'ellipsis', lineHeight: 1.2 });
 		const drawn = draw(text).find((command): command is TextCommand => command.kind === 'text') as TextCommand;
 		expect(drawn).toMatchObject({ font: 'mono', size: tokens.fontSize.fs_lg, color: tokens.color.accent, verticalAlign: 'middle', wrap: 'none', overflow: 'ellipsis', lineHeight: 1.2 });
 	});

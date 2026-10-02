@@ -33,7 +33,7 @@ beforeEach(() => {
 	scene = new Container({ id: 'scene', width: 800, height: 600 });
 	sceneClicks = 0;
 	// Top left, well clear of a centred panel.
-	sceneButton = new Button('Scene', { id: 'scene_button', x: 20, y: 20, width: 100, height: 40, onClick: () => { sceneClicks += 1; } });
+	sceneButton = new Button({ label: 'Scene', id: 'scene_button', x: 20, y: 20, width: 100, height: 40, onClick: () => { sceneClicks += 1; } });
 	scene.addChild(sceneButton);
 	scene.mount(context);
 	context.frame.layout();
@@ -49,9 +49,9 @@ interface Built {
 
 function build(options: DialogOptions = {}): Built {
 	const closes: number[] = [];
-	const field = new Button('Field', { id: 'dialog_field', width: 120 });
-	const cancel = new Button('Cancel', { id: 'dialog_cancel', width: 100 });
-	const confirm = new Button('Abandon', { id: 'dialog_confirm', width: 100, tone: 'crit' });
+	const field = new Button({ label: 'Field', id: 'dialog_field', width: 120 });
+	const cancel = new Button({ label: 'Cancel', id: 'dialog_cancel', width: 100 });
+	const confirm = new Button({ label: 'Abandon', id: 'dialog_confirm', width: 100, tone: 'crit' });
 	const dialog = new Dialog({
 		title: 'Abandon run?',
 		kicker: 'Confirm',
@@ -430,7 +430,7 @@ describe('Dialog surface on Panel (R12.19, R12.21)', () => {
 		const hairlines = rectsOf(panel).filter((rect) => rect.fill === tokens.color.line_hairline);
 		expect(hairlines.map((rect) => rect.rect.y)).toEqual([panel.header - tokens.borderWidth.bw_hair, cancel.parent?.y]);
 
-		const bare = new Dialog({ id: 'bare', title: 'Notice', content: new Button('Ok', { id: 'ok', width: 80 }) });
+		const bare = new Dialog({ id: 'bare', title: 'Notice', content: new Button({ label: 'Ok', id: 'ok', width: 80 }) });
 		bare.show(context);
 		advance(context, OPEN_MS);
 		expect(rectsOf(bare.surface as Panel).filter((rect) => rect.fill === tokens.color.line_hairline)).toHaveLength(1);

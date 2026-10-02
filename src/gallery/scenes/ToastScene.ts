@@ -29,11 +29,12 @@ export class ToastScene extends DeveloperSectionPanel {
 	constructor({ x, y, width }: SceneFactoryOptions) {
 		super({ id: 'gallery_scene_toasts', title: 'Toasts', contentHeight: CONTENT_HEIGHT, x, y, width });
 
-		this.addChild(new Text('Info, warning, and critical in a corner stack; hover pauses the countdown, the X or a click dismisses.', {
+		this.addChild(new Text({
+			text: 'Info, warning, and critical in a corner stack; hover pauses the countdown, the X or a click dismisses.',
 			y: 50,
 			style: { fontSize: 14, color: rgba(tokens.color.text_dim) },
 		}));
-		const more = new Button('Push a toast', { id: 'toasts_push', y: 84, width: 160 });
+		const more = new Button({ label: 'Push a toast', id: 'toasts_push', y: 84, width: 160 });
 		more.onClick = () => {
 			this.pushed += 1;
 			this.stack.push({ title: `Toast ${this.pushed}`, message: 'Dismisses itself after five seconds.', severity: 'info' });

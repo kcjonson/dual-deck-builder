@@ -47,7 +47,8 @@ export class EndTurnColumn extends Stack {
 			...options,
 		});
 
-		this.turnLabel = new Text('', {
+		this.turnLabel = new Text({
+			text: '',
 			id: 'end_turn_turn',
 			style: {
 				fontRole: 'display',
@@ -61,7 +62,8 @@ export class EndTurnColumn extends Stack {
 		});
 		this.addChild(this.turnLabel);
 
-		this.endTurnButton = new Button('END TURN', {
+		this.endTurnButton = new Button({
+			label: 'END TURN',
 			id: 'end_turn_button',
 			size: 'lg',
 			width: END_TURN_COLUMN_WIDTH,
@@ -71,7 +73,8 @@ export class EndTurnColumn extends Stack {
 		this.endTurnButton.onClick = onEndTurn;
 		this.addChild(this.endTurnButton);
 
-		this.warning = new Text('', {
+		this.warning = new Text({
+			text: '',
 			id: 'end_turn_warning',
 			style: { fontRole: 'mono', fontSize: 11, color: rgba('accent'), textAlign: 'center' },
 			wrap: 'none',

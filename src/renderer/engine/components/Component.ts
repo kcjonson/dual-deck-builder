@@ -97,6 +97,24 @@ export interface ComponentOptions {
 	overflow?: Overflow;
 	/** Fired after a layout in which this component's bounds changed, including the first (R8.21). */
 	onLayout?: (bounds: Rect) => void;
+	/** R8.2's input and drag callbacks, set as the properties of the same names (R8.25). */
+	onPointerDown?: PointerCallback;
+	onPointerUp?: PointerCallback;
+	onPointerMove?: PointerCallback;
+	onPointerEnter?: PointerCallback;
+	onPointerLeave?: PointerCallback;
+	onClick?: ClickCallback;
+	onContextMenu?: PointerCallback;
+	onWheel?: WheelCallback;
+	onKeyDown?: KeyCallback;
+	onKeyUp?: KeyCallback;
+	onFocus?: FocusCallback;
+	onBlur?: FocusCallback;
+	onDragEnter?: DragCallback;
+	onDragOver?: DragCallback;
+	onDragLeave?: DragCallback;
+	onDrop?: DragCallback;
+	onDragEnd?: DragCallback;
 	/** Shown by the tooltip service on hover (R12.22). */
 	tooltip?: TooltipInput | null;
 	/** A press here is not consumed by an open popup's outside-press close (R9.13). */
@@ -275,6 +293,23 @@ export abstract class Component {
 		if (options.pointerEvents !== undefined) this.ownPointerEvents = options.pointerEvents;
 		if (options.overflow !== undefined) this.overflow = options.overflow;
 		if (options.onLayout) this.onLayout = options.onLayout;
+		if (options.onPointerDown) this.onPointerDown = options.onPointerDown;
+		if (options.onPointerUp) this.onPointerUp = options.onPointerUp;
+		if (options.onPointerMove) this.onPointerMove = options.onPointerMove;
+		if (options.onPointerEnter) this.onPointerEnter = options.onPointerEnter;
+		if (options.onPointerLeave) this.onPointerLeave = options.onPointerLeave;
+		if (options.onClick) this.onClick = options.onClick;
+		if (options.onContextMenu) this.onContextMenu = options.onContextMenu;
+		if (options.onWheel) this.onWheel = options.onWheel;
+		if (options.onKeyDown) this.onKeyDown = options.onKeyDown;
+		if (options.onKeyUp) this.onKeyUp = options.onKeyUp;
+		if (options.onFocus) this.onFocus = options.onFocus;
+		if (options.onBlur) this.onBlur = options.onBlur;
+		if (options.onDragEnter) this.onDragEnter = options.onDragEnter;
+		if (options.onDragOver) this.onDragOver = options.onDragOver;
+		if (options.onDragLeave) this.onDragLeave = options.onDragLeave;
+		if (options.onDrop) this.onDrop = options.onDrop;
+		if (options.onDragEnd) this.onDragEnd = options.onDragEnd;
 		if (options.tooltip !== undefined) this.tooltipSpec = normalizeTooltip(options.tooltip);
 		if (options.popupTrigger !== undefined) this.popupTrigger = options.popupTrigger;
 		if (options.focusable !== undefined) this.ownFocusable = options.focusable;
@@ -1878,17 +1913,17 @@ export abstract class Component {
 		return this.hoverState;
 	}
 
-	/** Keys come here first (R9.15). Maintained by the focus manager, which calls `setFocusState`. */
-	public get focused(): boolean {
-		return this.focusState;
-	}
-
 	public set hovered(hovered: boolean) {
 		if (this.hoverState === hovered) return;
 		this.hoverState = hovered;
 		if (hovered) this.onHover();
 		else this.onUnhover();
 		this.onStateChange();
+	}
+
+	/** Keys come here first (R9.15). Maintained by the focus manager, which calls `setFocusState`. */
+	public get focused(): boolean {
+		return this.focusState;
 	}
 
 	/**

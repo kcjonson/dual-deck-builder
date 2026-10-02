@@ -27,6 +27,8 @@ import { Pressable } from './Pressable';
 export type IconPosition = 'left' | 'right' | 'only';
 
 export interface ButtonOptions extends Omit<ComponentOptions, 'style'> {
+	/** The label. Default empty; with `iconPosition: 'only'` it names the button without being drawn. */
+	label?: string;
 	/** R12.7's icon, drawn beside the label as `iconPosition` says; the pair is centred together. */
 	icon?: IconName;
 	/** Default `left`. With `only` the label is kept (it names the button) but not drawn. */
@@ -103,7 +105,8 @@ export class Button extends Pressable {
 	/** Height comes from `size` until the caller gives one (R11.10). */
 	private heightFollowsSize: boolean;
 
-	constructor(label = '', {
+	constructor({
+		label = '',
 		icon,
 		iconPosition = 'left',
 		ghost = false,
@@ -137,7 +140,8 @@ export class Button extends Pressable {
 		this.padding = this.resolvePadding();
 		if (style.opacity !== undefined) this.opacity = style.opacity;
 
-		this.text = new Text(label, {
+		this.text = new Text({
+			text: label,
 			style: this.labelStyle(),
 			verticalAlign: 'middle',
 			wrap: 'none',

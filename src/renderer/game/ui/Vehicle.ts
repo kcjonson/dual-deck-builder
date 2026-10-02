@@ -12,13 +12,14 @@ import { resolveFontRole } from '../../engine/text/fontRoles';
 import { tokens } from '../../engine/theme/tokens';
 import { ArmorBadge } from './ArmorBadge';
 
-export interface VehicleOptions extends ComponentOptions {
+export interface VehicleOptions extends Omit<ComponentOptions, 'onClick'> {
 	x: number;
 	y: number;
 	width: number;
 	height: number;
 	vehicleData: VehicleData;
 	combatData?: CombatModel;
+	/** Choosing the vehicle as a target, with its data; not the component's own `onClick`. */
 	onClick?: (vehicle: VehicleData) => void;
 }
 
@@ -82,12 +83,12 @@ export class Vehicle extends Component {
 
 	private modelUnsubscribers: (() => void)[] = [];
 
-	constructor(args: VehicleOptions) {
+	constructor({ onClick, ...args }: VehicleOptions) {
 		super(args);
 		this.componentType = 'Vehicle';
 		this.vehicleData = args.vehicleData;
 		this.combatData = args.combatData || null;
-		this.onClickCallback = args.onClick || null;
+		this.onClickCallback = onClick || null;
 
 		this.portraitBorder.color = resolveColor(this.borderColor);
 		this.portraitDraw = {
@@ -108,7 +109,8 @@ export class Vehicle extends Component {
 		});
 		this.addChild(this.driverPortrait);
 
-		this.driverNameText = new Text('', {
+		this.driverNameText = new Text({
+			text: '',
 			id: this.childId('driver_name'),
 			style: {
 				fontSize: TEXT_SIZE,
@@ -121,7 +123,8 @@ export class Vehicle extends Component {
 		});
 		this.addChild(this.driverNameText);
 
-		this.driverHpText = new Text('', {
+		this.driverHpText = new Text({
+			text: '',
 			id: this.childId('driver_hp'),
 			style: {
 				fontSize: TEXT_SIZE,
@@ -133,7 +136,8 @@ export class Vehicle extends Component {
 		this.addChild(this.driverHpText);
 
 		// Just the vehicle's name; the driver's is on its own row
-		this.nameText = new Text('', {
+		this.nameText = new Text({
+			text: '',
 			id: this.childId('name'),
 			style: {
 				fontSize: TEXT_SIZE,
@@ -147,7 +151,8 @@ export class Vehicle extends Component {
 		});
 		this.addChild(this.nameText);
 
-		this.healthText = new Text('', {
+		this.healthText = new Text({
+			text: '',
 			id: this.childId('structure_value'),
 			style: {
 				fontSize: TEXT_SIZE,
@@ -167,7 +172,8 @@ export class Vehicle extends Component {
 		});
 		this.addChild(this.armorBadge);
 
-		this.spentChip = new Text('SPENT', {
+		this.spentChip = new Text({
+			text: 'SPENT',
 			id: this.childId('spent_chip'),
 			style: {
 				fontSize: TEXT_SIZE,

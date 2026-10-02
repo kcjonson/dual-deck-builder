@@ -34,7 +34,7 @@ function row(index: number): Component {
 		padding: { left: 8 },
 		style: { backgroundColor: index % 2 === 0 ? 'accent_dim' : 'bg_panel_raised' },
 	});
-	made.addChild(new Text(`Salvage lot ${index + 1}`, { style: { fontSize: tokens.fontSize.fs_sm, color: rgba(tokens.color.text) } }));
+	made.addChild(new Text({ text: `Salvage lot ${index + 1}`, style: { fontSize: tokens.fontSize.fs_sm, color: rgba(tokens.color.text) } }));
 	return made;
 }
 
@@ -60,7 +60,8 @@ export class RoundedClipScene extends DeveloperSectionPanel {
 	constructor({ x, y, width }: SceneFactoryOptions) {
 		super({ id: 'gallery_scene_rounded_clip', title: 'Rounded clips on components', contentHeight: CONTENT_HEIGHT, x, y, width });
 
-		this.addChild(new Text('clipRadius: the clip at the border\'s inner edge, its corner concentric with the background\'s.', {
+		this.addChild(new Text({
+			text: 'clipRadius: the clip at the border\'s inner edge, its corner concentric with the background\'s.',
 			y: 50,
 			style: { fontSize: 14, color: rgba(tokens.color.text_dim) },
 		}));
@@ -124,7 +125,7 @@ export class RoundedClipScene extends DeveloperSectionPanel {
 
 	private addCell(index: number, caption: string, view: Component): void {
 		const left = (CELL_WIDTH + CELL_GAP) * index;
-		this.addChild(new Text(caption, { x: left, y: CAPTION_Y, style: { fontSize: 13, color: rgba(tokens.color.text_dim) } }));
+		this.addChild(new Text({ text: caption, x: left, y: CAPTION_Y, style: { fontSize: 13, color: rgba(tokens.color.text_dim) } }));
 		view.setPosition(left, VIEW_Y);
 		this.addChild(view);
 	}

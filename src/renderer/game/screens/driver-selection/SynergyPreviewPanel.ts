@@ -51,7 +51,8 @@ export class SynergyPreviewPanel extends Stack {
 			...options,
 		});
 
-		this.addChild(new Text('Team Synergy', {
+		this.addChild(new Text({
+			text: 'Team Synergy',
 			style: {
 				fontSize: 20,
 				color: '#ffffff',
@@ -62,7 +63,8 @@ export class SynergyPreviewPanel extends Stack {
 			textOverflow: 'ellipsis',
 		}));
 
-		this.synergyDescription = new Text('', {
+		this.synergyDescription = new Text({
+			text: '',
 			id: 'driver_select_synergy_description',
 			style: {
 				fontSize: 12,
@@ -72,7 +74,8 @@ export class SynergyPreviewPanel extends Stack {
 		});
 		this.addChild(this.synergyDescription);
 
-		this.warningText = new Text('', {
+		this.warningText = new Text({
+			text: '',
 			visible: false,
 			style: {
 				fontSize: 11,
@@ -133,7 +136,8 @@ export class SynergyPreviewPanel extends Stack {
 				borderRadius: TAG_HEIGHT / 2,
 			},
 		});
-		pill.addChild(new Text(tag, {
+		pill.addChild(new Text({
+			text: tag,
 			maxSize: { width: MAX_TAG_LABEL_WIDTH },
 			style: {
 				fontSize: 10,

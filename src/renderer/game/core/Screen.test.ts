@@ -18,7 +18,7 @@ class ButtonScreen extends Screen {
 	}
 
 	protected onMount(): void {
-		this.button = new Button('Go', { id: `${this.id}_go`, x: 10, y: 10, width: 80, height: 30 });
+		this.button = new Button({ label: 'Go', id: `${this.id}_go`, x: 10, y: 10, width: 80, height: 30 });
 		this.rootLayer.addChild(this.button);
 	}
 }

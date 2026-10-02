@@ -56,7 +56,8 @@ export class Badge extends LabelledLeaf {
 
 	constructor({ label, tone = 'default', dot = false, outline = false, ...options }: BadgeOptions) {
 		const look = badgeLook(tone, outline);
-		super({ ...options, height: options.height ?? BADGE_HEIGHT }, new Text(label, {
+		super({ ...options, height: options.height ?? BADGE_HEIGHT }, new Text({
+			text: label,
 			style: {
 				fontRole: 'mono',
 				fontSize: tokens.fontSize.fs_xs,

@@ -37,8 +37,8 @@ export class DropdownButton extends Button {
 	private menu: Menu | null = null;
 	private handle: PopupHandle | null = null;
 
-	constructor(label = '', { items = [], openUpward = false, menuWidth, maxMenuHeight = DEFAULT_MENU_HEIGHT, onSelect = null, ...options }: DropdownButtonOptions = {}) {
-		super(label, { ...options, icon: 'expand_more', iconPosition: 'right' });
+	constructor({ items = [], openUpward = false, menuWidth, maxMenuHeight = DEFAULT_MENU_HEIGHT, onSelect = null, ...options }: DropdownButtonOptions = {}) {
+		super({ ...options, icon: 'expand_more', iconPosition: 'right' });
 		this.componentType = 'DropdownButton';
 		this.popupTrigger = true;
 		this.menuItems = items;

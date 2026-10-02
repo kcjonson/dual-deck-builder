@@ -43,7 +43,8 @@ export class KeyCap extends LabelledLeaf {
 
 	constructor({ label, size = 'sm', ...options }: KeyCapOptions) {
 		const metrics = METRICS[size];
-		super({ ...options, height: options.height ?? metrics.height }, new Text(label, {
+		super({ ...options, height: options.height ?? metrics.height }, new Text({
+			text: label,
 			style: {
 				fontRole: 'mono',
 				fontSize: metrics.fontSize,

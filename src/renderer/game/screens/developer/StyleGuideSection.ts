@@ -24,7 +24,7 @@ export class StyleGuideSection extends DeveloperSectionPanel {
 		super({ id: 'dev_section_style_guide', title: 'Style Guide', ...options });
 
 		const column = new Stack({ gap: 10, padding: { left: 20 } });
-		column.addChild(new Text('Color Palette:', { style: { fontSize: 20, color: 'text_bright' } }));
+		column.addChild(new Text({ text: 'Color Palette:', style: { fontSize: 20, color: 'text_bright' } }));
 		const palette = new Stack({ gap: 10 });
 		for (let start = 0; start < COLORS.length; start += PER_ROW) {
 			const row = new Stack({ direction: 'horizontal', gap: 10 });
@@ -43,6 +43,6 @@ function swatch(name: string, value: string): Stack {
 		height: SWATCH,
 		style: { backgroundColor: value, borderRadius: 8, borderWidth: 2, borderColor: '#ffffff' },
 	}));
-	cell.addChild(new Text(name, { width: SWATCH, style: { fontSize: 12, color: 'text_bright', textAlign: 'center' }, wrap: 'none' }));
+	cell.addChild(new Text({ text: name, width: SWATCH, style: { fontSize: 12, color: 'text_bright', textAlign: 'center' }, wrap: 'none' }));
 	return cell;
 }

@@ -40,11 +40,12 @@ export class TransitionScene extends DeveloperSectionPanel {
 	constructor({ x, y, width }: SceneFactoryOptions) {
 		super({ id: 'gallery_scene_transition', title: 'Screen transition', contentHeight: CONTENT_HEIGHT, x, y, width });
 
-		this.addChild(new Text('Fade out, swap, lay out once, fade in; input is blocked until it has finished.', {
+		this.addChild(new Text({
+			text: 'Fade out, swap, lay out once, fade in; input is blocked until it has finished.',
 			y: 50,
 			style: { fontSize: 14, color: rgba(tokens.color.text_dim) },
 		}));
-		const replay = new Button('Run it again', { id: 'transition_replay', x: STAGE.width + tokens.space.space_6, y: STAGE_Y, width: 160 });
+		const replay = new Button({ label: 'Run it again', id: 'transition_replay', x: STAGE.width + tokens.space.space_6, y: STAGE_Y, width: 160 });
 		replay.onClick = () => this.runTransition();
 		this.addChild(replay);
 
@@ -84,7 +85,8 @@ export class TransitionScene extends DeveloperSectionPanel {
 			height: STAGE.height,
 			style: { backgroundColor: rgba(look.fill), borderColor: rgba(tokens.color.line_edge), borderWidth: 1 },
 		});
-		stage.addChild(new Text(look.title, {
+		stage.addChild(new Text({
+			text: look.title,
 			id: 'transition_stage_title',
 			x: tokens.space.space_4,
 			y: tokens.space.space_4,

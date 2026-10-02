@@ -1,7 +1,7 @@
 import { Container } from '../components/Container';
 import type { Component } from '../components/Component';
 import { Rectangle } from '../components/Rectangle';
-import { Text } from '../components/Text';
+import { Text, TextOptions } from '../components/Text';
 import { Panel } from '../ui/Panel';
 import { ScrollContainer } from '../ui/ScrollContainer';
 import { Button } from '../ui/Button';
@@ -34,8 +34,8 @@ function countNodes(node: SnapshotNode): number {
 }
 
 /** A mounted text, sized by the committed metrics the way a page sizes it. */
-function measuredText(content: string, options?: ConstructorParameters<typeof Text>[1]): Text {
-	const text = new Text(content, options);
+function measuredText(content: string, options?: TextOptions): Text {
+	const text = new Text({ text: content, ...options });
 	text.mount(createTestContext({ draw: createMeasuringDrawApi().api }));
 	return text;
 }
@@ -153,10 +153,10 @@ describe('treeSnapshot', () => {
 		});
 
 		it('tells a label that takes hits from a control that answers them', () => {
-			const label = new Text('Deck', { width: 40, height: 12 });
+			const label = new Text({ text: 'Deck', width: 40, height: 12 });
 			const swatch = new Rectangle({ width: 10, height: 10 });
 			swatch.onClick = () => undefined;
-			const button = new Button('Go', { width: 80, height: 32 });
+			const button = new Button({ label: 'Go', width: 80, height: 32 });
 
 			const [labelNode, swatchNode, buttonNode] = treeSnapshot([label, swatch, button], VIEWPORT).roots;
 
@@ -204,7 +204,7 @@ describe('treeSnapshot', () => {
 			const password = new TextInput({ value: 'hunter2', password: true, width: 120, height: 30 });
 
 			const inputNode = treeSnapshot([input], VIEWPORT).roots[0];
-			const textNode = treeSnapshot([new Text('hello', { width: 40, height: 12 })], VIEWPORT).roots[0];
+			const textNode = treeSnapshot([new Text({ text: 'hello', width: 40, height: 12 })], VIEWPORT).roots[0];
 
 			// An empty controlled value is a real value, so the key is present.
 			expect('value' in inputNode).toBe(true);
@@ -346,7 +346,7 @@ describe('treeSnapshot', () => {
 	describe('scroll signal, through to the lint', () => {
 		const hiddenButton = (panel: Panel) => {
 			const clipper = new Container({ id: 'clipper', width: 200, height: 100, overflow: 'hidden' });
-			clipper.addChild(new Button('Hidden', { id: 'hidden', x: 20, y: 300, width: 100, height: 32 }));
+			clipper.addChild(new Button({ label: 'Hidden', id: 'hidden', x: 20, y: 300, width: 100, height: 32 }));
 			panel.addChild(clipper);
 			return layoutLint(treeSnapshot([panel], VIEWPORT));
 		};
@@ -373,7 +373,7 @@ describe('treeSnapshot', () => {
 		it('lets off a button a scroller can bring into view', () => {
 			const scroller = new ScrollContainer({ id: 'list', width: 200, height: 100, contentHeight: 600 });
 			const content = new Container({ width: 200, height: 600 });
-			content.addChild(new Button('Row', { id: 'row', x: 20, y: 400, width: 100, height: 32 }));
+			content.addChild(new Button({ label: 'Row', id: 'row', x: 20, y: 400, width: 100, height: 32 }));
 			scroller.addChild(content);
 
 			const result = layoutLint(treeSnapshot([scroller], VIEWPORT));
@@ -413,7 +413,7 @@ describe('treeSnapshot', () => {
 		});
 
 		it("reports a Button's label as a part and leaves it childless", () => {
-			const button = new Button('End turn', { id: 'end_turn_button', width: 100, height: 40 });
+			const button = new Button({ label: 'End turn', id: 'end_turn_button', width: 100, height: 40 });
 
 			const node = treeSnapshot([button], VIEWPORT).roots[0];
 
@@ -423,7 +423,7 @@ describe('treeSnapshot', () => {
 
 		it('relabels nodes rather than dropping them: parts plus children still cover the live tree', () => {
 			const panel = new Panel({ id: 'toolbar', width: 300, height: 200 });
-			const button = new Button('Fire', { id: 'fire_button', x: 10, y: 10, width: 80, height: 30 });
+			const button = new Button({ label: 'Fire', id: 'fire_button', x: 10, y: 10, width: 80, height: 30 });
 			panel.addChild(button);
 
 			const node = treeSnapshot([panel], VIEWPORT).roots[0];
@@ -652,7 +652,7 @@ describe('treeSnapshot', () => {
 		it('round-trips a mixed tree through JSON.stringify', () => {
 			const panel = new ScrollContainer({ id: 'dev_scroll', width: 300, height: 200, contentHeight: 900 });
 			panel.scrollBy(40);
-			panel.addChild(new Text('Developer Tools', { id: 'dev_title', width: 200, height: 24 }));
+			panel.addChild(new Text({ text: 'Developer Tools', id: 'dev_title', width: 200, height: 24 }));
 			panel.addChild(new TextInput({ placeholder: 'search', id: 'dev_filter', width: 120, height: 30 }));
 
 			const document = treeSnapshot([panel], VIEWPORT);
@@ -665,7 +665,7 @@ describe('treeSnapshot', () => {
 
 	describe('Text sizing (R12.4, R13.21)', () => {
 		it('reports zero-sized text until it is mounted where it can measure', () => {
-			const text = new Text('End turn');
+			const text = new Text({ text: 'End turn' });
 
 			expect(treeSnapshot([text], VIEWPORT).roots[0].bounds).toEqual({ x: 0, y: 0, w: 0, h: 0 });
 
@@ -724,7 +724,7 @@ describe('treeSnapshot', () => {
 			});
 			const scroller = new ScrollContainer({ id: 'scroller', x: 20, y: 10, width: 200, height: 100, contentHeight: 400 });
 			scroller.scrollBy(25);
-			scroller.addChild(new Button('Fire', { id: 'fire', x: 10, y: 60, width: 80, height: 30, margin: { left: 3 } }));
+			scroller.addChild(new Button({ label: 'Fire', id: 'fire', x: 10, y: 60, width: 80, height: 30, margin: { left: 3 } }));
 			tilted.addChild(scroller);
 			root.addChild(tilted);
 
@@ -819,7 +819,7 @@ describe('treeSnapshot', () => {
 
 	describe('text (R13.22, R6.14)', () => {
 		it('reports content and wrap before anything has measured, and no measure or outcome', () => {
-			const node = treeSnapshot([new Text('End turn')], VIEWPORT).roots[0];
+			const node = treeSnapshot([new Text({ text: 'End turn' })], VIEWPORT).roots[0];
 
 			expect(node.text).toEqual({ content: 'End turn', wrap: 'none' });
 		});
@@ -852,7 +852,7 @@ describe('treeSnapshot', () => {
 		});
 
 		it('never measures from the reader: an unmeasurable text stays unmeasured', () => {
-			const text = new Text('Pending');
+			const text = new Text({ text: 'Pending' });
 			text.mount(createTestContext());
 
 			const node = treeSnapshot([text], VIEWPORT).roots[0];
@@ -902,8 +902,8 @@ describe('treeSnapshot', () => {
 		});
 
 		it("reports a text's colour as text, and a button's fill, label and border together", () => {
-			const text = treeSnapshot([new Text('hi', { style: { color: '#0000ff' } })], VIEWPORT).roots[0];
-			const button = treeSnapshot([new Button('Go', { width: 80, height: 30 })], VIEWPORT).roots[0];
+			const text = treeSnapshot([new Text({ text: 'hi', style: { color: '#0000ff' } })], VIEWPORT).roots[0];
+			const button = treeSnapshot([new Button({ label: 'Go', width: 80, height: 30 })], VIEWPORT).roots[0];
 
 			expect(text.style).toEqual({ text: [0, 0, 1, 1] });
 			expect(Object.keys(button.style ?? {}).sort()).toEqual(['border', 'fill', 'text']);
@@ -923,7 +923,7 @@ describe('treeSnapshot', () => {
 
 	describe('state and ink (R11.11, R8.8)', () => {
 		it('reports the flags as set, composed rather than ranked', () => {
-			const component = new Button('Go', { width: 80, height: 30 });
+			const component = new Button({ label: 'Go', width: 80, height: 30 });
 			component.pressed = true;
 			component.selected = true;
 			component.setFocusState(true, true);
@@ -934,7 +934,7 @@ describe('treeSnapshot', () => {
 		});
 
 		it('grows a focus-visible button\'s inkBounds past its bounds by the ring and the nudge (R8.8)', () => {
-			const component = new Button('Go', { x: 20, y: 20, width: 80, height: 30 });
+			const component = new Button({ label: 'Go', x: 20, y: 20, width: 80, height: 30 });
 			component.setFocusState(true, true);
 
 			const node = treeSnapshot([component], VIEWPORT).roots[0];
