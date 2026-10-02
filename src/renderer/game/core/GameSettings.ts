@@ -34,7 +34,9 @@ const MOTION_SETTINGS: readonly MotionSetting[] = ['system', 'reduced', 'full'];
  * builds have it: Electron's renderer keeps local storage for its `file://`
  * page. A record that is missing, unreadable, or holds an unknown value falls
  * back to the default for that value, and a storage that throws (private
- * browsing, a full quota) leaves the settings working for the session.
+ * browsing, a full quota) leaves the settings working for the session. Keys
+ * this build doesn't know are written back as they were read, so an older
+ * build saving a change keeps the settings a newer one added.
  *
  * `shared` is the game's one instance, which the Settings screen edits and
  * `Game` applies; tests build their own over a map.
@@ -44,11 +46,14 @@ export class GameSettings {
 
 	private readonly storage: SettingsStorage | null;
 	private readonly values: SettingsValues;
+	/** The stored record as read, which a save writes the known values over. */
+	private readonly stored: Record<string, unknown>;
 	private readonly listeners: SettingsListener[] = [];
 
 	constructor({ storage = null }: GameSettingsOptions = {}) {
 		this.storage = storage;
-		this.values = load(storage);
+		this.stored = read(storage);
+		this.values = parse(this.stored);
 	}
 
 	/** The game's settings, over the browser's local storage. */
@@ -77,29 +82,33 @@ export class GameSettings {
 	}
 
 	private changed(): void {
-		save(this.storage, this.values);
+		save(this.storage, { ...this.stored, ...this.values });
 		for (const listener of [...this.listeners]) listener(this);
 	}
 }
 
-function load(storage: SettingsStorage | null): SettingsValues {
-	const values: SettingsValues = { motion: 'system' };
+/** The stored record, or an empty one when it is missing, unreadable, or not an object. */
+function read(storage: SettingsStorage | null): Record<string, unknown> {
 	let stored: unknown = null;
 	try {
 		const raw = storage?.getItem(STORAGE_KEY);
 		stored = raw ? JSON.parse(raw) : null;
 	} catch {
-		return values;
+		return {};
 	}
-	if (typeof stored !== 'object' || stored === null) return values;
-	const motion = (stored as Record<string, unknown>).motion;
-	if (MOTION_SETTINGS.includes(motion as MotionSetting)) values.motion = motion as MotionSetting;
+	if (typeof stored !== 'object' || stored === null || Array.isArray(stored)) return {};
+	return stored as Record<string, unknown>;
+}
+
+function parse(stored: Record<string, unknown>): SettingsValues {
+	const values: SettingsValues = { motion: 'system' };
+	if (MOTION_SETTINGS.includes(stored.motion as MotionSetting)) values.motion = stored.motion as MotionSetting;
 	return values;
 }
 
-function save(storage: SettingsStorage | null, values: SettingsValues): void {
+function save(storage: SettingsStorage | null, record: Record<string, unknown>): void {
 	try {
-		storage?.setItem(STORAGE_KEY, JSON.stringify(values));
+		storage?.setItem(STORAGE_KEY, JSON.stringify(record));
 	} catch (error) {
 		console.warn('GameSettings: could not save settings', error);
 	}

@@ -39,6 +39,13 @@ export interface NavigateOptions {
 	 * swap, it queues behind that swap as an ordinary navigate.
 	 */
 	immediate?: boolean;
+	/**
+	 * Focus what had focus when the player last left this screen, in place of
+	 * the screen's own first focus: Back from a screen the menu opened lands
+	 * on the button that opened it. Found by id in the new mount, so it does
+	 * nothing when that id is gone or can't take focus.
+	 */
+	restoreFocus?: boolean;
 }
 
 /**
@@ -53,6 +60,8 @@ export class ScreenManager {
 	private static transition: ScreenTransition | null = null;
 	/** A swap is unmounting or mounting a screen. */
 	private static swapping = false;
+	/** Per screen, the id of what had focus when the player last navigated away from it. */
+	private static readonly leftFocus = new Map<ScreenName, string>();
 	
 	/**
 	 * Map of screen names to their constructors
@@ -94,21 +103,38 @@ export class ScreenManager {
 	 * in, with input blocked throughout. Navigating again before the fade
 	 * out ends replaces where it goes, so a double press swaps once.
 	 */
-	static navigate(screenName: ScreenName, data?: unknown, { immediate = false }: NavigateOptions = {}): void {
+	static navigate(screenName: ScreenName, data?: unknown, { immediate = false, restoreFocus = false }: NavigateOptions = {}): void {
 		const context = this.context;
 		const transition = this.transition;
 		if (!context || !transition) {
 			throw new Error('ScreenManager not initialized. Call ScreenManager.initialize() first');
 		}
+		this.recordFocus(context);
+		const swap = () => this.swap(context, screenName, data, restoreFocus);
 		// From inside a swap (a screen redirecting from its mount) an immediate
 		// swap would close the transition under the swap still running; it
 		// queues behind it instead, still covered.
 		if (immediate && !this.swapping) {
 			transition.overlay?.close();
-			this.swap(context, screenName, data);
+			swap();
 			return;
 		}
-		void transition.run(context, () => this.swap(context, screenName, data));
+		void transition.run(context, swap);
+	}
+
+	/**
+	 * Notes what has focus on the screen being left. Only on the first
+	 * navigate away: under a transition or inside a swap the focus is the
+	 * transition's empty scope, not the player's.
+	 */
+	private static recordFocus(context: MountContext): void {
+		if (this.swapping || this.transitioning || !this.currentScreen || !this.currentScreenName) return;
+		const focused = context.focus.focused;
+		if (focused?.id && this.currentScreen.root.findById(focused.id) === focused) {
+			this.leftFocus.set(this.currentScreenName, focused.id);
+		} else {
+			this.leftFocus.delete(this.currentScreenName);
+		}
 	}
 
 	/** A transition is covering the screen; nothing below it takes input. */
@@ -117,13 +143,25 @@ export class ScreenManager {
 	}
 
 	/** Unmounts the current screen and mounts a new one: the transition's swap. */
-	private static swap(context: MountContext, screenName: ScreenName, data?: unknown): void {
+	private static swap(context: MountContext, screenName: ScreenName, data: unknown, restoreFocus: boolean): void {
 		this.swapping = true;
 		try {
 			this.mountScreen(context, screenName, data);
+			if (restoreFocus) this.restoreFocus(context, screenName);
 		} finally {
 			this.swapping = false;
 		}
+	}
+
+	/**
+	 * Under a transition the focus manager keeps the request and gives it
+	 * focus when the transition's scope pops (R9.20), so this wins over the
+	 * screen's own first focus either way.
+	 */
+	private static restoreFocus(context: MountContext, screenName: ScreenName): void {
+		const id = this.leftFocus.get(screenName);
+		const target = id ? this.currentScreen?.root.findById(id) : null;
+		if (target && this.currentScreenName === screenName) context.focus.focus(target);
 	}
 
 	private static mountScreen(context: MountContext, screenName: ScreenName, data?: unknown): void {
