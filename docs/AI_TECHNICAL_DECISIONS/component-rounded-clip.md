@@ -20,7 +20,7 @@ Two loose ends came with it. DDB-190 left a question for this task: a rounded cl
 
 **ScrollContainer clips at the border, out into the padding by the child ink (R8.8) as before, with `clipRadius` the radius less the smallest side inset.** Using the smallest inset gives the largest radius, which can over-clip a corner whose sides are inset further but never under-clips: a rounded rect with a larger radius lies inside one with a smaller radius. Once the clip is a full radius in, it is 0 and the clip is a plain rect.
 
-**A rounded clip that cuts nothing is dropped.** This is what makes nesting routine rather than a warning: a rounded ScrollContainer inside a rounded Panel nests two rounded clips, and R4.14 keeps only the innermost, warning once a frame (a console error in a development build, which fails the screenshot harness). But the outer clip only matters where the inner one reaches its corner. `keptRoundedClip` in `draw/clip.ts` checks, at every push, whether each candidate rounded clip takes anything off the merged rect: whether any device pixel centre in it gets less than full coverage from the one-pixel ramp. The signed distance of a convex shape is convex, so the worst centres are the four corner ones, half a device pixel in, and testing those is exact for a rect on the device grid. A rounded clip that passes is exactly its bounding rect there, already in the intersection, so dropping it changes no pixel and spares the fragment SDF. The warning fires only when both the own and the inherited clip cut. The draw API's `ClipStack`, `intersectClip` (the snapshot's arithmetic), and so the walk and the snapshot all go through it. A radius of 0 never cuts, so it gets no table entry on any path.
+**A rounded clip that cuts nothing is dropped.** This is what makes nesting routine rather than a warning: a rounded ScrollContainer inside a rounded Panel nests two rounded clips, and R4.14 keeps only the innermost, warning once a frame (a console error in a development build, which fails the screenshot harness). But the outer clip only matters where the inner one reaches its corner. `keptRoundedClip` in `draw/clip.ts` checks, at every push, whether each candidate rounded clip takes anything off the merged rect: whether any device pixel centre in it gets less than full coverage from the one-pixel ramp. The signed distance of a convex shape is convex, so the worst centres are the four outermost ones R4.4's half-open test keeps, found from the rect's edges against the device grid, since a clip pushed under a scale and a text box clip are not snapped. That matches the shader on the device grid, which is where the snapped walk puts every component clip; off it, the shader's derivative-based pixel width can differ slightly under a scale. A rounded clip that passes is its bounding rect there, already in the intersection, so dropping it changes no pixel and spares the fragment SDF. The warning fires only when both the own and the inherited clip cut. The draw API's `ClipStack`, `intersectClip` (the snapshot's arithmetic), and so the walk and the snapshot all go through it. A radius of 0 never cuts, so it gets no table entry on any path.
 
 **R12.19's "always when a second rounded clip would nest" is left to the author, with the warning as the check.** A panel cannot know what clips its content will push, and with the drop above, nesting needs a clipping panel whose content reaches within its radius of the corner, which only `flush` or a padding smaller than the radius allows. Nothing in the game does that; the warning catches the first that does.
 
@@ -42,15 +42,16 @@ A node whose effective clip carries a rounded clip reports `roundedClip: { x, y,
 
 ## What moved
 
-No pixel. A full re-mint (`update_mode=all`) wrote every golden back byte for byte, which is what the decisions above predict:
+No existing golden. A full re-mint (`update_mode=all`) wrote every golden back byte for byte, as the decisions predict: every panel but the dialog's does not clip, so its inset and look are unchanged; the dialog clips one pixel further out (inset 1 with a 1 px corner instead of a plain rect at 2) and nothing it holds reaches its edge; no ScrollContainer in the game had a `borderRadius`; and where the drop rule removes a rounded clip in `clipping` it was taking no pixel.
 
-- Every panel but the dialog's does not clip, so its inset and its look are unchanged.
-- The dialog clips one pixel further out than it did (inset 1 with a 1 px corner instead of a plain rect inset 2), and nothing it holds reaches its edge.
-- No ScrollContainer in the game or the gallery has a `borderRadius`, so their clips are the rects they were.
-- The `clipping` scene's rounded fixtures go through the draw API directly; where the drop rule removes a rounded clip it was taking no pixel.
-- No golden scene lays a clipping box out at zero size.
+That also meant nothing exercised the feature on a GPU, so the gallery gains `rounded-clip` (minted with `changed`):
 
-A browser pass over the menu, settings, credits, driver selection, a turn of combat, and the developer screen raised no console error, so nothing nests.
+- A clipping panel with a 14 px corner and a 2 px accent border, its flush child filling all four corners: the fill meets the border's inner arc with no gap and no bleed over the border's ramp.
+- The same box as a bordered ScrollContainer over striped rows, scrolled part of a row so rows pass under both top corners and the scrollbar runs into the right ones.
+- A rounded scroller inside a rounded clipping panel, inset by the panel's radius plus border: the outer clip is dropped at the inner push, and the scene raises no `nested-rounded-clip`, which the harness would fail on.
+- A draw fixture that pushes a rounded clip, draws, calls `flush()`, then pushes a second: the second domain's entry arrives after a draw read the bound slot, so it is drawn from a fresh slot holding the projection and both entries. Only the developer overlay called `flush()` before, so this is the one place the fresh-slot path runs on real GL.
+
+A browser pass over the menu, settings, credits, driver selection, a turn of combat, and the developer screen raised no console error.
 
 ## Not done
 

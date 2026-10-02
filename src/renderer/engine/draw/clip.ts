@@ -104,18 +104,20 @@ export function keptRoundedClip<T extends RoundedClip>(
  * whether some device pixel centre inside `rect` gets less than full
  * coverage from the shader's one-pixel ramp, which is full at
  * `d <= -0.5 / ratio`. A convex shape's signed distance is convex, so the
- * worst pixel centres are the four corner ones, half a device pixel in from
- * each edge, and testing those is exact for a rect on the device grid.
+ * worst pixel centres are the four outermost ones R4.4's half-open test
+ * keeps, wherever the rect's edges fall against the device grid (a clip
+ * pushed under a scale, a text box clip, are not snapped).
  */
 export function roundedClipCuts(rounded: RoundedClip, rect: ClipRect, ratio: number): boolean {
 	if (!(rounded.radius > 0)) return false;
-	const half = 0.5 / (ratio > 0 ? ratio : 1);
-	const middleX = (rect.minX + rect.maxX) / 2;
-	const middleY = (rect.minY + rect.maxY) / 2;
-	const left = Math.min(rect.minX + half, middleX);
-	const right = Math.max(rect.maxX - half, middleX);
-	const top = Math.min(rect.minY + half, middleY);
-	const bottom = Math.max(rect.maxY - half, middleY);
+	const scale = ratio > 0 ? ratio : 1;
+	const half = 0.5 / scale;
+	const left = (Math.ceil(rect.minX * scale - 0.5) + 0.5) / scale;
+	const right = (Math.ceil(rect.maxX * scale - 0.5) - 0.5) / scale;
+	const top = (Math.ceil(rect.minY * scale - 0.5) + 0.5) / scale;
+	const bottom = (Math.ceil(rect.maxY * scale - 0.5) - 0.5) / scale;
+	// No pixel centre inside: nothing to take.
+	if (left > right || top > bottom) return false;
 	const { rect: box, radius } = rounded;
 	return roundedBoxDistance(left, top, box, radius) > -half
 		|| roundedBoxDistance(right, top, box, radius) > -half

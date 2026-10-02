@@ -115,11 +115,19 @@ describe('clip (R4.2, R4.3, R4.14)', () => {
 		});
 
 		it('measures the ramp in device pixels: a higher ratio keeps a radius a lower one drops', () => {
-			const merged = rect(2.2, 2.2, 40, 40);
-			// Ratio 1: the corner pixel centre (2.7, 2.7) is 0.505 inside the arc, at full coverage.
-			expect(roundedClipCuts(rounded, merged, 1)).toBe(false);
-			// Ratio 4: (2.325, 2.325) is just outside it.
-			expect(roundedClipCuts(rounded, merged, 4)).toBe(true);
+			const seven = { rect: rect(0, 0, 100, 100), radius: 7 };
+			const merged = rect(2, 2, 40, 40);
+			// Ratio 1: the corner pixel centre (2.5, 2.5) is 0.64 inside the arc, at full coverage.
+			expect(roundedClipCuts(seven, merged, 1)).toBe(false);
+			// Ratio 4: (2.125, 2.125) is 0.11 inside, within the quarter-pixel ramp.
+			expect(roundedClipCuts(seven, merged, 4)).toBe(true);
+		});
+
+		it('tests the pixel centres a rect off the device grid actually keeps', () => {
+			// The first centre inside x >= 2.2 is 2.5, 0.22 inside the arc: partial coverage.
+			expect(roundedClipCuts(rounded, rect(2.2, 2.2, 40, 40), 1)).toBe(true);
+			// A rect holding no pixel centre has nothing to cut.
+			expect(roundedClipCuts(rounded, rect(0.6, 0.6, 1.4, 1.4), 1)).toBe(false);
 		});
 
 		it('matches the shader\'s rounded box distance', () => {
