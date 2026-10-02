@@ -14,15 +14,16 @@ What the scores say, per platform (field numbers do not depend on the platform; 
 | Stem variation, platform, Linux | 0.00 | 0.00 | 0.00 |
 | Stem variation, platform, macOS | 0.15 | 0.09 | 0.05 |
 | Placement error, field (px) | 0.06 | 0.02 | 0.02 |
+| Placement error, platform, Linux (px) | 0.00 | 0.00 | 0.00 |
 | Placement error, platform, macOS (px) | 0.07 | 0.08 | 0.13 |
 
-Placement error is new with this item: the standard deviation, in device pixels, of each `l`'s ink centre from where its advance puts it. The Linux platform's placement number comes from CI on the PR.
+Placement error is new with this item: the standard deviation, in device pixels, of each `l`'s ink centre from where its advance puts it. Each raster is scored against its own advance: the field's from the atlas metrics, the platform's from `measureText`.
 
 ## Cause
 
 Weight is not a field defect. On the reference platform (the Linux runner every golden comes from) the field's ink is within 5 percent of FreeType's. macOS is lighter because CoreText draws a third heavier than both; that is CoreText's rendering, not the threshold.
 
-Evenness is the absence of hinting. The run origin is snapped (R6.16), but each glyph's pen is the sum of unhinted advances, so each `l` stem lands at a different sub-pixel phase. A stem about 0.9 px wide centred on a pixel gives one column near full coverage; centred between two it gives two columns near half. The shader's ramp is the one-pixel linear ramp R6.5 requires, so this is the coverage a box filter would give, and no change to the ramp or the threshold removes it: a sharper ramp aliases, a softer one blurs every stem the same way and lowers the peaks without evening them. Linux Chromium scores zero only because at ratio 1 it puts every glyph on a whole pixel and keeps the advances fractional, so its stems are identical and its gaps alternate by a pixel. CoreText keeps sub-pixel positions and shows the same kind of variation the field does, smaller because its stems are heavier.
+Evenness is the absence of hinting. The run origin is snapped (R6.16), but each glyph's pen is the sum of unhinted advances, so each `l` stem lands at a different sub-pixel phase. A stem about 0.9 px wide centred on a pixel gives one column near full coverage; centred between two it gives two columns near half. The shader's ramp is the one-pixel linear ramp R6.5 requires, so this is the coverage a box filter would give, and no change to the ramp or the threshold removes it: a sharper ramp aliases, a softer one blurs every stem the same way and lowers the peaks without evening them. Linux Chromium scores zero on both evenness and placement because at ratio 1 it hints the advances too: `measureText` gives the `l` a whole-pixel advance, so every glyph starts on a pixel and the word is as wide as the rounded advances make it, not as wide as the font's. That is what the field cannot copy. R6.16 forbids changing advances, and R6.4a keeps layout on the distance-field metrics so it does not change with ratio or path; a whole-pixel advance at ratio 1 would make measurement, wrapping and centring depend on the display. CoreText keeps sub-pixel positions and shows the same kind of variation the field does, smaller because its stems are heavier.
 
 ## Options
 
@@ -35,7 +36,7 @@ Evenness is the absence of hinting. The run origin is snapped (R6.16), but each 
 
 Option 4.
 
-The field keeps every glyph where measurement puts it (R6.8) and lets stem phase vary; the Linux raster does the reverse. For a game whose layout, carets and centred labels read the measured width, spacing that follows the layout is the better side to keep, and it is the side the project already chose for the raster fallback. The spec asks for the comparison as a scored band ("Distance fields have no hinting"), not for equality, and the token scale's 11 px floor keeps UI text out of the worst row.
+With advances fixed by R6.8 and R6.16, the only lever left is where each glyph is drawn relative to its pen, and moving it buys stem evenness with spacing (option 1). The field keeps every glyph where measurement puts it and lets stem phase vary. For a game whose layout, carets and centred labels read the measured width, spacing that follows the layout is the better side to keep, and it is the side the project already chose for the raster fallback. The spec asks for the comparison as a scored band ("Distance fields have no hinting"), not for equality, and the token scale's 11 px floor keeps UI text out of the worst row.
 
 The test changes from a ratchet pointing at this item to the tolerance itself:
 

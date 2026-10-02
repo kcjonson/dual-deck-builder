@@ -733,9 +733,10 @@ test.describe('small text against a platform reference (6.9)', () => {
 			const referencePlacement = placementError(reference);
 			console.log(`6.9 small text, body ${size} px: weight ${weight.toFixed(3)} of the platform's, stem variation ${fieldEvenness.toFixed(3)} against ${referenceEvenness.toFixed(3)}, placement error ${fieldPlacement.toFixed(3)} px against ${referencePlacement.toFixed(3)}`);
 			// The field keeps every stem where its advance puts it and lets
-			// the stem's sub-pixel phase vary; the Linux platform raster puts
-			// every stem on a pixel and lets its position vary. The field's
-			// side of that trade is held (DDB-218).
+			// the stem's sub-pixel phase vary. The Linux platform scores zero
+			// on both because it rounds the advances, which measurement here
+			// may not (R6.16); snapping glyphs without that trades evenness
+			// for placement, so placement is held (DDB-218).
 			expect(weight).toBeGreaterThan(WEIGHT_FLOOR);
 			expect(weight).toBeLessThan(1.25);
 			expect(fieldEvenness).toBeLessThan(VARIATION_CEILING[size]);
