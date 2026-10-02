@@ -234,6 +234,49 @@ describe('Slider (R12.15)', () => {
 		expect(changes).toEqual([]);
 	});
 
+	it('leaves the value alone for a press on its label or value column', () => {
+		const { made, changes } = slider({ label: 'Volume', valueFormatter: (value) => `${Math.round(value)}%`, value: 70, step: 5, width: 420 });
+		const { x } = made.screenBounds;
+		const y = Math.round(made.screenBounds.y + made.height / 2);
+		expect(made.track.left).toBeGreaterThan(20);
+		expect(made.track.right).toBeLessThan(400);
+		inject(`click,${Math.round(x + 5)},${y}`);
+		inject(`down,${Math.round(x + 415)},${y}`, `move,${Math.round(xOf(made, 20))},${y}`, `up,${Math.round(xOf(made, 20))},${y}`);
+		expect(made.value).toBe(70);
+		expect(changes).toEqual([]);
+		expect(made.focused).toBe(true);
+	});
+
+	it('sizes its value column once from the formatted extremes, so a drag never moves the track', () => {
+		let calls = 0;
+		const formatter = (value: number): string => {
+			calls++;
+			return value.toFixed(1);
+		};
+		const { made } = slider({ label: 'Gain', valueFormatter: formatter, min: 0, max: 20, value: 5, width: 360 });
+		draws();
+		const { left, right } = made.track;
+		const before = calls;
+		const y = Math.round(made.screenBounds.y + made.height / 2);
+		inject(`down,${Math.round(xOf(made, 5))},${y}`);
+		for (const value of [8, 11, 14, 17]) {
+			inject(`move,${Math.round(xOf(made, value))},${y}`);
+			draws();
+			expect(made.track).toMatchObject({ left, right });
+		}
+		inject(`up,${Math.round(xOf(made, 17))},${y}`);
+		// One format per value drawn, none for the column.
+		expect(calls - before).toBe(4);
+	});
+
+	it('lines stacked tracks up with labelWidth and valueWidth', () => {
+		const a = slider({ label: 'Volume', valueFormatter: (value) => `${value}%`, labelWidth: 80, valueWidth: 48, width: 400 }).made;
+		const b = slider({ label: 'Speed', valueFormatter: (value) => `${value.toFixed(2)}x`, labelWidth: 80, valueWidth: 48, width: 400, y: 160 }).made;
+		draws();
+		expect(b.track).toEqual(a.track);
+		expect(a.track.left).toBe(80 + tokens.space.space_1_5 + control.icon_sm / 2);
+	});
+
 	it('ends a drag for good when disabled mid-drag', () => {
 		const { made, changes } = slider();
 		const y = Math.round(made.screenBounds.y + made.height / 2);
@@ -343,6 +386,29 @@ describe('TabBar (R12.16)', () => {
 		expect(context.focus.tabOrder).toEqual([bar.tabs[3]]);
 	});
 
+	it('lets a controlled parent refuse a tab by setting selectedId back inside onSelect (R8.25)', () => {
+		const picks: string[] = [];
+		const { bar } = tabBar({ selectedId: 'garage' });
+		bar.onSelect = (id) => {
+			picks.push(id);
+			bar.selectedId = 'garage';
+		};
+		inject(`click,${centre(bar.tabs[3])}`);
+		expect(picks).toEqual(['crew']);
+		expect(bar.selectedId).toBe('garage');
+		expect(bar.tabs[0].selected).toBe(true);
+		expect(bar.tabs[3].selected).toBe(false);
+	});
+
+	it('is left out of the Tab order and ignores presses while disabled', () => {
+		const { bar, picks } = tabBar({ disabled: true });
+		press('Tab');
+		inject(`click,${centre(bar.tabs[1])}`);
+		expect(context.focus.tabOrder).toEqual([]);
+		expect(bar.selectedId).toBe('garage');
+		expect(picks).toEqual([]);
+	});
+
 	it('draws the hairline and the selected tab\'s 2 px accent underline', () => {
 		const { bar } = tabBar();
 		const rects = draws().filter((command): command is RectCommand => command.kind === 'rect');
@@ -405,6 +471,28 @@ describe('SegmentedControl (R12.17)', () => {
 		expect(made.value).toBe('easy');
 		press('End');
 		expect(changes).toEqual(['hard', 'easy', 'hard']);
+	});
+
+	it('moves with Up and Down as well as Left and Right, and goes to the ends with Home and End', () => {
+		const { control: made, changes } = segmented();
+		press('Tab');
+		press('ArrowDown');
+		expect(made.value).toBe('hard');
+		press('ArrowUp');
+		expect(made.value).toBe('normal');
+		press('Home');
+		expect(made.value).toBe('easy');
+		expect(made.items[0].focused).toBe(true);
+		expect(changes).toEqual(['hard', 'normal', 'easy']);
+	});
+
+	it('is left out of the Tab order and ignores presses while disabled', () => {
+		const { control: made, changes } = segmented({ disabled: true });
+		press('Tab');
+		inject(`click,${centre(made.items[3])}`);
+		expect(context.focus.tabOrder).toEqual([]);
+		expect(made.value).toBe('normal');
+		expect(changes).toEqual([]);
 	});
 
 	it('draws the inset well and the selected chip in the tone with its glow', () => {

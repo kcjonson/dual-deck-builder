@@ -9,6 +9,10 @@ const { control, space } = tokens;
 
 const percent = (value: number): string => `${Math.round(value * 100)}%`;
 
+/** Shared column widths, so the labelled sliders' tracks line up. */
+const LABEL_WIDTH = 64;
+const VALUE_WIDTH = 48;
+
 /**
  * R12.15 to R12.17: sliders continuous, stepped with a label and value,
  * logarithmic with a detent, and disabled; tab bars uncontrolled (a disabled
@@ -21,7 +25,7 @@ export class SliderTabsSection extends CatalogSection {
 
 		const sliders = new Stack({ gap: space.space_2 });
 		sliders.addChild(new Slider({ id: 'dev_slider_plain', value: 0.35, width: 320 }));
-		sliders.addChild(new Slider({ id: 'dev_slider_volume', label: 'Volume', value: 0.7, step: 0.05, valueFormatter: percent, width: 420 }));
+		sliders.addChild(new Slider({ id: 'dev_slider_volume', label: 'Volume', value: 0.7, step: 0.05, valueFormatter: percent, labelWidth: LABEL_WIDTH, valueWidth: VALUE_WIDTH, width: 420 }));
 		sliders.addChild(new Slider({
 			id: 'dev_slider_log',
 			label: 'Speed',
@@ -31,10 +35,12 @@ export class SliderTabsSection extends CatalogSection {
 			value: 1,
 			detent: 1 / 3,
 			valueFormatter: (value) => `${value.toFixed(2)}x`,
+			labelWidth: LABEL_WIDTH,
+			valueWidth: VALUE_WIDTH,
 			width: 420,
 		}));
-		sliders.addChild(new Slider({ id: 'dev_slider_disabled', label: 'Locked', value: 0.5, valueFormatter: percent, disabled: true, width: 420 }));
-		this.addRow('slider: continuous; stepped with label and value; log scale with a detent at 1x; disabled', sliders, control.control_h_md * 4 + space.space_2 * 3);
+		sliders.addChild(new Slider({ id: 'dev_slider_disabled', label: 'Locked', value: 0.5, valueFormatter: percent, disabled: true, labelWidth: LABEL_WIDTH, valueWidth: VALUE_WIDTH, width: 420 }));
+		this.addRow('slider: continuous; stepped with label and value; log scale with a detent at 1x; disabled; shared column widths', sliders, control.control_h_md * 4 + space.space_2 * 3);
 
 		const bars = new Stack({ gap: space.space_4 });
 		bars.addChild(new TabBar({

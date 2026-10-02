@@ -71,6 +71,14 @@ export interface SliderOptions extends Omit<ComponentOptions, 'style'> {
 	/** A name drawn in a column at the left; with it, the formatted value shows in a column at the right. */
 	label?: string;
 	valueFormatter?: ((value: number) => string) | null;
+	/**
+	 * Fixed widths for the label and value columns, so stacked sliders line
+	 * their tracks up. Absent, the label column is the measured label (at most
+	 * 40% of the width) and the value column the widest of the formatted min,
+	 * midpoint, and max.
+	 */
+	labelWidth?: number | null;
+	valueWidth?: number | null;
 	/** A snap tick's normalised position along the track, 0 to 1; drawn, not snapped to. Null for none. */
 	detent?: number | null;
 	disabled?: boolean;
@@ -116,6 +124,8 @@ export class Slider extends Component {
 	private current: number;
 	private labelText: string;
 	private formatter: ((value: number) => string) | null;
+	private fixedLabelWidth: number | null;
+	private fixedValueWidth: number | null;
 	private detentAt: number | null;
 	private readonly sliderSize: ControlSize;
 	/** A drag in progress, and where on the thumb it was grabbed. */
@@ -134,6 +144,8 @@ export class Slider extends Component {
 		logScale = false,
 		label = '',
 		valueFormatter = null,
+		labelWidth = null,
+		valueWidth = null,
 		detent = null,
 		disabled = false,
 		size = 'md',
@@ -152,6 +164,8 @@ export class Slider extends Component {
 		this.current = snapToStep(this.range, value ?? min);
 		this.labelText = label;
 		this.formatter = valueFormatter;
+		this.fixedLabelWidth = labelWidth;
+		this.fixedValueWidth = valueWidth;
 		this.detentAt = detent;
 		this.sliderSize = size;
 		this.onChange = onChange;
@@ -215,6 +229,22 @@ export class Slider extends Component {
 		this.formatter = formatter;
 		this.formattedText = null;
 		this.valueTextWidth = null;
+	}
+
+	public get labelWidth(): number | null {
+		return this.fixedLabelWidth;
+	}
+
+	public set labelWidth(width: number | null) {
+		this.fixedLabelWidth = width;
+	}
+
+	public get valueWidth(): number | null {
+		return this.fixedValueWidth;
+	}
+
+	public set valueWidth(width: number | null) {
+		this.fixedValueWidth = width;
 	}
 
 	public get detent(): number | null {
@@ -377,17 +407,17 @@ export class Slider extends Component {
 		if (event.button !== 0 || !this.effectivelyEnabled) return;
 		const local = event.local;
 		if (!local) return;
+		const offset = local.x - this.thumbX;
+		const grab = Math.abs(offset) <= THUMB_HIT_RADIUS;
+		const { left, right } = this.track;
+		// The label and value columns are not track: a press there only focuses.
+		if (!grab && (local.x < left - THUMB_SIZE / 2 || local.x > right + THUMB_SIZE / 2)) return;
 		event.consume();
 		event.capturePointer();
 		this.dragging = true;
 		this.pressed = true;
-		const offset = local.x - this.thumbX;
-		if (Math.abs(offset) <= THUMB_HIT_RADIUS) {
-			this.grabOffset = offset;
-			return;
-		}
-		this.grabOffset = 0;
-		this.userSet(this.valueAtX(local.x));
+		this.grabOffset = grab ? offset : 0;
+		if (!grab) this.userSet(this.valueAtX(local.x));
 	}
 
 	private dragTo(event: UiPointerEvent): void {
@@ -446,7 +476,6 @@ export class Slider extends Component {
 		if (value === this.current) return;
 		this.current = value;
 		this.formattedText = null;
-		this.valueTextWidth = null;
 	}
 
 	private get formattedValue(): string {
@@ -455,21 +484,29 @@ export class Slider extends Component {
 		return this.formattedText;
 	}
 
-	/** The label column: the measured label, at most `LABEL_SHARE` of the width (a longer one ellipsises). */
+	/** The label column: `labelWidth`, or the measured label, at most `LABEL_SHARE` of the width (a longer one ellipsises). */
 	private get labelColumn(): number {
 		if (!this.labelText) return 0;
+		if (this.fixedLabelWidth !== null) return this.fixedLabelWidth;
 		if (this.labelTextWidth === null) this.labelTextWidth = this.textWidth(this.labelText, true);
 		return Math.min(this.labelTextWidth ?? 0, Math.floor(this.width * LABEL_SHARE));
 	}
 
-	/** The value column: wide enough for the formatted value at either end, so the track does not shift as it changes. */
+	/**
+	 * The value column: `valueWidth`, or the widest of the formatted min,
+	 * midpoint, and max, measured once per range, formatter, and label rather
+	 * than per value, so the track never moves under a drag.
+	 */
 	private get valueColumn(): number {
 		if (!this.labelText || !this.formatter) return 0;
+		if (this.fixedValueWidth !== null) return this.fixedValueWidth;
 		if (this.valueTextWidth === null) {
-			const ends = this.textWidth(this.formatter(this.range.min), false);
-			const top = this.textWidth(this.formatter(this.range.max), false);
-			const now = this.textWidth(this.formattedValue, false);
-			this.valueTextWidth = ends === null || top === null || now === null ? null : Math.max(ends, top, now);
+			let widest: number | null = 0;
+			for (const t of [0, 0.5, 1]) {
+				const width = this.textWidth(this.formatter(positionToValue(this.range, t)), false);
+				widest = width === null || widest === null ? null : Math.max(widest, width);
+			}
+			this.valueTextWidth = widest;
 		}
 		return this.valueTextWidth ?? 0;
 	}
