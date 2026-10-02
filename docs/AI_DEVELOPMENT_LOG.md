@@ -17,6 +17,15 @@ This document contains the chronological log of completed development tasks for 
 - Decision record: [developer-sections-on-stacks.md](./AI_TECHNICAL_DECISIONS/developer-sections-on-stacks.md).
 
 **How:** `DeveloperScreen.test.ts` mounts at 1440x882, resizes to 1024x600 and back, and lints zero with the same section instances; a Playwright lint test does the same live resize in the browser; the full chromium lint spec (53 tests) passes locally, every gallery scene at zero.
+## Conformance re-score against chapter 14 (2026-10-02)
+
+**What landed:** DDB-93 (DDB-55), docs only.
+
+- Re-scored the sibling engine column of `docs/ui-rendering-spec/14-testing-and-conformance.md` section 14.4 against `517400c`, every cell citing the test that shows it. Before: 4 yes, 31 partial, 62 no, 3 not applicable. After: 85 yes, 15 partial; a recorded departure scores partial until the spec text allows it.
+- Added a sibling engine column to section 14.7: unit, behaviour, and pixel layers yes; the lint-zero gate and the goldens partial (not required checks); perf comparison no.
+- Filed the gaps as DDB-242 to DDB-255 under DDB-55, and pointed the chapter 15 card fetch at the existing DDB-52.
+- Corrected the input dispatcher record and the implementation spec: roots are hit-tested in paint order, not mount order.
+- Ticked phase 7's re-score checkbox in the implementation spec with the counts and task keys.
 ## Popover and tooltip clip at the border, menu rows inside it (2026-10-02)
 
 **What landed:** DDB-240 (DDB-55).
