@@ -11,7 +11,7 @@ import { Driver, DriverRole } from '../../mechanics/Driver';
 import { Vehicle as VehicleData, VehicleStatusEffect } from '../../mechanics/Vehicle';
 import { createEscort } from '../../mechanics/Escort';
 import { CombatModel } from '../combat/CombatModel';
-import { EnemyIntent } from '../../ui/IntentMarker';
+import { EnemyIntent } from '../../ui/IntentPill';
 import { TOKEN_HEIGHT, TOKEN_PASSENGER_HEIGHT, TOKEN_WIDTH, Vehicle, VehicleSide } from '../../ui/Vehicle';
 
 /** A slot a little bigger than the token at x1, so each group reads as the road would place it. */
@@ -102,7 +102,7 @@ export class VehicleTokensSection extends CatalogSection {
 		const raiders = this.tokens('dev_tokens_raiders', 'raider', [buggy, hauler, crawler]);
 		const plans: EnemyIntent[][] = [
 			[
-				{ type: 'attack', value: 8, description: 'Ram', target: 'driver1' },
+				{ type: 'attack', value: 6, hits: 3, valueText: '6x3', description: 'Burst', target: 'driver1' },
 				{ type: 'attack', value: 6, description: 'Shoot', target: 'driver2' },
 				{ type: 'defend', value: 10, description: 'Brace' },
 			],
@@ -115,7 +115,21 @@ export class VehicleTokensSection extends CatalogSection {
 		raiders.tokens.forEach((token, index) => {
 			token.intents = plans[index];
 		});
-		this.cell('intents marked triangle, diamond, both, square; two then +N', raiders.row);
+		this.cell('intent pills: a 6x3 multi-hit, the heavy tier at 12, marks for each target, two then +N', raiders.row);
+
+		const elite = galleryVehicle({ name: 'Warlord Elite', structure: [70, 90], armor: 8, speed: 3, driver: { name: 'Warlord', hp: [45, 45] } });
+		const crowded = galleryVehicle({ name: 'Chain Hauler', structure: [90, 90], armor: 12, speed: 2, driver: { name: 'Hauler', hp: [35, 35] } });
+		const hidden = this.tokens('dev_tokens_hidden', 'raider', [elite, crowded]);
+		hidden.tokens[0].intents = [
+			{ type: 'attack', valueText: '?', description: '???', target: 'driver2' },
+			{ type: 'defend', valueText: '?', description: '???' },
+		];
+		hidden.tokens[1].intents = [
+			{ type: 'attack', value: 8, hits: 3, valueText: '8x3', description: 'Chain Sweep', target: 'both' },
+			{ type: 'attack', value: 12, hits: 2, valueText: '12x2', description: 'Twin Ram', target: 'both' },
+			{ type: 'debuff', description: 'Jam', target: 'driver1' },
+		];
+		this.cell('an elite hides its values; two wide pills give way to one and +N', hidden.row);
 
 		const carrier = galleryVehicle({ name: 'Lightning Bike', structure: [31, 50], armor: 0, speed: 5, driver: { name: 'The Interceptor', hp: [18, 25] }, passenger: { name: 'The Road Warrior', hp: [12, 40] } });
 		this.seat(carrier, 2);

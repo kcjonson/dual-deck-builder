@@ -79,6 +79,11 @@ export interface LintNode {
 	/** Emitted only by scroll containers, which overflow by design. */
 	contentOffset?: LintPoint;
 	/**
+	 * R8.30: how far a declared park moves this node off its rest place, in
+	 * viewport space. The lint checks the subtree where it rests (`atRest`).
+	 */
+	parked?: LintPoint;
+	/**
 	 * Present only on a scroll container: the offset and the furthest it goes
 	 * per axis. The lint's one scroll signal; `contentOffset` is not, since a
 	 * padded panel that never scrolls reports its padding there.
@@ -431,6 +436,65 @@ class RuleTally {
 }
 
 /**
+ * R13.25.2 and R13.25.3 as amended for R8.30: a parked subtree is checked
+ * where it rests. A park is a declared, transient move off the component's
+ * place (the battle screen's dock dropping off the bottom of the screen while
+ * the raiders act, which the battle screen mock's own fit check exempts as
+ * `.card.dropped`), so its offset, and only its offset, is forgiven: every
+ * `screenBounds` and `inkBounds` in the subtree, and every clip the subtree
+ * itself introduced, moves back by the parks above it, and the rules then
+ * run as usual. A child that would escape its parent, or the viewport, at
+ * rest is still reported. The document is copied only along parked
+ * subtrees; one with no park is returned as it is.
+ */
+function atRest(document: LintDocument): LintDocument {
+	if (!document || !Array.isArray(document.roots) || !document.roots.some(hasPark)) return document;
+	return { ...document, roots: document.roots.map((root) => restNode(root, ZERO_SHIFT, undefined, ZERO_SHIFT)) };
+}
+
+const ZERO_SHIFT: LintPoint = { x: 0, y: 0 };
+
+function hasPark(node: LintNode | null | undefined, depth = 0): boolean {
+	if (!node || depth > MAX_DEPTH) return false;
+	if (node.parked) return true;
+	return (node.parts ?? []).some((part) => hasPark(part, depth + 1)) || (node.children ?? []).some((child) => hasPark(child, depth + 1));
+}
+
+function shifted(value: LintRect | undefined, by: LintPoint): LintRect | undefined {
+	if (!value || (by.x === 0 && by.y === 0)) return value;
+	return { x: num(value.x) - by.x, y: num(value.y) - by.y, w: num(value.w), h: num(value.h) };
+}
+
+function sameRect(a: LintRect | undefined, b: LintRect | undefined): boolean {
+	if (!a || !b) return a === b;
+	return a.x === b.x && a.y === b.y && a.w === b.w && a.h === b.h;
+}
+
+/**
+ * One node at rest. `shift` is the parks above it; `parentClip` is the clip
+ * its parent drew under and `parentClipShift` how far that clip moved, so a
+ * clip handed down unchanged moves with whoever introduced it, and a new one
+ * (introduced by the parent) moves by the parent's shift.
+ */
+function restNode(node: LintNode, shift: LintPoint, parentClip: LintRect | undefined, parentClipShift: LintPoint, depth = 0): LintNode {
+	if (!node || depth > MAX_DEPTH) return node;
+	const park = node.parked;
+	const own: LintPoint = park ? { x: shift.x + num(park.x), y: shift.y + num(park.y) } : shift;
+	if (own.x === 0 && own.y === 0 && !hasPark(node)) return node;
+	const clipShift = depth === 0 || sameRect(node.clip, parentClip) ? parentClipShift : shift;
+	const rested: LintNode & { inkBounds?: LintRect } = {
+		...node,
+		screenBounds: shifted(node.screenBounds, own) as LintRect,
+		clip: shifted(node.clip, clipShift),
+	};
+	const ink = (node as { inkBounds?: LintRect }).inkBounds;
+	if (ink) rested.inkBounds = shifted(ink, own);
+	if (node.parts) rested.parts = node.parts.map((part) => restNode(part, own, node.clip, clipShift, depth + 1));
+	if (node.children) rested.children = node.children.map((child) => restNode(child, own, node.clip, clipShift, depth + 1));
+	return rested;
+}
+
+/**
  * Run the seven required rules of R13.25 over a tree snapshot document.
  *
  * @param document An R13.23 document. Invisible subtrees are skipped entirely
@@ -440,7 +504,8 @@ class RuleTally {
  *   `undefined`, and a caller reaching this from `page.evaluate` or a JSON
  *   round trip has an easy time producing an explicit null.
  */
-export function layoutLint(document: LintDocument, options: LintOptions | null = {}): LintResult {
+export function layoutLint(source: LintDocument, options: LintOptions | null = {}): LintResult {
+	const document = atRest(source);
 	const violations: LintViolation[] = [];
 	const tallies = new Map<LintRuleName, RuleTally>();
 	for (const name of RULE_NAMES) tallies.set(name, new RuleTally());

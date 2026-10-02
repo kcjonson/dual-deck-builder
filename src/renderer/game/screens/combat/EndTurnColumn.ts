@@ -88,6 +88,15 @@ export class EndTurnColumn extends Stack {
 	}
 
 	/**
+	 * Whether End Turn asks for the end-turn preview (section 6): the pointer
+	 * is on it, or keyboard focus is, which is the keyboard's way to read
+	 * the raiders' plan.
+	 */
+	public get previewing(): boolean {
+		return this.endTurnButton.hovered || this.endTurnButton.focusVisible;
+	}
+
+	/**
 	 * The turn and whose move it is above the button, and the adrenaline
 	 * the player would leave unspent under it. While the raiders act the
 	 * button says WAIT and the dock that holds it is locked (section 6).

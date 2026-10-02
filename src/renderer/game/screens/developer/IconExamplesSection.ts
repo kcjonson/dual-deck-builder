@@ -9,7 +9,7 @@ import { Text } from '../../../engine/components/Text';
 import { ICON_CODE_POINTS, IconName } from '../../../engine/text/icons';
 import { tokens } from '../../../engine/theme/tokens';
 import { StatusChip, StatusChipContent, shieldChipContent, statusChipContent } from '../../ui/StatusChip';
-import { EnemyIntent, IntentMarker } from '../../ui/IntentMarker';
+import { EnemyIntent, IntentPill } from '../../ui/IntentPill';
 
 const ICON_SIZES = [12, 16, 24];
 const LABEL_WIDTH = 70;
@@ -47,16 +47,18 @@ export class IconExamplesSection extends DeveloperSectionPanel {
 		], 20));
 
 		const intents: EnemyIntent[] = [
-			{ type: 'attack', value: 15, description: 'attack' },
+			{ type: 'attack', value: 8, description: 'attack', target: 'driver1' },
 			{ type: 'defend', value: 6, description: 'defend' },
 			{ type: 'repair', value: 4, description: 'repair' },
+			{ type: 'debuff', description: 'debuff', target: 'driver2' },
+			{ type: 'buff', description: 'buff' },
 			{ type: 'special', description: 'special' },
 		];
 		column.addChild(labelledRow('Intents', intents.map((intent) => {
-			const marker = new IntentMarker({ id: `dev_icons_intent_${intent.type}`, size: 30 });
-			marker.intent = intent;
-			return marker;
-		}), 20));
+			const pill = new IntentPill({ id: `dev_icons_intent_${intent.type}` });
+			pill.intent = intent;
+			return pill;
+		}), 8));
 
 		const statuses: StatusChipContent[] = [
 			statusChipContent({ name: 'vulnerable', duration: 2 }),

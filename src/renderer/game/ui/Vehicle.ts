@@ -2,9 +2,10 @@ import { Component, ComponentOptions, PointerEvents, ResolvedColors } from '../.
 import { Text } from '../../engine/components/Text';
 import { drawIcon, DrawIconOptions } from '../../engine/components/Icon';
 import { grownRect } from '../../engine/components/componentGeometry';
+import { shadowInk } from '../../engine/draw/bounds';
 import type { AnyUiEvent, UiDragEvent } from '../../engine/input/events';
 import type { DrawApi } from '../../engine/draw/DrawApi';
-import type { DrawPolygonOptions, DrawRectOptions, DrawTextOptions } from '../../engine/draw/commands';
+import type { BoxShadow, DrawPolygonOptions, DrawRectOptions, DrawTextOptions } from '../../engine/draw/commands';
 import type { RGBA, Rect } from '../../engine/draw/geometry';
 import { triangulatePolygon } from '../../engine/draw';
 import { resolveColor } from '../../engine/style/styleObject';
@@ -12,7 +13,7 @@ import { tokens } from '../../engine/theme/tokens';
 import type { Driver } from '../mechanics/Driver';
 import { Vehicle as VehicleData } from '../mechanics/Vehicle';
 import { CombatModel } from '../screens/combat/CombatModel';
-import { EnemyIntent, IntentRow } from './IntentMarker';
+import { EnemyIntent, INTENT_PILL_HEIGHT, IntentRow } from './IntentPill';
 import { StatusChip, StatusChipContent, STATUS_CHIP_SIZE, shieldChipContent, statusChipContent } from './StatusChip';
 import { MARK_COLORS, TargetMark, TargetMarkDraw, seatMark } from './targetMarks';
 import { VehicleSprite, spriteKindOf } from './vehicleSprites';
@@ -45,7 +46,6 @@ export interface SlotRect {
 	height: number;
 }
 
-const INTENT_HEIGHT = 24;
 const SPRITE_BOX = { x: 0, y: 30, width: 60, height: 40 };
 const SPEED_Y = 72;
 const SPEED_ICON = 12;
@@ -125,6 +125,8 @@ const WRECK_DIM = resolveColor('#5c5d5e');
 const WRECK_TEXT = resolveColor('#8a8b8c');
 const STAMP_COLOR = resolveColor('#ff8a78');
 const DIMMED_OPACITY = 0.4;
+/** The acting raider's glow, the mock's `drop-shadow(0 0 10px rgba(255, 110, 90, 0.6))`, round its plate. */
+const ACTING_GLOW: BoxShadow = { color: resolveColor('rgba(255, 110, 90, 0.6)'), blur: 10 };
 
 /** The mock's `i-armor`, a shield in a 26x18 box, as one outline. */
 const ARMOR_OUTLINE: readonly [number, number][] = [
@@ -142,7 +144,8 @@ function rectAt(x = 0, y = 0, width = 0, height = 0): { x: number; y: number; wi
  * token, 135 tall with a passenger, laid out at x1 and scaled as a whole
  * to fill its slot.
  *
- * - An intents row over the full width, right-aligned (raiders only).
+ * - An intents row over the full width, right-aligned (raiders only): pills
+ *   with an icon, a value, and a target mark, two then "+N".
  * - A 60x40 rear-view sprite, with the speed under it.
  * - A 132x68 plate: the owner's mark and the name, ellipsized, with the full
  *   name on hover; the armor shield beside the structure bar; the driver's
@@ -191,6 +194,7 @@ export class Vehicle extends Component {
 	private showHpRow = true;
 	private showPassengerRow = false;
 	private wrecked = false;
+	private isActing = false;
 	private plateHeight = PLATE_MIN_HEIGHT;
 
 	// Parts with text or tooltips of their own
@@ -233,9 +237,8 @@ export class Vehicle extends Component {
 
 		this.intentRow = new IntentRow({
 			id: this.childId('intents'),
-			markerSize: INTENT_HEIGHT,
 			width: TOKEN_WIDTH,
-			height: INTENT_HEIGHT,
+			height: INTENT_PILL_HEIGHT,
 			distribution: 'end',
 			crossAlign: 'center',
 		});
@@ -310,6 +313,21 @@ export class Vehicle extends Component {
 	/** The row showing a raider's plan. */
 	public get intentsRow(): IntentRow {
 		return this.intentRow;
+	}
+
+	/**
+	 * The raider whose action is on screen during the enemy turn glows
+	 * round its plate while its hit lands (section 6).
+	 */
+	public get acting(): boolean {
+		return this.isActing;
+	}
+
+	public set acting(acting: boolean) {
+		if (acting === this.isActing) return;
+		this.isActing = acting;
+		this.plateDraw.shadow = acting ? ACTING_GLOW : undefined;
+		this.invalidateInk();
 	}
 
 	/** The scale the token draws at. */
@@ -601,9 +619,14 @@ export class Vehicle extends Component {
 		return lines.join('. ');
 	}
 
-	/** The intents row and the outline reach past the token's box. */
+	/** The outline reaches past the token's box, and the acting glow past that. */
 	protected get cullInk(): Rect {
-		return grownRect(this.inkRect, OUTLINE_OFFSET + 3);
+		const ink = grownRect(this.inkRect, OUTLINE_OFFSET + 3);
+		if (!this.isActing) return ink;
+		const glow = shadowInk(this.plateDraw.rect, ACTING_GLOW);
+		const x = Math.min(ink.x, glow.x);
+		const y = Math.min(ink.y, glow.y);
+		return { x, y, width: Math.max(ink.x + ink.width, glow.x + glow.width) - x, height: Math.max(ink.y + ink.height, glow.y + glow.height) - y };
 	}
 
 	public render(draw: DrawApi): void {

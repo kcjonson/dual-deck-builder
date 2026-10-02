@@ -28,6 +28,12 @@ export function hexRgba(hex: string, alpha = 1): Rgba {
 export const TOP_BAR_BACKGROUND = hexRgba('#0e0f10');
 export const DOCK_GRADIENT: readonly [Rgba, Rgba] = [hexRgba('#131416'), hexRgba('#0c0d0e')];
 export const DRIVER_TAB_BACKGROUND = hexRgba('#17191b');
+/**
+ * Over the dock while it's dropped for the enemy turn: a neutral grey wash
+ * that takes the driver colours and the cards' faces down toward grey, as
+ * the mock's `saturate(0.3) brightness(0.62)` does.
+ */
+export const DOCK_SCRIM = hexRgba('#2a2c2f', 0.6);
 
 /** The mock's `--bone`: End Turn's face, the player's banner type, a miss. */
 export const BONE = '#e9e4d6';

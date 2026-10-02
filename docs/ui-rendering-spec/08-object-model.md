@@ -54,6 +54,7 @@ Rules are numbered R8.n.
 ## 8.6 Hit-testability
 
 - R8.29 `pointerEvents` on every component: `auto` (the component's own content box is a hit target and children are hit-tested; default for leaves and widgets), `passthrough` (own box is transparent to hits, children are hit-tested; default for `Container` and `Stack`), `unit` (own box is the target and the walk does not descend; default for composite widgets whose internals are implementation detail: Button, Select, Slider, TabBar, ListRow, Checkbox, Toast; the widget MAY still route internally), `none` (neither self nor children: drag ghosts, decorative overlays, scrims that must not block). Hit-testability is never derived from whether a component draws something; a transparent scrim that must block input is `auto`.
+- R8.30 `parkOffset` (null, or a point in the parent's content space): a declared, transient displacement off the component's rest place, applied like a translation outside its own `transform` and before a drag ghost's offset. It is for a panel that steps partly off the screen while it is out of play, such as the battle screen's dock dropping during the enemy turn. It moves render, hit testing, and `screenBounds` like any translation; the snapshot reports it as `parked` (R13.22) and the layout lint checks the subtree at its rest place (R13.25.2, R13.25.3), so only the park itself is forgiven. Set it only while parked and clear it to null, not to zero, in the tick that lands the component back. Added 2026-10-02 (DDB-139).
 
 ## 8.7 Authoring API shape
 
@@ -89,6 +90,7 @@ Arena storage and generational handles are C++ concerns; in a garbage-collected 
 | `reconcileChildren` | recommended |
 | Margin-box bounds (per-side margin), content-box hit test with half-open edges, ink overflow with `inkExtent` | required |
 | `transform` ignored by layout, honoured by render and hit testing | required |
+| `parkOffset` reported by the snapshot and checked at rest by the lint | required |
 | Read-only `screenBounds` and conversions; no window reads | required |
 | Mount and unmount with a mount context; no constructor-time registration | required |
 | Frame order: input with layout on demand, update on request, layout, render, snapshot | required |

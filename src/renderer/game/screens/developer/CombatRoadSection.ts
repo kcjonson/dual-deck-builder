@@ -84,7 +84,7 @@ export class CombatRoadSection extends CatalogSection {
 			enemy: [looter, brute, flanker],
 		});
 		road.setVehicleIntents(looter.id, [
-			{ type: 'attack', value: 8, description: 'Ram', target: 'driver1' },
+			{ type: 'attack', value: 6, hits: 3, valueText: '6x3', description: 'Burst', target: 'driver1' },
 			{ type: 'defend', value: 5, description: 'Brace' },
 			{ type: 'attack', value: 4, description: 'Shoot', target: 'driver2' },
 		]);

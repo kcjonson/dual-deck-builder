@@ -1,6 +1,8 @@
 import { Screen } from '../../core/Screen';
 import { ScreenManager } from '../../core/ScreenManager';
 import { Stack } from '../../../engine/components/Stack';
+import { Rectangle } from '../../../engine/components/Rectangle';
+import type { TweenHandle } from '../../../engine/animation/Animator';
 import { RoadView, EnemyIntent } from './RoadView';
 import { PlayerHandLayer } from './PlayerHandLayer';
 import { LOG_KEY, TopBarLayer } from './TopBarLayer';
@@ -8,6 +10,7 @@ import { EndTurnColumn } from './EndTurnColumn';
 import { CombatLogLayer } from './CombatLogLayer';
 import { TURN_BANNER_LIFETIME, TurnBanner } from './TurnBanner';
 import { EnemyTurnPacer } from './EnemyTurnPacer';
+import { EndTurnPreview } from './EndTurnPreview';
 import { CombatModel } from './CombatModel';
 import {
 	DOCK_HEIGHT,
@@ -18,7 +21,7 @@ import {
 } from './CombatLayout';
 import { ChromeStack } from './ChromeStack';
 import { CombatFxLayer } from './CombatFxLayer';
-import { DOCK_GRADIENT, Rgba, rgba } from './combatStyle';
+import { DOCK_GRADIENT, DOCK_SCRIM, Rgba, rgba } from './combatStyle';
 import { buildPlayerHandView } from './PlayerHandView';
 import { TargetMark, seatMark } from '../../ui/targetMarks';
 import { Driver, DriverRole } from '../../mechanics/Driver';
@@ -68,6 +71,8 @@ const DOCK_PADDING = { top: 8, bottom: 5, left: 16, right: 16 };
  */
 export const ENEMY_TURN_LEAD_IN = TURN_BANNER_LIFETIME - tokens.motion.dur;
 export const ENEMY_ACTION_BEAT = 700;
+/** How far the dock drops while the raiders act (section 6). */
+export const DOCK_DROP = 60;
 
 /**
  * The combat screen, laid out per Battle Screen Design section 2
@@ -84,6 +89,12 @@ export class CombatScreen extends Screen {
 	private turnBanner!: TurnBanner;
 	private fx!: CombatFxLayer;
 	private dock!: Stack;
+	private dockScrim!: Rectangle;
+	private intentPreview!: EndTurnPreview;
+	/** 0 with the dock in place, 1 dropped and greyed; tweened between. */
+	private dockDrop = 0;
+	private dockTween: TweenHandle<number> | null = null;
+	private dockTweenTarget = 0;
 	private enemyTurnPacer: EnemyTurnPacer | null = null;
 	/** The raider whose action is on screen during the enemy turn (DDB-139 glows it), or null. */
 	private enemyActing: Vehicle | null = null;
@@ -437,10 +448,11 @@ export class CombatScreen extends Screen {
 		this.topBar.turn = battle.turn;
 		this.topBar.scrap = this.scrap;
 		this.topBar.fuel = this.fuel;
-		// The dock is locked while the raiders act (section 6); DDB-139 drops and greys it
+		// The dock is locked while the raiders act, dropped and greyed (section 6)
 		// Locked too once the fight is over, through the transition out
 		const waiting = battle.enemyTurnInProgress || battle.battleOver;
 		this.dock.enabled = !waiting;
+		this.dropDock(battle.enemyTurnInProgress);
 		this.endTurnColumn.show({
 			turn: battle.turn,
 			playerTurn: battle.isPlayerTurn && !battle.battleOver,
@@ -453,33 +465,89 @@ export class CombatScreen extends Screen {
 		// Every vehicle on the road, in its slot
 		this.road.showVehicles({ player: this.playerTeam?.vehicles ?? [], enemy: this.enemyTeam?.vehicles ?? [] });
 
-		// Every raider's plan, two markers and then "+N", until the intent
-		// pills land (DDB-139)
+		// Every raider's plan as pills, two and then "+N". While the raiders
+		// act, the plan they are playing stays up and the one acting glows;
+		// the next plan shows with the player's draw
 		if (this.enemyTeam) {
-			// While the raiders act, the plan they are playing stays up; the
-			// next one shows with the player's draw
 			const intents = waiting ? null : battle.getAllIntents();
 			this.enemyTeam.vehicles.forEach(vehicle => {
-				if (intents) this.road.setVehicleIntents(vehicle.id, (intents.get(vehicle) ?? []).map(intent => this.intentMarkerOf(intent)));
+				if (intents) this.road.setVehicleIntents(vehicle.id, (intents.get(vehicle) ?? []).map(intent => this.intentPillOf(intent)));
 			});
 		}
+		this.road.actingVehicleId = battle.enemyTurnInProgress ? this.enemyActing?.id ?? null : null;
+		this.intentPreview.turnOpen = battle.isPlayerTurn && !waiting;
+		this.intentPreview.refresh();
 	}
 
-	/** A planned intent as its marker shows it, with the tooltip's line. */
-	private intentMarkerOf(intent: Intent): EnemyIntent {
+	/**
+	 * Drops the dock and greys it while the raiders act, and brings it back
+	 * for the player's turn, on the animator; at once under reduced motion.
+	 * The drop is a declared park (R8.30), set only while the dock is off its
+	 * place and cleared on the tick it lands back, so the layout lint checks
+	 * the dock where it rests.
+	 */
+	private dropDock(dropped: boolean): void {
+		const target = dropped ? 1 : 0;
+		const animator = this.context.animator;
+		if (this.dockTween?.running && this.dockTweenTarget === target) return;
+		this.dockTween?.cancel();
+		this.dockTween = null;
+		this.dockTweenTarget = target;
+		if (this.dockDrop === target) {
+			this.applyDockDrop(target);
+			return;
+		}
+		if (animator.reducedMotion || !this.dock.isMounted) {
+			this.applyDockDrop(target);
+			return;
+		}
+		this.dockTween = animator.tween({
+			from: this.dockDrop,
+			to: target,
+			duration: tokens.motion.dur,
+			ease: tokens.motion.ease_standard,
+			owner: this.dock,
+			onUpdate: (progress) => this.applyDockDrop(progress),
+			onComplete: () => this.applyDockDrop(target),
+		});
+	}
+
+	private applyDockDrop(progress: number): void {
+		this.dockDrop = progress;
+		const park = progress > 0 ? { x: 0, y: DOCK_DROP * progress } : null;
+		this.dock.parkOffset = park;
+		this.dockScrim.parkOffset = park;
+		this.dockScrim.visible = progress > 0;
+		this.dockScrim.opacity = progress;
+	}
+
+	/** How far the dock has dropped: 0 in place, 1 all the way. */
+	public get dockDropped(): number {
+		return this.dockDrop;
+	}
+
+	/**
+	 * A planned intent as its pill shows it, with the tooltip's line and the
+	 * vehicles it lands on: an area hit reaches every vehicle of yours
+	 * still in the fight (`effectRecipients`).
+	 */
+	private intentPillOf(intent: Intent): EnemyIntent {
 		const value = formatIntentValue(intent);
 		const target = intent.target === 'both'
 			? 'both of your vehicles'
 			: this.playerTeam?.vehicles.find(vehicle => vehicle.id === intent.target)?.name ?? null;
 		const on = target ? ` on ${target}` : '';
 		const mark = this.intentTargetMark(intent);
+		const targetIds = intent.target === 'both'
+			? (this.playerTeam?.vehicles ?? []).filter(vehicle => !vehicle.isOutOfFight).map(vehicle => vehicle.id)
+			: intent.target ? [intent.target] : [];
 		switch (intent.type) {
 			case IntentType.ATTACK:
-				return { type: 'attack', value: intent.amount ?? undefined, valueText: value, description: intent.description, detail: `${value} damage${on}`, target: mark };
+				return { type: 'attack', value: intent.amount ?? undefined, hits: intent.hits, valueText: value, description: intent.description, detail: `${value} damage${on}`, target: mark, targetIds };
 			case IntentType.DEFEND:
-				return { type: 'defend', value: intent.amount ?? undefined, description: intent.description, detail: `${value} armor` };
+				return { type: 'defend', value: intent.amount ?? undefined, valueText: value, description: intent.description, detail: `${value} armor` };
 			case IntentType.DEBUFF:
-				return { type: 'debuff', description: intent.description, detail: `${value}${on}`, target: mark };
+				return { type: 'debuff', description: intent.description, detail: `${value}${on}`, target: mark, targetIds };
 			case IntentType.BUFF:
 				return { type: 'buff', description: intent.description, detail: value };
 			default:
@@ -523,6 +591,19 @@ export class CombatScreen extends Screen {
 		bands.addChild(this.topBar);
 		bands.addChild(this.createRoad());
 		bands.addChild(this.createDock());
+		// Greys the dock while it's dropped, over it and dropping with it
+		this.dockScrim = new Rectangle({
+			id: 'combat_dock_scrim',
+			positioned: 'absolute',
+			anchor: 'bottom',
+			widthMode: 'fill',
+			height: DOCK_HEIGHT,
+			zIndex: 1,
+			pointerEvents: 'none',
+			style: { backgroundColor: DOCK_SCRIM },
+		});
+		this.dockScrim.visible = false;
+		bands.addChild(this.dockScrim);
 
 		// Over everything, the stage's size: the targeting line
 		this.fx = new CombatFxLayer({ id: 'combat_fx', positioned: 'absolute' });
@@ -575,6 +656,19 @@ export class CombatScreen extends Screen {
 		});
 		this.combatLogLayer.visible = this.combatLogVisible;
 		road.addChild(this.combatLogLayer);
+
+		// From End Turn's hover or keyboard focus, each intent's line to
+		// what it will hit and the totals on your plates (section 6)
+		this.intentPreview = new EndTurnPreview({
+			id: 'combat_end_turn_preview',
+			positioned: 'absolute',
+			widthMode: 'fill',
+			heightMode: 'fill',
+			zIndex: 1,
+			road: this.road,
+			isPreviewing: () => this.endTurnColumn?.previewing ?? false,
+		});
+		road.addChild(this.intentPreview);
 
 		return road;
 	}
@@ -1090,6 +1184,10 @@ export class CombatScreen extends Screen {
 		this.enemyTurnPacer?.stop();
 		this.enemyTurnPacer = null;
 		this.enemyActing = null;
+		this.dockTween?.cancel();
+		this.dockTween = null;
+		this.dockDrop = 0;
+		this.dockTweenTarget = 0;
 
 		// Cancel any active targeting
 		if (this.combatModel.isTargeting) {

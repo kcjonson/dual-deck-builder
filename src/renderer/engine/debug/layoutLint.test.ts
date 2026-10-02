@@ -1602,4 +1602,60 @@ describe('layoutLint', () => {
 			]);
 		});
 	});
+
+	describe('a parked subtree is checked at rest (R8.30, R13.25.2, R13.25.3)', () => {
+		/** A 100x100 viewport, a stage filling it, and a dock in its bottom 40, parked 20 down. */
+		function dockDocument({ parked, cardAt }: { parked: boolean; cardAt: LintRect }): LintDocument {
+			const shift = parked ? 20 : 0;
+			const moved = (rect: LintRect): LintRect => box(rect.x, rect.y + shift, rect.w, rect.h);
+			const card = node({ id: 'card', bounds: cardAt, screenBounds: moved(cardAt) });
+			const dock = node({
+				id: 'dock',
+				bounds: box(0, 60, 100, 40),
+				screenBounds: moved(box(0, 60, 100, 40)),
+				parked: parked ? { x: 0, y: 20 } : undefined,
+				children: [card],
+			});
+			const road = node({ id: 'road', bounds: box(0, 0, 100, 60) });
+			return doc([node({ id: 'stage', bounds: box(0, 0, 100, 100), children: [road, dock] })], { width: 100, height: 100 });
+		}
+
+		it('forgives the park: a dock dropped past the bottom edge lints clean', () => {
+			expect(layoutLint(dockDocument({ parked: true, cardAt: box(10, 70, 30, 25) })).count).toBe(0);
+		});
+
+		it('lints the same dock at rest, unparked, clean', () => {
+			expect(layoutLint(dockDocument({ parked: false, cardAt: box(10, 70, 30, 25) })).count).toBe(0);
+		});
+
+		it('still reports a child that escapes its parent at rest', () => {
+			const result = layoutLint(dockDocument({ parked: true, cardAt: box(10, 90, 30, 25) }));
+			expect(forRule(result, 'child-outside-parent').map((violation) => violation.path)).toEqual(['stage/dock/card']);
+			expect(forRule(result, 'outside-viewport').map((violation) => violation.path)).toEqual(['stage/dock/card']);
+		});
+
+		it('without the declaration, the same drop is reported', () => {
+			const parked = dockDocument({ parked: true, cardAt: box(10, 70, 30, 25) });
+			const dock = (parked.roots[0].children ?? [])[1];
+			const undeclared = doc([{ ...parked.roots[0], children: [(parked.roots[0].children ?? [])[0], { ...dock, parked: undefined }] }], { width: 100, height: 100 });
+			const result = layoutLint(undeclared);
+			expect(forRule(result, 'outside-viewport').map((violation) => violation.path)).toEqual(['stage/dock', 'stage/dock/card']);
+			expect(forRule(result, 'child-outside-parent').map((violation) => violation.path)).toEqual(['stage/dock']);
+		});
+
+		it('moves a clip the parked subtree introduced, and leaves one from above it', () => {
+			const outer = box(0, 0, 100, 100);
+			const inner = node({ id: 'inner', bounds: box(0, 0, 50, 24), screenBounds: box(0, 70, 50, 24), clip: box(0, 70, 100, 30), focusable: true });
+			const panel = node({ id: 'panel', bounds: box(0, 60, 100, 30), screenBounds: box(0, 70, 100, 30), clip: outer, children: [inner] });
+			const dock = node({ id: 'dock', bounds: box(0, 60, 100, 40), screenBounds: box(0, 70, 100, 40), clip: outer, parked: { x: 0, y: 10 }, children: [panel] });
+			const result = layoutLint(doc([node({ id: 'stage', bounds: outer, clip: outer, children: [dock] })], { width: 100, height: 100 }));
+			expect(forRule(result, 'unreachable-interactive')).toEqual([]);
+			expect(result.count).toBe(0);
+		});
+
+		it('leaves a document with no park as it is', () => {
+			const plain = doc([node({ id: 'a', bounds: box(0, 0, 10, 10) })]);
+			expect(layoutLint(plain).count).toBe(0);
+		});
+	});
 });

@@ -126,3 +126,10 @@ export const SCENE_SCENARIOS: readonly SceneScenario[] = [
 	{ scene: 'combat-road' },
 	{ scene: 'vehicle-tokens' },
 ];
+
+/**
+ * Gallery scenes the lint also holds at `SHORT_VIEWPORT`: the battle screen's
+ * pieces, which the combat screen shows at both gate sizes (DDB-139), so the
+ * intent pills' tier colour, multi-hit value and "+N" are gated at both.
+ */
+export const SHORT_LINT_SCENES: readonly string[] = ['combat-road'];
