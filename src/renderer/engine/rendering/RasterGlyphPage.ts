@@ -12,9 +12,8 @@ import {
 	RasterGlyphSource,
 	rasterBlockWidth,
 	rasterGlyphBox,
-	drawInkSample,
 	inkCurve,
-	inkHistogram,
+	inkSample,
 	rasterizeGlyphs,
 } from '../text/rasterGlyphs';
 
@@ -54,7 +53,7 @@ interface SizeEntry {
 	/** The frame a run last asked for this size. */
 	lastUsed: number;
 	/** The coverage curve this size's glyphs are drawn through (`inkCurve`); undefined until measured. */
-	curve: Uint8Array | null | undefined;
+	curve: Float32Array | null | undefined;
 }
 
 interface Shelf {
@@ -258,16 +257,20 @@ export class RasterGlyphPage implements RasterGlyphSource {
 
 	/**
 	 * The curve that matches a size's raster glyphs to the distance field in
-	 * weight: the reference word drawn at the size, its ink against the
-	 * field's (DDB-217). Once per size, before its first glyphs.
+	 * weight: the reference word's glyphs drawn at the size as any glyphs are,
+	 * their ink against the field's (DDB-217). Once per size, before its
+	 * first glyphs.
 	 */
-	private measureCurve(canvas: GlyphCanvasContext, font: string, family: string, atlas: FontAtlas, pixelSize: number): Uint8Array | null {
+	private measureCurve(canvas: GlyphCanvasContext, font: string, family: string, atlas: FontAtlas, pixelSize: number): Float32Array | null {
 		const fieldInk = this.fieldInkOf(font);
 		if (fieldInk === null) return null;
-		let widthEm = 0;
-		for (const character of INK_REFERENCE_TEXT) widthEm += atlas.glyph(character.codePointAt(0) ?? 0)?.advance ?? 1;
-		const sample = drawInkSample(canvas, family, pixelSize, widthEm);
-		return inkCurve(inkHistogram(sample), fieldInk * pixelSize * pixelSize);
+		const glyphs: GlyphToRasterize[] = [];
+		for (const character of INK_REFERENCE_TEXT) {
+			const glyph = atlas.glyph(character.codePointAt(0) ?? 0);
+			const box = glyph ? rasterGlyphBox(glyph, pixelSize) : null;
+			if (glyph && box) glyphs.push({ outlineCodePoint: glyph.outlineCodePoint ?? glyph.codePoint, box });
+		}
+		return inkCurve(inkSample(canvas, glyphs, pixelSize, family), fieldInk * pixelSize * pixelSize);
 	}
 
 	/** Whether starting over would win anything back: orphaned cells, or a size with cells no run has asked for lately. */

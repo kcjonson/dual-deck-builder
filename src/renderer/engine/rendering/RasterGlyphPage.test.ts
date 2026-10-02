@@ -238,15 +238,18 @@ describe('RasterGlyphPage (R6.4a)', () => {
 
 		it('measures the reference word once per size, before its first glyphs', () => {
 			const { page, drawn, layout } = pageWith(1.7, 128);
+			// The synthetic atlas's glyphs in the reference word, drawn one at a time as any glyphs are
+			const atlas = syntheticFontAtlas();
+			const sample = Array.from(INK_REFERENCE_TEXT).filter((character) => atlas.glyph(character.codePointAt(0) ?? 0)?.plane);
 			page.glyphs('body', layout('A'), 8);
 			page.glyphs('body', layout('b'), 8);
 			page.glyphs('body', layout('A'), 7);
-			expect(drawn).toEqual([INK_REFERENCE_TEXT, 'A', 'b', INK_REFERENCE_TEXT, 'A']);
+			expect(drawn).toEqual([...sample, 'A', 'b', ...sample, 'A']);
 		});
 
 		it('thins glyphs heavier than the field and leaves the platform as drawn without a field ink', () => {
 			// Every subsample half covered: far heavier than the field's word.
-			const corrected = pageWith(0.5, 128);
+			const corrected = pageWith(0.01, 128);
 			corrected.page.glyphs('body', corrected.layout('A'), 8);
 			const kept = pageWith(null, 128);
 			kept.page.glyphs('body', kept.layout('A'), 8);

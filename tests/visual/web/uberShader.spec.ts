@@ -12,9 +12,9 @@ import {
 	GlyphCanvasContext,
 	GlyphToRasterize,
 	INK_REFERENCE_TEXT,
-	drawInkSample,
+	INK_TOLERANCE,
 	inkCurve,
-	inkHistogram,
+	inkSample,
 	rasterBlockWidth,
 	rasterGlyphBox,
 	rasterizeGlyphs,
@@ -317,7 +317,7 @@ test.describe('raster fallback weight against the distance field (R6.4a)', () =>
 	}
 
 	/**
-	 * Runs `draw` (`drawInkSample`, `rasterizeGlyphs`) against the page's real
+	 * Runs `draw` (`inkSample`, `rasterizeGlyphs`) against the page's real
 	 * canvas with the face loaded under `family`. The engine's canvas calls are
 	 * synchronous and the page is not, so `draw` runs twice: once against a
 	 * canvas that records its calls, which the page then replays to answer
@@ -391,16 +391,11 @@ test.describe('raster fallback weight against the distance field (R6.4a)', () =>
 			const measured = (await fieldInk(page, atlas, texels, FIELD_SIZE)) / (FIELD_SIZE * FIELD_SIZE);
 			const bytes = readFileSync(join(FONTS, file)).toString('base64');
 			const family = `weight-${face}`;
-			let widthEm = 0;
-			for (const character of INK_REFERENCE_TEXT) widthEm += atlas.glyph(character.codePointAt(0) ?? 0)?.advance ?? 1;
 			const scores: string[] = [];
 			const ratios: number[] = [];
 			for (const size of [6, 7, 8, 8.75]) {
-				// What `RasterGlyphPage` does for a size: the sample, the curve,
-				// then the glyphs through it
-				const histogram = inkHistogram(await onPageCanvas(page, bytes, family, (context) => drawInkSample(context, family, size, widthEm)));
-				const target = baked * size * size;
-				const curve = inkCurve(histogram, target);
+				// What `RasterGlyphPage` does for a size: the reference word's
+				// glyphs sampled, the curve, then the glyphs through it
 				const glyphs: GlyphToRasterize[] = [];
 				for (const character of INK_REFERENCE_TEXT) {
 					const codePoint = character.codePointAt(0) ?? 0;
@@ -408,6 +403,8 @@ test.describe('raster fallback weight against the distance field (R6.4a)', () =>
 					const box = glyph ? rasterGlyphBox(glyph, size) : null;
 					if (box) glyphs.push({ outlineCodePoint: codePoint, box });
 				}
+				const target = baked * size * size;
+				const curve = inkCurve(await onPageCanvas(page, bytes, family, (context) => inkSample(context, glyphs, size, family)), target);
 				const asDrawn = writtenInk(await onPageCanvas(page, bytes, family, (context) => rasterizeGlyphs(context, glyphs, size, family)), glyphs);
 				const written = writtenInk(await onPageCanvas(page, bytes, family, (context) => rasterizeGlyphs(context, glyphs, size, family, curve)), glyphs);
 				ratios.push(written / target);
@@ -417,7 +414,8 @@ test.describe('raster fallback weight against the distance field (R6.4a)', () =>
 			// The shipped number is this measurement; an atlas rebuild that
 			// moves it fails here until fieldInk.ts moves with it.
 			expect(Math.abs(measured / baked - 1)).toBeLessThan(0.015);
-			for (const ratio of ratios) expect(Math.abs(ratio - 1)).toBeLessThan(0.05);
+			// The tolerance, and the box filter's rounding to a byte
+			for (const ratio of ratios) expect(Math.abs(ratio - 1)).toBeLessThan(INK_TOLERANCE + 0.005);
 		});
 	}
 });

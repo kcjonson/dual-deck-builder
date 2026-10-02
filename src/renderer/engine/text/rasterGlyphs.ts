@@ -52,10 +52,9 @@ export const INK_REFERENCE_TEXT = 'Hamburgefonstiv';
 
 /**
  * How far the raster path's ink may sit from the distance field's, as a
- * fraction, before its coverage is reshaped toward it: about what the
- * curve's own byte table can resolve, so every size lands on the field and
- * there is no step between sizes kept as drawn and sizes pulled to the
- * field. CoreText at ratio 1 is 25 to 45 percent heavier; FreeType on the
+ * fraction, before its coverage is reshaped toward it. Small, so every size
+ * lands on the field and there is no step between sizes kept as drawn and
+ * sizes pulled to it. CoreText at ratio 1 is 25 to 45 percent heavier; FreeType on the
  * Linux runner is within a few percent for body and up to 13 percent heavier
  * for the display face at 8.75 px.
  */
@@ -178,30 +177,16 @@ export interface GlyphToRasterize {
 }
 
 /**
- * Draws `glyphs` in white through the platform's 2D text API (R6.1's
- * permitted raster alternative), side by side on one scratch canvas at
- * `RASTER_PHASES` times the horizontal resolution, reads the canvas back
- * once, and box-filters each glyph into its phases: phase `n` is the glyph
- * moved `n` subsamples right, each output texel the mean of the subsamples it
- * covers. Doing the shift here rather than with a fractional `fillText` x
- * keeps it exact on platforms that snap text to whole pixels, as Chrome does
- * on Linux at ratio 1.
- *
- * Returns one block per glyph, `rasterBlockWidth(box)` by
- * `box.height + RASTER_GUTTER` premultiplied white RGBA8 texels whose alpha is
- * the coverage; the gutter column after each phase and the row under them
- * are blank, so a block written over an old one leaves no stale texel beside
- * its cells. The canvas is grown when too small and never shrunk. `curve`,
- * from `inkCurve`, reshapes each subsample's coverage before the filter, so
- * the glyphs match the distance field's weight.
+ * Draws `glyphs` in white side by side on the scratch canvas,
+ * `RASTER_PHASES` times as wide, each a `CANVAS_GAP` after the last box, and
+ * reads the canvas back once: the subsample RGBA, `canvasWidth` wide.
  */
-export function rasterizeGlyphs(
+function drawGlyphs(
 	context: GlyphCanvasContext,
 	glyphs: readonly GlyphToRasterize[],
 	pixelSize: number,
 	family: string,
-	curve: Uint8Array | null = null,
-): Uint8Array[] {
+): { source: ArrayLike<number>; canvasWidth: number } {
 	const phases = RASTER_PHASES;
 	let width = 0;
 	let height = 1;
@@ -229,8 +214,36 @@ export function rasterizeGlyphs(
 		pen += box.width + CANVAS_GAP;
 	}
 	context.setTransform(1, 0, 0, 1, 0, 0);
+	return { source: context.getImageData(0, 0, canvasWidth, height).data, canvasWidth };
+}
 
-	const source = context.getImageData(0, 0, canvasWidth, height).data;
+/**
+ * Draws `glyphs` in white through the platform's 2D text API (R6.1's
+ * permitted raster alternative), side by side on one scratch canvas at
+ * `RASTER_PHASES` times the horizontal resolution, reads the canvas back
+ * once, and box-filters each glyph into its phases: phase `n` is the glyph
+ * moved `n` subsamples right, each output texel the mean of the subsamples it
+ * covers. Doing the shift here rather than with a fractional `fillText` x
+ * keeps it exact on platforms that snap text to whole pixels, as Chrome does
+ * on Linux at ratio 1.
+ *
+ * Returns one block per glyph, `rasterBlockWidth(box)` by
+ * `box.height + RASTER_GUTTER` premultiplied white RGBA8 texels whose alpha is
+ * the coverage; the gutter column after each phase and the row under them
+ * are blank, so a block written over an old one leaves no stale texel beside
+ * its cells. The canvas is grown when too small and never shrunk. `curve`,
+ * from `inkCurve`, reshapes each subsample's coverage before the filter, so
+ * the glyphs match the distance field's weight.
+ */
+export function rasterizeGlyphs(
+	context: GlyphCanvasContext,
+	glyphs: readonly GlyphToRasterize[],
+	pixelSize: number,
+	family: string,
+	curve: Float32Array | null = null,
+): Uint8Array[] {
+	const phases = RASTER_PHASES;
+	const { source, canvasWidth } = drawGlyphs(context, glyphs, pixelSize, family);
 	const blocks: Uint8Array[] = [];
 	let offset = 0;
 	for (const { box } of glyphs) {
@@ -266,36 +279,22 @@ export function rasterizeGlyphs(
 }
 
 /**
- * Draws `INK_REFERENCE_TEXT` in white the way `rasterizeGlyphs` draws a
- * glyph (`RASTER_PHASES` times as wide, the face at `pixelSize`) and reads it
- * back: the subsample RGBA, row by row. `widthEm` is the word's advance in
- * ems, from the atlas, which sizes the canvas.
+ * How many of `glyphs`' subsamples have each coverage, 0 to 255: the
+ * glyphs drawn exactly as `rasterizeGlyphs` draws them, counted over the
+ * same columns its box filter reads, so the curve is fitted to the coverage
+ * it is applied to. `RasterGlyphPage` samples `INK_REFERENCE_TEXT`.
  */
-export function drawInkSample(context: GlyphCanvasContext, family: string, pixelSize: number, widthEm: number): ArrayLike<number> {
+export function inkSample(context: GlyphCanvasContext, glyphs: readonly GlyphToRasterize[], pixelSize: number, family: string): Uint32Array {
 	const phases = RASTER_PHASES;
-	const width = Math.ceil((widthEm + 1) * pixelSize * phases);
-	const height = Math.ceil(pixelSize * 2) + CANVAS_GAP * 2;
-	const canvas = context.canvas;
-	if (canvas.width < width || canvas.height < height) {
-		canvas.width = Math.max(canvas.width, width);
-		canvas.height = Math.max(canvas.height, height);
-	}
-	context.setTransform(1, 0, 0, 1, 0, 0);
-	context.clearRect(0, 0, width, height);
-	context.setTransform(phases, 0, 0, 1, 0, 0);
-	context.font = `${pixelSize}px "${family}"`;
-	context.fillStyle = '#ffffff';
-	context.textBaseline = 'alphabetic';
-	context.textAlign = 'left';
-	context.fillText(INK_REFERENCE_TEXT, pixelSize / 2, CANVAS_GAP + Math.ceil(pixelSize * 1.5));
-	context.setTransform(1, 0, 0, 1, 0, 0);
-	return context.getImageData(0, 0, width, height).data;
-}
-
-/** How many subsamples of RGBA `data` have each alpha, 0 to 255. */
-export function inkHistogram(data: ArrayLike<number>): Uint32Array {
+	const { source, canvasWidth } = drawGlyphs(context, glyphs, pixelSize, family);
 	const histogram = new Uint32Array(256);
-	for (let index = 3; index < data.length; index += 4) histogram[data[index]] += 1;
+	let offset = 0;
+	for (const { box } of glyphs) {
+		for (let row = 0; row < box.height; row++) {
+			for (let sub = offset * phases; sub < (offset + box.width) * phases; sub++) histogram[source[(row * canvasWidth + sub) * 4 + 3]] += 1;
+		}
+		offset += box.width + CANVAS_GAP;
+	}
 	return histogram;
 }
 
@@ -311,7 +310,7 @@ export function histogramInk(histogram: Uint32Array, exponent = 1): number {
 /**
  * The coverage curve that brings a raster sample's ink to `target`, the
  * distance field's ink of the same word at the same size, as a table from
- * the platform's coverage byte to the one written; null when the sample is
+ * the platform's coverage byte to the coverage the box filter averages; null when the sample is
  * within `INK_TOLERANCE` of the target already, or empty.
  *
  * The curve is a power, `c^exponent`, so pixels the outline covers stay
@@ -319,18 +318,21 @@ export function histogramInk(histogram: Uint32Array, exponent = 1): number {
  * coverage past the outline's edge, is what gets thinned (or, for a platform
  * lighter than the field, thickened).
  */
-export function inkCurve(histogram: Uint32Array, target: number): Uint8Array | null {
+export function inkCurve(histogram: Uint32Array, target: number): Float32Array | null {
 	const ink = histogramInk(histogram);
 	if (ink <= 0 || target <= 0 || Math.abs(ink / target - 1) <= INK_TOLERANCE) return null;
 	let low = 0.25;
-	let high = 4;
+	// CoreText at 8.75 px needs an exponent past 4
+	let high = 16;
 	for (let step = 0; step < 32; step++) {
 		const exponent = (low + high) / 2;
 		if (histogramInk(histogram, exponent) > target) low = exponent;
 		else high = exponent;
 	}
 	const exponent = (low + high) / 2;
-	const curve = new Uint8Array(256);
-	for (let value = 0; value < 256; value++) curve[value] = Math.round(255 * Math.pow(value / 255, exponent));
+	// Unrounded: a byte table's rounding, over the many faint subsamples at a
+	// glyph's edges, moved the ink by up to 3 percent
+	const curve = new Float32Array(256);
+	for (let value = 0; value < 256; value++) curve[value] = 255 * Math.pow(value / 255, exponent);
 	return curve;
 }

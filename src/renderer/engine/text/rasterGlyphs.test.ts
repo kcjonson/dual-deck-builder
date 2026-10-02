@@ -1,14 +1,12 @@
 import {
 	GlyphCanvasContext,
-	INK_REFERENCE_TEXT,
 	INK_TOLERANCE,
 	RASTER_GUTTER,
 	RASTER_PHASES,
 	RASTER_RANGE_THRESHOLD,
-	drawInkSample,
 	histogramInk,
 	inkCurve,
-	inkHistogram,
+	inkSample,
 	rasterBlockWidth,
 	rasterGlyphBox,
 	rasterPen,
@@ -171,7 +169,7 @@ describe('rasterizeGlyphs', () => {
 
 	it('draws each subsample through the ink curve before the box filter', () => {
 		const { context } = fakeCanvas([0]);
-		const halve = new Uint8Array(256).map((_, value) => value >> 1);
+		const halve = new Float32Array(256).map((_, value) => value / 2);
 		const [block] = rasterizeGlyphs(context, glyphs, 8, 'ddb-test', halve);
 		expect(block[2 * rasterBlockWidth(box) * 4 + 3]).toBe(32);
 	});
@@ -185,38 +183,34 @@ describe('weight against the distance field (DDB-217)', () => {
 		return histogram;
 	}
 
-	it('draws the reference word the way glyphs are drawn, once, and reads it back', () => {
-		const calls: string[] = [];
-		const canvas = { width: 0, height: 0 };
+	it('counts the subsamples of glyphs drawn as rasterizeGlyphs draws them, over the columns its filter reads', () => {
+		const texts: string[] = [];
 		const context: GlyphCanvasContext = {
-			canvas,
+			canvas: { width: 0, height: 0 },
 			font: '',
 			fillStyle: '',
 			textBaseline: 'top',
 			textAlign: 'center',
-			setTransform: (a, b, c, d) => calls.push(`transform ${a} ${b} ${c} ${d}`),
+			setTransform: () => undefined,
 			clearRect: () => undefined,
-			fillText: (text) => calls.push(`text ${text}`),
+			fillText: (text) => texts.push(text),
 			getImageData: (x, y, width, height) => {
-				calls.push(`read ${width} ${height}`);
-				return { data: new Uint8Array(width * height * 4) };
+				// A covered subsample at A's pen, and a stray one in the gap after its box
+				const data = new Uint8Array(width * height * 4);
+				for (let row = 0; row < height; row++) {
+					data[(row * width) * 4 + 3] = 255;
+					data[(row * width + 6 * RASTER_PHASES + 1) * 4 + 3] = 255;
+				}
+				return { data };
 			},
 		};
-		drawInkSample(context, 'ddb-test', 8, 7.5);
+		const box = { left: 0, top: -6, width: 6, height: 6 };
+		const histogram = inkSample(context, [{ outlineCodePoint: 0x41, box }, { outlineCodePoint: 0x3F, box: { ...box, left: -1 } }], 8, 'ddb-test');
+		expect(texts).toEqual(['A', '?']);
 		expect(context.font).toBe('8px "ddb-test"');
-		expect(context.fillStyle).toBe('#ffffff');
-		expect(context.textBaseline).toBe('alphabetic');
-		expect(calls).toContain(`transform ${RASTER_PHASES} 0 0 1`);
-		expect(calls.filter((call) => call.startsWith('text'))).toEqual([`text ${INK_REFERENCE_TEXT}`]);
-		// The word's advance and an em to spare, four times as wide.
-		expect(calls).toContain(`read ${(7.5 + 1) * 8 * RASTER_PHASES} ${8 * 2 + 4}`);
-	});
-
-	it('counts ink after the box filter, a subsample at a time', () => {
-		const histogram = inkHistogram([0, 0, 0, 255, 0, 0, 0, 255, 0, 0, 0, 51]);
-		expect(histogram[255]).toBe(2);
-		expect(histogram[51]).toBe(1);
-		expect(histogramInk(histogram)).toBeCloseTo(2.2 / RASTER_PHASES);
+		expect(histogram[255]).toBe(6);
+		expect(histogram.reduce((sum, count) => sum + count, 0)).toBe(2 * 6 * 6 * RASTER_PHASES);
+		expect(histogramInk(histogram)).toBeCloseTo(6 / RASTER_PHASES);
 	});
 
 	it('keeps a platform within the tolerance as it draws', () => {
