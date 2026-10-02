@@ -2,10 +2,11 @@
  * @jest-environment jsdom
  */
 import cardsFile from '../../data/cards.json';
-import { CombatScreen } from './CombatScreen';
+import { CombatScreen, ENEMY_ACTION_BEAT, ENEMY_TURN_LEAD_IN } from './CombatScreen';
 import { CardLoader } from '../../core/CardLoader';
 import { DriverLoader } from '../../core/DriverLoader';
 import { Card } from '../../mechanics/Card';
+import { Battle } from '../../mechanics/Battle';
 import { Card as UICard } from '../../ui/Card';
 import { IntentMarker } from '../../ui/IntentMarker';
 import { createTestContext } from '../../../engine/components/testing';
@@ -44,6 +45,12 @@ async function startCombat(): Promise<CombatScreen> {
 	await flushPromises();
 	context.frame.layout();
 	return combat;
+}
+
+/** Frames until the raiders are done and the player's turn has begun. */
+function finishEnemyTurn(combat: CombatScreen): void {
+	for (let frames = 0; combat['battle']?.enemyTurnInProgress && frames < 2000; frames++) advance(context, 16);
+	expect(combat['battle']?.enemyTurnInProgress).toBe(false);
 }
 
 function handCards(combat: CombatScreen): UICard[] {
@@ -99,7 +106,7 @@ describe('CombatScreen turn banner', () => {
 		combat.unmount();
 	});
 
-	it('shows the enemy\'s turn, then yours, one after the other, sliding in and fading', async () => {
+	it('shows the enemy\'s turn, then yours once the raiders are done, sliding in and fading', async () => {
 		const combat = await startCombat();
 		const banner = combat['turnBanner'];
 		advance(context, TURN_BANNER_LIFETIME + 16);
@@ -110,30 +117,24 @@ describe('CombatScreen turn banner', () => {
 		expect(banner.opacity).toBeLessThan(1);
 		advance(context, tokens.motion.dur);
 		expect(banner.opacity).toBe(1);
-		advance(context, TURN_BANNER_LIFETIME - tokens.motion.dur);
+		finishEnemyTurn(combat);
 		expect(banner.text).toBe('YOUR TURN');
 		advance(context, TURN_BANNER_LIFETIME);
 		expect(banner.current).toBeNull();
 		combat.unmount();
 	});
 
-	it('coalesces quick turn changes, so it ends on whose turn it is now', async () => {
+	it('sends YOUR TURN out at once for an END TURN pressed while it is up', async () => {
 		const combat = await startCombat();
 		const banner = combat['turnBanner'];
 		advance(context, 16);
 		combat['endPlayerTurn']();
-		combat['endPlayerTurn']();
-		expect(combat['battle']?.isPlayerTurn).toBe(true);
-		expect(banner.pending).toEqual(['enemy', 'player']);
+		expect(banner.pending).toEqual(['enemy']);
 
-		// YOUR TURN from the start leaves at once, then one ENEMY TURN, then YOUR TURN
 		advance(context, tokens.motion.dur + 16);
 		expect(banner.text).toBe('ENEMY TURN');
-		advance(context, TURN_BANNER_LIFETIME);
+		finishEnemyTurn(combat);
 		expect(banner.text).toBe('YOUR TURN');
-		expect(banner.pending).toEqual([]);
-		advance(context, TURN_BANNER_LIFETIME);
-		expect(banner.current).toBeNull();
 		combat.unmount();
 	});
 
@@ -238,8 +239,9 @@ describe('CombatScreen discard flights', () => {
 		}
 		const held = handCards(combat).length;
 		combat['endPlayerTurn']();
-		expect(combat['playerDrivers'].some(driver => (driver.deck?.cards.length ?? 0) > 0)).toBe(true);
 		expect(combat['fx'].discardFlights).toHaveLength(held);
+		finishEnemyTurn(combat);
+		expect(combat['playerDrivers'].some(driver => (driver.deck?.cards.length ?? 0) > 0)).toBe(true);
 		combat.unmount();
 	});
 
@@ -248,6 +250,127 @@ describe('CombatScreen discard flights', () => {
 		const combat = await startCombat();
 		combat['endPlayerTurn']();
 		expect(combat['fx'].discardFlights).toHaveLength(0);
+		combat.unmount();
+	});
+});
+
+/**
+ * DDB-112: the enemy turn is a phase on screen. The raiders act one at a
+ * time on beats of the frame clock, each hit or miss pops its number, and
+ * the dock stays locked until the player's draw, which comes after the last
+ * action.
+ */
+describe('CombatScreen enemy turn', () => {
+	/** A 2-damage shot that can't miss and reaches anywhere. */
+	const jab = (type: string): Card => new Card({
+		type,
+		name: type,
+		summary: type,
+		description: type,
+		rarity: 'common',
+		cost: 1,
+		targetType: 'enemy_single',
+		effects: [{ type: 'damage', value: 2, always_hits: true }],
+		tags: [],
+	});
+
+	/** The raider plans two shots that can't miss. */
+	async function startRiggedCombat(): Promise<CombatScreen> {
+		const combat = await startCombat();
+		const battle = combat['battle'];
+		const raider = combat['enemyTeam']?.vehicles[0];
+		if (!battle || !raider?.driver) throw new Error('the dev fight should field a driven raider');
+		const hand = [jab('jab_one'), jab('jab_two')];
+		raider.driver.set({ hand, adrenaline: raider.driver.maxAdrenaline });
+		battle.planEnemyTurn();
+		expect(battle.getPlan(raider).map(action => action.card)).toEqual(expect.arrayContaining(hand));
+		expect(battle.getPlan(raider)).toHaveLength(2);
+		combat['updateUIFromBattle']();
+		advance(context, TURN_BANNER_LIFETIME + 16);
+		return combat;
+	}
+
+	function expectDockLocked(combat: CombatScreen, locked: boolean): void {
+		const endTurn = combat['endTurnColumn'].endTurn;
+		expect(combat['dock'].enabled).toBe(!locked);
+		expect(endTurn.effectivelyEnabled).toBe(!locked);
+		expect(endTurn.label).toBe(locked ? 'WAIT' : 'END TURN');
+	}
+
+	async function stepsInOrder(): Promise<void> {
+		const combat = await startRiggedCombat();
+		const battle = combat['battle'];
+		const raider = combat['enemyTeam']?.vehicles[0];
+		if (!battle || !raider) throw new Error('rigged');
+		const order: string[] = [];
+		battle.on('hitLanded', () => order.push('hit'));
+		battle.on('hitMissed', () => order.push('miss'));
+		battle.on('stateChanged', () => {
+			if (battle.isPlayerTurn) order.push(`draw ${combat['playerDrivers'].map(driver => driver.hand.length).join('+')}`);
+		});
+		const popped = (): number => combat['fx'].children.filter(child => child.componentType === 'FloatingNumber').length;
+		const turn = battle.turn;
+
+		combat['endPlayerTurn']();
+		expect(battle.isPlayerTurn).toBe(false);
+		expect(battle.enemyTurnInProgress).toBe(true);
+		expectDockLocked(combat, true);
+		expect(combat['playerDrivers'].every(driver => driver.hand.length === 0)).toBe(true);
+
+		// A second press while the raiders act does nothing
+		combat['endPlayerTurn']();
+		expect(order).toEqual([]);
+
+		// Nothing happens under the banner
+		advance(context, ENEMY_TURN_LEAD_IN - 32);
+		expect(order).toEqual([]);
+		expect(combat.actingRaider).toBeNull();
+
+		advance(context, 48);
+		expect(combat.actingRaider).toBe(raider);
+		expect(order).toEqual(['hit']);
+		expect(popped()).toBe(1);
+		expectDockLocked(combat, true);
+		expect(battle.turn).toBe(turn);
+
+		advance(context, ENEMY_ACTION_BEAT - 32);
+		expect(order).toEqual(['hit']);
+		advance(context, 48);
+		expect(order).toEqual(['hit', 'hit']);
+		expectDockLocked(combat, true);
+		expect(combat['playerDrivers'].every(driver => driver.hand.length === 0)).toBe(true);
+
+		// The last action's beat runs out before the player's draw
+		advance(context, ENEMY_ACTION_BEAT + 32);
+		expect(order).toEqual(['hit', 'hit', 'draw 5+5']);
+		expect(battle.turn).toBe(turn + 1);
+		expect(combat.actingRaider).toBeNull();
+		expectDockLocked(combat, false);
+		expect(handCards(combat)).toHaveLength(10);
+		combat.unmount();
+	}
+
+	it('steps the raider\'s actions one beat apart, the dock locked, and draws only after the last', stepsInOrder);
+
+	it('keeps the same beats under reduced motion, where the numbers hold still', async () => {
+		context.animator.reducedMotion = true;
+		await stepsInOrder();
+	});
+
+	it('pops a miss on the target of a card that fizzled', async () => {
+		const combat = await startRiggedCombat();
+		const [rig] = combat['playerTeam']?.vehicles ?? [];
+		const raider = combat['enemyTeam']?.vehicles[0];
+		if (!rig || !raider) throw new Error('the dev fight should field both teams');
+		// The first planned card fizzles as it would on a target that slipped out of range
+		const stepEnemyTurn = jest.spyOn(Battle.prototype, 'stepEnemyTurn')
+			.mockReturnValueOnce({ raider, card: null, target: rig, outcome: 'fizzled' });
+		combat['endPlayerTurn']();
+		advance(context, ENEMY_TURN_LEAD_IN + 16);
+		const numbers = combat['fx'].children.filter((child): child is Text => child.componentType === 'FloatingNumber');
+		expect(numbers.map(number => number.text)).toEqual(['MISS']);
+		stepEnemyTurn.mockRestore();
+		finishEnemyTurn(combat);
 		combat.unmount();
 	});
 });
