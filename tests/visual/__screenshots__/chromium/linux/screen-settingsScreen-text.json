@@ -1,0 +1,10 @@
+[
+{"path":"settingsScreen/settings_title","text":"Settings","rect":[647.75,277.6,144.51,62.4]},
+{"path":"settingsScreen/settings_motion_panel/Text[0]","text":"Motion","rect":[456,380,528,21]},
+{"path":"settingsScreen/settings_motion_panel/settings_motion_row/settings_motion_label","text":"Reduce motion","rect":[456,433.78,298,20.43]},
+{"path":"settingsScreen/settings_motion_panel/settings_motion_row/settings_motion/Segment[0]","text":"System","rect":[772,427,70,34]},
+{"path":"settingsScreen/settings_motion_panel/settings_motion_row/settings_motion/Segment[1]","text":"Reduced","rect":[842,427,70,34]},
+{"path":"settingsScreen/settings_motion_panel/settings_motion_row/settings_motion/Segment[2]","text":"Full","rect":[912,427,70,34]},
+{"path":"settingsScreen/settings_motion_panel/settings_motion_hint","text":"System follows your device's reduced motion setting. Reduced finishes every animation at once: screen fades, card movement, and combat effects.","rect":[456,475,528,35.41]},
+{"path":"settingsScreen/settings_back_button/Text[0]","text":"Back","rect":[659,558.4,149,46]}
+]
