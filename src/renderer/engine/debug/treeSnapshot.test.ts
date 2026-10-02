@@ -711,6 +711,28 @@ describe('treeSnapshot', () => {
 			expect(node.bounds).toEqual({ x: 100, y: 100, w: 100, h: 50 });
 		});
 
+		it('reports a park in viewport space, moves the subtree by it, and lints it at rest (R8.30)', () => {
+			const stage = new Container({ id: 'stage', width: 720, height: 441, transform: { scale: 2, origin: [0, 0] } });
+			const dock = new Container({ id: 'dock', y: 341, width: 720, height: 100 });
+			const card = new Container({ id: 'card', x: 10, y: 10, width: 60, height: 80 });
+			dock.addChild(card);
+			stage.addChild(dock);
+			dock.parkOffset = { x: 0, y: 30 };
+
+			const parked = treeSnapshot([stage], VIEWPORT);
+			const dockNode = findById(parked.roots[0], 'dock');
+			expect(dockNode?.parked).toEqual({ x: 0, y: 60 });
+			expect(dockNode?.screenBounds).toEqual({ x: 0, y: 742, w: 1440, h: 200 });
+			expect(findById(parked.roots[0], 'card')?.screenBounds).toEqual({ x: 20, y: 762, w: 120, h: 160 });
+			expect(layoutLint(parked).count).toBe(0);
+
+			dock.parkOffset = null;
+			const rest = treeSnapshot([stage], VIEWPORT);
+			expect(findById(rest.roots[0], 'dock')?.parked).toBeUndefined();
+			expect(findById(rest.roots[0], 'dock')?.screenBounds).toEqual({ x: 0, y: 682, w: 1440, h: 200 });
+			expect(layoutLint(rest).count).toBe(0);
+		});
+
 		it("agrees with every component's own screenBounds through margins, transforms, scroll and parts", () => {
 			const root = new Container({ id: 'root', width: 1440, height: 882 });
 			const tilted = new Container({

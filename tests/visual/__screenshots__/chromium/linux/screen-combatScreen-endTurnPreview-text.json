@@ -33,7 +33,7 @@
 {"path":"combatScreen/combat_stage/combat_bands/combat_road/combat_road_view/player_vehicle_player_inside_behind/player_vehicle_player_inside_behind_structure_value","text":"50/50","rect":[620.52,522.45,99.37,18.28]},
 {"path":"combatScreen/combat_stage/combat_bands/combat_road/combat_road_view/player_vehicle_player_inside_behind/player_vehicle_player_inside_behind_driver_hp","text":"25/25","rect":[620.52,547.58,99.37,15.99]},
 {"path":"combatScreen/combat_stage/combat_bands/combat_road/combat_road_view/player_vehicle_player_inside_behind/player_vehicle_player_inside_behind_speed","text":"8","rect":[517.72,545.29,55.97,13.71]},
-{"path":"combatScreen/combat_stage/combat_bands/combat_road/combat_turn_banner/combat_turn_banner_text","text":"YOUR TURN","rect":[0,316.13,1440,63]},
+{"path":"combatScreen/combat_stage/combat_bands/combat_road/combat_end_turn_preview","text":"-69","rect":[0,40.5,1440,585]},
 {"path":"combatScreen/combat_stage/combat_bands/combat_dock/combat_player_hand/Stack[0]/driver1_tab/driver1_tab_name","text":"THE ROAD WARRIOR","rect":[56.25,642.94,126.75,20.25]},
 {"path":"combatScreen/combat_stage/combat_bands/combat_dock/combat_player_hand/Stack[0]/driver1_tab/Stack[4]/driver1_adrenaline_value","text":"5/5","rect":[358.39,642.94,20.06,20.25]},
 {"path":"combatScreen/combat_stage/combat_bands/combat_dock/combat_player_hand/Stack[0]/driver1_tab/driver1_piles","text":"DRAW 7   DISCARD 0","rect":[389.7,644.15,145.8,17.82]},

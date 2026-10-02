@@ -5,7 +5,7 @@ import { Stack } from '../components/Stack';
 import { TextInput } from '../ui/TextInput';
 import { Checkable } from '../ui/Checkbox';
 import { CLIP_NONE, ClipState, clipRadiusScale, intersectClip } from '../draw/clip';
-import { ClipRect, IDENTITY, Mat2D, RGBA, Rect, concat, isTranslateOnly, transformedBounds, translation } from '../draw/geometry';
+import { ClipRect, IDENTITY, Mat2D, RGBA, Rect, concat, isTranslateOnly, transformPoint, transformedBounds, translation } from '../draw/geometry';
 import { LayerName, ROOT_LAYER, layerOrdinal } from '../draw/layers';
 import { snapClipRect } from '../coords/snapping';
 
@@ -184,6 +184,12 @@ export interface SnapshotNode {
 	contentOffset?: SnapshotPoint;
 	scroll?: SnapshotScroll;
 	transform?: SnapshotTransform;
+	/**
+	 * R8.30: how far `parkOffset` moves this node off its rest place, in
+	 * viewport space. Every `screenBounds` in the subtree includes it; the
+	 * lint takes it back off to check the subtree at rest.
+	 */
+	parked?: SnapshotPoint;
 	state?: SnapshotState;
 	text?: SnapshotText;
 	value?: string;
@@ -442,6 +448,12 @@ function serializeNode(
 
 		const transform = snapshotTransform(node);
 		if (transform) serialized.transform = transform;
+		const park = node.parkOffset;
+		if (park) {
+			const base = transformPoint(context.matrix, 0, 0);
+			const moved = transformPoint(context.matrix, finite(park.x), finite(park.y));
+			serialized.parked = { x: moved.x - base.x, y: moved.y - base.y };
+		}
 
 		const { hovered, pressed, focused, focusVisible, selected, open, active, dropActive } = node.stateFlags;
 		serialized.state = { hovered, pressed, focused, focusVisible, selected, open, active, dropActive };

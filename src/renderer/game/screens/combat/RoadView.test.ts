@@ -297,9 +297,9 @@ describe('RoadView', () => {
 		});
 	});
 
-	describe('intent markers', () => {
+	describe('intent pills', () => {
 		/**
-		 * The icon glyphs drawn in one frame, by name, once markers have grown in
+		 * The icon glyphs drawn in one frame, by name, once pills have grown in
 		 * and any a changed plan dropped have shrunk out and detached.
 		 */
 		async function iconsDrawn(): Promise<string[]> {
@@ -330,13 +330,13 @@ describe('RoadView', () => {
 			expect(await iconsDrawn()).toEqual([...TOKEN_ICONS, 'build']);
 		});
 
-		it('shows the value, not an icon, for an attack', async () => {
+		it('shows the crosshair and the value for an attack', async () => {
 			road.setVehicleIntents(raider.id, [intent('attack', 15)]);
-			expect(await iconsDrawn()).toEqual(TOKEN_ICONS);
+			expect(await iconsDrawn()).toEqual([...TOKEN_ICONS, 'gps_fixed']);
 			expect(backend.commands.some((command) => command.kind === 'text' && command.text === '15')).toBe(true);
 		});
 
-		it('hides the icon with the marker when the intent clears', async () => {
+		it('hides the icon with the pill when the intent clears', async () => {
 			road.setVehicleIntents(raider.id, [intent('defend', 6)]);
 			road.setVehicleIntents(raider.id, []);
 			expect(await iconsDrawn()).toEqual(TOKEN_ICONS);

@@ -10,7 +10,7 @@ import { tokens } from '../../../engine/theme/tokens';
 import { Vehicle as VehicleData } from '../../mechanics/Vehicle';
 import { LANE_ORDER, RoadLane, RoadSlot, isShoulder, sameSlot } from '../../mechanics/Road';
 import { Vehicle as VehicleUI } from '../../ui/Vehicle';
-import type { EnemyIntent, IntentRow } from '../../ui/IntentMarker';
+import type { EnemyIntent, IntentRow } from '../../ui/IntentPill';
 import type { Driver } from '../../mechanics/Driver';
 import { CombatModel } from './CombatModel';
 import {
@@ -25,7 +25,7 @@ import { DashOptions, HatchOptions, dashedOutlineTriangles, hatchTriangles } fro
 import type { RangeLabel } from '../../ui/RangeChip';
 import type { AimLosses } from '../../mechanics/AimPreview';
 
-export type { EnemyIntent, IntentType } from '../../ui/IntentMarker';
+export type { EnemyIntent, IntentType } from '../../ui/IntentPill';
 
 /** An empty slot's outline sits this far inside its cell (the mock's `.slot`). */
 const SLOT_OUTLINE_INSET_X = 6;
@@ -106,6 +106,8 @@ export class RoadView extends Component {
 	private sideBleed = 0;
 	private readonly roadTokens = new Map<string, RoadToken>();
 	private readonly plannedIntents = new Map<string, readonly EnemyIntent[]>();
+	private actingId: string | null = null;
+	private readonly raiders: VehicleUI[] = [];
 	private readonly laneHeads: Text[];
 	private readonly rowLabels: Text[];
 	private readonly fixedChildren: number;
@@ -211,6 +213,21 @@ export class RoadView extends Component {
 		return this.roadTokens.get(vehicleId)?.view.intentsRow ?? null;
 	}
 
+	/** Every raider's token on the road; one list, rebuilt only when a token comes or goes. */
+	public get raiderViews(): readonly VehicleUI[] {
+		return this.raiders;
+	}
+
+	/** The raider acting on screen now, which glows (section 6), by id; null for none. */
+	public get actingVehicleId(): string | null {
+		return this.actingId;
+	}
+
+	public set actingVehicleId(vehicleId: string | null) {
+		this.actingId = vehicleId;
+		for (const [id, token] of this.roadTokens) token.view.acting = id === vehicleId;
+	}
+
 	/** The slot a vehicle's token sits in, or is swerving to. */
 	public slotOf(vehicleId: string): RoadSlot | null {
 		return this.roadTokens.get(vehicleId)?.slot ?? null;
@@ -256,7 +273,11 @@ export class RoadView extends Component {
 			occupancyChanged = true;
 		}
 		if (created) this.orderTokens(enemy, player);
-		if (occupancyChanged) this.buildSlotOutlines();
+		if (occupancyChanged) {
+			this.buildSlotOutlines();
+			this.raiders.length = 0;
+			for (const token of this.roadTokens.values()) if (token.side === 'enemy') this.raiders.push(token.view);
+		}
 	}
 
 	/**
@@ -308,6 +329,7 @@ export class RoadView extends Component {
 			onClick: (target) => this.combatData?.targetVehicle(target),
 		});
 		if (side === 'enemy') view.intents = this.plannedIntents.get(vehicle.id) ?? [];
+		view.acting = vehicle.id === this.actingId;
 		this.addChild(view);
 		const token: RoadToken = {
 			vehicle,

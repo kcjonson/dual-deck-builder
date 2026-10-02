@@ -8,7 +8,7 @@ import { DriverLoader } from '../../core/DriverLoader';
 import { Card, CardEffect } from '../../mechanics/Card';
 import { Battle } from '../../mechanics/Battle';
 import { Card as UICard } from '../../ui/Card';
-import { IntentMarker } from '../../ui/IntentMarker';
+import { IntentPill } from '../../ui/IntentPill';
 import { createTestContext } from '../../../engine/components/testing';
 import { Clock } from '../../../engine/animation/Clock';
 import { advance, pointer, send } from '../../../engine/services/testing';
@@ -178,25 +178,25 @@ describe('CombatScreen intents', () => {
 		combat.unmount();
 	});
 
-	it('shows a disc\'s tooltip when the pointer rests on it inside its token', async () => {
+	it('shows a pill\'s tooltip when the pointer rests on it inside its token', async () => {
 		const combat = await startCombat();
 		const [raider] = combat['enemyTeam']?.vehicles ?? [];
 		const row = combat['road'].intentRowOf(raider.id);
 		context.animator.settle();
 		context.frame.layout();
-		const disc = row?.children.find((child): child is IntentMarker => child instanceof IntentMarker);
-		if (!disc?.intent) throw new Error('the raider should plan something');
-		const { x, y, width, height } = disc.screenBounds;
+		const pill = row?.children.find((child): child is IntentPill => child instanceof IntentPill);
+		if (!pill?.intent) throw new Error('the raider should plan something');
+		const { x, y, width, height } = pill.screenBounds;
 		const at = { x: x + width / 2, y: y + height / 2 };
-		expect(context.dispatcher.hitTest(at)).toBe(disc);
+		expect(context.dispatcher.hitTest(at)).toBe(pill);
 
 		send(context, [pointer('move', at.x, at.y)]);
 		advance(context, tokens.control.tooltip_delay + tokens.motion.dur + 50);
-		expect(context.tooltips.owner).toBe(disc);
+		expect(context.tooltips.owner).toBe(pill);
 		const lines = textsIn(context.tooltips.surface);
-		expect(lines).toContain(disc.intent.description);
-		expect(lines).toContain(disc.intent.detail);
-		// Off the disc, so later fights don't mount under a resting pointer
+		expect(lines).toContain(pill.intent.description);
+		expect(lines).toContain(pill.intent.detail);
+		// Off the pill, so later fights don't mount under a resting pointer
 		send(context, [pointer('move', 1, 1)]);
 		context.tooltips.hide();
 		context.animator.settle();

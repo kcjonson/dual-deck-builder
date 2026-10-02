@@ -11,6 +11,10 @@
 {"path":"gallery_root/dev_section_icons/Stack[1]/Stack[1]/Text[0]","text":"Buttons","rect":[73,434.17,70,19.07]},
 {"path":"gallery_root/dev_section_icons/Stack[1]/Stack[1]/Stack[1]/dev_icons_button_with_icon/Text[0]","text":"Back to Menu","rect":[177,418.7,154,50]},
 {"path":"gallery_root/dev_section_icons/Stack[1]/Stack[1]/Stack[1]/dev_icons_button_without_icon/Text[0]","text":"Back to Menu","rect":[375,418.7,176,50]},
-{"path":"gallery_root/dev_section_icons/Stack[1]/Stack[2]/Text[0]","text":"Intents","rect":[73,484.17,70,19.07]},
-{"path":"gallery_root/dev_section_icons/Stack[1]/Stack[3]/Text[0]","text":"Statuses","rect":[73,519.17,70,19.07]}
+{"path":"gallery_root/dev_section_icons/Stack[1]/Stack[2]/Text[0]","text":"Intents","rect":[73,481.17,70,19.07]},
+{"path":"gallery_root/dev_section_icons/Stack[1]/Stack[2]/Stack[1]/dev_icons_intent_attack","text":"8","rect":[143,478.7,57,24]},
+{"path":"gallery_root/dev_section_icons/Stack[1]/Stack[2]/Stack[1]/dev_icons_intent_defend","text":"6","rect":[208,478.7,41,24]},
+{"path":"gallery_root/dev_section_icons/Stack[1]/Stack[2]/Stack[1]/dev_icons_intent_repair","text":"4","rect":[257,478.7,41,24]},
+{"path":"gallery_root/dev_section_icons/Stack[1]/Stack[2]/Stack[1]/dev_icons_intent_special","text":"?","rect":[398,478.7,21,24]},
+{"path":"gallery_root/dev_section_icons/Stack[1]/Stack[3]/Text[0]","text":"Statuses","rect":[73,513.17,70,19.07]}
 ]

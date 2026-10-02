@@ -15,17 +15,21 @@ import { FIXED_VIEWPORT, SHORT_VIEWPORT } from '../../../playwright.config';
 import type { Viewport } from '../../../playwright.config';
 
 /**
- * The combat screen mid enemy turn (DDB-112): END TURN pressed, the ENEMY
- * TURN banner across the road, the dock locked and End Turn saying WAIT,
- * before the first raider acts. Captured and linted at both gate sizes.
+ * The combat screen mid enemy turn (DDB-112, DDB-139): END TURN pressed and
+ * the first raider acting, with the ENEMY TURN banner across the road and
+ * only the road, the dock dropped 60 and greyed under it and End Turn
+ * saying WAIT, the acting raider glowing, and its hit's number up.
+ * Captured and linted at both gate sizes; the dock is a declared park, so
+ * the lint checks it where it rests.
  *
- * The page is paused to open, so the press runs the game for the frames it
- * takes: resume, let the opening YOUR TURN banner run out, click END TURN
- * through `__dev.input`, and pause again on the first frame End Turn says
- * WAIT. The raiders' first beat is 900 ms of frame time after the press and
- * a frame advances at most 250 ms (R13.9), so the pause lands well before
- * anything acts; the settle then runs the banner's slide and the discard
- * flights to their ends.
+ * Under reduced motion, which is what makes the moment hold still: the
+ * banner stays at full opacity for its whole time instead of fading as the
+ * first action lands, the dock snaps down, and the number holds where it
+ * pops. The page is paused to open, so the press runs the game for the
+ * frames it takes: resume, let the opening YOUR TURN banner run out, click
+ * END TURN through `__dev.input`, and pause again on the first frame a hit
+ * number is up. That is 900 ms of frame time after ENEMY TURN shows, with
+ * the banner up until 1100, and a frame advances at most 250 ms (R13.9).
  */
 
 interface TurnSurface extends DevSurface {
@@ -73,16 +77,27 @@ async function pressEndTurn(page: Page): Promise<void> {
 			return 'the opening banner never went';
 		}
 		if (!scope.__dev.input(`click,${Math.round(x + w / 2)},${Math.round(y + h / 2)}`).ok) return 'the click was refused';
-		for (let frames = 0; frames < 30; frames++) {
+		let waited = false;
+		for (let frames = 0; frames < 30 && !waited; frames++) {
 			await nextFrame();
 			const now = button();
-			if (now && says(now, 'WAIT')) {
+			waited = now !== null && says(now, 'WAIT');
+		}
+		if (!waited) {
+			scope.__app.pause();
+			return 'End Turn never said WAIT';
+		}
+		// The first raider's action: its hit (or miss) number is up
+		const hitUp = (): boolean => JSON.stringify(scope.__ui.tree()).includes('"combat_float_');
+		for (let frames = 0; frames < 600; frames++) {
+			await nextFrame();
+			if (hitUp()) {
 				scope.__app.pause();
-				return null;
+				return bannerUp() ? null : 'the banner was gone when the first raider acted';
 			}
 		}
 		scope.__app.pause();
-		return 'End Turn never said WAIT';
+		return 'no raider acted';
 	});
 	expect(outcome).toBeNull();
 }
@@ -92,11 +107,12 @@ const SIZES: readonly { name: string; viewport: Viewport }[] = [
 	{ name: `combatScreen-enemyTurn-${SHORT_VIEWPORT.width}x${SHORT_VIEWPORT.height}`, viewport: SHORT_VIEWPORT },
 ];
 
-test.describe('combat screen mid enemy turn', () => {
+test.describe('combat screen mid enemy turn, the first raider acting', () => {
 	for (const { name, viewport } of SIZES) {
 		test(name, async ({ page }, testInfo) => {
 			const log = captureConsole(page);
 			await page.setViewportSize(viewport);
+			await page.emulateMedia({ reducedMotion: 'reduce' });
 			await prepare(page);
 			await openScreen(page, 'combatScreen', { viewport });
 
