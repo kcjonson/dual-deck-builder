@@ -27,7 +27,7 @@ import { CombatLog, CombatLogType } from '../../mechanics/CombatLog';
 import { Vehicle, createDrivenVehicle } from '../../mechanics/Vehicle';
 import { RoadLane, RoadRow } from '../../mechanics/Road';
 import { Team, TeamType } from '../../mechanics/Team';
-import { Battle, BattleState, BattleMessage } from '../../mechanics/Battle';
+import { Battle, BattleState, BattleMessage, HitEvent } from '../../mechanics/Battle';
 import { Card } from '../../mechanics/Card';
 import { IntentType } from '../../mechanics/Intent';
 import { CardLoader } from '../../core/CardLoader';
@@ -256,6 +256,13 @@ export class CombatScreen extends Screen {
 			})
 		);
 
+		// A hit floats its number up off the vehicle it landed on, read from
+		// the plate's bounds now, before a wreck leaves the road
+		this.unsubscribers.push(
+			this.battle.on('hitLanded', (hit: HitEvent) => this.popHitNumber(hit)),
+			this.battle.on('hitMissed', (hit: HitEvent) => this.popHitNumber(hit))
+		);
+
 		// Subscribe to turn events
 		this.unsubscribers.push(
 			this.battle.on('turnEnded', (event: { team: string }) => {
@@ -291,6 +298,17 @@ export class CombatScreen extends Screen {
 				})
 			);
 		}
+	}
+
+	private popHitNumber({ vehicle, damage }: HitEvent): void {
+		const plate = this.enemyLayer.vehicleView(vehicle.id) ?? this.battlefieldLayer.vehicleView(vehicle.id);
+		if (!plate?.isMounted) return;
+		this.fx.popNumber({
+			anchor: plate.screenBounds,
+			anchorKey: plate.id ?? vehicle.id,
+			text: damage === null ? 'MISS' : `-${damage}`,
+			kind: damage === null ? 'miss' : 'damage',
+		});
 	}
 
 	/**

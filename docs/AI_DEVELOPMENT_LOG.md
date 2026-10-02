@@ -6,16 +6,17 @@ This document contains the chronological log of completed development tasks for 
 
 **Date correction (2026-08-22):** the repo's first commit is 2025-05-17, but many entries below carry dates in December 2024 or January 2025 — the AI that wrote them used its assumed date instead of the real one. Entries dated 2025-07-03 and 2025-07-02 have been corrected from "2025-01-03"/"2025-01-02" (verified against git history). Remaining Dec 2024 / Jan 2025 dates are wrong by roughly six months; the real work happened May–July 2025. Trust git history over these dates.
 
-## Combat drag targeting (2026-09-28)
+## Combat drag targeting and floating damage numbers (2026-10-01)
 
-**What landed:** DDB-88's second PR (DDB-55 phase 6): cards play by dragging them onto their target, as well as by click-then-target and the keyboard.
+**What landed:** DDB-88's second PR (DDB-55 phase 6): cards play by dragging them onto their target, as well as by click-then-target and the keyboard, and hits float their numbers up off the vehicle they landed on.
 
-- A primary press on a hand card starts a candidate drag with `CombatFxLayer`'s `AimReticle` as the ghost, so the card stays in the hand, lifted. `TargetingArrow` draws the mock's dotted line from the card's top edge to the reticle at paint time, red while the drag service's `canDrop` is true.
+- A primary press on a hand card starts a candidate drag with `CombatFxLayer`'s `AimReticle` as the ghost, so the card stays in the hand, lifted. `TargetingArrow` draws the mock's dotted line from the card's top edge to the reticle at paint time, red while the drag service's `canDrop` is true, out of buffers it reuses so a frame of aiming allocates nothing of its own.
 - Vehicles accept in `dragenter` when they're a target (the model's focused vehicle and `dropActive` light the plate) and play on `drop`. The road accepts a card that needs no target. Anything else puts the card back: a release off target, Escape, or another mouse button (a chorded `pointermove` on the captured card, R9.30).
 - `CombatScreen.chooseCard` is the one path for click and drag; a dragged card with no target waits for its drop.
+- `Battle` emits `hitLanded` (vehicle and damage) and `hitMissed` from `damageVehicle`, `damageDriver`, and both miss checks. The screen reads the plate's `screenBounds` right then, before a wreck leaves the road, and `CombatFxLayer.popNumber` floats a `-N` (the mock's `.dmgpop`) or `MISS` up 40 px and fades it over 900 ms on the animator, stacking hits on one vehicle in the same burst.
 - Decision record: [combat-hand-and-targeting.md](./AI_TECHNICAL_DECISIONS/combat-hand-and-targeting.md), covering this and the fan PR.
 
-**How:** `CombatScreenHand.test.ts` drives drags through the injection hook (drop on a raider, drop on your own vehicle, a no-target card on the road, Escape, right-click, click-then-target); `CombatFxLayer.test.ts` covers the curve, dot spacing, and head. Played in headless Chromium at 1280x720 and 800x450.
+**How:** `CombatScreenHand.test.ts` drives drags through the injection hook (drop on a raider, drop on your own vehicle, a no-target card on the road, Escape, right-click, click-then-target) and checks the numbers' anchor, rise, fade, stacking, and that a dragged card pops one per hit or miss; `Battle.test.ts` checks the hit events; `CombatFxLayer.test.ts` covers the curve, dot spacing, and head. Played a turn in headless Chromium at 1280x720 and 800x450 through `window.__dev.input`: drag, click-then-target, keyboard, END TURN.
 
 ## Combat hand fan, hover lift, and card previews (2026-09-28)
 

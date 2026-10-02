@@ -1,6 +1,6 @@
-# Combat hand fan, previews, and drag targeting
+# Combat hand fan, previews, drag targeting, and damage numbers
 
-Status: decided 2026-09-28, DDB-88 (DDB-55 phase 6). Design source: [Battle Screen Design](../specs/Battle%20Screen%20Design.md) sections 4 to 6 and the mock at `docs/design/battle-screen/index.html`.
+Status: decided 2026-09-28 (fan, previews), 2026-10-01 (targeting, damage numbers), DDB-88 (DDB-55 phase 6). Design source: [Battle Screen Design](../specs/Battle%20Screen%20Design.md) sections 4 to 6 and the mock at `docs/design/battle-screen/index.html`.
 
 ## Context
 
@@ -44,8 +44,17 @@ Considered: redrawing the line from the card's captured `pointermove`s. It works
 
 A drag that goes active chooses its card through the same checks a click does (`chooseCard(card, 'drag')`), except that a card with no target waits for its drop instead of playing, and focus doesn't jump to the first target.
 
+### Damage numbers come from the battle, anchored when they fire
+
+Nothing in `Battle` said where a hit landed: the log names vehicles, and names aren't unique. `Battle` now emits `hitLanded` with the vehicle and the damage the attack dealt (before shield and armor take their share, which is what the mock's `-6` reads as) from `damageVehicle` and `damageDriver`, and `hitMissed` from the two miss checks. Every hit in the game goes through those two helpers, the enemy turn's included.
+
+The screen looks up the plate by vehicle id and reads its `screenBounds` in the handler. A wreck is taken off the road after the hit resolves, so reading later would find no plate. `CombatFxLayer.popNumber` converts the plate's top centre into its own space and adds a `Text` (the mock's `.dmgpop`: display type, 30 px, `#ff8a78`, a hard black shadow) that rises 40 px with an ease-out and fades over the back half of 900 ms. That's longer than any motion token because the number has to be read; the mock never animates it. A second number on the same plate in the same burst (an enemy turn's volley) starts 28 px under the first, so they read as a column rather than one smudge. Each number is its own tween's owner, so unmounting the screen cancels them all. Under reduced motion the animator finishes a tween on its first tick, so the number shows for a frame; holding it still for a beat instead is left for the reduced-motion pass.
+
+Considered: diffing structure and armor on the team's `change` events. It can't tell a hit from a repair or an armor card, and it can't see a miss.
+
 ## Consequences
 
 - Click-then-target is unchanged: a press that never passes the 4 px threshold is a click. The keyboard path is unchanged. Hand cards keep the default threshold, per the DDB-77 note about candidate drags wandering onto a neighbour.
 - A played card's element unmounts with the hand rebuild inside `drop`, so the drag service fires no `dragend` for it; the line goes on `onDraggingChange(false)`.
 - The design's out-of-reach dimming, per-slot range chips, damage ghost, and hit chip are DDB-138. Legal targets here are the old `targetableVehicleIds`, with the old plate colours.
+- Numbers anchor to today's vehicle plates; when the slot grid's tokens (DDB-134/135) replace them, `popHitNumber` looks up the token instead.

@@ -333,3 +333,61 @@ describe('CombatScreen drag to play, cancelled by the other button', () => {
 		combat.unmount();
 	});
 });
+
+describe('CombatScreen floating numbers', () => {
+	beforeEach(() => setViewport(1280, 720));
+
+	it('floats a hit up off the top of the vehicle it landed on, and fades it out', async () => {
+		const combat = await startCombat();
+		const fx = combat['fx'];
+		const [raider] = combat['enemyTeam']?.vehicles ?? [];
+		const plate = vehicleBounds(combat, 'enemyLayer');
+		combat['popHitNumber']({ vehicle: raider, damage: 6 });
+
+		const [number] = fx.floatingNumbers;
+		expect(number.getText()).toBe('-6');
+		const start = number.screenBounds;
+		expect(start.x + start.width / 2).toBeCloseTo(plate.x + plate.width / 2, 6);
+		expect(start.y).toBeGreaterThan(plate.y);
+
+		advance(context, 400);
+		expect(number.screenBounds.y).toBeLessThan(start.y);
+		advance(context, 400);
+		expect(number.opacity).toBeLessThan(1);
+		advance(context, 200);
+		expect(fx.floatingNumbers).toHaveLength(0);
+
+		combat.unmount();
+	});
+
+	it('stacks a second number on the same vehicle under the first, and says MISS for a miss', async () => {
+		const combat = await startCombat();
+		const fx = combat['fx'];
+		const [raider] = combat['enemyTeam']?.vehicles ?? [];
+		combat['popHitNumber']({ vehicle: raider, damage: 4 });
+		combat['popHitNumber']({ vehicle: raider, damage: null });
+
+		const [first, second] = fx.floatingNumbers;
+		expect(second.getText()).toBe('MISS');
+		expect(second.screenBounds.y).toBeGreaterThan(first.screenBounds.y);
+
+		combat.unmount();
+		expect(context.animator.active).toBe(0);
+	});
+
+	it('pops a number for each hit or miss of a card dragged onto a raider', async () => {
+		const combat = await startCombat();
+		const card = handCard(combat, ['enemy_single'], 'headshot');
+		const battle = combat['battle'];
+		const resolved = () => (battle?.getMessages() ?? []).filter(message => message.type === 'damage_dealt' || message.type === 'miss').length;
+		const before = resolved();
+
+		drag(grabPoint(card), centreOf(vehicleBounds(combat, 'enemyLayer')));
+		const numbers = combat['fx'].floatingNumbers.map(number => number.getText());
+		expect(numbers.length).toBeGreaterThan(0);
+		expect(numbers).toHaveLength(resolved() - before);
+		expect(numbers.every(text => text === 'MISS' || /^-\d+$/.test(text))).toBe(true);
+
+		combat.unmount();
+	});
+});
