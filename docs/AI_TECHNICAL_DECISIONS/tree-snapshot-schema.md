@@ -25,6 +25,7 @@ margin box it cannot see, a promoted popup it thinks is clipped, a text-overflow
 | `visible`, `enabled` | own values (the lint skips invisible subtrees itself) | always |
 | `opacity` | effective: the product down the tree | always |
 | `clip` | the walk's clip, reset at a promotion | when one applies |
+| `roundedClip` | the rounded clip the walk's draws carry (R4.14): rect and radius, from `clipRadius` (DDB-231) | when one cuts `clip` |
 | `contentOffset` | `Component.contentOffset` | on a scroll container, or when nonzero |
 | `transform` | `Component.transform` | when not the identity |
 | `state` | every R11.11 flag but `enabled`, from `Component.stateFlags` (DDB-84) | always |

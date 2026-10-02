@@ -2,7 +2,7 @@
 
 DDB-196 (DDB-55). 2026-09-28. Builds on [component-base-and-render-walk.md](./component-base-and-render-walk.md).
 
-Superseded in part by [panel-and-scroll-container.md](./panel-and-scroll-container.md) (DDB-85): the panel no longer scrolls, and its inset is a stack's padding placed by layout rather than a content offset. The clip inside the border and radius described here still holds.
+Superseded in part by [panel-and-scroll-container.md](./panel-and-scroll-container.md) (DDB-85): the panel no longer scrolls, and its inset is a stack's padding placed by layout rather than a content offset. The clip inside the border and radius described here is superseded by [component-rounded-clip.md](./component-rounded-clip.md) (DDB-231): the clip is at the border's inner edge with a rounded corner.
 
 ## The problem
 
