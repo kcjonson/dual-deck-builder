@@ -6,6 +6,20 @@ This document contains the chronological log of completed development tasks for 
 
 **Date correction (2026-08-22):** the repo's first commit is 2025-05-17, but many entries below carry dates in December 2024 or January 2025 — the AI that wrote them used its assumed date instead of the real one. Entries dated 2025-07-03 and 2025-07-02 have been corrected from "2025-01-03"/"2025-01-02" (verified against git history). Remaining Dec 2024 / Jan 2025 dates are wrong by roughly six months; the real work happened May–July 2025. Trust git history over these dates.
 
+## Driver selection on stacks, with a Select and a scrolling deck preview (2026-10-01)
+
+**What landed:** DDB-89 (DDB-55 phase 6). Closes DDB-31, and with it DDB-101, DDB-102 and DDB-108.
+
+- `DriverSelectionScreen` is one page stack: header (Back, title), body (panels and the synergy column), footer (START RUN with the summary beside it). A resize sizes the page and nothing else; the stacks reflow.
+- `DriverPanel` and `SynergyPreviewPanel` extend `Stack`. The panel's elements are built once and toggled between the empty state and the driver; the deck preview and synergy tags rebuild only when the driver changes.
+- Driver choice is the catalog `Select`, the partner's driver disabled, replacing the cycle button. Mouse and keyboard (Down opens, arrows move, Enter picks, Escape closes).
+- `ScrollContainer` takes `heightMode: 'hug'`: it measures as its content plus padding and shrinks to its `minSize` in a short column, scrolling the rest. The panel's flavour text and starting deck live in one, so 1024x600 scrolls them instead of losing the preview.
+- `game/ui/FlowWrap.ts` wraps fixed or hug items into rows at the width it is given; the deck's mini cards and the synergy tags use it. Quantities are `Badge`s under each card, off the cost digit.
+- Synergy tags pick dark or white text by the fill's luma, so the yellow, green and cyan tags read.
+- `Game`'s document-level Escape listener now defers to a screen whose root registers Escape, which fixed Escape on an open Select navigating to the main menu.
+
+**How:** `DriverSelectionScreen.test.ts` (Select options and partner disabling, keyboard pick, Escape on an open Select, tab order, resize at 1024x600, 1280x720 and 1920x1080 without rebuilding, the scroller's room above the Select, scrolling at 1024x600, badges under their cards, the card-load race), `FlowWrap.test.ts`, and four hug-height cases in `ScrollContainer.test.ts`. Played in headless Chromium through `window.__dev.input` at 1024x600: picked the right driver with a click, the left with the keyboard, wheel-scrolled the deck, started a run into combat.
+
 ## Combat hand fan, hover lift, and card previews (2026-09-28)
 
 **What landed:** DDB-88's first PR (DDB-55 phase 6), the hand half: closes DDB-28 and DDB-29.

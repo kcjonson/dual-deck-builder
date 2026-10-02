@@ -162,6 +162,60 @@ describe('ScrollContainer bounds (worldsim suite)', () => {
 	});
 });
 
+describe('ScrollContainer hug height (DDB-89)', () => {
+	/** A 300 tall column of a 40 px header, the scroller, and a 40 px footer. */
+	function column(height: number, scroll: ScrollContainer): Stack {
+		const stack = new Stack({ id: 'column', width: 200, height, crossAlign: 'stretch' });
+		stack.addChild(new Rectangle({ height: 40, widthMode: 'fill' }));
+		stack.addChild(scroll);
+		stack.addChild(new Rectangle({ height: 40, widthMode: 'fill' }));
+		root.addChild(stack);
+		context.frame.layout();
+		return stack;
+	}
+
+	it('takes its content height plus padding in a column with room, and does not scroll', () => {
+		const scroll = new ScrollContainer({ heightMode: 'hug', style: { padding: 5 } });
+		scroll.addChild(rows(3).stack);
+		column(400, scroll);
+		expect(scroll.height).toBe(3 * 40 + 10);
+		expect(scroll.overflows).toBe(false);
+		expect(scroll.screenBounds.y).toBe(40);
+	});
+
+	it('shrinks to the room a short column has, down to its minimum, and scrolls the rest', () => {
+		const scroll = new ScrollContainer({ heightMode: 'hug', minSize: { height: 60 } });
+		scroll.addChild(rows(10).stack);
+		const stack = column(300, scroll);
+		expect(scroll.height).toBe(300 - 80);
+		expect(scroll.overflows).toBe(true);
+		expect(scroll.maxScroll).toBe(400 - 220);
+
+		stack.setSize(200, 100);
+		context.frame.layout();
+		expect(scroll.height).toBe(60);
+	});
+
+	it('follows its content as it grows', () => {
+		const scroll = new ScrollContainer({ heightMode: 'hug' });
+		const { stack } = rows(2);
+		scroll.addChild(stack);
+		column(400, scroll);
+		expect(scroll.height).toBe(80);
+		stack.addChild(new Rectangle({ height: 40, widthMode: 'fill' }));
+		context.frame.layout();
+		expect(scroll.height).toBe(120);
+	});
+
+	it('sizes itself to its content outside a stack', () => {
+		const scroll = new ScrollContainer({ width: 200, heightMode: 'hug' });
+		scroll.addChild(rows(4).stack);
+		root.addChild(scroll);
+		context.frame.layout();
+		expect(scroll.height).toBe(160);
+	});
+});
+
 describe('ScrollContainer layout and paint', () => {
 	it('gives the content the full width when it fits and gives up the gutter when it overflows', () => {
 		const short = new ScrollContainer({ x: 0, y: 0, width: 200, height: 300 });
