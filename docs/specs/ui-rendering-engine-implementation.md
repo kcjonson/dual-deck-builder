@@ -151,7 +151,8 @@ Waves, each landing with its gallery scene, behaviour tests, and lint zero:
 ### Phase 7: observability completion and conformance
 
 - [x] GPU timer with one query per pass and disjoint handling (R13.16 to R13.20), the perf capture script (required, R13.38) and comparison table (13.8), the perf overlay drawn through the renderer, DevTools tracks (R15.29) with feature detection (R15.42). GPU time is captured with vsync on, since Chromium returns timer results hundreds of frames late with the frame cap off; R15.29's `PerformanceObserver` half is a follow-up. See [gpu-timer-and-perf-capture.md](../AI_TECHNICAL_DECISIONS/gpu-timer-and-perf-capture.md).
-- [ ] Conformance re-score of chapter 14's table for this engine; remaining gaps become follow-up tasks.
+- [x] Conformance re-score of chapter 14's table for this engine; remaining gaps become follow-up tasks.
+  DDB-93, against `517400c`, from code and tests: 4 yes, 31 partial, 62 no, 3 not applicable before; 91 yes and 9 partial after. Section 8's first criterion is not met yet. The partial rows and the section 14.7 gates each have a task under the epic: R8.6 composite parts (DDB-242), R8.21 roots sized through invalidation (DDB-243), R8.2 `cursor` (DDB-244), R8.23 named constructors (DDB-245), R11.1 game colours on tokens (DDB-246), R12.1 Rectangle options (DDB-247), R13.31 stress scene (DDB-248), R13.2 production exclusion (DDB-249), R15.39 canvas input (DDB-250), R15.34 game data (DDB-52, filed earlier), required checks (DDB-252), and the perf gate (DDB-253). Smaller items: DDB-251 (startup checks), DDB-254 (spec text for two input departures), DDB-255 (import boundaries).
 - [ ] Deferred and optional: off-screen group opacity composite, stencil clips, the gamepad adapter (DDB-51), the UI scale setting (R7.5), instruction-list reuse (R8.19), cross-fade transitions.
 
 ## 7. Board structure (to create when implementation starts; nothing has been created)

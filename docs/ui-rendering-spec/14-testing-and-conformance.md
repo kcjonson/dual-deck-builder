@@ -1,6 +1,6 @@
 # 14. Testing strategy and conformance
 
-Status: draft 4 (2026-09-07; revised after all five reviews, see chapter 17)
+Status: draft 4 (2026-09-07; revised after all five reviews, see chapter 17). Sibling engine column re-scored 2026-10-02 (DDB-93).
 
 How an implementation proves it conforms, and where the two reference implementations stand today. The test strategy is the one worldsim converged on (headless unit tests over a no-op renderer, behaviour tests per component, the lint as the merge gate) plus the two pieces it never built (a recording backend and golden screenshots). The consistency review found the scoring table lagging the revised chapters; it is re-scored below against draft 3's required items.
 
@@ -22,7 +22,7 @@ Rules are numbered R14.n.
 
 ## 14.3 Scoring conformance
 
-A checklist item scores yes, partial, or no. An implementation "conforms at the required level" when every required item scores yes; recommended and optional items are reported, not required. The tables below are the state on 2026-09-07 from reading both codebases (no code was executed in the sibling engine because its dependencies were not installed in the audited worktree; its most recent verified toolchain state is the 2026-08-22 survey). Rows added by the reviews are scored from the same reading; the worldsim column was corrected by review 03 against the source.
+A checklist item scores yes, partial, or no. An implementation "conforms at the required level" when every required item scores yes; recommended and optional items are reported, not required. The tables below are the state on 2026-09-07 from reading both codebases (no code was executed in the sibling engine because its dependencies were not installed in the audited worktree; its most recent verified toolchain state is the 2026-08-22 survey). Rows added by the reviews are scored from the same reading; the worldsim column was corrected by review 03 against the source. The sibling engine column was re-scored on 2026-10-02 against its `main` at `517400c`, after its implementation phases 0 to 6 landed, from the code and its tests rather than its documents: each cell names the test that demonstrates the row, and a partial names the rule it misses and the board task that closes it. Before the re-score that column read 4 yes, 31 partial, 62 no, and 3 not applicable; after it, 91 yes and 9 partial. Items its plan defers (off-screen group opacity, stencil clips, the gamepad adapter, the UI scale setting, instruction-list reuse, cross-fade transitions, IME) are noted where a row touches them and not scored as gaps.
 
 - R14.9 An implementation MAY score a required item not applicable when no application it hosts exercises the behaviour (a drag-and-drop service with no drop targets, a component transform with no rotated or scaled content, an animator with no transitions), recording the justification beside the score; the row counts as conforming until an application needs the behaviour, when it is re-scored. Not applicable is never a substitute for partial: a behaviour an application does exercise scores yes, partial, or no.
 
@@ -30,110 +30,110 @@ A checklist item scores yes, partial, or no. An implementation "conforms at the 
 
 | Chapter | Required item | Worldsim | Sibling engine |
 |---|---|---|---|
-| 1 | Downward dependencies, draw API only GPU path | yes | partial (components call the renderer singleton; game code makes no GPU calls of its own) |
-| 1 | Mount context; services reached through it, never through globals | no (focus, tooltip, input singletons) | no (input singleton, renderer singleton) |
-| 1 | Null backend | yes (draw calls no-op without a batcher) | no (jest stubs a fake context; nothing renders) |
-| 2 | Frame lifecycle, no separate text batch | yes | no (text batch flushed on scissor change) |
-| 2 | State stacks captured per draw | partial (transform, clip; no opacity, no layer) | no |
-| 2 | Draw calls including image and `flat` | partial (no image, no explicit flat) | partial (rect, circle, polygon, text, line; texture as alpha mask only) |
-| 2 | `measureText` sharing the draw iteration | yes | partial (the draw layer measures and renders from one advance table; the component layer estimates from `0.5` and `0.6` em per character instead of asking it) |
-| 3 | No depth test, premultiplied over | partial (straight alpha) | partial (straight alpha) |
-| 3 | Per-layer partition preserving submission order, fast path | partial (stable sort by forwarded component z) | no (tree order only, `zIndex` unread) |
-| 3 | Named layer ladder, monotonic effective layer, promotion, clip reset | no (literal z values per widget) | no |
-| 3 | Tree order: parent first, children by stable local `zIndex`, invisible skipped | yes | partial (insertion order only; invisible skipped) |
-| 3 | Component `zIndex` never reaches the batcher | no | not applicable |
-| 3 | Shadow group before owner | yes | no (no shadows) |
-| 3 | Explicit barrier; UI last content domain | yes | no |
-| 3 | Hit testing in reverse paint order across layers | no | no (every hovered component receives the event) |
-| 3 | Children never reordered by sorting | yes | yes (no sorting) |
-| 3 | Inherited opacity | no | no |
-| 3 | Overlay service `bringToFront`; popups closed when a modal opens | no | no |
-| 4 | Per-draw rect clip, no flush on clip change, no encoding that `empty` can produce | partial (`(0,0,0,0)` is both none and empty) | no (scissor with state queries, text flushed) |
-| 4 | Three-state clip stack | no | no (nested clips replace) |
-| 4 | CPU cull of draws outside the clip | no | partial (a scrollable content layer culls children against its viewport) |
-| 4 | Fragment test on an interpolated logical position | no (`gl_FragCoord` with ratio and height uniforms) | not applicable (scissor) |
-| 4 | Clip transformed at push | no | yes (translate-only; the scissor is computed from accumulated offsets at the moment it is applied) |
-| 4 | Offset before clip; hit testing honours clip and offset | partial (offset yes; the scroll container gates on its viewport, the base container does not) | partial (offset yes; hit testing ignores clip and visibility) |
-| 4 | All primitives clipped including text | partial (text input unclipped) | yes (text is flushed at each scissor change, so it is clipped by the scope it was drawn in) |
-| 5 | Single program, explicit modes including `flat` | partial | partial (one program for the whole app, modes selected by per-draw uniforms, no SDF) |
-| 5 | SDF rounded rect, three border positions, RGBA border, exact coverage compositing | partial (border RGB only, `mix` compositing) | no (`borderRadius` dropped) |
-| 5 | Linear one-pixel ramp and quad inflation | partial (two-pixel `smoothstep`, quads expanded only for outward borders) | partial (inner stroke edge only) |
-| 5 | Box shadow with CSS mapping, spread radii, full padding | partial (padded by `blur`) | no |
-| 5 | Premultiplied `over`, `additive` free, sRGB blend | partial (straight alpha) | partial (straight alpha) |
-| 5 | Image quads, premultiplied textures, resident texture set | no | partial (alpha-mask only) |
-| 5 | Text in the same batcher | yes | no |
-| 5 | 32-bit indices, reusable arrays, sized buffer rings, per-flush uniform slots | partial (orphaning, single buffer, per-flush uniforms) | no |
-| 5 | Resource layer with ownership, metered uploads, context-loss recovery | no | no |
-| 6 | Size-independent glyphs with the range ratio, validated metrics, fallback glyph | partial (32 px em with range 4) | no (32 px bitmap scaled; unknown glyphs vanish) |
-| 6 | MSDF shading with the linear ramp | yes | no |
-| 6 | Shared measure and render | yes | partial (see the chapter 2 row) |
-| 6 | Ascent centring, greedy wrap with the normative break opportunities, ellipsis | partial (space and punctuation breaks; no ellipsis) | partial |
-| 6 | Run snapping | yes | no (per-glyph rounding in CSS pixels, the anti-pattern R6.16 names) |
-| 6 | Text in the same batch and sort, culled per run | partial (no cull) | no |
-| 6 | Multiple atlases per flush | yes (the text shape ignores the family, so shape text always uses the default atlas) | not applicable (one atlas) |
-| 7 | Logical pixels, ratio confined, not a shader input | partial (ratio in the clip shader) | partial |
-| 7 | Projection per flush | yes | yes (rebuilt on resize, which is equivalent while the viewport only changes then) |
-| 7 | Single viewport owner, resize through layout | partial | no (window reads in screens, two combat layouts) |
-| 7 | Input converted once at the dispatcher | yes | partial |
-| 8 | Single interface including primitives; `render()` emits own draws only | partial (seven draw-only primitives; button, select, dropdown, and toast stack render their own children) | partial (game card and vehicle bypass the base; leaves recurse into children) |
-| 8 | Properties of R8.2 with propagation rules and `pointerEvents` | partial (no `pointerEvents`, `transform`, `opacity`, `layer`) | partial |
-| 8 | Children order, parent back-reference, never reordered, state-preserving moves; `removeChild` unmounts | partial (no remove, no moves) | partial (remove does not unmount) |
-| 8 | Margin box with per-side margin, content-box hit test, ink overflow | partial (uniform margin, mixed hit boxes) | no (no margin concept) |
-| 8 | `transform` ignored by layout, honoured by render and hit testing | no | no |
-| 8 | Read-only `screenBounds` and conversions; no window reads | no (positions are absolute; there is no local space to convert from) | partial (a local-to-global helper; window reads in screens) |
-| 8 | Mount lifecycle, no constructor-time registration | no (registration in constructors) | no (unmount only; five classes register in constructors) |
-| 8 | Frame order including layout before render, input with layout on demand | no (layout in render) | partial |
-| 8 | Clock and animator with tweens, reduced motion, retargeting | no (hard-coded timers per widget) | no |
-| 8 | Upward invalidation to relayout boundaries | no | no |
-| 8 | Overlay service owning overlay roots; roots sized from the viewport; `onLayout` | no (hand-ordered roots) | no |
-| 8 | Named-argument constructors, accessors, synchronous callbacks | yes (C++ designated initialisers) | partial (positional in the engine) |
-| 9 | Event fields including pointer identity, cancel, `contextmenu`, `repeat` | partial (mouse only) | no |
-| 9 | Queued dispatch at frame start against current geometry | partial (synthesised per frame from polled state; layout not on demand) | no (immediate DOM handlers) |
-| 9 | Hit-test walk mirroring paint, clip- and `pointerEvents`-aware; public `hitTest` | no | no |
-| 9 | Bubble | no | no |
-| 9 | Framework enter, leave, `hovered` on ancestors | no | partial (over and out per component) |
-| 9 | Click on the nearest common ancestor with a drag threshold | no | no |
-| 9 | Pointer capture per pointer with cancellation | no | no |
-| 9 | Drag-and-drop service | no | no |
-| 9 | Popup dismissal and exclusivity via the popup service | no (focus theft) | no |
-| 9 | Keyboard routing with scoped hotkeys; text fields own printable keys | partial | partial |
-| 9 | `activate` and `cancel` actions; `inputMode` | no | no |
-| 9 | Focus manager: tree-derived order, scopes, fixup, focus groups, focus-visible | partial (registration order; scopes unused; no focus-visible) | no |
-| 9 | Directional focus | no | no |
-| 9 | Text editing key set | yes | no (append and backspace only) |
-| 9 | Wheel normalisation and latching | no | no |
-| 10 | Fixed, hug, fill; stack container; three passes; modes never changed by layout | partial (resolved axes became definite) | no |
-| 10 | Per-pass resolved sizes including zero; hug re-measured when dirty | partial (the freeze) | no |
-| 10 | Shrink-to-fit, safe alignment, `minSize` and `maxSize`, text minimum, `alignSelf` | no | no |
-| 10 | Text wrap width from the cross pass with real metrics | yes | no |
-| 10 | Absolute children with anchor and pivot; roots sized from the viewport | no | no |
-| 10 | Upward invalidation | no | no |
-| 11 | Token file, committed generated module with a drift test | partial (generated header, no drift test) | no (about 190 inline literals) |
-| 11 | Variants and framework-maintained state flags | partial | no |
-| 11 | Layered state resolution, focus ring independent | no (ad hoc per component) | no |
-| 11 | Closed style property set, rejected rather than ignored | not applicable (typed style structs, R11.14) | no (radius, opacity, family, weight ignored) |
-| 11 | Token-driven transitions | no (hard-coded seconds) | no |
-| 12 | Leaves: Rectangle, Circle, Line, Text, Image, Icon | partial (no image; icons are polylines) | partial (no image, no icon) |
-| 12 | Button, ListRow, Checkbox, Toggle, RadioGroup, FocusGroup | partial (button, list row) | partial (button) |
-| 12 | TextInput | partial (no validator; Escape consumed) | partial (append and backspace) |
-| 12 | Menu, Select, DropdownButton, ContextMenu, Slider, TabBar, SegmentedControl | mostly (segmented control draw-only) | no |
-| 12 | Container, Stack, Panel, ScrollContainer, Dialog, Popover | partial (no popover; panel draw-only) | partial (panel with stubbed scrolling) |
-| 12 | Tooltip, Toast, ToastStack, ScreenTransition | partial (no screen transition; text-only tooltips) | no |
-| 12 | ProgressBar, Badge, TreeView | yes | partial (a hand-built bar in one screen) |
-| 12 | Placement, popup, overlay, tooltip, drag, clipboard, asset services | partial (placement duplicated three times; no popup, overlay, drag, asset services) | no |
-| 13 | Frame sections with p99, histogram, spikes, per-window max | partial (no per-window max, sections overlap) | partial (frame interval only) |
-| 13 | Batcher counters with reasons | no | no |
-| 13 | Tree snapshot with the normative schema | partial (id, type, bounds, margin, `zIndex`, `visible`; bounds absolute) | no |
-| 13 | Layout lint with the seven required rules as gate | partial (four rules) | no |
-| 13 | Gallery | yes | partial (developer screen) |
-| 13 | Screenshot and injection | yes | partial (a test drives the real handlers with DOM events on the canvas; no logical-coordinate API, no screenshot hook) |
-| 13 | Perf capture script | yes | no |
-| 13 | Dev-only build exclusion | partial | no |
-| 15 | WebGL2 backend rules | not applicable | no (WebGL1) |
+| 1 | Downward dependencies, draw API only GPU path | yes | yes: all GL is in `rendering/`; no component, service, or game file imports a backend (`DrawApi.test` "renders a full frame with nothing global touched"). Two small upward imports remain, DDB-255 |
+| 1 | Mount context; services reached through it, never through globals | no (focus, tooltip, input singletons) | yes: `components/MountContext.ts` carries every service and the engine has no singletons (`lifecycle.test` "touches no service before mount, registers on mount, and releases on unmount") |
+| 1 | Null backend | yes (draw calls no-op without a batcher) | yes: `draw/NullBackend.ts`, behind `components/testing.ts` (`backends.test` "accepts and counts every draw with no context") |
+| 2 | Frame lifecycle, no separate text batch | yes | yes: `flush` is the only barrier and there is no text batch (`DrawApi.test` "keeps text and shapes in one batch, in submission order") |
+| 2 | State stacks captured per draw | partial (transform, clip; no opacity, no layer) | yes: transform, clip, opacity, and layer stamped on each draw (`DrawApi.test` "the four stacks are captured into each draw") |
+| 2 | Draw calls including image and `flat` | partial (no image, no explicit flat) | yes: rect, circle, line, polyline, polygon in `flat`, image with source rect, tint, and slice, text (`DrawApi.test` "carries nine-slice insets and a tint") |
+| 2 | `measureText` sharing the draw iteration | yes | yes: one `TextMetricsService` measures and draws, and no component estimates (`TextMetricsService.test` "measures from the layout it would draw") |
+| 3 | No depth test, premultiplied over | partial (straight alpha) | yes: `depth: false` and premultiplied `ONE, ONE_MINUS_SRC_ALPHA` (`WebGL2Backend.test` "blends premultiplied over, set again after invalidateState"); no test pins the context attributes, DDB-251 |
+| 3 | Per-layer partition preserving submission order, fast path | partial (stable sort by forwarded component z) | yes: per-layer buckets in `draw/layerPartition.ts` with the single-layer fast path (`layerPartition.test` "hands back the bucket itself when one layer was used, with no concatenation copy") |
+| 3 | Named layer ladder, monotonic effective layer, promotion, clip reset | no (literal z values per widget) | yes: `draw/layers.ts`, a clamped `pushLayer`, `pushClipReset` on promotion (`renderTree.test` "raises a promoted subtree to its layer and resets the inherited clip") |
+| 3 | Tree order: parent first, children by stable local `zIndex`, invisible skipped | yes | yes: `components/renderTree.ts` over a stable `zIndex` order view (`renderTree.test` "paints siblings in zIndex order after the parent's own draws", "skips invisible and fully transparent subtrees entirely") |
+| 3 | Component `zIndex` never reaches the batcher | no | yes: a draw carries only its layer and ordinal (`draw/commands.ts`); `zIndex` is read only by the order view |
+| 3 | Shadow group before owner | yes | yes (`DrawApi.test` "keeps a shadow immediately before its owner with other groups of the same layer around it") |
+| 3 | Explicit barrier; UI last content domain | yes | yes: the developer overlay flushes before it draws (`DeveloperOverlay.test` "submits the screen as a finished domain before any overlay draw") |
+| 3 | Hit testing in reverse paint order across layers | no | yes: `input/hitTest.ts` walks the paint order across layers (`OverlayService.test` "hit-tests a higher layer first whatever the open order"; `Dispatcher.test` "sends a click in the overlap to a promoted popup over later base content") |
+| 3 | Children never reordered by sorting | yes | yes (`Component.test` "orders the render view by zIndex, stably, without touching the children list") |
+| 3 | Inherited opacity | no | yes (`renderTree.test` "multiplies opacity down the tree onto every draw") |
+| 3 | Overlay service `bringToFront`; popups closed when a modal opens | no | yes (`OverlayService.test` bringToFront; `PopupService.test` "closes when a modal root opens, so no popup paints above a scrim") |
+| 4 | Per-draw rect clip, no flush on clip change, no encoding that `empty` can produce | partial (`(0,0,0,0)` is both none and empty) | yes: clip data on every instance, `empty` never encoded, no scissor (`WebGL2Backend.test` "never splits on a clip change inside a domain") |
+| 4 | Three-state clip stack | no | yes: none, rect, empty in `draw/clip.ts` (`clip.test` "stays empty under any later push and never collapses to none") |
+| 4 | CPU cull of draws outside the clip | no | yes: transformed ink against the clip, text per run, subtrees skipped (`DrawApi.test` "emits every visible row of a 500-row scroller and counts the rest culled"; `subtreeCull.test`) |
+| 4 | Fragment test on an interpolated logical position | no (`gl_FragCoord` with ratio and height uniforms) | yes: `uber.frag` tests an interpolated logical position (`tests/visual/web/uberShader.spec.ts` "keeps and discards whole device pixels by their centres against a logical clip") |
+| 4 | Clip transformed at push | no | yes; a rotated clip becomes its bounding box with a development warning (`DrawApi.test` "converts the clip through the transform current at push") |
+| 4 | Offset before clip; hit testing honours clip and offset | partial (offset yes; the scroll container gates on its viewport, the base container does not) | yes (`renderTree.test` "clips children, not the clipper's own draw, and offsets content inside the clip"; `Dispatcher.test` "does not hit a child scrolled out of its clip") |
+| 4 | All primitives clipped including text | partial (text input unclipped) | yes: every mode runs the clip test (`uberShader.spec` "clips text to a rounded clip too, in the same draw"; `TextInput.test` "clips its text to the padded content box") |
+| 5 | Single program, explicit modes including `flat` | partial | yes: one uber program, the mode an instance byte (`WebGL2Backend.test` "draws each domain, shapes, borders and text together, in one GPU draw") |
+| 5 | SDF rounded rect, three border positions, RGBA border, exact coverage compositing | partial (border RGB only, `mix` compositing) | yes: per-corner radii, three border positions, exact coverage (`uberShader.spec` "shows the fill through a translucent border and stays opaque", "leaves no fill halo outside a dark border offset by half a pixel") |
+| 5 | Linear one-pixel ramp and quad inflation | partial (two-pixel `smoothstep`, quads expanded only for outward borders) | yes: `antialias: false`, a one-device-pixel ramp and inflation (`uberShader.spec` "ramps a fractional edge over exactly one device pixel on each side") |
+| 5 | Box shadow with CSS mapping, spread radii, full padding | partial (padded by `blur`) | yes (`UberGeometryEncoder.test` "grows radii by CSS's spread formula", "emits the shadow quad before its owner, offset, spread and padded by three sigma") |
+| 5 | Premultiplied `over`, `additive` free, sRGB blend | partial (straight alpha) | yes (`uberShader.spec` "writes premultiplied colour over a transparent clear"; `Batcher.test` "never splits for additive, which shares over's blend state") |
+| 5 | Image quads, premultiplied textures, resident texture set | no | yes: image mode, premultiplied uploads, `ResidentTextureSet` (`uberShader.spec` "samples an image from a dynamic unit, premultiplied, and multiplies its tint") |
+| 5 | Text in the same batcher | yes | yes (`WebGL2Backend.test` "paints in submission order: text drawn before an overlapping rect stays under it") |
+| 5 | 32-bit indices, reusable arrays, sized buffer rings, per-flush uniform slots | partial (orphaning, single buffer, per-flush uniforms) | yes: instanced with no index buffer (R5.4 allows it), `StreamRing`, a uniform slot ring (`WebGL2Backend.test` "never writes an instance range the previous frame may still read, with four flushes a frame") |
+| 5 | Resource layer with ownership, metered uploads, context-loss recovery | no | yes: `gpu/TextureStore.ts` (`TextureStore.test` "spends the budget oldest request first and carries the rest to later frames"; `contextLoss.spec.ts`) |
+| 6 | Size-independent glyphs with the range ratio, validated metrics, fallback glyph | partial (32 px em with range 4) | yes: 48 px MTSDF with range 8, validated on load, fallback glyph (`FontAtlas.test` R6.4a case; `TextLayout.test` "measures and draws an absent code point as the fallback glyph") |
+| 6 | MSDF shading with the linear ramp | yes | yes: median of three with a derivative range (`UberGeometryEncoder.test` "clamps the screen range to at least one device pixel") |
+| 6 | Shared measure and render | yes | yes: `TextLayout.layoutText` is the one iteration (`UberGeometryEncoder.test` "draws the measured width") |
+| 6 | Ascent centring, greedy wrap with the normative break opportunities, ellipsis | partial (space and punctuation breaks; no ellipsis) | yes (`textPlacement.test` "centres on the face ascent and descent, not on the glyphs"; `TextLayout.test` "never breaks at a no-break space", "ellipsizes the last wrapped line") |
+| 6 | Run snapping | yes | yes (`UberGeometryEncoder.test` "snaps the run origin, not each glyph, to the device grid") |
+| 6 | Text in the same batch and sort, culled per run | partial (no cull) | yes (`DrawApi.test` "culls a run outside the clip per run, and counts it") |
+| 6 | Multiple atlases per flush | yes (the text shape ignores the family, so shape text always uses the default atlas) | yes: three role atlases resident beside the icon atlas (`WebGL2Backend.test` "draws a mixed screen as one group per call and one GPU draw per flush") |
+| 7 | Logical pixels, ratio confined, not a shader input | partial (ratio in the clip shader) | yes: the frame block carries no ratio and only `CanvasViewport` reads the window (`coords.test` "1440 by 882 at ratio 2 is a 2880 by 1764 framebuffer") |
+| 7 | Projection per flush | yes | yes: per frame, equivalent while there is one target (`WebGL2Backend.test` "puts the logical-pixel projection in the frame block") |
+| 7 | Single viewport owner, resize through layout | partial | yes: `CanvasViewport` commits at frame start (`CanvasViewport.test` "holds a measurement until commit, then tells every listener once"); two screens still size in `onResized`, scored under chapter 8 |
+| 7 | Input converted once at the dispatcher | yes | yes: `PointerAdapter.toLogical` (`inputInjection.test` "translates through the canvas bounding rect, not devicePixelRatio"); the UI scale setting is deferred (R7.5, DDB-94) |
+| 8 | Single interface including primitives; `render()` emits own draws only | partial (seven draw-only primitives; button, select, dropdown, and toast stack render their own children) | yes: one base; `renderTree` walks children; `Card` and `Vehicle` extend it (`renderTree.test`, a leaf draws only its own shape) |
+| 8 | Properties of R8.2 with propagation rules and `pointerEvents` | partial (no `pointerEvents`, `transform`, `opacity`, `layer`) | partial: every R8.2 property but `cursor`, DDB-244 (`Component.test` "derives visibility, enabled, opacity and layer from the ancestors", "defaults pointerEvents by kind") |
+| 8 | Children order, parent back-reference, never reordered, state-preserving moves; `removeChild` unmounts | partial (no remove, no moves) | partial: insert, move, reconcile, and unmount on remove work (`lifecycle.test` "moves within a root without remounting"); composite parts sit in the caller's children list (R8.6), DDB-242 |
+| 8 | Margin box with per-side margin, content-box hit test, ink overflow | partial (uniform margin, mixed hit boxes) | yes (`Component.test` "reports the margin box as bounds and hit-tests the content box") |
+| 8 | `transform` ignored by layout, honoured by render and hit testing | no | yes (`Component.test` "ignores the transform in bounds, which is layout"; `Dispatcher.test` "hits a rotated card within its rotated quad only") |
+| 8 | Read-only `screenBounds` and conversions; no window reads | no (positions are absolute; there is no local space to convert from) | yes: no window reads outside the viewport and the adapter (`Component.test` "accumulates origins and content offsets, and round-trips a point") |
+| 8 | Mount lifecycle, no constructor-time registration | no (registration in constructors) | yes: no constructor registration in engine or game code (`lifecycle.test` "touches no service before mount, registers on mount, and releases on unmount"; `Screen.test`) |
+| 8 | Frame order including layout before render, input with layout on demand | no (layout in render) | yes: drain, update, layout, render, flush in `src/index.ts` (`lifecycle.test` "lays out before a hit test, so the pointer sees the latest geometry") |
+| 8 | Clock and animator with tweens, reduced motion, retargeting | no (hard-coded timers per widget) | yes: `Clock` and `Animator` on the context, timers linted out (`Animator.test` reduced motion and retargeting cases; `animation.test` "cancels the tweens of every component in a subtree that unmounts") |
+| 8 | Upward invalidation to relayout boundaries | no | yes (`lifecycle.test` "marks the relayout boundary when text changes and lays it out once", "does not run layout for a transform, a zIndex, an opacity, or a colour") |
+| 8 | Overlay service owning overlay roots; roots sized from the viewport; `onLayout` | no (hand-ordered roots) | partial: `OverlayService` owns and walks overlay roots and `onLayout` fires (`OverlayService.test`; `Screen.test`); roots are fixed containers the shell resizes, and combat and driver selection size in `onResized` (R8.21), DDB-243 |
+| 8 | Named-argument constructors, accessors, synchronous callbacks | yes (C++ designated initialisers) | partial: callbacks are synchronous (`sliderTabs.test` "keeps a value set from inside onChange, without firing again"); the accessor rename is pending DDB-91; `Text`, `Button`, `DropdownButton` take a positional first argument (R8.23), DDB-245 |
+| 9 | Event fields including pointer identity, cancel, `contextmenu`, `repeat` | partial (mouse only) | yes: pointer identity, cancel, `contextmenu`, `repeat` (`Dispatcher.test` "synthesises contextmenu, not click, for a secondary button"); no `char` event, a recorded departure (DDB-254); wheel events drop some pointer fields, DDB-250 |
+| 9 | Queued dispatch at frame start against current geometry | partial (synthesised per frame from polled state; layout not on demand) | yes: drained first in the frame, layout on demand (`Dispatcher.test` "updates hover when layout moves content under a still pointer") |
+| 9 | Hit-test walk mirroring paint, clip- and `pointerEvents`-aware; public `hitTest` | no | yes: public `Dispatcher.hitTest`, aware of clip, offset, transform, and `pointerEvents` (`Dispatcher.test` "does not hit a child scrolled out of its clip") |
+| 9 | Bubble | no | yes (`Dispatcher.test` "carries an unconsumed pointerdown from the content to the dialog") |
+| 9 | Framework enter, leave, `hovered` on ancestors | no | yes (`Dispatcher.test` "keeps a button hovered while the pointer is over its label", "leaves innermost first and enters outermost first, without bubbling") |
+| 9 | Click on the nearest common ancestor with a drag threshold | no | yes, the threshold applied to drag sources only, a recorded departure (DDB-254) (`Dispatcher.test` "down on the label and up on the icon is one click on the button") |
+| 9 | Pointer capture per pointer with cancellation | no | yes (`Dispatcher.test` "delivers pointercancel to a captor that unmounts, and no click") |
+| 9 | Drag-and-drop service | no | yes, used by combat's card play (`DragService.test` "drops on an accepting target: dropActive while over, drop, then dragend dropped") |
+| 9 | Popup dismissal and exclusivity via the popup service | no (focus theft) | yes (`PopupService.test` "closes the open popup when another opens"; `menus.test` "captures the opening press, so its release selects nothing") |
+| 9 | Keyboard routing with scoped hotkeys; text fields own printable keys | partial | yes (`FocusManager.test` "never fires a hotkey of a root beneath a modal root", "keeps a printable hotkey from firing while a text field is focused") |
+| 9 | `activate` and `cancel` actions; `inputMode` | no | yes (`FocusManager.test` "synthesises activate from Enter and Space at the focused component, once per press", "follows the last input source"); the controller source is deferred (DDB-51) |
+| 9 | Focus manager: tree-derived order, scopes, fixup, focus groups, focus-visible | partial (registration order; scopes unused; no focus-visible) | yes (`FocusManager.test` "follows tree order, not the order components were added", "traps Tab in a pushed scope") |
+| 9 | Directional focus | no | yes (`FocusManager.test` "picks the nearest candidate in the pressed direction"); a D-pad past selects waits on the gamepad adapter (DDB-237, deferred) |
+| 9 | Text editing key set | yes | yes (`TextInput.test` "extends with Shift and the arrows, Home and End", "selects all, copies, cuts, and pastes through the context clipboard") |
+| 9 | Wheel normalisation and latching | no | yes (`Dispatcher.test` "keeps a latched inner scroller for 150 ms at its end, then passes a new gesture on") |
+| 10 | Fixed, hug, fill; stack container; three passes; modes never changed by layout | partial (resolved axes became definite) | yes: `components/Stack.ts`, with the 10.9 suite and its additions ported (`Stack.test` "never changes a sizing mode") |
+| 10 | Per-pass resolved sizes including zero; hug re-measured when dirty | partial (the freeze) | yes (`Stack.test` "reports zero for a fill container squeezed to zero, and its siblings do not move", "grows a nested hug container") |
+| 10 | Shrink-to-fit, safe alignment, `minSize` and `maxSize`, text minimum, `alignSelf` | no | yes (`Stack.test` "degrades every distribution to start on main-axis overflow", "centres one fixed child in a stretch row with alignSelf") |
+| 10 | Text wrap width from the cross pass with real metrics | yes | yes (`Stack.text.test` "takes an assigned width exactly as its wrap width") |
+| 10 | Absolute children with anchor and pivot; roots sized from the viewport | no | yes (`Stack.test` "pins an absolute child to the top-right corner whatever the parent size", "fills the viewport and re-lays out through the same path on a resize") |
+| 10 | Upward invalidation | no | yes (`Stack.test` "invalidates up to a hug ancestor and stops at a fixed boundary") |
+| 11 | Token file, committed generated module with a drift test | partial (generated header, no drift test) | partial: `tokens.json`, a generated `tokens.ts`, a drift test (`tokens.test`); 130 hex literals remain in game composites and `combatStyle.ts` copies `color.text` by hand (R11.1, R11.2), DDB-246 |
+| 11 | Variants and framework-maintained state flags | partial | yes: `style/variants.ts`, nine framework flags (`look.test` variant vocabulary; `widgetInput.test` "holds pressed from press to release") |
+| 11 | Layered state resolution, focus ring independent | no (ad hoc per component) | yes: `style/look.ts` (`look.test` layered state resolution, focus-visible under the pointer keeps its ring and its hover) |
+| 11 | Closed style property set, rejected rather than ignored | not applicable (typed style structs, R11.14) | yes: `validateStyle` per component (`styleObject.test` "throws on a property in the set that the component does not render, in every build") |
+| 11 | Token-driven transitions | no (hard-coded seconds) | yes: `LookTransition` on the animator (`Button.test` "reaches the hover fill at dur_fast", "is immediate under reduced motion") |
+| 12 | Leaves: Rectangle, Circle, Line, Text, Image, Icon | partial (no image; icons are polylines) | partial: all six, tested and in scenes (`leaves.test`, `Icon.test`); Rectangle lacks gradient, border position, and per-corner radii (R12.1), DDB-247 |
+| 12 | Button, ListRow, Checkbox, Toggle, RadioGroup, FocusGroup | partial (button, list row) | yes (`controls.test`; `widgetInput.test` "clicks from Enter and Space once focused by Tab"; scenes `buttons`, `lists`, `checkboxes`, `radio-group`) |
+| 12 | TextInput | partial (no validator; Escape consumed) | yes, with NumberInput (`TextInput.test` "asks the validator per code point", "leaves Escape unconsumed") |
+| 12 | Menu, Select, DropdownButton, ContextMenu, Slider, TabBar, SegmentedControl | mostly (segmented control draw-only) | yes (`menus.test`, `sliderTabs.test`; scenes `menus`, `slider-tabs`) |
+| 12 | Container, Stack, Panel, ScrollContainer, Dialog, Popover | partial (no popover; panel draw-only) | yes (`Dialog.test` "traps Tab inside the dialog"; `Popover.test` "closes on an outside press and lets the press through"); popover clip radius pending DDB-240 |
+| 12 | Tooltip, Toast, ToastStack, ScreenTransition | partial (no screen transition; text-only tooltips) | yes (`TooltipService.test` "mounts a factory tree on show"; `Toast.test` "pauses the countdown while hovered"; `ScreenTransition.test` "blocks presses from its first frame") |
+| 12 | ProgressBar, Badge, TreeView | yes | yes (`display.test` "animates the fill over dur_slow"; `TreeView.test` "is one Tab stop driven by the arrows") |
+| 12 | Placement, popup, overlay, tooltip, drag, clipboard, asset services | partial (placement duplicated three times; no popup, overlay, drag, asset services) | yes: all on the mount context (`Placement.test`, `PopupService.test`, `OverlayService.test`, `DragService.test`, `ClipboardService.test`, `AssetService.test`) |
+| 13 | Frame sections with p99, histogram, spikes, per-window max | partial (no per-window max, sections overlap) | yes: `FrameTimer` and `frameStats` (`frameStats.test` "attributes a single-frame hitch from the snapshot alone") |
+| 13 | Batcher counters with reasons | no | yes: `draw/stats.ts` (`DrawApi.test` "counts the groups a reorder actually moved"); `occluded` is null because R3.2 is optional |
+| 13 | Tree snapshot with the normative schema | partial (id, type, bounds, margin, `zIndex`, `visible`; bounds absolute) | yes: `debug/treeSnapshot.ts` (`treeSnapshot.test` the omission rule, "never throws on bad input") |
+| 13 | Layout lint with the seven required rules as gate | partial (four rules) | yes: seven rules (`layoutLint.test`), count zero on 33 scenes and 20 screen scenarios (`tests/visual/web/lint.spec.ts`); not yet a required check, DDB-252 |
+| 13 | Gallery | yes | partial: 33 `?scene=` scenes including the paint-order, clipping, text, and stack fixtures (`registry.test`); no 10k-primitive stress scene (R13.31), DDB-248 |
+| 13 | Screenshot and injection | yes | yes: the R13.35 grammar through the adapter (`inputInjection.test` "drives a click all the way to the component under it"); Playwright goldens |
+| 13 | Perf capture script | yes | yes: `scripts/perf-capture.mjs` with `compare` (`perfCapture.test`), captures under `perf-results/` |
+| 13 | Dev-only build exclusion | partial | partial: hooks and the gallery entry behind `__DEV_TOOLS__`; the F5 overlay and the F12 developer screen ship in production (R13.2), DDB-249 |
+| 15 | WebGL2 backend rules | not applicable | partial: R15.2 context, loss and restore, rings, uniform slots, `texStorage2D`, no synchronous call in a frame (`WebGL2Backend.test` "makes no synchronous call and no allocation inside a frame"; `contextLoss.spec.ts`); card data is still fetched (R15.34, DDB-52); no canvas `contextmenu` or `user-select` (R15.39, DDB-250) |
 
 ## 14.5 Reading the table
 
-Worldsim conforms to most of the rendering core and the layout engine; its gaps are the z model, the input model, opacity, lifecycle, and a handful of shader details (chapter 16 lists them in priority order), plus the rules the reviews added that neither project has yet (transform, animator, drag service, directional focus, resource layer); under R14.9 worldsim may score the drag service, the transform, and the animator not applicable until a screen needs them. Catalog components absent from worldsim today, listed once: Image, Checkbox, Toggle, RadioGroup, FocusGroup, NumberInput, Popover, ScreenTransition, Counter, and a standalone Scrollbar. The sibling engine conforms to almost nothing below the object-model naming conventions, which is expected: it was a first pass at a WebGL UI written in a few weeks, and this specification exists so its second pass does not repeat the six months of ordering, clipping, and text bugs worldsim worked through. Its implementation plan lives outside this specification.
+Worldsim conforms to most of the rendering core and the layout engine; its gaps are the z model, the input model, opacity, lifecycle, and a handful of shader details (chapter 16 lists them in priority order), plus the rules the reviews added that neither project has yet (transform, animator, drag service, directional focus, resource layer); under R14.9 worldsim may score the drag service, the transform, and the animator not applicable until a screen needs them. Catalog components absent from worldsim today, listed once: Image, Checkbox, Toggle, RadioGroup, FocusGroup, NumberInput, Popover, ScreenTransition, Counter, and a standalone Scrollbar. The sibling engine, which conformed to almost nothing below the object-model naming conventions in the first scoring, now conforms on every row of chapters 1 to 7, 9, and 10 after its second pass. Its nine partial rows are in chapter 8 (no `cursor` property, composite parts in the caller's children list, roots and two screens sized by resize calls rather than invalidation, positional constructors), chapter 11 (game composites still carrying literal colours), chapter 12 (Rectangle without gradient, border position, or per-corner radii), chapter 13 (no stress scene; the developer overlay and screen in production builds), and chapter 15 (game data fetched at runtime; no canvas `contextmenu` suppression). Its implementation plan lives outside this specification.
 
 ## 14.6 Migration notes for an engine that reorders text
 
@@ -143,11 +143,11 @@ Other one-time migration facts recorded for that engine: hit-test edges change f
 
 ## 14.7 Conformance checklist
 
-| Item | Level |
-|---|---|
-| Unit and ordering tests on null and recording backends in CI | required |
-| Ported component behaviour suites | required |
-| Lint-zero merge gate | required |
-| Pixel fixtures with headless skip | required |
-| Gallery screenshot goldens per backend, produced in CI (a gate for UI changes) | required |
-| Perf capture comparison per renderer change (a gate for renderer changes) | required |
+| Item | Level | Sibling engine (2026-10-02) |
+|---|---|---|
+| Unit and ordering tests on null and recording backends in CI | required | yes: `npm test` in the Test and Lint job; `backends.test`, `DrawApi.test`, `layerPartition.test` |
+| Ported component behaviour suites | required | yes: its own suites, driven through the dispatcher with constructed events (`controls.test`, `menus.test`, `TextInput.test`, `Dialog.test`), with worldsim's scroll and slider cases ported |
+| Lint-zero merge gate | required | partial: `tests/visual/web/lint.spec.ts` asserts zero on every scene and screen inside the Screenshots job, which GitHub does not yet require (DDB-252) |
+| Pixel fixtures with headless skip | required | yes: `uberShader.spec.ts` and `smallText.spec.ts` under SwiftShader in `visual.yml`, outside the unit runner |
+| Gallery screenshot goldens per backend, produced in CI (a gate for UI changes) | required | yes: `chromium` and `electron` projects, 53 goldens each, minted only by the `visual.yml` dispatch and checked for provenance; not yet a required check (DDB-252) |
+| Perf capture comparison per renderer change (a gate for renderer changes) | required | no: `scripts/perf-capture.mjs` runs on demand only, last on 2026-09-28 (DDB-253) |
