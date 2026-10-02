@@ -1,56 +1,57 @@
-import { Container, ContainerOptions } from '../../../engine/components/Container';
+import { Stack, StackOptions } from '../../../engine/components/Stack';
 import { Text } from '../../../engine/components/Text';
-import { Rectangle } from '../../../engine/components/Rectangle';
 import { Driver } from '../../mechanics/Driver';
 import { DriverSynergy, SynergyAnalysis } from '../../mechanics/DriverSynergy';
+import { FlowWrap } from '../../ui/FlowWrap';
 
-/** Horizontal padding inside a tag pill. */
-const TAG_PADDING = 5;
 const TAG_HEIGHT = 20;
+/** Horizontal padding inside a tag pill. */
+const TAG_PADDING = 6;
 const TAG_SPACING = 5;
-const MAX_TAG_WIDTH = 80;
+/** The widest a tag's label gets before it truncates. */
+const MAX_TAG_LABEL_WIDTH = 70;
 
-/** A synergy tag: its label, the pill sized to it, and the pill's width. */
-interface TagPill {
-	label: Text;
-	pill: Rectangle;
-	width: number;
+/**
+ * Dark text on a light pill and white on a dark one: the yellow, green and
+ * cyan tags were unreadable under white. Rec. 709 luma of a `#rrggbb` fill.
+ */
+function tagLabelColor(fill: string): string {
+	const channel = (offset: number): number => parseInt(fill.slice(offset, offset + 2), 16) / 255;
+	const luma = 0.2126 * channel(1) + 0.7152 * channel(3) + 0.0722 * channel(5);
+	return luma > 0.6 ? '#1a1a2a' : '#ffffff';
 }
 
 /**
  * Synergy preview panel for the Driver Selection Screen
  * Implements the center panel from Game Flow Spec 1.2
  * Shows synergy hints between selected drivers
+ *
+ * A column: the title, the description, the warning when there is one, and
+ * the tags flowing in rows under them, all from the width its parent gives
+ * it. It hugs its height, so the screen can centre it in the gap.
  */
-export class SynergyPreviewPanel extends Container {
-	private background: Rectangle;
-	private titleText: Text;
-	private synergyDescription: Text | null = null;
-	private warningText: Text | null = null;
-	private tagsContainer: Container | null = null;
-	private tagPills: TagPill[] = [];
-	
+export class SynergyPreviewPanel extends Stack {
+	private readonly synergyDescription: Text;
+	private readonly warningText: Text;
+	private readonly tags: FlowWrap;
+
 	private currentSynergy: SynergyAnalysis | null = null;
 
-	/**
-	 * Create a new synergy preview panel. Its contents are placed from its
-	 * size in the layout phase, so a resize moves them rather than rebuilding.
-	 */
-	constructor(options: ContainerOptions) {
-		super(options);
-
-		this.background = new Rectangle({
+	constructor(options: StackOptions) {
+		super({
+			direction: 'vertical',
+			padding: 16,
+			gap: 12,
+			crossAlign: 'stretch',
 			style: {
 				backgroundColor: '#4a4a6a',
 				borderColor: '#6a6a8a',
 				borderWidth: 2,
 			},
+			...options,
 		});
-		this.addChild(this.background);
-		
-		// Centred across the panel
-		this.titleText = new Text('Team Synergy', {
-			y: 25,
+
+		this.addChild(new Text('Team Synergy', {
 			style: {
 				fontSize: 20,
 				color: '#ffffff',
@@ -58,9 +59,38 @@ export class SynergyPreviewPanel extends Container {
 				fontWeight: 'bold',
 			},
 			wrap: 'none',
+			textOverflow: 'ellipsis',
+		}));
+
+		this.synergyDescription = new Text('', {
+			id: 'driver_select_synergy_description',
+			style: {
+				fontSize: 12,
+				textAlign: 'center',
+			},
+			wrap: 'word',
 		});
-		this.addChild(this.titleText);
-		
+		this.addChild(this.synergyDescription);
+
+		this.warningText = new Text('', {
+			visible: false,
+			style: {
+				fontSize: 11,
+				color: '#ff6666',
+				textAlign: 'center',
+				fontWeight: 'bold',
+			},
+			wrap: 'word',
+		});
+		this.addChild(this.warningText);
+
+		this.tags = new FlowWrap({
+			id: 'driver_select_synergy_tags',
+			gap: TAG_SPACING,
+			justify: 'center',
+		});
+		this.addChild(this.tags);
+
 		// Initially hidden
 		this.setVisible(false);
 	}
@@ -69,164 +99,51 @@ export class SynergyPreviewPanel extends Container {
 	 * Update synergy display for the given driver pair
 	 */
 	public updateSynergy(driver1: Driver | null, driver2: Driver | null): void {
-		// Clear existing synergy content
-		this.clearSynergyContent();
-		
 		if (!driver1 || !driver2) {
+			this.currentSynergy = null;
+			this.tags.clearChildren();
 			this.setVisible(false);
 			return;
 		}
-		
-		// Analyze synergy
-		this.currentSynergy = DriverSynergy.analyzeSynergy(driver1, driver2);
-		
-		// Show the panel
+
+		const synergy = DriverSynergy.analyzeSynergy(driver1, driver2);
+		this.currentSynergy = synergy;
+
+		this.synergyDescription.setText(synergy.description);
+		this.synergyDescription.setColor(this.getSynergyColor(synergy.type));
+		this.warningText.setText(synergy.warning ?? '');
+		this.warningText.setVisible(Boolean(synergy.warning));
+
+		this.tags.clearChildren();
+		for (const tag of synergy.tags) this.tags.addChild(this.createTagPill(tag));
+
 		this.setVisible(true);
-		
-		// Create synergy display
-		this.createSynergyDisplay();
 	}
 
-	/**
-	 * Clear existing synergy content
-	 */
-	private clearSynergyContent(): void {
-		const children = [...this.getChildren()];
-		children.forEach(child => {
-			if (child !== this.background && child !== this.titleText) {
-				this.removeChild(child);
-			}
-		});
-		
-		this.synergyDescription = null;
-		this.warningText = null;
-		this.tagsContainer = null;
-		this.tagPills = [];
-	}
-
-	/**
-	 * Create the synergy display content; placeContents places it
-	 */
-	private createSynergyDisplay(): void {
-		if (!this.currentSynergy) return;
-
-		this.synergyDescription = new Text(this.currentSynergy.description, {
+	/** A pill hugging its label, the label truncating past the widest a tag gets. */
+	private createTagPill(tag: string): Stack {
+		const fill = this.getTagColor(tag);
+		const pill = new Stack({
+			direction: 'horizontal',
+			crossAlign: 'center',
+			height: TAG_HEIGHT,
+			padding: { left: TAG_PADDING, right: TAG_PADDING },
 			style: {
-				fontSize: 12,
-				color: this.getSynergyColor(this.currentSynergy.type),
-				textAlign: 'center',
+				backgroundColor: fill,
+				borderRadius: TAG_HEIGHT / 2,
 			},
-			wrap: 'word',
 		});
-		this.addChild(this.synergyDescription);
-
-		if (this.currentSynergy.warning) {
-			this.warningText = new Text(this.currentSynergy.warning, {
-				style: {
-					fontSize: 11,
-					color: '#ff6666',
-					textAlign: 'center',
-					fontWeight: 'bold',
-				},
-				wrap: 'word',
-			});
-			this.addChild(this.warningText);
-		}
-
-		if (this.currentSynergy.tags.length > 0) {
-			this.createSynergyTags(this.currentSynergy.tags);
-		}
-		this.placeContents();
-	}
-
-	private createSynergyTags(tags: readonly string[]): void {
-		const container = new Container({});
-		this.tagsContainer = container;
-		this.addChild(container);
-
-		for (const tag of tags) {
-			const label = new Text(tag, {
-				style: {
-					fontSize: 10,
-					color: '#ffffff',
-					textAlign: 'center',
-					fontWeight: 'bold',
-				},
-				verticalAlign: 'middle',
-				wrap: 'none',
-				textOverflow: 'ellipsis',
-			});
-			const pill = new Rectangle({
-				style: {
-					backgroundColor: this.getTagColor(tag),
-					borderRadius: 10,
-				},
-			});
-			// Added before it is measured: the panel is mounted, so the label
-			// measures its hug width through the mount context as it is added
-			// (R1.6), and the pill fits that or truncates it to the widest pill.
-			container.addChild(pill);
-			container.addChild(label);
-			const width = Math.ceil(Math.min(MAX_TAG_WIDTH, label.getWidth() + TAG_PADDING * 2));
-			this.tagPills.push({ label, pill, width });
-		}
-	}
-
-	/** The frame's layout phase: the panel was sized, or what it holds changed (R8.18). */
-	protected layoutChildren(): void {
-		this.placeContents();
-	}
-
-	/**
-	 * The description, the warning under it, and the tags under that, all
-	 * from the panel's width; the wrapped texts' heights decide where the
-	 * next one starts.
-	 */
-	private placeContents(): void {
-		const panelWidth = this.getWidth();
-		const panelHeight = this.getHeight();
-
-		this.background.setSize(panelWidth, panelHeight);
-		this.titleText.setWidth(panelWidth);
-
-		let currentY = 60; // Start below title
-		if (this.synergyDescription) {
-			this.synergyDescription.setWidth(Math.floor(panelWidth * 0.9));
-			this.synergyDescription.setPosition(Math.floor(panelWidth * 0.05), currentY);
-			currentY += this.synergyDescription.getHeight() + 20;
-		}
-		if (this.warningText) {
-			this.warningText.setWidth(Math.floor(panelWidth * 0.9));
-			this.warningText.setPosition(Math.floor(panelWidth * 0.05), currentY);
-			currentY += this.warningText.getHeight() + 15;
-		}
-		if (this.tagsContainer) {
-			this.tagsContainer.setPosition(0, currentY);
-			this.tagsContainer.setSize(panelWidth, Math.max(0, panelHeight - currentY));
-			this.placeTags(panelWidth);
-		}
-	}
-
-	/** Tags flow in rows across the panel's width. */
-	private placeTags(panelWidth: number): void {
-		let currentX = 10;
-		let currentRow = 0;
-		for (const { label, pill, width: tagWidth } of this.tagPills) {
-			if (currentX + tagWidth > panelWidth - 10) {
-				currentX = 10;
-				currentRow++;
-			}
-			const tagY = currentRow * (TAG_HEIGHT + TAG_SPACING);
-
-			pill.setPosition(currentX, tagY);
-			pill.setSize(tagWidth, TAG_HEIGHT);
-
-			// Centred in the pill, inside its padding
-			label.setPosition(currentX + TAG_PADDING, tagY);
-			label.setSize(tagWidth - TAG_PADDING * 2, TAG_HEIGHT);
-
-			currentX += tagWidth + TAG_SPACING;
-		}
+		pill.addChild(new Text(tag, {
+			maxSize: { width: MAX_TAG_LABEL_WIDTH },
+			style: {
+				fontSize: 10,
+				color: tagLabelColor(fill),
+				fontWeight: 'bold',
+			},
+			wrap: 'none',
+			textOverflow: 'ellipsis',
+		}));
+		return pill;
 	}
 
 	/**
@@ -262,7 +179,7 @@ export class SynergyPreviewPanel extends Container {
 			'fortress': '#3366ff',
 			'precision': '#33ff33',
 		};
-		
+
 		return tagColors[tag] || '#888888';
 	}
 
