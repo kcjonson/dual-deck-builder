@@ -59,27 +59,30 @@ describe('EnemyBattlefieldLayer intent markers', () => {
 			.map((command) => names.get(command.text) ?? command.text);
 	}
 
+	/** The token's own icons, drawn before its intents: the speed chevrons and the driver's heart. */
+	const TOKEN_ICONS = ['keyboard_double_arrow_right', 'favorite'];
+
 	function intent(type: EnemyIntent['type'], value?: number): EnemyIntent {
 		return { type, value, description: type };
 	}
 
-	it('shows a shield for defend and a wrench for repair, beside the armor badge\'s shield', async () => {
+	it('shows a shield for defend and a wrench for repair, in the token\'s intents row', async () => {
 		layer.setVehicleIntents(raider.id, [intent('defend', 6)]);
-		expect(await iconsDrawn()).toEqual(['shield', 'shield']);
+		expect(await iconsDrawn()).toEqual([...TOKEN_ICONS, 'shield']);
 
 		layer.setVehicleIntents(raider.id, [intent('repair', 4)]);
-		expect(await iconsDrawn()).toEqual(['shield', 'build']);
+		expect(await iconsDrawn()).toEqual([...TOKEN_ICONS, 'build']);
 	});
 
 	it('shows the value, not an icon, for an attack', async () => {
 		layer.setVehicleIntents(raider.id, [intent('attack', 15)]);
-		expect(await iconsDrawn()).toEqual(['shield']);
+		expect(await iconsDrawn()).toEqual(TOKEN_ICONS);
 		expect(backend.commands.some((command) => command.kind === 'text' && command.text === '15')).toBe(true);
 	});
 
 	it('hides the icon with the marker when the intent clears', async () => {
 		layer.setVehicleIntents(raider.id, [intent('defend', 6)]);
 		layer.setVehicleIntents(raider.id, []);
-		expect(await iconsDrawn()).toEqual(['shield']);
+		expect(await iconsDrawn()).toEqual(TOKEN_ICONS);
 	});
 });

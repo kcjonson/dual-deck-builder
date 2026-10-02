@@ -6,6 +6,20 @@ This document contains the chronological log of completed development tasks for 
 
 **Date correction (2026-08-22):** the repo's first commit is 2025-05-17, but many entries below carry dates in December 2024 or January 2025 — the AI that wrote them used its assumed date instead of the real one. Entries dated 2025-07-03 and 2025-07-02 have been corrected from "2025-01-03"/"2025-01-02" (verified against git history). Remaining Dec 2024 / Jan 2025 dates are wrong by roughly six months; the real work happened May–July 2025. Trust git history over these dates.
 
+## The vehicle token (2026-10-02)
+
+**What landed:** DDB-135 (DDB-127), folding in DDB-165.
+
+- `game/ui/Vehicle.ts` rebuilt as Battle Screen Design section 3's token: 196x117 at x1, 135 with a passenger, fixed geometry from the mock's `tokenHTML`. Intents row inside the token (IntentRow, 24 px discs, right-aligned), rear-view sprite and speed, plate with mark, stripe, ellipsized name, armor shield, structure and driver HP bars of equal weight, passenger row, status chips with "+N", WRECKED and NO DRIVER stamps, and targeting outlines and dimming.
+- `fitToSlot(rect, scale?)` scales x1 to x1.25 and centres the token in a slot, allocation-free so a swerve can call it per frame; `slotScale` and `tokenScaleFor` pick a road-wide scale. The token refits itself when a passenger joins.
+- `IntentMarker` draws a target mark (`targetMarks.ts`, shared with the driver tab); `CombatScreen.intentMarkerOf` fills it from the intent's target and the driver seats. Hit numbers pop from `plateScreenBounds`.
+- New `StatusChip` (buff, debuff, SPENT, Shield, "+N", each with a tooltip). Eight Material icons added to the icon atlas (heart, double chevrons, broken shield, fire, bolt, two crosshairs); the icons scene wraps its grid at twelve so it fits 1024.
+- `ArmorBadge` deleted. DDB-165 was already fixed on main by the icon atlas (DDB-72); the shield is now a polygon the token draws.
+- The column battlefield layers lay each lane's vehicles out as equal slots and call `fitToSlot`; they lose the plate subclasses and the intent-row bookkeeping. DDB-134 replaces them.
+- Gallery scene `vehicle-tokens`. Record: [vehicle-token.md](./AI_TECHNICAL_DECISIONS/vehicle-token.md).
+
+**How:** unit tests for geometry, fit, chips, wreck states, marks, ellipsis, lint per state, targeting; played the combat screen through `__dev.input` at 1280x720 and 1024x600 (drag, click-then-target, keyboard, end turn).
+
 ## The accessor rename (2026-10-02)
 
 **What landed:** DDB-91's second PR and DDB-245 (DDB-55, phase 6, R8.23). Mechanical; no behaviour or pixel change.

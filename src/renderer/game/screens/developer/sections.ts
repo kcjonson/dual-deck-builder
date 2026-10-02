@@ -26,6 +26,7 @@ import { DataDisplaySection } from './DataDisplaySection';
 import { TreeExamplesSection } from './TreeExamplesSection';
 import { CombatFxSection } from './CombatFxSection';
 import { SliderTabsSection } from './SliderTabsSection';
+import { VehicleTokensSection } from './VehicleTokensSection';
 
 /**
  * The developer screen's sections, defined once.
@@ -171,5 +172,10 @@ export const developerSections: readonly DeveloperSection[] = [
 	{
 		name: 'slider-tabs',
 		build: (options) => new SliderTabsSection(options),
+	},
+	// The battle screen's vehicle token in every state (DDB-135)
+	{
+		name: 'vehicle-tokens',
+		build: (options) => new VehicleTokensSection(options),
 	},
 ];

@@ -220,9 +220,10 @@ function handCard(combat: CombatScreen, types: string[], fallback: string): UICa
 	return handCards(combat)[0];
 }
 
+/** A token's plate on screen: where a card is dropped, and where a hit's number pops. */
 function vehicleBounds(combat: CombatScreen, layer: 'enemyLayer' | 'battlefieldLayer'): Rect {
 	const [vehicle] = [...combat[layer]['vehicleCards'].values()];
-	return vehicle.screenBounds;
+	return vehicle.plateScreenBounds;
 }
 
 describe('CombatScreen drag to play', () => {

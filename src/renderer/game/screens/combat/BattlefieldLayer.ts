@@ -4,7 +4,8 @@ import type { DrawApi } from '../../../engine/draw/DrawApi';
 import type { DrawRectOptions } from '../../../engine/draw/commands';
 import { resolveColor } from '../../../engine/style/styleObject';
 import { Vehicle, VehicleData } from '../../mechanics/Vehicle';
-import { Vehicle as VehicleUI } from '../../ui/Vehicle';
+import { Vehicle as VehicleUI, slotScale } from '../../ui/Vehicle';
+import type { Driver } from '../../mechanics/Driver';
 import { LaneKind, ROW_ORDER, laneKind } from '../../mechanics/Road';
 import { CombatModel } from './CombatModel';
 
@@ -18,7 +19,11 @@ export interface LaneDecor {
 	labels: [string, string, string];
 }
 
-export type BattlefieldLayerOptions = ComponentOptions & { combatData?: CombatModel };
+export type BattlefieldLayerOptions = ComponentOptions & {
+	combatData?: CombatModel;
+	/** The player's seat a driver sits in, for the tokens' marks. */
+	seatOf?: (driver: Driver) => 1 | 2 | null;
+};
 
 const LANE_LABEL_Y = 20;
 const LANE_DIVIDER_TOP = 40;
@@ -46,6 +51,8 @@ export abstract class BattlefieldLayer extends Component {
 
 	// Combat model reference
 	protected combatData: CombatModel | null = null;
+	protected readonly seatOf: ((driver: Driver) => 1 | 2 | null) | undefined;
+	private readonly slotScratch = { x: 0, y: 0, width: 0, height: 0 };
 
 	// Drawn behind the vehicles, created once and moved by layoutLanes
 	private readonly backgroundDraw: DrawRectOptions;
@@ -55,6 +62,7 @@ export abstract class BattlefieldLayer extends Component {
 	constructor(options: BattlefieldLayerOptions & { laneDecor: LaneDecor }) {
 		super(options);
 		this.combatData = options.combatData || null;
+		this.seatOf = options.seatOf;
 
 		const decor = options.laneDecor;
 		this.backgroundDraw = { rect: { x: 0, y: 0, width: 0, height: 0 }, fill: resolveColor(decor.backgroundColor) };
@@ -218,52 +226,27 @@ export abstract class BattlefieldLayer extends Component {
 	}
 	
 	/**
-	 * Layout vehicles within a specific lane
+	 * A stand-in until DDB-134's road: each vehicle in a lane gets an equal
+	 * share of the lane's width below the labels, as its slot. A token that
+	 * fits fills it (x1 to x1.25); one that doesn't, which the road never
+	 * allows, shrinks to fit so the column layout stays clear of overlaps.
 	 */
 	protected layoutVehiclesInLane(vehicles: Vehicle[], lane: { x: number; y: number; width: number; height: number }): void {
-		const count = vehicles.length;
-		// Two side by side narrow to share a lane that is too slim for both
-		const sideBySideSpacing = 20;
-		const cardWidth = count === 2
-			? Math.min(this.cardWidth, Math.floor((lane.width - sideBySideSpacing) / 2))
-			: this.cardWidth;
-		const cardHeight = this.cardHeight;
-		
+		const slotWidth = Math.floor(lane.width / vehicles.length);
+		const slot = this.slotScratch;
+		slot.y = lane.y + LANE_DIVIDER_TOP;
+		slot.width = slotWidth;
+		slot.height = lane.height - LANE_DIVIDER_TOP;
 		vehicles.forEach((vehicle, index) => {
 			const card = this.vehicleCards.get(vehicle.id);
 			if (!card) return;
-			
-			let x: number, y: number;
-			
-			if (count === 1) {
-				// Center single vehicle
-				x = lane.x + Math.floor((lane.width - cardWidth) / 2);
-				y = lane.y + Math.floor((lane.height - cardHeight) / 2);
-			} else if (count === 2) {
-				// Side by side
-				const totalWidth = 2 * cardWidth + sideBySideSpacing;
-				const startX = lane.x + Math.floor((lane.width - totalWidth) / 2);
-				x = startX + index * (cardWidth + sideBySideSpacing);
-				y = lane.y + Math.floor((lane.height - cardHeight) / 2);
-			} else {
-				// Stack with overlap (max 3 per lane)
-				const overlap = 40;
-				const totalWidth = cardWidth + (count - 1) * overlap;
-				const startX = lane.x + Math.floor((lane.width - totalWidth) / 2);
-				x = startX + index * overlap;
-				y = lane.y + Math.floor((lane.height - cardHeight) / 2);
-			}
-			
-			card.setPosition(x, y);
-			card.setSize(cardWidth, cardHeight);
+			slot.x = lane.x + index * slotWidth;
+			if (card.fitToSlot(slot)) return;
+			const scale = Math.max(0.1, slotScale({ width: slot.width, height: slot.height, passenger: vehicle.passenger !== null }));
+			card.shrinkTo(scale);
+			card.setPosition(Math.round(slot.x + (slot.width - card.width * scale) / 2), Math.round(slot.y + (slot.height - card.height * scale) / 2));
 		});
 	}
-	
-	/**
-	 * Get card dimensions
-	 */
-	protected abstract get cardWidth(): number;
-	protected abstract get cardHeight(): number;
 	
 	/**
 	 * Create a vehicle card display component

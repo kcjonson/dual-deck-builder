@@ -1,25 +1,9 @@
 import { BattlefieldLayer, BattlefieldLayerOptions, LaneDecor } from './BattlefieldLayer';
 import { Vehicle as VehicleData } from '../../mechanics/Vehicle';
 import { Vehicle as VehicleUI } from '../../ui/Vehicle';
-import { EnemyIntent, IntentRow } from '../../ui/IntentMarker';
+import type { EnemyIntent, IntentRow } from '../../ui/IntentMarker';
 
 export type { EnemyIntent, IntentType } from '../../ui/IntentMarker';
-
-const INTENT_MARKER_SIZE = 30;
-const INTENT_INSET = 6;
-
-/**
- * Enemy-specific vehicle UI component
- */
-class EnemyVehicle extends VehicleUI {
-	protected get portraitColor(): string {
-		return '#4a3a3a'; // Enemy red tint
-	}
-
-	protected get borderColor(): string {
-		return '#6a5a5a'; // Enemy red border
-	}
-}
 
 // Columns mirrored from the player's
 const ENEMY_LANE_DECOR: LaneDecor = {
@@ -34,99 +18,41 @@ const ENEMY_LANE_DECOR: LaneDecor = {
  * Shows enemy vehicles with intent indicators
  */
 export class EnemyBattlefieldLayer extends BattlefieldLayer {
-	// Each raider's planned intents, by vehicle id
+	// Each raider's planned intents, by vehicle id, kept for a token made after the plan
 	private vehicleIntents: Map<string, readonly EnemyIntent[]> = new Map();
-	/**
-	 * Each raider's plan beside its plate. Siblings of the plates, not their
-	 * children: a plate is one hit target (`unit`), so nothing inside it is
-	 * ever hovered, and the discs need their tooltips.
-	 */
-	private intentRows: Map<string, IntentRow> = new Map();
 
 	constructor(options: BattlefieldLayerOptions) {
 		super({ ...options, laneDecor: ENEMY_LANE_DECOR });
 	}
 
-	/**
-	 * Get card dimensions for enemy vehicles
-	 */
-	protected get cardWidth(): number {
-		return 140; // Slightly smaller than player vehicles
-	}
-
-	protected get cardHeight(): number {
-		return Math.floor(this.height * 0.55); // Slightly smaller
-	}
-
-	/**
-	 * Create a vehicle display component
-	 */
 	protected createVehicleCard(vehicle: VehicleData): VehicleUI {
-		return new EnemyVehicle({
+		const token = new VehicleUI({
 			id: `enemy_vehicle_${this.slotId(vehicle)}`,
-			x: 0,
-			y: 0,
-			width: this.cardWidth,
-			height: this.cardHeight,
 			vehicleData: vehicle,
+			side: 'raider',
 			combatData: this.combatData || undefined,
 			onClick: (v) => {
-				// When clicked, attempt to target this vehicle
 				this.combatData?.targetVehicle(v);
 			}
 		});
+		token.intents = this.vehicleIntents.get(vehicle.id) ?? [];
+		return token;
 	}
 
-	/**
-	 * Update an existing vehicle display
-	 */
 	protected updateVehicleCard(vehicle: VehicleData, card: VehicleUI): void {
 		card.data = vehicle;
-	}
-
-	/** A row per plate, made and dropped with the plates. */
-	protected updateVehicleCards(): void {
-		super.updateVehicleCards();
-		for (const [vehicleId, row] of this.intentRows) {
-			if (this.vehicleCards.has(vehicleId)) continue;
-			this.removeChild(row);
-			this.intentRows.delete(vehicleId);
-		}
-		for (const [vehicleId, plate] of this.vehicleCards) {
-			if (this.intentRows.has(vehicleId)) continue;
-			const row = new IntentRow({ id: plate.id ? `${plate.id}_intents` : undefined, markerSize: INTENT_MARKER_SIZE, zIndex: 1 });
-			row.intents = this.vehicleIntents.get(vehicleId) ?? [];
-			// The plan is part of its raider as a drop target: a card let go
-			// on a disc lands on the raider, as one on the plate does
-			row.onDragEnter = (event) => plate.dragEntered(event);
-			row.onDragLeave = () => plate.dragLeft();
-			row.onDrop = (event) => plate.dropped(event);
-			this.intentRows.set(vehicleId, row);
-			this.addChild(row);
-		}
-	}
-
-	/** Beside each plate's top right corner, outside it, so a plan of three never covers the driver's name or the lane label. */
-	protected layoutVehicles(): void {
-		super.layoutVehicles();
-		for (const [vehicleId, row] of this.intentRows) {
-			const plate = this.vehicleCards.get(vehicleId);
-			if (!plate) continue;
-			const { x, y, width } = plate.bounds;
-			row.setPosition(x + width + INTENT_INSET, y);
-		}
 	}
 
 	/** A raider's plan for the enemy turn, in order; empty clears it. */
 	public setVehicleIntents(vehicleId: string, intents: readonly EnemyIntent[]): void {
 		if (intents.length === 0) this.vehicleIntents.delete(vehicleId);
 		else this.vehicleIntents.set(vehicleId, intents);
-		const row = this.intentRows.get(vehicleId);
-		if (row) row.intents = intents;
+		const token = this.vehicleCards.get(vehicleId);
+		if (token) token.intents = intents;
 	}
 
-	/** The row showing a raider's plan, while the raider is on the road. */
+	/** The row showing a raider's plan, inside its token, while the raider is on the road. */
 	public intentRowOf(vehicleId: string): IntentRow | null {
-		return this.intentRows.get(vehicleId) ?? null;
+		return this.vehicleCards.get(vehicleId)?.intentsRow ?? null;
 	}
 }

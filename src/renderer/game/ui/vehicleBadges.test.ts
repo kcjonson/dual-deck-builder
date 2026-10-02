@@ -1,7 +1,7 @@
 /**
  * @jest-environment jsdom
  */
-import { DrawApi, RectCommand, TextCommand } from '../../engine/draw';
+import { DrawApi, PolygonCommand, RectCommand, TextCommand } from '../../engine/draw';
 import { ICON_ATLAS_ROLE } from '../../engine/text/fontFaces';
 import { ICON_CODE_POINTS } from '../../engine/text/icons';
 import { createMeasuringDrawApi, MeasuringRecordingBackend } from '../../engine/text/testing';
@@ -9,7 +9,6 @@ import type { Component } from '../../engine/components/Component';
 import type { MountContext } from '../../engine/components/MountContext';
 import { renderTree } from '../../engine/components/renderTree';
 import { createTestContext } from '../../engine/components/testing';
-import { ArmorBadge } from './ArmorBadge';
 import { EnemyIntent, IntentMarker, IntentRow } from './IntentMarker';
 
 let backend: MeasuringRecordingBackend;
@@ -30,71 +29,9 @@ function frame(...roots: Component[]): void {
 	api.endFrame();
 }
 
-/** A command's box in screen space: its local box through the walk's translation. */
-function screenBox(command: TextCommand): { x: number; y: number; width: number; height: number } {
-	const box = command.box ?? { x: NaN, y: NaN, width: NaN, height: NaN };
-	return { x: box.x + command.transform[4], y: box.y + command.transform[5], width: box.width, height: box.height };
-}
-
 function texts(): TextCommand[] {
 	return backend.commands.filter((command): command is TextCommand => command.kind === 'text');
 }
-
-describe('ArmorBadge', () => {
-	function badge(armor: number, shield: number): ArmorBadge {
-		const result = new ArmorBadge({ x: 10, y: 20, minWidth: 35, height: 16 });
-		result.armor = armor;
-		result.shield = shield;
-		return result;
-	}
-
-	it('keeps its minimum width when the value fits, and reads "SH" only with shield', () => {
-		const plain = badge(5, 0);
-		frame(plain);
-		expect(plain.text).toBe('5');
-		expect(plain.width).toBe(35);
-		expect(badge(5, 3).text).toBe('5 SH3');
-	});
-
-	it.each([[5, 3], [30, 8], [10, 12]])('grows to fit %i SH%i: the value sits between the icon and the right edge', (armor, shield) => {
-		const subject = badge(armor, shield);
-		frame(subject);
-
-		const [icon, value] = texts();
-		expect(icon.font).toBe(ICON_ATLAS_ROLE);
-		expect(icon.text).toBe(String.fromCodePoint(ICON_CODE_POINTS.shield));
-		const labelWidth = api.measureText({ text: subject.text, font: 'body', size: 8 }).width;
-		const valueBox = screenBox(value);
-		const iconBox = screenBox(icon);
-		const iconRight = iconBox.x + iconBox.width;
-		// The value's box starts past the icon and ends inside the badge, and the label fits it.
-		expect(valueBox.x).toBeGreaterThanOrEqual(iconRight);
-		expect(valueBox.x + valueBox.width).toBeLessThanOrEqual(10 + subject.width);
-		expect(valueBox.width).toBeGreaterThanOrEqual(labelWidth);
-
-		const [rect] = backend.commands.filter((command): command is RectCommand => command.kind === 'rect');
-		expect(rect.rect.width).toBe(subject.width);
-	});
-
-	it('measures once per value, not per frame', () => {
-		const subject = badge(10, 12);
-		frame(subject);
-		frame(subject);
-		expect(backend.measureCalls).toBe(1);
-		subject.shield = 0;
-		frame(subject);
-		expect(backend.measureCalls).toBe(2);
-		expect(subject.width).toBe(35);
-	});
-
-	it('greys out with neither armor nor shield', () => {
-		const active = badge(0, 2);
-		const empty = badge(0, 0);
-		frame(active, empty);
-		const [activeRect, emptyRect] = backend.commands.filter((command): command is RectCommand => command.kind === 'rect');
-		expect(activeRect.fill).not.toEqual(emptyRect.fill);
-	});
-});
 
 describe('IntentMarker', () => {
 	it.each([['defend', 'shield'], ['repair', 'build']] as const)('draws %s as the %s icon, centred', (type, glyph) => {
@@ -116,6 +53,31 @@ describe('IntentMarker', () => {
 		marker.intent = { type: 'special', description: 'special' };
 		frame(marker);
 		expect(texts()[0].text).toBe('!');
+	});
+
+	it.each([['driver1', 1], ['driver2', 1], ['both', 2]] as const)('marks whom it lands on (%s) in the lower right, inside the disc', (target, polygons) => {
+		const marker = new IntentMarker({ x: 0, y: 0, size: 24 });
+		marker.intent = { type: 'attack', value: 8, description: 'Ram', target };
+		frame(marker);
+		const drawn = backend.commands.filter((command): command is PolygonCommand => command.kind === 'polygon');
+		expect(drawn).toHaveLength(polygons);
+		for (const polygon of drawn) {
+			for (const point of polygon.points) {
+				expect(point.x).toBeGreaterThanOrEqual(24 - 9 * polygons);
+				expect(point.x).toBeLessThanOrEqual(24);
+				expect(point.y).toBeGreaterThanOrEqual(24 - 9);
+			}
+		}
+	});
+
+	it('marks an escort target with a square', () => {
+		const marker = new IntentMarker({ x: 0, y: 0, size: 24 });
+		marker.intent = { type: 'attack', value: 5, description: 'Sideswipe', target: 'escort' };
+		frame(marker);
+		const rects = backend.commands.filter((command): command is RectCommand => command.kind === 'rect');
+		// The disc, the mark's backing, and the square
+		expect(rects).toHaveLength(3);
+		expect(backend.commands.some((command) => command.kind === 'polygon')).toBe(false);
 	});
 
 	it('is hidden without an intent', () => {

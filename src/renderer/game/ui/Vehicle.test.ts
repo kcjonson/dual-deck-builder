@@ -1,146 +1,270 @@
 /**
  * @jest-environment jsdom
  */
-import type { Component } from '../../engine/components/Component';
 import type { AnyUiEvent } from '../../engine/input/events';
 import { createTestContext } from '../../engine/components/testing';
 import { createMeasuringDrawApi } from '../../engine/text/testing';
-import { tokens } from '../../engine/theme/tokens';
 import { renderTree } from '../../engine/components/renderTree';
-import type { TextCommand } from '../../engine/draw';
+import type { PolygonCommand, TextCommand } from '../../engine/draw';
 import type { Text } from '../../engine/components/Text';
 import { ICON_ATLAS_ROLE } from '../../engine/text/fontFaces';
 import type { MountContext } from '../../engine/components/MountContext';
 import { CombatModel } from '../screens/combat/CombatModel';
 import { Team, TeamType } from '../mechanics/Team';
 import { Vehicle as VehicleData, createDrivenVehicle } from '../mechanics/Vehicle';
+import { createEscort } from '../mechanics/Escort';
 import { createTestDriver } from '../ai/__tests__/test-helpers';
-import { Vehicle } from './Vehicle';
+import { TOKEN_HEIGHT, TOKEN_PASSENGER_HEIGHT, TOKEN_WIDTH, Vehicle, slotScale, tokenScaleFor } from './Vehicle';
+import type { StatusChip } from './StatusChip';
 import { layoutLint } from '../../engine/debug/layoutLint';
 import { treeSnapshot } from '../../engine/debug/treeSnapshot';
 
-function partById(plate: Component, id: string): Component {
-	const part = plate.children.find(child => child.id === id);
-	if (!part) throw new Error(`no ${id}`);
-	return part;
+function part<T = Text>(token: Vehicle, suffix: string): T {
+	const found = token.children.find(child => child.id === `${token.id}_${suffix}`);
+	if (!found) throw new Error(`no ${suffix}`);
+	return found as unknown as T;
 }
 
-describe('Vehicle plate', () => {
+function chips(token: Vehicle): StatusChip[] {
+	return token.children.filter(child => child.id?.includes('_status_') && child.visible) as unknown as StatusChip[];
+}
+
+function measured(): { context: MountContext; api: ReturnType<typeof createMeasuringDrawApi>['api']; backend: ReturnType<typeof createMeasuringDrawApi>['backend'] } {
+	const { api, backend } = createMeasuringDrawApi();
+	return { context: createTestContext({ draw: api }), api, backend };
+}
+
+function lintOf(token: Vehicle, context: MountContext): unknown[] {
+	token.mount(context);
+	context.frame.layout();
+	return layoutLint(treeSnapshot([token], { width: 400, height: 300 })).violations;
+}
+
+const seats = (vehicle: VehicleData) => (driver: unknown) => (driver === vehicle.driver ? 1 : 2) as 1 | 2;
+
+describe('Vehicle token geometry', () => {
 	let rig: VehicleData;
-	let team: Team;
-	let plate: Vehicle;
-	let context: MountContext;
 
 	beforeEach(() => {
 		rig = createDrivenVehicle({ driver: createTestDriver('Rig Driver'), name: 'Rig' });
-		team = new Team({ type: TeamType.PLAYER, vehicles: [rig, createDrivenVehicle({ driver: createTestDriver('Bike Driver'), name: 'Bike' })] });
-		plate = new Vehicle({ id: 'plate', x: 0, y: 0, width: 160, height: 120, vehicleData: rig });
-		context = createTestContext();
 	});
 
-	test('a driven vehicle shows its driver and no SPENT chip', () => {
-		expect(partById(plate, 'plate_driver_hp').visible).toBe(true);
-		expect(partById(plate, 'plate_spent_chip').visible).toBe(false);
+	test('is 196x117, and 135 with a passenger aboard', () => {
+		const token = new Vehicle({ id: 'token', vehicleData: rig });
+		expect([token.width, token.height]).toEqual([TOKEN_WIDTH, TOKEN_HEIGHT]);
+		expect(token.plateRect).toEqual({ x: 64, y: 26, width: 132, height: 68 });
+
+		rig.passenger = createTestDriver('Rider');
+		token.data = rig;
+		expect(token.height).toBe(TOKEN_PASSENGER_HEIGHT);
+		expect(token.plateRect.height).toBe(86);
+		expect(part(token, 'passenger_hp').visible).toBe(true);
 	});
 
-	test('a vehicle whose driver died shows as a spent escort, with no driver row, and keeps its parts', () => {
-		const partsBefore = [...plate.children];
+	test('gives structure and the driver\'s HP bars of the same width', () => {
+		const token = new Vehicle({ id: 'token', vehicleData: rig });
+		expect(token.hpTrackRect.width).toBe(token.structureTrackRect.width);
+		expect(token.hpTrackRect.x).toBe(token.structureTrackRect.x);
+		expect(token.hpTrackRect.height).toBeGreaterThanOrEqual(14);
+	});
+
+	test('scales x1 to x1.25 to fill a slot and centres in it, never below x1', () => {
+		const token = new Vehicle({ id: 'token', vehicleData: rig });
+		expect(token.fitToSlot({ x: 10, y: 20, width: 205, height: 141 })).toBe(true);
+		const scale = Math.min((205 - 6) / 196, (141 - 4) / 117);
+		expect(token.tokenScale).toBeCloseTo(scale, 5);
+		expect(token.x).toBe(Math.round(10 + (205 - 196 * scale) / 2));
+
+		token.fitToSlot({ x: 0, y: 0, width: 400, height: 400 });
+		expect(token.tokenScale).toBe(1.25);
+
+		expect(token.fitToSlot({ x: 0, y: 0, width: 150, height: 100 })).toBe(false);
+		expect(token.tokenScale).toBe(1);
+
+		// One scale for the whole road, still held to x1 to x1.25
+		token.fitToSlot({ x: 0, y: 0, width: 300, height: 300 }, 1.1);
+		expect(token.tokenScale).toBe(1.1);
+		expect(tokenScaleFor({ width: 100, height: 100 })).toBe(1);
+		expect(slotScale({ width: 202, height: 121 })).toBeCloseTo(1, 5);
+		expect(slotScale({ width: 202, height: 121, passenger: true })).toBeLessThan(1);
+	});
+
+	test('refits to its slot when a passenger joins, and reuses its transform every call', () => {
+		const token = new Vehicle({ id: 'token', vehicleData: rig });
+		token.fitToSlot({ x: 0, y: 0, width: 260, height: 160 });
+		const transform = token.transform;
+		token.fitToSlot({ x: 0, y: 0, width: 260, height: 160 });
+		expect(token.transform).toBe(transform);
+		const alone = token.tokenScale;
+
+		rig.passenger = createTestDriver('Rider');
+		token.data = rig;
+		expect(token.tokenScale).toBeLessThan(alone);
+		expect(token.tokenScale).toBeCloseTo((160 - 4) / 135, 5);
+	});
+});
+
+describe('Vehicle token content', () => {
+	test('marks the plate with its driver\'s seat, an escort with its square, and a raider not at all', () => {
+		const rig = createDrivenVehicle({ driver: createTestDriver('Rig Driver'), name: 'Rig' });
+		expect(new Vehicle({ id: 'a', vehicleData: rig, seatOf: () => 1 }).mark).toBe('driver1');
+		expect(new Vehicle({ id: 'b', vehicleData: rig, seatOf: () => 2 }).mark).toBe('driver2');
+		expect(new Vehicle({ id: 'c', vehicleData: createEscort({ type: 'outrider' }) }).mark).toBe('escort');
+		expect(new Vehicle({ id: 'd', vehicleData: rig, side: 'raider', seatOf: () => 1 }).mark).toBeNull();
+	});
+
+	test('an escort has no driver HP row, and SPENT leads its statuses once it has acted', () => {
+		const escort = createEscort({ type: 'outrider' });
+		escort.spent = true;
+		escort.applyStatusEffect({ name: 'vulnerable', duration: 2 });
+		const token = new Vehicle({ id: 'token', vehicleData: escort });
+		expect(part(token, 'driver_hp').visible).toBe(false);
+		expect(token.height).toBe(TOKEN_HEIGHT);
+		const [first, second] = chips(token);
+		expect(first.chip).toMatchObject({ kind: 'label', text: 'SPENT' });
+		expect(second.chip).toMatchObject({ kind: 'status', icon: 'gpp_bad', count: 2 });
+	});
+
+	test('a driver who dies leaves a player vehicle as an escort, with the same parts', () => {
+		const rig = createDrivenVehicle({ driver: createTestDriver('Rig Driver'), name: 'Rig' });
+		const team = new Team({ type: TeamType.PLAYER, vehicles: [rig, createDrivenVehicle({ driver: createTestDriver('Bike Driver'), name: 'Bike' })] });
+		const token = new Vehicle({ id: 'token', vehicleData: rig });
+		const partsBefore = [...token.children];
 		rig.driver?.takeDamage(100);
 		team.handleDriverDeath(rig);
-
-		plate.data = rig;
-
-		expect(plate.children).toEqual(partsBefore);
-		expect(partById(plate, 'plate_driver_hp').visible).toBe(false);
-		expect(partById(plate, 'plate_driver_name').visible).toBe(false);
-		expect(partById(plate, 'plate_spent_chip').visible).toBe(true);
-
-		rig.spent = false;
-		plate.data = rig;
-
-		expect(partById(plate, 'plate_spent_chip').visible).toBe(false);
+		token.data = rig;
+		expect(token.children).toEqual(partsBefore);
+		expect(part(token, 'driver_hp').visible).toBe(false);
+		expect(chips(token)[0].chip).toMatchObject({ kind: 'label', text: 'SPENT' });
 	});
 
-	test('a resize moves and sizes the same parts in the layout phase instead of rebuilding them', () => {
-		plate.mount(context);
-		context.frame.layout();
-		const partsBefore = [...plate.children];
-		// Nothing measures here, so the structure row is the track's 10: the
-		// armor row (16) and three 2 px gaps under the portrait.
-		expect(plate.portraitRect.height).toBe(120 - 16 - 10 - 2 * 3);
+	test('shows five chips whole, and past five keeps four and a +N naming the rest', () => {
+		const rig = createDrivenVehicle({ driver: createTestDriver('Rig Driver'), name: 'Rig' });
+		const names = ['vulnerable', 'burn', 'stunned', 'speed_reduction', 'death_mark'];
+		rig.statusEffects = names.map(name => ({ name, duration: 1 }));
+		const token = new Vehicle({ id: 'token', vehicleData: rig });
+		expect(chips(token).map(chip => chip.chip?.kind)).toEqual(['status', 'status', 'status', 'status', 'status']);
 
-		plate.setSize(200, 160);
-		context.frame.layout();
-
-		expect(plate.children).toEqual(partsBefore);
-		expect(plate.portraitRect.width).toBe(200);
-		expect(plate.portraitRect.height).toBe(160 - 16 - 10 - 2 * 3);
-		expect(plate.structureTrackRect.y).toBe(160 - 16 - 10 - 2 * 2);
-		expect(plate.structureTrackRect.width).toBe(200 - 6 * 2);
+		rig.statusEffects = [...names, 'triple_damage', 'speed_boost'].map(name => ({ name, duration: 1 }));
+		token.data = rig;
+		const shown = chips(token);
+		expect(shown.map(chip => chip.chip?.kind)).toEqual(['status', 'status', 'status', 'status', 'more']);
+		expect(shown[4].chip).toMatchObject({ kind: 'more', count: 3 });
+		const last = shown[4];
+		expect(last.x + last.width).toBeLessThanOrEqual(TOKEN_WIDTH);
 	});
 
-	test('sets every run on the token scale and keeps the rows apart on the smallest plate (R6.4a)', () => {
-		const { api, backend } = createMeasuringDrawApi();
-		const measuring = createTestContext({ draw: api });
-		// An enemy plate on the combat stage, the smallest the game draws
-		const enemy = new Vehicle({ id: 'enemy', x: 0, y: 0, width: 140, height: 91, vehicleData: rig });
-		enemy.mount(measuring);
-		measuring.frame.layout();
-		api.beginFrame({ viewport: { width: 400, height: 200 } });
-		renderTree(enemy, api);
+	test('greys a wreck under a WRECKED stamp, and an unmanned raider under NO DRIVER', () => {
+		const buggy = createDrivenVehicle({ driver: createTestDriver('Raider'), name: 'Buggy' });
+		const token = new Vehicle({ id: 'token', vehicleData: buggy, side: 'raider' });
+		const stamp = part<{ visible: boolean; label: string }>(token, 'stamp');
+		expect(stamp.visible).toBe(false);
+
+		buggy.destroy();
+		token.data = buggy;
+		expect(token.isWrecked).toBe(true);
+		expect(stamp.visible).toBe(true);
+		expect(stamp.label).toBe('WRECKED');
+
+		const crawler = createDrivenVehicle({ driver: createTestDriver('Crawler'), name: 'Crawler' });
+		crawler.driver = null;
+		const unmanned = new Vehicle({ id: 'unmanned', vehicleData: crawler, side: 'raider' });
+		expect(part<{ label: string }>(unmanned, 'stamp').label).toBe('NO DRIVER');
+		expect(part(unmanned, 'driver_hp').text).toBe('0');
+	});
+
+	test('cuts a long name with an ellipsis inside the plate and keeps the full name for the tooltip', () => {
+		const { context, api, backend } = measured();
+		const long = createDrivenVehicle({ driver: createTestDriver('Driver'), name: 'Apocalypse Rig Mark Seven Deluxe' });
+		const token = new Vehicle({ id: 'token', vehicleData: long });
+		token.mount(context);
+		context.frame.layout();
+		api.beginFrame({ viewport: { width: 400, height: 300 } });
+		renderTree(token, api);
 		api.endFrame();
 
-		// The badge's shield is an icon glyph, not text
+		const name = part(token, 'name');
+		expect(name.overflowOutcome).toBe('ellipsis');
+		expect(name.x + name.width).toBeLessThanOrEqual(TOKEN_WIDTH);
+		expect(token.tooltip?.title).toBe('Apocalypse Rig Mark Seven Deluxe');
+		const run = backend.commands.find((command): command is TextCommand => command.kind === 'text' && command.id === 'token_name');
+		expect(run).toBeDefined();
+	});
+
+	test('draws the armor shield as a polygon of its own, never as a glyph the text atlas lacks (DDB-165)', () => {
+		const { context, api, backend } = measured();
+		const rig = createDrivenVehicle({ driver: createTestDriver('Rig Driver'), name: 'Rig' });
+		const token = new Vehicle({ id: 'token', vehicleData: rig });
+		token.mount(context);
+		context.frame.layout();
+		api.beginFrame({ viewport: { width: 400, height: 300 } });
+		renderTree(token, api);
+		api.endFrame();
+
 		const runs = backend.commands.filter((command): command is TextCommand => command.kind === 'text' && command.font !== ICON_ATLAS_ROLE);
-		// Driver name, HP, vehicle name, structure value, and the armor badge's value
-		expect(runs.map(run => run.text)).toEqual(['Rig Driver', `HP: ${rig.driver?.hitpoints}/${rig.driver?.maxHitpoints}`, 'Rig', `${rig.structure}/${rig.maxStructure}`, `${rig.armor}`]);
-		for (const run of runs) expect(run.size).toBe(tokens.fontSize.fs_xs);
+		for (const run of runs) expect(run.text).toMatch(/^[\x20-\x7e]*$/);
+		expect(runs.map(run => run.text)).toContain(`${rig.armor}`);
+		const shield = backend.commands.filter((command): command is PolygonCommand => command.kind === 'polygon')
+			.find(command => command.points.every(point => point.x >= 64 && point.x <= 64 + 6 + 9 + 26));
+		expect(shield).toBeDefined();
+	});
+});
 
-		// Each line inside the plate, and no two lines sharing a row of pixels
-		// unless they sit side by side
-		const lines = runs.map(run => {
-			const box = run.box ?? { x: NaN, y: NaN, width: NaN, height: NaN };
-			return { x: box.x + run.transform[4], y: box.y + run.transform[5], width: box.width, height: box.height };
-		});
-		for (const line of lines) {
-			expect(line.y).toBeGreaterThanOrEqual(0);
-			expect(line.y + line.height).toBeLessThanOrEqual(91);
-			expect(line.x + line.width).toBeLessThanOrEqual(140);
-		}
-		lines.forEach((line, index) => {
-			for (const other of lines.slice(index + 1)) {
-				const sameRows = line.y < other.y + other.height && other.y < line.y + line.height;
-				const sameColumns = line.x < other.x + other.width && other.x < line.x + line.width;
-				expect(sameRows && sameColumns).toBe(false);
-			}
-		});
+describe('Vehicle token layout lint', () => {
+	const states: [string, () => VehicleData][] = [
+		['driven', () => createDrivenVehicle({ driver: createTestDriver('Wasteland Raider'), name: 'Rust Buggy' })],
+		['with a passenger', () => {
+			const vehicle = createDrivenVehicle({ driver: createTestDriver('Interceptor'), name: 'Lightning Bike' });
+			vehicle.passenger = createTestDriver('Road Warrior');
+			return vehicle;
+		}],
+		['an escort, spent, with statuses past the row', () => {
+			const escort = createEscort({ type: 'med_truck' });
+			escort.spent = true;
+			escort.shield = 3;
+			escort.statusEffects = ['vulnerable', 'burn', 'stunned', 'speed_reduction', 'death_mark'].map(name => ({ name, duration: 2 }));
+			return escort;
+		}],
+		['wrecked', () => {
+			const vehicle = createDrivenVehicle({ driver: createTestDriver('Raider'), name: 'Apocalypse Rig Mark Seven Deluxe' });
+			vehicle.destroy();
+			return vehicle;
+		}],
+	];
+
+	it.each(states)('lints clean %s', (_label, make) => {
+		const { context } = measured();
+		const vehicle = make();
+		const token = new Vehicle({ id: 'token', vehicleData: vehicle, seatOf: seats(vehicle) });
+		token.intents = [
+			{ type: 'attack', value: 8, description: 'Ram', target: 'driver1' },
+			{ type: 'attack', value: 6, description: 'Shoot', target: 'both' },
+			{ type: 'defend', value: 10, description: 'Brace' },
+		];
+		token.fitToSlot({ x: 0, y: 0, width: 205, height: 141 });
+		expect(lintOf(token, context)).toEqual([]);
+	});
+});
+
+describe('Vehicle token targeting', () => {
+	it('keeps its onClick option, the target choice, out of the component callback', () => {
+		const rig = createDrivenVehicle({ driver: createTestDriver('Rig Driver'), name: 'Rig' });
+		const chosen = jest.fn();
+		const token = new Vehicle({ id: 'token', vehicleData: rig, onClick: chosen });
+		expect(token.onClick).toBeNull();
+
+		token.handleEvent({ type: 'click', consume: () => undefined } as unknown as AnyUiEvent);
+		expect(chosen).toHaveBeenCalledWith(rig);
 	});
 
-	test('cuts names too long for the smallest plate with an ellipsis, inside the plate', () => {
-		const { api, backend } = createMeasuringDrawApi();
-		const measuring = createTestContext({ draw: api });
-		const long = createDrivenVehicle({ driver: createTestDriver('THE ROAD WARRIOR OF THE WASTELAND'), name: 'Apocalypse Rig Mark Seven Deluxe' });
-		const enemy = new Vehicle({ id: 'enemy', x: 0, y: 0, width: 140, height: 91, vehicleData: long });
-		enemy.mount(measuring);
-		measuring.frame.layout();
-		api.beginFrame({ viewport: { width: 400, height: 200 } });
-		renderTree(enemy, api);
-		api.endFrame();
-
-		for (const id of ['enemy_driver_name', 'enemy_name']) {
-			const text = partById(enemy, id) as Text;
-			expect(text.overflowOutcome).toBe('ellipsis');
-			const run = backend.commands.find((command): command is TextCommand => command.kind === 'text' && command.id === id);
-			if (!run?.box) throw new Error(`no run for ${id}`);
-			expect(run.box.x + run.transform[4] + run.box.width).toBeLessThanOrEqual(140);
-			expect(text.inkRect.x + text.x + text.inkRect.width).toBeLessThanOrEqual(140);
-		}
-	});
-
-	test('subscribes to the combat model while mounted, and again after a remount', () => {
+	it('subscribes to the combat model while mounted, outlines a target, and dims what is out of reach', () => {
+		const context = createTestContext();
+		const rig = createDrivenVehicle({ driver: createTestDriver('Rig Driver'), name: 'Rig' });
+		const other = createDrivenVehicle({ driver: createTestDriver('Other'), name: 'Other' });
 		const model = new CombatModel();
 		model.targetableVehicleIds = [rig.id];
-		const targeted = new Vehicle({ id: 'target', x: 0, y: 0, width: 160, height: 120, vehicleData: rig, combatData: model });
+		const targeted = new Vehicle({ id: 'target', vehicleData: rig, side: 'raider', combatData: model });
+		const outOfReach = new Vehicle({ id: 'out', vehicleData: other, side: 'raider', combatData: model });
 		const border = (): unknown => targeted.resolvedColors.border;
 		const resting = border();
 
@@ -148,65 +272,19 @@ describe('Vehicle plate', () => {
 		model.focusVehicle(rig.id);
 		expect(border()).toEqual(resting);
 
-		// Mount reads the state it missed
 		targeted.mount(context);
+		outOfReach.mount(context);
 		const focused = border();
 		expect(focused).not.toEqual(resting);
 
+		model.isTargeting = true;
+		expect(outOfReach.opacity).toBeLessThan(1);
+		expect(targeted.opacity).toBe(1);
+
 		targeted.unmount();
 		model.focusVehicle(null);
+		model.isTargeting = false;
 		targeted.mount(context);
 		expect(border()).toEqual(resting);
-		model.focusVehicle(rig.id);
-		expect(border()).toEqual(focused);
-	});
-});
-
-describe('Vehicle plate layout lint (DDB-91)', () => {
-	// The plate sizes the battlefield gives at 1440x882 and at the 0.8 floor
-	it.each([[160, 198], [160, 185], [140, 104], [140, 97]])('lints clean at %ix%i, driven and as an escort', (width, height) => {
-		const context = createTestContext({ draw: createMeasuringDrawApi().api });
-		const driven = createDrivenVehicle({ driver: createTestDriver('Wasteland Raider'), name: 'Rust Buggy' });
-		const plate = new Vehicle({ id: 'plate', x: 0, y: 0, width, height, vehicleData: driven });
-		plate.mount(context);
-		context.frame.layout();
-		const lint = (): unknown[] => layoutLint(treeSnapshot([plate], { width, height })).violations;
-		expect(lint()).toEqual([]);
-
-		const team = new Team({ type: TeamType.PLAYER, vehicles: [driven, createDrivenVehicle({ driver: createTestDriver('Other'), name: 'Other' })] });
-		driven.driver?.takeDamage(100);
-		team.handleDriverDeath(driven);
-		plate.data = driven;
-		context.frame.layout();
-		expect(lint()).toEqual([]);
-	});
-
-	it('draws its portrait panel and structure bar itself, with the value beside the bar', () => {
-		const context = createTestContext({ draw: createMeasuringDrawApi().api });
-		const rig = createDrivenVehicle({ driver: createTestDriver('Rig Driver'), name: 'Rig' });
-		const plate = new Vehicle({ id: 'plate', x: 0, y: 0, width: 160, height: 198, vehicleData: rig });
-		plate.mount(context);
-		context.frame.layout();
-		const ids = plate.children.map((child) => child.id);
-		expect(ids).not.toContain('plate_portrait');
-		expect(ids).not.toContain('plate_structure_track');
-		const value = plate.children.find((child) => child.id === 'plate_structure_value');
-		const track = plate.structureTrackRect;
-		expect(value).toBeDefined();
-		expect((value?.y ?? 0) + (value?.height ?? 0) / 2).toBeCloseTo(track.y + track.height / 2, 5);
-		expect(value?.x ?? 0).toBeGreaterThan(track.x + track.width);
-	});
-});
-
-describe('Vehicle plate target choice', () => {
-	it('keeps its onClick option, the target choice, out of the component callback', () => {
-		const rig = createDrivenVehicle({ driver: createTestDriver('Rig Driver'), name: 'Rig' });
-		const chosen = jest.fn();
-		const plate = new Vehicle({ id: 'plate', x: 0, y: 0, width: 160, height: 120, vehicleData: rig, onClick: chosen });
-		expect(plate.onClick).toBeNull();
-
-		plate.handleEvent({ type: 'click', consume: () => undefined } as unknown as AnyUiEvent);
-		expect(chosen).toHaveBeenCalledTimes(1);
-		expect(chosen).toHaveBeenCalledWith(rig);
 	});
 });
