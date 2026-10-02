@@ -1,6 +1,6 @@
-# The rounded clip on the component contract (DDB-231, DDB-234)
+# The rounded clip on the component contract (DDB-231, DDB-234, DDB-240)
 
-DDB-231 and DDB-234, under DDB-55. 2026-10-02. Rules: R4.12, R4.14, R5.27, R12.19, R12.20, R15.15. Builds on [rounded-clip.md](./rounded-clip.md) (DDB-190), which put the rounded clip in the uber shader, and supersedes the corner inset in [panel-padding.md](./panel-padding.md) and [panel-and-scroll-container.md](./panel-and-scroll-container.md).
+DDB-231 and DDB-234, under DDB-55, with DDB-240's surfaces below. 2026-10-02. Rules: R4.12, R4.14, R5.27, R12.19, R12.20, R15.15. Builds on [rounded-clip.md](./rounded-clip.md) (DDB-190), which put the rounded clip in the uber shader, and supersedes the corner inset in [panel-padding.md](./panel-padding.md) and [panel-and-scroll-container.md](./panel-and-scroll-container.md).
 
 ## The problem
 
@@ -53,7 +53,12 @@ That also meant nothing exercised the feature on a GPU, so the gallery gains `ro
 
 A browser pass over the menu, settings, credits, driver selection, a turn of combat, and the developer screen raised no console error.
 
+## Popover, tooltip, and menu surfaces (DDB-240)
+
+Popover and the text Tooltip clip only when placement shrinks them to the room (`placed.constrained`), and until now they clipped with the default plain rect at the box edge, so content cut there painted over the border and the corners. They now clip as Panel does: `clipRect` is the box inset by the border width (`borderClipRect` in `ui/surfaces.ts`) and `clipRadius` the background's radius less that inset (`borderClipRadius`). Their content padding (12 px on a popover, 8 and 12 on a tooltip) is far wider than the 2 px corner, so nothing moves for a surface that fits, and no focus ring inside reaches the clip. The shadow is drawn by the surface itself, outside its own clip, within its declared ink as before. A tooltip factory's tree (the card preview) is the caller's own surface; the service still only sets `overflow`, and that tree's clip is its own business.
+
+Menu (and so Select, DropdownButton, and ContextMenu, which open one) does not clip itself: its rows live in a ScrollContainer, and that viewport is the clip. The viewport was the menu's full width, so a hovered row's wash painted over the 1 px side borders (a visible tint on the border beside the highlighted row in `scene-menus`). It is now inset by the border on both sides, so its plain clip sits inside the border, and the menu's `PAD` (4 px) above and below keeps every row and the scrollbar clear of the 2 px corners. A rounded clip on the menu itself would cut nothing inside that viewport, so `keptRoundedClip` would drop it at every push anyway; the menu has no `clipRadius`, and rows are 2 px narrower.
+
 ## Not done
 
 - R12.19's automatic inset when a nested rounded clip would reach the outer corner (above).
-- Popover and tooltip surfaces draw `radius_panel` corners and clip with a plain rect when constrained; they could take a `clipRadius` too (DDB-240).
