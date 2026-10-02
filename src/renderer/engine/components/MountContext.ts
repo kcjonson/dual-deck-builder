@@ -77,7 +77,7 @@ export interface MountContextOptions {
  * phase, and the dispatcher lays out on demand before every hit test and
  * times gestures on the same clock (R8.16, R8.28). Reduced motion starts
  * off; the platform shell follows the system preference
- * (`followReducedMotion`).
+ * (`ReducedMotion`).
  *
  * The tooltip, popup, and overlay services observe the dispatcher in that
  * order: a press hides a tooltip even when a popup's close swallows it, and a

@@ -8,6 +8,8 @@ import { CardShowcaseScreen } from '../screens/card-showcase/CardShowcaseScreen'
 import { DriverSelectionScreen } from '../screens/driver-selection/DriverSelectionScreen';
 import { CombatScreen } from '../screens/combat/CombatScreen';
 import { BattleResultScreen } from '../screens/battleResult/BattleResultScreen';
+import { SettingsScreen } from '../screens/settings/SettingsScreen';
+import { CreditsScreen } from '../screens/credits/CreditsScreen';
 import { ScreenTransition } from '../../engine/ui/ScreenTransition';
 
 /**
@@ -20,7 +22,9 @@ export type ScreenName =
 	| 'cardShowcaseScreen'
 	| 'driverSelectionScreen'
 	| 'combatScreen'
-	| 'battleResultScreen';
+	| 'battleResultScreen'
+	| 'settingsScreen'
+	| 'creditsScreen';
 
 /**
  * Screen constructor type
@@ -61,6 +65,8 @@ export class ScreenManager {
 		['driverSelectionScreen', DriverSelectionScreen],
 		['combatScreen', CombatScreen],
 		['battleResultScreen', BattleResultScreen],
+		['settingsScreen', SettingsScreen],
+		['creditsScreen', CreditsScreen],
 	]);
 	
 	/**
