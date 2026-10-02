@@ -1,10 +1,10 @@
 [
-{"path":"developerScreen/dev_title","text":"Developer Tools","rect":[369.86,16,284.28,62.4]},
-{"path":"developerScreen/dev_scroll/dev_sections/dev_section_interactive_controls/Text[0]","text":"Interactive Controls","rect":[53,147.4,188.55,50]},
-{"path":"developerScreen/dev_scroll/dev_sections/dev_section_interactive_controls/Stack[1]/Stack[1]/Text[0]","text":"Color (R,G,B,A):","rect":[73,317.4,112.09,21.79]},
-{"path":"developerScreen/dev_scroll/dev_sections/dev_section_interactive_controls/Stack[1]/Stack[1]/TextInput[1]","text":"255,102,0,1","rect":[73,344.19,200,30]},
-{"path":"developerScreen/dev_scroll/dev_sections/dev_section_interactive_controls/Stack[1]/Stack[2]/Text[0]","text":"Position (X,Y):","rect":[73,394.19,100.22,21.79]},
-{"path":"developerScreen/dev_scroll/dev_sections/dev_section_interactive_controls/Stack[1]/Stack[2]/Stack[1]/TextInput[0]","text":"0,0","rect":[73,420.98,150,30]},
-{"path":"developerScreen/dev_scroll/dev_sections/dev_section_interactive_controls/Stack[1]/Stack[2]/Stack[1]/Button[1]/Text[0]","text":"Apply All","rect":[245,420.98,76,30]},
+{"path":"developerScreen/dev_title","text":"Developer Tools","rect":[369.86,16,284.28,65]},
+{"path":"developerScreen/dev_scroll/dev_sections/dev_section_interactive_controls/Text[0]","text":"Interactive Controls","rect":[53,150,188.55,50]},
+{"path":"developerScreen/dev_scroll/dev_sections/dev_section_interactive_controls/Stack[1]/Stack[1]/Text[0]","text":"Color (R,G,B,A):","rect":[73,380,112.09,21.79]},
+{"path":"developerScreen/dev_scroll/dev_sections/dev_section_interactive_controls/Stack[1]/Stack[1]/TextInput[1]","text":"255,102,0,1","rect":[73,406.79,200,30]},
+{"path":"developerScreen/dev_scroll/dev_sections/dev_section_interactive_controls/Stack[1]/Stack[2]/Text[0]","text":"Position (X,Y):","rect":[73,456.79,100.22,21.79]},
+{"path":"developerScreen/dev_scroll/dev_sections/dev_section_interactive_controls/Stack[1]/Stack[2]/Stack[1]/TextInput[0]","text":"0,0","rect":[73,483.58,150,30]},
+{"path":"developerScreen/dev_scroll/dev_sections/dev_section_interactive_controls/Stack[1]/Stack[2]/Stack[1]/Button[1]/Text[0]","text":"Apply All","rect":[245,483.58,76,30]},
 {"path":"developerScreen/dev_back_button/Text[0]","text":"Back to Menu","rect":[451,538,149,46]}
 ]
