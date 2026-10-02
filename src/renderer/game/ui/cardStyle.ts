@@ -1,4 +1,4 @@
-import type { DrawApi } from '../../engine/draw/DrawApi';
+import type { DrawPolygonOptions } from '../../engine/draw/commands';
 import type { RGBA, Vec2 } from '../../engine/draw/geometry';
 import { triangulatePolygon } from '../../engine/draw';
 import type { IconName } from '../../engine/text/icons';
@@ -10,6 +10,9 @@ import { DRIVER_COLORS, hexRgba } from '../screens/combat/combatStyle';
  * (`.card`, `.cdetail`, `.rar`). Driver colour is the frame; rarity is
  * only ever the gem (section 7).
  */
+/** The brightness a dimmed card's own draws take. */
+export const DIM_BRIGHTNESS = 0.62;
+
 export const CARD_GROUND = '#1d2023';
 export const CARD_LINE = 'rgba(233, 228, 214, 0.2)';
 export const CARD_LINE_FAINT = 'rgba(233, 228, 214, 0.1)';
@@ -93,25 +96,63 @@ export function hexPoints(x: number, y: number, size: number): Vec2[] {
 
 const HEX_INDICES = triangulatePolygon(hexPoints(0, 0, 30));
 
-/**
- * The cost hex: the outline as a slightly larger hex in the ground colour,
- * the bone hex inside it. Points are rewritten each call; the draw API
- * copies them.
- */
-export function drawCostHex(draw: DrawApi, x: number, y: number, size: number, dim = 1): void {
-	const edge = size / 15;
-	draw.drawPolygon({ points: hexPoints(x - edge, y - edge, size + edge * 2), indices: HEX_INDICES, fill: scale(hexRgba(COST_HEX_EDGE), 1) });
-	draw.drawPolygon({ points: hexPoints(x, y, size), indices: HEX_INDICES, fill: scale(hexRgba(COST_HEX), dim) });
+const GEM_INDICES: readonly number[] = [0, 1, 2, 0, 2, 3];
+const TRIANGLE_INDICES: readonly number[] = [0, 1, 2];
+
+/** Full and dimmed fills, resolved once, so a card's state change picks one and a frame allocates nothing. */
+export interface ToneFills {
+	full: RGBA;
+	dimmed: RGBA;
 }
 
-/** The rarity gem, a square turned 45 degrees, centred on `cx`, `cy`, `side` along each edge. */
-export function drawRarityGem(draw: DrawApi, rarity: CardRarity, cx: number, cy: number, side: number, dim = 1): void {
+function tones(hex: string): ToneFills {
+	const full = hexRgba(hex);
+	return { full, dimmed: scale(full, DIM_BRIGHTNESS) };
+}
+
+export const COST_HEX_FILLS = tones(COST_HEX);
+export const COST_HEX_EDGE_FILL: RGBA = hexRgba(COST_HEX_EDGE);
+export const GEM_FILLS: Readonly<Record<CardRarity, ToneFills>> = {
+	starter: tones(RARITY_GEMS.starter),
+	common: tones(RARITY_GEMS.common),
+	uncommon: tones(RARITY_GEMS.uncommon),
+	rare: tones(RARITY_GEMS.rare),
+	legendary: tones(RARITY_GEMS.legendary),
+	signature: tones(RARITY_GEMS.signature),
+};
+export const DRIVER_MARK_FILLS: Readonly<Record<1 | 2, ToneFills>> = { 1: tones(DRIVER_COLORS[1]), 2: tones(DRIVER_COLORS[2]) };
+
+/**
+ * The cost hex's two draws, built once where the hex sits: the outline as a
+ * slightly larger hex in the ground colour, and the bone hex inside it. An
+ * owner recolours the face's `fill` in place.
+ */
+export function costHexDraws(x: number, y: number, size: number): { edge: DrawPolygonOptions; face: DrawPolygonOptions } {
+	const edge = size / 15;
+	return {
+		edge: { points: hexPoints(x - edge, y - edge, size + edge * 2), indices: HEX_INDICES, fill: COST_HEX_EDGE_FILL },
+		face: { points: hexPoints(x, y, size), indices: HEX_INDICES, fill: COST_HEX_FILLS.full },
+	};
+}
+
+/** The rarity gem's draw, a square turned 45 degrees, centred on `cx`, `cy`, `side` along each edge. */
+export function rarityGemDraw(rarity: CardRarity, cx: number, cy: number, side: number): DrawPolygonOptions {
 	const half = (side * Math.SQRT2) / 2;
-	draw.drawPolygon({
+	return {
 		points: [{ x: cx, y: cy - half }, { x: cx + half, y: cy }, { x: cx, y: cy + half }, { x: cx - half, y: cy }],
-		indices: [0, 1, 2, 0, 2, 3],
-		fill: scale(hexRgba(RARITY_GEMS[rarity]), dim),
-	});
+		indices: GEM_INDICES,
+		fill: GEM_FILLS[rarity].full,
+	};
+}
+
+/** A driver mark's draw from its -1 to 1 outline, centred on `cx`, `cy`, `size` across. */
+export function driverMarkDraw(driver: 1 | 2, outline: readonly (readonly [number, number])[], cx: number, cy: number, size: number): DrawPolygonOptions {
+	const half = size / 2;
+	return {
+		points: outline.map(([px, py]) => ({ x: cx + px * half, y: cy + py * half })),
+		indices: outline.length === 3 ? TRIANGLE_INDICES : GEM_INDICES,
+		fill: DRIVER_MARK_FILLS[driver].full,
+	};
 }
 
 /** A colour darkened toward black by `factor` (1 leaves it), keeping alpha. */
@@ -130,6 +171,4 @@ export function dimHex(hex: string): string {
 	return `#${channel(r)}${channel(g)}${channel(b)}`;
 }
 
-/** The brightness a dimmed card's own draws take. */
-export const DIM_BRIGHTNESS = 0.62;
 

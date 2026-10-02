@@ -592,8 +592,18 @@ export class CombatScreen extends Screen {
 		};
 		this.handLayer.setOnCardDrag({
 			press: (card, element, event) => this.pressCard(card, element, event),
+			// Any other button cancels, a drag or a click-then-target choice
+			// alike (section 6), and that press pins no card
 			otherButton: () => {
-				if (this.context.drag.isDragging) this.context.drag.cancel();
+				if (this.context.drag.isDragging) {
+					this.context.drag.cancel();
+					return true;
+				}
+				if (this.combatModel.isTargeting) {
+					this.putCardBack();
+					return true;
+				}
+				return false;
 			},
 			end: (card, event) => {
 				// Dropped off a target, on the dock, or cancelled: the card goes back

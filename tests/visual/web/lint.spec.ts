@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test';
 import type { LintRect, LintResult, LintViolation } from '../../../src/renderer/engine/debug/layoutLint';
-import { SCENE_SCENARIOS, SCREEN_SCENARIOS } from '../support/scenarios';
+import { SCENE_SCENARIOS, SCREEN_SCENARIOS, SHORT_SCENE_SCENARIOS } from '../support/scenarios';
 import { attachTree, openScene, openScreen, prepare, settle } from '../support/harness';
 import { FIXED_VIEWPORT, SHORT_VIEWPORT } from '../../../playwright.config';
 import type { DevSurface } from '../support/harness';
@@ -56,7 +56,7 @@ import type { DevSurface } from '../support/harness';
  * back clean. The `MIN_NODES` assertion below is what catches that, and it is
  * there because the empty case was demonstrated rather than imagined.
  */
-const LINT_SCENARIOS = SCENE_SCENARIOS;
+const LINT_SCENARIOS = [...SCENE_SCENARIOS, ...SHORT_SCENE_SCENARIOS];
 
 
 /**
@@ -118,9 +118,11 @@ function formatResult(subject: string, result: LintResult): string {
 
 test.describe('gallery layout lint', () => {
 	for (const scenario of LINT_SCENARIOS) {
-		test(scenario.scene, async ({ page }, testInfo) => {
+		const name = scenario.viewport ? `${scenario.scene}-${scenario.viewport.width}x${scenario.viewport.height}` : scenario.scene;
+		test(name, async ({ page }, testInfo) => {
+			if (scenario.viewport) await page.setViewportSize(scenario.viewport);
 			await prepare(page);
-			await openScene(page, scenario.scene);
+			await openScene(page, scenario.scene, { viewport: scenario.viewport });
 
 			const result = await page.evaluate(
 				() => (window as unknown as DevSurface).__ui.lint(),

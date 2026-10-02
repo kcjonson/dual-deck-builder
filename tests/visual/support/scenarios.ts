@@ -26,6 +26,8 @@ export interface ScreenScenario {
 export interface SceneScenario {
 	scene: string;
 	blockedBy?: string;
+	/** The window, when it is not `FIXED_VIEWPORT`. */
+	viewport?: Viewport;
 }
 
 interface ScreenCase {
@@ -116,7 +118,9 @@ export const SCENE_SCENARIOS: readonly SceneScenario[] = [
 	{ scene: 'tree-view' },
 	{ scene: 'combat-fx' },
 	{ scene: 'slider-tabs' },
+	{ scene: 'card-faces' },
 	{ scene: 'card-detail' },
+	{ scene: 'card-detail-pinned' },
 	{ scene: 'card-detail-cap' },
 	{ scene: 'overlays' },
 	{ scene: 'dialog' },
@@ -130,3 +134,19 @@ export const SCENE_SCENARIOS: readonly SceneScenario[] = [
 	{ scene: 'card-pile-discard' },
 	{ scene: 'card-reward' },
 ];
+
+/**
+ * Scenes the lint gate also runs at the short window, with no golden there:
+ * the card detail view is placed against the viewport (resting on its
+ * bottom, clamped 8 px in, keyword boxes on the side with room), so 1024x600
+ * is the size that can break it (DDB-137).
+ */
+export const SHORT_SCENE_SCENARIOS: readonly SceneScenario[] = [
+	'card-faces',
+	'card-detail',
+	'card-detail-pinned',
+	'card-detail-cap',
+	'card-pile-draw',
+	'card-pile-discard',
+	'card-reward',
+].map((scene) => ({ scene, viewport: SHORT_VIEWPORT }));

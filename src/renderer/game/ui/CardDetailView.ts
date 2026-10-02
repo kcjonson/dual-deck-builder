@@ -2,7 +2,7 @@ import { Component } from '../../engine/components/Component';
 import { Icon } from '../../engine/components/Icon';
 import { Text } from '../../engine/components/Text';
 import type { DrawApi } from '../../engine/draw/DrawApi';
-import type { BoxShadow, DrawRectOptions, DrawTextOptions } from '../../engine/draw/commands';
+import type { BoxShadow, DrawPolygonOptions, DrawRectOptions, DrawTextOptions } from '../../engine/draw/commands';
 import { shadowExtent } from '../../engine/style/look';
 import { resolveColor } from '../../engine/style/styleObject';
 import type { Card as GameCard } from '../mechanics/Card';
@@ -21,8 +21,9 @@ import {
 	artGradient,
 	cardArtIcon,
 	cardTypeLabel,
-	drawCostHex,
-	drawRarityGem,
+	costHexDraws,
+	driverMarkDraw,
+	rarityGemDraw,
 	frameColor,
 } from './cardStyle';
 
@@ -92,9 +93,10 @@ export class CardDetailView extends Component {
 	private readonly artDraw: DrawRectOptions;
 	private readonly ruleDraw: DrawRectOptions;
 	private readonly digitsDraw: DrawTextOptions;
-	private markPoints: { x: number; y: number }[] = [];
+	private markDraw: DrawPolygonOptions | null = null;
+	private hexDraws: { edge: DrawPolygonOptions; face: DrawPolygonOptions } | null = null;
+	private gemDraw: DrawPolygonOptions | null = null;
 	private hexY: number = INSET.top;
-	private footY = 0;
 	private artHeightValue: number = DETAIL.art.height as number;
 
 	constructor({ id, card, driver = null, pinned = false }: CardDetailViewOptions) {
@@ -224,9 +226,11 @@ export class CardDetailView extends Component {
 		this.hexY = headMid - DETAIL.hex.size / 2;
 		this.name.y = headMid - this.name.height / 2;
 		this.typeLabel.y = headMid - DETAIL.type.size / 2;
-		const mark = this.driverNumber ? DRIVER_MARK_OUTLINES[this.driverNumber] : null;
-		const half = DETAIL.type.mark / 2;
-		this.markPoints = mark ? mark.map(([px, py]) => ({ x: markLeft + half + px * half, y: headMid + py * half })) : [];
+		// The draws are built here, where layout places them, and only drawn in render
+		const driver = this.driverNumber;
+		this.markDraw = driver ? driverMarkDraw(driver, DRIVER_MARK_OUTLINES[driver], markLeft + DETAIL.type.mark / 2, headMid, DETAIL.type.mark) : null;
+		this.hexDraws = costHexDraws(pad.side, this.hexY, DETAIL.hex.size);
+		this.digitsDraw.box = { x: pad.side, y: this.hexY, width: DETAIL.hex.size, height: DETAIL.hex.size };
 
 		const lines = this.rules.reflow();
 		const rulesHeight = lines * DETAIL.rules.lineHeight;
@@ -247,12 +251,12 @@ export class CardDetailView extends Component {
 		this.rules.y = y;
 		this.rules.height = shownRules;
 		y += shownRules + gap;
-		this.footY = y;
 		this.ruleDraw.rect = { x: pad.side, y, width: INNER_WIDTH, height: DETAIL.foot.rule };
 		const footTextY = y + DETAIL.foot.rule + DETAIL.foot.gap;
 		this.footLabel.y = footTextY;
 		this.pinLabel.y = footTextY;
 		this.pinLabel.x = DETAIL.width - pad.side - this.pinLabel.width;
+		this.gemDraw = rarityGemDraw(this.card.rarity, pad.side + DETAIL.foot.gem / 2, footTextY + DETAIL.foot.height / 2, DETAIL.foot.gem);
 		const height = footTextY + DETAIL.foot.height + INSET.bottom;
 		this.frameDraw.rect = { x: 0, y: 0, width: DETAIL.width, height };
 		if (this.height !== height) this.height = height;
@@ -265,17 +269,15 @@ export class CardDetailView extends Component {
 
 	public render(draw: DrawApi): void {
 		draw.drawRect(this.frameDraw);
-		drawCostHex(draw, INSET.side, this.hexY, DETAIL.hex.size);
-		this.digitsDraw.box = { x: INSET.side, y: this.hexY, width: DETAIL.hex.size, height: DETAIL.hex.size };
-		draw.drawText(this.digitsDraw);
-		if (this.markPoints.length > 0 && this.driverNumber) {
-			const indices = this.markPoints.length === 3 ? [0, 1, 2] : [0, 1, 2, 0, 2, 3];
-			draw.drawPolygon({ points: this.markPoints, indices, fill: resolveColor(frameColor(this.driverNumber)) });
+		if (this.hexDraws) {
+			draw.drawPolygon(this.hexDraws.edge);
+			draw.drawPolygon(this.hexDraws.face);
 		}
+		draw.drawText(this.digitsDraw);
+		if (this.markDraw) draw.drawPolygon(this.markDraw);
 		draw.drawRect(this.artDraw);
 		draw.drawRect(this.ruleDraw);
-		const footMid = this.footY + DETAIL.foot.rule + DETAIL.foot.gap + DETAIL.foot.height / 2;
-		drawRarityGem(draw, this.card.rarity, INSET.side + DETAIL.foot.gem / 2, footMid, DETAIL.foot.gem);
+		if (this.gemDraw) draw.drawPolygon(this.gemDraw);
 	}
 }
 

@@ -17,7 +17,8 @@ This document contains the chronological log of completed development tasks for 
 - `CardPileView` and `openPileDialog`: a driver's tab opens their draw (name order) and discard piles; the card browser's cards inspect too.
 - DDB-204: ramming_run, rally_the_convoy, and top_off summaries tightened to fit three lines at 12 px in 114; `cards.test.ts` measures the face's own layout (`FACE_RULES`) and checks every bracketed word has a definition.
 - DDB-172: the y-multiple-of-10 nudge was already gone (1c2b111) and DDB-124's resize replay with it; the resting and lifted poses are explicit (`fanPose`, `LIFTED_TRANSFORM`).
-- Goldens: new `card-detail`, `card-detail-cap`, `card-pile-draw`, `card-pile-discard`, `card-reward`; every screen with a card face moved.
+- Goldens: new `card-faces`, `card-detail`, `card-detail-pinned`, `card-detail-cap`, `card-pile-draw`, `card-pile-discard`, `card-reward`, all in the lint gate at 1440x882 and 1024x600; every screen with a card face moved.
+- Review fixes: a modal sets a pin aside and gives it back on close; the Escape that lets a pin go is consumed; a secondary press in the hand cancels click-then-target and pins nothing; the face's and view's draws are built once, not per frame; the Armor definition matches Combat Rules (here and in the mock); the hex corner is part of the card's hit area.
 - Decision record: [card-face-and-detail-view.md](./AI_TECHNICAL_DECISIONS/card-face-and-detail-view.md).
 
 **How:** unit tests for the face, the detail view, the pin, the combat inputs, and the card data; played a turn at 1280x720 and 1024x600 through `__dev.input` (hover, pin, drag, click-then-target, keyboard and I, the pile dialog, END TURN), layout lint zero throughout.

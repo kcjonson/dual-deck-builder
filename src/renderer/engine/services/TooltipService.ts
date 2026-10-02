@@ -63,7 +63,9 @@ export interface TooltipServiceOptions {
  * A tooltip can be pinned (`pin`), which the game's card detail view uses
  * for section 5's "pins it open so you can read while looking at the road":
  * a pinned tooltip stays through hover, focus and presses elsewhere, and
- * goes on `unpin`, `hide`, Escape, or when its owner unmounts.
+ * goes on `unpin`, `hide`, Escape (which it consumes), or when its owner
+ * unmounts. A modal opening over its owner sets it aside until the last
+ * modal closes. While pinned no other tooltip shows: one at a time.
  */
 export class TooltipService implements InputObserver, FrameTicker {
 	private readonly overlays: OverlayService;
@@ -90,6 +92,8 @@ export class TooltipService implements InputObserver, FrameTicker {
 	private surfaceValue: Component | null = null;
 	private fade: TweenHandle<number> | null = null;
 	private pinnedOwner: Component | null = null;
+	/** A pin a modal set aside when it opened over it, given back when no modal is left. */
+	private shelvedPin: Component | null = null;
 
 	constructor({ overlays, placement, dispatcher, clock, animator, frame, dragActive, surface }: TooltipServiceOptions) {
 		this.overlays = overlays;
@@ -104,9 +108,24 @@ export class TooltipService implements InputObserver, FrameTicker {
 		// with it. Checked after each layout, which an unmount always causes,
 		// rather than by asking for a tick every frame while pinned.
 		frame.afterLayout(() => this.dropUnmountedPin());
+		// A modal opening over a pinned owner sets the pin aside, so the view
+		// doesn't sit over the dialog and the dialog's own tooltips can show;
+		// the pin comes back once the last modal has gone (R3.6a's rule for
+		// popups, applied to a pin)
+		overlays.addOpenListener((handle) => {
+			const pinned = this.pinnedOwner;
+			if (!handle.modal || !pinned || contains(handle.root, pinned)) return;
+			this.shelvedPin = pinned;
+			this.reset();
+		});
 	}
 
 	private dropUnmountedPin(): void {
+		const shelved = this.shelvedPin;
+		if (shelved && !this.overlays.roots.some((root) => root.modal)) {
+			this.shelvedPin = null;
+			if (shelved.isMounted && !this.pinnedOwner) this.pin(shelved, { fade: false });
+		}
 		const pinned = this.pinnedOwner;
 		if (!pinned || pinned.isMounted) return;
 		this.pinnedOwner = null;
@@ -155,6 +174,7 @@ export class TooltipService implements InputObserver, FrameTicker {
 	/** Hides whatever is shown, with the hide fade, pinned or not. */
 	public hide(): void {
 		this.pinnedOwner = null;
+		this.shelvedPin = null;
 		this.leave();
 	}
 
@@ -172,6 +192,7 @@ export class TooltipService implements InputObserver, FrameTicker {
 	 */
 	public pin(owner: Component, { fade = true }: { fade?: boolean } = {}): void {
 		if (!owner.tooltip || !owner.isMounted) return;
+		this.shelvedPin = null;
 		const shown = !fade || this.stateValue === 'showing' || this.stateValue === 'visible';
 		this.pinnedOwner = owner;
 		this.triggerValue = 'manual';
@@ -185,6 +206,9 @@ export class TooltipService implements InputObserver, FrameTicker {
 		if (!this.pinnedOwner) return;
 		this.pinnedOwner = null;
 		this.leave();
+		// Whatever the pointer rests on gets its tooltip again, as if it had just arrived
+		const point = this.dispatcher.hoverPoint;
+		if (point) this.hoverChange(this.dispatcher.hitTest(point));
 	}
 
 	/**
@@ -249,9 +273,13 @@ export class TooltipService implements InputObserver, FrameTicker {
 	/** Escape hides a shown tooltip (WCAG's dismissable) without consuming the key. */
 	public keyDown(stroke: KeyStroke): boolean {
 		if (stroke.key === 'Escape' && (this.stateValue === 'showing' || this.stateValue === 'visible')) {
+			// Letting a pin go is all this Escape does, so one press peels one
+			// layer; a plain tooltip lets the key go on to what's beneath
+			const released = this.pinnedOwner !== null;
 			this.pinnedOwner = null;
 			this.removeSurface();
 			this.stateValue = 'suppressed';
+			return released;
 		}
 		return false;
 	}

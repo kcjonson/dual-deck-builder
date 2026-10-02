@@ -81,6 +81,44 @@ describe('TooltipService pinning', () => {
 		expect(context.tooltips.state).toBe('visible');
 	});
 
+	it('consumes the Escape that lets a pin go, so whatever is beneath keeps it; a plain tooltip lets it through', () => {
+		let heard = 0;
+		scene.hotkeys.register('Escape', () => { heard++; });
+		context.tooltips.pin(save);
+		send(context, [key('Escape')]);
+		expect(context.tooltips.pinned).toBeNull();
+		expect(heard).toBe(0);
+		send(context, [key('Escape')]);
+		expect(heard).toBe(1);
+	});
+
+	it('sets a pin aside while a modal is open over its owner, and gives it back when the modal closes', () => {
+		context.tooltips.pin(save);
+		const dialog = new Container({ id: 'dialog', width: 200, height: 100 });
+		const pile = new Rectangle({ id: 'pile_card', x: 10, y: 10, width: 40, height: 40 });
+		pile.tooltip = 'In the pile';
+		dialog.addChild(pile);
+		const handle = context.overlays.open(dialog, { layer: 'modal' });
+		expect(context.tooltips.pinned).toBeNull();
+		expect(context.tooltips.surface).toBeNull();
+		// The dialog's own tooltips show
+		context.tooltips.show(pile, { fade: false });
+		expect(context.tooltips.owner).toBe(pile);
+
+		handle.close();
+		advance(context, 32);
+		expect(context.tooltips.pinned).toBe(save);
+		expect(context.tooltips.surface).not.toBeNull();
+	});
+
+	it('shows the hovered owner\'s tooltip again once a pin lets go', () => {
+		send(context, [pointer('move', 320, 110)]);
+		context.tooltips.pin(save);
+		context.tooltips.unpin();
+		expect(context.tooltips.owner).toBe(load);
+		expect(context.tooltips.state).toBe('waiting');
+	});
+
 	it('pins another owner in place of the first', () => {
 		context.tooltips.pin(save);
 		context.tooltips.pin(load);

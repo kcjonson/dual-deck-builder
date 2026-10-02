@@ -3,7 +3,7 @@ import { Icon } from '../../engine/components/Icon';
 import { Text } from '../../engine/components/Text';
 import type { ResolvedColors } from '../../engine/components/Component';
 import type { DrawApi } from '../../engine/draw/DrawApi';
-import type { DrawRectOptions, DrawTextOptions } from '../../engine/draw/commands';
+import type { DrawPolygonOptions, DrawRectOptions, DrawTextOptions } from '../../engine/draw/commands';
 import type { AnyUiEvent } from '../../engine/input/events';
 import { resolveColor } from '../../engine/style/styleObject';
 import type { TweenHandle } from '../../engine/animation/Animator';
@@ -30,8 +30,12 @@ import {
 	cardArtIcon,
 	cardTypeLabel,
 	dimHex,
-	drawCostHex,
-	drawRarityGem,
+	COST_HEX_FILLS,
+	DRIVER_MARK_FILLS,
+	GEM_FILLS,
+	costHexDraws,
+	driverMarkDraw,
+	rarityGemDraw,
 	frameColor,
 	scale,
 } from './cardStyle';
@@ -134,7 +138,10 @@ export class Card extends Component {
 	private readonly artDraw: DrawRectOptions | null = null;
 	private readonly chipDraw: DrawRectOptions | null = null;
 	private readonly digitsDraw: DrawTextOptions;
-	private markPoints: { x: number; y: number }[] = [];
+	private readonly hexEdgeDraw: DrawPolygonOptions;
+	private readonly hexFaceDraw: DrawPolygonOptions;
+	private readonly gemDraw: DrawPolygonOptions;
+	private markDraw: DrawPolygonOptions | null = null;
 
 	private dimmed = false;
 	private cannotPay = false;
@@ -184,6 +191,12 @@ export class Card extends Component {
 		this.frameBorder.color = this.restingBorder;
 
 		const hex = this.hexBox;
+		const hexDraws = costHexDraws(hex.x, hex.y, hex.size);
+		this.hexEdgeDraw = hexDraws.edge;
+		this.hexFaceDraw = hexDraws.face;
+		this.gemDraw = mini
+			? rarityGemDraw(data.rarity, dimensions.width - 7, dimensions.height - 7, 5)
+			: rarityGemDraw(data.rarity, FACE.foot.x + FACE.foot.gem / 2, FACE.foot.y + FACE.foot.height / 2, FACE.foot.gem);
 		this.digitsDraw = {
 			text: `${data.cost}`,
 			box: { x: hex.x, y: hex.y, width: hex.size, height: hex.size },
@@ -307,17 +320,16 @@ export class Card extends Component {
 		return this.cardSize === CardSize.MINI ? { x: 2, y: 2, size: 14 } : FACE.hex;
 	}
 
-	/** The driver mark's outline, in the face's top-right corner. */
+	/** The driver mark's draw, in the face's top-right corner; built when the driver changes. */
 	private placeMark(): void {
-		const outline = this.driverNumber ? DRIVER_MARK_OUTLINES[this.driverNumber] : null;
-		if (!outline || this.cardSize === CardSize.MINI) {
-			this.markPoints = [];
+		const driver = this.driverNumber;
+		if (!driver || this.cardSize === CardSize.MINI) {
+			this.markDraw = null;
 			return;
 		}
 		const half = FACE.mark.size / 2;
-		const cx = FACE.mark.x + half;
-		const cy = FACE.mark.y + half;
-		this.markPoints = outline.map(([px, py]) => ({ x: cx + px * half, y: cy + py * half }));
+		this.markDraw = driverMarkDraw(driver, DRIVER_MARK_OUTLINES[driver], FACE.mark.x + half, FACE.mark.y + half, FACE.mark.size);
+		this.markDraw.fill = this.dimmed ? DRIVER_MARK_FILLS[driver].dimmed : DRIVER_MARK_FILLS[driver].full;
 	}
 
 	/**
@@ -415,6 +427,8 @@ export class Card extends Component {
 	 */
 	protected onStateChange(): void {
 		const enabled = this.effectivelyEnabled;
+		// Dimmed first, so the resting border below is already the dimmed one
+		this.dim(!enabled);
 		if (this.selected) {
 			this.frameBorder.color = SELECTED_OUTLINE;
 			this.frameBorder.width = SELECTED_BORDER;
@@ -427,7 +441,6 @@ export class Card extends Component {
 		}
 		// Keyboard focus lifts a card as the pointer does, so its ring clears its neighbours
 		this.liftTo(this.rises && (this.selected || ((this.hovered || this.focusVisible) && enabled)) ? 1 : 0);
-		this.dim(!enabled);
 	}
 
 	private get restingBorder(): RGBA {
@@ -448,6 +461,9 @@ export class Card extends Component {
 		if (!this.selected && !this.hovered) this.frameBorder.color = this.restingBorder;
 		if (this.artDraw) this.artDraw.gradient = artGradient(this.driverNumber, brightness);
 		if (this.chipDraw?.border) this.chipDraw.border = { color: scale(resolveColor(CARD_LINE), brightness), width: 1 };
+		this.hexFaceDraw.fill = dimmed ? COST_HEX_FILLS.dimmed : COST_HEX_FILLS.full;
+		this.gemDraw.fill = dimmed ? GEM_FILLS[this.model.rarity].dimmed : GEM_FILLS[this.model.rarity].full;
+		if (this.markDraw && this.driverNumber) this.markDraw.fill = dimmed ? DRIVER_MARK_FILLS[this.driverNumber].dimmed : DRIVER_MARK_FILLS[this.driverNumber].full;
 		this.name.style = { ...this.name.style, color: tone(CARD_NAME) };
 		if (this.typeLabel) this.typeLabel.style = { ...this.typeLabel.style, color: tone(CARD_MUTED) };
 		if (this.rarityLabel) this.rarityLabel.style = { ...this.rarityLabel.style, color: tone(CARD_DIM) };
@@ -480,23 +496,15 @@ export class Card extends Component {
 		this.digitsDraw.color = resolveColor(unaffordable ? COST_DIGITS_UNPAYABLE : COST_DIGITS);
 	}
 
+	/** Everything here is built once and recoloured on state changes, so a frame allocates nothing. */
 	public render(draw: DrawApi): void {
-		const brightness = this.dimmed ? DIM_BRIGHTNESS : 1;
 		draw.drawRect(this.frameDraw);
 		if (this.artDraw) draw.drawRect(this.artDraw);
 		if (this.chipDraw) draw.drawRect(this.chipDraw);
-		if (this.markPoints.length > 0 && this.driverNumber) {
-			const points = this.markPoints;
-			const indices = points.length === 3 ? [0, 1, 2] : [0, 1, 2, 0, 2, 3];
-			draw.drawPolygon({ points, indices, fill: scale(resolveColor(frameColor(this.driverNumber)), brightness) });
-		}
-		if (this.cardSize !== CardSize.MINI) {
-			drawRarityGem(draw, this.model.rarity, FACE.foot.x + FACE.foot.gem / 2, FACE.foot.y + FACE.foot.height / 2, FACE.foot.gem, brightness);
-		} else {
-			drawRarityGem(draw, this.model.rarity, this.width - 7, this.height - 7, 5, brightness);
-		}
-		const hex = this.hexBox;
-		drawCostHex(draw, hex.x, hex.y, hex.size, brightness);
+		if (this.markDraw) draw.drawPolygon(this.markDraw);
+		draw.drawPolygon(this.gemDraw);
+		draw.drawPolygon(this.hexEdgeDraw);
+		draw.drawPolygon(this.hexFaceDraw);
 		draw.drawText(this.digitsDraw);
 	}
 
@@ -598,11 +606,15 @@ export class Card extends Component {
 	/**
 	 * A lifted card keeps the strip it rose out of, so a pointer resting on
 	 * its bottom edge doesn't drop it, see it slide back under, and lift it
-	 * again.
+	 * again. The hex off the top-left corner is part of the card.
 	 */
 	public containsPoint(localX: number, localY: number): boolean {
 		const reach = this.liftAmount > 0 ? CARD_LIFT : 0;
-		return localX >= 0 && localX < this.width && localY >= 0 && localY < this.height + reach;
+		if (localX >= 0 && localX < this.width && localY >= 0 && localY < this.height + reach) return true;
+		// The cost hex hanging off the corner is the card's too
+		if (this.cardSize === CardSize.MINI) return false;
+		const hex = FACE.hex;
+		return localX >= hex.x && localX < hex.x + hex.size && localY >= hex.y && localY < hex.y + hex.size;
 	}
 
 	/** Drops the lift tween with the card: the base cancels it on unmount. */

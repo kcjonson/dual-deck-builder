@@ -26,7 +26,7 @@ import { DataDisplaySection } from './DataDisplaySection';
 import { TreeExamplesSection } from './TreeExamplesSection';
 import { CombatFxSection } from './CombatFxSection';
 import { CombatRoadSection } from './CombatRoadSection';
-import { CardDetailCapSection, CardDetailSection } from './CardDetailSection';
+import { CardDetailCapSection, CardDetailPinnedSection, CardDetailSection, CardFacesSection } from './CardDetailSection';
 import { SliderTabsSection } from './SliderTabsSection';
 
 /**
@@ -179,10 +179,18 @@ export const developerSections: readonly DeveloperSection[] = [
 		name: 'combat-road',
 		build: (options) => new CombatRoadSection(options),
 	},
-	// The card face and its detail view (DDB-137)
+	// The card face and its detail view (DDB-137), one state a scene so each fits 1024x600
+	{
+		name: 'card-faces',
+		build: (options) => new CardFacesSection(options),
+	},
 	{
 		name: 'card-detail',
 		build: (options) => new CardDetailSection(options),
+	},
+	{
+		name: 'card-detail-pinned',
+		build: (options) => new CardDetailPinnedSection(options),
 	},
 	{
 		name: 'card-detail-cap',

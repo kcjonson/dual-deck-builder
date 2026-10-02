@@ -178,6 +178,7 @@ describe('CombatScreen card detail view (DDB-137)', () => {
 		send(context, [pointer('move', x, y), pointer('down', x, y, { button: 2 }), pointer('up', x, y, { button: 2 })]);
 		expect(context.tooltips.pinned).toBe(card);
 		context.tooltips.hide();
+		context.overlays.closeAll();
 		combat.unmount();
 	});
 
@@ -243,6 +244,56 @@ describe('CombatScreen card detail view (DDB-137)', () => {
 		combat.unmount();
 	});
 
+	it('sets a hand pin aside while the pile dialog is open, inspects the pile there, and gives the pin back on close', async () => {
+		setViewport(1280, 720);
+		const combat = await startCombat();
+		const card = handCards(combat)[1];
+		const [x, y] = grabPoint(card);
+		send(context, [pointer('move', x, y), pointer('down', x, y, { button: 2 }), pointer('up', x, y, { button: 2 })]);
+		expect(context.tooltips.pinned).toBe(card);
+
+		const tab = combat['handLayer'].pilesOf(1).parent;
+		if (!tab) throw new Error('no tab');
+		const [tx, ty] = centreOf(tab.screenBounds);
+		send(context, [pointer('move', tx, ty), pointer('down', tx, ty), pointer('up', tx, ty)]);
+		expect(context.tooltips.pinned).toBeNull();
+		expect(context.tooltips.surface).toBeNull();
+
+		const root = context.overlays.roots.find((candidate) => candidate.children[0]?.id === 'piles_dialog');
+		const face = root ? findById(root, 'piles_draw_card_0') : null;
+		expect(face).not.toBeNull();
+		if (!face) return;
+		context.focus.focus(face, 'keyboard');
+		context.tooltips.focusVisibleChange(face);
+		expect(context.tooltips.owner).toBe(face);
+
+		// The dialog closes on Escape once it has finished opening
+		advance(context, 400);
+		send(context, [key('Escape')]);
+		advance(context, 400);
+		expect(context.overlays.roots.some((candidate) => candidate.children[0]?.id === 'piles_dialog')).toBe(false);
+		expect(context.tooltips.pinned).toBe(card);
+		context.tooltips.hide();
+		context.overlays.closeAll();
+		combat.unmount();
+	});
+
+	it('cancels a click-then-target choice on a secondary click on another card, and pins nothing', async () => {
+		setViewport(1280, 720);
+		const combat = await startCombat();
+		const card = handCard(combat, ['enemy_single'], 'headshot');
+		const [x, y] = grabPoint(card);
+		send(context, [pointer('move', x, y), pointer('down', x, y), pointer('up', x, y)]);
+		expect(combat['combatModel'].isTargeting).toBe(true);
+
+		const other = handCards(combat).find((candidate) => candidate !== card && candidate.driver === card.driver) as UICard;
+		const [ox, oy] = centreOf(other.screenBounds);
+		send(context, [pointer('move', ox, oy), pointer('down', ox, oy, { button: 2 }), pointer('up', ox, oy, { button: 2 })]);
+		expect(combat['combatModel'].isTargeting).toBe(false);
+		expect(context.tooltips.pinned).toBeNull();
+		combat.unmount();
+	});
+
 	it('fans each half: the edge cards turn outward and the middle one stands upright', async () => {
 		setViewport(1280, 720);
 		const combat = await startCombat();
@@ -254,6 +305,17 @@ describe('CombatScreen card detail view (DDB-137)', () => {
 		combat.unmount();
 	});
 });
+
+/** The component with `id` under `root`, at any depth. */
+function findById(root: { children: readonly unknown[] }, id: string): UICard | null {
+	for (const child of root.children) {
+		const node = child as UICard;
+		if (node.id === id) return node;
+		const found = findById(node, id);
+		if (found) return found;
+	}
+	return null;
+}
 
 /** Every string drawn under `component`, a Text's or a keyword run's. */
 function texts(component: { children: readonly unknown[] }): string[] {

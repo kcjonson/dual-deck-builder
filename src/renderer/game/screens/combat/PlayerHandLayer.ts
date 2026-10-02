@@ -35,7 +35,9 @@ export class PlayerHandLayer extends Stack {
 	public onCardSelect: ((card: Card) => void) | null = null;
 	private onCardPress: ((card: Card, element: UICard, event: UiPointerEvent) => void) | null = null;
 	private onCardDragEnd: ((card: Card, event: UiDragEvent) => void) | null = null;
-	private onOtherButton: (() => void) | null = null;
+	private onOtherButton: (() => boolean) | null = null;
+	/** The secondary press now down cancelled a drag or a target choice, so its release pins nothing. */
+	private pressCancelled = false;
 	/** A driver's tab clicked: show their draw and discard piles. */
 	public onOpenPiles: ((seat: DriverSeat) => void) | null = null;
 	/** Cards gone from the hand since the last deal, told before the hand deals again. */
@@ -70,7 +72,17 @@ export class PlayerHandLayer extends Stack {
 		// A secondary click pins a card's detail view and a touch hold opens
 		// it, on any card in the hand, playable or not; never mid-drag, where
 		// a secondary button cancels the drag instead (section 6)
-		inspectOnContextMenu(this, () => !this.context?.drag.isDragging);
+		// Another button pressed anywhere in the hand, on a card or on one
+		// disabled while another is being targeted (delivery skips it and the
+		// press bubbles here), cancels
+		this.onPointerDown = (event) => {
+			if (event.button !== 0) this.pressCancelled = this.onOtherButton?.() ?? false;
+		};
+		inspectOnContextMenu(this, () => {
+			const cancelled = this.pressCancelled;
+			this.pressCancelled = false;
+			return !cancelled && !this.targeting && !this.context?.drag.isDragging;
+		});
 	}
 
 	/**
@@ -119,7 +131,8 @@ export class PlayerHandLayer extends Stack {
 	public setOnCardDrag({ press, end, otherButton }: {
 		press: (card: Card, element: UICard, event: UiPointerEvent) => void;
 		end: (card: Card, event: UiDragEvent) => void;
-		otherButton: () => void;
+		/** True when it cancelled something (a drag, a target choice). */
+		otherButton: () => boolean;
 	}): void {
 		this.onCardPress = press;
 		this.onCardDragEnd = end;
@@ -182,7 +195,6 @@ export class PlayerHandLayer extends Stack {
 			makeInspectable(cardElement, { scale: () => this.stageScale, driver: () => cardElement.driver });
 			cardElement.onPointerDown = (event) => {
 				if (event.button === 0) this.onCardPress?.(card, cardElement, event);
-				else this.onOtherButton?.();
 			};
 			cardElement.onPointerMove = (event) => {
 				if (event.button > 0) this.onOtherButton?.();

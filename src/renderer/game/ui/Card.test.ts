@@ -198,6 +198,21 @@ describe('Card state', () => {
 		expect(card.zIndex).toBe(2);
 	});
 
+	it('takes a press on the cost hex hanging off its corner', () => {
+		const card = build(cardData[0], 1);
+		expect(card.containsPoint(-5, -5)).toBe(true);
+		expect(card.containsPoint(-5, 40)).toBe(false);
+		expect(build(cardData[0], 1, false, CardSize.MINI).containsPoint(-5, -5)).toBe(false);
+	});
+
+	it('dims its resting border when it is disabled under the pointer', () => {
+		const card = build(cardData[0], 1);
+		card.hovered = true;
+		card.enabled = false;
+		context.animator.settle();
+		expect(card.resolvedColors?.border).not.toEqual(hexRgba(DRIVER_COLORS[1]));
+	});
+
 	it('stays in its place when not liftable, as a pile\'s or the browser\'s cards do', () => {
 		const card = build(cardData[0], 1);
 		card.liftable = false;

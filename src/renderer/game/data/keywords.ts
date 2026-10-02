@@ -12,7 +12,7 @@ export const KEYWORDS: Readonly<Record<string, string>> = {
 	Vulnerable: 'Takes 50% more damage. Counts down each turn.',
 	'Sure-hit': 'Ignores Evade. Always lands.',
 	Partner: 'Your other driver. Synergy cards check what they did this turn.',
-	Armor: 'Absorbs damage first. Resets at the start of your turn.',
+	Armor: 'Absorbs damage after Shield. Lasts the fight until it is knocked off.',
 	Shield: 'Temporary armor. Takes damage before Armor, stacks, and clears at the start of your turn.',
 	Flank: 'Swerve to the outside of the target. Needs more speed than the target.',
 	Exhaust: 'Removed from your deck until the fight ends.',
