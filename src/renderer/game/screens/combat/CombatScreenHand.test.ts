@@ -5,10 +5,13 @@ import cardsFile from '../../data/cards.json';
 import { CombatScreen } from './CombatScreen';
 import { CardLoader } from '../../core/CardLoader';
 import { DriverLoader } from '../../core/DriverLoader';
-import { Card as UICard, CardSize } from '../../ui/Card';
+import { Card as UICard } from '../../ui/Card';
+import { CardInspectSurface } from '../../ui/cardInspect';
+import { DETAIL } from '../../ui/CardDetailView';
+import { cardKeywords } from '../../data/keywords';
 import { createTestContext, injectNow } from '../../../engine/components/testing';
 import { Clock } from '../../../engine/animation/Clock';
-import { advance, pointer, send } from '../../../engine/services/testing';
+import { advance, key, pointer, send } from '../../../engine/services/testing';
 import { tokens } from '../../../engine/theme/tokens';
 import { PointerAdapter } from '../../../engine/input/PointerAdapter';
 import { Battle } from '../../mechanics/Battle';
@@ -20,9 +23,9 @@ import { Component } from '../../../engine/components/Component';
 import type { DrawApi } from '../../../engine/draw/DrawApi';
 
 /**
- * DDB-88: the hand as a fan. A hand card previews large, with its full
- * rules text, over the card, and plays by being dragged onto its target
- * as well as by click-then-target.
+ * DDB-88: the hand as a fan, played by being dragged onto its target as
+ * well as by click-then-target. DDB-137: a hand card opens section 5's
+ * detail view, which pins.
  */
 
 jest.mock('../../core/ScreenManager', () => ({
@@ -75,88 +78,219 @@ afterAll(() => {
 	jest.restoreAllMocks();
 });
 
-describe('CombatScreen hand previews', () => {
+describe('CombatScreen card detail view (DDB-137)', () => {
 	it.each([
 		[1280, 720, 1],
 		[800, 450, 0.8],
-	])('at %ix%i, shows a hand card large with its full text, centred over it at the stage scale', async (width, height, scale) => {
+	])('at %ix%i, shows the detail view at the stage scale, resting on the bottom of the screen, centred over the card', async (width, height, scale) => {
 		setViewport(width, height);
 		const combat = await startCombat();
-		const [card] = handCards(combat);
+		const card = handCards(combat)[2];
 		expect(card.tooltip?.factory).toBeDefined();
 
 		context.tooltips.show(card, { fade: false });
-		const preview = context.tooltips.surface;
-		expect(preview?.id).toBe('card_preview');
-		const large = UICard.getDimensions(CardSize.LARGE);
-		expect(preview?.width).toBeCloseTo(large.width * scale, 6);
-		// At 800x450 the room above the lifted card is a tenth of a pixel
-		// short, so placement clamps it by that much
-		expect(preview?.height).toBeGreaterThan(large.height * scale - 0.5);
-		expect(preview?.height).toBeLessThanOrEqual(large.height * scale + 1e-6);
-
+		const surface = context.tooltips.surface;
+		expect(surface).toBeInstanceOf(CardInspectSurface);
+		if (!(surface instanceof CardInspectSurface)) return;
+		const bounds = surface.screenBounds;
+		// 10 logical pixels above the screen's bottom edge, inside the screen
+		expect(bounds.y + bounds.height).toBeCloseTo(height - 10 * scale, 6);
+		expect(bounds.y).toBeGreaterThanOrEqual(0);
+		expect(bounds.x).toBeGreaterThanOrEqual(0);
+		expect(bounds.x + bounds.width).toBeLessThanOrEqual(width + 1e-6);
+		// The detail view, scaled, centred over the card unless the screen's edge clamps it
+		const detail = surface.view.detail.screenBounds;
+		expect(detail.width).toBeCloseTo(DETAIL.width * scale, 6);
 		const cardBounds = card.screenBounds;
-		const previewBounds = preview?.screenBounds;
-		expect(previewBounds).toBeDefined();
-		if (!previewBounds) return;
-		// Above the card, never over the rest of the hand, and inside the screen
-		expect(previewBounds.y + previewBounds.height).toBeLessThanOrEqual(card.liftedScreenBounds.y + 1e-6);
-		expect(previewBounds.y + previewBounds.height).toBeLessThanOrEqual(cardBounds.y + 1e-6);
-		expect(previewBounds.y).toBeGreaterThanOrEqual(0);
-		expect(previewBounds.x).toBeGreaterThanOrEqual(0);
-		expect(previewBounds.x + previewBounds.width).toBeLessThanOrEqual(width);
-
-		const description = previewTexts(preview).find(text => text.id === 'card_preview_face_description');
-		expect(description?.text).toBe(card.data.displayDescription);
+		const centre = cardBounds.x + cardBounds.width / 2;
+		const clamped = Math.max(8 * scale, Math.min(centre - detail.width / 2, width - 8 * scale - detail.width));
+		expect(detail.x).toBeCloseTo(clamped, 4);
+		expect(surface.view.detail.data.id).toBe(card.data.id);
 
 		context.tooltips.hide();
 		context.animator.settle();
 		combat.unmount();
 	});
 
-	it('keeps the preview clear of a card it swaps to before that card has finished rising', async () => {
+	it('moves to the next card without the delay when the pointer slides along the hand', async () => {
 		setViewport(1280, 720);
 		const combat = await startCombat();
 		const [first, second] = handCards(combat);
-		const centre = (card: UICard) => {
+		const point = (card: UICard) => {
 			const bounds = card.screenBounds;
 			return { x: bounds.x + bounds.width / 2, y: bounds.y + bounds.height * 0.75 };
 		};
-		const from = centre(first);
+		const from = point(first);
 		send(context, [pointer('move', from.x, from.y)]);
 		advance(context, tokens.control.tooltip_delay + tokens.motion.dur_fast + 100);
 		expect(context.tooltips.owner).toBe(first);
-		expect(context.tooltips.state).toBe('visible');
-
-		// No delay on the swap, so the preview is placed while the new card is mid-lift
-		const to = centre(second);
+		const to = point(second);
 		send(context, [pointer('move', to.x, to.y)]);
 		expect(context.tooltips.owner).toBe(second);
-		expect(second.lifted).toBe(true);
-		expect(second.screenBounds.y).toBeGreaterThan(second.liftedScreenBounds.y + 1);
-
-		context.animator.settle();
-		context.frame.layout();
-		const preview = context.tooltips.surface?.screenBounds;
-		expect(preview).toBeDefined();
-		if (!preview) return;
-		expect(preview.y + preview.height).toBeLessThanOrEqual(second.screenBounds.y + 1e-6);
+		const surface = context.tooltips.surface;
+		expect(surface instanceof CardInspectSurface ? surface.view.detail.data.id : null).toBe(second.data.id);
 
 		context.tooltips.hide();
 		context.animator.settle();
 		combat.unmount();
 	});
 
-	it('shows the preview at once when keyboard focus reaches a card', async () => {
+	it('shows it at once when keyboard focus reaches a card', async () => {
 		setViewport(1280, 720);
 		const combat = await startCombat();
 		const [card] = handCards(combat);
 		context.tooltips.focusVisibleChange(card);
 		expect(context.tooltips.owner).toBe(card);
-		expect(context.tooltips.surface?.id).toBe('card_preview');
+		expect(context.tooltips.surface?.id).toBe('card_detail');
 
 		context.tooltips.focusVisibleChange(null);
 		context.animator.settle();
+		combat.unmount();
+	});
+
+	it('pins on a secondary click and stays while the pointer goes to the road, then lets go on another', async () => {
+		setViewport(1280, 720);
+		const combat = await startCombat();
+		const card = handCards(combat)[1];
+		const [x, y] = grabPoint(card);
+		send(context, [pointer('move', x, y), pointer('down', x, y, { button: 2 }), pointer('up', x, y, { button: 2 })]);
+		expect(context.tooltips.pinned).toBe(card);
+		const surface = context.tooltips.surface;
+		expect(surface instanceof CardInspectSurface && texts(surface).includes('PINNED')).toBe(true);
+
+		// Over the road, where the hover would have dropped it
+		send(context, [pointer('move', 640, 200)]);
+		advance(context, tokens.motion.dur_tooltip_hide + 100);
+		expect(context.tooltips.pinned).toBe(card);
+		expect(context.tooltips.surface).not.toBeNull();
+
+		send(context, [pointer('move', x, y), pointer('down', x, y, { button: 2 }), pointer('up', x, y, { button: 2 })]);
+		expect(context.tooltips.pinned).toBeNull();
+		combat.unmount();
+	});
+
+	it('pins a card its driver can\'t play, which delivery skips', async () => {
+		setViewport(1280, 720);
+		const combat = await startCombat();
+		const card = handCards(combat)[0];
+		card.enabled = false;
+		const [x, y] = grabPoint(card);
+		send(context, [pointer('move', x, y), pointer('down', x, y, { button: 2 }), pointer('up', x, y, { button: 2 })]);
+		expect(context.tooltips.pinned).toBe(card);
+		context.tooltips.hide();
+		context.overlays.closeAll();
+		combat.unmount();
+	});
+
+	it('pins the card being read with I, and lets it go with I', async () => {
+		setViewport(1280, 720);
+		const combat = await startCombat();
+		const [card] = handCards(combat);
+		context.focus.focus(card, 'keyboard');
+		context.tooltips.focusVisibleChange(card);
+		send(context, [key('i')]);
+		expect(context.tooltips.pinned).toBe(card);
+		send(context, [key('i')]);
+		expect(context.tooltips.pinned).toBeNull();
+		combat.unmount();
+	});
+
+	it('opens on a touch hold, and the hold does not play the card', async () => {
+		setViewport(1280, 720);
+		const combat = await startCombat();
+		const card = handCards(combat)[1];
+		const playCard = jest.spyOn(Battle.prototype, 'playCard');
+		const [x, y] = grabPoint(card);
+		send(context, [pointer('down', x, y, { pointerType: 'touch' })]);
+		advance(context, 600);
+		expect(context.tooltips.owner).toBe(card);
+		expect(context.tooltips.surface).not.toBeNull();
+		send(context, [pointer('up', x, y, { pointerType: 'touch' })]);
+		expect(playCard).not.toHaveBeenCalled();
+		expect(combat['combatModel'].selectedCard).toBeNull();
+		playCard.mockRestore();
+		context.tooltips.hide();
+		combat.unmount();
+	});
+
+	it('puts driver 2\'s keyword boxes on the left when there is room there', async () => {
+		setViewport(1280, 720);
+		const combat = await startCombat();
+		const card = handCards(combat).find((candidate) => candidate.driver === 2 && cardKeywords(candidate.data).length > 0);
+		expect(card).toBeDefined();
+		if (!card) return;
+		context.tooltips.show(card, { fade: false });
+		const surface = context.tooltips.surface;
+		expect(surface instanceof CardInspectSurface && surface.view.keywordSide).toBe('left');
+		context.tooltips.hide();
+		combat.unmount();
+	});
+
+	it('opens a driver\'s draw and discard piles from their tab', async () => {
+		setViewport(1280, 720);
+		const combat = await startCombat();
+		const tab = combat['handLayer'].pilesOf(1).parent;
+		expect(tab).not.toBeNull();
+		if (!tab) return;
+		const [x, y] = centreOf(tab.screenBounds);
+		send(context, [pointer('move', x, y), pointer('down', x, y), pointer('up', x, y)]);
+		const root = context.overlays.roots.find((candidate) => candidate.children[0]?.id === 'piles_dialog');
+		expect(root).toBeDefined();
+		const [driver] = combat['playerDrivers'];
+		const faces = root ? texts(root) : [];
+		expect(faces).toContain(`Draw pile (${driver.deck?.cards.length ?? 0})`);
+		expect(faces).toContain(`Discard pile (${driver.discard.length})`);
+		context.overlays.closeAll();
+		combat.unmount();
+	});
+
+	it('sets a hand pin aside while the pile dialog is open, inspects the pile there, and gives the pin back on close', async () => {
+		setViewport(1280, 720);
+		const combat = await startCombat();
+		const card = handCards(combat)[1];
+		const [x, y] = grabPoint(card);
+		send(context, [pointer('move', x, y), pointer('down', x, y, { button: 2 }), pointer('up', x, y, { button: 2 })]);
+		expect(context.tooltips.pinned).toBe(card);
+
+		const tab = combat['handLayer'].pilesOf(1).parent;
+		if (!tab) throw new Error('no tab');
+		const [tx, ty] = centreOf(tab.screenBounds);
+		send(context, [pointer('move', tx, ty), pointer('down', tx, ty), pointer('up', tx, ty)]);
+		expect(context.tooltips.pinned).toBeNull();
+		expect(context.tooltips.surface).toBeNull();
+
+		const root = context.overlays.roots.find((candidate) => candidate.children[0]?.id === 'piles_dialog');
+		const face = root ? findById(root, 'piles_draw_card_0') : null;
+		expect(face).not.toBeNull();
+		if (!face) return;
+		context.focus.focus(face, 'keyboard');
+		context.tooltips.focusVisibleChange(face);
+		expect(context.tooltips.owner).toBe(face);
+
+		// The dialog closes on Escape once it has finished opening
+		advance(context, 400);
+		send(context, [key('Escape')]);
+		advance(context, 400);
+		expect(context.overlays.roots.some((candidate) => candidate.children[0]?.id === 'piles_dialog')).toBe(false);
+		expect(context.tooltips.pinned).toBe(card);
+		context.tooltips.hide();
+		context.overlays.closeAll();
+		combat.unmount();
+	});
+
+	it('cancels a click-then-target choice on a secondary click on another card, and pins nothing', async () => {
+		setViewport(1280, 720);
+		const combat = await startCombat();
+		const card = handCard(combat, ['enemy_single'], 'headshot');
+		const [x, y] = grabPoint(card);
+		send(context, [pointer('move', x, y), pointer('down', x, y), pointer('up', x, y)]);
+		expect(combat['combatModel'].isTargeting).toBe(true);
+
+		const other = handCards(combat).find((candidate) => candidate !== card && candidate.driver === card.driver) as UICard;
+		const [ox, oy] = centreOf(other.screenBounds);
+		send(context, [pointer('move', ox, oy), pointer('down', ox, oy, { button: 2 }), pointer('up', ox, oy, { button: 2 })]);
+		expect(combat['combatModel'].isTargeting).toBe(false);
+		expect(context.tooltips.pinned).toBeNull();
 		combat.unmount();
 	});
 
@@ -172,13 +306,24 @@ describe('CombatScreen hand previews', () => {
 	});
 });
 
-function previewTexts(component: { children: readonly unknown[] } | null | undefined): { id: string | null; text: string }[] {
-	if (!component) return [];
-	const found: { id: string | null; text: string }[] = [];
+/** The component with `id` under `root`, at any depth. */
+function findById(root: { children: readonly unknown[] }, id: string): UICard | null {
+	for (const child of root.children) {
+		const node = child as UICard;
+		if (node.id === id) return node;
+		const found = findById(node, id);
+		if (found) return found;
+	}
+	return null;
+}
+
+/** Every string drawn under `component`, a Text's or a keyword run's. */
+function texts(component: { children: readonly unknown[] }): string[] {
+	const found: string[] = [];
 	for (const child of component.children) {
-		const node = child as { id: string | null; text?: unknown; children: readonly unknown[] };
-		if (typeof node.text === 'string') found.push(node as { id: string | null; text: string });
-		found.push(...previewTexts(node));
+		const node = child as { text?: unknown; children: readonly unknown[] };
+		if (typeof node.text === 'string') found.push(node.text);
+		found.push(...texts(node));
 	}
 	return found;
 }

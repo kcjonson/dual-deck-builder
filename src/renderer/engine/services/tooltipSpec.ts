@@ -38,6 +38,12 @@ export interface TooltipSpec {
 	placement?: TooltipPlacement;
 	/** Keyboard focus shows it at once rather than after `tooltip_delay`. */
 	immediateOnFocus?: boolean;
+	/**
+	 * The owner pins it with a secondary click (`TooltipService.pin`), so a
+	 * secondary press on the owner leaves it showing rather than hiding it
+	 * until the release.
+	 */
+	pinnable?: boolean;
 }
 
 /** A bare string is a title. */
