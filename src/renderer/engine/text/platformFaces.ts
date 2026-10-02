@@ -23,10 +23,12 @@ export interface PlatformFacesOptions {
  */
 export class PlatformFaces {
 	private readonly ready = new Map<string, string>();
+	private readonly fieldInk = new Map<string, number>();
 
 	constructor({ faces = FONT_FACES, load, onError = () => undefined }: PlatformFacesOptions) {
 		for (const face of faces) {
 			if (!face.fontUrl) continue;
+			if (face.fieldInk !== undefined) this.fieldInk.set(face.role, face.fieldInk);
 			const family = `ddb-${face.face}`;
 			load(family, face.fontUrl).then(
 				() => this.ready.set(face.role, family),
@@ -38,6 +40,11 @@ export class PlatformFaces {
 	/** The family to rasterise a font role with, once its face has loaded; null before, or without one. */
 	familyOf(role: string): string | null {
 		return this.ready.get(role) ?? null;
+	}
+
+	/** The distance field's ink a role's raster glyphs are matched to (`FontFaceAsset.fieldInk`); null without one. */
+	fieldInkOf(role: string): number | null {
+		return this.fieldInk.get(role) ?? null;
 	}
 }
 

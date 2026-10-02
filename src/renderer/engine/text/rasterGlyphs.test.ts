@@ -1,4 +1,20 @@
-import { GlyphCanvasContext, RASTER_GUTTER, RASTER_PHASES, RASTER_RANGE_THRESHOLD, rasterBlockWidth, rasterGlyphBox, rasterPen, rasterPixelSize, rasterizeGlyphs, screenRange, wantsRasterGlyphs } from './rasterGlyphs';
+import {
+	GlyphCanvasContext,
+	INK_TOLERANCE,
+	RASTER_GUTTER,
+	RASTER_PHASES,
+	RASTER_RANGE_THRESHOLD,
+	histogramInk,
+	inkCurve,
+	inkSample,
+	rasterBlockWidth,
+	rasterGlyphBox,
+	rasterPen,
+	rasterPixelSize,
+	rasterizeGlyphs,
+	screenRange,
+	wantsRasterGlyphs,
+} from './rasterGlyphs';
 import { syntheticFontAtlas } from './testing';
 
 describe('R6.4a threshold', () => {
@@ -149,5 +165,79 @@ describe('rasterizeGlyphs', () => {
 		expect(Math.max(...Array.from(second).filter((_, index) => index % 4 === 3))).toBe(0);
 		// Premultiplied white.
 		expect(Array.from(block.slice(2 * width * 4, 2 * width * 4 + 4))).toEqual([64, 64, 64, 64]);
+	});
+
+	it('draws each subsample through the ink curve before the box filter', () => {
+		const { context } = fakeCanvas([0]);
+		const halve = new Float32Array(256).map((_, value) => value / 2);
+		const [block] = rasterizeGlyphs(context, glyphs, 8, 'ddb-test', halve);
+		expect(block[2 * rasterBlockWidth(box) * 4 + 3]).toBe(32);
+	});
+});
+
+describe('weight against the distance field (DDB-217)', () => {
+	/** A histogram of `count` subsamples at each of the given coverages. */
+	function histogramOf(coverages: number[], count = 100): Uint32Array {
+		const histogram = new Uint32Array(256);
+		for (const coverage of coverages) histogram[coverage] += count;
+		return histogram;
+	}
+
+	it('counts the subsamples of glyphs drawn as rasterizeGlyphs draws them, over the columns its filter reads', () => {
+		const texts: string[] = [];
+		const context: GlyphCanvasContext = {
+			canvas: { width: 0, height: 0 },
+			font: '',
+			fillStyle: '',
+			textBaseline: 'top',
+			textAlign: 'center',
+			setTransform: () => undefined,
+			clearRect: () => undefined,
+			fillText: (text) => texts.push(text),
+			getImageData: (x, y, width, height) => {
+				// A covered subsample at A's pen, and a stray one in the gap after its box
+				const data = new Uint8Array(width * height * 4);
+				for (let row = 0; row < height; row++) {
+					data[(row * width) * 4 + 3] = 255;
+					data[(row * width + 6 * RASTER_PHASES + 1) * 4 + 3] = 255;
+				}
+				return { data };
+			},
+		};
+		const box = { left: 0, top: -6, width: 6, height: 6 };
+		const histogram = inkSample(context, [{ outlineCodePoint: 0x41, box }, { outlineCodePoint: 0x3F, box: { ...box, left: -1 } }], 8, 'ddb-test');
+		expect(texts).toEqual(['A', '?']);
+		expect(context.font).toBe('8px "ddb-test"');
+		expect(histogram[255]).toBe(6);
+		expect(histogram.reduce((sum, count) => sum + count, 0)).toBe(2 * 6 * 6 * RASTER_PHASES);
+		expect(histogramInk(histogram)).toBeCloseTo(6 / RASTER_PHASES);
+	});
+
+	it('keeps a platform within the tolerance as it draws', () => {
+		const histogram = histogramOf([255, 128]);
+		const ink = histogramInk(histogram);
+		expect(inkCurve(histogram, ink * (1 + INK_TOLERANCE * 0.9))).toBeNull();
+		expect(inkCurve(histogram, ink * (1 - INK_TOLERANCE * 0.9))).toBeNull();
+		expect(inkCurve(new Uint32Array(256), 10)).toBeNull();
+	});
+
+	it('brings a heavier platform to the field with a power curve that keeps full coverage full', () => {
+		const histogram = histogramOf([255, 200, 128, 60, 20]);
+		const target = histogramInk(histogram) / 1.3;
+		const curve = inkCurve(histogram, target);
+		if (!curve) throw new Error('expected a curve');
+		expect(curve[0]).toBe(0);
+		expect(curve[255]).toBe(255);
+		expect(curve[128]).toBeLessThan(128);
+		let ink = 0;
+		for (let value = 0; value < 256; value++) ink += histogram[value] * curve[value] / 255;
+		expect(ink / RASTER_PHASES / target).toBeCloseTo(1, 2);
+	});
+
+	it('thickens a lighter one the same way', () => {
+		const histogram = histogramOf([255, 128, 60]);
+		const curve = inkCurve(histogram, histogramInk(histogram) * 1.2);
+		expect(curve?.[128]).toBeGreaterThan(128);
+		expect(curve?.[255]).toBe(255);
 	});
 });

@@ -111,7 +111,7 @@ export interface WebGL2BackendOptions {
 	 * The platform faces R6.4a's raster fallback draws small text with
 	 * (`PlatformFaces`). Absent, every size draws from the distance field.
 	 */
-	rasterFaces?: { familyOf(role: string): string | null } | null;
+	rasterFaces?: Pick<PlatformFaces, 'familyOf' | 'fieldInkOf'> | null;
 	/** The canvas the fallback rasterises into; the DOM's by default. */
 	createGlyphCanvas?: () => GlyphCanvasContext | null;
 }
@@ -256,6 +256,7 @@ export class WebGL2Backend implements DrawBackend {
 			? new RasterGlyphPage({
 				textures: renderer.textures,
 				familyOf: (role) => rasterFaces.familyOf(role),
+				fieldInkOf: (role) => rasterFaces.fieldInkOf(role),
 				createCanvas: createGlyphCanvas,
 				now: () => performance.now(),
 			})
