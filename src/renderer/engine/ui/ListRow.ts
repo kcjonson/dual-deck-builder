@@ -53,12 +53,17 @@ export class ListRow extends Pressable {
 		if (onClick) this.onClick = onClick;
 
 		this.label = new Text(label, {
-			style: { fontFamily: 'body', fontSize: tokens.fontSize.fs_base, verticalAlign: 'middle', whiteSpace: 'nowrap', textOverflow: 'ellipsis' },
+			style: { fontRole: 'body', fontSize: 'fs_base' },
+			verticalAlign: 'middle',
+			wrap: 'none',
+			textOverflow: 'ellipsis',
 		});
 		this.addPart(this.label);
 		this.trailingText = trailing !== undefined
 			? new Text(trailing, {
-				style: { fontFamily: 'monospace', fontSize: tokens.fontSize.fs_xs, color: [...color.text_dim] as [number, number, number, number], verticalAlign: 'middle', whiteSpace: 'nowrap' },
+				style: { fontRole: 'mono', fontSize: 'fs_xs', color: 'text_dim' },
+				verticalAlign: 'middle',
+				wrap: 'none',
 			})
 			: null;
 		if (this.trailingText) this.addPart(this.trailingText);

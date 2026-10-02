@@ -3,7 +3,7 @@
  */
 import { Clock } from '../animation/Clock';
 import type { Component } from '../components/Component';
-import { Layer } from '../components/Layer';
+import { Container } from '../components/Container';
 import type { MountContext } from '../components/MountContext';
 import { Rectangle } from '../components/Rectangle';
 import { renderTree } from '../components/renderTree';
@@ -30,7 +30,7 @@ import { ScrollContainer, ScrollContainerOptions } from './ScrollContainer';
 let canvas: HTMLCanvasElement;
 let context: MountContext;
 let adapter: PointerAdapter;
-let root: Layer;
+let root: Container;
 let backend: MeasuringRecordingBackend;
 
 function inject(...commands: string[]): void {
@@ -51,7 +51,7 @@ beforeEach(() => {
 	context = createTestContext({ draw: measuring.api, clock: new Clock() });
 	adapter = new PointerAdapter({ dispatcher: context.dispatcher });
 	adapter.attach(canvas);
-	root = new Layer({ id: 'root', width: 800, height: 600 });
+	root = new Container({ id: 'root', width: 800, height: 600 });
 	root.mount(context);
 });
 
@@ -62,9 +62,9 @@ afterEach(() => {
 });
 
 /** A 200 by 300 scroller at (50, 50) over a content layer `contentHeight` tall. */
-function mounted(contentHeight: number, options: ScrollContainerOptions = {}): { scroll: ScrollContainer; content: Layer } {
+function mounted(contentHeight: number, options: ScrollContainerOptions = {}): { scroll: ScrollContainer; content: Container } {
 	const scroll = new ScrollContainer({ id: 'scroll', x: 50, y: 50, width: 200, height: 300, ...options });
-	const content = new Layer({ id: 'content', width: 200, height: contentHeight });
+	const content = new Container({ id: 'content', width: 200, height: contentHeight });
 	scroll.addChild(content);
 	root.addChild(scroll);
 	context.frame.layout();
@@ -238,9 +238,9 @@ describe('ScrollContainer input (R9.32, R12.20)', () => {
 
 	it('stays latched at its end within a gesture, then passes a new gesture to its parent scroller', () => {
 		const outer = new ScrollContainer({ id: 'outer', x: 0, y: 0, width: 400, height: 400 });
-		const outerContent = new Layer({ width: 400, height: 1200 });
+		const outerContent = new Container({ width: 400, height: 1200 });
 		const inner = new ScrollContainer({ id: 'inner', x: 0, y: 0, width: 200, height: 200 });
-		inner.addChild(new Layer({ width: 200, height: 240 }));
+		inner.addChild(new Container({ width: 200, height: 240 }));
 		outerContent.addChild(inner);
 		outer.addChild(outerContent);
 		root.addChild(outer);
@@ -458,7 +458,7 @@ describe('popups anchored in a scroller (R3.6a, DDB-210)', () => {
 		context.frame.layout();
 		const reasons: PopupCloseReason[] = [];
 		const menu = new ScrollContainer({ id: 'long_menu', width: 100, height: 60 });
-		menu.addChild(new Layer({ width: 100, height: 300 }));
+		menu.addChild(new Container({ width: 100, height: 300 }));
 		context.popups.show({ popup: menu, trigger, anchor: trigger, onClose: (reason) => reasons.push(reason) });
 		scroll.scrollTo(50);
 		context.frame.layout();

@@ -18,7 +18,11 @@ import { CheckboxExamplesSection } from './CheckboxExamplesSection';
 import { RadioExamplesSection } from './RadioExamplesSection';
 import { PanelExamplesSection } from './PanelExamplesSection';
 import { ScrollExamplesSection } from './ScrollExamplesSection';
+import { LeafExamplesSection } from './LeafExamplesSection';
 import { MenuExamplesSection } from './MenuExamplesSection';
+import { MeterExamplesSection } from './MeterExamplesSection';
+import { DataDisplaySection } from './DataDisplaySection';
+import { TreeExamplesSection } from './TreeExamplesSection';
 import { SliderTabsSection } from './SliderTabsSection';
 
 /**
@@ -147,8 +151,24 @@ export const developerSections: readonly DeveloperSection[] = [
 		build: ({ x, y, width }) => new ScrollExamplesSection(x, y, width),
 	},
 	{
+		name: 'leaves',
+		build: ({ x, y, width }) => new LeafExamplesSection(x, y, width),
+	},
+	{
 		name: 'menus',
 		build: ({ x, y, width }) => new MenuExamplesSection(x, y, width),
+	},
+	{
+		name: 'meters',
+		build: ({ x, y, width }) => new MeterExamplesSection(x, y, width),
+	},
+	{
+		name: 'data-display',
+		build: ({ x, y, width }) => new DataDisplaySection(x, y, width),
+	},
+	{
+		name: 'tree-view',
+		build: ({ x, y, width }) => new TreeExamplesSection(x, y, width),
 	},
 	{
 		name: 'slider-tabs',

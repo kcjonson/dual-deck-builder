@@ -3,13 +3,28 @@ import { Text } from '../../../engine/components/Text';
 import { Button } from '../../../engine/ui/Button';
 
 /**
+ * The focus-ring demo, focused as it mounts, so the first frame a scene or a
+ * capture sees already has the ring (DDB-222). Focused as a press would, then
+ * shown as a keyboard activation shows it (R9.23): keyboard focus reveals its
+ * target (R12.20), which would scroll the developer screen to this section.
+ * A press elsewhere takes the ring away.
+ */
+class FocusRingDemoButton extends Button {
+	protected onMount(): void {
+		const focus = this.context?.focus;
+		if (focus?.focus(this, 'pointer')) focus.showFocusVisible();
+		// After the focus, so the look snaps to the ring instead of fading in.
+		super.onMount();
+	}
+}
+
+/**
  * Button examples section for the developer screen
  * Demonstrates various button styles and states
  */
 export class ButtonExamplesSection extends DeveloperSectionPanel {
 	private clickCounter = 0;
 	private clickCountText!: Text;
-	private focusDemo!: Button;
 
 	constructor(x: number, y: number, width: number) {
 		super({ id: 'dev_section_buttons', x, y, width });
@@ -155,8 +170,7 @@ export class ButtonExamplesSection extends DeveloperSectionPanel {
 
 		// Keyboard focus: the ring sits outside the box, independent of the
 		// rest. Focused through the real focus path on mount, not by hand.
-		const focusedButton = new Button('Focus ring', { tone: 'accent', width: 120, height: 40 });
-		this.focusDemo = focusedButton;
+		const focusedButton = new FocusRingDemoButton('Focus ring', { tone: 'accent', width: 120, height: 40 });
 
 		for (const button of [disabledButton, selectedButton, activeButton, focusedButton]) {
 			button.setPosition(buttonX, buttonY3);
@@ -167,21 +181,6 @@ export class ButtonExamplesSection extends DeveloperSectionPanel {
 
 		// Update our height based on content
 		this.fitContentHeight(buttonY3 + 60);
-	}
-
-	/**
-	 * Focuses the demo button as keyboard navigation would, so it shows its
-	 * ring; a press elsewhere takes it away. From the first update rather than
-	 * here, since `onMount` runs before the children mount and the focus
-	 * manager refuses a component that is not mounted yet.
-	 */
-	protected onMount(): void {
-		this.requestUpdate();
-	}
-
-	public update(dt: number): void {
-		super.update(dt);
-		this.context?.focus.focus(this.focusDemo, 'keyboard');
 	}
 
 	private incrementCounter(): void {

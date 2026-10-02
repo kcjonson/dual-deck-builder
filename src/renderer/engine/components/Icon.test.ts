@@ -7,7 +7,7 @@ import { ICON_CODE_POINTS } from '../text/icons';
 import { createMeasuringDrawApi, MeasuringRecordingBackend } from '../text/testing';
 import type { MountContext } from './MountContext';
 import { Component } from './Component';
-import { Layer } from './Layer';
+import { Container } from './Container';
 import { renderTree } from './renderTree';
 import { createTestContext } from './testing';
 import { tokens } from '../theme/tokens';
@@ -45,7 +45,7 @@ describe('Icon (R12.6)', () => {
 
 	it('draws its glyph from the icon atlas, centred in its box, in text mode', () => {
 		const icon = new Icon({ id: 'fuel', glyph: 'local_gas_station', size: 16, tint: tokens.color.accent, x: 10, y: 20 });
-		const holder = new Layer({ x: 100, y: 50 });
+		const holder = new Container({ x: 100, y: 50 });
 		holder.addChild(icon);
 		frame(holder);
 

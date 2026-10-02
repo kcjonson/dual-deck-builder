@@ -161,27 +161,27 @@ export class Panel extends Stack {
 		this.kickerText = kicker !== undefined
 			? new Text(kicker, {
 				style: {
-					fontFamily: 'monospace',
+					fontRole: 'mono',
 					fontSize: tokens.fontSize.fs_xs,
 					color: [...(accent === 'none' ? color.text_dim : this.accentColor)] as [number, number, number, number],
 					textTransform: 'uppercase',
 					letterSpacing: tokens.letterSpacing.ls_wide,
-					whiteSpace: 'nowrap',
-					textOverflow: 'ellipsis',
 				},
+				wrap: 'none',
+				textOverflow: 'ellipsis',
 			})
 			: null;
 		this.titleText = title !== undefined
 			? new Text(title, {
 				style: {
-					fontFamily: 'display',
+					fontRole: 'display',
 					fontSize: tokens.fontSize.fs_md,
 					color: [...color.text_bright] as [number, number, number, number],
 					textTransform: 'uppercase',
 					letterSpacing: tokens.letterSpacing.ls_wide,
-					whiteSpace: 'nowrap',
-					textOverflow: 'ellipsis',
 				},
+				wrap: 'none',
+				textOverflow: 'ellipsis',
 			})
 			: null;
 		if (this.kickerText) this.addPart(this.kickerText);

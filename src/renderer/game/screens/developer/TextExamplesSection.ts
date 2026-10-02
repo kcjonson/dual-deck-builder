@@ -154,9 +154,9 @@ export class TextExamplesSection extends DeveloperSectionPanel {
 			style: {
 				fontSize: 14,
 				color: '#ffffff',
-				lineHeight: 1.4,
-				whiteSpace: 'normal',
 			},
+			lineHeight: 1.4,
+			wrap: 'word',
 		});
 		this.addChild(normalWrapText);
 
@@ -169,9 +169,9 @@ export class TextExamplesSection extends DeveloperSectionPanel {
 			style: {
 				fontSize: 14,
 				color: '#ffcc00',
-				whiteSpace: 'nowrap',
-				textOverflow: 'ellipsis',
 			},
+			wrap: 'none',
+			textOverflow: 'ellipsis',
 		});
 		this.addChild(noWrapText);
 		currentY += 100;
@@ -185,9 +185,9 @@ export class TextExamplesSection extends DeveloperSectionPanel {
 			style: {
 				fontSize: 14,
 				color: '#00cc66',
-				lineHeight: 1.2,
-				textOverflow: 'ellipsis',
 			},
+			lineHeight: 1.2,
+			textOverflow: 'ellipsis',
 		});
 		this.addChild(ellipsisText);
 
@@ -200,8 +200,8 @@ export class TextExamplesSection extends DeveloperSectionPanel {
 			style: {
 				fontSize: 12,
 				color: '#ff6600',
-				lineHeight: 1.0,
 			},
+			lineHeight: 1.0,
 		});
 		this.addChild(lineHeightDemo1);
 
@@ -213,8 +213,8 @@ export class TextExamplesSection extends DeveloperSectionPanel {
 			style: {
 				fontSize: 12,
 				color: '#0088ff',
-				lineHeight: 1.8,
 			},
+			lineHeight: 1.8,
 		});
 		this.addChild(lineHeightDemo2);
 		currentY += 100;

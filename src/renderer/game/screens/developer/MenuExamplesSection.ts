@@ -1,13 +1,11 @@
 import { CatalogSection } from './CatalogSection';
-import { Layer } from '../../../engine/components/Layer';
+import { Stack } from '../../../engine/components/Stack';
 import { Text } from '../../../engine/components/Text';
 import { tokens } from '../../../engine/theme/tokens';
 import { ContextMenu } from '../../../engine/ui/ContextMenu';
 import { DropdownButton } from '../../../engine/ui/DropdownButton';
 import { Menu, MenuItem } from '../../../engine/ui/Menu';
 import { Select, SelectOption } from '../../../engine/ui/Select';
-
-type Rgba = [number, number, number, number];
 
 const { control, space } = tokens;
 
@@ -63,20 +61,16 @@ export class MenuExamplesSection extends CatalogSection {
 		this.addRow('context menu: right-click or touch-hold the pad', this.contextPad(), CONTEXT_PAD_HEIGHT);
 	}
 
-	private contextPad(): Layer {
-		const pad = new Layer({
+	private contextPad(): Stack {
+		const pad = new Stack({
 			id: 'dev_context_pad',
 			width: 360,
 			height: CONTEXT_PAD_HEIGHT,
 			pointerEvents: 'auto',
+			padding: space.space_3,
+			style: { backgroundColor: 'bg_inset' },
 		});
-		pad.setBackgroundColor([...tokens.color.bg_inset] as Rgba);
-		const hint = new Text('Right-click here', {
-			x: space.space_3,
-			y: space.space_3,
-			style: { fontSize: control.control_fs_sm, color: [...tokens.color.text_faint] as Rgba },
-		});
-		pad.addChild(hint);
+		pad.addChild(new Text('Right-click here', { style: { fontSize: control.control_fs_sm, color: 'text_faint' } }));
 		const menu = new ContextMenu({ id: 'dev_context_menu', items: ACTIONS, width: MENU_WIDTH });
 		pad.onContextMenu = (event) => menu.openAt(event.screen, { from: pad });
 		return pad;

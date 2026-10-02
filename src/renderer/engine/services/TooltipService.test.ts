@@ -1,19 +1,19 @@
 import { Clock } from '../animation/Clock';
-import { Layer } from '../components/Layer';
+import { Container } from '../components/Container';
 import type { MountContext } from '../components/MountContext';
 import { Rectangle } from '../components/Rectangle';
 import { createTestContext } from '../components/testing';
 import type { UiPointerEvent } from '../input/events';
 import { tokens } from '../theme/tokens';
 import { TOOLTIP_ANCHOR_OFFSET, TOOLTIP_POINTER_OFFSET } from './TooltipService';
-import { TooltipSurface } from './TooltipSurface';
+import { Tooltip } from '../ui/Tooltip';
 import { advance, key, pointer, send } from './testing';
 
 const DELAY = tokens.control.tooltip_delay;
 const TOLERANCE = tokens.control.hover_move_tolerance;
 
 let context: MountContext;
-let scene: Layer;
+let scene: Container;
 let save: Rectangle;
 let load: Rectangle;
 let plain: Rectangle;
@@ -24,7 +24,7 @@ function box(id: string, x: number, y: number, width = 100, height = 40): Rectan
 
 beforeEach(() => {
 	context = createTestContext({ viewport: { logical: { width: 800, height: 600 } }, clock: new Clock() });
-	scene = new Layer({ id: 'scene', width: 800, height: 600 });
+	scene = new Container({ id: 'scene', width: 800, height: 600 });
 	save = box('save', 100, 100);
 	save.tooltip = { title: 'Save', description: 'Writes the run to disk', hotkey: 'S' };
 	load = box('load', 300, 100);
@@ -36,7 +36,7 @@ beforeEach(() => {
 	scene.mount(context);
 });
 
-function tooltipRoot(): Layer | undefined {
+function tooltipRoot(): Container | undefined {
 	return context.overlays.roots.find((root) => root.layer === 'tooltip');
 }
 
@@ -53,7 +53,7 @@ describe('TooltipService (R12.22)', () => {
 		advance(context, 40);
 		expect(context.tooltips.state).toBe('showing');
 		const surface = context.tooltips.surface;
-		expect(surface).toBeInstanceOf(TooltipSurface);
+		expect(surface).toBeInstanceOf(Tooltip);
 		expect(surface?.opacity).toBeGreaterThanOrEqual(0);
 		expect(surface?.opacity).toBeLessThan(1);
 
@@ -76,7 +76,7 @@ describe('TooltipService (R12.22)', () => {
 	it('places below-right of the pointer', () => {
 		send(context, [pointer('move', 120, 110)]);
 		advance(context, DELAY + 16);
-		const surface = context.tooltips.surface as TooltipSurface;
+		const surface = context.tooltips.surface as Tooltip;
 		expect({ x: surface.x, y: surface.y }).toEqual({ x: 120, y: 110 + TOOLTIP_POINTER_OFFSET });
 	});
 
@@ -196,7 +196,7 @@ describe('TooltipService (R12.22)', () => {
 	it('shows from keyboard focus, anchored below the owner, and hides when focus leaves', () => {
 		context.tooltips.focusVisibleChange(save);
 		advance(context, DELAY + 16);
-		const surface = context.tooltips.surface as TooltipSurface;
+		const surface = context.tooltips.surface as Tooltip;
 		expect(context.tooltips.trigger).toBe('focus');
 		expect({ x: surface.x, y: surface.y }).toEqual({ x: 100, y: 140 + TOOLTIP_ANCHOR_OFFSET });
 
@@ -271,11 +271,52 @@ describe('TooltipService (R12.22)', () => {
 	});
 
 	it('sizes a factory tree with no size of its own from its children', () => {
-		const tree = new Layer({ id: 'tree' });
+		const tree = new Container({ id: 'tree' });
 		tree.addChild(box('a', 0, 0, 50, 20));
 		tree.addChild(box('b', 10, 30, 90, 20));
 		load.tooltip = { factory: () => tree };
 		context.tooltips.show(load, { fade: false });
 		expect({ width: tree.width, height: tree.height }).toEqual({ width: 100, height: 50 });
+	});
+
+	it('places against its owner when the spec asks, whatever the pointer does', () => {
+		const card = box('card', 300, 400, 100, 140);
+		card.tooltip = {
+			factory: () => box('preview', 0, 0, 200, 280),
+			placement: { anchor: 'owner', side: 'top', align: 'center' },
+		};
+		scene.addChild(card);
+		send(context, [pointer('move', 310, 530)]);
+		advance(context, DELAY + 16);
+		const surface = context.tooltips.surface as Rectangle;
+		expect(surface.id).toBe('preview');
+		expect(surface.x).toBe(300 + 50 - 100);
+		expect(surface.y).toBe(400 - TOOLTIP_ANCHOR_OFFSET - 280);
+	});
+
+	it('places against the rect the spec gives for its owner, where the owner will settle', () => {
+		const card = box('card', 300, 400, 100, 140);
+		card.tooltip = {
+			factory: () => box('preview', 0, 0, 200, 280),
+			placement: { anchor: 'owner', side: 'top', align: 'center', ownerRect: () => ({ x: 300, y: 380, width: 100, height: 140 }) },
+		};
+		scene.addChild(card);
+		context.tooltips.show(card, { fade: false });
+		expect(context.tooltips.surface?.y).toBe(380 - TOOLTIP_ANCHOR_OFFSET - 280);
+	});
+
+	it('shows at once on keyboard focus when the spec asks, and after the delay otherwise', () => {
+		const card = box('card', 300, 400, 100, 140);
+		card.tooltip = { title: 'Card', immediateOnFocus: true };
+		scene.addChild(card);
+		context.tooltips.focusVisibleChange(card);
+		expect(context.tooltips.state).toBe('showing');
+
+		context.tooltips.focusVisibleChange(save);
+		expect(context.tooltips.state).toBe('visible');
+		context.tooltips.focusVisibleChange(null);
+		advance(context, 1000);
+		context.tooltips.focusVisibleChange(save);
+		expect(context.tooltips.state).toBe('waiting');
 	});
 });

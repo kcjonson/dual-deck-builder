@@ -42,9 +42,9 @@
 {"path":"driverSelectionScreen/driver_select_panel_right/driver_panel_right_cycle_button/Text[0]","text":"THE INTERCEPTOR (2/3)","rect":[926,655,378,35]},
 {"path":"driverSelectionScreen/driver_select_synergy_panel/Text[1]","text":"Team Synergy","rect":[586,510,268,24]},
 {"path":"driverSelectionScreen/driver_select_synergy_panel/Text[2]","text":"THE ROAD WARRIOR and THE INTERCEPTOR: Balanced offensive potential. Adequate utility coverage.","rect":[599,545,241,49.03]},
-{"path":"driverSelectionScreen/driver_select_synergy_panel/Layer[3]/Text[1]","text":"tank","rect":[601,614.03,16,20]},
-{"path":"driverSelectionScreen/driver_select_synergy_panel/Layer[3]/Text[3]","text":"fortress","rect":[632,614.03,28,20]},
-{"path":"driverSelectionScreen/driver_select_synergy_panel/Layer[3]/Text[5]","text":"precision","rect":[675,614.03,32,20]},
+{"path":"driverSelectionScreen/driver_select_synergy_panel/Container[3]/Text[1]","text":"tank","rect":[601,614.03,16,20]},
+{"path":"driverSelectionScreen/driver_select_synergy_panel/Container[3]/Text[3]","text":"fortress","rect":[632,614.03,28,20]},
+{"path":"driverSelectionScreen/driver_select_synergy_panel/Container[3]/Text[5]","text":"precision","rect":[675,614.03,32,20]},
 {"path":"driverSelectionScreen/driver_select_back_button/Text[0]","text":"Back to Menu","rect":[69,30,149,50]},
 {"path":"driverSelectionScreen/driver_select_start_run_button/Text[0]","text":"START RUN","rect":[582,749,276,60]},
 {"path":"driverSelectionScreen/Text[7]","text":"Ready to enter the wasteland with THE ROAD WARRIOR and THE INTERCEPTOR","rect":[0,705,1440,21.79]}

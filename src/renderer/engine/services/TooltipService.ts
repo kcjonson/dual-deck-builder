@@ -9,7 +9,6 @@ import { tokens } from '../theme/tokens';
 import { OverlayHandle, OverlayService, contains } from './OverlayService';
 import { PlacementService, pointAnchor } from './Placement';
 import type { TooltipSpec } from './tooltipSpec';
-import { TooltipSurface } from './TooltipSurface';
 
 /** R12.22's states. `suppressed` holds after a press on the owner until the pointer leaves it. */
 export type TooltipState = 'idle' | 'waiting' | 'showing' | 'visible' | 'hiding' | 'suppressed';
@@ -34,8 +33,8 @@ export interface TooltipServiceOptions {
 	frame: UiFrame;
 	/** See `TooltipService.dragActive`. */
 	dragActive?: () => boolean;
-	/** Builds the surface for text content; the catalog's Tooltip (DDB-87) replaces the default. */
-	surface?: (spec: TooltipSpec) => Component;
+	/** Builds the surface for text content: the catalog's Tooltip (R12.22), which `createMountContext` passes. */
+	surface: (spec: TooltipSpec) => Component;
 }
 
 /**
@@ -49,7 +48,8 @@ export interface TooltipServiceOptions {
  * with `pointerEvents: none`, so it never takes input. The surface is the
  * spec's factory tree or, for text content, the service's `surface`; its
  * size is what it measured once mounted, and the placement service puts it
- * below-right of the pointer (or below the owner when there is no pointer)
+ * below-right of the pointer (or below the owner when there is no pointer,
+ * or where the spec's `placement` asks, against the owner or the pointer)
  * with flip and clamp.
  *
  * Moving between two owners while one is showing swaps the content without
@@ -91,7 +91,7 @@ export class TooltipService implements InputObserver, FrameTicker {
 		this.animator = animator;
 		this.frame = frame;
 		this.dragActive = dragActive ?? (() => false);
-		this.createSurface = surface ?? ((spec) => new TooltipSurface({ spec }));
+		this.createSurface = surface;
 	}
 
 	public get state(): TooltipState {
@@ -237,6 +237,10 @@ export class TooltipService implements InputObserver, FrameTicker {
 			this.present(false);
 			return;
 		}
+		if (trigger === 'focus' && owner.tooltip?.immediateOnFocus && !this.blocked) {
+			this.present(true);
+			return;
+		}
 		this.removeSurface();
 		if (this.blocked) {
 			this.stateValue = 'suppressed';
@@ -292,16 +296,19 @@ export class TooltipService implements InputObserver, FrameTicker {
 		});
 		this.overlay = overlay;
 		this.surfaceValue = surface;
-		if (surface instanceof TooltipSurface) surface.fit();
-		else if (surface.width <= 0 || surface.height <= 0) sizeToChildren(surface);
+		// Mounted, so its text can measure: a hugging surface sizes itself now,
+		// before it is placed, rather than at the frame's layout.
+		surface.layoutSubtree();
+		if (surface.width <= 0 || surface.height <= 0) sizeToChildren(surface);
 
-		const anchor: Rect = this.point ? pointAnchor(this.point) : owner.screenBounds;
+		const point = spec.placement?.anchor === 'owner' ? null : this.point;
+		const anchor: Rect = point ? pointAnchor(point) : spec.placement?.ownerRect?.() ?? owner.screenBounds;
 		const placement = this.placementService.place({
 			anchor,
 			size: { width: surface.width, height: surface.height },
-			side: 'bottom',
-			align: 'start',
-			offset: this.point ? TOOLTIP_POINTER_OFFSET : TOOLTIP_ANCHOR_OFFSET,
+			side: spec.placement?.side ?? 'bottom',
+			align: spec.placement?.align ?? 'start',
+			offset: point ? TOOLTIP_POINTER_OFFSET : TOOLTIP_ANCHOR_OFFSET,
 		});
 		surface.x = placement.x;
 		surface.y = placement.y;

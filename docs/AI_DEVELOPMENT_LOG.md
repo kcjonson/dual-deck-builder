@@ -6,16 +6,50 @@ This document contains the chronological log of completed development tasks for 
 
 **Date correction (2026-08-22):** the repo's first commit is 2025-05-17, but many entries below carry dates in December 2024 or January 2025 — the AI that wrote them used its assumed date instead of the real one. Entries dated 2025-07-03 and 2025-07-02 have been corrected from "2025-01-03"/"2025-01-02" (verified against git history). Remaining Dec 2024 / Jan 2025 dates are wrong by roughly six months; the real work happened May–July 2025. Trust git history over these dates.
 
-## Catalog Wave B, slider, tabs, and segments (2026-09-28)
+## Combat hand fan, hover lift, and card previews (2026-09-28)
 
-**What landed:** DDB-86's third PR (DDB-55 phase 5), R12.15 to R12.17.
+**What landed:** DDB-88's first PR (DDB-55 phase 6), the hand half: closes DDB-28 and DDB-29.
 
-- `ui/Slider.ts`: `positionToValue`, `valueToPosition`, `snapToStep` (log with positive bounds, linear fallback, never NaN); thumb grab keeping its offset or track jump, both captured; arrows by step or 1% of the track; Home and End; silent programmatic value; label and value columns and a detent tick.
-- `ui/LabelledPressable.ts`, a Pressable drawing one measured label from look layers; `ui/TabBar.ts` (a Stack of `Tab`s, controlled or uncontrolled, underline, hairline) and `ui/SegmentedControl.ts` (equal segments in an inset well, the tone's glowing chip), both focus groups moving selection with focus, wrapping and skipping disabled items.
-- `tabLayers` and `segmentLayers` in `style/variants.ts`; gallery scene `slider-tabs`.
+- `screens/combat/HandFan.ts` (out of `PlayerHandLayer`): the mock's fan. Each card turns 0.9 degrees per step from the middle (0.5 past seven) about its bottom centre and drops along an arc capped at 5 logical, through its own transform (`Card.fanPose`); the negative-gap row leaves room for the edge cards' lean, so every card stays inside its half. The row hangs at the mock's 38 below the dock edge.
+- `Card` lifts on the animator (`dur_fast`, retargeted so a sweep over the hand never snaps): hovered, keyboard-focused, or selected, it straightens, rises 14, grows 4%, and paints and hit-tests on the `raised` layer with `zIndex` 1. While lifted it keeps the strip it rose out of in `containsPoint`, so a pointer on its bottom edge doesn't flicker it.
+- Hand cards preview through the tooltip factory: the card at `LARGE` with its full rules text (`Card`'s new `fullText`), scaled by the stage scale, centred above the card where it settles once lifted, so a no-delay swap between cards never leaves the rising card under the preview. Keyboard focus shows the preview at once. `TooltipSpec.placement` (anchor `owner` or `pointer`, side, align, and `ownerRect` to place against a rect other than the owner's live bounds) and `TooltipSpec.immediateOnFocus` are new in the tooltip service; the default is still below-right of the pointer after `tooltip_delay`.
 
-**How:** `ui/sliderTabs.test.ts`, 23 cases through injected input: worldsim's Slider suite (linear and log maps, round trips, geometric midpoint, invalid log bounds, snapping, clamping, keys, callbacks, re-entrancy) plus thumb grab, jump then captured drag past the ends, even log stepping, disabled; TabBar hugging measured caps labels, controlled and uncontrolled selection, release over the pressed tab, one Tab stop with Left and Right skipping disabled and wrapping, underline and hairline; SegmentedControl widths, heights, click selection, arrows, tone chip and glow. The scene lints 0 in the browser after dragging, clicking, and arrowing.
+**How:** `HandFan.test.ts` (poses), `Card.test.ts` (tweened lift, fan pose, raised layer, the kept strip, full text fits every `LARGE` face), `TooltipService.test.ts` (owner placement, `ownerRect`, immediate focus), `CombatScreenHand.test.ts` (the preview at 1280x720 and 800x450, a swap mid-lift, immediate focus, the fan's turns), and the seven-cards-on-screen suite passing with the lean. Hover, preview, and keyboard focus checked in headless Chromium at 1280x720 and 800x450.
 
+## Raster glyph page stops thrashing; buttons golden focus is deterministic (2026-09-28)
+
+**What landed:** DDB-223 and DDB-222 (DDB-55 follow-ups from #108 and #110).
+
+- `RasterGlyphPage` stamps each size with the frame a run last asked for it. A full page starts over only when some size has gone unused for two frames (or a reloaded role left cells behind); a page full of glyphs in use is kept, its overflow runs stay on the distance field steadily, and it warns once. Before, a live set bigger than the page cleared and refilled every frame.
+- The encoder's R6.4a hysteresis is keyed on font and raster pixel size (the quarter-pixel device size), held while that size was drawn raster this frame or the last, aged by a new `UberGeometryEncoder.beginFrame`. Runs a raster size apart no longer share state.
+- The buttons scene's focus-ring demo focuses as it mounts (press-style focus plus `showFocusVisible`, so no reveal scrolls the developer screen) instead of on its first update, which the gallery harness's pause could beat.
+
+**How:** `RasterGlyphPage.test.ts` runs the review's case (twelve sizes on a 64 px page, 1 ms a pass, 3 ms budget): it settles by the fourth frame with no reset and no run changing path after. Encoder tests cover hover at the threshold, expiry and the 1.47/1.5 pair. `ButtonExamplesSection.test.ts` checks the ring with no update and no scroll. Two `update_mode=all` mints produced byte-identical goldens.
+
+## Catalog Wave C, tree view and screen transition (2026-09-28)
+
+**What landed:** DDB-87's third PR (DDB-55 phase 5), R12.25, R12.38, R8.22's transition sequence.
+
+- `ui/TreeView.ts`: lazy flattening keyed by node id or index path, culled rows reconciled by key, wheel scrolling with `canScroll`, keyboard cursor with Up, Down, Home, End, Left, Right, Enter and Space, chevron-column toggle, optional selection, `expandAll`, `collapseAll`, `expand`, `collapse`, `select`.
+- `ui/ScreenTransition.ts`: `run(context, swap)` fades out, swaps, lays out, fades in; blocks presses and hotkeys; retargets a second run.
+- `OverlayOptions.persistent`: survives `closeAll`.
+- Scenes `tree-view` (developer section) and `screen-transition` (gallery-only).
+
+- Review fixes (#113): TreeView's rows are virtualised inside a ScrollContainer (latch, scrollbar, Page Up and Down), the cursor's row is `active`, a collapse moves the cursor to the nearest visible ancestor, and the selection survives folding. A throwing swap ends the transition uncovered and rejects its runs; a run from inside a swap is chained; `FocusManager.focus` refuses components outside the active scope and keeps them as the scope's restore target, so the incoming scene takes no keys until the fade ends.
+
+**How:** `ui/TreeView.test.ts` (13) and `ui/ScreenTransition.test.ts` (10) through the dispatcher's queue and the frame clock, including a swap that runs ScreenManager's own closes, one that throws, and a wheel overshoot inside an outer scroller. Both scenes lint clean in the browser.
+
+## Catalog Wave C, display components (2026-09-28)
+
+**What landed:** DDB-87's second PR (DDB-55 phase 5), R12.24, R12.26 to R12.29, R12.39.
+
+- `ui/ProgressBar.ts`, `ui/Counter.ts`, `ui/Badge.ts`, `ui/Avatar.ts`, `ui/Stat.ts`, `ui/Divider.ts`.
+- `TextMetrics.baseline`, filled by `metricsOf`; `Text.shadow` passed to `drawText`; `toneColor` in `style/variants.ts`; `CatalogSection.line` takes any gap.
+- Developer sections, and so gallery scenes, `meters` and `data-display`.
+
+- Review fixes (#109, #111): Counter and ProgressBar show their target when mounted again after an unmount cut a count short; `Text.shadow` is part of the text's measured ink and cull bound, so the subtree cull never drops a visible shadow; `ProgressBar.valueText` builds the value line when the bar had none; a dialog's panel is never fully transparent, so a press on it the frame it opens is inside; a hovered toast asks for no frames and a fading one takes no clicks.
+
+**How:** `ui/display.test.ts` (26) with the committed font metrics and a recording backend: auto banding, fill and counter tweens with retargeting and reduced motion, segmented cells, the badge pill and dot, FNV-1a against known hashes, mood bands, rings as ink, the unit's baseline equal to the value's, and the divider's caption break. Both scenes lint clean in the browser.
 ## Catalog Wave B, menus (2026-09-28)
 
 **What landed:** DDB-86's second PR (DDB-55 phase 5), R12.11 to R12.14.
@@ -38,6 +72,44 @@ This document contains the chronological log of completed development tasks for 
 - `input-showcase` rebuilt as a catalog section; `interactive-controls` and the tests that built an `Input` moved to TextInput; the `clipping` scene's overflowing field is the real component.
 
 **How:** `ui/TextInput.test.ts`, 32 cases through injected input with the committed font metrics (caret placement against the advances, drag selection past the edge, keyboard selection, editing, maxLength and paste truncation, the validator per code point, Enter, Escape reaching the hotkeys, printable keys consumed, clipboard round trip, control characters stripped, password refusing copy, scroll to caret and back to zero, the clip rect, the blink, and NumberInput's clamping, stepping, commit, validator, wheel, and Tab stop). In the browser the three touched scenes lint clean, and typing, selecting, and stepping were tried by hand. Details in [component-catalog-wave-b.md](AI_TECHNICAL_DECISIONS/component-catalog-wave-b.md).
+
+## Small-text raster fallback and the scored small-size gate (2026-09-28)
+
+**What landed:** DDB-199 (R6.4a, chapter 6.9, from DDB-70).
+
+- Runs whose screen-space range is under 1.5 device pixels (under 9 device px) draw from glyphs rasterised with the platform's 2D text API at their device font size, from the same TTFs the distance-field atlases were built from, as `image`-mode quads. That includes runs under a uniform scale (the combat stage, scaled cards). Placement and measurement are still the distance-field layout; each glyph is drawn from one of four quarter-pixel phase variants, box-filtered from a 4x-wide rasterisation, so spacing matches the layout to an eighth of a pixel.
+- All roles and sizes share one 1024 by 1024 page (`rendering/RasterGlyphPage.ts`), filled per glyph on demand through the texture store's new `writeRegion`, under a 3 ms per-frame budget that `DrawApi.prewarmText` lifts for the frame after a screen or scene mounts. Combat at 1000x620 stays one GPU draw with no slot split (`smallText.spec.ts`); a window drag across combat peaks at 4.7 ms render plus flush against 44.5 ms for the first cut's atlas per size. The page starts over when full. A size stays on the raster until its range passes 1.6 (hysteresis).
+- `text/rasterGlyphs.ts` boxes and rasterises glyphs, `text/platformFaces.ts` registers the faces as `FontFace`s under private names. Substitute glyphs (R6.3) carry `outlineCodePoint` so the raster draws the outline the atlas holds.
+- Chosen over moving `Vehicle`'s literal 8 and 9 px to 11 px, which needs a card re-layout (DDB-217). 9 device px sits exactly on the threshold and is unchanged.
+- 6.9's scored comparison is in `uberShader.spec.ts`: body at 10, 12, 13 px, field against platform. On the Linux runner the field has 0.95 to 1.0 of the platform's ink but its stems vary with sub-pixel phase (0.17 to 0.24 against 0); macOS CoreText is a third heavier. A ratchet for now; DDB-218.
+- DDB-219 folded in: the first cut rounded each pen to a whole pixel and read "atta ck" on the card footers; whole-pixel advances per word did not fix it (a 2.5 px `t` must alternate 2 and 3), quarter-pixel phases did.
+- Font files are asset modules (URLs on the web, about 550 KB; data URIs in Electron, about 730 KB of the renderer bundle), loaded at startup. Goldens moved for the card showcase, the combat hand's card footers and `icons`; combat's 8 px HP lands on exactly 9 device px at 1440x882 and does not.
+## Catalog Wave A, leaves on the closed style set (2026-09-28)
+
+**What landed:** DDB-85's third PR (DDB-55 phase 5), R11.14 to R11.16 for every leaf, R12.1 to R12.5, R12.18; closes DDB-209.
+
+- `engine/types/Style.ts` deleted; `ComponentOptions.style` and `Component.applyStyle` gone; colour parsing in `resolveColor`.
+- Per-component style subsets with validation: `Rectangle` (box, now with `shadow`), `Circle`/`Triangle`/`Polygon` (`components/shapeStyle.ts`), `Text` (typography); Text's `verticalAlign`, `wrap`, `textOverflow`, `lineHeight` are options, and `style`/`layoutOptions` setters replace `textStyle`.
+- New `components/Line.ts` and `components/Image.ts`.
+- `components/Layer.ts` renamed `components/Container.ts`, visuals removed; `Stack` accepts a box `style`.
+- Every call site converted (a one-off script for the moved keys, the `border` shorthand, and `px` strings; the rest by hand). Gallery scene `leaves`.
+
+**How:** `components/leaves.test.ts` (rejection per leaf, colour parsing, rectangle box and shadow, text options, container without visuals, stack box, line geometry, image fit maths, sprite frame and tint, asset cache residency and release, failed load). The whole suite passes unchanged otherwise; every gallery scene lints clean at 1440 by 882.
+
+## Catalog Wave C, overlays (2026-09-28)
+
+**What landed:** DDB-87's first PR (DDB-55 phase 5), R12.21, R12.22, R12.23, R12.29 (KeyCap), R12.33.
+
+- `ui/Dialog.ts`: `closed`, `opening`, `open`, `closing` through the animator; modal scrim drawn by the dialog itself and faded by colour so it blocks from the first frame; X, Escape (only when open), and opt-in outside-press dismissal; `initialFocus` or the first focusable in the content, footer, then the X.
+- `ui/Popover.ts`: placed against a component or a point, flip and shrink by the placement service, non-consuming outside press, Escape, focus to its first focusable with no scope, `reposition` and `anchoredTo`.
+- `ui/Tooltip.ts` replaces `services/TooltipSurface.ts` (deleted); the tooltip service's `surface` option is required and passed by `createMountContext`, and any surface is laid out on mount before placement.
+- `ui/Toast.ts`: `Toast` and `ToastStack` (corner, capacity, severity counts, age-ordered `zIndex`).
+- `ui/KeyCap.ts` on the new `ui/LabelledLeaf.ts`; `ui/surfaces.ts` for the elevation shadows.
+- `OverlayOptions.fill`: content sized to the viewport at open and on resize.
+- Icon atlas: `close`, `info`, `warning`, `error`, `chevron_right`, `expand_more`.
+- Gallery-only scenes `dialog`, `popover`, `toasts`.
+
+**How:** `Dialog.test.ts` (21), `Popover.test.ts` (10), `Toast.test.ts` (16), and `Tooltip.test.ts` (6) drive everything through the dispatcher's queue on the frame clock; the new scenes and `overlays` lint clean in the browser.
 
 ## Nine-slice images (2026-09-28)
 

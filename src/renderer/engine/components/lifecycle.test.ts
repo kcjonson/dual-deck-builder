@@ -1,6 +1,6 @@
 import type { Rect } from '../draw/geometry';
 import { Component } from './Component';
-import { Layer } from './Layer';
+import { Container } from './Container';
 import type { MountContext } from './MountContext';
 import { Rectangle } from './Rectangle';
 import { Text } from './Text';
@@ -8,7 +8,7 @@ import { createTestContext } from './testing';
 import { createMeasuringDrawApi } from '../text/testing';
 
 /** Records its lifecycle calls into a shared log, so order across a tree is visible. */
-class Probe extends Layer {
+class Probe extends Container {
 	public updates: number[] = [];
 	public layouts = 0;
 
@@ -231,7 +231,7 @@ describe('upward invalidation and the layout phase (R8.16, R8.18)', () => {
 	it('fires onLayout once on the first layout after mount, then only when bounds change (R8.21)', () => {
 		const context = createTestContext();
 		const seen: Rect[] = [];
-		const root = new Layer({ width: 100, height: 100 });
+		const root = new Container({ width: 100, height: 100 });
 		const child = new Rectangle({ x: 5, y: 6, width: 10, height: 10, onLayout: (bounds) => seen.push(bounds) });
 		root.addChild(child);
 		root.mount(context);
@@ -263,7 +263,7 @@ describe('upward invalidation and the layout phase (R8.16, R8.18)', () => {
 
 describe('hugging containers and the layout passes (R8.18)', () => {
 	/** Hugs its label: not a relayout boundary, and sizes itself from the label in the layout phase. */
-	class Chip extends Layer {
+	class Chip extends Container {
 		public readonly label: Text;
 
 		constructor(text: string) {
@@ -282,7 +282,7 @@ describe('hugging containers and the layout passes (R8.18)', () => {
 	}
 
 	/** Places its chips in a row from their widths, as a hand-placed row reads its measured children. */
-	class Row extends Layer {
+	class Row extends Container {
 		public passes = 0;
 
 		constructor(public readonly chips: Chip[]) {
@@ -303,7 +303,7 @@ describe('hugging containers and the layout passes (R8.18)', () => {
 	it('propagates a change through a hugging child to the row, and settles in one layout call', () => {
 		const context = createTestContext({ draw: createMeasuringDrawApi().api });
 		const row = new Row([new Chip('Fuel'), new Chip('Scrap')]);
-		const root = new Layer({ width: 800, height: 600 });
+		const root = new Container({ width: 800, height: 600 });
 		root.addChild(row);
 		root.mount(context);
 		context.frame.layout();
@@ -327,7 +327,7 @@ describe('hugging containers and the layout passes (R8.18)', () => {
 
 	it('throws rather than hangs when layout keeps invalidating itself', () => {
 		const context = createTestContext();
-		const restless = new Layer({ width: 10, height: 10 });
+		const restless = new Container({ width: 10, height: 10 });
 		restless.onLayout = () => restless.setSize(restless.getWidth() + 1, 10);
 		restless.mount(context);
 

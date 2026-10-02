@@ -7,7 +7,7 @@ import { Button } from '../ui/Button';
 import { ScrollContainer } from '../ui/ScrollContainer';
 import { Circle } from './Circle';
 import type { Component } from './Component';
-import { Layer } from './Layer';
+import { Container } from './Container';
 import { Rectangle } from './Rectangle';
 import { Stack } from './Stack';
 import { Text } from './Text';
@@ -52,9 +52,9 @@ function frame(root: Component, draw: DrawApi = api, recording: RecordingBackend
 }
 
 /** A clipping viewport at (100, 100), 200 square, the shape of a scroll panel. */
-function viewport(): Layer {
-	const root = new Layer({ id: 'root', width: 800, height: 600 });
-	const clip = new Layer({ id: 'clip', x: 100, y: 100, width: 200, height: 200, overflow: 'hidden' });
+function viewport(): Container {
+	const root = new Container({ id: 'root', width: 800, height: 600 });
+	const clip = new Container({ id: 'clip', x: 100, y: 100, width: 200, height: 200, overflow: 'hidden' });
 	root.addChild(clip);
 	return clip;
 }
@@ -88,11 +88,11 @@ class Shadowed extends Rectangle {
 describe('subtree cull (DDB-184, R4.2a)', () => {
 	it('walks a subtree once to count it, then skips it while its ink misses the clip', () => {
 		const clip = viewport();
-		const card = new Layer({ id: 'card', x: 0, y: 400, width: 100, height: 100 });
+		const card = new Container({ id: 'card', x: 0, y: 400, width: 100, height: 100 });
 		const face = new Counting({ id: 'face', width: 100, height: 100 });
 		card.addChild(face).addChild(new Rectangle({ id: 'badge', x: 10, y: 10, width: 10, height: 10 }));
 		clip.addChild(card);
-		const root = clip.parent as Layer;
+		const root = clip.parent as Container;
 
 		const first = frame(root);
 		expect(face.renders).toBe(1);
@@ -109,7 +109,7 @@ describe('subtree cull (DDB-184, R4.2a)', () => {
 		const clip = viewport();
 		const card = new Counting({ id: 'card', x: 0, y: 400, width: 100, height: 100 });
 		clip.addChild(card);
-		const root = clip.parent as Layer;
+		const root = clip.parent as Container;
 		frame(root);
 		frame(root);
 		expect(card.renders).toBe(1);
@@ -118,11 +118,11 @@ describe('subtree cull (DDB-184, R4.2a)', () => {
 		expect(frame(root).drawn).toEqual(['card:rect']);
 
 		const panel = new ScrollContainer({ id: 'panel', x: 100, y: 100, width: 200, height: 200, contentHeight: 400 });
-		const content = new Layer({ width: 200, height: 400 });
+		const content = new Container({ width: 200, height: 400 });
 		const row = new Counting({ id: 'row', x: 0, y: 300, width: 100, height: 40 });
 		content.addChild(row);
 		panel.addChild(content);
-		const scrolled = new Layer({ width: 800, height: 600 });
+		const scrolled = new Container({ width: 800, height: 600 });
 		scrolled.addChild(panel);
 		frame(scrolled);
 		frame(scrolled);
@@ -138,7 +138,7 @@ describe('subtree cull (DDB-184, R4.2a)', () => {
 		// its centre (220, 100) spans x 120..320, half of it inside.
 		const card = new Counting({ id: 'card', x: 210, y: 0, width: 20, height: 200 });
 		clip.addChild(card);
-		const root = clip.parent as Layer;
+		const root = clip.parent as Container;
 		frame(root);
 		frame(root);
 		expect(card.renders).toBe(1);
@@ -149,10 +149,10 @@ describe('subtree cull (DDB-184, R4.2a)', () => {
 
 	it('forgets the count when the subtree changes, so the next frame walks and recounts it', () => {
 		const clip = viewport();
-		const card = new Layer({ id: 'card', x: 0, y: 400, width: 100, height: 100 });
+		const card = new Container({ id: 'card', x: 0, y: 400, width: 100, height: 100 });
 		card.addChild(new Rectangle({ id: 'a', width: 10, height: 10 }));
 		clip.addChild(card);
-		const root = clip.parent as Layer;
+		const root = clip.parent as Container;
 		frame(root);
 		expect(frame(root).culled).toBe(1);
 
@@ -164,9 +164,9 @@ describe('subtree cull (DDB-184, R4.2a)', () => {
 	});
 
 	it('skips everything under an empty clip, and counts it', () => {
-		const root = new Layer({ width: 800, height: 600 });
-		const outer = new Layer({ x: 0, y: 0, width: 100, height: 100, overflow: 'hidden' });
-		const inner = new Layer({ x: 200, y: 200, width: 100, height: 100, overflow: 'hidden' });
+		const root = new Container({ width: 800, height: 600 });
+		const outer = new Container({ x: 0, y: 0, width: 100, height: 100, overflow: 'hidden' });
+		const inner = new Container({ x: 200, y: 200, width: 100, height: 100, overflow: 'hidden' });
 		const leaf = new Counting({ id: 'leaf', width: 10, height: 10 });
 		inner.addChild(leaf);
 		outer.addChild(inner);
@@ -182,10 +182,10 @@ describe('subtree cull (DDB-184, R4.2a)', () => {
 
 	it('never skips a subtree holding a layer, which may promote past the clip (R4.8)', () => {
 		const clip = viewport();
-		const card = new Layer({ id: 'card', x: 0, y: 400, width: 100, height: 100 });
+		const card = new Container({ id: 'card', x: 0, y: 400, width: 100, height: 100 });
 		card.addChild(new Rectangle({ id: 'popup', width: 20, height: 20, layer: 'popup' }));
 		clip.addChild(card);
-		const root = clip.parent as Layer;
+		const root = clip.parent as Container;
 
 		frame(root);
 		expect(card.subtreeInk).toBeNull();
@@ -195,12 +195,11 @@ describe('subtree cull (DDB-184, R4.2a)', () => {
 	it('keeps apiDraws + culled equal to the groups requested, skip or no skip', () => {
 		const clip = viewport();
 		for (let index = 0; index < 12; index++) {
-			const card = new Layer({ id: `card${index}`, x: 0, y: index * 60, width: 100, height: 50 });
-			card.setBackgroundColor([0, 0, 0, 1]);
+			const card = new Stack({ id: `card${index}`, x: 0, y: index * 60, width: 100, height: 50, style: { backgroundColor: [0, 0, 0, 1] } });
 			card.addChild(new Shadowed({ id: `art${index}`, x: 10, y: 10, width: 30, height: 20 }));
 			clip.addChild(card);
 		}
-		const root = clip.parent as Layer;
+		const root = clip.parent as Container;
 
 		const first = frame(root);
 		const second = frame(root);
@@ -234,7 +233,7 @@ describe('subtree cull (DDB-184, R4.2a)', () => {
 			const draw = options.draw ?? api;
 			const recording = options.recording ?? backend;
 			const clip = viewport();
-			const root = clip.parent as Layer;
+			const root = clip.parent as Container;
 			const subject = build();
 			clip.addChild(subject);
 			if (options.mount) {
@@ -289,13 +288,24 @@ describe('subtree cull (DDB-184, R4.2a)', () => {
 			expect(sweep(make, { draw: measuring, recording, mount: true })).toBeGreaterThanOrEqual(50);
 		});
 
+		it('a text drop shadow offset well past the run (R12.4)', () => {
+			const { api: measuring, backend: recording } = createMeasuringDrawApi();
+			const make = (): Component => {
+				const text = new Text('Shadowed', { id: 'shadowed_text', style: { fontSize: 16 } });
+				text.shadow = { color: [0, 0, 0, 1], offset: { x: 0, y: 12 }, blur: 4 };
+				return text;
+			};
+			// 12 down and 4 of blur below the run; 4 of blur above it.
+			expect(sweep(make, { draw: measuring, recording, mount: true })).toBeGreaterThanOrEqual(12);
+		});
+
 		it('a text that runs past its box', () => {
 			const { api: measuring, backend: recording } = createMeasuringDrawApi();
 			const make = (): Component => new Text('Scrap the escort and the convoy keeps rolling on and on', {
 				id: 'spill',
 				width: 40,
 				height: 10,
-				style: { fontSize: 16, whiteSpace: 'nowrap' },
+				style: { fontSize: 16 }, wrap: 'none',
 			});
 			// A 20 px line in a 10 px box.
 			expect(sweep(make, { draw: measuring, recording, mount: true })).toBeGreaterThanOrEqual(5);
@@ -316,7 +326,7 @@ describe('subtree cull (DDB-184, R4.2a)', () => {
 					id: 'right',
 					width: 40,
 					height: 20,
-					style: { fontSize: 16, whiteSpace: 'nowrap', textAlign: 'right' },
+					style: { fontSize: 16, textAlign: 'right' }, wrap: 'none',
 				}), 'x');
 				const run = text.measured?.width ?? 0;
 				expect(run).toBeGreaterThan(100);
@@ -329,7 +339,7 @@ describe('subtree cull (DDB-184, R4.2a)', () => {
 					id: 'centred',
 					width: 40,
 					height: 20,
-					style: { fontSize: 16, whiteSpace: 'nowrap', textAlign: 'center' },
+					style: { fontSize: 16, textAlign: 'center' }, wrap: 'none',
 				}), 'x');
 				expect(text.inkRect.x).toBeLessThan(0);
 				expect(past).toBeGreaterThanOrEqual(Math.floor(text.inkRect.width - 40));
@@ -341,7 +351,7 @@ describe('subtree cull (DDB-184, R4.2a)', () => {
 					id: 'tall',
 					width: 60,
 					height: 16,
-					style: { fontSize: 16, verticalAlign: 'middle' },
+					style: { fontSize: 16 }, verticalAlign: 'middle',
 				}), 'y');
 				expect(text.measured?.height ?? 0).toBeGreaterThan(60);
 				expect(past).toBeGreaterThanOrEqual(Math.floor(text.inkRect.height - 16));
@@ -354,7 +364,7 @@ describe('subtree cull (DDB-184, R4.2a)', () => {
 					id: 'bottom',
 					width: 60,
 					height: 16,
-					style: { fontSize: 16, verticalAlign: 'bottom' },
+					style: { fontSize: 16 }, verticalAlign: 'bottom',
 				}), 'y');
 				expect(past).toBeGreaterThanOrEqual(Math.floor(text.inkRect.height - 16));
 				// The last line's box ends on the box's bottom, so the block's glyphs start above it.
@@ -364,7 +374,7 @@ describe('subtree cull (DDB-184, R4.2a)', () => {
 			it('glyphs past a tight line height', () => {
 				const { past, text } = measuredSweep(() => new Text('Tall Glyphs', {
 					id: 'tight',
-					style: { fontSize: 32, lineHeight: 0.4 },
+					style: { fontSize: 32 }, lineHeight: 0.4,
 				}), 'y');
 				expect(text.height).toBeLessThan(16);
 				expect(past).toBeGreaterThan(0);
@@ -385,7 +395,7 @@ describe('subtree cull (DDB-184, R4.2a)', () => {
 		it('a text that gains a bound once it measures, at an unchanged size', () => {
 			const { api: measuring, backend: recording } = createMeasuringDrawApi();
 			const clip = viewport();
-			const root = clip.parent as Layer;
+			const root = clip.parent as Container;
 			const text = new Text('Convoy', { id: 'late', y: 400, width: 60, height: 20, style: { fontSize: 16 } });
 			clip.addChild(text);
 			// Cached while unmeasured: no bound.
@@ -410,13 +420,13 @@ describe('subtree cull (DDB-184, R4.2a)', () => {
 			const recording = new MeasuringRecordingBackend({ maxFrames: 1 });
 			const draw = new DrawApi({ backend: recording, strict: true });
 			const clip = viewport();
-			const root = clip.parent as Layer;
+			const root = clip.parent as Container;
 			const row = new Stack({ id: 'row', x: 210, y: 50 });
 			const text = new Text('Scrap the escort and keep rolling on', {
 				id: 'late-stack',
 				width: 40,
 				height: 20,
-				style: { fontSize: 16, whiteSpace: 'nowrap', textAlign: 'right' },
+				style: { fontSize: 16, textAlign: 'right' }, wrap: 'none',
 			});
 			row.addChild(text);
 			clip.addChild(row);
@@ -450,11 +460,11 @@ describe('subtree cull (DDB-184, R4.2a)', () => {
 			const clip = viewport();
 			text.y = 1000;
 			clip.addChild(text);
-			frame(clip.parent as Layer, lenient);
+			frame(clip.parent as Container, lenient);
 
 			expect(text.subtreeInk).toBeNull();
 			// Walked, not skipped: the run has no bound, so the draw API keeps it.
-			expect(frame(clip.parent as Layer, lenient).drawn).toEqual(['unmeasured:text']);
+			expect(frame(clip.parent as Container, lenient).drawn).toEqual(['unmeasured:text']);
 			expect(text.walkedGroupCount).toBe(1);
 		});
 	});
@@ -468,18 +478,18 @@ describe('subtree cull (DDB-184, R4.2a)', () => {
 		const clip = viewport();
 		clip.addChild(new Liar({ width: 20, height: 20 }));
 
-		expect(() => frame(clip.parent as Layer)).toThrow(/ink-outside-bound: liar draws at/);
+		expect(() => frame(clip.parent as Container)).toThrow(/ink-outside-bound: liar draws at/);
 
 		// A production build builds no bound and checks nothing.
 		const production = new DrawApi({ backend, development: false, strict: true });
 		expect(production.auditsInk).toBe(false);
-		expect(() => frame(clip.parent as Layer, production)).not.toThrow();
+		expect(() => frame(clip.parent as Container, production)).not.toThrow();
 	});
 });
 
 describe('the walk allocates no geometry per frame (#85 review)', () => {
 	it('keeps one clipRect until the size changes', () => {
-		const layer = new Layer({ width: 100, height: 50, overflow: 'hidden' });
+		const layer = new Container({ width: 100, height: 50, overflow: 'hidden' });
 		const clip = layer.clipRect;
 		expect(layer.clipRect).toBe(clip);
 		expect(Object.isFrozen(clip)).toBe(true);
@@ -508,7 +518,7 @@ describe('the walk allocates no geometry per frame (#85 review)', () => {
 	});
 
 	it('drops a drag ghost\'s offset from the cached matrix when the ghost unmounts', () => {
-		const root = new Layer({ width: 400, height: 400 });
+		const root = new Container({ width: 400, height: 400 });
 		const card = new Rectangle({ width: 100, height: 20 });
 		root.addChild(card);
 		root.mount(createTestContext());

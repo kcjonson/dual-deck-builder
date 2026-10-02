@@ -1,6 +1,6 @@
 import { committedFontAtlas, createMeasuringDrawApi } from '../text/testing';
 import { layoutText } from '../text/TextLayout';
-import { Layer } from './Layer';
+import { Container } from './Container';
 import type { MountContext } from './MountContext';
 import { Rectangle } from './Rectangle';
 import { Stack } from './Stack';
@@ -33,7 +33,7 @@ function label(text: string, style: ConstructorParameters<typeof Text>[1] = {}):
 	return new Text(text, { ...style, style: { fontSize: 16, ...style.style } });
 }
 
-function layOut(root: Layer, context: MountContext): void {
+function layOut(root: Container, context: MountContext): void {
 	if (!root.isMounted) root.mount(context);
 	context.frame.layout();
 }
@@ -123,7 +123,7 @@ describe('Text in a stack (R10.7, R10.13)', () => {
 		const context = measuringContext();
 		const row = new Stack({ width: 80, height: 40, direction: 'horizontal' });
 		const icon = new Rectangle({ width: 60, height: 20 });
-		const text = label(SENTENCE, { widthMode: 'fill', style: { whiteSpace: 'nowrap', textOverflow: 'ellipsis' } });
+		const text = label(SENTENCE, { widthMode: 'fill', wrap: 'none', textOverflow: 'ellipsis' });
 		row.addChild(icon).addChild(text);
 		layOut(row, context);
 
@@ -166,7 +166,7 @@ describe('Text in a stack (R10.7, R10.13)', () => {
 
 	it('propagates a text change to its hug ancestors and stops at the fixed boundary', () => {
 		const context = measuringContext();
-		const screen = new Layer({ width: 800, height: 600 });
+		const screen = new Container({ width: 800, height: 600 });
 		const panel = new Stack({ width: 400, height: 300 });
 		const row = new Stack({ direction: 'horizontal' });
 		const text = label('Fuel');
@@ -202,7 +202,7 @@ describe('Text in a stack (R10.7, R10.13)', () => {
 
 	it('hugs unwrapped again once moved out of a stack', () => {
 		const context = measuringContext();
-		const root = new Layer({ width: 800, height: 600 });
+		const root = new Container({ width: 800, height: 600 });
 		const column = new Stack({ width: 120 });
 		const text = label(SENTENCE);
 		column.addChild(text);

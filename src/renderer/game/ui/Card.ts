@@ -2,6 +2,10 @@ import { Component, PointerEvents } from '../../engine/components/Component';
 import { Text } from '../../engine/components/Text';
 import { Rectangle } from '../../engine/components/Rectangle';
 import type { AnyUiEvent } from '../../engine/input/events';
+import type { TweenHandle } from '../../engine/animation/Animator';
+import { tokens } from '../../engine/theme/tokens';
+import { normalizeTransform, transformMatrix } from '../../engine/components/componentGeometry';
+import { Rect, concat, invert, transformPoint } from '../../engine/draw/geometry';
 import { Card as GameCard } from '../mechanics/Card';
 
 /**
@@ -28,9 +32,23 @@ const TITLE_LINE_HEIGHT = 1.2;
 /** Space between the title slot and the cost's digits. */
 const TITLE_COST_GAP = 4;
 /** How far a hovered or selected card rises, through its transform so layout never sees it (R8.26). */
-export const CARD_LIFT = 5;
-const LIFTED = { translate: [0, -CARD_LIFT] as const };
-const RESTING = {};
+export const CARD_LIFT = 14;
+/** A lifted card grows a little, about its bottom edge, so it reads as picked up. */
+const LIFT_SCALE = 1.04;
+const BOTTOM_CENTRE: readonly [number, number] = [0.5, 1];
+/** The pose a lift settles at, whatever the fan pose it rose from. */
+const LIFTED_TRANSFORM = normalizeTransform({ translate: [0, -CARD_LIFT], scale: LIFT_SCALE, origin: BOTTOM_CENTRE });
+
+/**
+ * Where a card rests in a fan: turned about its bottom centre by `rotate`
+ * radians and dropped by `drop`, in its own units. Lifting straightens it.
+ */
+export interface FanPose {
+	rotate: number;
+	drop: number;
+}
+
+const UNFANNED: FanPose = Object.freeze({ rotate: 0, drop: 0 });
 
 /**
  * Visual component for displaying a card. One composite target (R8.29):
@@ -54,17 +72,30 @@ export class Card extends Component {
 	private driverIndicator: Text | null = null;
 	private driverNumber: 1 | 2 | null = null;
 
+	private pose: FanPose = UNFANNED;
+	/** 0 resting in its pose, 1 lifted; tweened on the animator while mounted. */
+	private liftAmount = 0;
+	private liftTween: TweenHandle<number> | null = null;
+	private readonly liftInput: { rotate: number; translate: readonly [number, number]; scale: number; origin: readonly [number, number] } = {
+		rotate: 0,
+		translate: [0, 0],
+		scale: 1,
+		origin: BOTTOM_CENTRE,
+	};
+
 	// Event callbacks
 	private clickHandler: ((card: GameCard) => void) | null = null;
 	private selectHandler: ((card: GameCard) => void) | null = null;
 
-	constructor({ id, x, y, data, size = CardSize.NORMAL, driverNumber }: { 
+	constructor({ id, x, y, data, size = CardSize.NORMAL, driverNumber, fullText = false }: {
 		id?: string;
-		x: number; 
-		y: number; 
-		data: GameCard; 
+		x: number;
+		y: number;
+		data: GameCard;
 		size?: CardSize;
 		driverNumber?: 1 | 2 | null;
+		/** The full rules text in place of the summary: a preview, which has the room. */
+		fullText?: boolean;
 	}) {
 		const dimensions = CARD_DIMENSIONS[size];
 		super({
@@ -129,8 +160,8 @@ export class Card extends Component {
 				fontSize: Math.floor(20 * scaleFactor),
 				color: '#ffaa00',
 				fontWeight: 'bold',
-				whiteSpace: 'nowrap',
 			},
+			wrap: 'none',
 		});
 		this.costCentre = dimensions.width - Math.floor(30 * scaleFactor);
 		this.titleX = titleX;
@@ -147,11 +178,11 @@ export class Card extends Component {
 			height: Math.ceil(TITLE_LINES * titleSize * TITLE_LINE_HEIGHT),
 			style: {
 				fontSize: titleSize,
-				lineHeight: TITLE_LINE_HEIGHT,
 				color: '#ffffff',
 				fontWeight: 'bold',
-				textOverflow: 'ellipsis',
 			},
+			lineHeight: TITLE_LINE_HEIGHT,
+			textOverflow: 'ellipsis',
 		});
 		this.addChild(this.name);
 		this.addChild(this.cost);
@@ -165,7 +196,7 @@ export class Card extends Component {
 			// with DDB-137, plain until then. The box ends above the rarity line
 			// and the ellipsis is only a backstop: no summary reaches it.
 			const descriptionY = Math.floor(60 * scaleFactor);
-			this.description = new Text(Card.faceText(data.displaySummary), {
+			this.description = new Text(fullText ? data.displayDescription : Card.faceText(data.displaySummary), {
 				id: this.childId('description'),
 				x: padding,
 				y: descriptionY,
@@ -174,9 +205,9 @@ export class Card extends Component {
 				style: {
 					fontSize: Math.floor(11 * scaleFactor),
 					color: '#cccccc',
-					lineHeight: 1.4,
-					textOverflow: 'ellipsis',
 				},
+				lineHeight: 1.4,
+				textOverflow: 'ellipsis',
 			});
 			this.addChild(this.description);
 		}
@@ -205,9 +236,9 @@ export class Card extends Component {
 				style: {
 					fontSize: Math.floor(8 * scaleFactor),
 					color: '#888888',
-					textOverflow: 'ellipsis',
-					whiteSpace: 'nowrap',
 				},
+				textOverflow: 'ellipsis',
+				wrap: 'none',
 			});
 			this.addChild(this.tags);
 
@@ -252,10 +283,10 @@ export class Card extends Component {
 					fontSize: Math.floor(10 * scaleFactor),
 					color: '#ffffff',
 					textAlign: 'center',
-					verticalAlign: 'middle',
-					whiteSpace: 'nowrap',
 					fontWeight: 'bold',
 				},
+				verticalAlign: 'middle',
+				wrap: 'none',
 			});
 			this.addChild(this.driverIndicator);
 		}
@@ -365,9 +396,9 @@ export class Card extends Component {
 	}
 
 	/**
-	 * Hover, selection, and enabled state, the last inherited (R8.3): a
-	 * selected card, or a hovered one that can be played, rises and takes a
-	 * glow; a disabled card dims. The dispatcher keeps `hovered` true over a
+	 * Hover, focus, selection, and enabled state, the last inherited (R8.3):
+	 * a selected card, or a hovered or keyboard-focused one that can be
+	 * played, rises, and all but focus take a glow; a disabled card dims. The dispatcher keeps `hovered` true over a
 	 * disabled card (R9.8), so the glow checks enabled itself.
 	 */
 	protected onStateChange(): void {
@@ -381,11 +412,111 @@ export class Card extends Component {
 		} else {
 			this.cardBorder.setBorderWidth(0);
 		}
-		const lifted = this.selected || (this.hovered && enabled);
-		this.transform = lifted ? LIFTED : RESTING;
-		// A lifted card in an overlapping fan paints over its neighbours
-		this.zIndex = lifted ? 1 : 0;
+		// Keyboard focus lifts a card as the pointer does, so its ring clears its neighbours
+		this.liftTo(this.selected || ((this.hovered || this.focusVisible) && enabled) ? 1 : 0);
 		this.cardBackground.setFillColor(enabled ? '#2a2a3a' : '#1a1a2a');
+	}
+
+	/** Where the card rests in its fan; a lifted card straightens out of it. */
+	public get fanPose(): FanPose {
+		return this.pose;
+	}
+
+	public set fanPose(pose: FanPose) {
+		this.pose = pose;
+		this.applyLift(this.liftAmount);
+	}
+
+	/**
+	 * Where the card is on screen once fully lifted, while it may still be on
+	 * its way up: anything placed against it (the preview) clears the card
+	 * where it will settle, not where the tween has it this frame.
+	 */
+	public get liftedScreenBounds(): Rect {
+		let matrix = this.screenMatrix;
+		const current = transformMatrix(this.transform, this.width, this.height);
+		const inverse = current ? invert(current) : null;
+		if (inverse) matrix = concat(matrix, inverse);
+		const lifted = transformMatrix(LIFTED_TRANSFORM, this.width, this.height);
+		if (lifted) matrix = concat(matrix, lifted);
+		const corners = [
+			transformPoint(matrix, 0, 0),
+			transformPoint(matrix, this.width, 0),
+			transformPoint(matrix, this.width, this.height),
+			transformPoint(matrix, 0, this.height),
+		];
+		const xs = corners.map((corner) => corner.x);
+		const ys = corners.map((corner) => corner.y);
+		const x = Math.min(...xs);
+		const y = Math.min(...ys);
+		return { x, y, width: Math.max(...xs) - x, height: Math.max(...ys) - y };
+	}
+
+	/** Whether the card is up out of its fan, or on its way up. */
+	public get lifted(): boolean {
+		return this.liftAmount > 0;
+	}
+
+	/**
+	 * Rises or settles on the animator (R8.28's retarget, so a quick pass over
+	 * the hand never snaps), or at once while unmounted.
+	 */
+	private liftTo(target: number): void {
+		const animator = this.context?.animator;
+		if (!animator) {
+			this.liftTween?.cancel();
+			this.liftTween = null;
+			this.applyLift(target);
+			return;
+		}
+		if (this.liftTween) {
+			this.liftTween.retarget(target);
+			return;
+		}
+		if (this.liftAmount === target) return;
+		this.liftTween = animator.tween({
+			from: this.liftAmount,
+			to: target,
+			duration: tokens.motion.dur_fast,
+			owner: this,
+			onUpdate: (value) => this.applyLift(value),
+		});
+	}
+
+	/**
+	 * The fan pose blended toward the lifted one. A card that is up at all
+	 * paints and hit-tests on the `raised` layer, over its neighbours and
+	 * the driver tab above it, and first among its siblings.
+	 */
+	private applyLift(amount: number): void {
+		this.liftAmount = amount;
+		const rest = 1 - amount;
+		// The setter copies into a frozen transform, so the input can be
+		// reused across tween frames; the translate tuple is kept by
+		// reference, so it has to be fresh.
+		const input = this.liftInput;
+		input.rotate = this.pose.rotate * rest;
+		input.translate = [0, this.pose.drop * rest - CARD_LIFT * amount];
+		input.scale = 1 + (LIFT_SCALE - 1) * amount;
+		this.transform = input;
+		this.layer = amount > 0 ? 'raised' : null;
+		this.zIndex = amount > 0 ? 1 : 0;
+	}
+
+	/**
+	 * A lifted card keeps the strip it rose out of, so a pointer resting on
+	 * its bottom edge doesn't drop it, see it slide back under, and lift it
+	 * again.
+	 */
+	public containsPoint(localX: number, localY: number): boolean {
+		const reach = this.liftAmount > 0 ? CARD_LIFT : 0;
+		return localX >= 0 && localX < this.width && localY >= 0 && localY < this.height + reach;
+	}
+
+	/** Drops the lift tween with the card: the base cancels it on unmount. */
+	protected onUnmount(): void {
+		this.liftTween = null;
+		super.onUnmount();
 	}
 
 	/**

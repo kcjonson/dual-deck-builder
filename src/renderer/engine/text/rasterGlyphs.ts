@@ -1,0 +1,241 @@
+import type { TextureHandle } from '../draw/commands';
+import type { FontAtlas, FontGlyph } from './FontAtlas';
+import type { TextLayout } from './TextLayout';
+
+/**
+ * R6.4a's threshold: a run whose screen-space distance range falls below this
+ * many device pixels is drawn from platform-rasterised glyphs instead of the
+ * distance field. With the committed 48 px per em, range 8 atlases that is
+ * text under 9 device px.
+ */
+export const RASTER_RANGE_THRESHOLD = 1.5;
+
+/**
+ * How far past the threshold a run already on the raster path has to go to
+ * leave it. The two paths differ in weight on some platforms (6.9 scores the
+ * field at two thirds of CoreText's ink), so a zoom that hovers at the
+ * threshold would flicker between them without it.
+ */
+export const RASTER_RANGE_HYSTERESIS = 0.1;
+
+/**
+ * Raster glyphs are built at device font sizes rounded to this step, so text
+ * under a changing scale (a zoom, a resize) reuses a handful of sizes rather
+ * than building new glyphs every frame. A quarter pixel of font size is under
+ * a tenth of a pixel of glyph size at the sizes the fallback serves.
+ */
+export const RASTER_SIZE_STEP = 0.25;
+
+/**
+ * Horizontal sub-pixel positions each glyph is rasterised at. A pen goes to
+ * the nearest quarter pixel, so glyphs sit within an eighth of a pixel of
+ * the layout and spacing is even (a 2.5 px advance stays 2.5 px) instead of
+ * alternating whole pixels. Four is what Skia uses for sub-pixel text.
+ */
+export const RASTER_PHASES = 4;
+
+/** Blank texels between phase cells, so bilinear filtering never reads a neighbour. */
+export const RASTER_GUTTER = 1;
+
+/**
+ * Blank device pixels between glyphs on the scratch canvas. Rounded-out plane
+ * bounds contain a glyph's ink, but a hinting rasteriser can move an edge by
+ * a pixel; the gap keeps that from landing in the next glyph's box, which is
+ * what makes a clip per glyph unnecessary.
+ */
+const CANVAS_GAP = 2;
+
+/**
+ * R6.5's screen-space range, in device pixels, for a run at `size` logical px
+ * drawn at `scale` device pixels per logical pixel (the ratio, times any
+ * uniform scale the run is drawn under).
+ */
+export function screenRange(atlas: FontAtlas, size: number, scale: number): number {
+	return (atlas.distanceRange * size * scale) / atlas.size;
+}
+
+/**
+ * Whether R6.4a sends a run at this size and scale to the raster fallback:
+ * under the threshold, or under it plus the hysteresis for a run that was
+ * already there.
+ */
+export function wantsRasterGlyphs(atlas: FontAtlas, size: number, scale: number, alreadyRaster = false): boolean {
+	const limit = alreadyRaster ? RASTER_RANGE_THRESHOLD + RASTER_RANGE_HYSTERESIS : RASTER_RANGE_THRESHOLD;
+	return screenRange(atlas, size, scale) < limit;
+}
+
+/** The device font size a run's glyphs are rasterised at, on `RASTER_SIZE_STEP`. */
+export function rasterPixelSize(size: number, scale: number): number {
+	return Math.max(RASTER_SIZE_STEP, Math.round((size * scale) / RASTER_SIZE_STEP) * RASTER_SIZE_STEP);
+}
+
+/**
+ * A glyph's box at one device font size: its plane bounds (R6.2's quad
+ * placement, which already pads the outline by half the distance range)
+ * rounded out to whole device pixels from a pen on a whole pixel, plus one
+ * column for the phases to shift into. `left` and `top` are from the pen on
+ * the baseline, y down.
+ */
+export interface RasterGlyphBox {
+	readonly left: number;
+	readonly top: number;
+	readonly width: number;
+	readonly height: number;
+}
+
+export function rasterGlyphBox(glyph: FontGlyph, pixelSize: number): RasterGlyphBox | null {
+	const plane = glyph.plane;
+	if (!plane) return null;
+	const left = Math.floor(plane.left * pixelSize);
+	const top = Math.floor(plane.top * pixelSize);
+	return {
+		left,
+		top,
+		width: Math.max(1, Math.ceil(plane.right * pixelSize) - left) + 1,
+		height: Math.max(1, Math.ceil(plane.bottom * pixelSize) - top),
+	};
+}
+
+/**
+ * The texels a glyph's phases occupy, side by side with a gutter after each:
+ * `RASTER_PHASES * (box.width + RASTER_GUTTER)` wide, and `box.height` tall
+ * plus a gutter row.
+ */
+export function rasterBlockWidth(box: RasterGlyphBox): number {
+	return RASTER_PHASES * (box.width + RASTER_GUTTER);
+}
+
+/** One glyph's cells in a raster page: one per phase, side by side. */
+export interface RasterGlyphCell extends RasterGlyphBox {
+	/** Phase 0's cell in page texels; phase `n` is `n * stride` texels to its right. */
+	readonly x: number;
+	readonly y: number;
+	readonly stride: number;
+}
+
+/**
+ * Where a pen at `pen` device pixels draws: the whole pixel its cell's
+ * `left` counts from, and the phase to sample.
+ */
+export function rasterPen(pen: number, out: { pixel: number; phase: number }): { pixel: number; phase: number } {
+	const steps = Math.round(pen * RASTER_PHASES);
+	out.pixel = Math.floor(steps / RASTER_PHASES);
+	out.phase = steps - out.pixel * RASTER_PHASES;
+	return out;
+}
+
+/** The raster glyphs of one run: the page texture they sit in, and a cell per code point with an image. */
+export interface RasterGlyphRun {
+	readonly texture: TextureHandle;
+	/** The page's size in texels, for texture coordinates. */
+	readonly width: number;
+	readonly height: number;
+	readonly cells: ReadonlyMap<number, RasterGlyphCell>;
+}
+
+/**
+ * Hands the encoder raster glyphs for a run R6.4a sends to the fallback,
+ * every glyph with an image in `layout` at `pixelSize`, or null to keep the
+ * distance field for this frame.
+ */
+export interface RasterGlyphSource {
+	glyphs(font: string, layout: TextLayout, pixelSize: number): RasterGlyphRun | null;
+}
+
+/** The part of `CanvasRenderingContext2D` the rasteriser uses, so it runs against a fake in tests. */
+export interface GlyphCanvasContext {
+	readonly canvas: { width: number; height: number };
+	font: string;
+	fillStyle: string | CanvasGradient | CanvasPattern;
+	textBaseline: CanvasTextBaseline;
+	textAlign: CanvasTextAlign;
+	setTransform(a: number, b: number, c: number, d: number, e: number, f: number): void;
+	clearRect(x: number, y: number, width: number, height: number): void;
+	fillText(text: string, x: number, y: number): void;
+	getImageData(x: number, y: number, width: number, height: number): { readonly data: ArrayLike<number> };
+}
+
+export interface GlyphToRasterize {
+	/** What the platform draws: the outline's code point, a substitute's source (R6.3). */
+	readonly outlineCodePoint: number;
+	readonly box: RasterGlyphBox;
+}
+
+/**
+ * Draws `glyphs` in white through the platform's 2D text API (R6.1's
+ * permitted raster alternative), side by side on one scratch canvas at
+ * `RASTER_PHASES` times the horizontal resolution, reads the canvas back
+ * once, and box-filters each glyph into its phases: phase `n` is the glyph
+ * moved `n` subsamples right, each output texel the mean of the subsamples it
+ * covers. Doing the shift here rather than with a fractional `fillText` x
+ * keeps it exact on platforms that snap text to whole pixels, as Chrome does
+ * on Linux at ratio 1.
+ *
+ * Returns one block per glyph, `rasterBlockWidth(box)` by
+ * `box.height + RASTER_GUTTER` premultiplied white RGBA8 texels whose alpha is
+ * the coverage; the gutter column after each phase and the row under them
+ * are blank, so a block written over an old one leaves no stale texel beside
+ * its cells. The canvas is
+ * grown when too small and never shrunk.
+ */
+export function rasterizeGlyphs(context: GlyphCanvasContext, glyphs: readonly GlyphToRasterize[], pixelSize: number, family: string): Uint8Array[] {
+	const phases = RASTER_PHASES;
+	let width = 0;
+	let height = 1;
+	for (const { box } of glyphs) {
+		width += box.width + CANVAS_GAP;
+		height = Math.max(height, box.height);
+	}
+	const canvasWidth = Math.max(1, width * phases);
+	const canvas = context.canvas;
+	if (canvas.width < canvasWidth || canvas.height < height) {
+		// Resizing resets the context's state, so everything is set after it.
+		canvas.width = Math.max(canvas.width, canvasWidth);
+		canvas.height = Math.max(canvas.height, height);
+	}
+	context.setTransform(1, 0, 0, 1, 0, 0);
+	context.clearRect(0, 0, canvasWidth, height);
+	context.setTransform(phases, 0, 0, 1, 0, 0);
+	context.font = `${pixelSize}px "${family}"`;
+	context.fillStyle = '#ffffff';
+	context.textBaseline = 'alphabetic';
+	context.textAlign = 'left';
+	let pen = 0;
+	for (const { outlineCodePoint, box } of glyphs) {
+		context.fillText(String.fromCodePoint(outlineCodePoint), pen - box.left, -box.top);
+		pen += box.width + CANVAS_GAP;
+	}
+	context.setTransform(1, 0, 0, 1, 0, 0);
+
+	const source = context.getImageData(0, 0, canvasWidth, height).data;
+	const blocks: Uint8Array[] = [];
+	let offset = 0;
+	for (const { box } of glyphs) {
+		const blockWidth = rasterBlockWidth(box);
+		const block = new Uint8Array(blockWidth * (box.height + RASTER_GUTTER) * 4);
+		const first = offset * phases;
+		const end = (offset + box.width) * phases;
+		for (let row = 0; row < box.height; row++) {
+			const sourceRow = row * canvasWidth;
+			for (let phase = 0; phase < phases; phase++) {
+				const cellX = phase * (box.width + RASTER_GUTTER);
+				for (let column = 0; column < box.width; column++) {
+					let sum = 0;
+					const start = (offset + column) * phases - phase;
+					for (let sub = start; sub < start + phases; sub++) {
+						if (sub >= first && sub < end) sum += source[(sourceRow + sub) * 4 + 3];
+					}
+					const value = Math.round(sum / phases);
+					const texel = (row * blockWidth + cellX + column) * 4;
+					block[texel] = value;
+					block[texel + 1] = value;
+					block[texel + 2] = value;
+					block[texel + 3] = value;
+				}
+			}
+		}
+		blocks.push(block);
+		offset += box.width + CANVAS_GAP;
+	}
+	return blocks;
+}

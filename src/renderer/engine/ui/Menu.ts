@@ -75,9 +75,17 @@ class MenuRows extends Component {
 		return true;
 	}
 
-	/** Each item's label, and its shortcut after a tab (the text record, DDB-206). */
+	/**
+	 * Each visible item's label, and its shortcut after a tab (the text
+	 * record, DDB-206); rows scrolled wholly out of the menu are left out.
+	 */
 	public get drawnText(): readonly string[] {
-		return this.menu.items.filter((item) => !item.separator).map((item) => (item.shortcut ? `${item.label ?? ''}\t${item.shortcut}` : item.label ?? ''));
+		const labels: string[] = [];
+		this.menu.items.forEach((item, index) => {
+			if (item.separator || !this.menu.rowVisible(index)) return;
+			labels.push(item.shortcut ? `${item.label ?? ''}\t${item.shortcut}` : item.label ?? '');
+		});
+		return labels;
 	}
 
 	/** R12.11: hover follows the pointer (not consumed); a press is taken; a release on an enabled item selects. */
@@ -337,6 +345,13 @@ export class Menu extends Component {
 	/** How far the rows are scrolled, in logical pixels. */
 	public get scrollOffset(): number {
 		return this.scroller.scrollPosition;
+	}
+
+	/** Whether any of row `index` is inside the scrolled viewport. */
+	public rowVisible(index: number): boolean {
+		const row = this.rowRect(index);
+		const top = this.scroller.scrollPosition;
+		return row.y + row.height > top && row.y < top + this.scroller.height;
 	}
 
 	/** Whether the rows are taller than the menu, so they scroll. */

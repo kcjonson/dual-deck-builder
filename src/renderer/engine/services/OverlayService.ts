@@ -1,5 +1,5 @@
 import type { Component } from '../components/Component';
-import { Layer } from '../components/Layer';
+import { Container } from '../components/Container';
 import type { MountContext, ViewportSource } from '../components/MountContext';
 import { renderTree } from '../components/renderTree';
 import type { DrawApi } from '../draw/DrawApi';
@@ -41,6 +41,18 @@ export interface OverlayOptions {
 	onClose?: () => void;
 	/** Names the root in the tree snapshot. */
 	id?: string;
+	/**
+	 * The content takes the viewport's size, at open and on every resize: a
+	 * dialog whose own box is its scrim, a screen transition's quad. A
+	 * `setSize` by the service, unrelated to R10.1's `fill` sizing mode,
+	 * which only a parent stack or a root reads.
+	 */
+	fill?: boolean;
+	/**
+	 * Survives `closeAll`: a screen transition spans the scene change that
+	 * closes everything else (R8.22, R12.38). Closed only by its handle.
+	 */
+	persistent?: boolean;
 }
 
 /**
@@ -49,7 +61,7 @@ export interface OverlayOptions {
  * viewport change resizes the root with no code in the content (R8.21).
  */
 export class OverlayHandle {
-	public readonly root: Layer;
+	public readonly root: Container;
 	public readonly content: Component;
 	/** What a press must land in to be inside (`OverlayOptions.inside`). */
 	public readonly inside: Component;
@@ -58,12 +70,14 @@ export class OverlayHandle {
 	public readonly dismissOnOutsidePress: boolean;
 	public readonly consumeOutsidePress: boolean;
 	public readonly closeOnEscape: boolean;
+	public readonly fill: boolean;
+	public readonly persistent: boolean;
 	private readonly service: OverlayService;
 	private readonly onDismiss: ((reason: OverlayDismissReason) => void) | null;
 	private readonly onClose: (() => void) | null;
 	private open = true;
 
-	constructor({ service, root, content, options }: { service: OverlayService; root: Layer; content: Component; options: OverlayOptions }) {
+	constructor({ service, root, content, options }: { service: OverlayService; root: Container; content: Component; options: OverlayOptions }) {
 		this.service = service;
 		this.root = root;
 		this.content = content;
@@ -73,6 +87,8 @@ export class OverlayHandle {
 		this.dismissOnOutsidePress = options.dismissOnOutsidePress ?? false;
 		this.consumeOutsidePress = options.consumeOutsidePress ?? this.modal;
 		this.closeOnEscape = options.closeOnEscape ?? false;
+		this.fill = options.fill ?? false;
+		this.persistent = options.persistent ?? false;
 		this.onDismiss = options.onDismiss ?? null;
 		this.onClose = options.onClose ?? null;
 	}
@@ -150,7 +166,7 @@ export class OverlayService implements InputObserver {
 
 		const { width, height } = this.viewport.logical;
 		this.opened += 1;
-		const root = new Layer({
+		const root = new Container({
 			id: options.id ?? `overlay_${options.layer}_${this.opened}`,
 			x: 0,
 			y: 0,
@@ -158,6 +174,7 @@ export class OverlayService implements InputObserver {
 			height,
 			layer: options.layer,
 		});
+		if (options.fill) content.setSize(width, height);
 		root.addChild(content);
 		const handle = new OverlayHandle({ service: this, root, content, options });
 		root.modal = handle.modal;
@@ -170,7 +187,7 @@ export class OverlayService implements InputObserver {
 	}
 
 	/** Open roots in paint order: open order, `bringToFront` moving one to the end. */
-	public get roots(): readonly Layer[] {
+	public get roots(): readonly Container[] {
 		return this.handles.map((handle) => handle.root);
 	}
 
@@ -191,15 +208,21 @@ export class OverlayService implements InputObserver {
 		};
 	}
 
-	/** Closes every open root, newest first: a scene change (R8.22). */
+	/** Closes every open root but the persistent ones, newest first: a scene change (R8.22). */
 	public closeAll(): void {
-		for (let index = this.handles.length - 1; index >= 0; index--) this.handles[index]?.close();
+		for (let index = this.handles.length - 1; index >= 0; index--) {
+			const handle = this.handles[index];
+			if (handle && !handle.persistent) handle.close();
+		}
 	}
 
 	/** Re-sizes every root to the viewport; the shells call it where the viewport change lands (R7.3). */
 	public resize(): void {
 		const { width, height } = this.viewport.logical;
-		for (const handle of this.handles) handle.root.setSize(width, height);
+		for (const handle of this.handles) {
+			handle.root.setSize(width, height);
+			if (handle.fill) handle.content.setSize(width, height);
+		}
 	}
 
 	/** The overlay roots' paint, after the scene's own roots and before any diagnostic domain (R3.15, R3.21). */

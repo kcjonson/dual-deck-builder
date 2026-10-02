@@ -1,4 +1,4 @@
-import { Layer } from '../renderer/engine/components/Layer';
+import { Container } from '../renderer/engine/components/Container';
 import { renderTree } from '../renderer/engine/components/renderTree';
 import type { DrawApi } from '../renderer/engine/draw/DrawApi';
 import type { MountContext } from '../renderer/engine/components/MountContext';
@@ -60,9 +60,9 @@ export class SceneHost {
 	private readonly scenes: readonly GalleryScene[];
 	private readonly context: MountContext;
 	private readonly margin: number;
-	private readonly rootLayer: Layer;
+	private readonly rootLayer: Container;
 	private mounted: GalleryScene | null = null;
-	private mountedRoot: Layer | null = null;
+	private mountedRoot: Container | null = null;
 	private requestedName: string | null = null;
 	private resolutionStatus: SceneResolutionStatus | null = null;
 	/** The viewport the mounted scene was built for; resize compares against it. */
@@ -78,7 +78,7 @@ export class SceneHost {
 		this.margin = margin;
 
 		const { width, height } = this.readViewport();
-		this.rootLayer = new Layer({ id: 'gallery_root', x: 0, y: 0, width, height });
+		this.rootLayer = new Container({ id: 'gallery_root', x: 0, y: 0, width, height });
 		this.rootLayer.mount(context);
 	}
 
@@ -95,11 +95,11 @@ export class SceneHost {
 	 * makes a Panel scene report its background and content layer instead of
 	 * the content layer's children one level too shallow.
 	 */
-	public roots(): Layer[] {
+	public roots(): Container[] {
 		return [this.rootLayer, ...this.context.overlays.roots];
 	}
 
-	public get root(): Layer {
+	public get root(): Container {
 		return this.rootLayer;
 	}
 
@@ -176,6 +176,8 @@ export class SceneHost {
 		if (!scene) return false;
 
 		this.unmount();
+		// The scene's first frame builds all its small text at once (R6.4a).
+		this.context.draw.prewarmText();
 
 		const viewport = this.readViewport();
 		this.rootLayer.setSize(viewport.width, viewport.height);

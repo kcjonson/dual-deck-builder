@@ -2,7 +2,7 @@
  * @jest-environment jsdom
  */
 import { Clock } from '../../../engine/animation/Clock';
-import { Layer } from '../../../engine/components/Layer';
+import { Container } from '../../../engine/components/Container';
 import type { MountContext } from '../../../engine/components/MountContext';
 import { Text } from '../../../engine/components/Text';
 import { createTestContext } from '../../../engine/components/testing';
@@ -13,11 +13,11 @@ import { CombatLogLayer } from './CombatLogLayer';
 /** DDB-32: the log drawer scrolls, follows the newest entry, and keeps the lines it already has. */
 
 let context: MountContext;
-let root: Layer;
+let root: Container;
 
 beforeEach(() => {
 	context = createTestContext({ draw: createMeasuringDrawApi().api, clock: new Clock() });
-	root = new Layer({ width: 800, height: 600 });
+	root = new Container({ width: 800, height: 600 });
 	root.mount(context);
 });
 

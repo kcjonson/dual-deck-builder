@@ -239,6 +239,12 @@ export interface TextMetrics {
 	 * after it: a caret after code point `i` sits at `advances[i]` (R2.14).
 	 */
 	advances: readonly number[];
+	/**
+	 * The first baseline below the top of its line box: half the leading
+	 * plus the face's ascent (R6.10, R6.11). What lines up runs of two sizes
+	 * on one baseline (a stat's value and its unit, R12.28).
+	 */
+	baseline: number;
 }
 
 /**

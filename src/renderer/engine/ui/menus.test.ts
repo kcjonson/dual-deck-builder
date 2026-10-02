@@ -2,7 +2,7 @@
  * @jest-environment jsdom
  */
 import { Clock } from '../animation/Clock';
-import { Layer } from '../components/Layer';
+import { Container } from '../components/Container';
 import type { MountContext } from '../components/MountContext';
 import { createTestContext, injectNow } from '../components/testing';
 import { renderTree } from '../components/renderTree';
@@ -14,9 +14,11 @@ import { tokens } from '../theme/tokens';
 import { treeSnapshot } from '../debug/treeSnapshot';
 import { Button } from './Button';
 import { ContextMenu } from './ContextMenu';
+import { Dialog } from './Dialog';
 import { DropdownButton } from './DropdownButton';
 import { Menu, MenuItem } from './Menu';
 import { Select, SelectOption } from './Select';
+import { TextInput } from './TextInput';
 
 /**
  * R12.11 to R12.14 on the dispatcher and the popup service: every
@@ -36,7 +38,7 @@ let canvas: HTMLCanvasElement;
 let context: MountContext;
 let adapter: PointerAdapter;
 let backend: MeasuringRecordingBackend;
-let root: Layer;
+let root: Container;
 
 function inject(...commands: string[]): void {
 	expect(injectNow({ canvas, dispatcher: context.dispatcher }, commands).ok).toBe(true);
@@ -96,7 +98,7 @@ beforeEach(() => {
 	context = createTestContext({ draw: measuring.api, clock: new Clock(), viewport: { logical: VIEWPORT } });
 	adapter = new PointerAdapter({ dispatcher: context.dispatcher });
 	adapter.attach(canvas);
-	root = new Layer({ id: 'root', width: VIEWPORT.width, height: VIEWPORT.height });
+	root = new Container({ id: 'root', width: VIEWPORT.width, height: VIEWPORT.height });
 	root.mount(context);
 });
 
@@ -150,6 +152,14 @@ describe('Menu (R12.11)', () => {
 		const box = made.screenBounds;
 		inject(`click,${Math.round(box.x + 40)},${Math.round(box.y + box.height - PAD - ROW / 2)}`);
 		expect(picked).toEqual(['f']);
+	});
+
+	it('reports only the rows in view for the text record', () => {
+		const made = menu({ items: items('a', 'b', 'c', 'd', 'e', 'f').items, maxHeight: 80 });
+		const rows = made.getChildren()[0].getChildren().find((child) => child.drawnText) as { drawnText: readonly string[] };
+		expect(rows.drawnText).toEqual(['a', 'b', 'c']);
+		wheel(made, 400);
+		expect(rows.drawnText).toEqual(['d', 'e', 'f']);
 	});
 
 	it('brings a row highlighted by the keys into view, and the opening highlight too', () => {
@@ -524,7 +534,7 @@ describe('ContextMenu (R12.14)', () => {
 		const closes: string[] = [];
 		const menu = new ContextMenu({ id: 'context', items: [...list, ...extra], onClose: (reason) => closes.push(reason) });
 		// The scene's backdrop: something under the pointer to receive `contextmenu`.
-		const scene = new Layer({ id: 'scene', width: VIEWPORT.width, height: VIEWPORT.height, pointerEvents: 'auto' });
+		const scene = new Container({ id: 'scene', width: VIEWPORT.width, height: VIEWPORT.height, pointerEvents: 'auto' });
 		scene.onContextMenu = (event) => menu.openAt(event.screen, { from: scene });
 		root.addChild(scene);
 		layout();
@@ -568,6 +578,56 @@ describe('ContextMenu (R12.14)', () => {
 		expect(context.focus.focused).toBe(field);
 	});
 
+	it('leaves focus where an item moved it: a field to rename into', () => {
+		const field = new TextInput({ id: 'rename', x: 500, y: 500, width: 200 });
+		const owner = new Button('Rig', { id: 'rig', x: 200, y: 150, width: 100 });
+		const menu = new ContextMenu({ items: [{ label: 'Rename', onSelect: () => context.focus.focus(field, 'programmatic') }] });
+		root.addChild(field);
+		root.addChild(owner);
+		owner.onContextMenu = (event) => menu.openAt(event.screen, { from: owner });
+		layout();
+		inject(`click,${centre(owner)},2`);
+		expect(menu.focused).toBe(true);
+		inject(`click,${rowCentre(menu, 0)}`);
+		expect(menu.isOpen).toBe(false);
+		expect(context.focus.focused).toBe(field);
+	});
+
+	it('leaves focus where an item moved it: a modal dialog it opens', () => {
+		const owner = new Button('Rig', { id: 'rig', x: 200, y: 150, width: 100 });
+		const confirm = new TextInput({ id: 'confirm_name', width: 200 });
+		const dialog = new Dialog({ id: 'scrap_dialog', title: 'Scrap vehicle?', content: confirm, initialFocus: confirm });
+		const menu = new ContextMenu({ items: [{ label: 'Scrap', onSelect: () => dialog.show(context) }] });
+		root.addChild(owner);
+		owner.onContextMenu = (event) => menu.openAt(event.screen, { from: owner });
+		layout();
+		inject(`click,${centre(owner)},2`);
+		press('ArrowDown');
+		press('Enter');
+		layout();
+		expect(menu.isOpen).toBe(false);
+		expect(context.focus.focused).toBe(confirm);
+		expect(owner.focused).toBe(false);
+		dialog.close();
+	});
+
+	it('returns focus to the original owner when one context menu replaces another', () => {
+		const owner = new Button('Rig', { id: 'rig', x: 500, y: 500, width: 100 });
+		root.addChild(owner);
+		layout();
+		context.focus.focus(owner);
+		const first = new ContextMenu({ id: 'first', items: items('Inspect').items });
+		const second = new ContextMenu({ id: 'second', items: items('Repair').items });
+		first.openAt({ x: 100, y: 100 }, { from: owner });
+		expect(first.focused).toBe(true);
+		second.openAt({ x: 300, y: 100 }, { from: owner });
+		expect(first.isOpen).toBe(false);
+		expect(second.focused).toBe(true);
+		press('Escape');
+		expect(second.isOpen).toBe(false);
+		expect(context.focus.focused).toBe(owner);
+	});
+
 	it('does not select a disabled item', () => {
 		const picked: string[] = [];
 		const { menu } = contextMenu([{ label: 'Locked', enabled: false, onSelect: () => picked.push('Locked') }]);
@@ -580,7 +640,7 @@ describe('ContextMenu (R12.14)', () => {
 	it('captures the opening press, so its release selects nothing', () => {
 		const { items: list, picked } = items('Inspect', 'Repair');
 		const menu = new ContextMenu({ items: list });
-		const scene = new Layer({ id: 'scene', width: VIEWPORT.width, height: VIEWPORT.height, pointerEvents: 'auto' });
+		const scene = new Container({ id: 'scene', width: VIEWPORT.width, height: VIEWPORT.height, pointerEvents: 'auto' });
 		scene.onPointerDown = (event) => {
 			if (event.button === 0) menu.openAt(event.screen, { press: event });
 		};

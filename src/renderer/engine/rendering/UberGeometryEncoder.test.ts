@@ -2,7 +2,10 @@ import { DrawApi, DrawCommand, DrawTextOptions, RecordingBackend, RGBA, TextureH
 import { Batcher, GeometryUpload, GroupShape } from '../draw/Batcher';
 import { ResidentTextureSet } from '../draw/ResidentTextureSet';
 import { TextMetricsService } from '../text/TextMetricsService';
-import { syntheticFontAtlas } from '../text/testing';
+import type { TextLayout } from '../text/TextLayout';
+import { GlyphCanvasContext, RASTER_PHASES, RasterGlyphCell, RasterGlyphRun, RasterGlyphSource } from '../text/rasterGlyphs';
+import { committedFontAtlas, syntheticFontAtlas } from '../text/testing';
+import { RasterGlyphPage } from './RasterGlyphPage';
 import { fromHalf, toUnorm8 } from './packing';
 import {
 	UBER_ATTRIBUTES,
@@ -54,13 +57,14 @@ interface Encoded {
 	upload: GeometryUpload;
 }
 
-function setup(ratio = 1) {
+function setup(ratio = 1, smallText: RasterGlyphSource | null = null) {
 	const text = new TextMetricsService();
 	text.addAtlas({ name: 'body', atlas: syntheticFontAtlas() });
 	const unpaintable: string[] = [];
 	const encoder = new UberGeometryEncoder({
 		text,
 		onUnpaintable: (kind, detail) => unpaintable.push(`${kind}: ${detail}`),
+		smallText,
 	});
 	encoder.registerFontTexture('body', ATLAS_TEXTURE);
 	encoder.ratio = ratio;
@@ -856,6 +860,342 @@ describe('UberGeometryEncoder: text (chapter 6)', () => {
 		const { uploads } = encode(commands);
 		expect(uploads).toEqual([]);
 		expect(unpaintable).toEqual(["text: drawText with font 'mono', which has no atlas"]);
+	});
+});
+
+/** A canvas that draws nothing: the encoder tests care where cells go, not what is in them. */
+function blankGlyphCanvas(): GlyphCanvasContext {
+	const noop = () => undefined;
+	const canvas = { width: 0, height: 0 };
+	return {
+		canvas,
+		font: '',
+		fillStyle: '',
+		textBaseline: 'alphabetic',
+		textAlign: 'left',
+		setTransform: noop,
+		clearRect: noop,
+		fillText: noop,
+		getImageData: (x, y, width, height) => ({ data: new Uint8Array(width * height * 4) }),
+	};
+}
+
+const RASTER_PAGE_ID = 90;
+
+/** A real `RasterGlyphPage` over a blank canvas, recording each request and the run it returned by size. */
+function rasterSource(): RasterGlyphSource & { requests: string[]; runs: Map<number, RasterGlyphRun> } {
+	const page = new RasterGlyphPage({
+		textures: {
+			create: (options) => ({ id: RASTER_PAGE_ID, width: options.width, height: options.height, label: options.label ?? null }),
+			writeRegion: () => undefined,
+		},
+		familyOf: () => 'ddb-test',
+		createCanvas: blankGlyphCanvas,
+		now: () => 0,
+	});
+	const requests: string[] = [];
+	const runs = new Map<number, RasterGlyphRun>();
+	return {
+		requests,
+		runs,
+		glyphs(font: string, layout: TextLayout, pixelSize: number) {
+			requests.push(`${font} ${pixelSize}`);
+			const run = page.glyphs(font, layout, pixelSize);
+			if (run) runs.set(pixelSize, run);
+			return run;
+		},
+	};
+}
+
+function cellOf(source: ReturnType<typeof rasterSource>, pixelSize: number, codePoint: number): { cell: RasterGlyphCell; run: RasterGlyphRun } {
+	const run = source.runs.get(pixelSize);
+	const cell = run?.cells.get(codePoint);
+	if (!run || !cell) throw new Error(`no raster cell for ${codePoint} at ${pixelSize}`);
+	return { cell, run };
+}
+
+/** Where a raster quad's glyph pen is, in device pixels: its corner less the cell's left, plus its phase. */
+function drawnPen(quad: ReturnType<typeof instance>, cell: RasterGlyphCell, run: RasterGlyphRun, ratio = 1): number {
+	const phase = Math.round((quad.texCoords[0] * run.width - cell.x) / cell.stride);
+	return quad.corners[0][0] * ratio - cell.left + phase / RASTER_PHASES;
+}
+
+describe('UberGeometryEncoder: small text from raster glyphs (R6.4a)', () => {
+	it('draws a run under the threshold as image quads from its raster atlas, one texel to one pixel', () => {
+		const source = rasterSource();
+		const { draw } = setup(1, source);
+		const upload = draw((api) => {
+			api.drawText({ text: 'Ab', position: { x: 10.3, y: 20.4 }, font: 'body', size: 8, color: BLUE });
+		});
+		expect(source.requests).toEqual(['body 8']);
+		expect(upload.count).toBe(2);
+		const { cell: a, run } = cellOf(source, 8, 0x41);
+		const [first, second] = [instance(upload, 0), instance(upload, 1)];
+		// Origin (10.3, 20.4) snaps to (10, 20); A's cell is 5 by 6 above the
+		// baseline plus the phases' column, b follows at 5 less 1 of kerning.
+		expect(first.corners).toEqual([[10, 14], [16, 14], [16, 20], [10, 20]]);
+		expect(second.corners).toEqual([[14, 14], [19, 14], [19, 20], [14, 20]]);
+		expect(first.texCoords).toEqual(f32([a.x / run.width, a.y / run.height, (a.x + a.width) / run.width, (a.y + a.height) / run.height]));
+		for (const glyph of [first, second]) {
+			expect(glyph.mode).toBe(UBER_MODE.image);
+			// The atlas is resident on unit 0; the raster page is a dynamic unit.
+			expect(glyph.slot).toBe(1);
+			expect(glyph.colors).toEqual([0, 1, 2, 3].map(() => pm(BLUE)));
+		}
+	});
+
+	it('reports the raster atlas as the group\'s texture', () => {
+		const { encoder } = setup(1, rasterSource());
+		const [command] = record((api) => {
+			api.drawText({ text: 'A', position: { x: 0, y: 20 }, font: 'body', size: 8, color: RED });
+		});
+		const shape: GroupShape = { instances: 0, texture: null };
+		expect(encoder.shape(command, shape)).toBe(true);
+		expect(shape.texture).toMatchObject({ id: RASTER_PAGE_ID });
+	});
+
+	it('draws each pen at its nearest quarter pixel, as a whole-pixel cell in that phase', () => {
+		const source = rasterSource();
+		const { draw } = setup(1, source);
+		// At 7 px A advances 4.375: pens 10, 14.375 and 18.75, which are pixels
+		// 10, 14 and 18 in phases 0, 2 and 3.
+		const upload = draw((api) => {
+			api.drawText({ text: 'AAA', position: { x: 10, y: 20 }, font: 'body', size: 7, color: RED });
+		});
+		expect([0, 1, 2].map((n) => instance(upload, n).corners[0][0])).toEqual([10, 14, 18]);
+		const { cell: a, run } = cellOf(source, 7, 0x41);
+		expect([0, 1, 2].map((n) => instance(upload, n).texCoords[0])).toEqual(f32([0, 2, 3].map((phase) => (a.x + phase * a.stride) / run.width)));
+	});
+
+	it('keeps the distance field at 9 px, which sits on the threshold, and at 8 px at ratio 2', () => {
+		const source = rasterSource();
+		const atOne = setup(1, source).draw((api) => {
+			api.drawText({ text: 'A', position: { x: 0, y: 20 }, font: 'body', size: 9, color: RED });
+		});
+		expect(instance(atOne, 0).mode).toBe(UBER_MODE.text);
+		const atTwo = setup(2, source).draw((api) => {
+			api.drawText({ text: 'A', position: { x: 0, y: 20 }, font: 'body', size: 8, color: RED });
+		});
+		expect(instance(atTwo, 0).mode).toBe(UBER_MODE.text);
+		expect(source.requests).toEqual([]);
+	});
+
+	it('rasterises a run under a uniform scale at its device size, placed through the scale', () => {
+		const source = rasterSource();
+		const { draw } = setup(1, source);
+		// A 16 px run on a half-scale stage is 8 device px: under the threshold.
+		const upload = draw((api) => {
+			api.pushTransform([0.5, 0, 0, 0.5, 3, 1]);
+			api.drawText({ text: 'Ab', position: { x: 10, y: 40 }, font: 'body', size: 16, color: RED });
+			api.popTransform();
+		});
+		expect(source.requests).toEqual(['body 8']);
+		// Pen (10, 40) is (8, 21) on screen; A's cell is 6 by 6 at 8 px, and b
+		// follows at (10 - 2) / 2 = 4 device px.
+		expect(instance(upload, 0).mode).toBe(UBER_MODE.image);
+		expect(instance(upload, 0).corners).toEqual([[8, 15], [14, 15], [14, 21], [8, 21]]);
+		expect(instance(upload, 1).corners[0]).toEqual([12, 15]);
+	});
+
+	it('keeps the distance field for rotated or unevenly scaled text and for a blurred shadow run', () => {
+		const source = rasterSource();
+		const { draw } = setup(1, source);
+		const upload = draw((api) => {
+			api.pushTransform([0, 1, -1, 0, 0, 0]);
+			api.drawText({ text: 'A', position: { x: 0, y: 20 }, font: 'body', size: 8, color: RED });
+			api.popTransform();
+			api.pushTransform([0.5, 0, 0, 0.75, 0, 0]);
+			api.drawText({ text: 'A', position: { x: 0, y: 20 }, font: 'body', size: 8, color: RED });
+			api.popTransform();
+			api.drawText({ text: 'A', position: { x: 0, y: 40 }, font: 'body', size: 8, color: RED, shadow: { color: BLUE, blur: 2 } });
+		});
+		// The rotated run, the uneven one, the blurred shadow run, then the
+		// shadow's owner, which is sharp and small.
+		expect(upload.count).toBe(4);
+		expect([0, 1, 2, 3].map((n) => instance(upload, n).mode)).toEqual([UBER_MODE.text, UBER_MODE.text, UBER_MODE.text, UBER_MODE.image]);
+		expect(source.requests).toEqual(['body 8']);
+	});
+
+	it('keeps the distance field while the source has no atlas to give', () => {
+		const { draw } = setup(1, { glyphs: () => null });
+		const upload = draw((api) => {
+			api.drawText({ text: 'A', position: { x: 0, y: 20 }, font: 'body', size: 8, color: RED });
+		});
+		expect(instance(upload, 0).mode).toBe(UBER_MODE.text);
+	});
+
+	it('keeps equal advances equal, where whole-pixel pens would alternate', () => {
+		const source = rasterSource();
+		const { draw } = setup(1, source);
+		// At 4 px A advances 2.5: the As land 2.5 px apart.
+		const upload = draw((api) => {
+			api.drawText({ text: 'AAA', position: { x: 10, y: 20 }, font: 'body', size: 4, color: RED });
+		});
+		const { cell: a, run } = cellOf(source, 4, 0x41);
+		expect([0, 1, 2].map((n) => drawnPen(instance(upload, n), a, run))).toEqual([10, 12.5, 15]);
+	});
+
+	it('keeps a raster size on the raster while a run hovers at the threshold, until it goes unused', () => {
+		const source = rasterSource();
+		const { encoder } = setup(1, source);
+		const modeAt = (scale: number) => {
+			const [command] = record((api) => {
+				api.pushTransform([scale, 0, 0, scale, 0, 0]);
+				api.drawText({ text: 'A', position: { x: 0, y: 20 }, font: 'body', size: 8, color: RED });
+				api.popTransform();
+			});
+			const shape: GroupShape = { instances: 0, texture: null };
+			encoder.shape(command, shape);
+			return (shape.texture as TextureHandle | null)?.id === RASTER_PAGE_ID ? 'raster' : 'field';
+		};
+		// Range 1.5 at 9 device px. 8.9 to 9.1 are all rasterised at 9.
+		expect(modeAt(9.1 / 8)).toBe('field');
+		expect(modeAt(8.9 / 8)).toBe('raster');
+		expect(modeAt(9.1 / 8)).toBe('raster');
+		encoder.beginFrame();
+		expect(modeAt(9.05 / 8)).toBe('raster');
+		// 9.25 is another raster size, with no state of its own.
+		expect(modeAt(9.2 / 8)).toBe('field');
+		// The next frame keeps it; a frame without it lets it go.
+		encoder.beginFrame();
+		expect(modeAt(9.1 / 8)).toBe('raster');
+		encoder.beginFrame();
+		encoder.beginFrame();
+		expect(modeAt(9.1 / 8)).toBe('field');
+	});
+
+	it('does not hand the hysteresis to a run a raster size away (#108 review)', () => {
+		const source = rasterSource();
+		const { encoder } = setup(1, source);
+		// 8 px at range 1.47 (8.82 device px, rasterised at 8.75) and at exactly
+		// 1.5 (9 device px), drawn together frame after frame.
+		const [under, at] = record((api) => {
+			api.pushTransform([8.82 / 8, 0, 0, 8.82 / 8, 0, 0]);
+			api.drawText({ text: 'A', position: { x: 0, y: 20 }, font: 'body', size: 8, color: RED });
+			api.popTransform();
+			api.pushTransform([9 / 8, 0, 0, 9 / 8, 0, 0]);
+			api.drawText({ text: 'A', position: { x: 0, y: 40 }, font: 'body', size: 8, color: RED });
+			api.popTransform();
+		});
+		const textureOf = (command: DrawCommand) => {
+			const shape: GroupShape = { instances: 0, texture: null };
+			encoder.shape(command, shape);
+			return (shape.texture as TextureHandle | null)?.id;
+		};
+		for (let frame = 0; frame < 3; frame++) {
+			encoder.beginFrame();
+			expect(textureOf(under)).toBe(RASTER_PAGE_ID);
+			expect(textureOf(at)).not.toBe(RASTER_PAGE_ID);
+		}
+	});
+
+	it('does not hand the hysteresis to a run of the same size at another scale', () => {
+		const source = rasterSource();
+		const { encoder } = setup(1, source);
+		const [small, stage] = record((api) => {
+			// 8 px on a card at 7 device px, then 8 px on a stage at 9 device px.
+			api.pushTransform([0.875, 0, 0, 0.875, 0, 0]);
+			api.drawText({ text: 'A', position: { x: 0, y: 20 }, font: 'body', size: 8, color: RED });
+			api.popTransform();
+			api.pushTransform([1.125, 0, 0, 1.125, 0, 0]);
+			api.drawText({ text: 'A', position: { x: 0, y: 40 }, font: 'body', size: 8, color: RED });
+			api.popTransform();
+		});
+		const textureOf = (command: DrawCommand) => {
+			const shape: GroupShape = { instances: 0, texture: null };
+			encoder.shape(command, shape);
+			return (shape.texture as TextureHandle | null)?.id;
+		};
+		expect(textureOf(small)).toBe(RASTER_PAGE_ID);
+		expect(textureOf(stage)).not.toBe(RASTER_PAGE_ID);
+	});
+
+	it('still draws decorations after the glyphs, as rect-mode rules', () => {
+		const { draw } = setup(1, rasterSource());
+		const upload = draw((api) => {
+			api.drawText({ text: 'Ab', position: { x: 0, y: 20 }, font: 'body', size: 8, color: RED, decoration: 'underline' });
+		});
+		expect(upload.count).toBe(3);
+		expect(instance(upload, 1).mode).toBe(UBER_MODE.image);
+		expect(instance(upload, 2).mode).toBe(UBER_MODE.rect);
+	});
+});
+
+describe('UberGeometryEncoder: raster text measures as it draws (R6.8, 6.9)', () => {
+	const atlas = committedFontAtlas('body');
+	const texture: TextureHandle = { id: 1, width: atlas.width, height: atlas.height, label: 'body atlas' };
+
+	function committed() {
+		const text = new TextMetricsService();
+		text.addAtlas({ name: 'body', atlas });
+		const source = rasterSource();
+		const encoder = new UberGeometryEncoder({
+			text,
+			onUnpaintable: (kind, detail) => {
+				throw new Error(`${kind}: ${detail}`);
+			},
+			smallText: source,
+		});
+		encoder.registerFontTexture('body', texture);
+		encoder.ratio = 1;
+		const batcher = new Batcher({ encoder, textures: new ResidentTextureSet({ units: 4, resident: [texture] }) });
+		function draw(build: (api: DrawApi) => void): Encoded {
+			const backend = new RecordingBackend({ maxFrames: 1 });
+			backend.loadFontAtlas({ name: 'body', atlas, texture });
+			const api = new DrawApi({ backend, strict: true });
+			api.beginFrame({ viewport: { width: 800, height: 600 }, ratio: 1 });
+			build(api);
+			api.endFrame();
+			const uploads: Encoded[] = [];
+			batcher.flush([...backend.commands], (upload) => {
+				uploads.push({ data: upload.bytes.slice(0, upload.byteCount), count: upload.instanceCount, upload });
+			});
+			if (uploads.length !== 1) throw new Error(`expected one upload, got ${uploads.length}`);
+			return uploads[0];
+		}
+		return { text, source, draw };
+	}
+
+	/** Each drawn glyph's pen, read back from the upload, and the layout's, for one run at the origin (x, y). */
+	function pens(options: Omit<DrawTextOptions, 'position' | 'font' | 'color'>, x: number) {
+		const { text, source, draw } = committed();
+		const run = { ...options, font: 'body', color: RED, position: { x, y: 40 } };
+		const upload = draw((api) => api.drawText(run));
+		const layout = text.layout(run);
+		if (!layout) throw new Error('no layout');
+		const glyphs = layout.lines[0].glyphs.filter((placed) => placed.glyph.plane);
+		expect(upload.count).toBe(glyphs.length);
+		const drawn = glyphs.map((placed, n) => {
+			const { cell, run: page } = cellOf(source, options.size, placed.glyph.codePoint);
+			return drawnPen(instance(upload, n), cell, page);
+		});
+		const last = glyphs[glyphs.length - 1];
+		return {
+			drawn,
+			layout: glyphs.map((placed) => x + placed.x),
+			width: text.measure(run).width,
+			lastEnd: drawn[drawn.length - 1] + last.glyph.advance * options.size,
+		};
+	}
+
+	const cases: { name: string; options: Omit<DrawTextOptions, 'position' | 'font' | 'color'> }[] = [
+		{ name: 'kerned pairs', options: { text: 'AVAWAY Tokyo', size: 7 } },
+		{ name: 'letter spacing', options: { text: 'attack, ranged', size: 7, letterSpacing: 0.12 } },
+		{ name: 'an uppercase transform', options: { text: 'utility heal', size: 8, textTransform: 'uppercase' } },
+	];
+	for (const { name, options } of cases) {
+		it(`puts every glyph within an eighth of a pixel of the layout, and ends the run at the measured width, with ${name}`, () => {
+			const result = pens(options, 10);
+			result.drawn.forEach((pen, index) => expect(Math.abs(pen - result.layout[index])).toBeLessThanOrEqual(1 / 8));
+			// The measured width is the pen after the last glyph, with no letter spacing after it (R6.9).
+			expect(Math.abs(result.lastEnd - (10 + result.width))).toBeLessThanOrEqual(1 / 8);
+		});
+	}
+
+	it('lands a doubled string\'s second copy one measured width after the first', () => {
+		const first = pens({ text: 'heal utility', size: 7 }, 10);
+		const second = pens({ text: 'heal utility', size: 7 }, 10 + first.width);
+		expect(Math.abs(second.drawn[0] - first.drawn[0] - first.width)).toBeLessThanOrEqual(1 / 4);
 	});
 });
 

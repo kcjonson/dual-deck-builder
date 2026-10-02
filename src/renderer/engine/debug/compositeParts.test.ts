@@ -5,7 +5,7 @@
  * constructor, so it cannot be built under the default node environment. The
  * other three composites do not care which environment they get.
  */
-import { Layer } from '../components/Layer';
+import { Container } from '../components/Container';
 import type { Component } from '../components/Component';
 import { FrameTimer } from '../rendering/FrameTimer';
 import { Button } from '../ui/Button';
@@ -84,9 +84,9 @@ describe('the parts a composite owns', () => {
 		expect(node.children).toEqual([]);
 	});
 
-	it('marks nothing as a part on a plain Layer, and omits the field rather than emitting an empty array', () => {
-		const layer = new Layer({ id: 'row', width: 100, height: 20 });
-		layer.addChild(new Layer({ id: 'cell', width: 20, height: 20 }));
+	it('marks nothing as a part on a plain Container, and omits the field rather than emitting an empty array', () => {
+		const layer = new Container({ id: 'row', width: 100, height: 20 });
+		layer.addChild(new Container({ id: 'cell', width: 20, height: 20 }));
 
 		const node = snapshotOf(layer);
 
@@ -98,7 +98,7 @@ describe('the parts a composite owns', () => {
 describe('what a caller adds is never a part', () => {
 	it('keeps a Panel child where the caller put it, directly under the panel', () => {
 		const panel = new Panel({ id: 'inventory_panel', width: 300, height: 200 });
-		panel.addChild(new Layer({ id: 'inventory_row', width: 200, height: 30 }));
+		panel.addChild(new Container({ id: 'inventory_row', width: 200, height: 30 }));
 
 		const node = snapshotOf(panel);
 
@@ -108,7 +108,7 @@ describe('what a caller adds is never a part', () => {
 
 	it('puts a Button child in children and leaves its label alone', () => {
 		const button = new Button('End turn', { id: 'end_turn_button', width: 120, height: 40 });
-		button.addChild(new Layer({ id: 'cost_badge', width: 16, height: 16 }));
+		button.addChild(new Container({ id: 'cost_badge', width: 16, height: 16 }));
 
 		const node = snapshotOf(button);
 
@@ -118,7 +118,7 @@ describe('what a caller adds is never a part', () => {
 
 	it('puts a TextInput child in children', () => {
 		const input = new TextInput({ placeholder: 'Driver name', id: 'name_field', width: 200, height: 30 });
-		input.addChild(new Layer({ id: 'validation_icon', width: 16, height: 16 }));
+		input.addChild(new Container({ id: 'validation_icon', width: 16, height: 16 }));
 
 		const node = snapshotOf(input);
 
@@ -128,7 +128,7 @@ describe('what a caller adds is never a part', () => {
 
 	it('puts a DeveloperOverlay child in children and leaves its two parts alone', () => {
 		const overlay = new DeveloperOverlay({ snapshot: () => new FrameTimer().snapshot(), viewportWidth: 1440 });
-		overlay.addChild(new Layer({ id: 'gpu_readout', width: 100, height: 20 }));
+		overlay.addChild(new Container({ id: 'gpu_readout', width: 100, height: 20 }));
 
 		const node = snapshotOf(overlay);
 

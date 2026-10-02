@@ -23,8 +23,14 @@ function rgba(token: keyof typeof tokens.color): Rgba {
 
 /** A row of a list: a label on a band, alternating wells so the scroll reads. */
 function listRow(index: number): Component {
-	const row = new Stack({ height: ROW_PITCH, widthMode: 'fill', direction: 'horizontal', crossAlign: 'center', padding: { left: 8 } });
-	row.setBackgroundColor(rgba(index % 2 === 0 ? 'bg_panel' : 'bg_inset'));
+	const row = new Stack({
+		height: ROW_PITCH,
+		widthMode: 'fill',
+		direction: 'horizontal',
+		crossAlign: 'center',
+		padding: { left: 8 },
+		style: { backgroundColor: index % 2 === 0 ? 'bg_panel' : 'bg_inset' },
+	});
 	row.addChild(new Text(`Salvage lot ${index + 1}`, { style: { fontSize: tokens.fontSize.fs_base, color: rgba('text') } }));
 	return row;
 }
@@ -89,7 +95,7 @@ export class ScrollExamplesSection extends DeveloperSectionPanel {
 	 */
 	private strip(): Stack {
 		const column = new Stack({ gap: tokens.space.space_2 });
-		const readout = new Text('offset 390 of 780', { id: 'dev_strip_offset', style: { fontSize: tokens.fontSize.fs_sm, fontFamily: 'monospace', color: rgba('text') } });
+		const readout = new Text('offset 390 of 780', { id: 'dev_strip_offset', style: { fontSize: tokens.fontSize.fs_sm, fontRole: 'mono', color: rgba('text') } });
 		const bar = new Scrollbar({ id: 'dev_strip_bar', orientation: 'horizontal', width: STRIP_VIEW, range: { offset: 390, extent: STRIP_EXTENT, viewport: STRIP_VIEW } });
 		bar.onScroll = (offset) => {
 			bar.range = { offset, extent: STRIP_EXTENT, viewport: STRIP_VIEW };
