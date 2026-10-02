@@ -214,6 +214,21 @@ describe('ScrollContainer hug height (DDB-89)', () => {
 		context.frame.layout();
 		expect(scroll.height).toBe(160);
 	});
+
+	it('holds to its minSize and maxSize outside a stack, scrolling past the maximum', () => {
+		const capped = new ScrollContainer({ width: 200, heightMode: 'hug', maxSize: { height: 100 } });
+		capped.addChild(rows(4).stack);
+		const floored = new ScrollContainer({ x: 300, width: 200, heightMode: 'hug', minSize: { height: 100 } });
+		floored.addChild(rows(1).stack);
+		root.addChild(capped);
+		root.addChild(floored);
+		context.frame.layout();
+		expect(capped.height).toBe(100);
+		expect(capped.overflows).toBe(true);
+		expect(capped.maxScroll).toBe(60);
+		expect(floored.height).toBe(100);
+		expect(floored.overflows).toBe(false);
+	});
 });
 
 describe('ScrollContainer layout and paint', () => {

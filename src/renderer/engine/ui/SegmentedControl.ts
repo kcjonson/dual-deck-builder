@@ -102,8 +102,11 @@ export class Segment<T = unknown> extends LabelledPressable {
 	}
 }
 
-/** Arrows that move to the previous or next segment. */
-const STEP: Readonly<Record<string, -1 | 1>> = { ArrowLeft: -1, ArrowUp: -1, ArrowRight: 1, ArrowDown: 1 };
+/**
+ * Arrows that move to the previous or next segment: the row's own axis.
+ * Up and Down go unconsumed to directional focus (R9.24, R9.26).
+ */
+const STEP: Readonly<Record<string, -1 | 1>> = { ArrowLeft: -1, ArrowRight: 1 };
 
 /**
  * R12.17's segmented control: an inset well holding equal-width segments,
@@ -111,9 +114,10 @@ const STEP: Readonly<Record<string, -1 | 1>> = { ArrowLeft: -1, ArrowUp: -1, Arr
  * segment is as wide as the widest label needs, unless `segmentWidth` says
  * otherwise, and the control hugs them. It is interactive (worldsim's was
  * draw-only) and a focus group (R12.34): one Tab stop entered at the
- * selection, arrows moving focus and selection together (wrapping, skipping
- * disabled segments), Home and End to the ends, and a click or `activate`
- * selecting. Setting `selected` never fires `onChange`; a user change fires
+ * selection, Left and Right moving focus and selection together (wrapping,
+ * skipping disabled segments), Home and End to the ends, and a click or
+ * `activate` selecting. Up and Down leave it for directional focus
+ * (R9.24). Setting `selected` never fires `onChange`; a user change fires
  * it once, with the value applied.
  */
 export class SegmentedControl<T = string> extends Component {
@@ -183,7 +187,7 @@ export class SegmentedControl<T = string> extends Component {
 		this.choose(member as Segment<T>, event);
 	}
 
-	/** Arrows, Home, and End from a focused segment move focus and selection together. */
+	/** Left, Right, Home, and End from a focused segment move focus and selection together. */
 	public handleEvent(event: AnyUiEvent): void {
 		super.handleEvent(event);
 		if (event.type !== 'keydown' || event.consumed) return;

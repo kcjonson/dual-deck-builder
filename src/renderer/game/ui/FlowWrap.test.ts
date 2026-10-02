@@ -87,4 +87,37 @@ describe('FlowWrap', () => {
 		context.frame.layout();
 		expect([flow.getWidth(), flow.getHeight()]).toEqual([170, 70]);
 	});
+
+	it('places and wraps items by their margin boxes', () => {
+		const flow = new FlowWrap({ gap: 10 });
+		const plain = items(flow, 1);
+		const spaced = new Container({ width: 50, height: 70, margin: { left: 5, right: 15, top: 4, bottom: 6 } });
+		flow.addChild(spaced);
+		const after = items(flow, 2);
+		column(200, flow);
+		// 50 + 10 + (5 + 50 + 15) + 10 + 50 = 190 fits; the next would reach 250
+		expect(plain[0].getX()).toBe(0);
+		expect([spaced.getX(), spaced.getY()]).toEqual([60, 0]);
+		expect([spaced.originX, spaced.originY]).toEqual([65, 4]);
+		expect(after.map((box) => [box.getX(), box.getY()])).toEqual([[140, 0], [0, 90]]);
+		expect(flow.getHeight()).toBe(80 + 10 + 70);
+	});
+
+	it('reflows at its maxSize width outside a stack, and the height follows the rows', () => {
+		const flow = new FlowWrap({ gap: 10, maxSize: { width: 120 } });
+		const boxes = items(flow, 3);
+		root.addChild(flow);
+		context.frame.layout();
+		// Two fit in 120 (50 + 10 + 50); the third starts a row at 80
+		expect([flow.getWidth(), flow.getHeight()]).toEqual([120, 150]);
+		expect(boxes[2].getY() + boxes[2].getHeight()).toBe(150);
+	});
+
+	it('holds to its minSize outside a stack', () => {
+		const flow = new FlowWrap({ gap: 10, minSize: { width: 200, height: 100 } });
+		items(flow, 2);
+		root.addChild(flow);
+		context.frame.layout();
+		expect([flow.getWidth(), flow.getHeight()]).toEqual([200, 100]);
+	});
 });

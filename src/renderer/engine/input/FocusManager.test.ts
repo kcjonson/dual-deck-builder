@@ -337,6 +337,19 @@ describe('focus groups (R9.29)', () => {
 		return { root, group, cards };
 	}
 
+	it('is entered at its active child by directional focus too, or at the nearest member without one', () => {
+		const { group, cards, root } = hand();
+		group.activeChild = cards[2];
+		context.focus.focus(root.getChildren()[0]);
+		key('ArrowUp');
+		expect(focusedId()).toBe('three');
+
+		cards[2].enabled = false;
+		context.focus.focus(root.getChildren()[0]);
+		key('ArrowUp');
+		expect(focusedId()).toBe('one');
+	});
+
 	it('is one Tab stop, entered at its last active child, with arrows inside', () => {
 		const { cards } = hand();
 		expect(tabIds()).toEqual(['before', 'one', 'after']);
