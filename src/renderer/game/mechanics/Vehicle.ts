@@ -95,6 +95,33 @@ export function floorSpeed(speedSum: number): number {
 	return Math.max(0, speedSum);
 }
 
+/** Where one hit on a vehicle goes: soaked by shield, then armor, then structure, and each living occupant's share. */
+export interface DamageSplit {
+	shield: number;
+	armor: number;
+	structure: number;
+	/** What each living occupant takes; 0 with nobody aboard. */
+	perOccupant: number;
+}
+
+/**
+ * The one rule for a vehicle hit, for `takeDamage` and the targeting
+ * preview alike: shield soaks first, then armor; past both, half (rounded
+ * up) to structure and the same to each living occupant, or all of it to
+ * structure with nobody aboard. Structure isn't capped here; the caller
+ * floors it at zero.
+ */
+export function splitDamage({ damage, shield, armor, occupied }: { damage: number; shield: number; armor: number; occupied: boolean }): DamageSplit {
+	const soaked = Math.min(damage, shield);
+	const armored = Math.min(damage - soaked, armor);
+	const remaining = damage - soaked - armored;
+	if (remaining <= 0) return { shield: soaked, armor: armored, structure: 0, perOccupant: 0 };
+	const half = Math.ceil(remaining / 2);
+	return occupied
+		? { shield: soaked, armor: armored, structure: half, perOccupant: half }
+		: { shield: soaked, armor: armored, structure: remaining, perOccupant: 0 };
+}
+
 // VehicleState is now the same as VehicleData
 export type VehicleState = VehicleData;
 
@@ -187,21 +214,17 @@ export class Vehicle extends Model<VehicleData> {
 	 * empty escort) it all goes to structure.
 	 */
 	public takeDamage(damage: number): void {
-		const shieldDamage = Math.min(damage, this.shield ?? 0);
-		if (shieldDamage > 0) {
-			this.shield = (this.shield ?? 0) - shieldDamage;
+		const occupants = [this.driver, this.passenger]
+			.filter((occupant): occupant is Driver => occupant?.isAlive() ?? false);
+		const split = splitDamage({ damage, shield: this.shield ?? 0, armor: this.armor, occupied: occupants.length > 0 });
+		if (split.shield > 0) {
+			this.shield = (this.shield ?? 0) - split.shield;
 		}
-		const armorDamage = Math.min(damage - shieldDamage, this.armor);
-		this.armor -= armorDamage;
+		this.armor -= split.armor;
 
-		const remainingDamage = damage - shieldDamage - armorDamage;
-		if (remainingDamage > 0) {
-			const occupants = [this.driver, this.passenger]
-				.filter((occupant): occupant is Driver => occupant?.isAlive() ?? false);
-			const halfDamage = Math.ceil(remainingDamage / 2);
-			const structureDamage = occupants.length > 0 ? halfDamage : remainingDamage;
-			this.structure = Math.max(0, this.structure - structureDamage);
-			occupants.forEach(occupant => occupant.takeDamage(halfDamage));
+		if (split.structure > 0) {
+			this.structure = Math.max(0, this.structure - split.structure);
+			occupants.forEach(occupant => occupant.takeDamage(split.perOccupant));
 
 			this.handleDriverDeath();
 		}

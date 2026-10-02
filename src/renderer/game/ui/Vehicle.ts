@@ -5,9 +5,10 @@ import { grownRect } from '../../engine/components/componentGeometry';
 import type { AnyUiEvent, UiDragEvent } from '../../engine/input/events';
 import type { DrawApi } from '../../engine/draw/DrawApi';
 import type { DrawPolygonOptions, DrawRectOptions, DrawTextOptions } from '../../engine/draw/commands';
-import type { RGBA, Rect } from '../../engine/draw/geometry';
+import type { RGBA, Rect, Vec2 } from '../../engine/draw/geometry';
 import { triangulatePolygon } from '../../engine/draw';
 import { resolveColor } from '../../engine/style/styleObject';
+import { shadowExtent } from '../../engine/style/look';
 import { tokens } from '../../engine/theme/tokens';
 import type { Driver } from '../mechanics/Driver';
 import { Vehicle as VehicleData } from '../mechanics/Vehicle';
@@ -16,6 +17,9 @@ import { EnemyIntent, IntentRow } from './IntentMarker';
 import { StatusChip, StatusChipContent, STATUS_CHIP_SIZE, shieldChipContent, statusChipContent } from './StatusChip';
 import { MARK_COLORS, TargetMark, TargetMarkDraw, seatMark } from './targetMarks';
 import { VehicleSprite, spriteKindOf } from './vehicleSprites';
+import { RangeChip, RangeLabel } from './RangeChip';
+import { dashedOutlineTriangles, hatchTriangles } from './stripes';
+import type { AimLosses } from '../mechanics/AimPreview';
 import { TOKEN_HEIGHT, TOKEN_MAX_SCALE, TOKEN_SLOT_CLEARANCE_X, TOKEN_SLOT_CLEARANCE_Y, TOKEN_WIDTH } from './tokenGeometry';
 
 export { TOKEN_HEIGHT, TOKEN_MAX_SCALE, TOKEN_PASSENGER_HEIGHT, TOKEN_WIDTH, slotScale } from './tokenGeometry';
@@ -124,7 +128,20 @@ const WRECK_GREY = resolveColor('#4a4b4c');
 const WRECK_DIM = resolveColor('#5c5d5e');
 const WRECK_TEXT = resolveColor('#8a8b8c');
 const STAMP_COLOR = resolveColor('#ff8a78');
-const DIMMED_OPACITY = 0.4;
+/** The mock's `.dimmed`: an out-of-reach vehicle while a card is aimed. */
+const DIMMED_OPACITY = 0.35;
+/** The mock's `.valid` outline: 2 px dashes; `.targeted` is 3 px solid with a 22 px glow. */
+const LEGAL_OUTLINE = { width: 2, dash: 6, gap: 4 };
+const TARGET_OUTLINE_WIDTH = 3;
+const TARGET_GLOW_BLUR = 22;
+const RAIDER_GLOW: RGBA = [1, 0.353, 0.275, 0.45];
+const OWN_GLOW = tokens.color.accent_glow;
+/** The range chip at the token's top left (the mock's `.veh.grid .slotchip`). */
+const RANGE_CHIP_Y = 2;
+/** The mock's `i.ghost`: amber stripes 4 px wide at 135 degrees over a darker amber. */
+const GHOST_BASE = resolveColor('#c9953a');
+const GHOST_STRIPE = resolveColor('#ffe2a0');
+const GHOST_HATCH = { period: 8 * Math.SQRT2, stripe: 4 * Math.SQRT2 };
 
 /** The mock's `i-armor`, a shield in a 26x18 box, as one outline. */
 const ARMOR_OUTLINE: readonly [number, number][] = [
@@ -187,7 +204,15 @@ export class Vehicle extends Component {
 	private readonly passengerFill: DrawRectOptions = { rect: rectAt(), fill: PASSENGER_FILL, radius: 2 };
 	private readonly outlineBorder: { color: RGBA; width: number } = { color: RAIDER_TARGET, width: 2 };
 	private readonly outlineDraw: DrawRectOptions = { rect: rectAt(), fill: [0, 0, 0, 0], radius: PLATE_RADIUS + OUTLINE_OFFSET, border: this.outlineBorder };
-	private showOutline = false;
+	/** The legal-target outline's dashes, rebuilt only when the plate's height changes. */
+	private readonly dashPoints: Vec2[] = [];
+	private readonly dashDraw: DrawPolygonOptions & { fill: RGBA } = { points: this.dashPoints, fill: RAIDER_TARGETABLE };
+	private dashedForHeight = -1;
+	private readonly glowShadow = { color: RAIDER_GLOW, blur: TARGET_GLOW_BLUR };
+	private readonly glowDraw: DrawRectOptions = { rect: rectAt(PLATE_X, PLATE_Y, PLATE_WIDTH, PLATE_MIN_HEIGHT), fill: [0, 0, 0, 0], radius: PLATE_RADIUS, shadow: this.glowShadow };
+	private outlineStyle: 'none' | 'dashed' | 'solid' = 'none';
+	private ghostLosses: AimLosses | null = null;
+	private readonly ghosts: { base: DrawRectOptions; stripes: DrawPolygonOptions; shown: boolean }[] = [];
 	private showHpRow = true;
 	private showPassengerRow = false;
 	private wrecked = false;
@@ -204,6 +229,7 @@ export class Vehicle extends Component {
 	protected readonly speedText: Text;
 	protected readonly statusChips: StatusChip[] = [];
 	protected readonly stamp: WreckStamp;
+	protected readonly rangeChip: RangeChip;
 
 	// Placement in the slot the host last gave, kept so a passenger joining
 	// or leaving refits without the host asking
@@ -240,6 +266,9 @@ export class Vehicle extends Component {
 			crossAlign: 'center',
 		});
 		this.addChild(this.intentRow);
+
+		this.rangeChip = new RangeChip({ id: this.childId('range'), x: 0, y: RANGE_CHIP_Y, zIndex: 1 });
+		this.addChild(this.rangeChip);
 
 		this.nameText = this.addText({ suffix: 'name', size: NAME_SIZE, role: 'display', align: 'left', ellipsis: true });
 		this.armorText = this.addText({ suffix: 'armor', size: BAR_VALUE_SIZE, role: 'display', color: '#0f1011' });
@@ -305,6 +334,32 @@ export class Vehicle extends Component {
 
 	public get intents(): readonly EnemyIntent[] {
 		return this.intentRow.intents;
+	}
+
+	/**
+	 * The range chip while a card is aimed (section 6): this vehicle's range
+	 * from the slot the card acts from, or null to hide it.
+	 */
+	public get rangeLabel(): RangeLabel | null {
+		return this.rangeChip.range;
+	}
+
+	public set rangeLabel(label: RangeLabel | null) {
+		this.rangeChip.range = label;
+	}
+
+	/**
+	 * What the aimed card would take off each bar if it lands, shown as a
+	 * striped ghost over the end of the bar's fill; null clears it.
+	 */
+	public get damageGhost(): AimLosses | null {
+		return this.ghostLosses;
+	}
+
+	public set damageGhost(losses: AimLosses | null) {
+		const none = !losses || (losses.structure <= 0 && losses.driver <= 0 && losses.passenger <= 0);
+		this.ghostLosses = none ? null : { ...losses };
+		this.placeGhosts();
 	}
 
 	/** The row showing a raider's plan. */
@@ -486,6 +541,7 @@ export class Vehicle extends Component {
 		if (this.wrecked) this.placeStamp();
 
 		this.tooltip = { title: data.name, description: this.describe() };
+		this.placeGhosts();
 
 		// A passenger joining or leaving changes the height, so the scale
 		if (this.hasSlot) this.placeInSlot();
@@ -534,6 +590,36 @@ export class Vehicle extends Component {
 		text.setPosition(x, y);
 		text.setSize(width, height);
 		text.color = this.wrecked ? WRECK_TEXT : tokens.color.text_bright;
+	}
+
+	/**
+	 * A ghost over each bar the aimed card would take something off: the
+	 * fill's last `loss` of `value`, as the bar measures it. Rebuilt when the
+	 * losses or the bars change, never per frame.
+	 */
+	private placeGhosts(): void {
+		const losses = this.ghostLosses;
+		const data = this.vehicleData;
+		const bars: [DrawRectOptions, number, number, number][] = [
+			[this.structureTrack, data.structure, data.maxStructure, losses?.structure ?? 0],
+			[this.hpTrack, data.driver?.hitpoints ?? 0, data.driver?.maxHitpoints ?? 0, this.showHpRow ? losses?.driver ?? 0 : 0],
+			[this.passengerTrack, data.passenger?.hitpoints ?? 0, data.passenger?.maxHitpoints ?? 0, this.showPassengerRow ? losses?.passenger ?? 0 : 0],
+		];
+		bars.forEach(([track, value, max, loss], index) => {
+			const ghost = this.ghosts[index] ?? (this.ghosts[index] = { base: { rect: rectAt(), fill: GHOST_BASE }, stripes: { points: [], fill: GHOST_STRIPE }, shown: false });
+			const lost = Math.min(Math.max(0, loss), Math.max(0, value));
+			ghost.shown = lost > 0 && max > 0 && !this.wrecked;
+			if (!ghost.shown) return;
+			const { x, y, width, height } = track.rect;
+			const from = x + Math.round(width * Math.min(1, (value - lost) / max));
+			const to = x + Math.round(width * Math.min(1, value / max));
+			const rect = ghost.base.rect as { x: number; y: number; width: number; height: number };
+			rect.x = from;
+			rect.y = y;
+			rect.width = Math.max(1, to - from);
+			rect.height = height;
+			ghost.stripes.points = hatchTriangles(rect, GHOST_HATCH);
+		});
 	}
 
 	/**
@@ -601,36 +687,49 @@ export class Vehicle extends Component {
 		return lines.join('. ');
 	}
 
-	/** The intents row and the outline reach past the token's box. */
+	/** The intents row and the outline reach past the token's box, the target's glow further. */
 	protected get cullInk(): Rect {
-		return grownRect(this.inkRect, OUTLINE_OFFSET + 3);
+		return grownRect(this.inkRect, this.outlineStyle === 'solid' ? shadowExtent(this.glowShadow) : OUTLINE_OFFSET + 3);
 	}
 
 	public render(draw: DrawApi): void {
 		this.sprite.draw(draw);
 		drawIcon(draw, this.speedIconDraw);
+		if (this.outlineStyle === 'solid') draw.drawRect(this.glowDraw);
 		draw.drawRect(this.plateDraw);
 		if (this.hasStripe) draw.drawRect(this.stripeDraw);
 		this.ownMark.draw(draw);
 		draw.drawPolygon(this.armorDraw);
 		draw.drawRect(this.structureTrack);
 		if (this.structureFill.rect.width > 0) draw.drawRect(this.structureFill);
+		this.drawGhost(draw, 0);
 		if (this.showHpRow) {
 			drawIcon(draw, this.heartDraw);
 			draw.drawRect(this.hpTrack);
 			if (this.hpFill.rect.width > 0) draw.drawRect(this.hpFill);
+			this.drawGhost(draw, 1);
 		}
 		if (this.showPassengerRow) {
 			this.passengerMark.draw(draw);
 			draw.drawRect(this.passengerTrack);
 			if (this.passengerFill.rect.width > 0) draw.drawRect(this.passengerFill);
+			this.drawGhost(draw, 2);
 		}
-		if (this.showOutline) draw.drawRect(this.outlineDraw);
+		if (this.outlineStyle === 'solid') draw.drawRect(this.outlineDraw);
+		else if (this.outlineStyle === 'dashed') draw.drawPolygon(this.dashDraw);
+	}
+
+	private drawGhost(draw: DrawApi, index: number): void {
+		const ghost = this.ghosts[index];
+		if (!ghost?.shown) return;
+		draw.drawRect(ghost.base);
+		draw.drawPolygon(ghost.stripes);
 	}
 
 	/** The plate's fill and edge (R13.22). */
 	public get resolvedColors(): ResolvedColors {
-		return { fill: PLATE_FILL, border: this.showOutline ? this.outlineBorder.color : this.plateEdge.color };
+		const border = this.outlineStyle === 'solid' ? this.outlineBorder.color : this.outlineStyle === 'dashed' ? this.dashDraw.fill : this.plateEdge.color;
+		return { fill: PLATE_FILL, border };
 	}
 
 	public get vehicleId(): string {
@@ -773,10 +872,12 @@ export class Vehicle extends Component {
 	}
 
 	/**
-	 * While a card is aimed, a vehicle it can land on gets a thin outline,
+	 * While a card is aimed, a vehicle it can land on gets a dashed outline,
 	 * the one under the pointer (or the escort that would carry an attack
-	 * order out) a heavy one, and the rest dim (section 6, Targeting).
-	 * Raiders outline in red, your own vehicles in the interaction yellow.
+	 * order out) a heavy solid one with a glow, and the rest dim (section 6,
+	 * Targeting). Raiders outline in red, your own vehicles in the
+	 * interaction yellow. The dashes are one triangle list, built when the
+	 * plate's height changes.
 	 */
 	private updateVisualState(): void {
 		const carrier = this.isOrderCarrier();
@@ -792,16 +893,22 @@ export class Vehicle extends Component {
 		outline.y = PLATE_Y - OUTLINE_OFFSET;
 		outline.width = PLATE_WIDTH + OUTLINE_OFFSET * 2;
 		outline.height = this.plateHeight + OUTLINE_OFFSET * 2;
+		const glow = this.glowDraw.rect as { height: number };
+		glow.height = this.plateHeight;
 		if (targetable && (focused || (this.hovered && targeting))) {
-			this.showOutline = true;
-			this.outlineBorder.width = 3;
+			this.outlineStyle = 'solid';
+			this.outlineBorder.width = TARGET_OUTLINE_WIDTH;
 			this.outlineBorder.color = raider ? RAIDER_TARGET : OWN_TARGET;
+			this.glowShadow.color = raider ? RAIDER_GLOW : OWN_GLOW;
 		} else if (targetable && targeting) {
-			this.showOutline = true;
-			this.outlineBorder.width = 2;
-			this.outlineBorder.color = raider ? RAIDER_TARGETABLE : OWN_TARGETABLE;
+			this.outlineStyle = 'dashed';
+			this.dashDraw.fill = raider ? RAIDER_TARGETABLE : OWN_TARGETABLE;
+			if (this.dashedForHeight !== this.plateHeight) {
+				this.dashedForHeight = this.plateHeight;
+				dashedOutlineTriangles(outline, LEGAL_OUTLINE, this.dashPoints);
+			}
 		} else {
-			this.showOutline = false;
+			this.outlineStyle = 'none';
 		}
 	}
 }

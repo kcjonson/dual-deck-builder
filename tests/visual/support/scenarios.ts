@@ -28,6 +28,12 @@ export interface SceneScenario {
 	blockedBy?: string;
 	/** Also linted at the short viewport, for a scene that lays out to the window's width. */
 	lintShort?: boolean;
+	/**
+	 * Captured and linted at the short viewport too, as `<scene>-1024x600`:
+	 * a scene standing in for a screen state that both gate sizes have to
+	 * hold, as the screens themselves are (DDB-138's mid-drag road).
+	 */
+	shortViewport?: boolean;
 }
 
 interface ScreenCase {
@@ -137,7 +143,27 @@ export const SCENE_SCENARIOS: readonly SceneScenario[] = [
 	{ scene: 'card-pile-draw', lintShort: true },
 	{ scene: 'card-pile-discard', lintShort: true },
 	{ scene: 'card-reward', lintShort: true },
+	{ scene: 'combat-targeting', shortViewport: true },
 	// The dock's worst cases, gated at both sizes as the combat screen is (DDB-136)
 	{ scene: 'combat-dock', lintShort: true },
 	{ scene: 'combat-dock-crashed-out', lintShort: true },
+];
+
+/** A scene at one window size, and the name its golden and text record go by there. */
+export interface SizedSceneScenario extends SceneScenario {
+	name: string;
+	viewport?: Viewport;
+}
+
+/**
+ * Every scene at the fixed viewport, then the ones flagged `shortViewport`
+ * again at the short one.
+ */
+export const SIZED_SCENE_SCENARIOS: readonly SizedSceneScenario[] = [
+	...SCENE_SCENARIOS.map((entry) => ({ ...entry, name: entry.scene })),
+	...SCENE_SCENARIOS.filter((entry) => entry.shortViewport).map((entry) => ({
+		...entry,
+		name: `${entry.scene}-${SHORT_VIEWPORT.width}x${SHORT_VIEWPORT.height}`,
+		viewport: SHORT_VIEWPORT,
+	})),
 ];

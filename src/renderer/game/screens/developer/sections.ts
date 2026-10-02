@@ -30,6 +30,7 @@ import { CombatRoadSection } from './CombatRoadSection';
 import { CardDetailCapSection, CardDetailPinnedSection, CardDetailSection, CardFacesSection } from './CardDetailSection';
 import { SliderTabsSection } from './SliderTabsSection';
 import { VehicleTokensSection } from './VehicleTokensSection';
+import { CombatTargetingSection } from './CombatTargetingSection';
 import { CombatDockCrashedOutSection, CombatDockSection } from './CombatDockSection';
 
 /**
@@ -208,6 +209,11 @@ export const developerSections: readonly DeveloperSection[] = [
 	{
 		name: 'card-detail-cap',
 		build: (options) => new CardDetailCapSection(options),
+	},
+	// A card mid-drag over the road: ranges, outlines, ghost, hit check (DDB-138)
+	{
+		name: 'combat-targeting',
+		build: (options) => new CombatTargetingSection(options),
 	},
 	// The battle screen's dock at its worst cases (DDB-136, DDB-167)
 	{
