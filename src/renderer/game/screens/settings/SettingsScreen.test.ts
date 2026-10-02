@@ -57,6 +57,19 @@ describe('SettingsScreen', () => {
 		expect(motionControl().value).toBe('full');
 	});
 
+	it('walks to Back and back with Down and Up, returning to the selected option (R9.24, R9.26)', () => {
+		screen.unmount();
+		settings.motion = 'full';
+		screen.mount(context);
+		context.frame.layout();
+		send(context, [key('ArrowDown')]);
+		expect(context.focus.focused?.id).toBe('settings_back_button');
+		send(context, [key('ArrowUp')]);
+		expect(context.focus.focused).toBe(motionControl().items[2]);
+		send(context, [key('ArrowRight')]);
+		expect(settings.motion).toBe('system');
+	});
+
 	it('tabs from the setting to Back, which returns to the menu', () => {
 		send(context, [key('Tab')]);
 		expect(context.focus.focused?.id).toBe('settings_back_button');

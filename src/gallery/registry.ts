@@ -4,6 +4,7 @@ import { developerSections } from '../renderer/game/screens/developer/sections';
 import { DialogScene } from './scenes/DialogScene';
 import { OverlaysScene } from './scenes/OverlaysScene';
 import { PopoverScene } from './scenes/PopoverScene';
+import { ScrollHugScene } from './scenes/ScrollHugScene';
 import { ToastScene } from './scenes/ToastScene';
 import { TransitionScene } from './scenes/TransitionScene';
 
@@ -38,6 +39,7 @@ export const galleryOnlyScenes: readonly GalleryScene[] = [
 	{ name: 'popover', factory: (options) => new PopoverScene(options) },
 	{ name: 'toasts', factory: (options) => new ToastScene(options) },
 	{ name: 'screen-transition', factory: (options) => new TransitionScene(options) },
+	{ name: 'scroll-hug', factory: (options) => new ScrollHugScene(options) },
 ];
 
 export const gallerySceneRegistry: readonly GalleryScene[] = [

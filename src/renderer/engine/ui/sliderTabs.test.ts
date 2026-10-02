@@ -11,6 +11,7 @@ import { NO_MODIFIERS } from '../input/events';
 import { PointerAdapter } from '../input/PointerAdapter';
 import { createMeasuringDrawApi, MeasuringRecordingBackend } from '../text/testing';
 import { tokens } from '../theme/tokens';
+import { Button } from './Button';
 import { SegmentedControl } from './SegmentedControl';
 import { Slider, SliderRange, positionToValue, snapToStep, valueToPosition } from './Slider';
 import { TabBar } from './TabBar';
@@ -181,7 +182,7 @@ describe('Slider (R12.15)', () => {
 		press('Tab');
 		press('ArrowRight');
 		expect(made.value).toBeCloseTo(51);
-		press('ArrowDown');
+		press('ArrowLeft');
 		press('ArrowLeft');
 		expect(made.value).toBeCloseTo(49);
 		press('Home');
@@ -195,10 +196,26 @@ describe('Slider (R12.15)', () => {
 		expect(made.value).toBe(95);
 	});
 
+	it('leaves Up and Down to directional focus, and holds Left and Right at its ends (R9.24)', () => {
+		const { made, changes } = slider({ value: 0 });
+		const below = new Button('Below', { x: 100, y: 200, width: 80 });
+		root.addChild(below);
+		context.frame.layout();
+		press('Tab');
+		press('ArrowLeft');
+		expect(made.focused).toBe(true);
+		press('ArrowDown');
+		expect(below.focused).toBe(true);
+		press('ArrowUp');
+		expect(made.focused).toBe(true);
+		expect(made.value).toBe(0);
+		expect(changes).toEqual([]);
+	});
+
 	it('steps a log slider evenly along its track', () => {
 		const { made } = slider({ min: 1, max: 1000, logScale: true, value: 10 });
 		press('Tab');
-		press('ArrowUp');
+		press('ArrowRight');
 		expect(made.value).toBeCloseTo(10 * Math.pow(1000, 0.01));
 	});
 
@@ -206,7 +223,7 @@ describe('Slider (R12.15)', () => {
 		const { made, changes } = slider({ value: 100 });
 		press('Tab');
 		press('End');
-		press('ArrowUp');
+		press('ArrowRight');
 		expect(made.value).toBe(100);
 		expect(changes).toEqual([]);
 	});
@@ -473,17 +490,23 @@ describe('SegmentedControl (R12.17)', () => {
 		expect(changes).toEqual(['hard', 'easy', 'hard']);
 	});
 
-	it('moves with Up and Down as well as Left and Right, and goes to the ends with Home and End', () => {
+	it('leaves Up and Down to directional focus, and goes to the ends with Home and End (R9.24)', () => {
 		const { control: made, changes } = segmented();
+		const below = new Button('Below', { x: 100, y: 200, width: 80 });
+		root.addChild(below);
+		context.frame.layout();
 		press('Tab');
 		press('ArrowDown');
-		expect(made.value).toBe('hard');
-		press('ArrowUp');
+		expect(below.focused).toBe(true);
 		expect(made.value).toBe('normal');
+		press('ArrowUp');
+		expect(made.items.some((segment) => segment.focused)).toBe(true);
+		press('End');
+		expect(made.value).toBe('hard');
+		expect(made.items[3].focused).toBe(true);
 		press('Home');
 		expect(made.value).toBe('easy');
-		expect(made.items[0].focused).toBe(true);
-		expect(changes).toEqual(['hard', 'normal', 'easy']);
+		expect(changes).toEqual(['hard', 'easy']);
 	});
 
 	it('is left out of the Tab order and ignores presses while disabled', () => {
