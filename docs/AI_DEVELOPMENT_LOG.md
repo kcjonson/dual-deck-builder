@@ -19,6 +19,16 @@ This document contains the chronological log of completed development tasks for 
 
 **How:** `Game.test.ts` drives F5 and F12 through the dispatcher, under a modal root, and through a real `PointerAdapter` with composing keydowns; a dispatcher test for the diagnostic root above a modal; `ScreenManager.test.ts` round trips to all four menu screens by keyboard (ring shown) and Settings by pointer (no ring), a disabled opener, and the one-shot memory; driver selection tests for the onMount build and Escape unregistering. Played every screen's Escape through `window.__dev.input` in a browser.
 
+## Vehicle text on the token scale, raster weight matched to the field (2026-10-02)
+
+**What landed:** DDB-217 (DDB-55), R6.4a.
+
+- `Vehicle` draws every run at `fs_xs` on `lh_tight` lines, and `ArmorBadge` its value at `fs_xs`. Rows stack from measured heights: armor row at the bottom, the structure track with its value beside it, and the portrait above with the driver's name beside the driver portrait, the HP under it, and the vehicle's name at its foot. The driver's name drops its "Driver: " prefix; names take an ellipsis.
+- `text/fieldInk.ts` holds each face's distance-field ink of "Hamburgefonstiv" at 9 px, read by both `FONT_FACES` and the web suite that measures it. `RasterGlyphPage` measures each (role, size)'s raster ink once, from the reference word's glyphs drawn as any glyphs are (`inkSample`), and, when it is more than 2 percent off the field's, draws the glyphs through a power curve (`inkCurve`) that lands it on it. CoreText at ratio 1 was 1.26 to 1.45 times the field, FreeType on Linux up to 1.13; written glyphs are now 1.000 to 1.001 of the field on macOS.
+- R6.4a in chapter 6 now allows reshaping the raster's coverage toward the field's ink.
+- Decision record: [small-text-weight-match.md](./AI_TECHNICAL_DECISIONS/small-text-weight-match.md).
+
+**How:** Vehicle tests that every plate run is `fs_xs`, no two lines overlap on a 140x91 plate, and long names end in an ellipsis inside it; unit tests for the sample, histogram, curve and the page measuring once per size; `uberShader.spec.ts` measures the field ink through the shader for each face and scores the glyphs `rasterizeGlyphs` writes, through the curve, at 6 to 8.75 px on the running platform. Played a turn through `window.__dev.input` at 1280x720 and 1024x600.
 ## Settings and credits polish (2026-10-02)
 
 **What landed:** DDB-232 (DDB-55), the open items from the #126 review.
