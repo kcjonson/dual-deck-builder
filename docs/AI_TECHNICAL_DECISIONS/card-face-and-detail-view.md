@@ -54,6 +54,6 @@ Considered: anchoring above the card, as the preview did. Section 5 anchors to t
 
 - Every golden with a card face moves: the combat screen, the card browser, driver selection's mini cards, and the developer screen's scroll thumb (new sections). Seven new scenes, one state each so every one fits a 1024x600 capture: `card-faces` (owners, unaffordable, a name shrunk and one cut), `card-detail` (keyword boxes right), `card-detail-pinned` (pinned, boxes flipped left), `card-detail-cap` (the art shrunk at 440), and the gallery-only `card-pile-draw`, `card-pile-discard` and `card-reward`, each with a detail view pinned through the tooltip service. All seven are in the layout lint gate at 1440x882 and at 1024x600 (`SHORT_SCENE_SCENARIOS`), since the view is placed against the viewport.
 - Every draw the face and the detail view make is built once (in the constructor, or in layout where the view places it) and recoloured in place on a state change, so a frame allocates nothing.
-- The hand still deals every element again on each change, so a pin on a hand card lasts until the next deal (a card played, a draw). DDB-136's move to `reconcileChildren` keeps the element and with it the pin.
+- Since DDB-136 the hand is reconciled by card, so a pin on a hand card survives a deal and drops only when that card leaves the hand.
 - Section 6's "the vehicle the card acts from lights up in its driver colour" while inspecting is left for the road (DDB-134/135), which has the slot tokens to light.
 - The art is a placeholder glyph per card kind until cards have art.

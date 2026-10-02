@@ -1024,8 +1024,8 @@ export class CombatScreen extends Screen {
 	/**
 	 * After a keyboard player's card is played or put back, focus goes back
 	 * to the hand at the same slot, or to END TURN when nothing is playable.
-	 * The hand is rebuilt on every change, so the card focus was on is gone,
-	 * and a target vehicle stops being focusable when targeting ends.
+	 * The card focus was on has left the hand (or, put back, may have lost
+	 * focus to its target), and a target vehicle stops being focusable when targeting ends.
 	 */
 	private restoreKeyboardFocus(): void {
 		const focus = this.context.focus;

@@ -77,7 +77,7 @@ const PILE_SCROLL_HEIGHT = 420;
 const DIALOG_CHROME = 140;
 
 /**
- * A driver's draw and discard piles in a dialog, from their tab's counts:
+ * A driver's draw and discard piles in a dialog, from the pile icons on their tab:
  * the draw pile in name order, the discard in the order it was made. I
  * pins a card's detail view here too, since a modal dialog's hotkeys are
  * the only ones heard while it is open.
