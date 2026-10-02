@@ -202,7 +202,7 @@ describe('WebGL2Backend', () => {
 		const { calls, constant, named } = setupBackend({ instanceRingBytes: 3 * 1024 * 1024 });
 		const sizes = named(calls, 'bufferData').map((call) => [call.args[0], call.args[1]]);
 		expect(sizes).toEqual([
-			[constant('UNIFORM_BUFFER'), FRAME_SLOT_BYTES * 3],
+			[constant('UNIFORM_BUFFER'), FRAME_SLOT_BYTES * 12],
 			[constant('ARRAY_BUFFER'), 3 * 1024 * 1024],
 		]);
 	});
@@ -269,19 +269,22 @@ describe('WebGL2Backend', () => {
 		}
 	});
 
-	it('writes the frame block once per frame into a rotating slot and binds that range', () => {
+	it('writes the frame block once per frame into a fresh slot of the ring and binds that range (R5.27, R15.15)', () => {
 		const { frame, named, constant } = setupBackend();
 		const slots: number[] = [];
-		for (let index = 0; index < 4; index++) {
+		for (let index = 0; index < 14; index++) {
 			const calls = frame(someShapesAndText);
 			const writes = named(calls, 'bufferSubData').filter((call) => call.args[0] === constant('UNIFORM_BUFFER'));
 			expect(writes).toHaveLength(1);
 			const [range] = named(calls, 'bindBufferRange');
 			expect(range.args[3]).toBe(writes[0].args[1]);
 			expect(range.args[4]).toBe(FRAME_BLOCK_BYTES);
-			slots.push(writes[0].args[1] as number);
+			slots.push((writes[0].args[1] as number) / FRAME_SLOT_BYTES);
 		}
-		expect(slots).toEqual([FRAME_SLOT_BYTES, 2 * FRAME_SLOT_BYTES, 0, FRAME_SLOT_BYTES]);
+		// One slot a frame, round a ring of twelve, never one of the last two frames'.
+		expect(new Set(slots.slice(0, 12)).size).toBe(12);
+		expect(slots[12]).toBe(slots[0]);
+		for (const slot of slots) expect(slot).toBeLessThan(12);
 	});
 
 	it('puts the logical-pixel projection in the frame block', () => {
@@ -290,7 +293,8 @@ describe('WebGL2Backend', () => {
 		const write = named(calls, 'bufferSubData').find((call) => call.args[0] === constant('UNIFORM_BUFFER'));
 		const block = write?.args[2] as Float32Array;
 		const projection = mat4.ortho(mat4.create(), 0, 800, 600, 0, -1, 1);
-		expect(Array.from(block)).toEqual(Array.from(projection));
+		expect([write?.args[3], write?.args[4]]).toEqual([0, 16]);
+		expect(Array.from(block.subarray(0, 16))).toEqual(Array.from(projection));
 	});
 
 	it('uploads instances into the ring with a source range and draws six vertices an instance, with no index buffer', () => {
@@ -401,7 +405,7 @@ describe('WebGL2Backend', () => {
 		expect(Array.from(floats.subarray(UBER_INSTANCE.clip, UBER_INSTANCE.clip + 4))).toEqual([10, 20, 110, 70]);
 	});
 
-	it('appends each new rounded clip to the frame slot behind the projection, before the draw that reads it (R4.14)', () => {
+	it('appends rounded clips to the bound slot until a draw reads it, then moves to a fresh slot with the whole table (R4.14, R5.27)', () => {
 		const { frame, named, constant } = setupBackend();
 		const rect = { x: 0, y: 0, width: 100, height: 100 };
 		const calls = frame((draw) => {
@@ -417,21 +421,61 @@ describe('WebGL2Backend', () => {
 			draw.drawRect({ rect, fill: WHITE });
 		});
 		const uniforms = named(calls, 'bufferSubData').filter((call) => call.args[0] === constant('UNIFORM_BUFFER'));
-		// The projection, then one entry per domain that brought a new clip; the third brought none.
+		// The projection, the first domain's entry appended to that slot, then
+		// the second domain's fresh slot; the third domain brought nothing.
 		expect(uniforms).toHaveLength(3);
 		const slot = uniforms[0].args[1] as number;
-		const entryBytes = 8 * 4;
 		expect(uniforms[1].args[1]).toBe(slot + UBER_FRAME_BLOCK.roundedClips * 4);
-		expect(uniforms[2].args[1]).toBe(slot + UBER_FRAME_BLOCK.roundedClips * 4 + entryBytes);
 		const table = uniforms[1].args[2] as Float32Array;
 		expect(Array.from(table.subarray(0, 5))).toEqual([40, 40, 30, 20, 8]);
-		expect([uniforms[1].args[3], uniforms[1].args[4], uniforms[2].args[3], uniforms[2].args[4]]).toEqual([0, 8, 8, 8]);
-		// Each entry lands before the draw of the domain that refers to it.
+		expect([uniforms[1].args[3], uniforms[1].args[4]]).toEqual([0, 8]);
+
+		const fresh = uniforms[2].args[1] as number;
+		expect(fresh).not.toBe(slot);
+		expect(fresh % FRAME_SLOT_BYTES).toBe(0);
+		// The projection and both entries, in one write from the start of the block.
+		expect([uniforms[2].args[3], uniforms[2].args[4]]).toEqual([0, UBER_FRAME_BLOCK.roundedClips + 16]);
+		const block = uniforms[2].args[2] as Float32Array;
+		expect(Array.from(block.subarray(0, 16))).toEqual(Array.from(mat4.ortho(mat4.create(), 0, 800, 600, 0, -1, 1)));
+		expect(Array.from(block.subarray(UBER_FRAME_BLOCK.roundedClips, UBER_FRAME_BLOCK.roundedClips + 5))).toEqual([40, 40, 30, 20, 8]);
+		expect(Array.from(block.subarray(UBER_FRAME_BLOCK.roundedClips + 8, UBER_FRAME_BLOCK.roundedClips + 13))).toEqual([40, 40, 10, 10, 4]);
+
+		// Each write lands before the draw that reads it, and the fresh slot is bound before the second domain draws.
 		const draws = calls.map((call, index) => (call.name === 'drawArraysInstanced' ? index : -1)).filter((index) => index >= 0);
 		expect(draws).toHaveLength(3);
 		expect(calls.indexOf(uniforms[1])).toBeLessThan(draws[0]);
 		expect(calls.indexOf(uniforms[2])).toBeGreaterThan(draws[0]);
 		expect(calls.indexOf(uniforms[2])).toBeLessThan(draws[1]);
+		const ranges = named(calls, 'bindBufferRange');
+		expect(ranges.map((range) => range.args[3])).toEqual([slot, fresh]);
+		expect(calls.indexOf(ranges[1])).toBeGreaterThan(calls.indexOf(uniforms[2]));
+		expect(calls.indexOf(ranges[1])).toBeLessThan(draws[1]);
+	});
+
+	it('grows the uniform ring once, and says so, rather than reuse a slot the frame already bound (R5.27)', () => {
+		const { frame, named, constant } = setupBackend();
+		const warn = jest.spyOn(console, 'warn').mockImplementation(() => undefined);
+		try {
+			const calls = frame((draw) => {
+				for (let domain = 0; domain < 14; domain++) {
+					draw.pushClipRounded({ x: domain, y: 0, width: 60, height: 40 }, 8);
+					draw.drawRect({ rect: { x: 0, y: 0, width: 100, height: 100 }, fill: WHITE });
+					draw.popClip();
+					draw.flush();
+				}
+			});
+			expect(warn).toHaveBeenCalledTimes(1);
+			const grown = named(calls, 'bufferData').filter((call) => call.args[0] === constant('UNIFORM_BUFFER'));
+			expect(grown.map((call) => call.args[1])).toEqual([FRAME_SLOT_BYTES * 24]);
+			// After the growth every range is in the new buffer, and none is bound twice in the frame.
+			const ranges = named(calls, 'bindBufferRange');
+			expect(ranges).toHaveLength(14);
+			const afterGrowth = ranges.filter((range) => calls.indexOf(range) > calls.indexOf(grown[0]));
+			const offsets = afterGrowth.map((range) => range.args[3]);
+			expect(new Set(offsets).size).toBe(offsets.length);
+		} finally {
+			warn.mockRestore();
+		}
 	});
 
 	it('marks every instance under a rounded clip with its entry, and splits nothing for it (R4.14)', () => {

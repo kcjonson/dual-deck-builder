@@ -118,17 +118,20 @@ describe('effective values (R8.3)', () => {
 		expect(popup.containsScreenPoint(65, 5)).toBe(false);
 	});
 
-	it('takes overflow before it has a size and clips once it gets one', () => {
+	it('takes overflow before it has a size, shows nothing while zero-sized, and clips to its box once sized (DDB-234)', () => {
 		const clipper = new Container({ overflow: 'hidden' });
-		const child = new Rectangle({ x: 60, y: 0, width: 20, height: 20 });
+		const child = new Rectangle({ x: 0, y: 0, width: 20, height: 20 });
+		const outside = new Rectangle({ x: 60, y: 0, width: 20, height: 20 });
 		clipper.addChild(child);
+		clipper.addChild(outside);
 
 		expect(clipper.overflow).toBe('hidden');
-		expect(clipper.clipsChildren).toBe(false);
+		expect(clipper.clipsChildren).toBe(true);
+		expect(child.containsScreenPoint(5, 5)).toBe(false);
 
 		clipper.setSize(50, 50);
-		expect(clipper.clipsChildren).toBe(true);
-		expect(child.containsScreenPoint(65, 5)).toBe(false);
+		expect(child.containsScreenPoint(5, 5)).toBe(true);
+		expect(outside.containsScreenPoint(65, 5)).toBe(false);
 	});
 });
 

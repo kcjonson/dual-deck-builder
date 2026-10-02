@@ -19,6 +19,19 @@ This document contains the chronological log of completed development tasks for 
 - R12.20 lists `scrollByPages(n)` and its page distance. The Settings doc comment is rewrapped.
 
 **How:** `Game.test.ts` drives F5 and F12 through the dispatcher, under a modal root, and through a real `PointerAdapter` with composing keydowns; a dispatcher test for the diagnostic root above a modal; `ScreenManager.test.ts` round trips to all four menu screens by keyboard (ring shown) and Settings by pointer (no ring), a disabled opener, and the one-shot memory; driver selection tests for the onMount build and Escape unregistering. Played every screen's Escape through `window.__dev.input` in a browser.
+## Panel and ScrollContainer clip with the rounded clip (2026-10-02)
+
+**What landed:** DDB-231 and DDB-234 (DDB-55).
+
+- `Component.clipRadius` (0 by default): `renderTree` pushes `pushClipRounded` when it is positive, `containsScreenPoint` and `hitTest` reject points in the cut corners, `treeSnapshot` reports `roundedClip`.
+- Panel clips at `borderWidth` with radius `borderRadius - borderWidth`; its content inset floor is the border when it clips and `max(borderWidth, radius)` when it does not, recomputed when `overflow` changes. ScrollContainer clips at the border (plus R8.8's ink reach) with the radius less its smallest inset.
+- `keptRoundedClip` and `roundedClipCuts` in `draw/clip.ts`: a rounded clip that takes no pixel off the merged rect is dropped on every path, and `nested-rounded-clip` fires only when both cut.
+- `WebGL2Backend` keeps uniform slots in a `StreamRing` of 12; an upload that adds rounded clips after a draw read the bound slot writes the projection and the whole table into a fresh slot and binds it, instead of appending into a bound range.
+- DDB-234: `clipsChildren` no longer answers false for a zero-sized box, on Component or ScrollContainer.
+- Gallery scene `rounded-clip`: a clipping panel filled to its corners, a rounded scroller scrolled under its corners, a rounded scroller nested clear of a rounded panel's corners (no warning), and two domains split by `flush()` that each bring a rounded clip, so the fresh slot is drawn from on real GL.
+- Decision record: [component-rounded-clip.md](./AI_TECHNICAL_DECISIONS/component-rounded-clip.md).
+
+**How:** clip tests for the drop rule (the outermost pixel centres a rect keeps, on and off the grid, ratio), DrawApi tests that a clear nesting does not warn and a real one does, backend tests for the fresh slot and for ring growth, Panel, ScrollContainer, ScrollClip and snapshot tests for the clip, its radius, corner hits in both hit walks, and the zero-sized cases; goldens re-minted with `all`.
 
 ## Vehicle text on the token scale, raster weight matched to the field (2026-10-02)
 
@@ -30,6 +43,7 @@ This document contains the chronological log of completed development tasks for 
 - Decision record: [small-text-weight-match.md](./AI_TECHNICAL_DECISIONS/small-text-weight-match.md).
 
 **How:** Vehicle tests that every plate run is `fs_xs`, no two lines overlap on a 140x91 plate, and long names end in an ellipsis inside it; unit tests for the sample, histogram, curve and the page measuring once per size; `uberShader.spec.ts` measures the field ink through the shader for each face and scores the glyphs `rasterizeGlyphs` writes, through the curve, at 6 to 8.75 px on the running platform. Played a turn through `window.__dev.input` at 1280x720 and 1024x600.
+
 ## Settings and credits polish (2026-10-02)
 
 **What landed:** DDB-232 (DDB-55), the open items from the #126 review.
@@ -41,6 +55,7 @@ This document contains the chronological log of completed development tasks for 
 - The credits-at-a-scrolling-size lint item was covered by #130.
 
 **How:** `ScreenManager.test.ts` plays menu to Settings and Credits and back by keyboard; tests for unknown keys and the paging distance.
+
 ## Every screen at lint zero with a golden, at two sizes (2026-10-02)
 
 **What landed:** DDB-91's first PR (DDB-55, phase 6), closing DDB-230.
@@ -54,6 +69,7 @@ This document contains the chronological log of completed development tasks for 
 - Decision record: [screens-at-lint-zero.md](./AI_TECHNICAL_DECISIONS/screens-at-lint-zero.md).
 
 **How:** lint tests over every card at every size and over the plate at the battlefield's sizes, `fanReach` and `wrappedLineCount` tests, a `Game` test for the hook's data; the screen lint spec (20 scenarios) passes locally; the menu, showcase, developer, settings, credits, driver selection, a full fight, and the result played through `window.__dev.input` at both sizes with lint zero on each screen and a clean console.
+
 ## Arrow trapping settled, hug scrolling specified (2026-10-02)
 
 **What landed:** DDB-227, DDB-228, and DDB-233 (DDB-55), one PR.

@@ -4,7 +4,7 @@ import { ScrollContainer } from '../ui/ScrollContainer';
 import { Stack } from '../components/Stack';
 import { TextInput } from '../ui/TextInput';
 import { Checkable } from '../ui/Checkbox';
-import { CLIP_NONE, ClipState, intersectClip } from '../draw/clip';
+import { CLIP_NONE, ClipState, clipRadiusScale, intersectClip } from '../draw/clip';
 import { ClipRect, IDENTITY, Mat2D, RGBA, Rect, concat, isTranslateOnly, transformedBounds, translation } from '../draw/geometry';
 import { LayerName, ROOT_LAYER, layerOrdinal } from '../draw/layers';
 import { snapClipRect } from '../coords/snapping';
@@ -62,6 +62,10 @@ export interface SnapshotRect {
 	y: number;
 	w: number;
 	h: number;
+}
+
+export interface SnapshotRoundedClip extends SnapshotRect {
+	radius: number;
 }
 
 export interface SnapshotPoint {
@@ -175,6 +179,8 @@ export interface SnapshotNode {
 	/** The effective opacity (R3.25). */
 	opacity?: number;
 	clip?: SnapshotRect;
+	/** R4.14: the rounded clip the walk's draws carry here, when one cuts `clip`; its rect may be larger than `clip`. */
+	roundedClip?: SnapshotRoundedClip;
 	contentOffset?: SnapshotPoint;
 	scroll?: SnapshotScroll;
 	transform?: SnapshotTransform;
@@ -277,6 +283,12 @@ function snapshotClip(clip: ClipState): SnapshotRect | undefined {
 	return fromClipRect(clip.rect);
 }
 
+/** The rounded clip the draws carry (R4.14): the innermost one that cuts the clip, if any. */
+function snapshotRoundedClip(clip: ClipState): SnapshotRoundedClip | undefined {
+	if (clip.kind !== 'rect' || !clip.rounded) return undefined;
+	return { ...fromClipRect(clip.rounded.rect), radius: finite(clip.rounded.radius) };
+}
+
 /**
  * A local rect through `matrix`, with non-finite results zeroed rather than
  * propagated. Under a translation the size is carried over rather than
@@ -300,6 +312,15 @@ function screenRect(matrix: Mat2D, rect: Rect): SnapshotRect {
 function pushedClip(matrix: Mat2D, rect: Rect, ratio: number): ClipRect {
 	const bounds = transformedBounds(matrix, rect);
 	return isTranslateOnly(matrix) ? snapClipRect(bounds, ratio) : bounds;
+}
+
+/** The clip a node's children see, as the walk pushes it: rounded when the node has a `clipRadius` (R4.14). */
+function childClip(clip: ClipState, matrix: Mat2D, node: Component, ratio: number): ClipState {
+	const rect = pushedClip(matrix, node.clipRect, ratio);
+	const radius = finite(node.clipRadius);
+	if (radius <= 0) return intersectClip(clip, rect, null, ratio);
+	const scaled = isTranslateOnly(matrix) ? radius : radius * clipRadiusScale(matrix);
+	return intersectClip(clip, rect, { rect, radius: scaled }, ratio);
 }
 
 function color(value: RGBA | undefined): number[] | undefined {
@@ -406,6 +427,8 @@ function serializeNode(
 
 		const reportedClip = snapshotClip(clip);
 		if (reportedClip) serialized.clip = reportedClip;
+		const roundedClip = snapshotRoundedClip(clip);
+		if (roundedClip) serialized.roundedClip = roundedClip;
 
 		const offset = node.contentOffset;
 		const offsetX = finite(offset?.x);
@@ -456,7 +479,7 @@ function serializeNode(
 				// offset applied inside it (R4.9, R4.10).
 				const childContext: WalkContext = {
 					matrix: offsetX !== 0 || offsetY !== 0 ? concat(matrix, translation(-offsetX, -offsetY)) : matrix,
-					clip: node.clipsChildren ? intersectClip(clip, pushedClip(matrix, node.clipRect, context.ratio), null) : clip,
+					clip: node.clipsChildren ? childClip(clip, matrix, node, context.ratio) : clip,
 					layer,
 					opacity,
 					ratio: context.ratio,

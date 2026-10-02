@@ -1,4 +1,4 @@
-import type { Component, PointerEvents, ResolvedColors } from '../components/Component';
+import type { Component, Overflow, PointerEvents, ResolvedColors } from '../components/Component';
 import type { Sides } from '../components/componentGeometry';
 import { Stack, StackOptions } from '../components/Stack';
 import { Text } from '../components/Text';
@@ -98,7 +98,9 @@ export class Panel extends Stack {
 	private readonly panelAccent: PanelAccent;
 	private readonly showCorners: boolean;
 	private readonly showGlow: boolean;
-	private readonly contentPadding: Sides;
+	/** The inset asked for (`flush`, `compact`, or the style's `padding`), before `contentInsetFor` raises it. */
+	private readonly requestedPadding: Sides;
+	private contentPadding: Sides;
 	private readonly headerInset: number;
 	private readonly headerHeight: number;
 	private readonly kickerText: Text | null;
@@ -126,17 +128,7 @@ export class Panel extends Stack {
 		const requested = style.padding !== undefined
 			? resolvePadding(style.padding, { top: inset, right: inset, bottom: inset, left: inset })
 			: { top: inset, right: inset, bottom: inset, left: inset };
-		// R12.19: content is inset by the border and the corner radius, since
-		// the component clip is a plain rect (the draw API's rounded clip is
-		// not wired through the walk yet, DDB-231); `flush` and a smaller
-		// padding meet that edge rather than paint over it.
-		const edge = Math.max(box.borderWidth, box.radius);
-		const contentPadding = {
-			top: Math.max(requested.top, edge),
-			right: Math.max(requested.right, edge),
-			bottom: Math.max(requested.bottom, edge),
-			left: Math.max(requested.left, edge),
-		};
+		const contentPadding = contentInsetFor(requested, box, options.overflow === 'hidden');
 		const hasHeader = title !== undefined || kicker !== undefined;
 		if (actions.length > 0 && !hasHeader) throw new Error('Panel: actions sit in the header, which needs a title or kicker (R12.19)');
 		const headerInset = compact ? tokens.space.space_1_5 : tokens.space.space_2;
@@ -152,6 +144,7 @@ export class Panel extends Stack {
 		this.panelAccent = accent;
 		this.showCorners = corners;
 		this.showGlow = glow;
+		this.requestedPadding = requested;
 		this.contentPadding = contentPadding;
 		this.headerInset = headerInset;
 		this.headerHeight = headerHeight;
@@ -251,18 +244,33 @@ export class Panel extends Stack {
 	}
 
 	/**
-	 * The clip sits inside the border and the corner radius, inset by the
-	 * larger of the two on every side, the same edge the content inset never
-	 * goes below, so content never paints over the border or past the rounded
-	 * corners `render` drew first. The walk, hit test and snapshot all clip
-	 * to a plain rect, so the radius is cleared by inset rather than by
-	 * R4.14's rounded clip (DDB-231). Clipping happens only when `overflow` is `hidden`.
-	 * Decision: docs/AI_TECHNICAL_DECISIONS/panel-padding.md.
+	 * Clipping happens only when `overflow` is `hidden`, at the border's
+	 * inner edge with the background's corner concentric inside it: R4.14's
+	 * rounded clip, radius `borderRadius - borderWidth` (`clipRadius`), so
+	 * content never paints over the border or past the rounded corners
+	 * `render` drew first, and the straight edges keep every pixel inside
+	 * the border. Decision: docs/AI_TECHNICAL_DECISIONS/component-rounded-clip.md.
 	 */
 	protected computeClipRect(): Rect {
-		const edge = Math.max(this.box.borderWidth, this.box.radius);
-		const inset = Math.min(edge, this.width / 2, this.height / 2);
+		const inset = Math.min(this.box.borderWidth, this.width / 2, this.height / 2);
 		return { x: inset, y: inset, width: this.width - inset * 2, height: this.height - inset * 2 };
+	}
+
+	public get clipRadius(): number {
+		return Math.max(this.box.radius - this.clipRect.x, 0);
+	}
+
+	/** A clipping panel clears its corners with the rounded clip; one that does not, by inset (R12.19). */
+	public setOverflow(overflow: Overflow): this {
+		super.setOverflow(overflow);
+		// Component's constructor sets it before this class has its fields.
+		if (this.requestedPadding === undefined) return this;
+		const inset = contentInsetFor(this.requestedPadding, this.box, overflow === 'hidden');
+		if (!sameSides(inset, this.contentPadding)) {
+			this.contentPadding = inset;
+			this.padding = { ...inset, top: inset.top + this.headerHeight };
+		}
+		return this;
 	}
 
 	/** R8.8: the corner ticks straddle the border; the glow and the raised shadow reach further. */
@@ -366,6 +374,28 @@ function panelBox(variant: PanelVariant, style: StyleObject): PanelBox {
 		radius: style.borderRadius !== undefined ? resolveLength(style.borderRadius, 'borderRadius') : tokens.radius.radius_panel,
 		shadow: style.shadow !== undefined ? resolveShadow(style.shadow) : variant === 'raised' ? resolveShadow('shadow_raised') : null,
 	};
+}
+
+/**
+ * R12.19: content is inset at least to the border's inner edge, so `flush`
+ * and a smaller padding meet the border rather than paint over it. A panel
+ * that clips clears its corners with the rounded clip (`clipRadius`) and
+ * goes no further; one that does not clip also clears the corner radius,
+ * since nothing else keeps a child placed at the edge off the rounded
+ * corner.
+ */
+function contentInsetFor(requested: Sides, box: PanelBox, clips: boolean): Sides {
+	const edge = clips ? box.borderWidth : Math.max(box.borderWidth, box.radius);
+	return {
+		top: Math.max(requested.top, edge),
+		right: Math.max(requested.right, edge),
+		bottom: Math.max(requested.bottom, edge),
+		left: Math.max(requested.left, edge),
+	};
+}
+
+function sameSides(a: Sides, b: Sides): boolean {
+	return a.top === b.top && a.right === b.right && a.bottom === b.bottom && a.left === b.left;
 }
 
 /** A rect from a corner and a signed extent on each axis. */

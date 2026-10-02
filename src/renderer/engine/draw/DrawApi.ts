@@ -18,8 +18,8 @@ import { isSingleOutline } from './triangulate';
 import { snapClipRectInto } from '../coords/snapping';
 import {
 	ClipState,
+	clipRadiusScale,
 	clipRectOf,
-	hasRoundedClip,
 } from './clip';
 import { ClipStack, NumberStack, TransformStack, ValueStack } from './drawStacks';
 import {
@@ -470,17 +470,19 @@ export class DrawApi {
 		const screen = this.screenBounds(rect);
 		if (translateOnly) snapClipRectInto(screen, this.ratio, screen);
 
-		if (radius !== null && hasRoundedClip(this.clip) && !this.warnedNestedRoundedClip) {
+		const screenRadius = radius === null || translateOnly ? radius : radius * clipRadiusScale(this.transforms.matrix);
+		// A rounded clip inside another nests only where both cut the merged
+		// rect; one clear of the other's corners is exact (`keptRoundedClip`).
+		const nested = this.clips.push(screen, screenRadius, this.ratio);
+		if (nested && !this.warnedNestedRoundedClip) {
 			// R4.14: once per frame. The outer rounded clip degrades to its
 			// bounding rect, so content can show in its corners.
 			this.warnedNestedRoundedClip = true;
 			this.report(
 				'nested-rounded-clip',
-				'a rounded clip was pushed inside another; only the innermost radius is carried and the outer contributes its bounding rect (R4.14)',
+				'a rounded clip was pushed inside another whose corner it reaches; only the innermost radius is carried and the outer contributes its bounding rect (R4.14)',
 			);
 		}
-
-		this.clips.push(screen, radius === null || translateOnly ? radius : radius * clipRadiusScale(this.transforms.matrix));
 	}
 
 	/**
@@ -802,7 +804,7 @@ export class DrawApi {
 		}
 
 		const box = options.overflow === 'clip' ? options.box : undefined;
-		if (box) this.clips.push(this.screenBounds(box), null);
+		if (box) this.clips.push(this.screenBounds(box), null, this.ratio);
 		this.emitText(options);
 		if (box) this.clips.pop();
 	}
@@ -1067,14 +1069,6 @@ export class DrawApi {
 function copyRadii(radius: CornerRadii | undefined): CornerRadii | null {
 	if (radius === undefined) return null;
 	return typeof radius === 'number' ? radius : [radius[0], radius[1], radius[2], radius[3]];
-}
-
-/**
- * R4.14's radius in screen space: the smaller axis scale, so under a
- * non-uniform scale the corner never rounds past the narrower side's arc.
- */
-function clipRadiusScale(matrix: Mat2D): number {
-	return Math.min(Math.hypot(matrix[0], matrix[1]), Math.hypot(matrix[2], matrix[3]));
 }
 
 function copyBorder(border: Border | undefined): Border | null {

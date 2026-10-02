@@ -65,7 +65,11 @@ export function renderTree(component: Component, draw: DrawApi): void {
 		// Read once, so a child that resizes this component mid-walk cannot
 		// leave the push and the pop disagreeing.
 		const clips = component.clipsChildren;
-		if (clips) draw.pushClip(component.clipRect);
+		if (clips) {
+			const radius = component.clipRadius;
+			if (radius > 0) draw.pushClipRounded(component.clipRect, radius);
+			else draw.pushClip(component.clipRect);
+		}
 		const offset = component.contentOffset;
 		const scrolled = offset.x !== 0 || offset.y !== 0;
 		if (scrolled) draw.pushTranslate(-offset.x, -offset.y);

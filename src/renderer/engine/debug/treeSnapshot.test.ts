@@ -254,13 +254,13 @@ describe('treeSnapshot', () => {
 			expect(atTwo).toEqual({ x: 10.5, y: 5, w: 20, h: 20 });
 		});
 
-		it('ignores overflow on a zero-sized layer, matching Container.render', () => {
+		it('reports an empty clip under a zero-sized clipping layer, as the walk draws nothing there (DDB-234)', () => {
 			const layer = new Container({ id: 'sized', width: 10, height: 10, overflow: 'hidden' });
 			layer.setSize(0, 0);
 			const child = new Container({ id: 'kid' });
 			layer.addChild(child);
 
-			expect('clip' in (findById(treeSnapshot([layer], VIEWPORT).roots[0], 'kid') ?? {})).toBe(false);
+			expect(findById(treeSnapshot([layer], VIEWPORT).roots[0], 'kid')?.clip).toEqual({ x: 0, y: 0, w: 0, h: 0 });
 		});
 	});
 
@@ -310,7 +310,7 @@ describe('treeSnapshot', () => {
 			expect('contentOffset' in treeSnapshot([panel], VIEWPORT).roots[0]).toBe(false);
 		});
 
-		it('places a padded panel\'s children inside the inset, and clips inside the border and radius', () => {
+		it('places a padded panel\'s children inside the inset, and clips at the border with a rounded clip (R4.14)', () => {
 			const panel = new Panel({ id: 'padded', x: 20, y: 30, width: 200, height: 100, layout: 'free', overflow: 'hidden', style: { padding: 10, borderRadius: 5 } });
 			panel.addChild(new Container({ id: 'row', width: 50, height: 10 }));
 			panel.layoutSubtree();
@@ -321,8 +321,23 @@ describe('treeSnapshot', () => {
 			// The inset is layout's anchor placement now, not a content offset.
 			expect('contentOffset' in node).toBe(false);
 			expect(row?.screenBounds).toEqual({ x: 30, y: 40, w: 50, h: 10 });
-			// The 5 px radius is the larger inset.
-			expect(row?.clip).toEqual({ x: 25, y: 35, w: 190, h: 90 });
+			// At the 1 px border's inner edge, the 5 px corner concentric inside it.
+			expect(row?.clip).toEqual({ x: 21, y: 31, w: 198, h: 98 });
+			expect(row?.roundedClip).toEqual({ x: 21, y: 31, w: 198, h: 98, radius: 4 });
+			expect('roundedClip' in node).toBe(false);
+		});
+
+		it('drops a rounded clip that cuts nothing at a node: a row clear of the corners carries none', () => {
+			const panel = new Panel({ id: 'outer', width: 200, height: 100, layout: 'free', overflow: 'hidden', style: { padding: 10, borderRadius: 6 } });
+			const inner = new Container({ id: 'inner', x: 10, y: 10, width: 50, height: 20, overflow: 'hidden' });
+			inner.addChild(new Container({ id: 'leaf', width: 10, height: 10 }));
+			panel.addChild(inner);
+			panel.layoutSubtree();
+
+			const node = treeSnapshot([panel], VIEWPORT).roots[0];
+			expect(findById(node, 'inner')?.roundedClip).toEqual({ x: 1, y: 1, w: 198, h: 98, radius: 5 });
+			// Inside the inner clip, 20 px in from the panel's edge, the panel's 5 px corner takes nothing.
+			expect('roundedClip' in (findById(node, 'leaf') ?? {})).toBe(false);
 		});
 	});
 

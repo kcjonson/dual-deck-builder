@@ -520,9 +520,9 @@ describe('clip stack (R2.5, R4.2, R4.7) and chapter 4.7 required tests', () => {
 		const { api, backend } = harness();
 		api.beginFrame({ viewport: VIEWPORT });
 		api.pushClipRounded(rect(0, 0, 200, 200), 12);
-		api.pushClipRounded(rect(10, 10, 100, 100), 4);
-		api.pushClipRounded(rect(20, 20, 40, 40), 2);
-		api.drawRect({ rect: rect(20, 20, 10, 10), fill: BLUE, id: 'inner' });
+		api.pushClipRounded(rect(0, 0, 100, 100), 4);
+		api.pushClipRounded(rect(0, 0, 40, 40), 2);
+		api.drawRect({ rect: rect(0, 0, 10, 10), fill: BLUE, id: 'inner' });
 		api.popClip();
 		api.popClip();
 		api.popClip();
@@ -532,8 +532,26 @@ describe('clip stack (R2.5, R4.2, R4.7) and chapter 4.7 required tests', () => {
 		const command = backend.commands[0];
 		expect(command.clip).toEqual({
 			kind: 'rect',
-			rect: { minX: 20, minY: 20, maxX: 60, maxY: 60 },
-			rounded: { rect: { minX: 20, minY: 20, maxX: 60, maxY: 60 }, radius: 2 },
+			rect: { minX: 0, minY: 0, maxX: 40, maxY: 40 },
+			rounded: { rect: { minX: 0, minY: 0, maxX: 40, maxY: 40 }, radius: 2 },
+		});
+	});
+
+	it('does not warn for a rounded clip clear of the outer one\'s corners, which nests exactly (R4.14)', () => {
+		const { api, backend } = harness();
+		api.beginFrame({ viewport: VIEWPORT });
+		api.pushClipRounded(rect(0, 0, 200, 200), 12);
+		api.pushClipRounded(rect(16, 16, 100, 100), 4);
+		api.drawRect({ rect: rect(16, 16, 10, 10), fill: BLUE });
+		api.popClip();
+		api.popClip();
+		api.endFrame();
+
+		expect(codes(api)).toEqual([]);
+		expect(backend.commands[0].clip).toEqual({
+			kind: 'rect',
+			rect: { minX: 16, minY: 16, maxX: 116, maxY: 116 },
+			rounded: { rect: { minX: 16, minY: 16, maxX: 116, maxY: 116 }, radius: 4 },
 		});
 	});
 
