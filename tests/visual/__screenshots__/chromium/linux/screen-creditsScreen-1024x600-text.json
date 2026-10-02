@@ -1,0 +1,17 @@
+[
+{"path":"creditsScreen/credits_title","text":"Credits","rect":[449,32,126,62.4]},
+{"path":"creditsScreen/credits_panel/credits_scroll/credits_list/Stack[0]/Text[0]","text":"Dual Deckbuilder","rect":[248,134.4,504,21.6]},
+{"path":"creditsScreen/credits_panel/credits_scroll/credits_list/Stack[0]/Stack[1]/Text[0]","text":"A roguelike deckbuilder of vehicular combat","rect":[248,164,504,20.43]},
+{"path":"creditsScreen/credits_panel/credits_scroll/credits_list/Stack[0]/Stack[1]/Text[1]","text":"Released under the PolyForm Noncommercial License 1.0.0.","rect":[248,186.43,504,17.7]},
+{"path":"creditsScreen/credits_panel/credits_scroll/credits_list/Stack[1]/Text[0]","text":"Development","rect":[248,228.13,504,21.6]},
+{"path":"creditsScreen/credits_panel/credits_scroll/credits_list/Stack[1]/Stack[1]/Text[0]","text":"Kevin Jonson","rect":[248,257.73,504,20.43]},
+{"path":"creditsScreen/credits_panel/credits_scroll/credits_list/Stack[1]/Stack[2]/Text[0]","text":"Alan Hudson","rect":[248,286.16,504,20.43]},
+{"path":"creditsScreen/credits_panel/credits_scroll/credits_list/Stack[2]/Text[0]","text":"Typefaces","rect":[248,330.59,504,21.6]},
+{"path":"creditsScreen/credits_panel/credits_scroll/credits_list/Stack[2]/Stack[1]/Text[0]","text":"Barlow Condensed","rect":[248,360.19,504,20.43]},
+{"path":"creditsScreen/credits_panel/credits_scroll/credits_list/Stack[2]/Stack[1]/Text[1]","text":"Copyright 2017 The Barlow Project Authors","rect":[248,382.61,504,17.7]},
+{"path":"creditsScreen/credits_panel/credits_scroll/credits_list/Stack[2]/Stack[1]/Text[2]","text":"SIL Open Font License 1.1","rect":[248,402.32,504,17.7]},
+{"path":"creditsScreen/credits_panel/credits_scroll/credits_list/Stack[2]/Stack[2]/Text[0]","text":"Open Sans","rect":[248,428.02,504,20.43]},
+{"path":"creditsScreen/credits_panel/credits_scroll/credits_list/Stack[2]/Stack[2]/Text[1]","text":"Copyright 2020 The Open Sans Project Authors","rect":[248,450.45,504,17.7]},
+{"path":"creditsScreen/credits_panel/credits_scroll/credits_list/Stack[2]/Stack[2]/Text[2]","text":"SIL Open Font License 1.1","rect":[248,470.15,504,17.7]},
+{"path":"creditsScreen/credits_back_button/Text[0]","text":"Back","rect":[451,522,149,46]}
+]
