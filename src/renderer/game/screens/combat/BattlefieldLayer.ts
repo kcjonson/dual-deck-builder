@@ -1,6 +1,8 @@
-import { Container, ContainerOptions } from '../../../engine/components/Container';
-import { Rectangle } from '../../../engine/components/Rectangle';
+import { Component, ComponentOptions, PointerEvents } from '../../../engine/components/Component';
 import { Text } from '../../../engine/components/Text';
+import type { DrawApi } from '../../../engine/draw/DrawApi';
+import type { DrawRectOptions } from '../../../engine/draw/commands';
+import { resolveColor } from '../../../engine/style/styleObject';
 import { Vehicle, VehicleData } from '../../mechanics/Vehicle';
 import { Vehicle as VehicleUI } from '../../ui/Vehicle';
 import { LaneKind, ROW_ORDER, laneKind } from '../../mechanics/Road';
@@ -16,7 +18,7 @@ export interface LaneDecor {
 	labels: [string, string, string];
 }
 
-export type BattlefieldLayerOptions = ContainerOptions & { combatData?: CombatModel };
+export type BattlefieldLayerOptions = ComponentOptions & { combatData?: CombatModel };
 
 const LANE_LABEL_Y = 20;
 const LANE_DIVIDER_TOP = 40;
@@ -26,9 +28,11 @@ const LANE_DIVIDER_WIDTH = 2;
  * Base class for displaying vehicles in combat
  * Manages vehicle cards and lane positioning. Draws each team's vehicles in
  * three columns (shoulder, outside, inside), a stand-in until the road view
- * (DDB-134) draws the real grid.
+ * (DDB-134) draws the real grid. The ground and the lane dividers are the
+ * layer's own draws, so the labels and plates sit on the layer rather than
+ * over a sibling rectangle; hits pass through to the plates.
  */
-export abstract class BattlefieldLayer extends Container {
+export abstract class BattlefieldLayer extends Component {
 	protected vehicles: Vehicle[] = [];
 	protected vehicleCards: Map<string, VehicleUI> = new Map();
 
@@ -44,8 +48,8 @@ export abstract class BattlefieldLayer extends Container {
 	protected combatData: CombatModel | null = null;
 
 	// Drawn behind the vehicles, created once and moved by layoutLanes
-	private background: Rectangle;
-	private laneDividers: Rectangle[];
+	private readonly backgroundDraw: DrawRectOptions;
+	private readonly dividerDraws: DrawRectOptions[];
 	private laneLabels: Text[];
 
 	constructor(options: BattlefieldLayerOptions & { laneDecor: LaneDecor }) {
@@ -53,13 +57,9 @@ export abstract class BattlefieldLayer extends Container {
 		this.combatData = options.combatData || null;
 
 		const decor = options.laneDecor;
-		this.background = new Rectangle({ style: { backgroundColor: decor.backgroundColor } });
-		this.addChild(this.background);
-		this.laneDividers = [0, 1].map(() => {
-			const divider = new Rectangle({ style: { backgroundColor: decor.dividerColor } });
-			this.addChild(divider);
-			return divider;
-		});
+		this.backgroundDraw = { rect: { x: 0, y: 0, width: 0, height: 0 }, fill: resolveColor(decor.backgroundColor) };
+		const dividerColor = resolveColor(decor.dividerColor);
+		this.dividerDraws = [0, 1].map(() => ({ rect: { x: 0, y: 0, width: 0, height: 0 }, fill: dividerColor }));
 		this.laneLabels = decor.labels.map(label => {
 			const text = new Text(label, {
 				style: {
@@ -90,10 +90,14 @@ export abstract class BattlefieldLayer extends Container {
 			this.setOverflow('hidden');
 		}
 
-		this.background.setSize(this.getWidth(), laneHeight);
-		this.laneDividers.forEach((divider, index) => {
-			divider.setPosition(laneWidth * (index + 1) - LANE_DIVIDER_WIDTH / 2, LANE_DIVIDER_TOP);
-			divider.setSize(LANE_DIVIDER_WIDTH, laneHeight - LANE_DIVIDER_TOP);
+		this.backgroundDraw.rect = { x: 0, y: 0, width: this.getWidth(), height: laneHeight };
+		this.dividerDraws.forEach((divider, index) => {
+			divider.rect = {
+				x: laneWidth * (index + 1) - LANE_DIVIDER_WIDTH / 2,
+				y: LANE_DIVIDER_TOP,
+				width: LANE_DIVIDER_WIDTH,
+				height: laneHeight - LANE_DIVIDER_TOP,
+			};
 		});
 		this.laneLabels.forEach((label, index) => {
 			// Centred across its lane
@@ -124,6 +128,16 @@ export abstract class BattlefieldLayer extends Container {
 		});
 	}
 	
+	/** Like a container, the layer itself is never a target; its plates are. */
+	protected get defaultPointerEvents(): PointerEvents {
+		return 'passthrough';
+	}
+
+	public render(draw: DrawApi): void {
+		draw.drawRect(this.backgroundDraw);
+		for (const divider of this.dividerDraws) draw.drawRect(divider);
+	}
+
 	/** The plate showing a vehicle, while it's on this side of the road. */
 	public vehicleView(vehicleId: string): VehicleUI | null {
 		return this.vehicleCards.get(vehicleId) ?? null;

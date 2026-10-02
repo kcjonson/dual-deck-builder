@@ -1,0 +1,5 @@
+[
+{"path":"battleResultScreen/result_panel/result_title","text":"DEFEAT!","rect":[441.57,201.54,140.87,62.4]},
+{"path":"battleResultScreen/result_panel/result_subtitle","text":"Your vehicles have been destroyed!","rect":[363.94,279.94,296.12,24.51]},
+{"path":"battleResultScreen/result_panel/result_continue_button/Text[0]","text":"Continue","rect":[424,352.46,176,46]}
+]

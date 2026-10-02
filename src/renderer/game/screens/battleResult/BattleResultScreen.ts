@@ -5,15 +5,14 @@ import { Text } from '../../../engine/components/Text';
 import { Button } from '../../../engine/ui/Button';
 import { Panel } from '../../../engine/ui/Panel';
 import { tokens } from '../../../engine/theme/tokens';
-import type { BattleState } from '../../mechanics/Battle';
 
 /**
- * Data passed to the battle result screen
+ * What the battle result screen shows: the outcome. Plain data, so the dev
+ * navigate hook can pass exactly what the combat screen does. Statistics
+ * (salvage, levels, turns) join it when the screen shows them.
  */
 export interface BattleResultData {
 	victory: boolean;
-	battleState: BattleState;
-	// TODO: Add more stats like salvage earned, drivers leveled up, etc.
 }
 
 const PANEL_WIDTH = 600;
@@ -79,8 +78,6 @@ export class BattleResultScreen extends Screen {
 			},
 			wrap: 'none',
 		}));
-		// TODO: Battle statistics from battleState: turns taken, damage dealt
-		// and received, cards played, salvage earned
 
 		const continueButton = new Button('Continue', {
 			id: 'result_continue_button',

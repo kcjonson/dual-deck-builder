@@ -1,16 +1,15 @@
 import { expect, test } from '@playwright/test';
 import type { LintRect, LintResult, LintViolation } from '../../../src/renderer/engine/debug/layoutLint';
-import { SCENE_SCENARIOS } from '../support/scenarios';
+import { SCENE_SCENARIOS, SCREEN_SCENARIOS } from '../support/scenarios';
 import { attachTree, openScene, openScreen, prepare } from '../support/harness';
 import type { DevSurface } from '../support/harness';
 
 /**
  * R13.29's merge gate: `window.__ui.lint().count === 0` on every gallery scene.
  *
- * The gate is the gallery's, per the implementation spec's ground rules,
- * plus each game screen once it migrates (`LINT_SCREENS`). The screens not
- * yet listed still report violations, and a rule with known failures is a
- * rule nobody reads, so they join as they migrate.
+ * The gate is the gallery's, per the implementation spec's ground rules, and
+ * every game screen's at both the fixed and the short viewport, which is
+ * every screen scenario the screenshot spec captures (DDB-91).
  *
  * Why this is a separate spec rather than an assertion bolted onto
  * `gallery.spec.ts`: a lint failure and a pixel failure want different
@@ -58,8 +57,6 @@ import type { DevSurface } from '../support/harness';
  */
 const LINT_SCENARIOS = SCENE_SCENARIOS;
 
-/** Game screens on the new layout, which hold the gallery's bar (DDB-90). */
-const LINT_SCREENS: readonly string[] = ['splashScreen', 'mainMenuScreen', 'settingsScreen', 'creditsScreen'];
 
 /**
  * The floor a scene's measured node count has to clear for its clean lint to
@@ -160,10 +157,12 @@ test.describe('gallery layout lint', () => {
 });
 
 test.describe('screen layout lint', () => {
-	for (const screen of LINT_SCREENS) {
+	for (const scenario of SCREEN_SCENARIOS) {
+		const screen = scenario.name;
 		test(screen, async ({ page }, testInfo) => {
+			if (scenario.viewport) await page.setViewportSize(scenario.viewport);
 			await prepare(page);
-			await openScreen(page, screen);
+			await openScreen(page, scenario.screen, { data: scenario.data, viewport: scenario.viewport });
 
 			const result = await page.evaluate(
 				() => (window as unknown as DevSurface).__ui.lint(),

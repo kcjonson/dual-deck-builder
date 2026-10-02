@@ -13,6 +13,7 @@ const ROW_LABEL_X = 20;
 const CONTENT_X = 120;
 const ICON_PITCH = 40;
 const ROW_HEIGHT = 44;
+const BADGE_GAP = 40;
 
 /**
  * Every icon in the atlas (R12.6) at three sizes, bare and on a badge fill,
@@ -40,32 +41,27 @@ export class IconExamplesSection extends DeveloperSectionPanel {
 
 		let currentY = 50;
 		const names = Object.keys(ICON_CODE_POINTS) as IconName[];
-		const badgeX = CONTENT_X + names.length * ICON_PITCH + 40;
+		// The badged glyphs sit beside the bare ones where the section is wide
+		// enough for both, and under them where it is not
+		const gridWidth = names.length * ICON_PITCH;
+		const sideBySide = CONTENT_X + gridWidth * 2 + BADGE_GAP <= this.sectionContentWidth;
+		const badgeX = sideBySide ? CONTENT_X + gridWidth + BADGE_GAP : CONTENT_X;
 
 		for (const size of ICON_SIZES) {
 			this.addRowLabel(`${size} px`, currentY + 12);
 			names.forEach((glyph, index) => {
 				const x = CONTENT_X + index * ICON_PITCH;
 				this.addChild(new Icon({ glyph, size, tint: tokens.color.text, x, y: currentY + (ROW_HEIGHT - size) / 2 }));
-
-				// The same glyph on a badge fill, as the HUD draws it
-				const badgeSize = size + 8;
-				const badge = new Rectangle({
-					x: badgeX + index * ICON_PITCH,
-					y: currentY + (ROW_HEIGHT - badgeSize) / 2,
-					width: badgeSize,
-					height: badgeSize,
-					style: {
-						backgroundColor: '#8a6a4a',
-						borderColor: '#ffffff',
-						borderWidth: 1,
-						borderRadius: Math.floor(badgeSize / 4),
-					},
-				});
-				badge.addChild(new Icon({ glyph, size, tint: tokens.color.text_bright, x: 4, y: 4 }));
-				this.addChild(badge);
 			});
+			if (sideBySide) this.addBadgeRow(names, size, badgeX, currentY);
 			currentY += ROW_HEIGHT;
+		}
+		if (!sideBySide) {
+			for (const size of ICON_SIZES) {
+				this.addRowLabel(`${size} px badge`, currentY + 12);
+				this.addBadgeRow(names, size, badgeX, currentY);
+				currentY += ROW_HEIGHT;
+			}
 		}
 
 		currentY += 10;
@@ -103,6 +99,27 @@ export class IconExamplesSection extends DeveloperSectionPanel {
 		currentY += 30;
 
 		this.fitContentHeight(currentY);
+	}
+
+	/** Each glyph on a badge fill, as the HUD draws it. */
+	private addBadgeRow(names: readonly IconName[], size: number, x: number, y: number): void {
+		const badgeSize = size + 8;
+		names.forEach((glyph, index) => {
+			const badge = new Rectangle({
+				x: x + index * ICON_PITCH,
+				y: y + (ROW_HEIGHT - badgeSize) / 2,
+				width: badgeSize,
+				height: badgeSize,
+				style: {
+					backgroundColor: '#8a6a4a',
+					borderColor: '#ffffff',
+					borderWidth: 1,
+					borderRadius: Math.floor(badgeSize / 4),
+				},
+			});
+			badge.addChild(new Icon({ glyph, size, tint: tokens.color.text_bright, x: 4, y: 4 }));
+			this.addChild(badge);
+		});
 	}
 
 	private addRowLabel(label: string, y: number): void {

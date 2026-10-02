@@ -8,9 +8,17 @@
  * and that is the intended coupling: a scene that was renamed should not keep
  * comparing against the old picture.
  */
+import { SHORT_VIEWPORT } from '../../../playwright.config';
+import type { Viewport } from '../../../playwright.config';
 
 export interface ScreenScenario {
+	/** The golden's name: the screen's, plus a variant and a window size where they are not the defaults. */
+	name: string;
 	screen: string;
+	/** What `navigate` hands the screen's onMount, as the game would pass it. */
+	data?: unknown;
+	/** The window, when it is not `FIXED_VIEWPORT`. */
+	viewport?: Viewport;
 	/** A golden this project cannot honestly own yet, and why. */
 	blockedBy?: string;
 }
@@ -20,17 +28,20 @@ export interface SceneScenario {
 	blockedBy?: string;
 }
 
+interface ScreenCase {
+	screen: string;
+	variant?: string;
+	data?: unknown;
+}
+
 /**
- * Every screen `ScreenManager.navigate` accepts, in registry order.
+ * Every screen `ScreenManager.navigate` accepts, in registry order, with the
+ * battle result once per outcome.
  *
- * Six of the seven are captured. `battleResultScreen` is not: it renders from
- * a `BattleResultData` payload and `window.__app.navigate(name)` passes none,
- * so what a capture would get is the screen's own missing-data fallback - a
- * picture of a state the game never puts a player in, and one that cannot pass
- * the clean-console gate either. Constructing a fake `BattleState` in the page
- * to get past that would be exactly the fabricated golden this harness is
- * supposed to make impossible. It becomes capturable when the control surface
- * grows a data argument, or when a spec can play a battle to its end.
+ * The battle result renders from a `BattleResultData`, which is plain data
+ * (the outcome), so `window.__app.navigate(name, data)` passes it exactly as
+ * the combat screen does when a fight ends (DDB-230). Nothing is made up for
+ * the capture: the payload is the whole of what the game hands the screen.
  *
  * Each spec arrives at its screen the same way every time: a fresh page, the
  * splash screen the app boots into, then exactly one `window.__app.navigate`.
@@ -42,14 +53,11 @@ export interface SceneScenario {
  * these goldens are pictures of. `openScreen` pauses before it navigates, so
  * `update` never runs on the incoming screen and every one of these captures
  * is the pre-first-update frame; anything a screen would settle into on its
- * first tick is outside what they cover. And `screen-developerScreen` captures
- * the viewport, not the document: the screen scrolls 3,144 logical pixels of
- * content through an 882-pixel window, so the golden holds
- * `interactive-controls` (y 120 to 420) and `style-guide` (500 to 770) whole,
- * 32 pixels of `input-showcase`, and none of the other five. The gallery
- * scenes below are where those six are actually covered.
+ * first tick is outside what they cover. And the developer and card showcase
+ * screens capture the viewport, not the content they scroll: the gallery
+ * scenes below are where each developer section is covered whole.
  */
-export const SCREEN_SCENARIOS: readonly ScreenScenario[] = [
+const SCREEN_CASES: readonly ScreenCase[] = [
 	{ screen: 'splashScreen' },
 	{ screen: 'mainMenuScreen' },
 	{ screen: 'settingsScreen' },
@@ -58,11 +66,26 @@ export const SCREEN_SCENARIOS: readonly ScreenScenario[] = [
 	{ screen: 'cardShowcaseScreen' },
 	{ screen: 'driverSelectionScreen' },
 	{ screen: 'combatScreen' },
-	{
-		screen: 'battleResultScreen',
-		blockedBy: 'reachable only with BattleResultData, and the R13.32 navigate hook carries no payload; '
-			+ 'without it the screen logs "Invalid or missing data" and draws a fallback the game never shows',
-	},
+	{ screen: 'battleResultScreen', variant: 'victory', data: { victory: true } },
+	{ screen: 'battleResultScreen', variant: 'defeat', data: { victory: false } },
+];
+
+function caseName({ screen, variant }: ScreenCase): string {
+	return variant ? `${screen}-${variant}` : screen;
+}
+
+/**
+ * Every case at the fixed viewport, then every case again at the short one,
+ * where each screen lays out differently (DDB-91). Both sets are in the lint
+ * gate and both have goldens.
+ */
+export const SCREEN_SCENARIOS: readonly ScreenScenario[] = [
+	...SCREEN_CASES.map((entry) => ({ ...entry, name: caseName(entry) })),
+	...SCREEN_CASES.map((entry) => ({
+		...entry,
+		name: `${caseName(entry)}-${SHORT_VIEWPORT.width}x${SHORT_VIEWPORT.height}`,
+		viewport: SHORT_VIEWPORT,
+	})),
 ];
 
 /** Every gallery scene, `?scene=` names. */

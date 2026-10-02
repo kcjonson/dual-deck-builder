@@ -33,6 +33,11 @@ export class DeveloperSectionPanel extends Panel {
 			width,
 			// Replaced by fitContentHeight once the section knows its content.
 			height: SECTION_INSET * 2,
+			// A section is the size it computed, in the developer screen's
+			// column as in the gallery: its content is placed by hand, so
+			// there is nothing for a parent stack to measure.
+			widthMode: 'fixed',
+			heightMode: 'fixed',
 			// Sections place their content by hand.
 			layout: 'free',
 			// The frame the sections have always had, rather than a themed panel.
@@ -46,8 +51,33 @@ export class DeveloperSectionPanel extends Panel {
 		});
 	}
 
+	/** The width a section lays its content out in: its own, less the inset either side. */
+	protected get sectionContentWidth(): number {
+		return this.width - SECTION_INSET * 2;
+	}
+
 	/** Size the frame to hold `contentHeight` of content plus the inset above and below it. */
 	protected fitContentHeight(contentHeight: number): void {
 		this.setSize(this.width, contentHeight + SECTION_INSET * 2);
 	}
+}
+
+/**
+ * How many lines a FlowWrap `available` wide breaks items `widths` wide into,
+ * breaking as it does: a new line whenever the next item would pass the
+ * width, and at least one item a line. A section's height has to be known
+ * when its constructor returns (sections.ts), before anything is laid out.
+ */
+export function wrappedLineCount(widths: readonly number[], available: number, gap: number): number {
+	let lines = 0;
+	let lineWidth = 0;
+	for (const width of widths) {
+		if (lines === 0 || lineWidth + gap + width > available) {
+			lines += 1;
+			lineWidth = width;
+		} else {
+			lineWidth += gap + width;
+		}
+	}
+	return lines;
 }

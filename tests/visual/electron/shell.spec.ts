@@ -3,6 +3,7 @@ import { resolve } from 'node:path';
 import { _electron as electron, expect, test } from '@playwright/test';
 import type { ElectronApplication, Page } from '@playwright/test';
 import { BASE_URL, FIXED_VIEWPORT, SWIFTSHADER_ARGS } from '../../../playwright.config';
+import type { Viewport } from '../../../playwright.config';
 import { SCENE_SCENARIOS, SCREEN_SCENARIOS } from '../support/scenarios';
 import {
 	attachTree,
@@ -76,14 +77,7 @@ test.describe('electron shell', () => {
 		// R13.37's fixed viewport for a window rather than a browser context:
 		// `setContentSize` sizes the web contents, so the frame, the menu bar
 		// and the platform's title-bar height stay out of the number.
-		await application.evaluate(async ({ BrowserWindow }, size) => {
-			const [window] = BrowserWindow.getAllWindows();
-			window.setContentSize(size.width, size.height);
-		}, FIXED_VIEWPORT);
-		await page.waitForFunction(
-			(size) => window.innerWidth === size.width && window.innerHeight === size.height,
-			FIXED_VIEWPORT,
-		);
+		await sizeWindow(FIXED_VIEWPORT);
 
 		// The window boots the app on its own before any test navigates, and
 		// that boot decodes the font atlases. Navigating while a decode is in
@@ -100,19 +94,32 @@ test.describe('electron shell', () => {
 		expect(await bootFonts.jsonValue(), 'the boot page should load its font atlases').toBe('ready');
 	});
 
+	/** The window's content area, which is the page's viewport, and a wait until the page sees it. */
+	async function sizeWindow(size: Viewport): Promise<void> {
+		await application.evaluate(async ({ BrowserWindow }, target) => {
+			const [window] = BrowserWindow.getAllWindows();
+			window.setContentSize(target.width, target.height);
+		}, size);
+		await page.waitForFunction(
+			(target) => window.innerWidth === target.width && window.innerHeight === target.height,
+			size,
+		);
+	}
+
 	test.afterEach(async () => {
 		await application?.close();
 	});
 
 	for (const scenario of SCREEN_SCENARIOS) {
-		test(`screen ${scenario.screen}`, async ({}, testInfo) => {
+		test(`screen ${scenario.name}`, async ({}, testInfo) => {
 			if (scenario.blockedBy) test.fixme(true, scenario.blockedBy);
 
 			const log = captureConsole(page);
+			if (scenario.viewport) await sizeWindow(scenario.viewport);
 			await prepare(page);
-			await openScreen(page, scenario.screen);
+			await openScreen(page, scenario.screen, { data: scenario.data, viewport: scenario.viewport });
 
-			await expectGolden(page, testInfo, 'screen', scenario.screen);
+			await expectGolden(page, testInfo, 'screen', scenario.name);
 
 			await attachTree(page, testInfo);
 			expectCleanConsole(log);
