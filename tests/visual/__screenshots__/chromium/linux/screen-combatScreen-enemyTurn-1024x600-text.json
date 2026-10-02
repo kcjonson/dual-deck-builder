@@ -1,8 +1,9 @@
 [
-{"path":"combatScreen/combat_stage/combat_bands/combat_top_bar/combat_turn","text":"Turn 1","rect":[9.6,7.68,29.25,13.44]},
-{"path":"combatScreen/combat_stage/combat_bands/combat_top_bar/combat_ticker","text":"Enemy turn started","rect":[53.25,7.86,814.27,13.07]},
-{"path":"combatScreen/combat_stage/combat_bands/combat_top_bar/Stack[2]/combat_scrap","text":"150","rect":[899.53,7.68,14.2,13.44]},
-{"path":"combatScreen/combat_stage/combat_bands/combat_top_bar/Stack[3]/combat_fuel","text":"5","rect":[945.73,7.68,4.67,13.44]},
+{"path":"combatScreen/combat_stage/combat_bands/combat_top_bar/Stack[1]/combat_wave","text":"Wave 1 of 1","rect":[48,7.68,50.58,13.44]},
+{"path":"combatScreen/combat_stage/combat_bands/combat_top_bar/combat_turn","text":"Turn 1","rect":[112.98,7.68,29.25,13.44]},
+{"path":"combatScreen/combat_stage/combat_bands/combat_top_bar/combat_ticker","text":"The raiders' turn","rect":[156.63,7.86,710.89,13.07]},
+{"path":"combatScreen/combat_stage/combat_bands/combat_top_bar/Stack[4]/combat_scrap","text":"150","rect":[899.53,7.68,14.2,13.44]},
+{"path":"combatScreen/combat_stage/combat_bands/combat_top_bar/Stack[5]/combat_fuel","text":"5","rect":[945.73,7.68,4.67,13.44]},
 {"path":"combatScreen/combat_stage/combat_bands/combat_top_bar/combat_log_toggle/Text[0]","text":"LOG","rect":[971.2,2.4,25.6,24]},
 {"path":"combatScreen/combat_stage/combat_bands/combat_top_bar/combat_log_toggle/Text[1]","text":"L","rect":[1003.2,9.12,4.8,10.56]},
 {"path":"combatScreen/combat_stage/combat_bands/combat_road/combat_road_view/combat_road_view_head_player_shoulder","text":"Raider flank","rect":[27.2,28.8,164,20.8]},
