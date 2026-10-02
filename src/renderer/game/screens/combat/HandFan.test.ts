@@ -1,7 +1,7 @@
 /**
  * @jest-environment jsdom
  */
-import { HAND_CARD_SCALE, HandFan, fanPoses, fanReach } from './HandFan';
+import { HandFan, NATURAL_CARD_GAP, fanPoses, fanReach } from './HandFan';
 import { Stack } from '../../../engine/components/Stack';
 import { createTestContext } from '../../../engine/components/testing';
 import { createMeasuringDrawApi } from '../../../engine/text/testing';
@@ -26,9 +26,9 @@ describe('fanPoses', () => {
 	it('drops the edges along a shallow arc, never more than 5 logical pixels', () => {
 		const poses = fanPoses(7);
 		// 0.6 per step squared: 5.4 at three steps out, held to 5
-		expect(poses[0].drop * HAND_CARD_SCALE).toBeCloseTo(5, 9);
-		expect(poses[1].drop * HAND_CARD_SCALE).toBeCloseTo(2.4, 9);
-		expect(poses[2].drop * HAND_CARD_SCALE).toBeCloseTo(0.6, 9);
+		expect(poses[0].drop).toBeCloseTo(5, 9);
+		expect(poses[1].drop).toBeCloseTo(2.4, 9);
+		expect(poses[2].drop).toBeCloseTo(0.6, 9);
 	});
 
 	it('stacks each card over the one before it', () => {
@@ -68,8 +68,6 @@ describe('HandFan overlap', () => {
 	// 1024x600), which gives each half a 532 wide fan; the others bracket it.
 	const FAN_WIDTHS = [420, 532, 700];
 	const COUNTS = [2, 3, 4, 5, 6, 7, 8, 9, 10];
-	/** The row's gap when the cards fit, in the card's own units. */
-	const NATURAL_GAP = 10;
 
 	function mountFan(width: number, count: number): { fan: HandFan; cards: UICard[]; root: Stack } {
 		const context = createTestContext({ draw: createMeasuringDrawApi().api });
@@ -98,7 +96,7 @@ describe('HandFan overlap', () => {
 				const left = cards[index].screenBounds;
 				const right = cards[index + 1].screenBounds;
 				const lean = fanReach(poses[index]).right + fanReach(poses[index + 1]).left;
-				expect(left.x + left.width - right.x).toBeLessThanOrEqual((overlap + lean) * HAND_CARD_SCALE + 1e-6);
+				expect(left.x + left.width - right.x).toBeLessThanOrEqual((overlap + lean) + 1e-6);
 				// Each card starts to the right of the one before it, so its left edge shows
 				expect(right.x).toBeGreaterThan(left.x);
 			}
@@ -110,11 +108,11 @@ describe('HandFan overlap', () => {
 			const last = cards[count - 1].screenBounds;
 			expect(first.x).toBeGreaterThanOrEqual(fanBounds.x - 1e-6);
 			expect(last.x + last.width).toBeLessThanOrEqual(fanBounds.x + fanBounds.width + 1e-6);
-			const cardWidth = cards[0].width * HAND_CARD_SCALE;
-			const natural = (count * cardWidth) + (count - 1) * NATURAL_GAP * HAND_CARD_SCALE;
+			const cardWidth = cards[0].width;
+			const natural = (count * cardWidth) + (count - 1) * NATURAL_CARD_GAP;
 			const reach = fanReach(poses[0]);
-			const room = fanBounds.width - (reach.left + reach.right) * HAND_CARD_SCALE;
-			expect(last.x + last.width - first.x).toBeGreaterThanOrEqual(Math.min(natural, room) - count * HAND_CARD_SCALE);
+			const room = fanBounds.width - (reach.left + reach.right);
+			expect(last.x + last.width - first.x).toBeGreaterThanOrEqual(Math.min(natural, room) - count);
 			root.unmount();
 		});
 	});
@@ -126,6 +124,19 @@ describe('HandFan overlap', () => {
 		expect(row.visible).toBe(false);
 		fan.cards = [new UICard({ x: 0, y: 0, data: new GameCard(cardData[0]) })];
 		expect(row.visible).toBe(true);
+		root.unmount();
+	});
+
+	it('keeps an element still dealt mounted when the hand deals again, and unmounts the ones gone', () => {
+		const { fan, cards, root } = mountFan(532, 4);
+		const [gone, kept, ...rest] = cards;
+		const drawn = new UICard({ x: 0, y: 0, data: new GameCard(cardData[5]) });
+		fan.cards = [kept, ...rest, drawn];
+		expect(kept.isMounted).toBe(true);
+		expect(gone.isMounted).toBe(false);
+		expect(drawn.isMounted).toBe(true);
+		expect(fan.children[0].children).toEqual([kept, ...rest, drawn]);
+		expect(kept.fanPose).toEqual(fanPoses(4)[0]);
 		root.unmount();
 	});
 });

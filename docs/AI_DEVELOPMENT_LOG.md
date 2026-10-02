@@ -6,6 +6,21 @@ This document contains the chronological log of completed development tasks for 
 
 **Date correction (2026-08-22):** the repo's first commit is 2025-05-17, but many entries below carry dates in December 2024 or January 2025 — the AI that wrote them used its assumed date instead of the real one. Entries dated 2025-07-03 and 2025-07-02 have been corrected from "2025-01-03"/"2025-01-02" (verified against git history). Remaining Dec 2024 / Jan 2025 dates are wrong by roughly six months; the real work happened May–July 2025. Trust git history over these dates.
 
+## The split dock (2026-10-02)
+
+**What landed:** DDB-136 (DDB-127), folding in DDB-167. Battle Screen Design section 4. Closes DDB-117; DDB-120 was already met by the DDB-137 face (driver-coloured frame, rarity gem, yellow hover and selection), and DDB-29 and DDB-37 were closed by DDB-88.
+
+- `CombatDock` holds the two halves and the End Turn column; the screen and the gallery build the same one. Its bottom padding is 0, so the fan is 190 tall and a six or seven card row (180 plus the edge cards' reach) no longer sits 2 px past it.
+- `DriverTab` per the mock: the name and tag fill what's left so the name ellipsizes; mod chips (18 px, a 12 px icon by kind, named on hover, three and "+N" past four, none while a passenger); `flash_on` bolts from the maximum, lit from the outer end, one bolt and the count past six; the piles as `style` and `exit_to_app` icons with counts. Only the piles open the pile dialog now, at the tab's full height so they stay a 24 px target at the 0.8 floor; the mods get their tooltips.
+- `HandFan` reconciles its row (`reconcileChildren`) and `PlayerHandLayer` keeps each card's element while the card stays, so a pinned detail view, a lift, and focus survive a deal. Ids are a build count plus type, the slot on the first deal. `HAND_CARD_SCALE` is gone (it was 1); the natural gap is the mock's 8.
+- DDB-167: `Team.isAboard`; `buildPlayerHandView({ drivers, canPlay, crashedOut })` leaves a crashed-out driver's cards out, their tab says CRASHED OUT without adrenaline or mods, their half shows a one-line note, and the unspent warning skips them.
+- End Turn: "raiders acting" while they act, and the warning at the mock's 12 on 15, wrapping inside the column.
+- `Vehicle.mods` (`{ name, kind }`), and two icons in the atlas.
+- Goldens: new `combat-dock` and `combat-dock-crashed-out`, in the lint gate at both sizes; the combat screens and the icons scene move.
+- Decision record: [split-dock.md](./AI_TECHNICAL_DECISIONS/split-dock.md).
+
+**How:** unit tests for the tab, the fan's reconcile, the hand view, and the screen's dock (both hands at the cap with six mods and adrenaline past six, a passenger, a crash-out, and a pin across a deal, lint zero at 1024x600 and 1440x882); played turns at 1280x720 and 1024x600 through `__dev.input` by click-then-target, drag, keyboard, and END TURN, lint zero throughout.
+
 ## Card face and pinnable detail view (2026-10-02)
 
 **What landed:** DDB-137 (DDB-127), folding in DDB-204 and DDB-172. Closes the card-detail part of DDB-34 (DDB-28 was already closed by DDB-88).
