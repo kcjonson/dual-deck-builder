@@ -15,6 +15,19 @@ This document contains the chronological log of completed development tasks for 
 - `tabLayers`, `segmentLayers`, and `toneGlow` in `style/variants.ts`; gallery scene `slider-tabs`.
 
 **How:** `ui/sliderTabs.test.ts`, 33 cases through injected input: worldsim's Slider suite (linear and log maps, round trips, geometric midpoint, invalid log bounds, snapping, clamping, keys, callbacks, re-entrancy) plus thumb grab, jump then captured drag past the ends, even log stepping, disabled and disabled mid-drag, column presses, a fixed value column through a drag, aligned columns, columns following a new label, formatter, or range; TabBar hugging measured caps labels, controlled and uncontrolled selection, release over the pressed tab, one Tab stop with Left and Right skipping disabled and wrapping, a controlled parent refusing a tab, disabled bars out of the Tab order, underline and hairline; SegmentedControl widths, heights, click selection, all four arrows and Home, disabled, tone chip and glow; and an ink audit under a clip with each control keyboard-focused and hovered (no `ink-outside-bound`).
+## Driver selection on stacks, with a Select and a scrolling deck preview (2026-10-01)
+
+**What landed:** DDB-89 (DDB-55 phase 6). Closes DDB-31, and with it DDB-101, DDB-102 and DDB-108.
+
+- `DriverSelectionScreen` is one page stack: header (Back, title), body (panels and the synergy column), footer (START RUN with the summary beside it). A resize sizes the page and nothing else; the stacks reflow.
+- `DriverPanel` and `SynergyPreviewPanel` extend `Stack`. The panel's elements are built once and toggled between the empty state and the driver; the deck preview and synergy tags rebuild only when the driver changes.
+- Driver choice is the catalog `Select`, the partner's driver disabled, replacing the cycle button. Mouse and keyboard (Down opens, arrows move, Enter picks, Escape closes).
+- `ScrollContainer` takes `heightMode: 'hug'`: it measures as its content plus padding and shrinks to its `minSize` in a short column, scrolling the rest. The panel's flavour text and starting deck live in one, so 1024x600 scrolls them instead of losing the preview.
+- `game/ui/FlowWrap.ts` wraps fixed or hug items into rows at the width it is given; the deck's mini cards and the synergy tags use it. Quantities are `Badge`s under each card, off the cost digit.
+- Synergy tags pick dark or white text by the fill's luma, so the yellow, green and cyan tags read.
+- `Game`'s document-level Escape listener now defers to a screen whose root registers Escape, which fixed Escape on an open Select navigating to the main menu.
+
+**How:** `DriverSelectionScreen.test.ts` (Select options and partner disabling, keyboard pick, Escape on an open Select, tab order, resize at 1024x600, 1280x720 and 1920x1080 without rebuilding, the scroller's room above the Select, scrolling at 1024x600, badges under their cards, the card-load race), `FlowWrap.test.ts`, and four hug-height cases in `ScrollContainer.test.ts`. Played in headless Chromium through `window.__dev.input` at 1024x600: picked the right driver with a click, the left with the keyboard, wheel-scrolled the deck, started a run into combat.
 
 ## Combat hand fan, hover lift, and card previews (2026-09-28)
 

@@ -4,33 +4,44 @@
 import { DriverSelectionScreen } from './DriverSelectionScreen';
 import { DriverPanel } from './DriverPanel';
 import type { Component } from '../../../engine/components/Component';
+import type { MountContext } from '../../../engine/components/MountContext';
 import { Button } from '../../../engine/ui/Button';
-import { Text } from '../../../engine/components/Text';
+import { Badge } from '../../../engine/ui/Badge';
+import { Clock } from '../../../engine/animation/Clock';
 import { createTestContext } from '../../../engine/components/testing';
+import { NO_MODIFIERS } from '../../../engine/input/events';
+import { createMeasuringDrawApi } from '../../../engine/text/testing';
 import { DriverLoader } from '../../core/DriverLoader';
 import { Driver } from '../../mechanics/Driver';
 import { isSameDriver } from '../../mechanics/DriverPair';
+import { Card as UICard, CardSize } from '../../ui/Card';
 
 /**
  * DDB-98: both panels used to default to the first driver, so a run could start
- * with one driver in both slots and a doubled hand. These drive the real
- * screen and panels; only the card data fetch and screen routing are stubbed.
+ * with one driver in both slots and a doubled hand. DDB-89: the panels are
+ * stacks with a Select for the driver and a scroll container for the deck.
+ * These drive the real screen and panels; only the card data fetch and screen
+ * routing are stubbed.
  */
 
-/** The card data loads at once unless a test says it is still in flight. */
+/** The card data loads at once unless a test says it is still in flight; the cards are the shipped ones, without the fetch. */
 const mockCards = { loaded: true };
-jest.mock('../../core/CardLoader', () => ({
-	CardLoader: {
-		getInstance: () => ({
-			isLoaded: () => mockCards.loaded,
-			loadCards: async () => {
-				await Promise.resolve();
-				mockCards.loaded = true;
-			},
-			getAllCardsAsMap: () => new Map(),
-		}),
-	},
-}));
+jest.mock('../../core/CardLoader', () => {
+	const { Card } = jest.requireActual('../../mechanics/Card');
+	const { cards } = jest.requireActual('../../data/cards.json');
+	return {
+		CardLoader: {
+			getInstance: () => ({
+				isLoaded: () => mockCards.loaded,
+				loadCards: async () => {
+					await Promise.resolve();
+					mockCards.loaded = true;
+				},
+				getAllCardsAsMap: () => new Map(cards.map((data: { type: string }) => [data.type, new Card(data)])),
+			}),
+		},
+	};
+});
 
 jest.mock('../../core/ScreenManager', () => ({
 	ScreenManager: { navigate: jest.fn() },
@@ -45,9 +56,18 @@ function findById(layer: Component, id: string): Component | null {
 	return null;
 }
 
+function findAll<T extends Component>(layer: Component, type: new (...args: never[]) => T): T[] {
+	const found: T[] = layer instanceof type ? [layer] : [];
+	for (const child of layer.getChildren()) found.push(...findAll(child, type));
+	return found;
+}
 
-/** Mounted the way the page mounts screens, at the harness's fixed viewport. */
-const context = createTestContext();
+/** Mounted the way the page mounts screens, at the harness's fixed viewport, with measured text. */
+let context: MountContext;
+beforeEach(() => {
+	context = createTestContext({ draw: createMeasuringDrawApi().api, clock: new Clock() });
+});
+
 function flushPromises(): Promise<void> {
 	return new Promise(resolve => setTimeout(resolve, 0));
 }
@@ -56,6 +76,7 @@ async function mountScreen(): Promise<{ screen: DriverSelectionScreen; left: Dri
 	const screen = new DriverSelectionScreen();
 	screen.mount(context);
 	await flushPromises();
+	context.frame.layout();
 
 	const left = findById(screen.root, 'driver_select_panel_left');
 	const right = findById(screen.root, 'driver_select_panel_right');
@@ -64,6 +85,26 @@ async function mountScreen(): Promise<{ screen: DriverSelectionScreen; left: Dri
 		throw new Error('driver selection layout changed; update the test lookups');
 	}
 	return { screen, left, right, startRun };
+}
+
+function press(key: string): void {
+	context.dispatcher.enqueue({ kind: 'key', phase: 'down', key, repeat: false, modifiers: NO_MODIFIERS });
+	context.dispatcher.enqueue({ kind: 'key', phase: 'up', key, repeat: false, modifiers: NO_MODIFIERS });
+	context.dispatcher.dispatchPending();
+	context.frame.layout();
+}
+
+/** The next driver after the panel's own that its Select offers enabled, picked as a user would. */
+function pickNextOpen(panel: DriverPanel): void {
+	const options = panel.select.options;
+	const current = options.findIndex(option => option.value === panel.select.value);
+	for (let step = 1; step <= options.length; step++) {
+		const option = options[(current + step) % options.length];
+		if (option.enabled !== false) {
+			panel.selectDriver(option.value);
+			return;
+		}
+	}
 }
 
 function expectDifferentDrivers(screen: DriverSelectionScreen): void {
@@ -91,6 +132,10 @@ describe('DriverSelectionScreen: one driver per slot', () => {
 		jest.restoreAllMocks();
 	});
 
+	afterEach(() => {
+		context.popups.close();
+	});
+
 	it('opens with a different driver in each panel and START RUN enabled', async () => {
 		const { screen, left, right, startRun } = await mountScreen();
 
@@ -98,15 +143,27 @@ describe('DriverSelectionScreen: one driver per slot', () => {
 		expectDifferentDrivers(screen);
 		expect(left.getSelectedDriver()).toBe(screen.getSelectedDrivers().driver1);
 		expect(right.getSelectedDriver()).toBe(screen.getSelectedDrivers().driver2);
+		expect(left.select.value).toBe(left.getSelectedDriver()?.archetype);
+		expect(right.select.value).toBe(right.getSelectedDriver()?.archetype);
 		expect(startRun.isEnabled()).toBe(true);
 	});
 
-	it('cycling the right panel never lands on the left driver', async () => {
+	it("offers every driver in each Select, the other panel's disabled", async () => {
+		const { screen, left, right } = await mountScreen();
+		const { driver1, driver2 } = screen.getSelectedDrivers();
+
+		expect(left.select.options.map(option => option.value)).toEqual(rosterDrivers.map(driver => driver.archetype));
+		const disabled = (panel: DriverPanel): string[] => panel.select.options.filter(option => option.enabled === false).map(option => option.value);
+		expect(disabled(left)).toEqual([driver2?.archetype]);
+		expect(disabled(right)).toEqual([driver1?.archetype]);
+	});
+
+	it('picking through the right Select never lands on the left driver', async () => {
 		const { screen, right } = await mountScreen();
 		const seen = new Set<string>();
 
 		for (let i = 0; i < rosterSize * 2; i++) {
-			right.cycleDriver();
+			pickNextOpen(right);
 			expectDifferentDrivers(screen);
 			const driver2 = screen.getSelectedDrivers().driver2;
 			if (driver2) seen.add(driver2.archetype);
@@ -115,24 +172,54 @@ describe('DriverSelectionScreen: one driver per slot', () => {
 		expect(seen.size).toBe(rosterSize - 1);
 	});
 
-	it('cycling the left panel never lands on the right driver', async () => {
+	it('a pick of the partner driver, were one to arrive, moves on rather than sharing it', async () => {
 		const { screen, left } = await mountScreen();
 		const rightDriver = screen.getSelectedDrivers().driver2;
-
-		for (let i = 0; i < rosterSize * 2; i++) {
-			left.cycleDriver();
-			expectDifferentDrivers(screen);
-			expect(screen.getSelectedDrivers().driver2).toBe(rightDriver);
-		}
+		left.selectDriver(rightDriver?.archetype ?? '');
+		expectDifferentDrivers(screen);
+		expect(screen.getSelectedDrivers().driver2).toBe(rightDriver);
 	});
 
-	it('tabs in reading order: Back, the two cycle buttons, START RUN (R9.18)', async () => {
+	it('picks a driver with the keyboard: focus the Select, Down opens it, Down and Enter pick', async () => {
+		const { screen, left } = await mountScreen();
+		const before = left.select.options.findIndex(option => option.value === left.select.value);
+		context.focus.focus(left.select, 'keyboard');
+
+		press('ArrowDown');
+		expect(left.select.openMenu).not.toBeNull();
+		press('ArrowDown');
+		press('Enter');
+
+		expect(left.select.openMenu).toBeNull();
+		const after = left.select.options.findIndex(option => option.value === left.select.value);
+		expect(after).not.toBe(before);
+		expect(left.getSelectedDriver()?.archetype).toBe(left.select.value);
+		expectDifferentDrivers(screen);
+	});
+
+	it('Escape closes an open driver Select and stays on the screen; a second Escape goes back', async () => {
+		const { left } = await mountScreen();
+		const navigate = jest.requireMock('../../core/ScreenManager').ScreenManager.navigate as jest.Mock;
+		navigate.mockClear();
+		context.focus.focus(left.select, 'keyboard');
+		press('ArrowDown');
+		expect(left.select.openMenu).not.toBeNull();
+
+		press('Escape');
+		expect(left.select.openMenu).toBeNull();
+		expect(navigate).not.toHaveBeenCalled();
+
+		press('Escape');
+		expect(navigate).toHaveBeenCalledWith('mainMenuScreen');
+	});
+
+	it('tabs in reading order: Back, the two driver Selects, START RUN (R9.18)', async () => {
 		const { screen } = await mountScreen();
 		context.focus.pushScope(screen.root);
 		expect(context.focus.tabOrder.map(component => component.id)).toEqual([
 			'driver_select_back_button',
-			'driver_panel_left_cycle_button',
-			'driver_panel_right_cycle_button',
+			'driver_panel_left_driver_select',
+			'driver_panel_right_driver_select',
 			'driver_select_start_run_button',
 		]);
 		context.focus.popScope(screen.root);
@@ -143,8 +230,8 @@ describe('DriverSelectionScreen: one driver per slot', () => {
 		const { screen, left, right } = await mountScreen();
 		// Leaves the right panel on the first driver, which a stale partner
 		// would make the left panel skip after the remount
-		left.cycleDriver();
-		right.cycleDriver();
+		left.selectDriver(rosterDrivers[1].archetype);
+		right.selectDriver(rosterDrivers[0].archetype);
 		expect(screen.getSelectedDrivers().driver2?.archetype).toBe(rosterDrivers[0].archetype);
 
 		screen.unmount();
@@ -155,37 +242,83 @@ describe('DriverSelectionScreen: one driver per slot', () => {
 		expect(left.getSelectedDriver()?.archetype).toBe(rosterDrivers[0].archetype);
 	});
 
-	it('a resize moves the same panels and keeps both drivers, never rebuilding', async () => {
+	it('a resize lays the same panels out again and keeps both drivers, never rebuilding', async () => {
 		const { screen, left, right, startRun } = await mountScreen();
-		left.cycleDriver();
+		pickNextOpen(left);
 		const before = screen.getSelectedDrivers();
 		const children = [...screen.root.getChildren()];
+		const leftChildren = [...left.getChildren()];
 
-		for (const [width, height] of [[1024, 700], [1920, 1080], [800, 600]]) {
+		for (const [width, height] of [[1024, 600], [1280, 720], [1920, 1080]]) {
 			screen.resize(width, height);
 			context.frame.layout();
 
 			expect(screen.root.getChildren()).toEqual(children);
+			expect(left.getChildren()).toEqual(leftChildren);
 			expect(screen.getSelectedDrivers()).toEqual(before);
 			expect(left.getSelectedDriver()).toBe(before.driver1);
 			expect(right.getSelectedDriver()).toBe(before.driver2);
 			expect(startRun.isEnabled()).toBe(true);
-			expect(left.getWidth()).toBe(Math.floor(width * 0.35));
-			expect(right.getX()).toBe(Math.floor(width * 0.6));
-			expect(startRun.getY()).toBe(Math.floor(height * 0.85));
+
+			// The panels mirror each other and START RUN is centred at the foot
+			expect(left.getWidth()).toBe(right.getWidth());
+			expect(left.screenBounds.x - 0).toBeCloseTo(width - (right.screenBounds.x + right.getWidth()), 5);
+			const button = startRun.screenBounds;
+			expect(button.x + button.width / 2).toBeCloseTo(width / 2, 5);
+			expect(button.y + button.height).toBeLessThanOrEqual(height);
+		}
+	});
+
+	it.each([[1024, 600], [1280, 720], [1920, 1080]])('at %ix%i the flavour and deck scroller keeps a card height above the Select', async (width, height) => {
+		const { screen, left } = await mountScreen();
+		screen.resize(width, height);
+		context.frame.layout();
+
+		const preview = left.deckPreview.screenBounds;
+		const select = left.select.screenBounds;
+		expect(preview.height).toBeGreaterThanOrEqual(UICard.getDimensions(CardSize.MINI).height);
+		expect(preview.y + preview.height).toBeLessThanOrEqual(select.y);
+		expect(left.screenBounds.y + left.getHeight()).toBeLessThanOrEqual(height);
+	});
+
+	it('scrolls the flavour and deck at 1024x600 rather than clipping them away', async () => {
+		const { screen, left } = await mountScreen();
+		screen.resize(1024, 600);
+		context.frame.layout();
+
+		const preview = left.deckPreview;
+		const cards = findAll(preview, UICard);
+		expect(cards.length).toBe(left.getSelectedDriver()?.startingDeck.cards.length);
+		expect(preview.overflows).toBe(true);
+		preview.scrollBy(1000);
+		context.frame.layout();
+		expect(preview.scrollPosition).toBe(preview.maxScroll);
+		expect(preview.scrollPosition).toBeGreaterThan(0);
+	});
+
+	it('puts each quantity on a badge under its card, clear of the cost corner', async () => {
+		const { left } = await mountScreen();
+		const driver = left.getSelectedDriver();
+		const multiples = driver?.startingDeck.cards.filter(card => card.quantity > 1) ?? [];
+		const badges = findAll(left.deckPreview, Badge);
+		expect(badges.map(badge => badge.labelText)).toEqual(multiples.map(card => `x${card.quantity}`));
+		for (const badge of badges) {
+			const card = badge.parent?.getChildren()[0];
+			if (!(card instanceof UICard)) throw new Error('a quantity badge sits with its card');
+			expect(badge.screenBounds.y).toBeGreaterThanOrEqual(card.screenBounds.y + card.getHeight());
 		}
 	});
 
 	it('builds one starting deck preview when selections overlap a card load', async () => {
 		const { screen, left } = await mountScreen();
 		mockCards.loaded = false;
-		left.cycleDriver();
-		left.cycleDriver();
+		pickNextOpen(left);
+		pickNextOpen(left);
 		await flushPromises();
+		context.frame.layout();
 
-		const preview = findById(left, 'driver_panel_left_deck_preview');
-		const titles = preview?.getChildren().filter(child => child instanceof Text && child.getText() === 'Starting Deck:');
-		expect(titles).toHaveLength(1);
+		const cards = findAll(left.deckPreview, UICard);
+		expect(cards.length).toBe(left.getSelectedDriver()?.startingDeck.cards.length);
 		expect(left.getSelectedDriver()).toBe(screen.getSelectedDrivers().driver1);
 	});
 });
