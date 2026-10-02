@@ -1,4 +1,5 @@
 import type { Component } from '../components/Component';
+import type { Direction } from '../components/layoutTypes';
 import { Stack, StackOptions } from '../components/Stack';
 import type { DrawApi } from '../draw/DrawApi';
 import type { Rect } from '../draw/geometry';
@@ -61,16 +62,24 @@ export class Radio<T = unknown> extends Checkable {
 	}
 }
 
-/** Arrow keys that move the selection back or forward; a radio group follows both axes. */
-const STEP: Readonly<Record<string, -1 | 1>> = { ArrowUp: -1, ArrowLeft: -1, ArrowDown: 1, ArrowRight: 1 };
+/**
+ * The arrows that move the selection back or forward: the group's own axis.
+ * The other two go unconsumed to directional focus (R9.24, R9.26).
+ */
+const STEPS: Readonly<Record<Direction, Readonly<Record<string, -1 | 1>>>> = {
+	vertical: { ArrowUp: -1, ArrowDown: 1 },
+	horizontal: { ArrowLeft: -1, ArrowRight: 1 },
+};
 
 /**
  * R12.35's radio group: a focus group (R9.29, R12.34) of radios with one
  * `value`. It is one Tab stop, entered at the selected radio; the arrows
- * move the selection and focus together, wrapping and skipping disabled
- * radios, and Home and End go to the ends; Space or a click selects. As
- * everywhere, setting `value` never fires `onChange`, and a user change
- * fires it once, with the value already applied.
+ * along its direction (Up and Down in the default column) move the
+ * selection and focus together, wrapping and skipping disabled radios, the
+ * two across it leave for directional focus, and Home and End go to the
+ * ends; Space or a click selects. As everywhere, setting `value` never
+ * fires `onChange`, and a user change fires it once, with the value
+ * already applied.
  */
 export class RadioGroup<T = string> extends Stack {
 	public onChange: RadioChangeCallback<T> | null = null;
@@ -78,7 +87,8 @@ export class RadioGroup<T = string> extends Stack {
 	private selectedValue: T | null;
 
 	constructor({ options, value = null, onChange, size = 'md', disabled = false, ...stackOptions }: RadioGroupOptions<T>) {
-		super({ gap: tokens.space.space_1, ...(disabled ? { enabled: false } : {}), ...stackOptions, focusGroup: { orientation: 'both', wrap: true } });
+		const direction = stackOptions.direction ?? 'vertical';
+		super({ gap: tokens.space.space_1, ...(disabled ? { enabled: false } : {}), ...stackOptions, direction, focusGroup: { orientation: direction, wrap: true } });
 		this.componentType = 'RadioGroup';
 		this.selectedValue = null;
 		for (const option of options) {
@@ -115,9 +125,9 @@ export class RadioGroup<T = string> extends Stack {
 	}
 
 	/**
-	 * Arrows, Home, and End from a focused radio: the group consumes them, so
-	 * the focus manager's own group movement (which moves focus without
-	 * selecting) never runs.
+	 * The arrows along the group, Home, and End from a focused radio: the
+	 * group consumes them, so the focus manager's own group movement (which
+	 * moves focus without selecting) never runs.
 	 */
 	public handleEvent(event: AnyUiEvent): void {
 		super.handleEvent(event);
@@ -130,9 +140,11 @@ export class RadioGroup<T = string> extends Stack {
 		let target: Radio<T> | undefined;
 		if (event.key === 'Home') target = enabled[0];
 		else if (event.key === 'End') target = enabled[enabled.length - 1];
-		else if (STEP[event.key] !== undefined) {
+		else {
+			const step = STEPS[this.direction][event.key];
+			if (step === undefined) return;
 			const index = enabled.indexOf(current);
-			target = enabled[(index + STEP[event.key] + enabled.length) % enabled.length];
+			target = enabled[(index + step + enabled.length) % enabled.length];
 		}
 		if (!target) return;
 		event.consume();
