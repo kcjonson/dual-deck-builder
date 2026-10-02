@@ -55,4 +55,4 @@ A browser pass over the menu, settings, credits, driver selection, a turn of com
 ## Not done
 
 - R12.19's automatic inset when a nested rounded clip would reach the outer corner (above).
-- Popover and tooltip surfaces draw `radius_panel` corners and clip with a plain rect when constrained; they could take a `clipRadius` too.
+- Popover and tooltip surfaces draw `radius_panel` corners and clip with a plain rect when constrained; they could take a `clipRadius` too (DDB-240).
