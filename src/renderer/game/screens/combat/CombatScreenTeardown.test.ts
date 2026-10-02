@@ -78,12 +78,12 @@ function expectCardsGone(spots: string[]): void {
 	expect(ScreenManager.getCurrentScreenName()).toBe('battleResultScreen');
 	expect(cardsHitAt(spots)).toBe(0);
 
-	const onCardSelected = jest.spyOn(CombatScreen.prototype as unknown as { onCardSelected: () => void }, 'onCardSelected');
+	const chooseCard = jest.spyOn(CombatScreen.prototype as unknown as { chooseCard: () => boolean }, 'chooseCard');
 	const playCard = jest.spyOn(Battle.prototype, 'playCard');
 	spots.forEach(click);
-	expect(onCardSelected).not.toHaveBeenCalled();
+	expect(chooseCard).not.toHaveBeenCalled();
 	expect(playCard).not.toHaveBeenCalled();
-	onCardSelected.mockRestore();
+	chooseCard.mockRestore();
 	playCard.mockRestore();
 }
 

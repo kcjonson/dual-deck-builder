@@ -23,6 +23,8 @@ import { MenuExamplesSection } from './MenuExamplesSection';
 import { MeterExamplesSection } from './MeterExamplesSection';
 import { DataDisplaySection } from './DataDisplaySection';
 import { TreeExamplesSection } from './TreeExamplesSection';
+import { CombatFxSection } from './CombatFxSection';
+import { SliderTabsSection } from './SliderTabsSection';
 
 /**
  * The developer screen's sections, defined once.
@@ -168,5 +170,14 @@ export const developerSections: readonly DeveloperSection[] = [
 	{
 		name: 'tree-view',
 		build: ({ x, y, width }) => new TreeExamplesSection(x, y, width),
+	},
+	// The combat screen's overlay effects held still (DDB-88)
+	{
+		name: 'combat-fx',
+		build: ({ x, y, width }) => new CombatFxSection(x, y, width),
+	},
+	{
+		name: 'slider-tabs',
+		build: ({ x, y, width }) => new SliderTabsSection(x, y, width),
 	},
 ];

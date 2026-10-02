@@ -383,6 +383,29 @@ describe('screen geometry (R8.13, R8.26)', () => {
 		expect(local?.y).toBeCloseTo(7);
 	});
 
+	it('carries a point up to an ancestor the way screenMatrix does, into a caller-owned point', () => {
+		const root = new Container({ x: 7, y: 3, width: 800, height: 600, transform: { scale: 1.5, origin: [0, 0] } });
+		const middle = new Container({ x: 20, y: 30, width: 300, height: 300, transform: { rotate: 0.3 } });
+		const card = new Rectangle({ x: 40, y: 50, width: 100, height: 140, transform: { rotate: -0.2, translate: [0, -12], scale: 1.1 } });
+		root.addChild(middle);
+		middle.addChild(card);
+		const point = { x: 50, y: 0 };
+		const out = { x: 0, y: 0 };
+
+		expect(card.localToAncestorInto(point, root, out)).toBe(true);
+		const viaScreen = root.screenToLocal(card.localToScreen(point));
+		expect(out.x).toBeCloseTo(viaScreen?.x ?? NaN, 9);
+		expect(out.y).toBeCloseTo(viaScreen?.y ?? NaN, 9);
+
+		expect(card.localToAncestorInto(point, card, out)).toBe(true);
+		expect(out).toEqual(point);
+
+		const stranger = new Container({ width: 10, height: 10 });
+		out.x = -1;
+		expect(card.localToAncestorInto(point, stranger, out)).toBe(false);
+		expect(out.x).toBe(-1);
+	});
+
 	it('ignores the transform in bounds, which is layout (R8.26)', () => {
 		const card = new Rectangle({ x: 10, y: 10, width: 40, height: 60, transform: { scale: 2, translate: [5, 0] } });
 

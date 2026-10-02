@@ -71,6 +71,16 @@ export interface BattleMessage {
 }
 
 /**
+ * A hit that landed (`hitLanded`): what the attack dealt, before shield and
+ * armor took their share, and the vehicle it landed on, which is still on
+ * the road when this fires. A miss (`hitMissed`) has no damage.
+ */
+export interface HitEvent {
+	vehicle: Vehicle;
+	damage: number | null;
+}
+
+/**
  * A vehicle's driver and its living occupants, taken before a hit
  */
 interface Crew {
@@ -1430,6 +1440,7 @@ export class Battle extends Model<BattleData> {
 						`${card.displayName} misses ${recipient.name}`,
 						{ card: card.displayName, target: recipient.name }
 					);
+					this.emitHit('hitMissed', recipient, null);
 					return false;
 				}
 			}
@@ -1506,6 +1517,7 @@ export class Battle extends Model<BattleData> {
 				`${card.displayName} misses ${recipient.name}`,
 				{ card: card.displayName, target: recipient.name }
 			);
+			this.emitHit('hitMissed', recipient, null);
 			return false;
 		}
 
@@ -1588,6 +1600,7 @@ export class Battle extends Model<BattleData> {
 			`${card.displayName} deals ${breakdown} damage to ${vehicle.name} (Structure: ${structureText}, Armor: ${armorText}${shieldText})`,
 			{ card: card.displayName, target: vehicle.name, value: damage }
 		);
+		this.emitHit('hitLanded', vehicle, damage);
 		this.logDeaths(vehicle, crew);
 	}
 
@@ -1612,10 +1625,17 @@ export class Battle extends Model<BattleData> {
 			`${card.displayName} deals ${damage} damage to ${this.getDriverDisplayName(driver)}`,
 			{ card: card.displayName, target: driver.metadata.name, value: damage }
 		);
+		if (vehicle) this.emitHit('hitLanded', vehicle, damage);
 		if (vehicle && crew) {
 			this.getTeamForVehicle(vehicle)?.handleDriverDeath(vehicle);
 			this.logDeaths(vehicle, crew);
 		}
+	}
+
+	/** For the screen's floating numbers; the log carries the detail. */
+	private emitHit(event: 'hitLanded' | 'hitMissed', vehicle: Vehicle, damage: number | null): void {
+		const hit: HitEvent = { vehicle, damage };
+		this.emit(event, Object.freeze(hit));
 	}
 
 	/**
