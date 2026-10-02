@@ -271,14 +271,13 @@ export class Game {
 				}
 			}
 
-			// Example: Press Escape to go back to main menu
+			// Escape goes back to the main menu, unless the screen registers its
+			// own Escape on its root (R9.15), as combat and driver selection do:
+			// that one runs through the dispatcher, after an open Select or
+			// popup has had the key, where this listener would run regardless.
 			const currentScreen = ScreenManager.getCurrentScreenName();
 			if (event.key === 'Escape' && currentScreen !== 'mainMenuScreen' && currentScreen !== 'splashScreen') {
-				// Don't interfere with combat targeting
-				if (currentScreen === 'combatScreen') {
-					// Let combat screen handle Escape for canceling targeting
-					return;
-				}
+				if (ScreenManager.activeScreen?.root.ownHotkeys?.has('Escape')) return;
 				ScreenManager.navigate('mainMenuScreen');
 			}
 		});

@@ -1,5 +1,6 @@
 import { Component, ComponentOptions, PointerEvents, ResolvedColors } from '../components/Component';
 import type { Sides } from '../components/componentGeometry';
+import type { Axis, Size } from '../components/layoutTypes';
 import type { DrawApi } from '../draw/DrawApi';
 import type { RGBA, Rect, Vec2 } from '../draw/geometry';
 import type { AnyUiEvent, UiKeyEvent } from '../input/events';
@@ -54,7 +55,9 @@ interface ScrollBox {
  * Layout: the content child is given the viewport's inner width (less the
  * scrollbar's gutter when it overflows) and measures its own height; that
  * height, or `contentHeight` when given, plus the padding is the scrollable
- * extent. The scroll position is R4.9's `contentOffset`, so the walk, the
+ * extent. With `heightMode: 'hug'` it measures as that extent, so a column
+ * gives it what its content needs and shrinks it, to its `minSize`, when
+ * short of room. The scroll position is R4.9's `contentOffset`, so the walk, the
  * hit test, `screenMatrix`, and the snapshot all see the same thing, and a
  * resize re-clamps it. The padding scrolls with the content (R4.13).
  *
@@ -272,12 +275,43 @@ export class ScrollContainer extends Component {
 	}
 
 	/**
+	 * A `hug` height is the content's height at the width it is measured at,
+	 * plus the padding, so in a column it takes what its content needs and a
+	 * column short of room shrinks it, down to its `minSize`, where it scrolls
+	 * the rest (CSS `max-height` with `overflow: auto`). A fixed or fill
+	 * height is the viewport it is given.
+	 */
+	public measure(availableWidth: number, availableHeight: number, definite: Axis | null = null): Size {
+		const given = super.measure(availableWidth, availableHeight, definite);
+		if (this.heightMode !== 'hug' || definite === 'height') return given;
+		return { width: given.width, height: this.hugHeight(given.width) };
+	}
+
+	/** A hug height gives way to its explicit minimum and no further: past it, the content scrolls. */
+	public minContentSize(axis: Axis): number {
+		if (axis === 'height' && this.heightMode === 'hug') return 0;
+		return super.minContentSize(axis);
+	}
+
+	private hugHeight(width: number): number {
+		const { top, right, bottom, left } = this.padding;
+		const content = this.content;
+		if (this.contentHeightOverride !== null) return this.contentHeightOverride + top + bottom;
+		if (!content) return top + bottom;
+		const margin = content.margin;
+		const room = Math.max(width - left - right - margin.left - margin.right, 0);
+		const measured = content.measure(room, Infinity, content.widthMode === 'fixed' ? null : 'width');
+		return measured.height + margin.top + margin.bottom + top + bottom;
+	}
+
+	/**
 	 * The content child gets the inner width and its measured height; if that
 	 * overflows, the gutter comes off the width and it is measured again, once.
 	 * Then the scroll position re-clamps to the new extent, and the scrollbar
-	 * is placed.
+	 * is placed. A hug height outside a stack sizes itself first.
 	 */
 	protected layoutChildren(): void {
+		if (this.heightMode === 'hug' && !this.parent?.sizesChildren) this.resizeInLayout(this.width, this.hugHeight(this.width));
 		let ink = 0;
 		for (const child of this.getChildren()) if (!child.isPart) ink = Math.max(ink, child.inkExtent);
 		if (ink !== this.childInk) {

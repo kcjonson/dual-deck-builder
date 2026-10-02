@@ -22,4 +22,4 @@ The document key listener in `Game` (F12 and the global Escape) is outside the d
 - Focus that the incoming screen asks for on mount is held by the focus manager and handed over when the transition's scope pops (R9.20), so focus lands on the primary action once the fade in ends.
 - Under reduced motion the animator completes each tween on its first tick, so a transition takes two frames.
 - The splash's own fade out is gone; the leave is the transition's 200 ms fade. Its 1 s fade in and 2 s hold are unchanged.
-- Double navigations coalesce: a second `navigate` during the fade out replaces the pending swap, which also fixes driver selection's Escape running both its own hotkey and the global one.
+- Double navigations coalesce: a second `navigate` during the fade out replaces the pending swap, and the transition's modal root keeps a second key press from reaching the screen beneath.
