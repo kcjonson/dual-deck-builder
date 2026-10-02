@@ -324,10 +324,10 @@ test.describe('raster fallback weight against the distance field (R6.4a)', () =>
 			set fillStyle(value: string) { calls.push(['fillStyle', [value]]); },
 			set textBaseline(value: CanvasTextBaseline) { calls.push(['textBaseline', [value]]); },
 			set textAlign(value: CanvasTextAlign) { calls.push(['textAlign', [value]]); },
-			setTransform: (...args) => calls.push(['setTransform', args]),
-			clearRect: (...args) => calls.push(['clearRect', args]),
-			fillText: (...args) => calls.push(['fillText', args]),
-			getImageData: (...args) => {
+			setTransform: (...args: unknown[]) => calls.push(['setTransform', args]),
+			clearRect: (...args: unknown[]) => calls.push(['clearRect', args]),
+			fillText: (...args: unknown[]) => calls.push(['fillText', args]),
+			getImageData: (...args: unknown[]) => {
 				calls.push(['getImageData', args]);
 				return { data: [] };
 			},
