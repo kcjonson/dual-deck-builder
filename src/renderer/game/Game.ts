@@ -130,8 +130,8 @@ export class Game {
 	 * input section whether or not `update` runs, so `Dispatcher.paused`,
 	 * which drops input at the queue, is the half that makes R13.35's
 	 * "injected input is ignored while paused" true, and it is the same flag the
-	 * gallery sets. The one listener outside the dispatcher is this class's own
-	 * document keydown shortcut, gated in `setupEventHandlers`.
+	 * gallery sets. The page's own F5 and F12 are hotkeys, so the same gate
+	 * holds them.
 	 *
 	 * What pause does not stop: the resize path. The viewport commits at the
 	 * top of every frame, paused or not, and `Screen.onResized` runs, so a
@@ -159,8 +159,7 @@ export class Game {
 		// Start with the splash screen, which fades itself in
 		ScreenManager.navigate('splashScreen', undefined, { immediate: true });
 
-		// Set up any global event handlers
-		this.setupEventHandlers();
+		this.registerHotkeys();
 
 		if (__DEV_TOOLS__) {
 			// Required, not imported: with tsconfig `module: commonjs` webpack
@@ -247,56 +246,29 @@ export class Game {
 	});
 
 	/**
-	 * Set up global event handlers
+	 * F5 toggles the perf overlay and F12 the developer screen. They are
+	 * hotkeys like any other, so they arrive through the platform adapter: a
+	 * keydown an input method is composing never fires them (R15.39), and
+	 * pause drops them at the queue (R13.35). F12 is the scene's table,
+	 * searched last, so a screen transition (a modal root, R12.38) or a modal
+	 * dialog holds it. F5 is the overlay's own, and a diagnostic root is
+	 * searched before any UI root, so it stays live under both.
 	 */
-	private setupEventHandlers(): void {
-		// Add any global event handlers here
-		// For example, keyboard shortcuts for development
-		document.addEventListener('keydown', (event) => {
-			// These shortcuts navigate and toggle the overlay, and they are the one
-			// input path the dispatcher's pause gate does not cover, so leaving
-			// them live would let a keystroke change the screen underneath a paused
-			// capture and make status().paused a lie (R13.32, R13.35). Gating them
-			// changes what real keys do while paused, which is only reachable
-			// through window.__app.pause() in a development build; DefinePlugin
-			// folds the check away in production.
-			if (__DEV_TOOLS__ && this.isPaused) return;
-
-			// Toggle developer overlay with F5
-			if (event.key === 'F5') {
-				event.preventDefault();
-				this.developerOverlay.toggle();
-				// The GPU timer costs frame time on some drivers, so it runs
-				// only while someone is looking at what it reports.
-				if (this.gpuTimer) this.gpuTimer.enabled = this.developerOverlay.shown;
-			}
-
-			// A screen transition blocks input while it runs (R12.38), and this
-			// listener is outside the dispatcher that enforces it. The overlay
-			// above is diagnostic and stays reachable.
-			if (ScreenManager.transitioning) return;
-
-			// Example: Press F12 to toggle developer screen
-			if (event.key === 'F12') {
-				if (ScreenManager.getCurrentScreenName() === 'developerScreen') {
-					ScreenManager.navigate('mainMenuScreen');
-				} else {
-					ScreenManager.navigate('developerScreen');
-				}
-			}
-
-			// Escape goes back to the main menu, unless the screen registers its
-			// own Escape on its root (R9.15), as combat and driver selection do:
-			// that one runs through the dispatcher, after an open Select or
-			// popup has had the key, where this listener would run regardless.
-			const currentScreen = ScreenManager.getCurrentScreenName();
-			if (event.key === 'Escape' && currentScreen !== 'mainMenuScreen' && currentScreen !== 'splashScreen') {
-				if (ScreenManager.activeScreen?.root.ownHotkeys?.has('Escape')) return;
-				ScreenManager.navigate('mainMenuScreen');
-			}
+	private registerHotkeys(): void {
+		this.developerOverlay.hotkeys.register('F5', ({ repeat }) => {
+			if (repeat) return;
+			this.developerOverlay.toggle();
+			// The GPU timer costs frame time on some drivers, so it runs
+			// only while someone is looking at what it reports.
+			if (this.gpuTimer) this.gpuTimer.enabled = this.developerOverlay.shown;
+		});
+		this.context.dispatcher.hotkeys.register('F12', ({ repeat }) => {
+			if (repeat) return;
+			const leaving = ScreenManager.getCurrentScreenName() === 'developerScreen';
+			if (leaving) ScreenManager.navigate('mainMenuScreen', undefined, { restoreFocus: true });
+			else ScreenManager.navigate('developerScreen');
 		});
 	}
-
 
 	/**
 	 * Update the game state

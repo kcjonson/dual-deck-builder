@@ -27,7 +27,8 @@ const RARITY_COLORS: Record<CardRarity, string> = {
  * holding all the cards and then the same cards by rarity, each group a
  * heading over a wrapping row, and Back. The rows wrap at whatever width the
  * window gives them, so nothing is placed by hand. Focus starts on Back;
- * Page Up and Page Down scroll the list and Escape returns to the menu.
+ * Page Up and Page Down scroll the list, and Escape and Back return to the
+ * menu with focus on Card Showcase again.
  */
 export class CardShowcaseScreen extends Screen {
 	private readonly stack: Stack;
@@ -81,8 +82,8 @@ export class CardShowcaseScreen extends Screen {
 
 		const { hotkeys } = this.rootLayer;
 		hotkeys.register('Escape', () => this.back());
-		hotkeys.register('PageDown', () => this.scroller?.scrollBy(this.scroller.height));
-		hotkeys.register('PageUp', () => this.scroller?.scrollBy(-(this.scroller?.height ?? 0)));
+		hotkeys.register('PageDown', () => this.scroller?.scrollByPages(1));
+		hotkeys.register('PageUp', () => this.scroller?.scrollByPages(-1));
 		this.context.focus.focus(back);
 
 		void this.loadCards(++this.generation);
@@ -151,6 +152,6 @@ export class CardShowcaseScreen extends Screen {
 	}
 
 	private back(): void {
-		ScreenManager.navigate('mainMenuScreen');
+		ScreenManager.navigate('mainMenuScreen', undefined, { restoreFocus: true });
 	}
 }

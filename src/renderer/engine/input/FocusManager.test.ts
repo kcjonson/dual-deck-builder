@@ -588,6 +588,24 @@ describe('scoped hotkeys (R9.15)', () => {
 		expect(context.dispatcher.claimsKey('F6')).toBe(false);
 	});
 
+	it('still fires a diagnostic root\'s hotkey above a modal root, which paints beneath it (R3.21)', () => {
+		const screen = new Group({ id: 'screen', width: 100, height: 100 });
+		const dialog = new Group({ id: 'dialog', width: 100, height: 100, layer: 'modal' });
+		const diagnostic = new Group({ id: 'diagnostic', width: 100, height: 100 });
+		dialog.modal = true;
+		diagnostic.mount(context, { tier: 'diagnostic' });
+		screen.mount(context);
+		dialog.mount(context, { tier: 'overlay' });
+		const fired: string[] = [];
+		diagnostic.hotkeys.register('F5', () => fired.push('diagnostic'));
+		context.dispatcher.hotkeys.register('F12', () => fired.push('scene'));
+
+		key('F5');
+		key('F12');
+		expect(fired).toEqual(['diagnostic']);
+		expect(context.dispatcher.claimsKey('F5')).toBe(true);
+	});
+
 	it('keeps a printable hotkey from firing while a text field is focused, and lets Escape and named keys through', () => {
 		const root = new Group({ id: 'root', width: 100, height: 100 });
 		const field = new Field({ id: 'field', width: 10, height: 10, focusable: true });

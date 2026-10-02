@@ -16,6 +16,19 @@ This document contains the chronological log of completed development tasks for 
 
 **How:** Popover and Tooltip tests for the constrained clip rect, radius, and the snapshot's `roundedClip`; a menu test that the hover wash sits inside the border and below `PAD`; menus and overlays goldens re-minted.
 
+## Escape on every screen's root, focus back to the menu opener (2026-10-02)
+
+**What landed:** DDB-225 and DDB-238 (DDB-55), one PR.
+
+- `Game`'s document keydown listener is gone. Every screen already registered Escape on its root; F12 moved to the dispatcher's scene table and F5 to the developer overlay root's own table, so both come through `PointerAdapter` (a composing keydown fires neither, R15.39), pause drops them, and a transition holds F12. Held keys don't repeat the toggles.
+- The dispatcher searches diagnostic-tier roots first for hotkeys, ahead of any modal, so F5 stays live under a transition or a dialog as it did before. R9.15 says so.
+- F12 off the developer screen returns focus like Back does; Developer and Showcase Page Up and Page Down use `scrollByPages`.
+- `DriverSelectionScreen` builds its page in `onMount`, clears it and unregisters Escape in `onUnmount`, and drops a roster load that finishes after it left. Back and Escape go to the menu with `restoreFocus`.
+- Card Showcase and Developer Tools go back with `restoreFocus`, so the menu lands on the button that opened them.
+- `ScreenManager` reads and deletes a screen's remembered focus whenever it mounts that screen, so a leave the recorder skipped can't restore an older id.
+- R12.20 lists `scrollByPages(n)` and its page distance. The Settings doc comment is rewrapped.
+
+**How:** `Game.test.ts` drives F5 and F12 through the dispatcher, under a modal root, and through a real `PointerAdapter` with composing keydowns; a dispatcher test for the diagnostic root above a modal; `ScreenManager.test.ts` round trips to all four menu screens by keyboard (ring shown) and Settings by pointer (no ring), a disabled opener, and the one-shot memory; driver selection tests for the onMount build and Escape unregistering. Played every screen's Escape through `window.__dev.input` in a browser.
 ## Panel and ScrollContainer clip with the rounded clip (2026-10-02)
 
 **What landed:** DDB-231 and DDB-234 (DDB-55).
