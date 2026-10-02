@@ -143,7 +143,8 @@ Waves, each landing with its gallery scene, behaviour tests, and lint zero:
   DDB-89. The scroll container hugs its content and holds the flavour text with the deck; the mini cards wrap through a game-side `FlowWrap`, since wrap is out of the engine's scope. See [driver-selection-stacks.md](../AI_TECHNICAL_DECISIONS/driver-selection-stacks.md).
 - [x] Main menu, splash, battle result: root stacks, centred titles, transitions through ScreenTransition.
   DDB-90. Every `ScreenManager.navigate` fades through one ScreenTransition; `{ immediate: true }` is for the boot and the dev navigate hook. `Screen` takes a fill root stack, which the frame sizes. Menu and splash are in the lint gate; the battle result has no golden yet (DDB-230). See [screen-transitions-and-root-stacks.md](../AI_TECHNICAL_DECISIONS/screen-transitions-and-root-stacks.md).
-- [ ] Settings and credits screens (DDB-38) as the first screens authored entirely on the new catalog (dialog, checkbox, slider, select).
+- [x] Settings and credits screens (DDB-38) as the first screens authored entirely on the new catalog (dialog, checkbox, slider, select).
+  DDB-38. Settings offers only reduced motion (a SegmentedControl in a Panel), the one setting with a working effect, persisted by a minimal `GameSettings` store; no dialog, checkbox, slider, or select is needed until a setting calls for one. Credits is a Panel holding a ScrollContainer of repo-sourced credits. Both are in the lint gate with goldens. See [settings-store-and-screens.md](../AI_TECHNICAL_DECISIONS/settings-store-and-screens.md).
 - [ ] Every screen at lint zero with a golden; the developer screen's sections are gallery scenes on the new components; the accessor rename landed as its own mechanical PR.
 
 ### Phase 7: observability completion and conformance

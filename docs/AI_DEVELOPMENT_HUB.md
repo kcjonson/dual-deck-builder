@@ -167,6 +167,8 @@ DDB-83 put the token pipeline in with no consumers: `src/renderer/engine/theme/t
 
 **Main menu, splash, and battle result on root stacks (DDB-90).** Each is a root `Stack` with `fill` on both axes (`Screen` takes a `root` option and leaves a fill root to the frame's viewport sizing), centring its content; none places anything by hand or has an `onResized`. The menu's buttons are one `FocusGroup` (arrows wrap, one Tab stop) with focus on Start Game; the result is a `Panel` with Continue focused, Enter or Escape continuing; the splash skips on Enter, Escape, or Space. `ScreenManager.navigate` runs every navigation through one `ScreenTransition` (fade to `bg_void`, swap, one layout, fade in, input blocked); `{ immediate: true }` swaps at once and is what the boot and the dev `__app.navigate` hook use. The game's document key listener ignores F12 and Escape while a transition runs. Details in [screen-transitions-and-root-stacks.md](./AI_TECHNICAL_DECISIONS/screen-transitions-and-root-stacks.md).
 
+**Settings and Credits (DDB-38).** Both main-menu buttons now open screens on DDB-90's pattern (fill root stack, transition navigation, root Escape). Settings has one panel, Motion: System, Reduced, or Full, applied at once and persisted in local storage by `GameSettings` (`game/core/GameSettings.ts`), the game's first settings store; `ReducedMotion` replaced `followReducedMotion` so the setting can override the system. Nothing else is offered because nothing else has an effect yet (no audio; UI scale is phase 7). Credits lists the licence, commit authors, and bundled fonts and icons with their licences in a scroll container; a test keeps the list in step with `src/assets/fonts/`. Both in the lint gate with goldens. Details in [settings-store-and-screens.md](./AI_TECHNICAL_DECISIONS/settings-store-and-screens.md).
+
 ## Current state (verified survey, 2026-08-22)
 
 Development stopped 2025-07-03. On 2026-08-22 the whole project was re-surveyed: `npm test` (128/128 pass), `npm run lint` (0 errors, 9 warnings), `npm run build:web` (compiles), plus a live click-through of the running game and a full code audit. Everything below is verified against the code or the running app, not carried forward from old status notes.
@@ -193,7 +195,6 @@ A dated warning about this doc's history: all entries previously dated "December
 
 ### In progress / never built (unfinished, not broken)
 
-- Settings and Credits: buttons exist, click logs "not implemented" (DDB-38).
 - Panel scrolling: scrollbars draw but don't scroll; five overflow methods are explicit no-op stubs (`Panel.ts:369-399`). Blocks combat-log scrolling (`CombatLogLayer.ts:248`).
 - BattleResultScreen: no battle statistics display, Continue is hard-wired to main menu instead of a reward/map screen.
 - Enemy intents show only the first planned intent per raider, in the old indicator, until DDB-33's pills; per-driver fuel not implemented (`:396`); card detail popup missing (`:536`); hand layer gets a flat card array instead of per-driver grouping (`:376`); card fanning and discard animations missing (`PlayerHandLayer.ts:316-330`).
