@@ -37,7 +37,7 @@ The `Select` lists every unlocked driver with the partner's driver `enabled: fal
 - The portrait is wider and taller than 40 percent of the screen height at 1920x1080 (558 of 1080). It is a placeholder rectangle, and holding it to 40 percent would leave the empty space below the Select instead.
 - Locked drivers aren't listed (they never were). The spec's greyed, locked entries with an unlock tooltip need lock state on `Driver`, which doesn't exist.
 - Hovering a mini card doesn't preview the full card yet (spec 1.2). The tooltip factory DDB-88 used for the hand would do it.
-- `Game.setupEventHandlers` has a document-level Escape that navigated to the main menu ahead of the dispatcher, so Escape on an open Select left the screen. It now defers to any screen whose root registers Escape (driver selection and combat do). The listener should go once every screen registers its own.
+- `Game.setupEventHandlers` had a document-level Escape that navigated to the main menu ahead of the dispatcher, so Escape on an open Select left the screen. DDB-89 made it defer to screens whose root registers Escape; DDB-225 deleted it once every screen did, and the screen now builds in `onMount` and unregisters its Escape on unmount.
 - The screen lints to 50, every one a sibling overlap between `Card`'s own rectangles and texts. Making those parts is DDB-91's.
 
 ## Tests

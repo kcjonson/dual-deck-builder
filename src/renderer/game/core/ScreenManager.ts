@@ -145,9 +145,13 @@ export class ScreenManager {
 	/** Unmounts the current screen and mounts a new one: the transition's swap. */
 	private static swap(context: MountContext, screenName: ScreenName, data: unknown, restoreFocus: boolean): void {
 		this.swapping = true;
+		// One-shot: whatever this visit does, the next restore answers to the
+		// next leave, never to one the recorder skipped (under a transition).
+		const leftFocusId = this.leftFocus.get(screenName);
+		this.leftFocus.delete(screenName);
 		try {
 			this.mountScreen(context, screenName, data);
-			if (restoreFocus) this.restoreFocus(context, screenName);
+			if (restoreFocus && leftFocusId) this.restoreFocus(context, screenName, leftFocusId);
 		} finally {
 			this.swapping = false;
 		}
@@ -158,9 +162,8 @@ export class ScreenManager {
 	 * focus when the transition's scope pops (R9.20), so this wins over the
 	 * screen's own first focus either way.
 	 */
-	private static restoreFocus(context: MountContext, screenName: ScreenName): void {
-		const id = this.leftFocus.get(screenName);
-		const target = id ? this.currentScreen?.root.findById(id) : null;
+	private static restoreFocus(context: MountContext, screenName: ScreenName, id: string): void {
+		const target = this.currentScreen?.root.findById(id);
 		if (target && this.currentScreenName === screenName) context.focus.focus(target);
 	}
 

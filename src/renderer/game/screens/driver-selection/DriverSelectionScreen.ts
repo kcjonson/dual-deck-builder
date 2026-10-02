@@ -24,28 +24,31 @@ const START_RUN_WIDTH = 300;
  * body (the two driver panels with the synergy panel centred in the column
  * between them), and START RUN with its summary beside it. The panels take
  * whatever height the header and footer leave, so a resize sizes the page
- * and the stacks lay the rest out again; nothing is rebuilt.
+ * and the stacks lay the rest out again; nothing is rebuilt. Escape and Back
+ * return to the menu; the Escape is the root's own (R9.15), so an open
+ * driver Select closes on it first.
  */
 export class DriverSelectionScreen extends Screen {
 	private selectedDriver1: Driver | null = null;
 	private selectedDriver2: Driver | null = null;
 	private availableDrivers: Driver[] = [];
 
-	private readonly page: Stack;
+	private page!: Stack;
 	private leftDriverPanel!: DriverPanel;
 	private rightDriverPanel!: DriverPanel;
 	private synergyPanel!: SynergyPreviewPanel;
 	private confirmationText!: Text;
 	private startRunButton!: Button;
 
-	/**
-	 * Create a new driver selection screen. Its elements are built once;
-	 * the page is sized from the root on mount and on every resize, so a
-	 * resize keeps the selection.
-	 */
 	constructor() {
 		super('driverSelectionScreen');
+	}
 
+	/**
+	 * Builds the page at the root's size and loads the roster. A resize only
+	 * sizes the page again, so it keeps the selection.
+	 */
+	protected onMount(): void {
 		this.page = new Stack({
 			id: 'driver_select_page',
 			direction: 'vertical',
@@ -54,11 +57,22 @@ export class DriverSelectionScreen extends Screen {
 			crossAlign: 'stretch',
 			style: { backgroundColor: '#2a2a4a' },
 		});
-		this.rootLayer.addChild(this.page);
-
 		this.page.addChild(this.createHeader());
 		this.page.addChild(this.createBody());
 		this.page.addChild(this.createFooter());
+		this.rootLayer.addChild(this.page);
+		this.sizePage();
+
+		this.rootLayer.hotkeys.register('Escape', () => this.back());
+		this.loadDrivers();
+	}
+
+	protected onUnmount(): void {
+		this.rootLayer.hotkeys.unregister('Escape');
+		this.rootLayer.clearChildren();
+		this.selectedDriver1 = null;
+		this.selectedDriver2 = null;
+		this.availableDrivers = [];
 	}
 
 	/** Back at the left, the title centred: a spacer the button's width balances the row. */
@@ -80,9 +94,7 @@ export class DriverSelectionScreen extends Screen {
 			width: BACK_BUTTON_WIDTH,
 			height: 50,
 		});
-		backButton.onClick = () => {
-			ScreenManager.navigate('mainMenuScreen');
-		};
+		backButton.onClick = () => this.back();
 		header.addChild(backButton);
 
 		header.addChild(new Text('Choose Your Drivers', {
@@ -219,9 +231,12 @@ export class DriverSelectionScreen extends Screen {
 	 * Load available drivers and initialize panels
 	 */
 	private async loadDrivers(): Promise<void> {
+		const page = this.page;
 		try {
 			const driverLoader = DriverLoader.getInstance();
 			await driverLoader.loadDrivers();
+			// The screen left, or left and came back, while the roster loaded.
+			if (this.page !== page || !this.isActive) return;
 
 			this.availableDrivers = driverLoader.getUnlockedDrivers();
 
@@ -314,34 +329,8 @@ export class DriverSelectionScreen extends Screen {
 		this.sizePage();
 	}
 
-	/**
-	 * Handle screen unmount - reset state
-	 */
-	protected onUnmount(): void {
-		// Reset driver selections
-		this.selectedDriver1 = null;
-		this.selectedDriver2 = null;
-
-		// Reset both panels to initial state
-		this.leftDriverPanel.reset();
-		this.rightDriverPanel.reset();
-
-		// Clear synergy display
-		this.synergyPanel.updateSynergy(null, null);
-
-		// Reset UI elements
-		this.updateConfirmationText();
-		this.updateStartButton();
-	}
-
-	/**
-	 * Handle screen mount - reload drivers
-	 */
-	protected onMount(): void {
-		this.sizePage();
-		// Escape goes back, as the Back button does (R9.15's root table)
-		this.rootLayer.hotkeys.register('Escape', () => ScreenManager.navigate('mainMenuScreen'));
-		// Reload drivers when screen is mounted
-		this.loadDrivers();
+	/** To the menu, focus back on Start Game, which opened this screen. */
+	private back(): void {
+		ScreenManager.navigate('mainMenuScreen', undefined, { restoreFocus: true });
 	}
 }

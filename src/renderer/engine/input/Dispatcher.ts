@@ -987,7 +987,10 @@ export class Dispatcher {
 	 * Topmost is paint order reversed: a higher layer first, then a later
 	 * root within a layer (R3.10, R3.15), which is also the order the
 	 * overlay service dismisses in. A popup opened before a lower-layer
-	 * overlay still hears keys first.
+	 * overlay still hears keys first. Diagnostic roots draw as their own
+	 * domain after the UI's (R3.21), so they are above every UI layer and
+	 * a modal or a screen transition does not hide them: the F5 overlay's
+	 * toggle stays live under both.
 	 */
 	private hotkeyTables(focused: Component | null): HotkeyTable[] {
 		const topmostFirst = this.rootsTopmostFirst();
@@ -1012,11 +1015,16 @@ export class Dispatcher {
 		return tables;
 	}
 
-	/** The roots by layer, highest first, then latest first within a layer. */
+	/** Diagnostic roots, then the rest by layer, highest first, then latest first within a layer. */
 	private rootsTopmostFirst(): Component[] {
 		const roots = this.rootList;
-		const order = roots.map((root, index) => ({ root, index, ordinal: layerOrdinal(root.effectiveLayer) }));
-		order.sort((a, b) => (b.ordinal - a.ordinal) || (b.index - a.index));
+		const order = roots.map((root, index) => ({
+			root,
+			index,
+			diagnostic: this.rootTiers.get(root) === 'diagnostic' ? 1 : 0,
+			ordinal: layerOrdinal(root.effectiveLayer),
+		}));
+		order.sort((a, b) => (b.diagnostic - a.diagnostic) || (b.ordinal - a.ordinal) || (b.index - a.index));
 		return order.map((entry) => entry.root);
 	}
 
