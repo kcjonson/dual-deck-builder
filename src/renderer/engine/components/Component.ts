@@ -223,6 +223,7 @@ export abstract class Component {
 	private hotkeyTable: HotkeyTable | null = null;
 	/** Set while this component is a drag ghost (R9.12b): its travel in the parent's space. */
 	private dragGhostOffset: Vec2 | null = null;
+	private parkedOffset: Vec2 | null = null;
 	private parentComponent: Component | null = null;
 	private mountContext: MountContext | null = null;
 	/** This subtree has to be laid out: set here and on every ancestor up to the boundary (R8.18). */
@@ -761,10 +762,15 @@ export abstract class Component {
 		if (this.matrixCache !== undefined) return this.matrixCache;
 		const own = transformMatrix(this.ownTransform, this.contentWidth, this.contentHeight);
 		const ghost = this.dragGhostOffset;
+		const park = this.parkedOffset;
 		let matrix = own;
+		if (park) {
+			const shift = translation(park.x, park.y);
+			matrix = matrix ? concat(shift, matrix) : shift;
+		}
 		if (ghost) {
 			const lift = translation(ghost.x, ghost.y);
-			matrix = own ? concat(lift, own) : lift;
+			matrix = matrix ? concat(lift, matrix) : lift;
 		}
 		this.matrixCache = matrix;
 		return matrix;
@@ -786,6 +792,28 @@ export abstract class Component {
 	/** The drag service's: sets or clears the ghost state. */
 	public set dragOffset(offset: Vec2 | null) {
 		this.dragGhostOffset = offset;
+		this.matrixCache = undefined;
+		this.invalidateInk();
+	}
+
+	/**
+	 * R8.30: how far this component is parked off its rest place, in the
+	 * parent's content space, or null at rest. A park is a declared, transient
+	 * displacement, such as the battle screen's dock dropping partly off the
+	 * screen while the raiders act: it moves the component the way a
+	 * translation would, outside its own `transform`, and the tree snapshot
+	 * reports it (`parked`) so the layout lint checks the subtree where it
+	 * rests (R13.25.2, R13.25.3). Clear it, not zero it, when the component
+	 * lands back.
+	 */
+	public get parkOffset(): Vec2 | null {
+		return this.parkedOffset;
+	}
+
+	public set parkOffset(offset: Vec2 | null) {
+		const current = this.parkedOffset;
+		if (offset === null ? current === null : current !== null && current.x === offset.x && current.y === offset.y) return;
+		this.parkedOffset = offset === null ? null : { x: offset.x, y: offset.y };
 		this.matrixCache = undefined;
 		this.invalidateInk();
 	}

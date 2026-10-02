@@ -1,6 +1,6 @@
 # 8. Object model
 
-Status: draft 4 (2026-09-07; revised after all five reviews, see chapter 17)
+Status: draft 4 (2026-09-07; revised after all five reviews, see chapter 17). R8.30 added 2026-10-02 (DDB-139): `parkOffset`, a declared transient displacement the lint checks at rest.
 
 The retained tree is the developer-facing API: persistent component objects with properties, children, and callbacks, in the style of a DOM built from constructor arguments rather than markup. It is deliberately thin. Its job at draw time is to walk itself in the order chapter 3 defines and re-issue immediate draw calls (chapter 2); nothing is cached on the GPU between frames. Its job the rest of the time is to hold state, run layout (chapter 10), route input (chapter 9), and drive animation.
 
@@ -34,6 +34,7 @@ Rules are numbered R8.n.
 - R8.12 Hit testing uses the content box, with half-open edges (`x >= left && x < right`), after applying the inverse of the component's `transform`. Worldsim mixed margin-box (button, slider) and content-box (scroll container) hit tests per component, all with closed edges; the base implementation MUST provide the one convention and components override `containsPoint` only for non-rectangular shapes.
 - R8.13 Every mounted component exposes read-only `screenBounds` (its content box in viewport logical pixels, computed by the framework during layout from ancestor origins, content offsets, and transforms; the axis-aligned bounds when a transform rotates it), `screenQuad` (the four transformed corners), `localToScreen(point)`, and `screenToLocal(point)`. These are valid after the frame's layout. Components MUST NOT read the window or canvas size and MUST NOT accumulate ancestor positions themselves; they use these accessors or the viewport in the mount context. The sibling engine had thirteen direct window-size reads in screens and a root sized from the window rather than from the viewport it was mounted in.
 - R8.26 `transform` is `{ rotate (radians), scale (number or [sx, sy]), translate ([dx, dy]), origin ([ox, oy] as fractions of the content box, default the centre) }`, identity by default. Layout ignores it (CSS `transform` semantics: the layout box is untransformed). Render pushes it after the parent's origin and content offset; the hit walk applies the inverse to the point before `containsPoint` and before descending; clips under a rotated transform follow chapter 4, R4.7; the lint uses the untransformed box; the snapshot emits `transform` when it is not identity. Setting `transform` invalidates nothing in layout. A fanned hand is cards with `rotate` and `scale`; a hover lift is a `translate` tween.
+- R8.30 `parkOffset` (null, or a point in the parent's content space): a declared, transient displacement off the component's rest place, applied like a translation outside its own `transform` and before a drag ghost's offset. It is for a panel that steps partly off the screen while it is out of play, such as the battle screen's hands dropping during the enemy turn. It moves render, hit testing, and `screenBounds` like any translation; the snapshot reports it as `parked` (R13.22) and the layout lint checks the subtree at its rest place (R13.25.2, R13.25.3), so only the park itself is forgiven. Set it only while parked and clear it to null, not to zero, in the tick that lands the component back. Added 2026-10-02 (DDB-139).
 
 ## 8.4 Lifecycle
 
@@ -89,6 +90,7 @@ Arena storage and generational handles are C++ concerns; in a garbage-collected 
 | `reconcileChildren` | recommended |
 | Margin-box bounds (per-side margin), content-box hit test with half-open edges, ink overflow with `inkExtent` | required |
 | `transform` ignored by layout, honoured by render and hit testing | required |
+| `parkOffset` reported by the snapshot and checked at rest by the lint | required |
 | Read-only `screenBounds` and conversions; no window reads | required |
 | Mount and unmount with a mount context; no constructor-time registration | required |
 | Frame order: input with layout on demand, update on request, layout, render, snapshot | required |

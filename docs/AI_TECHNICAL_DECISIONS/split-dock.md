@@ -8,7 +8,7 @@ PR 103 (DDB-82) built the frame: a `HandHalf` per driver with a `DriverTab` over
 
 ## Decisions
 
-**The dock is its own component.** `CombatDock` is the `ChromeStack` the screen used to build inline: the two halves and End Turn column, with the mock's padding. The screen keeps `dock`, `handLayer` and `endTurnColumn` as fields, so DDB-139's drop and grey still act on `this.dock`. The gallery builds the same component, so the scenes are the screen's dock rather than a copy.
+**The dock is its own component.** `CombatDock` is the `ChromeStack` the screen used to build inline: the two halves and End Turn column, with the mock's padding. DDB-139's enemy-turn presentation moved in with it: `dropHands` parks the hands 60 down and fades their scrim (now the dock's own absolute child, placed from the padding's inner edge) on the animator, while the dock's ground and End Turn stay put reading WAIT. The screen keeps `dock`, `handLayer` and `endTurnColumn` as fields and calls `dropHands` from its update; End Turn's preview hook is unchanged. The gallery builds the same component, so the scenes are the screen's dock rather than a copy.
 
 **The fan runs to the dock's foot.** Cards hang 38 below the dock's edge and are 180 tall, leaving 10; the edge cards of a full hand lean and drop up to 9 into that. The dock's bottom padding was 5, which cut the fan to 185 and put a six-card row (187) past it. The padding is now 0, so the fan is 190 and the row's reach-padded box fits up to the cap. The 5 px only ever existed to hold the fan's box off the edge, which nothing draws.
 

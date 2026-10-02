@@ -138,7 +138,8 @@ export const SCENE_SCENARIOS: readonly SceneScenario[] = [
 	{ scene: 'screen-transition' },
 	{ scene: 'scroll-hug' },
 	{ scene: 'rounded-clip' },
-	{ scene: 'combat-road' },
+	// Gated at both sizes, as the combat screen is: the intent pills' heavy tier, multi-hit, and "+N" (DDB-139)
+	{ scene: 'combat-road', lintShort: true },
 	{ scene: 'vehicle-tokens' },
 	{ scene: 'card-pile-draw', lintShort: true },
 	{ scene: 'card-pile-discard', lintShort: true },

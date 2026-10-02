@@ -8,6 +8,7 @@ import { EndTurnColumn } from './EndTurnColumn';
 import { CombatLogLayer } from './CombatLogLayer';
 import { TURN_BANNER_LIFETIME, TurnBanner } from './TurnBanner';
 import { EnemyTurnPacer } from './EnemyTurnPacer';
+import { EndTurnPreview } from './EndTurnPreview';
 import { CombatModel } from './CombatModel';
 import {
 	LOG_DRAWER_WIDTH,
@@ -15,13 +16,14 @@ import {
 	STAGE_MAX_WIDTH,
 	computeCombatStage,
 } from './CombatLayout';
-import { CombatDock } from './CombatDock';
+import { CombatDock, DOCK_DROP } from './CombatDock';
 import { CombatFxLayer } from './CombatFxLayer';
 import { Rgba } from './combatStyle';
 import { openPileDialog } from '../../ui/CardPileView';
 import { INSPECT_KEYS, inspectHotkey } from '../../ui/cardInspect';
 import { buildPlayerHandView } from './PlayerHandView';
 import { TargetMark, seatMark } from '../../ui/targetMarks';
+import { statusLabel } from '../../ui/IntentPill';
 import { Driver, DriverRole } from '../../mechanics/Driver';
 import { assertDriverPair } from '../../mechanics/DriverPair';
 import { CombatLog, CombatLogType } from '../../mechanics/CombatLog';
@@ -66,6 +68,10 @@ const LOG_TOGGLE_KEYS = [LOG_KEY.toLowerCase(), LOG_KEY, 'F6'];
  */
 export const ENEMY_TURN_LEAD_IN = TURN_BANNER_LIFETIME - tokens.motion.dur;
 export const ENEMY_ACTION_BEAT = 700;
+export { DOCK_DROP };
+/** Where a hit's number starts under its anchor's top, and how tall it is (CombatFxLayer's `.dmgpop`). */
+const HIT_NUMBER_INSET = 8;
+const HIT_NUMBER_HEIGHT = 36;
 
 /**
  * The combat screen, laid out per Battle Screen Design section 2
@@ -82,6 +88,7 @@ export class CombatScreen extends Screen {
 	private turnBanner!: TurnBanner;
 	private fx!: CombatFxLayer;
 	private dock!: CombatDock;
+	private intentPreview!: EndTurnPreview;
 	private enemyTurnPacer: EnemyTurnPacer | null = null;
 	/** The raider whose action is on screen during the enemy turn (DDB-139 glows it), or null. */
 	private enemyActing: Vehicle | null = null;
@@ -300,11 +307,23 @@ export class CombatScreen extends Screen {
 		return seat === null ? undefined : seatMark(seat);
 	}
 
+	/**
+	 * A hit's number off the plate it landed on. While a turn banner is up
+	 * across that plate (the first raider acts as ENEMY TURN leaves, and
+	 * under reduced motion it holds there to the end), the number starts
+	 * under the banner's band instead of on its lettering.
+	 */
 	private popHitNumber({ vehicle, damage }: HitEvent): void {
 		const plate = this.road.vehicleView(vehicle.id);
 		if (!plate?.isMounted) return;
+		const anchor = plate.plateScreenBounds;
+		if (this.turnBanner.visible) {
+			const band = this.turnBanner.screenBounds;
+			const top = anchor.y + HIT_NUMBER_INSET;
+			if (top < band.y + band.height && top + HIT_NUMBER_HEIGHT > band.y) anchor.y = band.y + band.height - HIT_NUMBER_INSET;
+		}
 		this.fx.popNumber({
-			anchor: plate.plateScreenBounds,
+			anchor,
 			anchorKey: plate.id ?? vehicle.id,
 			text: damage === null ? 'MISS' : `-${damage}`,
 			kind: damage === null ? 'miss' : 'damage',
@@ -415,10 +434,11 @@ export class CombatScreen extends Screen {
 		this.topBar.turn = battle.turn;
 		this.topBar.scrap = this.scrap;
 		this.topBar.fuel = this.fuel;
-		// The dock is locked while the raiders act (section 6); DDB-139 drops and greys it
+		// The dock is locked while the raiders act, dropped and greyed (section 6)
 		// Locked too once the fight is over, through the transition out
 		const waiting = battle.enemyTurnInProgress || battle.battleOver;
 		this.dock.enabled = !waiting;
+		this.dock.dropHands(battle.enemyTurnInProgress);
 		this.endTurnColumn.show({
 			turn: battle.turn,
 			playerTurn: battle.isPlayerTurn && !battle.battleOver,
@@ -431,35 +451,49 @@ export class CombatScreen extends Screen {
 		// Every vehicle on the road, in its slot
 		this.road.showVehicles({ player: this.playerTeam?.vehicles ?? [], enemy: this.enemyTeam?.vehicles ?? [] });
 
-		// Every raider's plan, two markers and then "+N", until the intent
-		// pills land (DDB-139)
+		// Every raider's plan as pills, two and then "+N". While the raiders
+		// act, the plan they are playing stays up and the one acting glows;
+		// the next plan shows with the player's draw
 		if (this.enemyTeam) {
-			// While the raiders act, the plan they are playing stays up; the
-			// next one shows with the player's draw
 			const intents = waiting ? null : battle.getAllIntents();
 			this.enemyTeam.vehicles.forEach(vehicle => {
-				if (intents) this.road.setVehicleIntents(vehicle.id, (intents.get(vehicle) ?? []).map(intent => this.intentMarkerOf(intent)));
+				if (intents) this.road.setVehicleIntents(vehicle.id, (intents.get(vehicle) ?? []).map(intent => this.intentPillOf(intent)));
 			});
 		}
+		this.road.actingVehicleId = battle.enemyTurnInProgress ? this.enemyActing?.id ?? null : null;
+		this.intentPreview.turnOpen = battle.isPlayerTurn && !waiting;
+		this.intentPreview.refresh();
 	}
 
-	/** A planned intent as its marker shows it, with the tooltip's line. */
-	private intentMarkerOf(intent: Intent): EnemyIntent {
+	/** How far the dock has dropped: 0 in place, 1 all the way. */
+	public get dockDropped(): number {
+		return this.dock.dropped;
+	}
+
+	/**
+	 * A planned intent as its pill shows it, with the tooltip's line and the
+	 * vehicles it lands on: an area hit reaches every vehicle of yours
+	 * still in the fight (`effectRecipients`).
+	 */
+	private intentPillOf(intent: Intent): EnemyIntent {
 		const value = formatIntentValue(intent);
 		const target = intent.target === 'both'
 			? 'both of your vehicles'
 			: this.playerTeam?.vehicles.find(vehicle => vehicle.id === intent.target)?.name ?? null;
 		const on = target ? ` on ${target}` : '';
 		const mark = this.intentTargetMark(intent);
+		const targetIds = intent.target === 'both'
+			? (this.playerTeam?.vehicles ?? []).filter(vehicle => !vehicle.isOutOfFight).map(vehicle => vehicle.id)
+			: intent.target ? [intent.target] : [];
 		switch (intent.type) {
 			case IntentType.ATTACK:
-				return { type: 'attack', value: intent.amount ?? undefined, valueText: value, description: intent.description, detail: `${value} damage${on}`, target: mark };
+				return { type: 'attack', value: intent.amount ?? undefined, hits: intent.hits, valueText: value, description: intent.description, detail: `${value} damage${on}`, target: mark, targetIds };
 			case IntentType.DEFEND:
-				return { type: 'defend', value: intent.amount ?? undefined, description: intent.description, detail: `${value} armor` };
+				return { type: 'defend', value: intent.amount ?? undefined, valueText: value, description: intent.description, detail: `${value} armor` };
 			case IntentType.DEBUFF:
-				return { type: 'debuff', description: intent.description, detail: `${value}${on}`, target: mark };
+				return { type: 'debuff', valueText: statusLabel(intent.label), description: intent.description, detail: `${value}${on}`, target: mark, targetIds };
 			case IntentType.BUFF:
-				return { type: 'buff', description: intent.description, detail: value };
+				return { type: 'buff', valueText: statusLabel(intent.label), description: intent.description, detail: value };
 			default:
 				return { type: 'special', description: intent.description, detail: 'Hidden' };
 		}
@@ -558,11 +592,25 @@ export class CombatScreen extends Screen {
 			anchor: 'topRight',
 			width: LOG_DRAWER_WIDTH,
 			heightMode: 'fill',
-			zIndex: 1,
+			zIndex: 2,
 			combatLog: this.combatLog,
 			onFocusLost: () => this.restoreKeyboardFocus(),
 		});
 		road.addChild(this.combatLogLayer);
+
+		// From End Turn's hover or keyboard focus, each intent's line to
+		// what it will hit and the totals on your plates (section 6); under
+		// the log drawer, which covers it when open
+		this.intentPreview = new EndTurnPreview({
+			id: 'combat_end_turn_preview',
+			positioned: 'absolute',
+			widthMode: 'fill',
+			heightMode: 'fill',
+			zIndex: 1,
+			road: this.road,
+			isPreviewing: () => this.endTurnColumn?.previewing ?? false,
+		});
+		road.addChild(this.intentPreview);
 
 		return road;
 	}
