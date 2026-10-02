@@ -26,6 +26,8 @@ flat in vec4 vBorder;
 flat in vec4 vClip;
 flat in vec4 vShape;
 flat in vec4 vMode;
+flat in vec4 vRoundedClip;
+flat in float vRoundedRadius;
 
 out vec4 fragColor;
 
@@ -110,10 +112,24 @@ void main() {
 	vec2 localDy = dFdy(vLocal);
 	vec2 uvDx = dFdx(vTexCoord);
 	vec2 uvDy = dFdy(vTexCoord);
+	vec2 positionDx = dFdx(vPosition);
+	vec2 positionDy = dFdy(vPosition);
 
 	// R4.4: half-open, on the interpolated logical position.
 	if (vPosition.x < vClip.x || vPosition.x >= vClip.z || vPosition.y < vClip.y || vPosition.y >= vClip.w) {
 		discard;
+	}
+
+	// R4.14: the innermost rounded clip as a second SDF on the same position,
+	// its edge ramped over one device pixel, multiplying coverage. Inside a
+	// clip whose rect is on the device grid its straight edges keep every
+	// pixel the rect test keeps.
+	float clipCoverage = 1.0;
+	if (vRoundedRadius >= 0.0) {
+		float devicePixel = sqrt(0.5 * (dot(positionDx, positionDx) + dot(positionDy, positionDy)));
+		float dClip = sdRoundedBox(vPosition - vRoundedClip.xy, vRoundedClip.zw, vec4(vRoundedRadius));
+		clipCoverage = coverage(dClip, devicePixel);
+		if (clipCoverage <= 0.0) discard;
 	}
 
 	int mode = int(vMode.x + 0.5);
@@ -201,6 +217,8 @@ void main() {
 		color = vFill;
 	}
 
+	color *= clipCoverage;
+	covered *= clipCoverage;
 	// R5.23: discard on coverage, never on colour alpha.
 	if (covered < 1.0 / 1024.0) discard;
 

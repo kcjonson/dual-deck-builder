@@ -17,10 +17,16 @@ layout(location = 7) in vec4 aColor2;
 layout(location = 8) in vec4 aColor3;
 layout(location = 9) in vec4 aBorder;     // premultiplied
 layout(location = 10) in vec4 aShape;     // border width (text: blur), outset, sigma or range, opacity
-layout(location = 11) in uvec4 aMode;     // mode, texture slot, flags, unused
+layout(location = 11) in uvec4 aMode;     // mode, texture slot, flags, rounded clip index
+
+// R4.14: the frame's rounded clips, two vectors an entry, (centre, half size)
+// and (radius, unused), referenced by aMode.w less one. `UBER_FRAME_BLOCK` in
+// UberGeometryEncoder.ts.
+const int ROUNDED_CLIP_VECTORS = 510;
 
 layout(std140) uniform Frame {
 	mat4 uProjection;
+	vec4 uRoundedClips[ROUNDED_CLIP_VECTORS];
 };
 
 const uint MODE_IMAGE = 4u;
@@ -42,6 +48,10 @@ flat out vec4 vBorder;
 flat out vec4 vClip;
 flat out vec4 vShape;
 flat out vec4 vMode;
+// R4.14's innermost rounded clip: centre and half size, then the radius, or
+// a negative radius for none.
+flat out vec4 vRoundedClip;
+flat out float vRoundedRadius;
 
 void main() {
 	int corner = QUAD_CORNERS[gl_VertexID];
@@ -67,6 +77,14 @@ void main() {
 	vPosition = position;
 	vBorder = aBorder;
 	vClip = aClip;
+	if (aMode.w > 0u) {
+		int entry = int(aMode.w - 1u) * 2;
+		vRoundedClip = uRoundedClips[entry];
+		vRoundedRadius = uRoundedClips[entry + 1].x;
+	} else {
+		vRoundedClip = vec4(0.0);
+		vRoundedRadius = -1.0;
+	}
 
 	bool text = aMode.x == MODE_TEXT;
 	if (aMode.x == MODE_IMAGE || text) {
