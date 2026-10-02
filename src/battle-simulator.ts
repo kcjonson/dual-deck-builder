@@ -199,7 +199,7 @@ class BattleSimulator {
 				
 				// End player turn
 				if (!battle.isBattleOver()) {
-					await battle.endPlayerTurn();
+					battle.endPlayerTurn();
 				}
 			}
 			// Enemy turns are handled automatically by endPlayerTurn

@@ -190,6 +190,8 @@ describe('CombatScreen: the fight ending leaves no combat cards behind', () => {
 		const endTurn = combat['endTurnColumn'].endTurn;
 		click(centerOf(endTurn));
 		await settle();
+		// The raiders act on the frame clock's beats; stop at the frame the fight ends
+		for (let frames = 0; !combat.battleState?.battleOver && frames < 500; frames++) context.frame.update(0.016);
 
 		expect(combat.battleState?.battleWon).toBe(false);
 		expectCardsGone(spots);

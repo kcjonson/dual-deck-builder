@@ -109,7 +109,7 @@ Every card carries two texts.
 | Inspect | Detail view and keyword boxes; the vehicle the card acts from lights up in its driver colour. |
 | Targeting | Drag to play. Every raider slot shows its range from the source slot (R1, R2, OUT); out-of-reach raiders dim, legal ones get a dashed outline, the hovered one a solid outline and a damage ghost on the bar it will hit. The hit check (gunnery against evade, and range) rides with the dragged card. Release on the road or right-click cancels. |
 | End-turn preview | Pointer on End Turn: each intent draws a line to the vehicle it will hit, and your plates show the incoming total. |
-| Enemy turn | The dock drops 60px and greys out, a banner crosses the road (never the dock), raiders act one at a time and the acting raider glows while its hit lands. |
+| Enemy turn | The dock drops 60px and greys out, a banner crosses the road (never the dock), raiders act one at a time and the acting raider glows while its hit lands. The first action lands 900ms after ENEMY TURN shows, as the banner starts to leave; each action after it gets a 700ms beat, and the last beat ends before the player's draw. The beats are reading time, so they hold under reduced motion. |
 | Log | A 320px drawer over the right of the road, never over the dock or End Turn. Lines wrap and scroll. |
 
 ## 7. Colour
