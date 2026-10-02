@@ -6,6 +6,15 @@ This document contains the chronological log of completed development tasks for 
 
 **Date correction (2026-08-22):** the repo's first commit is 2025-05-17, but many entries below carry dates in December 2024 or January 2025 — the AI that wrote them used its assumed date instead of the real one. Entries dated 2025-07-03 and 2025-07-02 have been corrected from "2025-01-03"/"2025-01-02" (verified against git history). Remaining Dec 2024 / Jan 2025 dates are wrong by roughly six months; the real work happened May–July 2025. Trust git history over these dates.
 
+## Dialog on Panel, and the focus ring after Escape (2026-10-02)
+
+**What landed:** DDB-221 and DDB-229 (DDB-55 catalog follow-ups).
+
+- `Dialog`'s surface is now R12.19's `Panel`: flush, `raised` with the `shadow_pop` style shadow, kicker and title in the panel header, the X in `actions`. A small `DialogPanel` subclass adds the hairline over the footer; the body and footer pad by the edge less the panel's own inset, so the body content still sits 16 px in. The title is the panel's `fs_md` now (was `fs_lg`), and the header band is the panel's height, so the `dialog` golden moves.
+- The dispatcher marks focus keyboard-driven when a navigation key (Enter, Space, Escape, arrows, Home, End) reaches a focused component that doesn't take text. Before, only Tab, arrow navigation, and `activate` did, so a Select opened by a press, driven with the arrows, and closed with Escape had focus with no ring. DropdownButton and ContextMenu's hand-back had the same gap and are fixed by the same change. R9.23 says so now.
+
+**How:** `Dialog.test.ts` gained the panel composition (variant, shadow, actions, title, insets, footer hairline) and a Select nested in a modal (Escape closes the list first and keeps the ring, then the dialog, then focus goes back to the opener). `menus.test.ts` covers the ring after Escape for Select, DropdownButton, and ContextMenu; `widgetInput.test.ts` covers a pressed button showing its ring after Escape and a text field staying ringless.
+
 ## Combat drag targeting and floating damage numbers (2026-10-01)
 
 **What landed:** DDB-88's second PR (DDB-55 phase 6): cards play by dragging them onto their target, as well as by click-then-target and the keyboard, and hits float their numbers up off the vehicle they landed on.

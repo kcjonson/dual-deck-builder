@@ -50,7 +50,7 @@ Wave C lands as sequential pull requests by group:
 - R12.21's ported worldsim suite (18 cases) is not available here; `ui/Dialog.test.ts` covers the same ground in 21 cases of its own: lifecycle, the `open()`/`close()` guards, dismissal defaults modal and not, first-frame blocking, focus trapping and restore, and hotkeys beneath a modal.
 - R12.23 has the stack report the envelope of its *live* toasts as its bounds. A toast fading out keeps its slot, and so its place in the envelope, until it has finished, so the others do not jump mid-fade; the stack closes up once it leaves.
 - A dialog whose content is taller than the viewport is clipped, not scrolled: put a ScrollContainer (#105) in the content.
-- The Dialog draws its own panel rather than composing R12.19's Panel, which is being rewritten in #105 concurrently; once that lands the header can be shared.
+- The Dialog first drew its own panel, since #105 was rewriting Panel at the same time. DDB-221 moved it onto R12.19's Panel: a flush `raised` panel with the `shadow_pop` style shadow, the kicker and title in the panel's header, and the X in its `actions`, so a dialog's header and a panel's cannot drift. The one thing the panel has no slot for, the hairline over the footer, is a small `DialogPanel` subclass's render. The dialog's title is now the panel's `fs_md` rather than `fs_lg`.
 
 ## Gallery
 

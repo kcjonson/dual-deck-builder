@@ -2,11 +2,17 @@ import { Clock } from '../animation/Clock';
 import { Container } from '../components/Container';
 import type { MountContext } from '../components/MountContext';
 import { createTestContext } from '../components/testing';
+import type { DrawApi } from '../draw/DrawApi';
+import type { DrawRectOptions } from '../draw/commands';
 import { NO_MODIFIERS } from '../input/events';
 import { advance, click, key, pointer, send } from '../services/testing';
 import { tokens } from '../theme/tokens';
 import { Button } from './Button';
 import { DIALOG_ENTRANCE_SCALE, DIALOG_WIDTHS, Dialog, DialogOptions } from './Dialog';
+import { Panel } from './Panel';
+import { Select } from './Select';
+import { shadowExtent } from '../style/look';
+import { resolveShadow } from '../style/styleObject';
 
 /**
  * R12.21's dialog on the overlay service, driven through the dispatcher's
@@ -257,10 +263,17 @@ describe('Dialog layout and focus (R12.21, R9.20)', () => {
 		expect(panel.screenBounds.y + panel.height / 2).toBeCloseTo(350);
 	});
 
-	it('clips the content to the content rect', () => {
+	it('clips the content inside the panel\'s border, leaving a control on the body\'s edge room for its ring', () => {
 		const { dialog, field } = build();
 		openFully(dialog);
-		expect(field.parent?.clipsChildren).toBe(true);
+		const panel = dialog.surface;
+		expect(panel.clipsChildren).toBe(true);
+		const clip = panel.clipRect;
+		const fieldLeft = field.screenBounds.x - panel.screenBounds.x;
+		const ringReach = tokens.control.focus_ring_offset + tokens.control.focus_ring_width;
+		expect(clip.x).toBeGreaterThan(0);
+		expect(fieldLeft - ringReach).toBeGreaterThanOrEqual(clip.x);
+		expect(clip.x + clip.width).toBeLessThan(panel.width);
 	});
 
 	it('focuses the first focusable in the content, or the one it was told to', () => {
@@ -375,5 +388,86 @@ describe('Dialog layout and focus (R12.21, R9.20)', () => {
 		const panel = dialog.surface.screenBounds;
 		click(context, panel.x + panel.width / 2, panel.y + panel.height / 2);
 		expect(dialog.state).not.toBe('closing');
+	});
+});
+
+describe('Dialog surface on Panel (R12.19, R12.21)', () => {
+	function rectsOf(panel: Panel): DrawRectOptions[] {
+		const rects: DrawRectOptions[] = [];
+		panel.render({ drawRect: (rect: DrawRectOptions) => rects.push(rect) } as unknown as DrawApi);
+		return rects;
+	}
+
+	it('is a raised panel with the pop shadow, the kicker and title in its header, and the X in its actions', () => {
+		const { dialog } = build();
+		openFully(dialog);
+		const panel = dialog.surface as Panel;
+		expect(panel).toBeInstanceOf(Panel);
+		expect(panel.variant).toBe('raised');
+		expect(panel.title).toBe('Abandon run?');
+		expect(panel.kicker).toBe('Confirm');
+		expect(panel.actions).toEqual([dialog.closeControl]);
+		const close = dialog.closeControl;
+		expect(close.y + close.height).toBeLessThanOrEqual(panel.header);
+		expect(close.x + close.width).toBeLessThanOrEqual(panel.width);
+		const box = rectsOf(panel)[0];
+		expect(box.shadow).toEqual(resolveShadow('shadow_pop'));
+		expect(panel.inkExtent).toBe(shadowExtent(resolveShadow('shadow_pop')));
+
+		dialog.title = 'Scrap it?';
+		expect(dialog.title).toBe('Scrap it?');
+		expect(panel.title).toBe('Scrap it?');
+	});
+
+	it('insets the body by the edge below the header, and draws a hairline over the footer only when it has actions', () => {
+		const { dialog, field, cancel, confirm } = build();
+		openFully(dialog);
+		const panel = dialog.surface as Panel;
+		const edge = tokens.space.space_4;
+		expect(field.screenBounds.x - panel.screenBounds.x).toBe(edge);
+		expect(field.screenBounds.y - panel.screenBounds.y).toBe(panel.header + edge);
+		expect(panel.screenBounds.x + panel.width - confirm.screenBounds.x - confirm.width).toBe(edge);
+		const hairlines = rectsOf(panel).filter((rect) => rect.fill === tokens.color.line_hairline);
+		expect(hairlines.map((rect) => rect.rect.y)).toEqual([panel.header - tokens.borderWidth.bw_hair, cancel.parent?.y]);
+
+		const bare = new Dialog({ id: 'bare', title: 'Notice', content: new Button('Ok', { id: 'ok', width: 80 }) });
+		bare.show(context);
+		advance(context, OPEN_MS);
+		expect(rectsOf(bare.surface as Panel).filter((rect) => rect.fill === tokens.color.line_hairline)).toHaveLength(1);
+	});
+});
+
+describe('Dialog with a Select inside (R9.20, R12.12)', () => {
+	it('closes the Select first on Escape, keeping focus and its ring there, then the dialog, then gives focus back', () => {
+		sceneButton.focusable = true;
+		context.focus.focus(sceneButton, 'keyboard');
+		const select = new Select({ id: 'dialog_select', options: [{ label: 'Hauler', value: 'hauler' }, { label: 'Runner', value: 'runner' }] });
+		const dialog = new Dialog({ title: 'Pick a vehicle', content: select, initialFocus: select });
+		openFully(dialog);
+		expect(context.focus.focused).toBe(select);
+
+		send(context, [key('ArrowDown')]);
+		expect(select.openMenu).not.toBeNull();
+		send(context, [key('Escape')]);
+		expect(select.openMenu).toBeNull();
+		expect(dialog.state).toBe('open');
+		expect(context.focus.focused).toBe(select);
+		expect(select.focusVisible).toBe(true);
+
+		const pressedOpen = select.screenBounds;
+		click(context, pressedOpen.x + 10, pressedOpen.y + pressedOpen.height / 2);
+		expect(select.openMenu).not.toBeNull();
+		expect(select.focusVisible).toBe(false);
+		send(context, [key('Escape')]);
+		expect(select.openMenu).toBeNull();
+		expect(select.focusVisible).toBe(true);
+
+		send(context, [key('Tab')]);
+		expect([dialog.closeControl, select]).toContain(context.focus.focused);
+		send(context, [key('Escape')]);
+		advance(context, CLOSE_MS);
+		expect(dialog.state).toBe('closed');
+		expect(context.focus.focused).toBe(sceneButton);
+		expect(sceneButton.focusVisible).toBe(true);
 	});
 });

@@ -1,16 +1,14 @@
 import type { TweenHandle } from '../animation/Animator';
 import type { Ease } from '../animation/easing';
-import { Component, PointerEvents, ResolvedColors } from '../components/Component';
+import { Component, ResolvedColors } from '../components/Component';
 import type { MountContext } from '../components/MountContext';
-import { Stack, StackOptions } from '../components/Stack';
-import { Text } from '../components/Text';
+import { Stack } from '../components/Stack';
 import type { DrawApi } from '../draw/DrawApi';
 import type { RGBA } from '../draw/geometry';
 import type { OverlayDismissReason, OverlayHandle } from '../services/OverlayService';
-import { shadowExtent } from '../style/look';
 import { tokens } from '../theme/tokens';
 import { Button } from './Button';
-import { SHADOW_POP, rgba } from './surfaces';
+import { Panel, PanelOptions } from './Panel';
 
 export type DialogSize = 'sm' | 'md' | 'lg';
 
@@ -54,53 +52,36 @@ export interface DialogOptions {
 }
 
 const { color } = tokens;
+/** The body's gap above the footer, or above the panel's edge without one. */
 const EDGE = tokens.space.space_4;
-const HEADER_PADDING = { top: tokens.space.space_3, right: tokens.space.space_3, bottom: tokens.space.space_3, left: EDGE };
-const FOOTER_PADDING = { top: tokens.space.space_3, right: EDGE, bottom: tokens.space.space_3, left: EDGE };
+const FOOTER_INSET = tokens.space.space_3;
 const CLOSE_SIZE = tokens.control.control_h_sm;
 
 /**
- * The dialog's surface: the popped panel with a hairline under the header
- * and over the footer. A column stack of three parts: header, body, footer.
+ * The dialog's surface: R12.19's raised panel with the pop shadow, whose
+ * header carries the kicker, the title, and the X in its actions, plus the
+ * one thing a panel has no slot for, a hairline over the footer, which
+ * runs border to border while the footer's actions keep the panel's inset.
+ * It clips its children inside its border, so the body's content is clipped
+ * to the panel's content area.
  */
-class DialogPanel extends Stack {
-	public header: Component | null = null;
+class DialogPanel extends Panel {
 	public footer: Component | null = null;
 
-	constructor(options: StackOptions) {
+	constructor(options: PanelOptions) {
 		super(options);
 		this.componentType = 'DialogPanel';
 	}
 
-	protected get defaultPointerEvents(): PointerEvents {
-		return 'auto';
-	}
-
-	public get resolvedColors(): ResolvedColors {
-		return { fill: color.bg_panel_raised, border: color.line_edge };
-	}
-
-	public get inkExtent(): number {
-		return shadowExtent(SHADOW_POP);
-	}
-
 	public render(draw: DrawApi): void {
 		if (this.width <= 0 || this.height <= 0) return;
+		super.render(draw);
+		if (!this.footer?.visible) return;
+		const border = tokens.borderWidth.bw;
 		draw.drawRect({
-			id: this.id ?? undefined,
-			rect: { x: 0, y: 0, width: this.width, height: this.height },
-			fill: color.bg_panel_raised,
-			radius: tokens.radius.radius_panel,
-			border: { color: color.line_edge, width: tokens.borderWidth.bw },
-			shadow: SHADOW_POP,
+			rect: { x: border, y: this.footer.y, width: this.width - border * 2, height: tokens.borderWidth.bw_hair },
+			fill: color.line_hairline,
 		});
-		const hairline = tokens.borderWidth.bw_hair;
-		if (this.header) {
-			draw.drawRect({ rect: { x: 0, y: this.header.y + this.header.height - hairline, width: this.width, height: hairline }, fill: color.line_hairline });
-		}
-		if (this.footer?.visible) {
-			draw.drawRect({ rect: { x: 0, y: this.footer.y, width: this.width, height: hairline }, fill: color.line_hairline });
-		}
 	}
 }
 
@@ -128,8 +109,6 @@ export class Dialog extends Component {
 	public onClose: (() => void) | null = null;
 
 	private readonly panel: DialogPanel;
-	private readonly kickerText: Text | null;
-	private readonly titleText: Text;
 	private readonly closeButton: Button;
 	private readonly body: Stack;
 	private readonly footerRow: Stack;
@@ -165,44 +144,6 @@ export class Dialog extends Component {
 		this.initialFocus = initialFocus ?? null;
 		if (onClose) this.onClose = onClose;
 
-		this.panel = new DialogPanel({
-			id: `${id}_panel`,
-			width: DIALOG_WIDTHS[size],
-			direction: 'vertical',
-			crossAlign: 'stretch',
-			anchor: 'center',
-		});
-
-		const heading = new Stack({ id: `${id}_heading`, direction: 'vertical', gap: tokens.space.space_0_5, widthMode: 'fill' });
-		this.kickerText = kicker !== undefined
-			? new Text(kicker, {
-				id: `${id}_kicker`,
-				style: {
-					fontRole: 'mono',
-					fontSize: tokens.fontSize.fs_xs,
-					color: rgba(color.accent),
-					textTransform: 'uppercase',
-					letterSpacing: tokens.letterSpacing.ls_wide,
-				},
-				wrap: 'none',
-				textOverflow: 'ellipsis',
-			})
-			: null;
-		this.titleText = new Text(title, {
-			id: `${id}_title`,
-			style: {
-				fontRole: 'display',
-				fontSize: tokens.fontSize.fs_lg,
-				color: rgba(color.text_bright),
-				textTransform: 'uppercase',
-				letterSpacing: tokens.letterSpacing.ls_wide,
-			},
-			wrap: 'none',
-			textOverflow: 'ellipsis',
-		});
-		if (this.kickerText) heading.addPart(this.kickerText);
-		heading.addPart(this.titleText);
-
 		this.closeButton = new Button('Close', {
 			id: `${id}_close`,
 			icon: 'close',
@@ -213,17 +154,33 @@ export class Dialog extends Component {
 			onClick: () => this.close(),
 		});
 
-		const header = new Stack({
-			id: `${id}_header`,
-			direction: 'horizontal',
-			gap: tokens.space.space_3,
-			crossAlign: 'center',
-			padding: HEADER_PADDING,
+		this.panel = new DialogPanel({
+			id: `${id}_panel`,
+			title,
+			kicker,
+			variant: 'raised',
+			// No content inset at the foot: the body or footer pads it, so the
+			// footer's hairline can sit a full footer's height above the edge.
+			style: { shadow: 'shadow_pop', padding: { bottom: 0 } },
+			actions: [this.closeButton],
+			width: DIALOG_WIDTHS[size],
+			direction: 'vertical',
+			crossAlign: 'stretch',
+			anchor: 'center',
+			// The content is clipped inside the border, as a padded panel does,
+			// rather than at the body's box, so a control on the body's edge
+			// keeps its focus ring and glow.
+			overflow: 'hidden',
 		});
-		header.addPart(heading);
-		header.addPart(this.closeButton);
+		// The panel keeps its border and radius clear even at a zero bottom inset.
+		const foot = this.panel.contentInset.bottom;
+		const hasFooter = footer.length > 0;
 
-		this.body = new Stack({ id: `${id}_body`, direction: 'vertical', padding: EDGE, overflow: 'hidden' });
+		this.body = new Stack({
+			id: `${id}_body`,
+			direction: 'vertical',
+			padding: { top: 0, right: 0, bottom: hasFooter ? EDGE : EDGE - foot, left: 0 },
+		});
 		if (content) this.body.addChild(content);
 
 		this.footerRow = new Stack({
@@ -232,16 +189,14 @@ export class Dialog extends Component {
 			distribution: 'end',
 			crossAlign: 'center',
 			gap: tokens.space.space_2,
-			padding: FOOTER_PADDING,
-			visible: footer.length > 0,
+			padding: { top: FOOTER_INSET, right: 0, bottom: FOOTER_INSET - foot, left: 0 },
+			visible: hasFooter,
 		});
 		for (const action of footer) this.footerRow.addChild(action);
 
-		this.panel.header = header;
 		this.panel.footer = this.footerRow;
-		this.panel.addPart(header);
-		this.panel.addPart(this.body);
-		this.panel.addPart(this.footerRow);
+		this.panel.addChild(this.body);
+		this.panel.addChild(this.footerRow);
 		this.addPart(this.panel);
 		this.applyProgress(0);
 	}
@@ -271,11 +226,11 @@ export class Dialog extends Component {
 	}
 
 	public get title(): string {
-		return this.titleText.getText();
+		return this.panel.title ?? '';
 	}
 
 	public set title(title: string) {
-		this.titleText.setText(title);
+		this.panel.title = title;
 	}
 
 	public get resolvedColors(): ResolvedColors | null {
@@ -387,3 +342,4 @@ export class Dialog extends Component {
 		};
 	}
 }
+
