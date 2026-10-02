@@ -18,7 +18,7 @@ About a hundred tests assert the record's exact wording, the AI evaluator and th
 
 Option 3.
 
-- `BattleMessage.line` is the player's line when it differs from `message`. Producers build the line first and append the record's detail to it, so the two can't drift: `damage_dealt`, heals, armor, shield, statuses with a speed change, adrenaline gains, card plays, deaths, seat changes, draws, burned cards, and escort dividends.
+- `BattleMessage.line` is the player's line when it differs from `message`, and both come from one sentence so they can't drift. Where only the record's before-and-after numbers differ (vehicle damage, repairs, armor, shield, statuses with a speed change, the caster's adrenaline), the producer builds the line and appends the detail. Where a driver is named, `Battle.logAbout` takes the sentence as a function of the name and says it twice, with the seat tag for the record and the plain name for the line: card plays, driver damage and heals, adrenaline grants, deaths, seat changes, draws, burned cards, and escort dividends. The one exception is a raider's card play, whose record names the enemy driver by seat and whose line names the raider's vehicle, since that's what the road shows.
 - A new `debug` type marks the team status and hand dumps. They stay in `getMessages()`.
 - `CombatLog.addBattleMessage` maps each message type to a log type or to nothing. Nothing for `debug`, `battle_start` (the screen names the matchup), `turn_start` and `turn_end` (the screen logs "Your turn" and "The raiders' turn" once each), and `adrenaline_remaining` (End Turn warns before it happens).
 - The turn is the one prefix, drawn in the drawer as a mono tag beside the wrapping text. Entries no longer carry a driver; the line names whoever acted, by driver name for your plays and by vehicle name for a raider's, since the vehicle is what the road shows.
@@ -27,6 +27,6 @@ Option 3.
 ## Consequences
 
 - A new Battle message that has seat tags or stat dumps needs a `line`, or the player sees the record. The CombatLog test plays a turn and fails on any line with a seat tag, a stat dump, or a debug header, which catches the common cases.
-- Rejected plays ("Cannot play card: ...") still reach the log as `general` lines. They are player-facing and the screen guards most of them anyway.
+- Rejected plays ("Cannot play card: ...") still reach the log as `general` lines. They are player-facing and the screen guards most of them anyway. A play by a driver who isn't on the player's team is a caller bug and is typed `debug`.
 - The menu button draws disabled: no pause menu exists yet, and inventing one was out of scope. It was filed as DDB-264. The wave group shows wave 1 of 1 until reinforcement waves exist (Combat Rules: "once there is one").
 - F6 stays as an undocumented alias for L, for playtesters who learned it before the top bar had a LOG key.

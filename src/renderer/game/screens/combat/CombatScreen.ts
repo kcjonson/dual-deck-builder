@@ -963,6 +963,8 @@ export class CombatScreen extends Screen {
 		this.applyLayout();
 		this.setupInteractions();
 		this.setupModelListeners();
+		// `openLog` mounts with the drawer open, for the log's golden and lint gate
+		if (data && typeof data === 'object' && (data as { openLog?: unknown }).openLog === true) this.combatLogLayer.openDrawer();
 
 		// Check if we have driver data
 		if (data && typeof data === 'object' && 'drivers' in data) {

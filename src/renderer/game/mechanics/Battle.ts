@@ -388,6 +388,21 @@ export class Battle extends Model<BattleData> {
 	}
 
 	/**
+	 * Log one sentence about a driver, said twice from the same words: the
+	 * record names them with their seat and adds `detail` (before-and-after
+	 * numbers), the player's line names them plainly.
+	 */
+	private logAbout({ type, driver, say, detail = '', metadata }: {
+		type: BattleMessageType;
+		driver: Driver;
+		say: (name: string) => string;
+		detail?: string;
+		metadata?: BattleMessage['metadata'];
+	}): void {
+		this.log(type, say(this.getDriverDisplayName(driver)) + detail, metadata, say(driver.metadata.name));
+	}
+
+	/**
 	 * Get all battle messages
 	 */
 	public getMessages(): readonly BattleMessage[] {
@@ -499,7 +514,7 @@ export class Battle extends Model<BattleData> {
 		// Validate the driver belongs to the player team
 		const playerDrivers = this.playerTeam.getAllDrivers();
 		if (!playerDrivers.includes(driver)) {
-			this.log('general', 'Driver does not belong to player team');
+			this.log('debug', 'Driver does not belong to player team');
 			return false;
 		}
 
@@ -511,7 +526,7 @@ export class Battle extends Model<BattleData> {
 		}
 		if (!this.validateTarget(card, driver, targetVehicle)) {
 			this.log('general', `Invalid target for card "${card.name}" (type: ${card.targetType}). Driver: ${this.getDriverDisplayName(driver)}, Target: ${targetVehicle ? targetVehicle.name : 'undefined'}`,
-				undefined, `${card.displayName} can't target ${targetVehicle ? targetVehicle.name : 'nothing'}`);
+				undefined, targetVehicle ? `${card.displayName} can't target ${targetVehicle.name}` : `${card.displayName} needs a target`);
 			return false;
 		}
 		if (targetOccupant && !(targetVehicle && [targetVehicle.driver, targetVehicle.passenger].includes(targetOccupant))) {
@@ -528,11 +543,13 @@ export class Battle extends Model<BattleData> {
 		}
 
 		// Log card play with adrenaline info
-		this.log('card_played', 
-			`${this.getDriverDisplayName(driver)} plays ${card.displayName} (Adrenaline: ${adrenalineBefore} -> ${driver.adrenaline})`,
-			{ driver: driver.metadata.name, card: card.displayName, adrenalineBefore, adrenalineAfter: driver.adrenaline },
-			`${driver.metadata.name} plays ${card.displayName}`
-		);
+		this.logAbout({
+			type: 'card_played',
+			driver,
+			say: (name) => `${name} plays ${card.displayName}`,
+			detail: ` (Adrenaline: ${adrenalineBefore} -> ${driver.adrenaline})`,
+			metadata: { driver: driver.metadata.name, card: card.displayName, adrenalineBefore, adrenalineAfter: driver.adrenaline },
+		});
 
 		this.resolvePlayedCard({ card, caster: driver, target: targetVehicle ?? null, occupant: targetOccupant ?? null, carrier });
 
@@ -1344,11 +1361,13 @@ export class Battle extends Model<BattleData> {
 				patient.heal(healValue);
 
 				const afterHP = patient.hitpoints;
-				this.log('heal_applied',
-					`${card.displayName} heals ${afterHP - beforeHP} hit points on ${this.getDriverDisplayName(patient)} (HP: ${beforeHP}/${maxHP} -> ${afterHP}/${maxHP})`,
-					{ card: card.displayName, target: patient.metadata.name, value: healValue },
-					`${card.displayName} heals ${afterHP - beforeHP} hit points on ${patient.metadata.name}`
-				);
+				this.logAbout({
+					type: 'heal_applied',
+					driver: patient,
+					say: (name) => `${card.displayName} heals ${afterHP - beforeHP} hit points on ${name}`,
+					detail: ` (HP: ${beforeHP}/${maxHP} -> ${afterHP}/${maxHP})`,
+					metadata: { card: card.displayName, target: patient.metadata.name, value: healValue },
+				});
 				break;
 			}
 
@@ -1391,11 +1410,13 @@ export class Battle extends Model<BattleData> {
 				if (!fueled) return false;
 				const before = fueled.adrenaline;
 				fueled.gainAdrenaline(typeof effect.value === 'number' ? effect.value : 0);
-				this.log('general',
-					`${card.displayName} gives ${fueled.adrenaline - before} adrenaline to ${this.getDriverDisplayName(fueled)} (Adrenaline: ${before}/${fueled.maxAdrenaline} -> ${fueled.adrenaline}/${fueled.maxAdrenaline})`,
-					{ card: card.displayName, driver: fueled.metadata.name, value: effect.value },
-					`${card.displayName} gives ${fueled.adrenaline - before} adrenaline to ${fueled.metadata.name}`
-				);
+				this.logAbout({
+					type: 'general',
+					driver: fueled,
+					say: (name) => `${card.displayName} gives ${fueled.adrenaline - before} adrenaline to ${name}`,
+					detail: ` (Adrenaline: ${before}/${fueled.maxAdrenaline} -> ${fueled.adrenaline}/${fueled.maxAdrenaline})`,
+					metadata: { card: card.displayName, driver: fueled.metadata.name, value: effect.value },
+				});
 				break;
 			}
 
@@ -1506,9 +1527,13 @@ export class Battle extends Model<BattleData> {
 	 */
 	private handleWreck(wreck: Vehicle): void {
 		for (const { driver, seat } of this.getTeamForVehicle(wreck)?.handleVehicleDestruction(wreck) ?? []) {
-			const name = this.getDriverDisplayName(driver);
 			const event = seat ? `jumps from ${wreck.name} into ${seat.name}` : 'has no free seat and crashes out of the fight';
-			this.log('general', `${name} ${event}`, { driver: driver.metadata.name, ...(seat ? { vehicle: seat.name } : {}) }, `${driver.metadata.name} ${event}`);
+			this.logAbout({
+				type: 'general',
+				driver,
+				say: (name) => `${name} ${event}`,
+				metadata: { driver: driver.metadata.name, ...(seat ? { vehicle: seat.name } : {}) },
+			});
 		}
 	}
 
@@ -1642,11 +1667,12 @@ export class Battle extends Model<BattleData> {
 	}): void {
 		const crew = vehicle ? this.crewOf(vehicle) : null;
 		driver.takeDamage(damage);
-		this.log('damage_dealt',
-			`${card.displayName} deals ${damage} damage to ${this.getDriverDisplayName(driver)}`,
-			{ card: card.displayName, target: driver.metadata.name, value: damage },
-			`${card.displayName} deals ${damage} damage to ${driver.metadata.name}`
-		);
+		this.logAbout({
+			type: 'damage_dealt',
+			driver,
+			say: (name) => `${card.displayName} deals ${damage} damage to ${name}`,
+			metadata: { card: card.displayName, target: driver.metadata.name, value: damage },
+		});
 		if (vehicle) this.emitHit('hitLanded', vehicle, damage);
 		if (vehicle && crew) {
 			this.getTeamForVehicle(vehicle)?.handleDriverDeath(vehicle);
@@ -1668,15 +1694,19 @@ export class Battle extends Model<BattleData> {
 	private logDeaths(vehicle: Vehicle, crew: Crew): void {
 		for (const occupant of crew.living) {
 			if (!occupant.isAlive()) {
-				this.log('general', `${this.getDriverDisplayName(occupant)} is dead`, { driver: occupant.metadata.name }, `${occupant.metadata.name} is dead`);
+				this.logAbout({ type: 'general', driver: occupant, say: (name) => `${name} is dead`, metadata: { driver: occupant.metadata.name } });
 			}
 		}
 		if (!vehicle.isAlive() || vehicle.driver === crew.driver) {
 			return;
 		}
 		if (vehicle.driver) {
-			this.log('general', `${this.getDriverDisplayName(vehicle.driver)} takes the wheel of ${vehicle.name}`,
-				{ driver: vehicle.driver.metadata.name, vehicle: vehicle.name }, `${vehicle.driver.metadata.name} takes the wheel of ${vehicle.name}`);
+			this.logAbout({
+				type: 'general',
+				driver: vehicle.driver,
+				say: (name) => `${name} takes the wheel of ${vehicle.name}`,
+				metadata: { driver: vehicle.driver.metadata.name, vehicle: vehicle.name },
+			});
 		} else if (vehicle.isEscort) {
 			this.log('general', `${vehicle.name} has nobody at the wheel and carries on as an escort`, { vehicle: vehicle.name });
 		} else {
@@ -1977,11 +2007,12 @@ export class Battle extends Model<BattleData> {
 	 */
 	private drawForCard(card: Card, caster: Driver, count: number): void {
 		const result = caster.drawCards(count);
-		this.log('general',
-			`${card.displayName} draws ${count} cards for ${this.getDriverDisplayName(caster)}`,
-			{ card: card.displayName, driver: caster.metadata.name, value: count },
-			`${card.displayName} draws ${count} cards for ${caster.metadata.name}`
-		);
+		this.logAbout({
+			type: 'general',
+			driver: caster,
+			say: (name) => `${card.displayName} draws ${count} cards for ${name}`,
+			metadata: { card: card.displayName, driver: caster.metadata.name, value: count },
+		});
 		this.logBurnedCards(caster, result);
 	}
 
@@ -1992,12 +2023,12 @@ export class Battle extends Model<BattleData> {
 		if (burned.length === 0) return;
 
 		const cardNames = burned.map(card => card.displayName).join(', ');
-		const event = `hand is full, so ${cardNames} ${burned.length === 1 ? 'goes' : 'go'} straight to the discard pile`;
-		this.log('cards_burned',
-			`${this.getDriverDisplayName(driver)}'s ${event}`,
-			{ driver: driver.metadata.name, value: burned.length },
-			`${driver.metadata.name}'s ${event}`
-		);
+		this.logAbout({
+			type: 'cards_burned',
+			driver,
+			say: (name) => `${name}'s hand is full, so ${cardNames} ${burned.length === 1 ? 'goes' : 'go'} straight to the discard pile`,
+			metadata: { driver: driver.metadata.name, value: burned.length },
+		});
 	}
 
 	/**
@@ -2087,9 +2118,13 @@ export class Battle extends Model<BattleData> {
 		for (const driver of drivers.filter(candidate => candidate.isAlive())) {
 			const before = driver.hitpoints;
 			driver.heal(amount);
-			this.log('heal_applied', `${escort.name} patches up ${this.getDriverDisplayName(driver)}: +${driver.hitpoints - before} HP`,
-				{ vehicle: escort.name, driver: driver.metadata.name, value: driver.hitpoints - before },
-				`${escort.name} patches up ${driver.metadata.name}: +${driver.hitpoints - before} HP`);
+			const healed = driver.hitpoints - before;
+			this.logAbout({
+				type: 'heal_applied',
+				driver,
+				say: (name) => `${escort.name} patches up ${name}: +${healed} HP`,
+				metadata: { vehicle: escort.name, driver: driver.metadata.name, value: healed },
+			});
 		}
 	}
 

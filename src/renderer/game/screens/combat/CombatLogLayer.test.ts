@@ -159,6 +159,31 @@ describe('CombatLogLayer', () => {
 		expect(context.focus.focused).toBe(elsewhere);
 	});
 
+	it('keeps a reader who scrolled up on the same line when the full log drops one off the top', () => {
+		const { log, layer } = mounted({ maxEntries: 30 });
+		for (let index = 0; index < 30; index++) add(log, `Event ${index}`);
+		context.frame.layout();
+		const scroll = layer.scrollContainer;
+		scroll.scrollTo(200);
+		context.frame.layout();
+		const reading = lines(layer).find((line) => line.y + line.height > scroll.scrollPosition);
+		const offsetInLine = scroll.scrollPosition - (reading?.y ?? 0);
+		add(log, 'newest');
+		context.frame.layout();
+		expect(lines(layer)[0].text).toBe('Event 1');
+		expect(reading?.isMounted).toBe(true);
+		expect(scroll.scrollPosition - (reading?.y ?? 0)).toBeCloseTo(offsetInLine, 5);
+	});
+
+	it('leaves no focus on the hidden drawer when there was none to give back', () => {
+		const { layer } = mounted({ open: false });
+		expect(context.focus.focused).toBeNull();
+		layer.openDrawer();
+		expect(context.focus.focused).toBe(layer.scrollContainer);
+		layer.closeDrawer();
+		expect(context.focus.focused).toBeNull();
+	});
+
 	it('asks for a new place when the focus it would restore has gone', () => {
 		const log = new CombatLog();
 		const onFocusLost = jest.fn();

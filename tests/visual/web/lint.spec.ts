@@ -157,6 +157,37 @@ test.describe('gallery layout lint', () => {
 	}
 });
 
+/**
+ * The scenes that lay out to the window's width, again at the short gate
+ * size, as the screens are: the combat log scene's top bar and drawer
+ * (DDB-140).
+ */
+test.describe('gallery layout lint at the short viewport', () => {
+	for (const scenario of LINT_SCENARIOS.filter((entry) => entry.lintShort)) {
+		const name = `${scenario.scene}-${SHORT_VIEWPORT.width}x${SHORT_VIEWPORT.height}`;
+		test(name, async ({ page }, testInfo) => {
+			await page.setViewportSize(SHORT_VIEWPORT);
+			await prepare(page);
+			await openScene(page, scenario.scene, SHORT_VIEWPORT);
+
+			const result = await page.evaluate(
+				() => (window as unknown as DevSurface).__ui.lint(),
+			);
+			if (result.count > 0) {
+				await testInfo.attach('lint.json', {
+					body: JSON.stringify(result, null, '\t'),
+					contentType: 'application/json',
+				});
+				await attachTree(page, testInfo);
+			}
+
+			const measured = result.rules.find((rule) => rule.rule === 'outside-viewport');
+			expect(measured?.evaluated ?? 0, `gallery scene "${name}" linted an empty tree`).toBeGreaterThan(MIN_NODES);
+			expect(result.count, formatResult(`gallery scene "${name}"`, result)).toBe(0);
+		});
+	}
+});
+
 test.describe('screen layout lint', () => {
 	for (const scenario of SCREEN_SCENARIOS) {
 		const screen = scenario.name;

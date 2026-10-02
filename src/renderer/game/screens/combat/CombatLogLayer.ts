@@ -14,9 +14,14 @@ const DRAWER_BACKGROUND = hexRgba('#0c0d0e', 0.96);
 const LINE_COLOR = hexRgba('#d5d0c3');
 /** Section 8: log lines are 13 and wrap, on the mock's 18 px leading (a multiple of the size). */
 const LINE_FONT_SIZE = 13;
-const LINE_HEIGHT = 18 / LINE_FONT_SIZE;
+const LINE_HEIGHT_PX = 18;
+const LINE_HEIGHT = LINE_HEIGHT_PX / LINE_FONT_SIZE;
+const TAG_FONT_SIZE = 11;
+const TAG_COLOR = rgba('text_faint');
 const LINE_GAP = 8;
 const LINE_RULE_GAP = 6;
+/** The rule under each line. */
+const RULE_COLOR = rgba('line_hairline');
 /** The turn tag's column, wide enough for "T99". */
 const TURN_TAG_WIDTH = 30;
 
@@ -25,14 +30,21 @@ const TURN_TAG_WIDTH = 30;
  * text, wrapping beside it, over a hairline rule.
  */
 export class LogLine extends Stack {
+	/** The rule's rect, kept and moved rather than built each frame. */
+	private readonly rule = { x: 0, y: 0, width: 0, height: 1 };
+
+	public readonly entryId: string;
+
 	constructor({ entry, ...options }: StackOptions & { entry: CombatLogEntry }) {
 		super({ direction: 'horizontal', padding: { bottom: LINE_RULE_GAP }, ...options });
+		this.entryId = entry.id;
 		this.addChild(new Text({
 			text: entry.turn === undefined ? '' : `T${entry.turn}`,
 			width: TURN_TAG_WIDTH,
-			style: { fontRole: 'mono', fontSize: 11, color: rgba('text_faint') },
-			// Sits on the first line's baseline band rather than the row's top
-			margin: { top: 3 },
+			style: { fontRole: 'mono', fontSize: TAG_FONT_SIZE, color: TAG_COLOR },
+			// The text's 18 px line box, so the tag sits in the first line's band
+			lineHeight: LINE_HEIGHT_PX / TAG_FONT_SIZE,
+			verticalAlign: 'middle',
 			wrap: 'none',
 		}));
 		this.addChild(new Text({
@@ -50,7 +62,9 @@ export class LogLine extends Stack {
 	public render(draw: DrawApi): void {
 		super.render(draw);
 		if (this.width <= 0 || this.height <= 0) return;
-		draw.drawRect({ id: this.id ?? undefined, rect: { x: 0, y: this.height - 1, width: this.width, height: 1 }, fill: rgba('line_hairline') });
+		this.rule.y = this.height - 1;
+		this.rule.width = this.width;
+		draw.drawRect({ id: this.id ?? undefined, rect: this.rule, fill: RULE_COLOR });
 	}
 }
 
@@ -122,7 +136,8 @@ export class CombatLogLayer extends ChromeStack {
 		this.visible = true;
 		const focus = this.context?.focus;
 		if (!focus) return;
-		this.focusBeforeOpen = focus.focused;
+		const focused = focus.focused;
+		this.focusBeforeOpen = focused && !this.isInclusiveAncestorOf(focused) ? focused : null;
 		focus.focus(this.scroller);
 	}
 
@@ -136,8 +151,9 @@ export class CombatLogLayer extends ChromeStack {
 		this.visible = false;
 		if (!focus || !focusInside) return;
 		if (restore?.canReceiveFocus()) focus.focus(restore);
-		else if (this.onFocusLost) this.onFocusLost();
-		else focus.blur();
+		else this.onFocusLost?.();
+		// Nothing took it, so it doesn't stay on a hidden drawer
+		if (focus.focused && this.isInclusiveAncestorOf(focus.focused)) focus.blur();
 	}
 
 	public toggle(): void {
@@ -184,11 +200,18 @@ export class CombatLogLayer extends ChromeStack {
 	 */
 	private syncEntries(): void {
 		const following = this.scroller.atBottom;
+		// A reader scrolled up keeps their place when the buffer drops lines off the top
+		const kept = new Set(this.combatLog.entries.map((entry) => entry.id));
+		let dropped = 0;
+		for (const line of this.entryList.children as LogLine[]) {
+			if (!kept.has(line.entryId)) dropped += line.height + LINE_GAP;
+		}
 		this.entryList.reconcileChildren(this.combatLog.entries, {
 			key: (entry) => entry.id,
 			create: (entry) => new LogLine({ entry, crossAlign: 'start' }),
 		});
 		if (following) this.scroller.scrollToBottom();
+		else if (dropped > 0) this.scroller.scrollTo(this.scroller.scrollPosition - dropped);
 	}
 }
 

@@ -6,6 +6,7 @@ import { Container } from '../../../engine/components/Container';
 import type { Text } from '../../../engine/components/Text';
 import { createTestContext } from '../../../engine/components/testing';
 import { createMeasuringDrawApi } from '../../../engine/text/testing';
+import { tokens } from '../../../engine/theme/tokens';
 import { CombatLog } from '../../mechanics/CombatLog';
 import { TopBarLayer } from './TopBarLayer';
 
@@ -38,6 +39,11 @@ describe('TopBarLayer', () => {
 		const { bar } = mounted();
 		expect(bar.menu.enabled).toBe(false);
 		expect(bar.menu.canReceiveFocus()).toBe(false);
+		// Its edge drops to a hairline, where the live LOG key keeps its edge
+		const log = bar.findById('combat_log_toggle');
+		expect(bar.menu.resolvedColors?.border).toEqual(tokens.color.line_hairline);
+		expect(log?.resolvedColors?.border).toEqual(tokens.color.line_edge);
+		expect(bar.menu.tooltip).not.toBeNull();
 	});
 
 	it('tickers the newest log line', () => {
