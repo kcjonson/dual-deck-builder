@@ -6,6 +6,15 @@ This document contains the chronological log of completed development tasks for 
 
 **Date correction (2026-08-22):** the repo's first commit is 2025-05-17, but many entries below carry dates in December 2024 or January 2025 — the AI that wrote them used its assumed date instead of the real one. Entries dated 2025-07-03 and 2025-07-02 have been corrected from "2025-01-03"/"2025-01-02" (verified against git history). Remaining Dec 2024 / Jan 2025 dates are wrong by roughly six months; the real work happened May–July 2025. Trust git history over these dates.
 
+## Conformance re-score against chapter 14 (2026-10-02)
+
+**What landed:** DDB-93 (DDB-55), docs only.
+
+- Re-scored the sibling engine column of `docs/ui-rendering-spec/14-testing-and-conformance.md` section 14.4 against `517400c`, every cell citing the test that shows it. Before: 4 yes, 31 partial, 62 no, 3 not applicable. After: 85 yes, 15 partial; a recorded departure scores partial until the spec text allows it.
+- Added a sibling engine column to section 14.7: unit, behaviour, and pixel layers yes; the lint-zero gate and the goldens partial (not required checks); perf comparison no.
+- Filed the gaps as DDB-242 to DDB-255 under DDB-55, and pointed the chapter 15 card fetch at the existing DDB-52.
+- Corrected the input dispatcher record and the implementation spec: roots are hit-tested in paint order, not mount order.
+- Ticked phase 7's re-score checkbox in the implementation spec with the counts and task keys.
 ## Popover and tooltip clip at the border, menu rows inside it (2026-10-02)
 
 **What landed:** DDB-240 (DDB-55).
