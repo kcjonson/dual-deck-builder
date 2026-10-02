@@ -149,8 +149,13 @@ export class ScreenTransition extends Component {
 		} finally {
 			this.swapping = false;
 		}
+		if (!this.handle) {
+			// Closed from inside the swap: already idle, every run settled.
+			this.failure = null;
+			return;
+		}
 		if (this.failure) {
-			this.handle?.close();
+			this.handle.close();
 			return;
 		}
 		this.phaseValue = 'in';

@@ -25,12 +25,14 @@ export abstract class Screen {
 	/**
 	 * Create a new screen
 	 * @param id Screen identifier
+	 * @param options.root The screen's own root; a fill root stack is sized by the frame (R8.21)
 	 */
 	constructor(id: string, { root }: ScreenOptions = {}) {
 		this.id = id;
-		// Zero-sized until mount sizes it from the viewport (R8.21): nothing
-		// in a screen reads the window, and anything placed from the root's
-		// size is placed in onMount and onResized.
+		// Zero-sized until mount: the default container is sized from the
+		// viewport by `mount` and `resize`, so anything placed from its size is
+		// placed in onMount and onResized; a fill root stack is sized by the
+		// frame's layout instead. Nothing in a screen reads the window.
 		this.rootLayer = root ?? new Container({ id });
 	}
 

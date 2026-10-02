@@ -10,6 +10,7 @@ import { createTestContext } from '../../engine/components/testing';
 import { advance, key, send } from '../../engine/services/testing';
 import { tokens } from '../../engine/theme/tokens';
 import type { BattleResultData } from '../screens/battleResult/BattleResultScreen';
+import { MainMenuScreen } from '../screens/main-menu/MainMenuScreen';
 
 /** R8.22 and R12.38 through the game's scene manager. */
 
@@ -93,6 +94,24 @@ describe('ScreenManager.navigate', () => {
 		expect(ScreenManager.transitioning).toBe(false);
 		advance(context, FADE_MS * 2);
 		expect(ScreenManager.getCurrentScreenName()).toBe('splashScreen');
+	});
+
+	it('queues an immediate navigate from inside a swap behind it, and ends idle', () => {
+		ScreenManager.navigate('battleResultScreen', VICTORY, { immediate: true });
+		const prototype = MainMenuScreen.prototype as unknown as { onMount: () => void };
+		const onMount = prototype.onMount;
+		const redirect = jest.spyOn(prototype, 'onMount').mockImplementationOnce(function (this: MainMenuScreen) {
+			onMount.call(this);
+			ScreenManager.navigate('splashScreen', undefined, { immediate: true });
+		});
+		ScreenManager.navigate('mainMenuScreen');
+		advance(context, FADE_MS);
+		expect(ScreenManager.getCurrentScreenName()).toBe('splashScreen');
+		expect(ScreenManager.transitioning).toBe(true);
+		advance(context, FADE_MS);
+		expect(ScreenManager.transitioning).toBe(false);
+		expect(context.overlays.roots).toHaveLength(0);
+		redirect.mockRestore();
 	});
 
 	it('runs the whole transition at once under reduced motion', () => {

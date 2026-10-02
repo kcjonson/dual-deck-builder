@@ -17,6 +17,7 @@ This document contains the chronological log of completed development tasks for 
 - `ScreenManager.navigate` runs through one `ScreenTransition`; `{ immediate: true }` is the boot and the dev `__app.navigate` hook. `ScreenManager.transitioning` gates `Game`'s document key listener (F12, Escape) while a transition runs.
 
 **How:** `ScreenManager.test.ts` (fade, swap, focus handed over after the transition, a double press swapping once, keys blocked under the fade, immediate ending a transition, reduced motion), `MainMenuScreen.test.ts`, `BattleResultScreen.test.ts`, the splash suite rewritten, and the combat teardown suite settling the transition. Played splash, menu, driver selection, Escape back, a won fight, result, and menu again through `window.__dev.input` in headless Chromium at 1024x600, 1280x720, 1920x1080, and 1280x720 with reduced motion: lint zero on all three screens, focus on the primary action after every transition, no console errors. Details in [screen-transitions-and-root-stacks.md](./AI_TECHNICAL_DECISIONS/screen-transitions-and-root-stacks.md).
+
 ## Catalog Wave B, slider, tabs, and segments (2026-10-01)
 
 **What landed:** DDB-86's third PR (DDB-55 phase 5), R12.15 to R12.17. Built on 2026-09-28 before #110, merged up to main and moved onto its API.

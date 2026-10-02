@@ -31,7 +31,8 @@ export interface NavigateOptions {
 	/**
 	 * Swap at once with no fade, ending any transition under way. For the
 	 * screen the game boots into and the dev navigate hook, which a capture
-	 * drives while paused, when nothing ticks a fade.
+	 * drives while paused, when nothing ticks a fade. Asked for from inside a
+	 * swap, it queues behind that swap as an ordinary navigate.
 	 */
 	immediate?: boolean;
 }
@@ -46,6 +47,8 @@ export class ScreenManager {
 	private static currentScreen: Screen | null = null;
 	private static context: MountContext | null = null;
 	private static transition: ScreenTransition | null = null;
+	/** A swap is unmounting or mounting a screen. */
+	private static swapping = false;
 	
 	/**
 	 * Map of screen names to their constructors
@@ -91,7 +94,10 @@ export class ScreenManager {
 		if (!context || !transition) {
 			throw new Error('ScreenManager not initialized. Call ScreenManager.initialize() first');
 		}
-		if (immediate) {
+		// From inside a swap (a screen redirecting from its mount) an immediate
+		// swap would close the transition under the swap still running; it
+		// queues behind it instead, still covered.
+		if (immediate && !this.swapping) {
 			transition.overlay?.close();
 			this.swap(context, screenName, data);
 			return;
@@ -106,6 +112,15 @@ export class ScreenManager {
 
 	/** Unmounts the current screen and mounts a new one: the transition's swap. */
 	private static swap(context: MountContext, screenName: ScreenName, data?: unknown): void {
+		this.swapping = true;
+		try {
+			this.mountScreen(context, screenName, data);
+		} finally {
+			this.swapping = false;
+		}
+	}
+
+	private static mountScreen(context: MountContext, screenName: ScreenName, data?: unknown): void {
 		console.log(`ScreenManager: Navigating to ${screenName}`);
 		
 		// Destroy current screen completely

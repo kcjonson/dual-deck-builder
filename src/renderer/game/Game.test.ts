@@ -32,6 +32,7 @@ jest.mock('./core/ScreenManager', () => ({
 		screenNames: ['splashScreen', 'mainMenuScreen', 'developerScreen'],
 		activeScreen: null,
 		getCurrentScreenName: jest.fn(() => 'mainMenuScreen'),
+		transitioning: false,
 		update: jest.fn(),
 		render: jest.fn(),
 		resize: jest.fn(),
@@ -251,6 +252,44 @@ describe('the document keydown shortcut is gated by pause too', () => {
 		pressF12();
 
 		expect(screens.navigate).toHaveBeenCalledTimes(1);
+	});
+});
+
+describe('the document keydown shortcut while a screen transition runs (R12.38)', () => {
+	// The transition blocks input in the dispatcher; this listener is outside
+	// it, so it checks for itself. F5 is diagnostic and stays live.
+	const manager = ScreenManager as unknown as { transitioning: boolean; getCurrentScreenName: jest.Mock };
+	function press(key: string): void {
+		document.body.dispatchEvent(new KeyboardEvent('keydown', { key, bubbles: true }));
+	}
+
+	beforeEach(() => {
+		manager.getCurrentScreenName.mockReturnValue('developerScreen');
+	});
+
+	afterEach(() => {
+		manager.transitioning = false;
+		manager.getCurrentScreenName.mockReturnValue('mainMenuScreen');
+	});
+
+	it('navigates on F12 and Escape when no transition runs', () => {
+		press('F12');
+		press('Escape');
+
+		expect(screens.navigate).toHaveBeenCalledTimes(2);
+	});
+
+	it('ignores F12 and Escape while one runs, and still toggles the overlay on F5', () => {
+		manager.transitioning = true;
+		const [overlay] = (DeveloperOverlay as unknown as { instances: { shown: boolean }[] }).instances;
+		const shown = overlay.shown;
+		press('F12');
+		press('Escape');
+		press('F5');
+
+		expect(screens.navigate).not.toHaveBeenCalled();
+		expect(overlay.shown).toBe(!shown);
+		press('F5');
 	});
 });
 

@@ -15,10 +15,13 @@ import { createTestContext, injectNow } from '../../../engine/components/testing
 import { PointerAdapter } from '../../../engine/input/PointerAdapter';
 
 /**
- * The play that ends a fight navigates to the result screen, which unmounts
- * combat before the play returns. Whatever combat did after that used to
- * rebuild the hand on the detached layer, leaving live cards under the result
- * screen that played into the finished battle when clicked.
+ * The play that ends a fight navigates to the result screen through the
+ * screen transition, so combat stays mounted under the fade out and unmounts
+ * at the swap. Whatever combat did after unmounting used to rebuild the hand
+ * on the detached layer, leaving live cards under the result screen that
+ * played into the finished battle when clicked. Neither window may let a
+ * card play: under the fade the transition takes every press, after the
+ * swap the cards are gone.
  */
 
 const originalFetch = global.fetch;
@@ -72,12 +75,8 @@ function cardSpots(combat: CombatScreen): string[] {
 }
 
 /** No click where a card was reaches combat or the finished battle */
-function expectCardsGone(spots: string[]): void {
-	// The result screen arrives through the screen transition
-	context.animator.settle();
-	expect(ScreenManager.getCurrentScreenName()).toBe('battleResultScreen');
+function expectNoCardPlays(spots: string[]): void {
 	expect(cardsHitAt(spots)).toBe(0);
-
 	const chooseCard = jest.spyOn(CombatScreen.prototype as unknown as { chooseCard: () => boolean }, 'chooseCard');
 	const playCard = jest.spyOn(Battle.prototype, 'playCard');
 	spots.forEach(click);
@@ -85,6 +84,17 @@ function expectCardsGone(spots: string[]): void {
 	expect(playCard).not.toHaveBeenCalled();
 	chooseCard.mockRestore();
 	playCard.mockRestore();
+}
+
+/** Under the fade out with combat still mounted, then on the result screen */
+function expectCardsGone(spots: string[]): void {
+	expect(ScreenManager.transitioning).toBe(true);
+	expect(ScreenManager.getCurrentScreenName()).toBe('combatScreen');
+	expectNoCardPlays(spots);
+
+	context.animator.settle();
+	expect(ScreenManager.getCurrentScreenName()).toBe('battleResultScreen');
+	expectNoCardPlays(spots);
 }
 
 
