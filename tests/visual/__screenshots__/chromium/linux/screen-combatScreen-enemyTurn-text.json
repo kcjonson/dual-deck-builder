@@ -40,7 +40,7 @@
 {"path":"combatScreen/combat_stage/combat_bands/combat_dock/combat_player_hand/Stack[1]/driver2_tab/driver2_piles","text":"DRAW 6   DISCARD 5","rect":[720,711.65,145.8,17.82]},
 {"path":"combatScreen/combat_stage/combat_bands/combat_dock/combat_player_hand/Stack[1]/driver2_tab/Stack[1]/driver2_adrenaline_value","text":"5/5","rect":[877.05,710.44,20.06,20.25]},
 {"path":"combatScreen/combat_stage/combat_bands/combat_dock/combat_player_hand/Stack[1]/driver2_tab/driver2_tab_name","text":"THE INTERCEPTOR","rect":[1082.12,710.44,117.13,20.25]},
-{"path":"combatScreen/combat_stage/combat_bands/combat_dock/combat_end_turn/end_turn_turn","text":"Turn 1 · Raiders","rect":[1255.5,722.25,166.5,17.55]},
-{"path":"combatScreen/combat_stage/combat_bands/combat_dock/combat_end_turn/end_turn_button/Text[0]","text":"WAIT","rect":[1269,748.8,139.5,72]},
-{"path":"combatScreen/combat_stage/combat_fx/combat_float_player_vehicle_player_inside_center_0","text":"-15","rect":[583.86,319.5,135,40.5]}
+{"path":"combatScreen/combat_stage/combat_bands/combat_dock/combat_end_turn/end_turn_turn","text":"Turn 1 · Raiders","rect":[1255.5,654.75,166.5,17.55]},
+{"path":"combatScreen/combat_stage/combat_bands/combat_dock/combat_end_turn/end_turn_button/Text[0]","text":"WAIT","rect":[1269,681.3,139.5,72]},
+{"path":"combatScreen/combat_stage/combat_fx/combat_float_player_vehicle_player_inside_center_0","text":"-15","rect":[583.86,380.12,135,40.5]}
 ]
