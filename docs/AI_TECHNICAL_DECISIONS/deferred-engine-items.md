@@ -7,7 +7,7 @@
 
 Phase 7 of the [implementation spec](../specs/ui-rendering-engine-implementation.md) ends with a catch-all checkbox: "Deferred and optional: off-screen group opacity composite, stencil clips, the gamepad adapter (DDB-51), the UI scale setting (R7.5), instruction-list reuse (R8.19), cross-fade transitions." DDB-94's notes added IME composition (decided not now in DDB-220) and the UI scale slot in Settings, and DDB-237 (a D-pad walking past selects) waits on the gamepad adapter. The instruction was to split the checkbox when it was picked up, build only what the spec requires, and record the rest.
 
-The test for "required" is the spec's own: a MUST or SHALL that this engine's conformance depends on, which in practice means a row marked required in a chapter's conformance checklist (14.4 scores those, and section 8's first success criterion is every required row at yes), or one of section 8's other criteria. The DDB-93 re-score (#136) scored the engine against every required row and parked these items rather than counting them as gaps.
+The test for "required" is the spec's own: a MUST or SHALL that this engine's conformance depends on, which in practice means a row marked required in a chapter's conformance checklist (14.4 scores those, and section 8's first success criterion is every required row at yes), or one of section 8's other criteria. The DDB-93 re-score (#136) puts the engine at 85 yes and 15 partial of 100 required rows, and none of the fifteen partials is one of these items. The required rows these items sit next to all score yes, with the item noted as deferred: inherited opacity (3), input converted once at the dispatcher (7, "the UI scale setting is deferred"), `activate`, `cancel`, and `inputMode` (9, "the controller source is deferred"), directional focus (9, DDB-237 deferred), TextInput (12), and ScreenTransition (12). The chapter 15 backend row is partial, but for runtime card fetches (R15.34) and canvas `contextmenu` and `user-select` (R15.39, DDB-250), not for IME.
 
 ## Decision
 
@@ -66,7 +66,7 @@ R12.38 requires the fade and makes the cross-fade optional; the fade is built (D
 
 ### IME composition (R12.10, R15.39)
 
-Decided not now in DDB-220 (#127), recorded in [component-catalog-wave-b.md](./component-catalog-wave-b.md). R12.10 and R15.39 put composition out of the baseline, and R15.39's MUST (composing keydowns never reach a field) is built in `PointerAdapter`. Every text field is on the developer screen. This change adds IME composition to chapter 12's optional row so the checklist says what the rule text says. Reopen when a player-facing text field appears (a save name, a seed entry).
+Decided not now in DDB-220 (#127), recorded in [component-catalog-wave-b.md](./component-catalog-wave-b.md). R12.10 and R15.39 put composition out of the baseline, and R15.39's MUST (composing keydowns never reach a field) is built in `PointerAdapter`; chapter 14's partial on R15.39 is DDB-250's canvas handling, not composition. Every text field is on the developer screen. This change adds IME composition to chapter 12's optional row so the checklist says what the rule text says. Reopen when a player-facing text field appears (a save name, a seed entry).
 
 ## Consequences
 

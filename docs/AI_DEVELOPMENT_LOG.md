@@ -16,6 +16,15 @@ This document contains the chronological log of completed development tasks for 
 
 **How:** read R3.26, R4.15, R7.5, R8.19, R9.24, R9.27, R12.10, R12.38, R15.39, and R15.40 against the 3.13, 4.8, 7.9, 8.10, 12.10, and 15.13 checklists and the DDB-93 re-score; confirmed in code that `DrawApi` has no non-rect clip shape (R4.15's MUST) and the context has `stencil: false` (R15.2).
 
+## Conformance re-score against chapter 14 (2026-10-02)
+
+**What landed:** DDB-93 (DDB-55), docs only.
+
+- Re-scored the sibling engine column of `docs/ui-rendering-spec/14-testing-and-conformance.md` section 14.4 against `517400c`, every cell citing the test that shows it. Before: 4 yes, 31 partial, 62 no, 3 not applicable. After: 85 yes, 15 partial; a recorded departure scores partial until the spec text allows it.
+- Added a sibling engine column to section 14.7: unit, behaviour, and pixel layers yes; the lint-zero gate and the goldens partial (not required checks); perf comparison no.
+- Filed the gaps as DDB-242 to DDB-255 under DDB-55, and pointed the chapter 15 card fetch at the existing DDB-52.
+- Corrected the input dispatcher record and the implementation spec: roots are hit-tested in paint order, not mount order.
+- Ticked phase 7's re-score checkbox in the implementation spec with the counts and task keys.
 ## Popover and tooltip clip at the border, menu rows inside it (2026-10-02)
 
 **What landed:** DDB-240 (DDB-55).
