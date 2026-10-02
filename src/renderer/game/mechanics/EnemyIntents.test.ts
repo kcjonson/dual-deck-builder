@@ -589,6 +589,123 @@ describe('Enemy intents', () => {
 		});
 	});
 
+	describe('stepping the enemy turn one action at a time (DDB-112)', () => {
+		let hauler: Vehicle;
+
+		beforeEach(() => {
+			hauler = createVehicle('Hauler', 2);
+			battle = createBattle([rig, bike], [buggy, hauler]);
+			giveHand(buggy, [pointBlank(), armorUp()]);
+			giveHand(hauler, [farShot()]);
+			battle.planEnemyTurn();
+		});
+
+		test('plays each planned card on its own step, in plan order, and the player draws only after the last', () => {
+			const events: string[] = [];
+			battle.on('hitLanded', ({ vehicle }: { vehicle: Vehicle }) => events.push(`hit ${vehicle.name}`));
+			battle.on('stateChanged', () => events.push(`turn ${battle.turn}, hand ${driverOf(rig).hand.length}`));
+			battle.on('turnEnded', ({ team }: { team: string }) => events.push(`${team} turn ended`));
+			driverOf(rig).deck?.addCards(Array.from({ length: 5 }, armorUp));
+
+			battle.endPlayerTurn({ stepEnemyTurn: true });
+			expect(battle.isPlayerTurn).toBe(false);
+			expect(battle.enemyTurnInProgress).toBe(true);
+			expect(logLines(battle, 'card_played')).toEqual([]);
+			expect(events).toEqual(['player turn ended']);
+
+			const steps = [];
+			for (let step = battle.stepEnemyTurn(); step; step = battle.stepEnemyTurn()) {
+				steps.push(`${step.raider.name}: ${step.card?.name} at ${step.target?.name ?? 'nobody'}, ${step.outcome}`);
+				// Nothing is drawn while raiders still act
+				expect(driverOf(rig).hand).toEqual([]);
+				expect(battle.turn).toBe(1);
+			}
+
+			expect(steps).toEqual([
+				'Buggy: Point Blank at Rig, played',
+				'Buggy: Armor Up at nobody, played',
+				'Hauler: Far Shot at Rig, played'
+			]);
+			expect(events).toEqual(['player turn ended', 'hit Rig', 'hit Rig', 'turn 2, hand 5']);
+			expect(battle.enemyTurnInProgress).toBe(false);
+			expect(battle.isPlayerTurn).toBe(true);
+			expect(battle.stepEnemyTurn()).toBeNull();
+		});
+
+		test('lets nothing else happen while the raiders act', () => {
+			battle.endPlayerTurn({ stepEnemyTurn: true });
+			giveHand(rig, [pointBlank()]);
+
+			expect(battle.playCard({ driver: driverOf(rig), cardIndex: 0, targetVehicle: buggy })).toBe(false);
+			battle.endPlayerTurn();
+			expect(battle.enemyTurnInProgress).toBe(true);
+			expect(logLines(battle, 'card_played')).toEqual([]);
+		});
+
+		test('runs the rest of the turn at once, as endPlayerTurn does by default', () => {
+			battle.endPlayerTurn({ stepEnemyTurn: true });
+			expect(battle.stepEnemyTurn()?.card?.name).toBe('Point Blank');
+
+			battle.runEnemyTurn();
+
+			expect(battle.enemyTurnInProgress).toBe(false);
+			expect(battle.isPlayerTurn).toBe(true);
+			expect(logLines(battle, 'card_played')).toEqual([
+				expect.stringContaining('plays Point Blank'),
+				expect.stringContaining('plays Armor Up'),
+				expect.stringContaining('plays Far Shot')
+			]);
+		});
+
+		test('a raider that drops its plan is one step, with no card, and its other cards are skipped', () => {
+			giveHand(bike, [realCard('emp_blast')]);
+			expect(battle.playCard({ driver: driverOf(bike), cardIndex: 0 })).toBe(true);
+			battle.endPlayerTurn({ stepEnemyTurn: true });
+
+			expect(battle.stepEnemyTurn()).toEqual({ raider: buggy, card: null, target: null, outcome: 'dropped' });
+			expect(battle.stepEnemyTurn()).toEqual({ raider: hauler, card: null, target: null, outcome: 'dropped' });
+			expect(battle.stepEnemyTurn()).toBeNull();
+			expect(battle.isPlayerTurn).toBe(true);
+			expect(logLines(battle, 'general').filter(line => line.includes('stunned'))).toEqual([
+				'Buggy is stunned and skips its turn',
+				'Hauler is stunned and skips its turn'
+			]);
+		});
+
+		test('a card that fizzles is a step of its own, headed where it was planned', () => {
+			// Rig outruns the buggy onto the enemy shoulder, out of Point Blank's reach
+			rig = createVehicle('Rig', 5);
+			battle = createBattle([rig, createVehicle('Bike', 1)], [buggy]);
+			giveHand(buggy, [pointBlank()]);
+			battle.planEnemyTurn();
+			giveHand(rig, [flank()]);
+			expect(battle.playCard({ driver: driverOf(rig), cardIndex: 0, targetVehicle: buggy })).toBe(true);
+			battle.endPlayerTurn({ stepEnemyTurn: true });
+
+			expect(battle.stepEnemyTurn()).toEqual(expect.objectContaining({ raider: buggy, target: rig, outcome: 'fizzled' }));
+			expect(rig.structure).toBe(20);
+		});
+
+		test('ends with the battle when a step wins it for the raiders, and plays nothing after', () => {
+			const headshot = () => card('Headshot', 'enemy_single', [{ type: 'damage', value: 100, target: 'driver', always_hits: true }]);
+			battle = createBattle([rig, bike], [buggy]);
+			// The Bike's driver is already dead, so the Rig's is the last
+			driverOf(bike).set({ hitpoints: 0 });
+			battle.playerTeam.handleDriverDeath(bike);
+			giveHand(buggy, [headshot(), headshot()]);
+			battle.planEnemyTurn();
+			battle.endPlayerTurn({ stepEnemyTurn: true });
+
+			expect(battle.stepEnemyTurn()).toEqual(expect.objectContaining({ raider: buggy, target: rig, outcome: 'played' }));
+			expect(battle.battleOver).toBe(true);
+			expect(battle.battleWon).toBe(false);
+			expect(battle.enemyTurnInProgress).toBe(false);
+			expect(battle.stepEnemyTurn()).toBeNull();
+			expect(logLines(battle, 'card_played')).toHaveLength(1);
+			expect(battle.isPlayerTurn).toBe(false);
+		});
+	});
+
 	describe('a raider stunned by EMP Blast', () => {
 		let hauler: Vehicle;
 

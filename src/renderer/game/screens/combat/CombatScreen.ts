@@ -6,7 +6,8 @@ import { PlayerHandLayer } from './PlayerHandLayer';
 import { LOG_KEY, TopBarLayer } from './TopBarLayer';
 import { EndTurnColumn } from './EndTurnColumn';
 import { CombatLogLayer } from './CombatLogLayer';
-import { TurnBanner } from './TurnBanner';
+import { TURN_BANNER_LIFETIME, TurnBanner } from './TurnBanner';
+import { EnemyTurnPacer } from './EnemyTurnPacer';
 import { CombatModel } from './CombatModel';
 import {
 	DOCK_HEIGHT,
@@ -26,7 +27,7 @@ import { CombatLog, CombatLogType } from '../../mechanics/CombatLog';
 import { Vehicle, createDrivenVehicle } from '../../mechanics/Vehicle';
 import { RoadLane, RoadRow } from '../../mechanics/Road';
 import { Team, TeamType } from '../../mechanics/Team';
-import { Battle, BattleState, BattleMessage, HitEvent } from '../../mechanics/Battle';
+import { Battle, BattleState, BattleMessage, EnemyTurnStep, HitEvent } from '../../mechanics/Battle';
 import { Card } from '../../mechanics/Card';
 import { Intent, IntentType, formatIntentValue } from '../../mechanics/Intent';
 import { CardLoader } from '../../core/CardLoader';
@@ -34,6 +35,7 @@ import { DriverLoader } from '../../core/DriverLoader';
 import { BattleResultData } from '../battleResult/BattleResultScreen';
 import type { Component } from '../../../engine/components/Component';
 import type { UiPointerEvent } from '../../../engine/input/events';
+import { tokens } from '../../../engine/theme/tokens';
 
 /** Behind the stage, to the screen's edges (the mock's `.g-bg`). */
 const SCREEN_BACKGROUND: Rgba = [0.0824, 0.0863, 0.0941, 1];
@@ -60,6 +62,15 @@ const DOCK_GAP = 16;
  * rises over the tab on the raised layer.
  */
 const DOCK_PADDING = { top: 8, bottom: 5, left: 16, right: 16 };
+/**
+ * The enemy turn's pacing (DDB-112, section 6): the first raider acts as
+ * the ENEMY TURN banner starts to leave, then each action gets a beat for
+ * its number to rise before the next, and the last one's beat ends before
+ * the player's draw. Reading time on the frame clock, so reduced motion
+ * keeps it.
+ */
+export const ENEMY_TURN_LEAD_IN = TURN_BANNER_LIFETIME - tokens.motion.dur;
+export const ENEMY_ACTION_BEAT = 700;
 
 /**
  * The combat screen, laid out per Battle Screen Design section 2
@@ -75,6 +86,10 @@ export class CombatScreen extends Screen {
 	private combatLogLayer!: CombatLogLayer;
 	private turnBanner!: TurnBanner;
 	private fx!: CombatFxLayer;
+	private dock!: Stack;
+	private enemyTurnPacer: EnemyTurnPacer | null = null;
+	/** The raider whose action is on screen during the enemy turn (DDB-139 glows it), or null. */
+	private enemyActing: Vehicle | null = null;
 	
 	// Combat UI model
 	private combatModel: CombatModel;
@@ -390,9 +405,14 @@ export class CombatScreen extends Screen {
 		this.topBar.turn = battle.turn;
 		this.topBar.scrap = this.scrap;
 		this.topBar.fuel = this.fuel;
+		// The dock is locked while the raiders act (section 6); DDB-139 drops and greys it
+		// Locked too once the fight is over, through the transition out
+		const waiting = battle.enemyTurnInProgress || battle.battleOver;
+		this.dock.enabled = !waiting;
 		this.endTurnColumn.show({
 			turn: battle.turn,
 			playerTurn: battle.isPlayerTurn && !battle.battleOver,
+			waiting,
 			unspentAdrenaline: this.playerDrivers
 				.filter(driver => driver.isAlive())
 				.reduce((total, driver) => total + driver.adrenaline, 0),
@@ -404,9 +424,11 @@ export class CombatScreen extends Screen {
 		// Every raider's plan, two markers and then "+N", until the intent
 		// pills land (DDB-139)
 		if (this.enemyTeam) {
-			const intents = this.battle?.getAllIntents();
+			// While the raiders act, the plan they are playing stays up; the
+			// next one shows with the player's draw
+			const intents = waiting ? null : battle.getAllIntents();
 			this.enemyTeam.vehicles.forEach(vehicle => {
-				this.road.setVehicleIntents(vehicle.id, (intents?.get(vehicle) ?? []).map(intent => this.intentMarkerOf(intent)));
+				if (intents) this.road.setVehicleIntents(vehicle.id, (intents.get(vehicle) ?? []).map(intent => this.intentMarkerOf(intent)));
 			});
 		}
 	}
@@ -527,7 +549,7 @@ export class CombatScreen extends Screen {
 
 	/** Both drivers' tabs and hands, then the End Turn column at the stage's right end. */
 	private createDock(): Stack {
-		const dock = new ChromeStack({
+		const dock = this.dock = new ChromeStack({
 			id: 'combat_dock',
 			direction: 'horizontal',
 			gap: DOCK_GAP,
@@ -920,25 +942,53 @@ export class CombatScreen extends Screen {
 	// Removed deprecated methods - now handled by Battle system
 
 	/**
-	 * End player turn
+	 * End the player's turn. The raiders then act one at a time on the
+	 * pacer's beats (stepEnemyTurn), with the dock locked, and the player's
+	 * draw comes after the last of them.
 	 */
 	private endPlayerTurn(): void {
-		if (!this.battle) {
-			console.warn('Cannot end turn: no battle active');
-			return;
-		}
+		if (!this.battle?.isPlayerTurn || this.battle.battleOver || this.enemyTurnPacer?.running) return;
 
 		console.log('Ending player turn...');
-		
-		// End turn through the battle system. A loss on the enemy turn ends the
-		// battle, which navigates away and unmounts this screen.
-		this.battle.endPlayerTurn();
+		this.battle.endPlayerTurn({ stepEnemyTurn: true });
 		if (!this.isActive) return;
-
-		// Update UI to reflect new state
 		this.updateUIFromBattle();
+		// From when ENEMY TURN shows, which waits for a banner already up to leave
+		this.enemyTurnPacer?.start(this.turnBanner.timeToNext + ENEMY_TURN_LEAD_IN);
 	}
-	
+
+	/**
+	 * One beat of the enemy turn: the next raider action, and how long until
+	 * the one after, or null once the player's turn has begun or the battle
+	 * is over. A raider dropping the rest of its plan shows nothing, so it
+	 * takes no beat. A hit or a miss pops its own number as it resolves; a
+	 * card that fizzled pops a miss on where it was headed.
+	 */
+	private playEnemyBeat(): number | null {
+		const battle = this.battle;
+		if (!battle || !this.isActive) return null;
+		let step: EnemyTurnStep | null;
+		do {
+			step = battle.stepEnemyTurn();
+		} while (step?.outcome === 'dropped');
+		if (!this.isActive) return null;
+
+		this.enemyActing = step?.raider ?? null;
+		if (step?.outcome === 'fizzled' && step.target) this.popHitNumber({ vehicle: step.target, damage: null });
+		this.updateUIFromBattle();
+		// A loss ends the battle, which navigates away through the transition;
+		// the screen stays up, locked, under the fade and takes no more beats
+		if (battle.battleOver) return null;
+		if (step) return ENEMY_ACTION_BEAT;
+		this.restoreKeyboardFocus();
+		return null;
+	}
+
+	/** The raider acting on screen now, for the enemy turn's glow (DDB-139). */
+	public get actingRaider(): Vehicle | null {
+		return this.enemyActing;
+	}
+
 	/**
 	 * Toggle combat log visibility
 	 */
@@ -962,6 +1012,11 @@ export class CombatScreen extends Screen {
 		this.createLayers();
 		this.applyLayout();
 		this.setupInteractions();
+		this.enemyTurnPacer = new EnemyTurnPacer({
+			frame: this.context.frame,
+			clock: this.context.clock,
+			onBeat: () => this.playEnemyBeat(),
+		});
 		this.setupModelListeners();
 		// `openLog` mounts with the drawer open, for the log's golden and lint gate
 		if (data && typeof data === 'object' && (data as { openLog?: unknown }).openLog === true) this.combatLogLayer.openDrawer();
@@ -1001,6 +1056,9 @@ export class CombatScreen extends Screen {
 
 		this.dragUnsubscribe?.();
 		this.dragUnsubscribe = null;
+		this.enemyTurnPacer?.stop();
+		this.enemyTurnPacer = null;
+		this.enemyActing = null;
 
 		// Cancel any active targeting
 		if (this.combatModel.isTargeting) {

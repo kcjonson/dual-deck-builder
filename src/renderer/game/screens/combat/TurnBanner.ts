@@ -101,6 +101,14 @@ export class TurnBanner extends Component {
 		return this.showing ? LOOKS[this.showing].text : null;
 	}
 
+	/**
+	 * Frame time until the next waiting banner shows: what's left of the one
+	 * up, or 0 when nothing waits.
+	 */
+	public get timeToNext(): number {
+		return this.showing !== null && this.queue.length > 0 ? Math.max(0, this.remainingMs) : 0;
+	}
+
 	/** What will show after the banner that's up. */
 	public get pending(): readonly TurnBannerKind[] {
 		return this.queue;
