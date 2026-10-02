@@ -152,7 +152,8 @@ Waves, each landing with its gallery scene, behaviour tests, and lint zero:
 
 - [x] GPU timer with one query per pass and disjoint handling (R13.16 to R13.20), the perf capture script (required, R13.38) and comparison table (13.8), the perf overlay drawn through the renderer, DevTools tracks (R15.29) with feature detection (R15.42). GPU time is captured with vsync on, since Chromium returns timer results hundreds of frames late with the frame cap off; R15.29's `PerformanceObserver` half is a follow-up. See [gpu-timer-and-perf-capture.md](../AI_TECHNICAL_DECISIONS/gpu-timer-and-perf-capture.md).
 - [ ] Conformance re-score of chapter 14's table for this engine; remaining gaps become follow-up tasks.
-- [ ] Deferred and optional: off-screen group opacity composite, stencil clips, the gamepad adapter (DDB-51), the UI scale setting (R7.5), instruction-list reuse (R8.19), cross-fade transitions.
+- [x] Deferred and optional: off-screen group opacity composite, stencil clips, the gamepad adapter (DDB-51), the UI scale setting (R7.5), instruction-list reuse (R8.19), cross-fade transitions.
+  DDB-94. None is required for conformance or by section 8, so each is decided not now and nothing was built: group opacity (R3.26) and the cross-fade (R12.38) wait for a fade that shows the per-draw artefact and would share one off-screen target; stencil clips (R4.15) for a non-rect mask; instruction-list reuse (R8.19) for a capture that shows CPU emit over budget; the gamepad adapter (R15.40), DDB-237, and the UI scale setting (R7.5) for DDB-51's platform decision; IME composition (R12.10, R15.39) for a player-facing text field (DDB-220). R15.40 gained a level and a checklist row, R7.5 a SHOULD, 12.10's optional row IME composition. See [deferred-engine-items.md](../AI_TECHNICAL_DECISIONS/deferred-engine-items.md).
 
 ## 7. Board structure (to create when implementation starts; nothing has been created)
 

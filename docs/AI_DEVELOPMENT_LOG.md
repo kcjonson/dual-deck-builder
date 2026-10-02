@@ -6,6 +6,16 @@ This document contains the chronological log of completed development tasks for 
 
 **Date correction (2026-08-22):** the repo's first commit is 2025-05-17, but many entries below carry dates in December 2024 or January 2025 — the AI that wrote them used its assumed date instead of the real one. Entries dated 2025-07-03 and 2025-07-02 have been corrected from "2025-01-03"/"2025-01-02" (verified against git history). Remaining Dec 2024 / Jan 2025 dates are wrong by roughly six months; the real work happened May–July 2025. Trust git history over these dates.
 
+## Phase 7 deferred items classified and recorded (2026-10-02)
+
+**What landed:** DDB-94 (DDB-55), docs only.
+
+- Each item on phase 7's deferred checkbox, plus IME composition and DDB-237, checked against its rule and conformance row. None is required, so none was built and no task was filed; reasons and reopening triggers are in [deferred-engine-items.md](./AI_TECHNICAL_DECISIONS/deferred-engine-items.md).
+- Spec levels made consistent with the checklists: R15.40 (gamepad adapter) is a MAY with an optional row in 15.13, R7.5 (UI scale) is a SHOULD to match its recommended row, R9.24 says the controller-mode select question waits on the gamepad adapter, and 12.10's optional row names IME composition.
+- The phase 7 checkbox in the implementation spec is ticked.
+
+**How:** read R3.26, R4.15, R7.5, R8.19, R9.24, R9.27, R12.10, R12.38, R15.39, and R15.40 against the 3.13, 4.8, 7.9, 8.10, 12.10, and 15.13 checklists and the DDB-93 re-score; confirmed in code that `DrawApi` has no non-rect clip shape (R4.15's MUST) and the context has `stencil: false` (R15.2).
+
 ## Popover and tooltip clip at the border, menu rows inside it (2026-10-02)
 
 **What landed:** DDB-240 (DDB-55).
