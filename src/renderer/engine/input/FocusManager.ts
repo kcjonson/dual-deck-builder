@@ -95,7 +95,7 @@ export class FocusManager {
 
 	/**
 	 * The focus-visible modality (R9.23): true since the last Tab, arrow, or
-	 * activation, false since the last press. Game code reads it to decide
+	 * other navigation key at the focused component, false since the last press. Game code reads it to decide
 	 * whether to move focus for a keyboard player.
 	 */
 	public get focusVisible(): boolean {
@@ -169,8 +169,8 @@ export class FocusManager {
 	}
 
 	/**
-	 * Marks the current focus as keyboard-driven: an activation on a component
-	 * a press focused shows the ring from then on (R9.23).
+	 * Marks the current focus as keyboard-driven: a navigation key at a
+	 * component a press focused shows the ring from then on (R9.23).
 	 */
 	public showFocusVisible(): void {
 		this.visibleModality = true;

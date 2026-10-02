@@ -170,6 +170,17 @@ describe('Button', () => {
 		expect(made.focused).toBe(true);
 		expect(made.focusVisible).toBe(false);
 	});
+
+	it('shows the focus a press gave it once a navigation key reaches it, and a press hides it again (R9.23)', () => {
+		const { button: made } = button();
+		inject('click,160,120', 'keydown,Shift', 'keyup,Shift');
+		expect(made.focusVisible).toBe(false);
+		inject('keydown,Escape', 'keyup,Escape');
+		expect(made.focused).toBe(true);
+		expect(made.focusVisible).toBe(true);
+		inject('click,160,120');
+		expect(made.focusVisible).toBe(false);
+	});
 });
 
 describe('TextInput', () => {
@@ -184,6 +195,13 @@ describe('TextInput', () => {
 		inject('click,150,220', 'keydown,h', 'keydown,i', 'keydown,Backspace', 'keydown,o');
 		expect(made.focused).toBe(true);
 		expect(made.value).toBe('ho');
+	});
+
+	it('keeps a pressed field ringless while the caret keys and Escape reach it (R9.22)', () => {
+		const made = field();
+		inject('click,150,220', 'keydown,a', 'keydown,ArrowLeft', 'keydown,Home', 'keydown,Escape');
+		expect(made.focused).toBe(true);
+		expect(made.focusVisible).toBe(false);
 	});
 
 	it('ignores keys until focused', () => {
