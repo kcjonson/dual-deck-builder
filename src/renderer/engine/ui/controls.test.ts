@@ -602,13 +602,51 @@ describe('RadioGroup (R12.35)', () => {
 		expect(changes).toEqual(['brutal']);
 		expect(group.items[3].focused).toBe(true);
 		expect(group.value).toBe('brutal');
-		key('ArrowRight');
+		key('ArrowDown');
 		expect(changes).toEqual(['brutal', 'easy']);
 		key('ArrowUp');
 		expect(group.value).toBe('brutal');
 		key('Home');
 		expect(group.value).toBe('easy');
 		expect(group.items.filter((radio) => radio.checked)).toEqual([group.items[0]]);
+	});
+
+	it('leaves the arrows across its direction to directional focus (R9.24)', () => {
+		const { group, changes } = radios();
+		key('Tab');
+		key('Tab');
+		key('ArrowRight');
+		expect(group.items.some((radio) => radio.focused)).toBe(false);
+		expect(context.focus.focused).toBeInstanceOf(Button);
+		expect(group.value).toBe('normal');
+		expect(changes).toEqual([]);
+	});
+
+	it('moves along a row with Left and Right when horizontal', () => {
+		const changes: string[] = [];
+		const group = new RadioGroup({ x: 40, y: 40, direction: 'horizontal', value: 'a', options: [{ label: 'A', value: 'a' }, { label: 'B', value: 'b' }], onChange: (next) => changes.push(next) });
+		root.addChild(group);
+		context.frame.layout();
+		key('Tab');
+		key('ArrowDown');
+		expect(changes).toEqual([]);
+		key('ArrowRight');
+		expect(changes).toEqual(['b']);
+		expect(group.items[1].focused).toBe(true);
+	});
+
+	it('moves its arrows and orientation with a direction set later', () => {
+		const changes: string[] = [];
+		const group = new RadioGroup({ x: 40, y: 40, value: 'a', options: [{ label: 'A', value: 'a' }, { label: 'B', value: 'b' }], onChange: (next) => changes.push(next) });
+		root.addChild(group);
+		group.direction = 'horizontal';
+		context.frame.layout();
+		expect(group.focusGroup?.orientation).toBe('horizontal');
+		key('Tab');
+		key('ArrowDown');
+		expect(group.items[0].focused).toBe(true);
+		key('ArrowRight');
+		expect(changes).toEqual(['b']);
 	});
 
 	it('selects on a click and on Space, never deselecting, and fires only on change', () => {

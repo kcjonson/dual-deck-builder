@@ -98,4 +98,5 @@ export const SCENE_SCENARIOS: readonly SceneScenario[] = [
 	{ scene: 'popover' },
 	{ scene: 'toasts' },
 	{ scene: 'screen-transition' },
+	{ scene: 'scroll-hug' },
 ];

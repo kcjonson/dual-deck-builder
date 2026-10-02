@@ -1662,6 +1662,16 @@ export abstract class Component {
 	}
 
 	/**
+	 * R10.4's clamps for a size this component measured for itself outside a
+	 * stack, where no parent applies them: `minSize` wins over `maxSize`.
+	 */
+	protected clampToLimits(axis: Axis, value: number): number {
+		const min = this.ownMinSize[axis] ?? 0;
+		const max = this.ownMaxSize[axis] ?? Infinity;
+		return Math.max(min, Math.min(max, value));
+	}
+
+	/**
 	 * Sets this component's own size from inside its own layout (a hug stack
 	 * with no stack above it). Nothing to mark here, since this layout is the
 	 * one running; the parent is invalidated, since it may anchor this box or

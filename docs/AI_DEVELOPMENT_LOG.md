@@ -6,6 +6,20 @@ This document contains the chronological log of completed development tasks for 
 
 **Date correction (2026-08-22):** the repo's first commit is 2025-05-17, but many entries below carry dates in December 2024 or January 2025 — the AI that wrote them used its assumed date instead of the real one. Entries dated 2025-07-03 and 2025-07-02 have been corrected from "2025-01-03"/"2025-01-02" (verified against git history). Remaining Dec 2024 / Jan 2025 dates are wrong by roughly six months; the real work happened May–July 2025. Trust git history over these dates.
 
+## Arrow trapping settled, hug scrolling specified (2026-10-02)
+
+**What landed:** DDB-227, DDB-228, and DDB-233 (DDB-55), one PR.
+
+- R9.24: a control consumes the arrows along its axis and leaves the two across it to directional focus (R9.26). Along the axis they're consumed even at the ends, so a held key doesn't run off a slider or a wrapping group. R12.15, R12.17, and R12.35 follow it.
+- `SegmentedControl` drops Up and Down, matching `TabBar`. `Slider` steps on Left and Right only. `RadioGroup`'s focus-group orientation and arrows follow its stack direction (Up and Down in the default column) instead of `both`.
+- R12.20 and R10.17 describe ScrollContainer's `heightMode: 'hug'`. Outside a stack it now clamps its hug height to `minSize` and `maxSize`, through a new `Component.clampToLimits` that `Stack.sizeSelf` and `FlowWrap` use too.
+- `FlowWrap` measures, wraps, and places items by their margin boxes.
+- DDB-233, from review: directional focus entering a focus group from outside lands on its active child, as Tab does (R9.26). On settings, Down, Up, Right used to move Full to Reduced; now Up returns to Full. `RadioGroup`'s direction setter keeps its focus-group orientation in step. Outside a sizing parent, `FlowWrap` reflows at its clamped width before taking its height. R9.24 names selects, dropdowns, and number inputs as consuming vertical arrows; controller mode for them is DDB-237.
+- Gallery scene `scroll-hug`: a hugging scroller in a roomy column and a short one, and two outside a stack held to `maxSize` and `minSize`.
+- Skipped DriverSelectionScreen's constructor UI and Escape unregistration; DDB-225 owns that screen's Escape.
+
+**How:** slider, segmented control, and radio tests for the cross-axis arrows reaching a neighbour; ScrollContainer and FlowWrap tests for the clamps and margins; `Game.test.ts` covers the document Escape listener stepping aside for a root that registers Escape.
+
 ## The rounded clip in the uber shader (2026-10-02)
 
 **What landed:** DDB-190 (DDB-55), R4.14. `pushClipRounded` draws round instead of square.

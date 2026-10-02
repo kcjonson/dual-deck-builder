@@ -388,8 +388,8 @@ export class Stack extends Container {
 			definite,
 		);
 		this.resizeInLayout(
-			widthExact ? this.width : clampTo(this, 'width', measured.width, false),
-			heightExact ? this.height : clampTo(this, 'height', measured.height, false),
+			widthExact ? this.width : this.clampToLimits('width', measured.width),
+			heightExact ? this.height : this.clampToLimits('height', measured.height),
 		);
 	}
 
