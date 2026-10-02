@@ -33,7 +33,7 @@ interface GalleryVehicle {
 }
 
 /** A driver as the battle makes one, with only what a token reads filled in. */
-function galleryDriver(name: string, [hitpoints, maxHitpoints]: [number, number], role = DriverRole.ACTIVE): Driver {
+export function galleryDriver(name: string, [hitpoints, maxHitpoints]: [number, number], role = DriverRole.ACTIVE): Driver {
 	return new Driver({
 		archetype: 'road_warrior',
 		metadata: { name, vehicleName: name, specialty: '', flavorText: '', unlocked: true },
