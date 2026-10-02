@@ -125,6 +125,7 @@ export const SCENE_SCENARIOS: readonly SceneScenario[] = [
 	{ scene: 'screen-transition' },
 	{ scene: 'scroll-hug' },
 	{ scene: 'rounded-clip' },
+	{ scene: 'combat-road' },
 	{ scene: 'card-pile-draw' },
 	{ scene: 'card-pile-discard' },
 	{ scene: 'card-reward' },

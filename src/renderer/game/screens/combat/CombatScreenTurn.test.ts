@@ -15,6 +15,7 @@ import { Text } from '../../../engine/components/Text';
 import type { Component } from '../../../engine/components/Component';
 import { tokens } from '../../../engine/theme/tokens';
 import { TURN_BANNER_LIFETIME } from './TurnBanner';
+import { roadRowsCenter } from './CombatLayout';
 
 /**
  * DDB-88's last part: the turn banner (DDB-30), every planned intent over
@@ -99,6 +100,16 @@ describe('CombatScreen turn banner', () => {
 		combat.unmount();
 	});
 
+	it('centres on the slot rows below the lane header, not on the whole road', async () => {
+		const combat = await startCombat();
+		const banner = combat['turnBanner'];
+		const roadView = combat['road'];
+		advance(context, 16);
+		const rowsMiddle = roadView.localToScreen({ x: 0, y: roadRowsCenter(roadView.roadLayout) }).y;
+		expect(banner.screenBounds.y + banner.screenBounds.height / 2).toBeCloseTo(rowsMiddle, 4);
+		combat.unmount();
+	});
+
 	it('shows the enemy\'s turn, then yours, one after the other, sliding in and fading', async () => {
 		const combat = await startCombat();
 		const banner = combat['turnBanner'];
@@ -159,7 +170,7 @@ describe('CombatScreen intents', () => {
 		const intents = combat['battle']?.getAllIntents();
 		for (const raider of combat['enemyTeam']?.vehicles ?? []) {
 			const planned = intents?.get(raider) ?? [];
-			const row = combat['enemyLayer'].intentRowOf(raider.id);
+			const row = combat['road'].intentRowOf(raider.id);
 			expect(row?.intents.length).toBe(Math.min(planned.length, 2) + (planned.length > 2 ? 1 : 0));
 			if (planned.length > 0) expect(row?.intents[0].description).toBe(planned[0].description);
 		}
@@ -169,7 +180,7 @@ describe('CombatScreen intents', () => {
 	it('shows a disc\'s tooltip when the pointer rests on it, beside a plate that is one hit target', async () => {
 		const combat = await startCombat();
 		const [raider] = combat['enemyTeam']?.vehicles ?? [];
-		const row = combat['enemyLayer'].intentRowOf(raider.id);
+		const row = combat['road'].intentRowOf(raider.id);
 		context.animator.settle();
 		context.frame.layout();
 		const disc = row?.children.find((child): child is IntentMarker => child instanceof IntentMarker);

@@ -25,6 +25,7 @@ import { MeterExamplesSection } from './MeterExamplesSection';
 import { DataDisplaySection } from './DataDisplaySection';
 import { TreeExamplesSection } from './TreeExamplesSection';
 import { CombatFxSection } from './CombatFxSection';
+import { CombatRoadSection } from './CombatRoadSection';
 import { CardDetailCapSection, CardDetailSection } from './CardDetailSection';
 import { SliderTabsSection } from './SliderTabsSection';
 
@@ -172,6 +173,11 @@ export const developerSections: readonly DeveloperSection[] = [
 	{
 		name: 'slider-tabs',
 		build: (options) => new SliderTabsSection(options),
+	},
+	// The battle screen's road, lanes and slots held still (DDB-134)
+	{
+		name: 'combat-road',
+		build: (options) => new CombatRoadSection(options),
 	},
 	// The card face and its detail view (DDB-137)
 	{
