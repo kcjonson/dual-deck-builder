@@ -111,16 +111,20 @@ const DETENT_COLOR: RGBA = [tokens.color.data[0], tokens.color.data[1], tokens.c
  */
 export class Slider extends Component {
 	public onChange: ((value: number) => void) | null;
-	public valueFormatter: ((value: number) => string) | null;
 
 	private range: SliderRange;
 	private current: number;
 	private labelText: string;
+	private formatter: ((value: number) => string) | null;
 	private detentAt: number | null;
 	private readonly sliderSize: ControlSize;
 	/** A drag in progress, and where on the thumb it was grabbed. */
 	private dragging = false;
 	private grabOffset = 0;
+	/** The formatted value and the measured column texts, kept until what they depend on changes; null when stale. */
+	private formattedText: string | null = null;
+	private labelTextWidth: number | null = null;
+	private valueTextWidth: number | null = null;
 
 	constructor({
 		min = 0,
@@ -147,7 +151,7 @@ export class Slider extends Component {
 		this.range = { min, max, step, logScale };
 		this.current = snapToStep(this.range, value ?? min);
 		this.labelText = label;
-		this.valueFormatter = valueFormatter;
+		this.formatter = valueFormatter;
 		this.detentAt = detent;
 		this.sliderSize = size;
 		this.onChange = onChange;
@@ -167,7 +171,7 @@ export class Slider extends Component {
 
 	/** Programmatic: clamped and snapped, never fires `onChange`. */
 	public set value(value: number) {
-		this.current = snapToStep(this.range, value);
+		this.apply(snapToStep(this.range, value));
 	}
 
 	public get min(): number {
@@ -189,7 +193,8 @@ export class Slider extends Component {
 	/** New bounds, step, or scale; the value is clamped and snapped to them silently. */
 	public setRange({ min = this.range.min, max = this.range.max, step = this.range.step, logScale = this.range.logScale }: Partial<SliderRange>): void {
 		this.range = { min, max, step, logScale };
-		this.current = snapToStep(this.range, this.current);
+		this.valueTextWidth = null;
+		this.apply(snapToStep(this.range, this.current));
 	}
 
 	public get label(): string {
@@ -198,6 +203,18 @@ export class Slider extends Component {
 
 	public set label(label: string) {
 		this.labelText = label;
+		this.labelTextWidth = null;
+		this.valueTextWidth = null;
+	}
+
+	public get valueFormatter(): ((value: number) => string) | null {
+		return this.formatter;
+	}
+
+	public set valueFormatter(formatter: ((value: number) => string) | null) {
+		this.formatter = formatter;
+		this.formattedText = null;
+		this.valueTextWidth = null;
 	}
 
 	public get detent(): number | null {
@@ -270,13 +287,21 @@ export class Slider extends Component {
 		}
 	}
 
+	protected onMount(): void {
+		this.labelTextWidth = null;
+		this.valueTextWidth = null;
+	}
+
 	protected onUnmount(): void {
 		this.dragging = false;
 	}
 
 	/** Disabling mid-drag ends the drag for good (R9.5). */
 	protected onStateChange(): void {
-		if (this.dragging && !this.effectivelyEnabled) this.dragging = false;
+		if (this.dragging && !this.effectivelyEnabled) {
+			this.dragging = false;
+			this.pressed = false;
+		}
 	}
 
 	public render(draw: DrawApi): void {
@@ -413,33 +438,46 @@ export class Slider extends Component {
 	private userSet(value: number): void {
 		const next = snapToStep(this.range, value);
 		if (next === this.current) return;
-		this.current = next;
+		this.apply(next);
 		this.onChange?.(next);
 	}
 
+	private apply(value: number): void {
+		if (value === this.current) return;
+		this.current = value;
+		this.formattedText = null;
+		this.valueTextWidth = null;
+	}
+
 	private get formattedValue(): string {
-		return this.valueFormatter ? this.valueFormatter(this.current) : '';
+		if (!this.formatter) return '';
+		this.formattedText ??= this.formatter(this.current);
+		return this.formattedText;
 	}
 
 	/** The label column: the measured label, at most `LABEL_SHARE` of the width (a longer one ellipsises). */
 	private get labelColumn(): number {
 		if (!this.labelText) return 0;
-		return Math.min(this.textWidth(this.labelText, true), Math.floor(this.width * LABEL_SHARE));
+		if (this.labelTextWidth === null) this.labelTextWidth = this.textWidth(this.labelText, true);
+		return Math.min(this.labelTextWidth ?? 0, Math.floor(this.width * LABEL_SHARE));
 	}
 
 	/** The value column: wide enough for the formatted value at either end, so the track does not shift as it changes. */
 	private get valueColumn(): number {
-		if (!this.labelText || !this.valueFormatter) return 0;
-		return Math.max(
-			this.textWidth(this.valueFormatter(this.range.min), false),
-			this.textWidth(this.valueFormatter(this.range.max), false),
-			this.textWidth(this.formattedValue, false),
-		);
+		if (!this.labelText || !this.formatter) return 0;
+		if (this.valueTextWidth === null) {
+			const ends = this.textWidth(this.formatter(this.range.min), false);
+			const top = this.textWidth(this.formatter(this.range.max), false);
+			const now = this.textWidth(this.formattedValue, false);
+			this.valueTextWidth = ends === null || top === null || now === null ? null : Math.max(ends, top, now);
+		}
+		return this.valueTextWidth ?? 0;
 	}
 
-	private textWidth(text: string, label: boolean): number {
+	/** Null while nothing can measure, so the column is measured again once something can. */
+	private textWidth(text: string, label: boolean): number | null {
 		const draw = this.context?.draw;
-		if (!draw || !draw.canMeasureText('mono')) return 0;
+		if (!draw || !draw.canMeasureText('mono')) return null;
 		return Math.ceil(draw.measureText({
 			text,
 			font: 'mono',

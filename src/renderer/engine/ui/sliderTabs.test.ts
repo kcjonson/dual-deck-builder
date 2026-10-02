@@ -2,7 +2,7 @@
  * @jest-environment jsdom
  */
 import { Clock } from '../animation/Clock';
-import { Layer } from '../components/Layer';
+import { Container } from '../components/Container';
 import type { MountContext } from '../components/MountContext';
 import { renderTree } from '../components/renderTree';
 import { createTestContext, injectNow } from '../components/testing';
@@ -28,7 +28,7 @@ let canvas: HTMLCanvasElement;
 let context: MountContext;
 let adapter: PointerAdapter;
 let backend: MeasuringRecordingBackend;
-let root: Layer;
+let root: Container;
 
 function inject(...commands: string[]): void {
 	expect(injectNow({ canvas, dispatcher: context.dispatcher }, commands).ok).toBe(true);
@@ -61,7 +61,7 @@ beforeEach(() => {
 	context = createTestContext({ draw: measuring.api, clock: new Clock() });
 	adapter = new PointerAdapter({ dispatcher: context.dispatcher });
 	adapter.attach(canvas);
-	root = new Layer({ id: 'root', width: 800, height: 600 });
+	root = new Container({ id: 'root', width: 800, height: 600 });
 	root.mount(context);
 });
 
@@ -234,6 +234,31 @@ describe('Slider (R12.15)', () => {
 		expect(changes).toEqual([]);
 	});
 
+	it('ends a drag for good when disabled mid-drag', () => {
+		const { made, changes } = slider();
+		const y = Math.round(made.screenBounds.y + made.height / 2);
+		inject(`down,${Math.round(xOf(made, 30))},${y}`);
+		made.enabled = false;
+		expect(made.pressed).toBe(false);
+		made.enabled = true;
+		inject(`move,${Math.round(xOf(made, 80))},${y}`, `up,${Math.round(xOf(made, 80))},${y}`);
+		expect(made.value).toBeCloseTo(30, 0);
+		expect(changes.length).toBe(1);
+	});
+
+	it('follows a new label, formatter, or range in what it draws', () => {
+		const { made } = slider({ value: 25, label: 'Volume', valueFormatter: (value) => `${Math.round(value)}%`, width: 360 });
+		draws();
+		const track = made.track.left;
+		made.valueFormatter = (value) => `${value.toFixed(1)} dB`;
+		expect(made.drawnText).toEqual(['Volume', '25.0 dB']);
+		expect(made.track.right).toBeLessThan(360 - control.icon_sm / 2);
+		made.label = 'Master volume';
+		expect(made.track.left).toBeGreaterThan(track);
+		made.setRange({ max: 10 });
+		expect(made.drawnText).toEqual(['Master volume', '10.0 dB']);
+	});
+
 	it('draws a pill track, the fill to the thumb, a detent tick, a glowing thumb, and its label and value', () => {
 		const { made } = slider({ value: 25, detent: 0.5, label: 'Volume', valueFormatter: (value) => `${Math.round(value)}%`, width: 360 });
 		const commands = draws();
@@ -392,5 +417,32 @@ describe('SegmentedControl (R12.17)', () => {
 		expect(commands.some((command) => command.kind === 'shadow')).toBe(true);
 		const label = commands.find((command): command is TextCommand => command.kind === 'text' && command.text === 'Normal');
 		expect(label?.color).toEqual(color.accent_contrast);
+	});
+});
+
+describe('ink (R8.8)', () => {
+	it('keeps focus rings, glows, and underlines inside what each control declares, so a clip never culls them', () => {
+		const clip = new Container({ id: 'clip', x: 20, y: 20, width: 760, height: 560, overflow: 'hidden' });
+		root.addChild(clip);
+		const made = new Slider({ id: 'ink_slider', x: 40, y: 40, width: 300, label: 'Gain', valueFormatter: (value) => value.toFixed(2), value: 0 });
+		const bar = new TabBar({ id: 'ink_tabs', x: 40, y: 120, tabs: [{ id: 'a', label: 'Alpha' }, { id: 'b', label: 'Beta' }] });
+		const segments = new SegmentedControl<string>({ id: 'ink_segments', x: 40, y: 200, tone: 'ok', options: [{ label: 'On', value: 'on' }, { label: 'Off', value: 'off' }], selected: 'on' });
+		clip.addChild(made);
+		clip.addChild(bar);
+		clip.addChild(segments);
+		context.frame.layout();
+		const audited = (): void => {
+			draws();
+			expect(context.draw.diagnostics.filter((diagnostic) => diagnostic.code === 'ink-outside-bound')).toEqual([]);
+		};
+		for (const target of [made, bar.tabs[0], segments.items[0]]) {
+			context.focus.focus(target, 'keyboard');
+			inject(`move,${centre(target)}`);
+			expect(target.focusVisible).toBe(true);
+			audited();
+		}
+		made.value = 1;
+		context.focus.focus(made, 'keyboard');
+		audited();
 	});
 });

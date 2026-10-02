@@ -1,9 +1,10 @@
 import { Component, ComponentOptions } from '../components/Component';
 import type { Axis, Size, SizeMode } from '../components/layoutTypes';
+import type { BoxShadow } from '../draw/commands';
 import type { DrawApi } from '../draw/DrawApi';
 import type { AnyUiEvent, UiActionEvent, UiKeyEvent, UiPointerEvent } from '../input/events';
 import { glowShadow, shadowExtent } from '../style/look';
-import { CONTROL_SIZES, ControlSize, Tone, segmentLayers } from '../style/variants';
+import { CONTROL_SIZES, ControlSize, Tone, segmentLayers, toneGlow } from '../style/variants';
 import { tokens } from '../theme/tokens';
 import { LabelledPressable } from './LabelledPressable';
 
@@ -35,11 +36,14 @@ export interface SegmentedControlOptions<T> extends Omit<ComponentOptions, 'styl
 /** The well's inset around the segments, which the chip's glow sits in. */
 const WELL_PAD = tokens.space.space_0_5;
 const SEGMENT_INSET = tokens.control.inset_row;
+/** Every tone's glow has the accent glow's blur, so one extent covers them all. */
+const CHIP_GLOW_EXTENT = shadowExtent(glowShadow(tokens.color.accent_glow));
 
 /** One segment: its label, and the tone's chip when selected. */
 export class Segment<T = unknown> extends LabelledPressable {
 	public readonly value: T;
 	private readonly tone: SegmentTone;
+	private readonly chipGlow: BoxShadow;
 
 	constructor({ label, value, size, tone, disabled }: { label: string; value: T; size: ControlSize; tone: SegmentTone; disabled: boolean }) {
 		super({
@@ -53,6 +57,7 @@ export class Segment<T = unknown> extends LabelledPressable {
 		this.componentType = 'Segment';
 		this.value = value;
 		this.tone = tone;
+		this.chipGlow = glowShadow(toneGlow(tone));
 	}
 
 	/** Segments abut in the well, so the ring is drawn inside. */
@@ -62,7 +67,7 @@ export class Segment<T = unknown> extends LabelledPressable {
 
 	/** R8.8: the selected chip's glow. */
 	public get inkExtent(): number {
-		return shadowExtent(glowShadow(tokens.color.accent_glow));
+		return CHIP_GLOW_EXTENT;
 	}
 
 	protected onStateChange(): void {
@@ -82,7 +87,7 @@ export class Segment<T = unknown> extends LabelledPressable {
 				rect,
 				fill: look.fill,
 				radius: look.radius > 0 ? look.radius : undefined,
-				shadow: glowing ? glowShadow(toneGlow(this.tone)) : undefined,
+				shadow: glowing ? this.chipGlow : undefined,
 			});
 		}
 		this.drawLabel(draw, rect);
@@ -94,21 +99,6 @@ export class Segment<T = unknown> extends LabelledPressable {
 				border: { color: look.focusRing, width: tokens.control.focus_ring_width, position: 'inside' },
 			});
 		}
-	}
-}
-
-function toneGlow(tone: SegmentTone): [number, number, number, number] {
-	const { color } = tokens;
-	switch (tone) {
-		case 'accent':
-		case 'warn':
-			return [...color.accent_glow] as [number, number, number, number];
-		case 'data':
-			return [...color.data_glow] as [number, number, number, number];
-		case 'ok':
-			return [color.status_ok[0], color.status_ok[1], color.status_ok[2], color.accent_glow[3]];
-		case 'crit':
-			return [color.status_crit[0], color.status_crit[1], color.status_crit[2], color.accent_glow[3]];
 	}
 }
 

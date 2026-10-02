@@ -52,7 +52,7 @@ All three open through the popup service, so one exclusive popup is open at a ti
 
 **Tabs and segments share `LabelledPressable`:** a Pressable that draws one label in display caps with tracking from R11.12 layers, and hugs the label measured with that same face (R12.7's rule). Both are focus-group members whose group handles its own arrows, as RadioGroup does: the focus manager's group movement moves focus without selecting, and R12.16 and R12.17 move the selection with focus. New layer sets `tabLayers` (clear, dim text, bright when selected, hover wash with bright text, no pressed nudge) and `segmentLayers` (the tone's filled chip with contrast text when selected, the bright fill on hover, grey when disabled).
 
-**TabBar** is a horizontal Stack of `Tab`s over a hairline, the selected tab's 2 px accent underline drawn by the tab. Controlled when `selectedId` is given at construction (an unknown or disabled id shows nothing), uncontrolled otherwise (first enabled tab). Selection comes from the press machine's click, so a release over the pressed tab selects and a press that wanders to another tab selects neither. Tabs draw their focus ring inside, since they abut.
+**TabBar** is a horizontal Stack of `Tab`s over a hairline, the selected tab's 2 px accent underline drawn by the tab. Controlled when `selectedId` is given at construction (an unknown or disabled id shows nothing), uncontrolled otherwise (first enabled tab). Either way a user change is applied before `onSelect` hears it, as every other control's is, so a controlled parent that wants to refuse a tab sets `selectedId` back from inside the callback (R8.25) rather than the bar waiting on it. Selection comes from the press machine's click, so a release over the pressed tab selects and a press that wanders to another tab selects neither. Tabs draw their focus ring inside, since they abut.
 
 **SegmentedControl** is a Component that places its segments itself (`sizesChildren`, `assignSize`, so a layout pass does not re-invalidate itself): equal widths from the widest label, or `segmentWidth`. Each segment is the size's full control height and the inset well grows `space_0_5` round them, rather than the segments shrinking inside a control-height well: shrunk, a small control's segments fell under the layout lint's target size. The selected chip glows in its tone.
 
@@ -65,11 +65,11 @@ All three open through the popup service, so one exclusive popup is open at a ti
 - Menus are not focus groups (R12.34); their owners drive the highlight, as above.
 - A programmatic Slider `value` never fires `onChange`; worldsim's `setValue` did. R12.15 and the shared controlled-value rule win.
 - SegmentedControl is one control-height tall per segment plus the well's padding, not one control height overall.
+- A continuous Slider's arrow step is 1% of the track's length, which on a log slider is an even step in position rather than 1% of `max - min` in value. R12.15 says "1% of the range"; read literally, a log slider's low end would take one keypress to cross.
 - A menu item's release selects only when the press began inside the menu; worldsim selected on any release over an item.
 
 ## Gallery
 
 `menus` and `slider-tabs` are the second and third PRs' scenes.
-
 
 `input-showcase` keeps its name and its "Input Fields" title (the developer screen's golden holds that scene's top 32 pixels), rebuilt as a catalog section: empty with a placeholder, filled, password, disabled; an overflowing value scrolled to its caret and clipped; the three sizes and an instance style; and number inputs at an integer, a quarter step, their maximum (the up chevron greyed), and disabled. The `clipping` scene's overflowing-field item is now the real TextInput, laid inside the fixture layer it is part of. The icon atlas gained `expand_more` and `expand_less` (Select's caret uses the first in the next PR); `remove`'s atlas cell moved, the other seven stayed put.

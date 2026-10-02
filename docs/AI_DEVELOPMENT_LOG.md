@@ -6,6 +6,16 @@ This document contains the chronological log of completed development tasks for 
 
 **Date correction (2026-08-22):** the repo's first commit is 2025-05-17, but many entries below carry dates in December 2024 or January 2025 — the AI that wrote them used its assumed date instead of the real one. Entries dated 2025-07-03 and 2025-07-02 have been corrected from "2025-01-03"/"2025-01-02" (verified against git history). Remaining Dec 2024 / Jan 2025 dates are wrong by roughly six months; the real work happened May–July 2025. Trust git history over these dates.
 
+## Catalog Wave B, slider, tabs, and segments (2026-10-01)
+
+**What landed:** DDB-86's third PR (DDB-55 phase 5), R12.15 to R12.17. Built on 2026-09-28 before #110, merged up to main and moved onto its API.
+
+- `ui/Slider.ts`: `positionToValue`, `valueToPosition`, `snapToStep` (log with positive bounds, linear fallback, never NaN); thumb grab keeping its offset or track jump, both captured; arrows by step or 1% of the track; Home and End; silent programmatic value; label and value columns and a detent tick. The formatted value and the column widths are cached until the value, label, formatter, or range changes, so a frame neither calls the formatter nor measures.
+- `ui/LabelledPressable.ts`, a Pressable drawing one measured label from look layers; `ui/TabBar.ts` (a Stack of `Tab`s, controlled or uncontrolled, underline, hairline) and `ui/SegmentedControl.ts` (equal segments in an inset well, the tone's glowing chip), both focus groups moving selection with focus, wrapping and skipping disabled items.
+- `tabLayers`, `segmentLayers`, and `toneGlow` in `style/variants.ts`; gallery scene `slider-tabs`.
+
+**How:** `ui/sliderTabs.test.ts`, 26 cases through injected input: worldsim's Slider suite (linear and log maps, round trips, geometric midpoint, invalid log bounds, snapping, clamping, keys, callbacks, re-entrancy) plus thumb grab, jump then captured drag past the ends, even log stepping, disabled and disabled mid-drag, columns following a new label, formatter, or range; TabBar hugging measured caps labels, controlled and uncontrolled selection, release over the pressed tab, one Tab stop with Left and Right skipping disabled and wrapping, underline and hairline; SegmentedControl widths, heights, click selection, arrows, tone chip and glow; and an ink audit under a clip with each control keyboard-focused and hovered (no `ink-outside-bound`).
+
 ## Combat hand fan, hover lift, and card previews (2026-09-28)
 
 **What landed:** DDB-88's first PR (DDB-55 phase 6), the hand half: closes DDB-28 and DDB-29.

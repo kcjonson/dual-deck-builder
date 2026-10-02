@@ -70,6 +70,11 @@ export function toneColor(tone: Tone, value = 1): RGBA {
 	return TONES[tone === 'auto' ? autoTone(value) : tone].fill;
 }
 
+/** A filled tone's glow colour: the accent glow's alpha in the tone's hue. */
+export function toneGlow(tone: Exclude<Tone, 'default' | 'auto'>): RGBA {
+	return TONES[tone].glow;
+}
+
 /** The overlay a per-state override describes: colours only, each replacing (R11.15). */
 function overlayFrom(style: StyleProperties): LookOverlay {
 	const overlay: LookOverlay = {};
