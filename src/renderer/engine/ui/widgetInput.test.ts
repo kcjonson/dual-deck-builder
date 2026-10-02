@@ -171,12 +171,19 @@ describe('Button', () => {
 		expect(made.focusVisible).toBe(false);
 	});
 
-	it('shows the focus a press gave it once a navigation key reaches it, and a press hides it again (R9.23)', () => {
+	it('keeps the focus a press gave it ringless when a navigation key only reaches a hotkey (R9.23)', () => {
 		const { button: made } = button();
-		inject('click,160,120', 'keydown,Shift', 'keyup,Shift');
-		expect(made.focusVisible).toBe(false);
-		inject('keydown,Escape', 'keyup,Escape');
+		const heard: string[] = [];
+		context.dispatcher.hotkeys.register('Escape', () => heard.push('escape'));
+		inject('click,160,120', 'keydown,Escape', 'keyup,Escape');
+		expect(heard).toEqual(['escape']);
 		expect(made.focused).toBe(true);
+		expect(made.focusVisible).toBe(false);
+	});
+
+	it('shows the focus a press gave it once Enter activates it, and a press hides it again (R9.23)', () => {
+		const { button: made } = button();
+		inject('click,160,120', 'keydown,Enter', 'keyup,Enter');
 		expect(made.focusVisible).toBe(true);
 		inject('click,160,120');
 		expect(made.focusVisible).toBe(false);

@@ -37,7 +37,7 @@ export interface DialogOptions {
 	 * outside its panel.
 	 */
 	modal?: boolean;
-	/** The body, authored in its own local coordinates and clipped to the content rect. */
+	/** The body, authored in its own local coordinates and clipped inside the panel's border, so a control on its edge keeps its ring. */
 	content?: Component;
 	/** Actions laid out at the footer's right end, in order (R12.21's `footer` slot). */
 	footer?: Component[];
@@ -342,4 +342,3 @@ export class Dialog extends Component {
 		};
 	}
 }
-

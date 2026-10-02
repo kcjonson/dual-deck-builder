@@ -159,7 +159,7 @@ DDB-83 put the token pipeline in with no consumers: `src/renderer/engine/theme/t
 
 **TreeView and ScreenTransition (DDB-87, Wave C third PR).** `TreeView` flattens its nodes lazily, culls to the rows inside its height and clips them, scrolls on the wheel, and is one Tab stop with a keyboard cursor (arrows walk and fold, Enter and Space select or toggle); the chevron column toggles, optional single selection. `ScreenTransition` runs R8.22's fade out, swap, one layout, fade in in the `transition` layer, blocking input throughout; its root is `persistent` (a new overlay option) so the scene change's `closeAll` inside the swap leaves it. DDB-90 adopts it in ScreenManager. Scenes `tree-view` and `screen-transition`. Wave C is complete once the three PRs land.
 
-**Dialog on Panel, and the focus ring after keyboard use (DDB-221, DDB-229).** `Dialog`'s surface is the R12.19 `Panel` (flush, `raised`, `shadow_pop`, X in `actions`), so its header is the panel's. The dispatcher counts any navigation key that reaches a focused non-text component as keyboard use (R9.23), so a Select, DropdownButton, or ContextMenu opened by a press and closed with Escape keeps its ring.
+**Dialog on Panel, and the focus ring after keyboard use (DDB-221, DDB-229).** `Dialog`'s surface is the R12.19 `Panel` (`raised`, `shadow_pop`, X in `actions`, clipping inside its border), so its header is the panel's. A navigation key the focused component consumes, or a popup's or overlay's Escape, counts as keyboard use (R9.23), so a Select, DropdownButton, or ContextMenu opened by a press and closed with Escape keeps its ring; a key that only reaches a screen hotkey (combat's Escape) doesn't.
 
 ## Phase 6: screen migration and polish (in progress, 2026-10-01)
 

@@ -913,13 +913,11 @@ export class Dispatcher {
 			return;
 		}
 
-		// R9.23: a navigation key at a pointer-focused control is keyboard use,
-		// so its ring shows from here on, including where Escape hands focus
-		// back (a select, a context menu's owner). A text field owns these keys
-		// and draws its caret whatever the modality.
-		if (down && focused && !chord && NAVIGATION_KEYS.has(input.key) && !focused.acceptsText) {
-			this.focus.showFocusVisible();
-		}
+		// R9.23: a navigation key is keyboard use only when something keyboard
+		// shaped handled it: the focused component, its `activate` or `cancel`,
+		// or a popup's or overlay's Escape. One that falls through to a hotkey
+		// table (a screen's Escape) leaves the modality alone.
+		const navigation = down && !chord && NAVIGATION_KEYS.has(input.key);
 
 		if (focused) {
 			const event = new UiKeyEvent({
@@ -931,16 +929,25 @@ export class Dispatcher {
 				modifiers,
 			});
 			this.bubble(event);
-			if (event.consumed || !down) return;
-			if (focused.acceptsText && ownedByTextField(input.key, modifiers)) return;
+			const ownedAsText = focused.acceptsText && ownedByTextField(input.key, modifiers);
+			if (event.consumed) {
+				// A text field draws its caret whatever the modality (R9.22).
+				if (navigation && !ownedAsText) this.focus.showFocusVisible();
+				return;
+			}
+			if (!down || ownedAsText) return;
 		}
 		if (!down) return;
 
 		const action = actionFor(input);
 		if (action && focused && focused.isMounted) {
+			if (action === 'activate') this.focus.showFocusVisible();
 			const event = new UiActionEvent({ type: action, timestamp: this.clock.now, target: focused, source: 'keyboard', key: input.key });
 			this.bubble(event);
-			if (event.consumed) return;
+			if (event.consumed) {
+				this.focus.showFocusVisible();
+				return;
+			}
 		}
 
 		if (!chord && !modifiers.shift && this.navigate(input.key)) return;
@@ -948,7 +955,9 @@ export class Dispatcher {
 		const stroke: KeyStroke = { key: input.key, repeat: input.repeat, modifiers };
 		// The services first: a popup's Escape, an overlay's dismissal (R9.14, R12.21).
 		for (const observer of [...this.observers]) {
-			if (observer.keyDown?.(stroke) === true) return;
+			if (observer.keyDown?.(stroke) !== true) continue;
+			if (navigation) this.focus.showFocusVisible();
+			return;
 		}
 		for (const table of this.hotkeyTables(focused)) {
 			if (table.handle(stroke)) return;
