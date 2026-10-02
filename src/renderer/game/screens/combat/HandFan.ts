@@ -23,7 +23,7 @@ const FAN_DROP_MAX = 5;
  * bottom centre by 0.9 degrees per step from the middle (0.5 past seven
  * cards), and dropped along a shallow arc that bottoms out at 5 logical
  * pixels. Drops are in the card's own units, which the row scales down to
- * hand size.
+ * hand size. Each card stacks over the one before it.
  */
 export function fanPoses(count: number): FanPose[] {
 	const turn = ((count > CROWDED_HAND ? FAN_TURN_DEGREES_CROWDED : FAN_TURN_DEGREES) * Math.PI) / 180;
@@ -32,8 +32,28 @@ export function fanPoses(count: number): FanPose[] {
 		return {
 			rotate: step * turn,
 			drop: Math.min(FAN_DROP_MAX, step * step * FAN_DROP_PER_STEP) / HAND_CARD_SCALE,
+			order: index,
 		};
 	});
+}
+
+/**
+ * How far a card in `pose` reaches past its own box on each side, in its
+ * own units: turned by the angle about its bottom centre, its top outer
+ * corner leans out and up and its bottom outer corner swings down, and then
+ * the whole card drops.
+ */
+export function fanReach(pose: FanPose): { top: number; right: number; bottom: number; left: number } {
+	const { width, height } = CARD_DIMENSIONS;
+	const sin = Math.sin(Math.abs(pose.rotate));
+	const cos = Math.cos(pose.rotate);
+	const side = Math.ceil((width / 2) * cos + height * sin - width / 2);
+	return {
+		top: Math.max(0, Math.ceil((width / 2) * sin - height * (1 - cos) - pose.drop)),
+		right: side,
+		bottom: Math.ceil((width / 2) * sin + pose.drop),
+		left: side,
+	};
 }
 
 /**
@@ -87,12 +107,17 @@ export class HandFan extends Container {
 		const count = this.cards.length;
 		if (count < 2) {
 			this.row.gap = NATURAL_CARD_GAP;
+			this.row.padding = 0;
 			return;
 		}
-		// The edge cards turn outward about their bottom centres, so their top
-		// corners lean past where the row puts them; the row leaves room for it
-		const lean = CARD_DIMENSIONS.height * Math.sin(Math.abs(fanPoses(count)[0].rotate));
-		const room = this.getWidth() / HAND_CARD_SCALE - 2 * lean;
+		// The edge cards turn outward about their bottom centres and drop, so
+		// their corners reach past where the row puts them. The row's padding
+		// is that reach, so the posed cards stay inside the row's box and the
+		// fan's width holds them.
+		const edge = fanPoses(count)[0];
+		const reach = fanReach(edge);
+		this.row.padding = reach;
+		const room = this.getWidth() / HAND_CARD_SCALE - reach.left - reach.right;
 		const spread = (room - count * CARD_DIMENSIONS.width) / (count - 1);
 		this.row.gap = Math.min(NATURAL_CARD_GAP, Math.floor(spread));
 	}

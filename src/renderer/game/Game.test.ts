@@ -70,7 +70,7 @@ jest.mock('../engine/ui/DeveloperOverlay', () => ({
 
 interface AppWindow extends Window {
 	__app?: {
-		navigate?(screenName: string): boolean;
+		navigate?(screenName: string, data?: unknown): boolean;
 		screens?(): string[];
 		pause?(): void;
 		resume?(): void;
@@ -157,6 +157,11 @@ describe('window.__app on the game page (R13.32, R15.37)', () => {
 		expect(typeof app().pause).toBe('function');
 		expect(typeof app().resume).toBe('function');
 		expect(typeof app().status).toBe('function');
+	});
+
+	it('navigates at once with the data the screen takes, as the game would pass it', () => {
+		expect(app().navigate?.('battleResultScreen', { victory: false })).toBe(true);
+		expect(screens.navigate).toHaveBeenCalledWith('battleResultScreen', { victory: false }, { immediate: true });
 	});
 
 	it('reports an unpaused start with the mounted screen', () => {

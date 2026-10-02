@@ -11,7 +11,8 @@ import {
 } from '../support/harness';
 
 /**
- * One screenshot spec per game screen (R14.5).
+ * One screenshot spec per game screen (R14.5), at the fixed viewport and at
+ * the short one (`SCREEN_SCENARIOS`).
  *
  * Each is a whole run of its own: a fresh page, the seeded random installed
  * before the first script executes, a pause, one navigation, and a capture.
@@ -22,15 +23,16 @@ import {
  */
 test.describe('game screens', () => {
 	for (const scenario of SCREEN_SCENARIOS) {
-		test(scenario.screen, async ({ page }, testInfo) => {
+		test(scenario.name, async ({ page }, testInfo) => {
 			if (scenario.blockedBy) test.fixme(true, scenario.blockedBy);
 
 			const log = captureConsole(page);
+			if (scenario.viewport) await page.setViewportSize(scenario.viewport);
 			await prepare(page);
-			await openScreen(page, scenario.screen);
+			await openScreen(page, scenario.screen, { data: scenario.data, viewport: scenario.viewport });
 
-			await expectTextSnapshot(page, 'screen', scenario.screen);
-			await expectGolden(page, testInfo, 'screen', scenario.screen);
+			await expectTextSnapshot(page, 'screen', scenario.name);
+			await expectGolden(page, testInfo, 'screen', scenario.name);
 
 			await attachTree(page, testInfo);
 			expectCleanConsole(log);

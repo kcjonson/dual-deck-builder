@@ -180,10 +180,12 @@ export class Game {
 			// survive into production whole. The `paused` accessor stays a member
 			// because `update` reads the field on every frame either way.
 			installAppHooks({
-				navigate: (screenName: string) => {
+				navigate: (screenName: string, data?: unknown) => {
 					if (!ScreenManager.isScreenName(screenName)) return false;
 					// A capture navigates while paused, when no fade would tick.
-					ScreenManager.navigate(screenName, undefined, { immediate: true });
+					// `data` is what the screen's onMount takes, as the game
+					// would pass it: the battle result's outcome, say.
+					ScreenManager.navigate(screenName, data, { immediate: true });
 					return true;
 				},
 				screens: () => ScreenManager.screenNames,

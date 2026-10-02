@@ -2,6 +2,7 @@ import { readFile, writeFile } from 'node:fs/promises';
 import type { ConsoleMessage, Page, TestInfo } from '@playwright/test';
 import { expect } from '@playwright/test';
 import { BASE_URL, FIXED_VIEWPORT, GOLDEN_CLUSTER, VISUAL_THRESHOLD } from '../../../playwright.config';
+import type { Viewport } from '../../../playwright.config';
 import type { LintResult } from '../../../src/renderer/engine/debug/layoutLint';
 import { compareClusters, diffImage } from './diffClusters';
 import type { DiffReport } from './diffClusters';
@@ -92,7 +93,7 @@ interface TreeSnapshot {
 export interface DevSurface {
 	__ui: { tree(): TreeSnapshot; lint(): LintResult };
 	__app: {
-		navigate(screen: string): boolean;
+		navigate(screen: string, data?: unknown): boolean;
 		pause(): void;
 		settleAnimations(): number;
 		status(): {
@@ -224,7 +225,7 @@ export async function freezeApplication(page: Page): Promise<void> {
  * serialize the same for all of those frames; any disagreement or change
  * starts the count again.
  */
-export async function settle(page: Page): Promise<void> {
+export async function settle(page: Page, size: Viewport = FIXED_VIEWPORT): Promise<void> {
 	await page.waitForFunction(() => {
 		const scope = window as Partial<DevSurface>;
 		return typeof scope.__ui?.tree === 'function'
@@ -289,14 +290,25 @@ export async function settle(page: Page): Promise<void> {
 			viewport: scope.__ui.tree().viewport,
 			layoutAgreed: held !== null,
 		};
-	}, { size: FIXED_VIEWPORT, timeout: SETTLE_TIMEOUT_MS });
+	}, { size, timeout: SETTLE_TIMEOUT_MS });
 
 	if (outcome) {
 		throw new Error(
-			`The layout did not settle at ${FIXED_VIEWPORT.width}x${FIXED_VIEWPORT.height} `
+			`The layout did not settle at ${size.width}x${size.height} `
 				+ `within ${SETTLE_TIMEOUT_MS} ms: ${JSON.stringify(outcome)}`,
 		);
 	}
+}
+
+export interface OpenScreenOptions {
+	/** What `navigate` hands the screen, as the game would pass it. */
+	data?: unknown;
+	/**
+	 * The window the page is already at, when it is not `FIXED_VIEWPORT`. The
+	 * spec sizes it (`page.setViewportSize`, or the Electron window's content
+	 * size); this is what the settle and the root check hold it to.
+	 */
+	viewport?: Viewport;
 }
 
 /**
@@ -309,19 +321,19 @@ export async function settle(page: Page): Promise<void> {
  * false for an unknown name and a golden of the splash screen filed under
  * another screen's name is worse than a failure.
  */
-export async function openScreen(page: Page, screen: string): Promise<void> {
+export async function openScreen(page: Page, screen: string, { data, viewport = FIXED_VIEWPORT }: OpenScreenOptions = {}): Promise<void> {
 	// Absolute, not baseURL-relative: an Electron page has no browser context
 	// and therefore no baseURL, and both projects have to reach the same server.
 	await page.goto(`${BASE_URL}/`, { waitUntil: 'domcontentloaded' });
 	await freezeApplication(page);
 
 	const navigated = await page.evaluate(
-		(name: string) => (window as unknown as DevSurface).__app.navigate(name),
-		screen,
+		([name, payload]: [string, unknown]) => (window as unknown as DevSurface).__app.navigate(name, payload),
+		[screen, data] as [string, unknown],
 	);
 	expect(navigated, `window.__app.navigate('${screen}') should be accepted`).toBe(true);
 
-	await settle(page);
+	await settle(page, viewport);
 
 	const status = await page.evaluate(() => (window as unknown as DevSurface).__app.status());
 	expect(status.screen).toBe(screen);
@@ -331,7 +343,7 @@ export async function openScreen(page: Page, screen: string): Promise<void> {
 	// keeps it so; a root at any other size is a screen that built before the
 	// last commit and never heard it (DDB-201).
 	const root = await page.evaluate(() => (window as unknown as DevSurface).__ui.tree().roots[0]?.bounds);
-	expect(root, `${screen}'s root layer should fill the viewport`).toEqual({ x: 0, y: 0, w: FIXED_VIEWPORT.width, h: FIXED_VIEWPORT.height });
+	expect(root, `${screen}'s root layer should fill the viewport`).toEqual({ x: 0, y: 0, w: viewport.width, h: viewport.height });
 }
 
 /**

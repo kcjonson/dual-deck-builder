@@ -15,7 +15,7 @@ jest.mock('../../core/ScreenManager', () => ({
 const navigate = ScreenManager.navigate as jest.Mock;
 
 function result(victory: boolean): BattleResultData {
-	return { victory, battleState: {} } as BattleResultData;
+	return { victory };
 }
 
 describe('BattleResultScreen', () => {
