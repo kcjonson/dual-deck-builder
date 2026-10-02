@@ -15,6 +15,16 @@ This document contains the chronological log of completed development tasks for 
 - R15.39 now states the drop as a MUST and that composed text can't be entered; R12.10 points at it.
 
 **How:** two cases in `TextInput.test.ts` dispatch real DOM keys on `window` through the adapter: composing keys shaped like Safari's (the letter with `keyCode` 229) and flagged `isComposing` (a letter, Backspace, Enter) leave the value, caret, `onSubmit`, and a bound hotkey alone and typing resumes after; Chrome's `Process` and a `Dead` key insert nothing. The first case fails with the guard removed. Not tried against a real OS input method. Decision recorded in [component-catalog-wave-b.md](./AI_TECHNICAL_DECISIONS/component-catalog-wave-b.md).
+## Settings and Credits screens (2026-10-02)
+
+**What landed:** DDB-38 (DDB-55 phase 6).
+
+- `screens/settings/SettingsScreen.ts`: a Motion panel with a `SegmentedControl` (System, Reduced, Full) and Back. Focus starts on the selected segment; the arrows change the setting, which applies and persists at once; Tab reaches Back; Escape returns to the menu.
+- `screens/credits/CreditsScreen.ts` and `credits.ts`: the licence, commit authors, typefaces, icons, and tools, all taken from the repo, in a `ScrollContainer` inside a `Panel` that fills between the title and Back. Back is focused; Page Up, Page Down, Home, and End scroll from it; Escape returns.
+- `game/core/GameSettings.ts`, the first settings store: one validated JSON record in local storage, tolerant of a missing, corrupt, or throwing storage. `engine/rendering/reducedMotion.ts` is now the `ReducedMotion` class with an `override`, which `Game` drives from the setting.
+- The main menu's Settings and Credits buttons navigate to the new screens. Both screens are in the layout lint gate and the screen goldens.
+
+**How:** `GameSettings.test.ts`, `reducedMotion.test.ts`, `SettingsScreen.test.ts`, `CreditsScreen.test.ts`, `credits.test.ts` (every bundled font and icon directory credited, copyright lines and licences checked against their files), and a `Game.test.ts` case for the wiring. Played both screens from the menu through `window.__dev.input` with keyboard and mouse in headless Chromium at 1024x600 and 1280x720: lint zero, focus on the primary control, the setting surviving a reload, credits scrolling by key and wheel, no console errors. Details in [settings-store-and-screens.md](./AI_TECHNICAL_DECISIONS/settings-store-and-screens.md).
 
 ## Main menu, splash, and battle result on root stacks; screen transitions (2026-10-01)
 
