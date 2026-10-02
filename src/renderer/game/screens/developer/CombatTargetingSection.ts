@@ -30,6 +30,8 @@ const CARD_Y = ROAD_HEIGHT - CARD_HEIGHT - 12;
 /** Room past the right card for the hit check, which is wider than it. */
 const FRAME_WIDTH = CARD_X + CARD_WIDTH + 64;
 const FRAME_HEIGHT = ROAD_HEIGHT;
+/** The left card's check covers this much of the frame, wider than the check, so it clamps without drawing past its box. */
+const EDGE_CHECK_WIDTH = 280;
 /** Headshot and Far Shoot reach two. */
 const REACH = 2;
 
@@ -178,9 +180,9 @@ export class CombatTargetingSection extends CatalogSection {
 		// Only one check shows at a time in combat, where it covers the stage;
 		// here each covers its own side of the frame, and the edge card's
 		// clamps to the frame's left edge as the stage's would
-		const hitCheck = new HitCheckChip({ id: 'dev_targeting_hit_check', x: ROAD_X, width: FRAME_WIDTH - ROAD_X, height: FRAME_HEIGHT });
+		const hitCheck = new HitCheckChip({ id: 'dev_targeting_hit_check', x: EDGE_CHECK_WIDTH, width: FRAME_WIDTH - EDGE_CHECK_WIDTH, height: FRAME_HEIGHT });
 		hitCheck.show(card, hitCheckText(preview));
-		const edgeCheck = new HitCheckChip({ id: 'dev_targeting_edge_hit_check', width: ROAD_X, height: FRAME_HEIGHT });
+		const edgeCheck = new HitCheckChip({ id: 'dev_targeting_edge_hit_check', width: EDGE_CHECK_WIDTH, height: FRAME_HEIGHT });
 		edgeCheck.show(edgeCard, hitCheckText(miss));
 		layer.addChild(arrow);
 		layer.addChild(reticle);
