@@ -13,6 +13,7 @@ import { tokens } from '../../../engine/theme/tokens';
 import { PointerAdapter } from '../../../engine/input/PointerAdapter';
 import { Battle } from '../../mechanics/Battle';
 import { Card } from '../../mechanics/Card';
+import { RoadLane, RoadRow } from '../../mechanics/Road';
 import type { Rect } from '../../../engine/draw/geometry';
 import { NUMBER_LIFETIME } from './CombatFxLayer';
 import { Component } from '../../../engine/components/Component';
@@ -220,10 +221,22 @@ function handCard(combat: CombatScreen, types: string[], fallback: string): UICa
 	return handCards(combat)[0];
 }
 
+/** The middle of an empty slot, on screen: the raiders' flank, behind, where nobody starts. */
+function emptyRoadPoint(combat: CombatScreen): [number, number] {
+	const road = combat['road'];
+	const slot = { lane: RoadLane.PLAYER_SHOULDER, row: RoadRow.BEHIND };
+	expect(road.vehicleView(combat['enemyTeam']?.vehicles.find(vehicle => vehicle.slot?.lane === slot.lane && vehicle.slot?.row === slot.row)?.id ?? '')).toBeNull();
+	const rect = road.slotRect(slot);
+	const { x, y } = road.localToScreen({ x: rect.x + rect.width / 2, y: rect.y + rect.height / 2 });
+	return [Math.round(x), Math.round(y)];
+}
+
 /** A token's plate on screen: where a card is dropped, and where a hit's number pops. */
-function vehicleBounds(combat: CombatScreen, layer: 'enemyLayer' | 'battlefieldLayer'): Rect {
-	const [vehicle] = [...combat[layer]['vehicleCards'].values()];
-	return vehicle.plateScreenBounds;
+function vehicleBounds(combat: CombatScreen, team: 'enemyTeam' | 'playerTeam'): Rect {
+	const [vehicle] = combat[team]?.vehicles ?? [];
+	const token = combat['road'].vehicleView(vehicle?.id ?? '');
+	if (!token) throw new Error(`the ${team}'s first vehicle should be on the road`);
+	return token.plateScreenBounds;
 }
 
 describe('CombatScreen drag to play', () => {
@@ -234,7 +247,7 @@ describe('CombatScreen drag to play', () => {
 		const card = handCard(combat, ['enemy_single'], 'headshot');
 		const data = card.data;
 		const playCard = jest.spyOn(Battle.prototype, 'playCard');
-		const target = centreOf(vehicleBounds(combat, 'enemyLayer'));
+		const target = centreOf(vehicleBounds(combat, 'enemyTeam'));
 
 		drag(grabPoint(card), target, { release: false });
 		expect(context.drag.isDragging).toBe(true);
@@ -282,7 +295,7 @@ describe('CombatScreen drag to play', () => {
 		const playCard = jest.spyOn(Battle.prototype, 'playCard');
 
 		// Your own vehicle is not a Headshot target, and the road does not take a targeted card
-		drag(grabPoint(card), centreOf(vehicleBounds(combat, 'battlefieldLayer')));
+		drag(grabPoint(card), centreOf(vehicleBounds(combat, 'playerTeam')));
 		expect(playCard).not.toHaveBeenCalled();
 		expect(combat['combatModel'].selectedCard).toBeNull();
 		expect(combat['combatModel'].isTargeting).toBe(false);
@@ -298,7 +311,8 @@ describe('CombatScreen drag to play', () => {
 		const card = handCard(combat, ['self'], 'repair_kit');
 		const playCard = jest.spyOn(Battle.prototype, 'playCard');
 
-		drag(grabPoint(card), [640, 250]);
+		// An empty slot on the raiders' flank, where no vehicle is
+		drag(grabPoint(card), emptyRoadPoint(combat));
 		expect(playCard).not.toHaveBeenCalled();
 		expect(combat['combatModel'].selectedCard).toBeNull();
 		expect(combat['combatModel'].targetableVehicleIds).toEqual([]);
@@ -316,7 +330,7 @@ describe('CombatScreen drag to play', () => {
 		const vehicles = combat['playerTeam']?.vehicles ?? [];
 		const own = vehicles.find(vehicle => vehicle.driver === owner || vehicle.passenger === owner);
 		const partner = vehicles.find(vehicle => vehicle !== own);
-		const plate = (id: string | undefined) => combat['battlefieldLayer'].vehicleView(id ?? '')?.screenBounds;
+		const plate = (id: string | undefined) => combat['road'].vehicleView(id ?? '')?.screenBounds;
 		const ownBounds = plate(own?.id);
 		const partnerBounds = plate(partner?.id);
 		if (!ownBounds || !partnerBounds) throw new Error('both player vehicles should be on the road');
@@ -340,7 +354,7 @@ describe('CombatScreen drag to play', () => {
 		const combat = await startCombat();
 		const card = handCard(combat, ['enemy_single'], 'headshot');
 		const playCard = jest.spyOn(Battle.prototype, 'playCard');
-		const target = centreOf(vehicleBounds(combat, 'enemyLayer'));
+		const target = centreOf(vehicleBounds(combat, 'enemyTeam'));
 
 		drag(grabPoint(card), target, { release: false });
 		inject('keydown,Escape', 'keyup,Escape');
@@ -356,7 +370,7 @@ describe('CombatScreen drag to play', () => {
 	it('leaves a mouse player\'s focus without a ring when Escape cancels a drag or targeting (R9.23)', async () => {
 		const combat = await startCombat();
 		const card = handCard(combat, ['enemy_single'], 'headshot');
-		const target = centreOf(vehicleBounds(combat, 'enemyLayer'));
+		const target = centreOf(vehicleBounds(combat, 'enemyTeam'));
 
 		drag(grabPoint(card), target, { release: false });
 		inject('keydown,Escape', 'keyup,Escape');
@@ -383,7 +397,7 @@ describe('CombatScreen drag to play', () => {
 		const [cx, cy] = grabPoint(card);
 		inject(`click,${cx},${cy}`);
 		expect(combat['combatModel'].isTargeting).toBe(true);
-		const [tx, ty] = centreOf(vehicleBounds(combat, 'enemyLayer'));
+		const [tx, ty] = centreOf(vehicleBounds(combat, 'enemyTeam'));
 		inject(`click,${tx},${ty}`);
 		expect(playCard).toHaveBeenCalledTimes(1);
 
@@ -401,7 +415,7 @@ describe('CombatScreen drag to play, then to the pile', () => {
 		const [raider] = combat['enemyTeam']?.vehicles ?? [];
 		context.animator.settle();
 		context.frame.layout();
-		const [disc] = combat['enemyLayer'].intentRowOf(raider.id)?.children ?? [];
+		const [disc] = combat['road'].intentRowOf(raider.id)?.children ?? [];
 		if (!disc) throw new Error('the raider should plan something');
 		const playCard = jest.spyOn(Battle.prototype, 'playCard');
 		const target = centreOf(disc.screenBounds);
@@ -421,7 +435,7 @@ describe('CombatScreen drag to play, then to the pile', () => {
 		const combat = await startCombat();
 		const card = handCard(combat, ['enemy_single'], 'headshot');
 		const slot = card.screenBounds;
-		const target = centreOf(vehicleBounds(combat, 'enemyLayer'));
+		const target = centreOf(vehicleBounds(combat, 'enemyTeam'));
 
 		drag(grabPoint(card), target);
 		const [flight] = combat['fx'].discardFlights;
@@ -442,7 +456,7 @@ describe('CombatScreen drag to play, cancelled by the other button', () => {
 		const combat = await startCombat();
 		const card = handCard(combat, ['enemy_single'], 'headshot');
 		const playCard = jest.spyOn(Battle.prototype, 'playCard');
-		const target = centreOf(vehicleBounds(combat, 'enemyLayer'));
+		const target = centreOf(vehicleBounds(combat, 'enemyTeam'));
 
 		drag(grabPoint(card), target, { release: false });
 		inject(`down,${target[0]},${target[1]},2`);
@@ -463,7 +477,7 @@ describe('CombatScreen floating numbers', () => {
 		const combat = await startCombat();
 		const fx = combat['fx'];
 		const [raider] = combat['enemyTeam']?.vehicles ?? [];
-		const plate = vehicleBounds(combat, 'enemyLayer');
+		const plate = vehicleBounds(combat, 'enemyTeam');
 		combat['popHitNumber']({ vehicle: raider, damage: 6 });
 
 		const [number] = fx.floatingNumbers;
@@ -528,7 +542,7 @@ describe('CombatScreen floating numbers', () => {
 		const resolved = () => (battle?.getMessages() ?? []).filter(message => message.type === 'damage_dealt' || message.type === 'miss').length;
 		const before = resolved();
 
-		drag(grabPoint(card), centreOf(vehicleBounds(combat, 'enemyLayer')));
+		drag(grabPoint(card), centreOf(vehicleBounds(combat, 'enemyTeam')));
 		const numbers = combat['fx'].floatingNumbers.map(number => number.text);
 		expect(numbers.length).toBeGreaterThan(0);
 		expect(numbers).toHaveLength(resolved() - before);

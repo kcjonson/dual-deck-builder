@@ -147,7 +147,7 @@ describe('CombatScreen: the fight ending leaves no combat cards behind', () => {
 
 		const spots = cardSpots(combat);
 		const headshotElement = combat['handLayer'].getCardElementByCard(headshot);
-		const raiderPlate = combat['enemyLayer']['vehicleCards'].get(raider.id);
+		const raiderPlate = combat['road'].vehicleView(raider.id);
 		if (!headshotElement || !raiderPlate) throw new Error('the Headshot and the raider should be on screen');
 
 		click(centerOf(headshotElement));

@@ -16,6 +16,9 @@ import { EnemyIntent, IntentRow } from './IntentMarker';
 import { StatusChip, StatusChipContent, STATUS_CHIP_SIZE, shieldChipContent, statusChipContent } from './StatusChip';
 import { MARK_COLORS, TargetMark, TargetMarkDraw, seatMark } from './targetMarks';
 import { VehicleSprite, spriteKindOf } from './vehicleSprites';
+import { TOKEN_HEIGHT, TOKEN_MAX_SCALE, TOKEN_WIDTH, slotScale } from './tokenGeometry';
+
+export { TOKEN_HEIGHT, TOKEN_MAX_SCALE, TOKEN_PASSENGER_HEIGHT, TOKEN_WIDTH, slotScale } from './tokenGeometry';
 
 /** Whose convoy a token is in: yours, or the raiders'. */
 export type VehicleSide = 'player' | 'raider';
@@ -41,17 +44,6 @@ export interface SlotRect {
 	width: number;
 	height: number;
 }
-
-// The token, in logical pixels at x1 (Battle Screen Design, section 3, and
-// the mock's `tokenHTML`)
-export const TOKEN_WIDTH = 196;
-export const TOKEN_HEIGHT = 117;
-export const TOKEN_PASSENGER_HEIGHT = 135;
-/** Tokens grow to fill their slot up to this, and never shrink below 1. */
-export const TOKEN_MAX_SCALE = 1.25;
-/** The room a slot keeps around its token, across and down (the mock's `cellW - 6`, `cellH - 4`). */
-const SLOT_MARGIN_X = 6;
-const SLOT_MARGIN_Y = 4;
 
 const INTENT_HEIGHT = 24;
 const SPRITE_BOX = { x: 0, y: 30, width: 60, height: 40 };
@@ -143,21 +135,6 @@ const ARMOR_OUTLINE: readonly [number, number][] = [
 /** A rect the token redraws every frame and moves when its data changes. */
 function rectAt(x = 0, y = 0, width = 0, height = 0): { x: number; y: number; width: number; height: number } {
 	return { x, y, width, height };
-}
-
-/**
- * How far a token scales to fill a slot: the mock's
- * `min((w - 6) / 196, (h - 4) / H)`, unclamped, so a caller can tell a slot
- * that is too small (under 1) from one the token fills.
- */
-export function slotScale({ width, height, passenger = false }: { width: number; height: number; passenger?: boolean }): number {
-	const tokenHeight = passenger ? TOKEN_PASSENGER_HEIGHT : TOKEN_HEIGHT;
-	return Math.min((width - SLOT_MARGIN_X) / TOKEN_WIDTH, (height - SLOT_MARGIN_Y) / tokenHeight);
-}
-
-/** The scale a token draws at in a slot: x1 to x1.25, never below x1 (section 2). */
-export function tokenScaleFor(slot: { width: number; height: number; passenger?: boolean }): number {
-	return Math.min(TOKEN_MAX_SCALE, Math.max(1, slotScale(slot)));
 }
 
 /**
@@ -353,10 +330,11 @@ export class Vehicle extends Component {
 	/**
 	 * Place the token in a slot: scaled x1 to x1.25 to fill it and centred
 	 * in it, the slot given in the token's parent's space. Pass `scale` to
-	 * use one scale for every token on the road (the mock's single `k`);
-	 * it is still held to x1 to x1.25. Returns whether the slot is big
-	 * enough at x1. Allocates nothing, so a swerve can call it every frame;
-	 * a passenger joining or leaving refits to the same slot.
+	 * use one scale for every token on the road (the mock's single `k`); a
+	 * passenger's taller token that `scale` would push out of its slot
+	 * takes less, and either way it is held to x1 to x1.25. Returns whether
+	 * the slot is big enough at x1. Allocates nothing, so a swerve can call
+	 * it every frame; a passenger joining or leaving refits to the same slot.
 	 */
 	public fitToSlot(slot: SlotRect, scale?: number): boolean {
 		this.slot.x = slot.x;
@@ -368,25 +346,12 @@ export class Vehicle extends Component {
 		return this.placeInSlot();
 	}
 
-	/**
-	 * Below x1, which the road never does: for a stand-in layout that has no
-	 * room yet (the column battlefield until DDB-134's slots). Sets the scale
-	 * and leaves the position to the caller.
-	 */
-	public shrinkTo(scale: number): void {
-		this.hasSlot = false;
-		this.applyScale(scale);
-	}
-
 	private placeInSlot(): boolean {
 		const slot = this.slot;
-		const need = slotScale({ width: slot.width, height: slot.height, passenger: this.showPassengerRowFor() });
-		const scale = Math.min(TOKEN_MAX_SCALE, Math.max(1, this.slotScaleOverride ?? need));
+		const need = slotScale({ width: slot.width, height: slot.height, tokenHeight: this.height });
+		const scale = Math.min(TOKEN_MAX_SCALE, Math.max(1, Math.min(this.slotScaleOverride ?? need, need)));
 		this.applyScale(scale);
-		this.setPosition(
-			Math.round(slot.x + (slot.width - TOKEN_WIDTH * scale) / 2),
-			Math.round(slot.y + (slot.height - this.height * scale) / 2),
-		);
+		this.setPosition(slot.x + (slot.width - TOKEN_WIDTH * scale) / 2, slot.y + (slot.height - this.height * scale) / 2);
 		return need >= 1;
 	}
 

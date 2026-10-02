@@ -14,7 +14,7 @@ import { Team, TeamType } from '../mechanics/Team';
 import { Vehicle as VehicleData, createDrivenVehicle } from '../mechanics/Vehicle';
 import { createEscort } from '../mechanics/Escort';
 import { createTestDriver } from '../ai/__tests__/test-helpers';
-import { TOKEN_HEIGHT, TOKEN_PASSENGER_HEIGHT, TOKEN_WIDTH, Vehicle, slotScale, tokenScaleFor } from './Vehicle';
+import { TOKEN_HEIGHT, TOKEN_PASSENGER_HEIGHT, TOKEN_WIDTH, Vehicle, slotScale } from './Vehicle';
 import type { StatusChip } from './StatusChip';
 import { layoutLint } from '../../engine/debug/layoutLint';
 import { treeSnapshot } from '../../engine/debug/treeSnapshot';
@@ -73,7 +73,7 @@ describe('Vehicle token geometry', () => {
 		expect(token.fitToSlot({ x: 10, y: 20, width: 205, height: 141 })).toBe(true);
 		const scale = Math.min((205 - 6) / 196, (141 - 4) / 117);
 		expect(token.tokenScale).toBeCloseTo(scale, 5);
-		expect(token.x).toBe(Math.round(10 + (205 - 196 * scale) / 2));
+		expect(token.x).toBeCloseTo(10 + (205 - 196 * scale) / 2, 5);
 
 		token.fitToSlot({ x: 0, y: 0, width: 400, height: 400 });
 		expect(token.tokenScale).toBe(1.25);
@@ -84,9 +84,15 @@ describe('Vehicle token geometry', () => {
 		// One scale for the whole road, still held to x1 to x1.25
 		token.fitToSlot({ x: 0, y: 0, width: 300, height: 300 }, 1.1);
 		expect(token.tokenScale).toBe(1.1);
-		expect(tokenScaleFor({ width: 100, height: 100 })).toBe(1);
 		expect(slotScale({ width: 202, height: 121 })).toBeCloseTo(1, 5);
-		expect(slotScale({ width: 202, height: 121, passenger: true })).toBeLessThan(1);
+		expect(slotScale({ width: 202, height: 121, tokenHeight: TOKEN_PASSENGER_HEIGHT })).toBeLessThan(1);
+
+		// A road-wide scale a passenger's taller token can't take shrinks to its slot
+		const rider = createDrivenVehicle({ driver: createTestDriver('Rider Driver'), name: 'Rider' });
+		rider.passenger = createTestDriver('Passenger');
+		const tall = new Vehicle({ id: 'tall', vehicleData: rider });
+		tall.fitToSlot({ x: 0, y: 0, width: 260, height: 160 }, 1.25);
+		expect(tall.tokenScale).toBeCloseTo((160 - 4) / 135, 5);
 	});
 
 	test('refits to its slot when a passenger joins, and reuses its transform every call', () => {

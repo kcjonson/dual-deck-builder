@@ -25,6 +25,7 @@ import { MeterExamplesSection } from './MeterExamplesSection';
 import { DataDisplaySection } from './DataDisplaySection';
 import { TreeExamplesSection } from './TreeExamplesSection';
 import { CombatFxSection } from './CombatFxSection';
+import { CombatRoadSection } from './CombatRoadSection';
 import { SliderTabsSection } from './SliderTabsSection';
 import { VehicleTokensSection } from './VehicleTokensSection';
 
@@ -172,6 +173,11 @@ export const developerSections: readonly DeveloperSection[] = [
 	{
 		name: 'slider-tabs',
 		build: (options) => new SliderTabsSection(options),
+	},
+	// The battle screen's road, lanes and slots held still (DDB-134)
+	{
+		name: 'combat-road',
+		build: (options) => new CombatRoadSection(options),
 	},
 	// The battle screen's vehicle token in every state (DDB-135)
 	{

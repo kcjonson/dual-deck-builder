@@ -8,7 +8,7 @@ The old plate was a portrait panel sized by whatever the battlefield layer gave 
 
 ## Decisions
 
-**Fixed geometry, one scale.** The token lays itself out once at x1 (196x117, 135 with a passenger) and every part is placed from constants when the data changes. The host never sizes it; `fitToSlot(rect, scale?)` sets a transform scale between 1 and 1.25 and centres it, which is the mock's `min((w - 6) / 196, (h - 4) / H)`. It copies the rect and reuses its transform object, so DDB-134 can call it every frame of a swerve. The token remembers its slot and refits when a passenger changes its height. `slotScale` (raw) and `tokenScaleFor` (clamped) let a road pick one scale for every token, as the mock does.
+**Fixed geometry, one scale.** The token lays itself out once at x1 (196x117, 135 with a passenger) and every part is placed from constants when the data changes. The host never sizes it; `fitToSlot(rect, scale?)` sets a transform scale between 1 and 1.25 and centres it, which is the mock's `min((w - 6) / 196, (h - 4) / H)`. It copies the rect and reuses its transform object, so DDB-134 can call it every frame of a swerve. The token remembers its slot and refits when a passenger changes its height. The road picks one scale for every token, as the mock does, and passes it in; it acts as a cap, so a passenger's taller token that it would push out of its slot takes less. The size constants and `slotScale` (raw, neither capped nor floored) live in `ui/tokenGeometry.ts`, and `CombatLayout` re-exports them, so there is one copy.
 
 Options considered: laying parts out from the token's size (what the old plate did) would have meant a second set of proportions to keep in step with the mock and text that shrinks with the slot; scaling keeps text at its design size times one number.
 
@@ -29,7 +29,6 @@ Options considered: laying parts out from the token's size (what the old plate d
 - Past five statuses the row shows four and "+N", since five and "+N" don't fit 132 px (the mock does the same).
 - An unmanned raider's stamp reads NO DRIVER; the spec only names WRECKED.
 - An escort carrying a passenger puts the passenger row where the driver HP row would be, so its token stays 117 tall.
-- The column battlefield layers can't fit two tokens at x1 in a lane at 1024x600, so they shrink a token below x1 there (`shrinkTo`). That is the stand-in only; DDB-134's road never does.
 
 ## Consequences
 
