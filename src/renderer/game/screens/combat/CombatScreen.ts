@@ -18,6 +18,7 @@ import {
 	computeCombatStage,
 } from './CombatLayout';
 import { ChromeStack } from './ChromeStack';
+import { CombatFxLayer } from './CombatFxLayer';
 import { DOCK_GRADIENT, Rgba, rgba } from './combatStyle';
 import { buildPlayerHandView } from './PlayerHandView';
 import { Driver, DriverRole } from '../../mechanics/Driver';
@@ -26,16 +27,28 @@ import { CombatLog, CombatLogType } from '../../mechanics/CombatLog';
 import { Vehicle, createDrivenVehicle } from '../../mechanics/Vehicle';
 import { RoadLane, RoadRow } from '../../mechanics/Road';
 import { Team, TeamType } from '../../mechanics/Team';
-import { Battle, BattleState, BattleMessage } from '../../mechanics/Battle';
+import { Battle, BattleState, BattleMessage, HitEvent } from '../../mechanics/Battle';
 import { Card } from '../../mechanics/Card';
 import { IntentType } from '../../mechanics/Intent';
 import { CardLoader } from '../../core/CardLoader';
 import { DriverLoader } from '../../core/DriverLoader';
 import { BattleResultData } from '../battleResult/BattleResultScreen';
+import type { Component } from '../../../engine/components/Component';
+import type { UiPointerEvent } from '../../../engine/input/events';
 
 /** Behind the stage, to the screen's edges (the mock's `.g-bg`). */
 const SCREEN_BACKGROUND: Rgba = [0.0824, 0.0863, 0.0941, 1];
 const BANNER_INSET = 12;
+/** What a hand card carries through a drag (R9.12's `data`). */
+interface HandCardDrag {
+	kind: 'hand-card';
+	card: Card;
+}
+
+function isHandCardDrag(data: unknown): data is HandCardDrag {
+	return typeof data === 'object' && data !== null && (data as HandCardDrag).kind === 'hand-card';
+}
+
 /** The top bar's LOG key in either case, and F6, which it has always had. */
 const LOG_TOGGLE_KEYS = [LOG_KEY.toLowerCase(), LOG_KEY, 'F6'];
 /** Between the hands and the End Turn column. */
@@ -61,6 +74,7 @@ export class CombatScreen extends Screen {
 	private endTurnColumn!: EndTurnColumn;
 	private combatLogLayer!: CombatLogLayer;
 	private turnPhaseDisplay!: TurnPhaseDisplay;
+	private fx!: CombatFxLayer;
 	
 	// Combat UI model
 	private combatModel: CombatModel;
@@ -89,6 +103,7 @@ export class CombatScreen extends Screen {
 	// Event unsubscribe functions: battle and team events, and the combat model's
 	private unsubscribers: (() => void)[] = [];
 	private modelUnsubscribers: (() => void)[] = [];
+	private dragUnsubscribe: (() => void) | null = null;
 
 	// Bumped on every mount and unmount, so a load that finishes after its
 	// mount has ended knows to stop
@@ -241,6 +256,13 @@ export class CombatScreen extends Screen {
 			})
 		);
 
+		// A hit floats its number up off the vehicle it landed on, read from
+		// the plate's bounds now, before a wreck leaves the road
+		this.unsubscribers.push(
+			this.battle.on('hitLanded', (hit: HitEvent) => this.popHitNumber(hit)),
+			this.battle.on('hitMissed', (hit: HitEvent) => this.popHitNumber(hit))
+		);
+
 		// Subscribe to turn events
 		this.unsubscribers.push(
 			this.battle.on('turnEnded', (event: { team: string }) => {
@@ -276,6 +298,17 @@ export class CombatScreen extends Screen {
 				})
 			);
 		}
+	}
+
+	private popHitNumber({ vehicle, damage }: HitEvent): void {
+		const plate = this.enemyLayer.vehicleView(vehicle.id) ?? this.battlefieldLayer.vehicleView(vehicle.id);
+		if (!plate?.isMounted) return;
+		this.fx.popNumber({
+			anchor: plate.screenBounds,
+			anchorKey: plate.id ?? vehicle.id,
+			text: damage === null ? 'MISS' : `-${damage}`,
+			kind: damage === null ? 'miss' : 'damage',
+		});
 	}
 
 	/**
@@ -444,6 +477,10 @@ export class CombatScreen extends Screen {
 		bands.addChild(this.topBar);
 		bands.addChild(this.createRoad());
 		bands.addChild(this.createDock());
+
+		// Over everything, the stage's size: the targeting line
+		this.fx = new CombatFxLayer({ id: 'combat_fx', positioned: 'absolute' });
+		this.stage.addChild(this.fx);
 	}
 
 	/** The raiders' band above the player's until the slot grid (DDB-134), with the banner and the log drawer over both. */
@@ -538,6 +575,7 @@ export class CombatScreen extends Screen {
 		const { scale, width, height } = computeCombatStage({ width: this.rootLayer.getWidth(), height: this.rootLayer.getHeight() });
 		this.stage.setSize(width, height);
 		this.stage.transform = { scale, origin: [0, 0] };
+		this.fx.setSize(width, height);
 	}
 
 	/**
@@ -545,18 +583,29 @@ export class CombatScreen extends Screen {
 	 */
 	private setupInteractions(): void {
 		this.handLayer.setOnCardSelect((card) => {
-			this.onCardSelected(card);
+			this.chooseCard(card, 'click');
 		});
+		this.handLayer.setOnCardDrag({
+			press: (card, element, event) => this.pressCard(card, element, event),
+			otherButton: () => {
+				if (this.context.drag.isDragging) this.context.drag.cancel();
+			},
+			end: (card, event) => {
+				// Dropped off a target, on the dock, or cancelled: the card goes back
+				if (!event.dropped && this.combatModel.selectedCard === card) this.putCardBack();
+			},
+		});
+		this.dragUnsubscribe = this.context.drag.onDraggingChange((dragging) => this.dragChanged(dragging));
 
 		// Escape cancels targeting and L or F6 toggles the combat log, from the
 		// screen root's hotkey table, which keys reach after bubbling out of
 		// whatever is focused (R9.15)
 		const { hotkeys } = this.rootLayer;
 		hotkeys.register('Escape', () => {
-			if (this.combatModel.isTargeting) {
-				this.combatModel.cancelSelection();
-				this.handLayer.clearCardSelection();
-				this.restoreKeyboardFocus();
+			if (this.context.drag.isDragging) {
+				this.context.drag.cancel();
+			} else if (this.combatModel.isTargeting) {
+				this.putCardBack();
 			}
 		});
 		for (const key of LOG_TOGGLE_KEYS) hotkeys.register(key, () => this.toggleCombatLog());
@@ -571,8 +620,10 @@ export class CombatScreen extends Screen {
 		this.modelUnsubscribers.push(
 			// Listen for when a vehicle is targeted
 			this.combatModel.on('targetedVehicle', (vehicle: Vehicle | null) => {
-				if (vehicle && this.combatModel.selectedCard && this.combatModel.selectedDriver) {
-					this.playCardWithTarget(this.combatModel.selectedCard, vehicle);
+				const card = this.combatModel.selectedCard;
+				if (vehicle && card && this.combatModel.selectedDriver) {
+					// A card with no target was dropped on a vehicle it acts on; it still plays untargeted
+					this.playCardWithTarget(card, this.combatModel.isTargeting ? vehicle : undefined);
 				}
 			}),
 
@@ -603,63 +654,125 @@ export class CombatScreen extends Screen {
 
 
 	/**
-	 * Handle card selection using new Team system
+	 * A primary press on a hand card starts a candidate drag (R9.12a) with
+	 * the aim reticle as its ghost. A press that never passes the threshold
+	 * is still a click, which chooses the card for click-then-target play.
 	 */
-	private onCardSelected(card: Card): void {
+	private pressCard(card: Card, element: Component, event: UiPointerEvent): void {
+		const drag = this.context.drag;
+		if (!this.battle?.isPlayerTurn || !element.effectivelyEnabled) return;
+		this.fx.prepareAim(event.screen);
+		const data: HandCardDrag = { kind: 'hand-card', card };
+		drag.start({ event, source: element, ghost: this.fx.reticle, data });
+	}
+
+	/**
+	 * A card's drag went active: it becomes the chosen card, if it wasn't
+	 * already from a click, and the line follows the pointer. When the drag
+	 * ends, the line goes.
+	 */
+	private dragChanged(dragging: boolean): void {
+		if (!dragging) {
+			this.fx.hideAim();
+			return;
+		}
+		const drag = this.context.drag.current;
+		if (!drag || !isHandCardDrag(drag.data)) return;
+		const { card } = drag.data;
+		if (this.combatModel.selectedCard !== card && !this.chooseCard(card, 'drag')) {
+			this.context.drag.cancel();
+			return;
+		}
+		this.fx.showAim(drag.source);
+	}
+
+	/**
+	 * Choose a card to play. On a click, a card with no target plays at once
+	 * and a keyboard player's focus goes to the first target; a dragged card
+	 * waits for its drop either way. False when the card can't be played
+	 * now.
+	 */
+	private chooseCard(card: Card, via: 'click' | 'drag'): boolean {
 		if (!this.battle || !this.playerTeam) {
 			console.warn('No battle or player team');
-			return;
+			return false;
 		}
 
 		const owningDriver = this.playerDrivers.find(driver => driver.hand.includes(card));
 		if (!owningDriver) {
 			console.warn('Could not find driver who owns this card');
-			return;
+			return false;
 		}
 
 		// Check if driver can afford and play this card
 		if (!owningDriver.canPlayCard(card)) {
-			const reason = !owningDriver.canAffordCard(card) 
+			const reason = !owningDriver.canAffordCard(card)
 				? `${owningDriver.metadata.name}: Not enough adrenaline`
 				: `${owningDriver.metadata.name}: Cannot play this card type as passenger`;
 			console.log(reason);
-			return;
+			return false;
 		}
 		const cardBlocker = this.battle.getCardBlocker({ driver: owningDriver, card });
 		if (cardBlocker) {
 			console.log(`${owningDriver.metadata.name}: ${cardBlocker}`);
-			return;
+			return false;
 		}
 
-		// Use combat model to handle selection
 		this.combatModel.selectCard(card, owningDriver);
 		this.keyboardSlot = Math.max(0, this.handLayer.slotOf(card));
 
-		// Check if card needs a target
-		const targetType = card.targetType;
-		if (targetType === 'enemy_all' || targetType === 'self' || targetType === 'both_drivers') {
-			// No specific target needed, play immediately
-			this.playCardWithTarget(card, undefined);
-		} else {
-			// Update UI for targeting mode
-			this.handLayer.setCardSelected(card);
-			this.handLayer.setTargetingMode(true);
-			
-			// Determine valid targets
-			const targetableIds = this.determineTargetableVehicles(card);
-			this.combatModel.targetableVehicleIds = targetableIds;
-
-			// A keyboard player goes straight to the first target; the targets
-			// are the only focusable vehicles now (R9.23: programmatic focus
-			// keeps the keyboard's visible ring)
-			const focus = this.context.focus;
-			if (focus.focusVisible && !focus.focusFirst(this.enemyLayer)) focus.focusFirst(this.battlefieldLayer);
-			
-			console.log(`Select target for ${card.displayName}, targetType: ${card.targetType}`);
-			console.log(`Targetable vehicle IDs:`, targetableIds);
-			console.log(`Is targeting mode active:`, this.combatModel.isTargeting);
-			console.log(`Enemy vehicles:`, this.enemyTeam?.vehicles.map(v => ({ id: v.id, name: v.name })));
+		if (!this.combatModel.isTargeting) {
+			// No target: a click plays it now. A drag plays when it lands on a
+			// vehicle it acts on, as an order lands on its escort (Battle Screen
+			// Design section 4); the road takes nothing, so releasing there
+			// cancels (section 6)
+			if (via === 'click') {
+				this.playCardWithTarget(card, undefined);
+			} else {
+				this.handLayer.setCardSelected(card);
+				this.handLayer.setTargetingMode(true);
+				this.combatModel.targetableVehicleIds = this.dropVehicles(card);
+			}
+			return true;
 		}
+
+		this.handLayer.setCardSelected(card);
+		this.handLayer.setTargetingMode(true);
+		this.combatModel.targetableVehicleIds = this.determineTargetableVehicles(card);
+
+		// A keyboard player goes straight to the first target; the targets
+		// are the only focusable vehicles now (R9.23: programmatic focus
+		// keeps the keyboard's visible ring)
+		const focus = this.context.focus;
+		if (via === 'click' && focus.focusVisible && !focus.focusFirst(this.enemyLayer)) focus.focusFirst(this.battlefieldLayer);
+		return true;
+	}
+
+	/**
+	 * Where a card with no target can be dropped: the vehicle the playing
+	 * driver is in for a card on themselves, the raiders for one on all of
+	 * them, your convoy for one on both drivers.
+	 */
+	private dropVehicles(card: Card): string[] {
+		const onRoad = (vehicles: readonly Vehicle[] | undefined): string[] =>
+			(vehicles ?? []).filter(vehicle => !vehicle.isOutOfFight).map(vehicle => vehicle.id);
+		switch (card.targetType) {
+			case 'enemy_all':
+				return onRoad(this.enemyTeam?.vehicles);
+			case 'both_drivers':
+				return onRoad(this.playerTeam?.vehicles);
+			default: {
+				const driver = this.combatModel.selectedDriver;
+				return onRoad(this.playerTeam?.vehicles.filter(vehicle => vehicle.driver === driver || vehicle.passenger === driver));
+			}
+		}
+	}
+
+	/** Targeting ends with nothing played: the card goes back to the hand. */
+	private putCardBack(): void {
+		this.combatModel.cancelSelection();
+		this.handLayer.clearCardSelection();
+		this.restoreKeyboardFocus();
 	}
 
 	/**
@@ -861,6 +974,9 @@ export class CombatScreen extends Screen {
 	protected onUnmount(): void {
 		// A load still in flight for this mount stops when it lands
 		this.mountGeneration++;
+
+		this.dragUnsubscribe?.();
+		this.dragUnsubscribe = null;
 
 		// Cancel any active targeting
 		if (this.combatModel.isTargeting) {

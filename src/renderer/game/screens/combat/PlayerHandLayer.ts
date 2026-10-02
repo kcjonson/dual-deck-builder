@@ -1,6 +1,7 @@
 import { Stack, StackOptions } from '../../../engine/components/Stack';
 import { Container } from '../../../engine/components/Container';
 import type { Component } from '../../../engine/components/Component';
+import type { UiDragEvent, UiPointerEvent } from '../../../engine/input/events';
 import { Card as UICard, CardSize } from '../../ui/Card';
 import { Card } from '../../mechanics/Card';
 import { DriverSeat, PlayerHandView } from './PlayerHandView';
@@ -13,7 +14,7 @@ const HALF_GAP = 20;
 /**
  * Player hand layer, the dock's hand area: each driver owns half, with
  * their tab above a fan of their cards. A card is played by clicking it,
- * then its target.
+ * then its target, or by dragging it onto its target.
  */
 export class PlayerHandLayer extends Stack {
 	private handCards: Card[] = [];
@@ -23,6 +24,9 @@ export class PlayerHandLayer extends Stack {
 
 	// Callbacks
 	private onCardSelect: ((card: Card) => void) | null = null;
+	private onCardPress: ((card: Card, element: UICard, event: UiPointerEvent) => void) | null = null;
+	private onCardDragEnd: ((card: Card, event: UiDragEvent) => void) | null = null;
+	private onOtherButton: (() => void) | null = null;
 
 	// Selection state
 	private selectedCard: Card | null = null; // The card player has selected to play (waiting for target)
@@ -67,6 +71,21 @@ export class PlayerHandLayer extends Stack {
 	 */
 	public setOnCardSelect(callback: (card: Card) => void): void {
 		this.onCardSelect = callback;
+	}
+
+	/**
+	 * A primary press on a card, which may grow into a drag to play it; how
+	 * that drag ended; and any other button on a card, pressed or chorded
+	 * onto the held one (R9.30), which cancels a drag
+	 */
+	public setOnCardDrag({ press, end, otherButton }: {
+		press: (card: Card, element: UICard, event: UiPointerEvent) => void;
+		end: (card: Card, event: UiDragEvent) => void;
+		otherButton: () => void;
+	}): void {
+		this.onCardPress = press;
+		this.onCardDragEnd = end;
+		this.onOtherButton = otherButton;
 	}
 
 	/**
@@ -125,6 +144,14 @@ export class PlayerHandLayer extends Stack {
 				placement: { anchor: 'owner', side: 'top', align: 'center', ownerRect: () => cardElement.liftedScreenBounds },
 				immediateOnFocus: true,
 			};
+			cardElement.onPointerDown = (event) => {
+				if (event.button === 0) this.onCardPress?.(card, cardElement, event);
+				else this.onOtherButton?.();
+			};
+			cardElement.onPointerMove = (event) => {
+				if (event.button > 0) this.onOtherButton?.();
+			};
+			cardElement.onDragEnd = (event) => this.onCardDragEnd?.(card, event);
 			cardElement.setOnSelect(() => {
 				if (this.canPlayCard(card) && this.onCardSelect) {
 					this.onCardSelect(card);
