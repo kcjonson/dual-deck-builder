@@ -1,4 +1,5 @@
 import { FONT_FACES, ICON_ATLAS } from './fontFaces';
+import { FIELD_INK } from './fieldInk';
 import { PlatformFaces } from './platformFaces';
 
 describe('PlatformFaces (R6.4a)', () => {
@@ -38,5 +39,15 @@ describe('PlatformFaces (R6.4a)', () => {
 		await new Promise((resolve) => setTimeout(resolve, 0));
 		expect(errors).toEqual(['jetbrains-mono-regular: 404']);
 		expect(faces.familyOf('mono')).toBeNull();
+	});
+
+	it('hands each text role the distance field ink its raster glyphs are matched to (DDB-217)', () => {
+		const faces = new PlatformFaces({ load: () => new Promise<void>(() => undefined) });
+		for (const face of FONT_FACES) {
+			// The table the web suite measures against the shader
+			expect(face.fieldInk).toBe(FIELD_INK[face.face]);
+			expect(faces.fieldInkOf(face.role)).toBe(FIELD_INK[face.face]);
+		}
+		expect(faces.fieldInkOf('icons')).toBeNull();
 	});
 });
