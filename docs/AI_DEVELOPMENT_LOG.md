@@ -18,6 +18,27 @@ This document contains the chronological log of completed development tasks for 
 
 **How:** `CombatScreenTurn.test.ts` (banner placement, queue, slide, reduced-motion hold; intents per raider; a played card's flight from the hand to the pile, the whole hand at END TURN, none under reduced motion), `vehicleBadges.test.ts` (two then "+N", tooltips, grow and shrink, reduced motion), `EnemyBattlefieldLayer.test.ts`, `Component.test.ts`. Played a full turn, enemy turn included, in headless Chromium through `window.__dev.input`.
 
+## Main menu, splash, and battle result on root stacks; screen transitions (2026-10-01)
+
+**What landed:** DDB-90 (DDB-55 phase 6).
+
+- `Screen` takes a `root` option; the main menu, splash, and battle result each pass a root `Stack` with `fill` on both axes and centre their content in it. No hand placement and no `onResized` on any of the three. They build in `onMount` and clear in `onUnmount`, on theme tokens.
+- Main menu: display-face title over a `FocusGroup` of block `lg` buttons (arrows wrap, one Tab stop), Start Game in the accent tone and focused on mount; the build stamp is an absolute child anchored bottom right.
+- Splash: logo, title, and subtitle centred; fades in over 1 s, holds 2 s, then navigates; Enter, Escape, or Space skips. Its own fade out is gone.
+- Battle result: a raised `Panel` with corner ticks, the outcome in `status_ok` or `status_crit`, Continue focused; Enter or Escape returns to the menu. Missing data logs and builds nothing.
+- `ScreenManager.navigate` runs through one `ScreenTransition`; `{ immediate: true }` is the boot and the dev `__app.navigate` hook. `ScreenManager.transitioning` gates `Game`'s document key listener (F12, Escape) while a transition runs.
+
+**How:** `ScreenManager.test.ts` (fade, swap, focus handed over after the transition, a double press swapping once, keys blocked under the fade, immediate ending a transition, reduced motion), `MainMenuScreen.test.ts`, `BattleResultScreen.test.ts`, the splash suite rewritten, and the combat teardown suite settling the transition. Played splash, menu, driver selection, Escape back, a won fight, result, and menu again through `window.__dev.input` in headless Chromium at 1024x600, 1280x720, 1920x1080, and 1280x720 with reduced motion: lint zero on all three screens, focus on the primary action after every transition, no console errors. Details in [screen-transitions-and-root-stacks.md](./AI_TECHNICAL_DECISIONS/screen-transitions-and-root-stacks.md).
+
+## Catalog Wave B, slider, tabs, and segments (2026-10-01)
+
+**What landed:** DDB-86's third PR (DDB-55 phase 5), R12.15 to R12.17. Built on 2026-09-28 before #110, merged up to main and moved onto its API.
+
+- `ui/Slider.ts`: `positionToValue`, `valueToPosition`, `snapToStep` (log with positive bounds, linear fallback, never NaN); thumb grab keeping its offset or track jump, both captured; arrows by step or 1% of the track; Home and End; silent programmatic value; label and value columns and a detent tick. The formatted value is cached per value and the value column is sized once from the formatted min, midpoint, and max, so a drag neither re-measures nor moves the track; `labelWidth` and `valueWidth` align stacked sliders. Review fix: a press on the label or value column only focuses (it used to jump to an end).
+- `ui/LabelledPressable.ts`, a Pressable drawing one measured label from look layers; `ui/TabBar.ts` (a Stack of `Tab`s, controlled or uncontrolled, underline, hairline) and `ui/SegmentedControl.ts` (equal segments in an inset well, the tone's glowing chip), both focus groups moving selection with focus, wrapping and skipping disabled items.
+- `tabLayers`, `segmentLayers`, and `toneGlow` in `style/variants.ts`; gallery scene `slider-tabs`.
+
+**How:** `ui/sliderTabs.test.ts`, 33 cases through injected input: worldsim's Slider suite (linear and log maps, round trips, geometric midpoint, invalid log bounds, snapping, clamping, keys, callbacks, re-entrancy) plus thumb grab, jump then captured drag past the ends, even log stepping, disabled and disabled mid-drag, column presses, a fixed value column through a drag, aligned columns, columns following a new label, formatter, or range; TabBar hugging measured caps labels, controlled and uncontrolled selection, release over the pressed tab, one Tab stop with Left and Right skipping disabled and wrapping, a controlled parent refusing a tab, disabled bars out of the Tab order, underline and hairline; SegmentedControl widths, heights, click selection, all four arrows and Home, disabled, tone chip and glow; and an ink audit under a clip with each control keyboard-focused and hovered (no `ink-outside-bound`).
 ## Combat drag targeting and floating damage numbers (2026-10-01)
 
 **What landed:** DDB-88's second PR (DDB-55 phase 6): cards play by dragging them onto their target, as well as by click-then-target and the keyboard, and hits float their numbers up off the vehicle they landed on.

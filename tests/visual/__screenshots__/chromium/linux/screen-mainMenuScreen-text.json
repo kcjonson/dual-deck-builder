@@ -1,8 +1,8 @@
 [
-{"path":"mainMenuScreen/main_menu_title","text":"Dual Deckbuilder","rect":[0,176.4,1440,87.16]},
-{"path":"mainMenuScreen/main_menu_start_button/Text[0]","text":"Start Game","rect":[582,352.8,276,60]},
-{"path":"mainMenuScreen/main_menu_settings_button/Text[0]","text":"Settings","rect":[582,432.8,276,60]},
-{"path":"mainMenuScreen/main_menu_credits_button/Text[0]","text":"Credits","rect":[582,512.8,276,60]},
-{"path":"mainMenuScreen/main_menu_card_showcase_button/Text[0]","text":"Card Showcase","rect":[582,592.8,276,60]},
-{"path":"mainMenuScreen/main_menu_developer_button/Text[0]","text":"Developer Tools","rect":[582,672.8,276,60]}
+{"path":"mainMenuScreen/main_menu_title","text":"Dual Deckbuilder","rect":[511.56,226.8,416.88,86.4]},
+{"path":"mainMenuScreen/main_menu_buttons/main_menu_start_button/Text[0]","text":"Start Game","rect":[582,361.2,276,46]},
+{"path":"mainMenuScreen/main_menu_buttons/main_menu_settings_button/Text[0]","text":"Settings","rect":[582,423.2,276,46]},
+{"path":"mainMenuScreen/main_menu_buttons/main_menu_credits_button/Text[0]","text":"Credits","rect":[582,485.2,276,46]},
+{"path":"mainMenuScreen/main_menu_buttons/main_menu_card_showcase_button/Text[0]","text":"Card Showcase","rect":[582,547.2,276,46]},
+{"path":"mainMenuScreen/main_menu_buttons/main_menu_developer_button/Text[0]","text":"Developer Tools","rect":[582,609.2,276,46]}
 ]
