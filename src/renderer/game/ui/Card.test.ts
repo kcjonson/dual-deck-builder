@@ -121,7 +121,7 @@ describe('Card face (Battle Screen Design, section 5)', () => {
 	});
 
 	it('reaches past its top-left corner for the cost hex, and says so in its ink', () => {
-		expect(build(cardData[0], 1).inkExtent).toBe(7);
+		expect(build(cardData[0], 1).inkExtent).toBe(9);
 		expect(build(cardData[0], 1, false, CardSize.MINI).inkExtent).toBe(0);
 	});
 

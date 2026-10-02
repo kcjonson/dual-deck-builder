@@ -362,9 +362,13 @@ export class Card extends Component {
 		return typeof size === 'number' ? size : FACE.name.sizes[0];
 	}
 
-	/** The cost hex reaches 7 px past the top-left corner. */
+	/**
+	 * The cost hex's box reaches 7 px past the top-left corner, and its
+	 * outline (`drawCostHex`, a fifteenth of its size) and the polygon
+	 * feather a little further.
+	 */
 	public get inkExtent(): number {
-		return this.cardSize === CardSize.MINI ? 0 : -FACE.hex.x;
+		return this.cardSize === CardSize.MINI ? 0 : -FACE.hex.x + Math.ceil(FACE.hex.size / 15);
 	}
 
 	/** R8.29: a card is one target; its text and frame are internals. */
