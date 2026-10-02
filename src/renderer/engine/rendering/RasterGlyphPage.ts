@@ -5,12 +5,15 @@ import type { TextLayout } from '../text/TextLayout';
 import {
 	GlyphCanvasContext,
 	GlyphToRasterize,
+	INK_REFERENCE_TEXT,
 	RASTER_GUTTER,
 	RasterGlyphCell,
 	RasterGlyphRun,
 	RasterGlyphSource,
 	rasterBlockWidth,
 	rasterGlyphBox,
+	inkCurve,
+	inkSample,
 	rasterizeGlyphs,
 } from '../text/rasterGlyphs';
 
@@ -21,6 +24,13 @@ export interface RasterGlyphPageOptions {
 	};
 	/** The platform family for a font role once its face is ready, else null (`PlatformFaces.familyOf`). */
 	familyOf: (font: string) => string | null;
+	/**
+	 * The distance field's ink of `INK_REFERENCE_TEXT` per square pixel of
+	 * font size for a font role (`FontFaceAsset.fieldInk`), which each size's
+	 * raster glyphs are matched to in weight; null leaves the platform's
+	 * coverage as drawn. Defaults to null.
+	 */
+	fieldInkOf?: (font: string) => number | null;
 	/** The scratch canvas's 2D context, made once on first use; null where there is none. */
 	createCanvas: () => GlyphCanvasContext | null;
 	/** Milliseconds, for the per-frame budget. */
@@ -42,6 +52,8 @@ interface SizeEntry {
 	readonly run: RasterGlyphRun;
 	/** The frame a run last asked for this size. */
 	lastUsed: number;
+	/** The coverage curve this size's glyphs are drawn through (`inkCurve`); undefined until measured. */
+	curve: Float32Array | null | undefined;
 }
 
 interface Shelf {
@@ -89,6 +101,7 @@ const STALE_FRAMES = 2;
 export class RasterGlyphPage implements RasterGlyphSource {
 	private readonly textures: RasterGlyphPageOptions['textures'];
 	private readonly familyOf: (font: string) => string | null;
+	private readonly fieldInkOf: (font: string) => number | null;
 	private readonly createCanvas: () => GlyphCanvasContext | null;
 	private readonly now: () => number;
 	private readonly budgetMs: number;
@@ -118,6 +131,7 @@ export class RasterGlyphPage implements RasterGlyphSource {
 	constructor({
 		textures,
 		familyOf,
+		fieldInkOf = () => null,
 		createCanvas,
 		now,
 		budgetMs = DEFAULT_BUDGET_MS,
@@ -127,6 +141,7 @@ export class RasterGlyphPage implements RasterGlyphSource {
 	}: RasterGlyphPageOptions) {
 		this.textures = textures;
 		this.familyOf = familyOf;
+		this.fieldInkOf = fieldInkOf;
 		this.createCanvas = createCanvas;
 		this.now = now;
 		this.budgetMs = budgetMs;
@@ -205,7 +220,8 @@ export class RasterGlyphPage implements RasterGlyphSource {
 		const canvas = this.ensureCanvas();
 		if (!canvas) return null;
 		const started = this.now();
-		const blocks = rasterizeGlyphs(canvas, missing.map((glyph) => glyph.toRasterize), pixelSize, family);
+		if (entry.curve === undefined) entry.curve = this.measureCurve(canvas, font, family, layout.atlas, pixelSize);
+		const blocks = rasterizeGlyphs(canvas, missing.map((glyph) => glyph.toRasterize), pixelSize, family, entry.curve);
 		let complete = true;
 		for (let index = 0; index < missing.length; index++) {
 			const { codePoint, toRasterize: { box } } = missing[index];
@@ -234,9 +250,27 @@ export class RasterGlyphPage implements RasterGlyphSource {
 		if (existing) this.orphanedCells += existing.cells.size;
 		const texture = this.ensureTexture();
 		const cells = new Map<number, RasterGlyphCell>();
-		const entry: SizeEntry = { atlas, cells, run: { texture, width: this.width, height: this.height, cells }, lastUsed: this.frame };
+		const entry: SizeEntry = { atlas, cells, run: { texture, width: this.width, height: this.height, cells }, lastUsed: this.frame, curve: undefined };
 		this.sizes.set(key, entry);
 		return entry;
+	}
+
+	/**
+	 * The curve that matches a size's raster glyphs to the distance field in
+	 * weight: the reference word's glyphs drawn at the size as any glyphs are,
+	 * their ink against the field's (DDB-217). Once per size, before its
+	 * first glyphs.
+	 */
+	private measureCurve(canvas: GlyphCanvasContext, font: string, family: string, atlas: FontAtlas, pixelSize: number): Float32Array | null {
+		const fieldInk = this.fieldInkOf(font);
+		if (fieldInk === null) return null;
+		const glyphs: GlyphToRasterize[] = [];
+		for (const character of INK_REFERENCE_TEXT) {
+			const glyph = atlas.glyph(character.codePointAt(0) ?? 0);
+			const box = glyph ? rasterGlyphBox(glyph, pixelSize) : null;
+			if (glyph && box) glyphs.push({ outlineCodePoint: glyph.outlineCodePoint ?? glyph.codePoint, box });
+		}
+		return inkCurve(inkSample(canvas, glyphs, pixelSize, family), fieldInk * pixelSize * pixelSize);
 	}
 
 	/** Whether starting over would win anything back: orphaned cells, or a size with cells no run has asked for lately. */

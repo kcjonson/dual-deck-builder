@@ -16,7 +16,7 @@ const ICON_SIZE = 12;
 const LEFT_INSET = 3;
 const ICON_GAP = 3;
 const RIGHT_INSET = 4;
-const VALUE_SIZE = 8;
+const VALUE_SIZE = tokens.fontSize.fs_xs;
 const VALUE_FONT = 'body';
 
 const FILL_ACTIVE = resolveColor('#6a6aaa');
