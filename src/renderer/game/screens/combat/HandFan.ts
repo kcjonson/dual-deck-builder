@@ -133,12 +133,17 @@ export class HandFan extends Container {
 			this.row.padding = 0;
 			return;
 		}
-		// The edge cards turn outward about their bottom centres and drop, so
-		// their corners reach past where the row puts them. The row's padding
-		// is that reach, so the posed cards stay inside the row's box and the
-		// fan's width holds them.
-		const edge = fanPoses(count)[0];
-		const reach = fanReach(edge);
+		// Turned cards reach past where the row puts them: the edge cards'
+		// corners out to the sides and down, and the cards beside the middle
+		// up, since they turn without dropping far enough to hide it. The
+		// row's padding is the most any card reaches each way, so the posed
+		// cards stay inside the row's box and the fan's width holds them.
+		const reach = fanPoses(count).map(fanReach).reduce((most, each) => ({
+			top: Math.max(most.top, each.top),
+			right: Math.max(most.right, each.right),
+			bottom: Math.max(most.bottom, each.bottom),
+			left: Math.max(most.left, each.left),
+		}));
 		this.row.padding = reach;
 		const room = this.width - reach.left - reach.right;
 		const spread = (room - count * CARD_DIMENSIONS.width) / (count - 1);

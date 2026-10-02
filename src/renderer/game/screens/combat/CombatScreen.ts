@@ -3,7 +3,7 @@ import { ScreenManager } from '../../core/ScreenManager';
 import { Stack } from '../../../engine/components/Stack';
 import { RoadView, EnemyIntent } from './RoadView';
 import { PlayerHandLayer } from './PlayerHandLayer';
-import { LOG_KEY, TopBarLayer } from './TopBarLayer';
+import { LOG_KEY, TopBarLayer, WaveStatus } from './TopBarLayer';
 import { EndTurnColumn } from './EndTurnColumn';
 import { CombatLogLayer } from './CombatLogLayer';
 import { TURN_BANNER_LIFETIME, TurnBanner } from './TurnBanner';
@@ -55,6 +55,33 @@ function isHandCardDrag(data: unknown): data is HandCardDrag {
 }
 
 /**
+ * A fight handed to the screen ready to show: its battle already started,
+ * the player's drivers in seat order, and what the top bar and log read.
+ * The gallery's battle scenes (DDB-141) arrive this way, mid-fight.
+ */
+export interface PreparedCombat {
+	battle: Battle;
+	drivers: [Driver, Driver];
+	wave?: WaveStatus;
+	scrap?: number;
+	fuel?: number;
+	/** Log lines after the matchup, oldest first; the last is the top bar's ticker. */
+	log?: readonly string[];
+}
+
+/** Mount data that prepares its own fight, awaited before the screen shows it. */
+export interface PreparedCombatMount {
+	prepare: () => Promise<PreparedCombat>;
+}
+
+function isPreparedCombatMount(data: unknown): data is PreparedCombatMount {
+	return typeof data === 'object' && data !== null && typeof (data as PreparedCombatMount).prepare === 'function';
+}
+
+/** One wave until the game has reinforcements (Combat Rules: "once there is one"). */
+const SINGLE_WAVE: WaveStatus = { number: 1, total: 1, incoming: 0 };
+
+/**
  * The top bar's LOG key in either case, and F6, the log's key before the
  * top bar had one, kept as an alias for playtesters who learned it.
  */
@@ -103,6 +130,7 @@ export class CombatScreen extends Screen {
 	private combatLog: CombatLog;
 	private fuel = 5;
 	private scrap = 150;
+	private wave: WaveStatus = SINGLE_WAVE;
 	
 	// The player's drivers in seat order (Driver 1, Driver 2), fixed for the
 	// fight so a driver keeps their seat after riding on as a passenger
@@ -165,46 +193,47 @@ export class CombatScreen extends Screen {
 			const vehicle1 = createDrivenVehicle({ driver: driver1 });
 			const vehicle2 = createDrivenVehicle({ driver: driver2 });
 
-			this.playerDrivers = [driver1, driver2];
-
-			// Create player team
-			this.playerTeam = new Team({
+			const playerTeam = new Team({
 				type: TeamType.PLAYER,
 				vehicles: [vehicle1, vehicle2]
 			});
 
 			// Create simple enemy team for testing
-			this.enemyTeam = this.createTestEnemyTeam();
+			const enemyTeam = this.createTestEnemyTeam();
 
-			// Create battle instance
-			this.battle = new Battle({
-				playerTeam: this.playerTeam,
-				enemyTeam: this.enemyTeam
-			});
+			const battle = new Battle({ playerTeam, enemyTeam });
 
 			// Enable AI for enemy team - using aggressive AI as default
 			// Other options: 'random', 'mcts', 'salvage', 'ramming'
-			this.battle.aiController.setEnemyAI('aggressive');
+			battle.aiController.setEnemyAI('aggressive');
+			battle.start();
 
-			// Start the battle
-			this.battle.start();
-
-			// Subscribe to battle events
-			this.subscribeToBattleEvents();
-
-			// Initial UI update is handled by battleStarted event
-			
-			this.turnBanner.announce(this.battle.isPlayerTurn ? 'player' : 'enemy');
-			
-			// The log opens on the matchup
-			const raiders = this.enemyTeam.vehicles.map(vehicle => vehicle.name).join(', ');
-			this.combatLog.addEntry({ message: `${driver1.metadata.name} and ${driver2.metadata.name} vs ${raiders}`, turn: this.battle.turn });
-
-			// Force UI update after initialization
-			this.updateUIFromBattle();
+			this.beginCombat({ battle, drivers: [driver1, driver2] });
 		} catch (error) {
 			console.error('Failed to initialize combat:', error);
 		}
+	}
+
+	/** Show a started battle: subscribe to it, announce the turn, log the matchup, and draw it. */
+	private beginCombat({ battle, drivers, wave = SINGLE_WAVE, scrap, fuel, log = [] }: PreparedCombat): void {
+		this.playerDrivers = [...drivers];
+		this.battle = battle;
+		this.playerTeam = battle.playerTeam;
+		this.enemyTeam = battle.enemyTeam;
+		this.wave = wave;
+		if (scrap !== undefined) this.scrap = scrap;
+		if (fuel !== undefined) this.fuel = fuel;
+
+		this.subscribeToBattleEvents();
+		this.turnBanner.announce(battle.isPlayerTurn ? 'player' : 'enemy');
+
+		// The log opens on the matchup
+		const [driver1, driver2] = drivers;
+		const raiders = battle.enemyTeam.vehicles.map(vehicle => vehicle.name).join(', ');
+		this.combatLog.addEntry({ message: `${driver1.metadata.name} and ${driver2.metadata.name} vs ${raiders}`, turn: battle.turn });
+		for (const message of log) this.combatLog.addEntry({ message, turn: battle.turn });
+
+		this.updateUIFromBattle();
 	}
 
 	/**
@@ -429,8 +458,7 @@ export class CombatScreen extends Screen {
 			});
 		});
 		this.shownTurn = battle.turn;
-		// One wave until the game has reinforcements (Combat Rules: "once there is one")
-		this.topBar.wave = { number: 1, total: 1, incoming: 0 };
+		this.topBar.wave = this.wave;
 		this.topBar.turn = battle.turn;
 		this.topBar.scrap = this.scrap;
 		this.topBar.fuel = this.fuel;
@@ -1169,8 +1197,15 @@ export class CombatScreen extends Screen {
 		// `openLog` mounts with the drawer open, for the log's golden and lint gate
 		if (data && typeof data === 'object' && (data as { openLog?: unknown }).openLog === true) this.combatLogLayer.openDrawer();
 
-		// Check if we have driver data
-		if (data && typeof data === 'object' && 'drivers' in data) {
+		if (isPreparedCombatMount(data)) {
+			try {
+				const prepared = await data.prepare();
+				if (generation !== this.mountGeneration) return;
+				this.beginCombat(prepared);
+			} catch (error) {
+				console.error('Failed to prepare combat:', error);
+			}
+		} else if (data && typeof data === 'object' && 'drivers' in data) {
 			const combatData = data as { drivers: Driver[] };
 			try {
 				await this.initializeCombat(combatData.drivers, generation);

@@ -1,4 +1,4 @@
-import { galleryOnlyScenes, gallerySceneRegistry } from './registry';
+import { galleryOnlyScenes, gallerySceneRegistry, isScreenScene } from './registry';
 import { developerSections } from '../renderer/game/screens/developer/sections';
 import { resolveScene } from './sceneSelection';
 
@@ -41,13 +41,14 @@ describe('gallery scene registry', () => {
 			...galleryOnlyScenes.map((scene) => scene.name),
 		]);
 		for (const [index, section] of developerSections.entries()) {
-			expect(gallerySceneRegistry[index].factory).toBe(section.build);
+			const scene = gallerySceneRegistry[index];
+			expect(isScreenScene(scene) ? null : scene.factory).toBe(section.build);
 		}
 	});
 
-	it('every entry carries a factory', () => {
+	it('every entry carries a factory or a screen', () => {
 		for (const scene of gallerySceneRegistry) {
-			expect(typeof scene.factory).toBe('function');
+			expect(typeof (isScreenScene(scene) ? scene.screen : scene.factory)).toBe('function');
 		}
 	});
 });
