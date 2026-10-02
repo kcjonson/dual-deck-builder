@@ -2,9 +2,9 @@
 {"path":"gallery_root/gallery_scene_dialog/Text[0]","text":"Dialog","rect":[53,53,59.02,33.6]},
 {"path":"gallery_root/gallery_scene_dialog/Text[1]","text":"Modal: a scrim that takes every press, a focus scope, Escape and the X close it, a stray click does not.","rect":[53,103,651.12,19.07]},
 {"path":"gallery_root/gallery_scene_dialog/dialog_trigger/Text[0]","text":"Abandon run","rect":[65,137,136,34]},
-{"path":"dialog_abandon_run_root/dialog_abandon_run/dialog_abandon_run_panel/dialog_abandon_run_header/dialog_abandon_run_heading/dialog_abandon_run_kicker","text":"Run in progress","rect":[556,350.38,111.32,14.52]},
-{"path":"dialog_abandon_run_root/dialog_abandon_run/dialog_abandon_run_panel/dialog_abandon_run_header/dialog_abandon_run_heading/dialog_abandon_run_title","text":"Abandon run?","rect":[556,366.9,110.41,21.6]},
-{"path":"dialog_abandon_run_root/dialog_abandon_run/dialog_abandon_run_panel/dialog_abandon_run_body/dialog_message","text":"Both drivers leave the road and the run ends here. Scrap and fuel carried are lost; unlocks already earned are kept.","rect":[556,416.5,328,53.11]},
-{"path":"dialog_abandon_run_root/dialog_abandon_run/dialog_abandon_run_panel/dialog_abandon_run_footer/dialog_cancel/Text[0]","text":"Keep driving","rect":[608,497.62,116,34]},
-{"path":"dialog_abandon_run_root/dialog_abandon_run/dialog_abandon_run_panel/dialog_abandon_run_footer/dialog_abandon/Text[0]","text":"Abandon run","rect":[756,497.62,116,34]}
+{"path":"dialog_abandon_run_root/dialog_abandon_run/dialog_abandon_run_panel/Text[0]","text":"Run in progress","rect":[556,351.44,294,15]},
+{"path":"dialog_abandon_run_root/dialog_abandon_run/dialog_abandon_run_panel/Text[1]","text":"Abandon run?","rect":[556,366.44,294,21]},
+{"path":"dialog_abandon_run_root/dialog_abandon_run/dialog_abandon_run_panel/dialog_abandon_run_body/dialog_message","text":"Both drivers leave the road and the run ends here. Scrap and fuel carried are lost; unlocks already earned are kept.","rect":[556,411.44,328,53.11]},
+{"path":"dialog_abandon_run_root/dialog_abandon_run/dialog_abandon_run_panel/dialog_abandon_run_footer/dialog_cancel/Text[0]","text":"Keep driving","rect":[608,492.56,116,34]},
+{"path":"dialog_abandon_run_root/dialog_abandon_run/dialog_abandon_run_panel/dialog_abandon_run_footer/dialog_abandon/Text[0]","text":"Abandon run","rect":[756,492.56,116,34]}
 ]
