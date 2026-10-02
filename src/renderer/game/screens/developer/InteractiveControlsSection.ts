@@ -27,7 +27,13 @@ export class InteractiveControlsSection extends DeveloperSectionPanel {
 		super({ id: 'dev_section_interactive_controls', title: 'Interactive Controls', ...options });
 
 		// The rectangle moves by hand inside a stage of its own, out of the flow.
-		this.stage = new Container({ id: 'dev_controls_stage', widthMode: 'fill', height: STAGE_HEIGHT });
+		this.stage = new Container({
+			id: 'dev_controls_stage',
+			widthMode: 'fill',
+			height: STAGE_HEIGHT,
+			// A resize that narrows the section pulls the rectangle back inside
+			onLayout: () => this.placeDemo(this.demoRectangle.x, this.demoRectangle.y),
+		});
 		this.demoRectangle = new Rectangle({
 			width: DEMO_SIZE,
 			height: DEMO_SIZE,
@@ -78,8 +84,15 @@ export class InteractiveControlsSection extends DeveloperSectionPanel {
 		const parts = value.split(',').map((part) => parseInt(part.trim(), 10));
 		if (parts.length !== 2 || parts.some((part) => isNaN(part))) return;
 		const [x, y] = parts;
+		this.placeDemo(x, y);
+	}
+
+	/** Inside the stage, so it never covers the fields below or runs past a narrower section. */
+	private placeDemo(x: number, y: number): void {
 		const clamp = (value: number, room: number): number => Math.min(Math.max(value, 0), Math.max(room - DEMO_SIZE, 0));
-		this.demoRectangle.setPosition(clamp(x, this.stage.width), clamp(y, this.stage.height));
+		const clampedX = clamp(x, this.stage.width);
+		const clampedY = clamp(y, this.stage.height);
+		if (clampedX !== this.demoRectangle.x || clampedY !== this.demoRectangle.y) this.demoRectangle.setPosition(clampedX, clampedY);
 	}
 }
 
