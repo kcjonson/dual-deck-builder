@@ -1,234 +1,138 @@
 import { Screen } from '../../core/Screen';
 import { ScreenManager } from '../../core/ScreenManager';
-import { Button } from '../../../engine/ui/Button';
+import { Stack } from '../../../engine/components/Stack';
 import { Text } from '../../../engine/components/Text';
-import { Rectangle } from '../../../engine/components/Rectangle';
+import { Button } from '../../../engine/ui/Button';
+import { FocusGroup } from '../../../engine/ui/FocusGroup';
+import { tokens } from '../../../engine/theme/tokens';
 import { formatBuildLabel } from './buildLabel';
 
-const BUILD_LABEL_WIDTH = 240;
-const BUILD_LABEL_HEIGHT = 12;
-const BUILD_LABEL_MARGIN = 8;
+const MENU_WIDTH = 300;
+
+interface ElectronWindow extends Window {
+	electron?: {
+		isElectron: boolean;
+		[key: string]: unknown;
+	};
+}
 
 /**
- * Main menu screen with game options
+ * The main menu: a root stack that centres the title over one column of
+ * buttons, so the frame lays it out at any viewport and nothing is placed by
+ * hand. The column is a focus group, one Tab stop the arrows move through,
+ * and focus starts on Start Game.
  */
 export class MainMenuScreen extends Screen {
-	private background: Rectangle;
-	private title: Text;
-	/** Stacked down the middle in this order. */
-	private buttons: Button[] = [];
-	private buildLabel: Text | null = null;
-	private isElectron = false;
+	private readonly stack: Stack;
+	private startButton: Button | null = null;
 
-	/**
-	 * Create a new main menu screen
-	 */
 	constructor() {
-		super('mainMenuScreen');
-		
-		// Check if running in Electron
-		interface ElectronWindow extends Window {
-			electron?: {
-				isElectron: boolean;
-				[key: string]: unknown;
-			};
-		}
-		const electronWindow = window as ElectronWindow;
-		this.isElectron = electronWindow.electron?.isElectron === true;
-
-		// Sized with the root in positionElements
-		this.background = new Rectangle({
-			style: {
-				backgroundColor: '#1a1a33',
-			},
+		const root = new Stack({
+			id: 'mainMenuScreen',
+			widthMode: 'fill',
+			heightMode: 'fill',
+			distribution: 'center',
+			crossAlign: 'center',
+			gap: tokens.space.space_12,
+			style: { backgroundColor: 'bg_base' },
 		});
-		this.rootLayer.addChild(this.background);
+		super('mainMenuScreen', { root });
+		this.stack = root;
+	}
 
-		// Create title text
-		this.title = new Text('Dual Deckbuilder', {
+	protected onMount(): void {
+		this.stack.addChild(new Text('Dual Deckbuilder', {
 			id: 'main_menu_title',
 			style: {
-				fontSize: 64,
-				color: '#ffffff',
+				fontRole: 'display',
+				fontSize: 'fs_5xl',
+				color: 'text_bright',
 				textAlign: 'center',
 			},
 			wrap: 'none',
-		});
-		this.rootLayer.addChild(this.title);
+		}));
+		this.stack.addChild(this.createMenu());
 
-		this.createButtons();
-	}
-
-	/**
-	 * Create menu buttons
-	 */
-	private createButtons(): void {
-		const buttonWidth = 300;
-		const buttonHeight = 60;
-
-		// Start Game button
-		const startButton = new Button('Start Game', {
-			id: 'main_menu_start_button',
-			width: buttonWidth,
-			height: buttonHeight,
-			style: {
-				fontSize: 24,
-			},
-		});
-		startButton.onClick = () => {
-			ScreenManager.navigate('driverSelectionScreen');
-		};
-		this.addButton(startButton);
-
-		// Settings button
-		const settingsButton = new Button('Settings', {
-			id: 'main_menu_settings_button',
-			width: buttonWidth,
-			height: buttonHeight,
-			style: {
-				fontSize: 24,
-			},
-		});
-		settingsButton.onClick = () => {
-			// Settings not implemented yet
-			console.log('Settings not implemented');
-		};
-		this.addButton(settingsButton);
-
-		// Credits button
-		const creditsButton = new Button('Credits', {
-			id: 'main_menu_credits_button',
-			width: buttonWidth,
-			height: buttonHeight,
-			style: {
-				fontSize: 24,
-			},
-		});
-		creditsButton.onClick = () => {
-			// Credits not implemented yet
-			console.log('Credits not implemented');
-		};
-		this.addButton(creditsButton);
-
-		// Card showcase button
-		const cardShowcaseButton = new Button('Card Showcase', {
-			id: 'main_menu_card_showcase_button',
-			width: buttonWidth,
-			height: buttonHeight,
-			style: {
-				fontSize: 24,
-			},
-		});
-		cardShowcaseButton.onClick = () => {
-			ScreenManager.navigate('cardShowcaseScreen');
-		};
-		this.addButton(cardShowcaseButton);
-
-		// Developer button
-		const devButton = new Button('Developer Tools', {
-			id: 'main_menu_developer_button',
-			width: buttonWidth,
-			height: buttonHeight,
-			style: {
-				fontSize: 24,
-			},
-		});
-		devButton.onClick = () => {
-			ScreenManager.navigate('developerScreen');
-		};
-		this.addButton(devButton);
-
-		// Exit button (only for desktop)
-		const exitButton = new Button('Exit Game', {
-			width: buttonWidth,
-			height: buttonHeight,
-			style: {
-				fontSize: 24,
-			},
-		});
-		exitButton.onClick = () => {
-			if (this.isElectron) {
-				// In Electron mode, request to close the app
-				// Would use electron API to quit
-				console.log('Exit requested in Electron mode');
-			}
-		};
-
-		// Only show exit button in desktop mode
-		if (this.isElectron) {
-			this.addButton(exitButton);
-		}
-	}
-
-	private addButton(button: Button): void {
-		this.buttons.push(button);
-		this.rootLayer.addChild(button);
-	}
-
-	/**
-	 * The build stamp in the bottom-right corner, so a playtester can tell
-	 * which deploy they're on. Development builds define no SHA and show none,
-	 * which keeps the main menu goldens stable across commits.
-	 */
-	protected onMount(): void {
-		this.positionElements();
-
+		// The build stamp in the bottom-right corner, so a playtester can tell
+		// which deploy they're on. Development builds define no SHA and show
+		// none, which keeps the main menu goldens stable across commits.
 		const label = formatBuildLabel({ sha: __BUILD_SHA__, number: __BUILD_NUMBER__ });
-		if (!label) return;
+		if (label) {
+			this.stack.addChild(new Text(label, {
+				id: 'main_menu_build_label',
+				positioned: 'absolute',
+				anchor: 'bottomRight',
+				pivot: 'bottomRight',
+				x: -tokens.space.space_2,
+				y: -tokens.space.space_2,
+				style: { fontRole: 'mono', fontSize: 'fs_sm', color: 'text_faint' },
+				wrap: 'none',
+			}));
+		}
 
-		// An explicit box rather than a zero-width anchor, so a layout pass
-		// can't resize it and shift the right edge.
-		this.buildLabel = new Text(label, {
-			id: 'main_menu_build_label',
-			width: BUILD_LABEL_WIDTH,
-			height: BUILD_LABEL_HEIGHT,
-			style: {
-				fontSize: 12,
-				color: '#6b6b8f',
-				textAlign: 'right',
-			},
-			verticalAlign: 'bottom',
-			wrap: 'none',
+		if (this.startButton) this.context.focus.focus(this.startButton);
+	}
+
+	protected onUnmount(): void {
+		this.stack.clearChildren();
+		this.startButton = null;
+	}
+
+	private createMenu(): FocusGroup {
+		const menu = new FocusGroup({
+			id: 'main_menu_buttons',
+			orientation: 'vertical',
+			wrap: true,
+			width: MENU_WIDTH,
+			crossAlign: 'stretch',
+			gap: tokens.space.space_4,
 		});
-		this.rootLayer.addChild(this.buildLabel);
-		this.positionBuildLabel();
-	}
 
-	private positionBuildLabel(): void {
-		this.buildLabel?.setPosition(
-			this.rootLayer.width - BUILD_LABEL_WIDTH - BUILD_LABEL_MARGIN,
-			this.rootLayer.height - BUILD_LABEL_HEIGHT - BUILD_LABEL_MARGIN,
-		);
-	}
-
-	/**
-	 * Position the menu elements from the root's size, which is the viewport's
-	 */
-	private positionElements(): void {
-		const width = this.rootLayer.width;
-		const height = this.rootLayer.height;
-		const centerX = width / 2;
-
-		this.background.setSize(width, height);
-
-		// Title centred across the screen
-		this.title.setPosition(0, height * 0.2);
-		this.title.setWidth(width);
-
-		const buttonWidth = 300;
-		const buttonHeight = 60;
-		const buttonSpacing = 20;
-		const startY = height * 0.4;
-		this.buttons.forEach((button, index) => {
-			button.setPosition(
-				centerX - buttonWidth / 2,
-				startY + index * (buttonHeight + buttonSpacing),
-			);
+		this.startButton = new Button('Start Game', {
+			id: 'main_menu_start_button',
+			tone: 'accent',
+			size: 'lg',
+			block: true,
+			onClick: () => ScreenManager.navigate('driverSelectionScreen'),
 		});
-	}
+		menu.addChild(this.startButton);
+		menu.addChild(new Button('Settings', {
+			id: 'main_menu_settings_button',
+			size: 'lg',
+			block: true,
+			// Settings not implemented yet (DDB-38)
+			onClick: () => console.log('Settings not implemented'),
+		}));
+		menu.addChild(new Button('Credits', {
+			id: 'main_menu_credits_button',
+			size: 'lg',
+			block: true,
+			// Credits not implemented yet (DDB-38)
+			onClick: () => console.log('Credits not implemented'),
+		}));
+		menu.addChild(new Button('Card Showcase', {
+			id: 'main_menu_card_showcase_button',
+			size: 'lg',
+			block: true,
+			onClick: () => ScreenManager.navigate('cardShowcaseScreen'),
+		}));
+		menu.addChild(new Button('Developer Tools', {
+			id: 'main_menu_developer_button',
+			size: 'lg',
+			block: true,
+			onClick: () => ScreenManager.navigate('developerScreen'),
+		}));
 
-	protected onResized(): void {
-		this.positionElements();
-		this.positionBuildLabel();
+		// Only the desktop build can quit
+		if ((window as ElectronWindow).electron?.isElectron === true) {
+			menu.addChild(new Button('Exit Game', {
+				id: 'main_menu_exit_button',
+				size: 'lg',
+				block: true,
+				// Would use the electron API to quit
+				onClick: () => console.log('Exit requested in Electron mode'),
+			}));
+		}
+		return menu;
 	}
 }

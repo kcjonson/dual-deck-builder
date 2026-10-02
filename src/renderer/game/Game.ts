@@ -144,8 +144,8 @@ export class Game {
 		// diagnostic domain (R3.21), so it is hit-tested last too.
 		this.developerOverlay.mount(this.context, { tier: 'diagnostic' });
 
-		// Start with the splash screen
-		ScreenManager.navigate('splashScreen');
+		// Start with the splash screen, which fades itself in
+		ScreenManager.navigate('splashScreen', undefined, { immediate: true });
 
 		// Set up any global event handlers
 		this.setupEventHandlers();
@@ -170,7 +170,8 @@ export class Game {
 			installAppHooks({
 				navigate: (screenName: string) => {
 					if (!ScreenManager.isScreenName(screenName)) return false;
-					ScreenManager.navigate(screenName);
+					// A capture navigates while paused, when no fade would tick.
+					ScreenManager.navigate(screenName, undefined, { immediate: true });
 					return true;
 				},
 				screens: () => ScreenManager.screenNames,
@@ -247,6 +248,20 @@ export class Game {
 			// folds the check away in production.
 			if (__DEV_TOOLS__ && this.isPaused) return;
 
+			// Toggle developer overlay with F5
+			if (event.key === 'F5') {
+				event.preventDefault();
+				this.developerOverlay.toggle();
+				// The GPU timer costs frame time on some drivers, so it runs
+				// only while someone is looking at what it reports.
+				if (this.gpuTimer) this.gpuTimer.enabled = this.developerOverlay.shown;
+			}
+
+			// A screen transition blocks input while it runs (R12.38), and this
+			// listener is outside the dispatcher that enforces it. The overlay
+			// above is diagnostic and stays reachable.
+			if (ScreenManager.transitioning) return;
+
 			// Example: Press F12 to toggle developer screen
 			if (event.key === 'F12') {
 				if (ScreenManager.getCurrentScreenName() === 'developerScreen') {
@@ -256,15 +271,6 @@ export class Game {
 				}
 			}
 
-			// Toggle developer overlay with F5
-			if (event.key === 'F5') {
-				event.preventDefault();
-				this.developerOverlay.toggle();
-				// The GPU timer costs frame time on some drivers, so it runs
-				// only while someone is looking at what it reports.
-				if (this.gpuTimer) this.gpuTimer.enabled = this.developerOverlay.shown;
-			}
-			
 			// Example: Press Escape to go back to main menu
 			const currentScreen = ScreenManager.getCurrentScreenName();
 			if (event.key === 'Escape' && currentScreen !== 'mainMenuScreen' && currentScreen !== 'splashScreen') {

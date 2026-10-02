@@ -140,7 +140,8 @@ Waves, each landing with its gallery scene, behaviour tests, and lint zero:
 
 - [ ] Combat, to [Battle Screen Design](./Battle%20Screen%20Design.md): the road's 6x3 slot grid with fixed slots, the vehicle token, two per-driver hands as stacks with negative gap and `transform` for the fan, `zIndex` and `raised` for hover lift through the animator, drag targeting through the drag service with `dragenter` highlights, per-slot range chips, and a preview line in `overlay`, the card detail view through the tooltip factory (pinnable), the turn banner in `overlay` over the road only, enemy intent and status icons through Icon, floating damage numbers spawned at `screenBounds`. Closes DDB-28, DDB-29, DDB-30; sets up DDB-33, DDB-34, DDB-37, DDB-47.
 - [ ] Driver selection: stacks for the panels and the synergy panel, a scroll container for the deck preview (DDB-31), a Select for driver choice, no rebuild on resize.
-- [ ] Main menu, splash, battle result: root stacks, centred titles, transitions through ScreenTransition.
+- [x] Main menu, splash, battle result: root stacks, centred titles, transitions through ScreenTransition.
+  DDB-90. Every `ScreenManager.navigate` fades through one ScreenTransition; `{ immediate: true }` is for the boot and the dev navigate hook. `Screen` takes a fill root stack, which the frame sizes. See [screen-transitions-and-root-stacks.md](../AI_TECHNICAL_DECISIONS/screen-transitions-and-root-stacks.md).
 - [ ] Settings and credits screens (DDB-38) as the first screens authored entirely on the new catalog (dialog, checkbox, slider, select).
 - [ ] Every screen at lint zero with a golden; the developer screen's sections are gallery scenes on the new components; the accessor rename landed as its own mechanical PR.
 

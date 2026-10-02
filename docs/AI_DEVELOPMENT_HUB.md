@@ -159,6 +159,10 @@ DDB-83 put the token pipeline in with no consumers: `src/renderer/engine/theme/t
 
 **TreeView and ScreenTransition (DDB-87, Wave C third PR).** `TreeView` flattens its nodes lazily, culls to the rows inside its height and clips them, scrolls on the wheel, and is one Tab stop with a keyboard cursor (arrows walk and fold, Enter and Space select or toggle); the chevron column toggles, optional single selection. `ScreenTransition` runs R8.22's fade out, swap, one layout, fade in in the `transition` layer, blocking input throughout; its root is `persistent` (a new overlay option) so the scene change's `closeAll` inside the swap leaves it. DDB-90 adopts it in ScreenManager. Scenes `tree-view` and `screen-transition`. Wave C is complete once the three PRs land.
 
+## Phase 6: screen migration (in progress, 2026-10-01)
+
+**Main menu, splash, and battle result on root stacks (DDB-90).** Each is a root `Stack` with `fill` on both axes (`Screen` takes a `root` option and leaves a fill root to the frame's viewport sizing), centring its content; none places anything by hand or has an `onResized`. The menu's buttons are one `FocusGroup` (arrows wrap, one Tab stop) with focus on Start Game; the result is a `Panel` with Continue focused, Enter or Escape continuing; the splash skips on Enter, Escape, or Space. `ScreenManager.navigate` runs every navigation through one `ScreenTransition` (fade to `bg_void`, swap, one layout, fade in, input blocked); `{ immediate: true }` swaps at once and is what the boot and the dev `__app.navigate` hook use. The game's document key listener ignores F12 and Escape while a transition runs. Details in [screen-transitions-and-root-stacks.md](./AI_TECHNICAL_DECISIONS/screen-transitions-and-root-stacks.md).
+
 ## Current state (verified survey, 2026-08-22)
 
 Development stopped 2025-07-03. On 2026-08-22 the whole project was re-surveyed: `npm test` (128/128 pass), `npm run lint` (0 errors, 9 warnings), `npm run build:web` (compiles), plus a live click-through of the running game and a full code audit. Everything below is verified against the code or the running app, not carried forward from old status notes.
@@ -185,11 +189,10 @@ A dated warning about this doc's history: all entries previously dated "December
 
 ### In progress / never built (unfinished, not broken)
 
-- Settings and Credits: buttons exist, click logs "not implemented" (`MainMenuScreen.ts:92,106`).
+- Settings and Credits: buttons exist, click logs "not implemented" (DDB-38).
 - Panel scrolling: scrollbars draw but don't scroll; five overflow methods are explicit no-op stubs (`Panel.ts:369-399`). Blocks combat-log scrolling (`CombatLogLayer.ts:248`).
-- BattleResultScreen: no battle statistics display, Continue is hard-wired to main menu instead of a reward/map screen (`BattleResultScreen.ts:95,115`).
+- BattleResultScreen: no battle statistics display, Continue is hard-wired to main menu instead of a reward/map screen.
 - Enemy intents show only the first planned intent per raider, in the old indicator, until DDB-33's pills; per-driver fuel not implemented (`:396`); card detail popup missing (`:536`); hand layer gets a flat card array instead of per-driver grouping (`:376`); card fanning and discard animations missing (`PlayerHandLayer.ts:316-330`).
-- Splash fade in/out blocked on component opacity support (`SplashScreen.ts:111`).
 - AI types `'defensive'` and `'balanced'` are declared and shown in the simulator UI but silently fall back to RandomAI (`AIController.ts:54-57`).
 - Movement cards, enemy wave spawning, status-effect display, card effect previews, map navigation, garage/shop, events, meta-progression, save/load: not started (tracked in the Game feature roadmap epic on Specboard). The combat screen's target design is the Battle screen design section above.
 

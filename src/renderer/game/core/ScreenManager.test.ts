@@ -1,0 +1,106 @@
+/**
+ * @jest-environment jsdom
+ */
+// ScreenManager first, as the game loads it: it and the screens import each
+// other, and loading a screen first leaves it undefined in the registry
+import { ScreenManager } from './ScreenManager';
+import { Clock } from '../../engine/animation/Clock';
+import type { MountContext } from '../../engine/components/MountContext';
+import { createTestContext } from '../../engine/components/testing';
+import { advance, key, send } from '../../engine/services/testing';
+import { tokens } from '../../engine/theme/tokens';
+import type { BattleResultData } from '../screens/battleResult/BattleResultScreen';
+
+/** R8.22 and R12.38 through the game's scene manager. */
+
+const FADE_MS = tokens.motion.dur + 32;
+const VICTORY = { victory: true, battleState: {} } as BattleResultData;
+
+let context: MountContext;
+
+beforeAll(() => {
+	jest.spyOn(console, 'log').mockImplementation(() => undefined);
+	context = createTestContext({ viewport: { logical: { width: 1280, height: 720 } }, clock: new Clock() });
+	ScreenManager.initialize(context);
+});
+
+afterAll(() => {
+	jest.restoreAllMocks();
+});
+
+beforeEach(() => {
+	context.animator.reducedMotion = false;
+	ScreenManager.navigate('mainMenuScreen', undefined, { immediate: true });
+	context.frame.layout();
+});
+
+describe('ScreenManager.navigate', () => {
+	it('swaps at once when immediate, with no transition', () => {
+		ScreenManager.navigate('battleResultScreen', VICTORY, { immediate: true });
+		expect(ScreenManager.getCurrentScreenName()).toBe('battleResultScreen');
+		expect(ScreenManager.transitioning).toBe(false);
+		expect(context.overlays.roots).toHaveLength(0);
+	});
+
+	it('fades out, swaps, and fades in, with the outgoing screen up until the swap', () => {
+		ScreenManager.navigate('battleResultScreen', VICTORY);
+		expect(ScreenManager.transitioning).toBe(true);
+		expect(ScreenManager.getCurrentScreenName()).toBe('mainMenuScreen');
+
+		advance(context, FADE_MS);
+		expect(ScreenManager.getCurrentScreenName()).toBe('battleResultScreen');
+		expect(ScreenManager.transitioning).toBe(true);
+
+		advance(context, FADE_MS);
+		expect(ScreenManager.transitioning).toBe(false);
+		expect(context.overlays.roots).toHaveLength(0);
+	});
+
+	it('gives focus to the incoming screen\'s primary action once the transition lets go', () => {
+		ScreenManager.navigate('battleResultScreen', VICTORY);
+		advance(context, FADE_MS * 2);
+		expect(context.focus.focused?.id).toBe('result_continue_button');
+
+		send(context, [key('Enter')]);
+		advance(context, FADE_MS * 2);
+		expect(ScreenManager.getCurrentScreenName()).toBe('mainMenuScreen');
+		expect(context.focus.focused?.id).toBe('main_menu_start_button');
+	});
+
+	it('swaps once for a double press', () => {
+		ScreenManager.navigate('battleResultScreen', VICTORY, { immediate: true });
+		const mounts = jest.spyOn(ScreenManager as unknown as { swap: () => void }, 'swap');
+		send(context, [key('Escape'), key('Escape')]);
+		advance(context, FADE_MS * 2);
+		expect(mounts).toHaveBeenCalledTimes(1);
+		expect(ScreenManager.getCurrentScreenName()).toBe('mainMenuScreen');
+		mounts.mockRestore();
+	});
+
+	it('keeps keys from the screen beneath while it runs', () => {
+		ScreenManager.navigate('battleResultScreen', VICTORY);
+		advance(context, FADE_MS);
+		// Enter on the result screen's Continue, still under the fade in
+		send(context, [key('Enter')]);
+		advance(context, FADE_MS);
+		expect(ScreenManager.getCurrentScreenName()).toBe('battleResultScreen');
+	});
+
+	it('ends a transition under way when an immediate navigate arrives', () => {
+		ScreenManager.navigate('battleResultScreen', VICTORY);
+		advance(context, 50);
+		ScreenManager.navigate('splashScreen', undefined, { immediate: true });
+		expect(ScreenManager.transitioning).toBe(false);
+		advance(context, FADE_MS * 2);
+		expect(ScreenManager.getCurrentScreenName()).toBe('splashScreen');
+	});
+
+	it('runs the whole transition at once under reduced motion', () => {
+		context.animator.reducedMotion = true;
+		ScreenManager.navigate('battleResultScreen', VICTORY);
+		advance(context, 48);
+		expect(ScreenManager.getCurrentScreenName()).toBe('battleResultScreen');
+		expect(ScreenManager.transitioning).toBe(false);
+		expect(context.focus.focused?.id).toBe('result_continue_button');
+	});
+});

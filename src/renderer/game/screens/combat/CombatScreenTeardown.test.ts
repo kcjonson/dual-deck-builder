@@ -55,7 +55,7 @@ function cardsHitAt(spots: string[]): number {
 }
 
 async function openCombat(): Promise<CombatScreen> {
-	ScreenManager.navigate('combatScreen');
+	ScreenManager.navigate('combatScreen', undefined, { immediate: true });
 	await settle();
 	const combat = ScreenManager.activeScreen;
 	if (!(combat instanceof CombatScreen)) throw new Error('combat should be the active screen');
@@ -73,6 +73,8 @@ function cardSpots(combat: CombatScreen): string[] {
 
 /** No click where a card was reaches combat or the finished battle */
 function expectCardsGone(spots: string[]): void {
+	// The result screen arrives through the screen transition
+	context.animator.settle();
 	expect(ScreenManager.getCurrentScreenName()).toBe('battleResultScreen');
 	expect(cardsHitAt(spots)).toBe(0);
 
