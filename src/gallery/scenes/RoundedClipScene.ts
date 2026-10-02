@@ -58,9 +58,8 @@ function rows(id: string, count: number): Stack {
  */
 export class RoundedClipScene extends DeveloperSectionPanel {
 	constructor({ x, y, width }: SceneFactoryOptions) {
-		super({ id: 'gallery_scene_rounded_clip', x, y, width });
+		super({ id: 'gallery_scene_rounded_clip', title: 'Rounded clips on components', contentHeight: CONTENT_HEIGHT, x, y, width });
 
-		this.addChild(new Text('Rounded clips on components', { style: { fontSize: 28, color: '#ffffff', fontWeight: 'bold' } }));
 		this.addChild(new Text('clipRadius: the clip at the border\'s inner edge, its corner concentric with the background\'s.', {
 			y: 50,
 			style: { fontSize: 14, color: rgba(tokens.color.text_dim) },
@@ -121,8 +120,6 @@ export class RoundedClipScene extends DeveloperSectionPanel {
 			height: CELL_HEIGHT,
 			paint: paintDomains,
 		}));
-
-		this.fitContentHeight(CONTENT_HEIGHT);
 	}
 
 	private addCell(index: number, caption: string, view: Component): void {
