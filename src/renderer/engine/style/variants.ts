@@ -70,6 +70,11 @@ export function toneColor(tone: Tone, value = 1): RGBA {
 	return TONES[tone === 'auto' ? autoTone(value) : tone].fill;
 }
 
+/** A filled tone's glow colour: the accent glow's alpha in the tone's hue. */
+export function toneGlow(tone: Exclude<Tone, 'default' | 'auto'>): RGBA {
+	return TONES[tone].glow;
+}
+
 /** The overlay a per-state override describes: colours only, each replacing (R11.15). */
 function overlayFrom(style: StyleProperties): LookOverlay {
 	const overlay: LookOverlay = {};
@@ -275,6 +280,48 @@ export function markLayers({ on }: { on: boolean }): LookLayers {
 		pressed: { wash: color.bg_pressed },
 		active: {},
 		disabled: { fill: color.bg_inset, border: color.line_edge, text: color.text_disabled },
+		focusRing: color.accent,
+	};
+}
+
+/**
+ * R12.16's tab: clear at rest with dim display text, bright when selected
+ * (the bar draws its 2 px accent underline), and on hover a wash with the
+ * bright text; pressed washes darker, with no nudge (a tab in a bar does not
+ * move); disabled drops to the disabled text colour.
+ */
+export function tabLayers(): LookLayers {
+	const normal: LookBase = { fill: CLEAR, border: CLEAR, borderWidth: 0, radius: 0, text: color.text_dim, shadow: null };
+	return {
+		normal,
+		selected: { ...normal, text: color.text_bright },
+		hover: { wash: color.bg_hover, text: color.text_bright },
+		pressed: { wash: color.bg_pressed },
+		active: {},
+		disabled: { text: color.text_disabled },
+		focusRing: color.accent,
+	};
+}
+
+/**
+ * R12.17's segment: a dim label on the well at rest; selected, the tone's
+ * filled chip with the contrast text (the control draws its glow); hover a
+ * wash with the body text, or the tone's bright fill on the chip; pressed a
+ * darker wash. Disabled greys the chip and the label; `on` picks the
+ * disabled chip, as `markLayers` does.
+ */
+export function segmentLayers({ tone, on }: { tone: Exclude<Tone, 'auto' | 'default'>; on: boolean }): LookLayers {
+	const palette = TONES[tone];
+	const normal: LookBase = { fill: CLEAR, border: CLEAR, borderWidth: 0, radius: tokens.radius.r_sm, text: color.text_dim, shadow: null };
+	let hover: LookOverlay = { wash: color.bg_hover, text: color.text };
+	if (on) hover = palette.bright ? { fill: palette.bright } : { wash: color.bg_hover };
+	return {
+		normal,
+		selected: { ...normal, fill: palette.fill, text: color.accent_contrast },
+		hover,
+		pressed: { wash: color.bg_pressed },
+		active: {},
+		disabled: on ? { fill: color.line_strong, text: color.text_disabled } : { text: color.text_disabled },
 		focusRing: color.accent,
 	};
 }

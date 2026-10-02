@@ -24,6 +24,7 @@ import { MeterExamplesSection } from './MeterExamplesSection';
 import { DataDisplaySection } from './DataDisplaySection';
 import { TreeExamplesSection } from './TreeExamplesSection';
 import { CombatFxSection } from './CombatFxSection';
+import { SliderTabsSection } from './SliderTabsSection';
 
 /**
  * The developer screen's sections, defined once.
@@ -174,5 +175,9 @@ export const developerSections: readonly DeveloperSection[] = [
 	{
 		name: 'combat-fx',
 		build: ({ x, y, width }) => new CombatFxSection(x, y, width),
+	},
+	{
+		name: 'slider-tabs',
+		build: ({ x, y, width }) => new SliderTabsSection(x, y, width),
 	},
 ];
