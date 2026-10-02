@@ -9,6 +9,7 @@ import materialIconsImage from '../../../assets/fonts/material-icons.png';
 import barlowCondensedSemiBoldFont from '../../../assets/fonts/barlow-condensed/BarlowCondensed-SemiBold.ttf';
 import openSansRegularFont from '../../../assets/fonts/open-sans/OpenSans-Regular.ttf';
 import jetBrainsMonoRegularFont from '../../../assets/fonts/jetbrains-mono/JetBrainsMono-Regular.ttf';
+import { FIELD_INK } from './fieldInk';
 
 /** R11.8's three roles. */
 export type FontRole = 'display' | 'body' | 'mono';
@@ -38,14 +39,7 @@ export interface FontFaceAsset<Role extends AtlasRole = FontRole> {
 	 * the icon atlas, whose small sizes stay on the distance field.
 	 */
 	readonly fontUrl?: string;
-	/**
-	 * The distance field's ink of `INK_REFERENCE_TEXT` at 9 px, the first size
-	 * past R6.4a's threshold at ratio 1, per square pixel of font size (the
-	 * mean of four sub-pixel pens). The raster fallback's glyphs are matched
-	 * to it so text keeps its weight across the switch (DDB-217). Measured
-	 * from the committed atlas by the 6.9 web suite, which fails when an atlas
-	 * rebuild moves it.
-	 */
+	/** The distance field's ink the raster fallback's glyphs are matched to (`FIELD_INK`, DDB-217). */
 	readonly fieldInk?: number;
 }
 
@@ -60,7 +54,7 @@ export const FONT_FACES: readonly FontFaceAsset[] = [
 		metrics: barlowCondensedSemiBoldMetrics,
 		imageUrl: barlowCondensedSemiBoldImage,
 		fontUrl: barlowCondensedSemiBoldFont,
-		fieldInk: 1.91,
+		fieldInk: FIELD_INK['barlow-condensed-semibold'],
 	},
 	{
 		role: 'body',
@@ -68,7 +62,7 @@ export const FONT_FACES: readonly FontFaceAsset[] = [
 		metrics: openSansRegularMetrics,
 		imageUrl: openSansRegularImage,
 		fontUrl: openSansRegularFont,
-		fieldInk: 1.698,
+		fieldInk: FIELD_INK['open-sans-regular'],
 	},
 	{
 		role: 'mono',
@@ -76,7 +70,7 @@ export const FONT_FACES: readonly FontFaceAsset[] = [
 		metrics: jetBrainsMonoRegularMetrics,
 		imageUrl: jetBrainsMonoRegularImage,
 		fontUrl: jetBrainsMonoRegularFont,
-		fieldInk: 1.9,
+		fieldInk: FIELD_INK['jetbrains-mono-regular'],
 	},
 ];
 

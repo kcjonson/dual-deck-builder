@@ -52,11 +52,14 @@ export const INK_REFERENCE_TEXT = 'Hamburgefonstiv';
 
 /**
  * How far the raster path's ink may sit from the distance field's, as a
- * fraction, before its coverage is reshaped toward it. FreeType on the Linux
- * runner is within a few percent of the field and is kept as the platform
- * draws it; CoreText at ratio 1 is 25 to 30 percent heavier.
+ * fraction, before its coverage is reshaped toward it: about what the
+ * curve's own byte table can resolve, so every size lands on the field and
+ * there is no step between sizes kept as drawn and sizes pulled to the
+ * field. CoreText at ratio 1 is 25 to 45 percent heavier; FreeType on the
+ * Linux runner is within a few percent for body and up to 13 percent heavier
+ * for the display face at 8.75 px.
  */
-export const INK_TOLERANCE = 0.1;
+export const INK_TOLERANCE = 0.02;
 
 /**
  * R6.5's screen-space range, in device pixels, for a run at `size` logical px

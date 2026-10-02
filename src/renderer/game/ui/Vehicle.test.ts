@@ -7,6 +7,7 @@ import { createMeasuringDrawApi } from '../../engine/text/testing';
 import { tokens } from '../../engine/theme/tokens';
 import { renderTree } from '../../engine/components/renderTree';
 import type { TextCommand } from '../../engine/draw';
+import type { Text } from '../../engine/components/Text';
 import { ICON_ATLAS_ROLE } from '../../engine/text/fontFaces';
 import type { MountContext } from '../../engine/components/MountContext';
 import { CombatModel } from '../screens/combat/CombatModel';
@@ -112,6 +113,27 @@ describe('Vehicle plate', () => {
 				expect(sameRows && sameColumns).toBe(false);
 			}
 		});
+	});
+
+	test('cuts names too long for the smallest plate with an ellipsis, inside the plate', () => {
+		const { api, backend } = createMeasuringDrawApi();
+		const measuring = createTestContext({ draw: api });
+		const long = createDrivenVehicle({ driver: createTestDriver('THE ROAD WARRIOR OF THE WASTELAND'), name: 'Apocalypse Rig Mark Seven Deluxe' });
+		const enemy = new Vehicle({ id: 'enemy', x: 0, y: 0, width: 140, height: 91, vehicleData: long });
+		enemy.mount(measuring);
+		measuring.frame.layout();
+		api.beginFrame({ viewport: { width: 400, height: 200 } });
+		renderTree(enemy, api);
+		api.endFrame();
+
+		for (const id of ['enemy_driver_name', 'enemy_name']) {
+			const text = partById(enemy, id) as Text;
+			expect(text.overflowOutcome).toBe('ellipsis');
+			const run = backend.commands.find((command): command is TextCommand => command.kind === 'text' && command.id === id);
+			if (!run?.box) throw new Error(`no run for ${id}`);
+			expect(run.box.x + run.transform[4] + run.box.width).toBeLessThanOrEqual(140);
+			expect(text.inkRect.x + text.getX() + text.inkRect.width).toBeLessThanOrEqual(140);
+		}
 	});
 
 	test('subscribes to the combat model while mounted, and again after a remount', () => {

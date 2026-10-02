@@ -11,10 +11,11 @@ This document contains the chronological log of completed development tasks for 
 **What landed:** DDB-217 (DDB-55), R6.4a.
 
 - `Vehicle` draws every run at `fs_xs` on `lh_tight` lines, and `ArmorBadge` its value at `fs_xs`. Rows stack from measured heights: armor row at the bottom, the structure track with its value beside it, and the portrait above with the driver's name beside the driver portrait, the HP under it, and the vehicle's name at its foot. The driver's name drops its "Driver: " prefix; names take an ellipsis.
-- `FontFaceAsset.fieldInk` is each face's distance-field ink of "Hamburgefonstiv" at 9 px. `RasterGlyphPage` measures each (role, size)'s raster ink once (`drawInkSample`) and, when it is more than 10 percent off the field's, draws the glyphs through a power curve (`inkCurve`) that lands it on it. CoreText at ratio 1 was 1.26 to 1.45 times the field; now 1.00 to 1.03. Linux is inside the tolerance and kept as drawn.
+- `text/fieldInk.ts` holds each face's distance-field ink of "Hamburgefonstiv" at 9 px, read by both `FONT_FACES` and the web suite that measures it. `RasterGlyphPage` measures each (role, size)'s raster ink once (`drawInkSample`) and, when it is more than 2 percent off the field's, draws the glyphs through a power curve (`inkCurve`) that lands it on it. CoreText at ratio 1 was 1.26 to 1.45 times the field, FreeType on Linux up to 1.13; written glyphs are now 0.97 to 1.03.
+- R6.4a in chapter 6 now allows reshaping the raster's coverage toward the field's ink.
 - Decision record: [small-text-weight-match.md](./AI_TECHNICAL_DECISIONS/small-text-weight-match.md).
 
-**How:** a Vehicle test that every plate run is `fs_xs` and no two lines overlap on a 140x91 plate; unit tests for the sample, histogram, curve and the page measuring once per size; `uberShader.spec.ts` measures `fieldInk` through the shader for each face and checks the written raster ink at 6 and 8.75 px is within the tolerance of it on the running platform. Played a turn through `window.__dev.input` at 1280x720 and 1024x600.
+**How:** Vehicle tests that every plate run is `fs_xs`, no two lines overlap on a 140x91 plate, and long names end in an ellipsis inside it; unit tests for the sample, histogram, curve and the page measuring once per size; `uberShader.spec.ts` measures the field ink through the shader for each face and scores the glyphs `rasterizeGlyphs` writes, through the curve, at 6 to 8.75 px on the running platform. Played a turn through `window.__dev.input` at 1280x720 and 1024x600.
 
 ## The rounded clip in the uber shader (2026-10-02)
 

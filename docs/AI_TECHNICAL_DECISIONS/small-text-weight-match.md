@@ -26,7 +26,7 @@ Measured on macOS Chromium, ink of "Hamburgefonstiv" through the raster path (fo
 | Barlow Condensed SemiBold | 1.29 | 1.26 |
 | JetBrains Mono | 1.42 | 1.30 |
 
-On the Linux runner the two paths are within a few percent (small-text-raster-fallback.md). The excess is CoreText's darkening of small text, not a property of the outline: the same raster path at 96 px is within 0.3 percent of the field at 48 px for all three faces.
+On the Linux runner the gap is smaller and varies by face: body within about 5 percent, the display face 13 percent heavier at 8.75 px, mono 10 percent at 6 px. The excess is CoreText's darkening of small text, not a property of the outline: the same raster path at 96 px is within 0.3 percent of the field at 48 px for all three faces.
 
 ### Options
 
@@ -38,19 +38,20 @@ On the Linux runner the two paths are within a few percent (small-text-raster-fa
 
 Option 1.
 
-- `FontFaceAsset.fieldInk`: the field's ink of the reference word at 9 px (the first field size at ratio 1) per square pixel of font size, the mean of four sub-pixel pens. Baked per face (1.698 body, 1.91 display, 1.9 mono) because the field is not available on the CPU; the atlases load as images. `uberShader.spec.ts` measures it through the shader and fails if an atlas rebuild moves it past 1.5 percent.
-- `RasterGlyphPage`, the first time a (role, size) rasterises, draws the reference word through the same path (`drawInkSample`) and asks `inkCurve` for a table from coverage byte to coverage byte. Within `INK_TOLERANCE` (10 percent) of `fieldInk * size^2` the table is null and the platform's coverage is kept as drawn, which is the Linux case, so the goldens' raster text does not move. Outside it the table is `c^k`, `k` found by bisection over the sample's coverage histogram so the ink lands on the target. A power keeps fully covered pixels full and thins the partial coverage the platform spread past the outline's edge, which is what its darkening is; a gain would dim the stems' cores instead.
+- `text/fieldInk.ts`: the field's ink of the reference word at 9 px (the first field size at ratio 1) per square pixel of font size, the mean of four sub-pixel pens, per face (1.698 body, 1.91 display, 1.9 mono). Baked because the field is not available on the CPU; the atlases load as images. The module has no asset imports, so `FontFaceAsset.fieldInk` and `uberShader.spec.ts` read the same table: the spec measures it through the shader and fails if an atlas rebuild moves it past 1.5 percent, and a jest test holds every face's `fieldInk` to the table.
+- `RasterGlyphPage`, the first time a (role, size) rasterises, draws the reference word through the same path (`drawInkSample`) and asks `inkCurve` for a table from coverage byte to coverage byte. Within `INK_TOLERANCE` (2 percent, about what the byte table resolves) of `fieldInk * size^2` the table is null; otherwise it is `c^k`, `k` found by bisection over the sample's coverage histogram so the ink lands on the target. A power keeps fully covered pixels full and thins the partial coverage the platform spread past the outline's edge, which is what its darkening is; a gain would dim the stems' cores instead.
 - `rasterizeGlyphs` sends each subsample through the table before the box filter.
+- The tolerance is small on purpose. The first cut kept anything within 10 percent as drawn, which put a step back inside the raster range: a size at 1.09 kept, the next quarter pixel at 1.11 pulled to 1.00, and body (1.05, kept) beside display (1.13, pulled) on one plate on Linux. JetBrains Mono at 6 px sat at 1.098 on the runner, so a small rasteriser change would have flipped it and moved goldens. At 2 percent every size lands on the field on every platform.
 - The cost is one canvas draw and read of a word at the size, about 300 by 22 texels at 8.75 px, once per (role, size), inside the rasterising budget.
 
-Afterwards, on macOS: 1.03, 1.00 and 1.01 of the field at 8.75 px, 1.00 at 6 px. `uberShader.spec.ts` checks the written ink is within the tolerance of the field at 6 and 8.75 px on every platform, through `drawInkSample` itself replayed on the page's canvas.
+Afterwards, on macOS, the glyphs `rasterizeGlyphs` writes for the reference word are 0.97 to 1.03 of the field at 6, 7, 8 and 8.75 px for all three faces. `uberShader.spec.ts` checks that on every platform it runs on (5 percent, since the glyphs are drawn one at a time and the sample as a word), running `drawInkSample` and `rasterizeGlyphs` themselves against the page's canvas: once against a recording canvas, whose calls the page replays to answer the reads, then again with those answers.
 
 The hysteresis (1.6 to leave the raster, 1.5 to enter) stays: the two paths now match in weight but not in sharpness, and a zoom that hovers at the threshold would still flicker between soft and crisp.
 
 ## Consequences
 
 - Plate text is 11 px everywhere, and on combat at 1024x600 every plate run is on the raster path at the field's weight on both platforms.
-- On Linux, Chromium's raster is inside the tolerance at the sizes combat draws and is kept as drawn. It is outside at about 4 device px (the starting-deck mini cards' titles on driver selection), and Electron's Chromium is outside at the card footers' 7 px, so those got a mild curve; those goldens moved by at most 38 and 15 levels.
+- On Linux every raster size takes a mild curve too, a few percent for body and up to 13 percent for display. Goldens with raster text at the capture viewport moved slightly (see the PR).
 - Raster text on macOS ratio-1 displays (external monitors) is lighter than CoreText draws it. That is the intent: it reads the same as the field text a pixel larger.
 - An atlas rebuild has to re-measure `fieldInk`; the web suite says by how much.
-- Windows (DirectWrite) is still unscored. If it is outside the tolerance it gets the same correction with no code change; if a platform's darkening is not a spread of partial coverage, a power curve may match the ink and not the look, and this is where to revisit.
+- Windows (DirectWrite) is still unscored. It gets the same correction with no code change; if a platform's darkening is not a spread of partial coverage, a power curve may match the ink and not the look, and this is where to revisit.
