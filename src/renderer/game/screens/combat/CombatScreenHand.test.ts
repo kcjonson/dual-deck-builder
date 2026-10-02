@@ -231,11 +231,12 @@ function emptyRoadPoint(combat: CombatScreen): [number, number] {
 	return [Math.round(x), Math.round(y)];
 }
 
+/** A token's plate on screen: where a card is dropped, and where a hit's number pops. */
 function vehicleBounds(combat: CombatScreen, team: 'enemyTeam' | 'playerTeam'): Rect {
 	const [vehicle] = combat[team]?.vehicles ?? [];
-	const plate = combat['road'].vehicleView(vehicle?.id ?? '');
-	if (!plate) throw new Error(`the ${team}'s first vehicle should be on the road`);
-	return plate.screenBounds;
+	const token = combat['road'].vehicleView(vehicle?.id ?? '');
+	if (!token) throw new Error(`the ${team}'s first vehicle should be on the road`);
+	return token.plateScreenBounds;
 }
 
 describe('CombatScreen drag to play', () => {

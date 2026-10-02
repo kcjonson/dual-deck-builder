@@ -16,3 +16,11 @@ error
 chevron_right
 expand_more
 expand_less
+favorite
+keyboard_double_arrow_right
+keyboard_double_arrow_left
+gpp_bad
+local_fire_department
+flash_on
+my_location
+gps_fixed

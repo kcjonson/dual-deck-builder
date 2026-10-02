@@ -64,13 +64,12 @@ describe('RoadView', () => {
 		api.endFrame();
 	}
 
-	/** The middle of the token a plate is part of, in the road's space. */
+	/** The middle of a vehicle's token, scaled, in the road's space. */
 	function tokenCentre(vehicleId: string): { x: number; y: number } {
-		const plate = road.vehicleView(vehicleId);
-		if (!plate) throw new Error(`${vehicleId} has no token`);
-		const scale = road.roadLayout.tokenScale;
-		const top = plate.y + plate.height - TOKEN_HEIGHT * scale;
-		return { x: plate.x + plate.width / 2, y: top + (TOKEN_HEIGHT * scale) / 2 };
+		const token = road.vehicleView(vehicleId);
+		if (!token) throw new Error(`${vehicleId} has no token`);
+		const scale = token.tokenScale;
+		return { x: token.x + (token.width * scale) / 2, y: token.y + (token.height * scale) / 2 };
 	}
 
 	function slotCentre(slot: RoadSlot): { x: number; y: number } {
@@ -82,19 +81,23 @@ describe('RoadView', () => {
 		for (const [vehicleId, slot] of [[raider.id, RAIDER_SLOT], [rig.id, RIG_SLOT]] as const) {
 			const centre = tokenCentre(vehicleId);
 			const expected = slotCentre(slot);
-			expect(centre.x).toBeCloseTo(expected.x);
-			expect(centre.y).toBeCloseTo(expected.y);
-			expect(road.vehicleView(vehicleId)?.width).toBeCloseTo(TOKEN_WIDTH * road.roadLayout.tokenScale);
+			// Placed on whole pixels
+			expect(Math.abs(centre.x - expected.x)).toBeLessThanOrEqual(0.5);
+			expect(Math.abs(centre.y - expected.y)).toBeLessThanOrEqual(0.5);
+			expect(road.vehicleView(vehicleId)?.width).toBe(TOKEN_WIDTH);
+			expect(road.vehicleView(vehicleId)?.height).toBe(TOKEN_HEIGHT);
+			expect(road.vehicleView(vehicleId)?.tokenScale).toBeCloseTo(Math.max(1, road.roadLayout.tokenScale));
 		}
 	});
 
 	it('puts a raider\'s plan in the strip across its token\'s top, and none on yours', () => {
-		const plate = road.vehicleView(raider.id);
+		road.setVehicleIntents(raider.id, [{ type: 'attack', value: 6, description: 'Ram' }]);
+		const token = road.vehicleView(raider.id);
 		const row = road.intentRowOf(raider.id);
-		expect(row).not.toBeNull();
-		expect(row?.bounds.x).toBeCloseTo(plate?.bounds.x ?? NaN);
-		expect((row?.bounds.y ?? 0) + (row?.bounds.height ?? 0)).toBeLessThanOrEqual(plate?.bounds.y ?? 0);
-		expect(road.intentRowOf(rig.id)).toBeNull();
+		expect(row?.parent).toBe(token);
+		expect(row?.bounds.y).toBe(0);
+		expect((row?.bounds.y ?? 0) + (row?.bounds.height ?? 0)).toBeLessThanOrEqual(token?.plateRect.y ?? 0);
+		expect(road.intentRowOf(rig.id)?.intents).toEqual([]);
 	});
 
 	it('keeps raiders ahead of your vehicles in the tree, so focus meets them first', () => {
@@ -266,30 +269,33 @@ describe('RoadView', () => {
 				.map((command) => names.get(command.text) ?? command.text);
 		}
 
+		/** The token's own icons, drawn before its intents: the speed chevrons and the driver's heart. */
+		const TOKEN_ICONS = ['keyboard_double_arrow_right', 'favorite'];
+
 		function intent(type: EnemyIntent['type'], value?: number): EnemyIntent {
 			return { type, value, description: type };
 		}
 
 		beforeEach(() => road.showVehicles({ player: [], enemy: [raider] }));
 
-		it('shows a shield for defend and a wrench for repair, beside the armor badge\'s shield', async () => {
+		it('shows a shield for defend and a wrench for repair, in the token\'s intents row', async () => {
 			road.setVehicleIntents(raider.id, [intent('defend', 6)]);
-			expect(await iconsDrawn()).toEqual(['shield', 'shield']);
+			expect(await iconsDrawn()).toEqual([...TOKEN_ICONS, 'shield']);
 
 			road.setVehicleIntents(raider.id, [intent('repair', 4)]);
-			expect(await iconsDrawn()).toEqual(['shield', 'build']);
+			expect(await iconsDrawn()).toEqual([...TOKEN_ICONS, 'build']);
 		});
 
 		it('shows the value, not an icon, for an attack', async () => {
 			road.setVehicleIntents(raider.id, [intent('attack', 15)]);
-			expect(await iconsDrawn()).toEqual(['shield']);
+			expect(await iconsDrawn()).toEqual(TOKEN_ICONS);
 			expect(backend.commands.some((command) => command.kind === 'text' && command.text === '15')).toBe(true);
 		});
 
 		it('hides the icon with the marker when the intent clears', async () => {
 			road.setVehicleIntents(raider.id, [intent('defend', 6)]);
 			road.setVehicleIntents(raider.id, []);
-			expect(await iconsDrawn()).toEqual(['shield']);
+			expect(await iconsDrawn()).toEqual(TOKEN_ICONS);
 		});
 
 		it('keeps a plan set before the raider reaches the road', async () => {
