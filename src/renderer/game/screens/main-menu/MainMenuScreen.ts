@@ -100,15 +100,13 @@ export class MainMenuScreen extends Screen {
 			id: 'main_menu_settings_button',
 			size: 'lg',
 			block: true,
-			// Settings not implemented yet (DDB-38)
-			onClick: () => console.log('Settings not implemented'),
+			onClick: () => ScreenManager.navigate('settingsScreen'),
 		}));
 		menu.addChild(new Button('Credits', {
 			id: 'main_menu_credits_button',
 			size: 'lg',
 			block: true,
-			// Credits not implemented yet (DDB-38)
-			onClick: () => console.log('Credits not implemented'),
+			onClick: () => ScreenManager.navigate('creditsScreen'),
 		}));
 		menu.addChild(new Button('Card Showcase', {
 			id: 'main_menu_card_showcase_button',
