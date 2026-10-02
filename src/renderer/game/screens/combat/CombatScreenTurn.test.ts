@@ -7,10 +7,12 @@ import { CardLoader } from '../../core/CardLoader';
 import { DriverLoader } from '../../core/DriverLoader';
 import { Card } from '../../mechanics/Card';
 import { Card as UICard } from '../../ui/Card';
-import { IntentRow } from '../../ui/IntentMarker';
+import { IntentMarker } from '../../ui/IntentMarker';
 import { createTestContext } from '../../../engine/components/testing';
 import { Clock } from '../../../engine/animation/Clock';
-import { advance } from '../../../engine/services/testing';
+import { advance, pointer, send } from '../../../engine/services/testing';
+import { Text } from '../../../engine/components/Text';
+import type { Component } from '../../../engine/components/Component';
 import { tokens } from '../../../engine/theme/tokens';
 import { TURN_BANNER_LIFETIME } from './TurnBanner';
 
@@ -115,6 +117,26 @@ describe('CombatScreen turn banner', () => {
 		combat.unmount();
 	});
 
+	it('coalesces quick turn changes, so it ends on whose turn it is now', async () => {
+		const combat = await startCombat();
+		const banner = combat['turnBanner'];
+		advance(context, 16);
+		combat['endPlayerTurn']();
+		combat['endPlayerTurn']();
+		expect(combat['battle']?.isPlayerTurn).toBe(true);
+		expect(banner.pending).toEqual(['enemy', 'player']);
+
+		// YOUR TURN from the start leaves at once, then one ENEMY TURN, then YOUR TURN
+		advance(context, tokens.motion.dur + 16);
+		expect(banner.text).toBe('ENEMY TURN');
+		advance(context, TURN_BANNER_LIFETIME);
+		expect(banner.text).toBe('YOUR TURN');
+		expect(banner.pending).toEqual([]);
+		advance(context, TURN_BANNER_LIFETIME);
+		expect(banner.current).toBeNull();
+		combat.unmount();
+	});
+
 	it('holds still at full opacity for its whole time under reduced motion', async () => {
 		context.animator.reducedMotion = true;
 		const combat = await startCombat();
@@ -137,14 +159,44 @@ describe('CombatScreen intents', () => {
 		const intents = combat['battle']?.getAllIntents();
 		for (const raider of combat['enemyTeam']?.vehicles ?? []) {
 			const planned = intents?.get(raider) ?? [];
-			const plate = combat['enemyLayer'].vehicleView(raider.id);
-			const row = plate?.getChildren().find((child): child is IntentRow => child instanceof IntentRow);
+			const row = combat['enemyLayer'].intentRowOf(raider.id);
 			expect(row?.intents.length).toBe(Math.min(planned.length, 2) + (planned.length > 2 ? 1 : 0));
 			if (planned.length > 0) expect(row?.intents[0].description).toBe(planned[0].description);
 		}
 		combat.unmount();
 	});
+
+	it('shows a disc\'s tooltip when the pointer rests on it, beside a plate that is one hit target', async () => {
+		const combat = await startCombat();
+		const [raider] = combat['enemyTeam']?.vehicles ?? [];
+		const row = combat['enemyLayer'].intentRowOf(raider.id);
+		context.animator.settle();
+		context.frame.layout();
+		const disc = row?.getChildren().find((child): child is IntentMarker => child instanceof IntentMarker);
+		if (!disc?.intent) throw new Error('the raider should plan something');
+		const { x, y, width, height } = disc.screenBounds;
+		const at = { x: x + width / 2, y: y + height / 2 };
+		expect(context.dispatcher.hitTest(at)).toBe(disc);
+
+		send(context, [pointer('move', at.x, at.y)]);
+		advance(context, tokens.control.tooltip_delay + tokens.motion.dur + 50);
+		expect(context.tooltips.owner).toBe(disc);
+		const lines = textsIn(context.tooltips.surface);
+		expect(lines).toContain(disc.intent.description);
+		expect(lines).toContain(disc.intent.detail);
+		// Off the disc, so later fights don't mount under a resting pointer
+		send(context, [pointer('move', 1, 1)]);
+		context.tooltips.hide();
+		context.animator.settle();
+		combat.unmount();
+	});
 });
+
+function textsIn(component: Component | null): string[] {
+	if (!component) return [];
+	const own = component instanceof Text ? [component.getText()] : [];
+	return [...own, ...component.getChildren().flatMap(child => textsIn(child))];
+}
 
 describe('CombatScreen discard flights', () => {
 	it('flies a played card from where it sat in the hand to its driver\'s discard pile', async () => {
@@ -175,6 +227,20 @@ describe('CombatScreen discard flights', () => {
 		expect(combat['fx'].discardFlights).toHaveLength(held);
 		combat.unmount();
 		expect(context.animator.active).toBe(0);
+	});
+
+	it('still flies the whole hand when the draw shuffles the discard back into the deck', async () => {
+		const combat = await startCombat();
+		// Empty both draw piles into the discards, so the next draw reshuffles
+		for (const driver of combat['playerDrivers']) {
+			driver.set({ discard: [...driver.discard, ...(driver.deck?.cards ?? [])] });
+			if (driver.deck) driver.deck.cards = [];
+		}
+		const held = handCards(combat).length;
+		combat['endPlayerTurn']();
+		expect(combat['playerDrivers'].some(driver => (driver.deck?.cards.length ?? 0) > 0)).toBe(true);
+		expect(combat['fx'].discardFlights).toHaveLength(held);
+		combat.unmount();
 	});
 
 	it('flies nothing under reduced motion, where the pile count is the whole story', async () => {

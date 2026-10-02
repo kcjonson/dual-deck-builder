@@ -85,6 +85,11 @@ export class PlayerHandLayer extends Stack {
 		this.onCardsLeave = callback;
 	}
 
+	/** The half a card in the hand is dealt to. */
+	public seatOf(card: Card): DriverSeat | null {
+		return this.cardDriverMap.get(card.id) ?? null;
+	}
+
 	/** A driver's "DRAW n   DISCARD n" counts on their tab. */
 	public pilesOf(seat: DriverSeat): Component {
 		return this.halves[seat].tab.piles;

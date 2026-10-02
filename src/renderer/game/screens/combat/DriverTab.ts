@@ -136,14 +136,14 @@ export class DriverTab extends ChromeStack {
 		this.show();
 	}
 
-	/**
-	 * Update the tab with whatever changed
-	 */
 	/** "DRAW n   DISCARD n": where a discarded card flies to. */
 	public get piles(): Text {
 		return this.pilesLabel;
 	}
 
+	/**
+	 * Update the tab with whatever changed
+	 */
 	public setData(data: Partial<DriverResourceData>): void {
 		Object.assign(this.data, data);
 		this.show();

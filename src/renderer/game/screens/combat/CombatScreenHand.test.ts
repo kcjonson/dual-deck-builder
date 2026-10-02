@@ -369,6 +369,27 @@ describe('CombatScreen drag to play', () => {
 	});
 });
 
+describe('CombatScreen drag to play, then to the pile', () => {
+	beforeEach(() => setViewport(1280, 720));
+
+	it('sends a card played by a drop to its pile from where it was dropped, not from its slot', async () => {
+		const combat = await startCombat();
+		const card = handCard(combat, ['enemy_single'], 'headshot');
+		const slot = card.screenBounds;
+		const target = centreOf(vehicleBounds(combat, 'enemyLayer'));
+
+		drag(grabPoint(card), target);
+		const [flight] = combat['fx'].discardFlights;
+		expect(flight).toBeDefined();
+		const start = flight.screenBounds;
+		expect(start.x + start.width / 2).toBeCloseTo(target[0], 0);
+		expect(start.y + start.height / 2).toBeCloseTo(target[1], 0);
+		expect(Math.abs(start.y + start.height / 2 - (slot.y + slot.height / 2))).toBeGreaterThan(100);
+
+		combat.unmount();
+	});
+});
+
 describe('CombatScreen drag to play, cancelled by the other button', () => {
 	beforeEach(() => setViewport(1280, 720));
 

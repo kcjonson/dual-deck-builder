@@ -55,6 +55,7 @@ const easeOutQuad = (progress: number): number => 1 - (1 - progress) * (1 - prog
  */
 export class AimReticle extends Component {
 	private readonly centrePoint: Vec2 = { x: RETICLE_SIZE / 2, y: RETICLE_SIZE / 2 };
+	private readonly aimed: Vec2 = { x: 0, y: 0 };
 	private readonly ring: DrawCircleOptions = {
 		center: this.centrePoint,
 		radius: RETICLE_SIZE / 2 - RETICLE_RING / 2,
@@ -72,6 +73,22 @@ export class AimReticle extends Component {
 	/** Where the pointer is, in the reticle's own space. */
 	public get centre(): Vec2 {
 		return this.centrePoint;
+	}
+
+	/**
+	 * Where the drag service last moved it, in its parent's space: the drop
+	 * point, read during the drop, after the service has already put the
+	 * ghost back.
+	 */
+	public get lastAim(): Vec2 {
+		return this.aimed;
+	}
+
+	public setDragOffset(offset: Vec2 | null): void {
+		super.setDragOffset(offset);
+		if (!offset) return;
+		this.aimed.x = this.x + offset.x + this.centrePoint.x;
+		this.aimed.y = this.y + offset.y + this.centrePoint.y;
 	}
 
 	public get resolvedColors(): ResolvedColors {
@@ -330,17 +347,23 @@ export class CombatFxLayer extends Container {
 		return this.arrow.source !== null;
 	}
 
+	/** The card the line runs from; through a drop, until the drag service says the drag is over. */
+	public get aimingFrom(): Component | null {
+		return this.arrow.source;
+	}
+
 	/** The numbers on screen now, oldest first. */
 	public get floatingNumbers(): FloatingNumber[] {
 		return this.getChildren().filter((child): child is FloatingNumber => child instanceof FloatingNumber);
 	}
 
 	/**
-	 * Sends a copy of `card` from where it sat in the hand to the pile
-	 * `pile` counts, unless reduced motion is on. Read from the hand before
-	 * the hand deals again, so `card` is still in place.
+	 * Sends a copy of `card` from where it sat in the hand, or from the
+	 * reticle when it was dropped there, to the pile `pile` counts, unless
+	 * reduced motion is on. Read from the hand before the hand deals again,
+	 * so `card` is still in place.
 	 */
-	public flyToDiscard({ card, pile }: { card: UICard; pile: Component }): void {
+	public flyToDiscard({ card, pile, droppedAtReticle = false }: { card: UICard; pile: Component; droppedAtReticle?: boolean }): void {
 		const animator = this.context?.animator;
 		if (!animator || animator.reducedMotion || !this.isMounted) return;
 		const centre = { x: 0, y: 0 };
@@ -352,11 +375,20 @@ export class CombatFxLayer extends Container {
 		if (!this.mapIn(pile, Math.max(0, pile.width - PILE_COUNT_INSET), pile.height / 2, to)) return;
 		const dx = across.x - centre.x;
 		const dy = across.y - centre.y;
+		let rotate = Math.atan2(dy, dx);
+		// A card played by a drop leaves from where it landed, upright: the
+		// card stayed lifted in the hand while the reticle went to the target,
+		// so the target is where the player last aimed it
+		if (droppedAtReticle) {
+			centre.x = this.reticle.lastAim.x;
+			centre.y = this.reticle.lastAim.y;
+			rotate = 0;
+		}
 		this.addChild(new DiscardFlight({
 			id: `combat_discard_flight_${this.flights++}`,
 			card: card.getData(),
 			driverNumber: card.driver,
-			start: { centre, rotate: Math.atan2(dy, dx), scale: Math.hypot(dx, dy) },
+			start: { centre, rotate, scale: Math.hypot(dx, dy) },
 			to,
 			onLanded: (flight) => this.removeChild(flight),
 		}));

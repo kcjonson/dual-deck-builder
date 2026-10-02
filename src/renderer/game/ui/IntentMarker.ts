@@ -25,7 +25,7 @@ export interface EnemyIntent {
 	valueText?: string;
 	/** The card's name, or "???" when the raider's tier hides it. */
 	description: string;
-	/** What it will do and to whom, for the tooltip ("8 damage to the Apocalypse Rig"). */
+	/** What it will do and to whom, for the tooltip ("8 damage on Apocalypse Rig"). */
 	detail?: string;
 }
 
@@ -232,7 +232,14 @@ export class IntentRow extends Stack {
 			update: (marker, { intent }) => {
 				marker.intent = intent;
 			},
-			remove: (marker) => marker.popOut(),
+			// Out of the row's flow where it stood, so a plan that changes
+			// whole doesn't widen the row while the old discs shrink
+			remove: (marker) => {
+				const { x, y } = marker.bounds;
+				marker.positioned = 'absolute';
+				marker.setPosition(x, y);
+				return marker.popOut();
+			},
 		});
 	}
 }

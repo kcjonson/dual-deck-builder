@@ -103,6 +103,8 @@ export class CombatScreen extends Screen {
 	private unsubscribers: (() => void)[] = [];
 	private modelUnsubscribers: (() => void)[] = [];
 	private dragUnsubscribe: (() => void) | null = null;
+	/** Cards already sent to a pile by `handDiscarded`, which the next deal won't fly again. */
+	private readonly flownCards = new Set<Card>();
 
 	// Bumped on every mount and unmount, so a load that finishes after its
 	// mount has ended knows to stop
@@ -200,6 +202,10 @@ export class CombatScreen extends Screen {
 
 				// A new turn of yours: logged, and the banner says so once the
 				// enemy's has had its turn on screen
+				// The hand dealt for the new turn has been shown, so a card the
+				// end of the last one flew and the draw dealt straight back is
+				// an ordinary hand card again
+				this.flownCards.clear();
 				if (state.turn > previousTurn && state.isPlayerTurn && !state.battleOver) {
 					this.combatLog.addEntry(`Turn ${state.turn} - Player turn started`, CombatLogType.TURN);
 					this.turnBanner.announce('player');
@@ -277,6 +283,11 @@ export class CombatScreen extends Screen {
 			})
 		);
 		
+		// The end of the turn sends each driver's hand to the discard (DDB-37)
+		for (const driver of this.playerDrivers) {
+			this.unsubscribers.push(driver.on('handDiscarded', (cards: readonly Card[]) => this.flyDiscardedHand(driver, cards)));
+		}
+
 		// Subscribe to player team changes
 		if (this.playerTeam) {
 			this.unsubscribers.push(
@@ -608,11 +619,15 @@ export class CombatScreen extends Screen {
 		this.dragUnsubscribe = this.context.drag.onDraggingChange((dragging) => this.dragChanged(dragging));
 
 		// A card that went to its driver's discard pile flies there (DDB-37);
-		// an exhausted one, or one taken out of the deck, just goes
+		// an exhausted one, or one taken out of the deck, just goes. The hand
+		// hears of it after the next draw, which may already have shuffled
+		// the discard back into the deck, so the deck counts as the pile too.
+		// One played by a drop leaves from where it was dropped.
 		this.handLayer.setOnCardsLeave((leaving) => {
 			for (const { card, element, seat } of leaving) {
-				if (!seat || !this.playerDrivers.some(driver => driver.discard.includes(card))) continue;
-				this.fx.flyToDiscard({ card: element, pile: this.handLayer.pilesOf(seat) });
+				if (this.flownCards.delete(card)) continue;
+				if (!seat || !this.playerDrivers.some(driver => this.wentToDiscard(driver, card))) continue;
+				this.fx.flyToDiscard({ card: element, pile: this.handLayer.pilesOf(seat), droppedAtReticle: this.fx.aimingFrom === element });
 			}
 		});
 
@@ -632,6 +647,28 @@ export class CombatScreen extends Screen {
 		// Removed global click handler - it was interfering with vehicle targeting
 	}
 	
+	/**
+	 * A driver's whole hand going to the discard at the end of the turn,
+	 * told before it leaves the hand, so every card flies from its place
+	 * even when the draw that follows shuffles the pile into the deck and
+	 * deals some of the same cards straight back.
+	 */
+	private flyDiscardedHand(driver: Driver, cards: readonly Card[]): void {
+		const seat = (this.playerDrivers.indexOf(driver) + 1) as 1 | 2;
+		if (seat !== 1 && seat !== 2) return;
+		for (const card of cards) {
+			const element = this.handLayer.getCardElementByCard(card);
+			if (!element?.isMounted) continue;
+			this.flownCards.add(card);
+			this.fx.flyToDiscard({ card: element, pile: this.handLayer.pilesOf(this.handLayer.seatOf(card) ?? seat) });
+		}
+	}
+
+	/** In the discard, or shuffled from it back into the deck; not exhausted, not removed. */
+	private wentToDiscard(driver: Driver, card: Card): boolean {
+		return driver.discard.includes(card) || (driver.deck?.cards.includes(card) ?? false);
+	}
+
 	/**
 	 * Set up combat model listeners
 	 */

@@ -4,10 +4,10 @@ import { Text } from '../../../engine/components/Text';
 import type { TweenHandle } from '../../../engine/animation/Animator';
 import type { DrawApi } from '../../../engine/draw/DrawApi';
 import type { DrawRectOptions } from '../../../engine/draw/commands';
-import type { RGBA, Rect } from '../../../engine/draw/geometry';
+import type { RGBA } from '../../../engine/draw/geometry';
 import { resolveColor } from '../../../engine/style/styleObject';
 import { tokens } from '../../../engine/theme/tokens';
-import { hexRgba } from './combatStyle';
+import { BONE, TURN_BANNER_PLAYER_BAND } from './combatStyle';
 
 /** The mock's `.banner`: 56 tall across the road, 32 px display type spaced 0.28 em. */
 export const TURN_BANNER_HEIGHT = 56;
@@ -18,7 +18,7 @@ const BANNER_LETTER_SPACING = 0.28;
  * runs on the frame clock; only the slide and fade are tweens.
  */
 export const TURN_BANNER_LIFETIME = 1100;
-/** How far it slides in from, and out to, as a share of the road's width. */
+/** How far the words slide in from, and out to, as a share of the road's width. */
 const SLIDE = 0.12;
 /** The band is solid between these shares of the width, fading to clear at the ends. */
 const SOLID_FROM = 0.25;
@@ -34,36 +34,42 @@ interface BannerLook {
 
 /**
  * Enemy turn is the mock's (`rgba(90, 31, 24, 0.9)`, `#ffd8d0`). The mock
- * has no banner for the player's turn; it gets the same band in the dock's
- * ground with bone type, so the two read as a pair and only raiders are red.
+ * has no banner for the player's turn; it gets a neutral dark band with
+ * bone type, so the two read as a pair and only raiders are red.
  */
 const LOOKS: Readonly<Record<TurnBannerKind, BannerLook>> = {
 	enemy: { text: 'ENEMY TURN', band: resolveColor('rgba(90, 31, 24, 0.9)'), color: '#ffd8d0' },
-	player: { text: 'YOUR TURN', band: hexRgba('#202326', 0.92), color: '#e9e4d6' },
+	player: { text: 'YOUR TURN', band: TURN_BANNER_PLAYER_BAND, color: BONE },
 };
 const CLEAR: RGBA = [0, 0, 0, 0];
+
+type BandRect = DrawRectOptions & { rect: { x: number; y: number; width: number; height: number } };
 
 /**
  * The turn banner (Battle Screen Design section 6): a band across the road,
  * never the dock, naming whose turn it is. It shows each turn change for
- * `TURN_BANNER_LIFETIME` on the frame clock, sliding in from the left and
- * out to the right on the animator; a second change while one is up waits
- * its turn. Under reduced motion (R11.13) it doesn't slide or fade, it is
- * just there for its time. Between banners nothing is drawn: the top bar's
- * turn and END TURN's caption say whose move it is.
+ * `TURN_BANNER_LIFETIME` on the frame clock. The band stays put across the
+ * road and fades; the words slide in from the left and out to the right,
+ * on the animator. Under reduced motion (R11.13) neither moves nor fades,
+ * the banner is just there for its time.
+ *
+ * Changes coalesce: a newer one sends the banner that's up out at once,
+ * and only the latest change waits, with the enemy's turn kept ahead of
+ * the player's that ends it. However fast END TURN is pressed, what shows
+ * last is whose turn it is now.
  */
 export class TurnBanner extends Component {
 	private readonly label: Text;
-	private readonly queue: TurnBannerKind[] = [];
+	private queue: TurnBannerKind[] = [];
 	private showing: TurnBannerKind | null = null;
 	private remainingMs = 0;
 	private leaving = false;
 	private tween: TweenHandle<number> | null = null;
 	/** 0 off to the left, 1 in place, 2 off to the right. */
 	private travel = 1;
-	private readonly left: DrawRectOptions & { rect: { x: number; y: number; width: number; height: number }; gradient: [RGBA, RGBA, RGBA, RGBA] };
-	private readonly middle: DrawRectOptions & { rect: { x: number; y: number; width: number; height: number }; fill: RGBA };
-	private readonly right: DrawRectOptions & { rect: { x: number; y: number; width: number; height: number }; gradient: [RGBA, RGBA, RGBA, RGBA] };
+	private readonly left: BandRect & { gradient: [RGBA, RGBA, RGBA, RGBA] };
+	private readonly middle: BandRect & { fill: RGBA };
+	private readonly right: BandRect & { gradient: [RGBA, RGBA, RGBA, RGBA] };
 
 	constructor(options: ComponentOptions = {}) {
 		super({ height: TURN_BANNER_HEIGHT, pointerEvents: 'none', ...options });
@@ -94,10 +100,45 @@ export class TurnBanner extends Component {
 		return this.showing ? LOOKS[this.showing].text : null;
 	}
 
-	/** Shows `kind` now, or after the banners already waiting. */
+	/** What will show after the banner that's up. */
+	public get pending(): readonly TurnBannerKind[] {
+		return this.queue;
+	}
+
+	/**
+	 * A turn change. Shown now when nothing is up; otherwise the banner
+	 * that's up leaves at once and this waits, replacing whatever was
+	 * waiting except an enemy turn this player turn follows.
+	 */
 	public announce(kind: TurnBannerKind): void {
-		if (this.showing === null) this.begin(kind);
-		else this.queue.push(kind);
+		if (this.showing === null) {
+			this.begin(kind);
+			return;
+		}
+		if (kind === 'enemy') {
+			// A new enemy turn makes whatever was waiting stale. One already up
+			// carries on, and anything else leaves for it.
+			this.queue = this.showing === 'enemy' ? [] : ['enemy'];
+			if (this.showing !== 'enemy') this.hurry();
+			return;
+		}
+		// The player's turn follows the enemy's that's up or waiting, and is
+		// already said when it's what's showing with nothing behind it
+		const last = this.queue[this.queue.length - 1] ?? this.showing;
+		if (last === 'player') return;
+		this.queue = this.queue.length > 0 ? ['enemy', 'player'] : ['player'];
+	}
+
+	/** The banner that's up starts its exit now, or goes now under reduced motion. */
+	private hurry(): void {
+		if (!this.moving) {
+			this.finish();
+			return;
+		}
+		if (this.leaving) return;
+		this.remainingMs = Math.min(this.remainingMs, tokens.motion.dur);
+		this.leaving = true;
+		this.slide(this.travel, 2, this.remainingMs);
 	}
 
 	protected onResized(): void {
@@ -194,28 +235,19 @@ export class TurnBanner extends Component {
 		});
 	}
 
-	/** Slides by moving the label and the band's draw rects, and fades at the ends. */
+	/** The words slide; the whole banner fades in and out at the ends of the travel. */
 	private applyTravel(): void {
-		const offset = (this.travel - 1) * SLIDE * this.getWidth();
 		this.opacity = this.travel <= 1 ? this.travel : 2 - this.travel;
-		this.label.setPosition(offset, 0);
-		this.placeBand(offset);
+		this.label.setPosition((this.travel - 1) * SLIDE * this.getWidth(), 0);
 	}
 
-	private placeBand(offset = (this.travel - 1) * SLIDE * this.getWidth()): void {
+	private placeBand(): void {
 		const width = this.getWidth();
-		this.left.rect.x = offset;
 		this.left.rect.width = width * SOLID_FROM;
-		this.middle.rect.x = offset + width * SOLID_FROM;
+		this.middle.rect.x = width * SOLID_FROM;
 		this.middle.rect.width = width * (SOLID_TO - SOLID_FROM);
-		this.right.rect.x = offset + width * SOLID_TO;
+		this.right.rect.x = width * SOLID_TO;
 		this.right.rect.width = width * (1 - SOLID_TO);
-	}
-
-	/** The band's slide reaches past the box on both sides. */
-	protected get cullInk(): Rect {
-		const width = this.getWidth();
-		return { x: -SLIDE * width, y: 0, width: width * (1 + 2 * SLIDE), height: this.getHeight() };
 	}
 
 	public get resolvedColors(): ResolvedColors | null {
