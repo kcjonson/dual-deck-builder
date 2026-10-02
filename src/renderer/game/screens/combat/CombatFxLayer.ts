@@ -4,9 +4,11 @@ import { Text } from '../../../engine/components/Text';
 import type { MountContext } from '../../../engine/components/MountContext';
 import { linear } from '../../../engine/animation/easing';
 import type { DrawApi } from '../../../engine/draw/DrawApi';
-import type { DrawCircleOptions, DrawPolygonOptions } from '../../../engine/draw/commands';
+import type { DrawCircleOptions, DrawPolygonOptions, DrawRectOptions, DrawTextOptions } from '../../../engine/draw/commands';
 import type { RGBA, Rect, Vec2 } from '../../../engine/draw/geometry';
 import { resolveColor } from '../../../engine/style/styleObject';
+import { tokens } from '../../../engine/theme/tokens';
+import type { AimPreview } from '../../mechanics/AimPreview';
 import { DAMAGE_NUMBER_COLOR, MISS_NUMBER_COLOR } from './combatStyle';
 import { DiscardFlight } from './DiscardFlight';
 import type { Card as UICard } from '../../ui/Card';
@@ -54,6 +56,8 @@ const easeOutQuad = (progress: number): number => 1 - (1 - progress) * (1 - prog
  * the targeting line runs from the card to its centre.
  */
 export class AimReticle extends Component {
+	/** Holds the ring red (true) or bone (false) whatever the drag says; null follows the drag. */
+	public pinnedOnTarget: boolean | null = null;
 	private readonly centrePoint: Vec2 = { x: RETICLE_SIZE / 2, y: RETICLE_SIZE / 2 };
 	private readonly aimed: Vec2 = { x: 0, y: 0 };
 	private readonly ring: DrawCircleOptions = {
@@ -96,11 +100,11 @@ export class AimReticle extends Component {
 	}
 
 	public get resolvedColors(): ResolvedColors {
-		return { fill: aimColor(this) };
+		return { fill: aimColor(this, this.pinnedOnTarget) };
 	}
 
 	public render(draw: DrawApi): void {
-		if (this.ring.border) this.ring.border.color = aimColor(this);
+		if (this.ring.border) this.ring.border.color = aimColor(this, this.pinnedOnTarget);
 		draw.drawCircle(this.ring);
 	}
 }
@@ -115,6 +119,8 @@ export class AimReticle extends Component {
  * a frame of aiming allocates nothing of its own.
  */
 export class TargetingArrow extends Component {
+	/** Holds the line red (true) or bone (false) whatever the drag says; null follows the drag. */
+	public pinnedOnTarget: boolean | null = null;
 	private sourceCard: Component | null = null;
 	private reticle: AimReticle;
 	private readonly curve: MutableCurve = [{ x: 0, y: 0 }, { x: 0, y: 0 }, { x: 0, y: 0 }];
@@ -145,7 +151,7 @@ export class TargetingArrow extends Component {
 	}
 
 	public get resolvedColors(): ResolvedColors | null {
-		return this.sourceCard ? { fill: aimColor(this) } : null;
+		return this.sourceCard ? { fill: aimColor(this, this.pinnedOnTarget) } : null;
 	}
 
 	/**
@@ -169,7 +175,7 @@ export class TargetingArrow extends Component {
 		if (!this.reticle.localToAncestorInto(this.reticle.centre, layer, to)) return;
 		to.x -= this.originX;
 		to.y -= this.originY;
-		const color = aimColor(this);
+		const color = aimColor(this, this.pinnedOnTarget);
 		targetingCurve(from, to, this.curve);
 
 		const count = this.path.dotsAlong(this.curve, HEAD_LENGTH, this.dots);
@@ -185,9 +191,14 @@ export class TargetingArrow extends Component {
 	}
 }
 
-/** Red while the drag service says what's under the pointer would take the card (R9.12c's `canDrop`). */
-function aimColor(component: Component): RGBA {
-	return component.context?.drag.canDrop ? ON_TARGET : OFF_TARGET;
+/**
+ * Red while the drag service says what's under the pointer would take the
+ * card (R9.12c's `canDrop`), unless `pinned` holds it one way: the
+ * gallery's picture of a drag, where nothing is dragged.
+ */
+function aimColor(component: Component, pinned: boolean | null): RGBA {
+	const onTarget = pinned ?? component.context?.drag.canDrop ?? false;
+	return onTarget ? ON_TARGET : OFF_TARGET;
 }
 
 /** A quadratic curve: start, control, end. */
@@ -294,6 +305,139 @@ export function arrowHead(
 	return out;
 }
 
+/** The mock's `.hitchip`: 12 px mono in a box padded 4 by 6, 146 down the dragged card. */
+const HIT_FONT_SIZE = 12;
+const HIT_ADVANCE = HIT_FONT_SIZE * 0.6;
+const HIT_PAD_X = 6;
+const HIT_PAD_Y = 4;
+const HIT_BORDER = 1;
+const HIT_HEIGHT = HIT_FONT_SIZE + HIT_PAD_Y * 2 + HIT_BORDER * 2;
+const HIT_CARD_Y = 146;
+const HIT_BACKGROUND = resolveColor('#0d0e0f');
+const HIT_DETAIL = resolveColor('#8fbf5c');
+const MISS_DETAIL = resolveColor('#ff9d8f');
+const MISS_BORDER = resolveColor('rgba(233, 228, 214, 0.36)');
+
+/** The hit check as the chip prints it, in three runs: the verdict, the numbers, the range. */
+export interface HitCheckText {
+	verdict: string;
+	detail: string;
+	range: string;
+	hits: boolean;
+}
+
+/**
+ * "HIT", then "Gunnery 7 vs Evade 4+2" (the card's modifier added to evade)
+ * or "Ramming 5 vs Evade 4", or "Sure-hit" when nothing rolls, then the
+ * range ("R1"). A check that fails says MISS.
+ */
+export function hitCheckText(preview: AimPreview): HitCheckText {
+	const { check, range } = preview;
+	const rangeText = range === null ? '' : ` · R${range}`;
+	if (!check) return { verdict: 'HIT', detail: 'Sure-hit', range: rangeText, hits: true };
+	const skill = check.skill === 'ramming' ? 'Ramming' : 'Gunnery';
+	const modifier = check.modifier > 0 ? `+${check.modifier}` : check.modifier < 0 ? `${check.modifier}` : '';
+	return { verdict: check.hits ? 'HIT' : 'MISS', detail: `${skill} ${check.attack} vs Evade ${check.evade}${modifier}`, range: rangeText, hits: check.hits };
+}
+
+/**
+ * The hit check riding with the aimed card (section 6): gunnery against
+ * evade and the range to the target the pointer or focus is on, centred
+ * on the card near its foot. Like the line, it covers the layer and reads
+ * the card's place from the tree at paint time, so it follows the lifted
+ * card; its text and box are set when the target changes, never per frame.
+ */
+export class HitCheckChip extends Component {
+	private sourceCard: Component | null = null;
+	private content: HitCheckText | null = null;
+	private chipWidth = 0;
+	private readonly cardPoint: Vec2 = { x: 0, y: 0 };
+	private readonly at: Vec2 = { x: 0, y: 0 };
+	private readonly box: DrawRectOptions & { rect: { x: number; y: number; width: number; height: number } } = {
+		rect: { x: 0, y: 0, width: 0, height: HIT_HEIGHT },
+		fill: HIT_BACKGROUND,
+		radius: 2,
+		border: { color: ON_TARGET, width: HIT_BORDER },
+	};
+	private readonly runs: (DrawTextOptions & { box: { x: number; y: number; width: number; height: number } })[] = [0, 1, 2].map(() => ({
+		text: '',
+		box: { x: 0, y: 0, width: 0, height: HIT_HEIGHT },
+		font: 'mono',
+		size: HIT_FONT_SIZE,
+		color: tokens.color.text,
+		align: 'left' as const,
+		verticalAlign: 'middle' as const,
+		wrap: 'none' as const,
+	}));
+
+	constructor(options: ComponentOptions = {}) {
+		super({ pointerEvents: 'none', zIndex: NUMBER_Z_INDEX, ...options });
+		this.componentType = 'HitCheckChip';
+	}
+
+	/** What the chip says now, or null while it's hidden. */
+	public get text(): HitCheckText | null {
+		return this.content;
+	}
+
+	/** Shows `text` under `card`; a null card or text hides it. */
+	public show(card: Component | null, text: HitCheckText | null): void {
+		this.sourceCard = text ? card : null;
+		this.content = card ? text : null;
+		if (!this.content) return;
+		const { verdict, detail, range, hits } = this.content;
+		const [verdictRun, detailRun, rangeRun] = this.runs;
+		verdictRun.text = `${verdict} `;
+		detailRun.text = detail;
+		detailRun.color = hits ? HIT_DETAIL : MISS_DETAIL;
+		rangeRun.text = range;
+		this.box.border = { color: hits ? ON_TARGET : MISS_BORDER, width: HIT_BORDER };
+		let x = HIT_PAD_X + HIT_BORDER;
+		for (const run of this.runs) {
+			run.box.x = x;
+			run.box.width = run.text.length * HIT_ADVANCE;
+			x += run.box.width;
+		}
+		this.chipWidth = Math.ceil(x + HIT_PAD_X + HIT_BORDER);
+		this.box.rect.width = this.chipWidth;
+	}
+
+	public get drawnText(): readonly string[] | null {
+		return this.content ? this.runs.map((run) => run.text) : null;
+	}
+
+	public get resolvedColors(): ResolvedColors | null {
+		return this.content ? { fill: HIT_BACKGROUND } : null;
+	}
+
+	/** Through the stage to the layer, as the line finds its card: no matrices, no allocations. */
+	public render(draw: DrawApi): void {
+		const card = this.sourceCard;
+		const layer = this.parent;
+		const space = layer?.parent;
+		if (!card || !this.content || !card.isMounted || !layer || !space) return;
+		this.cardPoint.x = card.width / 2;
+		this.cardPoint.y = Math.min(HIT_CARD_Y, card.height);
+		if (!card.localToAncestorInto(this.cardPoint, space, this.at)) return;
+		// Centred on the card, but held inside the layer, which is the stage:
+		// the hand's edge cards would otherwise push the verdict off screen
+		const centred = Math.round(this.at.x - layer.originX - this.originX - this.chipWidth / 2);
+		const left = Math.max(0, Math.min(centred, this.width - this.chipWidth));
+		const top = Math.round(this.at.y - layer.originY - this.originY);
+		this.box.rect.x = left;
+		this.box.rect.y = top;
+		draw.drawRect(this.box);
+		let x = left + HIT_PAD_X + HIT_BORDER;
+		for (const run of this.runs) {
+			if (!run.text) continue;
+			run.box.x = x;
+			run.box.y = top;
+			draw.drawText(run);
+			x += run.box.width;
+		}
+	}
+}
+
 /** What a floating number says: damage dealt, or a miss. */
 export type FloatingNumberKind = 'damage' | 'miss';
 
@@ -306,6 +450,7 @@ export type FloatingNumberKind = 'damage' | 'miss';
 export class CombatFxLayer extends Container {
 	public readonly reticle: AimReticle;
 	private readonly arrow: TargetingArrow;
+	private readonly hitCheck: HitCheckChip;
 	/** Numbers still rising, per anchor, so a second hit stacks under the first. */
 	/** The stack slots each anchor's live numbers hold. */
 	private readonly takenSlots = new Map<string, Set<number>>();
@@ -318,13 +463,26 @@ export class CombatFxLayer extends Container {
 		this.reticle = new AimReticle({ id: 'combat_aim_reticle' });
 		this.reticle.visible = false;
 		this.arrow = new TargetingArrow({ id: 'combat_targeting_line', reticle: this.reticle });
+		this.hitCheck = new HitCheckChip({ id: 'combat_hit_check' });
 		this.addChild(this.arrow);
 		this.addChild(this.reticle);
+		this.addChild(this.hitCheck);
 	}
 
-	/** The line covers the layer, so it always has the room to draw in. */
+	/** The line and the hit check cover the layer, so they always have the room to draw in. */
 	protected onResized(): void {
 		this.arrow.setSize(this.width, this.height);
+		this.hitCheck.setSize(this.width, this.height);
+	}
+
+	/** The hit check on `card` for the target `preview` reads, or hides it with null. */
+	public showHitCheck(card: Component | null, preview: AimPreview | null): void {
+		this.hitCheck.show(card, preview ? hitCheckText(preview) : null);
+	}
+
+	/** What the hit check says now, or null while it's hidden. */
+	public get hitCheckText(): HitCheckText | null {
+		return this.hitCheck.text;
 	}
 
 	/**

@@ -21,6 +21,9 @@ import {
 	roadSlotRect,
 } from './CombatLayout';
 import { ROAD_STYLE, Rgba, rgba } from './combatStyle';
+import { HatchOptions, hatchTriangles } from '../../ui/stripes';
+import type { RangeLabel } from '../../ui/RangeChip';
+import type { AimLosses } from '../../mechanics/AimPreview';
 
 export type { EnemyIntent, IntentType } from '../../ui/IntentMarker';
 
@@ -34,8 +37,7 @@ const LANE_DASH = 26;
 const LANE_LINE_WIDTH = 2;
 const CENTRE_LINE_WIDTH = 4;
 /** The shoulder hatch: 12 px stripes every 24 px, at 45 degrees. */
-const HATCH_PERIOD = 24 * Math.SQRT2;
-const HATCH_STRIPE = 12 * Math.SQRT2;
+export const SHOULDER_HATCH: HatchOptions = { period: 24 * Math.SQRT2, stripe: 12 * Math.SQRT2 };
 /** How long a swerve from one slot to another takes. */
 export const SWERVE_DURATION = tokens.motion.dur_slow;
 /** Across the lanes on an S-curve; along the rows early, so the speed change leads and the swerve follows. */
@@ -253,6 +255,19 @@ export class RoadView extends Component {
 		if (occupancyChanged) this.buildSlotOutlines();
 	}
 
+	/**
+	 * Each listed vehicle's range chip while a card is aimed (section 6);
+	 * every other token's goes. An empty map clears them all.
+	 */
+	public showRanges(labels: ReadonlyMap<string, RangeLabel>): void {
+		for (const [vehicleId, token] of this.roadTokens) token.view.rangeLabel = labels.get(vehicleId) ?? null;
+	}
+
+	/** The damage ghost on one vehicle, clearing it everywhere else; null clears them all. */
+	public showDamageGhost(vehicleId: string | null, losses: AimLosses | null): void {
+		for (const [id, token] of this.roadTokens) token.view.damageGhost = id === vehicleId ? losses : null;
+	}
+
 	/** A raider's plan for the enemy turn, in order; empty clears it. */
 	public setVehicleIntents(vehicleId: string, intents: readonly EnemyIntent[]): void {
 		if (intents.length === 0) this.plannedIntents.delete(vehicleId);
@@ -409,7 +424,7 @@ export class RoadView extends Component {
 		];
 		for (const rect of shoulders) {
 			this.shoulderGrounds.push({ rect, fill: ROAD_STYLE.shoulderGround });
-			this.hatches.push({ points: hatchTriangles(rect), fill: ROAD_STYLE.shoulderStripe });
+			this.hatches.push({ points: hatchTriangles(rect, SHOULDER_HATCH), fill: ROAD_STYLE.shoulderStripe });
 		}
 		for (const lane of lanes) {
 			const look = LANE_LOOKS[lane.lane];
@@ -488,50 +503,4 @@ function dashedOutline(rect: Rect, fill: Rgba, out: DrawRectOptions[]): void {
 		const length = Math.min(SLOT_DASH, bottom - y);
 		out.push({ rect: { x: rect.x, y, width: 1, height: length }, fill }, { rect: { x: right, y, width: 1, height: length }, fill });
 	}
-}
-
-/**
- * The mock's 135 degree hatch over a rect: bands of `x + y` a stripe wide,
- * one period apart, each clipped to the rect and fanned into triangles, as
- * one bare triangle list.
- */
-export function hatchTriangles(rect: Rect): Vec2[] {
-	const corners: Vec2[] = [
-		{ x: rect.x, y: rect.y },
-		{ x: rect.x + rect.width, y: rect.y },
-		{ x: rect.x + rect.width, y: rect.y + rect.height },
-		{ x: rect.x, y: rect.y + rect.height },
-	];
-	const start = rect.x + rect.y;
-	const end = rect.x + rect.width + rect.y + rect.height;
-	const triangles: Vec2[] = [];
-	for (let low = start + HATCH_PERIOD - HATCH_STRIPE; low < end; low += HATCH_PERIOD) {
-		const band = clipBand(corners, low, low + HATCH_STRIPE);
-		for (let index = 1; index + 1 < band.length; index++) {
-			triangles.push(band[0], band[index], band[index + 1]);
-		}
-	}
-	return triangles;
-}
-
-/** A convex polygon cut to `low <= x + y <= high`. */
-function clipBand(polygon: readonly Vec2[], low: number, high: number): Vec2[] {
-	return clipHalf(clipHalf(polygon, (point) => point.x + point.y - low), (point) => high - point.x - point.y);
-}
-
-/** Sutherland-Hodgman against one half-plane, kept where `side` is at least 0. */
-function clipHalf(polygon: readonly Vec2[], side: (point: Vec2) => number): Vec2[] {
-	const kept: Vec2[] = [];
-	for (let index = 0; index < polygon.length; index++) {
-		const current = polygon[index];
-		const next = polygon[(index + 1) % polygon.length];
-		const a = side(current);
-		const b = side(next);
-		if (a >= 0) kept.push(current);
-		if ((a >= 0) !== (b >= 0)) {
-			const t = a / (a - b);
-			kept.push({ x: current.x + (next.x - current.x) * t, y: current.y + (next.y - current.y) * t });
-		}
-	}
-	return kept;
 }

@@ -696,3 +696,162 @@ describe('CombatScreen floating numbers', () => {
 		combat.unmount();
 	});
 });
+
+/** A card of `type` put at the front of a seat's hand, and its element once the hand deals again. */
+function dealTo(combat: CombatScreen, seat: 1 | 2, type: string): UICard {
+	const driver = combat['playerDrivers'][seat - 1];
+	const card = CardLoader.getInstance().createCard(type) as Card;
+	driver.set({ hand: [card, ...driver.hand], adrenaline: driver.maxAdrenaline });
+	combat['updateUIFromBattle']();
+	context.frame.layout();
+	const element = combat['handLayer'].getCardElementByCard(card);
+	if (!element) throw new Error(`${type} should be in seat ${seat}'s hand`);
+	return element;
+}
+
+/** The raider's token on the road. */
+function raiderToken(combat: CombatScreen) {
+	const [raider] = combat['enemyTeam']?.vehicles ?? [];
+	const token = combat['road'].vehicleView(raider?.id ?? '');
+	if (!token) throw new Error('the raider should be on the road');
+	return { raider, token };
+}
+
+describe('CombatScreen targeting (DDB-138)', () => {
+	beforeEach(() => setViewport(1280, 720));
+
+	it('labels each raider with its range from the slot the card acts from, and offers only the ones in reach', async () => {
+		const combat = await startCombat();
+		const { raider, token } = raiderToken(combat);
+		const playCard = jest.spyOn(Battle.prototype, 'playCard');
+
+		// Point Blank reaches one; from the Rig, inside center, the raider is one away
+		const near = dealTo(combat, 1, 'point_blank');
+		const [nx, ny] = grabPoint(near);
+		inject(`click,${nx},${ny}`);
+		expect(combat['combatModel'].targetableVehicleIds).toEqual([raider.id]);
+		expect(token.rangeLabel).toEqual({ text: 'R1', legal: true });
+		expect(token.opacity).toBe(1);
+		inject('keydown,Escape', 'keyup,Escape');
+		expect(token.rangeLabel).toBeNull();
+
+		// From the Bike, inside behind, it's two away: out of reach, dimmed,
+		// and a drop on it plays nothing
+		const far = dealTo(combat, 2, 'point_blank');
+		drag(grabPoint(far), centreOf(vehicleBounds(combat, 'enemyTeam')), { release: false });
+		expect(combat['combatModel'].isTargeting).toBe(true);
+		expect(combat['combatModel'].targetableVehicleIds).toEqual([]);
+		expect(token.rangeLabel).toEqual({ text: 'OUT', legal: false });
+		expect(token.opacity).toBeLessThan(1);
+		expect(context.drag.canDrop).toBe(false);
+		const [tx, ty] = centreOf(vehicleBounds(combat, 'enemyTeam'));
+		inject(`up,${tx},${ty}`);
+		expect(playCard).not.toHaveBeenCalled();
+		expect(combat['combatModel'].selectedCard).toBeNull();
+		expect(token.rangeLabel).toBeNull();
+
+		playCard.mockRestore();
+		combat.unmount();
+	});
+
+	it('rides the hit check with the dragged card and ghosts the damage on the target, until the drag ends', async () => {
+		const combat = await startCombat();
+		const { raider, token } = raiderToken(combat);
+		const card = dealTo(combat, 1, 'headshot');
+		const fx = combat['fx'];
+
+		drag(grabPoint(card), centreOf(vehicleBounds(combat, 'enemyTeam')), { release: false });
+		expect(combat['combatModel'].focusedVehicleId).toBe(raider.id);
+		const preview = combat['aimPreviews'].get(raider.id);
+		expect(preview?.range).toBe(1);
+		const text = fx.hitCheckText;
+		expect(text?.verdict).toBe(preview?.check?.hits ? 'HIT' : 'MISS');
+		expect(text?.detail).toMatch(/^Gunnery \d+ vs Evade \d+\+2$/);
+		expect(text?.range).toBe(' · R1');
+		expect(token.damageGhost).toEqual(preview?.check?.hits ? preview.losses : null);
+		if (preview?.check?.hits) expect(token.damageGhost?.driver).toBeGreaterThan(0);
+
+		// Off the target, the check and the ghost go; back on, they return
+		const [ex, ey] = emptyRoadPoint(combat);
+		inject(`move,${ex},${ey}`);
+		expect(fx.hitCheckText).toBeNull();
+		expect(token.damageGhost).toBeNull();
+
+		inject('keydown,Escape', 'keyup,Escape');
+		inject(`up,${ex},${ey}`);
+		expect(fx.hitCheckText).toBeNull();
+		expect(token.rangeLabel).toBeNull();
+
+		combat.unmount();
+	});
+
+	it.each([
+		[1280, 720],
+		[1024, 600],
+	])('at %ix%i, keeps the hit check on screen for the leftmost card in the hand', async (width, height) => {
+		setViewport(width, height);
+		const combat = await startCombat();
+		const { raider } = raiderToken(combat);
+		const card = dealTo(combat, 1, 'headshot');
+		const fx = combat['fx'];
+		const [cx, cy] = grabPoint(card);
+		inject(`click,${cx},${cy}`);
+		combat['combatModel'].focusVehicle(raider.id);
+		expect(fx.hitCheckText).not.toBeNull();
+
+		const chip = fx['hitCheck'];
+		chip.render({ drawRect: jest.fn(), drawText: jest.fn() } as unknown as DrawApi);
+		const box = chip['box'].rect;
+		// Centred on the card it would start left of the stage
+		const cardCentre = card.localToScreen({ x: card.width / 2, y: 0 }).x / (fx.screenBounds.width / fx.width);
+		expect(cardCentre - box.width / 2).toBeLessThan(0);
+		expect(box.x).toBe(0);
+		expect(box.x + box.width).toBeLessThanOrEqual(fx.width);
+
+		combat.unmount();
+	});
+
+	it('cancels click-then-target on a click that lands on no target (DDB-111)', async () => {
+		const combat = await startCombat();
+		const card = dealTo(combat, 1, 'headshot');
+		const [cx, cy] = grabPoint(card);
+		const [ex, ey] = emptyRoadPoint(combat);
+
+		inject(`click,${cx},${cy}`);
+		expect(combat['combatModel'].isTargeting).toBe(true);
+		inject(`click,${ex},${ey}`);
+		expect(combat['combatModel'].isTargeting).toBe(false);
+		expect(card.selected).toBe(false);
+
+		// Your own vehicle isn't a Headshot target, so a click there cancels too
+		inject(`click,${cx},${cy}`);
+		const [px, py] = centreOf(vehicleBounds(combat, 'playerTeam'));
+		inject(`click,${px},${py}`);
+		expect(combat['combatModel'].isTargeting).toBe(false);
+
+		combat.unmount();
+	});
+
+	it('cancels click-then-target on a right-click anywhere, or a second click on the card (DDB-111)', async () => {
+		const combat = await startCombat();
+		const card = dealTo(combat, 1, 'headshot');
+		const playCard = jest.spyOn(Battle.prototype, 'playCard');
+		const [cx, cy] = grabPoint(card);
+		const [tx, ty] = centreOf(vehicleBounds(combat, 'enemyTeam'));
+
+		inject(`click,${cx},${cy}`);
+		expect(combat['combatModel'].isTargeting).toBe(true);
+		inject(`click,${tx},${ty},2`);
+		expect(combat['combatModel'].isTargeting).toBe(false);
+
+		inject(`click,${cx},${cy}`);
+		expect(combat['combatModel'].isTargeting).toBe(true);
+		inject(`click,${cx},${cy}`);
+		expect(combat['combatModel'].isTargeting).toBe(false);
+		expect(card.selected).toBe(false);
+		expect(playCard).not.toHaveBeenCalled();
+
+		playCard.mockRestore();
+		combat.unmount();
+	});
+});

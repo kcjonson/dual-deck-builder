@@ -31,6 +31,8 @@ import { RoadLane, RoadRow } from '../../mechanics/Road';
 import { Team, TeamType } from '../../mechanics/Team';
 import { Battle, BattleState, BattleMessage, EnemyTurnStep, HitEvent } from '../../mechanics/Battle';
 import { Card } from '../../mechanics/Card';
+import { AimPreview, previewAim } from '../../mechanics/AimPreview';
+import type { RangeLabel } from '../../ui/RangeChip';
 import { Intent, IntentType, formatIntentValue } from '../../mechanics/Intent';
 import { CardLoader } from '../../core/CardLoader';
 import { DriverLoader } from '../../core/DriverLoader';
@@ -113,7 +115,13 @@ export class CombatScreen extends Screen {
 	// The hand slot of the card a keyboard player last chose, where focus
 	// goes back to once it is played or put back
 	private keyboardSlot = 0;
-	
+	// Whether a card was waiting for its target when the last press landed,
+	// so the click that chose it doesn't also put it back
+	private aimingAtPress = false;
+	// The aimed card's preview on each raider (range, hit check, damage),
+	// worked out once when the card is picked
+	private readonly aimPreviews = new Map<string, AimPreview>();
+
 	
 	// Event unsubscribe functions: battle and team events, and the combat model's
 	private unsubscribers: (() => void)[] = [];
@@ -465,13 +473,23 @@ export class CombatScreen extends Screen {
 	 * over the road, so neither ever covers the dock.
 	 */
 	private createLayers(): void {
-		// The stage is the viewport's size, so its box is the screen's background.
+		// The stage is the viewport's size, so its box is the screen's
+		// background, and a target itself: a click on empty road or dock, or
+		// a right-click anywhere, puts an aimed card back (section 6)
 		this.stage = new Stack({
 			id: 'combat_stage',
 			style: { backgroundColor: SCREEN_BACKGROUND },
 			direction: 'horizontal',
 			distribution: 'center',
 			crossAlign: 'stretch',
+			pointerEvents: 'auto',
+			onPointerDown: () => {
+				this.aimingAtPress = this.combatModel.isTargeting;
+			},
+			onClick: () => {
+				if (this.aimingAtPress && this.combatModel.isTargeting && !this.context.drag.isDragging) this.putCardBack();
+			},
+			onContextMenu: () => this.cancelAim(),
 		});
 		this.rootLayer.addChild(this.stage);
 
@@ -651,13 +669,7 @@ export class CombatScreen extends Screen {
 		// screen root's hotkey table, which keys reach after bubbling out of
 		// whatever is focused (R9.15)
 		const { hotkeys } = this.rootLayer;
-		hotkeys.register('Escape', () => {
-			if (this.context.drag.isDragging) {
-				this.context.drag.cancel();
-			} else if (this.combatModel.isTargeting) {
-				this.putCardBack();
-			}
-		});
+		hotkeys.register('Escape', () => this.cancelAim());
 		for (const key of LOG_TOGGLE_KEYS) hotkeys.register(key, () => this.toggleCombatLog());
 		// I pins the detail view of the card being read, or lets it go
 		// (section 5); the controller's inspect button maps here once there
@@ -703,11 +715,71 @@ export class CombatScreen extends Screen {
 				}
 			}),
 
-			// Over a raider, an attack order lights up the escort that would carry it out
+			// Over a raider, an attack order lights up the escort that would
+			// carry it out; over any target, the hit check rides with the card
+			// and a ghost shows what it takes off the bar it hits
 			this.combatModel.on('focusedVehicleId', (vehicleId: string | null) => {
 				this.combatModel.carrierVehicleId = this.findOrderCarrierId(vehicleId);
+				this.showAimAt(vehicleId);
+			}),
+
+			// However targeting ends, the ranges, the ghost, and the hit check go
+			this.combatModel.on('selectedCard', (card: Card | null) => {
+				if (card) return;
+				this.aimPreviews.clear();
+				this.road.showRanges(new Map());
+				this.showAimAt(null);
 			}),
 		);
+	}
+
+	/**
+	 * Every raider's range from the slot the picked card acts from (section
+	 * 6): "R1" or "R2" while it's within the card's reach, "OUT" past it,
+	 * red-edged where the card can land. Worked out once, with the hit check
+	 * and damage the target preview reads.
+	 */
+	private showRanges(card: Card): void {
+		this.aimPreviews.clear();
+		const labels = new Map<string, RangeLabel>();
+		const battle = this.battle;
+		const driver = this.combatModel.selectedDriver;
+		if (battle && driver && this.enemyTeam && (card.targetType === 'enemy_single' || card.targetType === 'any')) {
+			for (const raider of this.enemyTeam.vehicles) {
+				if (raider.isOutOfFight || !raider.slot) continue;
+				const preview = previewAim({ battle, driver, card, target: raider });
+				this.aimPreviews.set(raider.id, preview);
+				if (preview.range === null) continue;
+				const inReach = preview.reach === null || preview.range <= preview.reach;
+				labels.set(raider.id, { text: inReach ? `R${preview.range}` : 'OUT', legal: this.combatModel.isVehicleTargetable(raider.id) });
+			}
+		}
+		this.road.showRanges(labels);
+	}
+
+	/**
+	 * The target the pointer or focus is on: a ghost on the bars the card
+	 * would hit and, on a raider, the hit check under the card. Null, or a
+	 * vehicle the card can't land on, clears both.
+	 */
+	private showAimAt(vehicleId: string | null): void {
+		const card = this.combatModel.selectedCard;
+		const driver = this.combatModel.selectedDriver;
+		const battle = this.battle;
+		const target = vehicleId && this.combatModel.isTargeting && this.combatModel.isVehicleTargetable(vehicleId)
+			? [...(this.enemyTeam?.vehicles ?? []), ...(this.playerTeam?.vehicles ?? [])].find(vehicle => vehicle.id === vehicleId) ?? null
+			: null;
+		if (!card || !driver || !battle || !target) {
+			this.road.showDamageGhost(null, null);
+			this.fx.showHitCheck(null, null);
+			return;
+		}
+		const preview = this.aimPreviews.get(target.id) ?? previewAim({ battle, driver, card, target });
+		const lands = !preview.check || preview.check.hits;
+		this.road.showDamageGhost(target.id, lands ? preview.losses : null);
+		// On a raider the card hits, not one it only outruns (a flank)
+		const onRaider = preview.lands && (this.enemyTeam?.vehicles.includes(target) ?? false);
+		this.fx.showHitCheck(onRaider ? this.fx.aimingFrom ?? this.handLayer.getCardElementByCard(card) : null, onRaider ? preview : null);
 	}
 
 	/**
@@ -774,6 +846,12 @@ export class CombatScreen extends Screen {
 			return false;
 		}
 
+		// Clicking the card that waits for its target puts it back
+		if (via === 'click' && this.combatModel.isTargeting && this.combatModel.selectedCard === card) {
+			this.putCardBack();
+			return false;
+		}
+
 		const owningDriver = this.playerDrivers.find(driver => driver.hand.includes(card));
 		if (!owningDriver) {
 			console.warn('Could not find driver who owns this card');
@@ -815,6 +893,7 @@ export class CombatScreen extends Screen {
 		this.handLayer.selectedCard = card;
 		this.handLayer.targetingMode = true;
 		this.combatModel.targetableVehicleIds = this.determineTargetableVehicles(card);
+		this.showRanges(card);
 
 		// A keyboard player goes straight to the first target; the targets
 		// are the only focusable vehicles now (R9.23: programmatic focus
@@ -841,6 +920,15 @@ export class CombatScreen extends Screen {
 				const driver = this.combatModel.selectedDriver;
 				return onRoad(this.playerTeam?.vehicles.filter(vehicle => vehicle.driver === driver || vehicle.passenger === driver));
 			}
+		}
+	}
+
+	/** Escape or a right-click: a drag in progress ends, or a card waiting for its target goes back. */
+	private cancelAim(): void {
+		if (this.context.drag.isDragging) {
+			this.context.drag.cancel();
+		} else if (this.combatModel.isTargeting) {
+			this.putCardBack();
 		}
 	}
 
@@ -917,51 +1005,48 @@ export class CombatScreen extends Screen {
 	}
 	
 	/**
-	 * Determine which vehicles can be targeted by a card
+	 * The vehicles a card can land on now, and only those (section 6): the
+	 * card's side of the road by its target type, then the battle's own
+	 * target rule, the one playCard checks (range, flanking, nobody aboard,
+	 * an order's carrier). A drop, a click, or the keyboard can't offer
+	 * anything playCard would refuse.
 	 */
 	private determineTargetableVehicles(card: Card): string[] {
-		if (!this.playerTeam || !this.enemyTeam) return [];
-		
-		const targetType = card.targetType;
-		
+		const battle = this.battle;
+		const driver = this.combatModel.selectedDriver;
+		if (!this.playerTeam || !this.enemyTeam || !battle || !driver) return [];
+
 		// A wreck, or a vehicle with nobody aboard, still on the road for the
-		// rest of the turn is never a target. Nor is an empty escort for
-		// Headshot, which has nobody on it to hit.
-		const targetable = (vehicle: Vehicle): boolean =>
-			!vehicle.isOutOfFight && !(card.hitsDriverOnly && !vehicle.driverOnlyTarget);
-		const players = this.playerTeam.vehicles.filter(targetable);
-		const enemies = this.enemyTeam.vehicles.filter(targetable);
+		// rest of the turn is never a target
+		const players = this.playerTeam.vehicles.filter(vehicle => !vehicle.isOutOfFight);
+		const enemies = this.enemyTeam.vehicles.filter(vehicle => !vehicle.isOutOfFight);
 
-		// An order's targets depend on the convoy (a raider with no escort to
-		// carry it out isn't one), so ask the battle's own rule
-		const selectedDriver = this.combatModel.selectedDriver;
-		if (card.isOrder && this.battle && selectedDriver) {
-			const battle = this.battle;
-			return [...players, ...enemies]
-				.filter(target => battle.getTargetBlocker({ driver: selectedDriver, card, target }) === null)
-				.map(v => v.id);
-		}
-
-		switch (targetType) {
-			case 'enemy_single':
-				return enemies.map(v => v.id);
-				
-			case 'self': {
-				// Only the vehicle the playing driver is in, driving or riding
-				const selectedDriver = this.combatModel.selectedDriver;
-				const driverVehicle = selectedDriver && players.find(v => v.driver === selectedDriver || v.passenger === selectedDriver);
-				return driverVehicle ? [driverVehicle.id] : [];
+		let candidates: Vehicle[];
+		if (card.isOrder) {
+			// An order's targets depend on the convoy, so its rule picks the side
+			candidates = [...players, ...enemies];
+		} else {
+			switch (card.targetType) {
+				case 'enemy_single':
+					candidates = enemies;
+					break;
+				case 'self':
+					// Only the vehicle the playing driver is in, driving or riding
+					candidates = players.filter(vehicle => vehicle.driver === driver || vehicle.passenger === driver);
+					break;
+				case 'ally':
+					candidates = players;
+					break;
+				case 'any':
+					candidates = [...players, ...enemies];
+					break;
+				default:
+					candidates = [];
 			}
-				
-			case 'ally':
-				return players.map(v => v.id);
-				
-			case 'any':
-				return [...players, ...enemies].map(v => v.id);
-				
-			default:
-				return [];
 		}
+		return candidates
+			.filter(target => battle.getTargetBlocker({ driver, card, target }) === null)
+			.map(vehicle => vehicle.id);
 	}
 
 
@@ -977,6 +1062,10 @@ export class CombatScreen extends Screen {
 	 */
 	private endPlayerTurn(): void {
 		if (!this.battle?.isPlayerTurn || this.battle.battleOver || this.enemyTurnPacer?.running) return;
+
+		// A card still aimed (picked with the keyboard, then Tab to END TURN)
+		// goes back, so no range, outline, or hit check rides into the enemy turn
+		this.cancelAim();
 
 		console.log('Ending player turn...');
 		this.battle.endPlayerTurn({ stepEnemyTurn: true });

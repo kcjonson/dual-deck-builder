@@ -15,6 +15,7 @@ import {
 	slotRange
 } from './Road';
 import { Card, CardEffect } from './Card';
+import type { HitCheck } from './AimPreview';
 import { BoardProjection, cardFlanks, cardRange } from './BoardProjection';
 import { ESCORT_CONFIGS } from './Escort';
 import type { AfterFight, DividendPayout } from './Convoy';
@@ -1962,7 +1963,22 @@ export class Battle extends Model<BattleData> {
 	 * defender with nobody at the wheel has no skills and is never hit. A
 	 * wrecked escort still has its profile, so callers skip wrecks first.
 	 */
-	public checkHit({
+	public checkHit(options: {
+		attacker: Vehicle | null;
+		caster: Driver;
+		defender: Vehicle;
+		attackType?: string;
+		modifier?: number;
+	}): boolean {
+		return this.hitCheck(options)?.hits ?? false;
+	}
+
+	/**
+	 * checkHit's numbers, for the targeting preview: the skill it reads,
+	 * both sides' values, and the outcome. Null when either side has nobody
+	 * to act, which checkHit counts as a miss.
+	 */
+	public hitCheck({
 		attacker,
 		caster,
 		defender,
@@ -1974,16 +1990,16 @@ export class Battle extends Model<BattleData> {
 		defender: Vehicle;
 		attackType?: string;
 		modifier?: number;
-	}): boolean {
+	}): HitCheck | null {
 		const attack = attacker ? attacker.crewSkills(caster) : caster.skills;
 		const defense = defender.crewSkills();
 		if (!attack || !defense) {
-			return false;
+			return null;
 		}
 		if (attackType === 'ramming') {
-			return attack.ramming >= defense.evade;
+			return { skill: 'ramming', attack: attack.ramming, evade: defense.evade, modifier: 0, hits: attack.ramming >= defense.evade };
 		}
-		return attack.gunnery > defense.evade + modifier;
+		return { skill: 'gunnery', attack: attack.gunnery, evade: defense.evade, modifier, hits: attack.gunnery > defense.evade + modifier };
 	}
 
 	/**
@@ -2013,7 +2029,7 @@ export class Battle extends Model<BattleData> {
 	 * "armor/10 + (speed_diff)" on 0, Ramming Run's "speed_diff" on 4. Never
 	 * below 0.
 	 */
-	private calculateFormulaDamage(formula: string, { base, armor, speedDiff }: { base: number; armor: number; speedDiff: number }): number {
+	public calculateFormulaDamage(formula: string, { base, armor, speedDiff }: { base: number; armor: number; speedDiff: number }): number {
 		let damage = base;
 		if (formula.includes('armor/10')) {
 			damage += Math.floor(armor / 10);
@@ -2056,7 +2072,7 @@ export class Battle extends Model<BattleData> {
 	/**
 	 * Get the vehicle that a driver is in
 	 */
-	private getVehicleForDriver(driver: Driver): Vehicle | null {
+	public getVehicleForDriver(driver: Driver): Vehicle | null {
 		return this.getAllVehicles().find(v => v.driver === driver || v.passenger === driver) || null;
 	}
 

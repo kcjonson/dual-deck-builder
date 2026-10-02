@@ -30,6 +30,7 @@ import { CombatRoadSection } from './CombatRoadSection';
 import { CardDetailCapSection, CardDetailPinnedSection, CardDetailSection, CardFacesSection } from './CardDetailSection';
 import { SliderTabsSection } from './SliderTabsSection';
 import { VehicleTokensSection } from './VehicleTokensSection';
+import { CombatTargetingSection } from './CombatTargetingSection';
 
 /**
  * The developer screen's sections, defined once.
@@ -207,5 +208,10 @@ export const developerSections: readonly DeveloperSection[] = [
 	{
 		name: 'card-detail-cap',
 		build: (options) => new CardDetailCapSection(options),
+	},
+	// A card mid-drag over the road: ranges, outlines, ghost, hit check (DDB-138)
+	{
+		name: 'combat-targeting',
+		build: (options) => new CombatTargetingSection(options),
 	},
 ];
