@@ -136,12 +136,14 @@ export class CombatTargetingSection extends CatalogSection {
 		const reticle = new AimReticle({ id: 'dev_targeting_reticle' });
 		reticle.pinnedOnTarget = true;
 		const token = road.vehicleView(buggy.id);
+		// The pointer at the plate's top right, past the short name, so the
+		// line and the ring leave the bars and their ghost in view
 		if (token) {
 			const plate = token.plateRect;
 			const scale = token.tokenScale;
 			reticle.setPosition(
-				token.x + (plate.x + plate.width / 2) * scale - reticle.centre.x,
-				token.y + (plate.y + plate.height / 2) * scale - reticle.centre.y,
+				token.x + (plate.x + plate.width - 16) * scale - reticle.centre.x,
+				token.y + (plate.y + 13) * scale - reticle.centre.y,
 			);
 		}
 		const arrow = new TargetingArrow({ id: 'dev_targeting_line', reticle, width: FRAME_WIDTH, height: FRAME_HEIGHT });
