@@ -124,6 +124,11 @@ export class PointerAdapter {
 
 	private enqueueKey(event: KeyboardEvent, phase: 'down' | 'up'): void {
 		if (this.dispatcher.paused) return;
+		// R15.39: an input method owns a keydown while it composes. Delivered,
+		// Safari's (the typed letter, keyCode 229) would insert raw letters and a
+		// committing Enter or Backspace would submit or delete. Keyups still go,
+		// so nothing waits on a release that never arrives.
+		if (phase === 'down' && isComposition(event)) return;
 		// Dispatch waits for the frame, so the default is prevented on whether
 		// the key would be handled now: a hotkey binding or a focused field.
 		if (this.dispatcher.claimsKey(event.key, modifiersOf(event))) event.preventDefault();
@@ -162,6 +167,11 @@ export class PointerAdapter {
 		const top = rect?.top ?? 0;
 		return { x: (event.clientX - left) / this.uiScale, y: (event.clientY - top) / this.uiScale };
 	}
+}
+
+/** Chrome names the key `Process`; every browser flags `isComposing` or the legacy keyCode 229. */
+function isComposition(event: KeyboardEvent): boolean {
+	return event.isComposing || event.keyCode === 229 || event.key === 'Process';
 }
 
 function pointerTypeOf(type: string | undefined): PointerType {

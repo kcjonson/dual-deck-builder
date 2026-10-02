@@ -16,6 +16,15 @@ This document contains the chronological log of completed development tasks for 
 - The macOS weight step between the raster fallback and the field at the switch size stays open and moves to DDB-217.
 
 **How:** measured all three variants in the encoder against the test locally (macOS Chromium; the field's scores are the same on Linux). Details in [small-text-evenness.md](./AI_TECHNICAL_DECISIONS/small-text-evenness.md).
+## IME composition scoped out, composing keys dropped (2026-10-02)
+
+**What landed:** DDB-220 (DDB-55), a scope call plus a guard.
+
+- Decided not to build composition input (a hidden editable element at the caret, preedit underlined, commit on `compositionend`). R12.10 and R15.39 put it out of scope for the baseline, and every text field today is on the developer screen.
+- `PointerAdapter` drops a keydown with `isComposing`, `keyCode` 229, or key `Process` before it is queued, so a composition never inserts raw letters (Safari reports the typed letter with 229), deletes, submits, or fires a hotkey. Keyups still go. No Dispatcher change.
+- R15.39 now states the drop as a MUST and that composed text can't be entered; R12.10 points at it.
+
+**How:** two cases in `TextInput.test.ts` dispatch real DOM keys on `window` through the adapter: composing keys shaped like Safari's (the letter with `keyCode` 229) and flagged `isComposing` (a letter, Backspace, Enter) leave the value, caret, `onSubmit`, and a bound hotkey alone and typing resumes after; Chrome's `Process` and a `Dead` key insert nothing. The first case fails with the guard removed. Not tried against a real OS input method. Decision recorded in [component-catalog-wave-b.md](./AI_TECHNICAL_DECISIONS/component-catalog-wave-b.md).
 ## Combat turn banner, whole intent plans, and discard flights (2026-10-02)
 
 **What landed:** DDB-88's third and last PR (DDB-55 phase 6): the turn banner (DDB-30), every planned intent over its raider, and the discard animation (DDB-37).
