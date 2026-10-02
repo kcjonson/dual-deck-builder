@@ -2,16 +2,19 @@ import type { PointerEvents, ResolvedColors } from '../components/Component';
 import { Stack } from '../components/Stack';
 import { Text } from '../components/Text';
 import type { DrawApi } from '../draw/DrawApi';
+import type { Rect } from '../draw/geometry';
 import { shadowExtent } from '../style/look';
 import type { TooltipSpec } from '../services/tooltipSpec';
 import { tokens } from '../theme/tokens';
 import { KeyCap } from './KeyCap';
-import { SHADOW_RAISED, rgba } from './surfaces';
+import { SHADOW_RAISED, borderClipRadius, borderClipRect, rgba } from './surfaces';
 
 export const DEFAULT_TOOLTIP_MAX_WIDTH = 280;
 
 const PADDING_X = tokens.space.space_3;
 const PADDING_Y = tokens.space.space_2;
+const RADIUS = tokens.radius.radius_ui;
+const BORDER_WIDTH = tokens.borderWidth.bw_hair;
 const { color } = tokens;
 
 export interface TooltipOptions {
@@ -29,7 +32,8 @@ export interface TooltipOptions {
  *
  * A column stack with the row and the description as parts: it hugs its
  * content up to `maxWidth` and a long description wraps inside that. It
- * never takes input (`pointerEvents: none`).
+ * never takes input (`pointerEvents: none`). When the service shrinks it to
+ * the room, it clips at the border's inner edge with a rounded clip (R4.14).
  */
 export class Tooltip extends Stack {
 	private readonly titleText: Text | null;
@@ -100,14 +104,22 @@ export class Tooltip extends Stack {
 		return shadowExtent(SHADOW_RAISED);
 	}
 
+	protected computeClipRect(): Rect {
+		return borderClipRect(this.width, this.height, BORDER_WIDTH);
+	}
+
+	public get clipRadius(): number {
+		return borderClipRadius(RADIUS, this.clipRect);
+	}
+
 	public render(draw: DrawApi): void {
 		if (this.width <= 0 || this.height <= 0) return;
 		draw.drawRect({
 			id: this.id ?? undefined,
 			rect: { x: 0, y: 0, width: this.width, height: this.height },
 			fill: color.bg_panel_raised,
-			radius: tokens.radius.radius_ui,
-			border: { color: color.line_edge, width: tokens.borderWidth.bw_hair },
+			radius: RADIUS,
+			border: { color: color.line_edge, width: BORDER_WIDTH },
 			shadow: SHADOW_RAISED,
 		});
 	}

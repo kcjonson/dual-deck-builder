@@ -184,7 +184,22 @@ describe('Menu (R12.11)', () => {
 		expect(made.indexAt(ROW + space.space_2 + 1)).toBe(2);
 		expect(made.indexAt(-1)).toBe(-1);
 		expect(made.indexAt(ROW * 2 + space.space_2)).toBe(-1);
-		expect(made.rowRect(2)).toEqual({ x: 0, y: ROW + space.space_2, width: 150, height: ROW });
+		expect(made.rowRect(2)).toEqual({ x: 0, y: ROW + space.space_2, width: 150 - tokens.borderWidth.bw * 2, height: ROW });
+	});
+
+	it('keeps a hovered row inside the border, clear of the rounded corners', () => {
+		const made = menu({ width: 150, items: items('a', 'b').items });
+		made.hoveredIndex = 0;
+		const wash = draws().find((command): command is RectCommand => command.kind === 'rect' && String(command.fill) === String(color.bg_hover));
+		const box = made.screenBounds;
+		const border = tokens.borderWidth.bw;
+		if (!wash) throw new Error('no hover wash drawn');
+		const [, , , , tx, ty] = wash.transform;
+		expect(wash.rect.x + tx).toBe(box.x + border);
+		expect(wash.rect.width).toBe(150 - border * 2);
+		// The padding above the first row is wider than the corner, so no row reaches it.
+		expect(wash.rect.y + ty).toBe(box.y + PAD);
+		expect(PAD).toBeGreaterThanOrEqual(tokens.radius.radius_ui);
 	});
 
 	it('highlights the row under a moving pointer without consuming the move', () => {
