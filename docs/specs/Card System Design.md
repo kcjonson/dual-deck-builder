@@ -258,7 +258,7 @@ The initial set: six generic and Triage from the escorts decision, plus the Outr
 
 **Ramming Run** (1 Adrenaline, common, proposed). Attack order, `enemy_single`, range 1.
 
-- Summary: "[Escort] in [Range 1] rams for {damage} + speed gap. Takes 2 on a hit." (59 rendered; "Nearest" didn't fit beside "on a hit", and the full text says it.)
+- Summary: "[Escort] in [Range 1] rams for {damage} + speed gap. A hit costs it 2." ("Nearest" didn't fit, and the full text says it. Was "Takes 2 on a hit.", which needed a fourth line on the 12 px face, DDB-204.)
 - Full text: "The nearest ready escort within range 1 of the target rams it for {damage} plus the speed gap (escort speed minus target speed), using the escort's ramming against the target's evade. On a hit the escort takes 2 structure damage. Hit or miss, it's spent."
 - Damage 4. The 2 self damage lands only on a hit: a miss means no collision, and the card, adrenaline, and escort action are already spent (decided 2026-09-26). It goes straight to structure, past the escort's armor, as printed.
 
@@ -283,7 +283,7 @@ The initial set: six generic and Triage from the escorts decision, plus the Outr
 
 **Rally the Convoy** (2 Adrenaline, rare). `enemy_all`, dropped anywhere on the road like EMP Blast.
 
-- Summary: "Each ready [Escort] deals {damage} to its nearest raider. [Exhaust]."
+- Summary: "Each ready [Escort] deals {damage} to its closest raider. [Exhaust]." ("closest" for "nearest", to fit three lines on the 12 px face, DDB-204.)
 - Full text: "Ready escorts fire one at a time in roster order. Each deals {damage} damage to its nearest living raider within range 2, using its gunnery against that raider's evade. Then every escort is spent, including any with no raider in range. Exhaust."
 - Damage 2. Range 2 and the per-escort hit check are proposed; the decision says "in range". Escorts resolve in roster order, and each one picks its nearest raider again from the raiders still alive, so a raider wrecked by an earlier escort isn't shot twice. Ties for the nearest raider go to their inside lane, then their outside lane, then your shoulder, and ahead, center, behind within a lane. Needs at least one ready escort to play.
 
@@ -301,7 +301,7 @@ The initial set: six generic and Triage from the escorts decision, plus the Outr
 
 **Top Off** (0 Adrenaline, signature of the Fuel Hauler, signature rarity). Targets a vehicle in your convoy (`ally`).
 
-- Summary: "Driver or passenger: +{adrenaline} Adrenaline. Needs a Fuel Hauler." (56 rendered)
+- Summary: "Driver or passenger: +{adrenaline} Adrenaline. Fuel Hauler needed." (Was "Needs a Fuel Hauler.", a fourth line on the 12 px face, DDB-204.)
 - Full text: "The driver or passenger you choose in the target vehicle gains {adrenaline} Adrenaline, up to their maximum. Playable while any Fuel Hauler lives, and doesn't spend it."
 - Adrenaline 1. Picks who aboard the same way as Triage. Capped at the driver's maximum adrenaline, like every adrenaline gain. Lets one driver fuel the partner.
 

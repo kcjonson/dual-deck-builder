@@ -6,6 +6,22 @@ This document contains the chronological log of completed development tasks for 
 
 **Date correction (2026-08-22):** the repo's first commit is 2025-05-17, but many entries below carry dates in December 2024 or January 2025 — the AI that wrote them used its assumed date instead of the real one. Entries dated 2025-07-03 and 2025-07-02 have been corrected from "2025-01-03"/"2025-01-02" (verified against git history). Remaining Dec 2024 / Jan 2025 dates are wrong by roughly six months; the real work happened May–July 2025. Trust git history over these dates.
 
+## Card face and pinnable detail view (2026-10-02)
+
+**What landed:** DDB-137 (DDB-127), folding in DDB-204 and DDB-172. Closes the card-detail part of DDB-34 (DDB-28 was already closed by DDB-88).
+
+- `Card` at `NORMAL` is the mock's 128x180 face, laid out natively (the fan's scale is now 1): cost hex hanging off the corner, type and driver mark, name shrinking 16 to 14 then ellipsis, art strip, three-line summary with keywords highlighted, and a foot with the rarity gem, rarity name, and R1/R2 chip. Rarity is no longer the rim; the frame is the driver's colour. Disabled dims through colours; `unaffordable` (from `PlayerHandView.unaffordable`) turns the cost dark red. `LARGE` and `fullText` are gone; `liftable` keeps grid cards in place.
+- `KeywordText` lays out words as hugging text parts in two colours; `data/keywords.ts` holds the definitions and finds keywords (bracketed in a summary, by name in the full text).
+- `CardDetailView`, `KeywordPanel`, `CardInspectView`: the 250 px detail view, bottom-anchored, 440 px cap, art shrinking first, boxes on the side with room. `cardInspect.ts` puts it on a card through the tooltip factory and wires the pin (secondary click, I, touch hold).
+- `TooltipService.pin`, `unpin`, `pinned`, and `TooltipSpec.pinnable`; a pin drops when its owner unmounts, checked after layout.
+- `CardPileView` and `openPileDialog`: a driver's tab opens their draw (name order) and discard piles; the card browser's cards inspect too.
+- DDB-204: ramming_run, rally_the_convoy, and top_off summaries tightened to fit three lines at 12 px in 114; `cards.test.ts` measures the face's own layout (`FACE_RULES`) and checks every bracketed word has a definition.
+- DDB-172: the y-multiple-of-10 nudge was already gone (1c2b111) and DDB-124's resize replay with it; the resting and lifted poses are explicit (`fanPose`, `LIFTED_TRANSFORM`).
+- Goldens: new `card-faces`, `card-detail`, `card-detail-pinned`, `card-detail-cap`, `card-pile-draw`, `card-pile-discard`, `card-reward`, all in the lint gate at 1440x882 and 1024x600; every screen with a card face moved.
+- Review fixes: a modal sets a pin aside and gives it back on close; the Escape that lets a pin go is consumed; a secondary press in the hand cancels click-then-target and pins nothing; the face's and view's draws are built once, not per frame; the Armor definition matches Combat Rules (here and in the mock); the hex corner is part of the card's hit area.
+- Decision record: [card-face-and-detail-view.md](./AI_TECHNICAL_DECISIONS/card-face-and-detail-view.md).
+
+**How:** unit tests for the face, the detail view, the pin, the combat inputs, and the card data; played a turn at 1280x720 and 1024x600 through `__dev.input` (hover, pin, drag, click-then-target, keyboard and I, the pile dialog, END TURN), layout lint zero throughout.
 ## The top bar and the combat log drawer (2026-10-02)
 
 **What landed:** DDB-140 with DDB-123 folded in (DDB-127), Battle Screen Design sections 2, 6, and 8.

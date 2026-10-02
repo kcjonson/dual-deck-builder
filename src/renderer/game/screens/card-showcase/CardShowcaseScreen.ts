@@ -6,6 +6,7 @@ import { Button } from '../../../engine/ui/Button';
 import { ScrollContainer } from '../../../engine/ui/ScrollContainer';
 import { tokens } from '../../../engine/theme/tokens';
 import { Card } from '../../ui/Card';
+import { INSPECT_KEYS, inspectHotkey, inspectOnContextMenu, makeInspectable } from '../../ui/cardInspect';
 import { FlowWrap } from '../../ui/FlowWrap';
 import { CardLoader } from '../../core/CardLoader';
 import { CARD_RARITIES, Card as GameCard } from '../../mechanics/Card';
@@ -55,6 +56,8 @@ export class CardShowcaseScreen extends Screen {
 		}));
 
 		this.list = new Stack({ id: 'showcase_cards', crossAlign: 'stretch', gap: tokens.space.space_4 });
+		// Every card opens the detail view the hand uses, and pins it the same way
+		inspectOnContextMenu(this.list);
 		this.scroller = new ScrollContainer({
 			id: 'showcase_scroll',
 			widthMode: 'fill',
@@ -77,6 +80,7 @@ export class CardShowcaseScreen extends Screen {
 		hotkeys.register('Escape', () => this.back());
 		hotkeys.register('PageDown', () => this.scroller?.scrollByPages(1));
 		hotkeys.register('PageUp', () => this.scroller?.scrollByPages(-1));
+		for (const key of INSPECT_KEYS) hotkeys.register(key, () => inspectHotkey(this.context));
 		this.context.focus.focus(back);
 
 		void this.loadCards(++this.generation);
@@ -85,7 +89,7 @@ export class CardShowcaseScreen extends Screen {
 	protected onUnmount(): void {
 		this.generation++;
 		const { hotkeys } = this.rootLayer;
-		for (const key of ['Escape', 'PageDown', 'PageUp']) hotkeys.unregister(key);
+		for (const key of ['Escape', 'PageDown', 'PageUp', ...INSPECT_KEYS]) hotkeys.unregister(key);
 		this.stack.clearChildren();
 		this.list = null;
 		this.scroller = null;
@@ -141,7 +145,11 @@ export class CardShowcaseScreen extends Screen {
 			wrap: 'none',
 		}));
 		const row = new FlowWrap({ id: `${id}_cards`, gap: CARD_GAP });
-		for (const card of cards) row.addChild(card);
+		for (const card of cards) {
+			card.liftable = false;
+			makeInspectable(card);
+			row.addChild(card);
+		}
 		group.addChild(row);
 		return group;
 	}
