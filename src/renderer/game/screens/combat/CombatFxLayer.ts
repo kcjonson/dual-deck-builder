@@ -373,6 +373,8 @@ export class HitCheckChip extends Component {
 	constructor(options: ComponentOptions = {}) {
 		super({ pointerEvents: 'none', zIndex: NUMBER_Z_INDEX, ...options });
 		this.componentType = 'HitCheckChip';
+		// Hidden while it says nothing, so its layer-sized box doesn't sit over the hit numbers
+		this.visible = false;
 	}
 
 	/** What the chip says now, or null while it's hidden. */
@@ -384,6 +386,7 @@ export class HitCheckChip extends Component {
 	public show(card: Component | null, text: HitCheckText | null): void {
 		this.sourceCard = text ? card : null;
 		this.content = card ? text : null;
+		this.visible = this.content !== null;
 		if (!this.content) return;
 		const { verdict, detail, range, hits } = this.content;
 		const [verdictRun, detailRun, rangeRun] = this.runs;
