@@ -165,6 +165,8 @@ DDB-83 put the token pipeline in with no consumers: `src/renderer/engine/theme/t
 
 **Driver selection is stacks (DDB-89; closes DDB-31, DDB-101, DDB-102, DDB-108).** One page stack the viewport's size: a header row (Back, the centred title), the body (two `DriverPanel`s with the synergy panel centred in a column between them, weights 35:18:35), and START RUN centred at the foot with the summary beside it (Game Flow Spec 1.2). `onResized` only sizes the page. Each panel is a column: the portrait takes what is left, then the name, vehicle and specialty, then a `ScrollContainer` holding the flavour text and the starting deck, then a catalog `Select` for the driver, the partner's driver offered disabled. The scroll container hugs its content (new: `heightMode: 'hug'` on `ScrollContainer`), so at 1440x882 nothing scrolls and at 1024x600 the portrait shrinks first and then the flavour and deck scroll; the deck never vanishes. Mini cards flow in rows through `game/ui/FlowWrap.ts` (wrap is out of the engine's scope, R10.4), each with an `xN` `Badge` under it instead of on its cost digit. Escape with a Select open now only closes it: `Game`'s document-level Escape listener defers to any screen that registers Escape on its root. Open: the screen lints to 50, all sibling overlaps inside `Card`'s own rectangles and texts (DDB-91's territory). Details in [driver-selection-stacks.md](./AI_TECHNICAL_DECISIONS/driver-selection-stacks.md).
 
+**Main menu, splash, and battle result on root stacks (DDB-90).** Each is a root `Stack` with `fill` on both axes (`Screen` takes a `root` option and leaves a fill root to the frame's viewport sizing), centring its content; none places anything by hand or has an `onResized`. The menu's buttons are one `FocusGroup` (arrows wrap, one Tab stop) with focus on Start Game; the result is a `Panel` with Continue focused, Enter or Escape continuing; the splash skips on Enter, Escape, or Space. `ScreenManager.navigate` runs every navigation through one `ScreenTransition` (fade to `bg_void`, swap, one layout, fade in, input blocked); `{ immediate: true }` swaps at once and is what the boot and the dev `__app.navigate` hook use. The game's document key listener ignores F12 and Escape while a transition runs. Details in [screen-transitions-and-root-stacks.md](./AI_TECHNICAL_DECISIONS/screen-transitions-and-root-stacks.md).
+
 ## Current state (verified survey, 2026-08-22)
 
 Development stopped 2025-07-03. On 2026-08-22 the whole project was re-surveyed: `npm test` (128/128 pass), `npm run lint` (0 errors, 9 warnings), `npm run build:web` (compiles), plus a live click-through of the running game and a full code audit. Everything below is verified against the code or the running app, not carried forward from old status notes.
@@ -191,11 +193,10 @@ A dated warning about this doc's history: all entries previously dated "December
 
 ### In progress / never built (unfinished, not broken)
 
-- Settings and Credits: buttons exist, click logs "not implemented" (`MainMenuScreen.ts:92,106`).
+- Settings and Credits: buttons exist, click logs "not implemented" (DDB-38).
 - Panel scrolling: scrollbars draw but don't scroll; five overflow methods are explicit no-op stubs (`Panel.ts:369-399`). Blocks combat-log scrolling (`CombatLogLayer.ts:248`).
-- BattleResultScreen: no battle statistics display, Continue is hard-wired to main menu instead of a reward/map screen (`BattleResultScreen.ts:95,115`).
+- BattleResultScreen: no battle statistics display, Continue is hard-wired to main menu instead of a reward/map screen.
 - Enemy intents show only the first planned intent per raider, in the old indicator, until DDB-33's pills; per-driver fuel not implemented (`:396`); card detail popup missing (`:536`); hand layer gets a flat card array instead of per-driver grouping (`:376`); card fanning and discard animations missing (`PlayerHandLayer.ts:316-330`).
-- Splash fade in/out blocked on component opacity support (`SplashScreen.ts:111`).
 - AI types `'defensive'` and `'balanced'` are declared and shown in the simulator UI but silently fall back to RandomAI (`AIController.ts:54-57`).
 - Movement cards, enemy wave spawning, status-effect display, card effect previews, map navigation, garage/shop, events, meta-progression, save/load: not started (tracked in the Game feature roadmap epic on Specboard). The combat screen's target design is the Battle screen design section above.
 

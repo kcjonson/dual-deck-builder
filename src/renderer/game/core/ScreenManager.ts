@@ -8,6 +8,7 @@ import { CardShowcaseScreen } from '../screens/card-showcase/CardShowcaseScreen'
 import { DriverSelectionScreen } from '../screens/driver-selection/DriverSelectionScreen';
 import { CombatScreen } from '../screens/combat/CombatScreen';
 import { BattleResultScreen } from '../screens/battleResult/BattleResultScreen';
+import { ScreenTransition } from '../../engine/ui/ScreenTransition';
 
 /**
  * Known screen names in the game
@@ -26,6 +27,16 @@ export type ScreenName =
  */
 type ScreenConstructor = new () => Screen;
 
+export interface NavigateOptions {
+	/**
+	 * Swap at once with no fade, ending any transition under way. For the
+	 * screen the game boots into and the dev navigate hook, which a capture
+	 * drives while paused, when nothing ticks a fade. Asked for from inside a
+	 * swap, it queues behind that swap as an ordinary navigate.
+	 */
+	immediate?: boolean;
+}
+
 /**
  * Manages screen lifecycle and navigation
  * Creates screens on demand and properly cleans them up
@@ -35,6 +46,9 @@ export class ScreenManager {
 	private static currentScreenName: ScreenName | null = null;
 	private static currentScreen: Screen | null = null;
 	private static context: MountContext | null = null;
+	private static transition: ScreenTransition | null = null;
+	/** A swap is unmounting or mounting a screen. */
+	private static swapping = false;
 	
 	/**
 	 * Map of screen names to their constructors
@@ -65,18 +79,48 @@ export class ScreenManager {
 			return;
 		}
 		this.context = context;
+		this.transition = new ScreenTransition({ id: 'screen_transition' });
 	}
-	
+
 	/**
-	 * Navigate to a screen by name, creating it if needed
-	 * Properly destroys the current screen before creating the new one
+	 * Go to a screen through the screen transition (R8.22, R12.38): fade
+	 * out, unmount the current screen, mount the new one, one layout, fade
+	 * in, with input blocked throughout. Navigating again before the fade
+	 * out ends replaces where it goes, so a double press swaps once.
 	 */
-	static navigate(screenName: ScreenName, data?: unknown): void {
+	static navigate(screenName: ScreenName, data?: unknown, { immediate = false }: NavigateOptions = {}): void {
 		const context = this.context;
-		if (!context) {
+		const transition = this.transition;
+		if (!context || !transition) {
 			throw new Error('ScreenManager not initialized. Call ScreenManager.initialize() first');
 		}
-		
+		// From inside a swap (a screen redirecting from its mount) an immediate
+		// swap would close the transition under the swap still running; it
+		// queues behind it instead, still covered.
+		if (immediate && !this.swapping) {
+			transition.overlay?.close();
+			this.swap(context, screenName, data);
+			return;
+		}
+		void transition.run(context, () => this.swap(context, screenName, data));
+	}
+
+	/** A transition is covering the screen; nothing below it takes input. */
+	static get transitioning(): boolean {
+		return this.transition?.active ?? false;
+	}
+
+	/** Unmounts the current screen and mounts a new one: the transition's swap. */
+	private static swap(context: MountContext, screenName: ScreenName, data?: unknown): void {
+		this.swapping = true;
+		try {
+			this.mountScreen(context, screenName, data);
+		} finally {
+			this.swapping = false;
+		}
+	}
+
+	private static mountScreen(context: MountContext, screenName: ScreenName, data?: unknown): void {
 		console.log(`ScreenManager: Navigating to ${screenName}`);
 		
 		// Destroy current screen completely

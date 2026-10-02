@@ -3,6 +3,7 @@
  */
 import { createTestContext } from '../../../engine/components/testing';
 import type { MountContext } from '../../../engine/components/MountContext';
+import { key, send } from '../../../engine/services/testing';
 import { ScreenManager } from '../../core/ScreenManager';
 import { SplashScreen } from './SplashScreen';
 
@@ -18,13 +19,15 @@ function advance(context: MountContext, screen: SplashScreen, milliseconds: numb
 	screen.update(milliseconds / 1000);
 }
 
-describe('SplashScreen fade (DDB-41)', () => {
+describe('SplashScreen', () => {
+	const viewport = { logical: { width: 1280, height: 720 } };
 	let context: MountContext;
 	let screen: SplashScreen;
 
 	beforeEach(() => {
 		navigate.mockClear();
-		context = createTestContext({ viewport: { logical: { width: 1280, height: 720 } } });
+		viewport.logical = { width: 1280, height: 720 };
+		context = createTestContext({ viewport });
 		screen = new SplashScreen();
 		screen.mount(context);
 	});
@@ -37,21 +40,19 @@ describe('SplashScreen fade (DDB-41)', () => {
 		expect(screen.root.opacity).toBe(1);
 	});
 
-	it('holds, fades out, then goes to the main menu', () => {
+	it('holds, then hands over to the main menu through the screen transition', () => {
 		advance(context, screen, 1000);
 		advance(context, screen, 1999);
-		expect(screen.root.opacity).toBe(1);
 		expect(navigate).not.toHaveBeenCalled();
 
-		// The hold ends; the fade-out starts on this frame and runs on the next
 		advance(context, screen, 1);
-		advance(context, screen, 500);
-		expect(screen.root.opacity).toBeCloseTo(0.5);
-		expect(navigate).not.toHaveBeenCalled();
-
-		advance(context, screen, 500);
-		expect(screen.root.opacity).toBe(0);
+		expect(navigate).toHaveBeenCalledTimes(1);
 		expect(navigate).toHaveBeenCalledWith('mainMenuScreen');
+		// The fade out is the transition's, not the splash's own
+		expect(screen.root.opacity).toBe(1);
+
+		advance(context, screen, 1000);
+		expect(navigate).toHaveBeenCalledTimes(1);
 	});
 
 	it('settles to full opacity on a paused page, which is what the screenshot harness captures', () => {
@@ -60,23 +61,37 @@ describe('SplashScreen fade (DDB-41)', () => {
 		expect(navigate).not.toHaveBeenCalled();
 	});
 
-	it('places its content from the viewport and follows a resize', () => {
-		const title = screen.root.findById('splash_title');
-		expect(title?.getWidth()).toBe(1280);
-
-		screen.resize(800, 600);
-		expect(title?.getWidth()).toBe(800);
-		expect(screen.root.findById('splash_logo')?.getX()).toBe(400 - 150);
+	it.each(['Enter', 'Escape', ' '])('skips the wait on %p, once', (name) => {
+		send(context, [key(name), key(name)]);
+		expect(navigate).toHaveBeenCalledTimes(1);
+		expect(navigate).toHaveBeenCalledWith('mainMenuScreen');
 	});
 
-	it('fades in and holds again after a remount mid-fade-out', () => {
+	it('centres its content in the viewport and follows a resize with no screen code', () => {
+		context.frame.layout();
+		const logo = screen.root.findById('splash_logo');
+		const title = screen.root.findById('splash_title');
+		if (!logo || !title) throw new Error('the logo and title should be mounted');
+		expect(screen.root.getWidth()).toBe(1280);
+		expect(logo.getX()).toBe((1280 - logo.getWidth()) / 2);
+
+		viewport.logical = { width: 800, height: 600 };
+		context.frame.viewportChanged();
+		context.frame.layout();
+		expect(screen.root.getWidth()).toBe(800);
+		expect(screen.root.getHeight()).toBe(600);
+		expect(logo.getX()).toBe((800 - logo.getWidth()) / 2);
+		expect(title.getX()).toBe((800 - title.getWidth()) / 2);
+	});
+
+	it('fades in and holds again after a remount mid-hold', () => {
 		advance(context, screen, 1000);
-		advance(context, screen, 2000);
-		advance(context, screen, 200);
+		advance(context, screen, 1000);
 		screen.unmount();
 
 		screen.mount(context);
 		expect(screen.root.opacity).toBe(0);
+		expect(screen.root.findById('splash_title')).not.toBeNull();
 		advance(context, screen, 1000);
 		advance(context, screen, 1999);
 		expect(screen.root.opacity).toBe(1);

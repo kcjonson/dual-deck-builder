@@ -19,6 +19,17 @@ This document contains the chronological log of completed development tasks for 
 - Decision record: [rounded-clip.md](./AI_TECHNICAL_DECISIONS/rounded-clip.md). Follow-up DDB-231 for Panel and ScrollContainer.
 
 **How:** `RoundedClipTable.test.ts`; backend tests for the table's upload order and that rounded clips split nothing; a DrawApi test for radius scaling; uber shader pixel tests for the corner cut at ratios 1 and 2, a glyph under a rounded clip, and 4.7's nested case.
+## Main menu, splash, and battle result on root stacks; screen transitions (2026-10-01)
+
+**What landed:** DDB-90 (DDB-55 phase 6).
+
+- `Screen` takes a `root` option; the main menu, splash, and battle result each pass a root `Stack` with `fill` on both axes and centre their content in it. No hand placement and no `onResized` on any of the three. They build in `onMount` and clear in `onUnmount`, on theme tokens.
+- Main menu: display-face title over a `FocusGroup` of block `lg` buttons (arrows wrap, one Tab stop), Start Game in the accent tone and focused on mount; the build stamp is an absolute child anchored bottom right.
+- Splash: logo, title, and subtitle centred; fades in over 1 s, holds 2 s, then navigates; Enter, Escape, or Space skips. Its own fade out is gone.
+- Battle result: a raised `Panel` with corner ticks, the outcome in `status_ok` or `status_crit`, Continue focused; Enter or Escape returns to the menu. Missing data logs and builds nothing.
+- `ScreenManager.navigate` runs through one `ScreenTransition`; `{ immediate: true }` is the boot and the dev `__app.navigate` hook. `ScreenManager.transitioning` gates `Game`'s document key listener (F12, Escape) while a transition runs.
+
+**How:** `ScreenManager.test.ts` (fade, swap, focus handed over after the transition, a double press swapping once, keys blocked under the fade, immediate ending a transition, reduced motion), `MainMenuScreen.test.ts`, `BattleResultScreen.test.ts`, the splash suite rewritten, and the combat teardown suite settling the transition. Played splash, menu, driver selection, Escape back, a won fight, result, and menu again through `window.__dev.input` in headless Chromium at 1024x600, 1280x720, 1920x1080, and 1280x720 with reduced motion: lint zero on all three screens, focus on the primary action after every transition, no console errors. Details in [screen-transitions-and-root-stacks.md](./AI_TECHNICAL_DECISIONS/screen-transitions-and-root-stacks.md).
 
 ## Catalog Wave B, slider, tabs, and segments (2026-10-01)
 
