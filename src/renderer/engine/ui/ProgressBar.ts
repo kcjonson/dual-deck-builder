@@ -253,7 +253,7 @@ export class ProgressBar extends Component {
 	private formatValue(): void {
 		if (!this.valueLabel) return;
 		const format = this.valueFormat;
-		this.valueLabel.setText(typeof format === 'function' ? format(this.target) : format ?? '');
+		this.valueLabel.text = typeof format === 'function' ? format(this.target) : format ?? '';
 	}
 
 	/** Label left and value right, on the line above the track or inside it. */
@@ -263,11 +263,11 @@ export class ProgressBar extends Component {
 		const lineHeight = this.inline ? this.height : this.lineHeight;
 		const valueWidth = this.valueLabel ? this.valueLabel.width : 0;
 		if (this.valueLabel) {
-			this.valueLabel.setHeight(lineHeight);
+			this.valueLabel.height = lineHeight;
 			this.valueLabel.setPosition(Math.round(this.width - inset - valueWidth), lineY);
 		}
 		if (this.labelText) {
-			this.labelText.setHeight(lineHeight);
+			this.labelText.height = lineHeight;
 			this.labelText.setPosition(inset, lineY);
 		}
 	}

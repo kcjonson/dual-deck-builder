@@ -87,7 +87,7 @@ export class TurnBanner extends Component {
 		this.left = { rect: { x: 0, y: 0, width: 0, height: TURN_BANNER_HEIGHT }, gradient: [CLEAR, band, band, CLEAR] };
 		this.middle = { rect: { x: 0, y: 0, width: 0, height: TURN_BANNER_HEIGHT }, fill: band };
 		this.right = { rect: { x: 0, y: 0, width: 0, height: TURN_BANNER_HEIGHT }, gradient: [band, CLEAR, CLEAR, band] };
-		this.setVisible(false);
+		this.visible = false;
 	}
 
 	/** What's up now, or null. */
@@ -142,7 +142,7 @@ export class TurnBanner extends Component {
 	}
 
 	protected onResized(): void {
-		this.label.setWidth(this.getWidth());
+		this.label.width = this.width;
 		this.placeBand();
 	}
 
@@ -164,15 +164,15 @@ export class TurnBanner extends Component {
 		this.remainingMs = TURN_BANNER_LIFETIME;
 		this.leaving = false;
 		const look = LOOKS[kind];
-		this.label.setText(look.text);
-		this.label.setColor(look.color);
+		this.label.text = look.text;
+		this.label.color = look.color;
 		const band = look.band;
 		this.left.gradient[1] = band;
 		this.left.gradient[2] = band;
 		this.middle.fill = band;
 		this.right.gradient[0] = band;
 		this.right.gradient[3] = band;
-		this.setVisible(true);
+		this.visible = true;
 		this.requestUpdate();
 		this.travel = this.moving ? 0 : 1;
 		this.applyTravel();
@@ -203,7 +203,7 @@ export class TurnBanner extends Component {
 			this.begin(next);
 			return;
 		}
-		this.setVisible(false);
+		this.visible = false;
 		this.travel = 1;
 		this.applyTravel();
 	}
@@ -238,11 +238,11 @@ export class TurnBanner extends Component {
 	/** The words slide; the whole banner fades in and out at the ends of the travel. */
 	private applyTravel(): void {
 		this.opacity = this.travel <= 1 ? this.travel : 2 - this.travel;
-		this.label.setPosition((this.travel - 1) * SLIDE * this.getWidth(), 0);
+		this.label.setPosition((this.travel - 1) * SLIDE * this.width, 0);
 	}
 
 	private placeBand(): void {
-		const width = this.getWidth();
+		const width = this.width;
 		this.left.rect.width = width * SOLID_FROM;
 		this.middle.rect.x = width * SOLID_FROM;
 		this.middle.rect.width = width * (SOLID_TO - SOLID_FROM);

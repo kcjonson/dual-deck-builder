@@ -89,16 +89,16 @@ describe('Button', () => {
 		holder.addChild(made);
 		inject('move,160,120', 'down,160,120');
 		expect(made.pressed).toBe(true);
-		holder.setEnabled(false);
+		holder.enabled = false;
 		expect(made.pressed).toBe(false);
 		inject('up,160,120');
-		holder.setEnabled(true);
+		holder.enabled = true;
 		expect(made.pressed).toBe(false);
 	});
 
 	it('is not pressed while disabled', () => {
 		const { button: made } = button();
-		made.setEnabled(false);
+		made.enabled = false;
 		inject('move,160,120', 'down,160,120');
 		expect(made.pressed).toBe(false);
 	});
@@ -113,7 +113,7 @@ describe('Button', () => {
 
 	it('does not click while disabled (R9.5)', () => {
 		const { button: made, clicks } = button();
-		made.setEnabled(false);
+		made.enabled = false;
 		inject('click,160,120');
 		expect(clicks).toHaveLength(0);
 	});
@@ -148,7 +148,7 @@ describe('Button', () => {
 		const { button: made, clicks } = button();
 		made.onClick = () => {
 			clicks.push(1);
-			made.setEnabled(false);
+			made.enabled = false;
 		};
 		inject('keydown,Tab', 'keyup,Tab');
 		for (const repeat of [false, false]) {

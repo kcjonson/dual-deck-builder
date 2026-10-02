@@ -19,8 +19,8 @@ describe('the overlay\'s anchor (R7.11)', () => {
 	it('sits ten logical pixels in from the top-right corner of the viewport it was given', () => {
 		const developerOverlay = overlay(1440);
 
-		expect(developerOverlay.getX()).toBe(1440 - developerOverlay.getWidth() - 10);
-		expect(developerOverlay.getY()).toBe(10);
+		expect(developerOverlay.x).toBe(1440 - developerOverlay.width - 10);
+		expect(developerOverlay.y).toBe(10);
 	});
 
 	it('follows a new viewport width rather than staying where the first one put it', () => {
@@ -28,7 +28,7 @@ describe('the overlay\'s anchor (R7.11)', () => {
 		developerOverlay.viewportWidth = 900;
 
 		expect(developerOverlay.viewportWidth).toBe(900);
-		expect(developerOverlay.getX()).toBe(900 - developerOverlay.getWidth() - 10);
+		expect(developerOverlay.x).toBe(900 - developerOverlay.width - 10);
 	});
 });
 

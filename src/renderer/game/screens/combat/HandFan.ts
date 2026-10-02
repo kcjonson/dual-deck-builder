@@ -67,7 +67,7 @@ export function fanReach(pose: FanPose): { top: number; right: number; bottom: n
  */
 export class HandFan extends Container {
 	private readonly row: Stack;
-	private cards: UICard[] = [];
+	private fanCards: UICard[] = [];
 
 	constructor(options: ContainerOptions) {
 		super(options);
@@ -83,9 +83,13 @@ export class HandFan extends Container {
 		this.addChild(this.row);
 	}
 
-	public setCards(cards: UICard[]): void {
-		for (const card of this.cards) this.row.removeChild(card);
-		this.cards = cards;
+	public get cards(): UICard[] {
+		return this.fanCards;
+	}
+
+	public set cards(cards: UICard[]) {
+		for (const card of this.fanCards) this.row.removeChild(card);
+		this.fanCards = cards;
 		const poses = fanPoses(cards.length);
 		cards.forEach((card, index) => {
 			card.fanPose = poses[index];
@@ -111,7 +115,7 @@ export class HandFan extends Container {
 	 * A single card doesn't turn, so it needs no room to lean.
 	 */
 	private fitCards(): void {
-		const count = this.cards.length;
+		const count = this.fanCards.length;
 		if (count < 2) {
 			this.row.gap = NATURAL_CARD_GAP;
 			this.row.padding = 0;
@@ -124,7 +128,7 @@ export class HandFan extends Container {
 		const edge = fanPoses(count)[0];
 		const reach = fanReach(edge);
 		this.row.padding = reach;
-		const room = this.getWidth() / HAND_CARD_SCALE - reach.left - reach.right;
+		const room = this.width / HAND_CARD_SCALE - reach.left - reach.right;
 		const spread = (room - count * CARD_DIMENSIONS.width) / (count - 1);
 		this.row.gap = Math.min(NATURAL_CARD_GAP, Math.floor(spread));
 	}

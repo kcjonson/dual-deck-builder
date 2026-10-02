@@ -90,7 +90,7 @@ export class StackExamplesSection extends DeveloperSectionPanel {
 	private cell(caption: string, demo: Stack, width = CELL_WIDTH): Stack {
 		const cell = new Stack({ gap: CAPTION_GAP });
 		cell.addChild(new Text(caption, { style: { fontSize: 13, color: rgba('text_dim') } }));
-		demo.setWidth(width);
+		demo.width = width;
 		cell.addChild(demo);
 		return cell;
 	}

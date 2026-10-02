@@ -76,7 +76,7 @@ export class Counter extends Text {
 
 	public set format(format: CounterFormat) {
 		this.formatter = format;
-		this.setText(format(this.shown));
+		this.text = format(this.shown);
 	}
 
 	/**
@@ -91,6 +91,6 @@ export class Counter extends Text {
 
 	private show(value: number): void {
 		this.shown = value;
-		this.setText(this.formatter(value));
+		this.text = this.formatter(value);
 	}
 }

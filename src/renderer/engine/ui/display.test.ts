@@ -91,7 +91,7 @@ describe('ProgressBar (R12.24)', () => {
 		bar.valueText = (value) => `${Math.round(value * 8)} / 8`;
 		context.frame.layout();
 		expect(bar.height).toBeGreaterThan(bare);
-		expect(bar.getChildren().map((child) => (child as unknown as { getText(): string }).getText())).toEqual(['2 / 8']);
+		expect(bar.children.map((child) => (child as unknown as { text: string }).text)).toEqual(['2 / 8']);
 		bar.valueText = null;
 		context.frame.layout();
 		expect(bar.height).toBe(bare);
@@ -109,7 +109,7 @@ describe('ProgressBar (R12.24)', () => {
 		expect(plain.height).toBe(8);
 		const labelled = mount(new ProgressBar({ label: 'Hull', valueText: (value) => `${Math.round(value * 12)} / 12`, value: 0.5 }));
 		expect(labelled.height).toBeGreaterThan(8 + tokens.fontSize.fs_sm);
-		const texts = labelled.getChildren().map((child) => (child as unknown as { getText(): string }).getText());
+		const texts = labelled.children.map((child) => (child as unknown as { text: string }).text);
 		expect(texts).toEqual(['Hull', '6 / 12']);
 	});
 
@@ -118,7 +118,7 @@ describe('ProgressBar (R12.24)', () => {
 		expect(bar.height).toBe(22);
 		const texts = draws().filter((command): command is TextCommand => command.kind === 'text');
 		expect(texts.length).toBeGreaterThan(0);
-		expect(bar.getChildren().every((child) => (child as unknown as { shadow: unknown }).shadow !== null)).toBe(true);
+		expect(bar.children.every((child) => (child as unknown as { shadow: unknown }).shadow !== null)).toBe(true);
 	});
 
 	it('cuts a segmented track into cells, filling them in turn', () => {
@@ -133,15 +133,15 @@ describe('ProgressBar (R12.24)', () => {
 describe('Counter (R12.39)', () => {
 	it('counts toward a new value over dur_slow, formatting every step', () => {
 		const counter = mount(new Counter({ value: 10, format: (value) => `${Math.round(value)} HP` }));
-		expect(counter.getText()).toBe('10 HP');
+		expect(counter.text).toBe('10 HP');
 		counter.value = 20;
 		advance(context, tokens.motion.dur_slow / 2);
 		const middle = counter.displayedValue;
 		expect(middle).toBeGreaterThan(10);
 		expect(middle).toBeLessThan(20);
-		expect(counter.getText()).toBe(`${Math.round(middle)} HP`);
+		expect(counter.text).toBe(`${Math.round(middle)} HP`);
 		advance(context, tokens.motion.dur_slow);
-		expect(counter.getText()).toBe('20 HP');
+		expect(counter.text).toBe('20 HP');
 	});
 
 	it('heads for a value changed mid-count from where it is', () => {
@@ -153,7 +153,7 @@ describe('Counter (R12.39)', () => {
 		advance(context, 16);
 		expect(Math.abs(counter.displayedValue - reached)).toBeLessThan(50);
 		advance(context, tokens.motion.dur_slow * 2);
-		expect(counter.getText()).toBe('50');
+		expect(counter.text).toBe('50');
 	});
 
 	it('shows the target after being unmounted mid-count and mounted again', () => {
@@ -163,18 +163,18 @@ describe('Counter (R12.39)', () => {
 		root.removeChild(counter);
 		mount(counter);
 		advance(context, tokens.motion.dur_slow * 4);
-		expect(counter.getText()).toBe('100');
+		expect(counter.text).toBe('100');
 	});
 
 	it('jumps when unmounted or under reduced motion', () => {
 		const loose = new Counter({ value: 1 });
 		loose.value = 9;
-		expect(loose.getText()).toBe('9');
+		expect(loose.text).toBe('9');
 		context.animator.reducedMotion = true;
 		const counter = mount(new Counter({ value: 1 }));
 		counter.value = 9;
 		advance(context, 16);
-		expect(counter.getText()).toBe('9');
+		expect(counter.text).toBe('9');
 	});
 });
 
@@ -247,9 +247,9 @@ describe('Avatar (R12.27)', () => {
 describe('Stat (R12.28)', () => {
 	it('puts the label above the value and the unit on the value\'s baseline at 0.62 of its size', () => {
 		const stat = mount(new Stat({ label: 'Speed', value: 88, unit: 'km/h', size: 'lg' }));
-		const [label, value, unit] = stat.getChildren() as unknown as import('../components/Text').Text[];
+		const [label, value, unit] = stat.children as unknown as import('../components/Text').Text[];
 		expect(value.y).toBeGreaterThanOrEqual(label.height);
-		expect(unit.getFontSize()).toBe(Math.round(tokens.fontSize.fs_3xl * 0.62));
+		expect(unit.fontSize).toBe(Math.round(tokens.fontSize.fs_3xl * 0.62));
 		expect(unit.x).toBeGreaterThan(value.x + value.width);
 		const valueBaseline = value.y + (value.measured?.baseline ?? 0);
 		const unitBaseline = unit.y + (unit.measured?.baseline ?? 0);
@@ -264,7 +264,7 @@ describe('Stat (R12.28)', () => {
 
 	it('aligns its lines across a wider box', () => {
 		const stat = mount(new Stat({ label: 'Scrap', value: 12, align: 'right', width: 200 }));
-		const [label, value] = stat.getChildren();
+		const [label, value] = stat.children;
 		expect(label.x + label.width).toBeCloseTo(200, 0);
 		expect(value.x + value.width).toBeCloseTo(200, 0);
 	});
@@ -282,7 +282,7 @@ describe('Divider (R12.29)', () => {
 
 	it('breaks around a centred caption', () => {
 		const divider = mount(new Divider({ id: 'rule', caption: 'Escorts', width: 300 }));
-		const caption = divider.getChildren()[0];
+		const caption = divider.children[0];
 		expect(caption.x + caption.width / 2).toBeCloseTo(150, 0);
 		expect(divider.height).toBe(caption.height);
 		const rules = draws().filter((command): command is RectCommand => command.kind === 'rect');

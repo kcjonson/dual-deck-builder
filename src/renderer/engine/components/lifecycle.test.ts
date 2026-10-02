@@ -189,8 +189,8 @@ describe('upward invalidation and the layout phase (R8.16, R8.18)', () => {
 	it('marks the relayout boundary when text changes and lays it out once', () => {
 		const { context, root, panel, label } = mounted();
 
-		label.setText('score: 12');
-		label.setText('score: 13');
+		label.text = 'score: 12';
+		label.text = 'score: 13';
 		expect(context.frame.layoutPending).toBe(true);
 
 		context.frame.layout();
@@ -208,8 +208,8 @@ describe('upward invalidation and the layout phase (R8.16, R8.18)', () => {
 		box.transform = { rotate: 0.3 };
 		box.zIndex = 2;
 		box.opacity = 0.5;
-		box.setFillColor('#ff0000');
-		label.setColor('#00ff00');
+		box.fillColor = '#ff0000';
+		label.color = '#00ff00';
 
 		expect(context.frame.layoutPending).toBe(false);
 	});
@@ -277,7 +277,7 @@ describe('hugging containers and the layout passes (R8.18)', () => {
 		}
 
 		protected layoutChildren(): void {
-			this.setSize(this.label.getWidth() + 8, 20);
+			this.setSize(this.label.width + 8, 20);
 		}
 	}
 
@@ -295,7 +295,7 @@ describe('hugging containers and the layout passes (R8.18)', () => {
 			let x = 0;
 			for (const chip of this.chips) {
 				chip.setPosition(x, 0);
-				x += chip.getWidth() + 4;
+				x += chip.width + 4;
 			}
 		}
 	}
@@ -309,16 +309,16 @@ describe('hugging containers and the layout passes (R8.18)', () => {
 		context.frame.layout();
 
 		const [first, second] = row.chips;
-		expect(first.getWidth()).toBe(first.label.getWidth() + 8);
-		expect(second.x).toBe(first.getWidth() + 4);
+		expect(first.width).toBe(first.label.width + 8);
+		expect(second.x).toBe(first.width + 4);
 
 		const before = second.x;
-		first.label.setText('Fuel reserves');
+		first.label.text = 'Fuel reserves';
 		context.frame.layout();
 
 		expect(context.frame.layoutPending).toBe(false);
-		expect(first.getWidth()).toBe(first.label.getWidth() + 8);
-		expect(second.x).toBe(first.getWidth() + 4);
+		expect(first.width).toBe(first.label.width + 8);
+		expect(second.x).toBe(first.width + 4);
 		expect(second.x).toBeGreaterThan(before);
 		// The row laid out from the chip's old width, the chip's new width
 		// re-marked it, and a second pass placed the chips again.
@@ -328,7 +328,7 @@ describe('hugging containers and the layout passes (R8.18)', () => {
 	it('throws rather than hangs when layout keeps invalidating itself', () => {
 		const context = createTestContext();
 		const restless = new Container({ width: 10, height: 10 });
-		restless.onLayout = () => restless.setSize(restless.getWidth() + 1, 10);
+		restless.onLayout = () => restless.setSize(restless.width + 1, 10);
 		restless.mount(context);
 
 		expect(() => context.frame.layout()).toThrow('still invalid after 8 passes');

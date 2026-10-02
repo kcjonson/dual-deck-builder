@@ -28,7 +28,7 @@ const summaryLines = (summary: string): number => {
 	const face = new UICard({ x: 0, y: 0, data: new Card({ ...cards[0], summary }), size: CardSize.NORMAL });
 	// Mounted, so its texts measure through the context (R1.6).
 	face.mount(context);
-	const text = face.getChildren().find((child) => child instanceof Text && child.getText() === UICard.faceText(summary));
+	const text = face.children.find((child) => child instanceof Text && child.text === UICard.faceText(summary));
 	const measured = text instanceof Text ? text.measured : null;
 	if (!measured) throw new Error('summary text could not be measured');
 	return measured.lines;

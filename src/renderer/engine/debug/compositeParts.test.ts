@@ -138,7 +138,7 @@ describe('what a caller adds is never a part', () => {
 
 	it('stops calling a removed part a part, so a re-added layer reports as a child', () => {
 		const stepper = new NumberInput({ id: 'fuel', width: 120 });
-		const steppers = stepper.getChildren()[1];
+		const steppers = stepper.children[1];
 
 		stepper.removeChild(steppers);
 		stepper.addChild(steppers);

@@ -92,7 +92,7 @@ export class SynergyPreviewPanel extends Stack {
 		this.addChild(this.tags);
 
 		// Initially hidden
-		this.setVisible(false);
+		this.visible = false;
 	}
 
 	/**
@@ -102,22 +102,22 @@ export class SynergyPreviewPanel extends Stack {
 		if (!driver1 || !driver2) {
 			this.currentSynergy = null;
 			this.tags.clearChildren();
-			this.setVisible(false);
+			this.visible = false;
 			return;
 		}
 
 		const synergy = DriverSynergy.analyzeSynergy(driver1, driver2);
 		this.currentSynergy = synergy;
 
-		this.synergyDescription.setText(synergy.description);
-		this.synergyDescription.setColor(this.getSynergyColor(synergy.type));
-		this.warningText.setText(synergy.warning ?? '');
-		this.warningText.setVisible(Boolean(synergy.warning));
+		this.synergyDescription.text = synergy.description;
+		this.synergyDescription.color = this.getSynergyColor(synergy.type);
+		this.warningText.text = synergy.warning ?? '';
+		this.warningText.visible = Boolean(synergy.warning);
 
 		this.tags.clearChildren();
 		for (const tag of synergy.tags) this.tags.addChild(this.createTagPill(tag));
 
-		this.setVisible(true);
+		this.visible = true;
 	}
 
 	/** A pill hugging its label, the label truncating past the widest a tag gets. */
@@ -181,12 +181,5 @@ export class SynergyPreviewPanel extends Stack {
 		};
 
 		return tagColors[tag] || '#888888';
-	}
-
-	/**
-	 * Get current synergy analysis
-	 */
-	public getCurrentSynergy(): SynergyAnalysis | null {
-		return this.currentSynergy;
 	}
 }

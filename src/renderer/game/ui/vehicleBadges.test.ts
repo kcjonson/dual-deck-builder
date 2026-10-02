@@ -52,7 +52,7 @@ describe('ArmorBadge', () => {
 		const plain = badge(5, 0);
 		frame(plain);
 		expect(plain.text).toBe('5');
-		expect(plain.getWidth()).toBe(35);
+		expect(plain.width).toBe(35);
 		expect(badge(5, 3).text).toBe('5 SH3');
 	});
 
@@ -69,11 +69,11 @@ describe('ArmorBadge', () => {
 		const iconRight = iconBox.x + iconBox.width;
 		// The value's box starts past the icon and ends inside the badge, and the label fits it.
 		expect(valueBox.x).toBeGreaterThanOrEqual(iconRight);
-		expect(valueBox.x + valueBox.width).toBeLessThanOrEqual(10 + subject.getWidth());
+		expect(valueBox.x + valueBox.width).toBeLessThanOrEqual(10 + subject.width);
 		expect(valueBox.width).toBeGreaterThanOrEqual(labelWidth);
 
 		const [rect] = backend.commands.filter((command): command is RectCommand => command.kind === 'rect');
-		expect(rect.rect.width).toBe(subject.getWidth());
+		expect(rect.rect.width).toBe(subject.width);
 	});
 
 	it('measures once per value, not per frame', () => {
@@ -84,7 +84,7 @@ describe('ArmorBadge', () => {
 		subject.shield = 0;
 		frame(subject);
 		expect(backend.measureCalls).toBe(2);
-		expect(subject.getWidth()).toBe(35);
+		expect(subject.width).toBe(35);
 	});
 
 	it('greys out with neither armor nor shield', () => {
@@ -120,9 +120,9 @@ describe('IntentMarker', () => {
 
 	it('is hidden without an intent', () => {
 		const marker = new IntentMarker({ x: 0, y: 0, size: 30 });
-		expect(marker.isVisible()).toBe(false);
+		expect(marker.visible).toBe(false);
 		marker.intent = { type: 'defend', description: 'defend' };
-		expect(marker.isVisible()).toBe(true);
+		expect(marker.visible).toBe(true);
 		marker.intent = null;
 		frame(marker);
 		expect(backend.commands).toEqual([]);
@@ -131,7 +131,7 @@ describe('IntentMarker', () => {
 
 describe('IntentRow', () => {
 	const attack = (value: number): EnemyIntent => ({ type: 'attack', value, description: 'Ram', detail: `${value} damage on the Rig` });
-	const markers = (row: IntentRow): IntentMarker[] => row.getChildren().filter((child): child is IntentMarker => child instanceof IntentMarker);
+	const markers = (row: IntentRow): IntentMarker[] => row.children.filter((child): child is IntentMarker => child instanceof IntentMarker);
 	const settle = async (): Promise<void> => {
 		context.animator.settle();
 		await Promise.resolve();

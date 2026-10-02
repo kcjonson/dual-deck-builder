@@ -88,7 +88,7 @@ describe('CombatScreen from the keyboard', () => {
 		// Along the hand to a card that needs a target, when the deal has one
 		const needsTarget = (): boolean => {
 			const card = focus.focused;
-			return card instanceof UICard && !NO_TARGET.includes(card.getData().targetType);
+			return card instanceof UICard && !NO_TARGET.includes(card.data.targetType);
 		};
 		for (let step = 0; step < 10 && !needsTarget(); step++) press('ArrowRight');
 

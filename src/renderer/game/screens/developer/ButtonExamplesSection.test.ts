@@ -8,7 +8,7 @@ function focusedIn(root: Component): Component {
 	while (stack.length > 0) {
 		const node = stack.pop() as Component;
 		if (node.focused) return node;
-		stack.push(...node.getChildren());
+		stack.push(...node.children);
 	}
 	throw new Error('nothing focused');
 }

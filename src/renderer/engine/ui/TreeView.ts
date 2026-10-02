@@ -89,7 +89,7 @@ class TreeRow extends Pressable {
 		this.addPart(this.chevron);
 		this.addPart(this.label);
 		this.addPart(this.countText);
-		this.transition = new LookTransition({ owner: this, look: this.targetLook, onChange: (look) => this.label.setColor(rgba(look.text)) });
+		this.transition = new LookTransition({ owner: this, look: this.targetLook, onChange: (look) => { this.label.color = rgba(look.text); } });
 		this.show(item);
 	}
 
@@ -116,9 +116,9 @@ class TreeRow extends Pressable {
 		const expandable = hasChildren(item.node);
 		this.chevron.visible = expandable;
 		if (expandable) this.chevron.glyph = this.tree.isExpanded(item.key) ? 'expand_more' : 'chevron_right';
-		this.label.setText(item.node.label);
+		this.label.text = item.node.label;
 		const count = item.node.count;
-		this.countText.setText(count === undefined ? '' : String(count));
+		this.countText.text = count === undefined ? '' : String(count);
 		this.countText.visible = count !== undefined;
 		this.selected = this.tree.selectedKey === item.key;
 		// Placed here rather than invalidated: the tree calls this from its
@@ -145,7 +145,7 @@ class TreeRow extends Pressable {
 		this.chevron.setPosition(left, Math.round((this.height - CHEVRON) / 2));
 		let right = this.width - INSET;
 		if (this.countText.visible) {
-			this.countText.setHeight(this.height);
+			this.countText.height = this.height;
 			this.countText.setPosition(right - this.countText.width, 0);
 			right -= this.countText.width + INSET;
 		}
@@ -359,7 +359,7 @@ export class TreeView extends Component {
 
 	/** The rows that exist as components now: the ones inside the view. */
 	public get visibleRows(): readonly Component[] {
-		return this.rowLayer.getChildren();
+		return this.rowLayer.children;
 	}
 
 	/** The scroll container the rows live in (R12.20). */
@@ -476,7 +476,7 @@ export class TreeView extends Component {
 			create: (item) => new TreeRow({ tree: this, item, id: `${id}_row_${item.key.replace(/\//g, '_')}` }),
 			update: (child, item) => child.show(item),
 		});
-		(column.getChildren() as TreeRow[]).forEach((child, index) => {
+		(column.children as TreeRow[]).forEach((child, index) => {
 			child.setPosition(0, (first + index) * height);
 			child.setSize(column.width, height);
 			child.cursor = first + index === this.cursorIndex;

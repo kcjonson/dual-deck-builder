@@ -22,12 +22,12 @@ function drawn(api: DrawApi, backend: MeasuringRecordingBackend, text: Text): Te
 describe('Text measures through the mount context (R1.6)', () => {
 	it('keeps a zero hug size until it is mounted, then hugs its measured line box', () => {
 		const text = new Text('End turn', { style: { fontSize: 16 } });
-		expect(text.getWidth()).toBe(0);
-		expect(text.getHeight()).toBe(0);
+		expect(text.width).toBe(0);
+		expect(text.height).toBe(0);
 		expect(text.measured).toBeNull();
 
 		text.mount(createTestContext({ draw: createMeasuringDrawApi().api }));
-		expect(text.getWidth()).toBeGreaterThan(0);
+		expect(text.width).toBeGreaterThan(0);
 		expect(text.measured).not.toBeNull();
 	});
 
@@ -35,7 +35,7 @@ describe('Text measures through the mount context (R1.6)', () => {
 		const text = new Text('End turn', { style: { fontSize: 16 } });
 		text.mount(createTestContext({ draw: new DrawApi({ backend: new NullBackend() }) }));
 
-		expect(text.getWidth()).toBe(0);
+		expect(text.width).toBe(0);
 		expect(text.measured).toBeNull();
 	});
 
@@ -49,8 +49,8 @@ describe('Text measures through the mount context (R1.6)', () => {
 		row.mount(context);
 		context.frame.layout();
 
-		expect(seen).toEqual([label.getWidth()]);
-		expect(label.getWidth()).toBeGreaterThan(0);
+		expect(seen).toEqual([label.width]);
+		expect(label.width).toBeGreaterThan(0);
 	});
 });
 
@@ -74,8 +74,8 @@ describe('Text (R12.4)', () => {
 		const text = mounted(new Text('End turn', { x: 10, y: 20, style: { fontSize: 16 } }));
 		const layout = layoutText(committedFontAtlas('body'), { text: 'End turn', font: 'body', size: 16 });
 
-		expect(text.getWidth()).toBe(layout.width);
-		expect(text.getHeight()).toBe(layout.lineHeight);
+		expect(text.width).toBe(layout.width);
+		expect(text.height).toBe(layout.lineHeight);
 
 		const command = drawn(api, backend, text);
 		// The box is the text's own, at its local origin; the walk's transform carries its position.
@@ -87,14 +87,14 @@ describe('Text (R12.4)', () => {
 
 	it('re-hugs when its text or size changes', () => {
 		const text = mounted(new Text('A', { style: { fontSize: 16 } }));
-		const narrow = text.getWidth();
-		text.setText('A much longer label');
-		expect(text.getWidth()).toBeGreaterThan(narrow);
+		const narrow = text.width;
+		text.text = 'A much longer label';
+		expect(text.width).toBeGreaterThan(narrow);
 
-		const wide = text.getWidth();
-		text.setFontSize(32);
-		expect(text.getWidth()).toBeGreaterThan(wide);
-		expect(text.getHeight()).toBeGreaterThan(20);
+		const wide = text.width;
+		text.fontSize = 32;
+		expect(text.width).toBeGreaterThan(wide);
+		expect(text.height).toBeGreaterThan(20);
 	});
 
 	it('wraps at an assigned width and hugs the wrapped height', () => {
@@ -103,8 +103,8 @@ describe('Text (R12.4)', () => {
 		expect(metrics).not.toBeNull();
 		expect(metrics?.lines).toBeGreaterThan(1);
 		expect(metrics?.width).toBeLessThanOrEqual(90);
-		expect(text.getWidth()).toBe(90);
-		expect(text.getHeight()).toBe(metrics?.height);
+		expect(text.width).toBe(90);
+		expect(text.height).toBe(metrics?.height);
 
 		const command = drawn(api, backend, text);
 		expect(command.wrap).toBe('word');
@@ -145,8 +145,8 @@ describe('Text (R12.4)', () => {
 	it('hugs again when an axis is set back to zero', () => {
 		const text = mounted(new Text('Hug', { width: 200, height: 50 }));
 		text.setSize(0, 0);
-		expect(text.getWidth()).toBe(text.measured?.width);
-		expect(text.getHeight()).toBe(text.measured?.height);
+		expect(text.width).toBe(text.measured?.width);
+		expect(text.height).toBe(text.measured?.height);
 	});
 
 	it('resolves fontWeight through the theme table (R11.8)', () => {
@@ -159,13 +159,13 @@ describe('Text (R12.4)', () => {
 		const text = mounted(new Text('kicker', {
 			style: { letterSpacing: 0.16, textTransform: 'uppercase', textDecoration: 'underline', fontSize: 10 }, lineHeight: 1.5,
 		}));
-		expect(text.getHeight()).toBe(15);
+		expect(text.height).toBe(15);
 		const command = drawn(api, backend, text);
 		expect(command.letterSpacing).toBe(0.16);
 		expect(command.textTransform).toBe('uppercase');
 		expect(command.decoration).toBe('underline');
 		// Uppercase is measured, not just drawn (R6.9): the hug width is the capitals'.
 		const lower = mounted(new Text('kicker', { style: { letterSpacing: 0.16, fontSize: 10 } }));
-		expect(text.getWidth()).toBeGreaterThan(lower.getWidth());
+		expect(text.width).toBeGreaterThan(lower.width);
 	});
 });

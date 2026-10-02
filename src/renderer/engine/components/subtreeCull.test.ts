@@ -269,7 +269,11 @@ describe('subtree cull (DDB-184, R4.2a)', () => {
 		});
 
 		it('a centred circle stroke', () => {
-			expect(sweep(() => new Circle({ id: 'ring', style: { borderWidth: 6 } }).setRadius(10))).toBe(6);
+			expect(sweep(() => {
+				const ring = new Circle({ id: 'ring', style: { borderWidth: 6 } });
+				ring.radius = 10;
+				return ring;
+			})).toBe(6);
 		});
 
 		it('a circle given a size its radius does not match', () => {
@@ -281,7 +285,7 @@ describe('subtree cull (DDB-184, R4.2a)', () => {
 			const { api: measuring, backend: recording } = createMeasuringDrawApi();
 			const make = (): Component => {
 				const button = new Button('Go', { id: 'go', tone: 'accent', width: 100 });
-				button.setHovered(true);
+				button.hovered = true;
 				return button;
 			};
 			// The glow's 26 px on each side.
@@ -509,10 +513,10 @@ describe('the walk allocates no geometry per frame (#85 review)', () => {
 		expect(resized).not.toBe(matrix);
 		expect(resized?.[5]).toBeCloseTo(-30);
 
-		card.setDragOffset({ x: 5, y: 0 });
+		card.dragOffset = { x: 5, y: 0 };
 		expect(card.transformMatrix?.[4]).toBeCloseTo((resized?.[4] ?? 0) + 5);
 
-		card.setDragOffset(null);
+		card.dragOffset = null;
 		card.transform = {};
 		expect(card.transformMatrix).toBeNull();
 	});
@@ -522,7 +526,7 @@ describe('the walk allocates no geometry per frame (#85 review)', () => {
 		const card = new Rectangle({ width: 100, height: 20 });
 		root.addChild(card);
 		root.mount(createTestContext());
-		card.setDragOffset({ x: 30, y: 0 });
+		card.dragOffset = { x: 30, y: 0 };
 		expect(card.transformMatrix?.[4]).toBe(30);
 
 		root.removeChild(card);

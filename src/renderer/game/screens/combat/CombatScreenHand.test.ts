@@ -56,7 +56,7 @@ async function startCombat(): Promise<CombatScreen> {
 
 function handCards(combat: CombatScreen): UICard[] {
 	const layer = combat['handLayer'];
-	return layer.getHandCards().map(card => layer.getCardElementByCard(card)).filter((card): card is UICard => card !== null);
+	return layer.handCards.map(card => layer.getCardElementByCard(card)).filter((card): card is UICard => card !== null);
 }
 
 beforeAll(async () => {
@@ -106,7 +106,7 @@ describe('CombatScreen hand previews', () => {
 		expect(previewBounds.x + previewBounds.width).toBeLessThanOrEqual(width);
 
 		const description = previewTexts(preview).find(text => text.id === 'card_preview_face_description');
-		expect(description?.getText()).toBe(card.getData().displayDescription);
+		expect(description?.text).toBe(card.data.displayDescription);
 
 		context.tooltips.hide();
 		context.animator.settle();
@@ -162,7 +162,7 @@ describe('CombatScreen hand previews', () => {
 	it('fans each half: the edge cards turn outward and the middle one stands upright', async () => {
 		setViewport(1280, 720);
 		const combat = await startCombat();
-		const half = combat['handLayer'].getHandCards().slice(0, 5).map(card => combat['handLayer'].getCardElementByCard(card));
+		const half = combat['handLayer'].handCards.slice(0, 5).map(card => combat['handLayer'].getCardElementByCard(card));
 		const turns = half.map(card => card?.transform.rotate ?? NaN);
 		expect(turns[0]).toBeLessThan(0);
 		expect(turns[2]).toBeCloseTo(0, 9);
@@ -171,12 +171,12 @@ describe('CombatScreen hand previews', () => {
 	});
 });
 
-function previewTexts(component: { getChildren(): readonly unknown[] } | null | undefined): { id: string | null; getText(): string }[] {
+function previewTexts(component: { children: readonly unknown[] } | null | undefined): { id: string | null; text: string }[] {
 	if (!component) return [];
-	const found: { id: string | null; getText(): string }[] = [];
-	for (const child of component.getChildren()) {
-		const node = child as { id: string | null; getText?: () => string; getChildren(): readonly unknown[] };
-		if (typeof node.getText === 'function') found.push(node as { id: string | null; getText(): string });
+	const found: { id: string | null; text: string }[] = [];
+	for (const child of component.children) {
+		const node = child as { id: string | null; text?: unknown; children: readonly unknown[] };
+		if (typeof node.text === 'string') found.push(node as { id: string | null; text: string });
 		found.push(...previewTexts(node));
 	}
 	return found;
@@ -210,7 +210,7 @@ function grabPoint(card: UICard): [number, number] {
 
 /** The first card in the hand whose target type is one of `types`, dealt in if the hand lacks one. */
 function handCard(combat: CombatScreen, types: string[], fallback: string): UICard {
-	const found = handCards(combat).find(card => types.includes(card.getData().targetType));
+	const found = handCards(combat).find(card => types.includes(card.data.targetType));
 	if (found) return found;
 	const [driver] = combat['playerDrivers'];
 	const card = CardLoader.getInstance().createCard(fallback) as Card;
@@ -231,7 +231,7 @@ describe('CombatScreen drag to play', () => {
 	it('plays a card dropped on a raider, drawing the line while it is dragged', async () => {
 		const combat = await startCombat();
 		const card = handCard(combat, ['enemy_single'], 'headshot');
-		const data = card.getData();
+		const data = card.data;
 		const playCard = jest.spyOn(Battle.prototype, 'playCard');
 		const target = centreOf(vehicleBounds(combat, 'enemyLayer'));
 
@@ -285,7 +285,7 @@ describe('CombatScreen drag to play', () => {
 		expect(playCard).not.toHaveBeenCalled();
 		expect(combat['combatModel'].selectedCard).toBeNull();
 		expect(combat['combatModel'].isTargeting).toBe(false);
-		expect(card.isSelected()).toBe(false);
+		expect(card.selected).toBe(false);
 		expect(combat['fx'].aiming).toBe(false);
 
 		playCard.mockRestore();
@@ -301,7 +301,7 @@ describe('CombatScreen drag to play', () => {
 		expect(playCard).not.toHaveBeenCalled();
 		expect(combat['combatModel'].selectedCard).toBeNull();
 		expect(combat['combatModel'].targetableVehicleIds).toEqual([]);
-		expect(card.isSelected()).toBe(false);
+		expect(card.selected).toBe(false);
 
 		playCard.mockRestore();
 		combat.unmount();
@@ -310,7 +310,7 @@ describe('CombatScreen drag to play', () => {
 	it('plays a card on its own driver when it is dropped on their vehicle, and not on the partner\'s', async () => {
 		const combat = await startCombat();
 		const card = handCard(combat, ['self'], 'repair_kit');
-		const data = card.getData();
+		const data = card.data;
 		const owner = combat['playerDrivers'].find(driver => driver.hand.includes(data));
 		const vehicles = combat['playerTeam']?.vehicles ?? [];
 		const own = vehicles.find(vehicle => vehicle.driver === owner || vehicle.passenger === owner);
@@ -400,7 +400,7 @@ describe('CombatScreen drag to play, then to the pile', () => {
 		const [raider] = combat['enemyTeam']?.vehicles ?? [];
 		context.animator.settle();
 		context.frame.layout();
-		const [disc] = combat['enemyLayer'].intentRowOf(raider.id)?.getChildren() ?? [];
+		const [disc] = combat['enemyLayer'].intentRowOf(raider.id)?.children ?? [];
 		if (!disc) throw new Error('the raider should plan something');
 		const playCard = jest.spyOn(Battle.prototype, 'playCard');
 		const target = centreOf(disc.screenBounds);
@@ -466,7 +466,7 @@ describe('CombatScreen floating numbers', () => {
 		combat['popHitNumber']({ vehicle: raider, damage: 6 });
 
 		const [number] = fx.floatingNumbers;
-		expect(number.getText()).toBe('-6');
+		expect(number.text).toBe('-6');
 		const start = number.screenBounds;
 		expect(start.x + start.width / 2).toBeCloseTo(plate.x + plate.width / 2, 6);
 		expect(start.y).toBeGreaterThan(plate.y);
@@ -513,7 +513,7 @@ describe('CombatScreen floating numbers', () => {
 		combat['popHitNumber']({ vehicle: raider, damage: null });
 
 		const [first, second] = fx.floatingNumbers;
-		expect(second.getText()).toBe('MISS');
+		expect(second.text).toBe('MISS');
 		expect(second.screenBounds.y).toBeGreaterThan(first.screenBounds.y);
 
 		combat.unmount();
@@ -528,7 +528,7 @@ describe('CombatScreen floating numbers', () => {
 		const before = resolved();
 
 		drag(grabPoint(card), centreOf(vehicleBounds(combat, 'enemyLayer')));
-		const numbers = combat['fx'].floatingNumbers.map(number => number.getText());
+		const numbers = combat['fx'].floatingNumbers.map(number => number.text);
 		expect(numbers.length).toBeGreaterThan(0);
 		expect(numbers).toHaveLength(resolved() - before);
 		expect(numbers.every(text => text === 'MISS' || /^-\d+$/.test(text))).toBe(true);

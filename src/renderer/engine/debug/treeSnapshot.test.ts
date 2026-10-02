@@ -190,7 +190,7 @@ describe('treeSnapshot', () => {
 
 		it('reports enabled on its own and every other R11.11 flag in state', () => {
 			const rectangle = new Rectangle({ id: 'swatch', width: 10, height: 10 });
-			rectangle.setEnabled(false);
+			rectangle.enabled = false;
 
 			const node = treeSnapshot([rectangle], VIEWPORT).roots[0];
 
@@ -274,7 +274,7 @@ describe('treeSnapshot', () => {
 
 			expect('parts' in node).toBe(false);
 			expect(node.children.map((child) => child.id)).toEqual(['showcase_card_1']);
-			expect(panel.getChildren()).toEqual([card]);
+			expect(panel.children).toEqual([card]);
 		});
 
 		it('subtracts the scroll from screenBounds but never from bounds', () => {
@@ -407,7 +407,7 @@ describe('treeSnapshot', () => {
 
 			// R8.6: no implicit child in any children list.
 			expect(node.children.map((child) => child.id)).toEqual(
-				panel.getChildren().map((child) => child.id),
+				panel.children.map((child) => child.id),
 			);
 			expect('parts' in node).toBe(false);
 		});
@@ -457,7 +457,7 @@ describe('treeSnapshot', () => {
 			const hidden = new Container({ id: 'hidden', x: 10, y: 10, width: 20, height: 20 });
 			const inside = new Container({ id: 'inside', x: 1, y: 1, width: 5, height: 5 });
 
-			hidden.setVisible(false);
+			hidden.visible = false;
 			hidden.addChild(inside);
 			root.addChild(hidden);
 
@@ -474,7 +474,7 @@ describe('treeSnapshot', () => {
 			const b = new Container({ id: 'b', width: 10, height: 10 });
 			a.addChild(b);
 			// addChild refuses a loop, so only a direct push can make one.
-			b.getChildren().push(a);
+			b.children.push(a);
 
 			const root = treeSnapshot([a], VIEWPORT).roots[0];
 
@@ -484,7 +484,7 @@ describe('treeSnapshot', () => {
 		});
 
 		it('emits a node reachable by two paths once more as a stub instead of re-expanding it', () => {
-			// addChild re-parents, but a caller writing to getChildren()
+			// addChild re-parents, but a caller writing to children
 			// directly can put one instance in two children arrays. The ancestor set is
 			// per-path and would let this diamond expand to 2 ** 19 - 1 nodes.
 			const depth = 18;
@@ -497,9 +497,9 @@ describe('treeSnapshot', () => {
 					new Container({ id: `right_${level}`, width: 10, height: 10 }),
 				];
 				// Pushed into the raw arrays: addChild re-parents, so a diamond
-				// can only come from a caller writing to getChildren() directly.
+				// can only come from a caller writing to children directly.
 				for (const parent of parents) {
-					parent.getChildren().push(pair[0], pair[1]);
+					parent.children.push(pair[0], pair[1]);
 				}
 				parents = pair;
 			}
@@ -521,7 +521,7 @@ describe('treeSnapshot', () => {
 			const first = new Container({ id: 'first', width: 10, height: 10 });
 			const second = new Container({ id: 'second', width: 10, height: 10 });
 			first.addChild(shared);
-			second.getChildren().push(shared);
+			second.children.push(shared);
 
 			const roots = treeSnapshot([first, second], VIEWPORT).roots;
 
@@ -548,7 +548,7 @@ describe('treeSnapshot', () => {
 			}
 
 			const broken = new HalfSerializable({ id: 'broken', x: 2, y: 3, width: 8, height: 9 });
-			broken.setVisible(false);
+			broken.visible = false;
 			const root = new Container({ id: 'root', width: 20, height: 20 });
 			root.addChild(broken);
 
@@ -600,7 +600,7 @@ describe('treeSnapshot', () => {
 			const root = new Container({ id: 'root', width: 10, height: 10 });
 			const kept = new Container({ id: 'kept', width: 10, height: 10 });
 			root.addChild(kept);
-			root.getChildren().push(null as unknown as Container);
+			root.children.push(null as unknown as Container);
 
 			expect(treeSnapshot([root], VIEWPORT).roots[0].children.map((child) => child.id)).toEqual(['kept']);
 		});
@@ -621,8 +621,12 @@ describe('treeSnapshot', () => {
 
 		it('degrades one bad node instead of failing the whole document', () => {
 			class Exploding extends Container {
-				public getComponentType(): string {
+				public get componentType(): string {
 					throw new Error('no type for you');
+				}
+
+				protected set componentType(_value: string) {
+					// The constructor names it; this node only fails to report it
 				}
 			}
 
@@ -942,7 +946,7 @@ describe('treeSnapshot', () => {
 
 		it("grows inkBounds past screenBounds by a centred stroke's outer half", () => {
 			const ring = new Circle({ x: 10, y: 10, style: { borderWidth: 4 } });
-			ring.setRadius(20);
+			ring.radius = 20;
 
 			const node = treeSnapshot([ring], VIEWPORT).roots[0];
 
@@ -966,7 +970,7 @@ describe('treeSnapshot', () => {
 			expect((right?.x ?? 0) + (right?.w ?? 0)).toBeLessThan(244);
 
 			// Alignment moves the run without resizing anything, and the bound follows it.
-			text.setAlign('left');
+			text.align = 'left';
 			const left = treeSnapshot([text], VIEWPORT).roots[0].inkBounds;
 			expect(left?.x).toBeGreaterThan(197);
 			expect((left?.x ?? 0) + (left?.w ?? 0)).toBeGreaterThan(200 + run);

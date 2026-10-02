@@ -156,7 +156,7 @@ describe('Menu (R12.11)', () => {
 
 	it('reports only the rows in view for the text record', () => {
 		const made = menu({ items: items('a', 'b', 'c', 'd', 'e', 'f').items, maxHeight: 80 });
-		const rows = made.getChildren()[0].getChildren().find((child) => child.drawnText) as { drawnText: readonly string[] };
+		const rows = made.children[0].children.find((child) => child.drawnText) as { drawnText: readonly string[] };
 		expect(rows.drawnText).toEqual(['a', 'b', 'c']);
 		wheel(made, 400);
 		expect(rows.drawnText).toEqual(['d', 'e', 'f']);

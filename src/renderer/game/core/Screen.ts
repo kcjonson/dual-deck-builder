@@ -37,13 +37,6 @@ export abstract class Screen {
 	}
 
 	/**
-	 * Get the screen's identifier
-	 */
-	public getId(): string {
-		return this.id;
-	}
-
-	/**
 	 * The screen's root layer, for the dev tree snapshot.
 	 */
 	public get root(): Container {
@@ -106,12 +99,6 @@ export abstract class Screen {
 		this.mountContext = null;
 	}
 
-	/**
-	 * Check if the screen is currently active
-	 */
-	public isScreenActive(): boolean {
-		return this.isActive;
-	}
 	
 	/**
 	 * The viewport changed (R7.11). The application shell is the one owner and

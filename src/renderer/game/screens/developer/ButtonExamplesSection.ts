@@ -55,7 +55,7 @@ export class ButtonExamplesSection extends DeveloperSectionPanel {
 
 		// R11.11's flags held on, so the gallery shows the state layers
 		const disabled = new Button('Disabled', { tone: 'accent', width: WIDTH, height: HEIGHT });
-		disabled.setEnabled(false);
+		disabled.enabled = false;
 		const selected = new Button('Selected', { width: WIDTH, height: HEIGHT });
 		selected.selected = true;
 		const active = new Button('Active', { width: WIDTH, height: HEIGHT });
@@ -79,6 +79,6 @@ export class ButtonExamplesSection extends DeveloperSectionPanel {
 
 	private incrementCounter(): void {
 		this.clickCounter++;
-		this.clickCountText.setText(`Button clicks: ${this.clickCounter}`);
+		this.clickCountText.text = `Button clicks: ${this.clickCounter}`;
 	}
 }

@@ -77,11 +77,11 @@ export class Badge extends LabelledLeaf {
 	}
 
 	public get labelText(): string {
-		return this.label.getText();
+		return this.label.text;
 	}
 
 	public set labelText(text: string) {
-		this.label.setText(text);
+		this.label.text = text;
 		this.label.visible = text !== '';
 		this.invalidateLayout();
 	}
@@ -94,7 +94,7 @@ export class Badge extends LabelledLeaf {
 		if (tone === this.toneValue) return;
 		this.toneValue = tone;
 		this.look = badgeLook(tone, this.outline);
-		this.label.setColor(rgba(this.look.text));
+		this.label.color = rgba(this.look.text);
 	}
 
 	/** The width the badge takes when it hugs its label. */
@@ -103,7 +103,7 @@ export class Badge extends LabelledLeaf {
 	}
 
 	public get hugWidth(): number {
-		const text = this.label.getText() === '' ? 0 : Math.ceil(this.label.width);
+		const text = this.label.text === '' ? 0 : Math.ceil(this.label.width);
 		const dot = this.dot ? DOT + (text > 0 ? DOT_GAP : 0) : 0;
 		return Math.max(this.height, dot + text + PAD_X * 2);
 	}
@@ -133,8 +133,8 @@ export class Badge extends LabelledLeaf {
 
 	protected placeLabel(): void {
 		if (!this.look) return;
-		this.label.setHeight(this.height);
-		const dot = this.dot && this.label.getText() !== '' ? DOT + DOT_GAP : 0;
+		this.label.height = this.height;
+		const dot = this.dot && this.label.text !== '' ? DOT + DOT_GAP : 0;
 		this.label.setPosition(this.contentLeft + dot, 0);
 	}
 }

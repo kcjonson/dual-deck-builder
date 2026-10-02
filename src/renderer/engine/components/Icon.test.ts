@@ -66,7 +66,7 @@ describe('Icon (R12.6)', () => {
 
 	it('defaults its box to its size and its tint to the text colour', () => {
 		const icon = new Icon({ glyph: 'shield', size: 12 });
-		expect([icon.getWidth(), icon.getHeight()]).toEqual([12, 12]);
+		expect([icon.width, icon.height]).toEqual([12, 12]);
 		expect(icon.tint).toEqual(tokens.color.text);
 	});
 
@@ -94,7 +94,7 @@ describe('Icon (R12.6)', () => {
 
 	it('draws nothing while hidden', () => {
 		const icon = new Icon({ glyph: 'shield', size: 12 });
-		icon.setVisible(false);
+		icon.visible = false;
 		frame(icon);
 		expect(textCommands()).toEqual([]);
 	});
@@ -145,7 +145,7 @@ describe('Icon (R12.6)', () => {
 			context.frame.layout();
 			expect(place).toHaveBeenCalledTimes(placed);
 
-			button.setLabel('Back to Menu');
+			button.label = 'Back to Menu';
 			context.frame.layout();
 			expect(place.mock.calls.length).toBeGreaterThan(placed);
 			expect(first).toHaveLength(2);

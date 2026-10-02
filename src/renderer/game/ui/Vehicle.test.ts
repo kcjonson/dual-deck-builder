@@ -19,7 +19,7 @@ import { layoutLint } from '../../engine/debug/layoutLint';
 import { treeSnapshot } from '../../engine/debug/treeSnapshot';
 
 function partById(plate: Component, id: string): Component {
-	const part = plate.getChildren().find(child => child.id === id);
+	const part = plate.children.find(child => child.id === id);
 	if (!part) throw new Error(`no ${id}`);
 	return part;
 }
@@ -38,32 +38,32 @@ describe('Vehicle plate', () => {
 	});
 
 	test('a driven vehicle shows its driver and no SPENT chip', () => {
-		expect(partById(plate, 'plate_driver_hp').isVisible()).toBe(true);
-		expect(partById(plate, 'plate_spent_chip').isVisible()).toBe(false);
+		expect(partById(plate, 'plate_driver_hp').visible).toBe(true);
+		expect(partById(plate, 'plate_spent_chip').visible).toBe(false);
 	});
 
 	test('a vehicle whose driver died shows as a spent escort, with no driver row, and keeps its parts', () => {
-		const partsBefore = [...plate.getChildren()];
+		const partsBefore = [...plate.children];
 		rig.driver?.takeDamage(100);
 		team.handleDriverDeath(rig);
 
 		plate.data = rig;
 
-		expect(plate.getChildren()).toEqual(partsBefore);
-		expect(partById(plate, 'plate_driver_hp').isVisible()).toBe(false);
-		expect(partById(plate, 'plate_driver_name').isVisible()).toBe(false);
-		expect(partById(plate, 'plate_spent_chip').isVisible()).toBe(true);
+		expect(plate.children).toEqual(partsBefore);
+		expect(partById(plate, 'plate_driver_hp').visible).toBe(false);
+		expect(partById(plate, 'plate_driver_name').visible).toBe(false);
+		expect(partById(plate, 'plate_spent_chip').visible).toBe(true);
 
 		rig.spent = false;
 		plate.data = rig;
 
-		expect(partById(plate, 'plate_spent_chip').isVisible()).toBe(false);
+		expect(partById(plate, 'plate_spent_chip').visible).toBe(false);
 	});
 
 	test('a resize moves and sizes the same parts in the layout phase instead of rebuilding them', () => {
 		plate.mount(context);
 		context.frame.layout();
-		const partsBefore = [...plate.getChildren()];
+		const partsBefore = [...plate.children];
 		// Nothing measures here, so the structure row is the track's 10: the
 		// armor row (16) and three 2 px gaps under the portrait.
 		expect(plate.portraitRect.height).toBe(120 - 16 - 10 - 2 * 3);
@@ -71,7 +71,7 @@ describe('Vehicle plate', () => {
 		plate.setSize(200, 160);
 		context.frame.layout();
 
-		expect(plate.getChildren()).toEqual(partsBefore);
+		expect(plate.children).toEqual(partsBefore);
 		expect(plate.portraitRect.width).toBe(200);
 		expect(plate.portraitRect.height).toBe(160 - 16 - 10 - 2 * 3);
 		expect(plate.structureTrackRect.y).toBe(160 - 16 - 10 - 2 * 2);
@@ -132,7 +132,7 @@ describe('Vehicle plate', () => {
 			const run = backend.commands.find((command): command is TextCommand => command.kind === 'text' && command.id === id);
 			if (!run?.box) throw new Error(`no run for ${id}`);
 			expect(run.box.x + run.transform[4] + run.box.width).toBeLessThanOrEqual(140);
-			expect(text.inkRect.x + text.getX() + text.inkRect.width).toBeLessThanOrEqual(140);
+			expect(text.inkRect.x + text.x + text.inkRect.width).toBeLessThanOrEqual(140);
 		}
 	});
 
@@ -186,10 +186,10 @@ describe('Vehicle plate layout lint (DDB-91)', () => {
 		const plate = new Vehicle({ id: 'plate', x: 0, y: 0, width: 160, height: 198, vehicleData: rig });
 		plate.mount(context);
 		context.frame.layout();
-		const ids = plate.getChildren().map((child) => child.id);
+		const ids = plate.children.map((child) => child.id);
 		expect(ids).not.toContain('plate_portrait');
 		expect(ids).not.toContain('plate_structure_track');
-		const value = plate.getChildren().find((child) => child.id === 'plate_structure_value');
+		const value = plate.children.find((child) => child.id === 'plate_structure_value');
 		const track = plate.structureTrackRect;
 		expect(value).toBeDefined();
 		expect((value?.y ?? 0) + (value?.height ?? 0) / 2).toBeCloseTo(track.y + track.height / 2, 5);

@@ -8,11 +8,11 @@ import { ShapeOptions, ShapeStyleObject, resolveShapeStyle } from './shapeStyle'
  * Circle component for rendering circles
  */
 export class Circle extends Component {
-	private fillColor: RGBA;
-	private strokeColor: RGBA;
+	private ownFill: RGBA;
+	private ownStroke: RGBA;
 	private strokeWidth: number;
 	private styleObject: ShapeStyleObject;
-	private radius = 50;
+	private ownRadius = 50;
 
 	/**
 	 * Create a new circle component
@@ -22,15 +22,15 @@ export class Circle extends Component {
 		super(options);
 		this.styleObject = style;
 		const shape = resolveShapeStyle('Circle', style);
-		this.fillColor = shape.fill;
-		this.strokeColor = shape.stroke;
+		this.ownFill = shape.fill;
+		this.ownStroke = shape.stroke;
 		this.strokeWidth = shape.strokeWidth;
 		if (style.opacity !== undefined) this.opacity = style.opacity;
 		this.componentType = 'Circle';
 
 		// Set default size based on radius
-		if (this.width === 0) this.width = this.radius * 2;
-		if (this.height === 0) this.height = this.radius * 2;
+		if (this.width === 0) this.width = this.ownRadius * 2;
+		if (this.height === 0) this.height = this.ownRadius * 2;
 	}
 
 	/**
@@ -50,40 +50,40 @@ export class Circle extends Component {
 	public set style(style: ShapeStyleObject) {
 		const shape = resolveShapeStyle('Circle', style);
 		this.styleObject = style;
-		this.fillColor = shape.fill;
-		this.strokeColor = shape.stroke;
+		this.ownFill = shape.fill;
+		this.ownStroke = shape.stroke;
 		this.strokeWidth = shape.strokeWidth;
 		if (style.opacity !== undefined) this.opacity = style.opacity;
 		this.invalidateInk();
 	}
 
-	/**
-	 * Set the circle's fill color
-	 * @param color Color value (hex string or RGBA array)
-	 */
-	public setFillColor(color: ColorValue): this {
-		this.fillColor = resolveColor(color);
-		return this;
+	/** The fill color. */
+	public get fillColor(): RGBA {
+		return this.ownFill;
 	}
 
-	/**
-	 * Set the circle's stroke color
-	 * @param color Color value (hex string or RGBA array)
-	 */
-	public setStrokeColor(color: ColorValue): this {
-		this.strokeColor = resolveColor(color);
-		return this;
+	public set fillColor(color: ColorValue) {
+		this.ownFill = resolveColor(color);
 	}
 
-	/**
-	 * Set the circle's radius
-	 * @param radius Circle radius in pixels
-	 */
-	public setRadius(radius: number): this {
-		if (radius !== this.radius) this.invalidateInk();
-		this.radius = radius;
+	/** The stroke color. */
+	public get strokeColor(): RGBA {
+		return this.ownStroke;
+	}
+
+	public set strokeColor(color: ColorValue) {
+		this.ownStroke = resolveColor(color);
+	}
+
+	/** The radius. */
+	public get radius(): number {
+		return this.ownRadius;
+	}
+
+	public set radius(radius: number) {
+		if (radius !== this.ownRadius) this.invalidateInk();
+		this.ownRadius = radius;
 		this.setSize(radius * 2, radius * 2);
-		return this;
 	}
 
 	/** The stroke is centred on the outline, so half of it lands outside the box (R8.8). */
@@ -93,12 +93,12 @@ export class Circle extends Component {
 
 	/**
 	 * The subtree cull's bound (DDB-184): the box, and the disc `render`
-	 * draws from its radius, which a size given without `setRadius` does not
+	 * draws from its radius, which a size given without setting `radius` does not
 	 * change, so the two can differ.
 	 */
 	protected get cullInk(): Rect {
 		const box = this.inkRect;
-		const extent = this.radius * 2 + this.inkExtent;
+		const extent = this.ownRadius * 2 + this.inkExtent;
 		const minX = Math.min(box.x, -this.inkExtent);
 		const minY = Math.min(box.y, -this.inkExtent);
 		return {
@@ -110,19 +110,19 @@ export class Circle extends Component {
 	}
 
 	public get resolvedColors(): ResolvedColors {
-		return this.strokeWidth > 0 ? { fill: this.fillColor, border: this.strokeColor } : { fill: this.fillColor };
+		return this.strokeWidth > 0 ? { fill: this.ownFill, border: this.ownStroke } : { fill: this.ownFill };
 	}
 
 	public render(draw: DrawApi): void {
 		draw.drawCircle({
 			id: this.id ?? undefined,
-			center: { x: this.radius, y: this.radius },
-			radius: this.radius,
-			fill: this.fillColor,
+			center: { x: this.ownRadius, y: this.ownRadius },
+			radius: this.ownRadius,
+			fill: this.ownFill,
 			// `center`, not the `inside` default: the stroke has always straddled
 			// the radius, so a circle keeps its outer size when it gains one.
 			border: this.strokeWidth > 0
-				? { color: this.strokeColor, width: this.strokeWidth, position: 'center' }
+				? { color: this.ownStroke, width: this.strokeWidth, position: 'center' }
 				: undefined,
 		});
 	}

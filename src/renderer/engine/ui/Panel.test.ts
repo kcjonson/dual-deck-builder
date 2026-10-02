@@ -217,7 +217,7 @@ describe('Panel header (R12.19)', () => {
 		expect(hairline?.rect.y).toBe(panel.header - tokens.borderWidth.bw_hair);
 		expect(content.screenBounds.y).toBe(20 + panel.header + tokens.space.space_4);
 		// The header's parts are the panel's own, not flowed content.
-		expect(panel.getChildren().filter((child) => child.isPart)).toHaveLength(2);
+		expect(panel.children.filter((child) => child.isPart)).toHaveLength(2);
 		expect(panel.flows(content)).toBe(true);
 	});
 

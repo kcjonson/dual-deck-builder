@@ -201,7 +201,7 @@ describe('Button press machine (R12.7)', () => {
 		root.addChild(right);
 		root.addChild(only);
 		context.frame.layout();
-		const [label, icon] = right.getChildren() as [Text, Component];
+		const [label, icon] = right.children as [Text, Component];
 		const measured = label.measured?.width ?? 0;
 		const glyphsEnd = label.x + label.width / 2 + measured / 2;
 		expect(icon.x).toBeGreaterThanOrEqual(Math.floor(glyphsEnd));
@@ -211,7 +211,7 @@ describe('Button press machine (R12.7)', () => {
 		expect(right.iconPosition).toBe('right');
 		const texts = commands().filter((command): command is TextCommand => command.kind === 'text');
 		expect(texts.some((text) => text.text === 'Settings')).toBe(false);
-		const onlyIcon = only.getChildren()[1];
+		const onlyIcon = only.children[1];
 		expect(onlyIcon.x + onlyIcon.width / 2).toBe(20);
 		expect(() => new Button('X', { iconPosition: 'only' })).toThrow(/needs an icon/);
 	});
@@ -254,7 +254,7 @@ describe('ListRow (R12.8)', () => {
 		const texts = commands().filter((command): command is TextCommand => command.kind === 'text');
 		expect(texts.find((text) => text.text === 'Alpha')).toMatchObject({ font: 'body', align: 'left' });
 		expect(texts.find((text) => text.text === '1')).toMatchObject({ font: 'mono', color: color.text_dim });
-		const [label, trailing] = rows[0].getChildren();
+		const [label, trailing] = rows[0].children;
 		expect(label.x).toBe(tokens.control.inset_row);
 		expect(trailing.x + trailing.width).toBeCloseTo(240 - tokens.control.inset_row);
 		expect(label.x + label.width).toBeLessThanOrEqual(trailing.x);

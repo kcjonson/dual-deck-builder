@@ -89,7 +89,7 @@ export type TextOverflowOutcome = 'none' | 'clip' | 'ellipsis' | 'visible';
  * its bounds are that box; the draw API's baseline anchor never shows.
  *
  * Each axis is `fixed` or hugs (R10.1). A fixed width (a `width` option,
- * `setWidth` or `setSize` with a positive value) is the alignment box and,
+ * the `width` accessor or `setSize` with a positive value) is the alignment box and,
  * unless `wrap` is `none`, the wrap width; `none` with an ellipsis
  * truncates to it (R6.14). A fixed height is the box `verticalAlign` places
  * the lines in, and the height a wrapped ellipsis fits. An axis left at zero
@@ -111,13 +111,13 @@ export type TextOverflowOutcome = 'none' | 'clip' | 'ellipsis' | 'visible';
  */
 export class Text extends Component {
 	private content: string;
-	private fontSize = DEFAULT_FONT_SIZE;
+	private ownFontSize = DEFAULT_FONT_SIZE;
 	private styleObject: TextStyleObject = {};
 	/** R11.8's role, from the style's `fontFamily` and `fontWeight` through the theme table. */
 	private fontRole: FontRole = 'body';
-	private color: RGBA = WHITE;
-	private align: TextAlign = 'left';
-	private verticalAlign: TextVerticalAlign = 'top';
+	private ownColor: RGBA = WHITE;
+	private ownAlign: TextAlign = 'left';
+	private ownVerticalAlign: TextVerticalAlign = 'top';
 	/** A multiple of `fontSize`; null is the face's own (R6.10). */
 	private lineHeight: number | null = null;
 	private wrapMode: TextWrap = 'word';
@@ -165,12 +165,12 @@ export class Text extends Component {
 	private applyTextStyle(style: TextStyleObject): void {
 		validateStyle(style, TEXT_STYLE);
 		this.styleObject = style;
-		this.fontSize = style.fontSize !== undefined ? resolveLength(style.fontSize, 'fontSize') : DEFAULT_FONT_SIZE;
+		this.ownFontSize = style.fontSize !== undefined ? resolveLength(style.fontSize, 'fontSize') : DEFAULT_FONT_SIZE;
 		this.fontRole = style.fontRole !== undefined || style.fontFamily !== undefined || style.fontWeight !== undefined
 			? resolveFontRole({ family: style.fontRole ?? style.fontFamily, weight: style.fontWeight })
 			: 'body';
-		this.color = style.color !== undefined ? resolveColor(style.color) : WHITE;
-		this.align = style.textAlign ?? 'left';
+		this.ownColor = style.color !== undefined ? resolveColor(style.color) : WHITE;
+		this.ownAlign = style.textAlign ?? 'left';
 		this.letterSpacing = style.letterSpacing !== undefined ? resolveLetterSpacing(style.letterSpacing) : 0;
 		this.textTransform = style.textTransform ?? 'none';
 		this.decoration = style.textDecoration ?? 'none';
@@ -178,7 +178,7 @@ export class Text extends Component {
 	}
 
 	private applyLayoutOptions({ verticalAlign, wrap, textOverflow, lineHeight }: TextLayoutOptions): void {
-		if (verticalAlign !== undefined) this.verticalAlign = verticalAlign;
+		if (verticalAlign !== undefined) this.ownVerticalAlign = verticalAlign;
 		if (wrap !== undefined) this.wrapMode = wrap;
 		if (textOverflow !== undefined) this.textOverflow = textOverflow;
 		if (lineHeight !== undefined) this.lineHeight = lineHeight;
@@ -205,52 +205,59 @@ export class Text extends Component {
 		this.invalidateLayout();
 	}
 
-	public setText(text: string): this {
+	public get text(): string {
+		return this.content;
+	}
+
+	public set text(text: string) {
 		if (text !== this.content) {
 			this.content = text;
 			this.remeasure();
 			// Content is measurement input even when both axes are assigned (R8.18).
 			this.invalidateLayout();
 		}
-		return this;
 	}
 
-	public getText(): string {
-		return this.content;
+	public get fontSize(): number {
+		return this.ownFontSize;
 	}
 
-	public setFontSize(size: number): this {
-		if (size !== this.fontSize) {
-			this.fontSize = size;
+	public set fontSize(size: number) {
+		if (size !== this.ownFontSize) {
+			this.ownFontSize = size;
 			this.remeasure();
 			this.invalidateLayout();
 		}
-		return this;
 	}
 
-	public getFontSize(): number {
-		return this.fontSize;
+	public get color(): RGBA {
+		return this.ownColor;
 	}
 
-	public setColor(color: ColorValue): this {
-		this.color = resolveColor(color);
-		return this;
+	public set color(color: ColorValue) {
+		this.ownColor = resolveColor(color);
 	}
 
-	public setAlign(align: TextAlign): this {
-		if (align !== this.align) {
-			this.align = align;
+	public get align(): TextAlign {
+		return this.ownAlign;
+	}
+
+	public set align(align: TextAlign) {
+		if (align !== this.ownAlign) {
+			this.ownAlign = align;
 			this.runMoved();
 		}
-		return this;
 	}
 
-	public setVerticalAlign(verticalAlign: TextVerticalAlign): this {
-		if (verticalAlign !== this.verticalAlign) {
-			this.verticalAlign = verticalAlign;
+	public get verticalAlign(): TextVerticalAlign {
+		return this.ownVerticalAlign;
+	}
+
+	public set verticalAlign(verticalAlign: TextVerticalAlign) {
+		if (verticalAlign !== this.ownVerticalAlign) {
+			this.ownVerticalAlign = verticalAlign;
 			this.runMoved();
 		}
-		return this;
 	}
 
 	/**
@@ -272,40 +279,26 @@ export class Text extends Component {
 		this.invalidateInk();
 	}
 
-	/**
-	 * The accessors mean what `setWidth` and `setHeight` mean, so an authored
-	 * size has one home: set through either, it survives the next re-fit.
-	 */
 	public get width(): number {
 		return super.width;
 	}
 
-	public set width(value: number) {
-		this.setWidth(value);
+	/** Positive fixes the width; zero hugs the measured width again. */
+	public set width(width: number) {
+		this.authoredWidth = width;
+		this.widthMode = authoredSizeMode(width, this.widthMode);
+		this.fit();
 	}
 
 	public get height(): number {
 		return super.height;
 	}
 
-	public set height(value: number) {
-		this.setHeight(value);
-	}
-
-	/** Positive fixes the width; zero hugs the measured width again. */
-	public setWidth(width: number): this {
-		this.authoredWidth = width;
-		this.widthMode = authoredSizeMode(width, this.widthMode);
-		this.fit();
-		return this;
-	}
-
 	/** Positive fixes the height; zero hugs the measured height again. */
-	public setHeight(height: number): this {
+	public set height(height: number) {
 		this.authoredHeight = height;
 		this.heightMode = authoredSizeMode(height, this.heightMode);
 		this.fit();
-		return this;
 	}
 
 	public setSize(width: number, height: number): this {
@@ -360,7 +353,7 @@ export class Text extends Component {
 	}
 
 	public get resolvedColors(): ResolvedColors {
-		return { text: this.color };
+		return { text: this.ownColor };
 	}
 
 	/**
@@ -439,7 +432,7 @@ export class Text extends Component {
 		const shadowReach = shadow
 			? Math.max(Math.abs(shadow.offset?.x ?? 0), Math.abs(shadow.offset?.y ?? 0)) + (shadow.blur ?? 0)
 			: 0;
-		const slack = Math.max(0, this.fontSize) + shadowReach;
+		const slack = Math.max(0, this.ownFontSize) + shadowReach;
 		return {
 			x: -spillX - slack,
 			y: -spillY - slack,
@@ -521,7 +514,7 @@ export class Text extends Component {
 		return draw.measureText({
 			text: this.content,
 			font: this.fontRole,
-			size: this.fontSize,
+			size: this.ownFontSize,
 			letterSpacing: this.letterSpacing,
 			textTransform: this.textTransform,
 			wrap,
@@ -619,10 +612,10 @@ export class Text extends Component {
 			text: this.content,
 			box: { x: 0, y: 0, width: this.width, height: this.height },
 			font: this.fontRole,
-			size: this.fontSize,
-			color: this.color,
-			align: this.align,
-			verticalAlign: this.verticalAlign,
+			size: this.ownFontSize,
+			color: this.ownColor,
+			align: this.ownAlign,
+			verticalAlign: this.ownVerticalAlign,
 			wrap: this.wrap,
 			overflow: this.textOverflow,
 			letterSpacing: this.letterSpacing,

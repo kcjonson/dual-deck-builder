@@ -63,8 +63,8 @@ export class DeveloperOverlay extends Container {
 		this.background = new Rectangle({
 			x: 0,
 			y: 0,
-			width: this.getWidth(),
-			height: this.getHeight(),
+			width: this.width,
+			height: this.height,
 			style: {
 				backgroundColor: '#000000',
 				borderColor: '#4CAF50',
@@ -112,7 +112,7 @@ export class DeveloperOverlay extends Container {
 
 	public set viewportWidth(width: number) {
 		this.anchorWidth = width;
-		this.setPosition(width - this.getWidth() - EDGE_MARGIN, EDGE_MARGIN);
+		this.setPosition(width - this.width - EDGE_MARGIN, EDGE_MARGIN);
 	}
 	
 	/**
@@ -163,7 +163,7 @@ export class DeveloperOverlay extends Container {
 			`DevTools track: ${tracks ?? 'n/a'}`,
 		].join('\n');
 
-		this.performanceText.setText(text);
+		this.performanceText.text = text;
 	}
 
 	/**

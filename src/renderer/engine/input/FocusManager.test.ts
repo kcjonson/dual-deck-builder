@@ -340,12 +340,12 @@ describe('focus groups (R9.29)', () => {
 	it('is entered at its active child by directional focus too, or at the nearest member without one', () => {
 		const { group, cards, root } = hand();
 		group.activeChild = cards[2];
-		context.focus.focus(root.getChildren()[0]);
+		context.focus.focus(root.children[0]);
 		key('ArrowUp');
 		expect(focusedId()).toBe('three');
 
 		cards[2].enabled = false;
-		context.focus.focus(root.getChildren()[0]);
+		context.focus.focus(root.children[0]);
 		key('ArrowUp');
 		expect(focusedId()).toBe('one');
 	});
@@ -377,7 +377,7 @@ describe('focus groups (R9.29)', () => {
 
 	it('stops at its ends without wrap and falls back to directional focus off the axis', () => {
 		const { group } = hand();
-		context.focus.focus(group.getChildren()[2]);
+		context.focus.focus(group.children[2]);
 		key('ArrowRight');
 		expect(focusedId()).toBe('three');
 		key('ArrowDown');
@@ -399,7 +399,7 @@ describe('focus groups (R9.29)', () => {
 	it('wraps when asked', () => {
 		const { group } = hand();
 		group.focusGroup = { orientation: 'horizontal', wrap: true };
-		context.focus.focus(group.getChildren()[2]);
+		context.focus.focus(group.children[2]);
 		key('ArrowRight');
 		expect(focusedId()).toBe('one');
 	});

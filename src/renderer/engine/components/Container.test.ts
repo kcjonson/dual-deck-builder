@@ -59,7 +59,7 @@ describe('Container parts (R8.1)', () => {
 			panel.addChild(card);
 			panel.addPart(border);
 
-			expect(panel.getChildren().map((child) => child.id)).toEqual(['background', 'card', 'border']);
+			expect(panel.children.map((child) => child.id)).toEqual(['background', 'card', 'border']);
 			expect(panel.debugChildren.map((child) => child.id)).toEqual(['background', 'card', 'border']);
 		});
 
@@ -71,7 +71,7 @@ describe('Container parts (R8.1)', () => {
 			panel.addPart(background);
 			panel.addChild(card);
 
-			const children = panel.getChildren();
+			const children = panel.children;
 
 			expect(children).toHaveLength(2);
 			expect(children[0]).toBe(background);
@@ -88,7 +88,7 @@ describe('Container parts (R8.1)', () => {
 
 			expect(panel.removeChild(background)).toBe(true);
 			expect(background.isPart).toBe(false);
-			expect(panel.getChildren()).toHaveLength(0);
+			expect(panel.children).toHaveLength(0);
 		});
 
 		it('leaves a detached part a plain child when it is re-added with addChild', () => {
@@ -101,7 +101,7 @@ describe('Container parts (R8.1)', () => {
 			adopter.addChild(background);
 
 			expect(background.isPart).toBe(false);
-			expect(adopter.getChildren()).toEqual([background]);
+			expect(adopter.children).toEqual([background]);
 		});
 
 		it('clears the mark when a part is adopted straight into another parent', () => {

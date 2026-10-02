@@ -267,7 +267,7 @@ export class Stack extends Container {
 			const along = axis === this.mainAxis;
 			let total = 0;
 			let count = 0;
-			for (const child of this.getChildren()) {
+			for (const child of this.children) {
 				if (!child.visible || !this.flows(child)) continue;
 				const least = shrinkFloor(child, axis, Infinity) + marginOn(child, axis);
 				total = along ? total + least : Math.max(total, least);
@@ -420,7 +420,7 @@ export class Stack extends Container {
 		const main = this.mainAxis;
 		const cross = this.crossAxis;
 		const slots: Slot[] = [];
-		for (const child of this.getChildren()) {
+		for (const child of this.children) {
 			if (!child.visible || !this.flows(child)) continue;
 			slots.push({
 				child,
@@ -588,7 +588,7 @@ export class Stack extends Container {
 	 */
 	private sizeAbsoluteChildren(): void {
 		const box = this.anchorBox;
-		for (const child of this.getChildren()) {
+		for (const child of this.children) {
 			if (!child.visible || this.flows(child) || child.isPart) continue;
 			const roomWidth = Math.max(box.width - marginOn(child, 'width'), 0);
 			const roomHeight = Math.max(box.height - marginOn(child, 'height'), 0);

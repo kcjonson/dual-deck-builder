@@ -12,11 +12,11 @@ const INTENT_INSET = 6;
  * Enemy-specific vehicle UI component
  */
 class EnemyVehicle extends VehicleUI {
-	protected getPortraitColor(): string {
+	protected get portraitColor(): string {
 		return '#4a3a3a'; // Enemy red tint
 	}
 
-	protected getBorderColor(): string {
+	protected get borderColor(): string {
 		return '#6a5a5a'; // Enemy red border
 	}
 }
@@ -50,12 +50,12 @@ export class EnemyBattlefieldLayer extends BattlefieldLayer {
 	/**
 	 * Get card dimensions for enemy vehicles
 	 */
-	protected getCardWidth(): number {
+	protected get cardWidth(): number {
 		return 140; // Slightly smaller than player vehicles
 	}
 
-	protected getCardHeight(): number {
-		return Math.floor(this.getHeight() * 0.55); // Slightly smaller
+	protected get cardHeight(): number {
+		return Math.floor(this.height * 0.55); // Slightly smaller
 	}
 
 	/**
@@ -66,8 +66,8 @@ export class EnemyBattlefieldLayer extends BattlefieldLayer {
 			id: `enemy_vehicle_${this.slotId(vehicle)}`,
 			x: 0,
 			y: 0,
-			width: this.getCardWidth(),
-			height: this.getCardHeight(),
+			width: this.cardWidth,
+			height: this.cardHeight,
 			vehicleData: vehicle,
 			combatData: this.combatData || undefined,
 			onClick: (v) => {

@@ -18,7 +18,7 @@ export class PrimitiveShapesSection extends DeveloperSectionPanel {
 
 		const circle = (radius: number, style: ShapeStyleObject): Circle => {
 			const shape = new Circle({ style });
-			shape.setRadius(radius);
+			shape.radius = radius;
 			return shape;
 		};
 
@@ -29,7 +29,7 @@ export class PrimitiveShapesSection extends DeveloperSectionPanel {
 		const star = new Polygon({ width: 70, height: 70, style: { backgroundColor: '#ffff00', borderColor: '#ff0000', borderWidth: 2 } });
 		star.makeStar(5, 0.4);
 		const diamond = new Polygon({ width: 60, height: 80, style: { backgroundColor: '#00ff00a0', borderColor: '#00ff00', borderWidth: 2 } });
-		diamond.setPoints([[0, -1], [1, 0], [0, 1], [-1, 0]]);
+		diamond.points = [[0, -1], [1, 0], [0, 1], [-1, 0]];
 
 		const column = new Stack({ gap: 20, padding: { left: 20 } });
 		column.addChild(group('Circles:', [

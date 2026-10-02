@@ -375,7 +375,7 @@ function ownerOf(component: Component | null): Component | null {
 function sizeToChildren(component: Component): void {
 	let width = 0;
 	let height = 0;
-	for (const child of component.getChildren()) {
+	for (const child of component.children) {
 		const bounds = child.bounds;
 		width = Math.max(width, bounds.x + bounds.width);
 		height = Math.max(height, bounds.y + bounds.height);

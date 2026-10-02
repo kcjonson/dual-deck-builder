@@ -127,7 +127,7 @@ describe('Container (R12.18)', () => {
 		container.addChild(child);
 		expect(draw(container).filter((command) => command.id === 'c')).toEqual([]);
 		expect(container.pointerEvents).toBe('passthrough');
-		expect(container.getChildren()).toEqual([child]);
+		expect(container.children).toEqual([child]);
 		expect(container.resolvedColors).toBeNull();
 	});
 

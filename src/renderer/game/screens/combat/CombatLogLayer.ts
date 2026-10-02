@@ -101,11 +101,11 @@ export class CombatLogLayer extends Container {
 
 	/** The layout phase: the layer was sized (R8.18). */
 	protected layoutChildren(): void {
-		const width = this.getWidth();
-		const height = this.getHeight();
+		const width = this.width;
+		const height = this.height;
 		this.background.setSize(width, height);
-		this.header.setWidth(width);
-		this.title.setWidth(width);
+		this.header.width = width;
+		this.title.width = width;
 		this.scroller.setSize(width - this.padding * 2, height - this.headerHeight - 15);
 	}
 

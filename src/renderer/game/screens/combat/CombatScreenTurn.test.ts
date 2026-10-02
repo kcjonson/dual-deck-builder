@@ -48,13 +48,13 @@ async function startCombat(): Promise<CombatScreen> {
 
 function handCards(combat: CombatScreen): UICard[] {
 	const layer = combat['handLayer'];
-	return layer.getHandCards().map(card => layer.getCardElementByCard(card)).filter((card): card is UICard => card !== null);
+	return layer.handCards.map(card => layer.getCardElementByCard(card)).filter((card): card is UICard => card !== null);
 }
 
 /** A card of the first driver's that plays at once on a click, dealt in if the hand lacks one. */
 function noTargetCard(combat: CombatScreen): UICard {
 	const [driver] = combat['playerDrivers'];
-	const found = handCards(combat).find(card => card.getData().targetType === 'self' && driver.hand.includes(card.getData()));
+	const found = handCards(combat).find(card => card.data.targetType === 'self' && driver.hand.includes(card.data));
 	if (found) return found;
 	const card = CardLoader.getInstance().createCard('repair_kit') as Card;
 	driver.set({ hand: [card, ...driver.hand] });
@@ -86,8 +86,8 @@ describe('CombatScreen turn banner', () => {
 		const combat = await startCombat();
 		const banner = combat['turnBanner'];
 		expect(banner.text).toBe('YOUR TURN');
-		expect(banner.isVisible()).toBe(true);
-		const road = combat['stage'].getChildren()[0].getChildren()[1];
+		expect(banner.visible).toBe(true);
+		const road = combat['stage'].children[0].children[1];
 		advance(context, 16);
 		expect(banner.screenBounds.width).toBeCloseTo(road.screenBounds.width, 6);
 		expect(banner.screenBounds.y).toBeGreaterThan(road.screenBounds.y);
@@ -95,7 +95,7 @@ describe('CombatScreen turn banner', () => {
 
 		advance(context, TURN_BANNER_LIFETIME);
 		expect(banner.current).toBeNull();
-		expect(banner.isVisible()).toBe(false);
+		expect(banner.visible).toBe(false);
 		combat.unmount();
 	});
 
@@ -172,7 +172,7 @@ describe('CombatScreen intents', () => {
 		const row = combat['enemyLayer'].intentRowOf(raider.id);
 		context.animator.settle();
 		context.frame.layout();
-		const disc = row?.getChildren().find((child): child is IntentMarker => child instanceof IntentMarker);
+		const disc = row?.children.find((child): child is IntentMarker => child instanceof IntentMarker);
 		if (!disc?.intent) throw new Error('the raider should plan something');
 		const { x, y, width, height } = disc.screenBounds;
 		const at = { x: x + width / 2, y: y + height / 2 };
@@ -194,8 +194,8 @@ describe('CombatScreen intents', () => {
 
 function textsIn(component: Component | null): string[] {
 	if (!component) return [];
-	const own = component instanceof Text ? [component.getText()] : [];
-	return [...own, ...component.getChildren().flatMap(child => textsIn(child))];
+	const own = component instanceof Text ? [component.text] : [];
+	return [...own, ...component.children.flatMap(child => textsIn(child))];
 }
 
 describe('CombatScreen discard flights', () => {
@@ -203,7 +203,7 @@ describe('CombatScreen discard flights', () => {
 		const combat = await startCombat();
 		const card = noTargetCard(combat);
 		const from = card.screenBounds;
-		combat['chooseCard'](card.getData(), 'click');
+		combat['chooseCard'](card.data, 'click');
 		const fx = combat['fx'];
 		const [flight] = fx.discardFlights;
 		expect(flight).toBeDefined();

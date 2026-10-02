@@ -73,7 +73,7 @@ export class PopoverScene extends DeveloperSectionPanel {
 		const context = this.context;
 		if (!context) return;
 		this.popover?.close();
-		this.popover = new Popover({ id: `${anchor.id}_popover`, content: breakdown(anchor.getLabel(), stats), anchor, preferredSide: side });
+		this.popover = new Popover({ id: `${anchor.id}_popover`, content: breakdown(anchor.label, stats), anchor, preferredSide: side });
 		this.popover.show(context);
 	}
 }

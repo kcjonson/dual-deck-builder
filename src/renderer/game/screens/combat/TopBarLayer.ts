@@ -123,18 +123,18 @@ export class TopBarLayer extends ChromeStack {
 	}
 
 	private showLatestEntry(): void {
-		this.ticker.setText(this.combatLog.getLatestEntry()?.message ?? '');
+		this.ticker.text = this.combatLog.getLatestEntry()?.message ?? '';
 	}
 
 	public set turn(turn: number) {
-		this.turnLabel.setText(`Turn ${turn}`);
+		this.turnLabel.text = `Turn ${turn}`;
 	}
 
 	public set scrap(amount: number) {
-		this.scrapValue.setText(amount.toString());
+		this.scrapValue.text = amount.toString();
 	}
 
 	public set fuel(amount: number) {
-		this.fuelValue.setText(amount.toString());
+		this.fuelValue.text = amount.toString();
 	}
 }

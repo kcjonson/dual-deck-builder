@@ -40,9 +40,9 @@ const PORTRAIT_MIN_HEIGHT = 40;
 export class DriverPanel extends Stack {
 	private readonly panelSide: DriverPanelSide;
 	private readonly idPrefix: string;
-	private isEmpty = true;
-	private selectedDriver: Driver | null = null;
-	private availableDrivers: Driver[] = [];
+	private empty = true;
+	private chosenDriver: Driver | null = null;
+	private drivers: Driver[] = [];
 	private currentDriverIndex = 0;
 	private partner: Driver | null = null;
 
@@ -59,8 +59,8 @@ export class DriverPanel extends Stack {
 	/** Bumped per preview build, so a build that awaited the card data can tell a newer one started. */
 	private deckRequest = 0;
 
-	// Callbacks
-	private onDriverChanged: ((driver: Driver | null) => void) | null = null;
+	/** After the selected driver changes, with the new one (R8.25). */
+	public onDriverChanged: ((driver: Driver | null) => void) | null = null;
 
 	constructor({ side, ...options }: DriverPanelOptions) {
 		super({
@@ -204,11 +204,13 @@ export class DriverPanel extends Stack {
 		return text;
 	}
 
-	/**
-	 * Set available drivers for selection
-	 */
-	public setAvailableDrivers(drivers: Driver[]): void {
-		this.availableDrivers = drivers;
+	/** The drivers the panel offers. */
+	public get availableDrivers(): Driver[] {
+		return this.drivers;
+	}
+
+	public set availableDrivers(drivers: Driver[]) {
+		this.drivers = drivers;
 		this.refreshOptions();
 		if (drivers.length > 0 && this.panelSide === 'left') {
 			// Left panel can be activated immediately
@@ -223,7 +225,7 @@ export class DriverPanel extends Stack {
 	public set partnerDriver(driver: Driver | null) {
 		this.partner = driver;
 		this.refreshOptions();
-		if (driver && this.selectedDriver && isSameDriver(driver, this.selectedDriver)) {
+		if (driver && this.chosenDriver && isSameDriver(driver, this.chosenDriver)) {
 			this.selectFrom(this.currentDriverIndex + 1);
 		}
 	}
@@ -232,11 +234,11 @@ export class DriverPanel extends Stack {
 	 * Activate this panel for driver selection
 	 */
 	public activate(): void {
-		if (this.availableDrivers.length === 0) return;
+		if (this.drivers.length === 0) return;
 
-		this.isEmpty = false;
-		this.emptyStateText.setVisible(false);
-		this.details.setVisible(true);
+		this.empty = false;
+		this.emptyStateText.visible = false;
+		this.details.visible = true;
 		this.selectFrom(this.currentDriverIndex);
 	}
 
@@ -246,7 +248,7 @@ export class DriverPanel extends Stack {
 	 * on to the next open driver rather than share one.
 	 */
 	public selectDriver(archetype: string): void {
-		const index = this.availableDrivers.findIndex((driver) => driver.archetype === archetype);
+		const index = this.drivers.findIndex((driver) => driver.archetype === archetype);
 		if (index !== -1) this.selectFrom(index);
 	}
 
@@ -255,31 +257,29 @@ export class DriverPanel extends Stack {
 	 */
 	private selectFrom(index: number): void {
 		const openIndex = nextOpenDriverIndex({
-			drivers: this.availableDrivers,
+			drivers: this.drivers,
 			fromIndex: index,
 			partner: this.partner,
 		});
 		if (openIndex === -1) {
-			this.selectedDriver = null;
+			this.chosenDriver = null;
 		} else {
 			this.currentDriverIndex = openIndex;
-			this.selectedDriver = this.availableDrivers[openIndex];
+			this.chosenDriver = this.drivers[openIndex];
 		}
 
-		if (!this.isEmpty) {
+		if (!this.empty) {
 			this.updateDriverDisplay();
 		}
 
 		if (this.onDriverChanged) {
-			this.onDriverChanged(this.selectedDriver);
+			this.onDriverChanged(this.chosenDriver);
 		}
 	}
 
-	/**
-	 * Get the currently selected driver
-	 */
-	public getSelectedDriver(): Driver | null {
-		return this.selectedDriver;
+	/** The currently selected driver. */
+	public get selectedDriver(): Driver | null {
+		return this.chosenDriver;
 	}
 
 	/** The driver Select at the panel's foot. */
@@ -292,41 +292,32 @@ export class DriverPanel extends Stack {
 		return this.deckScroll;
 	}
 
-	/**
-	 * Set callback for when driver selection changes
-	 */
-	public setOnDriverChanged(callback: (driver: Driver | null) => void): void {
-		this.onDriverChanged = callback;
-	}
-
-	/**
-	 * Check if this panel is empty
-	 */
-	public getIsEmpty(): boolean {
-		return this.isEmpty;
+	/** Whether the panel has not been activated yet. */
+	public get isEmpty(): boolean {
+		return this.empty;
 	}
 
 	/**
 	 * Reset panel to initial state
 	 */
 	public reset(): void {
-		this.selectedDriver = null;
+		this.chosenDriver = null;
 		this.currentDriverIndex = 0;
 		this.partner = null;
-		this.isEmpty = true;
+		this.empty = true;
 		this.deckRequest += 1;
 		this.deckGrid.clearChildren();
 		this.deckScroll.scrollToTop();
 		this.driverSelect.value = null;
 		this.refreshOptions();
-		this.details.setVisible(false);
-		this.emptyStateText.setVisible(true);
+		this.details.visible = false;
+		this.emptyStateText.visible = true;
 	}
 
 	/** Every driver, the partner's offered but disabled. */
 	private refreshOptions(): void {
 		const partner = this.partner;
-		this.driverSelect.options = this.availableDrivers.map((driver) => ({
+		this.driverSelect.options = this.drivers.map((driver) => ({
 			label: driver.metadata.name,
 			value: driver.archetype,
 			enabled: !partner || !isSameDriver(driver, partner),
@@ -337,13 +328,13 @@ export class DriverPanel extends Stack {
 	 * Update the driver display with current selection
 	 */
 	private updateDriverDisplay(): void {
-		const driver = this.selectedDriver;
+		const driver = this.chosenDriver;
 		if (!driver) return;
 
-		this.driverName.setText(driver.metadata.name);
-		this.vehicleName.setText(`Vehicle: ${driver.metadata.vehicleName}`);
-		this.specialtyTag.setText(driver.metadata.specialty);
-		this.flavorText.setText(driver.metadata.flavorText);
+		this.driverName.text = driver.metadata.name;
+		this.vehicleName.text = `Vehicle: ${driver.metadata.vehicleName}`;
+		this.specialtyTag.text = driver.metadata.specialty;
+		this.flavorText.text = driver.metadata.flavorText;
 		this.driverSelect.value = driver.archetype;
 
 		this.updateStartingDeckDisplay();
@@ -357,7 +348,7 @@ export class DriverPanel extends Stack {
 	 */
 	private async updateStartingDeckDisplay(): Promise<void> {
 		const request = ++this.deckRequest;
-		const driver = this.selectedDriver;
+		const driver = this.chosenDriver;
 		if (!driver) return;
 
 		const cardLoader = CardLoader.getInstance();

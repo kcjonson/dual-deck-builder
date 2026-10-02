@@ -77,7 +77,7 @@ export class InteractiveControlsSection extends DeveloperSectionPanel {
 		const parts = value.split(',').map((part) => parseFloat(part.trim()));
 		if (parts.length !== 4 || parts.some((part) => isNaN(part))) return;
 		const [r, g, b, a] = parts;
-		this.demoRectangle.setFillColor([r / 255, g / 255, b / 255, a]);
+		this.demoRectangle.fillColor = [r / 255, g / 255, b / 255, a];
 	}
 
 	private applyPosition(value: string): void {

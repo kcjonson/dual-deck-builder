@@ -89,7 +89,7 @@ export class EndTurnColumn extends Stack {
 	 * the player would leave unspent under it
 	 */
 	public show({ turn, playerTurn, unspentAdrenaline }: { turn: number; playerTurn: boolean; unspentAdrenaline: number }): void {
-		this.turnLabel.setText(`Turn ${turn} · ${playerTurn ? 'Your move' : 'Raiders'}`);
-		this.warning.setText(playerTurn && unspentAdrenaline > 0 ? `${unspentAdrenaline} adrenaline unspent` : '');
+		this.turnLabel.text = `Turn ${turn} · ${playerTurn ? 'Your move' : 'Raiders'}`;
+		this.warning.text = playerTurn && unspentAdrenaline > 0 ? `${unspentAdrenaline} adrenaline unspent` : '';
 	}
 }

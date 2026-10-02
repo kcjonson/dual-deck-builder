@@ -151,11 +151,11 @@ export class Toast extends Stack {
 	}
 
 	public get title(): string {
-		return this.titleText.getText();
+		return this.titleText.text;
 	}
 
 	public get message(): string | null {
-		return this.messageText?.getText() ?? null;
+		return this.messageText?.text ?? null;
 	}
 
 	/** Live: appearing or visible, not on its way out. */
@@ -389,7 +389,7 @@ export class ToastStack extends Stack {
 		toast.slideFrom = this.isLeft ? -1 : 1;
 		toast.onFinished = (finished) => this.removeToast(finished);
 		this.visible = true;
-		this.insertChild(this.isTop ? 0 : this.getChildren().length, toast);
+		this.insertChild(this.isTop ? 0 : this.children.length, toast);
 		return toast;
 	}
 
@@ -413,7 +413,7 @@ export class ToastStack extends Stack {
 	}
 
 	private toastsByAge(): Toast[] {
-		const toasts = this.getChildren().filter((child): child is Toast => child instanceof Toast);
+		const toasts = this.children.filter((child): child is Toast => child instanceof Toast);
 		return toasts.sort((a, b) => a.zIndex - b.zIndex);
 	}
 
@@ -425,6 +425,6 @@ export class ToastStack extends Stack {
 
 	private removeToast(toast: Toast): void {
 		this.removeChild(toast);
-		if (this.getChildren().length === 0) this.visible = false;
+		if (this.children.length === 0) this.visible = false;
 	}
 }

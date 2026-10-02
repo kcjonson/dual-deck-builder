@@ -57,7 +57,7 @@ export class Divider extends Component {
 	}
 
 	public get caption(): string | null {
-		return this.captionText?.getText() ?? null;
+		return this.captionText?.text ?? null;
 	}
 
 	public get resolvedColors(): ResolvedColors {

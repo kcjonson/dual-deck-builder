@@ -168,7 +168,7 @@ describe('Button styling (R11)', () => {
 
 		it('reaches the hover fill at dur_fast', () => {
 			const button = mount(new Button('Go', { width: 100 }));
-			button.setHovered(true);
+			button.hovered = true;
 			advance(tokens.motion.dur_fast / 2);
 			const midway = button.look.fill;
 			expect(midway).not.toEqual(color.bg_panel_raised);
@@ -180,10 +180,10 @@ describe('Button styling (R11)', () => {
 
 		it('reverses from the current value when the hover ends mid-way', () => {
 			const button = mount(new Button('Go', { width: 100 }));
-			button.setHovered(true);
+			button.hovered = true;
 			advance(tokens.motion.dur_fast / 2);
 			const midway = button.look.fill[0];
-			button.setHovered(false);
+			button.hovered = false;
 			expect(button.look.fill[0]).toBeCloseTo(midway, 6);
 			advance(1);
 			expect(button.look.fill[0]).toBeLessThan(midway);
@@ -193,7 +193,7 @@ describe('Button styling (R11)', () => {
 
 		it('moves the glow over dur, slower than the colour', () => {
 			const button = mount(new Button('Go', { tone: 'accent', width: 100 }));
-			button.setHovered(true);
+			button.hovered = true;
 			advance(tokens.motion.dur_fast);
 			expect(button.look.fill).toEqual(color.accent_bright);
 			expect(button.look.glow[3]).toBeLessThan(color.accent_glow[3]);
@@ -213,14 +213,14 @@ describe('Button styling (R11)', () => {
 		it('is immediate under reduced motion', () => {
 			context.animator.reducedMotion = true;
 			const button = mount(new Button('Go', { width: 100 }));
-			button.setHovered(true);
+			button.hovered = true;
 			advance(1);
 			expect(button.look.fill).toEqual(hoverFill);
 		});
 
 		it('snaps while unmounted, where there is no animator', () => {
 			const button = new Button('Go', { width: 100 });
-			button.setHovered(true);
+			button.hovered = true;
 			expect(button.look.fill).toEqual(hoverFill);
 		});
 
@@ -263,7 +263,7 @@ describe('Button styling (R11)', () => {
 			const input = mount(new TextInput({ placeholder: 'Name', width: 200 }));
 			const textOf = (content: string) => draw(input).texts.find((text) => text.text === content);
 			expect(textOf('Name')?.color).toEqual(color.text_faint);
-			input.setEnabled(false);
+			input.enabled = false;
 			advance(tokens.motion.dur_fast);
 			expect(textOf('Name')?.color).toEqual(color.text_disabled);
 			input.value = 'x';

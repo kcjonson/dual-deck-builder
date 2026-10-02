@@ -72,16 +72,16 @@ describe('SplashScreen', () => {
 		const logo = screen.root.findById('splash_logo');
 		const title = screen.root.findById('splash_title');
 		if (!logo || !title) throw new Error('the logo and title should be mounted');
-		expect(screen.root.getWidth()).toBe(1280);
-		expect(logo.getX()).toBe((1280 - logo.getWidth()) / 2);
+		expect(screen.root.width).toBe(1280);
+		expect(logo.x).toBe((1280 - logo.width) / 2);
 
 		viewport.logical = { width: 800, height: 600 };
 		context.frame.viewportChanged();
 		context.frame.layout();
-		expect(screen.root.getWidth()).toBe(800);
-		expect(screen.root.getHeight()).toBe(600);
-		expect(logo.getX()).toBe((800 - logo.getWidth()) / 2);
-		expect(title.getX()).toBe((800 - title.getWidth()) / 2);
+		expect(screen.root.width).toBe(800);
+		expect(screen.root.height).toBe(600);
+		expect(logo.x).toBe((800 - logo.width) / 2);
+		expect(title.x).toBe((800 - title.width) / 2);
 	});
 
 	it('fades in and holds again after a remount mid-hold', () => {

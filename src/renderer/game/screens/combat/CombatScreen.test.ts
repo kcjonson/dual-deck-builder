@@ -100,7 +100,7 @@ async function selectDrivers(): Promise<Driver[]> {
 	const selection = new DriverSelectionScreen();
 	selection.mount(context);
 	await flushPromises();
-	const { driver1, driver2 } = selection.getSelectedDrivers();
+	const { driver1, driver2 } = selection.selectedDrivers;
 	selection.unmount();
 	if (!driver1 || !driver2) {
 		throw new Error('driver selection should open with both slots filled');
@@ -194,7 +194,7 @@ describe('CombatScreen: each run starts from fresh drivers', () => {
 		await flushPromises();
 		await flushPromises();
 
-		const state = combat.getBattleState();
+		const state = combat.battleState;
 		expect(state).not.toBeNull();
 		for (const template of loader.getUnlockedDrivers()) {
 			expect(template.hitpoints).toBe(template.maxHitpoints);
@@ -355,7 +355,7 @@ describe('CombatScreen: one layout for mount and resize', () => {
 	it('clicking END TURN after a resize ends the turn', async () => {
 		const combat = mountBare();
 		await settle();
-		expect(combat.getBattleState()?.isPlayerTurn).toBe(true);
+		expect(combat.battleState?.isPlayerTurn).toBe(true);
 
 		resizeViewport(combat, 1280, 720);
 		const { x, y, w, h } = endTurnBounds(combat);
@@ -463,7 +463,7 @@ describe('CombatScreen: mount and unmount', () => {
 		combat.mount(context);
 		await settle();
 		const firstMount = {
-			layers: combat.root.getChildren().length,
+			layers: combat.root.children.length,
 			listeners: modelListeners(combat),
 			input: inputRegistrations(),
 		};
@@ -472,7 +472,7 @@ describe('CombatScreen: mount and unmount', () => {
 		combat.mount(context);
 		await settle();
 		expect({
-			layers: combat.root.getChildren().length,
+			layers: combat.root.children.length,
 			listeners: modelListeners(combat),
 			input: inputRegistrations(),
 		}).toEqual(firstMount);
@@ -499,7 +499,7 @@ describe('CombatScreen: mount and unmount', () => {
 		combat.unmount();
 		await settle();
 
-		expect(combat.getBattleState()).toBeNull();
+		expect(combat.battleState).toBeNull();
 		expect(inputRegistrations()).toEqual(before);
 		expect(modelListeners(combat)).toBe(0);
 	});

@@ -109,24 +109,36 @@ export class Rectangle extends Component {
 		this.invalidateInk();
 	}
 
-	public setFillColor(color: ColorValue): this {
+	public get fillColor(): RGBA {
+		return this.box.fill;
+	}
+
+	public set fillColor(color: ColorValue) {
 		this.box = { ...this.box, fill: resolveColor(color) };
-		return this;
 	}
 
-	public setBorderColor(color: ColorValue | null): this {
+	public get borderColor(): RGBA | null {
+		return this.box.borderColor;
+	}
+
+	public set borderColor(color: ColorValue | null) {
 		this.box = { ...this.box, borderColor: color ? resolveColor(color) : null };
-		return this;
 	}
 
-	public setBorderWidth(width: number): this {
+	public get borderWidth(): number {
+		return this.box.borderWidth;
+	}
+
+	public set borderWidth(width: number) {
 		this.box = { ...this.box, borderWidth: width };
-		return this;
 	}
 
-	public setCornerRadius(radius: number): this {
+	public get cornerRadius(): number {
+		return this.box.cornerRadius;
+	}
+
+	public set cornerRadius(radius: number) {
 		this.box = { ...this.box, cornerRadius: radius };
-		return this;
 	}
 
 	public get inkExtent(): number {

@@ -37,7 +37,7 @@ describe('EnemyBattlefieldLayer intent markers', () => {
 			statusEffects: [],
 		});
 		layer = new EnemyBattlefieldLayer({ id: 'enemies', x: 0, y: 0, width: 1440, height: 200 });
-		layer.setVehicles([raider]);
+		layer.vehicles = [raider];
 		layer.mount(context);
 	});
 

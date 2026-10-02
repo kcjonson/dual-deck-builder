@@ -66,7 +66,7 @@ describe('TooltipService (R12.22)', () => {
 		send(context, [pointer('move', 120, 110)]);
 		advance(context, DELAY + 16);
 		const root = tooltipRoot();
-		expect(root?.getChildren()).toEqual([context.tooltips.surface]);
+		expect(root?.children).toEqual([context.tooltips.surface]);
 		expect(context.tooltips.surface?.pointerEvents).toBe('none');
 		// The pointer is still on the owner, not on the tooltip beneath it.
 		const surface = context.tooltips.surface as Rectangle;

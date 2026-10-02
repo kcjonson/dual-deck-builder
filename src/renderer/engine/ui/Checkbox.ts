@@ -111,11 +111,11 @@ export abstract class Checkable extends Pressable {
 	}
 
 	public get labelText(): string {
-		return this.label.getText();
+		return this.label.text;
 	}
 
 	public set labelText(text: string) {
-		this.label.setText(text);
+		this.label.text = text;
 		this.label.visible = text !== '';
 	}
 
@@ -220,7 +220,7 @@ export abstract class Checkable extends Pressable {
 	/** The label is the text colour, or the disabled one. */
 	private followState(): void {
 		const color = this.effectivelyEnabled ? tokens.color.text : tokens.color.text_disabled;
-		this.label.setColor([...color] as [number, number, number, number]);
+		this.label.color = [...color] as [number, number, number, number];
 	}
 
 	private hugWidth(): number {
@@ -229,7 +229,7 @@ export abstract class Checkable extends Pressable {
 	}
 
 	private placeLabel(): void {
-		this.label.setHeight(this.height);
+		this.label.height = this.height;
 		this.label.setPosition(this.markSize.width + LABEL_GAP, 0);
 	}
 }

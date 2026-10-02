@@ -79,20 +79,20 @@ export class Stat extends Component {
 	}
 
 	public get label(): string {
-		return this.labelText.getText();
+		return this.labelText.text;
 	}
 
 	public get value(): string {
-		return this.valueText.getText();
+		return this.valueText.text;
 	}
 
 	public set value(value: string | number) {
-		this.valueText.setText(String(value));
-		this.valueText.setColor(rgba(this.valueColor(value)));
+		this.valueText.text = String(value);
+		this.valueText.color = rgba(this.valueColor(value));
 	}
 
 	public get unit(): string | null {
-		return this.unitText?.getText() ?? null;
+		return this.unitText?.text ?? null;
 	}
 
 	public get tone(): Tone {
@@ -101,11 +101,11 @@ export class Stat extends Component {
 
 	public set tone(tone: Tone) {
 		this.toneValue = tone;
-		this.valueText.setColor(rgba(this.valueColor(this.valueText.getText())));
+		this.valueText.color = rgba(this.valueColor(this.valueText.text));
 	}
 
 	public get resolvedColors(): ResolvedColors {
-		return { text: this.valueColor(this.valueText.getText()) };
+		return { text: this.valueColor(this.valueText.text) };
 	}
 
 	public measure(availableWidth: number, availableHeight: number, definite: Axis | null = null): Size {

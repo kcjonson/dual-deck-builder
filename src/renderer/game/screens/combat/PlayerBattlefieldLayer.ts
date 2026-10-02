@@ -6,11 +6,11 @@ import { Vehicle as VehicleUI } from '../../ui/Vehicle';
  * Player-specific vehicle UI component
  */
 class PlayerVehicle extends VehicleUI {
-	protected getPortraitColor(): string {
+	protected get portraitColor(): string {
 		return '#4a5a4a'; // Player green tint
 	}
 
-	protected getBorderColor(): string {
+	protected get borderColor(): string {
 		return '#6a8a6a'; // Player green border
 	}
 }
@@ -34,12 +34,12 @@ export class PlayerBattlefieldLayer extends BattlefieldLayer {
 	/**
 	 * Get card dimensions for player vehicles
 	 */
-	protected getCardWidth(): number {
+	protected get cardWidth(): number {
 		return 160;
 	}
 
-	protected getCardHeight(): number {
-		return Math.floor(this.getHeight() * 0.6);
+	protected get cardHeight(): number {
+		return Math.floor(this.height * 0.6);
 	}
 
 	/**
@@ -50,8 +50,8 @@ export class PlayerBattlefieldLayer extends BattlefieldLayer {
 			id: `player_vehicle_${this.slotId(vehicle)}`,
 			x: 0,
 			y: 0,
-			width: this.getCardWidth(),
-			height: this.getCardHeight(),
+			width: this.cardWidth,
+			height: this.cardHeight,
 			vehicleData: vehicle,
 			combatData: this.combatData || undefined,
 			onClick: (v) => {

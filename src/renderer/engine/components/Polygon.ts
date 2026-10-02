@@ -9,11 +9,11 @@ import { triangulatePolygon, type Vec2 } from '../draw';
  * Polygon component for rendering arbitrary polygons
  */
 export class Polygon extends Component {
-	private fillColor: RGBA;
-	private strokeColor: RGBA;
+	private ownFill: RGBA;
+	private ownStroke: RGBA;
 	private strokeWidth: number;
 	private styleObject: ShapeStyleObject;
-	private points: Vec2[] = [];
+	private outlinePoints: Vec2[] = [];
 	/** R2.11's triangle list, recomputed when the outline changes rather than per frame. */
 	private indices: number[] = [];
 	/** `points` on the component's box, rewritten each render; the draw API copies them. */
@@ -27,8 +27,8 @@ export class Polygon extends Component {
 		super(options);
 		this.styleObject = style;
 		const shape = resolveShapeStyle('Polygon', style);
-		this.fillColor = shape.fill;
-		this.strokeColor = shape.stroke;
+		this.ownFill = shape.fill;
+		this.ownStroke = shape.stroke;
 		this.strokeWidth = shape.strokeWidth;
 		if (style.opacity !== undefined) this.opacity = style.opacity;
 		this.componentType = 'Polygon';
@@ -47,29 +47,29 @@ export class Polygon extends Component {
 	public set style(style: ShapeStyleObject) {
 		const shape = resolveShapeStyle('Polygon', style);
 		this.styleObject = style;
-		this.fillColor = shape.fill;
-		this.strokeColor = shape.stroke;
+		this.ownFill = shape.fill;
+		this.ownStroke = shape.stroke;
 		this.strokeWidth = shape.strokeWidth;
 		if (style.opacity !== undefined) this.opacity = style.opacity;
 		this.invalidateInk();
 	}
 
-	/**
-	 * Set the polygon's fill color
-	 * @param color Color value (hex string or RGBA array)
-	 */
-	public setFillColor(color: ColorValue): this {
-		this.fillColor = resolveColor(color);
-		return this;
+	/** The fill color. */
+	public get fillColor(): RGBA {
+		return this.ownFill;
 	}
 
-	/**
-	 * Set the polygon's stroke color
-	 * @param color Color value (hex string or RGBA array)
-	 */
-	public setStrokeColor(color: ColorValue): this {
-		this.strokeColor = resolveColor(color);
-		return this;
+	public set fillColor(color: ColorValue) {
+		this.ownFill = resolveColor(color);
+	}
+
+	/** The stroke color. */
+	public get strokeColor(): RGBA {
+		return this.ownStroke;
+	}
+
+	public set strokeColor(color: ColorValue) {
+		this.ownStroke = resolveColor(color);
 	}
 
 	/**
@@ -77,12 +77,15 @@ export class Polygon extends Component {
 	 * Points are relative to the polygon's position and will be scaled by width/height
 	 * @param points Array of [x, y] coordinates normalized to -1 to 1 range
 	 */
-	public setPoints(points: [number, number][]): this {
+	public get points(): readonly Vec2[] {
+		return this.outlinePoints;
+	}
+
+	public set points(points: [number, number][]) {
 		if (points.length < 3) {
 			throw new Error('Polygon must have at least 3 points');
 		}
 		this.outline = points;
-		return this;
 	}
 
 	/**
@@ -134,9 +137,9 @@ export class Polygon extends Component {
 	}
 
 	private set outline(points: [number, number][]) {
-		this.points = points.map(([x, y]) => ({ x, y }));
+		this.outlinePoints = points.map(([x, y]) => ({ x, y }));
 		this.boxPoints = points.map(() => ({ x: 0, y: 0 }));
-		this.indices = triangulatePolygon(this.points);
+		this.indices = triangulatePolygon(this.outlinePoints);
 	}
 
 	/** The stroke is centred on the outline, so half of it lands outside the box (R8.8). */
@@ -145,31 +148,31 @@ export class Polygon extends Component {
 	}
 
 	public get resolvedColors(): ResolvedColors {
-		return this.strokeWidth > 0 ? { fill: this.fillColor, border: this.strokeColor } : { fill: this.fillColor };
+		return this.strokeWidth > 0 ? { fill: this.ownFill, border: this.ownStroke } : { fill: this.ownFill };
 	}
 
 	public render(draw: DrawApi): void {
-		if (this.points.length < 3) return;
+		if (this.outlinePoints.length < 3) return;
 
 		// The box is applied to the points, not pushed as a transform; see Triangle.
 		const halfWidth = this.width / 2;
 		const halfHeight = this.height / 2;
-		for (let index = 0; index < this.points.length; index++) {
-			this.boxPoints[index].x = halfWidth + this.points[index].x * halfWidth;
-			this.boxPoints[index].y = halfHeight + this.points[index].y * halfHeight;
+		for (let index = 0; index < this.outlinePoints.length; index++) {
+			this.boxPoints[index].x = halfWidth + this.outlinePoints[index].x * halfWidth;
+			this.boxPoints[index].y = halfHeight + this.outlinePoints[index].y * halfHeight;
 		}
 		if (this.indices.length > 0) {
 			draw.drawPolygon({
 				id: this.id ?? undefined,
 				points: this.boxPoints,
 				indices: this.indices,
-				fill: this.fillColor,
+				fill: this.ownFill,
 			});
 		}
 		if (this.strokeWidth > 0) {
 			draw.drawPolyline({
 				points: this.boxPoints,
-				color: this.strokeColor,
+				color: this.ownStroke,
 				width: this.strokeWidth,
 				closed: true,
 			});

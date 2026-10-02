@@ -90,7 +90,7 @@ export class DriverTab extends ChromeStack {
 		this.seat = seat;
 
 		const mark = new Polygon({ width: MARK_SIZE, height: MARK_SIZE, style: { backgroundColor: color } });
-		mark.setPoints(MARK_OUTLINES[seat]);
+		mark.points = MARK_OUTLINES[seat];
 
 		this.nameLabel = new Text('', {
 			id: `driver${seat}_tab_name`,
@@ -151,11 +151,11 @@ export class DriverTab extends ChromeStack {
 
 	private show(): void {
 		const { name, adrenaline, maxAdrenaline, drawPileCount, discardPileCount, passenger } = this.data;
-		this.nameLabel.setText(name);
+		this.nameLabel.text = name;
 		this.passengerTag.visible = passenger;
 		this.showPips(Math.min(maxAdrenaline, MAX_PIPS), adrenaline);
-		this.adrenalineValue.setText(`${adrenaline}/${maxAdrenaline}`);
-		this.pilesLabel.setText(`DRAW ${drawPileCount}   DISCARD ${discardPileCount}`);
+		this.adrenalineValue.text = `${adrenaline}/${maxAdrenaline}`;
+		this.pilesLabel.text = `DRAW ${drawPileCount}   DISCARD ${discardPileCount}`;
 	}
 
 	/**
@@ -174,7 +174,7 @@ export class DriverTab extends ChromeStack {
 		}
 		const outward = this.seat === 1 ? this.pips : [...this.pips].reverse();
 		outward.forEach((pip, index) => {
-			pip.setFillColor(hexRgba(DRIVER_COLORS[this.seat], index < filled ? 1 : EMPTY_PIP_ALPHA));
+			pip.fillColor = hexRgba(DRIVER_COLORS[this.seat], index < filled ? 1 : EMPTY_PIP_ALPHA);
 		});
 	}
 }

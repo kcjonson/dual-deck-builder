@@ -392,7 +392,7 @@ export class CombatScreen extends Screen {
 
 		// Both hands show whenever both drivers are alive, whichever vehicle they're in
 		const battle = this.battle;
-		this.handLayer.setHand(buildPlayerHandView(this.playerDrivers, (driver, card) => battle.canPlayCard({ driver, card })));
+		this.handLayer.hand = buildPlayerHandView(this.playerDrivers, (driver, card) => battle.canPlayCard({ driver, card }));
 
 		this.playerDrivers.forEach((driver, index) => {
 			this.handLayer.setDriverData((index + 1) as 1 | 2, {
@@ -419,7 +419,7 @@ export class CombatScreen extends Screen {
 		// Update enemy layer with enemy vehicles
 		if (this.enemyTeam) {
 			// Pass the Vehicle[] directly
-			this.enemyLayer.setVehicles(this.enemyTeam.vehicles);
+			this.enemyLayer.vehicles = this.enemyTeam.vehicles;
 			
 			// Every raider's plan, two markers and then "+N", until the intent
 			// pills land (DDB-139)
@@ -432,7 +432,7 @@ export class CombatScreen extends Screen {
 		// Update battlefield layer with player vehicles
 		if (this.playerTeam) {
 			// Pass the Vehicle[] directly
-			this.battlefieldLayer.setVehicles(this.playerTeam.vehicles);
+			this.battlefieldLayer.vehicles = this.playerTeam.vehicles;
 		}
 	}
 
@@ -549,7 +549,7 @@ export class CombatScreen extends Screen {
 			zIndex: 1,
 			combatLog: this.combatLog,
 		});
-		this.combatLogLayer.setVisible(this.combatLogVisible);
+		this.combatLogLayer.visible = this.combatLogVisible;
 		road.addChild(this.combatLogLayer);
 
 		return road;
@@ -590,7 +590,7 @@ export class CombatScreen extends Screen {
 	 * back up to fill the screen. The stacks lay out everything inside it.
 	 */
 	private applyLayout(): void {
-		const { scale, width, height } = computeCombatStage({ width: this.rootLayer.getWidth(), height: this.rootLayer.getHeight() });
+		const { scale, width, height } = computeCombatStage({ width: this.rootLayer.width, height: this.rootLayer.height });
 		this.stage.setSize(width, height);
 		this.stage.transform = { scale, origin: [0, 0] };
 		this.fx.setSize(width, height);
@@ -600,9 +600,9 @@ export class CombatScreen extends Screen {
 	 * Set up layer interactions and callbacks
 	 */
 	private setupInteractions(): void {
-		this.handLayer.setOnCardSelect((card) => {
+		this.handLayer.onCardSelect = (card) => {
 			this.chooseCard(card, 'click');
-		});
+		};
 		this.handLayer.setOnCardDrag({
 			press: (card, element, event) => this.pressCard(card, element, event),
 			otherButton: () => {
@@ -620,13 +620,13 @@ export class CombatScreen extends Screen {
 		// hears of it after the next draw, which may already have shuffled
 		// the discard back into the deck, so the deck counts as the pile too.
 		// One played by a drop leaves from where it was dropped.
-		this.handLayer.setOnCardsLeave((leaving) => {
+		this.handLayer.onCardsLeave = (leaving) => {
 			for (const { card, element, seat } of leaving) {
 				if (this.flownCards.delete(card)) continue;
 				if (!seat || !this.playerDrivers.some(driver => this.wentToDiscard(driver, card))) continue;
 				this.fx.flyToDiscard({ card: element, pile: this.handLayer.pilesOf(seat), droppedAtReticle: this.fx.aimingFrom === element });
 			}
-		});
+		};
 
 		// Escape cancels targeting and L or F6 toggles the combat log, from the
 		// screen root's hotkey table, which keys reach after bubbling out of
@@ -782,15 +782,15 @@ export class CombatScreen extends Screen {
 			if (via === 'click') {
 				this.playCardWithTarget(card, undefined);
 			} else {
-				this.handLayer.setCardSelected(card);
-				this.handLayer.setTargetingMode(true);
+				this.handLayer.selectedCard = card;
+				this.handLayer.targetingMode = true;
 				this.combatModel.targetableVehicleIds = this.dropVehicles(card);
 			}
 			return true;
 		}
 
-		this.handLayer.setCardSelected(card);
-		this.handLayer.setTargetingMode(true);
+		this.handLayer.selectedCard = card;
+		this.handLayer.targetingMode = true;
 		this.combatModel.targetableVehicleIds = this.determineTargetableVehicles(card);
 
 		// A keyboard player goes straight to the first target; the targets
@@ -972,14 +972,12 @@ export class CombatScreen extends Screen {
 	 */
 	private toggleCombatLog(): void {
 		this.combatLogVisible = !this.combatLogVisible;
-		this.combatLogLayer.setVisible(this.combatLogVisible);
+		this.combatLogLayer.visible = this.combatLogVisible;
 	}
 
 	
-	/**
-	 * Get the current battle state
-	 */
-	public getBattleState(): BattleState | null {
+	/** The battle's state, while there is a battle. */
+	public get battleState(): BattleState | null {
 		return this.battle ? this.battle.getState() : null;
 	}
 
@@ -1039,7 +1037,7 @@ export class CombatScreen extends Screen {
 
 		// Remove every layer so a remount builds them fresh; removeChild
 		// unmounts each one, cards included
-		for (const layer of [...this.rootLayer.getChildren()]) {
+		for (const layer of [...this.rootLayer.children]) {
 			this.rootLayer.removeChild(layer);
 		}
 

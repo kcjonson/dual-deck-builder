@@ -341,7 +341,7 @@ function snapshotStyle(node: Component): SnapshotStyle | undefined {
 }
 
 function snapshotText(node: Text): SnapshotText {
-	const text: SnapshotText = { content: safeString(node.getText()) ?? '', wrap: node.wrap };
+	const text: SnapshotText = { content: safeString(node.text) ?? '', wrap: node.wrap };
 	const metrics = node.currentMetrics;
 	const outcome = node.overflowOutcome;
 	if (metrics && outcome) {
@@ -382,7 +382,7 @@ function serializeNode(
 
 	try {
 		serialized.id = safeString(node.id);
-		serialized.type = typeof node.getComponentType === 'function' ? String(node.getComponentType()) : 'Unknown';
+		serialized.type = typeof node.componentType === 'string' ? node.componentType : 'Unknown';
 
 		// The placed margin box: position plus any anchor shift (R10.15).
 		const x = finite(node.placedX);

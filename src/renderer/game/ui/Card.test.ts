@@ -17,7 +17,7 @@ jest.setTimeout(30_000);
 const cardData = (cardsFile as unknown as { cards: CardData[] }).cards;
 
 function part(card: Card, suffix: string): Text {
-	const found = card.getChildren().find((child) => child.id === `card_${suffix}`);
+	const found = card.children.find((child) => child.id === `card_${suffix}`);
 	if (!(found instanceof Text)) throw new Error(`no ${suffix}`);
 	return found;
 }
@@ -76,7 +76,7 @@ describe('Card header (DDB-198)', () => {
 				for (const data of cardData) {
 					for (const upgraded of [false, true]) {
 						const card = build(data, driverNumber, upgraded, size, fullText);
-						for (const child of card.getChildren()) {
+						for (const child of card.children) {
 							if (!(child instanceof Text)) continue;
 							const measured = child.measured;
 							const label = `${data.name}${upgraded ? '+' : ''} ${size}${fullText ? ' full' : ''} ${child.id}`;
@@ -96,8 +96,8 @@ describe('Card header (DDB-198)', () => {
 		expect(data).toBeDefined();
 		const model = new GameCard({ ...(data as CardData) });
 		const description = part(build(data as CardData, null), 'description');
-		expect(description.getText()).toBe(Card.faceText(model.displaySummary));
-		expect(description.getText()).not.toMatch(/[[\]]/);
+		expect(description.text).toBe(Card.faceText(model.displaySummary));
+		expect(description.text).not.toMatch(/[[\]]/);
 	});
 
 	it('wraps a long badged title onto a second line instead of under the cost', () => {
@@ -133,25 +133,25 @@ describe('Card state', () => {
 		const card = build(cardData[0], 1);
 		card.setPosition(40, 25);
 
-		card.setHovered(true);
+		card.hovered = true;
 		context.animator.settle();
 		expect(card.transform.translate).toEqual([0, -CARD_LIFT]);
-		expect(card.getY()).toBe(25);
-		card.setHovered(false);
+		expect(card.y).toBe(25);
+		card.hovered = false;
 		context.animator.settle();
 		expect(card.transform.translate).toEqual([0, 0]);
 
-		card.setSelected(true);
+		card.selected = true;
 		context.animator.settle();
 		expect(card.transform.translate).toEqual([0, -CARD_LIFT]);
-		card.setSelected(false);
+		card.selected = false;
 		context.animator.settle();
-		expect(card.getY()).toBe(25);
+		expect(card.y).toBe(25);
 	});
 
 	it('eases up on the animator rather than jumping', () => {
 		const card = build(cardData[0], 1);
-		card.setHovered(true);
+		card.hovered = true;
 		// The tween starts from where the card rests
 		expect(card.transform.translate).toEqual([0, 0]);
 		expect(context.animator.settle()).toBeGreaterThan(0);
@@ -167,14 +167,14 @@ describe('Card state', () => {
 		expect(card.transform.origin).toEqual([0.5, 1]);
 		expect(card.layer).toBeNull();
 
-		card.setHovered(true);
+		card.hovered = true;
 		context.animator.settle();
 		expect(card.transform.rotate).toBe(0);
 		expect(card.transform.scale).toBeGreaterThan(1);
 		expect(card.layer).toBe('raised');
 		expect(card.zIndex).toBe(2);
 
-		card.setHovered(false);
+		card.hovered = false;
 		context.animator.settle();
 		expect(card.transform.rotate).toBe(0.03);
 		expect(card.layer).toBeNull();
@@ -185,7 +185,7 @@ describe('Card state', () => {
 		const card = build(cardData[0], 1);
 		const below = card.height + CARD_LIFT / 2;
 		expect(card.containsPoint(10, below)).toBe(false);
-		card.setHovered(true);
+		card.hovered = true;
 		context.animator.settle();
 		expect(card.containsPoint(10, below)).toBe(true);
 	});
@@ -195,7 +195,7 @@ describe('Card state', () => {
 		const enabledFill = card.resolvedColors.fill;
 
 		card.enabled = false;
-		card.setHovered(true);
+		card.hovered = true;
 		context.animator.settle();
 		expect(card.effectivelyEnabled).toBe(false);
 		expect(card.transform.translate).toEqual([0, 0]);
@@ -212,8 +212,8 @@ describe('Card state', () => {
 		const model = new GameCard({ ...data });
 		const full = new Card({ id: 'card', x: 0, y: 0, data: model, size: CardSize.LARGE, fullText: true });
 		const face = new Card({ id: 'card', x: 0, y: 0, data: model, size: CardSize.LARGE });
-		expect(part(full, 'description').getText()).toBe(model.displayDescription);
-		expect(part(face, 'description').getText()).toBe(Card.faceText(model.displaySummary));
+		expect(part(full, 'description').text).toBe(model.displayDescription);
+		expect(part(face, 'description').text).toBe(Card.faceText(model.displaySummary));
 	});
 });
 
@@ -235,6 +235,6 @@ describe('Card layout lint (DDB-91)', () => {
 
 	it('draws its frame, face and badge itself rather than as child rectangles', () => {
 		const card = build(cardData[0], 1);
-		expect(card.getChildren().every((child) => child instanceof Text)).toBe(true);
+		expect(card.children.every((child) => child instanceof Text)).toBe(true);
 	});
 });

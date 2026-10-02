@@ -84,11 +84,11 @@ export class Tooltip extends Stack {
 	}
 
 	public get title(): string | null {
-		return this.titleText?.getText() ?? null;
+		return this.titleText?.text ?? null;
 	}
 
 	public get description(): string | null {
-		return this.descriptionText?.getText() ?? null;
+		return this.descriptionText?.text ?? null;
 	}
 
 	public get hotkey(): string | null {

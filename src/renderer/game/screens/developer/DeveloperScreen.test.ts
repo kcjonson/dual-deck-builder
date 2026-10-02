@@ -43,7 +43,7 @@ describe('DeveloperScreen', () => {
 	function sections(): Component[] {
 		const column = screen.root.findById('dev_sections');
 		if (!column) throw new Error('the section column should be mounted');
-		return column.getChildren();
+		return column.children;
 	}
 
 	beforeEach(() => {

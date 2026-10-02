@@ -96,7 +96,7 @@ export class ScrollExamplesSection extends DeveloperSectionPanel {
 		const bar = new Scrollbar({ id: 'dev_strip_bar', orientation: 'horizontal', width: STRIP_VIEW, range: { offset: 390, extent: STRIP_EXTENT, viewport: STRIP_VIEW } });
 		bar.onScroll = (offset) => {
 			bar.range = { offset, extent: STRIP_EXTENT, viewport: STRIP_VIEW };
-			readout.setText(`offset ${Math.round(offset)} of ${STRIP_EXTENT - STRIP_VIEW}`);
+			readout.text = `offset ${Math.round(offset)} of ${STRIP_EXTENT - STRIP_VIEW}`;
 		};
 		column.addChild(bar);
 		column.addChild(readout);

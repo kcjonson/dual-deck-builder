@@ -154,7 +154,7 @@ describe('CombatScreen: the fight ending leaves no combat cards behind', () => {
 		expect(combat['combatModel'].targetableVehicleIds).toContain(raider.id);
 		click(centerOf(raiderPlate));
 
-		expect(combat.getBattleState()?.battleWon).toBe(true);
+		expect(combat.battleState?.battleWon).toBe(true);
 		expectCardsGone(spots);
 	});
 
@@ -191,7 +191,7 @@ describe('CombatScreen: the fight ending leaves no combat cards behind', () => {
 		click(centerOf(endTurn));
 		await settle();
 
-		expect(combat.getBattleState()?.battleWon).toBe(false);
+		expect(combat.battleState?.battleWon).toBe(false);
 		expectCardsGone(spots);
 	});
 });

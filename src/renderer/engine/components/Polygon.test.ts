@@ -37,21 +37,21 @@ describe('Polygon', () => {
 		polygon.makeStar(5);
 		expect(fillIndices(polygon)).toHaveLength(8 * 3);
 
-		polygon.setPoints([
+		polygon.points = [
 			[-1, -1],
 			[1, -1],
 			[0, 1],
-		]);
+		];
 		expect(fillIndices(polygon)).toEqual([0, 1, 2]);
 	});
 
 	it('skips the fill for an outline with no area but still strokes it', () => {
 		const polygon = new Polygon({ id: 'flat', width: 100, height: 100, style: { borderWidth: 2 } });
-		polygon.setPoints([
+		polygon.points = [
 			[-1, 0],
 			[0, 0],
 			[1, 0],
-		]);
+		];
 
 		const kinds = drawn(polygon).map((command) => command.kind);
 		expect(kinds).not.toContain('polygon');

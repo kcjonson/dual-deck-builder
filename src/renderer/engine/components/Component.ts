@@ -165,8 +165,8 @@ const RECONCILE_KEY = Symbol('reconcileKey');
  * `contentOffset` say. No component renders its children itself.
  */
 export abstract class Component {
-	protected componentType = 'Component';
-	protected children: Component[] = [];
+	private typeName = 'Component';
+	private childList: Component[] = [];
 
 	private readonly componentId: string | null = null;
 	private positionX = 0;
@@ -273,7 +273,7 @@ export abstract class Component {
 		if (options.margin !== undefined) this.ownMargin = normalizeSides(options.margin);
 		if (options.transform !== undefined) this.ownTransform = normalizeTransform(options.transform);
 		if (options.pointerEvents !== undefined) this.ownPointerEvents = options.pointerEvents;
-		if (options.overflow !== undefined) this.setOverflow(options.overflow);
+		if (options.overflow !== undefined) this.overflow = options.overflow;
 		if (options.onLayout) this.onLayout = options.onLayout;
 		if (options.tooltip !== undefined) this.tooltipSpec = normalizeTooltip(options.tooltip);
 		if (options.popupTrigger !== undefined) this.popupTrigger = options.popupTrigger;
@@ -414,8 +414,14 @@ export abstract class Component {
 		return this.componentId;
 	}
 
-	public getComponentType(): string {
-		return this.componentType;
+	/** The component's kind, for tests, the tree snapshot, and the layout lint. */
+	public get componentType(): string {
+		return this.typeName;
+	}
+
+	/** Each subclass names itself in its constructor. */
+	protected set componentType(value: string) {
+		this.typeName = value;
 	}
 
 	// -- own draws (R8.1) -----------------------------------------------------
@@ -653,7 +659,7 @@ export abstract class Component {
 			maxX = own.x + own.width;
 			maxY = own.y + own.height;
 		}
-		const children = this.children;
+		const children = this.childList;
 		if (!unbounded && children.length > 0) {
 			const offset = this.contentOffset;
 			for (let index = 0; index < children.length; index++) {
@@ -743,7 +749,7 @@ export abstract class Component {
 	}
 
 	/** The drag service's: sets or clears the ghost state. */
-	public setDragOffset(offset: Vec2 | null): void {
+	public set dragOffset(offset: Vec2 | null) {
 		this.dragGhostOffset = offset;
 		this.matrixCache = undefined;
 		this.invalidateInk();
@@ -910,8 +916,13 @@ export abstract class Component {
 		return this.ownOverflow;
 	}
 
+	/**
+	 * A mode, not a clip: it may be set before the box has a size, which a
+	 * screen sizes from the viewport on mount, before its first frame. Until
+	 * then the clip is empty and shows nothing.
+	 */
 	public set overflow(value: Overflow) {
-		this.setOverflow(value);
+		this.ownOverflow = value;
 	}
 
 	/**
@@ -969,8 +980,19 @@ export abstract class Component {
 		return this.ownEnabled;
 	}
 
-	public set enabled(value: boolean) {
-		this.setEnabled(value);
+	public set enabled(enabled: boolean) {
+		if (this.ownEnabled === enabled) return;
+		this.ownEnabled = enabled;
+		if (!enabled) {
+			// Hover is the dispatcher's containment state and stays true under
+			// the pointer (R9.8); a disabled component shows it only through
+			// its disabled style (R9.5). Focus moves off it at the end of the
+			// frame's layout (R9.28).
+			this.onDisabled();
+		} else {
+			this.onEnabled();
+		}
+		this.notifyEnabledChange();
 	}
 
 	/** Own opacity in [0, 1]; the walk multiplies it down the tree (R3.25). */
@@ -1068,13 +1090,13 @@ export abstract class Component {
 	}
 
 	/** The insertion-ordered children, exactly as added (R8.6). */
-	public getChildren(): Component[] {
-		return this.children;
+	public get children(): Component[] {
+		return this.childList;
 	}
 
-	/** The children list the tree walkers read; same as `getChildren` now that nothing redirects it. */
+	/** The children list the tree walkers read; same as `children` now that nothing redirects it. */
 	public get debugChildren(): readonly Component[] {
-		return this.children;
+		return this.childList;
 	}
 
 	/**
@@ -1084,7 +1106,7 @@ export abstract class Component {
 	 */
 	public get renderOrder(): readonly Component[] {
 		if (this.orderView) return this.orderView;
-		const children = this.children;
+		const children = this.childList;
 		let sorted = false;
 		for (let index = 0; index < children.length; index++) {
 			if (children[index].ownZIndex !== 0) {
@@ -1102,7 +1124,7 @@ export abstract class Component {
 	}
 
 	public addChild(child: Component): this {
-		return this.insertChild(this.children.length, child);
+		return this.insertChild(this.childList.length, child);
 	}
 
 	/**
@@ -1136,7 +1158,7 @@ export abstract class Component {
 		// someone's part and is re-added as an ordinary child is an ordinary
 		// child, or rule 1's sibling pairing would never see it again.
 		child.ownedByParent = false;
-		this.children.splice(clampIndex(index, this.children.length), 0, child);
+		this.childList.splice(clampIndex(index, this.childList.length), 0, child);
 		this.orderView = null;
 		// R8.15: adding to a mounted parent mounts at once.
 		if (this.mountContext && !child.mountContext) child.mount(this.mountContext);
@@ -1171,11 +1193,11 @@ export abstract class Component {
 	 * focus kept (R8.5). Out-of-range indices clamp.
 	 */
 	public moveChild(child: Component, index: number): this {
-		const from = this.children.indexOf(child);
+		const from = this.childList.indexOf(child);
 		if (from === -1) return this;
-		this.children.splice(from, 1);
-		const to = clampIndex(index, this.children.length);
-		this.children.splice(to, 0, child);
+		this.childList.splice(from, 1);
+		const to = clampIndex(index, this.childList.length);
+		this.childList.splice(to, 0, child);
 		if (to === from) return this;
 		this.orderView = null;
 		this.invalidateFocusOrder();
@@ -1193,8 +1215,8 @@ export abstract class Component {
 
 	/** Removes and unmounts every child. */
 	public clearChildren(): void {
-		const removed = this.children;
-		this.children = [];
+		const removed = this.childList;
+		this.childList = [];
 		this.orderView = null;
 		for (const child of removed) {
 			child.parentComponent = null;
@@ -1206,9 +1228,9 @@ export abstract class Component {
 	}
 
 	private detachChild(child: Component): boolean {
-		const index = this.children.indexOf(child);
+		const index = this.childList.indexOf(child);
 		if (index === -1) return false;
-		this.children.splice(index, 1);
+		this.childList.splice(index, 1);
 		this.orderView = null;
 		child.parentComponent = null;
 		// Like the part mark, key and exit belong to the edge: a keyed child
@@ -1238,7 +1260,7 @@ export abstract class Component {
 		{ key, create, update, remove }: ReconcileOptions<Item, Child>,
 	): void {
 		const existing = new Map<string, Child>();
-		for (const child of this.children) {
+		for (const child of this.childList) {
 			const childKey = child[RECONCILE_KEY];
 			if (childKey !== undefined && !child.exiting) existing.set(childKey, child as Child);
 		}
@@ -1265,7 +1287,7 @@ export abstract class Component {
 				continue;
 			}
 			child.exiting = true;
-			this.moveChild(child, this.children.length);
+			this.moveChild(child, this.childList.length);
 			const finish = (): void => {
 				// Only if it is still this list's exiting child: one re-added
 				// elsewhere, or already removed, is not ours to unmount.
@@ -1285,7 +1307,7 @@ export abstract class Component {
 	/** Depth-first search of this subtree by `id` (R8.4). */
 	public findById(id: string): Component | null {
 		if (this.componentId === id) return this;
-		for (const child of this.children) {
+		for (const child of this.childList) {
 			const found = child.findById(id);
 			if (found) return found;
 		}
@@ -1328,7 +1350,7 @@ export abstract class Component {
 		this.mountContext = context;
 		this.markDirty();
 		this.onMount(context);
-		for (const child of this.children) child.mountSubtree(context);
+		for (const child of this.childList) child.mountSubtree(context);
 	}
 
 	/**
@@ -1342,7 +1364,7 @@ export abstract class Component {
 	public unmount(): void {
 		const context = this.mountContext;
 		if (!context) return;
-		for (const child of this.children) child.unmount();
+		for (const child of this.childList) child.unmount();
 		context.dispatcher.forget(this);
 		this.onUnmount();
 		context.frame.forget(this);
@@ -1355,7 +1377,7 @@ export abstract class Component {
 		this.focusVisibleState = false;
 		this.dropActiveState = false;
 		// Through the setter, so the cached matrix and ink drop the ghost's offset too.
-		this.setDragOffset(null);
+		this.dragOffset = null;
 	}
 
 	/**
@@ -1394,7 +1416,7 @@ export abstract class Component {
 	 * not the frame's layout pass, which is `layoutSubtree`.
 	 */
 	public layout(): void {
-		for (const child of this.children) {
+		for (const child of this.childList) {
 			child.layout();
 		}
 	}
@@ -1450,7 +1472,7 @@ export abstract class Component {
 			this.needsLayout = false;
 			this.layoutChildren();
 			this.placeAnchoredChildren();
-			for (const child of this.children) child.layoutSubtree();
+			for (const child of this.childList) child.layoutSubtree();
 		}
 		this.reportLayout();
 	}
@@ -1478,7 +1500,7 @@ export abstract class Component {
 	 */
 	private placeAnchoredChildren(): void {
 		const box = this.anchorBox;
-		for (const child of this.children) {
+		for (const child of this.childList) {
 			let shiftX = 0;
 			let shiftY = 0;
 			if (this.anchorsChild(child)) {
@@ -1850,7 +1872,7 @@ export abstract class Component {
 
 	/**
 	 * The pointer is over it or over a descendant (R9.8). Maintained by the
-	 * dispatcher, which calls `setHovered`.
+	 * dispatcher, which sets it.
 	 */
 	public get hovered(): boolean {
 		return this.hoverState;
@@ -1861,11 +1883,7 @@ export abstract class Component {
 		return this.focusState;
 	}
 
-	public isHovered(): boolean {
-		return this.hoverState;
-	}
-
-	public setHovered(hovered: boolean): void {
+	public set hovered(hovered: boolean) {
 		if (this.hoverState === hovered) return;
 		this.hoverState = hovered;
 		if (hovered) this.onHover();
@@ -2092,26 +2110,6 @@ export abstract class Component {
 		};
 	}
 
-	public isEnabled(): boolean {
-		return this.enabled;
-	}
-
-	public setEnabled(enabled: boolean): this {
-		if (this.ownEnabled === enabled) return this;
-		this.ownEnabled = enabled;
-		if (!enabled) {
-			// Hover is the dispatcher's containment state and stays true under
-			// the pointer (R9.8); a disabled component shows it only through
-			// its disabled style (R9.5). Focus moves off it at the end of the
-			// frame's layout (R9.28).
-			this.onDisabled();
-		} else {
-			this.onEnabled();
-		}
-		this.notifyEnabledChange();
-		return this;
-	}
-
 	/**
 	 * Effective enabled state is inherited, so a change reaches every
 	 * descendant's look, and a press in progress anywhere beneath a newly
@@ -2120,7 +2118,7 @@ export abstract class Component {
 	private notifyEnabledChange(): void {
 		if (!this.effectivelyEnabled) this.pressState = false;
 		this.onStateChange();
-		for (const child of this.children) child.notifyEnabledChange();
+		for (const child of this.childList) child.notifyEnabledChange();
 	}
 
 	/**
@@ -2147,31 +2145,11 @@ export abstract class Component {
 		// Override in subclasses
 	}
 
-	// -- legacy method-style accessors (R8.23's codemod renames these) --------
-
-	public setX(x: number): this {
-		this.x = x;
-		return this;
-	}
-
-	public setY(y: number): this {
-		this.y = y;
-		return this;
-	}
+	// -- compound setters; every single property is an accessor (R8.23) ------
 
 	public setPosition(x: number, y: number): this {
 		this.x = x;
 		this.y = y;
-		return this;
-	}
-
-	public setWidth(width: number): this {
-		this.width = width;
-		return this;
-	}
-
-	public setHeight(height: number): this {
-		this.height = height;
 		return this;
 	}
 
@@ -2183,45 +2161,6 @@ export abstract class Component {
 	/** Called when `setSize` or a layout assignment changes the content size. */
 	protected onResized(): void {
 		// Override in subclasses
-	}
-
-	public setVisible(visible: boolean): this {
-		this.visible = visible;
-		return this;
-	}
-
-	public getX(): number {
-		return this.x;
-	}
-
-	public getY(): number {
-		return this.y;
-	}
-
-	public getWidth(): number {
-		return this.width;
-	}
-
-	public getHeight(): number {
-		return this.height;
-	}
-
-	public isVisible(): boolean {
-		return this.visible;
-	}
-
-	/**
-	 * A mode, not a clip: it may be set before the box has a size, which a
-	 * screen sizes from the viewport on mount, before its first frame. Until
-	 * then the clip is empty and shows nothing.
-	 */
-	public setOverflow(overflow: Overflow): this {
-		this.ownOverflow = overflow;
-		return this;
-	}
-
-	public getOverflow(): Overflow {
-		return this.ownOverflow;
 	}
 }
 

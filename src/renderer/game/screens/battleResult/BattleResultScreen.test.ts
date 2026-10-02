@@ -37,14 +37,14 @@ describe('BattleResultScreen', () => {
 		context.frame.layout();
 		const panel = screen.root.findById('result_panel');
 		if (!panel) throw new Error('the panel should be mounted');
-		expect(panel.getX()).toBe((1024 - panel.getWidth()) / 2);
-		expect(panel.getY()).toBe((600 - panel.getHeight()) / 2);
-		expect((screen.root.findById('result_title') as Text).getText()).toBe('VICTORY!');
+		expect(panel.x).toBe((1024 - panel.width) / 2);
+		expect(panel.y).toBe((600 - panel.height) / 2);
+		expect((screen.root.findById('result_title') as Text).text).toBe('VICTORY!');
 	});
 
 	it('says defeat on a loss', () => {
 		screen.mount(context, result(false));
-		expect((screen.root.findById('result_title') as Text).getText()).toBe('DEFEAT!');
+		expect((screen.root.findById('result_title') as Text).text).toBe('DEFEAT!');
 	});
 
 	it.each(['Enter', 'Escape'])('focuses Continue on mount, and %p goes back to the menu', (name) => {
@@ -58,7 +58,7 @@ describe('BattleResultScreen', () => {
 		const logged = jest.spyOn(console, 'error').mockImplementation(() => undefined);
 		screen.mount(context);
 		expect(logged).toHaveBeenCalledWith('BattleResultScreen: Invalid or missing data');
-		expect(screen.root.getChildren()).toHaveLength(0);
+		expect(screen.root.children).toHaveLength(0);
 		logged.mockRestore();
 	});
 });
