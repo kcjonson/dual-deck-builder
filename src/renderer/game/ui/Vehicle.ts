@@ -16,7 +16,7 @@ import { EnemyIntent, IntentRow } from './IntentMarker';
 import { StatusChip, StatusChipContent, STATUS_CHIP_SIZE, shieldChipContent, statusChipContent } from './StatusChip';
 import { MARK_COLORS, TargetMark, TargetMarkDraw, seatMark } from './targetMarks';
 import { VehicleSprite, spriteKindOf } from './vehicleSprites';
-import { TOKEN_HEIGHT, TOKEN_MAX_SCALE, TOKEN_WIDTH, slotScale } from './tokenGeometry';
+import { TOKEN_HEIGHT, TOKEN_MAX_SCALE, TOKEN_SLOT_CLEARANCE_X, TOKEN_SLOT_CLEARANCE_Y, TOKEN_WIDTH } from './tokenGeometry';
 
 export { TOKEN_HEIGHT, TOKEN_MAX_SCALE, TOKEN_PASSENGER_HEIGHT, TOKEN_WIDTH, slotScale } from './tokenGeometry';
 
@@ -348,7 +348,8 @@ export class Vehicle extends Component {
 
 	private placeInSlot(): boolean {
 		const slot = this.slot;
-		const need = slotScale({ width: slot.width, height: slot.height, tokenHeight: this.height });
+		// slotScale's formula inline: an options object here would allocate every frame of a swerve
+		const need = Math.min((slot.width - TOKEN_SLOT_CLEARANCE_X) / TOKEN_WIDTH, (slot.height - TOKEN_SLOT_CLEARANCE_Y) / this.height);
 		const scale = Math.min(TOKEN_MAX_SCALE, Math.max(1, Math.min(this.slotScaleOverride ?? need, need)));
 		this.applyScale(scale);
 		this.setPosition(slot.x + (slot.width - TOKEN_WIDTH * scale) / 2, slot.y + (slot.height - this.height * scale) / 2);

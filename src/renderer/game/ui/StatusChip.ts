@@ -68,11 +68,11 @@ export const STATUS_CHIP_SIZE = 20;
 const MORE_WIDTH = 24;
 const LABEL_WIDTH = 40;
 const ICON_SIZE = 14;
-const COUNT_SIZE = 10;
-const COUNT_HEIGHT = 10;
+const COUNT_SIZE = 11;
+const COUNT_HEIGHT = 11;
 /** JetBrains Mono's advance is 0.6 em; the count's backing is sized from it rather than measured each frame. */
 const MONO_ADVANCE = 0.6;
-const LABEL_SIZE = 10;
+const LABEL_SIZE = 11;
 const MORE_SIZE = 11;
 const RADIUS = 3;
 

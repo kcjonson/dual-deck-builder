@@ -32,6 +32,6 @@ Options considered: laying parts out from the token's size (what the old plate d
 
 ## Consequences
 
-- `ArmorBadge` is deleted; `IntentRow` is owned by the token, and `EnemyBattlefieldLayer.intentRowOf` reads it from there.
+- `ArmorBadge` is deleted; `IntentRow` is owned by the token, and `RoadView.intentRowOf` reads it from there.
 - Hit numbers pop from `plateScreenBounds`, not the whole token.
 - The combat goldens move (the plate is new); the `icons` scene moves (eight icons, status chips instead of the armor badge); `vehicle-tokens` is new.
