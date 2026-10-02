@@ -416,6 +416,48 @@ describe('TextInput clipboard (R12.10, R9.17)', () => {
 	});
 });
 
+describe('TextInput under an input method (R12.10, R15.39)', () => {
+	/** A real DOM key on `window`, through the adapter, then dispatched; returns whether the default was prevented. */
+	function domKey(init: KeyboardEventInit, type: 'keydown' | 'keyup' = 'keydown'): boolean {
+		const event = new KeyboardEvent(type, { bubbles: true, cancelable: true, ...init });
+		window.dispatchEvent(event);
+		context.dispatcher.dispatchPending();
+		return event.defaultPrevented;
+	}
+
+	it('ignores keydowns an input method is composing, the way Safari reports them, then types again after', () => {
+		const submitted: string[] = [];
+		const heard: string[] = [];
+		const made = field({ value: 'ab', onSubmit: (value) => submitted.push(value) });
+		context.dispatcher.hotkeys.register('k', () => heard.push('hotkey'));
+		inject(`click,${FIELD_X + FIELD_WIDTH - 4},${MIDDLE_Y}`);
+
+		expect(domKey({ key: 'k', keyCode: 229 })).toBe(false);
+		domKey({ key: 'a', isComposing: true });
+		domKey({ key: 'Backspace', isComposing: true });
+		domKey({ key: 'Enter', keyCode: 229 });
+		domKey({ key: 'Enter', isComposing: true }, 'keyup');
+		expect(made.value).toBe('ab');
+		expect(made.caretIndex).toBe(2);
+		expect(submitted).toEqual([]);
+		expect(heard).toEqual([]);
+
+		expect(domKey({ key: 'c' })).toBe(true);
+		expect(made.value).toBe('abc');
+	});
+
+	it('neither inserts nor acts on Chrome\'s Process key or a dead key', () => {
+		const made = field({ value: 'ab' });
+		inject(`click,${FIELD_X + FIELD_WIDTH - 4},${MIDDLE_Y}`);
+		domKey({ key: 'Process' });
+		domKey({ key: 'Dead' });
+		expect(made.value).toBe('ab');
+		expect(made.caretIndex).toBe(2);
+		domKey({ key: 'é' });
+		expect(made.value).toBe('abé');
+	});
+});
+
 describe('TextInput scrolling and clipping (R12.10, R4.5)', () => {
 	const LONG = 'Scrap Hauler, Rust Runner and the Dustbowl Convoy';
 
