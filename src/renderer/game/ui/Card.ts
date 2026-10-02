@@ -298,6 +298,8 @@ export class Card extends Component {
 				this.chipDraw = {
 					rect: { x: 0, y: FACE.foot.y, width: 0, height: FACE.foot.height },
 					radius: 2,
+					// Outline only, as the mock's `.rng`: an absent fill draws white
+					fill: [0, 0, 0, 0],
 					border: { color: resolveColor(CARD_LINE), width: 1 },
 				};
 			}
