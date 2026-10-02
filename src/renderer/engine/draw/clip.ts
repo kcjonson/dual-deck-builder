@@ -1,4 +1,4 @@
-import { ClipRect } from './geometry';
+import { ClipRect, Mat2D } from './geometry';
 
 /**
  * The three-state clip of R4.2, and the resolved value a command carries.
@@ -65,16 +65,85 @@ export function intersectClip(
 	current: ClipState,
 	rect: ClipRect,
 	rounded: RoundedClip | null,
+	ratio = 1,
 ): ClipState {
 	if (current.kind === 'empty') return CLIP_EMPTY;
 
 	const merged: ClipRect = { minX: 0, minY: 0, maxX: 0, maxY: 0 };
 	if (!intersectClipRectInto(current, rect, merged)) return CLIP_EMPTY;
 
-	// R4.14: the innermost rounded clip wins; an outer one has already
-	// contributed its bounding rect through `merged`.
-	const innermost = rounded ?? (current.kind === 'rect' ? current.rounded : null);
-	return { kind: 'rect', rect: merged, rounded: innermost };
+	const inherited = current.kind === 'rect' ? current.rounded : null;
+	const kept = keptRoundedClip(merged, rounded, inherited, ratio);
+	return { kind: 'rect', rect: merged, rounded: kept === 'nested' ? rounded : kept };
+}
+
+/**
+ * R4.14's choice of the one rounded clip a level carries, from its merged
+ * rect, its own rounded clip, and the one it inherits. A rounded clip that
+ * takes nothing off the merged rect (`roundedClipCuts`) is dropped: there it
+ * is exactly its bounding rect, which is already in the intersection, so
+ * dropping it changes no pixel and spares the second SDF. Of the ones left
+ * the innermost wins; `nested` means both cut, so the inherited one degrades
+ * to its bounding rect (the documented approximation, and the warning) and
+ * the own one is carried.
+ */
+export function keptRoundedClip<T extends RoundedClip>(
+	merged: ClipRect,
+	own: T | null,
+	inherited: T | null,
+	ratio: number,
+): T | null | 'nested' {
+	const ownCuts = own !== null && roundedClipCuts(own, merged, ratio);
+	const inheritedCuts = inherited !== null && roundedClipCuts(inherited, merged, ratio);
+	if (ownCuts && inheritedCuts) return 'nested';
+	return ownCuts ? own : inheritedCuts ? inherited : null;
+}
+
+/**
+ * Whether `rounded` takes anything off `rect` at device pixel ratio `ratio`:
+ * whether some device pixel centre inside `rect` gets less than full
+ * coverage from the shader's one-pixel ramp, which is full at
+ * `d <= -0.5 / ratio`. A convex shape's signed distance is convex, so the
+ * worst pixel centres are the four outermost ones R4.4's half-open test
+ * keeps, wherever the rect's edges fall against the device grid (a clip
+ * pushed under a scale, a text box clip, are not snapped).
+ */
+export function roundedClipCuts(rounded: RoundedClip, rect: ClipRect, ratio: number): boolean {
+	if (!(rounded.radius > 0)) return false;
+	const scale = ratio > 0 ? ratio : 1;
+	const half = 0.5 / scale;
+	const left = (Math.ceil(rect.minX * scale - 0.5) + 0.5) / scale;
+	const right = (Math.ceil(rect.maxX * scale - 0.5) - 0.5) / scale;
+	const top = (Math.ceil(rect.minY * scale - 0.5) + 0.5) / scale;
+	const bottom = (Math.ceil(rect.maxY * scale - 0.5) - 0.5) / scale;
+	// No pixel centre inside: nothing to take.
+	if (left > right || top > bottom) return false;
+	const { rect: box, radius } = rounded;
+	return roundedBoxDistance(left, top, box, radius) > -half
+		|| roundedBoxDistance(right, top, box, radius) > -half
+		|| roundedBoxDistance(left, bottom, box, radius) > -half
+		|| roundedBoxDistance(right, bottom, box, radius) > -half;
+}
+
+/**
+ * `uber.frag`'s `sdRoundedBox` with one radius, clamped to the half extent
+ * as the rounded clip table clamps it (R5.5): negative inside, in the box's
+ * units.
+ */
+export function roundedBoxDistance(x: number, y: number, box: ClipRect, radius: number): number {
+	return roundedRectDistance(x, y, box.minX, box.minY, box.maxX - box.minX, box.maxY - box.minY, radius);
+}
+
+/** `roundedBoxDistance` for a rect given by its corner and size. */
+export function roundedRectDistance(x: number, y: number, left: number, top: number, width: number, height: number, radius: number): number {
+	const halfWidth = width / 2;
+	const halfHeight = height / 2;
+	const r = Math.max(0, Math.min(radius, halfWidth, halfHeight));
+	const qx = Math.abs(x - (left + halfWidth)) - halfWidth + r;
+	const qy = Math.abs(y - (top + halfHeight)) - halfHeight + r;
+	const outsideX = Math.max(qx, 0);
+	const outsideY = Math.max(qy, 0);
+	return Math.min(Math.max(qx, qy), 0) + Math.sqrt(outsideX * outsideX + outsideY * outsideY) - r;
 }
 
 /**
@@ -99,4 +168,12 @@ export function intersectClipRectInto(current: ClipState, rect: ClipRect, out: C
 
 export function hasRoundedClip(state: ClipState): boolean {
 	return state.kind === 'rect' && state.rounded !== null;
+}
+
+/**
+ * R4.14's radius in screen space: the smaller axis scale, so under a
+ * non-uniform scale the corner never rounds past the narrower side's arc.
+ */
+export function clipRadiusScale(matrix: Mat2D): number {
+	return Math.min(Math.hypot(matrix[0], matrix[1]), Math.hypot(matrix[2], matrix[3]));
 }

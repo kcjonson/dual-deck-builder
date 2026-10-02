@@ -39,8 +39,10 @@ The frame slot is bound with `bindBufferRange` at the first draw of the frame. W
 
 It is rare today: only the gallery draws rounded clips, and its entries arrive in the first domain. DDB-231 makes it routine (an overlay domain with a rounded panel after the base domain), so before or with DDB-231, either measure it on ANGLE Metal with `perf-capture.mjs` or give each flush its own slot holding the projection and the cumulative table, R15.15's shape, and bind that.
 
+Settled by DDB-231 with the slots, not a measurement: an upload that adds entries after a draw has read the bound slot takes a fresh one with the projection and the whole table. See [component-rounded-clip.md](./component-rounded-clip.md).
+
 ## Not done
 
-- Components do not use it. The walk pushes `component.clipRect` with `pushClip`, and the hit test and snapshot test a plain rect, so Panel and ScrollContainer still clear their corners by insetting content and clip by the radius, which R12.19 and R12.20 allow. Moving them to the rounded clip means a clip radius on the component contract in all three readers, and probably a smaller content inset, which moves most goldens. DDB-231.
+- Components did not use it. DDB-231 added `clipRadius` to the component contract and moved Panel and ScrollContainer onto it ([component-rounded-clip.md](./component-rounded-clip.md)).
 - The table is not per flush, and its index is a byte, not R5.4's 16 bits; 255 rounded clips a frame is far past any screen.
 - Rounded clips under rotation stay on R4.7's axis-aligned bounds, with the warning that already fires; the oriented clip is optional.

@@ -172,7 +172,7 @@ export class Dialog extends Component {
 			// keeps its focus ring and glow.
 			overflow: 'hidden',
 		});
-		// The panel keeps its border and radius clear even at a zero bottom inset.
+		// The panel keeps its border clear even at a zero bottom inset; its rounded clip clears the corners.
 		const foot = this.panel.contentInset.bottom;
 		const hasFooter = footer.length > 0;
 
