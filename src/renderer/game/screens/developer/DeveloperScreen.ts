@@ -1,149 +1,103 @@
 import { Screen } from '../../core/Screen';
 import { ScreenManager } from '../../core/ScreenManager';
-import { Button } from '../../../engine/ui/Button';
+import { Stack } from '../../../engine/components/Stack';
 import { Text } from '../../../engine/components/Text';
-import { Container } from '../../../engine/components/Container';
+import { Button } from '../../../engine/ui/Button';
 import { ScrollContainer } from '../../../engine/ui/ScrollContainer';
-import { Rectangle } from '../../../engine/components/Rectangle';
+import { SCROLLBAR_GUTTER } from '../../../engine/ui/Scrollbar';
+import { tokens } from '../../../engine/theme/tokens';
 
 // The sections are defined once, in sections.ts, so this screen and the
 // ?scene= gallery show the same things (R13.30).
 import { developerSections } from './sections';
 import { SECTION_INSET } from './DeveloperSectionPanel';
 
-const TITLE_FONT_SIZE = 48;
-const TITLE_LINE_HEIGHT = 1.2;
-/** The strip above the scroll panel. The title's whole line box sits inside it. */
-const HEADER_HEIGHT = 80;
-/** The strip below the scroll panel, which holds the back button. */
-const FOOTER_HEIGHT = 80;
-/**
- * The title's line box ends this far above the panel. The panel is submitted
- * after the title and is opaque, so a line box reaching past the header would
- * lose its descenders under it (chapter 3).
- */
-const TITLE_GAP = 6;
-const TITLE_TOP = Math.floor(HEADER_HEIGHT - TITLE_FONT_SIZE * TITLE_LINE_HEIGHT - TITLE_GAP);
+/** Around the sections inside the scroll container. */
+const SECTION_MARGIN = 40;
+/** Sections' content stays 80 apart; each frame's inset comes out of that gap. */
+const SECTION_GAP = 80 - SECTION_INSET * 2;
+const BACK_WIDTH = 200;
 
 /**
- * Developer screen for testing UI components and rendering
+ * Every gallery scene in one scrolling column, reachable in game with F12:
+ * a root stack with the title, a scroll container holding the sections, and
+ * Back. Each section is the same factory the gallery mounts as a scene, built
+ * at the column's width when the screen mounts. Focus starts on Back;
+ * Page Up and Page Down scroll and Escape returns to the menu.
  */
 export class DeveloperScreen extends Screen {
-	private background: Rectangle;
-	private title: Text;
-	private backButton: Button;
-	private mainScrollContainer: ScrollContainer;
-	/** The scroll container's one content child: the sections, placed by hand. */
-	private sectionColumn: Container;
-	private sectionsBuilt = false;
+	private readonly stack: Stack;
+	private scroller: ScrollContainer | null = null;
 
-	/**
-	 * Create a new developer screen. Everything sized from the viewport is
-	 * placed by positionElements once the root has the viewport's size.
-	 */
 	constructor() {
-		super('developerScreen');
-
-		this.background = new Rectangle({
-			style: {
-				backgroundColor: '#262626',
-			},
+		const root = new Stack({
+			id: 'developerScreen',
+			widthMode: 'fill',
+			heightMode: 'fill',
+			crossAlign: 'center',
+			gap: tokens.space.space_4,
+			padding: { top: tokens.space.space_4, bottom: tokens.space.space_4 },
+			style: { backgroundColor: '#262626' },
 		});
-		this.rootLayer.addChild(this.background);
-
-		this.title = new Text('Developer Tools', {
-			id: 'dev_title',
-			y: TITLE_TOP,
-			style: {
-				fontSize: TITLE_FONT_SIZE,
-				color: '#ffffff',
-				textAlign: 'center',
-			},
-			lineHeight: TITLE_LINE_HEIGHT,
-			wrap: 'none',
-		});
-		this.rootLayer.addChild(this.title);
-
-		this.backButton = new Button('Back to Menu', {
-			width: 200,
-			height: 50,
-			style: {
-				fontSize: 20,
-			},
-		});
-		this.backButton.onClick = () => {
-			ScreenManager.navigate('mainMenuScreen');
-		};
-		this.rootLayer.addChild(this.backButton);
-
-		// One full-width scrollable container for every section
-		this.mainScrollContainer = new ScrollContainer({
-			id: 'dev_scroll',
-			y: HEADER_HEIGHT,
-			style: {
-				backgroundColor: '#262626', // Match the background
-			},
-		});
-		this.sectionColumn = new Container({ id: 'dev_sections' });
-		this.mainScrollContainer.addChild(this.sectionColumn);
-		this.rootLayer.addChild(this.mainScrollContainer);
+		super('developerScreen', { root });
+		this.stack = root;
 	}
 
 	protected onMount(): void {
-		this.positionElements();
-		this.buildSections();
-	}
+		this.stack.addChild(new Text('Developer Tools', {
+			id: 'dev_title',
+			style: {
+				fontSize: 48,
+				color: '#ffffff',
+				textAlign: 'center',
+			},
+			lineHeight: 1.2,
+			wrap: 'none',
+		}));
 
-	/**
-	 * The background, the title, the back button (bottom centre), and the
-	 * scroll panel between the header and the footer, from the root's size.
-	 */
-	private positionElements(): void {
-		const width = this.rootLayer.width;
-		const height = this.rootLayer.height;
-
-		this.background.setSize(width, height);
-		this.title.setWidth(width);
-		this.backButton.setPosition(width / 2 - this.backButton.getWidth() / 2, height - 70);
-		this.mainScrollContainer.setSize(width, height - HEADER_HEIGHT - FOOTER_HEIGHT);
-	}
-
-	/**
-	 * The sections, at the width the screen mounted with. A section computes
-	 * its own height from its content and publishes it with setSize on the
-	 * last line of its constructor, so the next section's y is only knowable
-	 * after the previous factory returned. A resize keeps them as they are.
-	 */
-	private buildSections(): void {
-		if (this.sectionsBuilt) return;
-		this.sectionsBuilt = true;
-
-		let currentY = 40;
-		// Sections' content stays 80 apart; the inset each frame adds above and
-		// below its content comes out of that gap rather than on top of it.
-		const sectionSpacing = 80 - SECTION_INSET * 2;
-		const margin = 40;
-		const contentWidth = this.rootLayer.width - margin * 2;
-
+		// Sections lay themselves out from the width they are built at, so
+		// they take the column's as the screen mounts: the viewport's (the
+		// fill root has not been laid out yet), less the margins and the
+		// scrollbar the column is sure to need
+		const viewportWidth = this.context.viewport.logical.width;
+		const sectionWidth = Math.max(0, viewportWidth - SECTION_MARGIN * 2 - SCROLLBAR_GUTTER);
+		const column = new Stack({ id: 'dev_sections', gap: SECTION_GAP, padding: SECTION_MARGIN });
 		for (const definition of developerSections) {
-			// Built detached, as the gallery builds it, and measured before it
-			// mounts
-			const section = definition.build({ x: margin, y: currentY, width: contentWidth });
-			currentY += section.getHeight() + sectionSpacing;
-			this.sectionColumn.addChild(section);
+			column.addChild(definition.build({ x: 0, y: 0, width: sectionWidth }));
 		}
+		this.scroller = new ScrollContainer({
+			id: 'dev_scroll',
+			widthMode: 'fill',
+			heightMode: 'fill',
+			alignSelf: 'stretch',
+		});
+		this.scroller.addChild(column);
+		this.stack.addChild(this.scroller);
 
-		this.sectionColumn.setSize(this.rootLayer.width, currentY + 100);
-	}
+		const back = new Button('Back to Menu', {
+			id: 'dev_back_button',
+			icon: 'arrow_back',
+			size: 'lg',
+			width: BACK_WIDTH,
+			onClick: () => this.back(),
+		});
+		this.stack.addChild(back);
 
-	protected onResized(): void {
-		this.positionElements();
+		const { hotkeys } = this.rootLayer;
+		hotkeys.register('Escape', () => this.back());
+		hotkeys.register('PageDown', () => this.scroller?.scrollBy(this.scroller.height));
+		hotkeys.register('PageUp', () => this.scroller?.scrollBy(-(this.scroller?.height ?? 0)));
+		this.context.focus.focus(back);
 	}
 
 	protected onUnmount(): void {
-		// Clear any focus from input fields
-		this.context.focus.blur();
+		const { hotkeys } = this.rootLayer;
+		for (const key of ['Escape', 'PageDown', 'PageUp']) hotkeys.unregister(key);
+		this.stack.clearChildren();
+		this.scroller = null;
+	}
 
-		this.mainScrollContainer.scrollToTop();
+	private back(): void {
+		ScreenManager.navigate('mainMenuScreen');
 	}
 }

@@ -60,8 +60,12 @@ export interface AppControlApi {
 	scene?(name: string): boolean;
 	/** Gallery: re-enter the mounted scene. */
 	reload?(): boolean;
-	/** Game app: navigate to a screen by name. False when no such screen. */
-	navigate?(screenName: string): boolean;
+	/**
+	 * Game app: navigate to a screen by name, with the data its onMount takes
+	 * (plain JSON, since a harness sends it across `page.evaluate`). False
+	 * when no such screen.
+	 */
+	navigate?(screenName: string, data?: unknown): boolean;
 	/** Game app: the screens navigate accepts. */
 	screens?(): string[];
 	pause?(): void;

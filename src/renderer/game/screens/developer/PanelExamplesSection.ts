@@ -1,4 +1,5 @@
-import { DeveloperSectionPanel } from './DeveloperSectionPanel';
+import { DeveloperSectionPanel, wrappedLineCount } from './DeveloperSectionPanel';
+import { FlowWrap } from '../../ui/FlowWrap';
 import type { Component } from '../../../engine/components/Component';
 import { Stack } from '../../../engine/components/Stack';
 import { Text } from '../../../engine/components/Text';
@@ -54,16 +55,21 @@ export class PanelExamplesSection extends DeveloperSectionPanel {
 		]));
 		this.addChild(rows);
 
-		const rowHeight = CAPTION_HEIGHT + CAPTION_GAP + PANEL_HEIGHT;
-		this.fitContentHeight(TITLE_HEIGHT + rowHeight * 2 + ROW_GAP);
+		this.fitContentHeight(TITLE_HEIGHT + this.rowsHeight + ROW_GAP * (rows.getChildren().length - 1));
 	}
+
+	/** The rows' heights so far, each wrapping its panels at the section's width. */
+	private rowsHeight = 0;
 
 	private row(text: string, panels: Component[]): Stack {
 		const row = new Stack({ gap: CAPTION_GAP });
 		row.addChild(caption(text));
-		const line = new Stack({ direction: 'horizontal', gap: tokens.space.space_6 });
+		const gap = tokens.space.space_6;
+		const line = new FlowWrap({ width: this.sectionContentWidth, gap, rowGap: gap });
 		panels.forEach((panel) => line.addChild(panel));
 		row.addChild(line);
+		const lines = wrappedLineCount(panels.map(() => PANEL_WIDTH), this.sectionContentWidth, gap);
+		this.rowsHeight += CAPTION_HEIGHT + CAPTION_GAP + lines * PANEL_HEIGHT + (lines - 1) * gap;
 		return row;
 	}
 
