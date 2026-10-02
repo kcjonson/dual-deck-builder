@@ -20,9 +20,9 @@ export abstract class CatalogSection extends DeveloperSectionPanel {
 		this.addChild(this.rows);
 	}
 
-	/** A caption over `content`. */
-	protected addRow(caption: string, content: Component): void {
-		const row = new Stack({ gap: CAPTION_GAP });
+	/** A caption over `content`; a `fill` row stretches `content` to the section's width. */
+	protected addRow(caption: string, content: Component, { fill = false }: { fill?: boolean } = {}): void {
+		const row = fill ? new Stack({ gap: CAPTION_GAP, widthMode: 'fill', crossAlign: 'stretch' }) : new Stack({ gap: CAPTION_GAP });
 		row.addChild(new Text({ text: caption, style: { fontSize: tokens.fontSize.fs_base, color: 'text_dim' } }));
 		row.addChild(content);
 		this.rows.addChild(row);

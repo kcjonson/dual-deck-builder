@@ -1,8 +1,7 @@
 import { Screen } from '../../core/Screen';
 import { ScreenManager } from '../../core/ScreenManager';
 import { Stack } from '../../../engine/components/Stack';
-import { EnemyBattlefieldLayer, EnemyIntent } from './EnemyBattlefieldLayer';
-import { PlayerBattlefieldLayer } from './PlayerBattlefieldLayer';
+import { RoadView, EnemyIntent } from './RoadView';
 import { PlayerHandLayer } from './PlayerHandLayer';
 import { LOG_KEY, TopBarLayer } from './TopBarLayer';
 import { EndTurnColumn } from './EndTurnColumn';
@@ -11,9 +10,8 @@ import { TurnBanner } from './TurnBanner';
 import { CombatModel } from './CombatModel';
 import {
 	DOCK_HEIGHT,
-	ENEMY_ROAD_WEIGHT,
 	LOG_DRAWER_WIDTH,
-	PLAYER_ROAD_WEIGHT,
+	ROAD_HEADER_HEIGHT,
 	STAGE_MAX_WIDTH,
 	computeCombatStage,
 } from './CombatLayout';
@@ -67,8 +65,7 @@ export class CombatScreen extends Screen {
 	// and is the one thing sized and scaled from the viewport.
 	private stage!: Stack;
 	private topBar!: TopBarLayer;
-	private enemyLayer!: EnemyBattlefieldLayer;
-	private battlefieldLayer!: PlayerBattlefieldLayer;
+	private road!: RoadView;
 	private handLayer!: PlayerHandLayer;
 	private endTurnColumn!: EndTurnColumn;
 	private combatLogLayer!: CombatLogLayer;
@@ -305,7 +302,7 @@ export class CombatScreen extends Screen {
 	}
 
 	private popHitNumber({ vehicle, damage }: HitEvent): void {
-		const plate = this.enemyLayer.vehicleView(vehicle.id) ?? this.battlefieldLayer.vehicleView(vehicle.id);
+		const plate = this.road.vehicleView(vehicle.id);
 		if (!plate?.isMounted) return;
 		this.fx.popNumber({
 			anchor: plate.screenBounds,
@@ -416,23 +413,16 @@ export class CombatScreen extends Screen {
 				.reduce((total, driver) => total + driver.adrenaline, 0),
 		});
 
-		// Update enemy layer with enemy vehicles
+		// Every vehicle on the road, in its slot
+		this.road.showVehicles({ player: this.playerTeam?.vehicles ?? [], enemy: this.enemyTeam?.vehicles ?? [] });
+
+		// Every raider's plan, two markers and then "+N", until the intent
+		// pills land (DDB-139)
 		if (this.enemyTeam) {
-			// Pass the Vehicle[] directly
-			this.enemyLayer.vehicles = this.enemyTeam.vehicles;
-			
-			// Every raider's plan, two markers and then "+N", until the intent
-			// pills land (DDB-139)
 			const intents = this.battle?.getAllIntents();
 			this.enemyTeam.vehicles.forEach(vehicle => {
-				this.enemyLayer.setVehicleIntents(vehicle.id, (intents?.get(vehicle) ?? []).map(intent => this.intentMarkerOf(intent)));
+				this.road.setVehicleIntents(vehicle.id, (intents?.get(vehicle) ?? []).map(intent => this.intentMarkerOf(intent)));
 			});
-		}
-
-		// Update battlefield layer with player vehicles
-		if (this.playerTeam) {
-			// Pass the Vehicle[] directly
-			this.battlefieldLayer.vehicles = this.playerTeam.vehicles;
 		}
 	}
 
@@ -499,7 +489,7 @@ export class CombatScreen extends Screen {
 		this.stage.addChild(this.fx);
 	}
 
-	/** The raiders' band above the player's until the slot grid (DDB-134), with the banner and the log drawer over both. */
+	/** The road's lanes and slots, with the banner and the log drawer over them. */
 	private createRoad(): Stack {
 		const road = new Stack({
 			id: 'combat_road',
@@ -509,32 +499,25 @@ export class CombatScreen extends Screen {
 			heightMode: 'fill',
 		});
 
-		this.enemyLayer = new EnemyBattlefieldLayer({
-			id: 'combat_enemy_battlefield',
+		this.road = new RoadView({
+			id: 'combat_road_view',
 			widthMode: 'fill',
 			heightMode: 'fill',
-			fillWeight: ENEMY_ROAD_WEIGHT,
 			combatData: this.combatModel,
 		});
-		road.addChild(this.enemyLayer);
+		road.addChild(this.road);
 
-		this.battlefieldLayer = new PlayerBattlefieldLayer({
-			id: 'combat_player_battlefield',
-			widthMode: 'fill',
-			heightMode: 'fill',
-			fillWeight: PLAYER_ROAD_WEIGHT,
-			combatData: this.combatModel,
-		});
-		road.addChild(this.battlefieldLayer);
-
-		// Across the middle of the road and only the road (section 6), over
-		// the vehicles and the log drawer, whatever fills the road, so the
-		// slot grid (DDB-134) can replace the two bands under it
+		// Across the road and only the road (section 6), over the vehicles and
+		// the log drawer, centred on the slot rows rather than the band: the
+		// rows run from 4 under the header to 4 above the band's foot, so their
+		// middle is half the header below the band's, and a header-high top
+		// margin on a centred banner puts it there
 		this.turnBanner = new TurnBanner({
 			id: 'combat_turn_banner',
 			positioned: 'absolute',
 			anchor: 'center',
 			widthMode: 'fill',
+			margin: { top: ROAD_HEADER_HEIGHT },
 			layer: 'overlay',
 			zIndex: 2,
 		});
@@ -594,6 +577,8 @@ export class CombatScreen extends Screen {
 		this.stage.setSize(width, height);
 		this.stage.transform = { scale, origin: [0, 0] };
 		this.fx.setSize(width, height);
+		// The stage's column caps and centres; the road art runs on to the edges
+		this.road.bleed = (width - Math.min(width, STAGE_MAX_WIDTH)) / 2;
 	}
 
 	/**
@@ -797,7 +782,7 @@ export class CombatScreen extends Screen {
 		// are the only focusable vehicles now (R9.23: programmatic focus
 		// keeps the keyboard's visible ring)
 		const focus = this.context.focus;
-		if (via === 'click' && focus.focusVisible && !focus.focusFirst(this.enemyLayer)) focus.focusFirst(this.battlefieldLayer);
+		if (via === 'click' && focus.focusVisible) focus.focusFirst(this.road);
 		return true;
 	}
 

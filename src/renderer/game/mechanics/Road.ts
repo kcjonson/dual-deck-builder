@@ -47,7 +47,8 @@ export interface FormationSlot {
 	readonly row: RoadRow;
 }
 
-const LANE_ORDER: readonly RoadLane[] = [
+/** Every lane, left to right as the road is drawn. */
+export const LANE_ORDER: readonly RoadLane[] = [
 	RoadLane.PLAYER_SHOULDER,
 	RoadLane.PLAYER_OUTSIDE,
 	RoadLane.PLAYER_INSIDE,
