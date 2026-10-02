@@ -28,7 +28,7 @@ This is a stand-in for section 5's detail view (DDB-137), which is anchored to t
 
 ### The drag's ghost is a reticle; the line is read at paint time
 
-The mock keeps the dragged card in the hand, lifted, with a dotted line to the pointer. The drag service moves a ghost, the source by default, so the card passes an `AimReticle` in `CombatFxLayer` as the ghost instead, placed under the press when the candidate drag starts. `TargetingArrow` covers the stage and, at paint time, reads the source card's top edge and the reticle's centre from the tree and draws a quadratic curve of dots between them with a head at the pointer. Its colour is the drag service's `canDrop`. Nothing updates it per move.
+The mock keeps the dragged card in the hand, lifted, with a dotted line to the pointer. The drag service moves a ghost, the source by default, so the card passes an `AimReticle` in `CombatFxLayer` as the ghost instead, placed under the press when the candidate drag starts. `TargetingArrow` covers the stage and, at paint time, reads the source card's top edge and the reticle's centre from the tree (carried up a level at a time with `Component.localToAncestorInto`, which builds no matrices, so a frame of aiming allocates nothing on the game's side; the draw API's own command copies are the engine's) and draws a quadratic curve of dots between them with a head at the pointer. Its colour is the drag service's `canDrop`. Nothing updates it per move.
 
 Considered: the card as the ghost. It covers the vehicle it's dropped on, which hides the target highlight the drop depends on, and the design says the card stays put.
 
@@ -39,7 +39,9 @@ Considered: redrawing the line from the card's captured `pointermove`s. It works
 ### Who accepts what
 
 - A vehicle accepts in `dragenter` when targeting is on and it's a target, sets the model's focused vehicle, and plays the card on `drop` through the same `chooseAsTarget` a click uses. `dropActive` lights the plate too.
-- The road accepts a card that needs no target, and plays it on `drop`. A targeted card over the road, or over a vehicle that isn't its target, is accepted by nothing.
+- A card that needs no target is accepted by the vehicles it acts on, the way section 4 has a buff order dropped on its escort: the playing driver's vehicle for a card on themselves, the raiders for one on all of them, your convoy for one on both drivers. It plays untargeted on `drop`. The road accepts nothing, so a release there cancels any card, as section 6 says. A targeted card over a vehicle that isn't its target is accepted by nothing either.
+
+Considered: the road as the drop zone for a no-target card. It's the simplest gesture (fling it up out of the hand), but it turns section 6's cancel into a play that spends adrenaline for exactly the cards whose cancel matters least to notice.
 - The card's `dragend` with `dropped: false` puts the card back: selection cleared, the hand re-enabled. That covers a release off target, Escape (the screen's hotkey calls `drag.cancel()` while dragging), and another mouse button, which arrives on the captured card as a chorded `pointermove` with `button` set (R9.30), or as a `pointerdown` when it wasn't held.
 
 A drag that goes active chooses its card through the same checks a click does (`chooseCard(card, 'drag')`), except that a card with no target waits for its drop instead of playing, and focus doesn't jump to the first target.
@@ -48,7 +50,11 @@ A drag that goes active chooses its card through the same checks a click does (`
 
 Nothing in `Battle` said where a hit landed: the log names vehicles, and names aren't unique. `Battle` now emits `hitLanded` with the vehicle and the damage the attack dealt (before shield and armor take their share, which is what the mock's `-6` reads as) from `damageVehicle` and `damageDriver`, and `hitMissed` from the two miss checks. Every hit in the game goes through those two helpers, the enemy turn's included.
 
-The screen looks up the plate by vehicle id and reads its `screenBounds` in the handler. A wreck is taken off the road after the hit resolves, so reading later would find no plate. `CombatFxLayer.popNumber` converts the plate's top centre into its own space and adds a `Text` (the mock's `.dmgpop`: display type, 30 px, `#ff8a78`, a hard black shadow) that rises 40 px with an ease-out and fades over the back half of 900 ms. That's longer than any motion token because the number has to be read; the mock never animates it. A second number on the same plate in the same burst (an enemy turn's volley) starts 28 px under the first, so they read as a column rather than one smudge. Each number is its own tween's owner, so unmounting the screen cancels them all. Under reduced motion the animator finishes a tween on its first tick, so the number shows for a frame; holding it still for a beat instead is left for the reduced-motion pass.
+The screen looks up the plate by vehicle id and reads its `screenBounds` in the handler. A wreck is taken off the road after the hit resolves, so reading later would find no plate. `CombatFxLayer.popNumber` converts the plate's top centre into its own space and adds a `FloatingNumber`, a `Text` in the mock's `.dmgpop` (display type, 30 px, `#ff8a78`, a hard black shadow). A second number on the same plate in the same burst (an enemy turn's volley) starts 28 px under the first, so they read as a column rather than one smudge.
+
+How long a number stays is reading time, not motion: 900 ms, longer than any motion token. So it counts down on the frame clock in its own `update(dt)`, as `Toast`'s auto-dismiss does, and only the movement goes through the animator: a 40 px ease-out rise over its life, and a fade over the back 45%. Under reduced motion (R11.13) neither starts, and the number holds still at full opacity for its 900 ms, then goes. The first version ran the whole life as one tween, which reduced motion completed in the update phase of the frame the hit landed in, before render, so the number was never painted at all. Each number owns its tweens and its update request, so unmounting the screen cancels them.
+
+The gallery's `combat-fx` scene holds a line and three numbers still (`FloatingNumber`'s `held`) for a golden.
 
 Considered: diffing structure and armor on the team's `change` events. It can't tell a hit from a repair or an armor card, and it can't see a miss.
 

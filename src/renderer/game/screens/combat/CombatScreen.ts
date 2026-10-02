@@ -534,17 +534,6 @@ export class CombatScreen extends Screen {
 		this.combatLogLayer.setVisible(this.combatLogVisible);
 		road.addChild(this.combatLogLayer);
 
-		// A card that needs no target is played by dropping it anywhere on the
-		// road; one that does falls through to here only off a target, and
-		// the road doesn't take it, so releasing it there cancels
-		road.onDragEnter = (event) => {
-			const selected = this.combatModel.selectedCard;
-			if (isHandCardDrag(event.data) && event.data.card === selected && !this.combatModel.isTargeting) event.accept();
-		};
-		road.onDrop = (event) => {
-			if (isHandCardDrag(event.data)) this.playCardWithTarget(event.data.card, undefined);
-		};
-
 		return road;
 	}
 
@@ -631,8 +620,10 @@ export class CombatScreen extends Screen {
 		this.modelUnsubscribers.push(
 			// Listen for when a vehicle is targeted
 			this.combatModel.on('targetedVehicle', (vehicle: Vehicle | null) => {
-				if (vehicle && this.combatModel.selectedCard && this.combatModel.selectedDriver) {
-					this.playCardWithTarget(this.combatModel.selectedCard, vehicle);
+				const card = this.combatModel.selectedCard;
+				if (vehicle && card && this.combatModel.selectedDriver) {
+					// A card with no target was dropped on a vehicle it acts on; it still plays untargeted
+					this.playCardWithTarget(card, this.combatModel.isTargeting ? vehicle : undefined);
 				}
 			}),
 
@@ -731,12 +722,16 @@ export class CombatScreen extends Screen {
 		this.keyboardSlot = Math.max(0, this.handLayer.slotOf(card));
 
 		if (!this.combatModel.isTargeting) {
-			// No target: a click plays it now, a drag when it lands on the road
+			// No target: a click plays it now. A drag plays when it lands on a
+			// vehicle it acts on, as an order lands on its escort (Battle Screen
+			// Design section 4); the road takes nothing, so releasing there
+			// cancels (section 6)
 			if (via === 'click') {
 				this.playCardWithTarget(card, undefined);
 			} else {
 				this.handLayer.setCardSelected(card);
 				this.handLayer.setTargetingMode(true);
+				this.combatModel.targetableVehicleIds = this.dropVehicles(card);
 			}
 			return true;
 		}
@@ -751,6 +746,26 @@ export class CombatScreen extends Screen {
 		const focus = this.context.focus;
 		if (via === 'click' && focus.focusVisible && !focus.focusFirst(this.enemyLayer)) focus.focusFirst(this.battlefieldLayer);
 		return true;
+	}
+
+	/**
+	 * Where a card with no target can be dropped: the vehicle the playing
+	 * driver is in for a card on themselves, the raiders for one on all of
+	 * them, your convoy for one on both drivers.
+	 */
+	private dropVehicles(card: Card): string[] {
+		const onRoad = (vehicles: readonly Vehicle[] | undefined): string[] =>
+			(vehicles ?? []).filter(vehicle => !vehicle.isOutOfFight).map(vehicle => vehicle.id);
+		switch (card.targetType) {
+			case 'enemy_all':
+				return onRoad(this.enemyTeam?.vehicles);
+			case 'both_drivers':
+				return onRoad(this.playerTeam?.vehicles);
+			default: {
+				const driver = this.combatModel.selectedDriver;
+				return onRoad(this.playerTeam?.vehicles.filter(vehicle => vehicle.driver === driver || vehicle.passenger === driver));
+			}
+		}
 	}
 
 	/** Targeting ends with nothing played: the card goes back to the hand. */

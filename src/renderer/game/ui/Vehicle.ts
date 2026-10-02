@@ -351,10 +351,11 @@ export class Vehicle extends Component {
 				}
 				this.updateVisualState();
 				return;
-			// A card dragged from the hand (R9.12): a target accepts it, lights
-			// up as the pointer's target, and is chosen by the drop
+			// A card dragged from the hand (R9.12): a vehicle it can land on
+			// (a target, or one a no-target card acts on) accepts it, lights up
+			// as the pointer's target, and is chosen by the drop
 			case 'dragenter':
-				if (this.combatData?.isTargeting && this.isTargetable()) {
+				if (this.combatData && this.isTargetable()) {
 					event.accept();
 					this.combatData.focusVehicle(this.vehicleData.id);
 				}

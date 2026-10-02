@@ -14,6 +14,9 @@ import { PointerAdapter } from '../../../engine/input/PointerAdapter';
 import { Battle } from '../../mechanics/Battle';
 import { Card } from '../../mechanics/Card';
 import type { Rect } from '../../../engine/draw/geometry';
+import { NUMBER_LIFETIME } from './CombatFxLayer';
+import { Component } from '../../../engine/components/Component';
+import type { DrawApi } from '../../../engine/draw/DrawApi';
 
 /**
  * DDB-88: the hand as a fan. A hand card previews large, with its full
@@ -237,6 +240,29 @@ describe('CombatScreen drag to play', () => {
 		expect(context.drag.canDrop).toBe(true);
 		expect(combat['fx'].aiming).toBe(true);
 		expect(combat['combatModel'].selectedCard).toBe(data);
+
+		// The line runs from the lifted card's top edge to the pointer, found
+		// without the screen round trip (no screenQuad, no inverted matrices)
+		// The arrow reuses its option objects, so copy what each call saw
+		const dots: { x: number; y: number }[] = [];
+		const draw = {
+			drawCircle: jest.fn(({ center }: { center: { x: number; y: number } }) => dots.push({ ...center })),
+			drawPolygon: jest.fn(),
+		};
+		const screenQuad = jest.spyOn(Component.prototype, 'screenQuad', 'get');
+		const screenToLocal = jest.spyOn(Component.prototype, 'screenToLocal');
+		combat['fx']['arrow'].render(draw as unknown as DrawApi);
+		expect(screenQuad).not.toHaveBeenCalled();
+		expect(screenToLocal).not.toHaveBeenCalled();
+		screenQuad.mockRestore();
+		screenToLocal.mockRestore();
+		const [tip] = draw.drawPolygon.mock.calls[0][0].points;
+		expect(tip.x).toBeCloseTo(target[0], 6);
+		expect(tip.y).toBeCloseTo(target[1], 6);
+		const [topLeft, topRight] = card.screenQuad;
+		const [firstDot] = dots;
+		expect(Math.hypot(firstDot.x - (topLeft.x + topRight.x) / 2, firstDot.y - (topLeft.y + topRight.y) / 2)).toBeLessThan(12);
+
 		inject(`up,${target[0]},${target[1]}`);
 
 		expect(playCard).toHaveBeenCalledTimes(1);
@@ -266,12 +292,42 @@ describe('CombatScreen drag to play', () => {
 		combat.unmount();
 	});
 
-	it('plays a card with no target when it lands anywhere on the road', async () => {
+	it('cancels a card with no target released on the road, as the design says of any release there', async () => {
 		const combat = await startCombat();
-		const card = handCard(combat, ['self', 'both_drivers', 'enemy_all'], 'repair_kit');
+		const card = handCard(combat, ['self'], 'repair_kit');
 		const playCard = jest.spyOn(Battle.prototype, 'playCard');
 
 		drag(grabPoint(card), [640, 250]);
+		expect(playCard).not.toHaveBeenCalled();
+		expect(combat['combatModel'].selectedCard).toBeNull();
+		expect(combat['combatModel'].targetableVehicleIds).toEqual([]);
+		expect(card.isSelected()).toBe(false);
+
+		playCard.mockRestore();
+		combat.unmount();
+	});
+
+	it('plays a card on its own driver when it is dropped on their vehicle, and not on the partner\'s', async () => {
+		const combat = await startCombat();
+		const card = handCard(combat, ['self'], 'repair_kit');
+		const data = card.getData();
+		const owner = combat['playerDrivers'].find(driver => driver.hand.includes(data));
+		const vehicles = combat['playerTeam']?.vehicles ?? [];
+		const own = vehicles.find(vehicle => vehicle.driver === owner || vehicle.passenger === owner);
+		const partner = vehicles.find(vehicle => vehicle !== own);
+		const plate = (id: string | undefined) => combat['battlefieldLayer'].vehicleView(id ?? '')?.screenBounds;
+		const ownBounds = plate(own?.id);
+		const partnerBounds = plate(partner?.id);
+		if (!ownBounds || !partnerBounds) throw new Error('both player vehicles should be on the road');
+		const playCard = jest.spyOn(Battle.prototype, 'playCard');
+
+		drag(grabPoint(card), centreOf(partnerBounds));
+		expect(playCard).not.toHaveBeenCalled();
+		expect(combat['combatModel'].selectedCard).toBeNull();
+
+		drag(grabPoint(card), centreOf(ownBounds), { release: false });
+		expect(context.drag.canDrop).toBe(true);
+		inject(`up,${centreOf(ownBounds).join(',')}`);
 		expect(playCard).toHaveBeenCalledTimes(1);
 		expect(playCard.mock.calls[0][0].targetVehicle).toBeUndefined();
 
@@ -356,6 +412,30 @@ describe('CombatScreen floating numbers', () => {
 		expect(number.opacity).toBeLessThan(1);
 		advance(context, 200);
 		expect(fx.floatingNumbers).toHaveLength(0);
+
+		combat.unmount();
+	});
+
+	it('holds a number still for its whole life under reduced motion, then removes it', async () => {
+		const combat = await startCombat();
+		const fx = combat['fx'];
+		const [raider] = combat['enemyTeam']?.vehicles ?? [];
+		context.animator.reducedMotion = true;
+		try {
+			combat['popHitNumber']({ vehicle: raider, damage: 6 });
+			const [number] = fx.floatingNumbers;
+			const start = number.screenBounds;
+			advance(context, 16);
+			expect(fx.floatingNumbers).toEqual([number]);
+			advance(context, NUMBER_LIFETIME - 100);
+			expect(fx.floatingNumbers).toEqual([number]);
+			expect(number.opacity).toBe(1);
+			expect(number.screenBounds.y).toBe(start.y);
+			advance(context, 200);
+			expect(fx.floatingNumbers).toHaveLength(0);
+		} finally {
+			context.animator.reducedMotion = false;
+		}
 
 		combat.unmount();
 	});

@@ -1,6 +1,7 @@
 import { Component, ComponentOptions, ResolvedColors } from '../../../engine/components/Component';
 import { Container, ContainerOptions } from '../../../engine/components/Container';
 import { Text } from '../../../engine/components/Text';
+import type { MountContext } from '../../../engine/components/MountContext';
 import { linear } from '../../../engine/animation/easing';
 import type { DrawApi } from '../../../engine/draw/DrawApi';
 import type { DrawCircleOptions, DrawPolygonOptions } from '../../../engine/draw/commands';
@@ -25,21 +26,23 @@ const HEAD_INDICES: readonly number[] = [0, 1, 2, 0, 2, 3];
 
 /**
  * The mock's `.dmgpop`: 30 px display type with a hard drop shadow. The
- * mock never animates it; it rises and fades out over `NUMBER_LIFETIME`,
- * longer than any motion token because it has to be read.
+ * mock never animates it; it stays `NUMBER_LIFETIME`, longer than any
+ * motion token because it has to be read, rising and fading as it goes.
  */
 const NUMBER_FONT_SIZE = 30;
 const NUMBER_BOX_WIDTH = 120;
 const NUMBER_BOX_HEIGHT = 36;
 const NUMBER_RISE = 40;
-const NUMBER_LIFETIME = 900;
+export const NUMBER_LIFETIME = 900;
 /** The share of its life a number holds full opacity before fading. */
 const NUMBER_HOLD = 0.55;
 /** A second number on the same vehicle starts this far below the first. */
 const NUMBER_STACK_STEP = 28;
 /** Down from the top of the vehicle's box, where the number starts. */
 const NUMBER_INSET = 8;
+const NUMBER_Z_INDEX = 2;
 const NUMBER_SHADOW = { color: resolveColor('#000000'), offset: { x: 0, y: 2 }, blur: 4 };
+const easeOutQuad = (progress: number): number => 1 - (1 - progress) * (1 - progress);
 
 /**
  * What follows the pointer while a card is dragged (R9.12b's ghost): a ring
@@ -56,7 +59,8 @@ export class AimReticle extends Component {
 	};
 
 	constructor(options: ComponentOptions = {}) {
-		super({ width: RETICLE_SIZE, height: RETICLE_SIZE, pointerEvents: 'none', ...options });
+		// Over the line that ends at its centre
+		super({ width: RETICLE_SIZE, height: RETICLE_SIZE, pointerEvents: 'none', zIndex: 1, ...options });
 		this.componentType = 'AimReticle';
 		this.ring.id = this.id ?? undefined;
 	}
@@ -93,6 +97,8 @@ export class TargetingArrow extends Component {
 	private readonly dots: Vec2[] = [];
 	private readonly head: [Vec2, Vec2, Vec2] = [{ x: 0, y: 0 }, { x: 0, y: 0 }, { x: 0, y: 0 }];
 	private readonly cardTop: Vec2 = { x: 0, y: 0 };
+	private readonly from: Vec2 = { x: 0, y: 0 };
+	private readonly to: Vec2 = { x: 0, y: 0 };
 	private readonly dot: DrawCircleOptions & { center: Vec2; fill: RGBA } = { center: { x: 0, y: 0 }, radius: DOT_RADIUS, fill: OFF_TARGET };
 	private readonly headShape: DrawPolygonOptions & { points: Vec2[] };
 
@@ -117,15 +123,27 @@ export class TargetingArrow extends Component {
 		return this.sourceCard ? { fill: aimColor(this) } : null;
 	}
 
+	/**
+	 * Both ends are carried up the tree a level at a time into the layer's
+	 * parent (the stage, which holds the hand too), then down into this
+	 * line's box past the layer's and its own origins. Neither has a
+	 * transform, so that's a subtraction, and the walk builds no matrices.
+	 */
 	public render(draw: DrawApi): void {
 		const card = this.sourceCard;
-		if (!card || !card.isMounted || !this.reticle.visible) return;
-		const [topLeft, topRight] = card.screenQuad;
-		this.cardTop.x = (topLeft.x + topRight.x) / 2;
-		this.cardTop.y = (topLeft.y + topRight.y) / 2;
-		const from = this.screenToLocal(this.cardTop);
-		const to = this.screenToLocal(this.reticle.localToScreen(this.reticle.centre));
-		if (!from || !to) return;
+		const layer = this.parent;
+		const space = layer?.parent;
+		if (!card || !card.isMounted || !this.reticle.visible || !layer || !space) return;
+		const from = this.from;
+		const to = this.to;
+		this.cardTop.x = card.width / 2;
+		this.cardTop.y = 0;
+		if (!card.localToAncestorInto(this.cardTop, space, from)) return;
+		from.x -= layer.originX + this.originX;
+		from.y -= layer.originY + this.originY;
+		if (!this.reticle.localToAncestorInto(this.reticle.centre, layer, to)) return;
+		to.x -= this.originX;
+		to.y -= this.originY;
 		const color = aimColor(this);
 		targetingCurve(from, to, this.curve);
 
@@ -308,26 +326,70 @@ export class CombatFxLayer extends Container {
 	}
 
 	/** The numbers on screen now, oldest first. */
-	public get floatingNumbers(): Text[] {
-		return this.getChildren().filter((child): child is Text => child instanceof Text);
+	public get floatingNumbers(): FloatingNumber[] {
+		return this.getChildren().filter((child): child is FloatingNumber => child instanceof FloatingNumber);
 	}
 
 	/**
 	 * A number that rises off the top of `anchor` (a vehicle's
-	 * `screenBounds`) and fades, on the animator. `anchorKey` names what it
-	 * belongs to, so hits on the same vehicle in one burst stack instead of
-	 * printing over each other. Under reduced motion the animator finishes
-	 * it on its first tick.
+	 * `screenBounds`) and fades. `anchorKey` names what it belongs to, so
+	 * hits on the same vehicle in one burst stack instead of printing over
+	 * each other.
 	 */
 	public popNumber({ anchor, anchorKey, text, kind }: { anchor: Rect; anchorKey: string; text: string; kind: FloatingNumberKind }): void {
-		const animator = this.context?.animator;
 		const top = this.screenToLocal({ x: anchor.x + anchor.width / 2, y: anchor.y });
-		if (!animator || !top) return;
+		if (!top || !this.isMounted) return;
 
 		const stacked = this.risingPerAnchor.get(anchorKey) ?? 0;
 		this.risingPerAnchor.set(anchorKey, stacked + 1);
-		const label = new Text(text, {
+		this.addChild(new FloatingNumber({
 			id: `combat_float_${anchorKey}_${stacked}`,
+			text,
+			kind,
+			x: top.x - NUMBER_BOX_WIDTH / 2,
+			y: top.y + NUMBER_INSET + stacked * NUMBER_STACK_STEP,
+			onExpire: (number) => {
+				const left = (this.risingPerAnchor.get(anchorKey) ?? 1) - 1;
+				if (left > 0) this.risingPerAnchor.set(anchorKey, left);
+				else this.risingPerAnchor.delete(anchorKey);
+				this.removeChild(number);
+			},
+		}));
+	}
+}
+
+/**
+ * A hit's `-N` or `MISS`. How long it stays is reading time, not motion, so
+ * it counts down on the frame clock like `Toast`'s auto-dismiss; only the
+ * rise and the fade go through the animator, and under reduced motion
+ * (R11.13) the number holds still at full opacity for its whole life
+ * instead.
+ */
+export class FloatingNumber extends Text {
+	private readonly startX: number;
+	private readonly startY: number;
+	private remainingMs = NUMBER_LIFETIME;
+	private fading = false;
+	private readonly onExpire: ((number: FloatingNumber) => void) | null;
+	private readonly held: boolean;
+
+	/**
+	 * `held` keeps it where it starts, at full opacity, for as long as it's
+	 * mounted: the gallery's picture of one, which a capture can pin.
+	 */
+	constructor({ id, text, kind, x, y, onExpire = null, held = false }: {
+		id: string;
+		text: string;
+		kind: FloatingNumberKind;
+		x: number;
+		y: number;
+		onExpire?: ((number: FloatingNumber) => void) | null;
+		held?: boolean;
+	}) {
+		super(text, {
+			id,
+			// Over the line and the reticle, and a later number over an earlier one
+			zIndex: NUMBER_Z_INDEX,
 			width: NUMBER_BOX_WIDTH,
 			height: NUMBER_BOX_HEIGHT,
 			pointerEvents: 'none',
@@ -340,32 +402,58 @@ export class CombatFxLayer extends Container {
 				textAlign: 'center',
 			},
 		});
-		label.shadow = NUMBER_SHADOW;
-		const x = top.x - NUMBER_BOX_WIDTH / 2;
-		const startY = top.y + NUMBER_INSET + stacked * NUMBER_STACK_STEP;
-		label.setPosition(x, startY);
-		this.addChild(label);
+		this.componentType = 'FloatingNumber';
+		this.shadow = NUMBER_SHADOW;
+		this.startX = x;
+		this.startY = y;
+		this.onExpire = onExpire;
+		this.held = held;
+		this.setPosition(x, y);
+	}
 
-		const settle = (): void => {
-			const left = (this.risingPerAnchor.get(anchorKey) ?? 1) - 1;
-			if (left > 0) this.risingPerAnchor.set(anchorKey, left);
-			else this.risingPerAnchor.delete(anchorKey);
-		};
-		animator.tween({
+	/** Under reduced motion it neither rises nor fades. */
+	private get moving(): boolean {
+		const animator = this.context?.animator;
+		return !this.held && animator !== undefined && !animator.reducedMotion;
+	}
+
+	protected onMount(context: MountContext): void {
+		super.onMount(context);
+		if (this.held) return;
+		this.requestUpdate();
+		if (!this.moving) return;
+		context.animator.tween({
 			from: 0,
-			to: 1,
+			to: NUMBER_RISE,
 			duration: NUMBER_LIFETIME,
-			ease: linear,
-			owner: label,
-			onUpdate: (progress) => {
-				const rise = 1 - (1 - progress) * (1 - progress);
-				label.setPosition(x, startY - NUMBER_RISE * rise);
-				label.opacity = progress <= NUMBER_HOLD ? 1 : 1 - (progress - NUMBER_HOLD) / (1 - NUMBER_HOLD);
-			},
-			onComplete: () => {
-				settle();
-				this.removeChild(label);
-			},
+			ease: easeOutQuad,
+			owner: this,
+			onUpdate: (rise) => this.setPosition(this.startX, this.startY - rise),
 		});
+	}
+
+	/** The countdown; the fade starts once the hold is up and ends with it. */
+	public update(dt: number): void {
+		this.remainingMs -= dt * 1000;
+		if (this.remainingMs <= 0) {
+			if (this.onExpire) this.onExpire(this);
+			else this.parent?.removeChild(this);
+			return;
+		}
+		const animator = this.context?.animator;
+		if (!this.fading && animator && this.moving && this.remainingMs <= NUMBER_LIFETIME * (1 - NUMBER_HOLD)) {
+			this.fading = true;
+			animator.tween({
+				from: 1,
+				to: 0,
+				duration: this.remainingMs,
+				ease: linear,
+				owner: this,
+				onUpdate: (opacity) => {
+					this.opacity = opacity;
+				},
+			});
+		}
+		this.requestUpdate();
 	}
 }

@@ -785,6 +785,27 @@ export abstract class Component {
 		return transformPoint(this.screenMatrix, point.x, point.y);
 	}
 
+	/**
+	 * `point` in this content box carried up into `ancestor`'s content box,
+	 * written into `out`: `screenMatrix`'s chain stopped at `ancestor`, applied
+	 * a level at a time so it builds no matrices, for a caller that runs every
+	 * frame (an aim line, a follower). False, with `out` untouched, when
+	 * `ancestor` isn't above this component.
+	 */
+	public localToAncestorInto(point: Vec2, ancestor: Component, out: Vec2): boolean {
+		const at = LIFT_SCRATCH;
+		at.x = point.x;
+		at.y = point.y;
+		if (ancestor !== this) {
+			for (let node = liftIntoParent(this, at); node !== ancestor; node = liftIntoParent(node, at)) {
+				if (!node) return false;
+			}
+		}
+		out.x = at.x;
+		out.y = at.y;
+		return true;
+	}
+
 	/** Null when a zero scale somewhere above collapses the box to a line. */
 	public screenToLocal(point: Vec2): Vec2 | null {
 		const inverse = invert(this.screenMatrix);
@@ -2201,4 +2222,28 @@ interface StoreSizeOptions {
 
 function clampIndex(index: number, length: number): number {
 	return Math.max(0, Math.min(length, Math.floor(index)));
+}
+
+const LIFT_SCRATCH: Vec2 = { x: 0, y: 0 };
+
+/**
+ * One level of `screenMatrix`'s chain applied to a point in place: the
+ * node's transform, its origin, then its parent's content offset. Returns
+ * the parent, whose content box the point is now in, or null at the root.
+ */
+function liftIntoParent(node: Component, point: Vec2): Component | null {
+	const matrix = node.transformMatrix;
+	if (matrix) {
+		const x = matrix[0] * point.x + matrix[2] * point.y + matrix[4];
+		point.y = matrix[1] * point.x + matrix[3] * point.y + matrix[5];
+		point.x = x;
+	}
+	point.x += node.originX;
+	point.y += node.originY;
+	const parent = node.parent;
+	if (!parent) return null;
+	const offset = parent.contentOffset;
+	point.x -= offset.x;
+	point.y -= offset.y;
+	return parent;
 }
