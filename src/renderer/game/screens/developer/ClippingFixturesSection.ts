@@ -5,7 +5,11 @@ import type { DrawApi, RGBA, Rect } from '../../../engine/draw';
 import { DrawFixture, fixtureHeading, fixtureLabel } from './DrawFixture';
 
 const FIXTURE_TOP = 50;
-const FIXTURE_HEIGHT = 700;
+/** A cell's pitch; each cell draws in the first 400 or so of it. */
+const CELL_WIDTH = 440;
+const CELL_HEIGHT = 250;
+/** Below the last row of cells, which ends this much short of its pitch. */
+const CELL_GAP = 50;
 
 const WHITE: RGBA = [1, 1, 1, 1];
 const INK: RGBA = [0.1, 0.11, 0.13, 1];
@@ -15,6 +19,8 @@ const CLEAR: RGBA = [0, 0, 0, 0];
 const LONG_TEXT = 'Scrap Hauler, Rust Runner and the Dustbowl Convoy';
 /** Where the overflowing field sits in its fixture cell. */
 const FIELD = { x: 20, y: 34, width: 300, height: 34 };
+
+type Cell = (draw: DrawApi, left: number, top: number) => void;
 
 /**
  * Chapter 4's gallery fixture (4.7), drawn through the draw API: nested rect
@@ -47,36 +53,40 @@ export class ClippingFixturesSection extends DeveloperSectionPanel {
 		title.setPosition(0, 0);
 		this.addChild(title);
 
+		// The cells three to a row, or two where the section is narrower than three
+		const columns = this.sectionContentWidth >= CELL_WIDTH * 3 ? 3 : 2;
+		const rows = Math.ceil(CELLS.length / columns);
+		const cellAt = (index: number): { left: number; top: number } => ({
+			left: (index % columns) * CELL_WIDTH,
+			top: Math.floor(index / columns) * CELL_HEIGHT,
+		});
+		const fixtureHeight = rows * CELL_HEIGHT - CELL_GAP;
 		const fixture = new DrawFixture({
 			id: 'dev_fixture_clipping',
 			x: 0,
 			y: FIXTURE_TOP,
 			width: this.innerWidth,
-			height: FIXTURE_HEIGHT,
+			height: fixtureHeight,
 			paint: (draw) => {
-				nested(draw, 0, 0);
-				disjoint(draw, 0, 250);
-				contentOffset(draw, 440, 0);
-				snappedClipEdge(draw, 440, 250);
-				everyPrimitive(draw, 880, 0);
-				overflowingText(draw, 880, 250);
-				roundedClip(draw, 0, 500);
-				squareInsideRounded(draw, 440, 500);
-				avatarMask(draw, 880, 500);
+				CELLS.forEach((cell, index) => {
+					const { left, top } = cellAt(index);
+					cell(draw, left, top);
+				});
 			},
 		});
 		// Inside the fixture it draws in, so it is part of the picture rather than a sibling over it.
+		const textCell = cellAt(CELLS.indexOf(overflowingText));
 		fixture.addChild(new TextInput({
 			id: 'dev_fixture_clipping_field',
 			value: LONG_TEXT,
-			x: 880 + FIELD.x,
-			y: 250 + FIELD.y,
+			x: textCell.left + FIELD.x,
+			y: textCell.top + FIELD.y,
 			width: FIELD.width,
 			height: FIELD.height,
 		}));
 		this.addChild(fixture);
 
-		this.fitContentHeight(FIXTURE_TOP + FIXTURE_HEIGHT);
+		this.fitContentHeight(FIXTURE_TOP + fixtureHeight);
 	}
 }
 
@@ -301,3 +311,10 @@ function avatarMask(draw: DrawApi, left: number, top: number): void {
 		color: [0.7, 0.72, 0.76, 1],
 	});
 }
+
+/** In reading order: three to a row where the section is wide enough, two where it is not. */
+const CELLS: readonly Cell[] = [
+	nested, contentOffset, everyPrimitive,
+	disjoint, snappedClipEdge, overflowingText,
+	roundedClip, squareInsideRounded, avatarMask,
+];

@@ -135,6 +135,12 @@ Both are `test.fixme` with the reason attached, so they appear in every report a
 Deleting them from the scenario list would have been quieter and would have hidden two real
 tickets.
 
+Both gaps have since closed. `primitive-shapes` got its golden when DDB-103 and DDB-185 were
+fixed, and `battleResultScreen` when `window.__app.navigate` gained a data argument (DDB-230,
+DDB-91): the result screen's payload is plain data, so a capture passes exactly what the combat
+screen does. See [screens-at-lint-zero.md](./screens-at-lint-zero.md), which also added the
+1024x600 screen scenarios.
+
 ## Bootstrap: the order the first goldens have to arrive in
 
 Nothing above works until there is a first baseline, and there is a chicken-and-egg problem in the

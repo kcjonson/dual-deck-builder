@@ -1,4 +1,5 @@
-import { DeveloperSectionPanel } from './DeveloperSectionPanel';
+import { DeveloperSectionPanel, wrappedLineCount } from './DeveloperSectionPanel';
+import { FlowWrap } from '../../ui/FlowWrap';
 import type { Component } from '../../../engine/components/Component';
 import { Stack } from '../../../engine/components/Stack';
 import { Text } from '../../../engine/components/Text';
@@ -16,6 +17,8 @@ const ROW_PITCH = 28;
 /** The range the standalone scrollbar is bound to: a hand four times the width it is shown at. */
 const STRIP_VIEW = 260;
 const STRIP_EXTENT = STRIP_VIEW * 4;
+/** Each view's width, widest caption included, for the height the wrap gives. */
+const CELL_WIDTHS = [220, 220, 240, 280];
 
 function rgba(token: keyof typeof tokens.color): Rgba {
 	return [...tokens.color[token]] as Rgba;
@@ -54,7 +57,9 @@ export class ScrollExamplesSection extends DeveloperSectionPanel {
 
 		this.addChild(new Text('Scrolling', { style: { fontSize: 28, color: '#ffffff', fontWeight: 'bold' } }));
 
-		const line = new Stack({ id: 'dev_scroll_line', y: TITLE_HEIGHT, direction: 'horizontal', gap: tokens.space.space_8 });
+		// The four views wrap at the section's width
+		const gap = tokens.space.space_8;
+		const line = new FlowWrap({ id: 'dev_scroll_line', y: TITLE_HEIGHT, width: this.sectionContentWidth, gap, rowGap: gap });
 
 		const plain = new ScrollContainer({ id: 'dev_scroll_list', width: 220, height: VIEW_HEIGHT, style: { borderWidth: 1, borderColor: 'line_edge' } });
 		plain.addChild(list(20));
@@ -79,7 +84,8 @@ export class ScrollExamplesSection extends DeveloperSectionPanel {
 		line.addChild(this.cell('a standalone horizontal scrollbar (R12.37)', this.strip()));
 		this.addChild(line);
 
-		this.fitContentHeight(TITLE_HEIGHT + CAPTION_HEIGHT + CAPTION_GAP + VIEW_HEIGHT);
+		const lines = wrappedLineCount(CELL_WIDTHS, this.sectionContentWidth, gap);
+		this.fitContentHeight(TITLE_HEIGHT + lines * (CAPTION_HEIGHT + CAPTION_GAP + VIEW_HEIGHT) + (lines - 1) * gap);
 	}
 
 	private cell(text: string, view: Component): Stack {

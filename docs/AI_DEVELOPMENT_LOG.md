@@ -16,6 +16,19 @@ This document contains the chronological log of completed development tasks for 
 - Decision record: [small-text-weight-match.md](./AI_TECHNICAL_DECISIONS/small-text-weight-match.md).
 
 **How:** Vehicle tests that every plate run is `fs_xs`, no two lines overlap on a 140x91 plate, and long names end in an ellipsis inside it; unit tests for the sample, histogram, curve and the page measuring once per size; `uberShader.spec.ts` measures the field ink through the shader for each face and scores the glyphs `rasterizeGlyphs` writes, through the curve, at 6 to 8.75 px on the running platform. Played a turn through `window.__dev.input` at 1280x720 and 1024x600.
+## Every screen at lint zero with a golden, at two sizes (2026-10-02)
+
+**What landed:** DDB-91's first PR (DDB-55, phase 6), closing DDB-230.
+
+- `Card` draws its rarity rim, face, and driver badge in `render()`; `Vehicle` its portrait panel and structure bar, with the value centred on the bar and rows placed below the measured row above; `BattlefieldLayer` its ground and lane dividers (now a `Component` with `passthrough` hits).
+- `FanPose.order` becomes each hand card's `zIndex`, declaring the fan's overlap; the lift no longer touches `zIndex`. `fanReach` pads the row by a turned card's reach.
+- Card showcase and developer screens rebuilt on root stacks with a fill `ScrollContainer`, Back, Escape, and Page Up/Down. The showcase flows its cards through `FlowWrap`; the developer screen is a `Stack` of `developerSections`, the gallery's scene factories.
+- Icons, stacks, paint order, scrolling, panels, and clipping sections wrap below about 1,320 px (`wrappedLineCount` predicts the height). Paint order's column gap 40 to 30.
+- `window.__app.navigate(name, data)`; `BattleResultData` is `{ victory }`.
+- Harness: `SHORT_VIEWPORT` (1024x600); every screen scenario at both sizes, the battle result per outcome; `openScreen` and `settle` take the size; the screen lint gate is every screen scenario.
+- Decision record: [screens-at-lint-zero.md](./AI_TECHNICAL_DECISIONS/screens-at-lint-zero.md).
+
+**How:** lint tests over every card at every size and over the plate at the battlefield's sizes, `fanReach` and `wrappedLineCount` tests, a `Game` test for the hook's data; the screen lint spec (20 scenarios) passes locally; the menu, showcase, developer, settings, credits, driver selection, a full fight, and the result played through `window.__dev.input` at both sizes with lint zero on each screen and a clean console.
 ## Arrow trapping settled, hug scrolling specified (2026-10-02)
 
 **What landed:** DDB-227, DDB-228, and DDB-233 (DDB-55), one PR.

@@ -8,6 +8,8 @@ import type { MountContext } from '../../engine/components/MountContext';
 import { Card as GameCard, CardData } from '../mechanics/Card';
 import cardsFile from '../data/cards.json';
 import { CARD_LIFT, Card, CardSize } from './Card';
+import { layoutLint } from '../../engine/debug/layoutLint';
+import { treeSnapshot } from '../../engine/debug/treeSnapshot';
 
 // Lays out every card face at both sizes, a second idle; the 5 s default fails under a loaded machine.
 jest.setTimeout(30_000);
@@ -158,7 +160,8 @@ describe('Card state', () => {
 
 	it('straightens out of its fan pose when lifted, and paints raised over its neighbours', () => {
 		const card = build(cardData[0], 1);
-		card.fanPose = { rotate: 0.03, drop: 4 };
+		card.fanPose = { rotate: 0.03, drop: 4, order: 2 };
+		expect(card.zIndex).toBe(2);
 		expect(card.transform.rotate).toBe(0.03);
 		expect(card.transform.translate).toEqual([0, 4]);
 		expect(card.transform.origin).toEqual([0.5, 1]);
@@ -169,13 +172,13 @@ describe('Card state', () => {
 		expect(card.transform.rotate).toBe(0);
 		expect(card.transform.scale).toBeGreaterThan(1);
 		expect(card.layer).toBe('raised');
-		expect(card.zIndex).toBe(1);
+		expect(card.zIndex).toBe(2);
 
 		card.setHovered(false);
 		context.animator.settle();
 		expect(card.transform.rotate).toBe(0.03);
 		expect(card.layer).toBeNull();
-		expect(card.zIndex).toBe(0);
+		expect(card.zIndex).toBe(2);
 	});
 
 	it('keeps the strip it rose out of while lifted, so the pointer on its bottom edge holds it up', () => {
@@ -189,20 +192,19 @@ describe('Card state', () => {
 
 	it('does not rise under the pointer while disabled, and dims through the base enabled flag', () => {
 		const card = build(cardData[0], 1);
-		const background = card.getChildren().find((child) => child.id === 'card_background');
-		const enabledFill = background?.resolvedColors?.fill;
+		const enabledFill = card.resolvedColors.fill;
 
 		card.enabled = false;
 		card.setHovered(true);
 		context.animator.settle();
 		expect(card.effectivelyEnabled).toBe(false);
 		expect(card.transform.translate).toEqual([0, 0]);
-		expect(background?.resolvedColors?.fill).not.toEqual(enabledFill);
+		expect(card.resolvedColors.fill).not.toEqual(enabledFill);
 
 		card.enabled = true;
 		context.animator.settle();
 		expect(card.transform.translate).toEqual([0, -CARD_LIFT]);
-		expect(background?.resolvedColors?.fill).toEqual(enabledFill);
+		expect(card.resolvedColors.fill).toEqual(enabledFill);
 	});
 
 	it('shows the full rules text when asked, and the summary otherwise', () => {
@@ -212,5 +214,27 @@ describe('Card state', () => {
 		const face = new Card({ id: 'card', x: 0, y: 0, data: model, size: CardSize.LARGE });
 		expect(part(full, 'description').getText()).toBe(model.displayDescription);
 		expect(part(face, 'description').getText()).toBe(Card.faceText(model.displaySummary));
+	});
+});
+
+describe('Card layout lint (DDB-91)', () => {
+	beforeAll(() => {
+		context = createTestContext({ draw: createMeasuringDrawApi().api });
+	});
+
+	it.each([CardSize.MINI, CardSize.NORMAL, CardSize.LARGE])('lints clean for every card at %s, badged or not', (size) => {
+		for (const data of cardData) {
+			for (const driverNumber of [1, null] as const) {
+				const card = build(data, driverNumber, false, size);
+				const { width, height } = Card.getDimensions(size);
+				const result = layoutLint(treeSnapshot([card], { width, height }));
+				expect({ card: data.name, violations: result.violations }).toEqual({ card: data.name, violations: [] });
+			}
+		}
+	});
+
+	it('draws its frame, face and badge itself rather than as child rectangles', () => {
+		const card = build(cardData[0], 1);
+		expect(card.getChildren().every((child) => child instanceof Text)).toBe(true);
 	});
 });

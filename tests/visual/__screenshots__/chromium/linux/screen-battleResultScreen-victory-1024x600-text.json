@@ -1,0 +1,5 @@
+[
+{"path":"battleResultScreen/result_panel/result_title","text":"VICTORY!","rect":[433.66,201.54,156.68,62.4]},
+{"path":"battleResultScreen/result_panel/result_subtitle","text":"All enemies have been defeated!","rect":[375.85,279.94,272.3,24.51]},
+{"path":"battleResultScreen/result_panel/result_continue_button/Text[0]","text":"Continue","rect":[424,352.46,176,46]}
+]

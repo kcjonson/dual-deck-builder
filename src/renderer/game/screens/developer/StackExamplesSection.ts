@@ -1,5 +1,6 @@
-import { DeveloperSectionPanel } from './DeveloperSectionPanel';
-import { Component, ComponentOptions } from '../../../engine/components/Component';
+import { DeveloperSectionPanel, wrappedLineCount } from './DeveloperSectionPanel';
+import { FlowWrap } from '../../ui/FlowWrap';
+import { ComponentOptions } from '../../../engine/components/Component';
 import { Rectangle } from '../../../engine/components/Rectangle';
 import { Stack, StackOptions } from '../../../engine/components/Stack';
 import { Text } from '../../../engine/components/Text';
@@ -33,8 +34,8 @@ function swatch(token: ColorToken, options: ComponentOptions): Rectangle {
  * cross alignment of chapter 10's stack container, plus alignSelf, a
  * negative gap, the clamps, aspectRatio, a wrapping text, weighted bands, and
  * absolute children placed by anchor. The section itself is laid out by
- * stacks: rows of captioned cells, each cell a column of a caption and a
- * demo box with its own stack inside.
+ * stacks: rows of captioned cells that wrap at the section's width, each
+ * cell a column of a caption and a demo box with its own stack inside.
  *
  * Every box has a fixed size, so the section's height is known when the
  * constructor returns, as DeveloperScreen and the gallery host need.
@@ -47,52 +48,70 @@ export class StackExamplesSection extends DeveloperSectionPanel {
 		this.addChild(title);
 
 		const content = new Stack({ id: 'dev_stack_rows', y: TITLE_HEIGHT, gap: ROW_GAP });
-		content.addChild(this.row('distribution', DISTRIBUTIONS.map((distribution) => this.cell(
-			distribution,
-			this.distributionBox(distribution),
-		))));
-		content.addChild(this.row('align', [
-			...(['start', 'center', 'end', 'stretch'] as const).map((crossAlign) => this.cell(
-				`crossAlign ${crossAlign}`,
-				this.alignBox(crossAlign),
-			)),
-			this.cell('alignSelf center in stretch', this.alignSelfBox()),
-			this.cell('gap -16', this.negativeGapBox()),
-		]));
-		content.addChild(this.row('sizing', [
-			this.cell('fixed, hug, fill', this.modesBox()),
-			this.cell('fill weights 25 / 40 / 35', this.weightsBox()),
-			this.cell('maxSize 40 on a fill', this.maxSizeBox()),
-			this.cell('aspectRatio 1 and 2', this.aspectBox()),
-			this.cell('hug text wraps at the column', this.wrapBox()),
-			this.cell('nested hug rows, stretched', this.nestedBox()),
-		]));
-		content.addChild(this.row('absolute', [
-			this.cell('absolute: anchor and pivot', this.anchoredBox(), CELL_WIDTH * 2 + CELL_GAP),
-			this.cell('bands 25 / 40 / 20 / 5', this.bandsBox()),
-			this.cell('pinned corner badge', this.badgeBox()),
-		]));
+		const rows: { name: string; box: number; cells: { cell: Stack; width: number }[] }[] = [
+			{
+				name: 'distribution',
+				box: 56,
+				cells: DISTRIBUTIONS.map((distribution) => this.cell(distribution, this.distributionBox(distribution))),
+			},
+			{
+				name: 'align',
+				box: 72,
+				cells: [
+					...(['start', 'center', 'end', 'stretch'] as const).map((crossAlign) => this.cell(
+						`crossAlign ${crossAlign}`,
+						this.alignBox(crossAlign),
+					)),
+					this.cell('alignSelf center in stretch', this.alignSelfBox()),
+					this.cell('gap -16', this.negativeGapBox()),
+				],
+			},
+			{
+				name: 'sizing',
+				box: 72,
+				cells: [
+					this.cell('fixed, hug, fill', this.modesBox()),
+					this.cell('fill weights 25 / 40 / 35', this.weightsBox()),
+					this.cell('maxSize 40 on a fill', this.maxSizeBox()),
+					this.cell('aspectRatio 1 and 2', this.aspectBox()),
+					this.cell('hug text wraps at the column', this.wrapBox()),
+					this.cell('nested hug rows, stretched', this.nestedBox()),
+				],
+			},
+			{
+				name: 'absolute',
+				box: 96,
+				cells: [
+					this.cell('absolute: anchor and pivot', this.anchoredBox(), CELL_WIDTH * 2 + CELL_GAP),
+					this.cell('bands 25 / 40 / 20 / 5', this.bandsBox()),
+					this.cell('pinned corner badge', this.badgeBox()),
+				],
+			},
+		];
+
+		// Each row of cells wraps at the section's width, a line per row of
+		// cells where they all fit
+		let contentHeight = 0;
+		rows.forEach(({ name, box, cells }, index) => {
+			const row = new FlowWrap({ id: `dev_stack_row_${name}`, width: this.sectionContentWidth, gap: CELL_GAP, rowGap: ROW_GAP });
+			cells.forEach(({ cell }) => row.addChild(cell));
+			content.addChild(row);
+			const lines = wrappedLineCount(cells.map(({ width }) => width), this.sectionContentWidth, CELL_GAP);
+			if (index > 0) contentHeight += ROW_GAP;
+			contentHeight += lines * (CAPTION_HEIGHT + CAPTION_GAP + box) + (lines - 1) * ROW_GAP;
+		});
 		this.addChild(content);
 
-		const rows = [56, 72, 72, 96];
-		const contentHeight = rows.reduce((total, box) => total + CAPTION_HEIGHT + CAPTION_GAP + box, 0)
-			+ ROW_GAP * (rows.length - 1);
 		this.fitContentHeight(TITLE_HEIGHT + contentHeight);
 	}
 
-	private row(name: string, cells: Component[]): Stack {
-		const row = new Stack({ id: `dev_stack_row_${name}`, direction: 'horizontal', gap: CELL_GAP });
-		cells.forEach((cell) => row.addChild(cell));
-		return row;
-	}
-
 	/** A caption over a demo box, both hugging a column of the box's width. */
-	private cell(caption: string, demo: Stack, width = CELL_WIDTH): Stack {
+	private cell(caption: string, demo: Stack, width = CELL_WIDTH): { cell: Stack; width: number } {
 		const cell = new Stack({ gap: CAPTION_GAP });
 		cell.addChild(new Text(caption, { style: { fontSize: 13, color: rgba('text_dim') } }));
 		demo.setWidth(width);
 		cell.addChild(demo);
-		return cell;
+		return { cell, width };
 	}
 
 	/** A demo box: a fixed-size stack on the inset surface. */

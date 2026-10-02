@@ -1,4 +1,5 @@
-import { DeveloperSectionPanel } from './DeveloperSectionPanel';
+import { DeveloperSectionPanel, wrappedLineCount } from './DeveloperSectionPanel';
+import { FlowWrap } from '../../ui/FlowWrap';
 import { Component, ComponentOptions } from '../../../engine/components/Component';
 import { Container } from '../../../engine/components/Container';
 import { Rectangle } from '../../../engine/components/Rectangle';
@@ -12,7 +13,7 @@ const TITLE_HEIGHT = 50;
 /** Room below the columns for the scroller's menu, which hangs out of its clip by design. */
 const FIXTURE_HEIGHT = 520;
 const COLUMN_WIDTH = 420;
-const COLUMN_GAP = 40;
+const COLUMN_GAP = 30;
 const GROUP_GAP = 24;
 const HEADING_GAP = 8;
 
@@ -172,7 +173,8 @@ export class PaintOrderFixturesSection extends DeveloperSectionPanel {
 			},
 		}));
 
-		const columns = new Stack({ id: 'dev_paint_order_columns', y: TITLE_HEIGHT, direction: 'horizontal', gap: COLUMN_GAP });
+		// The three columns wrap at the section's width
+		const columns = new FlowWrap({ id: 'dev_paint_order_columns', y: TITLE_HEIGHT, width: this.sectionContentWidth, gap: COLUMN_GAP, rowGap: GROUP_GAP });
 		const first = new Stack({ gap: GROUP_GAP });
 		first.addChild(group('dev_paint_order_layers', 'Layer beats insertion order', 190, layerLadder));
 		first.addChild(group('dev_paint_order_zindex', 'One layer: zIndex beats insertion order', 208, zIndexLadder));
@@ -184,7 +186,8 @@ export class PaintOrderFixturesSection extends DeveloperSectionPanel {
 		columns.addChild(group('dev_paint_order_modal', 'Modal, open select menu, toast and tooltip', 440, modalStack));
 		this.addChild(columns);
 
-		this.fitContentHeight(TITLE_HEIGHT + FIXTURE_HEIGHT);
+		const lines = wrappedLineCount([COLUMN_WIDTH, COLUMN_WIDTH, COLUMN_WIDTH], this.sectionContentWidth, COLUMN_GAP);
+		this.fitContentHeight(TITLE_HEIGHT + lines * FIXTURE_HEIGHT + (lines - 1) * GROUP_GAP);
 	}
 }
 

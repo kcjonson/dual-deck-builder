@@ -1,9 +1,12 @@
-import { Component, ComponentOptions, PointerEvents } from '../../engine/components/Component';
+import { Component, ComponentOptions, PointerEvents, ResolvedColors } from '../../engine/components/Component';
 import { Container } from '../../engine/components/Container';
 import { Rectangle } from '../../engine/components/Rectangle';
 import { Text } from '../../engine/components/Text';
 import { Vehicle as VehicleData } from '../mechanics/Vehicle';
 import type { AnyUiEvent, UiDragEvent } from '../../engine/input/events';
+import type { DrawApi } from '../../engine/draw/DrawApi';
+import type { DrawRectOptions } from '../../engine/draw/commands';
+import { resolveColor } from '../../engine/style/styleObject';
 import { CombatModel } from '../screens/combat/CombatModel';
 import { resolveFontRole } from '../../engine/text/fontRoles';
 import { tokens } from '../../engine/theme/tokens';
@@ -19,6 +22,7 @@ export interface VehicleOptions extends ComponentOptions {
 	onClick?: (vehicle: VehicleData) => void;
 }
 
+const STRUCTURE_BAR_HEIGHT = 10;
 /** Every run on the plate is the token scale's smallest size, on tight lines (R6.4a). */
 const TEXT_SIZE = tokens.fontSize.fs_xs;
 const TEXT_LINE_HEIGHT = tokens.lineHeight.lh_tight;
@@ -28,8 +32,14 @@ const INSET_Y = tokens.space.space_1;
 const GAP = tokens.space.space_1;
 const ROW_GAP = tokens.space.space_0_5;
 const DRIVER_PORTRAIT_SIZE = 20;
-const TRACK_HEIGHT = 10;
 const BADGE_HEIGHT = 16;
+const TRACK_FILL = resolveColor('#333333');
+const TRACK_BORDER = { color: resolveColor('#555555'), width: 1 };
+
+/** A rect the plate redraws every frame and moves in its layout phase. */
+function emptyRect(): { x: number; y: number; width: number; height: number } {
+	return { x: 0, y: 0, width: 0, height: 0 };
+}
 
 /**
  * Visual representation of a vehicle on the battlefield. Can be extended for
@@ -41,23 +51,26 @@ const BADGE_HEIGHT = 16;
  * escort's SPENT chip once it has acted. A driven vehicle that loses its
  * driver becomes an escort mid-fight, and only visibility changes.
  *
- * Rows stack from the plate's measured lines rather than fractions of its
- * height, so the smallest plate (an enemy's, 140x91 on the stage) holds them
- * at the token sizes: the driver's name beside its portrait with the HP
- * under it, the vehicle's name at the foot of the portrait, the structure
- * value beside its track, and the armor badge along the bottom.
+ * The portrait panel and the structure bar are the plate's own draws, so
+ * the text on them is on the plate rather than over a sibling. Rows stack
+ * from the plate's measured lines rather than fractions of its height, so
+ * the smallest plate (an enemy's, 140x91 on the stage) holds them at the
+ * token sizes: the driver's name beside its portrait with the HP under it,
+ * the vehicle's name at the foot of the portrait, the structure value beside
+ * its track, and the armor badge along the bottom.
  */
 export class Vehicle extends Component {
 	protected vehicleData: VehicleData;
 
 	// UI elements
-	protected portrait: Rectangle;
+	private readonly portraitDraw: DrawRectOptions;
+	private readonly portraitBorder = { color: resolveColor('#000000'), width: 3 };
+	private readonly trackDraw: DrawRectOptions = { rect: emptyRect(), fill: TRACK_FILL, border: TRACK_BORDER };
+	private readonly fillDraw: DrawRectOptions = { rect: emptyRect(), fill: TRACK_FILL };
 	protected driverPortrait: Rectangle;
 	protected driverNameText: Text;
 	protected driverHpText: Text;
 	protected nameText: Text;
-	protected healthBar: Rectangle;
-	protected healthBarFill: Rectangle;
 	protected healthText: Text;
 	protected armorBadge: ArmorBadge;
 	protected spentChip: Text;
@@ -76,15 +89,13 @@ export class Vehicle extends Component {
 		this.combatData = args.combatData || null;
 		this.onClickCallback = args.onClick || null;
 
-		this.portrait = new Rectangle({
-			id: this.childId('portrait'),
-			style: {
-				backgroundColor: this.getPortraitColor(),
-				borderColor: this.getBorderColor(),
-				borderWidth: 3,
-			},
-		});
-		this.addChild(this.portrait);
+		this.portraitBorder.color = resolveColor(this.getBorderColor());
+		this.portraitDraw = {
+			id: this.id ?? undefined,
+			rect: emptyRect(),
+			fill: resolveColor(this.getPortraitColor()),
+			border: this.portraitBorder,
+		};
 
 		this.driverPortrait = new Rectangle({
 			id: this.childId('driver_portrait'),
@@ -135,26 +146,6 @@ export class Vehicle extends Component {
 			textOverflow: 'ellipsis',
 		});
 		this.addChild(this.nameText);
-
-		this.healthBar = new Rectangle({
-			id: this.childId('structure_track'),
-			height: TRACK_HEIGHT,
-			style: {
-				backgroundColor: '#333333',
-				borderColor: '#555555',
-				borderWidth: 1,
-			},
-		});
-		this.addChild(this.healthBar);
-
-		this.healthBarFill = new Rectangle({
-			id: this.childId('structure_fill'),
-			height: TRACK_HEIGHT,
-			style: {
-				backgroundColor: '#4a8a4a',
-			},
-		});
-		this.addChild(this.healthBarFill);
 
 		this.healthText = new Text('', {
 			id: this.childId('structure_value'),
@@ -238,12 +229,11 @@ export class Vehicle extends Component {
 		// From the bottom: the armor row, the structure row over it, and the
 		// portrait takes what is left
 		const badgeY = height - ROW_GAP - BADGE_HEIGHT;
-		const structureHeight = Math.max(TRACK_HEIGHT, Math.ceil(this.healthText.getHeight()));
+		const structureHeight = Math.max(STRUCTURE_BAR_HEIGHT, Math.ceil(this.healthText.getHeight()));
 		const structureY = badgeY - ROW_GAP - structureHeight;
-		const portraitHeight = structureY - ROW_GAP;
-
-		this.portrait.setPosition(0, 0);
-		this.portrait.setSize(width, portraitHeight);
+		const portrait = this.portraitDraw.rect;
+		portrait.width = width;
+		portrait.height = structureY - ROW_GAP;
 
 		// The driver's name beside their portrait, the HP under both
 		const driverPortraitSize = Math.min(DRIVER_PORTRAIT_SIZE, Math.floor(width * 0.15));
@@ -255,19 +245,19 @@ export class Vehicle extends Component {
 		this.driverHpText.setPosition(INSET_X, INSET_Y + driverPortraitSize + ROW_GAP);
 
 		this.nameText.setWidth(contentWidth);
-		this.nameText.setPosition(INSET_X, Math.floor(portraitHeight - INSET_Y - this.nameText.getHeight()));
+		this.nameText.setPosition(INSET_X, Math.floor(portrait.height - INSET_Y - this.nameText.getHeight()));
 
-		// The value right-aligned in a column as wide as the full value, so
-		// the track keeps its width as the structure falls
+		// The value right-aligned beside the track, in a column as wide as the
+		// full value, so the track keeps its width as the structure falls
 		const valueWidth = this.structureValueWidth();
-		const trackWidth = contentWidth - (valueWidth > 0 ? valueWidth + GAP : 0);
-		const trackY = structureY + Math.floor((structureHeight - TRACK_HEIGHT) / 2);
-		this.healthBar.setPosition(INSET_X, trackY);
-		this.healthBar.setWidth(trackWidth);
-		this.healthBarFill.setPosition(INSET_X, trackY);
+		const track = this.trackDraw.rect;
+		track.x = INSET_X;
+		track.y = structureY + Math.floor((structureHeight - STRUCTURE_BAR_HEIGHT) / 2);
+		track.width = contentWidth - (valueWidth > 0 ? valueWidth + GAP : 0);
+		track.height = STRUCTURE_BAR_HEIGHT;
 		this.placeHealthFill();
 		this.healthText.setWidth(valueWidth);
-		this.healthText.setPosition(width - INSET_X - valueWidth, structureY);
+		this.healthText.setPosition(width - INSET_X - valueWidth, track.y + (STRUCTURE_BAR_HEIGHT - this.healthText.getHeight()) / 2);
 
 		this.armorBadge.setPosition(INSET_X, badgeY);
 		this.armorBadge.minWidth = Math.floor(width * 0.25);
@@ -294,8 +284,29 @@ export class Vehicle extends Component {
 	/** The fill's width is the track's, scaled by the structure left. */
 	private placeHealthFill(): void {
 		const healthPercentage = this.vehicleData.structure / this.vehicleData.maxStructure;
-		this.healthBarFill.setWidth(Math.floor(this.healthBar.getWidth() * healthPercentage));
-		this.healthBarFill.setFillColor(this.getHealthColor(healthPercentage));
+		const track = this.trackDraw.rect;
+		this.fillDraw.rect = { x: track.x, y: track.y, width: Math.floor(track.width * healthPercentage), height: track.height };
+		this.fillDraw.fill = resolveColor(this.getHealthColor(healthPercentage));
+	}
+
+	public render(draw: DrawApi): void {
+		draw.drawRect(this.portraitDraw);
+		draw.drawRect(this.trackDraw);
+		if (this.fillDraw.rect.width > 0) draw.drawRect(this.fillDraw);
+	}
+
+	/** The portrait panel is the plate's fill and border (R13.22). */
+	public get resolvedColors(): ResolvedColors {
+		return { fill: this.portraitDraw.fill ?? resolveColor(this.getPortraitColor()), border: this.portraitBorder.color };
+	}
+
+	/** The portrait panel and the structure track, in the plate's own space. */
+	public get portraitRect(): Readonly<{ x: number; y: number; width: number; height: number }> {
+		return this.portraitDraw.rect;
+	}
+
+	public get structureTrackRect(): Readonly<{ x: number; y: number; width: number; height: number }> {
+		return this.trackDraw.rect;
 	}
 
 	/**
@@ -444,7 +455,7 @@ export class Vehicle extends Component {
 
 	/** `dropActive`, set while a dragged card would land here, lights the plate. */
 	protected onStateChange(): void {
-		if (this.portrait) this.updateVisualState();
+		if (this.portraitDraw) this.updateVisualState();
 	}
 
 	private chooseAsTarget(): void {
@@ -514,21 +525,17 @@ export class Vehicle extends Component {
 		this.focusable = targeting && this.onClickCallback !== null && this.isTargetable();
 
 		// Non-targetable vehicles get dimmed colors
-		if (!targetable && targeting) {
-			this.portrait.setFillColor('#3a3a3a');
-		} else {
-			this.portrait.setFillColor(this.getPortraitColor());
-		}
+		this.portraitDraw.fill = resolveColor(!targetable && targeting ? '#3a3a3a' : this.getPortraitColor());
 
 		if (focused && targetable) {
-			this.portrait.setBorderWidth(4);
-			this.portrait.setBorderColor(this.getFocusedBorderColor());
+			this.portraitBorder.width = 4;
+			this.portraitBorder.color = resolveColor(this.getFocusedBorderColor());
 		} else if (this.hovered && targetable) {
-			this.portrait.setBorderWidth(4);
-			this.portrait.setBorderColor(this.getBorderColor());
+			this.portraitBorder.width = 4;
+			this.portraitBorder.color = resolveColor(this.getBorderColor());
 		} else {
-			this.portrait.setBorderWidth(3);
-			this.portrait.setBorderColor(this.getBorderColor());
+			this.portraitBorder.width = 3;
+			this.portraitBorder.color = resolveColor(this.getBorderColor());
 		}
 	}
 

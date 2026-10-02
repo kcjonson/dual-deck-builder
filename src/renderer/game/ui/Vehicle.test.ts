@@ -15,6 +15,8 @@ import { Team, TeamType } from '../mechanics/Team';
 import { Vehicle as VehicleData, createDrivenVehicle } from '../mechanics/Vehicle';
 import { createTestDriver } from '../ai/__tests__/test-helpers';
 import { Vehicle } from './Vehicle';
+import { layoutLint } from '../../engine/debug/layoutLint';
+import { treeSnapshot } from '../../engine/debug/treeSnapshot';
 
 function partById(plate: Component, id: string): Component {
 	const part = plate.getChildren().find(child => child.id === id);
@@ -62,20 +64,18 @@ describe('Vehicle plate', () => {
 		plate.mount(context);
 		context.frame.layout();
 		const partsBefore = [...plate.getChildren()];
-		const portrait = partById(plate, 'plate_portrait');
-		const track = partById(plate, 'plate_structure_track');
 		// Nothing measures here, so the structure row is the track's 10: the
 		// armor row (16) and three 2 px gaps under the portrait.
-		expect(portrait.getHeight()).toBe(120 - 16 - 10 - 2 * 3);
+		expect(plate.portraitRect.height).toBe(120 - 16 - 10 - 2 * 3);
 
 		plate.setSize(200, 160);
 		context.frame.layout();
 
 		expect(plate.getChildren()).toEqual(partsBefore);
-		expect(portrait.getWidth()).toBe(200);
-		expect(portrait.getHeight()).toBe(160 - 16 - 10 - 2 * 3);
-		expect(track.getY()).toBe(160 - 16 - 10 - 2 * 2);
-		expect(track.getWidth()).toBe(200 - 6 * 2);
+		expect(plate.portraitRect.width).toBe(200);
+		expect(plate.portraitRect.height).toBe(160 - 16 - 10 - 2 * 3);
+		expect(plate.structureTrackRect.y).toBe(160 - 16 - 10 - 2 * 2);
+		expect(plate.structureTrackRect.width).toBe(200 - 6 * 2);
 	});
 
 	test('sets every run on the token scale and keeps the rows apart on the smallest plate (R6.4a)', () => {
@@ -140,7 +140,7 @@ describe('Vehicle plate', () => {
 		const model = new CombatModel();
 		model.targetableVehicleIds = [rig.id];
 		const targeted = new Vehicle({ id: 'target', x: 0, y: 0, width: 160, height: 120, vehicleData: rig, combatData: model });
-		const border = (): unknown => partById(targeted, 'target_portrait').resolvedColors?.border;
+		const border = (): unknown => targeted.resolvedColors.border;
 		const resting = border();
 
 		// Nothing hears the model before mount (R8.14)
@@ -158,5 +158,41 @@ describe('Vehicle plate', () => {
 		expect(border()).toEqual(resting);
 		model.focusVehicle(rig.id);
 		expect(border()).toEqual(focused);
+	});
+});
+
+describe('Vehicle plate layout lint (DDB-91)', () => {
+	// The plate sizes the battlefield gives at 1440x882 and at the 0.8 floor
+	it.each([[160, 198], [160, 185], [140, 104], [140, 97]])('lints clean at %ix%i, driven and as an escort', (width, height) => {
+		const context = createTestContext({ draw: createMeasuringDrawApi().api });
+		const driven = createDrivenVehicle({ driver: createTestDriver('Wasteland Raider'), name: 'Rust Buggy' });
+		const plate = new Vehicle({ id: 'plate', x: 0, y: 0, width, height, vehicleData: driven });
+		plate.mount(context);
+		context.frame.layout();
+		const lint = (): unknown[] => layoutLint(treeSnapshot([plate], { width, height })).violations;
+		expect(lint()).toEqual([]);
+
+		const team = new Team({ type: TeamType.PLAYER, vehicles: [driven, createDrivenVehicle({ driver: createTestDriver('Other'), name: 'Other' })] });
+		driven.driver?.takeDamage(100);
+		team.handleDriverDeath(driven);
+		plate.data = driven;
+		context.frame.layout();
+		expect(lint()).toEqual([]);
+	});
+
+	it('draws its portrait panel and structure bar itself, with the value beside the bar', () => {
+		const context = createTestContext({ draw: createMeasuringDrawApi().api });
+		const rig = createDrivenVehicle({ driver: createTestDriver('Rig Driver'), name: 'Rig' });
+		const plate = new Vehicle({ id: 'plate', x: 0, y: 0, width: 160, height: 198, vehicleData: rig });
+		plate.mount(context);
+		context.frame.layout();
+		const ids = plate.getChildren().map((child) => child.id);
+		expect(ids).not.toContain('plate_portrait');
+		expect(ids).not.toContain('plate_structure_track');
+		const value = plate.getChildren().find((child) => child.id === 'plate_structure_value');
+		const track = plate.structureTrackRect;
+		expect(value).toBeDefined();
+		expect((value?.y ?? 0) + (value?.height ?? 0) / 2).toBeCloseTo(track.y + track.height / 2, 5);
+		expect(value?.x ?? 0).toBeGreaterThan(track.x + track.width);
 	});
 });

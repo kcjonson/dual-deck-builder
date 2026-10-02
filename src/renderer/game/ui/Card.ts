@@ -1,7 +1,10 @@
 import { Component, PointerEvents } from '../../engine/components/Component';
 import { Text } from '../../engine/components/Text';
-import { Rectangle } from '../../engine/components/Rectangle';
+import type { ResolvedColors } from '../../engine/components/Component';
+import type { DrawApi } from '../../engine/draw/DrawApi';
+import type { DrawRectOptions } from '../../engine/draw/commands';
 import type { AnyUiEvent } from '../../engine/input/events';
+import { resolveColor } from '../../engine/style/styleObject';
 import type { TweenHandle } from '../../engine/animation/Animator';
 import { tokens } from '../../engine/theme/tokens';
 import { normalizeTransform, transformMatrix } from '../../engine/components/componentGeometry';
@@ -42,13 +45,22 @@ const LIFTED_TRANSFORM = normalizeTransform({ translate: [0, -CARD_LIFT], scale:
 /**
  * Where a card rests in a fan: turned about its bottom centre by `rotate`
  * radians and dropped by `drop`, in its own units. Lifting straightens it.
+ * `order` is its place in the fan's stacking and becomes the card's
+ * `zIndex`: each card covers the one before it, which is the overlap the
+ * fan declares (R13.25.1).
  */
 export interface FanPose {
 	rotate: number;
 	drop: number;
+	order: number;
 }
 
-const UNFANNED: FanPose = Object.freeze({ rotate: 0, drop: 0 });
+const FACE_COLOR = '#2a2a3a';
+const DISABLED_FACE_COLOR = '#1a1a2a';
+const HOVER_OUTLINE = resolveColor('#ffffff');
+const SELECTED_OUTLINE = resolveColor('#00aaff');
+
+const UNFANNED: FanPose = Object.freeze({ rotate: 0, drop: 0, order: 0 });
 
 /**
  * Visual component for displaying a card. One composite target (R8.29):
@@ -67,8 +79,17 @@ export class Card extends Component {
 	private description: Text | null = null;
 	private rarity: Text | null = null;
 	private tags: Text | null = null;
-	private cardBorder: Rectangle;
-	private cardBackground: Rectangle;
+	/**
+	 * The frame, face and driver badge are the card's own draws rather than
+	 * child rectangles (R8.1's composite), so its text sits on the card and
+	 * not over a sibling. The options are built once and recoloured in place;
+	 * the draw API copies what it is given.
+	 */
+	private readonly frameDraw: DrawRectOptions;
+	private readonly faceDraw: DrawRectOptions;
+	private readonly badgeDraw: DrawRectOptions | null = null;
+	private readonly frameBorder = { color: resolveColor('#ffffff'), width: 3 };
+	private readonly rarityColor: string;
 	private driverIndicator: Text | null = null;
 	private driverNumber: 1 | 2 | null = null;
 
@@ -111,34 +132,20 @@ export class Card extends Component {
 		this.size = size;
 		this.driverNumber = driverNumber || null;
 
-		// Create card border with rarity color
-		this.cardBorder = new Rectangle({
-			id: this.childId('border'),
-			x: 0,
-			y: 0,
-			width: dimensions.width,
-			height: dimensions.height,
-			style: {
-				backgroundColor: Card.getRarityColor(data.rarity),
-				borderRadius: size === CardSize.MINI ? 4 : 8,
-			},
-		});
-		this.addChild(this.cardBorder);
-
-		// Create card background
+		// The rarity rim, with the face inset inside it
+		this.rarityColor = Card.getRarityColor(data.rarity);
 		const borderWidth = size === CardSize.MINI ? 2 : 4;
-		this.cardBackground = new Rectangle({
-			id: this.childId('background'),
-			x: borderWidth,
-			y: borderWidth,
-			width: dimensions.width - borderWidth * 2,
-			height: dimensions.height - borderWidth * 2,
-			style: {
-				backgroundColor: '#2a2a3a',
-				borderRadius: size === CardSize.MINI ? 3 : 6,
-			},
-		});
-		this.addChild(this.cardBackground);
+		this.frameDraw = {
+			id: id ?? undefined,
+			rect: { x: 0, y: 0, width: dimensions.width, height: dimensions.height },
+			fill: resolveColor(this.rarityColor),
+			radius: size === CardSize.MINI ? 4 : 8,
+		};
+		this.faceDraw = {
+			rect: { x: borderWidth, y: borderWidth, width: dimensions.width - borderWidth * 2, height: dimensions.height - borderWidth * 2 },
+			fill: resolveColor(FACE_COLOR),
+			radius: size === CardSize.MINI ? 3 : 6,
+		};
 
 		// Scale factors for different card sizes
 		const scaleFactor = size === CardSize.MINI ? 0.35 : size === CardSize.LARGE ? 1.2 : 1;
@@ -257,21 +264,13 @@ export class Card extends Component {
 
 		// Driver indicator (if specified)
 		if (hasDriverBadge) {
-			const indicatorBg = new Rectangle({
-				id: this.childId('driver_badge_background'),
-				x: badgeX,
-				y: badgeX,
-				width: badgeSize,
-				height: badgeSize,
-				style: {
-					backgroundColor: this.driverNumber === 1 ? '#4a4a8a' : '#4a8a4a',
-					borderRadius: Math.floor(12.5 * scaleFactor),
-					borderColor: this.driverNumber === 1 ? '#6a6aaa' : '#6aaa6a',
-					borderWidth: 2,
-				},
-			});
-			this.addChild(indicatorBg);
-			
+			this.badgeDraw = {
+				rect: { x: badgeX, y: badgeX, width: badgeSize, height: badgeSize },
+				fill: resolveColor(this.driverNumber === 1 ? '#4a4a8a' : '#4a8a4a'),
+				radius: Math.floor(12.5 * scaleFactor),
+				border: { color: resolveColor(this.driverNumber === 1 ? '#6a6aaa' : '#6aaa6a'), width: 2 },
+			};
+
 			// Centred in the badge
 			this.driverIndicator = new Text(`D${this.driverNumber}`, {
 				id: this.childId('driver_badge'),
@@ -343,13 +342,13 @@ export class Card extends Component {
 				return;
 			case 'pointerdown':
 				if (event.button === 0) {
-					this.cardBorder.setFillColor(this.adjustBrightness(Card.getRarityColor(this.data.rarity), -20));
+					this.frameDraw.fill = resolveColor(this.adjustBrightness(this.rarityColor, -20));
 				}
 				return;
 			case 'pointerup':
 			case 'pointerleave':
 			case 'pointercancel':
-				this.cardBorder.setFillColor(Card.getRarityColor(this.data.rarity));
+				this.frameDraw.fill = resolveColor(this.rarityColor);
 				return;
 			case 'click':
 				this.activate();
@@ -404,17 +403,28 @@ export class Card extends Component {
 	protected onStateChange(): void {
 		const enabled = this.effectivelyEnabled;
 		if (this.selected) {
-			this.cardBorder.setBorderWidth(3);
-			this.cardBorder.setBorderColor('#00aaff');
+			this.frameBorder.color = SELECTED_OUTLINE;
+			this.frameDraw.border = this.frameBorder;
 		} else if (this.hovered && enabled) {
-			this.cardBorder.setBorderWidth(3);
-			this.cardBorder.setBorderColor('#ffffff');
+			this.frameBorder.color = HOVER_OUTLINE;
+			this.frameDraw.border = this.frameBorder;
 		} else {
-			this.cardBorder.setBorderWidth(0);
+			this.frameDraw.border = undefined;
 		}
 		// Keyboard focus lifts a card as the pointer does, so its ring clears its neighbours
 		this.liftTo(this.selected || ((this.hovered || this.focusVisible) && enabled) ? 1 : 0);
-		this.cardBackground.setFillColor(enabled ? '#2a2a3a' : '#1a1a2a');
+		this.faceDraw.fill = resolveColor(enabled ? FACE_COLOR : DISABLED_FACE_COLOR);
+	}
+
+	public render(draw: DrawApi): void {
+		draw.drawRect(this.frameDraw);
+		draw.drawRect(this.faceDraw);
+		if (this.badgeDraw) draw.drawRect(this.badgeDraw);
+	}
+
+	/** The face is the card's fill and the rarity rim its border (R13.22). */
+	public get resolvedColors(): ResolvedColors {
+		return { fill: this.faceDraw.fill ?? resolveColor(FACE_COLOR), border: this.frameDraw.fill ?? resolveColor(this.rarityColor) };
 	}
 
 	/** Where the card rests in its fan; a lifted card straightens out of it. */
@@ -424,6 +434,7 @@ export class Card extends Component {
 
 	public set fanPose(pose: FanPose) {
 		this.pose = pose;
+		this.zIndex = pose.order;
 		this.applyLift(this.liftAmount);
 	}
 
@@ -486,7 +497,8 @@ export class Card extends Component {
 	/**
 	 * The fan pose blended toward the lifted one. A card that is up at all
 	 * paints and hit-tests on the `raised` layer, over its neighbours and
-	 * the driver tab above it, and first among its siblings.
+	 * the driver tab above it; a higher layer is hit first whatever the
+	 * siblings' `zIndex`, so the lift leaves the fan's order alone.
 	 */
 	private applyLift(amount: number): void {
 		this.liftAmount = amount;
@@ -500,7 +512,6 @@ export class Card extends Component {
 		input.scale = 1 + (LIFT_SCALE - 1) * amount;
 		this.transform = input;
 		this.layer = amount > 0 ? 'raised' : null;
-		this.zIndex = amount > 0 ? 1 : 0;
 	}
 
 	/**
