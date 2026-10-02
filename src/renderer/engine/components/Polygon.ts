@@ -13,6 +13,8 @@ export class Polygon extends Component {
 	private ownStroke: RGBA;
 	private strokeWidth: number;
 	private styleObject: ShapeStyleObject;
+	/** The outline as set, normalized to -1 to 1; `outlinePoints` is the same as points. */
+	private outlineSource: [number, number][] = [];
 	private outlinePoints: Vec2[] = [];
 	/** R2.11's triangle list, recomputed when the outline changes rather than per frame. */
 	private indices: number[] = [];
@@ -73,12 +75,11 @@ export class Polygon extends Component {
 	}
 
 	/**
-	 * Set the polygon's points
-	 * Points are relative to the polygon's position and will be scaled by width/height
-	 * @param points Array of [x, y] coordinates normalized to -1 to 1 range
+	 * The outline, as [x, y] pairs normalized to the -1 to 1 range, which
+	 * render scales by the component's width and height.
 	 */
-	public get points(): readonly Vec2[] {
-		return this.outlinePoints;
+	public get points(): [number, number][] {
+		return this.outlineSource;
 	}
 
 	public set points(points: [number, number][]) {
@@ -137,6 +138,7 @@ export class Polygon extends Component {
 	}
 
 	private set outline(points: [number, number][]) {
+		this.outlineSource = points;
 		this.outlinePoints = points.map(([x, y]) => ({ x, y }));
 		this.boxPoints = points.map(() => ({ x: 0, y: 0 }));
 		this.indices = triangulatePolygon(this.outlinePoints);

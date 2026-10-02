@@ -2,6 +2,7 @@
  * @jest-environment jsdom
  */
 import type { Component } from '../../engine/components/Component';
+import type { AnyUiEvent } from '../../engine/input/events';
 import { createTestContext } from '../../engine/components/testing';
 import { createMeasuringDrawApi } from '../../engine/text/testing';
 import { tokens } from '../../engine/theme/tokens';
@@ -194,5 +195,18 @@ describe('Vehicle plate layout lint (DDB-91)', () => {
 		expect(value).toBeDefined();
 		expect((value?.y ?? 0) + (value?.height ?? 0) / 2).toBeCloseTo(track.y + track.height / 2, 5);
 		expect(value?.x ?? 0).toBeGreaterThan(track.x + track.width);
+	});
+});
+
+describe('Vehicle plate target choice', () => {
+	it('keeps its onClick option, the target choice, out of the component callback', () => {
+		const rig = createDrivenVehicle({ driver: createTestDriver('Rig Driver'), name: 'Rig' });
+		const chosen = jest.fn();
+		const plate = new Vehicle({ id: 'plate', x: 0, y: 0, width: 160, height: 120, vehicleData: rig, onClick: chosen });
+		expect(plate.onClick).toBeNull();
+
+		plate.handleEvent({ type: 'click', consume: () => undefined } as unknown as AnyUiEvent);
+		expect(chosen).toHaveBeenCalledTimes(1);
+		expect(chosen).toHaveBeenCalledWith(rig);
 	});
 });

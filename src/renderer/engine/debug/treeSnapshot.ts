@@ -463,7 +463,7 @@ function serializeNode(
 
 		// `ancestors` is per-path and catches cycles. `seen` is walk-wide and
 		// catches the other shape: addChild detaches from a previous parent,
-		// but the array getChildren returns can still be pushed to directly,
+		// but the array `children` returns can still be pushed to directly,
 		// so one instance can sit in two children arrays and a diamond
 		// expands exponentially. A repeat is emitted once more as a
 		// childless stub rather than re-expanded, because an OOM inside the

@@ -18,6 +18,19 @@ function ids(components: readonly Component[]): (string | null)[] {
 }
 
 describe('Component properties (R8.2)', () => {
+	it("takes R8.2's input and drag callbacks from its options", () => {
+		const onPointerDown = jest.fn();
+		const onKeyDown = jest.fn();
+		const onDrop = jest.fn();
+		const box = new Rectangle({ onPointerDown, onKeyDown, onDrop });
+		expect(box.onPointerDown).toBe(onPointerDown);
+		expect(box.onKeyDown).toBe(onKeyDown);
+		expect(box.onDrop).toBe(onDrop);
+		// Ones not given stay unset
+		expect(box.onClick).toBeNull();
+		expect(box.onBlur).toBeNull();
+	});
+
 	it('defaults every property the spec lists', () => {
 		const component = new Rectangle();
 

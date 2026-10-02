@@ -5,7 +5,7 @@ import { tokens } from '../theme/tokens';
 
 export type CounterFormat = (value: number) => string;
 
-export interface CounterOptions extends TextOptions {
+export interface CounterOptions extends Omit<TextOptions, 'text'> {
 	value?: number;
 	/** The shown number as text; whole numbers by default. Given every in-between value while it counts. */
 	format?: CounterFormat;

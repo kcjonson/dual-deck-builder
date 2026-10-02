@@ -1,7 +1,7 @@
 import { Stack, StackOptions } from '../../../engine/components/Stack';
 import { Text } from '../../../engine/components/Text';
 import { Driver } from '../../mechanics/Driver';
-import { DriverSynergy, SynergyAnalysis } from '../../mechanics/DriverSynergy';
+import { DriverSynergy } from '../../mechanics/DriverSynergy';
 import { FlowWrap } from '../../ui/FlowWrap';
 
 const TAG_HEIGHT = 20;
@@ -35,7 +35,6 @@ export class SynergyPreviewPanel extends Stack {
 	private readonly warningText: Text;
 	private readonly tags: FlowWrap;
 
-	private currentSynergy: SynergyAnalysis | null = null;
 
 	constructor(options: StackOptions) {
 		super({
@@ -103,14 +102,12 @@ export class SynergyPreviewPanel extends Stack {
 	 */
 	public updateSynergy(driver1: Driver | null, driver2: Driver | null): void {
 		if (!driver1 || !driver2) {
-			this.currentSynergy = null;
 			this.tags.clearChildren();
 			this.visible = false;
 			return;
 		}
 
 		const synergy = DriverSynergy.analyzeSynergy(driver1, driver2);
-		this.currentSynergy = synergy;
 
 		this.synergyDescription.text = synergy.description;
 		this.synergyDescription.color = this.getSynergyColor(synergy.type);

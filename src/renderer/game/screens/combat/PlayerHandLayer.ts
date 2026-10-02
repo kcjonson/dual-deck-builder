@@ -64,10 +64,6 @@ export class PlayerHandLayer extends Stack {
 	 * Show both drivers' cards, each in its driver's half, with the
 	 * unplayable ones disabled
 	 */
-	public get hand(): PlayerHandView {
-		return { cards: this.dealtCards, seatOf: this.cardDriverMap, playable: this.playableCardIds };
-	}
-
 	public set hand({ cards, seatOf, playable }: PlayerHandView) {
 		// Cards that left since the last deal, while their elements still sit
 		// in the fan, so whoever listens can see where they were
