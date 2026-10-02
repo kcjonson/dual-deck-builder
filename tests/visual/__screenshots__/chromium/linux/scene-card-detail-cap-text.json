@@ -1,6 +1,6 @@
 [
 {"path":"gallery_root/dev_section_card_detail_cap/Text[0]","text":"Card Detail View at its Cap","rect":[53,53,251.55,50]},
-{"path":"gallery_root/dev_section_card_detail_cap/dev_section_card_detail_cap_rows/Stack[0]/Text[0]","text":"about 355 characters reach the 440 px cap: the art gives way first","rect":[53,103,392.89,17.7]},
+{"path":"gallery_root/dev_section_card_detail_cap/dev_section_card_detail_cap_rows/Stack[0]/Text[0]","text":"about 355 characters: the art gives way first","rect":[53,103,263.6,17.7]},
 {"path":"gallery_root/dev_section_card_detail_cap/dev_section_card_detail_cap_rows/Stack[0]/dev_card_detail_cap/dev_card_detail_cap_view/dev_card_detail_cap_view_type","text":"SYN","rect":[248.48,157.7,23.52,12]},
 {"path":"gallery_root/dev_section_card_detail_cap/dev_section_card_detail_cap_rows/Stack[0]/dev_card_detail_cap/dev_card_detail_cap_view/dev_card_detail_cap_view_name","text":"Tag Team Takedown","rect":[109,140.7,131.48,46]},
 {"path":"gallery_root/dev_section_card_detail_cap/dev_section_card_detail_cap_rows/Stack[0]/dev_card_detail_cap/dev_card_detail_cap_view/dev_card_detail_cap_view_rules/dev_card_detail_cap_view_rules_w0_0","text":"Deal","rect":[67,252.7,31.43,21]},
