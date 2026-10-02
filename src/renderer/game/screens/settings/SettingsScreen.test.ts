@@ -74,13 +74,13 @@ describe('SettingsScreen', () => {
 		send(context, [key('Tab')]);
 		expect(context.focus.focused?.id).toBe('settings_back_button');
 		send(context, [key('Enter')]);
-		expect(navigate).toHaveBeenCalledWith('mainMenuScreen');
+		expect(navigate).toHaveBeenCalledWith('mainMenuScreen', undefined, { restoreFocus: true });
 	});
 
 	it('owns its Escape, which returns to the menu', () => {
 		expect(screen.root.ownHotkeys?.has('Escape')).toBe(true);
 		send(context, [key('Escape')]);
-		expect(navigate).toHaveBeenCalledWith('mainMenuScreen');
+		expect(navigate).toHaveBeenCalledWith('mainMenuScreen', undefined, { restoreFocus: true });
 		screen.unmount();
 		expect(screen.root.ownHotkeys?.has('Escape')).toBe(false);
 		screen.mount(context);

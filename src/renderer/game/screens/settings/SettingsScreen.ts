@@ -27,7 +27,7 @@ export interface SettingsScreenOptions {
  * settings, and Back. It offers only what the game has a working effect for,
  * which today is reduced motion (R11.13); a change applies and persists at
  * once. Focus starts on the motion control, Escape and Back return to the
- * main menu, and the Escape is the root's own (R9.15), so an open popup has
+ * main menu with focus on Settings again, and the Escape is the root's own (R9.15), so an open popup has
  * the key first.
  */
 export class SettingsScreen extends Screen {
@@ -122,7 +122,8 @@ export class SettingsScreen extends Screen {
 		return panel;
 	}
 
+	/** To the menu, focus back on the button that opened this screen. */
 	private back(): void {
-		ScreenManager.navigate('mainMenuScreen');
+		ScreenManager.navigate('mainMenuScreen', undefined, { restoreFocus: true });
 	}
 }
