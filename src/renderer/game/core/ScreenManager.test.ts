@@ -15,7 +15,7 @@ import { MainMenuScreen } from '../screens/main-menu/MainMenuScreen';
 /** R8.22 and R12.38 through the game's scene manager. */
 
 const FADE_MS = tokens.motion.dur + 32;
-const VICTORY = { victory: true, battleState: {} } as BattleResultData;
+const VICTORY: BattleResultData = { victory: true };
 
 let context: MountContext;
 

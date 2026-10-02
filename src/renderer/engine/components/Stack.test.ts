@@ -681,6 +681,26 @@ describe('Stack wrap-aware sizing (worldsim, R10.7, R10.13)', () => {
 });
 
 describe('Stack additions (spec 10.9)', () => {
+	it('holds a hug stack outside a stack to its maxSize (R10.4)', () => {
+		const holder = new Container({ width: 800, height: 600 });
+		const column = stack({ maxSize: { width: 80, height: 70 } });
+		column.addChild(box(100, 40)).addChild(box(60, 40));
+		holder.addChild(column);
+		layOut(holder);
+
+		expect([column.width, column.height]).toEqual([80, 70]);
+	});
+
+	it('holds a hug stack outside a stack to its minSize, which wins over maxSize (R10.4)', () => {
+		const holder = new Container({ width: 800, height: 600 });
+		const column = stack({ minSize: { width: 200, height: 120 }, maxSize: { width: 150 } });
+		column.addChild(box(100, 40));
+		holder.addChild(column);
+		layOut(holder);
+
+		expect([column.width, column.height]).toEqual([200, 120]);
+	});
+
 	it('centres one fixed child in a stretch row with alignSelf', () => {
 		const row = stack({ width: 300, height: 100, direction: 'horizontal', crossAlign: 'stretch' });
 		const stretched = box(50, 20, 0, { heightMode: 'hug' });

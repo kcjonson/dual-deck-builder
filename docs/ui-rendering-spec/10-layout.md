@@ -43,7 +43,7 @@ Worked example, the combat screen of the sibling project's design document (enem
 
 ## 10.6 Scroll content sizing
 
-- R10.17 A scroll container's content size is the union of its children's margin boxes plus padding, measured after layout; the conventional shape is one child, a stack container with a fixed width and hug height. Manual content size is allowed as an override. Scroll extent, thumb geometry, and clamping are in chapter 12 (scroll container).
+- R10.17 A scroll container's content size is the union of its children's margin boxes plus padding, measured after layout; the conventional shape is one child, a stack container with a fixed width and hug height. Manual content size is allowed as an override. A scroll container may also hug its own height: it then measures as its content size and gives way, down to its `minSize`, when its stack is short of room, which is the list in a column that is only as tall as it needs to be and scrolls past that (chapter 12, R12.20). Scroll extent, thumb geometry, and clamping are in chapter 12 (scroll container).
 
 ## 10.7 Invalidation
 

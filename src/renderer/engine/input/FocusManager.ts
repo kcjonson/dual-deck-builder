@@ -289,6 +289,8 @@ export class FocusManager {
 	 * by distance along the direction plus twice the distance across it, less
 	 * their overlap across it. An explicit neighbour (`focusUp` and the rest)
 	 * wins when it can take focus. With nothing focused, the scope's first.
+	 * A candidate in a focus group the focus is not in yields to the group's
+	 * active child.
 	 */
 	public focusDirection(direction: FocusDirection): boolean {
 		const current = this.current && this.current.canReceiveFocus() ? this.current : null;
@@ -312,8 +314,22 @@ export class FocusManager {
 			}
 		}
 		if (!best) return false;
-		this.setFocus(best, 'keyboard');
+		this.setFocus(this.groupEntry(best, current), 'keyboard');
 		return true;
+	}
+
+	/**
+	 * Arriving in a focus group from outside it lands on its active child, as
+	 * Tab does (R9.26, R9.29), so focus and a segmented control's or radio
+	 * group's selection agree. Within a group, or with no usable active
+	 * child, the nearest candidate stands.
+	 */
+	private groupEntry(candidate: Component, from: Component): Component {
+		const group = this.groupOf(candidate);
+		if (!group || group === this.groupOf(from)) return candidate;
+		const active = group.activeChild;
+		if (active && active.isMounted && active.canReceiveFocus() && this.groupOf(active) === group) return active;
+		return candidate;
 	}
 
 	// -- scopes (R9.20) -------------------------------------------------------

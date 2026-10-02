@@ -35,6 +35,20 @@ export const SWIFTSHADER_ARGS = [
 export const FIXED_VIEWPORT = { width: 1440, height: 882 };
 
 /**
+ * The short window every game screen is also captured and linted at. Short
+ * and narrow at once: the combat screen's scale is at its 0.8 floor (a
+ * 1280x750 logical canvas), credits and the card list scroll, and the
+ * developer screen's sections reflow. It is the floor the battle screen
+ * design names (1024 wide), held to a laptop-short 600.
+ */
+export const SHORT_VIEWPORT = { width: 1024, height: 600 };
+
+export interface Viewport {
+	width: number;
+	height: number;
+}
+
+/**
  * A worktree-stable dev-server port. Several worktrees of this repo run at
  * once and webpack's configured 9000 is first-come-first-served, so the port
  * is derived from this checkout's path: stable across restarts here, different

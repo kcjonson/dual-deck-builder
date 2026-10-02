@@ -13,6 +13,7 @@ import type { DeviceInfo } from '../engine/rendering/deviceInfo';
 import { DeveloperOverlay } from '../engine/ui/DeveloperOverlay';
 import { ReducedMotion } from '../engine/rendering/reducedMotion';
 import { GameSettings } from './core/GameSettings';
+import { HotkeyTable } from '../engine/input/HotkeyTable';
 
 /**
  * R13.32's pause on the game page, driven through `window.__app` rather than
@@ -70,7 +71,7 @@ jest.mock('../engine/ui/DeveloperOverlay', () => ({
 
 interface AppWindow extends Window {
 	__app?: {
-		navigate?(screenName: string): boolean;
+		navigate?(screenName: string, data?: unknown): boolean;
 		screens?(): string[];
 		pause?(): void;
 		resume?(): void;
@@ -157,6 +158,11 @@ describe('window.__app on the game page (R13.32, R15.37)', () => {
 		expect(typeof app().pause).toBe('function');
 		expect(typeof app().resume).toBe('function');
 		expect(typeof app().status).toBe('function');
+	});
+
+	it('navigates at once with the data the screen takes, as the game would pass it', () => {
+		expect(app().navigate?.('battleResultScreen', { victory: false })).toBe(true);
+		expect(screens.navigate).toHaveBeenCalledWith('battleResultScreen', { victory: false }, { immediate: true });
 	});
 
 	it('reports an unpaused start with the mounted screen', () => {
@@ -292,6 +298,55 @@ describe('the document keydown shortcut while a screen transition runs (R12.38)'
 		expect(screens.navigate).not.toHaveBeenCalled();
 		expect(overlay.shown).toBe(!shown);
 		press('F5');
+	});
+});
+
+describe('the document Escape steps aside for a screen that registers its own (R9.15)', () => {
+	// Combat and driver selection put Escape on their root's hotkeys, which
+	// run through the dispatcher after an open Select or popup has had the
+	// key. This listener runs outside it, so it has to leave those screens
+	// alone or Escape on an open Select would leave the screen.
+	const manager = ScreenManager as unknown as { activeScreen: unknown; getCurrentScreenName: jest.Mock };
+	function pressEscape(): void {
+		document.body.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+	}
+
+	function screenWithHotkey(key: string): { root: { ownHotkeys: HotkeyTable } } {
+		const table = new HotkeyTable();
+		table.register(key, () => undefined);
+		return { root: { ownHotkeys: table } };
+	}
+
+	beforeEach(() => {
+		manager.getCurrentScreenName.mockReturnValue('driverSelectionScreen');
+	});
+
+	afterEach(() => {
+		manager.activeScreen = null;
+		manager.getCurrentScreenName.mockReturnValue('mainMenuScreen');
+	});
+
+	it('goes back to the main menu from a screen without its own Escape', () => {
+		manager.activeScreen = screenWithHotkey('F1');
+		pressEscape();
+
+		expect(screens.navigate).toHaveBeenCalledWith('mainMenuScreen');
+	});
+
+	it('does nothing on a screen whose root registers Escape', () => {
+		manager.activeScreen = screenWithHotkey('Escape');
+		pressEscape();
+
+		expect(screens.navigate).not.toHaveBeenCalled();
+	});
+
+	it('does nothing on the main menu or the splash screen', () => {
+		for (const name of ['mainMenuScreen', 'splashScreen']) {
+			manager.getCurrentScreenName.mockReturnValue(name);
+			pressEscape();
+		}
+
+		expect(screens.navigate).not.toHaveBeenCalled();
 	});
 });
 

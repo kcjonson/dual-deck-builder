@@ -321,10 +321,11 @@ export class ScrollContainer extends Component {
 	 * The content child gets the inner width and its measured height; if that
 	 * overflows, the gutter comes off the width and it is measured again, once.
 	 * Then the scroll position re-clamps to the new extent, and the scrollbar
-	 * is placed. A hug height outside a stack sizes itself first.
+	 * is placed. A hug height outside a stack sizes itself first, within its
+	 * `minSize` and `maxSize`, as a stack would have clamped it.
 	 */
 	protected layoutChildren(): void {
-		if (this.heightMode === 'hug' && !this.parent?.sizesChildren) this.resizeInLayout(this.width, this.hugHeight(this.width));
+		if (this.heightMode === 'hug' && !this.parent?.sizesChildren) this.resizeInLayout(this.width, this.clampToLimits('height', this.hugHeight(this.width)));
 		let ink = 0;
 		for (const child of this.getChildren()) if (!child.isPart) ink = Math.max(ink, child.inkExtent);
 		if (ink !== this.childInk) {

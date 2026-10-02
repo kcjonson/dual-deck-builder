@@ -1,303 +1,156 @@
 import { Screen } from '../../core/Screen';
 import { ScreenManager } from '../../core/ScreenManager';
-import { Button } from '../../../engine/ui/Button';
+import { Stack } from '../../../engine/components/Stack';
 import { Text } from '../../../engine/components/Text';
-import { Rectangle } from '../../../engine/components/Rectangle';
-import { Container } from '../../../engine/components/Container';
+import { Button } from '../../../engine/ui/Button';
 import { ScrollContainer } from '../../../engine/ui/ScrollContainer';
+import { tokens } from '../../../engine/theme/tokens';
 import { Card } from '../../ui/Card';
+import { FlowWrap } from '../../ui/FlowWrap';
 import { CardLoader } from '../../core/CardLoader';
-import { CARD_RARITIES, Card as GameCard } from '../../mechanics/Card';
+import { CARD_RARITIES, CardRarity, Card as GameCard } from '../../mechanics/Card';
 
-/** The strips above and below the scroll panel: the title's and the back button's. */
-const HEADER_HEIGHT = 80;
-const FOOTER_HEIGHT = 80;
+const CARD_GAP = 20;
+const BACK_WIDTH = 200;
+
+const RARITY_COLORS: Record<CardRarity, string> = {
+	starter: '#666666',
+	common: '#ffffff',
+	uncommon: '#00aa00',
+	rare: '#0088ff',
+	legendary: '#ff8800',
+	signature: '#cc66ff',
+};
 
 /**
- * Screen for showcasing all available cards
+ * Every card in the game: a root stack with the title, a scroll container
+ * holding all the cards and then the same cards by rarity, each group a
+ * heading over a wrapping row, and Back. The rows wrap at whatever width the
+ * window gives them, so nothing is placed by hand. Focus starts on Back;
+ * Page Up and Page Down scroll the list and Escape returns to the menu.
  */
 export class CardShowcaseScreen extends Screen {
-	private background: Rectangle;
-	private title: Text;
-	private backButton: Button;
-	private cardsPanel: ScrollContainer;
-	/** The scroll container's one content child: the titles and cards, placed by hand. */
-	private cardsContent: Container;
-	private cardLoader: CardLoader;
-	private cardComponents: Card[] = [];
-	private cardsLoaded = false;
+	private readonly stack: Stack;
+	private readonly cardLoader = CardLoader.getInstance();
+	private list: Stack | null = null;
+	private scroller: ScrollContainer | null = null;
+	/** Bumped on every mount and unmount, so a load that finishes after the screen left is dropped. */
+	private generation = 0;
 
 	constructor() {
-		super('cardShowcaseScreen');
-
-		this.cardLoader = CardLoader.getInstance();
-
-		// Everything sized from the root is placed by positionElements
-		this.background = new Rectangle({
-			style: {
-				backgroundColor: '#1a1a33',
-			},
+		const root = new Stack({
+			id: 'cardShowcaseScreen',
+			widthMode: 'fill',
+			heightMode: 'fill',
+			gap: tokens.space.space_4,
+			padding: tokens.space.space_8,
+			style: { backgroundColor: 'bg_base' },
 		});
-		this.rootLayer.addChild(this.background);
+		super('cardShowcaseScreen', { root });
+		this.stack = root;
+	}
 
-		// Create title
-		this.title = new Text('Card Showcase', {
+	protected onMount(): void {
+		this.stack.addChild(new Text('Card Showcase', {
 			id: 'showcase_title',
-			x: 50,
-			y: 30,
 			style: {
-				fontSize: 32,
-				color: '#ffffff',
-				fontWeight: 'bold',
+				fontRole: 'display',
+				fontSize: 'fs_4xl',
+				color: 'text_bright',
 			},
-		});
-		this.rootLayer.addChild(this.title);
+			wrap: 'none',
+		}));
 
-		// Create back button
-		this.backButton = new Button('Back to Main Menu', {
-			x: 50,
-			width: 200,
-			height: 50,
-		});
-		this.backButton.onClick = () => {
-			ScreenManager.navigate('mainMenuScreen');
-		};
-		this.rootLayer.addChild(this.backButton);
-
-		// Create main scrollable container that holds all content
-		this.cardsPanel = new ScrollContainer({
+		this.list = new Stack({ id: 'showcase_cards', crossAlign: 'stretch', gap: tokens.space.space_4 });
+		this.scroller = new ScrollContainer({
 			id: 'showcase_scroll',
-			y: HEADER_HEIGHT,
-			style: {
-				backgroundColor: '#1a1a33', // Match the background
-			},
+			widthMode: 'fill',
+			heightMode: 'fill',
 		});
-		this.cardsContent = new Container({ id: 'showcase_cards' });
-		this.cardsPanel.addChild(this.cardsContent);
-		this.rootLayer.addChild(this.cardsPanel);
+		this.scroller.addChild(this.list);
+		this.stack.addChild(this.scroller);
+
+		const back = new Button('Back to Main Menu', {
+			id: 'showcase_back_button',
+			icon: 'arrow_back',
+			size: 'lg',
+			width: BACK_WIDTH,
+			onClick: () => this.back(),
+		});
+		this.stack.addChild(back);
+
+		const { hotkeys } = this.rootLayer;
+		hotkeys.register('Escape', () => this.back());
+		hotkeys.register('PageDown', () => this.scroller?.scrollBy(this.scroller.height));
+		hotkeys.register('PageUp', () => this.scroller?.scrollBy(-(this.scroller?.height ?? 0)));
+		this.context.focus.focus(back);
+
+		void this.loadCards(++this.generation);
 	}
 
-	/** The background, panel, and back button follow the root, which is the viewport. */
-	private positionElements(): void {
-		const width = this.rootLayer.width;
-		const height = this.rootLayer.height;
-		this.background.setSize(width, height);
-		this.cardsPanel.setSize(width, height - HEADER_HEIGHT - FOOTER_HEIGHT);
-		this.backButton.setY(height - FOOTER_HEIGHT);
+	protected onUnmount(): void {
+		this.generation++;
+		const { hotkeys } = this.rootLayer;
+		for (const key of ['Escape', 'PageDown', 'PageUp']) hotkeys.unregister(key);
+		this.stack.clearChildren();
+		this.list = null;
+		this.scroller = null;
 	}
 
-	/**
-	 * Load cards from CardLoader and display them
-	 */
-	private async loadCards(): Promise<void> {
+	private async loadCards(generation: number): Promise<void> {
 		try {
-			// Load cards if not already loaded
-			if (!this.cardLoader.isLoaded()) {
-				await this.cardLoader.loadCards();
-			}
-
-			// Get all cards
-			const cards = this.cardLoader.getAllCards();
-			
-			// Display cards in a grid
-			this.displayCards(cards);
+			if (!this.cardLoader.isLoaded()) await this.cardLoader.loadCards();
+			if (generation !== this.generation) return;
+			this.showCards(this.cardLoader.getAllCards());
 		} catch (error) {
 			console.error('Failed to load cards:', error);
-			
-			// Display error message
-			const errorText = new Text('Failed to load cards. Check console for details.', {
-				x: 20,
-				y: 50,
-				style: {
-					fontSize: 18,
-					color: '#ff6666',
-				},
-			});
-			this.cardsContent.addChild(errorText);
+			if (generation !== this.generation) return;
+			this.list?.addChild(new Text('Failed to load cards. Check console for details.', {
+				style: { fontSize: 'fs_lg', color: 'status_crit' },
+			}));
 		}
 	}
 
 	/**
-	 * Display cards in a grid layout
+	 * All the cards, then each rarity's. The by-rarity cards take the rarity
+	 * in their ids so ids stay unique within the root; CardLoader keys its
+	 * map by card type, so a type appears once per group.
 	 */
-	private displayCards(cards: GameCard[]): void {
-		const cardDimensions = Card.getDimensions();
-		const margin = 20;
-		const cardSpacing = 20;
-		const availableWidth = this.cardsPanel.getWidth() - (margin * 2);
-		const cardsPerRow = Math.floor(availableWidth / (cardDimensions.width + cardSpacing));
-
-		let currentX = margin;
-		let currentY = margin;
-		let cardsInCurrentRow = 0;
-
-		// Add section title
-		const sectionTitle = new Text(`All Cards (${cards.length} total)`, {
-			x: margin,
-			y: currentY,
-			style: {
-				fontSize: 20,
-				color: '#ffffff',
-				fontWeight: 'bold',
-			},
-		});
-		this.cardsContent.addChild(sectionTitle);
-		currentY += 40;
-
-		// Display each card
-		for (const gameCard of cards) {
-			const cardComponent = new Card({
-				id: `showcase_card_${gameCard.type}`,
-				x: currentX,
-				y: currentY,
-				data: gameCard,
-			});
-
-			this.cardsContent.addChild(cardComponent);
-			this.cardComponents.push(cardComponent);
-
-			// Move to next position
-			currentX += cardDimensions.width + cardSpacing;
-			cardsInCurrentRow++;
-
-			// Check if we need to move to next row
-			if (cardsInCurrentRow >= cardsPerRow) {
-				currentX = margin;
-				currentY += cardDimensions.height + cardSpacing;
-				cardsInCurrentRow = 0;
-			}
-		}
-
-		// Add spacing for rarity sections
-		currentY += cardDimensions.height + 40;
-
-		// Display cards by rarity; the content ends where the last section does (DDB-216)
-		const contentHeight = this.displayCardsByRarity(cards, currentY) + margin;
-		this.cardsContent.setSize(this.rootLayer.getWidth(), contentHeight);
-	}
-
-	/**
-	 * Display cards organized by rarity. Returns the y the last section ends at.
-	 */
-	private displayCardsByRarity(cards: GameCard[], startY: number): number {
-		const rarities = CARD_RARITIES;
-		const cardDimensions = Card.getDimensions();
-		const margin = 20;
-		const cardSpacing = 20;
-		const availableWidth = this.cardsPanel.getWidth() - (margin * 2);
-		const cardsPerRow = Math.floor(availableWidth / (cardDimensions.width + cardSpacing));
-		
-		let currentY = startY;
-
-		for (const rarity of rarities) {
-			const rarityCards = cards.filter(card => card.rarity === rarity);
-			
+	private showCards(cards: GameCard[]): void {
+		const list = this.list;
+		if (!list) return;
+		list.addChild(this.group({
+			id: 'showcase_all',
+			heading: `All Cards (${cards.length} total)`,
+			color: 'text_bright',
+			cards: cards.map((card) => new Card({ id: `showcase_card_${card.type}`, x: 0, y: 0, data: card })),
+		}));
+		for (const rarity of CARD_RARITIES) {
+			const rarityCards = cards.filter((card) => card.rarity === rarity);
 			if (rarityCards.length === 0) continue;
-
-			// Rarity section title
-			const rarityTitle = new Text(`${rarity.toUpperCase()} (${rarityCards.length})`, {
-				x: margin,
-				y: currentY,
-				style: {
-					fontSize: 18,
-					color: this.getRarityColor(rarity),
-					fontWeight: 'bold',
-				},
-			});
-			this.cardsContent.addChild(rarityTitle);
-			currentY += 30;
-
-			// Display cards for this rarity
-			let currentX = margin;
-			let cardsInCurrentRow = 0;
-
-			for (const gameCard of rarityCards) {
-				// The screen renders the same cards twice; the by-rarity pass
-				// takes a distinct prefix so ids stay unique within the root.
-				// CardLoader keys its map by card type, so a type appears once
-				// per pass and the type alone disambiguates.
-				const cardComponent = new Card({
-					id: `showcase_${rarity}_card_${gameCard.type}`,
-					x: currentX,
-					y: currentY,
-					data: gameCard,
-				});
-
-				this.cardsContent.addChild(cardComponent);
-			this.cardComponents.push(cardComponent);
-
-				// Move to next position
-				currentX += cardDimensions.width + cardSpacing;
-				cardsInCurrentRow++;
-
-				// Check if we need to move to next row
-				if (cardsInCurrentRow >= cardsPerRow) {
-					currentX = margin;
-					currentY += cardDimensions.height + cardSpacing;
-					cardsInCurrentRow = 0;
-				}
-			}
-
-			// Move to next rarity section
-			if (cardsInCurrentRow > 0) {
-				currentY += cardDimensions.height + cardSpacing;
-			}
-			currentY += 20; // Extra spacing between rarity sections
-		}
-		return currentY;
-	}
-
-	/**
-	 * Get color for rarity text
-	 */
-	private getRarityColor(rarity: string): string {
-		switch (rarity) {
-			case 'starter': return '#666666';
-			case 'common': return '#ffffff';
-			case 'uncommon': return '#00aa00';
-			case 'rare': return '#0088ff';
-			case 'legendary': return '#ff8800';
-			case 'signature': return '#cc66ff';
-			default: return '#ffffff';
+			list.addChild(this.group({
+				id: `showcase_${rarity}`,
+				heading: `${rarity.toUpperCase()} (${rarityCards.length})`,
+				color: RARITY_COLORS[rarity],
+				cards: rarityCards.map((card) => new Card({ id: `showcase_${rarity}_card_${card.type}`, x: 0, y: 0, data: card })),
+			}));
 		}
 	}
 
-
-	/**
-	 * Handle screen mount
-	 */
-	protected onMount(): void {
-		super.onMount();
-		this.positionElements();
-		// Load cards when screen becomes active
-		if (!this.cardsLoaded) {
-			this.loadCards();
-			this.cardsLoaded = true;
-		}
+	/** A heading over its cards, wrapped across the list's width. */
+	private group({ id, heading, color, cards }: { id: string; heading: string; color: string; cards: Card[] }): Stack {
+		const group = new Stack({ id, crossAlign: 'stretch', gap: tokens.space.space_3 });
+		group.addChild(new Text(heading, {
+			style: { fontRole: 'display', fontSize: 'fs_xl', color },
+			wrap: 'none',
+		}));
+		const row = new FlowWrap({ id: `${id}_cards`, gap: CARD_GAP });
+		for (const card of cards) row.addChild(card);
+		group.addChild(row);
+		return group;
 	}
 
-	/**
-	 * Handle screen unmount
-	 */
-	protected onUnmount(): void {
-		// Cleared so a remount loads the cards again; clearChildren unmounts
-		// them, and the root's unmount releases the rest (the back button).
-		this.cardComponents = [];
-		this.cardsContent.clearChildren();
-		this.cardsLoaded = false;
-
-		super.onUnmount();
-	}
-
-	/**
-	 * Update the screen
-	 */
-	public onUpdate(_dt: number): void {
-		// Handle any updates
-	}
-
-
-	protected onResized(): void {
-		this.positionElements();
+	private back(): void {
+		ScreenManager.navigate('mainMenuScreen');
 	}
 }

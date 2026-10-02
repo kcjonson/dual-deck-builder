@@ -18,6 +18,33 @@ This document contains the chronological log of completed development tasks for 
 - Decision record: [component-rounded-clip.md](./AI_TECHNICAL_DECISIONS/component-rounded-clip.md).
 
 **How:** clip tests for the drop rule (corner pixel centres, ratio), DrawApi tests that a clear nesting does not warn and a real one does, backend tests for the fresh slot and for ring growth, Panel, ScrollContainer, ScrollClip and snapshot tests for the clip, its radius, corner hits in both hit walks, and the zero-sized cases; goldens re-minted with `all`.
+## Every screen at lint zero with a golden, at two sizes (2026-10-02)
+
+**What landed:** DDB-91's first PR (DDB-55, phase 6), closing DDB-230.
+
+- `Card` draws its rarity rim, face, and driver badge in `render()`; `Vehicle` its portrait panel and structure bar, with the value centred on the bar and rows placed below the measured row above; `BattlefieldLayer` its ground and lane dividers (now a `Component` with `passthrough` hits).
+- `FanPose.order` becomes each hand card's `zIndex`, declaring the fan's overlap; the lift no longer touches `zIndex`. `fanReach` pads the row by a turned card's reach.
+- Card showcase and developer screens rebuilt on root stacks with a fill `ScrollContainer`, Back, Escape, and Page Up/Down. The showcase flows its cards through `FlowWrap`; the developer screen is a `Stack` of `developerSections`, the gallery's scene factories.
+- Icons, stacks, paint order, scrolling, panels, and clipping sections wrap below about 1,320 px (`wrappedLineCount` predicts the height). Paint order's column gap 40 to 30.
+- `window.__app.navigate(name, data)`; `BattleResultData` is `{ victory }`.
+- Harness: `SHORT_VIEWPORT` (1024x600); every screen scenario at both sizes, the battle result per outcome; `openScreen` and `settle` take the size; the screen lint gate is every screen scenario.
+- Decision record: [screens-at-lint-zero.md](./AI_TECHNICAL_DECISIONS/screens-at-lint-zero.md).
+
+**How:** lint tests over every card at every size and over the plate at the battlefield's sizes, `fanReach` and `wrappedLineCount` tests, a `Game` test for the hook's data; the screen lint spec (20 scenarios) passes locally; the menu, showcase, developer, settings, credits, driver selection, a full fight, and the result played through `window.__dev.input` at both sizes with lint zero on each screen and a clean console.
+## Arrow trapping settled, hug scrolling specified (2026-10-02)
+
+**What landed:** DDB-227, DDB-228, and DDB-233 (DDB-55), one PR.
+
+- R9.24: a control consumes the arrows along its axis and leaves the two across it to directional focus (R9.26). Along the axis they're consumed even at the ends, so a held key doesn't run off a slider or a wrapping group. R12.15, R12.17, and R12.35 follow it.
+- `SegmentedControl` drops Up and Down, matching `TabBar`. `Slider` steps on Left and Right only. `RadioGroup`'s focus-group orientation and arrows follow its stack direction (Up and Down in the default column) instead of `both`.
+- R12.20 and R10.17 describe ScrollContainer's `heightMode: 'hug'`. Outside a stack it now clamps its hug height to `minSize` and `maxSize`, through a new `Component.clampToLimits` that `Stack.sizeSelf` and `FlowWrap` use too.
+- `FlowWrap` measures, wraps, and places items by their margin boxes.
+- DDB-233, from review: directional focus entering a focus group from outside lands on its active child, as Tab does (R9.26). On settings, Down, Up, Right used to move Full to Reduced; now Up returns to Full. `RadioGroup`'s direction setter keeps its focus-group orientation in step. Outside a sizing parent, `FlowWrap` reflows at its clamped width before taking its height. R9.24 names selects, dropdowns, and number inputs as consuming vertical arrows; controller mode for them is DDB-237.
+- Gallery scene `scroll-hug`: a hugging scroller in a roomy column and a short one, and two outside a stack held to `maxSize` and `minSize`.
+- Skipped DriverSelectionScreen's constructor UI and Escape unregistration; DDB-225 owns that screen's Escape.
+
+**How:** slider, segmented control, and radio tests for the cross-axis arrows reaching a neighbour; ScrollContainer and FlowWrap tests for the clamps and margins; `Game.test.ts` covers the document Escape listener stepping aside for a root that registers Escape.
+
 ## The rounded clip in the uber shader (2026-10-02)
 
 **What landed:** DDB-190 (DDB-55), R4.14. `pushClipRounded` draws round instead of square.

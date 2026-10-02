@@ -222,10 +222,7 @@ export class CombatScreen extends Screen {
 				);
 				// Navigate to battle result screen
 				if (this.battle) {
-					const resultData: BattleResultData = {
-						victory: event.won,
-						battleState: this.battle.getState()
-					};
+					const resultData: BattleResultData = { victory: event.won };
 					ScreenManager.navigate('battleResultScreen', resultData);
 				}
 			})
