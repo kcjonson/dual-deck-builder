@@ -86,4 +86,4 @@ Cards, vehicles, hand fans, and the like are built from the catalog and the draw
 | ProgressBar, Badge, TreeView | required |
 | Placement, popup, overlay, tooltip, drag, clipboard, asset services | required |
 | NumberInput, Scrollbar, Counter, Avatar, Stat, KeyCap, Divider | recommended |
-| Horizontal and smooth scrolling, multi-line text input, cross-fade transition, vector icons | optional |
+| Horizontal and smooth scrolling, multi-line text input, IME composition, cross-fade transition, vector icons | optional |
