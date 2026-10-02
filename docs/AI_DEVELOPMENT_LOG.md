@@ -14,6 +14,18 @@ This document contains the chronological log of completed development tasks for 
 - `CombatScreen`: END TURN starts `EnemyTurnPacer` (a frame ticker on the mount context's clock), which steps one action per beat; the dock is disabled and End Turn says WAIT until the player's draw, and the intents shown at END TURN stay up; a fizzle pops MISS; `actingRaider` names the raider on screen. `EndTurnColumn.show` takes `waiting`.
 - Tests: Battle steps in plan order with the draw after the last step, a dropped raider is one step, a fizzle is its own, a loss ends the turn; the screen holds each beat, locks the dock, and draws after the last beat, under reduced motion too. New Playwright spec `enemyTurn.spec.ts` captures and lints the mid-turn screen at 1440x882 and 1024x600.
 - Decision record: [enemy-turn-pacing.md](./AI_TECHNICAL_DECISIONS/enemy-turn-pacing.md).
+## The road view: lanes, rows, shoulders, and fixed slots (2026-10-02)
+
+**What landed:** DDB-134 (DDB-127), Battle Screen Design sections 1 and 2.
+
+- `computeRoadLayout({ width, height })` and `roadSlotRect(layout, slot, out?)` in `CombatLayout.ts`: the one road layout, pure. A 16 px pad, the 18 px gutter, six lanes; a 26 px header and three rows. Slots are 205x141 at 1280x720 and depend only on the band's size. `tokenScale` is the mock's `k` (to x1.25, reported below 1 rather than floored); `tokenScaleFor` takes a passenger token's height.
+- `RoadView` replaces `BattlefieldLayer`, `EnemyBattlefieldLayer`, and `PlayerBattlefieldLayer`. One component holds both teams, raiders first in the tree. Its ground is built on resize and replayed: shoulder hatch and tints (red where raiders flank, bone on your flank), red raider lanes, solid shoulder edges, dashed lane lines, the 4 px yellow centre line, faint dashed outlines in empty slots, the header strip, and rotated row labels. On wide screens the art bleeds to the edges past the 1600 stage.
+- A slot change swerves: progress on the animator, lanes on `ease_standard` and rows on `ease_emphasized`, the token raised while it moves. Reduced motion lands it at once; a resize lands it.
+- The turn banner centres on the rows below the header (a header-high top margin), 13 px lower than before, as the mock has it.
+- Until DDB-135's token, the old plate sits where the token's plate would, under a 24 px strip holding the raider's intents.
+- New gallery scene `combat-road`. Decision record: [road-view.md](./AI_TECHNICAL_DECISIONS/road-view.md).
+
+**How:** unit tests for the layout and the view (slot geometry at every gate size, swerve path, reduced motion, outlines, tints, bleed); played drag, click-then-target, keyboard, Flanking Maneuver's swerve, and END TURN through `__dev.input` at 1280x720 and 1024x600; goldens minted by CI.
 
 ## The accessor rename (2026-10-02)
 

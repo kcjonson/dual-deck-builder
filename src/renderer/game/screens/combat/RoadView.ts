@@ -1,0 +1,593 @@
+import { Component, ComponentOptions, PointerEvents } from '../../../engine/components/Component';
+import type { MountContext } from '../../../engine/components/MountContext';
+import { Text } from '../../../engine/components/Text';
+import type { TweenHandle } from '../../../engine/animation/Animator';
+import { linear, resolveEase } from '../../../engine/animation/easing';
+import type { DrawApi } from '../../../engine/draw/DrawApi';
+import type { DrawPolygonOptions, DrawRectOptions } from '../../../engine/draw/commands';
+import type { Rect, Vec2 } from '../../../engine/draw/geometry';
+import { tokens } from '../../../engine/theme/tokens';
+import { Vehicle as VehicleData } from '../../mechanics/Vehicle';
+import { LANE_ORDER, RoadLane, RoadSlot, isShoulder, sameSlot } from '../../mechanics/Road';
+import { Vehicle as VehicleUI } from '../../ui/Vehicle';
+import { EnemyIntent, IntentRow } from '../../ui/IntentMarker';
+import { CombatModel } from './CombatModel';
+import {
+	ROAD_ROW_GUTTER,
+	RoadLayout,
+	RoadRect,
+	TOKEN_HEIGHT,
+	TOKEN_WIDTH,
+	computeRoadLayout,
+	roadSlotRect,
+} from './CombatLayout';
+import { ROAD_STYLE, Rgba, rgba } from './combatStyle';
+
+export type { EnemyIntent, IntentType } from '../../ui/IntentMarker';
+
+/** The token's intent strip, and where its plate starts under it (section 3). */
+const INTENT_STRIP_HEIGHT = 24;
+const PLATE_TOP = 26;
+const INTENT_MARKER_SIZE = 24;
+/** An empty slot's outline sits this far inside its cell (the mock's `.slot`). */
+const SLOT_OUTLINE_INSET_X = 6;
+const SLOT_OUTLINE_INSET_Y = 4;
+const SLOT_DASH = 6;
+const SLOT_GAP = 6;
+/** The lane lines' dashes, 26 on and 26 off; the centre line is twice as wide. */
+const LANE_DASH = 26;
+const LANE_LINE_WIDTH = 2;
+const CENTRE_LINE_WIDTH = 4;
+/** The shoulder hatch: 12 px stripes every 24 px, at 45 degrees. */
+const HATCH_PERIOD = 24 * Math.SQRT2;
+const HATCH_STRIPE = 12 * Math.SQRT2;
+/** How long a swerve from one slot to another takes. */
+export const SWERVE_DURATION = tokens.motion.dur_slow;
+/** Across the lanes on an S-curve; along the rows early, so the speed change leads and the swerve follows. */
+const LANE_EASE = resolveEase(tokens.motion.ease_standard);
+const ROW_EASE = resolveEase(tokens.motion.ease_emphasized);
+
+type Side = 'player' | 'enemy';
+
+interface LaneLook {
+	label: string;
+	/** Whose the lane is: red for the raiders', bone for yours. */
+	side: Side;
+}
+
+/** A shoulder is named and coloured for the team that may use it, which is never the team it borders. */
+const LANE_LOOKS: Readonly<Record<RoadLane, LaneLook>> = {
+	[RoadLane.PLAYER_SHOULDER]: { label: 'Raider flank', side: 'enemy' },
+	[RoadLane.PLAYER_OUTSIDE]: { label: 'Outside', side: 'player' },
+	[RoadLane.PLAYER_INSIDE]: { label: 'Inside', side: 'player' },
+	[RoadLane.ENEMY_INSIDE]: { label: 'Inside', side: 'enemy' },
+	[RoadLane.ENEMY_OUTSIDE]: { label: 'Outside', side: 'enemy' },
+	[RoadLane.ENEMY_SHOULDER]: { label: 'Your flank', side: 'player' },
+};
+
+class PlayerVehicle extends VehicleUI {
+	protected get portraitColor(): string {
+		return '#4a5a4a';
+	}
+
+	protected get borderColor(): string {
+		return '#6a8a6a';
+	}
+}
+
+class EnemyVehicle extends VehicleUI {
+	protected get portraitColor(): string {
+		return '#4a3a3a';
+	}
+
+	protected get borderColor(): string {
+		return '#6a5a5a';
+	}
+}
+
+/** A vehicle on the road: its plate, a raider's plan over it, and the slot-sized rect it's drawn in now. */
+interface RoadToken {
+	vehicle: VehicleData;
+	side: Side;
+	view: VehicleUI;
+	intents: IntentRow | null;
+	/** Where it sits, or is swerving to. */
+	slot: RoadSlot;
+	/** The slot-sized rect it's in now: its slot's, or between two mid-swerve. */
+	readonly at: RoadRect;
+	readonly from: Vec2;
+	readonly to: RoadRect;
+	swerve: TweenHandle<number> | null;
+}
+
+export type RoadViewOptions = ComponentOptions & { combatData?: CombatModel };
+
+/**
+ * The road (Battle Screen Design, sections 1 and 2): six lanes under a
+ * 26 px header, an 18 px row gutter, and the 6x3 grid of fixed slots, with
+ * every vehicle on the road in its slot. One component for both teams, since
+ * a flanker sits on the other team's side of the road.
+ *
+ * Everything comes from `computeRoadLayout` on the band's size, so slots
+ * never move or resize during a fight; a vehicle changing slot swerves from
+ * one to the other on the animator, which reduced motion lands at once.
+ *
+ * The ground is the view's own draws, created on resize (and the empty-slot
+ * outlines when occupancy changes) and only replayed each frame. The road
+ * art runs `bleed` past each side, to the screen's edges where the stage is
+ * capped (section 2: the road runs on, the UI does not).
+ */
+export class RoadView extends Component {
+	private readonly combatData: CombatModel | null;
+	private currentLayout: RoadLayout;
+	private sideBleed = 0;
+	private readonly roadTokens = new Map<string, RoadToken>();
+	private readonly plannedIntents = new Map<string, readonly EnemyIntent[]>();
+	private readonly laneHeads: Text[];
+	private readonly rowLabels: Text[];
+	private readonly fixedChildren: number;
+
+	// The ground, rebuilt on resize
+	private readonly shoulderGrounds: DrawRectOptions[] = [];
+	private readonly hatches: DrawPolygonOptions[] = [];
+	private readonly laneTints: DrawRectOptions[] = [];
+	private readonly laneLines: DrawRectOptions[] = [];
+	private readonly headerStrip: DrawRectOptions[] = [];
+	// Rebuilt when a slot fills or empties
+	private readonly slotOutlines: DrawRectOptions[] = [];
+
+	constructor({ combatData, ...options }: RoadViewOptions) {
+		super(options);
+		this.componentType = 'RoadView';
+		this.combatData = combatData ?? null;
+		this.currentLayout = computeRoadLayout({ width: this.width, height: this.height });
+
+		this.laneHeads = LANE_ORDER.map((lane) => {
+			const look = LANE_LOOKS[lane];
+			const head = new Text({
+				id: this.partId(`head_${lane}`),
+				text: look.label,
+				wrap: 'none',
+				textOverflow: 'ellipsis',
+				verticalAlign: 'middle',
+				pointerEvents: 'none',
+				style: {
+					fontRole: 'display',
+					fontSize: 12,
+					letterSpacing: isShoulder(lane) ? 0.06 : 0.12,
+					textTransform: 'uppercase',
+					textAlign: 'center',
+					color: look.side === 'enemy' ? ROAD_STYLE.raiderHeaderLabel : ROAD_STYLE.headerLabel,
+				},
+			});
+			this.addChild(head);
+			return head;
+		});
+		// Read up the gutter, turned a quarter to the left
+		this.rowLabels = this.currentLayout.rows.map(({ row }) => {
+			const label = new Text({
+				id: this.partId(`row_${row}`),
+				text: row.toUpperCase(),
+				wrap: 'none',
+				verticalAlign: 'middle',
+				pointerEvents: 'none',
+				transform: { rotate: -Math.PI / 2 },
+				style: { fontRole: 'mono', fontSize: 11, letterSpacing: 0.14, textAlign: 'center', color: rgba('text_faint') },
+			});
+			this.addChild(label);
+			return label;
+		});
+		this.fixedChildren = this.children.length;
+		this.layoutRoad();
+	}
+
+	/** The road's geometry now: lanes, rows, and every slot's size. */
+	public get roadLayout(): RoadLayout {
+		return this.currentLayout;
+	}
+
+	/** A slot's rect in this view's space, for anything placed against a slot (range labels, the fit suite). */
+	public slotRect(slot: RoadSlot, out?: RoadRect): RoadRect {
+		return roadSlotRect(this.currentLayout, slot, out);
+	}
+
+	/** How far the road art runs past each side of the view, to the screen's edges. */
+	public get bleed(): number {
+		return this.sideBleed;
+	}
+
+	public set bleed(value: number) {
+		const bleed = Math.max(0, value);
+		if (bleed === this.sideBleed) return;
+		this.sideBleed = bleed;
+		this.buildGround();
+		this.invalidateInk();
+	}
+
+	/** Like a container, the road itself is never a target; its vehicles are, and a card let go on it cancels. */
+	protected get defaultPointerEvents(): PointerEvents {
+		return 'passthrough';
+	}
+
+	protected get cullInk(): Rect | null {
+		return { x: -this.sideBleed, y: 0, width: this.width + this.sideBleed * 2, height: this.height };
+	}
+
+	/** The plate showing a vehicle, while it's on the road. */
+	public vehicleView(vehicleId: string): VehicleUI | null {
+		return this.roadTokens.get(vehicleId)?.view ?? null;
+	}
+
+	/** The row showing a raider's plan, while the raider is on the road. */
+	public intentRowOf(vehicleId: string): IntentRow | null {
+		return this.roadTokens.get(vehicleId)?.intents ?? null;
+	}
+
+	/** The slot a vehicle's token sits in, or is swerving to. */
+	public slotOf(vehicleId: string): RoadSlot | null {
+		return this.roadTokens.get(vehicleId)?.slot ?? null;
+	}
+
+	/** Whether a vehicle's token is between two slots now. */
+	public isSwerving(vehicleId: string): boolean {
+		return this.roadTokens.get(vehicleId)?.swerve?.running ?? false;
+	}
+
+	/**
+	 * Both teams' vehicles. Those with a slot get a token there; one that has
+	 * changed slot swerves to it; one that has left the road loses its token.
+	 * Raiders come first in the tree, so focus meets them before your own.
+	 */
+	public showVehicles({ player, enemy }: { player: readonly VehicleData[]; enemy: readonly VehicleData[] }): void {
+		const onRoad = new Set<string>();
+		let created = false;
+		let occupancyChanged = false;
+		const show = (vehicle: VehicleData, side: Side): void => {
+			const slot = vehicle.slot;
+			if (!slot) return;
+			onRoad.add(vehicle.id);
+			const token = this.roadTokens.get(vehicle.id);
+			if (!token) {
+				this.roadTokens.set(vehicle.id, this.createToken(vehicle, side, slot));
+				created = true;
+				occupancyChanged = true;
+				return;
+			}
+			token.vehicle = vehicle;
+			token.view.data = vehicle;
+			if (!sameSlot(token.slot, slot)) {
+				this.swerveTo(token, slot);
+				occupancyChanged = true;
+			}
+		};
+		for (const vehicle of enemy) show(vehicle, 'enemy');
+		for (const vehicle of player) show(vehicle, 'player');
+
+		for (const [vehicleId, token] of this.roadTokens) {
+			if (onRoad.has(vehicleId)) continue;
+			this.removeToken(token);
+			this.roadTokens.delete(vehicleId);
+			occupancyChanged = true;
+		}
+		if (created) this.orderTokens(enemy, player);
+		if (occupancyChanged) this.buildSlotOutlines();
+	}
+
+	/** A raider's plan for the enemy turn, in order; empty clears it. */
+	public setVehicleIntents(vehicleId: string, intents: readonly EnemyIntent[]): void {
+		if (intents.length === 0) this.plannedIntents.delete(vehicleId);
+		else this.plannedIntents.set(vehicleId, intents);
+		const row = this.roadTokens.get(vehicleId)?.intents;
+		if (row) row.intents = intents;
+	}
+
+	protected onResized(): void {
+		this.layoutRoad();
+	}
+
+	/** A swerve cut short by an unmount lands where it was going. */
+	protected onMount(context: MountContext): void {
+		super.onMount(context);
+		for (const token of this.roadTokens.values()) {
+			if (token.swerve?.running) continue;
+			this.land(token);
+		}
+	}
+
+	private partId(suffix: string): string | undefined {
+		return this.id === null ? undefined : `${this.id}_${suffix}`;
+	}
+
+	/** Stable ids from the slot a vehicle arrives in: vehicle ids are random per load, and slots are unique. */
+	private createToken(vehicle: VehicleData, side: Side, slot: RoadSlot): RoadToken {
+		const Plate = side === 'enemy' ? EnemyVehicle : PlayerVehicle;
+		const view = new Plate({
+			id: `${side}_vehicle_${slot.lane}_${slot.row}`,
+			x: 0,
+			y: 0,
+			width: TOKEN_WIDTH,
+			height: TOKEN_HEIGHT - PLATE_TOP,
+			vehicleData: vehicle,
+			combatData: this.combatData ?? undefined,
+			onClick: (target) => this.combatData?.targetVehicle(target),
+		});
+		this.addChild(view);
+		let intents: IntentRow | null = null;
+		if (side === 'enemy') {
+			// Siblings of the plate, not its children: a plate is one hit target
+			// (`unit`), so nothing inside it is hovered, and the discs need their
+			// tooltips. The plan is part of its raider as a drop target.
+			intents = new IntentRow({
+				id: view.id ? `${view.id}_intents` : undefined,
+				markerSize: INTENT_MARKER_SIZE,
+				distribution: 'end',
+				crossAlign: 'center',
+			});
+			intents.intents = this.plannedIntents.get(vehicle.id) ?? [];
+			intents.onDragEnter = (event) => view.dragEntered(event);
+			intents.onDragLeave = () => view.dragLeft();
+			intents.onDrop = (event) => view.dropped(event);
+			this.addChild(intents);
+		}
+		const token: RoadToken = {
+			vehicle,
+			side,
+			view,
+			intents,
+			slot,
+			at: { x: 0, y: 0, width: 0, height: 0 },
+			from: { x: 0, y: 0 },
+			to: { x: 0, y: 0, width: 0, height: 0 },
+			swerve: null,
+		};
+		this.land(token);
+		return token;
+	}
+
+	private removeToken(token: RoadToken): void {
+		token.swerve?.cancel();
+		token.swerve = null;
+		this.removeChild(token.view);
+		if (token.intents) this.removeChild(token.intents);
+	}
+
+	/** Raiders, then your vehicles, each team in its own order, after the labels. */
+	private orderTokens(enemy: readonly VehicleData[], player: readonly VehicleData[]): void {
+		let index = this.fixedChildren;
+		for (const vehicle of [...enemy, ...player]) {
+			const token = this.roadTokens.get(vehicle.id);
+			if (!token) continue;
+			this.moveChild(token.view, index++);
+			if (token.intents) this.moveChild(token.intents, index++);
+		}
+	}
+
+	/** Straight into its slot, ending any swerve. */
+	private land(token: RoadToken): void {
+		token.swerve?.cancel();
+		token.swerve = null;
+		this.raise(token, false);
+		roadSlotRect(this.currentLayout, token.slot, token.at);
+		this.placeToken(token);
+	}
+
+	private swerveTo(token: RoadToken, slot: RoadSlot): void {
+		token.slot = slot;
+		const animator = this.context?.animator;
+		if (!animator || !this.isMounted) {
+			this.land(token);
+			return;
+		}
+		token.swerve?.cancel();
+		token.from.x = token.at.x;
+		token.from.y = token.at.y;
+		roadSlotRect(this.currentLayout, slot, token.to);
+		// Over the vehicles it passes
+		this.raise(token, true);
+		token.swerve = animator.tween({
+			from: 0,
+			to: 1,
+			duration: SWERVE_DURATION,
+			ease: linear,
+			owner: this,
+			onUpdate: (progress) => {
+				token.at.x = token.from.x + (token.to.x - token.from.x) * LANE_EASE(progress);
+				token.at.y = token.from.y + (token.to.y - token.from.y) * ROW_EASE(progress);
+				this.placeToken(token);
+			},
+			onComplete: () => this.land(token),
+		});
+	}
+
+	private raise(token: RoadToken, raised: boolean): void {
+		const zIndex = raised ? 1 : 0;
+		token.view.zIndex = zIndex;
+		if (token.intents) token.intents.zIndex = zIndex;
+	}
+
+	/**
+	 * The token centred in the rect it's in now, at the layout's scale: the
+	 * plan in the strip across its top, right-aligned, and the plate under it.
+	 */
+	private placeToken(token: RoadToken): void {
+		const scale = Math.max(0, this.currentLayout.tokenScale);
+		const width = TOKEN_WIDTH * scale;
+		const height = TOKEN_HEIGHT * scale;
+		const { at } = token;
+		const x = at.x + (at.width - width) / 2;
+		const y = at.y + (at.height - height) / 2;
+		const plateTop = PLATE_TOP * scale;
+		token.view.setPosition(x, y + plateTop);
+		token.view.setSize(width, height - plateTop);
+		token.intents?.setPosition(x, y);
+		token.intents?.setSize(width, INTENT_STRIP_HEIGHT * scale);
+	}
+
+	/** Everything from the band's size: the ground, the labels, and every token back in its slot. */
+	private layoutRoad(): void {
+		const layout = computeRoadLayout({ width: this.width, height: this.height });
+		this.currentLayout = layout;
+		layout.lanes.forEach((lane, index) => {
+			const head = this.laneHeads[index];
+			head.setPosition(lane.x, 0);
+			head.setSize(lane.width, layout.headerHeight);
+		});
+		layout.rows.forEach((row, index) => {
+			// Laid out across, then turned about its centre into the gutter
+			const label = this.rowLabels[index];
+			label.setSize(row.height, ROAD_ROW_GUTTER);
+			label.setPosition(layout.gutterX + ROAD_ROW_GUTTER / 2 - row.height / 2, row.y + row.height / 2 - ROAD_ROW_GUTTER / 2);
+		});
+		for (const token of this.roadTokens.values()) this.land(token);
+		this.buildGround();
+		this.buildSlotOutlines();
+	}
+
+	private buildGround(): void {
+		const layout = this.currentLayout;
+		const { width, height } = this;
+		const bleed = this.sideBleed;
+		const lanes = layout.lanes;
+		this.shoulderGrounds.length = 0;
+		this.hatches.length = 0;
+		this.laneTints.length = 0;
+		this.laneLines.length = 0;
+		this.headerStrip.length = 0;
+		if (width <= 0 || height <= 0) return;
+
+		// Each shoulder from its lane's inner edge out to the screen's edge,
+		// hatched, and tinted over its lane for the team that uses it
+		const leftEdge = lanes[1].x;
+		const rightEdge = lanes[5].x;
+		const shoulders: Rect[] = [
+			{ x: -bleed, y: 0, width: leftEdge + bleed, height },
+			{ x: rightEdge, y: 0, width: width + bleed - rightEdge, height },
+		];
+		for (const rect of shoulders) {
+			this.shoulderGrounds.push({ rect, fill: ROAD_STYLE.shoulderGround });
+			this.hatches.push({ points: hatchTriangles(rect), fill: ROAD_STYLE.shoulderStripe });
+		}
+		for (const lane of lanes) {
+			const look = LANE_LOOKS[lane.lane];
+			let tint: Rgba | null = null;
+			if (look.side === 'enemy') tint = ROAD_STYLE.raiderLaneTint;
+			else if (isShoulder(lane.lane)) tint = ROAD_STYLE.playerShoulderTint;
+			if (tint) this.laneTints.push({ rect: { x: lane.x, y: 0, width: lane.width, height }, fill: tint });
+		}
+
+		// Between lanes, under the header: solid at the shoulders' edges,
+		// dashed between a team's lanes, and the wide yellow centre line
+		// where the two inside lanes meet at range 1
+		const top = layout.headerHeight;
+		for (let index = 1; index < lanes.length; index++) {
+			const x = lanes[index].x;
+			if (index === 1 || index === lanes.length - 1) {
+				this.laneLines.push({ rect: { x: x - LANE_LINE_WIDTH / 2, y: top, width: LANE_LINE_WIDTH, height: height - top }, fill: ROAD_STYLE.edgeLine });
+				continue;
+			}
+			const centre = index === lanes.length / 2;
+			const lineWidth = centre ? CENTRE_LINE_WIDTH : LANE_LINE_WIDTH;
+			const fill = centre ? ROAD_STYLE.centreLine : ROAD_STYLE.laneDash;
+			for (let y = top; y < height; y += LANE_DASH * 2) {
+				this.laneLines.push({ rect: { x: x - lineWidth / 2, y, width: lineWidth, height: Math.min(LANE_DASH, height - y) }, fill });
+			}
+		}
+
+		this.headerStrip.push(
+			{ rect: { x: -bleed, y: 0, width: width + bleed * 2, height: layout.headerHeight }, fill: ROAD_STYLE.header },
+			{ rect: { x: -bleed, y: layout.headerHeight - 1, width: width + bleed * 2, height: 1 }, fill: ROAD_STYLE.headerRule },
+		);
+	}
+
+	/** A faint dashed outline in every slot nobody is in or headed for, so the grid reads as a board. */
+	private buildSlotOutlines(): void {
+		this.slotOutlines.length = 0;
+		const layout = this.currentLayout;
+		if (layout.slotWidth <= SLOT_OUTLINE_INSET_X * 2 || layout.slotHeight <= SLOT_OUTLINE_INSET_Y * 2) return;
+		const taken = new Set<string>();
+		for (const token of this.roadTokens.values()) taken.add(`${token.slot.lane}:${token.slot.row}`);
+		const cell: RoadRect = { x: 0, y: 0, width: 0, height: 0 };
+		for (const { lane } of layout.lanes) {
+			const fill = LANE_LOOKS[lane].side === 'enemy' ? ROAD_STYLE.raiderSlotOutline : ROAD_STYLE.slotOutline;
+			for (const { row } of layout.rows) {
+				if (taken.has(`${lane}:${row}`)) continue;
+				roadSlotRect(layout, { lane, row }, cell);
+				dashedOutline({
+					x: cell.x + SLOT_OUTLINE_INSET_X,
+					y: cell.y + SLOT_OUTLINE_INSET_Y,
+					width: cell.width - SLOT_OUTLINE_INSET_X * 2,
+					height: cell.height - SLOT_OUTLINE_INSET_Y * 2,
+				}, fill, this.slotOutlines);
+			}
+		}
+	}
+
+	public render(draw: DrawApi): void {
+		for (const ground of this.shoulderGrounds) draw.drawRect(ground);
+		for (const hatch of this.hatches) draw.drawPolygon(hatch);
+		for (const tint of this.laneTints) draw.drawRect(tint);
+		for (const line of this.laneLines) draw.drawRect(line);
+		for (const dash of this.slotOutlines) draw.drawRect(dash);
+		for (const strip of this.headerStrip) draw.drawRect(strip);
+	}
+}
+
+/** A 1 px dashed rectangle as dash rects, appended to `out`. */
+function dashedOutline(rect: Rect, fill: Rgba, out: DrawRectOptions[]): void {
+	const right = rect.x + rect.width - 1;
+	const bottom = rect.y + rect.height - 1;
+	for (let x = rect.x; x < rect.x + rect.width; x += SLOT_DASH + SLOT_GAP) {
+		const length = Math.min(SLOT_DASH, rect.x + rect.width - x);
+		out.push({ rect: { x, y: rect.y, width: length, height: 1 }, fill }, { rect: { x, y: bottom, width: length, height: 1 }, fill });
+	}
+	for (let y = rect.y + SLOT_DASH; y < bottom; y += SLOT_DASH + SLOT_GAP) {
+		const length = Math.min(SLOT_DASH, bottom - y);
+		out.push({ rect: { x: rect.x, y, width: 1, height: length }, fill }, { rect: { x: right, y, width: 1, height: length }, fill });
+	}
+}
+
+/**
+ * The mock's 135 degree hatch over a rect: bands of `x + y` a stripe wide,
+ * one period apart, each clipped to the rect and fanned into triangles, as
+ * one bare triangle list.
+ */
+export function hatchTriangles(rect: Rect): Vec2[] {
+	const corners: Vec2[] = [
+		{ x: rect.x, y: rect.y },
+		{ x: rect.x + rect.width, y: rect.y },
+		{ x: rect.x + rect.width, y: rect.y + rect.height },
+		{ x: rect.x, y: rect.y + rect.height },
+	];
+	const start = rect.x + rect.y;
+	const end = rect.x + rect.width + rect.y + rect.height;
+	const triangles: Vec2[] = [];
+	for (let low = start + HATCH_PERIOD - HATCH_STRIPE; low < end; low += HATCH_PERIOD) {
+		const band = clipBand(corners, low, low + HATCH_STRIPE);
+		for (let index = 1; index + 1 < band.length; index++) {
+			triangles.push(band[0], band[index], band[index + 1]);
+		}
+	}
+	return triangles;
+}
+
+/** A convex polygon cut to `low <= x + y <= high`. */
+function clipBand(polygon: readonly Vec2[], low: number, high: number): Vec2[] {
+	return clipHalf(clipHalf(polygon, (point) => point.x + point.y - low), (point) => high - point.x - point.y);
+}
+
+/** Sutherland-Hodgman against one half-plane, kept where `side` is at least 0. */
+function clipHalf(polygon: readonly Vec2[], side: (point: Vec2) => number): Vec2[] {
+	const kept: Vec2[] = [];
+	for (let index = 0; index < polygon.length; index++) {
+		const current = polygon[index];
+		const next = polygon[(index + 1) % polygon.length];
+		const a = side(current);
+		const b = side(next);
+		if (a >= 0) kept.push(current);
+		if ((a >= 0) !== (b >= 0)) {
+			const t = a / (a - b);
+			kept.push({ x: current.x + (next.x - current.x) * t, y: current.y + (next.y - current.y) * t });
+		}
+	}
+	return kept;
+}
