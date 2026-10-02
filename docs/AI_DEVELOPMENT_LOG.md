@@ -19,6 +19,15 @@ This document contains the chronological log of completed development tasks for 
 
 **How:** unit tests for the preview (checked against play), the token's dashes, glow, chip, and ghost, the hit check text, and the screen's ranges, legal targets, hit check, ghost, and cancels; played the combat screen through `__dev.input` at 1280x720 and 1024x600 (drag, click-then-target, keyboard, every cancel).
 
+## The enemy turn as a paced phase (2026-10-02)
+
+**What landed:** DDB-112 (DDB-5), the pacing DDB-139 builds on.
+
+- `Battle`: `endPlayerTurn({ stepEnemyTurn })`, `stepEnemyTurn()` returning an `EnemyTurnStep` (raider, card, target, played, fizzled, or dropped), `runEnemyTurn()`, `enemyTurnInProgress`. `processEnemyTurns` split into `beginEnemyTurn`, the step, and `finishEnemyTurn`; `playPlannedAction` returns what it did. `endPlayerTurn` is synchronous and its default still runs the whole turn.
+- `CombatScreen`: END TURN starts `EnemyTurnPacer` (a frame ticker on the mount context's clock), which steps one action per beat; the dock is disabled and End Turn says WAIT until the player's draw, and the intents shown at END TURN stay up; a fizzle pops MISS; `actingRaider` names the raider on screen. `EndTurnColumn.show` takes `waiting`.
+- Tests: Battle steps in plan order with the draw after the last step, a dropped raider is one step, a fizzle is its own, a loss ends the turn; the screen holds each beat, locks the dock, and draws after the last beat, under reduced motion too. New Playwright spec `enemyTurn.spec.ts` captures and lints the mid-turn screen at 1440x882 and 1024x600.
+- Review round: `CombatFxLayer.popNumber` gives each number the lowest free stack slot on its vehicle and an id from a counter that only goes up (three hits a beat apart used to share a slot and an id); the lead-in counts from when ENEMY TURN shows (`TurnBanner.timeToNext`); the dock stays locked once the fight is over; the 900 and 700 ms timings are in Battle Screen Design section 6; the headless callers no longer await `endPlayerTurn`.
+- Decision record: [enemy-turn-pacing.md](./AI_TECHNICAL_DECISIONS/enemy-turn-pacing.md).
 ## The vehicle token (2026-10-02)
 
 **What landed:** DDB-135 (DDB-127), folding in DDB-165.

@@ -449,7 +449,10 @@ export class CombatFxLayer extends Container {
 	private readonly arrow: TargetingArrow;
 	private readonly hitCheck: HitCheckChip;
 	/** Numbers still rising, per anchor, so a second hit stacks under the first. */
-	private readonly risingPerAnchor = new Map<string, number>();
+	/** The stack slots each anchor's live numbers hold. */
+	private readonly takenSlots = new Map<string, Set<number>>();
+	/** Only counts up, so no two numbers ever share an id. */
+	private numbersPopped = 0;
 	private flights = 0;
 
 	constructor(options: ContainerOptions = {}) {
@@ -579,18 +582,26 @@ export class CombatFxLayer extends Container {
 		const top = this.screenToLocal({ x: anchor.x + anchor.width / 2, y: anchor.y });
 		if (!top || !this.isMounted) return;
 
-		const stacked = this.risingPerAnchor.get(anchorKey) ?? 0;
-		this.risingPerAnchor.set(anchorKey, stacked + 1);
+		// The lowest slot no live number on this anchor holds, so a hit that
+		// lands while an earlier one is still up never prints over it
+		let taken = this.takenSlots.get(anchorKey);
+		if (!taken) {
+			taken = new Set();
+			this.takenSlots.set(anchorKey, taken);
+		}
+		let stacked = 0;
+		while (taken.has(stacked)) stacked++;
+		taken.add(stacked);
 		this.addChild(new FloatingNumber({
-			id: `combat_float_${anchorKey}_${stacked}`,
+			id: `combat_float_${anchorKey}_${this.numbersPopped++}`,
 			text,
 			kind,
 			x: top.x - NUMBER_BOX_WIDTH / 2,
 			y: top.y + NUMBER_INSET + stacked * NUMBER_STACK_STEP,
 			onExpire: (number) => {
-				const left = (this.risingPerAnchor.get(anchorKey) ?? 1) - 1;
-				if (left > 0) this.risingPerAnchor.set(anchorKey, left);
-				else this.risingPerAnchor.delete(anchorKey);
+				const slots = this.takenSlots.get(anchorKey);
+				slots?.delete(stacked);
+				if (slots?.size === 0) this.takenSlots.delete(anchorKey);
 				this.removeChild(number);
 			},
 		}));

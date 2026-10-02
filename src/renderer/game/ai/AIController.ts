@@ -141,7 +141,7 @@ export class AIController {
 	async executeAIDecision(decision: AIDecision, isPlayerTeam: boolean): Promise<boolean> {
 		if (decision.type === 'endTurn') {
 			if (isPlayerTeam) {
-				await this.battle.endPlayerTurn();
+				this.battle.endPlayerTurn();
 			}
 			return false;
 		}

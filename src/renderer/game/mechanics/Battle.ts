@@ -101,6 +101,30 @@ interface ProjectedAction {
 }
 
 /**
+ * One raider's action as the enemy turn plays it (stepEnemyTurn). `played`
+ * is a card that resolved, hit or miss; `fizzled` is one that was spent and
+ * did nothing (an illegal target, nobody aboard, or it couldn't be paid
+ * for); `dropped` is a raider giving up the rest of its plan, wrecked,
+ * driverless, or stunned, with no card. `target` is where the card was
+ * headed after wrecks and Draw Fire, or null for one with no target.
+ */
+export interface EnemyTurnStep {
+	raider: Vehicle;
+	card: Card | null;
+	target: Vehicle | null;
+	outcome: 'played' | 'fizzled' | 'dropped';
+}
+
+/**
+ * The enemy turn still to play: every raider's planned cards in play order,
+ * and the raiders that have dropped the rest of theirs
+ */
+interface EnemyTurnQueue {
+	actions: { raider: Vehicle; action: PlannedAction }[];
+	dropped: Set<Vehicle>;
+}
+
+/**
  * Cards each driver draws at the start of every turn
  */
 export const TURN_DRAW = 5;
@@ -160,6 +184,8 @@ export class Battle extends Model<BattleData> {
 
 	// Each raider's committed cards for the coming enemy turn (stored separately due to Model freezing)
 	private static enemyPlans = new WeakMap<Battle, Map<Vehicle, PlannedAction[]>>();
+	// The enemy turn being played, between endPlayerTurn and the last step
+	private static enemyTurns = new WeakMap<Battle, EnemyTurnQueue>();
 
 	// Each team's drivers in the order they were first seated, so a driver's
 	// log name (Player1, Enemy2) survives a wreck or a death
@@ -661,9 +687,12 @@ export class Battle extends Model<BattleData> {
 	}
 
 	/**
-	 * End the player's turn
+	 * End the player's turn and play the enemy's. By default the whole enemy
+	 * turn plays now, up to the player's next draw: the simulator's, the AI's
+	 * and every headless caller's path. With `stepEnemyTurn` the raiders'
+	 * actions wait for stepEnemyTurn, one per call, so a screen can pace them.
 	 */
-	public async endPlayerTurn(): Promise<void> {
+	public endPlayerTurn({ stepEnemyTurn = false }: { stepEnemyTurn?: boolean } = {}): void {
 		if (!this.isPlayerTurn || this.battleOver) {
 			return;
 		}
@@ -702,7 +731,8 @@ export class Battle extends Model<BattleData> {
 		// Emit turn ended event
 		this.emit('turnEnded', Object.freeze({ team: 'player' }));
 
-		this.processEnemyTurns();
+		this.beginEnemyTurn();
+		if (!stepEnemyTurn) this.runEnemyTurn();
 	}
 
 	/**
@@ -795,7 +825,7 @@ export class Battle extends Model<BattleData> {
 	 * records where the raider stands for each card as the board stood when
 	 * it was made; the player can change that before it plays, say by
 	 * outpacing a flanker so it drops back. So the plans are replayed from
-	 * projectEnemyTurnStart in the order processEnemyTurns plays them, each
+	 * projectEnemyTurnStart in the order the enemy turn plays them (stepEnemyTurn), each
 	 * card judged by the same checks play makes, on the projection: a flank
 	 * or boost earlier in a raider's own plan moves it from where it really
 	 * starts, and a card that will fizzle is left out and changes nothing on
@@ -921,41 +951,89 @@ export class Battle extends Model<BattleData> {
 	}
 
 	/**
-	 * Play each raider's plan, one raider at a time. A stunned raider drops
-	 * its plan and skips its turn.
+	 * Queue every raider's plan for the enemy turn, one raider's cards after
+	 * another, in plan order
 	 */
-	private processEnemyTurns(): void {
-		if (this.battleOver) {
-			return;
-		}
-
+	private beginEnemyTurn(): void {
 		const plans = Battle.enemyPlans.get(this) ?? new Map<Vehicle, PlannedAction[]>();
 		Battle.enemyPlans.delete(this);
+		const actions: EnemyTurnQueue['actions'] = [];
+		for (const [raider, plan] of plans) {
+			for (const action of plan) actions.push({ raider, action });
+		}
+		Battle.enemyTurns.set(this, { actions, dropped: new Set() });
+	}
 
-		for (const [raider, actions] of plans) {
-			for (const action of actions) {
-				if (!raider.isAlive()) {
-					this.log('general', `${raider.name} is wrecked and drops its plan`, { vehicle: raider.name });
-					break;
-				}
-				if (!action.driver.isAlive() || raider.driver !== action.driver) {
-					this.log('general', `${raider.name} lost its driver and drops its plan`, { vehicle: raider.name });
-					break;
-				}
-				if (raider.isStunned) {
-					this.log('general', `${raider.name} is stunned and skips its turn`, { vehicle: raider.name });
-					break;
-				}
+	/**
+	 * True from the end of the player's turn until the enemy turn's last step
+	 * has been played, or the battle ends. The player's next draw comes after.
+	 */
+	public get enemyTurnInProgress(): boolean {
+		return Battle.enemyTurns.has(this);
+	}
 
-				this.playPlannedAction(raider, action);
-
-				this.checkBattleStatus();
-				if (this.battleOver) {
-					return;
-				}
-			}
+	/**
+	 * Play the next raider action of the enemy turn and return it. Once
+	 * every action has played, the call after the last one ends the enemy
+	 * turn (wrecks off the road, the player's draw) and returns null, as it
+	 * does when no enemy turn is under way or the battle has ended. A raider
+	 * that drops the rest of its plan (wrecked, lost its driver, stunned) is
+	 * one step; its remaining cards are skipped without one.
+	 */
+	public stepEnemyTurn(): EnemyTurnStep | null {
+		const turn = Battle.enemyTurns.get(this);
+		if (!turn) return null;
+		if (this.battleOver) {
+			Battle.enemyTurns.delete(this);
+			return null;
 		}
 
+		let next = turn.actions.shift();
+		while (next && turn.dropped.has(next.raider)) next = turn.actions.shift();
+		if (!next) {
+			Battle.enemyTurns.delete(this);
+			this.finishEnemyTurn();
+			return null;
+		}
+
+		const { raider, action } = next;
+		const dropReason = Battle.planDropReason(raider, action);
+		if (dropReason) {
+			this.log('general', `${raider.name} ${dropReason}`, { vehicle: raider.name });
+			turn.dropped.add(raider);
+			return { raider, card: null, target: null, outcome: 'dropped' };
+		}
+
+		const step = this.playPlannedAction(raider, action);
+		this.checkBattleStatus();
+		if (this.battleOver) Battle.enemyTurns.delete(this);
+		return step;
+	}
+
+	/**
+	 * Play whatever is left of the enemy turn at once, through to the
+	 * player's next draw, or the end of the battle
+	 */
+	public runEnemyTurn(): void {
+		while (this.enemyTurnInProgress) this.stepEnemyTurn();
+	}
+
+	/**
+	 * Why a raider gives up the rest of its plan before this card, or null.
+	 * A stunned raider skips its turn.
+	 */
+	private static planDropReason(raider: Vehicle, action: PlannedAction): string | null {
+		if (!raider.isAlive()) return 'is wrecked and drops its plan';
+		if (!action.driver.isAlive() || raider.driver !== action.driver) return 'lost its driver and drops its plan';
+		if (raider.isStunned) return 'is stunned and skips its turn';
+		return null;
+	}
+
+	/**
+	 * After the raiders' last action: the turn's logs, flankers back and
+	 * wrecks off the road, then the player's turn and its draw
+	 */
+	private finishEnemyTurn(): void {
 		// Log enemy hands before ending turn
 		this.log('general', '=== ENEMY FINAL HANDS ===');
 		this.enemyTeam.getAllDrivers().forEach(driver => {
@@ -995,13 +1073,14 @@ export class Battle extends Model<BattleData> {
 	 * nobody aboard, the player moved out of range, outpaced a flank, or a
 	 * flanker dropped back) makes it fizzle. See docs/AI_TECHNICAL_DECISIONS/enemy-intent-planning.md.
 	 */
-	private playPlannedAction(raider: Vehicle, action: PlannedAction): void {
+	private playPlannedAction(raider: Vehicle, action: PlannedAction): EnemyTurnStep {
 		const { card, driver } = action;
+		const step = (outcome: EnemyTurnStep['outcome'], target: Vehicle | null): EnemyTurnStep => ({ raider, card, target, outcome });
 		const adrenalineBefore = driver.adrenaline;
 		const result = driver.playCardWithCost(driver.hand.indexOf(card));
 		if (!result.success) {
 			this.log('general', `${raider.name} can't play ${card.displayName}: ${result.reason}`, { vehicle: raider.name, card: card.displayName });
-			return;
+			return step('fizzled', action.target);
 		}
 
 		this.log('card_played',
@@ -1012,7 +1091,7 @@ export class Battle extends Model<BattleData> {
 		// An area hit lands as planned; Draw Fire never pulls it
 		if (card.targetType === 'enemy_all' || !action.target) {
 			this.applyCardEffects({ card, caster: driver, target: null });
-			return;
+			return step('played', null);
 		}
 
 		let target: Vehicle | null = action.target;
@@ -1023,7 +1102,7 @@ export class Battle extends Model<BattleData> {
 				const why = Team.survivorsOf(wreck).length === 0 ? 'nobody got out' : 'nobody who got out is still in the fight';
 				this.log('fizzle', `${raider.name}'s ${card.displayName} fizzles: ${wreck.name} is wrecked and ${why}`,
 					{ vehicle: raider.name, card: card.displayName, target: wreck.name });
-				return;
+				return step('fizzled', wreck);
 			}
 			this.log('general', `${wreck.name} is wrecked, so ${raider.name} turns ${card.displayName} on ${target.name}`,
 				{ vehicle: raider.name, card: card.displayName, target: target.name });
@@ -1031,7 +1110,7 @@ export class Battle extends Model<BattleData> {
 		if (target.isUnmanned()) {
 			this.log('fizzle', `${raider.name}'s ${card.displayName} fizzles: ${target.name} has nobody aboard`,
 				{ vehicle: raider.name, card: card.displayName, target: target.name });
-			return;
+			return step('fizzled', target);
 		}
 
 		const cover = this.drawFireRedirect({ raider, card, target });
@@ -1045,10 +1124,11 @@ export class Battle extends Model<BattleData> {
 		if (reason) {
 			this.log('fizzle', `${raider.name}'s ${card.displayName} fizzles: ${reason}`,
 				{ vehicle: raider.name, card: card.displayName, target: target.name });
-			return;
+			return step('fizzled', target);
 		}
 
 		this.applyCardEffects({ card, caster: driver, target });
+		return step('played', target);
 	}
 
 	/**
