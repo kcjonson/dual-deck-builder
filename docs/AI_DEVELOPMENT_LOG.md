@@ -18,6 +18,18 @@ This document contains the chronological log of completed development tasks for 
 - Record: [intent-pills-and-enemy-turn-presentation.md](./AI_TECHNICAL_DECISIONS/intent-pills-and-enemy-turn-presentation.md).
 - Review round: the preview sits in the road band's own layer under the log drawer by `zIndex`, so an open log covers it; a frame of the preview allocates nothing; only the hands (tabs and cards) drop and grey, End Turn and the dock's ground stay put as in the mock; debuff and buff pills print a short name (Slow, Stun, Vuln); a hit's number starts under the banner when the banner is across its plate; the gallery draws the acting glow in the open.
 
+## Targeting: ranges, legal targets, outlines, ghost, hit check, cancel (2026-10-02)
+
+**What landed:** DDB-138 (DDB-127), Battle Screen Design section 6's targeting state; closes DDB-111 and the screen half of DDB-114.
+
+- `mechanics/AimPreview.ts`: `previewAim` gives the actor, range, reach, hit check, and per-bar losses for a card on one vehicle. `Battle.hitCheck` returns `checkHit`'s numbers; `calculateFormulaDamage` is public.
+- `CombatScreen.determineTargetableVehicles` keeps only what `Battle.getTargetBlocker` passes, for every card. `showRanges` labels each raider once when a card is picked; `showAimAt` puts the ghost and the hit check on the focused target.
+- `ui/RangeChip.ts` in the token; `Vehicle.rangeLabel`, `Vehicle.damageGhost`; dashed legal outline as one triangle list, solid hovered outline with a 22 px glow, dimming at 35%. `ui/stripes.ts` holds the hatch (moved from `RoadView`) and the dashes.
+- `HitCheckChip` and `hitCheckText` in `CombatFxLayer`; `AimReticle` and `TargetingArrow` take `pinnedOnTarget` for the gallery.
+- Cancel: the stage takes clicks, so one that lands on no target, or a right-click anywhere, puts a waiting card back; so does a second click on the card.
+- Gallery scene `combat-targeting`, golden and lint at 1440x882 and 1024x600 (`SceneScenario.shortViewport`). Record: [targeting-preview.md](./AI_TECHNICAL_DECISIONS/targeting-preview.md).
+
+**How:** unit tests for the preview (checked against play), the token's dashes, glow, chip, and ghost, the hit check text, and the screen's ranges, legal targets, hit check, ghost, and cancels; played the combat screen through `__dev.input` at 1280x720 and 1024x600 (drag, click-then-target, keyboard, every cancel).
 ## Card face and pinnable detail view (2026-10-02)
 
 **What landed:** DDB-137 (DDB-127), folding in DDB-204 and DDB-172. Closes the card-detail part of DDB-34 (DDB-28 was already closed by DDB-88).
@@ -34,6 +46,7 @@ This document contains the chronological log of completed development tasks for 
 - Decision record: [card-face-and-detail-view.md](./AI_TECHNICAL_DECISIONS/card-face-and-detail-view.md).
 
 **How:** unit tests for the face, the detail view, the pin, the combat inputs, and the card data; played a turn at 1280x720 and 1024x600 through `__dev.input` (hover, pin, drag, click-then-target, keyboard and I, the pile dialog, END TURN), layout lint zero throughout.
+
 ## The top bar and the combat log drawer (2026-10-02)
 
 **What landed:** DDB-140 with DDB-123 folded in (DDB-127), Battle Screen Design sections 2, 6, and 8.
