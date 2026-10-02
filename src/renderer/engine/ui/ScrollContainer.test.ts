@@ -281,9 +281,42 @@ describe('ScrollContainer layout and paint', () => {
 		expect(draw().some((command) => command.id === 'scroll.scrollbar')).toBe(false);
 	});
 
-	it('clips inside its border and radius, and into the padding as far as a child\'s ink reaches (R8.8)', () => {
+	it('shows none of its content, and lets none of it be hit, at zero width or zero height (DDB-234)', () => {
+		const api = context.draw;
+		const drawnRows = (): number => {
+			api.beginFrame({ viewport: { width: 800, height: 600 }, ratio: 1 });
+			renderTree(root, api);
+			api.endFrame();
+			return backend.commands.filter((command) => command.id?.startsWith('row_')).length;
+		};
+		const scroll = new ScrollContainer({ id: 'scroll', x: 50, y: 50, width: 0, height: 300 });
+		const { stack, items } = rows(12);
+		scroll.addChild(stack);
+		root.addChild(scroll);
+		context.frame.layout();
+		expect(scroll.clipsChildren).toBe(true);
+		expect(drawnRows()).toBe(0);
+		expect(items[0].containsScreenPoint(50, 60)).toBe(false);
+
+		scroll.setSize(200, 0);
+		context.frame.layout();
+		expect(drawnRows()).toBe(0);
+		expect(items[0].containsScreenPoint(60, 50)).toBe(false);
+
+		scroll.setSize(200, 300);
+		context.frame.layout();
+		expect(drawnRows()).toBeGreaterThan(0);
+		expect(items[0].containsScreenPoint(60, 60)).toBe(true);
+	});
+
+	it('clips inside its border with a concentric rounded corner, and into the padding as far as a child\'s ink reaches (R8.8, R4.14)', () => {
 		const boxed = new ScrollContainer({ width: 200, height: 100, style: { borderWidth: 1, borderRadius: 4 } });
-		expect(boxed.clipRect).toEqual({ x: 4, y: 4, width: 192, height: 92 });
+		expect(boxed.clipRect).toEqual({ x: 1, y: 1, width: 198, height: 98 });
+		expect(boxed.clipRadius).toBe(3);
+		const roomy = new ScrollContainer({ width: 200, height: 100, style: { borderWidth: 1, borderRadius: 4, padding: 10 } });
+		expect(roomy.clipRect).toEqual({ x: 10, y: 10, width: 180, height: 80 });
+		expect(roomy.clipRadius).toBe(0);
+		expect(new ScrollContainer({ width: 200, height: 100 }).clipRadius).toBe(0);
 		const padded = new ScrollContainer({ x: 0, y: 0, width: 200, height: 100, style: { padding: 8 } });
 		const inky = new TextInput({ value: 'x', width: 100, height: 30 });
 		padded.addChild(inky);

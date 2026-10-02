@@ -1,4 +1,4 @@
-import { CLIP_EMPTY, CLIP_NONE, ClipState, ResolvedClip, intersectClipRectInto } from './clip';
+import { CLIP_EMPTY, CLIP_NONE, ClipState, ResolvedClip, intersectClipRectInto, keptRoundedClip } from './clip';
 import { ClipRect, IDENTITY, Mat2D, isTranslateOnly } from './geometry';
 
 /**
@@ -170,35 +170,39 @@ export class ClipStack {
 
 	/**
 	 * R4.3: nesting is intersection, of the current clip with `screen`, which
-	 * is copied, by `intersectClip`'s own arithmetic. R4.14:
-	 * with a `radius` this level's rounded clip is `screen` itself and wins;
-	 * without one the innermost rounded clip below is kept, having already
-	 * contributed its bounding rect to the intersection.
+	 * is copied, by `intersectClip`'s own arithmetic. R4.14: with a `radius`
+	 * this level's own rounded clip is `screen` itself; `keptRoundedClip`
+	 * chooses between it and the one inherited from below (which has already
+	 * contributed its bounding rect), dropping either where it cuts nothing
+	 * at `ratio`. True when both cut, so the inherited one degraded to its
+	 * bounding rect, which the caller warns about.
 	 */
-	push(screen: ClipRect, radius: number | null): void {
+	push(screen: ClipRect, radius: number | null, ratio: number): boolean {
 		const current = this.frames[this.depth].state;
 		const frame = this.next();
 		if (current.kind === 'empty') {
 			frame.state = CLIP_EMPTY;
-			return;
+			return false;
 		}
 		if (!intersectClipRectInto(current, screen, frame.live.rect)) {
 			frame.state = CLIP_EMPTY;
-			return;
+			return false;
 		}
+		let own: LiveRounded | null = null;
 		if (radius !== null) {
-			const own = frame.ownRounded;
+			own = frame.ownRounded;
 			own.rect.minX = screen.minX;
 			own.rect.minY = screen.minY;
 			own.rect.maxX = screen.maxX;
 			own.rect.maxY = screen.maxY;
 			own.radius = radius;
-			frame.live.rounded = own;
-		} else {
-			// An ancestor level's own rounded clip, which stays put while it is on the stack.
-			frame.live.rounded = current.kind === 'rect' ? (current.rounded as LiveRounded | null) : null;
 		}
+		// An ancestor level's own rounded clip, which stays put while it is on the stack.
+		const inherited = current.kind === 'rect' ? (current.rounded as LiveRounded | null) : null;
+		const kept = keptRoundedClip(frame.live.rect, own, inherited, ratio);
+		frame.live.rounded = kept === 'nested' ? own : kept;
 		frame.state = frame.live;
+		return kept === 'nested';
 	}
 
 	/** R3.8 and R4.8's promotion: `none`, whatever was inherited. */

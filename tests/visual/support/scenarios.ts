@@ -122,4 +122,5 @@ export const SCENE_SCENARIOS: readonly SceneScenario[] = [
 	{ scene: 'toasts' },
 	{ scene: 'screen-transition' },
 	{ scene: 'scroll-hug' },
+	{ scene: 'rounded-clip' },
 ];

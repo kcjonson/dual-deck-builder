@@ -198,6 +198,35 @@ describe('hit testing honours ancestor clips (R4.12)', () => {
 		expect(inside.containsScreenPoint(55, 55)).toBe(false);
 	});
 
+	it('rejects a point in a rounded clip\'s cut corner in both hit walks, as the walk draws it (R4.12, R4.14)', () => {
+		const root = new Container({ id: 'root', width: 1440, height: 882 });
+		const panel = new ScrollContainer({ id: 'list', x: 10, y: 20, width: 200, height: 120, style: { borderWidth: 2, borderRadius: 12 } });
+		const content = new Rectangle({ id: 'content', width: 200, height: 120 });
+		panel.addChild(content);
+		root.addChild(panel);
+		const context = createTestContext({ draw: api });
+		root.mount(context);
+		context.frame.layout();
+		frame(root);
+
+		// The clip at the border's inner edge, its corner concentric with the background's.
+		const clip = { minX: 12, minY: 22, maxX: 208, maxY: 138 };
+		expect(rectById('content').clip).toEqual({ kind: 'rect', rect: clip, rounded: { rect: clip, radius: 10 } });
+		const at = (x: number, y: number): string | null => context.dispatcher.hitTest({ x, y })?.id ?? null;
+		// Inside the clip rect, outside the arc centred at (22, 32).
+		expect(at(13, 23)).toBe('list');
+		expect(content.containsScreenPoint(13, 23)).toBe(false);
+		// Inside the arc, and along the straight edge.
+		expect(at(16, 26)).toBe('content');
+		expect(content.containsScreenPoint(16, 26)).toBe(true);
+		expect(at(12.5, 80)).toBe('content');
+		const [snapshotRoot] = treeSnapshot([root], { width: 1440, height: 882 }).roots;
+		const list = snapshotRoot.children.find((node) => node.id === 'list');
+		const reported = list?.children.find((node) => node.id === 'content');
+		expect(reported?.roundedClip).toEqual({ x: 12, y: 22, w: 196, h: 116, radius: 10 });
+		root.unmount();
+	});
+
 	it('is not gated by an ancestor that does not clip', () => {
 		const parent = new Container({ id: 'parent', x: 0, y: 0, width: 10, height: 10 });
 		const child = new Container({ id: 'child', x: 50, y: 50, width: 20, height: 20 });
