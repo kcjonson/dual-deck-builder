@@ -12,9 +12,8 @@ export const RASTER_RANGE_THRESHOLD = 1.5;
 
 /**
  * How far past the threshold a run already on the raster path has to go to
- * leave it. The two paths differ in weight on some platforms (6.9 scores the
- * field at two thirds of CoreText's ink), so a zoom that hovers at the
- * threshold would flicker between them without it.
+ * leave it. The paths match in weight (`inkCurve`) but not in sharpness, so a
+ * zoom that hovers at the threshold would flicker between them without it.
  */
 export const RASTER_RANGE_HYSTERESIS = 0.1;
 
@@ -44,6 +43,20 @@ export const RASTER_GUTTER = 1;
  * what makes a clip per glyph unnecessary.
  */
 const CANVAS_GAP = 2;
+
+/**
+ * The word the raster path's weight is measured over, against the distance
+ * field's ink of the same word (`FontFaceAsset.fieldInk`).
+ */
+export const INK_REFERENCE_TEXT = 'Hamburgefonstiv';
+
+/**
+ * How far the raster path's ink may sit from the distance field's, as a
+ * fraction, before its coverage is reshaped toward it. FreeType on the Linux
+ * runner is within a few percent of the field and is kept as the platform
+ * draws it; CoreText at ratio 1 is 25 to 30 percent heavier.
+ */
+export const INK_TOLERANCE = 0.1;
 
 /**
  * R6.5's screen-space range, in device pixels, for a run at `size` logical px
@@ -175,10 +188,17 @@ export interface GlyphToRasterize {
  * `box.height + RASTER_GUTTER` premultiplied white RGBA8 texels whose alpha is
  * the coverage; the gutter column after each phase and the row under them
  * are blank, so a block written over an old one leaves no stale texel beside
- * its cells. The canvas is
- * grown when too small and never shrunk.
+ * its cells. The canvas is grown when too small and never shrunk. `curve`,
+ * from `inkCurve`, reshapes each subsample's coverage before the filter, so
+ * the glyphs match the distance field's weight.
  */
-export function rasterizeGlyphs(context: GlyphCanvasContext, glyphs: readonly GlyphToRasterize[], pixelSize: number, family: string): Uint8Array[] {
+export function rasterizeGlyphs(
+	context: GlyphCanvasContext,
+	glyphs: readonly GlyphToRasterize[],
+	pixelSize: number,
+	family: string,
+	curve: Uint8Array | null = null,
+): Uint8Array[] {
 	const phases = RASTER_PHASES;
 	let width = 0;
 	let height = 1;
@@ -223,7 +243,9 @@ export function rasterizeGlyphs(context: GlyphCanvasContext, glyphs: readonly Gl
 					let sum = 0;
 					const start = (offset + column) * phases - phase;
 					for (let sub = start; sub < start + phases; sub++) {
-						if (sub >= first && sub < end) sum += source[(sourceRow + sub) * 4 + 3];
+						if (sub < first || sub >= end) continue;
+						const coverage = source[(sourceRow + sub) * 4 + 3];
+						sum += curve ? curve[coverage] : coverage;
 					}
 					const value = Math.round(sum / phases);
 					const texel = (row * blockWidth + cellX + column) * 4;
@@ -238,4 +260,74 @@ export function rasterizeGlyphs(context: GlyphCanvasContext, glyphs: readonly Gl
 		offset += box.width + CANVAS_GAP;
 	}
 	return blocks;
+}
+
+/**
+ * Draws `INK_REFERENCE_TEXT` in white the way `rasterizeGlyphs` draws a
+ * glyph (`RASTER_PHASES` times as wide, the face at `pixelSize`) and reads it
+ * back: the subsample RGBA, row by row. `widthEm` is the word's advance in
+ * ems, from the atlas, which sizes the canvas.
+ */
+export function drawInkSample(context: GlyphCanvasContext, family: string, pixelSize: number, widthEm: number): ArrayLike<number> {
+	const phases = RASTER_PHASES;
+	const width = Math.ceil((widthEm + 1) * pixelSize * phases);
+	const height = Math.ceil(pixelSize * 2) + CANVAS_GAP * 2;
+	const canvas = context.canvas;
+	if (canvas.width < width || canvas.height < height) {
+		canvas.width = Math.max(canvas.width, width);
+		canvas.height = Math.max(canvas.height, height);
+	}
+	context.setTransform(1, 0, 0, 1, 0, 0);
+	context.clearRect(0, 0, width, height);
+	context.setTransform(phases, 0, 0, 1, 0, 0);
+	context.font = `${pixelSize}px "${family}"`;
+	context.fillStyle = '#ffffff';
+	context.textBaseline = 'alphabetic';
+	context.textAlign = 'left';
+	context.fillText(INK_REFERENCE_TEXT, pixelSize / 2, CANVAS_GAP + Math.ceil(pixelSize * 1.5));
+	context.setTransform(1, 0, 0, 1, 0, 0);
+	return context.getImageData(0, 0, width, height).data;
+}
+
+/** How many subsamples of RGBA `data` have each alpha, 0 to 255. */
+export function inkHistogram(data: ArrayLike<number>): Uint32Array {
+	const histogram = new Uint32Array(256);
+	for (let index = 3; index < data.length; index += 4) histogram[data[index]] += 1;
+	return histogram;
+}
+
+/** The ink, in device pixels after the box filter, of a sample whose coverage goes through `c^exponent`. */
+export function histogramInk(histogram: Uint32Array, exponent = 1): number {
+	let ink = 0;
+	for (let value = 1; value < 256; value++) {
+		if (histogram[value] > 0) ink += histogram[value] * Math.pow(value / 255, exponent);
+	}
+	return ink / RASTER_PHASES;
+}
+
+/**
+ * The coverage curve that brings a raster sample's ink to `target`, the
+ * distance field's ink of the same word at the same size, as a table from
+ * the platform's coverage byte to the one written; null when the sample is
+ * within `INK_TOLERANCE` of the target already, or empty.
+ *
+ * The curve is a power, `c^exponent`, so pixels the outline covers stay
+ * fully covered and the platform's darkening, which spreads partial
+ * coverage past the outline's edge, is what gets thinned (or, for a platform
+ * lighter than the field, thickened).
+ */
+export function inkCurve(histogram: Uint32Array, target: number): Uint8Array | null {
+	const ink = histogramInk(histogram);
+	if (ink <= 0 || target <= 0 || Math.abs(ink / target - 1) <= INK_TOLERANCE) return null;
+	let low = 0.25;
+	let high = 4;
+	for (let step = 0; step < 32; step++) {
+		const exponent = (low + high) / 2;
+		if (histogramInk(histogram, exponent) > target) low = exponent;
+		else high = exponent;
+	}
+	const exponent = (low + high) / 2;
+	const curve = new Uint8Array(256);
+	for (let value = 0; value < 256; value++) curve[value] = Math.round(255 * Math.pow(value / 255, exponent));
+	return curve;
 }

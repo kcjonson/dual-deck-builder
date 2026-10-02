@@ -9,6 +9,16 @@ import { ResidentTextureSet } from '../../../src/renderer/engine/draw/ResidentTe
 import { FontAtlas, parseFontAtlas } from '../../../src/renderer/engine/text/FontAtlas';
 import { TextMetricsService } from '../../../src/renderer/engine/text/TextMetricsService';
 import {
+	GlyphCanvasContext,
+	INK_REFERENCE_TEXT,
+	INK_TOLERANCE,
+	RASTER_PHASES,
+	drawInkSample,
+	histogramInk,
+	inkCurve,
+	inkHistogram,
+} from '../../../src/renderer/engine/text/rasterGlyphs';
+import {
 	UBER_ATTRIBUTES,
 	UBER_FRAME_BLOCK,
 	UBER_STRIDE,
@@ -265,6 +275,113 @@ function pixel(frame: Frame, x: number, y: number): number[] {
 
 const OPAQUE_BLACK: Target['clear'] = [0, 0, 0, 1];
 const TRANSPARENT: Target['clear'] = [0, 0, 0, 0];
+
+/**
+ * R6.4a's raster fallback against the distance field in weight (DDB-217).
+ * Each face's `fieldInk` is the field's ink of the reference word at 9 px,
+ * measured here through the shader, and the raster path's glyphs at the
+ * sizes under the threshold are matched to it: on a platform within
+ * `INK_TOLERANCE` as it draws (FreeType on the Linux runner), and through
+ * `inkCurve` on one outside it (CoreText at ratio 1, 25 to 30 percent
+ * heavier). The raster sample is `drawInkSample` itself, run against a
+ * canvas that records its calls and replayed on the page's real one.
+ */
+test.describe('raster fallback weight against the distance field (R6.4a)', () => {
+	const FONTS = join(__dirname, '../../../src/assets/fonts');
+	// FONT_FACES imports the atlas images and font files as bundler assets,
+	// which Node cannot load, so the faces and their `fieldInk` are listed here.
+	const FACES = [
+		{ face: 'open-sans-regular', file: 'open-sans/OpenSans-Regular.ttf', fieldInk: 1.698 },
+		{ face: 'barlow-condensed-semibold', file: 'barlow-condensed/BarlowCondensed-SemiBold.ttf', fieldInk: 1.91 },
+		{ face: 'jetbrains-mono-regular', file: 'jetbrains-mono/JetBrainsMono-Regular.ttf', fieldInk: 1.9 },
+	];
+	const FIELD_SIZE = 9;
+	const PENS = [0, 0.25, 0.5, 0.75];
+
+	test.beforeEach(async ({ page }) => {
+		await page.setContent('<!doctype html><title>raster weight</title>');
+	});
+
+	/** The field's mean ink of the reference word at `size`, over four sub-pixel pens. */
+	async function fieldInk(page: Page, atlas: FontAtlas, texels: number[], size: number): Promise<number> {
+		const width = Math.ceil(size * 12) + 8;
+		const row = Math.ceil(size * 2) + 4;
+		const texture: TextureHandle = { id: 1, width: atlas.width, height: atlas.height, label: 'atlas' };
+		const frame = await render(page, { width, height: row * PENS.length, ratio: 1, clear: TRANSPARENT, textures: [{ unit: 0, width: atlas.width, height: atlas.height, texels }] }, (api) => {
+			PENS.forEach((pen, index) => api.drawText({ text: INK_REFERENCE_TEXT, position: { x: 2 + pen, y: index * row + Math.ceil(size * 1.4) }, font: 'body', size, color: [1, 1, 1, 1] }));
+		}, undefined, { atlas, texture });
+		let ink = 0;
+		for (let y = 0; y < frame.height; y++) for (let x = 0; x < width; x++) ink += pixel(frame, x, y)[3] / 255;
+		return ink / PENS.length;
+	}
+
+	/** `drawInkSample`'s subsamples from the platform's 2D text API, with the face loaded under `family`. */
+	async function rasterSample(page: Page, face: string, family: string, size: number, widthEm: number): Promise<number[]> {
+		const calls: [string, unknown[]][] = [];
+		const record: GlyphCanvasContext = {
+			canvas: { width: 0, height: 0 },
+			set font(value: string) { calls.push(['font', [value]]); },
+			set fillStyle(value: string) { calls.push(['fillStyle', [value]]); },
+			set textBaseline(value: CanvasTextBaseline) { calls.push(['textBaseline', [value]]); },
+			set textAlign(value: CanvasTextAlign) { calls.push(['textAlign', [value]]); },
+			setTransform: (...args) => calls.push(['setTransform', args]),
+			clearRect: (...args) => calls.push(['clearRect', args]),
+			fillText: (...args) => calls.push(['fillText', args]),
+			getImageData: (...args) => {
+				calls.push(['getImageData', args]);
+				return { data: [] };
+			},
+		} as unknown as GlyphCanvasContext;
+		drawInkSample(record, family, size, widthEm);
+		return page.evaluate(async ({ face, family, calls, width, height }) => {
+			const bytes = Uint8Array.from(atob(face), (char) => char.charCodeAt(0));
+			const font = new FontFace(family, bytes.buffer);
+			await font.load();
+			(document.fonts as unknown as { add(face: FontFace): void }).add(font);
+			const canvas = document.createElement('canvas');
+			canvas.width = width;
+			canvas.height = height;
+			const context = canvas.getContext('2d') as CanvasRenderingContext2D;
+			const target = context as unknown as Record<string, unknown>;
+			let data: number[] = [];
+			for (const [name, args] of calls) {
+				if (name === 'getImageData') data = Array.from(context.getImageData(...(args as [number, number, number, number])).data);
+				else if (typeof target[name] === 'function') (target[name] as (...values: unknown[]) => void).apply(context, args);
+				else target[name] = args[0];
+			}
+			return data;
+		}, { face, family, calls, width: record.canvas.width, height: record.canvas.height });
+	}
+
+	for (const { face, file, fieldInk: baked } of FACES) {
+		test(`matches ${face}'s raster glyphs to its distance field in weight`, async ({ page }) => {
+			test.setTimeout(120_000);
+			const atlas = parseFontAtlas({ json: JSON.parse(readFileSync(join(FONTS, `${face}.json`), 'utf8')), source: face, warn: () => undefined });
+			const texels = Array.from(PNG.sync.read(readFileSync(join(FONTS, `${face}.png`))).data);
+			const measured = (await fieldInk(page, atlas, texels, FIELD_SIZE)) / (FIELD_SIZE * FIELD_SIZE);
+			const bytes = readFileSync(join(FONTS, file)).toString('base64');
+			let widthEm = 0;
+			for (const character of INK_REFERENCE_TEXT) widthEm += atlas.glyph(character.codePointAt(0) ?? 0)?.advance ?? 1;
+			const scores: string[] = [];
+			const ratios: number[] = [];
+			for (const size of [6, 8.75]) {
+				const histogram = inkHistogram(await rasterSample(page, bytes, `weight-${face}`, size, widthEm));
+				const target = baked * size * size;
+				const curve = inkCurve(histogram, target);
+				let ink = 0;
+				for (let value = 1; value < 256; value++) ink += histogram[value] * (curve ? curve[value] : value) / 255;
+				ink /= RASTER_PHASES;
+				ratios.push(ink / target);
+				scores.push(`${size} px ${(histogramInk(histogram) / target).toFixed(3)} as drawn, ${(ink / target).toFixed(3)} written`);
+			}
+			console.log(`raster weight, ${face}: field ink ${measured.toFixed(3)} per px2 at ${FIELD_SIZE} px; raster over field: ${scores.join(', ')}`);
+			// The baked number is this measurement; an atlas rebuild that moves
+			// it must move the number with it.
+			expect(Math.abs(measured / baked - 1)).toBeLessThan(0.015);
+			for (const ratio of ratios) expect(Math.abs(ratio - 1)).toBeLessThan(INK_TOLERANCE + 0.01);
+		});
+	}
+});
 
 test.describe('uber shader', () => {
 	test.beforeEach(async ({ page }) => {

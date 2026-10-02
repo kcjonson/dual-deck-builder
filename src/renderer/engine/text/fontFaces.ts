@@ -38,6 +38,15 @@ export interface FontFaceAsset<Role extends AtlasRole = FontRole> {
 	 * the icon atlas, whose small sizes stay on the distance field.
 	 */
 	readonly fontUrl?: string;
+	/**
+	 * The distance field's ink of `INK_REFERENCE_TEXT` at 9 px, the first size
+	 * past R6.4a's threshold at ratio 1, per square pixel of font size (the
+	 * mean of four sub-pixel pens). The raster fallback's glyphs are matched
+	 * to it so text keeps its weight across the switch (DDB-217). Measured
+	 * from the committed atlas by the 6.9 web suite, which fails when an atlas
+	 * rebuild moves it.
+	 */
+	readonly fieldInk?: number;
 }
 
 /**
@@ -51,6 +60,7 @@ export const FONT_FACES: readonly FontFaceAsset[] = [
 		metrics: barlowCondensedSemiBoldMetrics,
 		imageUrl: barlowCondensedSemiBoldImage,
 		fontUrl: barlowCondensedSemiBoldFont,
+		fieldInk: 1.91,
 	},
 	{
 		role: 'body',
@@ -58,6 +68,7 @@ export const FONT_FACES: readonly FontFaceAsset[] = [
 		metrics: openSansRegularMetrics,
 		imageUrl: openSansRegularImage,
 		fontUrl: openSansRegularFont,
+		fieldInk: 1.698,
 	},
 	{
 		role: 'mono',
@@ -65,6 +76,7 @@ export const FONT_FACES: readonly FontFaceAsset[] = [
 		metrics: jetBrainsMonoRegularMetrics,
 		imageUrl: jetBrainsMonoRegularImage,
 		fontUrl: jetBrainsMonoRegularFont,
+		fieldInk: 1.9,
 	},
 ];
 

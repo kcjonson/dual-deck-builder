@@ -1,6 +1,6 @@
 import type { TextureHandle } from '../draw/commands';
 import type { TextureOptions, TextureRegion } from '../gpu/TextureStore';
-import type { GlyphCanvasContext } from '../text/rasterGlyphs';
+import { GlyphCanvasContext, INK_REFERENCE_TEXT } from '../text/rasterGlyphs';
 import { TextMetricsService } from '../text/TextMetricsService';
 import { syntheticFontAtlas } from '../text/testing';
 import { RasterGlyphPage } from './RasterGlyphPage';
@@ -190,5 +190,69 @@ describe('RasterGlyphPage (R6.4a)', () => {
 		page.glyphs('body', first, 8);
 		page.glyphs('body', second, 8);
 		expect(drawn).toEqual(['A', 'A']);
+	});
+
+	describe('weight against the distance field (DDB-217)', () => {
+		/** A canvas whose every subsample is `alpha` covered, recording what it draws. */
+		function flatCanvas(alpha: number, drawn: string[]): GlyphCanvasContext {
+			return {
+				...blankCanvas(drawn),
+				getImageData: (x, y, width, height) => ({ data: new Uint8Array(width * height * 4).fill(alpha) }),
+			};
+		}
+
+		function pageWith(fieldInk: number | null, alpha: number) {
+			const drawn: string[] = [];
+			const written: Uint8Array[] = [];
+			const page = new RasterGlyphPage({
+				textures: {
+					create: (options) => ({ id: 7, width: options.width, height: options.height, label: null }) as TextureHandle,
+					writeRegion: (handle, region, texels) => {
+						written.push(texels);
+					},
+				},
+				familyOf: () => 'ddb-test',
+				fieldInkOf: () => fieldInk,
+				createCanvas: () => flatCanvas(alpha, drawn),
+				now: () => 0,
+				width: 256,
+				height: 256,
+			});
+			const text = new TextMetricsService();
+			text.addAtlas({ name: 'body', atlas: syntheticFontAtlas() });
+			const layout = (value: string) => {
+				const result = text.layout({ text: value, font: 'body', size: 8 });
+				if (!result) throw new Error('no layout');
+				return result;
+			};
+			page.beginFrame();
+			return { page, drawn, written, layout };
+		}
+
+		/** The largest coverage written for the first glyph. */
+		function peak(texels: Uint8Array): number {
+			let max = 0;
+			for (let index = 3; index < texels.length; index += 4) max = Math.max(max, texels[index]);
+			return max;
+		}
+
+		it('measures the reference word once per size, before its first glyphs', () => {
+			const { page, drawn, layout } = pageWith(1.7, 128);
+			page.glyphs('body', layout('A'), 8);
+			page.glyphs('body', layout('b'), 8);
+			page.glyphs('body', layout('A'), 7);
+			expect(drawn).toEqual([INK_REFERENCE_TEXT, 'A', 'b', INK_REFERENCE_TEXT, 'A']);
+		});
+
+		it('thins glyphs heavier than the field and leaves the platform as drawn without a field ink', () => {
+			// Every subsample half covered: far heavier than the field's word.
+			const corrected = pageWith(0.5, 128);
+			corrected.page.glyphs('body', corrected.layout('A'), 8);
+			const kept = pageWith(null, 128);
+			kept.page.glyphs('body', kept.layout('A'), 8);
+			expect(kept.drawn).toEqual(['A']);
+			expect(peak(kept.written[0])).toBe(128);
+			expect(peak(corrected.written[0])).toBeLessThan(128);
+		});
 	});
 });

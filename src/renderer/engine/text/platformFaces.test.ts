@@ -39,4 +39,10 @@ describe('PlatformFaces (R6.4a)', () => {
 		expect(errors).toEqual(['jetbrains-mono-regular: 404']);
 		expect(faces.familyOf('mono')).toBeNull();
 	});
+
+	it('hands each text role the distance field ink its raster glyphs are matched to (DDB-217)', () => {
+		const faces = new PlatformFaces({ load: () => new Promise<void>(() => undefined) });
+		for (const face of FONT_FACES) expect(faces.fieldInkOf(face.role)).toBe(face.fieldInk);
+		expect(faces.fieldInkOf('icons')).toBeNull();
+	});
 });

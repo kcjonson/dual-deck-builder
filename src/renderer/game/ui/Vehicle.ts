@@ -5,6 +5,8 @@ import { Text } from '../../engine/components/Text';
 import { Vehicle as VehicleData } from '../mechanics/Vehicle';
 import type { AnyUiEvent, UiDragEvent } from '../../engine/input/events';
 import { CombatModel } from '../screens/combat/CombatModel';
+import { resolveFontRole } from '../../engine/text/fontRoles';
+import { tokens } from '../../engine/theme/tokens';
 import { ArmorBadge } from './ArmorBadge';
 
 export interface VehicleOptions extends ComponentOptions {
@@ -17,6 +19,18 @@ export interface VehicleOptions extends ComponentOptions {
 	onClick?: (vehicle: VehicleData) => void;
 }
 
+/** Every run on the plate is the token scale's smallest size, on tight lines (R6.4a). */
+const TEXT_SIZE = tokens.fontSize.fs_xs;
+const TEXT_LINE_HEIGHT = tokens.lineHeight.lh_tight;
+const VALUE_ROLE = resolveFontRole({ weight: 'bold' });
+const INSET_X = tokens.space.space_1_5;
+const INSET_Y = tokens.space.space_1;
+const GAP = tokens.space.space_1;
+const ROW_GAP = tokens.space.space_0_5;
+const DRIVER_PORTRAIT_SIZE = 20;
+const TRACK_HEIGHT = 10;
+const BADGE_HEIGHT = 16;
+
 /**
  * Visual representation of a vehicle on the battlefield. Can be extended for
  * player/enemy specific styling.
@@ -26,6 +40,12 @@ export interface VehicleOptions extends ComponentOptions {
  * data decides which show: the driver row while there is a driver, and an
  * escort's SPENT chip once it has acted. A driven vehicle that loses its
  * driver becomes an escort mid-fight, and only visibility changes.
+ *
+ * Rows stack from the plate's measured lines rather than fractions of its
+ * height, so the smallest plate (an enemy's, 140x91 on the stage) holds them
+ * at the token sizes: the driver's name beside its portrait with the HP
+ * under it, the vehicle's name at the foot of the portrait, the structure
+ * value beside its track, and the armor badge along the bottom.
  */
 export class Vehicle extends Component {
 	protected vehicleData: VehicleData;
@@ -80,20 +100,24 @@ export class Vehicle extends Component {
 		this.driverNameText = new Text('', {
 			id: this.childId('driver_name'),
 			style: {
-				fontSize: 9,
+				fontSize: TEXT_SIZE,
 				color: '#cccccc',
 				textAlign: 'left',
 			},
+			lineHeight: TEXT_LINE_HEIGHT,
+			wrap: 'none',
+			textOverflow: 'ellipsis',
 		});
 		this.addChild(this.driverNameText);
 
 		this.driverHpText = new Text('', {
 			id: this.childId('driver_hp'),
 			style: {
-				fontSize: 8,
+				fontSize: TEXT_SIZE,
 				color: '#aaaaaa',
 				textAlign: 'left',
 			},
+			lineHeight: TEXT_LINE_HEIGHT,
 		});
 		this.addChild(this.driverHpText);
 
@@ -101,18 +125,20 @@ export class Vehicle extends Component {
 		this.nameText = new Text('', {
 			id: this.childId('name'),
 			style: {
-				fontSize: 10,
+				fontSize: TEXT_SIZE,
 				color: '#ffffff',
 				textAlign: 'center',
 				fontWeight: 'bold',
 			},
-			wrap: 'word',
+			lineHeight: TEXT_LINE_HEIGHT,
+			wrap: 'none',
+			textOverflow: 'ellipsis',
 		});
 		this.addChild(this.nameText);
 
 		this.healthBar = new Rectangle({
 			id: this.childId('structure_track'),
-			height: 10,
+			height: TRACK_HEIGHT,
 			style: {
 				backgroundColor: '#333333',
 				borderColor: '#555555',
@@ -123,7 +149,7 @@ export class Vehicle extends Component {
 
 		this.healthBarFill = new Rectangle({
 			id: this.childId('structure_fill'),
-			height: 10,
+			height: TRACK_HEIGHT,
 			style: {
 				backgroundColor: '#4a8a4a',
 			},
@@ -133,11 +159,12 @@ export class Vehicle extends Component {
 		this.healthText = new Text('', {
 			id: this.childId('structure_value'),
 			style: {
-				fontSize: 9,
+				fontSize: TEXT_SIZE,
 				color: '#ffffff',
-				textAlign: 'center',
+				textAlign: 'right',
 				fontWeight: 'bold',
 			},
+			lineHeight: TEXT_LINE_HEIGHT,
 		});
 		this.addChild(this.healthText);
 
@@ -145,24 +172,25 @@ export class Vehicle extends Component {
 		this.armorBadge = new ArmorBadge({
 			id: this.childId('armor_badge'),
 			minWidth: Math.floor(args.width * 0.25),
-			height: 16,
+			height: BADGE_HEIGHT,
 		});
 		this.addChild(this.armorBadge);
 
 		this.spentChip = new Text('SPENT', {
 			id: this.childId('spent_chip'),
 			style: {
-				fontSize: 9,
+				fontSize: TEXT_SIZE,
 				color: '#ffcc66',
 				fontWeight: 'bold',
 			},
+			lineHeight: TEXT_LINE_HEIGHT,
 		});
 		this.addChild(this.spentChip);
 
 		// Status effect container (for future use)
 		this.statusContainer = new Container({
 			id: this.childId('status_container'),
-			height: 16,
+			height: BADGE_HEIGHT,
 		});
 		this.addChild(this.statusContainer);
 
@@ -205,37 +233,62 @@ export class Vehicle extends Component {
 	protected placeElements(): void {
 		const width = this.getWidth();
 		const height = this.getHeight();
+		const contentWidth = width - INSET_X * 2;
+
+		// From the bottom: the armor row, the structure row over it, and the
+		// portrait takes what is left
+		const badgeY = height - ROW_GAP - BADGE_HEIGHT;
+		const structureHeight = Math.max(TRACK_HEIGHT, Math.ceil(this.healthText.getHeight()));
+		const structureY = badgeY - ROW_GAP - structureHeight;
+		const portraitHeight = structureY - ROW_GAP;
 
 		this.portrait.setPosition(0, 0);
-		this.portrait.setSize(width, Math.floor(height * 0.65));
+		this.portrait.setSize(width, portraitHeight);
 
-		const driverPortraitSize = Math.min(20, Math.floor(width * 0.15));
-		this.driverPortrait.setPosition(Math.floor(width * 0.05), Math.floor(height * 0.05));
+		// The driver's name beside their portrait, the HP under both
+		const driverPortraitSize = Math.min(DRIVER_PORTRAIT_SIZE, Math.floor(width * 0.15));
+		this.driverPortrait.setPosition(INSET_X, INSET_Y);
 		this.driverPortrait.setSize(driverPortraitSize, driverPortraitSize);
-		this.driverNameText.setPosition(Math.floor(width * 0.05), Math.floor(height * 0.30));
-		this.driverHpText.setPosition(Math.floor(width * 0.05), Math.floor(height * 0.42));
+		const driverNameX = INSET_X + driverPortraitSize + GAP;
+		this.driverNameText.setWidth(width - INSET_X - driverNameX);
+		this.driverNameText.setPosition(driverNameX, INSET_Y + Math.round((driverPortraitSize - this.driverNameText.getHeight()) / 2));
+		this.driverHpText.setPosition(INSET_X, INSET_Y + driverPortraitSize + ROW_GAP);
 
-		this.nameText.setPosition(Math.floor(width * 0.05), Math.floor(height * 0.55));
-		this.nameText.setWidth(Math.floor(width * 0.9));
+		this.nameText.setWidth(contentWidth);
+		this.nameText.setPosition(INSET_X, Math.floor(portraitHeight - INSET_Y - this.nameText.getHeight()));
 
-		this.healthBar.setPosition(Math.floor(width * 0.1), Math.floor(height * 0.68));
-		this.healthBar.setWidth(Math.floor(width * 0.8));
-		this.healthBarFill.setPosition(Math.floor(width * 0.1), Math.floor(height * 0.68));
+		// The value right-aligned in a column as wide as the full value, so
+		// the track keeps its width as the structure falls
+		const valueWidth = this.structureValueWidth();
+		const trackWidth = contentWidth - (valueWidth > 0 ? valueWidth + GAP : 0);
+		const trackY = structureY + Math.floor((structureHeight - TRACK_HEIGHT) / 2);
+		this.healthBar.setPosition(INSET_X, trackY);
+		this.healthBar.setWidth(trackWidth);
+		this.healthBarFill.setPosition(INSET_X, trackY);
 		this.placeHealthFill();
-		this.healthText.setPosition(0, Math.floor(height * 0.73));
-		this.healthText.setWidth(width);
+		this.healthText.setWidth(valueWidth);
+		this.healthText.setPosition(width - INSET_X - valueWidth, structureY);
 
-		this.armorBadge.setPosition(Math.floor(width * 0.1), Math.floor(height * 0.82));
+		this.armorBadge.setPosition(INSET_X, badgeY);
 		this.armorBadge.minWidth = Math.floor(width * 0.25);
 
-		// Right edge at 95 percent of the width, from the chip's measured width
-		this.spentChip.setPosition(
-			Math.floor(width * 0.95 - this.spentChip.getWidth()),
-			Math.floor(height * 0.05),
-		);
+		// Right edge at the inset, from the chip's measured width
+		this.spentChip.setPosition(width - INSET_X - this.spentChip.getWidth(), INSET_Y);
 
-		this.statusContainer.setPosition(Math.floor(width * 0.4), Math.floor(height * 0.82));
+		this.statusContainer.setPosition(Math.floor(width * 0.4), badgeY);
 		this.statusContainer.setWidth(Math.floor(width * 0.5));
+	}
+
+	/**
+	 * The structure value's column: the measured width of the value at full
+	 * structure, or nothing where text is not measured (a unit test's null
+	 * backend).
+	 */
+	private structureValueWidth(): number {
+		const draw = this.context?.draw;
+		if (!draw || !draw.canMeasureText(VALUE_ROLE)) return 0;
+		const { maxStructure } = this.vehicleData;
+		return Math.ceil(draw.measureText({ text: `${maxStructure}/${maxStructure}`, font: VALUE_ROLE, size: TEXT_SIZE }).width);
 	}
 
 	/** The fill's width is the track's, scaled by the structure left. */
@@ -257,7 +310,7 @@ export class Vehicle extends Component {
 		this.driverNameText.setVisible(Boolean(driver));
 		this.driverHpText.setVisible(Boolean(driver));
 		if (driver) {
-			this.driverNameText.setText(`Driver: ${driver.metadata.name}`);
+			this.driverNameText.setText(driver.metadata.name);
 			this.driverHpText.setText(`HP: ${driver.hitpoints}/${driver.maxHitpoints}`);
 		}
 
