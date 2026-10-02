@@ -8,6 +8,13 @@ import { DriverSeat, PlayerHandView } from './PlayerHandView';
 import { DriverResourceData, DriverTab } from './DriverTab';
 import { HandFan } from './HandFan';
 
+/** A card the last deal dropped, and its element as it sat in the fan. */
+export interface LeavingCard {
+	card: Card;
+	element: UICard;
+	seat: DriverSeat | null;
+}
+
 /** Between the two drivers' halves. */
 const HALF_GAP = 20;
 
@@ -27,6 +34,7 @@ export class PlayerHandLayer extends Stack {
 	private onCardPress: ((card: Card, element: UICard, event: UiPointerEvent) => void) | null = null;
 	private onCardDragEnd: ((card: Card, event: UiDragEvent) => void) | null = null;
 	private onOtherButton: (() => void) | null = null;
+	private onCardsLeave: ((leaving: LeavingCard[]) => void) | null = null;
 
 	// Selection state
 	private selectedCard: Card | null = null; // The card player has selected to play (waiting for target)
@@ -55,10 +63,36 @@ export class PlayerHandLayer extends Stack {
 	 * unplayable ones disabled
 	 */
 	public setHand({ cards, seatOf, playable }: PlayerHandView): void {
+		// Cards that left since the last deal, while their elements still sit
+		// in the fan, so whoever listens can see where they were
+		if (this.onCardsLeave) {
+			const staying = new Set(cards);
+			const leaving: LeavingCard[] = [];
+			this.handCards.forEach((card, index) => {
+				const element = this.cardElements[index];
+				if (!staying.has(card) && element?.isMounted) leaving.push({ card, element, seat: this.cardDriverMap.get(card.id) ?? null });
+			});
+			if (leaving.length > 0) this.onCardsLeave(leaving);
+		}
 		this.handCards = cards;
 		this.cardDriverMap = seatOf;
 		this.playableCardIds = playable;
 		this.createCardElements();
+	}
+
+	/** Cards gone from the hand since the last `setHand`, told before the hand deals again. */
+	public setOnCardsLeave(callback: ((leaving: LeavingCard[]) => void) | null): void {
+		this.onCardsLeave = callback;
+	}
+
+	/** The half a card in the hand is dealt to. */
+	public seatOf(card: Card): DriverSeat | null {
+		return this.cardDriverMap.get(card.id) ?? null;
+	}
+
+	/** A driver's "DRAW n   DISCARD n" counts on their tab. */
+	public pilesOf(seat: DriverSeat): Component {
+		return this.halves[seat].tab.piles;
 	}
 
 	/** A driver's tab: name, passenger tag, adrenaline, and pile counts. */

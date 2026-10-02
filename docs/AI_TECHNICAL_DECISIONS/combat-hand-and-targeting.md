@@ -1,6 +1,6 @@
-# Combat hand fan, previews, drag targeting, and damage numbers
+# Combat hand, targeting, and turn feedback
 
-Status: decided 2026-09-28 (fan, previews), 2026-10-01 (targeting, damage numbers), DDB-88 (DDB-55 phase 6). Design source: [Battle Screen Design](../specs/Battle%20Screen%20Design.md) sections 4 to 6 and the mock at `docs/design/battle-screen/index.html`.
+Status: decided 2026-09-28 (fan, previews), 2026-10-01 (targeting, damage numbers), 2026-10-02 (banner, intents, discard flights), DDB-88 (DDB-55 phase 6). Design source: [Battle Screen Design](../specs/Battle%20Screen%20Design.md) sections 4 to 6 and the mock at `docs/design/battle-screen/index.html`.
 
 ## Context
 
@@ -58,9 +58,32 @@ The gallery's `combat-fx` scene holds a line and three numbers still (`FloatingN
 
 Considered: diffing structure and armor on the team's `change` events. It can't tell a hit from a repair or an armor card, and it can't see a miss.
 
+### One rule for time: reading on the clock, motion on the animator
+
+Everything in this record that stays on screen to be read keeps its own countdown in `update(dt)` through `requestUpdate`, as `Toast` does, and puts only its movement on the animator. Under reduced motion (R11.13) the animator finishes a tween on its first tick, before render, so anything whose life was a tween would never be seen. Damage numbers learned this in review; the banner was built to it.
+
+### The turn banner crosses the road, and only when the turn changes
+
+`TurnBanner` replaces the old phase box (DDB-30), which sat over the left of the road for the whole fight, said COMBAT START until the first card, and covered the raiders' FRONT label at 1280 and 1024. It's the mock's `.banner`: 56 tall across the full road, a band solid between a quarter and three quarters of the width and fading to clear at the ends, 32 px display type spaced 0.28 em. It's a child of the road, absolute and centred, on `overlay` so it covers the vehicles and the log drawer and never the dock (section 6). It shows for 1100 ms when the turn changes. The band stays across the road and fades; only the words slide in from the left and out to the right, so nothing reaches past the road where the stage is narrower than the screen. Changes coalesce: a new enemy turn sends the banner that's up out at once and drops whatever was waiting, and the player's turn that follows waits behind it, so at most one pair is ever pending and the last banner always names whose turn it is now. The enemy turn still resolves in one frame (DDB-112), so END TURN shows ENEMY TURN, then YOUR TURN, and pressing it again mid-banner doesn't stack more. Between banners nothing is drawn: the top bar's turn and END TURN's caption say whose move it is.
+
+The mock only has the enemy's banner. The player's uses the same band in the dock's ground with bone type, so red stays the raiders' colour (section 7).
+
+### Intents: the whole plan, two then "+N"
+
+The plate showed a raider's first planned intent as one disc, with buffs and debuffs both drawn as "!". `IntentRow` shows every planned intent: the first two as discs, then "+N" (section 8's rule), beside the plate's top right corner so a long plan never covers the driver's name or the lane label. The rows are children of the raiders' battlefield layer, siblings of the plates, placed after the plates are: a plate is one hit target (`pointerEvents: 'unit'`), so a disc inside one could never be hovered for its tooltip. A disc that leaves steps out of the row's flow where it stood, so the row doesn't widen while it shrinks. Keyboard focus doesn't reach the discs: a Tab stop for them would come before the hand in tree order, and the end-turn preview from END TURN's focus (DDB-139) is where a keyboard player should read the plan. Debuff and buff get their own colours and the up and down chevrons from the icon font, since it has no better glyphs yet. Each disc's tooltip is the card's name and what it does to whom ("15 damage on Apocalypse Rig"). The row reconciles its markers keyed by place, type, and value (R8.27), so a plan that changes (the start of a turn, or the projection moving as you play) grows its new discs in and shrinks the old ones out on the animator, and a plan that holds isn't touched. Under reduced motion they just change.
+
+The pills, tier colour, target marks, and end-turn preview lines are DDB-139's; this is the current plate's stand-in for them.
+
+### Discards fly to the pile
+
+The hand deals every element again on each update, so a card that leaves has no element to animate by the time anyone knows. `PlayerHandLayer.setHand` now reports the cards the new deal drops, with their elements, before it deals. The screen sends each one that went to its driver's discard pile, or that the next draw already shuffled from there back into the deck (not one that exhausted, or was taken out of the deck), to `CombatFxLayer.flyToDiscard`, which reads the element's centre, turn, and scale into its own space through `localToAncestorInto`, and adds a `DiscardFlight`: a copy of the card that moves to the right end of the driver's DISCARD count over `dur_slow`, straightening, shrinking to 18%, and fading over the back 45%. That covers a played card. The whole hand at the end of the turn comes from `Driver.discardHand`'s `handDiscarded` event instead, sent while the cards are still in the hand: by the time the hand deals again the draw may have reshuffled the pile and dealt some of the same cards straight back, which the deal can't tell from cards that never left (DDB-37). A card played by a drop leaves from the drop point, upright, rather than from its slot: the card stayed lifted in the hand while the reticle went to the target, and the reticle remembers where the drag service last moved it, since the service puts the ghost back before it delivers the drop. It's motion and nothing else, so under reduced motion no flight is made and the count going up is the feedback.
+
+Considered: moving the hand onto `reconcileChildren` so a card's own element could exit to the pile. That's the better end state, and DDB-136's dock rebuild is where it belongs; doing it here would rework the focus group, the drag source, and the preview anchors the last two PRs settled.
+
 ## Consequences
 
 - Click-then-target is unchanged: a press that never passes the 4 px threshold is a click. The keyboard path is unchanged. Hand cards keep the default threshold, per the DDB-77 note about candidate drags wandering onto a neighbour.
 - A played card's element unmounts with the hand rebuild inside `drop`, so the drag service fires no `dragend` for it; the line goes on `onDraggingChange(false)`.
 - The design's out-of-reach dimming, per-slot range chips, damage ghost, and hit chip are DDB-138. Legal targets here are the old `targetableVehicleIds`, with the old plate colours.
 - Numbers anchor to today's vehicle plates; when the slot grid's tokens (DDB-134/135) replace them, `popHitNumber` looks up the token instead.
+- The hand still deals every element again on each update; the discard flight works around that, and DDB-136 should put the hand on `reconcileChildren`.

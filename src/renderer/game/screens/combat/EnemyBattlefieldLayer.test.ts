@@ -41,8 +41,14 @@ describe('EnemyBattlefieldLayer intent markers', () => {
 		layer.mount(context);
 	});
 
-	/** The icon glyphs drawn in one frame, by name. */
-	function iconsDrawn(): string[] {
+	/**
+	 * The icon glyphs drawn in one frame, by name, once markers have grown in
+	 * and any a changed plan dropped have shrunk out and detached.
+	 */
+	async function iconsDrawn(): Promise<string[]> {
+		context.animator.settle();
+		await Promise.resolve();
+		await Promise.resolve();
 		context.frame.layout();
 		api.beginFrame({ viewport: { width: 1440, height: 882 } });
 		renderTree(layer, api);
@@ -57,23 +63,23 @@ describe('EnemyBattlefieldLayer intent markers', () => {
 		return { type, value, description: type };
 	}
 
-	it('shows a shield for defend and a wrench for repair, beside the armor badge\'s shield', () => {
-		layer.setVehicleIntent(raider.id, intent('defend', 6));
-		expect(iconsDrawn()).toEqual(['shield', 'shield']);
+	it('shows a shield for defend and a wrench for repair, beside the armor badge\'s shield', async () => {
+		layer.setVehicleIntents(raider.id, [intent('defend', 6)]);
+		expect(await iconsDrawn()).toEqual(['shield', 'shield']);
 
-		layer.setVehicleIntent(raider.id, intent('repair', 4));
-		expect(iconsDrawn()).toEqual(['shield', 'build']);
+		layer.setVehicleIntents(raider.id, [intent('repair', 4)]);
+		expect(await iconsDrawn()).toEqual(['shield', 'build']);
 	});
 
-	it('shows the value, not an icon, for an attack', () => {
-		layer.setVehicleIntent(raider.id, intent('attack', 15));
-		expect(iconsDrawn()).toEqual(['shield']);
+	it('shows the value, not an icon, for an attack', async () => {
+		layer.setVehicleIntents(raider.id, [intent('attack', 15)]);
+		expect(await iconsDrawn()).toEqual(['shield']);
 		expect(backend.commands.some((command) => command.kind === 'text' && command.text === '15')).toBe(true);
 	});
 
-	it('hides the icon with the marker when the intent clears', () => {
-		layer.setVehicleIntent(raider.id, intent('defend', 6));
-		layer.clearVehicleIntent(raider.id);
-		expect(iconsDrawn()).toEqual(['shield']);
+	it('hides the icon with the marker when the intent clears', async () => {
+		layer.setVehicleIntents(raider.id, [intent('defend', 6)]);
+		layer.setVehicleIntents(raider.id, []);
+		expect(await iconsDrawn()).toEqual(['shield']);
 	});
 });

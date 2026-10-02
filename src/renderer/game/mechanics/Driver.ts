@@ -439,9 +439,12 @@ export class Driver extends Model<DriverData> {
 	}
 
 	/**
-	 * Discard entire hand
+	 * Discard entire hand. `handDiscarded` names the cards first, while
+	 * they're still in the hand, so a screen can send them to the pile from
+	 * where they sit.
 	 */
 	public discardHand(): void {
+		if (this.hand.length > 0) this.emit('handDiscarded', Object.freeze([...this.hand]));
 		this.discard.push(...this.hand);
 		this.hand = [];
 	}

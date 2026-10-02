@@ -57,7 +57,7 @@ export class DriverTab extends ChromeStack {
 	private readonly pipRow: Stack;
 	private pips: Rectangle[] = [];
 	private readonly adrenalineValue: Text;
-	private readonly piles: Text;
+	private readonly pilesLabel: Text;
 
 	private data: DriverResourceData = {
 		name: '',
@@ -124,16 +124,21 @@ export class DriverTab extends ChromeStack {
 		const adrenalineParts: Component[] = [this.pipRow, this.adrenalineValue];
 		for (const part of seat === 1 ? adrenalineParts : adrenalineParts.reverse()) adrenaline.addChild(part);
 
-		this.piles = new Text('', {
+		this.pilesLabel = new Text('', {
 			id: `driver${seat}_piles`,
 			style: { fontRole: 'mono', fontSize: 12, color: rgba('text_dim') },
 			wrap: 'none',
 		});
 
-		const parts: Component[] = [mark, this.nameLabel, this.passengerTag, spacer, adrenaline, this.piles];
+		const parts: Component[] = [mark, this.nameLabel, this.passengerTag, spacer, adrenaline, this.pilesLabel];
 		for (const part of seat === 1 ? parts : parts.reverse()) this.addChild(part);
 
 		this.show();
+	}
+
+	/** "DRAW n   DISCARD n": where a discarded card flies to. */
+	public get piles(): Text {
+		return this.pilesLabel;
 	}
 
 	/**
@@ -150,7 +155,7 @@ export class DriverTab extends ChromeStack {
 		this.passengerTag.visible = passenger;
 		this.showPips(Math.min(maxAdrenaline, MAX_PIPS), adrenaline);
 		this.adrenalineValue.setText(`${adrenaline}/${maxAdrenaline}`);
-		this.piles.setText(`DRAW ${drawPileCount}   DISCARD ${discardPileCount}`);
+		this.pilesLabel.setText(`DRAW ${drawPileCount}   DISCARD ${discardPileCount}`);
 	}
 
 	/**
