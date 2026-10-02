@@ -145,6 +145,9 @@ export const SCENE_SCENARIOS: readonly SceneScenario[] = [
 	{ scene: 'card-pile-discard', lintShort: true },
 	{ scene: 'card-reward', lintShort: true },
 	{ scene: 'combat-targeting', shortViewport: true },
+	// The dock's worst cases, gated at both sizes as the combat screen is (DDB-136)
+	{ scene: 'combat-dock', lintShort: true },
+	{ scene: 'combat-dock-crashed-out', lintShort: true },
 ];
 
 /** A scene at one window size, and the name its golden and text record go by there. */

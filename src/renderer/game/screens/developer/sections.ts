@@ -31,6 +31,7 @@ import { CardDetailCapSection, CardDetailPinnedSection, CardDetailSection, CardF
 import { SliderTabsSection } from './SliderTabsSection';
 import { VehicleTokensSection } from './VehicleTokensSection';
 import { CombatTargetingSection } from './CombatTargetingSection';
+import { CombatDockCrashedOutSection, CombatDockSection } from './CombatDockSection';
 
 /**
  * The developer screen's sections, defined once.
@@ -213,5 +214,14 @@ export const developerSections: readonly DeveloperSection[] = [
 	{
 		name: 'combat-targeting',
 		build: (options) => new CombatTargetingSection(options),
+	},
+	// The battle screen's dock at its worst cases (DDB-136, DDB-167)
+	{
+		name: 'combat-dock',
+		build: (options) => new CombatDockSection(options),
+	},
+	{
+		name: 'combat-dock-crashed-out',
+		build: (options) => new CombatDockCrashedOutSection(options),
 	},
 ];

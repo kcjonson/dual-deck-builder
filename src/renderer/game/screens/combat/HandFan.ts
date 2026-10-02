@@ -2,15 +2,10 @@ import { Container, ContainerOptions } from '../../../engine/components/Containe
 import { Stack } from '../../../engine/components/Stack';
 import { Card as UICard, CardSize, FanPose } from '../../ui/Card';
 
+/** Hand cards are the face's own 128x180 (section 4). */
 const CARD_DIMENSIONS = UICard.getDimensions(CardSize.NORMAL);
-/**
- * Hand cards are 128x180 on the battle screen (section 4), which is the
- * face's own size since DDB-137, so the fan no longer scales it. Kept as a
- * scale so DDB-136's dock can size the hand without relaying the face.
- */
-export const HAND_CARD_SCALE = 128 / CARD_DIMENSIONS.width;
-/** Between cards when a half has room for them, in the card's own units. */
-const NATURAL_CARD_GAP = 10;
+/** Between cards when a half has room for them: the mock's `CW + 8` step. */
+export const NATURAL_CARD_GAP = 8;
 /** The mock's fan (`fanHand`): degrees of turn per card from the middle, gentler past seven. */
 const FAN_TURN_DEGREES = 0.9;
 const FAN_TURN_DEGREES_CROWDED = 0.5;
@@ -23,8 +18,7 @@ const FAN_DROP_MAX = 5;
  * Each card's pose in a fan of `count`, per the mock: turned about its
  * bottom centre by 0.9 degrees per step from the middle (0.5 past seven
  * cards), and dropped along a shallow arc that bottoms out at 5 logical
- * pixels. Drops are in the card's own units, which the row scales down to
- * hand size. Each card stacks over the one before it.
+ * pixels. Each card stacks over the one before it.
  */
 export function fanPoses(count: number): FanPose[] {
 	const turn = ((count > CROWDED_HAND ? FAN_TURN_DEGREES_CROWDED : FAN_TURN_DEGREES) * Math.PI) / 180;
@@ -32,7 +26,7 @@ export function fanPoses(count: number): FanPose[] {
 		const step = index - (count - 1) / 2;
 		return {
 			rotate: step * turn,
-			drop: Math.min(FAN_DROP_MAX, step * step * FAN_DROP_PER_STEP) / HAND_CARD_SCALE,
+			drop: Math.min(FAN_DROP_MAX, step * step * FAN_DROP_PER_STEP),
 			order: index,
 		};
 	});
@@ -58,28 +52,33 @@ export function fanReach(pose: FanPose): { top: number; right: number; bottom: n
 }
 
 /**
- * A driver's cards in a fan, centred in the half and scaled to hand size.
- * The row overlaps its cards through a negative gap when they would not
- * otherwise fit, so however many cards a driver holds, every one of them
- * starts inside the half (DDB-183) and shows its left edge: cost, badge,
- * and the start of its name. Each card turns and drops through its own
- * transform (`FanPose`), which layout never sees, and a hovered card
- * straightens and rises out of it onto the `raised` layer.
+ * A driver's cards in a fan, centred in the half. The row overlaps its
+ * cards through a negative gap when they would not otherwise fit, so
+ * however many cards a driver holds, every one of them starts inside the
+ * half (DDB-183) and shows its left edge: cost, badge, and the start of its
+ * name. At the cap of seven about 68 px of each shows. Each card turns and
+ * drops through its own transform (`FanPose`), which layout never sees, and
+ * a hovered card straightens and rises out of it onto the `raised` layer.
+ *
+ * The row is reconciled by card, so a card still in the hand after a deal
+ * keeps its element: its lift, its focus, and a pinned detail view stay put
+ * while the cards around it come and go.
  */
 export class HandFan extends Container {
 	private readonly row: Stack;
 	private fanCards: UICard[] = [];
+	/** Each element's reconcile key: its identity, as the row's diff needs a string. */
+	private readonly cardKeys = new WeakMap<UICard, string>();
+	private nextKey = 0;
 
 	constructor(options: ContainerOptions) {
 		super(options);
-		// Scaled about its top centre and hung from the fan's top centre, as
-		// the mock hangs its cards 38 below the dock's edge. A lifted card
-		// rises over the tab on the raised layer.
+		// Hung from the fan's top centre, as the mock hangs its cards 38 below
+		// the dock's edge. A lifted card rises over the tab on the raised layer.
 		this.row = new Stack({
 			direction: 'horizontal',
 			gap: NATURAL_CARD_GAP,
 			anchor: 'top',
-			transform: { scale: HAND_CARD_SCALE, origin: [0.5, 0] },
 		});
 		this.addChild(this.row);
 	}
@@ -88,17 +87,29 @@ export class HandFan extends Container {
 		return this.fanCards;
 	}
 
+	/** Deals `cards` into the row in order; an element already in it stays mounted and only moves. */
 	public set cards(cards: UICard[]) {
-		for (const card of this.fanCards) this.row.removeChild(card);
 		this.fanCards = cards;
 		const poses = fanPoses(cards.length);
 		cards.forEach((card, index) => {
 			card.fanPose = poses[index];
-			this.row.addChild(card);
+		});
+		this.row.reconcileChildren<UICard, UICard>(cards, {
+			key: (card) => this.keyOf(card),
+			create: (card) => card,
 		});
 		// An empty row would hug to nothing, a zero-size box the lint reports.
 		this.row.visible = cards.length > 0;
 		this.fitCards();
+	}
+
+	private keyOf(card: UICard): string {
+		let key = this.cardKeys.get(card);
+		if (key === undefined) {
+			key = String(this.nextKey++);
+			this.cardKeys.set(card, key);
+		}
+		return key;
 	}
 
 	/** The row's gap: the natural one, or the overlap that fits the cards in. */
@@ -129,7 +140,7 @@ export class HandFan extends Container {
 		const edge = fanPoses(count)[0];
 		const reach = fanReach(edge);
 		this.row.padding = reach;
-		const room = this.width / HAND_CARD_SCALE - reach.left - reach.right;
+		const room = this.width - reach.left - reach.right;
 		const spread = (room - count * CARD_DIMENSIONS.width) / (count - 1);
 		this.row.gap = Math.min(NATURAL_CARD_GAP, Math.floor(spread));
 	}

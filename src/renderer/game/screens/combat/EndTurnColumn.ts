@@ -73,11 +73,14 @@ export class EndTurnColumn extends Stack {
 		this.endTurnButton.onClick = onEndTurn;
 		this.addChild(this.endTurnButton);
 
+		// The mock's `.warn`: 12 on 15, wrapping inside the column, since two
+		// drivers' pools past six can run to "16 adrenaline unspent"
 		this.warning = new Text({
 			text: '',
 			id: 'end_turn_warning',
-			style: { fontRole: 'mono', fontSize: 11, color: rgba('accent'), textAlign: 'center' },
-			wrap: 'none',
+			style: { fontRole: 'mono', fontSize: 12, color: rgba('accent'), textAlign: 'center' },
+			lineHeight: 15 / 12,
+			wrap: 'word',
 		});
 		this.addChild(this.warning);
 	}

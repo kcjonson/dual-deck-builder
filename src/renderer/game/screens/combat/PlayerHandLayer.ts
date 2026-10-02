@@ -1,4 +1,5 @@
 import { Stack, StackOptions } from '../../../engine/components/Stack';
+import { Text } from '../../../engine/components/Text';
 import type { Component } from '../../../engine/components/Component';
 import type { UiDragEvent, UiPointerEvent } from '../../../engine/input/events';
 import { Card as UICard, CardSize } from '../../ui/Card';
@@ -7,6 +8,7 @@ import { Card } from '../../mechanics/Card';
 import { DriverSeat, PlayerHandView } from './PlayerHandView';
 import { DriverResourceData, DriverTab } from './DriverTab';
 import { HandFan } from './HandFan';
+import { rgba } from './combatStyle';
 
 /** A card the last deal dropped, and its element as it sat in the fan. */
 export interface LeavingCard {
@@ -26,6 +28,10 @@ const HALF_GAP = 20;
 export class PlayerHandLayer extends Stack {
 	private dealtCards: Card[] = [];
 	private cardElements: UICard[] = [];
+	/** Each card's element while it stays in the hand, so a re-deal keeps it (and a pin on it). */
+	private readonly elementOf = new Map<Card, UICard>();
+	/** Counts the elements built, for their ids; the first deal's match their slots. */
+	private builtElements = 0;
 	private playableCardIds: Set<string> = new Set();
 	private unaffordableCardIds: Set<string> = new Set();
 	private readonly halves: Record<DriverSeat, HandHalf>;
@@ -62,10 +68,7 @@ export class PlayerHandLayer extends Stack {
 			2: new HandHalf({ seat: 2 }),
 		};
 		for (const seat of [1, 2] as const) {
-			const tab = this.halves[seat].tab;
-			tab.pointerEvents = 'unit';
-			tab.onClick = () => this.onOpenPiles?.(seat);
-			tab.tooltip = 'Draw and discard piles';
+			this.halves[seat].tab.pileButton.onClick = () => this.onOpenPiles?.(seat);
 		}
 		this.addChild(this.halves[1]);
 		this.addChild(this.halves[2]);
@@ -113,14 +116,20 @@ export class PlayerHandLayer extends Stack {
 		return this.cardDriverMap.get(card.id) ?? null;
 	}
 
-	/** A driver's "DRAW n   DISCARD n" counts on their tab. */
+	/** A driver's discard pile on their tab, where their discards fly. */
 	public pilesOf(seat: DriverSeat): Component {
 		return this.halves[seat].tab.piles;
 	}
 
-	/** A driver's tab: name, passenger tag, adrenaline, and pile counts. */
+	/** A driver's tab. */
+	public tabOf(seat: DriverSeat): DriverTab {
+		return this.halves[seat].tab;
+	}
+
+	/** A driver's tab (name, tag, mods, adrenaline, piles), and whether their half has a hand. */
 	public setDriverData(seat: DriverSeat, data: Partial<DriverResourceData>): void {
 		this.halves[seat].tab.setData(data);
+		if (data.crashedOut !== undefined) this.halves[seat].crashedOut = data.crashedOut;
 	}
 
 	/**
@@ -169,49 +178,63 @@ export class PlayerHandLayer extends Stack {
 	}
 
 	/**
-	 * Build a card element per card in the hand, in hand order, and deal
-	 * each into its driver's fan
+	 * Deal each card into its driver's fan, in hand order. A card still in
+	 * the hand keeps its element, so hover, focus, and a pinned detail view
+	 * survive the deal; a new card gets a new one, and a card gone from the
+	 * hand takes its element with it, which unmounts and releases its input
+	 * registrations.
 	 */
 	private createCardElements(): void {
-		// Every fan is dealt again, which unmounts the cards it held and so
-		// releases their input registrations.
-		this.cardElements = this.dealtCards.map((card, index) => {
-			// Model ids re-roll every load, so the id is the hand slot plus the
-			// card type. The slot carries uniqueness on its own, since a type
-			// can repeat in a hand; the whole string still varies between runs
-			// because the shuffle decides which type lands in which slot.
-			const cardElement = new UICard({
-				id: `hand_card_${index}_${card.type}`,
-				x: 0,
-				y: 0,
-				data: card,
-				size: CardSize.NORMAL,
-				driverNumber: this.cardDriverMap.get(card.id) ?? null,
-			});
-			cardElement.focusable = true;
-			// Section 5's detail view, through the tooltip factory as DDB-88's
-			// preview was: hover, focus, a touch hold, and a pin. The stage
-			// scales the whole canvas, so the view scales with it
-			makeInspectable(cardElement, { scale: () => this.stageScale, driver: () => cardElement.driver });
-			cardElement.onPointerDown = (event) => {
-				if (event.button === 0) this.onCardPress?.(card, cardElement, event);
-			};
-			cardElement.onPointerMove = (event) => {
-				if (event.button > 0) this.onOtherButton?.();
-			};
-			cardElement.onDragEnd = (event) => this.onCardDragEnd?.(card, event);
-			cardElement.onSelect = () => {
-				if (this.canPlayCard(card) && this.onCardSelect) {
-					this.onCardSelect(card);
-				}
-			};
-			return cardElement;
+		const dealt = new Set(this.dealtCards);
+		for (const card of [...this.elementOf.keys()]) {
+			if (!dealt.has(card)) this.elementOf.delete(card);
+		}
+		this.cardElements = this.dealtCards.map((card) => {
+			const existing = this.elementOf.get(card);
+			if (existing) return existing;
+			const element = this.buildCardElement(card);
+			this.elementOf.set(card, element);
+			return element;
 		});
 
 		for (const seat of [1, 2] as const) {
 			this.halves[seat].fan.cards = this.cardElements.filter((_element, index) => this.cardDriverMap.get(this.dealtCards[index].id) === seat);
 		}
 		this.updateCardSelectionVisuals();
+	}
+
+	private buildCardElement(card: Card): UICard {
+		// Model ids re-roll every load, so the id is a build count plus the
+		// card type. The count carries uniqueness on its own, since a type can
+		// repeat in a hand, and on the first deal it is the hand slot; the
+		// whole string still varies between runs because the shuffle decides
+		// which type lands where.
+		const cardElement = new UICard({
+			id: `hand_card_${this.builtElements++}_${card.type}`,
+			x: 0,
+			y: 0,
+			data: card,
+			size: CardSize.NORMAL,
+			driverNumber: this.cardDriverMap.get(card.id) ?? null,
+		});
+		cardElement.focusable = true;
+		// Section 5's detail view, through the tooltip factory as DDB-88's
+		// preview was: hover, focus, a touch hold, and a pin. The stage
+		// scales the whole canvas, so the view scales with it
+		makeInspectable(cardElement, { scale: () => this.stageScale, driver: () => cardElement.driver });
+		cardElement.onPointerDown = (event) => {
+			if (event.button === 0) this.onCardPress?.(card, cardElement, event);
+		};
+		cardElement.onPointerMove = (event) => {
+			if (event.button > 0) this.onOtherButton?.();
+		};
+		cardElement.onDragEnd = (event) => this.onCardDragEnd?.(card, event);
+		cardElement.onSelect = () => {
+			if (this.canPlayCard(card) && this.onCardSelect) {
+				this.onCardSelect(card);
+			}
+		};
+		return cardElement;
 	}
 
 	/** The combat stage's scale: logical pixels to the tooltip root's. */
@@ -249,8 +272,8 @@ export class PlayerHandLayer extends Stack {
 
 	/**
 	 * Focuses the card that can take focus nearest `slot`, at or after it
-	 * first, for a keyboard player whose card was just played or put back:
-	 * the hand is rebuilt on every change, so the focused card is gone.
+	 * first, for a keyboard player whose card was just played or put back,
+	 * and so has left the hand or been dealt again.
 	 * False when no card can take focus.
 	 */
 	public focusNearSlot(slot: number): boolean {
@@ -282,17 +305,44 @@ export class PlayerHandLayer extends Stack {
 }
 
 /**
- * One driver's half of the hand: their tab, and their fan below it.
+ * One driver's half of the hand: their tab, and their fan below it. A
+ * driver who crashed out has no hand for the rest of the fight (section 9),
+ * so their half says so where the fan was.
  */
 class HandHalf extends Stack {
 	public readonly tab: DriverTab;
 	public readonly fan: HandFan;
+	private readonly crashNote: Stack;
 
 	constructor({ seat }: { seat: DriverSeat }) {
 		super({ direction: 'vertical', crossAlign: 'stretch', widthMode: 'fill', heightMode: 'fill' });
 		this.tab = new DriverTab({ id: `driver${seat}_tab`, seat });
 		this.fan = new HandFan({ id: `driver${seat}_hand`, widthMode: 'fill', heightMode: 'fill' });
+		this.crashNote = new Stack({
+			id: `driver${seat}_crashed_out`,
+			widthMode: 'fill',
+			heightMode: 'fill',
+			distribution: 'center',
+			crossAlign: 'center',
+			visible: false,
+		});
+		this.crashNote.addChild(new Text({
+			text: 'No free seat after the wreck: out of this fight',
+			style: { fontRole: 'mono', fontSize: 12, color: rgba('text_dim') },
+			wrap: 'none',
+			textOverflow: 'ellipsis',
+		}));
 		this.addChild(this.tab);
 		this.addChild(this.fan);
+		this.addChild(this.crashNote);
+	}
+
+	public get crashedOut(): boolean {
+		return this.crashNote.visible;
+	}
+
+	public set crashedOut(crashedOut: boolean) {
+		this.fan.visible = !crashedOut;
+		this.crashNote.visible = crashedOut;
 	}
 }

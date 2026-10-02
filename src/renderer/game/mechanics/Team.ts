@@ -142,6 +142,15 @@ export class Team extends Model<TeamData> {
 	}
 
 	/**
+	 * Whether this driver holds a seat on the team, driving or riding. A
+	 * living driver who isn't aboard crashed out of the fight: no free seat
+	 * after their wreck.
+	 */
+	public isAboard(driver: Driver): boolean {
+		return this.vehicles.some(vehicle => vehicle.driver === driver || vehicle.passenger === driver);
+	}
+
+	/**
 	 * No driver still in the fight, driving or riding. The dead leave their
 	 * seats, and a driver who crashed out never got one, so only living
 	 * drivers still aboard a vehicle count.

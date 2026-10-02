@@ -539,7 +539,7 @@ export class CombatFxLayer extends Container {
 		const to = { x: 0, y: 0 };
 		if (!this.mapIn(card, card.width / 2, card.height / 2, centre)) return;
 		if (!this.mapIn(card, card.width / 2 + 1, card.height / 2, across)) return;
-		// The right end of "DISCARD n", where the count is
+		// The right end of the discard pile's icon and count, where the count is
 		if (!this.mapIn(pile, Math.max(0, pile.width - PILE_COUNT_INSET), pile.height / 2, to)) return;
 		const dx = across.x - centre.x;
 		const dy = across.y - centre.y;

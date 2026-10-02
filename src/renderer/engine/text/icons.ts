@@ -8,6 +8,7 @@ export const ICON_CODE_POINTS = {
 	chevron_right: 0xE5CC,
 	close: 0xE5CD,
 	error: 0xE000,
+	exit_to_app: 0xE879,
 	expand_less: 0xE5CE,
 	expand_more: 0xE5CF,
 	favorite: 0xE87D,
@@ -23,6 +24,7 @@ export const ICON_CODE_POINTS = {
 	remove: 0xE15B,
 	settings: 0xE8B8,
 	shield: 0xE9E0,
+	style: 0xE41D,
 	warning: 0xE002,
 } as const;
 

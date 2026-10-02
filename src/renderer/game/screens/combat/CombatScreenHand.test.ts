@@ -226,7 +226,7 @@ describe('CombatScreen card detail view (DDB-137)', () => {
 		combat.unmount();
 	});
 
-	it('opens a driver\'s draw and discard piles from their tab', async () => {
+	it('opens a driver\'s draw and discard piles from the pile icons on their tab', async () => {
 		setViewport(1280, 720);
 		const combat = await startCombat();
 		const tab = combat['handLayer'].pilesOf(1).parent;

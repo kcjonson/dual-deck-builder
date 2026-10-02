@@ -16,6 +16,16 @@ export interface VehicleStatusEffect {
 }
 
 /**
+ * A permanent upgrade fitted to a vehicle (Card System Design section 5).
+ * What each one does in a fight isn't built yet; the dock shows the ones a
+ * driver's vehicle carries.
+ */
+export interface VehicleMod {
+	name: string;
+	kind: 'offense' | 'defense' | 'utility';
+}
+
+/**
  * A flanker's bookkeeping: the formation slot it left, which stays empty and
  * reserved, and the vehicle it outran, whose speed it has to keep beating.
  * An ambusher (a vehicle its encounter started on the shoulder) has no
@@ -55,6 +65,8 @@ export interface VehicleData {
 	spent?: boolean;
 	/** Temporary armor: absorbs damage before armor, isn't capped, and clears at the start of the player's turn */
 	shield?: number;
+	/** Permanent upgrades fitted to it; none when unset. They go down with the vehicle. */
+	mods?: VehicleMod[];
 }
 
 /**
@@ -142,7 +154,8 @@ export class Vehicle extends Model<VehicleData> {
 		'raiderArchetype',
 		'escort',
 		'spent',
-		'shield'
+		'shield',
+		'mods'
 	]);
 
 	// All properties are now model properties!

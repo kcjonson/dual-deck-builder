@@ -1,8 +1,6 @@
 import { Screen } from '../../core/Screen';
 import { ScreenManager } from '../../core/ScreenManager';
 import { Stack } from '../../../engine/components/Stack';
-import { Rectangle } from '../../../engine/components/Rectangle';
-import type { TweenHandle } from '../../../engine/animation/Animator';
 import { RoadView, EnemyIntent } from './RoadView';
 import { PlayerHandLayer } from './PlayerHandLayer';
 import { LOG_KEY, TopBarLayer } from './TopBarLayer';
@@ -13,15 +11,14 @@ import { EnemyTurnPacer } from './EnemyTurnPacer';
 import { EndTurnPreview } from './EndTurnPreview';
 import { CombatModel } from './CombatModel';
 import {
-	DOCK_HEIGHT,
 	LOG_DRAWER_WIDTH,
 	ROAD_HEADER_HEIGHT,
 	STAGE_MAX_WIDTH,
 	computeCombatStage,
 } from './CombatLayout';
-import { ChromeStack } from './ChromeStack';
+import { CombatDock, DOCK_DROP } from './CombatDock';
 import { CombatFxLayer } from './CombatFxLayer';
-import { DOCK_GRADIENT, DOCK_SCRIM, Rgba, rgba } from './combatStyle';
+import { Rgba } from './combatStyle';
 import { openPileDialog } from '../../ui/CardPileView';
 import { INSPECT_KEYS, inspectHotkey } from '../../ui/cardInspect';
 import { buildPlayerHandView } from './PlayerHandView';
@@ -62,14 +59,6 @@ function isHandCardDrag(data: unknown): data is HandCardDrag {
  * top bar had one, kept as an alias for playtesters who learned it.
  */
 const LOG_TOGGLE_KEYS = [LOG_KEY.toLowerCase(), LOG_KEY, 'F6'];
-/** Between the hands and the End Turn column. */
-const DOCK_GAP = 16;
-/**
- * From the mock: tabs 8 below the dock's edge, cards 38 below it and ending
- * 10 above the bottom, their edge cards dropping 5 into that. A lifted card
- * rises over the tab on the raised layer.
- */
-const DOCK_PADDING = { top: 8, bottom: 5, left: 16, right: 16 };
 /**
  * The enemy turn's pacing (DDB-112, section 6): the first raider acts as
  * the ENEMY TURN banner starts to leave, then each action gets a beat for
@@ -79,8 +68,7 @@ const DOCK_PADDING = { top: 8, bottom: 5, left: 16, right: 16 };
  */
 export const ENEMY_TURN_LEAD_IN = TURN_BANNER_LIFETIME - tokens.motion.dur;
 export const ENEMY_ACTION_BEAT = 700;
-/** How far the hands drop while the raiders act (section 6). */
-export const DOCK_DROP = 60;
+export { DOCK_DROP };
 /** Where a hit's number starts under its anchor's top, and how tall it is (CombatFxLayer's `.dmgpop`). */
 const HIT_NUMBER_INSET = 8;
 const HIT_NUMBER_HEIGHT = 36;
@@ -99,15 +87,8 @@ export class CombatScreen extends Screen {
 	private combatLogLayer!: CombatLogLayer;
 	private turnBanner!: TurnBanner;
 	private fx!: CombatFxLayer;
-	private dock!: Stack;
-	private dockScrim!: Rectangle;
+	private dock!: CombatDock;
 	private intentPreview!: EndTurnPreview;
-	/** 0 with the dock in place, 1 dropped and greyed; tweened between. */
-	private dockDrop = 0;
-	private dockTween: TweenHandle<number> | null = null;
-	private dockTweenTarget = 0;
-	private readonly dockPark = { x: 0, y: 0 };
-	private readonly dockScrimCorner = { x: 0, y: 0 };
 	private enemyTurnPacer: EnemyTurnPacer | null = null;
 	/** The raider whose action is on screen during the enemy turn (DDB-139 glows it), or null. */
 	private enemyActing: Vehicle | null = null;
@@ -424,9 +405,16 @@ export class CombatScreen extends Screen {
 		// them would ever be shown
 		if (!this.isActive || !this.battle || !this.playerTeam || !this.enemyTeam) return;
 
-		// Both hands show whenever both drivers are alive, whichever vehicle they're in
+		// Both hands show whenever both drivers are alive, whichever vehicle
+		// they're in, until one crashes out with no free seat (DDB-167)
 		const battle = this.battle;
-		this.handLayer.hand = buildPlayerHandView(this.playerDrivers, (driver, card) => battle.canPlayCard({ driver, card }));
+		const playerTeam = this.playerTeam;
+		const crashedOut = (driver: Driver): boolean => driver.isAlive() && !playerTeam.isAboard(driver);
+		this.handLayer.hand = buildPlayerHandView({
+			drivers: this.playerDrivers,
+			canPlay: (driver, card) => battle.canPlayCard({ driver, card }),
+			crashedOut,
+		});
 
 		this.playerDrivers.forEach((driver, index) => {
 			this.handLayer.setDriverData((index + 1) as 1 | 2, {
@@ -436,6 +424,8 @@ export class CombatScreen extends Screen {
 				drawPileCount: driver.deck ? driver.deck.cards.length : 0,
 				discardPileCount: driver.discard.length,
 				passenger: driver.role === DriverRole.PASSENGER,
+				crashedOut: crashedOut(driver),
+				mods: playerTeam.vehicles.find(vehicle => vehicle.driver === driver)?.mods ?? [],
 			});
 		});
 		this.shownTurn = battle.turn;
@@ -448,13 +438,13 @@ export class CombatScreen extends Screen {
 		// Locked too once the fight is over, through the transition out
 		const waiting = battle.enemyTurnInProgress || battle.battleOver;
 		this.dock.enabled = !waiting;
-		this.dropDock(battle.enemyTurnInProgress);
+		this.dock.dropHands(battle.enemyTurnInProgress);
 		this.endTurnColumn.show({
 			turn: battle.turn,
 			playerTurn: battle.isPlayerTurn && !battle.battleOver,
 			waiting,
 			unspentAdrenaline: this.playerDrivers
-				.filter(driver => driver.isAlive())
+				.filter(driver => driver.isAlive() && !crashedOut(driver))
 				.reduce((total, driver) => total + driver.adrenaline, 0),
 		});
 
@@ -475,68 +465,9 @@ export class CombatScreen extends Screen {
 		this.intentPreview.refresh();
 	}
 
-	/**
-	 * Drops the hands, tabs and cards, and greys them while the raiders act,
-	 * and brings them back for the player's turn, on the animator; at once
-	 * under reduced motion. As in the mock, the dock's ground and End Turn
-	 * stay put, End Turn reading WAIT. The drop is a declared park (R8.30),
-	 * set only while the hands are off their place and cleared on the tick
-	 * they land back, so the layout lint checks them where they rest.
-	 */
-	private dropDock(dropped: boolean): void {
-		const target = dropped ? 1 : 0;
-		const animator = this.context.animator;
-		if (this.dockTween?.running && this.dockTweenTarget === target) return;
-		this.dockTween?.cancel();
-		this.dockTween = null;
-		this.dockTweenTarget = target;
-		if (this.dockDrop === target) {
-			this.applyDockDrop(target);
-			return;
-		}
-		if (animator.reducedMotion || !this.dock.isMounted) {
-			this.applyDockDrop(target);
-			return;
-		}
-		this.dockTween = animator.tween({
-			from: this.dockDrop,
-			to: target,
-			duration: tokens.motion.dur,
-			ease: tokens.motion.ease_standard,
-			owner: this.dock,
-			onUpdate: (progress) => this.applyDockDrop(progress),
-			onComplete: () => this.applyDockDrop(target),
-		});
-	}
-
-	private applyDockDrop(progress: number): void {
-		this.dockDrop = progress;
-		// The setter copies it, so one scratch point serves every frame
-		const park = progress > 0 ? this.dockPark : null;
-		this.dockPark.y = DOCK_DROP * progress;
-		this.handLayer.parkOffset = park;
-		this.dockScrim.parkOffset = park;
-		this.dockScrim.visible = progress > 0;
-		this.dockScrim.opacity = progress;
-	}
-
-	/** The scrim over the hands' rest place, in the bands' space; on layout and resize. */
-	private placeDockScrim(): void {
-		const bands = this.dockScrim.parent;
-		const hands = this.handLayer;
-		if (!bands) return;
-		const at = this.dockScrimCorner;
-		at.x = 0;
-		at.y = 0;
-		if (!hands.localToAncestorInto(at, bands, at)) return;
-		const parked = hands.parkOffset?.y ?? 0;
-		this.dockScrim.setPosition(at.x, at.y - parked);
-		this.dockScrim.setSize(hands.width, hands.height);
-	}
-
 	/** How far the dock has dropped: 0 in place, 1 all the way. */
 	public get dockDropped(): number {
-		return this.dockDrop;
+		return this.dock.dropped;
 	}
 
 	/**
@@ -614,19 +545,6 @@ export class CombatScreen extends Screen {
 		bands.addChild(this.topBar);
 		bands.addChild(this.createRoad());
 		bands.addChild(this.createDock());
-		// Greys the hands while they're dropped, over them and dropping with
-		// them; End Turn, beside them, greys by its own disabled look
-		this.dockScrim = new Rectangle({
-			id: 'combat_dock_scrim',
-			positioned: 'absolute',
-			zIndex: 1,
-			pointerEvents: 'none',
-			style: { backgroundColor: DOCK_SCRIM },
-		});
-		this.dockScrim.visible = false;
-		bands.addChild(this.dockScrim);
-		this.dock.onLayout = () => this.placeDockScrim();
-		this.handLayer.onLayout = () => this.placeDockScrim();
 
 		// Over everything, the stage's size: the targeting line
 		this.fx = new CombatFxLayer({ id: 'combat_fx', positioned: 'absolute' });
@@ -698,31 +616,13 @@ export class CombatScreen extends Screen {
 	}
 
 	/** Both drivers' tabs and hands, then the End Turn column at the stage's right end. */
-	private createDock(): Stack {
-		const dock = this.dock = new ChromeStack({
+	private createDock(): CombatDock {
+		const dock = this.dock = new CombatDock({
 			id: 'combat_dock',
-			direction: 'horizontal',
-			gap: DOCK_GAP,
-			padding: DOCK_PADDING,
-			crossAlign: 'stretch',
-			widthMode: 'fill',
-			height: DOCK_HEIGHT,
-			chrome: { fill: DOCK_GRADIENT, edge: { color: rgba('line_edge'), edges: { top: true } } },
-		});
-
-		this.handLayer = new PlayerHandLayer({
-			id: 'combat_player_hand',
-			widthMode: 'fill',
-			heightMode: 'fill',
-		});
-		dock.addChild(this.handLayer);
-
-		this.endTurnColumn = new EndTurnColumn({
-			id: 'combat_end_turn',
 			onEndTurn: () => this.endPlayerTurn(),
 		});
-		dock.addChild(this.endTurnColumn);
-
+		this.handLayer = dock.hand;
+		this.endTurnColumn = dock.endTurnColumn;
 		return dock;
 	}
 
@@ -1124,8 +1024,8 @@ export class CombatScreen extends Screen {
 	/**
 	 * After a keyboard player's card is played or put back, focus goes back
 	 * to the hand at the same slot, or to END TURN when nothing is playable.
-	 * The hand is rebuilt on every change, so the card focus was on is gone,
-	 * and a target vehicle stops being focusable when targeting ends.
+	 * The card focus was on has left the hand (or, put back, may have lost
+	 * focus to its target), and a target vehicle stops being focusable when targeting ends.
 	 */
 	private restoreKeyboardFocus(): void {
 		const focus = this.context.focus;
@@ -1307,10 +1207,6 @@ export class CombatScreen extends Screen {
 		this.enemyTurnPacer?.stop();
 		this.enemyTurnPacer = null;
 		this.enemyActing = null;
-		this.dockTween?.cancel();
-		this.dockTween = null;
-		this.dockDrop = 0;
-		this.dockTweenTarget = 0;
 
 		// Cancel any active targeting
 		if (this.combatModel.isTargeting) {
