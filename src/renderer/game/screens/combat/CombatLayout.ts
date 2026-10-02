@@ -1,4 +1,5 @@
 import { LANE_ORDER, ROW_ORDER, RoadLane, RoadRow, RoadSlot } from '../../mechanics/Road';
+import { TOKEN_HEIGHT, TOKEN_MAX_SCALE, slotScale } from '../../ui/tokenGeometry';
 
 /**
  * The battle screen's bands and stage (Battle Screen Design, section 2).
@@ -55,15 +56,8 @@ export const ROAD_PADDING_X = 16;
 const ROWS_INSET_TOP = 4;
 const ROWS_INSET_BOTTOM = 4;
 
-/** The vehicle token at x1 (section 3); with a passenger it is 135 tall. */
-export const TOKEN_WIDTH = 196;
-export const TOKEN_HEIGHT = 117;
-export const TOKEN_PASSENGER_HEIGHT = 135;
-/** Tokens grow up to this to fill spare slot space, and never shrink below x1. */
-export const TOKEN_MAX_SCALE = 1.25;
-/** What a token leaves clear inside its slot, across and down. */
-export const TOKEN_SLOT_CLEARANCE_X = 6;
-export const TOKEN_SLOT_CLEARANCE_Y = 4;
+// The token's size and slot clearance are the token's own (ui/tokenGeometry)
+export { TOKEN_HEIGHT, TOKEN_MAX_SCALE, TOKEN_PASSENGER_HEIGHT, TOKEN_SLOT_CLEARANCE_X, TOKEN_SLOT_CLEARANCE_Y, TOKEN_WIDTH } from '../../ui/tokenGeometry';
 
 export interface RoadRect {
 	x: number;
@@ -124,8 +118,7 @@ export interface RoadLayout {
  * keeping the clearance. Under 1 means it doesn't fit at x1.
  */
 export function tokenScaleFor({ slotWidth, slotHeight, tokenHeight = TOKEN_HEIGHT }: { slotWidth: number; slotHeight: number; tokenHeight?: number }): number {
-	const fit = Math.min((slotWidth - TOKEN_SLOT_CLEARANCE_X) / TOKEN_WIDTH, (slotHeight - TOKEN_SLOT_CLEARANCE_Y) / tokenHeight);
-	return Math.min(TOKEN_MAX_SCALE, fit);
+	return Math.min(TOKEN_MAX_SCALE, slotScale({ width: slotWidth, height: slotHeight, tokenHeight }));
 }
 
 /**

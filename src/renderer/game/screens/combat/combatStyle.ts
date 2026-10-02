@@ -18,15 +18,6 @@ export const DRIVER_COLORS: Readonly<Record<DriverSeat, string>> = {
 	2: '#3cc3c9',
 };
 
-/**
- * Each driver's mark, in a -1 to 1 box (section 7): driver 1 a triangle,
- * driver 2 a diamond. A square is an escort's.
- */
-export const DRIVER_MARK_OUTLINES: Readonly<Record<DriverSeat, [number, number][]>> = {
-	1: [[0, -0.87], [0.9, 0.83], [-0.9, 0.83]],
-	2: [[0, -0.95], [0.95, 0], [0, 0.95], [-0.95, 0]],
-};
-
 /** A `#rrggbb` colour as RGBA floats, at `alpha`. */
 export function hexRgba(hex: string, alpha = 1): Rgba {
 	const value = parseInt(hex.slice(1), 16);

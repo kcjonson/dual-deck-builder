@@ -21,6 +21,7 @@ import { DOCK_GRADIENT, Rgba, rgba } from './combatStyle';
 import { openPileDialog } from '../../ui/CardPileView';
 import { INSPECT_KEYS, inspectHotkey } from '../../ui/cardInspect';
 import { buildPlayerHandView } from './PlayerHandView';
+import { TargetMark, seatMark } from '../../ui/targetMarks';
 import { Driver, DriverRole } from '../../mechanics/Driver';
 import { assertDriverPair } from '../../mechanics/DriverPair';
 import { CombatLog, CombatLogType } from '../../mechanics/CombatLog';
@@ -303,11 +304,27 @@ export class CombatScreen extends Screen {
 		}
 	}
 
+	/** A player's driver's seat for the fight, 1 or 2; null for anyone else. */
+	private seatOf(driver: Driver): 1 | 2 | null {
+		const index = this.playerDrivers.indexOf(driver);
+		return index === 0 || index === 1 ? (index + 1) as 1 | 2 : null;
+	}
+
+	/** Whose vehicle an intent lands on, as its mark: a driver's, an escort's square, or both for an area hit. */
+	private intentTargetMark(intent: Intent): TargetMark | undefined {
+		if (intent.target === 'both') return 'both';
+		const vehicle = this.playerTeam?.vehicles.find(candidate => candidate.id === intent.target);
+		if (!vehicle) return undefined;
+		if (vehicle.isEscort) return 'escort';
+		const seat = vehicle.driver ? this.seatOf(vehicle.driver) : null;
+		return seat === null ? undefined : seatMark(seat);
+	}
+
 	private popHitNumber({ vehicle, damage }: HitEvent): void {
 		const plate = this.road.vehicleView(vehicle.id);
 		if (!plate?.isMounted) return;
 		this.fx.popNumber({
-			anchor: plate.screenBounds,
+			anchor: plate.plateScreenBounds,
 			anchorKey: plate.id ?? vehicle.id,
 			text: damage === null ? 'MISS' : `-${damage}`,
 			kind: damage === null ? 'miss' : 'damage',
@@ -435,13 +452,14 @@ export class CombatScreen extends Screen {
 			? 'both of your vehicles'
 			: this.playerTeam?.vehicles.find(vehicle => vehicle.id === intent.target)?.name ?? null;
 		const on = target ? ` on ${target}` : '';
+		const mark = this.intentTargetMark(intent);
 		switch (intent.type) {
 			case IntentType.ATTACK:
-				return { type: 'attack', value: intent.amount ?? undefined, valueText: value, description: intent.description, detail: `${value} damage${on}` };
+				return { type: 'attack', value: intent.amount ?? undefined, valueText: value, description: intent.description, detail: `${value} damage${on}`, target: mark };
 			case IntentType.DEFEND:
 				return { type: 'defend', value: intent.amount ?? undefined, description: intent.description, detail: `${value} armor` };
 			case IntentType.DEBUFF:
-				return { type: 'debuff', description: intent.description, detail: `${value}${on}` };
+				return { type: 'debuff', description: intent.description, detail: `${value}${on}`, target: mark };
 			case IntentType.BUFF:
 				return { type: 'buff', description: intent.description, detail: value };
 			default:
@@ -506,6 +524,7 @@ export class CombatScreen extends Screen {
 			widthMode: 'fill',
 			heightMode: 'fill',
 			combatData: this.combatModel,
+			seatOf: (driver) => this.seatOf(driver),
 		});
 		road.addChild(this.road);
 

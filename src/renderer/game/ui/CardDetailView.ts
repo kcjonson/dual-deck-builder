@@ -7,7 +7,8 @@ import { shadowExtent } from '../../engine/style/look';
 import { resolveColor } from '../../engine/style/styleObject';
 import type { Card as GameCard } from '../mechanics/Card';
 import { KEYWORDS, cardKeywords, cardRange } from '../data/keywords';
-import { DRIVER_MARK_OUTLINES, hexRgba } from '../screens/combat/combatStyle';
+import { hexRgba } from '../screens/combat/combatStyle';
+import { MARK_OUTLINES, seatMark } from './targetMarks';
 import { KeywordText } from './KeywordText';
 import {
 	CARD_DETAIL_RULES,
@@ -228,7 +229,7 @@ export class CardDetailView extends Component {
 		this.typeLabel.y = headMid - DETAIL.type.size / 2;
 		// The draws are built here, where layout places them, and only drawn in render
 		const driver = this.driverNumber;
-		this.markDraw = driver ? driverMarkDraw(driver, DRIVER_MARK_OUTLINES[driver], markLeft + DETAIL.type.mark / 2, headMid, DETAIL.type.mark) : null;
+		this.markDraw = driver ? driverMarkDraw(driver, MARK_OUTLINES[seatMark(driver) as 'driver1' | 'driver2'], markLeft + DETAIL.type.mark / 2, headMid, DETAIL.type.mark) : null;
 		this.hexDraws = costHexDraws(pad.side, this.hexY, DETAIL.hex.size);
 		this.digitsDraw.box = { x: pad.side, y: this.hexY, width: DETAIL.hex.size, height: DETAIL.hex.size };
 

@@ -5,8 +5,9 @@ import { Rectangle } from '../../../engine/components/Rectangle';
 import { Stack, StackOptions } from '../../../engine/components/Stack';
 import { Text } from '../../../engine/components/Text';
 import { ChromeStack } from './ChromeStack';
-import { DRIVER_COLORS, DRIVER_MARK_OUTLINES, DRIVER_TAB_BACKGROUND, hexRgba, rgba } from './combatStyle';
+import { DRIVER_COLORS, DRIVER_TAB_BACKGROUND, hexRgba, rgba } from './combatStyle';
 import type { DriverSeat } from './PlayerHandView';
+import { MARK_OUTLINES, seatMark } from '../../ui/targetMarks';
 
 /**
  * What a driver's tab shows
@@ -81,7 +82,7 @@ export class DriverTab extends ChromeStack {
 		this.seat = seat;
 
 		const mark = new Polygon({ width: MARK_SIZE, height: MARK_SIZE, style: { backgroundColor: color } });
-		mark.points = DRIVER_MARK_OUTLINES[seat];
+		mark.points = MARK_OUTLINES[seatMark(seat) as 'driver1' | 'driver2'];
 
 		this.nameLabel = new Text({
 			text: '',

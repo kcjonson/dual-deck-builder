@@ -8,7 +8,7 @@ import { Stack } from '../../../engine/components/Stack';
 import { Text } from '../../../engine/components/Text';
 import { ICON_CODE_POINTS, IconName } from '../../../engine/text/icons';
 import { tokens } from '../../../engine/theme/tokens';
-import { ArmorBadge } from '../../ui/ArmorBadge';
+import { StatusChip, StatusChipContent, shieldChipContent, statusChipContent } from '../../ui/StatusChip';
 import { EnemyIntent, IntentMarker } from '../../ui/IntentMarker';
 
 const ICON_SIZES = [12, 16, 24];
@@ -16,6 +16,7 @@ const LABEL_WIDTH = 70;
 /** Each glyph's cell, so the three sizes line up in columns. */
 const ICON_PITCH = 40;
 const ROW_HEIGHT = 44;
+const ICONS_PER_ROW = 12;
 const BLOCK_GAP = 40;
 /** A badge's fill around its glyph. */
 const BADGE_INSET = 4;
@@ -23,10 +24,10 @@ const BADGE_INSET = 4;
 /**
  * Every icon in the atlas (R12.6) at three sizes, bare and on a badge fill,
  * then the game sites that draw them: a button with a leading icon beside one
- * without, the four enemy intents, and the armor badge with and without
- * shield. The badged glyphs sit beside the bare ones where the section is
- * wide enough and wrap under them where it is not. An icon added to
- * icons.txt shows up here without touching this file.
+ * without, the four enemy intents, and a vehicle's status chips. The badged
+ * glyphs sit beside the bare ones where the section is wide enough and wrap
+ * under them where it is not. An icon added to icons.txt shows up here
+ * without touching this file.
  */
 export class IconExamplesSection extends DeveloperSectionPanel {
 	constructor(options: DeveloperSectionOptions = {}) {
@@ -57,29 +58,38 @@ export class IconExamplesSection extends DeveloperSectionPanel {
 			return marker;
 		}), 20));
 
-		const armors: [number, number][] = [[0, 0], [5, 0], [5, 3], [10, 12]];
-		column.addChild(labelledRow('Armor', armors.map(([armor, shield], index) => {
-			const armorBadge = new ArmorBadge({ id: `dev_icons_armor_${index}`, minWidth: 35, height: 16 });
-			armorBadge.armor = armor;
-			armorBadge.shield = shield;
-			return armorBadge;
-		}), 40));
+		const statuses: StatusChipContent[] = [
+			statusChipContent({ name: 'vulnerable', duration: 2 }),
+			statusChipContent({ name: 'speed_boost', duration: 3 }),
+			statusChipContent({ name: 'burn', duration: -1 }),
+			shieldChipContent(12),
+			{ kind: 'label', text: 'SPENT', title: 'Spent' },
+			{ kind: 'more', count: 3, detail: 'three more' },
+		];
+		column.addChild(labelledRow('Statuses', statuses.map((content, index) => {
+			const chip = new StatusChip({ id: `dev_icons_status_${index}` });
+			chip.chip = content;
+			return chip;
+		}), 8));
 
 		this.addChild(column);
 	}
 }
 
 /**
- * A captioned block of every glyph at each size, one row a size, each glyph
- * `extra` wider than its size and pitched `ICON_PITCH` apart.
+ * A captioned block of every glyph at each size, each glyph `extra` wider
+ * than its size and pitched `ICON_PITCH` apart, a size's glyphs in rows of
+ * `ICONS_PER_ROW` so the block fits the developer screen at 1024 wide.
  */
 function grid(caption: string, names: readonly IconName[], make: (glyph: IconName, size: number) => Component, extra: number): Stack {
 	const block = new Stack({ gap: 4 });
 	block.addChild(new Text({ text: caption, style: { fontSize: tokens.fontSize.fs_base, color: 'text_dim' } }));
 	for (const size of ICON_SIZES) {
-		const glyphs = new Stack({ direction: 'horizontal', gap: ICON_PITCH - size - extra, crossAlign: 'center', height: ROW_HEIGHT });
-		for (const glyph of names) glyphs.addChild(make(glyph, size));
-		block.addChild(labelledRow(`${size} px`, [glyphs], 0));
+		for (let start = 0; start < names.length; start += ICONS_PER_ROW) {
+			const glyphs = new Stack({ direction: 'horizontal', gap: ICON_PITCH - size - extra, crossAlign: 'center', height: ROW_HEIGHT });
+			for (const glyph of names.slice(start, start + ICONS_PER_ROW)) glyphs.addChild(make(glyph, size));
+			block.addChild(labelledRow(start === 0 ? `${size} px` : '', [glyphs], 0));
+		}
 	}
 	return block;
 }

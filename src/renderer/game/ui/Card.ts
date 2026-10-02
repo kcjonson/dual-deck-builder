@@ -12,7 +12,8 @@ import { normalizeTransform, transformMatrix } from '../../engine/components/com
 import { RGBA, Rect, concat, invert, transformPoint } from '../../engine/draw/geometry';
 import { CardRarity, Card as GameCard } from '../mechanics/Card';
 import { cardRange } from '../data/keywords';
-import { DRIVER_MARK_OUTLINES, hexRgba } from '../screens/combat/combatStyle';
+import { hexRgba } from '../screens/combat/combatStyle';
+import { MARK_OUTLINES, seatMark } from './targetMarks';
 import { KeywordText } from './KeywordText';
 import {
 	CARD_DIM,
@@ -330,7 +331,7 @@ export class Card extends Component {
 			return;
 		}
 		const half = FACE.mark.size / 2;
-		this.markDraw = driverMarkDraw(driver, DRIVER_MARK_OUTLINES[driver], FACE.mark.x + half, FACE.mark.y + half, FACE.mark.size);
+		this.markDraw = driverMarkDraw(driver, MARK_OUTLINES[seatMark(driver) as 'driver1' | 'driver2'], FACE.mark.x + half, FACE.mark.y + half, FACE.mark.size);
 		this.markDraw.fill = this.dimmed ? DRIVER_MARK_FILLS[driver].dimmed : DRIVER_MARK_FILLS[driver].full;
 	}
 

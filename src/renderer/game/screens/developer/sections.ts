@@ -28,6 +28,7 @@ import { CombatFxSection } from './CombatFxSection';
 import { CombatRoadSection } from './CombatRoadSection';
 import { CardDetailCapSection, CardDetailPinnedSection, CardDetailSection, CardFacesSection } from './CardDetailSection';
 import { SliderTabsSection } from './SliderTabsSection';
+import { VehicleTokensSection } from './VehicleTokensSection';
 
 /**
  * The developer screen's sections, defined once.
@@ -178,6 +179,11 @@ export const developerSections: readonly DeveloperSection[] = [
 	{
 		name: 'combat-road',
 		build: (options) => new CombatRoadSection(options),
+	},
+	// The battle screen's vehicle token in every state (DDB-135)
+	{
+		name: 'vehicle-tokens',
+		build: (options) => new VehicleTokensSection(options),
 	},
 	// The card face and its detail view (DDB-137), one state a scene so each fits 1024x600
 	{

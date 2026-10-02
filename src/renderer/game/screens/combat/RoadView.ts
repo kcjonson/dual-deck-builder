@@ -10,14 +10,13 @@ import { tokens } from '../../../engine/theme/tokens';
 import { Vehicle as VehicleData } from '../../mechanics/Vehicle';
 import { LANE_ORDER, RoadLane, RoadSlot, isShoulder, sameSlot } from '../../mechanics/Road';
 import { Vehicle as VehicleUI } from '../../ui/Vehicle';
-import { EnemyIntent, IntentRow } from '../../ui/IntentMarker';
+import type { EnemyIntent, IntentRow } from '../../ui/IntentMarker';
+import type { Driver } from '../../mechanics/Driver';
 import { CombatModel } from './CombatModel';
 import {
 	ROAD_ROW_GUTTER,
 	RoadLayout,
 	RoadRect,
-	TOKEN_HEIGHT,
-	TOKEN_WIDTH,
 	computeRoadLayout,
 	roadSlotRect,
 } from './CombatLayout';
@@ -25,10 +24,6 @@ import { ROAD_STYLE, Rgba, rgba } from './combatStyle';
 
 export type { EnemyIntent, IntentType } from '../../ui/IntentMarker';
 
-/** The token's intent strip, and where its plate starts under it (section 3). */
-const INTENT_STRIP_HEIGHT = 24;
-const PLATE_TOP = 26;
-const INTENT_MARKER_SIZE = 24;
 /** An empty slot's outline sits this far inside its cell (the mock's `.slot`). */
 const SLOT_OUTLINE_INSET_X = 6;
 const SLOT_OUTLINE_INSET_Y = 4;
@@ -65,32 +60,11 @@ const LANE_LOOKS: Readonly<Record<RoadLane, LaneLook>> = {
 	[RoadLane.ENEMY_SHOULDER]: { label: 'Your flank', side: 'player' },
 };
 
-class PlayerVehicle extends VehicleUI {
-	protected get portraitColor(): string {
-		return '#4a5a4a';
-	}
-
-	protected get borderColor(): string {
-		return '#6a8a6a';
-	}
-}
-
-class EnemyVehicle extends VehicleUI {
-	protected get portraitColor(): string {
-		return '#4a3a3a';
-	}
-
-	protected get borderColor(): string {
-		return '#6a5a5a';
-	}
-}
-
-/** A vehicle on the road: its plate, a raider's plan over it, and the slot-sized rect it's drawn in now. */
+/** A vehicle on the road: its token (a raider's plan rides in it) and the slot-sized rect it's drawn in now. */
 interface RoadToken {
 	vehicle: VehicleData;
 	side: Side;
 	view: VehicleUI;
-	intents: IntentRow | null;
 	/** Where it sits, or is swerving to. */
 	slot: RoadSlot;
 	/** The slot-sized rect it's in now: its slot's, or between two mid-swerve. */
@@ -100,7 +74,11 @@ interface RoadToken {
 	swerve: TweenHandle<number> | null;
 }
 
-export type RoadViewOptions = ComponentOptions & { combatData?: CombatModel };
+export type RoadViewOptions = ComponentOptions & {
+	combatData?: CombatModel;
+	/** The player's seat a driver sits in, for the tokens' marks. */
+	seatOf?: (driver: Driver) => 1 | 2 | null;
+};
 
 /**
  * The road (Battle Screen Design, sections 1 and 2): six lanes under a
@@ -119,6 +97,7 @@ export type RoadViewOptions = ComponentOptions & { combatData?: CombatModel };
  */
 export class RoadView extends Component {
 	private readonly combatData: CombatModel | null;
+	private readonly seatOf: ((driver: Driver) => 1 | 2 | null) | undefined;
 	private currentLayout: RoadLayout;
 	private sideBleed = 0;
 	private readonly roadTokens = new Map<string, RoadToken>();
@@ -136,10 +115,11 @@ export class RoadView extends Component {
 	// Rebuilt when a slot fills or empties
 	private readonly slotOutlines: DrawRectOptions[] = [];
 
-	constructor({ combatData, ...options }: RoadViewOptions) {
+	constructor({ combatData, seatOf, ...options }: RoadViewOptions) {
 		super(options);
 		this.componentType = 'RoadView';
 		this.combatData = combatData ?? null;
+		this.seatOf = seatOf;
 		this.currentLayout = computeRoadLayout({ width: this.width, height: this.height });
 
 		this.laneHeads = LANE_ORDER.map((lane) => {
@@ -220,7 +200,7 @@ export class RoadView extends Component {
 
 	/** The row showing a raider's plan, while the raider is on the road. */
 	public intentRowOf(vehicleId: string): IntentRow | null {
-		return this.roadTokens.get(vehicleId)?.intents ?? null;
+		return this.roadTokens.get(vehicleId)?.view.intentsRow ?? null;
 	}
 
 	/** The slot a vehicle's token sits in, or is swerving to. */
@@ -277,8 +257,8 @@ export class RoadView extends Component {
 	public setVehicleIntents(vehicleId: string, intents: readonly EnemyIntent[]): void {
 		if (intents.length === 0) this.plannedIntents.delete(vehicleId);
 		else this.plannedIntents.set(vehicleId, intents);
-		const row = this.roadTokens.get(vehicleId)?.intents;
-		if (row) row.intents = intents;
+		const token = this.roadTokens.get(vehicleId);
+		if (token) token.view.intents = intents;
 	}
 
 	protected onResized(): void {
@@ -300,40 +280,20 @@ export class RoadView extends Component {
 
 	/** Stable ids from the slot a vehicle arrives in: vehicle ids are random per load, and slots are unique. */
 	private createToken(vehicle: VehicleData, side: Side, slot: RoadSlot): RoadToken {
-		const Plate = side === 'enemy' ? EnemyVehicle : PlayerVehicle;
-		const view = new Plate({
+		const view = new VehicleUI({
 			id: `${side}_vehicle_${slot.lane}_${slot.row}`,
-			x: 0,
-			y: 0,
-			width: TOKEN_WIDTH,
-			height: TOKEN_HEIGHT - PLATE_TOP,
 			vehicleData: vehicle,
+			side: side === 'enemy' ? 'raider' : 'player',
+			seatOf: this.seatOf,
 			combatData: this.combatData ?? undefined,
 			onClick: (target) => this.combatData?.targetVehicle(target),
 		});
+		if (side === 'enemy') view.intents = this.plannedIntents.get(vehicle.id) ?? [];
 		this.addChild(view);
-		let intents: IntentRow | null = null;
-		if (side === 'enemy') {
-			// Siblings of the plate, not its children: a plate is one hit target
-			// (`unit`), so nothing inside it is hovered, and the discs need their
-			// tooltips. The plan is part of its raider as a drop target.
-			intents = new IntentRow({
-				id: view.id ? `${view.id}_intents` : undefined,
-				markerSize: INTENT_MARKER_SIZE,
-				distribution: 'end',
-				crossAlign: 'center',
-			});
-			intents.intents = this.plannedIntents.get(vehicle.id) ?? [];
-			intents.onDragEnter = (event) => view.dragEntered(event);
-			intents.onDragLeave = () => view.dragLeft();
-			intents.onDrop = (event) => view.dropped(event);
-			this.addChild(intents);
-		}
 		const token: RoadToken = {
 			vehicle,
 			side,
 			view,
-			intents,
 			slot,
 			at: { x: 0, y: 0, width: 0, height: 0 },
 			from: { x: 0, y: 0 },
@@ -348,7 +308,6 @@ export class RoadView extends Component {
 		token.swerve?.cancel();
 		token.swerve = null;
 		this.removeChild(token.view);
-		if (token.intents) this.removeChild(token.intents);
 	}
 
 	/** Raiders, then your vehicles, each team in its own order, after the labels. */
@@ -358,7 +317,6 @@ export class RoadView extends Component {
 			const token = this.roadTokens.get(vehicle.id);
 			if (!token) continue;
 			this.moveChild(token.view, index++);
-			if (token.intents) this.moveChild(token.intents, index++);
 		}
 	}
 
@@ -402,25 +360,11 @@ export class RoadView extends Component {
 	private raise(token: RoadToken, raised: boolean): void {
 		const zIndex = raised ? 1 : 0;
 		token.view.zIndex = zIndex;
-		if (token.intents) token.intents.zIndex = zIndex;
 	}
 
-	/**
-	 * The token centred in the rect it's in now, at the layout's scale: the
-	 * plan in the strip across its top, right-aligned, and the plate under it.
-	 */
+	/** The token centred in the rect it's in now, at the layout's one scale (the token holds it to x1 to x1.25). */
 	private placeToken(token: RoadToken): void {
-		const scale = Math.max(0, this.currentLayout.tokenScale);
-		const width = TOKEN_WIDTH * scale;
-		const height = TOKEN_HEIGHT * scale;
-		const { at } = token;
-		const x = at.x + (at.width - width) / 2;
-		const y = at.y + (at.height - height) / 2;
-		const plateTop = PLATE_TOP * scale;
-		token.view.setPosition(x, y + plateTop);
-		token.view.setSize(width, height - plateTop);
-		token.intents?.setPosition(x, y);
-		token.intents?.setSize(width, INTENT_STRIP_HEIGHT * scale);
+		token.view.fitToSlot(token.at, this.currentLayout.tokenScale);
 	}
 
 	/** Everything from the band's size: the ground, the labels, and every token back in its slot. */
