@@ -6,6 +6,16 @@ This document contains the chronological log of completed development tasks for 
 
 **Date correction (2026-08-22):** the repo's first commit is 2025-05-17, but many entries below carry dates in December 2024 or January 2025 — the AI that wrote them used its assumed date instead of the real one. Entries dated 2025-07-03 and 2025-07-02 have been corrected from "2025-01-03"/"2025-01-02" (verified against git history). Remaining Dec 2024 / Jan 2025 dates are wrong by roughly six months; the real work happened May–July 2025. Trust git history over these dates.
 
+## Small-text evenness kept as a platform tolerance (2026-10-02)
+
+**What landed:** DDB-218 (DDB-55). No rendering change.
+
+- Weight at 10 to 13 px already matches the Linux runner's FreeType (0.95 to 1.0); the macOS gap is CoreText drawing heavier, so stem darkening would only make the reference platform too heavy.
+- Evenness is the lack of hinting: each glyph's stem lands at the sub-pixel phase its unhinted advances give it. Snapping each glyph to a whole pixel (R6.16's optional rule) takes stem variation to zero and placement error from 0.02 to 0.06 px up to 0.28 px; enlarged, 10 px reads "Hambur gefonstiv". Half-pixel snapping is worse at 12 px. Kept the field as it is.
+- The 6.9 test in `uberShader.spec.ts` now scores placement error too and holds the field under 0.1 px. The stem row is 34 `l`s so 12 px walks a full pixel of phase, each `l` is scored in a window centred on its stem, variation ceilings sit about 10 percent over today's, and weight on Linux is held to 0.9 to 1.05.
+- The macOS weight step between the raster fallback and the field at the switch size stays open and moves to DDB-217.
+
+**How:** measured all three variants in the encoder against the test locally (macOS Chromium; the field's scores are the same on Linux). Details in [small-text-evenness.md](./AI_TECHNICAL_DECISIONS/small-text-evenness.md).
 ## IME composition scoped out, composing keys dropped (2026-10-02)
 
 **What landed:** DDB-220 (DDB-55), a scope call plus a guard.

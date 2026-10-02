@@ -578,9 +578,10 @@ test.describe('uber shader', () => {
  * through the distance field against the platform's own rasterisation of the
  * same font file, for stem weight (total ink over a word) and evenness (how
  * much the darkest column of each `l` in a row of them varies as its
- * sub-pixel phase moves). Distance fields have no hinting (R6.4a), so the
- * gate is a band, not equality; the scores print so a regression shows how
- * far it moved.
+ * sub-pixel phase moves), plus placement (how far each `l` sits from its
+ * advance), the cost of buying evenness by snapping. Distance fields have no
+ * hinting (R6.4a), so the gate is a band, not equality; the scores print so
+ * a regression shows how far it moved.
  */
 test.describe('small text against a platform reference (6.9)', () => {
 	const FONTS = join(__dirname, '../../../src/assets/fonts');
@@ -592,19 +593,27 @@ test.describe('small text against a platform reference (6.9)', () => {
 	const BODY_TEXTURE: TextureHandle = { id: 1, width: BODY_ATLAS.width, height: BODY_ATLAS.height, label: 'body atlas' };
 	const BODY_FACE = readFileSync(join(FONTS, 'open-sans/OpenSans-Regular.ttf')).toString('base64');
 	const WORD = 'Hamburgefonstiv';
-	const STEMS = 'llllllllllllllll';
+	// 34 so that at 12 px, where an `l` advances 3.03 px, the pens walk a
+	// whole pixel of phase rather than half of one.
+	const STEMS = 'l'.repeat(34);
 	const WIDTH = 240;
 	const HEIGHT = 48;
 	const WORD_BASELINE = 18;
 	const STEM_BASELINE = 40;
 	/**
-	 * Lowest weight and highest stem variation each size may score (see the
-	 * test). The reference is the platform's, so the weight floor is too: the
-	 * Linux runner's FreeType matches the field's ink (0.95 to 1.0 when
-	 * DDB-199 measured it) and macOS CoreText draws a third heavier.
+	 * The tolerance band (docs/AI_TECHNICAL_DECISIONS/small-text-evenness.md).
+	 * The reference is the platform's, so the weight floor is too: the Linux
+	 * runner's FreeType matches the field's ink (0.95 to 1.0) and macOS
+	 * CoreText draws a third heavier. The field's own scores do not depend on
+	 * the platform (SwiftShader on both), so its stem variation (0.22, 0.19,
+	 * 0.18 at 10, 12, 13 px) and placement error (0.06, 0.02, 0.02 px) are held
+	 * close. Snapping each glyph to a whole pixel takes variation to zero and
+	 * placement error to 0.28 to 0.29 px, which the placement ceiling refuses.
 	 */
 	const WEIGHT_FLOOR = process.platform === 'linux' ? 0.9 : 0.55;
-	const VARIATION_CEILING: Record<number, number> = { 10: 0.3, 12: 0.22, 13: 0.23 };
+	const WEIGHT_CEILING = process.platform === 'linux' ? 1.05 : 0.85;
+	const VARIATION_CEILING: Record<number, number> = { 10: 0.25, 12: 0.21, 13: 0.2 };
+	const PLACEMENT_CEILING = 0.1;
 	let texels: number[] = [];
 
 	test.beforeAll(() => {
@@ -615,10 +624,20 @@ test.describe('small text against a platform reference (6.9)', () => {
 		await page.setContent('<!doctype html><title>small text</title>');
 	});
 
-	/** Coverage per device pixel, top row first, and the pen advance of one `l`. */
+	/**
+	 * Coverage per device pixel, top row first, the pen advance of one `l`, and
+	 * where its stem's centre sits right of its pen (from the atlas's plane
+	 * bounds, the same outline the platform draws).
+	 */
 	interface Raster {
 		coverage: number[];
 		stemAdvance: number;
+		stemCentre: number;
+	}
+
+	function stemCentre(size: number): number {
+		const plane = BODY_ATLAS.glyph(0x6C)?.plane;
+		return plane ? ((plane.left + plane.right) / 2) * size : 0;
 	}
 
 	/** The two runs through the uber shader, laid out by the atlas metrics. */
@@ -636,12 +655,12 @@ test.describe('small text against a platform reference (6.9)', () => {
 		}, undefined, { atlas: BODY_ATLAS, texture: BODY_TEXTURE });
 		const coverage: number[] = [];
 		for (let y = 0; y < HEIGHT; y++) for (let x = 0; x < WIDTH; x++) coverage.push(pixel(frame, x, y)[3] / 255);
-		return { coverage, stemAdvance: (BODY_ATLAS.glyph(0x6C)?.advance ?? 0) * size };
+		return { coverage, stemAdvance: (BODY_ATLAS.glyph(0x6C)?.advance ?? 0) * size, stemCentre: stemCentre(size) };
 	}
 
 	/** The same two runs from the platform's 2D text API with the same font file. */
 	async function platform(page: Page, size: number): Promise<Raster> {
-		return page.evaluate(async ({ face, size, width, height, word, stems, wordBaseline, stemBaseline }) => {
+		const raster = await page.evaluate(async ({ face, size, width, height, word, stems, wordBaseline, stemBaseline }) => {
 			const bytes = Uint8Array.from(atob(face), (char) => char.charCodeAt(0));
 			const font = new FontFace('reference', bytes.buffer);
 			await font.load();
@@ -661,6 +680,7 @@ test.describe('small text against a platform reference (6.9)', () => {
 			// The platform's own advances, which hinting may round.
 			return { coverage, stemAdvance: context.measureText(stems).width / stems.length };
 		}, { face: BODY_FACE, size, width: WIDTH, height: HEIGHT, word: WORD, stems: STEMS, wordBaseline: WORD_BASELINE, stemBaseline: STEM_BASELINE });
+		return { ...raster, stemCentre: stemCentre(size) };
 	}
 
 	function ink(coverage: number[], top: number, bottom: number): number {
@@ -669,23 +689,56 @@ test.describe('small text against a platform reference (6.9)', () => {
 		return sum;
 	}
 
-	/** The coefficient of variation of each `l`'s darkest column, in its advance-wide window. */
-	function stemVariation({ coverage, stemAdvance: advance }: Raster): number {
-		const peaks: number[] = [];
-		for (let glyph = 0; glyph < STEMS.length; glyph++) {
-			const start = Math.floor(4 + glyph * advance);
-			const end = Math.floor(4 + (glyph + 1) * advance);
-			let peak = 0;
-			for (let x = start; x < end; x++) {
-				let column = 0;
-				for (let y = WORD_BASELINE + 4; y < HEIGHT; y++) column += coverage[y * WIDTH + x];
-				peak = Math.max(peak, column);
-			}
-			peaks.push(peak);
+	/**
+	 * Each `l`'s ink per column, with the window's first column: the columns
+	 * whose centres lie within half an advance of where the stem's centre
+	 * should be, so the whole stem is inside its window at every phase.
+	 */
+	function stemColumns({ coverage, stemAdvance: advance, stemCentre: centre }: Raster, glyph: number): { start: number; columns: number[] } {
+		const expected = 4 + glyph * advance + centre;
+		const start = Math.ceil(expected - advance / 2 - 0.5);
+		const end = Math.ceil(expected + advance / 2 - 0.5);
+		const columns: number[] = [];
+		for (let x = start; x < end; x++) {
+			let column = 0;
+			for (let y = WORD_BASELINE + 4; y < HEIGHT; y++) column += coverage[y * WIDTH + x];
+			columns.push(column);
 		}
-		const mean = peaks.reduce((sum, value) => sum + value, 0) / peaks.length;
-		const variance = peaks.reduce((sum, value) => sum + (value - mean) ** 2, 0) / peaks.length;
-		return Math.sqrt(variance) / mean;
+		return { start, columns };
+	}
+
+	function deviation(values: number[]): { mean: number; deviation: number } {
+		const mean = values.reduce((sum, value) => sum + value, 0) / values.length;
+		const variance = values.reduce((sum, value) => sum + (value - mean) ** 2, 0) / values.length;
+		return { mean, deviation: Math.sqrt(variance) };
+	}
+
+	/** The coefficient of variation of each `l`'s darkest column. */
+	function stemVariation(raster: Raster): number {
+		const peaks: number[] = [];
+		for (let glyph = 0; glyph < STEMS.length; glyph++) peaks.push(Math.max(...stemColumns(raster, glyph).columns));
+		const { mean, deviation: spread } = deviation(peaks);
+		return spread / mean;
+	}
+
+	/**
+	 * How far, in device pixels (standard deviation), each `l`'s ink centre
+	 * sits from where its advance puts it. Snapping each glyph to a whole pixel
+	 * buys stem evenness with exactly this: gaps that alternate by a pixel.
+	 */
+	function placementError(raster: Raster): number {
+		const offsets: number[] = [];
+		for (let glyph = 0; glyph < STEMS.length; glyph++) {
+			const { start, columns } = stemColumns(raster, glyph);
+			let ink = 0;
+			let moment = 0;
+			columns.forEach((column, index) => {
+				ink += column;
+				moment += column * (start + index + 0.5);
+			});
+			offsets.push(moment / ink - (4 + glyph * raster.stemAdvance + raster.stemCentre));
+		}
+		return deviation(offsets).deviation;
 	}
 
 	for (const size of [10, 12, 13]) {
@@ -695,14 +748,18 @@ test.describe('small text against a platform reference (6.9)', () => {
 			const weight = ink(field.coverage, 0, WORD_BASELINE + 4) / ink(reference.coverage, 0, WORD_BASELINE + 4);
 			const fieldEvenness = stemVariation(field);
 			const referenceEvenness = stemVariation(reference);
-			console.log(`6.9 small text, body ${size} px: weight ${weight.toFixed(3)} of the platform's, stem variation ${fieldEvenness.toFixed(3)} against ${referenceEvenness.toFixed(3)}`);
-			// A ratchet, not the target (DDB-218): the field's stems vary with
-			// their sub-pixel phase (0.17 to 0.24) where the hinted platform
-			// raster's do not, and on macOS it is also lighter. These bounds
-			// catch it getting worse.
+			const fieldPlacement = placementError(field);
+			const referencePlacement = placementError(reference);
+			console.log(`6.9 small text, body ${size} px: weight ${weight.toFixed(3)} of the platform's, stem variation ${fieldEvenness.toFixed(3)} against ${referenceEvenness.toFixed(3)}, placement error ${fieldPlacement.toFixed(3)} px against ${referencePlacement.toFixed(3)}`);
+			// The field keeps every stem where its advance puts it and lets
+			// the stem's sub-pixel phase vary. The Linux platform scores zero
+			// on both because it rounds the advances, which measurement here
+			// may not (R6.16); snapping glyphs without that trades evenness
+			// for placement, so placement is held (DDB-218).
 			expect(weight).toBeGreaterThan(WEIGHT_FLOOR);
-			expect(weight).toBeLessThan(1.25);
+			expect(weight).toBeLessThan(WEIGHT_CEILING);
 			expect(fieldEvenness).toBeLessThan(VARIATION_CEILING[size]);
+			expect(fieldPlacement).toBeLessThan(PLACEMENT_CEILING);
 		});
 	}
 });
