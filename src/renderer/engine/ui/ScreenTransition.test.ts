@@ -135,6 +135,21 @@ describe('ScreenTransition (R12.38)', () => {
 		expect(transition.phase).toBe('idle');
 	});
 
+	it('stays idle when it is closed from inside its own swap', async () => {
+		let settled = false;
+		const done = transition.run(context, () => {
+			navigate('combat')();
+			transition.overlay?.close();
+		});
+		void done.then(() => { settled = true; });
+		advance(context, FADE_MS * 2);
+		await done;
+		expect(settled).toBe(true);
+		expect(transition.phase).toBe('idle');
+		expect(transition.active).toBe(false);
+		expect(context.overlays.roots).toHaveLength(0);
+	});
+
 	it('ends uncovered and released when the swap throws, rejecting the run and logging', async () => {
 		const logged = jest.spyOn(console, 'error').mockImplementation(() => undefined);
 		const failure = new Error('screen constructor threw');
