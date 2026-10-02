@@ -26,6 +26,12 @@ export interface ScreenScenario {
 export interface SceneScenario {
 	scene: string;
 	blockedBy?: string;
+	/**
+	 * Captured and linted at the short viewport too, as `<scene>-1024x600`:
+	 * a scene standing in for a screen state that both gate sizes have to
+	 * hold, as the screens themselves are (DDB-138's mid-drag road).
+	 */
+	shortViewport?: boolean;
 }
 
 interface ScreenCase {
@@ -125,4 +131,24 @@ export const SCENE_SCENARIOS: readonly SceneScenario[] = [
 	{ scene: 'rounded-clip' },
 	{ scene: 'combat-road' },
 	{ scene: 'vehicle-tokens' },
+	{ scene: 'combat-targeting', shortViewport: true },
+];
+
+/** A scene at one window size, and the name its golden and text record go by there. */
+export interface SizedSceneScenario extends SceneScenario {
+	name: string;
+	viewport?: Viewport;
+}
+
+/**
+ * Every scene at the fixed viewport, then the ones flagged `shortViewport`
+ * again at the short one.
+ */
+export const SIZED_SCENE_SCENARIOS: readonly SizedSceneScenario[] = [
+	...SCENE_SCENARIOS.map((entry) => ({ ...entry, name: entry.scene })),
+	...SCENE_SCENARIOS.filter((entry) => entry.shortViewport).map((entry) => ({
+		...entry,
+		name: `${entry.scene}-${SHORT_VIEWPORT.width}x${SHORT_VIEWPORT.height}`,
+		viewport: SHORT_VIEWPORT,
+	})),
 ];

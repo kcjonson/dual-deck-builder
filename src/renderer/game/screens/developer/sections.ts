@@ -28,6 +28,7 @@ import { CombatFxSection } from './CombatFxSection';
 import { CombatRoadSection } from './CombatRoadSection';
 import { SliderTabsSection } from './SliderTabsSection';
 import { VehicleTokensSection } from './VehicleTokensSection';
+import { CombatTargetingSection } from './CombatTargetingSection';
 
 /**
  * The developer screen's sections, defined once.
@@ -183,5 +184,10 @@ export const developerSections: readonly DeveloperSection[] = [
 	{
 		name: 'vehicle-tokens',
 		build: (options) => new VehicleTokensSection(options),
+	},
+	// A card mid-drag over the road: ranges, outlines, ghost, hit check (DDB-138)
+	{
+		name: 'combat-targeting',
+		build: (options) => new CombatTargetingSection(options),
 	},
 ];

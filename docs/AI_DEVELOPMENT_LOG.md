@@ -6,6 +6,19 @@ This document contains the chronological log of completed development tasks for 
 
 **Date correction (2026-08-22):** the repo's first commit is 2025-05-17, but many entries below carry dates in December 2024 or January 2025 — the AI that wrote them used its assumed date instead of the real one. Entries dated 2025-07-03 and 2025-07-02 have been corrected from "2025-01-03"/"2025-01-02" (verified against git history). Remaining Dec 2024 / Jan 2025 dates are wrong by roughly six months; the real work happened May–July 2025. Trust git history over these dates.
 
+## Targeting: ranges, legal targets, outlines, ghost, hit check, cancel (2026-10-02)
+
+**What landed:** DDB-138 (DDB-127), Battle Screen Design section 6's targeting state; closes DDB-111 and the screen half of DDB-114.
+
+- `mechanics/AimPreview.ts`: `previewAim` gives the actor, range, reach, hit check, and per-bar losses for a card on one vehicle. `Battle.hitCheck` returns `checkHit`'s numbers; `calculateFormulaDamage` is public.
+- `CombatScreen.determineTargetableVehicles` keeps only what `Battle.getTargetBlocker` passes, for every card. `showRanges` labels each raider once when a card is picked; `showAimAt` puts the ghost and the hit check on the focused target.
+- `ui/RangeChip.ts` in the token; `Vehicle.rangeLabel`, `Vehicle.damageGhost`; dashed legal outline as one triangle list, solid hovered outline with a 22 px glow, dimming at 35%. `ui/stripes.ts` holds the hatch (moved from `RoadView`) and the dashes.
+- `HitCheckChip` and `hitCheckText` in `CombatFxLayer`; `AimReticle` and `TargetingArrow` take `pinnedOnTarget` for the gallery.
+- Cancel: the stage takes clicks, so one that lands on no target, or a right-click anywhere, puts a waiting card back; so does a second click on the card.
+- Gallery scene `combat-targeting`, golden and lint at 1440x882 and 1024x600 (`SceneScenario.shortViewport`). Record: [targeting-preview.md](./AI_TECHNICAL_DECISIONS/targeting-preview.md).
+
+**How:** unit tests for the preview (checked against play), the token's dashes, glow, chip, and ghost, the hit check text, and the screen's ranges, legal targets, hit check, ghost, and cancels; played the combat screen through `__dev.input` at 1280x720 and 1024x600 (drag, click-then-target, keyboard, every cancel).
+
 ## The vehicle token (2026-10-02)
 
 **What landed:** DDB-135 (DDB-127), folding in DDB-165.

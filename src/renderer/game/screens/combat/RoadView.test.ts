@@ -13,7 +13,8 @@ import { Vehicle } from '../../mechanics/Vehicle';
 import { RoadLane, RoadRow, RoadSlot } from '../../mechanics/Road';
 import { TOKEN_HEIGHT, TOKEN_WIDTH } from './CombatLayout';
 import { ROAD_STYLE } from './combatStyle';
-import { EnemyIntent, RoadView, SWERVE_DURATION, hatchTriangles } from './RoadView';
+import { EnemyIntent, RoadView, SHOULDER_HATCH, SWERVE_DURATION } from './RoadView';
+import { hatchTriangles } from '../../ui/stripes';
 
 /** The road band at the 1280x720 reference: 1280 wide, 720 less the top bar and the dock. */
 const ROAD_WIDTH = 1280;
@@ -241,7 +242,7 @@ describe('RoadView', () => {
 
 		it('hatches a shoulder in triangles that stay inside it', () => {
 			const rect = { x: -40, y: 0, width: 240, height: 456 };
-			const points = hatchTriangles(rect);
+			const points = hatchTriangles(rect, SHOULDER_HATCH);
 			expect(points.length % 3).toBe(0);
 			expect(points.length).toBeGreaterThan(0);
 			for (const point of points) {

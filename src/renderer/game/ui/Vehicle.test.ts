@@ -294,3 +294,115 @@ describe('Vehicle token targeting', () => {
 		expect(border()).toEqual(resting);
 	});
 });
+
+describe('Vehicle token while a card is aimed (DDB-138)', () => {
+	interface Command {
+		kind: string;
+		border?: { width: number } | null;
+		rect?: { x: number; y: number; width: number; height: number };
+		points?: readonly { x: number; y: number }[];
+	}
+
+	function frame(token: Vehicle): Command[] {
+		const { context, api, backend } = measured();
+		token.mount(context);
+		context.frame.layout();
+		api.beginFrame({ viewport: { width: 400, height: 300 } });
+		renderTree(token, api);
+		api.endFrame();
+		const commands = [...backend.commands] as unknown as Command[];
+		token.unmount();
+		return commands;
+	}
+
+	function aimed(): { model: CombatModel; buggy: VehicleData; token: Vehicle } {
+		const buggy = createDrivenVehicle({ driver: createTestDriver('Raider'), name: 'Buggy' });
+		const model = new CombatModel();
+		model.isTargeting = true;
+		model.targetableVehicleIds = [buggy.id];
+		const token = new Vehicle({ id: 'token', vehicleData: buggy, side: 'raider', combatData: model });
+		return { model, buggy, token };
+	}
+
+	const isDashes = (command: Command): boolean => command.kind === 'polygon' && (command.points?.length ?? 0) > 60;
+	const isSolidOutline = (command: Command): boolean => command.kind === 'rect' && command.border?.width === 3;
+
+	it('outlines a legal target in dashes drawn as one triangle list, built once, and the hovered one solid with a glow', () => {
+		const { model, buggy, token } = aimed();
+		const dashed = frame(token);
+		expect(dashed.filter(isSolidOutline)).toEqual([]);
+		const dashes = dashed.filter(isDashes);
+		expect(dashes).toHaveLength(1);
+		expect((dashes[0].points?.length ?? 0) % 3).toBe(0);
+		const built = token['dashPoints'];
+		const firstPoint = built[0];
+		frame(token);
+		expect(token['dashPoints'][0]).toBe(firstPoint);
+
+		model.focusVehicle(buggy.id);
+		const solid = frame(token);
+		expect(solid.filter(isSolidOutline)).toHaveLength(1);
+		expect(solid.some(command => command.kind === 'shadow')).toBe(true);
+		expect(solid.filter(isDashes)).toEqual([]);
+	});
+
+	it('dims a vehicle the card can\'t reach to the mock\'s 35%', () => {
+		const { model, token } = aimed();
+		model.targetableVehicleIds = [];
+		token.mount(createTestContext());
+		expect(token.opacity).toBeCloseTo(0.35, 6);
+		token.unmount();
+	});
+
+	it('shows its range chip at the top left, red-edged where the card can land', () => {
+		const { token } = aimed();
+		const chip = part<{ visible: boolean; x: number; width: number; drawnText: readonly string[] | null }>(token, 'range');
+		expect(chip.visible).toBe(false);
+		token.rangeLabel = { text: 'R1', legal: true };
+		expect(chip.visible).toBe(true);
+		expect(chip.x).toBe(0);
+		expect(chip.drawnText).toEqual(['R1']);
+		const narrow = chip.width;
+		token.rangeLabel = { text: 'OUT', legal: false };
+		expect(chip.width).toBeGreaterThan(narrow);
+		token.rangeLabel = null;
+		expect(chip.visible).toBe(false);
+	});
+
+	it('lints clean with its widest range chip beside a full intents row', () => {
+		const { context } = measured();
+		const { token } = aimed();
+		token.intents = [
+			{ type: 'attack', value: 15, description: 'Ram', target: 'driver1' },
+			{ type: 'attack', value: 15, description: 'Shoot', target: 'both' },
+			{ type: 'defend', value: 10, description: 'Brace' },
+		];
+		token.rangeLabel = { text: 'OUT', legal: false };
+		token.fitToSlot({ x: 0, y: 0, width: 205, height: 141 });
+		expect(lintOf(token, context)).toEqual([]);
+	});
+
+	it('puts a striped ghost over the end of the bar the hit takes from, and nowhere else', () => {
+		const { buggy, token } = aimed();
+		const driver = buggy.driver;
+		if (!driver) throw new Error('the buggy should have a driver');
+		driver.set({ hitpoints: 20, maxHitpoints: 20 });
+		token.data = buggy;
+		token.damageGhost = { structure: 0, driver: 5, passenger: 0 };
+		const hp = token.hpTrackRect;
+		const structure = token.structureTrackRect;
+		const ghostOn = (commands: Command[], bar: Readonly<{ x: number; y: number; width: number }>, share: number): Command | undefined =>
+			commands.find(command => command.kind === 'rect' && command.rect?.y === bar.y && Math.abs(command.rect.x - (bar.x + Math.round(bar.width * share))) < 0.5);
+
+		const commands = frame(token);
+		const ghost = ghostOn(commands, hp, 0.75);
+		expect(ghost?.rect?.width).toBeCloseTo(Math.round(hp.width) - Math.round(hp.width * 0.75), 0);
+		// The stripes over it, as one triangle list
+		expect(commands.some(command => command.kind === 'polygon' && (command.points ?? []).every(point => point.y >= hp.y - 1e-6 && point.y <= hp.y + hp.height + 1e-6) && (command.points?.length ?? 0) > 0)).toBe(true);
+		// Structure has no ghost: nothing starts inside its track
+		expect(commands.some(command => command.kind === 'rect' && command.rect?.y === structure.y && command.rect.x > structure.x)).toBe(false);
+
+		token.damageGhost = null;
+		expect(ghostOn(frame(token), hp, 0.75)).toBeUndefined();
+	});
+});
