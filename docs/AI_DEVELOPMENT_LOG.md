@@ -11,7 +11,8 @@ This document contains the chronological log of completed development tasks for 
 **What landed:** DDB-225 and DDB-238 (DDB-55), one PR.
 
 - `Game`'s document keydown listener is gone. Every screen already registered Escape on its root; F12 moved to the dispatcher's scene table and F5 to the developer overlay root's own table, so both come through `PointerAdapter` (a composing keydown fires neither, R15.39), pause drops them, and a transition holds F12. Held keys don't repeat the toggles.
-- The dispatcher searches diagnostic-tier roots first for hotkeys, ahead of any modal, so F5 stays live under a transition or a dialog as it did before.
+- The dispatcher searches diagnostic-tier roots first for hotkeys, ahead of any modal, so F5 stays live under a transition or a dialog as it did before. R9.15 says so.
+- F12 off the developer screen returns focus like Back does; Developer and Showcase Page Up and Page Down use `scrollByPages`.
 - `DriverSelectionScreen` builds its page in `onMount`, clears it and unregisters Escape in `onUnmount`, and drops a roster load that finishes after it left. Back and Escape go to the menu with `restoreFocus`.
 - Card Showcase and Developer Tools go back with `restoreFocus`, so the menu lands on the button that opened them.
 - `ScreenManager` reads and deletes a screen's remembered focus whenever it mounts that screen, so a leave the recorder skipped can't restore an older id.

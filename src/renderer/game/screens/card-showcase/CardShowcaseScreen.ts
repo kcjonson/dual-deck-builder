@@ -82,8 +82,8 @@ export class CardShowcaseScreen extends Screen {
 
 		const { hotkeys } = this.rootLayer;
 		hotkeys.register('Escape', () => this.back());
-		hotkeys.register('PageDown', () => this.scroller?.scrollBy(this.scroller.height));
-		hotkeys.register('PageUp', () => this.scroller?.scrollBy(-(this.scroller?.height ?? 0)));
+		hotkeys.register('PageDown', () => this.scroller?.scrollByPages(1));
+		hotkeys.register('PageUp', () => this.scroller?.scrollByPages(-1));
 		this.context.focus.focus(back);
 
 		void this.loadCards(++this.generation);

@@ -265,7 +265,8 @@ export class Game {
 		this.context.dispatcher.hotkeys.register('F12', ({ repeat }) => {
 			if (repeat) return;
 			const leaving = ScreenManager.getCurrentScreenName() === 'developerScreen';
-			ScreenManager.navigate(leaving ? 'mainMenuScreen' : 'developerScreen');
+			if (leaving) ScreenManager.navigate('mainMenuScreen', undefined, { restoreFocus: true });
+			else ScreenManager.navigate('developerScreen');
 		});
 	}
 

@@ -258,7 +258,7 @@ describe('F12 is a scene hotkey, so pause holds it (R13.35)', () => {
 		manager.getCurrentScreenName.mockReturnValueOnce('developerScreen');
 		send(context, [key('F12')]);
 
-		expect(screens.navigate).toHaveBeenCalledWith('mainMenuScreen');
+		expect(screens.navigate).toHaveBeenCalledWith('mainMenuScreen', undefined, { restoreFocus: true });
 	});
 });
 
