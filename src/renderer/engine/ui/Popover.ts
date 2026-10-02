@@ -8,7 +8,7 @@ import type { OverlayHandle } from '../services/OverlayService';
 import { PlacementAlign, PlacementSide, pointAnchor } from '../services/Placement';
 import { shadowExtent } from '../style/look';
 import { tokens } from '../theme/tokens';
-import { SHADOW_POP } from './surfaces';
+import { SHADOW_POP, borderClipRadius, borderClipRect } from './surfaces';
 
 export interface PopoverOptions {
 	id?: string;
@@ -32,6 +32,8 @@ export interface PopoverOptions {
 
 const { color } = tokens;
 const OFFSET = tokens.space.space_1_5;
+const RADIUS = tokens.radius.radius_panel;
+const BORDER_WIDTH = tokens.borderWidth.bw;
 
 /**
  * R12.33's popover: an anchored, interactive, non-modal floating surface,
@@ -44,7 +46,9 @@ const OFFSET = tokens.space.space_1_5;
  *
  * The surface is a padded column stack around the caller's content, sized
  * from it; fades in over `dur_fast` and closes at once. Tooltip is the
- * non-interactive special case (R12.22).
+ * non-interactive special case (R12.22). When placement shrinks it, it clips
+ * at the border's inner edge with a rounded clip (R4.14), so content cut at
+ * the edge never paints over the border or past the corners.
  *
  * Opened from inside a modal dialog it needs `layer: 'popup'`: `overlay` is
  * below `modal` (R3.5), so it would sit under the dialog's scrim.
@@ -125,6 +129,14 @@ export class Popover extends Stack {
 		return shadowExtent(SHADOW_POP);
 	}
 
+	protected computeClipRect(): Rect {
+		return borderClipRect(this.width, this.height, BORDER_WIDTH);
+	}
+
+	public get clipRadius(): number {
+		return borderClipRadius(RADIUS, this.clipRect);
+	}
+
 	/** Opens it against its anchor. Ignored while open. */
 	public show(context: MountContext): void {
 		if (this.handle) return;
@@ -192,8 +204,8 @@ export class Popover extends Stack {
 			id: this.id ?? undefined,
 			rect: { x: 0, y: 0, width: this.width, height: this.height },
 			fill: color.bg_panel_raised,
-			radius: tokens.radius.radius_panel,
-			border: { color: color.line_strong, width: tokens.borderWidth.bw },
+			radius: RADIUS,
+			border: { color: color.line_strong, width: BORDER_WIDTH },
 			shadow: SHADOW_POP,
 		});
 	}

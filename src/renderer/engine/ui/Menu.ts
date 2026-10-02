@@ -40,6 +40,7 @@ export interface MenuOptions extends Omit<ComponentOptions, 'style' | 'height'> 
 const DEFAULT_WIDTH = 200;
 /** Between the surface's edge and the first and last rows. */
 const PAD = tokens.space.space_1;
+const BORDER_WIDTH = tokens.borderWidth.bw;
 const SEPARATOR_HEIGHT = tokens.space.space_2;
 const INSET = tokens.control.inset_field;
 const SHORTCUT_GAP = tokens.space.space_4;
@@ -428,7 +429,7 @@ export class Menu extends Component {
 			rect: { x: 0, y: 0, width: this.width, height: this.height },
 			fill: tokens.color.bg_panel_raised,
 			radius: tokens.radius.radius_ui,
-			border: { color: tokens.color.line_edge, width: tokens.borderWidth.bw },
+			border: { color: tokens.color.line_edge, width: BORDER_WIDTH },
 			shadow: SURFACE_SHADOW,
 		});
 	}
@@ -453,10 +454,16 @@ export class Menu extends Component {
 		this.placeRows();
 	}
 
-	/** The scroller fills the menu inside the padding; the rows are as tall as they are. */
+	/**
+	 * The scroller fills the menu inside the border and the padding; the rows
+	 * are as tall as they are. Its plain clip is the menu's clip: inside the
+	 * border, so a hovered row never paints over it, and `PAD` clear of the
+	 * rounded corners (`PAD` is at least `radius_ui`), so the menu needs no
+	 * rounded clip of its own (R4.14).
+	 */
 	private placeRows(): void {
-		this.scroller.setPosition(0, PAD);
-		this.scroller.setSize(this.width, Math.max(0, this.height - PAD * 2));
+		this.scroller.setPosition(BORDER_WIDTH, PAD);
+		this.scroller.setSize(Math.max(0, this.width - BORDER_WIDTH * 2), Math.max(0, this.height - PAD * 2));
 		this.rows.height = this.rowsHeight;
 	}
 }
