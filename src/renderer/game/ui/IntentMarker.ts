@@ -9,6 +9,8 @@ import type { IconName } from '../../engine/text/icons';
 import { resolveFontRole } from '../../engine/text/fontRoles';
 import { tokens } from '../../engine/theme/tokens';
 import { resolveColor } from '../../engine/style/styleObject';
+import type { DrawRectOptions } from '../../engine/draw/commands';
+import { TargetMark, TargetMarkDraw } from './targetMarks';
 
 /**
  * What a marker shows: the battle's intent types (`mechanics/Intent.ts`),
@@ -27,6 +29,8 @@ export interface EnemyIntent {
 	description: string;
 	/** What it will do and to whom, for the tooltip ("8 damage on Apocalypse Rig"). */
 	detail?: string;
+	/** Whose vehicle it lands on: a driver's mark, both for an area hit, or an escort's square. */
+	target?: TargetMark;
 }
 
 export interface IntentMarkerOptions extends ComponentOptions {
@@ -35,7 +39,10 @@ export interface IntentMarkerOptions extends ComponentOptions {
 }
 
 const ICON_SCALE = 0.6;
-const VALUE_SIZE = 16;
+const VALUE_SIZE = 14;
+/** The target mark in the disc's lower right, on a dark backing so it reads over any fill. */
+const MARK_SIZE = 9;
+const MARK_BACKING = resolveColor('#0d0e0f');
 const VALUE_FONT = resolveFontRole({ weight: 'bold' });
 const BORDER = resolveColor('#cc6a6a');
 
@@ -69,6 +76,8 @@ const POP_ORIGIN: readonly [number, number] = [0.5, 0.5];
 export class IntentMarker extends Component {
 	private readonly icon: Icon;
 	private current: EnemyIntent | null = null;
+	private readonly targetMark = new TargetMarkDraw();
+	private readonly markBacking: DrawRectOptions = { rect: { x: 0, y: 0, width: 0, height: 0 }, fill: MARK_BACKING, radius: 2 };
 	/** Grows in on the animator when it mounts, unless reduced motion is on. */
 	public popIn = false;
 	private readonly popInput: { scale: number; origin: readonly [number, number] } = { scale: 1, origin: POP_ORIGIN };
@@ -96,6 +105,14 @@ export class IntentMarker extends Component {
 		this.visible = intent !== null;
 		const glyph = intent ? ICONS[intent.type] : undefined;
 		if (glyph) this.icon.glyph = glyph;
+		const mark = intent?.target ?? null;
+		const markWidth = TargetMarkDraw.widthOf(mark, MARK_SIZE);
+		this.targetMark.place(mark, this.width - markWidth, this.height - MARK_SIZE, MARK_SIZE);
+		const backing = this.markBacking.rect as { x: number; y: number; width: number; height: number };
+		backing.x = this.width - markWidth - 1;
+		backing.y = this.height - MARK_SIZE - 1;
+		backing.width = markWidth + 2;
+		backing.height = MARK_SIZE + 2;
 		this.tooltip = intent && intent.type !== 'overflow' ? { title: intent.description, description: intent.detail } : null;
 	}
 
@@ -173,8 +190,14 @@ export class IntentMarker extends Component {
 		const label = this.label;
 		if (label === null) {
 			this.icon.drawGlyph(draw, this.icon.x, this.icon.y);
-			return;
+		} else this.drawLabel(draw, label);
+		if (this.targetMark.mark !== null) {
+			draw.drawRect(this.markBacking);
+			this.targetMark.draw(draw);
 		}
+	}
+
+	private drawLabel(draw: DrawApi, label: string): void {
 		draw.drawText({
 			text: label,
 			box: { x: 0, y: 0, width: this.width, height: this.height },

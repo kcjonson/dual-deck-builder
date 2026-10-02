@@ -7,6 +7,7 @@ import { Text } from '../../../engine/components/Text';
 import { ChromeStack } from './ChromeStack';
 import { DRIVER_COLORS, DRIVER_TAB_BACKGROUND, hexRgba, rgba } from './combatStyle';
 import type { DriverSeat } from './PlayerHandView';
+import { MARK_OUTLINES, seatMark } from '../../ui/targetMarks';
 
 /**
  * What a driver's tab shows
@@ -32,15 +33,6 @@ const MARK_SIZE = 14;
 const EMPTY_PIP_ALPHA = 0.22;
 const STRIPE_HEIGHT = 3;
 const TOP_RADIUS = 3;
-
-/**
- * Each driver's mark, in a -1 to 1 box (section 7): driver 1 a triangle,
- * driver 2 a diamond. A square is an escort's.
- */
-const MARK_OUTLINES: Readonly<Record<DriverSeat, [number, number][]>> = {
-	1: [[0, -0.87], [0.9, 0.83], [-0.9, 0.83]],
-	2: [[0, -0.95], [0.95, 0], [0, 0.95], [-0.95, 0]],
-};
 
 /**
  * A driver's tab above their half of the hand (Battle Screen Design,
@@ -90,7 +82,7 @@ export class DriverTab extends ChromeStack {
 		this.seat = seat;
 
 		const mark = new Polygon({ width: MARK_SIZE, height: MARK_SIZE, style: { backgroundColor: color } });
-		mark.points = MARK_OUTLINES[seat];
+		mark.points = MARK_OUTLINES[seatMark(seat) as 'driver1' | 'driver2'];
 
 		this.nameLabel = new Text({
 			text: '',

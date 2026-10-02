@@ -178,7 +178,7 @@ describe('CombatScreen intents', () => {
 		combat.unmount();
 	});
 
-	it('shows a disc\'s tooltip when the pointer rests on it, beside a plate that is one hit target', async () => {
+	it('shows a disc\'s tooltip when the pointer rests on it inside its token', async () => {
 		const combat = await startCombat();
 		const [raider] = combat['enemyTeam']?.vehicles ?? [];
 		const row = combat['road'].intentRowOf(raider.id);

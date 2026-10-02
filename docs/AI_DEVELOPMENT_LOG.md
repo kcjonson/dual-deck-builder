@@ -14,6 +14,19 @@ This document contains the chronological log of completed development tasks for 
 - `CombatScreen`: END TURN starts `EnemyTurnPacer` (a frame ticker on the mount context's clock), which steps one action per beat; the dock is disabled and End Turn says WAIT until the player's draw, and the intents shown at END TURN stay up; a fizzle pops MISS; `actingRaider` names the raider on screen. `EndTurnColumn.show` takes `waiting`.
 - Tests: Battle steps in plan order with the draw after the last step, a dropped raider is one step, a fizzle is its own, a loss ends the turn; the screen holds each beat, locks the dock, and draws after the last beat, under reduced motion too. New Playwright spec `enemyTurn.spec.ts` captures and lints the mid-turn screen at 1440x882 and 1024x600.
 - Decision record: [enemy-turn-pacing.md](./AI_TECHNICAL_DECISIONS/enemy-turn-pacing.md).
+## The vehicle token (2026-10-02)
+
+**What landed:** DDB-135 (DDB-127), folding in DDB-165.
+
+- `game/ui/Vehicle.ts` rebuilt as Battle Screen Design section 3's token: 196x117 at x1, 135 with a passenger, fixed geometry from the mock's `tokenHTML`. Intents row inside the token (IntentRow, 24 px discs, right-aligned), rear-view sprite and speed, plate with mark, stripe, ellipsized name, armor shield, structure and driver HP bars of equal weight, passenger row, status chips with "+N", WRECKED and NO DRIVER stamps, and targeting outlines and dimming.
+- `fitToSlot(rect, scale?)` scales x1 to x1.25 and centres the token in a slot, allocation-free so a swerve can call it per frame. A road-wide scale is a cap: a passenger's taller token that it would push out of its slot takes less. The token refits itself when a passenger joins. The token's size and `slotScale` live in `ui/tokenGeometry.ts`; `CombatLayout` re-exports them and builds its `tokenScaleFor` (capped, never floored, so the road can report a slot too small) on `slotScale`.
+- `IntentMarker` draws a target mark (`targetMarks.ts`, shared with the driver tab); `CombatScreen.intentMarkerOf` fills it from the intent's target and the driver seats. Hit numbers pop from `plateScreenBounds`.
+- New `StatusChip` (buff, debuff, SPENT, Shield, "+N", each with a tooltip). Eight Material icons added to the icon atlas (heart, double chevrons, broken shield, fire, bolt, two crosshairs); the icons scene wraps its grid at twelve so it fits 1024.
+- `ArmorBadge` deleted. DDB-165 was already fixed on main by the icon atlas (DDB-72); the shield is now a polygon the token draws.
+- Merged after DDB-134: `RoadView.placeToken` is `fitToSlot(token.at, layout.tokenScale)`, its plate subclasses and IntentRow bookkeeping are gone (`setVehicleIntents` and `intentRowOf` go through the token), and it passes the combat screen's `seatOf` to every token.
+- Gallery scene `vehicle-tokens`. Record: [vehicle-token.md](./AI_TECHNICAL_DECISIONS/vehicle-token.md).
+
+**How:** unit tests for geometry, fit, chips, wreck states, marks, ellipsis, lint per state, targeting; played the combat screen through `__dev.input` at 1280x720 and 1024x600 (drag, click-then-target, keyboard, end turn).
 ## The road view: lanes, rows, shoulders, and fixed slots (2026-10-02)
 
 **What landed:** DDB-134 (DDB-127), Battle Screen Design sections 1 and 2.

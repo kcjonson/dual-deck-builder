@@ -124,4 +124,5 @@ export const SCENE_SCENARIOS: readonly SceneScenario[] = [
 	{ scene: 'scroll-hug' },
 	{ scene: 'rounded-clip' },
 	{ scene: 'combat-road' },
+	{ scene: 'vehicle-tokens' },
 ];
