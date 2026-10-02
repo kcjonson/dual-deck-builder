@@ -537,6 +537,26 @@ describe('clip stack (R2.5, R4.2, R4.7) and chapter 4.7 required tests', () => {
 		});
 	});
 
+	it('scales a rounded clip\'s radius into screen space with the rect, by the smaller axis (R4.14)', () => {
+		const { api } = harness();
+		api.beginFrame({ viewport: VIEWPORT });
+		api.pushTransform([2, 0, 0, 3, 10, 0]);
+		api.pushClipRounded(rect(0, 0, 20, 20), 4);
+		expect(api.clip).toEqual({
+			kind: 'rect',
+			rect: { minX: 10, minY: 0, maxX: 50, maxY: 60 },
+			rounded: { rect: { minX: 10, minY: 0, maxX: 50, maxY: 60 }, radius: 8 },
+		});
+		api.popClip();
+		api.popTransform();
+		api.pushTranslate(5, 5);
+		api.pushClipRounded(rect(0, 0, 20, 20), 4);
+		expect(api.clip.kind === 'rect' && api.clip.rounded?.radius).toBe(4);
+		api.popClip();
+		api.popTransform();
+		api.endFrame();
+	});
+
 	it('resets the clip for a promoted subtree and nothing else (R3.8, R4.8)', () => {
 		const { api, backend } = harness();
 		api.beginFrame({ viewport: VIEWPORT });
@@ -1555,7 +1575,7 @@ describe('pooled stacks (DDB-215)', () => {
 		expect(first.clip).toEqual({
 			kind: 'rect',
 			rect: { minX: 15, minY: 25, maxX: 95, maxY: 105 },
-			rounded: { rect: { minX: 15, minY: 25, maxX: 95, maxY: 105 }, radius: 6 },
+			rounded: { rect: { minX: 15, minY: 25, maxX: 95, maxY: 105 }, radius: 12 },
 		});
 		expect(first.opacity).toBe(0.5);
 		expect(first.layer).toBe('overlay');

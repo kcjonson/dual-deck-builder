@@ -10,6 +10,7 @@ import { FontAtlas, parseFontAtlas } from '../../../src/renderer/engine/text/Fon
 import { TextMetricsService } from '../../../src/renderer/engine/text/TextMetricsService';
 import {
 	UBER_ATTRIBUTES,
+	UBER_FRAME_BLOCK,
 	UBER_STRIDE,
 	UBER_TEXTURE_UNITS,
 	UBER_VERTICES_PER_INSTANCE,
@@ -43,6 +44,8 @@ interface Target {
 	clear: [number, number, number, number];
 	/** Textures to put on units before drawing, RGBA8 texels uploaded as given. */
 	textures?: UnitTexture[];
+	/** Draw API diagnostics the drawing is expected to raise; each must be raised. Any other still throws. */
+	expectDiagnostics?: string[];
 }
 
 interface UnitTexture {
@@ -95,14 +98,26 @@ function encode(
 	build: (api: DrawApi) => void,
 	prepare?: (api: DrawApi) => void,
 	font: BodyFont = GLYPH_FONT,
-): { bytes: number[]; instances: number } {
+): { bytes: number[]; instances: number; roundedClips: number[] } {
 	const backend = new RecordingBackend({ maxFrames: 1 });
 	backend.loadFontAtlas({ name: 'body', atlas: font.atlas, texture: font.texture });
-	const api = new DrawApi({ backend, strict: true });
+	const expected = target.expectDiagnostics ?? [];
+	const raised = new Set<string>();
+	const api = new DrawApi({
+		backend,
+		strict: expected.length === 0,
+		onDiagnostic: ({ code, message }) => {
+			if (!expected.includes(code)) throw new Error(`${code}: ${message}`);
+			raised.add(code);
+		},
+	});
 	prepare?.(api);
 	api.beginFrame({ viewport: { width: target.width / target.ratio, height: target.height / target.ratio }, ratio: target.ratio });
 	build(api);
 	api.endFrame();
+	for (const code of expected) {
+		if (!raised.has(code)) throw new Error(`expected the draw API to report ${code}`);
+	}
 
 	const text = new TextMetricsService();
 	text.addAtlas({ name: 'body', atlas: font.atlas });
@@ -126,7 +141,10 @@ function encode(
 		bytes = Array.from(upload.bytes.subarray(0, upload.byteCount));
 		instances = upload.instanceCount;
 	});
-	return { bytes, instances };
+	// R4.14's table, which the backend puts in the frame block behind the projection.
+	const table = encoder.roundedClips;
+	const roundedClips = Array.from(table.floats.subarray(0, table.count * 8));
+	return { bytes, instances, roundedClips };
 }
 
 async function render(
@@ -137,7 +155,7 @@ async function render(
 	font?: BodyFont,
 ): Promise<Frame> {
 	const geometry = encode(target, build, prepare, font);
-	return page.evaluate(({ target, geometry, sources, attributes, stride, verticesPerInstance, units }) => {
+	return page.evaluate(({ target, geometry, sources, attributes, stride, verticesPerInstance, units, frameBlock }) => {
 		const canvas = document.createElement('canvas');
 		canvas.width = target.width;
 		canvas.height = target.height;
@@ -182,18 +200,21 @@ async function render(
 		}
 		gl.uniform1iv(gl.getUniformLocation(program, 'uTextures[0]'), unitIndices);
 
-		// The frame block: an orthographic projection of the logical viewport, y down.
+		// The frame block: an orthographic projection of the logical viewport,
+		// y down, then the rounded clip table.
 		const width = target.width / target.ratio;
 		const height = target.height / target.ratio;
-		const projection = new Float32Array([
+		const block = new Float32Array(frameBlock.floats);
+		block.set([
 			2 / width, 0, 0, 0,
 			0, -2 / height, 0, 0,
 			0, 0, -1, 0,
 			-1, 1, 0, 1,
-		]);
+		], frameBlock.projection);
+		block.set(geometry.roundedClips, frameBlock.roundedClips);
 		const uniforms = gl.createBuffer();
 		gl.bindBuffer(gl.UNIFORM_BUFFER, uniforms);
-		gl.bufferData(gl.UNIFORM_BUFFER, projection, gl.STATIC_DRAW);
+		gl.bufferData(gl.UNIFORM_BUFFER, block, gl.STATIC_DRAW);
 		gl.uniformBlockBinding(program, gl.getUniformBlockIndex(program, 'Frame'), 0);
 		gl.bindBufferBase(gl.UNIFORM_BUFFER, 0, uniforms);
 
@@ -232,6 +253,7 @@ async function render(
 		stride: UBER_STRIDE,
 		verticesPerInstance: UBER_VERTICES_PER_INSTANCE,
 		units: UBER_TEXTURE_UNITS,
+		frameBlock: { ...UBER_FRAME_BLOCK },
 	});
 }
 
@@ -264,6 +286,62 @@ test.describe('uber shader', () => {
 			expect(pixel(frame, 40, 40)).toEqual([0, 0, 0, 255]);
 			expect(pixel(frame, 39, 39)).toEqual([255, 255, 255, 255]);
 		}
+	});
+
+	test('rounds a clip\'s corners with an anti-aliased edge and keeps its straight edges whole (4.7, R4.14)', async ({ page }) => {
+		for (const ratio of [1, 2]) {
+			const frame = await render(page, { width: 40 * ratio, height: 40 * ratio, ratio, clear: OPAQUE_BLACK }, (api) => {
+				api.pushClipRounded({ x: 10, y: 10, width: 20, height: 20 }, 8);
+				api.drawRect({ rect: { x: 0, y: 0, width: 40, height: 40 }, fill: [1, 1, 1, 1] });
+				api.popClip();
+			});
+			const at = (x: number, y: number) => pixel(frame, Math.floor(x * ratio), Math.floor(y * ratio))[0];
+			// The corner's own pixel is outside the arc, centred 8 px in from it.
+			expect(at(10.25, 10.25)).toBe(0);
+			expect(at(29.75, 29.75)).toBe(0);
+			// Along the straight edges, the first pixel inside is whole.
+			expect(at(10.25, 20)).toBe(255);
+			expect(at(20, 10.25)).toBe(255);
+			expect(at(29.75, 20)).toBe(255);
+			// Inside the arc is whole, and the arc itself is partly covered.
+			expect(at(14, 14)).toBe(255);
+			const arc = 18 - 8 / Math.SQRT2;
+			const ramp = at(arc, arc);
+			expect(ramp).toBeGreaterThan(40);
+			expect(ramp).toBeLessThan(215);
+		}
+	});
+
+	test('clips text to a rounded clip too, in the same draw (R4.5, R4.14)', async ({ page }) => {
+		const frame = await render(page, { width: 16, height: 16, ratio: 1, clear: OPAQUE_BLACK, textures: [{ unit: 0, width: 4, height: 4, texels: new Array(64).fill(255) }] }, (api) => {
+			api.pushClipRounded({ x: 4, y: 4, width: 4, height: 4 }, 2);
+			api.drawText({ text: 'A', position: { x: 4, y: 8 }, font: 'body', size: 16, color: [1, 1, 1, 1] });
+			api.popClip();
+		});
+		// The glyph fills the clip; its corners are cut by a 2 px radius.
+		expect(pixel(frame, 4, 4)[0]).toBeLessThan(128);
+		expect(pixel(frame, 7, 7)[0]).toBeLessThan(128);
+		expect(pixel(frame, 5, 6)[0]).toBe(255);
+		expect(pixel(frame, 6, 5)[0]).toBe(255);
+	});
+
+	test('nests rounded clips with the inner radius and the outer bounding rect (4.7, R4.14)', async ({ page }) => {
+		const target: Target = { width: 80, height: 80, ratio: 1, clear: OPAQUE_BLACK, expectDiagnostics: ['nested-rounded-clip'] };
+		const frame = await render(page, target, (api) => {
+			api.pushClipRounded({ x: 10, y: 10, width: 50, height: 50 }, 20);
+			api.pushClipRounded({ x: 0, y: 0, width: 40, height: 40 }, 6);
+			api.drawRect({ rect: { x: 0, y: 0, width: 80, height: 80 }, fill: [1, 1, 1, 1] });
+			api.popClip();
+			api.popClip();
+		});
+		// The outer clip's corner, which its 20 px radius would cut, shows: it
+		// contributes only its bounding rect.
+		expect(pixel(frame, 10, 10)[0]).toBe(255);
+		expect(pixel(frame, 9, 20)[0]).toBe(0);
+		// The inner clip's corner inside the intersection is rounded.
+		expect(pixel(frame, 39, 39)[0]).toBe(0);
+		expect(pixel(frame, 35, 35)[0]).toBe(255);
+		expect(pixel(frame, 39, 20)[0]).toBe(255);
 	});
 
 	test('ramps a fractional edge over exactly one device pixel on each side (R5.6, R5.7)', async ({ page }) => {
@@ -578,9 +656,10 @@ test.describe('uber shader', () => {
  * through the distance field against the platform's own rasterisation of the
  * same font file, for stem weight (total ink over a word) and evenness (how
  * much the darkest column of each `l` in a row of them varies as its
- * sub-pixel phase moves). Distance fields have no hinting (R6.4a), so the
- * gate is a band, not equality; the scores print so a regression shows how
- * far it moved.
+ * sub-pixel phase moves), plus placement (how far each `l` sits from its
+ * advance), the cost of buying evenness by snapping. Distance fields have no
+ * hinting (R6.4a), so the gate is a band, not equality; the scores print so
+ * a regression shows how far it moved.
  */
 test.describe('small text against a platform reference (6.9)', () => {
 	const FONTS = join(__dirname, '../../../src/assets/fonts');
@@ -592,19 +671,27 @@ test.describe('small text against a platform reference (6.9)', () => {
 	const BODY_TEXTURE: TextureHandle = { id: 1, width: BODY_ATLAS.width, height: BODY_ATLAS.height, label: 'body atlas' };
 	const BODY_FACE = readFileSync(join(FONTS, 'open-sans/OpenSans-Regular.ttf')).toString('base64');
 	const WORD = 'Hamburgefonstiv';
-	const STEMS = 'llllllllllllllll';
+	// 34 so that at 12 px, where an `l` advances 3.03 px, the pens walk a
+	// whole pixel of phase rather than half of one.
+	const STEMS = 'l'.repeat(34);
 	const WIDTH = 240;
 	const HEIGHT = 48;
 	const WORD_BASELINE = 18;
 	const STEM_BASELINE = 40;
 	/**
-	 * Lowest weight and highest stem variation each size may score (see the
-	 * test). The reference is the platform's, so the weight floor is too: the
-	 * Linux runner's FreeType matches the field's ink (0.95 to 1.0 when
-	 * DDB-199 measured it) and macOS CoreText draws a third heavier.
+	 * The tolerance band (docs/AI_TECHNICAL_DECISIONS/small-text-evenness.md).
+	 * The reference is the platform's, so the weight floor is too: the Linux
+	 * runner's FreeType matches the field's ink (0.95 to 1.0) and macOS
+	 * CoreText draws a third heavier. The field's own scores do not depend on
+	 * the platform (SwiftShader on both), so its stem variation (0.22, 0.19,
+	 * 0.18 at 10, 12, 13 px) and placement error (0.06, 0.02, 0.02 px) are held
+	 * close. Snapping each glyph to a whole pixel takes variation to zero and
+	 * placement error to 0.28 to 0.29 px, which the placement ceiling refuses.
 	 */
 	const WEIGHT_FLOOR = process.platform === 'linux' ? 0.9 : 0.55;
-	const VARIATION_CEILING: Record<number, number> = { 10: 0.3, 12: 0.22, 13: 0.23 };
+	const WEIGHT_CEILING = process.platform === 'linux' ? 1.05 : 0.85;
+	const VARIATION_CEILING: Record<number, number> = { 10: 0.25, 12: 0.21, 13: 0.2 };
+	const PLACEMENT_CEILING = 0.1;
 	let texels: number[] = [];
 
 	test.beforeAll(() => {
@@ -615,10 +702,20 @@ test.describe('small text against a platform reference (6.9)', () => {
 		await page.setContent('<!doctype html><title>small text</title>');
 	});
 
-	/** Coverage per device pixel, top row first, and the pen advance of one `l`. */
+	/**
+	 * Coverage per device pixel, top row first, the pen advance of one `l`, and
+	 * where its stem's centre sits right of its pen (from the atlas's plane
+	 * bounds, the same outline the platform draws).
+	 */
 	interface Raster {
 		coverage: number[];
 		stemAdvance: number;
+		stemCentre: number;
+	}
+
+	function stemCentre(size: number): number {
+		const plane = BODY_ATLAS.glyph(0x6C)?.plane;
+		return plane ? ((plane.left + plane.right) / 2) * size : 0;
 	}
 
 	/** The two runs through the uber shader, laid out by the atlas metrics. */
@@ -636,12 +733,12 @@ test.describe('small text against a platform reference (6.9)', () => {
 		}, undefined, { atlas: BODY_ATLAS, texture: BODY_TEXTURE });
 		const coverage: number[] = [];
 		for (let y = 0; y < HEIGHT; y++) for (let x = 0; x < WIDTH; x++) coverage.push(pixel(frame, x, y)[3] / 255);
-		return { coverage, stemAdvance: (BODY_ATLAS.glyph(0x6C)?.advance ?? 0) * size };
+		return { coverage, stemAdvance: (BODY_ATLAS.glyph(0x6C)?.advance ?? 0) * size, stemCentre: stemCentre(size) };
 	}
 
 	/** The same two runs from the platform's 2D text API with the same font file. */
 	async function platform(page: Page, size: number): Promise<Raster> {
-		return page.evaluate(async ({ face, size, width, height, word, stems, wordBaseline, stemBaseline }) => {
+		const raster = await page.evaluate(async ({ face, size, width, height, word, stems, wordBaseline, stemBaseline }) => {
 			const bytes = Uint8Array.from(atob(face), (char) => char.charCodeAt(0));
 			const font = new FontFace('reference', bytes.buffer);
 			await font.load();
@@ -661,6 +758,7 @@ test.describe('small text against a platform reference (6.9)', () => {
 			// The platform's own advances, which hinting may round.
 			return { coverage, stemAdvance: context.measureText(stems).width / stems.length };
 		}, { face: BODY_FACE, size, width: WIDTH, height: HEIGHT, word: WORD, stems: STEMS, wordBaseline: WORD_BASELINE, stemBaseline: STEM_BASELINE });
+		return { ...raster, stemCentre: stemCentre(size) };
 	}
 
 	function ink(coverage: number[], top: number, bottom: number): number {
@@ -669,23 +767,56 @@ test.describe('small text against a platform reference (6.9)', () => {
 		return sum;
 	}
 
-	/** The coefficient of variation of each `l`'s darkest column, in its advance-wide window. */
-	function stemVariation({ coverage, stemAdvance: advance }: Raster): number {
-		const peaks: number[] = [];
-		for (let glyph = 0; glyph < STEMS.length; glyph++) {
-			const start = Math.floor(4 + glyph * advance);
-			const end = Math.floor(4 + (glyph + 1) * advance);
-			let peak = 0;
-			for (let x = start; x < end; x++) {
-				let column = 0;
-				for (let y = WORD_BASELINE + 4; y < HEIGHT; y++) column += coverage[y * WIDTH + x];
-				peak = Math.max(peak, column);
-			}
-			peaks.push(peak);
+	/**
+	 * Each `l`'s ink per column, with the window's first column: the columns
+	 * whose centres lie within half an advance of where the stem's centre
+	 * should be, so the whole stem is inside its window at every phase.
+	 */
+	function stemColumns({ coverage, stemAdvance: advance, stemCentre: centre }: Raster, glyph: number): { start: number; columns: number[] } {
+		const expected = 4 + glyph * advance + centre;
+		const start = Math.ceil(expected - advance / 2 - 0.5);
+		const end = Math.ceil(expected + advance / 2 - 0.5);
+		const columns: number[] = [];
+		for (let x = start; x < end; x++) {
+			let column = 0;
+			for (let y = WORD_BASELINE + 4; y < HEIGHT; y++) column += coverage[y * WIDTH + x];
+			columns.push(column);
 		}
-		const mean = peaks.reduce((sum, value) => sum + value, 0) / peaks.length;
-		const variance = peaks.reduce((sum, value) => sum + (value - mean) ** 2, 0) / peaks.length;
-		return Math.sqrt(variance) / mean;
+		return { start, columns };
+	}
+
+	function deviation(values: number[]): { mean: number; deviation: number } {
+		const mean = values.reduce((sum, value) => sum + value, 0) / values.length;
+		const variance = values.reduce((sum, value) => sum + (value - mean) ** 2, 0) / values.length;
+		return { mean, deviation: Math.sqrt(variance) };
+	}
+
+	/** The coefficient of variation of each `l`'s darkest column. */
+	function stemVariation(raster: Raster): number {
+		const peaks: number[] = [];
+		for (let glyph = 0; glyph < STEMS.length; glyph++) peaks.push(Math.max(...stemColumns(raster, glyph).columns));
+		const { mean, deviation: spread } = deviation(peaks);
+		return spread / mean;
+	}
+
+	/**
+	 * How far, in device pixels (standard deviation), each `l`'s ink centre
+	 * sits from where its advance puts it. Snapping each glyph to a whole pixel
+	 * buys stem evenness with exactly this: gaps that alternate by a pixel.
+	 */
+	function placementError(raster: Raster): number {
+		const offsets: number[] = [];
+		for (let glyph = 0; glyph < STEMS.length; glyph++) {
+			const { start, columns } = stemColumns(raster, glyph);
+			let ink = 0;
+			let moment = 0;
+			columns.forEach((column, index) => {
+				ink += column;
+				moment += column * (start + index + 0.5);
+			});
+			offsets.push(moment / ink - (4 + glyph * raster.stemAdvance + raster.stemCentre));
+		}
+		return deviation(offsets).deviation;
 	}
 
 	for (const size of [10, 12, 13]) {
@@ -695,14 +826,18 @@ test.describe('small text against a platform reference (6.9)', () => {
 			const weight = ink(field.coverage, 0, WORD_BASELINE + 4) / ink(reference.coverage, 0, WORD_BASELINE + 4);
 			const fieldEvenness = stemVariation(field);
 			const referenceEvenness = stemVariation(reference);
-			console.log(`6.9 small text, body ${size} px: weight ${weight.toFixed(3)} of the platform's, stem variation ${fieldEvenness.toFixed(3)} against ${referenceEvenness.toFixed(3)}`);
-			// A ratchet, not the target (DDB-218): the field's stems vary with
-			// their sub-pixel phase (0.17 to 0.24) where the hinted platform
-			// raster's do not, and on macOS it is also lighter. These bounds
-			// catch it getting worse.
+			const fieldPlacement = placementError(field);
+			const referencePlacement = placementError(reference);
+			console.log(`6.9 small text, body ${size} px: weight ${weight.toFixed(3)} of the platform's, stem variation ${fieldEvenness.toFixed(3)} against ${referenceEvenness.toFixed(3)}, placement error ${fieldPlacement.toFixed(3)} px against ${referencePlacement.toFixed(3)}`);
+			// The field keeps every stem where its advance puts it and lets
+			// the stem's sub-pixel phase vary. The Linux platform scores zero
+			// on both because it rounds the advances, which measurement here
+			// may not (R6.16); snapping glyphs without that trades evenness
+			// for placement, so placement is held (DDB-218).
 			expect(weight).toBeGreaterThan(WEIGHT_FLOOR);
-			expect(weight).toBeLessThan(1.25);
+			expect(weight).toBeLessThan(WEIGHT_CEILING);
 			expect(fieldEvenness).toBeLessThan(VARIATION_CEILING[size]);
+			expect(fieldPlacement).toBeLessThan(PLACEMENT_CEILING);
 		});
 	}
 });

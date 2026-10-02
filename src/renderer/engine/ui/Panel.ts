@@ -127,8 +127,9 @@ export class Panel extends Stack {
 			? resolvePadding(style.padding, { top: inset, right: inset, bottom: inset, left: inset })
 			: { top: inset, right: inset, bottom: inset, left: inset };
 		// R12.19: content is inset by the border and the corner radius, since
-		// the rounded clip is not implemented; `flush` and a smaller padding
-		// meet that edge rather than paint over it.
+		// the component clip is a plain rect (the draw API's rounded clip is
+		// not wired through the walk yet, DDB-231); `flush` and a smaller
+		// padding meet that edge rather than paint over it.
 		const edge = Math.max(box.borderWidth, box.radius);
 		const contentPadding = {
 			top: Math.max(requested.top, edge),
@@ -255,7 +256,7 @@ export class Panel extends Stack {
 	 * goes below, so content never paints over the border or past the rounded
 	 * corners `render` drew first. The walk, hit test and snapshot all clip
 	 * to a plain rect, so the radius is cleared by inset rather than by
-	 * R4.14's rounded clip. Clipping happens only when `overflow` is `hidden`.
+	 * R4.14's rounded clip (DDB-231). Clipping happens only when `overflow` is `hidden`.
 	 * Decision: docs/AI_TECHNICAL_DECISIONS/panel-padding.md.
 	 */
 	protected computeClipRect(): Rect {

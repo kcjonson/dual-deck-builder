@@ -29,8 +29,10 @@ import { Renderer } from './Renderer';
 import type { GlyphCanvasContext } from '../text/rasterGlyphs';
 import { RasterGlyphPage, createDocumentGlyphCanvas } from './RasterGlyphPage';
 import { StreamRing } from './StreamRing';
+import { ROUNDED_CLIP_FLOATS } from './RoundedClipTable';
 import {
 	UBER_ATTRIBUTES,
+	UBER_FRAME_BLOCK,
 	UBER_STRIDE,
 	UBER_TEXTURE_UNITS,
 	UBER_VERTICES_PER_INSTANCE,
@@ -74,7 +76,10 @@ import { compileProgram } from './program';
  *   allocates nothing.
  * - Per-frame uniform state (the projection) is a `std140` block in a ring of
  *   three 256-byte-aligned slots, written once per frame and selected with
- *   `bindBufferRange` (R15.15). Nothing is set per draw.
+ *   `bindBufferRange` (R15.15). Nothing is set per draw. The same slot holds
+ *   the frame's rounded clips (R4.14, R5.4's shared table): an upload that
+ *   added entries appends them to the slot before its draws, so an index an
+ *   instance carries is never rewritten within the frame.
  * - One vertex array object, bound once per upload; attribute locations are
  *   fixed in the source, so nothing is looked up. The attribute pointers move
  *   with the upload's offset in the ring, and within an upload only at a
@@ -127,9 +132,10 @@ export interface CreateDrawApiOptions {
  */
 const DEFAULT_INSTANCE_RING_BYTES = 4 * 1024 * 1024;
 
-/** `Frame` in `uber.vert`: the projection. */
-const FRAME_BLOCK_FLOATS = 16;
-const FRAME_BLOCK_BYTES = FRAME_BLOCK_FLOATS * 4;
+/** `Frame` in `uber.vert`: the projection, then the rounded clip table. */
+const PROJECTION_FLOATS = 16;
+const FRAME_BLOCK_BYTES = UBER_FRAME_BLOCK.floats * 4;
+const ROUNDED_CLIPS_BYTE = UBER_FRAME_BLOCK.roundedClips * 4;
 const FRAME_BLOCK_BINDING = 0;
 /** A slot is rewritten three frames after it was last written, past R5.27's two. */
 const FRAME_SLOTS = 3;
@@ -208,8 +214,10 @@ export class WebGL2Backend implements DrawBackend {
 	/** `UBER_ATTRIBUTES`' component types as GL enums, by attribute. */
 	private readonly attributeTypes: number[];
 
-	/** The frame block's CPU copy, which is the projection. */
-	private readonly frameBlock = new Float32Array(FRAME_BLOCK_FLOATS);
+	/** The projection, the part of the frame block written at `beginFrame`. */
+	private readonly frameBlock = new Float32Array(PROJECTION_FLOATS);
+	/** Rounded clip entries already in this frame's uniform slot. */
+	private roundedClipsUploaded = 0;
 	private projectionWidth = NaN;
 	private projectionHeight = NaN;
 	private frameSlotOffset = 0;
@@ -256,6 +264,8 @@ export class WebGL2Backend implements DrawBackend {
 			text: this.text,
 			onUnpaintable: (kind, detail) => this.reportUnpaintable(kind, detail),
 			smallText: this.smallText,
+			onRoundedClipOverflow: () =>
+				console.error('WebGL2Backend: more rounded clips in one frame than the table holds; the rest clip to their bounding rect until a frame fits (R4.14)'),
 		});
 		// The font atlases join as they load (`loadFontAtlas`); the rest of the
 		// units are dynamic, handed to images as they arrive (R5.20).
@@ -334,15 +344,18 @@ export class WebGL2Backend implements DrawBackend {
 		}
 
 		let binds = 0;
+		let tableBytes = 0;
 		// One sort domain is one GPU pass (R13.16).
 		this.gpuTimer?.beginPass();
 		const work = this.batcher.flush(commands, (upload) => {
+			tableBytes += this.uploadRoundedClips();
 			binds += this.execute(upload);
 		});
 		this.gpuTimer?.endPass();
 		// The batcher counted the dynamic units it handed out; what the GPU
 		// was actually asked to bind is this backend's count.
 		work.textureBinds = binds;
+		work.bytesUploaded += tableBytes;
 		return work;
 	}
 
@@ -462,7 +475,32 @@ export class WebGL2Backend implements DrawBackend {
 		this.frameSlotOffset = (frame.frame % FRAME_SLOTS) * uniformStride;
 		gl.bindBuffer(gl.UNIFORM_BUFFER, uniformBuffer);
 		gl.bufferSubData(gl.UNIFORM_BUFFER, this.frameSlotOffset, this.frameBlock);
+		this.roundedClipsUploaded = 0;
 		this.pipelineBound = false;
+	}
+
+	/**
+	 * The rounded clips the encoder added since the last upload, into this
+	 * frame's slot behind the projection. Entries already there are never
+	 * rewritten, so a draw issued earlier in the frame reads what it was
+	 * encoded against. Returns the bytes written; most uploads write none.
+	 */
+	private uploadRoundedClips(): number {
+		const table = this.encoder.roundedClips;
+		const from = this.roundedClipsUploaded;
+		const count = table.count;
+		if (count <= from) return 0;
+		const gl = this.gl;
+		gl.bindBuffer(gl.UNIFORM_BUFFER, this.resources.uniformBuffer);
+		gl.bufferSubData(
+			gl.UNIFORM_BUFFER,
+			this.frameSlotOffset + ROUNDED_CLIPS_BYTE + from * ROUNDED_CLIP_FLOATS * 4,
+			table.floats,
+			from * ROUNDED_CLIP_FLOATS,
+			(count - from) * ROUNDED_CLIP_FLOATS,
+		);
+		this.roundedClipsUploaded = count;
+		return (count - from) * ROUNDED_CLIP_FLOATS * 4;
 	}
 
 	/** The program and this frame's uniform slot; again after `invalidateState`. */

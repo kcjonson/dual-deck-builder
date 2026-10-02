@@ -123,6 +123,7 @@ function instance({ data }: { data: Uint8Array }, n: number) {
 		mode: bytes[I.mode * 4],
 		slot: bytes[I.mode * 4 + 1],
 		flags: bytes[I.mode * 4 + 2],
+		roundedClip: bytes[I.mode * 4 + 3],
 	};
 }
 
@@ -942,6 +943,22 @@ describe('UberGeometryEncoder: small text from raster glyphs (R6.4a)', () => {
 			expect(glyph.slot).toBe(1);
 			expect(glyph.colors).toEqual([0, 1, 2, 3].map(() => pm(BLUE)));
 		}
+	});
+
+	it('indexes the rounded clip from a raster run too, the same as any other draw (R4.14)', () => {
+		const source = rasterSource();
+		const { draw, encoder } = setup(1, source);
+		const upload = draw((api) => {
+			api.pushClipRounded({ x: 8, y: 10, width: 40, height: 20 }, 6);
+			api.drawText({ text: 'Ab', position: { x: 10, y: 20 }, font: 'body', size: 8, color: BLUE });
+			api.drawRect({ rect: { x: 8, y: 10, width: 40, height: 20 }, fill: RED });
+			api.popClip();
+		});
+		expect(source.requests).toEqual(['body 8']);
+		const quads = [0, 1, 2].map((n) => instance(upload, n));
+		expect(quads.map((quad) => quad.mode)).toEqual([UBER_MODE.image, UBER_MODE.image, UBER_MODE.rect]);
+		expect(quads.map((quad) => quad.roundedClip)).toEqual([1, 1, 1]);
+		expect(encoder.roundedClips.count).toBe(1);
 	});
 
 	it('reports the raster atlas as the group\'s texture', () => {

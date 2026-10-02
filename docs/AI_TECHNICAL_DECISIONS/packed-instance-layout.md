@@ -27,7 +27,7 @@ DDB-64 shipped the uber shader with R5.4's fallback shape: four vertices per qua
 | 18 to 21 | 4 x 4 | rgba8, normalised | premultiplied fill at each corner |
 | 22 | 4 | rgba8, normalised | premultiplied border |
 | 23, 24 | 4 | half float | border width (text: shadow blur), outset, sigma or screen range, opacity |
-| 25 | 4 | uint8, integer | mode, texture slot, flags, unused |
+| 25 | 4 | uint8, integer | mode, texture slot, flags, rounded clip index (DDB-190, [rounded-clip.md](./rounded-clip.md)) |
 
 What stays float32 is everything the rasteriser or an SDF reads as a position: the corners are the same float the per-vertex layout wrote, and the local position is `sign * extent`, which is exact. Texture coordinates stay float32 too; `unorm16` moves a sample by up to 1/65535 of the texture, a sixteenth of a texel on a 4096 atlas, which a distance field turns into edge movement. The clip is inline (R5.4 allows it at this size) rather than in a per-flush table, which would have saved 12 bytes at the cost of a uniform or texture upload per flush and a lookup in the vertex stage.
 
