@@ -36,7 +36,7 @@ Option 3, with option 1 filed for design (DDB-217).
 | Stem variation, platform, Linux | 0.00 | 0.00 | 0.00 |
 | Stem variation, platform, macOS | 0.15 | 0.09 | 0.05 |
 
-On the reference platform the field's weight matches; what it lacks is evenness, since its stems land at whatever sub-pixel phase the layout gives them and the hinted platform raster puts every stem on a pixel. The test is a ratchet (a platform-dependent weight floor, a variation ceiling a little above today's), not a target. Closing the evenness gap is DDB-218.
+On the reference platform the field's weight matches; what it lacks is evenness, since its stems land at whatever sub-pixel phase the layout gives them and the hinted platform raster puts every stem on a pixel. DDB-218 looked at closing the evenness gap and kept it as a documented tolerance instead, with a placement score added; see [small-text-evenness.md](./small-text-evenness.md).
 
 ## Spacing: quarter-pixel phases
 
