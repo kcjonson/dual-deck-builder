@@ -1,16 +1,16 @@
 import { expect, test } from '@playwright/test';
 import type { LintRect, LintResult, LintViolation } from '../../../src/renderer/engine/debug/layoutLint';
 import { SCENE_SCENARIOS } from '../support/scenarios';
-import { attachTree, openScene, prepare } from '../support/harness';
+import { attachTree, openScene, openScreen, prepare } from '../support/harness';
 import type { DevSurface } from '../support/harness';
 
 /**
  * R13.29's merge gate: `window.__ui.lint().count === 0` on every gallery scene.
  *
- * The gate is the gallery's and only the gallery's, per the implementation
- * spec's ground rules. The six game screens still report 1,681 violations
- * between them and a rule with a thousand known failures is a rule nobody
- * reads, so they stay out until each one migrates.
+ * The gate is the gallery's, per the implementation spec's ground rules,
+ * plus each game screen once it migrates (`LINT_SCREENS`). The screens not
+ * yet listed still report violations, and a rule with known failures is a
+ * rule nobody reads, so they join as they migrate.
  *
  * Why this is a separate spec rather than an assertion bolted onto
  * `gallery.spec.ts`: a lint failure and a pixel failure want different
@@ -58,6 +58,9 @@ import type { DevSurface } from '../support/harness';
  */
 const LINT_SCENARIOS = SCENE_SCENARIOS;
 
+/** Game screens on the new layout, which hold the gallery's bar (DDB-90). */
+const LINT_SCREENS: readonly string[] = ['splashScreen', 'mainMenuScreen'];
+
 /**
  * The floor a scene's measured node count has to clear for its clean lint to
  * mean anything.
@@ -100,7 +103,7 @@ function formatViolation(violation: LintViolation): string {
  * overlapping nodes from the log alone; opening the HTML report is for the
  * hundred-violation case the cap defers.
  */
-function formatResult(scene: string, result: LintResult): string {
+function formatResult(subject: string, result: LintResult): string {
 	const shown = result.violations.slice(0, MESSAGE_LIMIT).map(formatViolation);
 	const hidden = result.violations.length - shown.length;
 	const perRule = result.rules
@@ -108,7 +111,7 @@ function formatResult(scene: string, result: LintResult): string {
 		.map((rule) => `${rule.rule} ${rule.violations}`)
 		.join(', ');
 	const lines = [
-		`gallery scene "${scene}" must lint clean (R13.29), found ${result.count}: ${perRule}`,
+		`${subject} must lint clean (R13.29), found ${result.count}: ${perRule}`,
 		...shown.map((line) => `\t${line}`),
 	];
 	if (hidden > 0) lines.push(`\t... and ${hidden} more; see the attached lint.json`);
@@ -151,7 +154,32 @@ test.describe('gallery layout lint', () => {
 					`nothing. Either the scene failed to mount or treeSnapshot stopped emitting nodes.`,
 			).toBeGreaterThan(MIN_NODES);
 
-			expect(result.count, formatResult(scenario.scene, result)).toBe(0);
+			expect(result.count, formatResult(`gallery scene "${scenario.scene}"`, result)).toBe(0);
+		});
+	}
+});
+
+test.describe('screen layout lint', () => {
+	for (const screen of LINT_SCREENS) {
+		test(screen, async ({ page }, testInfo) => {
+			await prepare(page);
+			await openScreen(page, screen);
+
+			const result = await page.evaluate(
+				() => (window as unknown as DevSurface).__ui.lint(),
+			);
+			if (result.count > 0) {
+				await testInfo.attach('lint.json', {
+					body: JSON.stringify(result, null, '\t'),
+					contentType: 'application/json',
+				});
+				await attachTree(page, testInfo);
+			}
+
+			// As above: a clean count over an empty tree means nothing.
+			const measured = result.rules.find((rule) => rule.rule === 'outside-viewport');
+			expect(measured?.evaluated ?? 0, `screen "${screen}" linted an empty tree`).toBeGreaterThan(MIN_NODES);
+			expect(result.count, formatResult(`screen "${screen}"`, result)).toBe(0);
 		});
 	}
 });

@@ -1,10 +1,11 @@
 import { Screen } from '../../core/Screen';
 import { ScreenManager } from '../../core/ScreenManager';
-import { Rectangle } from '../../../engine/components/Rectangle';
+import { Stack } from '../../../engine/components/Stack';
 import { Text } from '../../../engine/components/Text';
 import { Button } from '../../../engine/ui/Button';
-import { BattleState } from '../../mechanics/Battle';
-import type { TextStyleObject } from '../../../engine/components/Text';
+import { Panel } from '../../../engine/ui/Panel';
+import { tokens } from '../../../engine/theme/tokens';
+import type { BattleState } from '../../mechanics/Battle';
 
 /**
  * Data passed to the battle result screen
@@ -15,179 +16,94 @@ export interface BattleResultData {
 	// TODO: Add more stats like salvage earned, drivers leveled up, etc.
 }
 
+const PANEL_WIDTH = 600;
+
+function isBattleResultData(data: unknown): data is BattleResultData {
+	return typeof data === 'object' && data !== null && 'victory' in data;
+}
+
 /**
- * Screen displayed after battle ends
+ * Screen displayed after battle ends: a root stack centring one panel with
+ * the outcome and a Continue button, which has focus on mount. Enter
+ * continues, and so does Escape, since there is nowhere else to go.
  */
 export class BattleResultScreen extends Screen {
-	private resultData: BattleResultData | null = null;
-	private continueButton!: Button;
-	private titleText!: Text;
-	private subtitleText!: Text;
-	private background!: Rectangle;
-	private panel!: Rectangle;
-	
-	// UI constants
-	private readonly PANEL_WIDTH = 600;
-	private readonly PANEL_HEIGHT = 400;
-	
+	private readonly stack: Stack;
+
 	constructor() {
-		super('battleResultScreen');
-		this.createUI();
-		this.layoutUI();
+		const root = new Stack({
+			id: 'battleResultScreen',
+			widthMode: 'fill',
+			heightMode: 'fill',
+			distribution: 'center',
+			crossAlign: 'center',
+			style: { backgroundColor: 'bg_base' },
+		});
+		super('battleResultScreen', { root });
+		this.stack = root;
 	}
-	
-	/**
-	 * Create the UI elements (without positioning)
-	 */
-	private createUI(): void {
-		// Background
-		this.background = new Rectangle({
-			x: 0,
-			y: 0,
-			width: 100, // Will be set by layoutUI
-			height: 100,
-			style: {
-				backgroundColor: '#1a1a1a',
-			},
-		});
-		this.rootLayer.addChild(this.background);
-		
-		// Center panel
-		this.panel = new Rectangle({
-			id: 'result_panel',
-			x: 0,
-			y: 0,
-			width: this.PANEL_WIDTH,
-			height: this.PANEL_HEIGHT,
-			style: {
-				backgroundColor: '#2a2a3a',
-				borderColor: '#4a4a5a',
-				borderWidth: 3,
-			},
-		});
-		this.rootLayer.addChild(this.panel);
-		
-		// Title (will be updated based on victory/defeat)
-		const titleStyle: TextStyleObject = {
-			fontSize: 48,
-			color: '#ffffff',
-			textAlign: 'center',
-			fontWeight: 'bold',
-		};
-		
-		this.titleText = new Text('', {
-			id: 'result_title',
-			style: titleStyle,
-			wrap: 'none',
-		});
-		this.rootLayer.addChild(this.titleText);
-		
-		// Subtitle
-		const subtitleStyle: TextStyleObject = {
-			fontSize: 20,
-			color: '#aaaaaa',
-			textAlign: 'center',
-		};
-		
-		this.subtitleText = new Text('', {
-			style: subtitleStyle,
-			wrap: 'none',
-		});
-		this.rootLayer.addChild(this.subtitleText);
-		
-		// TODO: Add battle statistics display
-		// - Turns taken
-		// - Damage dealt/received
-		// - Cards played
-		// - Salvage earned (for victory)
-		
-		// Continue button
-		this.continueButton = new Button('Continue', {
-			id: 'result_continue_button',
-			x: 0,
-			y: 0,
-			tone: 'accent',
-			width: 200,
-			height: 50,
-		});
-		
-		this.continueButton.onClick = () => {
-			// TODO: Navigate to reward screen or map for victory, or retry options for defeat
-			ScreenManager.navigate('mainMenuScreen');
-		};
-		
-		this.rootLayer.addChild(this.continueButton);
-	}
-	
-	/**
-	 * Layout all UI elements based on current screen size
-	 */
-	private layoutUI(): void {
-		const screenWidth = this.rootLayer.getWidth();
-		const screenHeight = this.rootLayer.getHeight();
-		
-		// Update background size
-		this.background.setSize(screenWidth, screenHeight);
-		
-		// Center panel
-		const panelX = Math.floor((screenWidth - this.PANEL_WIDTH) / 2);
-		const panelY = Math.floor((screenHeight - this.PANEL_HEIGHT) / 2);
-		this.panel.setPosition(panelX, panelY);
-		
-		// Title and subtitle, each centred across the panel
-		this.titleText.setPosition(panelX, panelY + 80);
-		this.titleText.setWidth(this.PANEL_WIDTH);
-		this.subtitleText.setPosition(panelX, panelY + 140);
-		this.subtitleText.setWidth(this.PANEL_WIDTH);
-		
-		// Continue button position (centered horizontally, near bottom of panel)
-		this.continueButton.setPosition(
-			panelX + (this.PANEL_WIDTH - 200) / 2,
-			panelY + this.PANEL_HEIGHT - 100
-		);
-	}
-	
-	
-	/**
-	 * Handle screen mount with data
-	 */
+
 	protected onMount(data?: unknown): void {
-		if (data && typeof data === 'object' && 'victory' in data) {
-			this.resultData = data as BattleResultData;
-			this.updateUI();
-		} else {
+		if (!isBattleResultData(data)) {
 			console.error('BattleResultScreen: Invalid or missing data');
+			return;
 		}
+		const { victory } = data;
+
+		const panel = new Panel({
+			id: 'result_panel',
+			variant: 'raised',
+			accent: victory ? 'accent' : 'none',
+			corners: true,
+			width: PANEL_WIDTH,
+			crossAlign: 'center',
+			gap: tokens.space.space_4,
+			style: { padding: 'space_12' },
+		});
+		panel.addChild(new Text(victory ? 'VICTORY!' : 'DEFEAT!', {
+			id: 'result_title',
+			style: {
+				fontRole: 'display',
+				fontSize: 'fs_4xl',
+				color: victory ? 'status_ok' : 'status_crit',
+				textAlign: 'center',
+			},
+			wrap: 'none',
+		}));
+		panel.addChild(new Text(victory ? 'All enemies have been defeated!' : 'Your vehicles have been destroyed!', {
+			id: 'result_subtitle',
+			style: {
+				fontSize: 'fs_lg',
+				color: 'text_dim',
+				textAlign: 'center',
+			},
+			wrap: 'none',
+		}));
+		// TODO: Battle statistics from battleState: turns taken, damage dealt
+		// and received, cards played, salvage earned
+
+		const continueButton = new Button('Continue', {
+			id: 'result_continue_button',
+			tone: 'accent',
+			size: 'lg',
+			width: 200,
+			margin: { top: tokens.space.space_8 },
+			// TODO: Navigate to reward screen or map for victory, or retry options for defeat
+			onClick: () => this.continue(),
+		});
+		panel.addChild(continueButton);
+		this.stack.addChild(panel);
+
+		this.rootLayer.hotkeys.register('Escape', () => this.continue());
+		this.context.focus.focus(continueButton);
 	}
-	
-	/**
-	 * Update UI based on result data
-	 */
-	private updateUI(): void {
-		if (!this.resultData) return;
-		
-		// Update title
-		this.titleText.setText(this.resultData.victory ? 'VICTORY!' : 'DEFEAT!');
-		this.titleText.setColor(this.resultData.victory ? '#6aca6a' : '#ca6a6a');
-		
-		// Update subtitle
-		this.subtitleText.setText(
-			this.resultData.victory 
-				? 'All enemies have been defeated!' 
-				: 'Your vehicles have been destroyed!'
-		);
-		
-		// Update panel border color
-		this.panel.setBorderColor(this.resultData.victory ? '#4a8a4a' : '#8a4a4a');
-		
-		// TODO: Display battle statistics from battleState
-		// const { turn, playerTeam, enemyTeam } = this.resultData.battleState;
+
+	protected onUnmount(): void {
+		this.rootLayer.hotkeys.unregister('Escape');
+		this.stack.clearChildren();
 	}
-	
-	/**
-	 * Handle window resize
-	 */
-	protected onResized(): void {
-		this.layoutUI();
+
+	private continue(): void {
+		ScreenManager.navigate('mainMenuScreen');
 	}
 }

@@ -3,6 +3,16 @@ import { renderTree } from '../../engine/components/renderTree';
 import type { DrawApi } from '../../engine/draw/DrawApi';
 import type { MountContext } from '../../engine/components/MountContext';
 
+export interface ScreenOptions {
+	/**
+	 * The screen's root. A stack with `fill` on both axes is the viewport's
+	 * size from the frame's layout (R8.21) and lays its children out on every
+	 * resize with no screen code. Default: a plain container the screen
+	 * places by hand from `onMount` and `onResized`.
+	 */
+	root?: Container;
+}
+
 /**
  * Base class for game screens
  */
@@ -15,13 +25,15 @@ export abstract class Screen {
 	/**
 	 * Create a new screen
 	 * @param id Screen identifier
+	 * @param options.root The screen's own root; a fill root stack is sized by the frame (R8.21)
 	 */
-	constructor(id: string) {
+	constructor(id: string, { root }: ScreenOptions = {}) {
 		this.id = id;
-		// Zero-sized until mount sizes it from the viewport (R8.21): nothing
-		// in a screen reads the window, and anything placed from the root's
-		// size is placed in onMount and onResized.
-		this.rootLayer = new Container({ id });
+		// Zero-sized until mount: the default container is sized from the
+		// viewport by `mount` and `resize`, so anything placed from its size is
+		// placed in onMount and onResized; a fill root stack is sized by the
+		// frame's layout instead. Nothing in a screen reads the window.
+		this.rootLayer = root ?? new Container({ id });
 	}
 
 	/**
@@ -36,6 +48,11 @@ export abstract class Screen {
 	 */
 	public get root(): Container {
 		return this.rootLayer;
+	}
+
+	/** A root stack with `fill` on both axes: the frame sizes it from the viewport, never the screen. */
+	private get rootFillsViewport(): boolean {
+		return this.rootLayer.widthMode === 'fill' && this.rootLayer.heightMode === 'fill';
 	}
 
 	/**
@@ -56,8 +73,10 @@ export abstract class Screen {
 	public mount(context: MountContext, data?: unknown): void {
 		this.mountContext = context;
 		this.isActive = true;
-		const { width, height } = context.viewport.logical;
-		this.rootLayer.setSize(width, height);
+		if (!this.rootFillsViewport) {
+			const { width, height } = context.viewport.logical;
+			this.rootLayer.setSize(width, height);
+		}
 		this.rootLayer.mount(context);
 
 		// Call onMount - handle both sync and async versions
@@ -100,7 +119,9 @@ export abstract class Screen {
 	 * size takes effect in; a screen no longer listens to the window itself.
 	 */
 	public resize(width: number, height: number): void {
-		this.rootLayer.setSize(width, height);
+		// A fill root was re-laid out by the frame already (R8.21); a size set
+		// here would fix it at this one.
+		if (!this.rootFillsViewport) this.rootLayer.setSize(width, height);
 
 		// Call the screen-specific resize handler
 		this.onResized();
