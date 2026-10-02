@@ -17,6 +17,14 @@ This document contains the chronological log of completed development tasks for 
 - Re-review nits from #118: a scrolled-ancestor case for `localToAncestorInto`, and the dev log's missing blank line.
 
 **How:** `CombatScreenTurn.test.ts` (banner placement, queue, slide, reduced-motion hold; intents per raider; a played card's flight from the hand to the pile, the whole hand at END TURN, none under reduced motion), `vehicleBadges.test.ts` (two then "+N", tooltips, grow and shrink, reduced motion), `EnemyBattlefieldLayer.test.ts`, `Component.test.ts`. Played a full turn, enemy turn included, in headless Chromium through `window.__dev.input`.
+## Dialog on Panel, and the focus ring after Escape (2026-10-02)
+
+**What landed:** DDB-221 and DDB-229 (DDB-55 catalog follow-ups).
+
+- `Dialog`'s surface is now R12.19's `Panel`: `raised` with the `shadow_pop` style shadow, kicker and title in the panel header, the X in `actions`, and a zero bottom inset. A small `DialogPanel` subclass adds the hairline over the footer. The panel clips inside its border rather than the body clipping at its box, so a control on the body's edge keeps its ring (R12.21 says so now). The title is the panel's `fs_md` now (was `fs_lg`), and the header band is the panel's height, so the `dialog` golden moves.
+- The dispatcher marks focus keyboard-driven when a navigation key (Enter, Space, Escape, arrows, Home, End) is handled by the focused component (as a key, `activate`, or `cancel`, outside a text field's own keys) or closes a popup or overlay. A key that only reaches a hotkey table, like combat's Escape for a mouse player cancelling a drag, leaves it alone. Before, only Tab, arrow navigation, and `activate` did, so a Select opened by a press, driven with the arrows, and closed with Escape had focus with no ring. DropdownButton and ContextMenu's hand-back had the same gap and are fixed by the same change. R9.23 says so now.
+
+**How:** `Dialog.test.ts` gained the panel composition (variant, shadow, actions, title, insets, footer hairline) and a Select nested in a modal (Escape closes the list first and keeps the ring, then the dialog, then focus goes back to the opener). `menus.test.ts` covers the ring after Escape for Select, DropdownButton, and ContextMenu; `widgetInput.test.ts` covers a pressed button staying ringless when Escape only reaches a hotkey, its ring after Enter, and a text field staying ringless; `CombatScreenHand.test.ts` covers a mouse player's Escape cancelling a drag and targeting without a ring.
 ## Settings and Credits screens (2026-10-02)
 
 **What landed:** DDB-38 (DDB-55 phase 6).
