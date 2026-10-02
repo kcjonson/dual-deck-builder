@@ -451,6 +451,31 @@ describe('Select (R12.12)', () => {
 		context.frame.update(tokens.motion.dur_fast / 1000);
 		expect(made.look.border).toEqual(color.accent);
 	});
+
+	it('draws its focus ring after Escape closes a list opened by a press and driven from the keys (DDB-229)', () => {
+		const { made } = select({ value: 'hauler' });
+		inject(`down,${centre(made)}`, `up,${centre(made)}`);
+		expect(made.openMenu).not.toBeNull();
+		expect(made.focusVisible).toBe(false);
+		press('ArrowDown');
+		press('Escape');
+		context.frame.update(tokens.motion.dur_fast / 1000);
+		expect(made.openMenu).toBeNull();
+		expect(made.focused).toBe(true);
+		expect(made.focusVisible).toBe(true);
+		expect(made.look.focusRing).toEqual(color.accent);
+		const ring = draws().find((command): command is RectCommand => command.kind === 'rect' && command.border?.position === 'outside');
+		expect(ring?.border?.color).toEqual(color.accent);
+	});
+
+	it('draws its focus ring after Escape alone closes a list opened by a press (DDB-229)', () => {
+		const { made } = select();
+		inject(`down,${centre(made)}`, `up,${centre(made)}`);
+		press('Escape');
+		expect(made.openMenu).toBeNull();
+		expect(made.focused).toBe(true);
+		expect(made.focusVisible).toBe(true);
+	});
 });
 
 describe('DropdownButton (R12.13)', () => {
@@ -514,6 +539,17 @@ describe('DropdownButton (R12.13)', () => {
 		inject(`click,${centre(made)}`);
 		press('Tab');
 		expect(made.openMenu).toBeNull();
+	});
+
+	it('draws its focus ring after Escape closes a menu opened by a click and driven from the keys (DDB-229)', () => {
+		const { made } = dropdown();
+		inject(`click,${centre(made)}`);
+		expect(made.focusVisible).toBe(false);
+		press('ArrowDown');
+		press('Escape');
+		expect(made.openMenu).toBeNull();
+		expect(made.focused).toBe(true);
+		expect(made.focusVisible).toBe(true);
 	});
 
 	it('opens upward when asked, and not at all with no items', () => {
@@ -651,6 +687,21 @@ describe('ContextMenu (R12.14)', () => {
 		inject(`move,${rowCentre(menu, 0)}`, `up,${rowCentre(menu, 0)}`);
 		expect(picked).toEqual([]);
 		expect(menu.isOpen).toBe(true);
+	});
+
+	it('hands focus back with its ring after a menu opened by a press is driven from the keys and closed on Escape (DDB-229)', () => {
+		const { menu } = contextMenu();
+		const field = new Button('Field', { id: 'field', x: 200, y: 150, width: 100 });
+		root.findById('scene')?.addChild(field);
+		layout();
+		inject(`click,${centre(field)},2`);
+		expect(menu.focusVisible).toBe(false);
+		press('ArrowDown');
+		expect(menu.focusVisible).toBe(true);
+		press('Escape');
+		expect(menu.isOpen).toBe(false);
+		expect(context.focus.focused).toBe(field);
+		expect(field.focusVisible).toBe(true);
 	});
 
 	it('moves with Up and Down, wrapping and skipping disabled items, selects on Enter, and closes on Escape', () => {

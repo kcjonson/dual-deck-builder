@@ -9,6 +9,8 @@ import type { MountContext } from '../engine/components/MountContext';
 import { CardLoader } from './core/CardLoader';
 import type { Container } from '../engine/components/Container';
 import type { DeviceInfo } from '../engine/rendering/deviceInfo';
+import type { ReducedMotion } from '../engine/rendering/reducedMotion';
+import { GameSettings, motionOverride } from './core/GameSettings';
 
 /**
  * What `window.__app.status()` answers on the game page (R13.3, R13.32). The
@@ -51,6 +53,10 @@ export interface GameOptions {
 	device: DeviceInfo;
 	/** R13.16's GPU timer; null in a production build, which has none. */
 	gpuTimer?: GpuTimer | null;
+	/** R11.13's reduced motion, which the player's motion setting overrides. */
+	reducedMotion?: ReducedMotion | null;
+	/** The player's settings. Default: the shared, persisted ones. */
+	settings?: GameSettings;
 }
 
 /**
@@ -71,7 +77,7 @@ export class Game {
 	private updates = 0;
 	private renders = 0;
 
-	constructor({ context, frameTimer, viewport, device, gpuTimer = null }: GameOptions) {
+	constructor({ context, frameTimer, viewport, device, gpuTimer = null, reducedMotion = null, settings = GameSettings.shared }: GameOptions) {
 		this.context = context;
 		this.draw = context.draw;
 		this.frameTimer = frameTimer;
@@ -90,6 +96,12 @@ export class Game {
 			this.context.overlays.resize();
 			this.developerOverlay.viewportWidth = width;
 		});
+		if (reducedMotion) {
+			reducedMotion.override = motionOverride(settings.motion);
+			settings.onChange(({ motion }) => {
+				reducedMotion.override = motionOverride(motion);
+			});
+		}
 
 		// Check if running in Electron
 		interface ElectronWindow extends Window {

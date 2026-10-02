@@ -3,7 +3,7 @@ import { Renderer, showStatusLine } from '../renderer/engine/rendering/Renderer'
 import { createDrawApi } from '../renderer/engine/rendering/WebGL2Backend';
 import { FrameLoop } from '../renderer/engine/rendering/FrameLoop';
 import { MountContext, createMountContext } from '../renderer/engine/components/MountContext';
-import { followReducedMotion } from '../renderer/engine/rendering/reducedMotion';
+import { ReducedMotion } from '../renderer/engine/rendering/reducedMotion';
 import { FrameTimer } from '../renderer/engine/rendering/FrameTimer';
 import { PointerAdapter } from '../renderer/engine/input/PointerAdapter';
 import { GpuTimer, createGpuTimer } from '../renderer/engine/rendering/GpuTimer';
@@ -71,7 +71,7 @@ class GalleryApplication {
 				clipboard: detectClipboard(window),
 				assetLoader: imageUrlLoader(),
 			});
-			followReducedMotion(this.context.animator);
+			new ReducedMotion({ animator: this.context.animator });
 			const canvas = this.renderer.canvas;
 			new PointerAdapter({ dispatcher: this.context.dispatcher }).attach(canvas);
 

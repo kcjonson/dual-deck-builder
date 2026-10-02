@@ -352,6 +352,28 @@ describe('CombatScreen drag to play', () => {
 		combat.unmount();
 	});
 
+	it('leaves a mouse player\'s focus without a ring when Escape cancels a drag or targeting (R9.23)', async () => {
+		const combat = await startCombat();
+		const card = handCard(combat, ['enemy_single'], 'headshot');
+		const target = centreOf(vehicleBounds(combat, 'enemyLayer'));
+
+		drag(grabPoint(card), target, { release: false });
+		inject('keydown,Escape', 'keyup,Escape');
+		inject(`up,${target[0]},${target[1]}`);
+		expect(context.focus.focused).not.toBeNull();
+		expect(context.focus.focusVisible).toBe(false);
+		expect(context.focus.focused?.focusVisible).toBe(false);
+
+		const [cx, cy] = grabPoint(card);
+		inject(`click,${cx},${cy}`);
+		expect(combat['combatModel'].isTargeting).toBe(true);
+		inject('keydown,Escape', 'keyup,Escape');
+		expect(combat['combatModel'].isTargeting).toBe(false);
+		expect(context.focus.focusVisible).toBe(false);
+
+		combat.unmount();
+	});
+
 	it('still plays by click-then-target, since a press that never moves is a click', async () => {
 		const combat = await startCombat();
 		const card = handCard(combat, ['enemy_single'], 'headshot');

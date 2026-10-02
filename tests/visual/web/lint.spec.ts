@@ -59,7 +59,7 @@ import type { DevSurface } from '../support/harness';
 const LINT_SCENARIOS = SCENE_SCENARIOS;
 
 /** Game screens on the new layout, which hold the gallery's bar (DDB-90). */
-const LINT_SCREENS: readonly string[] = ['splashScreen', 'mainMenuScreen'];
+const LINT_SCREENS: readonly string[] = ['splashScreen', 'mainMenuScreen', 'settingsScreen', 'creditsScreen'];
 
 /**
  * The floor a scene's measured node count has to clear for its clean lint to
