@@ -17,6 +17,16 @@ This document contains the chronological log of completed development tasks for 
 - Decision record: [developer-sections-on-stacks.md](./AI_TECHNICAL_DECISIONS/developer-sections-on-stacks.md).
 
 **How:** `DeveloperScreen.test.ts` mounts at 1440x882, resizes to 1024x600 and back, and lints zero with the same section instances; a Playwright lint test does the same live resize in the browser; the full chromium lint spec (53 tests) passes locally, every gallery scene at zero.
+## Phase 7 deferred items classified and recorded (2026-10-02)
+
+**What landed:** DDB-94 (DDB-55), docs only.
+
+- Each item on phase 7's deferred checkbox, plus IME composition and DDB-237, checked against its rule and conformance row. None is required, so none was built and no task was filed; reasons and reopening triggers are in [deferred-engine-items.md](./AI_TECHNICAL_DECISIONS/deferred-engine-items.md).
+- Spec levels made consistent with the checklists: R15.40 (gamepad adapter) is a MAY with an optional row in 15.13, R7.5 (UI scale) is a SHOULD to match its recommended row, R9.24 says the controller-mode select question waits on the gamepad adapter, and 12.10's optional row names IME composition.
+- The phase 7 checkbox in the implementation spec is ticked.
+
+**How:** read R3.26, R4.15, R7.5, R8.19, R9.24, R9.27, R12.10, R12.38, R15.39, and R15.40 against the 3.13, 4.8, 7.9, 8.10, 12.10, and 15.13 checklists and the DDB-93 re-score; confirmed in code that `DrawApi` has no non-rect clip shape (R4.15's MUST) and the context has `stencil: false` (R15.2).
+
 ## Conformance re-score against chapter 14 (2026-10-02)
 
 **What landed:** DDB-93 (DDB-55), docs only.

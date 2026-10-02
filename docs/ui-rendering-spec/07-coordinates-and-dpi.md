@@ -15,7 +15,7 @@ Rules are numbered R7.n.
 
 ## 7.2 UI scale
 
-- R7.5 A global UI scale factor `uiScale` (a settings value; 1 by default) is applied by defining the logical viewport as `framebuffer / (dpr * uiScale)`. Layout and input then work in the scaled logical space unchanged; nothing is rendered as a bitmap zoom. This is the design worldsim recorded (requirements only, not built) for its UI scale setting, and it is how a handheld (the Steam Deck in the deck builder's design document) gets larger UI without a second layout.
+- R7.5 An implementation SHOULD offer a global UI scale factor `uiScale` (a settings value; 1 by default), applied by defining the logical viewport as `framebuffer / (dpr * uiScale)`. Layout and input then work in the scaled logical space unchanged; nothing is rendered as a bitmap zoom. This is the design worldsim recorded (requirements only, not built) for its UI scale setting, and it is how a handheld (the Steam Deck in the deck builder's design document) gets larger UI without a second layout.
 - R7.6 Because glyphs are distance fields and shapes are SDF quads, a non-integer `uiScale` stays crisp; the only artefacts are hairlines, which snapping handles.
 
 ## 7.3 Pixel snapping
