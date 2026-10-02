@@ -52,6 +52,8 @@ export interface SceneScenario {
 export const SCREEN_SCENARIOS: readonly ScreenScenario[] = [
 	{ screen: 'splashScreen' },
 	{ screen: 'mainMenuScreen' },
+	{ screen: 'settingsScreen' },
+	{ screen: 'creditsScreen' },
 	{ screen: 'developerScreen' },
 	{ screen: 'cardShowcaseScreen' },
 	{ screen: 'driverSelectionScreen' },

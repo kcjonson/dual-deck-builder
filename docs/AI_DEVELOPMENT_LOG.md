@@ -6,6 +6,17 @@ This document contains the chronological log of completed development tasks for 
 
 **Date correction (2026-08-22):** the repo's first commit is 2025-05-17, but many entries below carry dates in December 2024 or January 2025 — the AI that wrote them used its assumed date instead of the real one. Entries dated 2025-07-03 and 2025-07-02 have been corrected from "2025-01-03"/"2025-01-02" (verified against git history). Remaining Dec 2024 / Jan 2025 dates are wrong by roughly six months; the real work happened May–July 2025. Trust git history over these dates.
 
+## Settings and Credits screens (2026-10-02)
+
+**What landed:** DDB-38 (DDB-55 phase 6).
+
+- `screens/settings/SettingsScreen.ts`: a Motion panel with a `SegmentedControl` (System, Reduced, Full) and Back. Focus starts on the selected segment; the arrows change the setting, which applies and persists at once; Tab reaches Back; Escape returns to the menu.
+- `screens/credits/CreditsScreen.ts` and `credits.ts`: the licence, commit authors, typefaces, icons, and tools, all taken from the repo, in a `ScrollContainer` inside a `Panel` that fills between the title and Back. Back is focused; Page Up, Page Down, Home, and End scroll from it; Escape returns.
+- `game/core/GameSettings.ts`, the first settings store: one validated JSON record in local storage, tolerant of a missing, corrupt, or throwing storage. `engine/rendering/reducedMotion.ts` is now the `ReducedMotion` class with an `override`, which `Game` drives from the setting.
+- The main menu's Settings and Credits buttons navigate to the new screens. Both screens are in the layout lint gate and the screen goldens.
+
+**How:** `GameSettings.test.ts`, `reducedMotion.test.ts`, `SettingsScreen.test.ts`, `CreditsScreen.test.ts`, `credits.test.ts` (every bundled font and icon directory credited, copyright lines and licences checked against their files), and a `Game.test.ts` case for the wiring. Played both screens from the menu through `window.__dev.input` with keyboard and mouse in headless Chromium at 1024x600 and 1280x720: lint zero, focus on the primary control, the setting surviving a reload, credits scrolling by key and wheel, no console errors. Details in [settings-store-and-screens.md](./AI_TECHNICAL_DECISIONS/settings-store-and-screens.md).
+
 ## Main menu, splash, and battle result on root stacks; screen transitions (2026-10-01)
 
 **What landed:** DDB-90 (DDB-55 phase 6).
