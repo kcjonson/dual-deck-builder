@@ -97,8 +97,10 @@ export class FlowWrap extends Container {
 	protected layoutChildren(): void {
 		const parent = this.parent;
 		if (!parent || !parent.sizesChildren) {
-			const hug = this.measure(Infinity, Infinity);
-			this.resizeInLayout(this.clampToLimits('width', hug.width), this.clampToLimits('height', hug.height));
+			// The rows reflow at the clamped width, so the height is taken there.
+			const width = this.widthMode === 'fixed' ? this.width : this.clampToLimits('width', this.measure(Infinity, Infinity).width);
+			const height = this.heightMode === 'fixed' ? this.height : this.clampToLimits('height', this.rowsHeight(width));
+			this.resizeInLayout(width, height);
 		}
 		const items = this.getChildren();
 		const width = this.width;

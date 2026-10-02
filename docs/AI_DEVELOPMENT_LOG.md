@@ -8,12 +8,13 @@ This document contains the chronological log of completed development tasks for 
 
 ## Arrow trapping settled, hug scrolling specified (2026-10-02)
 
-**What landed:** DDB-227 and DDB-228 (DDB-55), one PR.
+**What landed:** DDB-227, DDB-228, and DDB-233 (DDB-55), one PR.
 
 - R9.24: a control consumes the arrows along its axis and leaves the two across it to directional focus (R9.26). Along the axis they're consumed even at the ends, so a held key doesn't run off a slider or a wrapping group. R12.15, R12.17, and R12.35 follow it.
 - `SegmentedControl` drops Up and Down, matching `TabBar`. `Slider` steps on Left and Right only. `RadioGroup`'s focus-group orientation and arrows follow its stack direction (Up and Down in the default column) instead of `both`.
 - R12.20 and R10.17 describe ScrollContainer's `heightMode: 'hug'`. Outside a stack it now clamps its hug height to `minSize` and `maxSize`, through a new `Component.clampToLimits` that `Stack.sizeSelf` and `FlowWrap` use too.
 - `FlowWrap` measures, wraps, and places items by their margin boxes.
+- DDB-233, from review: directional focus entering a focus group from outside lands on its active child, as Tab does (R9.26). On settings, Down, Up, Right used to move Full to Reduced; now Up returns to Full. `RadioGroup`'s direction setter keeps its focus-group orientation in step. Outside a sizing parent, `FlowWrap` reflows at its clamped width before taking its height. R9.24 names selects, dropdowns, and number inputs as consuming vertical arrows; controller mode for them is DDB-237.
 - Gallery scene `scroll-hug`: a hugging scroller in a roomy column and a short one, and two outside a stack held to `maxSize` and `minSize`.
 - Skipped DriverSelectionScreen's constructor UI and Escape unregistration; DDB-225 owns that screen's Escape.
 

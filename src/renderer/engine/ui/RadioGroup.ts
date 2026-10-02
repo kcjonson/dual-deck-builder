@@ -100,6 +100,16 @@ export class RadioGroup<T = string> extends Stack {
 		this.value = value;
 	}
 
+	public get direction(): Direction {
+		return super.direction;
+	}
+
+	/** The group's arrows and its focus-group orientation follow the direction. */
+	public set direction(value: Direction) {
+		super.direction = value;
+		this.focusGroup = { orientation: value, wrap: true };
+	}
+
 	public get value(): T | null {
 		return this.selectedValue;
 	}

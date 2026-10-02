@@ -103,11 +103,21 @@ describe('FlowWrap', () => {
 		expect(flow.getHeight()).toBe(80 + 10 + 70);
 	});
 
-	it('hugs its rows within minSize and maxSize outside a stack', () => {
-		const flow = new FlowWrap({ gap: 10, minSize: { height: 100 }, maxSize: { width: 120 } });
-		items(flow, 3);
+	it('reflows at its maxSize width outside a stack, and the height follows the rows', () => {
+		const flow = new FlowWrap({ gap: 10, maxSize: { width: 120 } });
+		const boxes = items(flow, 3);
 		root.addChild(flow);
 		context.frame.layout();
-		expect([flow.getWidth(), flow.getHeight()]).toEqual([120, 100]);
+		// Two fit in 120 (50 + 10 + 50); the third starts a row at 80
+		expect([flow.getWidth(), flow.getHeight()]).toEqual([120, 150]);
+		expect(boxes[2].getY() + boxes[2].getHeight()).toBe(150);
+	});
+
+	it('holds to its minSize outside a stack', () => {
+		const flow = new FlowWrap({ gap: 10, minSize: { width: 200, height: 100 } });
+		items(flow, 2);
+		root.addChild(flow);
+		context.frame.layout();
+		expect([flow.getWidth(), flow.getHeight()]).toEqual([200, 100]);
 	});
 });
