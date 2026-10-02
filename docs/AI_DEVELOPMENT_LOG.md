@@ -22,6 +22,28 @@ This document contains the chronological log of completed development tasks for 
 - Decision record: [card-face-and-detail-view.md](./AI_TECHNICAL_DECISIONS/card-face-and-detail-view.md).
 
 **How:** unit tests for the face, the detail view, the pin, the combat inputs, and the card data; played a turn at 1280x720 and 1024x600 through `__dev.input` (hover, pin, drag, click-then-target, keyboard and I, the pile dialog, END TURN), layout lint zero throughout.
+## The top bar and the combat log drawer (2026-10-02)
+
+**What landed:** DDB-140 with DDB-123 folded in (DDB-127), Battle Screen Design sections 2, 6, and 8.
+
+- The top bar gains the menu key (the mock's three bars, drawn disabled: the game has no pause menu, filed as DDB-264) and the wave group, "Wave N of M" with "+N incoming" in raider red while any are coming. The combat screen shows wave 1 of 1, since there is no wave code yet.
+- `CombatLogLayer` is a `ChromeStack` on the mock's drawer: a header, then a `ScrollContainer` of `LogLine` rows, each a mono turn tag ("T3") and 13 px text wrapping beside it on 18 px leading over a hairline. `openDrawer` takes focus into the scroll container (arrows, Page Up and Down, Home, End), and closing by L, the LOG key, or Escape puts focus back where it was, or asks the screen for a place when that has gone. F6 stays as an alias.
+- `CombatLog` holds player-facing lines only, keeps 100, and takes `{ message, type, turn }`. Its `addBattleMessage` drops Battle's debug dumps, turn bookkeeping, opening, and leftover adrenaline, and reads a message's `line` when it has one. The `[D1]` and `[Turn N] [Driver N]` prefixes are gone; the turn tag is the one prefix.
+- `Battle` keeps its record unchanged for the simulator and tests, adds a `debug` message type for the team status and hand dumps, and gives messages with seat tags or before-and-after numbers a `line` without them. The screen logs the matchup, "Your turn", and "The raiders' turn" itself, and no longer logs card plays twice.
+- Review fixes: the disabled menu dims its edge and glyph and explains itself in a tooltip; scrap and fuel take the mock's tints; a reader scrolled up in a full log keeps their line as old ones drop; closing the drawer never leaves focus on it; no allocations in the new draw code; driver-named lines come from one sentence through `Battle.logAbout`.
+- New gallery scene `combat-log`, linted at both gate sizes, and a `combatScreen-log` screen case (the drawer open via `navigate('combatScreen', { openLog: true })`) captured and linted at both. Decision record: [combat-log-content.md](./AI_TECHNICAL_DECISIONS/combat-log-content.md).
+
+**How:** unit tests for the log model (filtering, lines, a played turn with no dumps), the drawer (wrapping, scrolling, focus in and back, Escape), the top bar, and L through the combat screen's keyboard path; played click, drag, END TURN, L, the LOG key, and keyboard scrolling through `__dev.input` at 1280x720 and 1024x600; goldens minted by CI.
+
+## The enemy turn as a paced phase (2026-10-02)
+
+**What landed:** DDB-112 (DDB-5), the pacing DDB-139 builds on.
+
+- `Battle`: `endPlayerTurn({ stepEnemyTurn })`, `stepEnemyTurn()` returning an `EnemyTurnStep` (raider, card, target, played, fizzled, or dropped), `runEnemyTurn()`, `enemyTurnInProgress`. `processEnemyTurns` split into `beginEnemyTurn`, the step, and `finishEnemyTurn`; `playPlannedAction` returns what it did. `endPlayerTurn` is synchronous and its default still runs the whole turn.
+- `CombatScreen`: END TURN starts `EnemyTurnPacer` (a frame ticker on the mount context's clock), which steps one action per beat; the dock is disabled and End Turn says WAIT until the player's draw, and the intents shown at END TURN stay up; a fizzle pops MISS; `actingRaider` names the raider on screen. `EndTurnColumn.show` takes `waiting`.
+- Tests: Battle steps in plan order with the draw after the last step, a dropped raider is one step, a fizzle is its own, a loss ends the turn; the screen holds each beat, locks the dock, and draws after the last beat, under reduced motion too. New Playwright spec `enemyTurn.spec.ts` captures and lints the mid-turn screen at 1440x882 and 1024x600.
+- Review round: `CombatFxLayer.popNumber` gives each number the lowest free stack slot on its vehicle and an id from a counter that only goes up (three hits a beat apart used to share a slot and an id); the lead-in counts from when ENEMY TURN shows (`TurnBanner.timeToNext`); the dock stays locked once the fight is over; the 900 and 700 ms timings are in Battle Screen Design section 6; the headless callers no longer await `endPlayerTurn`.
+- Decision record: [enemy-turn-pacing.md](./AI_TECHNICAL_DECISIONS/enemy-turn-pacing.md).
 ## The vehicle token (2026-10-02)
 
 **What landed:** DDB-135 (DDB-127), folding in DDB-165.

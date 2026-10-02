@@ -89,10 +89,12 @@ export class EndTurnColumn extends Stack {
 
 	/**
 	 * The turn and whose move it is above the button, and the adrenaline
-	 * the player would leave unspent under it
+	 * the player would leave unspent under it. While the raiders act the
+	 * button says WAIT and the dock that holds it is locked (section 6).
 	 */
-	public show({ turn, playerTurn, unspentAdrenaline }: { turn: number; playerTurn: boolean; unspentAdrenaline: number }): void {
+	public show({ turn, playerTurn, waiting, unspentAdrenaline }: { turn: number; playerTurn: boolean; waiting: boolean; unspentAdrenaline: number }): void {
 		this.turnLabel.text = `Turn ${turn} · ${playerTurn ? 'Your move' : 'Raiders'}`;
+		this.endTurnButton.label = waiting ? 'WAIT' : 'END TURN';
 		this.warning.text = playerTurn && unspentAdrenaline > 0 ? `${unspentAdrenaline} adrenaline unspent` : '';
 	}
 }

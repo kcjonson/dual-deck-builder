@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test';
 import type { LintRect, LintResult, LintViolation } from '../../../src/renderer/engine/debug/layoutLint';
-import { SCENE_SCENARIOS, SCREEN_SCENARIOS, SHORT_SCENE_SCENARIOS } from '../support/scenarios';
+import { SCENE_SCENARIOS, SCREEN_SCENARIOS } from '../support/scenarios';
 import { attachTree, openScene, openScreen, prepare, settle } from '../support/harness';
 import { FIXED_VIEWPORT, SHORT_VIEWPORT } from '../../../playwright.config';
 import type { DevSurface } from '../support/harness';
@@ -56,7 +56,7 @@ import type { DevSurface } from '../support/harness';
  * back clean. The `MIN_NODES` assertion below is what catches that, and it is
  * there because the empty case was demonstrated rather than imagined.
  */
-const LINT_SCENARIOS = [...SCENE_SCENARIOS, ...SHORT_SCENE_SCENARIOS];
+const LINT_SCENARIOS = SCENE_SCENARIOS;
 
 
 /**
@@ -118,11 +118,9 @@ function formatResult(subject: string, result: LintResult): string {
 
 test.describe('gallery layout lint', () => {
 	for (const scenario of LINT_SCENARIOS) {
-		const name = scenario.viewport ? `${scenario.scene}-${scenario.viewport.width}x${scenario.viewport.height}` : scenario.scene;
-		test(name, async ({ page }, testInfo) => {
-			if (scenario.viewport) await page.setViewportSize(scenario.viewport);
+		test(scenario.scene, async ({ page }, testInfo) => {
 			await prepare(page);
-			await openScene(page, scenario.scene, { viewport: scenario.viewport });
+			await openScene(page, scenario.scene);
 
 			const result = await page.evaluate(
 				() => (window as unknown as DevSurface).__ui.lint(),
@@ -155,6 +153,38 @@ test.describe('gallery layout lint', () => {
 			).toBeGreaterThan(MIN_NODES);
 
 			expect(result.count, formatResult(`gallery scene "${scenario.scene}"`, result)).toBe(0);
+		});
+	}
+});
+
+/**
+ * The scenes that lay out to the window's width, again at the short gate
+ * size, as the screens are: the combat log scene's top bar and drawer
+ * (DDB-140), and the card scenes, whose detail view is placed against the
+ * viewport (DDB-137).
+ */
+test.describe('gallery layout lint at the short viewport', () => {
+	for (const scenario of LINT_SCENARIOS.filter((entry) => entry.lintShort)) {
+		const name = `${scenario.scene}-${SHORT_VIEWPORT.width}x${SHORT_VIEWPORT.height}`;
+		test(name, async ({ page }, testInfo) => {
+			await page.setViewportSize(SHORT_VIEWPORT);
+			await prepare(page);
+			await openScene(page, scenario.scene, SHORT_VIEWPORT);
+
+			const result = await page.evaluate(
+				() => (window as unknown as DevSurface).__ui.lint(),
+			);
+			if (result.count > 0) {
+				await testInfo.attach('lint.json', {
+					body: JSON.stringify(result, null, '\t'),
+					contentType: 'application/json',
+				});
+				await attachTree(page, testInfo);
+			}
+
+			const measured = result.rules.find((rule) => rule.rule === 'outside-viewport');
+			expect(measured?.evaluated ?? 0, `gallery scene "${name}" linted an empty tree`).toBeGreaterThan(MIN_NODES);
+			expect(result.count, formatResult(`gallery scene "${name}"`, result)).toBe(0);
 		});
 	}
 });

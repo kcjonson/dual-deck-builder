@@ -26,8 +26,8 @@ export interface ScreenScenario {
 export interface SceneScenario {
 	scene: string;
 	blockedBy?: string;
-	/** The window, when it is not `FIXED_VIEWPORT`. */
-	viewport?: Viewport;
+	/** Also linted at the short viewport, for a scene that lays out to the window's width. */
+	lintShort?: boolean;
 }
 
 interface ScreenCase {
@@ -68,6 +68,8 @@ const SCREEN_CASES: readonly ScreenCase[] = [
 	{ screen: 'cardShowcaseScreen' },
 	{ screen: 'driverSelectionScreen' },
 	{ screen: 'combatScreen' },
+	// The log drawer open over the road, at both sizes: never over the dock or End Turn (DDB-140)
+	{ screen: 'combatScreen', variant: 'log', data: { openLog: true } },
 	{ screen: 'battleResultScreen', variant: 'victory', data: { victory: true } },
 	{ screen: 'battleResultScreen', variant: 'defeat', data: { victory: false } },
 ];
@@ -117,11 +119,12 @@ export const SCENE_SCENARIOS: readonly SceneScenario[] = [
 	{ scene: 'data-display' },
 	{ scene: 'tree-view' },
 	{ scene: 'combat-fx' },
+	{ scene: 'combat-log', lintShort: true },
 	{ scene: 'slider-tabs' },
-	{ scene: 'card-faces' },
-	{ scene: 'card-detail' },
-	{ scene: 'card-detail-pinned' },
-	{ scene: 'card-detail-cap' },
+	{ scene: 'card-faces', lintShort: true },
+	{ scene: 'card-detail', lintShort: true },
+	{ scene: 'card-detail-pinned', lintShort: true },
+	{ scene: 'card-detail-cap', lintShort: true },
 	{ scene: 'overlays' },
 	{ scene: 'dialog' },
 	{ scene: 'popover' },
@@ -131,23 +134,7 @@ export const SCENE_SCENARIOS: readonly SceneScenario[] = [
 	{ scene: 'rounded-clip' },
 	{ scene: 'combat-road' },
 	{ scene: 'vehicle-tokens' },
-	{ scene: 'card-pile-draw' },
-	{ scene: 'card-pile-discard' },
-	{ scene: 'card-reward' },
+	{ scene: 'card-pile-draw', lintShort: true },
+	{ scene: 'card-pile-discard', lintShort: true },
+	{ scene: 'card-reward', lintShort: true },
 ];
-
-/**
- * Scenes the lint gate also runs at the short window, with no golden there:
- * the card detail view is placed against the viewport (resting on its
- * bottom, clamped 8 px in, keyword boxes on the side with room), so 1024x600
- * is the size that can break it (DDB-137).
- */
-export const SHORT_SCENE_SCENARIOS: readonly SceneScenario[] = [
-	'card-faces',
-	'card-detail',
-	'card-detail-pinned',
-	'card-detail-cap',
-	'card-pile-draw',
-	'card-pile-discard',
-	'card-reward',
-].map((scene) => ({ scene, viewport: SHORT_VIEWPORT }));

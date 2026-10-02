@@ -25,6 +25,7 @@ import { MeterExamplesSection } from './MeterExamplesSection';
 import { DataDisplaySection } from './DataDisplaySection';
 import { TreeExamplesSection } from './TreeExamplesSection';
 import { CombatFxSection } from './CombatFxSection';
+import { CombatLogSection } from './CombatLogSection';
 import { CombatRoadSection } from './CombatRoadSection';
 import { CardDetailCapSection, CardDetailPinnedSection, CardDetailSection, CardFacesSection } from './CardDetailSection';
 import { SliderTabsSection } from './SliderTabsSection';
@@ -170,6 +171,11 @@ export const developerSections: readonly DeveloperSection[] = [
 	{
 		name: 'combat-fx',
 		build: (options) => new CombatFxSection(options),
+	},
+	// The battle screen's top bar and open log drawer held still (DDB-140)
+	{
+		name: 'combat-log',
+		build: (options) => new CombatLogSection(options),
 	},
 	{
 		name: 'slider-tabs',

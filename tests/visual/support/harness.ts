@@ -354,7 +354,7 @@ export async function openScreen(page: Page, screen: string, { data, viewport = 
  * otherwise produce a plausible screenshot of the wrong scene under a stale
  * golden's filename.
  */
-export async function openScene(page: Page, scene: string, { viewport = FIXED_VIEWPORT }: { viewport?: Viewport } = {}): Promise<void> {
+export async function openScene(page: Page, scene: string, viewport: Viewport = FIXED_VIEWPORT): Promise<void> {
 	await page.goto(`${BASE_URL}/gallery.html?scene=${encodeURIComponent(scene)}`, { waitUntil: 'domcontentloaded' });
 	await freezeApplication(page);
 	await settle(page, viewport);
