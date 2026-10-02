@@ -52,6 +52,9 @@ export class DeveloperScreen extends Screen {
 				fontSize: 'fs_4xl',
 				color: 'text_bright',
 			},
+			// A whole-pixel line (52 x 1.25), so the column below it, and every
+			// section's 1 px frame in it, starts on a pixel row
+			lineHeight: 1.25,
 			wrap: 'none',
 		}));
 

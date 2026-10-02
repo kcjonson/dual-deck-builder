@@ -1,5 +1,6 @@
 import { Panel } from '../../../engine/ui/Panel';
 import { Text } from '../../../engine/components/Text';
+import type { Axis, Size } from '../../../engine/components/layoutTypes';
 import { tokens } from '../../../engine/theme/tokens';
 
 const SECTION_BORDER_WIDTH = tokens.borderWidth.bw;
@@ -65,5 +66,17 @@ export class DeveloperSectionPanel extends Panel {
 			height: SECTION_TITLE_HEIGHT,
 			style: { fontSize: tokens.fontSize.fs_2xl, color: 'text_bright', fontWeight: 'bold' },
 		}));
+	}
+
+	/**
+	 * A hugged height rounds up to a whole pixel. Text heights are fractional,
+	 * and the frame's 1 px border has a radius, so the draw layer leaves it
+	 * unsnapped (R7.8): at a fractional bottom edge it blurs across two rows.
+	 * The frame is its own size to choose; nothing in layout is rounded.
+	 */
+	public measure(availableWidth: number, availableHeight: number, definite: Axis | null = null): Size {
+		const size = super.measure(availableWidth, availableHeight, definite);
+		if (this.heightMode !== 'hug' || definite === 'height' || Number.isInteger(size.height)) return size;
+		return { width: size.width, height: Math.ceil(size.height) };
 	}
 }

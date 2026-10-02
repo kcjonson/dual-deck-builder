@@ -55,6 +55,12 @@ describe('fanPoses', () => {
  * neighbouring pair from the lint's overlap rule, so the lint would no longer
  * see a fan that stacked its cards. This holds the overlap to what the row's
  * negative gap and the posed cards' reach intend.
+ *
+ * The per-pair bound reads the gap from the fan under test, so it checks the
+ * poses against that gap and cannot catch a gap that is itself too negative.
+ * The span check is what catches that: the cards have to reach across the
+ * fan, or their natural width. Don't loosen it on the strength of the pair
+ * bound.
  */
 describe('HandFan overlap', () => {
 	const cardData = (cardsFile as unknown as { cards: CardData[] }).cards;

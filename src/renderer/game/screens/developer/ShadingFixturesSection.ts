@@ -295,7 +295,6 @@ function nineSlices(draw: DrawApi, frame: TextureHandle | null): void {
 	}
 }
 
-
 /**
  * Panel art for the nine-slice row, premultiplied: a rounded amber rim with a
  * dark keyline, a rivet in each corner, a dark band out to the inset line and

@@ -12,9 +12,11 @@ After DDB-91 the developer screen was a column of the gallery's section factorie
 
 `DeveloperSectionPanel` is a stack-layout Panel. It takes named options (`id`, `title`, and optionally `x`, `y`, `width`), adds the title as a 50 px row, and its children flow below it. Its height hugs its content at whatever width it has; its width is fixed when the gallery gives one and hugs otherwise. The developer screen builds every section with no options and its column has `crossAlign: 'stretch'`, so the scroll container's width reaches each section through layout. A resize is the frame re-laying out the root (R8.21): the column, the sections, and every FlowWrap inside them take the new width, and nothing is rebuilt.
 
+A hugged section height rounds up to a whole pixel, and the developer screen's title has a whole-pixel line (52 at 1.25), so every frame starts and ends on a pixel row. The frame's 1 px border has a 5 px radius, which R7.8 leaves to the SDF ramp rather than snapping, so a fractional edge (text heights are fractional) blurred across two rows. Layout itself rounds nothing (R7.10); the frame chooses its own size.
+
 `fitContentHeight`, `sectionContentWidth`, and `wrappedLineCount` are gone. With the height measured, there is nothing to predict, so the review's point about the duplicated break rule is answered by deleting the copy rather than sharing it.
 
-The six gallery-only scenes (overlays, dialog, popover, toasts, transition, scroll-hug) still place their content by hand, so the panel keeps one escape hatch for them: `contentHeight` fixes the frame at that content height and switches it to free layout. They are fixtures for overlay services at one known width, and the gallery re-enters a scene on resize anyway.
+The seven gallery-only scenes (overlays, dialog, popover, toasts, transition, scroll-hug, rounded-clip) still place their content by hand, so the panel keeps one escape hatch for them: `contentHeight` fixes the frame at that content height and switches it to free layout. They are fixtures for overlay services at one known width, and the gallery re-enters a scene on resize anyway.
 
 ### The hand-placed sections become stacks
 

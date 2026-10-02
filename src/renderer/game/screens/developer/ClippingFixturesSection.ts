@@ -287,8 +287,6 @@ function avatarMask(draw: DrawApi, left: number, top: number): void {
 	});
 }
 
-/** In reading order: three to a row where the section is wide enough, two where it is not. */
-
 /** In reading order. */
 const CELLS: readonly { name: string; paint: Cell }[] = [
 	{ name: 'nested', paint: nested },

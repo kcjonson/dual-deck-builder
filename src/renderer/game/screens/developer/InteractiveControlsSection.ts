@@ -8,13 +8,17 @@ import { TextInput } from '../../../engine/ui/TextInput';
 import { Button } from '../../../engine/ui/Button';
 
 const DEMO_SIZE = 100;
+/** Room for the rectangle to move down as well as across. */
+const STAGE_HEIGHT = 160;
 
 /**
  * Property changes driven by text fields: a rectangle's colour as R,G,B,A and
- * its position inside its stage as X,Y, applied as the fields change or all
+ * its position inside its stage as X,Y, held inside the stage so it never
+ * covers the fields below, applied as the fields change or all
  * at once with the button.
  */
 export class InteractiveControlsSection extends DeveloperSectionPanel {
+	private readonly stage: Container;
 	private readonly demoRectangle: Rectangle;
 	private readonly colorInput: TextInput;
 	private readonly positionInput: TextInput;
@@ -23,13 +27,13 @@ export class InteractiveControlsSection extends DeveloperSectionPanel {
 		super({ id: 'dev_section_interactive_controls', title: 'Interactive Controls', ...options });
 
 		// The rectangle moves by hand inside a stage of its own, out of the flow.
-		const stage = new Container({ id: 'dev_controls_stage', widthMode: 'fill', height: DEMO_SIZE });
+		this.stage = new Container({ id: 'dev_controls_stage', widthMode: 'fill', height: STAGE_HEIGHT });
 		this.demoRectangle = new Rectangle({
 			width: DEMO_SIZE,
 			height: DEMO_SIZE,
 			style: { backgroundColor: '#ff6600', borderRadius: 10 },
 		});
-		stage.addChild(this.demoRectangle);
+		this.stage.addChild(this.demoRectangle);
 
 		this.colorInput = new TextInput({
 			placeholder: 'e.g., 255,102,0,1',
@@ -40,7 +44,7 @@ export class InteractiveControlsSection extends DeveloperSectionPanel {
 			onChange: (value) => this.applyColor(value),
 		});
 		this.positionInput = new TextInput({
-			placeholder: 'e.g., 0,0',
+			placeholder: 'e.g., 120,40',
 			value: '0,0',
 			width: 150,
 			height: 30,
@@ -57,7 +61,7 @@ export class InteractiveControlsSection extends DeveloperSectionPanel {
 		positionRow.addChild(apply);
 
 		const column = new Stack({ gap: 20, padding: { left: 20 }, widthMode: 'fill' });
-		column.addChild(stage);
+		column.addChild(this.stage);
 		column.addChild(field('Color (R,G,B,A):', this.colorInput));
 		column.addChild(field('Position (X,Y):', positionRow));
 		this.addChild(column);
@@ -74,7 +78,8 @@ export class InteractiveControlsSection extends DeveloperSectionPanel {
 		const parts = value.split(',').map((part) => parseInt(part.trim(), 10));
 		if (parts.length !== 2 || parts.some((part) => isNaN(part))) return;
 		const [x, y] = parts;
-		this.demoRectangle.setPosition(x, y);
+		const clamp = (value: number, room: number): number => Math.min(Math.max(value, 0), Math.max(room - DEMO_SIZE, 0));
+		this.demoRectangle.setPosition(clamp(x, this.stage.width), clamp(y, this.stage.height));
 	}
 }
 
