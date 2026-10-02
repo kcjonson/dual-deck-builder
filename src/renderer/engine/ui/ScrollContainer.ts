@@ -61,9 +61,9 @@ interface ScrollBox {
  * hit test, `screenMatrix`, and the snapshot all see the same thing, and a
  * resize re-clamps it. The padding scrolls with the content (R4.13).
  *
- * The clip sits inside the border and the corner radius, and otherwise as
- * far out into the padding as the content's ink reaches (R8.8), so a
- * focused row's ring is not cut at the edge.
+ * The clip sits inside the border, with the corners cut by R4.14's rounded
+ * clip, and otherwise as far out into the padding as the content's ink
+ * reaches (R8.8), so a focused row's ring is not cut at the edge.
  *
  * Input: the wheel per R9.32 (the dispatcher latches this container when
  * `canScroll` says yes, and it consumes what it receives while latched);
@@ -226,17 +226,19 @@ export class ScrollContainer extends Component {
 
 	// -- geometry --------------------------------------------------------------
 
+	/** Always, whatever its `overflow`: a viewport of no area shows nothing (DDB-234). */
 	public get clipsChildren(): boolean {
-		return this.width > 0 && this.height > 0;
+		return true;
 	}
 
 	/**
-	 * Inside the border and the corner radius, and into the padding by as
-	 * much as the direct children's ink reaches (R8.8), never past the edge.
-	 * In unscrolled local space, so it stays put while the content moves.
+	 * Inside the border, and into the padding by as much as the direct
+	 * children's ink reaches (R8.8), never past the border's inner edge. In
+	 * unscrolled local space, so it stays put while the content moves. The
+	 * corners are R4.14's rounded clip (`clipRadius`), not an inset.
 	 */
 	protected computeClipRect(): Rect {
-		const edge = Math.max(this.box.borderWidth, this.box.radius);
+		const edge = this.box.borderWidth;
 		const ink = this.childInk;
 		const inset = (pad: number): number => Math.max(edge, pad - ink);
 		const { top, right, bottom, left } = this.padding;
@@ -248,6 +250,17 @@ export class ScrollContainer extends Component {
 			width: Math.max(this.width - x - inset(right), 0),
 			height: Math.max(this.height - y - inset(bottom), 0),
 		};
+	}
+
+	/**
+	 * The background's corner, concentric at the clip's nearest side: the
+	 * radius less the smallest inset, so the rounded clip never reaches past
+	 * the border's inner arc, and is 0 once the clip is a radius in.
+	 */
+	public get clipRadius(): number {
+		const clip = this.clipRect;
+		const inset = Math.min(clip.x, clip.y, this.width - clip.x - clip.width, this.height - clip.y - clip.height);
+		return Math.max(this.box.radius - inset, 0);
 	}
 
 	public get resolvedColors(): ResolvedColors | null {

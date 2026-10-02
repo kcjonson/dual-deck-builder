@@ -74,12 +74,15 @@ import { compileProgram } from './program';
  * - `bufferData` runs once per buffer at creation. A frame issues one
  *   `bufferSubData` per upload, with a source offset and length, so an upload
  *   allocates nothing.
- * - Per-frame uniform state (the projection) is a `std140` block in a ring of
- *   three 256-byte-aligned slots, written once per frame and selected with
- *   `bindBufferRange` (R15.15). Nothing is set per draw. The same slot holds
- *   the frame's rounded clips (R4.14, R5.4's shared table): an upload that
- *   added entries appends them to the slot before its draws, so an index an
- *   instance carries is never rewritten within the frame.
+ * - Uniform state (the projection, then the frame's rounded clips, R4.14 and
+ *   R5.4's shared table) is a `std140` block in a ring of 256-byte-aligned
+ *   slots, selected with `bindBufferRange` (R15.15). Nothing is set per
+ *   draw. A frame starts in a fresh slot holding the projection. An upload
+ *   that adds rounded clips appends them to the bound slot while no draw has
+ *   read it; once one has, the upload takes a fresh slot instead, writes the
+ *   projection and the whole table so far into it in one `bufferSubData`,
+ *   and binds that, so a range the GPU may be reading is never written
+ *   (R5.27). An upload that adds nothing keeps the bound slot.
  * - One vertex array object, bound once per upload; attribute locations are
  *   fixed in the source, so nothing is looked up. The attribute pointers move
  *   with the upload's offset in the ring, and within an upload only at a
@@ -137,8 +140,12 @@ const PROJECTION_FLOATS = 16;
 const FRAME_BLOCK_BYTES = UBER_FRAME_BLOCK.floats * 4;
 const ROUNDED_CLIPS_BYTE = UBER_FRAME_BLOCK.roundedClips * 4;
 const FRAME_BLOCK_BINDING = 0;
-/** A slot is rewritten three frames after it was last written, past R5.27's two. */
-const FRAME_SLOTS = 3;
+/**
+ * Uniform slots in the ring. A frame takes one, and one more for each upload
+ * that adds rounded clips after a draw, and a slot is reused once it is two
+ * frames old (R5.27), so this holds frames of several such uploads.
+ */
+const UNIFORM_SLOTS = 12;
 
 /**
  * The seam, built the same way on both pages. Neither bootstrap spells the
@@ -214,13 +221,18 @@ export class WebGL2Backend implements DrawBackend {
 	/** `UBER_ATTRIBUTES`' component types as GL enums, by attribute. */
 	private readonly attributeTypes: number[];
 
-	/** The projection, the part of the frame block written at `beginFrame`. */
-	private readonly frameBlock = new Float32Array(PROJECTION_FLOATS);
-	/** Rounded clip entries already in this frame's uniform slot. */
+	/** The frame block as it is staged for a slot: the projection, then the rounded clips a fresh slot copies. */
+	private readonly frameBlock = new Float32Array(UBER_FRAME_BLOCK.floats);
+	/** Rounded clip entries already in the bound uniform slot. */
 	private roundedClipsUploaded = 0;
 	private projectionWidth = NaN;
 	private projectionHeight = NaN;
+	/** Uniform slots, counted in slots rather than bytes, since the stride is the context's. */
+	private readonly uniformRing = new StreamRing({ capacity: UNIFORM_SLOTS });
+	/** Byte offset of the bound uniform slot. */
 	private frameSlotOffset = 0;
+	/** Whether a draw has been issued against the bound slot, after which it is never written again. */
+	private frameSlotRead = false;
 
 	/**
 	 * State this backend set and has not had reason to doubt. Each is reset by
@@ -330,6 +342,7 @@ export class WebGL2Backend implements DrawBackend {
 		this.encoder.beginFrame();
 		this.smallText?.beginFrame();
 		this.instanceRing.beginFrame(frame.frame);
+		this.uniformRing.beginFrame(frame.frame);
 		this.writeFrameUniforms(frame);
 		this.bindPipeline();
 		this.gl.clear(this.gl.COLOR_BUFFER_BIT);
@@ -431,7 +444,7 @@ export class WebGL2Backend implements DrawBackend {
 		const uniformStride = alignUp(FRAME_BLOCK_BYTES, Math.max(256, alignment));
 		const uniformBuffer = createBuffer(gl);
 		gl.bindBuffer(gl.UNIFORM_BUFFER, uniformBuffer);
-		gl.bufferData(gl.UNIFORM_BUFFER, uniformStride * FRAME_SLOTS, gl.DYNAMIC_DRAW);
+		gl.bufferData(gl.UNIFORM_BUFFER, uniformStride * this.uniformRing.capacity, gl.DYNAMIC_DRAW);
 
 		const vertexArray = gl.createVertexArray();
 		if (!vertexArray) throw new Error('WebGL2Backend: could not create a vertex array');
@@ -457,6 +470,7 @@ export class WebGL2Backend implements DrawBackend {
 	 */
 	private restore(): void {
 		this.instanceRing.reset();
+		this.uniformRing.reset();
 		this.resources = this.createResources();
 		this.invalidateState();
 	}
@@ -471,19 +485,21 @@ export class WebGL2Backend implements DrawBackend {
 		}
 
 		const gl = this.gl;
-		const { uniformBuffer, uniformStride } = this.resources;
-		this.frameSlotOffset = (frame.frame % FRAME_SLOTS) * uniformStride;
-		gl.bindBuffer(gl.UNIFORM_BUFFER, uniformBuffer);
-		gl.bufferSubData(gl.UNIFORM_BUFFER, this.frameSlotOffset, this.frameBlock);
+		this.frameSlotOffset = this.takeUniformSlot();
+		this.frameSlotRead = false;
+		gl.bindBuffer(gl.UNIFORM_BUFFER, this.resources.uniformBuffer);
+		gl.bufferSubData(gl.UNIFORM_BUFFER, this.frameSlotOffset, this.frameBlock, 0, PROJECTION_FLOATS);
 		this.roundedClipsUploaded = 0;
 		this.pipelineBound = false;
 	}
 
 	/**
-	 * The rounded clips the encoder added since the last upload, into this
-	 * frame's slot behind the projection. Entries already there are never
-	 * rewritten, so a draw issued earlier in the frame reads what it was
-	 * encoded against. Returns the bytes written; most uploads write none.
+	 * The rounded clips the encoder added since the last upload. While no
+	 * draw has read the bound slot, they are appended to it behind the
+	 * projection; after one has, the projection and every entry so far go
+	 * into a fresh slot, which is bound in its place (R5.27, R15.15). Either
+	 * way an entry a draw was issued against is never rewritten. Returns the
+	 * bytes written; most uploads write none.
 	 */
 	private uploadRoundedClips(): number {
 		const table = this.encoder.roundedClips;
@@ -491,16 +507,58 @@ export class WebGL2Backend implements DrawBackend {
 		const count = table.count;
 		if (count <= from) return 0;
 		const gl = this.gl;
-		gl.bindBuffer(gl.UNIFORM_BUFFER, this.resources.uniformBuffer);
-		gl.bufferSubData(
-			gl.UNIFORM_BUFFER,
-			this.frameSlotOffset + ROUNDED_CLIPS_BYTE + from * ROUNDED_CLIP_FLOATS * 4,
-			table.floats,
-			from * ROUNDED_CLIP_FLOATS,
-			(count - from) * ROUNDED_CLIP_FLOATS,
-		);
 		this.roundedClipsUploaded = count;
-		return (count - from) * ROUNDED_CLIP_FLOATS * 4;
+		if (!this.frameSlotRead) {
+			gl.bindBuffer(gl.UNIFORM_BUFFER, this.resources.uniformBuffer);
+			gl.bufferSubData(
+				gl.UNIFORM_BUFFER,
+				this.frameSlotOffset + ROUNDED_CLIPS_BYTE + from * ROUNDED_CLIP_FLOATS * 4,
+				table.floats,
+				from * ROUNDED_CLIP_FLOATS,
+				(count - from) * ROUNDED_CLIP_FLOATS,
+			);
+			return (count - from) * ROUNDED_CLIP_FLOATS * 4;
+		}
+
+		const block = this.frameBlock;
+		const source = table.floats;
+		const floats = count * ROUNDED_CLIP_FLOATS;
+		for (let index = 0; index < floats; index++) block[UBER_FRAME_BLOCK.roundedClips + index] = source[index];
+		this.frameSlotOffset = this.takeUniformSlot();
+		this.frameSlotRead = false;
+		const written = UBER_FRAME_BLOCK.roundedClips + floats;
+		gl.bindBuffer(gl.UNIFORM_BUFFER, this.resources.uniformBuffer);
+		gl.bufferSubData(gl.UNIFORM_BUFFER, this.frameSlotOffset, block, 0, written);
+		if (this.pipelineBound) this.bindFrameSlot();
+		return written * 4;
+	}
+
+	/**
+	 * A fresh uniform slot's byte offset, growing the ring once when every
+	 * slot is younger than R5.27's two frames. Growth replaces the buffer, as
+	 * the instance ring's does, and is reported; the caller binds the slot.
+	 */
+	private takeUniformSlot(): number {
+		const ring = this.uniformRing;
+		const slot = ring.allocate(1, 1);
+		if (slot >= 0) return slot * this.resources.uniformStride;
+
+		const gl = this.gl;
+		const previous = ring.capacity;
+		ring.reset(previous * 2);
+		const buffer = createBuffer(gl);
+		gl.deleteBuffer(this.resources.uniformBuffer);
+		this.resources.uniformBuffer = buffer;
+		gl.bindBuffer(gl.UNIFORM_BUFFER, buffer);
+		gl.bufferData(gl.UNIFORM_BUFFER, this.resources.uniformStride * ring.capacity, gl.DYNAMIC_DRAW);
+		this.pipelineBound = false;
+		console.warn(`WebGL2Backend: uniform ring grew from ${previous} to ${ring.capacity} slots`);
+		return ring.allocate(1, 1) * this.resources.uniformStride;
+	}
+
+	private bindFrameSlot(): void {
+		const gl = this.gl;
+		gl.bindBufferRange(gl.UNIFORM_BUFFER, FRAME_BLOCK_BINDING, this.resources.uniformBuffer, this.frameSlotOffset, FRAME_BLOCK_BYTES);
 	}
 
 	/** The program and this frame's uniform slot; again after `invalidateState`. */
@@ -517,13 +575,7 @@ export class WebGL2Backend implements DrawBackend {
 		}
 		this.applyBlend('over');
 		gl.useProgram(this.resources.program);
-		gl.bindBufferRange(
-			gl.UNIFORM_BUFFER,
-			FRAME_BLOCK_BINDING,
-			this.resources.uniformBuffer,
-			this.frameSlotOffset,
-			FRAME_BLOCK_BYTES,
-		);
+		this.bindFrameSlot();
 		this.pipelineBound = true;
 	}
 
@@ -543,6 +595,7 @@ export class WebGL2Backend implements DrawBackend {
 		gl.bufferSubData(gl.ARRAY_BUFFER, ringOffset, upload.bytes, 0, upload.byteCount);
 
 		let binds = 0;
+		this.frameSlotRead = upload.draws.length > 0 || this.frameSlotRead;
 		for (let draw = 0; draw < upload.draws.length; draw++) binds += this.issue(upload.draws[draw], ringOffset);
 		gl.bindVertexArray(null);
 		return binds;

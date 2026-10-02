@@ -14,6 +14,7 @@ import {
 	translation,
 } from '../draw/geometry';
 import { snapClipRect } from '../coords/snapping';
+import { roundedBoxDistance, roundedRectDistance } from '../draw/clip';
 import { LayerName, ROOT_LAYER, layerOrdinal } from '../draw/layers';
 import {
 	ComponentTransform,
@@ -881,10 +882,12 @@ export abstract class Component {
 	 * R4.4's half-open test against this component's clip as `pushClip` leaves
 	 * it: under a translation, its screen edges snapped at `ratio` (R7.8a), so
 	 * a point hits exactly the pixels the clip kept; otherwise in local space.
+	 * With a `clipRadius`, a point in a cut corner is outside too (R4.12).
 	 */
 	private containsInClip(screenX: number, screenY: number, ratio: number): boolean {
 		const matrix = this.screenMatrix;
 		const clip = this.clipRect;
+		const radius = this.clipRadius;
 		if (isTranslateOnly(matrix)) {
 			const snapped = snapClipRect({
 				minX: clip.x + matrix[4],
@@ -892,11 +895,13 @@ export abstract class Component {
 				maxX: clip.x + clip.width + matrix[4],
 				maxY: clip.y + clip.height + matrix[5],
 			}, ratio);
-			return screenX >= snapped.minX && screenX < snapped.maxX && screenY >= snapped.minY && screenY < snapped.maxY;
+			return screenX >= snapped.minX && screenX < snapped.maxX && screenY >= snapped.minY && screenY < snapped.maxY
+				&& (radius <= 0 || roundedBoxDistance(screenX, screenY, snapped, radius) <= 0);
 		}
 		const local = this.screenToLocal({ x: screenX, y: screenY });
 		if (!local) return false;
-		return local.x >= clip.x && local.x < clip.x + clip.width && local.y >= clip.y && local.y < clip.y + clip.height;
+		return local.x >= clip.x && local.x < clip.x + clip.width && local.y >= clip.y && local.y < clip.y + clip.height
+			&& (radius <= 0 || roundedRectDistance(local.x, local.y, clip.x, clip.y, clip.width, clip.height, radius) <= 0);
 	}
 
 	// -- clipping (chapter 4) -------------------------------------------------
@@ -912,10 +917,21 @@ export abstract class Component {
 	/**
 	 * Whether the walk clips this component's children to `clipRect`. The one
 	 * fact rendering, hit testing and the snapshot all read. A zero-sized box
-	 * clips nothing.
+	 * that clips shows nothing: a viewport of no area has nothing to show
+	 * (DDB-234).
 	 */
 	public get clipsChildren(): boolean {
-		return this.ownOverflow === 'hidden' && this.contentWidth > 0 && this.contentHeight > 0;
+		return this.ownOverflow === 'hidden';
+	}
+
+	/**
+	 * R4.14: the corner radius of the clip, in local units, at `clipRect`'s
+	 * corners; 0 for a plain rect. The walk pushes a rounded clip when it is
+	 * positive, and the hit test and the snapshot read it with `clipRect`. An
+	 * override derives it from `clipRect` and what that reads.
+	 */
+	public get clipRadius(): number {
+		return 0;
 	}
 
 	/**
@@ -2186,8 +2202,8 @@ export abstract class Component {
 
 	/**
 	 * A mode, not a clip: it may be set before the box has a size, which a
-	 * screen sizes from the viewport on mount. `clipsChildren` answers false
-	 * while the box is zero-sized, which has nothing to clip to.
+	 * screen sizes from the viewport on mount, before its first frame. Until
+	 * then the clip is empty and shows nothing.
 	 */
 	public setOverflow(overflow: Overflow): this {
 		this.ownOverflow = overflow;

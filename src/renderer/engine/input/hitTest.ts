@@ -1,5 +1,6 @@
 import { invert, isTranslateOnly, transformPoint } from '../draw/geometry';
 import { snapClipRect } from '../coords/snapping';
+import { roundedBoxDistance, roundedRectDistance } from '../draw/clip';
 import { layerOrdinal } from '../draw/layers';
 import type { Component } from '../components/Component';
 
@@ -40,6 +41,8 @@ export interface HitTestOptions {
  * Under a pure translation a clip is tested as `pushClip` leaves it, its
  * screen edges snapped to device pixels (R7.8a), which is what
  * `containsScreenPoint` does too; under any other transform, in local space.
+ * A clip with a `clipRadius` also excludes its cut corners: the rounded clip
+ * is the clip the walk pushed, and R4.12 rejects points outside it.
  *
  * `auto` and `unit` components are targets when `containsPoint` holds;
  * `unit` stops the descent and `passthrough` is never a target itself.
@@ -132,6 +135,7 @@ class HitWalk {
 		let childClip = clipped;
 		if (childClip && component.clipsChildren) {
 			const clip = component.clipRect;
+			const radius = component.clipRadius;
 			if (pure) {
 				const snapped = snapClipRect({
 					minX: sx + clip.x,
@@ -140,9 +144,11 @@ class HitWalk {
 					maxY: sy + clip.y + clip.height,
 				}, this.ratio);
 				childClip = this.screenX >= snapped.minX && this.screenX < snapped.maxX
-					&& this.screenY >= snapped.minY && this.screenY < snapped.maxY;
+					&& this.screenY >= snapped.minY && this.screenY < snapped.maxY
+					&& (radius <= 0 || roundedBoxDistance(this.screenX, this.screenY, snapped, radius) <= 0);
 			} else {
-				childClip = lx >= clip.x && lx < clip.x + clip.width && ly >= clip.y && ly < clip.y + clip.height;
+				childClip = lx >= clip.x && lx < clip.x + clip.width && ly >= clip.y && ly < clip.y + clip.height
+					&& (radius <= 0 || roundedRectDistance(lx, ly, clip.x, clip.y, clip.width, clip.height, radius) <= 0);
 			}
 		}
 		const offset = component.contentOffset;

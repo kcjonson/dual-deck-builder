@@ -123,7 +123,7 @@ describe('Panel content (R12.19)', () => {
 		expect(panel.innerWidth).toBe(200 - inset * 2);
 	});
 
-	it('uses a smaller inset when compact, and when flush only the border and corner radius (R12.19)', () => {
+	it('uses a smaller inset when compact, and when flush and not clipping only the border and corner radius (R12.19)', () => {
 		expect(new Panel({ compact: true }).contentInset.left).toBe(tokens.space.space_2);
 		const edge = Math.max(tokens.borderWidth.bw, tokens.radius.radius_panel);
 		expect(new Panel({ flush: true }).contentInset).toEqual({ top: edge, right: edge, bottom: edge, left: edge });
@@ -146,19 +146,47 @@ describe('Panel content (R12.19)', () => {
 		expect(snapshotRoot.children[0].children[0].screenBounds).toEqual({ x: 23, y: 33, w: 30, h: 10 });
 	});
 
-	it('clips a padded panel inside its corner radius when its overflow is hidden', () => {
+	it('clips at the border with a rounded clip concentric with the corner when its overflow is hidden (R4.14)', () => {
 		const panel = mount({ layout: 'free', overflow: 'hidden', style: { padding: 13, borderRadius: 5 } });
 		const child = new Rectangle({ id: 'child', x: -13, y: -13, width: 30, height: 10 });
 		panel.addChild(child);
 		context.frame.layout();
-		expect(panel.clipRect).toEqual({ x: 5, y: 5, width: 190, height: 110 });
-		expect(rectById('child').clip).toEqual({ kind: 'rect', rect: { minX: 15, minY: 25, maxX: 205, maxY: 135 }, rounded: null });
-		expect(child.containsScreenPoint(14, 24)).toBe(false);
-		expect(child.containsScreenPoint(15, 25)).toBe(true);
+		expect(panel.clipRect).toEqual({ x: 1, y: 1, width: 198, height: 118 });
+		expect(panel.clipRadius).toBe(4);
+		const rect = { minX: 11, minY: 21, maxX: 209, maxY: 139 };
+		expect(rectById('child').clip).toEqual({ kind: 'rect', rect, rounded: { rect, radius: 4 } });
+		// Inside the rect but in the cut corner (R4.12), then just inside the arc.
+		expect(child.containsScreenPoint(11.5, 21.5)).toBe(false);
+		expect(child.containsScreenPoint(10.5, 25)).toBe(false);
+		expect(child.containsScreenPoint(13, 23)).toBe(true);
+		expect(child.containsScreenPoint(11.5, 29)).toBe(true);
 		expect(new Panel({ width: 200, height: 120, style: { padding: 13, borderWidth: 8, borderRadius: 3 } }).clipRect)
 			.toEqual({ x: 8, y: 8, width: 184, height: 104 });
-		const edge = Math.max(tokens.borderWidth.bw, tokens.radius.radius_panel);
-		expect(new Panel({ width: 200, height: 120, flush: true }).clipRect).toEqual({ x: edge, y: edge, width: 200 - edge * 2, height: 120 - edge * 2 });
+		expect(new Panel({ width: 200, height: 120, style: { padding: 13, borderWidth: 8, borderRadius: 3 } }).clipRadius).toBe(0);
+	});
+
+	it('insets content to the border when it clips, and past the corner radius when it does not (R12.19)', () => {
+		const bw = tokens.borderWidth.bw;
+		const radius = tokens.radius.radius_panel;
+		const clipping = new Panel({ width: 200, height: 120, flush: true, overflow: 'hidden' });
+		expect(clipping.contentInset).toEqual({ top: bw, right: bw, bottom: bw, left: bw });
+		expect(clipping.clipRect).toEqual({ x: bw, y: bw, width: 200 - bw * 2, height: 120 - bw * 2 });
+		const open = new Panel({ width: 200, height: 120, flush: true });
+		const edge = Math.max(bw, radius);
+		expect(open.contentInset).toEqual({ top: edge, right: edge, bottom: edge, left: edge });
+		open.overflow = 'hidden';
+		expect(open.contentInset).toEqual({ top: bw, right: bw, bottom: bw, left: bw });
+		expect(open.padding).toEqual({ top: bw, right: bw, bottom: bw, left: bw });
+		open.overflow = 'visible';
+		expect(open.contentInset.left).toBe(edge);
+	});
+
+	it('clips a zero-sized panel to nothing (DDB-234)', () => {
+		const panel = mount({ layout: 'free', overflow: 'hidden', width: 0, height: 0, widthMode: 'fixed', heightMode: 'fixed' });
+		expect(panel.width).toBe(0);
+		panel.addChild(new Rectangle({ id: 'child', width: 30, height: 10 }));
+		context.frame.layout();
+		expect(frame().some((command) => command.id === 'child')).toBe(false);
 	});
 
 	it('occludes what is beneath it (pointerEvents auto)', () => {
