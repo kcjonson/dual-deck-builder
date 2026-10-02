@@ -6,6 +6,16 @@ This document contains the chronological log of completed development tasks for 
 
 **Date correction (2026-08-22):** the repo's first commit is 2025-05-17, but many entries below carry dates in December 2024 or January 2025 — the AI that wrote them used its assumed date instead of the real one. Entries dated 2025-07-03 and 2025-07-02 have been corrected from "2025-01-03"/"2025-01-02" (verified against git history). Remaining Dec 2024 / Jan 2025 dates are wrong by roughly six months; the real work happened May–July 2025. Trust git history over these dates.
 
+## Vehicle text on the token scale, raster weight matched to the field (2026-10-02)
+
+**What landed:** DDB-217 (DDB-55), R6.4a.
+
+- `Vehicle` draws every run at `fs_xs` on `lh_tight` lines, and `ArmorBadge` its value at `fs_xs`. Rows stack from measured heights: armor row at the bottom, the structure track with its value beside it, and the portrait above with the driver's name beside the driver portrait, the HP under it, and the vehicle's name at its foot. The driver's name drops its "Driver: " prefix; names take an ellipsis.
+- `FontFaceAsset.fieldInk` is each face's distance-field ink of "Hamburgefonstiv" at 9 px. `RasterGlyphPage` measures each (role, size)'s raster ink once (`drawInkSample`) and, when it is more than 10 percent off the field's, draws the glyphs through a power curve (`inkCurve`) that lands it on it. CoreText at ratio 1 was 1.26 to 1.45 times the field; now 1.00 to 1.03. Linux is inside the tolerance and kept as drawn.
+- Decision record: [small-text-weight-match.md](./AI_TECHNICAL_DECISIONS/small-text-weight-match.md).
+
+**How:** a Vehicle test that every plate run is `fs_xs` and no two lines overlap on a 140x91 plate; unit tests for the sample, histogram, curve and the page measuring once per size; `uberShader.spec.ts` measures `fieldInk` through the shader for each face and checks the written raster ink at 6 and 8.75 px is within the tolerance of it on the running platform. Played a turn through `window.__dev.input` at 1280x720 and 1024x600.
+
 ## The rounded clip in the uber shader (2026-10-02)
 
 **What landed:** DDB-190 (DDB-55), R4.14. `pushClipRounded` draws round instead of square.
