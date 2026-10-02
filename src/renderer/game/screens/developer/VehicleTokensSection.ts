@@ -1,7 +1,12 @@
 import { CatalogSection } from './CatalogSection';
 import type { DeveloperSectionOptions } from './DeveloperSectionPanel';
+import type { Component } from '../../../engine/components/Component';
 import { Container } from '../../../engine/components/Container';
 import { Rectangle } from '../../../engine/components/Rectangle';
+import { Stack } from '../../../engine/components/Stack';
+import { Text } from '../../../engine/components/Text';
+import { tokens as theme } from '../../../engine/theme/tokens';
+import { FlowWrap } from '../../ui/FlowWrap';
 import { Driver, DriverRole } from '../../mechanics/Driver';
 import { Vehicle as VehicleData, VehicleStatusEffect } from '../../mechanics/Vehicle';
 import { createEscort } from '../../mechanics/Escort';
@@ -9,9 +14,12 @@ import { CombatModel } from '../combat/CombatModel';
 import { EnemyIntent } from '../../ui/IntentMarker';
 import { TOKEN_HEIGHT, TOKEN_PASSENGER_HEIGHT, TOKEN_WIDTH, Vehicle, VehicleSide } from '../../ui/Vehicle';
 
-/** A slot a little bigger than the token at x1, so each row reads as the road would place it. */
+/** A slot a little bigger than the token at x1, so each group reads as the road would place it. */
 const SLOT_WIDTH = 210;
-const SLOT_HEIGHT = TOKEN_PASSENGER_HEIGHT + 4;
+const SLOT_MARGIN = 4;
+const CELL_GAP = 24;
+const ROW_GAP = 16;
+const CAPTION_GAP = 6;
 
 interface GalleryVehicle {
 	name: string;
@@ -71,9 +79,13 @@ function galleryVehicle({ name, structure, armor, speed, driver, passenger, stat
  */
 export class VehicleTokensSection extends CatalogSection {
 	private readonly seats = new Map<Driver, 1 | 2>();
+	/** Captioned groups side by side, wrapping where the section is narrower (the developer screen at 1024). */
+	private readonly grid: FlowWrap;
 
 	constructor(options: DeveloperSectionOptions = {}) {
 		super({ id: 'dev_section_vehicle_tokens', title: 'Vehicle Tokens', ...options });
+		this.grid = new FlowWrap({ id: 'dev_tokens_grid', widthMode: 'fill', gap: CELL_GAP, rowGap: ROW_GAP });
+		this.addRow('every state the token has', this.grid);
 
 		const rig = galleryVehicle({ name: 'Apocalypse Rig', structure: [54, 80], armor: 10, speed: 1, driver: { name: 'The Road Warrior', hp: [40, 40] }, statuses: [{ name: 'damage_bonus', duration: 2 }] });
 		const bike = galleryVehicle({ name: 'Lightning Bike', structure: [31, 50], armor: 0, speed: 5, driver: { name: 'The Interceptor', hp: [18, 25] }, statuses: [{ name: 'speed_boost', duration: 3 }] });
@@ -82,7 +94,7 @@ export class VehicleTokensSection extends CatalogSection {
 		const medTruck = createEscort({ type: 'med_truck' });
 		medTruck.spent = true;
 		medTruck.shield = 3;
-		this.addRow('your drivers (triangle, diamond) and a spent escort with Shield', this.tokens('dev_tokens_own', 'player', [rig, bike, medTruck]).row);
+		this.cell('your drivers (triangle, diamond), a spent escort with Shield', this.tokens('dev_tokens_own', 'player', [rig, bike, medTruck]).row);
 
 		const buggy = galleryVehicle({ name: 'Rust Buggy', structure: [22, 30], armor: 5, speed: 3, driver: { name: 'Wasteland Raider', hp: [30, 30] }, statuses: [{ name: 'vulnerable', duration: 2 }] });
 		const hauler = galleryVehicle({ name: 'Scrap Hauler', structure: [64, 90], armor: 12, speed: 2, driver: { name: 'Hauler Boss', hp: [35, 35] } });
@@ -103,7 +115,7 @@ export class VehicleTokensSection extends CatalogSection {
 		raiders.tokens.forEach((token, index) => {
 			token.intents = plans[index];
 		});
-		this.addRow('raiders: target marks on intents (triangle, diamond, both, square), two then +N', raiders.row);
+		this.cell('intents marked triangle, diamond, both, square; two then +N', raiders.row);
 
 		const carrier = galleryVehicle({ name: 'Lightning Bike', structure: [31, 50], armor: 0, speed: 5, driver: { name: 'The Interceptor', hp: [18, 25] }, passenger: { name: 'The Road Warrior', hp: [12, 40] } });
 		this.seat(carrier, 2);
@@ -111,7 +123,7 @@ export class VehicleTokensSection extends CatalogSection {
 		const outrider = createEscort({ type: 'outrider' });
 		outrider.passenger = galleryDriver('The Interceptor', [9, 25], DriverRole.PASSENGER);
 		this.seats.set(outrider.passenger, 2);
-		this.addRow('a passenger row (the token grows to 135), and an escort carrying one', this.tokens('dev_tokens_passenger', 'player', [carrier, outrider]).row);
+		this.cell('a passenger row (135 tall); an escort carrying one', this.tokens('dev_tokens_passenger', 'player', [carrier, outrider]).row);
 
 		const loaded = galleryVehicle({
 			name: 'Warlord Juggernaut',
@@ -126,15 +138,15 @@ export class VehicleTokensSection extends CatalogSection {
 		this.seat(long, 1);
 		const busy = this.tokens('dev_tokens_overflow', 'raider', [loaded]);
 		const named = this.tokens('dev_tokens_long', 'player', [long]);
-		const both = new Container({ id: 'dev_tokens_overflow_long', width: SLOT_WIDTH * 2, height: SLOT_HEIGHT });
+		const both = new Container({ id: 'dev_tokens_overflow_long', width: SLOT_WIDTH * 2, height: busy.row.height });
 		named.row.x = SLOT_WIDTH;
 		both.addChild(busy.row);
 		both.addChild(named.row);
-		this.addRow('five chips then +N (Shield and six statuses); a long name cut with an ellipsis', both);
+		this.cell('five chips then +N; a long name ellipsized', both);
 
 		const wreck = galleryVehicle({ name: 'Rust Buggy', structure: [0, 30], armor: 0, speed: 3, driver: { name: 'Wasteland Raider', hp: [4, 30] } });
 		const unmanned = galleryVehicle({ name: 'Dust Crawler', structure: [12, 25], armor: 2, speed: 4, driver: null });
-		this.addRow('a wreck, and a raider whose driver is down', this.tokens('dev_tokens_wrecked', 'raider', [wreck, unmanned]).row);
+		this.cell('a wreck; a raider whose driver is down', this.tokens('dev_tokens_wrecked', 'raider', [wreck, unmanned]).row);
 
 		const model = new CombatModel();
 		const valid = galleryVehicle({ name: 'Rust Buggy', structure: [22, 30], armor: 5, speed: 3, driver: { name: 'Wasteland Raider', hp: [30, 30] } });
@@ -143,9 +155,17 @@ export class VehicleTokensSection extends CatalogSection {
 		model.isTargeting = true;
 		model.targetableVehicleIds = [valid.id, aimed.id];
 		model.focusedVehicleId = aimed.id;
-		this.addRow('targeting: a raider in reach, the one aimed at, one out of reach', this.tokens('dev_tokens_targeting', 'raider', [valid, aimed, outOfReach], model).row);
+		this.cell('targeting: in reach, aimed at, out of reach', this.tokens('dev_tokens_targeting', 'raider', [valid, aimed, outOfReach], model).row);
 
-		this.addRow('filling a slot: x1, x1.12, x1.25 (the cap, in a bigger slot)', this.fitRow());
+		this.cell('filling a slot: x1, x1.12, x1.25 (the cap)', this.fitRow());
+	}
+
+	/** A caption over `content`, one cell of the wrapping grid. */
+	private cell(caption: string, content: Component): void {
+		const cell = new Stack({ gap: CAPTION_GAP });
+		cell.addChild(new Text({ text: caption, width: content.width, style: { fontSize: theme.fontSize.fs_base, color: 'text_dim' } }));
+		cell.addChild(content);
+		this.grid.addChild(cell);
 	}
 
 	private seat(vehicle: VehicleData, seat: 1 | 2): void {
@@ -154,7 +174,8 @@ export class VehicleTokensSection extends CatalogSection {
 
 	/** Tokens side by side, each at x1 in a slot of its own. */
 	private tokens(id: string, side: VehicleSide, vehicles: VehicleData[], combatData?: CombatModel): { row: Container; tokens: Vehicle[] } {
-		const row = new Container({ id, width: SLOT_WIDTH * vehicles.length, height: SLOT_HEIGHT });
+		const slotHeight = Math.max(...vehicles.map((vehicle) => (vehicle.passenger ? TOKEN_PASSENGER_HEIGHT : TOKEN_HEIGHT))) + SLOT_MARGIN;
+		const row = new Container({ id, width: SLOT_WIDTH * vehicles.length, height: slotHeight });
 		const tokens = vehicles.map((vehicleData, index) => {
 			const token = new Vehicle({
 				id: `${id}_${index}`,
@@ -164,7 +185,7 @@ export class VehicleTokensSection extends CatalogSection {
 				seatOf: (driver) => this.seats.get(driver) ?? null,
 				onClick: combatData ? () => undefined : undefined,
 			});
-			token.fitToSlot({ x: index * SLOT_WIDTH, y: 0, width: SLOT_WIDTH, height: SLOT_HEIGHT }, 1);
+			token.fitToSlot({ x: index * SLOT_WIDTH, y: 0, width: SLOT_WIDTH, height: slotHeight }, 1);
 			row.addChild(token);
 			return token;
 		});
@@ -177,7 +198,7 @@ export class VehicleTokensSection extends CatalogSection {
 		// The last slot is bigger than x1.25 needs, to show the cap
 		const slots = scales.map((scale, index) => ({
 			width: Math.ceil(TOKEN_WIDTH * scale) + 6 + (index === 2 ? 30 : 0),
-			height: Math.ceil(TOKEN_HEIGHT * scale) + 4 + (index === 2 ? 20 : 0),
+			height: Math.ceil(TOKEN_HEIGHT * scale) + 4 + (index === 2 ? 10 : 0),
 		}));
 		const gap = 16;
 		const width = slots.reduce((sum, slot) => sum + slot.width + gap, 0);
