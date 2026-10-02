@@ -77,6 +77,9 @@ Everything is laid out in logical pixels on a 1280x720 reference and scaled by o
 - A wrecked vehicle greys out with a WRECKED stamp for the turn it dies, then leaves the road.
 - Target marks: triangle for driver 1, diamond for driver 2, both for an area hit, square for an escort.
 - An escort's plate has no driver HP bar, since escorts have no HP. Once it has acted this turn, a SPENT chip leads its status row until the start of your next turn.
+- Past five statuses the row shows four chips then "+N", since five chips and "+N" don't fit the plate's width.
+- An unmanned raider (nobody alive aboard, out of the fight but not wrecked) greys out the same way under a NO DRIVER stamp.
+- An escort carrying a passenger puts the passenger row where the driver HP bar would be, so its token stays 117 tall.
 
 ## 4. The dock
 

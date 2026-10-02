@@ -28,6 +28,7 @@ import { CombatFxSection } from './CombatFxSection';
 import { CombatLogSection } from './CombatLogSection';
 import { CombatRoadSection } from './CombatRoadSection';
 import { SliderTabsSection } from './SliderTabsSection';
+import { VehicleTokensSection } from './VehicleTokensSection';
 
 /**
  * The developer screen's sections, defined once.
@@ -183,5 +184,10 @@ export const developerSections: readonly DeveloperSection[] = [
 	{
 		name: 'combat-road',
 		build: (options) => new CombatRoadSection(options),
+	},
+	// The battle screen's vehicle token in every state (DDB-135)
+	{
+		name: 'vehicle-tokens',
+		build: (options) => new VehicleTokensSection(options),
 	},
 ];
