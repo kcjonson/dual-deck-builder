@@ -13,7 +13,7 @@ import type { TooltipSpec } from './tooltipSpec';
 /** R12.22's states. `suppressed` holds after a press on the owner until the pointer leaves it. */
 export type TooltipState = 'idle' | 'waiting' | 'showing' | 'visible' | 'hiding' | 'suppressed';
 
-/** What brought the tooltip: the pointer resting, keyboard focus, or a call to `show`. */
+/** What brought the tooltip: the pointer resting, keyboard focus, or a call to `show` or `pin`. */
 export type TooltipTrigger = 'hover' | 'focus' | 'manual';
 
 /**
@@ -21,6 +21,8 @@ export type TooltipTrigger = 'hover' | 'focus' | 'manual';
  * roughly 16 px body does not cover the text.
  */
 export const TOOLTIP_POINTER_OFFSET = tokens.space.space_4;
+const SECONDARY_BUTTON = 2;
+
 /** Below the owner when anchored to it (keyboard focus, `show`). */
 export const TOOLTIP_ANCHOR_OFFSET = tokens.space.space_1_5;
 
@@ -57,6 +59,11 @@ export interface TooltipServiceOptions {
  * does not restart the delay; any `pointerdown` hides it and keeps it hidden
  * until the pointer leaves the owner; a captured pointer or an active drag
  * keeps it from showing at all.
+ *
+ * A tooltip can be pinned (`pin`), which the game's card detail view uses
+ * for section 5's "pins it open so you can read while looking at the road":
+ * a pinned tooltip stays through hover, focus and presses elsewhere, and
+ * goes on `unpin`, `hide`, Escape, or when its owner unmounts.
  */
 export class TooltipService implements InputObserver, FrameTicker {
 	private readonly overlays: OverlayService;
@@ -82,6 +89,7 @@ export class TooltipService implements InputObserver, FrameTicker {
 	private overlay: OverlayHandle | null = null;
 	private surfaceValue: Component | null = null;
 	private fade: TweenHandle<number> | null = null;
+	private pinnedOwner: Component | null = null;
 
 	constructor({ overlays, placement, dispatcher, clock, animator, frame, dragActive, surface }: TooltipServiceOptions) {
 		this.overlays = overlays;
@@ -92,6 +100,17 @@ export class TooltipService implements InputObserver, FrameTicker {
 		this.frame = frame;
 		this.dragActive = dragActive ?? (() => false);
 		this.createSurface = surface;
+		// A pinned owner that unmounts (a hand dealt again) takes its tooltip
+		// with it. Checked after each layout, which an unmount always causes,
+		// rather than by asking for a tick every frame while pinned.
+		frame.afterLayout(() => this.dropUnmountedPin());
+	}
+
+	private dropUnmountedPin(): void {
+		const pinned = this.pinnedOwner;
+		if (!pinned || pinned.isMounted) return;
+		this.pinnedOwner = null;
+		if (this.ownerValue === pinned) this.reset();
 	}
 
 	public get state(): TooltipState {
@@ -126,14 +145,45 @@ export class TooltipService implements InputObserver, FrameTicker {
 	 */
 	public show(owner: Component, { at, fade = true }: { at?: Vec2; fade?: boolean } = {}): void {
 		if (!owner.tooltip || !owner.isMounted) return;
+		this.pinnedOwner = null;
 		this.triggerValue = 'manual';
 		this.ownerValue = owner;
 		this.point = at ?? null;
 		this.present(fade);
 	}
 
-	/** Hides whatever is shown, with the hide fade. */
+	/** Hides whatever is shown, with the hide fade, pinned or not. */
 	public hide(): void {
+		this.pinnedOwner = null;
+		this.leave();
+	}
+
+	/** The owner whose tooltip is pinned open, or null. */
+	public get pinned(): Component | null {
+		return this.pinnedOwner;
+	}
+
+	/**
+	 * Shows `owner`'s tooltip at once and keeps it: hover leaving, focus
+	 * moving, and presses no longer hide it. One tooltip at a time, so
+	 * pinning another owner replaces it. The content is built again, so a
+	 * factory can read `pinned` and say so. It fades in unless something
+	 * was already showing, or `fade` is false (a gallery's still picture).
+	 */
+	public pin(owner: Component, { fade = true }: { fade?: boolean } = {}): void {
+		if (!owner.tooltip || !owner.isMounted) return;
+		const shown = !fade || this.stateValue === 'showing' || this.stateValue === 'visible';
+		this.pinnedOwner = owner;
+		this.triggerValue = 'manual';
+		this.ownerValue = owner;
+		this.point = null;
+		this.present(!shown);
+	}
+
+	/** Lets a pinned tooltip go: hidden, as a pointer leaving it would. */
+	public unpin(): void {
+		if (!this.pinnedOwner) return;
+		this.pinnedOwner = null;
 		this.leave();
 	}
 
@@ -145,6 +195,7 @@ export class TooltipService implements InputObserver, FrameTicker {
 	 * there.
 	 */
 	public focusVisibleChange(component: Component | null): void {
+		if (this.pinnedOwner) return;
 		const owner = ownerOf(component);
 		if (owner) {
 			const active = this.stateValue === 'waiting' || this.stateValue === 'showing' || this.stateValue === 'visible';
@@ -158,6 +209,7 @@ export class TooltipService implements InputObserver, FrameTicker {
 	// -- input observer -------------------------------------------------------
 
 	public hoverChange(target: Component | null): void {
+		if (this.pinnedOwner) return;
 		const owner = ownerOf(target);
 		if (owner === this.ownerValue && this.stateValue !== 'idle' && this.stateValue !== 'hiding') return;
 		if (!owner) {
@@ -182,9 +234,10 @@ export class TooltipService implements InputObserver, FrameTicker {
 	 * pointer stays there. Never consumes.
 	 */
 	public pointerDown(press: PointerPress): boolean {
-		if (this.stateValue === 'idle') return false;
+		if (this.stateValue === 'idle' || this.pinnedOwner) return false;
 		const owner = this.ownerValue;
 		if (owner && press.target && contains(owner, press.target)) {
+			if (press.button === SECONDARY_BUTTON && owner.tooltip?.pinnable && this.surfaceValue) return false;
 			this.removeSurface();
 			this.stateValue = 'suppressed';
 		} else {
@@ -196,6 +249,7 @@ export class TooltipService implements InputObserver, FrameTicker {
 	/** Escape hides a shown tooltip (WCAG's dismissable) without consuming the key. */
 	public keyDown(stroke: KeyStroke): boolean {
 		if (stroke.key === 'Escape' && (this.stateValue === 'showing' || this.stateValue === 'visible')) {
+			this.pinnedOwner = null;
 			this.removeSurface();
 			this.stateValue = 'suppressed';
 		}
@@ -264,6 +318,7 @@ export class TooltipService implements InputObserver, FrameTicker {
 	}
 
 	private reset(): void {
+		this.pinnedOwner = null;
 		this.removeSurface();
 		this.stateValue = 'idle';
 		this.ownerValue = null;

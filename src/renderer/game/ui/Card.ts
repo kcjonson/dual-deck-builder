@@ -1,39 +1,81 @@
 import { Component, PointerEvents } from '../../engine/components/Component';
+import { Icon } from '../../engine/components/Icon';
 import { Text } from '../../engine/components/Text';
 import type { ResolvedColors } from '../../engine/components/Component';
 import type { DrawApi } from '../../engine/draw/DrawApi';
-import type { DrawRectOptions } from '../../engine/draw/commands';
+import type { DrawRectOptions, DrawTextOptions } from '../../engine/draw/commands';
 import type { AnyUiEvent } from '../../engine/input/events';
 import { resolveColor } from '../../engine/style/styleObject';
 import type { TweenHandle } from '../../engine/animation/Animator';
 import { tokens } from '../../engine/theme/tokens';
 import { normalizeTransform, transformMatrix } from '../../engine/components/componentGeometry';
-import { Rect, concat, invert, transformPoint } from '../../engine/draw/geometry';
+import { RGBA, Rect, concat, invert, transformPoint } from '../../engine/draw/geometry';
 import { CardRarity, Card as GameCard } from '../mechanics/Card';
+import { cardRange } from '../data/keywords';
+import { DRIVER_MARK_OUTLINES, hexRgba } from '../screens/combat/combatStyle';
+import { KeywordText } from './KeywordText';
+import {
+	CARD_DIM,
+	CARD_GROUND,
+	CARD_KEYWORD,
+	CARD_LINE,
+	CARD_MUTED,
+	CARD_NAME,
+	CARD_RULES,
+	COST_DIGITS,
+	COST_DIGITS_UNPAYABLE,
+	DIM_BRIGHTNESS,
+	RARITY_GEMS,
+	artGradient,
+	cardArtIcon,
+	cardTypeLabel,
+	dimHex,
+	drawCostHex,
+	drawRarityGem,
+	frameColor,
+	scale,
+} from './cardStyle';
 
 /**
- * Card size variants for different UI contexts
+ * Card size variants for different UI contexts. The full text has its own
+ * view, `CardDetailView`, rather than a bigger face.
  */
 export enum CardSize {
-	MINI = 'mini',       // For deck previews, small displays
-	NORMAL = 'normal',   // Standard card size for hand and battlefield
-	LARGE = 'large'      // For detailed view/inspection
+	MINI = 'mini',       // A deck list's thumbnail
+	NORMAL = 'normal',   // The face: hand, piles, the card browser
 }
 
 /**
- * Card dimensions for each size variant
+ * Card dimensions for each size variant. A face is 128x180 (Battle Screen
+ * Design, section 4).
  */
 const CARD_DIMENSIONS = {
 	[CardSize.MINI]: { width: 50, height: 70 },
-	[CardSize.NORMAL]: { width: 150, height: 210 },
-	[CardSize.LARGE]: { width: 240, height: 336 }
+	[CardSize.NORMAL]: { width: 128, height: 180 },
 } as const;
 
-/** A card title gets up to two lines, at the display face's own line height. */
-const TITLE_LINES = 2;
-const TITLE_LINE_HEIGHT = 1.2;
-/** Space between the title slot and the cost's digits. */
-const TITLE_COST_GAP = 4;
+/**
+ * The face, from the mock's `.card`: every box in the card's own pixels,
+ * measured from its outer edge.
+ */
+const FACE = {
+	radius: 6,
+	border: 2,
+	/** The cost hex hangs off the top-left corner. */
+	hex: { x: -7, y: -7, size: 30, digits: 19 },
+	mark: { x: 110, y: 6, size: 12 },
+	/** The type's right edge, left of the driver mark. */
+	type: { right: 106, y: 5, height: 14, size: 11 },
+	name: { x: 8, y: 24, width: 112, height: 18, sizes: [16, 14] },
+	art: { x: 6, y: 45, width: 116, height: 52, radius: 3, icon: 38, inset: { right: 6, bottom: 4 } },
+	/** Three lines of 12 over 17 in 114 (section 5's short text). */
+	rules: { x: 7, y: 101, width: 114, size: 12, lineHeight: 17, lines: 3 },
+	foot: { x: 8, right: 120, y: 158, height: 16, gem: 8, size: 11 },
+} as const;
+
+/** The face's short text box, which the card data check measures against. */
+export const FACE_RULES = { width: FACE.rules.width, fontSize: FACE.rules.size, lineHeight: FACE.rules.lineHeight, maxLines: FACE.rules.lines } as const;
+
 /** How far a hovered or selected card rises, through its transform so layout never sees it (R8.26). */
 export const CARD_LIFT = 14;
 /** A lifted card grows a little, about its bottom edge, so it reads as picked up. */
@@ -55,51 +97,48 @@ export interface FanPose {
 	order: number;
 }
 
-const FACE_COLOR = '#2a2a3a';
-const DISABLED_FACE_COLOR = '#1a1a2a';
-const RARITY_COLORS: Record<CardRarity, string> = {
-	starter: '#666666',
-	common: '#ffffff',
-	uncommon: '#00aa00',
-	rare: '#0088ff',
-	legendary: '#ff8800',
-	signature: '#cc66ff',
-};
-const HOVER_OUTLINE = resolveColor('#ffffff');
-const SELECTED_OUTLINE = resolveColor('#00aaff');
+const HOVER_OUTLINE: RGBA = [...tokens.color.accent];
+const SELECTED_OUTLINE: RGBA = [...tokens.color.accent_bright];
+const SELECTED_BORDER = 3;
 
 const UNFANNED: FanPose = Object.freeze({ rotate: 0, drop: 0, order: 0 });
 
+const MINI_SCALE = 0.35;
+
 /**
- * Visual component for displaying a card. One composite target (R8.29):
- * its frame and text are parts, and every state it shows (hovered,
- * selected, disabled, pressed) comes from the framework's flags.
+ * Visual component for displaying a card: the face of Battle Screen Design
+ * section 5. One composite target (R8.29): the frame, art ground, cost hex,
+ * driver mark and rarity gem are the card's own draws, its words are
+ * parts, and every state it shows (hovered, selected, disabled) comes from
+ * the framework's flags. Driver colour is the frame; rarity is the gem.
  */
 export class Card extends Component {
 	private model: GameCard;
 	private cardSize: CardSize;
-	private name: Text;
-	private cost: Text;
-	/** Where the cost's digits are centred, and where the title starts and stops short of them. */
-	private readonly costCentre: number;
-	private readonly titleX: number;
-	private readonly titleGap: number;
-	private description: Text | null = null;
-	private rarity: Text | null = null;
-	private tags: Text | null = null;
+	private driverNumber: 1 | 2 | null;
+	private readonly name: Text;
+	private readonly typeLabel: Text | null = null;
+	private readonly rules: KeywordText | null = null;
+	private readonly rarityLabel: Text | null = null;
+	private readonly rangeLabel: Text | null = null;
+	private readonly artIcon: Icon | null = null;
+	/** The name's size once fitted: 16, else 14, else 14 with an ellipsis. */
+	private nameFitted = false;
+
 	/**
-	 * The frame, face and driver badge are the card's own draws rather than
-	 * child rectangles (R8.1's composite), so its text sits on the card and
-	 * not over a sibling. The options are built once and recoloured in place;
-	 * the draw API copies what it is given.
+	 * The card's own draws, built once and recoloured in place; the draw API
+	 * copies what it is given.
 	 */
 	private readonly frameDraw: DrawRectOptions;
-	private readonly faceDraw: DrawRectOptions;
-	private readonly badgeDraw: DrawRectOptions | null = null;
-	private readonly frameBorder = { color: resolveColor('#ffffff'), width: 3 };
-	private readonly rarityColor: string;
-	private driverIndicator: Text | null = null;
-	private driverNumber: 1 | 2 | null = null;
+	private readonly frameBorder: { color: RGBA; width: number } = { color: resolveColor(CARD_LINE), width: FACE.border };
+	private readonly artDraw: DrawRectOptions | null = null;
+	private readonly chipDraw: DrawRectOptions | null = null;
+	private readonly digitsDraw: DrawTextOptions;
+	private markPoints: { x: number; y: number }[] = [];
+
+	private dimmed = false;
+	private cannotPay = false;
+	private rises = true;
 
 	private pose: FanPose = UNFANNED;
 	/** 0 resting in its pose, 1 lifted; tweened on the animator while mounted. */
@@ -116,218 +155,216 @@ export class Card extends Component {
 	/** A click or `activate` on the card, with the card it shows (R8.25). */
 	public onSelect: ((card: GameCard) => void) | null = null;
 
-	constructor({ id, x, y, data, size = CardSize.NORMAL, driverNumber, fullText = false }: {
+	constructor({ id, x, y, data, size = CardSize.NORMAL, driverNumber }: {
 		id?: string;
 		x: number;
 		y: number;
 		data: GameCard;
 		size?: CardSize;
 		driverNumber?: 1 | 2 | null;
-		/** The full rules text in place of the summary: a preview, which has the room. */
-		fullText?: boolean;
 	}) {
 		const dimensions = CARD_DIMENSIONS[size];
-		super({
-			id,
-			x,
-			y,
-			width: dimensions.width,
-			height: dimensions.height,
-		});
+		super({ id, x, y, width: dimensions.width, height: dimensions.height });
 		this.componentType = 'Card';
 
 		this.model = data;
 		this.cardSize = size;
 		this.driverNumber = driverNumber || null;
+		const mini = size === CardSize.MINI;
+		const unit = mini ? MINI_SCALE : 1;
 
-		// The rarity rim, with the face inset inside it
-		this.rarityColor = Card.colorForRarity(data.rarity);
-		const borderWidth = size === CardSize.MINI ? 2 : 4;
 		this.frameDraw = {
 			id: id ?? undefined,
 			rect: { x: 0, y: 0, width: dimensions.width, height: dimensions.height },
-			fill: resolveColor(this.rarityColor),
-			radius: size === CardSize.MINI ? 4 : 8,
+			fill: resolveColor(CARD_GROUND),
+			radius: FACE.radius * (mini ? 0.6 : 1),
+			border: this.frameBorder,
 		};
-		this.faceDraw = {
-			rect: { x: borderWidth, y: borderWidth, width: dimensions.width - borderWidth * 2, height: dimensions.height - borderWidth * 2 },
-			fill: resolveColor(FACE_COLOR),
-			radius: size === CardSize.MINI ? 3 : 6,
-		};
+		this.frameBorder.width = mini ? 1 : FACE.border;
+		this.frameBorder.color = this.restingBorder;
 
-		// Scale factors for different card sizes
-		const scaleFactor = size === CardSize.MINI ? 0.35 : size === CardSize.LARGE ? 1.2 : 1;
-		const padding = Math.floor(12 * scaleFactor);
-		const hasDriverBadge = this.driverNumber !== null && size !== CardSize.MINI;
-		const badgeX = Math.floor(10 * scaleFactor);
-		const badgeSize = Math.floor(25 * scaleFactor);
-		// The badge paints over anything submitted before it (chapter 3), so the
-		// title starts past it rather than under it.
-		const titleX = hasDriverBadge ? badgeX + badgeSize + Math.floor(6 * scaleFactor) : padding;
-		const headerY = Math.floor(20 * scaleFactor);
-		const titleSize = Math.floor(14 * scaleFactor);
-
-		// Cost: hugs its digits, centred 30 px in from the right edge
-		this.cost = new Text({
+		const hex = this.hexBox;
+		this.digitsDraw = {
 			text: `${data.cost}`,
-			id: this.childId('cost'),
-			y: headerY,
-			style: {
-				fontSize: Math.floor(20 * scaleFactor),
-				color: '#ffaa00',
-				fontWeight: 'bold',
-			},
-			wrap: 'none',
-		});
-		this.costCentre = dimensions.width - Math.floor(30 * scaleFactor);
-		this.titleX = titleX;
-		this.titleGap = TITLE_COST_GAP * scaleFactor;
+			box: { x: hex.x, y: hex.y, width: hex.size, height: hex.size },
+			font: 'display',
+			size: Math.round(FACE.hex.digits * (hex.size / FACE.hex.size)),
+			color: resolveColor(COST_DIGITS),
+			align: 'center',
+			verticalAlign: 'middle',
+		};
 
-		// Card name: runs up to the cost's measured left edge, wraps to a second
-		// line rather than under it, and a name that needs a third is cut with
-		// an ellipsis. Two line boxes end above the description. Both are
-		// placed by placeHeader once the cost has measured.
 		this.name = new Text({
 			text: data.displayName,
 			id: this.childId('title'),
-			x: titleX,
-			y: headerY,
-			height: Math.ceil(TITLE_LINES * titleSize * TITLE_LINE_HEIGHT),
-			style: {
-				fontSize: titleSize,
-				color: '#ffffff',
-				fontWeight: 'bold',
-			},
-			lineHeight: TITLE_LINE_HEIGHT,
+			x: mini ? 4 : FACE.name.x,
+			y: mini ? 18 : FACE.name.y,
+			width: mini ? dimensions.width - 8 : FACE.name.width,
+			height: mini ? Math.ceil(3 * 14 * unit * 1.2) : FACE.name.height,
+			style: { fontRole: 'display', fontSize: mini ? Math.floor(14 * unit) : FACE.name.sizes[0], color: CARD_NAME },
+			lineHeight: mini ? 1.2 : FACE.name.height / FACE.name.sizes[0],
+			verticalAlign: mini ? 'top' : 'middle',
+			wrap: mini ? 'word' : 'none',
 			textOverflow: 'ellipsis',
 		});
 		this.addChild(this.name);
-		this.addChild(this.cost);
-		this.placeHeader();
 
-		// Description with automatic text wrapping
-		// Skip description for mini cards
-		if (size !== CardSize.MINI) {
-			// The face shows the summary (Card System Design 1.1); the full rules
-			// text is for the detail view. Keyword brackets become highlights
-			// with DDB-137, plain until then. The box ends above the rarity line
-			// and the ellipsis is only a backstop: no summary reaches it.
-			const descriptionY = Math.floor(60 * scaleFactor);
-			this.description = new Text({
-				text: fullText ? data.displayDescription : Card.faceText(data.displaySummary),
-				id: this.childId('description'),
-				x: padding,
-				y: descriptionY,
-				width: dimensions.width - padding * 2,
-				height: dimensions.height - Math.floor(60 * scaleFactor) - Math.floor(4 * scaleFactor) - descriptionY,
-				style: {
-					fontSize: Math.floor(11 * scaleFactor),
-					color: '#cccccc',
-				},
-				lineHeight: 1.4,
-				textOverflow: 'ellipsis',
-			});
-			this.addChild(this.description);
-		}
-
-		// Rarity - only show on normal and large cards
-		if (size !== CardSize.MINI) {
-			this.rarity = new Text({
-				text: data.rarity.toUpperCase(),
-				id: this.childId('rarity'),
-				x: padding,
-				y: dimensions.height - Math.floor(60 * scaleFactor),
-				style: {
-					fontSize: Math.floor(10 * scaleFactor),
-					color: Card.colorForRarity(data.rarity),
-					fontWeight: 'bold',
-				},
-			});
-			this.addChild(this.rarity);
-
-			// Tags
-			const tagsStr = data.tags.join(', ');
-			this.tags = new Text({
-				text: tagsStr,
-				id: this.childId('tags'),
-				x: padding,
-				y: dimensions.height - Math.floor(35 * scaleFactor),
-				width: dimensions.width - padding * 2,
-				style: {
-					fontSize: Math.floor(8 * scaleFactor),
-					color: '#888888',
-				},
-				textOverflow: 'ellipsis',
-				wrap: 'none',
-			});
-			this.addChild(this.tags);
-
-			// Target type
-			const targetText = new Text({
-				text: data.targetType,
-				id: this.childId('target_type'),
-				x: padding,
-				y: dimensions.height - Math.floor(20 * scaleFactor),
-				style: {
-					fontSize: Math.floor(8 * scaleFactor),
-					color: '#666666',
-				},
-			});
-			this.addChild(targetText);
-		}
-
-		// Driver indicator (if specified)
-		if (hasDriverBadge) {
-			this.badgeDraw = {
-				rect: { x: badgeX, y: badgeX, width: badgeSize, height: badgeSize },
-				fill: resolveColor(this.driverNumber === 1 ? '#4a4a8a' : '#4a8a4a'),
-				radius: Math.floor(12.5 * scaleFactor),
-				border: { color: resolveColor(this.driverNumber === 1 ? '#6a6aaa' : '#6aaa6a'), width: 2 },
+		if (!mini) {
+			this.artDraw = {
+				rect: { x: FACE.art.x, y: FACE.art.y, width: FACE.art.width, height: FACE.art.height },
+				radius: FACE.art.radius,
+				gradient: artGradient(this.driverNumber),
 			};
+			this.artIcon = new Icon({
+				id: this.childId('art'),
+				glyph: cardArtIcon(data),
+				size: FACE.art.icon,
+				x: FACE.art.x + FACE.art.width - FACE.art.inset.right - FACE.art.icon,
+				y: FACE.art.y + FACE.art.height - FACE.art.inset.bottom - FACE.art.icon,
+				tint: hexRgba(CARD_NAME, 0.35),
+			});
+			this.addChild(this.artIcon);
 
-			// Centred in the badge
-			this.driverIndicator = new Text({
-				text: `D${this.driverNumber}`,
-				id: this.childId('driver_badge'),
-				x: badgeX,
-				y: badgeX,
-				width: badgeSize,
-				height: badgeSize,
-				style: {
-					fontSize: Math.floor(10 * scaleFactor),
-					color: '#ffffff',
-					textAlign: 'center',
-					fontWeight: 'bold',
-				},
+			this.typeLabel = new Text({
+				text: cardTypeLabel(data),
+				id: this.childId('type'),
+				y: FACE.type.y,
+				height: FACE.type.height,
+				style: { fontRole: 'mono', fontSize: FACE.type.size, color: CARD_MUTED, letterSpacing: 0.08 },
+				lineHeight: FACE.type.height / FACE.type.size,
 				verticalAlign: 'middle',
 				wrap: 'none',
 			});
-			this.addChild(this.driverIndicator);
+			this.addChild(this.typeLabel);
+
+			// The summary (Card System Design 1.1), keywords in yellow; the full
+			// text is the detail view's. A summary past three lines is a content
+			// bug the card data check catches, so nothing here shrinks it.
+			this.rules = new KeywordText({
+				id: this.childId('description'),
+				text: data.displaySummary,
+				mode: 'bracketed',
+				x: FACE.rules.x,
+				y: FACE.rules.y,
+				width: FACE.rules.width,
+				height: FACE.rules.lineHeight * FACE.rules.lines,
+				fontSize: FACE.rules.size,
+				lineHeight: FACE.rules.lineHeight,
+				maxLines: FACE.rules.lines,
+				color: CARD_RULES,
+				keywordColor: CARD_KEYWORD,
+			});
+			this.addChild(this.rules);
+
+			this.rarityLabel = new Text({
+				text: data.rarity.toUpperCase(),
+				id: this.childId('rarity'),
+				x: FACE.foot.x + FACE.foot.gem + 6,
+				y: FACE.foot.y,
+				height: FACE.foot.height,
+				style: { fontRole: 'mono', fontSize: FACE.foot.size, color: CARD_DIM, letterSpacing: 0.06 },
+				lineHeight: FACE.foot.height / FACE.foot.size,
+				verticalAlign: 'middle',
+				wrap: 'none',
+			});
+			this.addChild(this.rarityLabel);
+
+			const range = cardRange(data);
+			if (range !== null) {
+				this.rangeLabel = new Text({
+					text: `R${range}`,
+					id: this.childId('range'),
+					y: FACE.foot.y,
+					height: FACE.foot.height,
+					style: { fontRole: 'mono', fontSize: FACE.foot.size, color: CARD_MUTED },
+					lineHeight: FACE.foot.height / FACE.foot.size,
+					verticalAlign: 'middle',
+					wrap: 'none',
+				});
+				this.addChild(this.rangeLabel);
+				this.chipDraw = {
+					rect: { x: 0, y: FACE.foot.y, width: 0, height: FACE.foot.height },
+					radius: 2,
+					border: { color: resolveColor(CARD_LINE), width: 1 },
+				};
+			}
 		}
+		this.placeMark();
+		this.placeParts();
 	}
 
 	/**
 	 * Composite internals derive their ids from the card's own, so a caller
-	 * names the card once and the lint can still address `<card>_title` and
-	 * `<card>_driver_badge`. Unnamed cards leave their children unnamed too.
+	 * names the card once and the lint can still address `<card>_title`.
+	 * Unnamed cards leave their children unnamed too.
 	 */
 	private childId(suffix: string): string | undefined {
 		return this.id === null ? undefined : `${this.id}_${suffix}`;
 	}
 
+	/** The cost hex's box: hanging off the corner on a face, tucked inside on a thumbnail. */
+	private get hexBox(): { x: number; y: number; size: number } {
+		return this.cardSize === CardSize.MINI ? { x: 2, y: 2, size: 14 } : FACE.hex;
+	}
+
+	/** The driver mark's outline, in the face's top-right corner. */
+	private placeMark(): void {
+		const outline = this.driverNumber ? DRIVER_MARK_OUTLINES[this.driverNumber] : null;
+		if (!outline || this.cardSize === CardSize.MINI) {
+			this.markPoints = [];
+			return;
+		}
+		const half = FACE.mark.size / 2;
+		const cx = FACE.mark.x + half;
+		const cy = FACE.mark.y + half;
+		this.markPoints = outline.map(([px, py]) => ({ x: cx + px * half, y: cy + py * half }));
+	}
+
 	/**
-	 * The cost hugs its digits and the title runs up to their left edge, so
-	 * both are placed from the cost's measured width: on construction, and in
-	 * the layout phase once the cost has measured through the mount context
-	 * (R1.6, R8.18).
+	 * Parts that hug their measured text: the type ends left of the mark, the
+	 * range chip at the foot's right edge. Placed on construction and again
+	 * in layout once they have measured through the mount context (R1.6).
 	 */
-	private placeHeader(): void {
-		this.cost.x = this.costCentre - this.cost.width / 2;
-		this.name.width = Math.floor(this.cost.x - this.titleGap - this.titleX);
+	private placeParts(): void {
+		if (this.typeLabel) this.typeLabel.x = FACE.type.right - this.typeLabel.width;
+		if (this.rangeLabel && this.chipDraw) {
+			const width = this.rangeLabel.width + 6;
+			this.rangeLabel.x = FACE.foot.right - width + 3;
+			this.chipDraw.rect = { x: FACE.foot.right - width, y: FACE.foot.y, width, height: FACE.foot.height };
+		}
+	}
+
+	/**
+	 * "Shrink to 14, then ellipsis" (section 8): a name too wide at 16 drops
+	 * to 14, and one too wide at 14 keeps the ellipsis it already has. Done
+	 * once, the first time the card can measure.
+	 */
+	private fitName(): void {
+		if (this.nameFitted || this.cardSize === CardSize.MINI) return;
+		const draw = this.context?.draw;
+		if (!draw || !draw.canMeasureText('display')) return;
+		this.nameFitted = true;
+		const [large, small] = FACE.name.sizes;
+		const natural = draw.measureText({ text: this.name.text, font: 'display', size: large, wrap: 'none' }).width;
+		if (natural <= this.name.width) return;
+		this.name.style = { ...this.name.style, fontSize: small };
 	}
 
 	protected layoutChildren(): void {
-		this.placeHeader();
+		this.fitName();
+		this.placeParts();
+	}
+
+	/** The name's size after fitting: 16, or 14 for a long one. */
+	public get nameSize(): number {
+		this.fitName();
+		const size = this.name.style.fontSize;
+		return typeof size === 'number' ? size : FACE.name.sizes[0];
+	}
+
+	/** The cost hex reaches 7 px past the top-left corner. */
+	public get inkExtent(): number {
+		return this.cardSize === CardSize.MINI ? 0 : -FACE.hex.x;
 	}
 
 	/** R8.29: a card is one target; its text and frame are internals. */
@@ -341,12 +378,10 @@ export class Card extends Component {
 	}
 
 	/**
-	 * Hover arrives through `onHover` and `onUnhover`, which the dispatcher
-	 * drives (R9.8); the press shades the frame, and the click is the
-	 * dispatcher's, synthesised when press and release both land on this card
-	 * (R9.31). A disabled card receives none of these (R9.5). A focused card
-	 * treats `activate` (Enter or Space) as a click (R9.27); only the hand
-	 * makes its cards focusable.
+	 * A click is the dispatcher's, synthesised when press and release both
+	 * land on this card (R9.31). A disabled card receives none of these
+	 * (R9.5). A focused card treats `activate` (Enter or Space) as a click
+	 * (R9.27); only the hand makes its cards focusable.
 	 */
 	public handleEvent(event: AnyUiEvent): void {
 		super.handleEvent(event);
@@ -354,16 +389,6 @@ export class Card extends Component {
 			case 'activate':
 				event.consume();
 				this.activate();
-				return;
-			case 'pointerdown':
-				if (event.button === 0) {
-					this.frameDraw.fill = resolveColor(this.adjustBrightness(this.rarityColor, -20));
-				}
-				return;
-			case 'pointerup':
-			case 'pointerleave':
-			case 'pointercancel':
-				this.frameDraw.fill = resolveColor(this.rarityColor);
 				return;
 			case 'click':
 				this.activate();
@@ -379,34 +404,101 @@ export class Card extends Component {
 	/**
 	 * Hover, focus, selection, and enabled state, the last inherited (R8.3):
 	 * a selected card, or a hovered or keyboard-focused one that can be
-	 * played, rises, and all but focus take a glow; a disabled card dims. The dispatcher keeps `hovered` true over a
-	 * disabled card (R9.8), so the glow checks enabled itself.
+	 * played, rises; hover and selection outline it in the interaction
+	 * yellow (section 7); a disabled card dims. The dispatcher keeps
+	 * `hovered` true over a disabled card (R9.8), so the outline checks
+	 * enabled itself.
 	 */
 	protected onStateChange(): void {
 		const enabled = this.effectivelyEnabled;
 		if (this.selected) {
 			this.frameBorder.color = SELECTED_OUTLINE;
-			this.frameDraw.border = this.frameBorder;
-		} else if (this.hovered && enabled) {
+			this.frameBorder.width = SELECTED_BORDER;
+		} else if ((this.hovered || this.focusVisible) && enabled) {
 			this.frameBorder.color = HOVER_OUTLINE;
-			this.frameDraw.border = this.frameBorder;
+			this.frameBorder.width = FACE.border;
 		} else {
-			this.frameDraw.border = undefined;
+			this.frameBorder.color = this.restingBorder;
+			this.frameBorder.width = this.cardSize === CardSize.MINI ? 1 : FACE.border;
 		}
 		// Keyboard focus lifts a card as the pointer does, so its ring clears its neighbours
-		this.liftTo(this.selected || ((this.hovered || this.focusVisible) && enabled) ? 1 : 0);
-		this.faceDraw.fill = resolveColor(enabled ? FACE_COLOR : DISABLED_FACE_COLOR);
+		this.liftTo(this.rises && (this.selected || ((this.hovered || this.focusVisible) && enabled)) ? 1 : 0);
+		this.dim(!enabled);
+	}
+
+	private get restingBorder(): RGBA {
+		return scale(resolveColor(frameColor(this.driverNumber)), this.dimmed ? DIM_BRIGHTNESS : 1);
+	}
+
+	/**
+	 * The mock's `.cant`: everything darker and greyer. The card's own
+	 * draws darken; its words take dimmed colours, since a card's opacity
+	 * would show the fan through it.
+	 */
+	private dim(dimmed: boolean): void {
+		if (dimmed === this.dimmed) return;
+		this.dimmed = dimmed;
+		const tone = (hex: string) => (dimmed ? dimHex(hex) : hex);
+		const brightness = dimmed ? DIM_BRIGHTNESS : 1;
+		this.frameDraw.fill = scale(resolveColor(CARD_GROUND), brightness);
+		if (!this.selected && !this.hovered) this.frameBorder.color = this.restingBorder;
+		if (this.artDraw) this.artDraw.gradient = artGradient(this.driverNumber, brightness);
+		if (this.chipDraw?.border) this.chipDraw.border = { color: scale(resolveColor(CARD_LINE), brightness), width: 1 };
+		this.name.style = { ...this.name.style, color: tone(CARD_NAME) };
+		if (this.typeLabel) this.typeLabel.style = { ...this.typeLabel.style, color: tone(CARD_MUTED) };
+		if (this.rarityLabel) this.rarityLabel.style = { ...this.rarityLabel.style, color: tone(CARD_DIM) };
+		if (this.rangeLabel) this.rangeLabel.style = { ...this.rangeLabel.style, color: tone(CARD_MUTED) };
+		if (this.artIcon) this.artIcon.tint = hexRgba(tone(CARD_NAME), 0.35);
+		this.rules?.setColors(tone(CARD_RULES), tone(CARD_KEYWORD));
+	}
+
+	/**
+	 * Whether hover, focus and selection lift the card out of its place:
+	 * the hand's cards rise out of the fan; a pile's or the card browser's
+	 * sit in a grid and stay put.
+	 */
+	public get liftable(): boolean {
+		return this.rises;
+	}
+
+	public set liftable(liftable: boolean) {
+		this.rises = liftable;
+		if (!liftable) this.liftTo(0);
+	}
+
+	/** Whether the driver can't pay its cost: the numeral turns dark red (section 6). */
+	public get unaffordable(): boolean {
+		return this.cannotPay;
+	}
+
+	public set unaffordable(unaffordable: boolean) {
+		this.cannotPay = unaffordable;
+		this.digitsDraw.color = resolveColor(unaffordable ? COST_DIGITS_UNPAYABLE : COST_DIGITS);
 	}
 
 	public render(draw: DrawApi): void {
+		const brightness = this.dimmed ? DIM_BRIGHTNESS : 1;
 		draw.drawRect(this.frameDraw);
-		draw.drawRect(this.faceDraw);
-		if (this.badgeDraw) draw.drawRect(this.badgeDraw);
+		if (this.artDraw) draw.drawRect(this.artDraw);
+		if (this.chipDraw) draw.drawRect(this.chipDraw);
+		if (this.markPoints.length > 0 && this.driverNumber) {
+			const points = this.markPoints;
+			const indices = points.length === 3 ? [0, 1, 2] : [0, 1, 2, 0, 2, 3];
+			draw.drawPolygon({ points, indices, fill: scale(resolveColor(frameColor(this.driverNumber)), brightness) });
+		}
+		if (this.cardSize !== CardSize.MINI) {
+			drawRarityGem(draw, this.model.rarity, FACE.foot.x + FACE.foot.gem / 2, FACE.foot.y + FACE.foot.height / 2, FACE.foot.gem, brightness);
+		} else {
+			drawRarityGem(draw, this.model.rarity, this.width - 7, this.height - 7, 5, brightness);
+		}
+		const hex = this.hexBox;
+		drawCostHex(draw, hex.x, hex.y, hex.size, brightness);
+		draw.drawText(this.digitsDraw);
 	}
 
-	/** The face is the card's fill and the rarity rim its border (R13.22). */
+	/** The face is the card's fill and the frame its border (R13.22). */
 	public get resolvedColors(): ResolvedColors {
-		return { fill: this.faceDraw.fill ?? resolveColor(FACE_COLOR), border: this.frameDraw.fill ?? resolveColor(this.rarityColor) };
+		return { fill: this.frameDraw.fill ?? resolveColor(CARD_GROUND), border: this.frameBorder.color };
 	}
 
 	/** Where the card rests in its fan; a lifted card straightens out of it. */
@@ -422,8 +514,8 @@ export class Card extends Component {
 
 	/**
 	 * Where the card is on screen once fully lifted, while it may still be on
-	 * its way up: anything placed against it (the preview) clears the card
-	 * where it will settle, not where the tween has it this frame.
+	 * its way up: anything placed against it clears the card where it will
+	 * settle, not where the tween has it this frame.
 	 */
 	public get liftedScreenBounds(): Rect {
 		let matrix = this.screenMatrix;
@@ -477,10 +569,13 @@ export class Card extends Component {
 	}
 
 	/**
-	 * The fan pose blended toward the lifted one. A card that is up at all
-	 * paints and hit-tests on the `raised` layer, over its neighbours and
-	 * the driver tab above it; a higher layer is hit first whatever the
-	 * siblings' `zIndex`, so the lift leaves the fan's order alone.
+	 * The resting pose and the lifted one are both explicit (DDB-172): the
+	 * fan pose blended toward `LIFTED_TRANSFORM` by the lift amount, through
+	 * the transform, so the card's position stays layout's. A card that is
+	 * up at all paints and hit-tests on the `raised` layer, over its
+	 * neighbours and the driver tab above it; a higher layer is hit first
+	 * whatever the siblings' `zIndex`, so the lift leaves the fan's order
+	 * alone.
 	 */
 	private applyLift(amount: number): void {
 		this.liftAmount = amount;
@@ -512,34 +607,24 @@ export class Card extends Component {
 		super.onUnmount();
 	}
 
-	/**
-	 * Adjust color brightness
-	 */
-	private adjustBrightness(color: string, amount: number): string {
-		// Simple brightness adjustment for hex colors
-		if (color.startsWith('#')) {
-			const hex = color.slice(1);
-			const r = Math.max(0, Math.min(255, parseInt(hex.slice(0, 2), 16) + amount));
-			const g = Math.max(0, Math.min(255, parseInt(hex.slice(2, 4), 16) + amount));
-			const b = Math.max(0, Math.min(255, parseInt(hex.slice(4, 6), 16) + amount));
-			return `#${r.toString(16).padStart(2, '0')}${g.toString(16).padStart(2, '0')}${b.toString(16).padStart(2, '0')}`;
-		}
-		return color;
-	}
-
-	/** A summary as the face draws it: `[keyword]` brackets stripped. */
-	public static faceText(summary: string): string {
-		return summary.replace(/\[(.+?)\]/g, '$1');
-	}
-
-	/** A rarity's colour: the card's rim and its rarity line, and the card showcase's group headings. */
+	/** A rarity's gem colour, which the card browser's group headings use too. */
 	public static colorForRarity(rarity: CardRarity): string {
-		return RARITY_COLORS[rarity];
+		return RARITY_GEMS[rarity];
 	}
 
 	/** The card this shows. */
 	public get data(): GameCard {
 		return this.model;
+	}
+
+	/** The summary as the face lays it out, keyword pieces flagged. */
+	public get faceWords(): { text: string; keyword: boolean }[][] {
+		return this.rules?.words ?? [];
+	}
+
+	/** Lines the face's summary needs; zero until it has measured. */
+	public get summaryLines(): number {
+		return this.rules?.reflow() ?? 0;
 	}
 
 	/**
@@ -548,13 +633,13 @@ export class Card extends Component {
 	public static getDimensions(size: CardSize = CardSize.NORMAL): { width: number; height: number } {
 		return CARD_DIMENSIONS[size];
 	}
-	
+
 	/** The size variant this card was built at. */
 	public get size(): CardSize {
 		return this.cardSize;
 	}
-	
-	/** The driver seat the badge shows; null for none. */
+
+	/** The driver whose card it is, by seat; null for none. Their colour is the frame. */
 	public get driver(): 1 | 2 | null {
 		return this.driverNumber;
 	}
@@ -562,8 +647,8 @@ export class Card extends Component {
 	public set driver(driverNumber: 1 | 2 | null) {
 		if (this.driverNumber === driverNumber) return;
 		this.driverNumber = driverNumber;
-		if (this.driverIndicator) {
-			this.driverIndicator.text = driverNumber ? `D${driverNumber}` : '';
-		}
+		this.placeMark();
+		if (this.artDraw) this.artDraw.gradient = artGradient(driverNumber, this.dimmed ? DIM_BRIGHTNESS : 1);
+		if (!this.selected && !this.hovered) this.frameBorder.color = this.restingBorder;
 	}
 }

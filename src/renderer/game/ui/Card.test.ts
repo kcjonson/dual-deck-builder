@@ -8,10 +8,14 @@ import type { MountContext } from '../../engine/components/MountContext';
 import { Card as GameCard, CardData } from '../mechanics/Card';
 import cardsFile from '../data/cards.json';
 import { CARD_LIFT, Card, CardSize } from './Card';
+import { KeywordText } from './KeywordText';
+import { Icon } from '../../engine/components/Icon';
+import type { Component } from '../../engine/components/Component';
+import { DRIVER_COLORS, hexRgba } from '../screens/combat/combatStyle';
 import { layoutLint } from '../../engine/debug/layoutLint';
 import { treeSnapshot } from '../../engine/debug/treeSnapshot';
 
-// Lays out every card face at both sizes, a second idle; the 5 s default fails under a loaded machine.
+// Lays out every card face at both sizes; the 5 s default fails under a loaded machine.
 jest.setTimeout(30_000);
 
 const cardData = (cardsFile as unknown as { cards: CardData[] }).cards;
@@ -25,63 +29,61 @@ function part(card: Card, suffix: string): Text {
 let context: MountContext;
 
 /** Mounted and laid out, so its texts have measured through the context (R1.6). */
-function build(data: CardData, driverNumber: 1 | 2 | null, upgraded = false, size = CardSize.NORMAL, fullText = false): Card {
+function build(data: CardData, driverNumber: 1 | 2 | null, upgraded = false, size = CardSize.NORMAL): Card {
 	const model = new GameCard({ ...data, upgraded });
-	const card = new Card({ id: 'card', x: 0, y: 0, data: model, size, driverNumber, fullText });
+	const card = new Card({ id: 'card', x: 0, y: 0, data: model, size, driverNumber });
 	card.mount(context);
 	context.frame.layout();
 	return card;
 }
 
-describe('Card header (DDB-198)', () => {
+/** Every Text under `root`, at any depth. */
+function texts(root: Component): Text[] {
+	return root.children.flatMap((child) => (child instanceof Text ? [child] : texts(child)));
+}
+
+describe('Card face (Battle Screen Design, section 5)', () => {
 	beforeAll(() => {
 		context = createTestContext({ draw: createMeasuringDrawApi().api });
 	});
 
-	it.each([1, null] as const)('fits every title from cards.json in its slot, badged or not (driver %p)', (driverNumber) => {
+	it('is 128x180, the hand\'s card size', () => {
+		expect(Card.getDimensions(CardSize.NORMAL)).toEqual({ width: 128, height: 180 });
+	});
+
+	it('fits every name from cards.json in its slot at 16 or 14, upgraded or not, without the ellipsis', () => {
 		for (const data of cardData) {
 			for (const upgraded of [false, true]) {
-				const card = build(data, driverNumber, upgraded);
+				const card = build(data, 1, upgraded);
 				const title = part(card, 'title');
-				const cost = part(card, 'cost');
-				const measured = title.measured;
-
-				// The slot ends before the cost's digits, so nothing runs under them.
-				expect(title.x + title.width).toBeLessThanOrEqual(cost.x);
-				// Every line of the wrapped title fits the slot's width and the slot
-				// holds all of them: no name needs the ellipsis today.
-				expect(measured).not.toBeNull();
-				expect(measured?.width).toBeLessThanOrEqual(title.width);
-				expect(measured?.height).toBeLessThanOrEqual(title.height);
+				expect([data.name, upgraded, [16, 14]]).toEqual([data.name, upgraded, expect.arrayContaining([card.nameSize])]);
+				expect([data.name, upgraded, (title.measured?.width ?? Infinity) <= title.width]).toEqual([data.name, upgraded, true]);
 			}
 		}
 	});
 
-	it('keeps a title that fits beside the cost on one line', () => {
-		for (const name of ['Armor Plating', 'Precision Shot']) {
-			const data = cardData.find((candidate) => candidate.name === name);
-			expect(data).toBeDefined();
-			expect(part(build(data as CardData, 1), 'title').measured?.lines).toBe(1);
-		}
+	it('shrinks a name too wide at 16 to 14, then cuts one too wide even then with an ellipsis', () => {
+		const base = cardData.find((candidate) => candidate.name === 'Ram') as CardData;
+		expect(build(base, 1).nameSize).toBe(16);
+		const longer = build({ ...base, name: 'Coordinated Rammings' }, 1);
+		expect(longer.nameSize).toBe(14);
+		expect(part(longer, 'title').overflowOutcome).toBe('none');
+		const longest = build({ ...base, name: 'Coordinated Convoy Ramming Assault' }, 1);
+		expect(longest.nameSize).toBe(14);
+		expect(part(longest, 'title').overflowOutcome).toBe('ellipsis');
 	});
 
-	it('cuts nothing on any card face, NORMAL or LARGE, badged or not, upgraded or not, or the full text in a LARGE preview', () => {
-		const faces = [
-			{ size: CardSize.NORMAL, fullText: false },
-			{ size: CardSize.LARGE, fullText: false },
-			{ size: CardSize.LARGE, fullText: true },
-		];
-		for (const { size, fullText } of faces) {
+	it('cuts nothing on any face, badged or not, upgraded or not', () => {
+		for (const size of [CardSize.NORMAL, CardSize.MINI]) {
 			for (const driverNumber of [1, null] as const) {
 				for (const data of cardData) {
 					for (const upgraded of [false, true]) {
-						const card = build(data, driverNumber, upgraded, size, fullText);
-						for (const child of card.children) {
-							if (!(child instanceof Text)) continue;
+						const card = build(data, driverNumber, upgraded, size);
+						for (const child of texts(card)) {
+							if (!child.visible) continue;
 							const measured = child.measured;
-							const label = `${data.name}${upgraded ? '+' : ''} ${size}${fullText ? ' full' : ''} ${child.id}`;
+							const label = `${data.name}${upgraded ? '+' : ''} ${size} ${child.id}`;
 							expect([label, measured]).not.toEqual([label, null]);
-							// No ellipsis or clip can fire: the laid-out text fits its box.
 							expect([label, (measured?.width ?? 0) <= child.width + 1e-6]).toEqual([label, true]);
 							expect([label, (measured?.height ?? 0) <= child.height + 1e-6]).toEqual([label, true]);
 						}
@@ -91,36 +93,51 @@ describe('Card header (DDB-198)', () => {
 		}
 	});
 
-	it('shows the summary on the face, keyword brackets stripped', () => {
-		const data = cardData.find((candidate) => candidate.summary.includes('['));
-		expect(data).toBeDefined();
-		const model = new GameCard({ ...(data as CardData) });
-		const description = part(build(data as CardData, null), 'description');
-		expect(description.text).toBe(Card.faceText(model.displaySummary));
-		expect(description.text).not.toMatch(/[[\]]/);
+	it('shows the summary with its bracketed keywords highlighted and the brackets gone', () => {
+		const data = cardData.find((candidate) => candidate.type === 'ramming_speed') as CardData;
+		const card = build(data, 1);
+		const words = card.faceWords;
+		expect(words.flat().some((piece) => /[[\]]/.test(piece.text))).toBe(false);
+		expect(words.flat().filter((piece) => piece.keyword).map((piece) => piece.text)).toEqual(['Range', '1', 'Vulnerable']);
+		expect(words.map((word) => word.map((piece) => piece.text).join('')).join(' ')).toBe(new GameCard({ ...data }).displaySummary.replace(/[[\]]/g, ''));
 	});
 
-	it('wraps a long badged title onto a second line instead of under the cost', () => {
-		const data = cardData.find((candidate) => candidate.name === 'Coordinated Attack');
-		expect(data).toBeDefined();
-		const title = part(build(data as CardData, 1), 'title');
-		expect(title.measured?.lines).toBe(2);
-	});
-
-	it('ends the description above the rarity line, however long it is', () => {
+	it('keeps the summary inside its three lines, above the foot', () => {
 		for (const data of cardData) {
 			const card = build(data, null);
-			const description = part(card, 'description');
-			expect(description.y + description.height).toBeLessThan(part(card, 'rarity').y);
+			expect([data.name, card.summaryLines <= 3]).toEqual([data.name, true]);
+			for (const word of texts(card).filter((text) => text.id?.startsWith('card_description_'))) {
+				expect(word.y + word.height).toBeLessThanOrEqual(51 + 1e-6);
+			}
 		}
 	});
 
-	it('centres the badge label and the cost in their boxes', () => {
-		const card = build(cardData[0], 2);
-		const badge = part(card, 'driver_badge');
-		expect(badge.width).toBeGreaterThan(0);
-		expect(badge.height).toBe(badge.width);
-		expect(part(card, 'cost').width).toBeGreaterThan(0);
+	it('frames the card in its driver\'s colour, never its rarity\'s', () => {
+		const rare = cardData.find((candidate) => candidate.rarity === 'rare') as CardData;
+		const amber = hexRgba(DRIVER_COLORS[1]);
+		expect(build(rare, 1).resolvedColors?.border).toEqual(amber);
+		const unowned = build(rare, null).resolvedColors?.border;
+		expect(unowned).not.toEqual(hexRgba(Card.colorForRarity('rare')));
+	});
+
+	it('reaches past its top-left corner for the cost hex, and says so in its ink', () => {
+		expect(build(cardData[0], 1).inkExtent).toBe(7);
+		expect(build(cardData[0], 1, false, CardSize.MINI).inkExtent).toBe(0);
+	});
+
+	it('marks a card its driver can\'t pay for, apart from being disabled', () => {
+		const card = build(cardData[0], 1);
+		expect(card.unaffordable).toBe(false);
+		card.unaffordable = true;
+		expect(card.unaffordable).toBe(true);
+		expect(card.effectivelyEnabled).toBe(true);
+	});
+
+	it('shows the range a card reaches as a chip, and none on a card without one', () => {
+		const ranged = build(cardData.find((candidate) => candidate.type === 'far_shoot') as CardData, 1);
+		expect(part(ranged, 'range').text).toBe('R2');
+		const unranged = build(cardData.find((candidate) => candidate.type === 'repair_kit') as CardData, 1);
+		expect(unranged.children.some((child) => child.id === 'card_range')).toBe(false);
 	});
 });
 
@@ -181,6 +198,17 @@ describe('Card state', () => {
 		expect(card.zIndex).toBe(2);
 	});
 
+	it('stays in its place when not liftable, as a pile\'s or the browser\'s cards do', () => {
+		const card = build(cardData[0], 1);
+		card.liftable = false;
+		card.hovered = true;
+		card.selected = true;
+		context.animator.settle();
+		expect(card.transform.translate).toEqual([0, 0]);
+		expect(card.layer).toBeNull();
+		expect(card.resolvedColors?.border).not.toEqual(hexRgba(DRIVER_COLORS[1]));
+	});
+
 	it('keeps the strip it rose out of while lifted, so the pointer on its bottom edge holds it up', () => {
 		const card = build(cardData[0], 1);
 		const below = card.height + CARD_LIFT / 2;
@@ -206,15 +234,6 @@ describe('Card state', () => {
 		expect(card.transform.translate).toEqual([0, -CARD_LIFT]);
 		expect(card.resolvedColors.fill).toEqual(enabledFill);
 	});
-
-	it('shows the full rules text when asked, and the summary otherwise', () => {
-		const data = cardData.find((entry) => entry.summary !== entry.description) ?? cardData[0];
-		const model = new GameCard({ ...data });
-		const full = new Card({ id: 'card', x: 0, y: 0, data: model, size: CardSize.LARGE, fullText: true });
-		const face = new Card({ id: 'card', x: 0, y: 0, data: model, size: CardSize.LARGE });
-		expect(part(full, 'description').text).toBe(model.displayDescription);
-		expect(part(face, 'description').text).toBe(Card.faceText(model.displaySummary));
-	});
 });
 
 describe('Card layout lint (DDB-91)', () => {
@@ -222,7 +241,7 @@ describe('Card layout lint (DDB-91)', () => {
 		context = createTestContext({ draw: createMeasuringDrawApi().api });
 	});
 
-	it.each([CardSize.MINI, CardSize.NORMAL, CardSize.LARGE])('lints clean for every card at %s, badged or not', (size) => {
+	it.each([CardSize.MINI, CardSize.NORMAL])('lints clean for every card at %s, badged or not', (size) => {
 		for (const data of cardData) {
 			for (const driverNumber of [1, null] as const) {
 				const card = build(data, driverNumber, false, size);
@@ -233,8 +252,8 @@ describe('Card layout lint (DDB-91)', () => {
 		}
 	});
 
-	it('draws its frame, face and badge itself rather than as child rectangles', () => {
+	it('draws its frame, art ground, hex, mark and gem itself rather than as child shapes', () => {
 		const card = build(cardData[0], 1);
-		expect(card.children.every((child) => child instanceof Text)).toBe(true);
+		expect(card.children.every((child) => child instanceof Text || child instanceof KeywordText || child instanceof Icon)).toBe(true);
 	});
 });

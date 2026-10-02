@@ -1,8 +1,8 @@
 import { Stack, StackOptions } from '../../../engine/components/Stack';
-import { Container } from '../../../engine/components/Container';
 import type { Component } from '../../../engine/components/Component';
 import type { UiDragEvent, UiPointerEvent } from '../../../engine/input/events';
 import { Card as UICard, CardSize } from '../../ui/Card';
+import { inspectOnContextMenu, makeInspectable } from '../../ui/cardInspect';
 import { Card } from '../../mechanics/Card';
 import { DriverSeat, PlayerHandView } from './PlayerHandView';
 import { DriverResourceData, DriverTab } from './DriverTab';
@@ -27,6 +27,7 @@ export class PlayerHandLayer extends Stack {
 	private dealtCards: Card[] = [];
 	private cardElements: UICard[] = [];
 	private playableCardIds: Set<string> = new Set();
+	private unaffordableCardIds: Set<string> = new Set();
 	private readonly halves: Record<DriverSeat, HandHalf>;
 
 	// Callbacks
@@ -35,6 +36,8 @@ export class PlayerHandLayer extends Stack {
 	private onCardPress: ((card: Card, element: UICard, event: UiPointerEvent) => void) | null = null;
 	private onCardDragEnd: ((card: Card, event: UiDragEvent) => void) | null = null;
 	private onOtherButton: (() => void) | null = null;
+	/** A driver's tab clicked: show their draw and discard piles. */
+	public onOpenPiles: ((seat: DriverSeat) => void) | null = null;
 	/** Cards gone from the hand since the last deal, told before the hand deals again. */
 	public onCardsLeave: ((leaving: LeavingCard[]) => void) | null = null;
 
@@ -56,15 +59,25 @@ export class PlayerHandLayer extends Stack {
 			1: new HandHalf({ seat: 1 }),
 			2: new HandHalf({ seat: 2 }),
 		};
+		for (const seat of [1, 2] as const) {
+			const tab = this.halves[seat].tab;
+			tab.pointerEvents = 'unit';
+			tab.onClick = () => this.onOpenPiles?.(seat);
+			tab.tooltip = 'Draw and discard piles';
+		}
 		this.addChild(this.halves[1]);
 		this.addChild(this.halves[2]);
+		// A secondary click pins a card's detail view and a touch hold opens
+		// it, on any card in the hand, playable or not; never mid-drag, where
+		// a secondary button cancels the drag instead (section 6)
+		inspectOnContextMenu(this, () => !this.context?.drag.isDragging);
 	}
 
 	/**
 	 * Show both drivers' cards, each in its driver's half, with the
 	 * unplayable ones disabled
 	 */
-	public set hand({ cards, seatOf, playable }: PlayerHandView) {
+	public set hand({ cards, seatOf, playable, unaffordable }: PlayerHandView) {
 		// Cards that left since the last deal, while their elements still sit
 		// in the fan, so whoever listens can see where they were
 		if (this.onCardsLeave) {
@@ -79,6 +92,7 @@ export class PlayerHandLayer extends Stack {
 		this.dealtCards = cards;
 		this.cardDriverMap = seatOf;
 		this.playableCardIds = playable;
+		this.unaffordableCardIds = unaffordable;
 		this.createCardElements();
 	}
 
@@ -162,16 +176,10 @@ export class PlayerHandLayer extends Stack {
 				driverNumber: this.cardDriverMap.get(card.id) ?? null,
 			});
 			cardElement.focusable = true;
-			// R12.22's factory: the pointer resting on a card, or keyboard
-			// focus reaching it, shows it large with its full rules text, centred
-			// over the card so it never covers the rest of the hand. A swap
-			// between cards places it before the new card has finished rising,
-			// so it goes against the card's lifted pose
-			cardElement.tooltip = {
-				factory: () => this.createCardPreview(card, cardElement.driver),
-				placement: { anchor: 'owner', side: 'top', align: 'center', ownerRect: () => cardElement.liftedScreenBounds },
-				immediateOnFocus: true,
-			};
+			// Section 5's detail view, through the tooltip factory as DDB-88's
+			// preview was: hover, focus, a touch hold, and a pin. The stage
+			// scales the whole canvas, so the view scales with it
+			makeInspectable(cardElement, { scale: () => this.stageScale, driver: () => cardElement.driver });
 			cardElement.onPointerDown = (event) => {
 				if (event.button === 0) this.onCardPress?.(card, cardElement, event);
 				else this.onOtherButton?.();
@@ -194,31 +202,10 @@ export class PlayerHandLayer extends Stack {
 		this.updateCardSelectionVisuals();
 	}
 
-	/**
-	 * A hand card at preview size with its full rules text, scaled by the
-	 * combat stage's scale so it keeps its size relative to the hand. The
-	 * tooltip root is in viewport pixels, outside the stage's transform.
-	 * The pinnable detail view of section 5 replaces it (DDB-137).
-	 */
-	private createCardPreview(card: Card, driverNumber: DriverSeat | null): Component {
-		const { width, height } = UICard.getDimensions(CardSize.LARGE);
+	/** The combat stage's scale: logical pixels to the tooltip root's. */
+	private get stageScale(): number {
 		const matrix = this.screenMatrix;
-		const stageScale = Math.hypot(matrix[0], matrix[1]);
-		// The outer box is the scaled size, which the tooltip places; the
-		// card owns its own transform for its lift, so a frame scales it
-		const preview = new Container({ id: 'card_preview', width: width * stageScale, height: height * stageScale });
-		const frame = new Container({ width, height, transform: { scale: stageScale, origin: [0, 0] } });
-		preview.addChild(frame);
-		frame.addChild(new UICard({
-			id: 'card_preview_face',
-			x: 0,
-			y: 0,
-			data: card,
-			size: CardSize.LARGE,
-			driverNumber,
-			fullText: true,
-		}));
-		return preview;
+		return Math.hypot(matrix[0], matrix[1]);
 	}
 
 	/**
@@ -239,6 +226,7 @@ export class PlayerHandLayer extends Stack {
 			const selected = this.targeting && this.heldCard !== null && card.id === this.heldCard.id;
 			cardElement.selected = selected;
 			cardElement.enabled = this.targeting ? selected : this.canPlayCard(card);
+			cardElement.unaffordable = this.unaffordableCardIds.has(card.id);
 		});
 	}
 

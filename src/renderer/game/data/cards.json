@@ -543,7 +543,7 @@
     {
       "type": "ramming_run",
       "name": "Ramming Run",
-      "summary": "[Escort] in [Range 1] rams for {damage} + speed gap. Takes 2 on a hit.",
+      "summary": "[Escort] in [Range 1] rams for {damage} + speed gap. A hit costs it 2.",
       "description": "The nearest ready escort within range 1 of the target rams it for {damage} plus the speed gap (escort speed minus target speed), using the escort's ramming against the target's evade. On a hit the escort takes 2 structure damage. Hit or miss, it's spent.",
       "rarity": "common",
       "cost": 1,
@@ -644,7 +644,7 @@
     {
       "type": "rally_the_convoy",
       "name": "Rally the Convoy",
-      "summary": "Each ready [Escort] deals {damage} to its nearest raider. [Exhaust].",
+      "summary": "Each ready [Escort] deals {damage} to its closest raider. [Exhaust].",
       "description": "Ready escorts fire one at a time in roster order. Each deals {damage} damage to its nearest living raider within range 2, using its gunnery against that raider's evade. Then every escort is spent, including any with no raider in range. Exhaust.",
       "rarity": "rare",
       "cost": 2,
@@ -732,7 +732,7 @@
     {
       "type": "top_off",
       "name": "Top Off",
-      "summary": "Driver or passenger: +{adrenaline} Adrenaline. Needs a Fuel Hauler.",
+      "summary": "Driver or passenger: +{adrenaline} Adrenaline. Fuel Hauler needed.",
       "description": "The driver or passenger you choose in the target vehicle gains {adrenaline} Adrenaline, up to their maximum. Playable while any Fuel Hauler lives, and doesn't spend it.",
       "rarity": "signature",
       "signatureOf": "fuel_hauler",

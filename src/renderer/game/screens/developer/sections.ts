@@ -25,6 +25,7 @@ import { MeterExamplesSection } from './MeterExamplesSection';
 import { DataDisplaySection } from './DataDisplaySection';
 import { TreeExamplesSection } from './TreeExamplesSection';
 import { CombatFxSection } from './CombatFxSection';
+import { CardDetailCapSection, CardDetailSection } from './CardDetailSection';
 import { SliderTabsSection } from './SliderTabsSection';
 
 /**
@@ -171,5 +172,14 @@ export const developerSections: readonly DeveloperSection[] = [
 	{
 		name: 'slider-tabs',
 		build: (options) => new SliderTabsSection(options),
+	},
+	// The card face and its detail view (DDB-137)
+	{
+		name: 'card-detail',
+		build: (options) => new CardDetailSection(options),
+	},
+	{
+		name: 'card-detail-cap',
+		build: (options) => new CardDetailCapSection(options),
 	},
 ];

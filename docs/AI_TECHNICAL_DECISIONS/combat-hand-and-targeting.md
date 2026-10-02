@@ -24,7 +24,7 @@ A lifted card keeps the strip it rose out of in `containsPoint`. Without it, a p
 
 The preview is `Card` at `LARGE` with its full rules text (`fullText`), scaled by the stage's scale inside a frame so the card's own transform stays free for its lift. The tooltip service placed every tooltip below-right of the pointer, which put a 336-tall card over the neighbouring cards. R12.22 says placement is "default below-right of the pointer", so `TooltipSpec.placement` adds the rest: `anchor` (`pointer` or `owner`), `side`, `align`, still through the placement service's flip and clamp. Hand cards ask for `owner`, `top`, `center`.
 
-This is a stand-in for section 5's detail view (DDB-137), which is anchored to the screen's bottom, pinnable, and has keyword boxes.
+DDB-137 replaced the preview with section 5's detail view through the same factory: anchored to the screen's bottom, pinnable, with keyword boxes. See [card-face-and-detail-view.md](./card-face-and-detail-view.md).
 
 ### The drag's ghost is a reticle; the line is read at paint time
 

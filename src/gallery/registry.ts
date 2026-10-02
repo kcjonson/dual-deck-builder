@@ -1,6 +1,7 @@
 import type { Panel } from '../renderer/engine/ui/Panel';
 import type { DeveloperSectionOptions } from '../renderer/game/screens/developer/sections';
 import { developerSections } from '../renderer/game/screens/developer/sections';
+import { CardPileScene } from './scenes/CardPileScene';
 import { DialogScene } from './scenes/DialogScene';
 import { OverlaysScene } from './scenes/OverlaysScene';
 import { PopoverScene } from './scenes/PopoverScene';
@@ -42,6 +43,9 @@ export const galleryOnlyScenes: readonly GalleryScene[] = [
 	{ name: 'screen-transition', factory: (options) => new TransitionScene(options) },
 	{ name: 'scroll-hug', factory: (options) => new ScrollHugScene(options) },
 	{ name: 'rounded-clip', factory: (options) => new RoundedClipScene(options) },
+	{ name: 'card-pile-draw', factory: (options) => new CardPileScene({ ...options, mode: 'draw' }) },
+	{ name: 'card-pile-discard', factory: (options) => new CardPileScene({ ...options, mode: 'discard' }) },
+	{ name: 'card-reward', factory: (options) => new CardPileScene({ ...options, mode: 'reward' }) },
 ];
 
 export const gallerySceneRegistry: readonly GalleryScene[] = [

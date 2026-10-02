@@ -116,6 +116,8 @@ export const SCENE_SCENARIOS: readonly SceneScenario[] = [
 	{ scene: 'tree-view' },
 	{ scene: 'combat-fx' },
 	{ scene: 'slider-tabs' },
+	{ scene: 'card-detail' },
+	{ scene: 'card-detail-cap' },
 	{ scene: 'overlays' },
 	{ scene: 'dialog' },
 	{ scene: 'popover' },
@@ -123,4 +125,7 @@ export const SCENE_SCENARIOS: readonly SceneScenario[] = [
 	{ scene: 'screen-transition' },
 	{ scene: 'scroll-hug' },
 	{ scene: 'rounded-clip' },
+	{ scene: 'card-pile-draw' },
+	{ scene: 'card-pile-discard' },
+	{ scene: 'card-reward' },
 ];
