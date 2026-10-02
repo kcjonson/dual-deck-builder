@@ -18,6 +18,17 @@ This document contains the chronological log of completed development tasks for 
 
 **How:** `DeveloperScreen.test.ts` mounts at 1440x882, resizes to 1024x600 and back, and lints zero with the same section instances; a Playwright lint test does the same live resize in the browser; the full chromium lint spec (53 tests) passes locally, every gallery scene at zero.
 
+## Settings and credits polish (2026-10-02)
+
+**What landed:** DDB-232 (DDB-55), the open items from the #126 review.
+
+- `ScreenManager.navigate` notes the focused id on the screen it leaves; `{ restoreFocus: true }` focuses it again after the next mount there. Settings and Credits go back with it, so the menu lands on the button that opened them.
+- `GameSettings` keeps the stored record it read and saves its known values over it, so keys a newer build wrote survive.
+- `ScrollContainer.scrollByPages` is Page Up and Page Down's distance; the credits hotkeys use it, so the page is the same whether Back or the list has focus.
+- `credits.test.ts` checks the icon set's holder against the face's own copyright string and the game's licence line against `LICENSE`.
+- The credits-at-a-scrolling-size lint item was covered by #130.
+
+**How:** `ScreenManager.test.ts` plays menu to Settings and Credits and back by keyboard; tests for unknown keys and the paging distance.
 ## Every screen at lint zero with a golden, at two sizes (2026-10-02)
 
 **What landed:** DDB-91's first PR (DDB-55, phase 6), closing DDB-230.
