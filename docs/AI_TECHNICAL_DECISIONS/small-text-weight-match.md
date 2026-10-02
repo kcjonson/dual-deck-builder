@@ -50,6 +50,7 @@ The hysteresis (1.6 to leave the raster, 1.5 to enter) stays: the two paths now 
 ## Consequences
 
 - Plate text is 11 px everywhere, and on combat at 1024x600 every plate run is on the raster path at the field's weight on both platforms.
+- On Linux, Chromium's raster is inside the tolerance at the sizes combat draws and is kept as drawn. It is outside at about 4 device px (the starting-deck mini cards' titles on driver selection), and Electron's Chromium is outside at the card footers' 7 px, so those got a mild curve; those goldens moved by at most 38 and 15 levels.
 - Raster text on macOS ratio-1 displays (external monitors) is lighter than CoreText draws it. That is the intent: it reads the same as the field text a pixel larger.
 - An atlas rebuild has to re-measure `fieldInk`; the web suite says by how much.
 - Windows (DirectWrite) is still unscored. If it is outside the tolerance it gets the same correction with no code change; if a platform's darkening is not a spread of partial coverage, a power curve may match the ink and not the look, and this is where to revisit.
