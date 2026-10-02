@@ -578,9 +578,10 @@ test.describe('uber shader', () => {
  * through the distance field against the platform's own rasterisation of the
  * same font file, for stem weight (total ink over a word) and evenness (how
  * much the darkest column of each `l` in a row of them varies as its
- * sub-pixel phase moves). Distance fields have no hinting (R6.4a), so the
- * gate is a band, not equality; the scores print so a regression shows how
- * far it moved.
+ * sub-pixel phase moves), plus placement (how far each `l` sits from its
+ * advance), the cost of buying evenness by snapping. Distance fields have no
+ * hinting (R6.4a), so the gate is a band, not equality; the scores print so
+ * a regression shows how far it moved.
  */
 test.describe('small text against a platform reference (6.9)', () => {
 	const FONTS = join(__dirname, '../../../src/assets/fonts');
@@ -598,13 +599,18 @@ test.describe('small text against a platform reference (6.9)', () => {
 	const WORD_BASELINE = 18;
 	const STEM_BASELINE = 40;
 	/**
-	 * Lowest weight and highest stem variation each size may score (see the
-	 * test). The reference is the platform's, so the weight floor is too: the
-	 * Linux runner's FreeType matches the field's ink (0.95 to 1.0 when
-	 * DDB-199 measured it) and macOS CoreText draws a third heavier.
+	 * The tolerance band (docs/AI_TECHNICAL_DECISIONS/small-text-evenness.md).
+	 * The reference is the platform's, so the weight floor is too: the Linux
+	 * runner's FreeType matches the field's ink (0.95 to 1.0) and macOS
+	 * CoreText draws a third heavier. The field's own scores do not depend on
+	 * the platform (SwiftShader on both), so its stem variation (0.24, 0.17,
+	 * 0.18 at 10, 12, 13 px) and placement error (0.06, 0.02, 0.02 px) are held
+	 * close. Snapping each glyph to a whole pixel takes variation to zero and
+	 * placement error to 0.14 to 0.26 px, which the placement ceiling refuses.
 	 */
 	const WEIGHT_FLOOR = process.platform === 'linux' ? 0.9 : 0.55;
-	const VARIATION_CEILING: Record<number, number> = { 10: 0.3, 12: 0.22, 13: 0.23 };
+	const VARIATION_CEILING: Record<number, number> = { 10: 0.26, 12: 0.19, 13: 0.2 };
+	const PLACEMENT_CEILING = 0.1;
 	let texels: number[] = [];
 
 	test.beforeAll(() => {
@@ -669,23 +675,51 @@ test.describe('small text against a platform reference (6.9)', () => {
 		return sum;
 	}
 
-	/** The coefficient of variation of each `l`'s darkest column, in its advance-wide window. */
-	function stemVariation({ coverage, stemAdvance: advance }: Raster): number {
-		const peaks: number[] = [];
-		for (let glyph = 0; glyph < STEMS.length; glyph++) {
-			const start = Math.floor(4 + glyph * advance);
-			const end = Math.floor(4 + (glyph + 1) * advance);
-			let peak = 0;
-			for (let x = start; x < end; x++) {
-				let column = 0;
-				for (let y = WORD_BASELINE + 4; y < HEIGHT; y++) column += coverage[y * WIDTH + x];
-				peak = Math.max(peak, column);
-			}
-			peaks.push(peak);
+	/** Each `l`'s ink per column, in its advance-wide window, with the window's first column. */
+	function stemColumns({ coverage, stemAdvance: advance }: Raster, glyph: number): { start: number; columns: number[] } {
+		const start = Math.floor(4 + glyph * advance);
+		const end = Math.floor(4 + (glyph + 1) * advance);
+		const columns: number[] = [];
+		for (let x = start; x < end; x++) {
+			let column = 0;
+			for (let y = WORD_BASELINE + 4; y < HEIGHT; y++) column += coverage[y * WIDTH + x];
+			columns.push(column);
 		}
-		const mean = peaks.reduce((sum, value) => sum + value, 0) / peaks.length;
-		const variance = peaks.reduce((sum, value) => sum + (value - mean) ** 2, 0) / peaks.length;
-		return Math.sqrt(variance) / mean;
+		return { start, columns };
+	}
+
+	function deviation(values: number[]): { mean: number; deviation: number } {
+		const mean = values.reduce((sum, value) => sum + value, 0) / values.length;
+		const variance = values.reduce((sum, value) => sum + (value - mean) ** 2, 0) / values.length;
+		return { mean, deviation: Math.sqrt(variance) };
+	}
+
+	/** The coefficient of variation of each `l`'s darkest column. */
+	function stemVariation(raster: Raster): number {
+		const peaks: number[] = [];
+		for (let glyph = 0; glyph < STEMS.length; glyph++) peaks.push(Math.max(...stemColumns(raster, glyph).columns));
+		const { mean, deviation: spread } = deviation(peaks);
+		return spread / mean;
+	}
+
+	/**
+	 * How far, in device pixels (standard deviation), each `l`'s ink centre
+	 * sits from where its advance puts it. Snapping each glyph to a whole pixel
+	 * buys stem evenness with exactly this: gaps that alternate by a pixel.
+	 */
+	function placementError(raster: Raster): number {
+		const offsets: number[] = [];
+		for (let glyph = 0; glyph < STEMS.length; glyph++) {
+			const { start, columns } = stemColumns(raster, glyph);
+			let ink = 0;
+			let moment = 0;
+			columns.forEach((column, index) => {
+				ink += column;
+				moment += column * (start + index + 0.5);
+			});
+			offsets.push(moment / ink - (4 + glyph * raster.stemAdvance));
+		}
+		return deviation(offsets).deviation;
 	}
 
 	for (const size of [10, 12, 13]) {
@@ -695,14 +729,17 @@ test.describe('small text against a platform reference (6.9)', () => {
 			const weight = ink(field.coverage, 0, WORD_BASELINE + 4) / ink(reference.coverage, 0, WORD_BASELINE + 4);
 			const fieldEvenness = stemVariation(field);
 			const referenceEvenness = stemVariation(reference);
-			console.log(`6.9 small text, body ${size} px: weight ${weight.toFixed(3)} of the platform's, stem variation ${fieldEvenness.toFixed(3)} against ${referenceEvenness.toFixed(3)}`);
-			// A ratchet, not the target (DDB-218): the field's stems vary with
-			// their sub-pixel phase (0.17 to 0.24) where the hinted platform
-			// raster's do not, and on macOS it is also lighter. These bounds
-			// catch it getting worse.
+			const fieldPlacement = placementError(field);
+			const referencePlacement = placementError(reference);
+			console.log(`6.9 small text, body ${size} px: weight ${weight.toFixed(3)} of the platform's, stem variation ${fieldEvenness.toFixed(3)} against ${referenceEvenness.toFixed(3)}, placement error ${fieldPlacement.toFixed(3)} px against ${referencePlacement.toFixed(3)}`);
+			// The field keeps every stem where its advance puts it and lets
+			// the stem's sub-pixel phase vary; the Linux platform raster puts
+			// every stem on a pixel and lets its position vary. The field's
+			// side of that trade is held (DDB-218).
 			expect(weight).toBeGreaterThan(WEIGHT_FLOOR);
 			expect(weight).toBeLessThan(1.25);
 			expect(fieldEvenness).toBeLessThan(VARIATION_CEILING[size]);
+			expect(fieldPlacement).toBeLessThan(PLACEMENT_CEILING);
 		});
 	}
 });
