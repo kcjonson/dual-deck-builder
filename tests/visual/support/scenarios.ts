@@ -26,6 +26,8 @@ export interface ScreenScenario {
 export interface SceneScenario {
 	scene: string;
 	blockedBy?: string;
+	/** Also linted at the short viewport, for a scene that lays out to the window's width. */
+	lintShort?: boolean;
 }
 
 interface ScreenCase {
@@ -66,6 +68,8 @@ const SCREEN_CASES: readonly ScreenCase[] = [
 	{ screen: 'cardShowcaseScreen' },
 	{ screen: 'driverSelectionScreen' },
 	{ screen: 'combatScreen' },
+	// The log drawer open over the road, at both sizes: never over the dock or End Turn (DDB-140)
+	{ screen: 'combatScreen', variant: 'log', data: { openLog: true } },
 	{ screen: 'battleResultScreen', variant: 'victory', data: { victory: true } },
 	{ screen: 'battleResultScreen', variant: 'defeat', data: { victory: false } },
 ];
@@ -115,6 +119,7 @@ export const SCENE_SCENARIOS: readonly SceneScenario[] = [
 	{ scene: 'data-display' },
 	{ scene: 'tree-view' },
 	{ scene: 'combat-fx' },
+	{ scene: 'combat-log', lintShort: true },
 	{ scene: 'slider-tabs' },
 	{ scene: 'overlays' },
 	{ scene: 'dialog' },
@@ -123,13 +128,7 @@ export const SCENE_SCENARIOS: readonly SceneScenario[] = [
 	{ scene: 'screen-transition' },
 	{ scene: 'scroll-hug' },
 	{ scene: 'rounded-clip' },
-	{ scene: 'combat-road' },
+	// Gated at both sizes, as the combat screen is: the intent pills' heavy tier, multi-hit, and "+N" (DDB-139)
+	{ scene: 'combat-road', lintShort: true },
 	{ scene: 'vehicle-tokens' },
 ];
-
-/**
- * Gallery scenes the lint also holds at `SHORT_VIEWPORT`: the battle screen's
- * pieces, which the combat screen shows at both gate sizes (DDB-139), so the
- * intent pills' tier colour, multi-hit value and "+N" are gated at both.
- */
-export const SHORT_LINT_SCENES: readonly string[] = ['combat-road'];

@@ -347,15 +347,14 @@ export async function openScreen(page: Page, screen: string, { data, viewport = 
 }
 
 /**
- * Open one gallery scene, paused, settled and verified, at `viewport` when
- * the spec has sized the window to something other than `FIXED_VIEWPORT`.
+ * Open one gallery scene, paused, settled and verified.
  *
  * `resolution` is checked, not just the name: an unknown `?scene=` mounts the
  * default rather than nothing, which is exactly the substitution that would
  * otherwise produce a plausible screenshot of the wrong scene under a stale
  * golden's filename.
  */
-export async function openScene(page: Page, scene: string, { viewport = FIXED_VIEWPORT }: { viewport?: Viewport } = {}): Promise<void> {
+export async function openScene(page: Page, scene: string, viewport: Viewport = FIXED_VIEWPORT): Promise<void> {
 	await page.goto(`${BASE_URL}/gallery.html?scene=${encodeURIComponent(scene)}`, { waitUntil: 'domcontentloaded' });
 	await freezeApplication(page);
 	await settle(page, viewport);

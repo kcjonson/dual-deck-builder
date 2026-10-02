@@ -16,6 +16,18 @@ This document contains the chronological log of completed development tasks for 
 - Engine: `Component.parkOffset` (R8.30), reported by the snapshot as `parked`; the layout lint checks a parked subtree where it rests (R13.25.2, R13.25.3 amended), so the dropped dock lints clean and a real escape at rest is still caught.
 - Goldens: new `screen-combatScreen-endTurnPreview` at both gate sizes; `screen-combatScreen-enemyTurn` now captures the first raider acting under reduced motion; `vehicle-tokens`, `combat-road` and `icons` show pills; `combat-road` is also linted at 1024x600.
 - Record: [intent-pills-and-enemy-turn-presentation.md](./AI_TECHNICAL_DECISIONS/intent-pills-and-enemy-turn-presentation.md).
+## The top bar and the combat log drawer (2026-10-02)
+
+**What landed:** DDB-140 with DDB-123 folded in (DDB-127), Battle Screen Design sections 2, 6, and 8.
+
+- The top bar gains the menu key (the mock's three bars, drawn disabled: the game has no pause menu, filed as DDB-264) and the wave group, "Wave N of M" with "+N incoming" in raider red while any are coming. The combat screen shows wave 1 of 1, since there is no wave code yet.
+- `CombatLogLayer` is a `ChromeStack` on the mock's drawer: a header, then a `ScrollContainer` of `LogLine` rows, each a mono turn tag ("T3") and 13 px text wrapping beside it on 18 px leading over a hairline. `openDrawer` takes focus into the scroll container (arrows, Page Up and Down, Home, End), and closing by L, the LOG key, or Escape puts focus back where it was, or asks the screen for a place when that has gone. F6 stays as an alias.
+- `CombatLog` holds player-facing lines only, keeps 100, and takes `{ message, type, turn }`. Its `addBattleMessage` drops Battle's debug dumps, turn bookkeeping, opening, and leftover adrenaline, and reads a message's `line` when it has one. The `[D1]` and `[Turn N] [Driver N]` prefixes are gone; the turn tag is the one prefix.
+- `Battle` keeps its record unchanged for the simulator and tests, adds a `debug` message type for the team status and hand dumps, and gives messages with seat tags or before-and-after numbers a `line` without them. The screen logs the matchup, "Your turn", and "The raiders' turn" itself, and no longer logs card plays twice.
+- Review fixes: the disabled menu dims its edge and glyph and explains itself in a tooltip; scrap and fuel take the mock's tints; a reader scrolled up in a full log keeps their line as old ones drop; closing the drawer never leaves focus on it; no allocations in the new draw code; driver-named lines come from one sentence through `Battle.logAbout`.
+- New gallery scene `combat-log`, linted at both gate sizes, and a `combatScreen-log` screen case (the drawer open via `navigate('combatScreen', { openLog: true })`) captured and linted at both. Decision record: [combat-log-content.md](./AI_TECHNICAL_DECISIONS/combat-log-content.md).
+
+**How:** unit tests for the log model (filtering, lines, a played turn with no dumps), the drawer (wrapping, scrolling, focus in and back, Escape), the top bar, and L through the combat screen's keyboard path; played click, drag, END TURN, L, the LOG key, and keyboard scrolling through `__dev.input` at 1280x720 and 1024x600; goldens minted by CI.
 
 ## The enemy turn as a paced phase (2026-10-02)
 

@@ -51,14 +51,21 @@ export type BattleMessageType =
 	| 'battle_end'
 	| 'adrenaline_remaining'
 	| 'cards_burned'
-	| 'general';
+	| 'general'
+	| 'debug';
 
 /**
  * Battle log message
  */
 export interface BattleMessage {
 	type: BattleMessageType;
+	/** The record: seat tags and before-and-after numbers, for the simulator and tests. */
 	message: string;
+	/**
+	 * The same event as the player reads it in the combat log, when that
+	 * differs from the record: names without seat tags, and no stat dumps.
+	 */
+	line?: string;
 	timestamp: number;
 	turn: number;
 	metadata?: {
@@ -376,9 +383,11 @@ export class Battle extends Model<BattleData> {
 	}
 
 	/**
-	 * Log a battle message
+	 * Log a battle message. `line` is the player's version when the record
+	 * carries more than they need (BattleMessage.line). `debug` messages are
+	 * for the record only and never reach the combat log.
 	 */
-	private log(type: BattleMessageType, message: string, metadata?: BattleMessage['metadata']): void {
+	private log(type: BattleMessageType, message: string, metadata?: BattleMessage['metadata'], line?: string): void {
 		const messageLog = Battle.messageLogs.get(this);
 		if (!messageLog) {
 			throw new Error('Message log not initialized');
@@ -389,7 +398,8 @@ export class Battle extends Model<BattleData> {
 			message,
 			timestamp: Date.now(),
 			turn: this.turn,
-			metadata
+			metadata,
+			...(line !== undefined && line !== message ? { line } : {}),
 		};
 
 		messageLog.push(logEntry);
@@ -401,6 +411,21 @@ export class Battle extends Model<BattleData> {
 		if (process.env.NODE_ENV !== 'test' && !Battle.suppressConsoleLog) {
 			console.log(message);
 		}
+	}
+
+	/**
+	 * Log one sentence about a driver, said twice from the same words: the
+	 * record names them with their seat and adds `detail` (before-and-after
+	 * numbers), the player's line names them plainly.
+	 */
+	private logAbout({ type, driver, say, detail = '', metadata }: {
+		type: BattleMessageType;
+		driver: Driver;
+		say: (name: string) => string;
+		detail?: string;
+		metadata?: BattleMessage['metadata'];
+	}): void {
+		this.log(type, say(this.getDriverDisplayName(driver)) + detail, metadata, say(driver.metadata.name));
 	}
 
 	/**
@@ -515,7 +540,7 @@ export class Battle extends Model<BattleData> {
 		// Validate the driver belongs to the player team
 		const playerDrivers = this.playerTeam.getAllDrivers();
 		if (!playerDrivers.includes(driver)) {
-			this.log('general', 'Driver does not belong to player team');
+			this.log('debug', 'Driver does not belong to player team');
 			return false;
 		}
 
@@ -526,7 +551,8 @@ export class Battle extends Model<BattleData> {
 			return false;
 		}
 		if (!this.validateTarget(card, driver, targetVehicle)) {
-			this.log('general', `Invalid target for card "${card.name}" (type: ${card.targetType}). Driver: ${this.getDriverDisplayName(driver)}, Target: ${targetVehicle ? targetVehicle.name : 'undefined'}`);
+			this.log('general', `Invalid target for card "${card.name}" (type: ${card.targetType}). Driver: ${this.getDriverDisplayName(driver)}, Target: ${targetVehicle ? targetVehicle.name : 'undefined'}`,
+				undefined, targetVehicle ? `${card.displayName} can't target ${targetVehicle.name}` : `${card.displayName} needs a target`);
 			return false;
 		}
 		if (targetOccupant && !(targetVehicle && [targetVehicle.driver, targetVehicle.passenger].includes(targetOccupant))) {
@@ -543,10 +569,13 @@ export class Battle extends Model<BattleData> {
 		}
 
 		// Log card play with adrenaline info
-		this.log('card_played', 
-			`${this.getDriverDisplayName(driver)} plays ${card.displayName} (Adrenaline: ${adrenalineBefore} -> ${driver.adrenaline})`,
-			{ driver: driver.metadata.name, card: card.displayName, adrenalineBefore, adrenalineAfter: driver.adrenaline }
-		);
+		this.logAbout({
+			type: 'card_played',
+			driver,
+			say: (name) => `${name} plays ${card.displayName}`,
+			detail: ` (Adrenaline: ${adrenalineBefore} -> ${driver.adrenaline})`,
+			metadata: { driver: driver.metadata.name, card: card.displayName, adrenalineBefore, adrenalineAfter: driver.adrenaline },
+		});
 
 		this.resolvePlayedCard({ card, caster: driver, target: targetVehicle ?? null, occupant: targetOccupant ?? null, carrier });
 
@@ -697,11 +726,11 @@ export class Battle extends Model<BattleData> {
 		}
 
 		// Log player hands before discarding
-		this.log('general', '=== PLAYER FINAL HANDS ===');
+		this.log('debug', '=== PLAYER FINAL HANDS ===');
 		this.playerTeam.getAllDrivers().forEach(driver => {
 			if (driver.isAlive()) {
 				const handCards = this.formatHandWithCounts(driver.hand);
-				this.log('general', `  ${this.getDriverDisplayName(driver)}: ${handCards}`);
+				this.log('debug', `  ${this.getDriverDisplayName(driver)}: ${handCards}`);
 			}
 		});
 
@@ -1034,11 +1063,11 @@ export class Battle extends Model<BattleData> {
 	 */
 	private finishEnemyTurn(): void {
 		// Log enemy hands before ending turn
-		this.log('general', '=== ENEMY FINAL HANDS ===');
+		this.log('debug', '=== ENEMY FINAL HANDS ===');
 		this.enemyTeam.getAllDrivers().forEach(driver => {
 			if (driver.isAlive()) {
 				const handCards = this.formatHandWithCounts(driver.hand);
-				this.log('general', `  ${this.getDriverDisplayName(driver)}: ${handCards}`);
+				this.log('debug', `  ${this.getDriverDisplayName(driver)}: ${handCards}`);
 			}
 		});
 
@@ -1084,7 +1113,8 @@ export class Battle extends Model<BattleData> {
 
 		this.log('card_played',
 			`${this.getDriverDisplayName(driver)} plays ${card.displayName} (Adrenaline: ${adrenalineBefore} -> ${driver.adrenaline})`,
-			{ driver: driver.metadata.name, card: card.displayName, adrenalineBefore, adrenalineAfter: driver.adrenaline }
+			{ driver: driver.metadata.name, card: card.displayName, adrenalineBefore, adrenalineAfter: driver.adrenaline },
+			`${raider.name} plays ${card.displayName}`
 		);
 
 		// An area hit lands as planned; Draw Fire never pulls it
@@ -1335,9 +1365,11 @@ export class Battle extends Model<BattleData> {
 				caster.gainAdrenaline(adrenalineValue);
 
 				const afterAdrenaline = caster.adrenaline;
+				const line = `${card.displayName} gives ${afterAdrenaline - beforeAdrenaline} adrenaline to ${caster.metadata.name}`;
 				this.log('general',
-					`${card.displayName} gives ${afterAdrenaline - beforeAdrenaline} adrenaline to ${caster.metadata.name} (Adrenaline: ${beforeAdrenaline}/${maxAdrenaline} -> ${afterAdrenaline}/${maxAdrenaline})`,
-					{ card: card.displayName, driver: caster.metadata.name, value: adrenalineValue }
+					`${line} (Adrenaline: ${beforeAdrenaline}/${maxAdrenaline} -> ${afterAdrenaline}/${maxAdrenaline})`,
+					{ card: card.displayName, driver: caster.metadata.name, value: adrenalineValue },
+					line
 				);
 				break;
 			}
@@ -1390,9 +1422,11 @@ export class Battle extends Model<BattleData> {
 				const armorHealed = recipient.armor - beforeArmor;
 				const structureText = `${beforeStructure}/${recipient.maxStructure} -> ${recipient.structure}/${recipient.maxStructure}`;
 				const armorText = `${beforeArmor}/${recipient.maxArmor} -> ${recipient.armor}/${recipient.maxArmor}`;
+				const line = `${card.displayName} repairs ${structureHealed} structure and ${armorHealed} armor on ${recipient.name}`;
 				this.log('heal_applied',
-					`${card.displayName} repairs ${structureHealed} structure and ${armorHealed} armor on ${recipient.name} (Structure: ${structureText}, Armor: ${armorText})`,
-					{ card: card.displayName, target: recipient.name, value: healValue }
+					`${line} (Structure: ${structureText}, Armor: ${armorText})`,
+					{ card: card.displayName, target: recipient.name, value: healValue },
+					line
 				);
 				break;
 			}
@@ -1407,10 +1441,13 @@ export class Battle extends Model<BattleData> {
 				patient.heal(healValue);
 
 				const afterHP = patient.hitpoints;
-				this.log('heal_applied',
-					`${card.displayName} heals ${afterHP - beforeHP} hit points on ${this.getDriverDisplayName(patient)} (HP: ${beforeHP}/${maxHP} -> ${afterHP}/${maxHP})`,
-					{ card: card.displayName, target: patient.metadata.name, value: healValue }
-				);
+				this.logAbout({
+					type: 'heal_applied',
+					driver: patient,
+					say: (name) => `${card.displayName} heals ${afterHP - beforeHP} hit points on ${name}`,
+					detail: ` (HP: ${beforeHP}/${maxHP} -> ${afterHP}/${maxHP})`,
+					metadata: { card: card.displayName, target: patient.metadata.name, value: healValue },
+				});
 				break;
 			}
 
@@ -1422,9 +1459,11 @@ export class Battle extends Model<BattleData> {
 				recipient.addArmor(armorValue);
 
 				const armorText = `${beforeArmor}/${recipient.maxArmor} -> ${recipient.armor}/${recipient.maxArmor}`;
+				const line = `${card.displayName} adds ${recipient.armor - beforeArmor} armor to ${recipient.name}`;
 				this.log('armor_gained',
-					`${card.displayName} adds ${recipient.armor - beforeArmor} armor to ${recipient.name} (Armor: ${armorText})`,
-					{ card: card.displayName, target: recipient.name, value: armorValue }
+					`${line} (Armor: ${armorText})`,
+					{ card: card.displayName, target: recipient.name, value: armorValue },
+					line
 				);
 				break;
 			}
@@ -1433,9 +1472,11 @@ export class Battle extends Model<BattleData> {
 				const shieldValue = typeof effect.value === 'number' ? effect.value : 0;
 				const beforeShield = recipient.shield ?? 0;
 				recipient.addShield(shieldValue);
+				const line = `${card.displayName} gives ${recipient.name} ${shieldValue} shield`;
 				this.log('armor_gained',
-					`${card.displayName} gives ${recipient.name} ${shieldValue} shield (Shield: ${beforeShield} -> ${recipient.shield ?? 0})`,
-					{ card: card.displayName, target: recipient.name, value: shieldValue }
+					`${line} (Shield: ${beforeShield} -> ${recipient.shield ?? 0})`,
+					{ card: card.displayName, target: recipient.name, value: shieldValue },
+					line
 				);
 				break;
 			}
@@ -1449,10 +1490,13 @@ export class Battle extends Model<BattleData> {
 				if (!fueled) return false;
 				const before = fueled.adrenaline;
 				fueled.gainAdrenaline(typeof effect.value === 'number' ? effect.value : 0);
-				this.log('general',
-					`${card.displayName} gives ${fueled.adrenaline - before} adrenaline to ${this.getDriverDisplayName(fueled)} (Adrenaline: ${before}/${fueled.maxAdrenaline} -> ${fueled.adrenaline}/${fueled.maxAdrenaline})`,
-					{ card: card.displayName, driver: fueled.metadata.name, value: effect.value }
-				);
+				this.logAbout({
+					type: 'general',
+					driver: fueled,
+					say: (name) => `${card.displayName} gives ${fueled.adrenaline - before} adrenaline to ${name}`,
+					detail: ` (Adrenaline: ${before}/${fueled.maxAdrenaline} -> ${fueled.adrenaline}/${fueled.maxAdrenaline})`,
+					metadata: { card: card.displayName, driver: fueled.metadata.name, value: effect.value },
+				});
 				break;
 			}
 
@@ -1563,12 +1607,13 @@ export class Battle extends Model<BattleData> {
 	 */
 	private handleWreck(wreck: Vehicle): void {
 		for (const { driver, seat } of this.getTeamForVehicle(wreck)?.handleVehicleDestruction(wreck) ?? []) {
-			const name = this.getDriverDisplayName(driver);
-			if (seat) {
-				this.log('general', `${name} jumps from ${wreck.name} into ${seat.name}`, { driver: driver.metadata.name, vehicle: seat.name });
-			} else {
-				this.log('general', `${name} has no free seat and crashes out of the fight`, { driver: driver.metadata.name });
-			}
+			const event = seat ? `jumps from ${wreck.name} into ${seat.name}` : 'has no free seat and crashes out of the fight';
+			this.logAbout({
+				type: 'general',
+				driver,
+				say: (name) => `${name} ${event}`,
+				metadata: { driver: driver.metadata.name, ...(seat ? { vehicle: seat.name } : {}) },
+			});
 		}
 	}
 
@@ -1611,13 +1656,12 @@ export class Battle extends Model<BattleData> {
 			description: effect.description
 		});
 
-		let logMessage = `${card.displayName} applies ${statusName} to ${recipient.name}`;
-		if (SPEED_STATUSES.includes(statusName)) {
-			logMessage += ` (Speed: ${speedBefore} -> ${recipient.speed})`;
-		}
+		const line = `${card.displayName} applies ${statusName} to ${recipient.name}`;
+		const speedText = SPEED_STATUSES.includes(statusName) ? ` (Speed: ${speedBefore} -> ${recipient.speed})` : '';
 		this.log('status_applied',
-			logMessage,
-			{ card: card.displayName, target: recipient.name, status: statusName }
+			line + speedText,
+			{ card: card.displayName, target: recipient.name, status: statusName },
+			line
 		);
 		return true;
 	}
@@ -1676,9 +1720,11 @@ export class Battle extends Model<BattleData> {
 		const armorText = `${beforeArmor}/${vehicle.maxArmor} -> ${vehicle.armor}/${vehicle.maxArmor}`;
 		const shieldText = beforeShield > 0 ? `, Shield: ${beforeShield} -> ${vehicle.shield ?? 0}` : '';
 
+		const line = `${card.displayName} deals ${breakdown} damage to ${vehicle.name}`;
 		this.log('damage_dealt',
-			`${card.displayName} deals ${breakdown} damage to ${vehicle.name} (Structure: ${structureText}, Armor: ${armorText}${shieldText})`,
-			{ card: card.displayName, target: vehicle.name, value: damage }
+			`${line} (Structure: ${structureText}, Armor: ${armorText}${shieldText})`,
+			{ card: card.displayName, target: vehicle.name, value: damage },
+			line
 		);
 		this.emitHit('hitLanded', vehicle, damage);
 		this.logDeaths(vehicle, crew);
@@ -1701,10 +1747,12 @@ export class Battle extends Model<BattleData> {
 	}): void {
 		const crew = vehicle ? this.crewOf(vehicle) : null;
 		driver.takeDamage(damage);
-		this.log('damage_dealt',
-			`${card.displayName} deals ${damage} damage to ${this.getDriverDisplayName(driver)}`,
-			{ card: card.displayName, target: driver.metadata.name, value: damage }
-		);
+		this.logAbout({
+			type: 'damage_dealt',
+			driver,
+			say: (name) => `${card.displayName} deals ${damage} damage to ${name}`,
+			metadata: { card: card.displayName, target: driver.metadata.name, value: damage },
+		});
 		if (vehicle) this.emitHit('hitLanded', vehicle, damage);
 		if (vehicle && crew) {
 			this.getTeamForVehicle(vehicle)?.handleDriverDeath(vehicle);
@@ -1726,15 +1774,19 @@ export class Battle extends Model<BattleData> {
 	private logDeaths(vehicle: Vehicle, crew: Crew): void {
 		for (const occupant of crew.living) {
 			if (!occupant.isAlive()) {
-				this.log('general', `${this.getDriverDisplayName(occupant)} is dead`, { driver: occupant.metadata.name });
+				this.logAbout({ type: 'general', driver: occupant, say: (name) => `${name} is dead`, metadata: { driver: occupant.metadata.name } });
 			}
 		}
 		if (!vehicle.isAlive() || vehicle.driver === crew.driver) {
 			return;
 		}
 		if (vehicle.driver) {
-			this.log('general', `${this.getDriverDisplayName(vehicle.driver)} takes the wheel of ${vehicle.name}`,
-				{ driver: vehicle.driver.metadata.name, vehicle: vehicle.name });
+			this.logAbout({
+				type: 'general',
+				driver: vehicle.driver,
+				say: (name) => `${name} takes the wheel of ${vehicle.name}`,
+				metadata: { driver: vehicle.driver.metadata.name, vehicle: vehicle.name },
+			});
 		} else if (vehicle.isEscort) {
 			this.log('general', `${vehicle.name} has nobody at the wheel and carries on as an escort`, { vehicle: vehicle.name });
 		} else {
@@ -2035,10 +2087,12 @@ export class Battle extends Model<BattleData> {
 	 */
 	private drawForCard(card: Card, caster: Driver, count: number): void {
 		const result = caster.drawCards(count);
-		this.log('general',
-			`${card.displayName} draws ${count} cards for ${this.getDriverDisplayName(caster)}`,
-			{ card: card.displayName, driver: caster.metadata.name, value: count }
-		);
+		this.logAbout({
+			type: 'general',
+			driver: caster,
+			say: (name) => `${card.displayName} draws ${count} cards for ${name}`,
+			metadata: { card: card.displayName, driver: caster.metadata.name, value: count },
+		});
 		this.logBurnedCards(caster, result);
 	}
 
@@ -2049,10 +2103,12 @@ export class Battle extends Model<BattleData> {
 		if (burned.length === 0) return;
 
 		const cardNames = burned.map(card => card.displayName).join(', ');
-		this.log('cards_burned',
-			`${this.getDriverDisplayName(driver)}'s hand is full, so ${cardNames} ${burned.length === 1 ? 'goes' : 'go'} straight to the discard pile`,
-			{ driver: driver.metadata.name, value: burned.length }
-		);
+		this.logAbout({
+			type: 'cards_burned',
+			driver,
+			say: (name) => `${name}'s hand is full, so ${cardNames} ${burned.length === 1 ? 'goes' : 'go'} straight to the discard pile`,
+			metadata: { driver: driver.metadata.name, value: burned.length },
+		});
 	}
 
 	/**
@@ -2142,8 +2198,13 @@ export class Battle extends Model<BattleData> {
 		for (const driver of drivers.filter(candidate => candidate.isAlive())) {
 			const before = driver.hitpoints;
 			driver.heal(amount);
-			this.log('heal_applied', `${escort.name} patches up ${this.getDriverDisplayName(driver)}: +${driver.hitpoints - before} HP`,
-				{ vehicle: escort.name, driver: driver.metadata.name, value: driver.hitpoints - before });
+			const healed = driver.hitpoints - before;
+			this.logAbout({
+				type: 'heal_applied',
+				driver,
+				say: (name) => `${escort.name} patches up ${name}: +${healed} HP`,
+				metadata: { vehicle: escort.name, driver: driver.metadata.name, value: healed },
+			});
 		}
 	}
 
@@ -2184,7 +2245,7 @@ export class Battle extends Model<BattleData> {
 	 */
 	private logTeamStatus(): void {
 		// Log player team status
-		this.log('general', '=== PLAYER TEAM STATUS ===');
+		this.log('debug', '=== PLAYER TEAM STATUS ===');
 		this.playerTeam.vehicles.forEach((vehicle, index) => {
 			const structureText = `${vehicle.structure}/${vehicle.maxStructure}`;
 			const armorText = `${vehicle.armor}/${vehicle.maxArmor}`;
@@ -2197,13 +2258,13 @@ export class Battle extends Model<BattleData> {
 				driverInfo += ` | Passenger: ${this.getDriverDisplayName(vehicle.passenger)} (${vehicle.passenger.hitpoints}/${vehicle.passenger.maxHitpoints} HP)`;
 			}
 			
-			this.log('general', 
+			this.log('debug',
 				`  Vehicle ${index + 1}: Structure ${structureText}, Armor ${armorText}${driverInfo}`
 			);
 		});
 		
 		// Log enemy team status
-		this.log('general', '=== ENEMY TEAM STATUS ===');
+		this.log('debug', '=== ENEMY TEAM STATUS ===');
 		this.enemyTeam.vehicles.forEach((vehicle, index) => {
 			const structureText = `${vehicle.structure}/${vehicle.maxStructure}`;
 			const armorText = `${vehicle.armor}/${vehicle.maxArmor}`;
@@ -2216,7 +2277,7 @@ export class Battle extends Model<BattleData> {
 				driverInfo += ` | Passenger: ${this.getDriverDisplayName(vehicle.passenger)} (${vehicle.passenger.hitpoints}/${vehicle.passenger.maxHitpoints} HP)`;
 			}
 			
-			this.log('general', 
+			this.log('debug',
 				`  Vehicle ${index + 1}: Structure ${structureText}, Armor ${armorText}${driverInfo}`
 			);
 		});
@@ -2227,20 +2288,20 @@ export class Battle extends Model<BattleData> {
 	 */
 	private logAllHands(): void {
 		// Log player team hands
-		this.log('general', '=== PLAYER TEAM HANDS ===');
+		this.log('debug', '=== PLAYER TEAM HANDS ===');
 		this.playerTeam.getAllDrivers().forEach(driver => {
 			if (driver.isAlive()) {
 				const handCards = this.formatHandWithCounts(driver.hand);
-				this.log('general', `  ${this.getDriverDisplayName(driver)}: ${handCards}`);
+				this.log('debug', `  ${this.getDriverDisplayName(driver)}: ${handCards}`);
 			}
 		});
 		
 		// Log enemy team hands
-		this.log('general', '=== ENEMY TEAM HANDS ===');
+		this.log('debug', '=== ENEMY TEAM HANDS ===');
 		this.enemyTeam.getAllDrivers().forEach(driver => {
 			if (driver.isAlive()) {
 				const handCards = this.formatHandWithCounts(driver.hand);
-				this.log('general', `  ${this.getDriverDisplayName(driver)}: ${handCards}`);
+				this.log('debug', `  ${this.getDriverDisplayName(driver)}: ${handCards}`);
 			}
 		});
 	}
