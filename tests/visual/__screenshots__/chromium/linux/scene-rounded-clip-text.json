@@ -1,5 +1,5 @@
 [
-{"path":"gallery_root/gallery_scene_rounded_clip/Text[0]","text":"Rounded clips on components","rect":[53,53,289.07,33.6]},
+{"path":"gallery_root/gallery_scene_rounded_clip/Text[0]","text":"Rounded clips on components","rect":[53,53,289.07,50]},
 {"path":"gallery_root/gallery_scene_rounded_clip/Text[1]","text":"clipRadius: the clip at the border's inner edge, its corner concentric with the background's.","rect":[53,103,586.2,19.07]},
 {"path":"gallery_root/gallery_scene_rounded_clip/Text[2]","text":"clipping panel, flush fill","rect":[53,137,138.25,17.7]},
 {"path":"gallery_root/gallery_scene_rounded_clip/Text[4]","text":"rounded scroller, scrolled","rect":[277,137,154.51,17.7]},
