@@ -6,6 +6,18 @@ This document contains the chronological log of completed development tasks for 
 
 **Date correction (2026-08-22):** the repo's first commit is 2025-05-17, but many entries below carry dates in December 2024 or January 2025 — the AI that wrote them used its assumed date instead of the real one. Entries dated 2025-07-03 and 2025-07-02 have been corrected from "2025-01-03"/"2025-01-02" (verified against git history). Remaining Dec 2024 / Jan 2025 dates are wrong by roughly six months; the real work happened May–July 2025. Trust git history over these dates.
 
+## The top bar and the combat log drawer (2026-10-02)
+
+**What landed:** DDB-140 with DDB-123 folded in (DDB-127), Battle Screen Design sections 2, 6, and 8.
+
+- The top bar gains the menu key (the mock's three bars, drawn disabled: the game has no pause menu, filed as DDB-264) and the wave group, "Wave N of M" with "+N incoming" in raider red while any are coming. The combat screen shows wave 1 of 1, since there is no wave code yet.
+- `CombatLogLayer` is a `ChromeStack` on the mock's drawer: a header, then a `ScrollContainer` of `LogLine` rows, each a mono turn tag ("T3") and 13 px text wrapping beside it on 18 px leading over a hairline. `openDrawer` takes focus into the scroll container (arrows, Page Up and Down, Home, End), and closing by L, the LOG key, or Escape puts focus back where it was, or asks the screen for a place when that has gone. F6 stays as an alias.
+- `CombatLog` holds player-facing lines only, keeps 100, and takes `{ message, type, turn }`. Its `addBattleMessage` drops Battle's debug dumps, turn bookkeeping, opening, and leftover adrenaline, and reads a message's `line` when it has one. The `[D1]` and `[Turn N] [Driver N]` prefixes are gone; the turn tag is the one prefix.
+- `Battle` keeps its record unchanged for the simulator and tests, adds a `debug` message type for the team status and hand dumps, and gives messages with seat tags or before-and-after numbers a `line` without them. The screen logs the matchup, "Your turn", and "The raiders' turn" itself, and no longer logs card plays twice.
+- New gallery scene `combat-log`. Decision record: [combat-log-content.md](./AI_TECHNICAL_DECISIONS/combat-log-content.md).
+
+**How:** unit tests for the log model (filtering, lines, a played turn with no dumps), the drawer (wrapping, scrolling, focus in and back, Escape), the top bar, and L through the combat screen's keyboard path; played click, drag, END TURN, L, the LOG key, and keyboard scrolling through `__dev.input` at 1280x720 and 1024x600; goldens minted by CI.
+
 ## The road view: lanes, rows, shoulders, and fixed slots (2026-10-02)
 
 **What landed:** DDB-134 (DDB-127), Battle Screen Design sections 1 and 2.

@@ -135,4 +135,39 @@ describe('CombatScreen from the keyboard', () => {
 		endPlayerTurn.mockRestore();
 		combat.unmount();
 	});
+
+	it('opens the log with L, scrolls it from the keyboard, and gives focus back when L or Escape closes it', async () => {
+		const combat = new CombatScreen();
+		combat.mount(context);
+		await flushPromises();
+		await flushPromises();
+		const focus = context.focus;
+		const drawer = combat['combatLogLayer'];
+		// Enough lines to scroll
+		for (let index = 0; index < 40; index++) combat['combatLog'].addEntry({ message: `Line ${index}`, turn: 1 });
+
+		press('Tab');
+		const card = focus.focused;
+		expect(card).toBeInstanceOf(UICard);
+		press('l');
+		expect(drawer.isOpen).toBe(true);
+		const scroll = drawer.scrollContainer;
+		expect(focus.focused).toBe(scroll);
+		expect(scroll.scrollPosition).toBe(scroll.maxScroll);
+		press('PageUp');
+		expect(scroll.scrollPosition).toBeLessThan(scroll.maxScroll);
+		press('Home');
+		expect(scroll.scrollPosition).toBe(0);
+		press('l');
+		expect(drawer.isOpen).toBe(false);
+		expect(focus.focused).toBe(card);
+
+		press('L');
+		expect(drawer.isOpen).toBe(true);
+		press('Escape');
+		expect(drawer.isOpen).toBe(false);
+		expect(focus.focused).toBe(card);
+
+		combat.unmount();
+	});
 });

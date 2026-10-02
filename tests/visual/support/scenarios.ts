@@ -115,6 +115,7 @@ export const SCENE_SCENARIOS: readonly SceneScenario[] = [
 	{ scene: 'data-display' },
 	{ scene: 'tree-view' },
 	{ scene: 'combat-fx' },
+	{ scene: 'combat-log' },
 	{ scene: 'slider-tabs' },
 	{ scene: 'overlays' },
 	{ scene: 'dialog' },
