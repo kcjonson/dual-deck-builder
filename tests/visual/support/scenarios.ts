@@ -26,6 +26,8 @@ export interface ScreenScenario {
 export interface SceneScenario {
 	scene: string;
 	blockedBy?: string;
+	/** Also linted at the short viewport, for a scene that lays out to the window's width. */
+	lintShort?: boolean;
 	/**
 	 * Captured and linted at the short viewport too, as `<scene>-1024x600`:
 	 * a scene standing in for a screen state that both gate sizes have to
@@ -72,6 +74,8 @@ const SCREEN_CASES: readonly ScreenCase[] = [
 	{ screen: 'cardShowcaseScreen' },
 	{ screen: 'driverSelectionScreen' },
 	{ screen: 'combatScreen' },
+	// The log drawer open over the road, at both sizes: never over the dock or End Turn (DDB-140)
+	{ screen: 'combatScreen', variant: 'log', data: { openLog: true } },
 	{ screen: 'battleResultScreen', variant: 'victory', data: { victory: true } },
 	{ screen: 'battleResultScreen', variant: 'defeat', data: { victory: false } },
 ];
@@ -121,6 +125,7 @@ export const SCENE_SCENARIOS: readonly SceneScenario[] = [
 	{ scene: 'data-display' },
 	{ scene: 'tree-view' },
 	{ scene: 'combat-fx' },
+	{ scene: 'combat-log', lintShort: true },
 	{ scene: 'slider-tabs' },
 	{ scene: 'overlays' },
 	{ scene: 'dialog' },

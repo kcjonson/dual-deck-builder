@@ -51,7 +51,10 @@ function isHandCardDrag(data: unknown): data is HandCardDrag {
 	return typeof data === 'object' && data !== null && (data as HandCardDrag).kind === 'hand-card';
 }
 
-/** The top bar's LOG key in either case, and F6, which it has always had. */
+/**
+ * The top bar's LOG key in either case, and F6, the log's key before the
+ * top bar had one, kept as an alias for playtesters who learned it.
+ */
 const LOG_TOGGLE_KEYS = [LOG_KEY.toLowerCase(), LOG_KEY, 'F6'];
 /** Between the hands and the End Turn column. */
 const DOCK_GAP = 16;
@@ -105,8 +108,6 @@ export class CombatScreen extends Screen {
 	// fight so a driver keeps their seat after riding on as a passenger
 	private playerDrivers: Driver[] = [];
 	
-	// UI state
-	private combatLogVisible = false;
 	// The turn the screen last showed, for logging a new one
 	private shownTurn = 1;
 	// The hand slot of the card a keyboard player last chose, where focus
@@ -138,7 +139,7 @@ export class CombatScreen extends Screen {
 		super('combatScreen');
 		
 		// Create models
-		this.combatLog = new CombatLog(10); // Keep last 10 entries
+		this.combatLog = new CombatLog();
 		this.combatModel = new CombatModel();
 	}
 
@@ -195,9 +196,9 @@ export class CombatScreen extends Screen {
 			
 			this.turnBanner.announce(this.battle.isPlayerTurn ? 'player' : 'enemy');
 			
-			// Log combat start
-			this.combatLog.addEntry('Combat Started!', CombatLogType.INFO);
-			this.combatLog.addEntry(`${driver1.metadata.name} and ${driver2.metadata.name} vs ${this.enemyTeam.vehicles[0].name}`, CombatLogType.INFO);
+			// The log opens on the matchup
+			const raiders = this.enemyTeam.vehicles.map(vehicle => vehicle.name).join(', ');
+			this.combatLog.addEntry({ message: `${driver1.metadata.name} and ${driver2.metadata.name} vs ${raiders}`, turn: this.battle.turn });
 
 			// Force UI update after initialization
 			this.updateUIFromBattle();
@@ -228,7 +229,7 @@ export class CombatScreen extends Screen {
 				// an ordinary hand card again
 				this.flownCards.clear();
 				if (state.turn > previousTurn && state.isPlayerTurn && !state.battleOver) {
-					this.combatLog.addEntry(`Turn ${state.turn} - Player turn started`, CombatLogType.TURN);
+					this.combatLog.addEntry({ message: 'Your turn', type: CombatLogType.TURN, turn: state.turn });
 					this.turnBanner.announce('player');
 				}
 			})
@@ -236,42 +237,11 @@ export class CombatScreen extends Screen {
 
 		this.unsubscribers.push(
 			this.battle.on('battleEnded', (event: { won: boolean }) => {
-				// Log battle end
-				this.combatLog.addEntry(
-					event.won ? 'Victory! All enemies defeated!' : 'Defeat! Your vehicles were destroyed!',
-					CombatLogType.INFO
-				);
-				// Navigate to battle result screen
+				// The battle logs its own end; navigate to battle result screen
 				if (this.battle) {
 					const resultData: BattleResultData = { victory: event.won };
 					ScreenManager.navigate('battleResultScreen', resultData);
 				}
-			})
-		);
-
-		this.unsubscribers.push(
-			this.battle.on('cardPlayed', (event: { driver: Driver; card: Card; targetVehicle?: Vehicle }) => {
-				// Log card play with driver info
-				const driverNumber = this.playerDrivers.indexOf(event.driver);
-				if (driverNumber >= 0) {
-					let message = `played ${event.card.displayName}`;
-					if (event.targetVehicle) {
-						message += ` targeting ${event.targetVehicle.name}`;
-					}
-					this.combatLog.addEntry({
-						driver: (driverNumber + 1) as 1 | 2,
-						message,
-						type: CombatLogType.ACTION
-					});
-				} else {
-					// Enemy card play
-					let message = `${event.driver.metadata.name} played ${event.card.displayName}`;
-					if (event.targetVehicle) {
-						message += ` targeting ${event.targetVehicle.name}`;
-					}
-					this.combatLog.addEntry(message, CombatLogType.ACTION);
-				}
-				console.log(`Card played: ${event.card.displayName}`);
 			})
 		);
 
@@ -287,18 +257,14 @@ export class CombatScreen extends Screen {
 			this.battle.on('turnEnded', (event: { team: string }) => {
 				if (event.team === 'player') {
 					this.turnBanner.announce('enemy');
-					this.combatLog.addEntry('Player turn ended', CombatLogType.TURN);
-					this.combatLog.addEntry('Enemy turn started', CombatLogType.TURN);
+					this.combatLog.addEntry({ message: "The raiders' turn", type: CombatLogType.TURN, turn: this.battle?.turn });
 				}
 			})
 		);
 
-		// Subscribe to detailed battle messages for comprehensive logging
+		// What happened, as the player reads it; the log drops the record's debug lines
 		this.unsubscribers.push(
-			this.battle.on('battleMessage', (message: BattleMessage) => {
-				// Pass battle messages directly to the combat log
-				this.combatLog.addBattleMessage(message);
-			})
+			this.battle.on('battleMessage', (message: BattleMessage) => this.combatLog.addBattleMessage(message))
 		);
 		
 		// The end of the turn sends each driver's hand to the discard (DDB-37)
@@ -442,6 +408,8 @@ export class CombatScreen extends Screen {
 			});
 		});
 		this.shownTurn = battle.turn;
+		// One wave until the game has reinforcements (Combat Rules: "once there is one")
+		this.topBar.wave = { number: 1, total: 1, incoming: 0 };
 		this.topBar.turn = battle.turn;
 		this.topBar.scrap = this.scrap;
 		this.topBar.fuel = this.fuel;
@@ -590,8 +558,8 @@ export class CombatScreen extends Screen {
 			heightMode: 'fill',
 			zIndex: 1,
 			combatLog: this.combatLog,
+			onFocusLost: () => this.restoreKeyboardFocus(),
 		});
-		this.combatLogLayer.visible = this.combatLogVisible;
 		road.addChild(this.combatLogLayer);
 
 		return road;
@@ -1110,8 +1078,7 @@ export class CombatScreen extends Screen {
 	 * Toggle combat log visibility
 	 */
 	private toggleCombatLog(): void {
-		this.combatLogVisible = !this.combatLogVisible;
-		this.combatLogLayer.visible = this.combatLogVisible;
+		this.combatLogLayer.toggle();
 	}
 
 	
@@ -1136,6 +1103,8 @@ export class CombatScreen extends Screen {
 			onBeat: () => this.playEnemyBeat(),
 		});
 		this.setupModelListeners();
+		// `openLog` mounts with the drawer open, for the log's golden and lint gate
+		if (data && typeof data === 'object' && (data as { openLog?: unknown }).openLog === true) this.combatLogLayer.openDrawer();
 
 		// Check if we have driver data
 		if (data && typeof data === 'object' && 'drivers' in data) {
