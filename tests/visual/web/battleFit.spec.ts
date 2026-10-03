@@ -312,12 +312,23 @@ test.describe('battle screen fit', () => {
 			await prepare(page);
 			await openScene(page, `battle-${scenario}`, first);
 
-			// The opening banner runs out on the frame clock
-			for (let tries = 0; tries < 40; tries++) {
-				if (nodes(await snapshot(page), (node) => node.id === 'combat_turn_banner').length === 0) break;
-				await drive(page, [], 5);
-			}
-			expect(nodes(await snapshot(page), (node) => node.id === 'combat_turn_banner'), 'the opening banner should leave').toEqual([]);
+			// The opening banner runs out on the frame clock. Its exit tween
+			// can be settled to nothing before its countdown ends, so it is
+			// gone when it hides, not when it fades
+			const bannerUp = async (): Promise<boolean> => page.evaluate(() => {
+				interface Node { id: string | null; visible: boolean; parts?: Node[]; children: Node[] }
+				const find = (list: Node[]): Node | null => {
+					for (const entry of list) {
+						if (entry.id === 'combat_turn_banner') return entry;
+						const found = find([...(entry.parts ?? []), ...entry.children]);
+						if (found) return found;
+					}
+					return null;
+				};
+				return find((window as unknown as DevSurface).__ui.tree().roots as unknown as Node[])?.visible ?? false;
+			});
+			for (let tries = 0; tries < 40 && await bannerUp(); tries++) await drive(page, [], 5);
+			expect(await bannerUp(), 'the opening banner should leave').toBe(false);
 
 			if (scenario === 'typical') await captureGoldens(page, testInfo, scenario);
 
