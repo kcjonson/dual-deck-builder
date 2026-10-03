@@ -216,6 +216,8 @@ export class CombatScreen extends Screen {
 
 	/** Show a started battle: subscribe to it, announce the turn, log the matchup, and draw it. */
 	private beginCombat({ battle, drivers, wave = SINGLE_WAVE, scrap, fuel, log = [] }: PreparedCombat): void {
+		// A prepared fight is held to the same pair rule as the default one
+		assertDriverPair(drivers);
 		this.playerDrivers = [...drivers];
 		this.battle = battle;
 		this.playerTeam = battle.playerTeam;

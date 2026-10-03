@@ -1,4 +1,5 @@
-import { LANE_ORDER, ROW_ORDER, RoadLane, RoadRow, RoadSlot } from '../../../src/renderer/game/mechanics/Road';
+import { LANE_ORDER, ROW_ORDER, RoadLane, RoadRow, RoadSlot, isShoulder } from '../../../src/renderer/game/mechanics/Road';
+import { HAND_CAP } from '../../../src/renderer/game/mechanics/Driver';
 import { computeRoadLayout, roadSlotRect, tokenScaleFor } from '../../../src/renderer/game/screens/combat/CombatLayout';
 
 /**
@@ -7,9 +8,11 @@ import { computeRoadLayout, roadSlotRect, tokenScaleFor } from '../../../src/ren
  * layout lint runs beside it; this adds what only the battle screen knows:
  * which boxes are tokens, chips and cards, the road's slots, and its rules.
  *
- * - overflow: text past its box. A wrapped text taller than its box counts,
- *   which the engine lint lets off; an ellipsis is the design's own cut (the
- *   mock's `trunc`) and does not. A keyword text's words past its box count.
+ * - overflow: text past its box, either way. A wrapped text counts, which
+ *   the engine lint lets off: taller than its box, or wider when a word
+ *   longer than the wrap width gets a line to itself. An ellipsis is the
+ *   design's own cut (the mock's `trunc`) and does not. A keyword text's
+ *   words past its box count.
  * - offscreen: a token, card, driver tab, End Turn, or the detail view and its
  *   keyword boxes past the frame by more than one stage pixel.
  * - collision: tokens, intent pills, range chips, lane heads and row labels
@@ -19,8 +22,15 @@ import { computeRoadLayout, roadSlotRect, tokenScaleFor } from '../../../src/ren
  *   uncapped scale for that token's height (`tokenScaleFor`), since the token
  *   itself never draws below x1 and so cannot show it.
  * - slot: two tokens in one slot, a token in a lane its team can't use (its
- *   own formation and the other team's shoulder only), or a token not in the
- *   slot its id names.
+ *   own formation and the other team's shoulder only), a flanker in a row
+ *   with nobody in the other team's formation, or a token not in the slot
+ *   its id names.
+ * - hand-cap: a driver holding more than seven cards.
+ *
+ * Not ported: the mock's `.hitchip` and `.predict`. The incoming total is
+ * drawn inside its token's box (`EndTurnPreview.drawTotal`), so the token
+ * collisions cover it; the hit check is paint-only, placed at render time,
+ * and has no box in the tree to measure.
  * - parked: a parked subtree, which the engine lint checks at rest; none of
  *   these states parks the dock, so a park here would hide what it covers.
  *
@@ -55,7 +65,7 @@ export interface FitDocument {
 	roots: FitNode[];
 }
 
-export type FitCheck = 'overflow' | 'offscreen' | 'collision' | 'token-scale' | 'slot' | 'parked';
+export type FitCheck = 'overflow' | 'offscreen' | 'collision' | 'token-scale' | 'slot' | 'hand-cap' | 'parked';
 
 export interface FitFinding {
 	check: FitCheck;
@@ -120,7 +130,8 @@ function textOverflow({ node, path, parent }: Visited): string | null {
 		const margin = node.margin ?? { top: 0, right: 0, bottom: 0, left: 0 };
 		const width = node.bounds.w - margin.left - margin.right;
 		const height = node.bounds.h - margin.top - margin.bottom;
-		if (text.measured.h > height + 1 || (text.wrap === 'none' && text.measured.w > width + 1)) {
+		// Wrapped or not: a word wider than the wrap width gets a line to itself and runs past the box
+		if (text.measured.h > height + 1 || text.measured.w > width + 1) {
 			return `${path} "${text.content.slice(0, 40)}" measures ${round(text.measured.w)}x${round(text.measured.h)} in ${round(width)}x${round(height)}`;
 		}
 	}
@@ -185,9 +196,17 @@ export function battleFit(document: FitDocument): FitFinding[] {
 		}
 	}
 
+	// Each driver's hand holds 7 at most (Combat Rules, the hand cap)
+	for (const hand of ['driver1_hand', 'driver2_hand']) {
+		const cards = nodes.filter((entry) => entry.node.type === 'Card' && entry.path.includes(`/${hand}/`)).length;
+		if (cards > HAND_CAP) findings.push({ check: 'hand-cap', detail: `${hand} holds ${cards}, over the cap of ${HAND_CAP}` });
+	}
+
 	// The road's slots: scale, occupancy, lanes
 	const layout = computeRoadLayout({ width: road.bounds.w, height: road.bounds.h });
 	const occupied = new Map<string, string>();
+	const flankers: { path: string; side: 'player' | 'enemy'; row: RoadRow }[] = [];
+	const formationRows = { player: new Set<RoadRow>(), enemy: new Set<RoadRow>() };
 	for (const { node, path, parent } of nodes.filter((entry) => entry.node.type === 'Vehicle')) {
 		const need = tokenScaleFor({ slotWidth: layout.slotWidth, slotHeight: layout.slotHeight, tokenHeight: node.bounds.h });
 		if (need < 1) findings.push({ check: 'token-scale', detail: `${path} needs x${need.toFixed(3)} in a ${round(layout.slotWidth)}x${round(layout.slotHeight)} slot` });
@@ -203,6 +222,8 @@ export function battleFit(document: FitDocument): FitFinding[] {
 		if (other) findings.push({ check: 'slot', detail: `${path} shares ${key} with ${other}` });
 		occupied.set(key, path);
 		if (!USABLE_LANES[side].includes(lane)) findings.push({ check: 'slot', detail: `${path}: the ${side} team can't use ${lane}` });
+		if (isShoulder(lane)) flankers.push({ path, side, row });
+		else formationRows[side].add(row);
 		if (parent === road) {
 			const slot = roadSlotRect(layout, { lane, row });
 			const centreX = node.bounds.x + node.screenBounds.w / k / 2;
@@ -211,6 +232,12 @@ export function battleFit(document: FitDocument): FitFinding[] {
 				findings.push({ check: 'slot', detail: `${path} is drawn at ${round(centreX)},${round(centreY)}, outside its slot ${key}` });
 			}
 		}
+	}
+	// A flanker sits in the row of a vehicle it outran, so the other team's
+	// formation has someone in that row (the mock's "flanks an empty row")
+	for (const { path, side, row } of flankers) {
+		const other = side === 'player' ? 'enemy' : 'player';
+		if (!formationRows[other].has(row)) findings.push({ check: 'slot', detail: `${path} flanks an empty row: no ${other} vehicle in formation ${row}` });
 	}
 
 	return findings;

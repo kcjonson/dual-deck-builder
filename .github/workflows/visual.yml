@@ -91,8 +91,12 @@ jobs:
     if: ${{ !inputs.update_baselines && always() && needs.baseline-provenance.result != 'failure' }}
     runs-on: ubuntu-24.04
     steps:
+      # Two commits deep, so a pull request's merge commit has its base to
+      # diff against (the fit suite's gate below)
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -121,11 +125,34 @@ jobs:
       - name: Build the Electron harness shell
         run: npm run build:harness:electron
 
+      # The battle screen fit suite (DDB-141) is about 6 minutes of this job.
+      # A pull request runs it only when it changes what the battle screen is
+      # built from or measured with: the game, engine and gallery source, the
+      # visual tests, the design mock, the build, or this workflow. Pushes to
+      # main always run it.
+      - name: Decide whether the fit suite runs
+        id: fit
+        if: github.event_name == 'pull_request'
+        run: |
+          if git diff --name-only HEAD^1 HEAD | grep -qE '^(src/|tests/visual/|docs/design/|webpack/|public/|playwright\.config\.ts$|package(-lock)?\.json$|tsconfig[^/]*\.json$|\.github/workflows/visual\.yml$)'; then
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            echo "Nothing the battle screen depends on changed: skipping the fit suite"
+          fi
+
       # Electron opens a real window even when the page is never shown, so the
       # Linux runner needs a display server; the chromium project is headless
       # and does not care either way.
       - name: Run visual suite
-        run: xvfb-run -a npx playwright test
+        env:
+          SKIP_FIT: ${{ steps.fit.outputs.skip }}
+        run: |
+          if [ "$SKIP_FIT" = "true" ]; then
+            xvfb-run -a npx playwright test --grep-invert "battle screen fit"
+          else
+            xvfb-run -a npx playwright test
+          fi
 
       - name: Upload report
         if: always()

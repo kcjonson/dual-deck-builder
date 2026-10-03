@@ -21,14 +21,15 @@ import type { FitDocument, FitNode } from '../support/battleFit';
 /**
  * The battle screen's fit suite (DDB-141): the mock's six scenarios
  * (`src/gallery/scenes/battleFitScenarios.ts`) on the real screen, at the
- * mock's six viewports plus the short gate size, in the five states its fit
+ * mock's viewports (1280x720 through 1920x1080, which lays out the same
+ * stage) plus the short gate size, in the five states its fit
  * matrix checks: planning, the detail view of the hand's leftmost and
  * rightmost cards, a card mid-drag over a raider, and the end-turn preview.
  * Every one must lint clean and pass the mock's fit check (`battleFit`).
  *
  * Software GL draws a 1920x1080 frame in well over 100 ms, so the suite is
  * written in frames. One page load per scenario: the screen resizes in place,
- * as it does in the game, so the seven sizes are seven resizes of one fight.
+ * as it does in the game, so the six sizes are six resizes of one fight.
  * Each state is a single burst of injected input (putting the last state
  * away first) and a few frames, the tree is read once, and the engine's
  * layout lint runs on that same tree here rather than serialising it again
@@ -44,11 +45,16 @@ import type { FitDocument, FitNode } from '../support/battleFit';
 const SCENARIOS = ['typical', 'opening', 'convoy', 'fullroad', 'passenger', 'bighands'] as const;
 type Scenario = typeof SCENARIOS[number];
 
+/**
+ * The mock's six sizes but one: 1280x720 lays out the same 1280x720 logical
+ * stage as 1920x1080 (the stage is `max(0.8, min(W / 1280, H / 720))`), which
+ * measures it at x1.5, where the lint's half-pixel tolerance is tighter.
+ * `battleFit.test.ts` holds the two to one stage and one road.
+ */
 const VIEWPORTS: readonly Viewport[] = [
 	{ width: 1920, height: 1080 },
 	FIXED_VIEWPORT,
 	{ width: 1280, height: 800 },
-	{ width: 1280, height: 720 },
 	{ width: 2560, height: 1080 },
 	{ width: 1024, height: 768 },
 	// Not one of the mock's six: the short gate size every screen is linted at
@@ -136,6 +142,16 @@ function strings(node: FitNode): string[] {
 
 const point = (x: number, y: number): string => `${Math.round(x)},${Math.round(y)}`;
 
+/** A hand card's name, as its face shows it. */
+function cardName(card: FitNode): string | null {
+	return nodes({ viewport: { width: 0, height: 0 }, roots: [card] }, (node) => node.id === `${card.id}_title`)[0]?.text?.content ?? null;
+}
+
+/** Every visible node of `type` under the node with id `parentId`. */
+function under(document: FitDocument, parentId: string, type: string): FitNode[] {
+	return nodes(document, (node, parents) => node.type === type && parents.includes(parentId));
+}
+
 /**
  * Where each state's input goes, worked out once per size from the screen
  * at rest: the hands' edge cards, Headshot, the raider it's aimed at, and
@@ -145,6 +161,9 @@ interface Targets {
 	rest: string;
 	leftCard: string | null;
 	rightCard: string | null;
+	/** The edge cards' names, which their detail views have to show. */
+	leftName: string | null;
+	rightName: string | null;
 	headshot: string | null;
 	raider: string | null;
 	endTurn: string | null;
@@ -179,6 +198,8 @@ function targetsOf(document: FitDocument, viewport: Viewport): Targets {
 		rest: point(2, viewport.height / 2),
 		leftCard: strip(left),
 		rightCard: centre(right, 0.6),
+		leftName: left ? cardName(left) : null,
+		rightName: right ? cardName(right) : null,
 		headshot: strip(headshot),
 		raider: centre(aimed?.token, 0.6),
 		endTurn: centre(nodes(document, (node) => node.id === 'end_turn_button')[0]),
@@ -207,8 +228,11 @@ function entry(state: State, targets: Targets): { bursts: string[][]; hold?: boo
 		case 'inspect-left':
 		case 'inspect-right': {
 			const card = state === 'inspect-left' ? targets.leftCard : targets.rightCard;
-			if (!card) return 'no card at that end of the hands';
-			return { bursts: [[`move,${card}`, `click,${card},2`]], shows: has('card_detail') };
+			const name = state === 'inspect-left' ? targets.leftName : targets.rightName;
+			if (!card || !name) return 'no card at that end of the hands';
+			// The edge card's own view: a click that landed on its neighbour shows the wrong card
+			const shows = (document: FitDocument): boolean => nodes(document, (node) => node.id === 'card_detail').some((view) => strings(view).includes(name));
+			return { bursts: [[`move,${card}`, `click,${card},2`]], shows };
 		}
 		case 'targeting': {
 			if (!targets.headshot || !targets.raider) return 'no Headshot, or no raider to aim it at';
@@ -227,7 +251,10 @@ function entry(state: State, targets: Targets): { bursts: string[][]; hold?: boo
 			if (!targets.endTurn) return 'no End Turn';
 			return {
 				bursts: [[`move,${targets.endTurn}`]],
-				shows: (document) => nodes(document, (node) => node.id === 'end_turn_button' && node.state?.hovered === true).length > 0,
+				// End Turn hovered, and the preview drawing its totals
+				shows: (document) => has('end_turn_button')(document)
+					&& nodes(document, (node) => node.id === 'end_turn_button' && node.state?.hovered === true).length > 0
+					&& nodes(document, (node) => node.id === 'combat_end_turn_preview' && (node.labels?.length ?? 0) > 0).length > 0,
 			};
 	}
 }
@@ -248,6 +275,49 @@ function measure(document: FitDocument, key: string): CaseResult {
 	return { key, problems };
 }
 
+/** Tokens on the road in each scenario: 18 is every slot. */
+const TOKENS: Record<Scenario, number> = { typical: 5, opening: 3, convoy: 11, fullroad: 18, passenger: 5, bighands: 11 };
+
+/**
+ * What makes each scenario the case it is, checked on screen: a fixture that
+ * quietly lost its worst case would otherwise pass every fit check.
+ */
+function worstCase(scenario: Scenario, document: FitDocument): string[] {
+	const problems: string[] = [];
+	const check = (holds: boolean, what: string): void => {
+		if (!holds) problems.push(`the scene should show ${what}`);
+	};
+	const tokens = nodes(document, (node) => node.type === 'Vehicle');
+	const slots = tokens.map(tokenSlot);
+	const at = (side: 'player' | 'enemy', lane: string): number => slots.filter((slot) => slot?.side === side && slot.lane === lane).length;
+	const hand = (seat: 1 | 2): FitNode[] => under(document, `driver${seat}_hand`, 'Card').sort((a, b) => a.screenBounds.x - b.screenBounds.x);
+	const shown = (text: string): boolean => nodes(document, (node) => [node.text?.content ?? '', ...(node.labels ?? [])].some((each) => each.toUpperCase() === text.toUpperCase())).length > 0;
+	check(tokens.length === TOKENS[scenario], `${TOKENS[scenario]} tokens, not ${tokens.length}`);
+	switch (scenario) {
+		case 'typical':
+			check(at('player', 'enemy_shoulder') === 1, 'the Interceptor flanking on the raiders\' shoulder');
+			break;
+		case 'opening':
+			check(at('player', 'player_inside') === 2 && shown('Turn 1'), 'both drivers in the inside lane on turn 1');
+			break;
+		case 'convoy':
+			check(tokens.filter((token) => token.id?.startsWith('player_')).length === 5 && at('enemy', 'player_shoulder') === 2, 'two drivers and three escorts, flanked twice on your shoulder');
+			break;
+		case 'fullroad':
+			check(new Set(slots.map((slot) => slot && `${slot.lane} ${slot.row}`)).size === 18, 'all 18 slots filled');
+			break;
+		case 'passenger':
+			// The stamp draws its word itself, so it's found by its node
+			check(nodes(document, (node) => node.type === 'WreckStamp' && (node.id ?? '').startsWith('player_')).length === 1 && shown('PASSENGER'), 'the Rig wrecked and the Road Warrior a passenger');
+			break;
+		default:
+			check(hand(1).length === 7 && hand(2).length === 7, `7 + 7 cards, not ${hand(1).length} + ${hand(2).length}`);
+			check(hand(1)[0]?.id?.endsWith('_tag_team_takedown') ?? false, 'Tag Team Takedown leftmost in driver 1\'s hand');
+			check(hand(2).at(-1)?.id?.endsWith('_emp_blast') ?? false, 'EMP Blast rightmost in driver 2\'s hand');
+	}
+	return problems;
+}
+
 /** Frames a state gets to arrive, then a few more at a time until it has, up to a limit. */
 const ENTRY_FRAMES = 1;
 const MORE_FRAMES = 2;
@@ -256,8 +326,11 @@ const ENTRY_TRIES = 6;
 async function runSize(page: Page, scenario: Scenario, viewport: Viewport): Promise<CaseResult[]> {
 	await page.setViewportSize(viewport);
 	await settle(page, viewport);
-	const targets = targetsOf(await snapshot(page), viewport);
+	const atRest = await snapshot(page);
+	const targets = targetsOf(atRest, viewport);
 	const results: CaseResult[] = [];
+	const missing = worstCase(scenario, atRest);
+	if (missing.length > 0) results.push({ key: `${scenario} ${size(viewport)} worst case`, problems: missing });
 	let pinnedAt: string | null = null;
 	for (const state of STATES) {
 		const key = `${scenario} ${size(viewport)} ${state}`;
@@ -304,7 +377,7 @@ async function captureGoldens(page: Page, testInfo: TestInfo, scenario: Scenario
 test.describe('battle screen fit', () => {
 	for (const scenario of SCENARIOS) {
 		test(`battle-${scenario}`, async ({ page }, testInfo) => {
-			// Seven sizes, five states each, on software GL
+			// Six sizes, five states each, on software GL
 			test.setTimeout(300_000);
 			const log = captureConsole(page);
 			const first = scenario === 'typical' ? GOLDEN_VIEWPORTS[0] : VIEWPORTS[0];
