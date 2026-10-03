@@ -6,6 +6,19 @@ This document contains the chronological log of completed development tasks for 
 
 **Date correction (2026-08-22):** the repo's first commit is 2025-05-17, but many entries below carry dates in December 2024 or January 2025 — the AI that wrote them used its assumed date instead of the real one. Entries dated 2025-07-03 and 2025-07-02 have been corrected from "2025-01-03"/"2025-01-02" (verified against git history). Remaining Dec 2024 / Jan 2025 dates are wrong by roughly six months; the real work happened May–July 2025. Trust git history over these dates.
 
+## The battle screen fit suite (2026-10-02)
+
+**What landed:** DDB-141 (DDB-127). The battle screen mock's fit matrix, on the real screen.
+
+- `SceneHost` mounts a second kind of scene, a whole `Screen` (`ScreenScene`), on the context as `ScreenManager` would: its root is the debug root, it updates with the frame, and it resizes in place, paused or not.
+- `CombatScreen` takes `{ prepare: () => Promise<PreparedCombat> }` as mount data: a started `Battle`, the drivers in seat order, and the top bar's wave, scrap, fuel, and log. The default fight goes through the same `beginCombat`.
+- `src/gallery/scenes/battleFitScenarios.ts`: the mock's six scenarios built from real mechanics (drivers, escorts, raiders with decks, a started battle, then hands, piles, mods, statuses, a flanking Interceptor, a wrecked Rig), registered as `battle-<scenario>`.
+- `tests/visual/web/battleFit.spec.ts` and `tests/visual/support/battleFit.ts`: every scenario at six sizes (the mock's six with 1920x1080 standing in for 1280x720, which lays out the same stage, plus 1024x600) in five states: the scenario's worst case asserted on screen, lint zero, and the mock's fit check including its four slot rules and the hand cap, with an expected-failures table keyed to bug ids (empty). Unit tests in `battleFit.test.ts` make each check fire, at stage scale 1 and 1.5.
+- `visual.yml` runs the fit suite on a pull request only when it touches `src/`, the visual tests, the design mock, the build, or the workflow; main always runs it.
+- Fix: `HandFan` pads its row by the most any posed card reaches, not just the edge cards; the cards beside the middle poked 0.4 logical pixels above the row and failed the lint at 1920x1080 and 2560x1080.
+- Goldens: new `scene-battle-typical` and `scene-battle-typical-2560x1080`; every golden with a hand moves 1 px for the fan's top padding.
+- Decision record: [battle-fit-suite.md](./AI_TECHNICAL_DECISIONS/battle-fit-suite.md).
+
 ## The split dock (2026-10-02)
 
 **What landed:** DDB-136 (DDB-127), folding in DDB-167. Battle Screen Design section 4. Closes DDB-117; DDB-120 was already met by the DDB-137 face (driver-coloured frame, rarity gem, yellow hover and selection), and DDB-29 and DDB-37 were closed by DDB-88.

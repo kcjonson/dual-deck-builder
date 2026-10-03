@@ -1,4 +1,5 @@
 import { SceneHost } from './SceneHost';
+import { Screen } from '../renderer/game/core/Screen';
 import type { GalleryScene, SceneFactoryOptions } from './registry';
 import { Container } from '../renderer/engine/components/Container';
 import type { Component } from '../renderer/engine/components/Component';
@@ -420,5 +421,83 @@ describe('status and roots', () => {
 			scenes: ['alpha', 'beta'],
 			viewport: VIEWPORT,
 		});
+	});
+});
+
+describe('screen scenes', () => {
+	/** A game screen that records what the host asks of it. */
+	class RecordingScreen extends Screen {
+		public readonly calls: string[] = [];
+
+		constructor() {
+			super('recording_screen');
+		}
+
+		protected onMount(data?: unknown): void {
+			this.calls.push(`mount ${JSON.stringify(data)}`);
+		}
+
+		protected onResized(): void {
+			this.calls.push(`resize ${this.root.width}x${this.root.height}`);
+		}
+
+		protected onUnmount(): void {
+			this.calls.push('unmount');
+		}
+
+		protected onUpdate(): void {
+			this.calls.push('update');
+		}
+	}
+
+	function screenHost(): { host: SceneHost; screens: RecordingScreen[] } {
+		const screens: RecordingScreen[] = [];
+		const host = makeHost([
+			...interactiveScenes,
+			{
+				name: 'whole',
+				screen: () => {
+					const screen = new RecordingScreen();
+					screens.push(screen);
+					return { screen, data: { fight: 'typical' } };
+				},
+			},
+		]);
+		return { host, screens };
+	}
+
+	it('mounts the screen at the viewport with its data, and reports its root in place of the host\'s', () => {
+		const { host, screens } = screenHost();
+		expect(host.mount('whole')).toBe(true);
+		const [screen] = screens;
+		expect(screen.calls).toEqual(['mount {"fight":"typical"}']);
+		expect(screen.root.width).toBe(VIEWPORT.width);
+		expect(host.roots()[0]).toBe(screen.root);
+		expect(host.status().content).toEqual(VIEWPORT);
+	});
+
+	it('resizes the screen in place, paused or not, rather than rebuilding it', () => {
+		const viewport = { ...VIEWPORT };
+		context = createTestContext({ viewport: { logical: viewport } });
+		const { host, screens } = screenHost();
+		host.mount('whole');
+		host.paused = true;
+		viewport.width = 1024;
+		viewport.height = 600;
+		host.resize();
+		expect(screens).toHaveLength(1);
+		expect(screens[0].calls).toContain('resize 1024x600');
+	});
+
+	it('updates the screen only while running, and unmounts it on a switch', () => {
+		const { host, screens } = screenHost();
+		host.mount('whole');
+		host.update(16);
+		host.paused = true;
+		host.update(16);
+		expect(screens[0].calls.filter((call) => call === 'update')).toHaveLength(1);
+		host.mount('alpha');
+		expect(screens[0].calls).toContain('unmount');
+		expect(host.roots()[0]).toBe(host.root);
 	});
 });

@@ -4,6 +4,8 @@ import type { DrawApi } from '../renderer/engine/draw/DrawApi';
 import type { MountContext } from '../renderer/engine/components/MountContext';
 import type { SnapshotViewport } from '../renderer/engine/debug/treeSnapshot';
 import type { GalleryScene } from './registry';
+import { isScreenScene } from './registry';
+import type { Screen } from '../renderer/game/core/Screen';
 import type { SceneResolution } from './sceneSelection';
 import { resolveScene } from './sceneSelection';
 
@@ -63,6 +65,8 @@ export class SceneHost {
 	private readonly rootLayer: Container;
 	private mounted: GalleryScene | null = null;
 	private mountedRoot: Container | null = null;
+	/** A screen scene's screen, mounted on its own root as the game mounts one. */
+	private mountedScreen: Screen | null = null;
 	private requestedName: string | null = null;
 	private resolutionStatus: SceneResolutionStatus | null = null;
 	/** The viewport the mounted scene was built for; resize compares against it. */
@@ -96,7 +100,9 @@ export class SceneHost {
 	 * the content layer's children one level too shallow.
 	 */
 	public roots(): Container[] {
-		return [this.rootLayer, ...this.context.overlays.roots];
+		// A screen's root is the viewport's size too, so it stands in for the host's, as on the game page
+		const scene = this.mountedScreen ? this.mountedScreen.root : this.rootLayer;
+		return [scene, ...this.context.overlays.roots];
 	}
 
 	public get root(): Container {
@@ -181,6 +187,18 @@ export class SceneHost {
 
 		const viewport = this.readViewport();
 		this.rootLayer.setSize(viewport.width, viewport.height);
+		this.mountedWidth = viewport.width;
+		this.mountedHeight = viewport.height;
+
+		if (isScreenScene(scene)) {
+			const { screen, data } = scene.screen();
+			screen.mount(this.context, data);
+			this.mounted = scene;
+			this.mountedScreen = screen;
+			this.requestedName = requested;
+			this.resolutionStatus = resolution;
+			return true;
+		}
 
 		const sceneRoot = scene.factory({
 			x: this.margin,
@@ -205,8 +223,6 @@ export class SceneHost {
 		this.mountedRoot = sceneRoot;
 		this.requestedName = requested;
 		this.resolutionStatus = resolution;
-		this.mountedWidth = viewport.width;
-		this.mountedHeight = viewport.height;
 		return true;
 	}
 
@@ -225,10 +241,12 @@ export class SceneHost {
 	 * on unmount without callbacks).
 	 */
 	public unmount(): void {
-		if (!this.mountedRoot) return;
+		if (!this.mountedRoot && !this.mountedScreen) return;
 
 		this.context.focus.blur();
-		this.rootLayer.removeChild(this.mountedRoot);
+		if (this.mountedRoot) this.rootLayer.removeChild(this.mountedRoot);
+		this.mountedScreen?.unmount();
+		this.mountedScreen = null;
 		// R8.22: whatever the scene opened above itself goes with it.
 		this.context.popups.close();
 		this.context.overlays.closeAll();
@@ -278,6 +296,15 @@ export class SceneHost {
 		}
 
 		if (width === this.mountedWidth && height === this.mountedHeight) return;
+		// A screen resizes in place, paused or not, as the game's do: its
+		// state is the fight it was handed, and a rebuild would start over
+		if (this.mountedScreen) {
+			this.rootLayer.setSize(width, height);
+			this.mountedWidth = width;
+			this.mountedHeight = height;
+			this.mountedScreen.resize(width, height);
+			return;
+		}
 		if (this.isPaused) return;
 
 		this.reload();
@@ -287,6 +314,7 @@ export class SceneHost {
 		if (this.isPaused) return;
 		this.updates++;
 		this.context.frame.update(deltaTime);
+		this.mountedScreen?.update(deltaTime);
 	}
 
 	/** R8.16's layout phase. Not gated by pause: a resize while paused still reflows. */
@@ -297,6 +325,7 @@ export class SceneHost {
 	public render(draw: DrawApi): void {
 		this.renders++;
 		renderTree(this.rootLayer, draw);
+		this.mountedScreen?.render(draw);
 		this.context.overlays.render(draw);
 	}
 
@@ -306,6 +335,7 @@ export class SceneHost {
 	 * paused one of them keeps climbing and the other does not.
 	 */
 	public status(): SceneHostStatus {
+		const content = this.mountedRoot ?? this.mountedScreen?.root ?? null;
 		return {
 			scene: this.sceneName,
 			requested: this.requestedName,
@@ -314,9 +344,7 @@ export class SceneHost {
 			paused: this.isPaused,
 			updates: this.updates,
 			renders: this.renders,
-			content: this.mountedRoot
-				? { width: this.mountedRoot.width, height: this.mountedRoot.height }
-				: null,
+			content: content ? { width: content.width, height: content.height } : null,
 			viewport: this.readViewport(),
 		};
 	}

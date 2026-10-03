@@ -117,6 +117,21 @@ describe('HandFan overlap', () => {
 		});
 	});
 
+	// The cards beside the middle turn without dropping far enough to hide
+	// their top corner, which poked 0.4 above the row and failed the lint once
+	// the stage scaled it past half a pixel at 1920x1080 (DDB-141)
+	it.each(COUNTS)('keeps every one of %i posed cards inside the row, top and bottom', (count) => {
+		const { fan, cards, root } = mountFan(532, count);
+		const [row] = fan.children;
+		const box = row.screenBounds;
+		for (const card of cards) {
+			const bounds = card.screenBounds;
+			expect(bounds.y).toBeGreaterThanOrEqual(box.y - 1e-6);
+			expect(bounds.y + bounds.height).toBeLessThanOrEqual(box.y + box.height + 1e-6);
+		}
+		root.unmount();
+	});
+
 	it('hides the row when the hand is empty, so nothing reports a zero size', () => {
 		const { fan, root } = mountFan(532, 3);
 		fan.cards = [];
