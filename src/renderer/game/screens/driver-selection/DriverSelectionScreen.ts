@@ -9,6 +9,7 @@ import { isSameDriver } from '../../mechanics/DriverPair';
 import { DriverLoader } from '../../core/DriverLoader';
 import { DriverPanel } from './DriverPanel';
 import { SynergyPreviewPanel } from './SynergyPreviewPanel';
+import { INSPECT_KEYS, inspectHotkey } from '../../ui/cardInspect';
 
 const BACK_BUTTON_WIDTH = 200;
 /** The driver panels' share of the body's width against the synergy column's. */
@@ -64,11 +65,12 @@ export class DriverSelectionScreen extends Screen {
 		this.sizePage();
 
 		this.rootLayer.hotkeys.register('Escape', () => this.back());
+		for (const key of INSPECT_KEYS) this.rootLayer.hotkeys.register(key, () => inspectHotkey(this.context));
 		this.loadDrivers();
 	}
 
 	protected onUnmount(): void {
-		this.rootLayer.hotkeys.unregister('Escape');
+		for (const key of ['Escape', ...INSPECT_KEYS]) this.rootLayer.hotkeys.unregister(key);
 		this.rootLayer.clearChildren();
 		this.selectedDriver1 = null;
 		this.selectedDriver2 = null;

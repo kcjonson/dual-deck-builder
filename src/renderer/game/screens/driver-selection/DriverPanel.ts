@@ -10,6 +10,7 @@ import { isSameDriver, nextOpenDriverIndex } from '../../mechanics/DriverPair';
 import { Card as UICard, CardSize } from '../../ui/Card';
 import { CardLoader } from '../../core/CardLoader';
 import { FlowWrap } from '../../ui/FlowWrap';
+import { inspectOnContextMenu, makeInspectable } from '../../ui/cardInspect';
 
 export type DriverPanelSide = 'left' | 'right';
 
@@ -191,8 +192,11 @@ export class DriverPanel extends Stack {
 			id: `${this.idPrefix}deck_cards`,
 			gap: DECK_CARD_SPACING,
 			justify: 'center',
+			// R9.29: one Tab stop for the whole deck, the arrows walking its cards
+			focusGroup: { orientation: 'horizontal' },
 		});
 		body.addChild(this.deckGrid);
+		inspectOnContextMenu(this.deckGrid);
 
 		// The driver choice, at the very bottom as the spec places it
 		this.driverSelect = new Select({
@@ -312,7 +316,7 @@ export class DriverPanel extends Stack {
 		this.partner = null;
 		this.empty = true;
 		this.deckRequest += 1;
-		this.deckGrid.clearChildren();
+		this.clearDeck();
 		this.deckScroll.scrollToTop();
 		this.driverSelect.value = null;
 		this.refreshOptions();
@@ -363,7 +367,7 @@ export class DriverPanel extends Stack {
 		}
 		if (request !== this.deckRequest) return;
 
-		this.deckGrid.clearChildren();
+		this.clearDeck();
 		this.deckScroll.scrollToTop();
 
 		const availableCards = cardLoader.getAllCardsAsMap();
@@ -379,14 +383,29 @@ export class DriverPanel extends Stack {
 		}
 	}
 
+	/** Empties the deck, taking down a preview still open on one of the cards going. */
+	private clearDeck(): void {
+		const tooltips = this.deckGrid.context?.tooltips;
+		for (let node: Component | null = tooltips?.owner ?? null; node; node = node.parent) {
+			if (node === this.deckGrid) {
+				tooltips?.hide();
+				break;
+			}
+		}
+		this.deckGrid.clearChildren();
+	}
+
 	/**
 	 * A mini card, and under it a badge with its count when the deck holds
 	 * more than one. The badge sits below the card rather than on its corner,
-	 * where it covered the cost.
+	 * where it covered the cost. Hovering or focusing the card opens the
+	 * detail view the hand shows (Game Flow Spec 1.2); it has no click, and
+	 * stays put rather than rising.
 	 */
 	private createDeckEntry(card: UICard, quantity: number): Component {
-		// Display only
-		card.enabled = false;
+		card.liftable = false;
+		card.focusable = true;
+		makeInspectable(card);
 		const entry = new Stack({
 			direction: 'vertical',
 			gap: QUANTITY_GAP,

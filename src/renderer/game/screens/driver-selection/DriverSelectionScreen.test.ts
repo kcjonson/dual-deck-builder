@@ -15,6 +15,9 @@ import { DriverLoader } from '../../core/DriverLoader';
 import { Driver } from '../../mechanics/Driver';
 import { isSameDriver } from '../../mechanics/DriverPair';
 import { Card as UICard, CardSize } from '../../ui/Card';
+import { CardInspectSurface } from '../../ui/cardInspect';
+import { advance, pointer, send } from '../../../engine/services/testing';
+import { tokens } from '../../../engine/theme/tokens';
 
 /**
  * DDB-98: both panels used to default to the first driver, so a run could start
@@ -64,8 +67,14 @@ function findAll<T extends Component>(layer: Component, type: new (...args: neve
 
 /** Mounted the way the page mounts screens, at the harness's fixed viewport, with measured text. */
 let context: MountContext;
+let viewportSize = { width: 1440, height: 882 };
 beforeEach(() => {
-	context = createTestContext({ draw: createMeasuringDrawApi().api, clock: new Clock() });
+	viewportSize = { width: 1440, height: 882 };
+	context = createTestContext({
+		draw: createMeasuringDrawApi().api,
+		viewport: { get logical() { return viewportSize; } },
+		clock: new Clock(),
+	});
 });
 
 function flushPromises(): Promise<void> {
@@ -212,12 +221,16 @@ describe('DriverSelectionScreen: one driver per slot', () => {
 		expect(navigate).toHaveBeenCalledWith('mainMenuScreen', undefined, { restoreFocus: true });
 	});
 
-	it('tabs in reading order: Back, the two driver Selects, START RUN (R9.18)', async () => {
+	it("tabs in reading order: Back, each panel's deck then its Select, START RUN (R9.18, R9.29)", async () => {
 		const { screen } = await mountScreen();
 		context.focus.pushScope(screen.root);
-		expect(context.focus.tabOrder.map(component => component.id)).toEqual([
+		// A deck is one stop, landing on its first card
+		const stops = context.focus.tabOrder.map(component => (component instanceof UICard ? component.parent?.parent?.id : component.id));
+		expect(stops).toEqual([
 			'driver_select_back_button',
+			'driver_panel_left_deck_cards',
 			'driver_panel_left_driver_select',
+			'driver_panel_right_deck_cards',
 			'driver_panel_right_driver_select',
 			'driver_select_start_run_button',
 		]);
@@ -352,5 +365,172 @@ describe('DriverSelectionScreen: one driver per slot', () => {
 		const cards = findAll(left.deckPreview, UICard);
 		expect(cards.length).toBe(left.selectedDriver?.startingDeck.cards.length);
 		expect(left.selectedDriver).toBe(screen.selectedDrivers.driver1);
+	});
+	describe('starting deck card preview (DDB-226)', () => {
+		function miniCards(panel: DriverPanel): UICard[] {
+			return findAll(panel.deckPreview, UICard);
+		}
+
+		function centre(card: UICard): { x: number; y: number } {
+			const bounds = card.screenBounds;
+			return { x: bounds.x + bounds.width / 2, y: bounds.y + bounds.height / 2 };
+		}
+
+		it('gives every mini card the shared detail view, for its own card', async () => {
+			const { left } = await mountScreen();
+			const cards = miniCards(left);
+			expect(cards.length).toBeGreaterThan(0);
+			for (const card of cards) {
+				expect(card.tooltip?.factory).toBeDefined();
+				expect(card.tooltip?.immediateOnFocus).toBe(true);
+				context.tooltips.show(card, { fade: false });
+				const surface = context.tooltips.surface;
+				expect(surface).toBeInstanceOf(CardInspectSurface);
+				if (surface instanceof CardInspectSurface) expect(surface.view.detail.data).toBe(card.data);
+				context.tooltips.hide();
+				context.animator.settle();
+			}
+		});
+
+		it('shows on hover after the tooltip delay and hides when the pointer leaves', async () => {
+			const { left } = await mountScreen();
+			const card = miniCards(left)[0];
+			const over = centre(card);
+			send(context, [pointer('move', over.x, over.y)]);
+			expect(context.tooltips.surface).toBeNull();
+			advance(context, tokens.control.tooltip_delay + tokens.motion.dur_fast + 100);
+			expect(context.tooltips.owner).toBe(card);
+			expect(context.tooltips.surface).toBeInstanceOf(CardInspectSurface);
+
+			send(context, [pointer('move', 2, 2)]);
+			advance(context, tokens.motion.dur_tooltip_hide + 100);
+			expect(context.tooltips.surface).toBeNull();
+			expect(context.tooltips.owner).toBeNull();
+		});
+
+		it('shows at once on keyboard focus and hides on blur', async () => {
+			const { screen, left } = await mountScreen();
+			context.focus.pushScope(screen.root);
+			const card = miniCards(left)[0];
+			context.focus.focus(card, 'keyboard');
+			context.frame.layout();
+			expect(context.tooltips.owner).toBe(card);
+			expect(context.tooltips.surface).toBeInstanceOf(CardInspectSurface);
+
+			context.focus.focus(left.select, 'keyboard');
+			advance(context, tokens.motion.dur_tooltip_hide + 100);
+			expect(context.tooltips.surface).toBeNull();
+			context.focus.popScope(screen.root);
+		});
+
+		it('moves between cards with the arrows, each showing its preview', async () => {
+			const { screen, left } = await mountScreen();
+			context.focus.pushScope(screen.root);
+			const [first, second] = miniCards(left);
+			context.focus.focus(first, 'keyboard');
+			press('ArrowRight');
+			expect(context.focus.focused).toBe(second);
+			expect(context.tooltips.owner).toBe(second);
+			context.tooltips.hide();
+			context.focus.popScope(screen.root);
+		});
+
+		it.each([[1280, 720], [1024, 600], [800, 450], [640, 400]])('keeps the preview on screen at %ix%i for every card in both panels', async (width, height) => {
+			viewportSize = { width, height };
+			const { screen, left, right } = await mountScreen();
+			screen.resize(width, height);
+			context.frame.layout();
+			for (const card of [...miniCards(left), ...miniCards(right)]) {
+				context.tooltips.show(card, { fade: false });
+				const surface = context.tooltips.surface;
+				if (!(surface instanceof CardInspectSurface)) throw new Error('a mini card shows the detail view');
+				const bounds = surface.screenBounds;
+				expect(bounds.x).toBeGreaterThanOrEqual(-1e-6);
+				expect(bounds.y).toBeGreaterThanOrEqual(-1e-6);
+				expect(bounds.x + bounds.width).toBeLessThanOrEqual(width + 1e-6);
+				expect(bounds.y + bounds.height).toBeLessThanOrEqual(height + 1e-6);
+				context.tooltips.hide();
+				context.animator.settle();
+			}
+		});
+
+		it('takes the preview down when the deck is rebuilt under it', async () => {
+			const { left } = await mountScreen();
+			const card = miniCards(left)[0];
+			context.tooltips.show(card, { fade: false });
+			expect(context.tooltips.surface).not.toBeNull();
+
+			pickNextOpen(left);
+			await flushPromises();
+			context.frame.layout();
+
+			advance(context, tokens.motion.dur_tooltip_hide + 100);
+			expect(context.tooltips.surface).toBeNull();
+			expect(context.tooltips.owner).toBeNull();
+			expect(context.tooltips.state).toBe('idle');
+			expect(card.isMounted).toBe(false);
+		});
+
+		it('takes a pinned preview down when the driver changes', async () => {
+			const { left } = await mountScreen();
+			const card = miniCards(left)[0];
+			context.tooltips.pin(card, { fade: false });
+			expect(context.tooltips.pinned).toBe(card);
+
+			pickNextOpen(left);
+			await flushPromises();
+			context.frame.layout();
+
+			advance(context, tokens.motion.dur_tooltip_hide + 100);
+			expect(context.tooltips.pinned).toBeNull();
+			expect(context.tooltips.surface).toBeNull();
+		});
+
+		it('leaves a preview on the other panel alone when this one rebuilds', async () => {
+			const { left, right } = await mountScreen();
+			const card = miniCards(right)[0];
+			context.tooltips.show(card, { fade: false });
+
+			pickNextOpen(left);
+			await flushPromises();
+			context.frame.layout();
+
+			expect(context.tooltips.owner).toBe(card);
+			context.tooltips.hide();
+		});
+
+		it('rebuilds with one set of previewable cards after overlapping selections', async () => {
+			const { left } = await mountScreen();
+			mockCards.loaded = false;
+			pickNextOpen(left);
+			pickNextOpen(left);
+			await flushPromises();
+			context.frame.layout();
+
+			const cards = miniCards(left);
+			expect(cards.length).toBe(left.selectedDriver?.startingDeck.cards.length);
+			expect(cards.every(card => card.tooltip !== null && card.isMounted)).toBe(true);
+		});
+
+		it('pins on I and lets go on the next I, as the preview footer says', async () => {
+			const { screen, left } = await mountScreen();
+			context.focus.pushScope(screen.root);
+			const card = miniCards(left)[0];
+			context.focus.focus(card, 'keyboard');
+			press('i');
+			expect(context.tooltips.pinned).toBe(card);
+			press('i');
+			expect(context.tooltips.pinned).toBeNull();
+			context.tooltips.hide();
+			context.focus.popScope(screen.root);
+		});
+
+		it('takes the preview down on reset', async () => {
+			const { left } = await mountScreen();
+			context.tooltips.show(miniCards(left)[0], { fade: false });
+			left.reset();
+			advance(context, tokens.motion.dur_tooltip_hide + 100);
+			expect(context.tooltips.surface).toBeNull();
+		});
 	});
 });
