@@ -14,8 +14,8 @@ This document contains the chronological log of completed development tasks for 
 - `ScreenManager` registers `developerScreen` through a `require` in a folded branch, and `navigate` refuses an unregistered name before it fades or unmounts anything.
 - The main menu's Developer Tools button is built only in a development build.
 - `productionBuild.test.ts` runs the game, the screen manager, and the main menu with the flag false: no registered developer screen, a refused navigate that leaves the screen mounted, no menu button, no overlay constructed, F5 and F12 inert.
-- Verified on the bundles, not in CI: nine overlay and developer-screen strings are absent from `npm run build:web` output and present in a development build, and present again in a production build with the flag forced true (so minification is not what hides them). The frame timer stays in production by decision.
-- Chapter 14's "Dev-only build exclusion" row is yes. Decision record: [gpu-timer-and-perf-capture.md](./AI_TECHNICAL_DECISIONS/gpu-timer-and-perf-capture.md).
+- Verified on the bundles, not in CI: thirteen overlay, developer-screen and gallery-section strings are absent from `npm run build:web` output and present in a development build, and present again in a production build with the flag forced true (so minification is not what hides them). The frame timer, the draw counters and debug logging stay in production as recorded departures.
+- Chapter 14's "Dev-only build exclusion" row is partial for those departures (R13.42 and R13.43 are known gaps). Decision record: [gpu-timer-and-perf-capture.md](./AI_TECHNICAL_DECISIONS/gpu-timer-and-perf-capture.md).
 
 ## The battle screen fit suite (2026-10-02)
 

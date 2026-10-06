@@ -86,9 +86,9 @@ export class Game {
 		this.device = device;
 		this.gpuTimer = gpuTimer;
 		if (__DEV_TOOLS__) {
-			// Required inside the folded branch, not imported, so a production
-			// bundle never carries the overlay (R13.2); see `init`. Off until
-			// F5, so nothing it draws reaches a golden.
+			// Required, not imported, for the reason the debug hooks' require
+			// in `init` states (R13.2). Off until F5, so nothing it draws
+			// reaches a golden.
 			// eslint-disable-next-line @typescript-eslint/no-var-requires
 			const { DeveloperOverlay: Overlay } = require('../engine/ui/DeveloperOverlay') as typeof import('../engine/ui/DeveloperOverlay');
 			this.developerOverlay = new Overlay({
@@ -159,13 +159,9 @@ export class Game {
 	public async init(): Promise<void> {
 		// Initialize the ScreenManager
 		ScreenManager.initialize(this.context);
-		// F5 and F12 are development tooling (R13.2), registered only inside
-		// the folded branch: a production build has neither hotkey, and
-		// nothing in it names the developer screen.
-		//
-		// They are hotkeys like any other, so they arrive through the platform
-		// adapter: a keydown an input method is composing never fires them
-		// (R15.39), and pause drops them at the queue (R13.35). F12 is the
+		// F5 and F12 are hotkeys like any other, so they arrive through the
+		// platform adapter: a keydown an input method is composing never fires
+		// them (R15.39), and pause drops them at the queue (R13.35). F12 is the
 		// scene's table, searched last, so a screen transition (a modal root,
 		// R12.38) or a modal dialog holds it. F5 is the overlay's own, and a
 		// diagnostic root is searched before any UI root, so it stays live under

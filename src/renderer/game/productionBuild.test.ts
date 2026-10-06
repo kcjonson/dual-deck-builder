@@ -23,10 +23,24 @@ import type { MainMenuScreen as MainMenuScreenType } from './screens/main-menu/M
  */
 
 const overlayConstructed = jest.fn();
+// A stub with inert members, so a production path that builds the overlay
+// again fails the assertions below instead of throwing a TypeError.
 jest.mock('../engine/ui/DeveloperOverlay', () => ({
 	DeveloperOverlay: class {
+		public readonly hotkeys = { register: () => undefined };
+		public viewportWidth = 0;
+		public shown = false;
 		constructor() {
 			overlayConstructed();
+		}
+		public mount(): void {
+			/* nothing to mount */
+		}
+		public toggle(): void {
+			/* nothing to toggle */
+		}
+		public update(): void {
+			/* nothing to update */
 		}
 	},
 }));
@@ -56,6 +70,8 @@ const context = createTestContext({
 beforeAll(() => {
 	jest.spyOn(console, 'log').mockImplementation(() => undefined);
 	jest.spyOn(console, 'error').mockImplementation(() => undefined);
+	// The refused-navigate test initializes ScreenManager, and Game.init does too.
+	jest.spyOn(console, 'warn').mockImplementation(() => undefined);
 	globals.__DEV_TOOLS__ = false;
 	// ScreenManager first, as the game loads it (see ScreenManager.test).
 	/* eslint-disable @typescript-eslint/no-var-requires */
@@ -102,6 +118,8 @@ describe('a production build (R13.2)', () => {
 		await game.init();
 		navigate.mockClear();
 
+		expect(context.dispatcher.claimsKey('F5')).toBe(false);
+		expect(context.dispatcher.claimsKey('F12')).toBe(false);
 		send(context, [key('F5'), key('F12')]);
 
 		expect(overlayConstructed).not.toHaveBeenCalled();

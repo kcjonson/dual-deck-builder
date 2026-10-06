@@ -54,6 +54,24 @@ describe('ScreenManager.navigate', () => {
 		expect(context.overlays.roots).toHaveLength(0);
 	});
 
+	it('lists the developer screen third in a development build, where a capture script expects it', () => {
+		expect(ScreenManager.screenNames.slice(0, 4)).toEqual(['splashScreen', 'mainMenuScreen', 'developerScreen', 'cardShowcaseScreen']);
+	});
+
+	it('refuses a name nothing registers, leaving the screen mounted and no transition running', () => {
+		const error = jest.spyOn(console, 'error').mockImplementation(() => undefined);
+		const before = ScreenManager.activeScreen;
+
+		ScreenManager.navigate('noSuchScreen' as unknown as 'mainMenuScreen');
+		ScreenManager.navigate('noSuchScreen' as unknown as 'mainMenuScreen', undefined, { immediate: true });
+
+		expect(error).toHaveBeenCalledTimes(2);
+		expect(ScreenManager.getCurrentScreenName()).toBe('mainMenuScreen');
+		expect(ScreenManager.activeScreen).toBe(before);
+		expect(ScreenManager.transitioning).toBe(false);
+		error.mockRestore();
+	});
+
 	it('fades out, swaps, and fades in, with the outgoing screen up until the swap', () => {
 		ScreenManager.navigate('battleResultScreen', VICTORY);
 		expect(ScreenManager.transitioning).toBe(true);
