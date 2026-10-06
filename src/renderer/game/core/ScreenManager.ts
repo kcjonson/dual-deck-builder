@@ -3,7 +3,6 @@ import type { DrawApi } from '../../engine/draw/DrawApi';
 import type { MountContext } from '../../engine/components/MountContext';
 import { SplashScreen } from '../screens/splash/SplashScreen';
 import { MainMenuScreen } from '../screens/main-menu/MainMenuScreen';
-import { DeveloperScreen } from '../screens/developer/DeveloperScreen';
 import { CardShowcaseScreen } from '../screens/card-showcase/CardShowcaseScreen';
 import { DriverSelectionScreen } from '../screens/driver-selection/DriverSelectionScreen';
 import { CombatScreen } from '../screens/combat/CombatScreen';
@@ -30,6 +29,19 @@ export type ScreenName =
  * Screen constructor type
  */
 type ScreenConstructor = new () => Screen;
+
+/**
+ * The developer screen holds every gallery section, so it is development
+ * tooling (R13.2): required inside a branch DefinePlugin folds to false, which
+ * keeps the module out of a production bundle where an ES import would not.
+ * Without it registered, `navigate('developerScreen')` is refused.
+ */
+function developerScreens(): [ScreenName, ScreenConstructor][] {
+	if (!__DEV_TOOLS__) return [];
+	// eslint-disable-next-line @typescript-eslint/no-var-requires
+	const { DeveloperScreen } = require('../screens/developer/DeveloperScreen') as typeof import('../screens/developer/DeveloperScreen');
+	return [['developerScreen', DeveloperScreen]];
+}
 
 export interface NavigateOptions {
 	/**
@@ -69,13 +81,13 @@ export class ScreenManager {
 	private static readonly screenConstructors: Map<ScreenName, ScreenConstructor> = new Map<ScreenName, ScreenConstructor>([
 		['splashScreen', SplashScreen],
 		['mainMenuScreen', MainMenuScreen],
-		['developerScreen', DeveloperScreen],
 		['cardShowcaseScreen', CardShowcaseScreen],
 		['driverSelectionScreen', DriverSelectionScreen],
 		['combatScreen', CombatScreen],
 		['battleResultScreen', BattleResultScreen],
 		['settingsScreen', SettingsScreen],
 		['creditsScreen', CreditsScreen],
+		...developerScreens(),
 	]);
 	
 	/**
@@ -108,6 +120,12 @@ export class ScreenManager {
 		const transition = this.transition;
 		if (!context || !transition) {
 			throw new Error('ScreenManager not initialized. Call ScreenManager.initialize() first');
+		}
+		// Checked here, before the fade, because mountScreen unmounts the
+		// current screen before it looks the name up.
+		if (!this.isScreenName(screenName)) {
+			console.error(`ScreenManager: Unknown screen: ${screenName}`);
+			return;
 		}
 		this.recordFocus(context);
 		const swap = () => this.swap(context, screenName, data, restoreFocus);

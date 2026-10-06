@@ -2,7 +2,7 @@ import { DrawApi } from '../engine/draw';
 import type { CanvasViewport } from '../engine/rendering/CanvasViewport';
 import { FrameTimer, PerfSnapshot } from '../engine/rendering/FrameTimer';
 import type { GpuTimer } from '../engine/rendering/GpuTimer';
-import { DeveloperOverlay } from '../engine/ui/DeveloperOverlay';
+import type { DeveloperOverlay } from '../engine/ui/DeveloperOverlay';
 import { renderTree } from '../engine/components/renderTree';
 import { ScreenManager } from './core/ScreenManager';
 import type { MountContext } from '../engine/components/MountContext';
@@ -69,7 +69,8 @@ export class Game {
 	private viewport: CanvasViewport;
 	private device: DeviceInfo;
 	private gpuTimer: GpuTimer | null;
-	private developerOverlay: DeveloperOverlay;
+	/** Built only in a development build (R13.2); null in production. */
+	private developerOverlay: DeveloperOverlay | null = null;
 	private isElectron = false;
 	private isInitialized = false;
 	/** R13.32's pause. Only reachable through window.__app in a dev build. */
@@ -84,17 +85,23 @@ export class Game {
 		this.viewport = viewport;
 		this.device = device;
 		this.gpuTimer = gpuTimer;
-		// Off until F5, so nothing it draws reaches a golden.
-		this.developerOverlay = new DeveloperOverlay({
-			snapshot: this.perfSnapshot,
-			viewportWidth: viewport.logical.width,
-		});
+		if (__DEV_TOOLS__) {
+			// Required inside the folded branch, not imported, so a production
+			// bundle never carries the overlay (R13.2); see `init`. Off until
+			// F5, so nothing it draws reaches a golden.
+			// eslint-disable-next-line @typescript-eslint/no-var-requires
+			const { DeveloperOverlay: Overlay } = require('../engine/ui/DeveloperOverlay') as typeof import('../engine/ui/DeveloperOverlay');
+			this.developerOverlay = new Overlay({
+				snapshot: this.perfSnapshot,
+				viewportWidth: viewport.logical.width,
+			});
+		}
 		viewport.onChange(({ width, height }) => {
 			// Roots sized from the viewport re-lay out on their own (R8.21).
 			this.context.frame.viewportChanged();
 			ScreenManager.resize(width, height);
 			this.context.overlays.resize();
-			this.developerOverlay.viewportWidth = width;
+			if (this.developerOverlay) this.developerOverlay.viewportWidth = width;
 		});
 		if (reducedMotion) {
 			reducedMotion.override = motionOverride(settings.motion);
@@ -152,14 +159,39 @@ export class Game {
 	public async init(): Promise<void> {
 		// Initialize the ScreenManager
 		ScreenManager.initialize(this.context);
-		// A root of its own, drawn after the screen and its overlays as a
-		// diagnostic domain (R3.21), so it is hit-tested last too.
-		this.developerOverlay.mount(this.context, { tier: 'diagnostic' });
+		// F5 and F12 are development tooling (R13.2), registered only inside
+		// the folded branch: a production build has neither hotkey, and
+		// nothing in it names the developer screen.
+		//
+		// They are hotkeys like any other, so they arrive through the platform
+		// adapter: a keydown an input method is composing never fires them
+		// (R15.39), and pause drops them at the queue (R13.35). F12 is the
+		// scene's table, searched last, so a screen transition (a modal root,
+		// R12.38) or a modal dialog holds it. F5 is the overlay's own, and a
+		// diagnostic root is searched before any UI root, so it stays live under
+		// both. Inline rather than a method for the reason `roots` is below.
+		const developerOverlay = this.developerOverlay;
+		if (__DEV_TOOLS__ && developerOverlay) {
+			// A root of its own, drawn after the screen and its overlays as a
+			// diagnostic domain (R3.21), so it is hit-tested last too.
+			developerOverlay.mount(this.context, { tier: 'diagnostic' });
+			developerOverlay.hotkeys.register('F5', ({ repeat }) => {
+				if (repeat) return;
+				developerOverlay.toggle();
+				// The GPU timer costs frame time on some drivers, so it runs
+				// only while someone is looking at what it reports.
+				if (this.gpuTimer) this.gpuTimer.enabled = developerOverlay.shown;
+			});
+			this.context.dispatcher.hotkeys.register('F12', ({ repeat }) => {
+				if (repeat) return;
+				const leaving = ScreenManager.getCurrentScreenName() === 'developerScreen';
+				if (leaving) ScreenManager.navigate('mainMenuScreen', undefined, { restoreFocus: true });
+				else ScreenManager.navigate('developerScreen');
+			});
+		}
 
 		// Start with the splash screen, which fades itself in
 		ScreenManager.navigate('splashScreen', undefined, { immediate: true });
-
-		this.registerHotkeys();
 
 		if (__DEV_TOOLS__) {
 			// Required, not imported: with tsconfig `module: commonjs` webpack
@@ -218,7 +250,7 @@ export class Game {
 					const screen = ScreenManager.activeScreen;
 					if (screen) roots.push(screen.root);
 					roots.push(...this.context.overlays.roots);
-					if (this.developerOverlay.shown) roots.push(this.developerOverlay);
+					if (this.developerOverlay?.shown) roots.push(this.developerOverlay);
 					return roots;
 				},
 				viewport: () => ({ ...this.viewport.logical, ratio: this.viewport.state.ratio }),
@@ -246,31 +278,6 @@ export class Game {
 	});
 
 	/**
-	 * F5 toggles the perf overlay and F12 the developer screen. They are
-	 * hotkeys like any other, so they arrive through the platform adapter: a
-	 * keydown an input method is composing never fires them (R15.39), and
-	 * pause drops them at the queue (R13.35). F12 is the scene's table,
-	 * searched last, so a screen transition (a modal root, R12.38) or a modal
-	 * dialog holds it. F5 is the overlay's own, and a diagnostic root is
-	 * searched before any UI root, so it stays live under both.
-	 */
-	private registerHotkeys(): void {
-		this.developerOverlay.hotkeys.register('F5', ({ repeat }) => {
-			if (repeat) return;
-			this.developerOverlay.toggle();
-			// The GPU timer costs frame time on some drivers, so it runs
-			// only while someone is looking at what it reports.
-			if (this.gpuTimer) this.gpuTimer.enabled = this.developerOverlay.shown;
-		});
-		this.context.dispatcher.hotkeys.register('F12', ({ repeat }) => {
-			if (repeat) return;
-			const leaving = ScreenManager.getCurrentScreenName() === 'developerScreen';
-			if (leaving) ScreenManager.navigate('mainMenuScreen', undefined, { restoreFocus: true });
-			else ScreenManager.navigate('developerScreen');
-		});
-	}
-
-	/**
 	 * Update the game state
 	 * @param dt Time elapsed since last frame in seconds
 	 */
@@ -284,8 +291,7 @@ export class Game {
 		this.context.frame.update(dt);
 		ScreenManager.update(dt);
 		
-		// Update developer overlay
-		this.developerOverlay.update();
+		this.developerOverlay?.update();
 	}
 
 	/**
@@ -314,8 +320,7 @@ export class Game {
 		ScreenManager.render(this.draw);
 		this.context.overlays.render(this.draw);
 
-		// Render developer overlay on top
-		renderTree(this.developerOverlay, this.draw);
+		if (this.developerOverlay) renderTree(this.developerOverlay, this.draw);
 	}
 
 	/**
