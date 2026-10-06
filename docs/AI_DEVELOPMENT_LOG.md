@@ -6,6 +6,15 @@ This document contains the chronological log of completed development tasks for 
 
 **Date correction (2026-08-22):** the repo's first commit is 2025-05-17, but many entries below carry dates in December 2024 or January 2025 — the AI that wrote them used its assumed date instead of the real one. Entries dated 2025-07-03 and 2025-07-02 have been corrected from "2025-01-03"/"2025-01-02" (verified against git history). Remaining Dec 2024 / Jan 2025 dates are wrong by roughly six months; the real work happened May–July 2025. Trust git history over these dates.
 
+## Canvas input hygiene (2026-10-06)
+
+**What landed:** DDB-250. R15.39's canvas handling and R9.1's wheel fields.
+
+- `PointerAdapter` listens to `contextmenu` on the canvas and prevents it, so a right-click no longer opens the browser menu over the game (the dispatcher already synthesises its own `contextmenu` from a secondary press). It sets `user-select: none` beside the existing `touch-action: none`, and `detach` restores both to what the canvas had.
+- `UiWheelEvent` stores `isPrimary`, `pressure`, `button` and `buttons`. The dispatcher takes a wheel's `pointerType` and `isPrimary` from the hovering pointer's identity instead of hard-coding a mouse; with no pointer seen it is still the primary mouse, id 1.
+- Tests: new `PointerAdapter.test.ts` (default prevented, styles set and restored, listener removed) and wheel field cases in `Dispatcher.test.ts`.
+- Chapter 14: the "WebGL2 backend rules" row drops its R15.39 gap (R15.34 stays); the "Event fields" row stays partial for `char` (DDB-254).
+
 ## The battle screen fit suite (2026-10-02)
 
 **What landed:** DDB-141 (DDB-127). The battle screen mock's fit matrix, on the real screen.

@@ -871,15 +871,19 @@ export class Dispatcher {
 		const [deltaX, deltaY] = normaliseWheel(input, target);
 		if (scroller) this.latch = { scroller, lastTime: now };
 
+		// R9.1: a wheel belongs to the pointer the cursor last moved with; with
+		// none yet seen it is the platform default, a primary mouse.
+		const pointerId = this.hoverPosition?.pointerId ?? 1;
+		const identity = this.identities.get(pointerId);
 		this.bubble(new UiWheelEvent({
 			timestamp: now,
 			target,
 			screen: { x: input.x, y: input.y },
 			deltaX,
 			deltaY,
-			pointerId: this.hoverPosition?.pointerId ?? 1,
-			pointerType: 'mouse',
-			isPrimary: true,
+			pointerId,
+			pointerType: identity?.pointerType ?? 'mouse',
+			isPrimary: identity?.isPrimary ?? true,
 			pressure: 0,
 			button: -1,
 			buttons: 0,

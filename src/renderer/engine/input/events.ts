@@ -158,6 +158,10 @@ export class UiWheelEvent extends UiEvent {
 	public readonly deltaY: number;
 	public readonly pointerId: number;
 	public readonly pointerType: PointerType;
+	public readonly isPrimary: boolean;
+	public readonly pressure: number;
+	public readonly button: number;
+	public readonly buttons: number;
 	public readonly modifiers: Modifiers;
 
 	constructor(init: WheelEventInit) {
@@ -167,6 +171,10 @@ export class UiWheelEvent extends UiEvent {
 		this.deltaY = init.deltaY;
 		this.pointerId = init.pointerId;
 		this.pointerType = init.pointerType;
+		this.isPrimary = init.isPrimary;
+		this.pressure = init.pressure;
+		this.button = init.button;
+		this.buttons = init.buttons;
 		this.modifiers = init.modifiers;
 	}
 

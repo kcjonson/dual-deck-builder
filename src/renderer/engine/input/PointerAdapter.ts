@@ -21,8 +21,10 @@ type DomPointerEvent = MouseEvent & Partial<Pick<PointerEvent, 'pointerId' | 'po
  * Pointer Events carry `pointerId`, `pointerType`, `isPrimary` and
  * `pressure` for mouse, touch, and pen alike (R9.1), and already deliver
  * chorded buttons as moves (R9.30). The canvas gets `touch-action: none` so a
- * touch is a pointer rather than a page pan, and captures each pressed
- * pointer at the DOM level so a release outside the canvas still arrives.
+ * touch is a pointer rather than a page pan, `user-select: none` so a drag
+ * never selects page text, and no browser context menu; detach restores both
+ * styles. It captures each pressed pointer at the DOM level so a release
+ * outside the canvas still arrives.
  * Keys are read on `window`, where a key event ends up wherever focus is.
  */
 export class PointerAdapter {
@@ -30,6 +32,7 @@ export class PointerAdapter {
 	private readonly uiScale: number;
 	private canvas: HTMLCanvasElement | null = null;
 	private previousTouchAction = '';
+	private previousUserSelect = '';
 
 	constructor({ dispatcher, uiScale = 1 }: PointerAdapterOptions) {
 		this.dispatcher = dispatcher;
@@ -41,6 +44,9 @@ export class PointerAdapter {
 		this.canvas = canvas;
 		this.previousTouchAction = canvas.style.touchAction ?? '';
 		canvas.style.touchAction = 'none';
+		this.previousUserSelect = canvas.style.userSelect ?? '';
+		canvas.style.userSelect = 'none';
+		canvas.addEventListener('contextmenu', this.handleContextMenu);
 		canvas.addEventListener('pointerdown', this.handlePointerDown);
 		canvas.addEventListener('pointermove', this.handlePointerMove);
 		canvas.addEventListener('pointerup', this.handlePointerUp);
@@ -56,6 +62,8 @@ export class PointerAdapter {
 		const canvas = this.canvas;
 		if (!canvas) return;
 		canvas.style.touchAction = this.previousTouchAction;
+		canvas.style.userSelect = this.previousUserSelect;
+		canvas.removeEventListener('contextmenu', this.handleContextMenu);
 		canvas.removeEventListener('pointerdown', this.handlePointerDown);
 		canvas.removeEventListener('pointermove', this.handlePointerMove);
 		canvas.removeEventListener('pointerup', this.handlePointerUp);
@@ -67,6 +75,12 @@ export class PointerAdapter {
 		window.removeEventListener('blur', this.handleBlur);
 		this.canvas = null;
 	}
+
+	private handleContextMenu = (event: Event): void => {
+		// R15.39: the dispatcher synthesises its own contextmenu from a secondary
+		// press, so the browser's menu never opens over the game.
+		event.preventDefault();
+	};
 
 	private handlePointerDown = (event: DomPointerEvent): void => {
 		this.enqueuePointer(event, 'down');

@@ -688,6 +688,54 @@ describe('wheel (R9.3, R9.32)', () => {
 		wheel(50, 50, 40, { shift: true });
 		expect(deltas).toEqual([[40, 0]]);
 	});
+
+	describe('event fields (R9.1)', () => {
+		type WheelEvent = Extract<AnyUiEvent, { type: 'wheel' }>;
+
+		function mountWheelProbe(): WheelEvent[] {
+			const wheels: WheelEvent[] = [];
+			class Spy extends Probe {
+				public handleEvent(event: AnyUiEvent): void {
+					super.handleEvent(event);
+					if (event.type === 'wheel') wheels.push(event);
+				}
+			}
+			mount(new Spy({ id: 'spy', width: 100, height: 100 }));
+			return wheels;
+		}
+
+		it('carries the primary mouse defaults when no pointer has been seen', () => {
+			const wheels = mountWheelProbe();
+			wheel(50, 50, 10);
+			expect(wheels).toHaveLength(1);
+			expect(wheels[0]).toMatchObject({
+				pointerId: 1,
+				pointerType: 'mouse',
+				isPrimary: true,
+				pressure: 0,
+				button: -1,
+				buttons: 0,
+			});
+		});
+
+		it('takes the pointer type and id from the pointer that is hovering', () => {
+			const wheels = mountWheelProbe();
+			send(pointer('move', 50, 50, { pointerId: 7, pointerType: 'pen' }));
+			wheel(50, 50, 10);
+			expect(wheels[0]).toMatchObject({ pointerId: 7, pointerType: 'pen', isPrimary: true });
+		});
+
+		it('follows the hovering pointer when it changes, and keeps the defaults of the first mouse after a leave', () => {
+			const wheels = mountWheelProbe();
+			send(pointer('move', 50, 50, { pointerId: 7, pointerType: 'pen' }));
+			send(pointer('move', 50, 50, { pointerId: 2, pointerType: 'mouse' }));
+			wheel(50, 50, 10);
+			expect(wheels[0]).toMatchObject({ pointerId: 2, pointerType: 'mouse' });
+			send({ kind: 'leave', pointerId: 2 });
+			wheel(50, 50, 10);
+			expect(wheels[1]).toMatchObject({ pointerId: 1, pointerType: 'mouse' });
+		});
+	});
 });
 
 describe('keys (R9.15)', () => {
