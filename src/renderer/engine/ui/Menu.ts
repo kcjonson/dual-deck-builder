@@ -1,4 +1,4 @@
-import { Component, ComponentOptions, PointerEvents, ResolvedColors } from '../components/Component';
+import { Component, ComponentOptions, Cursor, PointerEvents, ResolvedColors } from '../components/Component';
 import type { DrawApi } from '../draw/DrawApi';
 import type { Rect } from '../draw/geometry';
 import type { AnyUiEvent, UiPointerEvent } from '../input/events';
@@ -70,6 +70,10 @@ class MenuRows extends Component {
 
 	protected get defaultPointerEvents(): PointerEvents {
 		return 'auto';
+	}
+
+	protected get defaultCursor(): Cursor | null {
+		return 'pointer';
 	}
 
 	public get handlesPointer(): boolean {

@@ -146,6 +146,13 @@ describe('Card state', () => {
 		context = createTestContext({ draw: createMeasuringDrawApi().api });
 	});
 
+	it('shows the pointer cursor only once something listens for its click (R8.2)', () => {
+		const card = build(cardData[0], 1);
+		expect(card.cursor).toBeNull();
+		card.onSelect = () => undefined;
+		expect(card.cursor).toBe('pointer');
+	});
+
 	it('rises by its transform when hovered or selected, leaving its position to layout', () => {
 		const card = build(cardData[0], 1);
 		card.setPosition(40, 25);

@@ -55,6 +55,9 @@ import { tokens } from '../theme/tokens';
  */
 export type PointerEvents = 'auto' | 'passthrough' | 'unit' | 'none';
 
+/** R8.2's `cursor`: what the canvas shows over a component, as the CSS keyword of the same name. */
+export type Cursor = 'default' | 'pointer' | 'text';
+
 export type Overflow = 'visible' | 'hidden';
 
 /**
@@ -93,6 +96,8 @@ export interface ComponentOptions {
 	margin?: MarginInput;
 	transform?: TransformInput;
 	pointerEvents?: PointerEvents;
+	/** R8.2. Null or absent takes the kind's default: `pointer` on pressables, `text` on text fields, otherwise inherited. */
+	cursor?: Cursor | null;
 	/** Clips only once width and height are both positive. */
 	overflow?: Overflow;
 	/** Fired after a layout in which this component's bounds changed, including the first (R8.21). */
@@ -206,6 +211,7 @@ export abstract class Component {
 	private ownMargin: Sides = ZERO_SIDES;
 	private ownTransform: ComponentTransform = IDENTITY_TRANSFORM;
 	private ownPointerEvents: PointerEvents;
+	private ownCursor: Cursor | null = null;
 	private ownOverflow: Overflow = 'visible';
 	private tooltipSpec: TooltipSpec | null = null;
 	private hoverState = false;
@@ -292,6 +298,7 @@ export abstract class Component {
 		if (options.margin !== undefined) this.ownMargin = normalizeSides(options.margin);
 		if (options.transform !== undefined) this.ownTransform = normalizeTransform(options.transform);
 		if (options.pointerEvents !== undefined) this.ownPointerEvents = options.pointerEvents;
+		if (options.cursor !== undefined) this.ownCursor = options.cursor;
 		if (options.overflow !== undefined) this.overflow = options.overflow;
 		if (options.onLayout) this.onLayout = options.onLayout;
 		if (options.onPointerDown) this.onPointerDown = options.onPointerDown;
@@ -408,6 +415,26 @@ export abstract class Component {
 	 */
 	protected get defaultPointerEvents(): PointerEvents {
 		return 'auto';
+	}
+
+	/**
+	 * R8.2's `cursor`, which the dispatcher reads from the innermost hovered
+	 * component outward: the first one that is not null decides (`default`
+	 * if it is disabled), and with none the canvas shows `default`. Setting
+	 * null goes back to the kind's default.
+	 * Neither paint nor layout reads it (R8.18).
+	 */
+	public get cursor(): Cursor | null {
+		return this.ownCursor ?? this.defaultCursor;
+	}
+
+	public set cursor(value: Cursor | null) {
+		this.ownCursor = value;
+	}
+
+	/** Null inherits; pressables say `pointer` and text fields `text` by overriding this. */
+	protected get defaultCursor(): Cursor | null {
+		return null;
 	}
 
 	/**

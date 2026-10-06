@@ -327,6 +327,20 @@ describe('Vehicle token while a card is aimed (DDB-138)', () => {
 	const isDashes = (command: Command): boolean => command.kind === 'polygon' && (command.points?.length ?? 0) > 60;
 	const isSolidOutline = (command: Command): boolean => command.kind === 'rect' && command.border?.width === 3;
 
+	it('shows the pointer cursor while it is a target someone can choose, and none otherwise (R8.2)', () => {
+		const buggy = createDrivenVehicle({ driver: createTestDriver('Raider'), name: 'Buggy' });
+		const model = new CombatModel();
+		model.targetableVehicleIds = [buggy.id];
+		const token = new Vehicle({ id: 'token', vehicleData: buggy, side: 'raider', combatData: model, onClick: () => undefined });
+		token.mount(createTestContext());
+		expect(token.cursor).toBeNull();
+		model.isTargeting = true;
+		expect(token.cursor).toBe('pointer');
+		model.targetableVehicleIds = [];
+		expect(token.cursor).toBeNull();
+		token.unmount();
+	});
+
 	it('outlines a legal target in dashes drawn as one triangle list, built once, and the hovered one solid with a glow', () => {
 		const { model, buggy, token } = aimed();
 		const dashed = frame(token);

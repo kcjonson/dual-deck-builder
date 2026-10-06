@@ -1,4 +1,5 @@
 import type { RGBA } from '../draw/geometry';
+import type { Cursor } from '../components/Component';
 import type { Sides } from '../components/componentGeometry';
 import type { BoxShadow } from '../draw/commands';
 import type { FontRole } from '../text/fontFaces';
@@ -78,7 +79,8 @@ export interface StyleProperties {
 	textDecoration?: 'none' | 'underline' | 'strike';
 	padding?: LengthValue | PaddingSides;
 	shadow?: ElevationToken | ShadowValue;
-	cursor?: 'default' | 'pointer' | 'text';
+	/** R8.2's `cursor`, set on the component. */
+	cursor?: Cursor;
 }
 
 /** The authoring surface of a styled component: base properties plus per-state overrides. */

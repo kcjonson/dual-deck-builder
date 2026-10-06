@@ -2,6 +2,9 @@ import { Component } from './Component';
 import { Container } from './Container';
 import { Rectangle } from './Rectangle';
 import { ScrollContainer } from '../ui/ScrollContainer';
+import { Button } from '../ui/Button';
+import { Checkbox } from '../ui/Checkbox';
+import { TextInput } from '../ui/TextInput';
 
 /** A leaf that counts unmounts, so a test can see removeChild release it. */
 class Probe extends Rectangle {
@@ -49,6 +52,21 @@ describe('Component properties (R8.2)', () => {
 		expect(new Rectangle().pointerEvents).toBe('auto');
 		expect(new Container().pointerEvents).toBe('passthrough');
 		expect(new Container({ pointerEvents: 'none' }).pointerEvents).toBe('none');
+	});
+
+	it('defaults cursor by kind: pressables pointer, text fields text, the rest inherit (R8.2)', () => {
+		expect(new Rectangle().cursor).toBeNull();
+		expect(new Container().cursor).toBeNull();
+		expect(new Button({ label: 'Go' }).cursor).toBe('pointer');
+		expect(new Button({ label: 'Go', disabled: true }).cursor).toBe('pointer');
+		expect(new Checkbox({ label: 'Damage numbers' }).cursor).toBe('pointer');
+		expect(new TextInput().cursor).toBe('text');
+		expect(new Container({ cursor: 'pointer' }).cursor).toBe('pointer');
+
+		const button = new Button({ label: 'Go', cursor: 'default' });
+		expect(button.cursor).toBe('default');
+		button.cursor = null;
+		expect(button.cursor).toBe('pointer');
 	});
 
 	it('expands a number margin to all four sides and keeps per-side values', () => {

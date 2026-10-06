@@ -908,6 +908,7 @@ export class Vehicle extends Component {
 		const focused = this.isFocusedTarget() || carrier || this.dropActive;
 		const targeting = this.combatData?.isTargeting ?? false;
 		this.focusable = targeting && this.onClickCallback !== null && this.isTargetable();
+		this.cursor = this.focusable ? 'pointer' : null;
 		this.opacity = targeting && !targetable ? DIMMED_OPACITY : 1;
 
 		const raider = this.side === 'raider';

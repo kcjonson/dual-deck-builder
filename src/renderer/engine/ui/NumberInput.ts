@@ -1,4 +1,4 @@
-import { Component, ComponentOptions, PointerEvents } from '../components/Component';
+import { Component, ComponentOptions, Cursor, PointerEvents } from '../components/Component';
 import { drawIcon } from '../components/Icon';
 import type { DrawApi } from '../draw/DrawApi';
 import type { AnyUiEvent, UiPointerEvent } from '../input/events';
@@ -67,6 +67,10 @@ class NumberStepper extends Component {
 
 	protected get defaultPointerEvents(): PointerEvents {
 		return 'auto';
+	}
+
+	protected get defaultCursor(): Cursor | null {
+		return 'pointer';
 	}
 
 	public get handlesPointer(): boolean {

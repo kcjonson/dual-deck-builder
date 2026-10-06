@@ -1,6 +1,6 @@
 import type { Vec2 } from '../draw/geometry';
 import type { Clock } from '../animation/Clock';
-import type { Component } from '../components/Component';
+import type { Component, Cursor } from '../components/Component';
 import type { UiFrame } from '../components/UiFrame';
 import {
 	ActionEventType,
@@ -178,6 +178,11 @@ export interface DispatcherOptions {
 	clock: Clock;
 	/** `dpr * uiScale` for clip snapping in the hit walk (R7.8a); 1 when absent. */
 	pixelRatio?: () => number;
+	/**
+	 * R8.2: the platform shell shows the resolved cursor (the web pages set
+	 * the canvas's CSS cursor). Called only when it changes.
+	 */
+	onCursorChange?: (cursor: Cursor) => void;
 }
 
 /**
@@ -240,11 +245,14 @@ export class Dispatcher {
 	private latch: { scroller: Component; lastTime: number } | null = null;
 	private inputPaused = false;
 	private dispatching = false;
+	private readonly onCursorChange: ((cursor: Cursor) => void) | null;
+	private shownCursor: Cursor = 'default';
 
-	constructor({ frame, clock, pixelRatio = () => 1 }: DispatcherOptions) {
+	constructor({ frame, clock, pixelRatio = () => 1, onCursorChange }: DispatcherOptions) {
 		this.frame = frame;
 		this.clock = clock;
 		this.pixelRatio = pixelRatio;
+		this.onCursorChange = onCursorChange ?? null;
 		this.focus = new FocusManager({ clock, roots: () => this.rootList });
 		this.drag = new DragService({
 			host: {
@@ -432,6 +440,7 @@ export class Dispatcher {
 				}
 			}
 			this.refreshHover();
+			this.updateCursor();
 		} finally {
 			this.dispatching = false;
 		}
@@ -529,6 +538,7 @@ export class Dispatcher {
 		this.focus.reset();
 		this.latch = null;
 		this.hotkeys.clear();
+		this.updateCursor();
 	}
 
 	// -- dispatch -------------------------------------------------------------
@@ -843,6 +853,46 @@ export class Dispatcher {
 		}
 		const hovered = next.length > 0 ? next[next.length - 1] : null;
 		for (const observer of [...this.observers]) observer.hoverChange?.(hovered);
+	}
+
+	// -- cursor (R8.2) --------------------------------------------------------
+
+	/** What the canvas shows: the cursor last handed to `onCursorChange`. */
+	public get cursor(): Cursor {
+		return this.shownCursor;
+	}
+
+	/**
+	 * Resolved once at the end of each dispatch, so a property or enabled
+	 * change under a still pointer shows within a frame and a batch that
+	 * crosses several components reports only where it ended.
+	 */
+	private updateCursor(): void {
+		const cursor = this.resolveCursor();
+		if (cursor === this.shownCursor) return;
+		this.shownCursor = cursor;
+		this.onCursorChange?.(cursor);
+	}
+
+	/**
+	 * The innermost hovered component that sets a cursor, walking outward,
+	 * and `default` when none does or the pointer is off the surface. While
+	 * the hovering pointer is captured the captor's chain answers instead,
+	 * since hover then only says whether the pointer is over the captor
+	 * (R9.10): a slider, a text selection, or a card drag keeps its cursor
+	 * when the pointer strays off it. An effectively disabled component that
+	 * sets one shows `default` (R9.5), and so stops the walk.
+	 */
+	private resolveCursor(): Cursor {
+		const position = this.hoverPosition;
+		if (!position) return 'default';
+		const captor = this.captures.get(position.pointerId);
+		const start = captor?.isMounted ? captor : this.hoverPath[this.hoverPath.length - 1] ?? null;
+		for (let node: Component | null = start; node; node = node.parent) {
+			const cursor = node.cursor;
+			if (cursor !== null) return node.effectivelyEnabled ? cursor : 'default';
+		}
+		return 'default';
 	}
 
 	// -- wheel (R9.3, R9.32) --------------------------------------------------

@@ -1,4 +1,4 @@
-import { Component, ComponentOptions, PointerEvents, ResolvedColors } from '../components/Component';
+import { Component, ComponentOptions, Cursor, PointerEvents, ResolvedColors } from '../components/Component';
 import { drawIcon } from '../components/Icon';
 import type { DrawApi } from '../draw/DrawApi';
 import type { AnyUiEvent, UiKeyEvent } from '../input/events';
@@ -98,6 +98,10 @@ export class Select extends Component {
 
 	protected get defaultPointerEvents(): PointerEvents {
 		return 'unit';
+	}
+
+	protected get defaultCursor(): Cursor | null {
+		return 'pointer';
 	}
 
 	public get handlesPointer(): boolean {

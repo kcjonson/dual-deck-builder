@@ -83,15 +83,19 @@ class Application {
 			});
 
 			// R1.6: the one object every root is mounted with. The pointer
-			// adapter feeds its dispatcher from the canvas the renderer draws to.
+			// adapter feeds its dispatcher from the canvas the renderer draws to,
+			// and the dispatcher's resolved cursor is shown on the same canvas.
+			const canvas = this.renderer.canvas;
 			this.context = createMountContext({
 				draw,
 				viewport: this.renderer.viewport,
 				clipboard: detectClipboard(window),
 				assetLoader: imageUrlLoader(),
+				onCursorChange: (cursor) => {
+					canvas.style.cursor = cursor;
+				},
 			});
 			const reducedMotion = new ReducedMotion({ animator: this.context.animator });
-			const canvas = this.renderer.canvas;
 			this.inputAdapter = new PointerAdapter({ dispatcher: this.context.dispatcher });
 			this.inputAdapter.attach(canvas);
 

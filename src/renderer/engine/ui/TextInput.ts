@@ -1,4 +1,4 @@
-import { Component, ComponentOptions, PointerEvents, ResolvedColors } from '../components/Component';
+import { Component, ComponentOptions, Cursor, PointerEvents, ResolvedColors } from '../components/Component';
 import type { MountContext } from '../components/MountContext';
 import type { DrawApi } from '../draw/DrawApi';
 import type { Rect } from '../draw/geometry';
@@ -77,6 +77,7 @@ const TEXT_INPUT_STYLE: StyleAcceptance = {
 		'letterSpacing',
 		'padding',
 		'shadow',
+		'cursor',
 	]),
 	states: new Set(['hover', 'active', 'disabled']),
 	stateProperties: new Set<StyleProperty>(['backgroundColor', 'color', 'borderColor']),
@@ -185,6 +186,7 @@ export class TextInput extends Component {
 		this.padding = this.resolvePadding();
 		this.face = this.resolveFace();
 		if (style.opacity !== undefined) this.opacity = style.opacity;
+		if (style.cursor !== undefined) this.cursor = style.cursor;
 		this.limit = maxLength !== undefined && maxLength >= 0 ? Math.floor(maxLength) : Number.POSITIVE_INFINITY;
 		this.codePoints = [...value].slice(0, this.limit);
 		this.caret = this.selectionAnchor = this.codePoints.length;
@@ -200,6 +202,10 @@ export class TextInput extends Component {
 	/** R8.29: the field is one target; it draws everything inside it itself. */
 	protected get defaultPointerEvents(): PointerEvents {
 		return 'unit';
+	}
+
+	protected get defaultCursor(): Cursor | null {
+		return 'text';
 	}
 
 	/** Presses land here whether or not a caller set a callback (the lint's rules 6 and 7). */
@@ -353,6 +359,8 @@ export class TextInput extends Component {
 		this.styleObject = style;
 		if (style.opacity !== undefined) this.opacity = style.opacity;
 		else if (previous.opacity !== undefined) this.opacity = 1;
+		if (style.cursor !== undefined) this.cursor = style.cursor;
+		else if (previous.cursor !== undefined) this.cursor = null;
 		this.restyle();
 	}
 
