@@ -10,6 +10,7 @@ import { isSameDriver, nextOpenDriverIndex } from '../../mechanics/DriverPair';
 import { Card as UICard, CardSize } from '../../ui/Card';
 import { CardLoader } from '../../core/CardLoader';
 import { FlowWrap } from '../../ui/FlowWrap';
+import { contains } from '../../../engine/services/OverlayService';
 import { inspectOnContextMenu, makeInspectable } from '../../ui/cardInspect';
 
 export type DriverPanelSide = 'left' | 'right';
@@ -386,12 +387,7 @@ export class DriverPanel extends Stack {
 	/** Empties the deck, taking down a preview still open on one of the cards going. */
 	private clearDeck(): void {
 		const tooltips = this.deckGrid.context?.tooltips;
-		for (let node: Component | null = tooltips?.owner ?? null; node; node = node.parent) {
-			if (node === this.deckGrid) {
-				tooltips?.hide();
-				break;
-			}
-		}
+		if (tooltips?.owner && contains(this.deckGrid, tooltips.owner)) tooltips.hide();
 		this.deckGrid.clearChildren();
 	}
 

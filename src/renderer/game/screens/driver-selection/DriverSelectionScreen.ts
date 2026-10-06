@@ -10,6 +10,7 @@ import { DriverLoader } from '../../core/DriverLoader';
 import { DriverPanel } from './DriverPanel';
 import { SynergyPreviewPanel } from './SynergyPreviewPanel';
 import { INSPECT_KEYS, inspectHotkey } from '../../ui/cardInspect';
+import { contains } from '../../../engine/services/OverlayService';
 
 const BACK_BUTTON_WIDTH = 200;
 /** The driver panels' share of the body's width against the synergy column's. */
@@ -40,6 +41,12 @@ export class DriverSelectionScreen extends Screen {
 	private synergyPanel!: SynergyPreviewPanel;
 	private confirmationText!: Text;
 	private startRunButton!: Button;
+	/**
+	 * A card preview of this screen was up as of the last frame. The tooltip
+	 * service hears Escape before the hotkeys and has hidden the preview by
+	 * the time the screen's Escape runs, so the screen has to remember it.
+	 */
+	private previewShown = false;
 
 	constructor() {
 		super('driverSelectionScreen');
@@ -64,7 +71,7 @@ export class DriverSelectionScreen extends Screen {
 		this.rootLayer.addChild(this.page);
 		this.sizePage();
 
-		this.rootLayer.hotkeys.register('Escape', () => this.back());
+		this.rootLayer.hotkeys.register('Escape', () => this.escape());
 		for (const key of INSPECT_KEYS) this.rootLayer.hotkeys.register(key, () => inspectHotkey(this.context));
 		this.loadDrivers();
 	}
@@ -72,6 +79,7 @@ export class DriverSelectionScreen extends Screen {
 	protected onUnmount(): void {
 		for (const key of ['Escape', ...INSPECT_KEYS]) this.rootLayer.hotkeys.unregister(key);
 		this.rootLayer.clearChildren();
+		this.previewShown = false;
 		this.selectedDriver1 = null;
 		this.selectedDriver2 = null;
 		this.availableDrivers = [];
@@ -331,6 +339,20 @@ export class DriverSelectionScreen extends Screen {
 	 */
 	protected onResized(): void {
 		this.sizePage();
+	}
+
+	protected onUpdate(): void {
+		const { tooltips } = this.context;
+		this.previewShown = tooltips.surface !== null && tooltips.owner !== null && contains(this.rootLayer, tooltips.owner);
+	}
+
+	/** Dismisses a card preview, which is all the first Escape does; the next leaves. */
+	private escape(): void {
+		if (this.previewShown) {
+			this.previewShown = false;
+			return;
+		}
+		this.back();
 	}
 
 	/** To the menu, focus back on Start Game, which opened this screen. */

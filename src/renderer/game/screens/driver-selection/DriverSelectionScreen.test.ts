@@ -222,9 +222,10 @@ describe('DriverSelectionScreen: one driver per slot', () => {
 	});
 
 	it("tabs in reading order: Back, each panel's deck then its Select, START RUN (R9.18, R9.29)", async () => {
-		const { screen } = await mountScreen();
+		const { screen, left } = await mountScreen();
 		context.focus.pushScope(screen.root);
 		// A deck is one stop, landing on its first card
+		expect(context.focus.tabOrder[1]).toBe(findAll(left.deckPreview, UICard)[0]);
 		const stops = context.focus.tabOrder.map(component => (component instanceof UICard ? component.parent?.parent?.id : component.id));
 		expect(stops).toEqual([
 			'driver_select_back_button',
@@ -444,11 +445,18 @@ describe('DriverSelectionScreen: one driver per slot', () => {
 				context.tooltips.show(card, { fade: false });
 				const surface = context.tooltips.surface;
 				if (!(surface instanceof CardInspectSurface)) throw new Error('a mini card shows the detail view');
-				const bounds = surface.screenBounds;
-				expect(bounds.x).toBeGreaterThanOrEqual(-1e-6);
-				expect(bounds.y).toBeGreaterThanOrEqual(-1e-6);
-				expect(bounds.x + bounds.width).toBeLessThanOrEqual(width + 1e-6);
-				expect(bounds.y + bounds.height).toBeLessThanOrEqual(height + 1e-6);
+				context.frame.layout();
+				const parts = [surface.screenBounds, surface.view.screenBounds, surface.view.detail.screenBounds];
+				if (!surface.view.keywords.empty) parts.push(surface.view.keywords.screenBounds);
+				for (const bounds of parts) {
+					expect(bounds.x).toBeGreaterThanOrEqual(-1e-6);
+					expect(bounds.y).toBeGreaterThanOrEqual(-1e-6);
+					expect(bounds.x + bounds.width).toBeLessThanOrEqual(width + 1e-6);
+					expect(bounds.y + bounds.height).toBeLessThanOrEqual(height + 1e-6);
+				}
+				// Placed whole, not shrunk and clipped to the room there
+				expect(surface.view.height).toBeLessThanOrEqual(surface.height + 1e-6);
+				expect(surface.overflow).not.toBe('hidden');
 				context.tooltips.hide();
 				context.animator.settle();
 			}
@@ -479,10 +487,11 @@ describe('DriverSelectionScreen: one driver per slot', () => {
 
 			pickNextOpen(left);
 			await flushPromises();
-			context.frame.layout();
+			// Before any layout, which would drop an unmounted pin by itself
+			expect(context.tooltips.pinned).toBeNull();
+			expect(context.tooltips.owner).toBeNull();
 
 			advance(context, tokens.motion.dur_tooltip_hide + 100);
-			expect(context.tooltips.pinned).toBeNull();
 			expect(context.tooltips.surface).toBeNull();
 		});
 
@@ -523,6 +532,136 @@ describe('DriverSelectionScreen: one driver per slot', () => {
 			expect(context.tooltips.pinned).toBeNull();
 			context.tooltips.hide();
 			context.focus.popScope(screen.root);
+		});
+
+		it('pins on a capital I too, and an I with nothing focused or shown does nothing', async () => {
+			const { screen, left } = await mountScreen();
+			context.focus.pushScope(screen.root);
+			context.focus.focus(null, 'keyboard');
+			press('i');
+			expect(context.tooltips.pinned).toBeNull();
+
+			const card = miniCards(left)[0];
+			context.focus.focus(card, 'keyboard');
+			press('I');
+			expect(context.tooltips.pinned).toBe(card);
+			press('I');
+			expect(context.tooltips.pinned).toBeNull();
+			context.tooltips.hide();
+			context.focus.popScope(screen.root);
+		});
+
+		it('an I after the screen unmounts does nothing, and after a remount pins once', async () => {
+			const { screen, left } = await mountScreen();
+			context.focus.pushScope(screen.root);
+			context.focus.focus(miniCards(left)[0], 'keyboard');
+			screen.unmount();
+			context.focus.popScope(screen.root);
+			expect(() => press('i')).not.toThrow();
+			expect(context.tooltips.pinned).toBeNull();
+
+			const remounted = await mountScreen(screen);
+			context.focus.pushScope(screen.root);
+			const card = miniCards(remounted.left)[0];
+			context.focus.focus(card, 'keyboard');
+			press('i');
+			expect(context.tooltips.pinned).toBe(card);
+			context.tooltips.hide();
+			context.focus.popScope(screen.root);
+		});
+
+		it('a wheel over a mini card still scrolls the deck', async () => {
+			const { screen, left } = await mountScreen();
+			screen.resize(1024, 600);
+			context.frame.layout();
+			expect(left.deckPreview.overflows).toBe(true);
+			const over = centre(miniCards(left)[0]);
+			context.dispatcher.enqueue({ kind: 'wheel', x: over.x, y: over.y, deltaX: 0, deltaY: 60, deltaMode: 0, modifiers: NO_MODIFIERS });
+			context.dispatcher.dispatchPending();
+			context.frame.layout();
+			expect(left.deckPreview.scrollPosition).toBeGreaterThan(0);
+		});
+
+		it('Enter on a focused mini card does nothing', async () => {
+			const { screen, left } = await mountScreen();
+			const navigate = jest.requireMock('../../core/ScreenManager').ScreenManager.navigate as jest.Mock;
+			navigate.mockClear();
+			context.focus.pushScope(screen.root);
+			const card = miniCards(left)[0];
+			const driver = left.selectedDriver;
+			context.focus.focus(card, 'keyboard');
+			expect(() => press('Enter')).not.toThrow();
+			expect(navigate).not.toHaveBeenCalled();
+			expect(left.selectedDriver).toBe(driver);
+			expect(card.selected).toBe(false);
+			expect(context.tooltips.owner).toBe(card);
+			context.tooltips.hide();
+			context.focus.popScope(screen.root);
+		});
+
+		it('Escape dismisses a keyboard preview first and leaves the screen on the second press', async () => {
+			const { screen, left } = await mountScreen();
+			const navigate = jest.requireMock('../../core/ScreenManager').ScreenManager.navigate as jest.Mock;
+			navigate.mockClear();
+			context.focus.pushScope(screen.root);
+			context.focus.focus(miniCards(left)[0], 'keyboard');
+			expect(context.tooltips.surface).not.toBeNull();
+			screen.update(0);
+
+			press('Escape');
+			expect(context.tooltips.surface).toBeNull();
+			expect(navigate).not.toHaveBeenCalled();
+			screen.update(0);
+
+			press('Escape');
+			expect(navigate).toHaveBeenCalledTimes(1);
+			expect(navigate).toHaveBeenCalledWith('mainMenuScreen', undefined, { restoreFocus: true });
+			context.focus.popScope(screen.root);
+		});
+
+		it('Escape dismisses a hover preview first and leaves the screen on the second press', async () => {
+			const { screen, left } = await mountScreen();
+			const navigate = jest.requireMock('../../core/ScreenManager').ScreenManager.navigate as jest.Mock;
+			navigate.mockClear();
+			const over = centre(miniCards(left)[0]);
+			send(context, [pointer('move', over.x, over.y)]);
+			advance(context, tokens.control.tooltip_delay + tokens.motion.dur_fast + 100);
+			expect(context.tooltips.surface).not.toBeNull();
+			screen.update(0);
+
+			press('Escape');
+			expect(context.tooltips.surface).toBeNull();
+			expect(navigate).not.toHaveBeenCalled();
+			screen.update(0);
+
+			press('Escape');
+			expect(navigate).toHaveBeenCalledTimes(1);
+		});
+
+		it('Escape with no preview up leaves at once', async () => {
+			const { screen } = await mountScreen();
+			const navigate = jest.requireMock('../../core/ScreenManager').ScreenManager.navigate as jest.Mock;
+			navigate.mockClear();
+			screen.update(0);
+			press('Escape');
+			expect(navigate).toHaveBeenCalledTimes(1);
+		});
+
+		it('overlapping picks while a preview is up leave the tooltip idle and one set of cards', async () => {
+			const { left } = await mountScreen();
+			context.tooltips.show(miniCards(left)[0], { fade: false });
+			mockCards.loaded = false;
+			pickNextOpen(left);
+			pickNextOpen(left);
+			await flushPromises();
+			context.frame.layout();
+			advance(context, tokens.motion.dur_tooltip_hide + 100);
+
+			expect(context.tooltips.state).toBe('idle');
+			expect(context.tooltips.surface).toBeNull();
+			const cards = miniCards(left);
+			expect(cards.length).toBe(left.selectedDriver?.startingDeck.cards.length);
+			expect(cards.every(card => card.isMounted)).toBe(true);
 		});
 
 		it('takes the preview down on reset', async () => {
