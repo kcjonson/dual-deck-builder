@@ -2,43 +2,50 @@
 
 ## 1\. Game Start Flow
 
-### 1.1 Main Menu → New Run
+The game is a campaign: the player runs a compound and sends supply runs out from it. The full structure (compound, driver pool, area map, run route, stops, fog, strongholds) is in [Compound and Supply Runs](./Compound%20and%20Supply%20Runs.md); this document covers the screens.
 
-When a player launches the game and wants to start a new run, they'll see the main menu with several options prominently displayed. The "New Run" button should be the largest and most visually prominent, indicating it's the primary action. Below it, if the player has a run in progress, they'll see a "Continue Run" option that shows basic stats from their current run (e.g., "Day 5 - Road Warrior & Interceptor - 3 victories"). At the bottom, a "Run History" option lets players review their past attempts, showing statistics like furthest progression, unlocks earned, and cause of defeat.
+### 1.1 Main Menu → New Campaign
+
+When a player launches the game, they'll see the main menu. "New Campaign" is the largest and most visually prominent button: it founds a compound on a freshly generated area map ([Area Map Generation](./Area%20Map%20Generation.md)) and opens the compound screen. Below it, if a campaign is in progress, "Continue" shows its state (e.g., "Day 12 - 3 drivers - 1 stronghold taken"). At the bottom, "Campaign History" lists past campaigns: days survived, strongholds taken, unlocks earned, and how the compound fell.
 
 There will need to be buttons to see what cards have been (the original note stops here).
 
-### 1.2 Driver Selection Screen
+### 1.2 Load Out (Driver Selection and Run Decks)
 
 #### User Scenario
 
-When the player clicks "New Run," they're taken to the driver selection screen. This is their first major decision that will shape their entire run. The screen needs to communicate that they're choosing a team of two drivers who will work together throughout the wasteland journey.
+Load out is the last step before a supply run leaves: after picking a POI and a route, the player picks two drivers from the compound's pool and can customize either one's deck for this run. The screen needs to communicate that they're choosing a team of two drivers who will work together on this run, that any deck changes are for this run only, and that drivers who die on it are gone for good, with everything in their run deck. It replaces the old two-halves driver selection screen. Wireframes: "Load out" artboards on the design canvas.
 
-#### Layout Description
+Load out is one screen. Most runs go out on the drivers' default decks, so deck changes are an optional mode, not a step. A run summary bar runs along the top: the POI, the route, its stops, fuel, and the time you'd be home against dark, with a way back to the run route.
 
-The screen is divided into two main halves, representing the two driver slots. Initially, both slots show empty states with placeholder silhouettes and text that says "Choose Your First Driver" and "Choose Your Second Driver."
+![Load out wireframe](../design/supply-runs/load-out.png)
 
-**Left Side - First Driver Selection:** The left half of the screen is dedicated to the first driver choice. At the top is a large portrait area (roughly 40% of the screen height) showing the currently selected driver's artwork - this includes both the driver character and their signature vehicle in an action pose. Below the portrait, the driver's name is displayed in large, bold text (e.g., "THE ROAD WARRIOR"), with their vehicle name in smaller text underneath (e.g., "Vehicle: Apocalypse Rig").
+**Seats:** Two tall seats across the top, Driver 1 and Driver 2, each empty ("Choose a driver") until filled. A filled seat shows the driver's card (section 7.0), vehicle, and the Clear seat and Customize buttons on the left, and on the right the deck they'll take as mini cards in two rows, view only (hover for the detail view). A customized run deck shows a "CUSTOM" tag on the driver card. A swap control exchanges the two seats.
 
-Beneath the name, there's a specialty tag that summarizes their playstyle in 2-3 words (e.g., "DEFENSIVE TANK" or "AGILE STRIKER"). This is followed by a brief flavor text description that gives personality to the character while hinting at their mechanical strengths.
+**The pool:** Below the seats, every driver at the compound as a driver card with a Seat button and a status line under it. Clicking Seat fills the first free seat. Unavailable drivers stay visible but faded and can't be picked, with the reason under the card: "Injured, fit in 2 days", or "Same archetype as a seated driver" (the no-duplicate pair rule).
 
-The bottom portion of this half shows the driver's starting deck. Rather than just listing card names, each card is displayed as a mini-card visual showing its cost, name, and a simplified effect description. For example: "Ramming Speed (2 Adrenaline) - Deal 12 damage and gain armor equal to your vehicle's weight." Players can hover over these mini-cards to see full-sized versions with complete artwork and detailed descriptions.
-
-At the very bottom of this section is a dropdown or carousel selector that lets players browse through all available drivers. Locked drivers appear grayed out with a lock icon and a tooltip explaining how to unlock them (e.g., "Unlocked by completing a run with The Mechanic").
-
-**Right Side - Second Driver Selection:** The right half mirrors the left, but remains in an empty state until the first driver is selected. This reinforces the selection order and prevents confusion. Once the first driver is chosen, the right side activates and follows the same layout pattern.
-
-**Center Area - Synergy Preview:** Between the two driver sections, once both are selected, a "Synergy Preview" panel appears. This doesn't show specific card combinations but rather gives players hints about how these two drivers might work together. For example:
+**Synergy and escorts:** Between the seats, hints about how the pair works together (not specific card combinations), and the convoy's escorts as escort cards; clicking one brings it or leaves it at home (faded, "STAYING"), up to four on a run. For example:
 
 - "The Road Warrior's defensive capabilities will protect The Interceptor during setup turns"
 - "These drivers share several Ramming-type cards that benefit from armor bonuses"
-- "Warning: Both drivers lack healing options - consider finding medical supplies early"
+- "Warning: Both drivers lack healing options - consider borrowing a Medical Kit from the locker"
 
-**Bottom Section - Confirmation:** At the bottom center of the screen, the "START RUN" button remains disabled and grayed out until both drivers are selected. Once active, it becomes the prominent call-to-action. Next to it, smaller text shows a summary: "Ready to enter the wasteland with \[Driver 1\] and \[Driver 2\]"
+**Confirmation:** "START RUN" sits at the bottom right with the summary beside it. It's disabled until both seats are filled, or while a customized deck is outside the size limits, with the reason shown.
 
-### 1.3 Initial Deck Construction
+#### Customize
 
-Each driver brings their own specialized deck of 8-10 cards to the partnership. Unlike traditional deckbuilders where you might customize before starting, Wasteland Wheels embraces the roguelike philosophy - you start with what your drivers bring and adapt as you go. In combat each driver keeps their own deck, draw pile, hand, discard, and adrenaline pool; you choose which driver acts with every card you play.
+Opened from a seat's button, for that one driver; each driver is customized on their own. The layout is the Crew screen's (section 3.2) so the two feel like the same tool: the driver on the left where the roster was, the run deck as mini cards in the middle, the locker on the right.
+
+- The run deck starts as the default deck. Each card has one-fewer and one-more controls. A card borrowed from the locker shows dashed with a "+1" tag; a card left at home shows faded with a "HOME" tag until restored.
+- The locker shows the copies still free after the other driver's run deck, each with a Borrow control. A card only one archetype can use only offers itself to that driver.
+- Escort signature cards assigned to this driver sit in the left column, locked and outside the size limit, with a control to give each to the other driver. By default they go to Driver 1.
+- The header says the changes last for this run only. "Reset to default" undoes them; "Done" returns to load out.
+
+![Customize wireframe](../design/supply-runs/customize.png)
+
+### 1.3 Decks
+
+Each driver has a default deck and a hand limit, kept for the whole campaign. Default decks are built at the compound's Crew screen (section 3.2) from the locker, the compound's store of spare cards; run decks are adjusted at load out for one run. Cards won on a run go to the locker, and a driver who dies takes their run deck with them. Rules: [Compound and Supply Runs](./Compound%20and%20Supply%20Runs.md), Decks and the locker. In combat each driver keeps their own deck, draw pile, hand, discard, and adrenaline pool; you choose which driver acts with every card you play.
 
 ## 2\. Combat Screen UI
 
@@ -106,58 +113,82 @@ When you release the card on a valid target, it flies from your hand to the batt
 
 **Ending Your Turn:** When you click "End Turn," there's a brief pause as your remaining hand cards fly to the discard pile. Then the enemy turn begins with clear visual indicators of their actions playing out in sequence.
 
-## 3\. Map Navigation Screen
+## 3\. Compound, Area Map, and Run Route Screens
 
-### 3.1 The Journey Through the Wasteland
+Rules for these screens are in [Compound and Supply Runs](./Compound%20and%20Supply%20Runs.md). Wireframes are on the "Supply Run Map" design canvas.
 
-After each combat or event, players return to the map screen to choose their next destination. This screen needs to balance information with atmosphere, showing both the strategic path options and the desolate beauty of the post-apocalyptic landscape.
+### 3.1 The Compound
 
-### 3.2 Map Layout and User Experience
+The home screen. An illustrated scene of the compound where the buildings are the menu (garage, infirmary, stores, bunkhouse, radio mast, map room), resources and the day along the top, and a needs panel beside it: shortage forecasts, injured drivers, new rumors. The main action is "Plan a supply run", which opens the area map.
 
-The map is presented as a worn, hand-drawn chart spread across a rusted metal surface. The art style suggests this is a map your drivers are actually consulting, complete with notes scrawled in margins and routes marked in grease pencil.
+![Compound hub wireframe](../design/supply-runs/compound.png)
 
-**Visual Presentation:** The map shows a vertical progression from bottom (your current location) to top (the region boss). The path branches and merges, creating meaningful choices. The background shows the wasteland terrain - destroyed highways, ruined cities, toxic swamps - giving context to your journey.
+### 3.2 The Crew Screen
 
-**Node Representation:** Each location on the map is represented by a detailed icon that immediately communicates what awaits:
+Opened from the bunkhouse. Where each driver's default deck is built.
 
-- **Combat nodes** show crossed wrenches with a danger level indicator (1-3 skulls)
-- **Elite combat nodes** display a larger, more ornate skull with spikes, promising both greater danger and rewards
-- **Garages** are marked with a wrench and gear icon, clearly indicating a safe haven
-- **Scavenge points** show a partially buried cache or overturned vehicle
-- **Mystery events** display a question mark that shifts between different symbols, hinting at the variety of possible encounters
-- **The boss node** at the top is impossible to miss - a massive skull wreathed in flames or other dramatic imagery
+![Crew and decks wireframe](../design/supply-runs/crew-and-decks.png)
 
-**Your convoy:** the marker for your current location shows how many escorts are travelling with you, as a small count beside it. Escorts are the undriven vehicles in your convoy ([Combat Rules](./Combat%20Rules.md), Escorts).
+- **Roster (left):** every driver in the pool as a driver card, the selected one ringed. Drivers lost on runs are below, faded with a "LOST" tag, for the record.
+- **Default deck (centre):** the selected driver's header (name, vehicle, specialty, HP, hand limit, deck size against the limits), then their deck as mini cards, copies stacked with a count, a remove control under each, and the cost curve underneath.
+- **Locker (right):** the compound's spare cards as mini cards with copy counts, filterable by type, each with an add control (disabled with a reason when the deck is full or the card is for another archetype) and a scrap control that destroys a copy for a little scrap.
+- Hovering any card opens the card detail view. Moving cards here is free.
 
-**Path Visualization:** Available paths from your current location glow with a pulsing light, while paths you can't take are darkened. As you hover over a node, the path to it illuminates more brightly, and a tooltip provides additional information:
+### 3.3 The Area Map
 
-- Expected difficulty
-- Potential rewards (e.g., "High chance of rare cards")
-- Special conditions (e.g., "Fuel station - guaranteed fuel recovery")
+The map is presented as a worn, hand-drawn chart spread across a rusted metal surface. The art style suggests this is a map your drivers are actually consulting, complete with notes scrawled in margins and roads marked in grease pencil.
 
-**Risk/Reward Indicators:** Each path is subtly coded to show risk vs reward:
+**Always open:** from the compound, from the run route screen, and between stops on a run. Outside a fight or an event there's always a way to it.
 
-- Dangerous paths with better rewards show rough, treacherous terrain
-- Safer paths appear as clearer roads but lead to fewer reward nodes
-- Some paths might show environmental hazards like radiation symbols or storm clouds
+![Area map wireframe](../design/supply-runs/area-map.png)
+
+**Visual Presentation:** The compound sits at the centre in the ruins of a metro area, with highways leaving it in every direction, bending with the land and branching into back roads and trails. The background shows the terrain - destroyed highways, ruined towns, toxic swamps, badlands - and fog covers everything not yet explored. Strongholds hide in the fog at the edges.
+
+**What it shows:** every known POI with its yields, tier, and state (unvisited, looted, depleted); roads by what you know of them (charted solid, rumored solid with unknown stops, uncharted dashed into the fog); strongholds found; explored percentage. Selecting a POI shows its details and "Plan a run here".
+
+**Your convoy:** during a run, the convoy's marker shows where it is on its route and how many escorts are travelling with it, as a small count beside it. Escorts are the undriven vehicles in your convoy ([Combat Rules](./Combat%20Rules.md), Escorts).
+
+### 3.4 The Run Route
+
+A zoomed view between the compound and the chosen POI, showing its 2 or 3 routes. Picking a route card highlights it on the map and lists its stops in order, as far as they're known, with fuel, hours, the time you'd be home against dark, and risk. A route that would run past dark is flagged before you leave. The routes arrive from different branches of the road network and share nothing past the home area. "Load out the crew" goes to driver selection.
+
+![Run route wireframe](../design/supply-runs/run-route.png)
+
+**Stop Representation:** Each stop on a route is an icon that immediately communicates what awaits:
+
+- **Raider ambushes** show a danger level indicator (1-3 skulls)
+- **Warbands** display a larger, more ornate skull with spikes, promising both greater danger and rewards
+- **Roadside garages** are marked with a wrench and gear icon, clearly indicating a safe haven
+- **Wrecks** show a partially buried cache or overturned vehicle
+- **Finds** show what they add: a driver, settlers, a vehicle, cards, or supplies
+- **Checkpoints and hazards** carry their faction mark or hazard symbol
+- **Uncharted stops** display a question mark until the convoy reaches them
+
+**Risk/Reward Indicators:** Each route is coded to show risk vs reward:
+
+- Trails through rough terrain carry more hazards and better finds
+- Highways are fast and cheap on fuel, but raiders and checkpoints know them too
+- Some routes show environmental hazards like radiation symbols or storm clouds
+
+During a run the same view shows progress: cleared stops checked off, the next stop highlighted, and the clock with the projected return against dark.
 
 ## 4\. Garage (Shop) Screen
 
 ### 4.1 Your Makeshift Pit Stop
 
-The garage screen is where players spend their hard-earned scrap to improve their chances of survival. The atmosphere should feel like a gritty, improvised repair shop - oil stains, hanging chains, sparks flying from welding torches in the background.
+The garage screen is where players spend their hard-earned scrap to improve their chances of survival. The same screen serves the compound's own garage, which can work on any driver in the pool, and roadside garages on a run, which work on the two drivers on it. The atmosphere should feel like a gritty, improvised repair shop - oil stains, hanging chains, sparks flying from welding torches in the background.
 
 ### 4.2 Screen Organization and Flow
 
 **Header Section - Your Resources:** At the top of the screen, your current scrap amount is prominently displayed with a gear/currency icon. This updates in real-time as you make purchases, with spent scrap flying away and remaining amount clearly visible.
 
-**Left Panel - Deck Management (30% of screen):** This section shows both drivers' current decks side by side. Each deck is displayed as a scrollable list of cards with mini previews. The key feature here is deck curation - players can pay scrap to remove weak starter cards.
+**Left Panel - Deck Management (30% of screen):** At a roadside garage, this section shows the two run drivers' run decks side by side, each as a scrollable grid of mini cards. A card removed here goes back to the compound's locker when the run gets home, so removal is free; the paid removal of the old design is gone. At the compound's own garage this panel is replaced by a link to the Crew screen (section 3.2), where default decks are managed.
 
 For each deck:
 
 - The driver's portrait and name appear at the top
-- Cards are listed with their cost and a simplified effect description
-- Each card has a "Remove" button that shows the scrap cost (typically 50-75 scrap)
+- Each card is a mini card, copies stacked with a count
+- Each card has a "Set aside" control, sending it to the locker
 - Hovering over a card shows its full-size version
 - Deck statistics are shown at the bottom (average cost, card type distribution)
 
@@ -219,20 +250,26 @@ Three raider buggies circle the wreckage like predators, their occupants whoopin
 
 Events are also one of the two ways to gain an escort (the garage is the other). An event can offer one as an outcome; if you already have four, you dismiss one to take it.
 
-## 6\. Victory and Defeat Screens
+The event screen also resolves most route stops that aren't fights: wrecks, distress signals, checkpoints (which can turn into a fight), and finds. A find is an event whose outcome adds to the compound: a driver to the pool, settlers, a vehicle, cards, or supplies.
 
-### 6.1 Run Completion - Victory
+## 6\. Run and Campaign Screens
 
-When players defeat the final boss, the victory screen celebrates their achievement while setting up future runs.
+### 6.1 Run Debrief
 
-**Victory Presentation:** The screen opens with a cinematic moment - your battered vehicles driving into the sunset, leaving the defeated boss's fortress burning behind them. The title "WASTELAND CONQUERED" or similar appears in weathered metal letters.
+When a supply run comes home, a short debrief shows what it brought back (cargo unloaded into stores, drivers or settlers found, roads charted, fog lifted) and the time it got home, then returns to the compound and the day ends. A failed run gets the same screen with what was lost: the dead, the missing, the cargo, and the escorts.
 
-**Run Statistics Display:** Statistics appear in themed panels that look like scavenged road signs:
+### 6.2 Campaign Victory
 
-- **Journey Length**: "Survived 15 Days in the Wasteland"
+When the campaign is won (see [Compound and Supply Runs](./Compound%20and%20Supply%20Runs.md), open question 1, for what wins it), the victory screen celebrates the achievement while setting up future campaigns.
+
+**Victory Presentation:** The screen opens with a cinematic moment - your battered convoy rolling home past the last stronghold burning behind it, the compound's gates open. The title "WASTELAND CONQUERED" or similar appears in weathered metal letters.
+
+**Campaign Statistics Display:** Statistics appear in themed panels that look like scavenged road signs:
+
+- **Campaign Length**: "Held Out for 84 Days"
 - **Combat Record**: "Defeated 47 Raiders, 12 Mutants, 3 Warlords"
 - **Resources Gathered**: Total scrap collected, fuel consumed
-- **Deck Evolution**: Starting cards vs. final deck composition
+- **The Pool**: Drivers found, drivers lost, the longest-serving driver and their final deck
 - **Perfect Battles**: Number of fights won without taking damage
 - **Close Calls**: Number of times a vehicle dropped below 10 HP
 
@@ -243,28 +280,54 @@ When players defeat the final boss, the victory screen celebrates their achievem
 3. **Meta Progression**: Experience bars fill, showing progress toward long-term goals
 4. **Achievements**: Pop up with satisfying sound effects
 
-### 6.2 Run Completion - Defeat
+### 6.3 Campaign Defeat
 
 Defeat screens need to be informative without being discouraging, helping players learn for next time.
 
-A run ends when a fight has none of your drivers left in it: every driver dead, or crashed out with no free seat to jump to. That's true death, and the session is over; a driver who crashed out alive isn't rescued. As long as one driver is still in the fight, the run goes on, and after a won fight they go back for a driver who crashed out ([Combat Rules](./Combat%20Rules.md), Losing vehicles and drivers).
+A supply run fails when a fight has none of your drivers left in it: every driver dead, or crashed out with no free seat to jump to. The dead are gone for good, and a driver who crashed out alive is missing, since nobody is left to go back for them. As long as one driver is still in the fight, the run goes on, and after a won fight they go back for a driver who crashed out ([Combat Rules](./Combat%20Rules.md), Losing vehicles and drivers). A failed run is not the end: the campaign ends only when the last driver in the compound's pool dies. Then the compound falls - it starves, riots over what's left, or disbands, depending on its state - and this screen tells that story.
 
-**Defeat Presentation:** The screen shows your vehicles' final moments - perhaps one burning while the other tries to limp away, or both overwhelmed by enemies. The presentation is dramatic but not gruesome, maintaining the game's action-movie tone.
+**Defeat Presentation:** The screen shows the last run's final moments, then the compound: empty stores and a riot, or the gates left open as the settlers walk away. The presentation is dramatic but not gruesome, maintaining the game's action-movie tone.
 
 **Learning Opportunity:** The defeat screen provides clear information about what went wrong:
 
 - **Cause of Defeat**: "Overwhelmed by Warlord Grimjaw's Final Phase"
 - **Final Battle Stats**: Damage dealt vs. taken, turns survived
-- **Critical Moment**: The game identifies where things went wrong (e.g., "No defensive cards in final deck")
+- **Critical Moment**: The game identifies where things went wrong (e.g., "No defensive cards in final deck", "Only one driver left for 20 days")
 
 **Partial Progress Recognition:** Even in defeat, progress is acknowledged:
 
-- **Distance Traveled**: How far you made it is celebrated
-- **Unlocks Earned**: Some unlocks are available even on failed runs
+- **Ground Covered**: Explored percentage and strongholds taken
+- **Unlocks Earned**: Some unlocks are available even when the compound falls
 - **Resources Contributed**: Meta-progression continues
 - **New Knowledge**: "Warlord Grimjaw's attack pattern learned"
 
 ## 7\. UI/UX Principles in Practice
+
+### 7.0 Cards Look Like Cards
+
+This is a card game, so a card is always drawn as a card: never a list row, a table line, or a name in text. It holds on every screen where cards are the subject (the hand, piles, rewards, the shop, the Crew screen, the locker, load out, the debrief). Three sizes of the same card:
+
+![Card sizes: detail view, face, mini card, driver card, escort card](../design/supply-runs/card-sizes.png)
+
+| Size | Dimensions | Shows | Used for |
+| --- | --- | --- | --- |
+| Detail view | 250 wide, up to 440 tall | cost, name, type, art, full text, keyword boxes, rarity | inspecting any card at any size (hover, focus, touch hold; pin with a secondary click or I) |
+| Card face | 128 x 180 | cost hex, name, type and driver mark, art, three-line summary, rarity gem and name | the hand, rewards, the shop, the piles |
+| Mini card | 80 x 112 | cost hex, name on up to two lines, art, type, rarity gem | deck building and anywhere many cards share a screen: Crew, locker, load out, debrief |
+
+- The mini card drops the summary; the detail view is one hover away, as for every size.
+- Copies of one card show as one mini card stacked with up to two card edges behind it and a count ("x5"), so a 20-card deck reads as a handful of stacks.
+- States on the mini card: borrowed for this run (dashed frame, "+1" tag), left at home (faded, "HOME" tag), locked escort card ("LOCKED" tag), unavailable (faded, with the reason on the control under it).
+- The detail view and the face exist (DDB-137, [card-face-and-detail-view.md](../AI_TECHNICAL_DECISIONS/card-face-and-detail-view.md)); the mini card is new and should be a size of the same `Card` component, not a separate widget. Wireframes: the "Card sizes" board on the design canvas.
+
+Drivers and escorts are cards too, each with an edge no play card has, so a glance tells which kind of card it is:
+
+| Kind | Dimensions | Edge | Shows | Used for |
+| --- | --- | --- | --- | --- |
+| Driver card | 104 x 146 | riveted double frame, squarer corners | portrait, name, specialty, HP bar, hand limit, deck size, a status tag (injured, seated, lost, new, custom) | the Crew roster, load out's seats and pool, the debrief, Find: driver |
+| Escort card | 80 x 112 | hazard-stripe header | art, name, structure bar, the signature card it brings, a status tag (staying) | load out's escorts, the garage's convoy strip, escort offers in events |
+
+The driver card is a little bigger than a play card's mini size because it's a person, and it sits beside their deck. The escort card is mini size so it lines up with the cards it adds. Both open their own detail view on hover (a driver's full stats and deck; an escort's profile and signature card).
 
 ### 7.1 Information Hierarchy in Action
 
