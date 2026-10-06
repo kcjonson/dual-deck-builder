@@ -8,12 +8,13 @@ This document contains the chronological log of completed development tasks for 
 
 ## Canvas input hygiene (2026-10-06)
 
-**What landed:** DDB-250. R15.39's canvas handling and R9.1's wheel fields.
+**What landed:** DDB-250. The canvas `contextmenu` and `user-select` handling of R15.39, and R9.1's wheel fields.
 
-- `PointerAdapter` listens to `contextmenu` on the canvas and prevents it, so a right-click no longer opens the browser menu over the game (the dispatcher already synthesises its own `contextmenu` from a secondary press). It sets `user-select: none` beside the existing `touch-action: none`, and `detach` restores both to what the canvas had.
-- `UiWheelEvent` stores `isPrimary`, `pressure`, `button` and `buttons`. The dispatcher takes a wheel's `pointerType` and `isPrimary` from the hovering pointer's identity instead of hard-coding a mouse; with no pointer seen it is still the primary mouse, id 1.
-- Tests: new `PointerAdapter.test.ts` (default prevented, styles set and restored, listener removed) and wheel field cases in `Dispatcher.test.ts`.
-- Chapter 14: the "WebGL2 backend rules" row drops its R15.39 gap (R15.34 stays); the "Event fields" row stays partial for `char` (DDB-254).
+- `PointerAdapter` prevents `contextmenu` on the canvas and on its document (the Menu key and Shift+F10 target the focused element, not the canvas; a text field keeps its own menu), so no browser menu opens over the game. The dispatcher already synthesises its own `contextmenu` from a secondary press. It sets `user-select: none` and `-webkit-user-select`/`-webkit-touch-callout: none` beside the existing `touch-action: none`, and `detach` restores all of them to what the canvas had.
+- On macOS a Ctrl+click arrives as button 0 with Ctrl held; with the native menu suppressed it would complete as a primary click, so the adapter remaps that whole press (down, moves, up) to the secondary button.
+- `UiWheelEvent` stores `isPrimary`, `pressure`, `button` and `buttons`. The wheel input carries the held `buttons`; pressure is 0.5 while one is held and `button` stays -1. `pointerType` and `isPrimary` come from the hovering pointer's identity (a primary mouse, id 1, when none is hovering) instead of a hard-coded mouse.
+- Tests: new `PointerAdapter.test.ts` and wheel field cases in `Dispatcher.test.ts`.
+- Chapter 14: the "WebGL2 backend rules" row drops its canvas `contextmenu`/`user-select` gap and names the remaining `char` clause (DDB-254, with R15.34); the "Event fields" row stays partial for `char`.
 
 ## The battle screen fit suite (2026-10-02)
 

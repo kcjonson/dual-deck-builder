@@ -134,6 +134,8 @@ export type PlatformInput =
 		deltaX: number;
 		deltaY: number;
 		deltaMode: WheelDeltaMode;
+		/** The mouse buttons held while it turned (R9.1); absent is none. */
+		buttons?: number;
 		modifiers: Modifiers;
 	}
 	| { kind: 'key'; phase: 'down' | 'up'; key: string; repeat: boolean; modifiers: Modifiers }
@@ -872,9 +874,13 @@ export class Dispatcher {
 		if (scroller) this.latch = { scroller, lastTime: now };
 
 		// R9.1: a wheel belongs to the pointer the cursor last moved with; with
-		// none yet seen it is the platform default, a primary mouse.
-		const pointerId = this.hoverPosition?.pointerId ?? 1;
-		const identity = this.identities.get(pointerId);
+		// none yet seen it is the platform default, a primary mouse. Identity is
+		// read only for a hovering pointer, so a touch that happens to have id 1
+		// never lends its type to a wheel.
+		const hovering = this.hoverPosition;
+		const pointerId = hovering?.pointerId ?? 1;
+		const identity = hovering ? this.identities.get(pointerId) : undefined;
+		const buttons = input.buttons ?? 0;
 		this.bubble(new UiWheelEvent({
 			timestamp: now,
 			target,
@@ -884,9 +890,9 @@ export class Dispatcher {
 			pointerId,
 			pointerType: identity?.pointerType ?? 'mouse',
 			isPrimary: identity?.isPrimary ?? true,
-			pressure: 0,
+			pressure: buttons !== 0 ? 0.5 : 0,
 			button: -1,
-			buttons: 0,
+			buttons,
 			modifiers: input.modifiers,
 		}));
 		// A scroll moves content under a pointer that did not move (R9.9).

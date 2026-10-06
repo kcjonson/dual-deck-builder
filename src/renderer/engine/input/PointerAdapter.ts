@@ -8,6 +8,29 @@ export interface PointerAdapterOptions {
 	 * the scale setting exists (R7.5).
 	 */
 	uiScale?: number;
+	/**
+	 * Whether Ctrl+click is the platform's secondary click (macOS). Read from
+	 * `navigator` when omitted; injected so tests need no patched global.
+	 */
+	ctrlClickIsSecondary?: boolean;
+}
+
+/** The properties the adapter owns on the canvas, snapshotted on attach and put back on detach. */
+const CANVAS_STYLES = ['touchAction', 'userSelect', 'webkitUserSelect', 'webkitTouchCallout'] as const;
+
+/** The WebKit-prefixed pair is not in lib.dom's `CSSStyleDeclaration`; Safari and iOS read it. */
+type CanvasStyle = Record<(typeof CANVAS_STYLES)[number], string | undefined>;
+
+function platformIsMac(): boolean {
+	if (typeof navigator === 'undefined') return false;
+	const platform = (navigator as Navigator & { userAgentData?: { platform?: string } }).userAgentData?.platform ?? navigator.platform;
+	return /^mac/i.test(platform ?? '');
+}
+
+/** The editable elements whose own context menu (paste, spell check) a page legitimately keeps. */
+function isEditable(target: EventTarget | null): boolean {
+	if (!target || typeof (target as Element).closest !== 'function') return false;
+	return (target as Element).closest('input, textarea, select, [contenteditable]:not([contenteditable="false"])') !== null;
 }
 
 /** The DOM fields the adapter reads; a `MouseEvent` carrying a pointer type name lacks the pointer ones. */
@@ -31,21 +54,28 @@ export class PointerAdapter {
 	private readonly dispatcher: Dispatcher;
 	private readonly uiScale: number;
 	private canvas: HTMLCanvasElement | null = null;
-	private previousTouchAction = '';
-	private previousUserSelect = '';
+	private readonly ctrlClickIsSecondary: boolean;
+	private previousStyles: string[] = [];
+	private document: Document | null = null;
+	/** Pointers whose press began as a Ctrl+click on macOS and so count as a secondary press throughout. */
+	private readonly ctrlSecondary = new Set<number>();
 
-	constructor({ dispatcher, uiScale = 1 }: PointerAdapterOptions) {
+	constructor({ dispatcher, uiScale = 1, ctrlClickIsSecondary = platformIsMac() }: PointerAdapterOptions) {
 		this.dispatcher = dispatcher;
 		this.uiScale = uiScale;
+		this.ctrlClickIsSecondary = ctrlClickIsSecondary;
 	}
 
 	public attach(canvas: HTMLCanvasElement): void {
 		if (this.canvas) this.detach();
 		this.canvas = canvas;
-		this.previousTouchAction = canvas.style.touchAction ?? '';
-		canvas.style.touchAction = 'none';
-		this.previousUserSelect = canvas.style.userSelect ?? '';
-		canvas.style.userSelect = 'none';
+		const style = canvas.style as unknown as CanvasStyle;
+		this.previousStyles = CANVAS_STYLES.map((property) => style[property] ?? '');
+		for (const property of CANVAS_STYLES) style[property] = 'none';
+		// A keyboard-opened menu (the Menu key, Shift+F10) targets the focused
+		// element, not the canvas, so the document hears it too.
+		this.document = canvas.ownerDocument;
+		this.document.addEventListener('contextmenu', this.handleDocumentContextMenu);
 		canvas.addEventListener('contextmenu', this.handleContextMenu);
 		canvas.addEventListener('pointerdown', this.handlePointerDown);
 		canvas.addEventListener('pointermove', this.handlePointerMove);
@@ -61,8 +91,13 @@ export class PointerAdapter {
 	public detach(): void {
 		const canvas = this.canvas;
 		if (!canvas) return;
-		canvas.style.touchAction = this.previousTouchAction;
-		canvas.style.userSelect = this.previousUserSelect;
+		const style = canvas.style as unknown as CanvasStyle;
+		CANVAS_STYLES.forEach((property, index) => {
+			style[property] = this.previousStyles[index];
+		});
+		this.document?.removeEventListener('contextmenu', this.handleDocumentContextMenu);
+		this.document = null;
+		this.ctrlSecondary.clear();
 		canvas.removeEventListener('contextmenu', this.handleContextMenu);
 		canvas.removeEventListener('pointerdown', this.handlePointerDown);
 		canvas.removeEventListener('pointermove', this.handlePointerMove);
@@ -80,6 +115,10 @@ export class PointerAdapter {
 		// R15.39: the dispatcher synthesises its own contextmenu from a secondary
 		// press, so the browser's menu never opens over the game.
 		event.preventDefault();
+	};
+
+	private handleDocumentContextMenu = (event: Event): void => {
+		if (!isEditable(event.target)) event.preventDefault();
 	};
 
 	private handlePointerDown = (event: DomPointerEvent): void => {
@@ -120,6 +159,7 @@ export class PointerAdapter {
 			deltaX: event.deltaX,
 			deltaY: event.deltaY,
 			deltaMode: event.deltaMode as WheelDeltaMode,
+			buttons: event.buttons ?? 0,
 			modifiers: modifiersOf(event),
 		});
 	};
@@ -157,16 +197,27 @@ export class PointerAdapter {
 
 	private enqueuePointer(event: DomPointerEvent, phase: 'down' | 'move' | 'up' | 'cancel'): void {
 		const { x, y } = this.toLogical(event);
-		const buttons = event.buttons ?? 0;
+		const pointerId = event.pointerId ?? 1;
+		// macOS reports Ctrl+click as button 0 with ctrlKey set, and the browser
+		// menu it would open is suppressed above, so the dispatcher (which only
+		// synthesises contextmenu from button 2) would complete a primary click.
+		// The whole press is remapped, whatever Ctrl does after it starts.
+		if (phase === 'down' && this.ctrlClickIsSecondary && event.button === 0 && event.ctrlKey && !event.metaKey) {
+			this.ctrlSecondary.add(pointerId);
+		}
+		const remapped = this.ctrlSecondary.has(pointerId);
+		if (remapped && (phase === 'up' || phase === 'cancel')) this.ctrlSecondary.delete(pointerId);
+		const rawButtons = event.buttons ?? 0;
+		const buttons = remapped ? (rawButtons & ~1) | (rawButtons & 1 ? 2 : 0) : rawButtons;
 		this.dispatcher.enqueue({
 			kind: 'pointer',
 			phase,
 			x,
 			y,
-			pointerId: event.pointerId ?? 1,
+			pointerId,
 			pointerType: pointerTypeOf(event.pointerType),
 			isPrimary: event.isPrimary ?? true,
-			button: event.button,
+			button: remapped && event.button === 0 ? 2 : event.button,
 			buttons,
 			// R9.1: a platform without pressure reports 0.5 while pressed.
 			pressure: event.pressure ?? (buttons !== 0 ? 0.5 : 0),
