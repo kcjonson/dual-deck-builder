@@ -44,7 +44,7 @@ Values: colours are a colour token name, `#rgb`, `#rrggbb`, `#rrggbbaa`, `rgb()`
 
 ## Departures
 
-- `cursor` is in the closed set but neither Button nor Input accepts it: nothing renders a cursor yet, so by R11.14 a style naming it throws. It becomes accepted when a cursor service exists.
+- `cursor` is in the closed set; Button and TextInput accept it in their base style since DDB-244, which made the dispatcher show it ([component-cursor.md](./component-cursor.md)). State overlays still reject it.
 - `Input` rejects `textAlign`, `textTransform`, and `textDecoration`; a single-line field's value is left-aligned and plain.
 - Inset elevation presets (`shadow_inset`) throw as a `shadow` value; the draw API has no inset box shadow.
 - The rest of the engine (Rectangle, Text, Panel, Circle, and the game components) still takes the legacy `Style` type. Moving them onto the closed set, and deleting `border`, `verticalAlign`, `whiteSpace`, `display`, `visibility`, `transform`, and `zIndex` from it, is the phase 5 catalog's work, component by component.
