@@ -83,8 +83,7 @@ class Application {
 			});
 
 			// R1.6: the one object every root is mounted with. The pointer
-			// adapter feeds its dispatcher from the canvas the renderer draws to,
-			// and the dispatcher's resolved cursor is shown on the same canvas.
+			// adapter feeds its dispatcher from the canvas the renderer draws to.
 			const canvas = this.renderer.canvas;
 			this.context = createMountContext({
 				draw,

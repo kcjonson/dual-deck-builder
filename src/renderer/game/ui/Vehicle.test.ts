@@ -3,6 +3,7 @@
  */
 import type { AnyUiEvent } from '../../engine/input/events';
 import { createTestContext } from '../../engine/components/testing';
+import { pointer } from '../../engine/services/testing';
 import { createMeasuringDrawApi } from '../../engine/text/testing';
 import { renderTree } from '../../engine/components/renderTree';
 import type { PolygonCommand, TextCommand } from '../../engine/draw';
@@ -331,13 +332,28 @@ describe('Vehicle token while a card is aimed (DDB-138)', () => {
 		const buggy = createDrivenVehicle({ driver: createTestDriver('Raider'), name: 'Buggy' });
 		const model = new CombatModel();
 		model.targetableVehicleIds = [buggy.id];
+		const shown: string[] = [];
+		const context = createTestContext({ onCursorChange: (cursor) => shown.push(cursor) });
 		const token = new Vehicle({ id: 'token', vehicleData: buggy, side: 'raider', combatData: model, onClick: () => undefined });
-		token.mount(createTestContext());
+		token.mount(context);
+		context.frame.layout();
+		const box = token.screenBounds;
+		context.dispatcher.enqueue(pointer('move', box.x + box.width / 2, box.y + box.height / 2));
+		context.dispatcher.dispatchPending();
 		expect(token.cursor).toBeNull();
+		expect(shown).toEqual([]);
+
 		model.isTargeting = true;
-		expect(token.cursor).toBe('pointer');
+		context.dispatcher.dispatchPending();
+		expect(shown).toEqual(['pointer']);
 		model.targetableVehicleIds = [];
-		expect(token.cursor).toBeNull();
+		context.dispatcher.dispatchPending();
+		expect(shown).toEqual(['pointer', 'default']);
+
+		token.cursor = 'text';
+		model.targetableVehicleIds = [buggy.id];
+		context.dispatcher.dispatchPending();
+		expect(token.cursor).toBe('text');
 		token.unmount();
 	});
 

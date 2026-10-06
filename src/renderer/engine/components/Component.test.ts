@@ -5,6 +5,19 @@ import { ScrollContainer } from '../ui/ScrollContainer';
 import { Button } from '../ui/Button';
 import { Checkbox } from '../ui/Checkbox';
 import { TextInput } from '../ui/TextInput';
+import { Select } from '../ui/Select';
+import { Slider } from '../ui/Slider';
+import { NumberInput } from '../ui/NumberInput';
+import { Menu } from '../ui/Menu';
+
+function findType(node: Component, type: string): Component | null {
+	if (node.componentType === type) return node;
+	for (const child of node.children) {
+		const found = findType(child, type);
+		if (found) return found;
+	}
+	return null;
+}
 
 /** A leaf that counts unmounts, so a test can see removeChild release it. */
 class Probe extends Rectangle {
@@ -61,6 +74,15 @@ describe('Component properties (R8.2)', () => {
 		expect(new Button({ label: 'Go', disabled: true }).cursor).toBe('pointer');
 		expect(new Checkbox({ label: 'Damage numbers' }).cursor).toBe('pointer');
 		expect(new TextInput().cursor).toBe('text');
+		expect(new Select({ options: [{ label: 'Rig', value: 'rig' }] }).cursor).toBe('pointer');
+		expect(new Slider({}).cursor).toBe('pointer');
+		const number = new NumberInput({});
+		expect(number.cursor).toBeNull();
+		expect(number.input.cursor).toBe('text');
+		expect(findType(number, 'NumberStepper')?.cursor).toBe('pointer');
+		const menu = new Menu({ items: [{ label: 'Repair' }] });
+		expect(menu.cursor).toBeNull();
+		expect(findType(menu, 'MenuRows')?.cursor).toBe('pointer');
 		expect(new Container({ cursor: 'pointer' }).cursor).toBe('pointer');
 
 		const button = new Button({ label: 'Go', cursor: 'default' });

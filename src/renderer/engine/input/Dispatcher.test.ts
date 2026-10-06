@@ -935,7 +935,7 @@ describe('cursor (R8.2)', () => {
 		expect(shown).toEqual(['pointer', 'default']);
 	});
 
-	it('shows default over a disabled pressable, even inside a parent that sets one (R9.5)', () => {
+	it('shows default over a disabled pressable, even inside a parent that sets one', () => {
 		const root = new Probe({ id: 'root', width: 400, height: 400, cursor: 'text' });
 		const button = new Button({ id: 'go', x: 10, y: 10, width: 100, label: 'Go', disabled: true });
 		root.addChild(button);
@@ -950,6 +950,29 @@ describe('cursor (R8.2)', () => {
 
 		root.enabled = false;
 		context.dispatcher.dispatchPending();
+		expect(shown).toEqual(['pointer', 'default']);
+	});
+
+	it('shows default over a disabled leaf that sets none, inside an enabled ancestor that does', () => {
+		const { art } = scene();
+		art.enabled = false;
+		send(pointer('move', 20, 20));
+		expect(context.dispatcher.cursor).toBe('default');
+		expect(shown).toEqual([]);
+	});
+
+	it('skips a hovered component hidden under a still pointer', () => {
+		const { field } = scene();
+		send(pointer('move', 110, 110));
+		field.visible = false;
+		context.dispatcher.dispatchPending();
+		expect(shown).toEqual(['text', 'pointer']);
+	});
+
+	it('goes back to default on reset', () => {
+		scene();
+		send(pointer('move', 20, 20));
+		context.dispatcher.reset();
 		expect(shown).toEqual(['pointer', 'default']);
 	});
 

@@ -69,8 +69,9 @@ class NumberStepper extends Component {
 		return 'auto';
 	}
 
+	/** The hand over a half that can step; the arrow over one at its limit. */
 	protected get defaultCursor(): Cursor | null {
-		return 'pointer';
+		return this.hoveredHalf === null || this.owner.canStep(this.hoveredHalf) ? 'pointer' : 'default';
 	}
 
 	public get handlesPointer(): boolean {

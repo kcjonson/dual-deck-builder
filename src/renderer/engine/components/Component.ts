@@ -417,13 +417,7 @@ export abstract class Component {
 		return 'auto';
 	}
 
-	/**
-	 * R8.2's `cursor`, which the dispatcher reads from the innermost hovered
-	 * component outward: the first one that is not null decides (`default`
-	 * if it is disabled), and with none the canvas shows `default`. Setting
-	 * null goes back to the kind's default.
-	 * Neither paint nor layout reads it (R8.18).
-	 */
+	/** R8.2. Null inherits from the parent; see `Dispatcher`. */
 	public get cursor(): Cursor | null {
 		return this.ownCursor ?? this.defaultCursor;
 	}

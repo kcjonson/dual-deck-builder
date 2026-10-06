@@ -133,6 +133,20 @@ describe('Button styling (R11)', () => {
 			expect(field.cursor).toBe('text');
 		});
 
+		it('keeps a cursor set on the component when a style without one arrives', () => {
+			const button = new Button({ label: 'Go', cursor: 'text' });
+			button.style = { backgroundColor: 'status_crit' };
+			expect(button.cursor).toBe('text');
+			button.style = { cursor: 'default' };
+			button.cursor = 'text';
+			button.style = {};
+			expect(button.cursor).toBe('text');
+			const field = new TextInput({ style: { cursor: 'pointer' } });
+			field.cursor = 'default';
+			field.style = {};
+			expect(field.cursor).toBe('default');
+		});
+
 		it('restyles at runtime through the same accessor, and validates it', () => {
 			const button = mount(new Button({ label: 'Go', width: 100 }));
 			button.style = { backgroundColor: 'status_crit', fontSize: 'fs_lg' };

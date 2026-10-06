@@ -4,6 +4,7 @@
 import { Text } from '../../engine/components/Text';
 import { createMeasuringDrawApi } from '../../engine/text/testing';
 import { createTestContext } from '../../engine/components/testing';
+import { pointer } from '../../engine/services/testing';
 import type { MountContext } from '../../engine/components/MountContext';
 import { Card as GameCard, CardData } from '../mechanics/Card';
 import cardsFile from '../data/cards.json';
@@ -151,6 +152,22 @@ describe('Card state', () => {
 		expect(card.cursor).toBeNull();
 		card.onSelect = () => undefined;
 		expect(card.cursor).toBe('pointer');
+	});
+
+	it('shows the arrow on screen while disabled, select handler or not (R8.2)', () => {
+		const shown: string[] = [];
+		const local = createTestContext({ draw: createMeasuringDrawApi().api, onCursorChange: (cursor) => shown.push(cursor) });
+		const card = new Card({ id: 'card', x: 0, y: 0, data: new GameCard({ ...cardData[0] }), driverNumber: 1 });
+		card.onSelect = () => undefined;
+		card.mount(local);
+		local.frame.layout();
+		const box = card.screenBounds;
+		local.dispatcher.enqueue(pointer('move', box.x + box.width / 2, box.y + box.height / 2));
+		local.dispatcher.dispatchPending();
+		card.enabled = false;
+		local.dispatcher.dispatchPending();
+		expect(shown).toEqual(['pointer', 'default']);
+		card.unmount();
 	});
 
 	it('rises by its transform when hovered or selected, leaving its position to layout', () => {

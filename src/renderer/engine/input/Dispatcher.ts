@@ -880,17 +880,22 @@ export class Dispatcher {
 	 * the hovering pointer is captured the captor's chain answers instead,
 	 * since hover then only says whether the pointer is over the captor
 	 * (R9.10): a slider, a text selection, or a card drag keeps its cursor
-	 * when the pointer strays off it. An effectively disabled component that
-	 * sets one shows `default` (R9.5), and so stops the walk.
+	 * when the pointer strays off it. A component hidden since hover was last
+	 * derived is skipped. Over a disabled component the cursor is `default`
+	 * whatever its ancestors set, since its click is dropped (R9.5); the
+	 * innermost visible component answers that for the chain, because
+	 * enabled is inherited downward.
 	 */
 	private resolveCursor(): Cursor {
 		const position = this.hoverPosition;
 		if (!position) return 'default';
 		const captor = this.captures.get(position.pointerId);
-		const start = captor?.isMounted ? captor : this.hoverPath[this.hoverPath.length - 1] ?? null;
-		for (let node: Component | null = start; node; node = node.parent) {
+		let node: Component | null = captor?.isMounted ? captor : this.hoverPath[this.hoverPath.length - 1] ?? null;
+		while (node && !node.effectivelyVisible) node = node.parent;
+		if (!node || !node.effectivelyEnabled) return 'default';
+		for (; node; node = node.parent) {
 			const cursor = node.cursor;
-			if (cursor !== null) return node.effectivelyEnabled ? cursor : 'default';
+			if (cursor !== null) return cursor;
 		}
 		return 'default';
 	}

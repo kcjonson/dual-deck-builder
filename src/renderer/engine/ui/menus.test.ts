@@ -242,6 +242,18 @@ describe('Menu (R12.11)', () => {
 		expect(picked).toEqual(['Scrap']);
 	});
 
+	it('shows the hand over a row that selects and the arrow over a separator or a disabled item (R8.2)', () => {
+		const made = menu({ items: [{ label: 'a' }, { separator: true }, { label: 'b', enabled: false }, { label: 'c' }] });
+		const cursorOver = (index: number) => {
+			inject(`move,${rowCentre(made, index)}`);
+			return context.dispatcher.cursor;
+		};
+		expect(cursorOver(0)).toBe('pointer');
+		expect(cursorOver(1)).toBe('default');
+		expect(cursorOver(2)).toBe('default');
+		expect(cursorOver(3)).toBe('pointer');
+	});
+
 	it('moves the highlight with the keyboard helpers, wrapping and skipping what cannot be selected', () => {
 		const made = new Menu({
 			items: [{ label: 'a' }, { separator: true }, { label: 'b', enabled: false }, { label: 'c' }],

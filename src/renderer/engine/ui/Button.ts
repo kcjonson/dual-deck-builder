@@ -213,8 +213,9 @@ export class Button extends Pressable {
 		this.styleObject = style;
 		if (style.opacity !== undefined) this.opacity = style.opacity;
 		else if (previous.opacity !== undefined) this.opacity = 1;
+		// A cursor the last style set goes back to the kind default; one set on the component since stays.
 		if (style.cursor !== undefined) this.cursor = style.cursor;
-		else if (previous.cursor !== undefined) this.cursor = null;
+		else if (previous.cursor !== undefined && this.cursor === previous.cursor) this.cursor = null;
 		this.restyle();
 	}
 

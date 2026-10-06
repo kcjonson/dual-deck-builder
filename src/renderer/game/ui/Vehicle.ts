@@ -1,4 +1,4 @@
-import { Component, ComponentOptions, PointerEvents, ResolvedColors } from '../../engine/components/Component';
+import { Component, ComponentOptions, Cursor, PointerEvents, ResolvedColors } from '../../engine/components/Component';
 import { Text } from '../../engine/components/Text';
 import { drawIcon, DrawIconOptions } from '../../engine/components/Icon';
 import { grownRect } from '../../engine/components/componentGeometry';
@@ -764,6 +764,11 @@ export class Vehicle extends Component {
 		return 'auto';
 	}
 
+	/** The hand while it is a target someone can choose; otherwise whatever is beneath it. */
+	protected get defaultCursor(): Cursor | null {
+		return this.combatData?.isTargeting && this.onClickCallback !== null && this.isTargetable() ? 'pointer' : null;
+	}
+
 	/** A click chooses the vehicle as a target in handleEvent. */
 	public get handlesPointer(): boolean {
 		return true;
@@ -908,7 +913,6 @@ export class Vehicle extends Component {
 		const focused = this.isFocusedTarget() || carrier || this.dropActive;
 		const targeting = this.combatData?.isTargeting ?? false;
 		this.focusable = targeting && this.onClickCallback !== null && this.isTargetable();
-		this.cursor = this.focusable ? 'pointer' : null;
 		this.opacity = targeting && !targetable ? DIMMED_OPACITY : 1;
 
 		const raider = this.side === 'raider';
