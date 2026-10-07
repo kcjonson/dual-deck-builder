@@ -1,7 +1,7 @@
 import { Component, PointerEvents } from '../../engine/components/Component';
 import { Icon } from '../../engine/components/Icon';
 import { Text } from '../../engine/components/Text';
-import type { ResolvedColors } from '../../engine/components/Component';
+import type { Cursor, ResolvedColors } from '../../engine/components/Component';
 import type { DrawApi } from '../../engine/draw/DrawApi';
 import type { DrawPolygonOptions, DrawRectOptions, DrawTextOptions } from '../../engine/draw/commands';
 import type { AnyUiEvent } from '../../engine/input/events';
@@ -389,6 +389,11 @@ export class Card extends Component {
 	/** R8.29: a card is one target; its text and frame are internals. */
 	protected get defaultPointerEvents(): PointerEvents {
 		return 'unit';
+	}
+
+	/** A card someone listens to is clickable; a disabled one shows the default cursor. */
+	protected get defaultCursor(): Cursor | null {
+		return this.onSelect ? 'pointer' : null;
 	}
 
 	/** A card acts on press and click in handleEvent, with or without a caller callback. */

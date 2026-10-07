@@ -12,6 +12,7 @@ import { PopupService } from '../services/PopupService';
 import { TooltipService } from '../services/TooltipService';
 import { Tooltip } from '../ui/Tooltip';
 import { UiFrame } from './UiFrame';
+import type { Cursor } from './Component';
 
 /** The logical viewport a root is sized from (R7.11, R8.21). `CanvasViewport` is one. */
 export interface ViewportSource {
@@ -69,6 +70,8 @@ export interface MountContextOptions {
 	clipboard?: ClipboardBackend;
 	/** Decodes an image by key (`imageUrlLoader()` on the pages); without one every acquire fails. */
 	assetLoader?: AssetLoader;
+	/** Shows the dispatcher's resolved cursor on the platform's surface (R8.2); called only on a change. */
+	onCursorChange?: (cursor: Cursor) => void;
 }
 
 /**
@@ -83,10 +86,10 @@ export interface MountContextOptions {
  * order: a press hides a tooltip even when a popup's close swallows it, and a
  * popup's Escape is taken before a dialog beneath it could be dismissed.
  */
-export function createMountContext({ draw, viewport, clock = new Clock(), clipboard, assetLoader }: MountContextOptions): MountContext {
+export function createMountContext({ draw, viewport, clock = new Clock(), clipboard, assetLoader, onCursorChange }: MountContextOptions): MountContext {
 	const animator = new Animator({ clock });
 	const frame = new UiFrame({ clock, animator });
-	const dispatcher = new Dispatcher({ frame, clock, pixelRatio: () => draw.devicePixelScale });
+	const dispatcher = new Dispatcher({ frame, clock, pixelRatio: () => draw.devicePixelScale, onCursorChange });
 	const focus = dispatcher.focus;
 	const drag = dispatcher.drag;
 	frame.afterLayout(() => focus.fixup());

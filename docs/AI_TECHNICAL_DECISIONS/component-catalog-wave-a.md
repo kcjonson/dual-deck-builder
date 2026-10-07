@@ -32,7 +32,7 @@ The leaves go last, not first, because moving them onto the closed set rewrites 
 
 ## Departures
 
-- `cursor` (R12.7's `pointer` default) is still not accepted: there is no cursor service, as DDB-84 recorded.
+- `cursor` (R12.7's `pointer` default) was not accepted here, since nothing showed a cursor; DDB-244 added it ([component-cursor.md](./component-cursor.md)).
 - "No click after a drag-threshold move" (R12.7's test list) follows the dispatcher's departure: a wandering press that ends on the button clicks.
 - Button's label was the positional first argument (`new Button('Go', { ... })`) until phase 6's accessor rename (DDB-91, DDB-245) made it `new Button({ label: 'Go', ... })`. The new controls take named options only.
 

@@ -87,6 +87,16 @@ describe('Toast lifecycle (R12.23)', () => {
 		expect(toast.state).toBe('dismissing');
 	});
 
+	it('shows the hand while it takes a click, and the arrow once it fades out (R8.2)', () => {
+		const toast = push({ autoDismiss: 0 });
+		advance(context, APPEAR_MS);
+		send(context, [pointer('move', toast.screenBounds.x + 30, toast.screenBounds.y + 12)]);
+		expect(context.dispatcher.cursor).toBe('pointer');
+		toast.dismiss();
+		advance(context, 16);
+		expect(context.dispatcher.cursor).toBe('default');
+	});
+
 	it('does not fire onClick on a toast already fading out', () => {
 		const clicks: number[] = [];
 		const toast = push({ onClick: () => clicks.push(1) });

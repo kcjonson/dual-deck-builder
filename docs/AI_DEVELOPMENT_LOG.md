@@ -17,6 +17,19 @@ This document contains the chronological log of completed development tasks for 
 - The preview's footer says "RMB / I: PIN", so the deck grid takes `inspectOnContextMenu` (a secondary click pins, a touch hold opens) and the screen registers the I key through `inspectHotkey`; Escape lets a pin go before it leaves the screen.
 - `DriverPanel.clearDeck` hides the tooltip when its owner is one of the cards about to go, on every rebuild and on `reset`, so a preview never outlives its card. The request counter that stops DDB-101's stacked decks is untouched.
 - Tests in `DriverSelectionScreen.test.ts`: factory and card per mini card, hover and focus show, blur and leave hide, arrow movement, on-screen at 1280x720, 1024x600, 800x450 and 640x400 for every card in both panels, teardown on driver change, pin, partner-panel rebuild, overlapping loads, and reset.
+## Component cursor (2026-10-06)
+
+**What landed:** DDB-244 (DDB-55). R8.2's `cursor`, shown on the canvas.
+
+- `Component.cursor` and the `cursor` option: `'default' | 'pointer' | 'text'`, or null to inherit; the kind's default through `defaultCursor`. `Pressable`, Select, Slider, and a live Toast say `pointer`; TextInput says `text`; menu rows and the number stepper answer per region (`default` over a separator, a disabled item, or a chevron at its limit). Setting it invalidates nothing.
+- `Dispatcher` resolves the innermost hovered component's cursor, walking outward, once at the end of each `dispatchPending`: the captor's chain while the hovering pointer is captured, hidden components skipped, `default` when the innermost visible one is disabled, when nothing sets one, after the pointer leaves, or on reset. `onCursorChange` (through `createMountContext`) fires only on a change; `src/index.ts` and the gallery set `canvas.style.cursor`.
+- Button and TextInput accept `cursor` in their base style; a later style without it resets only a cursor the last style set. The "waits for a cursor service" note is gone, and four older decision records now point at the new one.
+- Game: `Card` shows `pointer` once it has an `onSelect`; `Vehicle` while it is a choosable target. Both through `defaultCursor`.
+- `TreeView.cursor` and its row's `cursor` are now `cursorRow` and `keyboardCursor`, freeing the name.
+- Chapter 14: the "Properties of R8.2" row stays partial for two recorded departures (null inherits; a disabled component shows `default`). The hub's stale tally is corrected to 86 yes and 14 partial.
+- Decision record: [component-cursor.md](./AI_TECHNICAL_DECISIONS/component-cursor.md).
+
+**How:** Jest tests for resolution (innermost wins, inheritance, default, leave, reset, a disabled pressable and a disabled leaf, a hidden hovered component, a change under a still pointer without layout, capture during a drag, no repeated callbacks), kind defaults, style acceptance and reset, menu rows over a separator and a disabled item, the stepper at its limits, Toast, and Card and Vehicle through the dispatcher.
 ## Compound campaign and area map design (2026-10-06)
 
 **What landed:** design docs only, no code.
