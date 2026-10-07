@@ -131,6 +131,8 @@ export const SCENE_SCENARIOS: readonly SceneScenario[] = [
 	{ scene: 'card-detail', lintShort: true },
 	{ scene: 'card-detail-pinned', lintShort: true },
 	{ scene: 'card-detail-cap', lintShort: true },
+	// The mini card's states and stacks (DDB-311)
+	{ scene: 'card-minis', lintShort: true },
 	{ scene: 'overlays' },
 	{ scene: 'dialog' },
 	{ scene: 'popover' },

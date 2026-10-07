@@ -226,7 +226,7 @@ describe('DriverSelectionScreen: one driver per slot', () => {
 		context.focus.pushScope(screen.root);
 		// A deck is one stop, landing on its first card
 		expect(context.focus.tabOrder[1]).toBe(findAll(left.deckPreview, UICard)[0]);
-		const stops = context.focus.tabOrder.map(component => (component instanceof UICard ? component.parent?.parent?.id : component.id));
+		const stops = context.focus.tabOrder.map(component => (component instanceof UICard ? component.parent?.id : component.id));
 		expect(stops).toEqual([
 			'driver_select_back_button',
 			'driver_panel_left_deck_cards',
@@ -342,17 +342,13 @@ describe('DriverSelectionScreen: one driver per slot', () => {
 		expect(preview.scrollPosition).toBeGreaterThan(0);
 	});
 
-	it('puts each quantity on a badge under its card, clear of the cost corner', async () => {
+	it('shows each card once, as a mini stacked to its quantity (Game Flow 7.0)', async () => {
 		const { left } = await mountScreen();
-		const driver = left.selectedDriver;
-		const multiples = driver?.startingDeck.cards.filter(card => card.quantity > 1) ?? [];
-		const badges = findAll(left.deckPreview, Badge);
-		expect(badges.map(badge => badge.labelText)).toEqual(multiples.map(card => `x${card.quantity}`));
-		for (const badge of badges) {
-			const card = badge.parent?.children[0];
-			if (!(card instanceof UICard)) throw new Error('a quantity badge sits with its card');
-			expect(badge.screenBounds.y).toBeGreaterThanOrEqual(card.screenBounds.y + card.height);
-		}
+		const deck = left.selectedDriver?.startingDeck.cards ?? [];
+		const cards = findAll(left.deckPreview, UICard);
+		expect(cards.map(card => [card.data.type, card.copies])).toEqual(deck.map(entry => [entry.type, entry.quantity]));
+		expect(cards.every(card => card.size === CardSize.MINI)).toBe(true);
+		expect(findAll(left.deckPreview, Badge)).toEqual([]);
 	});
 
 	it('builds one starting deck preview when selections overlap a card load', async () => {

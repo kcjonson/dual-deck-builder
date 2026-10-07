@@ -1,13 +1,12 @@
-import type { Component } from '../../../engine/components/Component';
 import { Stack, StackOptions } from '../../../engine/components/Stack';
 import { Text } from '../../../engine/components/Text';
 import { Rectangle } from '../../../engine/components/Rectangle';
-import { Badge } from '../../../engine/ui/Badge';
 import { ScrollContainer } from '../../../engine/ui/ScrollContainer';
 import { Select } from '../../../engine/ui/Select';
+import type { Card as GameCard } from '../../mechanics/Card';
 import { Driver } from '../../mechanics/Driver';
 import { isSameDriver, nextOpenDriverIndex } from '../../mechanics/DriverPair';
-import { Card as UICard, CardSize } from '../../ui/Card';
+import { Card as UICard, CardSize, MINI_CARD_INK } from '../../ui/Card';
 import { CardLoader } from '../../core/CardLoader';
 import { FlowWrap } from '../../ui/FlowWrap';
 import { contains } from '../../../engine/services/OverlayService';
@@ -19,12 +18,10 @@ export interface DriverPanelOptions extends StackOptions {
 	side: DriverPanelSide;
 }
 
-/** Space between mini cards, across and down. */
-const DECK_CARD_SPACING = 10;
-/** Between a mini card and the quantity badge under it. */
-const QUANTITY_GAP = 4;
-/** The least the scrolling part shrinks to: a mini card's height, so it never closes up. */
-const BODY_MIN_HEIGHT = UICard.getDimensions(CardSize.MINI).height + 8;
+/** Space between mini cards, across and down: clear of one stack's edges and the next card's hex. */
+const DECK_CARD_SPACING = MINI_CARD_INK * 2 + 2;
+/** The least the scrolling part shrinks to: a mini card and its ink, so it never closes up. */
+const BODY_MIN_HEIGHT = UICard.getDimensions(CardSize.MINI).height + MINI_CARD_INK * 2;
 const PORTRAIT_MIN_HEIGHT = 40;
 
 /**
@@ -191,6 +188,9 @@ export class DriverPanel extends Stack {
 		}));
 		this.deckGrid = new FlowWrap({
 			id: `${this.idPrefix}deck_cards`,
+			// The cards' hexes and stacks draw past their boxes; the margin keeps
+			// that ink inside the scroller's clip
+			margin: MINI_CARD_INK,
 			gap: DECK_CARD_SPACING,
 			justify: 'center',
 			// R9.29: one Tab stop for the whole deck, the arrows walking its cards
@@ -375,12 +375,7 @@ export class DriverPanel extends Stack {
 		for (const cardConfig of driver.startingDeck.cards) {
 			const cardData = availableCards.get(cardConfig.type);
 			if (!cardData) continue;
-			this.deckGrid.addChild(this.createDeckEntry(new UICard({
-				x: 0,
-				y: 0,
-				data: cardData,
-				size: CardSize.MINI,
-			}), cardConfig.quantity));
+			this.deckGrid.addChild(this.createDeckCard(cardData, cardConfig.quantity));
 		}
 	}
 
@@ -392,23 +387,14 @@ export class DriverPanel extends Stack {
 	}
 
 	/**
-	 * A mini card, and under it a badge with its count when the deck holds
-	 * more than one. The badge sits below the card rather than on its corner,
-	 * where it covered the cost. Hovering or focusing the card opens the
-	 * detail view the hand shows (Game Flow Spec 1.2); it has no click, and
-	 * stays put rather than rising.
+	 * A mini card, stacked with its count when the deck holds more than one
+	 * copy (Game Flow 7.0). Hovering or focusing it opens the detail view
+	 * the hand shows (Game Flow Spec 1.2); it has no click.
 	 */
-	private createDeckEntry(card: UICard, quantity: number): Component {
-		card.liftable = false;
+	private createDeckCard(data: GameCard, copies: number): UICard {
+		const card = new UICard({ x: 0, y: 0, data, size: CardSize.MINI, copies });
 		card.focusable = true;
 		makeInspectable(card);
-		const entry = new Stack({
-			direction: 'vertical',
-			gap: QUANTITY_GAP,
-			crossAlign: 'center',
-		});
-		entry.addChild(card);
-		if (quantity > 1) entry.addChild(new Badge({ label: `x${quantity}` }));
-		return entry;
+		return card;
 	}
 }

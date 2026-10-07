@@ -112,6 +112,8 @@ function tones(hex: string): ToneFills {
 
 export const COST_HEX_FILLS = tones(COST_HEX);
 export const COST_HEX_EDGE_FILL: RGBA = hexRgba(COST_HEX_EDGE);
+export const CARD_GROUND_FILLS = tones(CARD_GROUND);
+export const CARD_MUTED_FILLS = tones(CARD_MUTED);
 export const GEM_FILLS: Readonly<Record<CardRarity, ToneFills>> = {
 	starter: tones(RARITY_GEMS.starter),
 	common: tones(RARITY_GEMS.common),
