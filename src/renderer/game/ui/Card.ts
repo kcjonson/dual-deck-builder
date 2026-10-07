@@ -1,7 +1,7 @@
 import { Component, PointerEvents } from '../../engine/components/Component';
 import { Icon } from '../../engine/components/Icon';
 import { Text } from '../../engine/components/Text';
-import type { ResolvedColors } from '../../engine/components/Component';
+import type { Cursor, ResolvedColors } from '../../engine/components/Component';
 import type { DrawApi } from '../../engine/draw/DrawApi';
 import type { DrawPolygonOptions, DrawRectOptions, DrawTextOptions } from '../../engine/draw/commands';
 import type { AnyUiEvent } from '../../engine/input/events';
@@ -391,6 +391,11 @@ export class Card extends Component {
 		return 'unit';
 	}
 
+	/** A card someone listens to is clickable; a disabled one shows the default cursor. */
+	protected get defaultCursor(): Cursor | null {
+		return this.onSelect ? 'pointer' : null;
+	}
+
 	/** A card acts on press and click in handleEvent, with or without a caller callback. */
 	public get handlesPointer(): boolean {
 		return true;
@@ -400,7 +405,7 @@ export class Card extends Component {
 	 * A click is the dispatcher's, synthesised when press and release both
 	 * land on this card (R9.31). A disabled card receives none of these
 	 * (R9.5). A focused card treats `activate` (Enter or Space) as a click
-	 * (R9.27); only the hand makes its cards focusable.
+	 * (R9.27); a card is focusable only where a screen opts in.
 	 */
 	public handleEvent(event: AnyUiEvent): void {
 		super.handleEvent(event);

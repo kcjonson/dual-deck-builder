@@ -65,14 +65,17 @@ class GalleryApplication {
 				gpuTimer: this.gpuTimer,
 				fontAtlases: await fontAtlases,
 			});
+			const canvas = this.renderer.canvas;
 			this.context = createMountContext({
 				draw: this.draw,
 				viewport: this.renderer.viewport,
 				clipboard: detectClipboard(window),
 				assetLoader: imageUrlLoader(),
+				onCursorChange: (cursor) => {
+					canvas.style.cursor = cursor;
+				},
 			});
 			new ReducedMotion({ animator: this.context.animator });
-			const canvas = this.renderer.canvas;
 			new PointerAdapter({ dispatcher: this.context.dispatcher }).attach(canvas);
 
 			this.host = new SceneHost({

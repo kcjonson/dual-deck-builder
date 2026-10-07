@@ -2,6 +2,7 @@ import { Component, ComponentOptions } from '../components/Component';
 import { Container } from '../components/Container';
 import type { MountContext } from '../components/MountContext';
 import { createTestContext } from '../components/testing';
+import { Button } from '../ui/Button';
 import { ScrollContainer } from '../ui/ScrollContainer';
 import { PlatformInput, TOUCH_HOLD_MS, WHEEL_LATCH_MS, WHEEL_LINE_PX } from './Dispatcher';
 import { dragThreshold } from './DragService';
@@ -88,7 +89,12 @@ function click(x: number, y: number, options: PointerOptions = {}): void {
 	send(pointer('move', x, y, options), pointer('down', x, y, options), pointer('up', x, y, options));
 }
 
-function wheel(x: number, y: number, deltaY: number, { deltaMode = 0, shift = false }: { deltaMode?: 0 | 1 | 2; shift?: boolean } = {}): void {
+function wheel(
+	x: number,
+	y: number,
+	deltaY: number,
+	{ deltaMode = 0, shift = false, buttons }: { deltaMode?: 0 | 1 | 2; shift?: boolean; buttons?: number } = {},
+): void {
 	send({
 		kind: 'wheel',
 		x,
@@ -96,6 +102,7 @@ function wheel(x: number, y: number, deltaY: number, { deltaMode = 0, shift = fa
 		deltaX: 0,
 		deltaY,
 		deltaMode,
+		buttons,
 		modifiers: { ...NO_MODIFIERS, shift },
 	});
 }
@@ -688,6 +695,69 @@ describe('wheel (R9.3, R9.32)', () => {
 		wheel(50, 50, 40, { shift: true });
 		expect(deltas).toEqual([[40, 0]]);
 	});
+
+	describe('event fields (R9.1)', () => {
+		type WheelEvent = Extract<AnyUiEvent, { type: 'wheel' }>;
+
+		function mountWheelProbe(): WheelEvent[] {
+			const wheels: WheelEvent[] = [];
+			class Spy extends Probe {
+				public handleEvent(event: AnyUiEvent): void {
+					super.handleEvent(event);
+					if (event.type === 'wheel') wheels.push(event);
+				}
+			}
+			mount(new Spy({ id: 'spy', width: 100, height: 100 }));
+			return wheels;
+		}
+
+		it('carries the primary mouse defaults when no pointer has been seen', () => {
+			const wheels = mountWheelProbe();
+			wheel(50, 50, 10);
+			expect(wheels).toHaveLength(1);
+			expect(wheels[0]).toMatchObject({
+				pointerId: 1,
+				pointerType: 'mouse',
+				isPrimary: true,
+				pressure: 0,
+				button: -1,
+				buttons: 0,
+			});
+		});
+
+		it('takes the pointer type and id from the pointer that is hovering', () => {
+			const wheels = mountWheelProbe();
+			send(pointer('move', 50, 50, { pointerId: 7, pointerType: 'pen' }));
+			wheel(50, 50, 10);
+			expect(wheels[0]).toMatchObject({ pointerId: 7, pointerType: 'pen', isPrimary: true });
+		});
+
+		it('follows the hovering pointer when it changes, and keeps the defaults of the first mouse after a leave', () => {
+			const wheels = mountWheelProbe();
+			send(pointer('move', 50, 50, { pointerId: 7, pointerType: 'pen' }));
+			send(pointer('move', 50, 50, { pointerId: 2, pointerType: 'mouse' }));
+			wheel(50, 50, 10);
+			expect(wheels[0]).toMatchObject({ pointerId: 2, pointerType: 'mouse' });
+			send({ kind: 'leave', pointerId: 2 });
+			wheel(50, 50, 10);
+			expect(wheels[1]).toMatchObject({ pointerId: 1, pointerType: 'mouse' });
+		});
+
+		it('reports the held buttons and a pressure of 0.5 while any is down, with button still -1', () => {
+			const wheels = mountWheelProbe();
+			wheel(50, 50, 10, { buttons: 4 });
+			expect(wheels[0]).toMatchObject({ buttons: 4, pressure: 0.5, button: -1 });
+			wheel(50, 50, 10);
+			expect(wheels[1]).toMatchObject({ buttons: 0, pressure: 0, button: -1 });
+		});
+
+		it('does not lend a touch\'s identity to a wheel when the touch shares the default pointer id', () => {
+			const wheels = mountWheelProbe();
+			send(pointer('down', 50, 50, { pointerId: 1, pointerType: 'touch' }));
+			wheel(50, 50, 10);
+			expect(wheels[0]).toMatchObject({ pointerId: 1, pointerType: 'mouse', isPrimary: true });
+		});
+	});
 });
 
 describe('keys (R9.15)', () => {
@@ -876,5 +946,124 @@ describe('synthesised pointer fields (R9.1)', () => {
 
 		expect(probe.seen).toContain('pointerleave 4 mouse primary');
 		expect(probe.seen).toContain('pointerenter 5 pen primary');
+	});
+});
+
+describe('cursor (R8.2)', () => {
+	const shown: string[] = [];
+
+	beforeEach(() => {
+		shown.length = 0;
+		context = createTestContext({ onCursorChange: (cursor) => shown.push(cursor) });
+	});
+
+	/** A clickable card with plain art and a text field inside it, beside a plain box. */
+	function scene(): { card: Probe; art: Probe; field: Probe; plain: Probe } {
+		const root = new Group({ id: 'root', width: 400, height: 400 });
+		const card = new Probe({ id: 'card', width: 200, height: 200, cursor: 'pointer' });
+		const art = new Probe({ id: 'art', x: 10, y: 10, width: 50, height: 50 });
+		const field = new Probe({ id: 'field', x: 100, y: 100, width: 50, height: 50, cursor: 'text' });
+		const plain = new Probe({ id: 'plain', x: 250, y: 0, width: 100, height: 100 });
+		card.addChild(art);
+		card.addChild(field);
+		root.addChild(card);
+		root.addChild(plain);
+		mount(root);
+		return { card, art, field, plain };
+	}
+
+	it('shows the cursor of the innermost hovered component that sets one', () => {
+		scene();
+		send(pointer('move', 110, 110));
+		expect(shown).toEqual(['text']);
+		expect(context.dispatcher.cursor).toBe('text');
+	});
+
+	it('inherits the nearest ancestor\'s cursor over a component that sets none', () => {
+		scene();
+		send(pointer('move', 20, 20));
+		expect(shown).toEqual(['pointer']);
+	});
+
+	it('shows default where nothing in the chain sets one, without a call', () => {
+		scene();
+		send(pointer('move', 300, 50));
+		expect(shown).toEqual([]);
+		expect(context.dispatcher.cursor).toBe('default');
+	});
+
+	it('calls only when the resolved cursor changes', () => {
+		scene();
+		send(pointer('move', 20, 20), pointer('move', 150, 20), pointer('move', 30, 30), pointer('move', 110, 110), pointer('move', 300, 50));
+		expect(shown).toEqual(['pointer', 'text', 'default']);
+	});
+
+	it('resets to default when the pointer leaves the surface', () => {
+		scene();
+		send(pointer('move', 20, 20), { kind: 'leave', pointerId: 1 });
+		expect(shown).toEqual(['pointer', 'default']);
+	});
+
+	it('shows default over a disabled pressable, even inside a parent that sets one', () => {
+		const root = new Probe({ id: 'root', width: 400, height: 400, cursor: 'text' });
+		const button = new Button({ id: 'go', x: 10, y: 10, width: 100, label: 'Go', disabled: true });
+		root.addChild(button);
+		mount(root);
+		send(pointer('move', 20, 20));
+		expect(context.dispatcher.cursor).toBe('default');
+		expect(shown).toEqual([]);
+
+		button.enabled = true;
+		context.dispatcher.dispatchPending();
+		expect(shown).toEqual(['pointer']);
+
+		root.enabled = false;
+		context.dispatcher.dispatchPending();
+		expect(shown).toEqual(['pointer', 'default']);
+	});
+
+	it('shows default over a disabled leaf that sets none, inside an enabled ancestor that does', () => {
+		const { art } = scene();
+		art.enabled = false;
+		send(pointer('move', 20, 20));
+		expect(context.dispatcher.cursor).toBe('default');
+		expect(shown).toEqual([]);
+	});
+
+	it('skips a hovered component hidden under a still pointer', () => {
+		const { field } = scene();
+		send(pointer('move', 110, 110));
+		field.visible = false;
+		context.dispatcher.dispatchPending();
+		expect(shown).toEqual(['text', 'pointer']);
+	});
+
+	it('goes back to default on reset', () => {
+		scene();
+		send(pointer('move', 20, 20));
+		context.dispatcher.reset();
+		expect(shown).toEqual(['pointer', 'default']);
+	});
+
+	it('follows a property change under a still pointer without invalidating layout (R8.18)', () => {
+		const { plain } = scene();
+		send(pointer('move', 300, 50));
+		plain.cursor = 'pointer';
+		expect(context.frame.layoutPending).toBe(false);
+		context.dispatcher.dispatchPending();
+		expect(shown).toEqual(['pointer']);
+		plain.cursor = null;
+		context.dispatcher.dispatchPending();
+		expect(shown).toEqual(['pointer', 'default']);
+	});
+
+	it('keeps the captor\'s cursor while a press drags off it, then follows hover on release', () => {
+		const { art } = scene();
+		art.captureOnDown = true;
+		art.cursor = 'pointer';
+		send(pointer('move', 20, 20), pointer('down', 20, 20), pointer('move', 110, 110), pointer('move', 300, 50));
+		expect(shown).toEqual(['pointer']);
+		send(pointer('up', 120, 120));
+		expect(shown).toEqual(['pointer', 'text']);
 	});
 });

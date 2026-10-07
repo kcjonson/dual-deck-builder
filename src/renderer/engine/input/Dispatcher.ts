@@ -1,6 +1,6 @@
 import type { Vec2 } from '../draw/geometry';
 import type { Clock } from '../animation/Clock';
-import type { Component } from '../components/Component';
+import type { Component, Cursor } from '../components/Component';
 import type { UiFrame } from '../components/UiFrame';
 import {
 	ActionEventType,
@@ -134,6 +134,8 @@ export type PlatformInput =
 		deltaX: number;
 		deltaY: number;
 		deltaMode: WheelDeltaMode;
+		/** The mouse buttons held while it turned (R9.1); absent is none. */
+		buttons?: number;
 		modifiers: Modifiers;
 	}
 	| { kind: 'key'; phase: 'down' | 'up'; key: string; repeat: boolean; modifiers: Modifiers }
@@ -178,6 +180,11 @@ export interface DispatcherOptions {
 	clock: Clock;
 	/** `dpr * uiScale` for clip snapping in the hit walk (R7.8a); 1 when absent. */
 	pixelRatio?: () => number;
+	/**
+	 * R8.2: the platform shell shows the resolved cursor (the web pages set
+	 * the canvas's CSS cursor). Called only when it changes.
+	 */
+	onCursorChange?: (cursor: Cursor) => void;
 }
 
 /**
@@ -240,11 +247,14 @@ export class Dispatcher {
 	private latch: { scroller: Component; lastTime: number } | null = null;
 	private inputPaused = false;
 	private dispatching = false;
+	private readonly onCursorChange: ((cursor: Cursor) => void) | null;
+	private shownCursor: Cursor = 'default';
 
-	constructor({ frame, clock, pixelRatio = () => 1 }: DispatcherOptions) {
+	constructor({ frame, clock, pixelRatio = () => 1, onCursorChange }: DispatcherOptions) {
 		this.frame = frame;
 		this.clock = clock;
 		this.pixelRatio = pixelRatio;
+		this.onCursorChange = onCursorChange ?? null;
 		this.focus = new FocusManager({ clock, roots: () => this.rootList });
 		this.drag = new DragService({
 			host: {
@@ -432,6 +442,7 @@ export class Dispatcher {
 				}
 			}
 			this.refreshHover();
+			this.updateCursor();
 		} finally {
 			this.dispatching = false;
 		}
@@ -529,6 +540,7 @@ export class Dispatcher {
 		this.focus.reset();
 		this.latch = null;
 		this.hotkeys.clear();
+		this.updateCursor();
 	}
 
 	// -- dispatch -------------------------------------------------------------
@@ -845,6 +857,51 @@ export class Dispatcher {
 		for (const observer of [...this.observers]) observer.hoverChange?.(hovered);
 	}
 
+	// -- cursor (R8.2) --------------------------------------------------------
+
+	/** What the canvas shows: the cursor last handed to `onCursorChange`. */
+	public get cursor(): Cursor {
+		return this.shownCursor;
+	}
+
+	/**
+	 * Resolved once at the end of each dispatch, so a property or enabled
+	 * change under a still pointer shows within a frame and a batch that
+	 * crosses several components reports only where it ended.
+	 */
+	private updateCursor(): void {
+		const cursor = this.resolveCursor();
+		if (cursor === this.shownCursor) return;
+		this.shownCursor = cursor;
+		this.onCursorChange?.(cursor);
+	}
+
+	/**
+	 * The innermost hovered component that sets a cursor, walking outward,
+	 * and `default` when none does or the pointer is off the surface. While
+	 * the hovering pointer is captured the captor's chain answers instead,
+	 * since hover then only says whether the pointer is over the captor
+	 * (R9.10): a slider, a text selection, or a card drag keeps its cursor
+	 * when the pointer strays off it. A component hidden since hover was last
+	 * derived is skipped. Over a disabled component the cursor is `default`
+	 * whatever its ancestors set, since its click is dropped (R9.5); the
+	 * innermost visible component answers that for the chain, because
+	 * enabled is inherited downward.
+	 */
+	private resolveCursor(): Cursor {
+		const position = this.hoverPosition;
+		if (!position) return 'default';
+		const captor = this.captures.get(position.pointerId);
+		let node: Component | null = captor?.isMounted ? captor : this.hoverPath[this.hoverPath.length - 1] ?? null;
+		while (node && !node.effectivelyVisible) node = node.parent;
+		if (!node || !node.effectivelyEnabled) return 'default';
+		for (; node; node = node.parent) {
+			const cursor = node.cursor;
+			if (cursor !== null) return cursor;
+		}
+		return 'default';
+	}
+
 	// -- wheel (R9.3, R9.32) --------------------------------------------------
 
 	private wheel(input: Extract<PlatformInput, { kind: 'wheel' }>): void {
@@ -871,18 +928,26 @@ export class Dispatcher {
 		const [deltaX, deltaY] = normaliseWheel(input, target);
 		if (scroller) this.latch = { scroller, lastTime: now };
 
+		// R9.1: a wheel belongs to the pointer the cursor last moved with; with
+		// none yet seen it is the platform default, a primary mouse. Identity is
+		// read only for a hovering pointer, so a touch that happens to have id 1
+		// never lends its type to a wheel.
+		const hovering = this.hoverPosition;
+		const pointerId = hovering?.pointerId ?? 1;
+		const identity = hovering ? this.identities.get(pointerId) : undefined;
+		const buttons = input.buttons ?? 0;
 		this.bubble(new UiWheelEvent({
 			timestamp: now,
 			target,
 			screen: { x: input.x, y: input.y },
 			deltaX,
 			deltaY,
-			pointerId: this.hoverPosition?.pointerId ?? 1,
-			pointerType: 'mouse',
-			isPrimary: true,
-			pressure: 0,
+			pointerId,
+			pointerType: identity?.pointerType ?? 'mouse',
+			isPrimary: identity?.isPrimary ?? true,
+			pressure: buttons !== 0 ? 0.5 : 0,
 			button: -1,
-			buttons: 0,
+			buttons,
 			modifiers: input.modifiers,
 		}));
 		// A scroll moves content under a pointer that did not move (R9.9).

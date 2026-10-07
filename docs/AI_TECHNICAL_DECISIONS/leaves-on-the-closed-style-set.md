@@ -31,7 +31,7 @@ Status: decided 2026-09-28 with DDB-85's third PR (DDB-55 phase 5, Wave A), whic
 
 - `Stack` draws an optional box (above).
 - Text's `overflow` is spelled `textOverflow`.
-- `cursor` is still accepted nowhere; there is no cursor service.
+- `cursor` was accepted nowhere then; DDB-244 added it to Button and TextInput ([component-cursor.md](./component-cursor.md)).
 
 ## What moved on screen
 

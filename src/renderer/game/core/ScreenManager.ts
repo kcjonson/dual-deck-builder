@@ -3,7 +3,6 @@ import type { DrawApi } from '../../engine/draw/DrawApi';
 import type { MountContext } from '../../engine/components/MountContext';
 import { SplashScreen } from '../screens/splash/SplashScreen';
 import { MainMenuScreen } from '../screens/main-menu/MainMenuScreen';
-import { DeveloperScreen } from '../screens/developer/DeveloperScreen';
 import { CardShowcaseScreen } from '../screens/card-showcase/CardShowcaseScreen';
 import { DriverSelectionScreen } from '../screens/driver-selection/DriverSelectionScreen';
 import { CombatScreen } from '../screens/combat/CombatScreen';
@@ -30,6 +29,34 @@ export type ScreenName =
  * Screen constructor type
  */
 type ScreenConstructor = new () => Screen;
+
+/**
+ * The registry, in the order `screenNames` reports (a capture script walks it).
+ * The developer screen holds every gallery section, so it is development
+ * tooling (R13.2): required inside a branch DefinePlugin folds to false, which
+ * keeps the module out of a production bundle where an ES import would not.
+ * Without it registered, `navigate('developerScreen')` is refused.
+ */
+function buildScreenConstructors(): Map<ScreenName, ScreenConstructor> {
+	const entries: [ScreenName, ScreenConstructor][] = [
+		['splashScreen', SplashScreen],
+		['mainMenuScreen', MainMenuScreen],
+	];
+	if (__DEV_TOOLS__) {
+		// eslint-disable-next-line @typescript-eslint/no-var-requires
+		const { DeveloperScreen } = require('../screens/developer/DeveloperScreen') as typeof import('../screens/developer/DeveloperScreen');
+		entries.push(['developerScreen', DeveloperScreen]);
+	}
+	entries.push(
+		['cardShowcaseScreen', CardShowcaseScreen],
+		['driverSelectionScreen', DriverSelectionScreen],
+		['combatScreen', CombatScreen],
+		['battleResultScreen', BattleResultScreen],
+		['settingsScreen', SettingsScreen],
+		['creditsScreen', CreditsScreen],
+	);
+	return new Map(entries);
+}
 
 export interface NavigateOptions {
 	/**
@@ -66,17 +93,7 @@ export class ScreenManager {
 	/**
 	 * Map of screen names to their constructors
 	 */
-	private static readonly screenConstructors: Map<ScreenName, ScreenConstructor> = new Map<ScreenName, ScreenConstructor>([
-		['splashScreen', SplashScreen],
-		['mainMenuScreen', MainMenuScreen],
-		['developerScreen', DeveloperScreen],
-		['cardShowcaseScreen', CardShowcaseScreen],
-		['driverSelectionScreen', DriverSelectionScreen],
-		['combatScreen', CombatScreen],
-		['battleResultScreen', BattleResultScreen],
-		['settingsScreen', SettingsScreen],
-		['creditsScreen', CreditsScreen],
-	]);
+	private static readonly screenConstructors: Map<ScreenName, ScreenConstructor> = buildScreenConstructors();
 	
 	/**
 	 * Private constructor to prevent instantiation
@@ -108,6 +125,12 @@ export class ScreenManager {
 		const transition = this.transition;
 		if (!context || !transition) {
 			throw new Error('ScreenManager not initialized. Call ScreenManager.initialize() first');
+		}
+		// Checked here, before the fade, because mountScreen unmounts the
+		// current screen before it looks the name up.
+		if (!this.isScreenName(screenName)) {
+			console.error(`ScreenManager: Unknown screen: ${screenName}`);
+			return;
 		}
 		this.recordFocus(context);
 		const swap = () => this.swap(context, screenName, data, restoreFocus);
@@ -168,8 +191,12 @@ export class ScreenManager {
 	}
 
 	private static mountScreen(context: MountContext, screenName: ScreenName, data?: unknown): void {
+		// `navigate` has already refused an unregistered name, so a miss here
+		// is a bug, and it throws before anything is unmounted.
+		const ScreenConstructor = this.screenConstructors.get(screenName);
+		if (!ScreenConstructor) throw new Error(`ScreenManager: no constructor registered for ${screenName}`);
 		console.log(`ScreenManager: Navigating to ${screenName}`);
-		
+
 		// Destroy current screen completely
 		if (this.currentScreen) {
 			console.log(`ScreenManager: Unmounting current screen ${this.currentScreenName}`);
@@ -180,13 +207,6 @@ export class ScreenManager {
 		// R8.22: nothing the outgoing screen opened above itself survives it.
 		context.popups.close();
 		context.overlays.closeAll();
-		
-		// Get screen constructor
-		const ScreenConstructor = this.screenConstructors.get(screenName);
-		if (!ScreenConstructor) {
-			console.error(`ScreenManager: Unknown screen: ${screenName}`);
-			return;
-		}
 		
 		// Create new screen instance
 		const screen = new ScreenConstructor();

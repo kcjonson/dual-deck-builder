@@ -1,4 +1,4 @@
-import { Component, PointerEvents } from '../components/Component';
+import { Component, Cursor, PointerEvents } from '../components/Component';
 import type { AnyUiEvent, UiActionEvent, UiPointerEvent } from '../input/events';
 
 /**
@@ -33,6 +33,10 @@ export abstract class Pressable extends Component {
 	/** R8.29: labels and marks are internals, not targets. */
 	protected get defaultPointerEvents(): PointerEvents {
 		return 'unit';
+	}
+
+	protected get defaultCursor(): Cursor | null {
+		return 'pointer';
 	}
 
 	/** Presses show on it whether or not a caller set onClick (the lint's rules 6 and 7). */

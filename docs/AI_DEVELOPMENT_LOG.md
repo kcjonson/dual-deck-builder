@@ -8,6 +8,49 @@ This document contains the chronological log of completed development tasks for 
 
 **Date correction (2026-08-22):** the repo's first commit is 2025-05-17, but many entries below carry dates in December 2024 or January 2025 — the AI that wrote them used its assumed date instead of the real one. Entries dated 2025-07-03 and 2025-07-02 have been corrected from "2025-01-03"/"2025-01-02" (verified against git history). Remaining Dec 2024 / Jan 2025 dates are wrong by roughly six months; the real work happened May–July 2025. Trust git history over these dates.
 
+## The F5 overlay and F12 developer screen leave production builds (2026-10-06)
+
+**What landed:** DDB-249, R13.2. A production bundle no longer carries `DeveloperOverlay`, `DeveloperScreen` or any gallery section, and nothing in it can navigate to the developer screen.
+
+- `Game` requires and builds the overlay inside `if (__DEV_TOOLS__)`, and mounts it and registers F5 and F12 in that branch; `developerOverlay` is nullable and the update, render, and viewport paths skip it when null.
+- `ScreenManager` registers `developerScreen` through a `require` in a folded branch, and `navigate` refuses an unregistered name before it fades or unmounts anything.
+- The main menu's Developer Tools button is built only in a development build.
+- `productionBuild.test.ts` runs the game, the screen manager, and the main menu with the flag false: no registered developer screen, a refused navigate that leaves the screen mounted, no menu button, no overlay constructed, F5 and F12 inert.
+- Verified on the bundles, not in CI: thirteen overlay, developer-screen and gallery-section strings are absent from `npm run build:web` output and present in a development build, and present again in a production build with the flag forced true (so minification is not what hides them). The frame timer, the draw counters and debug logging stay in production as recorded departures.
+- Chapter 14's "Dev-only build exclusion" row is partial for those departures (R13.42 and R13.43 are known gaps). Decision record: [gpu-timer-and-perf-capture.md](./AI_TECHNICAL_DECISIONS/gpu-timer-and-perf-capture.md).
+## Canvas input hygiene (2026-10-06)
+
+**What landed:** DDB-250. The canvas `contextmenu` and `user-select` handling of R15.39, and R9.1's wheel fields.
+
+- `PointerAdapter` prevents `contextmenu` on the canvas and on its document (the Menu key and Shift+F10 target the focused element, not the canvas; a text field keeps its own menu), so no browser menu opens over the game. The dispatcher already synthesises its own `contextmenu` from a secondary press. It sets `user-select: none` and `-webkit-user-select`/`-webkit-touch-callout: none` beside the existing `touch-action: none`, and `detach` restores all of them to what the canvas had.
+- On macOS a Ctrl+click arrives as button 0 with Ctrl held; with the native menu suppressed it would complete as a primary click, so the adapter remaps that whole press (down, moves, up) to the secondary button.
+- `UiWheelEvent` stores `isPrimary`, `pressure`, `button` and `buttons`. The wheel input carries the held `buttons`; pressure is 0.5 while one is held and `button` stays -1. `pointerType` and `isPrimary` come from the hovering pointer's identity (a primary mouse, id 1, when none is hovering) instead of a hard-coded mouse.
+- Tests: new `PointerAdapter.test.ts` and wheel field cases in `Dispatcher.test.ts`.
+- Chapter 14: the "WebGL2 backend rules" row drops its canvas `contextmenu`/`user-select` gap and names the remaining `char` clause (DDB-254, with R15.34); the "Event fields" row stays partial for `char`.
+## Driver selection previews the starting deck (2026-10-06)
+
+**What landed:** DDB-226, part 1. Game Flow Spec 1.2: hovering or focusing a mini card in a driver's starting deck shows the full card. Part 2 (locked drivers greyed out in the Select) is open; `Driver` has no lock source yet.
+
+- `DriverPanel.createDeckEntry` calls `makeInspectable` on each mini card, the same detail view the hand, the piles, and the card browser use (hover after the tooltip delay, at once on keyboard focus). No second preview.
+- The mini cards were disabled (display only), which a tooltip's focus path and the dim treatment both fight. They are enabled now, `liftable = false`, with no `onSelect`, so they stay put and a click does nothing. They no longer draw dimmed.
+- The deck grid is a focus group (R9.29): one Tab stop per panel landing on its active card (the first on entry), Left and Right moving between cards. Tab order is now Back, left deck, left Select, right deck, right Select, START RUN.
+- Escape: the tooltip service hides a plain preview before the screen's Escape runs, so the screen remembers, as of the last frame, whether one of its own was up. The first Escape then only dismisses it and the second leaves the screen.
+- The preview's footer says "RMB / I: PIN", so the deck grid takes `inspectOnContextMenu` (a secondary click pins, a touch hold opens) and the screen registers the I key through `inspectHotkey`; Escape lets a pin go before it leaves the screen.
+- `DriverPanel.clearDeck` hides the tooltip when its owner is one of the cards about to go, on every rebuild and on `reset`, so a preview never outlives its card. The request counter that stops DDB-101's stacked decks is untouched.
+- Tests in `DriverSelectionScreen.test.ts`: factory and card per mini card, hover and focus show, blur and leave hide, arrow movement, on-screen at 1280x720, 1024x600, 800x450 and 640x400 for every card in both panels, teardown on driver change, pin, partner-panel rebuild, overlapping loads, and reset.
+## Component cursor (2026-10-06)
+
+**What landed:** DDB-244 (DDB-55). R8.2's `cursor`, shown on the canvas.
+
+- `Component.cursor` and the `cursor` option: `'default' | 'pointer' | 'text'`, or null to inherit; the kind's default through `defaultCursor`. `Pressable`, Select, Slider, and a live Toast say `pointer`; TextInput says `text`; menu rows and the number stepper answer per region (`default` over a separator, a disabled item, or a chevron at its limit). Setting it invalidates nothing.
+- `Dispatcher` resolves the innermost hovered component's cursor, walking outward, once at the end of each `dispatchPending`: the captor's chain while the hovering pointer is captured, hidden components skipped, `default` when the innermost visible one is disabled, when nothing sets one, after the pointer leaves, or on reset. `onCursorChange` (through `createMountContext`) fires only on a change; `src/index.ts` and the gallery set `canvas.style.cursor`.
+- Button and TextInput accept `cursor` in their base style; a later style without it resets only a cursor the last style set. The "waits for a cursor service" note is gone, and four older decision records now point at the new one.
+- Game: `Card` shows `pointer` once it has an `onSelect`; `Vehicle` while it is a choosable target. Both through `defaultCursor`.
+- `TreeView.cursor` and its row's `cursor` are now `cursorRow` and `keyboardCursor`, freeing the name.
+- Chapter 14: the "Properties of R8.2" row stays partial for two recorded departures (null inherits; a disabled component shows `default`). The hub's stale tally is corrected to 86 yes and 14 partial.
+- Decision record: [component-cursor.md](./AI_TECHNICAL_DECISIONS/component-cursor.md).
+
+**How:** Jest tests for resolution (innermost wins, inheritance, default, leave, reset, a disabled pressable and a disabled leaf, a hidden hovered component, a change under a still pointer without layout, capture during a drag, no repeated callbacks), kind defaults, style acceptance and reset, menu rows over a separator and a disabled item, the stepper at its limits, Toast, and Card and Vehicle through the dispatcher.
 ## Compound campaign and area map design (2026-10-06)
 
 **What landed:** design docs only, no code.
