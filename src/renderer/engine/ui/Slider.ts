@@ -1,4 +1,4 @@
-import { Component, ComponentOptions, PointerEvents, ResolvedColors } from '../components/Component';
+import { Component, ComponentOptions, Cursor, PointerEvents, ResolvedColors } from '../components/Component';
 import type { DrawApi } from '../draw/DrawApi';
 import type { RGBA } from '../draw/geometry';
 import type { AnyUiEvent, UiKeyEvent, UiPointerEvent } from '../input/events';
@@ -176,6 +176,10 @@ export class Slider extends Component {
 
 	protected get defaultPointerEvents(): PointerEvents {
 		return 'unit';
+	}
+
+	protected get defaultCursor(): Cursor | null {
+		return 'pointer';
 	}
 
 	public get handlesPointer(): boolean {

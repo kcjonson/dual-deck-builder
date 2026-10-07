@@ -2,6 +2,7 @@ import { Component, ComponentOptions } from '../components/Component';
 import { Container } from '../components/Container';
 import type { MountContext } from '../components/MountContext';
 import { createTestContext } from '../components/testing';
+import { Button } from '../ui/Button';
 import { ScrollContainer } from '../ui/ScrollContainer';
 import { PlatformInput, TOUCH_HOLD_MS, WHEEL_LATCH_MS, WHEEL_LINE_PX } from './Dispatcher';
 import { dragThreshold } from './DragService';
@@ -945,5 +946,124 @@ describe('synthesised pointer fields (R9.1)', () => {
 
 		expect(probe.seen).toContain('pointerleave 4 mouse primary');
 		expect(probe.seen).toContain('pointerenter 5 pen primary');
+	});
+});
+
+describe('cursor (R8.2)', () => {
+	const shown: string[] = [];
+
+	beforeEach(() => {
+		shown.length = 0;
+		context = createTestContext({ onCursorChange: (cursor) => shown.push(cursor) });
+	});
+
+	/** A clickable card with plain art and a text field inside it, beside a plain box. */
+	function scene(): { card: Probe; art: Probe; field: Probe; plain: Probe } {
+		const root = new Group({ id: 'root', width: 400, height: 400 });
+		const card = new Probe({ id: 'card', width: 200, height: 200, cursor: 'pointer' });
+		const art = new Probe({ id: 'art', x: 10, y: 10, width: 50, height: 50 });
+		const field = new Probe({ id: 'field', x: 100, y: 100, width: 50, height: 50, cursor: 'text' });
+		const plain = new Probe({ id: 'plain', x: 250, y: 0, width: 100, height: 100 });
+		card.addChild(art);
+		card.addChild(field);
+		root.addChild(card);
+		root.addChild(plain);
+		mount(root);
+		return { card, art, field, plain };
+	}
+
+	it('shows the cursor of the innermost hovered component that sets one', () => {
+		scene();
+		send(pointer('move', 110, 110));
+		expect(shown).toEqual(['text']);
+		expect(context.dispatcher.cursor).toBe('text');
+	});
+
+	it('inherits the nearest ancestor\'s cursor over a component that sets none', () => {
+		scene();
+		send(pointer('move', 20, 20));
+		expect(shown).toEqual(['pointer']);
+	});
+
+	it('shows default where nothing in the chain sets one, without a call', () => {
+		scene();
+		send(pointer('move', 300, 50));
+		expect(shown).toEqual([]);
+		expect(context.dispatcher.cursor).toBe('default');
+	});
+
+	it('calls only when the resolved cursor changes', () => {
+		scene();
+		send(pointer('move', 20, 20), pointer('move', 150, 20), pointer('move', 30, 30), pointer('move', 110, 110), pointer('move', 300, 50));
+		expect(shown).toEqual(['pointer', 'text', 'default']);
+	});
+
+	it('resets to default when the pointer leaves the surface', () => {
+		scene();
+		send(pointer('move', 20, 20), { kind: 'leave', pointerId: 1 });
+		expect(shown).toEqual(['pointer', 'default']);
+	});
+
+	it('shows default over a disabled pressable, even inside a parent that sets one', () => {
+		const root = new Probe({ id: 'root', width: 400, height: 400, cursor: 'text' });
+		const button = new Button({ id: 'go', x: 10, y: 10, width: 100, label: 'Go', disabled: true });
+		root.addChild(button);
+		mount(root);
+		send(pointer('move', 20, 20));
+		expect(context.dispatcher.cursor).toBe('default');
+		expect(shown).toEqual([]);
+
+		button.enabled = true;
+		context.dispatcher.dispatchPending();
+		expect(shown).toEqual(['pointer']);
+
+		root.enabled = false;
+		context.dispatcher.dispatchPending();
+		expect(shown).toEqual(['pointer', 'default']);
+	});
+
+	it('shows default over a disabled leaf that sets none, inside an enabled ancestor that does', () => {
+		const { art } = scene();
+		art.enabled = false;
+		send(pointer('move', 20, 20));
+		expect(context.dispatcher.cursor).toBe('default');
+		expect(shown).toEqual([]);
+	});
+
+	it('skips a hovered component hidden under a still pointer', () => {
+		const { field } = scene();
+		send(pointer('move', 110, 110));
+		field.visible = false;
+		context.dispatcher.dispatchPending();
+		expect(shown).toEqual(['text', 'pointer']);
+	});
+
+	it('goes back to default on reset', () => {
+		scene();
+		send(pointer('move', 20, 20));
+		context.dispatcher.reset();
+		expect(shown).toEqual(['pointer', 'default']);
+	});
+
+	it('follows a property change under a still pointer without invalidating layout (R8.18)', () => {
+		const { plain } = scene();
+		send(pointer('move', 300, 50));
+		plain.cursor = 'pointer';
+		expect(context.frame.layoutPending).toBe(false);
+		context.dispatcher.dispatchPending();
+		expect(shown).toEqual(['pointer']);
+		plain.cursor = null;
+		context.dispatcher.dispatchPending();
+		expect(shown).toEqual(['pointer', 'default']);
+	});
+
+	it('keeps the captor\'s cursor while a press drags off it, then follows hover on release', () => {
+		const { art } = scene();
+		art.captureOnDown = true;
+		art.cursor = 'pointer';
+		send(pointer('move', 20, 20), pointer('down', 20, 20), pointer('move', 110, 110), pointer('move', 300, 50));
+		expect(shown).toEqual(['pointer']);
+		send(pointer('up', 120, 120));
+		expect(shown).toEqual(['pointer', 'text']);
 	});
 });

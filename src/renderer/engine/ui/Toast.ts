@@ -1,5 +1,5 @@
 import type { TweenHandle } from '../animation/Animator';
-import type { ClickCallback, Component, PointerEvents, ResolvedColors } from '../components/Component';
+import type { ClickCallback, Component, Cursor, PointerEvents, ResolvedColors } from '../components/Component';
 import { Icon } from '../components/Icon';
 import type { AnchorName } from '../components/layoutTypes';
 import type { MountContext } from '../components/MountContext';
@@ -137,6 +137,11 @@ export class Toast extends Stack {
 	/** A card under the pointer: it takes the hit rather than the scene beneath. */
 	protected get defaultPointerEvents(): PointerEvents {
 		return 'auto';
+	}
+
+	/** A live toast takes a click; one fading out does not. */
+	protected get defaultCursor(): Cursor | null {
+		return this.live ? 'pointer' : 'default';
 	}
 
 	/** A click anywhere on it dismisses it, `onClick` or not. */

@@ -6,18 +6,18 @@ This document outlines the core gameplay mechanics, style, and unique features f
 
 ## 2\. Core Gameplay Loop
 
-The game will follow a run-based roguelike structure. Players embark on perilous journeys across a dynamic wasteland map, making critical decisions that shape their drivers' abilities, vehicle loadouts, and ultimate chances of survival against hostile factions and environmental hazards.
+The game is a roguelike campaign around a compound. The player runs a settlement in the ruins of a metro area and keeps it alive by sending supply runs out into a procedurally generated region: pick a point of interest on the area map, pick a route to it, pick two drivers, and drive. The compound, its resources, its pool of drivers, and the map's fog persist between runs; the campaign ends when the last driver dies. Full rules: [Compound and Supply Runs](./Compound%20and%20Supply%20Runs.md). Map generation: [Area Map Generation](./Area%20Map%20Generation.md).
 
-1. **Crew Selection (The Symbiotic Drivers):** At the start of each run, players (or player, in single-player mode) select a duo of two distinct drivers. Each driver possesses:
+1. **Crew Selection (The Symbiotic Drivers):** Each supply run takes a duo of two distinct drivers from the compound's pool. Drivers persist for the campaign, with their decks, until they die. Each driver possesses:
    - A unique starting vehicle (e.g., agile dune buggy, heavily armored war rig, nimble interceptor motorcycle, versatile gyrocopter).
    - A small, specialized deck of "Tactics" cards (representing driver skills, vehicle maneuvers, and weapon systems).
    - A unique passive skill or a signature piece of starting vehicle equipment (e.g., a jury-rigged EMP field, a salvaged grappling hook, enhanced engine components).
-2. **Wasteland Navigation:** Players progress through a procedurally generated map, representing different sectors of the wasteland (e.g., ruined cities, barren deserts, toxic swamps, fortified canyons). Nodes on the map represent various encounters:
-   - **Combat Zones:** Engagements with marauder gangs, mutated creatures, rival scavengers, or automated security systems.
-   - **Scavenge Points:** Opportunities to find "Scrap" (primary currency), Fuel (a potential secondary resource for special actions or travel), spare parts (for repairs or crafting), or new Tactics cards.
+2. **Wasteland Navigation:** The area map is a procedurally generated region (ruined towns, barren deserts, toxic swamps, badlands and canyons) whose roads are the highways leading out of the metro, branching into back roads and trails. Points of interest sit at the ends of those roads, and each can be reached by two or three routes from different branches. Fog covers what hasn't been explored; driving a road charts it. A run resolves the stops along its route in order:
+   - **Combat Zones:** Raider ambushes and warbands: marauder gangs, mutated creatures, rival scavengers, or automated security systems.
+   - **Wrecks and Finds:** Scrap (primary currency), Fuel (paid to drive a route), food, water, meds, new Tactics cards, and the compound's growth: new drivers, settlers, and vehicles.
    - **Makeshift Garages:** Safe havens to repair vehicles, upgrade cards, install powerful Vehicle Mods, or discard unwanted cards from their decks.
-   - **Distress Signals & Anomalies:** Unique narrative events presenting choices with significant risks and rewards, potentially impacting driver morale, resources, or unlocking rare opportunities.
-   - **Faction Outposts/Boss Arenas:** Heavily defended locations controlled by powerful warlords or monstrous entities, guarding valuable loot or critical path progression.
+   - **Distress Signals, Checkpoints & Hazards:** Narrative choices, factions holding the road, and the terrain itself.
+   - **Strongholds:** Heavily defended faction seats, hidden in the fog in every direction, each guarded by a boss. They're objectives the player chooses to take on when ready, never forced.
 3. **Vehicular Combat:** Turn-based card combat where players strategically manage the actions of both their drivers and their vehicles.
    - **Synergistic Play:** Success hinges on effectively combining the abilities, weapons, and maneuvers of the two vehicles. Card effects can be amplified or altered based on the partner's actions or status.
    - **Resource Management:** Players utilize "Adrenaline" (generated each turn and through specific card effects) to play Tactics cards. Some powerful abilities might also consume Fuel or specific Ammo types.
@@ -25,13 +25,15 @@ The game will follow a run-based roguelike structure. Players embark on perilous
 4. **Deckbuilding & Vehicle Customization:** Post-encounter, players are rewarded with choices of new Tactics cards to add to either driver's deck, discover powerful Vehicle Mods (the game's equivalent of artifacts/relics), and salvage Scrap (currency).
    - **Scrap Utilization:** Scrap is used in Garages to upgrade cards (e.g., increasing damage, reducing Adrenaline cost, adding secondary effects), enhance vehicle attributes (Armor, Speed, Handling, Cargo Capacity, Weapon Mounts), or install new Mods.
    - **Deck Refinement:** Options to remove cards from decks are crucial for maintaining efficiency, especially when managing two distinct but cooperating decks.
-5. **Run Culmination & Consequences:** Runs typically culminate in challenging boss battles against formidable wasteland leaders or colossal mutated threats.
-   - **Victory:** Defeating the final boss of a region or the ultimate antagonist completes the run, potentially unlocking new drivers, vehicles, Tactics cards, Vehicle Mods, cosmetic items, or higher difficulty tiers ("Wasteland Infamy Levels").
+5. **Consequences:** A supply run ends at its objective, and the convoy comes home down the road it cleared (late in a campaign, a rare ambush can catch it on the way back). Runs are measured in hours and leave at dawn: they have to be home by dark. Early routes all fit in daylight; the far POIs and strongholds don't, and night, with its own challenges, is the late game.
+   - **Bosses:** Some objectives are strongholds with boss fights. The player decides when they're ready for one, and can keep doing non-boss runs to build up first. Taking a stronghold breaks its faction's hold on its territory.
+   - **Victory:** The campaign is won by taking the region's strongholds (whether a final boss follows is open), unlocking new drivers, vehicles, Tactics cards, Vehicle Mods, cosmetic items, or higher difficulty tiers ("Wasteland Infamy Levels").
    - **Defeat (Lose Scenarios):**
-     - **One Vehicle Down:** If one driver's vehicle is destroyed (structure reaches zero), that driver jumps into the partner's vehicle as a passenger. They keep their own deck, hand, and adrenaline and keep drawing, but can't play attack cards, so both drivers (and both co-op players) stay in the fight. The downed vehicle can be repaired at a Garage if the encounter is won, but perhaps at a significant Scrap cost or with lasting minor damage for the run (e.g., a permanent reduction in max HP for that vehicle until the run ends or a specific repair event is found).
-     - **Both Drivers Down:** If both player vehicles are destroyed in the same combat, or if the sole remaining vehicle is destroyed, the run ends. Players return to the hub/main menu, retaining any meta-progression unlocks but losing run-specific progress.
-     - **Critical Resource Depletion (Optional):** Running out of Fuel in a critical map segment without means to refuel could also lead to a run-ending scenario (e.g., stranded and overwhelmed by ambient threats).
-6. **Meta-Progression:** A persistent progression system rewards players across multiple runs. This includes unlocking:
+     - **One Vehicle Down:** If one driver's vehicle is destroyed (structure reaches zero), that driver jumps into the partner's vehicle as a passenger. They keep their own deck, hand, and adrenaline and keep drawing, but can't play attack cards, so both drivers (and both co-op players) stay in the fight. The downed vehicle can be repaired at a Garage if the encounter is won, but perhaps at a significant Scrap cost or with lasting minor damage.
+     - **Both Drivers Down:** If no driver is left in a fight, the supply run fails: the dead are gone for good, a driver who crashed out is missing, and the cargo and the run's escorts are lost. The campaign goes on with the drivers left at the compound.
+     - **The Compound Falls:** When the last driver in the pool dies, the campaign ends: the compound starves, riots, or disbands. Meta-progression unlocks are kept.
+     - **Fuel:** Routes are paid for in fuel at departure, so a run can't be stranded part way. A compound with no fuel can always send a scavenging party on foot, so it never soft-locks.
+6. **Meta-Progression:** A persistent progression system rewards players across campaigns. This includes unlocking:
    - New playable Driver/Vehicle combinations.
    - New pools of Tactics cards and Vehicle Mods to appear in subsequent runs.
    - Starting bonuses or alternative loadouts for existing drivers.

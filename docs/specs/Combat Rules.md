@@ -101,7 +101,7 @@ An ambusher has no reserved formation slot and no outran vehicle. It counts as f
 
 ### Losing vehicles and drivers
 
-- Game over - The fight goes on while at least one of your drivers is still in it, driving or riding as a passenger. When none are (every driver dead or crashed out), the run ends: true death, the session is over, and there's no rescue even for a driver who crashed out alive. Escorts never count toward defeat. Decided by Kevin, 2026-09-25: one driver has to survive to circle back down the road for the other.
+- Run lost - The fight goes on while at least one of your drivers is still in it, driving or riding as a passenger. When none are (every driver dead or crashed out), the supply run fails: the dead are gone for good, and there's no rescue for a driver who crashed out alive, who is missing. Escorts never count toward defeat. Decided by Kevin, 2026-09-25: one driver has to survive to circle back down the road for the other. Since 2026-10-06 the campaign itself only ends when the compound's last driver dies ([Compound and Supply Runs](./Compound%20and%20Supply%20Runs.md)).
 - Driver death - If the vehicle has a passenger, the passenger becomes the driver. If not:
   - On the player's team, the vehicle becomes an escort, with default crew stats (gunnery 4, evade 3, ramming 2) and its own base speed. It brings no signature card, and it starts spent: a vehicle only converts mid-turn, and one that converts on the enemy turn is ready again at the start of yours with every other escort. From then on it's ordered like any escort, takes damage on structure only, and has a free passenger seat. It stays in the convoy after the fight, at the end of the roster (see Owning escorts).
   - A raider vehicle is out of the fight and leaves the road at the end of the turn, like a wreck. Its plan drops (see Enemy intents).
@@ -111,7 +111,7 @@ An ambusher has no reserved formation slot and no outran vehicle. It counts as f
   - A driver with no free seat has crashed out: out of the fight but alive, and their hand is gone for that fight. If the fight is won, the surviving driver goes back down the road and picks them up, so they rejoin the run.
   - A passenger keeps their own deck, hand, discard, and adrenaline, draws every turn, can't play attack cards, and can play order cards.
   - A wrecked vehicle stays on the road for the turn it dies, then is removed.
-- Escort death - A wrecked escort is gone for the rest of the run, and its signature card leaves the deck when the fight ends. See Escorts.
+- Escort death - A wrecked escort is gone for good, and its signature card leaves the deck when the fight ends. See Escorts.
 
 ## Combat sequence
 
@@ -191,7 +191,7 @@ Persistence and dividends were decided 2026-09-26 (Kevin delegated the calls; re
 - The roster is the order your escorts joined the convoy, first acquired first. It settles preferred-slot collisions and the order Rally the Convoy resolves in.
 - After a fight, every living escort stays in the convoy, whatever made it an escort. A driven vehicle that became one (see Passengers and unmanned vehicles) joins the end of the roster and counts toward the 4. If that makes 5, you dismiss one before the next fight.
 - Damage persists between fights: an escort starts the next fight with the structure it ended on. The garage repairs it. Everything else is the fight's: an escort starts the next fight in formation at full armor, with no statuses or Shield, ready. (Armor refilling is a build call, proposed in escorts.md for Kevin to confirm.)
-- A lost escort is gone for the run, with its signature card.
+- A lost escort is gone for good, with its signature card. The convoy belongs to the compound and persists between supply runs.
 - Haulers pay a dividend after a won fight they survive (a tie or a loss pays nothing): the Fuel Hauler +1 fuel, the Med Truck 3 HP to every living driver in the run (up to their starting HP, and including a driver who crashed out), the Salvage Rig (not one of the first four) +15 scrap. Each hauler pays its own, so two Med Trucks heal 6.
 
 ### Passengers and unmanned vehicles
