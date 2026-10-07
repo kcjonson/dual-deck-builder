@@ -4,6 +4,21 @@ This document is a place for multiple AI workers (such as Claude and Claude Code
 
 =========================================
 
+## Compound campaign and area map (designed 2026-10-06, not built)
+
+The game around combat is now a compound campaign of supply runs, replacing the single run up a layered map to a boss. Specs: [Compound and Supply Runs](./specs/Compound%20and%20Supply%20Runs.md) (loop, compound, driver pool, area map, run route, stops, fog, strongholds) and [Area Map Generation](./specs/Area%20Map%20Generation.md) (procedural generation). Record: [compound-and-area-map.md](./AI_TECHNICAL_DECISIONS/compound-and-area-map.md). Wireframes: the "Supply Run Map" design canvas (https://claude.ai/artifact/SokU9WnQ3MDSUEb8PYxs5F), with screenshots checked in at `docs/design/supply-runs/` and embedded in the specs.
+
+- "Run" means one supply run; "campaign" is the save. Runs are one way out, home down the cleared road. The campaign ends when the compound's last driver dies.
+- Runs are measured in hours: leave at dawn, home by dark, one run a day. Tiers 1 to 3 always fit in daylight; tiers 4 and 5 run into the night, a late-game mechanic whose rules aren't designed yet.
+- Drivers and their decks persist across runs; the pool is refilled only by Find: driver stops.
+- Each driver has a default deck (8 to 20 cards) and a hand limit (7, `HAND_CAP`, to become a driver stat). Spare cards and rewards live in the compound's locker. The Crew screen edits default decks for free; load out (which replaces driver selection) shows each driver's deck view only, with an optional per-driver "Customize" mode laid out like the Crew screen. A driver who dies loses their run deck, borrowed cards included.
+- Cards always look like cards (Game Flow 7.0): detail view, 128x180 face, and a new 80x112 mini card for deck screens, copies stacked with a count. Drivers (104x146, riveted frame) and escorts (80x112, hazard stripe) are cards too.
+- The area map is open any time outside a fight or event. Drivable roads are trees grown outward from the metro, POIs are dead ends reached from 2 or 3 branches, and strongholds hide in fog in every direction, fought when the player chooses.
+- Two layers: the drivable network carries all gameplay rules; a scenery layer (street grids, county roads, rail, broken highways) is generated last from its own stream and carries none.
+- Generation reads one `MapParams` (seed, environment, mountains, rivers, density, and more). The prototype tunes it live in a Map Lab section of the Developer screen; the finished game rolls it from the seed.
+- Game Flow, Gameplay Mechanics, and Combat Rules were updated to match. Driver selection is now the load out step.
+- Open questions are listed at the end of both specs; the first is what wins a campaign.
+
 ## Battle screen design (decided 2026-09-25, road model built)
 
 The combat screen's layout and the rules it depends on are decided and written down. The combat model's half of the road is built (DDB-128 and DDB-129, one PR); the screen isn't. Spec: [docs/specs/Battle Screen Design.md](./specs/Battle%20Screen%20Design.md). Decision record, options, and rationale: [battle-screen-road-model.md](./AI_TECHNICAL_DECISIONS/battle-screen-road-model.md). Interactive mock with a fit matrix over six scenarios, six viewports, and five states: [docs/design/battle-screen/index.html](./design/battle-screen/index.html), served through any static server.
