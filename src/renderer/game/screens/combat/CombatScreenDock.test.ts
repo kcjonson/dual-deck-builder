@@ -11,7 +11,7 @@ import { layoutLint } from '../../../engine/debug/layoutLint';
 import { treeSnapshot } from '../../../engine/debug/treeSnapshot';
 import { createMeasuringDrawApi } from '../../../engine/text/testing';
 import { Card } from '../../mechanics/Card';
-import { DriverRole } from '../../mechanics/Driver';
+import { Driver, DriverRole } from '../../mechanics/Driver';
 import type { VehicleMod } from '../../mechanics/Vehicle';
 import { Card as UICard } from '../../ui/Card';
 import { Text } from '../../../engine/components/Text';
@@ -51,9 +51,10 @@ function newContext(width: number, height: number): ReturnType<typeof createTest
 	});
 }
 
-async function startCombat(context: ReturnType<typeof createTestContext>): Promise<CombatScreen> {
+/** The screen on its default fight, or seating `drivers` when given. */
+async function startCombat(context: ReturnType<typeof createTestContext>, drivers?: Driver[]): Promise<CombatScreen> {
 	const combat = new CombatScreen();
-	combat.mount(context);
+	combat.mount(context, drivers ? { drivers } : undefined);
 	await flushPromises();
 	await flushPromises();
 	context.frame.layout();
@@ -135,13 +136,15 @@ describe('CombatScreen dock (DDB-136)', () => {
 	// rule to the dock: a draw fills the hand to the driver's limit, and the
 	// fan overlaps tighter, so every card stays in the half and keeps a strip
 	// of itself showing, though past the cap is undesigned and the fit suite
-	// flags it.
+	// flags it. The limit is raised before the screen seats the driver, so a
+	// clamp at the seat fails this too.
 	it.each([[1024, 600], [1440, 882]])('fans a hand drawn past the dock\'s cap inside its half at %ix%i at lint zero', async (width, height) => {
 		const context = newContext(width, height);
-		const combat = await startCombat(context);
-		const [first, second] = combat['playerDrivers'];
 		const pastCap = DOCK_HAND_CAP + 3;
-		first.handLimit = pastCap;
+		const seated = DriverLoader.getInstance().getUnlockedDrivers().slice(0, 2);
+		seated[0].handLimit = pastCap;
+		const combat = await startCombat(context, seated);
+		const [first, second] = combat['playerDrivers'];
 		first.deck?.addCards(cards(pastCap));
 		expect(first.drawCards(pastCap - first.hand.length).burned).toEqual([]);
 		expect(first.hand).toHaveLength(pastCap);
