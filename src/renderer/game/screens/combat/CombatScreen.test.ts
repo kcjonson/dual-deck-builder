@@ -373,7 +373,7 @@ describe('CombatScreen: one layout for mount and resize', () => {
  * DDB-183: the hand was laid out at its natural width and centred, so at
  * 1024 px the first driver's first card started at x = -368, unseeable and
  * unclickable. Each driver now owns half the dock and their fan overlaps to
- * fit it, up to the hand cap.
+ * fit it, up to the dock's cap of seven.
  */
 describe('CombatScreen: every card in the hand is on screen', () => {
 	it.each([
