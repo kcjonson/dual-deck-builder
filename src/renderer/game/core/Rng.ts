@@ -1,16 +1,17 @@
 /**
- * Seeded random streams for generation and campaign code, which never calls
- * `Math.random`. The generator is sfc32 (PractRand's reference step and
- * three-word seeding), and a stream is rebuilt exactly from its uint32 seed.
- * `fork` derives a named child stream from (seed, name, attempt) alone, so no
- * stream depends on another's draws or on the order streams were forked in.
+ * Seeded random streams. Generation and campaign code draw from these and
+ * should not call `Math.random`; a new root seed comes from `freshSeed`. The
+ * generator is sfc32, with PractRand's reference step and three-word seeding.
  *
- * The core is integer math (`Math.imul`, `>>> 0`) and `weighted` uses only
- * IEEE addition and multiplication, so a seed yields the same numbers in every
- * JS engine. Changing anything here moves every generated map: the algorithm,
- * the fork hash, and each method's draw count are pinned by golden tests and
- * recorded in docs/AI_TECHNICAL_DECISIONS/seeded-prng.md.
+ * The core is integer math and `weighted` uses only IEEE addition and
+ * multiplication, so a seed draws the same numbers in every JS engine. Golden
+ * tests pin the algorithm, the fork hash, and each method's draw count;
+ * changing any of them moves every generated map and bumps `RNG_VERSION`. See
+ * docs/AI_TECHNICAL_DECISIONS/seeded-prng.md.
  */
+
+/** Bumped by any change to what a seed draws. The map generator's version builds on it. */
+export const RNG_VERSION = 1;
 
 export interface RngOptions {
 	/** Any number, coerced with ECMAScript ToUint32 (`seed >>> 0`). */
@@ -19,31 +20,64 @@ export interface RngOptions {
 
 export interface WeightedEntry<T> {
 	readonly value: T;
-	/** Finite and >= 0. A zero weight is never chosen. */
+	/** A finite number >= 0. A zero weight is never chosen. */
 	readonly weight: number;
 }
 
+// Globals read once, at load: under Jest's vm context each global read costs about 0.15 us.
+const imul = Math.imul;
+const isInteger = Number.isInteger;
+const isSafeInteger = Number.isSafeInteger;
+const INFINITY = Infinity;
+const StateArray = Int32Array;
+
 const UINT32_COUNT = 4294967296;
-const FLOAT_SCALE = 1 / UINT32_COUNT;
 /** The SplitMix increment that spaces the three seed words apart. */
 const GOLDEN_GAMMA = 0x9e3779b9;
 /** Draws discarded after seeding, as PractRand's sfc32 `seed(s1, s2, s3)` does. */
 const WARMUP_DRAWS = 15;
 
+/** A new root seed: the only place outside tests allowed to read `Math.random`, read per call so a patched one applies. */
+export function freshSeed(): number {
+	return (Math.random() * UINT32_COUNT) >>> 0;
+}
+
+/**
+ * A seeded stream of draws, rebuilt exactly from its uint32 seed.
+ *
+ * Not designed for subclassing: the constructor calls no overridable method,
+ * and `fork` always returns a base `Rng`. Methods aren't bound, so where a
+ * `() => number` source is wanted, pass `() => rng.float()`. The argument
+ * checks throw a RangeError for a wrong type as well as an out-of-range value.
+ */
 export class Rng {
 	private readonly streamSeed: number;
-	private a: number;
-	private b: number;
-	private c: number;
-	private counter: number;
+	/**
+	 * sfc32's a, b, c, and counter (PractRand's names), in int32 slots because
+	 * V8 would box number fields holding them as doubles.
+	 */
+	private readonly state: Int32Array;
 
 	constructor({ seed }: RngOptions) {
 		this.streamSeed = seed >>> 0;
-		this.a = fmix32(this.streamSeed + GOLDEN_GAMMA);
-		this.b = fmix32(this.streamSeed + 2 * GOLDEN_GAMMA);
-		this.c = fmix32(this.streamSeed + 3 * GOLDEN_GAMMA);
-		this.counter = 1;
-		for (let draw = 0; draw < WARMUP_DRAWS; draw += 1) this.next();
+		let a = fmix32(this.streamSeed + GOLDEN_GAMMA);
+		let b = fmix32(this.streamSeed + 2 * GOLDEN_GAMMA);
+		let c = fmix32(this.streamSeed + 3 * GOLDEN_GAMMA);
+		let counter = 1;
+		// next()'s step on locals, so the warm-up calls nothing overridable and stores the state once.
+		for (let draw = 0; draw < WARMUP_DRAWS; draw += 1) {
+			const result = (a + b + counter) | 0;
+			a = b ^ (b >>> 9);
+			b = (c + (c << 3)) | 0;
+			c = (((c << 21) | (c >>> 11)) + result) | 0;
+			counter = (counter + 1) | 0;
+		}
+		const state = new StateArray(4);
+		state[0] = a;
+		state[1] = b;
+		state[2] = c;
+		state[3] = counter;
+		this.state = state;
 	}
 
 	/** The uint32 this stream was built from; `new Rng({ seed })` replays it from the start. */
@@ -55,31 +89,38 @@ export class Rng {
 	 * The child stream `name` at `attempt`, a pure function of this stream's
 	 * seed, the name, and the attempt: it never reads or advances this stream,
 	 * so siblings don't depend on call order or on how far this one has drawn.
-	 * Names are any string (`terrain`, `stop:123`); `attempt` is a retry or
-	 * reroll count, an integer from 0 to 2^32 - 1.
+	 * Always a base `Rng` built from the derived seed. Names are any string
+	 * (`terrain`, `stop:123`); `attempt` is a retry or reroll count, an integer
+	 * from 0 to 2^32 - 1, and 0 when left out. An explicit `undefined` throws,
+	 * so a count missing from a save can't quietly become 0.
 	 */
-	public fork(name: string, attempt = 0): Rng {
-		if (!Number.isInteger(attempt) || attempt < 0 || attempt >= UINT32_COUNT) {
-			throw new RangeError(`Rng.fork: attempt must be an integer from 0 to 2^32 - 1, got ${attempt}`);
+	public fork(name: string, ...rest: [] | [attempt: number]): Rng {
+		if (typeof name !== 'string') throw new RangeError(`Rng.fork: name must be a string, got ${display(name)}`);
+		const attempt = rest.length === 0 ? 0 : rest[0];
+		if (!isInteger(attempt) || attempt < 0 || attempt >= UINT32_COUNT) {
+			throw new RangeError(`Rng.fork: attempt must be an integer from 0 to 2^32 - 1, got ${display(attempt)}`);
 		}
 		return new Rng({ seed: forkSeed(this.streamSeed, name, attempt) });
 	}
 
 	/** The next raw draw, a uint32. One sfc32 step. */
 	public next(): number {
-		const b = this.b;
-		const c = this.c;
-		const result = (this.a + b + this.counter) | 0;
-		this.counter = (this.counter + 1) | 0;
-		this.a = b ^ (b >>> 9);
-		this.b = (c + (c << 3)) | 0;
-		this.c = (((c << 21) | (c >>> 11)) + result) | 0;
+		const state = this.state;
+		const a = state[0];
+		const b = state[1];
+		const c = state[2];
+		const counter = state[3];
+		const result = (a + b + counter) | 0;
+		state[0] = b ^ (b >>> 9);
+		state[1] = (c + (c << 3)) | 0;
+		state[2] = (((c << 21) | (c >>> 11)) + result) | 0;
+		state[3] = (counter + 1) | 0;
 		return result >>> 0;
 	}
 
 	/** A float in [0, 1), a multiple of 2^-32. One draw. */
 	public float(): number {
-		return this.next() * FLOAT_SCALE;
+		return this.next() / UINT32_COUNT;
 	}
 
 	/**
@@ -88,8 +129,8 @@ export class Rng {
 	 * on a rejection, which happens with probability below span / 2^32.
 	 */
 	public int(min: number, max: number): number {
-		if (!Number.isSafeInteger(min) || !Number.isSafeInteger(max) || min > max) {
-			throw new RangeError(`Rng.int: bounds must be safe integers with min <= max, got ${min} and ${max}`);
+		if (!isSafeInteger(min) || !isSafeInteger(max) || min > max) {
+			throw new RangeError(`Rng.int: bounds must be safe integers with min <= max, got ${display(min)} and ${display(max)}`);
 		}
 		const span = max - min + 1;
 		if (span > UINT32_COUNT) throw new RangeError(`Rng.int: [${min}, ${max}] spans more than 2^32 values`);
@@ -104,7 +145,8 @@ export class Rng {
 
 	/**
 	 * Shuffles `items` in place (Fisher-Yates from the last index down) and
-	 * returns it. One bounded draw per index above 0.
+	 * returns the same array, drawing as `int(0, index)` for each index above 0.
+	 * A caller that needs a new array shuffles a copy.
 	 */
 	public shuffle<T>(items: T[]): T[] {
 		for (let index = items.length - 1; index > 0; index -= 1) {
@@ -118,46 +160,48 @@ export class Rng {
 
 	/**
 	 * A value chosen with probability weight / total weight. One draw. Throws
-	 * on an empty list, a negative or non-finite weight, or a total that is
-	 * zero or overflows.
+	 * on an empty list, a weight that isn't a finite number >= 0, or a total
+	 * that is zero or overflows.
 	 */
 	public weighted<T>(entries: readonly WeightedEntry<T>[]): T {
 		let total = 0;
+		let last = 0;
 		for (let index = 0; index < entries.length; index += 1) {
 			const weight = entries[index].weight;
-			if (!(weight >= 0 && weight < Infinity)) {
-				throw new RangeError(`Rng.weighted: weight at ${index} must be finite and >= 0, got ${weight}`);
+			if (typeof weight !== 'number' || !(weight >= 0 && weight < INFINITY)) {
+				throw new RangeError(`Rng.weighted: weight at ${index} must be a finite number >= 0, got ${display(weight)}`);
 			}
 			total += weight;
+			if (weight > 0) last = index;
 		}
-		if (!(total > 0 && total < Infinity)) {
+		if (!(total > 0 && total < INFINITY)) {
 			throw new RangeError(`Rng.weighted: the weights must sum to a finite number above 0, got ${total}`);
 		}
+		// A zero weight can't carry `cumulative` past the target, and stopping at the
+		// last positive weight keeps a target that rounds up to a subnormal total off
+		// trailing zeros.
 		const target = this.float() * total;
 		let cumulative = 0;
-		let chosen = 0;
-		for (let index = 0; index < entries.length; index += 1) {
-			const weight = entries[index].weight;
-			if (weight === 0) continue;
-			cumulative += weight;
-			chosen = index;
-			if (target < cumulative) break;
+		for (let index = 0; index < last; index += 1) {
+			cumulative += entries[index].weight;
+			if (target < cumulative) return entries[index].value;
 		}
-		return entries[chosen].value;
+		return entries[last].value;
 	}
 
 	/**
 	 * A uniform integer in [0, span) for span in [1, 2^32]: `draw % span`,
-	 * redrawing while the draw falls in the last, incomplete block of span values.
+	 * redrawn while the draw falls in the last, incomplete block of span values.
 	 */
 	private below(span: number): number {
-		let draw = this.next();
-		let value = draw % span;
-		while (draw - value > UINT32_COUNT - span) {
-			draw = this.next();
-			value = draw % span;
+		if (span === UINT32_COUNT) return this.next();
+		// A uint32 divisor and a uint32 result let V8 divide in integers rather than call Float64Mod.
+		const divisor = span >>> 0;
+		for (;;) {
+			const draw = this.next();
+			const value = (draw % divisor) >>> 0;
+			if (draw - value <= UINT32_COUNT - divisor) return value;
 		}
-		return value;
 	}
 }
 
@@ -174,20 +218,27 @@ function forkSeed(parentSeed: number, name: string, attempt: number): number {
 }
 
 function murmurBlock(hash: number, block: number): number {
-	let mixed = Math.imul(block, 0xcc9e2d51);
+	let mixed = imul(block, 0xcc9e2d51);
 	mixed = (mixed << 15) | (mixed >>> 17);
-	mixed = Math.imul(mixed, 0x1b873593);
+	mixed = imul(mixed, 0x1b873593);
 	const folded = hash ^ mixed;
-	return (Math.imul((folded << 13) | (folded >>> 19), 5) + 0xe6546b64) | 0;
+	return (imul((folded << 13) | (folded >>> 19), 5) + 0xe6546b64) | 0;
 }
 
 /** MurmurHash3's 32-bit finalizer, a bijection on uint32. */
 function fmix32(value: number): number {
 	let hash = value | 0;
 	hash ^= hash >>> 16;
-	hash = Math.imul(hash, 0x85ebca6b);
+	hash = imul(hash, 0x85ebca6b);
 	hash ^= hash >>> 13;
-	hash = Math.imul(hash, 0xc2b2ae35);
+	hash = imul(hash, 0xc2b2ae35);
 	hash ^= hash >>> 16;
 	return hash >>> 0;
+}
+
+/** A rejected argument as an error shows it: numbers as written, strings quoted, anything else by type. */
+function display(value: unknown): string {
+	if (typeof value === 'number') return String(value);
+	if (typeof value === 'string') return JSON.stringify(value);
+	return value === null ? 'null' : typeof value;
 }

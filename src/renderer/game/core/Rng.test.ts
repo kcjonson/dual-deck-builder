@@ -1,4 +1,4 @@
-import { Rng, WeightedEntry } from './Rng';
+import { freshSeed, Rng, RNG_VERSION, WeightedEntry } from './Rng';
 
 const SEED = 20261006;
 const UINT32_MAX = 0xffffffff;
@@ -9,15 +9,11 @@ const CHI_SQUARED_CRITICAL: Readonly<Record<number, number>> = { 3: 16.27, 4: 18
 
 /** The next `count` raw draws. */
 function take(rng: Rng, count = 16): number[] {
-	const draws: number[] = [];
-	for (let index = 0; index < count; index += 1) draws.push(rng.next());
-	return draws;
+	return Array.from({ length: count }, () => rng.next());
 }
 
 function floats(rng: Rng, count: number): number[] {
-	const values: number[] = [];
-	for (let index = 0; index < count; index += 1) values.push(rng.float());
-	return values;
+	return Array.from({ length: count }, () => rng.float());
 }
 
 /** Pearson's statistic for counts against an even spread of their total. */
@@ -54,24 +50,20 @@ function correlation(xs: readonly number[], ys: readonly number[]): number {
 	return covariance / Math.sqrt(varianceX * varianceY);
 }
 
-/** An Rng whose raw draws are scripted, to reach the edges a real stream almost never hits. */
-class ScriptedRng extends Rng {
-	private readonly draws: readonly number[];
-	private position: number;
-
-	constructor({ draws }: { draws: readonly number[] }) {
-		super({ seed: 0 });
-		this.draws = draws;
-		this.position = 0;
-	}
-
-	/** The scripted draws in order, then the last one again; zeros while the base class warms up. */
-	public next(): number {
-		if (!this.draws) return 0;
-		const draw = this.draws[Math.min(this.position, this.draws.length - 1)];
-		this.position += 1;
+/**
+ * A real Rng whose raw draws come off the front of `script`, to reach the edges
+ * a real stream almost never hits. Past the end of the script it throws, so a
+ * call that draws more than it should fails instead of looping forever, and an
+ * empty script afterwards means the call took every scripted draw.
+ */
+function scripted(script: number[]): Rng {
+	const rng = new Rng({ seed: 0 });
+	rng.next = () => {
+		const draw = script.shift();
+		if (draw === undefined) throw new Error('scripted Rng: drew past the end of its script');
 		return draw;
-	}
+	};
+	return rng;
 }
 
 describe('Rng', () => {
@@ -81,9 +73,10 @@ describe('Rng', () => {
 		});
 
 		it('matches the pinned sfc32 sequence', () => {
-			// Every map depends on these; an intended change is a new generator
-			// version. Cross-checked against PractRand's sfc32 and SMHasher's
-			// MurmurHash3 in C when pinned.
+			// Every map depends on these; an intended change bumps RNG_VERSION.
+			// Cross-checked against PractRand's sfc32 and SMHasher's MurmurHash3
+			// in C when pinned.
+			expect(RNG_VERSION).toBe(1);
 			expect(take(new Rng({ seed: SEED }), 8)).toEqual([
 				0xbdd943ed, 0x34fa9b12, 0xa35b1c6f, 0x3a82c513, 0x360a65a6, 0xdaee38e7, 0xd23f8ec0, 0xf769aa1b,
 			]);
@@ -92,6 +85,7 @@ describe('Rng', () => {
 		});
 
 		it('pins the derived draws', () => {
+			expect(RNG_VERSION).toBe(1);
 			const rng = new Rng({ seed: SEED });
 			expect([rng.float(), rng.float(), rng.float()]).toEqual([0xbdd943ed / 2 ** 32, 0x34fa9b12 / 2 ** 32, 0xa35b1c6f / 2 ** 32]);
 			expect(Array.from({ length: 10 }, () => rng.int(1, 6))).toEqual([6, 5, 6, 5, 4, 3, 4, 4, 2, 6]);
@@ -128,10 +122,21 @@ describe('Rng', () => {
 			expect(rng.seed).toBe(uint32);
 			expect(take(rng)).toEqual(take(new Rng({ seed: uint32 })));
 		});
+
+		it('builds and warms up a stream without calling the public next()', () => {
+			const next = jest.spyOn(Rng.prototype, 'next');
+			try {
+				new Rng({ seed: SEED }).fork('terrain', 3);
+				expect(next).not.toHaveBeenCalled();
+			} finally {
+				next.mockRestore();
+			}
+		});
 	});
 
 	describe('fork', () => {
 		it('derives the pinned child seeds', () => {
+			expect(RNG_VERSION).toBe(1);
 			const root = new Rng({ seed: SEED });
 			expect(root.fork('terrain').seed).toBe(0x7843fb4e);
 			expect(root.fork('terrain', 1).seed).toBe(0xb60805a9);
@@ -148,35 +153,21 @@ describe('Rng', () => {
 			expect(take(root.fork('growth'))).toEqual(take(root.fork('growth', 0)));
 		});
 
-		it('does not depend on the order siblings are forked in', () => {
-			const first = new Rng({ seed: SEED });
-			const params = first.fork('params');
-			const terrain = first.fork('terrain');
-			const stop = first.fork('stops').fork('stop:7', 1);
-
-			const second = new Rng({ seed: SEED });
-			const stopAgain = second.fork('stops').fork('stop:7', 1);
-			const terrainAgain = second.fork('terrain');
-			const paramsAgain = second.fork('params');
-
-			expect(take(params)).toEqual(take(paramsAgain));
-			expect(take(terrain)).toEqual(take(terrainAgain));
-			expect(take(stop)).toEqual(take(stopAgain));
-		});
-
 		it('does not depend on how far the parent has drawn', () => {
 			const drawn = new Rng({ seed: SEED });
 			take(drawn, 1000);
 			expect(take(drawn.fork('terrain', 2))).toEqual(take(new Rng({ seed: SEED }).fork('terrain', 2)));
 		});
 
-		it('never advances the parent or a sibling', () => {
+		it('never advances the parent or a sibling, so fork order does not matter', () => {
 			const root = new Rng({ seed: SEED });
 			const terrain = root.fork('terrain');
 			const growth = root.fork('growth');
+			const stop = root.fork('stops').fork('stop:7', 1);
 			take(terrain, 100);
 			expect(take(root)).toEqual(take(new Rng({ seed: SEED })));
 			expect(take(growth)).toEqual(take(new Rng({ seed: SEED }).fork('growth')));
+			expect(take(stop)).toEqual(take(new Rng({ seed: SEED }).fork('stops').fork('stop:7', 1)));
 		});
 
 		it('gives each attempt its own stream', () => {
@@ -194,12 +185,14 @@ describe('Rng', () => {
 			expect(root.fork('a', 98).seed).not.toBe(root.fork('ab').seed);
 		});
 
-		it('takes any string as a name', () => {
+		it('takes any string as a name, hashing its UTF-16 code units', () => {
 			const root = new Rng({ seed: SEED });
-			for (const name of ['stop:123', '', 'Мёртвая дорога', 'car \u{1F697}', '\ud800', 'x'.repeat(10000)]) {
-				const stream = root.fork(name, 1);
-				expect(take(stream)).toEqual(take(new Rng({ seed: SEED }).fork(name, 1)));
+			for (const name of ['', 'Мёртвая дорога', 'car \u{1F697}', 'x'.repeat(10000)]) {
+				expect(() => root.fork(name, 1)).not.toThrow();
 			}
+			// UTF-8 would encode each lone surrogate as U+FFFD, giving all three one stream.
+			const seeds = ['\ud800', '\udc00', '\ufffd'].map((name) => root.fork(name).seed);
+			expect(new Set(seeds).size).toBe(3);
 		});
 
 		it('gives every campaign seed its own stage stream', () => {
@@ -213,15 +206,34 @@ describe('Rng', () => {
 			expect(take(new Rng({ seed: stop.seed }))).toEqual(take(stop));
 		});
 
+		it('returns a base Rng built from the derived seed, whatever it was forked from', () => {
+			// The scripted parent throws on any draw, and its replaced next() doesn't carry over.
+			const child = scripted([]).fork('terrain', 2);
+			expect(take(child)).toEqual(take(new Rng({ seed: 0 }).fork('terrain', 2)));
+		});
+
 		it.each([-1, 1.5, 2 ** 32, Number.NaN, Infinity])('rejects attempt %p', (attempt) => {
 			expect(() => new Rng({ seed: SEED }).fork('terrain', attempt)).toThrow(RangeError);
+		});
+
+		it('reads a left-out attempt as 0 but rejects an explicit undefined', () => {
+			const root = new Rng({ seed: SEED });
+			expect(root.fork('stop:7').seed).toBe(root.fork('stop:7', 0).seed);
+			// A roll count missing from an older save must not quietly rebuild roll 0.
+			const saved: { rollCount?: number } = {};
+			// @ts-expect-error: no signature takes an attempt that may be undefined.
+			expect(() => root.fork('stop:7', saved.rollCount)).toThrow(RangeError);
+		});
+
+		it.each([[5], [7], [null], [undefined], [['terrain']]])('rejects the name %p, which is not a string', (name) => {
+			expect(() => new Rng({ seed: SEED }).fork(name as unknown as string)).toThrow(RangeError);
 		});
 	});
 
 	describe('float', () => {
 		it('spans [0, 1) and never reaches 1', () => {
-			expect(new ScriptedRng({ draws: [0] }).float()).toBe(0);
-			expect(new ScriptedRng({ draws: [UINT32_MAX] }).float()).toBe(1 - 2 ** -32);
+			expect(scripted([0]).float()).toBe(0);
+			expect(scripted([UINT32_MAX]).float()).toBe(1 - 2 ** -32);
 		});
 	});
 
@@ -260,12 +272,21 @@ describe('Rng', () => {
 
 		it('redraws instead of wrapping when a draw lands in the last, incomplete block', () => {
 			// 2^32 = 6 * 715827882 + 4: the top four draws can't map evenly onto six values.
-			expect(new ScriptedRng({ draws: [2 ** 32 - 4, UINT32_MAX, 7] }).int(0, 5)).toBe(1);
-			expect(new ScriptedRng({ draws: [2 ** 32 - 5] }).int(0, 5)).toBe(5);
+			const script = [2 ** 32 - 4, UINT32_MAX, 7];
+			expect(scripted(script).int(0, 5)).toBe(1);
+			expect(script).toEqual([]);
+			expect(scripted([2 ** 32 - 5]).int(0, 5)).toBe(5);
 			// Span 2^31 + 1 rejects every draw above 2^31, so int returns the first raw draw at or below it.
 			const raw = take(new Rng({ seed: SEED }), 64).filter((draw) => draw <= 2 ** 31);
 			const rng = new Rng({ seed: SEED });
 			expect(Array.from({ length: 10 }, () => rng.int(0, 2 ** 31))).toEqual(raw.slice(0, 10));
+		});
+
+		it('returns min plus the raw draw over a full 2^32 span, one draw each', () => {
+			const raw = take(new Rng({ seed: SEED }), 4);
+			const rng = new Rng({ seed: SEED });
+			expect([rng.int(0, UINT32_MAX), rng.int(-(2 ** 31), 2 ** 31 - 1), rng.int(1, 2 ** 32)]).toEqual([raw[0], raw[1] - 2 ** 31, raw[2] + 1]);
+			expect(rng.next()).toBe(raw[3]);
 		});
 
 		it.each([
@@ -273,8 +294,11 @@ describe('Rng', () => {
 			['a fractional bound', 0.5, 3],
 			['NaN', Number.NaN, 3],
 			['an infinite bound', 0, Infinity],
-			['an unsafe integer', 0, 2 ** 53],
+			['unsafe bounds with a small span', 2 ** 53, 2 ** 53 + 2],
+			['an unsafe min', -(2 ** 53), -(2 ** 53) + 2],
+			['an unsafe max', Number.MAX_SAFE_INTEGER, 2 ** 53],
 			['a span over 2^32', 0, 2 ** 32],
+			['a string bound', '1' as unknown as number, 6],
 		])('rejects %s', (_case, min, max) => {
 			expect(() => new Rng({ seed: SEED }).int(min, max)).toThrow(RangeError);
 		});
@@ -303,11 +327,6 @@ describe('Rng', () => {
 			expect(deck).not.toEqual(Array.from({ length: 52 }, (_, card) => card));
 		});
 
-		it('gives the same order for the same seed', () => {
-			const order = () => new Rng({ seed: SEED }).shuffle(Array.from({ length: 30 }, (_, card) => card));
-			expect(order()).toEqual(order());
-		});
-
 		it('leaves empty and single-item arrays alone', () => {
 			expect(new Rng({ seed: SEED }).shuffle([])).toEqual([]);
 			expect(new Rng({ seed: SEED }).shuffle(['only'])).toEqual(['only']);
@@ -329,49 +348,90 @@ describe('Rng', () => {
 			expect([...seen].sort()).toEqual(['a', 'b']);
 		});
 
-		it('skips zero weights at the lowest and highest draws too', () => {
+		it('skips zero weights at the lowest and highest draws, even when the total is subnormal', () => {
+			// Only a total this small lets the top draw's target round up to the total
+			// and walk past the last positive weight.
 			const entries = [
 				{ value: 'zero', weight: 0 },
-				{ value: 'first', weight: 1 },
+				{ value: 'first', weight: 5e-324 },
 				{ value: 'zero', weight: 0 },
-				{ value: 'last', weight: 1 },
+				{ value: 'last', weight: 5e-324 },
 				{ value: 'zero', weight: 0 },
 			];
-			expect(new ScriptedRng({ draws: [0] }).weighted(entries)).toBe('first');
-			expect(new ScriptedRng({ draws: [UINT32_MAX] }).weighted(entries)).toBe('last');
+			expect(scripted([0]).weighted(entries)).toBe('first');
+			expect(scripted([UINT32_MAX]).weighted(entries)).toBe('last');
+		});
+
+		it('chooses the later entry when the target lands exactly on a running total', () => {
+			// Draw 2^31 is the float 0.5, so the target is exactly 1, the first entry's running total.
+			const entries = [{ value: 'first', weight: 1 }, { value: 'second', weight: 1 }];
+			expect(scripted([2 ** 31]).weighted(entries)).toBe('second');
 		});
 
 		it.each([
 			['an empty list', []],
 			['all-zero weights', [{ value: 'a', weight: 0 }, { value: 'b', weight: 0 }]],
-			['a negative weight', [{ value: 'a', weight: 1 }, { value: 'b', weight: -1 }]],
+			['a negative weight', [{ value: 'a', weight: 2 }, { value: 'b', weight: -1 }]],
 			['a NaN weight', [{ value: 'a', weight: Number.NaN }]],
 			['an infinite weight', [{ value: 'a', weight: Infinity }]],
 			['weights summing past the largest number', [{ value: 'a', weight: 1e308 }, { value: 'b', weight: 1e308 }]],
 		])('rejects %s', (_case, entries: WeightedEntry<string>[]) => {
 			expect(() => new Rng({ seed: SEED }).weighted(entries)).toThrow(RangeError);
 		});
+
+		// Each passes a `>= 0 && < Infinity` check, and string weights would concatenate the total.
+		it.each([['3'], [true], [null], [[1]]])('rejects the weight %p, which is not a number', (weight) => {
+			const entries = [{ value: 'a', weight: 1 }, { value: 'b', weight }] as unknown as WeightedEntry<string>[];
+			expect(() => new Rng({ seed: SEED }).weighted(entries)).toThrow(RangeError);
+		});
 	});
 
 	describe('draw counts', () => {
-		it('takes one draw for float, int, pick, and weighted, whatever their arguments', () => {
-			const reference = take(new Rng({ seed: SEED }), 6);
+		it('takes exactly one draw for float and weighted, whatever the draw and the weights', () => {
+			const entries = Array.from({ length: 100 }, (_, index) => ({ value: index, weight: index % 3 }));
+			const calls = [
+				(rng: Rng) => rng.float(),
+				(rng: Rng) => rng.weighted([{ value: 'only', weight: 1 }]),
+				(rng: Rng) => rng.weighted(entries),
+			];
+			for (const call of calls) {
+				for (const draw of [0, 2 ** 31, UINT32_MAX]) {
+					const script = [draw];
+					call(scripted(script));
+					expect(script).toEqual([]);
+				}
+			}
+		});
+
+		it('takes one draw for int and pick, and another for each rejected draw', () => {
+			const reference = take(new Rng({ seed: SEED }), 4);
 			const rng = new Rng({ seed: SEED });
-			rng.float();
 			rng.int(5, 5);
 			rng.int(-1000, 1000);
 			rng.pick(['only']);
-			rng.weighted([{ value: 'only', weight: 1 }]);
-			expect(rng.next()).toBe(reference[5]);
+			expect(rng.next()).toBe(reference[3]);
+			// SEED's first draw is above 2^31, so int(0, 2^31) rejects it and returns the second.
+			const rejecting = new Rng({ seed: SEED });
+			expect(rejecting.int(0, 2 ** 31)).toBe(reference[1]);
+			expect(rejecting.next()).toBe(reference[2]);
+			// 2^32 = 3 * 1431655765 + 1, so the top draw is the incomplete block for three items.
+			const script = [UINT32_MAX, 4];
+			expect(scripted(script).pick(['a', 'b', 'c'])).toBe('b');
+			expect(script).toEqual([]);
 		});
 
-		it('takes one draw per index above 0 to shuffle', () => {
-			const reference = take(new Rng({ seed: SEED }), 10);
+		it('draws as int(0, index) for each index above 0 to shuffle', () => {
 			const rng = new Rng({ seed: SEED });
+			const shadow = new Rng({ seed: SEED });
 			rng.shuffle([]);
 			rng.shuffle(['only']);
 			rng.shuffle(Array.from({ length: 10 }, (_, card) => card));
-			expect(rng.next()).toBe(reference[9]);
+			for (let index = 9; index > 0; index -= 1) shadow.int(0, index);
+			expect(rng.next()).toBe(shadow.next());
+			// A rejected draw costs a shuffle a redraw too.
+			const script = [UINT32_MAX, 4, 0];
+			expect(scripted(script).shuffle(['a', 'b', 'c'])).toEqual(['c', 'a', 'b']);
+			expect(script).toEqual([]);
 		});
 	});
 
@@ -459,5 +519,16 @@ describe('Rng', () => {
 				expect(Math.abs(correlation(xs, ys))).toBeLessThan(0.05);
 			}
 		});
+	});
+});
+
+describe('freshSeed', () => {
+	it('scales Math.random, read on every call, to a uint32', () => {
+		const random = jest.spyOn(Math, 'random').mockReturnValueOnce(0).mockReturnValueOnce(0.5).mockReturnValueOnce(1 - 2 ** -53);
+		try {
+			expect([freshSeed(), freshSeed(), freshSeed()]).toEqual([0, 2 ** 31, UINT32_MAX]);
+		} finally {
+			random.mockRestore();
+		}
 	});
 });
