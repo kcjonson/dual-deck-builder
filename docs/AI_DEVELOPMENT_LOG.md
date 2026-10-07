@@ -6,6 +6,19 @@ This document contains the chronological log of completed development tasks for 
 
 **Date correction (2026-08-22):** the repo's first commit is 2025-05-17, but many entries below carry dates in December 2024 or January 2025 — the AI that wrote them used its assumed date instead of the real one. Entries dated 2025-07-03 and 2025-07-02 have been corrected from "2025-01-03"/"2025-01-02" (verified against git history). Remaining Dec 2024 / Jan 2025 dates are wrong by roughly six months; the real work happened May–July 2025. Trust git history over these dates.
 
+## Component cursor (2026-10-06)
+
+**What landed:** DDB-244 (DDB-55). R8.2's `cursor`, shown on the canvas.
+
+- `Component.cursor` and the `cursor` option: `'default' | 'pointer' | 'text'`, or null to inherit; the kind's default through `defaultCursor`. `Pressable`, Select, Slider, and a live Toast say `pointer`; TextInput says `text`; menu rows and the number stepper answer per region (`default` over a separator, a disabled item, or a chevron at its limit). Setting it invalidates nothing.
+- `Dispatcher` resolves the innermost hovered component's cursor, walking outward, once at the end of each `dispatchPending`: the captor's chain while the hovering pointer is captured, hidden components skipped, `default` when the innermost visible one is disabled, when nothing sets one, after the pointer leaves, or on reset. `onCursorChange` (through `createMountContext`) fires only on a change; `src/index.ts` and the gallery set `canvas.style.cursor`.
+- Button and TextInput accept `cursor` in their base style; a later style without it resets only a cursor the last style set. The "waits for a cursor service" note is gone, and four older decision records now point at the new one.
+- Game: `Card` shows `pointer` once it has an `onSelect`; `Vehicle` while it is a choosable target. Both through `defaultCursor`.
+- `TreeView.cursor` and its row's `cursor` are now `cursorRow` and `keyboardCursor`, freeing the name.
+- Chapter 14: the "Properties of R8.2" row stays partial for two recorded departures (null inherits; a disabled component shows `default`). The hub's stale tally is corrected to 86 yes and 14 partial.
+- Decision record: [component-cursor.md](./AI_TECHNICAL_DECISIONS/component-cursor.md).
+
+**How:** Jest tests for resolution (innermost wins, inheritance, default, leave, reset, a disabled pressable and a disabled leaf, a hidden hovered component, a change under a still pointer without layout, capture during a drag, no repeated callbacks), kind defaults, style acceptance and reset, menu rows over a separator and a disabled item, the stepper at its limits, Toast, and Card and Vehicle through the dispatcher.
 ## Compound campaign and area map design (2026-10-06)
 
 **What landed:** design docs only, no code.

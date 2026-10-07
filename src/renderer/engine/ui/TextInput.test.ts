@@ -557,6 +557,24 @@ describe('NumberInput (R12.36)', () => {
 		expect(input.input.value).toBe('9');
 	});
 
+	it('shows the arrow over a chevron that cannot step, and the hand once it can (R8.2)', () => {
+		const { input } = stepper({ value: 9, min: 0, max: 10 });
+		const up = `${STEPPER_X},${FIELD_Y + 6}`;
+		const down = `${STEPPER_X},${FIELD_Y + control.control_h_md - 6}`;
+		inject(`move,${up}`);
+		expect(context.dispatcher.cursor).toBe('pointer');
+		inject(`click,${up}`);
+		expect(input.value).toBe(10);
+		expect(context.dispatcher.cursor).toBe('default');
+		inject(`move,${down}`);
+		expect(context.dispatcher.cursor).toBe('pointer');
+		input.value = 0;
+		context.dispatcher.dispatchPending();
+		expect(context.dispatcher.cursor).toBe('default');
+		inject(`move,${FIELD_X + 10},${MIDDLE_Y}`);
+		expect(context.dispatcher.cursor).toBe('text');
+	});
+
 	it('steps from the chevrons, keeping focus in the field without a ring', () => {
 		const { input, changes } = stepper({ value: 2 });
 		inject(`click,${STEPPER_X},${FIELD_Y + 6}`);

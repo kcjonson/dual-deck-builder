@@ -99,11 +99,11 @@ class TreeRow extends Pressable {
 	 * The keyboard cursor: R11.11's `active` while the tree is focused, so
 	 * the snapshot reports it, and an inside ring while focus is visible.
 	 */
-	public get cursor(): boolean {
+	public get keyboardCursor(): boolean {
 		return this.isCursor;
 	}
 
-	public set cursor(cursor: boolean) {
+	public set keyboardCursor(cursor: boolean) {
 		this.isCursor = cursor;
 		this.active = cursor && this.tree.focused;
 	}
@@ -355,7 +355,7 @@ export class TreeView extends Component {
 	}
 
 	/** The keyboard cursor's row. */
-	public get cursor(): TreeRowItem | null {
+	public get cursorRow(): TreeRowItem | null {
 		return this.rows[this.cursorIndex] ?? null;
 	}
 
@@ -426,7 +426,7 @@ export class TreeView extends Component {
 			return;
 		}
 		if (event.type === 'activate') {
-			const row = this.cursor;
+			const row = this.cursorRow;
 			if (!row) return;
 			event.consume();
 			this.useRow(row, false);
@@ -481,7 +481,7 @@ export class TreeView extends Component {
 		(column.children as TreeRow[]).forEach((child, index) => {
 			child.setPosition(0, (first + index) * height);
 			child.setSize(column.width, height);
-			child.cursor = first + index === this.cursorIndex;
+			child.keyboardCursor = first + index === this.cursorIndex;
 		});
 	}
 

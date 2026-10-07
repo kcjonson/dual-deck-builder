@@ -54,7 +54,7 @@ export interface ButtonOptions extends Omit<ComponentOptions, 'style'> {
 /** A rect's fill defaults to white, so an outline-only or shadow-only draw says clear. */
 const CLEAR: RGBA = [0, 0, 0, 0];
 
-/** R11.14: what a button renders. `cursor` waits for a cursor service to render it. */
+/** R11.14: what a button renders. */
 const BUTTON_STYLE: StyleAcceptance = {
 	component: 'Button',
 	properties: new Set<StyleProperty>([
@@ -74,6 +74,7 @@ const BUTTON_STYLE: StyleAcceptance = {
 		'textDecoration',
 		'padding',
 		'shadow',
+		'cursor',
 	]),
 	states: new Set(['hover', 'pressed', 'selected', 'active', 'disabled']),
 	stateProperties: new Set<StyleProperty>(['backgroundColor', 'color', 'borderColor']),
@@ -139,6 +140,7 @@ export class Button extends Pressable {
 		if (onClick) this.onClick = onClick;
 		this.padding = this.resolvePadding();
 		if (style.opacity !== undefined) this.opacity = style.opacity;
+		if (style.cursor !== undefined) this.cursor = style.cursor;
 
 		this.text = new Text({
 			text: label,
@@ -211,6 +213,9 @@ export class Button extends Pressable {
 		this.styleObject = style;
 		if (style.opacity !== undefined) this.opacity = style.opacity;
 		else if (previous.opacity !== undefined) this.opacity = 1;
+		// A cursor the last style set goes back to the kind default; one set on the component since stays.
+		if (style.cursor !== undefined) this.cursor = style.cursor;
+		else if (previous.cursor !== undefined && this.cursor === previous.cursor) this.cursor = null;
 		this.restyle();
 	}
 

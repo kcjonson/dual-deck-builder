@@ -1,4 +1,4 @@
-import { Component, ComponentOptions, PointerEvents, ResolvedColors } from '../components/Component';
+import { Component, ComponentOptions, Cursor, PointerEvents, ResolvedColors } from '../components/Component';
 import type { DrawApi } from '../draw/DrawApi';
 import type { Rect } from '../draw/geometry';
 import type { AnyUiEvent, UiPointerEvent } from '../input/events';
@@ -70,6 +70,15 @@ class MenuRows extends Component {
 
 	protected get defaultPointerEvents(): PointerEvents {
 		return 'auto';
+	}
+
+	/** The hand over a row that selects; the arrow over a separator, a disabled item, or the padding. */
+	protected get defaultCursor(): Cursor | null {
+		const point = this.hovered ? this.context?.dispatcher.hoverPoint : null;
+		if (!point) return 'pointer';
+		const local = this.screenToLocal(point);
+		if (!local || local.x < 0 || local.x >= this.width) return 'default';
+		return isSelectable(this.menu.items[this.menu.indexAt(local.y)]) ? 'pointer' : 'default';
 	}
 
 	public get handlesPointer(): boolean {

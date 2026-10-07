@@ -1,4 +1,4 @@
-import { Component, ComponentOptions, PointerEvents } from '../components/Component';
+import { Component, ComponentOptions, Cursor, PointerEvents } from '../components/Component';
 import { drawIcon } from '../components/Icon';
 import type { DrawApi } from '../draw/DrawApi';
 import type { AnyUiEvent, UiPointerEvent } from '../input/events';
@@ -67,6 +67,11 @@ class NumberStepper extends Component {
 
 	protected get defaultPointerEvents(): PointerEvents {
 		return 'auto';
+	}
+
+	/** The hand over a half that can step; the arrow over one at its limit. */
+	protected get defaultCursor(): Cursor | null {
+		return this.hoveredHalf === null || this.owner.canStep(this.hoveredHalf) ? 'pointer' : 'default';
 	}
 
 	public get handlesPointer(): boolean {

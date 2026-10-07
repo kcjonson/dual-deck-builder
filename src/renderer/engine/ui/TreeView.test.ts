@@ -98,19 +98,19 @@ describe('TreeView (R12.25)', () => {
 		const view = tree({ selectable: true });
 		context.focus.focus(view, 'keyboard');
 		send(context, [key('ArrowDown')]);
-		expect(view.cursor?.node.label).toBe('Rammer');
+		expect(view.cursorRow?.node.label).toBe('Rammer');
 		send(context, [key('ArrowRight')]);
-		expect(view.isExpanded(view.cursor?.key ?? '')).toBe(true);
+		expect(view.isExpanded(view.cursorRow?.key ?? '')).toBe(true);
 		send(context, [key('ArrowRight')]);
-		expect(view.cursor?.node.label).toBe('Plating');
+		expect(view.cursorRow?.node.label).toBe('Plating');
 		send(context, [key('ArrowLeft')]);
-		expect(view.cursor?.node.label).toBe('Rammer');
+		expect(view.cursorRow?.node.label).toBe('Rammer');
 		send(context, [key('ArrowLeft')]);
 		expect(labels(view)).not.toContain('--Plating');
 		send(context, [key('End')]);
-		expect(view.cursor?.node.label).toBe('Salvage');
+		expect(view.cursorRow?.node.label).toBe('Salvage');
 		send(context, [key('Home')]);
-		expect(view.cursor?.node.label).toBe('Convoy');
+		expect(view.cursorRow?.node.label).toBe('Convoy');
 		send(context, [key('ArrowDown'), key('ArrowDown'), key('Enter')]);
 		expect(view.selectedNode?.label).toBe('Outrider');
 		expect(context.focus.focused).toBe(view);
@@ -180,12 +180,12 @@ describe('TreeView (R12.25)', () => {
 		const view = tree({ nodes: many, height: ROW * 5 });
 		context.focus.focus(view, 'keyboard');
 		send(context, [key('PageDown')]);
-		expect(view.cursor?.node.label).toBe('Part 4');
+		expect(view.cursorRow?.node.label).toBe('Part 4');
 		send(context, [key('PageDown')]);
-		expect(view.cursor?.node.label).toBe('Part 8');
+		expect(view.cursorRow?.node.label).toBe('Part 8');
 		expect(view.scrollOffset).toBe(ROW * 9 - ROW * 5);
 		send(context, [key('PageUp')]);
-		expect(view.cursor?.node.label).toBe('Part 4');
+		expect(view.cursorRow?.node.label).toBe('Part 4');
 	});
 
 	it('moves the cursor to the nearest visible ancestor when a collapse hides its row', () => {
@@ -193,11 +193,11 @@ describe('TreeView (R12.25)', () => {
 		view.expandAll();
 		context.focus.focus(view, 'keyboard');
 		send(context, [key('ArrowDown'), key('ArrowDown'), key('ArrowDown')]);
-		expect(view.cursor?.node.label).toBe('Ram spike');
+		expect(view.cursorRow?.node.label).toBe('Ram spike');
 		view.collapse(view.rows[1].key);
-		expect(view.cursor?.node.label).toBe('Rammer');
+		expect(view.cursorRow?.node.label).toBe('Rammer');
 		view.collapseAll();
-		expect(view.cursor?.node.label).toBe('Convoy');
+		expect(view.cursorRow?.node.label).toBe('Convoy');
 	});
 
 	it('keeps the selection when its row is folded away, and drops it when new nodes lack it', () => {
