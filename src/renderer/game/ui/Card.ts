@@ -405,7 +405,7 @@ export class Card extends Component {
 	 * A click is the dispatcher's, synthesised when press and release both
 	 * land on this card (R9.31). A disabled card receives none of these
 	 * (R9.5). A focused card treats `activate` (Enter or Space) as a click
-	 * (R9.27); only the hand makes its cards focusable.
+	 * (R9.27); a card is focusable only where a screen opts in.
 	 */
 	public handleEvent(event: AnyUiEvent): void {
 		super.handleEvent(event);

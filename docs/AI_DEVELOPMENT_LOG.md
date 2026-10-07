@@ -6,6 +6,17 @@ This document contains the chronological log of completed development tasks for 
 
 **Date correction (2026-08-22):** the repo's first commit is 2025-05-17, but many entries below carry dates in December 2024 or January 2025 — the AI that wrote them used its assumed date instead of the real one. Entries dated 2025-07-03 and 2025-07-02 have been corrected from "2025-01-03"/"2025-01-02" (verified against git history). Remaining Dec 2024 / Jan 2025 dates are wrong by roughly six months; the real work happened May–July 2025. Trust git history over these dates.
 
+## Driver selection previews the starting deck (2026-10-06)
+
+**What landed:** DDB-226, part 1. Game Flow Spec 1.2: hovering or focusing a mini card in a driver's starting deck shows the full card. Part 2 (locked drivers greyed out in the Select) is open; `Driver` has no lock source yet.
+
+- `DriverPanel.createDeckEntry` calls `makeInspectable` on each mini card, the same detail view the hand, the piles, and the card browser use (hover after the tooltip delay, at once on keyboard focus). No second preview.
+- The mini cards were disabled (display only), which a tooltip's focus path and the dim treatment both fight. They are enabled now, `liftable = false`, with no `onSelect`, so they stay put and a click does nothing. They no longer draw dimmed.
+- The deck grid is a focus group (R9.29): one Tab stop per panel landing on its active card (the first on entry), Left and Right moving between cards. Tab order is now Back, left deck, left Select, right deck, right Select, START RUN.
+- Escape: the tooltip service hides a plain preview before the screen's Escape runs, so the screen remembers, as of the last frame, whether one of its own was up. The first Escape then only dismisses it and the second leaves the screen.
+- The preview's footer says "RMB / I: PIN", so the deck grid takes `inspectOnContextMenu` (a secondary click pins, a touch hold opens) and the screen registers the I key through `inspectHotkey`; Escape lets a pin go before it leaves the screen.
+- `DriverPanel.clearDeck` hides the tooltip when its owner is one of the cards about to go, on every rebuild and on `reset`, so a preview never outlives its card. The request counter that stops DDB-101's stacked decks is untouched.
+- Tests in `DriverSelectionScreen.test.ts`: factory and card per mini card, hover and focus show, blur and leave hide, arrow movement, on-screen at 1280x720, 1024x600, 800x450 and 640x400 for every card in both panels, teardown on driver change, pin, partner-panel rebuild, overlapping loads, and reset.
 ## Component cursor (2026-10-06)
 
 **What landed:** DDB-244 (DDB-55). R8.2's `cursor`, shown on the canvas.
