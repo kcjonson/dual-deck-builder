@@ -6,6 +6,15 @@ This document contains the chronological log of completed development tasks for 
 
 **Date correction (2026-08-22):** the repo's first commit is 2025-05-17, but many entries below carry dates in December 2024 or January 2025 — the AI that wrote them used its assumed date instead of the real one. Entries dated 2025-07-03 and 2025-07-02 have been corrected from "2025-01-03"/"2025-01-02" (verified against git history). Remaining Dec 2024 / Jan 2025 dates are wrong by roughly six months; the real work happened May–July 2025. Trust git history over these dates.
 
+## Canvas input hygiene (2026-10-06)
+
+**What landed:** DDB-250. The canvas `contextmenu` and `user-select` handling of R15.39, and R9.1's wheel fields.
+
+- `PointerAdapter` prevents `contextmenu` on the canvas and on its document (the Menu key and Shift+F10 target the focused element, not the canvas; a text field keeps its own menu), so no browser menu opens over the game. The dispatcher already synthesises its own `contextmenu` from a secondary press. It sets `user-select: none` and `-webkit-user-select`/`-webkit-touch-callout: none` beside the existing `touch-action: none`, and `detach` restores all of them to what the canvas had.
+- On macOS a Ctrl+click arrives as button 0 with Ctrl held; with the native menu suppressed it would complete as a primary click, so the adapter remaps that whole press (down, moves, up) to the secondary button.
+- `UiWheelEvent` stores `isPrimary`, `pressure`, `button` and `buttons`. The wheel input carries the held `buttons`; pressure is 0.5 while one is held and `button` stays -1. `pointerType` and `isPrimary` come from the hovering pointer's identity (a primary mouse, id 1, when none is hovering) instead of a hard-coded mouse.
+- Tests: new `PointerAdapter.test.ts` and wheel field cases in `Dispatcher.test.ts`.
+- Chapter 14: the "WebGL2 backend rules" row drops its canvas `contextmenu`/`user-select` gap and names the remaining `char` clause (DDB-254, with R15.34); the "Event fields" row stays partial for `char`.
 ## Driver selection previews the starting deck (2026-10-06)
 
 **What landed:** DDB-226, part 1. Game Flow Spec 1.2: hovering or focusing a mini card in a driver's starting deck shows the full card. Part 2 (locked drivers greyed out in the Select) is open; `Driver` has no lock source yet.
