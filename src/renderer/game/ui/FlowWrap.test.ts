@@ -17,7 +17,7 @@ afterEach(() => {
 	root.unmount();
 });
 
-/** `count` 50 by 70 boxes, a mini card's size. */
+/** `count` boxes, 50 by 70 unless given. */
 function items(flow: FlowWrap, count: number, width = 50, height = 70): Container[] {
 	const made = Array.from({ length: count }, () => new Container({ width, height }));
 	made.forEach((item) => flow.addChild(item));

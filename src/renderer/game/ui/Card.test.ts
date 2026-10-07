@@ -8,7 +8,7 @@ import { advance, pointer, send } from '../../engine/services/testing';
 import type { MountContext } from '../../engine/components/MountContext';
 import { Card as GameCard, CardData } from '../mechanics/Card';
 import cardsFile from '../data/cards.json';
-import { CARD_LIFT, Card, CardSize, MINI_CARD_INK, MiniCardState } from './Card';
+import { CARD_LIFT, Card, CardSize, MINI_CARD_INK, MINI_GRID, MiniCardState, miniGridHeight } from './Card';
 import { KeywordText } from './KeywordText';
 import { Icon } from '../../engine/components/Icon';
 import type { Component } from '../../engine/components/Component';
@@ -19,7 +19,7 @@ import { renderTree } from '../../engine/components/renderTree';
 import { Clock } from '../../engine/animation/Clock';
 import { tokens } from '../../engine/theme/tokens';
 import type { RGBA, Rect } from '../../engine/draw/geometry';
-import { GEM_FILLS } from './cardStyle';
+import { CARD_DIM_FILLS, GEM_FILLS, scale } from './cardStyle';
 import { CardInspectSurface, inspectOnContextMenu, makeInspectable } from './cardInspect';
 import { Container } from '../../engine/components/Container';
 
@@ -309,6 +309,7 @@ describe('Card layout lint (DDB-91)', () => {
 describe('Mini card (Game Flow 7.0)', () => {
 	interface Recorded {
 		kind: string;
+		id?: string | null;
 		text?: string;
 		rect?: Rect;
 		box?: Rect | null;
@@ -618,6 +619,115 @@ describe('Mini card (Game Flow 7.0)', () => {
 		send(local, [pointer('up', centre.x, centre.y, { pointerType: 'touch', pointerId: 2 })]);
 		local.tooltips.hide();
 		deck.unmount();
+	});
+
+	it('draws its own focus ring, once, under its hex, its tag and its count, at either size', () => {
+		const card = mini('ramming_speed', { copies: 5, miniState: 'home' });
+		const face = build(cardData[0], 1);
+		for (const focused of [card, face]) {
+			expect(focused.drawsOwnFocusRing).toBe(true);
+			focused.focusable = true;
+			context.focus.pushScope(focused);
+			context.focus.focus(focused, 'keyboard');
+			const commands = frame(focused);
+			const rings = commands.filter((command) => command.id === 'card.focus_ring');
+			expect(rings).toHaveLength(1);
+			const ringAt = commands.indexOf(rings[0]);
+			const hexAt = commands.findIndex((command) => command.kind === 'polygon' && command.points?.length === 6);
+			expect(ringAt).toBeLessThan(hexAt);
+			if (focused === card) {
+				expect(ringAt).toBeLessThan(commands.findIndex((command) => command.text === 'HOME'));
+				expect(ringAt).toBeLessThan(commands.findIndex((command) => command.text === 'x5'));
+			}
+			context.focus.blur();
+			context.focus.popScope(focused);
+			expect(frame(focused).filter((command) => command.id === 'card.focus_ring')).toEqual([]);
+		}
+	});
+
+	it('takes the pointer on its shown stack edges, tag and count, as on its hex', () => {
+		const single = mini('ram');
+		expect(single.containsPoint(82, 114)).toBe(false);
+		expect(single.containsPoint(82, -3)).toBe(false);
+		expect(single.containsPoint(-3, -3)).toBe(true);
+
+		const pair = mini('ram', { copies: 2 });
+		expect(pair.containsPoint(82, 114)).toBe(true);
+		expect(pair.containsPoint(85, 117)).toBe(false);
+
+		const stack = mini('ram', { copies: 5, miniState: 'home' });
+		// The back edge, the count's lower half, and the tag past the right edge
+		expect(stack.containsPoint(85, 117)).toBe(true);
+		expect(stack.containsPoint(84, 118.5)).toBe(true);
+		expect(stack.containsPoint(82, -3)).toBe(true);
+		expect(stack.containsPoint(87, 116)).toBe(false);
+		expect(stack.containsPoint(40, -3)).toBe(false);
+	});
+
+	it('stays hovered as the pointer moves from its body onto its count', () => {
+		const card = mini('ram', { copies: 5 });
+		context.dispatcher.enqueue(pointer('move', 40, 56));
+		context.dispatcher.dispatchPending();
+		expect(card.hovered).toBe(true);
+		context.dispatcher.enqueue(pointer('move', 84, 118));
+		context.dispatcher.dispatchPending();
+		expect(card.hovered).toBe(true);
+		context.dispatcher.enqueue(pointer('move', 150, 150));
+		context.dispatcher.dispatchPending();
+		expect(card.hovered).toBe(false);
+	});
+
+	it('keeps a focused face\'s outline through a change of driver, and moves a borrowed stack\'s dashes and edges to the new colour', () => {
+		const face = build(cardData[0], 1);
+		face.focusable = true;
+		context.focus.pushScope(face);
+		context.focus.focus(face, 'keyboard');
+		face.driver = 2;
+		expect(face.resolvedColors.border).toEqual(tokens.color.accent);
+		context.focus.blur();
+		context.focus.popScope(face);
+		expect(face.resolvedColors.border).toEqual(hexRgba(DRIVER_COLORS[2]));
+
+		const stack = mini('medical_kit', { copies: 3, miniState: 'borrowed', driverNumber: 1 });
+		stack.driver = 2;
+		const commands = frame(stack);
+		expect(dashes(commands)[0].fill).toEqual(hexRgba(DRIVER_COLORS[2]));
+		const frameAt = commands.findIndex(isFrame);
+		const edgeLines = commands.slice(0, frameAt).map((command) => command.border?.color);
+		expect(edgeLines).toEqual([scale(hexRgba(DRIVER_COLORS[2]), 0.7), scale(hexRgba(DRIVER_COLORS[2]), 0.7)]);
+	});
+
+	it('outlines an unowned stack\'s edges in the opaque dim line, which a dark screen still shows', () => {
+		const commands = frame(mini('oil_slick', { copies: 3 }));
+		const frameAt = commands.findIndex(isFrame);
+		const edgeLines = commands.slice(0, frameAt).map((command) => command.border?.color);
+		expect(edgeLines).toEqual([CARD_DIM_FILLS.full, CARD_DIM_FILLS.full]);
+		expect(CARD_DIM_FILLS.full[3]).toBe(1);
+	});
+
+	it('forgets its walked group count whenever its stack, state or dashes change what it draws', () => {
+		const card = mini('ram');
+		frame(card);
+		expect(card.walkedGroupCount).toBeGreaterThan(0);
+		card.copies = 3;
+		expect(card.walkedGroupCount).toBe(-1);
+		frame(card);
+		card.miniState = 'borrowed';
+		expect(card.walkedGroupCount).toBe(-1);
+		frame(card);
+		card.hovered = true;
+		expect(card.walkedGroupCount).toBe(-1);
+		frame(card);
+		card.driver = 1;
+		expect(card.walkedGroupCount).toBe(-1);
+	});
+
+	it('spaces a grid of minis clear of every card\'s ink', () => {
+		expect(MINI_GRID.gap).toBeGreaterThanOrEqual(MINI_CARD_INK * 2);
+		expect(MINI_GRID.margin).toBeGreaterThanOrEqual(MINI_CARD_INK);
+		expect(miniGridHeight(1)).toBe(112);
+		expect(miniGridHeight(2)).toBe(112 * 2 + MINI_GRID.gap);
+		expect(miniGridHeight(0)).toBe(0);
 	});
 
 	it.each(['borrowed', 'home', 'locked', 'unavailable', null] as const)('lints clean for every card stacked and %s', (miniState) => {

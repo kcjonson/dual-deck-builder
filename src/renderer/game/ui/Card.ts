@@ -16,14 +16,15 @@ import { hexRgba } from '../screens/combat/combatStyle';
 import { MARK_OUTLINES, seatMark } from './targetMarks';
 import { KeywordText } from './KeywordText';
 import { dashedOutlineTriangles } from './stripes';
+import { STATUS_TAG_HEIGHT, StatusTagDraw } from './statusTag';
 import {
 	CARD_DIM,
+	CARD_DIM_FILLS,
 	CARD_GROUND,
 	CARD_GROUND_FILLS,
 	CARD_KEYWORD,
 	CARD_LINE,
 	CARD_MUTED,
-	CARD_MUTED_FILLS,
 	CARD_NAME,
 	CARD_RULES,
 	COST_DIGITS,
@@ -38,6 +39,7 @@ import {
 	DRIVER_MARK_FILLS,
 	GEM_FILLS,
 	costHexDraws,
+	costHexInk,
 	driverMarkDraw,
 	rarityGemDraw,
 	frameColor,
@@ -100,13 +102,15 @@ const MINI = {
 	gem: { x: 68, y: 95, size: 7 },
 	/**
 	 * Copies past the first show as card edges behind the front one, a step
-	 * down and right each, two at most, outlined a little darker than the frame.
+	 * down and right each, two at most, outlined a little darker than the
+	 * frame (an unowned card's in the dim line, since its frame's line is
+	 * translucent and would vanish on a dark screen).
 	 */
 	stack: { step: 3, edges: 2, brightness: 0.7 },
 	/** The "x5" pill: across the bottom edge, flush with the stack's last edge. */
 	count: { height: 14, size: 11, padding: 5 },
-	/** A state's tag: across the top edge, hanging past the right one like a sticker. */
-	tag: { right: 84, y: -7, height: 13, size: 9, padding: 4, letterSpacing: 0.06 },
+	/** A state's tag (`StatusTagDraw`): straddling the top edge, hanging past the right one like a sticker. */
+	tag: { right: 84, y: -Math.ceil(STATUS_TAG_HEIGHT / 2) },
 	/** A borrowed copy's frame: the border in dashes, clear of the rounded corners. */
 	dash: { length: 5, gap: 3 },
 } as const;
@@ -118,12 +122,29 @@ const MINI = {
  * twice this apart, or one's stack runs into the next one's hex.
  */
 export const MINI_CARD_INK = Math.max(
-	-MINI.hex.x + Math.ceil(MINI.hex.size / 15),
+	-MINI.hex.x + Math.ceil(costHexInk(MINI.hex.size)),
 	-MINI.tag.y,
 	MINI.tag.right - CARD_DIMENSIONS[CardSize.MINI].width,
 	MINI.stack.step * MINI.stack.edges,
 	MINI.count.height / 2,
 );
+
+/**
+ * A grid of minis: `gap` between cards, across and down, and `margin`
+ * round the grid, so no card's ink runs into its neighbour's or out of a
+ * clip. Layout and the lint both ignore ink, so a grid built tighter than
+ * this overlaps one card's stack with the next card's hex and still lints
+ * clean; every grid of minis takes its spacing from here.
+ */
+export const MINI_GRID: Readonly<{ gap: number; margin: number }> = Object.freeze({
+	gap: MINI_CARD_INK * 2 + 2,
+	margin: MINI_CARD_INK,
+});
+
+/** The height `rows` rows of minis take in a grid spaced by `MINI_GRID`, its margin left out. */
+export function miniGridHeight(rows: number): number {
+	return rows > 0 ? rows * CARD_DIMENSIONS[CardSize.MINI].height + (rows - 1) * MINI_GRID.gap : 0;
+}
 
 /**
  * Where a mini's copies stand against the deck being built (Game Flow 7.0):
@@ -164,7 +185,6 @@ const SELECTED_BORDER = 3;
 
 const UNFANNED: FanPose = Object.freeze({ rotate: 0, drop: 0, order: 0 });
 
-const TAG_TEXT = { full: resolveColor(CARD_NAME), dimmed: resolveColor(dimHex(CARD_NAME)) } as const;
 const COUNT_TEXT = resolveColor(COST_DIGITS);
 
 /** The dashed frame's triangles, the same on every mini, built the first time one is borrowed. */
@@ -192,6 +212,14 @@ function stateTag(state: MiniCardState | null, copies: number): string {
 	}
 }
 
+/** Whether a point is inside a rect. */
+function inside(rect: Rect, x: number, y: number): boolean {
+	return x >= rect.x && x < rect.x + rect.width && y >= rect.y && y < rect.y + rect.height;
+}
+
+/** A card edge behind a stack: a rect whose outline is recoloured with the frame. */
+type EdgeDraw = DrawRectOptions & { rect: Rect; border: { color: RGBA; width: number } };
+
 /**
  * What only a mini draws: the card edges behind a stack and its count, a
  * borrowed copy's dashed frame, and a state's tag. The card's own draws
@@ -204,40 +232,27 @@ class MiniParts {
 	private standing: MiniCardState | null = null;
 	private readonly cardWidth: number;
 	/** The edges behind the front card, the back one first. */
-	private readonly edges: DrawRectOptions[] = [];
-	private readonly edgeBorders: { color: RGBA; width: number }[] = [];
+	private readonly edges: EdgeDraw[] = [];
 	private readonly dashDraw: DrawPolygonOptions & { fill: RGBA } = { points: [], fill: [0, 0, 0, 0] };
-	private showDashes = false;
-	private readonly tagRect: Rect = { x: 0, y: MINI.tag.y, width: 0, height: MINI.tag.height };
-	private readonly tagBorder: { color: RGBA; width: number } = { color: CARD_MUTED_FILLS.full, width: 1 };
-	private readonly tagDraw: DrawRectOptions = { rect: this.tagRect, radius: 2, fill: CARD_GROUND_FILLS.full, border: this.tagBorder };
-	private readonly tagText: DrawTextOptions;
+	private readonly tag = new StatusTagDraw({ right: MINI.tag.right, y: MINI.tag.y });
 	private readonly countRect: Rect;
 	private readonly countDraw: DrawRectOptions;
 	private readonly countText: DrawTextOptions;
 	private countWidth = 0;
-	/** The texts the tag and the count were last measured for. */
-	private measuredTag: string | null = null;
+	/** The count the pill was last measured for. */
 	private measuredCount: string | null = null;
 
 	constructor({ width, height }: { width: number; height: number }) {
 		this.cardWidth = width;
 		for (let depth = MINI.stack.edges; depth >= 1; depth--) {
-			const border = { color: CARD_MUTED_FILLS.full, width: 1 };
 			const offset = depth * MINI.stack.step;
-			this.edgeBorders.push(border);
-			this.edges.push({ rect: { x: offset, y: offset, width, height }, radius: MINI.radius, fill: CARD_GROUND_FILLS.full, border });
+			this.edges.push({
+				rect: { x: offset, y: offset, width, height },
+				radius: MINI.radius,
+				fill: CARD_GROUND_FILLS.full,
+				border: { color: CARD_DIM_FILLS.full, width: 1 },
+			});
 		}
-		this.tagText = {
-			text: '',
-			box: this.tagRect,
-			font: 'mono',
-			size: MINI.tag.size,
-			color: TAG_TEXT.full,
-			align: 'center',
-			verticalAlign: 'middle',
-			letterSpacing: MINI.tag.letterSpacing,
-		};
 		this.countRect = { x: 0, y: height - MINI.count.height / 2, width: 0, height: MINI.count.height };
 		this.countDraw = { rect: this.countRect, radius: MINI.count.height / 2, fill: COST_HEX_FILLS.full };
 		this.countText = {
@@ -258,7 +273,7 @@ class MiniParts {
 	set copies(copies: number) {
 		this.copyCount = copies;
 		this.countText.text = copies > 1 ? `x${copies}` : '';
-		this.tagText.text = stateTag(this.standing, copies);
+		this.tag.text = stateTag(this.standing, copies);
 	}
 
 	get state(): MiniCardState | null {
@@ -267,7 +282,7 @@ class MiniParts {
 
 	set state(state: MiniCardState | null) {
 		this.standing = state;
-		this.tagText.text = stateTag(state, this.copyCount);
+		this.tag.text = stateTag(state, this.copyCount);
 	}
 
 	/** Left at home and unavailable fade the card. */
@@ -280,16 +295,10 @@ class MiniParts {
 		return this.standing === 'borrowed';
 	}
 
-	/** Whether the dashes stand in for the frame's border, which the card decides from its state. */
-	set dashesShown(shown: boolean) {
-		this.showDashes = shown;
-		if (shown && this.dashDraw.points.length === 0) this.dashDraw.points = miniDashPoints();
-	}
-
 	/** The tag and the count, for the snapshot's labels (R13.22); null when it shows neither. */
 	get labels(): string[] | null {
 		const labels: string[] = [];
-		if (this.tagText.text) labels.push(this.tagText.text);
+		if (this.tag.text) labels.push(this.tag.text);
 		if (this.countText.text) labels.push(this.countText.text);
 		return labels.length > 0 ? labels : null;
 	}
@@ -298,20 +307,24 @@ class MiniParts {
 		return Math.min(this.copyCount - 1, MINI.stack.edges);
 	}
 
+	private get countShown(): boolean {
+		return this.countText.text !== '' && this.countText.text === this.measuredCount;
+	}
+
 	/**
 	 * Recoloured for the card's resting frame and tone: the dashes are the
-	 * frame, the edges a step darker, the tag and the count dimmed with
-	 * the card.
+	 * frame, the edges a step darker than an owner's frame or the dim line
+	 * on an unowned card, and the tag and the count dimmed with the card.
 	 */
-	recolour(frame: RGBA, dimmed: boolean): void {
+	recolour(frame: RGBA, owned: boolean, dimmed: boolean): void {
 		const tone = dimmed ? 'dimmed' : 'full';
-		const edge = scale(frame, MINI.stack.brightness);
-		for (const draw of this.edges) draw.fill = CARD_GROUND_FILLS[tone];
-		for (const border of this.edgeBorders) border.color = edge;
+		const edge = owned ? scale(frame, MINI.stack.brightness) : CARD_DIM_FILLS[tone];
+		for (const draw of this.edges) {
+			draw.fill = CARD_GROUND_FILLS[tone];
+			draw.border.color = edge;
+		}
 		this.dashDraw.fill = frame;
-		this.tagDraw.fill = CARD_GROUND_FILLS[tone];
-		this.tagBorder.color = CARD_MUTED_FILLS[tone];
-		this.tagText.color = TAG_TEXT[tone];
+		this.tag.dimmed = dimmed;
 		this.countDraw.fill = COST_HEX_FILLS[tone];
 	}
 
@@ -321,13 +334,7 @@ class MiniParts {
 	 * however many edges show. A no-op until the context can measure.
 	 */
 	place(draw: DrawApi | undefined): void {
-		const tag = this.tagText.text;
-		if (tag !== this.measuredTag && draw?.canMeasureText('mono')) {
-			const width = tag ? draw.measureText({ text: tag, font: 'mono', size: MINI.tag.size, letterSpacing: MINI.tag.letterSpacing, wrap: 'none' }).width + MINI.tag.padding * 2 : 0;
-			this.tagRect.x = MINI.tag.right - width;
-			this.tagRect.width = width;
-			this.measuredTag = tag;
-		}
+		this.tag.place(draw);
 		const count = this.countText.text;
 		if (count !== this.measuredCount && draw?.canMeasureText('display')) {
 			this.countWidth = count ? draw.measureText({ text: count, font: 'display', size: MINI.count.size, wrap: 'none' }).width + MINI.count.padding * 2 : 0;
@@ -337,25 +344,33 @@ class MiniParts {
 		this.countRect.x = this.cardWidth + MINI.stack.step * this.edgesShown - this.countWidth;
 	}
 
+	/**
+	 * Whether a point is on what a mini shows past its box: an edge behind
+	 * the stack, the tag, or the count. Each is part of the card, as the cost
+	 * hex is, so the pointer can travel onto "x5" without leaving it.
+	 */
+	contains(x: number, y: number): boolean {
+		for (let index = this.edges.length - this.edgesShown; index < this.edges.length; index++) {
+			if (inside(this.edges[index].rect, x, y)) return true;
+		}
+		return this.tag.contains(x, y) || (this.countShown && inside(this.countRect, x, y));
+	}
+
 	/** The edges, under everything the front card draws. */
 	renderBehind(draw: DrawApi): void {
 		for (let index = this.edges.length - this.edgesShown; index < this.edges.length; index++) draw.drawRect(this.edges[index]);
 	}
 
-	/** The dashes, over the frame's ground. */
-	renderFrame(draw: DrawApi): void {
-		if (this.showDashes) draw.drawPolygon(this.dashDraw);
+	/** The dashes, standing in for the frame's border. */
+	renderDashes(draw: DrawApi): void {
+		if (this.dashDraw.points.length === 0) this.dashDraw.points = miniDashPoints();
+		draw.drawPolygon(this.dashDraw);
 	}
 
 	/** The tag and the count, over the card, once measured. */
 	renderFront(draw: DrawApi): void {
-		const tag = this.tagText.text;
-		if (tag && tag === this.measuredTag) {
-			draw.drawRect(this.tagDraw);
-			draw.drawText(this.tagText);
-		}
-		const count = this.countText.text;
-		if (count && count === this.measuredCount) {
+		this.tag.render(draw);
+		if (this.countShown) {
 			draw.drawRect(this.countDraw);
 			draw.drawText(this.countText);
 		}
@@ -368,9 +383,10 @@ class MiniParts {
  * which drops the summary and can stand for a stack of copies or show its
  * state against a deck being built (`copies`, `miniState`). One composite
  * target (R8.29): the frame, art ground, cost hex, driver mark, rarity gem,
- * and a mini's stack, tag and dashes are the card's own draws, its words
- * are parts, and every state it shows (hovered, selected, disabled) comes
- * from the framework's flags. Driver colour is the frame; rarity is the gem.
+ * focus ring, and a mini's stack, tag, and dashes are the card's own draws,
+ * its words are parts, and every state it shows (hovered, selected,
+ * disabled) comes from the framework's flags. Driver colour is the frame;
+ * rarity is the gem.
  */
 export class Card extends Component {
 	private model: GameCard;
@@ -398,7 +414,9 @@ export class Card extends Component {
 	private readonly hexFaceDraw: DrawPolygonOptions;
 	private readonly gemDraw: DrawPolygonOptions;
 	private markDraw: DrawPolygonOptions | null = null;
-	/** A mini's stack, tag and dashes; null on a face. */
+	/** The walk's focus ring, drawn by the card so its hex, tag, and count sit on top of it. */
+	private readonly focusRingDraw: DrawRectOptions;
+	/** A mini's stack, tag, and dashes; null on a face. */
 	private readonly mini: MiniParts | null;
 
 	private dimmed = false;
@@ -452,6 +470,15 @@ export class Card extends Component {
 		};
 		this.frameBorder.width = this.borderWidth;
 		this.frameBorder.color = this.restingBorder;
+		const ringOffset = tokens.control.focus_ring_offset;
+		this.focusRingDraw = {
+			id: id !== undefined ? `${id}.focus_ring` : undefined,
+			rect: { x: -ringOffset, y: -ringOffset, width: dimensions.width + ringOffset * 2, height: dimensions.height + ringOffset * 2 },
+			radius: tokens.radius.radius_ui + ringOffset,
+			// A rect with no fill is white (R2.8's default); the ring is border only.
+			fill: [0, 0, 0, 0],
+			border: { color: tokens.color.accent, width: tokens.control.focus_ring_width, position: 'outside' },
+		};
 
 		const hex = this.hexBox;
 		const hexDraws = costHexDraws(hex.x, hex.y, hex.size);
@@ -532,7 +559,7 @@ export class Card extends Component {
 
 		if (mini) {
 			this.mini = new MiniParts(dimensions);
-			this.mini.recolour(this.restingBorder, false);
+			this.mini.recolour(this.restingBorder, this.driverNumber !== null, false);
 		} else {
 			this.mini = null;
 
@@ -677,11 +704,11 @@ export class Card extends Component {
 
 	/**
 	 * The cost hex's box reaches past the top-left corner, and its outline
-	 * (`drawCostHex`, a fifteenth of its size) and the polygon feather a
-	 * little further; a mini's stack and tag reach no further than its hex.
+	 * (`costHexInk`) and the polygon feather a little further; a mini's
+	 * stack, tag, and count reach no further than its hex (`MINI_CARD_INK`).
 	 */
 	public get inkExtent(): number {
-		return this.cardSize === CardSize.MINI ? MINI_CARD_INK : -FACE.hex.x + Math.ceil(FACE.hex.size / 15);
+		return this.cardSize === CardSize.MINI ? MINI_CARD_INK : -FACE.hex.x + Math.ceil(costHexInk(FACE.hex.size));
 	}
 
 	/** R8.29: a card is one target; its text and frame are internals. */
@@ -696,6 +723,15 @@ export class Card extends Component {
 
 	/** A card acts on press and click in handleEvent, with or without a caller callback. */
 	public get handlesPointer(): boolean {
+		return true;
+	}
+
+	/**
+	 * The ring is the walk's fallback ring (R11.12's sixth layer, the same
+	 * tokens), drawn by the card in `render` so the cost hex, a mini's tag,
+	 * and its count sit on top of it rather than cut through by it.
+	 */
+	public get drawsOwnFocusRing(): boolean {
 		return true;
 	}
 
@@ -761,9 +797,16 @@ export class Card extends Component {
 			this.frameBorder.color = this.restingBorder;
 			this.frameBorder.width = this.borderWidth;
 		}
-		const dashed = resting && this.mini !== null && this.mini.dashed;
+		const dashed = resting && (this.mini?.dashed ?? false);
+		if (dashed === this.dashedFrame) return;
+		// The dashes are a draw of their own, so the group count moves with them
 		this.frameDraw.border = dashed ? undefined : this.frameBorder;
-		if (this.mini) this.mini.dashesShown = dashed;
+		this.invalidateInk();
+	}
+
+	/** Whether the frame's border is drawn in dashes: a borrowed mini at rest. */
+	private get dashedFrame(): boolean {
+		return this.frameDraw.border === undefined;
 	}
 
 	private get restingBorder(): RGBA {
@@ -791,7 +834,7 @@ export class Card extends Component {
 		this.hexFaceDraw.fill = dimmed ? COST_HEX_FILLS.dimmed : COST_HEX_FILLS.full;
 		this.gemDraw.fill = dimmed ? GEM_FILLS[this.model.rarity].dimmed : GEM_FILLS[this.model.rarity].full;
 		if (this.markDraw && this.driverNumber) this.markDraw.fill = dimmed ? DRIVER_MARK_FILLS[this.driverNumber].dimmed : DRIVER_MARK_FILLS[this.driverNumber].full;
-		this.mini?.recolour(this.restingBorder, dimmed);
+		this.mini?.recolour(this.restingBorder, this.driverNumber !== null, dimmed);
 		this.name.style = { ...this.name.style, color: tone(CARD_NAME) };
 		this.typeLabel.style = { ...this.typeLabel.style, color: tone(CARD_MUTED) };
 		if (this.rarityLabel) this.rarityLabel.style = { ...this.rarityLabel.style, color: tone(CARD_DIM) };
@@ -842,6 +885,8 @@ export class Card extends Component {
 		if (copies === this.mini.copies) return;
 		this.mini.copies = copies;
 		this.mini.place(this.context?.draw);
+		// Edges, a count, and a tag come and go as draws of their own
+		this.invalidateInk();
 	}
 
 	/**
@@ -862,17 +907,23 @@ export class Card extends Component {
 		this.mini.state = state;
 		this.mini.place(this.context?.draw);
 		this.updateLook();
+		this.invalidateInk();
 	}
 
-	/** Everything here is built once and recoloured on state changes, so a frame allocates nothing. */
+	/**
+	 * Everything here is built once and recoloured on state changes, so a
+	 * frame allocates nothing. The focus ring goes after the frame and before
+	 * the hex, so the hex, a mini's tag, and its count sit on top of it.
+	 */
 	public render(draw: DrawApi): void {
 		this.mini?.renderBehind(draw);
 		draw.drawRect(this.frameDraw);
-		this.mini?.renderFrame(draw);
+		if (this.mini && this.dashedFrame) this.mini.renderDashes(draw);
 		draw.drawRect(this.artDraw);
 		if (this.chipDraw) draw.drawRect(this.chipDraw);
 		if (this.markDraw) draw.drawPolygon(this.markDraw);
 		draw.drawPolygon(this.gemDraw);
+		if (this.focusVisible && this.effectivelyEnabled) draw.drawRect(this.focusRingDraw);
 		draw.drawPolygon(this.hexEdgeDraw);
 		draw.drawPolygon(this.hexFaceDraw);
 		draw.drawText(this.digitsDraw);
@@ -986,13 +1037,17 @@ export class Card extends Component {
 	/**
 	 * A lifted card keeps the strip it rose out of, so a pointer resting on
 	 * its bottom edge doesn't drop it, see it slide back under, and lift it
-	 * again. The hex off the top-left corner is part of the card.
+	 * again. The hex off the top-left corner is part of the card, and so are
+	 * a mini's stack edges, tag, and count: R8.8 leaves ink out of hit
+	 * testing, but these read as the card, and a pointer moving onto "x5"
+	 * should not leave it.
 	 */
 	public containsPoint(localX: number, localY: number): boolean {
 		const reach = this.liftAmount > 0 ? CARD_LIFT : 0;
 		if (localX >= 0 && localX < this.width && localY >= 0 && localY < this.height + reach) return true;
 		const hex = this.hexBox;
-		return localX >= hex.x && localX < hex.x + hex.size && localY >= hex.y && localY < hex.y + hex.size;
+		if (localX >= hex.x && localX < hex.x + hex.size && localY >= hex.y && localY < hex.y + hex.size) return true;
+		return this.mini?.contains(localX, localY) ?? false;
 	}
 
 	/** Drops the lift tween with the card: the base cancels it on unmount. */
@@ -1038,12 +1093,18 @@ export class Card extends Component {
 		return this.driverNumber;
 	}
 
+	/**
+	 * Recolours the frame, art, and a mini's dashes and edges for the new
+	 * seat. A selected, hovered, or keyboard-focused card keeps its outline.
+	 */
 	public set driver(driverNumber: 1 | 2 | null) {
 		if (this.driverNumber === driverNumber) return;
 		this.driverNumber = driverNumber;
 		this.placeMark();
 		this.artDraw.gradient = artGradient(driverNumber, this.dimmed ? DIM_BRIGHTNESS : 1);
-		this.mini?.recolour(this.restingBorder, this.dimmed);
+		this.mini?.recolour(this.restingBorder, driverNumber !== null, this.dimmed);
 		this.applyBorder();
+		// The face's driver mark comes and goes as a draw of its own
+		this.invalidateInk();
 	}
 }

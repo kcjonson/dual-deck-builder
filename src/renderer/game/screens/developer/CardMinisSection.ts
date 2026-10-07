@@ -3,14 +3,12 @@ import type { DeveloperSectionOptions } from './DeveloperSectionPanel';
 import { Stack } from '../../../engine/components/Stack';
 import { Text } from '../../../engine/components/Text';
 import { tokens } from '../../../engine/theme/tokens';
-import { Card as UICard, CardSize, MINI_CARD_INK, MiniCardState } from '../../ui/Card';
+import { Card as UICard, CardSize, MINI_CARD_INK, MINI_GRID, MiniCardState } from '../../ui/Card';
 import { inspectOnContextMenu, makeInspectable } from '../../ui/cardInspect';
 import { sampleCard } from './CardDetailSection';
 
 /** A caption under each mini, wrapping inside this, as the board's do. */
 const CAPTION_WIDTH = 96;
-/** Between minis in a row: clear of one stack's ink and the next card's hex, with room to breathe. */
-const CELL_GAP = 24;
 
 interface MiniCase {
 	id: string;
@@ -52,9 +50,9 @@ export class CardMinisSection extends CatalogSection {
 		inspectOnContextMenu(this);
 	}
 
-	/** Captioned minis side by side, kept clear of the caption above by the cards' ink. */
+	/** Captioned minis side by side, spaced as any grid of minis is (`MINI_GRID`). */
 	private row(id: string, cases: readonly MiniCase[], driver: 1 | 2 | null): Stack {
-		const row = new Stack({ id, direction: 'horizontal', gap: CELL_GAP, margin: MINI_CARD_INK, focusGroup: { orientation: 'horizontal' } });
+		const row = new Stack({ id, direction: 'horizontal', gap: MINI_GRID.gap, margin: MINI_GRID.margin, focusGroup: { orientation: 'horizontal' } });
 		for (const entry of cases) {
 			const card = new UICard({
 				id: `dev_card_mini_${entry.id}`,

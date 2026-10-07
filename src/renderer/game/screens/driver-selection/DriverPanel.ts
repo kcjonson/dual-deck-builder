@@ -6,7 +6,7 @@ import { Select } from '../../../engine/ui/Select';
 import type { Card as GameCard } from '../../mechanics/Card';
 import { Driver } from '../../mechanics/Driver';
 import { isSameDriver, nextOpenDriverIndex } from '../../mechanics/DriverPair';
-import { Card as UICard, CardSize, MINI_CARD_INK } from '../../ui/Card';
+import { Card as UICard, CardSize, MINI_GRID, miniGridHeight } from '../../ui/Card';
 import { CardLoader } from '../../core/CardLoader';
 import { FlowWrap } from '../../ui/FlowWrap';
 import { contains } from '../../../engine/services/OverlayService';
@@ -18,11 +18,20 @@ export interface DriverPanelOptions extends StackOptions {
 	side: DriverPanelSide;
 }
 
-/** Space between mini cards, across and down: clear of one stack's edges and the next card's hex. */
-const DECK_CARD_SPACING = MINI_CARD_INK * 2 + 2;
+/**
+ * Every deck takes two rows' height, the most an unlocked driver's starting
+ * deck needs from 1024 wide up, so the two panels lay out alike whichever
+ * pair is picked: a four-card deck beside a six-card one would otherwise
+ * leave one panel's portrait and name higher than the other's.
+ */
+const DECK_ROWS = 2;
 /** The least the scrolling part shrinks to: a mini card and its ink, so it never closes up. */
-const BODY_MIN_HEIGHT = UICard.getDimensions(CardSize.MINI).height + MINI_CARD_INK * 2;
-const PORTRAIT_MIN_HEIGHT = 40;
+const BODY_MIN_HEIGHT = UICard.getDimensions(CardSize.MINI).height + MINI_GRID.margin * 2;
+/**
+ * The portrait is a placeholder and gives way first, down to a sliver, so
+ * the decks' two rows fit at 1280x720 without scrolling.
+ */
+const PORTRAIT_MIN_HEIGHT = 8;
 
 /**
  * Driver selection panel for the Driver Selection Screen
@@ -190,8 +199,9 @@ export class DriverPanel extends Stack {
 			id: `${this.idPrefix}deck_cards`,
 			// The cards' hexes and stacks draw past their boxes; the margin keeps
 			// that ink inside the scroller's clip
-			margin: MINI_CARD_INK,
-			gap: DECK_CARD_SPACING,
+			margin: MINI_GRID.margin,
+			gap: MINI_GRID.gap,
+			minSize: { height: miniGridHeight(DECK_ROWS) },
 			justify: 'center',
 			// R9.29: one Tab stop for the whole deck, the arrows walking its cards
 			focusGroup: { orientation: 'horizontal' },
@@ -374,7 +384,8 @@ export class DriverPanel extends Stack {
 		const availableCards = cardLoader.getAllCardsAsMap();
 		for (const cardConfig of driver.startingDeck.cards) {
 			const cardData = availableCards.get(cardConfig.type);
-			if (!cardData) continue;
+			// A card the data lacks, or an entry of none, shows nothing
+			if (!cardData || cardConfig.quantity < 1) continue;
 			this.deckGrid.addChild(this.createDeckCard(cardData, cardConfig.quantity));
 		}
 	}

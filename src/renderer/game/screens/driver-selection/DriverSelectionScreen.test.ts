@@ -351,6 +351,37 @@ describe('DriverSelectionScreen: one driver per slot', () => {
 		expect(findAll(left.deckPreview, Badge)).toEqual([]);
 	});
 
+	it('leaves out a deck entry of no copies rather than failing the build', async () => {
+		const { left } = await mountScreen();
+		const driver = rosterDrivers[0].copy();
+		// First, so a throw on it would leave the whole deck unbuilt
+		driver.startingDeck.cards.unshift({ type: 'ram', quantity: 0 });
+		left.availableDrivers = [driver, ...rosterDrivers.slice(1)];
+		await flushPromises();
+		context.frame.layout();
+
+		expect(left.selectedDriver).toBe(driver);
+		const types = findAll(left.deckPreview, UICard).map(card => card.data.type);
+		expect(types).toEqual(driver.startingDeck.cards.filter(entry => entry.quantity > 0).map(entry => entry.type));
+		expect(types).not.toContain('ram');
+	});
+
+	// The default pair is a four-card deck beside a six-card one, which wraps
+	// to two rows where the four fits on one; both reserve two rows.
+	it.each([[1440, 882], [1280, 720], [1920, 1080]])('lays the two panels out alike at %ix%i, the names level and nothing scrolling', async (width, height) => {
+		viewportSize = { width, height };
+		const { screen, left, right } = await mountScreen();
+		screen.resize(width, height);
+		context.frame.layout();
+
+		expect(findAll(left.deckPreview, UICard).length).not.toBe(findAll(right.deckPreview, UICard).length);
+		const nameY = (panel: DriverPanel, side: string): number => findById(panel, `driver_panel_${side}_driver_name`)?.screenBounds.y ?? NaN;
+		expect(nameY(left, 'left')).toBeCloseTo(nameY(right, 'right'), 5);
+		expect(left.deckPreview.height).toBeCloseTo(right.deckPreview.height, 5);
+		expect(left.deckPreview.maxScroll).toBe(0);
+		expect(right.deckPreview.maxScroll).toBe(0);
+	});
+
 	it('builds one starting deck preview when selections overlap a card load', async () => {
 		const { screen, left } = await mountScreen();
 		mockCards.loaded = false;
