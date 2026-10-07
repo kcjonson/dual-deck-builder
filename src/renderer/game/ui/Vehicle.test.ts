@@ -3,6 +3,7 @@
  */
 import type { AnyUiEvent } from '../../engine/input/events';
 import { createTestContext } from '../../engine/components/testing';
+import { pointer } from '../../engine/services/testing';
 import { createMeasuringDrawApi } from '../../engine/text/testing';
 import { renderTree } from '../../engine/components/renderTree';
 import type { PolygonCommand, TextCommand } from '../../engine/draw';
@@ -326,6 +327,35 @@ describe('Vehicle token while a card is aimed (DDB-138)', () => {
 
 	const isDashes = (command: Command): boolean => command.kind === 'polygon' && (command.points?.length ?? 0) > 60;
 	const isSolidOutline = (command: Command): boolean => command.kind === 'rect' && command.border?.width === 3;
+
+	it('shows the pointer cursor while it is a target someone can choose, and none otherwise (R8.2)', () => {
+		const buggy = createDrivenVehicle({ driver: createTestDriver('Raider'), name: 'Buggy' });
+		const model = new CombatModel();
+		model.targetableVehicleIds = [buggy.id];
+		const shown: string[] = [];
+		const context = createTestContext({ onCursorChange: (cursor) => shown.push(cursor) });
+		const token = new Vehicle({ id: 'token', vehicleData: buggy, side: 'raider', combatData: model, onClick: () => undefined });
+		token.mount(context);
+		context.frame.layout();
+		const box = token.screenBounds;
+		context.dispatcher.enqueue(pointer('move', box.x + box.width / 2, box.y + box.height / 2));
+		context.dispatcher.dispatchPending();
+		expect(token.cursor).toBeNull();
+		expect(shown).toEqual([]);
+
+		model.isTargeting = true;
+		context.dispatcher.dispatchPending();
+		expect(shown).toEqual(['pointer']);
+		model.targetableVehicleIds = [];
+		context.dispatcher.dispatchPending();
+		expect(shown).toEqual(['pointer', 'default']);
+
+		token.cursor = 'text';
+		model.targetableVehicleIds = [buggy.id];
+		context.dispatcher.dispatchPending();
+		expect(token.cursor).toBe('text');
+		token.unmount();
+	});
 
 	it('outlines a legal target in dashes drawn as one triangle list, built once, and the hovered one solid with a glow', () => {
 		const { model, buggy, token } = aimed();

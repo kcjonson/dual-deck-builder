@@ -1,4 +1,4 @@
-import { Component, ComponentOptions, PointerEvents, ResolvedColors } from '../../engine/components/Component';
+import { Component, ComponentOptions, Cursor, PointerEvents, ResolvedColors } from '../../engine/components/Component';
 import { Text } from '../../engine/components/Text';
 import { drawIcon, DrawIconOptions } from '../../engine/components/Icon';
 import { grownRect } from '../../engine/components/componentGeometry';
@@ -762,6 +762,11 @@ export class Vehicle extends Component {
 	/** The token is a target; its text takes no hits, and its chips and intents keep their tooltips. */
 	protected get defaultPointerEvents(): PointerEvents {
 		return 'auto';
+	}
+
+	/** The hand while it is a target someone can choose; otherwise whatever is beneath it. */
+	protected get defaultCursor(): Cursor | null {
+		return this.combatData?.isTargeting && this.onClickCallback !== null && this.isTargetable() ? 'pointer' : null;
 	}
 
 	/** A click chooses the vehicle as a target in handleEvent. */

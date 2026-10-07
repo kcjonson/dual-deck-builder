@@ -116,8 +116,35 @@ describe('Button styling (R11)', () => {
 
 		it('throws on an unknown key and on a property it does not render', () => {
 			expect(() => new Button({ label: 'Go', style: { border: '1px solid red' } as StyleObject })).toThrow(/not a style property/);
-			expect(() => new Button({ label: 'Go', style: { cursor: 'pointer' } })).toThrow(/does not render/);
+			expect(() => new Button({ label: 'Go', style: { hover: { cursor: 'text' } } })).toThrow(/does not render in a state/);
 			expect(() => new TextInput({ style: { textAlign: 'center' } })).toThrow(/does not render/);
+		});
+
+		it('renders cursor through the component, and drops it with the style (R8.2)', () => {
+			const button = new Button({ label: 'Go', style: { cursor: 'default' } });
+			expect(button.cursor).toBe('default');
+			button.style = {};
+			expect(button.cursor).toBe('pointer');
+			const field = new TextInput({ style: { cursor: 'pointer' } });
+			expect(field.cursor).toBe('pointer');
+			field.style = { cursor: 'default' };
+			expect(field.cursor).toBe('default');
+			field.style = {};
+			expect(field.cursor).toBe('text');
+		});
+
+		it('keeps a cursor set on the component when a style without one arrives', () => {
+			const button = new Button({ label: 'Go', cursor: 'text' });
+			button.style = { backgroundColor: 'status_crit' };
+			expect(button.cursor).toBe('text');
+			button.style = { cursor: 'default' };
+			button.cursor = 'text';
+			button.style = {};
+			expect(button.cursor).toBe('text');
+			const field = new TextInput({ style: { cursor: 'pointer' } });
+			field.cursor = 'default';
+			field.style = {};
+			expect(field.cursor).toBe('default');
 		});
 
 		it('restyles at runtime through the same accessor, and validates it', () => {

@@ -1,6 +1,6 @@
 import type { Clock } from '../animation/Clock';
 import { DrawApi, NullBackend } from '../draw';
-import { MountContext, ViewportSource, createMountContext } from './MountContext';
+import { MountContext, MountContextOptions, ViewportSource, createMountContext } from './MountContext';
 import { InjectionResult, InjectionTarget, injectInput } from '../debug/inputInjection';
 
 export interface TestContextOptions {
@@ -10,14 +10,17 @@ export interface TestContextOptions {
 	viewport?: ViewportSource;
 	/** A clock the test holds, to freeze or inspect (R13.37). */
 	clock?: Clock;
+	/** Hears the dispatcher's resolved cursor, as a page's canvas would. */
+	onCursorChange?: MountContextOptions['onCursorChange'];
 }
 
 /** A mount context for tests, built through the same factory the pages use. */
-export function createTestContext({ draw, viewport, clock }: TestContextOptions = {}): MountContext {
+export function createTestContext({ draw, viewport, clock, onCursorChange }: TestContextOptions = {}): MountContext {
 	return createMountContext({
 		draw: draw ?? new DrawApi({ backend: new NullBackend(), development: false }),
 		viewport: viewport ?? { logical: { width: 1440, height: 882 } },
 		clock,
+		onCursorChange,
 	});
 }
 

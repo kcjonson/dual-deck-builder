@@ -16,6 +16,28 @@ This document contains the chronological log of completed development tasks for 
 - `productionBuild.test.ts` runs the game, the screen manager, and the main menu with the flag false: no registered developer screen, a refused navigate that leaves the screen mounted, no menu button, no overlay constructed, F5 and F12 inert.
 - Verified on the bundles, not in CI: thirteen overlay, developer-screen and gallery-section strings are absent from `npm run build:web` output and present in a development build, and present again in a production build with the flag forced true (so minification is not what hides them). The frame timer, the draw counters and debug logging stay in production as recorded departures.
 - Chapter 14's "Dev-only build exclusion" row is partial for those departures (R13.42 and R13.43 are known gaps). Decision record: [gpu-timer-and-perf-capture.md](./AI_TECHNICAL_DECISIONS/gpu-timer-and-perf-capture.md).
+## Component cursor (2026-10-06)
+
+**What landed:** DDB-244 (DDB-55). R8.2's `cursor`, shown on the canvas.
+
+- `Component.cursor` and the `cursor` option: `'default' | 'pointer' | 'text'`, or null to inherit; the kind's default through `defaultCursor`. `Pressable`, Select, Slider, and a live Toast say `pointer`; TextInput says `text`; menu rows and the number stepper answer per region (`default` over a separator, a disabled item, or a chevron at its limit). Setting it invalidates nothing.
+- `Dispatcher` resolves the innermost hovered component's cursor, walking outward, once at the end of each `dispatchPending`: the captor's chain while the hovering pointer is captured, hidden components skipped, `default` when the innermost visible one is disabled, when nothing sets one, after the pointer leaves, or on reset. `onCursorChange` (through `createMountContext`) fires only on a change; `src/index.ts` and the gallery set `canvas.style.cursor`.
+- Button and TextInput accept `cursor` in their base style; a later style without it resets only a cursor the last style set. The "waits for a cursor service" note is gone, and four older decision records now point at the new one.
+- Game: `Card` shows `pointer` once it has an `onSelect`; `Vehicle` while it is a choosable target. Both through `defaultCursor`.
+- `TreeView.cursor` and its row's `cursor` are now `cursorRow` and `keyboardCursor`, freeing the name.
+- Chapter 14: the "Properties of R8.2" row stays partial for two recorded departures (null inherits; a disabled component shows `default`). The hub's stale tally is corrected to 86 yes and 14 partial.
+- Decision record: [component-cursor.md](./AI_TECHNICAL_DECISIONS/component-cursor.md).
+
+**How:** Jest tests for resolution (innermost wins, inheritance, default, leave, reset, a disabled pressable and a disabled leaf, a hidden hovered component, a change under a still pointer without layout, capture during a drag, no repeated callbacks), kind defaults, style acceptance and reset, menu rows over a separator and a disabled item, the stepper at its limits, Toast, and Card and Vehicle through the dispatcher.
+## Compound campaign and area map design (2026-10-06)
+
+**What landed:** design docs only, no code.
+
+- New specs: `docs/specs/Compound and Supply Runs.md` and `docs/specs/Area Map Generation.md`.
+- New record: `docs/AI_TECHNICAL_DECISIONS/compound-and-area-map.md` (campaign structure, road trees over a Delaunay mesh, saves store the gameplay map, drivable and scenery layers, `MapParams` with a Map Lab for tuning).
+- Updated to the new structure: Game Flow and UI Specification (main menu, driver selection as load out, persistent decks, sections 3 and 6 rewritten), Gameplay Mechanics and Style (core loop, consequences), Combat Rules (run lost instead of game over, escorts lost for good).
+- Deck management: default decks, the locker, and run decks (Compound and Supply Runs, Decks and the locker); Game Flow 1.2 rewritten as load out with an optional per-driver customize mode, a new 3.2 Crew screen, the garage's paid removal retired, and 7.0 "Cards look like cards" with a new 80x112 mini card size.
+- Wireframes on the "Supply Run Map" design canvas: loop, compound, area map (with scenery), run route, stop types, fog of war, Map Lab, crew and decks, load out, customize, card sizes, and shared mini, driver, and escort card components. Screenshots of each board are in `docs/design/supply-runs/` and embedded in the specs.
 
 ## The battle screen fit suite (2026-10-02)
 
