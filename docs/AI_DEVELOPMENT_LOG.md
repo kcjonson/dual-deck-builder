@@ -16,6 +16,15 @@ This document contains the chronological log of completed development tasks for 
 - `productionBuild.test.ts` runs the game, the screen manager, and the main menu with the flag false: no registered developer screen, a refused navigate that leaves the screen mounted, no menu button, no overlay constructed, F5 and F12 inert.
 - Verified on the bundles, not in CI: thirteen overlay, developer-screen and gallery-section strings are absent from `npm run build:web` output and present in a development build, and present again in a production build with the flag forced true (so minification is not what hides them). The frame timer, the draw counters and debug logging stay in production as recorded departures.
 - Chapter 14's "Dev-only build exclusion" row is partial for those departures (R13.42 and R13.43 are known gaps). Decision record: [gpu-timer-and-perf-capture.md](./AI_TECHNICAL_DECISIONS/gpu-timer-and-perf-capture.md).
+## Canvas input hygiene (2026-10-06)
+
+**What landed:** DDB-250. The canvas `contextmenu` and `user-select` handling of R15.39, and R9.1's wheel fields.
+
+- `PointerAdapter` prevents `contextmenu` on the canvas and on its document (the Menu key and Shift+F10 target the focused element, not the canvas; a text field keeps its own menu), so no browser menu opens over the game. The dispatcher already synthesises its own `contextmenu` from a secondary press. It sets `user-select: none` and `-webkit-user-select`/`-webkit-touch-callout: none` beside the existing `touch-action: none`, and `detach` restores all of them to what the canvas had.
+- On macOS a Ctrl+click arrives as button 0 with Ctrl held; with the native menu suppressed it would complete as a primary click, so the adapter remaps that whole press (down, moves, up) to the secondary button.
+- `UiWheelEvent` stores `isPrimary`, `pressure`, `button` and `buttons`. The wheel input carries the held `buttons`; pressure is 0.5 while one is held and `button` stays -1. `pointerType` and `isPrimary` come from the hovering pointer's identity (a primary mouse, id 1, when none is hovering) instead of a hard-coded mouse.
+- Tests: new `PointerAdapter.test.ts` and wheel field cases in `Dispatcher.test.ts`.
+- Chapter 14: the "WebGL2 backend rules" row drops its canvas `contextmenu`/`user-select` gap and names the remaining `char` clause (DDB-254, with R15.34); the "Event fields" row stays partial for `char`.
 ## Driver selection previews the starting deck (2026-10-06)
 
 **What landed:** DDB-226, part 1. Game Flow Spec 1.2: hovering or focusing a mini card in a driver's starting deck shows the full card. Part 2 (locked drivers greyed out in the Select) is open; `Driver` has no lock source yet.
