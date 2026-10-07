@@ -1,4 +1,6 @@
-# AI Development Log
+# AI Development Log (deprecated)
+
+> **DEPRECATED (2026-10-06, DDB-342).** This file is frozen and kept for history only. Don't add to it or update it. Work, status, and progress are tracked on Specboard: https://specboard.io/projects/6b4e4cdd-15bc-4001-8280-706838168f2e. Technical decisions live in [AI_TECHNICAL_DECISIONS/](./AI_TECHNICAL_DECISIONS/); the docs index is [README.md](./README.md). Content below may be stale.
 
 This document contains the chronological log of completed development tasks for Wasteland Wheels. Most recent entries are at the top.
 
