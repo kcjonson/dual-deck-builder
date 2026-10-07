@@ -6,6 +6,16 @@ This document contains the chronological log of completed development tasks for 
 
 **Date correction (2026-08-22):** the repo's first commit is 2025-05-17, but many entries below carry dates in December 2024 or January 2025 — the AI that wrote them used its assumed date instead of the real one. Entries dated 2025-07-03 and 2025-07-02 have been corrected from "2025-01-03"/"2025-01-02" (verified against git history). Remaining Dec 2024 / Jan 2025 dates are wrong by roughly six months; the real work happened May–July 2025. Trust git history over these dates.
 
+## The F5 overlay and F12 developer screen leave production builds (2026-10-06)
+
+**What landed:** DDB-249, R13.2. A production bundle no longer carries `DeveloperOverlay`, `DeveloperScreen` or any gallery section, and nothing in it can navigate to the developer screen.
+
+- `Game` requires and builds the overlay inside `if (__DEV_TOOLS__)`, and mounts it and registers F5 and F12 in that branch; `developerOverlay` is nullable and the update, render, and viewport paths skip it when null.
+- `ScreenManager` registers `developerScreen` through a `require` in a folded branch, and `navigate` refuses an unregistered name before it fades or unmounts anything.
+- The main menu's Developer Tools button is built only in a development build.
+- `productionBuild.test.ts` runs the game, the screen manager, and the main menu with the flag false: no registered developer screen, a refused navigate that leaves the screen mounted, no menu button, no overlay constructed, F5 and F12 inert.
+- Verified on the bundles, not in CI: thirteen overlay, developer-screen and gallery-section strings are absent from `npm run build:web` output and present in a development build, and present again in a production build with the flag forced true (so minification is not what hides them). The frame timer, the draw counters and debug logging stay in production as recorded departures.
+- Chapter 14's "Dev-only build exclusion" row is partial for those departures (R13.42 and R13.43 are known gaps). Decision record: [gpu-timer-and-perf-capture.md](./AI_TECHNICAL_DECISIONS/gpu-timer-and-perf-capture.md).
 ## Canvas input hygiene (2026-10-06)
 
 **What landed:** DDB-250. The canvas `contextmenu` and `user-select` handling of R15.39, and R9.1's wheel fields.

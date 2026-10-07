@@ -120,13 +120,16 @@ export class MainMenuScreen extends Screen {
 			block: true,
 			onClick: () => ScreenManager.navigate('cardShowcaseScreen'),
 		}));
-		menu.addChild(new Button({
-			label: 'Developer Tools',
-			id: 'main_menu_developer_button',
-			size: 'lg',
-			block: true,
-			onClick: () => ScreenManager.navigate('developerScreen'),
-		}));
+		// Development tooling, so absent from a production build (R13.2).
+		if (__DEV_TOOLS__) {
+			menu.addChild(new Button({
+				label: 'Developer Tools',
+				id: 'main_menu_developer_button',
+				size: 'lg',
+				block: true,
+				onClick: () => ScreenManager.navigate('developerScreen'),
+			}));
+		}
 
 		// Only the desktop build can quit
 		if ((window as ElectronWindow).electron?.isElectron === true) {
