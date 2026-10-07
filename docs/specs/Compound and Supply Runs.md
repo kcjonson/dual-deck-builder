@@ -88,7 +88,7 @@ Every driver has a default deck and a hand limit. The compound keeps a locker of
 ### The rules
 
 - Every card copy is in exactly one place: a driver's default deck, the locker, or (during a run) a driver's run deck. Nothing is duplicated by moving it.
-- Hand limit: each driver has their own, shown with their deck. It starts at 7 for every archetype (`HAND_CAP` today) and becomes a driver stat that archetypes, mods, or upgrades can change.
+- Hand limit: each driver has their own, shown with their deck. It starts at 7 for every archetype and is a driver stat that archetypes, mods, or upgrades can change.
 - Deck size: a deck stays between a minimum and a maximum (starting values: 8 and 20), at home and on a run.
 - Card eligibility: most cards can go in any driver's deck. A card marked for an archetype (a future signature card, say) only goes to that archetype.
 - Starting decks: a driver arrives with their archetype's starting deck as their default deck. Find: driver brings a new driver with their own starting deck.

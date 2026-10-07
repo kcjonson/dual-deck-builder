@@ -28,10 +28,12 @@ describe('DriverLoader never hands out its templates', () => {
 		if (!first) throw new Error('road_warrior should load');
 		first.takeDamage(10);
 		first.startingDeck.cards[0].quantity = 99;
+		first.handLimit = 9;
 
 		const second = loader.getDriver('road_warrior');
 		expect(second).not.toBe(first);
 		expect(second?.hitpoints).toBe(second?.maxHitpoints);
+		expect(second?.handLimit).toBe(DRIVER_CONFIGS.road_warrior.handLimit);
 		expect(second?.startingDeck.cards[0].quantity).toBe(DRIVER_CONFIGS.road_warrior.startingDeck.cards[0].quantity);
 		expect(loader.getAllDrivers()).not.toContain(first);
 	});

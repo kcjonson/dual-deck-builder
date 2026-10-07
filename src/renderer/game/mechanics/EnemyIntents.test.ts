@@ -261,7 +261,7 @@ describe('Enemy intents', () => {
 			expect(rig.structure).toBe(18);
 		});
 
-		test('a planned draw goes through the hand cap, and what it draws is never played', async () => {
+		test('a planned draw goes through the hand limit, and what it draws is never played', async () => {
 			const scavenge = card('Scavenge', 'self', [{ type: 'draw_cards', value: 3, target: 'self' }], 0);
 			const fillers = Array.from({ length: 6 }, (_, i) => card(`Scrap ${i + 1}`, 'self', [], 9));
 			giveHand(buggy, [scavenge, ...fillers]);
@@ -271,7 +271,7 @@ describe('Enemy intents', () => {
 
 			await battle.endPlayerTurn();
 
-			// Six left after Scavenge, one draw reaches the cap of 7, two burn
+			// Six left after Scavenge, one draw reaches the limit of 7, two burn
 			expect(logLines(battle, 'cards_burned')).toContainEqual(expect.stringContaining('Point Blank, Point Blank go straight to the discard pile'));
 			expect(logLines(battle, 'card_played').filter(line => line.includes('Point Blank'))).toEqual([]);
 			expect(rig.structure).toBe(20);

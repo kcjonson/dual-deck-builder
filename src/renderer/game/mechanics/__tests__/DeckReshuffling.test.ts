@@ -64,7 +64,7 @@ describe('Deck Reshuffling', () => {
 		});
 	});
 
-	// Draws stay at or under the hand cap here; HandCap.test.ts covers overflow
+	// Draws stay at or under the hand limit here; HandLimit.test.ts covers overflow
 	const emptyDeckIntoDiscard = (): void => {
 		driver.drawCards(5);
 		driver.discardHand();
@@ -132,7 +132,7 @@ describe('Deck Reshuffling', () => {
 		const lastCard = testCards[9];
 		const seenCardNames = (): string[] => [...driver.hand, ...driver.discard].map(c => c.name);
 		
-		// Draw all cards (the last three burn past the hand cap)
+		// Draw all cards (the last three burn past the hand limit)
 		driver.drawCards(10);
 		
 		// Verify we have the expected cards
