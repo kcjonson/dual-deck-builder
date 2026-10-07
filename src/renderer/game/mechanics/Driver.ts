@@ -3,19 +3,14 @@ import { Deck } from './Deck';
 import { Model } from '../core/Model';
 
 /**
- * Most cards a driver can hold. A card drawn past the cap goes straight to discard (a burn).
- */
-export const HAND_CAP = 7;
-
-/**
- * Payload of the Driver 'cardsBurned' event, emitted once per draw that overflows the hand cap
+ * Payload of the Driver 'cardsBurned' event, emitted once per draw that overflows the driver's hand limit
  */
 export interface CardsBurnedEvent {
 	cards: readonly Card[];
 }
 
 /**
- * Outcome of a draw: cards that reached the hand, and cards burned to discard past the cap
+ * Outcome of a draw: cards that reached the hand, and cards burned to discard past the hand limit
  */
 export interface DrawResult {
 	drawn: Card[];
@@ -87,6 +82,7 @@ export interface DriverConfig {
 	startingDeck: StartingDeckConfig;
 	maxHitpoints: number; // Driver's personal health
 	maxAdrenaline: number; // Maximum adrenaline (energy) capacity
+	handLimit: number; // Most cards in hand, 7 for every archetype to start (Compound and Supply Runs)
 }
 
 /**
@@ -113,6 +109,8 @@ export interface DriverData {
 	maxHitpoints: number;
 	adrenaline: number;
 	maxAdrenaline: number;
+	/** Most cards the driver can hold. A card drawn past it goes straight to discard (a burn). */
+	handLimit: number;
 	role: DriverRole;
 	hand: Card[];
 	discard: Card[];
@@ -142,6 +140,7 @@ export class Driver extends Model<DriverData> {
 		'maxHitpoints',
 		'adrenaline',
 		'maxAdrenaline',
+		'handLimit',
 		'role',
 		'hand',
 		'discard',
@@ -150,10 +149,14 @@ export class Driver extends Model<DriverData> {
 	]);
 
 	/**
-	 * Create a new driver from configuration
+	 * Create a new driver from configuration. Without a hand limit of their
+	 * own, a driver takes their archetype's.
 	 */
-	constructor(initialData: DriverData) {
-		super(initialData);
+	constructor(initialData: Omit<DriverData, 'handLimit'> & { handLimit?: number }) {
+		super({
+			...initialData,
+			handLimit: initialData.handLimit ?? DRIVER_CONFIGS[initialData.archetype].handLimit
+		});
 	}
 
 
@@ -201,7 +204,8 @@ export class Driver extends Model<DriverData> {
 			vehicleStats: this.vehicleStats,
 			startingDeck: this.startingDeck,
 			maxHitpoints: this.maxHitpoints,
-			maxAdrenaline: this.maxAdrenaline
+			maxAdrenaline: this.maxAdrenaline,
+			handLimit: this.handLimit
 		};
 	}
 
@@ -365,7 +369,8 @@ export class Driver extends Model<DriverData> {
 
 	/**
 	 * Draw cards from driver's deck into their hand. Cards drawn while the hand is at
-	 * HAND_CAP go straight to discard and are announced with a 'cardsBurned' event.
+	 * the driver's hand limit go straight to discard and are announced with a
+	 * 'cardsBurned' event.
 	 */
 	public drawCards(count: number): DrawResult {
 		const result: DrawResult = { drawn: [], burned: [] };
@@ -379,7 +384,7 @@ export class Driver extends Model<DriverData> {
 			const card = this.deck.draw();
 			if (!card) break;
 
-			if (this.hand.length < HAND_CAP) {
+			if (this.hand.length < this.handLimit) {
 				this.addToHand(card);
 				result.drawn.push(card);
 			} else {
@@ -502,6 +507,7 @@ export class Driver extends Model<DriverData> {
 			maxHitpoints: this.maxHitpoints,
 			adrenaline: this.adrenaline,
 			maxAdrenaline: this.maxAdrenaline,
+			handLimit: this.handLimit,
 			role: this.role,
 			hand: this.hand.map(card => card.copy()),
 			discard: this.discard.map(card => card.copy()),
@@ -551,7 +557,8 @@ export const DRIVER_CONFIGS: Record<DriverArchetype, DriverConfig> = {
 			]
 		},
 		maxHitpoints: 40, // Tough veteran driver
-		maxAdrenaline: 5 // Default energy capacity
+		maxAdrenaline: 5, // Default energy capacity
+		handLimit: 7
 	},
 
 	interceptor: {
@@ -590,7 +597,8 @@ export const DRIVER_CONFIGS: Record<DriverArchetype, DriverConfig> = {
 			]
 		},
 		maxHitpoints: 25, // Agile but fragile
-		maxAdrenaline: 5 // Default energy capacity
+		maxAdrenaline: 5, // Default energy capacity
+		handLimit: 7
 	},
 
 	mechanic: {
@@ -627,7 +635,8 @@ export const DRIVER_CONFIGS: Record<DriverArchetype, DriverConfig> = {
 			]
 		},
 		maxHitpoints: 30, // Balanced survivability
-		maxAdrenaline: 5 // Default energy capacity
+		maxAdrenaline: 5, // Default energy capacity
+		handLimit: 7
 	},
 
 	raider: {
@@ -667,6 +676,7 @@ export const DRIVER_CONFIGS: Record<DriverArchetype, DriverConfig> = {
 			]
 		},
 		maxHitpoints: 33, // Reckless but resilient
-		maxAdrenaline: 5 // Default energy capacity
+		maxAdrenaline: 5, // Default energy capacity
+		handLimit: 7
 	}
 };

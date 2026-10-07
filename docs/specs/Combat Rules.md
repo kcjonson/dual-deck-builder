@@ -38,6 +38,7 @@
   - Speed: 1-5, added to the base speed of the vehicle they're driving
   - Individual Adrenaline Pool: 0 - infinite (refills each turn)
   - Individual Hand of Cards: drawn from their personal deck
+  - Hand Limit: the most cards they can hold. Each driver has their own; it starts at 7 for every archetype, and archetypes, mods, or upgrades can change it ([Compound and Supply Runs](./Compound%20and%20Supply%20Runs.md), Decks and the locker)
   - Individual Discard Pile: their played cards
   - Role: Active (driving) or Passenger
   - Skills 0 - 10
@@ -117,7 +118,7 @@ An ambusher has no reserved formation slot and no outran vehicle. It counts as f
 
 - Players always go first (initiative system to be determined later)
 - Each driver draws 5 cards from their personal deck into their individual hand
-- Hand cap: 7 cards per driver. A card drawn past the cap goes straight to discard
+- Hand limit: each driver has their own, 7 to start (see Driver). A card drawn past it goes straight to discard
 - Each driver's adrenaline pool refills to maximum
 - Players can play cards from either driver's hand (single player) or their own driver's hand (co-op)
 - Cards cost adrenaline from the specific driver who plays them

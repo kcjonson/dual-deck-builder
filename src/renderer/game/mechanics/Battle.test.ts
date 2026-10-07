@@ -5,7 +5,7 @@ import { Battle, HitEvent } from './Battle';
 import { Team, TeamType } from './Team';
 import { Vehicle } from './Vehicle';
 import { RoadLane, RoadRow } from './Road';
-import { Driver, DriverRole, HAND_CAP } from './Driver';
+import { Driver, DriverRole } from './Driver';
 import { Card } from './Card';
 import { Deck } from './Deck';
 
@@ -1318,7 +1318,7 @@ describe('Battle', () => {
 
 	});
 
-	describe('Hand Cap', () => {
+	describe('Hand Limit', () => {
 		const createNitroBoost = (): Card => new Card({
 			type: 'nitro_boost',
 			name: 'Nitro Boost',
@@ -1349,18 +1349,18 @@ describe('Battle', () => {
 			playerDriver1.adrenaline = 10;
 		};
 
-		test('a Nitro Boost chain stops at the hand cap and burns the overflow to discard', () => {
+		test('a Nitro Boost chain stops at the hand limit and burns the overflow to discard', () => {
 			startWithNitroInHand();
 			const burnSpy = jest.fn();
 			playerDriver1.on('cardsBurned', burnSpy);
 
 			for (let play = 0; play < 5; play++) {
 				expect(battle.playCard({ driver: playerDriver1, cardIndex: 0 })).toBe(true);
-				expect(playerDriver1.hand.length).toBeLessThanOrEqual(HAND_CAP);
+				expect(playerDriver1.hand.length).toBeLessThanOrEqual(playerDriver1.handLimit);
 			}
 
 			// 5 + 2 per play: 5 -> 6 -> 7, then each later play burns 1 of its 2 draws
-			expect(playerDriver1.hand.length).toBe(HAND_CAP);
+			expect(playerDriver1.hand.length).toBe(playerDriver1.handLimit);
 			expect(burnSpy).toHaveBeenCalledTimes(3);
 			expect(playerDriver1.discard.length).toBe(5 + 3);
 			expect(playerDriver1.deck?.size).toBe(nitroDeckSize - 15);
@@ -1383,14 +1383,30 @@ describe('Battle', () => {
 			expect(burnMessages[0].metadata?.value).toBe(1);
 		});
 
-		test('the turn draw burns past the cap too', () => {
+		test('the turn draw burns past the limit too', () => {
 			playerDriver2.hand = [createNitroBoost(), createNitroBoost(), createNitroBoost(), createNitroBoost()];
 
 			battle.start();
 
-			expect(playerDriver2.hand.length).toBe(HAND_CAP);
-			expect(playerDriver2.discard.length).toBe(4 + 5 - HAND_CAP);
+			expect(playerDriver2.hand.length).toBe(playerDriver2.handLimit);
+			expect(playerDriver2.discard.length).toBe(4 + 5 - playerDriver2.handLimit);
 			expect(battle.getMessagesByType('cards_burned')).toHaveLength(1);
+		});
+
+		test('each driver burns past their own limit', () => {
+			playerDriver1.handLimit = 4;
+			playerDriver2.handLimit = 9;
+			playerDriver2.hand = [createNitroBoost(), createNitroBoost(), createNitroBoost(), createNitroBoost()];
+
+			battle.start();
+
+			expect(playerDriver1.hand.length).toBe(4);
+			expect(playerDriver1.discard.length).toBe(1);
+			expect(playerDriver2.hand.length).toBe(9);
+			expect(playerDriver2.discard).toHaveLength(0);
+			const burnMessages = battle.getMessagesByType('cards_burned');
+			expect(burnMessages).toHaveLength(1);
+			expect(burnMessages[0].metadata?.driver).toBe('Player Driver 1');
 		});
 	});
 });
