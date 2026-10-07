@@ -51,6 +51,7 @@
 	},
 	"devDependencies": {
 		"@playwright/test": "^1.63.0",
+		"@types/eslint": "^8.56.12",
 		"@types/fontkit": "^2.0.9",
 		"@types/jest": "^29.5.1",
 		"@types/node": "^20.2.1",
