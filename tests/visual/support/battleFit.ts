@@ -1,6 +1,5 @@
 import { LANE_ORDER, ROW_ORDER, RoadLane, RoadRow, RoadSlot, isShoulder } from '../../../src/renderer/game/mechanics/Road';
-import { HAND_CAP } from '../../../src/renderer/game/mechanics/Driver';
-import { computeRoadLayout, roadSlotRect, tokenScaleFor } from '../../../src/renderer/game/screens/combat/CombatLayout';
+import { DOCK_HAND_CAP, computeRoadLayout, roadSlotRect, tokenScaleFor } from '../../../src/renderer/game/screens/combat/CombatLayout';
 
 /**
  * The battle screen's fit check (DDB-141), ported from the mock's `lint`
@@ -25,7 +24,8 @@ import { computeRoadLayout, roadSlotRect, tokenScaleFor } from '../../../src/ren
  *   own formation and the other team's shoulder only), a flanker in a row
  *   with nobody in the other team's formation, or a token not in the slot
  *   its id names.
- * - hand-cap: a driver holding more than seven cards.
+ * - hand-cap: a driver holding more cards than the dock is designed for
+ *   (seven, `DOCK_HAND_CAP`), whatever their own hand limit.
  *
  * Not ported: the mock's `.hitchip` and `.predict`. The incoming total is
  * drawn inside its token's box (`EndTurnPreview.drawTotal`), so the token
@@ -196,10 +196,10 @@ export function battleFit(document: FitDocument): FitFinding[] {
 		}
 	}
 
-	// Each driver's hand holds 7 at most (Combat Rules, the hand cap)
+	// Each driver's half of the dock holds 7 at most (Battle Screen Design, section 4)
 	for (const hand of ['driver1_hand', 'driver2_hand']) {
 		const cards = nodes.filter((entry) => entry.node.type === 'Card' && entry.path.includes(`/${hand}/`)).length;
-		if (cards > HAND_CAP) findings.push({ check: 'hand-cap', detail: `${hand} holds ${cards}, over the cap of ${HAND_CAP}` });
+		if (cards > DOCK_HAND_CAP) findings.push({ check: 'hand-cap', detail: `${hand} holds ${cards}, over the cap of ${DOCK_HAND_CAP}` });
 	}
 
 	// The road's slots: scale, occupancy, lanes

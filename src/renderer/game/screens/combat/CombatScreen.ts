@@ -407,6 +407,8 @@ export class CombatScreen extends Screen {
 			maxHitpoints: 30,
 			adrenaline: 3,
 			maxAdrenaline: 10,
+			// Not the Mechanic's: per-archetype limits mustn't change a raider's draws
+			handLimit: 7,
 			role: DriverRole.ACTIVE,
 			hand: [],
 			discard: [],

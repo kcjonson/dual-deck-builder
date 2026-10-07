@@ -1,4 +1,4 @@
-import { DRIVER_CONFIGS, HAND_CAP } from '../mechanics/Driver';
+import { DRIVER_CONFIGS } from '../mechanics/Driver';
 import { cardCount, startingDeckCounts, totalCards } from './CardCounts';
 import { DRIVER_ARCHETYPES, DriverRecord, DriverRecordJson, DriverRecordOptions, placeholderName } from './DriverRecord';
 
@@ -13,12 +13,12 @@ const recruit = (options: Partial<DriverRecordOptions> = {}): DriverRecord => ne
 const throughText = (record: DriverRecord): unknown => JSON.parse(JSON.stringify(record));
 
 describe('DriverRecord', () => {
-	it.each(DRIVER_ARCHETYPES)('starts a new %s at full HP with their starting deck, ready', (archetype) => {
+	it.each(DRIVER_ARCHETYPES)('starts a new %s at full HP with their archetype\'s hand limit and starting deck, ready', (archetype) => {
 		const record = recruit({ archetype });
 
 		expect(record.hitpoints).toBe(DRIVER_CONFIGS[archetype].maxHitpoints);
 		expect(record.maxHitpoints).toBe(DRIVER_CONFIGS[archetype].maxHitpoints);
-		expect(record.handLimit).toBe(HAND_CAP);
+		expect(record.handLimit).toBe(DRIVER_CONFIGS[archetype].handLimit);
 		expect(record.defaultDeck).toEqual(startingDeckCounts(archetype));
 		expect(record.status).toBe('ready');
 		expect(record.injuredDays).toBe(0);

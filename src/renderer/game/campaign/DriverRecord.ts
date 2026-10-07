@@ -1,5 +1,5 @@
 import { Model } from '../core/Model';
-import { DRIVER_CONFIGS, DriverArchetype, HAND_CAP } from '../mechanics/Driver';
+import { DRIVER_CONFIGS, DriverArchetype } from '../mechanics/Driver';
 import { CardCounts, readCardCounts, startingDeckCounts, totalCards } from './CardCounts';
 import { describeValue, readFields, readInteger, readOneOf, readText } from './JsonReader';
 
@@ -119,13 +119,14 @@ export class DriverRecord extends Model<DriverRecordData> {
 }
 
 /**
- * Whatever the options leave out is a new driver's: their archetype's max HP,
- * all of it, and starting deck, ready, no runs. The hand limit is `HAND_CAP`
- * until the per-driver limit (DDB-285) gives each archetype's config one.
+ * Whatever the options leave out is a new driver's, from their archetype's
+ * config: max HP, all of it, the hand limit, and the starting deck; ready,
+ * with no runs.
  */
 function withFreshStart({ id, archetype, name, ...rest }: DriverRecordOptions): DriverRecordData {
 	readOneOf(archetype, 'DriverRecord.archetype', DRIVER_ARCHETYPES);
-	const maxHitpoints = rest.maxHitpoints ?? DRIVER_CONFIGS[archetype].maxHitpoints;
+	const config = DRIVER_CONFIGS[archetype];
+	const maxHitpoints = rest.maxHitpoints ?? config.maxHitpoints;
 	return {
 		id,
 		archetype,
@@ -133,7 +134,7 @@ function withFreshStart({ id, archetype, name, ...rest }: DriverRecordOptions): 
 		hitpoints: rest.hitpoints ?? maxHitpoints,
 		maxHitpoints,
 		injuredDays: rest.injuredDays ?? 0,
-		handLimit: rest.handLimit ?? HAND_CAP,
+		handLimit: rest.handLimit ?? config.handLimit,
 		defaultDeck: rest.defaultDeck ?? startingDeckCounts(archetype),
 		status: rest.status ?? 'ready',
 		runsCompleted: rest.runsCompleted ?? 0

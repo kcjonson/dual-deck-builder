@@ -36,7 +36,7 @@ Card types are checked for shape (lower snake case), not against `cards.json`, w
 - HP runs from 0 to max, and max is at least 1. A driver is dead exactly when their HP is 0: the dead have none, the living some.
 - `injuredDays` is above 0 exactly while injured. It's "fit in N days", which load out shows.
 - The dead and the missing stay in the pool, which the Crew screen lists for the record.
-- A new record defaults to its archetype's max HP, all of it, and starting deck, ready. The hand limit defaults to `HAND_CAP`, 7, until DDB-285 gives each archetype's config its own.
+- A new record defaults to its archetype's config: max HP, all of it, the hand limit (`DRIVER_CONFIGS[archetype].handLimit`, DDB-285), and the starting deck, ready.
 - The name is the archetype's title and an ordinal, "Road Warrior 2", counting every driver of that archetype the compound has had, dead included, so no two share one. It's stored, so the names DDB-318 decides on can replace it.
 
 ## The save is strict JSON with a schema version

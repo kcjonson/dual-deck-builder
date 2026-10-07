@@ -3,6 +3,7 @@
  */
 import cardsFile from '../../data/cards.json';
 import { CombatScreen } from './CombatScreen';
+import { DOCK_HAND_CAP } from './CombatLayout';
 import { CardLoader } from '../../core/CardLoader';
 import { DriverLoader } from '../../core/DriverLoader';
 import { createTestContext } from '../../../engine/components/testing';
@@ -10,7 +11,7 @@ import { layoutLint } from '../../../engine/debug/layoutLint';
 import { treeSnapshot } from '../../../engine/debug/treeSnapshot';
 import { createMeasuringDrawApi } from '../../../engine/text/testing';
 import { Card } from '../../mechanics/Card';
-import { DriverRole, HAND_CAP } from '../../mechanics/Driver';
+import { Driver, DriverRole } from '../../mechanics/Driver';
 import type { VehicleMod } from '../../mechanics/Vehicle';
 import { Card as UICard } from '../../ui/Card';
 import { Text } from '../../../engine/components/Text';
@@ -50,9 +51,10 @@ function newContext(width: number, height: number): ReturnType<typeof createTest
 	});
 }
 
-async function startCombat(context: ReturnType<typeof createTestContext>): Promise<CombatScreen> {
+/** The screen on its default fight, or seating `drivers` when given. */
+async function startCombat(context: ReturnType<typeof createTestContext>, drivers?: Driver[]): Promise<CombatScreen> {
 	const combat = new CombatScreen();
-	combat.mount(context);
+	combat.mount(context, drivers ? { drivers } : undefined);
 	await flushPromises();
 	await flushPromises();
 	context.frame.layout();
@@ -98,14 +100,14 @@ describe('CombatScreen dock (DDB-136)', () => {
 		const context = newContext(width, height);
 		const combat = await startCombat(context);
 		const [first, second] = combat['playerDrivers'];
-		first.set({ hand: cards(HAND_CAP), maxAdrenaline: 8, adrenaline: 7 });
-		second.set({ hand: cards(HAND_CAP) });
+		first.set({ hand: cards(DOCK_HAND_CAP), maxAdrenaline: 8, adrenaline: 7 });
+		second.set({ hand: cards(DOCK_HAND_CAP) });
 		combat['playerTeam']?.vehicles.forEach(vehicle => vehicle.set({ mods: SIX_MODS }));
 		combat['updateUIFromBattle']();
 		context.frame.layout();
 
 		const layer = combat['handLayer'];
-		expect(handElements(combat)).toHaveLength(HAND_CAP * 2);
+		expect(handElements(combat)).toHaveLength(DOCK_HAND_CAP * 2);
 		// Three mod icons, then "+3" naming the rest
 		const mods = layer.tabOf(1).modChips;
 		expect(mods).toHaveLength(4);
@@ -116,7 +118,7 @@ describe('CombatScreen dock (DDB-136)', () => {
 
 		// At the cap about 68 px of each card shows (section 4), every card inside its half
 		const half = layer.tabOf(1).parent;
-		const elements = handElements(combat).slice(0, HAND_CAP);
+		const elements = handElements(combat).slice(0, DOCK_HAND_CAP);
 		const scale = Math.max(0.8, Math.min(width / 1280, height / 720));
 		const step = (elements[1].screenBounds.x - elements[0].screenBounds.x) / scale;
 		expect(step).toBeGreaterThan(60);
@@ -125,6 +127,42 @@ describe('CombatScreen dock (DDB-136)', () => {
 		for (const element of elements) {
 			expect(element.screenBounds.x).toBeGreaterThanOrEqual((halfBounds?.x ?? 0) - 1e-6);
 		}
+
+		expect(layoutLint(treeSnapshot([combat.root], { ...viewport })).violations).toEqual([]);
+		combat.unmount();
+	});
+
+	// A driver's own hand limit can pass the dock's cap. Nothing clamps the
+	// rule to the dock: a draw fills the hand to the driver's limit, and the
+	// fan overlaps tighter, so every card stays in the half and keeps a strip
+	// of itself showing, though past the cap is undesigned and the fit suite
+	// flags it. The limit is raised before the screen seats the driver, so a
+	// clamp at the seat fails this too.
+	it.each([[1024, 600], [1440, 882]])('fans a hand drawn past the dock\'s cap inside its half at %ix%i at lint zero', async (width, height) => {
+		const context = newContext(width, height);
+		const pastCap = DOCK_HAND_CAP + 3;
+		const seated = DriverLoader.getInstance().getUnlockedDrivers().slice(0, 2);
+		seated[0].handLimit = pastCap;
+		const combat = await startCombat(context, seated);
+		const [first, second] = combat['playerDrivers'];
+		first.deck?.addCards(cards(pastCap));
+		expect(first.drawCards(pastCap - first.hand.length).burned).toEqual([]);
+		expect(first.hand).toHaveLength(pastCap);
+		second.set({ hand: cards(DOCK_HAND_CAP) });
+		combat['updateUIFromBattle']();
+		context.frame.layout();
+
+		const half = combat['handLayer'].tabOf(1).parent?.screenBounds;
+		if (!half) throw new Error('driver 1 should have a half of the dock');
+		const elements = handElements(combat).slice(0, pastCap);
+		expect(elements.map(element => element.data)).toEqual(first.hand);
+		const scale = Math.max(0.8, Math.min(width / 1280, height / 720));
+		elements.forEach((element, index) => {
+			const { x, width: cardWidth } = element.screenBounds;
+			expect(x).toBeGreaterThanOrEqual(half.x - 1e-6);
+			expect(x + cardWidth).toBeLessThanOrEqual(half.x + half.width + 1e-6);
+			if (index > 0) expect((x - elements[index - 1].screenBounds.x) / scale).toBeGreaterThan(30);
+		});
 
 		expect(layoutLint(treeSnapshot([combat.root], { ...viewport })).violations).toEqual([]);
 		combat.unmount();
