@@ -20,7 +20,8 @@ import { Clock } from '../../engine/animation/Clock';
 import { tokens } from '../../engine/theme/tokens';
 import type { RGBA, Rect } from '../../engine/draw/geometry';
 import { GEM_FILLS } from './cardStyle';
-import { CardInspectSurface, makeInspectable } from './cardInspect';
+import { CardInspectSurface, inspectOnContextMenu, makeInspectable } from './cardInspect';
+import { Container } from '../../engine/components/Container';
 
 // Lays out every card face at both sizes; the 5 s default fails under a loaded machine.
 jest.setTimeout(30_000);
@@ -575,33 +576,48 @@ describe('Mini card (Game Flow 7.0)', () => {
 		card.unmount();
 	});
 
-	it('opens the detail view on hover, and at once on keyboard focus, as every size does', () => {
+	it('opens the detail view on hover, at once on keyboard focus, and on a touch hold, as every size does', () => {
 		const local = createTestContext({ draw: createMeasuringDrawApi().api, clock: new Clock() });
+		const deck = new Container({ id: 'deck', x: 0, y: 0, width: 300, height: 300 });
 		const card = new Card({ id: 'card', x: 20, y: 20, data: new GameCard({ ...cardData[0] }), size: CardSize.MINI, copies: 3, miniState: 'home' });
 		card.focusable = true;
 		makeInspectable(card);
-		card.mount(local);
+		deck.addChild(card);
+		inspectOnContextMenu(deck);
+		deck.mount(local);
 		local.frame.layout();
+		const settleHidden = (): void => {
+			advance(local, tokens.motion.dur_tooltip_hide + 100);
+			expect(local.tooltips.surface).toBeNull();
+		};
 
 		const box = card.screenBounds;
-		send(local, [pointer('move', box.x + box.width / 2, box.y + box.height / 2)]);
+		const centre = { x: box.x + box.width / 2, y: box.y + box.height / 2 };
+		send(local, [pointer('move', centre.x, centre.y)]);
 		advance(local, tokens.control.tooltip_delay + tokens.motion.dur_fast + 100);
 		expect(local.tooltips.owner).toBe(card);
 		const surface = local.tooltips.surface;
 		expect(surface).toBeInstanceOf(CardInspectSurface);
 		if (surface instanceof CardInspectSurface) expect(surface.view.detail.data).toBe(card.data);
 		send(local, [pointer('move', 600, 600)]);
-		advance(local, tokens.motion.dur_tooltip_hide + 100);
-		expect(local.tooltips.surface).toBeNull();
+		settleHidden();
 
-		local.focus.pushScope(card);
+		local.focus.pushScope(deck);
 		local.focus.focus(card, 'keyboard');
 		local.frame.layout();
 		expect(local.tooltips.owner).toBe(card);
 		expect(local.tooltips.surface).toBeInstanceOf(CardInspectSurface);
-		local.focus.popScope(card);
+		local.focus.popScope(deck);
 		local.tooltips.hide();
-		card.unmount();
+		settleHidden();
+
+		send(local, [pointer('down', centre.x, centre.y, { pointerType: 'touch', pointerId: 2 })]);
+		advance(local, 600);
+		expect(local.tooltips.owner).toBe(card);
+		expect(local.tooltips.surface).toBeInstanceOf(CardInspectSurface);
+		send(local, [pointer('up', centre.x, centre.y, { pointerType: 'touch', pointerId: 2 })]);
+		local.tooltips.hide();
+		deck.unmount();
 	});
 
 	it.each(['borrowed', 'home', 'locked', 'unavailable', null] as const)('lints clean for every card stacked and %s', (miniState) => {

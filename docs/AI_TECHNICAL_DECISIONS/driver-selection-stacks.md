@@ -28,7 +28,7 @@ Options considered for the panel:
 
 The mini cards need rows, and wrap is out of the engine's scope (R10.4: "Wrap (multi-line flex) and grid are out of scope"). `game/ui/FlowWrap.ts` is a small container that takes part in stack layout like a wrapping text: a stack assigns its width, it measures its rows' height at that width, and each item keeps its own measured size. Two rows of the game use it, the deck preview and the synergy tags. It stays in game code until the engine adopts wrap, at which point it should be deleted for that.
 
-Each deck entry is a two-item stack, the card and, when the deck holds more than one, a `Badge` with `xN` under it. The badge is the catalog's (R12.26), clear of the cost corner.
+Each deck entry is one 80x112 mini card stacked to its quantity, the count on the stack itself ([mini-card.md](./mini-card.md), DDB-311).
 
 The `Select` lists every unlocked driver with the partner's driver `enabled: false`, so a conflicting pick can't be made from the UI; `DriverPanel.selectDriver` still moves on to the next open driver if one arrives. The panels' public surface is `select`, `deckPreview`, and `selectDriver(archetype)`; `cycleDriver` is deleted.
 
@@ -42,7 +42,7 @@ The `Select` lists every unlocked driver with the partner's driver `enabled: fal
 
 ## Tests
 
-`DriverSelectionScreen.test.ts` drives the real screen on the measuring backend: options and disabling, a keyboard pick, Escape on an open Select, tab order, three resizes with the same children and selections, the scroller's room above the Select at 1024x600, 1280x720 and 1920x1080, scrolling at 1024x600, badges below their cards, and the card-load race. `FlowWrap.test.ts` covers wrapping, centring, reflow on a narrower column, an oversized item, growth, and hugging outside a stack. `ScrollContainer.test.ts` adds four hug-height cases.
+`DriverSelectionScreen.test.ts` drives the real screen on the measuring backend: options and disabling, a keyboard pick, Escape on an open Select, tab order, three resizes with the same children and selections, the scroller's room above the Select at 1024x600, 1280x720 and 1920x1080, scrolling at 1024x600, each card stacked to its quantity, and the card-load race. `FlowWrap.test.ts` covers wrapping, centring, reflow on a narrower column, an oversized item, growth, and hugging outside a stack. `ScrollContainer.test.ts` adds four hug-height cases.
 
 ## Consequences
 
