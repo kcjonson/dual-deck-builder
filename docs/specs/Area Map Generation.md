@@ -104,7 +104,7 @@ Each parameter has a tuning range (what the Map Lab allows, and what the guarant
 ## Seeds and determinism
 
 - A campaign has a 32-bit seed, shown in campaign history and enterable from the Map Lab.
-- Generation uses a seeded PRNG module (the repo has none yet; a small one like sfc32 is enough). `Math.random` is never called during generation.
+- Generation uses a seeded PRNG, sfc32, in which every stream is rebuilt from a uint32 seed; the algorithm, the stream hash, and how many draws each call takes are in [seeded-prng.md](../AI_TECHNICAL_DECISIONS/seeded-prng.md). `Math.random` is never called during generation.
 - Each stage draws from its own named stream, derived by hashing the seed, the stage name, and the stage's attempt number: `params`, `terrain`, `highways`, `growth`, `pois`, `stops`, `scenery`, `names`. Changing the stop tables never moves a road, retrying one stage doesn't disturb the ones before it, and nothing in the scenery stage can reach the drivable layer. A parameter change only moves what depends on it, though terrain changes still move the roads that steer by terrain.
 - `Math.sin`, `Math.exp`, and friends aren't guaranteed bit-identical across JS engines, so the same seed can differ slightly between V8 and another browser engine. That's acceptable because saves store the generated map (see Saving); only seed sharing across engines is affected. Decisions that branch on a value (thresholds, comparisons) should avoid sitting on transcendental results where a cheap alternative exists.
 
