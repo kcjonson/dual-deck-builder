@@ -32,12 +32,15 @@ Two combinations are clamped. `highways` is raised to `strongholds` plus 2, as t
 
 ## Rolls are triangles round the environment
 
-`rollParams` picks the environment evenly on the `params` stream, then draws each number in table order from a triangle that peaks at the environment's value and reaches at most half the campaign range either side, snapped to the parameter's step so a roll reads like a slider value. Two uniforms make the triangle with plain arithmetic, the same on every engine.
+`rollParams` picks the environment evenly, then draws each number from a triangle that peaks at the environment's value and reaches at most half the campaign range either side, snapped to the parameter's step so a roll reads like a slider value. Two uniforms make the triangle with plain arithmetic, the same on every engine.
 
 A triangle across the whole campaign range, peaking at the environment's value, was simpler but gave a High Desert a long tail into wet ground: about one roll in seven above 0.5 aridity. Uniform draws ignored the environment altogether. The cost of bounded reach is a constraint on the table, which a test checks: every campaign end has to be within reach of some environment's value, so a range no environment moves sits evenly round its default.
+
+Every parameter draws on its own fork of the seed's `params` stream, `new Rng({ seed }).fork('params').fork(name)` with the parameter's key, the environment included. One stream drawn in table order was the first draft, but then adding, removing, or reordering a parameter while the Map Lab settles the table, or a player option that pins one parameter and skips its draw, would shift every later parameter's roll for every seed. A fork costs a short hash and 15 warm-up draws, nothing at 33 parameters. Tests pin it: the table reversed, or with a parameter dropped, or with one parameter's campaign range changed, rolls every other parameter the same, and one seed's roll is pinned outright.
 
 ## Consequences
 
 - The Map Lab builds its parameter panel from `MAP_PARAMETERS` and `PARAM_GROUPS`, marks values with `resolveMapParams`' sources, and lists clamps with `describeClamp`.
 - Every value in the table is a starting value. Tests hold the invariants (defaults and campaign ranges inside tuning ranges, values on the step grid, environments inside campaign ranges and off the gameplay group, shipped presets valid with no clamps), so tuning can't produce a table the validator or `rollParams` can't honour.
+- Retuning a campaign range, or Floodlands' values, can move the pinned roll for the default preset's seed (a Floodlands map), so a tuning change updates that test in the same commit. Only the retuned parameter's value moves.
 - `stopTables` stays loosely typed until the stops stage defines it.

@@ -271,7 +271,7 @@ export const MAP_PARAMETERS: { readonly environment: EnumParamSpec<Environment> 
 
 /** Every parameter with a row, in table order. */
 export const PARAM_NAMES = Object.keys(MAP_PARAMETERS) as readonly ParamName[];
-export const NUMBER_PARAMS = PARAM_NAMES.filter((name): name is NumberParam => name !== 'environment');
+export const NUMBER_PARAMS: readonly NumberParam[] = PARAM_NAMES.filter((name): name is NumberParam => name !== 'environment');
 
 /**
  * What each environment sets over the table's defaults: world, drivable
