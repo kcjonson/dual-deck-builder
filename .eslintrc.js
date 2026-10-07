@@ -1,6 +1,7 @@
 const platformTimers = ['setTimeout', 'setInterval', 'requestAnimationFrame', 'clearTimeout', 'clearInterval', 'cancelAnimationFrame'];
 const timeMessage = 'UI code takes time from context.clock and context.animator (R8.17, R8.28).';
 const randomMessage = 'Map and campaign code takes randomness from a seeded Rng stream, rng.fork(name) (src/renderer/game/core/Rng.ts), so a seed replays exactly.';
+const cryptoRandom = ['getRandomValues', 'randomUUID', 'randomInt', 'randomBytes', 'randomFill', 'randomFillSync'];
 
 module.exports = {
 	root: true,
@@ -60,12 +61,25 @@ module.exports = {
 		},
 		{
 			// Area Map Generation, Seeds and determinism: maps and campaigns
-			// replay exactly from their seed, so nothing here draws unseeded
-			// randomness. Unlike the timer block, tests are covered; a spy from
-			// jest.spyOn(Math, 'random') isn't a member access, so a test
-			// proving it's never called stays legal. Options replace rather
-			// than merge across overrides, so widening this into the timer
-			// block's folders needs one entry carrying both lists there.
+			// replay exactly from their seed, so code here reads no unseeded
+			// source. Tests are covered too, unlike the timer block, because a
+			// seed sweep drawn from Math.random or Node's crypto makes a CI
+			// failure impossible to replay. jest.spyOn(Math, 'random') isn't a
+			// member access, so a test can still prove the generator never
+			// calls it; keep that spy around the call under test only, or mock
+			// its return values and check the output doesn't move, since
+			// source-map-support can call a spied Math.random while Jest
+			// formats a stack trace.
+			//
+			// Left out on purpose: a new campaign's root seed is minted outside
+			// these folders (the founding flow, the Map Lab's new-seed button,
+			// or Rng's freshSeed() in core/, which DDB-401 adds) and passed in,
+			// and this rule can't see randomness reached through an import
+			// (core/Model ids, Deck.shuffle).
+			//
+			// Options replace rather than merge across overrides, so widening
+			// this into the timer block's folders needs one entry carrying both
+			// lists there.
 			files: [
 				'src/renderer/game/campaign/**/*.ts',
 				'src/renderer/game/map/**/*.ts',
@@ -73,10 +87,14 @@ module.exports = {
 			rules: {
 				'no-restricted-properties': ['error',
 					{ object: 'Math', property: 'random', message: randomMessage },
-					// No object, so crypto, window.crypto, and self.crypto all match.
-					{ property: 'getRandomValues', message: randomMessage },
-					{ property: 'randomUUID', message: randomMessage },
+					// No object, so crypto, window.crypto, self.crypto, and a default
+					// import of Node's crypto all match.
+					...cryptoRandom.map((property) => ({ property, message: randomMessage })),
 				],
+				// A named import is a bare call the property rule never sees.
+				'no-restricted-imports': ['error', {
+					paths: ['crypto', 'node:crypto'].map((name) => ({ name, importNames: cryptoRandom, message: randomMessage })),
+				}],
 			},
 		},
 	],
