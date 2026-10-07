@@ -67,3 +67,4 @@ _This section will be updated as decision documents are added._
 - [uber-shader.md](./uber-shader.md): the one-program uber shader, exact-coverage borders, premultiplied output and the clip as per-draw data; the phase 1 re-baseline and what moved (2026-09-28)
 - [seeded-prng.md](./seeded-prng.md): sfc32, named streams forked by hashing (seed, name, attempt) with MurmurHash3, and the draw counts every generator stage depends on (2026-10-06)
 - [map-params.md](./map-params.md): the area map's parameters in code: one table, environment defaults with explicit overrides, presets that hold only overrides, the validator's combination rules, and triangular rolls on a stream per parameter (2026-10-06)
+- [scroll-into-view-ink.md](./scroll-into-view-ink.md): `scrollIntoView` reveals a component's own ink bound, ring included, not just its box; ink or a box taller than the clip, and why neither swings the view (2026-10-06)

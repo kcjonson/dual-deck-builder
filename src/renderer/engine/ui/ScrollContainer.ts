@@ -19,8 +19,24 @@ import { SCROLLBAR_GUTTER, Scrollbar } from './Scrollbar';
 export type ScrollBlock = 'nearest' | 'center';
 
 export interface ScrollIntoViewOptions {
-	/** `nearest` (default) moves the least; `center` centres the component in the viewport. */
+	/** `nearest` (default) moves the least; `center` centres what the component draws in the viewport. */
 	block?: ScrollBlock;
+}
+
+/** A stretch of one axis, from `start` to `end`. */
+export interface Span {
+	start: number;
+	end: number;
+}
+
+export interface RevealDeltaOptions {
+	/** The component's content box. */
+	box: Span;
+	/** What it draws, which may reach past the box on either side (R8.8). */
+	ink: Span;
+	/** What the scroller shows: its clip. */
+	view: Span;
+	block: ScrollBlock;
 }
 
 export interface ScrollContainerOptions extends Omit<ComponentOptions, 'style'> {
@@ -70,9 +86,9 @@ interface ScrollBox {
  * Page Up and Page Down from anywhere inside, and the arrows, Home, and End
  * while it is itself focused. It is focusable by press and by code but not
  * a Tab stop (`tabIndex: -1`), so a press on its background lets the keys
- * reach it. Keyboard focus landing on a descendant scrolls it into view
- * (the focus manager calls `scrollIntoView`), and a scroll closes a popup
- * anchored inside it (R3.6a).
+ * reach it. Keyboard focus landing on a descendant scrolls what it draws
+ * into view, its ring included (the focus manager calls `scrollIntoView`),
+ * and a scroll closes a popup anchored inside it (R3.6a).
  *
  * The scrollbar is this container's part. The content offset moves every
  * child, so the scrollbar is placed at the offset to stay put on screen.
@@ -201,29 +217,33 @@ export class ScrollContainer extends Component {
 	}
 
 	/**
-	 * R12.20: brings `descendant`'s box inside the clip. `nearest` moves the
-	 * least, its top edge winning when it is taller than the clip; `center`
-	 * centres it. Worked in this container's local space, where one unit of
-	 * scroll moves the content one unit, so a scaled ancestor changes nothing.
+	 * R12.20: brings what `descendant` draws inside the clip, not only its
+	 * box: its `ownInkBound` (R8.8's ink, the walk's focus ring included), or
+	 * the box when that has no bound, so a focus ring, or anything else drawn
+	 * past the edges, is not left under the clip. `revealDelta` is the rule,
+	 * ink or a box taller than the clip included; the scroll range clamps
+	 * what it asks for, and asking again moves nothing.
+	 *
+	 * Worked in this container's local space, where one unit of scroll moves
+	 * the content one unit, so a scaled ancestor changes nothing, and a
+	 * rotated or scaled descendant counts at its transformed extent. A
+	 * component this container does not hold is left alone. Scrolling is
+	 * vertical, so ink reaching only sideways moves nothing.
 	 */
 	public scrollIntoView(descendant: Component, { block = 'nearest' }: ScrollIntoViewOptions = {}): void {
 		if (descendant === this || descendant === this.scrollbar) return;
-		const corners = descendant.screenQuad.map((point) => this.screenToLocal(point));
-		if (corners.some((corner) => corner === null)) return;
-		const ys = corners.map((corner) => (corner as Vec2).y);
-		const top = Math.min(...ys);
-		const bottom = Math.max(...ys);
-		const clip = this.clipRect;
-		let delta: number;
-		if (block === 'center') {
-			delta = (top + bottom) / 2 - (clip.y + clip.height / 2);
-		} else if (top < clip.y) {
-			delta = top - clip.y;
-		} else if (bottom > clip.y + clip.height) {
-			delta = Math.min(bottom - (clip.y + clip.height), top - clip.y);
+		if (!liftedSpan(descendant, this, 0, 0, descendant.width, descendant.height, REVEAL_BOX)) return;
+		const ink = descendant.ownInkBound;
+		if (ink) {
+			liftedSpan(descendant, this, ink.x, ink.y, ink.x + ink.width, ink.y + ink.height, REVEAL_INK);
 		} else {
-			delta = 0;
+			REVEAL_INK.start = REVEAL_BOX.start;
+			REVEAL_INK.end = REVEAL_BOX.end;
 		}
+		const clip = this.clipRect;
+		REVEAL_VIEW.start = clip.y;
+		REVEAL_VIEW.end = clip.y + clip.height;
+		const delta = revealDelta({ box: REVEAL_BOX, ink: REVEAL_INK, view: REVEAL_VIEW, block });
 		if (delta !== 0) this.scrollBy(delta);
 	}
 
@@ -451,4 +471,77 @@ export class ScrollContainer extends Component {
 		bar.setSize(SCROLLBAR_GUTTER, clip.height);
 		bar.range = { offset: this.scrollY, extent: this.scrollExtent, viewport: this.height };
 	}
+}
+
+/**
+ * R12.20's `scrollIntoView` along the scroll axis: how far to scroll so a
+ * component shows in the view, all three spans in the scroller's unscrolled
+ * space, where scrolling by `d` moves the content by `-d`. Worded for y; on
+ * x, above and below read as left and right. The ink counts as at least the
+ * box.
+ *
+ * When the ink fits, all of it shows: `nearest` moves the least and
+ * `center` centres it. When only the box fits, either block shows the box
+ * whole and splits the room it leaves between the ink above and below it,
+ * half each unless one side needs less, so a ring all round shows on both
+ * sides before longer ink on one side takes the rest. When even the box is
+ * taller than the view, `nearest` shows its top, under as much of the ink
+ * above it as fits in half the view, and `center` centres the ink.
+ *
+ * The last two answers depend on where things are, not on which side the
+ * component came from, so focus going back and forth over something too
+ * tall to show never swings the view between two positions.
+ */
+export function revealDelta({ box, ink, view, block }: RevealDeltaOptions): number {
+	const room = view.end - view.start;
+	const inkStart = Math.min(ink.start, box.start);
+	const inkEnd = Math.max(ink.end, box.end);
+	const centred = (inkStart + inkEnd - view.start - view.end) / 2;
+	if (inkEnd - inkStart <= room) {
+		if (block === 'center') return centred;
+		if (inkStart < view.start) return inkStart - view.start;
+		if (inkEnd > view.end) return inkEnd - view.end;
+		return 0;
+	}
+	const size = box.end - box.start;
+	const above = box.start - inkStart;
+	let lead: number;
+	if (size <= room) {
+		// Half the slack above the box; all the ink above when that is less,
+		// and more when the ink below needs less than its half
+		const slack = room - size;
+		lead = Math.min(above, Math.max(slack - (inkEnd - box.end), slack / 2));
+	} else if (block === 'center') {
+		return centred;
+	} else {
+		lead = Math.min(above, room / 2);
+	}
+	return box.start - lead - view.start;
+}
+
+/** `scrollIntoView`'s spans, refilled on every call. */
+const REVEAL_BOX: Span = { start: 0, end: 0 };
+const REVEAL_INK: Span = { start: 0, end: 0 };
+const REVEAL_VIEW: Span = { start: 0, end: 0 };
+/** The corner `liftedSpan` carries up in place. */
+const CORNER: Vec2 = { x: 0, y: 0 };
+
+/**
+ * The vertical extent in `scroller`'s unscrolled space of a box in
+ * `descendant`'s content box, from all four corners, so a rotation or a
+ * scale between them counts; false when `scroller` is not above it.
+ */
+function liftedSpan(descendant: Component, scroller: Component, minX: number, minY: number, maxX: number, maxY: number, out: Span): boolean {
+	let start = Infinity;
+	let end = -Infinity;
+	for (let corner = 0; corner < 4; corner++) {
+		CORNER.x = corner === 1 || corner === 2 ? maxX : minX;
+		CORNER.y = corner < 2 ? minY : maxY;
+		if (!descendant.localToAncestorInto(CORNER, scroller, CORNER)) return false;
+		start = Math.min(start, CORNER.y);
+		end = Math.max(end, CORNER.y);
+	}
+	out.start = start;
+	out.end = end;
+	return true;
 }

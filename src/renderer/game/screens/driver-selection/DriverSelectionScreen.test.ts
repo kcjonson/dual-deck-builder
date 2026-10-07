@@ -570,6 +570,32 @@ describe('DriverSelectionScreen: one driver per slot', () => {
 			context.focus.popScope(screen.root);
 		});
 
+		it.each([[800, 450], [640, 400]])("shows each card's focus ring whole as Tab and the arrows walk the deck at %ix%i (DDB-406)", async (width, height) => {
+			viewportSize = { width, height };
+			const { screen, left } = await mountScreen();
+			screen.resize(width, height);
+			context.frame.layout();
+			context.focus.pushScope(screen.root);
+			const preview = left.deckPreview;
+			const ring = tokens.control.focus_ring_offset + tokens.control.focus_ring_width;
+			const clipTop = preview.localToScreen({ x: 0, y: preview.clipRect.y }).y;
+			const clipBottom = clipTop + preview.clipRect.height;
+			const cards = miniCards(left);
+
+			press('Tab');
+			// The deck sits below the flavour text, so reaching it scrolls
+			expect(preview.scrollPosition).toBeGreaterThan(0);
+			for (let index = 0; index < cards.length; index++) {
+				if (index > 0) press('ArrowRight');
+				expect(context.focus.focused).toBe(cards[index]);
+				const bounds = cards[index].screenBounds;
+				expect(bounds.y - ring).toBeGreaterThanOrEqual(clipTop - 1e-6);
+				expect(bounds.y + bounds.height + ring).toBeLessThanOrEqual(clipBottom + 1e-6);
+			}
+			context.tooltips.hide();
+			context.focus.popScope(screen.root);
+		});
+
 		it('a wheel over a mini card still scrolls the deck', async () => {
 			const { screen, left } = await mountScreen();
 			screen.resize(1024, 600);

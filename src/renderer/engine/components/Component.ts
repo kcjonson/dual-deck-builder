@@ -1935,9 +1935,11 @@ export abstract class Component {
 
 	/**
 	 * R12.20's `scrollIntoView` with `block: nearest`: a scroller moves the
-	 * least that brings `descendant`'s box inside its clip. The focus manager
-	 * asks every ancestor of a component focused by keyboard or code, inner
-	 * first, so focus never lands out of sight. Only scrollers act.
+	 * least that brings what `descendant` draws inside its clip, its
+	 * `ownInkBound` rather than only its box (R8.8), so the ring is not cut.
+	 * The focus manager asks every ancestor of a component focused by
+	 * keyboard or code, inner first, so focus never lands out of sight. Only
+	 * scrollers act.
 	 */
 	public scrollIntoView(_descendant: Component): void {
 		// Not a scroller.

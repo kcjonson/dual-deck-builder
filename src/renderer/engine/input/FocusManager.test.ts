@@ -3,6 +3,7 @@ import { Container } from '../components/Container';
 import { ScrollContainer } from '../ui/ScrollContainer';
 import type { MountContext } from '../components/MountContext';
 import { createTestContext } from '../components/testing';
+import { tokens } from '../theme/tokens';
 import type { PlatformInput } from './Dispatcher';
 import { AnyUiEvent, Modifiers, NO_MODIFIERS } from './events';
 import { directionalScore } from './FocusManager';
@@ -406,6 +407,9 @@ describe('focus groups (R9.29)', () => {
 });
 
 describe('scroll into view (R12.20)', () => {
+	/** The walk's ring, which a focusable's own ink bound includes (R11.12). */
+	const RING = tokens.control.focus_ring_offset + tokens.control.focus_ring_width;
+
 	function scroller(): { panel: ScrollContainer; rows: Probe[] } {
 		const panel = new ScrollContainer({ id: 'panel', width: 200, height: 100, contentHeight: 280 });
 		const content = new Container({ width: 200, height: 280 });
@@ -416,16 +420,19 @@ describe('scroll into view (R12.20)', () => {
 		return { panel, rows };
 	}
 
-	it('scrolls the least that shows a component focused by keyboard, both ways', () => {
+	it('scrolls the least that shows a component focused by keyboard, its ring included, both ways', () => {
 		const { panel } = scroller();
-		key('Tab');
 		key('Tab');
 		expect(panel.scrollPosition).toBe(0);
 		key('Tab');
+		// row1 spans 60 to 100, on the clip's edge, and its ring reaches past it
+		expect(panel.scrollPosition).toBe(RING);
+		key('Tab');
 		// row2 spans 120 to 160; the clip is 100 tall
 		expect(focusedId()).toBe('row2');
-		expect(panel.scrollPosition).toBe(60);
+		expect(panel.scrollPosition).toBe(60 + RING);
 		key('Tab', { shift: true });
+		expect(panel.scrollPosition).toBe(60 - RING);
 		key('Tab', { shift: true });
 		expect(panel.scrollPosition).toBe(0);
 	});
@@ -440,7 +447,7 @@ describe('scroll into view (R12.20)', () => {
 		// The content box spans originY 120 to 160, though y is 50
 		expect(row.originY).toBe(120);
 		context.focus.focus(row);
-		expect(panel.scrollPosition).toBe(60);
+		expect(panel.scrollPosition).toBe(60 + RING);
 	});
 
 	it('scrolls for programmatic focus, but not for a press', () => {
