@@ -35,8 +35,8 @@ describe('rollParams', () => {
 	});
 
 	// What a seed rolls is part of what the seed means, so it's pinned like the
-	// PRNG's goldens. Retuning the table's campaign ranges or an environment's
-	// values moves it on purpose: update it in the same change.
+	// PRNG's goldens. Retuning a campaign range, or Floodlands' values, can move
+	// that parameter's value here on purpose: update it in the same change.
 	it('rolls the pinned params for the default preset\'s seed', () => {
 		expect(rollParams(2183746551)).toEqual({
 			seed: 2183746551, environment: 'floodlands',
