@@ -1,5 +1,6 @@
 const platformTimers = ['setTimeout', 'setInterval', 'requestAnimationFrame', 'clearTimeout', 'clearInterval', 'cancelAnimationFrame'];
 const timeMessage = 'UI code takes time from context.clock and context.animator (R8.17, R8.28).';
+const randomMessage = 'Map and campaign code takes randomness from a seeded Rng stream, rng.fork(name) (src/renderer/game/core/Rng.ts), so a seed replays exactly.';
 
 module.exports = {
 	root: true,
@@ -54,6 +55,27 @@ module.exports = {
 					{ object: 'Date', property: 'now', message: timeMessage },
 					{ object: 'performance', property: 'now', message: timeMessage },
 					{ object: 'window', property: 'performance', message: timeMessage },
+				],
+			},
+		},
+		{
+			// Area Map Generation, Seeds and determinism: maps and campaigns
+			// replay exactly from their seed, so nothing here draws unseeded
+			// randomness. Unlike the timer block, tests are covered; a spy from
+			// jest.spyOn(Math, 'random') isn't a member access, so a test
+			// proving it's never called stays legal. Options replace rather
+			// than merge across overrides, so widening this into the timer
+			// block's folders needs one entry carrying both lists there.
+			files: [
+				'src/renderer/game/campaign/**/*.ts',
+				'src/renderer/game/map/**/*.ts',
+			],
+			rules: {
+				'no-restricted-properties': ['error',
+					{ object: 'Math', property: 'random', message: randomMessage },
+					// No object, so crypto, window.crypto, and self.crypto all match.
+					{ property: 'getRandomValues', message: randomMessage },
+					{ property: 'randomUUID', message: randomMessage },
 				],
 			},
 		},
