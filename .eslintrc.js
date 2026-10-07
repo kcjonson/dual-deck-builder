@@ -71,11 +71,10 @@ module.exports = {
 			// source-map-support can call a spied Math.random while Jest
 			// formats a stack trace.
 			//
-			// Left out on purpose: a new campaign's root seed is minted outside
-			// these folders (the founding flow, the Map Lab's new-seed button,
-			// or Rng's freshSeed() in core/, which DDB-401 adds) and passed in,
-			// and this rule can't see randomness reached through an import
-			// (core/Model ids, Deck.shuffle).
+			// Left out on purpose: a new campaign's root seed comes from
+			// freshSeed() in core/Rng.ts and is passed in, and this rule can't
+			// see randomness reached through an import (core/Model ids,
+			// Deck.shuffle).
 			//
 			// Options replace rather than merge across overrides, so widening
 			// this into the timer block's folders needs one entry carrying both

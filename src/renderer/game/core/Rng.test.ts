@@ -123,6 +123,11 @@ describe('Rng', () => {
 			expect(take(rng)).toEqual(take(new Rng({ seed: uint32 })));
 		});
 
+		// ToUint32 would turn each of these into a number, undefined and null into seed 0.
+		it.each([[undefined], [null], ['123'], [true], [[5]]])('rejects the seed %p, which is not a number', (seed) => {
+			expect(() => new Rng({ seed: seed as unknown as number })).toThrow(RangeError);
+		});
+
 		it('builds and warms up a stream without calling the public next()', () => {
 			const next = jest.spyOn(Rng.prototype, 'next');
 			try {
@@ -276,6 +281,10 @@ describe('Rng', () => {
 			expect(scripted(script).int(0, 5)).toBe(1);
 			expect(script).toEqual([]);
 			expect(scripted([2 ** 32 - 5]).int(0, 5)).toBe(5);
+			// A power-of-two span divides 2^32 evenly, so even the top draw sits in a complete block.
+			const top = [UINT32_MAX];
+			expect(scripted(top).int(0, 2 ** 31 - 1)).toBe(2 ** 31 - 1);
+			expect(top).toEqual([]);
 			// Span 2^31 + 1 rejects every draw above 2^31, so int returns the first raw draw at or below it.
 			const raw = take(new Rng({ seed: SEED }), 64).filter((draw) => draw <= 2 ** 31);
 			const rng = new Rng({ seed: SEED });
@@ -387,20 +396,19 @@ describe('Rng', () => {
 	});
 
 	describe('draw counts', () => {
-		it('takes exactly one draw for float and weighted, whatever the draw and the weights', () => {
-			const entries = Array.from({ length: 100 }, (_, index) => ({ value: index, weight: index % 3 }));
-			const calls = [
-				(rng: Rng) => rng.float(),
-				(rng: Rng) => rng.weighted([{ value: 'only', weight: 1 }]),
-				(rng: Rng) => rng.weighted(entries),
-			];
-			for (const call of calls) {
-				for (const draw of [0, 2 ** 31, UINT32_MAX]) {
-					const script = [draw];
-					call(scripted(script));
-					expect(script).toEqual([]);
-				}
-			}
+		type Call = (rng: Rng) => unknown;
+		const manyEntries = Array.from({ length: 100 }, (_, index) => ({ value: index, weight: index % 3 }));
+		const oneDrawCalls: [string, Call][] = [
+			['float()', (rng) => rng.float()],
+			['weighted() over one entry', (rng) => rng.weighted([{ value: 'only', weight: 1 }])],
+			['weighted() over 100 entries, a third of them zero', (rng) => rng.weighted(manyEntries)],
+		];
+		const oneDrawCases = oneDrawCalls.flatMap(([name, call]) => [0, 2 ** 31, UINT32_MAX].map((draw): [string, number, Call] => [name, draw, call]));
+
+		it.each(oneDrawCases)('takes exactly one draw for %s at draw %d', (_name, draw, call) => {
+			const script = [draw];
+			call(scripted(script));
+			expect(script).toEqual([]);
 		});
 
 		it('takes one draw for int and pick, and another for each rejected draw', () => {

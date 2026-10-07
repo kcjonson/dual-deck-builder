@@ -6,15 +6,15 @@
  * The core is integer math and `weighted` uses only IEEE addition and
  * multiplication, so a seed draws the same numbers in every JS engine. Golden
  * tests pin the algorithm, the fork hash, and each method's draw count;
- * changing any of them moves every generated map and bumps `RNG_VERSION`. See
- * docs/AI_TECHNICAL_DECISIONS/seeded-prng.md.
+ * changing any of them moves every generated map and needs an `RNG_VERSION`
+ * bump. See docs/AI_TECHNICAL_DECISIONS/seeded-prng.md.
  */
 
-/** Bumped by any change to what a seed draws. The map generator's version builds on it. */
+/** Names what a seed draws, so a change to the draws needs a bump. The goldens assert it; the map generator's version builds on it. */
 export const RNG_VERSION = 1;
 
 export interface RngOptions {
-	/** Any number, coerced with ECMAScript ToUint32 (`seed >>> 0`). */
+	/** Any number, coerced with ECMAScript ToUint32 (`seed >>> 0`), so NaN and Infinity give 0. Anything else throws. */
 	seed: number;
 }
 
@@ -37,7 +37,7 @@ const GOLDEN_GAMMA = 0x9e3779b9;
 /** Draws discarded after seeding, as PractRand's sfc32 `seed(s1, s2, s3)` does. */
 const WARMUP_DRAWS = 15;
 
-/** A new root seed: the only place outside tests allowed to read `Math.random`, read per call so a patched one applies. */
+/** A new root seed, the one place root seeds for generation and the campaign come from. Reads `Math.random` per call, so a patched one applies. */
 export function freshSeed(): number {
 	return (Math.random() * UINT32_COUNT) >>> 0;
 }
@@ -59,12 +59,14 @@ export class Rng {
 	private readonly state: Int32Array;
 
 	constructor({ seed }: RngOptions) {
+		// A seed missing from a save would otherwise coerce to 0 and build seed 0's map.
+		if (typeof seed !== 'number') throw new RangeError(`Rng: seed must be a number, got ${display(seed)}`);
 		this.streamSeed = seed >>> 0;
 		let a = fmix32(this.streamSeed + GOLDEN_GAMMA);
 		let b = fmix32(this.streamSeed + 2 * GOLDEN_GAMMA);
 		let c = fmix32(this.streamSeed + 3 * GOLDEN_GAMMA);
 		let counter = 1;
-		// next()'s step on locals, so the warm-up calls nothing overridable and stores the state once.
+		// next()'s step again, on locals: a shared step(state) made construction 5 to 15 ns slower.
 		for (let draw = 0; draw < WARMUP_DRAWS; draw += 1) {
 			const result = (a + b + counter) | 0;
 			a = b ^ (b >>> 9);
