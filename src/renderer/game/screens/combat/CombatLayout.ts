@@ -19,6 +19,13 @@ export const STAGE_MAX_WIDTH = 1600;
 
 export const TOP_BAR_HEIGHT = 36;
 export const DOCK_HEIGHT = 228;
+/**
+ * The most cards a driver's half of the dock is designed for (section 4),
+ * and what the fit suite holds each hand to. The rule is each driver's own
+ * `handLimit`, which can pass it; a hand that does still fans inside its
+ * half, overlapping tighter.
+ */
+export const DOCK_HAND_CAP = 7;
 export const END_TURN_COLUMN_WIDTH = 148;
 /** The log drawer, over the right of the road and never over the dock. */
 export const LOG_DRAWER_WIDTH = 320;

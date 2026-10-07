@@ -3,6 +3,7 @@ import type { Page, TestInfo } from '@playwright/test';
 import { layoutLint } from '../../../src/renderer/engine/debug/layoutLint';
 import type { LintDocument } from '../../../src/renderer/engine/debug/layoutLint';
 import { RoadSlot, slotRange } from '../../../src/renderer/game/mechanics/Road';
+import { DOCK_HAND_CAP } from '../../../src/renderer/game/screens/combat/CombatLayout';
 import { FIXED_VIEWPORT, SHORT_VIEWPORT } from '../../../playwright.config';
 import type { Viewport } from '../../../playwright.config';
 import {
@@ -311,7 +312,7 @@ function worstCase(scenario: Scenario, document: FitDocument): string[] {
 			check(nodes(document, (node) => node.type === 'WreckStamp' && (node.id ?? '').startsWith('player_')).length === 1 && shown('PASSENGER'), 'the Rig wrecked and the Road Warrior a passenger');
 			break;
 		default:
-			check(hand(1).length === 7 && hand(2).length === 7, `7 + 7 cards, not ${hand(1).length} + ${hand(2).length}`);
+			check(hand(1).length === DOCK_HAND_CAP && hand(2).length === DOCK_HAND_CAP, `${DOCK_HAND_CAP} + ${DOCK_HAND_CAP} cards, not ${hand(1).length} + ${hand(2).length}`);
 			check(hand(1)[0]?.id?.endsWith('_tag_team_takedown') ?? false, 'Tag Team Takedown leftmost in driver 1\'s hand');
 			check(hand(2).at(-1)?.id?.endsWith('_emp_blast') ?? false, 'EMP Blast rightmost in driver 2\'s hand');
 	}
