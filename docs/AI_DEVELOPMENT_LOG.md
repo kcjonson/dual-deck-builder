@@ -17,6 +17,15 @@ This document contains the chronological log of completed development tasks for 
 - The preview's footer says "RMB / I: PIN", so the deck grid takes `inspectOnContextMenu` (a secondary click pins, a touch hold opens) and the screen registers the I key through `inspectHotkey`; Escape lets a pin go before it leaves the screen.
 - `DriverPanel.clearDeck` hides the tooltip when its owner is one of the cards about to go, on every rebuild and on `reset`, so a preview never outlives its card. The request counter that stops DDB-101's stacked decks is untouched.
 - Tests in `DriverSelectionScreen.test.ts`: factory and card per mini card, hover and focus show, blur and leave hide, arrow movement, on-screen at 1280x720, 1024x600, 800x450 and 640x400 for every card in both panels, teardown on driver change, pin, partner-panel rebuild, overlapping loads, and reset.
+## Compound campaign and area map design (2026-10-06)
+
+**What landed:** design docs only, no code.
+
+- New specs: `docs/specs/Compound and Supply Runs.md` and `docs/specs/Area Map Generation.md`.
+- New record: `docs/AI_TECHNICAL_DECISIONS/compound-and-area-map.md` (campaign structure, road trees over a Delaunay mesh, saves store the gameplay map, drivable and scenery layers, `MapParams` with a Map Lab for tuning).
+- Updated to the new structure: Game Flow and UI Specification (main menu, driver selection as load out, persistent decks, sections 3 and 6 rewritten), Gameplay Mechanics and Style (core loop, consequences), Combat Rules (run lost instead of game over, escorts lost for good).
+- Deck management: default decks, the locker, and run decks (Compound and Supply Runs, Decks and the locker); Game Flow 1.2 rewritten as load out with an optional per-driver customize mode, a new 3.2 Crew screen, the garage's paid removal retired, and 7.0 "Cards look like cards" with a new 80x112 mini card size.
+- Wireframes on the "Supply Run Map" design canvas: loop, compound, area map (with scenery), run route, stop types, fog of war, Map Lab, crew and decks, load out, customize, card sizes, and shared mini, driver, and escort card components. Screenshots of each board are in `docs/design/supply-runs/` and embedded in the specs.
 
 ## The battle screen fit suite (2026-10-02)
 
