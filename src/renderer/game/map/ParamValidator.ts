@@ -1,0 +1,75 @@
+import { ENVIRONMENTS, MAP_PARAMETERS, MapParams, NUMBER_PARAMS, NumberParam, environmentDefaults } from './MapParams';
+
+/** One value the validator changed, for the Map Lab's readout. */
+export interface ParamClamp {
+	readonly param: NumberParam | 'seed' | 'environment';
+	readonly from: number | string;
+	readonly to: number | string;
+	/** Why, in a few words: "tuning range 3 to 9", "strongholds + 2". */
+	readonly reason: string;
+}
+
+export interface ValidatedMapParams {
+	readonly params: MapParams;
+	/** In the order they were applied; empty when the params were already valid. */
+	readonly clamps: readonly ParamClamp[];
+}
+
+/**
+ * The parameter validator (Area Map Generation, Validation and retries),
+ * which runs before generation. It wraps the seed to uint32 the way the PRNG
+ * coerces it, so the map a seed makes doesn't change; replaces an unknown
+ * environment with Mixed and a number that isn't one with the environment's
+ * default; rounds whole-number parameters and clamps every value into its
+ * tuning range; then clamps the combinations the generator can't honour.
+ * Stop tables pass through for the stops stage to check.
+ */
+export function validateMapParams(params: MapParams): ValidatedMapParams {
+	const valid: MapParams = { ...params };
+	const clamps: ParamClamp[] = [];
+	const change = <Name extends ParamClamp['param']>(param: Name, to: MapParams[Name], reason: string) => {
+		clamps.push({ param, from: valid[param], to, reason });
+		valid[param] = to;
+	};
+
+	const seed = valid.seed >>> 0;
+	if (seed !== valid.seed) change('seed', seed, 'uint32');
+
+	if (!ENVIRONMENTS.includes(valid.environment)) change('environment', MAP_PARAMETERS.environment.default, 'unknown environment');
+
+	const defaults = environmentDefaults(valid.environment);
+	for (const name of NUMBER_PARAMS) {
+		const { kind, tuning } = MAP_PARAMETERS[name];
+		const value = valid[name];
+		if (!Number.isFinite(value)) {
+			change(name, defaults[name], 'not a number');
+			continue;
+		}
+		const whole = kind === 'int' ? Math.round(value) : value;
+		const clamped = Math.min(tuning.max, Math.max(tuning.min, whole));
+		if (clamped !== whole) change(name, clamped, `tuning range ${tuning.min} to ${tuning.max}`);
+		else if (whole !== value) change(name, clamped, 'whole number');
+	}
+
+	// Strongholds are placed one per sector, each needing two approaches from
+	// different branches (stage 5); two highways more than strongholds keeps a
+	// sector without them rare. Raise highways, and when even the most can't
+	// cover it, lower strongholds first.
+	const highwaysMax = MAP_PARAMETERS.highways.tuning.max;
+	if (valid.strongholds + 2 > highwaysMax) change('strongholds', highwaysMax - 2, 'highways max - 2');
+	if (valid.highways < valid.strongholds + 2) change('highways', valid.strongholds + 2, 'strongholds + 2');
+
+	// n departures at least s degrees from their neighbours only fit round the
+	// metro while n * s is 360 or less.
+	const separationMax = Math.floor(360 / valid.highways);
+	if (valid.highwaySeparation > separationMax) change('highwaySeparation', separationMax, '360 / highways');
+
+	return { params: valid, clamps };
+}
+
+/** A clamp as the Map Lab's readout words it: "highways raised to 6 (strongholds + 2)". */
+export function describeClamp({ param, from, to, reason }: ParamClamp): string {
+	const comparable = typeof from === 'number' && typeof to === 'number' && Number.isFinite(from);
+	const verb = comparable ? (to > from ? 'raised' : 'lowered') : 'set';
+	return `${param} ${verb} to ${to} (${reason})`;
+}
