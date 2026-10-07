@@ -125,10 +125,7 @@ describe('Hand limit', () => {
 		expect(result.burned).toHaveLength(2);
 	});
 
-	test('a copy and the driver\'s config keep their own limit', () => {
-		const driver = newDriver({ handLimit: 9 });
-
-		expect(driver.copy().handLimit).toBe(9);
-		expect(driver.getConfig().handLimit).toBe(9);
+	test('a copy keeps the driver\'s own limit', () => {
+		expect(newDriver({ handLimit: 9 }).copy().handLimit).toBe(9);
 	});
 });

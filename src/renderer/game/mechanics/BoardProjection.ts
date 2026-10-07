@@ -56,8 +56,7 @@ interface ProjectedVehicle {
  * picks see the board after a flank or a Nitro Boost; the Battle is never
  * touched. Damage isn't projected. Draws aren't either: nobody knows the
  * card until it's drawn, so a card drawn mid-turn is never planned, and a
- * projected hand only shrinks and can't pass its driver's hand limit. A fresh
- * projection is the live board.
+ * projected hand never grows. A fresh projection is the live board.
  */
 export class BoardProjection {
 	private readonly battle: Battle;

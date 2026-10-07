@@ -38,7 +38,7 @@
   - Speed: 1-5, added to the base speed of the vehicle they're driving
   - Individual Adrenaline Pool: 0 - infinite (refills each turn)
   - Individual Hand of Cards: drawn from their personal deck
-  - Hand Limit: the most cards they can hold. Each driver has their own; it starts at 7 for every archetype, and archetypes, mods, or upgrades can change it ([Compound and Supply Runs](./Compound%20and%20Supply%20Runs.md), Decks and the locker)
+  - Hand Limit: each driver has their own. It starts at 7 for every archetype, and archetypes, mods, or upgrades can change it ([Compound and Supply Runs](./Compound%20and%20Supply%20Runs.md), Decks and the locker). Draws fill the hand up to it; a card drawn past it goes straight to discard; lowering it discards nothing
   - Individual Discard Pile: their played cards
   - Role: Active (driving) or Passenger
   - Skills 0 - 10

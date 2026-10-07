@@ -132,27 +132,32 @@ describe('CombatScreen dock (DDB-136)', () => {
 	});
 
 	// A driver's own hand limit can pass the dock's cap. Nothing clamps the
-	// rule to the dock: the fan overlaps tighter, so every card stays in the
-	// half and keeps a strip of itself showing, though past the cap is
-	// undesigned and the fit suite flags it.
-	it.each([[1024, 600], [1440, 882]])('fans a hand past the dock\'s cap inside its half at %ix%i at lint zero', async (width, height) => {
+	// rule to the dock: a draw fills the hand to the driver's limit, and the
+	// fan overlaps tighter, so every card stays in the half and keeps a strip
+	// of itself showing, though past the cap is undesigned and the fit suite
+	// flags it.
+	it.each([[1024, 600], [1440, 882]])('fans a hand drawn past the dock\'s cap inside its half at %ix%i at lint zero', async (width, height) => {
 		const context = newContext(width, height);
 		const combat = await startCombat(context);
 		const [first, second] = combat['playerDrivers'];
 		const pastCap = DOCK_HAND_CAP + 3;
-		first.set({ handLimit: pastCap, hand: cards(pastCap) });
+		first.handLimit = pastCap;
+		first.deck?.addCards(cards(pastCap));
+		expect(first.drawCards(pastCap - first.hand.length).burned).toEqual([]);
+		expect(first.hand).toHaveLength(pastCap);
 		second.set({ hand: cards(DOCK_HAND_CAP) });
 		combat['updateUIFromBattle']();
 		context.frame.layout();
 
 		const half = combat['handLayer'].tabOf(1).parent?.screenBounds;
+		if (!half) throw new Error('driver 1 should have a half of the dock');
 		const elements = handElements(combat).slice(0, pastCap);
 		expect(elements.map(element => element.data)).toEqual(first.hand);
 		const scale = Math.max(0.8, Math.min(width / 1280, height / 720));
 		elements.forEach((element, index) => {
 			const { x, width: cardWidth } = element.screenBounds;
-			expect(x).toBeGreaterThanOrEqual((half?.x ?? 0) - 1e-6);
-			expect(x + cardWidth).toBeLessThanOrEqual((half?.x ?? 0) + (half?.width ?? 0) + 1e-6);
+			expect(x).toBeGreaterThanOrEqual(half.x - 1e-6);
+			expect(x + cardWidth).toBeLessThanOrEqual(half.x + half.width + 1e-6);
 			if (index > 0) expect((x - elements[index - 1].screenBounds.x) / scale).toBeGreaterThan(30);
 		});
 

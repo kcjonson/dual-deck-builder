@@ -284,6 +284,8 @@ function raiderVehicle(spec: RaiderSpec, templates: Map<string, Card>): Vehicle 
 		maxHitpoints,
 		adrenaline,
 		maxAdrenaline: adrenaline,
+		// Not the Raider driver's: per-archetype limits mustn't change a raider's draws
+		handLimit: 7,
 		role: DriverRole.ACTIVE,
 		hand: [],
 		discard: [],

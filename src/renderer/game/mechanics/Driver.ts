@@ -82,7 +82,7 @@ export interface DriverConfig {
 	startingDeck: StartingDeckConfig;
 	maxHitpoints: number; // Driver's personal health
 	maxAdrenaline: number; // Maximum adrenaline (energy) capacity
-	handLimit: number; // Most cards in hand, 7 for every archetype to start (Compound and Supply Runs)
+	handLimit: number; // How far draws fill the hand, 7 for every archetype to start (Compound and Supply Runs)
 }
 
 /**
@@ -109,7 +109,10 @@ export interface DriverData {
 	maxHitpoints: number;
 	adrenaline: number;
 	maxAdrenaline: number;
-	/** Most cards the driver can hold. A card drawn past it goes straight to discard (a burn). */
+	/**
+	 * Draws fill the hand up to this; a card drawn past it goes straight to
+	 * discard (a burn). Lowering it discards nothing.
+	 */
 	handLimit: number;
 	role: DriverRole;
 	hand: Card[];
@@ -191,22 +194,6 @@ export class Driver extends Model<DriverData> {
 
 		this.deck = startingDeck;
 		return startingDeck;
-	}
-
-	/**
-	 * Get the complete driver configuration
-	 */
-	public getConfig(): DriverConfig {
-		return {
-			id: this.archetype,
-			metadata: this.metadata,
-			skills: this.skills,
-			vehicleStats: this.vehicleStats,
-			startingDeck: this.startingDeck,
-			maxHitpoints: this.maxHitpoints,
-			maxAdrenaline: this.maxAdrenaline,
-			handLimit: this.handLimit
-		};
 	}
 
 	/**

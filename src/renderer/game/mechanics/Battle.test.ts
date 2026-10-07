@@ -1360,7 +1360,7 @@ describe('Battle', () => {
 			}
 
 			// 5 + 2 per play: 5 -> 6 -> 7, then each later play burns 1 of its 2 draws
-			expect(playerDriver1.hand.length).toBe(playerDriver1.handLimit);
+			expect(playerDriver1.hand.length).toBe(7);
 			expect(burnSpy).toHaveBeenCalledTimes(3);
 			expect(playerDriver1.discard.length).toBe(5 + 3);
 			expect(playerDriver1.deck?.size).toBe(nitroDeckSize - 15);
@@ -1388,8 +1388,8 @@ describe('Battle', () => {
 
 			battle.start();
 
-			expect(playerDriver2.hand.length).toBe(playerDriver2.handLimit);
-			expect(playerDriver2.discard.length).toBe(4 + 5 - playerDriver2.handLimit);
+			expect(playerDriver2.hand.length).toBe(7);
+			expect(playerDriver2.discard.length).toBe(2);
 			expect(battle.getMessagesByType('cards_burned')).toHaveLength(1);
 		});
 
