@@ -1,19 +1,17 @@
+import { MapParams, resolveMapParams } from '../map/MapParams';
 import { Convoy } from '../mechanics/Convoy';
+import { DriverArchetype } from '../mechanics/Driver';
 import { createEscort } from '../mechanics/Escort';
 import { Campaign, CampaignJson, CampaignOptions, NO_RESOURCES } from './Campaign';
 import { cardCount, totalCards } from './CardCounts';
 import { DriverRecord } from './DriverRecord';
-import { MapParams } from './MapStubs';
 import { CAMPAIGN_SCHEMA_VERSION, SaveMigration, migrateSave } from './SaveMigrations';
 import campaignV1 from './__fixtures__/campaign-v1.json';
 
 const SEED = 20261006;
 
-/**
- * Params for a map made from `seed`: the stand-in's minimum until MapParams
- * (DDB-287) is on main, when this resolves real ones for the seed.
- */
-const mapParamsFor = (seed: number): MapParams => ({ seed, environment: 'mixed' });
+/** The Mixed environment's params for a map made from `seed`, as founding resolves them. */
+const mapParamsFor = (seed: number): MapParams => resolveMapParams({ seed, environment: 'mixed' }).params;
 
 const newCampaign = (options: Partial<CampaignOptions> = {}): Campaign => new Campaign({
 	seed: SEED,
@@ -90,9 +88,38 @@ describe('Campaign', () => {
 				.toThrow("Campaign.mapParams.seed must be the campaign's seed, 20261006, got 7");
 		});
 
-		it('rejects map params with no seed', () => {
-			expect(() => newCampaign({ mapParams: { environment: 'mixed' } as unknown as MapParams }))
-				.toThrow('Campaign.mapParams.seed must be a number, got undefined');
+		it.each([
+			['params the validator would clamp', { radius: 5000 }, 'Campaign.mapParams must be valid as they are, but the validator would change them: radius lowered to 1600 (tuning range 600 to 1600)'],
+			['a fractional highway count', { highways: 6.5 }, 'Campaign.mapParams must be valid as they are, but the validator would change them: highways raised to 7 (whole number)'],
+			['an unknown environment', { environment: 'moon' }, 'Campaign.mapParams.environment must be one of highDesert, rustBelt, floodlands, badlands, mixed, got "moon"'],
+			['a parameter in a string', { radius: '1000' }, 'Campaign.mapParams.radius must be a number, got "1000"'],
+			['a parameter the map doesn\'t have', { weather: 0.5 }, 'Campaign.mapParams has an unknown field "weather"'],
+			['stop tables that aren\'t an object', { stopTables: [] }, 'Campaign.mapParams.stopTables must be an object, got []']
+		])('rejects map params with %s', (_label, change, message) => {
+			expect(() => newCampaign({ mapParams: { ...mapParamsFor(SEED), ...change } as unknown as MapParams })).toThrow(message);
+		});
+
+		it.each(['radius', 'seed'] as const)('rejects map params with no %s', (param) => {
+			const params: Partial<MapParams> = { ...mapParamsFor(SEED) };
+			delete params[param];
+
+			expect(() => newCampaign({ mapParams: params as MapParams })).toThrow(`Campaign.mapParams.${param} is missing`);
+		});
+
+		it('holds params whatever order they came in, written in the table\'s order', () => {
+			const params = mapParamsFor(SEED);
+			const reversed = Object.fromEntries(Object.entries(params).reverse()) as unknown as MapParams;
+
+			expect(JSON.stringify(newCampaign({ mapParams: reversed }))).toBe(JSON.stringify(newCampaign({ mapParams: params })));
+			expect(Object.keys(newCampaign({ mapParams: reversed }).mapParams)).toEqual(Object.keys(params));
+		});
+
+		it('keeps stop tables, frozen, through a save', () => {
+			const stopTables = { highway: { raider_ambush: 3, checkpoint: 2 }, trail: { hazard: [1, 2] } };
+			const campaign = newCampaign({ mapParams: { ...mapParamsFor(SEED), stopTables } });
+
+			expect(reload(campaign).mapParams.stopTables).toEqual(stopTables);
+			expect(Object.isFrozen((campaign.mapParams.stopTables as { trail: { hazard: number[] } }).trail.hazard)).toBe(true);
 		});
 
 		it('rejects a generator version below 1', () => {
@@ -142,6 +169,28 @@ describe('Campaign', () => {
 
 		it('starts the counter past the highest id when built without one', () => {
 			expect(newCampaign({ drivers: [record('driver-4'), record('driver-2')] }).nextDriverNumber).toBe(5);
+		});
+
+		it('never turns the counter back, even with the pool emptied, so an id can\'t come round again', () => {
+			const campaign = newCampaign();
+			campaign.recruitDriver({ archetype: 'road_warrior' });
+			campaign.recruitDriver({ archetype: 'interceptor' });
+
+			expect(() => campaign.set({ nextDriverNumber: 2 })).toThrow("Campaign.nextDriverNumber can't go back, from 3 to 2");
+			expect(() => campaign.set({ drivers: [], nextDriverNumber: 1 })).toThrow("Campaign.nextDriverNumber can't go back, from 3 to 1");
+			campaign.set({ drivers: [] });
+			campaign.set({ nextDriverNumber: 5 });
+
+			expect(campaign.recruitDriver({ archetype: 'mechanic' }).id).toBe('driver-5');
+		});
+
+		it('checks the archetype before naming a recruit, and takes nobody', () => {
+			const campaign = newCampaign();
+
+			expect(() => campaign.recruitDriver({ archetype: 'mutant' as DriverArchetype }))
+				.toThrow('archetype must be one of road_warrior, interceptor, mechanic, raider, got "mutant"');
+			expect(campaign.drivers).toEqual([]);
+			expect(campaign.nextDriverNumber).toBe(1);
 		});
 
 		it('draws nothing random: the ids and the whole save come out the same whatever Math.random says', () => {
@@ -240,6 +289,59 @@ describe('Campaign', () => {
 			expect(() => campaign.moveCards({ cardType: 'headshot', from: 'locker', to: 'locker' }))
 				.toThrow("Can't move headshot from the locker to itself");
 			expect(campaign.locker).toEqual({ headshot: 2 });
+		});
+
+		describe.each([
+			['dead', { status: 'dead', hitpoints: 0 }],
+			['missing', { status: 'missing', hitpoints: 12 }]
+		] as const)('with a %s driver', (status, fate) => {
+			/** The locker, a driver still at the compound, and one who's gone, with the move that would touch them. */
+			function setUp(): { campaign: Campaign; gone: DriverRecord; before: string } {
+				const campaign = newCampaign({ locker: { headshot: 2 } });
+				campaign.recruitDriver({ archetype: 'road_warrior' });
+				const gone = campaign.recruitDriver({ archetype: 'interceptor' });
+				gone.set(fate);
+				return { campaign, gone, before: JSON.stringify(campaign) };
+			}
+
+			it(`won't hand cards to a ${status} driver`, () => {
+				const { campaign, gone, before } = setUp();
+
+				expect(() => campaign.moveCards({ cardType: 'headshot', from: 'locker', to: gone }))
+					.toThrow(`Interceptor 1 (driver-2) is ${status}, so no cards move to or from their deck`);
+				expect(JSON.stringify(campaign)).toBe(before);
+			});
+
+			it(`won't take cards from a ${status} driver`, () => {
+				const { campaign, gone, before } = setUp();
+
+				expect(() => campaign.moveCards({ cardType: 'precision_shot', from: gone, to: campaign.drivers[0] }))
+					.toThrow(`Interceptor 1 (driver-2) is ${status}, so no cards move to or from their deck`);
+				expect(() => campaign.moveCards({ cardType: 'precision_shot', from: gone, to: 'locker' }))
+					.toThrow(`Interceptor 1 (driver-2) is ${status}, so no cards move to or from their deck`);
+				expect(JSON.stringify(campaign)).toBe(before);
+			});
+		});
+
+		it('still reach an injured driver, who is at the compound healing', () => {
+			const campaign = newCampaign({ locker: { headshot: 1 } });
+			const mechanic = campaign.recruitDriver({ archetype: 'mechanic' });
+			mechanic.set({ status: 'injured', hitpoints: 10, injuredDays: 3 });
+
+			campaign.moveCards({ cardType: 'headshot', from: 'locker', to: mechanic });
+
+			expect(cardCount(mechanic.defaultDeck, 'headshot')).toBe(1);
+		});
+
+		it('store neither end when the far end can\'t take the copies', () => {
+			const campaign = newCampaign({ locker: { headshot: 2 } });
+			const warrior = campaign.recruitDriver({ archetype: 'road_warrior' });
+			warrior.set({ defaultDeck: { headshot: Number.MAX_SAFE_INTEGER } });
+
+			expect(() => campaign.moveCards({ cardType: 'headshot', from: 'locker', to: warrior })).toThrow(RangeError);
+
+			expect(campaign.locker).toEqual({ headshot: 2 });
+			expect(warrior.defaultDeck).toEqual({ headshot: Number.MAX_SAFE_INTEGER });
 		});
 
 		it.each([
@@ -447,8 +549,13 @@ describe('Campaign', () => {
 				['a newer schema version', (save: CampaignJson) => { save.schemaVersion = 2; }, RangeError, 'Campaign.schemaVersion is 2, newer than this build reads (1)'],
 				['a missing field', (save: CampaignJson) => { delete (save as Partial<CampaignJson>).day; }, TypeError, 'Campaign.day is missing'],
 				['an unknown field', (save: CampaignJson) => { (save as unknown as Record<string, unknown>).weather = 'dust'; }, TypeError, 'Campaign has an unknown field "weather"'],
-				['a seed past uint32', (save: CampaignJson) => { save.seed = 2 ** 32; save.mapParams = mapParamsFor(2 ** 32); }, RangeError, 'Campaign.seed must be an integer from 0 to 4294967295, got 4294967296'],
+				['a seed past uint32', (save: CampaignJson) => { save.seed = 2 ** 32; }, RangeError, 'Campaign.seed must be an integer from 0 to 4294967295, got 4294967296'],
 				['map params from another seed', (save: CampaignJson) => { save.mapParams = mapParamsFor(7); }, RangeError, "Campaign.mapParams.seed must be the campaign's seed, 20261006, got 7"],
+				['map params that aren\'t an object', (save: CampaignJson) => { (save as unknown as Record<string, unknown>).mapParams = null; }, TypeError, 'Campaign.mapParams must be an object, got null'],
+				['map params with no seed', (save: CampaignJson) => { delete (save.mapParams as Partial<MapParams>).seed; }, TypeError, 'Campaign.mapParams.seed is missing'],
+				['a map parameter in a string', (save: CampaignJson) => { (save.mapParams as unknown as Record<string, unknown>).radius = '1000'; }, TypeError, 'Campaign.mapParams.radius must be a number, got "1000"'],
+				['an environment that isn\'t a string', (save: CampaignJson) => { (save.mapParams as unknown as Record<string, unknown>).environment = 7; }, TypeError, 'Campaign.mapParams.environment must be a string, got 7'],
+				['stop tables that aren\'t an object', (save: CampaignJson) => { (save.mapParams as unknown as Record<string, unknown>).stopTables = []; }, TypeError, 'Campaign.mapParams.stopTables must be an object, got []'],
 				['a driver with an unknown status', (save: CampaignJson) => { (save.drivers[1] as { status: string }).status = 'sleeping'; }, RangeError, 'Campaign.drivers[1].status must be one of ready, injured, dead, missing, got "sleeping"'],
 				['a driver over max HP', (save: CampaignJson) => { save.drivers[0].hitpoints = 41; }, RangeError, 'Campaign.drivers[0].hitpoints must be an integer from 0 to maxHitpoints (40), got 41'],
 				['a dead driver with HP', (save: CampaignJson) => { save.drivers[1].hitpoints = 5; }, RangeError, 'Campaign.drivers[1].hitpoints must be 0 for a dead driver, got 5'],
@@ -469,6 +576,90 @@ describe('Campaign', () => {
 			it('fails loudly on a save that isn\'t an object', () => {
 				expect(() => Campaign.fromJSON(null)).toThrow('Campaign must be an object, got null');
 				expect(() => Campaign.fromJSON(JSON.stringify(campaignV1))).toThrow(/^Campaign must be an object, got "\{/);
+			});
+		});
+
+		describe('a save whose map params drifted from the table', () => {
+			/** The fixture with its params changed, loaded, and the warnings it gave. */
+			function loadDrifted(drift: (params: Record<string, unknown>) => void): { campaign: Campaign; warnings: string[] } {
+				const save = savedCampaign();
+				drift(save.mapParams as unknown as Record<string, unknown>);
+				const warnings: string[] = [];
+				const campaign = Campaign.fromJSON(save, { onWarning: warning => warnings.push(warning) });
+				return { campaign, warnings };
+			}
+
+			it('loads a save with nothing to repair without a word', () => {
+				const onWarning = jest.fn();
+
+				Campaign.fromJSON(campaignV1, { onWarning });
+
+				expect(onWarning).not.toHaveBeenCalled();
+			});
+
+			it('gives a parameter the save is missing its environment\'s default', () => {
+				const { campaign, warnings } = loadDrifted(params => { delete params.radius; });
+
+				expect(campaign.mapParams.radius).toBe(1000);
+				expect(warnings).toEqual(['Campaign.mapParams.radius was missing; took 1000, the mixed default']);
+			});
+
+			it('takes the default from the environment the save names', () => {
+				const { campaign, warnings } = loadDrifted(params => {
+					params.environment = 'highDesert';
+					delete params.aridity;
+				});
+
+				expect(campaign.mapParams.aridity).toBe(0.15);
+				expect(warnings).toEqual(['Campaign.mapParams.aridity was missing; took 0.15, the highDesert default']);
+			});
+
+			it('drops a parameter the table no longer has', () => {
+				const { campaign, warnings } = loadDrifted(params => { params.weather = 0.5; });
+
+				expect('weather' in campaign.mapParams).toBe(false);
+				expect(warnings).toEqual(['Campaign.mapParams.weather isn\'t a map parameter; dropped it']);
+			});
+
+			it('clamps a value the table\'s range no longer reaches', () => {
+				const { campaign, warnings } = loadDrifted(params => { params.radius = 5000; });
+
+				expect(campaign.mapParams.radius).toBe(1600);
+				expect(warnings).toEqual(['Campaign.mapParams: radius lowered to 1600 (tuning range 600 to 1600)']);
+			});
+
+			it('takes Mixed for an environment that\'s missing or no longer exists', () => {
+				const unknown = loadDrifted(params => { params.environment = 'moon'; });
+				const missing = loadDrifted(params => { delete params.environment; });
+
+				expect([unknown.campaign.mapParams.environment, missing.campaign.mapParams.environment]).toEqual(['mixed', 'mixed']);
+				expect(unknown.warnings).toEqual(['Campaign.mapParams.environment "moon" isn\'t an environment; took mixed']);
+				expect(missing.warnings).toEqual(['Campaign.mapParams.environment was missing; took mixed']);
+			});
+
+			it('keeps everything else as saved, and saves the repaired params from then on', () => {
+				const { campaign } = loadDrifted(params => {
+					delete params.radius;
+					params.weather = 0.5;
+					params.highways = 12;
+				});
+
+				expect(campaign.toJSON().mapParams).toEqual({ ...campaignV1.mapParams, radius: 1000, highways: 9 });
+				expect(reload(campaign).toJSON()).toEqual(campaign.toJSON());
+			});
+
+			it('logs the repairs when nobody asks to hear them', () => {
+				const warn = jest.spyOn(console, 'warn').mockImplementation(() => undefined);
+				const save = savedCampaign();
+				save.mapParams.radius = 5000;
+
+				try {
+					Campaign.fromJSON(save);
+
+					expect(warn).toHaveBeenCalledWith('Campaign.mapParams: radius lowered to 1600 (tuning range 600 to 1600)');
+				} finally {
+					warn.mockRestore();
+				}
 			});
 		});
 	});

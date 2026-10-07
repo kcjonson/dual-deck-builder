@@ -6,10 +6,7 @@
  * run the same readers on every change, so state that saves always loads.
  */
 
-export type JsonValue = null | boolean | number | string | readonly JsonValue[] | JsonObject;
-export interface JsonObject {
-	readonly [key: string]: JsonValue;
-}
+import type { JsonValue } from '../core/Json';
 
 /** A value as an error message shows it: as JSON, cut short. */
 export function describeValue(value: unknown): string {
@@ -38,17 +35,32 @@ export function readObject(value: unknown, path: string): Record<string, unknown
 	return value;
 }
 
-/** A plain object with exactly these fields: none missing, none extra. */
-export function readFields<Field extends string>(value: unknown, path: string, fields: readonly Field[]): Record<Field, unknown> {
+/**
+ * A plain object with exactly these fields: none missing, none extra.
+ * Optional fields may be left out, and read as undefined when they are.
+ */
+export function readFields<Field extends string, Optional extends string = never>(
+	value: unknown,
+	path: string,
+	fields: readonly Field[],
+	optional: readonly Optional[] = []
+): Record<Field | Optional, unknown> {
 	const object = readObject(value, path);
-	const known: readonly string[] = fields;
+	const known: readonly string[] = [...fields, ...optional];
 	for (const key of Object.keys(object)) {
 		if (!known.includes(key)) throw new TypeError(`${path} has an unknown field "${key}"`);
 	}
 	for (const field of fields) {
 		if (!Object.prototype.hasOwnProperty.call(object, field)) throw new TypeError(`${path}.${field} is missing`);
 	}
-	return object as Record<Field, unknown>;
+	return object as Record<Field | Optional, unknown>;
+}
+
+/** Any finite number. */
+export function readNumber(value: unknown, path: string): number {
+	if (typeof value !== 'number') throw new TypeError(`${path} must be a number, got ${describeValue(value)}`);
+	if (!Number.isFinite(value)) throw new RangeError(`${path} must be a finite number, got ${describeValue(value)}`);
+	return value;
 }
 
 export function readArray(value: unknown, path: string): readonly unknown[] {
@@ -107,7 +119,7 @@ export function freezeJson(value: unknown, path: string, ancestors: readonly obj
 	}
 	if (typeof value === 'object' && frozenJson.has(value)) return value as JsonValue;
 	if (typeof value === 'object' && ancestors.includes(value)) throw new TypeError(`${path} contains itself`);
-	let frozen: readonly JsonValue[] | JsonObject;
+	let frozen: object;
 	if (Array.isArray(value)) {
 		const inside = [...ancestors, value];
 		frozen = Object.freeze(Array.from(value, (item, index) => freezeJson(item, `${path}[${index}]`, inside)));
@@ -118,12 +130,12 @@ export function freezeJson(value: unknown, path: string, ancestors: readonly obj
 		throw new TypeError(`${path} must be JSON (null, a boolean, a number, a string, an array, or a plain object), got ${describeValue(value)}`);
 	}
 	frozenJson.add(frozen);
-	return frozen;
+	return frozen as JsonValue;
 }
 
-/** A mutable deep copy of a JSON value, for handing out. */
+/** A deep copy of a JSON value that isn't frozen, for handing out. */
 export function copyJson<Value extends JsonValue>(value: Value): Value {
-	if (Array.isArray(value)) return value.map(item => copyJson(item)) as unknown as Value;
+	if (Array.isArray(value)) return value.map(item => copyJson(item)) as Value;
 	if (value !== null && typeof value === 'object') {
 		return Object.fromEntries(Object.entries(value).map(([key, item]) => [key, copyJson(item)])) as Value;
 	}

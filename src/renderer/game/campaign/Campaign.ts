@@ -1,11 +1,14 @@
+import type { JsonObject } from '../core/Json';
 import { Model } from '../core/Model';
+import { MapParams } from '../map/MapParams';
 import { Convoy } from '../mechanics/Convoy';
 import { DriverArchetype } from '../mechanics/Driver';
 import { CardCounts, NO_CARDS, addCards, cardCount, readCardCounts, readCardType, removeCards } from './CardCounts';
 import { EscortJson, convoyToJson, readConvoy } from './ConvoyJson';
-import { DriverRecord, DriverRecordJson, placeholderName, readDriverRecord } from './DriverRecord';
-import { copyJson, describeValue, readArray, readFields, readInteger, readObject, readText } from './JsonReader';
-import { EMPTY_MAP, MapParams, MapState, readMapParams, readMapState } from './MapStubs';
+import { DRIVER_ARCHETYPES, DriverRecord, DriverRecordJson, placeholderName, readDriverRecord } from './DriverRecord';
+import { copyJson, describeValue, readArray, readFields, readInteger, readObject, readOneOf, readText } from './JsonReader';
+import { readMapParams, repairMapParams } from './MapParamsJson';
+import { EMPTY_MAP, MapState, readMapState } from './MapState';
 import { CAMPAIGN_SCHEMA_VERSION, migrateSave } from './SaveMigrations';
 
 /** What the compound holds (Compound and Supply Runs, Resources): whole numbers, never below 0. */
@@ -34,8 +37,8 @@ export interface CampaignData {
 	seed: number;
 	/** The area map generator that made the map, which a save keeps rather than regenerating. */
 	generatorVersion: number;
-	/** The map's parameters as resolved at founding. */
-	mapParams: MapParams;
+	/** The map's parameters as resolved at founding, valid as they are. */
+	mapParams: Readonly<MapParams>;
 	/** The gameplay map and what's changed on it since. */
 	map: MapState;
 	/** Founding day is day 1. */
@@ -72,7 +75,12 @@ export interface CampaignJson {
 	strongholdsTaken: string[];
 	log: CampaignLogEntry[];
 	mapParams: MapParams;
-	map: MapState;
+	map: JsonObject;
+}
+
+export interface LoadOptions {
+	/** Hears each repair a save needed to load (map params that drifted). Logs them by default. */
+	onWarning?: (warning: string) => void;
 }
 
 const FIELDS: readonly (keyof CampaignData)[] = [
@@ -174,15 +182,17 @@ export class Campaign extends Model<CampaignData> {
 	/**
 	 * Reads a save, upgrading it from an older schema version first. Throws
 	 * on anything malformed, naming where: a damaged save never loads as a
-	 * different campaign.
+	 * different campaign. Map params are the exception, since the table is
+	 * still settling: ones that drifted are repaired (`repairMapParams`) and
+	 * each repair goes to `onWarning`.
 	 */
-	public static fromJSON(json: unknown): Campaign {
+	public static fromJSON(json: unknown, { onWarning = logWarning }: LoadOptions = {}): Campaign {
 		const path = 'Campaign';
 		const save = readFields(migrateSave({ save: readObject(json, path), path }), path, JSON_FIELDS);
 		return new Campaign(readCampaignData({
 			seed: save.seed,
 			generatorVersion: save.generatorVersion,
-			mapParams: save.mapParams,
+			mapParams: repairMapParams(save.mapParams, `${path}.mapParams`, onWarning),
 			map: save.map,
 			day: save.day,
 			resources: save.resources,
@@ -198,8 +208,9 @@ export class Campaign extends Model<CampaignData> {
 
 	/**
 	 * Changes fields together, checked as a whole. Throws without changing
-	 * anything if the campaign would be invalid, a field is unknown, or the
-	 * seed, generator version, or map params would change.
+	 * anything if the campaign would be invalid, a field is unknown, the
+	 * seed, generator version, or map params would change, or the driver
+	 * counter would go back, which would hand out an id again.
 	 */
 	public override set(changes: Partial<CampaignData>): void {
 		const current = this.getState();
@@ -207,6 +218,10 @@ export class Campaign extends Model<CampaignData> {
 			if (current[field] !== undefined && field in changes && changes[field] !== current[field]) {
 				throw new RangeError(`Campaign.${field} is fixed at founding`);
 			}
+		}
+		const counter = { from: current.nextDriverNumber, to: changes.nextDriverNumber };
+		if (counter.from !== undefined && counter.to !== undefined && counter.to < counter.from) {
+			throw new RangeError(`Campaign.nextDriverNumber can't go back, from ${counter.from} to ${counter.to}`);
 		}
 		const valid = readCampaignData({ ...current, ...changes }, 'Campaign');
 		super.set(Object.fromEntries(Object.keys(changes).map(key => [key, valid[key as keyof CampaignData]])));
@@ -219,6 +234,7 @@ export class Campaign extends Model<CampaignData> {
 	 * stops call this.
 	 */
 	public recruitDriver({ archetype }: { archetype: DriverArchetype }): DriverRecord {
+		readOneOf(archetype, 'archetype', DRIVER_ARCHETYPES);
 		const ordinal = this.drivers.filter(driver => driver.archetype === archetype).length + 1;
 		const driver = new DriverRecord({
 			id: `driver-${this.nextDriverNumber}`,
@@ -230,11 +246,13 @@ export class Campaign extends Model<CampaignData> {
 	}
 
 	/**
-	 * Moves copies of a card between the locker and drivers' default decks,
-	 * all in this campaign. A move never makes or loses a copy, so each copy
-	 * stays in exactly one place. Throws, moving nothing, when `from` holds
-	 * fewer than `count`. Deck rules (size limits, who can take what) are the
-	 * Crew screen's (DDB-310), not checked here.
+	 * Moves copies of a card between the locker and the default decks of
+	 * drivers at the compound, all in this campaign. A move never makes or
+	 * loses a copy, so each copy stays in exactly one place. Throws, moving
+	 * nothing, when `from` holds fewer than `count`, or either end is a dead
+	 * driver (gone, with their deck) or a missing one (not here to hand cards
+	 * to or take them from). Deck rules (size limits, who can take what) are
+	 * the Crew screen's (DDB-310), not checked here.
 	 */
 	public moveCards({ cardType, from, to, count = 1 }: { cardType: string; from: CardPlace; to: CardPlace; count?: number }): void {
 		readCardType(cardType, 'cardType');
@@ -244,8 +262,11 @@ export class Campaign extends Model<CampaignData> {
 		const target = this.countsAt(to);
 		const held = cardCount(source, cardType);
 		if (held < count) throw new RangeError(`Can't move ${count} ${cardType} from ${placeName(from)}, which holds ${held}`);
-		this.store(from, removeCards(source, cardType, count));
-		this.store(to, addCards(target, cardType, count));
+		// Both ends before either is stored, so a move that fails part way stores nothing.
+		const taken = removeCards(source, cardType, count);
+		const given = addCards(target, cardType, count);
+		this.store(from, taken);
+		this.store(to, given);
 	}
 
 	/** Adds a line to the log, dated today. */
@@ -275,6 +296,9 @@ export class Campaign extends Model<CampaignData> {
 	private countsAt(place: CardPlace): CardCounts {
 		if (place === 'locker') return this.locker;
 		if (!this.drivers.includes(place)) throw new RangeError(`${place.name} (${place.id}) isn't in this campaign's pool`);
+		if (place.status === 'dead' || place.status === 'missing') {
+			throw new RangeError(`${place.name} (${place.id}) is ${place.status}, so no cards move to or from their deck`);
+		}
 		return place.defaultDeck;
 	}
 
@@ -282,6 +306,10 @@ export class Campaign extends Model<CampaignData> {
 		if (place === 'locker') this.set({ locker: counts });
 		else place.set({ defaultDeck: counts });
 	}
+}
+
+function logWarning(warning: string): void {
+	console.warn(warning);
 }
 
 function placeName(place: CardPlace): string {
