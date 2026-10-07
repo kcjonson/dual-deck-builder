@@ -42,7 +42,7 @@ src/
 
 ### 2. Documentation Requirements
 
-- **IMPORTANT**: Update `/docs/AI_DEVELOPMENT_HUB.md` with development status, tasks, and decisions
+- **IMPORTANT**: Track all work, status, and progress on Specboard, never in the repo (see Important Notes below)
 - Place detailed documentation in the `/docs/` folder where appropriate
 - Include inline comments for complex logic
 - Document new components with JSDoc comments
@@ -82,7 +82,7 @@ src/
 1. Create classes in `src/renderer/game/mechanics/`
 2. Follow existing patterns (Card, Deck, Battle)
 3. Write unit tests
-4. Document in AI Development Hub
+4. Record major design choices in `/docs/AI_TECHNICAL_DECISIONS/`
 
 ### Shader Development
 
@@ -90,22 +90,19 @@ src/
 
 ## Important Notes for Claude
 
-1. **IMPORTANT: Documentation Organization**
-   - **Always update `/docs/AI_DEVELOPMENT_HUB.md`** with current work and active TODOs
-   - **Always add completed tasks to `/docs/AI_DEVELOPMENT_LOG.md`** with the current date at the TOP
-   - **Always create technical decision docs in `/docs/AI_TECHNICAL_DECISIONS/`** for major architectural choices
-2. **What to document in each location:**
+1. **IMPORTANT: Work tracking lives on Specboard only** (project https://specboard.io/projects/6b4e4cdd-15bc-4001-8280-706838168f2e)
+   - Use the Specboard MCP tools (get_items / create_item / update_item) to pick up, create, and close work, and keep item status accurate in real time
+   - Record what you did, decided, or are waiting on as a `note` on the item, not in a file
+   - Do not keep task lists, status sections, progress logs, or changelogs anywhere in the repo, and don't put checkboxes or "done in DDB-x" annotations in specs
+   - `/docs/AI_DEVELOPMENT_LOG.md` and `/docs/AI_DEVELOPMENT_HUB.md` are deprecated and frozen; read them for history if useful, never edit them
+2. **Technical decisions** go in `/docs/AI_TECHNICAL_DECISIONS/`, one file per major architectural choice:
+   - Descriptive filename (e.g., `scrollable-panel-architecture.md`)
+   - Context and problem statement
+   - Options considered
+   - Decision made and rationale
+   - Trade-offs and consequences
 
-   - **AI_DEVELOPMENT_HUB.md**: Current state, active TODOs, brief notes, implementation status
-   - **AI_DEVELOPMENT_LOG.md**: Completed tasks (date, what changed, brief how)
-   - **AI_TECHNICAL_DECISIONS/**: Detailed technical decisions with:
-     - Descriptive filename (e.g., `scrollable-panel-architecture.md`)
-     - Context and problem statement
-     - Options considered
-     - Decision made and rationale
-     - Trade-offs and consequences
-
-3. **Todo Management**: Task tracking lives on Specboard (project https://specboard.io/projects/6b4e4cdd-15bc-4001-8280-706838168f2e). Use the Specboard MCP tools (get_items / create_item / update_item) to pick up, create, and close work, and keep item status accurate in real time. Do not maintain task lists in the AI Development Hub; it holds status/context only.
+3. **Specs** in `/docs/specs/` describe what to build and why. Keep them current when the design changes, but don't annotate them with what has been built.
 
 4. **Follow existing patterns** in the codebase rather than introducing new paradigms
 
@@ -158,8 +155,8 @@ When creating a PR:
 
 ## References
 
-- Development Hub: `/docs/AI_DEVELOPMENT_HUB.md` (for current status, tasks, and implementation details)
-- Game Design Docs: See AI Development Hub for links to all design documents
+- Docs index: `/docs/README.md` (project overview and links to every design spec)
+- Work tracking: Specboard (link above)
 
 ## Memories and Best Practices
 

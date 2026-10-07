@@ -8,7 +8,7 @@
 		"height": 882,
 		"devicePixelRatio": 1
 	},
-	"note": "The eight gallery scenes after DDB-104, which is the whole of what R13.29 gates in phases 0 to 2. Every scene is at count 0 and tests/visual/web/lint.spec.ts asserts it, so this file is a ratchet rather than a to-do list: a non-zero row here means the gate was loosened. Before DDB-104 the same eight read 4, 1, 8, 1, 9, 3, 1, 3 for a total of 30, of which 28 were a composite's own background paired against its own content and 2 were a real defect in TextExamplesSection. nodeCount counts parts and children both. The screens are NOT on this surface and are not zero; their numbers and their owners are in the DDB-104 entry in AI_DEVELOPMENT_LOG.md.",
+	"note": "The eight gallery scenes after DDB-104, which is the whole of what R13.29 gates in phases 0 to 2. Every scene is at count 0 and tests/visual/web/lint.spec.ts asserts it, so this file is a ratchet rather than a to-do list: a non-zero row here means the gate was loosened. Before DDB-104 the same eight read 4, 1, 8, 1, 9, 3, 1, 3 for a total of 30, of which 28 were a composite's own background paired against its own content and 2 were a real defect in TextExamplesSection. nodeCount counts parts and children both. The screens are NOT on this surface and are not zero; their numbers and their owners are in DDB-104 on Specboard.",
 	"entries": [
 		{
 			"scenario": "interactive-controls",
