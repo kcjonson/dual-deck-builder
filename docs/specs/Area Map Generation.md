@@ -38,66 +38,94 @@ Soft goals are scored, not required: three routes rather than two for most POIs,
 
 All generation reads one `MapParams` object: the seed plus a set of tunable characteristics. During the prototype every parameter is a control in the Map Lab (below). In the finished game the parameters are rolled from the seed along with everything else.
 
-Each parameter has a tuning range (what the Map Lab allows, and what the guarantees must survive), a default, and a campaign range (what the finished game rolls from, usually narrower). Values below are starting points for the Map Lab to settle.
+Each parameter has a tuning range (what the Map Lab allows, and what the guarantees must survive), a default, and a campaign range (what the finished game rolls from, usually narrower; balance knobs like `routesTarget` and `driverFinds` hold one value). Values below are starting points for the Map Lab to settle.
 
 ### World
 
-| Parameter | Tuning range | Default | What it does |
-| --- | --- | --- | --- |
-| `seed` | any uint32 | random | every random stream |
-| `environment` | High Desert, Rust Belt, Floodlands, Badlands, Mixed | Mixed | a preset that sets the defaults of the parameters below it; any can still be overridden |
-| `radius` | 600 to 1600 | 1000 | world units; map size, and with it campaign length |
-| `aridity` | 0 to 1 | 0.5 | dry desert to wet ground and mire |
-| `mountainCoverage` | 0 to 1 | 0.25 | share of land that's high and rough |
-| `ruggedness` | 0 to 1 | 0.5 | how sharp mountains are: rolling hills to cliffs and narrow passes |
-| `rivers` | 0 to 6 | 2 | river count; drivable roads cross only at bridges |
-| `riverMeander` | 0 to 1 | 0.5 | straight channels to looping ones |
-| `lakes` | 0 to 8 | 2 | standing water, impassable |
-| `contamination` | 0 to 1 | 0.3 | how much of the map is toxic; feeds mire and hazards |
-| `hotspots` | 0 to 6 | 3 | blast sites and spills: craters and strong contamination |
-| `metroSize` | 0.08 to 0.25 | 0.15 | metro ruins radius as a share of `radius` |
-| `towns` | 0 to 12 | 5 | ruined towns outside the metro; raise POI density |
+| Parameter | Tuning range | Default | Campaign | What it does |
+| --- | --- | --- | --- | --- |
+| `seed` | any uint32 | random | the campaign's | every random stream |
+| `environment` | High Desert, Rust Belt, Floodlands, Badlands, Mixed | Mixed | any | a preset that sets the defaults of the parameters below it; any can still be overridden (see Environments) |
+| `radius` | 600 to 1600 | 1000 | 800 to 1200 | world units; map size, and with it campaign length |
+| `aridity` | 0 to 1 | 0.5 | 0.1 to 0.9 | dry desert to wet ground and mire |
+| `mountainCoverage` | 0 to 1 | 0.25 | 0.05 to 0.45 | share of land that's high and rough |
+| `ruggedness` | 0 to 1 | 0.5 | 0.15 to 0.85 | how sharp mountains are: rolling hills to cliffs and narrow passes |
+| `rivers` | 0 to 6 | 2 | 0 to 5 | river count; drivable roads cross only at bridges |
+| `riverMeander` | 0 to 1 | 0.5 | 0.2 to 0.8 | straight channels to looping ones |
+| `lakes` | 0 to 8 | 2 | 0 to 6 | standing water, impassable |
+| `contamination` | 0 to 1 | 0.3 | 0.1 to 0.7 | how much of the map is toxic; feeds mire and hazards |
+| `hotspots` | 0 to 6 | 3 | 1 to 5 | blast sites and spills: craters and strong contamination |
+| `metroSize` | 0.08 to 0.25 | 0.15 | 0.12 to 0.2 | metro ruins radius as a share of `radius` |
+| `towns` | 0 to 12 | 5 | 2 to 9 | ruined towns outside the metro; raise POI density |
 
 ### Drivable network
 
-| Parameter | Tuning range | Default | What it does |
-| --- | --- | --- | --- |
-| `highways` | 3 to 9 | 6 | highways leaving the metro |
-| `highwaySeparation` | 20 to 60 degrees | 35 | minimum angle between departures |
-| `curviness` | 0 to 1 | 0.5 | scales turn limits and heading drift: ruler-straight to winding |
-| `branchiness` | 0 to 1 | 0.5 | how often roads fork, and how far out the trees fan |
-| `trailShare` | 0 to 1 | 0.5 | how readily roads degrade to trails in rough ground |
-| `roadClearance` | 10 to 60 | 24 | minimum gap between drivable roads |
+| Parameter | Tuning range | Default | Campaign | What it does |
+| --- | --- | --- | --- | --- |
+| `highways` | 3 to 9 | 6 | 5 to 7 | highways leaving the metro |
+| `highwaySeparation` | 20 to 60 degrees | 35 | 25 to 45 | minimum angle between departures |
+| `curviness` | 0 to 1 | 0.5 | 0.25 to 0.75 | scales turn limits and heading drift: ruler-straight to winding |
+| `branchiness` | 0 to 1 | 0.5 | 0.3 to 0.7 | how often roads fork, and how far out the trees fan |
+| `trailShare` | 0 to 1 | 0.5 | 0.25 to 0.75 | how readily roads degrade to trails in rough ground |
+| `roadClearance` | 10 to 60 | 24 | 20 to 28 | minimum gap between drivable roads |
 
 ### Gameplay
 
-| Parameter | Tuning range | Default | What it does |
-| --- | --- | --- | --- |
-| `strongholds` | 2 to 8 | 4 | strongholds, one per sector |
-| `poiDensity` | 0.5 to 2 | 1 | multiplies the POI target per ring (5, 7, 9, 9 at 1) |
-| `routesTarget` | 2 or 3 | 3 | approaches to aim for per POI (2 is always required) |
-| `startingReveal` | 1 to 2 tiers | 1 | how much starts charted |
-| `stopDensity` | 0.5 to 2 | 1 | multiplies stop counts per road |
-| `dangerCurve` | 0.5 to 2 | 1 | how fast encounters scale with tier |
-| `driverFinds` | 1 to 4 | 2 | Find: driver floor within tiers 1 and 2 |
-| `daylightHours` | 10 to 16 | 14 | dawn to dark; how long a run has before night |
-| `travelPace` | 0.5 to 2 | 1 | multiplies hours per unit of road for every class |
-| `stopTables` | JSON | shipped tables | stop type weights per class, biome, tier, and territory |
+| Parameter | Tuning range | Default | Campaign | What it does |
+| --- | --- | --- | --- | --- |
+| `strongholds` | 2 to 8 | 4 | 3 to 5 | strongholds, one per sector |
+| `poiDensity` | 0.5 to 2 | 1 | 0.8 to 1.2 | multiplies the POI target per ring (5, 7, 9, 9 at 1) |
+| `routesTarget` | 2 or 3 | 3 | 3 | approaches to aim for per POI (2 is always required) |
+| `startingReveal` | 1 to 2 tiers | 1 | 1 | how much starts charted |
+| `stopDensity` | 0.5 to 2 | 1 | 0.8 to 1.2 | multiplies stop counts per road |
+| `dangerCurve` | 0.5 to 2 | 1 | 0.9 to 1.1 | how fast encounters scale with tier |
+| `driverFinds` | 1 to 4 | 2 | 2 | Find: driver floor within tiers 1 and 2 |
+| `daylightHours` | 10 to 16 | 14 | 13 to 15 | dawn to dark; how long a run has before night |
+| `travelPace` | 0.5 to 2 | 1 | 0.9 to 1.1 | multiplies hours per unit of road for every class |
+| `stopTables` | JSON | shipped tables | shipped tables | stop type weights per class, biome, tier, and territory |
 
 ### Scenery
 
-| Parameter | Tuning range | Default | What it does |
-| --- | --- | --- | --- |
-| `sceneryDensity` | 0 to 1 | 0.6 | master scale for everything below |
-| `streetGrids` | 0 to 1 | 0.7 | how built-up the metro and towns look |
-| `countyRoads` | 0 to 1 | 0.5 | rural roads across the countryside |
-| `brokenHighways` | 0 to 4 | 2 | pre-war highways that no longer go anywhere |
-| `railLines` | 0 to 4 | 1 | rail lines crossing the region |
-| `farmTracks` | 0 to 1 | 0.4 | short dirt tracks in scrub |
+| Parameter | Tuning range | Default | Campaign | What it does |
+| --- | --- | --- | --- | --- |
+| `sceneryDensity` | 0 to 1 | 0.6 | 0.4 to 0.8 | master scale for everything below |
+| `streetGrids` | 0 to 1 | 0.7 | 0.5 to 0.9 | how built-up the metro and towns look |
+| `countyRoads` | 0 to 1 | 0.5 | 0.2 to 0.7 | rural roads across the countryside |
+| `brokenHighways` | 0 to 4 | 2 | 1 to 3 | pre-war highways that no longer go anywhere |
+| `railLines` | 0 to 4 | 1 | 0 to 3 | rail lines crossing the region |
+| `farmTracks` | 0 to 1 | 0.4 | 0.1 to 0.6 | short dirt tracks in scrub |
+
+### Environments
+
+`environment` sets the defaults of world, drivable network, and scenery parameters, never gameplay ones, so it changes the land and not the rules. A parameter it leaves alone keeps the default above, and Mixed leaves all of them alone: the defaults above are Mixed's. A value set explicitly, in the Map Lab or a preset, wins over the environment's, and the Map Lab shows which values are the environment's and which are overridden.
+
+High Desert is dry tableland cut by canyons, with long straight roads and few towns. Rust Belt is old industry in rolling river country, dense with ruins, spills, rail, and paved roads. The Floodlands are low, wet, and flat, with looping rivers, standing water, and mire. The Badlands are broken, toxic ground where roads give out to trails. Starting values for the Map Lab to tune, blank where the environment keeps the default:
+
+| Parameter | High Desert | Rust Belt | Floodlands | Badlands |
+| --- | --- | --- | --- | --- |
+| `aridity` | 0.15 | 0.55 | 0.85 | 0.3 |
+| `mountainCoverage` | 0.35 | 0.15 | 0.05 | 0.35 |
+| `ruggedness` | 0.65 | 0.35 | 0.25 | 0.8 |
+| `rivers` | 1 | 3 | 5 | 1 |
+| `riverMeander` | 0.3 | | 0.75 | |
+| `lakes` | 0 | | 6 | 1 |
+| `contamination` | 0.2 | 0.45 | 0.4 | 0.6 |
+| `hotspots` | 2 | 4 | | 5 |
+| `metroSize` | | 0.18 | | |
+| `towns` | 3 | 8 | | 3 |
+| `curviness` | 0.4 | | 0.6 | 0.65 |
+| `branchiness` | 0.4 | 0.6 | | |
+| `trailShare` | | 0.35 | | 0.7 |
+| `streetGrids` | | 0.85 | | |
+| `countyRoads` | 0.3 | 0.65 | | 0.25 |
+| `brokenHighways` | | 3 | | |
+| `railLines` | | 3 | | |
+| `farmTracks` | 0.15 | | 0.5 | 0.1 |
 
 ### Randomising for the finished game
 
-- `rollParams(seed)` draws every parameter from its campaign range on its own `params` stream, environment first and the rest around that environment's defaults. Generation then runs on the rolled parameters with the same seed.
+- `rollParams(seed)` draws every parameter from its campaign range on its own `params` stream, environment first (an even pick) and the rest around that environment's defaults, in table order. Each number is a triangular draw peaking at the environment's value and reaching at most half its campaign range to either side, never past the range, snapped to the parameter's step in the Map Lab. So each campaign range holds every environment's value and has each end within that reach of one of them, and a range no environment moves sits evenly round its default. Generation then runs on the rolled parameters with the same seed.
+- Rolled parameters go through the parameter validator like any others. Campaign ranges leave room for its rules (`highways` 5 to 7 covers `strongholds` 3 to 5 plus 2, and 7 highways fit 45 degrees apart), so a rolled value never leaves its campaign range.
 - Later, player-facing options (a difficulty, a region type) can pin some parameters and let the rest roll.
 - The save stores the resolved parameters, not just the seed.
 
@@ -255,7 +283,7 @@ Reveal rules:
 
 ## Validation and retries
 
-- The parameter validator runs first and clamps combinations the generator can't honour (for example `highways` below `strongholds` plus 2), reporting each clamp in the Map Lab.
+- The parameter validator runs first. It wraps the seed to uint32 the way the PRNG coerces it, replaces an unknown environment with Mixed and a value that isn't a number with the environment's default, rounds whole-number parameters, and clamps every value into its tuning range. Then it clamps the combinations the generator can't honour: `highways` is raised to `strongholds` plus 2 (where even 9 highways can't do that, `strongholds` comes down to 7 first), and `highwaySeparation` is lowered to 360 / `highways`, rounded down, since that many departures can't sit further apart. Each clamp is reported with the parameter, its old and new value, and why, and the Map Lab lists them: "highways raised to 6 (strongholds + 2)".
 - The map validator checks every hard guarantee. For drivable crossings it tests every pair of drivable polylines for intersection and clearance (grid buckets keep it fast); growth already prevents crossings, so this is redundant on purpose. For guarantee 9 it checks scenery against POIs, drivable junctions, and stops.
 - On a failure, rerun the failing stage with its attempt number raised (later stages rerun after it). Up to 8 attempts a stage, then restart the whole map on the next attempt, up to 32. Past that, debug builds throw and release builds log and take the next seed.
 - Health metric, tracked by the tests and shown in the Map Lab: first-attempt pass rate per stage. The target after retries is no failures in 10,000 seeds, across the tuning ranges.
@@ -282,7 +310,7 @@ A section of the Developer screen for generating maps and tuning the parameters 
 - Live regeneration on change, debounced. A step-through for growth (play, pause, step) to watch the trees grow.
 - "Roll campaign params" previews what the finished game would roll for the current seed.
 - Readout: each guarantee pass or fail, attempts per stage, milliseconds per stage, any parameter clamps, and counts (stretches by class, POIs per ring, stops by type, scenery segments).
-- Presets: save and load parameter sets as JSON, kept in the repo (`src/renderer/game/data/mapPresets/`), and copy the current parameters to the clipboard. Seed plus parameters reproduces a map exactly.
+- Presets: save and load parameter sets as JSON, kept in the repo (`src/renderer/game/data/mapPresets/`), and copy the current parameters to the clipboard. A preset holds the seed, the environment, and only the values that override the environment; a complete parameter set is a preset with every value overridden. An unknown parameter in a preset is an error, so a misspelling can't be dropped silently. Seed plus parameters reproduces a map exactly, though a preset that leaves values to its environment follows that environment's tuning.
 - "Start a campaign here" founds a compound on the current map, for playtesting.
 
 ## Testing
