@@ -137,7 +137,7 @@ These are decided and recorded in Combat Rules; they're listed here because the 
 - Up to four escorts in formation. Each acts only when ordered, once per turn. An attack order is dropped on a raider, and the nearest ready escort in range carries it out; that escort lights up during the drag. A buff order is dropped on the escort itself, spent or not. Attack orders and Draw Fire spend the escort; Close Ranks and Triage don't. When Draw Fire redirects an intent, its target mark moves to the escort's square, so the end-turn preview shows it.
 - Raiders can start on your shoulder, at the start of a fight or when their wave arrives, and a set-piece escort can start on theirs (ambush starts). With no reserved slot to drop back to, they hold it.
 - Each driver has their own deck, hand, discard, and adrenaline pool.
-- Hand cap 7 per driver; draws past 7 go straight to discard.
+- Each driver has their own hand limit, 7 for every archetype to start; draws past it go straight to discard. The dock is laid out for 7 cards a driver, so a limit past 7 means revisiting section 4.
 - Every vehicle, escorts included, has one passenger seat. A wreck's occupants jump, driver first, to the partner's vehicle or the nearest escort with a free seat. A passenger keeps their hand, can't play attack cards, and can play order cards. A driver with no free seat crashes out of the fight, alive, and their half of the dock has no hand.
 - A driven vehicle whose driver dies with no passenger becomes an escort for the rest of the fight.
 - Flanking deals +50%.
