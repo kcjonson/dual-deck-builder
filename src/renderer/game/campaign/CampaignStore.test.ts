@@ -815,7 +815,7 @@ describe('CampaignStore', () => {
 			expect((await store.load())?.seed).toBe(2);
 		});
 
-		it.each(['delete', 'end', 'save'] as const)('don\'t join one asked for before a %s came between', async (between) => {
+		it.each(['delete', 'end', 'save'] as const)('don\'t join one asked for before a call to %s came between', async (between) => {
 			const store = storeOver(new MemorySaveStorage());
 			const campaign = newCampaign(1);
 			await store.save(campaign);
@@ -1088,7 +1088,7 @@ describe('CampaignStore', () => {
 describe('pageNamespace', () => {
 	it.each([
 		['main\'s playtest build', { protocol: 'https:', hostname: 'bearcavinteractive.com', pathname: '/playtest/dual-deckbuilder/' }, '/playtest/dual-deckbuilder/'],
-		['main, by its page', { protocol: 'https:', hostname: 'bearcavinteractive.com', pathname: '/playtest/dual-deckbuilder/index.html' }, '/playtest/dual-deckbuilder/'],
+		['main\'s playtest build, by its index page,', { protocol: 'https:', hostname: 'bearcavinteractive.com', pathname: '/playtest/dual-deckbuilder/index.html' }, '/playtest/dual-deckbuilder/'],
 		['a branch\'s playtest build', { protocol: 'https:', hostname: 'bearcavinteractive.com', pathname: '/playtest/dual-deckbuilder/feat/DDB-49/' }, '/playtest/dual-deckbuilder/feat/DDB-49/'],
 		['a path with doubled slashes', { protocol: 'https:', hostname: 'bearcavinteractive.com', pathname: '//playtest//dual-deckbuilder/' }, '/playtest/dual-deckbuilder/'],
 		['the desktop build', { protocol: 'file:', hostname: '', pathname: '/C:/Program Files/Wasteland Wheels/renderer/index.html' }, 'desktop'],
