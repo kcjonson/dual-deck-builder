@@ -211,6 +211,33 @@ describe('AI Player System', () => {
 			// Should have progressed the game (enemy turn processed, new player turn started)
 			expect(battle.turn).toBeGreaterThan(initialTurn);
 		});
+
+		it('carries on a team\'s stream when its AI is set again, rather than replaying it', () => {
+			enemyDriver1.hand = [createTestCard({
+				type: 'jab',
+				name: 'Jab',
+				cost: 1,
+				targetType: 'enemy_single',
+				effects: [{ type: 'damage', value: 2 }]
+			})];
+			enemyDriver1.adrenaline = 5;
+			const pick = jest.spyOn(Rng.prototype, 'pick');
+
+			battle.aiController.setEnemyAI('random');
+			battle.planEnemyTurn();
+			const firstAIPicks = pick.mock.calls.length;
+			battle.aiController.setEnemyAI('random');
+			battle.planEnemyTurn();
+			const allPicks = pick.mock.calls.length;
+			const streams = new Set(pick.mock.contexts);
+			pick.mockRestore();
+
+			// Both AIs picked, from one stream: a fork per AI would be a second
+			// stream from the same seed, back at its first draw
+			expect(firstAIPicks).toBeGreaterThan(0);
+			expect(allPicks).toBeGreaterThan(firstAIPicks);
+			expect(streams.size).toBe(1);
+		});
 	});
 
 	describe('Battle Integration', () => {

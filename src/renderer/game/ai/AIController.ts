@@ -1,5 +1,5 @@
 import { Battle } from '../mechanics/Battle';
-import { Team } from '../mechanics/Team';
+import { Team, TeamType } from '../mechanics/Team';
 import { Vehicle } from '../mechanics/Vehicle';
 import { PlannedAction } from '../mechanics/Intent';
 import { AIPlayer } from './AIPlayer';
@@ -16,14 +16,21 @@ export type AIType = 'random' | 'aggressive' | 'defensive' | 'balanced' | 'mcts'
 
 export class AIController {
 	private battle: Battle;
-	/** The fight's AI stream; each team's AI draws from its own fork of it, named for the team. */
-	private readonly rng: Rng;
+	/**
+	 * Each team's stream, forked once from the fight's AI stream and named for
+	 * the team. An AI set again for a team carries on its draws: a fork made
+	 * per AI would replay them from the first.
+	 */
+	private readonly teamRngs: Readonly<Record<TeamType, Rng>>;
 	private playerAI: AIPlayer | null = null;
 	private enemyAI: AIPlayer | null = null;
 
 	constructor({ battle, rng }: { battle: Battle; rng: Rng }) {
 		this.battle = battle;
-		this.rng = rng;
+		this.teamRngs = {
+			[TeamType.PLAYER]: rng.fork(TeamType.PLAYER),
+			[TeamType.ENEMY]: rng.fork(TeamType.ENEMY),
+		};
 	}
 
 	setPlayerAI(type: AIType | null): void {
@@ -45,7 +52,7 @@ export class AIController {
 	}
 
 	private createAI(type: AIType, team: Team): AIPlayer {
-		const rng = this.rng.fork(team.type);
+		const rng = this.teamRngs[team.type];
 		switch (type) {
 			case 'random':
 				return new RandomAI({ team, battle: this.battle, rng });

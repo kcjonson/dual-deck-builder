@@ -221,9 +221,9 @@ export class Battle extends Model<BattleData> {
 	/**
 	 * Create a new battle. Everything random in the fight draws from `rng`,
 	 * so one stream plays the fight out the same way every time: each
-	 * driver's reshuffles from `deck:<seat>` (Player1, Enemy2) and each
-	 * team's AI from `ai` forked again by the team's type. A fight given no
-	 * stream roots its own with freshSeed.
+	 * driver's reshuffles from `deck:<team>:<seat index>` (`deck:player:0`)
+	 * and each team's AI from `ai` forked again by the team's type. A fight
+	 * given no stream roots its own with freshSeed.
 	 */
 	constructor({
 		playerTeam,
@@ -2146,24 +2146,23 @@ export class Battle extends Model<BattleData> {
 	 */
 	private getDriverDisplayName(driver: Driver): string {
 		const seat = this.seatOf(driver);
-		return seat ? `${seat} ${driver.metadata.name}` : driver.metadata.name;
+		if (!seat) return driver.metadata.name;
+		return `${seat.team === TeamType.PLAYER ? 'Player' : 'Enemy'}${seat.index + 1} ${driver.metadata.name}`;
 	}
 
 	/**
-	 * A driver's seat, Player1 or Enemy2: where they started the fight, so it
-	 * doesn't change when they ride on as a passenger or die. A driver seated
-	 * later takes the next number on their team. Null for a driver on
-	 * neither team.
+	 * A driver's seat: their team and their place in its seating order, which
+	 * is where they started the fight, so it doesn't change when they ride on
+	 * as a passenger or die. A driver seated later takes the next place on
+	 * their team. Null for a driver on neither team.
 	 */
-	private seatOf(driver: Driver): string | null {
+	private seatOf(driver: Driver): { team: TeamType; index: number } | null {
 		const seats = Battle.driverSeats.get(this);
 		if (!seats) return null;
 
-		for (const [teamType, drivers] of seats) {
-			const seat = drivers.indexOf(driver) + 1;
-			if (seat > 0) {
-				return `${teamType === TeamType.PLAYER ? 'Player' : 'Enemy'}${seat}`;
-			}
+		for (const [team, drivers] of seats) {
+			const index = drivers.indexOf(driver);
+			if (index >= 0) return { team, index };
 		}
 
 		const team = this.getTeamForDriver(driver);
@@ -2175,7 +2174,9 @@ export class Battle extends Model<BattleData> {
 
 	/**
 	 * The stream a driver's deck shuffles from this fight, forked from the
-	 * fight's by their seat, so it doesn't depend on who drew first
+	 * fight's by their seat, so it doesn't depend on who drew first. Named by
+	 * the seat's team and index rather than the log's label for it, so a
+	 * relabelled log can't move a fight's reshuffles.
 	 */
 	private deckRngOf(driver: Driver): Rng {
 		const fight = Battle.fightRngs.get(this);
@@ -2186,7 +2187,7 @@ export class Battle extends Model<BattleData> {
 
 		const seat = this.seatOf(driver);
 		if (!seat) throw new Error(`${driver.metadata.name} draws in a fight they have no seat in`);
-		const deck = fight.fork(`deck:${seat}`);
+		const deck = fight.fork(`deck:${seat.team}:${seat.index}`);
 		decks.set(driver, deck);
 		return deck;
 	}

@@ -52,23 +52,36 @@ const fighter = (name: string): Vehicle => {
 	return vehicle;
 };
 
-/** Random AIs on both sides fight it out from `seed`; the battle log, without timestamps */
-async function playOut(seed: number): Promise<string[]> {
+/** Random AIs on both teams, two vehicles a side, on `rng`, or a stream of its own when left out */
+function newFight(rng?: Rng): Battle {
 	const battle = new Battle({
 		playerTeam: new Team({ type: TeamType.PLAYER, vehicles: [fighter('Rig'), fighter('Bike')] }),
 		enemyTeam: new Team({ type: TeamType.ENEMY, vehicles: [fighter('Buggy'), fighter('Hauler')] }),
 		maxTurns: 6,
-		rng: new Rng({ seed })
+		rng
 	});
 	battle.aiController.setPlayerAI('random');
 	battle.aiController.setEnemyAI('random');
+	return battle;
+}
+
+async function playThrough(battle: Battle): Promise<void> {
 	battle.start();
 	for (let turn = 0; turn < 10 && !battle.isBattleOver(); turn++) {
 		await battle.aiController.playPlayerCards();
 		battle.endPlayerTurn();
 	}
 	expect(battle.isBattleOver()).toBe(true);
-	return battle.getMessages().map(({ turn, type, message }) => `${turn} ${type}: ${message}`);
+}
+
+/** The battle log without timestamps */
+const logOf = (battle: Battle): string[] => battle.getMessages()
+	.map(({ turn, type, message }) => `${turn} ${type}: ${message}`);
+
+async function playOut(seed: number): Promise<string[]> {
+	const battle = newFight(new Rng({ seed }));
+	await playThrough(battle);
+	return logOf(battle);
 }
 
 describe('a seeded fight', () => {
@@ -104,5 +117,37 @@ describe('a seeded fight', () => {
 		await playOut(SEED);
 
 		expect(random).not.toHaveBeenCalled();
+	});
+
+	it('draws each team\'s AI picks and each seat\'s reshuffles from their own streams', async () => {
+		const pick = jest.spyOn(Rng.prototype, 'pick');
+		const shuffle = jest.spyOn(Deck.prototype, 'shuffle');
+		const fight = new Rng({ seed: SEED });
+		const battle = newFight(fight);
+		// Seats by team and place in its seating order, as Battle names the streams
+		const seatStreams = new Map<Deck, number>();
+		for (const team of [battle.playerTeam, battle.enemyTeam]) {
+			team.getAllDrivers().forEach((driver, index) => {
+				if (driver.deck) seatStreams.set(driver.deck, fight.fork(`deck:${team.type}:${index}`).seed);
+			});
+		}
+
+		await playThrough(battle);
+
+		// Two streams, one a team, each its team's fork of the fight's AI stream
+		const aiStreams = new Set(pick.mock.contexts as Rng[]);
+		expect(aiStreams.size).toBe(2);
+		expect(new Set([...aiStreams].map(rng => rng.seed)))
+			.toEqual(new Set([fight.fork('ai').fork('player').seed, fight.fork('ai').fork('enemy').seed]));
+
+		// Every reshuffle draws from its own seat's stream, the same one all fight
+		const deckStreams = new Map<Deck, Set<Rng>>();
+		shuffle.mock.calls.forEach(([rng], call) => {
+			const deck = shuffle.mock.contexts[call] as Deck;
+			expect(rng.seed).toBe(seatStreams.get(deck));
+			deckStreams.set(deck, (deckStreams.get(deck) ?? new Set<Rng>()).add(rng));
+		});
+		expect(deckStreams.size).toBe(4);
+		deckStreams.forEach(streams => expect(streams.size).toBe(1));
 	});
 });
