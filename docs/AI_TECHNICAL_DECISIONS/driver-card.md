@@ -6,7 +6,7 @@ Status: decided 2026-10-07, DDB-312 (epic DDB-277). Design source: [Game Flow an
 
 Section 7.0 makes drivers cards: 104x146, squarer corners, a riveted double frame no play card has, with a portrait, the name, the specialty, an HP bar, the hand limit, the deck size, and a status tag (injured, seated, lost, new, custom). A driver card opens its own detail view on hover, focus, or a touch hold: their full stats and their deck. The Crew roster shows every driver in the pool and the ones lost on runs; load out shows a card in each seat and the whole pool, faded where a driver can't go; the debrief shows who came home and who didn't. Load out's pool sits beside dozens of mini cards, so a driver card has to be as cheap as a mini.
 
-The campaign's driver record (DDB-282) isn't merged, the combat `Driver` is a fight's state, and each screen has its own idea of a driver (a record at the compound, a seat and a run deck at load out, survivors at the debrief). Driver names are open (DDB-318); the campaign model calls them "Road Warrior 2" for now.
+Each screen has its own idea of a driver: the campaign's driver record at the compound (`campaign/DriverRecord.ts`, DDB-282), a seat and a run deck at load out, who came home at the debrief; the combat `Driver` is a fight's state. Driver names are open (DDB-318); the campaign model calls them "Road Warrior 2" for now.
 
 ## Decisions
 
@@ -16,7 +16,7 @@ The campaign's driver record (DDB-282) isn't merged, the combat `Driver` is a fi
 
 `driverCardData({ archetype, ...overrides })` fills it from `DRIVER_CONFIGS` and takes whatever the caller's model says instead. The gallery and the tests use it bare; a screen mapping a campaign record passes the record's name, HP, hand limit, and deck and takes the specialty, vehicle, and skills from the archetype.
 
-Considered: taking the campaign record or the combat `Driver`. Either would tie the card to one screen's model, and the record isn't merged.
+Considered: taking the campaign record or the combat `Driver`. Either would tie the card to one screen's model.
 
 ### Status is the card's, not the driver's
 

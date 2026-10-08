@@ -1,3 +1,4 @@
+import { DriverRecord } from '../campaign/DriverRecord';
 import { DRIVER_CONFIGS } from '../mechanics/Driver';
 import { driverCardData, driverDeckSize, startingDriverDeck } from './driverCardData';
 
@@ -18,6 +19,21 @@ describe('driverCardData', () => {
 	it('takes what a campaign record keeps of its own over the config', () => {
 		const data = driverCardData({ archetype: 'interceptor', name: 'Interceptor 2', hitpoints: 12, handLimit: 8, deck: { headshot: 4 }, note: 'Found day 3' });
 		expect(data).toMatchObject({ name: 'Interceptor 2', specialty: 'AGILE STRIKER', hitpoints: 12, maxHitpoints: 25, handLimit: 8, deck: { headshot: 4 }, note: 'Found day 3' });
+	});
+
+	it('maps a campaign driver record onto the card, its deck passing straight through', () => {
+		const record = new DriverRecord({ id: 'driver-5', archetype: 'mechanic', name: 'Mechanic 2', hitpoints: 12 });
+		const data = driverCardData({
+			archetype: record.archetype,
+			name: record.name,
+			hitpoints: record.hitpoints,
+			maxHitpoints: record.maxHitpoints,
+			handLimit: record.handLimit,
+			deck: record.defaultDeck,
+		});
+		expect(data).toMatchObject({ name: 'Mechanic 2', specialty: 'SUPPORT SPECIALIST', hitpoints: 12, maxHitpoints: 30, handLimit: 7, vehicle: 'Mobile Workshop' });
+		expect(data.deck).toBe(record.defaultDeck);
+		expect(driverDeckSize(data.deck)).toBe(record.deckSize);
 	});
 
 	it('starts at full HP against an overridden maximum, and leaves the note out when there is none', () => {
