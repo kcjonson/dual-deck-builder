@@ -155,7 +155,7 @@ describe('generateTerrain', () => {
 				expect(sample.contamination).toBe(0);
 				expect(sample.ruin).toBe(1);
 				expect(terrain.impassable(x, y)).toBe(false);
-				expect(terrain.reachable(x, y)).toBe(true);
+				expect(terrain.surelyReachable(x, y)).toBe(true);
 			});
 			terrain.hotspots.forEach((hotspot) => {
 				expect(Math.hypot(hotspot.x, hotspot.y) - hotspot.craterRadius).toBeGreaterThan(metro.radius);
@@ -164,7 +164,7 @@ describe('generateTerrain', () => {
 	});
 
 	describe('towns', () => {
-		it.each(PARAM_SETS.map((set, index) => [index, set] as const))('are spaced, inside the disc, outside the metro, and reachable, in parameter set %i', (_index, set) => {
+		it.each(PARAM_SETS.map((set, index) => [index, set] as const))('are spaced, inside the disc, outside the metro, and surely reachable, in parameter set %i', (_index, set) => {
 			const terrain = terrainFor(set);
 			const params = paramsFor(set);
 			expect(terrain.towns).toHaveLength(params.towns);
@@ -173,7 +173,7 @@ describe('generateTerrain', () => {
 				expect(fromCentre + town.radius).toBeLessThanOrEqual(terrain.radius);
 				expect(fromCentre - town.radius).toBeGreaterThan(terrain.metro.radius);
 				expect(terrain.impassable(town.x, town.y)).toBe(false);
-				expect(terrain.reachable(town.x, town.y)).toBe(true);
+				expect(terrain.surelyReachable(town.x, town.y)).toBe(true);
 				expect(terrain.ruin(town.x, town.y)).toBe(1);
 				terrain.hotspots.forEach((hotspot) => {
 					expect(Math.hypot(town.x - hotspot.x, town.y - hotspot.y)).toBeGreaterThanOrEqual(hotspot.craterRadius + town.radius + TOWN_CRATER_GAP);
@@ -187,7 +187,7 @@ describe('generateTerrain', () => {
 
 	describe('towns at the edge of the tuning range', () => {
 		// Where most of the ring is rough or cut off, and placed towns crowd
-		// the rest, candidates from the reachable cells still find every town
+		// the rest, candidates from the reached cells still find every town
 		// room, with the shuffled walk over those cells as the last resort.
 		const corner: MapParamSet = { seed: 0, mountainCoverage: 1, ruggedness: 1, aridity: 0, contamination: 1, hotspots: 6, towns: 12, metroSize: 0.25, radius: 600 };
 		it.each([
@@ -199,7 +199,7 @@ describe('generateTerrain', () => {
 			sampledSeeds(seeds).forEach((seed) => {
 				const terrain = terrainFor({ ...set, seed });
 				expect(terrain.towns).toHaveLength(12);
-				terrain.towns.forEach((town) => expect(terrain.reachable(town.x, town.y)).toBe(true));
+				terrain.towns.forEach((town) => expect(terrain.surelyReachable(town.x, town.y)).toBe(true));
 			});
 		});
 	});
@@ -324,11 +324,14 @@ describe('generateTerrain', () => {
 			// Small enough that curvature moves the one-sided slopes apart by
 			// far less than a crease does, large enough to stay clear of rounding.
 			const step = 1e-6;
-			// Round coordinates on purpose: many fall on lattice edges of the
-			// ridge layers, so gradients that could leave a layer zero along an
-			// edge would put some of them on creases (the sixteen-direction set
-			// put 2.8% to 6.3% there). Otherwise a crease needs a zero line within
-			// a step of a point, which these grids miss, so none may be creased.
+			// Round coordinates on purpose. RIDGE_OFFSETS, RANGE_OFFSET, and
+			// BREAK_OFFSET shift both axes alike, so many of these points fall on
+			// lattice edges of those layers, and gradients that could leave a
+			// layer zero along an edge would put some on creases (the
+			// sixteen-direction set put 2.8% to 6.3% there). Noise.test's edge
+			// test is the main guard against that; this one catches it in the
+			// terrain. Otherwise a crease needs a zero line within a step of a
+			// point, which these grids miss, so none may be creased.
 			const points = gridInside(terrain.radius, 20);
 			let creased = 0;
 			points.forEach(([x, y]) => {

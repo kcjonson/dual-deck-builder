@@ -441,8 +441,8 @@ export class TerrainFields {
 		return cell >= 0 && this.roughCells[cell] === 1;
 	}
 
-	/** True where a road from the metro can surely reach: a lattice cell the flood fill got to. */
-	public reachable(x: number, y: number): boolean {
+	/** True in a lattice cell the flood fill from the metro got to; false only means not proven. */
+	public surelyReachable(x: number, y: number): boolean {
 		const cell = this.cellAt(x, y);
 		return cell >= 0 && this.reachedCells[cell] === 1;
 	}
@@ -998,8 +998,8 @@ export class Terrain {
 
 	/**
 	 * Ruined towns out past the metro: up to `towns` of them, each where a road
-	 * from the metro can reach it. A town is left out only when no reachable
-	 * cell in the ring has room for it.
+	 * from the metro surely reaches it. A town is left out only when no reached
+	 * cell's centre in the ring has room for it.
 	 */
 	public get towns(): readonly Ruin[] {
 		return this.land.towns;
@@ -1076,14 +1076,18 @@ export class Terrain {
 	}
 
 	/**
-	 * True where a road from the metro can surely reach: a cell of the 16-unit
+	 * True where a road from the metro surely reaches: a cell of the 16-unit
 	 * lattice that a flood fill from the metro gets to through cells that
 	 * aren't rough, lie wholly inside the disc, and keep clear of craters, so
-	 * no cliff or crater stands between (water aside). Rough cells read false,
-	 * though roads may still find a way through one.
+	 * no cliff or crater stands between. It's the test towns are placed by,
+	 * and it's sufficient only: false means not proven, not a pocket. It reads
+	 * false on all rough ground, on open ground rough cells ring off, and in
+	 * cells at the rim or touching a crater, though roads often find a way
+	 * through, and it ignores water. How much a road can reach is a fine flood
+	 * fill over `impassable`.
 	 */
-	public reachable(x: number, y: number): boolean {
-		return this.land.reachable(x, y);
+	public surelyReachable(x: number, y: number): boolean {
+		return this.land.surelyReachable(x, y);
 	}
 
 	/** Why (x, y) is impassable, or null: a crater, water, then a cliff. */
