@@ -24,13 +24,13 @@ Feature sizes are world units, not shares of the radius, so a bigger map has mor
 | Plains | 3 octaves, 900-unit wavelength, level 0.42 plus or minus 0.18 | nothing; flattened toward the metro |
 | Mountain ranges | belts along the zero lines of a 1300-unit layer (1 - \|n\|), plus a quarter of a 520-unit layer that breaks them into stretches | `mountainCoverage`, the share of the country they cover |
 | Ridges | 3 octaves of ridged noise, 300 units, standing on the ranges, 0.06 of lift plus 0.2 to 0.4 of height | `ruggedness`: height, crest sharpness (from a rounded 1 - n^2 to a creased (1 - \|n\|)^3), and octave gain (0.45 to 0.62) |
-| Roughness | 2 octaves, 360 units: where mountains and badlands stand at full height, 30% of it elsewhere | `ruggedness`: rough country is 10% to 35% of the land |
-| Canyons | the zero lines of a 2-octave, 520-unit layer, a flat floor (0.35 of the half-width) and smoothstep walls, 0.2 deep at full strength; they fade out where a 420-unit sample dips, leaving crossings | strength from the map's dryness (begins at 0.35, full at 0.75) times 0.35 to 1 by `ruggedness` |
+| Roughness | 2 octaves, 360 units: rough country is where it's above its calibrated floor, decided per cell of a 16-unit lattice; mountains, canyons, and badlands climb from 30% of their height at the floor to all of it 0.2 above | `ruggedness`: rough country is 10% to 35% of the land past the relief radius |
+| Canyons | the zero lines of a 2-octave, 520-unit layer, a flat floor (0.35 of the half-width) and walls that rise at one grade over their middle 60%; 0.2 deep at full strength in rough country; they fade out where a 420-unit sample dips | width by `ruggedness` alone (0.35 to 1 of the full half-width); depth by that, the map's dryness (begins at 0.35, full at 0.75), and roughness |
 | Badlands | patches from a 2-octave, 480-unit layer; gullies inside them from a 2-octave, 60-unit ridged layer, 0.03 to 0.09 of relief | share 0.7 x `ruggedness` x (0.3 + 0.7 x `contamination`); relief by `ruggedness` |
 | Moisture | 2 octaves, 650 units, spread 0.55 around the map's level, plus 0.5 per unit of elevation below the plains' level (before canyons and badlands cut it), minus above | `aridity` |
 | Contamination | 2 octaves, 450 units; hotspot plumes combine over it as 1 - (1 - c)(1 - p) | `contamination`, the toxic share; `hotspots` |
 
-Each threshold behind a share (the range mask, badlands patches, rough country, toxic ground) is a quantile of its layer over a lattice of the disc, 20 samples to the radius, taken past the radius where the feature fades in, so `mountainCoverage` 0.25 means a quarter of the country beyond the metro's surroundings on every map, whatever the noise drew. Shares of 0 and 1 are infinite thresholds: none and all.
+Each threshold behind a share (the range mask, badlands patches, rough country's floor, toxic ground) is a quantile of its layer over a lattice of the disc, 20 samples to the radius, taken past the radius where the feature fades in, so `mountainCoverage` 0.25 means a quarter of the country beyond the metro's surroundings on every map, whatever the noise drew. Shares of 0 and 1 are infinite thresholds: none and all.
 
 `aridity` follows the spec as written, 0 dry desert to 1 wet ground and mire, which reads backwards for the name. Whether to rename it or flip it is open (DDB-405), so the mapping lives in one function, `moistureLevel(aridity)`, and either change is a line there.
 
@@ -51,36 +51,53 @@ Mountains' share then is `mountainCoverage` by construction. Mire needs low, wet
 
 ## The start
 
-The metro is `metroSize` of the radius around the compound. Inside it the fields are scrub's: moisture 0.45, no contamination, the plains flattened to 30% of their roll, and no mountains, canyons, or badlands. Moisture and contamination blend back to their own out to the blend radius (the metro plus half its radius, or 6% of the map's, whichever is more), and relief fades in over a further tenth of the radius, on squared distance so no square root is taken. Hotspots are centred past the blend radius plus the largest crater. So the metro is always flat scrub with nothing impassable, which a property test checks across the tuning ranges, the extreme corners included.
+The metro is `metroSize` of the radius around the compound. Inside it the fields are scrub's: moisture 0.45, no contamination, the plains flattened to 30% of their roll, and no mountains, canyons, or badlands. Moisture and contamination blend back to their own out to the blend radius (the metro plus half its radius, or 6% of the map's, whichever is more), and relief fades in over a further tenth of the radius, on squared distance so no square root is taken. Hotspots are centred past the blend radius plus the largest crater, and no cliff stands inside the relief radius. So the metro is always flat scrub with nothing impassable, which a property test checks across the tuning ranges, the extreme corners included.
 
 ## Hotspots and towns
 
 Both are dart-thrown, a Poisson-disc sample: candidates drawn uniformly over a ring of the disc (in its bounding square, redrawn until inside, so no square root or trig), each kept only if it's far enough from those kept before. A feature gets 48 candidates and is left out if none fits, which the spacing makes vanishingly rare across the tuning ranges; tests check every one asked for is placed.
 
 - Hotspots: crater radius 14 to 26 units, impassable; plume 5 to 8 times the crater, contamination at the centre 0.75 to 1, falling off as (1 - d^2 / r^2)^2; centres at least a quarter of the radius apart, between the blend radius plus the largest crater and 0.9 of the radius.
-- Towns: radius 0.25 to 0.4 of the metro's, at least 20 units; centres 0.22 of the radius apart, wholly between the blend radius and 0.9 of the radius, 20 units clear of craters, on ground that isn't a cliff, and for the first half of their candidates out of mountains and canyons.
+- Towns: radius 0.25 to 0.4 of the metro's, at least 20 units; centres 0.22 of the radius apart, wholly between the blend radius and 0.9 of the radius, 20 units clear of craters, in a cell a road from the metro can reach (below), and for the first half of their candidates out of mountains and canyons.
 
 ## Slope, obstacles, and cost
 
 Elevation carries its exact gradient, worked through every term alongside it: the noise's own derivatives, then the chain rule through masks, blends, crests, and the canyon profile. Forward differences took two more elevation samples per slope, which made cost and the full sample three times as dear as elevation. With the gradient they're about one and a half times. A test holds it to central differences, which agree to rounding except within a step of a crease, where ridge and gully noise crosses zero.
 
 - Grade is the gradient's size times `RELIEF`, 150: rise over run with elevation 1 standing 150 world units high.
-- Obstacles, in precedence: a crater, water (from the water stage), a cliff (grade 1 or steeper).
-- Travel cost per world unit: the biome's base cost plus 3 x (grade / 1)^2, so 1 on flat scrub and Infinity on impassable ground. Base costs: scrub 1, desert 1.25, canyons 1.5, badlands 1.8, mire 2.2, mountains 2.5. Growth tunes these.
+- Obstacles, in precedence: a crater, water (from the water stage), a cliff: grade 1 or steeper in rough country. Steep ground outside rough country isn't a cliff, only costly.
+- Travel cost per world unit: the biome's base cost plus 3 x (grade / 1)^2, so 1 on flat scrub and Infinity on impassable ground; steep ground outside rough country costs more than 3 on top. Base costs: scrub 1, desert 1.25, canyons 1.5, badlands 1.8, mire 2.2, mountains 2.5. Growth tunes these.
 - The cliff test compares squared gradients, so no branch depends on a square root. `grade` takes one, for display.
+- Canyon walls are bands, not hairlines. A first version scaled a canyon's width with its strength as well as its depth, so its wall grade never fell however faint it got: a middling map was laced with cliffs a twentieth of a unit wide and under half a unit high, which growth sampling every few units would hit or miss by chance. A canyon's width now depends on ruggedness alone, so a faint canyon is shallow and gentle rather than narrow, and its walls hold one grade over their middle 60%, so a wall steep enough to be a cliff is one across most of its width. Measured across the slope at every cliff point on a 150-cell grid, cliffs' bands have medians of 8.6 to 10.4 units, and 1% to 4.4% of cliff ground sits in bands under 2 units, the tapered tips every cliff has; the first version put 13% there at aridity 0.6 and 39% in the Rust Belt, and a test holds the line between.
 
 ## Keeping the land connected
 
-Ridged noise makes crest lines that enclose its valleys, and canyon lines close into loops. With cliffs wherever the slope ran steep, a first version left a quarter of the passable land, and 4% of the outer band, reachable from the metro at the steepest corner of the tuning range (coverage 1, ruggedness 1, aridity 0): roads would have had nowhere to go. Two changes keep it connected:
+Ridged noise makes crest lines that enclose its valleys, and canyon lines close into loops. With cliffs wherever the slope ran steep, the first version left a quarter of the passable land, and 4% of the outer band, reachable from the metro at the steepest corner of the tuning range (coverage 1, ruggedness 1, aridity 0, contamination 1). Its fix scaled ridges and gullies by roughness but left canyons out, and a flood fill over 2-unit cells still found the start reaching only 52% to 95% of the outer band at that corner over 50 seeds, 21% at the smallest metro, and as little as 81.5% of it at the Badlands' defaults, with towns cut off behind canyon walls.
 
-- Steep relief gathers in rough islands. Rough country is at most 35% of the land, an excursion set of a smooth layer well under half, so it breaks into islands and the gentler land around them connects across the map. Outside it, ridges and gullies keep 30% of their height, low enough to stay passable.
-- Canyons fade out at gaps, so their loops have crossings.
+Cliffs now stand only in rough country, with no exceptions:
 
-At the same corner a flood fill over a 3-unit grid from the metro now reaches 76% to 94% of the outer band's passable ground over five seeds, and 97% to 100% at every environment's defaults. A test holds three rugged maps above 60%.
+- Rough country is where the roughness layer is above a floor calibrated to 10% to 35% of the land past the relief radius, by `ruggedness`, and never inside the relief radius. Well under half, an excursion set of a smooth layer breaks into islands, and the land around them connects across the map.
+- Mountains, canyons, and badlands keep 30% of their height outside it, so slopes there seldom reach the cliff grade, and if one does it's only costly.
+- It's decided per cell of a 16-unit lattice, from the layer at the cell's centre. Then a flood fill from the metro over the cells that aren't rough, wholly inside the disc and clear of craters, is exact: every cell it reaches joins the metro through ground no cliff can stand on. Towns are placed only in reached cells. Building a map's terrain, lattice and fill included, takes about 1.3 ms at radius 600, 2 ms at the default 1000, and 3.2 ms at the largest, 1600.
+
+Measured with a 4-connected flood fill over 2-unit cells from the metro, as the share of the outer band's (0.85 to 0.95 of the radius) passable ground it reaches, over the first 200 seeds of a fixed sequence:
+
+| Parameters | Least | 5th percentile | Median | Towns cut off |
+| --- | --- | --- | --- | --- |
+| steepest corner, radius 600 | 87.3% | 93.1% | 96.9% | 0 of 1,000 |
+| steepest corner, radius 600, smallest metro | 87.3% | 93.0% | 96.9% | 0 of 1,000 |
+| Badlands, radius 600 | 96.2% | 97.7% | 99.4% | 0 of 600 |
+| High Desert defaults | 98.1% | 98.9% | 99.5% | 0 of 600 |
+| Badlands defaults | 96.7% | 98.2% | 99.1% | 0 of 600 |
+| Mixed defaults | 99.3% | 99.7% | 100% | 0 of 1,000 |
+| Rust Belt defaults | 99.2% | 99.9% | 100% | 0 of 1,600 |
+| Floodlands defaults | 99.6% | 99.9% | 100% | 0 of 1,000 |
+
+At the steepest corner with the largest radius and smallest metro, 40 seeds give 95.3% to 98.0% of the outer band, median 96.8%, with no town cut off in 200. Nothing guarantees a share outright, since rough islands could close into a ring round the metro, but the least share over all 1,640 maps is 87.3%. A test holds the first two seeds of each of the first three sets above 80% on a 4-unit grid, with every town reached.
 
 ## The water seam
 
-Rivers and lakes are the water stage's (DDB-289). `WaterLayer` is one method, `isWater(x, y)`, and `terrain.withWater(layer)` returns a `Terrain` sharing the land with water added to the obstacles (a crater still reads as a crater) and to cost (Infinity). The water stage traces over `elevation` and `slope`, forks its own streams from the terrain stream under names not used here, and decides how water meets the metro, which this stage keeps passable.
+Rivers and lakes are the water stage's (DDB-289). `WaterLayer` is one method for now, `isWater(x, y)`, and `terrain.withWater(layer)` returns a `Terrain` sharing the land with water added to the obstacles (a crater still reads as a crater) and to cost (Infinity). The water stage will widen it: growth crosses rivers square-on at bridges, so it needs to tell a lake from a river and know which way a river runs. It traces over `elevation` and `slope`, forks its own streams from the terrain stream under names not used here, and decides how water meets the metro, which this stage keeps passable. Town placement's flood fill knows cliffs and craters, not water, so a river can still cut a town off from the metro until a bridge crosses it.
 
 ## Streams
 
@@ -92,19 +109,19 @@ Measured with `scripts/terrain-bench.mjs` on a Ryzen 9 5950X: a 256 x 256 grid o
 
 | Query | Node 24 (V8 13.6) | Electron 25 (V8 11.4) |
 | --- | --- | --- |
-| build (`generateTerrain`) | 1.35 ms | 1.32 ms |
-| `sample`, every field | 615 ns (40 ms a grid) | 614 ns (40 ms a grid) |
-| `elevation` | 402 ns | 405 ns |
-| `slope` | 394 ns | 407 ns |
-| `biome` | 536 ns | 562 ns |
-| `impassable` | 404 ns | 417 ns |
-| `travelCost` | 558 ns | 593 ns |
+| build (`generateTerrain`) | 2.23 ms | 2.21 ms |
+| `sample`, every field | 620 ns (41 ms a grid) | 641 ns (42 ms a grid) |
+| `elevation` | 411 ns | 423 ns |
+| `slope` | 415 ns | 426 ns |
+| `biome` | 551 ns | 571 ns |
+| `impassable` | 425 ns | 443 ns |
+| `travelCost` | 576 ns | 589 ns |
 
-A grid of every field at 256 is 40 ms here, a fifth of generation's budget, and perhaps half again on a mid-range laptop. No gameplay stage samples like that: growth's cost lookups, a few per candidate step, should come to tens of thousands, around 20 ms at these rates. Sampling allocates nothing, though `SimplexNoise.sample` is past V8's 460-byte inlining limit, so each octave is a call that boxes its doubles; the scavenges that leaves cost about 5% of sampling time. A smaller kernel, or octave loops with the kernel written in, is the lever if a consumer needs more.
+A grid of every field at 256 is about 41 ms here, a fifth of generation's budget, and perhaps half again on a mid-range laptop. No gameplay stage samples like that: growth's cost lookups, a few per candidate step, should come to tens of thousands, around 20 ms at these rates. Sampling allocates nothing, though `SimplexNoise.sample` is past V8's 460-byte inlining limit, so each octave is a call that boxes its doubles; the scavenges that leaves cost about 5% of sampling time. A smaller kernel, or octave loops with the kernel written in, is the lever if a consumer needs more.
 
 ## Consequences
 
-- Every number here is a starting value for the Map Lab (DDB-299), which should show biome shares and the reachable share of the edge alongside its timings.
+- Every number here is a starting value for the Map Lab (DDB-299), which should show biome shares, rough country, and the reachable share of the edge alongside its timings.
 - Saves keep the gameplay map, so terrain only matters for loading as a picture; because sampling is arithmetic, a shared seed draws the same terrain in any engine as well.
 - The renderer (DDB-298) can shade from `sample`'s slope without sampling neighbours, and should draw cliffs from `obstacle` so roads never seem to cross one.
-- Growth (DDB-290) has `travelCost`, Infinity on impassable ground, and `obstacle` to tell water (bridgeable) from the rest. Cliffs come from slope alone and taper at their ends, so a step's samples should sit a few units apart rather than only at its ends.
+- Growth (DDB-290) has `travelCost`, Infinity on impassable ground, and `obstacle` to tell water (bridgeable) from the rest. Cliffs are bands several units across but taper at their tips, so a step's samples should sit a few units apart rather than only at its ends. `rough(x, y)` says where cliffs can stand at all.
