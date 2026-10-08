@@ -47,7 +47,7 @@ Card types are checked for shape (lower snake case), not against `cards.json`, w
 
 ## Driver records
 
-`id`, `archetype`, `name`, `hitpoints` and `maxHitpoints` (the combat `Driver`'s names, since DDB-286 copies them across), `injuredDays`, `handLimit`, `defaultDeck`, `status` (ready, injured, dead, missing), and `runsCompleted`.
+`id`, `archetype`, `name`, `hitpoints` and `maxHitpoints` (the combat `Driver`'s names, since DDB-286 copies them across), `vehicle` (their signature vehicle's structure and armor, carried between fights; the maximums are the archetype's, and structure is at least 1, since a wreck limps on), `injuredDays`, `handLimit`, `defaultDeck`, `status` (ready, injured, dead, missing), and `runsCompleted`.
 
 - HP runs from 0 to max, and max is at least 1. A driver is dead exactly when their HP is 0: the dead have none, the living some. The dead have no cards either.
 - `injuredDays` is above 0 exactly while injured. It's "fit in N days", which load out shows.
@@ -72,7 +72,7 @@ People may reach 0; whether that ends the campaign is open (Compound and Supply 
 
 ## The convoy saves each escort's stat block
 
-An escort saves its name, armor, structure, their maxima, base speed, mods, and crew profile, not a type to look up, because a driven vehicle that carried on unmanned has no type and its stats came from the fight it converted in. Fight state (slot, flank, statuses, shield, spent, seats) isn't saved: the campaign saves between runs, and a loaded escort is off the road and ready. A convoy over its cap after a fight saves as it is. An escort needs at least 1 structure, since `Convoy.afterFight` never keeps a wreck.
+An escort saves its name, armor, structure, their maxima, base speed, mods, and crew profile, not a type to look up, so the stats it was hired with stay its own. Fight state (slot, flank, statuses, shield, spent, seats) isn't saved: the campaign saves between fights, and a loaded escort is off the road and ready. An escort needs at least 1 structure, since `Convoy.afterFight` never keeps a wreck.
 
 Drivers go the other way, archetype plus what varies, so retuning `DRIVER_CONFIGS` reaches campaigns in progress and retuning `ESCORT_CONFIGS` doesn't reach escorts already in a convoy.
 
@@ -101,6 +101,6 @@ The log is `{ day, message }` lines, dated by `addLogEntry` with the current day
 
 - Saving (DDB-49) writes `JSON.stringify(campaign)` at a checkpoint and loads with `Campaign.fromJSON(JSON.parse(text), { onWarning })`; anything thrown means the save can't be loaded (or, from `toJSON`, written), and warnings mean it loaded with its map params repaired.
 - Founding (DDB-284) builds `new Campaign({ seed, generatorVersion, mapParams, map, resources })` with params it has validated, and calls `recruitDriver` for each starting driver.
-- The combat bridge (DDB-286, [combat-bridge.md](./combat-bridge.md)) builds combat drivers from records and writes each back in one `set`: their HP; for a driver who died, status dead, 0 HP, and an empty deck; for one who went missing, status missing. Injured days are set when a run comes home, not after a fight.
+- The combat bridge (DDB-286, [combat-bridge.md](./combat-bridge.md)) builds combat drivers from records and writes each back after every fight in one `set`: their HP and their vehicle's structure and armor. Status only changes when a fight fails the run: dead (0 HP and an empty deck) or missing. Injured days are set when a run comes home.
 - Until saves ship, the format can change without a version bump if the fixture changes with it. After that, every change bumps the version and adds a migration.
 - A checked `set` can still replace a whole deck or the locker, which makes or destroys copies; `moveCards` is the path that conserves them.

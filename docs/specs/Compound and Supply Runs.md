@@ -56,6 +56,8 @@ The compound screen is the game's home screen. It's an illustrated scene where t
 | Scrap | garage purchases, repairs, building upgrades | fights, finds, POIs |
 | People | settlers; their count sets upkeep and what the buildings can do | Find stops, events |
 
+Anything a run brings back (resources found, a fight's scrap, the haulers' fuel and scrap) is the run's cargo until it gets home, and a failed run loses it (Kevin, 2026-10-08).
+
 Scrap and fuel already exist in combat and the top bar; they now live at the compound and carry across runs.
 
 ### Hours on the road, days at home
@@ -87,8 +89,8 @@ The compound can always send a scavenging party on foot: it costs a day and retu
 - The campaign starts with a pool of four drivers, dealt from the unlocked archetypes with no duplicates. With fewer than four unlocked, it starts with one of each; it needs at least two, since a run takes two.
 - A run takes two. The no-duplicate pair rule still holds for the pair; the pool itself can hold two of an archetype once finds add drivers.
 - Drivers persist across runs, and so do their decks (see Decks and the locker).
-- Driver HP carries between fights on a run, as it does now. A driver who comes home hurt is injured and heals over days in the infirmary.
-- Death is permanent. A driver killed on a run is gone, with their deck.
+- Driver HP carries between fights on a run, as it does now, and so does the damage on each driver's vehicle (Combat Rules, Losing vehicles and drivers). A driver who comes home hurt is injured and heals over days in the infirmary.
+- Death is permanent, and it only comes with a failed run. A driver who goes to 0 HP in a fight their partner wins is revived and goes on with the run (Kevin, 2026-10-08). A driver killed when a run fails is gone, with their deck.
 - The only way to grow the pool is a Find: driver stop (or an event outcome that does the same).
 - When the last driver in the pool dies, the campaign ends. The compound falls: it starves, riots over what's left, or disbands, chosen by its state at the end (no food: starves; high unrest: riots; otherwise disbands). That's the defeat screen.
 
@@ -133,7 +135,7 @@ Each seated driver takes a run deck that's a copy of their default deck. Load ou
 
 - A driver who comes home has their run deck unwound: their default cards go back to their default deck, borrowed cards go back to the locker, and escort cards leave.
 - Cards won on the run (rewards, finds, a roadside garage) go to the locker. The debrief offers to add each one straight into a driver's default deck.
-- A driver who dies takes their whole run deck with them: their default cards and anything they borrowed. Borrowing a rare card for a dangerous run is a real risk.
+- A driver who dies when a run fails takes their whole run deck with them: their default cards and anything they borrowed. Borrowing a rare card for a dangerous run is a real risk.
 
 ## The area map
 
@@ -177,10 +179,10 @@ Routes to a POI arrive from different branches and share nothing past the home a
 
 ## The drive
 
-- Stops resolve in order. Each opens its screen (combat, event, garage) and comes back to the route view, which shows progress and the next stop. A fight is built from the seated drivers' records and run decks and the escorts that came along, and what it did is written back to them when it ends ([combat-bridge.md](../AI_TECHNICAL_DECISIONS/combat-bridge.md)).
+- Stops resolve in order. Each opens its screen (combat, event, garage) and comes back to the route view, which shows progress and the next stop. A fight is built from the seated drivers and the escorts that came along, and what it did is carried back to them when it ends ([combat-bridge.md](../AI_TECHNICAL_DECISIONS/combat-bridge.md)).
 - No branching mid-route in the first version: the route is fixed at departure.
 - The area map is open between stops.
-- Rewards from fights (cards, scrap) apply as they do now. So do haulers' dividends (Combat Rules, Owning escorts): their fuel and scrap go straight into the compound's stores, so a failed run never takes back what an earlier fight paid. Resources found are cargo until you get home.
+- Cards won in fights go to the locker (Decks and the locker). A fight's scrap, the haulers' fuel and scrap, and resources found are cargo until you get home (Resources).
 
 ### Return
 
@@ -209,7 +211,7 @@ Until night rules exist, a run that slips past dark rolls the return ambush at f
 
 ### A failed run
 
-- A run fails when a fight has no driver left in it (Combat Rules, Losing vehicles and drivers). The dead are gone. A driver who crashed out alive is missing: there's nobody left to pick them up. A missing driver can turn up later as a Find: driver stop.
+- A run fails when a fight has no driver left in it (Combat Rules, Losing vehicles and drivers). A driver at 0 HP in that fight is dead, gone for good. A driver who crashed out alive is missing: there's nobody left to pick them up. A missing driver can turn up later as a Find: driver stop.
 - The cargo and the run's escorts are lost.
 - The campaign goes on while the pool has drivers.
 
@@ -274,10 +276,9 @@ Unchanged in spirit: the two players share the compound and decide runs together
 1. Victory: does the campaign end when every stronghold has fallen, or does taking them reveal a final boss? Proposal: every stronghold, so the end is player-paced.
 2. Can shortages alone end the campaign (say, People reaches 0), or only the last driver's death?
 3. Deck limits: 8 to 20 cards, and whether the hand limit should differ by archetype from the start.
-4. Vehicles: a driver's signature vehicle is theirs; does a found vehicle become an escort only, or can it replace a destroyed driven vehicle? Until it's decided, a driver's vehicle is back, whole, for every fight, a wrecked one included; only escorts carry damage from one fight to the next.
+4. Vehicles: a driver's signature vehicle is theirs; does a found vehicle become an escort only, or can a driver take it in place of their own? Until it's decided, a driver keeps their own: it carries its damage until it's repaired, and a wreck limps into the next fight (Combat Rules, Losing vehicles and drivers). The structure and armor it limps on with are provisional, in [combat-bridge.md](../AI_TECHNICAL_DECISIONS/combat-bridge.md).
 5. Mid-route branching at junctions: worth adding later, or never? (The road trees make it possible: a junction is a place a run could change its mind.)
 6. Starting pool size (4) and whether the player picks it or it's dealt. Until it's decided, the pool is dealt from the seed, and its size is a tuning value.
 7. Night rules (see Night).
 8. One run per day, or can two short runs fit in a day's light?
 9. Driver names: drivers now persist, and the pool can hold two of an archetype, so "THE ROAD WARRIOR" isn't enough to tell them apart. Give each driver a personal name, with the archetype as their title? Until that's decided, a driver goes by their archetype and a number counting every driver of that archetype the compound has had, the dead included: "Road Warrior 2".
-10. A won fight can leave a run with one driver, the other dead. Does the survivor drive the rest of the route alone, or does losing a driver turn the run for home? A player team fields exactly two driven vehicles (Combat Rules, Team), and the dock has a half for each. Until it's decided, a run down to one driver can't start another fight.
