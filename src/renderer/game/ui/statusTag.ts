@@ -1,12 +1,11 @@
 import type { DrawApi } from '../../engine/draw/DrawApi';
 import type { DrawRectOptions, DrawTextOptions } from '../../engine/draw/commands';
 import type { RGBA, Rect } from '../../engine/draw/geometry';
-import { resolveColor } from '../../engine/style/styleObject';
-import { CARD_GROUND_FILLS, CARD_MUTED_FILLS, CARD_NAME, dimHex } from './cardStyle';
+import { CARD_GROUND_FILLS, CARD_MUTED_FILLS, CARD_NAME, textTones } from './cardStyle';
 
 /** Mono capitals in a box of the card's ground with a muted outline. */
 const TAG = { height: 13, size: 9, padding: 4, letterSpacing: 0.06, radius: 2 } as const;
-const TAG_TEXT = { full: resolveColor(CARD_NAME), dimmed: resolveColor(dimHex(CARD_NAME)) } as const;
+const TAG_TEXT = textTones(CARD_NAME);
 
 /** How tall a status tag is, so an owner can say how far one reaches past its edge. */
 export const STATUS_TAG_HEIGHT = TAG.height;
@@ -20,7 +19,8 @@ export const STATUS_TAG_HEIGHT = TAG.height;
  * is measured only when it changes, and an empty one draws nothing.
  */
 export class StatusTagDraw {
-	private readonly right: number;
+	private rightEdge: number;
+	private faded = false;
 	private readonly rect: Rect;
 	private readonly border: { color: RGBA; width: number } = { color: CARD_MUTED_FILLS.full, width: 1 };
 	private readonly box: DrawRectOptions;
@@ -29,7 +29,7 @@ export class StatusTagDraw {
 	private measuredText: string | null = null;
 
 	constructor({ right, y }: { right: number; y: number }) {
-		this.right = right;
+		this.rightEdge = right;
 		this.rect = { x: right, y, width: 0, height: TAG.height };
 		this.box = { rect: this.rect, radius: TAG.radius, fill: CARD_GROUND_FILLS.full, border: this.border };
 		this.label = {
@@ -53,12 +53,35 @@ export class StatusTagDraw {
 		this.label.text = text;
 	}
 
-	/** The faded card's tone, or the full one. */
+	/** Whether it takes a faded card's tone rather than the full one. */
+	public get dimmed(): boolean {
+		return this.faded;
+	}
+
 	public set dimmed(dimmed: boolean) {
+		this.faded = dimmed;
 		const tone = dimmed ? 'dimmed' : 'full';
 		this.box.fill = CARD_GROUND_FILLS[tone];
 		this.border.color = CARD_MUTED_FILLS[tone];
 		this.label.color = TAG_TEXT[tone];
+	}
+
+	/**
+	 * Where its right side sits in the owner's space, so an owner can stand
+	 * a second tag beside a first one. Moving it keeps the measured width.
+	 */
+	public get right(): number {
+		return this.rightEdge;
+	}
+
+	public set right(right: number) {
+		this.rightEdge = right;
+		this.rect.x = right - this.rect.width;
+	}
+
+	/** The box's width as last measured for the text it shows; 0 while it shows nothing. */
+	public get width(): number {
+		return this.shown ? this.rect.width : 0;
 	}
 
 	/** Sized to its text, measured only when the text changed; a no-op until the draw API can measure. */
@@ -66,7 +89,7 @@ export class StatusTagDraw {
 		const text = this.label.text;
 		if (text === this.measuredText || !draw?.canMeasureText('mono')) return;
 		const width = text ? draw.measureText({ text, font: 'mono', size: TAG.size, letterSpacing: TAG.letterSpacing, wrap: 'none' }).width + TAG.padding * 2 : 0;
-		this.rect.x = this.right - width;
+		this.rect.x = this.rightEdge - width;
 		this.rect.width = width;
 		this.measuredText = text;
 	}

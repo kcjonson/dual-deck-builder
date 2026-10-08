@@ -10,6 +10,7 @@ import { tokens } from '../../../engine/theme/tokens';
 // ?scene= gallery show the same things (R13.30).
 import { developerSections } from './sections';
 import { SECTION_INSET } from './DeveloperSectionPanel';
+import { INSPECT_KEYS, inspectHotkey } from '../../ui/cardInspect';
 
 /** Around the sections inside the scroll container. */
 const SECTION_MARGIN = 40;
@@ -84,12 +85,14 @@ export class DeveloperScreen extends Screen {
 		hotkeys.register('Escape', () => this.back());
 		hotkeys.register('PageDown', () => this.scroller?.scrollByPages(1));
 		hotkeys.register('PageUp', () => this.scroller?.scrollByPages(-1));
+		// The card sections' detail views say I pins them, as it does on the game's screens
+		for (const key of INSPECT_KEYS) hotkeys.register(key, () => inspectHotkey(this.context));
 		this.context.focus.focus(back);
 	}
 
 	protected onUnmount(): void {
 		const { hotkeys } = this.rootLayer;
-		for (const key of ['Escape', 'PageDown', 'PageUp']) hotkeys.unregister(key);
+		for (const key of ['Escape', 'PageDown', 'PageUp', ...INSPECT_KEYS]) hotkeys.unregister(key);
 		this.stack.clearChildren();
 		this.scroller = null;
 	}

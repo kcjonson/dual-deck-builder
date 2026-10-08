@@ -6,7 +6,7 @@ The game is a campaign: the player runs a compound and sends supply runs out fro
 
 ### 1.1 Main Menu → New Campaign
 
-When a player launches the game, they'll see the main menu. "New Campaign" is the largest and most visually prominent button: it founds a compound on a freshly generated area map ([Area Map Generation](./Area%20Map%20Generation.md)) and opens the compound screen. Below it, if a campaign is in progress, "Continue" shows its state (e.g., "Day 12 - 3 drivers - 1 stronghold taken"). At the bottom, "Campaign History" lists past campaigns: days survived, strongholds taken, unlocks earned, and how the compound fell.
+When a player launches the game, they'll see the main menu. "New Campaign" is the largest and most visually prominent button: it founds a compound on a freshly generated area map ([Area Map Generation](./Area%20Map%20Generation.md)) and opens the compound screen. Below it, if a campaign is in progress, "Continue" shows its state (e.g., "Day 12 - 3 drivers - 1 stronghold taken"). A damaged save is kept rather than deleted, and Continue says why instead of opening it. A save from a version of the game with another save format can't be continued: the menu says so where Continue would be, and New Campaign replaces it. At the bottom, "Campaign History" lists past campaigns: days survived, strongholds taken, unlocks earned, and how the compound fell.
 
 There will need to be buttons to see what cards have been (the original note stops here).
 
@@ -328,6 +328,11 @@ Drivers and escorts are cards too, each with an edge no play card has, so a glan
 | Escort card | 80 x 112 | hazard-stripe header | art, name, structure bar, the signature card it brings, a status tag (staying) | load out's escorts, the garage's convoy strip, escort offers in events |
 
 The driver card is a little bigger than a play card's mini size because it's a person, and it sits beside their deck. The escort card is mini size so it lines up with the cards it adds. Both open their own detail view on hover (a driver's full stats and deck; an escort's profile and signature card).
+
+- A driver card's tag says where they stand: INJURED, LOST, NEW, SEAT 1, or SEAT 2. A run deck customized at load out adds a CUSTOM tag beside it, so a seated driver in the pool can show SEAT 1 and CUSTOM at once; a seat's own card shows CUSTOM alone.
+- A lost driver's card is always faded, and how they went ("KILLED DAY 9") takes the specialty's place. Any driver who can't be picked where they're shown is faded too, with the reason on the control under the card, as for minis: an injured driver at load out, but not on the Crew screen, where their deck can still be worked on.
+- The name gets two lines' room whether it needs them or not, so cards in a row keep their specialty, HP bar, and foot level.
+- A driver's detail view: the portrait, name, vehicle, and specialty; HP, hand limit, and skills; then the deck as mini cards, cheapest first, in at most three rows, which holds a 24-card run deck on a 1024x600 screen; then a foot with the note and how to pin it. It opens and pins as a play card's does ([driver-card.md](../AI_TECHNICAL_DECISIONS/driver-card.md)).
 
 ### 7.1 Information Hierarchy in Action
 
