@@ -1,9 +1,7 @@
 import { CatalogSection } from './CatalogSection';
 import type { DeveloperSectionOptions } from './DeveloperSectionPanel';
-import { Stack } from '../../../engine/components/Stack';
-import { Text } from '../../../engine/components/Text';
-import { tokens } from '../../../engine/theme/tokens';
-import { Card as UICard, CardSize, MINI_CARD_INK, MINI_GRID, MiniCardState } from '../../ui/Card';
+import type { Stack } from '../../../engine/components/Stack';
+import { Card as UICard, CardSize, MINI_CARD_INK, MiniCardState } from '../../ui/Card';
 import { inspectOnContextMenu, makeInspectable } from '../../ui/cardInspect';
 import { sampleCard } from './CardDetailSection';
 
@@ -52,8 +50,7 @@ export class CardMinisSection extends CatalogSection {
 
 	/** Captioned minis side by side, spaced as any grid of minis is (`MINI_GRID`). */
 	private row(id: string, cases: readonly MiniCase[], driver: 1 | 2 | null): Stack {
-		const row = new Stack({ id, direction: 'horizontal', gap: MINI_GRID.gap, margin: MINI_GRID.margin, focusGroup: { orientation: 'horizontal' } });
-		for (const entry of cases) {
+		const cells = cases.map((entry) => {
 			const card = new UICard({
 				id: `dev_card_mini_${entry.id}`,
 				x: 0,
@@ -66,16 +63,8 @@ export class CardMinisSection extends CatalogSection {
 			});
 			card.focusable = true;
 			makeInspectable(card);
-			const cell = new Stack({ gap: MINI_CARD_INK + tokens.space.space_2 });
-			cell.addChild(card);
-			cell.addChild(new Text({
-				text: entry.caption,
-				width: CAPTION_WIDTH,
-				style: { fontSize: tokens.fontSize.fs_sm, color: 'text_dim' },
-				wrap: 'word',
-			}));
-			row.addChild(cell);
-		}
-		return row;
+			return { item: card, caption: entry.caption };
+		});
+		return this.captionedRow({ id, cells, ink: MINI_CARD_INK, captionWidth: CAPTION_WIDTH });
 	}
 }
