@@ -88,4 +88,4 @@ Option rejected: per-driver card ownership with no shared locker. Cards would be
 
 ## Open
 
-Listed in the specs' open questions: what wins the campaign, whether shortages alone can end it, deck size limits, driver names, night rules, found vehicles, mid-route branching, starting pool size, map size, rivers, and the noise dependency.
+Listed in the specs' open questions: what wins the campaign, whether shortages alone can end it, deck size limits, driver names, night rules, found vehicles, mid-route branching, starting pool size, map size, and rivers. The noise dependency is settled in [terrain-fields.md](./terrain-fields.md).
