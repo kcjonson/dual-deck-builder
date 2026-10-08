@@ -33,7 +33,9 @@ export interface ValidatedMapParams {
  * environment with Mixed and a number that isn't one with the environment's
  * default; rounds whole-number parameters and clamps every value into its
  * tuning range; then clamps the combinations the generator can't honour.
- * Stop tables are copied through for the stops stage to check.
+ * Stop tables are copied through as plain JSON for the stops stage to check
+ * their shape; anything in them JSON can't hold throws, naming its path
+ * (`copyJson`), since there's no value to clamp it to.
  */
 export function validateMapParams(params: MapParams): ValidatedMapParams {
 	const valid: MapParams = { ...params };

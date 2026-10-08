@@ -207,4 +207,11 @@ describe('resolveMapParams', () => {
 		expect(() => environmentDefaults(environment)).toThrow(message);
 		expect(() => resolveMapParams({ seed: 1, environment })).toThrow(message);
 	});
+
+	it('takes only a missing environment as Mixed, not a null one', () => {
+		expect(resolveMapParams({ seed: 1, environment: undefined }).params.environment).toBe('mixed');
+		expect(() => resolveMapParams({ seed: 1, environment: null as unknown as Environment })).toThrow(
+			new RangeError('environment must be one of highDesert, rustBelt, floodlands, badlands, mixed, got null'),
+		);
+	});
 });

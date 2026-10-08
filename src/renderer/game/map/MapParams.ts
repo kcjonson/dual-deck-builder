@@ -355,14 +355,16 @@ export interface ResolvedMapParams {
 
 /**
  * A parameter set filled out: the environment's defaults with the set's
- * overrides over them, and a copy of its stop tables. Validation is separate
+ * overrides over them, and a plain JSON copy of its stop tables, which throws
+ * on anything in them JSON can't hold, naming its path. Validation is separate
  * (`validateMapParams`), so a value outside its range comes back as it was
  * set; `validateMapParamSet` does both, with sources for the values it
  * returns, which is what the Map Lab shows. Throws on an environment that
  * isn't one, as `environmentDefaults` does.
  */
 export function resolveMapParams(set: MapParamSet): ResolvedMapParams {
-	const environment = set.environment ?? MAP_PARAMETERS.environment.default;
+	// Only absent means Mixed: a null goes on to be refused like any other name that isn't one.
+	const environment = set.environment === undefined ? MAP_PARAMETERS.environment.default : set.environment;
 	const values = environmentDefaults(environment);
 	const preset: Partial<Record<NumberParam, number>> = ENVIRONMENT_PRESETS[environment];
 	const sources = {} as Record<NumberParam, ParamSource>;

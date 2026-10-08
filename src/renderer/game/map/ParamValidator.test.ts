@@ -152,6 +152,12 @@ describe('validateMapParams', () => {
 		expect(input.radius).toBe(5000);
 		expect(result.params.stopTables).toStrictEqual({ trail: { hazard: 2 } });
 	});
+
+	it('throws on stop tables JSON can\'t hold, naming the path, since there\'s nothing to clamp them to', () => {
+		expect(() => validateMapParams(params({ stopTables: { trail: { hazard: NaN } } }))).toThrow(
+			new RangeError('stopTables.trail.hazard must be a finite number, got NaN'),
+		);
+	});
 });
 
 describe('validateMapParamSet', () => {

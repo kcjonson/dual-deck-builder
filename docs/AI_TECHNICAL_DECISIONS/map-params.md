@@ -40,6 +40,8 @@ Storing every value instead would reproduce a map through any later tuning of th
 
 `validateMapParams` returns the clamped parameters and a list of clamps (parameter, from, to, reason), which `describeClamp` words for the readout: "highways raised to 6 (strongholds + 2)", "seed wrapped to 5 (uint32)". Past clamping into tuning ranges it rounds whole-number parameters, puts the environment's default in place of a value that isn't a number, swaps an unknown environment for Mixed, and wraps the seed to uint32 the way the PRNG coerces it, so validating a seed never changes the map it makes.
 
+Stop tables aren't clamped: the validator copies them as plain JSON, and anything in them JSON can't hold (NaN, a Date, a cycle) throws, naming its path, since there's no value to put in its place.
+
 Two combinations are clamped. `highways` is raised to `strongholds` plus 2, as the spec says. And `highwaySeparation` is lowered to 360 / `highways`: nine departures can't each sit 60 degrees from the next, and the tuning ranges allow both.
 
 The first rule leaves two things open (Area Map Generation, open questions). The tuning ranges allow 8 strongholds against at most 9 highways, so the validator lowers `strongholds` to 7 first when that's the only way, a stand-in that keeps a value the slider offers out of reach. And with `strongholds` at least 2, `highways` 3 never survives validation, a notch on its slider that does nothing. Narrowing the tuning ranges would settle both; until that's decided the stand-in stays.
