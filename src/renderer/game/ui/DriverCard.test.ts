@@ -1,0 +1,476 @@
+/**
+ * @jest-environment jsdom
+ */
+import { Text } from '../../engine/components/Text';
+import { Container } from '../../engine/components/Container';
+import { createMeasuringDrawApi } from '../../engine/text/testing';
+import { createTestContext } from '../../engine/components/testing';
+import { advance, key, pointer, send } from '../../engine/services/testing';
+import type { MountContext } from '../../engine/components/MountContext';
+import { Clock } from '../../engine/animation/Clock';
+import { renderTree } from '../../engine/components/renderTree';
+import { layoutLint } from '../../engine/debug/layoutLint';
+import { treeSnapshot } from '../../engine/debug/treeSnapshot';
+import { tokens } from '../../engine/theme/tokens';
+import type { RGBA, Rect } from '../../engine/draw/geometry';
+import { Card as GameCard, CardData } from '../mechanics/Card';
+import { DRIVER_CONFIGS, DriverArchetype } from '../mechanics/Driver';
+import cardsFile from '../data/cards.json';
+import { DRIVER_HP_COLOR, hexRgba } from '../screens/combat/combatStyle';
+import { MINI_GRID } from './Card';
+import { CARD_GROUND_FILLS } from './cardStyle';
+import { DRIVER_CARD_INK, DRIVER_CARD_SIZE, DriverCard, DriverCardStatus } from './DriverCard';
+import { DriverInspectSurface, INSPECT_KEYS, inspectHotkey, inspectOnContextMenu, makeDriverInspectable } from './cardInspect';
+import { CardLookup } from './DriverDetailView';
+import { DriverCardData, driverCardData } from './driverCardData';
+
+const cardData = (cardsFile as unknown as { cards: CardData[] }).cards;
+const lookup: CardLookup = (type) => {
+	const data = cardData.find((entry) => entry.type === type);
+	return data ? new GameCard({ ...data }) : null;
+};
+
+const ARCHETYPES = Object.keys(DRIVER_CONFIGS) as DriverArchetype[];
+const STATUSES: readonly (DriverCardStatus | null)[] = [null, 'injured', 'lost', 'new', 'seat1', 'seat2'];
+const HP_FULL = hexRgba(DRIVER_HP_COLOR);
+
+interface Recorded {
+	kind: string;
+	id?: string | null;
+	text?: string;
+	rect?: Rect;
+	box?: Rect | null;
+	center?: { x: number; y: number };
+	radius?: number | readonly number[] | null;
+	border?: { color: RGBA; width: number } | null;
+	fill?: RGBA | null;
+}
+
+let measuring: ReturnType<typeof createMeasuringDrawApi>;
+let context: MountContext;
+
+beforeEach(() => {
+	measuring = createMeasuringDrawApi();
+	context = createTestContext({ draw: measuring.api, clock: new Clock() });
+});
+
+/** Mounted and laid out, so its words and tags have measured through the context (R1.6). */
+function mount(data: DriverCardData, options: { status?: DriverCardStatus | null; customDeck?: boolean; unavailable?: boolean } = {}): DriverCard {
+	const card = new DriverCard({ id: 'card', data, ...options });
+	card.mount(context);
+	context.frame.layout();
+	return card;
+}
+
+function part(card: DriverCard, suffix: string): Text {
+	const found = card.children.find((child) => child.id === `card_${suffix}`);
+	if (!(found instanceof Text)) throw new Error(`no ${suffix}`);
+	return found;
+}
+
+/** One frame of the card's drawing. */
+function frame(card: DriverCard): Recorded[] {
+	const { api, backend } = measuring;
+	context.frame.layout();
+	api.beginFrame({ viewport: { width: 400, height: 400 } });
+	renderTree(card, api);
+	api.endFrame();
+	return [...backend.commands] as unknown as Recorded[];
+}
+
+const texts = (commands: Recorded[]): string[] => commands.flatMap((command) => (command.kind === 'text' && command.text ? [command.text] : []));
+const tagBoxes = (commands: Recorded[]): Rect[] => commands.flatMap((command) => (command.kind === 'rect' && command.rect && command.rect.y < 0 && command.rect.height === 13 ? [command.rect] : []));
+const hpFills = (commands: Recorded[]): Rect[] => commands.flatMap((command) => (command.kind === 'rect' && command.rect && command.fill && command.fill.every((channel, index) => channel === HP_FULL[index]) ? [command.rect] : []));
+
+describe('Driver card (Game Flow 7.0)', () => {
+	it('is 104x146, a little bigger than a mini card', () => {
+		expect(DRIVER_CARD_SIZE).toEqual({ width: 104, height: 146 });
+		const card = mount(driverCardData({ archetype: 'road_warrior' }));
+		expect([card.width, card.height]).toEqual([104, 146]);
+	});
+
+	it('shows the name, specialty, HP, hand limit, and deck size its data gives', () => {
+		const card = mount(driverCardData({ archetype: 'interceptor', hitpoints: 22 }));
+		expect(part(card, 'name').text).toBe('THE INTERCEPTOR');
+		expect(part(card, 'specialty').text).toBe('AGILE STRIKER');
+		expect(part(card, 'hp').text).toBe('22/25');
+		expect(part(card, 'hand').text).toBe('HAND 7');
+		expect(part(card, 'deck').text).toBe('DECK 11');
+	});
+
+	it('wraps a long name to a second line and keeps a short one on the first, the lines under it level either way', () => {
+		const warrior = mount(driverCardData({ archetype: 'road_warrior' }));
+		const interceptor = mount(driverCardData({ archetype: 'interceptor' }));
+		expect(part(warrior, 'name').measured?.lines).toBe(2);
+		expect(part(interceptor, 'name').measured?.lines).toBe(1);
+		for (const suffix of ['name', 'specialty', 'hp', 'hand', 'deck']) {
+			expect(part(warrior, suffix).y).toBe(part(interceptor, suffix).y);
+		}
+	});
+
+	it('fits every archetype\'s words and figures whole, a campaign name on one line, and two-digit stats', () => {
+		const cases = [
+			...ARCHETYPES.map((archetype) => driverCardData({ archetype })),
+			driverCardData({ archetype: 'road_warrior', name: 'Road Warrior 2' }),
+			driverCardData({ archetype: 'interceptor', name: 'Interceptor 12', handLimit: 10, deck: { ramming_speed: 20 } }),
+			driverCardData({ archetype: 'mechanic', hitpoints: 9 }),
+		];
+		for (const data of cases) {
+			const card = mount(data);
+			for (const suffix of ['name', 'specialty', 'hp', 'hand', 'deck']) {
+				expect([data.name, suffix, part(card, suffix).overflowOutcome]).toEqual([data.name, suffix, 'none']);
+			}
+			card.unmount();
+		}
+		expect(part(mount(driverCardData({ archetype: 'road_warrior', name: 'Road Warrior 2' })), 'name').measured?.lines).toBe(1);
+	});
+
+	it('cuts a name too long for two lines with an ellipsis', () => {
+		const card = mount(driverCardData({ archetype: 'raider', name: 'The Last Raider Who Drove the Whole Wasteland Alone' }));
+		expect(part(card, 'name').overflowOutcome).toBe('ellipsis');
+	});
+
+	it('shows a note in the specialty\'s place, in capitals', () => {
+		const card = mount(driverCardData({ archetype: 'raider', hitpoints: 0, note: 'Killed day 9' }), { status: 'lost' });
+		const specialty = part(card, 'specialty');
+		expect(specialty.text).toBe('Killed day 9');
+		expect(specialty.style.textTransform).toBe('uppercase');
+	});
+
+	it('fills the HP bar in the driver HP hue by the share left, the same length on every card, and an empty bar not at all', () => {
+		const full = hpFills(frame(mount(driverCardData({ archetype: 'road_warrior' }))));
+		const hurt = hpFills(frame(mount(driverCardData({ archetype: 'interceptor', hitpoints: 22 }))));
+		expect(full).toHaveLength(1);
+		expect(hurt).toHaveLength(1);
+		expect(hurt[0].x).toBe(full[0].x);
+		expect(hurt[0].width).toBeCloseTo(full[0].width * (22 / 25), 5);
+		expect(hpFills(frame(mount(driverCardData({ archetype: 'raider', hitpoints: 0 }), { status: 'lost' })))).toEqual([]);
+		// Past the maximum the bar is full, not longer
+		expect(hpFills(frame(mount(driverCardData({ archetype: 'raider', hitpoints: 50 }))))[0].width).toBe(full[0].width);
+	});
+
+	it.each(STATUSES.filter((status): status is DriverCardStatus => status !== null))('tags %s on the top edge, hanging past the right one', (status) => {
+		const card = mount(driverCardData({ archetype: 'mechanic' }), { status });
+		const commands = frame(card);
+		const label = { injured: 'INJURED', lost: 'LOST', new: 'NEW', seat1: 'SEAT 1', seat2: 'SEAT 2' }[status];
+		expect(texts(commands)).toContain(label);
+		const [box] = tagBoxes(commands);
+		expect(box.y).toBe(-7);
+		expect(box.x + box.width).toBeCloseTo(108);
+		expect(card.drawnText).toEqual([label]);
+	});
+
+	it('stands CUSTOM left of a seat\'s tag, clear of it and inside the top edge, and at the corner on its own', () => {
+		const seated = mount(driverCardData({ archetype: 'interceptor' }), { status: 'seat2', customDeck: true });
+		const [seat, custom] = tagBoxes(frame(seated));
+		expect(seated.drawnText).toEqual(['SEAT 2', 'CUSTOM']);
+		expect(seat.x + seat.width).toBeCloseTo(108);
+		expect(custom.x + custom.width).toBeCloseTo(seat.x - 3);
+		expect(custom.x).toBeGreaterThan(0);
+
+		const widest = mount(driverCardData({ archetype: 'mechanic' }), { status: 'injured', customDeck: true });
+		const [injured, alsoCustom] = tagBoxes(frame(widest));
+		expect(alsoCustom.x + alsoCustom.width).toBeLessThan(injured.x);
+		expect(alsoCustom.x).toBeGreaterThan(0);
+
+		const alone = mount(driverCardData({ archetype: 'interceptor' }), { customDeck: true });
+		const [only] = tagBoxes(frame(alone));
+		expect(alone.drawnText).toEqual(['CUSTOM']);
+		expect(only.x + only.width).toBeCloseTo(108);
+	});
+
+	it('moves CUSTOM to the corner and back as the seat comes and goes', () => {
+		const card = mount(driverCardData({ archetype: 'interceptor' }), { status: 'seat1', customDeck: true });
+		card.status = null;
+		const [corner] = tagBoxes(frame(card));
+		expect(corner.x + corner.width).toBeCloseTo(108);
+		card.status = 'seat1';
+		const [seat, custom] = tagBoxes(frame(card));
+		expect(custom.x + custom.width).toBeCloseTo(seat.x - 3);
+		card.customDeck = false;
+		expect(tagBoxes(frame(card))).toHaveLength(1);
+		expect(card.drawnText).toEqual(['SEAT 1']);
+	});
+
+	it('fades a lost driver always and an unavailable one, through colours rather than opacity; injured alone stays at full strength', () => {
+		const ground = (card: DriverCard): RGBA | null | undefined => frame(card).find((command) => command.kind === 'rect' && command.id === 'card')?.fill;
+		const lost = mount(driverCardData({ archetype: 'raider', hitpoints: 0 }), { status: 'lost' });
+		const unavailable = mount(driverCardData({ archetype: 'road_warrior' }), { unavailable: true });
+		const injured = mount(driverCardData({ archetype: 'mechanic', hitpoints: 18 }), { status: 'injured' });
+		const injuredAway = mount(driverCardData({ archetype: 'mechanic', hitpoints: 18 }), { status: 'injured', unavailable: true });
+		for (const card of [lost, unavailable, injuredAway]) {
+			expect(card.faded).toBe(true);
+			expect(card.opacity).toBe(1);
+			expect(ground(card)).toEqual(CARD_GROUND_FILLS.dimmed);
+		}
+		expect(injured.faded).toBe(false);
+		expect(ground(injured)).toEqual(CARD_GROUND_FILLS.full);
+		const name = (card: DriverCard): RGBA => part(card, 'name').color;
+		expect(name(lost)).not.toEqual(name(injured));
+
+		unavailable.unavailable = false;
+		expect(unavailable.faded).toBe(false);
+		expect(ground(unavailable)).toEqual(CARD_GROUND_FILLS.full);
+		lost.status = 'new';
+		expect(lost.faded).toBe(false);
+	});
+
+	it('stays enabled and focusable when faded, since its detail view still opens', () => {
+		const card = mount(driverCardData({ archetype: 'raider', hitpoints: 0 }), { status: 'lost' });
+		card.focusable = true;
+		expect(card.effectivelyEnabled).toBe(true);
+		expect(card.canReceiveFocus()).toBe(true);
+	});
+
+	it('outlines in the interaction yellow on hover and keyboard focus, in bright yellow at 3 px when selected, and not while disabled', () => {
+		const card = mount(driverCardData({ archetype: 'road_warrior' }));
+		const outline = (): { color: RGBA; width: number } | null | undefined => frame(card).find((command) => command.kind === 'rect' && command.id === 'card')?.border;
+		const resting = outline();
+		card.hovered = true;
+		expect(outline()).toEqual({ color: tokens.color.accent, width: 2, position: 'inside' });
+		card.hovered = false;
+		expect(outline()).toEqual(resting);
+		card.focusable = true;
+		context.focus.pushScope(card);
+		context.focus.focus(card, 'keyboard');
+		expect(outline()?.color).toEqual(tokens.color.accent);
+		context.focus.blur();
+		context.focus.popScope(card);
+		card.selected = true;
+		expect(outline()).toEqual({ color: tokens.color.accent_bright, width: 3, position: 'inside' });
+		card.selected = false;
+		card.enabled = false;
+		card.hovered = true;
+		expect(outline()?.color).not.toEqual(tokens.color.accent);
+		expect(card.resolvedColors.fill).toEqual(CARD_GROUND_FILLS.dimmed);
+	});
+
+	it('selects on a click and on Enter when focused, with the data it shows, and shows the pointer only once something listens', () => {
+		const data = driverCardData({ archetype: 'mechanic' });
+		const card = mount(data);
+		expect(card.cursor).toBeNull();
+		const picked: DriverCardData[] = [];
+		card.onSelect = (selected) => picked.push(selected);
+		expect(card.cursor).toBe('pointer');
+		send(context, [pointer('down', 50, 70), pointer('up', 50, 70)]);
+		expect(picked).toEqual([data]);
+		card.focusable = true;
+		context.focus.pushScope(card);
+		context.focus.focus(card, 'keyboard');
+		send(context, [key('Enter'), key('Enter', 'up')]);
+		expect(picked).toEqual([data, data]);
+		context.focus.popScope(card);
+	});
+
+	it('shows another driver in place, measuring only the words that changed', () => {
+		const card = mount(driverCardData({ archetype: 'interceptor', hitpoints: 22 }));
+		const children = [...card.children];
+		const measured = jest.spyOn(measuring.api, 'measureText');
+		card.data = driverCardData({ archetype: 'interceptor', hitpoints: 12 });
+		context.frame.layout();
+		expect(card.children).toEqual(children);
+		expect(part(card, 'hp').text).toBe('12/25');
+		expect(measured.mock.calls.map(([options]) => options.text)).toEqual(['12/25']);
+		measured.mockRestore();
+		card.data = driverCardData({ archetype: 'mechanic', deck: { repair_kit: 3 } });
+		expect(part(card, 'name').text).toBe('THE MECHANIC');
+		expect(part(card, 'deck').text).toBe('DECK 3');
+	});
+
+	it('hands the draw API the same objects every frame, and measures its tags once each', () => {
+		const card = new DriverCard({ id: 'card', data: driverCardData({ archetype: 'interceptor', hitpoints: 22 }), status: 'seat2', customDeck: true });
+		const measured = jest.spyOn(measuring.api, 'measureText');
+		card.mount(context);
+		context.frame.layout();
+		const handed: unknown[][] = [];
+		for (let index = 0; index < 3; index++) {
+			const calls: unknown[] = [];
+			const record = (options: unknown): void => { calls.push(options); };
+			const spies = [
+				jest.spyOn(measuring.api, 'drawRect').mockImplementation(record),
+				jest.spyOn(measuring.api, 'drawCircle').mockImplementation(record),
+				jest.spyOn(measuring.api, 'drawText').mockImplementation(record),
+			];
+			card.render(measuring.api);
+			for (const spy of spies) spy.mockRestore();
+			handed.push(calls);
+			card.invalidateLayout();
+			context.frame.layout();
+		}
+		expect(handed[0].length).toBeGreaterThan(0);
+		for (const calls of handed.slice(1)) {
+			expect(calls).toHaveLength(handed[0].length);
+			calls.forEach((options, index) => expect(options).toBe(handed[0][index]));
+		}
+		const tags = measured.mock.calls.filter(([options]) => options.text === 'SEAT 2' || options.text === 'CUSTOM');
+		expect(tags.map(([options]) => options.text).sort()).toEqual(['CUSTOM', 'SEAT 2']);
+		measured.mockRestore();
+	});
+
+	it('draws nothing further than DRIVER_CARD_INK past its box, however it is tagged', () => {
+		expect(DRIVER_CARD_INK).toBe(7);
+		for (const status of STATUSES) {
+			const card = mount(driverCardData({ archetype: 'mechanic' }), { status, customDeck: true });
+			expect(card.inkExtent).toBe(DRIVER_CARD_INK);
+			for (const command of frame(card)) {
+				const box = command.rect ?? command.box ?? null;
+				const center = command.center;
+				const radius = typeof command.radius === 'number' ? command.radius : 0;
+				const xs = box ? [box.x, box.x + box.width] : center ? [center.x - radius, center.x + radius] : [];
+				const ys = box ? [box.y, box.y + box.height] : center ? [center.y - radius, center.y + radius] : [];
+				for (const x of xs) expect([status, x >= -DRIVER_CARD_INK && x <= 104 + DRIVER_CARD_INK]).toEqual([status, true]);
+				for (const y of ys) expect([status, y >= -DRIVER_CARD_INK && y <= 146 + DRIVER_CARD_INK]).toEqual([status, true]);
+			}
+		}
+	});
+
+	it('is spaced clear of its neighbours\' tags by MINI_GRID, as minis are', () => {
+		expect(MINI_GRID.gap).toBeGreaterThanOrEqual(DRIVER_CARD_INK * 2);
+		expect(MINI_GRID.margin).toBeGreaterThanOrEqual(DRIVER_CARD_INK);
+	});
+
+	it('takes the pointer on its tags, as on its body', () => {
+		const card = mount(driverCardData({ archetype: 'interceptor' }), { status: 'seat2', customDeck: true });
+		const [seat, custom] = tagBoxes(frame(card));
+		expect(card.containsPoint(106, -3)).toBe(true);
+		expect(card.containsPoint(custom.x + 1, -3)).toBe(true);
+		expect(card.containsPoint(seat.x - 1.5, -3)).toBe(false);
+		expect(card.containsPoint(10, -3)).toBe(false);
+		expect(card.containsPoint(110, 20)).toBe(false);
+		expect(mount(driverCardData({ archetype: 'interceptor' })).containsPoint(106, -3)).toBe(false);
+	});
+
+	it('draws its own focus ring, once, under its tags', () => {
+		const card = mount(driverCardData({ archetype: 'mechanic' }), { status: 'injured' });
+		expect(card.drawsOwnFocusRing).toBe(true);
+		card.focusable = true;
+		context.focus.pushScope(card);
+		context.focus.focus(card, 'keyboard');
+		const commands = frame(card);
+		const rings = commands.filter((command) => command.id === 'card.focus_ring');
+		expect(rings).toHaveLength(1);
+		expect(commands.indexOf(rings[0])).toBeLessThan(commands.findIndex((command) => command.text === 'INJURED'));
+		context.focus.blur();
+		context.focus.popScope(card);
+		expect(frame(card).filter((command) => command.id === 'card.focus_ring')).toEqual([]);
+	});
+
+	it('forgets its walked group count when a tag or an emptied HP bar changes what it draws', () => {
+		const card = mount(driverCardData({ archetype: 'mechanic' }));
+		frame(card);
+		expect(card.walkedGroupCount).toBeGreaterThan(0);
+		card.status = 'injured';
+		expect(card.walkedGroupCount).toBe(-1);
+		frame(card);
+		card.customDeck = true;
+		expect(card.walkedGroupCount).toBe(-1);
+		frame(card);
+		card.data = driverCardData({ archetype: 'mechanic', hitpoints: 0 });
+		expect(card.walkedGroupCount).toBe(-1);
+	});
+
+	it('lints clean for every archetype with every tag, faded or not', () => {
+		for (const archetype of ARCHETYPES) {
+			for (const status of STATUSES) {
+				for (const customDeck of [false, true]) {
+					const card = mount(driverCardData({ archetype, hitpoints: 1 }), { status, customDeck, unavailable: customDeck });
+					const result = layoutLint(treeSnapshot([card], { width: 104, height: 146 }));
+					expect({ archetype, status, customDeck, violations: result.violations }).toEqual({ archetype, status, customDeck, violations: [] });
+					card.unmount();
+				}
+			}
+		}
+	});
+});
+
+describe('Driver card detail view, through the inspect path', () => {
+	/** A card in a container that handles the context menu, as a screen's roster would. */
+	function roster(data = driverCardData({ archetype: 'interceptor', hitpoints: 22 }), x = 20): { card: DriverCard; centre: { x: number; y: number } } {
+		const deck = new Container({ id: 'roster', x: 0, y: 0, width: 1440, height: 400 });
+		const card = new DriverCard({ id: 'card', x, y: 20, data });
+		card.focusable = true;
+		makeDriverInspectable(card, { cards: lookup });
+		deck.addChild(card);
+		inspectOnContextMenu(deck);
+		deck.mount(context);
+		context.frame.layout();
+		const box = card.screenBounds;
+		return { card, centre: { x: box.x + box.width / 2, y: box.y + box.height / 2 } };
+	}
+
+	function settleHidden(): void {
+		advance(context, tokens.motion.dur_tooltip_hide + 100);
+		expect(context.tooltips.surface).toBeNull();
+	}
+
+	it('opens on hover after the delay, at once on keyboard focus, and on a touch hold, for the card\'s own driver', () => {
+		const { card, centre } = roster();
+		send(context, [pointer('move', centre.x, centre.y)]);
+		advance(context, tokens.control.tooltip_delay + tokens.motion.dur_fast + 100);
+		expect(context.tooltips.owner).toBe(card);
+		const surface = context.tooltips.surface;
+		expect(surface).toBeInstanceOf(DriverInspectSurface);
+		if (surface instanceof DriverInspectSurface) expect(surface.view.data).toBe(card.data);
+		send(context, [pointer('move', 1200, 600)]);
+		settleHidden();
+
+		context.focus.pushScope(card.parent as Container);
+		context.focus.focus(card, 'keyboard');
+		context.frame.layout();
+		expect(context.tooltips.owner).toBe(card);
+		expect(context.tooltips.surface).toBeInstanceOf(DriverInspectSurface);
+		context.focus.popScope(card.parent as Container);
+		context.tooltips.hide();
+		settleHidden();
+
+		send(context, [pointer('down', centre.x, centre.y, { pointerType: 'touch', pointerId: 2 })]);
+		advance(context, 600);
+		expect(context.tooltips.owner).toBe(card);
+		expect(context.tooltips.surface).toBeInstanceOf(DriverInspectSurface);
+		send(context, [pointer('up', centre.x, centre.y, { pointerType: 'touch', pointerId: 2 })]);
+		context.tooltips.hide();
+	});
+
+	it('pins on a secondary click, its foot saying so, and lets go on the next', () => {
+		const { card, centre } = roster();
+		send(context, [pointer('down', centre.x, centre.y, { button: 2 }), pointer('up', centre.x, centre.y, { button: 2 })]);
+		expect(context.tooltips.pinned).toBe(card);
+		const surface = context.tooltips.surface;
+		expect(surface).toBeInstanceOf(DriverInspectSurface);
+		const texts = (surface as DriverInspectSurface).view.children.filter((child): child is Text => child instanceof Text).map((child) => child.text);
+		expect(texts).toContain('PINNED');
+		send(context, [pointer('down', centre.x, centre.y, { button: 2 }), pointer('up', centre.x, centre.y, { button: 2 })]);
+		expect(context.tooltips.pinned).toBeNull();
+	});
+
+	it('pins on I while its view shows or while it has focus, and lets go on the next I', () => {
+		const { card } = roster();
+		expect(INSPECT_KEYS).toContain('i');
+		context.focus.pushScope(card.parent as Container);
+		context.focus.focus(card, 'keyboard');
+		context.frame.layout();
+		expect(inspectHotkey(context)).toBe(true);
+		expect(context.tooltips.pinned).toBe(card);
+		expect(inspectHotkey(context)).toBe(true);
+		expect(context.tooltips.pinned).toBeNull();
+		context.focus.popScope(card.parent as Container);
+	});
+
+	it('rests on the screen\'s bottom edge, centred over the card and kept inside the screen', () => {
+		const middle = roster(driverCardData({ archetype: 'interceptor' }), 668);
+		context.tooltips.show(middle.card);
+		advance(context, tokens.motion.dur_fast + 50);
+		const surface = context.tooltips.surface as DriverInspectSurface;
+		const bounds = surface.screenBounds;
+		expect(bounds.x + bounds.width / 2).toBeCloseTo(middle.centre.x, 0);
+		expect(bounds.y + bounds.height).toBeCloseTo(882 - 10, 0);
+		context.tooltips.hide();
+		settleHidden();
+
+		const edge = roster(driverCardData({ archetype: 'interceptor' }), 0);
+		context.tooltips.show(edge.card);
+		advance(context, tokens.motion.dur_fast + 50);
+		expect((context.tooltips.surface as DriverInspectSurface).screenBounds.x).toBeCloseTo(8, 0);
+		context.tooltips.hide();
+	});
+});

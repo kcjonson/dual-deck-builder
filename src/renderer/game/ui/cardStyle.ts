@@ -105,25 +105,26 @@ export interface ToneFills {
 	dimmed: RGBA;
 }
 
-function tones(hex: string): ToneFills {
+/** A `#rrggbb` colour at full strength and darkened as a dimmed card's own draws take it. */
+export function toneFills(hex: string): ToneFills {
 	const full = hexRgba(hex);
 	return { full, dimmed: scale(full, DIM_BRIGHTNESS) };
 }
 
-export const COST_HEX_FILLS = tones(COST_HEX);
+export const COST_HEX_FILLS = toneFills(COST_HEX);
 export const COST_HEX_EDGE_FILL: RGBA = hexRgba(COST_HEX_EDGE);
-export const CARD_GROUND_FILLS = tones(CARD_GROUND);
-export const CARD_MUTED_FILLS = tones(CARD_MUTED);
-export const CARD_DIM_FILLS = tones(CARD_DIM);
+export const CARD_GROUND_FILLS = toneFills(CARD_GROUND);
+export const CARD_MUTED_FILLS = toneFills(CARD_MUTED);
+export const CARD_DIM_FILLS = toneFills(CARD_DIM);
 export const GEM_FILLS: Readonly<Record<CardRarity, ToneFills>> = {
-	starter: tones(RARITY_GEMS.starter),
-	common: tones(RARITY_GEMS.common),
-	uncommon: tones(RARITY_GEMS.uncommon),
-	rare: tones(RARITY_GEMS.rare),
-	legendary: tones(RARITY_GEMS.legendary),
-	signature: tones(RARITY_GEMS.signature),
+	starter: toneFills(RARITY_GEMS.starter),
+	common: toneFills(RARITY_GEMS.common),
+	uncommon: toneFills(RARITY_GEMS.uncommon),
+	rare: toneFills(RARITY_GEMS.rare),
+	legendary: toneFills(RARITY_GEMS.legendary),
+	signature: toneFills(RARITY_GEMS.signature),
 };
-export const DRIVER_MARK_FILLS: Readonly<Record<1 | 2, ToneFills>> = { 1: tones(DRIVER_COLORS[1]), 2: tones(DRIVER_COLORS[2]) };
+export const DRIVER_MARK_FILLS: Readonly<Record<1 | 2, ToneFills>> = { 1: toneFills(DRIVER_COLORS[1]), 2: toneFills(DRIVER_COLORS[2]) };
 
 /** How far a cost hex `size` across draws its outline past its box, on every side. */
 export function costHexInk(size: number): number {

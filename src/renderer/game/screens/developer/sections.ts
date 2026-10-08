@@ -29,6 +29,7 @@ import { CombatLogSection } from './CombatLogSection';
 import { CombatRoadSection } from './CombatRoadSection';
 import { CardDetailCapSection, CardDetailPinnedSection, CardDetailSection, CardFacesSection } from './CardDetailSection';
 import { CardMinisSection } from './CardMinisSection';
+import { DriverCardsSection, DriverDetailPinnedSection, DriverDetailSection } from './DriverCardSection';
 import { SliderTabsSection } from './SliderTabsSection';
 import { VehicleTokensSection } from './VehicleTokensSection';
 import { CombatTargetingSection } from './CombatTargetingSection';
@@ -215,6 +216,19 @@ export const developerSections: readonly DeveloperSection[] = [
 	{
 		name: 'card-minis',
 		build: (options) => new CardMinisSection(options),
+	},
+	// The driver card in every state, and its detail view (DDB-312), one view a scene so each fits 1024x600
+	{
+		name: 'driver-cards',
+		build: (options) => new DriverCardsSection(options),
+	},
+	{
+		name: 'driver-detail',
+		build: (options) => new DriverDetailSection(options),
+	},
+	{
+		name: 'driver-detail-pinned',
+		build: (options) => new DriverDetailPinnedSection(options),
 	},
 	// A card mid-drag over the road: ranges, outlines, ghost, hit check (DDB-138)
 	{

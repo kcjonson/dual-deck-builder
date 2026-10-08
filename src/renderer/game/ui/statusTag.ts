@@ -20,7 +20,7 @@ export const STATUS_TAG_HEIGHT = TAG.height;
  * is measured only when it changes, and an empty one draws nothing.
  */
 export class StatusTagDraw {
-	private readonly rightEdge: number;
+	private rightEdge: number;
 	private faded = false;
 	private readonly rect: Rect;
 	private readonly border: { color: RGBA; width: number } = { color: CARD_MUTED_FILLS.full, width: 1 };
@@ -65,6 +65,19 @@ export class StatusTagDraw {
 		this.box.fill = CARD_GROUND_FILLS[tone];
 		this.border.color = CARD_MUTED_FILLS[tone];
 		this.label.color = TAG_TEXT[tone];
+	}
+
+	/**
+	 * Where its right side sits in the owner's space, so an owner can stand
+	 * a second tag beside a first one. Moving it keeps the measured width.
+	 */
+	public get right(): number {
+		return this.rightEdge;
+	}
+
+	public set right(right: number) {
+		this.rightEdge = right;
+		this.rect.x = right - this.rect.width;
 	}
 
 	/** The box's width as last measured for the text it shows; 0 while it shows nothing. */

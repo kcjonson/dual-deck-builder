@@ -89,6 +89,24 @@ describe('StatusTagDraw', () => {
 		expect(frame(tag, measuring)[0].fill).toEqual(CARD_GROUND_FILLS.full);
 	});
 
+	it('moves to a new right edge keeping the width it measured, so a second tag can stand beside a first', () => {
+		const measuring = createMeasuringDrawApi();
+		const tag = new StatusTagDraw({ right: 108, y: -7 });
+		tag.text = 'CUSTOM';
+		tag.place(measuring.api);
+		const width = tag.width;
+		const measured = jest.spyOn(measuring.api, 'measureText');
+		tag.right = 60;
+		tag.place(measuring.api);
+		expect(tag.right).toBe(60);
+		expect(tag.width).toBe(width);
+		const box = frame(tag, measuring)[0].rect as Rect;
+		expect(box.x + box.width).toBeCloseTo(60);
+		expect(measured).not.toHaveBeenCalled();
+		expect(tag.contains(59, -3)).toBe(true);
+		expect(tag.contains(61, -3)).toBe(false);
+	});
+
 	it('reports the width it was measured at, and none while it shows nothing', () => {
 		const measuring = createMeasuringDrawApi();
 		const tag = new StatusTagDraw({ right: 84, y: -7 });

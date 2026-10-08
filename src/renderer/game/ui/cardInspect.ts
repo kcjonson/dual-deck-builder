@@ -7,6 +7,9 @@ import { TOOLTIP_ANCHOR_OFFSET } from '../../engine/services/TooltipService';
 import type { Card as GameCard } from '../mechanics/Card';
 import { Card as UICard } from './Card';
 import { CardInspectView, DETAIL, KEYWORD_PANEL, KeywordSide, inspectViewWidth } from './CardDetailView';
+import { DriverCard } from './DriverCard';
+import { CardLookup, DriverDetailView } from './DriverDetailView';
+import type { DriverCardData } from './driverCardData';
 
 /** The detail view rests this far above the screen's bottom edge, and keeps this far from its sides. */
 const SCREEN_MARGIN = 10;
@@ -21,6 +24,14 @@ export interface InspectableOptions {
 	scale?: () => number;
 	/** The driver whose card it is, for the frame colour; the card's own when absent. */
 	driver?: () => 1 | 2 | null;
+}
+
+/**
+ * The left edge of a view `width` wide centred over a card at
+ * `cardCentreX`, kept `margin` inside a screen `viewportWidth` wide.
+ */
+function centredOver({ cardCentreX, width, viewportWidth, margin }: { cardCentreX: number; width: number; viewportWidth: number; margin: number }): number {
+	return Math.max(margin, Math.min(cardCentreX - width / 2, viewportWidth - margin - width));
 }
 
 /**
@@ -39,7 +50,7 @@ export function inspectLayout({ cardCentreX, viewportWidth, scale, seat, hasKeyw
 }): { detailX: number; side: KeywordSide; viewX: number } {
 	const width = DETAIL.width * scale;
 	const margin = SIDE_MARGIN * scale;
-	const detailX = Math.max(margin, Math.min(cardCentreX - width / 2, viewportWidth - margin - width));
+	const detailX = centredOver({ cardCentreX, width, viewportWidth, margin });
 	if (!hasKeywords) return { detailX, side: 'right', viewX: detailX };
 	const panel = KEYWORD_PANEL.width * scale;
 	const offset = KEYWORD_PANEL.offset * scale;
@@ -50,28 +61,21 @@ export function inspectLayout({ cardCentreX, viewportWidth, scale, seat, hasKeyw
 }
 
 /**
- * The tooltip surface: the inspect view scaled into viewport pixels. The
- * outer box is the scaled size, which the tooltip service places; the
+ * A tooltip surface holding an inspect view, scaled into viewport pixels.
+ * The outer box is the scaled size, which the tooltip service places; the
  * view itself lays out in logical pixels inside a scaling frame.
  */
-export class CardInspectSurface extends Container {
-	public readonly view: CardInspectView;
+export class InspectSurface<View extends Component & { arrange(): void }> extends Container {
+	public readonly view: View;
 	private readonly frame: Component;
 	private readonly scaleValue: number;
 
-	constructor({ card, driver, pinned, keywordSide, scale }: {
-		card: GameCard;
-		driver: 1 | 2 | null;
-		pinned: boolean;
-		keywordSide: KeywordSide;
-		scale: number;
-	}) {
-		super({ id: 'card_detail', width: DETAIL.width * scale, height: DETAIL.maxHeight * scale });
-		this.componentType = 'CardInspectSurface';
+	constructor({ id, view, scale }: { id: string; view: View; scale: number }) {
+		super({ id, width: view.width * scale, height: view.height * scale });
 		this.scaleValue = scale;
-		this.view = new CardInspectView({ id: 'card_detail_inspect', card, driver, pinned, keywordSide });
-		this.frame = new Container({ width: DETAIL.width, height: DETAIL.maxHeight, transform: { scale, origin: [0, 0] } });
-		this.frame.addChild(this.view);
+		this.view = view;
+		this.frame = new Container({ width: view.width, height: view.height, transform: { scale, origin: [0, 0] } });
+		this.frame.addChild(view);
 		this.addChild(this.frame);
 	}
 
@@ -83,6 +87,37 @@ export class CardInspectSurface extends Container {
 		const scaledHeight = height * this.scaleValue;
 		if (this.width !== scaledWidth || this.height !== scaledHeight) this.setSize(scaledWidth, scaledHeight);
 	}
+}
+
+/** A play card's detail view and keyword boxes, as the inspector shows them. */
+export class CardInspectSurface extends InspectSurface<CardInspectView> {
+	constructor({ card, driver, pinned, keywordSide, scale }: {
+		card: GameCard;
+		driver: 1 | 2 | null;
+		pinned: boolean;
+		keywordSide: KeywordSide;
+		scale: number;
+	}) {
+		super({ id: 'card_detail', view: new CardInspectView({ id: 'card_detail_inspect', card, driver, pinned, keywordSide }), scale });
+		this.componentType = 'CardInspectSurface';
+	}
+}
+
+/** A driver card's detail view, as the inspector shows it. */
+export class DriverInspectSurface extends InspectSurface<DriverDetailView> {
+	constructor({ data, cards, pinned, scale }: { data: DriverCardData; cards: CardLookup; pinned: boolean; scale: number }) {
+		super({ id: 'driver_detail', view: new DriverDetailView({ id: 'driver_detail_view', data, cards, pinned }), scale });
+		this.componentType = 'DriverInspectSurface';
+	}
+}
+
+/**
+ * Where an inspect view rests: on the screen's bottom edge, `SCREEN_MARGIN`
+ * up, less the gap the tooltip service leaves between an owner anchor and
+ * its tooltip, its left edge at `x`.
+ */
+function restingAnchor({ x, viewportHeight, scale }: { x: number; viewportHeight: number; scale: number }): Rect {
+	return { x, y: viewportHeight - SCREEN_MARGIN * scale + TOOLTIP_ANCHOR_OFFSET, width: 0, height: 0 };
 }
 
 /**
@@ -104,9 +139,7 @@ export function makeInspectable(card: UICard, { scale = () => 1, driver = () => 
 			const bounds = card.screenBounds;
 			const hasKeywords = inspectViewWidth(card.data) > DETAIL.width;
 			const placed = inspectLayout({ cardCentreX: bounds.x + bounds.width / 2, viewportWidth: viewport.width, scale: factor, seat, hasKeywords });
-			// The bottom edge the view rests on, less the gap the service leaves
-			// between an owner anchor and its tooltip
-			anchor = { x: placed.viewX, y: viewport.height - SCREEN_MARGIN * factor + TOOLTIP_ANCHOR_OFFSET, width: 0, height: 0 };
+			anchor = restingAnchor({ x: placed.viewX, viewportHeight: viewport.height, scale: factor });
 			return new CardInspectSurface({
 				card: card.data,
 				driver: seat,
@@ -114,6 +147,43 @@ export function makeInspectable(card: UICard, { scale = () => 1, driver = () => 
 				keywordSide: placed.side,
 				scale: factor,
 			});
+		},
+		placement: { anchor: 'owner', side: 'top', align: 'start', ownerRect: () => anchor },
+		immediateOnFocus: true,
+		pinnable: true,
+	};
+}
+
+export interface DriverInspectableOptions {
+	/**
+	 * Where the deck's card types are looked up: the screen's loaded cards
+	 * (`(type) => CardLoader.getInstance().createCard(type)`). A type it
+	 * doesn't know is left out of the view's deck.
+	 */
+	cards: CardLookup;
+	/** Logical pixels to viewport pixels where the card lives, as for a play card; 1 when absent. */
+	scale?: () => number;
+}
+
+/**
+ * A driver card's detail view (Game Flow 7.0: their full stats and their
+ * deck), on the same path as a play card's: hover, keyboard focus, and a
+ * touch hold open it, a secondary click or I pins it, and it rests on the
+ * bottom of the screen centred over the card, growing upward. The view is
+ * built from the card's data each time it opens.
+ */
+export function makeDriverInspectable(card: DriverCard, { cards, scale = () => 1 }: DriverInspectableOptions): void {
+	let anchor: Rect = { x: 0, y: 0, width: 0, height: 0 };
+	card.tooltip = {
+		factory: () => {
+			const context = card.context;
+			const viewport = context?.viewport.logical ?? { width: 0, height: 0 };
+			const factor = scale();
+			const surface = new DriverInspectSurface({ data: card.data, cards, pinned: context?.tooltips.pinned === card, scale: factor });
+			const bounds = card.screenBounds;
+			const x = centredOver({ cardCentreX: bounds.x + bounds.width / 2, width: surface.width, viewportWidth: viewport.width, margin: SIDE_MARGIN * factor });
+			anchor = restingAnchor({ x, viewportHeight: viewport.height, scale: factor });
+			return surface;
 		},
 		placement: { anchor: 'owner', side: 'top', align: 'start', ownerRect: () => anchor },
 		immediateOnFocus: true,
@@ -129,20 +199,26 @@ export function toggleInspectPin(card: Component): void {
 	else tooltips.pin(card);
 }
 
+/** A play card at any size, or a driver card: what has a detail view to open. */
+function isCard(node: Component | null): node is UICard | DriverCard {
+	return node instanceof UICard || node instanceof DriverCard;
+}
+
 /** The inspectable card an event landed on, or under. */
-function cardAt(target: Component | null): UICard | null {
+function cardAt(target: Component | null): UICard | DriverCard | null {
 	for (let node = target; node; node = node.parent) {
-		if (node instanceof UICard) return node.tooltip ? node : null;
+		if (isCard(node)) return node.tooltip ? node : null;
 	}
 	return null;
 }
 
 /**
- * A secondary click on any inspectable card under `container` pins its
- * detail view, and a touch hold opens it (R9.30 synthesises both as
- * `contextmenu`). On the container rather than the card, since a disabled
- * card is skipped by delivery (R9.5) and an unaffordable card must still be
- * readable. `canPin` lets a screen refuse, as combat does mid-drag.
+ * A secondary click on any inspectable card under `container`, play card
+ * or driver card, pins its detail view, and a touch hold opens it (R9.30
+ * synthesises both as `contextmenu`). On the container rather than the
+ * card, since a disabled card is skipped by delivery (R9.5) and an
+ * unaffordable card must still be readable. `canPin` lets a screen refuse,
+ * as combat does mid-drag.
  */
 export function inspectOnContextMenu(container: Component, canPin: () => boolean = () => true): void {
 	const previous = container.onContextMenu;
@@ -170,8 +246,8 @@ export function inspectHotkey(context: MountContext): boolean {
 		tooltips.unpin();
 		return true;
 	}
-	const shown = tooltips.owner instanceof UICard ? tooltips.owner : null;
-	const focused = context.focus.focused instanceof UICard ? context.focus.focused : null;
+	const shown = isCard(tooltips.owner) ? tooltips.owner : null;
+	const focused = isCard(context.focus.focused) ? context.focus.focused : null;
 	const card = shown ?? focused;
 	if (!card?.tooltip) return false;
 	tooltips.pin(card);

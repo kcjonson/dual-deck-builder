@@ -14,6 +14,7 @@ import { tokens } from '../../engine/theme/tokens';
 import type { Driver } from '../mechanics/Driver';
 import { Vehicle as VehicleData } from '../mechanics/Vehicle';
 import { CombatModel } from '../screens/combat/CombatModel';
+import { DRIVER_HP_COLOR } from '../screens/combat/combatStyle';
 import { EnemyIntent, INTENT_PILL_HEIGHT, IntentRow } from './IntentPill';
 import { StatusChip, StatusChipContent, STATUS_CHIP_SIZE, shieldChipContent, statusChipContent } from './StatusChip';
 import { MARK_COLORS, TargetMark, TargetMarkDraw, seatMark } from './targetMarks';
@@ -108,7 +109,7 @@ const PLATE_EDGE = tokens.color.line_edge;
 const BAR_TRACK = resolveColor('#26292b');
 const STRUCTURE_FILL = resolveColor('#8fbf5c');
 const ARMOR_FILL = resolveColor('#a9bccd');
-const HP_FILL = resolveColor('#e7727a');
+const HP_FILL = resolveColor(DRIVER_HP_COLOR);
 const PASSENGER_FILL = resolveColor('#c9656c');
 const SPEED_COLOR = tokens.color.text_dim;
 /** A targetable raider, and the one the pointer is on (the mock's `.valid` and `.targeted`). */
