@@ -48,8 +48,8 @@ describe('foundCampaign', () => {
 			expect(pools.size).toBeGreaterThan(1);
 		});
 
-		// Model's constructor names every instance from Math.random (DDB-99), so
-		// founding reads it once per model it builds; none of it reaches the campaign.
+		// Held to its output rather than to the calls: anything founding builds
+		// that reads Math.random never reaches the campaign.
 		it('takes nothing from Math.random: the campaign comes out the same whatever it returns', () => {
 			const start: CampaignStart = { ...CAMPAIGN_START, escorts: ['med_truck', 'outrider'] };
 			const random = jest.spyOn(Math, 'random');
@@ -60,7 +60,6 @@ describe('foundCampaign', () => {
 				low = JSON.stringify(found({ start }));
 				random.mockReturnValue(0.9);
 				high = JSON.stringify(found({ start }));
-				expect(random).toHaveBeenCalled();
 			} finally {
 				random.mockRestore();
 			}

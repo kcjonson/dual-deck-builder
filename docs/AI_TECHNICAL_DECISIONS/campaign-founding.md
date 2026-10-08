@@ -76,7 +76,7 @@ The log's first line is "Founded the compound.", on day 1, the start of the camp
 
 ## Math.random
 
-What founding draws (the params and the deal) comes from seeded streams, and a test spies on `Math.random` around the deal and asserts it isn't called. A whole founding can't pass that test: Model's constructor names every instance from `Math.random` (DDB-99), and founding builds a campaign, a convoy, a record per driver, and an escort per starter. Those names never reach a save, so the founding test mocks `Math.random` to two different values and checks the campaign comes out the same, the second pattern the lint rule's comment gives.
+What founding draws (the params and the deal) comes from seeded streams, and a test spies on `Math.random` around the deal and asserts it isn't called. A whole founding is held to its output instead: the test mocks `Math.random` to two different values and checks the campaign comes out the same, the second pattern the lint rule's comment gives. So anything founding builds that reads `Math.random` can't reach the campaign, and the test doesn't depend on whether anything does.
 
 ## Consequences
 
