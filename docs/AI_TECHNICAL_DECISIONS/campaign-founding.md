@@ -70,7 +70,7 @@ The convoy starts empty because escorts come from events and the garage, and run
 
 ## Day 1, at dawn
 
-The model saves a day and no hour, and founding sets day 1. Hours only run on the road: a run leaves at dawn, and getting home, or resting, ends the day. So between runs the compound is always at the dawn of its day, and an hour field would always say 06:00. A run's clock starts at dawn (06:00), and dark is dawn plus the campaign's `daylightHours`.
+The model saves a day and no hour, and founding sets day 1. Hours only run on the road: a run leaves at dawn, and getting home, or resting, ends the day. So while it's one run a day (Compound and Supply Runs, open question 8), the compound between runs is always at the dawn of its day, and an hour field would always say 06:00. Two short runs in a day's light would need one. A run's clock starts at dawn (06:00), and dark is dawn plus the campaign's `daylightHours`.
 
 The log's first line is "Founded the compound.", on day 1, the start of the campaign's history.
 
@@ -80,6 +80,7 @@ What founding draws (the params and the deal) comes from seeded streams, and a t
 
 ## Consequences
 
+- The main menu's New Campaign (DDB-283) saves what `foundCampaign` returns. Founding stays pure: it builds a campaign and saves nothing.
 - The Map Lab (DDB-299) calls `foundCampaign({ seed: params.seed, unlockedArchetypes, mapParams: params })` with its validated params.
 - The generator's call replaces `MAP_STAND_IN` where `foundCampaign` marks it, along with the give-up path above: a loop round the params, the deal, and generation, or a typed error the caller founds again on.
 - If the player picks the pool (DDB-391), the pick replaces `dealStartingPool` in `foundCampaign`, or the deal becomes the suggestion it starts from. `poolSize` holds the size either way.

@@ -35,7 +35,7 @@ A campaign is founded from a seed and the archetypes unlocked so far, and the sa
 - The map parameters roll from the seed, and the area map is generated from both (Area Map Generation). A campaign started from the Map Lab founds on the Map Lab's seed and parameters instead.
 - The starting pool is dealt from the unlocked archetypes (see The driver pool), each driver with their archetype's starting deck as their default deck.
 - The stores start with a week of food and water for the starting settlers, fuel for a few runs, a few meds, and some scrap. The locker and the convoy start empty; a starter escort is a tuning option.
-- It's day 1, at dawn. The clock only runs on the road, so between runs the compound is always at the dawn of its day.
+- It's day 1, at dawn. The clock only runs on the road, so while it's one run a day (open question 8), the compound between runs is always at the dawn of its day.
 
 The pool size, the stores, and any starter escorts are starting values, kept for tuning in `src/renderer/game/data/campaign-start.json`.
 
