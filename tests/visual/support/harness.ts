@@ -115,22 +115,21 @@ export interface DevSurface {
  * reaches whatever reads `Math.random`, and cannot leak into a shipped build
  * because it lives in the test process. Game code reads it in one place,
  * `freshSeed()`, which mints every root seed, a fight's included when nothing
- * passes the battle a stream; reshuffles and random AI picks draw from
+ * passes the battle a stream; deck shuffles and random AI picks draw from
  * streams forked from that root, so this seeds them all (DDB-399).
  *
- * What it changes today: measurably nothing, and that is worth writing down
- * rather than glossing. Running the combat golden under a different seed, and
- * again with the seeding removed entirely, produced byte-identical captures.
- * `Deck.shuffle` has exactly one caller, `Driver.reshuffleDiscardIntoDeck`,
- * which fires only when a deck runs dry, so the opening hand is dealt in deck
- * order and a mounted screen consumes no randomness that reaches a pixel.
+ * What it changes: every started fight's opening hands. The opening deal
+ * shuffles each deck on a stream forked from the fight's root (DDB-411), so
+ * the combat screen's hands come from this seed, and an unseeded run would
+ * deal differently on every capture.
+ * Phase 0 installed it before anything consumed it: the only shuffle then was
+ * a reshuffle no capture reaches, and the combat golden was byte-identical
+ * under a different seed and with the seeding removed.
  *
- * Why it is here anyway: the states phase 0 does not capture are the ones that
- * do vary. Playing a card and capturing what follows is the case where 72 of
- * the combat screen's 355 lint rows differed run to run, and that state
- * becomes goldenable the moment someone wants it, without a second look at
- * this question. It is a precondition, installed before it is needed, which is
- * the cheap order to do it in.
+ * It covers the states phase 0 does not capture too. Playing a card and
+ * capturing what follows is the case where 72 of the combat screen's 355 lint
+ * rows differed run to run, and that state becomes goldenable the moment
+ * someone wants it, without a second look at this question.
  */
 async function seedRandom(page: Page, seed: number = RANDOM_SEED): Promise<void> {
 	await page.addInitScript((value: number) => {

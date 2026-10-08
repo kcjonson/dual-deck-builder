@@ -73,6 +73,13 @@ describe('Battle', () => {
 		return new Deck('test', 'Test Deck', cards);
 	};
 
+	/**
+	 * Where the first attack sits in a dealt hand. The opening deal shuffles,
+	 * so no card is sure to be at index 0, but any five of ten attacks, a heal,
+	 * and a draw hold at least three attacks.
+	 */
+	const attackIndex = (driver: Driver): number => driver.hand.findIndex(card => card.targetType === 'enemy_single');
+
 	beforeEach(() => {
 		// Create player drivers with test decks
 		playerDriver1 = new Driver({
@@ -331,12 +338,13 @@ describe('Battle', () => {
 		});
 
 		test('should consume adrenaline when playing a card', () => {
+			const cardIndex = attackIndex(playerDriver1);
 			const initialAdrenaline = playerDriver1.adrenaline;
-			const cardCost = playerDriver1.hand[0].cost;
-			
+			const cardCost = playerDriver1.hand[cardIndex].cost;
+
 			battle.playCard({
 				driver: playerDriver1,
-				cardIndex: 0,
+				cardIndex,
 				targetVehicle: enemyVehicle
 			});
 
@@ -376,7 +384,7 @@ describe('Battle', () => {
 
 			battle.playCard({
 				driver: playerDriver1,
-				cardIndex: 0,
+				cardIndex: attackIndex(playerDriver1),
 				targetVehicle: enemyVehicle
 			});
 
@@ -416,7 +424,7 @@ describe('Battle', () => {
 			// Playing a card should emit state change
 			battle.playCard({
 				driver: playerDriver1,
-				cardIndex: 0,
+				cardIndex: attackIndex(playerDriver1),
 				targetVehicle: enemyVehicle
 			});
 
@@ -465,13 +473,18 @@ describe('Battle', () => {
 		});
 
 		test('should handle playing card with no target when target is required', () => {
+			const cardIndex = attackIndex(playerDriver1);
+			const card = playerDriver1.hand[cardIndex];
+
 			const result = battle.playCard({
 				driver: playerDriver1,
-				cardIndex: 0
+				cardIndex
 				// No target specified for damage card
 			});
 
-			expect(result).toBe(true); // Method doesn't validate target requirement
+			// validateTarget refuses it, and the card stays in the hand
+			expect(result).toBe(false);
+			expect(playerDriver1.hand).toContain(card);
 		});
 
 		test('should handle invalid card index', () => {
