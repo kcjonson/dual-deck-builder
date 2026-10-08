@@ -129,6 +129,77 @@ describe('checkRoadNetwork', () => {
 		expect(rules(trail)).toContain('structure');
 	});
 
+	describe('approaches', () => {
+		const along = (distance: number) => ({ x: Math.sin(40 * Math.PI / 180) * distance, y: Math.cos(40 * Math.PI / 180) * distance });
+		const EDGE = along(100);
+		const JOIN = along(350);
+		const FAR = along(600);
+		const POI = { x: 120, y: 420 };
+
+		/**
+		 * Highway A north to a dead end at (0, 600), highway B 40 degrees east of
+		 * it, and a POI at (120, 420) with an approach from each: from (0, 380) on
+		 * A and from 350 along B, each splitting its highway's stretch there.
+		 */
+		function approached(second: number[] = [JOIN.x, JOIN.y, POI.x, POI.y]): RoadNetwork & { nodes: RoadNode[]; roads: RoadNetwork['roads'][number][]; stretches: RoadStretch[] } {
+			return {
+				nodes: [
+					{ kind: 'compound', x: 0, y: 0 },
+					{ kind: 'metroEdge', x: 0, y: 100 },
+					{ kind: 'end', x: 0, y: 600 },
+					{ kind: 'metroEdge', x: EDGE.x, y: EDGE.y },
+					{ kind: 'end', x: FAR.x, y: FAR.y },
+					{ kind: 'junction', x: 0, y: 380 },
+					{ kind: 'junction', x: JOIN.x, y: JOIN.y },
+					{ kind: 'poi', x: POI.x, y: POI.y },
+				],
+				roads: [
+					{ roadClass: 'highway', parent: -1, from: 0, stretches: [0, 1, 2] },
+					{ roadClass: 'highway', parent: -1, from: 0, stretches: [3, 4, 5] },
+					{ roadClass: 'backRoad', parent: 0, from: 5, stretches: [6] },
+					{ roadClass: 'trail', parent: 1, from: 6, stretches: [7] },
+				],
+				stretches: [
+					{ road: 0, roadClass: 'highway', from: 0, to: 1, parent: -1, points: [0, 0, 0, 100] },
+					{ road: 0, roadClass: 'highway', from: 1, to: 5, parent: 0, points: [0, 100, 0, 200, 0, 300, 0, 380] },
+					{ road: 0, roadClass: 'highway', from: 5, to: 2, parent: 1, points: [0, 380, 0, 500, 0, 600] },
+					{ road: 1, roadClass: 'highway', from: 0, to: 3, parent: -1, points: [0, 0, EDGE.x, EDGE.y] },
+					{ road: 1, roadClass: 'highway', from: 3, to: 6, parent: 3, points: [EDGE.x, EDGE.y, JOIN.x, JOIN.y] },
+					{ road: 1, roadClass: 'highway', from: 6, to: 4, parent: 4, points: [JOIN.x, JOIN.y, FAR.x, FAR.y] },
+					{ road: 2, roadClass: 'backRoad', from: 5, to: 7, parent: 1, points: [0, 380, POI.x, POI.y] },
+					{ road: 3, roadClass: 'trail', from: 6, to: 7, parent: 4, points: second },
+				],
+			};
+		}
+
+		it('passes approaches that come no nearer the compound than where they start, and meet only at their POI', () => {
+			expect(checkRoadNetwork({ network: approached(), terrain, clearance: 24 })).toEqual([]);
+		});
+
+		it('finds an approach that comes nearer the compound than where it starts', () => {
+			// Both segments reach the dip at (180, 250), 308 from the compound against the 350 it started at.
+			expect(rules(approached([JOIN.x, JOIN.y, 180, 250, POI.x, POI.y]))).toEqual(['outward', 'outward']);
+		});
+
+		it('finds approaches that meet at their POI under 20 degrees apart', () => {
+			// Two units off the first approach's line, 30 short of the POI: they come in 3 degrees apart.
+			expect(rules(approached([JOIN.x, JOIN.y, 90, 412, POI.x, POI.y]))).toContain('crossing');
+		});
+
+		it('finds a POI something leaves, and an approach of the wrong kind', () => {
+			const onward = approached();
+			onward.nodes.push({ kind: 'end', x: 200, y: 600 });
+			onward.roads.push({ roadClass: 'backRoad', parent: 2, from: 7, stretches: [8] });
+			onward.stretches.push({ road: 4, roadClass: 'backRoad', from: 7, to: 8, parent: 6, points: [POI.x, POI.y, 200, 600] });
+			expect(rules(onward)).toContain('structure');
+
+			const highway = approached();
+			highway.roads[2] = { ...highway.roads[2], roadClass: 'highway' };
+			highway.stretches[6] = { ...highway.stretches[6], roadClass: 'highway' };
+			expect(rules(highway)).toEqual(['structure']);
+		});
+	});
+
 	it('stops at the limit it\'s given', () => {
 		const network = branchTo(10, 470);
 		network.stretches[2] = { ...network.stretches[2], points: [0, 300, 0, 400, 0, 500, 0, 600] };

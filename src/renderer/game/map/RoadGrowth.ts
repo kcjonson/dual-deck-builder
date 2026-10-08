@@ -36,6 +36,11 @@ export const STEP_LENGTH = 20;
 /** cos(65 degrees): a step gains at least this share of its length in distance from the compound. */
 export const OUTWARD_SHARE = 0.42261826174069944;
 /**
+ * An approach (stage 5) may come this much nearer the compound than where it
+ * leaves its road, relatively: room for rounding, not slack.
+ */
+export const APPROACH_FLOOR_TOLERANCE = 1e-9;
+/**
  * Near a junction two roads share, the gap they keep grows from nothing at
  * the junction by this much per unit away from it, up to `roadClearance`.
  * It's sin(14.5 degrees), under sin(20), so a branch leaving at the least
@@ -99,6 +104,11 @@ export const ROAD_CLASS_RULES: { readonly [Name in RoadClass]: RoadClassRules } 
 /** How `curviness` scales every class's turn limit: 0.6 at 0, ruler-straight but able to steer round a crater, to 1.4 at 1. */
 export function turnScale(curviness: number): number {
 	return 0.6 + 0.8 * curviness;
+}
+
+/** The running travel cost past which a back road degrades to a trail, by `trailShare`: 3.2 at 0 to 1.7 at 1. */
+export function trailThreshold(trailShare: number): number {
+	return DEGRADE.cost.min + (DEGRADE.cost.max - DEGRADE.cost.min) * trailShare;
 }
 
 /** The turns a step of `roadClass` proposes, degrees counterclockwise: `CANDIDATE_HEADINGS` of them, evenly across its turn limit either way. */
@@ -212,9 +222,10 @@ export function growRoads(options: GrowthOptions): RoadGrowth {
 /**
  * The step rules (Area Map Generation, Growth, step 3) over the roads laid so
  * far: outward, passable, clear of other roads, inside the disc. Growth asks
- * them of every step and of every smoothed stretch; tests ask them directly.
- * Roads are registered with their parent and junction, which the clearance
- * rule needs, and their segments filed in `index` under their id.
+ * them of every step and of every smoothed stretch, stage 5 of every step of
+ * an approach, and tests ask them directly. Roads are registered with their
+ * parent and junction, and approaches with the POI they end at, which the
+ * clearance rule needs, and their segments filed in `index` under their id.
  */
 export class StepRules {
 	public readonly index: SegmentIndex;
@@ -224,6 +235,9 @@ export class StepRules {
 	/** Per road: its parent's id (-1 for a highway out of the metro) and its junction, where it meets its parent or the compound. */
 	private readonly parents: number[] = [];
 	private readonly junctions: number[] = [];
+	/** Per approach: the POI it ends at, which its fellow approaches meet it at, and where that is. Other roads have none. */
+	private readonly goals: number[] = [];
+	private readonly goalPoints: number[] = [];
 	/** The junction `meet` found. */
 	private meetX = 0;
 	private meetY = 0;
@@ -238,11 +252,46 @@ export class StepRules {
 		this.index = new SegmentIndex({ extent: terrain.radius + STEP_LENGTH, cellSize: Math.max(clearance, STEP_LENGTH) });
 	}
 
+	/**
+	 * The rules over a network already laid, every road registered and every
+	 * segment filed, so stage 5's approaches keep clear of what growth grew.
+	 * A road ending at a POI is registered as an approach to it.
+	 */
+	public static fromNetwork({ network, terrain, clearance }: { network: RoadNetwork; terrain: GrowthTerrain; clearance: number }): StepRules {
+		const rules = new StepRules({ terrain, clearance });
+		const { nodes, roads, stretches } = network;
+		roads.forEach((road, id) => {
+			const junction = nodes[road.from];
+			rules.setRoad(id, road.parent, junction.x, junction.y);
+			const end = stretches[road.stretches[road.stretches.length - 1]].to;
+			if (nodes[end].kind === 'poi') rules.setGoal(id, end, nodes[end].x, nodes[end].y);
+			for (const stretch of road.stretches) {
+				const points = stretches[stretch].points;
+				for (let point = 0; point + 3 < points.length; point += 2) {
+					rules.index.add(points[point], points[point + 1], points[point + 2], points[point + 3], id);
+				}
+			}
+		});
+		return rules;
+	}
+
 	/** Registers road `id`: the road it branches from, -1 for a highway out of the metro, and where it meets it (the compound's origin for those). */
 	public setRoad(id: number, parent: number, junctionX: number, junctionY: number): void {
 		this.parents[id] = parent;
 		this.junctions[2 * id] = junctionX;
 		this.junctions[2 * id + 1] = junctionY;
+		this.goals[id] = -1;
+	}
+
+	/**
+	 * Registers road `id`, already set, as an approach to `goal` at (x, y):
+	 * approaches to one goal meet there, so near it they need only the
+	 * tapered gap, as a branch and its parent do near their junction.
+	 */
+	public setGoal(id: number, goal: number, x: number, y: number): void {
+		this.goals[id] = goal;
+		this.goalPoints[2 * id] = x;
+		this.goalPoints[2 * id + 1] = y;
 	}
 
 	/** The rule a step from (x0, y0) to (x1, y1) on `road` breaks, or null when it keeps them all. */
@@ -363,17 +412,25 @@ export class StepRules {
 
 	/**
 	 * Whether two roads share a junction, left in `meetX` and `meetY`: a
-	 * branch and its parent meet at the branch's junction, and the highways
-	 * out of the metro all meet at the compound.
+	 * branch and its parent meet at the branch's junction, the highways out of
+	 * the metro all meet at the compound, and approaches to one POI meet there.
 	 */
 	private meet(road: number, other: number): boolean {
 		const parent = this.parents[road];
 		const otherParent = this.parents[other];
 		const at = parent === other || (parent === -1 && otherParent === -1) ? road : otherParent === road ? other : -1;
-		if (at < 0) return false;
-		this.meetX = this.junctions[2 * at];
-		this.meetY = this.junctions[2 * at + 1];
-		return true;
+		if (at >= 0) {
+			this.meetX = this.junctions[2 * at];
+			this.meetY = this.junctions[2 * at + 1];
+			return true;
+		}
+		const goal = this.goals[road];
+		if (goal >= 0 && goal === this.goals[other]) {
+			this.meetX = this.goalPoints[2 * road];
+			this.meetY = this.goalPoints[2 * road + 1];
+			return true;
+		}
+		return false;
 	}
 }
 
@@ -419,10 +476,22 @@ export function junctionGap(
 	ax: number, ay: number, bx: number, by: number,
 	cx: number, cy: number, dx: number, dy: number,
 ): number {
-	const first = pointSegmentDistanceSquared(jx, jy, ax, ay, bx, by);
-	const second = pointSegmentDistanceSquared(jx, jy, cx, cy, dx, dy);
+	const first = junctionDistanceSquared(jx, jy, ax, ay, bx, by);
+	const second = junctionDistanceSquared(jx, jy, cx, cy, dx, dy);
 	const gap = JUNCTION_TAPER * sqrt(first > second ? first : second);
 	return gap < clearance ? gap : clearance;
+}
+
+/**
+ * The squared distance from a junction to a segment, exactly 0 when the
+ * segment ends on it. Measured, a segment ending on the junction can come
+ * out a hair off it (a + (b - a) needn't round back to b), which would give
+ * two roads touching there a gap of a hair instead of none, and which of
+ * two segments is measured first could decide it.
+ */
+export function junctionDistanceSquared(jx: number, jy: number, ax: number, ay: number, bx: number, by: number): number {
+	if ((ax === jx && ay === jy) || (bx === jx && by === jy)) return 0;
+	return pointSegmentDistanceSquared(jx, jy, ax, ay, bx, by);
 }
 
 /**
@@ -564,7 +633,7 @@ class RoadGrower {
 		this.rules = new StepRules({ terrain, clearance: params.roadClearance });
 		this.index = this.rules.index;
 		this.branchScale = BRANCHING.scale.min + (BRANCHING.scale.max - BRANCHING.scale.min) * params.branchiness;
-		this.degradeCost = DEGRADE.cost.min + (DEGRADE.cost.max - DEGRADE.cost.min) * params.trailShare;
+		this.degradeCost = trailThreshold(params.trailShare);
 		const turns = {} as { [Name in RoadClass]: Float64Array };
 		for (const roadClass of ROAD_CLASSES) {
 			const table = new Float64Array(2 * CANDIDATE_HEADINGS);

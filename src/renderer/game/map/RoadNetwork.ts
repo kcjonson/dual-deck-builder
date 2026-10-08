@@ -26,8 +26,13 @@ export const ROAD_CLASS_LABELS: { readonly [Name in RoadClass]: string } = {
  * - `classChange`: where a back road degrades to a trail.
  * - `end`: a dead end, where a road was blocked or reached its class's longest.
  * - `exit`: where a road leaves the area at the disc's rim.
+ * - `extension`: a dead end stage 5 carried on as an approach to a POI, so its
+ *   road's last stretch comes in and the approach goes on. A metroEdge dead end
+ *   carried on keeps its kind.
+ * - `poi`: a point of interest or a stronghold, where its approaches end.
+ *   Nothing leaves one.
  */
-export type RoadNodeKind = 'compound' | 'metroEdge' | 'junction' | 'classChange' | 'end' | 'exit';
+export type RoadNodeKind = 'compound' | 'metroEdge' | 'junction' | 'classChange' | 'end' | 'exit' | 'extension' | 'poi';
 
 export interface RoadNode {
 	readonly kind: RoadNodeKind;
@@ -53,12 +58,17 @@ export interface RoadStretch {
 	readonly points: readonly number[];
 }
 
+/**
+ * Growth's lineage: a highway out of the metro, or a branch from its junction
+ * to its end. Stage 5 adds approaches, each a road of one stretch from where
+ * it leaves a grown road to its POI.
+ */
 export interface Road {
 	/** Its class where it starts; later stretches may have degraded to trails. */
 	readonly roadClass: RoadClass;
 	/** The road it branched from, or -1 for a highway out of the metro. */
 	readonly parent: number;
-	/** The node it starts at: the compound, or its junction on its parent. */
+	/** The node it starts at: the compound, or its junction on its parent (for an approach, its junction, extension, or metro edge). */
 	readonly from: number;
 	/** Its stretches, inner to outer. */
 	readonly stretches: readonly number[];
@@ -76,4 +86,15 @@ export interface RoadNetwork {
 /** 0 for a highway, 1 a back road, 2 a trail. */
 export function classRank(roadClass: RoadClass): number {
 	return ROAD_CLASSES.indexOf(roadClass);
+}
+
+/** The node a road ends at: its last stretch's outer end. */
+export function roadEnd(network: RoadNetwork, road: number): number {
+	const stretches = network.roads[road].stretches;
+	return network.stretches[stretches[stretches.length - 1]].to;
+}
+
+/** Whether a road is one of stage 5's approaches: it ends at a POI. */
+export function isApproach(network: RoadNetwork, road: number): boolean {
+	return network.nodes[roadEnd(network, road)].kind === 'poi';
 }
