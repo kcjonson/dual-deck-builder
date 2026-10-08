@@ -1,17 +1,16 @@
 import type { Rng } from '../core/Rng';
 import { unitVector } from './Geometry';
 import type { MapParams } from './MapParams';
-import { driftKnots } from './RoadGrowth';
+import { ROAD_CLASS_RULES, driftKnots } from './RoadGrowth';
 import type { Ruin } from './TerrainSites';
 
 /**
  * Stage 2 of area map generation (Area Map Generation, Pipeline, 2. Highways
  * out of the metro): where the highways leave the metro, and how each one's
- * preferred heading drifts along its length. Growth (stage 3) lays them.
+ * preferred heading drifts along its length, by the highway class's drift
+ * scaled by curviness, so 0 is ruler-straight. Growth (stage 3) lays them.
  */
 
-/** Degrees a highway's preferred heading drifts either way at curviness 1, scaled by curviness: 0 is ruler-straight. */
-export const HIGHWAY_DRIFT = 45;
 /** Jittered sets of bearings drawn, at most, for one that keeps highwaySeparation, before the last is pulled in to fit. */
 const BEARING_DRAWS = 16;
 
@@ -55,7 +54,7 @@ export function planHighways({ terrain, params, rng }: HighwayOptions): HighwayD
 			bearing,
 			x: direction.x * metroRadius,
 			y: direction.y * metroRadius,
-			drift: driftKnots({ rng: rng.fork('drift', index), span: terrain.radius - metroRadius, amplitude: HIGHWAY_DRIFT * params.curviness }),
+			drift: driftKnots({ rng: rng.fork('drift', index), span: terrain.radius - metroRadius, amplitude: ROAD_CLASS_RULES.highway.drift * params.curviness }),
 		};
 	});
 }

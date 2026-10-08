@@ -24,7 +24,7 @@ import { fileURLToPath } from 'node:url';
 
 const script = fileURLToPath(import.meta.url);
 const SOURCES = [
-	'core/Rng', 'map/MapParams', 'map/ParamValidator', 'map/Noise', 'map/Biome', 'map/TerrainSites', 'map/Terrain',
+	'core/Json', 'core/Rng', 'map/MapParams', 'map/ParamValidator', 'map/Noise', 'map/Biome', 'map/TerrainSites', 'map/Terrain',
 	'map/Geometry', 'map/SegmentIndex', 'map/RoadNetwork', 'map/RoadGrowth', 'map/Highways', 'map/RoadChecks',
 ];
 
@@ -149,6 +149,7 @@ function check() {
 	const from = Number(options.from ?? 0);
 	let failed = 0;
 	const times = [];
+	const checks = [];
 	const started = now();
 	let slowest = { milliseconds: 0, index: -1, steps: 0 };
 	for (let index = from; index < from + maps; index += 1) {
@@ -156,7 +157,9 @@ function check() {
 		const { params, terrain, network, stats, milliseconds } = generate(set);
 		times.push(milliseconds);
 		if (milliseconds > slowest.milliseconds) slowest = { milliseconds, index, steps: stats.steps };
+		const checkStart = now();
 		const violations = checkRoadNetwork({ network, terrain, clearance: params.roadClearance });
+		checks.push(now() - checkStart);
 		if (violations.length > 0) {
 			failed += 1;
 			console.log(`map ${index} ${JSON.stringify(set)}`);
@@ -165,6 +168,7 @@ function check() {
 		if ((index - from + 1) % 100 === 0) console.log(`${index - from + 1} maps, ${failed} failing, ${((now() - started) / 1000).toFixed(0)} s`);
 	}
 	console.log(`${maps} maps from ${from}: ${failed} failing; growth median ${median(times).toFixed(1)} ms, slowest ${slowest.milliseconds.toFixed(1)} ms (map ${slowest.index}, ${slowest.steps} steps: ${JSON.stringify(sampledSet(slowest.index))})`);
+	console.log(`checkRoadNetwork median ${median(checks).toFixed(1)} ms, slowest ${Math.max(...checks).toFixed(1)} ms`);
 	process.exitCode = failed > 0 ? 1 : 0;
 }
 

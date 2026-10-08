@@ -1,8 +1,8 @@
 import { Rng } from '../core/Rng';
-import { HIGHWAY_DRIFT, departureBearings, planHighways } from './Highways';
+import { departureBearings, planHighways } from './Highways';
 import { MapParamSet, MapParams, resolveMapParams } from './MapParams';
 import { validateMapParams } from './ParamValidator';
-import { DRIFT_SPACING, OUTWARD_SHARE, driftAt, driftKnots } from './RoadGrowth';
+import { DRIFT_SPACING, OUTWARD_SHARE, ROAD_CLASS_RULES, driftAt, driftKnots } from './RoadGrowth';
 
 /** The highways stream as the pipeline forks it. */
 const highwayStream = (seed: number, stageAttempt = 0) => new Rng({ seed }).fork('map', 0).fork('highways', stageAttempt);
@@ -77,10 +77,10 @@ describe('planHighways', () => {
 			highways.forEach(({ drift }) => {
 				expect(drift[0]).toBe(0);
 				expect((drift.length - 1) * DRIFT_SPACING).toBeGreaterThanOrEqual(longest);
-				drift.forEach((knot) => expect(Math.abs(knot)).toBeLessThanOrEqual(HIGHWAY_DRIFT * curviness));
+				drift.forEach((knot) => expect(Math.abs(knot)).toBeLessThanOrEqual(ROAD_CLASS_RULES.highway.drift * curviness));
 			});
 			if (curviness === 0) highways.forEach(({ drift }) => drift.forEach((knot) => expect(Math.abs(knot)).toBe(0)));
-			else expect(Math.max(...highways.flatMap(({ drift }) => drift.map(Math.abs)))).toBeGreaterThan(0.5 * HIGHWAY_DRIFT * curviness);
+			else expect(Math.max(...highways.flatMap(({ drift }) => drift.map(Math.abs)))).toBeGreaterThan(0.5 * ROAD_CLASS_RULES.highway.drift * curviness);
 		});
 	});
 

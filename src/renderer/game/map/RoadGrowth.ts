@@ -11,10 +11,12 @@ import type { Terrain } from './Terrain';
  * Growth and 4. Road classes): the drivable roads grow outward from the
  * highways' departures in steps, from a queue ordered by distance from the
  * compound. Each step proposes headings within its class's turn limit,
- * scores them by terrain, course, and a little noise, and takes the best one
- * that keeps the step rules: outward, passable, clear of other roads, and
- * inside the disc. Roads branch as they go and back roads degrade to trails
- * in rough ground. When every road has ended, each stretch is smoothed and
+ * scores them by the terrain here and ahead, how far they stray from the
+ * road's preferred heading, how close they come to the road it branched
+ * from, and a little noise, and takes the best one that keeps the step
+ * rules: outward, passable, clear of other roads, and inside the disc. Roads
+ * branch into open country as they go, and back roads degrade to trails in
+ * rough ground. When every road has ended, each stretch is smoothed and
  * checked again. The result is plain data, trees rooted at the compound.
  *
  * Every decision is plain arithmetic (see Geometry), so a seed grows the same
@@ -65,7 +67,7 @@ export interface RoadClassRules {
 	readonly holdCourse: number;
 	/** Weight in a step's score of rough country ahead, where cliffs stand: how hard the class keeps out of it. */
 	readonly shunRough: number;
-	/** Degrees a branch's preferred heading drifts either way at curviness 1. Highways out of the metro drift by stage 2's. */
+	/** Degrees a road's preferred heading drifts either way at curviness 1: stage 2 draws a highway's out of the metro, growth a branch's. */
 	readonly drift: number;
 	/** Chance per step of trying a branch, at branchiness 0.5 and away from the metro. 0 never branches. */
 	readonly branchChance: number;
@@ -119,7 +121,7 @@ const SCORE = {
 	roughSamples: 10,
 	/** ...this many world units apart, nearer points counting more. A cheap lookup, so it can see far. */
 	roughSpacing: 16,
-	/** Weight of crowding: coming near the gap the clearance rule needs from another road. */
+	/** Weight of crowding: coming near the gap the clearance rule needs from a road this one meets at a junction. */
 	crowd: 2,
 	/** Weight of the noise, a draw in [0, 1) per candidate from the road's stream. */
 	noise: 0.15,
@@ -256,6 +258,7 @@ export class StepRules {
 	 * No impassable ground on the segment: craters exactly, as circles, and
 	 * cliffs and water from `impassable` every `PASSABLE_SPACING` along it.
 	 * The start isn't sampled; it's the end of the step before, or a junction.
+	 * See `isPassable` for where bridges will come in.
 	 */
 	public passable(x0: number, y0: number, x1: number, y1: number): boolean {
 		return isPassable(this.terrain, x0, y0, x1, y1);
@@ -273,9 +276,10 @@ export class StepRules {
 	}
 
 	/**
-	 * What breaks the clearance rule for the segment, if anything: a road it
-	 * shares a junction with (`kin`), one it doesn't (`stranger`), checked in
-	 * that order of finding, or 'none'.
+	 * What breaks the clearance rule for the segment: 'stranger' when a road
+	 * it shares no junction with comes within the clearance, else 'kin' when
+	 * one it does share a junction with comes within the tapered gap or
+	 * touches it wrongly, else 'none'.
 	 */
 	public blocker(road: number, x0: number, y0: number, x1: number, y1: number): 'none' | 'kin' | 'stranger' {
 		const clearance = this.clearance;
@@ -324,7 +328,8 @@ export class StepRules {
 	 * gap the clearance rule needs from the nearest, easing to 0 at
 	 * `CROWD_BAND` of that gap beyond it. A soft edge on the rule, which growth
 	 * scores so a road and its branch turn apart before the rule stops either.
-	 * Other roads don't crowd: a road that runs into one ends instead.
+	 * Other roads don't crowd: a back road or trail that runs into one ends
+	 * there, and a highway turns aside only when the rule makes it.
 	 */
 	public crowding(road: number, x: number, y: number): number {
 		const index = this.index;
@@ -374,7 +379,15 @@ export function isOutward(x0: number, y0: number, x1: number, y1: number): boole
 	return sqrt(x1 * x1 + y1 * y1) - sqrt(x0 * x0 + y0 * y0) >= OUTWARD_SHARE * sqrt(dx * dx + dy * dy);
 }
 
-/** The passable rule over a terrain; see `StepRules.passable`. */
+/**
+ * The passable rule over a terrain; see `StepRules.passable`. Water is
+ * impassable here like the rest, through `impassable`, until the water stage
+ * (DDB-289) widens `WaterLayer` to tell a river from a lake and give its
+ * direction. Then this is where a step that crosses a river square-on is
+ * let through as a bridge (Area Map Generation, Growth, step 3): the samples
+ * that land on that river stop counting, and the crossing is recorded as a
+ * bridge, the spec's candidate spot for a "bridge out" hazard.
+ */
 export function isPassable(terrain: Pick<Terrain, 'hotspots' | 'impassable'>, x0: number, y0: number, x1: number, y1: number): boolean {
 	const hotspots = terrain.hotspots;
 	for (let index = 0; index < hotspots.length; index += 1) {

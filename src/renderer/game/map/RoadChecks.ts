@@ -5,6 +5,7 @@ import type { Terrain } from './Terrain';
 
 // Globals read once, at load: under Jest's vm context each read costs about 0.15 us (seeded-prng.md).
 const sqrt = Math.sqrt;
+const floor = Math.floor;
 const min = Math.min;
 const max = Math.max;
 
@@ -13,9 +14,9 @@ const max = Math.max;
  * Generation, Guarantees 2, 3, and 8, and the tree the routes walk), from the
  * network's plain data alone, so it can check a loaded map as well as one
  * just grown. Growth keeps every rule as it lays each step; this looks again
- * by other means (a sweep over every pair of nearby segments rather than
- * growth's spatial hash, and the tree from its links), which is what the
- * property tests and the map validator lean on.
+ * by other means (every pair of nearby segments, through grid buckets of its
+ * own rather than growth's spatial hash, and the tree from its links), which
+ * is what the property tests and the map validator lean on.
  */
 
 export type RoadRule = 'structure' | 'outward' | 'disc' | 'passable' | 'crossing' | 'clearance' | 'junctionAngle';
@@ -206,12 +207,14 @@ interface Segment {
 }
 
 /**
- * Every pair of segments within `clearance` of each other, found by a sweep
- * along x, against the clearance rule.
+ * Every pair of segments within `clearance` of each other against the
+ * clearance rule, found through grid buckets of the checker's own: each
+ * segment is filed in the cells its box covers, and looks for partners in the
+ * cells its box covers grown by the clearance.
  */
-function checkPairs({ nodes, roads, stretches }: RoadNetwork, clearance: number, report: Report): void {
+function checkPairs(network: RoadNetwork, clearance: number, report: Report): void {
 	const segments: Segment[] = [];
-	stretches.forEach(({ points, road }, stretch) => {
+	network.stretches.forEach(({ points, road }, stretch) => {
 		for (let point = 0; point + 3 < points.length; point += 2) {
 			const [x0, y0, x1, y1] = [points[point], points[point + 1], points[point + 2], points[point + 3]];
 			segments.push({
@@ -220,42 +223,72 @@ function checkPairs({ nodes, roads, stretches }: RoadNetwork, clearance: number,
 			});
 		}
 	});
-	segments.sort((a, b) => a.minX - b.minX);
-	const clearanceSquared = clearance * clearance;
-	for (let first = 0; first < segments.length; first += 1) {
-		const a = segments[first];
-		for (let second = first + 1; second < segments.length && segments[second].minX <= a.maxX + clearance; second += 1) {
-			const b = segments[second];
-			if (b.minY > a.maxY + clearance || a.minY > b.maxY + clearance) continue;
-			const distanceSquared = segmentDistanceSquared(a.x0, a.y0, a.x1, a.y1, b.x0, b.y0, b.x1, b.y1);
-			if (distanceSquared >= clearanceSquared) continue;
-			const where = () => `stretches ${a.stretch} and ${b.stretch}, near (${a.x1}, ${a.y1})`;
-			const apart = () => sqrt(distanceSquared).toFixed(3);
-			const meet = () => segmentsMeet(a.x0, a.y0, a.x1, a.y1, b.x0, b.y0, b.x1, b.y1);
-			if (a.road === b.road) {
-				const joined = (a.x1 === b.x0 && a.y1 === b.y0) || (b.x1 === a.x0 && b.y1 === a.y0);
-				if (!joined && meet()) report('crossing', `road ${a.road} touches itself at ${where()}`);
-				continue;
-			}
-			const junction = sharedJunction(roads, a.road, b.road);
-			if (junction < 0) {
-				report(meet() ? 'crossing' : 'clearance', `roads ${a.road} and ${b.road} are ${apart()} apart at ${where()}`);
-				continue;
-			}
-			const { x, y } = nodes[junction];
-			const gap = min(clearance, JUNCTION_TAPER * sqrt(max(
-				pointSegmentDistanceSquared(x, y, a.x0, a.y0, a.x1, a.y1),
-				pointSegmentDistanceSquared(x, y, b.x0, b.y0, b.x1, b.y1),
-			)));
-			if (gap > 0) {
-				if (distanceSquared < gap * gap) {
-					report(meet() ? 'crossing' : 'clearance', `roads ${a.road} and ${b.road}, meeting at node ${junction}, are ${apart()} apart at ${where()}, under ${gap.toFixed(3)}`);
-				}
-				continue;
-			}
-			if (!meetAtAngle(x, y, a, b)) report('crossing', `roads ${a.road} and ${b.road} meet at node ${junction} other than end to end at 20 degrees or more, at ${where()}`);
+	const size = max(clearance, 32);
+	let left = Infinity;
+	let bottom = Infinity;
+	let right = -Infinity;
+	let top = -Infinity;
+	segments.forEach((segment) => {
+		left = min(left, segment.minX - clearance);
+		bottom = min(bottom, segment.minY - clearance);
+		right = max(right, segment.maxX + clearance);
+		top = max(top, segment.maxY + clearance);
+	});
+	if (segments.length === 0) return;
+	const columns = floor((right - left) / size) + 1;
+	const rows = floor((top - bottom) / size) + 1;
+	const cells: number[][] = Array.from({ length: columns * rows }, () => []);
+	const columnOf = (x: number) => floor((x - left) / size);
+	const rowOf = (y: number) => floor((y - bottom) / size);
+	segments.forEach((segment, id) => {
+		for (let row = rowOf(segment.minY); row <= rowOf(segment.maxY); row += 1) {
+			for (let column = columnOf(segment.minX); column <= columnOf(segment.maxX); column += 1) cells[row * columns + column].push(id);
 		}
+	});
+	const seen = new Int32Array(segments.length).fill(-1);
+	segments.forEach((a, first) => {
+		for (let row = rowOf(a.minY - clearance); row <= rowOf(a.maxY + clearance); row += 1) {
+			for (let column = columnOf(a.minX - clearance); column <= columnOf(a.maxX + clearance); column += 1) {
+				for (const second of cells[row * columns + column]) {
+					if (second <= first || seen[second] === first) continue;
+					seen[second] = first;
+					checkPair(network, clearance, a, segments[second], report);
+				}
+			}
+		}
+	});
+}
+
+/** One pair of segments against the clearance rule. */
+function checkPair({ nodes, roads }: RoadNetwork, clearance: number, a: Segment, b: Segment, report: Report): void {
+	if (b.minY > a.maxY + clearance || a.minY > b.maxY + clearance || b.minX > a.maxX + clearance || a.minX > b.maxX + clearance) return;
+	const distanceSquared = segmentDistanceSquared(a.x0, a.y0, a.x1, a.y1, b.x0, b.y0, b.x1, b.y1);
+	if (distanceSquared >= clearance * clearance) return;
+	const where = () => `stretches ${a.stretch} and ${b.stretch}, near (${a.x1}, ${a.y1})`;
+	const apart = () => sqrt(distanceSquared).toFixed(3);
+	const meet = () => segmentsMeet(a.x0, a.y0, a.x1, a.y1, b.x0, b.y0, b.x1, b.y1);
+	if (a.road === b.road) {
+		const joined = (a.x1 === b.x0 && a.y1 === b.y0) || (b.x1 === a.x0 && b.y1 === a.y0);
+		if (!joined && meet()) report('crossing', `road ${a.road} touches itself at ${where()}`);
+		return;
 	}
+	const junction = sharedJunction(roads, a.road, b.road);
+	if (junction < 0) {
+		report(meet() ? 'crossing' : 'clearance', `roads ${a.road} and ${b.road} are ${apart()} apart at ${where()}`);
+		return;
+	}
+	const { x, y } = nodes[junction];
+	const gap = min(clearance, JUNCTION_TAPER * sqrt(max(
+		pointSegmentDistanceSquared(x, y, a.x0, a.y0, a.x1, a.y1),
+		pointSegmentDistanceSquared(x, y, b.x0, b.y0, b.x1, b.y1),
+	)));
+	if (gap > 0) {
+		if (distanceSquared < gap * gap) {
+			report(meet() ? 'crossing' : 'clearance', `roads ${a.road} and ${b.road}, meeting at node ${junction}, are ${apart()} apart at ${where()}, under ${gap.toFixed(3)}`);
+		}
+		return;
+	}
+	if (!meetAtAngle(x, y, a, b)) report('crossing', `roads ${a.road} and ${b.road} meet at node ${junction} other than end to end at 20 degrees or more, at ${where()}`);
 }
 
 /** The node two roads share: a branch's junction on its parent, or the compound for two highways out of the metro. -1 for none. */
