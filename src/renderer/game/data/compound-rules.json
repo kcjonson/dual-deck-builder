@@ -1,0 +1,12 @@
+{
+	"upkeep": {
+		"peoplePerUnit": {
+			"food": 4,
+			"water": 4
+		}
+	},
+	"shortfall": {
+		"peopleLostPerUnit": 1,
+		"unrestPerUnit": 1
+	}
+}

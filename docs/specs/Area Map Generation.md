@@ -167,35 +167,37 @@ The field model, its starting values, and why are in [terrain-fields.md](../AI_T
 
 ### 2. Highways out of the metro
 
-- Pick `highways` departure bearings. Not evenly spaced: start from even spacing with a random rotation, jitter each by up to a third of the gap, and keep `highwaySeparation`.
+- Pick `highways` departure bearings. Not evenly spaced: start from even spacing with a random rotation, jitter each by up to a third of the gap, and keep `highwaySeparation`. Jitter that breaks the separation is drawn again, up to 16 times, then scaled down until it fits, which even spacing always does.
 - Each highway starts at the edge of the metro on its bearing. The compound reaches each one through a short stretch of city street, which belongs to the highway and is charted from the start.
-- Each highway also gets a preferred heading that drifts slowly along its length (low-frequency noise, amplitude from `curviness`), so it sweeps and bends instead of running due straight.
+- Each highway also gets a preferred heading that drifts slowly along its length, so it sweeps and bends instead of running due straight: knots 200 units apart, eased between, each up to 45 degrees either way at `curviness` 1 and none at 0. It sets off on its bearing.
+
+The rules, values, and measurements for stages 2 to 4 are in [road-growth.md](../AI_TECHNICAL_DECISIONS/road-growth.md).
 
 ### 3. Growth
 
 Drivable roads grow outward in steps from a queue, the classic agent approach for road networks: propose a step, check it against local rules, accept, adjust, or stop.
 
-Each road is a growing tip with a position, heading, class, and parent junction. The queue is ordered by distance from the compound, so branches all over the map grow at about the same pace and none claims space before its neighbours get there.
+Each road is a growing tip with a position, heading, class, and parent junction. The queue is ordered by distance from the compound, so branches all over the map grow at about the same pace and none claims space before its neighbours get there. Highways count 100 units nearer than they are, so the trunks claim their way before a branch sweeping across can cut them off.
 
 Each step:
 
-1. Propose a few candidate headings within the class's turn limit (highway 10 degrees a step, back road 18, trail 28, all scaled by `curviness`), the step length s (20 world units) ahead.
-2. Score each: the terrain cost along the step, how far it strays from the road's preferred heading, and a little noise from the `growth` stream.
+1. Propose five candidate headings evenly across the class's turn limit either way (highway 10 degrees a step, back road 18, trail 28 at `curviness` 0.5, scaled from 0.6 times at 0 to 1.4 times at 1), the step length s (20 world units) ahead.
+2. Score each: the terrain cost at the step's end and 2.5 steps on, how far it strays from the road's preferred heading, rough country and craters along the way ahead (and, for highways, any impassable ground within 80 units), how near it comes to the road it meets at a junction, and a little noise from the `growth` stream.
 3. Reject any candidate that breaks a rule:
-   - Outward: the step must increase distance from the compound by at least s times cos(65 degrees). This one rule is what makes the network a set of trees reaching out, never curling back into a web.
-   - Passable: no impassable point along the step, except a river crossed square-on, which becomes a bridge.
-   - Clearance: no point of the step within `roadClearance` of any other drivable road (a spatial hash over accepted segments makes this a cheap lookup). Since every accepted step keeps clear of everything already drawn, drivable roads can't cross.
+   - Outward: the step must increase distance from the compound by at least s times cos(65 degrees), end to end. This one rule is what makes the network a set of trees reaching out, never curling back into a web.
+   - Passable: no impassable point along the step, except a river crossed square-on, which becomes a bridge. Craters are checked exactly, as circles; cliffs and water are sampled every half unit along the step, and that spacing is the rule's tolerance: between two samples a step can clip a cliff's corner, or cross anything narrower than the spacing.
+   - Clearance: no point of the step within `roadClearance` of any other drivable road (a spatial hash over accepted segments makes this a cheap lookup). Since every accepted step keeps clear of everything already drawn, drivable roads can't cross. Two roads that meet at a junction (a branch and its parent, or two highways at the compound) can't keep it there, so near their junction the gap they need tapers to nothing, a quarter of the distance from it, and they touch only at the junction itself, at 20 degrees or more.
    - Inside the disc.
-4. Take the best surviving candidate. If none survive, the road ends there as a dead end.
-5. A road also ends when it leaves the disc (it "leaves the area") or reaches its class's maximum length.
+4. Take the best surviving candidate. If none survive, the road ends there as a dead end. A back road or trail whose best candidate runs into the clearance of a road it doesn't meet ends there too, rather than turning to run alongside it; a highway turns aside.
+5. A road also ends when it leaves the disc (it "leaves the area", its last step cut short at the rim) or reaches its class's maximum length: 800 units for a back road and 400 for a trail, counted from where it took the class. Highways have none.
 
-Branching: after a minimum gap, a road can spawn a branch at each step, with a chance by class, distance, and `branchiness`. A branch leaves at 20 to 55 degrees to its parent, on the side with more open room, and the branch point becomes a junction. A highway's branches are back roads, except a rare fork that stays highway (an interchange). A back road's branches are back roads or trails. Trails don't branch.
+Branching: after a minimum gap of 4 steps, a road can spawn a branch at each step, with a chance by class, distance, `branchiness`, and the open room it would branch into, so branches fill empty country and leave crowded country be. A branch leaves at 20 to 55 degrees to its parent, on the side with more open room, and the branch point becomes a junction; the parent's next step keeps 20 degrees from it. A branch that can't take its first two steps at once isn't made, so none is a stub. A highway's branches are back roads, except a rare fork that stays highway (an interchange). A back road's branches are back roads or trails. Trails don't branch.
 
-Class change along a road: a back road that runs into rough terrain degrades into a trail from that point on, more readily with higher `trailShare`. Classes never upgrade outward.
+Class change along a road: a back road that runs into rough terrain degrades into a trail from that point on, more readily with higher `trailShare`: when the running cost of its steps passes a threshold that falls from 3.2 at `trailShare` 0 to 1.7 at 1 (flat scrub costs 1). Classes never upgrade outward.
 
-Geometry comes straight out of growth as a polyline of steps. It's smoothed (Chaikin, two passes) and rechecked against clearance; a stretch that fails keeps its unsmoothed steps, which already passed.
+Geometry comes straight out of growth as a polyline of steps. It's smoothed (Chaikin, two passes) stretch by stretch with the nodes held still, so junction angles keep, and rechecked against every step rule; a stretch that fails keeps its unsmoothed steps, which already passed.
 
-Result: `highways` trees rooted at the compound, planar by construction.
+Result: `highways` trees rooted at the compound, planar by construction, as plain data a save can hold: nodes (the compound, where each highway leaves the metro, junctions, class changes, dead ends, and exits at the rim), stretches between them, each with its class, its polyline, and the stretch it leads on from, and roads, each a chain of stretches with the road it branched from.
 
 ### 4. Road classes
 
@@ -307,6 +309,8 @@ Reveal rules:
 
 - The save holds the resolved parameters, the seed, the generator version, the gameplay map (drivable roads with their polylines and parent links, POIs with their approaches, stops, tiers, territories), and the saved state above. Tens of KB.
 - Loading never regenerates gameplay data, so changing the generator can't alter a campaign in progress. Once the gameplay map exists, terrain and scenery are only pictures, so both are regenerated on load; a generator change can alter how they look, never play.
+- Since those two layers are rebuilt, the save keeps what their streams fork from: the map attempt, and the winning terrain and scenery attempts. The gameplay stages' attempts aren't kept, since their output is saved.
+- Saves live in local storage in both the web and Electron builds, each deployed build under keys of its own ([campaign-save-and-load.md](../AI_TECHNICAL_DECISIONS/campaign-save-and-load.md)). A save has a budget of 800,000 characters, so three copies of it fit local storage's 5 MiB at two bytes a character with room for the settings and history; builds served from one origin share that 5 MiB. A generated map that pushes a long campaign's save past the budget moves saves to IndexedDB.
 
 ## The Map Lab (prototype tuning tool)
 
