@@ -28,7 +28,7 @@ import {
 	makeInspectable,
 } from './cardInspect';
 
-/** Something with a detail view that is neither a play card nor a driver card, as the escort card will be. */
+/** Something with a detail view that is none of the kinds of card, so the shared path is checked on its own. */
 class EscortStandIn extends Component {
 	constructor() {
 		super({ id: 'escort', x: 300, y: 200, width: 80, height: 112 });
