@@ -1,5 +1,5 @@
-import { ENVIRONMENTS, Environment, MAP_PARAMETERS, MapParams, NUMBER_PARAMS, resolveMapParams } from './MapParams';
-import { describeClamp, validateMapParams } from './ParamValidator';
+import { ENVIRONMENTS, ENVIRONMENT_PRESETS, Environment, MAP_PARAMETERS, MapParamSet, MapParams, NUMBER_PARAMS, resolveMapParams } from './MapParams';
+import { describeClamp, validateMapParamSet, validateMapParams } from './ParamValidator';
 
 /** Mixed's defaults with some values swapped in. */
 const params = (values: Partial<MapParams> = {}): MapParams => ({ ...resolveMapParams({ seed: 7 }).params, ...values });
@@ -33,11 +33,12 @@ describe('validateMapParams', () => {
 	});
 
 	it('puts the environment\'s default in place of a value that isn\'t a number', () => {
+		const rivers = ENVIRONMENT_PRESETS.floodlands.rivers;
 		const result = validateMapParams(params({ environment: 'floodlands', rivers: NaN, radius: Infinity }));
-		expect(result.params).toMatchObject({ rivers: 5, radius: 1000 });
+		expect(result.params).toMatchObject({ rivers, radius: MAP_PARAMETERS.radius.default });
 		expect(result.clamps.map(({ param, to, reason }) => [param, to, reason])).toEqual([
-			['radius', 1000, 'not a number'],
-			['rivers', 5, 'not a number'],
+			['radius', MAP_PARAMETERS.radius.default, 'not a number'],
+			['rivers', rivers, 'not a number'],
 		]);
 	});
 
@@ -143,20 +144,53 @@ describe('validateMapParams', () => {
 		});
 	});
 
-	it('leaves its input alone and passes stop tables through', () => {
+	it('leaves its input alone and copies stop tables through', () => {
 		const stopTables = { trail: { hazard: 2 } };
 		const input = params({ radius: 5000, stopTables });
 		const result = validateMapParams(input);
+		stopTables.trail.hazard = 7;
 		expect(input.radius).toBe(5000);
-		expect(result.params.stopTables).toBe(stopTables);
+		expect(result.params.stopTables).toEqual({ trail: { hazard: 2 } });
+	});
+});
+
+describe('validateMapParamSet', () => {
+	it('resolves and validates in one call, as the validator does', () => {
+		const set: MapParamSet = { seed: -1, environment: 'badlands', radius: 5000, strongholds: 5, highways: 4 };
+		const result = validateMapParamSet(set);
+		expect({ params: result.params, clamps: result.clamps }).toEqual(validateMapParams(resolveMapParams(set).params));
+	});
+
+	it('marks every value the validator changed as clamped, whoever set it', () => {
+		// rivers is a NaN override, highways a default the strongholds rule raises.
+		const { params, sources } = validateMapParamSet({ seed: 7, environment: 'floodlands', rivers: NaN, strongholds: 5 });
+		expect(params).toMatchObject({ rivers: ENVIRONMENT_PRESETS.floodlands.rivers, highways: 7 });
+		expect(sources).toMatchObject({ rivers: 'clamped', highways: 'clamped', strongholds: 'override' });
+	});
+
+	it('keeps where every other value came from', () => {
+		const set: MapParamSet = { seed: 7, environment: 'floodlands', towns: 13, curviness: 0.3 };
+		const { sources } = validateMapParamSet(set);
+		const resolved = resolveMapParams(set).sources;
+		expect(sources.towns).toBe('clamped');
+		expect(NUMBER_PARAMS.filter((name) => name !== 'towns' && sources[name] !== resolved[name])).toEqual([]);
+		expect(sources).toMatchObject({ curviness: 'override', aridity: 'environment', radius: 'default' });
+	});
+
+	it('marks no parameter clamped for a seed it wraps', () => {
+		const { sources, clamps } = validateMapParamSet({ seed: 2 ** 32 + 3 });
+		expect(clamps.map(({ param }) => param)).toEqual(['seed']);
+		expect(Object.values(sources)).not.toContain('clamped');
 	});
 });
 
 describe('describeClamp', () => {
-	it('words a raise, a drop, and a replacement', () => {
+	it('words a raise, a drop, a replacement, and a wrapped seed', () => {
 		expect(describeClamp({ param: 'highways', from: 3, to: 6, reason: 'strongholds + 2' })).toBe('highways raised to 6 (strongholds + 2)');
 		expect(describeClamp({ param: 'radius', from: 2000, to: 1600, reason: 'tuning range 600 to 1600' })).toBe('radius lowered to 1600 (tuning range 600 to 1600)');
 		expect(describeClamp({ param: 'environment', from: 'tundra', to: 'mixed', reason: 'unknown environment' })).toBe('environment set to mixed (unknown environment)');
 		expect(describeClamp({ param: 'rivers', from: NaN, to: 2, reason: 'not a number' })).toBe('rivers set to 2 (not a number)');
+		expect(describeClamp({ param: 'seed', from: -1, to: 4294967295, reason: 'uint32' })).toBe('seed wrapped to 4294967295 (uint32)');
+		expect(describeClamp({ param: 'seed', from: 2 ** 32 + 5, to: 5, reason: 'uint32' })).toBe('seed wrapped to 5 (uint32)');
 	});
 });

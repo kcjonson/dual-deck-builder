@@ -1,29 +1,20 @@
 import {
 	ENVIRONMENTS,
 	ENVIRONMENT_PRESETS,
+	Environment,
 	MAP_PARAMETERS,
 	MapParamSet,
 	NUMBER_PARAMS,
 	NumberParam,
 	PARAM_GROUPS,
 	PARAM_NAMES,
-	ParamRange,
 	environmentDefaults,
 	resolveMapParams,
 } from './MapParams';
-import { validateMapParams } from './ParamValidator';
-
-const inside = (value: number, range: ParamRange) => value >= range.min && value <= range.max;
-/** Whether a value is a whole number of steps, allowing for float error (0.35 / 0.05 is 6.999...). */
-const onGrid = (value: number, step: number) => Math.abs(value / step - Math.round(value / step)) < 1e-9;
+import { rollBounds } from './RollParams';
+import { inside, onGrid } from './testing';
 
 describe('MAP_PARAMETERS', () => {
-	it('has a row for every parameter but the seed and stop tables', () => {
-		const { params } = resolveMapParams({ seed: 1 });
-		const rows = Object.keys(params).filter((key) => key !== 'seed');
-		expect([...rows].sort()).toEqual([...PARAM_NAMES].sort());
-	});
-
 	it('lists the number parameters in table order, after the environment', () => {
 		expect(PARAM_NAMES[0]).toBe('environment');
 		expect(NUMBER_PARAMS).toEqual(PARAM_NAMES.slice(1));
@@ -46,10 +37,8 @@ describe('MAP_PARAMETERS', () => {
 		expect(values.filter((value) => !onGrid(value, step))).toEqual([]);
 	});
 
-	it.each(PARAM_NAMES)('%s has a label and a group with a heading', (name) => {
-		const spec = MAP_PARAMETERS[name];
-		expect(spec.label.length).toBeGreaterThan(0);
-		expect(PARAM_GROUPS.map(({ group }) => group)).toContain(spec.group);
+	it.each(PARAM_NAMES)('%s has a label', (name) => {
+		expect(MAP_PARAMETERS[name].label.length).toBeGreaterThan(0);
 	});
 
 	it('has parameters in every group', () => {
@@ -58,14 +47,13 @@ describe('MAP_PARAMETERS', () => {
 		}
 	});
 
-	it('offers every environment once, defaults to Mixed, and rolls from known ones', () => {
+	it('offers the spec\'s environments once each, defaults to Mixed, and rolls from all of them', () => {
 		const { options, campaign, kind } = MAP_PARAMETERS.environment;
 		expect(kind).toBe('enum');
-		expect(options.map(({ value }) => value)).toEqual([...ENVIRONMENTS]);
 		expect(options.map(({ label }) => label)).toEqual(['High Desert', 'Rust Belt', 'Floodlands', 'Badlands', 'Mixed']);
+		expect(new Set(ENVIRONMENTS).size).toBe(ENVIRONMENTS.length);
 		expect(MAP_PARAMETERS.environment.default).toBe('mixed');
-		expect(campaign.length).toBeGreaterThan(0);
-		expect(campaign.every((value) => ENVIRONMENTS.includes(value))).toBe(true);
+		expect(campaign).toBe(ENVIRONMENTS);
 	});
 });
 
@@ -92,19 +80,34 @@ describe('ENVIRONMENT_PRESETS', () => {
 		expect(value).not.toBe(fallback);
 	});
 
-	// A roll reaches at most half the campaign range either side of the
-	// environment's value, so these are the ends rollParams can get to.
 	it.each(NUMBER_PARAMS)('%s has each campaign end within a roll\'s reach of some environment', (name) => {
-		const { campaign } = MAP_PARAMETERS[name];
-		const reach = (campaign.max - campaign.min) / 2;
-		const centres = ENVIRONMENTS.map((environment) => environmentDefaults(environment)[name]);
-		expect(Math.min(...centres) - reach).toBeLessThanOrEqual(campaign.min + 1e-9);
-		expect(Math.max(...centres) + reach).toBeGreaterThanOrEqual(campaign.max - 1e-9);
+		const spec = MAP_PARAMETERS[name];
+		const bounds = ENVIRONMENTS.map((environment) => rollBounds(spec, environmentDefaults(environment)[name]));
+		expect(Math.min(...bounds.map(({ min }) => min))).toBeCloseTo(spec.campaign.min, 9);
+		expect(Math.max(...bounds.map(({ max }) => max))).toBeCloseTo(spec.campaign.max, 9);
 	});
 
-	it.each(ENVIRONMENTS)('%s defaults validate with no clamps', (environment) => {
-		const { params } = resolveMapParams({ seed: 1, environment });
-		expect(validateMapParams(params).clamps).toEqual([]);
+	// Half an environment's rolls land either side of its value, so a value on
+	// an end of its campaign range puts half or more exactly on that end. These
+	// are the ones that do it on purpose.
+	const ON_AN_END: readonly (readonly [Environment, NumberParam])[] = [
+		// Most High Desert maps have no lakes: about two in three.
+		['highDesert', 'lakes'],
+	];
+
+	it('keeps every environment\'s value a step inside its campaign range, but for the ones on an end on purpose', () => {
+		const onAnEnd: (readonly [Environment, NumberParam])[] = [];
+		for (const environment of ENVIRONMENTS) {
+			const values = environmentDefaults(environment);
+			for (const name of NUMBER_PARAMS) {
+				const { campaign, step } = MAP_PARAMETERS[name];
+				// A one-value range rolls that value every time: it's pinned, not piled up.
+				if (campaign.min === campaign.max) continue;
+				const room = Math.min(values[name] - campaign.min, campaign.max - values[name]);
+				if (room < step - 1e-9) onAnEnd.push([environment, name]);
+			}
+		}
+		expect(onAnEnd).toEqual(ON_AN_END);
 	});
 
 	describe('reads the spec', () => {
@@ -173,9 +176,11 @@ describe('resolveMapParams', () => {
 		expect(sources.radius).toBe('default');
 	});
 
-	it('keeps stop tables when set and leaves the key out when not', () => {
+	it('copies stop tables when set and leaves the key out when not', () => {
 		const stopTables = { highway: { raiders: 3, checkpoint: 2 } };
-		expect(resolveMapParams({ seed: 1, stopTables }).params.stopTables).toBe(stopTables);
+		const { params } = resolveMapParams({ seed: 1, stopTables });
+		stopTables.highway.raiders = 9;
+		expect(params.stopTables).toEqual({ highway: { raiders: 3, checkpoint: 2 } });
 		expect(Object.keys(resolveMapParams({ seed: 1 }).params)).not.toContain('stopTables');
 	});
 

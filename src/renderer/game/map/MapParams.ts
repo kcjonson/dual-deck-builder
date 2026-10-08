@@ -14,18 +14,29 @@ import type { JsonObject } from '../core/Json';
  */
 export type StopTables = JsonObject;
 
-export const ENVIRONMENTS = ['highDesert', 'rustBelt', 'floodlands', 'badlands', 'mixed'] as const;
-export type Environment = (typeof ENVIRONMENTS)[number];
-
-export type ParamGroup = 'world' | 'network' | 'gameplay' | 'scenery';
+/**
+ * The environments in the Map Lab's order, with their names. `rollParams`
+ * picks one by its index here, so a change to this list moves which
+ * environment a seed rolls.
+ */
+const ENVIRONMENT_OPTIONS = [
+	{ value: 'highDesert', label: 'High Desert' },
+	{ value: 'rustBelt', label: 'Rust Belt' },
+	{ value: 'floodlands', label: 'Floodlands' },
+	{ value: 'badlands', label: 'Badlands' },
+	{ value: 'mixed', label: 'Mixed' },
+] as const;
+export type Environment = (typeof ENVIRONMENT_OPTIONS)[number]['value'];
+export const ENVIRONMENTS: readonly Environment[] = ENVIRONMENT_OPTIONS.map(({ value }) => value);
 
 /** The groups in the Map Lab's order, with their headings. */
-export const PARAM_GROUPS: readonly { readonly group: ParamGroup; readonly label: string }[] = [
+export const PARAM_GROUPS = [
 	{ group: 'world', label: 'World' },
 	{ group: 'network', label: 'Drivable network' },
 	{ group: 'gameplay', label: 'Gameplay' },
 	{ group: 'scenery', label: 'Scenery' },
-];
+] as const;
+export type ParamGroup = (typeof PARAM_GROUPS)[number]['group'];
 
 /**
  * Everything generation reads. Plain JSON, so a campaign save and a preset
@@ -125,20 +136,14 @@ export type ParamSpec = NumberParamSpec | EnumParamSpec<Environment>;
  * Every parameter, in the Map Lab's order. Tuning ranges and defaults are
  * the spec's starting values, and campaign ranges are starting values too.
  * A roll centres on the environment's value and reaches at most half the
- * campaign range either side, so each campaign range holds every
- * environment's value and has each end within that reach of one of them: a
- * range no environment moves sits evenly round its default.
+ * campaign range either side (`rollBounds`), so each campaign range holds
+ * every environment's value and has each end within that reach of one of
+ * them: a range no environment moves sits evenly round its default.
  */
 export const MAP_PARAMETERS: { readonly environment: EnumParamSpec<Environment> } & { readonly [Name in NumberParam]: NumberParamSpec } = {
 	environment: {
 		group: 'world', kind: 'enum', label: 'Environment',
-		options: [
-			{ value: 'highDesert', label: 'High Desert' },
-			{ value: 'rustBelt', label: 'Rust Belt' },
-			{ value: 'floodlands', label: 'Floodlands' },
-			{ value: 'badlands', label: 'Badlands' },
-			{ value: 'mixed', label: 'Mixed' },
-		],
+		options: ENVIRONMENT_OPTIONS,
 		default: 'mixed',
 		campaign: ENVIRONMENTS,
 	},
@@ -260,7 +265,7 @@ export const MAP_PARAMETERS: { readonly environment: EnumParamSpec<Environment> 
 	},
 	brokenHighways: {
 		group: 'scenery', kind: 'int', label: 'Broken highways',
-		tuning: { min: 0, max: 4 }, step: 1, default: 2, campaign: { min: 1, max: 3 },
+		tuning: { min: 0, max: 4 }, step: 1, default: 2, campaign: { min: 1, max: 4 },
 	},
 	railLines: {
 		group: 'scenery', kind: 'int', label: 'Rail lines',
@@ -283,6 +288,12 @@ export const NUMBER_PARAMS: readonly NumberParam[] = PARAM_NAMES.filter((name): 
  * to tune, read from the spec's descriptions: aridity runs from dry desert
  * (0) to wet ground and mire (1), the Floodlands are wet with rivers and
  * lakes, the Badlands rough and contaminated.
+ *
+ * Each value sits at least a step inside its campaign range. Half an
+ * environment's rolls land either side of its value however little room
+ * that side has, so a value on an end of the range would put half of them
+ * or more exactly on the end. High Desert's 0 lakes is the one value on an
+ * end, on purpose: most High Desert maps have no lakes.
  */
 export const ENVIRONMENT_PRESETS: { readonly [Name in Environment]: Readonly<Partial<Record<NumberParam, number>>> } = {
 	// Dry tableland cut by canyons: long straight roads, few towns or farms.
@@ -294,25 +305,24 @@ export const ENVIRONMENT_PRESETS: { readonly [Name in Environment]: Readonly<Par
 	rustBelt: {
 		aridity: 0.55, mountainCoverage: 0.15, ruggedness: 0.35, rivers: 3, contamination: 0.45, hotspots: 4,
 		metroSize: 0.18, towns: 8, branchiness: 0.6, trailShare: 0.35, streetGrids: 0.85, countyRoads: 0.65,
-		brokenHighways: 3, railLines: 3,
+		brokenHighways: 3, railLines: 2,
 	},
 	// Low, wet, and flat: looping rivers, standing water, mire, and roads that wind around it.
 	floodlands: {
-		aridity: 0.85, mountainCoverage: 0.05, ruggedness: 0.25, rivers: 5, riverMeander: 0.75, lakes: 6,
+		aridity: 0.85, mountainCoverage: 0.1, ruggedness: 0.25, rivers: 4, riverMeander: 0.75, lakes: 5,
 		contamination: 0.4, curviness: 0.6, farmTracks: 0.5,
 	},
 	// Broken, toxic ground: sharp relief, blast sites, and roads that give out to trails.
 	badlands: {
-		aridity: 0.3, mountainCoverage: 0.35, ruggedness: 0.8, rivers: 1, lakes: 1, contamination: 0.6, hotspots: 5,
-		towns: 3, curviness: 0.65, trailShare: 0.7, countyRoads: 0.25, farmTracks: 0.1,
+		aridity: 0.3, mountainCoverage: 0.35, ruggedness: 0.8, rivers: 1, lakes: 1, contamination: 0.6, hotspots: 4,
+		towns: 3, curviness: 0.65, trailShare: 0.7, countyRoads: 0.25, farmTracks: 0.15,
 	},
 	mixed: {},
 };
 
 /** Every number parameter's default under an environment. */
 export function environmentDefaults(environment: Environment): Record<NumberParam, number> {
-	// An unknown name falls back to the table, for the validator to report.
-	const preset: Partial<Record<NumberParam, number>> = ENVIRONMENT_PRESETS[environment] ?? {};
+	const preset: Partial<Record<NumberParam, number>> = ENVIRONMENT_PRESETS[environment];
 	const values = {} as Record<NumberParam, number>;
 	for (const name of NUMBER_PARAMS) values[name] = preset[name] ?? MAP_PARAMETERS[name].default;
 	return values;
@@ -330,35 +340,32 @@ export type ParamSource = 'default' | 'environment' | 'override';
 
 export interface ResolvedMapParams {
 	readonly params: MapParams;
-	/** Per number parameter, so the Map Lab can draw overrides apart from the environment's values. */
+	/** Per number parameter, for the values as set, before the validator changes any. */
 	readonly sources: Readonly<Record<NumberParam, ParamSource>>;
 }
 
 /**
  * A parameter set filled out: the environment's defaults with the set's
- * overrides over them. Validation is separate (`validateMapParams`), so a
- * value outside its range comes back as it was set.
+ * overrides over them, and a copy of its stop tables. Validation is separate
+ * (`validateMapParams`), so a value outside its range comes back as it was
+ * set; `validateMapParamSet` does both, with sources for the values it
+ * returns, which is what the Map Lab shows.
  */
 export function resolveMapParams(set: MapParamSet): ResolvedMapParams {
 	const environment = set.environment ?? MAP_PARAMETERS.environment.default;
-	const preset: Partial<Record<NumberParam, number>> = ENVIRONMENT_PRESETS[environment] ?? {};
-	const values = {} as Record<NumberParam, number>;
+	const preset: Partial<Record<NumberParam, number>> = ENVIRONMENT_PRESETS[environment];
+	const values = environmentDefaults(environment);
 	const sources = {} as Record<NumberParam, ParamSource>;
 	for (const name of NUMBER_PARAMS) {
 		const override = set[name];
-		const fromPreset = preset[name];
 		if (override !== undefined) {
 			values[name] = override;
 			sources[name] = 'override';
-		} else if (fromPreset !== undefined) {
-			values[name] = fromPreset;
-			sources[name] = 'environment';
 		} else {
-			values[name] = MAP_PARAMETERS[name].default;
-			sources[name] = 'default';
+			sources[name] = preset[name] === undefined ? 'default' : 'environment';
 		}
 	}
 	const params: MapParams = { seed: set.seed, environment, ...values };
-	if (set.stopTables !== undefined) params.stopTables = set.stopTables;
+	if (set.stopTables !== undefined) params.stopTables = structuredClone(set.stopTables);
 	return { params, sources };
 }
