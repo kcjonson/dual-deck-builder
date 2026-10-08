@@ -2,7 +2,8 @@ import { MapParams, resolveMapParams } from '../map/MapParams';
 import { Convoy } from '../mechanics/Convoy';
 import { DriverArchetype } from '../mechanics/Driver';
 import { createEscort } from '../mechanics/Escort';
-import { Campaign, CampaignJson, CampaignOptions, NO_RESOURCES } from './Campaign';
+import { CAMPAIGN_SCHEMA_VERSION, Campaign, CampaignJson, CampaignOptions, NO_RESOURCES } from './Campaign';
+import { historyEntry, historyToJson } from './CampaignHistory';
 import { cardCount, totalCards } from './CardCounts';
 import { DriverRecord } from './DriverRecord';
 import campaignV1 from './__fixtures__/campaign-v1.json';
@@ -27,6 +28,43 @@ const reload = (campaign: Campaign): Campaign => Campaign.fromJSON(JSON.parse(JS
 const savedCampaign = (): CampaignJson => JSON.parse(JSON.stringify(campaignV1));
 
 const record = (id: string): DriverRecord => new DriverRecord({ id, archetype: 'mechanic', name: 'Mechanic 1' });
+
+/**
+ * Keys whose children are data rather than format: card counts keyed by
+ * card type, and map params, which a load repairs as the table moves on.
+ */
+const DATA_KEYS: Readonly<Record<string, string>> = { 'locker': '<card type>', 'drivers[].defaultDeck': '<card type>', 'mapParams': '<map parameter>' };
+
+/** Every key path in a JSON value, sorted, with array items as [] and data keys collapsed. */
+const keyPaths = (value: unknown): string[] => {
+	const paths = new Set<string>();
+	const walk = (node: unknown, path: string): void => {
+		if (path !== '') paths.add(path);
+		if (Array.isArray(node)) node.forEach(item => walk(item, `${path}[]`));
+		else if (typeof node === 'object' && node !== null) {
+			for (const [key, item] of Object.entries(node)) walk(item, path === '' ? key : `${path}.${DATA_KEYS[path] ?? key}`);
+		}
+	};
+	walk(value, '');
+	return [...paths].sort();
+};
+
+/** The version 1 save format, pinned: a change here is a change of format, which bumps `CAMPAIGN_SCHEMA_VERSION`. */
+const SAVE_FORMAT_V1 = {
+	campaign: [
+		'convoy', 'convoy[]', 'convoy[].armor', 'convoy[].baseSpeed', 'convoy[].escort', 'convoy[].escort.dividend', 'convoy[].escort.dividend.amount',
+		'convoy[].escort.dividend.kind', 'convoy[].escort.evade', 'convoy[].escort.gunnery', 'convoy[].escort.preferredSlot', 'convoy[].escort.preferredSlot.lane',
+		'convoy[].escort.preferredSlot.row', 'convoy[].escort.ramming', 'convoy[].escort.role', 'convoy[].escort.signatureCard', 'convoy[].escort.type',
+		'convoy[].maxArmor', 'convoy[].maxStructure', 'convoy[].mods', 'convoy[].mods[]', 'convoy[].mods[].kind', 'convoy[].mods[].name', 'convoy[].name',
+		'convoy[].structure', 'day', 'drivers', 'drivers[]', 'drivers[].archetype', 'drivers[].defaultDeck', 'drivers[].defaultDeck.<card type>',
+		'drivers[].handLimit', 'drivers[].hitpoints', 'drivers[].id', 'drivers[].injuredDays', 'drivers[].maxHitpoints', 'drivers[].name',
+		'drivers[].runsCompleted', 'drivers[].status', 'generatorVersion', 'locker', 'locker.<card type>', 'log', 'log[]', 'log[].day', 'log[].message', 'map',
+		'mapParams', 'mapParams.<map parameter>', 'nextDriverNumber', 'resources', 'resources.food', 'resources.fuel', 'resources.meds', 'resources.people',
+		'resources.scrap', 'resources.water', 'seed', 'strongholdsTaken', 'strongholdsTaken[]', 'unrest'
+	],
+	historyEntry: ['day', 'ending', 'seed', 'strongholdsTaken'],
+	history: ['campaigns', 'version']
+};
 
 /** Every copy the compound owns between runs: the locker and every default deck. */
 const cardsOwned = (campaign: Campaign): number =>
@@ -755,6 +793,22 @@ describe('Campaign', () => {
 			expect(campaign.drivers.map(driver => driver.status)).toEqual(['ready', 'dead', 'injured', 'missing', 'ready']);
 			expect(campaign.convoy.escorts.map(escort => escort.escort?.type ?? null)).toEqual(['fuel_hauler', null]);
 			expect(campaign.recruitDriver({ archetype: 'mechanic' }).id).toBe('driver-6');
+		});
+
+		it('holds the save format to the version it\'s stamped with', () => {
+			const campaign = Campaign.fromJSON(campaignV1);
+			const format = {
+				campaign: keyPaths(campaignV1),
+				historyEntry: Object.keys(historyEntry({ campaign, ending: 'won' })).sort(),
+				history: Object.keys(historyToJson({ version: CAMPAIGN_SCHEMA_VERSION, entries: [] })).sort()
+			};
+
+			expect(CAMPAIGN_SCHEMA_VERSION).toBe(1);
+			try {
+				expect(format).toEqual(SAVE_FORMAT_V1);
+			} catch (error) {
+				throw new Error(`format changed: bump CAMPAIGN_SCHEMA_VERSION and re-pin\n${(error as Error).message}`);
+			}
 		});
 
 		describe('a damaged save', () => {
