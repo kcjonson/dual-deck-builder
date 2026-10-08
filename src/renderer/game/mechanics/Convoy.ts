@@ -16,18 +16,17 @@ export interface DividendPayout extends EscortDividend {
  */
 export interface AfterFight {
 	/**
-	 * Living escorts on the player team at the end, in team order, whatever
-	 * made them escorts: the convoy's own and any driven vehicle that became
-	 * one this fight. Set-piece allies aren't the convoy's and aren't here.
-	 * Each has already left the road, with its armor refilled.
+	 * The convoy's escorts still running at the end, in roster order, each
+	 * off the road with its armor refilled. A driven vehicle that carried on
+	 * unmanned isn't one, and neither is a set-piece ally: neither is the
+	 * convoy's.
 	 */
 	escorts: Vehicle[];
 	/** Convoy escorts wrecked this fight. The copies they brought have already left the decks. */
 	lost: Vehicle[];
 	/**
-	 * What the surviving haulers paid, empty unless the fight was won. A heal has
-	 * already landed on the drivers; fuel and scrap are for the run to add,
-	 * since nothing holds them yet.
+	 * What the surviving haulers paid, empty unless the fight was won. A heal
+	 * has already landed on the drivers; fuel and scrap are the run's cargo.
 	 */
 	dividends: DividendPayout[];
 }
@@ -41,10 +40,7 @@ export interface Convoy extends ConvoyData {}
 
 /**
  * The escorts you own, in roster order (first acquired first), between
- * fights. Run state: a player team fields them in this order. Up to four;
- * a fight can leave a fifth (a driven vehicle that became an escort), and
- * the convoy holds that over-cap state until one is dismissed, since a
- * team can't field it.
+ * fights. A player team fields them in this order. Up to four.
  */
 export class Convoy extends Model<ConvoyData> {
 	static properties = new Set<keyof ConvoyData>([
@@ -70,13 +66,6 @@ export class Convoy extends Model<ConvoyData> {
 	 */
 	public get isFull(): boolean {
 		return this.escorts.length >= MAX_CONVOY_ESCORTS;
-	}
-
-	/**
-	 * More than a team can field, after a fight left a fifth
-	 */
-	public get isOverCap(): boolean {
-		return this.escorts.length > MAX_CONVOY_ESCORTS;
 	}
 
 	/**
@@ -106,12 +95,10 @@ export class Convoy extends Model<ConvoyData> {
 	}
 
 	/**
-	 * The lost are gone for the run. Anything that became an escort during
-	 * the fight joins the end of the roster, even past the cap.
+	 * The lost are gone for good: wrecked in a fight (`AfterFight.lost`), or
+	 * with a run that failed. Nothing joins after a fight.
 	 */
-	public afterFight({ escorts, lost }: AfterFight): void {
-		const kept = this.escorts.filter(owned => !lost.includes(owned));
-		const joined = escorts.filter(escort => !kept.includes(escort));
-		this.escorts = [...kept, ...joined];
+	public afterFight({ lost }: { lost: readonly Vehicle[] }): void {
+		this.escorts = this.escorts.filter(owned => !lost.includes(owned));
 	}
 }

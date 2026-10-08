@@ -331,7 +331,7 @@ describe('Driver death', () => {
 			expect(rigDriver.role).toBe(DriverRole.ACTIVE);
 			expect(battle.battleOver).toBe(false);
 			expect(battle.isPlayerTurn).toBe(true);
-			expect(messages()).toContain('Player2 Bike Driver is dead');
+			expect(messages()).toContain('Player2 Bike Driver is down');
 			expect(messages()).toContain('Player1 Rig Driver takes the wheel of Bike');
 
 			giveHand(rigDriver, [farShot()]);

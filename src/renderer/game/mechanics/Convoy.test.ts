@@ -82,7 +82,6 @@ describe('Convoy', () => {
 
 			expect(convoy.escorts).toEqual(joined);
 			expect(convoy.isFull).toBe(true);
-			expect(convoy.isOverCap).toBe(false);
 			expect(() => convoy.add(createEscort({ type: 'outrider' })))
 				.toThrow(`The convoy holds ${MAX_CONVOY_ESCORTS} escorts; dismiss one first`);
 		});
@@ -281,26 +280,24 @@ describe('Convoy', () => {
 	});
 
 	describe('a driven vehicle that became an escort', () => {
-		test('stays in the convoy after the fight, at the end of the roster, even past four', () => {
+		test('never joins the convoy, and keeps the damage it ended with while the convoy\'s escorts refill their armor', () => {
 			const escorts: EscortType[] = ['outrider', 'pilot_car', 'fuel_hauler', 'med_truck'];
 			const convoy = new Convoy({ escorts: escorts.map(type => createEscort({ type })) });
 			const battle = createBattle([rig, bike, ...convoy.escorts]);
 			const roster = [...convoy.escorts];
+			const [, pilotCar] = roster;
+			bike.set({ maxArmor: 6, armor: 2 });
+			pilotCar.takeDamage(pilotCar.armor + 4);
 
 			convertToEscort(battle, bike);
 			const result = battle.endCombat();
 			convoy.afterFight(result);
 
-			expect(result.escorts).toContain(bike);
-			expect(convoy.escorts).toEqual([...roster, bike]);
-			expect(convoy.isOverCap).toBe(true);
+			expect(result.escorts).toEqual(roster);
+			expect(convoy.escorts).toEqual(roster);
 			expect(bike.slot).toBeNull();
-			// A team can't field five, so one has to go before the next fight
-			expect(() => new Team({ type: TeamType.PLAYER, vehicles: [createDriven('Rig'), createDriven('Van'), ...convoy.escorts] }))
-				.toThrow('Player teams can field 4 convoy escorts, not 5');
-
-			convoy.dismiss({ escort: roster[0], drivers: [driverOf(rig)] });
-			expect(convoy.isOverCap).toBe(false);
+			expect(bike.armor).toBe(2);
+			expect([pilotCar.armor, pilotCar.structure]).toEqual([pilotCar.maxArmor, pilotCar.maxStructure - 4]);
 		});
 
 		test('brings no signature card, so nothing leaves the deck if it is wrecked', () => {
@@ -336,7 +333,7 @@ describe('Convoy', () => {
 			expect(endWon(battle).dividends).toEqual([]);
 		});
 
-		test('a Med Truck heals every living driver 3, up to their starting HP, including one who crashed out', () => {
+		test('a Med Truck heals every living driver 3, up to their max HP, including one who crashed out', () => {
 			const truck = createEscort({ type: 'med_truck' });
 			const battle = createBattle([rig, bike, truck]);
 			const rigDriver = driverOf(rig);
