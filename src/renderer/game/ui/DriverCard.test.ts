@@ -125,6 +125,24 @@ describe('Driver card (Game Flow 7.0)', () => {
 		expect(part(mount(driverCardData({ archetype: 'road_warrior', name: 'Road Warrior 2' })), 'name').measured?.lines).toBe(1);
 	});
 
+	it('fits three-digit HP whole, its bar the same length as a two-digit driver\'s', () => {
+		const tough = mount(driverCardData({ archetype: 'road_warrior', hitpoints: 100, maxHitpoints: 100 }));
+		expect(part(tough, 'hp').text).toBe('100/100');
+		expect(part(tough, 'hp').overflowOutcome).toBe('none');
+		const ordinary = mount(driverCardData({ archetype: 'road_warrior' }));
+		expect(hpFills(frame(tough))[0].width).toBe(hpFills(frame(ordinary))[0].width);
+	});
+
+	it('keeps a clear gap between the hand limit and the deck size at two digits each', () => {
+		const card = mount(driverCardData({ archetype: 'interceptor', handLimit: 10, deck: { ramming_speed: 20 } }));
+		const hand = part(card, 'hand');
+		const deck = part(card, 'deck');
+		expect([hand.text, deck.text]).toEqual(['HAND 10', 'DECK 20']);
+		const handRight = hand.x + (hand.measured?.width ?? Infinity);
+		const deckLeft = deck.x + deck.width - (deck.measured?.width ?? Infinity);
+		expect(deckLeft - handRight).toBeGreaterThanOrEqual(6);
+	});
+
 	it('cuts a name too long for two lines with an ellipsis', () => {
 		const card = mount(driverCardData({ archetype: 'raider', name: 'The Last Raider Who Drove the Whole Wasteland Alone' }));
 		expect(part(card, 'name').overflowOutcome).toBe('ellipsis');

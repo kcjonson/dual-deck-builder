@@ -57,7 +57,7 @@ const CUSTOM_TAG = 'CUSTOM';
  * The face, from the "Card sizes" board, in its own pixels from the outer
  * edge: everything sits inside the frame's corner rivets. The name has two
  * lines whatever it needs, so a row of cards keeps the specialty, the HP
- * bar, and the foot level; the HP figures have a box sized for "40/40",
+ * bar, and the foot level; the HP figures have a box sized for "100/100",
  * so the bars line up too.
  */
 const FACE = {
@@ -72,11 +72,12 @@ const FACE = {
 	 * condensed display face, tracked.
 	 */
 	specialty: { y: 102, size: 10, letterSpacing: 0.04 },
-	hp: { y: 114, bar: 5, figures: 30, gap: 4 },
-	/** The hand limit at the left, the deck size at the right, two digits each and room between. */
+	/** Seven mono figures at 9 px are 37.8 px, so three-digit HP fits whole. */
+	hp: { y: 114, bar: 5, figures: 38, gap: 4 },
+	/** The hand limit at the left, the deck size at the right; HAND 10 and DECK 20 leave 6 px between. */
 	foot: { y: 126, width: 40 },
-	/** The HP figures and the foot: mono, lightly tracked. */
-	mono: { size: 9, letterSpacing: 0.04 },
+	/** The HP figures and the foot: mono, untracked, which leaves the foot its room. */
+	mono: { size: 9 },
 	/**
 	 * The tags straddle the top edge and hang past the right one, as a mini
 	 * card's does; a CUSTOM tag stands left of a status tag, this far apart.
@@ -232,7 +233,7 @@ export class DriverCard extends Component {
 			y,
 			width,
 			height: FACE.row,
-			style: { fontRole: 'mono', fontSize: FACE.mono.size, color, letterSpacing: FACE.mono.letterSpacing, textAlign: align },
+			style: { fontRole: 'mono', fontSize: FACE.mono.size, color, textAlign: align },
 			lineHeight: FACE.row / FACE.mono.size,
 			verticalAlign: 'middle',
 			wrap: 'none',
