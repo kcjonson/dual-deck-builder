@@ -12,8 +12,8 @@ What a reveal shows has to be what is drawn, and no more: a bound that over-coun
 
 What a reveal shows is what the component draws in its current state. `Component.revealInk` is the union of `restingInk` and, while the render walk draws it, the walk's focus ring (`drawsWalkFocusRing`: `focusVisible`, enabled, and not `drawsOwnFocusRing`, the one test the walk reads too). `restingInk` is the one hook: protected, `cullInk` by default, which is right for ink a component draws in every state (a border, a shadow, a card's cost hex, a mini's stack edges, count, and tag). Controls whose `inkExtent` covers more than they draw override it with what they draw with the pointer away:
 
-- Button, Select, and TextInput answer `restingInkExtent` from their look layers: layer 6's ring outside the box while focus shows, and the base's own shadow. Never a glow or a press nudge.
-- Checkbox, Toggle, and Radio answer the same from the mark's layers; the walk adds the ring round the row.
+- Button, Select, and TextInput take `inkExtent` and `restingInk` both from `lookInk`, which reads their look layers: every state's ring, glow, shadow, and nudge for the first, and for the second layer 6's ring outside the box while focus shows and the base's own shadow where it falls (a raised button's reaches 27 px below its box and 15 above). Never a glow or a press nudge.
+- Checkbox, Toggle, and Radio take the same from the mark's layers, on the mark, less the look's ring: the walk draws theirs round the row.
 - A segment of a segmented control draws its ring inside its box and answers its box; its selected chip's glow is left out as a look's glow is.
 - A slider answers its box too: its thumb stays inside it, the thumb's glow is left out the same way, and the walk adds the ring.
 - List rows, tabs, and the tree view draw their ring inside and have no ink, so the default already answers their box.

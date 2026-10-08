@@ -1,5 +1,6 @@
+import { shadowInk } from '../draw/bounds';
 import type { BoxShadow } from '../draw/commands';
-import type { RGBA } from '../draw/geometry';
+import type { RGBA, Rect } from '../draw/geometry';
 import { tokens } from '../theme/tokens';
 
 /**
@@ -175,18 +176,37 @@ export function layersInkExtent(layers: LookLayers): number {
 	return extent + Math.max(0, nudges);
 }
 
-/**
- * How far a control drawn from these layers draws past its box in its
- * current state with the pointer away: layer 6's ring outside the box while
- * focus shows, and its base's own shadow. No glow and no nudge, which only
- * hover, a press, or an open state bring; `layersInkExtent` bounds every
- * state. What scrolling the control into view shows (R12.20).
- */
-export function restingInkExtent(layers: LookLayers, flags: StateFlags): number {
-	const base = flags.selected ? layers.selected : layers.normal;
+/** What a control drawn from look layers draws, for R8.8's cull and R12.20's reveal. */
+export interface LookInk {
+	/** `inkExtent`: the most any state draws past the shape, on any side (`layersInkExtent`). */
+	readonly extent: number;
+	/**
+	 * What it draws now with the pointer away, the shape included, in the
+	 * shape's space: layer 6's ring outside the shape while focus shows, and
+	 * the base's own shadow where it falls. No glow and no nudge, which only
+	 * hover, a press, or an open state bring. What scrolling the control into
+	 * view shows (R12.20).
+	 */
+	readonly resting: Rect;
+}
+
+/** Both of a control's ink bounds from its layers and flags, for the look drawn on `shape`. */
+export function lookInk(layers: LookLayers, flags: StateFlags, shape: Rect): LookInk {
 	const { focus_ring_offset, focus_ring_width } = tokens.control;
 	const ring = flags.focusVisible && flags.enabled ? focus_ring_offset + focus_ring_width : 0;
-	return base.shadow ? Math.max(ring, shadowExtent(base.shadow)) : ring;
+	let minX = shape.x - ring;
+	let minY = shape.y - ring;
+	let maxX = shape.x + shape.width + ring;
+	let maxY = shape.y + shape.height + ring;
+	const shadow = (flags.selected ? layers.selected : layers.normal).shadow;
+	if (shadow) {
+		const cast = shadowInk(shape, shadow);
+		minX = Math.min(minX, cast.x);
+		minY = Math.min(minY, cast.y);
+		maxX = Math.max(maxX, cast.x + cast.width);
+		maxY = Math.max(maxY, cast.y + cast.height);
+	}
+	return { extent: layersInkExtent(layers), resting: { x: minX, y: minY, width: maxX - minX, height: maxY - minY } };
 }
 
 export function sameLook(a: Look, b: Look): boolean {
