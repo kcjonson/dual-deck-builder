@@ -1,7 +1,9 @@
 import { Driver, DriverRole } from '../../mechanics/Driver';
 import { Vehicle } from '../../mechanics/Vehicle';
-import { Card } from '../../mechanics/Card';
+import { Card, CardData, CardEffect } from '../../mechanics/Card';
 import { Deck } from '../../mechanics/Deck';
+import type { AIDecision } from '../types';
+import cardsFile from '../../data/cards.json';
 
 export function createTestDriver(name: string): Driver {
 	const deck = new Deck('test', 'Test Deck', []);
@@ -81,17 +83,24 @@ export function createTestCard(options: {
 }
 
 /**
- * Cards that only take up room in a hand. At the default cost nobody can
- * afford one, so no AI is offered it.
+ * Cards that only take up room in a hand. Nobody can afford one, so no AI
+ * is offered it.
  */
-export function createFillerCards({ count, cost = 99 }: { count: number; cost?: number }): Card[] {
+export function createFillerCards(count: number): Card[] {
 	return Array.from({ length: count }, (_, index) => createTestCard({
 		type: 'filler',
 		name: `Filler ${index + 1}`,
-		cost,
+		cost: 99,
 		targetType: 'self',
 		effects: []
 	}));
+}
+
+/**
+ * A free card that does nothing, to read what another card adds to a score
+ */
+export function createBlankCard(): Card {
+	return createTestCard({ type: 'blank', name: 'Blank', cost: 0, targetType: 'self', effects: [] });
 }
 
 /**
@@ -108,10 +117,41 @@ export function createDrawCard(draws: number): Card {
 }
 
 /**
- * The same card without its draws, to read what they add to a play's score
+ * A card's data in cards.json, not upgraded
  */
-export function withoutDraws(card: Card): Card {
-	const control = card.copy();
-	control.set({ type: `${card.type}_without_draws`, effects: card.effects.filter(effect => effect.type !== 'draw_cards') });
-	return control;
+export function cardData(type: string): CardData {
+	const data = (cardsFile as unknown as { cards: CardData[] }).cards.find(candidate => candidate.type === type);
+	if (!data) throw new Error(`No card ${type} in cards.json`);
+	return { ...data, upgraded: false };
+}
+
+/**
+ * A card from cards.json, not upgraded
+ */
+export function realCard(type: string): Card {
+	return new Card(cardData(type));
+}
+
+/**
+ * A real card, cost, targeting, and order rules included, with other effects
+ */
+export function withEffects(type: string, effects: CardEffect[]): Card {
+	return new Card({
+		...cardData(type),
+		type: `control_${type}`,
+		name: `Control ${type}`,
+		effects
+	});
+}
+
+export function driverOf(vehicle: Vehicle): Driver {
+	if (!vehicle.driver) throw new Error(`${vehicle.name} has no driver`);
+	return vehicle.driver;
+}
+
+/**
+ * A driver's play of a card that takes no target
+ */
+export function play(card: Card, driver: Driver): AIDecision {
+	return { type: 'playCard', card, driver };
 }

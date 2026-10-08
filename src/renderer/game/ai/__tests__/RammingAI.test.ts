@@ -1,26 +1,24 @@
 import { RammingAI, RammingStrategy } from '../RammingAI';
 import { AIDecision } from '../types';
-import { createDrawCard, createFillerCards, createTestDriver, createTestVehicle, withoutDraws } from './test-helpers';
-import { Card, CardData } from '../../mechanics/Card';
+import {
+	createDrawCard,
+	createFillerCards,
+	createTestCard,
+	createTestDriver,
+	createTestVehicle,
+	driverOf,
+	play,
+	realCard,
+	withEffects
+} from './test-helpers';
+import { Card } from '../../mechanics/Card';
 import { Battle } from '../../mechanics/Battle';
 import { BoardProjection } from '../../mechanics/BoardProjection';
-import { Driver } from '../../mechanics/Driver';
 import { Team, TeamType } from '../../mechanics/Team';
-import { Vehicle } from '../../mechanics/Vehicle';
-import cardsFile from '../../data/cards.json';
 
-const realCard = (type: string): Card => {
-	const data = (cardsFile as unknown as { cards: CardData[] }).cards.find(candidate => candidate.type === type);
-	if (!data) throw new Error(`No card ${type} in cards.json`);
-	return new Card({ ...data, upgraded: false });
-};
-
-const driverOf = (vehicle: Vehicle): Driver => {
-	if (!vehicle.driver) throw new Error(`${vehicle.name} has no driver`);
-	return vehicle.driver;
-};
-
-const play = (card: Card, driver: Driver): AIDecision => ({ type: 'playCard', card, driver });
+// Nitro Boost with its speed but not its draw, which passes RammingAI's no-effect check
+const nitroWithoutDraw = (nitro: Card): Card =>
+	withEffects('nitro_boost', nitro.effects.filter(effect => effect.type !== 'draw_cards'));
 
 /**
  * Reads the strategy's score for one play against the live board
@@ -437,9 +435,9 @@ describe('RammingAI', () => {
 		test('worth nothing at the limit, one card a card under it, and both with room', () => {
 			const raider = driverOf(enemyTeam.vehicles[0]);
 			const nitro = realCard('nitro_boost');
-			const control = withoutDraws(nitro);
+			const control = nitroWithoutDraw(nitro);
 			// Five cards, four once Nitro Boost has left the hand
-			raider.set({ hand: [nitro, control, ...createFillerCards({ count: 3 })], adrenaline: 5 });
+			raider.set({ hand: [nitro, control, ...createFillerCards(3)], adrenaline: 5 });
 			const scorer = new ScoringRammingAI(enemyTeam, battle);
 			const drawWorth = (handLimit: number): number => {
 				raider.set({ handLimit });
@@ -455,21 +453,15 @@ describe('RammingAI', () => {
 		test('plays something useful over a draw it would burn', async () => {
 			const raider = driverOf(enemyTeam.vehicles[0]);
 			const draw = createDrawCard(2);
-			const shot = new Card({
+			const shot = createTestCard({
 				type: 'gun_attack',
 				name: 'Gun Attack',
-				summary: 'Shoot an enemy',
-				description: 'Shoot an enemy',
 				cost: 1,
-				rarity: 'common',
 				targetType: 'enemy_single',
-				effects: [
-					{ type: 'damage', value: 3 }
-				],
-				tags: ['ranged', 'attack']
+				effects: [{ type: 'damage', value: 3 }]
 			});
 			// Four cards, three once the draw has left the hand
-			raider.set({ hand: [draw, shot, ...createFillerCards({ count: 2 })], adrenaline: 5 });
+			raider.set({ hand: [draw, shot, ...createFillerCards(2)], adrenaline: 5 });
 
 			expect((await ai.makeDecision())?.card).toBe(draw);
 
@@ -480,14 +472,14 @@ describe('RammingAI', () => {
 		test('counts a draw against its player\'s hand, not their partner\'s', () => {
 			const [driver, partner] = playerTeam.vehicles.map(driverOf);
 			const nitro = realCard('nitro_boost');
-			const control = withoutDraws(nitro);
-			driver.set({ hand: [nitro, control, ...createFillerCards({ count: 3 })], adrenaline: 5 });
+			const control = nitroWithoutDraw(nitro);
+			driver.set({ hand: [nitro, control, ...createFillerCards(3)], adrenaline: 5 });
 			const scorer = new ScoringRammingAI(playerTeam, battle);
 			const drawWorth = (): number => scorer.score(play(nitro, driver)) - scorer.score(play(control, driver));
 			const bothCards = drawWorth();
 			expect(bothCards).toBeGreaterThan(0);
 
-			partner.set({ hand: createFillerCards({ count: 7 }) });
+			partner.set({ hand: createFillerCards(7) });
 			expect(drawWorth()).toBeCloseTo(bothCards);
 
 			partner.set({ hand: [] });

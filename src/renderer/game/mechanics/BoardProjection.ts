@@ -36,15 +36,6 @@ export function selfSpeedBonus(card: Card): number {
 }
 
 /**
- * How many of a draw's cards stay in the hand. A draw fills it up to the
- * driver's hand limit and the rest go straight to discard, so a hand at or
- * over its limit keeps none.
- */
-export function cardsKept({ count, handSize, handLimit }: { count: number; handSize: number; handLimit: number }): number {
-	return Math.max(0, Math.min(count, handLimit - handSize));
-}
-
-/**
  * Effects that land on one person aboard the target vehicle, the driver or
  * passenger the player picks (Triage, Top Off)
  */
@@ -63,18 +54,14 @@ interface ProjectedVehicle {
  * vehicle's slot, flank state, and speed, plus each driver's hand and
  * adrenaline as bookkeeping. Planning applies each chosen card here so later
  * picks see the board after a flank or a Nitro Boost; the Battle is never
- * touched. Damage isn't projected. Draws are only counted: nobody knows a
- * card until it's drawn, so a card drawn mid-turn is never planned and never
- * joins a projected hand, but how many a draw keeps joins the hand's size,
- * and a later draw in the plan burns against them. A fresh projection is the
- * live board.
+ * touched. Damage isn't projected. Draws aren't either: nobody knows the
+ * card until it's drawn, so a card drawn mid-turn is never planned, and a
+ * projected hand never grows. A fresh projection is the live board.
  */
 export class BoardProjection {
 	private readonly battle: Battle;
 	private readonly vehicles = new Map<Vehicle, ProjectedVehicle>();
 	private readonly hands = new Map<Driver, Card[]>();
-	/** Cards a planned draw kept, in the hand but not yet known */
-	private readonly drawnCards = new Map<Driver, number>();
 	private readonly adrenaline = new Map<Driver, number>();
 	/** When set, only this vehicle's driver acts. Planning runs one raider at a time. */
 	public actor: Vehicle | null = null;
@@ -117,14 +104,6 @@ export class BoardProjection {
 
 	public handOf(driver: Driver): readonly Card[] {
 		return this.hands.get(driver) ?? driver.hand;
-	}
-
-	/**
-	 * How many cards a driver holds: the projected hand plus the cards a
-	 * planned draw kept
-	 */
-	public handSizeOf(driver: Driver): number {
-		return this.handOf(driver).length + (this.drawnCards.get(driver) ?? 0);
 	}
 
 	public adrenalineOf(driver: Driver): number {
@@ -393,9 +372,9 @@ export class BoardProjection {
 
 	/**
 	 * Play a card on the projection: it leaves the hand, costs adrenaline,
-	 * draws, and moves or changes speed as it would in the battle, each
-	 * effect on the recipients the battle would pick. Hit checks are
-	 * deterministic, so a status that would miss doesn't land here either.
+	 * and moves or changes speed as it would in the battle, each effect on
+	 * the recipients the battle would pick. Hit checks are deterministic, so
+	 * a status that would miss doesn't land here either.
 	 */
 	public apply({ card, driver, target }: { card: Card; driver: Driver; target: Vehicle | null }): void {
 		const hand = this.hands.get(driver);
@@ -446,14 +425,6 @@ export class BoardProjection {
 					if (effect.type === 'gain_resource' && effect.resource !== 'adrenaline') break;
 					this.adrenaline.set(driver, Math.min(driver.maxAdrenaline, this.adrenalineOf(driver) + (effect.value ?? 0)));
 					break;
-				case 'draw':
-				case 'draw_cards': {
-					// A draw is the caster's own, after the card has left their hand
-					const count = typeof effect.value === 'number' ? effect.value : 0;
-					const kept = cardsKept({ count, handSize: this.handSizeOf(driver), handLimit: driver.handLimit });
-					this.drawnCards.set(driver, (this.drawnCards.get(driver) ?? 0) + kept);
-					break;
-				}
 			}
 		}
 	}
