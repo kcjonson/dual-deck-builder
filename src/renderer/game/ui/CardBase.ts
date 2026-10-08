@@ -7,7 +7,7 @@ import { focusRingDraw } from './cardStyle';
 
 /**
  * What every kind of card shares, whatever it shows (Game Flow 7.0): a play
- * card at either size and a driver card. Each is one
+ * card at either size, a driver card, and an escort card. Each is one
  * composite target (R8.29) that a click or `activate` selects (R9.31,
  * R9.27), draws its own focus ring so its tags and hex sit on top of it, and
  * settles its look whenever its state changes or it mounts again.

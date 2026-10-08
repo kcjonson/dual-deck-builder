@@ -7,19 +7,16 @@ import { totalCards } from '../campaign/CardCounts';
 import { CardBase } from './CardBase';
 import { CARD_DIM_FILLS, CARD_GROUND_FILLS, CARD_MUTED, CARD_NAME, CARD_RULES, HOVER_OUTLINE, SELECTED_OUTLINE, outsideRingDraw, textTones } from './cardStyle';
 import { DriverCardData, sameDriverCardData } from './driverCardData';
+import { StatBarDraws, drawStatBar, placeStatBar, statBarDraws, toneStatBar } from './statBar';
 import {
-	HpBarDraws,
+	DRIVER_HP_FILLS,
 	PortraitDraws,
 	RivetedFrameDraws,
-	drawHpBar,
 	drawPortrait,
 	drawRivetedFrame,
-	hpBarDraws,
 	hpFraction,
-	placeHpBar,
 	portraitDraws,
 	rivetedFrameDraws,
-	toneHpBar,
 	tonePortrait,
 	toneRivetedFrame,
 } from './driverCardStyle';
@@ -138,7 +135,7 @@ export class DriverCard extends CardBase<DriverCardData> {
 
 	private readonly frame: RivetedFrameDraws;
 	private readonly portrait: PortraitDraws;
-	private readonly hpBar: HpBarDraws = hpBarDraws();
+	private readonly hpBar: StatBarDraws = statBarDraws(DRIVER_HP_FILLS);
 	private readonly selectionRingDraw: DrawRectOptions;
 	/** Whether the selection ring was drawn at the last state change, so a change in what the card draws forgets its group count. */
 	private ringed = false;
@@ -254,7 +251,7 @@ export class DriverCard extends CardBase<DriverCardData> {
 		this.deck.text = `DECK ${totalCards(data.deck)}`;
 		// An emptied bar leaves its fill out, but only HP can empty it, and new
 		// HP figures invalidate layout, which forgets the walked group count
-		placeHpBar(this.hpBar, HP_BAR, hpFraction(data));
+		placeStatBar(this.hpBar, HP_BAR, hpFraction(data));
 	}
 
 	/** The tag at the card's corner, null for none. A lost driver's card is faded. */
@@ -362,7 +359,7 @@ export class DriverCard extends CardBase<DriverCardData> {
 		const tone = dimmed ? 'dimmed' : 'full';
 		toneRivetedFrame(this.frame, tone);
 		tonePortrait(this.portrait, tone);
-		toneHpBar(this.hpBar, tone);
+		toneStatBar(this.hpBar, tone);
 		this.statusTag.dimmed = dimmed;
 		this.deckTag.dimmed = dimmed;
 		this.name.color = NAME_TONES[tone];
@@ -380,7 +377,7 @@ export class DriverCard extends CardBase<DriverCardData> {
 	public render(draw: DrawApi): void {
 		drawRivetedFrame(draw, this.frame);
 		drawPortrait(draw, this.portrait);
-		drawHpBar(draw, this.hpBar);
+		drawStatBar(draw, this.hpBar);
 		if (this.selected) draw.drawRect(this.selectionRingDraw);
 		this.drawFocusRing(draw);
 		this.statusTag.render(draw);

@@ -4,6 +4,7 @@ import type { Screen } from '../renderer/game/core/Screen';
 import { developerSections } from '../renderer/game/screens/developer/sections';
 import { CardPileScene } from './scenes/CardPileScene';
 import { DialogScene } from './scenes/DialogScene';
+import { EscortCardScene } from './scenes/EscortCardScene';
 import { OverlaysScene } from './scenes/OverlaysScene';
 import { PopoverScene } from './scenes/PopoverScene';
 import { RoundedClipScene } from './scenes/RoundedClipScene';
@@ -69,6 +70,10 @@ export const galleryOnlyScenes: readonly GalleryScene[] = [
 	{ name: 'screen-transition', factory: (options) => new TransitionScene(options) },
 	{ name: 'scroll-hug', factory: (options) => new ScrollHugScene(options) },
 	{ name: 'rounded-clip', factory: (options) => new RoundedClipScene(options) },
+	// The escort card's states and its detail view (DDB-313), one view a scene so each fits 1024x600
+	{ name: 'escort-cards', factory: (options) => new EscortCardScene({ ...options, mode: 'cards' }) },
+	{ name: 'escort-detail', factory: (options) => new EscortCardScene({ ...options, mode: 'detail' }) },
+	{ name: 'escort-detail-pinned', factory: (options) => new EscortCardScene({ ...options, mode: 'detail-pinned' }) },
 	{ name: 'card-pile-draw', factory: (options) => new CardPileScene({ ...options, mode: 'draw' }) },
 	{ name: 'card-pile-discard', factory: (options) => new CardPileScene({ ...options, mode: 'discard' }) },
 	{ name: 'card-reward', factory: (options) => new CardPileScene({ ...options, mode: 'reward' }) },
