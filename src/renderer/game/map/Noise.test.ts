@@ -102,15 +102,15 @@ describe('SimplexNoise', () => {
 		});
 	});
 
-	describe('fractalWithin', () => {
-		it('returns fractal\'s value and derivatives unless the value is sure to fall outside the range', () => {
+	describe('fractal with bounds', () => {
+		it('returns the full sum and derivatives unless the value is sure to fall outside the range', () => {
 			const noise = noiseFor(31);
 			const reference = noiseFor(31);
 			let early = 0;
 			points(5000).forEach(([x, y], index) => {
 				const low = (index % 7) / 10 - 0.3;
 				const high = low + 0.2;
-				const value = noise.fractalWithin(x / 40, y / 40, 3, 0.5, low, high);
+				const value = noise.fractal(x / 40, y / 40, 3, 0.5, low, high);
 				const exact = reference.fractal(x / 40, y / 40, 3, 0.5);
 				if (value === -Infinity) {
 					expect(exact).toBeLessThanOrEqual(low);
@@ -127,11 +127,11 @@ describe('SimplexNoise', () => {
 			expect(early).toBeGreaterThan(1000);
 		});
 
-		it('never stops early with open ends', () => {
+		it('sums every octave with open ends, the same as with no bounds', () => {
 			const noise = noiseFor(37);
 			const reference = noiseFor(37);
 			points(500).forEach(([x, y]) => {
-				expect(noise.fractalWithin(x / 30, y / 30, 2, 0.5, -Infinity, Infinity)).toBe(reference.fractal(x / 30, y / 30, 2, 0.5));
+				expect(noise.fractal(x / 30, y / 30, 2, 0.5, -Infinity, Infinity)).toBe(reference.fractal(x / 30, y / 30, 2, 0.5));
 			});
 		});
 	});

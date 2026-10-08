@@ -361,7 +361,7 @@ export class TerrainFields {
 			metroRadius,
 			ring: townRing,
 			hotspots: this.hotspots,
-			cells: this.reachedCellsIn(townRing),
+			cells: params.towns > 0 ? this.reachedCellsIn(townRing) : [],
 			cellSize: ROUGHNESS.cell,
 			// Every point of a reached cell is ground a road can get to; towns prefer open country.
 			suits: (x, y, strict) => {
@@ -387,7 +387,7 @@ export class TerrainFields {
 		if (distanceSquared <= this.startSquared) return 0;
 		let contamination = 0;
 		if (this.contaminationThreshold !== Infinity) {
-			const noise = this.contaminationNoise.fractalWithin(x * CONTAMINATION_FREQUENCY, y * CONTAMINATION_FREQUENCY, CONTAMINATION.octaves, CONTAMINATION.gain, this.contaminationFloor, Infinity);
+			const noise = this.contaminationNoise.fractal(x * CONTAMINATION_FREQUENCY, y * CONTAMINATION_FREQUENCY, CONTAMINATION.octaves, CONTAMINATION.gain, this.contaminationFloor, Infinity);
 			contamination = smooth01((noise - this.contaminationThreshold) * CONTAMINATION.sharpness + 0.5);
 		}
 		const hotspots = this.hotspotData;
@@ -657,7 +657,7 @@ export class TerrainFields {
 		this.partValue = 0;
 		const noise = this.canyonNoise;
 		const halfWidth = this.canyonHalfWidth;
-		let line = noise.fractalWithin(x * CANYON_FREQUENCY, y * CANYON_FREQUENCY, CANYONS.octaves, CANYONS.gain, -halfWidth, halfWidth);
+		let line = noise.fractal(x * CANYON_FREQUENCY, y * CANYON_FREQUENCY, CANYONS.octaves, CANYONS.gain, -halfWidth, halfWidth);
 		let lineX = noise.derivativeX * CANYON_FREQUENCY;
 		let lineY = noise.derivativeY * CANYON_FREQUENCY;
 		if (line < 0) {
@@ -697,7 +697,7 @@ export class TerrainFields {
 		this.partY = 0;
 		this.partValue = 0;
 		const patchNoise = this.patchNoise;
-		const along = (patchNoise.fractalWithin(x * PATCH_FREQUENCY, y * PATCH_FREQUENCY, BADLANDS.patchOctaves, BADLANDS.patchGain, this.patchFloor, Infinity) - this.patchThreshold) * BADLANDS.patchSharpness + 0.5;
+		const along = (patchNoise.fractal(x * PATCH_FREQUENCY, y * PATCH_FREQUENCY, BADLANDS.patchOctaves, BADLANDS.patchGain, this.patchFloor, Infinity) - this.patchThreshold) * BADLANDS.patchSharpness + 0.5;
 		const raw = smooth01(along);
 		if (raw <= 0) return 0;
 		const rate = smoothSlope(along) * BADLANDS.patchSharpness * PATCH_FREQUENCY;
@@ -747,7 +747,7 @@ export class TerrainFields {
 		if (this.ruggedReady) return this.ruggedValue;
 		this.ruggedReady = true;
 		const noise = this.roughNoise;
-		const along = (noise.fractalWithin(x * ROUGHNESS_FREQUENCY, y * ROUGHNESS_FREQUENCY, ROUGHNESS.octaves, ROUGHNESS.gain, this.roughFloor, Infinity) - this.roughFloor) * ROUGHNESS.sharpness;
+		const along = (noise.fractal(x * ROUGHNESS_FREQUENCY, y * ROUGHNESS_FREQUENCY, ROUGHNESS.octaves, ROUGHNESS.gain, this.roughFloor, Infinity) - this.roughFloor) * ROUGHNESS.sharpness;
 		const rough = smooth01(along);
 		const rate = (1 - ROUGHNESS.floor) * smoothSlope(along) * ROUGHNESS.sharpness * ROUGHNESS_FREQUENCY;
 		this.ruggedX = rough > 0 && rough < 1 ? rate * noise.derivativeX : 0;
@@ -786,7 +786,7 @@ export class TerrainFields {
 				const nearX = Math.max(0, Math.abs(x) - half);
 				if (nearX * nearX + nearY * nearY < this.reliefSquared) continue;
 				// Early out either way: only which side of the floor matters.
-				const value = noise.fractalWithin(x * ROUGHNESS_FREQUENCY, y * ROUGHNESS_FREQUENCY, ROUGHNESS.octaves, ROUGHNESS.gain, floor, floor);
+				const value = noise.fractal(x * ROUGHNESS_FREQUENCY, y * ROUGHNESS_FREQUENCY, ROUGHNESS.octaves, ROUGHNESS.gain, floor, floor);
 				if (value > floor) cells[row * columns + column] = 1;
 			}
 		}

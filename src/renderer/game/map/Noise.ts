@@ -166,23 +166,17 @@ export class SimplexNoise {
 	 * in `derivativeX` and `derivativeY`. (x, y) is in the first octave's
 	 * lattice units: scale world units by the frequency first, and the
 	 * derivatives by it after.
+	 *
+	 * A caller that only cares whether the result lands strictly between `low`
+	 * and `high` passes them, and the sum stops as soon as the octaves left
+	 * can't bring it there, each sample being under 1 in size: -Infinity when
+	 * it's sure to be `low` or under, +Infinity when it's sure to be `high` or
+	 * over, without derivatives either way. Otherwise the result is the full
+	 * sum, derivatives included, even if it lands outside after all. One loop
+	 * either way, so a threshold calibrated without bounds matches sampling
+	 * with them to the bit.
 	 */
-	public fractal(x: number, y: number, octaves: number, gain: number): number {
-		// One loop for both, so a threshold calibrated on `fractal` matches
-		// `fractalWithin` at sampling time to the bit.
-		return this.fractalWithin(x, y, octaves, gain, -Infinity, Infinity);
-	}
-
-	/**
-	 * `fractal`, for a caller that only cares whether the result lands
-	 * strictly between `low` and `high`: it stops as soon as the octaves left
-	 * can't bring it there, each sample being under 1 in size, and returns
-	 * -Infinity when it's sure to be `low` or under, +Infinity when it's sure
-	 * to be `high` or over, without derivatives either way. Otherwise it
-	 * returns exactly what `fractal` would, derivatives included, even if
-	 * that lands outside after all.
-	 */
-	public fractalWithin(x: number, y: number, octaves: number, gain: number, low: number, high: number): number {
+	public fractal(x: number, y: number, octaves: number, gain: number, low = -Infinity, high = Infinity): number {
 		let total = 0;
 		let amplitude = 1;
 		for (let octave = 0; octave < octaves; octave += 1) {
