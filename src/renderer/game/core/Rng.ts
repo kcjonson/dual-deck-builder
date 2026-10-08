@@ -1,7 +1,7 @@
 /**
- * Seeded random streams. Generation and campaign code draw from these and
- * should not call `Math.random`; a new root seed comes from `freshSeed`. The
- * generator is sfc32, with PractRand's reference step and three-word seeding.
+ * Seeded random streams. Game code draws from these and never calls
+ * `Math.random`; a new root seed is minted by `freshSeed`. The generator is
+ * sfc32, with PractRand's reference step and three-word seeding.
  *
  * The core is integer math and `weighted` uses only IEEE addition and
  * multiplication, so a seed draws the same numbers in every JS engine. Golden
@@ -37,8 +37,9 @@ const GOLDEN_GAMMA = 0x9e3779b9;
 /** Draws discarded after seeding, as PractRand's sfc32 `seed(s1, s2, s3)` does. */
 const WARMUP_DRAWS = 15;
 
-/** A new root seed, the one place root seeds for generation and the campaign come from. Reads `Math.random` per call, so a patched one applies. */
+/** A new root seed; the one place root seeds for generation, the campaign, and fights are minted. Reads `Math.random` per call, so a patched one applies. */
 export function freshSeed(): number {
+	// eslint-disable-next-line no-restricted-properties -- minting a root seed is the one unseeded read game code makes
 	return (Math.random() * UINT32_COUNT) >>> 0;
 }
 

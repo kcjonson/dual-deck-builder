@@ -111,12 +111,12 @@ export interface DevSurface {
  * Replace `Math.random` with a seeded mulberry32 before any application script
  * runs (R13.37's seeded random source).
  *
- * Done from the harness rather than through an engine hook on purpose. Four
- * call sites consume randomness - `Deck.shuffle`, `Model`'s id generation,
- * `RandomAI`, `AIEvaluator` - and threading an injected source through all of
- * them is a refactor of game code that phase 0 is not allowed to make, while
- * an `addInitScript` covers every one of them, plus any added later, and
- * cannot leak into a shipped build because it lives in the test process.
+ * Done from the harness rather than through an engine hook on purpose: it
+ * reaches whatever reads `Math.random`, and cannot leak into a shipped build
+ * because it lives in the test process. Game code reads it in one place,
+ * `freshSeed()`, which mints every root seed, a fight's included when nothing
+ * passes the battle a stream; reshuffles and random AI picks draw from
+ * streams forked from that root, so this seeds them all (DDB-399).
  *
  * What it changes today: measurably nothing, and that is worth writing down
  * rather than glossing. Running the combat golden under a different seed, and
@@ -124,7 +124,6 @@ export interface DevSurface {
  * `Deck.shuffle` has exactly one caller, `Driver.reshuffleDiscardIntoDeck`,
  * which fires only when a deck runs dry, so the opening hand is dealt in deck
  * order and a mounted screen consumes no randomness that reaches a pixel.
- * `Model.__id` is random but is only ever a map key.
  *
  * Why it is here anyway: the states phase 0 does not capture are the ones that
  * do vary. Playing a card and capturing what follows is the case where 72 of
