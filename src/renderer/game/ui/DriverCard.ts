@@ -19,7 +19,6 @@ import {
 	drawPortrait,
 	drawRivetedFrame,
 	hpBarDraws,
-	hpBarFilled,
 	hpFraction,
 	placeHpBar,
 	portraitDraws,
@@ -272,10 +271,9 @@ export class DriverCard extends Component {
 		this.hpFigures.text = `${data.hitpoints}/${data.maxHitpoints}`;
 		this.hand.text = `HAND ${data.handLimit}`;
 		this.deck.text = `DECK ${totalCards(data.deck)}`;
-		const filled = hpBarFilled(this.hpBar);
+		// An emptied bar leaves its fill out, but only HP can empty it, and new
+		// HP figures invalidate layout, which forgets the walked group count
 		placeHpBar(this.hpBar, HP_BAR, hpFraction(data));
-		// An empty bar leaves its fill out, so the draws change with it
-		if (hpBarFilled(this.hpBar) !== filled) this.invalidateInk();
 	}
 
 	/** The tag at the card's corner, null for none. A lost driver's card is faded. */

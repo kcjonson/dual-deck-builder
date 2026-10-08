@@ -442,7 +442,7 @@ describe('Driver card (Game Flow 7.0)', () => {
 		expect(frame(card).filter((command) => command.id === 'card.focus_ring')).toEqual([]);
 	});
 
-	it('forgets its walked group count when a tag or an emptied HP bar changes what it draws', () => {
+	it('forgets its walked group count when a tag comes or goes', () => {
 		const card = mount(driverCardData({ archetype: 'mechanic' }));
 		frame(card);
 		expect(card.walkedGroupCount).toBeGreaterThan(0);
@@ -451,9 +451,31 @@ describe('Driver card (Game Flow 7.0)', () => {
 		frame(card);
 		card.customDeck = true;
 		expect(card.walkedGroupCount).toBe(-1);
-		frame(card);
+	});
+
+	// The count is what a walk adds for the card when it skips it whole
+	// (R4.2a). An emptied bar draws one group fewer; a count kept from before
+	// it emptied would add one too many.
+	it('counts one group fewer once its bar empties, when a walk skips it whole', () => {
+		const card = mount(driverCardData({ archetype: 'mechanic' }));
+		const { api } = measuring;
+		const walk = (clipped: boolean): number => {
+			context.frame.layout();
+			api.beginFrame({ viewport: { width: 400, height: 400 } });
+			// A clip the card's ink misses makes the walk skip it, once it has a count
+			if (clipped) api.pushClip({ x: 300, y: 300, width: 10, height: 10 });
+			const before = api.groupsRequested;
+			renderTree(card, api);
+			const groups = api.groupsRequested - before;
+			if (clipped) api.popClip();
+			api.endFrame();
+			return groups;
+		};
+		const full = walk(false);
 		card.data = driverCardData({ archetype: 'mechanic', hitpoints: 0 });
-		expect(card.walkedGroupCount).toBe(-1);
+		expect(walk(true)).toBe(full - 1);
+		expect(card.walkedGroupCount).toBe(full - 1);
+		expect(walk(true)).toBe(full - 1);
 	});
 
 	it('lints clean for every archetype with every tag, faded or not', () => {
