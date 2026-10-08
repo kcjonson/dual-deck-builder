@@ -220,6 +220,38 @@ describe('TooltipService (R12.22)', () => {
 		expect(tooltipRoot()).toBeDefined();
 	});
 
+	it('keeps a tooltip focus opened on its owner while content moves under a still pointer, until the pointer moves on', () => {
+		save.tooltip = { title: 'Save', immediateOnFocus: true };
+		plain.tooltip = 'Plain';
+		send(context, [pointer('move', 310, 110)]);
+		context.tooltips.focusVisibleChange(save);
+		expect(context.tooltips.owner?.id).toBe('save');
+		// A scroll that followed keyboard focus slides plain under the resting pointer
+		load.setPosition(500, 100);
+		plain.setPosition(300, 100);
+		context.dispatcher.contentMoved();
+		context.dispatcher.dispatchPending();
+		expect(plain.hovered).toBe(true);
+		expect(context.tooltips.owner?.id).toBe('save');
+		// The pointer moving onto another owner takes it
+		send(context, [pointer('move', 510, 110)]);
+		expect(context.tooltips.owner?.id).toBe('load');
+	});
+
+	it('moves a tooltip the pointer opened to what content moving under the still pointer brings', () => {
+		send(context, [pointer('move', 120, 110)]);
+		advance(context, DELAY + 16);
+		expect(context.tooltips.owner?.id).toBe('save');
+		expect(context.tooltips.trigger).toBe('hover');
+		// A wheel scroll slides load under the resting pointer
+		save.setPosition(500, 100);
+		load.setPosition(100, 100);
+		context.dispatcher.contentMoved();
+		context.dispatcher.dispatchPending();
+		expect(load.hovered).toBe(true);
+		expect(context.tooltips.owner?.id).toBe('load');
+	});
+
 	it('forgets a shown tooltip on a press elsewhere, so keyboard focus can show it again', () => {
 		save.focusable = true;
 		context.tooltips.show(save, { fade: false });

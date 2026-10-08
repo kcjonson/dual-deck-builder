@@ -2,11 +2,11 @@ import { Component, ComponentOptions, Cursor, PointerEvents, ResolvedColors } fr
 import { Text } from '../../engine/components/Text';
 import { drawIcon, DrawIconOptions } from '../../engine/components/Icon';
 import { grownRect } from '../../engine/components/componentGeometry';
-import { shadowInk } from '../../engine/draw/bounds';
+import { pointsInk, shadowInk } from '../../engine/draw/bounds';
 import type { AnyUiEvent, UiDragEvent } from '../../engine/input/events';
 import type { DrawApi } from '../../engine/draw/DrawApi';
 import type { BoxShadow, DrawPolygonOptions, DrawRectOptions, DrawTextOptions } from '../../engine/draw/commands';
-import type { RGBA, Rect, Vec2 } from '../../engine/draw/geometry';
+import type { ClipRect, RGBA, Rect, Vec2 } from '../../engine/draw/geometry';
 import { triangulatePolygon } from '../../engine/draw';
 import { resolveColor } from '../../engine/style/styleObject';
 import { shadowExtent } from '../../engine/style/look';
@@ -715,6 +715,19 @@ export class Vehicle extends Component {
 		return { x, y, width: Math.max(ink.x + ink.width, glow.x + glow.width) - x, height: Math.max(ink.y + ink.height, glow.y + glow.height) - y };
 	}
 
+	/**
+	 * What a reveal shows (R12.20): the box, and the outline and the glows
+	 * where each falls round the plate, where `cullInk` grows the whole box
+	 * by the widest of them. The target's glow covers its solid outline.
+	 */
+	protected get restingInk(): Rect {
+		const ink: ClipRect = { minX: 0, minY: 0, maxX: this.width, maxY: this.height };
+		if (this.outlineStyle === 'solid') include(ink, shadowInk(this.glowDraw.rect, this.glowShadow));
+		else if (this.outlineStyle === 'dashed') include(ink, pointsInk(this.dashPoints, 0));
+		if (this.isActing) include(ink, shadowInk(this.plateDraw.rect, ACTING_GLOW));
+		return { x: ink.minX, y: ink.minY, width: ink.maxX - ink.minX, height: ink.maxY - ink.minY };
+	}
+
 	public render(draw: DrawApi): void {
 		this.sprite.draw(draw);
 		drawIcon(draw, this.speedIconDraw);
@@ -939,6 +952,15 @@ export class Vehicle extends Component {
 			this.outlineStyle = 'none';
 		}
 	}
+}
+
+/** Grows `ink` to cover `rect`. */
+function include(ink: ClipRect, rect: Rect | null): void {
+	if (!rect) return;
+	ink.minX = Math.min(ink.minX, rect.x);
+	ink.minY = Math.min(ink.minY, rect.y);
+	ink.maxX = Math.max(ink.maxX, rect.x + rect.width);
+	ink.maxY = Math.max(ink.maxY, rect.y + rect.height);
 }
 
 /**

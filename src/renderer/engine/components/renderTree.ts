@@ -82,7 +82,7 @@ export function renderTree(component: Component, draw: DrawApi): void {
 		if (clips) draw.popClip();
 	}
 
-	if (component.focusVisible && component.effectivelyEnabled && !component.drawsOwnFocusRing) {
+	if (component.drawsWalkFocusRing) {
 		if (audits) draw.setInkBound(component.ownInkBound);
 		drawFocusRing(component, draw);
 		if (audits) draw.setInkBound(null);
