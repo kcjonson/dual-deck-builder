@@ -20,6 +20,17 @@
       "variables": {
         "damage": { "base": 3, "upgraded": 5 }
       },
+      "upgrades": {
+        "effects": [
+          {
+            "type": "damage",
+            "value": 5,
+            "range": 1,
+            "hit_modifier": -1,
+            "target": "target"
+          }
+        ]
+      },
       "tags": ["attack", "ranged"],
       "image": "cards/point_blank.png"
     },
@@ -41,6 +52,16 @@
       ],
       "variables": {
         "damage": { "base": 1, "upgraded": 2 }
+      },
+      "upgrades": {
+        "effects": [
+          {
+            "type": "damage",
+            "value": 2,
+            "range": 2,
+            "target": "target"
+          }
+        ]
       },
       "tags": ["attack", "ranged"],
       "image": "cards/far_shoot.png"
@@ -213,6 +234,16 @@
       "variables": {
         "healing": { "base": 8, "upgraded": 12 }
       },
+      "upgrades": {
+        "effects": [
+          {
+            "type": "heal",
+            "value": 12,
+            "overflow_to_armor": true,
+            "target": "self"
+          }
+        ]
+      },
       "tags": ["utility", "heal"],
       "image": "cards/repair_kit.png"
     },
@@ -233,6 +264,15 @@
       ],
       "variables": {
         "healing": { "base": 4, "upgraded": 6 }
+      },
+      "upgrades": {
+        "effects": [
+          {
+            "type": "heal_driver",
+            "value": 6,
+            "target": "same_vehicle"
+          }
+        ]
       },
       "tags": ["utility", "heal"],
       "image": "cards/medical_kit.png"
@@ -261,6 +301,22 @@
       ],
       "variables": {
         "cards": { "base": 2, "upgraded": 3 }
+      },
+      "upgrades": {
+        "effects": [
+          {
+            "type": "apply_status",
+            "status": "speed_boost",
+            "value": 3,
+            "duration": 2,
+            "target": "self"
+          },
+          {
+            "type": "draw_cards",
+            "value": 3,
+            "target": "self"
+          }
+        ]
       },
       "tags": ["utility", "status", "draw"],
       "image": "cards/nitro_boost.png"
@@ -367,6 +423,27 @@
         "damage": { "base": 3, "upgraded": 2 },
         "adrenaline": { "base": 3, "upgraded": 4 }
       },
+      "upgrades": {
+        "effects": [
+          {
+            "type": "damage",
+            "value": 2,
+            "target": "self_driver"
+          },
+          {
+            "type": "gain_resource",
+            "resource": "adrenaline",
+            "value": 4,
+            "target": "self"
+          },
+          {
+            "type": "apply_status",
+            "status": "vulnerable",
+            "duration": -1,
+            "target": "self"
+          }
+        ]
+      },
       "tags": ["utility", "resource", "self_harm"],
       "image": "cards/berserker.png"
     },
@@ -387,6 +464,15 @@
       ],
       "variables": {
         "armor": { "base": 8, "upgraded": 12 }
+      },
+      "upgrades": {
+        "effects": [
+          {
+            "type": "gain_armor",
+            "value": 12,
+            "target": "self"
+          }
+        ]
       },
       "tags": ["defense", "armor"],
       "image": "cards/armor_plating.png"
@@ -425,7 +511,27 @@
         "adrenaline": { "base": 1, "upgraded": 2 }
       },
       "upgrades": {
-        "cost": 2
+        "cost": 2,
+        "effects": [
+          {
+            "type": "damage",
+            "value": 18,
+            "scaling": "ramming",
+            "range": 1,
+            "target": "target"
+          },
+          {
+            "type": "conditional",
+            "condition": "target_has_status",
+            "status": "vulnerable",
+            "effect": {
+              "type": "gain_resource",
+              "resource": "adrenaline",
+              "value": 2,
+              "target": "self"
+            }
+          }
+        ]
       },
       "tags": ["attack", "physical", "conditional"],
       "image": "cards/ramming_speed.png"
@@ -460,6 +566,26 @@
       "variables": {
         "damage": { "base": 15, "upgraded": 20 },
         "bonus": { "base": 5, "upgraded": 8 }
+      },
+      "upgrades": {
+        "effects": [
+          {
+            "type": "damage",
+            "value": 20,
+            "scaling": "gunnery",
+            "target": "target"
+          },
+          {
+            "type": "conditional",
+            "condition": "self_has_status",
+            "status": "speed_plus",
+            "effect": {
+              "type": "damage",
+              "value": 8,
+              "target": "target"
+            }
+          }
+        ]
       },
       "tags": ["attack", "ranged", "conditional"],
       "image": "cards/precision_shot.png"
@@ -513,6 +639,22 @@
       ],
       "variables": {
         "bonus": { "base": 50, "upgraded": 75 }
+      },
+      "upgrades": {
+        "effects": [
+          {
+            "type": "change_position",
+            "position": "flanking",
+            "target": "self"
+          },
+          {
+            "type": "apply_status",
+            "status": "damage_bonus",
+            "value": 75,
+            "duration": 1,
+            "target": "self"
+          }
+        ]
       },
       "tags": ["utility", "positioning", "buff"],
       "image": "cards/flanking_maneuver.png"
