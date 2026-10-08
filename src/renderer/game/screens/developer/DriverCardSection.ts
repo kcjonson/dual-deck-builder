@@ -109,19 +109,21 @@ export class DriverDetailSection extends CatalogSection {
 }
 
 /**
- * Pinned by a secondary click or I, for a campaign driver whose default
- * deck has grown to nine kinds: two rows, five and four.
+ * Pinned by a secondary click or I, for a campaign driver lost on a run, as
+ * the debrief shows them: the run deck they died with, grown to nine kinds
+ * (two rows, five and four), and how they went in the foot.
  */
 export class DriverDetailPinnedSection extends CatalogSection {
 	constructor(options: DeveloperSectionOptions = {}) {
 		super({ id: 'dev_section_driver_detail_pinned', title: 'Driver Detail View, Pinned', ...options });
-		this.addRow('pinned; a campaign deck of nine kinds in two rows', new DriverDetailView({
+		this.addRow('pinned; a driver lost on a run, nine kinds of card in two rows, how they went in the foot', new DriverDetailView({
 			id: 'dev_driver_detail_pinned',
 			data: driverCardData({
 				archetype: 'road_warrior',
 				name: 'Road Warrior 2',
-				hitpoints: 31,
+				hitpoints: 0,
 				deck: { ramming_speed: 4, armor_plating: 3, repair_kit: 2, nitro_boost: 2, ram: 1, medical_kit: 1, point_blank: 2, oil_slick: 1, caltrops: 1 },
+				note: 'Killed day 9',
 			}),
 			cards: galleryCards,
 			pinned: true,
