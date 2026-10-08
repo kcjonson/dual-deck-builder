@@ -317,8 +317,8 @@ This is a card game, so a card is always drawn as a card: never a list row, a ta
 
 - The mini card drops the summary; the detail view is one hover away, as for every size.
 - Copies of one card show as one mini card stacked with up to two card edges behind it and a count ("x5"), so a 20-card deck reads as a handful of stacks.
-- States on the mini card: borrowed for this run (dashed frame, "+1" tag), left at home (faded, "HOME" tag), locked escort card ("LOCKED" tag), unavailable (faded, with the reason on the control under it).
-- The detail view and the face exist (DDB-137, [card-face-and-detail-view.md](../AI_TECHNICAL_DECISIONS/card-face-and-detail-view.md)); the mini card is new and should be a size of the same `Card` component, not a separate widget. Wireframes: the "Card sizes" board on the design canvas.
+- States on the mini card: borrowed for this run (dashed frame, "+1" tag, which counts the copies on a borrowed stack: "+2"), left at home (faded, "HOME" tag), locked escort card ("LOCKED" tag), unavailable (faded, with the reason on the control under it).
+- The face and the mini card are sizes of one `Card` component, not separate widgets, and every size opens the same detail view ([card-face-and-detail-view.md](../AI_TECHNICAL_DECISIONS/card-face-and-detail-view.md), [mini-card.md](../AI_TECHNICAL_DECISIONS/mini-card.md)). Wireframes: the "Card sizes" board on the design canvas.
 
 Drivers and escorts are cards too, each with an edge no play card has, so a glance tells which kind of card it is:
 
