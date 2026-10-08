@@ -1,0 +1,45 @@
+{
+	"strongholds": {
+		"band": { "inner": 0.8, "outer": 0.95 },
+		"reach": { "share": 0.25, "clearances": 5 },
+		"candidates": 96,
+		"fitRadius": 40,
+		"fitJitter": 0.1
+	},
+	"rings": {
+		"outer": 0.95,
+		"targets": [5, 7, 9, 9]
+	},
+	"sites": {
+		"spacing": { "share": 0.08, "clearances": 2 },
+		"ruinFloor": 0.35,
+		"darts": 80
+	},
+	"approaches": {
+		"reach": { "share": 0.12, "clearances": 3 },
+		"home": 0.25,
+		"nodeMargin": 30,
+		"attachSpacing": 10,
+		"sightChecks": 24,
+		"triesPerGroup": 2,
+		"detour": 2,
+		"arrival": 1.5,
+		"steer": { "cost": 1, "lookahead": 0.5, "lookaheadSteps": 1.5, "homing": 12, "noise": 0.15 }
+	},
+	"placement": [
+		{ "types": ["hospital", "mall"], "where": [{ "ruinAtLeast": 0.5 }] },
+		{ "types": ["waterPlant"], "where": [{ "elevationBelow": 0.34 }, { "moistureAtLeast": 0.85 }] },
+		{ "types": ["fuelDepot"], "where": [{ "highwayWithin": 60 }] },
+		{ "types": ["farm", "silo"], "where": [{ "biomes": ["scrub"] }] },
+		{ "types": ["salvageYard"], "where": [{}] }
+	],
+	"types": {
+		"hospital": { "label": "Hospital", "yields": { "meds": 3, "scrap": 10 } },
+		"mall": { "label": "Mall", "yields": { "food": 6, "scrap": 20 } },
+		"waterPlant": { "label": "Water plant", "yields": { "water": 12 } },
+		"fuelDepot": { "label": "Fuel depot", "yields": { "fuel": 8 } },
+		"farm": { "label": "Farm", "yields": { "food": 12 } },
+		"silo": { "label": "Silo", "yields": { "food": 8, "water": 4 } },
+		"salvageYard": { "label": "Salvage yard", "yields": { "scrap": 40, "fuel": 2 } }
+	}
+}
