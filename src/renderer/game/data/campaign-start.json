@@ -1,0 +1,12 @@
+{
+	"poolSize": 4,
+	"resources": {
+		"food": 21,
+		"water": 21,
+		"fuel": 10,
+		"meds": 3,
+		"scrap": 150,
+		"people": 12
+	},
+	"escorts": []
+}
