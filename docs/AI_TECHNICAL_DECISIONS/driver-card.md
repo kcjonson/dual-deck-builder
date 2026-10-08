@@ -45,7 +45,9 @@ A lost driver's card can say how they went ("KILLED DAY 9", the board's lost car
 
 Laid out from the board in its own pixels, everything inside the corner rivets: the portrait across the top; the name at 13 px condensed on up to two lines, then an ellipsis; the specialty; the HP figures in a box sized for "40/40" with the bar to their left; the hand limit at the left of the foot and the deck size at the right. The name always takes two lines' room, so in a row of cards the specialty, the bars, and the foot line up whether a name wraps or not, as the board's do. Names are shown as they're given.
 
-- The frame is two lines in the dim line, 2 px and 1 px with a 2 px gap, on corners of radius 2, and a rivet in each corner a step brighter. Hover and keyboard focus turn the outer line the interaction yellow; selection (the Crew roster's chosen driver) turns it bright yellow at 3 px. The inner line and the rivets stay, so a selected card still reads as a driver's.
+- The frame is two lines in the dim line, 2 px and 1 px with a 2 px gap, on corners of radius 2, and a rivet in each corner a step brighter. Hover and keyboard focus turn the outer line the interaction yellow. Selection (the Crew roster's chosen driver) is a ring instead, 2 px of the bright yellow 4 px clear of the card, outside the 2 px focus ring, as the Crew wireframe draws it. A bright yellow outer line was first, but the two yellows are 1.15:1 against each other, too close to tell hover from selection on the same line; a different shape tells them apart. The ring and the tags are the card's ink, 7 px at most (`DRIVER_CARD_INK`).
+
+Considered: a heavier or brighter outer line for selection. Any yellow on the line hover already turns yellow reads as hover.
 - The specialty is the condensed display face at 10 px, tracked. The board's mono doesn't fit SUPPORT SPECIALIST in the 82 px between the rivets at a size anyone can read: it's 106 px at the tag's 9.
 - The HP bar is the driver HP hue the road uses (`DRIVER_HP_COLOR`, now shared with `Vehicle`), on a dark track outlined in the card line, so an empty bar still shows its length.
 - No portrait art exists. The placeholder is in the card art placeholder's style: the unowned art strip's gradient, with a head and shoulders in the art glyph's bone where the glyph would be, fainter since they're solid.
@@ -66,7 +68,7 @@ Considered: the play card's 250 px detail view with the deck in two columns. Six
 
 ### As cheap as a mini
 
-Every draw is built once and recoloured or moved in place, and a frame hands the draw API the same objects each time. The tags are measured when their text changes and on no other layout, and new data re-measures only the words that changed. A card draws its frame, inner line, four rivets, the portrait's three shapes, the bar's two, and a tag's two, all inside the uber shader's batch. The tags reach 7 px up and 4 right (`DRIVER_CARD_INK`), so driver cards spaced by `MINI_GRID` clear each other's tags as minis do. The tests check the object reuse and the single measure.
+Every draw is built once and recoloured or moved in place, and a frame hands the draw API the same objects each time. The tags are measured when their text changes and on no other layout, and new data re-measures only the words that changed. A card draws its frame, inner line, four rivets, the portrait's three shapes, the bar's two, and a tag's two, all inside the uber shader's batch. The tags reach 7 px up and 4 right, and the selection ring 6 all round (`DRIVER_CARD_INK` is 7), so driver cards spaced by `MINI_GRID` clear each other's tags and rings as minis do. The focus ring and the outline colours are the play card's own (`focusRingDraw`, `HOVER_OUTLINE`, `SELECTED_OUTLINE` in `cardStyle`). The tests check the object reuse and the single measure.
 
 ## Consequences
 

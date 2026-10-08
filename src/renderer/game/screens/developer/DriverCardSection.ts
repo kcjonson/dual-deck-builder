@@ -30,14 +30,16 @@ interface DriverCase {
 	status?: DriverCardStatus;
 	customDeck?: boolean;
 	unavailable?: boolean;
+	selected?: boolean;
 }
 
-/** The "Card sizes" board's four. */
+/** The "Card sizes" board's four, then one selected, as the Crew roster rings its chosen driver. */
 const BOARD: readonly DriverCase[] = [
 	{ id: 'ready', data: driverCardData({ archetype: 'road_warrior' }), caption: 'Ready' },
 	{ id: 'hurt', data: driverCardData({ archetype: 'interceptor', hitpoints: 22 }), caption: 'Hurt, still able' },
 	{ id: 'injured', data: driverCardData({ archetype: 'mechanic', hitpoints: 18 }), status: 'injured', unavailable: true, caption: 'Injured, can\'t go' },
 	{ id: 'lost', data: driverCardData({ archetype: 'raider', hitpoints: 0, note: 'Killed day 9' }), status: 'lost', caption: 'Lost on a run' },
+	{ id: 'selected', data: driverCardData({ archetype: 'mechanic', name: 'Mechanic 2' }), selected: true, caption: 'Selected' },
 ];
 
 /** A seated Interceptor whose run deck borrowed a Medical Kit from the locker. */
@@ -56,15 +58,15 @@ const TAGS: readonly DriverCase[] = [
 /**
  * The driver card (Game Flow 7.0, "Drivers and escorts are cards too") at
  * its real size in every state: the board's ready, hurt, injured, and lost,
- * then new, injured where they can still be worked on, seated, a seated
- * driver with a customized run deck, that seat's own card, and unavailable.
- * Each opens its detail view on hover, focus, or a touch hold, as every
- * card does.
+ * and selected; then new, injured where they can still be worked on,
+ * seated, a seated driver with a customized run deck, that seat's own card,
+ * and unavailable. Each opens its detail view on hover, focus, or a touch
+ * hold, as every card does.
  */
 export class DriverCardsSection extends CatalogSection {
 	constructor(options: DeveloperSectionOptions = {}) {
 		super({ id: 'dev_section_driver_cards', title: 'Driver Cards', ...options });
-		this.addRow('the "Card sizes" board: ready, hurt but able, injured where they can\'t go (faded), lost on a run (faded, how they went in the specialty\'s place)', this.row('dev_driver_cards_board', BOARD));
+		this.addRow('the board: ready, hurt but able, injured where they can\'t go (faded), lost (faded, how they went in the specialty\'s place); selected, ringed', this.row('dev_driver_cards_board', BOARD));
 		this.addRow('tags: new, injured at the compound (not faded), seat 1, seat 2 with CUSTOM beside it, that seat\'s own card, unavailable (faded, no tag)', this.row('dev_driver_cards_tags', TAGS));
 		inspectOnContextMenu(this);
 	}
@@ -81,6 +83,7 @@ export class DriverCardsSection extends CatalogSection {
 				unavailable: entry.unavailable ?? false,
 			});
 			card.focusable = true;
+			card.selected = entry.selected ?? false;
 			makeDriverInspectable(card, { cards: galleryCards });
 			const cell = new Stack({ gap: DRIVER_CARD_INK + tokens.space.space_2 });
 			cell.addChild(card);

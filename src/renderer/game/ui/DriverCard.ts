@@ -6,9 +6,8 @@ import type { DrawRectOptions } from '../../engine/draw/commands';
 import type { RGBA, Rect } from '../../engine/draw/geometry';
 import type { AnyUiEvent } from '../../engine/input/events';
 import { resolveColor } from '../../engine/style/styleObject';
-import { tokens } from '../../engine/theme/tokens';
 import { totalCards } from '../campaign/CardCounts';
-import { CARD_GROUND_FILLS, CARD_MUTED, CARD_NAME, CARD_RULES, dimHex } from './cardStyle';
+import { CARD_GROUND_FILLS, CARD_MUTED, CARD_NAME, CARD_RULES, HOVER_OUTLINE, SELECTED_OUTLINE, dimHex, focusRingDraw, outsideRingDraw } from './cardStyle';
 import type { DriverCardData } from './driverCardData';
 import {
 	FRAME_LINE_FILLS,
@@ -83,7 +82,13 @@ const FACE = {
 	 * card's does; a CUSTOM tag stands left of a status tag, this far apart.
 	 */
 	tag: { right: 108, y: -Math.ceil(STATUS_TAG_HEIGHT / 2), gap: 3 },
-	selectedBorder: 3,
+	/**
+	 * Selection (the Crew roster's chosen driver) is a ring clear of the
+	 * card, as the Crew wireframe draws it, outside the focus ring's 2 px:
+	 * a different shape from hover's outline, since the two yellows are too
+	 * close to tell apart on one line.
+	 */
+	selection: { offset: 4, width: 2 },
 } as const;
 
 /** The HP bar's box: from the content's left edge up to the figures. */
@@ -96,13 +101,10 @@ const HP_BAR: Readonly<Rect> = Object.freeze({
 
 /**
  * How far past its 104x146 box a driver card draws, on any side: its tags
- * up and right. Nothing else leaves the box, so cards spaced by `MINI_GRID`
- * clear each other's tags, as minis do.
+ * up and right, and the selection ring all round. Cards spaced by
+ * `MINI_GRID` clear each other's tags and rings, as minis do.
  */
-export const DRIVER_CARD_INK = Math.max(-FACE.tag.y, FACE.tag.right - DRIVER_CARD_SIZE.width);
-
-const HOVER_OUTLINE: RGBA = [...tokens.color.accent];
-const SELECTED_OUTLINE: RGBA = [...tokens.color.accent_bright];
+export const DRIVER_CARD_INK = Math.max(-FACE.tag.y, FACE.tag.right - DRIVER_CARD_SIZE.width, FACE.selection.offset + FACE.selection.width);
 
 /** A text colour at full strength and as a faded card's words take it (the mock's `.cant`). */
 function textTones(hex: string): { full: RGBA; dimmed: RGBA } {
@@ -148,6 +150,9 @@ export class DriverCard extends Component {
 	private readonly portrait: PortraitDraws;
 	private readonly hpBar: HpBarDraws = hpBarDraws();
 	private readonly focusRingDraw: DrawRectOptions;
+	private readonly selectionRingDraw: DrawRectOptions;
+	/** Whether the selection ring was drawn at the last state change, so a change in what the card draws forgets its group count. */
+	private ringed = false;
 	private readonly statusTag = new StatusTagDraw({ right: FACE.tag.right, y: FACE.tag.y });
 	private readonly deckTag = new StatusTagDraw({ right: FACE.tag.right, y: FACE.tag.y });
 
@@ -174,15 +179,15 @@ export class DriverCard extends Component {
 		this.frame = rivetedFrameDraws({ id, width, height });
 		const { x: left, width: contentWidth } = FACE.content;
 		this.portrait = portraitDraws({ x: left, y: FACE.portrait.y, width: contentWidth, height: FACE.portrait.height });
-		const ringOffset = tokens.control.focus_ring_offset;
-		this.focusRingDraw = {
-			id: id !== undefined ? `${id}.focus_ring` : undefined,
-			rect: { x: -ringOffset, y: -ringOffset, width: width + ringOffset * 2, height: height + ringOffset * 2 },
-			radius: tokens.radius.radius_ui + ringOffset,
-			// A rect with no fill is white (R2.8's default); the ring is border only.
-			fill: [0, 0, 0, 0],
-			border: { color: tokens.color.accent, width: tokens.control.focus_ring_width, position: 'outside' },
-		};
+		this.focusRingDraw = focusRingDraw({ id, width, height });
+		this.selectionRingDraw = outsideRingDraw({
+			id: id !== undefined ? `${id}.selection_ring` : undefined,
+			width,
+			height,
+			offset: FACE.selection.offset,
+			thickness: FACE.selection.width,
+			color: SELECTED_OUTLINE,
+		});
 
 		this.name = new Text({
 			id: this.childId('name'),
@@ -383,30 +388,26 @@ export class DriverCard extends Component {
 		this.updateLook();
 	}
 
-	/** Faded while unavailable, lost, or disabled, then the frame for the card's state. */
+	/** Faded while unavailable, lost, or disabled, then the frame and the selection ring for the card's state. */
 	private updateLook(): void {
 		this.dim(!this.effectivelyEnabled || this.faded);
 		this.applyBorder();
+		if (this.selected !== this.ringed) {
+			this.ringed = this.selected;
+			// The ring comes and goes as a draw of its own
+			this.invalidateInk();
+		}
 	}
 
 	/**
-	 * The outer line: selection's outline (the Crew roster's chosen driver),
-	 * then hover's or keyboard focus's on a card that can be used, else the
-	 * frame's own line. The inner line and the rivets stay, so a selected
-	 * card still reads as a driver's.
+	 * The outer line: hover's or keyboard focus's outline on a card that can
+	 * be used, else the frame's own line. Selection leaves it alone and rings
+	 * the card instead (`FACE.selection`).
 	 */
 	private applyBorder(): void {
 		const border = this.frame.frame.border;
-		if (this.selected) {
-			border.color = SELECTED_OUTLINE;
-			border.width = FACE.selectedBorder;
-		} else if ((this.hovered || this.focusVisible) && this.effectivelyEnabled) {
-			border.color = HOVER_OUTLINE;
-			border.width = RIVETED_FRAME.outer;
-		} else {
-			border.color = FRAME_LINE_FILLS[this.dimmed ? 'dimmed' : 'full'];
-			border.width = RIVETED_FRAME.outer;
-		}
+		border.color = (this.hovered || this.focusVisible) && this.effectivelyEnabled ? HOVER_OUTLINE : FRAME_LINE_FILLS[this.dimmed ? 'dimmed' : 'full'];
+		border.width = RIVETED_FRAME.outer;
 	}
 
 	/**
@@ -439,6 +440,7 @@ export class DriverCard extends Component {
 		drawRivetedFrame(draw, this.frame);
 		drawPortrait(draw, this.portrait);
 		drawHpBar(draw, this.hpBar);
+		if (this.selected) draw.drawRect(this.selectionRingDraw);
 		if (this.focusVisible && this.effectivelyEnabled) draw.drawRect(this.focusRingDraw);
 		this.statusTag.render(draw);
 		this.deckTag.render(draw);

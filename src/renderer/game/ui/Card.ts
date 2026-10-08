@@ -30,6 +30,9 @@ import {
 	COST_DIGITS,
 	COST_DIGITS_UNPAYABLE,
 	DIM_BRIGHTNESS,
+	HOVER_OUTLINE,
+	SELECTED_OUTLINE,
+	focusRingDraw,
 	RARITY_GEMS,
 	artGradient,
 	cardArtIcon,
@@ -179,8 +182,7 @@ export interface FanPose {
 	order: number;
 }
 
-const HOVER_OUTLINE: RGBA = [...tokens.color.accent];
-const SELECTED_OUTLINE: RGBA = [...tokens.color.accent_bright];
+/** A selected card's frame, in `SELECTED_OUTLINE`. */
 const SELECTED_BORDER = 3;
 
 const UNFANNED: FanPose = Object.freeze({ rotate: 0, drop: 0, order: 0 });
@@ -470,15 +472,7 @@ export class Card extends Component {
 		};
 		this.frameBorder.width = this.borderWidth;
 		this.frameBorder.color = this.restingBorder;
-		const ringOffset = tokens.control.focus_ring_offset;
-		this.focusRingDraw = {
-			id: id !== undefined ? `${id}.focus_ring` : undefined,
-			rect: { x: -ringOffset, y: -ringOffset, width: dimensions.width + ringOffset * 2, height: dimensions.height + ringOffset * 2 },
-			radius: tokens.radius.radius_ui + ringOffset,
-			// A rect with no fill is white (R2.8's default); the ring is border only.
-			fill: [0, 0, 0, 0],
-			border: { color: tokens.color.accent, width: tokens.control.focus_ring_width, position: 'outside' },
-		};
+		this.focusRingDraw = focusRingDraw({ id, width: dimensions.width, height: dimensions.height });
 
 		const hex = this.hexBox;
 		const hexDraws = costHexDraws(hex.x, hex.y, hex.size);

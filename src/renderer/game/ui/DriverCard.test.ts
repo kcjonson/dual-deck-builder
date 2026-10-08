@@ -222,7 +222,7 @@ describe('Driver card (Game Flow 7.0)', () => {
 		expect(card.canReceiveFocus()).toBe(true);
 	});
 
-	it('outlines in the interaction yellow on hover and keyboard focus, in bright yellow at 3 px when selected, and not while disabled', () => {
+	it('outlines in the interaction yellow on hover and keyboard focus, and not while disabled', () => {
 		const card = mount(driverCardData({ archetype: 'road_warrior' }));
 		const outline = (): { color: RGBA; width: number } | null | undefined => frame(card).find((command) => command.kind === 'rect' && command.id === 'card')?.border;
 		const resting = outline();
@@ -236,13 +236,41 @@ describe('Driver card (Game Flow 7.0)', () => {
 		expect(outline()?.color).toEqual(tokens.color.accent);
 		context.focus.blur();
 		context.focus.popScope(card);
-		card.selected = true;
-		expect(outline()).toEqual({ color: tokens.color.accent_bright, width: 3, position: 'inside' });
-		card.selected = false;
 		card.enabled = false;
 		card.hovered = true;
 		expect(outline()?.color).not.toEqual(tokens.color.accent);
 		expect(card.resolvedColors.fill).toEqual(CARD_GROUND_FILLS.dimmed);
+	});
+
+	it('rings a selected card clear of its frame, as the Crew wireframe does, a different shape from hover\'s outline', () => {
+		const card = mount(driverCardData({ archetype: 'road_warrior' }));
+		const ring = (): Recorded | undefined => frame(card).find((command) => command.id === 'card.selection_ring');
+		const outline = (): { color: RGBA; width: number } | null | undefined => frame(card).find((command) => command.kind === 'rect' && command.id === 'card')?.border;
+		const resting = outline();
+		expect(ring()).toBeUndefined();
+		card.selected = true;
+		const selected = ring();
+		expect(selected?.rect).toEqual({ x: -4, y: -4, width: 112, height: 154 });
+		expect(selected?.border).toEqual({ color: tokens.color.accent_bright, width: 2, position: 'outside' });
+		// The frame's own line stays, so selection and hover never read as the same line
+		expect(outline()).toEqual(resting);
+		card.hovered = true;
+		expect(outline()?.color).toEqual(tokens.color.accent);
+		expect(ring()).toBeDefined();
+		card.hovered = false;
+		card.selected = false;
+		expect(ring()).toBeUndefined();
+	});
+
+	it('forgets its walked group count when its selection ring comes or goes', () => {
+		const card = mount(driverCardData({ archetype: 'road_warrior' }));
+		frame(card);
+		expect(card.walkedGroupCount).toBeGreaterThan(0);
+		card.selected = true;
+		expect(card.walkedGroupCount).toBe(-1);
+		frame(card);
+		card.selected = false;
+		expect(card.walkedGroupCount).toBe(-1);
 	});
 
 	it('selects on a click and on Enter when focused, with the data it shows, and shows the pointer only once something listens', () => {
@@ -307,17 +335,21 @@ describe('Driver card (Game Flow 7.0)', () => {
 		measured.mockRestore();
 	});
 
-	it('draws nothing further than DRIVER_CARD_INK past its box, however it is tagged', () => {
+	it('draws nothing further than DRIVER_CARD_INK past its box, however it is tagged, and selected', () => {
 		expect(DRIVER_CARD_INK).toBe(7);
 		for (const status of STATUSES) {
 			const card = mount(driverCardData({ archetype: 'mechanic' }), { status, customDeck: true });
+			card.selected = true;
 			expect(card.inkExtent).toBe(DRIVER_CARD_INK);
 			for (const command of frame(card)) {
 				const box = command.rect ?? command.box ?? null;
 				const center = command.center;
 				const radius = typeof command.radius === 'number' ? command.radius : 0;
-				const xs = box ? [box.x, box.x + box.width] : center ? [center.x - radius, center.x + radius] : [];
-				const ys = box ? [box.y, box.y + box.height] : center ? [center.y - radius, center.y + radius] : [];
+				// A border drawn outside its rect reaches that much further
+				const border = command.border as { width: number; position?: string } | null | undefined;
+				const outside = border?.position === 'outside' ? border.width : 0;
+				const xs = box ? [box.x - outside, box.x + box.width + outside] : center ? [center.x - radius, center.x + radius] : [];
+				const ys = box ? [box.y - outside, box.y + box.height + outside] : center ? [center.y - radius, center.y + radius] : [];
 				for (const x of xs) expect([status, x >= -DRIVER_CARD_INK && x <= 104 + DRIVER_CARD_INK]).toEqual([status, true]);
 				for (const y of ys) expect([status, y >= -DRIVER_CARD_INK && y <= 146 + DRIVER_CARD_INK]).toEqual([status, true]);
 			}
