@@ -114,12 +114,12 @@ make, and which would have to be maintained at every new call site. The init scr
 them, including ones added later, and cannot leak into a shipped build because it lives in the
 test process.
 
-It changes nothing measurable today, and that is recorded rather than glossed: the combat golden
-is byte-identical under a different seed and with the seeding removed. `Deck.shuffle` has one
-caller, `Driver.reshuffleDiscardIntoDeck`, which fires only when a deck runs dry, so the opening
-hand is dealt in deck order. The seed matters for the states phase 0 does not capture, where it
-already demonstrably matters: 72 of the combat screen's 355 lint rows differed run to run in the
-phase 0 lint baseline, all of them after a card was played.
+In phase 0 it changed nothing measurable, and that was recorded rather than glossed: the combat
+golden was byte-identical under a different seed and with the seeding removed. `Deck.shuffle` had
+one caller, `Driver.reshuffleDiscardIntoDeck`, which fires only when a deck runs dry, so the
+opening hand was dealt in deck order. The seed mattered for the states phase 0 does not capture,
+where it already demonstrably mattered: 72 of the combat screen's 355 lint rows differed run to
+run in the phase 0 lint baseline, all of them after a card was played.
 
 DDB-399 made the refactor phase 0 ruled out: the game now threads a seeded source of its own, and
 the init script still seeds it. Game code reads `Math.random` in one place, `freshSeed()`, which
@@ -130,6 +130,14 @@ every random AI pick draws from a stream forked from the fight's root, so the pa
 what each seeded number lands on, which could have moved any golden that reached a shuffle. None
 did: no capture reaches a reshuffle or a random AI, since the dev fight and the gallery's battles
 plan with the aggressive AI, and the enemy-turn capture stops at the first raider's action.
+
+DDB-411 shuffles every deck before the opening deal, from its seat's stream, and that shuffle does
+reach a pixel. Every capture of a started fight now shows hands dealt from a shuffled deck: the
+combat screen's player hands and raider plans, and in the gallery's battles (whose player hands the
+scene sets after the deal) the raiders' plans, made from their opening hands. All of it hangs off
+the fight's root seed, so those goldens hold only while the harness's seed, and the number of
+`Math.random` reads before each fight's `freshSeed()`, stay where they are. A change to either
+moves them, and the answer is a re-mint, not a tolerance.
 
 ## Decision 4: a scene that cannot be honestly captured is listed, not omitted
 
@@ -278,7 +286,7 @@ expressing.
 | Fixed viewport | `use.viewport` (chromium), `BrowserWindow.setContentSize` (electron), both 1440x882 | every screen and section lays out from a width |
 | Fixed device pixel ratio | `deviceScaleFactor: 1`, plus `--force-device-scale-factor=1` for Electron | `FontAtlas` glyph raster, `Renderer.resize` drawing buffer, `Layer` and `Panel` scissor rectangles |
 | Time freeze | `window.__app.pause()` | splash auto-navigate, `PlayerHandLayer`'s 300 ms discard timer |
-| Seeded random | mulberry32 over `Math.random` via `addInitScript`, read by `freshSeed()` for each fight's root stream | deck order after a reshuffle, a random AI's picks; nothing in a mounted screen today |
+| Seeded random | mulberry32 over `Math.random` via `addInitScript`, read by `freshSeed()` for each fight's root stream | every opening hand (and so every raider plan made from one), deck order after a reshuffle, a random AI's picks |
 | Wait for assets | `assetsReady` on `window.__app.status()`, false while CardLoader has a request outstanding | `cards.json` arriving mid-capture |
 | Wait for a settled layout | hooks present, `document.fonts.ready`, then the window, the canvas box, its backing store and the committed viewport all at 1440x882 and the tree unchanged for two counted frames (DDB-201) | a resize measured or committed after the screen built; layout still settling when the shutter opens |
 
