@@ -5,9 +5,9 @@ import type { Rect } from '../../engine/draw/geometry';
 import type { UiPointerEvent } from '../../engine/input/events';
 import { TOOLTIP_ANCHOR_OFFSET } from '../../engine/services/TooltipService';
 import type { Card as GameCard } from '../mechanics/Card';
-import { Card as UICard } from './Card';
+import type { Card as UICard } from './Card';
 import { CardInspectView, DETAIL, KEYWORD_PANEL, KeywordSide, inspectViewWidth } from './CardDetailView';
-import { DriverCard } from './DriverCard';
+import type { DriverCard } from './DriverCard';
 import { CardLookup, DriverDetailView } from './DriverDetailView';
 import type { DriverCardData } from './driverCardData';
 
@@ -120,68 +120,42 @@ function restingAnchor({ x, viewportHeight, scale }: { x: number; viewportHeight
 	return { x, y: viewportHeight - SCREEN_MARGIN * scale + TOOLTIP_ANCHOR_OFFSET, width: 0, height: 0 };
 }
 
+/** What an inspect view's owner is told when its view opens. */
+export interface InspectOpening {
+	/** The screen, in logical pixels. */
+	viewport: { width: number; height: number };
+	/** Where the owner is on screen. */
+	bounds: Rect;
+	/** Logical pixels to viewport pixels where the owner lives. */
+	scale: number;
+	/** Whether the view opens pinned, so its foot can say so. */
+	pinned: boolean;
+}
+
+/** The view an owner builds when it opens, and the left edge it takes on screen, in viewport pixels. */
+export interface InspectedView {
+	surface: Component;
+	x: number;
+}
+
 /**
- * Section 5's detail view on a card, through the tooltip service the hand's
- * preview used (DDB-88): it opens on hover after the tooltip delay, at once
+ * The inspect path every card shares, a play card's detail view, a driver
+ * card's, and an escort card's: a tooltip whose factory calls `open` each
+ * time the view opens. It opens on hover after the tooltip delay, at once
  * on keyboard focus, and on a touch hold (R9.30's `contextmenu`, see
- * `inspectOnContextMenu`); a secondary click or I pins it (`toggleInspectPin`).
- * It rests on the bottom of the screen, centred over the card, and grows
- * upward, whatever screen the card is on: hand, pile, browser, or reward.
+ * `inspectOnContextMenu`); a secondary click or I pins it
+ * (`toggleInspectPin`), and those find their owner by its tooltip pinning.
+ * The view rests on the bottom of the screen at the left edge `open` gives,
+ * and grows upward.
  */
-export function makeInspectable(card: UICard, { scale = () => 1, driver = () => card.driver }: InspectableOptions = {}): void {
+export function makeDetailInspectable(owner: Component, open: (opening: InspectOpening) => InspectedView, { scale = () => 1 }: { scale?: () => number } = {}): void {
 	let anchor: Rect = { x: 0, y: 0, width: 0, height: 0 };
-	card.tooltip = {
+	owner.tooltip = {
 		factory: () => {
-			const context = card.context;
+			const context = owner.context;
 			const viewport = context?.viewport.logical ?? { width: 0, height: 0 };
 			const factor = scale();
-			const seat = driver();
-			const bounds = card.screenBounds;
-			const hasKeywords = inspectViewWidth(card.data) > DETAIL.width;
-			const placed = inspectLayout({ cardCentreX: bounds.x + bounds.width / 2, viewportWidth: viewport.width, scale: factor, seat, hasKeywords });
-			anchor = restingAnchor({ x: placed.viewX, viewportHeight: viewport.height, scale: factor });
-			return new CardInspectSurface({
-				card: card.data,
-				driver: seat,
-				pinned: context?.tooltips.pinned === card,
-				keywordSide: placed.side,
-				scale: factor,
-			});
-		},
-		placement: { anchor: 'owner', side: 'top', align: 'start', ownerRect: () => anchor },
-		immediateOnFocus: true,
-		pinnable: true,
-	};
-}
-
-export interface DriverInspectableOptions {
-	/**
-	 * Where the deck's card types are looked up: the screen's loaded cards
-	 * (`(type) => CardLoader.getInstance().createCard(type)`). A type it
-	 * doesn't know is left out of the view's deck.
-	 */
-	cards: CardLookup;
-	/** Logical pixels to viewport pixels where the card lives, as for a play card; 1 when absent. */
-	scale?: () => number;
-}
-
-/**
- * A driver card's detail view (Game Flow 7.0: their full stats and their
- * deck), on the same path as a play card's: hover, keyboard focus, and a
- * touch hold open it, a secondary click or I pins it, and it rests on the
- * bottom of the screen centred over the card, growing upward. The view is
- * built from the card's data each time it opens.
- */
-export function makeDriverInspectable(card: DriverCard, { cards, scale = () => 1 }: DriverInspectableOptions): void {
-	let anchor: Rect = { x: 0, y: 0, width: 0, height: 0 };
-	card.tooltip = {
-		factory: () => {
-			const context = card.context;
-			const viewport = context?.viewport.logical ?? { width: 0, height: 0 };
-			const factor = scale();
-			const surface = new DriverInspectSurface({ data: card.data, cards, pinned: context?.tooltips.pinned === card, scale: factor });
-			const bounds = card.screenBounds;
-			const x = centredOver({ cardCentreX: bounds.x + bounds.width / 2, width: surface.width, viewportWidth: viewport.width, margin: SIDE_MARGIN * factor });
+			const { surface, x } = open({ viewport, bounds: owner.screenBounds, scale: factor, pinned: context?.tooltips.pinned === owner });
 			anchor = restingAnchor({ x, viewportHeight: viewport.height, scale: factor });
 			return surface;
 		},
@@ -191,32 +165,71 @@ export function makeDriverInspectable(card: DriverCard, { cards, scale = () => 1
 	};
 }
 
-/** Pins `card`'s detail view open, or lets it go when it already is. */
-export function toggleInspectPin(card: Component): void {
-	const tooltips = card.context?.tooltips;
-	if (!tooltips || !card.tooltip) return;
-	if (tooltips.pinned === card) tooltips.unpin();
-	else tooltips.pin(card);
+/**
+ * Section 5's detail view on a play card, through the tooltip service the
+ * hand's preview used (DDB-88), centred over the card with its keyword
+ * boxes on the side with room, whatever screen the card is on: hand, pile,
+ * browser, or reward.
+ */
+export function makeInspectable(card: UICard, { scale, driver = () => card.driver }: InspectableOptions = {}): void {
+	makeDetailInspectable(card, ({ viewport, bounds, scale: factor, pinned }) => {
+		const seat = driver();
+		const hasKeywords = inspectViewWidth(card.data) > DETAIL.width;
+		const placed = inspectLayout({ cardCentreX: bounds.x + bounds.width / 2, viewportWidth: viewport.width, scale: factor, seat, hasKeywords });
+		return {
+			surface: new CardInspectSurface({ card: card.data, driver: seat, pinned, keywordSide: placed.side, scale: factor }),
+			x: placed.viewX,
+		};
+	}, { scale });
 }
 
-/** A play card at any size, or a driver card: what has a detail view to open. */
-function isCard(node: Component | null): node is UICard | DriverCard {
-	return node instanceof UICard || node instanceof DriverCard;
+export interface DriverInspectableOptions {
+	/**
+	 * Where the deck's card types are looked up: the screen's loaded cards
+	 * (`(type) => CardLoader.getInstance().createCard(type)`). A type it
+	 * doesn't know is left out of the view's deck.
+	 */
+	cards: CardLookup;
 }
 
-/** The inspectable card an event landed on, or under. */
-function cardAt(target: Component | null): UICard | DriverCard | null {
+/**
+ * A driver card's detail view (Game Flow 7.0: their full stats and their
+ * deck), on the play card's path, centred over the card. The view is built
+ * from the card's data each time it opens.
+ */
+export function makeDriverInspectable(card: DriverCard, { cards }: DriverInspectableOptions): void {
+	makeDetailInspectable(card, ({ viewport, bounds, scale, pinned }) => {
+		const surface = new DriverInspectSurface({ data: card.data, cards, pinned, scale });
+		return { surface, x: centredOver({ cardCentreX: bounds.x + bounds.width / 2, width: surface.width, viewportWidth: viewport.width, margin: SIDE_MARGIN * scale }) };
+	});
+}
+
+/** Pins `owner`'s detail view open, or lets it go when it already is. */
+export function toggleInspectPin(owner: Component): void {
+	const tooltips = owner.context?.tooltips;
+	if (!tooltips || !owner.tooltip) return;
+	if (tooltips.pinned === owner) tooltips.unpin();
+	else tooltips.pin(owner);
+}
+
+/** Whether a component opens a detail view: its tooltip pins, as every one `makeDetailInspectable` makes does. */
+function hasDetailView(node: Component | null): boolean {
+	return node?.tooltip?.pinnable === true;
+}
+
+/** The owner of the detail view an event landed on, or under. */
+function inspectableAt(target: Component | null): Component | null {
 	for (let node = target; node; node = node.parent) {
-		if (isCard(node)) return node.tooltip ? node : null;
+		if (hasDetailView(node)) return node;
 	}
 	return null;
 }
 
 /**
- * A secondary click on any inspectable card under `container`, play card
- * or driver card, pins its detail view, and a touch hold opens it (R9.30
- * synthesises both as `contextmenu`). On the container rather than the
- * card, since a disabled card is skipped by delivery (R9.5) and an
+ * A secondary click on anything under `container` with a detail view (a
+ * play card, a driver card, an escort card) pins it, and a touch hold opens
+ * it (R9.30 synthesises both as `contextmenu`). On the container rather
+ * than the card, since a disabled card is skipped by delivery (R9.5) and an
  * unaffordable card must still be readable. `canPin` lets a screen refuse,
  * as combat does mid-drag.
  */
@@ -224,21 +237,21 @@ export function inspectOnContextMenu(container: Component, canPin: () => boolean
 	const previous = container.onContextMenu;
 	container.onContextMenu = (event: UiPointerEvent) => {
 		previous?.(event);
-		const card = cardAt(event.target);
-		if (!card) return;
+		const owner = inspectableAt(event.target);
+		if (!owner) return;
 		event.consume();
 		if (event.pointerType === 'touch') {
-			card.context?.tooltips.show(card);
+			owner.context?.tooltips.show(owner);
 			return;
 		}
-		if (canPin()) toggleInspectPin(card);
+		if (canPin()) toggleInspectPin(owner);
 	};
 }
 
 /**
- * The I key: pins the card whose detail view is showing, or the focused
- * card's, or lets a pinned one go. True when it did something, for a
- * hotkey table to consume.
+ * The I key: pins the detail view that's showing, or the focused card's,
+ * or lets a pinned one go. True when it did something, for a hotkey table
+ * to consume.
  */
 export function inspectHotkey(context: MountContext): boolean {
 	const tooltips = context.tooltips;
@@ -246,11 +259,11 @@ export function inspectHotkey(context: MountContext): boolean {
 		tooltips.unpin();
 		return true;
 	}
-	const shown = isCard(tooltips.owner) ? tooltips.owner : null;
-	const focused = isCard(context.focus.focused) ? context.focus.focused : null;
-	const card = shown ?? focused;
-	if (!card?.tooltip) return false;
-	tooltips.pin(card);
+	const shown = tooltips.owner;
+	const focused = context.focus.focused;
+	const owner = shown && hasDetailView(shown) ? shown : focused && hasDetailView(focused) ? focused : null;
+	if (!owner) return false;
+	tooltips.pin(owner);
 	return true;
 }
 
