@@ -20,7 +20,8 @@ export const STATUS_TAG_HEIGHT = TAG.height;
  * is measured only when it changes, and an empty one draws nothing.
  */
 export class StatusTagDraw {
-	private readonly right: number;
+	private readonly rightEdge: number;
+	private faded = false;
 	private readonly rect: Rect;
 	private readonly border: { color: RGBA; width: number } = { color: CARD_MUTED_FILLS.full, width: 1 };
 	private readonly box: DrawRectOptions;
@@ -29,7 +30,7 @@ export class StatusTagDraw {
 	private measuredText: string | null = null;
 
 	constructor({ right, y }: { right: number; y: number }) {
-		this.right = right;
+		this.rightEdge = right;
 		this.rect = { x: right, y, width: 0, height: TAG.height };
 		this.box = { rect: this.rect, radius: TAG.radius, fill: CARD_GROUND_FILLS.full, border: this.border };
 		this.label = {
@@ -53,12 +54,22 @@ export class StatusTagDraw {
 		this.label.text = text;
 	}
 
-	/** The faded card's tone, or the full one. */
+	/** Whether it takes a faded card's tone rather than the full one. */
+	public get dimmed(): boolean {
+		return this.faded;
+	}
+
 	public set dimmed(dimmed: boolean) {
+		this.faded = dimmed;
 		const tone = dimmed ? 'dimmed' : 'full';
 		this.box.fill = CARD_GROUND_FILLS[tone];
 		this.border.color = CARD_MUTED_FILLS[tone];
 		this.label.color = TAG_TEXT[tone];
+	}
+
+	/** The box's width as last measured for the text it shows; 0 while it shows nothing. */
+	public get width(): number {
+		return this.shown ? this.rect.width : 0;
 	}
 
 	/** Sized to its text, measured only when the text changed; a no-op until the draw API can measure. */
@@ -66,7 +77,7 @@ export class StatusTagDraw {
 		const text = this.label.text;
 		if (text === this.measuredText || !draw?.canMeasureText('mono')) return;
 		const width = text ? draw.measureText({ text, font: 'mono', size: TAG.size, letterSpacing: TAG.letterSpacing, wrap: 'none' }).width + TAG.padding * 2 : 0;
-		this.rect.x = this.right - width;
+		this.rect.x = this.rightEdge - width;
 		this.rect.width = width;
 		this.measuredText = text;
 	}

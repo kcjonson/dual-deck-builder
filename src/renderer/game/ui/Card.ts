@@ -316,7 +316,7 @@ class MiniParts {
 	 * frame, the edges a step darker than an owner's frame or the dim line
 	 * on an unowned card, and the tag and the count dimmed with the card.
 	 */
-	recolour(frame: RGBA, owned: boolean, dimmed: boolean): void {
+	recolour({ frame, owned, dimmed }: { frame: RGBA; owned: boolean; dimmed: boolean }): void {
 		const tone = dimmed ? 'dimmed' : 'full';
 		const edge = owned ? scale(frame, MINI.stack.brightness) : CARD_DIM_FILLS[tone];
 		for (const draw of this.edges) {
@@ -559,7 +559,7 @@ export class Card extends Component {
 
 		if (mini) {
 			this.mini = new MiniParts(dimensions);
-			this.mini.recolour(this.restingBorder, this.driverNumber !== null, false);
+			this.mini.recolour({ frame: this.restingBorder, owned: this.driverNumber !== null, dimmed: false });
 		} else {
 			this.mini = null;
 
@@ -834,7 +834,7 @@ export class Card extends Component {
 		this.hexFaceDraw.fill = dimmed ? COST_HEX_FILLS.dimmed : COST_HEX_FILLS.full;
 		this.gemDraw.fill = dimmed ? GEM_FILLS[this.model.rarity].dimmed : GEM_FILLS[this.model.rarity].full;
 		if (this.markDraw && this.driverNumber) this.markDraw.fill = dimmed ? DRIVER_MARK_FILLS[this.driverNumber].dimmed : DRIVER_MARK_FILLS[this.driverNumber].full;
-		this.mini?.recolour(this.restingBorder, this.driverNumber !== null, dimmed);
+		this.mini?.recolour({ frame: this.restingBorder, owned: this.driverNumber !== null, dimmed });
 		this.name.style = { ...this.name.style, color: tone(CARD_NAME) };
 		this.typeLabel.style = { ...this.typeLabel.style, color: tone(CARD_MUTED) };
 		if (this.rarityLabel) this.rarityLabel.style = { ...this.rarityLabel.style, color: tone(CARD_DIM) };
@@ -1102,7 +1102,7 @@ export class Card extends Component {
 		this.driverNumber = driverNumber;
 		this.placeMark();
 		this.artDraw.gradient = artGradient(driverNumber, this.dimmed ? DIM_BRIGHTNESS : 1);
-		this.mini?.recolour(this.restingBorder, driverNumber !== null, this.dimmed);
+		this.mini?.recolour({ frame: this.restingBorder, owned: driverNumber !== null, dimmed: this.dimmed });
 		this.applyBorder();
 		// The face's driver mark comes and goes as a draw of its own
 		this.invalidateInk();

@@ -75,14 +75,32 @@ describe('StatusTagDraw', () => {
 		expect(tag.contains(82, -3)).toBe(false);
 	});
 
-	it('dims with a faded card', () => {
+	it('dims with a faded card, and says whether it is dimmed', () => {
 		const measuring = createMeasuringDrawApi();
 		const tag = new StatusTagDraw({ right: 84, y: -7 });
+		expect(tag.dimmed).toBe(false);
 		tag.text = 'HOME';
 		tag.place(measuring.api);
 		tag.dimmed = true;
+		expect(tag.dimmed).toBe(true);
 		expect(frame(tag, measuring)[0].fill).toEqual(CARD_GROUND_FILLS.dimmed);
 		tag.dimmed = false;
+		expect(tag.dimmed).toBe(false);
 		expect(frame(tag, measuring)[0].fill).toEqual(CARD_GROUND_FILLS.full);
+	});
+
+	it('reports the width it was measured at, and none while it shows nothing', () => {
+		const measuring = createMeasuringDrawApi();
+		const tag = new StatusTagDraw({ right: 84, y: -7 });
+		expect(tag.width).toBe(0);
+		tag.text = 'LOCKED';
+		expect(tag.width).toBe(0);
+		tag.place(measuring.api);
+		const box = frame(tag, measuring)[0].rect as Rect;
+		expect(tag.width).toBeGreaterThan(0);
+		expect(tag.width).toBe(box.width);
+		tag.text = '';
+		tag.place(measuring.api);
+		expect(tag.width).toBe(0);
 	});
 });
