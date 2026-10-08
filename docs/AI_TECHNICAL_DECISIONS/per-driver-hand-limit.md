@@ -29,5 +29,5 @@ Compound and Supply Runs (Decks and the locker) makes the hand limit a driver st
 
 - DDB-282 puts `handLimit` on `DriverRecord`, and DDB-286 passes it through as `new Driver({ ..., handLimit })`. A combat driver built without one (the gallery's player drivers, most tests) keeps their archetype's. Raiders borrow a player archetype (the live fight's is a Mechanic, the gallery's are the Raider), so they set 7 themselves and a per-archetype value can't change their draws.
 - The first archetype, mod, or upgrade that takes a limit past 7 needs a dock design pass before it ships. The fit suite fails any half over `DOCK_HAND_CAP`, and Game Flow 8.1's keyboard shortcuts ("Number keys 1-7 select cards in hand") assume seven too.
-- The AI rates draw cards without looking at the drawer's limit, as it did with the constant, so a raider at its limit still values a draw it would burn.
+- The AIs value a draw by the cards it keeps under the drawer's limit, and nothing for a card it burns ([ai-draw-value.md](./ai-draw-value.md)).
 - The combat tab doesn't show the limit. The Crew screen and the driver card (Game Flow 3.2 and 7.0) will.
