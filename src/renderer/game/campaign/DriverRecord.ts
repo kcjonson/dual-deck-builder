@@ -1,7 +1,7 @@
 import { Model } from '../core/Model';
 import { DRIVER_CONFIGS, DriverArchetype } from '../mechanics/Driver';
 import { CardCounts, readCardCounts, startingDeckCounts, totalCards } from './CardCounts';
-import { describeValue, readFields, readInteger, readOneOf, readText } from './JsonReader';
+import { ReaderRangeError, describeValue, readFields, readInteger, readOneOf, readText } from './JsonReader';
 
 export const DRIVER_STATUSES = ['ready', 'injured', 'dead', 'missing'] as const;
 
@@ -183,15 +183,15 @@ export function readDriverRecordData(value: unknown, path: string): DriverRecord
 	};
 	readInteger(data.hitpoints, `${path}.hitpoints`, { min: 0, max: data.maxHitpoints, maxLabel: `maxHitpoints (${data.maxHitpoints})` });
 	if ((data.status === 'dead') !== (data.hitpoints === 0)) {
-		throw new RangeError(data.status === 'dead'
+		throw new ReaderRangeError(data.status === 'dead'
 			? `${path}.hitpoints must be 0 for a dead driver, got ${data.hitpoints}`
 			: `${path}.status must be dead at 0 hitpoints, got ${describeValue(data.status)}`);
 	}
 	if (data.status === 'dead' && totalCards(data.defaultDeck) > 0) {
-		throw new RangeError(`${path}.defaultDeck must be empty for a dead driver, whose cards went with them, got ${describeValue(data.defaultDeck)}`);
+		throw new ReaderRangeError(`${path}.defaultDeck must be empty for a dead driver, whose cards went with them, got ${describeValue(data.defaultDeck)}`);
 	}
 	if ((data.status === 'injured') !== (data.injuredDays > 0)) {
-		throw new RangeError(data.status === 'injured'
+		throw new ReaderRangeError(data.status === 'injured'
 			? `${path}.injuredDays must be 1 or more for an injured driver, got 0`
 			: `${path}.injuredDays must be 0 for a driver who is ${data.status}, got ${data.injuredDays}`);
 	}

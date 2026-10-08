@@ -6,7 +6,7 @@ The game is a campaign: the player runs a compound and sends supply runs out fro
 
 ### 1.1 Main Menu → New Campaign
 
-When a player launches the game, they'll see the main menu. "New Campaign" is the largest and most visually prominent button: it founds a compound on a freshly generated area map ([Area Map Generation](./Area%20Map%20Generation.md)) and opens the compound screen. Below it, if a campaign is in progress, "Continue" shows its state (e.g., "Day 12 - 3 drivers - 1 stronghold taken"). At the bottom, "Campaign History" lists past campaigns: days survived, strongholds taken, unlocks earned, and how the compound fell.
+When a player launches the game, they'll see the main menu. "New Campaign" is the largest and most visually prominent button: it founds a compound on a freshly generated area map ([Area Map Generation](./Area%20Map%20Generation.md)) and opens the compound screen. Below it, if a campaign is in progress, "Continue" shows its state (e.g., "Day 12 - 3 drivers - 1 stronghold taken"). A damaged save is kept rather than deleted, and Continue says why instead of opening it. A save from a version of the game with another save format can't be continued: the menu says so where Continue would be, and New Campaign replaces it. At the bottom, "Campaign History" lists past campaigns: days survived, strongholds taken, unlocks earned, and how the compound fell.
 
 There will need to be buttons to see what cards have been (the original note stops here).
 

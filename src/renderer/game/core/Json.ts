@@ -3,8 +3,8 @@ export type JsonValue = null | boolean | number | string | JsonValue[] | JsonObj
 
 export type JsonObject = { [key: string]: JsonValue };
 
-/** Far deeper than any JSON the game holds, and well short of the stack. */
-const MAX_DEPTH = 100;
+/** How many levels arrays and objects may nest: far deeper than any JSON the game holds, and well short of the stack. */
+export const MAX_JSON_DEPTH = 100;
 
 /**
  * The problems a reader found, for one error that names them. It keeps the
@@ -92,7 +92,7 @@ function copyValue(value: unknown, path: string, ancestors: readonly object[], r
 	}
 	const container = value as Record<string | number, unknown>;
 	if (ancestors.includes(container)) return report(TypeError, `${path} contains itself`);
-	if (ancestors.length >= MAX_DEPTH) return report(RangeError, `${path} nests more than ${MAX_DEPTH} levels deep`);
+	if (ancestors.length >= MAX_JSON_DEPTH) return report(RangeError, `${path} nests more than ${MAX_JSON_DEPTH} levels deep`);
 	const inside = [...ancestors, container];
 	const copyAt = (key: string | number, itemPath: string): JsonValue => {
 		let item: unknown;
