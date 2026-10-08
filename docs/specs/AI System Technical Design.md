@@ -188,6 +188,8 @@ values.synergyValue \* this.personality.synergyWeight
 
 }
 
+Card draw is worth only the cards that stay in hand. A draw fills the drawer's hand up to their hand limit and burns the rest ([Combat Rules](./Combat%20Rules.md), Driver), and a burned card is worth nothing, so a draw at the limit adds no utility value. The hand counts as the draw will find it: without the card being played, which leaves its player's hand first, and after a plan's earlier plays. The strategies that value draws read it from one shared estimate; see [ai-draw-value.md](../AI_TECHNICAL_DECISIONS/ai-draw-value.md).
+
 ## 4\. Move Generation & Selection
 
 ### 4.1 Move Generator

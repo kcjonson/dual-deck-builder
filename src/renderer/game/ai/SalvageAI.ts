@@ -6,6 +6,7 @@ import { Card } from '../mechanics/Card';
 import { Vehicle } from '../mechanics/Vehicle';
 import { Team, TeamType } from '../mechanics/Team';
 import { DamageKind, cardDamageKind, damageToFinish } from './DamageEstimate';
+import { cardsKeptFromDraw } from './DrawEstimate';
 
 /**
  * AI strategy that tries to win while minimizing vehicle damage for salvage
@@ -66,9 +67,10 @@ export class SalvageAIStrategy implements AIStrategy {
 	}
 
 	/**
-	 * Score an action based on game state and salvage priorities
+	 * Score an action based on game state and salvage priorities. Public so
+	 * tests can read what a play is worth.
 	 */
-	private scoreAction(action: AIDecision, gameState: GameStateEvaluation): number {
+	public scoreAction(action: AIDecision, gameState: GameStateEvaluation): number {
 		if (action.type !== 'playCard' || !action.card) {
 			return -100;
 		}
@@ -139,9 +141,11 @@ export class SalvageAIStrategy implements AIStrategy {
 			}
 		}
 
-		// CARD DRAW: Essential for finding headshots and maintaining options
-		if (card.effects.some(e => e.type === 'draw_cards')) {
-			score += 80 + (cardAdvantage < 0 ? 40 : 0); // More valuable when behind on cards
+		// CARD DRAW: Essential for finding headshots and maintaining options.
+		// Two cards at most, so a big draw doesn't outrank a flank.
+		if (action.driver) {
+			const keptCards = Math.min(cardsKeptFromDraw({ board: gameState.board, card, player: action.driver }), 2);
+			score += (cardAdvantage < 0 ? 60 : 40) * keptCards; // More valuable when behind on cards
 		}
 
 		// DEFENSIVE CARDS: Important when in danger or damaged
