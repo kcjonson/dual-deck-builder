@@ -300,6 +300,8 @@ Reveal rules:
 
 - The save holds the resolved parameters, the seed, the generator version, the gameplay map (drivable roads with their polylines and parent links, POIs with their approaches, stops, tiers, territories), and the saved state above. Tens of KB.
 - Loading never regenerates gameplay data, so changing the generator can't alter a campaign in progress. Once the gameplay map exists, terrain and scenery are only pictures, so both are regenerated on load; a generator change can alter how they look, never play.
+- Since those two layers are rebuilt, the save keeps what their streams fork from: the map attempt, and the winning terrain and scenery attempts. The gameplay stages' attempts aren't kept, since their output is saved.
+- Saves live in local storage in both builds ([campaign-save-and-load.md](../AI_TECHNICAL_DECISIONS/campaign-save-and-load.md)), which holds a save of several hundred KB with room to spare. A generated map that pushes a long campaign's save past a million characters moves saves to IndexedDB.
 
 ## The Map Lab (prototype tuning tool)
 

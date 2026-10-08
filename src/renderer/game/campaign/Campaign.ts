@@ -152,11 +152,12 @@ export interface Campaign extends Readonly<CampaignData> {}
  * moves. A driver record or an escort changing on its own emits on that
  * model and not here: a record's HP on the record, an escort's damage on its
  * own Vehicle (the convoy emits only when escorts join or leave). So save at
- * checkpoints (each stop, arriving home, the end of a compound action), or
- * subscribe to each record and each escort as well as the campaign. A
- * record changes partway through a card move, before the locker is stored,
- * so a save a record or escort change sets off waits for the next tick or a
- * checkpoint; card moves arrive whole on the campaign's change.
+ * checkpoints, `CampaignStore.checkpoint` after each stop, arriving home, or
+ * a compound action, or subscribe to each record and each escort as well as
+ * the campaign. A record changes partway through a card move, before the
+ * locker is stored, so a save a record or escort change sets off waits for
+ * the next tick or a checkpoint (every `CampaignStore` call waits a tick);
+ * card moves arrive whole on the campaign's change.
  *
  * Nothing here draws randomness, and the seed comes from whoever founds the
  * campaign. Anything that needs a random draw later forks a fresh stream for

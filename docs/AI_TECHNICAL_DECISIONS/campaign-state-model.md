@@ -101,7 +101,7 @@ The log is `{ day, message }` lines, dated by `addLogEntry` with the current day
 
 ## Consequences
 
-- Saving (DDB-49) writes `JSON.stringify(campaign)` at a checkpoint and loads with `Campaign.fromJSON(JSON.parse(text), { onWarning })`; anything thrown means the save can't be loaded (or, from `toJSON`, written), and warnings mean it loaded with its map params repaired.
+- Saving (DDB-49, [campaign-save-and-load.md](./campaign-save-and-load.md)) writes `JSON.stringify(campaign)` at checkpoints and loads with `Campaign.fromJSON(JSON.parse(text), { onWarning })`; anything thrown means the save can't be loaded (or, from `toJSON`, written), and warnings mean it loaded with its map params repaired.
 - Founding (DDB-284) builds `new Campaign({ seed, generatorVersion, mapParams, map, resources })` with params it has validated, and calls `recruitDriver` for each starting driver.
 - The combat bridge (DDB-286) builds combat drivers from records and writes HP, status, and injured days back in one `set`, with an empty deck for a driver who died.
 - Until saves ship, the format can change without a version bump if the fixture changes with it. After that, every change bumps the version and adds a migration.

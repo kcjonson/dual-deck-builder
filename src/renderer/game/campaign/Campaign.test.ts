@@ -5,7 +5,7 @@ import { createEscort } from '../mechanics/Escort';
 import { Campaign, CampaignJson, CampaignOptions, NO_RESOURCES } from './Campaign';
 import { cardCount, totalCards } from './CardCounts';
 import { DriverRecord } from './DriverRecord';
-import { CAMPAIGN_SCHEMA_VERSION, SaveMigration, migrateSave } from './SaveMigrations';
+import { CAMPAIGN_SCHEMA_VERSION, NewerSaveError, SaveMigration, migrateSave } from './SaveMigrations';
 import campaignV1 from './__fixtures__/campaign-v1.json';
 
 const SEED = 20261006;
@@ -908,6 +908,19 @@ describe('Campaign', () => {
 		it('refuses a save with a step missing on the way up', () => {
 			expect(() => migrateSave({ save: { schemaVersion: 1 }, to: 3, migrations: { 2: steps[2] } }))
 				.toThrow("Campaign.schemaVersion 1 can't be read: nothing upgrades a version 1 save");
+		});
+
+		it('refuses a newer build\'s save with an error of its own, which keeps both versions', () => {
+			let refused: unknown;
+			try {
+				migrateSave({ save: { schemaVersion: 4 }, to: 3, migrations: steps });
+			} catch (error) {
+				refused = error;
+			}
+
+			expect(refused).toBeInstanceOf(NewerSaveError);
+			expect(refused).toBeInstanceOf(RangeError);
+			expect(refused).toMatchObject({ version: 4, readable: 3, message: 'Campaign.schemaVersion is 4, newer than this build reads (3)' });
 		});
 	});
 
