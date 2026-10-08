@@ -41,8 +41,8 @@ describe('rollParams', () => {
 	// PRNG's goldens, and retuning can move it on purpose: update it in the same
 	// change. A parameter's campaign range or step, Floodlands' value for it, or
 	// a table default Floodlands inherits (towns, say) moves that parameter;
-	// strongholds moves highways too; and a change to the list of environments
-	// can move all of it.
+	// strongholds moves highways too; a change to how snapToStep rounds can move
+	// any value; and a change to the list of environments can move all of it.
 	it('rolls the pinned params for the default preset\'s seed', () => {
 		expect(rollParams(2183746551)).toEqual({
 			seed: 2183746551, environment: 'floodlands',

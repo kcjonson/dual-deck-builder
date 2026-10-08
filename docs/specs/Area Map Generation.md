@@ -122,7 +122,7 @@ High Desert is dry tableland cut by canyons, with long straight roads and few to
 | `railLines` | | 2 | | |
 | `farmTracks` | 0.15 | | 0.5 | 0.15 |
 
-Each value sits at least a step inside its campaign range. Half an environment's rolls land on each side of its value however little room that side has (see Randomising for the finished game), so a value on an end of the range would put half or more of them exactly on that end. High Desert's 0 lakes is the one value on an end, on purpose: about two High Desert maps in three have no lakes.
+Each value sits at least a step inside its campaign range. Half an environment's rolls land on each side of its value however little room that side has (see Randomising for the finished game), so a value on an end of the range would put half or more of them exactly on that end. High Desert's 0 lakes is the one value on an end, on purpose: about two High Desert maps in three have no lakes. `brokenHighways`' campaign range runs to 4 so that Rust Belt's 3 sits a step in, since a step down would be the default. The wider range tilts the four environments that keep the default of 2 toward 3, with 22% of their rolls on 3 against 12.5% on 1 and none on 4: the cost of keeping Rust Belt off the end.
 
 ### Randomising for the finished game
 
