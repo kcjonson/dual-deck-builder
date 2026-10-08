@@ -5,6 +5,7 @@ import { Team, TeamType } from './Team';
 import { Vehicle, createDrivenVehicle } from './Vehicle';
 import { DriverLoader } from '../core/DriverLoader';
 import { CardLoader } from '../core/CardLoader';
+import { Rng, freshSeed } from '../core/Rng';
 
 export interface AIMatchResult {
 	player1AI: AIType;
@@ -37,6 +38,13 @@ export interface EvaluationConfig {
 	gamesPerMatchup: number;
 	driverSets?: string[][];  // Optional specific driver sets to test
 	randomizeDrivers?: boolean;
+	/**
+	 * The run's root seed, fresh when left out. Each game's random drivers
+	 * and each match's fight fork from it by matchup and game, so a seed
+	 * replays the whole run, and a matchup's games don't move when the
+	 * AI types around it change.
+	 */
+	seed?: number;
 	verbose?: boolean;
 	onProgress?: (current: number, total: number, message: string) => void;
 }
@@ -85,10 +93,11 @@ export class AIEvaluator {
 		const totalMatchups = (config.aiTypes.length * (config.aiTypes.length - 1)) / 2;
 		const totalGames = totalMatchups * config.gamesPerMatchup * 2; // *2 for both permutations
 		let gamesCompleted = 0;
+		const root = new Rng({ seed: config.seed ?? freshSeed() });
 		
-		// Report initial progress
+		// Report initial progress, with the seed that replays this run
 		if (config.onProgress) {
-			config.onProgress(0, totalGames, 'Starting evaluation...');
+			config.onProgress(0, totalGames, `Starting evaluation, seed ${root.seed}...`);
 			await this.yieldToUI();
 		}
 		
@@ -105,10 +114,10 @@ export class AIEvaluator {
 				// Run multiple games per matchup
 				for (let game = 0; game < config.gamesPerMatchup; game++) {
 					// Get driver sets for this game
-					const driverSets = this.getDriverSetsForGame(config, game);
+					const driverSets = this.getDriverSetsForGame(config, game, root.fork(`drivers:${ai1}:${ai2}`, game));
 					
 					// Run both permutations (AI1 as player, AI2 as enemy and vice versa)
-					const result1 = await this.runSingleMatch(ai1, ai2, driverSets[0], driverSets[1]);
+					const result1 = await this.runSingleMatch(ai1, ai2, driverSets[0], driverSets[1], root.fork(`fight:${ai1}:${ai2}`, game));
 					this.updateResults(results, ai1, ai2, result1);
 					gamesCompleted++;
 					
@@ -119,7 +128,7 @@ export class AIEvaluator {
 						await this.yieldToUI();
 					}
 					
-					const result2 = await this.runSingleMatch(ai2, ai1, driverSets[0], driverSets[1]);
+					const result2 = await this.runSingleMatch(ai2, ai1, driverSets[0], driverSets[1], root.fork(`fight:${ai2}:${ai1}`, game));
 					this.updateResults(results, ai2, ai1, result2);
 					gamesCompleted++;
 					
@@ -151,13 +160,14 @@ export class AIEvaluator {
 	}
 	
 	/**
-	 * Run a single match between two AI players
+	 * Run a single match between two AI players, the fight drawing from `rng`
 	 */
 	private async runSingleMatch(
 		player1AI: AIType, 
 		player2AI: AIType,
 		player1Drivers: Driver[],
-		player2Drivers: Driver[]
+		player2Drivers: Driver[],
+		rng: Rng
 	): Promise<AIMatchResult> {
 		// Get available cards
 		const availableCards = CardLoader.getInstance().getAllCardsAsMap();
@@ -184,7 +194,8 @@ export class AIEvaluator {
 		// Create battle
 		const battle = new Battle({
 			playerTeam,
-			enemyTeam
+			enemyTeam,
+			rng
 		});
 		
 		// Set AI for both teams
@@ -288,9 +299,9 @@ export class AIEvaluator {
 	}
 	
 	/**
-	 * Get driver sets for a specific game
+	 * Get driver sets for a specific game, a random pair drawn from `rng`
 	 */
-	private getDriverSetsForGame(config: EvaluationConfig, gameIndex: number): [Driver[], Driver[]] {
+	private getDriverSetsForGame(config: EvaluationConfig, gameIndex: number, rng: Rng): [Driver[], Driver[]] {
 		// Get all available drivers
 		this.allDrivers = DriverLoader.getAllDriverArchetypes();
 		
@@ -303,7 +314,7 @@ export class AIEvaluator {
 			return [drivers.slice(0, 2), drivers.slice(0, 2)]; // Both teams use same drivers
 		} else if (config.randomizeDrivers) {
 			// Random selection
-			const shuffled = [...this.allDrivers].sort(() => Math.random() - 0.5);
+			const shuffled = rng.shuffle([...this.allDrivers]);
 			const selectedDrivers = shuffled.slice(0, 2);
 			return [selectedDrivers, selectedDrivers]; // Both teams use same drivers
 		} else {

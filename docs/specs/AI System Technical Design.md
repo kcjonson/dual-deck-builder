@@ -306,7 +306,7 @@ case Difficulty.EASY:
 
 // 30% chance to pick suboptimal move
 
-if (Math.random() < 0.3) {
+if (this.rng.float() < 0.3) {
 
 return this.pickRandomMove(moves);
 
@@ -606,7 +606,7 @@ private calculateThinkingTime(): number {
 
 // 0.5s - 2s based on complexity
 
-return Math.random() \* 1500 + 500;
+return this.rng.int(500, 2000);
 
 }
 

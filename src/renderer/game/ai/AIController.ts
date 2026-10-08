@@ -10,16 +10,20 @@ import { SalvageAI } from './SalvageAI';
 import { RammingAI } from './RammingAI';
 import { FirstPlayableAI } from './FirstPlayableAI';
 import { AIDecision } from './types';
+import type { Rng } from '../core/Rng';
 
 export type AIType = 'random' | 'aggressive' | 'defensive' | 'balanced' | 'mcts' | 'salvage' | 'ramming';
 
 export class AIController {
 	private battle: Battle;
+	/** The fight's AI stream; each team's AI draws from its own fork of it, named for the team. */
+	private readonly rng: Rng;
 	private playerAI: AIPlayer | null = null;
 	private enemyAI: AIPlayer | null = null;
 
-	constructor(battle: Battle) {
+	constructor({ battle, rng }: { battle: Battle; rng: Rng }) {
 		this.battle = battle;
+		this.rng = rng;
 	}
 
 	setPlayerAI(type: AIType | null): void {
@@ -41,9 +45,10 @@ export class AIController {
 	}
 
 	private createAI(type: AIType, team: Team): AIPlayer {
+		const rng = this.rng.fork(team.type);
 		switch (type) {
 			case 'random':
-				return new RandomAI(team, this.battle);
+				return new RandomAI({ team, battle: this.battle, rng });
 			case 'aggressive':
 				return new AggressiveFlankerAI(team, this.battle);
 			case 'mcts':
@@ -55,7 +60,7 @@ export class AIController {
 			case 'defensive':
 			case 'balanced':
 				console.warn(`AI type '${type}' not yet implemented, using RandomAI`);
-				return new RandomAI(team, this.battle);
+				return new RandomAI({ team, battle: this.battle, rng });
 			default:
 				throw new Error(`Unknown AI type: ${type}`);
 		}

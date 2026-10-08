@@ -6,6 +6,7 @@ import { CombatScreen } from './CombatScreen';
 import { DOCK_HAND_CAP } from './CombatLayout';
 import { CardLoader } from '../../core/CardLoader';
 import { DriverLoader } from '../../core/DriverLoader';
+import { Rng } from '../../core/Rng';
 import { createTestContext } from '../../../engine/components/testing';
 import { layoutLint } from '../../../engine/debug/layoutLint';
 import { treeSnapshot } from '../../../engine/debug/treeSnapshot';
@@ -146,7 +147,7 @@ describe('CombatScreen dock (DDB-136)', () => {
 		const combat = await startCombat(context, seated);
 		const [first, second] = combat['playerDrivers'];
 		first.deck?.addCards(cards(pastCap));
-		expect(first.drawCards(pastCap - first.hand.length).burned).toEqual([]);
+		expect(first.drawCards(pastCap - first.hand.length, new Rng({ seed: 1 })).burned).toEqual([]);
 		expect(first.hand).toHaveLength(pastCap);
 		second.set({ hand: cards(DOCK_HAND_CAP) });
 		combat['updateUIFromBattle']();

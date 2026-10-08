@@ -32,6 +32,7 @@ import {
 	intentTypeOf
 } from './Intent';
 import { Model } from '../core/Model';
+import { Rng, freshSeed } from '../core/Rng';
 import { AIController } from '../ai/AIController';
 
 /**
@@ -198,6 +199,11 @@ export class Battle extends Model<BattleData> {
 	// log name (Player1, Enemy2) survives a wreck or a death
 	private static driverSeats = new WeakMap<Battle, Map<TeamType, Driver[]>>();
 
+	// The fight's random stream (stored separately due to Model freezing)
+	private static fightRngs = new WeakMap<Battle, Rng>();
+	// Each driver's deck stream, forked from the fight's on their first draw
+	private static deckRngs = new WeakMap<Battle, Map<Driver, Rng>>();
+
 	// Escorts under Draw Fire, in the order it was played, until the end of
 	// the next enemy turn (stored separately due to Model freezing)
 	private static drawFireCovers = new WeakMap<Battle, Vehicle[]>();
@@ -213,16 +219,22 @@ export class Battle extends Model<BattleData> {
 	public static suppressConsoleLog = false;
 
 	/**
-	 * Create a new battle
+	 * Create a new battle. Everything random in the fight draws from `rng`,
+	 * so one stream plays the fight out the same way every time: each
+	 * driver's reshuffles from `deck:<seat>` (Player1, Enemy2) and each
+	 * team's AI from `ai` forked again by the team's type. A fight given no
+	 * stream roots its own with freshSeed.
 	 */
 	constructor({
 		playerTeam,
 		enemyTeam,
-		maxTurns
+		maxTurns,
+		rng = new Rng({ seed: freshSeed() })
 	}: {
 		playerTeam: Team;
 		enemyTeam: Team;
 		maxTurns?: number;
+		rng?: Rng;
 	}) {
 		super({
 			playerTeam,
@@ -250,9 +262,11 @@ export class Battle extends Model<BattleData> {
 			[TeamType.ENEMY, enemyTeam.getAllDrivers()]
 		]));
 		Battle.convoyEscorts.set(this, playerTeam.escorts.filter(escort => !escort.escort?.setPiece));
+		Battle.fightRngs.set(this, rng);
+		Battle.deckRngs.set(this, new Map());
 
 		// Initialize AI controller (stored in WeakMap to avoid Model freezing issues)
-		Battle.aiControllers.set(this, new AIController(this));
+		Battle.aiControllers.set(this, new AIController({ battle: this, rng: rng.fork('ai') }));
 		
 		// Initialize message log
 		Battle.messageLogs.set(this, []);
@@ -2094,7 +2108,7 @@ export class Battle extends Model<BattleData> {
 	 */
 	private drawTurnHands(): void {
 		for (const driver of [...this.playerTeam.getAliveDrivers(), ...this.enemyTeam.getAliveDrivers()]) {
-			this.logBurnedCards(driver, driver.drawCards(TURN_DRAW));
+			this.logBurnedCards(driver, driver.drawCards(TURN_DRAW, this.deckRngOf(driver)));
 		}
 	}
 
@@ -2102,7 +2116,7 @@ export class Battle extends Model<BattleData> {
 	 * Resolve a card's draw effect for the driver who played it
 	 */
 	private drawForCard(card: Card, caster: Driver, count: number): void {
-		const result = caster.drawCards(count);
+		const result = caster.drawCards(count, this.deckRngOf(caster));
 		this.logAbout({
 			type: 'general',
 			driver: caster,
@@ -2128,27 +2142,53 @@ export class Battle extends Model<BattleData> {
 	}
 
 	/**
-	 * Driver name with their seat prefix (e.g., "Player1 Road Warrior"). The
-	 * seat is where they started the fight, so it doesn't change when they
-	 * ride on as a passenger or die. A driver seated later takes the next
-	 * number on their team.
+	 * Driver name with their seat prefix (e.g., "Player1 Road Warrior")
 	 */
 	private getDriverDisplayName(driver: Driver): string {
+		const seat = this.seatOf(driver);
+		return seat ? `${seat} ${driver.metadata.name}` : driver.metadata.name;
+	}
+
+	/**
+	 * A driver's seat, Player1 or Enemy2: where they started the fight, so it
+	 * doesn't change when they ride on as a passenger or die. A driver seated
+	 * later takes the next number on their team. Null for a driver on
+	 * neither team.
+	 */
+	private seatOf(driver: Driver): string | null {
 		const seats = Battle.driverSeats.get(this);
-		if (!seats) return driver.metadata.name;
+		if (!seats) return null;
 
 		for (const [teamType, drivers] of seats) {
 			const seat = drivers.indexOf(driver) + 1;
 			if (seat > 0) {
-				return `${teamType === TeamType.PLAYER ? 'Player' : 'Enemy'}${seat} ${driver.metadata.name}`;
+				return `${teamType === TeamType.PLAYER ? 'Player' : 'Enemy'}${seat}`;
 			}
 		}
 
 		const team = this.getTeamForDriver(driver);
 		const teamSeats = team && seats.get(team.type);
-		if (!teamSeats) return driver.metadata.name;
+		if (!teamSeats) return null;
 		teamSeats.push(driver);
-		return this.getDriverDisplayName(driver);
+		return this.seatOf(driver);
+	}
+
+	/**
+	 * The stream a driver's deck shuffles from this fight, forked from the
+	 * fight's by their seat, so it doesn't depend on who drew first
+	 */
+	private deckRngOf(driver: Driver): Rng {
+		const fight = Battle.fightRngs.get(this);
+		const decks = Battle.deckRngs.get(this);
+		if (!fight || !decks) throw new Error('Battle random streams not initialized');
+		const known = decks.get(driver);
+		if (known) return known;
+
+		const seat = this.seatOf(driver);
+		if (!seat) throw new Error(`${driver.metadata.name} draws in a fight they have no seat in`);
+		const deck = fight.fork(`deck:${seat}`);
+		decks.set(driver, deck);
+		return deck;
 	}
 
 	/**
