@@ -13,7 +13,7 @@ import { createMeasuringDrawApi, MeasuringRecordingBackend } from '../text/testi
 import { tokens } from '../theme/tokens';
 import { Button } from './Button';
 import { SegmentedControl } from './SegmentedControl';
-import { Slider, SliderRange, positionToValue, snapToStep, valueToPosition } from './Slider';
+import { Slider, SliderRange, positionToValue, valueToPosition } from './Slider';
 import { TabBar } from './TabBar';
 
 /**
@@ -101,16 +101,6 @@ describe('Slider math (R12.15)', () => {
 		expect(valueToPosition(log, -5)).toBe(0);
 		expect(valueToPosition({ min: 5, max: 5, step: 0, logScale: false }, 5)).toBe(0);
 		expect(valueToPosition(linear, Number.NaN)).toBe(0);
-	});
-
-	it('snaps to the nearest step from min, clamped to the range', () => {
-		const stepped: SliderRange = { min: 0, max: 1, step: 0.1, logScale: false };
-		expect(snapToStep(stepped, 0.34)).toBe(0.3);
-		expect(snapToStep(stepped, 0.36)).toBe(0.4);
-		expect(snapToStep(stepped, 1.4)).toBe(1);
-		expect(snapToStep(stepped, -0.2)).toBe(0);
-		expect(snapToStep({ min: 5, max: 20, step: 5, logScale: false }, 12)).toBe(10);
-		expect(snapToStep(linear, 150)).toBe(100);
 	});
 });
 

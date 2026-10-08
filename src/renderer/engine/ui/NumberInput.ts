@@ -4,6 +4,7 @@ import type { DrawApi } from '../draw/DrawApi';
 import type { AnyUiEvent, UiPointerEvent } from '../input/events';
 import { CONTROL_SIZES, ControlSize } from '../style/variants';
 import { tokens } from '../theme/tokens';
+import { decimalsOf } from './stepGrid';
 import { TextInput, TextInputOptions } from './TextInput';
 
 export interface NumberInputOptions extends Omit<ComponentOptions, 'style'> {
@@ -27,15 +28,6 @@ const DEFAULT_WIDTH = 120;
 /** The stepper column: the size's icon with `space_1` either side. */
 function stepperWidth(size: ControlSize): number {
 	return CONTROL_SIZES[size].iconSize + tokens.space.space_1 * 2;
-}
-
-/** Decimal places in `step`'s shortest form: 0.25 has two, 5 none. */
-function decimalsOf(step: number): number {
-	const text = String(step);
-	const exponent = /e-(\d+)$/.exec(text);
-	if (exponent) return Number(exponent[1]);
-	const point = text.indexOf('.');
-	return point === -1 ? 0 : text.length - point - 1;
 }
 
 /** The text field inside a NumberInput: a TextInput that keeps room for the steppers. */
