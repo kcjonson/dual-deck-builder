@@ -92,6 +92,10 @@ export interface ValidatedParamSet extends ValidatedMapParams {
  * from. A value the validator changed is 'clamped' whoever set it, so a
  * replaced override or a default a combination rule moved is never shown as
  * the set's own.
+ *
+ * The set's environment must be one: resolving throws a RangeError on a name
+ * that isn't, where `validateMapParams` swaps it for Mixed. A set read with
+ * `readMapPreset` always has a known one.
  */
 export function validateMapParamSet(set: MapParamSet): ValidatedParamSet {
 	const resolved = resolveMapParams(set);

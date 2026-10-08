@@ -198,4 +198,13 @@ describe('resolveMapParams', () => {
 			expect(params).toMatchObject(environmentDefaults(environment));
 		}
 	});
+
+	// ENVIRONMENT_PRESETS inherits 'constructor' and 'toString' from Object, so a lookup alone would take them for Mixed.
+	it.each(['tundra', 'constructor', 'toString', '__proto__'])('refuses %p as an environment', (name) => {
+		const environment = name as Environment;
+		const message = `environment must be one of highDesert, rustBelt, floodlands, badlands, mixed, got "${name}"`;
+		expect(() => environmentDefaults(environment)).toThrow(RangeError);
+		expect(() => environmentDefaults(environment)).toThrow(message);
+		expect(() => resolveMapParams({ seed: 1, environment })).toThrow(message);
+	});
 });

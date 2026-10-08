@@ -5,7 +5,7 @@
  * validator, `rollParams`, and the Map Lab's controls are all built from.
  */
 
-import { copyJson, type JsonObject } from '../core/Json';
+import { copyJson, describeValue, type JsonObject } from '../core/Json';
 
 /**
  * Stop type weights per road class, biome, tier, and territory, in place of
@@ -322,8 +322,15 @@ export const ENVIRONMENT_PRESETS: { readonly [Name in Environment]: Readonly<Par
 	mixed: {},
 };
 
-/** Every number parameter's default under an environment. */
+/**
+ * Every number parameter's default under an environment. Throws on a name
+ * that isn't one, so neither a typo nor a name `ENVIRONMENT_PRESETS` inherits
+ * from `Object` (`constructor`, `toString`) passes for Mixed.
+ */
 export function environmentDefaults(environment: Environment): Record<NumberParam, number> {
+	if (!ENVIRONMENTS.includes(environment)) {
+		throw new RangeError(`environment must be one of ${ENVIRONMENTS.join(', ')}, got ${describeValue(environment)}`);
+	}
 	const preset: Partial<Record<NumberParam, number>> = ENVIRONMENT_PRESETS[environment];
 	const values = {} as Record<NumberParam, number>;
 	for (const name of NUMBER_PARAMS) values[name] = preset[name] ?? MAP_PARAMETERS[name].default;
@@ -351,12 +358,13 @@ export interface ResolvedMapParams {
  * overrides over them, and a copy of its stop tables. Validation is separate
  * (`validateMapParams`), so a value outside its range comes back as it was
  * set; `validateMapParamSet` does both, with sources for the values it
- * returns, which is what the Map Lab shows.
+ * returns, which is what the Map Lab shows. Throws on an environment that
+ * isn't one, as `environmentDefaults` does.
  */
 export function resolveMapParams(set: MapParamSet): ResolvedMapParams {
 	const environment = set.environment ?? MAP_PARAMETERS.environment.default;
-	const preset: Partial<Record<NumberParam, number>> = ENVIRONMENT_PRESETS[environment];
 	const values = environmentDefaults(environment);
+	const preset: Partial<Record<NumberParam, number>> = ENVIRONMENT_PRESETS[environment];
 	const sources = {} as Record<NumberParam, ParamSource>;
 	for (const name of NUMBER_PARAMS) {
 		const override = set[name];

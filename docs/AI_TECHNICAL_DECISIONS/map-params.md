@@ -22,6 +22,8 @@ A `MapParamSet` is what a person sets: a seed, an environment, and any parameter
 
 Those sources describe the set as written, before validation, so a NaN override the validator replaces reads as an override and a default a combination rule moves reads as the default. The Map Lab shows the values generation runs on, so `validateMapParamSet` resolves and validates in one call and marks each value the validator changed as `clamped`, whoever set it.
 
+Resolving needs a known environment: `environmentDefaults` throws a RangeError on any other name, so a typo, or a name the presets object inherits from `Object` such as `constructor`, can't pass for Mixed. The validator on its own still swaps an unknown environment for Mixed and reports it, since it also reads params that came from outside the type.
+
 ## Presets hold only overrides
 
 A preset file is a `MapParamSet` as JSON: seed, environment, then the values it overrides in table order, tab-indented. A complete `MapParams` is a preset too, every value an override, so the Map Lab can save a campaign's resolved parameters as one. An unknown key is an error rather than ignored, since a misspelt parameter would otherwise vanish: presets are written by hand or by the Map Lab, so a key the reader doesn't know is a mistake to fix.

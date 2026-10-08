@@ -42,10 +42,10 @@ describe('validateMapParams', () => {
 		]);
 	});
 
-	it('swaps an unknown environment for Mixed', () => {
-		const result = validateMapParams(params({ environment: 'tundra' as Environment }));
+	it.each(['tundra', 'constructor'])('swaps an unknown environment, %p, for Mixed', (name) => {
+		const result = validateMapParams(params({ environment: name as Environment }));
 		expect(result.params.environment).toBe('mixed');
-		expect(result.clamps).toEqual([{ param: 'environment', from: 'tundra', to: 'mixed', reason: 'unknown environment' }]);
+		expect(result.clamps).toEqual([{ param: 'environment', from: name, to: 'mixed', reason: 'unknown environment' }]);
 	});
 
 	it.each([
@@ -155,6 +155,12 @@ describe('validateMapParams', () => {
 });
 
 describe('validateMapParamSet', () => {
+	it.each(['tundra', 'constructor'])('refuses %p as an environment, which only the validator alone swaps for Mixed', (name) => {
+		expect(() => validateMapParamSet({ seed: 1, environment: name as Environment })).toThrow(
+			new RangeError(`environment must be one of highDesert, rustBelt, floodlands, badlands, mixed, got "${name}"`),
+		);
+	});
+
 	it('resolves and validates in one call, as the validator does', () => {
 		const set: MapParamSet = { seed: -1, environment: 'badlands', radius: 5000, strongholds: 5, highways: 4 };
 		const result = validateMapParamSet(set);
