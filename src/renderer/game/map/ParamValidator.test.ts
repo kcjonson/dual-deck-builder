@@ -199,4 +199,24 @@ describe('describeClamp', () => {
 		expect(describeClamp({ param: 'seed', from: -1, to: 4294967295, reason: 'uint32' })).toBe('seed wrapped to 4294967295 (uint32)');
 		expect(describeClamp({ param: 'seed', from: 2 ** 32 + 5, to: 5, reason: 'uint32' })).toBe('seed wrapped to 5 (uint32)');
 	});
+
+	it.each([
+		[NaN, 0, 'seed set to 0 (uint32)'],
+		[Infinity, 0, 'seed set to 0 (uint32)'],
+		[12.9, 12, 'seed lowered to 12 (uint32)'],
+		[-0.5, 0, 'seed raised to 0 (uint32)'],
+	])('words a seed of %p made %p as %p, wrapped only from outside uint32', (from, to, wording) => {
+		expect(describeClamp({ param: 'seed', from, to, reason: 'uint32' })).toBe(wording);
+	});
+
+	it('words every seed clamp the validator makes', () => {
+		const wordings = [NaN, 1.5, -1, 2 ** 32 + 5, Infinity].map((seed) => validateMapParams(params({ seed })).clamps.map(describeClamp));
+		expect(wordings).toEqual([
+			['seed set to 0 (uint32)'],
+			['seed lowered to 1 (uint32)'],
+			['seed wrapped to 4294967295 (uint32)'],
+			['seed wrapped to 5 (uint32)'],
+			['seed set to 0 (uint32)'],
+		]);
+	});
 });
