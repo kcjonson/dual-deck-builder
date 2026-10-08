@@ -699,14 +699,34 @@ describe('ScrollContainer scrollIntoView shows what a component draws (R12.20, D
 		expect(scroll.scrollPosition).toBe(660 - 100);
 	});
 
-	it('leaves the scroll alone for ink it cannot measure', () => {
+	it.each([
+		['a top', { x: -3, y: Number.NaN, width: 166, height: 46 }],
+		['a height', { x: -3, y: -3, width: 166, height: Number.NaN }],
+		['a left', { x: Number.NaN, y: -3, width: 166, height: 46 }],
+		['a width', { x: -3, y: -3, width: Number.POSITIVE_INFINITY, height: 46 }],
+		['a reach up', { x: -3, y: Number.NEGATIVE_INFINITY, width: 166, height: Number.POSITIVE_INFINITY }],
+		['a reach down', { x: -3, y: -3, width: 166, height: Number.POSITIVE_INFINITY }],
+	])('reveals the box for ink it cannot measure, with %s that is not finite', (_name, drawn) => {
+		/** Draws past its box as it is told, 3 px all round where the numbers are finite. */
+		class Told extends Component {
+			protected get cullInk(): Rect {
+				return drawn;
+			}
+		}
+		const scroll = new ScrollContainer({ x: 0, y: 0, width: 200, height: 100 });
+		const content = new Container({ width: 200, height: 600 });
+		const told = new Told({ y: 300, width: 160, height: 40 });
+		content.addChild(told);
+		scroll.addChild(content);
+		root.addChild(scroll);
+		context.frame.layout();
 		const seen: number[] = [];
-		const { scroll, items } = inkyList({ reach: { bottom: Number.NaN } });
 		scroll.scrollTo(50);
 		scroll.onScroll = (offset) => seen.push(offset);
-		scroll.scrollIntoView(items[5]);
-		expect(scroll.scrollPosition).toBe(50);
-		expect(seen).toEqual([]);
+		scroll.scrollIntoView(told);
+		// Its box spans 300 to 340, and is all that shows: none of the 3 px
+		expect(scroll.scrollPosition).toBe(340 - 100);
+		expect(seen).toEqual([340 - 100]);
 	});
 
 	it('reveals the box alone for a component that cannot bound its draws', () => {

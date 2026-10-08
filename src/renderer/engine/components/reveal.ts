@@ -36,7 +36,8 @@ export interface RevealOptions {
 export function revealInAncestors(component: Component, { block = 'nearest', scroller }: RevealOptions = {}): void {
 	const box: ClipRect = { minX: 0, minY: 0, maxX: component.width, maxY: component.height };
 	const drawn = component.revealInk;
-	const ink: ClipRect = drawn === null ? { ...box } : {
+	// Ink it can't measure counts as no bound, so the box still shows
+	const ink: ClipRect = drawn === null || !isFiniteRect(drawn) ? { ...box } : {
 		minX: Math.min(drawn.x, box.minX),
 		minY: Math.min(drawn.y, box.minY),
 		maxX: Math.max(drawn.x + drawn.width, box.maxX),
@@ -84,4 +85,8 @@ function cut(box: ClipRect, clip: Rect): void {
 
 function rectOf(box: ClipRect): Rect {
 	return { x: box.minX, y: box.minY, width: box.maxX - box.minX, height: box.maxY - box.minY };
+}
+
+function isFiniteRect({ x, y, width, height }: Rect): boolean {
+	return Number.isFinite(x) && Number.isFinite(y) && Number.isFinite(width) && Number.isFinite(height);
 }
