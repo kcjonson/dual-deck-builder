@@ -443,6 +443,37 @@ describe('Driver card detail view, through the inspect path', () => {
 		expect(context.tooltips.pinned).toBeNull();
 	});
 
+	it('keeps a pinned view on the card\'s data when the data changes under it', () => {
+		const { card, centre } = roster();
+		send(context, [pointer('down', centre.x, centre.y, { button: 2 }), pointer('up', centre.x, centre.y, { button: 2 })]);
+		expect(context.tooltips.pinned).toBe(card);
+		const changed = driverCardData({ archetype: 'interceptor', hitpoints: 5, deck: { ram: 12 } });
+		card.data = changed;
+		context.frame.layout();
+		expect(context.tooltips.pinned).toBe(card);
+		const surface = context.tooltips.surface;
+		expect(surface).toBeInstanceOf(DriverInspectSurface);
+		const view = (surface as DriverInspectSurface).view;
+		expect(view.data).toBe(changed);
+		const words = view.children.filter((child): child is Text => child instanceof Text).map((child) => child.text);
+		expect(words).toEqual(expect.arrayContaining(['HP 5/25', 'DECK / 12 CARDS', 'PINNED']));
+		expect(view.deckCards.map((mini) => [mini.data.type, mini.copies])).toEqual([['ram', 12]]);
+	});
+
+	it('leaves the tooltip alone when the data changes on a card whose view isn\'t pinned', () => {
+		const { card } = roster();
+		const other = new DriverCard({ id: 'other', x: 300, y: 20, data: driverCardData({ archetype: 'mechanic' }) });
+		makeDriverInspectable(other, { cards: lookup });
+		card.parent?.addChild(other);
+		context.frame.layout();
+		context.tooltips.pin(other, { fade: false });
+		const surface = context.tooltips.surface;
+		card.data = driverCardData({ archetype: 'interceptor', hitpoints: 5 });
+		expect(context.tooltips.pinned).toBe(other);
+		expect(context.tooltips.surface).toBe(surface);
+		context.tooltips.unpin();
+	});
+
 	it('pins on I while its view shows or while it has focus, and lets go on the next I', () => {
 		const { card } = roster();
 		expect(INSPECT_KEYS).toContain('i');

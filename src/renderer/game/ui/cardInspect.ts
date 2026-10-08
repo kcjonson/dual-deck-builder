@@ -195,7 +195,8 @@ export interface DriverInspectableOptions {
 /**
  * A driver card's detail view (Game Flow 7.0: their full stats and their
  * deck), on the play card's path, centred over the card. The view is built
- * from the card's data each time it opens.
+ * from the card's data each time it opens, and the card pins it again when
+ * its data changes while it's pinned.
  */
 export function makeDriverInspectable(card: DriverCard, { cards }: DriverInspectableOptions): void {
 	makeDetailInspectable(card, ({ viewport, bounds, scale, pinned }) => {

@@ -245,11 +245,17 @@ export class DriverCard extends Component {
 		return this.model;
 	}
 
-	/** Shows another driver, or the same one changed (HP after a fight, a deck rebuilt), in place. */
+	/**
+	 * Shows another driver, or the same one changed (HP after a fight, a
+	 * deck rebuilt), in place. A pinned detail view was built from the old
+	 * data when it opened, so it's pinned again, which builds it anew.
+	 */
 	public set data(data: DriverCardData) {
 		if (data === this.model) return;
 		this.model = data;
 		this.showData();
+		const tooltips = this.context?.tooltips;
+		if (tooltips?.pinned === this) tooltips.pin(this, { fade: false });
 	}
 
 	/** The words and the HP bar for the data; texts measure only what changed. */
