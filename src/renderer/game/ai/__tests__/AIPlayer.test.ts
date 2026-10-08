@@ -3,6 +3,7 @@ import { Team, TeamType } from '../../mechanics/Team';
 import { Driver } from '../../mechanics/Driver';
 import { Vehicle } from '../../mechanics/Vehicle';
 import { RandomAI } from '../RandomAI';
+import { Rng } from '../../core/Rng';
 import { createTestDriver, createTestVehicle, createTestCard } from './test-helpers';
 
 describe('AI Player System', () => {
@@ -43,13 +44,15 @@ describe('AI Player System', () => {
 	});
 
 	describe('RandomAI', () => {
+		const enemyRandomAI = (): RandomAI => new RandomAI({ team: enemyTeam, battle, rng: new Rng({ seed: 20261007 }) });
+
 		it('should create a RandomAI instance', () => {
-			const ai = new RandomAI(enemyTeam, battle);
+			const ai = enemyRandomAI();
 			expect(ai).toBeDefined();
 		});
 
 		it('should make decisions when cards are available', async () => {
-			const ai = new RandomAI(enemyTeam, battle);
+			const ai = enemyRandomAI();
 			
 			// Add some cards to enemy driver's hand
 			const card1 = createTestCard({
@@ -83,7 +86,7 @@ describe('AI Player System', () => {
 		});
 
 		it('should return endTurn decision when no cards can be played', async () => {
-			const ai = new RandomAI(enemyTeam, battle);
+			const ai = enemyRandomAI();
 			
 			// Add expensive card that can't be played
 			const expensiveCard = createTestCard({
@@ -104,7 +107,7 @@ describe('AI Player System', () => {
 		});
 
 		it('should handle multiple valid targets correctly', async () => {
-			const ai = new RandomAI(enemyTeam, battle);
+			const ai = enemyRandomAI();
 			
 			const attackCard = createTestCard({
 				type: 'multi_target_attack',
@@ -208,6 +211,33 @@ describe('AI Player System', () => {
 			// Should have progressed the game (enemy turn processed, new player turn started)
 			expect(battle.turn).toBeGreaterThan(initialTurn);
 		});
+
+		it('carries on a team\'s stream when its AI is set again, rather than replaying it', () => {
+			enemyDriver1.hand = [createTestCard({
+				type: 'jab',
+				name: 'Jab',
+				cost: 1,
+				targetType: 'enemy_single',
+				effects: [{ type: 'damage', value: 2 }]
+			})];
+			enemyDriver1.adrenaline = 5;
+			const pick = jest.spyOn(Rng.prototype, 'pick');
+
+			battle.aiController.setEnemyAI('random');
+			battle.planEnemyTurn();
+			const firstAIPicks = pick.mock.calls.length;
+			battle.aiController.setEnemyAI('random');
+			battle.planEnemyTurn();
+			const allPicks = pick.mock.calls.length;
+			const streams = new Set(pick.mock.contexts);
+			pick.mockRestore();
+
+			// Both AIs picked, from one stream: a fork per AI would be a second
+			// stream from the same seed, back at its first draw
+			expect(firstAIPicks).toBeGreaterThan(0);
+			expect(allPicks).toBeGreaterThan(firstAIPicks);
+			expect(streams.size).toBe(1);
+		});
 	});
 
 	describe('Battle Integration', () => {
@@ -230,9 +260,9 @@ describe('AI Player System', () => {
 			enemyDriver2.adrenaline = 5;
 			
 			// RandomAI takes the first possible action: the card at the first player vehicle
-			const randomSpy = jest.spyOn(Math, 'random').mockReturnValue(0);
+			const pick = jest.spyOn(Rng.prototype, 'pick').mockImplementation(<T>(items: readonly T[]): T => items[0]);
 			battle.planEnemyTurn();
-			randomSpy.mockRestore();
+			pick.mockRestore();
 
 			const [plan] = battle.getPlan(enemyTeam.vehicles[0]);
 			expect(plan.card).toBe(card);
@@ -306,7 +336,9 @@ describe('AI Player System', () => {
 			const aiVsAiBattle = new Battle({ 
 				playerTeam, 
 				enemyTeam,
-				maxTurns: 20
+				maxTurns: 20,
+				// Seeded, so a failure here replays
+				rng: new Rng({ seed: 20261007 })
 			});
 			
 			// Configure both teams with AI

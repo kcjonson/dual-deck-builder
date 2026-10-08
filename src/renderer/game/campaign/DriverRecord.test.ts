@@ -25,13 +25,10 @@ describe('DriverRecord', () => {
 		expect(record.runsCompleted).toBe(0);
 	});
 
-	it('answers to its own id, never the model\'s random one', () => {
-		const random = jest.spyOn(Math, 'random');
-		random.mockReturnValueOnce(0.25).mockReturnValueOnce(0.75);
-
+	it('answers to its own id, never the model\'s runtime one', () => {
+		// Two models, so two runtime ids, and neither reaches the record or its JSON
 		const first = recruit();
 		const second = recruit();
-		random.mockRestore();
 
 		expect(first.id).toBe('driver-1');
 		expect(second.id).toBe('driver-1');

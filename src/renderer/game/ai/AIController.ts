@@ -1,5 +1,5 @@
 import { Battle } from '../mechanics/Battle';
-import { Team } from '../mechanics/Team';
+import { Team, TeamType } from '../mechanics/Team';
 import { Vehicle } from '../mechanics/Vehicle';
 import { PlannedAction } from '../mechanics/Intent';
 import { AIPlayer } from './AIPlayer';
@@ -10,16 +10,27 @@ import { SalvageAI } from './SalvageAI';
 import { RammingAI } from './RammingAI';
 import { FirstPlayableAI } from './FirstPlayableAI';
 import { AIDecision } from './types';
+import type { Rng } from '../core/Rng';
 
 export type AIType = 'random' | 'aggressive' | 'defensive' | 'balanced' | 'mcts' | 'salvage' | 'ramming';
 
 export class AIController {
 	private battle: Battle;
+	/**
+	 * Each team's stream, forked once from the fight's AI stream and named for
+	 * the team. An AI set again for a team carries on its draws: a fork made
+	 * per AI would replay them from the first.
+	 */
+	private readonly teamRngs: Readonly<Record<TeamType, Rng>>;
 	private playerAI: AIPlayer | null = null;
 	private enemyAI: AIPlayer | null = null;
 
-	constructor(battle: Battle) {
+	constructor({ battle, rng }: { battle: Battle; rng: Rng }) {
 		this.battle = battle;
+		this.teamRngs = {
+			[TeamType.PLAYER]: rng.fork(TeamType.PLAYER),
+			[TeamType.ENEMY]: rng.fork(TeamType.ENEMY),
+		};
 	}
 
 	setPlayerAI(type: AIType | null): void {
@@ -41,9 +52,10 @@ export class AIController {
 	}
 
 	private createAI(type: AIType, team: Team): AIPlayer {
+		const rng = this.teamRngs[team.type];
 		switch (type) {
 			case 'random':
-				return new RandomAI(team, this.battle);
+				return new RandomAI({ team, battle: this.battle, rng });
 			case 'aggressive':
 				return new AggressiveFlankerAI(team, this.battle);
 			case 'mcts':
@@ -55,7 +67,7 @@ export class AIController {
 			case 'defensive':
 			case 'balanced':
 				console.warn(`AI type '${type}' not yet implemented, using RandomAI`);
-				return new RandomAI(team, this.battle);
+				return new RandomAI({ team, battle: this.battle, rng });
 			default:
 				throw new Error(`Unknown AI type: ${type}`);
 		}
