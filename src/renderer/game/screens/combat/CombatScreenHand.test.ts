@@ -49,9 +49,13 @@ function setViewport(width: number, height: number): void {
 	Object.defineProperty(window, 'innerHeight', { configurable: true, writable: true, value: height });
 }
 
+/** Every screen startCombat mounted, so afterEach can take down one a failed test left up */
+const mounted = new Set<CombatScreen>();
+
 async function startCombat(): Promise<CombatScreen> {
 	const combat = new CombatScreen();
 	combat.mount(context);
+	mounted.add(combat);
 	await flushPromises();
 	await flushPromises();
 	context.frame.layout();
@@ -76,6 +80,15 @@ afterAll(() => {
 	adapter.detach();
 	global.fetch = originalFetch;
 	jest.restoreAllMocks();
+});
+
+// A test that throws never reaches its own unmount, and the screen it leaves
+// up would fail the tests after it
+afterEach(() => {
+	for (const combat of mounted) {
+		if (combat['isActive']) combat.unmount();
+	}
+	mounted.clear();
 });
 
 describe('CombatScreen card detail view (DDB-137)', () => {
@@ -216,9 +229,9 @@ describe('CombatScreen card detail view (DDB-137)', () => {
 	it('puts driver 2\'s keyword boxes on the left when there is room there', async () => {
 		setViewport(1280, 720);
 		const combat = await startCombat();
-		const card = handCards(combat).find((candidate) => candidate.driver === 2 && cardKeywords(candidate.data).length > 0);
-		expect(card).toBeDefined();
-		if (!card) return;
+		// The opening deal is shuffled, so a keyword card is put in the hand: Headshot's Evade
+		const card = dealTo(combat, 2, 'headshot');
+		expect(cardKeywords(card.data).length).toBeGreaterThan(0);
 		context.tooltips.show(card, { fade: false });
 		const surface = context.tooltips.surface;
 		expect(surface instanceof CardInspectSurface && surface.view.keywordSide).toBe('left');
@@ -682,7 +695,8 @@ describe('CombatScreen floating numbers', () => {
 
 	it('pops a number for each hit or miss of a card dragged onto a raider', async () => {
 		const combat = await startCombat();
-		const card = handCard(combat, ['enemy_single'], 'headshot');
+		// Not the first attack dealt: that can be a Flank, which pops nothing
+		const card = dealTo(combat, 1, 'headshot');
 		const battle = combat['battle'];
 		const resolved = () => (battle?.getMessages() ?? []).filter(message => message.type === 'damage_dealt' || message.type === 'miss').length;
 		const before = resolved();
