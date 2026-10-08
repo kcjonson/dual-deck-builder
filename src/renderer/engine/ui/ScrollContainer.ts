@@ -1,6 +1,6 @@
 import { Component, ComponentOptions, PointerEvents, ResolvedColors } from '../components/Component';
 import type { Sides } from '../components/componentGeometry';
-import { RevealRequest, ScrollBlock, revealInAncestors } from '../components/reveal';
+import { REVEAL_EPSILON, RevealRequest, ScrollBlock, revealDelta, revealInAncestors } from '../components/reveal';
 import type { Axis, Size } from '../components/layoutTypes';
 import type { DrawApi } from '../draw/DrawApi';
 import type { RGBA, Rect, Vec2 } from '../draw/geometry';
@@ -23,25 +23,6 @@ export interface ScrollIntoViewOptions {
 	/** `nearest` (the default) or `center`, as R12.20 defines them. */
 	block?: ScrollBlock;
 }
-
-/** A stretch of one axis, from `start` to `end`. */
-export interface Span {
-	start: number;
-	end: number;
-}
-
-export interface RevealDeltaOptions {
-	/** The component's content box. */
-	box: Span;
-	/** What it draws now, which may reach past the box on either side. */
-	ink: Span;
-	/** What the scroller shows: its clip. */
-	view: Span;
-	block: ScrollBlock;
-}
-
-/** In logical pixels: closer than this, a reveal is where it should be, so rounding never moves a settled view. */
-const REVEAL_EPSILON = 1e-6;
 
 export interface ScrollContainerOptions extends Omit<ComponentOptions, 'style'> {
 	/** The scrollable height; absent, it is the content child's height after layout. */
@@ -480,41 +461,4 @@ export class ScrollContainer extends Component {
 		bar.setSize(SCROLLBAR_GUTTER, clip.height);
 		bar.range = { offset: this.scrollY, extent: this.scrollExtent, viewport: this.height };
 	}
-}
-
-/**
- * R12.20's rule along one axis, worded here for y: how far to scroll so
- * `view` shows `box` and `ink`, the ink counted as at least the box, all
- * three in one space where scrolling by `d` moves the content by `-d`. Never
- * a non-finite number, and 0, not a rounding error, when nothing needs to move.
- */
-export function revealDelta({ box, ink, view, block }: RevealDeltaOptions): number {
-	// The sum is non-finite when any term is, so one test catches a NaN or an infinity anywhere.
-	if (!Number.isFinite(box.start + box.end + ink.start + ink.end + view.start + view.end)) return 0;
-	const room = view.end - view.start;
-	const size = box.end - box.start;
-	const inkStart = Math.min(ink.start, box.start);
-	const inkEnd = Math.max(ink.end, box.end);
-	const boxCentred = (box.start + box.end - view.start - view.end) / 2;
-	let delta: number;
-	if (inkEnd - inkStart <= room + REVEAL_EPSILON) {
-		// Every delta from `least` to `most` shows all of the ink: nearest
-		// stays put if it can, center starts from the box centred.
-		const least = inkEnd - view.end;
-		const most = inkStart - view.start;
-		delta = Math.min(Math.max(block === 'center' ? boxCentred : 0, least), most);
-	} else if (size <= room + REVEAL_EPSILON) {
-		// The box whole, with half the slack above it, or all of the ink
-		// above when that needs less, or more when the ink below does.
-		const slack = Math.max(room - size, 0);
-		const lead = Math.min(box.start - inkStart, Math.max(slack - (inkEnd - box.end), slack / 2));
-		delta = box.start - lead - view.start;
-	} else if (block === 'center') {
-		delta = boxCentred;
-	} else {
-		// The top at the view's top, under the ink above it unless that would hide the top.
-		const above = box.start - inkStart;
-		delta = box.start - (above < room - REVEAL_EPSILON ? above : 0) - view.start;
-	}
-	return Number.isFinite(delta) && Math.abs(delta) >= REVEAL_EPSILON ? delta : 0;
 }

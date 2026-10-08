@@ -22,7 +22,7 @@ The union never adds one ring to another: a card's 7 or 9 px of static ink alrea
 
 The reveal is computed once and handed up the chain. `revealInAncestors` in `components/reveal.ts` carries the box and `revealInk` up a level at a time through each transform, origin, and content offset, asks each ancestor to `scrollRectIntoView` them in its content space, and cuts both to each clip it passes. An outer scroller never scrolls for ink an inner clip hides, and once a clip has cut the box away the walk stops, since nothing further up can bring it back. Past a promoted layer the walk goes on, since the layer still moves with every scroller above it (a lifted card is raised), but the clips above it no longer cut what it reveals: a promotion resets the clip (R4.8). `scrollRectIntoView` is a no-op on `Component` and the entry point on `ScrollContainer`, for anything that knows a rect in a scroller's content (a menu's rows, DDB-408); `ScrollContainer.scrollIntoView(descendant)` runs the same walk with that one container scrolling.
 
-`revealDelta` is the rule along the scroll axis, and R12.20 states it:
+`revealDelta`, in the same module, is the rule along the scroll axis, and R12.20 states it:
 
 - While the ink fits the clip, `nearest` moves the least that shows all of it, and nothing at all when it shows already, compared rather than subtracted; `center` centres the box, then moves the least that keeps the ink in view, which is the old behaviour exactly when nothing extra is drawn.
 - When only the box fits, either block keeps the box whole and splits the room it leaves between the ink above and below, half each unless a side needs less, so a ring all round shows on both sides before a one-sided count takes the room.

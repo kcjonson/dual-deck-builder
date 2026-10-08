@@ -8,6 +8,7 @@ import { Container } from '../components/Container';
 import type { MountContext } from '../components/MountContext';
 import { Rectangle } from '../components/Rectangle';
 import { renderTree } from '../components/renderTree';
+import { Span, revealDelta } from '../components/reveal';
 import { Stack } from '../components/Stack';
 import { clipOnScreen, createTestContext, expectWithin, injectNow, inkOnScreen, rectOnScreen } from '../components/testing';
 import type { DrawCommand, RectCommand } from '../draw';
@@ -27,7 +28,7 @@ import { Select } from './Select';
 import { TextInput } from './TextInput';
 import { SCROLLBAR_BREADTH, SCROLLBAR_GUTTER, Scrollbar } from './Scrollbar';
 import { Slider } from './Slider';
-import { ScrollBlock, ScrollContainer, ScrollContainerOptions, Span, revealDelta } from './ScrollContainer';
+import { ScrollBlock, ScrollContainer, ScrollContainerOptions } from './ScrollContainer';
 
 /**
  * R12.20's scroll container and R12.37's scrollbar. The first block ports
