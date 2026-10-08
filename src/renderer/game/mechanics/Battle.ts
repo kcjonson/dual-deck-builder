@@ -201,7 +201,8 @@ export class Battle extends Model<BattleData> {
 
 	// The fight's random stream (stored separately due to Model freezing)
 	private static fightRngs = new WeakMap<Battle, Rng>();
-	// Each driver's deck stream, forked from the fight's on their first draw
+	// Each driver's deck stream, forked from the fight's the first time their
+	// deck shuffles or draws
 	private static deckRngs = new WeakMap<Battle, Map<Driver, Rng>>();
 
 	// Escorts under Draw Fire, in the order it was played, until the end of
@@ -221,9 +222,10 @@ export class Battle extends Model<BattleData> {
 	/**
 	 * Create a new battle. Everything random in the fight draws from `rng`,
 	 * so one stream plays the fight out the same way every time: each
-	 * driver's reshuffles from `deck:<team>:<seat index>` (`deck:player:0`)
-	 * and each team's AI from `ai` forked again by the team's type. A fight
-	 * given no stream roots its own with freshSeed.
+	 * driver's deck shuffles (before the opening deal, and whenever it runs
+	 * dry) from `deck:<team>:<seat index>` (`deck:player:0`), and each team's
+	 * AI from `ai` forked again by the team's type. A fight given no stream
+	 * roots its own with freshSeed.
 	 */
 	constructor({
 		playerTeam,
@@ -522,6 +524,7 @@ export class Battle extends Model<BattleData> {
 		this.playerTeam.setInitiative();
 		this.enemyTeam.setInitiative();
 
+		this.shuffleOpeningDecks();
 		this.drawTurnHands();
 
 		// Refill adrenaline for all drivers
@@ -2149,10 +2152,29 @@ export class Battle extends Model<BattleData> {
 	}
 	
 	/**
+	 * Every living driver on both teams, the player's first
+	 */
+	private get livingDrivers(): Driver[] {
+		return [...this.playerTeam.getAliveDrivers(), ...this.enemyTeam.getAliveDrivers()];
+	}
+
+	/**
+	 * Shuffle every living driver's deck before the opening deal, so the
+	 * order a deck was built in never fixes the fight's first hand. It draws
+	 * from the seat's deck stream, the one its reshuffles carry on, so the
+	 * fight's seed still fixes every shuffle.
+	 */
+	private shuffleOpeningDecks(): void {
+		for (const driver of this.livingDrivers) {
+			driver.deck?.shuffle(this.deckRngOf(driver));
+		}
+	}
+
+	/**
 	 * Draw the start-of-turn hand for every living driver on both teams
 	 */
 	private drawTurnHands(): void {
-		for (const driver of [...this.playerTeam.getAliveDrivers(), ...this.enemyTeam.getAliveDrivers()]) {
+		for (const driver of this.livingDrivers) {
 			this.logBurnedCards(driver, driver.drawCards(TURN_DRAW, this.deckRngOf(driver)));
 		}
 	}

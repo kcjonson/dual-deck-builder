@@ -120,6 +120,7 @@ An ambusher has no reserved formation slot and no outran vehicle. It counts as f
 
 - Players always go first (initiative system to be determined later)
 - Each driver draws 5 cards from their personal deck into their individual hand
+- Each driver's deck is shuffled when the fight starts, before the opening deal, so the order a deck was built or saved in never fixes a fight's first hand
 - A deck that runs dry mid-draw takes its discard back, shuffled. Shuffles, and any random pick an AI makes, draw from the fight's seed, so a fight plays out the same way from the same seed ([seeded-prng.md](../AI_TECHNICAL_DECISIONS/seeded-prng.md))
 - Hand limit: each driver has their own, 7 to start (see Driver). A card drawn past it goes straight to discard
 - Each driver's adrenaline pool refills to maximum
