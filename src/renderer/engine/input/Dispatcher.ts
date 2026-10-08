@@ -79,8 +79,15 @@ export interface InputObserver {
 	pointerDown?(press: PointerPress, swallowed: boolean): boolean | void;
 	/** After a move of the hovering pointer, hover already updated. */
 	pointerMove?(position: PointerPosition): void;
-	/** The hovered target changed (R9.8): the innermost hovered component, or null. */
-	hoverChange?(target: Component | null): void;
+	/**
+	 * The hovered target changed (R9.8): the innermost hovered component, or
+	 * null. `pointerMoved` is true when one of the hovering pointer's own
+	 * events changed it, and false when hover was re-derived without one:
+	 * content moved under a still pointer (a scroll, a layout, a root coming
+	 * or going), or a capture ended, though the pointer may have moved while
+	 * the capture held hover.
+	 */
+	hoverChange?(target: Component | null, pointerMoved: boolean): void;
 	/**
 	 * A `keydown` the focused chain, `cancel`, and navigation did not
 	 * consume, before the hotkey tables (R9.15). Returning true consumes it;
@@ -255,7 +262,7 @@ export class Dispatcher {
 		this.clock = clock;
 		this.pixelRatio = pixelRatio;
 		this.onCursorChange = onCursorChange ?? null;
-		this.focus = new FocusManager({ clock, roots: () => this.rootList });
+		this.focus = new FocusManager({ clock, roots: () => this.rootList, layoutPending: () => frame.layoutPending });
 		this.drag = new DragService({
 			host: {
 				hitTest: (point, options) => this.hit(point.x, point.y, options),
@@ -805,9 +812,10 @@ export class Dispatcher {
 	}
 
 	/**
-	 * Re-derives hover from the still pointer when something may have moved
-	 * under it: a root came or went, a scroll, a capture release, an
-	 * unmounted hovered component, or a layout pass (R9.9).
+	 * Re-derives hover from where the pointer is when something may have
+	 * moved under it (a root came or went, a scroll, an unmounted hovered
+	 * component, or a layout pass, R9.9) or a capture that held it ended.
+	 * Observers hear it as a change the pointer didn't make.
 	 */
 	private refreshHover(): void {
 		const version = this.frame.layoutVersion;
@@ -819,13 +827,13 @@ export class Dispatcher {
 		this.hoverStale = false;
 		const position = this.hoverPosition;
 		if (!position) {
-			if (this.hoverPath.length > 0) this.setHoverTarget(null, 1);
+			if (this.hoverPath.length > 0) this.setHoverTarget(null, 1, false);
 			return;
 		}
 		const hit = this.captures.has(position.pointerId) ? null : this.hit(position.x, position.y);
 		// The layout the hit test ran may itself have bumped the version.
 		this.layoutVersionSeen = this.frame.layoutVersion;
-		this.setHoverTarget(this.hoverTargetFor(position.pointerId, position.x, position.y, hit), position.pointerId);
+		this.setHoverTarget(this.hoverTargetFor(position.pointerId, position.x, position.y, hit), position.pointerId, false);
 	}
 
 	/**
@@ -833,7 +841,7 @@ export class Dispatcher {
 	 * innermost first to what left it, then `pointerenter` outermost first to
 	 * what joined it, neither bubbling (R9.8).
 	 */
-	private setHoverTarget(target: Component | null, pointerId: number): void {
+	private setHoverTarget(target: Component | null, pointerId: number, pointerMoved = true): void {
 		const next = target ? ancestorPath(target) : [];
 		const previous = this.hoverPath;
 		let shared = 0;
@@ -854,7 +862,7 @@ export class Dispatcher {
 			this.deliverTo(entered, this.pointerEvent('pointerenter', entered, fields));
 		}
 		const hovered = next.length > 0 ? next[next.length - 1] : null;
-		for (const observer of [...this.observers]) observer.hoverChange?.(hovered);
+		for (const observer of [...this.observers]) observer.hoverChange?.(hovered, pointerMoved);
 	}
 
 	// -- cursor (R8.2) --------------------------------------------------------

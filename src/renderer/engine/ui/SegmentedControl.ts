@@ -2,6 +2,7 @@ import { Component, ComponentOptions } from '../components/Component';
 import type { Axis, Size, SizeMode } from '../components/layoutTypes';
 import type { BoxShadow } from '../draw/commands';
 import type { DrawApi } from '../draw/DrawApi';
+import type { Rect } from '../draw/geometry';
 import type { AnyUiEvent, UiActionEvent, UiKeyEvent, UiPointerEvent } from '../input/events';
 import { glowShadow, shadowExtent } from '../style/look';
 import { CONTROL_SIZES, ControlSize, Tone, segmentLayers, toneGlow } from '../style/variants';
@@ -68,6 +69,11 @@ export class Segment<T = unknown> extends LabelledPressable {
 	/** R8.8: the selected chip's glow. */
 	public get inkExtent(): number {
 		return CHIP_GLOW_EXTENT;
+	}
+
+	/** The ring is drawn inside the box, and the chip's glow is left out as a look's glow is (R12.20). */
+	protected get restingInk(): Rect {
+		return this.boxGrownBy(0);
 	}
 
 	protected onStateChange(): void {

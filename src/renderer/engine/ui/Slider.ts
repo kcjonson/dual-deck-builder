@@ -1,6 +1,6 @@
 import { Component, ComponentOptions, Cursor, PointerEvents, ResolvedColors } from '../components/Component';
 import type { DrawApi } from '../draw/DrawApi';
-import type { RGBA } from '../draw/geometry';
+import type { RGBA, Rect } from '../draw/geometry';
 import type { AnyUiEvent, UiKeyEvent, UiPointerEvent } from '../input/events';
 import { glowShadow, shadowExtent } from '../style/look';
 import { CONTROL_SIZES, ControlSize } from '../style/variants';
@@ -268,6 +268,11 @@ export class Slider extends Component {
 	/** R8.8: the thumb's glow. */
 	public get inkExtent(): number {
 		return shadowExtent(THUMB_GLOW);
+	}
+
+	/** The thumb stays inside the box, and its glow is left out as a look's glow is (R12.20); the walk adds the ring. */
+	protected get restingInk(): Rect {
+		return this.boxGrownBy(0);
 	}
 
 	public get resolvedColors(): ResolvedColors {
