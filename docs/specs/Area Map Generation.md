@@ -149,14 +149,18 @@ Nine stages, in order. Each takes the previous stages' output and its own stream
 
 ### 1. Terrain
 
-- Sample continuous fields over the disc, each fractal noise from the `terrain` stream: elevation, moisture, and contamination. `environment`, `aridity`, `mountainCoverage`, `ruggedness`, `contamination`, and `hotspots` shape them; mountains are ridged noise masked by coverage, and ruggedness sharpens the ridges.
-- Biomes come from thresholds on the fields: barren desert (dry), scrub (middling), toxic mire (wet, low, contaminated), badlands, canyons, and mountains (high and rough). These are the regions the lore already names.
-- The metro: ruins stamped around the origin (`metroSize`), plus `towns` smaller ruined towns placed by Poisson-disc sampling further out. Ruins raise POI density nearby.
+The field model, its starting values, and why are in [terrain-fields.md](../AI_TECHNICAL_DECISIONS/terrain-fields.md).
+
+- Sample continuous fields over the disc, each fractal simplex noise from the `terrain` stream: elevation, moisture, and contamination. Elevation is rolling plains with mountain ranges, canyons, and badlands on top. Ranges run in belts along the zero lines of a broad noise layer, broken into stretches, and cover `mountainCoverage` of the country past the metro; ridged noise stands on them, higher and sharper with `ruggedness`. Canyons cut flat-floored channels into dry maps (low `aridity`), as wide as `ruggedness` makes them and deepest in rough country, and fade out at gaps. Badlands are gullied patches whose share grows with `ruggedness` and `contamination`. Moisture follows `aridity` (0 dry, 1 wet) and runs wetter in low country. `contamination` is the share of the country that's toxic. `environment` shapes all of it through the values it sets.
+- Cliffs stand only in rough country: islands covering at most about a third of the land past the metro's surroundings, where mountains, canyons, and badlands reach their full height. Elsewhere steep ground is only costly, so the land between the islands stays connected, and the metro reaches nearly all of it (measured in the decision record).
+- Biomes come from thresholds on the fields, first match: mountains (range country), canyons (in a canyon), toxic mire (wet and low, contamination counting toward wet), badlands (in a patch, unless wet), barren desert (dry), and scrub for the middling rest. These are the regions the lore already names. Ruins aren't a biome; they overlay whatever land they stand on.
+- The metro: ruins stamped around the origin (`metroSize`), plus up to `towns` smaller ruined towns placed by Poisson-disc sampling further out, clear of craters and only where a road from the metro can reach them (a flood fill over the land that can't hold a cliff); one is left out only when no reached cell's centre in the ring has room for it. Ruins raise POI density nearby.
+- Hotspots (`hotspots`): blast sites and spills, spread out past the metro, each an impassable crater in a plume of contamination.
 - Water: `rivers` traced downhill from high points to the edge, meandering by `riverMeander`, and `lakes` filled in low basins. Water is impassable except where a drivable road crosses a river at a bridge (a candidate spot for a "bridge out" hazard).
-- Impassable mask: water, craters, and cliffs (steep elevation change). No drivable road or POI goes on it.
-- Travel cost per point: a biome base cost plus a slope term. Road growth steers by it.
-- Near the compound the fields blend toward scrub, so the start is never a swamp or a cliff.
-- The noise is evaluated as functions, not a fixed grid, so later stages can sample at any resolution. The area map's terrain image is baked from these fields once.
+- Impassable mask: water, craters, and cliffs (grade 1 or steeper, in rough country). No drivable road or POI goes on it.
+- Travel cost per point: a biome base cost plus a slope term rising with the grade's square. Road growth steers by it.
+- Near the compound the fields blend toward scrub, so the start is never a swamp or a cliff: inside the metro the land is flat scrub, nothing toxic and nothing impassable.
+- The noise is evaluated as functions, not a fixed grid, so later stages can sample at any resolution, and elevation carries its exact gradient, so slope costs no extra samples. Sampling is plain arithmetic, so a seed's terrain is the same in every engine. The area map's terrain image is baked from these fields once.
 
 ### 2. Highways out of the metro
 
@@ -326,5 +330,5 @@ A section of the Developer screen for generating maps and tuning the parameters 
 
 1. Map size against campaign length: how many runs should a campaign take? The default `radius` and POI counts follow from that.
 2. Rivers and lakes in the first build, or later? They're parameters either way; zero turns them off.
-3. Noise: the `simplex-noise` package (small, MIT) or an in-repo function. A call for the implementation PR.
+3. Noise: decided, an in-repo function rather than the `simplex-noise` package, so no map depends on a package's internals, and the noise carries exact derivatives. See [terrain-fields.md](../AI_TECHNICAL_DECISIONS/terrain-fields.md).
 4. Which parameters become player-facing in the finished game (region type, map size, difficulty), and which only ever roll.
