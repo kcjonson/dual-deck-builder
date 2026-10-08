@@ -5,36 +5,24 @@ import { BoardProjection } from '../../mechanics/BoardProjection';
 import { Team, TeamType } from '../../mechanics/Team';
 import { Driver } from '../../mechanics/Driver';
 import { Vehicle } from '../../mechanics/Vehicle';
-import { Card, CardData, CardEffect } from '../../mechanics/Card';
+import { Card, CardEffect } from '../../mechanics/Card';
 import { createEscort } from '../../mechanics/Escort';
 import { RoadLane, RoadRow } from '../../mechanics/Road';
-import { createTestDriver, createTestVehicle, createTestCard } from './test-helpers';
-import cardsFile from '../../data/cards.json';
-
-const cardData = (type: string): CardData => {
-	const data = (cardsFile as unknown as { cards: CardData[] }).cards.find(candidate => candidate.type === type);
-	if (!data) throw new Error(`No card ${type} in cards.json`);
-	return { ...data, upgraded: false };
-};
-
-const realCard = (type: string): Card => new Card(cardData(type));
-
-// A real card, cost, targeting, and order rules included, with other effects
-const withEffects = (type: string, effects: CardEffect[]): Card => new Card({
-	...cardData(type),
-	type: `control_${type}`,
-	name: `Control ${type}`,
-	effects
-});
+import {
+	createBlankCard,
+	createDrawCard,
+	createFillerCards,
+	createTestCard,
+	createTestDriver,
+	createTestVehicle,
+	driverOf,
+	realCard,
+	withEffects
+} from './test-helpers';
 
 // The same card with its effects swapped for a status MCTS gives the flat unknown-effect score
 const FLAT_STATUS: CardEffect = { type: 'apply_status', status: 'vulnerable', target: 'target' };
 const FLAT_SCORE = 0.5;
-
-const driverOf = (vehicle: Vehicle): Driver => {
-	if (!vehicle.driver) throw new Error(`${vehicle.name} has no driver`);
-	return vehicle.driver;
-};
 
 /**
  * Reads MCTS's score for one play, and the plays it would be offered, against
@@ -384,6 +372,63 @@ describe('MCTSAI', () => {
 
 		test('from a caster the boost would carry past the raider, the flank counts once', () => {
 			expect(runAheadGain(4)).toBeCloseTo(8 - FLAT_SCORE);
+		});
+	});
+
+	describe('values a draw by the cards that fit under the drawer\'s hand limit', () => {
+		test('worth nothing at the limit, a draw of one a card under it, and more with room', () => {
+			const ai = new ScoringMCTSAI({ team: enemyTeam, battle, iterations: 100 });
+			const [drawTwo, drawOne, blank] = [createDrawCard(2), createDrawCard(1), createBlankCard()];
+			// Five cards, four once a draw has left the hand
+			enemyDriver1.set({ hand: [drawTwo, drawOne, blank, ...createFillerCards(2)], adrenaline: 5 });
+			const worth = (card: Card, handLimit: number): number => {
+				enemyDriver1.set({ handLimit });
+				return ai.score(ai.legalPlay(card)) - ai.score(ai.legalPlay(blank));
+			};
+
+			expect(worth(drawTwo, 4)).toBeCloseTo(0);
+			expect(worth(drawTwo, 5)).toBeCloseTo(worth(drawOne, 7));
+			expect(worth(drawTwo, 7)).toBeGreaterThan(worth(drawOne, 7));
+		});
+
+		test('plays something useful over a draw it would burn', async () => {
+			const draw = createDrawCard(2);
+			const plating = realCard('armor_plating');
+			enemyTeam.vehicles[0].set({ armor: 0 });
+			// Four cards, three once the draw has left the hand
+			enemyDriver1.set({ hand: [draw, plating, ...createFillerCards(2)], adrenaline: 5 });
+
+			expect((await mctsAI.makeDecision())?.card).toBe(draw);
+
+			enemyDriver1.set({ handLimit: 3 });
+			expect((await mctsAI.makeDecision())?.card).toBe(plating);
+		});
+
+		test('ends the turn rather than play a draw that would burn', async () => {
+			const draw = createDrawCard(2);
+			// Four cards, three once the draw has left the hand
+			enemyDriver1.set({ hand: [draw, ...createFillerCards(3)], adrenaline: 5 });
+			expect((await mctsAI.makeDecision())?.card).toBe(draw);
+
+			enemyDriver1.set({ handLimit: 3 });
+			expect((await mctsAI.makeDecision())?.type).toBe('endTurn');
+		});
+
+		test('counts a draw against its player\'s hand, not their partner\'s', () => {
+			const ai = new ScoringMCTSAI({ team: playerTeam, battle, iterations: 100 });
+			const partner = driverOf(playerTeam.vehicles[1]);
+			const [draw, blank] = [createDrawCard(2), createBlankCard()];
+			playerDriver1.set({ hand: [draw, blank, ...createFillerCards(3)], adrenaline: 5 });
+			const worth = (): number => ai.score(ai.legalPlay(draw)) - ai.score(ai.legalPlay(blank));
+			const withRoom = worth();
+			expect(withRoom).toBeGreaterThan(0);
+
+			partner.set({ hand: createFillerCards(7) });
+			expect(worth()).toBeCloseTo(withRoom);
+
+			partner.set({ hand: [] });
+			playerDriver1.set({ handLimit: 4 });
+			expect(worth()).toBeCloseTo(0);
 		});
 	});
 });

@@ -6,6 +6,7 @@ import { Vehicle } from '../mechanics/Vehicle';
 import { Card } from '../mechanics/Card';
 import { CardEffectValidator } from './CardEffectValidator';
 import { cardDamageKind, damageToFinish, lastingDamage } from './DamageEstimate';
+import { cardsKeptFromDraw } from './DrawEstimate';
 import { selfSpeedBonus } from '../mechanics/BoardProjection';
 
 /**
@@ -58,7 +59,10 @@ export class RammingStrategy implements AIStrategy {
 		return scoredActions[0].action;
 	}
 
-	private scoreAction(action: AIDecision, gameState: GameStateEvaluation): number {
+	/**
+	 * Public so tests can read what a play is worth
+	 */
+	public scoreAction(action: AIDecision, gameState: GameStateEvaluation): number {
 		if (action.type === 'endTurn') {
 			return -1000;
 		}
@@ -211,9 +215,10 @@ export class RammingStrategy implements AIStrategy {
 		}
 
 		// Card draw is valuable, especially with leftover adrenaline
-		if (cardEffects.drawCards > 0) {
+		const keptCards = cardsKeptFromDraw({ board: gameState.board, card, player: driver });
+		if (keptCards > 0) {
 			// Base value for card draw
-			let drawScore = cardEffects.drawCards * 40;
+			let drawScore = keptCards * 40;
 			
 			// Extra value if we have adrenaline left after playing this card
 			const adrenalineAfter = ourVehicle.adrenaline - card.cost;
@@ -252,7 +257,6 @@ export class RammingStrategy implements AIStrategy {
 		adrenalineGain: number;
 		changesPosition: boolean;
 		isRamming: boolean;
-		drawCards: number;
 	} {
 		const result = {
 			damage: 0,
@@ -261,8 +265,7 @@ export class RammingStrategy implements AIStrategy {
 			speedBoost: selfSpeedBonus(card),
 			adrenalineGain: 0,
 			changesPosition: false,
-			isRamming: false,
-			drawCards: 0
+			isRamming: false
 		};
 
 		// Check if this is a ramming card
@@ -299,9 +302,6 @@ export class RammingStrategy implements AIStrategy {
 					break;
 				case 'change_position':
 					result.changesPosition = true;
-					break;
-				case 'draw_cards':
-					result.drawCards += effect.value || 0;
 					break;
 			}
 		}
