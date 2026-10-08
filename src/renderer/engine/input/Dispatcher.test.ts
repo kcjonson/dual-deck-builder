@@ -413,6 +413,29 @@ describe('enter, leave, and hovered (R9.8, R9.9)', () => {
 		expect(only('pointerleave')).toEqual(['pointerleave:box']);
 	});
 
+	it("tells hover observers whether the pointer's own events moved hover, or it was re-derived without one", () => {
+		const root = new Group({ id: 'root', width: 400, height: 400 });
+		const panel = new ScrollContainer({ id: 'panel', width: 100, height: 100 });
+		const content = new Container({ width: 100, height: 200 });
+		[0, 1, 2, 3].forEach((index) => content.addChild(new Probe({ id: `row-${index}`, y: index * 50, width: 100, height: 50 })));
+		panel.addChild(content);
+		const grip = new Probe({ id: 'grip', x: 200, width: 100, height: 100 });
+		grip.captureOnDown = true;
+		root.addChild(panel);
+		root.addChild(grip);
+		mount(root);
+		const heard: string[] = [];
+		context.dispatcher.addObserver({ hoverChange: (target, pointerMoved) => heard.push(`${target?.id ?? 'none'} ${pointerMoved}`) });
+
+		send(pointer('move', 10, 10));
+		// A scroll moves the rows under the still pointer
+		wheel(10, 10, 50);
+		send(pointer('move', 250, 50));
+		// Captured, hover holds to the grip and drops off it, until the release re-derives it
+		send(pointer('down', 250, 50), pointer('move', 10, 10), pointer('up', 10, 10));
+		expect(heard).toEqual(['row-0 true', 'row-1 false', 'grip true', 'none true', 'row-1 false']);
+	});
+
 	it('drops a hovered component that unmounts without a leave, and hovers what is now there', () => {
 		const root = new Group({ id: 'root', width: 400, height: 400 });
 		const under = new Probe({ id: 'under', width: 100, height: 100 });

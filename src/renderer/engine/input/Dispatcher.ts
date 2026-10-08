@@ -81,8 +81,11 @@ export interface InputObserver {
 	pointerMove?(position: PointerPosition): void;
 	/**
 	 * The hovered target changed (R9.8): the innermost hovered component, or
-	 * null. `pointerMoved` is false when content moved under a still pointer
-	 * (a scroll, a layout, a root coming or going) rather than the pointer.
+	 * null. `pointerMoved` is true when one of the hovering pointer's own
+	 * events changed it, and false when hover was re-derived without one:
+	 * content moved under a still pointer (a scroll, a layout, a root coming
+	 * or going), or a capture ended, though the pointer may have moved while
+	 * the capture held hover.
 	 */
 	hoverChange?(target: Component | null, pointerMoved: boolean): void;
 	/**
@@ -809,9 +812,10 @@ export class Dispatcher {
 	}
 
 	/**
-	 * Re-derives hover from the still pointer when something may have moved
-	 * under it: a root came or went, a scroll, a capture release, an
-	 * unmounted hovered component, or a layout pass (R9.9).
+	 * Re-derives hover from where the pointer is when something may have
+	 * moved under it (a root came or went, a scroll, an unmounted hovered
+	 * component, or a layout pass, R9.9) or a capture that held it ended.
+	 * Observers hear it as a change the pointer didn't make.
 	 */
 	private refreshHover(): void {
 		const version = this.frame.layoutVersion;
