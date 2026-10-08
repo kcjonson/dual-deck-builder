@@ -336,7 +336,9 @@ describe('AI Player System', () => {
 			const aiVsAiBattle = new Battle({ 
 				playerTeam, 
 				enemyTeam,
-				maxTurns: 20
+				maxTurns: 20,
+				// Seeded, so a failure here replays
+				rng: new Rng({ seed: 20261007 })
 			});
 			
 			// Configure both teams with AI

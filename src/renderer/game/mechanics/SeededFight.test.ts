@@ -74,8 +74,9 @@ async function playThrough(battle: Battle): Promise<void> {
 	expect(battle.isBattleOver()).toBe(true);
 }
 
-/** The battle log without timestamps */
+/** The battle log without timestamps, or the seed line, which differs between seeds by definition */
 const logOf = (battle: Battle): string[] => battle.getMessages()
+	.filter(({ message }) => message !== `Fight seed ${battle.seed}`)
 	.map(({ turn, type, message }) => `${turn} ${type}: ${message}`);
 
 async function playOut(seed: number): Promise<string[]> {
@@ -117,6 +118,15 @@ describe('a seeded fight', () => {
 		await playOut(SEED);
 
 		expect(random).not.toHaveBeenCalled();
+	});
+
+	it('logs the seed of a stream it minted, and the seed replays it', async () => {
+		const minted = newFight();
+		await playThrough(minted);
+
+		expect(minted.getMessages().filter(({ message }) => message.startsWith('Fight seed ')))
+			.toEqual([expect.objectContaining({ type: 'debug', message: `Fight seed ${minted.seed}` })]);
+		expect(await playOut(minted.seed)).toEqual(logOf(minted));
 	});
 
 	it('draws each team\'s AI picks and each seat\'s reshuffles from their own streams', async () => {

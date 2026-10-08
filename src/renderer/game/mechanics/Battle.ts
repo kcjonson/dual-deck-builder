@@ -387,6 +387,17 @@ export class Battle extends Model<BattleData> {
 	}
 
 	/**
+	 * The fight stream's seed, logged when the fight starts: the same teams
+	 * and the same plays on `rng: new Rng({ seed })` go the same way, so a
+	 * fight that minted its own stream can still be replayed.
+	 */
+	public get seed(): number {
+		const fight = Battle.fightRngs.get(this);
+		if (!fight) throw new Error('Battle random streams not initialized');
+		return fight.seed;
+	}
+
+	/**
 	 * Get the AI controller for this battle
 	 */
 	public get aiController(): AIController {
@@ -491,6 +502,7 @@ export class Battle extends Model<BattleData> {
 		this.planEnemyTurn();
 
 		this.log('battle_start', 'Battle started!');
+		this.log('debug', `Fight seed ${this.seed}`);
 		
 		// Log initial team status
 		this.logTeamStatus();
