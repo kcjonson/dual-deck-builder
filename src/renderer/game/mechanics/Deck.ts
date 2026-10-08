@@ -1,5 +1,6 @@
 import { Card } from './Card';
 import { Model } from '../core/Model';
+import type { Rng } from '../core/Rng';
 
 /**
  * Deck data interface
@@ -141,15 +142,12 @@ export class Deck extends Model<DeckData> {
 	}
 
 	/**
-	 * Shuffle the deck using Fisher-Yates algorithm
+	 * Shuffle the deck, drawing from `rng`: in a fight, the stream Battle
+	 * forks for the deck's driver
 	 */
-	public shuffle(): void {
-		const shuffled = [...this.cards];
-		for (let i = shuffled.length - 1; i > 0; i--) {
-			const j = Math.floor(Math.random() * (i + 1));
-			[shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
-		}
-		this.cards = shuffled;
+	public shuffle(rng: Rng): void {
+		// Rng.shuffle works in place; a new array is what fires the change event
+		this.cards = rng.shuffle([...this.cards]);
 	}
 
 	/**
