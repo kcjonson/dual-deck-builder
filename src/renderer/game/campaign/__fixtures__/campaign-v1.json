@@ -1,0 +1,219 @@
+{
+	"schemaVersion": 1,
+	"seed": 20261006,
+	"generatorVersion": 1,
+	"day": 9,
+	"resources": {
+		"food": 14,
+		"water": 11,
+		"fuel": 6,
+		"meds": 2,
+		"scrap": 35,
+		"people": 18
+	},
+	"unrest": 3,
+	"nextDriverNumber": 6,
+	"drivers": [
+		{
+			"id": "driver-1",
+			"archetype": "road_warrior",
+			"name": "Road Warrior 1",
+			"hitpoints": 40,
+			"maxHitpoints": 40,
+			"injuredDays": 0,
+			"handLimit": 7,
+			"defaultDeck": {
+				"armor_plating": 3,
+				"covering_fire": 1,
+				"nitro_boost": 2,
+				"ramming_speed": 4,
+				"repair_kit": 2
+			},
+			"status": "ready",
+			"runsCompleted": 4
+		},
+		{
+			"id": "driver-2",
+			"archetype": "interceptor",
+			"name": "Interceptor 1",
+			"hitpoints": 0,
+			"maxHitpoints": 25,
+			"injuredDays": 0,
+			"handLimit": 7,
+			"defaultDeck": {},
+			"status": "dead",
+			"runsCompleted": 2
+		},
+		{
+			"id": "driver-3",
+			"archetype": "mechanic",
+			"name": "Mechanic 1",
+			"hitpoints": 18,
+			"maxHitpoints": 30,
+			"injuredDays": 2,
+			"handLimit": 7,
+			"defaultDeck": {
+				"armor_plating": 2,
+				"emp_blast": 1,
+				"nitro_boost": 2,
+				"repair_kit": 3
+			},
+			"status": "injured",
+			"runsCompleted": 3
+		},
+		{
+			"id": "driver-4",
+			"archetype": "road_warrior",
+			"name": "Road Warrior 2",
+			"hitpoints": 31,
+			"maxHitpoints": 40,
+			"injuredDays": 0,
+			"handLimit": 7,
+			"defaultDeck": {
+				"armor_plating": 3,
+				"nitro_boost": 2,
+				"ramming_speed": 5,
+				"repair_kit": 2
+			},
+			"status": "missing",
+			"runsCompleted": 1
+		},
+		{
+			"id": "driver-5",
+			"archetype": "interceptor",
+			"name": "Interceptor 2",
+			"hitpoints": 25,
+			"maxHitpoints": 25,
+			"injuredDays": 0,
+			"handLimit": 7,
+			"defaultDeck": {
+				"armor_plating": 1,
+				"flanking_maneuver": 2,
+				"headshot": 2,
+				"nitro_boost": 2,
+				"precision_shot": 3,
+				"repair_kit": 1
+			},
+			"status": "ready",
+			"runsCompleted": 0
+		}
+	],
+	"locker": {
+		"emp_blast": 1,
+		"headshot": 2,
+		"medical_kit": 1,
+		"ramming_speed": 1
+	},
+	"convoy": [
+		{
+			"name": "Fuel Hauler",
+			"armor": 5,
+			"maxArmor": 5,
+			"structure": 31,
+			"maxStructure": 40,
+			"baseSpeed": 2,
+			"mods": [
+				{
+					"name": "Reinforced Tank",
+					"kind": "defense"
+				}
+			],
+			"escort": {
+				"type": "fuel_hauler",
+				"role": "hauler",
+				"gunnery": 1,
+				"evade": 1,
+				"ramming": 3,
+				"preferredSlot": {
+					"lane": "outside",
+					"row": "center"
+				},
+				"signatureCard": "top_off",
+				"dividend": {
+					"kind": "fuel",
+					"amount": 1
+				}
+			}
+		},
+		{
+			"name": "Lightning Bike",
+			"armor": 0,
+			"maxArmor": 0,
+			"structure": 22,
+			"maxStructure": 50,
+			"baseSpeed": 5,
+			"mods": [],
+			"escort": {
+				"type": null,
+				"role": "gun",
+				"gunnery": 4,
+				"evade": 3,
+				"ramming": 2,
+				"preferredSlot": {
+					"lane": "inside",
+					"row": "behind"
+				},
+				"signatureCard": null,
+				"dividend": null
+			}
+		}
+	],
+	"strongholdsTaken": [
+		"stronghold-3"
+	],
+	"log": [
+		{
+			"day": 1,
+			"message": "Founded the compound."
+		},
+		{
+			"day": 3,
+			"message": "Interceptor 1 died on the run to the Saltflat Pumps. Their Lightning Bike limped home on its own."
+		},
+		{
+			"day": 6,
+			"message": "Took the Rustwater stronghold."
+		},
+		{
+			"day": 8,
+			"message": "Road Warrior 2 went missing on the run to Mile 40."
+		}
+	],
+	"mapParams": {
+		"seed": 20261006,
+		"environment": "mixed",
+		"radius": 1000,
+		"aridity": 0.5,
+		"mountainCoverage": 0.25,
+		"ruggedness": 0.5,
+		"rivers": 2,
+		"riverMeander": 0.5,
+		"lakes": 2,
+		"contamination": 0.3,
+		"hotspots": 3,
+		"metroSize": 0.15,
+		"towns": 5,
+		"highways": 6,
+		"highwaySeparation": 35,
+		"curviness": 0.5,
+		"branchiness": 0.5,
+		"trailShare": 0.5,
+		"roadClearance": 24,
+		"strongholds": 4,
+		"poiDensity": 1,
+		"routesTarget": 3,
+		"startingReveal": 1,
+		"stopDensity": 1,
+		"dangerCurve": 1,
+		"driverFinds": 2,
+		"daylightHours": 14,
+		"travelPace": 1,
+		"sceneryDensity": 0.6,
+		"streetGrids": 0.7,
+		"countyRoads": 0.5,
+		"brokenHighways": 2,
+		"railLines": 1,
+		"farmTracks": 0.4
+	},
+	"map": {}
+}

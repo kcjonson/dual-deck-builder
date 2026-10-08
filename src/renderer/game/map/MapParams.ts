@@ -5,14 +5,14 @@
  * validator, `rollParams`, and the Map Lab's controls are all built from.
  */
 
-export type JsonValue = null | boolean | number | string | JsonValue[] | { [key: string]: JsonValue };
+import type { JsonObject } from '../core/Json';
 
 /**
  * Stop type weights per road class, biome, tier, and territory, in place of
  * the shipped tables. Absent means the shipped tables. The stops stage owns
  * the shape; here it only has to be JSON, since params are saved.
  */
-export type StopTables = { [key: string]: JsonValue };
+export type StopTables = JsonObject;
 
 export const ENVIRONMENTS = ['highDesert', 'rustBelt', 'floodlands', 'badlands', 'mixed'] as const;
 export type Environment = (typeof ENVIRONMENTS)[number];
@@ -27,8 +27,11 @@ export const PARAM_GROUPS: readonly { readonly group: ParamGroup; readonly label
 	{ group: 'scenery', label: 'Scenery' },
 ];
 
-/** Everything generation reads. Plain JSON, so a campaign save and a preset can hold it. */
-export interface MapParams {
+/**
+ * Everything generation reads. Plain JSON, so a campaign save and a preset
+ * can hold it; a type rather than an interface so it fits `JsonObject`.
+ */
+export type MapParams = {
 	/** uint32; every random stream derives from it. */
 	seed: number;
 	environment: Environment;
@@ -74,7 +77,7 @@ export interface MapParams {
 	brokenHighways: number;
 	railLines: number;
 	farmTracks: number;
-}
+};
 
 /** The parameters with a row in the table: everything but the seed and stop tables. */
 export type ParamName = Exclude<keyof MapParams, 'seed' | 'stopTables'>;

@@ -268,4 +268,4 @@ Unchanged in spirit: the two players share the compound and decide runs together
 6. Starting pool size (4) and whether the player picks it or it's dealt.
 7. Night rules (see Night).
 8. One run per day, or can two short runs fit in a day's light?
-9. Driver names: drivers now persist, and the pool can hold two of an archetype, so "THE ROAD WARRIOR" isn't enough to tell them apart. Give each driver a personal name, with the archetype as their title?
+9. Driver names: drivers now persist, and the pool can hold two of an archetype, so "THE ROAD WARRIOR" isn't enough to tell them apart. Give each driver a personal name, with the archetype as their title? Until that's decided, a driver goes by their archetype and a number counting every driver of that archetype the compound has had, the dead included: "Road Warrior 2".
