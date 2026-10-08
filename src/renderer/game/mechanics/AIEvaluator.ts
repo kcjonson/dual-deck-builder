@@ -31,6 +31,8 @@ export interface AIEvaluationResult {
 	avgScorePerGame: number;
 	totalStructureLooted: number; // Total structure salvaged from defeated enemies
 	matchResults: AIMatchResult[];
+	/** The run's root seed, the same on every result: pass it back as `seed` to replay the run */
+	seed: number;
 }
 
 export interface EvaluationConfig {
@@ -39,10 +41,10 @@ export interface EvaluationConfig {
 	driverSets?: string[][];  // Optional specific driver sets to test
 	randomizeDrivers?: boolean;
 	/**
-	 * The run's root seed, fresh when left out. Each game's random drivers
-	 * and each match's fight fork from it by matchup and game, so a seed
-	 * replays the whole run, and a matchup's games don't move when the
-	 * AI types around it change.
+	 * The run's root seed, fresh when left out and returned on every result.
+	 * Each game's random drivers and each match's fight fork from it by
+	 * matchup and game, so a seed replays the whole run, and a matchup's
+	 * games don't move when the AI types around it change or reorder.
 	 */
 	seed?: number;
 	verbose?: boolean;
@@ -72,6 +74,7 @@ export class AIEvaluator {
 		Battle.suppressConsoleLog = true;
 		
 		const results = new Map<AIType, AIEvaluationResult>();
+		const root = new Rng({ seed: config.seed ?? freshSeed() });
 		
 		// Initialize results for each AI type
 		for (const aiType of config.aiTypes) {
@@ -85,7 +88,8 @@ export class AIEvaluator {
 				avgTurnsPerGame: 0,
 				avgScorePerGame: 0,
 				totalStructureLooted: 0,
-				matchResults: []
+				matchResults: [],
+				seed: root.seed
 			});
 		}
 		
@@ -93,7 +97,6 @@ export class AIEvaluator {
 		const totalMatchups = (config.aiTypes.length * (config.aiTypes.length - 1)) / 2;
 		const totalGames = totalMatchups * config.gamesPerMatchup * 2; // *2 for both permutations
 		let gamesCompleted = 0;
-		const root = new Rng({ seed: config.seed ?? freshSeed() });
 		
 		// Report initial progress, with the seed that replays this run
 		if (config.onProgress) {
@@ -111,10 +114,13 @@ export class AIEvaluator {
 					console.log(`\nEvaluating ${ai1} vs ${ai2}...`);
 				}
 				
+				// The pair's own name for its driver draws, whichever of the two the list put first
+				const pair = [ai1, ai2].sort().join(':');
+				
 				// Run multiple games per matchup
 				for (let game = 0; game < config.gamesPerMatchup; game++) {
 					// Get driver sets for this game
-					const driverSets = this.getDriverSetsForGame(config, game, root.fork(`drivers:${ai1}:${ai2}`, game));
+					const driverSets = this.getDriverSetsForGame(config, game, root.fork(`drivers:${pair}`, game));
 					
 					// Run both permutations (AI1 as player, AI2 as enemy and vice versa)
 					const result1 = await this.runSingleMatch(ai1, ai2, driverSets[0], driverSets[1], root.fork(`fight:${ai1}:${ai2}`, game));
@@ -412,6 +418,7 @@ export class AIEvaluator {
 		const sortedResults = Array.from(results.values()).sort((a, b) => b.winRate - a.winRate);
 		
 		let summary = '# AI Evaluation Summary\n\n';
+		if (sortedResults.length > 0) summary += `Seed ${sortedResults[0].seed}, which replays the run.\n\n`;
 		summary += '## Rankings\n\n';
 		
 		sortedResults.forEach((result, index) => {
