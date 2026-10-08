@@ -326,6 +326,25 @@ describe('Driver card (Game Flow 7.0)', () => {
 		context.focus.popScope(card);
 	});
 
+	it('lets Enter through to the screen\'s hotkeys when nothing listens for its selection, and takes it when something does', () => {
+		const screen = new Container({ id: 'screen', x: 0, y: 0, width: 400, height: 400 });
+		const card = new DriverCard({ id: 'card', x: 20, y: 20, data: driverCardData({ archetype: 'mechanic' }) });
+		card.focusable = true;
+		screen.addChild(card);
+		screen.mount(context);
+		context.frame.layout();
+		const heard: string[] = [];
+		screen.hotkeys.register('Enter', () => heard.push('screen'));
+		context.focus.pushScope(screen);
+		context.focus.focus(card, 'keyboard');
+		send(context, [key('Enter'), key('Enter', 'up')]);
+		expect(heard).toEqual(['screen']);
+		card.onSelect = () => heard.push('card');
+		send(context, [key('Enter'), key('Enter', 'up')]);
+		expect(heard).toEqual(['screen', 'card']);
+		context.focus.popScope(screen);
+	});
+
 	it('shows another driver in place, measuring only the words that changed', () => {
 		const card = mount(driverCardData({ archetype: 'interceptor', hitpoints: 22 }));
 		const children = [...card.children];

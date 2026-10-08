@@ -4,7 +4,7 @@
 import { Text } from '../../engine/components/Text';
 import { createMeasuringDrawApi } from '../../engine/text/testing';
 import { createTestContext } from '../../engine/components/testing';
-import { advance, pointer, send } from '../../engine/services/testing';
+import { advance, key, pointer, send } from '../../engine/services/testing';
 import type { MountContext } from '../../engine/components/MountContext';
 import { Card as GameCard, CardData } from '../mechanics/Card';
 import cardsFile from '../data/cards.json';
@@ -614,6 +614,26 @@ describe('Mini card (Game Flow 7.0)', () => {
 		expect(own.map(([options]) => options.text).sort()).toEqual(['+5', 'x5']);
 		measured.mockRestore();
 		card.unmount();
+	});
+
+	it('lets Enter through to the screen\'s hotkeys when nothing listens for its selection, and takes it when something does', () => {
+		const screen = new Container({ id: 'screen', x: 0, y: 0, width: 400, height: 400 });
+		const card = new Card({ id: 'card', x: 20, y: 20, data: new GameCard({ ...cardData[0] }), size: CardSize.MINI });
+		card.focusable = true;
+		screen.addChild(card);
+		screen.mount(context);
+		context.frame.layout();
+		const heard: string[] = [];
+		screen.hotkeys.register('Enter', () => heard.push('screen'));
+		context.focus.pushScope(screen);
+		context.focus.focus(card, 'keyboard');
+		send(context, [key('Enter'), key('Enter', 'up')]);
+		expect(heard).toEqual(['screen']);
+		card.onSelect = () => heard.push('card');
+		send(context, [key('Enter'), key('Enter', 'up')]);
+		expect(heard).toEqual(['screen', 'card']);
+		context.focus.popScope(screen);
+		screen.unmount();
 	});
 
 	it('opens the detail view on hover, at once on keyboard focus, and on a touch hold, as every size does', () => {

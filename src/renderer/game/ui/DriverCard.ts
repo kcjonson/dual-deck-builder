@@ -376,8 +376,10 @@ export class DriverCard extends Component {
 		super.handleEvent(event);
 		switch (event.type) {
 			case 'activate':
+				// Taken only when something listens, so otherwise Enter and Space reach the screen's hotkeys
+				if (!this.onSelect) return;
 				event.consume();
-				this.onSelect?.(this.model);
+				this.onSelect(this.model);
 				return;
 			case 'click':
 				this.onSelect?.(this.model);
