@@ -88,6 +88,19 @@ describe('foundCampaign', () => {
 			expect([campaign.mapParams.aridity, campaign.mapParams.towns]).toEqual([0.15, 7]);
 		});
 
+		it('founds on a set with stop tables, holding a frozen copy that saves and loads back the same', () => {
+			const stopTables = { highway: { raider_ambush: 2 } };
+			const campaign = found({ mapParams: { seed: SEED, stopTables } });
+			stopTables.highway.raider_ambush = 9;
+
+			expect(campaign.mapParams.stopTables).toStrictEqual({ highway: { raider_ambush: 2 } });
+			expect(Object.isFrozen(campaign.mapParams.stopTables)).toBe(true);
+			const onWarning = jest.fn();
+			const loaded = Campaign.fromJSON(JSON.parse(JSON.stringify(campaign)), { onWarning });
+			expect(loaded.mapParams.stopTables).toStrictEqual({ highway: { raider_ambush: 2 } });
+			expect(onWarning).not.toHaveBeenCalled();
+		});
+
 		it('validates them first, so the campaign holds the params generation runs on', () => {
 			const { mapParams } = found({ mapParams: { seed: SEED, strongholds: 8, highways: 3, radius: 5000 } });
 
@@ -105,7 +118,7 @@ describe('foundCampaign', () => {
 		it.each([
 			['that aren\'t an object', null, 'Invalid map preset: expected a JSON object'],
 			['with a parameter the map doesn\'t have', { seed: SEED, strongholdz: 99 }, 'Invalid map preset: unknown parameter "strongholdz"'],
-			['with a parameter in a string', { seed: SEED, radius: '1400' }, 'Invalid map preset: radius must be a number'],
+			['with a parameter in a string', { seed: SEED, radius: '1400' }, 'Invalid map preset: radius must be a number, got "1400"'],
 			['with stop tables in a list', { seed: SEED, stopTables: [] }, 'Invalid map preset: stopTables must be an object'],
 			['with null for stop tables', { seed: SEED, stopTables: null }, 'Invalid map preset: stopTables must be an object']
 		])('refuses params %s, as a map preset would be refused', (_label, mapParams, message) => {
@@ -114,7 +127,7 @@ describe('foundCampaign', () => {
 
 		it('names the path to a value in the stop tables that JSON can\'t hold', () => {
 			expect(() => found({ mapParams: { seed: SEED, stopTables: { highway: { raider_ambush: NaN } } } }))
-				.toThrow('mapParams.stopTables.highway.raider_ambush must be a finite number, got NaN');
+				.toThrow('Invalid map preset: stopTables.highway.raider_ambush must be a finite number, got NaN');
 		});
 	});
 

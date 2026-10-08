@@ -135,9 +135,10 @@ function deal({ seed, unlocked, size }: { seed: number; unlocked: readonly Drive
 
 /**
  * Rolled from the seed, or the set given, read as a preset, filled out, and
- * validated: what generation runs on. Read once more as the campaign reads
- * them, so a bad value in the stop tables fails with its path before
- * anything is built, and the campaign holds the frozen result as it is.
+ * validated: what generation runs on. Reading the set as a preset fails a
+ * bad value in the stop tables with its path before anything is built, and
+ * reading the result once more as the campaign does freezes it, so the
+ * campaign holds it as it is.
  */
 function foundingParams({ seed, set }: { seed: number; set?: MapParamSet }): Readonly<MapParams> {
 	const params = set === undefined ? rollParams(seed) : validateMapParams(resolveMapParams(readMapPreset(set)).params).params;

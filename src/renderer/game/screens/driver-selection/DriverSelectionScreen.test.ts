@@ -8,7 +8,7 @@ import type { MountContext } from '../../../engine/components/MountContext';
 import { Button } from '../../../engine/ui/Button';
 import { Badge } from '../../../engine/ui/Badge';
 import { Clock } from '../../../engine/animation/Clock';
-import { createTestContext } from '../../../engine/components/testing';
+import { clipOnScreen, createTestContext, expectWithin, inkOnScreen } from '../../../engine/components/testing';
 import { NO_MODIFIERS } from '../../../engine/input/events';
 import { createMeasuringDrawApi } from '../../../engine/text/testing';
 import { DriverLoader } from '../../core/DriverLoader';
@@ -593,6 +593,37 @@ describe('DriverSelectionScreen: one driver per slot', () => {
 			context.focus.focus(card, 'keyboard');
 			press('i');
 			expect(context.tooltips.pinned).toBe(card);
+			context.tooltips.hide();
+			context.focus.popScope(screen.root);
+		});
+
+		it.each([[1024, 600], [800, 450], [640, 400]])("shows what each mini draws, a stack's edges and count included, walking the deck right and back left at %ix%i (DDB-406)", async (width, height) => {
+			viewportSize = { width, height };
+			const { screen, left } = await mountScreen();
+			screen.resize(width, height);
+			context.frame.layout();
+			context.focus.pushScope(screen.root);
+			const preview = left.deckPreview;
+			const cards = miniCards(left);
+			// A stack draws edges and a count past its box, which the walk has to show
+			expect(cards.some((card) => card.copies > 1)).toBe(true);
+			const shown = (card: UICard): void => expectWithin(inkOnScreen(card), clipOnScreen(preview), 'y');
+
+			press('Tab');
+			let furthest = preview.scrollPosition;
+			for (let index = 0; index < cards.length; index++) {
+				if (index > 0) press('ArrowRight');
+				expect(context.focus.focused === cards[index]).toBe(true);
+				shown(cards[index]);
+				furthest = Math.max(furthest, preview.scrollPosition);
+			}
+			for (let index = cards.length - 2; index >= 0; index--) {
+				press('ArrowLeft');
+				expect(context.focus.focused === cards[index]).toBe(true);
+				shown(cards[index]);
+			}
+			// The deck sits below the flavour text, so the walk scrolled to reach it
+			expect(furthest).toBeGreaterThan(0);
 			context.tooltips.hide();
 			context.focus.popScope(screen.root);
 		});
