@@ -6,7 +6,7 @@ This replaces the single long run up a map to a region boss. The player runs a c
 
 ## Terms
 
-- Campaign: one save, from founding the compound to its fall or victory. This is the roguelike "run" for meta-progression. It's saved after every step that changes it (each stop, arriving home, each compound action), so quitting loses at most the step in progress.
+- Campaign: one save, from founding the compound to its fall or victory. This is the roguelike "run" for meta-progression. It's saved after every step that changes it (each stop, arriving home, each compound action), so quitting loses at most the step in progress. Each deployed build keeps its own save; a save from a version of the game with another save format can't be continued, and a new campaign replaces it.
 - Compound: the player's settlement. It persists for the whole campaign and holds the resources, the driver pool, the vehicles, and the convoy.
 - Supply run (a run): one trip out from the compound to a point of interest. Runs are one way out; the trip home is down the road just cleared.
 - Area map: the whole known region around the compound. Open at any time outside a fight or an event.

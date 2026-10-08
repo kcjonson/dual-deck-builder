@@ -21,7 +21,13 @@ The alternatives: the plain Model pattern, writable properties checked only on l
 
 ## What a campaign's change event covers
 
-The campaign's `change` covers its own fields and finished card moves (below). Records, escorts, and the convoy emit on their own models and not on the campaign: a combat bridge setting a record's HP emits on the record, an escort taking damage on its own `Vehicle`, and escorts joining or leaving on the convoy. So saving happens at checkpoints, `CampaignStore.checkpoint` at the end of each step (a stop resolving, arriving home, a compound action), not on change events. A record's change fires partway through a card move, before the locker is stored; a save asked for from a listener is taken once the code that set it off has run, so it's whole for a synchronous step like a card move, but a step that awaits part way is captured as it stood at the await ([campaign-save-and-load.md](./campaign-save-and-load.md)).
+The campaign's `change` covers its own fields and finished card moves (below). Records, escorts, and the convoy emit on their own models and not on the campaign: a combat bridge setting a record's HP emits on the record, an escort taking damage on its own `Vehicle`, and escorts joining or leaving on the convoy. So saving happens at checkpoints, `CampaignStore.checkpoint` at the end of each step (a stop resolving, arriving home, a compound action), not on change events. A save asked for from a listener is taken once the code that set it off has run, so it's whole for a synchronous step like a card move, but a step that awaits part way is captured as it stood at the await ([campaign-save-and-load.md](./campaign-save-and-load.md)).
+
+A record listener has three things to know about a card move:
+
+- Mid-move it can see a copy in two places or in none: the giving deck is stored before the receiving one, and both before the locker.
+- `Campaign.set` or `addLogEntry` from it throws, since the campaign refuses every change while a move is stored, and the event emitter catches and logs the throw, so the listener's change is lost without the move noticing.
+- A move whose copies bounce back to the giving driver or the locker (below) returns as if it had landed; the caller gets no signal.
 
 ## Driver ids come from a saved counter
 
@@ -37,7 +43,7 @@ Nothing in the model draws randomness, and the seed comes in from founding. When
 
 A move is stored so nothing sees half of it, or acts on half of it:
 
-- Both ends are checked before either is stored, so a move the far end can't take (one that would push a count past what it can hold) stores nothing.
+- Both ends are checked before either is stored, and for a move between drivers the locker too, since it's where the copies fall back to (below), so a move that would push a count past what it can hold stores nothing.
 - Decks are stored before the locker, so the campaign's `change` for a move to or from the locker comes once the move is whole. A move between two drivers ends with a campaign `change` of its own.
 - While the decks are being stored, the campaign refuses another `moveCards` and every `set`. A listener on a driver's deck that moved cards or changed the locker then would have its change overwritten by the rest of this one, destroying a copy, and any other change would tell campaign listeners about a campaign holding half a move. Once the campaign's `change` arrives, the move is done and a listener can change the campaign again.
 - Records aren't held while a move is stored, so a listener on the giving driver's deck can still change the receiving driver. The copies land on the deck the receiving driver holds once the giving one is stored. If a listener has sent the receiving driver away (dead or missing) by then, or filled their deck past what a count holds, the copies go back to the giving driver, or to the locker if the giving driver can't take them either.
@@ -56,15 +62,15 @@ Card types are checked for shape (lower snake case), not against `cards.json`, w
 - A new record defaults to its archetype's config: max HP, all of it, the hand limit (`DRIVER_CONFIGS[archetype].handLimit`, DDB-285), and the starting deck, ready.
 - The name is the archetype's title and an ordinal, "Road Warrior 2", counting every driver of that archetype the compound has had, dead included, so no two share one. It's stored, so the names DDB-318 decides on can replace it.
 
-## The save is strict JSON with a schema version
+## The save is strict JSON
 
-`toJSON` writes fresh plain JSON, so `JSON.stringify(campaign)` is the save. `Campaign.fromJSON` takes the parsed value:
+`toSaveText` writes the save's plain JSON, which `JSON.stringify(campaign)` also writes, and `toJSON` parses back as a copy. `Campaign.fromJSON` takes the parsed value:
 
-- `schemaVersion` is read first. It's an integer from 1; a version newer than the build is refused, and an older one goes through `migrateSave`, one step per version from `CAMPAIGN_MIGRATIONS` (empty while 1 is the only version), each step's result stamped with the version it reached.
+- The campaign's JSON carries no version. `CampaignStore` stamps every save with the save format version, `CAMPAIGN_SCHEMA_VERSION`, and only hands `fromJSON` a save of this build's version; there are no migrations ([campaign-save-and-load.md](./campaign-save-and-load.md)).
 - Every object must have exactly its fields. Missing and unknown fields both throw, as map presets do, so a renamed field can't vanish quietly. Map params are the one exception (below).
 - Every array must hold a value at every index. JSON never makes a hole, but a `set` could pass one, and `map` and `forEach` would skip it unchecked.
-- Errors name where: `Campaign.drivers[1].status must be one of ready, injured, dead, missing, got "sleeping"`. TypeError for the wrong kind of value, RangeError for a value out of range.
-- `campaign/__fixtures__/campaign-v1.json` is a version 1 save, which loads and writes back the same. When the version goes up it stays, loading through the migration.
+- Errors name where: `Campaign.drivers[1].status must be one of ready, injured, dead, missing, got "sleeping"`. A `ReaderTypeError` for the wrong kind of value, a `ReaderRangeError` for a value out of range: still a TypeError and a RangeError, but classes of their own, so a load can tell a damaged save from a bug in the code reading it.
+- `campaign/__fixtures__/campaign-v1.json` is a campaign at the current format, which loads and writes back the same. When the format changes, the fixture changes with it and the version goes up.
 
 Loading leniently, as `GameSettings` does (defaults for what's missing, unknown keys ignored), was rejected for saves: a damaged campaign would load as a different campaign.
 
@@ -101,8 +107,8 @@ The log is `{ day, message }` lines, dated by `addLogEntry` with the current day
 
 ## Consequences
 
-- Saving (DDB-49, [campaign-save-and-load.md](./campaign-save-and-load.md)) writes `campaign.toSaveText()`, the same text as `JSON.stringify(campaign)` without `toJSON`'s copies, at checkpoints, and loads with `Campaign.fromJSON(JSON.parse(text), { onWarning })`; anything thrown means the save can't be loaded (or, from `toSaveText` and `toJSON`, written), and warnings mean it loaded with its map params repaired.
+- Saving (DDB-49, [campaign-save-and-load.md](./campaign-save-and-load.md)) writes `campaign.toSaveText()` at checkpoints, stamped with the save format version, and loads with `Campaign.fromJSON(json, { onWarning })`; a reader error means the save can't be loaded (or, from `toSaveText`, written), and warnings mean it loaded with its map params repaired.
 - Founding (DDB-284) builds `new Campaign({ seed, generatorVersion, mapParams, map, resources })` with params it has validated, and calls `recruitDriver` for each starting driver.
 - The combat bridge (DDB-286) builds combat drivers from records and writes HP, status, and injured days back in one `set`, with an empty deck for a driver who died.
-- Until saves ship, the format can change without a version bump if the fixture changes with it. After that, every change bumps the version and adds a migration.
+- Every change to the format bumps `CAMPAIGN_SCHEMA_VERSION`, which invalidates every existing save of a build, since there are no migrations; the fixture changes with it.
 - A checked `set` can still replace a whole deck or the locker, which makes or destroys copies; `moveCards` is the path that conserves them.
